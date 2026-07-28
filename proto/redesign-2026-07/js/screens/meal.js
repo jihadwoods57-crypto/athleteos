@@ -169,6 +169,81 @@ export const mealQuestions = {
   },
 };
 
+/**
+ * The AI rows at the top of a meal thread. Derived from the meal's own state, never stored, so a
+ * comments refetch can never wipe them.
+ *
+ * Four states, because a meal is now logged BEFORE the AI has read it:
+ *   pending   — the read is in flight. The meal already counts; this says so plainly.
+ *   questions — the model needs something the camera can't show. Asked here, in the thread,
+ *               instead of on a blocking screen the athlete had to sit through.
+ *   failed    — the read did not land. The meal stays logged as photo proof; retry is offered.
+ *   result    — the normal case: summary, optional full analysis, and one follow-up question.
+ */
+export function openingBlockHtml(M, { sum, fullText, fq } = {}) {
+  const aiRow = (inner, id) => `
+      <div class="msg ai"${id ? ` id="${id}"` : ''}>
+        <div class="av">${icon('sparkle', 15)}</div>
+        <div><div class="who">AI Nutritionist</div>
+        <div class="bubble">${inner}</div></div>
+      </div>`;
+
+  if (M && M.analysisFailed) {
+    const capacity = M.analysisFailed === 'capacity';
+    return aiRow(`
+          <div style="font-weight:700">${capacity ? "I couldn't get to this one today." : "I couldn't read this plate."}</div>
+          <div style="margin-top:4px;color:var(--text-2)">It's logged and counts for timing either way — your photo is the proof.${capacity ? '' : ' Worth another try?'}</div>
+          ${capacity ? '' : `<div class="fq-chips"><button class="fx-chip" id="mt-retry-analysis">${icon('sparkle', 13)} Read it again</button></div>`}`, 'analysis-failed');
+  }
+
+  if (M && Array.isArray(M.pendingQuestions) && M.pendingQuestions.length) {
+    const qs = M.pendingQuestions.slice(0, 3);
+    return aiRow(`
+          <div style="font-weight:700">Two quick things and your numbers are exact.</div>
+          <div style="margin-top:3px;color:var(--text-2)">A photo can't show what's under or off the plate.</div>
+          <div class="mq-list" style="margin-top:10px">
+            ${qs.map((q, i) => `
+            <label class="mq-item">
+              <div class="mq-q"><span class="mq-n">${i + 1}</span><span>${esc(q)}</span></div>
+              <input class="mq-input" data-qi="${i}" type="text" autocomplete="off"
+                enterkeyhint="${i === qs.length - 1 ? 'done' : 'next'}" placeholder="Your answer" aria-label="${esc(q)}" />
+            </label>`).join('')}
+          </div>
+          <div class="fq-chips">
+            <button class="fx-chip" id="mq-thread-go">${icon('check', 13)} Get my result</button>
+            <button class="fx-chip" id="mq-thread-skip">Skip, just estimate</button>
+          </div>`, 'mq-bubble');
+  }
+
+  if (M && M.pending) {
+    return aiRow(`
+          <div style="font-weight:700">Reading your plate<span class="dots"></span></div>
+          <div style="margin-top:4px;color:var(--text-2)">Logged and counting. The breakdown lands here in a few seconds — you don't have to wait on this screen.</div>`, 'analysis-pending');
+  }
+
+  return `
+      <div class="msg ai">
+        <div class="av">${icon('sparkle', 15)}</div>
+        <div><div class="who">AI Nutritionist</div>
+        <div class="bubble ai-sum">
+          ${sum && sum.wentWell ? `<div class="sr"><span class="ai-k">What went well</span>${esc(sum.wentWell)}</div>` : ''}
+          ${sum && sum.opportunity ? `<div class="sr"><span class="ai-k">Biggest opportunity</span>${esc(sum.opportunity)}</div>` : ''}
+          ${sum && sum.next ? `<div class="sr"><span class="ai-k">Next time</span>${esc(sum.next)}</div>` : ''}
+          ${fullText ? `<button class="ai-full-toggle" id="ai-full-toggle" aria-expanded="false">View full analysis</button>
+          <div class="ai-full" id="ai-full" hidden>${esc(fullText)}</div>` : ''}
+        </div></div>
+      </div>
+      ${fq ? `
+      <div class="msg ai" id="fq-bubble">
+        <div class="av">${icon('sparkle', 15)}</div>
+        <div><div class="who">AI Nutritionist</div>
+        <div class="bubble">
+          ${esc(fq.q)}
+          <div class="fq-chips">${fq.chips.map(c => `<button class="fx-chip" data-fq="${esc(fq.kind)}" data-val="${esc(c.value)}">${esc(c.label)}</button>`).join('')}</div>
+        </div></div>
+      </div>` : ''}`;
+}
+
 /* ---------- Meal Analysis (AI, pre-log) ----------
    Founder structure (2026-07-15), each fact exactly once:
      photo (with timing vs the slot deadline) → editable breakdown (what + how much) →
@@ -473,6 +548,9 @@ export const thread = {
     // ---- 3. MEAL BREAKDOWN (feedback 2026-07-16: progress bars imply a goal — they only
     // render against REAL coach targets. No targets → plain nutrient tiles, no fake
     // denominators. Detected foods are rows with portions + an honest estimate note.) ----
+    // A read still in flight (or one that failed) has no numbers to correct — the correction
+    // affordances only appear once the analysis has settled.
+    const settled = !M.pending && !M.analysisFailed && !(Array.isArray(M.pendingQuestions) && M.pendingQuestions.length);
     const T = S.planTargets || {};
     const fromPhoto = M.source !== 'label' && M.source !== 'manual';
     const conf = estimateConfidence(M.source, M.detectedRich);
@@ -500,7 +578,20 @@ export const thread = {
     // safety signal); this gate is presentation only. `showMacros` is the athlete's own
     // opt-in-able switch, so someone who WANTS their numbers back can have them.
     const showNums = S.planStyle.showMacros;
-    const breakdown = !showNums ? `
+    // While the read is in flight there are no numbers yet — and a macro row of zeros reads as a
+    // measurement, not an absence. Show the honest placeholder instead of "0g protein · 0 cal",
+    // and withhold the "Correct the analysis" link until there is something to correct.
+    const breakdown = !settled ? `
+    <div class="eyebrow" style="margin-top:16px">Meal Breakdown</div>
+    <section class="card pad" style="margin-top:8px">
+      <div class="macro-row five">
+        ${['Protein', 'Carbs', 'Fat', 'Calories', 'Fiber'].map((k) => `
+        <div class="macro"><div class="mv" style="color:var(--text-3)">&mdash;</div><div class="mk">${k}</div></div>`).join('')}
+      </div>
+      <div class="est-note" style="margin-top:10px">${M.analysisFailed
+        ? 'No numbers for this one — the photo is still your proof that the meal happened.'
+        : 'Reading the plate. The numbers fill in here when it lands.'}</div>
+    </section>` : !showNums ? `
     <div class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">What was on the plate</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></div>
     ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
     ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
@@ -597,33 +688,14 @@ export const thread = {
     <div class="eyebrow" style="margin-top:18px">Team Discussion</div>
     <div class="rx-strip" id="rx-strip"></div>
     <div class="thread" id="meal-thread">
-      <div class="msg ai">
-        <div class="av">${icon('sparkle', 15)}</div>
-        <div><div class="who">AI Nutritionist</div>
-        <div class="bubble ai-sum">
-          ${sum.wentWell ? `<div class="sr"><span class="ai-k">What went well</span>${esc(sum.wentWell)}</div>` : ''}
-          ${sum.opportunity ? `<div class="sr"><span class="ai-k">Biggest opportunity</span>${esc(sum.opportunity)}</div>` : ''}
-          ${sum.next ? `<div class="sr"><span class="ai-k">Next time</span>${esc(sum.next)}</div>` : ''}
-          ${fullText ? `<button class="ai-full-toggle" id="ai-full-toggle" aria-expanded="false">View full analysis</button>
-          <div class="ai-full" id="ai-full" hidden>${esc(fullText)}</div>` : ''}
-        </div></div>
-      </div>
-      ${fq ? `
-      <div class="msg ai" id="fq-bubble">
-        <div class="av">${icon('sparkle', 15)}</div>
-        <div><div class="who">AI Nutritionist</div>
-        <div class="bubble">
-          ${esc(fq.q)}
-          <div class="fq-chips">${fq.chips.map(c => `<button class="fx-chip" data-fq="${esc(fq.kind)}" data-val="${esc(c.value)}">${esc(c.label)}</button>`).join('')}</div>
-        </div></div>
-      </div>` : ''}
+      ${openingBlockHtml(M, { sum, fullText, fq })}
       <div class="msg-status" id="thread-status">${M.mealId ? 'Loading the thread…' : (S.coach.hasCoach ? `Syncs when connected — your ${esc(S.coach.noun)} sees this log either way.` : 'Syncs when connected — this log is saved either way.')}</div>
     </div>
     ${M.mealId ? `
     <div class="qa-row">
       <button class="qa" data-qa="">Ask a question</button>
-      <button class="qa" id="qa-correct">Correct analysis</button>
-      <button class="qa" id="qa-details">Add meal details</button>
+      ${settled ? `<button class="qa" id="qa-correct">Correct analysis</button>
+      <button class="qa" id="qa-details">Add meal details</button>` : ''}
     </div>
     ${composer({ inputId: 'meal-msg', sendId: 'meal-send', placeholder: 'Ask about this meal…', sendLabel: 'Send' })}
     <div id="chat-note" style="min-height:18px"></div>` : ''}`;
@@ -827,12 +899,11 @@ export const thread = {
       const tail = [];
       if (!msgs.length) tail.push('No replies yet. Ask below and the AI Nutritionist answers from your plan.');
       if (!coachSeen) tail.push("Coach hasn't reviewed this meal yet.");
-      // The derived AI opening (first .msg) AND the follow-up question bubble (#fq-bubble)
-      // are render-time rows, never stored — capture and re-prepend BOTH on every repaint
-      // so a comments refresh can't wipe the question before the athlete answers it.
-      const openingEl = threadEl.querySelector('.msg');
-      const fqEl = threadEl.querySelector('#fq-bubble');
-      const openingHtml = (openingEl ? openingEl.outerHTML : '') + (fqEl ? fqEl.outerHTML : '');
+      // The AI opening rows are DERIVED, never stored — so re-derive them from state on every
+      // repaint. This used to scrape the existing DOM (outerHTML of the first .msg + #fq-bubble)
+      // and re-prepend it, which could not represent a read still in flight: a comments refresh
+      // would wipe a pending bubble, and the state had nowhere to live.
+      const openingHtml = openingBlockHtml(mealDetail(M.slot) || M, { sum, fullText, fq });
       threadEl.innerHTML = openingHtml + msgs.map((c) => {
         const t = fmtMsgTime(c.created_at);
         return `
@@ -870,6 +941,18 @@ export const thread = {
       input.scrollIntoView({ block: 'center', behavior: 'smooth' });
     };
     root.querySelectorAll('.qa').forEach((b) => b.addEventListener('click', () => prefill(b.getAttribute('data-qa') || '')));
+
+    // Pending-read controls. Delegated on the root because openingBlockHtml re-renders these rows
+    // on every repaint — a direct listener would be lost the first time the thread refreshed.
+    root.addEventListener('click', (ev) => {
+      const t = ev.target && ev.target.closest ? ev.target.closest('#mq-thread-go, #mq-thread-skip, #mt-retry-analysis') : null;
+      if (!t) return;
+      if (t.id === 'mt-retry-analysis') { act.retryAnalysis(M.slot); return; }
+      if (t.id === 'mq-thread-skip') { act.skipPendingQuestions(M.slot); return; }
+      const answers = [];
+      root.querySelectorAll('#mq-bubble .mq-input').forEach((el) => { answers[+el.dataset.qi] = el.value; });
+      act.answerPendingQuestions(M.slot, answers);
+    });
     // (the old "flag it for Coach" free-text path is replaced by the structured correction panel)
     const setNote = (t, retry) => { if (note) note.innerHTML = t ? `<div class="mt-retry" ${retry ? 'id="chat-retry"' : ''}>${esc(t)}</div>` : ''; };
     let busy = false;

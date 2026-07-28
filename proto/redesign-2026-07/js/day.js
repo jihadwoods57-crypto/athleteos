@@ -714,7 +714,10 @@ export function pushDay(userId, immediate) {
   saveCache(userId);
   if (pushTimer) { clearTimeout(pushTimer); pushTimer = null; }
   const doPush = async () => {
-    const sb = window.sb;
+    // `window` is absent in Node (this module is imported directly by the jest/proto test suites),
+    // and the debounced timer can fire after a test has finished — an unguarded reference threw
+    // ReferenceError there, outside any test's catch, which reads like a suite crash.
+    const sb = typeof window !== 'undefined' ? window.sb : null;
     if (!sb || !userId || SYNC_BLOCKED) return;
     const s = clampedScore(DAY);
     const tasks = currentTasks(); // [{id, done}] from the exec engine, or null if unavailable

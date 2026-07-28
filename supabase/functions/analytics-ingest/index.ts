@@ -30,7 +30,7 @@ const json = (b: unknown, s = 200) =>
 // The server-side event vocabulary — MUST stay in sync with proto analytics.js EVENTS.
 const ALLOWED = new Set([
   "app_open", "onboarding_started", "onboarding_role", "goal_selected", "age_blocked",
-  "onboarding_completed", "meal_logged", "meal_analysis_failed", "commitment_set",
+  "onboarding_completed", "meal_logged", "meal_analysis_failed", "meal_analysis_applied", "commitment_set",
   "recovery_submitted", "checkin_submitted", "weight_logged", "coach_connected",
   "code_join_failed", "app_error",
   // Paywall funnel (2026-07-21) — surface events; must match proto analytics.js EVENTS.
