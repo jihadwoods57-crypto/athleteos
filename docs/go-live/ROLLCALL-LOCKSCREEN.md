@@ -43,9 +43,16 @@ Schedule `commitment-escalation` every 5 minutes, the same cadence `commitment-r
 runs on:
 
 ```sql
-select schedule_commitment_reminders(
+select schedule_commitment_escalation(
   'https://<project>.supabase.co/functions/v1/commitment-escalation', '<COMMITMENT_CRON_KEY>');
 ```
+
+> This step used to say `schedule_commitment_reminders` with the escalation URL. Do not do that.
+> That function (0140) hardcodes `jobname = 'commitment-reminders'` and unschedules it before
+> rescheduling, so the second call replaces the reminder job rather than adding the ladder — and
+> the result is inverted and silent: reminders stop, while the ladder that exists only to chase
+> people who ignored a reminder keeps running. `cron.job` still shows one healthy row.
+> `schedule_commitment_escalation` (0159) owns its own job name. Both should appear in `cron.job`.
 
 `roll-call-ack` takes no JWT by design — the signed code in the request body is the credential, not
 a Supabase session. `commitment-escalation` is protected by the `x-commitment-key` header instead,
