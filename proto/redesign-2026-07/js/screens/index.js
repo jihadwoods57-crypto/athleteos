@@ -53,6 +53,7 @@ import logTraining from './log-training.js';
 import trainingHistory from './training-history.js';
 import rollCall from './roll-call.js';
 import connectedStandard, { connectedStandardsList, connectedStandardEdit } from './connected-standards.js';
+import { coachStandards, coachStandardEdit, coachStandardsManage } from './coach-connected.js';
 import locationConsent from './location-consent.js';
 import accountability from './accountability.js';
 import verifiedDiscipline from './verified-discipline.js';
@@ -177,4 +178,9 @@ export const screens = {
   'connected-standard': connectedStandard,
   'connected-standards': connectedStandardsList,
   'connected-standard-edit': connectedStandardEdit,
+  // Operator: the live board, the builder, and the manage list. nav:'operator' renders each of
+  // these for a coach's team AND a trainer's practice.
+  'coach-standards': coachStandards,
+  'coach-standard-edit': coachStandardEdit,
+  'coach-standards-manage': coachStandardsManage,
 };

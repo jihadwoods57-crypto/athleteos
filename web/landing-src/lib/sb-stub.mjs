@@ -161,6 +161,42 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
       return [steps(false), weekly(6.4)];
     },
 
+    // The coach's board. Mirrors connected_standard_board's contract exactly: a status and a
+    // PERCENTAGE of the coach's own target per athlete — no raw activity value anywhere, which is
+    // the privacy promise the real RPC keeps structurally.
+    connected_standard_board: () => {
+      if ((window.__CS_MODE || 'none') === 'none') return [];
+      const names = (window.__CS_ROSTER || [
+        ['Marcus Reyes', 'verified_complete', 100], ['Tyler Brooks', 'verified_complete', 100],
+        ['Andre Cole', 'verified_complete', 100], ['Devin Ward', 'completed_manually', 100],
+        ['Jalen Price', 'in_progress', 64], ['Chris Moreau', 'in_progress', 41],
+        ['Sam Whitfield', 'awaiting_review', 0], ['Kyle Barnes', 'awaiting_sync', 61],
+        ['Omar Diaz', 'disconnected', 0], ['Ryan Fields', 'excused', 0],
+        ['Luis Herrera', 'missed', 38],
+      ]);
+      return [{
+        standard_id: 'cs-steps', instance_id: 'csi-steps', title: 'Daily Movement',
+        metric: 'steps', display_unit: 'steps', target: 10000, period: 'day',
+        period_start: TODAY, period_end: TODAY,
+        deadline_at: TODAY + 'T03:59:00Z', instance_status: 'scheduled',
+        audience_kind: 'team', audience_label: null,
+        rows: names.map(([name, status, pct], i) => ({
+          result_id: 'r' + i, athlete_id: 'a' + i, name, status, progress_pct: pct,
+          verified_source: status === 'verified_complete' ? 'healthkit'
+            : status === 'completed_manually' ? 'manual' : null,
+          last_synced_at: status === 'awaiting_sync' ? shift(TODAY, -1) + 'T18:04:00Z'
+            : status === 'disconnected' ? null : TODAY + 'T22:40:00Z',
+          device_connected: status !== 'disconnected',
+          manual_note: status === 'awaiting_review' ? 'Watch died at practice' : null,
+          manual_submitted_at: status === 'awaiting_review' ? TODAY + 'T21:50:00Z' : null,
+          excused_reason: status === 'excused' ? 'Team travel' : null,
+          corrected_by_name: null,
+          disputed_at: status === 'missed' ? TODAY + 'T23:10:00Z' : null,
+          dispute_note: status === 'missed' ? 'I walked it, phone was off' : null,
+        })),
+      }];
+    },
+
     // ---- Verified Commitments (0138/0139) ----
     // Row shape mirrors what deriveCommitment() in commitments.js actually reads. The STAGE of
     // each card (open / acknowledged / awaiting_arrival / missed / unverified) is decided by that

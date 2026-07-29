@@ -99,6 +99,10 @@ const SHOTS = [
   { g: 'standards', name: 'cs-detail-gap', seed: 'dayMidday', route: 'connected-standard/csr-steps', at: [21, 30], cs: 'gap' },
   { g: 'standards', name: 'cs-list', seed: 'dayMidday', route: 'connected-standards', at: [18, 45], cs: 'live' },
   { g: 'standards', name: 'cs-edit', seed: 'dayMidday', route: 'connected-standard-edit', at: [18, 45], cs: 'live' },
+  { g: 'standards', name: 'cs-coach-board', seed: 'coachIdentity', route: 'coach-standards', at: [20, 4], cs: 'live', book: 'team' },
+  { g: 'standards', name: 'cs-coach-build', seed: 'coachIdentity', route: 'coach-standard-edit', at: [14, 12], cs: 'live', book: 'team' },
+  { g: 'standards', name: 'cs-coach-manage', seed: 'coachIdentity', route: 'coach-standards-manage', at: [14, 10], cs: 'live', book: 'team' },
+  { g: 'standards', name: 'cs-coach-home', seed: 'coachIdentity', route: 'coach-home', at: [20, 4], cs: 'live', book: 'team' },
 
   // plan styles
   { g: 'styles', name: 'style-structured', seed: 'styleStructured', route: 'plan', at: [21, 40] },

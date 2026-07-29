@@ -22,6 +22,9 @@ const OPTIONS = [
   // Verified Commitments (0138). Distinct from 'schedule' above, which excuses an athlete for a
   // stretch of days; this SCHEDULES the thing they're accountable for in the first place.
   { key: 'commitments',     cap: null,             icon: 'sun',       title: 'Schedule a commitment', sub: 'Roll call, lift, study hall — verified', go: 'coach-commit-manage' },
+  // Connected Standards (0155). Distinct from 'commitments' above, which schedules a PLACE and a
+  // time; this sets a measurable amount of activity the athlete's own device answers for.
+  { key: 'activity',        cap: 'standards',      icon: 'bolt',      title: 'Set an activity standard', sub: 'Steps, distance or workouts — verified by their watch', go: 'coach-standards-manage' },
   { key: 'add_athlete',     cap: null,             icon: 'user',      title: 'Add an athlete',        sub: 'Share your team code',              go: 'coach-profile/code' },
   { key: 'invite_staff',    cap: 'staffRoles',     icon: 'users',     title: 'Invite staff',          sub: 'Coordinator, room, or view-only',   go: 'coach-profile/staff' },
   { key: 'team_diet',       cap: 'recruiting',     icon: 'heart',     title: 'Team diet',             sub: 'Meal-plan tools',                   go: 'team-diet' },
