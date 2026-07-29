@@ -2469,6 +2469,143 @@ select _ok((select count(*) from connected_standards
              where id = 'cccc5555-0000-0000-0000-0000000000c2') = 0,
   'cs: a coach cannot read an athlete''s personal standard');
 
+-- ================================================================ the deadline matrix (0156)
+-- ⚠ THE MOST IMPORTANT TEST IN THIS FEATURE.
+-- Every state a result can be in when its deadline passes, and exactly what the cron is allowed
+-- to do with it. The promise Connected Standards makes is that a device failure is never
+-- converted into a disciplinary record, and this matrix is where that promise is either kept or
+-- quietly broken. Enumerated exhaustively and written BEFORE the RPC body.
+select _superuser();
+
+-- A standard whose deadline is already behind us, so every row below is claimable on merit
+-- rather than on timing.
+insert into connected_standards (
+  id, team_id, title, metric, target_value, display_unit, period, audience_kind, created_by
+) values (
+  'cccc5555-0000-0000-0000-0000000000d1', '77777777-1111-0000-0000-000000000001',
+  'Deadline Matrix', 'steps', 10000, 'steps', 'day', 'team',
+  '11111111-0000-0000-0000-000000000001'
+);
+
+-- Two instances: one whose deadline passed an hour ago, one that passed three days ago (so the
+-- 48-hour age-out has something to bite on).
+insert into connected_standard_instances (
+  id, standard_id, period_start, period_end, target_snapshot, metric_snapshot,
+  display_unit_snapshot, deadline_at
+) values
+  ('cccc5555-0000-0000-0000-00000000e001', 'cccc5555-0000-0000-0000-0000000000d1',
+   current_date, current_date, 10000, 'steps', 'steps', now() - interval '1 hour'),
+  ('cccc5555-0000-0000-0000-00000000e002', 'cccc5555-0000-0000-0000-0000000000d1',
+   current_date - 3, current_date - 3, 10000, 'steps', 'steps', now() - interval '3 days');
+
+-- One athlete per case. Seeding results directly (as superuser) is the only way to hold a row in
+-- a specific state at a specific instant; every PRODUCTION write still goes through an RPC.
+do $$
+declare v_a uuid; i integer := 0;
+begin
+  for i in 1..9 loop
+    v_a := ('cccc5555-0000-0000-0000-00000000f00' || i)::uuid;
+    insert into auth.users (id, email) values (v_a, 'mx' || i || '@x.io');
+    insert into profiles (id, full_name, email, primary_role)
+      values (v_a, 'Matrix ' || i, 'mx' || i || '@x.io', 'athlete')
+      on conflict (id) do nothing;
+    insert into athlete_profiles (athlete_id, base_age) values (v_a, 20) on conflict do nothing;
+  end loop;
+end $$;
+
+-- ---- the nine cases, on the instance that closed an hour ago --------------------------------
+insert into connected_standard_results
+  (instance_id, athlete_id, status, progress_value, last_synced_at, device_connected, corrected_by) values
+  -- 1. fresh data, genuinely short → the ONLY automatic path to 'missed'
+  ('cccc5555-0000-0000-0000-00000000e001','cccc5555-0000-0000-0000-00000000f001',
+   'in_progress', 6200, now() - interval '20 minutes', true, null),
+  -- 2. fresh data that actually cleared the target → verified, not missed (defensive: the device
+  --    already proved it, and a cron must never contradict evidence it can see)
+  ('cccc5555-0000-0000-0000-00000000e001','cccc5555-0000-0000-0000-00000000f002',
+   'in_progress', 10400, now() - interval '20 minutes', true, null),
+  -- 3. the watch went quiet BEFORE the deadline → awaiting_sync. NOT missed.
+  ('cccc5555-0000-0000-0000-00000000e001','cccc5555-0000-0000-0000-00000000f003',
+   'in_progress', 5100, now() - interval '9 hours', true, null),
+  -- 4. never reported at all → awaiting_sync. NOT missed.
+  ('cccc5555-0000-0000-0000-00000000e001','cccc5555-0000-0000-0000-00000000f004',
+   'in_progress', 0, null, null, null),
+  -- 5. health access switched off → disconnected. NOT missed.
+  ('cccc5555-0000-0000-0000-00000000e001','cccc5555-0000-0000-0000-00000000f005',
+   'in_progress', 3000, now() - interval '9 hours', false, null),
+  -- 6. an athlete already attested by hand → untouched
+  ('cccc5555-0000-0000-0000-00000000e001','cccc5555-0000-0000-0000-00000000f006',
+   'completed_manually', 0, null, null, null),
+  -- 7. waiting on a coach's ruling → untouched; a cron must not rule for them
+  ('cccc5555-0000-0000-0000-00000000e001','cccc5555-0000-0000-0000-00000000f007',
+   'awaiting_review', 0, null, null, null),
+  -- 8. excused → untouched
+  ('cccc5555-0000-0000-0000-00000000e001','cccc5555-0000-0000-0000-00000000f008',
+   'excused', 0, null, null, null),
+  -- 9. a staff member already ruled on this row → untouched, even though it looks short.
+  --    corrected_by is the mark of a human decision, and a cron does not overturn one.
+  ('cccc5555-0000-0000-0000-00000000e001','cccc5555-0000-0000-0000-00000000f009',
+   'in_progress', 100, now() - interval '20 minutes', true, '11111111-0000-0000-0000-000000000001');
+
+-- ---- the age-out, on the instance that closed three days ago --------------------------------
+insert into connected_standard_results
+  (instance_id, athlete_id, status, progress_value, last_synced_at, device_connected) values
+  -- 10. still nothing after 48h → insufficient_data (still NOT missed)
+  ('cccc5555-0000-0000-0000-00000000e002','cccc5555-0000-0000-0000-00000000f003',
+   'awaiting_sync', 5100, now() - interval '4 days', true),
+  -- 11. still nothing after 48h AND the device is off → disconnected
+  ('cccc5555-0000-0000-0000-00000000e002','cccc5555-0000-0000-0000-00000000f005',
+   'awaiting_sync', 3000, now() - interval '4 days', false);
+
+select claim_missed_connected_standards(500);
+
+create or replace function _mx(p_athlete text, p_instance text) returns text
+language sql stable as $$
+  select r.status from connected_standard_results r
+   where r.instance_id = p_instance::uuid and r.athlete_id = p_athlete::uuid;
+$$;
+
+select _ok(_mx('cccc5555-0000-0000-0000-00000000f001','cccc5555-0000-0000-0000-00000000e001') = 'missed',
+  'matrix: fresh data showing a real shortfall is the only automatic path to missed');
+select _ok(_mx('cccc5555-0000-0000-0000-00000000f002','cccc5555-0000-0000-0000-00000000e001') = 'verified_complete',
+  'matrix: a cron never contradicts evidence that the target was met');
+select _ok(_mx('cccc5555-0000-0000-0000-00000000f003','cccc5555-0000-0000-0000-00000000e001') = 'awaiting_sync',
+  'matrix: a watch that went quiet before the deadline is awaiting_sync, NOT missed');
+select _ok(_mx('cccc5555-0000-0000-0000-00000000f004','cccc5555-0000-0000-0000-00000000e001') = 'awaiting_sync',
+  'matrix: a device that never reported is awaiting_sync, NOT missed');
+select _ok(_mx('cccc5555-0000-0000-0000-00000000f005','cccc5555-0000-0000-0000-00000000e001') = 'disconnected',
+  'matrix: health access switched off is disconnected, NOT missed');
+select _ok(_mx('cccc5555-0000-0000-0000-00000000f006','cccc5555-0000-0000-0000-00000000e001') = 'completed_manually',
+  'matrix: an athlete''s own attestation is left alone');
+select _ok(_mx('cccc5555-0000-0000-0000-00000000f007','cccc5555-0000-0000-0000-00000000e001') = 'awaiting_review',
+  'matrix: a row waiting on a coach is left for the coach');
+select _ok(_mx('cccc5555-0000-0000-0000-00000000f008','cccc5555-0000-0000-0000-00000000e001') = 'excused',
+  'matrix: excused is left alone');
+select _ok(_mx('cccc5555-0000-0000-0000-00000000f009','cccc5555-0000-0000-0000-00000000e001') = 'in_progress',
+  'matrix: a cron never overturns a staff decision (corrected_by is set)');
+select _ok(_mx('cccc5555-0000-0000-0000-00000000f003','cccc5555-0000-0000-0000-00000000e002') = 'insufficient_data',
+  'matrix: an unresolved gap ages out to insufficient_data, still NOT missed');
+select _ok(_mx('cccc5555-0000-0000-0000-00000000f005','cccc5555-0000-0000-0000-00000000e002') = 'disconnected',
+  'matrix: an aged-out gap on a disconnected device reads as disconnected');
+
+-- Idempotence: the cron runs every five minutes forever. A second pass must change nothing.
+select claim_missed_connected_standards(500);
+select _ok(_mx('cccc5555-0000-0000-0000-00000000f001','cccc5555-0000-0000-0000-00000000e001') = 'missed'
+       and _mx('cccc5555-0000-0000-0000-00000000f003','cccc5555-0000-0000-0000-00000000e001') = 'awaiting_sync',
+  'matrix: a second pass is a no-op (claim-and-mark, not re-mark)');
+
+-- A late sync that finally arrives with the goods overturns the cron's own verdict — but only
+-- the cron's. A row a human ruled on stays theirs (case 9 above).
+select _as('cccc5555-0000-0000-0000-00000000f001');
+select _superuser();
+insert into health_share_consent (athlete_id, kind, granted_by)
+  values ('cccc5555-0000-0000-0000-00000000f001','self','cccc5555-0000-0000-0000-00000000f001');
+select _as('cccc5555-0000-0000-0000-00000000f001');
+select _try($f$ select submit_activity_progress(
+    'cccc5555-0000-0000-0000-00000000e001', 10500, now(), 'healthkit') $f$);
+select _superuser();
+select _ok(_mx('cccc5555-0000-0000-0000-00000000f001','cccc5555-0000-0000-0000-00000000e001') = 'verified_complete',
+  'matrix: late data that clears the target lifts the cron''s own missed verdict');
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$
