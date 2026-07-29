@@ -96,6 +96,11 @@ const SHOTS = [
   { g: 'athlete2', name: 'commitment', seed: 'dayMidday', route: 'commitment', at: [21, 40] },
   { g: 'athlete2', name: 'checkin', seed: 'dayMidday', route: 'checkin', at: [21, 35] },
   { g: 'athlete2', name: 'log-training', seed: 'dayComplete', route: 'log-training', at: [20, 5] },
+  // The quick-log SHEET. Uncovered until now, which is how a stray position:relative on #view could
+  // throw it off the top of the screen without the harness noticing: .sheet/.sheet-scrim are
+  // absolutely positioned inside a screen's markup, so they break whenever something upstream
+  // becomes their containing block.
+  { g: 'athlete2', name: 'log-sheet', seed: 'dayMidday', route: 'log', at: [15, 30] },
   { g: 'athlete2', name: 'training-history', seed: 'dayComplete', route: 'training-history', at: [20, 6] },
   { g: 'athlete2', name: 'progress-photos', seed: 'dayComplete', route: 'progress-photos', at: [20, 7] },
   { g: 'athlete2', name: 'monthly-report', seed: 'dayComplete', route: 'monthly-report', at: [21, 59] },
