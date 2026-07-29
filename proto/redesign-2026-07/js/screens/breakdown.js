@@ -1,6 +1,8 @@
 import { S } from '../state.js';
+import { DAY } from '../day.js';
 import { icon } from '../icons.js';
-import { backHead, scoreRing, animateRing, esc } from '../components.js';
+import { backHead, scoreRing, esc } from '../components.js';
+import { reveal } from '../motion.js';
 
 /* Score Breakdown (spec §2): every category explains its exact math — weight, earned/available,
    why points were earned or lost, what remains, and whether the remainder is guaranteed or
@@ -101,5 +103,8 @@ export default {
     <div style="height:8px"></div>
     `;
   },
-  mount(root) { animateRing(root); },
+  // Same reveal as Home and the meal chip — this screen is the score explaining itself, so it plays
+  // the score's moment. Silent: the number was already announced wherever the athlete tapped in
+  // from, and a second haptic for the same fact reads as a stutter.
+  mount(root) { reveal(root, { key: `breakdown:${DAY.date}:${S.score}`, haptic: null }); },
 };

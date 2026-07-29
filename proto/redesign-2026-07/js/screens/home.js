@@ -1,6 +1,7 @@
 import { S, RT, act, slotHasPhoto, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
-import { appHead, scoreRing, animateRing, esc, safeImg, collapseSection } from '../components.js';
+import { appHead, scoreRing, esc, safeImg, collapseSection } from '../components.js';
+import { reveal } from '../motion.js';
 import { DAY, MEAL_KEYS } from '../day.js';
 import { fetchMyDayReceipts } from '../roles.js';
 import { warmMealPhotos, todayMealPhotoPath } from '../photo-store.js';
@@ -621,7 +622,13 @@ export default {
     <div style="height:20px"></div>`;
   },
   mount(root) {
-    animateRing(root);
+    // The hero score, revealed once per value. This was an unconditional animateRing(root), so
+    // every async paint that reaches Home — commitments landing, standards landing, the coach
+    // receipt arriving, the exec tick — wound the ring back to empty and re-counted the number from
+    // zero. The signature moment played four times a visit, which is how it stopped reading as a
+    // moment. Keying on the score (not just the day) keeps the part worth replaying: when the
+    // number actually CHANGES because something was logged, it draws again.
+    reveal(root, { key: `day:${DAY.date}:${S.exec.score}`, haptic: null });
     act.syncNotifications();
     // Verified Commitments (0138): injected async into #vc-slot rather than rendered inline, so a
     // slow network never delays the score hero — the same seam #seen-row uses. An athlete with no
