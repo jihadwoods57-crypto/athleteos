@@ -272,3 +272,18 @@
      the identical opacity reads roughly twice as strong and starts to look like dirt. */
   --grain-opacity: 0.022;
 }
+
+/* ================= Time of day =================
+   The app greets you with "Good morning" and then paints the same canvas it paints at 11pm. These
+   shift the top wash behind the hero with the hour, on the SAME boundaries S.greeting uses
+   (state.js applyDaypart), so the canvas and the copy always agree.
+
+   ONE token moves. Not surfaces, not text, not accents — the athlete chose a theme and this is not
+   allowed to look like a second one. The morning wash runs cooler and a touch brighter, the evening
+   deeper; afternoon is the default, so it needs no rule at all. Any contrast ratio in the app is
+   measured against --bg (unchanged), never against this wash, so nothing here can move a
+   measurement off AA. */
+:root[data-daypart="morning"]  { --bg-grad-top: #0B1526; }
+:root[data-daypart="evening"]  { --bg-grad-top: #080D18; }
+:root[data-theme="light"][data-daypart="morning"] { --bg-grad-top: #F2F7FD; }
+:root[data-theme="light"][data-daypart="evening"] { --bg-grad-top: #EBEFF7; }

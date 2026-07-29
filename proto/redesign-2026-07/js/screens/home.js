@@ -2,6 +2,7 @@ import { S, RT, act, slotHasPhoto, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
 import { appHead, scoreRing, esc, safeImg, collapseSection } from '../components.js';
 import { reveal } from '../motion.js';
+import { scoreBand } from '../score-band.js';
 import { DAY, MEAL_KEYS } from '../day.js';
 import { fetchMyDayReceipts } from '../roles.js';
 import { warmMealPhotos, todayMealPhotoPath } from '../photo-store.js';
@@ -339,7 +340,11 @@ function hero(e) {
     .map((b) => `<i class="${b.accent}" style="width:${b.earned}%"></i>`).join('');
   const gain = lastHomeScore != null && e.score > lastHomeScore ? e.score - lastHomeScore : 0;
   lastHomeScore = e.score;
-  return `<section class="xhero" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, ${S.tier.name}. ${e.met} of ${e.total} completed. Open score breakdown">
+  // data-band drives the ambient wash behind the ring (screens.css). It is the SAME banding the
+  // roster and every score label already use — scoreBand()'s 80/60 thresholds — so the light in
+  // the room agrees with the number instead of being a fourth opinion about it. Background only:
+  // no text, border or icon colour reads from this.
+  return `<section class="xhero" data-band="${scoreBand(e.score) || 'off'}" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, ${S.tier.name}. ${e.met} of ${e.total} completed. Open score breakdown">
     <div class="xh-main">
       ${scoreRing({ score: e.score, possible: e.possible, size: 128, stroke: 11, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
       ${gain > 0 ? `<span class="xh-float" aria-hidden="true">+${gain}</span>` : ''}
