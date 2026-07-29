@@ -445,6 +445,12 @@ export function openingSummary({
 }
 
 /** Reaction rows (kind='reaction') grouped as [{emoji, count}], insertion-ordered. */
+/** The one-tap acknowledgements a coach can leave. ONE set, ONE order — the coach screen used to
+ *  render two different bars ('🔥💪👏👍' above the thread, '💪🔥👏✅' below it), so which emoji a
+ *  thumb landed on depended on which bar you happened to hit. Legacy 👍 rows still render through
+ *  reactionGroups; this only governs what is OFFERED. */
+export const REACTION_EMOJI = ['🔥', '💪', '👏', '✅'];
+
 export function reactionGroups(comments) {
   const counts = new Map();
   for (const c of comments || []) {

@@ -117,6 +117,9 @@ const SHOTS = [
   { g: 'coach', name: 'coach-home', seed: 'coachIdentity', route: 'coach-home', at: [20, 10], book: 'team' },
   { g: 'coach', name: 'coach-roster', seed: 'coachIdentity', route: 'coach-roster', at: [20, 10], book: 'team' },
   { g: 'coach', name: 'coach-inbox', seed: 'coachIdentity', route: 'coach-inbox', at: [20, 10], book: 'team' },
+  // The coach half of the conversation. Was never captured, so every change to it - names,
+  // timestamps, the draft affordance - shipped unreviewed.
+  { g: 'coach', name: 'coach-meal', seed: 'coachIdentity', route: 'coach-meal/meal-seed-lunch', at: [20, 10], book: 'team' },
   { g: 'coach', name: 'coach-insights', seed: 'coachIdentity', route: 'coach-insights', at: [20, 10], book: 'team' },
   { g: 'coach', name: 'coach-create', seed: 'coachIdentity', route: 'coach-create', at: [20, 10], book: 'team' },
   { g: 'coach', name: 'coach-announce', seed: 'coachIdentity', route: 'coach-announce', at: [20, 10], book: 'team' },

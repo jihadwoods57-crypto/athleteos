@@ -3,7 +3,8 @@ import { icon } from '../icons.js';
 import { backHead, titleHead, esc, composer, sparkline, emptyState, errorState, skeletonRows } from '../components.js';
 import { coachSetupState, coachSetupSteps } from './coach-home.js';
 import * as roles from '../roles.js';
-import { openingMessage, qualityBand, qualityReason, scoreRubric, reactionGroups, threadMessages, privateNotes } from '../meal-intel.js';
+import { openingMessage, qualityBand, qualityReason, scoreRubric, reactionGroups, threadMessages, privateNotes, REACTION_EMOJI } from '../meal-intel.js';
+import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpener, quotedFor } from '../chat-view.js';
 import { openImageViewer } from '../image-viewer.js';
 import { CD, loadBook, bookKindFor, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor, localClock, logBookIntervention } from '../coach-data.js';
 import { STATUS_META } from '../status.js';
@@ -2258,12 +2259,20 @@ let MC = null;            // { mealId, comments }
 // (kind:'handled', reason_key:'meal:'+id) — what the inbox categorizer reads; this Set keeps
 // the button honest across re-renders without a refetch.
 let RESOLVED_MEALS = new Set();
-// Coach message-kind comments on a meal (the "2 per meal" cap). One definition for the draft
-// affordance (render) and the composer cap (mount) so they can't drift.
-function coachMsgCount(comments) {
-  return Array.isArray(comments)
-    ? comments.filter(c => c.role === 'coach' && (c.kind || 'message') === 'message').length : 0;
-}
+/* Message clock + day key for the coach thread. Timestamps were athlete-side only, so a coach
+   reading a conversation could not tell whether an athlete asked something an hour ago or last
+   Tuesday — which is exactly what decides whether it still needs answering. */
+const msgClock = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  let h = d.getHours();
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${mm} ${ap}`;
+};
+const msgDay = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
 let mcLoadingId = null;
 async function loadMealComments(mealId, force) {
   if (!mealId || (mcLoadingId === mealId && !force)) return;
@@ -2272,7 +2281,13 @@ async function loadMealComments(mealId, force) {
   // sentinel loop on repaint. Force (post-comment / retry) always bypasses it.
   if (!force && MC && MC.mealId === mealId) return;
   mcLoadingId = mealId;
-  MC = { mealId, comments: await roles.fetchMealComments(mealId) };
+  const comments = await roles.fetchMealComments(mealId);
+  // Names, so the coach reads "Marcus Reed" and "Coach Brown" instead of "Athlete" and "Coach" —
+  // and so their OWN messages say "You". Resolved from the meal's athlete, cached per athlete in
+  // roles.js, and degrading to role labels if the RPC is unavailable.
+  const athleteId = Array.isArray(comments) && comments.length ? comments[0].athlete_id : null;
+  const participants = athleteId ? await roles.fetchThreadParticipants(athleteId).catch(() => []) : [];
+  MC = { mealId, comments, participants };
   mcLoadingId = null;
   if (location.hash.startsWith('#coach-meal')) window.__render();
 }
@@ -2389,23 +2404,36 @@ export const coachMeal = {
       return `
       ${rx.length ? `<div class="rx-strip">${rx.map((r) => `<span class="rx">${esc(r.emoji)}<span class="n">${r.count}</span></span>`).join('')}</div>` : ''}
       <div class="thread">
-        ${opening ? `
+        ${opening && !msgs.some(isAnalysisOpener) ? `
         <div class="msg">
           <div class="av">${icon('sparkle', 15)}</div>
           <div><div class="who">AI Nutritionist · what the athlete was told</div>
           <div class="bubble">${esc(opening)}</div></div>
         </div>` : ''}
-        ${msgs.map((c) => `
-          <div class="msg ${c.role === 'athlete' ? 'athlete' : 'coach'}">
-            ${c.role !== 'athlete' ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : 'M'}</div>` : ''}
-            <div>${c.role !== 'athlete' ? `<div class="who">${c.role === 'ai' ? 'AI Nutritionist' : 'Coach'}</div>` : ''}
-            <div class="bubble">${esc(c.text)}</div></div>
-          </div>`).join('')}
+        ${layoutThread(msgs, { fmtTime: msgClock, fmtDay: msgDay }).map((item) => {
+          if (item.type === 'time') return `<div class="tsep">${esc(item.label)}</div>`;
+          const c = item.comment;
+          // "athlete" styling is reserved for the OTHER side of the conversation; on the coach's
+          // screen the coach's own words are the ones that should sit on the right.
+          const mine = c.author_id === RT.userId;
+          const who = c.author_id === RT.userId ? 'You' : authorName(c, MC.participants || [], RT.userId);
+          const update = isAnalysisUpdate(c);
+          const quoted = update ? quotedFor(c, msgs) : null;
+          return `
+          <div class="msg ${mine ? 'athlete' : c.role === 'ai' ? 'ai' : 'coach'}${item.firstOfRun ? '' : ' cont'}">
+            ${!mine && item.firstOfRun ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : esc(initialsFor(who))}</div>` : '<div class="av-sp"></div>'}
+            <div class="stack">
+              ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
+              ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
+              <div class="bubble">${update ? '<span class="upd">Updated analysis</span>' : ''}${esc(c.text)}</div>
+            </div>
+          </div>`;
+        }).join('')}
         ${!msgs.length ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:2px 2px 8px">No comments yet. React or say something — the athlete sees it on the log.</div>` : ''}
       </div>`;
     })()}
     <div class="rx-strip" id="rx-bar" style="margin-top:4px">
-      ${['🔥', '💪', '👏', '👍'].map((e2) => `<span class="rx" data-rx="${e2}" style="cursor:pointer;font-size:16px;padding:6px 14px">${e2}</span>`).join('')}
+      ${REACTION_EMOJI.map((e2) => `<span class="rx" data-rx="${e2}" style="cursor:pointer;font-size:16px;padding:6px 14px">${e2}</span>`).join('')}
     </div>
     <div id="rx-note" style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px"></div>
     <div class="qa-row" style="margin-top:8px">
@@ -2417,11 +2445,10 @@ export const coachMeal = {
       <span id="cm-resolve-note" style="font-size:12.5px;font-weight:600;color:var(--text-3)"></span>
     </div>
     ${(() => {
-      // Suggested replies (Task 4): only offered while the coach can still send (coachN < 2) —
-      // drafting a reply they're capped from sending would be dishonest. Nothing renders past
-      // the cap; the existing "2 coach messages per meal" note in mount() already covers it.
-      const coachN0 = coachMsgCount(MC && MC.comments);
-      if (coachN0 >= 2) return '';
+      // Suggested replies. The 2-message cap is gone (0157), so this is no longer gated on how
+      // much the coach has already said — a conversation can keep going. It stays MANUAL: each
+      // draft is a paid call, and more importantly the AI must never post under the coach's name.
+      // It writes; the coach edits and sends, or does not.
       if (DRAFTS.loading && DRAFTS.mealId === sub) {
         return `<div class="qa-row" style="margin-top:8px"><span style="font-size:12.5px;font-weight:600;color:var(--text-3);padding:6px 2px">Drafting…</span></div>`;
       }
@@ -2432,7 +2459,7 @@ export const coachMeal = {
       }
       const errLine = (DRAFTS.mealId === sub && DRAFTS.error)
         ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:2px 2px 6px">Couldn't draft right now — write your own or try again.</div>` : '';
-      return `${errLine}<div class="qa-row" style="margin-top:8px"><button class="qa" id="cm-draft">✍️ Draft a reply</button></div>`;
+      return `${errLine}<div class="qa-row" style="margin-top:8px"><button class="qa" id="cm-draft">✍️ Let AI draft a reply — you edit and send</button></div>`;
     })()}
     ${(() => {
       // ONE-TAP ACKNOWLEDGEMENT. A coach watching 60 athletes cannot write 60 comments, so most
@@ -2443,7 +2470,7 @@ export const coachMeal = {
         .filter((c) => c && c.kind === 'reaction' && c.author_id === RT.userId)
         .map((c) => String(c.text)));
       return `<div class="qa-row" id="cm-rx-row" style="margin-top:8px">
-        ${['💪', '🔥', '👏', '✅'].map((e) => `<button class="qa${mine.has(e) ? ' on' : ''}" data-rx="${e}" aria-pressed="${mine.has(e)}">${e}</button>`).join('')}
+        ${REACTION_EMOJI.map((e) => `<button class="qa${mine.has(e) ? ' on' : ''}" data-rx="${e}" aria-pressed="${mine.has(e)}">${e}</button>`).join('')}
       </div>`;
     })()}
     ${composer({ inputId: 'cm-input', sendId: 'cm-send', placeholder: 'Comment on this meal…', sendLabel: 'Send comment' })}
@@ -2518,17 +2545,9 @@ export const coachMeal = {
     const input = root.querySelector('#cm-input');
     const send = root.querySelector('#cm-send');
     const cmNote = root.querySelector('#cm-note');
-    // Thread caps (0059, founder-ratified): coach 2 / athlete 3 messages per meal. The DB
-    // trigger is the real wall; this is the honest UI for it.
-    const coachN = coachMsgCount(MC && MC.comments);
-    const capNoun = CD.kind === 'practice' ? 'Trainer' : 'Coach';
-    if (coachN >= 2) {
-      if (input) { input.disabled = true; input.placeholder = `${capNoun} cap reached`; }
-      if (send) send.disabled = true;
-      if (cmNote) { cmNote.style.color = 'var(--text-3)'; cmNote.textContent = `You’ve made your point — 2 ${capNoun.toLowerCase()} messages per meal. Reactions are always open.`; }
-    } else if (coachN === 1 && cmNote) {
-      cmNote.style.color = 'var(--text-3)'; cmNote.textContent = `1 of 2 ${capNoun.toLowerCase()} messages used on this meal.`;
-    }
+    // The 2-message cap is gone (0157). A meal thread is a conversation now, and a coach who has
+    // more to say should be able to say it — the database backstop sits far past anything a
+    // person would type, so there is nothing honest to warn about here.
     const submit = async () => {
       const text = (input.value || '').trim();
       if (!text) return;
