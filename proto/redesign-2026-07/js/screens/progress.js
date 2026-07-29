@@ -164,6 +164,9 @@ export default {
           </div>`).join('')}
       </div>
       ${styleBandRow()}
+      <div class="sd-cta" style="margin-top:12px">
+        <button class="btn sm" id="pg-share" style="width:auto;padding:0 18px" aria-label="Share today's score as an image">${icon('share', 16)} Share today</button>
+      </div>
     </section>
 
     <div style="height:16px"></div>
@@ -212,5 +215,30 @@ export default {
     </div>` : ''}
     <div style="height:10px"></div>
     `;
+  },
+
+  /* The share card renderer has existed since the premium reports build and only the monthly report
+     ever called it, so the DAILY score — the number the whole product is built around — could not
+     leave the app. This is the athlete's own number, shared by their own tap. It does not touch the
+     promise in settings.js that nobody on your team is shown your number: nothing here makes one
+     teammate visible to another. */
+  mount(root) {
+    const btn = root.querySelector('#pg-share');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        const { shareDay } = await import('../share-card.js');
+        const st = S.streak;
+        await shareDay({
+          score: S.score,
+          streak: st && st.days ? st.days : 0,
+          met: S.metCount,
+          total: S.reqTotal,
+        });
+      } catch { /* a share is never worth breaking the screen over */ } finally {
+        btn.disabled = false;
+      }
+    });
   },
 };
