@@ -865,10 +865,14 @@ export const thread = {
       <span class="xpill gray">Upcoming</span>
     </div>` : '';
 
-    return `${backHead(M.name, dupFlagged ? 'Duplicate photo' : (M.late ? 'Late · still counts' : 'On time'), 'home')}${execTop}${photoBlock}${breakdown}${discussion}${next}
+    // Wrapped so the blurred photo backdrop inside photoBlock has a containing block and a stacking
+    // context of its OWN. The obvious shortcut — positioning #view — is shared by every screen and
+    // breaks any absolutely-positioned overlay rendered inside one (it threw the quick-log sheet
+    // off the top of the screen); see .meal-screen in screens.css.
+    return `<div class="meal-screen">${backHead(M.name, dupFlagged ? 'Duplicate photo' : (M.late ? 'Late · still counts' : 'On time'), 'home')}${execTop}${photoBlock}${breakdown}${discussion}${next}
     <div style="height:18px"></div>
     <button class="btn green" style="width:100%" data-go="home" aria-label="Done — back to home">${icon('check', 18)} Done</button>
-    <div style="height:16px"></div>`;
+    <div style="height:16px"></div></div>`;
   },
 
   async mount(root, { sub }) {
