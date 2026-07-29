@@ -488,3 +488,7 @@ verify_jwt = false
 
 [functions.commitment-escalation]
 verify_jwt = false
+
+# winback is cron-invoked with x-winback-key and has no user session. Pinned like the rest.
+[functions.winback]
+verify_jwt = false
