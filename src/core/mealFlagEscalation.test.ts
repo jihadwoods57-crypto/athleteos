@@ -40,13 +40,17 @@ describe('the tool contract', () => {
 
   it('the athlete path OFFERS both tools — a forced reply tool cannot decline', () => {
     expect(SRC).toContain('const athleteTools = [REPLY_TOOL, FLAG_TOOL]');
-    expect(SRC).toMatch(/tool_choice:\s*coachSupport\s*\?\s*\{ type: 'tool', name: 'reply' \}\s*:\s*\{ type: 'any' \}/);
+    // The escape hatch is offered on the athlete's QUESTION path and nowhere else. The condition
+    // gained correctionUpdate (2026-07-28) for the same reason coachSupport was there: a
+    // correction being acknowledged has nothing in it to escalate.
+    expect(SRC).toMatch(/tool_choice:\s*coachSupport \|\| correctionUpdate\s*\?\s*\{ type: 'tool', name: 'reply' \}\s*:\s*\{ type: 'any' \}/);
   });
 
-  it('the coach-support path keeps the single forced tool', () => {
-    // Backing a coach's own message has nothing to escalate; offering the hatch there would let
-    // the AI decline to reinforce its own coach.
-    expect(SRC).toMatch(/coachSupport \? replyTools : athleteTools/);
+  it('only the athlete question path can escalate to a human', () => {
+    // Backing a coach's own message, or confirming a correction the athlete just made, has
+    // nothing to escalate; offering the hatch there would let the AI decline to reinforce its
+    // own coach, or decline to restate numbers the app has already computed.
+    expect(SRC).toMatch(/coachSupport \|\| correctionUpdate \? replyTools : athleteTools/);
   });
 });
 
