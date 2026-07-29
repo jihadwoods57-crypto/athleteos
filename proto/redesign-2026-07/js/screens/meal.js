@@ -8,6 +8,11 @@ import {
   estimateConfidence, estRange, mealPatterns, scoreRubric, followUpQuestion, coachThreadStatus,
 } from '../meal-intel.js';
 import { openImageViewer } from '../image-viewer.js';
+import { openMembersSheet } from '../members-sheet.js';
+import {
+  layoutThread, authorName, initialsFor, participantList, participantSummary, participantMeta,
+  isAnalysisOpener, isAnalysisUpdate, quotedFor,
+} from '../chat-view.js';
 
 /* Which meal's score has already been revealed this session, so re-entering the thread doesn't
    replay the moment (or re-buzz) every time. */
@@ -41,7 +46,24 @@ async function warmReceipt(rolesMod, uid, dateISO) {
   if (!uid) return;
   if (RECEIPT.uid === uid && RECEIPT.date === dateISO && Date.now() - RECEIPT.at < 60000) return;
   const rows = await rolesMod.fetchMyDayReceipts(uid, dateISO).catch(() => []);
-  RECEIPT = { uid, date: dateISO, reviewed: !!(rows && rows.length), at: Date.now() };
+  // Keep the rows, not just the boolean: the thread names WHO looked, which is the whole
+  // difference between "reviewed" as a status and "Coach Brown saw this" as a fact.
+  RECEIPT = { uid, date: dateISO, reviewed: !!(rows && rows.length), rows: rows || [], at: Date.now() };
+}
+
+/* Who is in the conversation (0158). Same session-cache idiom: membership does not change
+   between two paints, and every mount would otherwise re-ask. */
+let PARTICIPANTS = { uid: null, rows: [], at: 0 };
+/** Returns true only when this call actually FETCHED something new — the caller repaints on that
+ *  and nothing else. A warm that repaints unconditionally is a render loop: every mount asks,
+ *  the cache answers instantly, the repaint remounts, and the screen never settles. It also
+ *  silently undoes the thread's own paint, so the athlete sits on "Loading the thread…" forever. */
+async function warmParticipants(rolesMod, uid) {
+  if (!uid) return false;
+  if (PARTICIPANTS.uid === uid && Date.now() - PARTICIPANTS.at < 300000) return false;
+  const rows = await rolesMod.fetchThreadParticipants(uid).catch(() => []);
+  PARTICIPANTS = { uid, rows: rows || [], at: Date.now() };
+  return PARTICIPANTS.rows.length > 0;
 }
 
 function macroRow(m) {
@@ -186,6 +208,60 @@ export const mealQuestions = {
 };
 
 /**
+ * The derived inputs for the AI opening rows: the short summary, the long-form read, and the one
+ * follow-up question.
+ *
+ * THIS LIVES AT MODULE SCOPE FOR A REASON. These were computed inside render() and referenced
+ * inside mount()'s paint() — a plain ReferenceError that fired on EVERY thread load, which meant
+ * paint() threw before it wrote a single message to the DOM. The visible symptom was the whole
+ * point of the feature going missing: the athlete saw the render-time analysis card and never saw
+ * one actual message, so a meal thread with a coach reply in it looked like an empty AI report.
+ * It survived because the thread only paints when the meal has a server row, and the screenshot
+ * harness had never seeded one.
+ */
+function openingInputs(M) {
+  const goal = RT.profile && RT.profile.baseGoal;
+  // Real context for the opening (upgrade 2026-07-16): the day's actual protein math, the
+  // engine's score credit for THIS log, and historical patterns only when history exists.
+  const dayP = S.mealDayProgress;
+  const recentRows = RECENT.uid === RT.userId && Array.isArray(RECENT.rows) ? RECENT.rows : [];
+  const patterns = mealPatterns(recentRows, {
+    slot: M.slot,
+    mealProteinBar: dayP.proteinTarget > 0 ? Math.round(dayP.proteinTarget / 4) : 0,
+  });
+  const sum = openingSummary({
+    quality: M.score, macros: M.macros, fiber: M.fiber, highlights: M.highlights, late: M.late, goal,
+    detected: M.detectedRich, source: M.source, deadlineClock: M.deadlineLabel,
+    day: dayP,
+  // Plan style (0142): an Intuitive read never quotes a macro figure and never grades the
+  // plate — the AI's job there is to help the athlete notice a pattern, not to hand them a
+  // number. Same analysis underneath; the professional still sees all of it.
+    numbers: S.planStyle.showMacros, tone: S.planStyle.tone,
+    });
+  // The long-form read is the edge function's own prose (M.analysis). Two ways it may be shown:
+  // the style permits numbers at all, OR the server STAMPED it as written for this exact style
+  // (analyze-meal's styleApplied, slice 8 — which also enforces the language rail server-side).
+  // Anything else — an old deploy with no stamp, or a stamp from a style the athlete has since
+  // left — is suppressed rather than regex-scrubbed: a half-redacted paragraph reads worse than
+  // the honest short summary, and a stale stamp is not evidence about today's prose.
+  const styleSafeProse = S.planStyle.showMacros || M.styleApplied === S.planStyle.key;
+  const fullText = openingMessage({
+    name: M.name, quality: M.score, note: M.note,
+    analysis: styleSafeProse ? M.analysis : null,
+    highlights: M.highlights, goal, coachTargets: S.planTargets, late: M.late, minutesLate: M.minutesLate,
+    detected: M.detectedRich, source: M.source, day: dayP, patterns,
+    impact: S.mealScoreImpact(M.slot),
+    });
+  // ONE useful follow-up when uncertainty materially affects the analysis — the chips map
+  // onto correction rules, so an answer UPDATES this estimate rather than forking a new one.
+  const fq = followUpQuestion({
+    source: M.source, userNote: M.userNote, note: M.note,
+    detectedRich: M.detectedRich, corrections: M.corrections,
+    });
+  return { sum, fullText, fq };
+}
+
+/**
  * The AI rows at the top of a meal thread. Derived from the meal's own state, never stored, so a
  * comments refetch can never wipe them.
  *
@@ -196,7 +272,7 @@ export const mealQuestions = {
  *   failed    — the read did not land. The meal stays logged as photo proof; retry is offered.
  *   result    — the normal case: summary, optional full analysis, and one follow-up question.
  */
-export function openingBlockHtml(M, { sum, fullText, fq } = {}) {
+export function openingBlockHtml(M, { sum, fullText, fq, hasPersistedRead = false } = {}) {
   const aiRow = (inner, id) => `
       <div class="msg ai"${id ? ` id="${id}"` : ''}>
         <div class="av">${icon('sparkle', 15)}</div>
@@ -258,6 +334,25 @@ export function openingBlockHtml(M, { sum, fullText, fq } = {}) {
         </div></div>
       </div>` : '';
 
+  // The one follow-up question, offered as chips. Derived (it depends on what the read found,
+  // not on what was said), so it renders alongside the persisted read as well as instead of it.
+  const fqRow = (f) => `
+      <div class="msg ai" id="fq-bubble">
+        <div class="av">${icon('sparkle', 15)}</div>
+        <div><div class="who">AI Nutritionist</div>
+        <div class="bubble">
+          ${esc(f.q)}
+          <div class="fq-chips">${f.chips.map(c => `<button class="fx-chip" data-fq="${esc(f.kind)}" data-val="${esc(c.value)}">${esc(c.label)}</button>`).join('')}</div>
+        </div></div>
+      </div>`;
+
+  // THE READ ITSELF IS NOW A REAL MESSAGE (2026-07-28). analyze-meal composes it and persists it
+  // as an `ai` row, so it lives in the thread the athlete can reply to, reference tomorrow, and
+  // scroll back through with their coach. This derived block only fills in when that row is not
+  // there: meals logged before the change, and the rare case where the thread write did not land.
+  // Without the fallback those meals would show a breakdown with nothing said about it.
+  if (hasPersistedRead) return fq ? fqRow(fq) + confirmRow : confirmRow;
+
   return `
       <div class="msg ai">
         <div class="av">${icon('sparkle', 15)}</div>
@@ -270,15 +365,7 @@ export function openingBlockHtml(M, { sum, fullText, fq } = {}) {
           <div class="ai-full" id="ai-full" hidden>${esc(fullText)}</div>` : ''}
         </div></div>
       </div>
-      ${fq ? `
-      <div class="msg ai" id="fq-bubble">
-        <div class="av">${icon('sparkle', 15)}</div>
-        <div><div class="who">AI Nutritionist</div>
-        <div class="bubble">
-          ${esc(fq.q)}
-          <div class="fq-chips">${fq.chips.map(c => `<button class="fx-chip" data-fq="${esc(fq.kind)}" data-val="${esc(c.value)}">${esc(c.label)}</button>`).join('')}</div>
-        </div></div>
-      </div>` : ''}
+      ${fq ? fqRow(fq) : ''}
       ${confirmRow}`;
 }
 
@@ -593,10 +680,30 @@ export const thread = {
     // Photo estimates present as estimates (~ prefix on tiles; the full range lives in the
     // rubric). Label/manual values stay exact — no false hedging on real numbers.
     const tilde = fromPhoto ? '~' : '';
+    // THE PROJECTION. A bar that only shows what is banked answers "how much of the day is done",
+    // but the athlete reads it as a verdict — 81 of 180g at dinner looks like failing when it is
+    // squarely on pace. So each bar also carries what is still COMING: the meals left today at
+    // the share this athlete's plan expects. Real engine numbers or nothing; never a flattering
+    // guess. `dayProg` is the same source the AI's day sentence uses, so the two always agree.
+    const dayProg = S.mealDayProgress || {};
+    const mealsLeft = Math.max(0, Number(dayProg.mealsRemaining) || 0);
+    const project = (target, soFar) => {
+      if (!target || !mealsLeft) return null;
+      const gap = Math.max(0, target - (Number(soFar) || 0));
+      return gap ? Math.round(gap / Math.max(1, mealsLeft)) * mealsLeft : 0;
+    };
     const targetBars = [
-      ['Protein', M.macros.protein, T.protein, 'g'],
-      ['Calories', M.macros.cals, T.calories, ''],
+      ['Protein', M.macros.protein, T.protein, 'g', project(T.protein, dayProg.proteinSoFar)],
+      ['Calories', M.macros.cals, T.calories, '', null],
     ].filter(([, , target]) => target);
+    // What share of the day's protein this one plate carried. Protein leads the breakdown because
+    // it is the number a coach actually sets — the others are context for it.
+    const dayShare = T.protein && M.macros.protein
+      ? Math.round((M.macros.protein / T.protein) * 100) : null;
+    const projectedTotal = T.protein ? (Number(dayProg.proteinSoFar) || 0) + (project(T.protein, dayProg.proteinSoFar) || 0) : null;
+    const paceNote = projectedTotal && mealsLeft
+      ? `On pace for about ${projectedTotal}g if your ${mealsLeft === 1 ? 'last meal lands' : `last ${mealsLeft} meals land`} on plan`
+      : '';
     const corrLog = (M.corrections || []).length;
     // THE EMPTY READ. A settled photo meal whose every macro is zero isn't a light meal — it's a
     // read that came back with nothing in it (the truncated-report bug, now fixed at the source,
@@ -634,20 +741,31 @@ export const thread = {
     ${emptyRead ? rereadNote : ''}` : `
     <div class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">Meal Breakdown</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></div>
     ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
-    <div class="macro-row five" style="margin-top:10px">
-      <div class="macro"><div class="mv">${tilde}${M.macros.protein}g</div><div class="mk">Protein</div></div>
+    <div class="phero">
+      <span class="pv">${tilde}${M.macros.protein}g</span><span class="pk">Protein</span>
+      ${dayShare != null ? `<span class="pc">${dayShare}% of your day</span>` : ''}
+    </div>
+    <div class="macro-row four" style="margin-top:8px">
       <div class="macro"><div class="mv">${tilde}${M.macros.carbs}g</div><div class="mk">Carbs</div></div>
       <div class="macro"><div class="mv">${tilde}${M.macros.fat}g</div><div class="mk">Fat</div></div>
       <div class="macro"><div class="mv">${tilde}${M.fiber}g</div><div class="mk">Fiber</div></div>
       <div class="macro"><div class="mv">${tilde}${M.macros.cals}</div><div class="mk">Cals</div></div>
     </div>
     ${targetBars.length ? `<section class="card pad" style="margin-top:10px">
-      ${targetBars.map(([k, v, target, u]) => `
+      ${targetBars.map(([k, v, target, u, projected]) => {
+        const now = Math.min(100, Math.round((v / target) * 100));
+        // The striped segment is what is still COMING: the meals left today at their planned
+        // share. Without it, 81 of 180g at dinner reads as failing when it is on pace — the bar
+        // was answering "how much of the day is done" and the athlete reads it as a verdict.
+        const ahead = projected != null ? Math.max(0, Math.min(100 - now, Math.round((projected / target) * 100))) : 0;
+        return `
         <div class="cons-row" style="margin-bottom:10px">
           <span class="k" style="width:64px">${k}</span>
-          <div class="track"><div class="fillb" style="width:${Math.min(100, Math.round((v / target) * 100))}%;background:linear-gradient(90deg,#16a34a,var(--green-bright))"></div></div>
-          <span class="v" style="width:110px">${tilde}${v}${u} <small style="color:var(--text-3)">of ${esc(String(target))}${u} day target</small></span>
-        </div>`).join('')}
+          <div class="track"><div class="fillb" style="width:${now}%;background:linear-gradient(90deg,var(--blue),var(--teal, #39c6d6))"></div>${ahead ? `<div class="ghostb" style="left:${now}%;width:${ahead}%"></div>` : ''}</div>
+          <span class="v" style="width:110px">${tilde}${v}${u} <small style="color:var(--text-3)">of ${esc(String(target))}${u}</small></span>
+        </div>`;
+      }).join('')}
+      ${paceNote ? `<div class="pace">${esc(paceNote)}</div>` : ''}
     </section>` : `<div class="est-note">No coach targets set yet, so there's nothing to measure against. These are this meal's totals.</div>`}
     ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
     ${corrLog ? `<div class="est-note" style="margin-top:8px;color:var(--blue-bright)"><b style="color:var(--blue-bright)">Corrected by you</b> — ${corrLog} correction${corrLog === 1 ? '' : 's'} applied. The AI's original estimate is kept for reference${M.orig ? ` (was ~${M.orig.protein}g protein · ~${M.orig.kcal} cal)` : ''}.</div>` : ''}
@@ -682,46 +800,23 @@ export const thread = {
     // used to be a wall of text nobody reads. Now it's the 5-second structured summary
     // (derived, never stored) with the full openingMessage paragraph behind an expander.
     // Quick actions make it feel like a chat, not a report. ----
-    const goal = RT.profile && RT.profile.baseGoal;
-    // Real context for the opening (upgrade 2026-07-16): the day's actual protein math, the
-    // engine's score credit for THIS log, and historical patterns only when history exists.
-    const dayP = S.mealDayProgress;
-    const recentRows = RECENT.uid === RT.userId && Array.isArray(RECENT.rows) ? RECENT.rows : [];
-    const patterns = mealPatterns(recentRows, {
-      slot: M.slot,
-      mealProteinBar: dayP.proteinTarget > 0 ? Math.round(dayP.proteinTarget / 4) : 0,
-    });
-    const sum = openingSummary({
-      quality: M.score, macros: M.macros, fiber: M.fiber, highlights: M.highlights, late: M.late, goal,
-      detected: M.detectedRich, source: M.source, deadlineClock: M.deadlineLabel,
-      day: dayP,
-      // Plan style (0142): an Intuitive read never quotes a macro figure and never grades the
-      // plate — the AI's job there is to help the athlete notice a pattern, not to hand them a
-      // number. Same analysis underneath; the professional still sees all of it.
-      numbers: S.planStyle.showMacros, tone: S.planStyle.tone,
-    });
-    // The long-form read is the edge function's own prose (M.analysis). Two ways it may be shown:
-    // the style permits numbers at all, OR the server STAMPED it as written for this exact style
-    // (analyze-meal's styleApplied, slice 8 — which also enforces the language rail server-side).
-    // Anything else — an old deploy with no stamp, or a stamp from a style the athlete has since
-    // left — is suppressed rather than regex-scrubbed: a half-redacted paragraph reads worse than
-    // the honest short summary, and a stale stamp is not evidence about today's prose.
-    const styleSafeProse = S.planStyle.showMacros || M.styleApplied === S.planStyle.key;
-    const fullText = openingMessage({
-      name: M.name, quality: M.score, note: M.note,
-      analysis: styleSafeProse ? M.analysis : null,
-      highlights: M.highlights, goal, coachTargets: S.planTargets, late: M.late, minutesLate: M.minutesLate,
-      detected: M.detectedRich, source: M.source, day: dayP, patterns,
-      impact: S.mealScoreImpact(M.slot),
-    });
-    // ONE useful follow-up when uncertainty materially affects the analysis — the chips map
-    // onto correction rules, so an answer UPDATES this estimate rather than forking a new one.
-    const fq = followUpQuestion({
-      source: M.source, userNote: M.userNote, note: M.note,
-      detectedRich: M.detectedRich, corrections: M.corrections,
-    });
+    const { sum, fullText, fq } = openingInputs(M);
+
+    // WHO IS IN THE ROOM. A messaging surface that hides its own audience is a privacy problem
+    // wearing a UI problem's clothes — an athlete typing "I skipped breakfast" deserves to know
+    // their coach and their mother can both read it before they hit send. Overlapping faces
+    // rather than emoji, because these are people.
+    const people = participantList(PARTICIPANTS.uid === RT.userId ? PARTICIPANTS.rows : [], RT.userId);
+    const facepile = !M.mealId ? '' : `
+    <button class="facepile" id="meal-members" aria-label="Who can see this conversation">
+      <span class="fp">${people.slice(0, 4).map((p) => `<span class="fpav ${esc(p.kind === 'ai' ? 'ai' : p.self ? 'self' : 'other')}">${p.kind === 'ai' ? icon('sparkle', 13) : esc(initialsFor(p.name))}</span>`).join('')}</span>
+      <span class="names">${esc(participantSummary(people))}<small>${people.length} in this conversation</small></span>
+      <span class="chev">${icon('chevron', 15)}</span>
+    </button>`;
+
     const discussion = `
     <div class="eyebrow" style="margin-top:18px">Team Discussion</div>
+    ${facepile}
     <div class="rx-strip" id="rx-strip"></div>
     <div class="thread" id="meal-thread">
       ${openingBlockHtml(M, { sum, fullText, fq })}
@@ -822,6 +917,9 @@ export const thread = {
     // both repaint-once). Fired in the background — the screen never waits on them.
     void warmRecent(roles, RT.userId);
     void warmPendingFacts(RT.userId);
+    // Names for the facepile and the bubbles. A repaint when it lands, because "Coach" becoming
+    // "Coach Brown" mid-scroll is the whole point.
+    void warmParticipants(roles, RT.userId).then((fetched) => { if (fetched) window.__render && window.__render(); });
     void warmReceipt(roles, RT.userId, String(DAY.date)).then(() => {
       const el = root.querySelector('#coach-status');
       if (el && el.textContent === 'Sent to Coach' && RECEIPT.reviewed) el.textContent = 'Reviewed by Coach';
@@ -940,6 +1038,23 @@ export const thread = {
       h = h % 12 || 12;
       return `${h}:${mm} ${ap}`;
     };
+    // Resolved names for this thread, and the day key that decides when a date separator is due.
+    // dayKey is LOCAL: a message at 11:58pm and one at 12:01am are different days to the athlete,
+    // whatever UTC thinks.
+    const participants = PARTICIPANTS.uid === RT.userId ? PARTICIPANTS.rows : [];
+    const dayKey = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
+
+    // The AI is composing something — the plate is being read, or a question is being answered.
+    // A live indicator instead of a static "thinking" card, because that is what every other
+    // conversation this athlete has ever had looks like while someone types.
+    let aiTyping = false;
+    const typingRow = () => `
+        <div class="msg ai typing" id="ai-typing">
+          <div class="av">${icon('sparkle', 15)}</div>
+          <div><div class="who">AI Nutritionist is typing<span class="sr-only"> — a reply is on its way</span></div>
+          <div class="bubble tdots"><span></span><span></span><span></span></div></div>
+        </div>`;
+
     const paint = () => {
       if (!threadEl) return;
       const msgs = threadMessages(comments);
@@ -949,26 +1064,57 @@ export const thread = {
       const csEl = root.querySelector('#coach-status');
       if (csEl && coachSeen) csEl.textContent = 'Coach replied';
       const tail = [];
-      if (!msgs.length) tail.push('No replies yet. Ask below and the AI Nutritionist answers from your plan.');
+      if (!msgs.length && !aiTyping) tail.push('No replies yet. Ask below and the AI Nutritionist answers from your plan.');
       if (!coachSeen) tail.push("Coach hasn't reviewed this meal yet.");
-      // The AI opening rows are DERIVED, never stored — so re-derive them from state on every
-      // repaint. This used to scrape the existing DOM (outerHTML of the first .msg + #fq-bubble)
-      // and re-prepend it, which could not represent a read still in flight: a comments refresh
-      // would wipe a pending bubble, and the state had nowhere to live.
-      const openingHtml = openingBlockHtml(mealDetail(M.slot) || M, { sum, fullText, fq });
-      threadEl.innerHTML = openingHtml + msgs.map((c) => {
-        const t = fmtMsgTime(c.created_at);
+
+      // The pending / clarifying / failed rows are DERIVED, because they describe a read that has
+      // not landed and so has nothing persisted to show. The READ ITSELF is now a real message in
+      // `msgs`, so the derived summary only fills in for meals logged before that change.
+      const hasPersistedRead = msgs.some(isAnalysisOpener);
+      // Recomputed from the LIVE meal, not captured from render: a read that lands while this
+      // screen is open (or a correction the athlete just made) has to change what these rows say.
+      const live = mealDetail(M.slot) || M;
+      const openingHtml = openingBlockHtml(live, { ...openingInputs(live), hasPersistedRead });
+
+      const lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
+      const rows = layoutThread(msgs, { fmtTime: fmtMsgTime, fmtDay: dayKey }).map((item) => {
+        if (item.type === 'time') return `<div class="tsep">${esc(item.label)}</div>`;
+        const c = item.comment;
+        const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
+        const who = authorName(c, participants, RT.userId);
+        const update = isAnalysisUpdate(c);
+        const quoted = update ? quotedFor(c, msgs) : null;
+        // Reactions belong to the whole thread (0049 keys them to the meal, not to a message), so
+        // they sit on the LAST bubble in it — the one the eye lands on. Putting them on the last
+        // message of every run repeated the same pill down the page as if four people had each
+        // reacted separately.
+        const rx = c === lastMsg ? reactionGroups(comments) : [];
         return `
-        <div class="msg ${c.role === 'athlete' ? 'athlete' : 'coach'}">
-          ${c.role !== 'athlete' ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : 'M'}</div>` : ''}
-          <div>${c.role !== 'athlete' ? `<div class="who">${c.role === 'ai' ? 'AI Nutritionist' : 'Coach'}</div>` : ''}
-          <div class="bubble">${esc(c.text)}</div>
-          ${t ? `<div class="mtime">${t}</div>` : ''}</div>
+        <div class="msg ${mine ? 'athlete' : c.role === 'ai' ? 'ai' : 'coach'}${item.firstOfRun ? '' : ' cont'}${rx.length ? ' has-rx' : ''}">
+          ${!mine && item.firstOfRun ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : esc(initialsFor(who))}</div>` : '<div class="av-sp"></div>'}
+          <div class="stack">
+            ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
+            ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
+            <div class="bubble">${update ? '<span class="upd">Updated analysis</span>' : ''}${esc(c.text)}</div>
+            ${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}
+          </div>
         </div>`;
-      }).join('') + (tail.length ? `<div class="msg-status">${tail.join(' ')}</div>` : '');
-      if (strip) strip.innerHTML = reactionGroups(comments).map((r) => `<span class="rx">${esc(r.emoji)}<span class="n">${r.count}</span></span>`).join('');
+      }).join('');
+
+      // The receipt, in the thread rather than buried in the header: "seen" is what tells an
+      // athlete their coach is actually there. coach_views is a DAY receipt, so it is stated as
+      // one — claiming a per-message read we do not have would be a lie.
+      const seen = coachSeen || (RECEIPT.rows || []).length
+        ? (RECEIPT.rows || []).map((r) => `Seen by ${esc(r.viewer_name || 'your coach')}`).slice(0, 1).join('')
+        : '';
+
+      threadEl.innerHTML = openingHtml + rows + (aiTyping ? typingRow() : '')
+        + (seen ? `<div class="seen">${seen}</div>` : '')
+        + (tail.length ? `<div class="msg-status">${tail.join(' ')}</div>` : '');
+      if (strip) strip.innerHTML = '';   // reactions now ride the bubble they belong to
       threadEl.scrollTop = threadEl.scrollHeight;
     };
+    const setTyping = (on) => { aiTyping = !!on; paint(); };
     const refresh = async () => {
       const myGen = ++gen;
       const fetched = await roles.fetchMealComments(M.mealId);
@@ -977,6 +1123,24 @@ export const thread = {
       comments = fetched; if (statusEl) statusEl.remove(); paint();
     };
     await refresh();
+
+    // Open the member list. Built from the same resolved rows the header shows, so what the
+    // athlete taps is exactly what they were looking at.
+    const membersBtn = root.querySelector('#meal-members');
+    if (membersBtn) membersBtn.addEventListener('click', () => {
+      openMembersSheet(participantList(PARTICIPANTS.uid === RT.userId ? PARTICIPANTS.rows : [], RT.userId));
+    });
+
+    // Keep the thread live while it is open. There is no realtime anywhere in this app, so a
+    // coach's reply would otherwise sit unseen until the athlete navigated away and back. Paused
+    // while the tab is hidden — a backgrounded screen has nobody reading it.
+    try { clearInterval(window.__threadTick); } catch { /* first mount */ }
+    window.__threadTick = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      if (threadBusy) return;
+      void refresh();
+    }, 15000);
+
 
     // Composer: post athlete message → invoke meal-chat with client-composed context.
     // On success the AI reply row is already persisted server-side, so a REFETCH shows
@@ -1035,7 +1199,9 @@ export const thread = {
           recentMeals: recentAscending.map((m) => ({ type: m.type, protein: m.protein, kcal: m.kcal, quality: m.quality, date: m.day_date })),
           thread: threadMessages(comments).slice(-20).map((c) => ({ role: c.role, text: String(c.text).slice(0, 300) })),
         });
+        setTyping(true);
         const { data, error } = await window.sb.functions.invoke('meal-chat', { body: { mealId: M.mealId, question: text, context } });
+        setTyping(false);
         if (error || !data || data.error) {
           // The vendored supabase-js (js/vendor/supabase.js) throws FunctionsHttpError on any
           // non-2xx response, so `data` is always null and the function's JSON error body never
@@ -1052,7 +1218,7 @@ export const thread = {
         } else {
           await refresh();
         }
-      } catch { setNote("Couldn't reach your AI coach — tap to try again.", true); }
+      } catch { setTyping(false); setNote("Couldn't reach your AI coach — tap to try again.", true); }
       // The question is already in the thread — retry only re-reaches the AI (no input refill).
       const retry = root.querySelector('#chat-retry');
       if (retry) retry.addEventListener('click', async () => {
@@ -1065,10 +1231,8 @@ export const thread = {
     const submit = async () => {
       const text = (input.value || '').trim();
       if (!text || busy) return;
-      // Thread cap (0059, coach-ratified): 3 athlete messages per meal — the DB trigger is
-      // the wall; say so up front instead of letting the send bounce.
-      const mine = (Array.isArray(comments) ? comments : []).filter((c) => c.role === 'athlete' && (c.kind || 'message') === 'message').length;
-      if (mine >= 3) { setNote(`Thread cap: 3 messages per meal. ${S.coach.hasCoach ? `Your ${S.coach.noun} saw them.` : 'They\'re saved to this meal.'}`); return; }
+      // The 3-message wall is gone (0157): this is a conversation now, and the database backstop
+      // sits far past anything a person would type. Nothing to warn about up front.
       busy = true; setNote('');
       input.value = '';
       const posted = await roles.postMealComment(M.mealId, RT.userId, RT.userId, 'athlete', text);

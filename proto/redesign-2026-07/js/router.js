@@ -181,6 +181,9 @@ window.__navigate = navigateTo; // Screens that patch subtrees (roster search) r
 function render() {
   // Screens with live countdowns register a tick; every route change clears it.
   if (window.__execTick) { clearInterval(window.__execTick); window.__execTick = null; }
+  // The meal thread polls for replies while it is open (there is no realtime in this app). It
+  // must stop when the screen does, or every visited thread keeps fetching for the whole session.
+  if (window.__threadTick) { clearInterval(window.__threadTick); window.__threadTick = null; }
   // Screens holding live resources (the camera's MediaStream) register a cleanup; every
   // route change / re-render runs it exactly once so a stream never survives its screen.
   if (window.__screenCleanup) { try { window.__screenCleanup(); } catch { /* best-effort */ } window.__screenCleanup = null; }

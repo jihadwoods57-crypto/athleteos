@@ -467,6 +467,27 @@ export async function postMealComment(mealId, athleteId, authorId, role, text, k
   } catch { return false; }
 }
 
+/** Who is in this athlete's meal conversation (0158) — real names and real roles, for the
+ *  participants header and for attributing bubbles. Cached per athlete for the session: the
+ *  membership of a room does not change between two paints, and this is called on every mount.
+ *
+ *  Returns [] on any failure, including a database that predates the RPC. The thread then falls
+ *  back to role labels, which is worse than names and much better than a blank screen — a
+ *  participants list is a courtesy, never a gate on reading your own meal. */
+const PARTICIPANTS = {};
+export async function fetchThreadParticipants(athleteId, { force = false } = {}) {
+  if (!athleteId) return [];
+  if (!force && PARTICIPANTS[athleteId]) return PARTICIPANTS[athleteId];
+  const c = sb(); if (!c) return [];
+  try {
+    const { data, error } = await c.rpc('meal_thread_participants', { p_athlete: athleteId });
+    if (error) return [];
+    const rows = Array.isArray(data) ? data.filter(Boolean) : [];
+    PARTICIPANTS[athleteId] = rows;
+    return rows;
+  } catch { return []; }
+}
+
 /** Remove one's OWN comment (0046 delete-own policy). Used to un-send a mis-tapped reaction, so a
  *  wrong emoji is undoable rather than something the athlete sees and the coach cannot retract. */
 export async function deleteMealComment(id) {

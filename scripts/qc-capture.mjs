@@ -11,6 +11,7 @@
 //   node scripts/qc-capture.mjs --all        # every route registered in js/screens/index.js
 //   node scripts/qc-capture.mjs --themes dark,light --widths 320,390,430
 //   node scripts/qc-capture.mjs --audit-only # no PNGs, just the defect report
+//   node scripts/qc-capture.mjs --scroll-to '#meal-thread'   # frame a section below the fold
 //   node scripts/qc-capture.mjs home,score   # only shots whose name matches
 //
 // Output: qc/<out>/<theme>-<width>/<name>.png, plus report.json and index.html (contact sheet).
@@ -302,12 +303,13 @@ if (ALL) {
 // Positional args are name filters. Skip anything that is a flag or a flag's value, then split
 // on commas so `qc-capture.mjs home,meal` matches both rather than looking for one literal
 // "home,meal" screen.
-const flagValues = new Set(['themes', 'widths', 'out'].map((f) => flag(f, null)).filter(Boolean));
+const flagValues = new Set(['themes', 'widths', 'out', 'scroll-to'].map((f) => flag(f, null)).filter(Boolean));
 const nameFilter = argv
   .filter((a) => !a.startsWith('--') && !flagValues.has(a))
   .flatMap((a) => a.split(',').map((s) => s.trim()).filter(Boolean));
 if (nameFilter.length) TARGETS = TARGETS.filter((s) => nameFilter.some((f) => s.name.includes(f)));
 
+const SCROLL_TO = flag('scroll-to', null);
 const b = await launch({ port: 9341, scale: 2 });
 const report = [];
 try {
@@ -344,7 +346,12 @@ try {
             await evalJs(page, setTheme(theme));
             await evalJs(page, `(() => { location.hash = '#${s.route}'; return 1; })()`);
             await sleep(/^(coach|trainer|parent|copilot)/.test(s.route) ? 2600 : 1400);
-            await evalJs(page, `(() => { window.scrollTo(0,0); return 1; })()`);
+            // Shots start at the top unless asked otherwise. --scroll-to lets a run frame a
+            // section that lives below the fold (the meal thread, a long settings list) without
+            // hand-driving a browser — the audit still runs on the whole document either way.
+            await evalJs(page, SCROLL_TO
+              ? `(() => { const el = document.querySelector(${JSON.stringify(SCROLL_TO)}); if (el) el.scrollIntoView({ block: 'start' }); else window.scrollTo(0,0); return 1; })()`
+              : `(() => { window.scrollTo(0,0); return 1; })()`);
             await sleep(220);
           })(), 45000, s.name);
 

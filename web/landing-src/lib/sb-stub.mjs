@@ -70,10 +70,43 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
 
   const PROFILES = ATHLETES.map(a => ({ id: a.id, timezone: 'America/New_York', full_name: a.name }));
 
+  const THREAD_MEAL = 'meal-seed-lunch';
+  const tAt = (h, m) => TODAY + 'T' + String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':00Z';
+  const MEAL_THREAD = [
+    {
+      id: 'mc-1', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-athlete',
+      role: 'ai', kind: 'message', meta: { t: 'analysis' }, created_at: tAt(13, 7),
+      text: "Good timing on lunch. I can see grilled chicken, brown rice, edamame and a soft-boiled egg. I'd put it around 52g of protein and 780 calories, which puts you near 52 of 180g for the day with 2 meals left. Fibre is the thin part of this one, so a piece of fruit alongside it would round it out.",
+    },
+    {
+      id: 'mc-2', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-coach',
+      role: 'coach', kind: 'message', created_at: tAt(13, 12),
+      text: "Second lunch this week in the window. That's the standard - keep stacking them and Friday takes care of itself.",
+    },
+    {
+      id: 'mc-3', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-athlete',
+      role: 'athlete', kind: 'message', created_at: tAt(13, 24),
+      text: 'That was a double portion of chicken, not one',
+    },
+    {
+      id: 'mc-4', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-athlete',
+      role: 'ai', kind: 'message', meta: { t: 'analysis_update' }, created_at: tAt(13, 25),
+      text: "Got it - double chicken takes this to roughly 78g of protein and 980 calories. You're comfortably past halfway for the day now, so dinner can be a normal plate rather than a catch-up one.",
+    },
+    {
+      id: 'mc-5', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-coach',
+      role: 'coach', kind: 'reaction', created_at: tAt(13, 26), text: '💪',
+    },
+  ];
+
   const TABLES = {
     teams: [TEAM], practices: [PRACTICE], days: DAYS, meals: MEALS, profiles: PROFILES,
     team_members: [], practice_clients: [], announcements: [], notifications: [],
-    meal_comments: [], interventions: [], requirement_sets: [], athlete_groups: [],
+    // A real conversation on the athlete's seeded lunch (meal-seed-lunch). Without these rows the
+    // group chat could not be captured at all: the thread rendered its no-messages fallback and a
+    // whole surface went unreviewed. The AI opener carries meta.t so the derived report-card
+    // fallback stays suppressed, exactly as it does against a real database.
+    meal_comments: MEAL_THREAD, interventions: [], requirement_sets: [], athlete_groups: [],
     coach_notes: [], training_logs: [], subscriptions: [], offers: [], sponsorships: [],
   };
 
@@ -95,6 +128,14 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
     guardian_child_days: () => DAYS.filter(d => d.athlete_id === ATHLETES[0].id).map(d => ({ day: d.date, score: d.score, grade: d.grade })),
     my_funded_plans: () => [],
     has_premium_access: () => true,
+
+    // Who is in the meal conversation (0158). Real names and real roles — the whole point of the
+    // participants header is that "Coach" becomes "Coach Brown", so a stub that returned nothing
+    // would capture the very fallback the change exists to replace.
+    meal_thread_participants: () => ([
+      { id: 'seed-athlete', name: 'Marcus Reed', kind: 'athlete' },
+      { id: 'seed-coach', name: 'James Brooks', kind: 'head_coach' },
+    ]),
 
     // ---- Connected Standards (0155) ----
     // window.__CS_MODE picks the moment being captured, and DEFAULT is 'none' so activity cards
