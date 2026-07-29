@@ -393,7 +393,11 @@
     trial: {
       k: 'Founding access',
       h: 'Claim a founding spot.',
-      sub: 'The first 50 coaches and facilities lock 50% off for 12 months. We reach out personally, usually within a day, and your free 14-day trial starts when we onboard you.',
+      // The Founding 50 offer is a permanent PRICE LOCK, not a discount: a 50% cut puts per-seat
+      // revenue under the AI cost floor (pricing.ts), which is why every page was rewritten to
+      // "today's price, locked for life". This string was missed in that pass, so the site promised
+      // a lock everywhere except the dialog someone reads at the moment they convert.
+      sub: "The first 50 coaches and facilities are free through the beta, then lock today's price permanently — every later price rise passes them by. We reach out personally, usually within a day.",
       submit: 'Request founding access',
       role: 'Coach',
     },
