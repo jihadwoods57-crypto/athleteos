@@ -269,6 +269,7 @@ export const connectedStandardsList = {
     return `${backHead('Activity Standards', 'Verified from your device', 'profile')}
     ${section('From your coach', assigned, 'Nothing assigned right now.')}
     ${section('Personal', personal, 'Set your own target — steps, distance, or workouts.')}
+    <div id="cs-connect-slot"></div>
     <div style="padding:12px 20px">
       <button class="btn" id="cs-new">Set a personal standard</button>
     </div>
@@ -278,6 +279,28 @@ export const connectedStandardsList = {
     mountStandardsCard(root);
     const nu = root.querySelector('#cs-new');
     if (nu) nu.addEventListener('click', () => { location.hash = '#connected-standard-edit'; });
+
+    // The connect affordance is SELF-GATING: it only exists once the native health module reports
+    // available. Until then there is nothing to connect to, and offering the row would promise a
+    // capability this build does not have. Same discipline as the #devices row on Recovery.
+    (async () => {
+      const slot = root.querySelector('#cs-connect-slot');
+      if (!slot) return;
+      const h = (typeof window !== 'undefined' && window.OnStandardNative)
+        ? window.OnStandardNative.health : null;
+      if (!h) return;
+      const ok = await h.available().catch(() => false);
+      if (!ok || !slot.isConnected) return;
+      const on = await h.connected().catch(() => false);
+      slot.innerHTML = `<section class="card" style="padding:2px 16px">
+        <div class="lrow" data-go="health-consent">
+          <div class="lic" style="color:var(--blue-bright)">${icon('bolt', 18)}</div>
+          <div class="lm"><div class="lt">${on ? 'Apple Health connected' : 'Connect Apple Health'}</div>
+          <div class="ls">${on ? 'Your standards verify themselves' : 'Let your standards check themselves'}</div></div>
+          ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        </div>
+      </section>`;
+    })();
 
     // ⚠ Re-render ONLY when the payload actually changed. __render() re-runs this mount, so an
     // unconditional refresh here is an infinite loop — and a forced reload would never let the

@@ -19,7 +19,10 @@ import { isAppleAuthAvailable, requestAppleIdentityToken } from '../lib/auth/app
 import { isGoogleAuthAvailable, requestGoogleIdToken } from '../lib/auth/google';
 import { biometricsUsable } from '../lib/auth/biometrics';
 import { isIapAvailable, purchaseConsumer, restoreConsumer } from '../lib/iap';
-import { isHealthAvailable, healthConnected, connectHealth, readRecoverySample } from '../lib/health';
+import {
+  isHealthAvailable, healthConnected, connectHealth, readRecoverySample,
+  readActivity, observeActivity, type HealthScope,
+} from '../lib/health';
 import {
   isLocationAvailable, getPermissionState, requestPermission,
   refreshGeofences, disarmAll, checkArrival, reportArrival, capturePlace,
@@ -51,6 +54,11 @@ export type BridgeMessage =
   | { type: 'HEALTH_CONNECTED'; id: number }
   | { type: 'HEALTH_CONNECT'; id: number }
   | { type: 'HEALTH_READ'; id: number }
+  // Connected Standards (0155). HEALTH_CONNECT gains an optional scopes list; activity is a
+  // broader ask than recovery and carries its own consent record server-side.
+  | { type: 'HEALTH_CONNECT_SCOPED'; id: number; scopes?: string[] }
+  | { type: 'HEALTH_READ_ACTIVITY'; id: number; from?: string; to?: string }
+  | { type: 'HEALTH_OBSERVE_ACTIVITY'; id: number }
   // Verified Commitments (0139). Note what is absent: no message carries a coordinate in either
   // direction. LOCATION_CHECK returns a boolean — the comparison to the coach's circle happens in
   // src/lib/location and the position is discarded there.
@@ -265,6 +273,37 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
         resolve(ref, msg.id, null, String((e as Error)?.message ?? e));
       }
       return true;
+    case 'HEALTH_CONNECT_SCOPED':
+      // Same permission request, told which scopes to ask for. Kept as a separate message rather
+      // than a new field on HEALTH_CONNECT so an OTA update landing on an older binary — one that
+      // has never heard of activity scopes — falls through to the default handler and reports
+      // unavailable, instead of silently requesting recovery when activity was meant.
+      try {
+        const scopes = Array.isArray(msg.scopes) && msg.scopes.length
+          ? (msg.scopes.filter((x) => x === 'recovery' || x === 'activity') as HealthScope[])
+          : (['recovery'] as HealthScope[]);
+        resolve(ref, msg.id, await connectHealth(scopes));
+      } catch (e) {
+        resolve(ref, msg.id, { connected: false, reason: 'error' }, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'HEALTH_READ_ACTIVITY':
+      // Activity totals for a window, or NULL when they cannot be read. Never an empty sample —
+      // see the note on readActivity: null means "we don't know" and 0 means "you did nothing",
+      // and only the first is honest when a watch has not synced.
+      try {
+        resolve(ref, msg.id, await readActivity(String(msg.from ?? ''), String(msg.to ?? '')));
+      } catch (e) {
+        resolve(ref, msg.id, null, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'HEALTH_OBSERVE_ACTIVITY':
+      try {
+        resolve(ref, msg.id, await observeActivity());
+      } catch (e) {
+        resolve(ref, msg.id, false, String((e as Error)?.message ?? e));
+      }
+      return true;
     case 'LOCATION_AVAILABLE':
       // False on any binary built before slice 2 shipped — an OTA update can land on such a build,
       // and the arrival affordance simply stays hidden rather than throwing.
@@ -392,7 +431,10 @@ export const BRIDGE_SHIM = `
       available: function(){ return call('HEALTH_AVAILABLE', {}); },
       connected: function(){ return call('HEALTH_CONNECTED', {}); },
       connect: function(){ return call('HEALTH_CONNECT', {}); },
-      read: function(){ return call('HEALTH_READ', {}); }
+      read: function(){ return call('HEALTH_READ', {}); },
+      connectScoped: function(scopes){ return call('HEALTH_CONNECT_SCOPED', { scopes: Array.isArray(scopes) ? scopes : [] }); },
+      readActivity: function(from, to){ return call('HEALTH_READ_ACTIVITY', { from: String(from||''), to: String(to||'') }); },
+      observeActivity: function(){ return call('HEALTH_OBSERVE_ACTIVITY', {}); }
     },
     // Verified Commitments. check() returns { within, reason } — a boolean and a sentence.
     // No coordinate crosses this boundary in either direction, by construction.

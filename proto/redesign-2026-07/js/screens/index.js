@@ -54,6 +54,7 @@ import trainingHistory from './training-history.js';
 import rollCall from './roll-call.js';
 import connectedStandard, { connectedStandardsList, connectedStandardEdit } from './connected-standards.js';
 import { coachStandards, coachStandardEdit, coachStandardsManage } from './coach-connected.js';
+import healthConsent from './health-consent.js';
 import locationConsent from './location-consent.js';
 import accountability from './accountability.js';
 import verifiedDiscipline from './verified-discipline.js';
@@ -183,4 +184,5 @@ export const screens = {
   'coach-standards': coachStandards,
   'coach-standard-edit': coachStandardEdit,
   'coach-standards-manage': coachStandardsManage,
+  'health-consent': healthConsent,
 };
