@@ -150,6 +150,14 @@ const COPY = {
 
 function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
+/* Streak-defense bodies, rotated by day like every other template here. Loss-aversion copy, so
+   it states what is still open rather than what has been achieved — and never a score formula. */
+const STREAK_BODY = [
+  (n) => `${n} days in a row. Today is not closed yet — finish what is left and keep it alive.`,
+  (n) => `You have kept this going ${n} days. There is still time to make it ${n + 1}.`,
+  (n) => `Day ${n} of your streak is on the line. What is left is still doable tonight.`,
+];
+
 /** Stage-aware, kind-aware copy with deterministic per-day variant rotation. `salt` offsets
  *  the variant so two same-kind items on one day never read identically. */
 export function notifCopy(req, stage, { dateISO = '', fireAtMin = 0, coachName = null, salt = 0 } = {}) {
@@ -319,6 +327,36 @@ export function planNotifications({
          not invented by the app: a coach scheduled it, for a specific event, and only athletes who
          have NOT responded receive it (commitmentReminders filters on status).
      Entries arrive pre-shaped from commitments.js; here they only get planner fields. */
+  /* ---- Streak defense: the one message that speaks BEFORE the streak dies ----
+     Every other streak mention in this planner is in `celebrate`, which fires once the day is
+     already won. The moment that decides whether someone comes back is the opposite one — a real
+     run is alive, the day is not finished, and the window is closing. Nothing spoke there, so the
+     run ended quietly and the athlete learned about it the next morning.
+
+     One per day, placed after the last requirement reminder so it reads as a closing word rather
+     than another nudge about a specific task. Unlike a commitment this IS a nudge the app
+     invented, so it goes through placed() and respects quiet hours; if it cannot be placed
+     honestly before midnight it is dropped rather than fired at a useless hour.
+
+     Suppressed on `gentle` for the same reason the celebration is: that pressure setting is a
+     promise about volume. Requires a run of at least 2 — one day is not yet something to lose. */
+  const openReqs = entries.length > 0;
+  if (streak >= 2 && openReqs && pressure !== 'gentle') {
+    // Just before the athlete winds down: late enough to be a genuine last call, early enough
+    // that there is still time to act on it. Anchoring it after the final requirement reminder
+    // instead would drag it past 23:30 on any day with a late recovery check-in — technically
+    // "the last word", practically useless. If that slot has already passed, say nothing: a
+    // streak warning at midnight only tells someone what they already lost.
+    const at = prefs.quietFrom - 45;
+    if (at > nowMin && !inQuiet(at, prefs)) {
+      out.push({
+        id: 'streak-defense', fireAtMin: at, dayOffset, immediate: false, stage: 'streak', route: 'home',
+        title: `Your ${streak}-day streak is still open.`,
+        body: STREAK_BODY[hashStr(`${dateISO}:streak`) % STREAK_BODY.length](streak),
+      });
+    }
+  }
+
   const vc = Array.isArray(commitments) ? commitments : [];
   for (const c of vc) {
     if (!c || typeof c.at !== 'number' || c.at <= nowMin) continue;
