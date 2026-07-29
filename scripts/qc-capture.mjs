@@ -103,6 +103,7 @@ const SHOTS = [
   { g: 'standards', name: 'cs-coach-build', seed: 'coachIdentity', route: 'coach-standard-edit', at: [14, 12], cs: 'live', book: 'team' },
   { g: 'standards', name: 'cs-coach-manage', seed: 'coachIdentity', route: 'coach-standards-manage', at: [14, 10], cs: 'live', book: 'team' },
   { g: 'standards', name: 'cs-coach-home', seed: 'coachIdentity', route: 'coach-home', at: [20, 4], cs: 'live', book: 'team' },
+  { g: 'standards', name: 'cs-coach-clear', seed: 'coachIdentity', route: 'coach-standards', at: [22, 30], cs: 'live', board: 'clear', book: 'team' },
 
   // plan styles
   { g: 'styles', name: 'style-structured', seed: 'styleStructured', route: 'plan', at: [21, 40] },
@@ -332,6 +333,7 @@ try {
           await seedOnNewDocument(page, clockAt(h, m));
           if (s.vc) await seedOnNewDocument(page, `window.__VC_MODE = ${JSON.stringify(s.vc)};`);
           if (s.cs) await seedOnNewDocument(page, `window.__CS_MODE = ${JSON.stringify(s.cs)};`);
+          if (s.board) await seedOnNewDocument(page, `window.__CS_BOARD = ${JSON.stringify(s.board)};`);
           await seedOnNewDocument(page, sbStubSource({
             todayISO: TODAY,
             athletes: s.book === 'practice' ? BOOK_CLIENTS : ROSTER_ATHLETES,

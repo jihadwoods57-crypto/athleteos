@@ -1019,19 +1019,55 @@
 .ps-band .seg.s-intuitive i{background:var(--green-bright,#4ade80)}
 
 /* ================= Connected Standards (0155) =================
-   The Home card, its detail screen and the personal editor. Every colour comes from the
-   semantic tokens: blue = live, green = met, amber = off pace or waiting on a device, red =
-   genuinely short. A device gap is amber and never red, because the athlete did not fail. */
+   TYPE. Everything here sits on the nine-step scale in tokens.css — no ad-hoc px sizes, because
+   this feature's first cut shipped five off-scale values and three class names (.xl, .tt, .ts)
+   that are only ever defined SCOPED to other components, so half the copy fell back to unstyled
+   body text at whatever the browser inherited.
+
+   The section label matches the app's existing one (.eyebrow / .xgrp: 11px, 800, --track-eyebrow)
+   rather than inventing a third label size. Numerals are tabular with --num-tight everywhere a
+   number can change under the reader — a count that shifts width as it ticks reads as cheap.
+
+   COLOUR is semantic: blue = live, green = met, amber = off pace or waiting on a device,
+   red = genuinely short. A device gap is amber and never red, because the athlete did not fail. */
+
+/* ---- type layer ---- */
+.cs-eyebrow{font-size:var(--t-xs);font-weight:800;letter-spacing:var(--track-eyebrow);
+  text-transform:uppercase;color:var(--text-3)}
+.cs-h{font-size:var(--t-md);font-weight:800;letter-spacing:var(--title-tight);color:var(--text)}
+.cs-p{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.55}
+.cs-p.muted{color:var(--text-3)}
+.cs-p + .cs-p{margin-top:6px}
+/* the app runs a tighter pair inside a sidebox; keep that rhythm, on-scale */
+.sidebox .cs-h{font-size:var(--t-base)}
+.sidebox .cs-p{font-size:var(--t-sm)}
+
+/* The one big number per surface. .sm is the Home-card variant so a card and its detail screen
+   read as the same object at two zoom levels rather than two different components. */
+.cs-count{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.cs-count .n{font-size:var(--t-3xl);font-weight:800;letter-spacing:var(--num-tight);
+  font-variant-numeric:tabular-nums;line-height:1.05;color:var(--text)}
+.cs-count .u{font-size:var(--t-base);font-weight:700;color:var(--text-2)}
+.cs-count.done .n{color:var(--green-bright)}
+.cs-count.sm .n{font-size:var(--t-2xl)}
+.cs-count.sm .u{font-size:var(--t-sm)}
+
+/* ---- the Home card ---- */
 .cs-card{padding:16px}
-.cs-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px}
+/* nowrap on the label: at 320px the pill would otherwise push "TODAY'S STANDARDS" onto a second
+   line, and a wrapped eyebrow is the single clearest tell that a layout was not looked at. */
+.cs-head{display:flex;justify-content:space-between;align-items:center;gap:10px;
+  margin-bottom:4px;flex-wrap:wrap}
+.cs-head .cs-eyebrow{white-space:nowrap}
 
 .cs-row{padding:14px 0 0;cursor:pointer}
 .cs-row + .cs-row{border-top:1px solid var(--hairline-soft);margin-top:14px}
 .cs-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .cs-title{font-size:var(--t-md);font-weight:700;letter-spacing:var(--title-tight)}
 .cs-nums{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-.cs-prog{font-size:var(--t-base);font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:var(--num-tight)}
-.cs-meta{font-size:var(--t-xs);color:var(--text-3);margin-top:5px}
+.cs-prog{font-size:var(--t-base);font-weight:800;font-variant-numeric:tabular-nums;
+  letter-spacing:var(--num-tight)}
+.cs-meta{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:5px;line-height:1.5}
 
 /* The bar carries the state as well as the number, so the card reads at a glance without
    anyone having to parse "7,842 of 10,000". */
@@ -1043,36 +1079,76 @@
   .cs-bar > i{transition:width var(--dur-3) var(--ease-out)}
 }
 
-.cs-hero{font-size:var(--t-3xl);font-weight:800;letter-spacing:var(--num-tight);font-variant-numeric:tabular-nums;line-height:1.05;margin-top:6px}
-.cs-hero small{font-size:var(--t-md);color:var(--text-3);font-weight:700;letter-spacing:var(--title-tight)}
+/* ---- detail hero ---- */
+.cs-hero{font-size:var(--t-3xl);font-weight:800;letter-spacing:var(--num-tight);
+  font-variant-numeric:tabular-nums;line-height:1.05;margin-top:6px}
+.cs-hero small{display:block;font-size:var(--t-md);color:var(--text-3);font-weight:700;
+  letter-spacing:var(--title-tight);margin-top:2px}
 
-/* The week strip. ✓ met · ✕ short · ↻ waiting on the device · – excused · • today. */
-/* max-width caps the cell so a standard with two periods of history reads as the start of a
-   strip rather than two icons marooned at opposite edges; a full week still fills the row. */
+/* The week strip. ✓ met · ✕ short · ↻ waiting on the device · – excused · • today.
+   max-width caps the cell so two periods of history read as the start of a strip rather than
+   two icons marooned at opposite edges; a full week still fills the row. */
 .cs-days{display:flex;gap:7px}
 .cs-day{flex:1 1 0;max-width:56px;text-align:center}
-.cs-day i{display:grid;place-items:center;width:26px;height:26px;margin:0 auto 4px;border-radius:9px;border:1px solid var(--hairline);background:var(--surface-2);font-style:normal;font-size:11px;font-weight:800;color:var(--text-3)}
-.cs-day span{font-size:9px;color:var(--text-3);font-weight:700;letter-spacing:var(--track-key)}
+.cs-day i{display:grid;place-items:center;width:26px;height:26px;margin:0 auto 4px;border-radius:9px;
+  border:1px solid var(--hairline);background:var(--surface-2);font-style:normal;
+  font-size:var(--t-xs);font-weight:800;color:var(--text-3)}
+.cs-day span{font-size:var(--t-eyebrow);color:var(--text-3);font-weight:800;letter-spacing:var(--track-key)}
 .cs-day.ok i{background:var(--green-surface);border-color:var(--green-border);color:var(--green)}
 .cs-day.miss i{background:var(--red-surface);border-color:var(--red-border);color:var(--red)}
 .cs-day.sync i{background:var(--amber-surface);border-color:var(--amber-border);color:var(--amber-bright)}
 .cs-day.now i{background:var(--blue-surface);border-color:var(--blue-border);color:var(--blue-bright)}
 .cs-day.exc i{background:var(--surface-3);color:var(--text-3)}
 
-/* Editor knobs. Deliberately NOT `.seg` — that class is a pill track whose children are
-   <button>, and reusing it for chips would inherit the track and style nothing. */
-.cs-knob{padding:14px 0;border-top:1px solid var(--hairline-soft)}
-.cs-knob:first-child{border-top:0;padding-top:2px}
-.cs-knob-label{font-size:var(--t-eyebrow);letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:8px}
-.cs-seg{display:flex;gap:6px;flex-wrap:wrap}
-.cs-seg span{display:inline-flex;align-items:center;min-height:44px;padding:6px 13px;border-radius:var(--r-chip);background:var(--surface-2);border:1px solid var(--hairline);color:var(--text-2);font-size:var(--t-sm);font-weight:700;cursor:pointer;transition:background var(--dur-1) var(--ease-out),border-color var(--dur-1) var(--ease-out)}
-.cs-seg span.on{background:var(--blue-surface);border-color:var(--blue-border);color:var(--blue-bright)}
-.cs-seg span:focus-visible{outline:2px solid var(--blue-bright);outline-offset:2px}
+/* ---- coach board ---- */
+.cs-ini{background:var(--surface-3);color:var(--text-2);font-size:var(--t-xs);font-weight:800;
+  letter-spacing:.02em}
 /* Roster-row progress: thin, because on the coach's board it is a glance-level cue next to the
    status pill, not the headline the athlete's own card makes it. */
 .cs-mini{height:4px;border-radius:var(--r-pill);background:var(--surface-3);overflow:hidden;margin-top:5px}
 .cs-mini > i{display:block;height:100%;border-radius:var(--r-pill);background:linear-gradient(90deg,var(--ring-c),var(--ring-b))}
+.cs-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+
+/* ---- editor knobs ----
+   Deliberately NOT `.seg` — that class is a pill track whose children are <button>, and reusing
+   it for chips would inherit the track and style nothing. */
+.cs-knob{padding:14px 0;border-top:1px solid var(--hairline-soft)}
+.cs-knob:first-child{border-top:0;padding-top:2px}
+.cs-knob-label{font-size:var(--t-eyebrow);letter-spacing:var(--track-eyebrow);text-transform:uppercase;
+  color:var(--text-3);font-weight:800;margin-bottom:8px}
+.cs-seg{display:flex;gap:6px;flex-wrap:wrap}
+.cs-seg span{display:inline-flex;align-items:center;min-height:44px;padding:6px 13px;
+  border-radius:var(--r-chip);background:var(--surface-2);border:1px solid var(--hairline);
+  color:var(--text-2);font-size:var(--t-sm);font-weight:700;cursor:pointer;
+  transition:background var(--dur-1) var(--ease-out),border-color var(--dur-1) var(--ease-out)}
+.cs-seg span.on{background:var(--blue-surface);border-color:var(--blue-border);color:var(--blue-bright)}
+.cs-seg span:focus-visible{outline:2px solid var(--blue-bright);outline-offset:2px}
+
 /* The switch row IS the control (see the sw() helper): full-width and comfortably past the 44px
    touch floor, so the shared 50x30 pill stays exactly as the coach standards editor draws it. */
 .cs-sw-row{cursor:pointer;min-height:44px}
 .cs-sw-row:focus-visible{outline:2px solid var(--blue-bright);outline-offset:2px;border-radius:var(--r-card-sm)}
+
+/* ---- coach board ----
+   The Standing Bar (coach.css) ships g/a/r/d segments. Connected Standards needs two more
+   meanings the commitment board never had to draw: "still going" (live, no action) and "waiting
+   on you" (the only segment that is actually a task). Same gradient treatment as the originals
+   so the bar reads as one instrument. */
+.co-standing .seg.b{background:linear-gradient(90deg,var(--blue),var(--blue-bright))}
+.co-standing .seg.p{background:linear-gradient(90deg,var(--purple),var(--purple-bright))}
+.co-legend .dot.p{background:var(--purple-bright)}
+
+.cs-board{cursor:pointer;margin-bottom:10px}
+.cs-board-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:10px}
+/* the ask, stated once: a coach reading the card should not have to open it to remember what
+   they set. Tabular so a column of these cards keeps its right edge. */
+.cs-ask{font-size:var(--t-sm);font-weight:700;color:var(--text-2);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.cs-grow{flex:1}
+.cs-count + .co-standing{margin-top:12px}
+
+/* "Nothing is waiting on you" is information, not an absence — without it a coach cannot tell a
+   quiet board from one that failed to load. */
+.cs-clear{display:flex;align-items:center;gap:11px;margin-top:12px}
+.cs-clear .ic{width:38px;height:38px;border-radius:12px;flex:none;display:grid;place-items:center;
+  background:var(--green-surface);color:var(--green-bright);border:1px solid var(--green-border)}

@@ -82,7 +82,7 @@ export function standardsCard(rows, todayIso) {
   if (!today.length) return '';
   return `<section class="card cs-card">
     <div class="cs-head">
-      <span class="xl">TODAY’S STANDARDS</span>
+      <span class="cs-eyebrow">TODAY’S STANDARDS</span>
       <span class="xpill gray">Tracked · not scored</span>
     </div>
     ${today.map((r) => standardRow(r, todayIso || todayISO())).join('')}
@@ -132,11 +132,11 @@ function historyStrip(rows, current) {
 
   const anyGap = mine.some((r) => csStatus(r.status).counts === 'excluded');
   return `<section class="card pad">
-    <div class="xl" style="margin-bottom:10px">RECENT</div>
+    <div class="cs-eyebrow" style="margin-bottom:10px">RECENT</div>
     <div class="cs-days">${mine.map((r) => `
       <div class="cs-day ${cls(r)}"><i>${glyph(r)}</i><span>${esc(dow(r.period_start))}</span></div>`).join('')}
     </div>
-    ${anyGap ? `<div class="ts dim" style="margin-top:10px">A period marked ↻ is waiting on your device. It never counts against you.</div>` : ''}
+    ${anyGap ? `<div class="cs-p muted" style="margin-top:10px">A period marked ↻ is waiting on your device. It never counts against you.</div>` : ''}
   </section>`;
 }
 
@@ -146,7 +146,7 @@ export default {
     const row = CS.result(sub);
     if (!row) {
       return `${backHead('Standard', 'Loading…', 'home')}
-      <section class="card pad"><div class="ts">Loading your standard…</div></section>`;
+      <section class="card pad"><div class="cs-p">Loading your standard…</div></section>`;
     }
 
     const st = csStatus(row.status);
@@ -158,49 +158,49 @@ export default {
     return `${backHead(row.title || 'Standard', metricLabel(row.metric, row.deliberate_workout), 'home')}
 
     <section class="card pad" style="text-align:center">
-      <div class="xl">${esc(row.period === 'week' ? 'THIS WEEK' : 'TODAY')}</div>
+      <div class="cs-eyebrow">${esc(row.period === 'week' ? 'THIS WEEK' : 'TODAY')}</div>
       <div class="cs-hero">${esc(fmtValue(row.progress, row.metric, row.display_unit))}<br>
         <small>of ${esc(fmtValue(row.target, row.metric, row.display_unit))} ${esc(unitNoun(row.metric, row.display_unit, row.target))}</small></div>
       ${row.status === 'excused' ? '' : `<div class="cs-bar ${done ? 'green' : pace && pace.state === 'behind' ? 'amber' : 'blue'}" style="margin:14px 24px 6px"><i style="width:${progressPct(row)}%"></i></div>`}
-      <div class="ts dim">${esc(pace ? `${pace.label}${pace.needLabel ? ` · ${pace.needLabel}` : ''}` : (remainingLabel(row) || 'Target met'))}</div>
+      <div class="cs-p muted">${esc(pace ? `${pace.label}${pace.needLabel ? ` · ${pace.needLabel}` : ''}` : (remainingLabel(row) || 'Target met'))}</div>
       <div style="margin-top:10px"><span class="xpill ${pillFor(row.status)}">${esc(st.label)}</span></div>
     </section>
 
     <section class="card pad">
-      <div class="xl" style="margin-bottom:8px">HOW THIS IS COUNTED</div>
-      <div class="ts">${esc(sourceRule(row.metric, row.deliberate_workout, row.workout_min_duration_min))}</div>
-      <div class="ts dim" style="margin-top:6px">${esc(syncedLabel(row, undefined, todayISO()))}${row.verified_source ? ` · ${esc(sourceLabel(row.verified_source))}` : ''}</div>
-      ${row.note ? `<div class="ts" style="margin-top:8px">${esc(row.note)}</div>` : ''}
-      ${row.owner_label ? `<div class="ts dim" style="margin-top:6px">Set by ${esc(row.owner_label)}</div>` : ''}
+      <div class="cs-eyebrow" style="margin-bottom:8px">HOW THIS IS COUNTED</div>
+      <div class="cs-p">${esc(sourceRule(row.metric, row.deliberate_workout, row.workout_min_duration_min))}</div>
+      <div class="cs-p muted" style="margin-top:6px">${esc(syncedLabel(row, undefined, todayISO()))}${row.verified_source ? ` · ${esc(sourceLabel(row.verified_source))}` : ''}</div>
+      ${row.note ? `<div class="cs-p" style="margin-top:8px">${esc(row.note)}</div>` : ''}
+      ${row.owner_label ? `<div class="cs-p muted" style="margin-top:6px">Set by ${esc(row.owner_label)}</div>` : ''}
     </section>
 
     ${historyStrip(CS.mine, row)}
 
     ${canManual ? `<section class="card pad">
-      <div class="xl" style="margin-bottom:8px">WATCH NOT SYNCING?</div>
-      <div class="ts dim" style="margin-bottom:10px">Log it yourself. ${row.manual_requires_approval
+      <div class="cs-eyebrow" style="margin-bottom:8px">WATCH NOT SYNCING?</div>
+      <div class="cs-p muted" style="margin-bottom:10px">Log it yourself. ${row.manual_requires_approval
         ? 'Your coach reviews manual entries before they count.'
         : 'It’s recorded as reported rather than verified — nobody assumes you’re being dishonest.'}</div>
-      <input class="inp" id="cs-note" maxlength="200" placeholder="Anything your coach should know (optional)">
+      <input class="input" id="cs-note" maxlength="200" placeholder="Anything your coach should know (optional)">
       <button class="btn" id="cs-manual" style="margin-top:10px">I did this</button>
     </section>` : ''}
 
     ${row.manual_submitted_at ? `<section class="card pad">
-      <div class="xl" style="margin-bottom:6px">YOU REPORTED THIS</div>
-      <div class="ts">${esc(row.manual_note || 'Logged by hand.')}</div>
+      <div class="cs-eyebrow" style="margin-bottom:6px">YOU REPORTED THIS</div>
+      <div class="cs-p">${esc(row.manual_note || 'Logged by hand.')}</div>
     </section>` : ''}
 
     ${canDispute ? `<section class="card pad">
-      <div class="ts dim" style="margin-bottom:10px">If this is wrong, say so. Your coach sees your note — nothing changes automatically.</div>
-      <input class="inp" id="cs-dnote" maxlength="200" placeholder="What actually happened">
+      <div class="cs-p muted" style="margin-bottom:10px">If this is wrong, say so. Your coach sees your note — nothing changes automatically.</div>
+      <input class="input" id="cs-dnote" maxlength="200" placeholder="What actually happened">
       <button class="btn ghost" id="cs-dispute" style="margin-top:10px">This isn’t right</button>
     </section>` : ''}
 
     ${row.disputed_at ? `<section class="card pad">
-      <div class="ts dim">You flagged this for your coach.</div>
+      <div class="cs-p muted">You flagged this for your coach.</div>
     </section>` : ''}
 
-    <div class="ts dim" style="text-align:center;margin:14px 20px 24px">
+    <div class="cs-p muted" style="text-align:center;margin:14px 20px 24px">
       Separate from your daily score — this standard is tracked, not scored.
     </div>`;
   },
@@ -264,7 +264,7 @@ export const connectedStandardsList = {
           <div class="xb">${esc(csProgressLine(r))}</div></div>
           <span class="xpill ${pillFor(r.status)}">${esc(csStatus(r.status).label)}</span>
         </div>`).join('')
-      : `<section class="card pad"><div class="ts dim">${esc(empty)}</div></section>`}`;
+      : `<section class="card pad"><div class="cs-p muted">${esc(empty)}</div></section>`}`;
 
     return `${backHead('Activity Standards', 'Verified from your device', 'profile')}
     ${section('From your coach', assigned, 'Nothing assigned right now.')}
@@ -373,9 +373,9 @@ export const connectedStandardEdit = {
 
       <div class="cs-knob">
         <div class="cs-knob-label">TARGET</div>
-        <input class="inp" id="cs-target" type="number" inputmode="decimal" min="1"
+        <input class="input" id="cs-target" type="number" inputmode="decimal" min="1"
                value="${esc(String(d.target))}" placeholder="${esc(String(m.preset))}">
-        <div class="ts dim" style="margin-top:6px">${esc(unitNoun(d.metric, d.display_unit, 2))} per ${d.period === 'week' ? 'week' : 'day'}</div>
+        <div class="cs-p muted" style="margin-top:6px">${esc(unitNoun(d.metric, d.display_unit, 2))} per ${d.period === 'week' ? 'week' : 'day'}</div>
       </div>
 
       <div class="cs-knob">
@@ -395,7 +395,7 @@ export const connectedStandardEdit = {
 
       <div class="cs-knob">
         <div class="cs-knob-label">NAME IT (OPTIONAL)</div>
-        <input class="inp" id="cs-title" maxlength="60" value="${esc(d.title)}"
+        <input class="input" id="cs-title" maxlength="60" value="${esc(d.title)}"
                placeholder="${esc(defaultTitle(d))}">
       </div>
     </section>
@@ -403,7 +403,7 @@ export const connectedStandardEdit = {
     <div style="padding:0 20px">
       <button class="btn" id="cs-save">${d.id ? 'Save changes' : 'Set this standard'}</button>
       ${d.id ? `<button class="btn ghost" id="cs-del" style="margin-top:8px">Turn this off</button>` : ''}
-      <div class="ts dim" style="text-align:center;margin-top:12px">
+      <div class="cs-p muted" style="text-align:center;margin-top:12px">
         Personal standards are yours alone — your coach doesn’t see them.
       </div>
     </div>

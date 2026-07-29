@@ -166,14 +166,28 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
     // the privacy promise the real RPC keeps structurally.
     connected_standard_board: () => {
       if ((window.__CS_MODE || 'none') === 'none') return [];
-      const names = (window.__CS_ROSTER || [
-        ['Marcus Reyes', 'verified_complete', 100], ['Tyler Brooks', 'verified_complete', 100],
-        ['Andre Cole', 'verified_complete', 100], ['Devin Ward', 'completed_manually', 100],
-        ['Jalen Price', 'in_progress', 64], ['Chris Moreau', 'in_progress', 41],
-        ['Sam Whitfield', 'awaiting_review', 0], ['Kyle Barnes', 'awaiting_sync', 61],
-        ['Omar Diaz', 'disconnected', 0], ['Ryan Fields', 'excused', 0],
-        ['Luis Herrera', 'missed', 38],
-      ]);
+      // A REAL roster shape: 55 athletes, most of whom did the thing. The design has to be judged
+      // at the proportion a coach actually sees every evening — a fixture with one of every status
+      // exaggerates every exception and makes a healthy board look alarming.
+      // window.__CS_BOARD = 'clear' captures the far more common case: nothing needs the coach.
+      const SURNAMES = ['Reyes', 'Brooks', 'Cole', 'Ward', 'Price', 'Moreau', 'Whitfield', 'Barnes',
+        'Diaz', 'Fields', 'Herrera', 'Nowak', 'Osei', 'Vance', 'Ibrahim', 'Delgado', 'Pratt',
+        'Quinn', 'Sandoval', 'Tate', 'Ellison', 'Boyd', 'Marsh', 'Okafor', 'Lang'];
+      const FIRST = ['Marcus', 'Tyler', 'Andre', 'Devin', 'Jalen', 'Chris', 'Sam', 'Kyle', 'Omar',
+        'Ryan', 'Luis', 'Emeka', 'Cole', 'Drew', 'Malik', 'Nate', 'Owen', 'Pierce', 'Rashad'];
+      const mix = window.__CS_BOARD === 'clear'
+        ? [['verified_complete', 52, 100], ['completed_manually', 2, 100], ['excused', 1, 0]]
+        : [['verified_complete', 44, 100], ['completed_manually', 2, 100],
+           ['in_progress', 4, 58], ['awaiting_review', 1, 0], ['awaiting_sync', 2, 61],
+           ['disconnected', 1, 0], ['excused', 1, 0]];
+      const names = [];
+      let i = 0;
+      for (const [status, n, pct] of mix) {
+        for (let k = 0; k < n; k++, i++) {
+          names.push([FIRST[i % FIRST.length] + ' ' + SURNAMES[(i * 7) % SURNAMES.length],
+            status, status === 'in_progress' ? [58, 41, 72, 33][k % 4] : pct]);
+        }
+      }
       return [{
         standard_id: 'cs-steps', instance_id: 'csi-steps', title: 'Daily Movement',
         metric: 'steps', display_unit: 'steps', target: 10000, period: 'day',

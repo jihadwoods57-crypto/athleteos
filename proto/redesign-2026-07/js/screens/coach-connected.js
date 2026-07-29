@@ -45,6 +45,57 @@ const canSet = () => {
   return !isReadonly(role) && allowedCreateKeys(role).includes('standards');
 };
 
+/* ---------------------------------------------------------------- the standing bar
+   The coach surface already has an instrument for "what is the shape of my team right now": the
+   Standing Bar from the Command Center pass (.co-standing / .co-legend in coach.css). Connected
+   Standards uses it rather than inventing a second chart language, so this feature reads as part
+   of the coach's dashboard instead of a bolt-on.
+
+   ORDER IS BY PROPORTION, NOT BY SEVERITY. Leading with the exceptions would make a team that is
+   54-for-55 look like a crisis every single evening, and a coach who learns the bar always opens
+   red stops reading it. The bar answers "how did we do"; the sections below answer "who do I
+   talk to". Each does exactly one job.
+
+   The legend says what a person would say. A coach does not care that the enum reads
+   'awaiting_sync' — they care that a phone hasn't reported. */
+const SEGMENTS = [
+  { key: 'complete', cls: 'g', dot: 'g', label: 'met' },
+  { key: 'inProgress', cls: 'b', dot: 'b', label: 'still going' },
+  { key: 'awaitingReview', cls: 'p', dot: 'p', label: 'waiting on you' },
+  { key: 'gap', cls: 'a', dot: 'a', label: 'waiting on a device' },
+  { key: 'missed', cls: 'r', dot: 'r', label: 'short' },
+  { key: 'excused', cls: 'd', dot: 'd', label: 'excused' },
+];
+
+/** Fold the nine statuses into the six things a coach actually distinguishes. */
+function segmentCounts(c) {
+  return {
+    complete: c.complete,
+    inProgress: c.inProgress,
+    awaitingReview: c.awaitingReview,
+    gap: c.awaitingSync + c.disconnected + c.insufficient,
+    missed: c.missed,
+    excused: c.excused,
+  };
+}
+
+function standingBar(c) {
+  const s = segmentCounts(c);
+  const total = SEGMENTS.reduce((t, x) => t + (s[x.key] || 0), 0);
+  if (!total) return '';
+  return `<div class="co-standing">${SEGMENTS
+    .filter((x) => s[x.key] > 0)
+    .map((x) => `<div class="seg ${x.cls}" style="flex:${s[x.key]}"></div>`).join('')}</div>`;
+}
+
+function standingLegend(c) {
+  const s = segmentCounts(c);
+  return `<div class="co-legend">${SEGMENTS
+    .filter((x) => s[x.key] > 0)
+    .map((x) => `<span class="it"><span class="dot ${x.dot}"></span><b>${s[x.key]}</b> ${esc(x.label)}</span>`)
+    .join('')}</div>`;
+}
+
 /* ---------------------------------------------------------------- Home card */
 
 /** '' when nothing is set today, so an operator who has never used this sees no change at all. */
@@ -54,8 +105,8 @@ export function standardsBoardCard() {
   // "we couldn't load the board". A wrong count is worse than no count.
   if ((!rows || !rows.length) && CS.boardError) {
     return `<section class="card pad" style="border-color:var(--amber-border);margin-bottom:10px">
-      <div class="tt">Activity standards didn’t load</div>
-      <div class="ts" style="padding-top:4px">This isn’t a count of zero — we couldn’t reach the server. Try again in a moment.</div>
+      <div class="cs-h">Activity standards didn’t load</div>
+      <div class="cs-p" style="padding-top:4px">This isn’t a count of zero — we couldn’t reach the server. Try again in a moment.</div>
     </section>`;
   }
   if (!rows || !rows.length) return '';
@@ -63,30 +114,23 @@ export function standardsBoardCard() {
     const c = boardCounts(inst.rows || []);
     if (!c.total) return '';
     const allIn = c.complete === c.total;
-    // Only the exceptions get a chip. A clean board should look clean.
-    const chips = [
-      c.inProgress ? `${c.inProgress} in progress` : '',
-      c.awaitingReview ? `${c.awaitingReview} to review` : '',
-      c.awaitingSync ? `${c.awaitingSync} awaiting sync` : '',
-      c.disconnected ? `${c.disconnected} disconnected` : '',
-      c.excused ? `${c.excused} excused` : '',
-    ].filter(Boolean);
+    // ONE chip, and only when something is genuinely waiting on this coach. A row of six
+    // equal-weight status pills is a data dump wearing a summary's clothes — it hands the sorting
+    // back to the person the screen is supposed to be sorting for.
+    const waiting = c.awaitingReview;
     return `
-    <section class="card pad" data-go="coach-standards/${esc(inst.instance_id)}" style="cursor:pointer;margin-bottom:10px">
-      <div class="eyebrow" style="margin:0 0 6px">${esc(inst.title || 'Activity standard')}</div>
-      <div class="ts" style="padding-bottom:10px">${esc([
-        inst.audience_label || (CD.kind === 'practice' ? 'All clients' : 'Entire team'),
-        `${fmtValue(inst.target, inst.metric, inst.display_unit)} ${unitNoun(inst.metric, inst.display_unit, inst.target)}`,
-        inst.period === 'week' ? 'this week' : 'today',
-      ].filter(Boolean).join(' · '))}</div>
-      <div style="display:flex;align-items:baseline;gap:10px">
-        <div style="font-size:26px;font-weight:800;letter-spacing:-.02em;color:${allIn ? 'var(--green-bright)' : 'var(--text)'}">
-          ${c.complete} of ${c.total}</div>
-        <div style="font-size:13px;font-weight:700;color:var(--text-2)">complete</div>
-        <div style="flex:1"></div>
-        ${c.awaitingReview ? `<span class="xpill purple">${c.awaitingReview} to review</span>` : ''}
+    <section class="card pad cs-board" data-go="coach-standards/${esc(inst.instance_id)}">
+      <div class="cs-board-head">
+        <span class="cs-eyebrow">${esc(inst.title || 'Activity standard')}</span>
+        <span class="cs-ask">${esc(`${fmtValue(inst.target, inst.metric, inst.display_unit)} ${unitNoun(inst.metric, inst.display_unit, inst.target)}`)}</span>
       </div>
-      ${chips.length ? `<div class="ts" style="padding-top:8px">${esc(chips.join(' · '))}</div>` : ''}
+      <div class="cs-count sm ${allIn ? 'done' : ''}">
+        <span class="n">${c.complete}</span>
+        <span class="u">of ${c.total} ${esc(inst.period === 'week' ? 'this week' : 'today')}</span>
+        <span class="cs-grow"></span>
+        ${waiting ? `<span class="xpill purple">${waiting} waiting on you</span>` : ''}
+      </div>
+      ${standingBar(c)}
     </section>`;
   }).join('');
 }
@@ -108,20 +152,30 @@ function athleteRow(r, inst) {
   const pct = Math.max(0, Math.min(100, Number(r.progress_pct) || 0));
   // The sub-line names the REASON, so a coach never has to guess whether someone is slacking or
   // whether a phone is dead. These are very different conversations.
+  // A verified row gets NO second line. "100% of target" beside a pill that already reads
+  // Verified is the same fact twice, and across 46 of them it is the noise that buries the three
+  // rows a coach actually has to read. Leaving it out makes the exceptions the only two-line
+  // rows on the screen — they stand out because of what they are, not because of a colour.
   const why = r.status === 'awaiting_sync' ? `No data since ${hhmm(r.last_synced_at) || 'yesterday'}`
-    : r.status === 'disconnected' ? 'Health access turned off'
-    : r.status === 'insufficient_data' ? 'Never reported for this period'
+    : r.status === 'disconnected' ? 'Health access off'
+    : r.status === 'insufficient_data' ? 'Never reported'
     : r.status === 'awaiting_review' ? esc(r.manual_note || 'Submitted by hand')
     : r.status === 'completed_manually' ? 'Reported by the athlete'
     : r.status === 'excused' ? esc(r.excused_reason || 'Excused')
+    : r.status === 'verified_complete' ? ''
     : `${pct}% of target`;
 
+  // The bar is drawn only where "how close did they get" is information. On a verified row it
+  // would always be 100% and on an excused one it means nothing — a full-width green bar next to
+  // a green pill is the same fact said twice.
+  const showBar = r.status === 'in_progress' || r.status === 'missed';
+
   return `<div class="lrow" data-cs-row="${esc(r.result_id)}">
-    <div class="lic" style="background:var(--surface-3);font-size:10.5px;font-weight:800">${esc(initials(r.name))}</div>
+    <div class="lic cs-ini">${esc(initials(r.name))}</div>
     <div class="lm">
       <div class="lt">${esc(r.name || 'Athlete')}</div>
-      <div class="ls">${why}${r.disputed_at ? ' · disputed' : ''}</div>
-      ${r.status === 'excused' ? '' : `<div class="cs-mini"><i style="width:${pct}%"></i></div>`}
+      ${why || r.disputed_at ? `<div class="ls">${why}${r.disputed_at ? `${why ? ' · ' : ''}disputed` : ''}</div>` : ''}
+      ${showBar ? `<div class="cs-mini"><i style="width:${pct}%"></i></div>` : ''}
     </div>
     <span class="xpill ${pillFor(r.status)}">${esc(st.label)}</span>
   </div>`;
@@ -140,7 +194,7 @@ export const coachStandards = {
     const inst = (CS.board || []).find((b) => b.instance_id === sub) || (CS.board || [])[0];
     if (!inst) {
       return `${backHead('Activity standard', 'Loading…', back)}
-      <section class="card pad"><div class="ts">Loading the board…</div></section>`;
+      <section class="card pad"><div class="cs-p">Loading the board…</div></section>`;
     }
     const rows = inst.rows || [];
     const c = boardCounts(rows);
@@ -164,21 +218,25 @@ export const coachStandards = {
     ].join(' · '), back)}
 
     <section class="card pad">
-      <div style="display:flex;align-items:baseline;gap:10px">
-        <div style="font-size:30px;font-weight:800;letter-spacing:-.02em;color:${c.complete === c.total ? 'var(--green-bright)' : 'var(--text)'}">${c.complete} of ${c.total}</div>
-        <div style="font-size:14px;font-weight:700;color:var(--text-2)">complete</div>
+      <div class="cs-count ${c.complete === c.total ? 'done' : ''}">
+        <span class="n">${c.complete}</span>
+        <span class="u">of ${c.total} complete</span>
       </div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
-        ${c.inProgress ? `<span class="xpill blue">${c.inProgress} in progress</span>` : ''}
-        ${c.awaitingReview ? `<span class="xpill purple">${c.awaitingReview} to review</span>` : ''}
-        ${c.awaitingSync ? `<span class="xpill gold">${c.awaitingSync} awaiting sync</span>` : ''}
-        ${c.disconnected ? `<span class="xpill red">${c.disconnected} disconnected</span>` : ''}
-        ${c.insufficient ? `<span class="xpill gray">${c.insufficient} no data</span>` : ''}
-        ${c.excused ? `<span class="xpill gray">${c.excused} excused</span>` : ''}
-        ${c.missed ? `<span class="xpill red">${c.missed} missed</span>` : ''}
-      </div>
-      ${inst.deadline_at ? `<div class="ts" style="padding-top:10px">Due by ${esc(hhmm(inst.deadline_at))}</div>` : ''}
+      ${standingBar(c)}
+      ${standingLegend(c)}
+      ${inst.deadline_at ? `<div class="cs-p muted" style="margin-top:12px">Due by ${esc(hhmm(inst.deadline_at))}</div>` : ''}
     </section>
+
+    ${!review.length && !disputed.length && !gaps.length ? `
+    <section class="card pad">
+      <div class="cs-clear">
+        <div class="ic">${icon('check', 19)}</div>
+        <div>
+          <div class="cs-h">Nothing waiting on you</div>
+          <div class="cs-p">Every athlete either met this or has a reason on file.</div>
+        </div>
+      </div>
+    </section>` : ''}
 
     ${review.length ? `
     <div class="eyebrow">Waiting on you · ${review.length}</div>
@@ -194,24 +252,24 @@ export const coachStandards = {
     <div class="eyebrow">Disputed · ${disputed.length}</div>
     <section class="card" style="padding:2px 16px">${disputed.map((r) => `
       ${athleteRow(r, inst)}
-      ${r.dispute_note ? `<div class="ts" style="padding:0 0 10px">“${esc(r.dispute_note)}”</div>` : ''}`).join('')}
+      ${r.dispute_note ? `<div class="cs-p" style="padding:0 0 10px">“${esc(r.dispute_note)}”</div>` : ''}`).join('')}
     </section>
-    <div class="ts" style="padding:8px 20px 0">Nothing changed on its own — the record still reads as it did. Correcting it is yours to do, and your name goes on it.</div>` : ''}
+    <div class="cs-p" style="padding:8px 20px 0">Nothing changed on its own — the record still reads as it did. Correcting it is yours to do, and your name goes on it.</div>` : ''}
 
     ${gaps.length ? `
     <div class="eyebrow">Couldn’t be verified · ${gaps.length}</div>
     <section class="card" style="padding:2px 16px">${gaps.map((r) => athleteRow(r, inst)).join('')}</section>
     <div class="sidebox" style="margin-top:12px">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 19)}</div>
-      <div><div class="tt">These are device problems, not misses</div>
-      <div class="ts">A phone that never reported produces no evidence either way, so these leave the completion rate entirely rather than counting against the athlete. Mark one missed only if you know the work wasn’t done.</div></div>
+      <div><div class="cs-h">These are device problems, not misses</div>
+      <div class="cs-p">A phone that never reported produces no evidence either way, so these leave the completion rate entirely rather than counting against the athlete. Mark one missed only if you know the work wasn’t done.</div></div>
     </div>` : ''}
 
     ${rest.length ? `
     <div class="eyebrow">Roster</div>
     <section class="card" style="padding:2px 16px">${rest.map((r) => athleteRow(r, inst)).join('')}</section>` : ''}
 
-    <div class="ts" style="text-align:center;padding:14px 20px 24px">
+    <div class="cs-p" style="text-align:center;padding:14px 20px 24px">
       You see progress toward the target you set — never anyone’s raw health data.
     </div>`;
   },
@@ -295,8 +353,8 @@ export const coachStandardEdit = {
     const back = 'coach-standards-manage';
     if (!canSet()) {
       return `${backHead('Activity standard', 'View only', back)}
-      <section class="card pad"><div class="tt">You can see these, not set them</div>
-      <div class="ts" style="padding-top:4px">Your role can view the board. Ask a head coach to set or change a standard.</div></section>`;
+      <section class="card pad"><div class="cs-h">You can see these, not set them</div>
+      <div class="cs-p" style="padding-top:4px">Your role can view the board. Ask a head coach to set or change a standard.</div></section>`;
     }
     if (!DRAFT || (sub && DRAFT.id !== sub)) {
       const def = sub ? (CS.defs || []).find((d) => d.id === sub) : null;
@@ -334,13 +392,13 @@ export const coachStandardEdit = {
           <span class="${d.deliberate_workout ? '' : 'on'}" data-cs-delib="0">Any walking or running</span>
           <span class="${d.deliberate_workout ? 'on' : ''}" data-cs-delib="1">A recorded workout</span>
         </div>
-        <div class="ts dim" style="margin-top:8px">${esc(sourceRule(d.metric, d.deliberate_workout, d.workout_min_duration_min))}</div>
+        <div class="cs-p muted" style="margin-top:8px">${esc(sourceRule(d.metric, d.deliberate_workout, d.workout_min_duration_min))}</div>
       </div>` : ''}
 
       <div class="cs-knob">
         <div class="cs-knob-label">TARGET</div>
-        <input class="inp" id="cs-target" type="number" inputmode="decimal" min="1" value="${esc(String(d.target))}">
-        <div class="ts dim" style="margin-top:6px">${esc(unitNoun(d.metric, d.display_unit, 2))} per ${d.period === 'week' ? 'week' : 'day'}</div>
+        <input class="input" id="cs-target" type="number" inputmode="decimal" min="1" value="${esc(String(d.target))}">
+        <div class="cs-p muted" style="margin-top:6px">${esc(unitNoun(d.metric, d.display_unit, 2))} per ${d.period === 'week' ? 'week' : 'day'}</div>
       </div>
 
       <div class="cs-knob">
@@ -378,7 +436,7 @@ export const coachStandardEdit = {
 
       <div class="cs-knob">
         <div class="cs-knob-label">NAME IT</div>
-        <input class="inp" id="cs-title" maxlength="60" value="${esc(d.title)}" placeholder="${esc(defaultTitle(d))}">
+        <input class="input" id="cs-title" maxlength="60" value="${esc(d.title)}" placeholder="${esc(defaultTitle(d))}">
       </div>
     </section>
 
@@ -502,8 +560,8 @@ export const coachStandardsManage = {
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>`).join('')}</section>`
     : `<section class="card pad">
-        <div class="tt">No activity standards yet</div>
-        <div class="ts" style="padding-top:4px">Set one and it verifies itself from your athletes’ phones and watches — no screenshots, no check-ins.</div>
+        <div class="cs-h">No activity standards yet</div>
+        <div class="cs-p" style="padding-top:4px">Set one and it verifies itself from your athletes’ phones and watches — no screenshots, no check-ins.</div>
       </section>`}
     ${canSet() ? `<div style="padding:12px 20px">
       <button class="btn" data-go="coach-standard-edit">Set a standard</button>

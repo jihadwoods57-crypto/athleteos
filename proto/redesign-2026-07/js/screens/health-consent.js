@@ -60,8 +60,8 @@ export default {
     return `${backHead('Connect Apple Health', 'Verify your standards automatically', 'connected-standards')}
 
     <section class="card pad">
-      <div class="tt">Let your standards check themselves</div>
-      <div class="ts" style="padding-top:6px">Your coach set an activity standard. With Health connected, OnStandard reads your totals and marks it complete on its own — no screenshots, no logging.</div>
+      <div class="cs-h">Let your standards check themselves</div>
+      <div class="cs-p" style="padding-top:6px">Your coach set an activity standard. With Health connected, OnStandard reads your totals and marks it complete on its own — no screenshots, no logging.</div>
     </section>
 
     <section class="card" style="padding:6px 16px;margin-top:10px">
@@ -76,28 +76,28 @@ export default {
     </section>
 
     ${CONSENT === null ? `
-      <section class="card pad" style="margin-top:10px"><div class="ts dim">Checking your account…</div></section>`
+      <section class="card pad" style="margin-top:10px"><div class="cs-p muted">Checking your account…</div></section>`
     : needsGuardian ? `
       <section class="card pad" style="margin-top:10px;border-color:var(--amber-border)">
-        <div class="tt">A parent or guardian has to approve this</div>
-        <div class="ts" style="padding-top:6px">You’re under 18, so we ask your guardian before reading any health data — your own tap isn’t enough, and the server enforces that too.</div>
+        <div class="cs-h">A parent or guardian has to approve this</div>
+        <div class="cs-p" style="padding-top:6px">You’re under 18, so we ask your guardian before reading any health data — your own tap isn’t enough, and the server enforces that too.</div>
         <button class="btn" data-go="guardian" style="margin-top:12px">Ask my guardian</button>
       </section>`
     : CONNECTED ? `
       <section class="card pad" style="margin-top:10px;border-color:var(--green-border)">
-        <div class="tt">Connected</div>
-        <div class="ts" style="padding-top:6px">Your standards are verifying themselves. You can disconnect any time.</div>
+        <div class="cs-h">Connected</div>
+        <div class="cs-p" style="padding-top:6px">Your standards are verifying themselves. You can disconnect any time.</div>
         <button class="btn ghost" id="hc-off" style="margin-top:12px">Disconnect</button>
       </section>`
     : AVAILABLE === false ? `
-      <section class="card pad" style="margin-top:10px"><div class="ts dim">Taking you back…</div></section>`
+      <section class="card pad" style="margin-top:10px"><div class="cs-p muted">Taking you back…</div></section>`
     : `
       <div style="padding:12px 20px 0">
         <button class="btn" id="hc-go">Continue to Apple Health</button>
         <button class="btn ghost" data-go="connected-standards" style="margin-top:8px">Not now — I’ll log manually</button>
       </div>`}
 
-    <div class="ts dim" style="text-align:center;padding:14px 20px 24px">
+    <div class="cs-p muted" style="text-align:center;padding:14px 20px 24px">
       Connecting Health is separate from arrival check-ins. Turning one on doesn’t turn on the other.
     </div>`;
   },
