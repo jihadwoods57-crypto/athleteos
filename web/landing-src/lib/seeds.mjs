@@ -45,6 +45,10 @@ const ATHLETE_IDENTITY = `
   RT.myCoach = { name: 'James Brooks', teamName: 'Lincoln Varsity Football' };
   RT.activationDate = iso(41);
   RT.day0 = false;
+  // Yesterday's lock stamp is already acknowledged, so it cannot appear over whichever athlete
+  // screen happens to render first and make the contact sheet nondeterministic. The dayLockStamp
+  // seed below clears this to capture the stamp on purpose.
+  RT.lastLockSeen = iso(1);
   // Real coach-set targets, so Plan renders a coached standard instead of "your coach can set
   // targets any time" (S.planTargetsState === 'unset').
   RT.profile.targets = { protein: 180, calories: 3200, weight: 195 };
@@ -99,6 +103,16 @@ export const dayComplete = `${COMMON}${ATHLETE_IDENTITY}
   DAY.ciSubmitted = true;
   DAY.ci = { energy: 8, recovery: 8, sleep: 8, confidence: 9, soreness: 3, motivation: 8, digestion: 7, cravings: 3 };
   DAY.ciLast = { date: DAY.date, recovery: 82 };
+  window.__render();
+`;
+
+/** The morning after a day that locked: same complete day, but the lock stamp has NOT been
+ *  acknowledged, so Home shows "Day N locked." over it (lock-moment.js). */
+export const dayLockStamp = `${COMMON}${ATHLETE_IDENTITY}
+  ${LOG('breakfast', 505)}
+  DAY.hydrationL = 0.4;
+  DAY.ciLast = { date: iso(1), recovery: 82 };
+  RT.lastLockSeen = null;
   window.__render();
 `;
 
@@ -185,7 +199,7 @@ export const parentIdentity = `${COMMON}
 `;
 
 export const SEEDS = {
-  dayMorning, dayMidday, dayComplete, dayLate, dayFirst,
+  dayMorning, dayMidday, dayComplete, dayLate, dayFirst, dayLockStamp,
   styleStructured, styleGuided, styleIntuitive,
   coachIdentity, trainerIdentity, parentIdentity,
 };

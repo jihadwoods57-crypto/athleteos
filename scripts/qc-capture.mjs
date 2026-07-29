@@ -65,6 +65,10 @@ const SHOTS = [
   // three competing reds through two polish passes. Morning seed + an afternoon clock leaves
   // lunch past its window and unlogged — the one state that renders .xnow.red.
   { g: 'athlete', name: 'home-overdue', seed: 'dayMorning', route: 'home', at: [16, 10] },
+  // The "Day N locked." stamp: a body-level overlay, so it is captured by rendering Home with the
+  // lock unacknowledged. Every other athlete seed marks it seen, or it would appear over whichever
+  // screen rendered first and make the contact sheet nondeterministic.
+  { g: 'athlete', name: 'home-day-locked', seed: 'dayLockStamp', route: 'home', at: [7, 40] },
   { g: 'athlete', name: 'home-first-day', seed: 'dayFirst', route: 'home', at: [15, 20] },
   { g: 'athlete', name: 'score-breakdown', seed: 'dayComplete', route: 'score-breakdown', at: [21, 52] },
   { g: 'athlete', name: 'plan', seed: 'dayComplete', route: 'plan', at: [21, 56] },

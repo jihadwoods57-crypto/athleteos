@@ -228,6 +228,8 @@ const DEFAULT_RT = {
   trainerNotes: [],      // trainer->client notes; REALLY land in the athlete's notifications
   camPrimed: false,      // Apple-style camera permission priming shown once
   homeOpenSections: {},  // WS6: per-section open state for Home's collapsible groups (Later/Done)
+  lastLockSeen: null,    // 'YYYY-MM-DD' of the last locked day whose stamp was shown (lock-moment.js) — display only, never scoring
+  lastMilestone: null,   // streak length whose milestone stamp was shown, so 7/30/100 fire once each
   profile: null,         // athlete identity: {name, sport, position, school, level, avatar(dataURL)} — from onboarding / signed-in profile, never fabricated
   ob: null,              // onboarding scratch — the athlete's real selections, captured as they build their Standard
   allergies: [],         // FLAT summary list (guardian check + profile row). Derived from restrictions when structured.
@@ -2190,6 +2192,15 @@ export const act = {
       if (r.ok && r.name) { RT.profile = { ...(RT.profile || {}), coachName: r.name }; save(); return; }
     }
     RT.profile = { ...(RT.profile || {}), coachName: server || null };
+    save();
+  },
+  /* The day-locked stamp has been shown for `date` (and, when given, for that streak milestone).
+     Per-device and display-only: it records what this phone has SHOWN, never anything about the day
+     itself, so it can never influence a score or a streak. */
+  markLockSeen(date, milestone = null) {
+    if (!date) return;
+    RT.lastLockSeen = date;
+    if (milestone != null) RT.lastMilestone = milestone;
     save();
   },
   /* Coach activity feed: per-device seen marks (which meals the coach has opened). */

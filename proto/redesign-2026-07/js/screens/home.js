@@ -3,6 +3,7 @@ import { icon } from '../icons.js';
 import { appHead, scoreRing, esc, safeImg, collapseSection } from '../components.js';
 import { reveal } from '../motion.js';
 import { scoreBand } from '../score-band.js';
+import { maybeShowLock } from '../lock-moment.js';
 import { DAY, MEAL_KEYS } from '../day.js';
 import { fetchMyDayReceipts } from '../roles.js';
 import { warmMealPhotos, todayMealPhotoPath } from '../photo-store.js';
@@ -634,6 +635,10 @@ export default {
     // moment. Keying on the score (not just the day) keeps the part worth replaying: when the
     // number actually CHANGES because something was logged, it draws again.
     reveal(root, { key: `day:${DAY.date}:${S.exec.score}`, haptic: null });
+    // Yesterday's answer. The app tells an athlete "Day N locks at midnight" the night before and
+    // never followed up; this closes that loop, once, on the next open. Guarded on a persisted
+    // marker, so calling it from every Home mount is safe. Says nothing when yesterday has no row.
+    maybeShowLock(S.streakDays);
     act.syncNotifications();
     // Verified Commitments (0138): injected async into #vc-slot rather than rendered inline, so a
     // slow network never delays the score hero — the same seam #seen-row uses. An athlete with no

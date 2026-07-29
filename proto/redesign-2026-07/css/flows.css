@@ -27,6 +27,61 @@
 .day-done .tt { font-size: 15.5px; font-weight: 800; }
 .day-done .ts { font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-top:2px; }
 
+/* ----- "Day N locked." stamp (lock-moment.js) -----
+   A body-level overlay, not part of any screen, because the router rebuilds device.innerHTML on
+   every render and a stamp inside a screen would be destroyed mid-animation by an async repaint.
+   Fixed to the whole window for the same reason: it has no layout relationship to the screen. */
+.lockstamp {
+  position: fixed; inset: 0; z-index: 200;
+  display: grid; place-items: center; padding: 24px;
+  background: rgba(4,6,12,0.62);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  opacity: 0; transition: opacity var(--dur-2) var(--ease-out);
+}
+.lockstamp.on { opacity: 1; }
+.lockstamp .ls-card {
+  width: 100%; max-width: 320px; text-align: center;
+  background: var(--surface-1); border: 1px solid var(--hairline);
+  border-radius: var(--r-card); padding: 26px 22px 18px;
+  box-shadow: var(--sh-raised);
+  transform: scale(0.9); transition: transform var(--dur-3) var(--ease-out);
+}
+.lockstamp.on .ls-card { transform: none; }
+/* The mark comes DOWN like a stamp rather than fading in — it is the one irreversible thing that
+   happens in this app, and it should land. */
+.lockstamp .ls-mark {
+  width: 62px; height: 62px; margin: 0 auto 14px; border-radius: var(--r-pill);
+  display: grid; place-items: center;
+  background: linear-gradient(150deg, var(--green), var(--green-deep));
+  color: var(--ink-on-accent);
+  box-shadow: var(--sh-green);
+}
+.lockstamp.on .ls-mark { animation: lsStamp 460ms var(--ease-out) both; }
+@keyframes lsStamp {
+  from { transform: scale(1.5) translateY(-10px); opacity: 0; }
+  60%  { transform: scale(0.94); opacity: 1; }
+  to   { transform: none; opacity: 1; }
+}
+.lockstamp .ls-t { font-family: var(--font-display); font-size: 26px; font-weight: 900; letter-spacing: -0.01em; }
+.lockstamp .ls-s { font-size: 13px; font-weight: 600; color: var(--text-2); line-height: 1.5; margin-top: 8px; }
+.lockstamp .ls-x {
+  margin-top: 18px; width: 100%; padding: 13px; border: none; cursor: pointer;
+  border-radius: var(--r-btn); background: var(--surface-2); color: var(--text);
+  font-family: var(--font); font-size: 14.5px; font-weight: 800;
+}
+/* A milestone is the same stamp with the signature sweep behind it — a different amount of the same
+   idea, never a different visual language. */
+.lockstamp.milestone .ls-card {
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(var(--green-rgb),0.20), transparent 62%),
+    var(--surface-1);
+  border-color: var(--green-border);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lockstamp, .lockstamp .ls-card { transition: none; }
+  .lockstamp.on .ls-mark { animation: none; }
+}
+
 /* ----- Quick-log sheet (route #log) ----- */
 /* The scrim's own darkness does most of the work, so its 3px blur was doing almost nothing —
    at 70% black you cannot see a 3px defocus. Enough blur to actually read as depth-of-field,
