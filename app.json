@@ -62,6 +62,7 @@
       }
     },
     "android": {
+      "package": "com.onstandard.app",
       "adaptiveIcon": {
         "backgroundColor": "#2563EB",
         "foregroundImage": "./assets/android-icon-foreground.png",

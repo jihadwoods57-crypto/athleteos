@@ -8,6 +8,10 @@
       "developmentClient": true,
       "distribution": "internal",
       "credentialsSource": "local",
+      "android": {
+        "credentialsSource": "remote",
+        "buildType": "apk"
+      },
       "env": {
         "EXPO_PUBLIC_BACKEND_LIVE": "true",
         "EXPO_PUBLIC_ANALYTICS_URL": "https://ftwrvylzoyznhbzhgism.supabase.co/functions/v1/analytics-ingest",
@@ -18,6 +22,10 @@
     },
     "preview": {
       "distribution": "internal",
+      "android": {
+        "credentialsSource": "remote",
+        "buildType": "apk"
+      },
       "env": {
         "EXPO_PUBLIC_BACKEND_LIVE": "true",
         "EXPO_PUBLIC_ANALYTICS_URL": "https://ftwrvylzoyznhbzhgism.supabase.co/functions/v1/analytics-ingest",
@@ -29,6 +37,10 @@
     "production": {
       "autoIncrement": true,
       "credentialsSource": "local",
+      "android": {
+        "credentialsSource": "remote",
+        "buildType": "app-bundle"
+      },
       "env": {
         "EXPO_PUBLIC_BACKEND_LIVE": "true",
         "EXPO_PUBLIC_ANALYTICS_URL": "https://ftwrvylzoyznhbzhgism.supabase.co/functions/v1/analytics-ingest",
