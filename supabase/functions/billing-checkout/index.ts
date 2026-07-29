@@ -19,11 +19,17 @@
 //   supabase functions deploy billing-checkout
 import Stripe from 'npm:stripe@^17';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
-import { STRIPE_PLANS, isCadence, priceLookupKey } from '../_shared/plans.ts';
+import { STRIPE_PLANS, isCadence } from '../_shared/plans.ts';
+import { generationFor, generationalLookupKey, type FoundingLock } from '../_shared/founding.ts';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 
 const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY') ?? '';
 const REFERRAL_COUPON = Deno.env.get('STRIPE_REFERRAL_COUPON_ID') ?? '';
+// The Stripe Price generation NEW buyers pay at. Empty = the launch generation, whose lookup_keys
+// are unsuffixed (`pro_solo_monthly`) — every Price that exists today. When prices rise, create the
+// new Prices suffixed with the next generation (`pro_solo_monthly_v2`) and set this to `v2`;
+// founding members keep resolving to the generation stored on their row. See _shared/founding.ts.
+const PRICE_GENERATION = Deno.env.get('PRICE_GENERATION') ?? '';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -129,12 +135,30 @@ Deno.serve(async (req) => {
     }
   }
 
+  // FOUNDING 50 (0161): a founding member stays pinned to the Stripe Price generation they joined
+  // on, which is what "lock today's price permanently" has to mean when prices live in Stripe
+  // rather than in this codebase. Everyone else gets the current generation. Before the first price
+  // rise both resolve to the same unsuffixed key, so this is a no-op today.
+  let lock: FoundingLock | null = null;
+  {
+    const { data: fl } = await svc.rpc('founding_lock', { p_user: user.id });
+    const row = Array.isArray(fl) ? fl[0] : fl;
+    if (row) {
+      lock = {
+        lockedGeneration: String(row.locked_generation ?? ''),
+        lockedExtraSeatCents: Number(row.locked_extra_seat_cents ?? 0),
+      };
+    }
+  }
+  const generation = generationFor(lock, PRICE_GENERATION);
+  const lookupKey = generationalLookupKey(planId, cadence, generation);
+
   try {
     // Look the price up by its lookup_key — the founder-created Price in Stripe.
-    const prices = await stripeClient().prices.list({ lookup_keys: [priceLookupKey(planId, cadence)], limit: 1 });
+    const prices = await stripeClient().prices.list({ lookup_keys: [lookupKey], limit: 1 });
     const price = prices.data[0];
     if (!price) {
-      console.error(`billing-checkout: no Stripe price with lookup_key ${priceLookupKey(planId, cadence)}`);
+      console.error(`billing-checkout: no Stripe price with lookup_key ${lookupKey}`);
       return json({ error: 'plan not available yet' }, 503, cors);
     }
 
