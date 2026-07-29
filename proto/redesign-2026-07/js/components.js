@@ -163,13 +163,13 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
     </svg>
     ${showCenter ? `<div class="ring-center">
       <span class="label">OnStandard Score</span>
-      <span class="score" data-count="${score}">${score}</span>
+      <span class="score${score >= 100 ? ' d3' : ''}" data-count="${score}">${score}</span>
       <span class="outof">/100</span>
       ${tierName ? `<span class="tier-chip ${tierCls}">${tierName}</span>` : ''}
       ${delta ? `<span class="delta"><span class="up">${icon('arrowUp', 15)} ${delta}</span><span class="muted">vs yesterday</span></span>` : ''}
       ${streak ? `<span class="streak-pill">${icon('flame', 15, 'class="flame"')} ${streak}</span>` : ''}
     </div>` : ''}
-    ${centerNum ? `<div class="ring-center num"><span class="score" data-count="${score}">${score}</span></div>` : ''}
+    ${centerNum ? `<div class="ring-center num"><span class="score${score >= 100 ? ' d3' : ''}" data-count="${score}">${score}</span></div>` : ''}
   </div>`;
 }
 

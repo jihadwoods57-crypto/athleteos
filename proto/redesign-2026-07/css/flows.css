@@ -366,7 +366,9 @@
    the score and the style pill means .rn deterministically gets the remainder. */
 .roster-row .rr { flex: none; display: flex; align-items: center; gap:6px; }
 /* min-width, not width: a 3-digit score overflowed a hard 34px box. */
-.roster-row .rs { font-size: 18px; font-weight: 800; min-width: 2.6ch; flex: none; text-align: right; font-variant-numeric: tabular-nums; }
+/* The roster is a wall of scores, so they get the score face too — it is what makes a column of
+   numbers scannable as scores rather than as a table of figures. */
+.roster-row .rs { font-family: var(--font-display); font-size: 18px; font-weight: 900; letter-spacing: -0.01em; min-width: 2.8ch; flex: none; text-align: right; font-variant-numeric: tabular-nums; }
 .roster-row .rl { font-size: 11.5px; font-weight: 700; color: var(--text-3); width: 30px; text-align: right; }
 
 /* honest delivery status line in threads */

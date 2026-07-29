@@ -232,11 +232,27 @@ body {
   font-size: 12px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase;
   color: var(--text-2);
 }
+/* Archivo Expanded is a WIDE face, so the tight tracking that suited Plus Jakarta Sans at this size
+   would jam the digits together; it wants roughly neutral spacing to breathe. tabular-nums keeps a
+   counting-up number from reflowing its own width mid-tween. */
+/* ONE font-size declaration for the score, computed from two variables: the context's base size and
+   a digit-count fit factor. Contexts (the Home hero, below) set --score-size only; they must not
+   declare font-size themselves. That is deliberate — when .d3 tried to win with its own font-size,
+   the more specific hero rule beat it and a perfect 100 rendered 90px wide inside 78px of ring.
+   Custom properties cascade independently of that fight, so this cannot regress the same way. */
 .ring-center .score {
-  font-size: 96px; font-weight: 800; line-height: 0.95; letter-spacing: -0.05em;
+  font-family: var(--font-display);
+  --score-size: 88px;
+  --score-fit: 1;
+  font-size: calc(var(--score-size) * var(--score-fit));
+  font-weight: 900; line-height: 0.95; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
   margin-top:2px; color: var(--text);
   text-shadow: var(--score-lift);
 }
+/* A perfect 100 is three digits in an EXPANDED face, ~50% wider than "92", and it has to fit inside
+   the band rather than spill over it. Measured against every ring size the app renders. */
+.ring-center .score.d3 { --score-fit: 0.74; }
 .ring-center .outof { font-size: 16px; font-weight: 700; color: var(--text-2); margin-top:0; }
 .ring-center .delta { font-size: 14.5px; font-weight: 700; display: inline-flex; align-items: center; gap:6px; margin-top:10px; }
 .ring-center .delta .up { color: var(--green-bright); display: inline-flex; align-items: center; gap:4px; }

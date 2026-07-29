@@ -108,6 +108,15 @@
        --t-3xl      stat numerals
        --t-hero     the score */
   --font: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* The SCORE face. The score is the product — "log → number → coach → streak" — and it was set in
+     the same family as body copy at a larger size, so the one thing that should be recognisable in a
+     screenshot from across a room looked like big text. Archivo Expanded 900 is already the display
+     type on onstandard.app, so this makes the number in the app and the number in the marketing the
+     same letterform instead of two cousins. Reserved for SCORES: a font this loud stops meaning
+     "this is the number that matters" the moment it is also used for timestamps and macros.
+     Plus Jakarta Sans 800 leads the fallback, so a font that fails to load degrades to exactly
+     today's appearance rather than to a system serif. */
+  --font-display: 'Archivo', 'Plus Jakarta Sans', system-ui, sans-serif;
   --t-eyebrow: 10px;
   --t-xs:      11px;
   --t-sm:      12.5px;

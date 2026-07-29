@@ -152,7 +152,7 @@
    reveals. animateRing() drives it (r=29.5 → C=185.35). */
 .scorechip .sc-ring { position: absolute; inset: 0; }
 .scorechip .sc-arc { stroke: var(--green-bright); }
-.scorechip .v { font-size: 21px; font-weight: 800; color: var(--green-bright); line-height: 1; }
+.scorechip .v { font-family: var(--font-display); font-size: 21px; font-weight: 900; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--green-bright); line-height: 1; }
 .scorechip .k { font-size: 8.5px; font-weight: 800; letter-spacing: 0.08em; color: var(--text-2); text-transform: uppercase; margin-top:2px; }
 .foodchips { display: flex; flex-wrap: wrap; gap:8px; }
 .foodchip {
@@ -602,7 +602,9 @@
 .xhero:active{transform:scale(0.985)}
 .xhero .xh-main{display:flex;align-items:center;gap:14px;position:relative}
 .xhero .ring-wrap{flex:0 0 auto}
-.xhero .ring-center.num .score{font-size:var(--t-hero);font-weight:800;letter-spacing:var(--num-tight);color:var(--text);text-shadow:none;line-height:1;margin-top:0}
+/* Sets only the BASE size — never font-size itself, or the .d3 three-digit fit stops applying here
+   (see the note on .ring-center .score in app.css). */
+.xhero .ring-center.num .score{font-family:var(--font-display);--score-size:var(--t-hero);font-weight:900;letter-spacing:-0.02em;font-variant-numeric:tabular-nums;color:var(--text);text-shadow:none;line-height:1;margin-top:0}
 .xhero .xh-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
 .xhero .xh-k{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--text-3)}
 .xhero .xrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -870,8 +872,9 @@
 .scorechip.low .sc-arc{stroke:var(--red)}
 .scorechip.low .v{color:var(--red)}
 .qual-line{display:flex;align-items:center;gap:14px;margin-top:10px;padding:12px 14px;border-radius:var(--r-tile);background:var(--surface-1);border:1px solid var(--hairline)}
-.qual-line .qv{font-size:24px;font-weight:800;letter-spacing:var(--num-tight);flex:none;font-variant-numeric:tabular-nums}
-.qual-line .qv small{font-size:12px;font-weight:700;color:var(--text-3)}
+.qual-line .qv{font-family:var(--font-display);font-size:24px;font-weight:900;letter-spacing:-0.01em;flex:none;font-variant-numeric:tabular-nums}
+/* the "/100" stays in the body face — it is a unit, not the score */
+.qual-line .qv small{font-family:var(--font);font-size:12px;font-weight:700;color:var(--text-3)}
 .qual-line .ql{font-size:10.5px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase}
 .qual-line .qr{font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px;line-height:1.4}
 .qual-line.good .qv,.qual-line.good .ql{color:var(--green-bright)}

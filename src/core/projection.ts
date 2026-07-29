@@ -11,8 +11,14 @@
 // from their current check-in answers, not a fabricated max, and `projected` is floored at
 // `current` so finishing the day can never read as a loss.
 import { computeDerived } from './scoring';
+import { DEFAULT_PLAN } from './coachPlan';
 import type { EditableFood } from './mealEdit';
 import type { AppState, MealKey } from './types';
+
+/** The plan window deadline (minute-of-day) for a slot; 1440 (never late) if unlisted. */
+function deadlineFor(k: MealKey): number {
+  return DEFAULT_PLAN.windows.find((w) => w.key === k)?.deadlineMin ?? 1440;
+}
 
 export interface ProjectedAction {
   /** Stable key (e.g. 'protein', 'meal:dinner', 'checkin', 'tasks'). */
@@ -51,8 +57,16 @@ const MEAL_LABEL: Record<MealKey, string> = {
  *   (or appended to snack when all four are). Exported for the reachability tests.
  * - Punctuality stamps are kept: credit already lost to a late log stays lost.
  * Recovery is whatever the current check-in answers compute to (an estimate, not a max).
+ *
+ * HONEST DECAY (clock-aware, optional `nowMin`): a meal the athlete has NOT logged whose
+ * window deadline has ALREADY passed can now only be logged LATE — so it is idealized with a
+ * late `mealLoggedAt = nowMin`, projecting at the half `LATE_MEAL_WEIGHT` rather than promising
+ * unearnable on-time credit. This makes the projected score genuinely slip as the day burns
+ * down. Backward compatible: omit `nowMin`, or run engines-off where no timestamps are
+ * collected, and every idealized meal stays on-time exactly as before. Already-logged meals
+ * are never re-stamped (their real punctuality is authoritative).
  */
-export function idealizeDay(s: AppState): AppState {
+export function idealizeDay(s: AppState, nowMin?: number): AppState {
   const d = computeDerived(s);
   const gap = Math.max(0, Math.round(d.proteinGap));
   const gapPlate: EditableFood[] = gap > 0 ? [{ name: 'projected', portion: '', servings: 1, per: { protein: gap, kcal: 0, carbs: 0, fat: 0 } }] : [];
@@ -63,10 +77,21 @@ export function idealizeDay(s: AppState): AppState {
     if (openSlot) mealFoods[openSlot] = gapPlate;
     else mealFoods.snack = [...(mealFoods.snack ?? []), ...gapPlate];
   }
+  // Late-stamp only meals the athlete has NOT logged whose window already closed, and only
+  // when a clock is supplied. Existing stamps are preserved; on-time slots stay unstamped.
+  const mealLoggedAt = { ...s.mealLoggedAt };
+  if (nowMin != null) {
+    slots.forEach((k) => {
+      if (!s.meals[k] && mealLoggedAt[k] == null && nowMin > deadlineFor(k)) {
+        mealLoggedAt[k] = nowMin;
+      }
+    });
+  }
   return {
     ...s,
     meals: { breakfast: true, lunch: true, snack: true, dinner: true },
     mealFoods,
+    mealLoggedAt,
     tasks: s.tasks.map((t) => ({ ...t, done: true })),
     ciSubmitted: true,
     dailyCommitment: 'yes',
@@ -76,12 +101,13 @@ export function idealizeDay(s: AppState): AppState {
 /**
  * Project today's Development Score: the current number, the number reachable by finishing
  * the day's controllable actions, and the checklist of what's left. `projected` equals
- * computeDerived over the idealized day and is never below `current`. Pure.
+ * computeDerived over the idealized day and is never below `current`. Optional `nowMin`
+ * enables honest decay (see idealizeDay). Pure.
  */
-export function projectedScore(s: AppState): ScoreProjection {
+export function projectedScore(s: AppState, nowMin?: number): ScoreProjection {
   const d = computeDerived(s);
   const current = d.athleteScore;
-  const projected = Math.max(current, computeDerived(idealizeDay(s)).athleteScore);
+  const projected = Math.max(current, computeDerived(idealizeDay(s, nowMin)).athleteScore);
 
   const actions: ProjectedAction[] = [];
 

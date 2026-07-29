@@ -6,6 +6,15 @@
 @font-face{font-family:"Plus Jakarta Sans";font-style:normal;font-weight:700;font-display:block;src:url("../fonts/PlusJakartaSans-700Bold.ttf") format("truetype")}
 @font-face{font-family:"Plus Jakarta Sans";font-style:normal;font-weight:800;font-display:block;src:url("../fonts/PlusJakartaSans-800ExtraBold.ttf") format("truetype")}
 
+/* Archivo Expanded 900 — the SCORE face (see --font-display in tokens.css).
+   Not a new brand decision: this is the display type onstandard.app already sets its headlines in,
+   so the number in the app and the number on the marketing site are finally the same letterform.
+   font-display:block, like the faces above: the score is the one number we would rather show a beat
+   late than show twice in two different fonts. 34 KB next to 474 KB of Plus Jakarta Sans already in
+   this folder, and it loads from the app bundle over file://, so there is no request to save by
+   subsetting it to digits. */
+@font-face{font-family:"Archivo";font-style:normal;font-weight:900;font-display:block;src:url("../fonts/archivo-exp900.woff2") format("woff2")}
+
 /* Native-shell polish (harmless at :8124): no grey tap-flash in WKWebView, and don't let
    the webview rubber-band the whole page or select text like a document. */
 *{-webkit-tap-highlight-color:transparent}

@@ -96,6 +96,63 @@ describe('projectedScore — current vs reachable', () => {
   });
 });
 
+describe('projectedScore — honest decay (clock-aware)', () => {
+  // A day with nothing logged yet, so every meal slot is still open to be idealized.
+  const emptyDay = (): AppState => ({
+    ...createInitialState(),
+    meals: { breakfast: false, lunch: false, snack: false, dinner: false },
+    mealFoods: {},
+    mealLoggedAt: {},
+    ciSubmitted: false,
+  });
+
+  it('idealizes a past-window unlogged meal as a LATE log, not full on-time credit', () => {
+    // breakfast deadline is 9:30 (570 min). At 10:00 it can only be logged late.
+    const ideal = idealizeDay(emptyDay(), 600);
+    expect(ideal.mealLoggedAt.breakfast).toBe(600); // stamped late
+    // a meal whose window is still open (dinner, deadline 20:30) is NOT stamped
+    expect(ideal.mealLoggedAt.dinner).toBeUndefined();
+  });
+
+  it('reachable score DROPS once windows have closed vs early morning', () => {
+    const early = projectedScore(emptyDay(), 6 * 60); // 6:00, everything still on time
+    const late = projectedScore(emptyDay(), 21 * 60); // 21:00, every meal window closed
+    expect(late.projected).toBeLessThan(early.projected);
+  });
+
+  it('is monotone: a later clock never RAISES the reachable score for the same day', () => {
+    const s = emptyDay();
+    let prev = Infinity;
+    for (const nowMin of [6 * 60, 10 * 60, 15 * 60, 18 * 60, 21 * 60]) {
+      const p = projectedScore(s, nowMin);
+      expect(p.projected).toBeLessThanOrEqual(prev);
+      prev = p.projected;
+    }
+  });
+
+  it('never reads below current even after decay (still floored)', () => {
+    const p = projectedScore(emptyDay(), 23 * 60);
+    expect(p.projected).toBeGreaterThanOrEqual(p.current);
+  });
+
+  it('omitting the clock is identical to today (backward compatible)', () => {
+    const s = emptyDay();
+    expect(projectedScore(s).projected).toBe(projectedScore(s, undefined).projected);
+  });
+
+  it('with no meal timestamps collected, decay never bites (engines-off safe)', () => {
+    // A meal already logged with NO timestamp stays on-time regardless of the clock.
+    const s: AppState = {
+      ...createInitialState(),
+      meals: { breakfast: true, lunch: false, snack: false, dinner: false },
+      mealFoods: { breakfast: plate(40) },
+      mealLoggedAt: {},
+    };
+    // Idealizing at a late clock must not retroactively stamp the ALREADY-logged breakfast.
+    expect(idealizeDay(s, 23 * 60).mealLoggedAt.breakfast).toBeUndefined();
+  });
+});
+
 describe('projectedScore — the action checklist', () => {
   it('lists a protein action with the remaining grams when behind', () => {
     const s = createInitialState();
