@@ -83,7 +83,7 @@ export function standardsCard(rows, todayIso) {
   return `<section class="card cs-card">
     <div class="cs-head">
       <span class="cs-eyebrow">TODAY’S STANDARDS</span>
-      <span class="xpill gray">Tracked · not scored</span>
+      <span class="note">Tracked · not scored</span>
     </div>
     ${today.map((r) => standardRow(r, todayIso || todayISO())).join('')}
   </section>`;

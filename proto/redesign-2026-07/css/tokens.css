@@ -123,13 +123,30 @@
   --track-eyebrow: 0.14em;  /* uppercase section labels */
   --track-key: 0.06em;      /* small uppercase stat keys */
 
-  /* ---- Radii ---- */
-  --r-card: 22px;
-  --r-card-sm: 16px;
-  --r-tile: 15px;
-  --r-pill: 999px;
+  /* ---- Radii ----
+     The corner SCALE. Before this the app carried 283 border-radius declarations whose raw values
+     ran 2,3,4,5,8,9,10,11,12,13,14,15,16,17,18,22 — a continuum, not a scale, and the same disease
+     the type scale above was built to cure. Adjacent levels differed by a single pixel, so corners
+     could not signal anything; they just read as imprecision nobody could name.
+
+     Five steps, each far enough from the next to be a deliberate level:
+
+       --r-micro    a mark, not a container (progress bars, standing-bar segments)
+       --r-chip     chips, small icon tiles
+       --r-card-sm  inner surfaces, buttons, icon boxes
+       --r-card     a top-level card
+       --r-pill     pills and circles
+
+     --r-tile and --r-btn were 15px and 17px — within two pixels of --r-card-sm and of each other,
+     which is a distinction no eye can make. They are kept as ALIASES so no rule has to change,
+     but they are not levels. Do not add a sixth. */
+  --r-micro: 4px;
   --r-chip: 11px;
-  --r-btn: 17px;
+  --r-card-sm: 16px;
+  --r-card: 22px;
+  --r-pill: 999px;
+  --r-tile: var(--r-card-sm);   /* alias — was 15px */
+  --r-btn: var(--r-card-sm);    /* alias — was 17px */
 
   /* ---- Spacing scale (rhythm, not uniform) ---- */
   --s1: 4px;  --s2: 8px;  --s3: 12px;  --s4: 16px;  --s5: 20px;
@@ -142,7 +159,10 @@
   --nav-h: 96px;
 
   /* ---- Elevation ---- */
-  --sh-card: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 24px rgba(0,0,0,0.36);
+  /* The card no longer draws a border (see .card in app.css), so the top highlight is what gives
+     it an edge against the canvas. It was 0.02 — invisible next to a 1px hairline, and not enough
+     on its own. 0.05 reads as a lit edge rather than a drawn one. */
+  --sh-card: 0 1px 0 rgba(255,255,255,0.05) inset, 0 8px 24px rgba(0,0,0,0.36);
   --sh-raised: 0 14px 40px rgba(0,0,0,0.48);
   --sh-blue: 0 10px 30px rgba(37, 99, 235, 0.40);
   --sh-green: 0 12px 34px rgba(52, 211, 153, 0.34);
@@ -217,7 +237,10 @@
   --ring-b: #06B6D4;
   --ring-c: #2563EB;
 
-  --sh-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 18px rgba(15, 23, 42, 0.06);
+  /* Light has no inset highlight to give a borderless card its edge — a white card on #F8FAFC is
+     nearly the same value as the canvas — so the lift does all of the work and is tuned up to
+     carry it. Still a shadow, not an outline: the card should look placed, not drawn. */
+  --sh-card: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 22px rgba(15, 23, 42, 0.09);
   --sh-raised: 0 10px 30px rgba(15, 23, 42, 0.10);
   --sh-blue: 0 8px 22px rgba(37, 99, 235, 0.28);
   /* on a light ground the numerals are dark ink — a dark drop would muddy them; keep only a soft teal halo */

@@ -395,7 +395,7 @@ const grow = (i, { hidePill, chev, checkIcon } = {}) => `<div class="xg-row" dat
 function hydroNow(h) {
   const pct = Math.min(100, Math.round(((h.oz || 0) / 120) * 100));
   return `<section class="xnow hyd-now">
-    <div class="xlab"><span class="xl">NOW</span><span class="xpill gold">Optional</span></div>
+    <div class="xlab"><span class="xl">NOW</span><span class="note">Optional</span></div>
     <div class="xmain">
       <div class="xico gold">${icon('droplet', 21)}</div>
       <div><div class="xt">Hydration</div><div class="xwhy" id="hyd-sub">${esc(h.sub)}</div></div>
@@ -468,7 +468,7 @@ function firstActionCard(n) {
   const label = isCheck ? `Mark ${esc(n.title)} done` : `${VERB[n.proof]} ${esc(n.title)}`;
   const ctaIcon = isCheck ? 'check' : CTA_ICON[n.proof];
   return `<section class="xnow">
-    <div class="xlab"><span class="xl">NOW</span><span class="xpill gold">Start here</span></div>
+    <div class="xlab"><span class="xl">NOW</span><span class="note">Start here</span></div>
     <div class="xmain"><div class="xico gold">${icon(n.icon, 21)}</div>
       <div><div class="xt">${esc(n.title)}</div><div class="xwhy">Your score starts moving with your first log. ${whyHtml(n.why)}</div></div></div>
     <div style="height:10px"></div>
@@ -533,7 +533,7 @@ export default {
       ${(!S.dayDecided && S.tier.cls === 'r') ? inProgressHero(e) : hero(e)}
       ${syncBanner()}
       <section class="xnow">
-        <div class="xlab"><span class="xl">NOW</span><span class="xpill gold">Start here</span></div>
+        <div class="xlab"><span class="xl">NOW</span><span class="note">Start here</span></div>
         <div class="xmain"><div class="xico gold">${icon('camera', 21)}</div>
         <div><div class="xt">Log First Meal</div><div class="xwhy">Your score starts moving with your first log. <b>Nutrition · ${liveWeightPct('nutrition')}% of score.</b></div></div></div>
         <div style="height:10px"></div>
