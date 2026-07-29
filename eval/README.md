@@ -31,6 +31,25 @@ Every live run writes `eval/baselines/<EVAL_STAMP>.json` and updates `eval/basel
 (`⚠ kcal_err_pct: 0.08 → 0.15 (+0.07)`). Pass `--no-baseline` for a throwaway experiment you don't
 want to become the new reference point.
 
+### It exits non-zero
+
+This is a gate, so it can fail. `npm run eval` exits 1 when a metric regresses past the threshold,
+when a manifest case has no response (that meal contributed nothing, so the aggregate silently
+described a smaller set than the manifest claims), or when zero meals were measured. All of these
+used to print a warning into a run that exited 0, which in CI is indistinguishable from a pass.
+
+### Coverage is reported every run
+
+The run ends with which of the required case types below the set actually exercises. **Three of the
+four are currently uncovered** — the set is one clean plate. A green run today means "the one clean
+plate still works", not "the pipeline is safe", and the run now says so out loud instead of implying
+the stronger claim.
+
+Closing that needs real photographed plates (see *Add a meal*), which is a team task — a run cannot
+conjure them, and synthesizing them would make the gate lie in the more dangerous direction. So the
+gap is reported loudly but is **not** fatal: it must not block the deterministic `--replay` that
+contributors do rely on today.
+
 ## What it measures
 
 Only what's checkable against a label, per meal and rolled up by `caseType` and overall:
