@@ -1,7 +1,11 @@
 /* OnStandard — Redesign Prototype · Components & Layout */
 
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-html, body { height: 100%; }
+/* touch-action: manipulation kills double-tap-to-zoom (and the 300ms tap delay that comes with
+   waiting to see if a second tap is coming, so every control feels immediate). text-size-adjust
+   stops iOS inflating type on its own. The image viewer sets its own touch-action and, being a
+   class selector, still wins. */
+html, body { height: 100%; touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   font-family: var(--font);
   font-variant-numeric: tabular-nums; /* numbers are the product; they never jitter */
