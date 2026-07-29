@@ -1085,7 +1085,7 @@ export const thread = {
         if (item.type === 'time') return `<div class="tsep">${esc(item.label)}</div>`;
         const c = item.comment;
         const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
-        const who = authorName(c, participants, RT.userId);
+        const who = authorName(c, participants, RT.userId, S.coach.noun);
         const update = isAnalysisUpdate(c);
         const quoted = update ? quotedFor(c, msgs) : null;
         // Reactions belong to the whole thread (0049 keys them to the meal, not to a message), so

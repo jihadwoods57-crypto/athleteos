@@ -78,6 +78,9 @@ const SHOTS = [
   { g: 'meal', name: 'meal-questions', seed: 'dayMidday', route: 'meal-questions', at: [13, 6] },
   { g: 'meal', name: 'food-search', seed: 'dayMidday', route: 'food-search', at: [13, 7] },
   { g: 'meal', name: 'history', seed: 'dayComplete', route: 'history', at: [21, 58] },
+  // The PAST-meal conversation — where a follow-up notification lands. Never captured before,
+  // so it was the one thread surface still rendering 'Coach' with a hardcoded letter for a face.
+  { g: 'meal', name: 'meal-view', seed: 'dayMidday', route: 'meal-view/meal-seed-lunch', at: [21, 5] },
 
   // athlete — the rest of the day
   { g: 'athlete2', name: 'weight', seed: 'dayMorning', route: 'weight', at: [7, 10] },
@@ -134,6 +137,9 @@ const SHOTS = [
   { g: 'trainer', name: 'trainer-book', seed: 'trainerIdentity', route: 'coach-roster', at: [7, 30], book: 'practice' },
   { g: 'trainer', name: 'trainer-grow', seed: 'trainerIdentity', route: 'trainer-grow', at: [7, 30], book: 'practice' },
   { g: 'trainer', name: 'trainer-inbox', seed: 'trainerIdentity', route: 'trainer-inbox', at: [7, 30], book: 'practice' },
+  // A trainer reading a client's meal. Same screen as the coach (nav:'operator'), different
+  // identity and vocabulary — the half that would call a client's trainer 'Coach'.
+  { g: 'trainer', name: 'trainer-meal', seed: 'trainerIdentity', route: 'coach-meal/meal-seed-lunch', at: [7, 30], book: 'practice' },
 
   // parent
   { g: 'parent', name: 'parent-home', seed: 'parentIdentity', route: 'parent', at: [19, 15], book: 'team' },

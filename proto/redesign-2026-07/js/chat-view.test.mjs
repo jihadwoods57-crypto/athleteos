@@ -135,3 +135,15 @@ test('a correction made through the chip panel has nothing to quote, and says so
   assert.equal(quotedFor(update, msgs), null);
   assert.equal(quotedFor(msg('ai', ATHLETE, 1), msgs), null);
 });
+
+test('a trainer is called a trainer, not a coach', () => {
+  // The operator lane is shared: the same `coach` role carries a team coach and a personal
+  // trainer. When the participants list cannot resolve the author, the fallback has to use the
+  // word the reader's own screen uses — a client seeing "Coach" would notice.
+  const unresolved = msg('coach', 'someone-not-in-the-list', 1);
+  assert.equal(authorName(unresolved, [], ATHLETE, 'trainer'), 'Trainer');
+  assert.equal(authorName(unresolved, [], ATHLETE, 'coach'), 'Coach');
+  assert.equal(authorName(unresolved, [], ATHLETE), 'Coach', 'no noun given falls back to Coach');
+  // A resolved name always wins over any fallback.
+  assert.equal(authorName(msg('coach', COACH, 1), [{ id: COACH, name: 'Dana Ruiz', kind: 'trainer' }], ATHLETE, 'trainer'), 'Dana Ruiz');
+});

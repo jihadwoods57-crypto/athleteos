@@ -70,17 +70,23 @@ export function participantSummary(list) {
 /**
  * Who wrote this message, for display.
  *
- * Falls back by ROLE rather than to a blank: an unresolved author is far better shown as "Coach"
- * than as nothing, and the participants RPC can legitimately be unavailable (an older database,
- * an offline load, a staff member who has since left the team).
+ * Falls back by ROLE rather than to a blank: an unresolved author is far better shown by their
+ * role than as nothing, and the participants RPC can legitimately be unavailable (an older
+ * database, an offline load, a staff member who has since left the team). `fallbackNoun` lets the
+ * caller supply the word its own screen uses — "trainer" for a client, "coach" for a team athlete.
  */
-export function authorName(comment, participants, selfId) {
+export function authorName(comment, participants, selfId, fallbackNoun) {
   if (!comment) return '';
   if (comment.role === 'ai') return 'AI Nutritionist';
   if (comment.author_id && selfId && comment.author_id === selfId) return 'You';
   const hit = (participants || []).find((p) => p.id && p.id === comment.author_id);
   if (hit && hit.name && !hit.self) return hit.name;
-  return comment.role === 'athlete' ? 'Athlete' : 'Coach';
+  if (comment.role === 'athlete') return 'Athlete';
+  // The operator lane is shared: the same `coach` role carries a team coach, a personal trainer,
+  // and anyone else with view access. Calling a client's trainer "Coach" is a small lie the
+  // client would notice, so the caller passes the noun their own screen already uses.
+  const noun = String(fallbackNoun || 'Coach');
+  return noun.charAt(0).toUpperCase() + noun.slice(1);
 }
 
 /**

@@ -11,7 +11,7 @@
  * hangs off it — this reads exactly the rows the athlete could already read one plate at a time.
  */
 
-import { RT } from '../state.js';
+import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc, composer } from '../components.js';
 import { threadMessages } from '../meal-intel.js';
@@ -149,7 +149,7 @@ export default {
       if (item.type === 'time') return `<div class="tsep">${esc(item.label)}</div>`;
       const c = item.comment;
       const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
-      const who = authorName(c, participants, RT.userId);
+      const who = authorName(c, participants, RT.userId, S.coach.noun);
       const update = isAnalysisUpdate(c);
       const quoted = update ? quotedFor(c, allMsgs) : null;
       return `
