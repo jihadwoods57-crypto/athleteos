@@ -9,6 +9,8 @@ import { deriveCommitment } from '../commitments.js';
 import { VC, loadMine, todayISO as vcToday } from '../commitment-data.js';
 import { commitmentCard, mountCommitmentCard, commitmentOfflineCard } from './roll-call.js';
 import { armIfPermitted } from './location-consent.js';
+import { standardsCard, mountStandardsCard, standardsOfflineCard } from './connected-standards.js';
+import { CS, loadMine as loadStandards, todayISO as csToday } from '../connected-standard-data.js';
 
 /* Verified Commitments on Home. Renders every commitment the athlete has today that is currently
    visible — usually zero or one, occasionally a roll call plus an afternoon study hall.
@@ -41,6 +43,33 @@ function paintCommitments(root) {
     // permission (and on any build without expo-location), and it registers nothing for an
     // athlete with no located commitments today.
     if (rows.some((r) => r.asks_arrival)) armIfPermitted();
+  });
+}
+
+/* Connected Standards on Home (0155). Same shape as the commitments slot above: paint instantly
+   from cache, then reconcile with the server.
+
+   The feature needs no client-side flag check. cs_enabled is enforced inside the materialize RPC
+   and fails CLOSED, so with the feature off nothing is materialized, the payload is empty, and
+   standardsCard() returns '' — the slot stays a zero-height div. */
+function paintStandards(root) {
+  const slot = root.querySelector('#cs-slot');
+  if (!slot) return;
+  const paint = () => {
+    if (!slot.isConnected) return;
+    const html = standardsCard(CS.mine, csToday());
+    // An outage must never render as "you have no standards". For an athlete whose coach set a
+    // deadline today, silence and a failed fetch look identical and mean opposite things.
+    slot.innerHTML = html || (CS.mineError ? standardsOfflineCard() : '');
+    if (html) mountStandardsCard(slot);
+  };
+  paint();
+  loadStandards().then(() => {
+    // Hand the rows to RT so state.js can plan progress-aware reminders and write the
+    // days.tasks lane. connected-standard-data.js deliberately never imports state.js (the
+    // module cycle coach-data.js documents), so the screen that owns the fetch publishes it.
+    RT.csRows = CS.mine;
+    paint();
   });
 }
 
@@ -571,6 +600,7 @@ export default {
     ${outcomeBand()}
     <div id="seen-row"></div>
     <div id="vc-slot"></div>
+    <div id="cs-slot"></div>
     ${attention}
     <div id="cv-nudge">${cachedNudge(e)}</div>
     ${e.overdue.filter((o) => o.id !== (e.now && e.now.id) && o.id !== (e.next && e.next.id)).map(row).join('')}
@@ -589,6 +619,10 @@ export default {
     // slow network never delays the score hero — the same seam #seen-row uses. An athlete with no
     // coach-scheduled commitments has an empty slot and Home is byte-identical to before.
     paintCommitments(root);
+    // Connected Standards (0155): same async seam. An athlete with no activity standards — which
+    // is everyone until a coach sets one or the feature is switched on — has an empty slot and
+    // Home is byte-identical to before.
+    paintStandards(root);
     // Coach Voice nudge: best-effort, fire-and-forget over today's deterministic exec state.
     maybeCoachNudge(S.exec);
     // Resolve today's stored meal photos (signed URLs) so Recent Results shows the real

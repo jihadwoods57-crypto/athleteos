@@ -631,6 +631,11 @@
 .xpill.gray{background:var(--surface-3);color:var(--text-3);border:1px solid var(--hairline)}
 .xpill.green{background:var(--green-surface);color:var(--green-bright);border:1px solid var(--green-border)}
 .xpill.red{background:var(--red-surface);color:var(--red);border:1px solid var(--red-border)}
+/* Connected Standards needs two more meanings than gold/gray/green/red can carry: "in progress"
+   (live, nothing decided) and "needs review" (waiting on a human). Folding either onto amber
+   would make a sync problem and a pending approval look like the same thing. */
+.xpill.blue{background:var(--blue-surface);color:var(--blue-bright);border:1px solid var(--blue-border)}
+.xpill.purple{background:var(--purple-surface);color:var(--purple-bright);border:1px solid var(--purple-border)}
 .xico{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;flex:0 0 auto}
 .xico.gold{background:var(--amber-surface);color:var(--amber-bright);border:1px solid var(--amber-border)}
 .xico.green{background:var(--green-surface);color:var(--green-bright)}
@@ -1012,3 +1017,54 @@
 .ps-band .seg.s-structured i{background:var(--blue-bright,#60a5fa)}
 .ps-band .seg.s-guided i{background:var(--cyan)}
 .ps-band .seg.s-intuitive i{background:var(--green-bright,#4ade80)}
+
+/* ================= Connected Standards (0155) =================
+   The Home card, its detail screen and the personal editor. Every colour comes from the
+   semantic tokens: blue = live, green = met, amber = off pace or waiting on a device, red =
+   genuinely short. A device gap is amber and never red, because the athlete did not fail. */
+.cs-card{padding:16px}
+.cs-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px}
+
+.cs-row{padding:14px 0 0;cursor:pointer}
+.cs-row + .cs-row{border-top:1px solid var(--hairline-soft);margin-top:14px}
+.cs-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.cs-title{font-size:var(--t-md);font-weight:700;letter-spacing:var(--title-tight)}
+.cs-nums{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.cs-prog{font-size:var(--t-base);font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:var(--num-tight)}
+.cs-meta{font-size:var(--t-xs);color:var(--text-3);margin-top:5px}
+
+/* The bar carries the state as well as the number, so the card reads at a glance without
+   anyone having to parse "7,842 of 10,000". */
+.cs-bar{height:7px;border-radius:var(--r-pill);background:var(--surface-3);overflow:hidden;margin:10px 0 8px}
+.cs-bar > i{display:block;height:100%;border-radius:var(--r-pill);background:linear-gradient(90deg,var(--ring-c),var(--ring-b))}
+.cs-bar.green > i{background:linear-gradient(90deg,var(--ring-a),var(--ring-b))}
+.cs-bar.amber > i{background:linear-gradient(90deg,var(--amber-deep),var(--amber))}
+@media (prefers-reduced-motion: no-preference){
+  .cs-bar > i{transition:width var(--dur-3) var(--ease-out)}
+}
+
+.cs-hero{font-size:var(--t-3xl);font-weight:800;letter-spacing:var(--num-tight);font-variant-numeric:tabular-nums;line-height:1.05;margin-top:6px}
+.cs-hero small{font-size:var(--t-md);color:var(--text-3);font-weight:700;letter-spacing:var(--title-tight)}
+
+/* The week strip. ✓ met · ✕ short · ↻ waiting on the device · – excused · • today. */
+/* max-width caps the cell so a standard with two periods of history reads as the start of a
+   strip rather than two icons marooned at opposite edges; a full week still fills the row. */
+.cs-days{display:flex;gap:7px}
+.cs-day{flex:1 1 0;max-width:56px;text-align:center}
+.cs-day i{display:grid;place-items:center;width:26px;height:26px;margin:0 auto 4px;border-radius:9px;border:1px solid var(--hairline);background:var(--surface-2);font-style:normal;font-size:11px;font-weight:800;color:var(--text-3)}
+.cs-day span{font-size:9px;color:var(--text-3);font-weight:700;letter-spacing:var(--track-key)}
+.cs-day.ok i{background:var(--green-surface);border-color:var(--green-border);color:var(--green)}
+.cs-day.miss i{background:var(--red-surface);border-color:var(--red-border);color:var(--red)}
+.cs-day.sync i{background:var(--amber-surface);border-color:var(--amber-border);color:var(--amber-bright)}
+.cs-day.now i{background:var(--blue-surface);border-color:var(--blue-border);color:var(--blue-bright)}
+.cs-day.exc i{background:var(--surface-3);color:var(--text-3)}
+
+/* Editor knobs. Deliberately NOT `.seg` — that class is a pill track whose children are
+   <button>, and reusing it for chips would inherit the track and style nothing. */
+.cs-knob{padding:14px 0;border-top:1px solid var(--hairline-soft)}
+.cs-knob:first-child{border-top:0;padding-top:2px}
+.cs-knob-label{font-size:var(--t-eyebrow);letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--text-3);font-weight:800;margin-bottom:8px}
+.cs-seg{display:flex;gap:6px;flex-wrap:wrap}
+.cs-seg span{display:inline-flex;align-items:center;min-height:44px;padding:6px 13px;border-radius:var(--r-chip);background:var(--surface-2);border:1px solid var(--hairline);color:var(--text-2);font-size:var(--t-sm);font-weight:700;cursor:pointer;transition:background var(--dur-1) var(--ease-out),border-color var(--dur-1) var(--ease-out)}
+.cs-seg span.on{background:var(--blue-surface);border-color:var(--blue-border);color:var(--blue-bright)}
+.cs-seg span:focus-visible{outline:2px solid var(--blue-bright);outline-offset:2px}

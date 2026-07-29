@@ -120,11 +120,37 @@ export function progressPct(row) {
   return Math.max(0, Math.min(100, Math.round((Number(row?.progress) || 0) / t * 100)));
 }
 
-/** "Synced 6:42 PM", or the honest absence of one. */
-export function syncedLabel(row, offMin = localOffsetMin()) {
+/** The local calendar date of an ISO instant in the viewer's zone. */
+export function localDateISO(iso, offMin = localOffsetMin()) {
+  const t = Date.parse(iso || '');
+  if (!isFinite(t)) return null;
+  return new Date(t + (offMin || 0) * 60000).toISOString().slice(0, 10);
+}
+
+/**
+ * "Synced 6:42 PM", or the honest absence of one.
+ *
+ * ⚠ A BARE TIME IS A LIE WHEN THE SYNC WASN'T TODAY. "Synced 2:04 PM" on a row that last heard
+ * from the watch YESTERDAY reads as this afternoon, which is exactly backwards on the one state
+ * this feature exists to get right — the athlete needs to know the device has gone quiet, not be
+ * reassured it just reported. Pass todayISO to get the day back.
+ */
+export function syncedLabel(row, offMin = localOffsetMin(), todayISO = null) {
   if (!row?.last_synced_at) return 'Not synced yet';
   const at = fmtAt(row.last_synced_at, offMin);
-  return at ? `Synced ${at}` : 'Not synced yet';
+  if (!at) return 'Not synced yet';
+  const on = localDateISO(row.last_synced_at, offMin);
+  if (!todayISO || !on || on === todayISO) return `Synced ${at}`;
+  const ago = daysBetween(on, todayISO);
+  if (ago === 1) return `Last synced yesterday, ${at}`;
+  if (ago > 1) return `Last synced ${ago} days ago`;
+  return `Synced ${at}`;
+}
+
+/** "Completed 8:17 PM" — the receipt, which is a different fact from the last sync. */
+export function completedLabel(row, offMin = localOffsetMin()) {
+  const at = row?.completed_at ? fmtAt(row.completed_at, offMin) : '';
+  return at ? `Completed ${at}` : 'Complete';
 }
 
 /* ---------------------------------------------------------------- what counts as this metric

@@ -86,6 +86,11 @@ export default {
         <div class="lm"><div class="lt">Activity history</div><div class="ls">The proof trail, day by day</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
+      <div class="lrow" data-go="connected-standards">
+        <div class="lic" style="color:var(--blue-bright)">${icon('bolt', 17)}</div>
+        <div class="lm"><div class="lt">Activity standards</div><div class="ls">Steps, distance and workouts — verified from your device</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
       <div class="lrow" data-go="checkin">
         <div class="lic">${icon('check', 17)}</div>
         <div class="lm"><div class="lt">Weekly check-in</div><div class="ls">${S.weekly.status}</div></div>

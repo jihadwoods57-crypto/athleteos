@@ -48,6 +48,11 @@ const ALLOWED = new Set([
   // OB2 step-level onboarding funnel (2026-07-23). {route, step, ch} — the per-screen drop-off
   // signal; the flows fire ~26 of these per completed run, so this is the highest-volume name.
   "onboarding_step",
+  // Connected Standards (0155, 2026-07-28). cs_verified vs cs_manual is the health of the sync
+  // path; cs_disputed is the honesty signal — if it climbs, the feature is calling athletes short
+  // when they weren't, and it should be turned off rather than tuned.
+  "cs_set", "cs_personal_set", "cs_card_shown", "cs_verified",
+  "cs_manual", "cs_reviewed", "cs_disputed",
 ]);
 const ENUM_RE = /^[a-z0-9_.:-]{1,24}$/;
 const SID_RE = /^[a-z0-9_.:-]{1,64}$/i;

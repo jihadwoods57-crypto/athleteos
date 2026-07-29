@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import {
   STATUS, csStatusLabel, isComplete, isDeviceGap,
   groupThousands, toDisplay, toCanonical, fmtValue, unitNoun,
-  csProgressLine, remainingLabel, progressPct, syncedLabel,
+  csProgressLine, remainingLabel, progressPct, syncedLabel, completedLabel, localDateISO,
   metricLabel, sourceRule, paceToGoal, daysBetween,
   compliance, boardCounts, needsAttention, groupForAthlete, activeOn,
 } from './connected-standards.js';
@@ -118,6 +118,32 @@ test('a target of zero cannot divide by zero', () => {
 test('the sync line is honest about never having synced', () => {
   assert.equal(syncedLabel(steps, EDT), 'Synced 6:42 PM');
   assert.equal(syncedLabel({ ...steps, last_synced_at: null }, EDT), 'Not synced yet');
+});
+
+test('a bare time is never shown for a sync that was not today', () => {
+  // The state this feature exists to get right. "Synced 2:04 PM" on a row whose watch last
+  // reported YESTERDAY reads as this afternoon — the exact opposite of the truth the athlete
+  // needs, which is that the device has gone quiet.
+  const stale = { ...steps, last_synced_at: '2026-07-27T18:04:00Z' };
+  assert.equal(syncedLabel(stale, EDT, '2026-07-28'), 'Last synced yesterday, 2:04 PM');
+
+  const older = { ...steps, last_synced_at: '2026-07-25T18:04:00Z' };
+  assert.equal(syncedLabel(older, EDT, '2026-07-28'), 'Last synced 3 days ago');
+
+  // same day → the bare time is the honest, least noisy form
+  assert.equal(syncedLabel(steps, EDT, '2026-07-28'), 'Synced 6:42 PM');
+});
+
+test('completion time is reported as completion, not as a sync', () => {
+  const done = { ...steps, status: 'verified_complete', completed_at: '2026-07-29T00:17:00Z' };
+  assert.equal(completedLabel(done, EDT), 'Completed 8:17 PM');
+  // a complete row with no stamp still reads cleanly rather than "Completed "
+  assert.equal(completedLabel({ ...done, completed_at: null }, EDT), 'Complete');
+});
+
+test('the local date of an instant follows the viewer, not UTC', () => {
+  // 00:17 UTC on the 29th is still the evening of the 28th in New York.
+  assert.equal(localDateISO('2026-07-29T00:17:00Z', EDT), '2026-07-28');
 });
 
 /* ---------------------------------------------------------------- what counts as this metric */

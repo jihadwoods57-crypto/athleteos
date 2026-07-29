@@ -70,6 +70,18 @@ export const EVENTS = Object.freeze({
   VC_UNVERIFIED: 'vc_unverified',             // {reason} — verification could not be confirmed
   VC_DISPUTED: 'vc_disputed',                 // athlete says the record is wrong
   VC_REMINDED: 'vc_reminded',                 // {n} — coach pushed the non-responders
+
+  // Connected Standards (0155). The questions: does anyone set these, does the DEVICE actually
+  // answer them, and how often does a human have to step in because it didn't? CS_MANUAL rising
+  // relative to CS_VERIFIED means the sync path is failing and athletes are covering for it;
+  // CS_DISPUTED rising means the feature is calling people short when they weren't.
+  CS_SET: 'cs_set',                           // {metric, period, audience} — a coach set one
+  CS_PERSONAL_SET: 'cs_personal_set',         // {metric, period} — an athlete set their own
+  CS_CARD_SHOWN: 'cs_card_shown',             // {metric} — exposure; completion rate needs it
+  CS_VERIFIED: 'cs_verified',                 // {metric, source} — the device answered
+  CS_MANUAL: 'cs_manual',                     // {metric, review} — logged by hand instead
+  CS_REVIEWED: 'cs_reviewed',                 // {approve} — coach ruled on a manual entry
+  CS_DISPUTED: 'cs_disputed',                 // {metric} — athlete says the verdict is wrong
 });
 const EVENT_SET = new Set(Object.values(EVENTS));
 

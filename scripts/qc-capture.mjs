@@ -90,6 +90,16 @@ const SHOTS = [
   { g: 'athlete2', name: 'streak', seed: 'dayComplete', route: 'streak', at: [21, 45] },
   { g: 'athlete2', name: 'trust', seed: 'dayComplete', route: 'trust', at: [21, 59] },
 
+  // Connected Standards (0155). Four moments, because the states that matter most are the ones
+  // where the DEVICE failed rather than the athlete — 'cs-gap' is the shot to look at hardest.
+  { g: 'standards', name: 'cs-home-live', seed: 'dayMidday', route: 'home', at: [18, 42], cs: 'live' },
+  { g: 'standards', name: 'cs-home-done', seed: 'dayComplete', route: 'home', at: [21, 30], cs: 'done' },
+  { g: 'standards', name: 'cs-home-gap', seed: 'dayMidday', route: 'home', at: [21, 30], cs: 'gap' },
+  { g: 'standards', name: 'cs-detail', seed: 'dayMidday', route: 'connected-standard/csr-steps', at: [18, 45], cs: 'live' },
+  { g: 'standards', name: 'cs-detail-gap', seed: 'dayMidday', route: 'connected-standard/csr-steps', at: [21, 30], cs: 'gap' },
+  { g: 'standards', name: 'cs-list', seed: 'dayMidday', route: 'connected-standards', at: [18, 45], cs: 'live' },
+  { g: 'standards', name: 'cs-edit', seed: 'dayMidday', route: 'connected-standard-edit', at: [18, 45], cs: 'live' },
+
   // plan styles
   { g: 'styles', name: 'style-structured', seed: 'styleStructured', route: 'plan', at: [21, 40] },
   { g: 'styles', name: 'style-guided', seed: 'styleGuided', route: 'plan', at: [21, 40] },
@@ -317,6 +327,7 @@ try {
         try {
           await seedOnNewDocument(page, clockAt(h, m));
           if (s.vc) await seedOnNewDocument(page, `window.__VC_MODE = ${JSON.stringify(s.vc)};`);
+          if (s.cs) await seedOnNewDocument(page, `window.__CS_MODE = ${JSON.stringify(s.cs)};`);
           await seedOnNewDocument(page, sbStubSource({
             todayISO: TODAY,
             athletes: s.book === 'practice' ? BOOK_CLIENTS : ROSTER_ATHLETES,

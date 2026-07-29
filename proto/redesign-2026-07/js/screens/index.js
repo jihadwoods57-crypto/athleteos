@@ -52,6 +52,7 @@ import progressCompare from './progress-compare.js';
 import logTraining from './log-training.js';
 import trainingHistory from './training-history.js';
 import rollCall from './roll-call.js';
+import connectedStandard, { connectedStandardsList, connectedStandardEdit } from './connected-standards.js';
 import locationConsent from './location-consent.js';
 import accountability from './accountability.js';
 import verifiedDiscipline from './verified-discipline.js';
@@ -171,4 +172,9 @@ export const screens = {
   'coach-commitments': coachCommitments,
   'coach-commit-edit': coachCommitEdit,
   'coach-commit-manage': coachCommitManage,
+  // Connected Standards (0155). Athlete: the standard detail, the list, and the personal editor.
+  // The Home card itself is injected into #cs-slot by home.js, not routed.
+  'connected-standard': connectedStandard,
+  'connected-standards': connectedStandardsList,
+  'connected-standard-edit': connectedStandardEdit,
 };

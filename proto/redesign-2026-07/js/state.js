@@ -3547,5 +3547,21 @@ window.S = S; // debug
 // completion (recovery, etc.) instead of the old never-written '[]'. Lazy: only invoked inside
 // pushDay, so S/DAY are fully hydrated by the time it runs. Weekly check-in is excluded by
 // deriveExec and stays on its own rollup column (checkin_done) — no double signal.
-setDayTaskProvider(() =>
-  S.exec.items.map((i) => ({ id: i.id, done: i.state === 'done' || i.state === 'done_late' })));
+// Connected Standards (0155) ride the SAME lane, prefixed `cs:` so they can never collide with a
+// requirement id. This is the whole coach-side integration for the tracked-not-scored surface:
+// teamPulse and the roster status chips read days.tasks, so a verified step goal shows up there
+// for free. It moves no score — 0041's evidence ceiling reads meals/checkin/trust_passes, never
+// tasks — which is exactly why multi-domain completions (0112) were wired this way too.
+//
+// A period still waiting on a device is reported as NOT done rather than omitted: the coach's
+// "who is outstanding" list should include them, and the board (not this lane) is where the
+// difference between "hasn't walked" and "watch hasn't reported" is spelled out.
+setDayTaskProvider(() => [
+  ...S.exec.items.map((i) => ({ id: i.id, done: i.state === 'done' || i.state === 'done_late' })),
+  ...(Array.isArray(RT.csRows) ? RT.csRows : [])
+    .filter((r) => r && r.period === 'day' && r.period_start === DAY.date)
+    .map((r) => ({
+      id: `cs:${r.standard_id}`,
+      done: r.status === 'verified_complete' || r.status === 'completed_manually',
+    })),
+]);

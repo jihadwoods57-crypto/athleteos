@@ -96,6 +96,71 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
     my_funded_plans: () => [],
     has_premium_access: () => true,
 
+    // ---- Connected Standards (0155) ----
+    // window.__CS_MODE picks the moment being captured, and DEFAULT is 'none' so activity cards
+    // never leak onto generic Home shots — the same discipline __VC_MODE follows.
+    //   'live' the afternoon card: steps in progress, a weekly target off pace
+    //   'done' the evening card: both verified by the device, nothing tapped
+    //   'gap'  the state the product exists to get right — the watch never reported
+    ensure_my_connected_standards: () => null,
+    ensure_connected_standard_instances: () => null,
+    my_connected_standards: () => {
+      const mode = window.__CS_MODE || 'none';
+      if (mode === 'none') return [];
+      const MI = 1609.344;
+      const steps = (over) => ({
+        result_id: 'csr-steps', instance_id: 'csi-steps', standard_id: 'cs-steps',
+        title: 'Daily Movement', metric: 'steps', display_unit: 'steps',
+        target: 10000, progress: over ? 10326 : 7842,
+        period: 'day', period_start: TODAY, period_end: TODAY,
+        deadline_at: TODAY + 'T03:59:00Z', instance_status: 'scheduled',
+        deliberate_workout: false, workout_min_duration_min: null,
+        status: over ? 'verified_complete' : 'in_progress',
+        verified_source: over ? 'healthkit' : null,
+        completed_at: over ? TODAY + 'T00:17:00Z' : null,
+        last_synced_at: TODAY + 'T22:42:00Z', device_connected: true,
+        allow_manual: true, manual_requires_approval: false,
+        source_kind: 'assigned', owner_label: 'Lincoln Football',
+      });
+      const run = () => ({
+        result_id: 'csr-run', instance_id: 'csi-run', standard_id: 'cs-run',
+        title: 'Tuesday Conditioning', metric: 'distance', display_unit: 'mi',
+        target: 2.5 * MI, progress: 2.73 * MI,
+        period: 'day', period_start: TODAY, period_end: TODAY,
+        deadline_at: TODAY + 'T23:00:00Z', instance_status: 'scheduled',
+        deliberate_workout: true, workout_min_duration_min: 30,
+        status: 'verified_complete', verified_source: 'healthkit',
+        completed_at: TODAY + 'T22:18:00Z', last_synced_at: TODAY + 'T22:20:00Z',
+        device_connected: true, allow_manual: true, manual_requires_approval: true,
+        source_kind: 'assigned', owner_label: 'Lincoln Football',
+      });
+      const weekly = (progressMi) => ({
+        result_id: 'csr-week', instance_id: 'csi-week', standard_id: 'cs-week',
+        title: 'Weekly Miles', metric: 'distance', display_unit: 'mi',
+        target: 12 * MI, progress: progressMi * MI,
+        period: 'week', period_start: shift(TODAY, -3), period_end: shift(TODAY, 3),
+        deadline_at: shift(TODAY, 3) + 'T03:59:00Z', instance_status: 'scheduled',
+        deliberate_workout: false, workout_min_duration_min: null,
+        status: 'in_progress', verified_source: null, completed_at: null,
+        last_synced_at: TODAY + 'T22:42:00Z', device_connected: true,
+        allow_manual: true, manual_requires_approval: false,
+        source_kind: 'personal', owner_label: null,
+      });
+      if (mode === 'gap') {
+        const s = steps(false);
+        s.status = 'awaiting_sync'; s.progress = 6120;
+        s.last_synced_at = shift(TODAY, -1) + 'T18:04:00Z';
+        // Yesterday, resolved the honest way: the device never reported and nobody was blamed.
+        const prior = steps(false);
+        prior.result_id = 'csr-steps-y'; prior.instance_id = 'csi-steps-y';
+        prior.period_start = shift(TODAY, -1); prior.period_end = shift(TODAY, -1);
+        prior.status = 'insufficient_data'; prior.progress = 4400;
+        return [s, prior, weekly(4)];
+      }
+      if (mode === 'done') return [steps(true), run(), weekly(9.6)];
+      return [steps(false), weekly(6.4)];
+    },
+
     // ---- Verified Commitments (0138/0139) ----
     // Row shape mirrors what deriveCommitment() in commitments.js actually reads. The STAGE of
     // each card (open / acknowledged / awaiting_arrival / missed / unverified) is decided by that
