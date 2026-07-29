@@ -5,6 +5,7 @@
    Every call is best-effort: on a missing client, a not-applied table/RPC, or any error it
    returns []/null so role screens render an HONEST empty state, never a fabricated one.
    No new endpoints — the exact tables/RPCs the RN app already uses. */
+import { scoreBand, BAND_FLAG } from './score-band.js';
 
 function sb() { return window.sb; }
 function iso(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
@@ -464,6 +465,53 @@ export async function postMealComment(mealId, athleteId, authorId, role, text, k
     const { error: e2 } = await c.from('meal_comments').insert({ meal_id: mealId, athlete_id: athleteId, author_id: authorId, role, text });
     return !e2;
   } catch { return false; }
+}
+
+/** Every message across an athlete's own meals, newest window first — the season-long thread.
+ *
+ *  Keyed on athlete_id rather than meal_id, which is what makes one continuous conversation
+ *  possible without changing where the rows live: RLS scopes it exactly as it scopes a single
+ *  meal, so this reads the same rows the athlete could already read one plate at a time.
+ *
+ *  Returned oldest-first (the reading order); `beforeISO` pages backwards through the season. */
+export async function fetchMyMealThread(athleteId, { beforeISO = null, limit = 200 } = {}) {
+  const c = sb(); if (!c || !athleteId) return [];
+  try {
+    let q = c.from('meal_comments').select('*').eq('athlete_id', athleteId);
+    if (beforeISO) q = q.lt('created_at', beforeISO);
+    const { data, error } = await q.order('created_at', { ascending: false }).limit(limit);
+    if (error) return { error: true };
+    return (data || []).slice().reverse();
+  } catch { return { error: true }; }
+}
+
+/** Who is in this athlete's meal conversation (0158) — real names and real roles, for the
+ *  participants header and for attributing bubbles. Cached per athlete for the session: the
+ *  membership of a room does not change between two paints, and this is called on every mount.
+ *
+ *  Returns [] on any failure, including a database that predates the RPC. The thread then falls
+ *  back to role labels, which is worse than names and much better than a blank screen — a
+ *  participants list is a courtesy, never a gate on reading your own meal. */
+const PARTICIPANTS = {};
+export async function fetchThreadParticipants(athleteId, { force = false } = {}) {
+  if (!athleteId) return [];
+  if (!force && PARTICIPANTS[athleteId]) return PARTICIPANTS[athleteId];
+  const c = sb(); if (!c) return [];
+  try {
+    const { data, error } = await c.rpc('meal_thread_participants', { p_athlete: athleteId });
+    if (error) return [];
+    const rows = Array.isArray(data) ? data.filter(Boolean) : [];
+    PARTICIPANTS[athleteId] = rows;
+    return rows;
+  } catch { return []; }
+}
+
+/** Remove one's OWN comment (0046 delete-own policy). Used to un-send a mis-tapped reaction, so a
+ *  wrong emoji is undoable rather than something the athlete sees and the coach cannot retract. */
+export async function deleteMealComment(id) {
+  const c = sb(); if (!c || !id) return false;
+  try { const { error } = await c.from('meal_comments').delete().eq('id', id); return !error; }
+  catch { return false; }
 }
 
 /* ---------------- coach: targets / trust pass (RPCs) ---------------- */
@@ -1305,7 +1353,7 @@ export async function fetchMySubscription() {
 }
 
 /* ---------------- pure roster projection (honest: no invented numbers) ---------------- */
-export function tierFlag(score) { return score == null ? '' : score >= 80 ? 'g' : score >= 60 ? 'y' : 'r'; }
+export function tierFlag(score) { const b = scoreBand(score); return b ? BAND_FLAG[b] : ''; }
 /** Merge a roster member (from the RPC) with today's real day row into a UI row.
     A member with no day row today is honestly "No logs today" — never a made-up score. */
 export function buildRosterRow(member, dayRow, extras = {}) {
@@ -1435,6 +1483,57 @@ export async function fetchInterventionOutcomes(bookId, fromISO, kind = 'team') 
       practice ? { p_practice: bookId, p_from: fromISO } : { p_team: bookId, p_from: fromISO });
     return error ? [] : (data || []);
   } catch { return []; }
+}
+
+/* ---------------- Athlete memory (0019) ----------------
+   What the athlete's corrections teach the AI about them. RLS `mem_self` gives an athlete full
+   control of their own rows, so these are plain client writes — no RPC needed. Every call is
+   best-effort and never throws: memory is an enhancement, and a failure here must never break a
+   correction the athlete just made. */
+
+/** Active + pending facts for the signed-in athlete. */
+export async function fetchMyMemoryFacts(uid) {
+  const c = sb(); if (!c || !uid) return [];
+  try {
+    const { data } = await c.from('athlete_memory_facts')
+      .select('id,kind,value,confidence,evidence_n,status')
+      .eq('athlete_id', uid).in('status', ['active', 'pending_confirmation']).limit(120);
+    return data || [];
+  } catch { return []; }
+}
+
+/** Insert a new fact, or accrue evidence on the one that already says the same thing. */
+export async function upsertMemoryFact(uid, fact, existing) {
+  const c = sb(); if (!c || !uid || !fact) return false;
+  try {
+    if (existing && existing.id) {
+      const { error } = await c.from('athlete_memory_facts').update({
+        evidence_n: (Number(existing.evidence_n) || 1) + 1,
+        confidence: Math.min(1, (Number(existing.confidence) || 0.3) + 0.15),
+        last_seen: new Date().toISOString(),
+      }).eq('id', existing.id).eq('athlete_id', uid);
+      return !error;
+    }
+    const { error } = await c.from('athlete_memory_facts').insert({
+      athlete_id: uid, kind: fact.kind, value: fact.value,
+      confidence: fact.confidence == null ? 0.3 : fact.confidence,
+      source: fact.source || 'inferred_correction',
+      evidence_n: fact.evidence_n || 1, status: fact.status || 'pending_confirmation',
+    });
+    return !error;
+  } catch { return false; }
+}
+
+/** The athlete confirming or rejecting a pending fact. This is the only thing that makes an
+ *  inferred safety fact bind. */
+export async function setMemoryFactStatus(uid, id, status) {
+  const c = sb(); if (!c || !uid || !id) return false;
+  try {
+    const { error } = await c.from('athlete_memory_facts')
+      .update({ status, last_seen: new Date().toISOString() })
+      .eq('id', id).eq('athlete_id', uid);
+    return !error;
+  } catch { return false; }
 }
 
 export { cap };

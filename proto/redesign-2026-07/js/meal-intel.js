@@ -377,7 +377,8 @@ function intuitiveSummary({ detected, fiber, late, deadlineClock, highlights } =
       : hasProtein
         ? 'Worth noticing whether this one holds you, or whether hunger comes back early.'
         : 'Worth noticing how long this one carries you before you are hungry again.',
-    next: 'No fix needed — just log how it left you feeling. That is the pattern worth having.',
+    // No instruction to log a feeling: the meal-time prompt that used to ask for one is gone.
+    next: 'No fix needed — notice how it leaves you over the next couple of hours. That is the pattern worth having.',
   };
 }
 
@@ -444,6 +445,12 @@ export function openingSummary({
 }
 
 /** Reaction rows (kind='reaction') grouped as [{emoji, count}], insertion-ordered. */
+/** The one-tap acknowledgements a coach can leave. ONE set, ONE order — the coach screen used to
+ *  render two different bars ('🔥💪👏👍' above the thread, '💪🔥👏✅' below it), so which emoji a
+ *  thumb landed on depended on which bar you happened to hit. Legacy 👍 rows still render through
+ *  reactionGroups; this only governs what is OFFERED. */
+export const REACTION_EMOJI = ['🔥', '💪', '👏', '✅'];
+
 export function reactionGroups(comments) {
   const counts = new Map();
   for (const c of comments || []) {

@@ -33,10 +33,19 @@ const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 const RETURN_BASE = Deno.env.get('BILLING_RETURN_URL') ??
   (SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/billing-return` : '');
 
-const stripe = new Stripe(STRIPE_SECRET_KEY, {
-  apiVersion: '2025-02-24.acacia',
-  httpClient: Stripe.createFetchHttpClient(),
-});
+// Lazy construction: `new Stripe('')` throws at module load, which crashed the worker at import
+// time and made the platform return a generic 500 — the 'billing not configured' 503 gate below
+// could never run. Deferring construction lets an unconfigured deploy load and fail closed politely.
+let _stripe: Stripe | null = null;
+function stripeClient(): Stripe {
+  if (!_stripe) {
+    _stripe = new Stripe(STRIPE_SECRET_KEY, {
+      apiVersion: '2025-02-24.acacia',
+      httpClient: Stripe.createFetchHttpClient(),
+    });
+  }
+  return _stripe;
+}
 
 // CORS + rate limit: same discipline as the AI functions (see analyze-meal).
 const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? '').split(',').map((o) => o.trim()).filter(Boolean);
@@ -122,7 +131,7 @@ Deno.serve(async (req) => {
 
   try {
     // Look the price up by its lookup_key — the founder-created Price in Stripe.
-    const prices = await stripe.prices.list({ lookup_keys: [priceLookupKey(planId, cadence)], limit: 1 });
+    const prices = await stripeClient().prices.list({ lookup_keys: [priceLookupKey(planId, cadence)], limit: 1 });
     const price = prices.data[0];
     if (!price) {
       console.error(`billing-checkout: no Stripe price with lookup_key ${priceLookupKey(planId, cadence)}`);
@@ -135,7 +144,7 @@ Deno.serve(async (req) => {
       .select('stripe_customer_id').eq('owner_id', user.id).maybeSingle();
     const existingCustomer = subRow?.stripe_customer_id ?? null;
 
-    const session = await stripe.checkout.sessions.create({
+    const session = await stripeClient().checkout.sessions.create({
       mode: 'subscription',
       client_reference_id: user.id,
       ...(existingCustomer ? { customer: existingCustomer } : user.email ? { customer_email: user.email } : {}),

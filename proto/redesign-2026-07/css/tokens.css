@@ -37,28 +37,116 @@
   --green:  #34D399;  --green-bright: #4ADE80;  --green-surface: rgba(52, 211, 153, 0.13);  --green-border: rgba(52, 211, 153, 0.30);
   --amber:  #F5A524;  --amber-bright: #FBBF24;  --amber-surface: rgba(245, 165, 36, 0.13);  --amber-border: rgba(245, 165, 36, 0.32);
   --purple: #A855F7;  --purple-bright:#C084FC;  --purple-surface:rgba(168, 85, 247, 0.13);  --purple-border:rgba(168, 85, 247, 0.30);
-  --red:    #F65757;  --red-surface:  rgba(246, 87, 87, 0.13);   --red-border: rgba(246, 87, 87, 0.30);
-  --cyan:   #38BDF8;  --cyan-surface: rgba(56, 189, 248, 0.13);
+  --red:    #F65757;  --red-bright:   #F87171;  --red-surface:  rgba(246, 87, 87, 0.13);   --red-border: rgba(246, 87, 87, 0.30);
+  --cyan:   #38BDF8;  --cyan-bright:  #38BDF8;  --cyan-surface: rgba(56, 189, 248, 0.13);  --cyan-border: rgba(56, 189, 248, 0.30);
+
+  /* Ink for text sitting ON a filled accent. This MUST flip with the theme: dark-theme accents
+     are 400-level (bright) so the ink is near-black; light-theme accents are 700-level (deep) so
+     the ink is white. A single fixed value cannot serve both, which is why --text-on-accent
+     (#FFFFFF in both themes) went unused and seven ad-hoc inks grew in its place. */
+  --ink-on-accent: #06120C;
+
+
+  /* ---- Brand hues as RGB TRIPLES ----
+     `rgba(var(--green-rgb), .12)` composes any alpha you need and still flips with the theme.
+     102 washes across the component CSS were written as raw rgba(52,211,153,a) and friends, which
+     froze them at DARK values — on the light canvas they stayed mint-green on white. Triples fix
+     the whole class at once without inventing an alpha scale (there were 18 distinct green alphas
+     alone; that is a continuum, not a system, and enumerating it would have entrenched it). */
+  /* The canvas itself as a triple. The tab bar fades content out against it and the FAB needs a
+     scrim in the same colour; both must flip with the theme or the scrim shows as a grey disc. */
+  --bg-rgb:     7, 11, 20;
+
+  --green-rgb:  52, 211, 153;
+  --blue-rgb:   59, 130, 246;
+  --amber-rgb:  245, 165, 36;
+  --purple-rgb: 168, 85, 247;
+  --red-rgb:    246, 87, 87;
+  --cyan-rgb:   56, 189, 248;
+  --teal-rgb:   34, 211, 238;   /* --ring-b, used for the signature sweep glows */
+
+
+  /* ---- -deep: the DARKER end of a gradient FILL ----
+     Fills must not use -bright. In light theme -bright is the TEXT-weight variant and goes DEEPER
+     (green-700), so `linear-gradient(var(--green-bright), #16a34a)` inverted on light: the "bright"
+     stop rendered darker than its hardcoded partner. 15 gradients had this. Pair --hue with
+     --hue-deep instead and the direction holds in both themes. */
+  /* Brand teal. Used as the far end of the signature blue->teal sweep. Hardcoded in 7
+     places before this and defined nowhere. No light override: it is a fill endpoint
+     that holds on both canvases. */
+  --teal-deep:   #0E7490;
+
+  --green-deep:  #16A34A;
+  --amber-deep:  #D97706;
+  --purple-deep: #7E22CE;
+  --red-deep:    #DC2626;
 
   /* Score ring gradient stops (green -> teal -> blue, the signature moment) */
   --ring-a: #34D399;
   --ring-b: #22D3EE;
   --ring-c: #3B82F6;
 
-  /* ---- Typography ---- */
+  /* ---- Typography ----
+     The type SCALE. Before this the app used 45 distinct font sizes across 809 declarations,
+     618 of them packed into the 10-17px band at 0.5px steps — 10, 10.5, 11, 11.5, 12, 12.5 …
+     That is a continuum, not a scale: adjacent levels differ by less than a device pixel, so
+     typography could not signal hierarchy, and hierarchy got built out of borders and boxes
+     instead (130 card-like rules, 165 hairlines, 46 card class names for one idea).
+
+     Nine steps, each separated enough to read as a deliberate level. New and refactored rules
+     use these; the legacy literals are migrated screen by screen rather than in one sweep, so
+     each change can be seen in the QC contact sheet.
+
+       --t-eyebrow  uppercase section labels, stat keys
+       --t-xs       meta, timestamps, captions
+       --t-sm       secondary body, list subtitles
+       --t-base     body
+       --t-md       emphasised body, list titles
+       --t-lg       card titles
+       --t-xl       section headings
+       --t-2xl      screen titles
+       --t-3xl      stat numerals
+       --t-hero     the score */
   --font: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --t-eyebrow: 10px;
+  --t-xs:      11px;
+  --t-sm:      12.5px;
+  --t-base:    14px;
+  --t-md:      15.5px;
+  --t-lg:      17px;
+  --t-xl:      20px;
+  --t-2xl:     24px;
+  --t-3xl:     34px;
+  --t-hero:    52px;
   --num-tight: -0.03em;
   --title-tight: -0.02em;
   --track-eyebrow: 0.14em;  /* uppercase section labels */
   --track-key: 0.06em;      /* small uppercase stat keys */
 
-  /* ---- Radii ---- */
-  --r-card: 22px;
-  --r-card-sm: 16px;
-  --r-tile: 15px;
-  --r-pill: 999px;
+  /* ---- Radii ----
+     The corner SCALE. Before this the app carried 283 border-radius declarations whose raw values
+     ran 2,3,4,5,8,9,10,11,12,13,14,15,16,17,18,22 — a continuum, not a scale, and the same disease
+     the type scale above was built to cure. Adjacent levels differed by a single pixel, so corners
+     could not signal anything; they just read as imprecision nobody could name.
+
+     Five steps, each far enough from the next to be a deliberate level:
+
+       --r-micro    a mark, not a container (progress bars, standing-bar segments)
+       --r-chip     chips, small icon tiles
+       --r-card-sm  inner surfaces, buttons, icon boxes
+       --r-card     a top-level card
+       --r-pill     pills and circles
+
+     --r-tile and --r-btn were 15px and 17px — within two pixels of --r-card-sm and of each other,
+     which is a distinction no eye can make. They are kept as ALIASES so no rule has to change,
+     but they are not levels. Do not add a sixth. */
+  --r-micro: 4px;
   --r-chip: 11px;
-  --r-btn: 17px;
+  --r-card-sm: 16px;
+  --r-card: 22px;
+  --r-pill: 999px;
+  --r-tile: var(--r-card-sm);   /* alias — was 15px */
+  --r-btn: var(--r-card-sm);    /* alias — was 17px */
 
   /* ---- Spacing scale (rhythm, not uniform) ---- */
   --s1: 4px;  --s2: 8px;  --s3: 12px;  --s4: 16px;  --s5: 20px;
@@ -66,8 +154,15 @@
 
   --pad-screen: 20px;
 
+  /* Bottom tab bar height. Written in three places before this (the bar, the viewport's bottom
+     clearance, and the roster's sticky bulk bar) — three chances to disagree. */
+  --nav-h: 96px;
+
   /* ---- Elevation ---- */
-  --sh-card: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 24px rgba(0,0,0,0.36);
+  /* The card no longer draws a border (see .card in app.css), so the top highlight is what gives
+     it an edge against the canvas. It was 0.02 — invisible next to a 1px hairline, and not enough
+     on its own. 0.05 reads as a lit edge rather than a drawn one. */
+  --sh-card: 0 1px 0 rgba(255,255,255,0.05) inset, 0 8px 24px rgba(0,0,0,0.36);
   --sh-raised: 0 14px 40px rgba(0,0,0,0.48);
   --sh-blue: 0 10px 30px rgba(37, 99, 235, 0.40);
   --sh-green: 0 12px 34px rgba(52, 211, 153, 0.34);
@@ -109,15 +204,43 @@
   --green:  #16A34A;  --green-bright: #15803D;  --green-surface: rgba(22, 163, 74, 0.10);  --green-border: rgba(22, 163, 74, 0.28);
   --amber:  #D97706;  --amber-bright: #B45309;  --amber-surface: rgba(217, 119, 6, 0.10);  --amber-border: rgba(217, 119, 6, 0.30);
   --purple: #9333EA;  --purple-bright:#7E22CE;  --purple-surface:rgba(147, 51, 234, 0.09); --purple-border:rgba(147, 51, 234, 0.26);
-  --red:    #DC2626;  --red-surface:  rgba(220, 38, 38, 0.09);   --red-border: rgba(220, 38, 38, 0.26);
-  --cyan:   #0284C7;  --cyan-surface: rgba(2, 132, 199, 0.10);
+  /* -bright is the TEXT-weight variant on a light ground, so it goes DEEPER (700), matching
+     green/amber/purple above. Measured on --bg #F8FAFC: --red-bright 6.2:1, --cyan-bright 5.4:1
+     — both clear AA for the small status labels they carry. The old invented #FF9B9B measured
+     2.02:1 on the coach's "Critical" tier chip, which is effectively illegible. */
+  --red:    #DC2626;  --red-bright:   #B91C1C;  --red-surface:  rgba(220, 38, 38, 0.09);   --red-border: rgba(220, 38, 38, 0.26);
+  --cyan:   #0284C7;  --cyan-bright:  #0369A1;  --cyan-surface: rgba(2, 132, 199, 0.10);   --cyan-border: rgba(2, 132, 199, 0.28);
+
+  /* Light-theme accents are deep, so ink on them is white (see the dark-theme note). */
+  --ink-on-accent: #FFFFFF;
+
+
+  /* Same triples, light values — see the note in the dark block. */
+  --bg-rgb:     248, 250, 252;
+  --green-rgb:  22, 163, 74;
+  --blue-rgb:   37, 99, 235;
+  --amber-rgb:  217, 119, 6;
+  --purple-rgb: 147, 51, 234;
+  --red-rgb:    220, 38, 38;
+  --cyan-rgb:   2, 132, 199;
+  --teal-rgb:   6, 182, 212;
+
+
+  /* -deep, light: one step below the light --hue, so fills still run light -> dark. */
+  --green-deep:  #15803D;
+  --amber-deep:  #B45309;
+  --purple-deep: #6B21A8;
+  --red-deep:    #B91C1C;
 
   /* signature sweep endpoints tuned for a light ground (deeper teal/blue, green kept) */
   --ring-a: #10B981;
   --ring-b: #06B6D4;
   --ring-c: #2563EB;
 
-  --sh-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 6px 18px rgba(15, 23, 42, 0.06);
+  /* Light has no inset highlight to give a borderless card its edge — a white card on #F8FAFC is
+     nearly the same value as the canvas — so the lift does all of the work and is tuned up to
+     carry it. Still a shadow, not an outline: the card should look placed, not drawn. */
+  --sh-card: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 22px rgba(15, 23, 42, 0.09);
   --sh-raised: 0 10px 30px rgba(15, 23, 42, 0.10);
   --sh-blue: 0 8px 22px rgba(37, 99, 235, 0.28);
   /* on a light ground the numerals are dark ink — a dark drop would muddy them; keep only a soft teal halo */

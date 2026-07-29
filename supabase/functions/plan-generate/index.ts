@@ -10,6 +10,7 @@ import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { clientIpFrom } from '../_shared/client-ip.ts';
+import { checkSpend, spendMessage, EST_USD } from '../_shared/spend-gate.ts';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 
@@ -41,7 +42,7 @@ function posIntCap(name: string, fallback: number): number {
 //   * ANON_IP_CAP — paid calls/day per IP for anonymous (anon-key-only) callers, who skip the
 //     per-user cap. Both are backed by claim_ai_usage_key (migration 0030) and fail CLOSED — the
 //     bill backstop and an anon caller's only ceiling must hold even when the counter is down.
-const GLOBAL_CAP = posIntCap('GLOBAL_ANALYSIS_CAP', 5000);
+const GLOBAL_CAP = posIntCap('GLOBAL_ANALYSIS_CAP', 750);
 const ANON_IP_CAP = posIntCap('ANON_IP_ANALYSIS_CAP', 60);
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
@@ -282,15 +283,29 @@ Deno.serve(async (request) => {
 
   // Spend caps (audit item 4), checked after the input guards so a malformed request never burns a
   // slot. Same three layers as analyze-meal, sharing the same counters for one unified daily bill.
-  // (1) Global daily ceiling across every caller — the hard backstop on a day's Anthropic bill.
+  // (1) Global daily ceiling — ANONYMOUS callers only. This used to gate EVERY caller, which meant
+  // anon abuse could exhaust the shared 'global' counter and 429 every paying coach's plan draft
+  // until UTC midnight. analyze-meal already exempts signed-in callers for exactly that reason
+  // (see its note at the equivalent check); plan-generate now matches. A signed-in coach is still
+  // bounded by their own per-user daily cap below, and by the dollar ceiling at (1b), which
+  // applies to everyone.
   // Fails CLOSED: if the counter is unreachable the bill backstop must hold (audit 2026-07-12).
-  if (!(await withinKeyCap('global', GLOBAL_CAP, /* failOpen */ false))) {
+  const userId = await resolveUserId(request);
+  if (!userId && !(await withinKeyCap('global', GLOBAL_CAP, /* failOpen */ false))) {
     return new Response(JSON.stringify({ error: 'service at capacity, try again later' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
+  // (1b) THE DOLLAR CEILING (0152). Everything above counts CALLS; this counts MONEY, which is
+  // the unit the bill is denominated in. Fail-closed — a spend brake that disables itself when the
+  // plumbing breaks is decorative.
+  const spend = await checkSpend(EST_USD.text);
+  if (!spend.allowed) {
+    console.log(JSON.stringify({ evt: 'ai_spend_block', fn: 'plan-generate', reason: spend.reason }));
+    return new Response(JSON.stringify({ error: spendMessage(spend) }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
+  }
+
   // (2) Per-caller cap: a signed-in user gets the per-user daily cap (fails OPEN — never block a
   // legit coach's draft on an infra hiccup); an anonymous (anon-key-only) caller gets a per-IP daily
   // cap that fails CLOSED, since the public anon key's only ceiling must hold when the counter is down.
-  const userId = await resolveUserId(request);
   const withinCallerCap = userId
     ? await withinDailyCap(userId)
     : await withinKeyCap(`ip:${clientIp(request)}`, ANON_IP_CAP, /* failOpen */ false);

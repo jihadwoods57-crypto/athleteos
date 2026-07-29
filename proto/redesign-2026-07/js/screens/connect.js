@@ -59,7 +59,7 @@ export default {
         <div><div class="tt">What they'll see</div>
         <div class="ts">${isTeam ? 'This coach will see your score, requirements, meal logs, and check-ins.' : 'This trainer will see your recovery, readiness, and nutrition consistency.'}</div></div>
       </div>
-      <div id="cc-err" role="alert" aria-live="assertive" style="color:#f87171;font-size:13px;font-weight:600;min-height:18px;margin-top:12px;text-align:center"></div>
+      <div id="cc-err" role="alert" aria-live="assertive" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;margin-top:12px;text-align:center"></div>
       <button class="btn primary" id="cc-confirm">${icon('check', 18)} Connect to ${esc(preview.name || 'this team')}</button>
       <div style="height:8px"></div>
       <button class="btn ghost sm" id="cc-cancel">Not my team — re-enter code</button>
@@ -76,7 +76,7 @@ export default {
       autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="go"
       style="text-align:center;letter-spacing:0.2em;font-weight:800;text-transform:uppercase" />
     <div style="text-align:center;font-size:12.5px;font-weight:600;color:var(--text-3);margin-top:10px">Ask your coach or team group chat for the code. Trainer codes work here too.</div>
-    <div id="cc-err" role="alert" aria-live="assertive" style="color:#f87171;font-size:13px;font-weight:600;min-height:18px;margin-top:10px;text-align:center"></div>
+    <div id="cc-err" role="alert" aria-live="assertive" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;margin-top:10px;text-align:center"></div>
 
     <div style="height:6px"></div>
     <button class="btn primary" id="cc-join" disabled style="opacity:.5">Continue</button>

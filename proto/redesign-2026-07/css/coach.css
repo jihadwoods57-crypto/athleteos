@@ -24,7 +24,7 @@
   position: relative;
   border-radius: var(--r-card);
   background:
-    radial-gradient(120% 140% at 12% -10%, rgba(34,211,238,0.10), transparent 55%),
+    radial-gradient(120% 140% at 12% -10%, rgba(var(--teal-rgb), 0.10), transparent 55%),
     var(--surface-1);
   border: 1px solid var(--hairline);
   box-shadow: var(--sh-card);
@@ -34,15 +34,15 @@
 /* aurora echo — one soft blue->teal bloom, ties the coach hero to the athlete ring */
 .co-pulse::before {
   content: ''; position: absolute; z-index: 0; inset: auto -20% -60% -20%; height: 150px;
-  background: radial-gradient(60% 100% at 30% 100%, rgba(52,211,153,0.16), transparent 60%),
-              radial-gradient(60% 100% at 75% 100%, rgba(59,130,246,0.18), transparent 62%);
+  background: radial-gradient(60% 100% at 30% 100%, rgba(var(--green-rgb), 0.16), transparent 60%),
+              radial-gradient(60% 100% at 75% 100%, rgba(var(--blue-rgb), 0.18), transparent 62%);
   filter: blur(24px); opacity: 0.9; pointer-events: none;
 }
 .co-pulse > * { position: relative; z-index: 1; }
 .co-pulse-top { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s4); }
 .co-pulse-score .k {
   font-size: 10.5px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
-  color: var(--text-3); margin-bottom: 2px;
+  color: var(--text-3); margin-bottom:2px;
 }
 .co-pulse-score .num {
   font-size: 60px; font-weight: 800; line-height: 0.9; letter-spacing: -0.045em;
@@ -50,20 +50,20 @@
   background: linear-gradient(105deg, var(--ring-a), var(--ring-b) 46%, var(--ring-c));
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
-.co-pulse-score .delta { font-size: 13px; font-weight: 800; margin-top: var(--s2); display: inline-flex; align-items: center; gap: 5px; }
+.co-pulse-score .delta { font-size: 13px; font-weight: 800; margin-top: var(--s2); display: inline-flex; align-items: center; gap:6px; }
 .co-pulse-score .delta.up { color: var(--green-bright); }
-.co-pulse-score .delta.down { color: #FF9B9B; }
+.co-pulse-score .delta.down { color: var(--red-bright); }
 .co-pulse-score .delta.flat { color: var(--text-3); }
 .co-pulse-done { text-align: right; flex: none; }
 .co-pulse-done .v { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; color: var(--text); font-variant-numeric: tabular-nums; }
-.co-pulse-done .k { font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); margin-top: 1px; }
+.co-pulse-done .k { font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); margin-top:1px; }
 
 /* the standing bar itself */
 .co-standing {
-  display: flex; gap: 3px; height: 12px; margin-top: var(--s4);
+  display: flex; gap:4px; height: 12px; margin-top: var(--s4);
   border-radius: var(--r-pill); overflow: hidden;
 }
-.co-standing .seg { height: 100%; border-radius: 3px; min-width: 4px; transform-origin: left; }
+.co-standing .seg { height: 100%; border-radius: var(--r-micro); min-width: 4px; transform-origin: left; }
 .co-standing .seg.g { background: linear-gradient(90deg, var(--green), var(--green-bright)); }
 .co-standing .seg.a { background: linear-gradient(90deg, var(--amber), var(--amber-bright)); }
 .co-standing .seg.r { background: var(--red); }
@@ -73,7 +73,7 @@
   @keyframes coSeg { from { transform: scaleX(0); opacity: 0.4; } to { transform: scaleX(1); opacity: 1; } }
 }
 .co-legend { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s4); margin-top: var(--s3); }
-.co-legend .it { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--text-2); }
+.co-legend .it { display: inline-flex; align-items: center; gap:6px; font-size: 12px; font-weight: 700; color: var(--text-2); }
 .co-legend .it .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 .co-legend .it b { color: var(--text); font-variant-numeric: tabular-nums; }
 .dot.g { background: var(--green-bright); } .dot.a { background: var(--amber-bright); }
@@ -90,14 +90,28 @@
    Segmented switcher — single row, horizontal scroll, no wrap
    ============================================================ */
 .co-seg {
-  display: flex; gap: var(--s2); padding: 2px 0 var(--s2); margin: 0 -2px;
+  display: flex; gap: var(--s2); padding: 2px 0 var(--s2); margin:0 -2px;
+}
+/* The scrolling chip rail. It used to stop 20px inside the physical screen edge and hard-cut the
+   last chip mid-word ("Nee") with nothing to say the row continued. Full-bleed plus a trailing
+   fade — the same treatment .hscroll and .res-rail already use.
+   Written as the combined selector because both classes land on ONE element (all three call
+   sites are `class="co-seg co-scroll"`), so a bare .co-scroll rule loses to .co-seg's padding
+   further down this file and the first chip ends up flush against the screen edge. */
+.co-seg.co-scroll {
+  margin: 0 calc(-1 * var(--pad-screen));
+  padding: 2px var(--pad-screen) var(--s2);
+  /* Left ramp finishes at 12px, inside the 20px screen padding, so the first chip is fully
+     painted at rest and only fades once the rail is actually scrolled. */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 30px), transparent 100%);
+          mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 30px), transparent 100%);
 }
 .co-seg .co-chip {
-  flex: none; height: 40px; padding: 0 15px; border-radius: var(--r-chip);
+  flex: none; height: 40px; padding:0 16px; border-radius: var(--r-chip);
   background: var(--surface-1); border: 1px solid var(--hairline);
   color: var(--text-2); font-family: var(--font); font-size: 13px; font-weight: 700;
   letter-spacing: -0.005em; cursor: pointer; white-space: nowrap;
-  display: inline-flex; align-items: center; gap: 7px;
+  display: inline-flex; align-items: center; gap:8px;
   transition: color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
 }
 .co-seg .co-chip:active { transform: scale(0.96); }
@@ -116,7 +130,7 @@
    Priority card — ranked, calm, one primary action
    ============================================================ */
 .co-pri {
-  position: relative; background: var(--surface-1); border: 1px solid var(--hairline);
+  position: relative; background: var(--surface-1); border: 1px solid transparent;
   border-radius: var(--r-tile); box-shadow: var(--sh-card);
   padding: var(--s4); margin-bottom: var(--s3); overflow: hidden;
 }
@@ -124,19 +138,19 @@
 .co-pri-head { display: flex; align-items: flex-start; gap: var(--s3); cursor: pointer; }
 .co-pri-rank {
   flex: none; width: 22px; font-size: 13px; font-weight: 800; color: var(--text-3);
-  font-variant-numeric: tabular-nums; line-height: 1.5; padding-top: 1px;
+  font-variant-numeric: tabular-nums; line-height: 1.5; padding-top:1px;
 }
 .co-pri-main { flex: 1; min-width: 0; }
 .co-pri-name { font-size: 15px; font-weight: 800; letter-spacing: -0.015em; display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
 .co-pri-name .pos { font-size: 12px; font-weight: 700; color: var(--text-3); }
-.co-pri-reason { font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-top: 3px; line-height: 1.45; }
-.co-pri-action { font-size: 12px; font-weight: 800; color: var(--blue-bright); margin-top: 5px; display: inline-flex; align-items: center; gap: 5px; }
-.co-pri-score { flex: none; font-size: 22px; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1; padding-top: 1px; }
+.co-pri-reason { font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-top:4px; line-height: 1.45; }
+.co-pri-action { font-size: 12px; font-weight: 800; color: var(--blue-bright); margin-top:6px; display: inline-flex; align-items: center; gap:6px; }
+.co-pri-score { flex: none; font-size: 22px; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1; padding-top:1px; }
 .co-tier {
   font-size: 9.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
-  padding: 2px 7px; border-radius: var(--r-pill);
+  padding:2px 8px; border-radius: var(--r-pill);
 }
-.co-tier.t-critical { color: #FF9B9B; background: var(--red-surface); }
+.co-tier.t-critical { color: var(--red-bright); background: var(--red-surface); }
 .co-tier.t-below { color: var(--amber-bright); background: var(--amber-surface); }
 .co-tier.t-due { color: var(--blue-bright); background: var(--blue-surface); }
 /* action row: one primary + subordinate ghosts */
@@ -145,22 +159,22 @@
   flex: 1; height: 44px; border-radius: var(--r-chip); border: 1px solid var(--hairline);
   background: var(--surface-2); color: var(--text); font-family: var(--font);
   font-size: 12.5px; font-weight: 700; cursor: pointer; display: inline-flex;
-  align-items: center; justify-content: center; gap: 6px;
+  align-items: center; justify-content: center; gap:6px;
   transition: transform var(--dur-1) var(--ease-out), filter var(--dur-1) var(--ease-out);
 }
 .co-abtn:active { transform: scale(0.97); }
 .co-abtn.primary { flex: 1.4; background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); color: #fff; border-color: transparent; box-shadow: 0 6px 18px rgba(37,99,235,0.30); }
-.co-abtn.primary.warn { background: linear-gradient(150deg, #F87171, var(--red)); box-shadow: 0 6px 18px rgba(246,87,87,0.28); }
+.co-abtn.primary.warn { background: linear-gradient(150deg, var(--red), var(--red-deep)); box-shadow: 0 6px 18px rgba(var(--red-rgb), 0.28); }
 .co-abtn:disabled { opacity: 0.5; }
-.co-pstatus { font-size: 11px; font-weight: 600; color: var(--text-3); min-height: 0; margin-top: 6px; }
+.co-pstatus { font-size: 11px; font-weight: 600; color: var(--text-3); min-height: 0; margin-top:6px; }
 
 /* ============================================================
    Status line — dot + calm label (red demoted from big display color)
    ============================================================ */
-.co-status { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; }
+.co-status { display: inline-flex; align-items: center; gap:8px; font-size: 12.5px; font-weight: 700; }
 .co-status .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .co-status .lbl { color: var(--text-2); }
-.co-status.crit .lbl { color: #FF9B9B; }   /* only genuine critical gets warm text, and small */
+.co-status.crit .lbl { color: var(--red-bright); }   /* only genuine critical gets warm text, and small */
 
 /* ============================================================
    Stat tiles (score / completion / streak) — clean, tabular
@@ -172,9 +186,9 @@
   border-radius: var(--r-tile); padding: var(--s4) var(--s3); text-align: left;
 }
 .co-stat .v { font-size: 26px; font-weight: 800; letter-spacing: -0.035em; font-variant-numeric: tabular-nums; line-height: 1; color: var(--text); }
-.co-stat .v.g { color: var(--green-bright); } .co-stat .v.a { color: var(--amber-bright); } .co-stat .v.r { color: #FF9B9B; } .co-stat .v.b { color: var(--blue-bright); }
+.co-stat .v.g { color: var(--green-bright); } .co-stat .v.a { color: var(--amber-bright); } .co-stat .v.r { color: var(--red-bright); } .co-stat .v.b { color: var(--blue-bright); }
 .co-stat .v small { font-size: 13px; font-weight: 700; color: var(--text-3); letter-spacing: 0; }
-.co-stat .k { font-size: 10.5px; font-weight: 800; letter-spacing: var(--track-key); text-transform: uppercase; color: var(--text-3); margin-top: 7px; }
+.co-stat .k { font-size: 10.5px; font-weight: 800; letter-spacing: var(--track-key); text-transform: uppercase; color: var(--text-3); margin-top:8px; }
 
 /* ============================================================
    Athlete profile — identity header + slim action bar
@@ -183,7 +197,7 @@
 .co-act {
   flex: 1; min-width: 0; height: 58px; border-radius: var(--r-tile);
   background: var(--surface-1); border: 1px solid var(--hairline);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap:4px;
   color: var(--text-2); cursor: pointer; font-family: var(--font);
   transition: transform var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
 }
@@ -196,25 +210,25 @@
 /* ============================================================
    7-day trend — a real, legible sparkline card
    ============================================================ */
-.co-trend { background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-tile); box-shadow: var(--sh-card); padding: var(--s4); }
+.co-trend { background: var(--surface-1); border: 1px solid transparent; border-radius: var(--r-tile); box-shadow: var(--sh-card); padding: var(--s4); }
 .co-trend-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--s3); }
 .co-trend-top .lbl { font-size: 12.5px; font-weight: 700; color: var(--text-2); }
 .co-trend-top .rng { font-size: 11.5px; font-weight: 700; color: var(--text-3); font-variant-numeric: tabular-nums; }
 .co-trend svg { display: block; width: 100%; height: 60px; }
-.co-trend-x { display: flex; justify-content: space-between; margin-top: 6px; font-size: 10px; font-weight: 700; color: var(--text-3); letter-spacing: 0.02em; }
+.co-trend-x { display: flex; justify-content: space-between; margin-top:6px; font-size: 10px; font-weight: 700; color: var(--text-3); letter-spacing: 0.02em; }
 
 /* ============================================================
    Timeline (Activity) — one calm vertical rail
    ============================================================ */
 .co-tl { position: relative; padding-left: var(--s5); }
-.co-tl::before { content: ''; position: absolute; left: 5px; top: 6px; bottom: 6px; width: 2px; background: var(--hairline); border-radius: 2px; }
+.co-tl::before { content: ''; position: absolute; left: 5px; top: 6px; bottom: 6px; width: 2px; background: var(--hairline); border-radius: var(--r-micro); }
 .co-tl-item { position: relative; padding: 0 0 var(--s4); }
 .co-tl-item::before { content: ''; position: absolute; left: calc(-1 * var(--s5) + 1px); top: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--surface-3); border: 2px solid var(--bg); }
 .co-tl-item.i-meal::before { background: var(--green-bright); }
 .co-tl-item.i-coach::before { background: var(--blue-bright); }
 .co-tl-item.i-weight::before { background: var(--cyan); }
 .co-tl-when { font-size: 11px; font-weight: 700; color: var(--text-3); }
-.co-tl-what { font-size: 13.5px; font-weight: 700; color: var(--text); margin-top: 1px; }
+.co-tl-what { font-size: 13.5px; font-weight: 700; color: var(--text); margin-top:1px; }
 .co-tl-what .sub { color: var(--text-2); font-weight: 600; }
 
 /* ============================================================
@@ -222,12 +236,12 @@
    ============================================================ */
 .co-empty { text-align: center; padding: var(--s7) var(--s5); }
 .co-empty .ic {
-  width: 56px; height: 56px; border-radius: 18px; margin: 0 auto var(--s4);
+  width: 56px; height: 56px; border-radius: var(--r-card-sm); margin: 0 auto var(--s4);
   display: grid; place-items: center; color: var(--blue-bright);
   background: var(--blue-surface); border: 1px solid var(--blue-border);
 }
 .co-empty .tt { font-size: 15.5px; font-weight: 800; letter-spacing: -0.01em; }
-.co-empty .ts { font-size: 13px; font-weight: 600; color: var(--text-2); line-height: 1.55; margin-top: 6px; max-width: 30ch; margin-left: auto; margin-right: auto; }
+.co-empty .ts { font-size: 13px; font-weight: 600; color: var(--text-2); line-height: 1.55; margin-top:6px; max-width: 30ch; margin-left:auto; margin-right:auto; }
 
 /* ============================================================
    Notes — private, warm-tinted, clearly staff-only
@@ -243,7 +257,7 @@
 .co-note-row:last-child { border-bottom: none; }
 .co-note-row .who { font-size: 12px; font-weight: 800; color: var(--text-2); }
 .co-note-row .when { font-size: 11px; font-weight: 700; color: var(--text-3); }
-.co-note-row .body { font-size: 13.5px; font-weight: 500; color: var(--text); line-height: 1.5; margin-top: 3px; }
+.co-note-row .body { font-size: 13.5px; font-weight: 500; color: var(--text); line-height: 1.5; margin-top:4px; }
 
 /* bottom breathing room so panes/composers clear the tab bar */
 .co-bottom { height: var(--s8); }
@@ -252,10 +266,10 @@
    Standards editor (coachPlanSet) — premium module redesign
    Built entirely on design tokens so it adapts to light/dark.
    ============================================================ */
-.std-wrap { padding-bottom: 24px; }
+.std-wrap { padding-bottom:24px; }
 
 /* Live summary of the current standard, under the header */
-.std-summary { display:flex; flex-wrap:wrap; gap:7px; margin:2px 0 18px; }
+.std-summary { display:flex; flex-wrap:wrap; gap:8px; margin:2px 0 18px; }
 .std-sum { display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 12px;
   border-radius:var(--r-pill); background:var(--surface-2); border:1px solid var(--hairline);
   color:var(--text-2); font-size:12px; font-weight:700; }
@@ -264,9 +278,9 @@
 
 /* Module card */
 .std-mod { background:var(--surface-1); border:1px solid var(--hairline); border-radius:var(--r-card);
-  padding:15px 16px 17px; margin-bottom:13px; box-shadow:var(--sh-card); }
-.std-mod-head { display:flex; align-items:center; gap:11px; margin-bottom:15px; }
-.std-mod-ic { width:37px; height:37px; border-radius:12px; display:grid; place-items:center; flex:0 0 auto; }
+  padding:16px 16px 18px; margin-bottom:14px; box-shadow:var(--sh-card); }
+.std-mod-head { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
+.std-mod-ic { width:37px; height:37px; border-radius:var(--r-chip); display:grid; place-items:center; flex:0 0 auto; }
 .std-mod-tt { min-width:0; }
 .std-mod-t { font-size:14.5px; font-weight:800; letter-spacing:var(--title-tight); line-height:1.15; }
 .std-mod-s { font-size:11.5px; font-weight:600; color:var(--text-3); margin-top:2px; line-height:1.35; }
@@ -280,13 +294,13 @@
 .std-ic-c { background:var(--cyan-surface); color:var(--cyan); }
 
 .std-lbl { font-size:10.5px; font-weight:800; letter-spacing:var(--track-key); text-transform:uppercase;
-  color:var(--text-3); margin:0 2px 9px; }
-.std-lbl.mt { margin-top:17px; }
-.std-help { font-size:11.5px; font-weight:600; color:var(--text-3); line-height:1.45; margin:9px 2px 0; }
+  color:var(--text-3); margin:0 2px 10px; }
+.std-lbl.mt { margin-top:18px; }
+.std-help { font-size:11.5px; font-weight:600; color:var(--text-3); line-height:1.45; margin:10px 2px 0; }
 
 /* Chips */
 .std-chips { display:flex; flex-wrap:wrap; gap:8px; }
-.std-chip { min-width:44px; min-height:42px; padding:0 15px; display:inline-flex; align-items:center;
+.std-chip { min-width:44px; min-height:42px; padding:0 16px; display:inline-flex; align-items:center;
   justify-content:center; border-radius:var(--r-chip); background:var(--surface-2);
   border:1px solid var(--hairline); color:var(--text-2); font-size:13.5px; font-weight:700;
   cursor:pointer; user-select:none;
@@ -298,7 +312,7 @@
 .std-chip.dashed { border-style:dashed; color:var(--text-3); background:transparent; }
 
 /* Circular meal-count chips */
-.std-count { display:flex; gap:7px; justify-content:space-between; }
+.std-count { display:flex; gap:8px; justify-content:space-between; }
 .std-count .std-chip { width:44px; height:44px; min-width:44px; padding:0; border-radius:50%;
   font-size:15px; font-weight:800; }
 
@@ -329,15 +343,15 @@
 .std-switch.on::after { transform: translateX(20px); background:var(--green-bright); }
 
 /* Meal name + window rows — per-meal card: name+proof line, times line, optional day-type line */
-.std-meal-card { display:flex; flex-direction:column; gap:8px; padding:11px 0; border-top:1px solid var(--hairline-soft); }
+.std-meal-card { display:flex; flex-direction:column; gap:8px; padding:12px 0; border-top:1px solid var(--hairline-soft); }
 .std-meal-card:first-child { border-top:none; padding-top:2px; }
 .std-meal { display:flex; align-items:center; gap:8px; }
 .std-name { flex:1; min-width:0; box-sizing:border-box; background:var(--surface-2); border:1px solid var(--hairline);
-  border-radius:10px; padding:10px 12px; color:var(--text); font:700 14px var(--font); }
+  border-radius:var(--r-chip); padding:10px 12px; color:var(--text); font:700 14px var(--font); }
 .std-name:focus { outline:none; border-color:var(--blue-border); background:var(--surface-3); }
 /* Per-meal proof pill: photo (default, green) vs tap-to-check (neutral) */
-.std-proof-pill { flex:0 0 auto; display:inline-flex; align-items:center; gap:5px; min-height:40px; padding:0 12px;
-  border-radius:10px; border:1px solid var(--green-border); background:var(--green-surface); color:var(--green-bright);
+.std-proof-pill { flex:0 0 auto; display:inline-flex; align-items:center; gap:6px; min-height:40px; padding:0 12px;
+  border-radius:var(--r-chip); border:1px solid var(--green-border); background:var(--green-surface); color:var(--green-bright);
   font:800 12px var(--font); cursor:pointer; white-space:nowrap; }
 .std-proof-pill.check { border-color:var(--hairline); background:var(--surface-2); color:var(--text-2); }
 .std-proof-pill:active { transform:scale(.96); }
@@ -345,8 +359,8 @@
 /* Small chips shared by per-meal day-type and weigh weekdays */
 .std-daytype, .std-weighdays { display:flex; flex-wrap:wrap; gap:6px; }
 .std-weighdays { margin-top:8px; }
-.std-daychip { min-height:34px; padding:0 11px; display:inline-flex; align-items:center; justify-content:center;
-  border-radius:9px; border:1px solid var(--hairline); background:var(--surface-2); color:var(--text-3);
+.std-daychip { min-height:34px; padding:0 12px; display:inline-flex; align-items:center; justify-content:center;
+  border-radius:var(--r-chip); border:1px solid var(--hairline); background:var(--surface-2); color:var(--text-3);
   font:800 12px var(--font); cursor:pointer; user-select:none; }
 .std-daychip.on { background:var(--blue-surface); border-color:var(--blue-border); color:var(--blue-bright); }
 .std-daychip:active { transform:scale(.95); }
@@ -354,32 +368,32 @@
 .std-tlabel { font-size:10.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
   color:var(--text-3); flex:0 0 auto; }
 .std-time { flex:1; min-width:0; box-sizing:border-box; background:var(--surface-3); border:1px solid var(--hairline);
-  border-radius:10px; color:var(--text); font:700 13px var(--font); font-variant-numeric:tabular-nums;
-  padding:9px 10px; min-height:40px; }
+  border-radius:var(--r-chip); color:var(--text); font:700 13px var(--font); font-variant-numeric:tabular-nums;
+  padding:10px 10px; min-height:40px; }
 .std-time:focus { outline:none; border-color:var(--blue-border); }
 .std-time::-webkit-calendar-picker-indicator { opacity:.55; cursor:pointer; }
 .std-arrow { color:var(--text-3); font-size:13px; flex:0 0 auto; }
 
 /* "What the athlete sees" — the signature payoff card */
 .std-preview { position:relative; overflow:hidden; background:
-    linear-gradient(180deg, rgba(52,211,153,0.06), rgba(59,130,246,0.05)), var(--surface-1);
-  border:1px solid var(--green-border); border-radius:var(--r-card); padding:16px; margin-bottom:13px;
+    linear-gradient(180deg, rgba(var(--green-rgb), 0.06), rgba(var(--blue-rgb), 0.05)), var(--surface-1);
+  border:1px solid var(--green-border); border-radius:var(--r-card); padding:16px; margin-bottom:14px;
   box-shadow:var(--sh-card); }
 /* No side-stripe on the preview card — the green border + header already frame it (T-14). */
 .std-prev-h { display:flex; align-items:center; gap:8px; font-size:11px; font-weight:800;
   letter-spacing:.06em; text-transform:uppercase; color:var(--green-bright); margin-bottom:12px; }
-.std-prev-row { display:flex; align-items:center; gap:11px; padding:9px 0; border-top:1px solid var(--hairline-soft); }
+.std-prev-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-top:1px solid var(--hairline-soft); }
 .std-prev-row:first-of-type { border-top:none; }
-.std-prev-ic { width:30px; height:30px; border-radius:9px; background:var(--surface-2); color:var(--text-2);
+.std-prev-ic { width:30px; height:30px; border-radius:var(--r-chip); background:var(--surface-2); color:var(--text-2);
   display:grid; place-items:center; flex:0 0 auto; }
 .std-prev-t { font-size:13.5px; font-weight:700; }
 .std-prev-s { font-size:11.5px; font-weight:600; color:var(--text-3); margin-top:1px; }
 .std-prev-foot { font-size:12px; font-weight:700; color:var(--text-2); margin-top:12px;
-  padding-top:11px; border-top:1px solid var(--hairline); }
+  padding-top:12px; border-top:1px solid var(--hairline); }
 .std-prev-foot b { color:var(--green-bright); }
 
 /* Save affordance */
 .std-save { margin-top:4px; }
 .std-save .btn { height:54px; font-size:15.5px; box-shadow:var(--sh-blue); }
 .std-status { text-align:center; font-size:13px; font-weight:700; color:var(--text-3);
-  min-height:18px; margin-top:11px; }
+  min-height:18px; margin-top:12px; }

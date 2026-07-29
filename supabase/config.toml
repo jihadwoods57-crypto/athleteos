@@ -466,3 +466,8 @@ verify_jwt = false
 
 [functions.admin-auth-monitor]
 verify_jwt = false
+
+# connected-standards-tick authenticates via its OWN shared secret (x-cron-key), not a Supabase
+# JWT — it is cron-invoked and has no user session. Pinned so a redeploy can't 401 it.
+[functions.connected-standards-tick]
+verify_jwt = false

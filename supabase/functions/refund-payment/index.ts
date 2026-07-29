@@ -16,10 +16,19 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-const stripe = new Stripe(STRIPE_SECRET_KEY, {
-  apiVersion: '2025-02-24.acacia',
-  httpClient: Stripe.createFetchHttpClient(),
-});
+// Lazy construction: `new Stripe('')` throws at module load, which crashed the worker at import
+// time and made the platform return a generic 500 — the 'billing not configured' 503 gate below
+// could never run. Deferring construction lets an unconfigured deploy load and fail closed politely.
+let _stripe: Stripe | null = null;
+function stripeClient(): Stripe {
+  if (!_stripe) {
+    _stripe = new Stripe(STRIPE_SECRET_KEY, {
+      apiVersion: '2025-02-24.acacia',
+      httpClient: Stripe.createFetchHttpClient(),
+    });
+  }
+  return _stripe;
+}
 
 const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? '').split(',').map((o) => o.trim()).filter(Boolean);
 const BASE_HEADERS: Record<string, string> = {
@@ -102,7 +111,7 @@ Deno.serve(async (req) => {
     // the trainer's own decision ("their client, their money"), reverse the transfer so the refund
     // comes out of the TRAINER's balance, and refund our application fee too (no platform cut on a
     // sale that was fully undone). Net: client made whole, trainer bears it, platform nets zero.
-    await stripe.refunds.create({
+    await stripeClient().refunds.create({
       charge: payment.stripe_charge_id,
       reverse_transfer: true,
       refund_application_fee: true,

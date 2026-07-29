@@ -17,7 +17,7 @@ import {
   dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayAddWaterOz, dayLogWeight, dayResetLocal, dayCheckTask,
   insertMeal, MEAL_KEYS, DEADLINE, minutesNow, mealScored,
   setDayStandard, slotDeadline, slotGrace, setDayGoalConfig, checkinReal,
-  setDayPlanStyle, daySetMealSignal, weightsForDay,
+  setDayPlanStyle, weightsForDay,
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { activationInfo, parseActivation } from './activation.js';
@@ -26,13 +26,16 @@ import { commitmentReminders } from './commitments.js';
 import { normalizeCoachPrefs, alertKeys, buildCoachSyncPlan } from './coach-notify-plan.js';
 import { entriesFor, getScope, CD } from './coach-data.js';
 import { splitServerRows } from './notif-feed.js';
+import { jobKey, putJob, readQueue, removeJob, updateJob, due as dueJobs } from './meal-outbox.js';
+import { factsFromCorrection, candidateFactsFromFoodChange, sameFact } from './memory.js';
 import {
   groundExtras, buildClarifications, analysisTiming, applyMealCorrection, classifyMealEvent, restrictionConflicts,
   mealQualityScore, qualityBand, qualityReason, analysisAgreesWithBand, stripFoodMentions, shouldVerify,
+  contextForChat,
 } from './meal-intel.js';
-import { groundMealFromFoods, groundMealTotals, gapFoods } from './nutrition.js';
+import { groundMealFromFoods, groundMealTotals, gapFoods, isCompleteMealResult } from './nutrition.js';
 import { explainCategories, reachPlan as modelReachPlan, maxPossibleScore, mealMaxGain } from './breakdown-model.js';
-import { cachedMealPhoto, todayMealPhotoPath } from './photo-store.js';
+import { cachedMealPhoto, todayMealPhotoPath, invalidateMealPhoto, resolveMealPhoto } from './photo-store.js';
 import { base64ToBytes, sha256Hex, photoAgeMinutes } from './photo-hash.js';
 import {
   fetchMyPracticeIdentity, fetchMyTeamIdentity, fetchMyCoach, fetchMyTrainer, fetchMyConsent,
@@ -41,6 +44,7 @@ import {
   fetchMyNotifications, markMyNotificationsRead,
   fetchMyCoachHandle, setMyCoachName, checkPhotoReuse, notifyMyCoach,
   fetchTrustPassPolicy, fetchTeamWeekPattern, fetchCoachSetupState, fetchMyRoomLabel,
+  fetchMyMemoryFacts, upsertMemoryFact, setMemoryFactStatus,
   todayISO,
 } from './roles.js';
 import { track, EVENTS } from './analytics.js';
@@ -289,7 +293,13 @@ export function routeForRole(role) {
    They must render inside the SIGNED-IN role's chrome and route "back"/"Done" to that role's
    own profile — a hardcoded nav/'profile' put a coach inside the athlete tab bar. */
 export function roleNav() {
-  return RT.authRole === 'coach' ? 'coach' : RT.authRole === 'trainer' ? 'trainer' : 'athlete';
+  return RT.authRole === 'coach' ? 'coach'
+    : RT.authRole === 'trainer' ? 'trainer'
+    // A parent has no tab bar of its own, so this used to fall through to 'athlete' — which both
+    // painted the athlete tab bar on shared screens AND made navAdmits() refuse a parent, so a
+    // parent could not open #delete-account at all. 'parent' is admitted and renders no tabs.
+    : RT.authRole === 'parent' ? 'parent'
+    : 'athlete';
 }
 export function roleProfileRoute() {
   return RT.authRole === 'coach' ? 'coach-profile' : RT.authRole === 'trainer' ? 'trainer-profile' : 'profile';
@@ -424,6 +434,13 @@ export function mealDetail(slot) {
     photoQ: meta.photoQ || null,     // measured capture quality {luma, sharpness} (or null)
     analysis: meta.analysis || '',   // the AI's detailed paragraph (0062), '' pre-migration
     styleApplied: meta.styleApplied || null, // 0142 — which plan style the server wrote it for
+    // Optimistic-log state (display only — no scoring path reads these). `pending` means the meal
+    // is logged and the AI read is still in flight; `pendingQuestions` are the clarifying questions
+    // asked in the thread; `analysisFailed` is a terminal, retryable failure.
+    pending: !!meta.pending,
+    pendingQuestions: Array.isArray(meta.pendingQuestions) ? meta.pendingQuestions : null,
+    analysisFailed: meta.analysisFailed || null,
+    rereadError: meta.rereadError || null, // the re-read couldn't fetch the photo back from storage
     mealId: meta.mealId || null, // real meals.id → powers the coach↔athlete comment thread
     fiber: meta.fiber || 0,
     highlights: Array.isArray(meta.highlights) ? meta.highlights : [],
@@ -683,38 +700,65 @@ export const act = {
       ...(hasPhoto && MEAL.photoQ ? { photoQ: MEAL.photoQ } : {}),
     };
     const userNote = MEAL.key === slot ? MEAL.userNote : null;
+    // A photo logged BEFORE the AI has read it. `pending` is display-only — every scoring path
+    // reads protein/kcal/quality/flagged and nothing else, so this marker cannot move the score.
+    // `pendingHash` is the anti-stale guard: the analysis result is only allowed to land on this
+    // slot if it came from THIS photo (see applyAnalysisResult).
+    const optimistic = hasPhoto && !MEAL.result;
     const meta = MEAL.result
       ? { quality: MEAL.result.quality, foods: MEAL.result.detected, note: MEAL.result.note, name: MEAL.result.name || MEAL.mealType,
           fiber: MEAL.result.fiber || 0, highlights: MEAL.result.highlights || [], detectedRich: MEAL.result.detectedRich || [],
           analysis: MEAL.result.analysis || '', ...(MEAL.result.styleApplied ? { styleApplied: MEAL.result.styleApplied } : {}), ...(userNote ? { userNote } : {}), ...integrity }
-      : { name: MEAL.mealType || cap(slot), ...(userNote ? { userNote } : {}), ...integrity };
+      : { name: MEAL.mealType || cap(slot), ...(userNote ? { userNote } : {}), ...integrity,
+          ...(optimistic ? { pending: true, pendingHash: MEAL.photoHash || null } : {}) };
     const macros = loggingMacros();
     dayLogMeal(RT.userId, slot, macros, meta);
-    if (hasPhoto) uploadMealPhoto(RT.userId, slot, MEAL.photoBase64);
-    // Insert a real `meals` row so a coach can review + comment; persist the id for the thread.
-    // A { dup: true } return means the 0062 photo-hash wall caught a reused photo that slipped
-    // past the pre-check: the slot stays logged (honest record) but is flagged so it never
-    // scores, and the flag is visible to athlete + coach.
     const photoPath = hasPhoto ? `${RT.userId}/${DAY.date}/${slot}.jpg` : null;
-    insertMeal(RT.userId, slot, macros, meta, photoPath).then((res) => {
-      if (res && res.dup) {
-        DAY.slotMacros[slot] = { ...(DAY.slotMacros[slot] || {}), flagged: 'dup' };
-        pushDay(RT.userId);
-        track(EVENTS.MEAL_DUP_BLOCKED, { stage: 'insert' });
-        window.__render && window.__render();
-      } else if (res) {
-        DAY.slotMacros[slot] = { ...(DAY.slotMacros[slot] || {}), mealId: res };
-        pushDay(RT.userId);
-        // Automatic coach visibility (upgrade 2026-07-16): every confirmed meal notifies the
-        // coach staff, urgency by classification — fires exactly once, on the FRESH insert
-        // (a dup never notifies; a retry can't reach here twice for the same slot).
-        this._notifyCoachMealLogged(slot, meta);
-        // Background macro enrichment (fire-and-forget): resolve the foods the curated table
-        // couldn't ground against USDA/OFF so FUTURE meals ground on real data + seed the eval
-        // corpus. Fires once on the fresh insert (never a dup); never touches THIS logged meal.
-        this._enrichMeal(meta);
-      }
-    });
+
+    // OPTIMISTIC PATH (photo logged before the AI has read it). The athlete gets their day back
+    // immediately; the remaining work — upload, insert, analyse — becomes ONE durable outbox job.
+    // Scoring is honest by construction: a slot with no macros and no quality scores exactly like
+    // a manually-logged meal already does (timing credit only; qualityFrac skips slots with no
+    // numeric quality, so a missing signal never costs the athlete). Nothing in the score engine
+    // changes — the macros simply arrive a few seconds later, exactly as a correction's do.
+    if (meta.pending) {
+      putJob({
+        k: jobKey(RT.userId, DAY.date, slot),
+        uid: RT.userId, date: DAY.date, slot,
+        base64: MEAL.photoBase64, photoPath, photoHash: MEAL.photoHash || null,
+        mealType: MEAL.mealType || cap(slot),
+        capturedAtMin: MEAL.capturedAtMin != null ? MEAL.capturedAtMin : minutesNow(),
+        userNote, macros, meta,
+        needUpload: true, needInsert: true, needAnalysis: true,
+        tries: 0, lastTryAt: 0,
+      });
+      void this.drainMealOutbox();
+    } else {
+      if (hasPhoto) uploadMealPhoto(RT.userId, slot, MEAL.photoBase64);
+      // Insert a real `meals` row so a coach can review + comment; persist the id for the thread.
+      // A { dup: true } return means the 0062 photo-hash wall caught a reused photo that slipped
+      // past the pre-check: the slot stays logged (honest record) but is flagged so it never
+      // scores, and the flag is visible to athlete + coach.
+      insertMeal(RT.userId, slot, macros, meta, photoPath).then((res) => {
+        if (res && res.dup) {
+          DAY.slotMacros[slot] = { ...(DAY.slotMacros[slot] || {}), flagged: 'dup' };
+          pushDay(RT.userId);
+          track(EVENTS.MEAL_DUP_BLOCKED, { stage: 'insert' });
+          window.__render && window.__render();
+        } else if (res) {
+          DAY.slotMacros[slot] = { ...(DAY.slotMacros[slot] || {}), mealId: res };
+          pushDay(RT.userId);
+          // Automatic coach visibility (upgrade 2026-07-16): every confirmed meal notifies the
+          // coach staff, urgency by classification — fires exactly once, on the FRESH insert
+          // (a dup never notifies; a retry can't reach here twice for the same slot).
+          this._notifyCoachMealLogged(slot, meta);
+          // Background macro enrichment (fire-and-forget): resolve the foods the curated table
+          // couldn't ground against USDA/OFF so FUTURE meals ground on real data + seed the eval
+          // corpus. Fires once on the fresh insert (never a dup); never touches THIS logged meal.
+          this._enrichMeal(meta);
+        }
+      });
+    }
     // Reflect the just-logged meal into every RT flag the UI reads. Beyond the legacy
     // dinnerLogged/day0Breakfast flags, this recomputes RT.day0 — Progress gates on it, so it
     // must clear the moment a real meal lands. logMeal used to hand-set only the two flags, so
@@ -732,6 +776,351 @@ export const act = {
     }
     this.syncNotifications();
   },
+  /* ---------------------------------------------------------------------------------------
+     THE BACKGROUND MEAL JOB — everything that used to happen while the athlete watched a spinner.
+     One durable outbox entry per logged meal (upload → insert → analyse), drained on demand, on
+     foreground, and on reconnect. Serialized: one drain at a time, so a foreground event landing
+     mid-drain can never double-run a job.
+     --------------------------------------------------------------------------------------- */
+  _draining: false,
+
+  async drainMealOutbox() {
+    if (this._draining || typeof window === 'undefined') return;
+    this._draining = true;
+    try {
+      for (const job of dueJobs(readQueue(), Date.now())) {
+        if (!job.uid || job.uid !== RT.userId) continue;   // another account's queue — leave it
+        await this._runMealJob(job);
+      }
+    } catch { /* never let a queue error break the app */ }
+    finally { this._draining = false; }
+  },
+
+  async _runMealJob(job) {
+    const slot = job.slot;
+    // Self-heal: the day row can be a beat behind the queue if the app died before pushDay
+    // flushed. The outbox entry is the durable record, so restore the slot from it.
+    if (job.date === DAY.date && !DAY.meals[slot] && job.meta) {
+      dayLogMeal(job.uid, slot, job.macros || { protein: 0, kcal: 0, carbs: 0, fat: 0 }, job.meta);
+      syncRtFromDay();
+    }
+
+    if (job.needUpload && job.base64) {
+      const ok = await uploadMealPhoto(job.uid, slot, job.base64).then(() => true).catch(() => false);
+      if (ok) { updateJob(job.k, { needUpload: false }); invalidateMealPhoto(job.photoPath); }
+    }
+
+    if (job.needInsert) {
+      const res = await insertMeal(job.uid, slot, job.macros, job.meta, job.photoPath).catch(() => null);
+      if (res && res.dup) {
+        // The 0062 photo-hash wall caught a reused photo. The slot stays logged (honest record)
+        // but never scores. Stop here — there is nothing worth spending a vision call on.
+        this._patchSlot(slot, { flagged: 'dup' });
+        track(EVENTS.MEAL_DUP_BLOCKED, { stage: 'insert' });
+        removeJob(job.k);
+        window.__render && window.__render();
+        return;
+      }
+      if (res) {
+        this._patchSlot(slot, { mealId: res });
+        updateJob(job.k, { needInsert: false, mealId: res });
+        job = { ...job, needInsert: false, mealId: res };
+        this._notifyCoachMealLogged(slot, job.meta);
+        this._enrichMeal(job.meta);
+      } else {
+        updateJob(job.k, { tries: (job.tries || 0) + 1, lastTryAt: Date.now() });
+        return; // no row yet — analysis can still run later, but retry the insert first
+      }
+    }
+
+    if (job.needAnalysis && job.base64) await this._runAnalysisJob(job);
+    const left = readQueue().find((e) => e.k === job.k);
+    if (left && !left.needUpload && !left.needInsert && !left.needAnalysis) removeJob(job.k);
+  },
+
+  /** Merge fields into a slot's persisted macros and flush the day. */
+  _patchSlot(slot, patch) {
+    DAY.slotMacros[slot] = { ...(DAY.slotMacros[slot] || {}), ...patch };
+    pushDay(RT.userId);
+  },
+
+  /** The analysis request, built from the OUTBOX ENTRY rather than live MEAL state — a capture for
+   *  another slot must never poison a queued job. */
+  _jobAnalysisBody(job) {
+    const timing = analysisTiming(job.capturedAtMin, slotDeadline(job.slot));
+    const dp = S.mealDayProgress;
+    const avoid = (RT.allergies || []).map((x) => String(x).split('·')[0].trim()).filter(Boolean).slice(0, 8);
+    return {
+      mode: 'meal', mealType: job.mealType || cap(job.slot), goal: RT.primaryGoal || null,
+      photoBase64: job.base64, ...(timing ? { timing } : {}),
+      // The thread this read belongs to. The meals row is inserted before the analysis runs, so
+      // by the time a job is drained it has one — that is what lets the finished read be posted
+      // into the athlete's conversation instead of being derived and forgotten.
+      ...(job.mealId ? { mealId: job.mealId } : {}),
+      dayContext: {
+        proteinSoFar: Math.max(0, Math.min(500, dp.proteinSoFar)),
+        proteinTarget: Math.max(0, Math.min(500, dp.proteinTarget)),
+        mealsRemaining: Math.max(0, Math.min(8, dp.mealsRemaining)),
+      },
+      ...(avoid.length ? { avoid } : {}),
+      ...(job.userNote ? { athleteNote: job.userNote } : {}),
+    };
+  },
+
+  async _runAnalysisJob(job) {
+    const sb = window.sb;
+    if (!sb) return;
+    const fail = (reason) => {
+      const tries = (job.tries || 0) + 1;
+      // 'capacity' is definitive for today (the spend ceiling or a daily cap): retrying now only
+      // burns requests against a wall that will not move until UTC midnight.
+      const done = reason === 'capacity' || tries >= 3;
+      updateJob(job.k, { tries, lastTryAt: Date.now(), ...(done ? { needAnalysis: false } : {}) });
+      if (done) { this._patchSlot(job.slot, { analysisFailed: reason }); window.__render && window.__render(); }
+      track(EVENTS.MEAL_ANALYSIS_FAILED, { reason });
+    };
+    try {
+      const phase = job.answers ? 'finalize' : 'analyze';
+      const body = { ...this._jobAnalysisBody(job), phase };
+      if (phase === 'finalize') body.clarifications = buildClarifications(job.pendingQuestions || [], job.answers || []);
+      const { data, error } = await sb.functions.invoke('analyze-meal', { body });
+      if (error) {
+        const msg = String((error && error.message) || '');
+        return fail(/429|capacity|limit/i.test(msg) ? 'capacity' : 'error');
+      }
+      if (data && data.kind === 'questions') {
+        const qs = Array.isArray(data.questions) ? data.questions.filter((q) => typeof q === 'string' && q.trim()).slice(0, 3) : [];
+        if (qs.length) {
+          // The clarifying moment, in the thread instead of a blocking screen: the meal is already
+          // logged, so the athlete can answer now, later, or never.
+          updateJob(job.k, { pendingQuestions: qs, tries: 0, lastTryAt: 0 });
+          this._patchSlot(job.slot, { pendingQuestions: qs });
+          window.__render && window.__render();
+          return;
+        }
+        return this._runAnalysisJob({ ...job, answers: [] }); // asked but sent nothing usable
+      }
+      if (data && data.kind === 'result') {
+        MEAL.result = groundResult(data);
+        // An empty read is not a result. Landing one clears `pending` and leaves the athlete with
+        // a permanently ~0g meal, so treat it exactly like a failed call: retry, then offer
+        // "Read it again". (An older deploy can still return one; the server now 502s instead.)
+        if (!isCompleteMealResult(MEAL.result)) { MEAL.result = null; return fail('unreadable'); }
+        await this._maybeVerify();                       // same client + server verify budget
+        this.applyAnalysisResult(job.slot, MEAL.result, job.photoHash);
+        updateJob(job.k, { needAnalysis: false, pendingQuestions: null });
+        return;
+      }
+      return fail('unreadable');
+    } catch { return fail('error'); }
+  },
+
+  /**
+   * Land a finished analysis onto an already-logged slot.
+   *
+   * Deliberately NOT correctMeal-shaped: this is the AI's first read arriving late, not the
+   * athlete disagreeing with it, so it must never write `meta.orig` or append to
+   * `meta.corrections` — that audit trail belongs to real corrections only.
+   *
+   * Three guards, all required:
+   *   1. the slot must still be pending (never overwrite a settled meal),
+   *   2. the result must come from THIS photo (kills the offline-relog / stale-photo race),
+   *   3. never land on a slot the athlete has already corrected,
+   *   4. and the read must actually carry numbers — an empty one would settle the slot at ~0g
+   *      forever, which no correction can undo.
+   */
+  applyAnalysisResult(slot, r, photoHash) {
+    const cur = DAY.slotMacros[slot] || {};
+    if (!cur.pending) return false;
+    if (photoHash && cur.pendingHash && photoHash !== cur.pendingHash) return false;
+    if (cur.orig || (Array.isArray(cur.corrections) && cur.corrections.length)) return false;
+    if (!r) return false;
+    if (!isCompleteMealResult(r)) return false;
+
+    const from = computeScore(componentsNow());
+    const { pending, pendingHash, pendingQuestions, analysisFailed, ...keep } = cur;
+    DAY.slotMacros[slot] = {
+      ...keep,
+      protein: r.protein || 0, kcal: r.kcal || 0, carbs: r.carbs || 0, fat: r.fat || 0,
+      quality: r.quality, foods: r.detected, note: r.note,
+      name: r.name || keep.name, fiber: r.fiber || 0,
+      highlights: r.highlights || [], detectedRich: r.detectedRich || [],
+      analysis: r.analysis || '', ...(r.styleApplied ? { styleApplied: r.styleApplied } : {}),
+    };
+    pushDay(RT.userId);
+    syncRtFromDay();
+    const to = computeScore(componentsNow());
+    if (to > from) RT.lastMove = { from, to, gain: to - from, what: cap(slot) };
+    save();
+
+    // Best-effort: bring the server row up to date with what the coach should see.
+    const mealId = DAY.slotMacros[slot].mealId;
+    if (mealId && window.sb) {
+      try {
+        window.sb.from('meals').update({
+          protein: r.protein || 0, carbs: r.carbs || 0, fat: r.fat || 0, kcal: r.kcal || 0,
+          quality: r.quality, note: r.note || null,
+        }).eq('id', mealId).eq('athlete_id', RT.userId).then(() => {}, () => {});
+      } catch { /* the day row is the source of truth for the athlete */ }
+    }
+    track(EVENTS.MEAL_ANALYSIS_APPLIED, { slot });
+    this.clearMeal();
+    window.__render && window.__render();
+    return true;
+  },
+
+  /** Athlete answered the clarifying questions from inside the thread. */
+  answerPendingQuestions(slot, answers) {
+    const job = readQueue().find((e) => e.slot === slot && e.uid === RT.userId && e.date === DAY.date);
+    if (!job) return;
+    updateJob(job.k, { answers: answers || [], tries: 0, lastTryAt: 0 });
+    this._patchSlot(slot, { pendingQuestions: null });
+    window.__render && window.__render();
+    void this.drainMealOutbox();
+  },
+  skipPendingQuestions(slot) { this.answerPendingQuestions(slot, []); },
+
+  /** Manual retry after a terminal analysis failure. */
+  retryAnalysis(slot) {
+    const job = readQueue().find((e) => e.slot === slot && e.uid === RT.userId && e.date === DAY.date);
+    if (!job || !job.base64) return;
+    updateJob(job.k, { needAnalysis: true, tries: 0, lastTryAt: 0 });
+    this._patchSlot(slot, { analysisFailed: null });
+    window.__render && window.__render();
+    void this.drainMealOutbox();
+  },
+
+  /**
+   * Rescue a meal that SETTLED at zero.
+   *
+   * Different problem from retryAnalysis, which recovers a read that openly failed. These meals
+   * look finished — the slot is settled, the screen says "high confidence" — and every macro is 0,
+   * because an older deploy accepted a truncated report. Nothing else can save them: a correction
+   * scales the stored numbers, and every scale of zero is zero.
+   *
+   * So this puts the slot back into `pending` and re-queues the read. Clearing `orig`/`corrections`
+   * is deliberate and safe: both describe adjustments made TO zeros, which is no information at
+   * all, and leaving them set would make applyAnalysisResult refuse to land the new read (guard 3).
+   */
+  async rereadMeal(slot) {
+    const cur = DAY.slotMacros[slot];
+    if (!cur || !DAY.meals[slot]) return false;
+    const job = readQueue().find((e) => e.slot === slot && e.uid === RT.userId && e.date === DAY.date);
+    track(EVENTS.MEAL_REREAD, { slot, source: job && job.base64 ? 'queued' : 'storage' });
+
+    const restage = (photoHash) => {
+      // Drop the settled numbers and the dead audit trail; put the slot back in the pending state
+      // the thread already knows how to render ("Reading the plate").
+      const { orig, corrections, analysisFailed, rereadError, ...keep } = cur;
+      DAY.slotMacros[slot] = { ...keep, pending: true, pendingHash: photoHash || null, protein: 0, kcal: 0, carbs: 0, fat: 0, fiber: 0 };
+      pushDay(RT.userId);
+      window.__render && window.__render();
+    };
+
+    if (job && job.base64) {
+      restage(job.photoHash);
+      updateJob(job.k, { needAnalysis: true, tries: 0, lastTryAt: 0, analysisFailed: null });
+      void this.drainMealOutbox();
+      return true;
+    }
+
+    // The queue only carries the two most recent photos (MAX_PHOTOS), so an older meal has to come
+    // back from storage. Fetch the uploaded object, re-encode it, and queue a fresh job.
+    try {
+      const path = todayMealPhotoPath(RT.userId, DAY.date, slot);
+      const url = path && await resolveMealPhoto(path);
+      if (!url) { this._patchSlot(slot, { rereadError: 'photo' }); window.__render && window.__render(); return false; }
+      const blob = await (await fetch(url)).blob();
+      const base64 = await new Promise((res, rej) => {
+        const fr = new FileReader();
+        fr.onload = () => res(String(fr.result || '').split(',')[1] || '');
+        fr.onerror = () => rej(new Error('read failed'));
+        fr.readAsDataURL(blob);
+      });
+      if (!base64) throw new Error('empty photo');
+      let photoHash = null;
+      try { photoHash = await sha256Hex(base64ToBytes(base64)); } catch { /* no WebCrypto — hash guard simply won't apply */ }
+      restage(photoHash);
+      putJob({
+        k: jobKey(RT.userId, DAY.date, slot), uid: RT.userId, date: DAY.date, slot,
+        mealType: cur.name || cap(slot), mealId: cur.mealId || null,
+        base64, photoHash, uploaded: true, needAnalysis: true, tries: 0, lastTryAt: 0,
+      });
+      void this.drainMealOutbox();
+      return true;
+    } catch {
+      // Nothing was changed — say so honestly rather than leaving the slot mid-restage.
+      this._patchSlot(slot, { rereadError: 'photo' });
+      window.__render && window.__render();
+      return false;
+    }
+  },
+
+  /* ---------------------------------------------------------------------------------------
+     MEMORY. Turn corrections into durable facts about this athlete (0019, live on prod and — until
+     now — read by nothing). Safety kinds land as `pending_confirmation` and only bind when the
+     athlete confirms them in the thread; nothing inferred can put a word in the model's mouth.
+     --------------------------------------------------------------------------------------- */
+
+  /** At most this many fact writes per day, so a correction spree can't flood the table. */
+  _memoryBudgetLeft() {
+    const today = new Date().toISOString().slice(0, 10);
+    if (RT.memDay !== today) return 5;
+    return Math.max(0, 5 - (Number(RT.memUsed) || 0));
+  },
+  _memoryBudgetSpend() {
+    const today = new Date().toISOString().slice(0, 10);
+    if (RT.memDay !== today) { RT.memDay = today; RT.memUsed = 0; }
+    RT.memUsed = (Number(RT.memUsed) || 0) + 1;
+    save();
+  },
+
+  async _writeMemoryCandidates(cands) {
+    if (!RT.userId || !window.sb || !cands || !cands.length) return;
+    const existing = await fetchMyMemoryFacts(RT.userId).catch(() => []);
+    for (const c of cands) {
+      if (!c || !c.value) continue;
+      if (this._memoryBudgetLeft() <= 0) return;
+      const prior = existing.find((e) => sameFact(e, c));
+      const ok = await upsertMemoryFact(RT.userId, c, prior).catch(() => false);
+      if (ok) this._memoryBudgetSpend();
+    }
+  },
+
+  /** Pending facts awaiting the athlete's yes/no. Cached per render pass by the thread. */
+  async pendingMemoryFacts() {
+    if (!RT.userId || !window.sb) return [];
+    const all = await fetchMyMemoryFacts(RT.userId).catch(() => []);
+    return all.filter((f) => f && f.status === 'pending_confirmation');
+  },
+
+  /** The confirmation itself — the ONLY thing that lets an inferred safety fact reach a prompt. */
+  async confirmMemoryFact(id, keep) {
+    if (!RT.userId) return false;
+    const ok = await setMemoryFactStatus(RT.userId, id, keep ? 'active' : 'rejected').catch(() => false);
+    if (ok) { track(EVENTS.MEMORY_FACT_CONFIRMED, { keep: !!keep }); window.__render && window.__render(); }
+    return ok;
+  },
+
+  async _learnFromCorrection(correction) {
+    try {
+      const kind = correction && correction.kind;
+      const value = correction && correction.value;
+      await this._writeMemoryCandidates(factsFromCorrection(kind, value));
+    } catch { /* never break a correction on memory */ }
+  },
+
+  /** Food-level edits made on the review screen, harvested once at log time (not per keystroke). */
+  async _learnFromFoodEdits(result) {
+    try {
+      if (!result || !result.detectedRich) return;
+      const after = result.detectedRich;
+      const before = Array.isArray(result.origDetected) ? result.origDetected : null;
+      if (!before) return;
+      await this._writeMemoryCandidates(candidateFactsFromFoodChange(before, after));
+    } catch { /* best-effort */ }
+  },
+
   /* Post-log macro enrichment (background, fire-and-forget). Resolves the foods the curated table
      couldn't ground (gapFoods) against USDA/OFF via the enrich-meal function, so the NEXT time this
      population logs the same branded/restaurant food it grounds on real data — and seeds the
@@ -816,15 +1205,6 @@ export const act = {
     } catch { /* offline — the local preference is kept and pushed on the next hydrate */ }
   },
 
-  /* The 2-tap post-meal body-signal prompt (0142). Answering is what earns awareness credit on
-     an Intuitive plan — the VALUE answered never does, so there is no wrong answer to give and
-     nothing to game. Skipping costs nothing on Structured/Guided, and on Intuitive it is one
-     day against a trailing-week rate. */
-  setMealSignal(slot, key, value) {
-    daySetMealSignal(RT.userId, slot, key, value);
-    DAY.signalWeekRate = signalWeekRate();
-    save();
-  },
   /* One-time "plan styles exist now" announcement (0142 release mechanics) — dismissed once,
      locally, and never shown again regardless of which button ended it (exploring the picker
      counts as having seen it too). Local-only like RT.theme/RT.notifsRead: this is a UI nag
@@ -1207,7 +1587,12 @@ export const act = {
         // Model asked but sent nothing usable — finalize straight through rather than dead-end.
         return this.finalizeAnalysis([]);
       }
-      if (data && data.kind === 'result') { MEAL.result = groundResult(data); save(); saveMeal(); await this._maybeVerify(); return { ok: true, kind: 'result' }; }
+      if (data && data.kind === 'result') {
+        const grounded = groundResult(data);
+        // Empty read: treat it as unreadable rather than staging a meal with no numbers in it.
+        if (!isCompleteMealResult(grounded)) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'unreadable' }); return { ok: false, error: 'Could not read that meal. Try another angle.' }; }
+        MEAL.result = grounded; save(); saveMeal(); await this._maybeVerify(); return { ok: true, kind: 'result' };
+      }
       track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'unreadable' });
       return { ok: false, error: 'Could not read that meal. Try another angle.' };
     } catch (e) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'exception' }); return { ok: false, error: 'Analysis failed. Retake and try again.' }; }
@@ -1222,7 +1607,11 @@ export const act = {
     try {
       const { data, error } = await sb.functions.invoke('analyze-meal', { body: { ...this._analysisBody(), phase: 'finalize', clarifications } });
       if (error) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'error' }); return { ok: false, error: 'Analysis failed. Check your connection and retake.' }; }
-      if (data && data.kind === 'result') { MEAL.result = groundResult(data); MEAL.questions = null; save(); saveMeal(); await this._maybeVerify(); return { ok: true, kind: 'result' }; }
+      if (data && data.kind === 'result') {
+        const grounded = groundResult(data);
+        if (!isCompleteMealResult(grounded)) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'unreadable' }); return { ok: false, error: 'Could not read that meal. Try another angle.' }; }
+        MEAL.result = grounded; MEAL.questions = null; save(); saveMeal(); await this._maybeVerify(); return { ok: true, kind: 'result' };
+      }
       track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'unreadable' });
       return { ok: false, error: 'Could not read that meal. Try another angle.' };
     } catch (e) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'exception' }); return { ok: false, error: 'Analysis failed. Retake and try again.' }; }
@@ -1255,6 +1644,10 @@ export const act = {
     // Quality metrics (item 8b): counts-only signal that a photo read needed a fix — no macro
     // values, no free text. Feeds the correction-rate side of admin_meal_quality_metrics.
     track(EVENTS.MEAL_CORRECTED, { kind: String((correction && correction.kind) || 'other').slice(0, 24) });
+    // TEACH THE MODEL. A correction is evidence about this athlete, not just about this plate:
+    // "portion was double" repeated is a calibration prior worth more than any single fix.
+    // Fire-and-forget — memory must never be able to break a correction.
+    void this._learnFromCorrection(correction);
     // Mirror the corrected numbers onto the meals row the coach reads (athlete owns the row —
     // meals_update RLS). The original stays in the day meta's `orig`; the note carries the trail.
     const sb = window.sb;
@@ -1271,6 +1664,11 @@ export const act = {
       } catch { /* best-effort — the corrected day is already persisted */ }
     }
     track(EVENTS.MEAL_LOGGED, { slot, source: 'correction' });
+    // Say so in the thread. A correction used to silently rewrite the numbers under a read that
+    // still claimed the old ones — so the AI now posts a fresh read as a NEW message, leaving the
+    // original where it was. The athlete sees they were heard; the coach sees both.
+    // Fire-and-forget: the correction itself has already applied and been confirmed on screen.
+    void this._postCorrectionUpdate(slot, r);
     // A correction that moved the numbers meaningfully is worth a coach look — once per meal.
     if (this._coachConnected() && r.kcalDelta >= 120 && !r.meta.correctionNotified) {
       DAY.slotMacros[slot] = { ...r.meta, correctionNotified: true };
@@ -1284,6 +1682,40 @@ export const act = {
     }
     return r;
   },
+  /** Ask the AI to re-read the plate out loud after the athlete corrected it.
+   *
+   *  The numbers sent are the CORRECTED ones — the deterministic kitchen math has already run and
+   *  been persisted, so the model is describing a result, never computing one. The original read
+   *  stays in the thread above; this lands underneath it as a new message.
+   *
+   *  Every failure is silent by design. The correction is already applied and already confirmed
+   *  on screen; a missing acknowledgment is a quieter thread, not a broken one. */
+  async _postCorrectionUpdate(slot, r) {
+    try {
+      const sb = window.sb;
+      const mealId = r && r.meta && r.meta.mealId;
+      if (!sb || !mealId || !RT.userId) return;
+      const m = r.meta;
+      const dp = S.mealDayProgress;
+      const context = contextForChat({
+        meal: {
+          name: m.name || cap(slot), slot,
+          protein: m.protein || 0, carbs: m.carbs || 0, fat: m.fat || 0, kcal: m.kcal || 0,
+          fiber: m.fiber || 0, quality: m.quality != null ? m.quality : null,
+          foods: (m.detectedRich || []).map((d) => d && d.name).filter(Boolean).slice(0, 8),
+          // What the athlete actually told us, and what it used to say.
+          correction: r.summary || null,
+          wasBefore: m.orig ? { protein: m.orig.protein, kcal: m.orig.kcal } : null,
+        },
+        plan: { style: S.planStyle.key, proteinTarget: dp.proteinTarget },
+        exec: { proteinSoFar: dp.proteinSoFar, mealsRemaining: dp.mealsRemaining },
+      });
+      await sb.functions.invoke('meal-chat', { body: { mealId, correctionUpdate: true, context } });
+      // The thread screen refetches on its own tick; nudge a repaint so it lands promptly.
+      window.__render && window.__render();
+    } catch { /* a quieter thread, not a broken correction */ }
+  },
+
   /* Pre-log edit propagation (Tier 1 session isolation, 2026-07-21): called right after every
      successful applyFoodEdit. A removed food must leave EVERYTHING — totals, score inputs, and
      prose — not just the food list. Totals + quality recompute deterministically from the
@@ -2236,7 +2668,15 @@ window.__act = act;
 if (typeof document !== 'undefined' && document.addEventListener) {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible' && RT.userId) flushDayPush(RT.userId);
+    // Coming BACK is when queued meal work gets its chance: the athlete may have logged in a dead
+    // zone, or the app may have been killed mid-analysis. The queue is durable; this is its beat.
+    if (document.visibilityState === 'visible' && RT.userId) void act.drainMealOutbox();
   });
+}
+// Reconnect is the other beat. Both are best-effort and the drain is serialized, so overlapping
+// events can never run a job twice.
+if (typeof window !== 'undefined' && window.addEventListener) {
+  window.addEventListener('online', () => { if (RT.userId) void act.drainMealOutbox(); });
 }
 
 /* ---------------- The app state (live getters) ---------------- */
@@ -2321,15 +2761,6 @@ export const S = {
   get hydrationTargetLabel() {
     const l = DAY.hydrationTargetL > 0 ? DAY.hydrationTargetL : 3;
     return `${Math.round(l * 33.814)} oz`;
-  },
-
-  /** The body signals this style asks for, and what's been answered for one meal slot today. */
-  mealSignals(slot) {
-    const knobs = this.planStyle.knobs;
-    const answered = (DAY.signals && DAY.signals[slot]) || {};
-    return SIGNAL_KEYS
-      .filter(s => s.where === 'meal' && knobs && knobs.signals && knobs.signals[s.key])
-      .map(s => ({ ...s, value: typeof answered[s.key] === 'number' ? answered[s.key] : null }));
   },
 
   // display name. NEVER a fabricated persona: with no link, hasCoach is false and every
@@ -3225,5 +3656,21 @@ window.S = S; // debug
 // completion (recovery, etc.) instead of the old never-written '[]'. Lazy: only invoked inside
 // pushDay, so S/DAY are fully hydrated by the time it runs. Weekly check-in is excluded by
 // deriveExec and stays on its own rollup column (checkin_done) — no double signal.
-setDayTaskProvider(() =>
-  S.exec.items.map((i) => ({ id: i.id, done: i.state === 'done' || i.state === 'done_late' })));
+// Connected Standards (0155) ride the SAME lane, prefixed `cs:` so they can never collide with a
+// requirement id. This is the whole coach-side integration for the tracked-not-scored surface:
+// teamPulse and the roster status chips read days.tasks, so a verified step goal shows up there
+// for free. It moves no score — 0041's evidence ceiling reads meals/checkin/trust_passes, never
+// tasks — which is exactly why multi-domain completions (0112) were wired this way too.
+//
+// A period still waiting on a device is reported as NOT done rather than omitted: the coach's
+// "who is outstanding" list should include them, and the board (not this lane) is where the
+// difference between "hasn't walked" and "watch hasn't reported" is spelled out.
+setDayTaskProvider(() => [
+  ...S.exec.items.map((i) => ({ id: i.id, done: i.state === 'done' || i.state === 'done_late' })),
+  ...(Array.isArray(RT.csRows) ? RT.csRows : [])
+    .filter((r) => r && r.period === 'day' && r.period_start === DAY.date)
+    .map((r) => ({
+      id: `cs:${r.standard_id}`,
+      done: r.status === 'verified_complete' || r.status === 'completed_manually',
+    })),
+]);

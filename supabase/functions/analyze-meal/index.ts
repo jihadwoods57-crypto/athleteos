@@ -33,22 +33,37 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
+import { validMealInput, rejectionOutcome } from '../_shared/meal-report.ts';
+import { composeOpenerText } from '../_shared/meal-opener.ts';
 import { buildVoiceDirective, violatesProhibited, type VoiceConfig } from '../_shared/coach-voice.ts';
 import { loadVoiceForAthlete as loadVoice } from '../_shared/coach-voice-load.ts';
-import { evaluateFlag, type FlagRow } from '../_shared/feature-flags.ts';
+import { flagOn } from '../_shared/feature-flags.ts';
 import {
   composeSystem, violatesStyleLanguage, styleCorrectionMessage, SAFE_INTUITIVE, type PlanStyle,
 } from '../_shared/plan-style.ts';
 import { loadPlanStyleForAthlete } from '../_shared/plan-style-load.ts';
+import { loadMemoryForAthlete } from '../_shared/memory-load.ts';
+import { memoryBlock, avoidFromFacts, type MemoryFact } from '../_shared/memory.ts';
+import { checkSpend, spendMessage, EST_USD } from '../_shared/spend-gate.ts';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 import { trackAuthedAiSpend } from '../_shared/ai-tier-budget.ts';
 
-const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
+// Per-surface override first (see meal-chat): vision is the expensive surface and should be
+// tunable without moving every other AI call in the product.
+const MODEL = Deno.env.get('ANTHROPIC_MODEL_ANALYZE_MEAL') ?? Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 // Cost sweep (audit item 20): memory/order are pure PROSE rephrases whose every number is re-verified
 // client-side (mergeRephrasedInsights/Orders drop any rewrite that changes a figure), so a cheaper
 // model cannot affect a single macro — run them on Haiku (~1/3 the cost). Meal (vision estimate) and
 // label (exact-number transcription) stay on MODEL where capability/accuracy matter.
 const TEXT_MODEL = Deno.env.get('ANTHROPIC_TEXT_MODEL') ?? 'claude-haiku-4-5-20251001';
+
+// MEAL_TOOL's report is the longest structured output this function asks for: per-food macro
+// attribution for up to ~8 foods plus a 3-6 sentence analysis, note, highlights and an optional
+// substitution — a busy plate measures ~700-1000 output tokens. This sat at 1024 while the system
+// prompt kept growing (memory block, avoid list), so real photos began hitting the ceiling and
+// returning a TRUNCATED tool_use with no macros in it. Output tokens bill as used, so the headroom
+// costs nothing on a normal call; it only stops the truncation. See validMealInput.
+const MEAL_MAX_TOKENS = 2048;
 
 // Per-athlete daily ceiling on the PAID vision calls (meal + label). This bounds a day's
 // spend and stops a single athlete spamming photos, where the per-minute IP limit can't
@@ -76,7 +91,17 @@ function posIntCap(name: string, fallback: number): number {
 //   * ANON_IP_CAP — paid calls/day per IP for ANONYMOUS (anon-key-only) callers, who skip the
 //     per-athlete cap. Both are backed by claim_ai_usage_key (migration 0030) and fail OPEN.
 // Tune both up as real traffic grows; defaults are generous for an early-stage roster.
-const GLOBAL_CAP = posIntCap('GLOBAL_ANALYSIS_CAP', 5000);
+// GLOBAL_CAP lowered 5000 -> 750. 5000 anonymous paid vision calls a day is far beyond any real
+// anon need (an anon call is a not-yet-signed-in user trying the onboarding demo, roughly one per
+// signup) and was simply a large number, not a reasoned one. 750 still covers ~12 full teams
+// onboarding in a single day. The real backstop is now the DOLLAR ceiling at (1b), which binds
+// regardless of what a call happens to cost.
+//
+// ANON_IP_CAP deliberately STAYS at 60. It is tempting to cut it hard, but this product is sold to
+// teams and schools: 60 athletes onboarding on one school wifi share one NAT'd IP. A tight per-IP
+// cap would break the core sales motion — a coach onboarding their roster in one room — while
+// barely inconveniencing an attacker, who rotates IPs anyway.
+const GLOBAL_CAP = posIntCap('GLOBAL_ANALYSIS_CAP', 750);
 const ANON_IP_CAP = posIntCap('ANON_IP_ANALYSIS_CAP', 60);
 // MARGIN GUARDRAIL. The clarifying-questions flow (analyze -> ask -> finalize) is the only
 // path that spends TWO paid vision calls on one meal, so it is offered only for a signed-in
@@ -101,23 +126,6 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 function svcClient(): { from: (t: string) => any; rpc: (fn: string, args?: Record<string, unknown>) => any } | null {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return null;
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-}
-async function flagOn(
-  sb: { from: (t: string) => any },
-  name: string,
-  ctx: { userId?: string | null; role?: string | null; orgId?: string | null },
-): Promise<boolean> {
-  try {
-    const { data } = await sb
-      .from('feature_flags')
-      .select('name, default_on, kill_switch, enabled_user_ids, enabled_roles, enabled_org_ids')
-      .eq('name', name)
-      .maybeSingle();
-    if (!data) return false;
-    return evaluateFlag(data as FlagRow, ctx);
-  } catch {
-    return false;
-  }
 }
 
 async function resolveUserId(req: Request): Promise<string | null> {
@@ -281,6 +289,10 @@ interface AnalyzeReq {
    *  protein logged so far today, the athlete's real daily target, required meals remaining.
    *  Pure clamped numbers; the model may connect THIS meal to the day but never invent numbers. */
   dayContext?: { proteinSoFar?: number; proteinTarget?: number; mealsRemaining?: number };
+  /** The meals row this read belongs to. Present once the meal has been logged (the optimistic
+   *  path inserts the row before the analysis runs), and it is what lets the finished read be
+   *  posted into the athlete's thread as a real message. Absent = analyze only, post nothing. */
+  mealId?: string;
   /** The athlete's review-step note: what the camera can't see (oil, sauce, refills). */
   athleteNote?: string;
 }
@@ -650,6 +662,7 @@ function groundMacros<T>(analysis: T): T {
   return analysis;
 }
 
+
 // ── Second-pass verifier (item 6) ────────────────────────────────────────────────────────────
 const VERIFY_BUDGET = posIntCap('VERIFY_DAILY_BUDGET', 3);
 const REGEN_ENABLED = (Deno.env.get('VERIFY_REGEN_ENABLED') ?? 'true') !== 'false';
@@ -701,6 +714,65 @@ function classifyVerifyOutcomeServer(first: { kcal?: number; protein?: number },
   if (moved(first.kcal, second.kcal)) return 'macros_moved';
   if (moved(first.protein, second.protein)) return 'macros_moved';
   return 'no_change';
+}
+
+/**
+ * Post the finished read into the athlete's meal thread as a real AI message.
+ *
+ * Ownership is proved with the CALLER's token before the service role writes anything: a
+ * service-role insert keyed on a mealId from the request body would let anyone who can call this
+ * function put words in the AI's mouth on someone else's meal. The user-scoped select can only
+ * see meals RLS already allows, and we additionally require that the caller owns it.
+ *
+ * Idempotent. The analysis can legitimately run more than once for one meal (a retry, a finalize
+ * after clarifying questions, an athlete-triggered re-read), and each of those must not stack
+ * another opener onto the thread.
+ *
+ * Every failure here is swallowed. The athlete is waiting on their macros; a thread write that
+ * did not land is a missing bubble, not a failed meal.
+ */
+async function postOpener(
+  mealId: string,
+  userId: string,
+  read: Record<string, unknown>,
+  planStyle: PlanStyle | null,
+  req: AnalyzeReq,
+  authHeader: string,
+): Promise<void> {
+  try {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) return;
+    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: mealRow } = await userClient.from('meals').select('id, athlete_id').eq('id', mealId).maybeSingle();
+    if (!mealRow || mealRow.athlete_id !== userId) return;
+
+    const service = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { count } = await service.from('meal_comments')
+      .select('id', { count: 'exact', head: true })
+      .eq('meal_id', mealId).eq('role', 'ai').eq('meta->>t', 'analysis');
+    if (count && count > 0) return;   // this plate has already been read into the thread
+
+    const t = req.timing;
+    const late = t && typeof t.minutesLate === 'number' ? t.minutesLate > 0
+      : t && typeof t.minutesLeft === 'number' ? false
+      : null;
+    const text = composeOpenerText(read, {
+      planStyle,
+      late,
+      mealName: req.mealType ?? null,
+      day: req.dayContext ?? null,
+      goal: req.goal ?? null,
+    });
+    if (!text) return;   // nothing honest to say — an empty bubble is worse than no bubble
+
+    await service.from('meal_comments').insert({
+      meal_id: mealId, athlete_id: userId, author_id: userId,
+      role: 'ai', kind: 'message', text, meta: { t: 'analysis' },
+    });
+  } catch (e) {
+    console.error('analyze-meal opener post failed:', e);
+  }
 }
 
 Deno.serve(async (request) => {
@@ -792,6 +864,18 @@ Deno.serve(async (request) => {
   // ceiling.
   if (!userId && !(await withinKeyCap('global_anon', GLOBAL_CAP, /* failOpen */ false))) {
     return new Response(JSON.stringify({ error: 'service at capacity, try again later' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
+  }
+  // (1b) THE DOLLAR CEILING (0152). Every guard above counts CALLS; this one counts MONEY, which
+  // is the unit the bill is actually denominated in. It applies to signed-in callers too — the
+  // count caps deliberately exempt them so a paying athlete is never denied their own meal log,
+  // but if the day's spend is genuinely at the wall, continuing to spend is not a kindness to
+  // anyone. Set the cap high enough that this only ever fires on abuse or a runaway loop.
+  // Fail-closed: a missing service key or a broken RPC denies, because a spend brake that
+  // disables itself when the plumbing breaks is decorative.
+  const spend = await checkSpend(EST_USD.vision);
+  if (!spend.allowed) {
+    console.log(JSON.stringify({ evt: 'ai_spend_block', reason: spend.reason, spent: spend.spentUsd, cap: spend.capUsd }));
+    return new Response(JSON.stringify({ error: spendMessage(spend) }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
   // (2) PER-CALLER daily cap — fairness/anti-spam. memory/order are exempt (cheap Haiku prose); every
   // paid meal/label VISION call counts, INCLUDING meal 'finalize'. finalize used to be exempt, on the
@@ -886,7 +970,7 @@ Deno.serve(async (request) => {
       }
       const msg = await client.messages.create({
         model: MODEL,
-        max_tokens: 1024,
+        max_tokens: MEAL_MAX_TOKENS,
         system: [{ type: 'text' as const, text: VERIFY_ACCURACY_SYSTEM, cache_control: { type: 'ephemeral' as const } }],
         tools: [{ ...MEAL_TOOL, cache_control: { type: 'ephemeral' as const } }],
         tool_choice: { type: 'tool' as const, name: MEAL_TOOL.name },
@@ -894,6 +978,9 @@ Deno.serve(async (request) => {
       });
       const used = msg.content.find((b) => b.type === 'tool_use');
       if (!used || used.type !== 'tool_use') throw new Error('no structured output');
+      // A second look that came back truncated must not overwrite the first read (state.js only
+      // checks that kcal is a number) — fail the verify instead and leave the original standing.
+      if (!validMealInput(used.input)) throw new Error(msg.stop_reason === 'max_tokens' ? 'truncated tool output' : 'incomplete meal report');
       const grounded = groundMacros(used.input) as Record<string, unknown>;
       const outcome = classifyVerifyOutcomeServer(req.firstResult || {}, grounded);
       await recordAiCall({ fn: 'analyze-meal', mode: 'verify', phase: 'accuracy', userId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0v, ok: true, outcome });
@@ -906,11 +993,6 @@ Deno.serve(async (request) => {
   }
 
   const baseSystem = isMemory ? MEMORY_SYSTEM : isOrder ? ORDER_SYSTEM : isLabel ? LABEL_SYSTEM : SYSTEM;
-  // Typed once here: the *Content builders return unknown[], which the SDK's ContentBlockParam[]
-  // rejects at every call site that passes it. Casting at the source fixes the primary call and
-  // both fallback re-runs together, instead of three separate casts.
-  const content = (isMemory ? memoryContent(req) : isOrder ? orderContent(req) : isLabel ? labelContent(req, photoMime) : userContent(req, photoMime)) as unknown as Anthropic.ContentBlockParam[];
-
   // Coach Voice v2 (flag-gated, meal path only): when coach_voice_v2 is on for this athlete AND
   // their team has an enabled Voice config, prepend the coach's voice directive so the note/analysis
   // read in the coach's tone. Deterministic authority (macros/score/timing) is untouched — the
@@ -923,6 +1005,7 @@ Deno.serve(async (request) => {
   // come from an explicit row the loader reads. See plan-style-load.ts's header.
   let planStyle: PlanStyle | null = null;
   let styleSource: string | null = null;
+  let memFacts: MemoryFact[] = [];
   if (isMeal && userId) {
     const sb = svcClient();
     if (sb) {
@@ -932,13 +1015,42 @@ Deno.serve(async (request) => {
       }
       const st = await loadPlanStyleForAthlete(sb, userId);
       if (st) { planStyle = st.style; styleSource = st.source; }
+      // ATHLETE MEMORY (0019). Confirmed facts only — what this athlete's own corrections have
+      // taught us about how to read their plates. Flag-gated; absent, the prompt is byte-identical
+      // to before.
+      if (await flagOn(sb, 'ai_memory', { userId })) {
+        memFacts = await loadMemoryForAthlete(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, userId);
+        // Confirmed allergies/dislikes join the avoid-list the model is already told to honour.
+        // Server-verified, so it holds even when an older client sends nothing.
+        const memAvoid = avoidFromFacts(memFacts);
+        if (memAvoid.length) {
+          const seen = new Set((req.avoid || []).map((x) => String(x).toLowerCase()));
+          req.avoid = (req.avoid || []).concat(memAvoid.filter((x) => !seen.has(x))).slice(0, 20);
+        }
+      }
     }
   }
   // Voice -> style -> base. `styledBase` is the prompt WITHOUT the coach voice but WITH the style:
   // the voice fallback below re-runs on it, so dropping a banned word can never also drop the
   // style rail (which would hand an Intuitive athlete a macro-quoting prompt to fix a tone slip).
+  // Built AFTER the per-athlete loads above: the memory block merges confirmed allergies and
+  // dislikes into req.avoid, and userContent() renders that into the prompt text. Building it any
+  // earlier silently dropped them.
+  // Typed once here: the *Content builders return unknown[], which the SDK's ContentBlockParam[]
+  // rejects at every call site that passes it. Casting at the source fixes the primary call and
+  // both fallback re-runs together, instead of three separate casts.
+  const content = (isMemory ? memoryContent(req) : isOrder ? orderContent(req) : isLabel ? labelContent(req, photoMime) : userContent(req, photoMime)) as unknown as Anthropic.ContentBlockParam[];
+
   const styledBase = composeSystem(baseSystem, '', planStyle);
-  const system = composeSystem(baseSystem, voiceCfg ? buildVoiceDirective(voiceCfg) : '', planStyle);
+  let system = composeSystem(baseSystem, voiceCfg ? buildVoiceDirective(voiceCfg) : '', planStyle);
+  // Memory rides the SYSTEM prompt, appended last so it can inform the read without competing with
+  // the style rail or the voice directive above it. Framed explicitly as data, not instructions —
+  // the values are athlete-authored text (sanitized in memory-load.ts), so they are never allowed
+  // to read as commands.
+  const memBlock = memFacts.length ? memoryBlock(memFacts) : '';
+  if (memBlock) system = `${system}
+
+${memBlock}`;
 
   // Tool set + choice. Meal phase 'analyze' may EITHER finalize or ask a clarifying question, so it
   // offers both tools and lets the model choose. Every other path (label/memory/order, and meal
@@ -979,7 +1091,7 @@ Deno.serve(async (request) => {
     const client = new Anthropic({ apiKey: key });
     const msg = await client.messages.create({
       model: isMemory || isOrder ? TEXT_MODEL : MODEL,
-      max_tokens: 1024,
+      max_tokens: isMeal ? MEAL_MAX_TOKENS : 1024,
       system: [{ type: 'text' as const, text: system, cache_control: { type: 'ephemeral' as const } }],
       tools: cachedTools,
       tool_choice: toolChoice,
@@ -1009,6 +1121,18 @@ Deno.serve(async (request) => {
         if (questions.length === 0) throw new Error('empty clarifying questions');
         return new Response(JSON.stringify({ kind: 'questions', questions }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
+      // A report we cannot trust must never be dressed up as a result. Before this gate a truncated
+      // or empty tool_use rode straight through to the app, which wrote protein/carbs/fat/kcal as
+      // 0 and marked the meal settled — a silent, unrecoverable ~0g meal. Throwing lands on the
+      // 502 below, which is the client's fail() path: it retries, then offers "Read it again".
+      if (!validMealInput(used.input)) {
+        await recordAiCall({
+          fn: 'analyze-meal', mode: telemMode, phase: telemPhase, userId,
+          model: msg.model ?? intendedModel, latencyMs: Date.now() - t0, ok: true,
+          outcome: rejectionOutcome(msg.stop_reason),
+        });
+        throw new Error(msg.stop_reason === 'max_tokens' ? 'truncated tool output' : 'incomplete meal report');
+      }
       let input = used.input as Record<string, unknown>;
       // Coach Voice safety: a banned word must never ship. If voice was applied and the free-text
       // note/analysis trips the guard (rare — the directive already forbids them), re-run the report
@@ -1021,7 +1145,7 @@ Deno.serve(async (request) => {
           const t0f = Date.now();
           const retry = await client.messages.create({
             model: MODEL,
-            max_tokens: 1024,
+            max_tokens: MEAL_MAX_TOKENS,
             // styledBase, NOT baseSystem: drop the coach's voice, KEEP the plan-style rail.
             system: [{ type: 'text' as const, text: styledBase, cache_control: { type: 'ephemeral' as const } }],
             tools: mealToolOnly,
@@ -1034,7 +1158,9 @@ Deno.serve(async (request) => {
             latencyMs: Date.now() - t0f, ok: true, outcome: 'voice_banned_fallback',
           });
           const rused = retry.content.find((b) => b.type === 'tool_use');
-          if (rused && rused.type === 'tool_use') input = rused.input as Record<string, unknown>;
+          // Only adopt a COMPLETE retry. A truncated one would swap a good read for zeros, which
+          // is a far worse outcome than shipping the first read's prose through the voice guard.
+          if (rused && rused.type === 'tool_use' && validMealInput(rused.input)) input = rused.input;
         }
       }
 
@@ -1059,7 +1185,7 @@ Deno.serve(async (request) => {
           const t0s = Date.now();
           const retry = await client.messages.create({
             model: MODEL,
-            max_tokens: 1024,
+            max_tokens: MEAL_MAX_TOKENS,
             system: [{ type: 'text' as const, text: styledBase, cache_control: { type: 'ephemeral' as const } }],
             tools: mealToolOnly,
             tool_choice: { type: 'tool' as const, name: MEAL_TOOL.name },
@@ -1083,8 +1209,10 @@ Deno.serve(async (request) => {
             latencyMs: Date.now() - t0s, ok: true, outcome: `style_${v.kind}_retry`,
           });
           const rused = retry.content.find((b) => b.type === 'tool_use');
-          if (rused && rused.type === 'tool_use') {
-            const candidate = rused.input as Record<string, unknown>;
+          // Same rule as the voice retry: a truncated correction is not an improvement. Leaving
+          // `v` set drops through to the deterministic safe-copy step, which keeps the good macros.
+          if (rused && rused.type === 'tool_use' && validMealInput(rused.input)) {
+            const candidate = rused.input;
             v = violatesStyleLanguage(prose(candidate), planStyle);
             if (!v) input = candidate;
           }
@@ -1109,6 +1237,19 @@ Deno.serve(async (request) => {
         }
       }
       const grounded = groundMacros(input) as Record<string, unknown>;
+
+      // POST THE READ INTO THE THREAD. The AI's analysis used to be derived on the client and
+      // never written down, which is why the thread had nothing to reply to and a coach could not
+      // scroll back through what the athlete was told. Now it is a real message.
+      //
+      // Server-side and service-role because clients may never write role='ai' (0046) — that
+      // boundary is the only reason an AI bubble can be trusted. Fire-and-forget: a thread write
+      // must never be able to fail an analysis the athlete is waiting on.
+      const openerMealId = typeof req.mealId === 'string' ? req.mealId.trim() : '';
+      if (openerMealId && userId) {
+        void postOpener(openerMealId, userId, grounded, styleApplied ?? planStyle, req, request.headers.get('authorization') ?? '');
+      }
+
       // Stamp the style this prose was actually written for. The client trusts its own resolved
       // style over this, but uses the stamp to know whether server prose is safe to SHOW: an old
       // deploy (no stamp) means the client keeps suppressing, so a stale function can never leak.

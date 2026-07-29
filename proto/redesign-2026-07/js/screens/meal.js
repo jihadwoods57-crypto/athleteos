@@ -1,13 +1,22 @@
 import { S, RT, tier, act, MEAL, mealDetail, fmtClock } from '../state.js';
 import { DAY, slotDeadline } from '../day.js';
 import { icon } from '../icons.js';
-import { backHead, esc, safeImg, nonLiveBadge, composer } from '../components.js';
+import { backHead, esc, safeImg, nonLiveBadge, composer, animateRing } from '../components.js';
 import {
   openingMessage, openingSummary, qualityBand, qualityReason, reactionGroups, threadMessages,
   contextForChat, applyFoodEdit, hasUserEdits, restrictionConflicts,
   estimateConfidence, estRange, mealPatterns, scoreRubric, followUpQuestion, coachThreadStatus,
 } from '../meal-intel.js';
 import { openImageViewer } from '../image-viewer.js';
+import { openMembersSheet } from '../members-sheet.js';
+import {
+  layoutThread, authorName, initialsFor, participantList, participantSummary, participantMeta,
+  isAnalysisOpener, isAnalysisUpdate, quotedFor,
+} from '../chat-view.js';
+
+/* Which meal's score has already been revealed this session, so re-entering the thread doesn't
+   replay the moment (or re-buzz) every time. */
+let REVEALED = null;
 
 /* Recent same-athlete meals (14d) for REAL historical patterns in the AI opening — module
    cache, one fetch per minute per user; the mount repaints once when rows land. */
@@ -19,13 +28,42 @@ async function warmRecent(rolesMod, uid) {
   RECENT = { uid, rows: (rows || []).slice().reverse(), at: Date.now() }; // ascending for mealPatterns
   if (location.hash.startsWith('#meal-')) window.__render && window.__render();
 }
+/* Pending memory facts (0019): things the athlete's corrections SUGGEST but which must never bind
+   until they say so. Cached with the same idiom as RECENT/RECEIPT; the thread renders at most one
+   confirmation at a time, so a correction spree can't turn into an interrogation. */
+let PENDING_FACTS = { uid: null, rows: [], at: 0 };
+async function warmPendingFacts(uid) {
+  if (!uid) return;
+  if (PENDING_FACTS.uid === uid && Date.now() - PENDING_FACTS.at < 60000) return;
+  const rows = await act.pendingMemoryFacts().catch(() => []);
+  PENDING_FACTS = { uid, rows: rows || [], at: Date.now() };
+  if (location.hash.startsWith('#meal-')) window.__render && window.__render();
+}
+
 /* Coach day-receipt (0043) for the athlete-visible "Reviewed by Coach" state — same cache idiom. */
 let RECEIPT = { uid: null, date: null, reviewed: false, at: 0 };
 async function warmReceipt(rolesMod, uid, dateISO) {
   if (!uid) return;
   if (RECEIPT.uid === uid && RECEIPT.date === dateISO && Date.now() - RECEIPT.at < 60000) return;
   const rows = await rolesMod.fetchMyDayReceipts(uid, dateISO).catch(() => []);
-  RECEIPT = { uid, date: dateISO, reviewed: !!(rows && rows.length), at: Date.now() };
+  // Keep the rows, not just the boolean: the thread names WHO looked, which is the whole
+  // difference between "reviewed" as a status and "Coach Brown saw this" as a fact.
+  RECEIPT = { uid, date: dateISO, reviewed: !!(rows && rows.length), rows: rows || [], at: Date.now() };
+}
+
+/* Who is in the conversation (0158). Same session-cache idiom: membership does not change
+   between two paints, and every mount would otherwise re-ask. */
+let PARTICIPANTS = { uid: null, rows: [], at: 0 };
+/** Returns true only when this call actually FETCHED something new — the caller repaints on that
+ *  and nothing else. A warm that repaints unconditionally is a render loop: every mount asks,
+ *  the cache answers instantly, the repaint remounts, and the screen never settles. It also
+ *  silently undoes the thread's own paint, so the athlete sits on "Loading the thread…" forever. */
+async function warmParticipants(rolesMod, uid) {
+  if (!uid) return false;
+  if (PARTICIPANTS.uid === uid && Date.now() - PARTICIPANTS.at < 300000) return false;
+  const rows = await rolesMod.fetchThreadParticipants(uid).catch(() => []);
+  PARTICIPANTS = { uid, rows: rows || [], at: Date.now() };
+  return PARTICIPANTS.rows.length > 0;
 }
 
 function macroRow(m) {
@@ -123,6 +161,12 @@ export const mealQuestions = {
     <div class="mq-note">${icon('lock', 12)} Your answers only sharpen this meal's numbers. Nothing else changes.</div>`;
   },
   mount(root) {
+    // render() bails to #camera when there is nothing to ask, but the router calls mount()
+    // unconditionally (router.js:280) — so without this guard a stale/deep-link entry threw
+    // "Cannot read properties of null" and left the screen dead.
+    const goBtn = root.querySelector('#mq-go');
+    const skipBtn = root.querySelector('#mq-skip');
+    if (!goBtn || !skipBtn) return;
     const inputs = () => Array.from(root.querySelectorAll('.mq-input'));
     const answers = () => {
       const a = [];
@@ -152,8 +196,8 @@ export const mealQuestions = {
       }
       err.querySelector('span').textContent = r.error || 'Analysis failed. Try again.';
     };
-    root.querySelector('#mq-go').addEventListener('click', () => finish(answers()));
-    root.querySelector('#mq-skip').addEventListener('click', () => finish([]));
+    goBtn.addEventListener('click', () => finish(answers()));
+    skipBtn.addEventListener('click', () => finish([]));
     // Enter on the last field submits; Enter elsewhere advances to the next field.
     inputs().forEach((el, i, arr) => el.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter') return;
@@ -162,6 +206,168 @@ export const mealQuestions = {
     }));
   },
 };
+
+/**
+ * The derived inputs for the AI opening rows: the short summary, the long-form read, and the one
+ * follow-up question.
+ *
+ * THIS LIVES AT MODULE SCOPE FOR A REASON. These were computed inside render() and referenced
+ * inside mount()'s paint() — a plain ReferenceError that fired on EVERY thread load, which meant
+ * paint() threw before it wrote a single message to the DOM. The visible symptom was the whole
+ * point of the feature going missing: the athlete saw the render-time analysis card and never saw
+ * one actual message, so a meal thread with a coach reply in it looked like an empty AI report.
+ * It survived because the thread only paints when the meal has a server row, and the screenshot
+ * harness had never seeded one.
+ */
+function openingInputs(M) {
+  const goal = RT.profile && RT.profile.baseGoal;
+  // Real context for the opening (upgrade 2026-07-16): the day's actual protein math, the
+  // engine's score credit for THIS log, and historical patterns only when history exists.
+  const dayP = S.mealDayProgress;
+  const recentRows = RECENT.uid === RT.userId && Array.isArray(RECENT.rows) ? RECENT.rows : [];
+  const patterns = mealPatterns(recentRows, {
+    slot: M.slot,
+    mealProteinBar: dayP.proteinTarget > 0 ? Math.round(dayP.proteinTarget / 4) : 0,
+  });
+  const sum = openingSummary({
+    quality: M.score, macros: M.macros, fiber: M.fiber, highlights: M.highlights, late: M.late, goal,
+    detected: M.detectedRich, source: M.source, deadlineClock: M.deadlineLabel,
+    day: dayP,
+  // Plan style (0142): an Intuitive read never quotes a macro figure and never grades the
+  // plate — the AI's job there is to help the athlete notice a pattern, not to hand them a
+  // number. Same analysis underneath; the professional still sees all of it.
+    numbers: S.planStyle.showMacros, tone: S.planStyle.tone,
+    });
+  // The long-form read is the edge function's own prose (M.analysis). Two ways it may be shown:
+  // the style permits numbers at all, OR the server STAMPED it as written for this exact style
+  // (analyze-meal's styleApplied, slice 8 — which also enforces the language rail server-side).
+  // Anything else — an old deploy with no stamp, or a stamp from a style the athlete has since
+  // left — is suppressed rather than regex-scrubbed: a half-redacted paragraph reads worse than
+  // the honest short summary, and a stale stamp is not evidence about today's prose.
+  const styleSafeProse = S.planStyle.showMacros || M.styleApplied === S.planStyle.key;
+  const fullText = openingMessage({
+    name: M.name, quality: M.score, note: M.note,
+    analysis: styleSafeProse ? M.analysis : null,
+    highlights: M.highlights, goal, coachTargets: S.planTargets, late: M.late, minutesLate: M.minutesLate,
+    detected: M.detectedRich, source: M.source, day: dayP, patterns,
+    impact: S.mealScoreImpact(M.slot),
+    });
+  // ONE useful follow-up when uncertainty materially affects the analysis — the chips map
+  // onto correction rules, so an answer UPDATES this estimate rather than forking a new one.
+  const fq = followUpQuestion({
+    source: M.source, userNote: M.userNote, note: M.note,
+    detectedRich: M.detectedRich, corrections: M.corrections,
+    });
+  return { sum, fullText, fq };
+}
+
+/**
+ * The AI rows at the top of a meal thread. Derived from the meal's own state, never stored, so a
+ * comments refetch can never wipe them.
+ *
+ * Four states, because a meal is now logged BEFORE the AI has read it:
+ *   pending   — the read is in flight. The meal already counts; this says so plainly.
+ *   questions — the model needs something the camera can't show. Asked here, in the thread,
+ *               instead of on a blocking screen the athlete had to sit through.
+ *   failed    — the read did not land. The meal stays logged as photo proof; retry is offered.
+ *   result    — the normal case: summary, optional full analysis, and one follow-up question.
+ */
+export function openingBlockHtml(M, { sum, fullText, fq, hasPersistedRead = false } = {}) {
+  const aiRow = (inner, id) => `
+      <div class="msg ai"${id ? ` id="${id}"` : ''}>
+        <div class="av">${icon('sparkle', 15)}</div>
+        <div><div class="who">AI Nutritionist</div>
+        <div class="bubble">${inner}</div></div>
+      </div>`;
+
+  if (M && M.analysisFailed) {
+    const capacity = M.analysisFailed === 'capacity';
+    return aiRow(`
+          <div style="font-weight:700">${capacity ? "I couldn't get to this one today." : "I couldn't read this plate."}</div>
+          <div style="margin-top:4px;color:var(--text-2)">It's logged and counts for timing either way — your photo is the proof.${capacity ? '' : ' Worth another try?'}</div>
+          ${capacity ? '' : `<div class="fq-chips"><button class="fx-chip" id="mt-retry-analysis">${icon('sparkle', 13)} Read it again</button></div>`}`, 'analysis-failed');
+  }
+
+  if (M && Array.isArray(M.pendingQuestions) && M.pendingQuestions.length) {
+    const qs = M.pendingQuestions.slice(0, 3);
+    return aiRow(`
+          <div style="font-weight:700">Two quick things and your numbers are exact.</div>
+          <div style="margin-top:3px;color:var(--text-2)">A photo can't show what's under or off the plate.</div>
+          <div class="mq-list" style="margin-top:10px">
+            ${qs.map((q, i) => `
+            <label class="mq-item">
+              <div class="mq-q"><span class="mq-n">${i + 1}</span><span>${esc(q)}</span></div>
+              <input class="mq-input" data-qi="${i}" type="text" autocomplete="off"
+                enterkeyhint="${i === qs.length - 1 ? 'done' : 'next'}" placeholder="Your answer" aria-label="${esc(q)}" />
+            </label>`).join('')}
+          </div>
+          <div class="fq-chips">
+            <button class="fx-chip" id="mq-thread-go">${icon('check', 13)} Get my result</button>
+            <button class="fx-chip" id="mq-thread-skip">Skip, just estimate</button>
+          </div>`, 'mq-bubble');
+  }
+
+  if (M && M.pending) {
+    return aiRow(`
+          <div style="font-weight:700">Reading your plate<span class="dots"></span></div>
+          <div style="margin-top:4px;color:var(--text-2)">Logged and counting. The breakdown lands here in a few seconds — you don't have to wait on this screen.</div>`, 'analysis-pending');
+  }
+
+  // ONE pending-fact confirmation, and only when it is about a food on THIS plate — an inferred
+  // dislike is weak evidence, so it is worth a single tap in context, never a queue of prompts.
+  const plate = new Set((M && Array.isArray(M.detectedRich) ? M.detectedRich : [])
+    .map((d) => String((d && d.name) || '').toLowerCase()).filter(Boolean));
+  const askFact = (PENDING_FACTS.rows || []).find((f) => f && f.kind === 'dislike' && plate.has(String(f.value).toLowerCase()))
+    || (PENDING_FACTS.rows || [])[0] || null;
+  const confirmRow = askFact ? `
+      <div class="msg ai" id="fact-confirm">
+        <div class="av">${icon('sparkle', 15)}</div>
+        <div><div class="who">AI Nutritionist</div>
+        <div class="bubble">
+          ${esc(askFact.kind === 'dislike'
+            ? `Noted — you took ${askFact.value} off a plate. Skip it in future reads?`
+            : `Should I remember: ${askFact.kind.replace(/_/g, ' ')} — ${askFact.value}?`)}
+          <div class="fq-chips">
+            <button class="fx-chip" data-fact="${esc(askFact.id)}" data-keep="1">Yes, remember</button>
+            <button class="fx-chip" data-fact="${esc(askFact.id)}" data-keep="0">No, one-off</button>
+          </div>
+        </div></div>
+      </div>` : '';
+
+  // The one follow-up question, offered as chips. Derived (it depends on what the read found,
+  // not on what was said), so it renders alongside the persisted read as well as instead of it.
+  const fqRow = (f) => `
+      <div class="msg ai" id="fq-bubble">
+        <div class="av">${icon('sparkle', 15)}</div>
+        <div><div class="who">AI Nutritionist</div>
+        <div class="bubble">
+          ${esc(f.q)}
+          <div class="fq-chips">${f.chips.map(c => `<button class="fx-chip" data-fq="${esc(f.kind)}" data-val="${esc(c.value)}">${esc(c.label)}</button>`).join('')}</div>
+        </div></div>
+      </div>`;
+
+  // THE READ ITSELF IS NOW A REAL MESSAGE (2026-07-28). analyze-meal composes it and persists it
+  // as an `ai` row, so it lives in the thread the athlete can reply to, reference tomorrow, and
+  // scroll back through with their coach. This derived block only fills in when that row is not
+  // there: meals logged before the change, and the rare case where the thread write did not land.
+  // Without the fallback those meals would show a breakdown with nothing said about it.
+  if (hasPersistedRead) return fq ? fqRow(fq) + confirmRow : confirmRow;
+
+  return `
+      <div class="msg ai">
+        <div class="av">${icon('sparkle', 15)}</div>
+        <div><div class="who">AI Nutritionist</div>
+        <div class="bubble ai-sum">
+          ${sum && sum.wentWell ? `<div class="sr"><span class="ai-k">What went well</span>${esc(sum.wentWell)}</div>` : ''}
+          ${sum && sum.opportunity ? `<div class="sr"><span class="ai-k">Biggest opportunity</span>${esc(sum.opportunity)}</div>` : ''}
+          ${sum && sum.next ? `<div class="sr"><span class="ai-k">Next time</span>${esc(sum.next)}</div>` : ''}
+          ${fullText ? `<button class="ai-full-toggle" id="ai-full-toggle" aria-expanded="false">View full analysis</button>
+          <div class="ai-full" id="ai-full" hidden>${esc(fullText)}</div>` : ''}
+        </div></div>
+      </div>
+      ${fq ? fqRow(fq) : ''}
+      ${confirmRow}`;
+}
 
 /* ---------- Meal Analysis (AI, pre-log) ----------
    Founder structure (2026-07-15), each fact exactly once:
@@ -243,7 +449,7 @@ export const analysis = {
       if (severeHits.length) return `
       <div style="display:flex;gap:10px;padding:13px 14px;border-radius:var(--r-tile);background:var(--red-surface);border:1.5px solid var(--red-border)">
         ${icon('bell', 17, 'style="color:var(--red);flex:none;margin-top:1px"')}
-        <div><div style="font-size:13.5px;font-weight:800;color:#FF9B9B">Possible severe allergen: ${esc(severeHits.join(', '))}</div>
+        <div><div style="font-size:13.5px;font-weight:800;color:var(--red-bright)">Possible severe allergen: ${esc(severeHits.join(', '))}</div>
         <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-top:3px;line-height:1.45">A detected food may contain it — the read can't see every ingredient or cross-contact. Check the label or ask staff before you eat or log this.</div></div>
       </div>`;
       if (cf.moderate.length || cf.noted.length) return `
@@ -408,25 +614,6 @@ export const thread = {
       </div>
     </section>`;
 
-    // ---- 1b. BODY SIGNALS — the 2-tap prompt (0142). Only appears when the athlete's plan
-    // style actually tracks them (Guided: hunger + fullness; Intuitive: all three). Always
-    // skippable and never scored on its VALUE: a 1 counts exactly as much as a 5, because what
-    // earns credit is noticing, not what you noticed. Nothing renders on Structured.
-    const sigFields = S.mealSignals(M.slot);
-    const signalCard = !sigFields.length ? '' : `
-    <section class="card" style="padding:14px 16px" id="meal-signals">
-      <div style="font-size:14px;font-weight:800">How did this meal land?</div>
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin-top:2px;line-height:1.5">Two taps, no wrong answer — this is for spotting your own patterns.</div>
-      ${sigFields.map(f => `
-        <div class="rec-field" data-sig-key="${f.key}" style="margin-top:12px">
-          <div class="rec-top"><span class="rec-name">${esc(f.label)}</span><span class="rec-ends">${esc(f.lo)} → ${esc(f.hi)}</span></div>
-          <div class="chips5" role="radiogroup" aria-label="${esc(f.label)}">
-            ${[1, 2, 3, 4, 5].map(n => `<div class="c5 ${f.value === n ? 'on' : ''}" data-n="${n}" role="radio" aria-checked="${f.value === n ? 'true' : 'false'}" aria-label="${esc(f.label)}: ${n} of 5">${n}</div>`).join('')}
-          </div>
-        </div>`).join('')}
-    </section>
-    <div style="height:10px"></div>`;
-
     // ---- 2. PHOTO + MEAL QUALITY (feedback 2026-07-16: quality is a separate concept from
     // compliance — banded color, its own label, and a one-line WHY so 58 never reads as green
     // success or an arbitrary number). Provenance badges live here; name/timing not repeated.
@@ -444,7 +631,15 @@ export const thread = {
       <img id="meal-photo" alt="" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;display:none"/>
       <div class="ph-grad"></div>
       <div class="ph-meta"><div>${M.live === false ? `<div>${nonLiveBadge()}</div>` : '<div></div>'}</div>
-      ${M.score != null ? `<div class="scorechip ${band ? band.cls : ''}"><span class="v">${M.score}</span><span class="k">Meal</span></div>` : ''}</div>
+      ${M.score != null ? `<div class="scorechip ${band ? band.cls : ''}" id="meal-scorechip">
+        <svg class="sc-ring" width="62" height="62" viewBox="0 0 62 62" aria-hidden="true">
+          <circle cx="31" cy="31" r="29.5" fill="none" stroke="var(--hairline)" stroke-width="2.5"/>
+          <circle class="ring-arc sc-arc" cx="31" cy="31" r="29.5" fill="none" stroke-width="2.5" stroke-linecap="round"
+            stroke-dasharray="185.4" stroke-dashoffset="${(185.4 * (1 - M.score / 100)).toFixed(1)}" data-off="${(185.4 * (1 - M.score / 100)).toFixed(1)}"
+            transform="rotate(-90 31 31)"/>
+        </svg>
+        <span class="v" data-count="${M.score}">${M.score}</span><span class="k">Meal</span>
+      </div>` : ''}</div>
     </div>
     ${band ? `<div class="qual-line ${band.cls}">
       <span class="qv">${M.score}<small>/100</small></span>
@@ -467,6 +662,9 @@ export const thread = {
     // ---- 3. MEAL BREAKDOWN (feedback 2026-07-16: progress bars imply a goal — they only
     // render against REAL coach targets. No targets → plain nutrient tiles, no fake
     // denominators. Detected foods are rows with portions + an honest estimate note.) ----
+    // A read still in flight (or one that failed) has no numbers to correct — the correction
+    // affordances only appear once the analysis has settled.
+    const settled = !M.pending && !M.analysisFailed && !(Array.isArray(M.pendingQuestions) && M.pendingQuestions.length);
     const T = S.planTargets || {};
     const fromPhoto = M.source !== 'label' && M.source !== 'manual';
     const conf = estimateConfidence(M.source, M.detectedRich);
@@ -482,11 +680,39 @@ export const thread = {
     // Photo estimates present as estimates (~ prefix on tiles; the full range lives in the
     // rubric). Label/manual values stay exact — no false hedging on real numbers.
     const tilde = fromPhoto ? '~' : '';
+    // THE PROJECTION. A bar that only shows what is banked answers "how much of the day is done",
+    // but the athlete reads it as a verdict — 81 of 180g at dinner looks like failing when it is
+    // squarely on pace. So each bar also carries what is still COMING: the meals left today at
+    // the share this athlete's plan expects. Real engine numbers or nothing; never a flattering
+    // guess. `dayProg` is the same source the AI's day sentence uses, so the two always agree.
+    const dayProg = S.mealDayProgress || {};
+    const mealsLeft = Math.max(0, Number(dayProg.mealsRemaining) || 0);
+    const project = (target, soFar) => {
+      if (!target || !mealsLeft) return null;
+      const gap = Math.max(0, target - (Number(soFar) || 0));
+      return gap ? Math.round(gap / Math.max(1, mealsLeft)) * mealsLeft : 0;
+    };
     const targetBars = [
-      ['Protein', M.macros.protein, T.protein, 'g'],
-      ['Calories', M.macros.cals, T.calories, ''],
+      ['Protein', M.macros.protein, T.protein, 'g', project(T.protein, dayProg.proteinSoFar)],
+      ['Calories', M.macros.cals, T.calories, '', null],
     ].filter(([, , target]) => target);
+    // What share of the day's protein this one plate carried. Protein leads the breakdown because
+    // it is the number a coach actually sets — the others are context for it.
+    const dayShare = T.protein && M.macros.protein
+      ? Math.round((M.macros.protein / T.protein) * 100) : null;
+    const projectedTotal = T.protein ? (Number(dayProg.proteinSoFar) || 0) + (project(T.protein, dayProg.proteinSoFar) || 0) : null;
+    const paceNote = projectedTotal && mealsLeft
+      ? `On pace for about ${projectedTotal}g if your ${mealsLeft === 1 ? 'last meal lands' : `last ${mealsLeft} meals land`} on plan`
+      : '';
     const corrLog = (M.corrections || []).length;
+    // THE EMPTY READ. A settled photo meal whose every macro is zero isn't a light meal — it's a
+    // read that came back with nothing in it (the truncated-report bug, now fixed at the source,
+    // but these meals are already in people's days). Correction chips are useless here, because
+    // every rule scales or nudges the stored numbers and all of those are zero. The only honest
+    // move is to offer the read again.
+    const emptyRead = settled && fromPhoto
+      && !M.macros.protein && !M.macros.carbs && !M.macros.fat && !M.macros.cals;
+    const rereadNote = `<div class="est-note" style="margin-top:8px">These numbers didn't land — the read came back empty, so nothing was measured.${M.mealId ? ` <span class="link" id="mt-reread" role="button">Re-read this meal</span>` : ''}${M.rereadError ? ` <b style="color:var(--text-2)">Couldn't fetch the photo just now — try again in a moment.</b>` : ''}</div>`;
 
     // INTUITIVE (0142): no macro or calorie figure reaches the athlete. The plate itself, what
     // was on it, and how it landed still do — the composition IS the feedback. Every number is
@@ -494,31 +720,56 @@ export const thread = {
     // safety signal); this gate is presentation only. `showMacros` is the athlete's own
     // opt-in-able switch, so someone who WANTS their numbers back can have them.
     const showNums = S.planStyle.showMacros;
-    const breakdown = !showNums ? `
+    // While the read is in flight there are no numbers yet — and a macro row of zeros reads as a
+    // measurement, not an absence. Show the honest placeholder instead of "0g protein · 0 cal",
+    // and withhold the "Correct the analysis" link until there is something to correct.
+    const breakdown = !settled ? `
+    <div class="eyebrow" style="margin-top:16px">Meal Breakdown</div>
+    <section class="card pad" style="margin-top:8px">
+      <div class="macro-row five">
+        ${['Protein', 'Carbs', 'Fat', 'Calories', 'Fiber'].map((k) => `
+        <div class="macro"><div class="mv" style="color:var(--text-3)">&mdash;</div><div class="mk">${k}</div></div>`).join('')}
+      </div>
+      <div class="est-note" style="margin-top:10px">${M.analysisFailed
+        ? 'No numbers for this one — the photo is still your proof that the meal happened.'
+        : 'Reading the plate. The numbers fill in here when it lands.'}</div>
+    </section>` : !showNums ? `
     <div class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">What was on the plate</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></div>
     ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
     ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
-    <div class="est-note" style="margin-top:8px">Your plan tracks how food leaves you feeling rather than calorie and macro counts. Your ${esc(S.coach.noun)} can still see the full numbers.</div>` : `
+    <div class="est-note" style="margin-top:8px">Your plan tracks how food leaves you feeling rather than calorie and macro counts. Your ${esc(S.coach.noun)} can still see the full numbers.</div>
+    ${emptyRead ? rereadNote : ''}` : `
     <div class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">Meal Breakdown</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></div>
     ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
-    <div class="macro-row five" style="margin-top:10px">
-      <div class="macro"><div class="mv">${tilde}${M.macros.protein}g</div><div class="mk">Protein</div></div>
+    <div class="phero">
+      <span class="pv">${tilde}${M.macros.protein}g</span><span class="pk">Protein</span>
+      ${dayShare != null ? `<span class="pc">${dayShare}% of your day</span>` : ''}
+    </div>
+    <div class="macro-row four" style="margin-top:8px">
       <div class="macro"><div class="mv">${tilde}${M.macros.carbs}g</div><div class="mk">Carbs</div></div>
       <div class="macro"><div class="mv">${tilde}${M.macros.fat}g</div><div class="mk">Fat</div></div>
       <div class="macro"><div class="mv">${tilde}${M.fiber}g</div><div class="mk">Fiber</div></div>
       <div class="macro"><div class="mv">${tilde}${M.macros.cals}</div><div class="mk">Cals</div></div>
     </div>
     ${targetBars.length ? `<section class="card pad" style="margin-top:10px">
-      ${targetBars.map(([k, v, target, u]) => `
+      ${targetBars.map(([k, v, target, u, projected]) => {
+        const now = Math.min(100, Math.round((v / target) * 100));
+        // The striped segment is what is still COMING: the meals left today at their planned
+        // share. Without it, 81 of 180g at dinner reads as failing when it is on pace — the bar
+        // was answering "how much of the day is done" and the athlete reads it as a verdict.
+        const ahead = projected != null ? Math.max(0, Math.min(100 - now, Math.round((projected / target) * 100))) : 0;
+        return `
         <div class="cons-row" style="margin-bottom:10px">
           <span class="k" style="width:64px">${k}</span>
-          <div class="track"><div class="fillb" style="width:${Math.min(100, Math.round((v / target) * 100))}%;background:linear-gradient(90deg,#16a34a,var(--green-bright))"></div></div>
-          <span class="v" style="width:110px">${tilde}${v}${u} <small style="color:var(--text-3)">of ${esc(String(target))}${u} day target</small></span>
-        </div>`).join('')}
+          <div class="track"><div class="fillb" style="width:${now}%;background:linear-gradient(90deg,var(--blue),var(--teal, #39c6d6))"></div>${ahead ? `<div class="ghostb" style="left:${now}%;width:${ahead}%"></div>` : ''}</div>
+          <span class="v" style="width:110px">${tilde}${v}${u} <small style="color:var(--text-3)">of ${esc(String(target))}${u}</small></span>
+        </div>`;
+      }).join('')}
+      ${paceNote ? `<div class="pace">${esc(paceNote)}</div>` : ''}
     </section>` : `<div class="est-note">No coach targets set yet, so there's nothing to measure against. These are this meal's totals.</div>`}
     ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
     ${corrLog ? `<div class="est-note" style="margin-top:8px;color:var(--blue-bright)"><b style="color:var(--blue-bright)">Corrected by you</b> — ${corrLog} correction${corrLog === 1 ? '' : 's'} applied. The AI's original estimate is kept for reference${M.orig ? ` (was ~${M.orig.protein}g protein · ~${M.orig.kcal} cal)` : ''}.</div>` : ''}
-    ${fromPhoto ? `<div class="est-note">Estimated from the photo · cooking oil or sauce may change these numbers.${M.mealId ? ` <span class="link" id="open-correct" role="button">Something off? Correct the analysis</span>` : ''}</div>` : ''}
+    ${emptyRead ? rereadNote : fromPhoto ? `<div class="est-note">Estimated from the photo · cooking oil or sauce may change these numbers.${M.mealId ? ` <span class="link" id="open-correct" role="button">Something off? Correct the analysis</span>` : ''}</div>` : ''}
 
     <!-- Correct analysis (upgrade 2026-07-16): fix what the photo can't show; every chip is a
          deterministic, estimated adjustment with an audit trail — hidden until opened. -->
@@ -549,75 +800,37 @@ export const thread = {
     // used to be a wall of text nobody reads. Now it's the 5-second structured summary
     // (derived, never stored) with the full openingMessage paragraph behind an expander.
     // Quick actions make it feel like a chat, not a report. ----
-    const goal = RT.profile && RT.profile.baseGoal;
-    // Real context for the opening (upgrade 2026-07-16): the day's actual protein math, the
-    // engine's score credit for THIS log, and historical patterns only when history exists.
-    const dayP = S.mealDayProgress;
-    const recentRows = RECENT.uid === RT.userId && Array.isArray(RECENT.rows) ? RECENT.rows : [];
-    const patterns = mealPatterns(recentRows, {
-      slot: M.slot,
-      mealProteinBar: dayP.proteinTarget > 0 ? Math.round(dayP.proteinTarget / 4) : 0,
-    });
-    const sum = openingSummary({
-      quality: M.score, macros: M.macros, fiber: M.fiber, highlights: M.highlights, late: M.late, goal,
-      detected: M.detectedRich, source: M.source, deadlineClock: M.deadlineLabel,
-      day: dayP,
-      // Plan style (0142): an Intuitive read never quotes a macro figure and never grades the
-      // plate — the AI's job there is to help the athlete notice a pattern, not to hand them a
-      // number. Same analysis underneath; the professional still sees all of it.
-      numbers: S.planStyle.showMacros, tone: S.planStyle.tone,
-    });
-    // The long-form read is the edge function's own prose (M.analysis). Two ways it may be shown:
-    // the style permits numbers at all, OR the server STAMPED it as written for this exact style
-    // (analyze-meal's styleApplied, slice 8 — which also enforces the language rail server-side).
-    // Anything else — an old deploy with no stamp, or a stamp from a style the athlete has since
-    // left — is suppressed rather than regex-scrubbed: a half-redacted paragraph reads worse than
-    // the honest short summary, and a stale stamp is not evidence about today's prose.
-    const styleSafeProse = S.planStyle.showMacros || M.styleApplied === S.planStyle.key;
-    const fullText = openingMessage({
-      name: M.name, quality: M.score, note: M.note,
-      analysis: styleSafeProse ? M.analysis : null,
-      highlights: M.highlights, goal, coachTargets: S.planTargets, late: M.late, minutesLate: M.minutesLate,
-      detected: M.detectedRich, source: M.source, day: dayP, patterns,
-      impact: S.mealScoreImpact(M.slot),
-    });
-    // ONE useful follow-up when uncertainty materially affects the analysis — the chips map
-    // onto correction rules, so an answer UPDATES this estimate rather than forking a new one.
-    const fq = followUpQuestion({
-      source: M.source, userNote: M.userNote, note: M.note,
-      detectedRich: M.detectedRich, corrections: M.corrections,
-    });
+    const { sum, fullText, fq } = openingInputs(M);
+
+    // WHO IS IN THE ROOM. A messaging surface that hides its own audience is a privacy problem
+    // wearing a UI problem's clothes — an athlete typing "I skipped breakfast" deserves to know
+    // their coach and their mother can both read it before they hit send. Overlapping faces
+    // rather than emoji, because these are people.
+    const people = participantList(PARTICIPANTS.uid === RT.userId ? PARTICIPANTS.rows : [], RT.userId);
+    const facepile = !M.mealId ? '' : `
+    <button class="facepile" id="meal-members" aria-label="Who can see this conversation">
+      <span class="fp">${people.slice(0, 4).map((p) => `<span class="fpav ${esc(p.kind === 'ai' ? 'ai' : p.self ? 'self' : 'other')}">${p.kind === 'ai' ? icon('sparkle', 13) : esc(initialsFor(p.name))}</span>`).join('')}</span>
+      <span class="names">${esc(participantSummary(people))}<small>${people.length} in this conversation</small></span>
+      <span class="chev">${icon('chevron', 15)}</span>
+    </button>`;
+
     const discussion = `
-    <div class="eyebrow" style="margin-top:18px">Team Discussion</div>
+    <div class="eyebrow" style="margin-top:18px;display:flex;align-items:baseline;gap:8px">
+      <span>Team Discussion</span>
+      ${M.mealId ? `<span class="link" id="open-full-chat" role="button" style="margin-left:auto;text-transform:none;letter-spacing:0;font-size:12px">View full chat &rarr;</span>` : ''}
+    </div>
+    ${facepile}
     <div class="rx-strip" id="rx-strip"></div>
+    ${M.mealId ? `<button class="cont-earlier" id="thread-earlier" hidden aria-label="Open the full conversation"></button>` : ''}
     <div class="thread" id="meal-thread">
-      <div class="msg ai">
-        <div class="av">${icon('sparkle', 15)}</div>
-        <div><div class="who">AI Nutritionist</div>
-        <div class="bubble ai-sum">
-          ${sum.wentWell ? `<div class="sr"><span class="sk">What went well</span>${esc(sum.wentWell)}</div>` : ''}
-          ${sum.opportunity ? `<div class="sr"><span class="sk">Biggest opportunity</span>${esc(sum.opportunity)}</div>` : ''}
-          ${sum.next ? `<div class="sr"><span class="sk">Next time</span>${esc(sum.next)}</div>` : ''}
-          ${fullText ? `<button class="ai-full-toggle" id="ai-full-toggle" aria-expanded="false">View full analysis</button>
-          <div class="ai-full" id="ai-full" hidden>${esc(fullText)}</div>` : ''}
-        </div></div>
-      </div>
-      ${fq ? `
-      <div class="msg ai" id="fq-bubble">
-        <div class="av">${icon('sparkle', 15)}</div>
-        <div><div class="who">AI Nutritionist</div>
-        <div class="bubble">
-          ${esc(fq.q)}
-          <div class="fq-chips">${fq.chips.map(c => `<button class="fx-chip" data-fq="${esc(fq.kind)}" data-val="${esc(c.value)}">${esc(c.label)}</button>`).join('')}</div>
-        </div></div>
-      </div>` : ''}
+      ${openingBlockHtml(M, { sum, fullText, fq })}
       <div class="msg-status" id="thread-status">${M.mealId ? 'Loading the thread…' : (S.coach.hasCoach ? `Syncs when connected — your ${esc(S.coach.noun)} sees this log either way.` : 'Syncs when connected — this log is saved either way.')}</div>
     </div>
     ${M.mealId ? `
     <div class="qa-row">
       <button class="qa" data-qa="">Ask a question</button>
-      <button class="qa" id="qa-correct">Correct analysis</button>
-      <button class="qa" id="qa-details">Add meal details</button>
+      ${settled && !emptyRead ? `<button class="qa" id="qa-correct">Correct analysis</button>
+      <button class="qa" id="qa-details">Add meal details</button>` : ''}
     </div>
     ${composer({ inputId: 'meal-msg', sendId: 'meal-send', placeholder: 'Ask about this meal…', sendLabel: 'Send' })}
     <div id="chat-note" style="min-height:18px"></div>` : ''}`;
@@ -649,7 +862,7 @@ export const thread = {
       <span class="xpill gray">Upcoming</span>
     </div>` : '';
 
-    return `${backHead(M.name, dupFlagged ? 'Duplicate photo' : (M.late ? 'Late · still counts' : 'On time'), 'home')}${execTop}${signalCard}${photoBlock}${breakdown}${discussion}${next}
+    return `${backHead(M.name, dupFlagged ? 'Duplicate photo' : (M.late ? 'Late · still counts' : 'On time'), 'home')}${execTop}${photoBlock}${breakdown}${discussion}${next}
     <div style="height:18px"></div>
     <button class="btn green" style="width:100%" data-go="home" aria-label="Done — back to home">${icon('check', 18)} Done</button>
     <div style="height:16px"></div>`;
@@ -669,20 +882,35 @@ export const thread = {
     }
     if (!M.logged) return;
 
-    // Body-signal chips (0142): each tap persists immediately (days.signals) — no submit button,
-    // because a prompt you have to confirm is a prompt people stop answering. Re-tapping a
-    // different chip just overwrites; the paint updates in place without a full re-render, so
-    // answering one signal never scrolls the athlete away from the next.
-    root.querySelectorAll('#meal-signals [data-sig-key]').forEach((field) => {
-      const key = field.getAttribute('data-sig-key');
-      const chips = field.querySelectorAll('.c5');
-      chips.forEach((ch) => ch.addEventListener('click', () => {
-        chips.forEach((x) => { x.classList.remove('on'); x.setAttribute('aria-checked', 'false'); });
-        ch.classList.add('on');
-        ch.setAttribute('aria-checked', 'true');
-        act.setMealSignal(M.slot, key, +ch.getAttribute('data-n'));
-      }));
-    });
+    // The score arrives. This chip is the moment the product is built around, and it sat there
+    // as static text. It also sits ~1100px down the thread — below the fold on a 390x844 — so
+    // revealing it in mount() would spend the moment off-screen. Wait until it is actually
+    // looked at, then draw the arc, count the number up, and fire the one non-'light' haptic in
+    // the app. Once per logged meal per session; the slot prefix keeps the key stable while
+    // mealId is still null on a locally-logged, not-yet-synced meal.
+    const chip = root.querySelector('#meal-scorechip');
+    const revealKey = `${M.slot}:${M.mealId || ''}`;
+    if (chip && REVEALED !== revealKey && typeof IntersectionObserver === 'function') {
+      const io = new IntersectionObserver((entries) => {
+        if (!entries.some((en) => en.intersectionRatio >= 0.6)) return;
+        io.disconnect();
+        REVEALED = revealKey;
+        // The markup already carries the FINAL score and a filled arc, so a re-render (this
+        // screen repaints when the thread loads) can never flash a 0 or an empty ring. Wind it
+        // back to the start only for the one reveal, then let animateRing play it forward.
+        const arc = chip.querySelector('.sc-arc');
+        const num = chip.querySelector('[data-count]');
+        if (arc) arc.style.strokeDashoffset = '185.4';
+        if (num) num.textContent = '0';
+        requestAnimationFrame(() => animateRing(chip));
+        // Respects the athlete's haptics preference like every other buzz in the app, and is
+        // wrapped because OnStandardNative doesn't exist on web or in the QC harness.
+        try {
+          if (RT.haptics !== false && window.OnStandardNative) window.OnStandardNative.haptic('success');
+        } catch { /* no bridge — silent */ }
+      }, { threshold: [0, 0.6] });
+      io.observe(chip);
+    }
 
     const roles = await import('../roles.js');
     // Delegation target for render-injected content (the fq bubble, the analysis expander):
@@ -692,6 +920,10 @@ export const thread = {
     // Real history for patterns + the coach day-receipt for the status line (both cached,
     // both repaint-once). Fired in the background — the screen never waits on them.
     void warmRecent(roles, RT.userId);
+    void warmPendingFacts(RT.userId);
+    // Names for the facepile and the bubbles. A repaint when it lands, because "Coach" becoming
+    // "Coach Brown" mid-scroll is the whole point.
+    void warmParticipants(roles, RT.userId).then((fetched) => { if (fetched) window.__render && window.__render(); });
     void warmReceipt(roles, RT.userId, String(DAY.date)).then(() => {
       const el = root.querySelector('#coach-status');
       if (el && el.textContent === 'Sent to Coach' && RECEIPT.reviewed) el.textContent = 'Reviewed by Coach';
@@ -810,6 +1042,23 @@ export const thread = {
       h = h % 12 || 12;
       return `${h}:${mm} ${ap}`;
     };
+    // Resolved names for this thread, and the day key that decides when a date separator is due.
+    // dayKey is LOCAL: a message at 11:58pm and one at 12:01am are different days to the athlete,
+    // whatever UTC thinks.
+    const participants = PARTICIPANTS.uid === RT.userId ? PARTICIPANTS.rows : [];
+    const dayKey = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
+
+    // The AI is composing something — the plate is being read, or a question is being answered.
+    // A live indicator instead of a static "thinking" card, because that is what every other
+    // conversation this athlete has ever had looks like while someone types.
+    let aiTyping = false;
+    const typingRow = () => `
+        <div class="msg ai typing" id="ai-typing">
+          <div class="av">${icon('sparkle', 15)}</div>
+          <div><div class="who">AI Nutritionist is typing<span class="sr-only"> — a reply is on its way</span></div>
+          <div class="bubble tdots"><span></span><span></span><span></span></div></div>
+        </div>`;
+
     const paint = () => {
       if (!threadEl) return;
       const msgs = threadMessages(comments);
@@ -819,27 +1068,57 @@ export const thread = {
       const csEl = root.querySelector('#coach-status');
       if (csEl && coachSeen) csEl.textContent = 'Coach replied';
       const tail = [];
-      if (!msgs.length) tail.push('No replies yet. Ask below and the AI Nutritionist answers from your plan.');
+      if (!msgs.length && !aiTyping) tail.push('No replies yet. Ask below and the AI Nutritionist answers from your plan.');
       if (!coachSeen) tail.push("Coach hasn't reviewed this meal yet.");
-      // The derived AI opening (first .msg) AND the follow-up question bubble (#fq-bubble)
-      // are render-time rows, never stored — capture and re-prepend BOTH on every repaint
-      // so a comments refresh can't wipe the question before the athlete answers it.
-      const openingEl = threadEl.querySelector('.msg');
-      const fqEl = threadEl.querySelector('#fq-bubble');
-      const openingHtml = (openingEl ? openingEl.outerHTML : '') + (fqEl ? fqEl.outerHTML : '');
-      threadEl.innerHTML = openingHtml + msgs.map((c) => {
-        const t = fmtMsgTime(c.created_at);
+
+      // The pending / clarifying / failed rows are DERIVED, because they describe a read that has
+      // not landed and so has nothing persisted to show. The READ ITSELF is now a real message in
+      // `msgs`, so the derived summary only fills in for meals logged before that change.
+      const hasPersistedRead = msgs.some(isAnalysisOpener);
+      // Recomputed from the LIVE meal, not captured from render: a read that lands while this
+      // screen is open (or a correction the athlete just made) has to change what these rows say.
+      const live = mealDetail(M.slot) || M;
+      const openingHtml = openingBlockHtml(live, { ...openingInputs(live), hasPersistedRead });
+
+      const lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
+      const rows = layoutThread(msgs, { fmtTime: fmtMsgTime, fmtDay: dayKey }).map((item) => {
+        if (item.type === 'time') return `<div class="tsep">${esc(item.label)}</div>`;
+        const c = item.comment;
+        const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
+        const who = authorName(c, participants, RT.userId, S.coach.noun);
+        const update = isAnalysisUpdate(c);
+        const quoted = update ? quotedFor(c, msgs) : null;
+        // Reactions belong to the whole thread (0049 keys them to the meal, not to a message), so
+        // they sit on the LAST bubble in it — the one the eye lands on. Putting them on the last
+        // message of every run repeated the same pill down the page as if four people had each
+        // reacted separately.
+        const rx = c === lastMsg ? reactionGroups(comments) : [];
         return `
-        <div class="msg ${c.role === 'athlete' ? 'athlete' : 'coach'}">
-          ${c.role !== 'athlete' ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : 'M'}</div>` : ''}
-          <div>${c.role !== 'athlete' ? `<div class="who">${c.role === 'ai' ? 'AI Nutritionist' : 'Coach'}</div>` : ''}
-          <div class="bubble">${esc(c.text)}</div>
-          ${t ? `<div class="mtime">${t}</div>` : ''}</div>
+        <div class="msg ${mine ? 'athlete' : c.role === 'ai' ? 'ai' : 'coach'}${item.firstOfRun ? '' : ' cont'}${rx.length ? ' has-rx' : ''}">
+          ${!mine && item.firstOfRun ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : esc(initialsFor(who))}</div>` : '<div class="av-sp"></div>'}
+          <div class="stack">
+            ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
+            ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
+            <div class="bubble">${update ? '<span class="upd">Updated analysis</span>' : ''}${esc(c.text)}</div>
+            ${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}
+          </div>
         </div>`;
-      }).join('') + (tail.length ? `<div class="msg-status">${tail.join(' ')}</div>` : '');
-      if (strip) strip.innerHTML = reactionGroups(comments).map((r) => `<span class="rx">${esc(r.emoji)}<span class="n">${r.count}</span></span>`).join('');
+      }).join('');
+
+      // The receipt, in the thread rather than buried in the header: "seen" is what tells an
+      // athlete their coach is actually there. coach_views is a DAY receipt, so it is stated as
+      // one — claiming a per-message read we do not have would be a lie.
+      const seen = coachSeen || (RECEIPT.rows || []).length
+        ? (RECEIPT.rows || []).map((r) => `Seen by ${esc(r.viewer_name || 'your coach')}`).slice(0, 1).join('')
+        : '';
+
+      threadEl.innerHTML = openingHtml + rows + (aiTyping ? typingRow() : '')
+        + (seen ? `<div class="seen">${seen}</div>` : '')
+        + (tail.length ? `<div class="msg-status">${tail.join(' ')}</div>` : '');
+      if (strip) strip.innerHTML = '';   // reactions now ride the bubble they belong to
       threadEl.scrollTop = threadEl.scrollHeight;
     };
+    const setTyping = (on) => { aiTyping = !!on; paint(); };
     const refresh = async () => {
       const myGen = ++gen;
       const fetched = await roles.fetchMealComments(M.mealId);
@@ -848,6 +1127,41 @@ export const thread = {
       comments = fetched; if (statusEl) statusEl.remove(); paint();
     };
     await refresh();
+
+    // CONTINUITY. This meal's messages paint first and stay the fast path — but a conversation
+    // that starts over at every plate is the thing being fixed, so once the thread is up we go
+    // and find what was said before it and offer it as one line. Two messages, not a season: the
+    // meal screen is not the place to scroll a fortnight, which is what the full chat is for.
+    void (async () => {
+      const season = await roles.fetchMyMealThread(RT.userId, { limit: 60 }).catch(() => []);
+      if (!Array.isArray(season) || !season.length) return;
+      const before = season.filter((c) => c && c.meal_id !== M.mealId && (c.kind || 'message') === 'message');
+      if (!before.length) return;
+      const last = before[before.length - 1];
+      const el = root.querySelector('#thread-earlier');
+      if (!el) return;
+      const who = authorName(last, PARTICIPANTS.uid === RT.userId ? PARTICIPANTS.rows : [], RT.userId);
+      el.innerHTML = `<span class="ce-k">Earlier</span><span class="ce-t"><b>${esc(who)}:</b> ${esc(String(last.text || '').slice(0, 90))}</span><span class="ce-go">${icon('chevron', 13)}</span>`;
+      el.hidden = false;
+    })();
+
+    // Open the member list. Built from the same resolved rows the header shows, so what the
+    // athlete taps is exactly what they were looking at.
+    const membersBtn = root.querySelector('#meal-members');
+    if (membersBtn) membersBtn.addEventListener('click', () => {
+      openMembersSheet(participantList(PARTICIPANTS.uid === RT.userId ? PARTICIPANTS.rows : [], RT.userId));
+    });
+
+    // Keep the thread live while it is open. There is no realtime anywhere in this app, so a
+    // coach's reply would otherwise sit unseen until the athlete navigated away and back. Paused
+    // while the tab is hidden — a backgrounded screen has nobody reading it.
+    try { clearInterval(window.__threadTick); } catch { /* first mount */ }
+    window.__threadTick = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      if (threadBusy) return;
+      void refresh();
+    }, 15000);
+
 
     // Composer: post athlete message → invoke meal-chat with client-composed context.
     // On success the AI reply row is already persisted server-side, so a REFETCH shows
@@ -864,6 +1178,30 @@ export const thread = {
       input.scrollIntoView({ block: 'center', behavior: 'smooth' });
     };
     root.querySelectorAll('.qa').forEach((b) => b.addEventListener('click', () => prefill(b.getAttribute('data-qa') || '')));
+
+    // Pending-read controls. Delegated on the root because openingBlockHtml re-renders these rows
+    // on every repaint — a direct listener would be lost the first time the thread refreshed.
+    root.addEventListener('click', (ev) => {
+      // Memory confirmation: the athlete's tap is the ONLY thing that lets an inferred fact bind.
+      const fx = ev.target && ev.target.closest ? ev.target.closest('[data-fact]') : null;
+      if (fx) {
+        const id = fx.getAttribute('data-fact');
+        PENDING_FACTS = { uid: PENDING_FACTS.uid, rows: (PENDING_FACTS.rows || []).filter((f) => f.id !== id), at: Date.now() };
+        void act.confirmMemoryFact(id, fx.getAttribute('data-keep') === '1');
+        return;
+      }
+      const t = ev.target && ev.target.closest ? ev.target.closest('#mq-thread-go, #mq-thread-skip, #mt-retry-analysis, #mt-reread, #open-full-chat, #thread-earlier') : null;
+      if (!t) return;
+      if (t.id === 'mt-retry-analysis') { act.retryAnalysis(M.slot); return; }
+      // The same conversation, unbounded by this one plate.
+      if (t.id === 'open-full-chat' || t.id === 'thread-earlier') { location.hash = '#nutrition-chat'; return; }
+      // A meal that settled at zero: put it back in the queue for another read.
+      if (t.id === 'mt-reread') { t.textContent = 'Reading the plate…'; void act.rereadMeal(M.slot); return; }
+      if (t.id === 'mq-thread-skip') { act.skipPendingQuestions(M.slot); return; }
+      const answers = [];
+      root.querySelectorAll('#mq-bubble .mq-input').forEach((el) => { answers[+el.dataset.qi] = el.value; });
+      act.answerPendingQuestions(M.slot, answers);
+    });
     // (the old "flag it for Coach" free-text path is replaced by the structured correction panel)
     const setNote = (t, retry) => { if (note) note.innerHTML = t ? `<div class="mt-retry" ${retry ? 'id="chat-retry"' : ''}>${esc(t)}</div>` : ''; };
     let busy = false;
@@ -884,7 +1222,9 @@ export const thread = {
           recentMeals: recentAscending.map((m) => ({ type: m.type, protein: m.protein, kcal: m.kcal, quality: m.quality, date: m.day_date })),
           thread: threadMessages(comments).slice(-20).map((c) => ({ role: c.role, text: String(c.text).slice(0, 300) })),
         });
+        setTyping(true);
         const { data, error } = await window.sb.functions.invoke('meal-chat', { body: { mealId: M.mealId, question: text, context } });
+        setTyping(false);
         if (error || !data || data.error) {
           // The vendored supabase-js (js/vendor/supabase.js) throws FunctionsHttpError on any
           // non-2xx response, so `data` is always null and the function's JSON error body never
@@ -901,7 +1241,7 @@ export const thread = {
         } else {
           await refresh();
         }
-      } catch { setNote("Couldn't reach your AI coach — tap to try again.", true); }
+      } catch { setTyping(false); setNote("Couldn't reach your AI coach — tap to try again.", true); }
       // The question is already in the thread — retry only re-reaches the AI (no input refill).
       const retry = root.querySelector('#chat-retry');
       if (retry) retry.addEventListener('click', async () => {
@@ -914,10 +1254,8 @@ export const thread = {
     const submit = async () => {
       const text = (input.value || '').trim();
       if (!text || busy) return;
-      // Thread cap (0059, coach-ratified): 3 athlete messages per meal — the DB trigger is
-      // the wall; say so up front instead of letting the send bounce.
-      const mine = (Array.isArray(comments) ? comments : []).filter((c) => c.role === 'athlete' && (c.kind || 'message') === 'message').length;
-      if (mine >= 3) { setNote(`Thread cap: 3 messages per meal. ${S.coach.hasCoach ? `Your ${S.coach.noun} saw them.` : 'They\'re saved to this meal.'}`); return; }
+      // The 3-message wall is gone (0157): this is a conversation now, and the database backstop
+      // sits far past anything a person would type. Nothing to warn about up front.
       busy = true; setNote('');
       input.value = '';
       const posted = await roles.postMealComment(M.mealId, RT.userId, RT.userId, 'athlete', text);

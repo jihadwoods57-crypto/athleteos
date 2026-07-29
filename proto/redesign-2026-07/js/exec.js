@@ -30,7 +30,10 @@ export function fmtCountdown(mins) {
 export function samePlan(a, b) { return JSON.stringify(a || []) === JSON.stringify(b || []); }
 
 const COLOR = { done: 'green', done_late: 'green', overdue: 'red', due_soon: 'gold', ready: 'gold', locked: 'gray', not_required: 'gray' };
-const PILL = { done: 'Logged', done_late: 'Logged late', overdue: 'Overdue', due_soon: 'Due soon', ready: 'Open', locked: 'Upcoming', not_required: 'Not required' };
+/* Display labels only — itemState() below decides the states, and none of these strings feed it.
+   Every value is a STATE NOUN. 'ready' used to read 'Open', an imperative verb, sitting in an
+   uppercase pill on a row you tap to open — so the label read as the button. */
+const PILL = { done: 'Logged', done_late: 'Logged late', overdue: 'Overdue', due_soon: 'Due soon', ready: 'Due today', locked: 'Upcoming', not_required: 'Not required' };
 
 function itemState(req, st, nowMin) {
   if (st.done) return st.late ? 'done_late' : 'done';

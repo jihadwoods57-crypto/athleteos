@@ -30,7 +30,7 @@ const json = (b: unknown, s = 200) =>
 // The server-side event vocabulary — MUST stay in sync with proto analytics.js EVENTS.
 const ALLOWED = new Set([
   "app_open", "onboarding_started", "onboarding_role", "goal_selected", "age_blocked",
-  "onboarding_completed", "meal_logged", "meal_analysis_failed", "commitment_set",
+  "onboarding_completed", "meal_logged", "meal_analysis_failed", "meal_analysis_applied", "memory_fact_confirmed", "commitment_set",
   "recovery_submitted", "checkin_submitted", "weight_logged", "coach_connected",
   "code_join_failed", "app_error",
   // Paywall funnel (2026-07-21) — surface events; must match proto analytics.js EVENTS.
@@ -39,6 +39,9 @@ const ALLOWED = new Set([
   "meal_score_delta", "meal_text_conflict",
   // Quality metrics (item 8b, 2026-07-21) — correction-rate signal; counts-only, no macros/text.
   "meal_corrected",
+  // The ~0g rescue (2026-07-28). How often a meal settled with no macros in it — the truncated-read
+  // bug is fixed at the source, so a rising count here means a NEW way for a read to come back empty.
+  "meal_reread",
   // Meal-logging edge signals (2026-07-21) — gallery usage, duplicate-photo blocks, stale EXIF.
   "meal_gallery_logged", "meal_dup_blocked", "meal_stale_photo",
   // Verified Commitments (0138–0141, shipped 2026-07-23). Without these the whole VC funnel —
@@ -48,6 +51,11 @@ const ALLOWED = new Set([
   // OB2 step-level onboarding funnel (2026-07-23). {route, step, ch} — the per-screen drop-off
   // signal; the flows fire ~26 of these per completed run, so this is the highest-volume name.
   "onboarding_step",
+  // Connected Standards (0155, 2026-07-28). cs_verified vs cs_manual is the health of the sync
+  // path; cs_disputed is the honesty signal — if it climbs, the feature is calling athletes short
+  // when they weren't, and it should be turned off rather than tuned.
+  "cs_set", "cs_personal_set", "cs_card_shown", "cs_verified",
+  "cs_manual", "cs_reviewed", "cs_disputed",
 ]);
 const ENUM_RE = /^[a-z0-9_.:-]{1,24}$/;
 const SID_RE = /^[a-z0-9_.:-]{1,64}$/i;

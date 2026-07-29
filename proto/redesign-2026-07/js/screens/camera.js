@@ -267,10 +267,10 @@ export const cameraConfirm = {
       <div id="cc-note" style="font-size:12.5px;font-weight:700;color:var(--amber-bright);text-align:center;min-height:18px;padding:8px 24px 0"></div>
       <div class="btn-row" style="padding:12px 20px 10px;margin-top:auto">
         <button class="btn ghost sm" id="cc-retake" style="flex:1">${icon(gallery ? 'image' : 'camera', 17)} ${gallery ? 'Choose another' : 'Retake'}</button>
-        <button class="btn green sm" id="cc-analyze" style="flex:1.6">${icon('sparkle', 17)} Analyze meal</button>
+        <button class="btn green sm" id="cc-analyze" style="flex:1.6">${icon('check', 17)} Log it</button>
       </div>
       <input type="file" accept="image/*" id="cc-repick" style="display:none" />
-      <div style="text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);padding-bottom:10px">You'll confirm the detected foods, portions, and nutrition estimate before it counts.</div>
+      <div style="text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);padding-bottom:10px">It counts the moment you log it. The AI read lands in your thread a few seconds later.</div>
     </div>`;
   },
   async mount(root) {
@@ -312,7 +312,16 @@ export const cameraConfirm = {
     }
     const analyzeBtn = root.querySelector('#cc-analyze');
     const note = root.querySelector('#cc-note');
-    if (analyzeBtn) analyzeBtn.addEventListener('click', () => { saveNote(); window.__go('analyzing'); });
+    // LOG FIRST, READ AFTER. The athlete's day is theirs again immediately: the meal is committed
+    // now (photo + timing credit, exactly as a manually-logged meal scores) and the analysis
+    // continues in the background, landing in the thread. The old flow held them on a spinner for
+    // the whole vision call before anything counted.
+    if (analyzeBtn) analyzeBtn.addEventListener('click', () => {
+      saveNote();
+      const slot = MEAL.key || 'dinner';
+      act.logMeal(slot);
+      window.__go('meal-thread/' + slot);
+    });
     // Duplicate pre-check (0062), free and before the paid analyze call. Fail-open: offline the
     // button stays enabled and the server's unique index still backstops at insert time.
     try {

@@ -284,6 +284,13 @@ export function ProtoApp() {
       mediaCapturePermissionGrantType="grant"
       bounces={false}
       overScrollMode="never"
+      // No pinch-zoom, no double-tap-zoom — the UI is an app, not a page you can scale. iOS is
+      // handled by user-scalable=no in index.html's viewport meta (WKWebView honours it, unlike
+      // mobile Safari); these three are the Android half. There is no iOS-side zoom prop on this
+      // version of react-native-webview, which is why the meta tag carries that platform.
+      scalesPageToFit={false}
+      setBuiltInZoomControls={false}
+      setDisplayZoomControls={false}
       setSupportMultipleWindows={false}
       // Keep the native side transparent-dark so there is no white flash before first paint.
       // (The proto paints its own dark ground immediately.)

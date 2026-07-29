@@ -53,11 +53,16 @@ const ATHLETE_IDENTITY = `
   DAY.currentWeight = 187.4;
 `;
 
-/** Log a slot as genuinely logged: meal flag + timestamp + saved plate. */
-const LOG = (slot, atMin) => `
+/** Log a slot as genuinely logged: meal flag + timestamp + saved plate.
+ *
+ *  `mealId` is what makes the slot a REAL server row rather than a local-only log, and the meal
+ *  screen keys its whole conversation off it: no id, no thread, no participants, no composer.
+ *  Seeding one is what lets the group chat be captured at all — without it QC only ever shot the
+ *  no-coach fallback and a whole surface went unreviewed. */
+const LOG = (slot, atMin, mealId = null) => `
   DAY.meals.${slot} = true;
   DAY.mealLoggedAt.${slot} = ${atMin};
-  DAY.slotMacros.${slot} = { ...PLATES.${slot} };
+  DAY.slotMacros.${slot} = { ...PLATES.${slot}${mealId ? `, mealId: ${JSON.stringify(mealId)}` : ''} };
 `;
 
 /* ------------------------------------------------------------------ athlete day, in sequence */
@@ -73,7 +78,7 @@ export const dayMorning = `${COMMON}${ATHLETE_IDENTITY}
 /** Midday: breakfast + lunch in, dinner still open, commitment written. */
 export const dayMidday = `${COMMON}${ATHLETE_IDENTITY}
   ${LOG('breakfast', 505)}
-  ${LOG('lunch', 786)}
+  ${LOG('lunch', 786, 'meal-seed-lunch')}
   DAY.hydrationL = 1.6;
   DAY.commitmentFocus = 'No skipped meals, lights out by 10.';
   DAY.ciLast = { date: iso(1), recovery: 82 };

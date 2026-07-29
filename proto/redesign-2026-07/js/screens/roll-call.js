@@ -153,7 +153,10 @@ export function mountCommitmentCard(root, rerender) {
   })));
   root.querySelectorAll('[data-vc-open]').forEach((el) => el.addEventListener('click', (ev) => {
     if (ev.target.closest('button')) return;
-    location.hash = `#/roll-call/${el.getAttribute('data-vc-open')}`;
+    // No leading slash: router.js:86 parses the hash with `raw.split('/')`, so `#/roll-call/<id>`
+    // yields an empty route name and silently falls back to Home. The static `data-go` paths in
+    // this same file (:53, :66) already use the correct form.
+    location.hash = `#roll-call/${el.getAttribute('data-vc-open')}`;
   }));
 }
 

@@ -10,6 +10,7 @@ import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, entriesFor, logBookIntervention } from '../coach-data.js';
 import { STATUS_META } from '../status.js';
 import { styleLabel } from '../plan-style.js';
+import { scoreColor } from '../score-band.js';
 
 /* Plan-style pill (0142): a one-letter chip naming the style a TEAM STANDARD governs for this
    row — S/G/I, or nothing when no standard sets one (most rosters, most of the time). This is
@@ -43,7 +44,9 @@ const STATUS_ORDER = ['overdue', 'no_activity', 'needs_review', 'below_standard'
 const NO_MATCH_HTML = `<div style="padding:18px;text-align:center;font-size:12px;font-weight:600;color:var(--text-3)">No one matches that filter.</div>`;
 
 function lastActivityLabel(iso) {
-  if (!iso) return 'No recent activity';
+  // "No logs yet", not "No recent activity": at 320w the longer string pushed the whole
+  // status line into a mid-word ellipsis, and it says the same thing in half the room.
+  if (!iso) return 'No logs yet';
   const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3600000);
   if (h < 1) return 'Active just now';
   if (h < 24) return `Active ${h}h ago`;
@@ -70,23 +73,37 @@ function applyView(entries) {
   return [...list].sort(by[SORT] || by.score);
 }
 
+/* The dot's colour and the score's colour BOTH already say "on standard" and "below standard",
+   so repeating those two in words is noise. The other five statuses carry information neither
+   can — and note overdue and below_standard are the same red, so dropping labels wholesale
+   would merge them. */
+const REDUNDANT_STATUS = new Set(['on_standard', 'below_standard']);
+
 function rosterRow(e) {
   const r = e.row, st = e.status, meta = STATUS_META[st.key];
   const sel = SEL.has(r.athleteId);
   // One calm status signal: a colored dot on the left. The label reads in quiet text-2,
   // not saturated body text — a roster full of red type reads as panic, not information.
-  const scoreCol = r.score == null ? 'var(--text-3)' : r.score >= 80 ? 'var(--green-bright)' : r.score >= 60 ? 'var(--amber-bright)' : '#FF9B9B';
+  const scoreCol = scoreColor(r.score);
+  const activity = esc(lastActivityLabel(r.lastMealAt));
+  const sub = REDUNDANT_STATUS.has(st.key)
+    ? activity
+    : `${esc(meta.label)} <span style="color:var(--text-3)">· ${activity}</span>`;
   return `
-  <div class="roster-row" ${SELECTING ? `data-sel="${esc(r.athleteId)}"` : `data-go="coach-athlete/${esc(r.athleteId)}"`}>
+  <div class="roster-row" ${SELECTING
+    ? `data-sel="${esc(r.athleteId)}" role="checkbox" aria-checked="${sel}" tabindex="0" aria-label="${esc(r.name)}"`
+    : `data-go="coach-athlete/${esc(r.athleteId)}" role="button" tabindex="0" aria-label="${esc(r.name)}${r.score != null ? `, score ${r.score}` : ''}. ${esc(meta.label)}"`}>
     ${SELECTING
       ? `<div style="width:20px;height:20px;border-radius:6px;border:2px solid ${sel ? 'var(--green-bright)' : 'var(--hairline)'};background:${sel ? 'var(--green-bright)' : 'transparent'};display:grid;place-items:center;flex:none;color:#04140b;font-weight:900;font-size:12px">${sel ? '✓' : ''}</div>`
       : `<span style="width:9px;height:9px;border-radius:50%;background:${meta.color};flex:none;box-shadow:0 0 8px ${meta.color}40"></span>`}
     <div class="rn">
       <div class="t">${esc(r.name)}${r.unit ? ` <small style="color:var(--text-3);font-weight:700">· ${esc(r.unit)}</small>` : ''}</div>
-      <div class="s" style="color:var(--text-2)">${esc(meta.label)} <span style="color:var(--text-3)">· ${esc(lastActivityLabel(r.lastMealAt))}</span></div>
+      <div class="s" style="color:var(--text-2)">${sub}</div>
     </div>
-    ${sparkline(r.scoreHistory)}
-    <span class="rs" style="color:${scoreCol};margin-left:8px">${r.score != null ? r.score : '—'}</span>${stylePill(e.planStyle)}
+    <div class="rr">
+      ${sparkline(r.scoreHistory)}
+      <span class="rs" style="color:${scoreCol}">${r.score != null ? r.score : '—'}</span>${stylePill(e.planStyle)}
+    </div>
   </div>`;
 }
 
@@ -242,7 +259,7 @@ export const coachRoster = {
     ${SHOW_ABSENCE ? absenceSheet() : ''}
     <section class="card" id="roster-list" style="padding:2px 0">${list.length ? list.map(rosterRow).join('') : NO_MATCH_HTML}</section>
     ${SELECTING && SEL.size ? `
-    <div class="card" style="position:sticky;bottom:calc(96px + env(safe-area-inset-bottom, 0px) + 8px);display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:9px;z-index:20">
+    <div class="card" style="position:sticky;bottom:calc(var(--nav-h) + 19px + env(safe-area-inset-bottom, 0px) + 8px);display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:9px;z-index:20">
       <button class="btn sm" data-bulk="nudge" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">Nudge ${SEL.size}</button>
       ${CD.caps.assignments ? `<button class="btn ghost sm" data-bulk="assign" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">Assign</button>` : ''}
       ${CD.caps.groups ? `<button class="btn ghost sm" data-bulk="group" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">→ Group</button>` : ''}

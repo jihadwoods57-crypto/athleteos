@@ -86,6 +86,11 @@ export default {
         <div class="lm"><div class="lt">Activity history</div><div class="ls">The proof trail, day by day</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
+      <div class="lrow" data-go="connected-standards">
+        <div class="lic" style="color:var(--blue-bright)">${icon('bolt', 17)}</div>
+        <div class="lm"><div class="lt">Activity standards</div><div class="ls">Steps, distance and workouts — verified from your device</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
       <div class="lrow" data-go="checkin">
         <div class="lic">${icon('check', 17)}</div>
         <div class="lm"><div class="lt">Weekly check-in</div><div class="ls">${S.weekly.status}</div></div>
@@ -143,7 +148,7 @@ export default {
       const idCard = root.querySelector('.id-card');
       const err = document.createElement('div');
       err.id = 'avatar-err';
-      err.style.cssText = 'color:#f87171;font-size:13px;font-weight:600;min-height:18px;text-align:center;margin-top:8px';
+      err.style.cssText = 'color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;text-align:center;margin-top:8px';
       idCard?.insertAdjacentElement('afterend', err);
 
       let busy = false;
@@ -248,7 +253,7 @@ export const editProfile = {
     </div>
 
     <div style="height:16px"></div>
-    <div id="ep-err" style="color:#f87171;font-size:13px;font-weight:600;min-height:18px;text-align:center"></div>
+    <div id="ep-err" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;text-align:center"></div>
     <button class="btn primary" id="ep-save" disabled style="opacity:.5">${icon('check', 19)} Save</button>
     <div style="height:10px"></div>
     `;

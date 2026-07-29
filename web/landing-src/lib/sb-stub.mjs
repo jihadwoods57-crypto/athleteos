@@ -66,14 +66,77 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
       });
     }
   }
+  // The signed-in athlete's own seeded lunch, with the SAME id the day seed writes into
+  // slotMacros. Without it the stitched chat cannot match its messages to a meal and files the
+  // whole conversation under "Earlier in the season" — a fixture gap that reads as a bug.
+  MEALS.push({
+    id: 'meal-seed-lunch', athlete_id: 'seed-athlete', day_date: TODAY, type: 'lunch',
+    photo_path: 'meal-lunch', name: 'Chicken, rice & edamame bowl',
+    protein: 52, kcal: 780, quality: 84, logged_at: TODAY + 'T13:06:00Z',
+  });
   MEALS.sort((x, y) => (x.logged_at < y.logged_at ? 1 : -1));
 
   const PROFILES = ATHLETES.map(a => ({ id: a.id, timezone: 'America/New_York', full_name: a.name }));
 
+  const THREAD_MEAL = 'meal-seed-lunch';
+  const tAt = (h, m) => TODAY + 'T' + String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':00Z';
+  const MEAL_THREAD = [
+    // A ROSTER athlete's meal, ending athlete-question -> AI-answer. This is the exact sequence
+    // the group chat produces on every question, and the one that silently empties the coach's
+    // "needs response" queue if the inbox ever counts the AI as having spoken last. The seeded
+    // conversation above belongs to the signed-in athlete, who is not on the coach's roster, so
+    // without these two rows the coach inbox was never exercised with a real thread at all.
+    {
+      id: 'mc-r1', meal_id: 'meal-1', athlete_id: 'ath-1', author_id: 'ath-1',
+      role: 'athlete', kind: 'message', created_at: tAt(12, 40),
+      text: 'Is this enough before practice or should I add something?',
+    },
+    {
+      id: 'mc-r2', meal_id: 'meal-1', athlete_id: 'ath-1', author_id: 'ath-1',
+      role: 'ai', kind: 'message', created_at: tAt(12, 41),
+      text: 'It will hold you for a two hour session. If you are lifting after, a banana on the way out covers the gap.',
+    },
+    // Yesterday's dinner, so the meal screen's "Earlier" continuity line and the stitched
+    // stream's multi-meal ordering are both exercised rather than assumed.
+    {
+      id: 'mc-0', meal_id: 'meal-1', athlete_id: 'seed-athlete', author_id: 'seed-coach',
+      role: 'coach', kind: 'message', created_at: shift(TODAY, -1) + 'T20:10:00Z',
+      text: 'Good dinner last night. Same idea today and you are stacking a real week.',
+    },
+    {
+      id: 'mc-1', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-athlete',
+      role: 'ai', kind: 'message', meta: { t: 'analysis' }, created_at: tAt(13, 7),
+      text: "Good timing on lunch. I can see grilled chicken, brown rice, edamame and a soft-boiled egg. I'd put it around 52g of protein and 780 calories, which puts you near 52 of 180g for the day with 2 meals left. Fibre is the thin part of this one, so a piece of fruit alongside it would round it out.",
+    },
+    {
+      id: 'mc-2', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-coach',
+      role: 'coach', kind: 'message', created_at: tAt(13, 12),
+      text: "Second lunch this week in the window. That's the standard - keep stacking them and Friday takes care of itself.",
+    },
+    {
+      id: 'mc-3', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-athlete',
+      role: 'athlete', kind: 'message', created_at: tAt(13, 24),
+      text: 'That was a double portion of chicken, not one',
+    },
+    {
+      id: 'mc-4', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-athlete',
+      role: 'ai', kind: 'message', meta: { t: 'analysis_update' }, created_at: tAt(13, 25),
+      text: "Got it - double chicken takes this to roughly 78g of protein and 980 calories. You're comfortably past halfway for the day now, so dinner can be a normal plate rather than a catch-up one.",
+    },
+    {
+      id: 'mc-5', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-coach',
+      role: 'coach', kind: 'reaction', created_at: tAt(13, 26), text: '💪',
+    },
+  ];
+
   const TABLES = {
     teams: [TEAM], practices: [PRACTICE], days: DAYS, meals: MEALS, profiles: PROFILES,
     team_members: [], practice_clients: [], announcements: [], notifications: [],
-    meal_comments: [], interventions: [], requirement_sets: [], athlete_groups: [],
+    // A real conversation on the athlete's seeded lunch (meal-seed-lunch). Without these rows the
+    // group chat could not be captured at all: the thread rendered its no-messages fallback and a
+    // whole surface went unreviewed. The AI opener carries meta.t so the derived report-card
+    // fallback stays suppressed, exactly as it does against a real database.
+    meal_comments: MEAL_THREAD, interventions: [], requirement_sets: [], athlete_groups: [],
     coach_notes: [], training_logs: [], subscriptions: [], offers: [], sponsorships: [],
   };
 
@@ -95,6 +158,129 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
     guardian_child_days: () => DAYS.filter(d => d.athlete_id === ATHLETES[0].id).map(d => ({ day: d.date, score: d.score, grade: d.grade })),
     my_funded_plans: () => [],
     has_premium_access: () => true,
+
+    // Who is in the meal conversation (0158). Real names and real roles — the whole point of the
+    // participants header is that "Coach" becomes "Coach Brown", so a stub that returned nothing
+    // would capture the very fallback the change exists to replace.
+    meal_thread_participants: () => ([
+      { id: 'seed-athlete', name: 'Marcus Reed', kind: 'athlete' },
+      { id: 'seed-coach', name: 'James Brooks', kind: 'head_coach' },
+    ]),
+
+    // ---- Connected Standards (0155) ----
+    // window.__CS_MODE picks the moment being captured, and DEFAULT is 'none' so activity cards
+    // never leak onto generic Home shots — the same discipline __VC_MODE follows.
+    //   'live' the afternoon card: steps in progress, a weekly target off pace
+    //   'done' the evening card: both verified by the device, nothing tapped
+    //   'gap'  the state the product exists to get right — the watch never reported
+    ensure_my_connected_standards: () => null,
+    ensure_connected_standard_instances: () => null,
+    my_connected_standards: () => {
+      const mode = window.__CS_MODE || 'none';
+      if (mode === 'none') return [];
+      const MI = 1609.344;
+      const steps = (over) => ({
+        result_id: 'csr-steps', instance_id: 'csi-steps', standard_id: 'cs-steps',
+        title: 'Daily Movement', metric: 'steps', display_unit: 'steps',
+        target: 10000, progress: over ? 10326 : 7842,
+        period: 'day', period_start: TODAY, period_end: TODAY,
+        deadline_at: TODAY + 'T03:59:00Z', instance_status: 'scheduled',
+        deliberate_workout: false, workout_min_duration_min: null,
+        status: over ? 'verified_complete' : 'in_progress',
+        verified_source: over ? 'healthkit' : null,
+        completed_at: over ? TODAY + 'T00:17:00Z' : null,
+        last_synced_at: TODAY + 'T22:42:00Z', device_connected: true,
+        allow_manual: true, manual_requires_approval: false,
+        source_kind: 'assigned', owner_label: 'Lincoln Football',
+      });
+      const run = () => ({
+        result_id: 'csr-run', instance_id: 'csi-run', standard_id: 'cs-run',
+        title: 'Tuesday Conditioning', metric: 'distance', display_unit: 'mi',
+        target: 2.5 * MI, progress: 2.73 * MI,
+        period: 'day', period_start: TODAY, period_end: TODAY,
+        deadline_at: TODAY + 'T23:00:00Z', instance_status: 'scheduled',
+        deliberate_workout: true, workout_min_duration_min: 30,
+        status: 'verified_complete', verified_source: 'healthkit',
+        completed_at: TODAY + 'T22:18:00Z', last_synced_at: TODAY + 'T22:20:00Z',
+        device_connected: true, allow_manual: true, manual_requires_approval: true,
+        source_kind: 'assigned', owner_label: 'Lincoln Football',
+      });
+      const weekly = (progressMi) => ({
+        result_id: 'csr-week', instance_id: 'csi-week', standard_id: 'cs-week',
+        title: 'Weekly Miles', metric: 'distance', display_unit: 'mi',
+        target: 12 * MI, progress: progressMi * MI,
+        period: 'week', period_start: shift(TODAY, -3), period_end: shift(TODAY, 3),
+        deadline_at: shift(TODAY, 3) + 'T03:59:00Z', instance_status: 'scheduled',
+        deliberate_workout: false, workout_min_duration_min: null,
+        status: 'in_progress', verified_source: null, completed_at: null,
+        last_synced_at: TODAY + 'T22:42:00Z', device_connected: true,
+        allow_manual: true, manual_requires_approval: false,
+        source_kind: 'personal', owner_label: null,
+      });
+      if (mode === 'gap') {
+        const s = steps(false);
+        s.status = 'awaiting_sync'; s.progress = 6120;
+        s.last_synced_at = shift(TODAY, -1) + 'T18:04:00Z';
+        // Yesterday, resolved the honest way: the device never reported and nobody was blamed.
+        const prior = steps(false);
+        prior.result_id = 'csr-steps-y'; prior.instance_id = 'csi-steps-y';
+        prior.period_start = shift(TODAY, -1); prior.period_end = shift(TODAY, -1);
+        prior.status = 'insufficient_data'; prior.progress = 4400;
+        return [s, prior, weekly(4)];
+      }
+      if (mode === 'done') return [steps(true), run(), weekly(9.6)];
+      return [steps(false), weekly(6.4)];
+    },
+
+    // The coach's board. Mirrors connected_standard_board's contract exactly: a status and a
+    // PERCENTAGE of the coach's own target per athlete — no raw activity value anywhere, which is
+    // the privacy promise the real RPC keeps structurally.
+    connected_standard_board: () => {
+      if ((window.__CS_MODE || 'none') === 'none') return [];
+      // A REAL roster shape: 55 athletes, most of whom did the thing. The design has to be judged
+      // at the proportion a coach actually sees every evening — a fixture with one of every status
+      // exaggerates every exception and makes a healthy board look alarming.
+      // window.__CS_BOARD = 'clear' captures the far more common case: nothing needs the coach.
+      const SURNAMES = ['Reyes', 'Brooks', 'Cole', 'Ward', 'Price', 'Moreau', 'Whitfield', 'Barnes',
+        'Diaz', 'Fields', 'Herrera', 'Nowak', 'Osei', 'Vance', 'Ibrahim', 'Delgado', 'Pratt',
+        'Quinn', 'Sandoval', 'Tate', 'Ellison', 'Boyd', 'Marsh', 'Okafor', 'Lang'];
+      const FIRST = ['Marcus', 'Tyler', 'Andre', 'Devin', 'Jalen', 'Chris', 'Sam', 'Kyle', 'Omar',
+        'Ryan', 'Luis', 'Emeka', 'Cole', 'Drew', 'Malik', 'Nate', 'Owen', 'Pierce', 'Rashad'];
+      const mix = window.__CS_BOARD === 'clear'
+        ? [['verified_complete', 52, 100], ['completed_manually', 2, 100], ['excused', 1, 0]]
+        : [['verified_complete', 44, 100], ['completed_manually', 2, 100],
+           ['in_progress', 4, 58], ['awaiting_review', 1, 0], ['awaiting_sync', 2, 61],
+           ['disconnected', 1, 0], ['excused', 1, 0]];
+      const names = [];
+      let i = 0;
+      for (const [status, n, pct] of mix) {
+        for (let k = 0; k < n; k++, i++) {
+          names.push([FIRST[i % FIRST.length] + ' ' + SURNAMES[(i * 7) % SURNAMES.length],
+            status, status === 'in_progress' ? [58, 41, 72, 33][k % 4] : pct]);
+        }
+      }
+      return [{
+        standard_id: 'cs-steps', instance_id: 'csi-steps', title: 'Daily Movement',
+        metric: 'steps', display_unit: 'steps', target: 10000, period: 'day',
+        period_start: TODAY, period_end: TODAY,
+        deadline_at: TODAY + 'T03:59:00Z', instance_status: 'scheduled',
+        audience_kind: 'team', audience_label: null,
+        rows: names.map(([name, status, pct], i) => ({
+          result_id: 'r' + i, athlete_id: 'a' + i, name, status, progress_pct: pct,
+          verified_source: status === 'verified_complete' ? 'healthkit'
+            : status === 'completed_manually' ? 'manual' : null,
+          last_synced_at: status === 'awaiting_sync' ? shift(TODAY, -1) + 'T18:04:00Z'
+            : status === 'disconnected' ? null : TODAY + 'T22:40:00Z',
+          device_connected: status !== 'disconnected',
+          manual_note: status === 'awaiting_review' ? 'Watch died at practice' : null,
+          manual_submitted_at: status === 'awaiting_review' ? TODAY + 'T21:50:00Z' : null,
+          excused_reason: status === 'excused' ? 'Team travel' : null,
+          corrected_by_name: null,
+          disputed_at: status === 'missed' ? TODAY + 'T23:10:00Z' : null,
+          dispute_note: status === 'missed' ? 'I walked it, phone was off' : null,
+        })),
+      }];
+    },
 
     // ---- Verified Commitments (0138/0139) ----
     // Row shape mirrors what deriveCommitment() in commitments.js actually reads. The STAGE of

@@ -265,7 +265,14 @@ function partsNutritionScore(day, std, knobs, proteinFrac, mealsFrac) {
   if (n.protein === 'exact') proteinCredit = proteinFrac;
   else if (n.protein === 'range') proteinCredit = rangeAdherence(proteinToday(day, std), pt, n.proteinBand);
 
-  const awareCredit = n.awarenessScored
+  // Awareness credit, with the meal-time prompt gone (2026-07-28). awarenessScore now returns a
+  // constant 1 — the no-drop grandfather, see its header — but a day the athlete never touched
+  // must still floor at 0. Before the removal an untouched day answered no signals and scored no
+  // awareness; handing it 35 free points would invent engagement that didn't happen. So the
+  // credit is gated on the athlete having done SOMETHING today: a meal, or a real check-in.
+  // Both branches are >= what the old code gave, which is what keeps the guarantee intact.
+  const engaged = mealsFrac > 0 || checkinReal(day);
+  const awareCredit = n.awarenessScored && engaged
     ? awarenessScore(answeredSignals(day, checkinReal(day)), knobs, day.signalWeekRate)
     : 0;
 
@@ -714,7 +721,10 @@ export function pushDay(userId, immediate) {
   saveCache(userId);
   if (pushTimer) { clearTimeout(pushTimer); pushTimer = null; }
   const doPush = async () => {
-    const sb = window.sb;
+    // `window` is absent in Node (this module is imported directly by the jest/proto test suites),
+    // and the debounced timer can fire after a test has finished — an unguarded reference threw
+    // ReferenceError there, outside any test's catch, which reads like a suite crash.
+    const sb = typeof window !== 'undefined' ? window.sb : null;
     if (!sb || !userId || SYNC_BLOCKED) return;
     const s = clampedScore(DAY);
     const tasks = currentTasks(); // [{id, done}] from the exec engine, or null if unavailable
@@ -757,16 +767,6 @@ export function dayResetLocal() {
   DAY.signals = {}; DAY.signalWeekRate = null;
 }
 
-/** Record a body signal for one meal slot (the 2-tap post-meal prompt). Values are 1..5 chips;
- *  anything else is ignored rather than stored, so a malformed tap can never reach awareness. */
-export function daySetMealSignal(userId, slot, key, value) {
-  if (!slot || !key) return;
-  const v = Number(value);
-  if (!isFinite(v) || v < 1 || v > 5) return;
-  if (!DAY.signals) DAY.signals = {};
-  DAY.signals[slot] = { ...(DAY.signals[slot] || {}), [key]: Math.round(v) };
-  pushDay(userId);
-}
 
 /* ---- mutators (each persists) ---- */
 export function dayLogMeal(userId, key, macros, meta) {

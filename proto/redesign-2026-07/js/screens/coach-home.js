@@ -5,8 +5,10 @@ import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope } from '../coach-data.js';
 import { buildPriorities } from '../priority.js';
 import { teamPulse } from '../status.js';
+import { scoreColor } from '../score-band.js';
 import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
 import { paintBoard } from './coach-commitments.js';
+import { paintStandardsBoard } from './coach-connected.js';
 
 /* This screen is nav:'operator' — it renders for a coach's team AND a trainer's practice, so it
    must load whichever book the signed-in role owns. Calling loadCoachRoster() here would fetch
@@ -269,7 +271,8 @@ function priorityCard(c, i, nudgedToday) {
   // needs_review also tiers as 'below', but "Below standard" would contradict its own reason
   // line ("logged today — score pending"). Name it honestly when that's the actual status.
   const tierLbl = c.statusKey === 'needs_review' ? 'Needs review' : { critical: 'Critical', below: 'Below standard', due: 'Due soon' }[tier];
-  const scoreCol = c.score == null ? '' : c.score >= 80 ? 'var(--green-bright)' : c.score >= 60 ? 'var(--amber-bright)' : '#FF9B9B';
+  // Empty string, not --text-3, when there's no score: .co-pri supplies its own colour there.
+  const scoreCol = c.score == null ? '' : scoreColor(c.score);
   const openPrimary = tier === 'below';  // below-standard → review the log; critical/due → send the nudge
   const nudgeCls = !openPrimary ? (tier === 'critical' ? 'primary warn' : 'primary') : '';
   return `
@@ -335,6 +338,7 @@ export const coachHome = {
     ${pending.length ? `<div class="card" data-go="coach-inbox" style="padding:10px 15px;cursor:pointer;display:flex;align-items:center;gap:10px"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 15)}</div><div style="flex:1;font-size:12.5px;font-weight:700">${pending.length} join request${pending.length > 1 ? 's' : ''} waiting</div><span style="color:var(--text-3)">›</span></div>` : ''}
     ${entries === null ? '' : pulseCard(rows, statuses)}
     <div id="vc-board-slot"></div>
+    <div id="cs-board-slot"></div>
 
     ${(() => {
       // Setup guidance persists (collapsed) after the first athlete joins — it no longer vanishes
@@ -380,6 +384,7 @@ export const coachHome = {
     // a board fetch never delays the priority queue. An operator who has scheduled nothing gets an
     // empty slot and this screen is byte-identical to before.
     paintBoard(root);
+    paintStandardsBoard(root);
     // Empty-state invite card: Copy + native Share of the athlete code (present only before any
     // athlete has joined).
     const code = RT.team && RT.team.code;

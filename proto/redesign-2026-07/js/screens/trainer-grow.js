@@ -103,7 +103,7 @@ export const trainerGrow = {
       </div>
       ${published && shareUrl ? `
       <div class="code-boxes" style="display:flex;gap:8px;align-items:center;margin:4px 0 12px">
-        <input id="tg-link" readonly value="${esc(shareUrl)}" style="flex:1;font-size:12px;letter-spacing:0;text-align:left;padding:0 10px;height:36px">
+        <input id="tg-link" readonly value="${esc(shareUrl)}" style="flex:1;font-size:12px;letter-spacing:0;text-align:left;padding:0 10px;height:44px">
         <button class="btn ghost sm" id="tg-copy" style="width:auto;padding:0 12px;height:36px">Copy</button>
       </div>` : ''}
       <label class="tg-l">Display name</label><input id="tg-name" value="${esc(p.display_name || RT.profile && RT.profile.full_name || '')}" placeholder="Your name">

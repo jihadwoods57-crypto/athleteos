@@ -217,7 +217,9 @@ export const PRESETS: Record<PlanStyle, StyleKnobs> = {
       timingScored: true, hydrationScored: true, qualityScored: true, awarenessScored: false,
     },
     parts: NUTRITION_PARTS.guided,
-    signals: { hunger: true, fullness: true, satisfaction: false, digestion: false, cravings: false },
+    // Meal-time signals are no longer captured anywhere — see SIGNAL_KEYS. Guided never scored
+    // them (awarenessScored:false), so this is purely the prompt going away.
+    signals: { hunger: false, fullness: false, satisfaction: false, digestion: false, cravings: false },
     surface: { showCalories: true, showMacros: true, tone: 'guidance' },
   },
   intuitive: {
@@ -228,7 +230,8 @@ export const PRESETS: Record<PlanStyle, StyleKnobs> = {
       timingScored: false, hydrationScored: true, qualityScored: false, awarenessScored: true,
     },
     parts: NUTRITION_PARTS.intuitive,
-    signals: { hunger: true, fullness: true, satisfaction: true, digestion: true, cravings: true },
+    // Digestion and cravings still ride the check-in; the three meal-time ones are gone.
+    signals: { hunger: false, fullness: false, satisfaction: false, digestion: true, cravings: true },
     surface: { showCalories: false, showMacros: false, tone: 'signals' },
   },
 };
@@ -295,6 +298,11 @@ export function knobsFor(style: unknown, overrides?: any): StyleKnobs {
       if (['targets', 'guidance', 'signals'].includes(o.surface.tone)) base.surface.tone = o.surface.tone;
     }
   }
+  // The meal-time prompt no longer exists on any surface, so no style and no professional may ask
+  // for those signals — an enabled-but-uncapturable signal would quietly zero an athlete's
+  // awareness credit forever. This runs AFTER the override merge precisely so a stored pro config
+  // from before the removal cannot resurrect a prompt that isn't there.
+  for (const k of MEAL_SIGNAL_KEYS) base.signals[k] = false;
   base.parts = normalizeParts(base.parts, s);
   // A part can only earn credit when its knob is on — otherwise a pro could weight `quality` on a
   // style that never measures it and silently cap the athlete's nutrition score below 100.
@@ -449,13 +457,32 @@ export function fuelingAdequacy(kcal: number, target: number): number {
  * of answering. Blends today (60%) with the trailing-week answer rate (40%) so a single skipped
  * day barely moves the number, which keeps an awareness practice from becoming another streak to
  * fail. `weekRate` absent -> today stands in for it (pure tests need no history).
+ *
+ * WHY THIS NOW RETURNS 1 FOR EVERYONE (2026-07-28). Awareness is 35 of Intuitive's 100 nutrition
+ * points, and the meal prompt that earned most of them has been removed. Two ways to respond:
+ * redistribute those 35 points across fueling and hydration, or let the credit stand.
+ * Redistribution provably LOWERS scores — an athlete at cal 0.5 / hydration 1.0 who answered
+ * every signal goes 80 -> 69 — and no athlete's number may drop for a change they didn't make.
+ * So the credit stands, which is the same grandfathering rule that keeps Structured on the legacy
+ * formula byte for byte.
+ *
+ * The enabled set is now scoped to meal-where signals, and knobsFor forces all of those off, so
+ * this returns 1 by construction. Check-in signals are deliberately NOT counted here: digestion
+ * and cravings already earn their credit inside the recovery sub-score (CI_KEYS in day.js), and
+ * scoring them twice was always a quiet duplication.
+ *
+ * The consequence to own: for Intuitive athletes those 35 points are now free. That is the price
+ * of the no-drop guarantee, and it is a founder call to revisit — not something to silently
+ * "fix" by reweighting, which is exactly the score drop this avoids.
  */
 export function awarenessScore(
   answered: Set<string> | string[] | null | undefined,
   knobs: StyleKnobs | null | undefined,
   weekRate?: number,
 ): number {
-  const enabled = SIGNAL_KEYS.filter((s) => knobs && knobs.signals && knobs.signals[s.key]).map((s) => s.key);
+  const enabled = SIGNAL_KEYS
+    .filter((s) => s.where === 'meal' && knobs && knobs.signals && knobs.signals[s.key])
+    .map((s) => s.key);
   if (!enabled.length) return 1; // nothing to be aware of — never punish an empty config
   const set = answered instanceof Set ? answered : new Set(Array.isArray(answered) ? answered : []);
   let hit = 0;
@@ -495,14 +522,16 @@ export function styleLabel(style: unknown): { name: string; short: string; how: 
       return {
         name: 'Intuitive',
         short: 'Focused on body signals',
-        how: 'No calorie or macro targets. Your score measures awareness of hunger, fullness and energy, fueling enough, hydration and consistency — never restriction.',
+        // Copy follows the surfaces that actually exist: the meal-time hunger/fullness prompt is
+        // gone, so promising it would be a lie. Digestion and cravings live in the check-in.
+        how: 'No calorie or macro targets. Your score measures fueling enough, hydration and consistency, with digestion and cravings noticed in your check-in — never restriction.',
       };
     case 'guided':
     default:
       return {
         name: 'Guided',
         short: 'Guidance with flexibility',
-        how: 'Flexible ranges instead of exact numbers, plus meal quality and light hunger and energy awareness. Your score balances consistency, quality and flexibility.',
+        how: 'Flexible ranges instead of exact numbers, plus meal quality. Your score balances consistency, quality and flexibility.',
       };
   }
 }

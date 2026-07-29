@@ -4,13 +4,20 @@
    {kind, id, athleteId?, title, sub, go?, ts} — no HTML, no esc() (escaping happens at render,
    Task 3). An unknown/missing input degrades to an empty category, never a thrown error. */
 
-/** latest message-kind comment's role per meal id (reaction/note kinds are ignored — they
- *  don't count as "who spoke last" for needsResponse purposes). */
+/** Who spoke last, per meal — the HUMANS only.
+ *
+ *  Reaction and note kinds were already ignored; AI rows now are too, and that exclusion is
+ *  load-bearing. The AI posts its read of every plate and answers every question, so it is
+ *  almost always the last row on a meal. Counting it would mean no meal ever looked like it was
+ *  waiting on the coach: "athlete asked something" would silently become "AI spoke last", and the
+ *  needsResponse queue — the one thing that tells a coach where they are actually needed — would
+ *  empty itself. The question the inbox asks is "did a PERSON leave something unanswered", and
+ *  the AI answering first does not make that untrue. */
 function lastByMeal(comments) {
   const out = {};
   const latestTs = {};
   for (const c of (comments || [])) {
-    if (!c || c.kind !== 'message' || !c.meal_id) continue;
+    if (!c || c.kind !== 'message' || !c.meal_id || c.role === 'ai') continue;
     const ts = c.created_at ? new Date(c.created_at).getTime() : 0;
     if (latestTs[c.meal_id] == null || ts >= latestTs[c.meal_id]) {
       latestTs[c.meal_id] = ts;

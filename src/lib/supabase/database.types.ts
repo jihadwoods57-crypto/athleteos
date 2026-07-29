@@ -440,6 +440,21 @@ export interface Database {
           unverified_reason: string | null;
         };
       };
+      // Connected Standards (0155). Only the one the NATIVE layer calls is typed here — the proto
+      // WebView reaches the rest through supabase-js untyped, exactly like every other proto RPC.
+      // Note what p_progress is: a NUMBER the device computed against the coach's rule. No sample,
+      // no workout, no route crosses this boundary — the same shape verify_arrival established.
+      submit_activity_progress: {
+        Args: {
+          p_instance: string;
+          p_progress: number;
+          p_synced_at: string;
+          p_source?: string;
+          p_progress_days?: Record<string, number> | null;
+          p_device_connected?: boolean;
+        };
+        Returns: string;
+      };
       coach_set_goals: {
         Args: {
           athlete: string;

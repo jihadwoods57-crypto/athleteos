@@ -41,6 +41,8 @@ export const EVENTS = Object.freeze({
   TRIAL_STARTED: 'trial_started',             // {plan, cadence} — "Start free" tapped (intent; billing go-live gated)
   MEAL_LOGGED: 'meal_logged',                 // {slot, source}
   MEAL_ANALYSIS_FAILED: 'meal_analysis_failed', // {reason}  — the client-only signal 0037 can't see
+  MEAL_ANALYSIS_APPLIED: 'meal_analysis_applied', // {slot} — a background read landed on an already-logged meal
+  MEMORY_FACT_CONFIRMED: 'memory_fact_confirmed', // {keep} — athlete confirmed/rejected an inferred fact
   // Deterministic-scoring cutover (2026-07-21): the app computes meal quality; the AI's own
   // number is only this cross-check so drift between the two is measurable post-ship.
   MEAL_SCORE_DELTA: 'meal_score_delta',       // {ai, det, delta} — AI estimate vs deterministic score
@@ -49,6 +51,7 @@ export const EVENTS = Object.freeze({
   MEAL_DUP_BLOCKED: 'meal_dup_blocked',       // {stage:'precheck'|'insert'} — reuse attempt caught
   MEAL_STALE_PHOTO: 'meal_stale_photo',       // {slot} — gallery pick with an old EXIF capture time
   MEAL_CORRECTED: 'meal_corrected',           // {kind} — athlete fixed what the photo couldn't show
+  MEAL_REREAD: 'meal_reread',                 // {slot, source} — a meal that settled at ~0g sent back for a re-read
   COMMITMENT_SET: 'commitment_set',           // {answer}
   RECOVERY_SUBMITTED: 'recovery_submitted',
   CHECKIN_SUBMITTED: 'checkin_submitted',
@@ -68,6 +71,18 @@ export const EVENTS = Object.freeze({
   VC_UNVERIFIED: 'vc_unverified',             // {reason} — verification could not be confirmed
   VC_DISPUTED: 'vc_disputed',                 // athlete says the record is wrong
   VC_REMINDED: 'vc_reminded',                 // {n} — coach pushed the non-responders
+
+  // Connected Standards (0155). The questions: does anyone set these, does the DEVICE actually
+  // answer them, and how often does a human have to step in because it didn't? CS_MANUAL rising
+  // relative to CS_VERIFIED means the sync path is failing and athletes are covering for it;
+  // CS_DISPUTED rising means the feature is calling people short when they weren't.
+  CS_SET: 'cs_set',                           // {metric, period, audience} — a coach set one
+  CS_PERSONAL_SET: 'cs_personal_set',         // {metric, period} — an athlete set their own
+  CS_CARD_SHOWN: 'cs_card_shown',             // {metric} — exposure; completion rate needs it
+  CS_VERIFIED: 'cs_verified',                 // {metric, source} — the device answered
+  CS_MANUAL: 'cs_manual',                     // {metric, review} — logged by hand instead
+  CS_REVIEWED: 'cs_reviewed',                 // {approve} — coach ruled on a manual entry
+  CS_DISPUTED: 'cs_disputed',                 // {metric} — athlete says the verdict is wrong
 });
 const EVENT_SET = new Set(Object.values(EVENTS));
 

@@ -201,10 +201,14 @@ describe('Intuitive — awareness and adequate fueling, never restriction', () =
     expect(veryLate).toBe(onTime);
   });
 
-  test('answering signals raises the score; the VALUE answered never changes it', () => {
+  // The meal-time prompt was removed (2026-07-28), so signals no longer move the score at all.
+  // The awareness credit is held at full rather than redistributed, because redistributing it
+  // would lower real athletes' scores for a change they did not make. What these tests now
+  // protect is that holding it steady really is steady: no day, and no history, is scored down.
+  test('signals no longer move the score in either direction', () => {
     const none = computeComponents(styled('intuitive', { signals: {}, ...withCi })).nutrition;
     const answered = computeComponents(styled('intuitive', { signals: allSignals, ...withCi })).nutrition;
-    expect(answered).toBeGreaterThan(none);
+    expect(answered).toBe(none);
 
     const lowValues = { breakfast: { hunger: 1, fullness: 1, satisfaction: 1 } };
     const highValues = { breakfast: { hunger: 5, fullness: 5, satisfaction: 5 } };
@@ -212,10 +216,10 @@ describe('Intuitive — awareness and adequate fueling, never restriction', () =
       .toBe(computeComponents(styled('intuitive', { signals: highValues, ...withCi })).nutrition);
   });
 
-  test('a consistent week keeps a single skipped signal day from cratering awareness', () => {
+  test('a skipped signal day costs nothing, whatever the week behind it looked like', () => {
     const skipped = computeComponents(styled('intuitive', { signals: {}, ci: {}, signalWeekRate: 1 })).nutrition;
     const cold = computeComponents(styled('intuitive', { signals: {}, ci: {}, signalWeekRate: 0 })).nutrition;
-    expect(skipped).toBeGreaterThan(cold);
+    expect(skipped).toBe(cold);
   });
 
   test('hydration carries real weight on Intuitive', () => {

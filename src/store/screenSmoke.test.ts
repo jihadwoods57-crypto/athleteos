@@ -27,7 +27,6 @@ import {
   trendSeries,
   trendSummary,
   trendGeometry,
-  currentStreak,
   realTrendDays,
   recentDayLabels,
   seasonGoalProgress,
@@ -89,8 +88,8 @@ function exerciseAthleteSurfaces(s: AppState) {
   series.forEach(expectScore);
   expect(trendSummary(series)).toHaveProperty('dir');
   expect(trendGeometry(series)).toHaveProperty('linePath');
-  const streak = currentStreak(s.scoreHistory, d.athleteScore);
-  expect(streak).toBeGreaterThanOrEqual(0);
+  // streak intentionally not asserted here: it has ONE implementation, in the proto
+  // (day.js streakInfo), and it is covered by protoStreakGrace.test.ts + streakSingleSource.test.ts.
   expect(realTrendDays(s.scoreHistory)).toBeGreaterThanOrEqual(0);
   expect(recentDayLabels(series.length).length).toBe(series.length);
   const sgStart = s.startWeight ?? WEIGHT_START;

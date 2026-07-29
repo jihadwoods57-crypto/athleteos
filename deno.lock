@@ -1,0 +1,63 @@
+{
+  "version": "5",
+  "redirects": {
+    "https://esm.sh/@supabase/supabase-js@2": "https://esm.sh/@supabase/supabase-js@2.110.0"
+  },
+  "remote": {
+    "https://esm.sh/@supabase/supabase-js@2.110.0": "b99c0ce7729f9de7797f836b93ab9ec94f1cfe079b4f937fa4144fe13525e979"
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@expo-google-fonts/plus-jakarta-sans@~0.4.2",
+        "npm:@expo/metro-runtime@~57.0.7",
+        "npm:@expo/ngrok@^4.1.3",
+        "npm:@react-native-async-storage/async-storage@2.2.0",
+        "npm:@react-native-google-signin/google-signin@^16.1.2",
+        "npm:@supabase/supabase-js@^2.108.2",
+        "npm:@types/jest@30",
+        "npm:@types/jsdom@^20.0.1",
+        "npm:@types/react@~19.2.2",
+        "npm:babel-preset-expo@~57.0.1",
+        "npm:expo-apple-authentication@~57.0.1",
+        "npm:expo-asset@~57.0.3",
+        "npm:expo-build-properties@~57.0.7",
+        "npm:expo-camera@~57.0.3",
+        "npm:expo-constants@~57.0.3",
+        "npm:expo-dev-client@~57.0.9",
+        "npm:expo-file-system@57.0",
+        "npm:expo-font@57.0",
+        "npm:expo-haptics@~57.0.1",
+        "npm:expo-image-manipulator@~57.0.6",
+        "npm:expo-image-picker@~57.0.6",
+        "npm:expo-linking@~57.0.4",
+        "npm:expo-local-authentication@~57.0.2",
+        "npm:expo-location@~57.0.6",
+        "npm:expo-notifications@~57.0.7",
+        "npm:expo-router@~57.0.8",
+        "npm:expo-secure-store@~57.0.1",
+        "npm:expo-splash-screen@~57.0.5",
+        "npm:expo-status-bar@~57.0.1",
+        "npm:expo-task-manager@~57.0.6",
+        "npm:expo-updates@~57.0.10",
+        "npm:expo@~57.0.8",
+        "npm:fflate@~0.8.3",
+        "npm:jest-expo@~57.0.2",
+        "npm:jest@^30.4.2",
+        "npm:jsdom@^20.0.3",
+        "npm:react-dom@19.2.3",
+        "npm:react-native-safe-area-context@5.7",
+        "npm:react-native-screens@4.26",
+        "npm:react-native-svg@15.15.4",
+        "npm:react-native-url-polyfill@3",
+        "npm:react-native-web@~0.21.2",
+        "npm:react-native-webview@13.16.1",
+        "npm:react-native@0.86.0",
+        "npm:react@19.2.3",
+        "npm:tsx@^4.23.1",
+        "npm:typescript@~6.0.3",
+        "npm:zustand@^5.0.14"
+      ]
+    }
+  }
+}

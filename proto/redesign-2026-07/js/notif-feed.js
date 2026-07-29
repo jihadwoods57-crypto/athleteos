@@ -13,6 +13,9 @@ const KIND_META = {
   join_approved: { icon: 'check', level: 'positive' },
   digest: { icon: 'clipboard', level: 'medium' },
   announcement: { icon: 'share', level: 'info' },
+  // The AI's own daily follow-up. Unlike the rows above it, this one IS a task: it opens a
+  // conversation and expects a reply, so it deep-links to the meal it is about.
+  ai_followup: { icon: 'sparkle', level: 'medium' },
 };
 const DEFAULT_META = { icon: 'bell', level: 'medium' };
 
@@ -29,11 +32,18 @@ export function fmtWhen(iso, nowMs) {
 }
 
 /** One server row → the bell feed row shape ({level,title,body,when,icon,route,read}).
-    Malformed rows map to null (dropped, never invented). Routes are deliberately none/home:
-    a server row is a record, not a task — deep-linking belongs to reminders. */
+    Malformed rows map to null (dropped, never invented).
+
+    Routes are deliberately none/home for most kinds: a server row is a RECORD, not a task, and
+    deep-linking belongs to reminders. `ai_followup` is the exception and the reason `kind` may now
+    carry a suffix (`ai_followup:<mealId>`) — the AI asked the athlete a question, so the row has
+    to be able to open the thread where they can answer it. The suffix rides `kind` because it is
+    free text (0027 has no CHECK), which keeps this a client change with no migration. */
 export function feedRowFromServer(row, nowMs) {
   if (!row || typeof row !== 'object' || !row.title) return null;
-  const meta = KIND_META[row.kind] || DEFAULT_META;
+  const rawKind = String(row.kind || '');
+  const [baseKind, suffix] = rawKind.split(':');
+  const meta = KIND_META[baseKind] || DEFAULT_META;
   return {
     id: row.id || null,
     level: meta.level,
@@ -41,7 +51,11 @@ export function feedRowFromServer(row, nowMs) {
     title: String(row.title),
     body: String(row.body || ''),
     when: fmtWhen(row.created_at, nowMs),
-    route: row.kind === 'join_approved' ? 'home' : null,
+    route: baseKind === 'ai_followup'
+      // Only a well-formed id becomes a route — a junk suffix must render as a plain record, never
+      // as a link into nowhere. Shape matches the native deep-link validator.
+      ? (suffix && /^[a-z0-9-]{6,64}$/i.test(suffix) ? `meal-view/${suffix}` : null)
+      : baseKind === 'join_approved' ? 'home' : null,
     read: !!row.read_at,
     server: true,
   };

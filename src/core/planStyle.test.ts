@@ -156,32 +156,37 @@ describe('fuelingAdequacy — Intuitive never penalizes eating more', () => {
   });
 });
 
-describe('awarenessScore — the act of noticing, never the value noticed', () => {
+// The meal-time prompt that fed this credit was removed (2026-07-28), so no style enables a
+// meal-where signal any more and the credit is a constant 1. That is deliberate: awareness is 35
+// of Intuitive's 100 nutrition points, and redistributing them would LOWER real athletes' scores
+// for a change they did not make. See plan-style-awareness.test.mjs for the no-drop sweep, and
+// awarenessScore's own header for why constant credit is the only strictly-safe answer.
+describe('awarenessScore — nothing meal-time is captured, so the credit stands', () => {
   const knobs = knobsFor('intuitive', null);
   const ALL = ['hunger', 'fullness', 'satisfaction', 'digestion', 'cravings'];
 
-  test('a low answer scores exactly the same as a high one', () => {
+  test('the value answered still never matters', () => {
     const low = answeredSignals({ signals: { breakfast: { hunger: 1, fullness: 1, satisfaction: 1 } } }, false);
     const high = answeredSignals({ signals: { breakfast: { hunger: 5, fullness: 5, satisfaction: 5 } } }, false);
     expect(awarenessScore(low, knobs)).toBe(awarenessScore(high, knobs));
   });
 
-  test('answering everything is full credit', () => {
+  test('full credit, whatever was or was not answered', () => {
     expect(awarenessScore(ALL, knobs, 1)).toBe(1);
-  });
-
-  test('one skipped day barely moves a consistent week', () => {
-    const skipped = awarenessScore([], knobs, 1);   // nothing today, perfect week behind it
-    expect(skipped).toBeCloseTo(0.4, 12);           // 0.6*0 + 0.4*1 — a dent, not a failure
-  });
-
-  test('with no history, today stands in for the week', () => {
-    expect(awarenessScore(['hunger', 'fullness', 'satisfaction', 'digestion', 'cravings'], knobs)).toBe(1);
-    expect(awarenessScore([], knobs)).toBe(0);
+    expect(awarenessScore([], knobs, 1)).toBe(1);
+    expect(awarenessScore([], knobs)).toBe(1);
+    expect(awarenessScore(null, knobs, 0)).toBe(1);
   });
 
   test('a style that tracks nothing is never punished for it', () => {
     expect(awarenessScore([], knobsFor('structured', null))).toBe(1);
+  });
+
+  test('check-in signals are not counted here — recovery already scores them', () => {
+    // digestion/cravings ride CI_KEYS in the recovery sub-score; counting them twice was a
+    // quiet duplication, so the enabled set is scoped to meal-where signals only.
+    expect(knobs.signals.digestion).toBe(true);
+    expect(awarenessScore(['digestion'], knobs, 0)).toBe(1);
   });
 
   test('a hostile weekRate cannot push credit out of 0..1', () => {

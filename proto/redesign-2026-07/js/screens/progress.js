@@ -1,6 +1,7 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
 import { esc } from '../components.js';
+import { scoreBand } from '../score-band.js';
 
 /* Progress (spec §8): day one is a real baseline, never an empty tab; populated stays
    athlete-friendly — one score trend, one consistency summary, one category breakdown,
@@ -134,14 +135,14 @@ export default {
           <div class="sr-ic">${icon(strong ? 'flame' : 'shield', 18)}</div>
           <div class="sr-body"><div class="sr-t">${st.days}-day streak${strong ? ' · at risk' : ''}</div>
           <div class="sr-s">${strong ? 'This week’s grace is used — reach 80 before the day closes to continue your streak.' : 'Today is still live. Reach 80 before the day closes to continue your streak.'}</div></div>
-          <span class="sr-cta">Details</span>
+          ${icon('chevron', 16, 'style="color:var(--text-3);flex:none"')}
         </div>`;
       } else {
         streakRow = `<div class="streak-ribbon mild" data-go="streak" style="margin-top:2px">
           <div class="sr-ic" style="background:rgba(52,211,153,0.10);color:var(--green-bright)">${icon('check', 18)}</div>
           <div class="sr-body"><div class="sr-t">${st.days}-day streak · secured</div>
           <div class="sr-s">Today counts. Day ${st.days} locks at midnight.</div></div>
-          <span class="sr-cta">Details</span>
+          ${icon('chevron', 16, 'style="color:var(--text-3);flex:none"')}
         </div>`;
       }
     }
@@ -155,10 +156,10 @@ export default {
     <section class="card pad">
       <div class="bigstat"><span class="n">${P.weekAvg}</span>${P.weekDelta ? `<span class="d${ddir}">${P.weekDelta} vs prior week</span>` : ''}</div>
       <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${P.onDays} day${P.onDays === 1 ? '' : 's'} on standard (≥80) · best streak ${P.bestStreak}d</div>
-      <div class="weekbars">
+      <div class="weekbars" role="img" aria-label="Last ${P.weekScores.length} days: ${P.weekScores.map((v, i) => `${P.weekDayLabels[i] || ''} ${v}`).join(', ')}. The standard is 80.">
         ${P.weekScores.map((v, i) => `
-          <div class="wb ${v >= 80 ? 'hi' : ''}">
-            <div class="bar" style="height:${Math.round((v / 100) * 86)}px"></div>
+          <div class="wb b-${scoreBand(v) || 'off'}">
+            <div class="track"><div class="bar" style="height:${Math.max(0, Math.min(100, v))}%"></div></div>
             <span class="d">${P.weekDayLabels[i] || ''}</span>
           </div>`).join('')}
       </div>
@@ -167,9 +168,9 @@ export default {
 
     <div style="height:16px"></div>
     <div class="coach-stats">
-      <div class="coach-stat" data-go="streak" style="cursor:pointer"><div class="v" style="color:var(--amber-bright)">${S.streakDays}d</div><div class="k">Current streak</div></div>
+      <div class="coach-stat tap" data-go="streak" role="button" tabindex="0" aria-label="Current streak, ${S.streakDays} days. Open streak details"><div class="v" style="color:var(--amber-bright)">${S.streakDays}d</div><div class="k">Current streak</div>${icon('chevron', 13)}</div>
       ${P.monthConsistency != null ? `<div class="coach-stat"><div class="v">${P.monthConsistency}%</div><div class="k">Consistency (≥80)</div></div>` : ''}
-      <div class="coach-stat" data-go="history" style="cursor:pointer"><div class="v" style="color:var(--blue-bright)">${icon('clipboard', 22)}</div><div class="k">History</div></div>
+      <div class="coach-stat tap" data-go="history" role="button" tabindex="0" aria-label="Open your score history"><div class="v" style="color:var(--blue-bright)">${icon('clipboard', 22)}</div><div class="k">History</div>${icon('chevron', 13)}</div>
     </div>
 
     ${trends ? `

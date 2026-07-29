@@ -363,25 +363,29 @@ export function paywallVariant(role) {
 }
 
 /* Mirrors src/core/pricing.ts PLAN_CATALOG — display only; the checkout rail
-   is go-live gated so these capture intent, they don't charge. */
+   is go-live gated so these capture intent, they don't charge. Because nothing here
+   charges, a wrong number never surfaces as a failed payment — src/core/obPlanPricingParity.test.ts
+   locks every price below to the catalog so it can't drift again. */
 export const PLANS = {
   individual: [
     { id: 'individual', name: 'Individual', monthly: '$14.99', annual: '$126', annualPer: '$10.50', save: 'Save $54', tag: '7-day free trial',
       sub: 'Daily Score, AI meal analysis, streaks, one connected supporter.' },
     { id: 'individual_plus', name: 'Individual+', monthly: '$24.99', annual: '$210', annualPer: '$17.50', save: 'Save $90',
       sub: 'Everything in Individual plus full history, trends, and unlimited supporters.' },
+    { id: 'family', name: 'Family', monthly: '$39.99', annual: '$336', annualPer: '$28', save: 'Save $144',
+      sub: 'One household, up to 4 athletes, one bill. Parents see every dashboard.' },
   ],
   pro: [
-    { id: 'pro_solo', name: 'Pro Solo', price: '$49', sub: 'Up to 25 clients. Client codes, AI reviews, your daily queue.', tag: '14-day free trial' },
-    { id: 'professional', name: 'Professional', price: '$99', sub: 'Up to 50 clients, then $10 per extra block. Priority support.' },
+    { id: 'pro_solo', name: 'Pro Solo', price: '$99', sub: 'Up to 25 clients. Client codes, AI reviews, your daily queue.', tag: '14-day free trial' },
+    { id: 'professional', name: 'Professional', price: '$179', sub: 'Up to 50 clients, then $10/mo each beyond. Priority support.' },
   ],
   org: [
-    { id: 'org_starter', name: 'Team Starter', price: '$99', sub: 'Up to 30 athletes. Rooms, standards, alerts, staff seats.', tag: '14-day free trial' },
-    { id: 'org_growth', name: 'Program', price: '$199', sub: 'Up to 75 athletes across teams. Position rooms + insights.' },
-    { id: 'org_performance', name: 'Performance', price: '$349', sub: 'Up to 150 athletes. Org-wide standards and analytics.' },
+    { id: 'org_starter', name: 'Team Starter', price: '$249', sub: 'Up to 30 athletes. Rooms, standards, alerts, staff seats.', tag: '14-day free trial' },
+    { id: 'org_growth', name: 'Program', price: '$499', sub: 'Up to 75 athletes across teams. Position rooms + insights.' },
+    { id: 'org_performance', name: 'Performance', price: '$799', sub: 'Up to 150 athletes. Org-wide standards and analytics.' },
   ],
   seat: [
-    { id: 'pro_solo', name: 'Nutrition Pro', price: '$49', sub: 'Up to 25 clients. Review queue, corrections, trends, flags.', tag: '14-day free trial' },
-    { id: 'professional', name: 'Practice', price: '$99', sub: 'Up to 50 clients plus team collaboration seats.' },
+    { id: 'pro_solo', name: 'Nutrition Pro', price: '$99', sub: 'Up to 25 clients. Review queue, corrections, trends, flags.', tag: '14-day free trial' },
+    { id: 'professional', name: 'Practice', price: '$179', sub: 'Up to 50 clients plus team collaboration seats.' },
   ],
 };

@@ -9,6 +9,8 @@ import { deriveCommitment } from '../commitments.js';
 import { VC, loadMine, todayISO as vcToday } from '../commitment-data.js';
 import { commitmentCard, mountCommitmentCard, commitmentOfflineCard } from './roll-call.js';
 import { armIfPermitted } from './location-consent.js';
+import { standardsCard, mountStandardsCard, standardsOfflineCard } from './connected-standards.js';
+import { CS, loadMine as loadStandards, todayISO as csToday } from '../connected-standard-data.js';
 
 /* Verified Commitments on Home. Renders every commitment the athlete has today that is currently
    visible — usually zero or one, occasionally a roll call plus an afternoon study hall.
@@ -41,6 +43,33 @@ function paintCommitments(root) {
     // permission (and on any build without expo-location), and it registers nothing for an
     // athlete with no located commitments today.
     if (rows.some((r) => r.asks_arrival)) armIfPermitted();
+  });
+}
+
+/* Connected Standards on Home (0155). Same shape as the commitments slot above: paint instantly
+   from cache, then reconcile with the server.
+
+   The feature needs no client-side flag check. cs_enabled is enforced inside the materialize RPC
+   and fails CLOSED, so with the feature off nothing is materialized, the payload is empty, and
+   standardsCard() returns '' — the slot stays a zero-height div. */
+function paintStandards(root) {
+  const slot = root.querySelector('#cs-slot');
+  if (!slot) return;
+  const paint = () => {
+    if (!slot.isConnected) return;
+    const html = standardsCard(CS.mine, csToday());
+    // An outage must never render as "you have no standards". For an athlete whose coach set a
+    // deadline today, silence and a failed fetch look identical and mean opposite things.
+    slot.innerHTML = html || (CS.mineError ? standardsOfflineCard() : '');
+    if (html) mountStandardsCard(slot);
+  };
+  paint();
+  loadStandards().then(() => {
+    // Hand the rows to RT so state.js can plan progress-aware reminders and write the
+    // days.tasks lane. connected-standard-data.js deliberately never imports state.js (the
+    // module cycle coach-data.js documents), so the screen that owns the fetch publishes it.
+    RT.csRows = CS.mine;
+    paint();
   });
 }
 
@@ -238,10 +267,16 @@ function trustShield() {
 }
 
 /* One line under the greeting that orients before the number does. */
+/* The greeting's second line. It deliberately does NOT restate progress: the score card owns
+   that fact, and Home used to state it three times above the fold — here, "N of M done", and
+   "N to go — your day is still open". Saying it once and giving the athlete their bearings
+   instead is worth more than saying it three ways. */
 function headSub(e) {
   if (e.celebration) return 'Locked in for today';
-  const left = e.total - e.met;
-  return `${left} requirement${left === 1 ? '' : 's'} remaining today`;
+  const d = new Date();
+  const day = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getDay()];
+  const team = RT.myCoach && RT.myCoach.teamName;
+  return team ? `${day} · ${team}` : day;
 }
 
 /* The single next move, named inside the score card. It deliberately repeats what the NOW
@@ -297,7 +332,7 @@ function hero(e) {
   lastHomeScore = e.score;
   return `<section class="xhero" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, ${S.tier.name}. ${e.met} of ${e.total} completed. Open score breakdown">
     <div class="xh-main">
-      ${scoreRing({ score: e.score, size: 102, stroke: 10, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
+      ${scoreRing({ score: e.score, possible: e.possible, size: 128, stroke: 11, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
       ${gain > 0 ? `<span class="xh-float" aria-hidden="true">+${gain}</span>` : ''}
       <div class="xh-body">
         <div class="xh-k">Daily Score</div>
@@ -319,16 +354,24 @@ function hero(e) {
    (home render gates this) or once a passing tier is earned. */
 function inProgressHero(e) {
   const left = e.total - e.met;
-  const toGo = left > 0 ? `${left} to go — your day is still open` : 'Log your first requirement to start your score';
+  // ONE line, not two. This used to render "<b>N</b> of <b>M</b> done" and, beneath it,
+  // "N to go — your day is still open" — the same fact twice, under a header that had already
+  // said it a third time. The reassurance ("still open") is the part worth keeping; the count
+  // carries it.
+  // The "In progress" chip above already carries the reassurance that the day is not lost, so
+  // this line is the count and nothing else. Home previously said it three ways above the fold.
+  const line = e.met === 0 && left > 0
+    ? 'Log your first requirement to start your score'
+    : `<b>${e.met}</b> of <b>${e.total}</b> done today`;
   return `<section class="xhero" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, in progress. ${e.met} of ${e.total} completed. Open score breakdown">
     <div class="xh-main">
-      ${scoreRing({ score: e.score, size: 102, stroke: 10, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
+      ${scoreRing({ score: e.score, possible: e.possible, size: 128, stroke: 11, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
       <div class="xh-body">
         <div class="xh-k">Daily Score</div>
-        <div class="xrow"><span class="status-pill" style="background:var(--surface-2);color:var(--text-2)">In progress</span></div>
-        <div class="xh-line"><b>${e.met}</b> of <b>${e.total}</b> done</div>
-        <div class="xh-flow">${esc(toGo)}</div>
+        <div class="xrow"><span class="status-pill inprog">In progress</span></div>
+        <div class="xh-flow">${line}</div>
       </div>
+      <span class="xstrip-chev">${icon('chevron', 16)}</span>
     </div>
   </section>`;
 }
@@ -352,7 +395,7 @@ const grow = (i, { hidePill, chev, checkIcon } = {}) => `<div class="xg-row" dat
 function hydroNow(h) {
   const pct = Math.min(100, Math.round(((h.oz || 0) / 120) * 100));
   return `<section class="xnow hyd-now">
-    <div class="xlab"><span class="xl">NOW</span><span class="xpill gold">Optional</span></div>
+    <div class="xlab"><span class="xl">NOW</span><span class="note">Optional</span></div>
     <div class="xmain">
       <div class="xico gold">${icon('droplet', 21)}</div>
       <div><div class="xt">Hydration</div><div class="xwhy" id="hyd-sub">${esc(h.sub)}</div></div>
@@ -425,7 +468,7 @@ function firstActionCard(n) {
   const label = isCheck ? `Mark ${esc(n.title)} done` : `${VERB[n.proof]} ${esc(n.title)}`;
   const ctaIcon = isCheck ? 'check' : CTA_ICON[n.proof];
   return `<section class="xnow">
-    <div class="xlab"><span class="xl">NOW</span><span class="xpill gold">Start here</span></div>
+    <div class="xlab"><span class="xl">NOW</span><span class="note">Start here</span></div>
     <div class="xmain"><div class="xico gold">${icon(n.icon, 21)}</div>
       <div><div class="xt">${esc(n.title)}</div><div class="xwhy">Your score starts moving with your first log. ${whyHtml(n.why)}</div></div></div>
     <div style="height:10px"></div>
@@ -490,7 +533,7 @@ export default {
       ${(!S.dayDecided && S.tier.cls === 'r') ? inProgressHero(e) : hero(e)}
       ${syncBanner()}
       <section class="xnow">
-        <div class="xlab"><span class="xl">NOW</span><span class="xpill gold">Start here</span></div>
+        <div class="xlab"><span class="xl">NOW</span><span class="note">Start here</span></div>
         <div class="xmain"><div class="xico gold">${icon('camera', 21)}</div>
         <div><div class="xt">Log First Meal</div><div class="xwhy">Your score starts moving with your first log. <b>Nutrition · ${liveWeightPct('nutrition')}% of score.</b></div></div></div>
         <div style="height:10px"></div>
@@ -557,6 +600,7 @@ export default {
     ${outcomeBand()}
     <div id="seen-row"></div>
     <div id="vc-slot"></div>
+    <div id="cs-slot"></div>
     ${attention}
     <div id="cv-nudge">${cachedNudge(e)}</div>
     ${e.overdue.filter((o) => o.id !== (e.now && e.now.id) && o.id !== (e.next && e.next.id)).map(row).join('')}
@@ -575,6 +619,10 @@ export default {
     // slow network never delays the score hero — the same seam #seen-row uses. An athlete with no
     // coach-scheduled commitments has an empty slot and Home is byte-identical to before.
     paintCommitments(root);
+    // Connected Standards (0155): same async seam. An athlete with no activity standards — which
+    // is everyone until a coach sets one or the feature is switched on — has an empty slot and
+    // Home is byte-identical to before.
+    paintStandards(root);
     // Coach Voice nudge: best-effort, fire-and-forget over today's deterministic exec state.
     maybeCoachNudge(S.exec);
     // Resolve today's stored meal photos (signed URLs) so Recent Results shows the real
