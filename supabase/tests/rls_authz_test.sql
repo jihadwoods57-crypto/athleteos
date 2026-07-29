@@ -2203,6 +2203,272 @@ begin
   raise notice 'PASS: rollcall_digest is not callable by authenticated';
 end $$;
 
+-- ================================================================ connected standards (0155)
+-- The promises this feature makes, probed as adversarially as the rest of the suite: no athlete
+-- reads another's activity, no coach reads a raw health stream, no client fakes a step count, a
+-- minor's data stays shut until a guardian opens it, and nothing but an attributable staff act
+-- can write 'missed'.
+select _superuser();
+select set_config('request.jwt.claim.sub', '', false);
+
+-- A dedicated cast. Section 8 above REVOKES the seed parent's guardianship (to prove revocation
+-- cuts access immediately), so reusing parent P and minor M here would test nothing — the
+-- guardian probes below would fail for the wrong reason.
+insert into auth.users (id, email) values
+  ('aaff0000-0000-0000-0000-0000000000f1','cs1@x.io'),
+  ('aaff0000-0000-0000-0000-0000000000f2','cs2@x.io'),
+  ('aaff0000-0000-0000-0000-0000000000f3','csminor@x.io'),
+  ('aaff0000-0000-0000-0000-0000000000f4','csparent@x.io');
+insert into profiles (id, full_name, email, primary_role) values
+  ('aaff0000-0000-0000-0000-0000000000f1','CS Athlete One','cs1@x.io','athlete'),
+  ('aaff0000-0000-0000-0000-0000000000f2','CS Athlete Two','cs2@x.io','athlete'),
+  ('aaff0000-0000-0000-0000-0000000000f3','CS Minor','csminor@x.io','athlete'),
+  ('aaff0000-0000-0000-0000-0000000000f4','CS Parent','csparent@x.io','parent')
+on conflict (id) do update set full_name = excluded.full_name, email = excluded.email;
+insert into athlete_profiles (athlete_id, base_age, sport) values
+  ('aaff0000-0000-0000-0000-0000000000f1', 20, 'football'),
+  ('aaff0000-0000-0000-0000-0000000000f2', 20, 'football'),
+  ('aaff0000-0000-0000-0000-0000000000f3', 15, 'football')
+on conflict (athlete_id) do update set base_age = excluded.base_age;
+insert into team_members (team_id, athlete_id, status) values
+  ('77777777-1111-0000-0000-000000000001','aaff0000-0000-0000-0000-0000000000f1','active'),
+  ('77777777-1111-0000-0000-000000000001','aaff0000-0000-0000-0000-0000000000f2','active')
+on conflict (team_id, athlete_id) do update set status = 'active';
+insert into guardianships (athlete_id, guardian_id, relationship, status)
+values ('aaff0000-0000-0000-0000-0000000000f3','aaff0000-0000-0000-0000-0000000000f4','parent','active')
+on conflict do nothing;
+
+-- ⚠ FAIL CLOSED. 0155 seeds the flag OFF, deliberately unlike vc_enabled (0141), which fails
+-- open. An un-seeded or freshly restored database must not start reading health data, so the
+-- very first probe is that the feature refuses to author itself while switched off.
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select upsert_connected_standard(jsonb_build_object(
+    'team_id','77777777-1111-0000-0000-000000000001',
+    'title','Too Early','metric','steps','target_value',10000,'display_unit','steps',
+    'period','day','audience_kind','team')) $f$) <> 'ok',
+  'cs: authoring is refused while the feature flag is off (fails CLOSED)');
+
+select _superuser();
+update feature_flags set default_on = true where name = 'connected_standards';
+
+-- coach_1 sets a team-wide movement standard. The id is passed explicitly so later probes can
+-- name it without capturing a return value across a role switch.
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select upsert_connected_standard(jsonb_build_object(
+    'id','cccc5555-0000-0000-0000-0000000000c1',
+    'team_id','77777777-1111-0000-0000-000000000001',
+    'title','Daily Movement','metric','steps','target_value',10000,'display_unit','steps',
+    'period','day','audience_kind','team',
+    'repeat_days', jsonb_build_array(0,1,2,3,4,5,6))) $f$) = 'ok',
+  'cs: head coach can set a connected standard for their own team');
+
+select _as('22222222-0000-0000-0000-000000000002');
+select _ok(_try($f$ select upsert_connected_standard(jsonb_build_object(
+    'team_id','77777777-1111-0000-0000-000000000001',
+    'title','Not yours','metric','steps','target_value',5000,'display_unit','steps',
+    'period','day','audience_kind','team')) $f$) <> 'ok',
+  'cs: a stranger coach cannot set a standard on another team');
+
+-- materialize today, twice: the second call must not duplicate anything
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select ensure_connected_standard_instances(
+    '77777777-1111-0000-0000-000000000001', null, current_date, current_date) $f$) = 'ok',
+  'cs: staff can materialize instances');
+select _try($f$ select ensure_connected_standard_instances(
+    '77777777-1111-0000-0000-000000000001', null, current_date, current_date) $f$);
+
+select _superuser();
+select _ok((select count(*) from connected_standard_instances
+             where standard_id = 'cccc5555-0000-0000-0000-0000000000c1') = 1,
+  'cs: re-materializing the same window creates no duplicate instance');
+select _ok((select count(*) from connected_standard_results r
+              join connected_standard_instances i on i.id = r.instance_id
+             where i.standard_id = 'cccc5555-0000-0000-0000-0000000000c1')
+           = (select count(*) from team_members
+               where team_id = '77777777-1111-0000-0000-000000000001' and status = 'active'),
+  'cs: one result row seeded per active team member');
+
+-- ⚠ THE CONSENT GATE. Device-sourced progress requires health consent, and an athlete who has
+-- not granted it is refused even for their own row.
+select _as('aaff0000-0000-0000-0000-0000000000f1');
+select _ok(_try($f$ select submit_activity_progress(
+    (select id from connected_standard_instances
+      where standard_id = 'cccc5555-0000-0000-0000-0000000000c1'), 5000, now(), 'healthkit') $f$) <> 'ok',
+  'cs: device progress is refused before health consent is granted');
+
+select _ok(_try($f$ select grant_health_consent('aaff0000-0000-0000-0000-0000000000f1','self') $f$) = 'ok',
+  'cs: an adult athlete can grant their own health consent');
+select _ok(_try($f$ select grant_health_consent('aaff0000-0000-0000-0000-0000000000f2','self') $f$) <> 'ok',
+  'cs: an athlete cannot grant consent on behalf of a teammate');
+
+-- under target: still in progress, and the SERVER decides that, not the client
+select _ok(_try($f$ select submit_activity_progress(
+    (select id from connected_standard_instances
+      where standard_id = 'cccc5555-0000-0000-0000-0000000000c1'), 7842, now(), 'healthkit') $f$) = 'ok',
+  'cs: an athlete can post their own progress once consent exists');
+select _superuser();
+select _ok((select r.status = 'in_progress' and r.progress_value = 7842
+              from connected_standard_results r join connected_standard_instances i on i.id = r.instance_id
+             where i.standard_id = 'cccc5555-0000-0000-0000-0000000000c1'
+               and r.athlete_id = 'aaff0000-0000-0000-0000-0000000000f1'),
+  'cs: progress below the target does not verify anything');
+
+-- crossing the target verifies without anyone tapping a button
+select _as('aaff0000-0000-0000-0000-0000000000f1');
+select _try($f$ select submit_activity_progress(
+    (select id from connected_standard_instances
+      where standard_id = 'cccc5555-0000-0000-0000-0000000000c1'), 10326, now(), 'healthkit') $f$);
+select _superuser();
+select _ok((select r.status = 'verified_complete' and r.verified_source = 'healthkit'
+              and r.completed_at is not null
+              from connected_standard_results r join connected_standard_instances i on i.id = r.instance_id
+             where i.standard_id = 'cccc5555-0000-0000-0000-0000000000c1'
+               and r.athlete_id = 'aaff0000-0000-0000-0000-0000000000f1'),
+  'cs: reaching the target verifies the standard automatically');
+
+-- a stale background wake must never walk a total backwards
+select _as('aaff0000-0000-0000-0000-0000000000f1');
+select _try($f$ select submit_activity_progress(
+    (select id from connected_standard_instances
+      where standard_id = 'cccc5555-0000-0000-0000-0000000000c1'), 300,
+    now() - interval '6 hours', 'healthkit') $f$);
+select _superuser();
+select _ok((select r.progress_value = 10326 and r.status = 'verified_complete'
+              from connected_standard_results r join connected_standard_instances i on i.id = r.instance_id
+             where i.standard_id = 'cccc5555-0000-0000-0000-0000000000c1'
+               and r.athlete_id = 'aaff0000-0000-0000-0000-0000000000f1'),
+  'cs: an out-of-order sync cannot reduce a verified total');
+
+-- ⚠ the grants probe. RLS alone would not catch a missing grant, and a stray write grant would
+-- let an athlete type their own step count straight into the table.
+select _as('aaff0000-0000-0000-0000-0000000000f2');
+select _ok(_try($f$ update connected_standard_results set progress_value = 99999,
+      status = 'verified_complete'
+    where athlete_id = 'aaff0000-0000-0000-0000-0000000000f2' $f$) <> 'ok',
+  'cs: an athlete cannot write their own progress directly (writes are RPC-only)');
+select _ok(_try($f$ update connected_standards set target_value = 1
+    where id = 'cccc5555-0000-0000-0000-0000000000c1' $f$) <> 'ok',
+  'cs: an athlete cannot lower the coach''s target');
+select _ok(_try($f$ insert into health_share_consent (athlete_id, kind, granted_by)
+    values ('aaff0000-0000-0000-0000-0000000000f2','guardian',
+            'aaff0000-0000-0000-0000-0000000000f2') $f$) <> 'ok',
+  'cs: an athlete cannot forge a guardian consent row');
+
+-- NO PUBLIC LIST: a teammate under the SAME standard still cannot read another athlete's row.
+select _ok((select count(*) from connected_standard_results
+             where athlete_id = 'aaff0000-0000-0000-0000-0000000000f1') = 0,
+  'cs: a teammate cannot read another athlete''s activity result (no leaderboard)');
+select _ok((select count(*) from health_share_consent
+             where athlete_id = 'aaff0000-0000-0000-0000-0000000000f1') = 0,
+  'cs: a teammate cannot read whether someone else shared health data');
+
+-- ⚠ ONLY STAFF WRITE 'missed'. Not the device, not a teammate, not the athlete themselves.
+select _ok(_try($f$ select staff_set_activity_result(
+    (select r.id from connected_standard_results r
+       join connected_standard_instances i on i.id = r.instance_id
+      where i.standard_id = 'cccc5555-0000-0000-0000-0000000000c1'
+        and r.athlete_id = 'aaff0000-0000-0000-0000-0000000000f1'), 'missed') $f$) <> 'ok',
+  'cs: an athlete cannot mark a teammate missed');
+
+-- the athlete's own recourse is a dispute, which FLAGS and never rewrites
+select _as('aaff0000-0000-0000-0000-0000000000f1');
+select _ok(_try($f$ select dispute_activity_result(
+    (select r.id from connected_standard_results r
+       join connected_standard_instances i on i.id = r.instance_id
+      where i.standard_id = 'cccc5555-0000-0000-0000-0000000000c1'
+        and r.athlete_id = 'aaff0000-0000-0000-0000-0000000000f1'), 'my watch was charging') $f$) = 'ok',
+  'cs: an athlete can dispute their own result');
+select _superuser();
+select _ok((select r.disputed_at is not null and r.status = 'verified_complete'
+              from connected_standard_results r join connected_standard_instances i on i.id = r.instance_id
+             where i.standard_id = 'cccc5555-0000-0000-0000-0000000000c1'
+               and r.athlete_id = 'aaff0000-0000-0000-0000-0000000000f1'),
+  'cs: a dispute flags the row and leaves the verdict alone');
+
+-- a staff correction is ALWAYS attributed
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select staff_set_activity_result(
+    (select r.id from connected_standard_results r
+       join connected_standard_instances i on i.id = r.instance_id
+      where i.standard_id = 'cccc5555-0000-0000-0000-0000000000c1'
+        and r.athlete_id = 'aaff0000-0000-0000-0000-0000000000f2'), 'excused', 'team travel') $f$) = 'ok',
+  'cs: staff can excuse an athlete');
+select _superuser();
+select _ok((select r.corrected_by = '11111111-0000-0000-0000-000000000001'
+              and r.excused_by = '11111111-0000-0000-0000-000000000001'
+              and r.excused_at is not null
+              from connected_standard_results r join connected_standard_instances i on i.id = r.instance_id
+             where i.standard_id = 'cccc5555-0000-0000-0000-0000000000c1'
+               and r.athlete_id = 'aaff0000-0000-0000-0000-0000000000f2'),
+  'cs: every staff correction carries a name and a timestamp');
+
+-- ⚠ MINORS FAIL CLOSED. The CS minor is 15 with an active guardian. They cannot open the gate
+-- alone: a 15-year-old tapping "yes" is not consent to read their health data.
+select _as('aaff0000-0000-0000-0000-0000000000f3');
+select _ok(_try($f$ select grant_health_consent('aaff0000-0000-0000-0000-0000000000f3','self') $f$) <> 'ok',
+  'cs: a minor cannot self-authorize health data sharing');
+select _superuser();
+select _ok(has_health_consent('aaff0000-0000-0000-0000-0000000000f3') = false,
+  'cs: a minor without guardian consent has no health consent');
+select _as('99999999-0000-0000-0000-000000000009');
+select _ok(_try($f$ select grant_health_consent('aaff0000-0000-0000-0000-0000000000f3','guardian') $f$) <> 'ok',
+  'cs: a stranger cannot grant guardian consent for someone else''s child');
+select _as('aaff0000-0000-0000-0000-0000000000f4');
+select _ok(_try($f$ select grant_health_consent('aaff0000-0000-0000-0000-0000000000f3','guardian') $f$) = 'ok',
+  'cs: a verified guardian can grant consent for their minor');
+select _superuser();
+select _ok(has_health_consent('aaff0000-0000-0000-0000-0000000000f3') = true,
+  'cs: guardian consent opens the gate for a minor');
+
+-- consent is revocable by the athlete, without asking a coach
+select _as('aaff0000-0000-0000-0000-0000000000f1');
+select _ok(_try($f$ select revoke_health_consent('aaff0000-0000-0000-0000-0000000000f1') $f$) = 'ok',
+  'cs: an athlete can revoke their own health consent');
+select _superuser();
+select _ok(has_health_consent('aaff0000-0000-0000-0000-0000000000f1') = false,
+  'cs: revocation takes effect immediately');
+
+-- ⚠ THE MANUAL PATH NEEDS NO HEALTH CONSENT. Attesting to your own effort reads no health data,
+-- which is what makes this feature usable by an athlete with no wearable at all.
+select _as('aaff0000-0000-0000-0000-0000000000f1');
+select _ok(_try($f$ select submit_manual_activity(
+    (select id from connected_standard_instances
+      where standard_id = 'cccc5555-0000-0000-0000-0000000000c1'), 'walked it, watch was dead') $f$) = 'ok',
+  'cs: manual completion works with no health consent and no device');
+
+-- ⚠ THE COACH BOARD IS PRIVACY-MINIMAL. It reports a percentage of the target the coach set,
+-- and is structurally incapable of returning a raw step count.
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok((select connected_standard_board(
+    '77777777-1111-0000-0000-000000000001', null, current_date)::text) like '%progress_pct%',
+  'cs: the coach board reports progress as a percentage of the target');
+select _ok((select connected_standard_board(
+    '77777777-1111-0000-0000-000000000001', null, current_date)::text) not like '%"progress":%',
+  'cs: the coach board never carries a raw activity value');
+
+select _as('22222222-0000-0000-0000-000000000002');
+select _ok((select jsonb_array_length(connected_standard_board(
+    '77777777-1111-0000-0000-000000000001', null, current_date)) = 0),
+  'cs: a stranger coach reads an empty board for another team');
+
+-- a personal standard belongs to the athlete alone: their coach never sees it
+select _as('aaff0000-0000-0000-0000-0000000000f2');
+select _ok(_try($f$ select upsert_connected_standard(jsonb_build_object(
+    'id','cccc5555-0000-0000-0000-0000000000c2',
+    'owner_athlete','aaff0000-0000-0000-0000-0000000000f2',
+    'title','My Own Miles','metric','distance','target_value',19312,'display_unit','mi',
+    'period','week','audience_kind','self')) $f$) = 'ok',
+  'cs: a solo athlete can set a personal standard for themselves');
+select _ok(_try($f$ select upsert_connected_standard(jsonb_build_object(
+    'owner_athlete','aaff0000-0000-0000-0000-0000000000f1',
+    'title','Yours now','metric','steps','target_value',5000,'display_unit','steps',
+    'period','day','audience_kind','self')) $f$) <> 'ok',
+  'cs: an athlete cannot set a personal standard on someone else');
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok((select count(*) from connected_standards
+             where id = 'cccc5555-0000-0000-0000-0000000000c2') = 0,
+  'cs: a coach cannot read an athlete''s personal standard');
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$
