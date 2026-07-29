@@ -81,6 +81,21 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
   const THREAD_MEAL = 'meal-seed-lunch';
   const tAt = (h, m) => TODAY + 'T' + String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':00Z';
   const MEAL_THREAD = [
+    // A ROSTER athlete's meal, ending athlete-question -> AI-answer. This is the exact sequence
+    // the group chat produces on every question, and the one that silently empties the coach's
+    // "needs response" queue if the inbox ever counts the AI as having spoken last. The seeded
+    // conversation above belongs to the signed-in athlete, who is not on the coach's roster, so
+    // without these two rows the coach inbox was never exercised with a real thread at all.
+    {
+      id: 'mc-r1', meal_id: 'meal-1', athlete_id: 'ath-1', author_id: 'ath-1',
+      role: 'athlete', kind: 'message', created_at: tAt(12, 40),
+      text: 'Is this enough before practice or should I add something?',
+    },
+    {
+      id: 'mc-r2', meal_id: 'meal-1', athlete_id: 'ath-1', author_id: 'ath-1',
+      role: 'ai', kind: 'message', created_at: tAt(12, 41),
+      text: 'It will hold you for a two hour session. If you are lifting after, a banana on the way out covers the gap.',
+    },
     // Yesterday's dinner, so the meal screen's "Earlier" continuity line and the stitched
     // stream's multi-meal ordering are both exercised rather than assumed.
     {
