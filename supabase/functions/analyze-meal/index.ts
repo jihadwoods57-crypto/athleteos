@@ -34,6 +34,7 @@ import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 import { validMealInput, rejectionOutcome } from '../_shared/meal-report.ts';
+import { composeOpenerText } from '../_shared/meal-opener.ts';
 import { buildVoiceDirective, violatesProhibited, type VoiceConfig } from '../_shared/coach-voice.ts';
 import { loadVoiceForAthlete as loadVoice } from '../_shared/coach-voice-load.ts';
 import { flagOn } from '../_shared/feature-flags.ts';
@@ -288,6 +289,10 @@ interface AnalyzeReq {
    *  protein logged so far today, the athlete's real daily target, required meals remaining.
    *  Pure clamped numbers; the model may connect THIS meal to the day but never invent numbers. */
   dayContext?: { proteinSoFar?: number; proteinTarget?: number; mealsRemaining?: number };
+  /** The meals row this read belongs to. Present once the meal has been logged (the optimistic
+   *  path inserts the row before the analysis runs), and it is what lets the finished read be
+   *  posted into the athlete's thread as a real message. Absent = analyze only, post nothing. */
+  mealId?: string;
   /** The athlete's review-step note: what the camera can't see (oil, sauce, refills). */
   athleteNote?: string;
 }
@@ -709,6 +714,65 @@ function classifyVerifyOutcomeServer(first: { kcal?: number; protein?: number },
   if (moved(first.kcal, second.kcal)) return 'macros_moved';
   if (moved(first.protein, second.protein)) return 'macros_moved';
   return 'no_change';
+}
+
+/**
+ * Post the finished read into the athlete's meal thread as a real AI message.
+ *
+ * Ownership is proved with the CALLER's token before the service role writes anything: a
+ * service-role insert keyed on a mealId from the request body would let anyone who can call this
+ * function put words in the AI's mouth on someone else's meal. The user-scoped select can only
+ * see meals RLS already allows, and we additionally require that the caller owns it.
+ *
+ * Idempotent. The analysis can legitimately run more than once for one meal (a retry, a finalize
+ * after clarifying questions, an athlete-triggered re-read), and each of those must not stack
+ * another opener onto the thread.
+ *
+ * Every failure here is swallowed. The athlete is waiting on their macros; a thread write that
+ * did not land is a missing bubble, not a failed meal.
+ */
+async function postOpener(
+  mealId: string,
+  userId: string,
+  read: Record<string, unknown>,
+  planStyle: PlanStyle | null,
+  req: AnalyzeReq,
+  authHeader: string,
+): Promise<void> {
+  try {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) return;
+    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: mealRow } = await userClient.from('meals').select('id, athlete_id').eq('id', mealId).maybeSingle();
+    if (!mealRow || mealRow.athlete_id !== userId) return;
+
+    const service = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { count } = await service.from('meal_comments')
+      .select('id', { count: 'exact', head: true })
+      .eq('meal_id', mealId).eq('role', 'ai').eq('meta->>t', 'analysis');
+    if (count && count > 0) return;   // this plate has already been read into the thread
+
+    const t = req.timing;
+    const late = t && typeof t.minutesLate === 'number' ? t.minutesLate > 0
+      : t && typeof t.minutesLeft === 'number' ? false
+      : null;
+    const text = composeOpenerText(read, {
+      planStyle,
+      late,
+      mealName: req.mealType ?? null,
+      day: req.dayContext ?? null,
+      goal: req.goal ?? null,
+    });
+    if (!text) return;   // nothing honest to say — an empty bubble is worse than no bubble
+
+    await service.from('meal_comments').insert({
+      meal_id: mealId, athlete_id: userId, author_id: userId,
+      role: 'ai', kind: 'message', text, meta: { t: 'analysis' },
+    });
+  } catch (e) {
+    console.error('analyze-meal opener post failed:', e);
+  }
 }
 
 Deno.serve(async (request) => {
@@ -1173,6 +1237,19 @@ ${memBlock}`;
         }
       }
       const grounded = groundMacros(input) as Record<string, unknown>;
+
+      // POST THE READ INTO THE THREAD. The AI's analysis used to be derived on the client and
+      // never written down, which is why the thread had nothing to reply to and a coach could not
+      // scroll back through what the athlete was told. Now it is a real message.
+      //
+      // Server-side and service-role because clients may never write role='ai' (0046) — that
+      // boundary is the only reason an AI bubble can be trusted. Fire-and-forget: a thread write
+      // must never be able to fail an analysis the athlete is waiting on.
+      const openerMealId = typeof req.mealId === 'string' ? req.mealId.trim() : '';
+      if (openerMealId && userId) {
+        void postOpener(openerMealId, userId, grounded, styleApplied ?? planStyle, req, request.headers.get('authorization') ?? '');
+      }
+
       // Stamp the style this prose was actually written for. The client trusts its own resolved
       // style over this, but uses the stamp to know whether server prose is safe to SHOW: an old
       // deploy (no stamp) means the client keeps suppressing, so a stale function can never leak.

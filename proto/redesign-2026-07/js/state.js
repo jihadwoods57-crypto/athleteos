@@ -852,6 +852,10 @@ export const act = {
     return {
       mode: 'meal', mealType: job.mealType || cap(job.slot), goal: RT.primaryGoal || null,
       photoBase64: job.base64, ...(timing ? { timing } : {}),
+      // The thread this read belongs to. The meals row is inserted before the analysis runs, so
+      // by the time a job is drained it has one — that is what lets the finished read be posted
+      // into the athlete's conversation instead of being derived and forgotten.
+      ...(job.mealId ? { mealId: job.mealId } : {}),
       dayContext: {
         proteinSoFar: Math.max(0, Math.min(500, dp.proteinSoFar)),
         proteinTarget: Math.max(0, Math.min(500, dp.proteinTarget)),
