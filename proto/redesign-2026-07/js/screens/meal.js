@@ -617,6 +617,14 @@ export const thread = {
       ['Calories', M.macros.cals, T.calories, ''],
     ].filter(([, , target]) => target);
     const corrLog = (M.corrections || []).length;
+    // THE EMPTY READ. A settled photo meal whose every macro is zero isn't a light meal — it's a
+    // read that came back with nothing in it (the truncated-report bug, now fixed at the source,
+    // but these meals are already in people's days). Correction chips are useless here, because
+    // every rule scales or nudges the stored numbers and all of those are zero. The only honest
+    // move is to offer the read again.
+    const emptyRead = settled && fromPhoto
+      && !M.macros.protein && !M.macros.carbs && !M.macros.fat && !M.macros.cals;
+    const rereadNote = `<div class="est-note" style="margin-top:8px">These numbers didn't land — the read came back empty, so nothing was measured.${M.mealId ? ` <span class="link" id="mt-reread" role="button">Re-read this meal</span>` : ''}${M.rereadError ? ` <b style="color:var(--text-2)">Couldn't fetch the photo just now — try again in a moment.</b>` : ''}</div>`;
 
     // INTUITIVE (0142): no macro or calorie figure reaches the athlete. The plate itself, what
     // was on it, and how it landed still do — the composition IS the feedback. Every number is
@@ -641,7 +649,8 @@ export const thread = {
     <div class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">What was on the plate</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></div>
     ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
     ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
-    <div class="est-note" style="margin-top:8px">Your plan tracks how food leaves you feeling rather than calorie and macro counts. Your ${esc(S.coach.noun)} can still see the full numbers.</div>` : `
+    <div class="est-note" style="margin-top:8px">Your plan tracks how food leaves you feeling rather than calorie and macro counts. Your ${esc(S.coach.noun)} can still see the full numbers.</div>
+    ${emptyRead ? rereadNote : ''}` : `
     <div class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">Meal Breakdown</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></div>
     ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
     <div class="macro-row five" style="margin-top:10px">
@@ -661,7 +670,7 @@ export const thread = {
     </section>` : `<div class="est-note">No coach targets set yet, so there's nothing to measure against. These are this meal's totals.</div>`}
     ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
     ${corrLog ? `<div class="est-note" style="margin-top:8px;color:var(--blue-bright)"><b style="color:var(--blue-bright)">Corrected by you</b> — ${corrLog} correction${corrLog === 1 ? '' : 's'} applied. The AI's original estimate is kept for reference${M.orig ? ` (was ~${M.orig.protein}g protein · ~${M.orig.kcal} cal)` : ''}.</div>` : ''}
-    ${fromPhoto ? `<div class="est-note">Estimated from the photo · cooking oil or sauce may change these numbers.${M.mealId ? ` <span class="link" id="open-correct" role="button">Something off? Correct the analysis</span>` : ''}</div>` : ''}
+    ${emptyRead ? rereadNote : fromPhoto ? `<div class="est-note">Estimated from the photo · cooking oil or sauce may change these numbers.${M.mealId ? ` <span class="link" id="open-correct" role="button">Something off? Correct the analysis</span>` : ''}</div>` : ''}
 
     <!-- Correct analysis (upgrade 2026-07-16): fix what the photo can't show; every chip is a
          deterministic, estimated adjustment with an audit trail — hidden until opened. -->
@@ -740,7 +749,7 @@ export const thread = {
     ${M.mealId ? `
     <div class="qa-row">
       <button class="qa" data-qa="">Ask a question</button>
-      ${settled ? `<button class="qa" id="qa-correct">Correct analysis</button>
+      ${settled && !emptyRead ? `<button class="qa" id="qa-correct">Correct analysis</button>
       <button class="qa" id="qa-details">Add meal details</button>` : ''}
     </div>
     ${composer({ inputId: 'meal-msg', sendId: 'meal-send', placeholder: 'Ask about this meal…', sendLabel: 'Send' })}
@@ -1030,9 +1039,11 @@ export const thread = {
         void act.confirmMemoryFact(id, fx.getAttribute('data-keep') === '1');
         return;
       }
-      const t = ev.target && ev.target.closest ? ev.target.closest('#mq-thread-go, #mq-thread-skip, #mt-retry-analysis') : null;
+      const t = ev.target && ev.target.closest ? ev.target.closest('#mq-thread-go, #mq-thread-skip, #mt-retry-analysis, #mt-reread') : null;
       if (!t) return;
       if (t.id === 'mt-retry-analysis') { act.retryAnalysis(M.slot); return; }
+      // A meal that settled at zero: put it back in the queue for another read.
+      if (t.id === 'mt-reread') { t.textContent = 'Reading the plate…'; void act.rereadMeal(M.slot); return; }
       if (t.id === 'mq-thread-skip') { act.skipPendingQuestions(M.slot); return; }
       const answers = [];
       root.querySelectorAll('#mq-bubble .mq-input').forEach((el) => { answers[+el.dataset.qi] = el.value; });

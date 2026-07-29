@@ -51,6 +51,7 @@ export const EVENTS = Object.freeze({
   MEAL_DUP_BLOCKED: 'meal_dup_blocked',       // {stage:'precheck'|'insert'} — reuse attempt caught
   MEAL_STALE_PHOTO: 'meal_stale_photo',       // {slot} — gallery pick with an old EXIF capture time
   MEAL_CORRECTED: 'meal_corrected',           // {kind} — athlete fixed what the photo couldn't show
+  MEAL_REREAD: 'meal_reread',                 // {slot, source} — a meal that settled at ~0g sent back for a re-read
   COMMITMENT_SET: 'commitment_set',           // {answer}
   RECOVERY_SUBMITTED: 'recovery_submitted',
   CHECKIN_SUBMITTED: 'checkin_submitted',

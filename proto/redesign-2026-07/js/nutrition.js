@@ -249,6 +249,37 @@ export function groundMealTotals(estimate, detectedNames) {
 }
 
 /**
+ * Did the read actually land? — the last line of defence before a meal is marked settled.
+ *
+ * The analyzer now rejects a truncated report server-side (see _shared/meal-report.ts), but this
+ * client has to survive an older deploy, a verify payload, and its own grounding: a plate whose
+ * every macro is zero is not a meal that happens to be empty, it is a read that never happened.
+ * Landing one clears `pending`, and from that moment the athlete is stuck — the screen shows
+ * "~0g protein - high confidence" and corrections only ever scale zero by another number.
+ *
+ * So: refuse it, and let the caller fall into the failure path that offers "Read it again".
+ * Label and manual entries are exempt — those numbers came from the athlete, not a model.
+ */
+export function isCompleteMealResult(r) {
+  if (!r || typeof r !== 'object') return false;
+  if (r.source === 'label' || r.source === 'manual') return true;
+  let sum = 0;
+  for (const k of ['protein', 'kcal', 'carbs', 'fat']) {
+    const v = r[k];
+    if (v === null || v === undefined || v === '' || typeof v === 'boolean') return false;
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0) return false;
+    sum += n;
+  }
+  if (sum <= 0) return false;
+  // Grounding keeps the model's food list under `detectedRich`; the raw wire shape calls it
+  // `detected`. Either satisfies this — what matters is that SOMETHING was identified.
+  const foods = Array.isArray(r.detectedRich) && r.detectedRich.length ? r.detectedRich
+    : Array.isArray(r.detected) ? r.detected : [];
+  return foods.length > 0;
+}
+
+/**
  * The detected foods the curated table CAN'T ground (no matchFood hit) — the "gap" foods
  * (branded products, restaurant plates) whose macros ride through on the AI's raw estimate.
  * Post-log enrichment (enrich-meal) resolves exactly these against USDA/OFF to warm the learned

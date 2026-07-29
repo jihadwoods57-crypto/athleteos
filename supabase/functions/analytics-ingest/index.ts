@@ -39,6 +39,9 @@ const ALLOWED = new Set([
   "meal_score_delta", "meal_text_conflict",
   // Quality metrics (item 8b, 2026-07-21) — correction-rate signal; counts-only, no macros/text.
   "meal_corrected",
+  // The ~0g rescue (2026-07-28). How often a meal settled with no macros in it — the truncated-read
+  // bug is fixed at the source, so a rising count here means a NEW way for a read to come back empty.
+  "meal_reread",
   // Meal-logging edge signals (2026-07-21) — gallery usage, duplicate-photo blocks, stale EXIF.
   "meal_gallery_logged", "meal_dup_blocked", "meal_stale_photo",
   // Verified Commitments (0138–0141, shipped 2026-07-23). Without these the whole VC funnel —

@@ -32,9 +32,9 @@ import {
   groundExtras, buildClarifications, analysisTiming, applyMealCorrection, classifyMealEvent, restrictionConflicts,
   mealQualityScore, qualityBand, qualityReason, analysisAgreesWithBand, stripFoodMentions, shouldVerify,
 } from './meal-intel.js';
-import { groundMealFromFoods, groundMealTotals, gapFoods } from './nutrition.js';
+import { groundMealFromFoods, groundMealTotals, gapFoods, isCompleteMealResult } from './nutrition.js';
 import { explainCategories, reachPlan as modelReachPlan, maxPossibleScore, mealMaxGain } from './breakdown-model.js';
-import { cachedMealPhoto, todayMealPhotoPath, invalidateMealPhoto } from './photo-store.js';
+import { cachedMealPhoto, todayMealPhotoPath, invalidateMealPhoto, resolveMealPhoto } from './photo-store.js';
 import { base64ToBytes, sha256Hex, photoAgeMinutes } from './photo-hash.js';
 import {
   fetchMyPracticeIdentity, fetchMyTeamIdentity, fetchMyCoach, fetchMyTrainer, fetchMyConsent,
@@ -439,6 +439,7 @@ export function mealDetail(slot) {
     pending: !!meta.pending,
     pendingQuestions: Array.isArray(meta.pendingQuestions) ? meta.pendingQuestions : null,
     analysisFailed: meta.analysisFailed || null,
+    rereadError: meta.rereadError || null, // the re-read couldn't fetch the photo back from storage
     mealId: meta.mealId || null, // real meals.id → powers the coach↔athlete comment thread
     fiber: meta.fiber || 0,
     highlights: Array.isArray(meta.highlights) ? meta.highlights : [],
@@ -896,6 +897,10 @@ export const act = {
       }
       if (data && data.kind === 'result') {
         MEAL.result = groundResult(data);
+        // An empty read is not a result. Landing one clears `pending` and leaves the athlete with
+        // a permanently ~0g meal, so treat it exactly like a failed call: retry, then offer
+        // "Read it again". (An older deploy can still return one; the server now 502s instead.)
+        if (!isCompleteMealResult(MEAL.result)) { MEAL.result = null; return fail('unreadable'); }
         await this._maybeVerify();                       // same client + server verify budget
         this.applyAnalysisResult(job.slot, MEAL.result, job.photoHash);
         updateJob(job.k, { needAnalysis: false, pendingQuestions: null });
@@ -915,7 +920,9 @@ export const act = {
    * Three guards, all required:
    *   1. the slot must still be pending (never overwrite a settled meal),
    *   2. the result must come from THIS photo (kills the offline-relog / stale-photo race),
-   *   3. never land on a slot the athlete has already corrected.
+   *   3. never land on a slot the athlete has already corrected,
+   *   4. and the read must actually carry numbers — an empty one would settle the slot at ~0g
+   *      forever, which no correction can undo.
    */
   applyAnalysisResult(slot, r, photoHash) {
     const cur = DAY.slotMacros[slot] || {};
@@ -923,6 +930,7 @@ export const act = {
     if (photoHash && cur.pendingHash && photoHash !== cur.pendingHash) return false;
     if (cur.orig || (Array.isArray(cur.corrections) && cur.corrections.length)) return false;
     if (!r) return false;
+    if (!isCompleteMealResult(r)) return false;
 
     const from = computeScore(componentsNow());
     const { pending, pendingHash, pendingQuestions, analysisFailed, ...keep } = cur;
@@ -975,6 +983,72 @@ export const act = {
     this._patchSlot(slot, { analysisFailed: null });
     window.__render && window.__render();
     void this.drainMealOutbox();
+  },
+
+  /**
+   * Rescue a meal that SETTLED at zero.
+   *
+   * Different problem from retryAnalysis, which recovers a read that openly failed. These meals
+   * look finished — the slot is settled, the screen says "high confidence" — and every macro is 0,
+   * because an older deploy accepted a truncated report. Nothing else can save them: a correction
+   * scales the stored numbers, and every scale of zero is zero.
+   *
+   * So this puts the slot back into `pending` and re-queues the read. Clearing `orig`/`corrections`
+   * is deliberate and safe: both describe adjustments made TO zeros, which is no information at
+   * all, and leaving them set would make applyAnalysisResult refuse to land the new read (guard 3).
+   */
+  async rereadMeal(slot) {
+    const cur = DAY.slotMacros[slot];
+    if (!cur || !DAY.meals[slot]) return false;
+    const job = readQueue().find((e) => e.slot === slot && e.uid === RT.userId && e.date === DAY.date);
+    track(EVENTS.MEAL_REREAD, { slot, source: job && job.base64 ? 'queued' : 'storage' });
+
+    const restage = (photoHash) => {
+      // Drop the settled numbers and the dead audit trail; put the slot back in the pending state
+      // the thread already knows how to render ("Reading the plate").
+      const { orig, corrections, analysisFailed, rereadError, ...keep } = cur;
+      DAY.slotMacros[slot] = { ...keep, pending: true, pendingHash: photoHash || null, protein: 0, kcal: 0, carbs: 0, fat: 0, fiber: 0 };
+      pushDay(RT.userId);
+      window.__render && window.__render();
+    };
+
+    if (job && job.base64) {
+      restage(job.photoHash);
+      updateJob(job.k, { needAnalysis: true, tries: 0, lastTryAt: 0, analysisFailed: null });
+      void this.drainMealOutbox();
+      return true;
+    }
+
+    // The queue only carries the two most recent photos (MAX_PHOTOS), so an older meal has to come
+    // back from storage. Fetch the uploaded object, re-encode it, and queue a fresh job.
+    try {
+      const path = todayMealPhotoPath(RT.userId, DAY.date, slot);
+      const url = path && await resolveMealPhoto(path);
+      if (!url) { this._patchSlot(slot, { rereadError: 'photo' }); window.__render && window.__render(); return false; }
+      const blob = await (await fetch(url)).blob();
+      const base64 = await new Promise((res, rej) => {
+        const fr = new FileReader();
+        fr.onload = () => res(String(fr.result || '').split(',')[1] || '');
+        fr.onerror = () => rej(new Error('read failed'));
+        fr.readAsDataURL(blob);
+      });
+      if (!base64) throw new Error('empty photo');
+      let photoHash = null;
+      try { photoHash = await sha256Hex(base64ToBytes(base64)); } catch { /* no WebCrypto — hash guard simply won't apply */ }
+      restage(photoHash);
+      putJob({
+        k: jobKey(RT.userId, DAY.date, slot), uid: RT.userId, date: DAY.date, slot,
+        mealType: cur.name || cap(slot), mealId: cur.mealId || null,
+        base64, photoHash, uploaded: true, needAnalysis: true, tries: 0, lastTryAt: 0,
+      });
+      void this.drainMealOutbox();
+      return true;
+    } catch {
+      // Nothing was changed — say so honestly rather than leaving the slot mid-restage.
+      this._patchSlot(slot, { rereadError: 'photo' });
+      window.__render && window.__render();
+      return false;
+    }
   },
 
   /* ---------------------------------------------------------------------------------------
@@ -1517,7 +1591,12 @@ export const act = {
         // Model asked but sent nothing usable — finalize straight through rather than dead-end.
         return this.finalizeAnalysis([]);
       }
-      if (data && data.kind === 'result') { MEAL.result = groundResult(data); save(); saveMeal(); await this._maybeVerify(); return { ok: true, kind: 'result' }; }
+      if (data && data.kind === 'result') {
+        const grounded = groundResult(data);
+        // Empty read: treat it as unreadable rather than staging a meal with no numbers in it.
+        if (!isCompleteMealResult(grounded)) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'unreadable' }); return { ok: false, error: 'Could not read that meal. Try another angle.' }; }
+        MEAL.result = grounded; save(); saveMeal(); await this._maybeVerify(); return { ok: true, kind: 'result' };
+      }
       track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'unreadable' });
       return { ok: false, error: 'Could not read that meal. Try another angle.' };
     } catch (e) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'exception' }); return { ok: false, error: 'Analysis failed. Retake and try again.' }; }
@@ -1532,7 +1611,11 @@ export const act = {
     try {
       const { data, error } = await sb.functions.invoke('analyze-meal', { body: { ...this._analysisBody(), phase: 'finalize', clarifications } });
       if (error) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'error' }); return { ok: false, error: 'Analysis failed. Check your connection and retake.' }; }
-      if (data && data.kind === 'result') { MEAL.result = groundResult(data); MEAL.questions = null; save(); saveMeal(); await this._maybeVerify(); return { ok: true, kind: 'result' }; }
+      if (data && data.kind === 'result') {
+        const grounded = groundResult(data);
+        if (!isCompleteMealResult(grounded)) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'unreadable' }); return { ok: false, error: 'Could not read that meal. Try another angle.' }; }
+        MEAL.result = grounded; MEAL.questions = null; save(); saveMeal(); await this._maybeVerify(); return { ok: true, kind: 'result' };
+      }
       track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'unreadable' });
       return { ok: false, error: 'Could not read that meal. Try another angle.' };
     } catch (e) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'exception' }); return { ok: false, error: 'Analysis failed. Retake and try again.' }; }
