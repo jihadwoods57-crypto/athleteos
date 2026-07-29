@@ -246,10 +246,10 @@ export const coachRoster = {
       return `<button class="co-chip ${on ? 'on' : ''}" data-filter="${esc(kind)}:${esc(value == null ? '' : value)}">${dotColor ? `<span class="dot" style="background:${dotColor}"></span>` : ''}${esc(label)}</button>`;
     };
     return `${head}
-    <div style="display:flex;gap:var(--s2);margin-bottom:var(--s3)">
-      <input class="ob-input" id="roster-q" placeholder="${esc(vocab().search)}" value="${esc(Q)}" style="flex:1;height:38px" />
-      <button class="btn ghost sm" data-sort style="width:auto;padding:0 12px;height:38px">${{ score: 'Score ↓', status: 'Status', name: 'A–Z', activity: 'Recent' }[SORT]}</button>
-      <button class="btn ${SELECTING ? 'green' : 'ghost'} sm" data-selmode style="width:auto;padding:0 12px;height:38px">${SELECTING ? 'Done' : 'Select'}</button>
+    <div class="rtools">
+      <input class="ob-input rq" id="roster-q" placeholder="${esc(vocab().search)}" value="${esc(Q)}" />
+      <button class="btn ghost sm" data-sort>${{ score: 'Score ↓', status: 'Status', name: 'A–Z', activity: 'Recent' }[SORT]}</button>
+      <button class="btn ${SELECTING ? 'green' : 'ghost'} sm" data-selmode>${SELECTING ? 'Done' : 'Select'}</button>
     </div>
     <div class="co-seg co-scroll">
       ${fchip('all', '', 'All')}${STATUS_ORDER.map(k => fchip('status', k, STATUS_META[k].label, STATUS_META[k].color)).join('')}${positions.map(p => fchip('position', p, p)).join('')}${groups.map(g => fchip('group', g.id, g.name)).join('')}

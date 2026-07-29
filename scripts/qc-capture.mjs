@@ -61,6 +61,10 @@ const SHOTS = [
   { g: 'athlete', name: 'home-midday', seed: 'dayMidday', route: 'home', at: [13, 10] },
   { g: 'athlete', name: 'home-complete', seed: 'dayComplete', route: 'home', at: [21, 50] },
   { g: 'athlete', name: 'home-late', seed: 'dayLate', route: 'home', at: [22, 5] },
+  // The OVERDUE now-card had no coverage, which is how it kept a display-size "Late" numeral and
+  // three competing reds through two polish passes. Morning seed + an afternoon clock leaves
+  // lunch past its window and unlogged — the one state that renders .xnow.red.
+  { g: 'athlete', name: 'home-overdue', seed: 'dayMorning', route: 'home', at: [16, 10] },
   { g: 'athlete', name: 'home-first-day', seed: 'dayFirst', route: 'home', at: [15, 20] },
   { g: 'athlete', name: 'score-breakdown', seed: 'dayComplete', route: 'score-breakdown', at: [21, 52] },
   { g: 'athlete', name: 'plan', seed: 'dayComplete', route: 'plan', at: [21, 56] },

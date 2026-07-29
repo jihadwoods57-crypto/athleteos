@@ -742,12 +742,17 @@
 .xcount .xcd{font-size:34px;font-weight:800;letter-spacing:var(--num-tight);color:var(--amber-bright);font-variant-numeric:tabular-nums}
 .xnow.red .xcd{color:var(--red)}
 .xcount .xdl{font-size:12px;color:var(--text-2);font-weight:700}
+/* Overdue has no countdown to run, so it has no numeral: the sentence IS the content ("Was due
+   2:00 PM — still counts, log it late"). It replaces the display-size "Late" that used to sit
+   beside it saying less, and steps up to body size to carry the row on its own. */
+.xcount .xdl.lead{font-size:var(--t-base);color:var(--text);line-height:1.4}
 .xcta{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;box-sizing:border-box;padding:14px;border:none;border-radius:var(--r-btn);background:linear-gradient(150deg,var(--amber),var(--amber-deep));color:var(--ink-on-accent);font-family:var(--font);font-size:15px;font-weight:800;box-shadow:0 12px 34px rgba(var(--amber-rgb), 0.30);cursor:pointer}
-/* The overdue card stays red — the card tint, the OVERDUE label and the "Late" numeral all say
-   the miss happened, and none of that softens. The BUTTON is different: it is the way out, not
-   the verdict. Painted red it read as the punishment, which is the last thing you want on the
-   one control a struggling athlete needs to press. (The amber NOW card keeps its amber CTA:
-   there, amber is the card's own identity, not a judgement about the athlete.) */
+/* The red card is now reserved for a MISSED day (one the athlete can no longer fix) — a window
+   that is merely late stays amber, because it is still savable and should not wear the verdict.
+   The BUTTON stays different from the card either way: it is the way out, not the verdict.
+   Painted red it read as the punishment, which is the last thing you want on the one control a
+   struggling athlete needs to press. (The amber card keeps its amber CTA: there, amber is the
+   card's own identity, not a judgement about the athlete.) */
 .xnow.red .xcta{background:linear-gradient(150deg,var(--blue-bright),var(--blue-deep));color:#fff;box-shadow:var(--sh-blue)}
 .xgrp{font-size:11px;font-weight:800;letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--text-3);margin:12px 4px 8px}
 /* WS6 collapse primitive: a <details> whose summary reuses the .xgrp header look. Native

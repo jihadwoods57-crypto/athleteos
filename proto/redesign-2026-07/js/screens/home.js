@@ -197,18 +197,26 @@ function nowCard(e) {
   const isCheck = !n.proof || n.proof === 'check';
   const label = isCheck ? `Mark ${esc(n.title)} done` : `${VERB[n.proof]} ${esc(n.title)}${od ? ' late' : ''}`;
   const ctaIcon = isCheck ? 'check' : CTA_ICON[n.proof];
-  // Overdue already announces itself three ways (label + pill + "Late") — the pill is the
-  // redundant one when it just repeats the label; keep it only when it says something new.
-  // Closing-soon drops the pill too: "CLOSING SOON" + the hot countdown says it all.
-  const pill = (od && String(n.pill).toUpperCase() === 'OVERDUE') || closing ? '' : `<span class="xpill ${n.color}">${n.pill}</span>`;
-  return `<section class="xnow ${od ? 'red' : ''}${closing ? ' closing' : ''}">
-    <div class="xlab"><span class="xl">${od ? 'OVERDUE' : closing ? 'NOW · CLOSING SOON' : 'NOW'}</span>${pill}</div>
+  // A missed day and a savable one are different facts, and this card used to paint them the same:
+  // any 'overdue' state got the red treatment. exec.js is deliberate about this — a required window
+  // past its close stays AMBER ("Late", still savable) until the day is DECIDED, and only then turns
+  // red ("Missed"). Trusting n.color instead of the raw state is what keeps the card from arguing
+  // with its own pill, which is how an athlete who can still fix their day saw the same alarm as one
+  // who can't.
+  const missed = od && n.color === 'red';
+  // Overdue announced itself four ways at once (eyebrow + pill + a display-size "Late" + the sub).
+  // The eyebrow names the state and the sub explains it; the pill only ever restated one of them,
+  // so it goes in both overdue cases. Closing-soon drops it too: "CLOSING SOON" + the hot countdown
+  // says it all.
+  const pill = od || closing ? '' : `<span class="xpill ${n.color}">${n.pill}</span>`;
+  return `<section class="xnow ${missed ? 'red' : ''}${closing ? ' closing' : ''}">
+    <div class="xlab"><span class="xl">${od ? (missed ? 'MISSED' : 'LATE') : closing ? 'NOW · CLOSING SOON' : 'NOW'}</span>${pill}</div>
     <div class="xmain">
       <div class="xico ${n.color}">${icon(n.icon, 21)}</div>
       <div><div class="xt">${esc(n.title)}</div><div class="xwhy">${whyHtml(n.why)}</div></div>
     </div>
     <div class="xcount">
-      ${od ? `<span class="xcd">Late</span><span class="xdl">${esc(n.sub)}</span>`
+      ${od ? `<span class="xdl lead">${esc(n.sub)}</span>`
            : `<span class="xcd" data-cd>${esc(n.countdown)}</span><span class="xdl">${esc(n.dueLabel)}</span>`}
     </div>
     <button class="xcta" data-go="${n.route}">${icon(ctaIcon, 18)} ${label}</button>
