@@ -624,6 +624,12 @@ export const thread = {
     });
     const RUB_DOT = { met: 'g', partial: 'a', miss: 'r' };
     const photoBlock = `
+    <!-- The plate, blurred, as the screen's own backdrop. The meal thread is the one screen with a
+         real photograph on it, and it sat on the same flat canvas as everything else; letting the
+         food tint the room is what makes the screen feel like it is ABOUT that meal. Same <img>
+         src as the hero below (assigned once in mount), so this costs no second fetch. Decorative
+         and behind everything: aria-hidden, no pointer events. -->
+    <div class="meal-backdrop" aria-hidden="true"><img id="meal-backdrop-img" alt=""/></div>
     <div class="photo-hero" id="meal-hero" style="margin-top:14px;background:linear-gradient(150deg, rgba(52,211,153,0.14), rgba(37,99,235,0.06))">
       <img id="meal-photo" alt="" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;display:none"/>
       <div class="ph-grad"></div>
@@ -961,6 +967,9 @@ export const thread = {
       if (!url && RT.userId) url = await roles.signedMealPhotoUrl(`${RT.userId}/${DAY.date}/${M.slot}.jpg`);
       if (url) {
         photo.src = url; photo.style.display = 'block';
+        // Same URL into the blurred backdrop — one decode, two uses.
+        const back = root.querySelector('#meal-backdrop-img');
+        if (back) back.src = url;
         // Tapping the meal photo opens the original full-screen (§6.1) — a DOM overlay, so
         // closing returns to this exact scroll position with zero navigation.
         const hero = root.querySelector('#meal-hero');

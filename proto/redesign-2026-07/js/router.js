@@ -236,13 +236,22 @@ function render() {
   // athlete profile chips) snapping the page to the top (T-08).
   const prevVp = document.getElementById('viewport');
   const prevScroll = prevVp ? prevVp.scrollTop : 0;
+  // The entrance animation belongs to ARRIVING somewhere, not to repainting where you already are.
+  // .view carried it unconditionally, and #view is rebuilt on every render() — including the
+  // same-route repaints async screens do constantly (Home alone repaints for commitments, activity
+  // standards, the coach receipt and participant names). Each one re-ran the fade-and-rise on the
+  // whole screen plus the staggered row entrances, so content that should have felt settled kept
+  // sliding around under the reader. LAST_FULL is still the PREVIOUS route here (it is assigned
+  // further down, with the scroll restore that uses the same signal), so this is the same
+  // definition of "same-route re-render" the scroll logic already trusts.
+  const enter = LAST_FULL === full ? '' : ' enter';
   const body = mod.render({ sub, S });
   device.innerHTML = `
     <div class="island"></div>
     <div class="screen">
       ${statusbar()}
       <div class="viewport ${mod.bleed ? 'bleed' : ''}${mod.hideTabs ? ' notabs' : ''}" id="viewport">
-        <div class="view" id="view">${body}</div>
+        <div class="view${enter}" id="view">${body}</div>
       </div>
       ${mod.hideTabs ? '' : tabbar(activeTab, navRole)}
     </div>`;

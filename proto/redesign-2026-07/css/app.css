@@ -110,11 +110,14 @@ body {
    and 12 other screens. */
 .viewport.notabs { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
 
-/* view fade-in */
-.view { animation: viewIn var(--dur-2) var(--ease-out); }
+/* view fade-in — only on ARRIVAL (router adds .enter for a genuine navigation, never for a
+   same-route repaint). #view is rebuilt on every render(), so an unconditional animation here
+   re-ran the whole entrance every time an async screen repainted itself. */
+.view.enter { animation: viewIn var(--dur-2) var(--ease-out); }
 @keyframes viewIn { from { opacity: 0; transform: translateY(8px);} to { opacity:1; transform:none; } }
-/* staggered row entrances — list content settles like it landed, not popped */
-.view .req-row, .view .act-card, .view .notif, .view .roster-row {
+/* staggered row entrances — list content settles like it landed, not popped. Also arrival-only:
+   these replaying on a repaint is what made a settled list slide around under the reader. */
+.view.enter .req-row, .view.enter .act-card, .view.enter .notif, .view.enter .roster-row {
   animation: rowIn 420ms var(--ease-out) both;
 }
 @keyframes rowIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
