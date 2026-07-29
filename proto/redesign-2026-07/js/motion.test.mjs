@@ -39,12 +39,13 @@ const { reveal, resetReveals, revealed, buzz, HAPTIC } = await import(
 /* The smallest thing reveal() needs: querySelectorAll for the wind-back, offsetWidth for the
    reflow, and isConnected so the pending-node check is exercised. No IntersectionObserver is
    defined, so reveal() takes its documented synchronous path. */
-function fakeRing({ connected = true } = {}) {
+function fakeRing({ connected = true, height = 200 } = {}) {
   const arc = { getAttribute: () => '185.4', style: {} };
   const num = { textContent: '84' };
   return {
     isConnected: connected,
     offsetWidth: 1,
+    getBoundingClientRect: () => ({ height }),
     querySelectorAll(sel) { return sel.includes('data-count') ? [num] : [arc]; },
     _arc: arc,
     _num: num,
@@ -83,12 +84,50 @@ test('a key claimed against a node that a repaint replaced is re-claimable', () 
   // moment is lost for the rest of the session.
   globalThis.IntersectionObserver = class { constructor() {} observe() {} disconnect() {} };
   try {
+    const seen = { key: 'meal:lunch:abc', haptic: null, whenSeen: true };
     const observed = fakeRing({ connected: true });
-    assert.equal(reveal(observed, { key: 'meal:lunch:abc', haptic: null }), true, 'claims it');
-    assert.equal(reveal(observed, { key: 'meal:lunch:abc', haptic: null }), false, 'still waiting on that node');
+    assert.equal(reveal(observed, seen), true, 'claims it');
+    assert.equal(reveal(observed, seen), false, 'still waiting on that node');
     observed.isConnected = false;                      // the repaint threw that node away
-    const fresh = fakeRing({ connected: true });
-    assert.equal(reveal(fresh, { key: 'meal:lunch:abc', haptic: null }), true, 're-claimed by the live node');
+    assert.equal(reveal(fakeRing({ connected: true }), seen), true, 're-claimed by the live node');
+  } finally {
+    delete globalThis.IntersectionObserver;
+  }
+});
+
+test('a whenSeen target taller than the viewport still asks for a reachable ratio', () => {
+  // The regression this exists to prevent: an element taller than the screen has a maximum
+  // intersection ratio of viewportHeight/elementHeight, so a fixed 0.6 means "never". The reveal
+  // never played, and what stayed on screen was the markup's placeholder -- an undrawn ring
+  // reading 0 where the score should be.
+  resetReveals();
+  let asked = null;
+  globalThis.IntersectionObserver = class {
+    constructor(_cb, opts) { asked = opts.threshold; }
+    observe() {} disconnect() {}
+  };
+  globalThis.innerHeight = 844;
+  try {
+    reveal(fakeRing({ height: 3000 }), { key: 'tall', haptic: null, whenSeen: true });
+    const max = Math.max(...asked);
+    assert.ok(max <= 844 / 3000, `asked for ${max}, which a 3000px element can never reach`);
+
+    resetReveals();
+    reveal(fakeRing({ height: 120 }), { key: 'short', haptic: null, whenSeen: true, threshold: 0.6 });
+    assert.ok(asked.includes(0.6), 'a small target still uses the requested threshold');
+  } finally {
+    delete globalThis.IntersectionObserver;
+    delete globalThis.innerHeight;
+  }
+});
+
+test('reveal plays immediately by default — above-the-fold rings must not wait to be seen', () => {
+  resetReveals();
+  globalThis.IntersectionObserver = class { constructor() { throw new Error('must not observe'); } };
+  try {
+    const el = fakeRing();
+    assert.equal(reveal(el, { key: 'hero', haptic: null }), true);
+    assert.equal(el._num.textContent, '0', 'wound back, so animateRing has a start to draw from');
   } finally {
     delete globalThis.IntersectionObserver;
   }

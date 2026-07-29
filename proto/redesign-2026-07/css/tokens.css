@@ -173,6 +173,18 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);      /* ease-out-expo-ish */
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
   --dur-1: 160ms; --dur-2: 280ms; --dur-3: 460ms; --dur-ring: 1400ms;
+
+  /* ---- Material ----
+     Film grain over the canvas. Two jobs: it breaks up the banding that a large, very dark
+     radial gradient produces on an OLED panel (where #070B14 -> #0A1120 across 600px has
+     visibly few steps), and it gives a flat fill the read of a MATERIAL rather than an empty
+     buffer. Kept low enough to be felt and not seen — above ~0.06 it stops looking like a
+     surface and starts looking like compression noise. A token so QC can A/B it, and so light
+     can be quieter: on a near-white canvas the same amplitude reads twice as loud. */
+  --grain-opacity: 0.045;
+  /* Chrome blur. The tab bar sits over live content, and a translucent panel that does not blur
+     what's behind it reads as a flat scrim laid on top. Guarded with @supports at the use site. */
+  --blur-chrome: 18px;
 }
 
 /* ================= Light theme (WS2b) =================
@@ -246,4 +258,8 @@
   /* on a light ground the numerals are dark ink — a dark drop would muddy them; keep only a soft teal halo */
   --score-lift: 0 0 40px rgba(20, 184, 166, 0.16);
   --sh-green: 0 10px 26px rgba(22, 163, 74, 0.22);
+
+  /* Same grain, half the amplitude: the noise tile is light-on-dark, so on a near-white canvas
+     the identical opacity reads roughly twice as strong and starts to look like dirt. */
+  --grain-opacity: 0.022;
 }

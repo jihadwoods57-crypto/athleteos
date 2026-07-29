@@ -43,6 +43,24 @@ body {
     linear-gradient(180deg, var(--bg-grad-top) 0%, var(--bg) 34%, var(--bg) 100%);
   display: flex;
   flex-direction: column;
+  /* Makes .screen a stacking context so the grain layer below, which sits at z-index -1 to stay
+     UNDER content, can't escape behind the device frame instead. */
+  isolation: isolate;
+}
+/* Film grain over the canvas — see --grain-opacity. A static SVG turbulence tile rather than a
+   PNG: it costs no request, no bytes worth measuring, and scales to any DPR without resampling.
+   z-index -1 puts it above .screen's own gradient (a negative child still paints after the
+   parent's background) but beneath every in-flow child, so text is never filtered through it.
+   Fixed to the frame and never animated: a moving grain layer would repaint the full screen on
+   every scroll frame, which is exactly the jank this is not worth. */
+.screen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: var(--grain-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 /* Dynamic island */
 .island {
@@ -391,6 +409,18 @@ body {
     rgba(var(--bg-rgb), 0.60) 14%,
     rgba(var(--bg-rgb), 0.94) 28%,
     var(--bg)                 40%);
+}
+/* Blur what shows through the translucent top of that ramp. Without it the band reads as a flat
+   film laid over the content; with it the bar reads as frosted glass the content passes under —
+   the one material cue that separates chrome from page. Only the top ~40% can show it (below
+   that the ramp is opaque), which is precisely the part that looked wrong.
+   @supports because Android WebView shipped backdrop-filter late: where it is missing the ramp
+   alone still covers the content, so the fallback is today's appearance, not a broken one. */
+@supports (backdrop-filter: blur(4px)) or (-webkit-backdrop-filter: blur(4px)) {
+  .tabbar {
+    -webkit-backdrop-filter: blur(var(--blur-chrome)) saturate(1.25);
+    backdrop-filter: blur(var(--blur-chrome)) saturate(1.25);
+  }
 }
 /* The FAB overhangs the bar by 19px, so it sits in the fully-transparent top of that ramp with
    nothing behind it — list rows ran straight into a hard-edged opaque disc. This scrim gives it

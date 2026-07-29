@@ -76,13 +76,22 @@ export function nonLiveBadge() {
 
 /* Signature score ring — cinematic, uncontained. Layers:
    rotating aurora (CSS) → under-glow arc → thick gradient band → inner echo
-   ring → comet tip + lens sparkle → center stack (label / N / /100 / delta / streak). */
+   ring → comet tip + lens sparkle → center stack (label / N / /100 / delta / streak).
+
+   The markup renders the ring AT ITS SCORE — a full arc and the real number — rather than at zero
+   waiting to be animated. It used to render empty with a literal "0", which made animateRing
+   mandatory on every single paint: any repaint that didn't re-animate (and once reveals are keyed,
+   most don't) left an undrawn ring reading 0 where the athlete's score belongs. The resting state
+   is now the honest one, and motion.js winds it back only for the one reveal it plays — the same
+   arrangement the meal score chip has always used. */
 export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, showCenter = true, uid = 'r', delta = null, streak = null, tierName = null, tierCls = 'b', centerNum = false, possible = null } = {}) {
   const r = (size - stroke) / 2 - 14;
   const rEcho = Math.max(0, r - stroke/2 - 8);
   const cx = size / 2, cy = size / 2;
   const C = 2 * Math.PI * r;
   const off = C * (1 - score / 100);
+  const CEcho = 2 * Math.PI * rEcho;
+  const offEcho = CEcho * (1 - score / 100);
   // Ceiling arc: the points STILL REACHABLE today, drawn as a dim continuation of the same band
   // from `score` to `possible`. The number was already on the card ("max today 71") but the ring
   // only ever showed what had been earned, so a bad morning read as an empty ring with no way
@@ -98,7 +107,7 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
   // No spark until there's arc to lead — at score 0 the tip would sit orphaned at the
   // top of an empty ring, so the comet only renders once score >= 6.
   const sparkle = score >= 6 ? `
-      <g class="ring-tip" opacity="0">
+      <g class="ring-tip" opacity="1">
         <circle cx="${tipX.toFixed(1)}" cy="${tipY.toFixed(1)}" r="${(stroke/2+2).toFixed(1)}" fill="#F2FDF8" filter="url(#tip${uid})"/>
         <path d="M ${tipX.toFixed(1)} ${(tipY-16).toFixed(1)} L ${(tipX+2.4).toFixed(1)} ${(tipY-2.4).toFixed(1)} L ${(tipX+16).toFixed(1)} ${tipY.toFixed(1)} L ${(tipX+2.4).toFixed(1)} ${(tipY+2.4).toFixed(1)} L ${tipX.toFixed(1)} ${(tipY+16).toFixed(1)} L ${(tipX-2.4).toFixed(1)} ${(tipY+2.4).toFixed(1)} L ${(tipX-16).toFixed(1)} ${tipY.toFixed(1)} L ${(tipX-2.4).toFixed(1)} ${(tipY-2.4).toFixed(1)} Z"
           fill="#FFFFFF" opacity="0.9" filter="url(#tip${uid})"/>
@@ -125,7 +134,7 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
       <!-- under-glow: same arc, wider + blurred, light spills onto the canvas -->
       <circle class="ring-arc ring-under" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="url(#g${uid})"
         stroke-width="${stroke + 14}" stroke-linecap="round" opacity="0.55" filter="url(#soft${uid})"
-        stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${C.toFixed(1)}" data-off="${off.toFixed(1)}"
+        stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" data-off="${off.toFixed(1)}"
         transform="rotate(-90 ${cx} ${cy})"/>
       <!-- track: dotted "ready" style below score 6 so an empty day reads as unstarted, not broken -->
       <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(148,176,224,0.10)" stroke-width="${stroke}"${score < 6 ? ' stroke-dasharray="1.4 5"' : ''}/>
@@ -135,32 +144,32 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
       ${ceil ? `<circle class="ring-arc ring-ceil" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="url(#g${uid})"
         stroke-width="${stroke}" stroke-linecap="butt"
         stroke-dasharray="${ceil.span.toFixed(1)} ${(C - ceil.span).toFixed(1)}"
-        stroke-dashoffset="${ceil.span.toFixed(1)}" data-off="0"
+        stroke-dashoffset="0" data-off="0"
         transform="rotate(${ceil.rot.toFixed(2)} ${cx} ${cy})"/>` : ''}
       <!-- main band -->
       <circle class="ring-arc" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="url(#g${uid})"
         stroke-width="${stroke}" stroke-linecap="round"
-        stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${C.toFixed(1)}" data-off="${off.toFixed(1)}"
+        stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" data-off="${off.toFixed(1)}"
         transform="rotate(-90 ${cx} ${cy})"/>
       <!-- inner echo ring (clamped ≥0: compact rings, e.g. the 52px score strip, would
            otherwise compute a negative radius and emit an invalid SVG r attribute) -->
       <circle class="ring-arc ring-echo" cx="${cx}" cy="${cy}" r="${rEcho}" fill="none" stroke="url(#g${uid})"
         stroke-width="1.5" opacity="0.35"
-        stroke-dasharray="${(2*Math.PI*rEcho).toFixed(1)}"
-        stroke-dashoffset="${(2*Math.PI*rEcho).toFixed(1)}"
-        data-off="${((2*Math.PI*rEcho) * (1 - score/100)).toFixed(1)}"
+        stroke-dasharray="${CEcho.toFixed(1)}"
+        stroke-dashoffset="${offEcho.toFixed(1)}"
+        data-off="${offEcho.toFixed(1)}"
         transform="rotate(-90 ${cx} ${cy})"/>
       ${sparkle}
     </svg>
     ${showCenter ? `<div class="ring-center">
       <span class="label">OnStandard Score</span>
-      <span class="score" data-count="${score}">0</span>
+      <span class="score" data-count="${score}">${score}</span>
       <span class="outof">/100</span>
       ${tierName ? `<span class="tier-chip ${tierCls}">${tierName}</span>` : ''}
       ${delta ? `<span class="delta"><span class="up">${icon('arrowUp', 15)} ${delta}</span><span class="muted">vs yesterday</span></span>` : ''}
       ${streak ? `<span class="streak-pill">${icon('flame', 15, 'class="flame"')} ${streak}</span>` : ''}
     </div>` : ''}
-    ${centerNum ? `<div class="ring-center num"><span class="score" data-count="${score}">0</span></div>` : ''}
+    ${centerNum ? `<div class="ring-center num"><span class="score" data-count="${score}">${score}</span></div>` : ''}
   </div>`;
 }
 

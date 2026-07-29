@@ -884,7 +884,9 @@ export const thread = {
     // count up, one 'success' haptic) now lives in motion.js so the daily score and the breakdown
     // ring play the SAME moment instead of three different amounts of it. The slot prefix keeps the
     // key stable while mealId is still null on a locally-logged, not-yet-synced meal.
-    reveal(root.querySelector('#meal-scorechip'), { key: `meal:${M.slot}:${M.mealId || ''}` });
+    // whenSeen: the chip sits ~1100px down a 390x844 thread, so playing it on mount would spend the
+    // moment off-screen. It observes the CHIP, which is small enough for the ratio to be reachable.
+    reveal(root.querySelector('#meal-scorechip'), { key: `meal:${M.slot}:${M.mealId || ''}`, whenSeen: true });
 
     const roles = await import('../roles.js');
     // Delegation target for render-injected content (the fq bubble, the analysis expander):

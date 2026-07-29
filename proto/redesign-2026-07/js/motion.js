@@ -81,6 +81,9 @@ function windBack(root) {
     arc.style.strokeDashoffset = String(dash);
   });
   root.querySelectorAll('[data-count]').forEach((n) => { n.textContent = '0'; });
+  // The comet tip rests VISIBLE (it marks where the arc ends, which is true whether or not anything
+  // animated). Hide it for the draw so animateRing can fade it in as the band arrives.
+  root.querySelectorAll('.ring-tip').forEach((tip) => { tip.style.transition = 'none'; tip.style.opacity = '0'; });
 }
 
 /**
@@ -91,10 +94,13 @@ function windBack(root) {
  * @param {string}  opts.key     identity of THIS number ('day:2026-07-29', 'meal:lunch:<id>'). Omit
  *                               only for a reveal that genuinely should replay on every paint.
  * @param {string}  opts.haptic  vocabulary key, or null for a silent reveal. Default 'reveal'.
- * @param {boolean} opts.whenSeen  wait until the element is actually on screen. Default true.
+ * @param {boolean} opts.whenSeen  wait until the element is on screen before playing. Observes the
+ *                               element you PASS, so pass the small thing that should be seen (the
+ *                               score chip), never a screen root — see the ratio note below.
+ *                               Default false: most rings are above the fold on arrival.
  * @returns {boolean} whether this call took ownership of the reveal.
  */
-export function reveal(el, { key, haptic = 'reveal', whenSeen = true, threshold = 0.6 } = {}) {
+export function reveal(el, { key, haptic = 'reveal', whenSeen = false, threshold = 0.6 } = {}) {
   if (!el) return false;
   if (key) {
     if (DONE.has(key)) return false;
@@ -113,11 +119,19 @@ export function reveal(el, { key, haptic = 'reveal', whenSeen = true, threshold 
     if (haptic) buzz(haptic);
   };
   if (!whenSeen || typeof IntersectionObserver !== 'function') { play(); return true; }
+  /* An element TALLER than the viewport can never reach a high intersection ratio — its maximum is
+     viewportHeight/elementHeight — so a fixed 0.6 silently means "never" and the reveal is lost,
+     leaving the markup's placeholder 0 and an undrawn ring on screen. (Exactly what happened when
+     a screen root was passed here.) Ask for what is actually reachable instead of assuming. */
+  const h = el.getBoundingClientRect ? (el.getBoundingClientRect().height || 0) : 0;
+  const vh = typeof innerHeight === 'number' ? innerHeight : 0;
+  const reachable = (h > 0 && vh > 0) ? Math.min(1, vh / h) : 1;
+  const t = reachable < threshold ? Math.max(0.01, reachable * 0.75) : threshold;
   const io = new IntersectionObserver((entries) => {
-    if (!entries.some((en) => en.intersectionRatio >= threshold)) return;
+    if (!entries.some((en) => en.intersectionRatio >= t)) return;
     io.disconnect();
     play();
-  }, { threshold: [0, threshold] });
+  }, { threshold: [0, t] });
   io.observe(el);
   return true;
 }
