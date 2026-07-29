@@ -60,7 +60,7 @@ function targetsRow() {
     const tracked = (S.trackedSignalLabels || []).join(' · ');
     return `<div class="macro-row">
       <div class="macro"><div class="mv">${esc(String(S.hydrationTargetLabel || '—'))}</div><div class="mk">Hydration</div></div>
-      <div class="macro" style="flex:2"><div class="mv" style="font-size:15px;line-height:1.35">${tracked ? esc(tracked) : 'Body signals'}</div><div class="mk">What you're tracking</div></div>
+      <div class="macro" style="flex:2"><div class="mv" style="font-size:15px;line-height:1.35">${tracked ? esc(tracked) : 'Check-in signals'}</div><div class="mk">What you're tracking</div></div>
     </div>
     <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin-top:8px;line-height:1.5">Your plan doesn't set calorie or macro targets. Your ${esc(S.coach.noun)} can still see the full numbers.</div>`;
   }

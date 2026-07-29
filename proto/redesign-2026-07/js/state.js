@@ -17,7 +17,7 @@ import {
   dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayAddWaterOz, dayLogWeight, dayResetLocal, dayCheckTask,
   insertMeal, MEAL_KEYS, DEADLINE, minutesNow, mealScored,
   setDayStandard, slotDeadline, slotGrace, setDayGoalConfig, checkinReal,
-  setDayPlanStyle, daySetMealSignal, weightsForDay,
+  setDayPlanStyle, weightsForDay,
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { activationInfo, parseActivation } from './activation.js';
@@ -1200,15 +1200,6 @@ export const act = {
     } catch { /* offline — the local preference is kept and pushed on the next hydrate */ }
   },
 
-  /* The 2-tap post-meal body-signal prompt (0142). Answering is what earns awareness credit on
-     an Intuitive plan — the VALUE answered never does, so there is no wrong answer to give and
-     nothing to game. Skipping costs nothing on Structured/Guided, and on Intuitive it is one
-     day against a trailing-week rate. */
-  setMealSignal(slot, key, value) {
-    daySetMealSignal(RT.userId, slot, key, value);
-    DAY.signalWeekRate = signalWeekRate();
-    save();
-  },
   /* One-time "plan styles exist now" announcement (0142 release mechanics) — dismissed once,
      locally, and never shown again regardless of which button ended it (exploring the picker
      counts as having seen it too). Local-only like RT.theme/RT.notifsRead: this is a UI nag
@@ -2726,15 +2717,6 @@ export const S = {
   get hydrationTargetLabel() {
     const l = DAY.hydrationTargetL > 0 ? DAY.hydrationTargetL : 3;
     return `${Math.round(l * 33.814)} oz`;
-  },
-
-  /** The body signals this style asks for, and what's been answered for one meal slot today. */
-  mealSignals(slot) {
-    const knobs = this.planStyle.knobs;
-    const answered = (DAY.signals && DAY.signals[slot]) || {};
-    return SIGNAL_KEYS
-      .filter(s => s.where === 'meal' && knobs && knobs.signals && knobs.signals[s.key])
-      .map(s => ({ ...s, value: typeof answered[s.key] === 'number' ? answered[s.key] : null }));
   },
 
   // display name. NEVER a fabricated persona: with no link, hasCoach is false and every

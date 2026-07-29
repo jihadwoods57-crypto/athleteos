@@ -527,25 +527,6 @@ export const thread = {
       </div>
     </section>`;
 
-    // ---- 1b. BODY SIGNALS — the 2-tap prompt (0142). Only appears when the athlete's plan
-    // style actually tracks them (Guided: hunger + fullness; Intuitive: all three). Always
-    // skippable and never scored on its VALUE: a 1 counts exactly as much as a 5, because what
-    // earns credit is noticing, not what you noticed. Nothing renders on Structured.
-    const sigFields = S.mealSignals(M.slot);
-    const signalCard = !sigFields.length ? '' : `
-    <section class="card" style="padding:14px 16px" id="meal-signals">
-      <div style="font-size:14px;font-weight:800">How did this meal land?</div>
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin-top:2px;line-height:1.5">Two taps, no wrong answer — this is for spotting your own patterns.</div>
-      ${sigFields.map(f => `
-        <div class="rec-field" data-sig-key="${f.key}" style="margin-top:12px">
-          <div class="rec-top"><span class="rec-name">${esc(f.label)}</span><span class="rec-ends">${esc(f.lo)} → ${esc(f.hi)}</span></div>
-          <div class="chips5" role="radiogroup" aria-label="${esc(f.label)}">
-            ${[1, 2, 3, 4, 5].map(n => `<div class="c5 ${f.value === n ? 'on' : ''}" data-n="${n}" role="radio" aria-checked="${f.value === n ? 'true' : 'false'}" aria-label="${esc(f.label)}: ${n} of 5">${n}</div>`).join('')}
-          </div>
-        </div>`).join('')}
-    </section>
-    <div style="height:10px"></div>`;
-
     // ---- 2. PHOTO + MEAL QUALITY (feedback 2026-07-16: quality is a separate concept from
     // compliance — banded color, its own label, and a one-line WHY so 58 never reads as green
     // success or an arbitrary number). Provenance badges live here; name/timing not repeated.
@@ -782,7 +763,7 @@ export const thread = {
       <span class="xpill gray">Upcoming</span>
     </div>` : '';
 
-    return `${backHead(M.name, dupFlagged ? 'Duplicate photo' : (M.late ? 'Late · still counts' : 'On time'), 'home')}${execTop}${signalCard}${photoBlock}${breakdown}${discussion}${next}
+    return `${backHead(M.name, dupFlagged ? 'Duplicate photo' : (M.late ? 'Late · still counts' : 'On time'), 'home')}${execTop}${photoBlock}${breakdown}${discussion}${next}
     <div style="height:18px"></div>
     <button class="btn green" style="width:100%" data-go="home" aria-label="Done — back to home">${icon('check', 18)} Done</button>
     <div style="height:16px"></div>`;
@@ -831,21 +812,6 @@ export const thread = {
       }, { threshold: [0, 0.6] });
       io.observe(chip);
     }
-
-    // Body-signal chips (0142): each tap persists immediately (days.signals) — no submit button,
-    // because a prompt you have to confirm is a prompt people stop answering. Re-tapping a
-    // different chip just overwrites; the paint updates in place without a full re-render, so
-    // answering one signal never scrolls the athlete away from the next.
-    root.querySelectorAll('#meal-signals [data-sig-key]').forEach((field) => {
-      const key = field.getAttribute('data-sig-key');
-      const chips = field.querySelectorAll('.c5');
-      chips.forEach((ch) => ch.addEventListener('click', () => {
-        chips.forEach((x) => { x.classList.remove('on'); x.setAttribute('aria-checked', 'false'); });
-        ch.classList.add('on');
-        ch.setAttribute('aria-checked', 'true');
-        act.setMealSignal(M.slot, key, +ch.getAttribute('data-n'));
-      }));
-    });
 
     const roles = await import('../roles.js');
     // Delegation target for render-injected content (the fq bubble, the analysis expander):
