@@ -33,6 +33,7 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
+import { validMealInput, rejectionOutcome } from '../_shared/meal-report.ts';
 import { buildVoiceDirective, violatesProhibited, type VoiceConfig } from '../_shared/coach-voice.ts';
 import { loadVoiceForAthlete as loadVoice } from '../_shared/coach-voice-load.ts';
 import { flagOn } from '../_shared/feature-flags.ts';
@@ -54,6 +55,14 @@ const MODEL = Deno.env.get('ANTHROPIC_MODEL_ANALYZE_MEAL') ?? Deno.env.get('ANTH
 // model cannot affect a single macro — run them on Haiku (~1/3 the cost). Meal (vision estimate) and
 // label (exact-number transcription) stay on MODEL where capability/accuracy matter.
 const TEXT_MODEL = Deno.env.get('ANTHROPIC_TEXT_MODEL') ?? 'claude-haiku-4-5-20251001';
+
+// MEAL_TOOL's report is the longest structured output this function asks for: per-food macro
+// attribution for up to ~8 foods plus a 3-6 sentence analysis, note, highlights and an optional
+// substitution — a busy plate measures ~700-1000 output tokens. This sat at 1024 while the system
+// prompt kept growing (memory block, avoid list), so real photos began hitting the ceiling and
+// returning a TRUNCATED tool_use with no macros in it. Output tokens bill as used, so the headroom
+// costs nothing on a normal call; it only stops the truncation. See validMealInput.
+const MEAL_MAX_TOKENS = 2048;
 
 // Per-athlete daily ceiling on the PAID vision calls (meal + label). This bounds a day's
 // spend and stops a single athlete spamming photos, where the per-minute IP limit can't
@@ -648,6 +657,7 @@ function groundMacros<T>(analysis: T): T {
   return analysis;
 }
 
+
 // ── Second-pass verifier (item 6) ────────────────────────────────────────────────────────────
 const VERIFY_BUDGET = posIntCap('VERIFY_DAILY_BUDGET', 3);
 const REGEN_ENABLED = (Deno.env.get('VERIFY_REGEN_ENABLED') ?? 'true') !== 'false';
@@ -896,7 +906,7 @@ Deno.serve(async (request) => {
       }
       const msg = await client.messages.create({
         model: MODEL,
-        max_tokens: 1024,
+        max_tokens: MEAL_MAX_TOKENS,
         system: [{ type: 'text' as const, text: VERIFY_ACCURACY_SYSTEM, cache_control: { type: 'ephemeral' as const } }],
         tools: [{ ...MEAL_TOOL, cache_control: { type: 'ephemeral' as const } }],
         tool_choice: { type: 'tool' as const, name: MEAL_TOOL.name },
@@ -904,6 +914,9 @@ Deno.serve(async (request) => {
       });
       const used = msg.content.find((b) => b.type === 'tool_use');
       if (!used || used.type !== 'tool_use') throw new Error('no structured output');
+      // A second look that came back truncated must not overwrite the first read (state.js only
+      // checks that kcal is a number) — fail the verify instead and leave the original standing.
+      if (!validMealInput(used.input)) throw new Error(msg.stop_reason === 'max_tokens' ? 'truncated tool output' : 'incomplete meal report');
       const grounded = groundMacros(used.input) as Record<string, unknown>;
       const outcome = classifyVerifyOutcomeServer(req.firstResult || {}, grounded);
       await recordAiCall({ fn: 'analyze-meal', mode: 'verify', phase: 'accuracy', userId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0v, ok: true, outcome });
@@ -1014,7 +1027,7 @@ ${memBlock}`;
     const client = new Anthropic({ apiKey: key });
     const msg = await client.messages.create({
       model: isMemory || isOrder ? TEXT_MODEL : MODEL,
-      max_tokens: 1024,
+      max_tokens: isMeal ? MEAL_MAX_TOKENS : 1024,
       system: [{ type: 'text' as const, text: system, cache_control: { type: 'ephemeral' as const } }],
       tools: cachedTools,
       tool_choice: toolChoice,
@@ -1044,6 +1057,18 @@ ${memBlock}`;
         if (questions.length === 0) throw new Error('empty clarifying questions');
         return new Response(JSON.stringify({ kind: 'questions', questions }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
+      // A report we cannot trust must never be dressed up as a result. Before this gate a truncated
+      // or empty tool_use rode straight through to the app, which wrote protein/carbs/fat/kcal as
+      // 0 and marked the meal settled — a silent, unrecoverable ~0g meal. Throwing lands on the
+      // 502 below, which is the client's fail() path: it retries, then offers "Read it again".
+      if (!validMealInput(used.input)) {
+        await recordAiCall({
+          fn: 'analyze-meal', mode: telemMode, phase: telemPhase, userId,
+          model: msg.model ?? intendedModel, latencyMs: Date.now() - t0, ok: true,
+          outcome: rejectionOutcome(msg.stop_reason),
+        });
+        throw new Error(msg.stop_reason === 'max_tokens' ? 'truncated tool output' : 'incomplete meal report');
+      }
       let input = used.input as Record<string, unknown>;
       // Coach Voice safety: a banned word must never ship. If voice was applied and the free-text
       // note/analysis trips the guard (rare — the directive already forbids them), re-run the report
@@ -1056,7 +1081,7 @@ ${memBlock}`;
           const t0f = Date.now();
           const retry = await client.messages.create({
             model: MODEL,
-            max_tokens: 1024,
+            max_tokens: MEAL_MAX_TOKENS,
             // styledBase, NOT baseSystem: drop the coach's voice, KEEP the plan-style rail.
             system: [{ type: 'text' as const, text: styledBase, cache_control: { type: 'ephemeral' as const } }],
             tools: mealToolOnly,
@@ -1069,7 +1094,9 @@ ${memBlock}`;
             latencyMs: Date.now() - t0f, ok: true, outcome: 'voice_banned_fallback',
           });
           const rused = retry.content.find((b) => b.type === 'tool_use');
-          if (rused && rused.type === 'tool_use') input = rused.input as Record<string, unknown>;
+          // Only adopt a COMPLETE retry. A truncated one would swap a good read for zeros, which
+          // is a far worse outcome than shipping the first read's prose through the voice guard.
+          if (rused && rused.type === 'tool_use' && validMealInput(rused.input)) input = rused.input;
         }
       }
 
@@ -1094,7 +1121,7 @@ ${memBlock}`;
           const t0s = Date.now();
           const retry = await client.messages.create({
             model: MODEL,
-            max_tokens: 1024,
+            max_tokens: MEAL_MAX_TOKENS,
             system: [{ type: 'text' as const, text: styledBase, cache_control: { type: 'ephemeral' as const } }],
             tools: mealToolOnly,
             tool_choice: { type: 'tool' as const, name: MEAL_TOOL.name },
@@ -1118,8 +1145,10 @@ ${memBlock}`;
             latencyMs: Date.now() - t0s, ok: true, outcome: `style_${v.kind}_retry`,
           });
           const rused = retry.content.find((b) => b.type === 'tool_use');
-          if (rused && rused.type === 'tool_use') {
-            const candidate = rused.input as Record<string, unknown>;
+          // Same rule as the voice retry: a truncated correction is not an improvement. Leaving
+          // `v` set drops through to the deterministic safe-copy step, which keeps the good macros.
+          if (rused && rused.type === 'tool_use' && validMealInput(rused.input)) {
+            const candidate = rused.input;
             v = violatesStyleLanguage(prose(candidate), planStyle);
             if (!v) input = candidate;
           }
