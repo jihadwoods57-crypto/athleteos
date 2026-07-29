@@ -2606,6 +2606,102 @@ select _superuser();
 select _ok(_mx('cccc5555-0000-0000-0000-00000000f001','cccc5555-0000-0000-0000-00000000e001') = 'verified_complete',
   'matrix: late data that clears the target lifts the cron''s own missed verdict');
 
+-- ================================================================ the meal thread as a group chat (0157/0158)
+-- 0059 capped a thread at coach 2 / athlete 3 / AI 2. The founder reopened it as a real
+-- conversation, so those caps became an anti-spam backstop (50 human / 20 AI per meal per role)
+-- and pacing moved to the AI spend budgets. What must NOT have moved: who can read a thread, and
+-- the rule that no client can ever forge an AI message.
+--
+-- Uses a private team so the assertions cannot be disturbed by earlier sections (section 8 flips
+-- coach_1's link to athlete A to 'removed', which would poison any reuse of that pairing).
+select _superuser();
+insert into auth.users (id, email) values
+  ('ddd77777-0000-0000-0000-00000000a001','ta@x.io'),
+  ('ddd77777-0000-0000-0000-00000000c001','cb@x.io'),
+  ('ddd77777-0000-0000-0000-00000000e001','ns@x.io');
+-- handle_new_user() (0047) already made the profiles rows; name them.
+insert into profiles (id, full_name, email, primary_role) values
+  ('ddd77777-0000-0000-0000-00000000a001', 'Thread Athlete', 'ta@x.io', 'athlete'),
+  ('ddd77777-0000-0000-0000-00000000c001', 'Coach Brown',    'cb@x.io', 'coach'),
+  ('ddd77777-0000-0000-0000-00000000e001', 'Nosy Stranger',  'ns@x.io', 'athlete')
+  on conflict (id) do update set full_name = excluded.full_name, email = excluded.email, primary_role = excluded.primary_role;
+insert into teams (id, name, sport, join_code, created_by) values
+  ('ddd77777-1111-0000-0000-000000000001', 'Thread Team', 'football', 'THRD01', 'ddd77777-0000-0000-0000-00000000c001')
+  on conflict (id) do nothing;
+insert into team_staff (team_id, staff_id, role, status) values
+  ('ddd77777-1111-0000-0000-000000000001', 'ddd77777-0000-0000-0000-00000000c001', 'head_coach', 'active')
+  on conflict do nothing;
+insert into team_members (team_id, athlete_id, status) values
+  ('ddd77777-1111-0000-0000-000000000001', 'ddd77777-0000-0000-0000-00000000a001', 'active')
+  on conflict do nothing;
+insert into meals (id, athlete_id, day_date, type, name) values
+  ('ddd77777-e000-0000-0000-00000000d001', 'ddd77777-0000-0000-0000-00000000a001', current_date, 'dinner', 'Thread dinner')
+  on conflict (id) do nothing;
+
+-- 0157: the athlete can say more than three things about one meal.
+select _as('ddd77777-0000-0000-0000-00000000a001');
+select _try($q$insert into meal_comments (meal_id, athlete_id, author_id, role, text) values
+  ('ddd77777-e000-0000-0000-00000000d001','ddd77777-0000-0000-0000-00000000a001','ddd77777-0000-0000-0000-00000000a001','athlete','one')$q$);
+select _try($q$insert into meal_comments (meal_id, athlete_id, author_id, role, text) values
+  ('ddd77777-e000-0000-0000-00000000d001','ddd77777-0000-0000-0000-00000000a001','ddd77777-0000-0000-0000-00000000a001','athlete','two')$q$);
+select _try($q$insert into meal_comments (meal_id, athlete_id, author_id, role, text) values
+  ('ddd77777-e000-0000-0000-00000000d001','ddd77777-0000-0000-0000-00000000a001','ddd77777-0000-0000-0000-00000000a001','athlete','three')$q$);
+select _ok(_try($q$insert into meal_comments (meal_id, athlete_id, author_id, role, text) values
+  ('ddd77777-e000-0000-0000-00000000d001','ddd77777-0000-0000-0000-00000000a001','ddd77777-0000-0000-0000-00000000a001','athlete','four')$q$) = 'ok',
+  '0157: a fourth athlete message is allowed (the old cap of 3 is gone)');
+
+-- 0157: the coach can make more than two points.
+select _as('ddd77777-0000-0000-0000-00000000c001');
+select _try($q$insert into meal_comments (meal_id, athlete_id, author_id, role, text) values
+  ('ddd77777-e000-0000-0000-00000000d001','ddd77777-0000-0000-0000-00000000a001','ddd77777-0000-0000-0000-00000000c001','coach','one')$q$);
+select _try($q$insert into meal_comments (meal_id, athlete_id, author_id, role, text) values
+  ('ddd77777-e000-0000-0000-00000000d001','ddd77777-0000-0000-0000-00000000a001','ddd77777-0000-0000-0000-00000000c001','coach','two')$q$);
+select _ok(_try($q$insert into meal_comments (meal_id, athlete_id, author_id, role, text) values
+  ('ddd77777-e000-0000-0000-00000000d001','ddd77777-0000-0000-0000-00000000a001','ddd77777-0000-0000-0000-00000000c001','coach','three')$q$) = 'ok',
+  '0157: a third coach message is allowed (the old cap of 2 is gone)');
+
+-- 0157: the backstop is still a backstop. Fill the athlete lane to 50 and prove 51 raises.
+select _superuser();
+insert into meal_comments (meal_id, athlete_id, author_id, role, text)
+select 'ddd77777-e000-0000-0000-00000000d001','ddd77777-0000-0000-0000-00000000a001',
+       'ddd77777-0000-0000-0000-00000000a001','athlete','filler ' || g
+  from generate_series(1, 46) g;
+select _as('ddd77777-0000-0000-0000-00000000a001');
+select _ok(_try($q$insert into meal_comments (meal_id, athlete_id, author_id, role, text) values
+  ('ddd77777-e000-0000-0000-00000000d001','ddd77777-0000-0000-0000-00000000a001','ddd77777-0000-0000-0000-00000000a001','athlete','fifty-one')$q$) <> 'ok',
+  '0157: the 51st human message on one meal is refused - a modified client cannot flood a thread');
+
+-- 0157: reactions were never capped and still are not.
+select _ok(_try($q$insert into meal_comments (meal_id, athlete_id, author_id, role, text, kind) values
+  ('ddd77777-e000-0000-0000-00000000d001','ddd77777-0000-0000-0000-00000000a001','ddd77777-0000-0000-0000-00000000a001','athlete','fire','reaction')$q$) = 'ok',
+  '0157: a reaction is exempt from the message backstop');
+
+-- 0157: `meta` is writable but the AI lane is not - the boundary that makes meta trustworthy.
+select _ok(_try($q$insert into meal_comments (meal_id, athlete_id, author_id, role, text, meta) values
+  ('ddd77777-e000-0000-0000-00000000d001','ddd77777-0000-0000-0000-00000000a001','ddd77777-0000-0000-0000-00000000a001','ai','forged analysis','{"t":"analysis"}')$q$) <> 'ok',
+  '0157: an athlete still cannot forge an ai row, so meta on ai rows stays trustworthy');
+
+-- 0158: the participants list is gated on can_view, and grants nothing new.
+select _as('ddd77777-0000-0000-0000-00000000a001');
+select _ok((select count(*) from meal_thread_participants('ddd77777-0000-0000-0000-00000000a001')) = 2,
+  '0158: the athlete sees themselves and their coach in the participants list');
+select _ok((select name from meal_thread_participants('ddd77777-0000-0000-0000-00000000a001') where kind = 'head_coach') = 'Coach Brown',
+  '0158: participants carry real names and real roles, not the string "Coach"');
+select _as('ddd77777-0000-0000-0000-00000000c001');
+select _ok((select count(*) from meal_thread_participants('ddd77777-0000-0000-0000-00000000a001')) = 2,
+  '0158: the linked coach sees the same list');
+select _as('ddd77777-0000-0000-0000-00000000e001');
+select _ok((select count(*) from meal_thread_participants('ddd77777-0000-0000-0000-00000000a001')) = 0,
+  '0158: a stranger learns nothing - not even who the coach is');
+
+-- 0068 still holds: a coach note is invisible to the athlete, group chat or not.
+select _superuser();
+insert into meal_comments (meal_id, athlete_id, author_id, role, text, kind) values
+  ('ddd77777-e000-0000-0000-00000000d001','ddd77777-0000-0000-0000-00000000a001','ddd77777-0000-0000-0000-00000000c001','coach','watch portions','note');
+select _as('ddd77777-0000-0000-0000-00000000a001');
+select _ok((select count(*) from meal_comments where kind = 'note') = 0,
+  '0068: private coach notes stay invisible to the athlete after the caps rework');
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$
