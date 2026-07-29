@@ -24,10 +24,19 @@ const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 const RETURN_BASE = Deno.env.get('BILLING_RETURN_URL') ??
   (SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/billing-return` : '');
 
-const stripe = new Stripe(STRIPE_SECRET_KEY, {
-  apiVersion: '2025-02-24.acacia',
-  httpClient: Stripe.createFetchHttpClient(),
-});
+// Lazy construction: `new Stripe('')` throws at module load, which crashed the worker at import
+// time and made the platform return a generic 500 — the 'billing not configured' 503 gate below
+// could never run. Deferring construction lets an unconfigured deploy load and fail closed politely.
+let _stripe: Stripe | null = null;
+function stripeClient(): Stripe {
+  if (!_stripe) {
+    _stripe = new Stripe(STRIPE_SECRET_KEY, {
+      apiVersion: '2025-02-24.acacia',
+      httpClient: Stripe.createFetchHttpClient(),
+    });
+  }
+  return _stripe;
+}
 
 // CORS + rate limit: same discipline as billing-checkout.
 const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? '').split(',').map((o) => o.trim()).filter(Boolean);
@@ -106,7 +115,7 @@ Deno.serve(async (req) => {
     if (!accountId) {
       // Mint a new Express account. Express = Stripe hosts the onboarding UI + a limited dashboard
       // for the trainer; we never touch their identity/bank details, only the account id + status.
-      const account = await stripe.accounts.create({
+      const account = await stripeClient().accounts.create({
         type: 'express',
         country: 'US',
         email: user.email ?? undefined,
@@ -124,7 +133,7 @@ Deno.serve(async (req) => {
     }
 
     // Account Link: a single-use, short-lived hosted URL for this onboarding/re-onboarding step.
-    const link = await stripe.accountLinks.create({
+    const link = await stripeClient().accountLinks.create({
       account: accountId,
       refresh_url: `${RETURN_BASE}?state=connect_refresh`,
       return_url: `${RETURN_BASE}?state=connect_return`,
