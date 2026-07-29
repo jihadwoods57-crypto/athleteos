@@ -24,6 +24,11 @@ async function loadAll(opts = {}) {
       rpc('admin_list_attention_state'), rpc('admin_list_brief_snapshots', { p_limit: 40 }),
     ]);
 
+    // Per-screen drop-off (0143). The coarse funnel above has four stages; a role flow has ~26
+    // screens, so "goal→complete is leaking" can hide which of twenty screens is doing the leaking.
+    // These two RPCs shipped 2026-07-23 and nothing ever read them.
+    const dropoff = await rpc('admin_onboarding_dropoff', { p_route: null, p_days: D, p_limit: 8 }).catch(() => []);
+
     const ov = one(overview), q = one(quality), fn = one(funnel), rev = one(revenue), vf = one(verify);
     const dailyRows = daily || [], costRows = aicost || [];
     const tdy = todayStr();
@@ -45,6 +50,10 @@ async function loadAll(opts = {}) {
       textConflictRate: q.text_conflict_rate == null ? null : num(q.text_conflict_rate),
       verifyFired: num(vf.verify_calls), verifyChanged: num(vf.changed),
       funnel: { opens: num(fn.opens), rolePicked: num(fn.roles_picked), goalPicked: num(fn.goals_picked), completed: num(fn.completed) },
+      dropoff: (dropoff || []).map((r) => ({
+        route: r.route, from: r.from_step, to: r.to_step,
+        fromSes: num(r.from_ses), lost: num(r.lost), lostPct: num(r.lost_pct),
+      })),
       aiOkByFn: (health || []).map((r) => ({ fn: r.fn, okRate: num(r.ok_rate), calls: num(r.calls) })),
       appErrorsToday: errToday, appErrors7dAvg: errAvg, subs: num(rev.active_subs),
       // PRIOR-days baselines (exclude today) for anomaly z-scores
@@ -127,6 +136,8 @@ function linkToSql(link) {
   if (link === 'ai_call_costs') return 'select fn, model, user_id, cost_usd, created_at from ai_call_costs order by created_at desc limit 50;';
   if (link === 'ai_verify_effectiveness') return 'select * from ai_verify_effectiveness order by day desc limit 30;';
   if (link === 'admin_onboarding_funnel') return 'select * from admin_onboarding_funnel(14);';
+  if (link === 'admin_onboarding_dropoff') return 'select * from admin_onboarding_dropoff(null, 14, 10);';
+  if (link === 'admin_onboarding_steps') return 'select * from admin_onboarding_steps(null, 14);';
   if (link === 'admin_daily_activity') return 'select * from admin_daily_activity(14);';
   const ev = link.match(/^analytics_events\?name=(.+)$/);
   if (ev) return `select session_id, props, created_at from analytics_events where name='${ev[1]}' order by created_at desc limit 50;`;
@@ -210,6 +221,20 @@ function renderPanels(m, d) {
     row('Completed', cp),
     row('Age-blocked', num(d.fn.age_blocked)),
   ]));
+
+  // Per-screen drop-off. The card above says which STAGE leaks; this says which SCREEN.
+  // Empty until onboarding_step events accumulate — the server whitelist silently discarded
+  // them until 2026-07-29, so anything before that date has stage data but no screen data.
+  const dz = d.dropoff || [];
+  g.appendChild(card('Worst screens · 14d', dz.length
+    ? [
+      tbl(['flow', 'leaves', 'for', { t: 'lost', num: 1 }, { t: '%', num: 1 }],
+        dz.map((r) => [r.route, r.from, r.to, r.lost, `${Math.round(r.lostPct)}%`])),
+      h('div', { class: 'cap', text: 'consecutive screens, ordered by sessions lost' }),
+    ]
+    : [
+      h('div', { class: 'cap', text: 'No per-screen data yet. Needs onboarding_step events, which the sink began accepting 2026-07-29.' }),
+    ]));
 
   // AI cost + forecast + drill-down
   const fc = forecast(d.costRows.map((r) => num(r.meal_cost_usd)).filter((x) => x >= 0).reverse());
