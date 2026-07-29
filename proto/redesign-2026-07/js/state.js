@@ -31,6 +31,7 @@ import { factsFromCorrection, candidateFactsFromFoodChange, sameFact } from './m
 import {
   groundExtras, buildClarifications, analysisTiming, applyMealCorrection, classifyMealEvent, restrictionConflicts,
   mealQualityScore, qualityBand, qualityReason, analysisAgreesWithBand, stripFoodMentions, shouldVerify,
+  contextForChat,
 } from './meal-intel.js';
 import { groundMealFromFoods, groundMealTotals, gapFoods, isCompleteMealResult } from './nutrition.js';
 import { explainCategories, reachPlan as modelReachPlan, maxPossibleScore, mealMaxGain } from './breakdown-model.js';
@@ -1663,6 +1664,11 @@ export const act = {
       } catch { /* best-effort — the corrected day is already persisted */ }
     }
     track(EVENTS.MEAL_LOGGED, { slot, source: 'correction' });
+    // Say so in the thread. A correction used to silently rewrite the numbers under a read that
+    // still claimed the old ones — so the AI now posts a fresh read as a NEW message, leaving the
+    // original where it was. The athlete sees they were heard; the coach sees both.
+    // Fire-and-forget: the correction itself has already applied and been confirmed on screen.
+    void this._postCorrectionUpdate(slot, r);
     // A correction that moved the numbers meaningfully is worth a coach look — once per meal.
     if (this._coachConnected() && r.kcalDelta >= 120 && !r.meta.correctionNotified) {
       DAY.slotMacros[slot] = { ...r.meta, correctionNotified: true };
@@ -1676,6 +1682,40 @@ export const act = {
     }
     return r;
   },
+  /** Ask the AI to re-read the plate out loud after the athlete corrected it.
+   *
+   *  The numbers sent are the CORRECTED ones — the deterministic kitchen math has already run and
+   *  been persisted, so the model is describing a result, never computing one. The original read
+   *  stays in the thread above; this lands underneath it as a new message.
+   *
+   *  Every failure is silent by design. The correction is already applied and already confirmed
+   *  on screen; a missing acknowledgment is a quieter thread, not a broken one. */
+  async _postCorrectionUpdate(slot, r) {
+    try {
+      const sb = window.sb;
+      const mealId = r && r.meta && r.meta.mealId;
+      if (!sb || !mealId || !RT.userId) return;
+      const m = r.meta;
+      const dp = S.mealDayProgress;
+      const context = contextForChat({
+        meal: {
+          name: m.name || cap(slot), slot,
+          protein: m.protein || 0, carbs: m.carbs || 0, fat: m.fat || 0, kcal: m.kcal || 0,
+          fiber: m.fiber || 0, quality: m.quality != null ? m.quality : null,
+          foods: (m.detectedRich || []).map((d) => d && d.name).filter(Boolean).slice(0, 8),
+          // What the athlete actually told us, and what it used to say.
+          correction: r.summary || null,
+          wasBefore: m.orig ? { protein: m.orig.protein, kcal: m.orig.kcal } : null,
+        },
+        plan: { style: S.planStyle.key, proteinTarget: dp.proteinTarget },
+        exec: { proteinSoFar: dp.proteinSoFar, mealsRemaining: dp.mealsRemaining },
+      });
+      await sb.functions.invoke('meal-chat', { body: { mealId, correctionUpdate: true, context } });
+      // The thread screen refetches on its own tick; nudge a repaint so it lands promptly.
+      window.__render && window.__render();
+    } catch { /* a quieter thread, not a broken correction */ }
+  },
+
   /* Pre-log edit propagation (Tier 1 session isolation, 2026-07-21): called right after every
      successful applyFoodEdit. A removed food must leave EVERYTHING — totals, score inputs, and
      prose — not just the food list. Totals + quality recompute deterministically from the

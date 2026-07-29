@@ -190,9 +190,15 @@ Deno.serve(async (req) => {
     // Coach OS Slice D — draft mode: the coach asks for FOUR candidate replies. No question is
     // sent (there is nothing to answer yet), and NOTHING is persisted — these are drafts.
     const draftMode = body?.draftReplies === true;
+    // Correction-update mode (2026-07-28): the athlete told us we misread the plate, the app has
+    // already applied the deterministic fix, and the AI now says so in the thread as a NEW
+    // message. Never an edit — the original read stays visible, so the coach can see both what
+    // the athlete was first told and what they corrected. There is no question to answer here,
+    // which is why it bypasses the question requirement below.
+    const correctionUpdate = body?.correctionUpdate === true;
     const question = String((coachSupport ? body?.coachText : body?.question) ?? '').trim().slice(0, 500);
     const context = body?.context;
-    if (!mealId || !context || (!draftMode && !question)) return bad(400, 'bad_request', cors);
+    if (!mealId || !context || (!draftMode && !correctionUpdate && !question)) return bad(400, 'bad_request', cors);
     if (JSON.stringify(context).length > CONTEXT_MAX) return bad(400, 'bad_request', cors);
 
     // ---- authorization (RLS does the work) ----
@@ -306,7 +312,15 @@ Deno.serve(async (req) => {
     // here is already authenticated, so the fail-CLOSED global counter this endpoint used to run
     // (meal_chat_global) protected against traffic that cannot reach this endpoint, while being
     // the thing most likely to 429 a paying coach's whole roster at once. Tracked instead. ----
-    if (!(await withinKeyCap(coachSupport ? `meal_chat_support:${callerId}` : `meal_chat:${callerId}`, DAILY_CAP))) return bad(429, 'limit', cors);
+    // Correction updates get their own budget so acknowledging a fix can never eat into the
+    // athlete's ability to ASK something — and so a correction spree cannot become a spend event.
+    // Over cap is not an error: the correction itself already applied deterministically, and the
+    // screen already confirmed it. Only the AI's acknowledgment is skipped.
+    if (correctionUpdate) {
+      if (!(await withinKeyCap(`meal_correction:${callerId}`, 5))) {
+        return new Response(JSON.stringify({ skipped: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      }
+    } else if (!(await withinKeyCap(coachSupport ? `meal_chat_support:${callerId}` : `meal_chat:${callerId}`, DAILY_CAP))) return bad(429, 'limit', cors);
     // THE DOLLAR CEILING (0152): the caps above count CALLS, this counts MONEY. Fail-closed.
     const spendChat = await checkSpend(EST_USD.text);
     if (!spendChat.allowed) {
@@ -324,6 +338,16 @@ Deno.serve(async (req) => {
     // The athlete path may also decline and escalate. coachSupport is the coach's own message being
     // reinforced — there is nothing there to escalate, so it keeps the single forced tool.
     const athleteTools = [REPLY_TOOL, FLAG_TOOL] as unknown as Anthropic.Tool[];
+    // The user turn, named once because the style-correction retry below has to replay it exactly.
+    const userTurn = coachSupport
+      ? `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nThe COACH just said this on the athlete's meal: "${question}"\n\nIn 60 words or less, speaking to the athlete, back the coach's point using ONLY figures already in the context. Do not add new requirements, do not soften the coach, do not contradict them. If the context has nothing relevant, one steady sentence reinforcing the coach is enough.`
+      : correctionUpdate
+        // The correction is already applied and the numbers in the context are the CORRECTED ones.
+        // The job is to acknowledge the fix and re-read the plate with it, conversationally — not
+        // to apologise, and not to re-litigate what the photo showed.
+        ? `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nThe athlete just corrected your read of this meal. The numbers above are the CORRECTED ones. In 80 words or less, speaking to the athlete, acknowledge what they fixed in one short clause and give them the updated read: what it comes to now and what that means for their day. Conversational, no headings, no lists. Do not apologise and do not explain the mistake.`
+        : `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nAthlete's question: ${question}`;
+
     const t0r = Date.now();
     const msg = await anthropic.messages.create({
       model: MODEL,
@@ -331,14 +355,11 @@ Deno.serve(async (req) => {
       system: [{ type: 'text', text: memBlock ? `${composeSystem(SYSTEM, '', planStyle)}
 
 ${memBlock}` : composeSystem(SYSTEM, '', planStyle), cache_control: { type: 'ephemeral' } }],
-      tools: coachSupport ? replyTools : athleteTools,
-      tool_choice: coachSupport ? { type: 'tool', name: 'reply' } : { type: 'any' },
-      messages: [{
-        role: 'user',
-        content: coachSupport
-          ? `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nThe COACH just said this on the athlete's meal: "${question}"\n\nIn 60 words or less, speaking to the athlete, back the coach's point using ONLY figures already in the context. Do not add new requirements, do not soften the coach, do not contradict them. If the context has nothing relevant, one steady sentence reinforcing the coach is enough.`
-          : `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nAthlete's question: ${question}`,
-      }],
+      // Only the athlete's own QUESTION path can escalate to a human — a coach's point being
+      // reinforced and a correction being acknowledged have nothing in them to escalate.
+      tools: coachSupport || correctionUpdate ? replyTools : athleteTools,
+      tool_choice: coachSupport || correctionUpdate ? { type: 'tool', name: 'reply' } : { type: 'any' },
+      messages: [{ role: 'user', content: userTurn }],
     });
     await recordAiCall({ fn: 'meal-chat', mode: 'reply', userId: callerId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0r, ok: true });
     const tool = msg.content.find((b) => b.type === 'tool_use') as { name?: string; input?: { message?: string; reason?: string; note?: string } } | undefined;
@@ -401,7 +422,7 @@ ${memBlock}` : composeSystem(SYSTEM, '', planStyle), cache_control: { type: 'eph
           tools: replyTools,
           tool_choice: { type: 'tool', name: 'reply' },
           messages: [
-            { role: 'user', content: `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nAthlete's question: ${question}` },
+            { role: 'user', content: userTurn },
             { role: 'assistant', content: `<discarded>${reply}</discarded>` },
             { role: 'user', content: styleCorrectionMessage(v) },
           ],
@@ -424,9 +445,14 @@ ${memBlock}` : composeSystem(SYSTEM, '', planStyle), cache_control: { type: 'eph
     // athlete_id is always the meal OWNER (RLS thread scoping); author_id records who
     // triggered the AI (the athlete's ask, or the coach whose point is being supported).
     const row = { meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: callerId, role: 'ai', text: reply };
-    const { error: insertErr } = await service.from('meal_comments').insert({ ...row, kind: 'message' });
+    // `meta` marks a correction acknowledgment so the thread can render it as an update to the
+    // read above it rather than as an unrelated remark. Ships in 0157; the fallback chain below
+    // already tolerates a database that predates a column.
+    const withMeta = correctionUpdate ? { ...row, kind: 'message', meta: { t: 'analysis_update' } } : { ...row, kind: 'message' };
+    const { error: insertErr } = await service.from('meal_comments').insert(withMeta);
     if (insertErr) {
-      await service.from('meal_comments').insert(row);
+      const { error: retryErr } = await service.from('meal_comments').insert({ ...row, kind: 'message' });
+      if (retryErr) await service.from('meal_comments').insert(row);
     }
 
     return new Response(JSON.stringify({ reply }), { headers: { ...cors, 'Content-Type': 'application/json' } });
