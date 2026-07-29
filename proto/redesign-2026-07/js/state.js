@@ -275,8 +275,22 @@ export function applyTheme() {
   const sysDark = typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches;
   const eff = mode === 'system' ? (sysDark ? 'dark' : 'light') : mode;
   document.documentElement.setAttribute('data-theme', eff);
+  applyDaypart();
 }
-applyTheme(); // stamp before first paint — no flash of the wrong theme
+
+/* Which part of the day it is, on the root, so the canvas can agree with the greeting.
+ *
+ * The app says "Good morning" and then paints the identical background it paints at 11pm. This
+ * stamps the same three buckets S.greeting uses — deliberately the SAME boundaries, read from the
+ * same clock, so copy and canvas can never disagree about what time it is — and tokens.css shifts
+ * one token off it. Nothing but --bg-grad-top changes: it must read as the light in the room
+ * changing, not as a second theme the athlete didn't choose. */
+export function applyDaypart() {
+  if (typeof document === 'undefined') return;
+  const h = new Date().getHours();
+  document.documentElement.setAttribute('data-daypart', h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening');
+}
+applyTheme(); // stamp before first paint — no flash of the wrong theme (also stamps the daypart)
 // Re-arm the cached coach standard (WS3 slice 2) before the first score computes, so a
 // 6-meal room's day never flashes as a classic 3-meal day between boot and hydrate.
 if (RT.stdMeals) setDayStandard(RT.stdMeals);
@@ -345,8 +359,16 @@ function mealImpact(k) {
   const withoutScore = computeScore({ nutrition: wo.nutrition, recovery: wo.recoveryContribution, commitment: wo.commitment, checkin: wo.checkin });
   return Math.max(0, withScore - withoutScore);
 }
+/* The ceiling the athlete can still reach today. Clock-aware on purpose: a meal whose window
+   has already closed can only be logged LATE from here, so it projects at half nutrition credit
+   instead of promising on-time credit that is no longer earnable.
+
+   Without the clock this disagreed with the breakdown sheet, which has always decayed (see
+   breakdown-model.js maxDay). The hero could read "max today 100" while the sheet the athlete
+   opens from that very hero said 87 — and the score ring's ceiling arc was drawn from the
+   optimistic number, so the "path back" it showed was partly unreachable. */
 function componentsDone() {
-  const c = realComponents(projectedDay());
+  const c = realComponents(projectedDay(minutesNow()));
   return { nutrition: c.nutrition, recovery: c.recoveryContribution, commitment: c.commitment, checkin: c.checkin };
 }
 
@@ -2671,6 +2693,10 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     // Coming BACK is when queued meal work gets its chance: the athlete may have logged in a dead
     // zone, or the app may have been killed mid-analysis. The queue is durable; this is its beat.
     if (document.visibilityState === 'visible' && RT.userId) void act.drainMealOutbox();
+    // Re-stamp the daypart on resume. A phone put down at 4pm and picked up at 9pm would otherwise
+    // greet you with "Good evening" over an afternoon canvas, which is exactly the disagreement
+    // between copy and canvas this was built to remove.
+    if (document.visibilityState === 'visible') applyDaypart();
   });
 }
 // Reconnect is the other beat. Both are best-effort and the drain is serialized, so overlapping

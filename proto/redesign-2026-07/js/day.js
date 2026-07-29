@@ -443,14 +443,30 @@ export function dayFromHistoryRow(r, cfg) {
   };
 }
 /** "If you finish today" projection — all requirements done — for the reach/possible messaging. */
-export function projectedDay() {
+export function projectedDay(nowMin) {
   const p = JSON.parse(JSON.stringify(DAY));
+  // Which scored slots are NOT yet really logged — only these can decay to a late projection.
+  // Captured BEFORE the slots below are marked complete, which would erase the distinction.
+  const unlogged = {};
+  for (const k of scoredSlotKeys()) unlogged[k] = !mealScored(p, k);
   p.meals = { breakfast: true, lunch: true, snack: true, dinner: true };
   // A governing standard projects ITS slots complete (a 6-meal room's "possible" includes
   // meal-5/meal-6; a 2-meal room's projection is just its two).
   for (const k of scoredSlotKeys()) p.meals[k] = true;
   // Gallery slots score now (2026-07-15), so no flag-clearing is needed; a duplicate-flagged
   // slot stays excluded even in the projection — that meal honestly can't count.
+  //
+  // HONEST DECAY: an unlogged slot whose window has already closed can only be logged LATE
+  // from here, so project it at the late half-credit instead of promising on-time credit the
+  // athlete can no longer earn. Real stamps are never overwritten — actual punctuality wins.
+  // Omit `nowMin` and the projection is byte-identical to before, so every existing caller
+  // and the score-parity lock are unaffected.
+  if (nowMin != null) {
+    if (!p.mealLoggedAt) p.mealLoggedAt = {};
+    for (const k of scoredSlotKeys()) {
+      if (unlogged[k] && p.mealLoggedAt[k] == null && nowMin > slotDeadline(k)) p.mealLoggedAt[k] = nowMin;
+    }
+  }
   p.ciSubmitted = true;
   p.dailyCommitment = 'yes';
   return p;
