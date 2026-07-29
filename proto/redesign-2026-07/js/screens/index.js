@@ -3,6 +3,7 @@ import breakdown from './breakdown.js';
 import plan from './plan.js';
 import camera, { cameraConfirm } from './camera.js';
 import { analyzing, mealQuestions, analysis, confirm, detail, thread } from './meal.js';
+import nutritionChat from './nutrition-chat.js';
 import weight from './weight.js';
 import recovery, { recoveryConfirm } from './recovery.js';
 import progress from './progress.js';
@@ -70,6 +71,7 @@ export const screens = {
   'meal-questions': mealQuestions,
   'meal-analysis': analysis,
   'meal-thread': thread,
+  'nutrition-chat': nutritionChat,
   'meal-confirm': confirm,
   'meal-detail': detail,
   weight,

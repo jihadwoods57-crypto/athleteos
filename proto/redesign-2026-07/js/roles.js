@@ -467,6 +467,24 @@ export async function postMealComment(mealId, athleteId, authorId, role, text, k
   } catch { return false; }
 }
 
+/** Every message across an athlete's own meals, newest window first — the season-long thread.
+ *
+ *  Keyed on athlete_id rather than meal_id, which is what makes one continuous conversation
+ *  possible without changing where the rows live: RLS scopes it exactly as it scopes a single
+ *  meal, so this reads the same rows the athlete could already read one plate at a time.
+ *
+ *  Returned oldest-first (the reading order); `beforeISO` pages backwards through the season. */
+export async function fetchMyMealThread(athleteId, { beforeISO = null, limit = 200 } = {}) {
+  const c = sb(); if (!c || !athleteId) return [];
+  try {
+    let q = c.from('meal_comments').select('*').eq('athlete_id', athleteId);
+    if (beforeISO) q = q.lt('created_at', beforeISO);
+    const { data, error } = await q.order('created_at', { ascending: false }).limit(limit);
+    if (error) return { error: true };
+    return (data || []).slice().reverse();
+  } catch { return { error: true }; }
+}
+
 /** Who is in this athlete's meal conversation (0158) — real names and real roles, for the
  *  participants header and for attributing bubbles. Cached per athlete for the session: the
  *  membership of a room does not change between two paints, and this is called on every mount.

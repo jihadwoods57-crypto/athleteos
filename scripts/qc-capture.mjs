@@ -74,6 +74,7 @@ const SHOTS = [
   { g: 'meal', name: 'meal-analysis', seed: 'dayMidday', route: 'meal-analysis', at: [13, 5] },
   { g: 'meal', name: 'meal-detail', seed: 'dayMidday', route: 'meal-detail/lunch', at: [13, 8] },
   { g: 'meal', name: 'meal-thread', seed: 'dayMidday', route: 'meal-thread/lunch', at: [13, 9] },
+  { g: 'meal', name: 'nutrition-chat', seed: 'dayMidday', route: 'nutrition-chat', at: [13, 30] },
   { g: 'meal', name: 'meal-questions', seed: 'dayMidday', route: 'meal-questions', at: [13, 6] },
   { g: 'meal', name: 'food-search', seed: 'dayMidday', route: 'food-search', at: [13, 7] },
   { g: 'meal', name: 'history', seed: 'dayComplete', route: 'history', at: [21, 58] },

@@ -1296,3 +1296,56 @@
 .cs-clear{display:flex;align-items:center;gap:11px;margin-top:12px}
 .cs-clear .ic{width:38px;height:38px;border-radius:12px;flex:none;display:grid;place-items:center;
   background:var(--green-surface);color:var(--green-bright);border:1px solid var(--green-border)}
+
+/* ---- nutrition chat: the season in one stream ------------------------------------------------
+   Each meal enters the conversation as a card. It is a divider and a log entry at once, which is
+   what lets an athlete write "same plate as Thursday?" — Thursday is right there in the scroll. */
+.nc-thread { padding-bottom: 6px; }
+.nc-div {
+  display: flex; align-items: center; gap: 11px; align-self: stretch;
+  background: var(--surface-2); border: 1px solid var(--hairline);
+  border-radius: var(--r-tile); padding: 9px 12px; margin: 6px 0 2px;
+}
+.nc-div .nc-thumb {
+  width: 40px; height: 40px; border-radius: 11px; flex: none; display: grid; place-items: center;
+  background: var(--surface-1) center/cover no-repeat; color: var(--text-3);
+  border: 1px solid var(--hairline);
+}
+.nc-div .nc-meta { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.nc-div .nc-meta b { font-size: 13px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nc-div .nc-meta small { font-size: 10.5px; font-weight: 600; color: var(--text-3); }
+.nc-div .nc-score {
+  font-size: 14px; font-weight: 850; color: var(--green-bright);
+  font-variant-numeric: tabular-nums; flex: none;
+}
+/* Messages whose meal is older than the loaded window still belong to this athlete. */
+.nc-div.earlier {
+  justify-content: center; background: none; border: 0; border-top: 1px solid var(--hairline);
+  border-radius: 0; padding: 12px 0 4px; font-size: 10px; font-weight: 800;
+  letter-spacing: 0.11em; text-transform: uppercase; color: var(--text-3);
+}
+
+/* The last thing said before this plate. One line, tappable into the full conversation — the
+   meal screen is not where an athlete scrolls a fortnight, but it should not pretend the
+   conversation started here either. */
+.cont-earlier {
+  display: flex; align-items: center; gap: 9px; width: 100%; margin: 2px 0 6px;
+  background: none; border: 0; border-bottom: 1px dashed var(--hairline); padding: 12px 2px;
+  min-height: 44px;
+  font-family: var(--font); text-align: left; cursor: pointer; color: var(--text-3);
+  -webkit-appearance: none; appearance: none;
+}
+/* A class `display` beats the UA's [hidden] rule, so without this the empty placeholder sits in
+   the layout as a 350x9 tappable target with nothing in it. */
+.cont-earlier[hidden] { display: none; }
+.cont-earlier:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
+.cont-earlier .ce-k {
+  font-size: 9.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-3); flex: none;
+}
+.cont-earlier .ce-t {
+  flex: 1; min-width: 0; font-size: 11.5px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cont-earlier .ce-t b { color: var(--text-2); font-weight: 800; }
+.cont-earlier .ce-go { flex: none; display: grid; place-items: center; }

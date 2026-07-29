@@ -815,9 +815,13 @@ export const thread = {
     </button>`;
 
     const discussion = `
-    <div class="eyebrow" style="margin-top:18px">Team Discussion</div>
+    <div class="eyebrow" style="margin-top:18px;display:flex;align-items:baseline;gap:8px">
+      <span>Team Discussion</span>
+      ${M.mealId ? `<span class="link" id="open-full-chat" role="button" style="margin-left:auto;text-transform:none;letter-spacing:0;font-size:12px">View full chat &rarr;</span>` : ''}
+    </div>
     ${facepile}
     <div class="rx-strip" id="rx-strip"></div>
+    ${M.mealId ? `<button class="cont-earlier" id="thread-earlier" hidden aria-label="Open the full conversation"></button>` : ''}
     <div class="thread" id="meal-thread">
       ${openingBlockHtml(M, { sum, fullText, fq })}
       <div class="msg-status" id="thread-status">${M.mealId ? 'Loading the thread…' : (S.coach.hasCoach ? `Syncs when connected — your ${esc(S.coach.noun)} sees this log either way.` : 'Syncs when connected — this log is saved either way.')}</div>
@@ -1124,6 +1128,23 @@ export const thread = {
     };
     await refresh();
 
+    // CONTINUITY. This meal's messages paint first and stay the fast path — but a conversation
+    // that starts over at every plate is the thing being fixed, so once the thread is up we go
+    // and find what was said before it and offer it as one line. Two messages, not a season: the
+    // meal screen is not the place to scroll a fortnight, which is what the full chat is for.
+    void (async () => {
+      const season = await roles.fetchMyMealThread(RT.userId, { limit: 60 }).catch(() => []);
+      if (!Array.isArray(season) || !season.length) return;
+      const before = season.filter((c) => c && c.meal_id !== M.mealId && (c.kind || 'message') === 'message');
+      if (!before.length) return;
+      const last = before[before.length - 1];
+      const el = root.querySelector('#thread-earlier');
+      if (!el) return;
+      const who = authorName(last, PARTICIPANTS.uid === RT.userId ? PARTICIPANTS.rows : [], RT.userId);
+      el.innerHTML = `<span class="ce-k">Earlier</span><span class="ce-t"><b>${esc(who)}:</b> ${esc(String(last.text || '').slice(0, 90))}</span><span class="ce-go">${icon('chevron', 13)}</span>`;
+      el.hidden = false;
+    })();
+
     // Open the member list. Built from the same resolved rows the header shows, so what the
     // athlete taps is exactly what they were looking at.
     const membersBtn = root.querySelector('#meal-members');
@@ -1169,9 +1190,11 @@ export const thread = {
         void act.confirmMemoryFact(id, fx.getAttribute('data-keep') === '1');
         return;
       }
-      const t = ev.target && ev.target.closest ? ev.target.closest('#mq-thread-go, #mq-thread-skip, #mt-retry-analysis, #mt-reread') : null;
+      const t = ev.target && ev.target.closest ? ev.target.closest('#mq-thread-go, #mq-thread-skip, #mt-retry-analysis, #mt-reread, #open-full-chat, #thread-earlier') : null;
       if (!t) return;
       if (t.id === 'mt-retry-analysis') { act.retryAnalysis(M.slot); return; }
+      // The same conversation, unbounded by this one plate.
+      if (t.id === 'open-full-chat' || t.id === 'thread-earlier') { location.hash = '#nutrition-chat'; return; }
       // A meal that settled at zero: put it back in the queue for another read.
       if (t.id === 'mt-reread') { t.textContent = 'Reading the plate…'; void act.rereadMeal(M.slot); return; }
       if (t.id === 'mq-thread-skip') { act.skipPendingQuestions(M.slot); return; }

@@ -66,6 +66,14 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
       });
     }
   }
+  // The signed-in athlete's own seeded lunch, with the SAME id the day seed writes into
+  // slotMacros. Without it the stitched chat cannot match its messages to a meal and files the
+  // whole conversation under "Earlier in the season" — a fixture gap that reads as a bug.
+  MEALS.push({
+    id: 'meal-seed-lunch', athlete_id: 'seed-athlete', day_date: TODAY, type: 'lunch',
+    photo_path: 'meal-lunch', name: 'Chicken, rice & edamame bowl',
+    protein: 52, kcal: 780, quality: 84, logged_at: TODAY + 'T13:06:00Z',
+  });
   MEALS.sort((x, y) => (x.logged_at < y.logged_at ? 1 : -1));
 
   const PROFILES = ATHLETES.map(a => ({ id: a.id, timezone: 'America/New_York', full_name: a.name }));
@@ -73,6 +81,13 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
   const THREAD_MEAL = 'meal-seed-lunch';
   const tAt = (h, m) => TODAY + 'T' + String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':00Z';
   const MEAL_THREAD = [
+    // Yesterday's dinner, so the meal screen's "Earlier" continuity line and the stitched
+    // stream's multi-meal ordering are both exercised rather than assumed.
+    {
+      id: 'mc-0', meal_id: 'meal-1', athlete_id: 'seed-athlete', author_id: 'seed-coach',
+      role: 'coach', kind: 'message', created_at: shift(TODAY, -1) + 'T20:10:00Z',
+      text: 'Good dinner last night. Same idea today and you are stacking a real week.',
+    },
     {
       id: 'mc-1', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-athlete',
       role: 'ai', kind: 'message', meta: { t: 'analysis' }, created_at: tAt(13, 7),
