@@ -471,3 +471,20 @@ verify_jwt = false
 # JWT — it is cron-invoked and has no user session. Pinned so a redeploy can't 401 it.
 [functions.connected-standards-tick]
 verify_jwt = false
+
+# The roll-call trio was deployed 2026-07-29 without these entries and came up verify_jwt = true,
+# which breaks each of them at the PLATFORM layer — before their own auth ever runs:
+#   * roll-call-ack         — the whole point is acking from the lock screen without opening the
+#                             app, so there is no session to present. It authenticates possession
+#                             of an HMAC-signed code instead.
+#   * commitment-reminders  — cron-invoked with x-commitment-key; no user session exists.
+#   * commitment-escalation — same shared key, same absence of a session.
+# Each already 401s a caller who lacks the secret, so verify_jwt buys nothing and costs the feature.
+[functions.roll-call-ack]
+verify_jwt = false
+
+[functions.commitment-reminders]
+verify_jwt = false
+
+[functions.commitment-escalation]
+verify_jwt = false
