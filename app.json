@@ -126,7 +126,8 @@
           "image": "./assets/splash-icon.png",
           "imageWidth": 240,
           "resizeMode": "contain",
-          "backgroundColor": "#1E50D6"
+          "_comment": "backgroundColor is the app canvas (--bg #070B14), not the old brand blue. Launch used to flash a full screen of #1E50D6 and then cut to a near-black app, which is the single most visible 'unfinished' moment in the product because it happens every single open. Dark splash -> dark canvas -> the ring draws itself. NOTE: a splash change is native config, so it ships with the next BINARY, never over OTA.",
+          "backgroundColor": "#070B14"
         }
       ],
       [

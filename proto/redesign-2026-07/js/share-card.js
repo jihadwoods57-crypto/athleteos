@@ -106,8 +106,11 @@ export async function drawScoreCard({ score = null, eyebrow = '', caption = '', 
     ctx.fillStyle = wash;
     ctx.fillRect(0, 0, IMG.w, IMG.h);
 
-    const cx = IMG.w / 2, cy = 560, r = 300;
-    drawRing(ctx, cx, cy, r, 34, score != null ? score / 100 : 0);
+    // Ring geometry and the stats block have to be derived together, not hand-placed: with three
+    // stats the fixed offsets this started with ran the last one straight through the wordmark.
+    const cx = IMG.w / 2, cy = 500, r = 280, stroke = 32;
+    const ringBottom = cy + r + stroke / 2 + 22;       // + room for the glow
+    drawRing(ctx, cx, cy, r, stroke, score != null ? score / 100 : 0);
 
     ctx.textAlign = 'center';
 
@@ -119,10 +122,18 @@ export async function drawScoreCard({ score = null, eyebrow = '', caption = '', 
 
     // The score, in the app's display face. 3 digits get the same shrink the UI applies, for the
     // same reason: Archivo Expanded is wide and 100 would crowd the ring it sits inside.
-    const txt = score != null ? String(score) : '—';
-    ctx.fillStyle = TEXT;
-    ctx.font = `900 ${txt.length >= 3 ? 220 : 290}px Archivo, "Plus Jakarta Sans", sans-serif`;
-    ctx.fillText(txt, cx, cy + (txt.length >= 3 ? 78 : 100));
+    if (score != null) {
+      const txt = String(score);
+      ctx.fillStyle = TEXT;
+      ctx.font = `900 ${txt.length >= 3 ? 220 : 290}px Archivo, "Plus Jakarta Sans", sans-serif`;
+      ctx.fillText(txt, cx, cy + (txt.length >= 3 ? 78 : 100));
+    } else {
+      // An em dash at score size renders as a solid white bar — it reads as REDACTED, not as
+      // "unknown". Small and dim says the same thing without looking like a censored number.
+      ctx.fillStyle = TEXT_3;
+      ctx.font = '900 110px Archivo, "Plus Jakarta Sans", sans-serif';
+      ctx.fillText('—', cx, cy + 40);
+    }
 
     if (caption) {
       ctx.fillStyle = TEXT_2;
@@ -130,15 +141,20 @@ export async function drawScoreCard({ score = null, eyebrow = '', caption = '', 
       ctx.fillText(caption, cx, cy + 200);
     }
 
-    let y = 1010;
-    for (const [k, v] of stats.slice(0, 3)) {
+    /* Bottom-anchored: the block grows UPWARD from a reserved footer line, so one stat or three all
+       clear the wordmark. Clamped so it can never climb into the ring either. */
+    const rows = stats.slice(0, 3);
+    const STEP = 112;
+    const FOOTER_TOP = IMG.h - 150;
+    let y = Math.max(ringBottom + 26, FOOTER_TOP - rows.length * STEP);
+    for (const [k, v] of rows) {
       ctx.fillStyle = TEXT_3;
       ctx.font = '700 30px "Plus Jakarta Sans", -apple-system, Helvetica, Arial, sans-serif';
       ctx.fillText(k, cx, y);
       ctx.fillStyle = TEXT;
       ctx.font = '800 42px "Plus Jakarta Sans", -apple-system, Helvetica, Arial, sans-serif';
       ctx.fillText(v, cx, y + 54);
-      y += 118;
+      y += STEP;
     }
 
     const mark = ctx.createLinearGradient(cx - 190, 0, cx + 190, 0);
@@ -157,6 +173,9 @@ export async function drawScoreCard({ score = null, eyebrow = '', caption = '', 
 
 /** Draw, then hand to the native share sheet. Falls back to a text share, then to nothing. */
 export async function shareScoreCard(payload, caption) {
+  // No number, nothing to share. The renderer can draw a scoreless card (a dim dash, for a month
+  // with no data), but pushing that into a share sheet would put an empty ring on someone's feed.
+  if (!payload || payload.score == null) return false;
   const dataUrl = await drawScoreCard(payload);
   const N = window.OnStandardNative;
   if (dataUrl && N && N.shareImage) { N.shareImage(dataUrl, caption); return true; }

@@ -8,6 +8,7 @@ import { S } from '../state.js';
 import * as roles from '../roles.js';
 import { buildMonthPayload } from '../monthly.js';
 import { track, EVENTS } from '../analytics.js';
+import { shareScoreCard } from '../share-card.js';
 
 let CACHE = { report: null, period: null, loaded: false, payload: null, paywallFired: false };
 
@@ -59,67 +60,20 @@ async function load(force) {
   if (window.__render) window.__render();
 }
 
-/* Portrait share card: dark background, big blue->teal average score, a few key stats,
-   the OnStandard wordmark. Returns a data URL, or null if canvas isn't available. */
-function drawShareCard(report, period) {
-  try {
-    const canvas = document.createElement('canvas');
-    canvas.width = 1080; canvas.height = 1350;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-
-    ctx.fillStyle = '#0b0f14';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    const accent = ctx.createLinearGradient(0, 0, canvas.width, 0);
-    accent.addColorStop(0, '#2f6fed');
-    accent.addColorStop(1, '#34d399');
-
-    ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(255,255,255,0.62)';
-    ctx.font = '600 40px -apple-system, Helvetica, Arial, sans-serif';
-    ctx.fillText(monthLabel(period).toUpperCase(), canvas.width / 2, 190);
-
-    const avg = report && report.avgScore != null ? report.avgScore : null;
-    ctx.fillStyle = accent;
-    ctx.font = '800 340px -apple-system, Helvetica, Arial, sans-serif';
-    ctx.fillText(avg != null ? String(avg) : '—', canvas.width / 2, 620);
-
-    ctx.fillStyle = 'rgba(255,255,255,0.72)';
-    ctx.font = '600 38px -apple-system, Helvetica, Arial, sans-serif';
-    ctx.fillText('Average daily score', canvas.width / 2, 690);
-
-    const stats = [
+/* The card itself now lives in share-card.js and is shared with the daily score — a month and a day
+   are the same shape of thing (a number, a label, a few supporting stats), and two drawing functions
+   would have drifted. This just supplies the month's payload. */
+function shareReport(report, period) {
+  void shareScoreCard({
+    score: report && report.avgScore != null ? report.avgScore : null,
+    eyebrow: monthLabel(period),
+    caption: 'Average daily score',
+    stats: [
       ['Days logged', report && report.loggedDays != null ? String(report.loggedDays) : '—'],
       ['Best streak', report && report.streakBest != null ? `${report.streakBest} days` : '—'],
       ['Best day', report && report.bestDay ? `${dayLabel(report.bestDay.date)} · ${report.bestDay.score}` : '—'],
-    ];
-    let y = 840;
-    for (const [k, v] of stats) {
-      ctx.fillStyle = 'rgba(255,255,255,0.55)';
-      ctx.font = '600 32px -apple-system, Helvetica, Arial, sans-serif';
-      ctx.fillText(k, canvas.width / 2, y);
-      ctx.fillStyle = '#fff';
-      ctx.font = '700 44px -apple-system, Helvetica, Arial, sans-serif';
-      ctx.fillText(v, canvas.width / 2, y + 56);
-      y += 140;
-    }
-
-    ctx.fillStyle = accent;
-    ctx.font = '800 44px -apple-system, Helvetica, Arial, sans-serif';
-    ctx.fillText('ONSTANDARD', canvas.width / 2, canvas.height - 90);
-
-    return canvas.toDataURL('image/png');
-  } catch { return null; }
-}
-
-function shareReport(report, period) {
-  const dataUrl = drawShareCard(report, period);
-  if (dataUrl && window.OnStandardNative && window.OnStandardNative.shareImage) {
-    window.OnStandardNative.shareImage(dataUrl, 'My OnStandard month');
-  } else if (window.OnStandardNative && window.OnStandardNative.share) {
-    window.OnStandardNative.share({ title: 'My OnStandard month' });
-  }
+    ],
+  }, 'My OnStandard month');
 }
 
 function statBlock(k, v) {

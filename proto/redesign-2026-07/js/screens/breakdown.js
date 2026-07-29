@@ -3,6 +3,7 @@ import { DAY } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, scoreRing, esc } from '../components.js';
 import { reveal } from '../motion.js';
+import { shareDay } from '../share-card.js';
 
 /* Score Breakdown (spec §2): every category explains its exact math — weight, earned/available,
    why points were earned or lost, what remains, and whether the remainder is guaranteed or
@@ -101,10 +102,27 @@ export default {
       <div class="ts">${S.score} of 100. ${S.score >= 80 ? 'This is what OnStandard looks like.' : 'Every requirement is in — meal quality is what lifts it toward the standard.'}</div></div>
     </div>`}
     <div style="height:8px"></div>
+    ${S.score != null ? `<button class="btn ghost sm" id="bd-share" style="width:100%">${icon('share', 17)} Share today's score</button>
+    <div style="height:8px"></div>` : ''}
     `;
   },
   // Same reveal as Home and the meal chip — this screen is the score explaining itself, so it plays
   // the score's moment. Silent: the number was already announced wherever the athlete tapped in
   // from, and a second haptic for the same fact reads as a stutter.
-  mount(root) { reveal(root, { key: `breakdown:${DAY.date}:${S.score}`, haptic: null }); },
+  mount(root) {
+    reveal(root, { key: `breakdown:${DAY.date}:${S.score}`, haptic: null });
+    // Today's number, on the card. The share renderer draws the app's real signature, so this is the
+    // one surface that markets the product for free — it should be reachable from the screen that
+    // explains the score, not only from the monthly report.
+    const share = root.querySelector('#bd-share');
+    if (share) share.addEventListener('click', () => {
+      void shareDay({
+        score: S.score,
+        streak: S.streakDays,
+        met: S.exec ? S.exec.met : null,
+        total: S.exec ? S.exec.total : null,
+        dateISO: String(DAY.date),
+      });
+    });
+  },
 };

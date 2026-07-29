@@ -12,7 +12,12 @@ import { parseInviteCode } from '../lib/inviteLink';
 import { registerGeofenceTask } from '../lib/location';
 import { postRollCallAck, queueAck, drainAckQueue, ensureRollCallCategories, rememberRollCallLabel } from '../lib/notify/rollcall';
 
-const BG = '#080B0A';
+// The app canvas, exactly: --bg in the proto's tokens.css, and the splash backgroundColor in
+// app.json. All three have to be the SAME value or launch shows a hue step — this was #080B0A, a
+// green-tinted near-black, behind a navy-tinted app. Same for the spinner: --green is #34D399, and
+// #37D586 was a fourth green nobody chose.
+const BG = '#070B14';
+const BRAND_GREEN = '#34D399';
 
 // Runs BEFORE any proto code: forwards errors to native so device issues are diagnosable (not a
 // silent blank screen). The native bridge shim (haptics/share/secure store) is appended right after
@@ -219,7 +224,7 @@ export function ProtoApp() {
   if (locked === null) {
     return (
       <Center>
-        <ActivityIndicator color="#37D586" />
+        <ActivityIndicator color={BRAND_GREEN} />
       </Center>
     );
   }
@@ -244,7 +249,7 @@ export function ProtoApp() {
   if (!uri) {
     return (
       <Center>
-        <ActivityIndicator color="#37D586" />
+        <ActivityIndicator color={BRAND_GREEN} />
       </Center>
     );
   }
