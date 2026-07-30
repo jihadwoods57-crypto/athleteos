@@ -53,6 +53,11 @@ const STRIPE_WEBHOOK_SECRET = Deno.env.get('STRIPE_WEBHOOK_SECRET') ?? '';
 const REFERRAL_COUPON = Deno.env.get('STRIPE_REFERRAL_COUPON_ID') ?? '';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+// Claim-code delivery (0166). Optional: without the key the code is still minted and still shown on
+// the success page — the email is redundancy, not the only copy. Sender name reuses the verified
+// GUARDIAN_EMAIL_FROM so there is one sender identity to verify with the vendor, not two.
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
+const EMAIL_FROM = Deno.env.get('GUARDIAN_EMAIL_FROM') ?? 'OnStandard <support@onstandard.app>';
 
 const json = (obj: unknown, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
@@ -311,15 +316,16 @@ async function mintOfferClaim(
   if (existing) return;
 
   for (let attempt = 0; attempt < 3; attempt++) {
+    const code = offerClaimCode();
     const { error } = await svc.from('offer_claims').insert({
-      code: offerClaimCode(),
+      code,
       practice_id: fields.practiceId,
       offer_id: fields.offerId,
       stripe_subscription_id: fields.subscriptionId,
       stripe_checkout_session_id: fields.sessionId,
       payer_email: fields.email,
     });
-    if (!error) return;
+    if (!error) { await emailOfferClaim(fields.email, code); return; }
     if (error.code !== '23505') throw error;
     // Same two-constraint disambiguation as sponsorships: a SESSION collision means a concurrent
     // delivery already minted this claim (done); a CODE collision means retry with a fresh code.
@@ -327,6 +333,37 @@ async function mintOfferClaim(
     if (blob.includes('stripe_checkout_session_id') || blob.includes('offer_claims_stripe_checkout_session_id_key')) return;
   }
   throw new Error('offer claim code generation failed after retries');
+}
+
+/**
+ * Email the claim code to the buyer. This is a REAL backup, not a nicety: the code is the only
+ * thing standing between someone who has already been charged and the thing they bought, and the
+ * success page that shows it is one closed tab away from being gone forever.
+ *
+ * Best-effort by design (the guardian-request pattern): with no RESEND_API_KEY the claim is still
+ * minted and still redeemable from the success page, and a send failure must never fail the webhook
+ * — Stripe would retry the whole event and we would be re-processing a completed payment to fix an
+ * email.
+ */
+async function emailOfferClaim(email: string | null, code: string): Promise<void> {
+  if (!email || !RESEND_API_KEY) return;
+  // `code` is generated from a fixed alphabet, never user input, so it is safe to interpolate.
+  const html = `<div style="font-family:system-ui,-apple-system,sans-serif;color:#0F172A;line-height:1.5">
+    <p>Your payment is confirmed — thanks for signing up with your trainer on OnStandard.</p>
+    <p>Download the app, create your account, and enter this code to connect with them. Your OnStandard membership is included in what you already pay your trainer.</p>
+    <p style="font-family:ui-monospace,Menlo,monospace;font-size:24px;font-weight:800;letter-spacing:0.06em">${code}</p>
+    <p style="color:#64748B;font-size:13px">This code works once. Questions: support@onstandard.app</p>
+  </div>`;
+  try {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: EMAIL_FROM, to: [email], subject: 'Your OnStandard code', html }),
+    });
+    if (!r.ok) console.error('stripe-webhook: claim email failed', r.status);
+  } catch (e) {
+    console.error('stripe-webhook: claim email error', e);
+  }
 }
 
 /** A completed Checkout Session for an OnStandard Pay offer (metadata.kind='offer_purchase') —
