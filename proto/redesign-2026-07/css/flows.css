@@ -27,6 +27,112 @@
 .day-done .tt { font-size: 15.5px; font-weight: 800; }
 .day-done .ts { font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-top:2px; }
 
+<<<<<<< HEAD
+=======
+/* ----- "Day N locked." stamp (lock-moment.js) -----
+   A body-level overlay, not part of any screen, because the router rebuilds device.innerHTML on
+   every render and a stamp inside a screen would be destroyed mid-animation by an async repaint.
+   Fixed to the whole window for the same reason: it has no layout relationship to the screen. */
+.lockstamp {
+  position: fixed; inset: 0; z-index: 200;
+  display: grid; place-items: center; padding: 24px;
+  background: rgba(4,6,12,0.62);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  opacity: 0; transition: opacity var(--dur-2) var(--ease-out);
+}
+.lockstamp.on { opacity: 1; }
+.lockstamp .ls-card {
+  width: 100%; max-width: 320px; text-align: center;
+  background: var(--surface-1); border: 1px solid var(--hairline);
+  border-radius: var(--r-card); padding: 26px 22px 18px;
+  box-shadow: var(--sh-raised);
+  transform: scale(0.9); transition: transform var(--dur-3) var(--ease-out);
+}
+.lockstamp.on .ls-card { transform: none; }
+/* The mark comes DOWN like a stamp rather than fading in — it is the one irreversible thing that
+   happens in this app, and it should land. */
+.lockstamp .ls-mark {
+  width: 62px; height: 62px; margin: 0 auto 14px; border-radius: var(--r-pill);
+  display: grid; place-items: center; position: relative;
+  background: linear-gradient(150deg, var(--green), var(--green-deep));
+  color: var(--ink-on-accent);
+  box-shadow: var(--sh-green);
+}
+.lockstamp.on .ls-mark { animation: lsStamp 460ms var(--ease-out) both; }
+/* Impact ripple: the stamp lands, and the landing carries — same exhale the score ring plays when
+   its number becomes final. One shot, delayed until the stamp has come down, ends invisible. */
+.lockstamp.on .ls-mark::after {
+  content: ''; position: absolute; inset: -4px; border-radius: inherit; pointer-events: none;
+  border: 2px solid rgba(var(--green-rgb), 0.55); opacity: 0;
+  animation: lsRipple 700ms var(--ease-out) 380ms forwards;
+}
+@keyframes lsRipple { from { opacity: 0.8; transform: scale(0.9); } to { opacity: 0; transform: scale(1.55); } }
+@keyframes lsStamp {
+  from { transform: scale(1.5) translateY(-10px); opacity: 0; }
+  60%  { transform: scale(0.94); opacity: 1; }
+  to   { transform: none; opacity: 1; }
+}
+.lockstamp .ls-t { font-family: var(--font-display); font-size: 26px; font-weight: 900; letter-spacing: -0.01em; }
+.lockstamp .ls-s { font-size: 13px; font-weight: 600; color: var(--text-2); line-height: 1.5; margin-top: 8px; }
+.lockstamp .ls-x {
+  margin-top: 18px; width: 100%; padding: 13px; border: none; cursor: pointer;
+  border-radius: var(--r-btn); background: var(--surface-2); color: var(--text);
+  font-family: var(--font); font-size: 14.5px; font-weight: 800;
+}
+/* A milestone is the same stamp with the signature sweep behind it — a different amount of the same
+   idea, never a different visual language. */
+.lockstamp.milestone .ls-card {
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(var(--green-rgb),0.20), transparent 62%),
+    var(--surface-1);
+  border-color: var(--green-border);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lockstamp, .lockstamp .ls-card { transition: none; }
+  .lockstamp.on .ls-mark { animation: none; }
+  .lockstamp.on .ls-mark::after { animation: none; }   /* base opacity is 0 — no static ghost */
+}
+
+/* ----- First-run tour (tour.js) -----
+   Body-level for the same reason the stamp is: the router rebuilds device.innerHTML on every
+   render, and a tour inside a screen would be destroyed by an async repaint mid-step.
+
+   The hole is four panels rather than a mask or an inset shadow — four rectangles around a rect
+   is arithmetic that can't be subtly wrong at an edge, and the highlighted element stays
+   genuinely untouched underneath rather than being redrawn through a filter. */
+.tour { position: fixed; inset: 0; z-index: 420; opacity: 0; transition: opacity var(--dur-2) var(--ease-out); }
+.tour.on { opacity: 1; }
+.tour-panel { position: fixed; background: rgba(3,5,10,0.82); }
+/* The ring is the only ornament: a hairline in the signature blue around whatever we're naming. */
+.tour-ring {
+  position: fixed; pointer-events: none;
+  border: 1.5px solid var(--blue-bright); border-radius: var(--r-card);
+  box-shadow: 0 0 0 1px rgba(4,6,12,0.5), 0 0 22px rgba(var(--blue-rgb), 0.35);
+  transition: top var(--dur-2) var(--ease-out), left var(--dur-2) var(--ease-out),
+              width var(--dur-2) var(--ease-out), height var(--dur-2) var(--ease-out);
+}
+.tour-card {
+  position: fixed; width: min(300px, calc(100vw - 24px));
+  background: var(--surface-1); border: 1px solid var(--hairline);
+  border-radius: var(--r-card); padding: 15px 16px 13px;
+  box-shadow: var(--sh-raised);
+  transition: top var(--dur-2) var(--ease-out), left var(--dur-2) var(--ease-out);
+}
+.tour-count { font-size: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
+.tour-t { font-family: var(--font-display); font-size: 17px; font-weight: 900; letter-spacing: -0.01em; margin-top: 3px; }
+.tour-b { font-size: 13px; font-weight: 600; color: var(--text-2); line-height: 1.5; margin-top: 6px; }
+.tour-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+.tour-skip {
+  border: none; background: none; cursor: pointer; padding: 6px 2px;
+  font-family: var(--font); font-size: 13px; font-weight: 700; color: var(--text-3);
+}
+.tour-next { width: auto; min-width: 92px; padding: 0 18px; }
+.tour-skip:focus-visible, .tour-next:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .tour, .tour-ring, .tour-card { transition: none; }
+}
+
+>>>>>>> 13d04f6 (feat(proto): share-card ring parity, lock-stamp impact ripple, press brightness)
 /* ----- Quick-log sheet (route #log) ----- */
 .sheet-scrim { position: absolute; inset: 0; background: rgba(4,6,12,0.7); backdrop-filter: blur(3px); z-index: 5; }
 .sheet {
