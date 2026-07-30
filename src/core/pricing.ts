@@ -21,9 +21,15 @@ export interface PricedPlan {
   annual: number;
   /** Free-trial length in days. */
   trialDays: number;
-  /** Active clients/participants included (undefined = unlimited/custom). */
+  /** ACTIVE clients/participants included (undefined = unlimited/custom). "Active" is the billing
+   *  metric, not roster size: an athlete who logged >= ACTIVE_DAYS_THRESHOLD days that month
+   *  (see server active_athlete_count, migration 0163). Idle seats are free — a coach is never
+   *  billed for a kid who quit, and our AI cost only accrues for athletes who actually log. */
   seatLimit?: number;
-  /** USD per extra active client beyond the limit, when the plan allows add-ons. */
+  /** USD per extra ACTIVE client beyond the included count. On every Stripe plan (2026-07-30):
+   *  it was declared on `professional` only while the website promised it on all plans, and it is
+   *  the expansion-revenue lever — growth past the included seats bills automatically instead of
+   *  hitting a wall. Billed via the metered overage Price (billing-overage-report). */
   extraSeatMonthly?: number;
   /** One-line "who it's for / what's included". */
   blurb: string;
@@ -51,17 +57,28 @@ export const PLAN_CATALOG: PricedPlan[] = [
   // genuinely engaged, so a MORE successful trainer earned us LESS margin. New floor: ~$4/seat of budget
   // against a ~$2 heavy-user AI cost, and the $10 overage stays clean margin as a roster grows past 50.
   // Nothing was anchored to the old prices (free preview), so this is free.
-  { id: 'pro_solo', name: 'Solo', audience: 'professional', rail: 'stripe', monthly: 99, annual: 990, trialDays: 14, seatLimit: 25,
-    blurb: 'For the independent trainer or nutritionist. Up to 25 active clients.' },
+  // Active-athlete billing + universal overage (2026-07-30). Two structural fixes in one sweep:
+  //   1. seatLimit counts ACTIVE athletes, and idle seats are free — the coach's biggest objection
+  //      to seat pricing ("I'm paying for kids who quit") becomes the pitch, and the billing metric
+  //      finally points the same way as our AI cost (only active athletes burn analyze-meal calls).
+  //   2. extraSeatMonthly on EVERY Stripe plan. It existed on `professional` alone, which made the
+  //      $179 tier both the only capped-with-escape plan AND worse per-seat than Solo ($3.58 vs
+  //      $3.96) — the best customer was the worst margin. At $10/active seat the overage is ~4x the
+  //      measured AI cost, so growth past the included count is margin, not loss, and net revenue
+  //      retention can exceed 100% without a sales conversation.
+  { id: 'pro_solo', name: 'Solo', audience: 'professional', rail: 'stripe', monthly: 99, annual: 990, trialDays: 14, seatLimit: 25, extraSeatMonthly: 10,
+    blurb: 'For the independent trainer or nutritionist. 25 active clients included; $10/mo per active client beyond. Idle clients are free.' },
   { id: 'professional', name: 'Professional', audience: 'professional', rail: 'stripe', monthly: 179, annual: 1790, trialDays: 14, seatLimit: 50, extraSeatMonthly: 10,
-    blurb: 'For a busy practice. Up to 50 active clients; $10/mo each beyond.' },
-  { id: 'org_starter', name: 'Starter', audience: 'organization', rail: 'stripe', monthly: 249, annual: 2490, trialDays: 14, seatLimit: 30,
-    blurb: 'Teams, gyms & facilities. Up to 30 active participants.' },
-  { id: 'org_growth', name: 'Growth', audience: 'organization', rail: 'stripe', monthly: 499, annual: 4990, trialDays: 14, seatLimit: 75,
-    blurb: 'Up to 75 active participants.' },
-  { id: 'org_performance', name: 'Performance', audience: 'organization', rail: 'stripe', monthly: 799, annual: 7990, trialDays: 14, seatLimit: 150,
-    blurb: 'Up to 150 active participants.' },
-  { id: 'enterprise', name: 'Enterprise', audience: 'organization', rail: 'stripe', monthly: 0, annual: 0, trialDays: 14, custom: true,
+    blurb: 'For a busy practice. 50 active clients included; $10/mo per active client beyond. Idle clients are free.' },
+  { id: 'org_starter', name: 'Starter', audience: 'organization', rail: 'stripe', monthly: 249, annual: 2490, trialDays: 14, seatLimit: 30, extraSeatMonthly: 10,
+    blurb: 'Teams, gyms & facilities. 30 active athletes included; $10/mo per active athlete beyond.' },
+  { id: 'org_growth', name: 'Growth', audience: 'organization', rail: 'stripe', monthly: 499, annual: 4990, trialDays: 14, seatLimit: 75, extraSeatMonthly: 10,
+    blurb: '75 active athletes included; $10/mo per active athlete beyond.' },
+  { id: 'org_performance', name: 'Performance', audience: 'organization', rail: 'stripe', monthly: 799, annual: 7990, trialDays: 14, seatLimit: 150, extraSeatMonthly: 10,
+    blurb: '150 active athletes included; $10/mo per active athlete beyond.' },
+  // trialDays 0, not 14: planTerms() suppresses the trial for custom plans, so a nonzero value here
+  // was dead data that any future consumer of trialDays would have read as a real promise.
+  { id: 'enterprise', name: 'Enterprise', audience: 'organization', rail: 'stripe', monthly: 0, annual: 0, trialDays: 0, custom: true,
     blurb: 'Athletic departments, multi-location & 150+. White-label branding, SSO, API, white-glove onboarding.' },
 ];
 

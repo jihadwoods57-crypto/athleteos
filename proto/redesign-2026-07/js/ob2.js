@@ -332,10 +332,11 @@ export function testimonial({ quote, name, role, initials, stat, statKey }) {
     <div><div class="tn">${esc(name)}</div><div class="tr">${esc(role)}</div></div>
     ${stat ? `<div class="ts"><div class="v">${esc(stat)}</div><div class="k">${esc(statKey || '')}</div></div>` : ''}</div></div>`;
 }
-export function planCard({ id, name, price, per = '/mo', sub, tag, on, cadence, monthly, annual, annualPer, save }) {
+export function planCard({ id, name, price, per = '/mo', sub, tag, on, cadence, monthly, annual, annualPer, save, custom }) {
   /* Cadence-aware individual plans pass monthly/annual/annualPer/save; legacy pro/org/seat
-     plans still pass price/per and render exactly as before. Annual is the framed default. */
-  let p = price, u = per, saveLine = '';
+     plans still pass price/per and render exactly as before. Annual is the framed default.
+     A custom plan has no unit — "Custom/mo" is not a price. */
+  let p = price, u = custom ? '' : per, saveLine = '';
   if (annual && cadence) {
     if (cadence === 'annual') { p = annual; u = '/yr'; saveLine = `${annualPer}/mo · ${save}`; }
     else { p = monthly; u = '/mo'; }
@@ -370,22 +371,29 @@ export const PLANS = {
   individual: [
     { id: 'individual', name: 'Individual', monthly: '$14.99', annual: '$126', annualPer: '$10.50', save: 'Save $54', tag: '7-day free trial',
       sub: 'Daily Score, AI meal analysis, streaks, one connected supporter.' },
-    { id: 'individual_plus', name: 'Individual+', monthly: '$24.99', annual: '$210', annualPer: '$17.50', save: 'Save $90',
+    { id: 'individual_plus', name: 'Individual Plus', monthly: '$24.99', annual: '$210', annualPer: '$17.50', save: 'Save $90',
       sub: 'Everything in Individual plus full history, trends, and unlimited supporters.' },
     { id: 'family', name: 'Family', monthly: '$39.99', annual: '$336', annualPer: '$28', save: 'Save $144',
       sub: 'One household, up to 4 athletes, one bill. Parents see every dashboard.' },
   ],
+  /* Names are CANONICAL (pricing.ts .name), never audience flavours. "Pro Solo" / "Nutrition Pro" /
+     "Team Starter" / "Program" / "Practice" all named the same plans differently, so the plan a
+     trainer picked in onboarding rendered under another name on the Plan & billing screen in the
+     same session. The SUBTITLE is where audience tailoring lives — same plan, same name, different
+     sentence. Parity with the catalog (ids, prices, names, seats, trials, overage) is locked by
+     src/core/obPlanPricingParity.test.ts. */
   pro: [
-    { id: 'pro_solo', name: 'Pro Solo', price: '$99', sub: 'Up to 25 clients. Client codes, AI reviews, your daily queue.', tag: '14-day free trial' },
-    { id: 'professional', name: 'Professional', price: '$179', sub: 'Up to 50 clients, then $10/mo each beyond. Priority support.' },
+    { id: 'pro_solo', name: 'Solo', price: '$99', sub: '25 active clients included, then $10/mo each. Client codes, AI reviews, your daily queue.', tag: '14-day free trial' },
+    { id: 'professional', name: 'Professional', price: '$179', sub: '50 active clients included, then $10/mo each. Priority support.' },
   ],
   org: [
-    { id: 'org_starter', name: 'Team Starter', price: '$249', sub: 'Up to 30 athletes. Rooms, standards, alerts, staff seats.', tag: '14-day free trial' },
-    { id: 'org_growth', name: 'Program', price: '$499', sub: 'Up to 75 athletes across teams. Position rooms + insights.' },
-    { id: 'org_performance', name: 'Performance', price: '$799', sub: 'Up to 150 athletes. Org-wide standards and analytics.' },
+    { id: 'org_starter', name: 'Starter', price: '$249', sub: '30 active athletes included, then $10/mo each. Rooms, standards, alerts, staff seats.', tag: '14-day free trial' },
+    { id: 'org_growth', name: 'Growth', price: '$499', sub: '75 active athletes included, then $10/mo each. Position rooms + insights.' },
+    { id: 'org_performance', name: 'Performance', price: '$799', sub: '150 active athletes included, then $10/mo each. Org-wide standards and analytics.' },
+    { id: 'enterprise', name: 'Enterprise', price: 'Custom', sub: 'Departments, multi-location & 150+. White-label, SSO, API, white-glove onboarding.', custom: true },
   ],
   seat: [
-    { id: 'pro_solo', name: 'Nutrition Pro', price: '$99', sub: 'Up to 25 clients. Review queue, corrections, trends, flags.', tag: '14-day free trial' },
-    { id: 'professional', name: 'Practice', price: '$179', sub: 'Up to 50 clients plus team collaboration seats.' },
+    { id: 'pro_solo', name: 'Solo', price: '$99', sub: '25 active clients included, then $10/mo each. Review queue, corrections, trends, flags.', tag: '14-day free trial' },
+    { id: 'professional', name: 'Professional', price: '$179', sub: '50 active clients included, then $10/mo each, plus team collaboration seats.' },
   ],
 };
