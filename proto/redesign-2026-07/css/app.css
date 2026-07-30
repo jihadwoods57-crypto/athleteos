@@ -115,6 +115,13 @@ body {
    re-ran the whole entrance every time an async screen repainted itself. */
 .view.enter { animation: viewIn var(--dur-2) var(--ease-out); }
 @keyframes viewIn { from { opacity: 0; transform: translateY(8px);} to { opacity:1; transform:none; } }
+/* Directional arrivals — the screen enters the way the user asked for it. A detail screen slides
+   in from the right (forward), back returns from the left (unwinding), tab roots keep the vertical
+   settle above. Same duration and curve as viewIn: direction changes, choreography doesn't. */
+.view.enter.dir-push { animation-name: viewPush; }
+.view.enter.dir-pop  { animation-name: viewPop; }
+@keyframes viewPush { from { opacity: 0; transform: translateX(26px); } to { opacity: 1; transform: none; } }
+@keyframes viewPop  { from { opacity: 0; transform: translateX(-26px); } to { opacity: 1; transform: none; } }
 /* staggered row entrances — list content settles like it landed, not popped. Also arrival-only:
    these replaying on a repaint is what made a settled list slide around under the reader. */
 .view.enter .req-row, .view.enter .act-card, .view.enter .notif, .view.enter .roster-row {
@@ -127,7 +134,7 @@ body {
 .view .req-row:nth-of-type(5), .view .act-card:nth-of-type(5), .view .roster-row:nth-of-type(5) { animation-delay: 180ms; }
 .view .req-row:nth-of-type(6), .view .roster-row:nth-of-type(6) { animation-delay: 225ms; }
 @media (prefers-reduced-motion: reduce) {
-  .view, .view *, .ring-arc, .aurora { animation: none !important; transition: none !important; }
+  .view, .view *, .ring-arc, .aurora, .tabbar, .tabbar *, .ring-wrap::after { animation: none !important; transition: none !important; }
 }
 
 /* ===== App header ===== */
@@ -226,6 +233,16 @@ body {
 :root[data-theme="light"] .ring-arc.ring-ceil { opacity: 0.38; }
 .ring-tip.pulse { animation: tipPulse 2.4s ease-in-out infinite; }
 @keyframes tipPulse { 0%,100% { opacity: 0.8; } 50% { opacity: 1; } }
+/* Completion flare — the band lands and the ring exhales once: a halo bloom expanding just past
+   the band, then gone (fill forwards keeps it at opacity 0; the class only ever re-arms through
+   windBack). Sits at z 0, behind the SVG, so it can never wash the numerals. Under reduced motion
+   the class is never added (animateRing returns first), so there is no static ghost to suppress. */
+.ring-wrap.flare::after {
+  content: ''; position: absolute; inset: 3%; border-radius: 50%; pointer-events: none; z-index: 0;
+  background: radial-gradient(closest-side, transparent 60%, rgba(var(--teal-rgb), 0.30) 78%, transparent 94%);
+  animation: ringFlare 800ms var(--ease-out) forwards;
+}
+@keyframes ringFlare { from { opacity: 0.9; transform: scale(0.94); } to { opacity: 0; transform: scale(1.12); } }
 .ring-svg { position: relative; z-index: 1; display: block; }
 .ring-center {
   position: absolute; inset: 0; z-index: 2;
@@ -458,10 +475,21 @@ body {
     rgba(var(--bg-rgb), 0.72) 68%,
     rgba(var(--bg-rgb), 0)    100%);
 }
-.tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap:6px; min-height: 44px; color: var(--text-3); cursor: pointer; font-size: 10.5px; font-weight: 700; letter-spacing: 0.01em; }
+.tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap:6px; min-height: 44px; color: var(--text-3); cursor: pointer; font-size: 10.5px; font-weight: 700; letter-spacing: 0.01em; transition: color var(--dur-2) var(--ease-out); }
+/* The active tab is LIT, not just recolored: a soft cast of its own hue behind the glyph reads as
+   a live indicator without adding a single pixel of chrome. drop-shadow (not box-shadow) hugs the
+   icon's strokes, and the rgb triples keep the glow on-theme in light mode. */
 .tab.active { color: var(--blue-bright); }
+.tab.active svg { filter: drop-shadow(0 0 9px rgba(var(--blue-rgb), 0.55)); }
 .tab.active.home { color: var(--green-bright); }
+.tab.active.home svg { filter: drop-shadow(0 0 9px rgba(var(--green-rgb), 0.50)); }
+:root[data-theme="light"] .tab.active svg { filter: drop-shadow(0 1px 6px rgba(var(--blue-rgb), 0.35)); }
+:root[data-theme="light"] .tab.active.home svg { filter: drop-shadow(0 1px 6px rgba(var(--green-rgb), 0.32)); }
 .tab svg { display: block; }
+/* On a genuine tab switch (router stamps .switch — never on a push, pop, or repaint) the arriving
+   icon settles from slightly small: feedback that the BAR moved, timed with the view's own fade. */
+.tabbar.switch .tab.active svg { animation: tabPop 340ms var(--ease-out); }
+@keyframes tabPop { from { transform: scale(0.78); } to { transform: none; } }
 .fab {
   width: 57px; height: 57px; border-radius: var(--r-pill); margin:0 auto; margin-top:-19px;
   background: linear-gradient(155deg, var(--green), var(--green-deep));

@@ -81,6 +81,9 @@ function windBack(root) {
     arc.style.strokeDashoffset = String(dash);
   });
   root.querySelectorAll('[data-count]').forEach((n) => { n.textContent = '0'; });
+  // Strip a previous reveal's completion flare so this draw's landing can bloom again.
+  // (classList guard: the node suites answer every selector with minimal fake elements.)
+  root.querySelectorAll('.ring-wrap.flare').forEach((w) => { if (w.classList) w.classList.remove('flare'); });
   // The comet tip rests VISIBLE (it marks where the arc ends, which is true whether or not anything
   // animated). Hide it for the draw so animateRing can fade it in as the band arrives.
   root.querySelectorAll('.ring-tip').forEach((tip) => { tip.style.transition = 'none'; tip.style.opacity = '0'; });

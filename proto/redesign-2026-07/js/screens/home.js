@@ -15,6 +15,7 @@ import { armIfPermitted } from './location-consent.js';
 import { standardsCard, mountStandardsCard, standardsOfflineCard } from './connected-standards.js';
 import { CS, loadMine as loadStandards, todayISO as csToday } from '../connected-standard-data.js';
 import { maybeStartTour } from '../tour.js';
+import { pressTilt } from '../tilt.js';
 
 /* Verified Commitments on Home. Renders every commitment the athlete has today that is currently
    visible — usually zero or one, occasionally a roll call plus an afternoon study hall.
@@ -656,6 +657,8 @@ export default {
     // moment. Keying on the score (not just the day) keeps the part worth replaying: when the
     // number actually CHANGES because something was logged, it draws again.
     reveal(root, { key: `day:${DAY.date}:${S.exec.score}`, haptic: null });
+    // The score hero answers a press with depth (tilt.js) — the one surface that earns it.
+    pressTilt(root.querySelector('.xhero'));
     // Keep-your-record: tapping goes to the plans (Individual Plus is the portable-record pitch);
     // either way it is marked seen — a conversion card that nags is a churn card.
     const keep = root.querySelector('#keep-record');

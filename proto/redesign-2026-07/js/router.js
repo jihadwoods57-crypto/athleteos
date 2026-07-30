@@ -138,6 +138,9 @@ function navSave() {
   catch { /* quota — nav still works in-memory this session */ }
 }
 let NAV_INTENT = false;   // this hash change came from our own handlers (vs browser/swipe back)
+let NAV_DIR = null;       // 'push' | 'pop' | 'tab' — how the user got here, so the entrance can
+                          // match the gesture (detail slides in from the right, back from the
+                          // left, tab roots keep the fade-up). Consumed once per render.
 let RESTORE = null;       // {r, s} — scroll position to restore once that route paints
 let LAST_FULL = null;     // the route (route/sub) the previous render painted — lets a same-route
                           // re-render (window.__render) PRESERVE scroll instead of snapping to top (T-08)
@@ -156,9 +159,13 @@ function navigateTo(target) {
   const transient = !!(curMod && curMod.transient);
   const targetRoot = ROOT_TAB[target.split('/')[0]];
   if (targetRoot && !target.includes('/')) {
+    NAV_DIR = 'tab';
     resetTab(NAV, targetRoot); navSave();
   } else if (curMod && !transient && !AUTH_ROUTES.includes(cur)) {
+    NAV_DIR = 'push';
     pushOrigin(NAV, currentFull(), currentScroll()); navSave();
+  } else {
+    NAV_DIR = 'push';   // flow interstitials still ARRIVE forward even though they don't stack
   }
   if (transient) { try { location.replace('#' + target); return; } catch { /* fall through */ } }
   go(target);
@@ -168,6 +175,7 @@ function navigateTo(target) {
  *  Uses location.replace so browser history never grows from unwinding. */
 function goBack(fallback) {
   NAV_INTENT = true;
+  NAV_DIR = 'pop';
   const entry = popOrigin(NAV); navSave();
   if (entry) {
     RESTORE = entry;
@@ -197,7 +205,7 @@ function render() {
   // stack, consume it as a pop so header-back and edge-swipe stay perfectly consistent.
   if (!NAV_INTENT) {
     const top = peekOrigin(NAV);
-    if (top && top.r === full) { popOrigin(NAV); RESTORE = top; navSave(); }
+    if (top && top.r === full) { popOrigin(NAV); RESTORE = top; NAV_DIR = 'pop'; navSave(); }
   }
   NAV_INTENT = false;
   // Auth gate on EVERY render, not just boot: a signed-out runtime (expired/cleared session)
@@ -249,16 +257,23 @@ function render() {
   // further down, with the scroll restore that uses the same signal), so this is the same
   // definition of "same-route re-render" the scroll logic already trusts.
   const enter = LAST_FULL === full ? '' : ' enter';
+  // Direction modifier: the entrance matches the gesture that caused it. Consumed here whether or
+  // not it renders (a same-route repaint must not inherit a stale direction from an old tap).
+  const dir = NAV_DIR; NAV_DIR = null;
+  const dirCls = enter && dir === 'push' ? ' dir-push' : enter && dir === 'pop' ? ' dir-pop' : '';
   const body = mod.render({ sub, S });
   device.innerHTML = `
     <div class="island"></div>
     <div class="screen">
       ${statusbar()}
       <div class="viewport ${mod.bleed ? 'bleed' : ''}${mod.hideTabs ? ' notabs' : ''}" id="viewport">
-        <div class="view${enter}" id="view">${body}</div>
+        <div class="view${enter}${dirCls}" id="view">${body}</div>
       </div>
       ${mod.hideTabs ? '' : tabbar(activeTab, navRole)}
     </div>`;
+  // A genuine tab switch pops the newly-active tab icon (CSS keys off .tabbar.switch). Gated so a
+  // push/pop/repaint never replays it — the bar should only move when the BAR is what changed.
+  if (enter && dir === 'tab') { const bar = device.querySelector('.tabbar'); if (bar) bar.classList.add('switch'); }
 
   // haptic feedback where the platform supports it (Android web; no-op elsewhere);
   // honors the athlete's real haptics preference (notification settings).

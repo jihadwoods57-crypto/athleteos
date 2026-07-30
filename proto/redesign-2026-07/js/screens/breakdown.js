@@ -4,6 +4,7 @@ import { icon } from '../icons.js';
 import { backHead, scoreRing, esc } from '../components.js';
 import { reveal } from '../motion.js';
 import { shareDay } from '../share-card.js';
+import { pressTilt } from '../tilt.js';
 
 /* Score Breakdown (spec §2): every category explains its exact math — weight, earned/available,
    why points were earned or lost, what remains, and whether the remainder is guaranteed or
@@ -111,6 +112,8 @@ export default {
   // from, and a second haptic for the same fact reads as a stutter.
   mount(root) {
     reveal(root, { key: `breakdown:${DAY.date}:${S.score}`, haptic: null });
+    // Depth response on the big ring, same physics as Home's hero (tilt.js).
+    pressTilt(root.querySelector('.bd-hero .ring-wrap'), { max: 5.5 });
     // Today's number, on the card. The share renderer draws the app's real signature, so this is the
     // one surface that markets the product for free — it should be reachable from the screen that
     // explains the score, not only from the monthly report.
