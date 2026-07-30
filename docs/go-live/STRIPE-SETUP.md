@@ -38,6 +38,18 @@ price in the dashboard without a deploy.
 If you only want to start with one plan, create just Solo — the others' buttons will say
 "plan not available yet" honestly until you add them.)
 
+**The trial needs NO dashboard setup.** billing-checkout sends `trial_period_days` (default 14,
+`STRIPE_TRIAL_DAYS` to change) on the session itself — this is what makes the "14-day free
+trial" promised on every surface true. One per customer: a returning buyer whose Stripe customer
+already exists checks out without a second trial. Note this doc previously never mentioned the
+trial at all, so following it produced checkouts that billed on click while the site promised
+two free weeks.
+
+**The $10/active-athlete overage also needs NO dashboard Price.** It bills monthly in arrears as
+ad-hoc invoice items (`billing-overage-report` — see docs/go-live/SUBSCRIPTION-MODEL.md). If
+Stripe blocks ad-hoc `price_data` on the account, opt out of managed-payments restrictions (the
+same setting sponsor-checkout needed).
+
 ## Step 3 — Referral coupon (~3 min)
 **Products → Coupons → New:** name it `Referral month`, **100% off, once** (duration: once).
 Copy its coupon ID. This one coupon powers both halves of give-a-month/get-a-month: the new

@@ -11,10 +11,12 @@
 
 **Product type:** B2B2C SaaS — mobile (iOS, Android) + web. Professionals are the buyers; athletes/clients are the users.
 
-**Business model:** The people who profit pay; the people who sweat don't.
+**Business model:** The people who profit pay; the people who sweat don't. *(Corrected 2026-07-30 — this section carried retired numbers. `src/core/pricing.ts` + `docs/founding/LAUNCH-PRICING.md` are the truth.)*
 - **Athletes & clients:** $0 while on a roster (full app, full AI, full history, portable forever).
-- **Professional (trainers, RDs, private coaches):** $124.99/mo, 50 client seats included. Founding 50 lock 50% off for 12 months, grandfathered.
-- **Programs & facilities:** from $249/mo, usage-based (pay only for active athletes; idle seats free up). 30 to 150+ athletes. 30-day trial at onboarding.
+- **Professional (trainers, RDs, private coaches):** Solo $99/mo (25 active clients) or Professional $179/mo (50 active clients); $10/mo per active client beyond. 14-day free trial.
+- **Programs & facilities:** $249 / $499 / $799/mo for 30 / 75 / 150 active athletes; $10/mo per active athlete beyond; Enterprise custom. 14-day free trial. Billing counts **active** athletes only — idle seats are free.
+- **Consumer (optional, IAP):** Individual $14.99, Individual Plus $24.99, Family $39.99 (4 athletes); annual = 30% off; 7-day trial.
+- **Founding 50:** free through the beta, then today's price locked permanently — a lock, never a discount.
 
 ## Target Audience
 **Buyers (who pays):** Coaches, personal trainers, registered dietitians (RDs), and programs/schools/performance gyms.

@@ -1,5 +1,11 @@
 # OnStandard — Landing Page Rewrite (Coach-First)
 
+> ⚠️ **SUPERSEDED — do not copy pricing or offer language from this document.** It predates two
+> ratified decisions: Founding 50 is a **price lock, never 50% off** (retired 2026-07-23 —
+> `web/landing-src/fix-founding.py` documents why), and Professional is **$179**, not $124.99,
+> with a **14-day** trial. The live site and `src/core/pricing.ts` are the truth; this file is
+> kept as the historical record of the 2026-07-15 rewrite only.
+
 *Generated 2026-07-15 from `.agents/product-marketing.md` + CRO audit. Voice: direct, earned, coach, plain-spoken, no hype, no invented numbers.*
 
 ## The one decision driving this rewrite

@@ -233,9 +233,13 @@ A concise, plain-text map that tells AI systems what OnStandard is, who it's for
 - Pricing: https://onstandard.app/pricing
 
 ## Pricing (summary)
-- Athletes & clients: /month while on a roster (full app, full history, portable).
-- Professional (trainers, RDs, private coaches): 4.99/mo, 50 client seats. Founding 50 lock 50% off 12 mo.
-- Programs & facilities: from 9/mo, usage-based; 30-day trial.
+<!-- CORRECTED 2026-07-30. This block is a publish-intended llms.txt payload and carried mangled,
+     retired numbers ("4.99/mo" for $124.99, "from 9/mo" for $249, a 30-day trial, and the killed
+     50%-off offer). Keep in lockstep with src/core/pricing.ts. -->
+- Athletes & clients: $0/month while on a roster (full app, full history, portable).
+- Professional (trainers, RDs, private coaches): Solo $99/mo (25 active clients) or Professional $179/mo (50); $10/mo per active client beyond. 14-day free trial.
+- Programs & facilities: $249/mo up to 30 active athletes, $499 up to 75, $799 up to 150; $10/mo per active athlete beyond. 14-day free trial. Idle athletes are free.
+- Founding 50: free through the beta, then today's price locked permanently. Not a discount.
 
 ## Contact
 - Request founding access: https://onstandard.app/#waitlist

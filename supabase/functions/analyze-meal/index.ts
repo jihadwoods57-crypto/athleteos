@@ -51,6 +51,17 @@ import { trackAuthedAiSpend } from '../_shared/ai-tier-budget.ts';
 // Per-surface override first (see meal-chat): vision is the expensive surface and should be
 // tunable without moving every other AI call in the product.
 const MODEL = Deno.env.get('ANTHROPIC_MODEL_ANALYZE_MEAL') ?? Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
+// COST ROUTING (subscription review 2026-07-30). The measured analyze cost is ~$0.02/meal on
+// sonnet-5 INTRO pricing, and the 0105 price table flips it to list (+50%) on 2026-09-01 — which
+// pushes the pro tiers' per-seat margin to roughly zero at full engagement. Setting this env
+// (e.g. to claude-haiku-4-5-20251001, ~1/3 the price) routes the PRIMARY meal read through the
+// cheaper model and escalates to MODEL within the same request when the first read is invalid or
+// carries any low-confidence food — the athlete sees one answer either way, and only uncertain
+// plates pay Sonnet prices. UNSET = OFF = exactly today's behavior: the meal read is the product's
+// core moment, so the cheap-first route earns its default only after an eval replay
+// (npm run eval -- --replay) shows quality holds. ai_calls records phase='escalate' with the
+// trigger, so the escalation rate — the number that decides if this is worth it — is measurable.
+const FIRST_MODEL = Deno.env.get('ANTHROPIC_MODEL_ANALYZE_FIRST') ?? null;
 // Cost sweep (audit item 20): memory/order are pure PROSE rephrases whose every number is re-verified
 // client-side (mergeRephrasedInsights/Orders drop any rewrite that changes a figure), so a cheaper
 // model cannot affect a single macro — run them on Haiku (~1/3 the cost). Meal (vision estimate) and
@@ -1084,13 +1095,16 @@ ${memBlock}`;
   // concern, not a second billing event, so the `recorded` flag keeps the catch from double-logging.
   const telemMode = isLabel ? 'label' : isMemory ? 'memory' : isOrder ? 'order' : 'meal';
   const telemPhase = isMeal ? (isFinalize ? 'finalize' : 'analyze') : null;
-  const intendedModel = isMemory || isOrder ? TEXT_MODEL : MODEL;
+  // Cheap-first routing applies ONLY to the primary analyze read: finalize incorporates the
+  // athlete's own answers (already a second pass), and label/memory/order have their own model.
+  const routeCheap = isMeal && !isFinalize && !!FIRST_MODEL;
+  const intendedModel = isMemory || isOrder ? TEXT_MODEL : (routeCheap ? FIRST_MODEL : MODEL);
   const t0 = Date.now();
   let recorded = false;
   try {
     const client = new Anthropic({ apiKey: key });
     const msg = await client.messages.create({
-      model: isMemory || isOrder ? TEXT_MODEL : MODEL,
+      model: intendedModel,
       max_tokens: isMeal ? MEAL_MAX_TOKENS : 1024,
       system: [{ type: 'text' as const, text: system, cache_control: { type: 'ephemeral' as const } }],
       tools: cachedTools,
@@ -1108,8 +1122,39 @@ ${memBlock}`;
       ok: true,
     });
     recorded = true;
-    const used = msg.content.find((b) => b.type === 'tool_use');
+    let used = msg.content.find((b) => b.type === 'tool_use');
     if (!used || used.type !== 'tool_use') throw new Error('no structured output');
+
+    /* ESCALATION (cost routing). When the cheap first read is invalid, truncated, or unsure of any
+       food on the plate, re-run the identical request on MODEL and adopt its answer — inside this
+       request, so the athlete never sees the cheap read or a second wait state. The clarifying-ask
+       path is NOT escalated: a question is a fine thing for the cheap model to conclude. If the
+       escalated read is also unusable, fall through to the existing invalid gate (client retry /
+       "Read it again"), exactly as before routing existed. */
+    if (routeCheap && used.name !== ASK_TOOL.name) {
+      const foods = (used.input as { detected?: Array<{ confidence?: string }> })?.detected;
+      const unsure = Array.isArray(foods) && foods.some((f) => f?.confidence === 'low');
+      const firstInvalid = !validMealInput(used.input);
+      if (firstInvalid || unsure) {
+        const t0e = Date.now();
+        const esc = await client.messages.create({
+          model: MODEL,
+          max_tokens: MEAL_MAX_TOKENS,
+          system: [{ type: 'text' as const, text: system, cache_control: { type: 'ephemeral' as const } }],
+          tools: cachedTools,
+          tool_choice: toolChoice,
+          messages: [{ role: 'user', content }],
+        });
+        await recordAiCall({
+          fn: 'analyze-meal', mode: telemMode, phase: 'escalate', userId,
+          model: esc.model ?? MODEL, ...usageFrom(esc.usage),
+          latencyMs: Date.now() - t0e, ok: true,
+          outcome: firstInvalid ? 'first_invalid' : 'first_low_confidence',
+        });
+        const eu = esc.content.find((b) => b.type === 'tool_use');
+        if (eu && eu.type === 'tool_use' && validMealInput(eu.input)) used = eu;
+      }
+    }
 
     // Meal path returns a discriminated union so the app can branch result-vs-questions. A
     // clarifying ask carries the questions back; a report is grounded then wrapped as a result.

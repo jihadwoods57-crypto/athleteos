@@ -1,54 +1,72 @@
-# OnStandard — Recommended Launch Pricing (the catalog seed)
+# Launch pricing — the catalog of record
 
-**Date:** 2026-06-29 · **From:** the crew (the founder asked us to pick) · **Status:** RECOMMENDED
-**This is data, not code** — every number here is a row in the pricing catalog and can change any
-time (price tests, promos, regional pricing, grandfathering) with no app release. These are the
-*opening* numbers, set per the ratified strategy (`STRATEGIC-DECISIONS.md` #3) and the per-active
-economics in `03_PRICING_AND_GTM.md`. Built to be the seed the checkout screen reads.
+> **Rewritten 2026-07-30.** This document was stale on 6 of 9 plans while `src/core/pricing.ts`
+> cited it as its own source — Solo $69, Professional $124.99, a $3 overage, no Family plan, and
+> a 17% consumer annual rule, none true since the 2026-07-04 cost sweep. It now states the
+> shipped catalog. **`src/core/pricing.ts` is the machine truth**; this file explains it. If
+> they disagree, fix whichever is wrong *and* the parity test that let it drift
+> (`src/core/obPlanPricingParity.test.ts`).
 
-## The recommended catalog
+## The model in one paragraph
 
-### Consumer (a person on their own)
-| Plan | Monthly | Annual (~2 mo free) | Free trial | Who / what it's for |
+The people who profit pay; the people who sweat don't. Athletes and clients are $0 on a roster.
+Professionals and organizations pay per **active athlete** — someone who logged at least 5 real
+days that month — with a block included in the plan and **$10/month per active athlete beyond
+it** on every Stripe tier. Idle seats are free: a kid who quits stops counting, which is both
+the honest pitch and the alignment of revenue with our real AI cost (only active athletes burn
+paid meal reads). Consumer plans are the moat, not the business: the free-with-roster record is
+the coach's switching cost, and Individual Plus is the "your record stays yours" continuation
+when a roster ends.
+
+## Consumer (Apple/Google IAP · 7-day trial · annual = 30% off)
+
+| Plan | Monthly | Annual | Effective /mo | Who it's for |
 |---|---|---|---|---|
-| **Individual** | **$14.99** | **$149/yr** | **7 days** | The "just graduated / on my own — keep my history" continuity plan. Core loop + AI coach + meal analysis + game plan + score. |
-| **Individual Plus** | **$24.99** | **$249/yr** | **7 days** | Adds the full *portable* multi-org history + a shareable scholarship/recruiting card. Prices the irreplaceable record like the moat it is. |
+| Individual | $14.99 | $126 | $10.50 | History, score, AI coach, one supporter |
+| Individual Plus | $24.99 | $210 | $17.50 | Portable record + recruiting card |
+| Family | $39.99 | $336 | $28.00 | Up to 4 athletes, one bill, parent dashboards |
 
-### Professional (personal trainers, nutritionists)
-| Plan | Monthly | Annual | Free trial | Limits |
-|---|---|---|---|---|
-| **Solo** | **$69** | **$690/yr** | **14 days** | Up to **25** active clients. The real entry point for the small trainer. |
-| **Professional** | **$124.99** | **$1,249/yr** | **14 days** | Up to **50** active clients. Extra active clients beyond 50: **$3 / active client / mo.** |
+## Professional & organization (Stripe · 14-day trial · annual = 2 months free · $10/mo per active athlete beyond the block)
 
-### Organization & Gym (priced by ACTIVE participants — graduated/transferred/inactive seats free up automatically)
-| Plan | Monthly | Annual | Free trial | Active participants |
-|---|---|---|---|---|
-| **Starter** | **$249** | **$2,490/yr** | **14 days** | up to **30** |
-| **Growth** | **$499** | **$4,990/yr** | **14 days** | up to **75** |
-| **Performance** | **$799** | **$7,990/yr** | **14 days** | up to **150** |
-| **Enterprise** | **Custom** | Custom | white-glove | 150+, multi-location, full athletic departments, SSO/API |
+| Plan | Monthly | Annual | Active athletes included |
+|---|---|---|---|
+| Solo | $99 | $990 | 25 |
+| Professional | $179 | $1,790 | 50 |
+| Starter | $249 | $2,490 | 30 |
+| Growth | $499 | $4,990 | 75 |
+| Performance | $799 | $7,990 | 150 |
+| Enterprise | Custom | Custom | Custom (no self-serve trial) |
 
-Gyms use these org tiers (a gym is an organization), priced by **active OnStandard participants**,
-not total gym membership.
+**Active athlete** = logged ≥ 5 qualifying days in the calendar month (`active_athlete_count`,
+migration 0163; a day qualifies only if something was actually logged). Overage bills **in
+arrears** as one monthly invoice line via `billing-overage-report` (0164) — a single code path
+for monthly and annual buyers, founding members at their locked rate.
 
-## The rules of thumb behind the numbers
-- **Per active athlete:** Starter $8.30 · Growth $6.65 · Performance $5.33 — it gets cheaper per head
-  as the org grows (a built-in reason to expand). Trainers are higher-touch / fewer clients, so Solo
-  ($2.76/client) and Professional ($2.50/client) sit lower per head but higher per *plan*.
-- **Annual = pay for 10 months, get 12** (~17% off) — the standard lever to pull cash forward and cut
-  churn. Monthly is the default at launch; annual is the upsell.
-- **Free trial: 14 days for trainers/orgs** (long enough for a coach to see a roster signal), **7 days
-  for consumers** (fast, low-friction at the hand-off).
-- **Land low on the org tiers on purpose.** Keep them where they are for the land phase; once we can
-  *prove* the retention/ROI we deliver, the catalog lets us raise the anchor later — with existing
-  customers grandfathered.
+## Founding 50
 
-## What still needs a human (not us)
-- **Final blessing on the numbers** — these are the recommendation; change any before we seed them.
-- **Stripe** set up with these as products/prices (founder, at go-live).
-- The numbers are enough to **build the checkout + cancellation screen now** (the compliant flow that
-  shows price, "renews monthly," trial length, and an easy cancel) — queued as Task #6.
+Free through the beta, then **today's price locked permanently** — including the overage rate.
+Deliberately a lock, never a discount: 50% off puts the pro tiers under the per-seat AI cost
+floor (that offer was retired 2026-07-23; see `web/landing-src/fix-founding.py`). Slots claim
+automatically on a completed first checkout (`stripe-webhook` → `claim_founding_slot`; capped,
+idempotent). The remaining count is public via `founding_slots_left()`.
 
-## Promotions to keep in our back pocket (data, build later)
-Founding-gym charter pricing, annual-prepay discount, a "bring your team" referral credit, and an
-education/non-profit rate — all just catalog rows when we want them.
+## Economics guardrails (why these numbers)
+
+- Measured AI cost: **~$0.0204 per meal read** on sonnet-5 intro pricing; the 0105 price table
+  reverts to list (+50%) on **2026-09-01** automatically. ~120 meals/month ≈ $2.45 → $3.67 per
+  heavy athlete.
+- Every included-seat price clears that ceiling, and the **$10 overage is ~3–4x heavy-seat
+  cost** — growth past the block is margin, not loss, which is what makes net revenue retention
+  able to exceed 100%.
+- The cheap-first read router (`ANTHROPIC_MODEL_ANALYZE_FIRST` on analyze-meal) can roughly
+  cancel the September increase — enable only after an eval replay shows quality holds.
+- Sponsor seats default **$60/seat-year** (`SPONSOR_SEAT_PRICE_CENTS=6000`): a real community
+  discount (~52% off Individual annual), not the $20 accident that undercut the paywall 6x.
+
+## Change control
+
+Prices live in Stripe (lookup_keys `<plan_id>_<cadence>`, generation-suffixed on a rise) and in
+the store products for IAP. A price rise = new generation of Stripe Prices + `PRICE_GENERATION`
+bump; founding members keep resolving to their locked generation (0161). Willingness-to-pay for
+the *next* generation comes from the Founding 50 onboarding conversations — ask each: "at what
+price is this a no-brainer?" and "at what price would you not even consider it?"

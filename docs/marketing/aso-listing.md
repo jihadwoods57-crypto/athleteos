@@ -210,4 +210,4 @@ Rationale:
 - Exact search volumes and difficulty per keyword (needs App Store Connect Search Ads popularity or a tool like AppTweak/Sensor Tower). The picks above are reasoned from audience intent, not measured volume.
 - Real competitor keyword rankings.
 - Conversion benchmarks for our specific creative — set up install attribution + a screenshot A/B before scaling spend.
-- Promotional text (iOS, 170 char, non-indexed, updatable without a release) — recommended launch value: *"Founding 50: the first coaches and facilities lock 50% off for 12 months, grandfathered. Prove the work."*
+- Promotional text (iOS, 170 char, non-indexed, updatable without a release) — recommended launch value: *"Founding 50: the first coaches and facilities ride free through the beta, then lock today's price for good. Prove the work."* <!-- corrected 2026-07-30: the 50%-off offer was deliberately retired (fix-founding.py) — this recommendation would have put it in the App Store -->

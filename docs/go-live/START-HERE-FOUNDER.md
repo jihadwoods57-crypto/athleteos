@@ -31,7 +31,7 @@ Nice. This unblocked everything below.
 The moment it clears, you can do step 5.
 
 ### 4. 🤝 Stripe — take your first payment (~40 min, then I finish)
-- Create the account, a plan (Solo $69 or Starter $249), a payment link, and a webhook.
+- Create the account, the Prices (Solo $99, Starter $249 — every plan per docs/go-live/STRIPE-SETUP.md), and the webhook.
 - **Full steps:** `docs/go-live/STRIPE-SETUP.md`
 - **Hand me the two secret keys and I deploy the webhook + verify a test charge.**
 - *Not urgent if your first beta is free — only needed to actually charge.*
