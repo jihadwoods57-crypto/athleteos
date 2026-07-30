@@ -67,6 +67,19 @@ function drawRing(ctx, cx, cy, r, stroke, pct) {
   ctx.strokeStyle = g;
   ctx.lineWidth = stroke;
   ctx.beginPath(); ctx.arc(cx, cy, r, from, to); ctx.stroke();
+
+  // Specular rim — the same lit outer edge scoreRing() draws in the app since the ring-material
+  // pass, so the card someone posts shows the ring the app actually renders. Alphas are the app's
+  // 0.5-opacity white gradient premultiplied into the stops.
+  const specW = Math.max(2, stroke * 0.16);
+  const rs = r + stroke / 2 - specW / 2 - 2;
+  const sg = ctx.createLinearGradient(cx - rs, cy - rs, cx + rs, cy + rs);
+  sg.addColorStop(0, 'rgba(255,255,255,0.33)');
+  sg.addColorStop(0.45, 'rgba(255,255,255,0.09)');
+  sg.addColorStop(1, 'rgba(255,255,255,0.20)');
+  ctx.strokeStyle = sg;
+  ctx.lineWidth = specW;
+  ctx.beginPath(); ctx.arc(cx, cy, rs, from, to); ctx.stroke();
 }
 
 /* The display face has to be LOADED before canvas can draw with it, or the browser silently

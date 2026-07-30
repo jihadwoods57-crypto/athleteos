@@ -495,9 +495,9 @@ body {
   background: linear-gradient(155deg, var(--green), var(--green-deep));
   color: var(--ink-on-accent); display: grid; place-items: center;
   box-shadow: var(--sh-green), 0 0 0 5px rgba(var(--green-rgb), 0.10);
-  cursor: pointer; transition: transform var(--dur-1) var(--ease-out);
+  cursor: pointer; transition: transform var(--dur-1) var(--ease-out), filter var(--dur-1) var(--ease-out);
 }
-.fab:active { transform: scale(0.92); }
+.fab:active { transform: scale(0.92); filter: brightness(1.07); }
 
 /* ===== Buttons ===== */
 .btn {
@@ -506,7 +506,9 @@ body {
   display: inline-flex; align-items: center; justify-content: center; gap:10px; width: 100%;
   transition: transform var(--dur-1) var(--ease-out), filter var(--dur-1) var(--ease-out);
 }
-.btn:active { transform: scale(0.98); }
+/* Press = scale down + a touch brighter: the surface compresses AND catches light, which is what a
+   physical press does. The transition already covers filter, so release eases back on its own. */
+.btn:active { transform: scale(0.98); filter: brightness(1.08); }
 .btn.primary { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); color: #fff; box-shadow: var(--sh-blue); }
 .btn.green { background: linear-gradient(150deg, var(--green), var(--green-deep)); color: var(--ink-on-accent); box-shadow: var(--sh-green); }
 .btn.ghost { background: var(--surface-2); color: var(--text); border: 1px solid var(--hairline); box-shadow: none; }
@@ -514,7 +516,7 @@ body {
 /* Disabled = a muted "waiting for input" fill with a still-legible label — never a ghosted,
    broken-looking button (the label stays readable, not dropped to 45% with the fill). */
 .btn:disabled { background: var(--surface-2); color: var(--text-2); cursor: not-allowed; box-shadow: none; }
-.btn:disabled:active { transform: none; }
+.btn:disabled:active { transform: none; filter: none; }
 .btn-row { display: flex; gap:12px; }
 
 /* ===== Generic bits reused across screens ===== */
