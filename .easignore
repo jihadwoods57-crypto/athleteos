@@ -1,5 +1,19 @@
-# Files uploaded to EAS Build. Mirrors .gitignore semantics. Excludes content the
-# native iOS/Android build never needs, to shrink the archive (was 439 MB).
+# Files uploaded to EAS Build.
+#
+# ⚠️  THIS FILE *REPLACES* .gitignore — IT DOES NOT EXTEND IT. (The header used to say
+# "mirrors .gitignore semantics", which cost us: it means the SYNTAX is gitignore's, not
+# that .gitignore's ENTRIES still apply.) When .easignore exists, EAS CLI stops consulting
+# .gitignore entirely, so anything gitignored but not listed here IS UPLOADED.
+#
+# The proof is three lines below: _media/, sim/ and qc/ are all in .gitignore, yet each had
+# to be re-listed here to get the archive down from 439 MB. If .gitignore were still in
+# effect, none of those entries would have been necessary.
+#
+# Consequence (security audit 2026-07-30, finding #1): .env — holding the LIVE Stripe secret
+# key, the Cloudflare API token and the OpenAI key — was being uploaded to EAS Build on every
+# single build. Not into the shipped IPA (only EXPO_PUBLIC_* is inlined there), but onto a
+# third party's servers, retrievable by anyone with EAS project access or a stolen EAS token.
+# The secrets block at the bottom of this file closes that. Add to it, never remove from it.
 #
 # DO NOT ignore: assets/ (holds proto.zip + app icons/splash), src/, ios-certs/
 # (local build credentials), supabase/, proto/ (kept for safety), or any app config.
@@ -24,3 +38,22 @@ docs/
 /qa-*.jpeg
 /art4-final.png
 /ob2-role.jpeg
+
+# ---------------------------------------------------------------- SECRETS (never upload)
+# These are gitignored, which — per the header — does NOTHING here. They must be named
+# explicitly or they ride along in every build tarball. The native build reads none of them:
+# EXPO_PUBLIC_* values are inlined by Metro from the build profile's `env` block in eas.json,
+# not from this file, so excluding .env cannot break a build.
+.env
+.env.*
+!.env.example
+_secrets/
+.digest-cron-key.local
+
+# NOT excluded, deliberately — do not "fix" this:
+#   ios-certs/ + credentials.json
+# eas.json pins `credentialsSource: "local"` on the production profile and points
+# submit.production.ios.ascApiKeyPath at ./ios-certs/AuthKey_TNS4WL4GLR.p8. That signing
+# material has to reach EAS to sign the build at all — it goes over the credentials channel
+# by design — so excluding it here buys zero secrecy and risks breaking production signing.
+# The API keys above are different: nothing in the build ever reads them.

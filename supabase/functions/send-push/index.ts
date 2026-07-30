@@ -4,7 +4,7 @@
 //   2) service-role: record the in-app notification (so it shows in the bell even with no token),
 //   3) service-role: read the athlete's device tokens + POST to Expo's push API (best-effort).
 // verify_jwt stays ON (default) — only a signed-in, linked overseer can call this.
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
@@ -62,11 +62,60 @@ Deno.serve(async (req) => {
     /** Coach OS Slice C: push-only fan-out for an already-posted announcement (feed rows were
      *  already written by post_announcement — this mode must NEVER insert notifications). */
     announcement_id?: string;
+    /** Service-role broadcast (security audit 2026-07-30). See the branch below. */
+    user_ids?: unknown;
   };
   try {
     payload = await req.json();
   } catch {
     return json({ error: 'bad request' }, 400, cors);
+  }
+
+  // ---------- service-role broadcast (user_ids mode, push-only) ----------
+  // WHY THIS EXISTS: admin-alert has been calling this function with { user_ids, title, body }
+  // since it was written, to push a security alert to every platform admin's device. There was no
+  // user_ids mode. The request fell through to the athlete_id branch and 400'd — every time,
+  // silently — so the push half of break-glass alerting has never worked. Worse, admin-alert set
+  // `results.push = true` without checking the response, so admin_audit_log recorded a delivery
+  // that never happened. Both halves are fixed; this is the receiving half.
+  //
+  // THE BEARER CHECK IS LOAD-BEARING. Without it this is an arbitrary-user push endpoint that any
+  // signed-in caller could aim anywhere. Only server code holding the service role gets in; every
+  // other branch in this function authorizes through the CALLER's own JWT instead, which is the
+  // right default and stays the default.
+  if (Array.isArray(payload.user_ids)) {
+    const bearer = authHeader.replace(/^Bearer\s+/i, '').trim();
+    if (!SERVICE_ROLE || bearer !== SERVICE_ROLE) return json({ error: 'unauthorized' }, 403, cors);
+
+    const ids = (payload.user_ids as unknown[])
+      .filter((v): v is string => typeof v === 'string')
+      .slice(0, 50);
+    if (!ids.length) return json({ ok: true, pushed: 0 }, 200, cors);
+
+    // No notifications insert and no opt-out filter: this path is operational security alerting
+    // to the platform's own admins, not product messaging. An admin who muted product pushes
+    // still needs to hear that their MFA was just reset.
+    const svcB = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const { data: toksB } = await svcB.from('device_tokens').select('token').in('user_id', ids);
+    const tokensB = (toksB ?? []).map((t: { token: string }) => t.token).filter(Boolean);
+    if (!tokensB.length) return json({ ok: true, pushed: 0, reason: 'no-tokens' }, 200, cors);
+
+    const titleB = (payload.title ?? 'OnStandard').slice(0, 120);
+    const bodyB = (payload.body ?? '').slice(0, 300);
+    let pushedB = 0;
+    for (let i = 0; i < tokensB.length; i += 100) {
+      const chunk = tokensB.slice(i, i + 100);
+      try {
+        const rB = await fetch('https://exp.host/--/api/v2/push/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(chunk.map((to) => ({ to, title: titleB, body: bodyB, sound: 'default' }))),
+        });
+        if (rB.ok) pushedB += chunk.length;
+      } catch { /* best-effort; the caller records what actually landed */ }
+    }
+    // Report honestly — admin-alert writes this outcome into admin_audit_log.
+    return json({ ok: pushedB > 0, pushed: pushedB }, pushedB > 0 ? 200 : 502, cors);
   }
 
   // ---------- coach announcement fan-out (announcement_id mode, push-only) ----------

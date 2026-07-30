@@ -20,7 +20,7 @@
 //   supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<service role key>   (SUPABASE_URL is auto-injected)
 //   supabase functions deploy guardian-verify --no-verify-jwt
 // INERT until deployed AND the request_guardian_consent email step points its link here.
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';

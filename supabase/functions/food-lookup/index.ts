@@ -21,7 +21,7 @@
 //
 // Fail-soft: any miss/error returns { found: false } and the app keeps working (photo estimate /
 // manual entry). Holds no user data; the only auth is the standard Supabase gateway.
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { resolveByBarcode, resolveByQuery, type FoodOut } from '../_shared/food-resolve.ts';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 

@@ -21,7 +21,7 @@
 // wall, continuing to spend is not a kindness to anyone. The cap should therefore be set high
 // enough that it only ever fires on abuse or a runaway loop — never on a normal day.
 
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 
 export type SpendVerdict = {
   allowed: boolean;

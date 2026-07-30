@@ -17,9 +17,9 @@
 // platform-wide fail-closed counter guards against traffic that structurally cannot occur, while
 // being the single most likely thing to 429 every coach's roster at once. Authed usage is tracked
 // against a monthly tier-budget SIGNAL (trackAuthedAiSpend) that never blocks.
-import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
+import Anthropic from 'npm:@anthropic-ai/sdk@0.65.0';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import {
   composeSystem, violatesStyleLanguage, styleCorrectionMessage, SAFE_INTUITIVE, type PlanStyle,
 } from '../_shared/plan-style.ts';

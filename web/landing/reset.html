@@ -134,7 +134,14 @@
     </section>
   </main>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <!-- VENDORED, not jsDelivr (security audit 2026-07-30, finding #3).
+       This was `https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/...` — a third-party CDN at a
+       floating major version with no integrity attribute. At the moment this script runs, the page
+       holds (a) a LIVE Supabase recovery session for whoever clicked the reset link, and (b) the
+       plaintext new password they are about to type into #pw. A malicious release published under
+       @2, or a compromised CDN edge, harvests both — for every user who resets a password.
+       Same file, served from our own origin, pinned by being committed. -->
+  <script src="./js/vendor/supabase.js"></script>
   <script>
   (function () {
     var SUPABASE_URL = 'https://ftwrvylzoyznhbzhgism.supabase.co';

@@ -18,7 +18,7 @@
 //
 // The fail-CLOSED global/IP counters for ANONYMOUS callers (the public anon key) are UNCHANGED —
 // they remain each function's own concern and are the correct backstop for that traffic.
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 
 function posIntEnv(name: string, fallback: number): number {
   const n = Math.floor(Number(Deno.env.get(name) ?? String(fallback)));

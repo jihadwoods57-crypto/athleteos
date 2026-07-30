@@ -1,7 +1,10 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://ftwrvylzoyznhbzhgism.supabase.co https://esm.sh; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'">
+<!-- esm.sh is GONE from script-src and connect-src (security audit 2026-07-30, finding #2):
+     supabase-js is vendored at ./vendor/supabase.js. Do not re-add a CDN origin here — this page
+     holds an aal2 founder session, and any script it loads can use that session. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://ftwrvylzoyznhbzhgism.supabase.co https://ftwrvylzoyznhbzhgism.functions.supabase.co; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'">
 <meta name="robots" content="noindex, nofollow">
 <title>OnStandard — Command Center</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -319,5 +322,8 @@
 
   <div class="toasts" id="toasts"></div>
   <div id="modal-root"></div>
+  <!-- Vendored supabase-js (UMD -> window.supabase). MUST stay before the module below, which
+       reads window.supabase at import time. See api.js for why this is not a CDN. -->
+  <script src="./vendor/supabase.js"></script>
   <script type="module" src="./admin.js"></script>
 </body></html>

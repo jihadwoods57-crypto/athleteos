@@ -5,7 +5,9 @@
 //
 // SETUP (founder): fill SUPABASE_URL + SUPABASE_ANON_KEY below with the project's values. The
 // anon (publishable) key is safe to ship here; the service-role key must NEVER appear on this page.
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+// Vendored, not CDN — see the note in api.js (security audit 2026-07-30, finding #2).
+// ./vendor/supabase.js is loaded as a classic <script> in flags.html before this module runs.
+const { createClient } = window.supabase;
 
 const SUPABASE_URL = 'https://ftwrvylzoyznhbzhgism.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_W_h82SgYL7_XE5SqGnNp1A_tYXap0TJ'; // publishable — safe to ship

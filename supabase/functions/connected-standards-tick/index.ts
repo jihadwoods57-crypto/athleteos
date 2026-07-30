@@ -24,7 +24,7 @@
 //   supabase secrets set CONNECTED_STANDARDS_CRON_KEY=<long random string>
 //   supabase functions deploy connected-standards-tick --use-api --no-verify-jwt
 // Then: select schedule_connected_standards('<fn url>', '<the same key>');
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { reminderCopy, type DueRow } from '../_shared/activity-copy.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';

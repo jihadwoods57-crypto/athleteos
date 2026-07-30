@@ -201,8 +201,12 @@
     </div></footer>
   </div>
 
+  <!-- Vendored supabase-js (UMD -> window.supabase), not esm.sh. This page takes MONEY — it is
+       the public trainer page that posts to public-offer-checkout — so it must not execute code
+       fetched from a third party at a floating version. (Security audit 2026-07-30, finding #3.) -->
+  <script src="./js/vendor/supabase.js"></script>
   <script type="module">
-    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+    const { createClient } = window.supabase;
     const sb = createClient('https://ftwrvylzoyznhbzhgism.supabase.co', 'sb_publishable_W_h82SgYL7_XE5SqGnNp1A_tYXap0TJ');
     const $ = (id) => document.getElementById(id);
     const show = (el, on) => el.classList.toggle('hidden', !on);

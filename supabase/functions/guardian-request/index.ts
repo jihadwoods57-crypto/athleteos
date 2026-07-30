@@ -20,7 +20,7 @@
 // returns { ok:true, emailed:false } — nothing breaks; adding the key lights up delivery. NOTE: an
 // email vendor is a NEW SUBPROCESSOR — list it in privacy policy §7 and sign its DPA before relying
 // on it (it receives the guardian's email address).
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';

@@ -27,8 +27,8 @@
 // Deploy (--no-verify-jwt; the cron key is the auth):
 //   supabase secrets set BILLING_CRON_KEY=... STRIPE_SECRET_KEY=...
 //   supabase functions deploy billing-overage-report --no-verify-jwt
-import Stripe from 'npm:stripe@^17';
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import Stripe from 'npm:stripe@17.7.0';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 
 const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY') ?? '';
 const CRON_KEY = Deno.env.get('BILLING_CRON_KEY') ?? '';

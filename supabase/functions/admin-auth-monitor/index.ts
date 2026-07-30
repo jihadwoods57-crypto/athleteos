@@ -8,7 +8,7 @@
 //   supabase secrets set MONITOR_KEY=... ALERT_KEY=... [IPINFO_TOKEN=...]
 //   supabase functions deploy admin-auth-monitor
 //   -- then schedule via pg_cron (see web/admin/DEPLOY.md)
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { classifyBurst, geoFromIp, describeFlags } from './logic.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
@@ -29,6 +29,18 @@ async function geo(ip: string | null): Promise<{ country: string | null; asn: st
   } catch (_e) { return { country: null, asn: null }; }
 }
 
+/** Constant-time compare of the shared cron key — mirrors ai-followup / weekly-digest / winback.
+ *  (Security audit 2026-07-30, finding #13: this was one of four still using `!==`.) */
+function safeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  if (ab.length !== bb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i];
+  return diff === 0;
+}
+
 type AlertDetail = { label: string; value: string };
 async function alert(kind: string, subject: string, body: string, details?: AlertDetail[], occurredAt?: string) {
   if (!ALERT_KEY) return;
@@ -43,7 +55,9 @@ async function alert(kind: string, subject: string, body: string, details?: Aler
 
 Deno.serve(async (req: Request) => {
   const json = (s: number, b: unknown) => new Response(JSON.stringify(b), { status: s, headers: { 'content-type': 'application/json' } });
-  if (!MONITOR_KEY || req.headers.get('x-monitor-key') !== MONITOR_KEY) return json(401, { error: 'unauthorized' });
+  if (!MONITOR_KEY || !safeEqual(req.headers.get('x-monitor-key') ?? '', MONITOR_KEY)) {
+    return json(401, { error: 'unauthorized' });
+  }
   if (!SUPABASE_URL || !SERVICE_ROLE) return json(500, { error: 'misconfigured' });
 
   const svc = createClient(SUPABASE_URL, SERVICE_ROLE);
@@ -51,7 +65,11 @@ Deno.serve(async (req: Request) => {
   const sinceTs = since ?? new Date(Date.now() - 15 * 60 * 1000).toISOString();
 
   const { data: events, error } = await svc.rpc('admin_pull_auth_events', { p_since: sinceTs });
-  if (error) return json(500, { error: error.message });
+  // Opaque out, detailed in the logs — same convention as every other function here (finding #14).
+  if (error) {
+    console.error('admin-auth-monitor: admin_pull_auth_events failed:', error);
+    return json(500, { error: 'unavailable' });
+  }
 
   // per-user timezone cache for off-hours
   const tzCache = new Map<string, string>();

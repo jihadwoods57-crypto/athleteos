@@ -12,7 +12,7 @@
 // response is sent — the added latency is a single local insert (~tens of ms) against a call that
 // already took seconds. If telemetry is unconfigured (no service-role key) it is simply a no-op,
 // exactly like the ai_usage_daily counters.
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 
 export interface AiCallRecord {
   fn: string;                 // edge function name, e.g. 'analyze-meal'

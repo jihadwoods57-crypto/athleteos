@@ -15,7 +15,7 @@
 //   supabase secrets set COMMITMENT_CRON_KEY=<long random string>
 //   supabase functions deploy commitment-reminders --use-api --no-verify-jwt
 // Then: select schedule_commitment_reminders('<fn url>', '<the same key>');
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { signRollCallCode } from '../_shared/rollcall-code.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';

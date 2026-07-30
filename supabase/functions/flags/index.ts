@@ -5,7 +5,7 @@
 // Deploy (founder): supabase functions deploy flags   (URL + SERVICE_ROLE auto-injected).
 // Then set EXPO_PUBLIC_FLAGS_URL to this function's URL and ship an app build — until then the
 // client seam is inert and every flag resolves to its compile-time default.
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.110.0";
 import { evaluateAll, type FlagRow } from "../_shared/feature-flags.ts";
 
 const CORS = {
@@ -40,8 +40,23 @@ Deno.serve(async (req) => {
   let orgId: string | null = null;
   if (userId) {
     try {
-      const { data: prof } = await sb.from("profiles").select("primary_role").eq("id", userId).maybeSingle();
-      role = (prof?.primary_role as string) ?? null;
+      // NOT profiles.primary_role. That column is SELF-WRITABLE — 0047 seeds it from
+      // raw_user_meta_data at signup (user-supplied) and the profiles_self_write policy (0002)
+      // permits updating any column on your own row with no column-level grant restricting it.
+      // Using it here let anyone flip themselves to 'coach' and self-enable any flag rolled out
+      // by role. It grants no DATA access (primary_role appears in no RLS policy and no admin
+      // gate — it only drives app-flow routing), which is why this is a targeting bug and not a
+      // privilege escalation, but a targeting key still must not be attacker-set.
+      //
+      // Derive it from a link the user cannot fabricate instead: an ACTIVE team_staff row, or
+      // ownership of a practice. Both are created only through gated RPCs.
+      // (Security audit 2026-07-30, finding #12.)
+      const [{ data: staff }, { data: prac }] = await Promise.all([
+        sb.from("team_staff").select("staff_id")
+          .eq("staff_id", userId).eq("status", "active").limit(1).maybeSingle(),
+        sb.from("practices").select("id").eq("owner_id", userId).limit(1).maybeSingle(),
+      ]);
+      role = staff ? "coach" : prac ? "trainer" : "athlete";
     } catch { /* role stays null */ }
     try {
       const { data: mem } = await sb

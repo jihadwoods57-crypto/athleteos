@@ -1,6 +1,6 @@
 // Athlete memory — the I/O half. Pure logic lives in ./memory.ts (same split as
 // coach-voice.ts / coach-voice-load.ts).
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import type { MemoryFact } from './memory.ts';
 
 export type { MemoryFact } from './memory.ts';

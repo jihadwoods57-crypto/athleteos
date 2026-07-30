@@ -16,7 +16,7 @@
 // Deploy (founder): supabase functions deploy analytics-ingest
 //   (SERVICE_ROLE + URL are auto-injected). Then set EXPO_PUBLIC_ANALYTICS_URL to this function's
 //   URL and ship an app build — until then the client seam is inert and this never receives calls.
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.110.0";
 import { clientIpFrom } from '../_shared/client-ip.ts';
 
 const CORS = {

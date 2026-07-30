@@ -1,0 +1,36 @@
+# OnStandard landing site — response headers (Cloudflare Workers static assets).
+#
+# The site had NO _headers file at all until the 2026-07-30 security audit (finding #10), while
+# web/admin/ has had one for a while. That meant the public site — including /reset, which handles
+# a live password-recovery session — shipped with no framing protection, no MIME-sniff protection
+# and no CSP.
+#
+# Syntax: a path pattern, then indented `Header: value` lines. Later, more specific blocks add to
+# (they do not replace) the ones above them.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Frame-Options: SAMEORIGIN
+  Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=()
+
+# The password-reset page. Everything here is deliberately tighter than the rest of the site:
+#   · DENY, not SAMEORIGIN — a reset form must never be framable, by anyone, ever (clickjacking a
+#     "set new password" submit is the whole attack).
+#   · no-store — the page transits a recovery token in the URL fragment; nothing about it should
+#     sit in a shared cache or a back/forward cache.
+#   · a real CSP with NO third-party origin. supabase-js is vendored at ./js/vendor/supabase.js
+#     (finding #3); if someone re-introduces a CDN <script>, this makes it fail closed instead of
+#     quietly working. 'unsafe-inline' on script-src is required because the page's logic is an
+#     inline <script> block — worth revisiting by moving it to a file, but not in this pass.
+/reset*
+  X-Frame-Options: DENY
+  Cache-Control: no-store
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src https://ftwrvylzoyznhbzhgism.supabase.co; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+
+# The public trainer page: takes payment through public-offer-checkout, so it needs the Supabase
+# REST + Functions origins in connect-src and nothing else. Framable nowhere.
+/t*
+  X-Frame-Options: DENY
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src https://ftwrvylzoyznhbzhgism.supabase.co https://ftwrvylzoyznhbzhgism.functions.supabase.co; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'

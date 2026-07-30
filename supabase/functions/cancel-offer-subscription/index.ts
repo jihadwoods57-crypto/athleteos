@@ -5,8 +5,8 @@
 //
 // Deploy:
 //   supabase functions deploy cancel-offer-subscription
-import Stripe from 'npm:stripe@^17';
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import Stripe from 'npm:stripe@17.7.0';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 
 const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY') ?? '';

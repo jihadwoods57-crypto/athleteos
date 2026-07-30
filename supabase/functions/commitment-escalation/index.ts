@@ -12,7 +12,7 @@
 // L4 GUARDIAN IS DEFERRED. `escalation.notify_guardian_on_miss` exists in the config shape but is off
 // by default and no guardian rung is built here — a follow-up commit adds it once the founder
 // confirms the default and the guardianship link (0008). This fn ships L2 + L3 only.
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { digestBody } from './logic.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';

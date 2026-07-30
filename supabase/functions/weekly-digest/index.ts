@@ -14,7 +14,7 @@
 // Then schedule it weekly (Supabase Dashboard -> Integrations -> Cron -> HTTP request, or
 // the SQL helper in migration 0044): POST <url>/functions/v1/weekly-digest with header
 // x-digest-key: <the same key>. Recommended: Sunday 18:00 team-local.
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';

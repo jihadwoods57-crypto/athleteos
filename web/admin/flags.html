@@ -1,6 +1,10 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- This page had no CSP at all while index.html did (security audit 2026-07-30). It reaches the
+     same admin RPCs, so it gets the same policy. No CDN origin — supabase-js is vendored. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src https://ftwrvylzoyznhbzhgism.supabase.co; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'">
+<meta name="robots" content="noindex, nofollow">
 <title>OnStandard — Feature Flags</title>
 <style>
   body { font: 15px system-ui, -apple-system, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #111; }
@@ -32,5 +36,7 @@
     <p><button id="signout">Sign out</button> <span class="muted">Changes are audited (admin_audit_log). Client apps pick them up on next launch.</span></p>
     <div id="rows">Loading…</div>
   </div>
+  <!-- Vendored supabase-js (UMD -> window.supabase); must load before the module. -->
+  <script src="./vendor/supabase.js"></script>
   <script type="module" src="./flags.js"></script>
 </body></html>

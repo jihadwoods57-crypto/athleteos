@@ -18,8 +18,8 @@
 // Two actions on one endpoint (one deploy, one CORS surface):
 //   POST { slug, offerIndex }  -> { url }   open Stripe Checkout
 //   POST { action:'claim', sessionId } -> { code } | { pending:true }   the success page's lookup
-import Stripe from 'npm:stripe@^17';
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import Stripe from 'npm:stripe@17.7.0';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 import { flagOn } from '../_shared/feature-flags.ts';
 

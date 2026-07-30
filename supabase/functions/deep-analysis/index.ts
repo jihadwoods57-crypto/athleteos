@@ -16,8 +16,8 @@
 // a deploy.
 //
 // Deploy: supabase functions deploy deep-analysis    (shares ANTHROPIC_API_KEY)
-import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import Anthropic from 'npm:@anthropic-ai/sdk@0.65.0';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import {
   composeSystem, violatesStyleLanguage, styleCorrectionMessage, SAFE_INTUITIVE, type PlanStyle,
 } from '../_shared/plan-style.ts';

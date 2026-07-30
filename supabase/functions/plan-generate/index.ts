@@ -6,9 +6,9 @@
 //   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 //   supabase functions deploy plan-generate
 // Model is configurable via the ANTHROPIC_MODEL secret; defaults to claude-sonnet-5.
-import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
+import Anthropic from 'npm:@anthropic-ai/sdk@0.65.0';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 import { checkSpend, spendMessage, EST_USD } from '../_shared/spend-gate.ts';
 

@@ -22,8 +22,8 @@
 //   supabase functions deploy ai-followup --no-verify-jwt
 //   select cron.schedule('ai-followup-hourly','5 * * * *', $$ ... net.http_post ... $$);
 // Add ?dry=1 to see the selection without writing anything.
-import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import Anthropic from 'npm:@anthropic-ai/sdk@0.65.0';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 import { checkSpend, EST_USD } from '../_shared/spend-gate.ts';
 import { flagOn } from '../_shared/feature-flags.ts';

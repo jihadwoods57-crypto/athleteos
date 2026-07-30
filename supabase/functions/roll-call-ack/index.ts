@@ -1,7 +1,7 @@
 // OnStandard — record a lock-screen "I'm Up". Public (no JWT): the signed code IS the credential.
 // Deploy: supabase functions deploy roll-call-ack --use-api --no-verify-jwt
 //         supabase secrets set ROLLCALL_ACK_SECRET=<long random string>
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { verifyRollCallCode } from '../_shared/rollcall-code.ts';
 import { evaluateFlag, type FlagRow } from '../_shared/feature-flags.ts';
 import { httpStatusFor } from './logic.ts';

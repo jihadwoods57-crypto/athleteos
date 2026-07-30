@@ -15,7 +15,7 @@
 // verify_jwt stays ON (default): only a signed-in user can fire it. Writes use the service role.
 //
 // Deploy: supabase functions deploy enrich-meal   (uses the same USDA_API_KEY secret as food-lookup)
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { resolveByQuery } from '../_shared/food-resolve.ts';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 

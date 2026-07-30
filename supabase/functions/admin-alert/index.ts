@@ -6,7 +6,7 @@
 // Deploy:
 //   supabase secrets set ALERT_KEY=... RESEND_API_KEY=... ADMIN_ALERT_EMAIL=you@onstandard.app
 //   supabase functions deploy admin-alert
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { buildResendPayload, shouldSend } from './logic.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
@@ -17,11 +17,25 @@ const ALERT_EMAIL = Deno.env.get('ADMIN_ALERT_EMAIL') ?? '';
 const ALERT_FROM = Deno.env.get('ALERT_FROM') ?? 'OnStandard Security <alerts@onstandard.app>';
 const FUNCTIONS_BASE = Deno.env.get('FUNCTIONS_BASE') ?? `${SUPABASE_URL}/functions/v1`;
 
+/** Constant-time compare of the shared key — mirrors ai-followup / weekly-digest / winback.
+ *  (This function was one of four still using `!==`; security audit 2026-07-30, finding #13.) */
+function safeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  if (ab.length !== bb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i];
+  return diff === 0;
+}
+
 Deno.serve(async (req: Request) => {
   const json = (status: number, body: unknown) =>
     new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
   if (req.method !== 'POST') return json(405, { error: 'method not allowed' });
-  if (!ALERT_KEY || req.headers.get('x-alert-key') !== ALERT_KEY) return json(401, { error: 'unauthorized' });
+  if (!ALERT_KEY || !safeEqual(req.headers.get('x-alert-key') ?? '', ALERT_KEY)) {
+    return json(401, { error: 'unauthorized' });
+  }
   if (!SUPABASE_URL || !SERVICE_ROLE) return json(500, { error: 'misconfigured' });
 
   const { kind, subject, body, details, actionUrl, occurredAt } = await req.json().catch(() => ({}));
@@ -63,12 +77,19 @@ Deno.serve(async (req: Request) => {
     if (ids.length) {
       const { data: toks } = await svc.from('device_tokens').select('user_id').in('user_id', ids);
       if ((toks ?? []).length) {
-        await fetch(`${FUNCTIONS_BASE}/send-push`, {
+        // send-push gained the matching user_ids branch on 2026-07-30. Before that it had no such
+        // mode, so this call 400'd every time — and because the response was never checked, the
+        // audit-log row below recorded `push: true` for a delivery that never happened. Read the
+        // status now: an audit trail that lies is worse than one that stays quiet.
+        const r = await fetch(`${FUNCTIONS_BASE}/send-push`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${SERVICE_ROLE}`, 'content-type': 'application/json' },
           body: JSON.stringify({ user_ids: ids, title: subject, body }),
         });
-        results.push = true;
+        results.push = r.ok;
+        if (!r.ok) {
+          results.push_error = `${r.status} ${await r.text().catch(() => '')}`.slice(0, 200);
+        }
       } else { results.push = 'no-tokens'; }
     } else { results.push = 'no-admins'; }
   } catch (_e) { results.push = false; }

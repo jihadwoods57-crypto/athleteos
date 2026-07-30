@@ -1,7 +1,10 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://esm.sh; style-src 'unsafe-inline'; connect-src https://ftwrvylzoyznhbzhgism.supabase.co https://esm.sh; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'">
+<!-- esm.sh removed (security audit 2026-07-30, finding #2/#3). This page holds a live recovery
+     session AND the plaintext new password the admin is about to type — the last place on the
+     property that should be executing someone else's code. supabase-js is vendored. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://ftwrvylzoyznhbzhgism.supabase.co; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'">
 <meta name="robots" content="noindex, nofollow">
 <title>OnStandard — Reset password</title>
 <style>
@@ -37,6 +40,8 @@
     <p id="msg" class="err"></p>
     <p style="margin-top:12px"><a href="./">← Back to sign in</a></p>
   </div></div>
+  <!-- Vendored supabase-js (UMD -> window.supabase); api.js reads it at import time. -->
+  <script src="./vendor/supabase.js"></script>
   <script type="module">
     import { sb } from './api.js';
     import { validateNewPassword } from './authflow.mjs';

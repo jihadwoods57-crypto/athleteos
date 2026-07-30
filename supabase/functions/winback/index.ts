@@ -24,7 +24,7 @@
 //   supabase functions deploy winback --no-verify-jwt
 //   select schedule_winback('https://<project>.supabase.co/functions/v1/winback', '<key>');
 // Add ?dry=1 to see exactly who would be selected without writing or sending anything.
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { selectWinbacks, type LapsedCandidate } from '../_shared/winback.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';

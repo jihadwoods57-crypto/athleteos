@@ -3,7 +3,7 @@
 // auth.uid() — so this function fronts the SAME safe display columns with the service role,
 // guarded by a per-IP rate limit. It never returns created_by or a join_code: knowing a code
 // is the only capability, and preview only confirms a code the caller already has.
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.110.0";
 import { clientIpFrom } from '../_shared/client-ip.ts';
 
 const CORS = {

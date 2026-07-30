@@ -754,9 +754,9 @@ select _ok(not can_view('dddddddd-0000-0000-0000-000000000004'),
 
 -- 8. Invites + role management honor the new vocabulary.
 select _as('11111111-0000-0000-0000-000000000001');  -- head coach
-select _ok(length(create_staff_invite('77777777-1111-0000-0000-000000000001','position_coach')) = 8,
+select _ok(length(create_staff_invite('77777777-1111-0000-0000-000000000001','position_coach')) = 10,
            'slice F: head coach mints a position_coach invite');
-select _ok(length(create_staff_invite('77777777-1111-0000-0000-000000000001','readonly')) = 8,
+select _ok(length(create_staff_invite('77777777-1111-0000-0000-000000000001','readonly')) = 10,
            'slice F: head coach mints a readonly invite');
 select _ok(_try($q$select create_staff_invite('77777777-1111-0000-0000-000000000001','head_coach')$q$) <> 'ok',
            'slice F: a head_coach invite is refused');
@@ -777,11 +777,11 @@ select _ok(_try($q$select set_staff_role('77777777-1111-0000-0000-000000000001',
 -- 8b. Roles v2 (0082/0083): a head coach mints + assigns S&C / Athletic Trainer / Team Admin;
 --     head_coach stays un-mintable and unknown roles are still refused.
 select _as('11111111-0000-0000-0000-000000000001');  -- head coach
-select _ok(length(create_staff_invite('77777777-1111-0000-0000-000000000001','s_and_c')) = 8,
+select _ok(length(create_staff_invite('77777777-1111-0000-0000-000000000001','s_and_c')) = 10,
            'roles v2: head coach mints a Strength & Conditioning invite');
-select _ok(length(create_staff_invite('77777777-1111-0000-0000-000000000001','athletic_trainer')) = 8,
+select _ok(length(create_staff_invite('77777777-1111-0000-0000-000000000001','athletic_trainer')) = 10,
            'roles v2: head coach mints an Athletic Trainer invite');
-select _ok(length(create_staff_invite('77777777-1111-0000-0000-000000000001','team_admin')) = 8,
+select _ok(length(create_staff_invite('77777777-1111-0000-0000-000000000001','team_admin')) = 10,
            'roles v2: head coach mints a Team Admin invite');
 select _ok(_try($q$select create_staff_invite('77777777-1111-0000-0000-000000000001','bogus_role')$q$) <> 'ok',
            'roles v2: an unknown invite role is still refused');

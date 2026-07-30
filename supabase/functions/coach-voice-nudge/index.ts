@@ -19,9 +19,9 @@
 // nulls the nudge rather than shipping it, and the app falls back to its deterministic copy.
 //
 // Deploy:  supabase functions deploy coach-voice-nudge   (shares the ANTHROPIC_API_KEY secret)
-import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
+import Anthropic from 'npm:@anthropic-ai/sdk@0.65.0';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { buildVoiceSystem, violatesProhibited, type VoiceConfig } from '../_shared/coach-voice.ts';
 import { loadVoiceForAthlete as loadVoice } from '../_shared/coach-voice-load.ts';
 import { trackAuthedAiSpend } from '../_shared/ai-tier-budget.ts';

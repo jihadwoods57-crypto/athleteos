@@ -17,8 +17,8 @@
 // Deploy:
 //   supabase secrets set STRIPE_SECRET_KEY=sk_live_... STRIPE_REFERRAL_COUPON_ID=...
 //   supabase functions deploy billing-checkout
-import Stripe from 'npm:stripe@^17';
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import Stripe from 'npm:stripe@17.7.0';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { STRIPE_PLANS, isCadence } from '../_shared/plans.ts';
 import { generationFor, generationalLookupKey, type FoundingLock } from '../_shared/founding.ts';
 import { clientIpFrom } from '../_shared/client-ip.ts';

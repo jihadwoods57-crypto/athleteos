@@ -10,8 +10,8 @@
 // churn-recovery option the cancel flow offers before the relationship ends.
 //
 // Deploy: supabase functions deploy billing-portal   (shares STRIPE_SECRET_KEY)
-import Stripe from 'npm:stripe@^17';
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import Stripe from 'npm:stripe@17.7.0';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 
 const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY') ?? '';

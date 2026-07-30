@@ -26,7 +26,7 @@
 // Then in RevenueCat: Integrations -> Webhooks -> URL = <project>/functions/v1/revenuecat-webhook,
 //   Authorization header value = the same REVENUECAT_WEBHOOK_SECRET. Until the secret is set this
 //   endpoint answers 503 (inert), so deploying it early is safe.
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { rcEventToRow, ownerOf, type RcEvent } from '../_shared/revenuecat.ts';
 
 const WEBHOOK_SECRET = Deno.env.get('REVENUECAT_WEBHOOK_SECRET') ?? '';
@@ -35,6 +35,18 @@ const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
 const json = (obj: unknown, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
+
+/** Constant-time compare of the shared webhook secret — mirrors the cron functions.
+ *  (Security audit 2026-07-30, finding #13: this was one of four still using `!==`.) */
+function safeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  if (ab.length !== bb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i];
+  return diff === 0;
+}
 
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
@@ -59,7 +71,7 @@ Deno.serve(async (req) => {
   // The shared secret is the endpoint's only authentication. Accept "Bearer <secret>" or the bare
   // secret (RevenueCat sends the raw header value you enter).
   const presented = auth.startsWith('Bearer ') ? auth.slice(7) : auth;
-  if (presented !== WEBHOOK_SECRET) {
+  if (!safeEqual(presented, WEBHOOK_SECRET)) {
     console.error('revenuecat-webhook: bad authorization');
     return json({ error: 'unauthorized' }, 401);
   }

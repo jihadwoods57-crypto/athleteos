@@ -6,7 +6,7 @@
 //
 // Deploy:
 //   supabase functions deploy admin-mfa-recover
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { parseRecoverBody } from './logic.mjs';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 

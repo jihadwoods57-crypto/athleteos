@@ -19,8 +19,8 @@
 // ENABLING it is a founder step: `supabase functions deploy cancel-subscription` (shares
 // STRIPE_SECRET_KEY + SERVICE_ROLE). Until deployed, the client invoke fails and is swallowed,
 // and account deletion still completes locally exactly as before.
-import Stripe from 'npm:stripe@^17';
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import Stripe from 'npm:stripe@17.7.0';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 
 const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY') ?? '';

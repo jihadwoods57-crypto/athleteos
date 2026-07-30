@@ -30,8 +30,8 @@
 // — ground them against a food
 // database (see groundMacros) before you trust them for scoring. LABEL numbers are read off
 // the panel verbatim, so they need no grounding.
-import Anthropic from 'npm:@anthropic-ai/sdk@^0.65.0';
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import Anthropic from 'npm:@anthropic-ai/sdk@0.65.0';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 import { validMealInput, rejectionOutcome } from '../_shared/meal-report.ts';
 import { composeOpenerText } from '../_shared/meal-opener.ts';

@@ -13,7 +13,7 @@
 //   supabase secrets set BILLING_CRON_KEY=<same key as billing-overage-report>
 //   supabase functions deploy claim-reminders --no-verify-jwt
 // Schedule with 0167's schedule_claim_reminders().
-import { createClient } from 'npm:@supabase/supabase-js@^2';
+import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
