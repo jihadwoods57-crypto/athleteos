@@ -2,6 +2,7 @@ import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
 import { esc } from '../components.js';
 import { scoreBand } from '../score-band.js';
+import { maybeShowTip } from '../tour.js';
 
 /* Progress (spec §8): day one is a real baseline, never an empty tab; populated stays
    athlete-friendly — one score trend, one consistency summary, one category breakdown,
@@ -152,7 +153,7 @@ export default {
     const insight = S.progressInsight;
 
     const scoreTrendSection = `
-    <div class="eyebrow">Score Trend</div>
+    <div class="eyebrow" data-tour="trend">Score Trend</div>
     <section class="card pad">
       <div class="bigstat"><span class="n">${P.weekAvg}</span>${P.weekDelta ? `<span class="d${ddir}">${P.weekDelta} vs prior week</span>` : ''}</div>
       <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${P.onDays} day${P.onDays === 1 ? '' : 's'} on standard (≥80) · best streak ${P.bestStreak}d</div>
@@ -223,6 +224,15 @@ export default {
      promise in settings.js that nobody on your team is shown your number: nothing here makes one
      teammate visible to another. */
   mount(root) {
+    // One-line spotlight the first time someone opens Progress — the main tour never covers this
+    // screen. Held back until the main tour has been seen, so a new athlete is never spotlighted
+    // twice in a session, and dropped entirely on the early-days branch where there is no trend
+    // to explain yet (its anchor doesn't render). Before the early return below.
+    maybeShowTip('tip:progress', {
+      anchor: 'trend',
+      title: 'Your last seven days',
+      body: 'One bar per day against the 80 standard. The pattern matters more than any single day.',
+    });
     const btn = root.querySelector('#pg-share');
     if (!btn) return;
     btn.addEventListener('click', async () => {

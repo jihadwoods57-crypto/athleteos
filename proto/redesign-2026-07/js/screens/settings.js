@@ -7,6 +7,7 @@ import { backHead, esc, planStyleCard } from '../components.js';
 import { STYLE_KEYS, styleLabel } from '../plan-style.js';
 import * as roles from '../roles.js';
 import { planById } from '../pricing.js';
+import { armReplay } from '../tour.js';
 
 /* Reminder-pressure chips: restore the athlete's REAL saved pressure and persist taps into
    RT.ob.standard.pressure (the same field onboarding writes, which drives the exec engine's
@@ -150,6 +151,15 @@ export const settings = {
       </section>
     </div>
 
+    <div class="eyebrow">Help</div>
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" id="set-tour" role="button" tabindex="0" style="cursor:pointer">
+        <div class="lic">${icon('sparkle', 17)}</div>
+        <div class="lm"><div class="lt">Replay app tour</div><div class="ls">A quick walk through the app</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+    </section>
+
     <div style="height:18px"></div>
     <button class="btn ghost" data-back="${roleProfileRoute()}">Done</button>
     <div style="height:10px"></div>
@@ -157,6 +167,14 @@ export const settings = {
   },
   mount(root) {
     wireToggles(root);
+    // Its own listener, not a delegate: wireToggles' chip handler stopPropagation()s, and a
+    // row-level delegate here would never fire (see the note at the top of this file).
+    const tourRow = root.querySelector('#set-tour');
+    if (tourRow) {
+      const replay = () => armReplay();
+      tourRow.addEventListener('click', replay);
+      tourRow.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); replay(); } });
+    }
     // Appearance: applies instantly (data-theme on the root), persists in RT.theme.
     root.querySelectorAll('[data-theme-pick]').forEach((el) => el.addEventListener('click', () => {
       act.setTheme(el.getAttribute('data-theme-pick'));

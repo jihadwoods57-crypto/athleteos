@@ -2717,24 +2717,30 @@ export const act = {
       const tz = (typeof Intl !== 'undefined' && Intl.DateTimeFormat) ? Intl.DateTimeFormat().resolvedOptions().timeZone : null;
       if (tz && window.sb) void window.sb.from('profiles').update({ timezone: tz }).eq('id', user.id);
     } catch { /* best-effort */ }
-    // Someone who already saw the tour on another device (or before a reinstall) must not be
-    // tutorialized again — seed the local flag from the server stamp (0165). Tolerant: a
-    // pre-migration DB errors here and the tour simply runs once more on this device.
+  },
+  /* Someone who already saw the tour on another device (or before a reinstall) must not be
+     tutorialized again — seed the local flag from the server stamp (0165).
+
+     Deliberately its OWN select rather than a column added to _loadProfileIntoRt's: prod runs
+     ahead of the migrations on this branch, and a not-yet-existing column would fail that whole
+     query, taking full_name and committed_at down with it. Isolated here, a pre-0165 DB costs
+     one rejected request and the tour simply runs again on this device — the safe direction. */
+  async _loadTourSeenIntoRt(userId) {
+    const id = TOUR_IDS[RT.authRole];
+    if (!userId || !id || !window.sb) return;
+    if ((RT.tourSeen || {})[id]) return; // already known locally — no round trip at all
     try {
-      const id = TOUR_IDS[RT.authRole];
-      if (id && window.sb && !(RT.tourSeen || {})[id]) {
-        const { data: seen } = await window.sb.from('profiles').select('tour_seen_at').eq('id', user.id).maybeSingle();
-        if (seen && seen.tour_seen_at) {
-          RT.tourSeen = { ...(RT.tourSeen || {}), [id]: seen.tour_seen_at };
-          save();
-        }
-      }
+      const { data, error } = await window.sb.from('profiles').select('tour_seen_at').eq('id', userId).maybeSingle();
+      if (error || !data || !data.tour_seen_at) return;
+      RT.tourSeen = { ...(RT.tourSeen || {}), [id]: data.tour_seen_at };
+      save();
     } catch { /* pre-0165 or offline — the tour runs, which is the safe failure */ }
   },
   // Load today's real day from Supabase and reflect it into the UI flags.
   async hydrateDay() {
     if (RT.userId) {
       await this._loadProfileIntoRt(RT.userId);
+      await this._loadTourSeenIntoRt(RT.userId);
       if (RT.authRole === 'trainer') await this._loadPracticeIntoRt(RT.userId);
       if (RT.authRole === 'coach') { await this._loadTeamIntoRt(RT.userId); await this._loadCoachHandleIntoRt(); }
       if (!RT.authRole || RT.authRole === 'athlete') {
