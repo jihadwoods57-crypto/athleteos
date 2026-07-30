@@ -126,15 +126,29 @@
 .sheet .cancel { text-align: center; padding:14px 0 4px; font-size: 15px; font-weight: 700; color: var(--text-2); cursor: pointer; }
 
 /* ----- Analyzing state ----- */
-.analyzing { display: flex; flex-direction: column; align-items: center; padding-top:40px; text-align: center; }
+/* Centred, not top-anchored: this is a one-beat full-screen moment with no tab bar, and pinned 40px
+   from the top it left two thirds of a tall phone empty below the copy. */
+.analyzing {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 68vh; padding: 24px 0; text-align: center;
+}
 .scanbox { position: relative; width: 230px; height: 230px; border-radius: var(--r-card); overflow: hidden; border: 1px solid var(--hairline); box-shadow: var(--sh-card); }
 .scanbox .img { position: absolute; inset: 0; background-size: cover; background-position: center; }
+/* The scan line carries the app's full signature sweep now (green -> teal -> blue), not a green-to-cyan
+   half of it, so the one moment that shows the AI looking at your food is in the same colours as the
+   score it produces. The global prefers-reduced-motion rule stops the travel; the line stays put and
+   the copy still says what is happening. */
 .scanline {
   position: absolute; left: 0; right: 0; height: 3px;
-  background: linear-gradient(90deg, transparent, var(--green-bright), var(--cyan), transparent);
-  box-shadow: 0 0 22px rgba(var(--green-rgb), 0.8); animation: scan 1.6s ease-in-out infinite;
+  background: linear-gradient(90deg, transparent, var(--ring-a), var(--ring-b) 55%, var(--ring-c), transparent);
+  box-shadow: 0 0 22px rgba(var(--teal-rgb), 0.75); animation: scan 1.6s ease-in-out infinite;
 }
 @keyframes scan { 0%,100% { top: 8%; } 50% { top: 90%; } }
+/* A faint wash under the line so the box reads as being READ, not merely striped. */
+.scanbox::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(120% 60% at 50% 50%, rgba(var(--teal-rgb), 0.14), transparent 70%);
+}
 .analyzing .phase { margin-top:22px; font-size: 16.5px; font-weight: 800; }
 .analyzing .phase-sub { margin-top:6px; font-size: 13px; font-weight: 600; color: var(--text-3); }
 .dots::after { content: '…'; animation: dots 1.4s steps(3) infinite; }

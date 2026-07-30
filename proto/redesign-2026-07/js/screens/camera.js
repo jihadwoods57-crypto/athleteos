@@ -320,7 +320,12 @@ export const cameraConfirm = {
       saveNote();
       const slot = MEAL.key || 'dinner';
       act.logMeal(slot);
-      window.__go('meal-thread/' + slot);
+      // …by way of the scan. Log-first is right and stays: the meal is already committed here and
+      // the outbox owns the read. But cutting straight to the thread meant the athlete's photo was
+      // never visibly LOOKED at — the most satisfying feedback in the app disappeared, and logging
+      // started to feel like nothing happened. #analyzing now shows the work for a beat with a hard
+      // ceiling, and hands off whether or not the read has landed. It starts no analysis of its own.
+      window.__go('analyzing/' + slot);
     });
     // Duplicate pre-check (0062), free and before the paid analyze call. Fail-open: offline the
     // button stays enabled and the server's unique index still backstops at insert time.

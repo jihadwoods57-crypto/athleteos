@@ -78,7 +78,14 @@ const SHOTS = [
 
   // athlete — the meal state machine
   { g: 'meal', name: 'camera', seed: 'dayMorning', route: 'camera/lunch', at: [12, 40] },
-  { g: 'meal', name: 'analyzing', seed: 'dayMorning', route: 'analyzing', at: [12, 41] },
+  // This entry was named 'analyzing' and captured the CAMERA PRIMING screen for its whole life:
+  // #analyzing with nothing staged bounces to #camera by design, so the contact sheet has been
+  // showing a permission prompt under the name of the scan interstitial — which is part of why
+  // nobody noticed the scan had dropped out of the meal flow entirely. Named for what it is.
+  // The scan itself is a sub-2-second timed hand-off; it is verified by driving the real flow
+  // (camera-confirm → analyzing → thread) rather than by a still, which would race its own ceiling.
+  { g: 'meal', name: 'camera-priming', seed: 'dayMorning', route: 'analyzing', at: [12, 41] },
+  { g: 'meal', name: 'camera-confirm', seed: 'stagedCapture', route: 'camera-confirm', at: [12, 41] },
   { g: 'meal', name: 'meal-analysis', seed: 'dayMidday', route: 'meal-analysis', at: [13, 5] },
   { g: 'meal', name: 'meal-detail', seed: 'dayMidday', route: 'meal-detail/lunch', at: [13, 8] },
   { g: 'meal', name: 'meal-thread', seed: 'dayMidday', route: 'meal-thread/lunch', at: [13, 9] },

@@ -116,6 +116,29 @@ export const dayLockStamp = `${COMMON}${ATHLETE_IDENTITY}
   window.__render();
 `;
 
+/** A photo staged but NOT yet logged: the "Use this photo?" gate, which owns the Log it button that
+ *  starts the whole capture → scan → thread hand-off. Deterministic (no timers), unlike the scan
+ *  interstitial it leads to. The image is drawn here rather than shipped as a fixture so the seed
+ *  stays dependency-free. */
+export const stagedCapture = `${COMMON}${ATHLETE_IDENTITY}
+  ${LOG('breakfast', 505)}
+  DAY.hydrationL = 0.9;
+  DAY.ciLast = { date: iso(1), recovery: 82 };
+  (() => {
+    const c = document.createElement('canvas'); c.width = 720; c.height = 720;
+    const g = c.getContext('2d');
+    const bg = g.createLinearGradient(0, 0, 720, 720);
+    bg.addColorStop(0, '#2f2a24'); bg.addColorStop(1, '#171410');
+    g.fillStyle = bg; g.fillRect(0, 0, 720, 720);
+    g.fillStyle = '#e8e2d6'; g.beginPath(); g.arc(360, 380, 240, 0, Math.PI * 2); g.fill();
+    const food = [['#c2703a', 250, 300, 150], ['#8fae52', 430, 300, 120], ['#d9b64a', 340, 470, 130]];
+    for (const [col, x, y, r] of food) { g.fillStyle = col; g.beginPath(); g.arc(x, y, r / 2, 0, Math.PI * 2); g.fill(); }
+    const dataUrl = c.toDataURL('image/jpeg', 0.85);
+    st.act.captureMeal(dataUrl.split(',')[1], dataUrl, 'lunch', true, {});
+  })();
+  window.__render();
+`;
+
 /** A late dinner — the "late counts half, still log it" state the site must be able to show. */
 export const dayLate = `${COMMON}${ATHLETE_IDENTITY}
   ${LOG('breakfast', 505)}
@@ -199,7 +222,7 @@ export const parentIdentity = `${COMMON}
 `;
 
 export const SEEDS = {
-  dayMorning, dayMidday, dayComplete, dayLate, dayFirst, dayLockStamp,
+  dayMorning, dayMidday, dayComplete, dayLate, dayFirst, dayLockStamp, stagedCapture,
   styleStructured, styleGuided, styleIntuitive,
   coachIdentity, trainerIdentity, parentIdentity,
 };

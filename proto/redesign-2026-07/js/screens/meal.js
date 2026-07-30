@@ -91,11 +91,38 @@ export const analyzing = {
       <div class="phase-sub" id="an-sub">Detecting foods and portions</div>
     </div>`;
   },
-  async mount(root) {
+  async mount(root, { sub: slotArg } = {}) {
     analysis._editing = false; // a fresh analysis never opens in edit mode
     const phase = root.querySelector('#an-phase');
     const sub = root.querySelector('#an-sub');
-    const phaseTimer = setTimeout(() => { if (phase && location.hash === '#analyzing') { phase.innerHTML = 'Estimating macros<span class="dots"></span>'; if (sub) sub.textContent = 'Matching to your plan'; } }, 1000);
+    const onScreen = () => location.hash.startsWith('#analyzing');
+    const phaseTimer = setTimeout(() => { if (phase && onScreen()) { phase.innerHTML = 'Estimating macros<span class="dots"></span>'; if (sub) sub.textContent = 'Matching to your plan'; } }, 1000);
+
+    /* ---- WATCH MODE: the meal is ALREADY logged and the outbox owns the read. ----
+       This is the path the camera takes now. Two things it must never do: start its own analysis
+       (the outbox job is already running one, and a second vision call is real money), or hold the
+       athlete here (the meal is committed — nothing downstream is waiting on this screen).
+
+       So it is a bounded moment, not a gate: MIN_MS guarantees the scan actually registers even
+       when the read comes back in 300ms, MAX_MS guarantees it is never a wait. Either way the next
+       screen is the thread, which already states the pending case honestly ("Logged and counting.
+       The breakdown lands here in a few seconds"). */
+    const slot = slotArg || (MEAL && MEAL.key) || null;
+    if (slot && DAY.meals[slot]) {
+      const MIN_MS = 1150, MAX_MS = 3200;
+      const t0 = Date.now();
+      const leave = () => { clearTimeout(phaseTimer); if (onScreen()) window.__go('meal-thread/' + slot); };
+      const tick = () => {
+        if (!root.isConnected || !onScreen()) { clearTimeout(phaseTimer); return; }
+        const cur = DAY.slotMacros[slot] || {};
+        const landed = !cur.pending;              // applyAnalysisResult clears it, success or not
+        const waited = Date.now() - t0;
+        if ((landed && waited >= MIN_MS) || waited >= MAX_MS) { leave(); return; }
+        setTimeout(tick, 110);
+      };
+      setTimeout(tick, 110);
+      return;
+    }
 
     if (MEAL && MEAL.photoBase64 && !MEAL.result) {
       // REAL analysis via the analyze-meal edge function.
