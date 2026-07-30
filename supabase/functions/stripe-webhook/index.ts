@@ -479,7 +479,18 @@ async function handleOfferRenewal(svc: ReturnType<typeof createClient>, invoice:
   // "keep paying, keep access" mechanism — it covers the client and the trainer's owner grant at
   // once, and it is a no-op for a claim nobody has redeemed yet, which is correct: an unredeemed
   // claim has no grants to extend and its own 90-day window is untouched.
-  const renewedTo = fundedExpiry(invoice.period_end ?? invoice.lines?.data?.[0]?.period?.end ?? null);
+  /* THE LINE ITEM'S period, not the invoice's. Stripe's own docs on Invoice.period_end: "End of the
+     usage period during which invoice items were added to this invoice. This looks back one period
+     for a subscription invoice. Use the line item period to get the service period." So on a
+     renewal invoice, invoice.period_end is roughly NOW — the end of the period just billed — while
+     the period this payment BUYS is on the line item.
+
+     Reading it the wrong way round meant every renewal pushed the grant to now + 7 days of grace
+     instead of to the end of the month just paid for: a client paying $200/mo lost the app about
+     three weeks into every cycle, and the only visible symptom would have been "my clients keep
+     getting locked out" with a perfectly healthy Stripe subscription behind it. */
+  const servicePeriodEnd = invoice.lines?.data?.[0]?.period?.end ?? invoice.period_end ?? null;
+  const renewedTo = fundedExpiry(servicePeriodEnd);
   const { error: grantErr } = await svc.from('trainer_funded_access')
     .update({ expires_at: renewedTo })
     .eq('stripe_subscription_id', subId)

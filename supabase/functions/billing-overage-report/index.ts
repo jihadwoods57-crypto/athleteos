@@ -79,7 +79,18 @@ Deno.serve(async (req) => {
 
   // ---- monthly: bill last month's overage in arrears ----
   if (!STRIPE_SECRET_KEY) return json({ error: 'stripe not configured' }, 503);
-  const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
+  /* httpClient + the pinned API version, matching every other Stripe-touching function here.
+   *
+   * This was the ONE that constructed the SDK bare. Without Stripe.createFetchHttpClient() the SDK
+   * reaches for Node's http module, which is not the runtime this is on — and the failure lands
+   * inside the per-owner try/catch as an opaque string in `failures`, so a cron that bills nobody
+   * still answers 200. Being the only function on 2024-06-20 was the same kind of drift: the version
+   * is pinned deliberately across the board because stripe-webhook reads `invoice.subscription`,
+   * which 2025-03-31.basil restructured. */
+  const stripe = new Stripe(STRIPE_SECRET_KEY, {
+    apiVersion: '2025-02-24.acacia',
+    httpClient: Stripe.createFetchHttpClient(),
+  });
   const month = previousMonthISO();
   const monthName = `${MONTH_LABEL[new Date(month + 'T00:00:00Z').getUTCMonth()]} ${month.slice(0, 4)}`;
 

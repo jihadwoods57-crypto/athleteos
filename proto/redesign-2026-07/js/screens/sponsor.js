@@ -29,6 +29,15 @@ export default {
       <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Label (optional)</div>
       <input class="ob-input" id="sp-label" value="${esc(UI.label)}" placeholder="e.g. Fall roster, Jones family" />
       <div style="height:14px"></div>
+      ${/* This form asked for a seat COUNT and never said what a seat costs, so the first time
+            anyone saw a number was the Stripe page — and the default seat price is a server secret
+            (SPONSOR_SEAT_PRICE_CENTS), so echoing a figure here would be a second source of truth
+            that silently drifts the day the founder changes it. State the terms and say plainly
+            where the total appears, which is both honest and cannot go stale. */ ''}
+      <div style="font-size:12px;font-weight:600;color:var(--text-3);line-height:1.5;margin-bottom:12px">
+        Seats are billed once, per athlete, for a year of premium. Stripe shows the exact total for
+        ${esc(String(Math.max(0, parseInt(UI.seats, 10) || 0)))} seat${(parseInt(UI.seats, 10) || 0) === 1 ? '' : 's'} before you pay — nothing is charged until you confirm there.
+      </div>
       <div id="sp-err" style="color:var(--red);font-size:13px;font-weight:600;min-height:18px"></div>
       <button class="btn primary" id="sp-buy" ${UI.buying ? 'disabled style="opacity:.6"' : ''}>${icon('bolt', 18)} ${UI.buying ? 'Starting checkout…' : 'Buy seats'}</button>
     </section>

@@ -54,7 +54,14 @@ async function redeemEither(code) {
   if (t && t.ok) return { kind: 'trainer', r: t };
   const s = await roles.redeemSponsorCode(code);
   if (s && s.ok) return { kind: 'sponsor', r: s };
-  return { kind: 'sponsor', r: s };   // report the sponsor result; both said no
+  /* Both said no — report whichever said something USEFUL. Always returning the sponsor result
+     threw away the specific answer: a real trainer code that had expired, or that someone else had
+     already used, was reported as the generic "That code isn't valid." — and the person reading it
+     had already paid, so a wrong "invalid" sends them to their trainer saying nothing works.
+     'invalid_code' means "this RPC has never heard of it", which is the one reason worth losing. */
+  const specific = (r) => r && r.reason && r.reason !== 'invalid_code';
+  if (specific(t) && !specific(s)) return { kind: 'trainer', r: t };
+  return { kind: 'sponsor', r: s };
 }
 
 export default {

@@ -63,14 +63,29 @@ function corsFor(req: Request): Record<string, string> {
 // Tighter than the authenticated sibling (10/min): this endpoint is unauthenticated and creates
 // Stripe objects, so it is the more attractive thing to hammer.
 const RL_MAX = Number(Deno.env.get('PUBLIC_RATE_LIMIT_PER_MIN') ?? '6');
+/* The claim lookup gets its OWN, far looser budget, and it must.
+ *
+ * billing-return polls this endpoint up to 10 times at 1.5s intervals precisely because the webhook
+ * that mints the code races Stripe's redirect. Against a shared 6/min bucket, attempt 7 onward came
+ * back 429 — so the buyer whose webhook took more than nine seconds (the exact case the polling
+ * exists for) was told "still processing", and a refresh inside the same minute failed immediately
+ * too. Someone who had just been charged could not reach the code they paid for.
+ *
+ * It is safe to be generous here: this action creates nothing, writes nothing, and is keyed by an
+ * unguessable Stripe session id that only its own buyer ever receives. The budget exists to bound a
+ * flood, not to ration a legitimate poll.
+ */
+const RL_CLAIM_MAX = Number(Deno.env.get('PUBLIC_CLAIM_RATE_LIMIT_PER_MIN') ?? '40');
 const rlHits = new Map<string, { count: number; resetAt: number }>();
-function rateLimited(req: Request): boolean {
+function rateLimited(req: Request, bucket: 'create' | 'claim'): boolean {
   const ip = clientIpFrom(req);
+  const key = `${bucket}:${ip}`;
+  const max = bucket === 'claim' ? RL_CLAIM_MAX : RL_MAX;
   const now = Date.now();
-  const e = rlHits.get(ip);
-  if (!e || now > e.resetAt) { rlHits.set(ip, { count: 1, resetAt: now + 60_000 }); return false; }
+  const e = rlHits.get(key);
+  if (!e || now > e.resetAt) { rlHits.set(key, { count: 1, resetAt: now + 60_000 }); return false; }
   e.count++;
-  return e.count > RL_MAX;
+  return e.count > max;
 }
 
 const json = (obj: unknown, status: number, cors: Record<string, string>) =>
@@ -100,7 +115,6 @@ Deno.serve(async (req) => {
   const cors = corsFor(req);
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405, cors);
-  if (rateLimited(req)) return json({ error: 'rate limited, slow down' }, 429, cors);
   if (!SUPABASE_URL || !SERVICE_ROLE) return json({ error: 'server not configured' }, 500, cors);
 
   let body: { slug?: unknown; offerIndex?: unknown; action?: unknown; sessionId?: unknown; expectPriceCents?: unknown; expectName?: unknown };
@@ -114,11 +128,13 @@ Deno.serve(async (req) => {
   // charged must always be able to retrieve their code — flipping the switch has to stop new sales,
   // never strand a completed one.
   if (body.action === 'claim') {
+    if (rateLimited(req, 'claim')) return json({ error: 'rate limited, slow down' }, 429, cors);
     const sessionId = typeof body.sessionId === 'string' ? body.sessionId : '';
     if (!SESSION_RE.test(sessionId)) return json({ error: 'bad request' }, 400, cors);
     return await claimForSession(sessionId, cors);
   }
 
+  if (rateLimited(req, 'create')) return json({ error: 'rate limited, slow down' }, 429, cors);
   if (!STRIPE_SECRET_KEY) return json({ error: 'billing not configured' }, 503, cors);
 
   // Kill switch. There is no signed-in user here, so the flag is evaluated with an empty context —

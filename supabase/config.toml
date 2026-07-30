@@ -492,3 +492,36 @@ verify_jwt = false
 # winback is cron-invoked with x-winback-key and has no user session. Pinned like the rest.
 [functions.winback]
 verify_jwt = false
+
+# The same gap the roll-call trio hit, found again 2026-07-30: six functions document
+# `--no-verify-jwt` in their own deploy instructions and had no entry here. The flag only holds for
+# the one command that carried it — this file is what makes it survive the next deploy, and
+# `supabase functions deploy --all` never carries it. Each of these authenticates itself and 401s a
+# caller without the secret, so verify_jwt buys nothing and silently kills the feature:
+#   * public-offer-checkout   — the buyer is anonymous BY DESIGN (pay before you have an account).
+#                               With verify_jwt on, the entire pay-first funnel returns 401 and the
+#                               trainer's public page can take no money at all.
+#   * claim-reminders         — cron, x-billing-key. Silently stops chasing buyers who paid and
+#                               never redeemed, which is the chargeback path.
+#   * billing-overage-report  — cron, x-billing-key. A 401 here means nobody is billed for overage
+#                               and seats_used quietly stops being stamped.
+#   * revenuecat-webhook      — RevenueCat signs its own payload; it has no Supabase JWT.
+#   * connect-webhook         — Stripe Connect signs its own payload; same.
+#   * ai-followup             — cron-invoked with its own shared key.
+[functions.public-offer-checkout]
+verify_jwt = false
+
+[functions.claim-reminders]
+verify_jwt = false
+
+[functions.billing-overage-report]
+verify_jwt = false
+
+[functions.revenuecat-webhook]
+verify_jwt = false
+
+[functions.connect-webhook]
+verify_jwt = false
+
+[functions.ai-followup]
+verify_jwt = false

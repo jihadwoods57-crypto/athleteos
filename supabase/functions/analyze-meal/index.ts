@@ -1145,14 +1145,23 @@ ${memBlock}`;
           tool_choice: toolChoice,
           messages: [{ role: 'user', content }],
         });
+        /* Record what the escalation actually ACHIEVED, not just that the API answered. `ok: true`
+           unconditionally made the escalation success rate 100% by construction — and that rate is
+           the entire number this telemetry exists to produce, since it is what decides whether
+           cheap-first routing is worth turning on. A truncated escalated tool call (the ~0g bug's
+           failure mode: stop_reason 'max_tokens') would have been logged as a clean win while the
+           athlete silently kept the cheap read. */
+        const eu = esc.content.find((b) => b.type === 'tool_use');
+        const adopted = !!(eu && eu.type === 'tool_use' && validMealInput(eu.input));
         await recordAiCall({
           fn: 'analyze-meal', mode: telemMode, phase: 'escalate', userId,
           model: esc.model ?? MODEL, ...usageFrom(esc.usage),
-          latencyMs: Date.now() - t0e, ok: true,
-          outcome: firstInvalid ? 'first_invalid' : 'first_low_confidence',
+          latencyMs: Date.now() - t0e, ok: adopted,
+          outcome: adopted
+            ? (firstInvalid ? 'first_invalid' : 'first_low_confidence')
+            : (esc.stop_reason === 'max_tokens' ? 'escalate_truncated' : 'escalate_unusable'),
         });
-        const eu = esc.content.find((b) => b.type === 'tool_use');
-        if (eu && eu.type === 'tool_use' && validMealInput(eu.input)) used = eu;
+        if (adopted) used = eu as typeof used;
       }
     }
 

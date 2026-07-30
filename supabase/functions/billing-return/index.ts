@@ -68,32 +68,44 @@ function claimBlock(fnBase: string): string {
       return;
     }
     var tries = 0;
+    // Backs OFF rather than hammering a fixed 1.5s. Ten attempts at a flat interval gave up after
+    // fifteen seconds AND looked like a flood to any rate limiter in front of this; the same ten
+    // attempts spread out cover about a minute, which is the window a delayed webhook actually
+    // needs. Capped so the tail never stalls to a useless multi-minute gap.
+    function waitMs(){ return Math.min(6000, 1200 + tries * 600); }
+    function giveUp(reason){
+      el.textContent = '—';
+      note.textContent = 'Still processing — refresh in a moment, or check your email.';
+      track('tf_claim_pending', { tries: reason });
+    }
     function poll(){
       tries++;
       fetch(${JSON.stringify(fnBase)} + '/public-offer-checkout', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'claim', sessionId: sid })
-      }).then(function(r){ return r.json(); }).then(function(d){
-        if (d && d.code) {
+      }).then(function(r){
+        // A 429 or a 5xx is NOT "no code yet" — nothing was learned, so it must not be reported to
+        // the buyer as though the webhook were slow. Retry; only the honest 200 answers decide.
+        if (!r.ok) { if (tries < 10) { setTimeout(poll, waitMs()); return null; } giveUp('http'); return null; }
+        return r.json();
+      }).then(function(d){
+        if (!d) return;
+        if (d.code) {
           el.textContent = d.code;
           note.textContent = 'Single use. Keep this code — you will need it when you create your account.';
           track('tf_claim_shown', { tries: String(tries) });
           return;
         }
-        if (d && d.claimed) {
+        if (d.claimed) {
           el.textContent = '✓';
           note.textContent = 'This code has already been used. You are all set.';
           return;
         }
-        if (tries < 10) return setTimeout(poll, 1500);
-        el.textContent = '—';
-        note.textContent = 'Still processing — refresh in a moment, or check your email.';
-        track('tf_claim_pending', { tries: String(tries) });
+        if (tries < 10) return setTimeout(poll, waitMs());
+        giveUp(String(tries));
       }).catch(function(){
-        if (tries < 10) return setTimeout(poll, 1500);
-        el.textContent = '—';
-        note.textContent = 'Still processing — refresh in a moment, or check your email.';
-        track('tf_claim_pending', { tries: 'err' });
+        if (tries < 10) return setTimeout(poll, waitMs());
+        giveUp('err');
       });
     }
     poll();

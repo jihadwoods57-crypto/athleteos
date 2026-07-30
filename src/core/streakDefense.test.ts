@@ -94,6 +94,19 @@ describe('streak defense — fires exactly when a live run is at risk', () => {
     expect(defense(plan({ nowMin: 23 * 60 + 50 }))).toHaveLength(0);
   });
 
+  test('it lives INSIDE the daily cap, like every other nudge the app invents', () => {
+    // A commitment is exempt from the cap because a coach scheduled it. This is not that: it is a
+    // message we invented, and the cap is a promise about volume. Pushing it after the cap slice
+    // let an already-capped day ship cap+1 notifications.
+    // Deadlines 90 minutes apart so nothing coalesces (COALESCE_MIN 25) — eight distinct reminders
+    // against a cap of six.
+    const many = Array.from({ length: 8 }, (_, i) =>
+      meal(`m${i}`, `Meal ${i}`, 8 * 60 + i * 90 - 60, 8 * 60 + i * 90));
+    const p = plan({ reqs: many, pressure: 'accountable', nowMin: 6 * 60 });
+    expect(p.length).toBeLessThanOrEqual(6);          // CAP.accountable
+    expect(defense(p).length).toBeLessThanOrEqual(1);
+  });
+
   test('it names the streak and never a scoring formula', () => {
     const body = defense(plan())[0].body;
     expect(body).not.toMatch(/%|\bpoints?\b|50|score of/i);

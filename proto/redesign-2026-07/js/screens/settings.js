@@ -413,6 +413,17 @@ export const billing = {
     }
     const sub = BILL.sub;
     const paid = isPaid(sub);
+    /* Premium someone ELSE is paying for is still premium. The card already reads "Premium · via
+       your trainer" off my_premium_source, but every other branch on this screen keyed off `paid`
+       alone — so a trainer-funded client was told they had Premium and then shown "See membership
+       plans" and "Have a code?", with no Premium pill. That is the exact double-billing confusion
+       the whole trainer-funded model exists to remove, printed on the billing screen.
+
+       It is deliberately NOT folded into isPaid(): that function mirrors the SUBSCRIPTION predicate
+       and is pinned to isPro()/has_premium_access by entitlementParity.test.ts. The extra sources
+       are a LABEL here, not a fourth arm of the predicate. */
+    const covered = coveredBy();
+    const premium = paid || !!covered;
     // Operators (coach/trainer) buy on the STRIPE rail: their upsell is the plan-upgrade screen
     // and their manage is the Stripe billing portal — App Store copy on a coach's screen was a
     // consumer-shaped leftover. Athletes/parents keep the IAP surfaces unchanged.
@@ -424,15 +435,25 @@ export const billing = {
     return `${backHead('Plan & billing', 'Your membership', back)}
 
     <section class="card pad">
-      <div class="bigstat"><span class="n" style="font-size:26px">${esc(planLabel(sub))}</span><span class="d">${paid ? 'Your plan' : 'Current plan'}</span></div>
+      <div class="bigstat"><span class="n" style="font-size:26px">${esc(planLabel(sub))}</span><span class="d">${premium ? 'Your plan' : 'Current plan'}</span></div>
       <div style="height:6px"></div>
       <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.45">${esc(renewLine(sub))}</div>
       ${usage}
-      ${paid ? `<div style="height:8px"></div><span class="status-pill g">Premium unlocked</span>` : ''}
+      ${premium ? `<div style="height:8px"></div><span class="status-pill g">Premium unlocked</span>` : ''}
     </section>
 
     <div style="height:12px"></div>
-    ${paid ? `
+    ${/* Someone whose premium is funded by a trainer or a sponsor has nothing to manage and nothing
+          to buy — there is no subscription of theirs to change and no second one to sell them. Say
+          where it comes from and stop. */ ''}
+    ${!paid && covered ? `
+    <section class="card pad">
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.5;text-align:center">
+        ${covered === 'trainer'
+          ? 'Nothing to set up here. If you stop your package with your trainer, this is where a plan of your own would go.'
+          : 'Nothing to set up here. When the sponsorship ends, this is where a plan of your own would go.'}
+      </div>
+    </section>` : paid ? `
     <section class="card" style="padding:6px 16px">
       <div class="lrow" id="bill-manage" role="button">
         <div class="lic">${icon('gear', 18)}</div>

@@ -20,13 +20,24 @@ import { backHead, esc } from '../components.js';
 import { PLANS, planCard } from '../ob2.js';
 import { track, EVENTS } from '../analytics.js';
 
-const UP = { busy: null, note: null, slots: null, loaded: false };
+const UP = { busy: null, note: null, slots: null, loaded: false, loading: false };
 
+/* `loaded` is only true AFTER the round trip, and render() is what kicks this off — so every
+   repaint that lands while the first call is still in flight used to fire another one (and if the
+   lookup ever rejected, `loaded` stayed false and each repaint fired one more, forever: the same
+   unbounded-network shape that hung the coach commitments board). `loading` is the in-flight guard;
+   the finally clause is what guarantees a failed lookup settles instead of looping. */
 async function loadSlots() {
-  const roles = await import('../roles.js');
-  UP.slots = await roles.foundingSlotsLeft();
-  UP.loaded = true;
-  if (window.__render) window.__render();
+  if (UP.loading) return;
+  UP.loading = true;
+  try {
+    const roles = await import('../roles.js');
+    UP.slots = await roles.foundingSlotsLeft();
+  } finally {
+    UP.loading = false;
+    UP.loaded = true;
+    if (window.__render) window.__render();
+  }
 }
 
 /** Which operator plan list this account shops from. Trainers and dietitians buy the pro
@@ -60,7 +71,11 @@ export const planUpgrade = {
     // The plan picked during onboarding arrives preselected — this is the same choice they
     // already made, honored, not a fresh decision forced twice.
     const picked = (RT.ob && RT.ob.plan) || null;
-    return `<div id="pu-root">${backHead('Choose a plan', 'Every paid plan starts with a free 14-day trial', 'settings')}
+    // "Every paid plan starts with a free trial" was not true and this screen is where someone
+    // decides to pay: billing-checkout sends trial_period_days only when there is no existing
+    // Stripe customer, because a second free fortnight on every re-subscribe is a churn incentive.
+    // A returning coach reading an unconditional promise here would be billed on click.
+    return `<div id="pu-root">${backHead('Choose a plan', 'First plan starts with a free 14-day trial', 'settings')}
     ${founding}
     <div class="eyebrow" style="margin-top:16px">${picked && plans.some((p) => p.id === picked) ? 'Your pick from onboarding' : 'Plans'}</div>
     <div style="display:flex;flex-direction:column;gap:10px">
@@ -92,7 +107,13 @@ export const planUpgrade = {
       el.style.opacity = '0.6';
       track(EVENTS.PLAN_SELECTED, { plan: planId });
       const roles = await import('../roles.js');
-      const r = await roles.startPlanCheckout(planId, 'annual');
+      // MONTHLY, because monthly is what this screen SHOWS. The operator plan cards (ob2.js PLANS
+      // .pro/.org/.seat) carry `price: '$99'` with the default `/mo` unit — they have no annual
+      // variant to render — so opening an annual checkout charged $990 against a card that said
+      // "$99/mo". Stripe's confirm page would have shown the real figure, which makes it a broken
+      // promise rather than a silent overcharge, but it is still not the thing they agreed to.
+      // If annual is wanted here it needs a cadence toggle and annual prices on the cards first.
+      const r = await roles.startPlanCheckout(planId, 'monthly');
       UP.busy = null;
       if (r.ok) {
         // Reaching a real checkout closes the onboarding loop however they got here — the home

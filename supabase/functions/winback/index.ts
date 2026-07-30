@@ -66,15 +66,29 @@ Deno.serve(async (req) => {
 
   const todayISO = new Date().toISOString().slice(0, 10);
 
-  // Last logged day per athlete, from one bulk read of the recent window.
-  const { data: dayRows, error: dayErr } = await svc.from('days')
-    .select('athlete_id, date').gte('date', isoDaysAgo(LOOKBACK_DAYS));
-  if (dayErr) return json({ error: 'unavailable' }, 503);
-
+  /* Last logged day per athlete, over the recent window.
+   *
+   * PAGED, and it has to be: PostgREST caps every response at max_rows = 1000 (supabase/config.toml)
+   * and this was a single unordered, unlimited select over 45 days of `days`. Past roughly twenty
+   * active athletes it returned an arbitrary 1000 rows — so which athletes were even CONSIDERED for
+   * a winback became a function of row order, and it would have looked like the feature working.
+   * A stable order plus explicit ranges is the only way this stays correct as the table grows.
+   */
   const lastActive = new Map<string, string>();
-  for (const r of (dayRows ?? []) as Array<{ athlete_id: string; date: string }>) {
-    const prev = lastActive.get(r.athlete_id);
-    if (!prev || r.date > prev) lastActive.set(r.athlete_id, r.date);
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data: dayRows, error: dayErr } = await svc.from('days')
+      .select('athlete_id, date')
+      .gte('date', isoDaysAgo(LOOKBACK_DAYS))
+      .order('athlete_id', { ascending: true }).order('date', { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (dayErr) return json({ error: 'unavailable' }, 503);
+    const rows = (dayRows ?? []) as Array<{ athlete_id: string; date: string }>;
+    for (const r of rows) {
+      const prev = lastActive.get(r.athlete_id);
+      if (!prev || r.date > prev) lastActive.set(r.athlete_id, r.date);
+    }
+    if (rows.length < PAGE) break;
   }
   if (lastActive.size === 0) return json({ ok: true, selected: 0, sent: 0 });
 
@@ -85,6 +99,15 @@ Deno.serve(async (req) => {
     // across redeploys and re-send; a notifications row does not.
     svc.from('notifications').select('user_id, kind').like('kind', 'winback:%').in('user_id', ids),
   ]);
+
+  /* A FAILED dedupe read must abort the run. `notifRes.data ?? []` treated a transient error as
+   * "nobody has ever been messaged", which would send the day-3 and day-10 winback again to every
+   * eligible athlete — the single thing this feature's contract says must never happen ("Never
+   * twice for the same stage — dedupe is a durable notifications row, not a timer"). Sending
+   * nothing today costs one day; sending twice costs the relationship.
+   */
+  if (notifRes.error) return json({ error: 'unavailable', detail: 'dedupe read failed' }, 503);
+  if (profRes.error) return json({ error: 'unavailable', detail: 'profile read failed' }, 503);
 
   const sentByUser = new Map<string, string[]>();
   for (const n of (notifRes.data ?? []) as Array<{ user_id: string; kind: string }>) {

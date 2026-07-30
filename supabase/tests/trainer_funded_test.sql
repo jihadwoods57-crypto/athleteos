@@ -210,6 +210,19 @@ select _ok(exists(select 1 from practice_clients
 select _ok(has_premium_access('7ff00000-0000-0000-0000-00000000000c') = true,
   '0166: the redeemer is premium immediately');
 
+-- 0168: the grant is ONE PERIOD, not the claim's 90-day window. The claim's expiry is a deadline for
+-- finding the code; using it as the entitlement handed a client who cancelled after month one about
+-- two free months, and broke the "access falls out of billing" property 0166 is built on. The
+-- renewal webhook extends it from here.
+select _ok((select expires_at from trainer_funded_access
+    where athlete_id = '7ff00000-0000-0000-0000-00000000000c'
+      and stripe_subscription_id = 'sub_tf_claim') < now() + interval '45 days',
+  '0168: a redeemed claim grants one billing period + grace, never the claim window');
+select _ok((select expires_at from trainer_funded_access
+    where athlete_id = '7ff00000-0000-0000-0000-00000000000c'
+      and stripe_subscription_id = 'sub_tf_claim') > now() + interval '6 days',
+  '0168: and it is still long enough to be usable on the day it is redeemed');
+
 select _as('7ff00000-0000-0000-0000-00000000000c');
 select _ok((select reason from redeem_offer_code('TR-TEST-0001')) = 'already_redeemed',
   '0166: re-redeeming your own code is idempotent, not an error (double-tap on a flaky link)');

@@ -51,7 +51,10 @@ const CAP = { gentle: 6, accountable: 6, max: 10 };
 const LEAD = { gentle: 30, accountable: 45, max: 45 };
 const COALESCE_MIN = 25; // entries this close merge into one combined notification
 const COLLAPSE_MIN = 60; // soon+due this close collapse into a single last-call
-const RANK = { due: 3, soon: 2, open: 1 };
+// 'streak' sits between soon and due: a live run about to end outranks another heads-up about a
+// window, and is outranked by a deadline landing right now. Without an entry here it fell to 0 and
+// would have been the first thing the cap dropped on exactly the busy day it matters most.
+const RANK = { due: 3, streak: 2.5, soon: 2, open: 1 };
 
 /** Template family for a requirement — inferred from proof/impact, never hardcoded ids, so
  *  coach-standard slots (meal-5, snack-as-required) and future kinds get sane copy. */
@@ -292,6 +295,11 @@ export function planNotifications({
   entries.sort((x, y) => x.fireAtMin - y.fireAtMin || (RANK[y.stage] || 0) - (RANK[x.stage] || 0));
 
   // Coalesce near-simultaneous entries into one combined notification.
+  // Annotated to match `entries`: this list holds three differently-shaped things (a requirement
+  // slot, a mergeGroup() combination, the streak-defense entry below) and only the stripped shape
+  // returned at the bottom is a contract. Without it, TS evolves the element type from the first
+  // literal pushed in and every `.find()` at a call site starts needing a null check.
+  /** @type {any[]} */
   const merged = [];
   let group = [];
   const flush = () => {
@@ -305,7 +313,38 @@ export function planNotifications({
   }
   flush();
 
-  // Daily cap: keep the most important (due > soon > open), earliest first within a rank.
+  /* ---- Streak defense: the one message that speaks BEFORE the streak dies ----
+     Every other streak mention in this planner is in `celebrate`, which fires once the day is
+     already won. The moment that decides whether someone comes back is the opposite one — a real
+     run is alive, the day is not finished, and the window is closing. Nothing spoke there, so the
+     run ended quietly and the athlete learned about it the next morning.
+
+     Placed BEFORE the daily cap, unlike a commitment. A commitment is exempt because a coach
+     scheduled it for a specific event; this is a nudge the APP invented, and the cap is a promise
+     about volume — appending it afterwards shipped cap+1 notifications on any day busy enough to
+     be capped, which is precisely the day an extra voice is least welcome.
+
+     Suppressed on `gentle` for the same reason the celebration is: that pressure setting is a
+     promise about volume. Requires a run of at least 2 — one day is not yet something to lose. */
+  const openReqs = merged.length > 0;
+  if (streak >= 2 && openReqs && pressure !== 'gentle') {
+    // Just before the athlete winds down: late enough to be a genuine last call, early enough
+    // that there is still time to act on it. Anchoring it after the final requirement reminder
+    // instead would drag it past 23:30 on any day with a late recovery check-in — technically
+    // "the last word", practically useless. If that slot has already passed, say nothing: a
+    // streak warning at midnight only tells someone what they already lost.
+    const at = prefs.quietFrom - 45;
+    if (at > nowMin && !inQuiet(at, prefs)) {
+      merged.push({
+        id: 'streak-defense', fireAtMin: at, dayOffset, immediate: false, stage: 'streak', route: 'home',
+        title: `Your ${streak}-day streak is still open.`,
+        body: STREAK_BODY[hashStr(`${dateISO}:streak`) % STREAK_BODY.length](streak),
+      });
+      merged.sort((a, b) => a.fireAtMin - b.fireAtMin);
+    }
+  }
+
+  // Daily cap: keep the most important (due > streak > soon > open), earliest first within a rank.
   let out = merged;
   const capN = CAP[pressure] || CAP.accountable;
   if (out.length > capN) {
@@ -327,36 +366,6 @@ export function planNotifications({
          not invented by the app: a coach scheduled it, for a specific event, and only athletes who
          have NOT responded receive it (commitmentReminders filters on status).
      Entries arrive pre-shaped from commitments.js; here they only get planner fields. */
-  /* ---- Streak defense: the one message that speaks BEFORE the streak dies ----
-     Every other streak mention in this planner is in `celebrate`, which fires once the day is
-     already won. The moment that decides whether someone comes back is the opposite one — a real
-     run is alive, the day is not finished, and the window is closing. Nothing spoke there, so the
-     run ended quietly and the athlete learned about it the next morning.
-
-     One per day, placed after the last requirement reminder so it reads as a closing word rather
-     than another nudge about a specific task. Unlike a commitment this IS a nudge the app
-     invented, so it goes through placed() and respects quiet hours; if it cannot be placed
-     honestly before midnight it is dropped rather than fired at a useless hour.
-
-     Suppressed on `gentle` for the same reason the celebration is: that pressure setting is a
-     promise about volume. Requires a run of at least 2 — one day is not yet something to lose. */
-  const openReqs = entries.length > 0;
-  if (streak >= 2 && openReqs && pressure !== 'gentle') {
-    // Just before the athlete winds down: late enough to be a genuine last call, early enough
-    // that there is still time to act on it. Anchoring it after the final requirement reminder
-    // instead would drag it past 23:30 on any day with a late recovery check-in — technically
-    // "the last word", practically useless. If that slot has already passed, say nothing: a
-    // streak warning at midnight only tells someone what they already lost.
-    const at = prefs.quietFrom - 45;
-    if (at > nowMin && !inQuiet(at, prefs)) {
-      out.push({
-        id: 'streak-defense', fireAtMin: at, dayOffset, immediate: false, stage: 'streak', route: 'home',
-        title: `Your ${streak}-day streak is still open.`,
-        body: STREAK_BODY[hashStr(`${dateISO}:streak`) % STREAK_BODY.length](streak),
-      });
-    }
-  }
-
   const vc = Array.isArray(commitments) ? commitments : [];
   for (const c of vc) {
     if (!c || typeof c.at !== 'number' || c.at <= nowMin) continue;

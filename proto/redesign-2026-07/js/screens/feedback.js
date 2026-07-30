@@ -24,7 +24,7 @@
  *      Rather than show an athlete an error for helping, the send falls back to 'question' with the
  *      subject labelled — see sendTicket().
  */
-import { S, RT, act } from '../state.js';
+import { S, RT, act, roleNav } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
 import { track, EVENTS } from '../analytics.js';
@@ -48,11 +48,23 @@ const LABEL = Object.fromEntries([...KINDS, SAFETY].map((k) => [k.cat, k.t]));
 
 /* Screen state. Module-level so a repaint (the router rebuilds #view on every render) keeps the
    athlete's typing — losing a half-written bug report to an async repaint would be its own bug. */
-const F = { cat: null, subject: '', body: '', sending: false, sent: null, error: null, from: 'settings' };
+const F = { cat: null, subject: '', body: '', sending: false, sent: null, error: null, from: 'settings', origin: null };
 
 function reset(from, cat) {
   F.cat = cat || null; F.subject = ''; F.body = '';
   F.sending = false; F.sent = null; F.error = null; F.from = from;
+  // The route they were ON when they decided to report something. openFeedback() runs BEFORE the
+  // navigation, so the hash still names the real screen there (the failed analysis). The arrival
+  // reset in render() runs after it, so the hash already says 'feedback' — the one answer that is
+  // never useful — and the caller's `from` label is the honest fallback.
+  const r = routeNow();
+  F.origin = r && r !== 'feedback' ? r : (from || null);
+}
+
+/** The current route, without its params. */
+function routeNow() {
+  if (typeof location === 'undefined') return null;
+  return (String(location.hash || '').replace(/^#/, '').split('/')[0]) || null;
 }
 
 /* One-shot: set when a caller opened this screen deliberately WITH a category (the failed-analysis
@@ -74,7 +86,10 @@ function bugContext() {
     ['role', RT.authRole || 'unknown'],
     ['app', (typeof window !== 'undefined' && window.__APP_VERSION) || 'dev'],
     ['proto', (typeof window !== 'undefined' && window.__PROTO_VERSION) || 'dev'],
-    ['screen', String((typeof location !== 'undefined' && location.hash) || '').replace(/^#/, '') || 'unknown'],
+    // The screen they came FROM, not this one. Reading location.hash at send time always said
+    // 'feedback' — the one route that can never be the answer — which quietly defeated the whole
+    // point of attaching context ("the screen it came from is attached automatically", meal.js).
+    ['screen', F.origin || 'unknown'],
     ['sync', S.syncIssue || 'ok'],
     ['online', typeof navigator === 'undefined' ? 'unknown' : String(navigator.onLine !== false)],
   ];
@@ -106,6 +121,11 @@ async function sendTicket(cat, subject, body) {
 export const feedback = {
   tab: 'profile',
   hideTabs: true,
+  // Shared-utility nav resolution (the settings/billing/plan-upgrade pattern). Without it the
+  // router's mirror guard reads the default 'athlete' nav and bounces every signed-in coach and
+  // trainer straight back to their dashboard — so "Send feedback" in Settings did nothing at all
+  // for the operators, who are the paying users and the ones with the most to report.
+  get nav() { return roleNav(); },
 
   render() {
     /* Arrival detection, and it has to happen HERE rather than in mount(): the router runs render()

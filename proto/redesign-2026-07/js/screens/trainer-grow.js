@@ -290,9 +290,19 @@ export const trainerGrow = {
       const act = b.getAttribute('data-tg'), id = b.getAttribute('data-id');
       if (act === 'copycode') {
         const code = b.getAttribute('data-code') || '';
-        if (code) navigator.clipboard.writeText(code)
-          .then(() => { b.textContent = 'Copied'; setTimeout(() => { b.textContent = code; }, 1400); })
-          .catch(() => {});
+        // navigator.clipboard is UNDEFINED in any non-secure context, which includes the WebView
+        // this app actually runs in on some Android builds — so the bare `.writeText()` threw a
+        // TypeError synchronously, before any .catch() could see it, and the tap did nothing with
+        // an error in the console. Same try/catch shape coach-home.js already uses for its code.
+        // The code stays on screen either way: a trainer can always read it aloud, which is the
+        // primary way this is used.
+        if (code) {
+          try {
+            await navigator.clipboard.writeText(code);
+            b.textContent = 'Copied';
+            setTimeout(() => { b.textContent = code; }, 1400);
+          } catch { /* no clipboard here — the code is already legible on the button */ }
+        }
         return;
       }
       if (act === 'add') { UI.editing = 'new'; if (window.__render) window.__render(); return; }
