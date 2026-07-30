@@ -1305,6 +1305,27 @@ export async function redeemSponsorCode(code) {
   try { const { data, error } = await c.rpc('redeem_sponsor_code', { p_code: code }); if (error) return { error: error.message }; return Array.isArray(data) ? data[0] : data; }
   catch (e) { return { error: String((e && e.message) || e) }; }
 }
+/** Athlete: redeem a trainer claim code (0166) from a pay-first purchase. Connects them to the
+ *  practice AND turns on premium in one transaction. Row: { ok, reason, trainer_name, expires_at }. */
+export async function redeemOfferCode(code) {
+  const c = sb(); if (!c) return { error: 'not configured' };
+  try { const { data, error } = await c.rpc('redeem_offer_code', { p_code: code }); if (error) return { error: error.message }; return Array.isArray(data) ? data[0] : data; }
+  catch (e) { return { error: String((e && e.message) || e) }; }
+}
+/** Which source is paying for this athlete's premium: 'subscription' | 'trainer' | 'sponsor' | 'none'.
+ *  The billing screen can't derive this locally — sponsor and trainer grants live in their own
+ *  tables, which is exactly why the screen used to say "Free" to someone who had premium. */
+export async function myPremiumSource() {
+  const c = sb(); if (!c) return 'none';
+  try { const { data, error } = await c.rpc('my_premium_source'); if (error) return 'none'; return data || 'none'; }
+  catch { return 'none'; }
+}
+/** Operator: the funded roster for a practice — who's covered, when they renew, who lapsed. */
+export async function fetchFundedClients(practiceId) {
+  const c = sb(); if (!c || !practiceId) return [];
+  try { const { data } = await c.rpc('my_funded_clients', { p_practice: practiceId }); return data || []; }
+  catch { return []; }
+}
 
 /* ---------------- consumer subscription (App Store / Play IAP via RevenueCat) ----------------
    The native store rail. `iapAvailable()` is false in a browser/preview session and until the

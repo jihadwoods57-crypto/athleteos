@@ -10,7 +10,7 @@ import * as roles from '../roles.js';
 const SHARE_BASE = 'https://onstandard.app/t?t=';
 
 // Local cache + light UI state (which offer is being edited). Repaint after any load/change.
-let G = { practiceId: null, page: null, offers: null, apps: null, connect: null, payments: null, loaded: false };
+let G = { practiceId: null, page: null, offers: null, apps: null, connect: null, payments: null, funded: null, loaded: false };
 let UI = { editing: null, connecting: false };  // editing: null | 'new' | <offer id>
 
 function practiceId() { return (RT.practice && RT.practice.id) || G.practiceId || null; }
@@ -20,15 +20,16 @@ async function loadGrow(force) {
   let pid = practiceId();
   if (!pid) { const id = await roles.fetchMyPracticeIdentity(); if (id && id.id) { G.practiceId = pid = id.id; } }
   if (!pid) { G.loaded = true; if (window.__render) window.__render(); return; }
-  const [page, offers, apps, connect, payments] = await Promise.all([
+  const [page, offers, apps, connect, payments, funded] = await Promise.all([
     roles.fetchMyTrainerPage(pid), roles.fetchMyOffers(pid), roles.fetchMyApplications(pid),
-    roles.fetchConnectStatus(pid), roles.fetchPracticePayments(pid),
+    roles.fetchConnectStatus(pid), roles.fetchPracticePayments(pid), roles.fetchFundedClients(pid),
   ]);
   G.page = page && !page.error ? page : (page && page.error ? G.page : null);
   G.offers = Array.isArray(offers) ? offers : [];
   G.apps = Array.isArray(apps) ? apps : [];
   G.connect = connect || { status: 'none' };
   G.payments = Array.isArray(payments) ? payments : [];
+  G.funded = Array.isArray(funded) ? funded : [];
   G.loaded = true;
   if (window.__render) window.__render();
 }
@@ -60,7 +61,38 @@ function connectSection() {
     </div>
     <button class="btn ${meta.tone} sm" id="tg-connect" style="width:auto;padding:0 16px;height:36px">${UI.connecting ? '…' : meta.cta}</button>
     <span id="tg-connect-msg" class="ls" style="margin-left:10px"></span>
+    <div class="sidebox" style="margin:12px 0 0"><div class="req-icon g" style="width:34px;height:34px">${icon('check', 15)}</div>
+      <div><div class="tt">Bill through OnStandard, and your clients ride free</div>
+      <div class="ts">A client on a recurring package gets full OnStandard membership included, and you are not charged a seat for them. One bill for them, no seat bill for you — the platform fee covers it. Most trainers add ~$25 to the package and include the app.</div></div></div>
   `;
+}
+
+/* Who is covered by a live package, and — the part that actually matters day to day — who has
+   lapsed. A trainer needs the client whose card failed far more than the ones who are fine, so
+   lapsed rows are listed and sorted to stay visible rather than filtered out. */
+function fundedSection() {
+  const rows = G.funded || [];
+  const live = rows.filter(r => r.is_active).length;
+  const lapsed = rows.filter(r => !r.is_active);
+  if (!rows.length) {
+    return `<div class="ls" style="padding:10px 0">No one yet. Share your page link — anyone who buys a monthly or weekly package is covered automatically, and never counts toward your seats.</div>`;
+  }
+  return `
+    <div class="lrow" style="cursor:default;padding:6px 0 10px">
+      <div class="lm"><div class="lt">${live} covered${lapsed.length ? ` · ${lapsed.length} lapsed` : ''}</div>
+        <div class="ls">Covered clients have membership included and cost you no seat.</div></div>
+    </div>
+    ${rows.map(r => `
+    <div class="lrow" style="cursor:default">
+      <div class="lm"><div class="lt">${esc(r.full_name || 'Client')}</div>
+        <div class="ls">${r.offer_name ? esc(r.offer_name) + ' · ' : ''}${r.is_active ? 'Renews ' + shortDate(r.expires_at) : 'Lapsed ' + shortDate(r.expires_at)}</div></div>
+      <span class="status-pill" style="background:${r.is_active ? 'var(--green-surface)' : 'var(--surface-2)'};color:${r.is_active ? 'var(--green-bright)' : 'var(--red)'}">${r.is_active ? 'Covered' : 'Lapsed'}</span>
+    </div>`).join('')}`;
+}
+
+function shortDate(d) {
+  if (!d) return '';
+  try { return new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); } catch { return ''; }
 }
 
 function priceLabel(o) {
@@ -155,6 +187,11 @@ export const trainerGrow = {
     </section>
 
     ${G.connect && G.connect.status === 'active' ? `
+    <div class="eyebrow">Covered clients</div>
+    <section class="card" style="padding:6px 16px">
+      ${fundedSection()}
+    </section>
+
     <div class="eyebrow">Payments</div>
     <section class="card" style="padding:6px 16px">
       ${(G.payments || []).length ? (G.payments).map(p => `
@@ -287,6 +324,9 @@ function offerForm(o) {
       <div style="flex:1"><label class="tg-l">Price ($, blank = contact)</label><input id="of-price" inputmode="decimal" value="${dollars}" placeholder="29"></div>
       <div style="width:130px"><label class="tg-l">Per</label><select id="of-cad">${opt('month', 'month')}${opt('week', 'week')}${opt('one-time', 'one-time')}${opt('session', 'session')}</select></div>
     </div>
+    <div class="ls" style="margin-top:8px;color:var(--text-3)">${cad === 'month' || cad === 'week'
+      ? 'Priced monthly or weekly, so clients can buy this straight from your page — and their OnStandard membership is included at no seat cost to you.'
+      : 'One-time and per-session packages are apply-only: membership is covered for as long as a package renews, so a one-off has no period to cover.'}</div>
     <label class="tg-l">What's included (one per line)</label><textarea id="of-feat" placeholder="Weekly check-in&#10;Direct meal feedback">${esc((o.features || []).join('\n'))}</textarea>
     <label class="tg-l" style="display:flex;align-items:center;gap:8px;margin-top:12px"><input type="checkbox" id="of-active" ${o.active === false ? '' : 'checked'} style="width:auto"> Visible on your page</label>
     <div style="display:flex;gap:8px;margin-top:12px">

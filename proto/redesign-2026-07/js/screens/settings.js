@@ -335,25 +335,26 @@ export const privacy = {
    IAP), so we never render a cancel button we can't honor — we deep-link to the store's own
    subscription manager (Apple's rule) and offer Restore. Free accounts get an honest upsell to
    the paywall. CACHE/load pattern mirrors monthly-report: fetch the row, then repaint. */
-const BILL = { sub: null, loaded: false, sponsored: false, active: null };
+const BILL = { sub: null, loaded: false, source: 'none', active: null };
 async function loadBilling() {
   BILL.sub = await roles.fetchMySubscription();
   // Operators see their real usage ("34 active this month · 50 included") — the number 0163
   // finally made true. Best-effort; the screen renders without it.
   BILL.active = (BILL.sub && BILL.sub.tier === 'team') ? await roles.myActiveAthleteCount() : null;
-  // Sponsored access (0132) lives in its own table, not on the subscription row, so the athlete
-  // who redeemed a sponsor code had server-side premium while this screen said "Free" — the
-  // server's own predicate is the only caller that knows both sources. Best-effort: on error the
-  // subscription row still renders.
+  // Premium can be paid for by someone else — a sponsor (0132) or the trainer whose package you
+  // bought (0166) — and both live in their own tables, not on the subscription row. That is why
+  // this screen used to say "Free" to someone who had premium. Ask the server WHICH source, not
+  // just whether: calling it all "sponsored" would be a lie to every trainer-funded client.
+  // Best-effort: on error the subscription row still renders.
   try {
-    const c = window.sb;
-    if (c && !isPaid(BILL.sub)) {
-      const { data } = await c.rpc('has_premium_access');
-      BILL.sponsored = data === true;
-    } else BILL.sponsored = false;
-  } catch { BILL.sponsored = false; }
+    BILL.source = isPaid(BILL.sub) ? 'subscription' : await roles.myPremiumSource();
+  } catch { BILL.source = 'none'; }
   BILL.loaded = true;
   if (window.__render) window.__render();
+}
+/** Premium that someone else is paying for. */
+function coveredBy() {
+  return BILL.source === 'trainer' || BILL.source === 'sponsor' ? BILL.source : null;
 }
 /* MUST match has_premium_access (0163) and isPro (src/core/subscription.ts): paid tier, and
    either active or past_due within GRACE_DAYS of the recorded failure. Exported so the parity
@@ -371,16 +372,24 @@ export function isPaid(sub, now = Date.now()) {
   return now - failedAt < GRACE_DAYS * 86400000;
 }
 function planLabel(sub) {
-  if (!isPaid(sub)) return BILL.sponsored ? 'Premium · sponsored' : 'Free';
+  if (!isPaid(sub)) {
+    const by = coveredBy();
+    if (by === 'trainer') return 'Premium · via your trainer';
+    if (by === 'sponsor') return 'Premium · sponsored';
+    return 'Free';
+  }
   const p = sub.plan_id ? planById(sub.plan_id) : null;
   if (p) return p.name;
   return sub.tier === 'team' ? 'Team' : 'Premium';
 }
 function renewLine(sub) {
   if (!isPaid(sub)) {
-    return BILL.sponsored
-      ? 'A sponsor covers your premium access. Nothing to pay while it lasts.'
-      : 'You have the free plan. Your stats are always yours; membership adds the written coaching.';
+    const by = coveredBy();
+    // Say plainly that there is nothing to pay. A trainer-funded client who thinks they owe a
+    // second subscription is exactly the confusion this whole model exists to remove.
+    if (by === 'trainer') return 'Included with your coaching. Nothing to pay here — your membership lasts as long as your plan with your trainer.';
+    if (by === 'sponsor') return 'A sponsor covers your premium access. Nothing to pay while it lasts.';
+    return 'You have the free plan. Your stats are always yours; membership adds the written coaching.';
   }
   const when = sub.current_period_end ? (() => { try { return new Date(sub.current_period_end).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }); } catch { return ''; } })() : '';
   if (sub.status === 'past_due') return `Payment issue — update your payment method in the store to keep premium${when ? ` (grace ends ${when})` : ''}.`;
@@ -444,7 +453,7 @@ export const billing = {
     <section class="card pad">
       <button class="btn green" id="bill-upsell" style="width:100%">See membership plans</button>
       <div style="height:10px"></div>
-      <div class="lrow" data-go="redeem-code" style="cursor:pointer"><div class="lic">${icon('key', 17)}</div><div class="lm"><div class="lt">Have a sponsor code?</div><div class="ls">Redeem it to unlock premium instantly</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="redeem-code" style="cursor:pointer"><div class="lic">${icon('key', 17)}</div><div class="lm"><div class="lt">Have a code?</div><div class="ls">From your trainer or a sponsor — redeem it to unlock premium</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" id="bill-restore" role="button" style="cursor:pointer"><div class="lic">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Restore purchases</div><div class="ls">Already a member on another device?</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
     </section>`}
 

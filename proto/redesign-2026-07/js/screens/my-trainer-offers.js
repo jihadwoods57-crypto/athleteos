@@ -41,6 +41,8 @@ export default {
           <div class="lt">${esc(o.name)}</div>
           <div class="ls">${esc(priceLabel(o))}${o.blurb ? ' · ' + esc(o.blurb) : ''}</div>
           ${(o.features || []).length ? `<div class="ls" style="margin-top:4px">${(o.features || []).map(f => esc(f)).join(' · ')}</div>` : ''}
+          ${o.cadence === 'month' || o.cadence === 'week'
+            ? `<div class="ls" style="margin-top:4px;color:var(--green-bright)">Includes OnStandard membership — no separate subscription.</div>` : ''}
         </div>
         ${o.price_cents != null ? `<button class="btn green sm" data-pay="${esc(o.offer_id)}" style="width:auto;padding:0 14px;height:34px;flex:none">${UI.paying === o.offer_id ? '…' : 'Pay'}</button>` : ''}
       </div>`).join('')}
