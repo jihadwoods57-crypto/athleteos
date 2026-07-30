@@ -13,6 +13,11 @@ proto render harness; nothing here is live yet.** Design doc:
 | A pay-first buyer has no account to grant | Webhook mints a `TR-XXXXX-XXXXX` claim; `redeem_offer_code` makes the link + both grants in one transaction |
 | Non-subscription premium was labelled "sponsored" for everyone | `my_premium_source()` → the billing screen says **Premium · via your trainer** |
 | Claim/sponsor codes came from `Math.random()` | CSPRNG. A claim code is a bearer credential and the mint path is public |
+| A refund left Premium switched on — buy/refund/keep was repeatable | `charge.refunded` **and** `charge.dispute.created` expire that subscription's grants (0167) |
+| A buyer who never redeemed was billed monthly for an app they couldn't open | Pending claims listed on the trainer's Grow tab + a 2-nudge reminder job (`claim-reminders`) |
+| `trainer_funded_v1` was seeded and read by nothing | `public-offer-checkout` is gated on it — a real off switch |
+| A reordered offer list could sell the wrong package | The page echoes price+name; the server 409s on drift |
+| Zero visibility into whether any of this converts | 7 funnel events across both origins, whitelisted server-side |
 
 ## Order of operations
 
@@ -20,13 +25,15 @@ proto render harness; nothing here is live yet.** Design doc:
    `has_premium_access` and `active_athlete_count` on top of 0163's definitions.
 2. **Migration:**
    ```bash
-   supabase db push --linked        # applies 0165, 0166
+   supabase db push --linked        # applies 0165, 0166, 0167
    ```
 3. **Deploy functions:**
    ```bash
    supabase functions deploy stripe-webhook --no-verify-jwt
    supabase functions deploy public-offer-checkout --no-verify-jwt   # buyers are anonymous BY DESIGN
    supabase functions deploy billing-return --no-verify-jwt
+   supabase functions deploy claim-reminders --no-verify-jwt      # cron-key auth
+   supabase functions deploy analytics-ingest                     # new event names in the whitelist
    ```
    `--no-verify-jwt` on `public-offer-checkout` is the whole point of the endpoint, not an oversight.
    Deploying it with JWT verification on makes every prospect's checkout 401 — the exact silent
@@ -37,7 +44,20 @@ proto render harness; nothing here is live yet.** Design doc:
    supabase secrets set ALLOWED_ORIGINS="https://onstandard.app,https://www.onstandard.app"
    # Optional: RESEND_API_KEY already set for guardian mail also delivers claim codes.
    # Optional: PUBLIC_RATE_LIMIT_PER_MIN (default 6)
+   # claim-reminders reuses BILLING_CRON_KEY from the subscription-model deploy.
+   # Optional: CLAIM_REMINDER_AFTER_DAYS (2), CLAIM_REMINDER_MAX (2)
    ```
+4b. **Stripe webhook events.** The endpoint must now be subscribed to **`charge.dispute.created`**
+   as well. An existing endpoint will NOT have it, and without it a chargeback keeps its Premium.
+4c. **Schedule the reminder cron** (service role, once):
+   ```sql
+   select schedule_claim_reminders(
+     'https://<ref>.supabase.co/functions/v1/claim-reminders', '<BILLING_CRON_KEY>');
+   ```
+4d. **The kill switch.** `trainer_funded_v1` ships `default_on = true`. To stop online checkout
+   without a deploy, set `kill_switch = true` on that row — it is evaluated FIRST and inverts
+   `default_on`. Never seed `kill_switch` true; that ships the feature silently off. Turning it off
+   stops NEW sales only — anyone who already paid can still fetch their claim code, by design.
 5. **Landing:** deploy `web/landing/t.html` (Cloudflare, per `web/landing/DEPLOY.md`).
 6. **OTA the app** — redeem screen, billing label, trainer Grow surfaces ship in the proto.
 
@@ -73,13 +93,21 @@ stranger → the return page shows a code → redeem in the app → the client i
 `Premium · via your trainer` → the trainer's Grow tab lists them as Covered. Then push a
 `subscription_cycle` invoice with the Stripe CLI and confirm `expires_at` advances.
 
+## Watch in week 1
+
+`tf_page_viewed` → `tf_checkout_started` → `tf_claim_shown` → `tf_code_redeemed` is the funnel.
+**`tf_claim_pending` is the alarm** — every one is a person paying for something they cannot open.
+`tf_checkout_blocked{status}` separates a trainer with no Stripe account (400) from the kill switch
+(503) from a stale page (409).
+
 ## Known gaps
 
-- **Unredeemed claims have no nudge.** If a buyer never redeems, nothing chases them beyond the one
-  email. Watch the pending-claims query above; a reminder job is the obvious follow-up.
 - **The 15% is unchanged.** Tiered take rate stays a founder pricing decision; `fee_percent` is
   already admin-tunable via `admin_set_platform_fee` if that call gets made.
-- **Offer position is the public checkout's handle.** If a trainer reorders offers between page load
-  and click, the buyer gets the offer now in that slot. Prices are shown on Stripe's own confirm
-  screen, so nobody is charged an unseen amount, but it is worth revisiting if trainers churn their
-  packages often.
+- **Sales tax.** The platform is merchant of record on destination charges, and coaching services are
+  taxable in some states. Not a code change — a founder/accountant decision to make before volume.
+- **A partial refund does not touch access**, deliberately: it should not cut a client off mid-month.
+  A trainer who wants access gone should refund in full.
+- **Reminders stop after two.** Past that it is the trainer's to chase from their Grow tab. If
+  pending claims pile up anyway, the next lever is auto-cancelling the Stripe subscription rather
+  than mailing more.
