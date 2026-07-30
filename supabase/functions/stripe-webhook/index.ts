@@ -268,14 +268,29 @@ async function grantTrainerFunded(
   }
 }
 
-// Read-aloud code alphabet (no 0/O/1/I) — the sponsor-code convention, reused because a trainer
-// WILL read this to a client over the phone. Not a secret on its own: single-use, expiring, and
-// bound to one Stripe subscription.
-function offerClaimCode(): string {
+// Read-aloud code alphabet (no 0/O/1/I) — a trainer WILL read this to a client over the phone.
+//
+// CSPRNG, not Math.random(). A claim code is a bearer credential: redeeming one joins you to a
+// practice and turns on Premium that someone else is paying for. The mint path is PUBLIC by
+// design, so an attacker can buy a few offers, collect their own codes, recover V8's xorshift128+
+// state from them, and predict the codes issued to other buyers on the same isolate. The unique
+// index bounds COLLISIONS; it does nothing about PREDICTABILITY.
+//
+// The alphabet is 32 chars — a power of two — so `byte % 32` is unbiased with no rejection loop.
+// 10 chars is 50 bits, still short enough to dictate over a phone.
+function randomCode(len: number): string {
   const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const buf = new Uint8Array(len);
+  crypto.getRandomValues(buf);
   let s = '';
-  for (let i = 0; i < 8; i++) s += A[Math.floor(Math.random() * A.length)];
-  return `TR-${s.slice(0, 4)}-${s.slice(4)}`;
+  for (const n of buf) s += A[n % A.length];
+  return s;
+}
+
+/** Single-use, expiring, and bound to one Stripe subscription — but still unguessable. */
+function offerClaimCode(): string {
+  const s = randomCode(10);
+  return `TR-${s.slice(0, 5)}-${s.slice(5)}`;
 }
 
 /**
@@ -407,12 +422,12 @@ async function handleOfferRenewal(svc: ReturnType<typeof createClient>, invoice:
   return true;
 }
 
-// Short, unambiguous redemption code (no 0/O/1/I). Not a secret on its own — the sponsorship row's
-// unique index + the [1,500]-seat cap bound guessing; collisions retry.
+// Short, unambiguous redemption code (no 0/O/1/I). Now CSPRNG-backed for the reason spelled out
+// above randomCode(): a sponsor code is a bearer credential for premium access, and the unique
+// index it used to lean on bounds collisions, not prediction. Format and length are unchanged, so
+// every code already issued keeps working.
 function sponsorCode(): string {
-  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let s = '';
-  for (let i = 0; i < 8; i++) s += A[Math.floor(Math.random() * A.length)];
+  const s = randomCode(8);
   return `SP-${s.slice(0, 4)}-${s.slice(4)}`;
 }
 
