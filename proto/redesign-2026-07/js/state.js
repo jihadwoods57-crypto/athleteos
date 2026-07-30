@@ -28,6 +28,7 @@ import { entriesFor, getScope, CD } from './coach-data.js';
 import { splitServerRows } from './notif-feed.js';
 import { jobKey, putJob, readQueue, removeJob, updateJob, due as dueJobs } from './meal-outbox.js';
 import { factsFromCorrection, candidateFactsFromFoodChange, sameFact } from './memory.js';
+import { TOUR_IDS } from './tour-plan.js';
 import {
   groundExtras, buildClarifications, analysisTiming, applyMealCorrection, classifyMealEvent, restrictionConflicts,
   mealQualityScore, qualityBand, qualityReason, analysisAgreesWithBand, stripFoodMentions, shouldVerify,
@@ -234,6 +235,7 @@ const DEFAULT_RT = {
   hadRoster: false,      // this account has, at some point, been on a coach/trainer roster — set true, never back
   keepRecordSeen: false, // the "your record stays yours" card after leaving a roster was dismissed
   obPlanCtaDone: false,  // the "you picked <plan> in onboarding" trial card was tapped/dismissed/superseded
+  tourSeen: {},          // first-run tour + contextual tips: id ('tour:athlete' | 'tip:progress') -> ISO shown-at (tour.js). Wiped per-account with the rest of DEFAULT_RT.
   profile: null,         // athlete identity: {name, sport, position, school, level, avatar(dataURL)} — from onboarding / signed-in profile, never fabricated
   ob: null,              // onboarding scratch — the athlete's real selections, captured as they build their Standard
   allergies: [],         // FLAT summary list (guardian check + profile row). Derived from restrictions when structured.
@@ -2218,6 +2220,27 @@ export const act = {
     if (milestone != null) RT.lastMilestone = milestone;
     save();
   },
+  /* The first-run tour (or a contextual tip) has been SHOWN. Marked when the first step paints,
+     not when it is finished — someone who force-quits halfway is not ambushed again on next
+     launch, and Settings still has "Replay app tour". Same choice lock-moment.js makes.
+
+     The main tour also stamps profiles.tour_seen_at, so a reinstall six months later doesn't
+     tutorialize a veteran. Best-effort and void: a pre-0165 DB or an offline device just keeps
+     the local flag, which is the one that governs. Tips stay device-local — a repeated one-line
+     tip on a new phone is a shrug, not worth a column each. */
+  markTourSeen(id) {
+    if (!id) return;
+    if (!RT.tourSeen || typeof RT.tourSeen !== 'object') RT.tourSeen = {};
+    if (RT.tourSeen[id]) return;
+    RT.tourSeen[id] = new Date().toISOString();
+    save();
+    if (!String(id).startsWith('tour:')) return; // tips are device-local by design
+    try {
+      if (window.sb && RT.userId) {
+        void window.sb.from('profiles').update({ tour_seen_at: RT.tourSeen[id] }).eq('id', RT.userId);
+      }
+    } catch { /* best-effort */ }
+  },
   /* A store-rating prompt was actually SHOWN on this device (never: a review was left — no platform
      reports that). Only called when the OS agreed to show it, so a build where the prompt is
      unavailable never burns the athlete's next eligibility window. */
@@ -2694,6 +2717,19 @@ export const act = {
       const tz = (typeof Intl !== 'undefined' && Intl.DateTimeFormat) ? Intl.DateTimeFormat().resolvedOptions().timeZone : null;
       if (tz && window.sb) void window.sb.from('profiles').update({ timezone: tz }).eq('id', user.id);
     } catch { /* best-effort */ }
+    // Someone who already saw the tour on another device (or before a reinstall) must not be
+    // tutorialized again — seed the local flag from the server stamp (0165). Tolerant: a
+    // pre-migration DB errors here and the tour simply runs once more on this device.
+    try {
+      const id = TOUR_IDS[RT.authRole];
+      if (id && window.sb && !(RT.tourSeen || {})[id]) {
+        const { data: seen } = await window.sb.from('profiles').select('tour_seen_at').eq('id', user.id).maybeSingle();
+        if (seen && seen.tour_seen_at) {
+          RT.tourSeen = { ...(RT.tourSeen || {}), [id]: seen.tour_seen_at };
+          save();
+        }
+      }
+    } catch { /* pre-0165 or offline — the tour runs, which is the safe failure */ }
   },
   // Load today's real day from Supabase and reflect it into the UI flags.
   async hydrateDay() {
