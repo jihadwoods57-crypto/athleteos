@@ -58,6 +58,17 @@ credentials.json
 ios-certs/
 .digest-cron-key.local
 
+# Scratch/intermediate work per CLAUDE.md ("everything in .tmp/ is disposable"). This was NOT
+# ignored until 2026-07-30, which meant a `git add -A` would have committed whatever a tool had
+# dropped there — including generated cron keys (.tmp/*-cron-key.local). Regenerable by design;
+# never worth committing, and occasionally a secret.
+.tmp/
+*-cron-key.local
+
+# Python bytecode from the landing-page tooling.
+__pycache__/
+*.pyc
+
 # Local OnStandard media + loose secrets (organization only — not part of the shipped app)
 _media/
 _secrets/
