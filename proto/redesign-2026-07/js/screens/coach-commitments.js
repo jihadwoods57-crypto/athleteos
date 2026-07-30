@@ -191,10 +191,27 @@ export const coachCommitments = {
   },
 
   mount(root, { sub }) {
+    /* This screen used to hang the app.
+     *
+     * mount() called loadBoard(..., force = true) and then repainted unconditionally. force skips
+     * the freshness cache, so every mount issued a real RPC; __render() re-runs mount(); and that
+     * mount forced another load. An unbounded loop of network calls — the board never settled, and
+     * the QC harness timed out at 45s trying to photograph it.
+     *
+     * Two changes break it. The load is no longer forced, so the 30s freshness cache can answer;
+     * and the repaint is conditional on the board CONTENT having actually changed, which is the
+     * pattern the rest of the app already uses for late-arriving data (cf. warmParticipants in
+     * meal.js). Once the data is stable there is nothing new to paint, so it terminates. A coach
+     * action still refreshes immediately — repaint() below force-loads after every mutation. */
     const id = bookId();
-    if (id) loadBoard(id, CD.kind, todayISO(), true).then(() => {
-      if (root.isConnected) window.__render && window.__render();
-    });
+    if (id) {
+      const before = JSON.stringify(VC.board);
+      loadBoard(id, CD.kind, todayISO()).then(() => {
+        if (!root.isConnected) return;
+        if (JSON.stringify(VC.board) === before) return;
+        window.__render && window.__render();
+      });
+    }
 
     const remind = root.querySelector('#vc-remind');
     if (remind) remind.addEventListener('click', async () => {
