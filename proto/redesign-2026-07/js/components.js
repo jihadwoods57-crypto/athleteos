@@ -92,6 +92,14 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
     span: C * ((possible - score) / 100),
     rot: -90 + (score / 100) * 360,   // DEGREES — tipA below is radians, do not copy it
   } : null;
+  // Specular edge: a thin light-catch riding the OUTER edge of the band, which is what makes the
+  // band read as a lit solid instead of a flat stroke. Its own radius means its own circumference,
+  // so it carries its own dasharray/data-off — windBack and animateRing then drive it like every
+  // other layer with zero special-casing.
+  const specW = Math.max(1.6, stroke * 0.16);
+  const rSpec = r + stroke / 2 - specW / 2 - 0.6;
+  const CSpec = 2 * Math.PI * rSpec;
+  const offSpec = CSpec * (1 - score / 100);
   // comet tip position (start at top, clockwise)
   const tipA = -Math.PI / 2 + (score / 100) * 2 * Math.PI;
   const tipX = cx + Math.cos(tipA) * r, tipY = cy + Math.sin(tipA) * r;
@@ -121,6 +129,11 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
         <filter id="tip${uid}" x="-160%" y="-160%" width="420%" height="420%">
           <feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
         </filter>
+        <linearGradient id="spec${uid}" x1="0.1" y1="0.0" x2="0.9" y2="0.9">
+          <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.65"/>
+          <stop offset="45%" stop-color="#FFFFFF" stop-opacity="0.18"/>
+          <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.40"/>
+        </linearGradient>
       </defs>
       <!-- under-glow: same arc, wider + blurred, light spills onto the canvas -->
       <circle class="ring-arc ring-under" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="url(#g${uid})"
@@ -141,6 +154,11 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
       <circle class="ring-arc" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="url(#g${uid})"
         stroke-width="${stroke}" stroke-linecap="round"
         stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${C.toFixed(1)}" data-off="${off.toFixed(1)}"
+        transform="rotate(-90 ${cx} ${cy})"/>
+      <!-- specular edge: the band's lit outer rim (see rSpec above) -->
+      <circle class="ring-arc ring-spec" cx="${cx}" cy="${cy}" r="${rSpec.toFixed(1)}" fill="none" stroke="url(#spec${uid})"
+        stroke-width="${specW.toFixed(1)}" stroke-linecap="round" opacity="0.5"
+        stroke-dasharray="${CSpec.toFixed(1)}" stroke-dashoffset="${offSpec.toFixed(1)}" data-off="${offSpec.toFixed(1)}"
         transform="rotate(-90 ${cx} ${cy})"/>
       <!-- inner echo ring (clamped ≥0: compact rings, e.g. the 52px score strip, would
            otherwise compute a negative radius and emit an invalid SVG r attribute) -->

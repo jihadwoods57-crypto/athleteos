@@ -11,6 +11,7 @@ import { commitmentCard, mountCommitmentCard, commitmentOfflineCard } from './ro
 import { armIfPermitted } from './location-consent.js';
 import { standardsCard, mountStandardsCard, standardsOfflineCard } from './connected-standards.js';
 import { CS, loadMine as loadStandards, todayISO as csToday } from '../connected-standard-data.js';
+import { pressTilt } from '../tilt.js';
 
 /* Verified Commitments on Home. Renders every commitment the athlete has today that is currently
    visible — usually zero or one, occasionally a roll call plus an afternoon study hall.
@@ -614,6 +615,8 @@ export default {
   },
   mount(root) {
     animateRing(root);
+    // The score hero answers a press with depth (tilt.js) — the one surface that earns it.
+    pressTilt(root.querySelector('.xhero'));
     act.syncNotifications();
     // Verified Commitments (0138): injected async into #vc-slot rather than rendered inline, so a
     // slow network never delays the score hero — the same seam #seen-row uses. An athlete with no

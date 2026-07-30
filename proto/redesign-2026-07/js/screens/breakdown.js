@@ -1,6 +1,7 @@
 import { S } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, scoreRing, animateRing, esc } from '../components.js';
+import { pressTilt } from '../tilt.js';
 
 /* Score Breakdown (spec §2): every category explains its exact math — weight, earned/available,
    why points were earned or lost, what remains, and whether the remainder is guaranteed or
@@ -101,5 +102,9 @@ export default {
     <div style="height:8px"></div>
     `;
   },
-  mount(root) { animateRing(root); },
+  mount(root) {
+    animateRing(root);
+    // Depth response on the big ring, same physics as Home's hero (tilt.js).
+    pressTilt(root.querySelector('.bd-hero .ring-wrap'), { max: 5.5 });
+  },
 };
