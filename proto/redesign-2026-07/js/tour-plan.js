@@ -191,6 +191,41 @@ export function planTour(ctx) {
   return { id, steps, reason: 'ok' };
 }
 
+/** Breathing room between the highlighted rect and the card that describes it. */
+const GAP = 12;
+
+/**
+ * Where the card goes, given the thing it points at.
+ *
+ * Below the anchor by default; flipped above when there isn't room below; clamped to the viewport
+ * on both axes so a card never hangs off an edge. Pure arithmetic on plain objects, which is why
+ * it lives here rather than in the driver — this is where a card ends up covering the very thing
+ * it is describing, and that is worth pinning exactly.
+ *
+ * @param {{top:number,left:number,width:number,height:number}} a  anchor rect
+ * @param {{width:number,height:number}} c  card size
+ * @param {{width:number,height:number}} vp viewport size
+ * @param {number} [pad] minimum distance from any viewport edge
+ * @returns {{top:number,left:number,placement:'below'|'above'}}
+ */
+export function placeCard(a, c, vp, pad = 12) {
+  const below = a.top + a.height + GAP;
+  const above = a.top - GAP - c.height;
+  // Prefer below; go above only when below would run off the bottom AND above actually fits.
+  const fitsBelow = below + c.height + pad <= vp.height;
+  const fitsAbove = above >= pad;
+  const placement = fitsBelow || !fitsAbove ? 'below' : 'above';
+  let top = placement === 'below' ? below : above;
+  top = Math.min(Math.max(pad, top), Math.max(pad, vp.height - c.height - pad));
+
+  // Centre on the anchor, then clamp. Centring on a full-width anchor is the same as centring
+  // on the screen, which is what we want anyway.
+  let left = a.left + a.width / 2 - c.width / 2;
+  left = Math.min(Math.max(pad, left), Math.max(pad, vp.width - c.width - pad));
+
+  return { top, left, placement };
+}
+
 /**
  * Drop steps whose element isn't on screen, and decide whether what's left is still a tour.
  *

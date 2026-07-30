@@ -7,7 +7,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { planTour, filterSteps, TOUR_IDS } from './tour-plan.js';
+import { planTour, filterSteps, placeCard, TOUR_IDS } from './tour-plan.js';
 
 const keys = (r) => r.steps.map((s) => s.key);
 
@@ -167,4 +167,59 @@ test('a throwing resolver drops that step rather than the tour', () => {
 test('order survives filtering', () => {
   const alive = filterSteps(steps, (a) => (a === 'b' ? null : rect()));
   assert.deepEqual(alive.map((s) => s.anchor), ['a', 'c']);
+});
+
+/* ---------------- placeCard ----------------
+   Where a card ends up hanging off a screen edge, or covering the very thing it describes. */
+
+const VP = { width: 390, height: 844 };       // iPhone-ish, the shipped target
+const CARD = { width: 300, height: 130 };
+const anchor = (top, height, left = 20, width = 350) => ({ top, left, width, height });
+
+test('the card sits below the thing it describes', () => {
+  const p = placeCard(anchor(120, 160), CARD, VP);
+  assert.equal(p.placement, 'below');
+  assert.equal(p.top, 120 + 160 + 12);
+});
+
+test('an anchor near the bottom flips the card above it', () => {
+  const p = placeCard(anchor(700, 90), CARD, VP);
+  assert.equal(p.placement, 'above');
+  assert.equal(p.top, 700 - 12 - CARD.height);
+});
+
+test('the card centres on its anchor', () => {
+  // Well clear of both edges, so centring is what is being measured and not the clamp.
+  const p = placeCard(anchor(100, 80, 300, 100), CARD, { width: 900, height: 844 });
+  assert.equal(p.left, 300 + 50 - 150);
+});
+
+test('a card never hangs off the left or right edge', () => {
+  const left = placeCard(anchor(100, 80, 0, 40), CARD, VP);
+  assert.ok(left.left >= 12, `left edge at ${left.left}`);
+  const right = placeCard(anchor(100, 80, 350, 40), CARD, VP);
+  assert.ok(right.left + CARD.width <= VP.width - 12 + 0.01, `right edge at ${right.left + CARD.width}`);
+});
+
+test('a card never hangs off the top or bottom edge', () => {
+  for (const top of [0, 5, 400, 800, 843]) {
+    const p = placeCard(anchor(top, 60), CARD, VP);
+    assert.ok(p.top >= 12, `top ${top} placed at ${p.top}`);
+    assert.ok(p.top + CARD.height <= VP.height - 12 + 0.01, `top ${top} overflows to ${p.top + CARD.height}`);
+  }
+});
+
+test('an anchor taller than the viewport still gets a placed card', () => {
+  const p = placeCard(anchor(0, 900), CARD, VP);
+  assert.ok(Number.isFinite(p.top) && Number.isFinite(p.left));
+  assert.ok(p.top >= 12 && p.top + CARD.height <= VP.height - 12 + 0.01);
+});
+
+test('a viewport too short for the card degrades to the top pad, never a negative offset', () => {
+  const p = placeCard(anchor(10, 20), { width: 300, height: 400 }, { width: 390, height: 300 });
+  assert.equal(p.top, 12);
+});
+
+test('below wins when both directions fit', () => {
+  assert.equal(placeCard(anchor(300, 80), CARD, VP).placement, 'below');
 });

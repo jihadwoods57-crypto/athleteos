@@ -10,6 +10,7 @@ import { scoreColor } from '../score-band.js';
 import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
 import { paintBoard } from './coach-commitments.js';
 import { paintStandardsBoard } from './coach-connected.js';
+import { maybeStartTour } from '../tour.js';
 
 /* This screen is nav:'operator' — it renders for a coach's team AND a trainer's practice, so it
    must load whichever book the signed-in role owns. Calling loadCoachRoster() here would fetch
@@ -516,5 +517,8 @@ export const coachHome = {
       await log(id, 'assign', b);
       window.__go(`coach-assign/${id}`);
     }));
+    // The first-run tour — this module serves BOTH the coach and trainer routes, and planTour
+    // reads the role, so one call covers both. Safe on every repaint (see tour.js).
+    maybeStartTour();
   },
 };

@@ -14,6 +14,7 @@ import { commitmentCard, mountCommitmentCard, commitmentOfflineCard } from './ro
 import { armIfPermitted } from './location-consent.js';
 import { standardsCard, mountStandardsCard, standardsOfflineCard } from './connected-standards.js';
 import { CS, loadMine as loadStandards, todayISO as csToday } from '../connected-standard-data.js';
+import { maybeStartTour } from '../tour.js';
 
 /* Verified Commitments on Home. Renders every commitment the athlete has today that is currently
    visible — usually zero or one, occasionally a roll call plus an afternoon study hall.
@@ -811,5 +812,8 @@ export default {
       const k = key();
       if (k !== last) { last = k; window.__render(); }
     }, 30000);
+    // The first-run tour. Safe on every repaint — it is guarded by a singleton, a pending flag,
+    // and a seen flag written at first paint, so the exec tick above can never restart it.
+    maybeStartTour();
   },
 };

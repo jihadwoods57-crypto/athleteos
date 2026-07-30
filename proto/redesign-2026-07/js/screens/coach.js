@@ -15,6 +15,7 @@ import { explainCategories } from '../breakdown-model.js';
 import { seedTemplates, templateLabel } from '../templates.js';
 import { canEditStandards, canViewWeight } from '../staff-access.js';
 import { categorizeInbox, inboxAlerts } from '../inbox.js';
+import { maybeStartTour } from '../tour.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -2736,6 +2737,9 @@ export const parent = {
     `;
   },
   async mount(root) {
+    // Before the early returns below: every anchor a parent's tour points at comes from render(),
+    // so it runs whether or not an athlete is linked yet. Safe on every repaint (see tour.js).
+    maybeStartTour();
     const list = root.querySelector('#par-list');
     if (!list) return;
     let kids = [];

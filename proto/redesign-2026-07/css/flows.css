@@ -82,6 +82,45 @@
   .lockstamp.on .ls-mark { animation: none; }
 }
 
+/* ----- First-run tour (tour.js) -----
+   Body-level for the same reason the stamp is: the router rebuilds device.innerHTML on every
+   render, and a tour inside a screen would be destroyed by an async repaint mid-step.
+
+   The hole is four panels rather than a mask or an inset shadow — four rectangles around a rect
+   is arithmetic that can't be subtly wrong at an edge, and the highlighted element stays
+   genuinely untouched underneath rather than being redrawn through a filter. */
+.tour { position: fixed; inset: 0; z-index: 420; opacity: 0; transition: opacity var(--dur-2) var(--ease-out); }
+.tour.on { opacity: 1; }
+.tour-panel { position: fixed; background: rgba(3,5,10,0.82); }
+/* The ring is the only ornament: a hairline in the signature blue around whatever we're naming. */
+.tour-ring {
+  position: fixed; pointer-events: none;
+  border: 1.5px solid var(--blue-bright); border-radius: var(--r-card);
+  box-shadow: 0 0 0 1px rgba(4,6,12,0.5), 0 0 22px rgba(var(--blue-rgb), 0.35);
+  transition: top var(--dur-2) var(--ease-out), left var(--dur-2) var(--ease-out),
+              width var(--dur-2) var(--ease-out), height var(--dur-2) var(--ease-out);
+}
+.tour-card {
+  position: fixed; width: min(300px, calc(100vw - 24px));
+  background: var(--surface-1); border: 1px solid var(--hairline);
+  border-radius: var(--r-card); padding: 15px 16px 13px;
+  box-shadow: var(--sh-raised);
+  transition: top var(--dur-2) var(--ease-out), left var(--dur-2) var(--ease-out);
+}
+.tour-count { font-size: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
+.tour-t { font-family: var(--font-display); font-size: 17px; font-weight: 900; letter-spacing: -0.01em; margin-top: 3px; }
+.tour-b { font-size: 13px; font-weight: 600; color: var(--text-2); line-height: 1.5; margin-top: 6px; }
+.tour-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+.tour-skip {
+  border: none; background: none; cursor: pointer; padding: 6px 2px;
+  font-family: var(--font); font-size: 13px; font-weight: 700; color: var(--text-3);
+}
+.tour-next { width: auto; min-width: 92px; padding: 0 18px; }
+.tour-skip:focus-visible, .tour-next:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .tour, .tour-ring, .tour-card { transition: none; }
+}
+
 /* ----- Quick-log sheet (route #log) ----- */
 /* The scrim's own darkness does most of the work, so its 3px blur was doing almost nothing —
    at 70% black you cannot see a 3px defocus. Enough blur to actually read as depth-of-field,
