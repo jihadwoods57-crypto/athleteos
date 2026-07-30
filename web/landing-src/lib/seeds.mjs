@@ -159,6 +159,27 @@ export const feedbackSafety = `${COMMON}${ATHLETE_IDENTITY}
   window.__render();
 `;
 
+/** A coach on no plan, at the plan-upgrade screen — the first surface where the business's actual
+ *  product (the pro/org tiers) can be bought. founding_slots_left is stubbed by the harness's
+ *  supabase stub, so the Founding line renders deterministically. */
+export const coachUpgrade = `${COMMON}
+  RT.authRole = 'coach';
+  RT.userId = 'seed-coach';
+  RT.profile = { name: 'James Brooks' };
+  window.__render();
+`;
+
+/** The keep-your-record moment: an athlete who HAS been on a roster and now is not. The card sells
+ *  continuing, so the seed carries a real history worth continuing. */
+export const rosterEnded = `${COMMON}${ATHLETE_IDENTITY}
+  ${LOG('breakfast', 505)}
+  DAY.ciLast = { date: iso(1), recovery: 82 };
+  RT.myCoach = null;
+  RT.hadRoster = true;
+  RT.keepRecordSeen = false;
+  window.__render();
+`;
+
 /** A late dinner — the "late counts half, still log it" state the site must be able to show. */
 export const dayLate = `${COMMON}${ATHLETE_IDENTITY}
   ${LOG('breakfast', 505)}
@@ -242,7 +263,7 @@ export const parentIdentity = `${COMMON}
 `;
 
 export const SEEDS = {
-  dayMorning, dayMidday, dayComplete, dayLate, dayFirst, dayLockStamp, stagedCapture,
+  dayMorning, dayMidday, dayComplete, dayLate, dayFirst, dayLockStamp, stagedCapture, coachUpgrade, rosterEnded,
   feedbackBug, feedbackSafety,
   styleStructured, styleGuided, styleIntuitive,
   coachIdentity, trainerIdentity, parentIdentity,

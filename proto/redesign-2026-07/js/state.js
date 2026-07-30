@@ -231,6 +231,8 @@ const DEFAULT_RT = {
   lastLockSeen: null,    // 'YYYY-MM-DD' of the last locked day whose stamp was shown (lock-moment.js) — display only, never scoring
   lastMilestone: null,   // streak length whose milestone stamp was shown, so 7/30/100 fire once each
   reviewAskedAt: null,   // epoch ms of the last store-rating prompt actually shown on this device (review-ask.js)
+  hadRoster: false,      // this account has, at some point, been on a coach/trainer roster — set true, never back
+  keepRecordSeen: false, // the "your record stays yours" card after leaving a roster was dismissed
   profile: null,         // athlete identity: {name, sport, position, school, level, avatar(dataURL)} — from onboarding / signed-in profile, never fabricated
   ob: null,              // onboarding scratch — the athlete's real selections, captured as they build their Standard
   allergies: [],         // FLAT summary list (guardian check + profile row). Derived from restrictions when structured.
@@ -2167,6 +2169,12 @@ export const act = {
     const res = await fetchMyCoach();
     if (res && res.error) return; // network/RLS hiccup — keep last-known
     RT.myCoach = res || null;
+    // One-way marker: this account has BEEN coached. The confirmed transition hadRoster && no
+    // link is the highest-intent consumer moment the product has — the athlete whose roster
+    // ended (graduated, coach churned, removed) and whose record is about to go dormant. Home
+    // renders the "your record stays yours" card off exactly this pair (keepRecordSeen gates it
+    // to once). Set on a CONFIRMED link only, never on a fetch failure.
+    if (RT.myCoach && RT.myCoach.teamId) RT.hadRoster = true;
     save();
   },
   /* A trainer's CLIENT: read their linked practice + the trainer's real name into RT.myTrainer —
@@ -2178,8 +2186,11 @@ export const act = {
     const res = await fetchMyTrainer();
     if (res && res.error) return; // network/RLS hiccup — keep last-known
     RT.myTrainer = res || null;
+    if (RT.myTrainer && RT.myTrainer.practiceId) RT.hadRoster = true;  // see _loadCoachIntoRt
     save();
   },
+  /* The keep-your-record card was dismissed (or acted on) — never show it again. */
+  markKeepRecordSeen() { RT.keepRecordSeen = true; save(); },
   /* Preferred coach name (0056): server value → RT.profile.coachName; a handle chosen in
      onboarding scratch (RT.ob.coach.coachName) is pushed on first authenticated hydrate,
      then the server copy is canonical. Best-effort: offline keeps last-known. */

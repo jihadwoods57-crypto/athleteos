@@ -317,27 +317,53 @@ export const privacy = {
    IAP), so we never render a cancel button we can't honor — we deep-link to the store's own
    subscription manager (Apple's rule) and offer Restore. Free accounts get an honest upsell to
    the paywall. CACHE/load pattern mirrors monthly-report: fetch the row, then repaint. */
-const BILL = { sub: null, loaded: false };
+const BILL = { sub: null, loaded: false, sponsored: false, active: null };
 async function loadBilling() {
   BILL.sub = await roles.fetchMySubscription();
+  // Operators see their real usage ("34 active this month · 50 included") — the number 0163
+  // finally made true. Best-effort; the screen renders without it.
+  BILL.active = (BILL.sub && BILL.sub.tier === 'team') ? await roles.myActiveAthleteCount() : null;
+  // Sponsored access (0132) lives in its own table, not on the subscription row, so the athlete
+  // who redeemed a sponsor code had server-side premium while this screen said "Free" — the
+  // server's own predicate is the only caller that knows both sources. Best-effort: on error the
+  // subscription row still renders.
+  try {
+    const c = window.sb;
+    if (c && !isPaid(BILL.sub)) {
+      const { data } = await c.rpc('has_premium_access');
+      BILL.sponsored = data === true;
+    } else BILL.sponsored = false;
+  } catch { BILL.sponsored = false; }
   BILL.loaded = true;
   if (window.__render) window.__render();
 }
-function isPaid(sub) {
+/* MUST match has_premium_access (0163) and isPro (src/core/subscription.ts): paid tier, and
+   either active or past_due within GRACE_DAYS of the recorded failure. Exported so the parity
+   test can run the same cases through all the client copies. */
+export const GRACE_DAYS = 21;
+export function isPaid(sub, now = Date.now()) {
   if (!sub) return false;
-  const okStatus = sub.status === 'active' || sub.status === 'past_due';
   const t = String(sub.tier || '').toLowerCase();
   const freeTier = t === '' || t === 'preview' || t === 'free' || t === 'none' || t === 'trial_expired';
-  return okStatus && !freeTier;
+  if (freeTier) return false;
+  if (sub.status === 'active') return true;
+  if (sub.status !== 'past_due') return false;
+  const failedAt = sub.payment_failed_at ? Date.parse(sub.payment_failed_at) : NaN;
+  if (!Number.isFinite(failedAt)) return true;  // no timestamp → honor the grace (matches SQL fallback intent)
+  return now - failedAt < GRACE_DAYS * 86400000;
 }
 function planLabel(sub) {
-  if (!isPaid(sub)) return 'Free';
+  if (!isPaid(sub)) return BILL.sponsored ? 'Premium · sponsored' : 'Free';
   const p = sub.plan_id ? planById(sub.plan_id) : null;
   if (p) return p.name;
   return sub.tier === 'team' ? 'Team' : 'Premium';
 }
 function renewLine(sub) {
-  if (!isPaid(sub)) return 'You have the free plan. Your stats are always yours; membership adds the written coaching.';
+  if (!isPaid(sub)) {
+    return BILL.sponsored
+      ? 'A sponsor covers your premium access. Nothing to pay while it lasts.'
+      : 'You have the free plan. Your stats are always yours; membership adds the written coaching.';
+  }
   const when = sub.current_period_end ? (() => { try { return new Date(sub.current_period_end).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }); } catch { return ''; } })() : '';
   if (sub.status === 'past_due') return `Payment issue — update your payment method in the store to keep premium${when ? ` (grace ends ${when})` : ''}.`;
   if (sub.cancel_at_period_end) return when ? `Cancels ${when}. You keep premium until then.` : 'Set to cancel at period end.';
@@ -360,12 +386,21 @@ export const billing = {
     }
     const sub = BILL.sub;
     const paid = isPaid(sub);
+    // Operators (coach/trainer) buy on the STRIPE rail: their upsell is the plan-upgrade screen
+    // and their manage is the Stripe billing portal — App Store copy on a coach's screen was a
+    // consumer-shaped leftover. Athletes/parents keep the IAP surfaces unchanged.
+    const operator = RT.authRole === 'coach' || RT.authRole === 'trainer';
+    const teamPlan = paid && sub && sub.tier === 'team';
+    const usage = teamPlan && BILL.active != null && sub.seats
+      ? `<div style="height:8px"></div><div style="font-size:12px;font-weight:700;color:var(--text-2)">${BILL.active} active athlete${BILL.active === 1 ? '' : 's'} this month · ${sub.seats} included${BILL.active > sub.seats ? ` · ${BILL.active - sub.seats} over at $10/mo` : ''}</div>`
+      : '';
     return `${backHead('Plan & billing', 'Your membership', back)}
 
     <section class="card pad">
       <div class="bigstat"><span class="n" style="font-size:26px">${esc(planLabel(sub))}</span><span class="d">${paid ? 'Your plan' : 'Current plan'}</span></div>
       <div style="height:6px"></div>
       <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.45">${esc(renewLine(sub))}</div>
+      ${usage}
       ${paid ? `<div style="height:8px"></div><span class="status-pill g">Premium unlocked</span>` : ''}
     </section>
 
@@ -374,14 +409,19 @@ export const billing = {
     <section class="card" style="padding:6px 16px">
       <div class="lrow" id="bill-manage" role="button">
         <div class="lic">${icon('gear', 18)}</div>
-        <div class="lm"><div class="lt">Manage subscription</div><div class="ls">Change plan or cancel in the ${/android/i.test(navigator.userAgent || '') ? 'Play Store' : 'App Store'}</div></div>
+        <div class="lm"><div class="lt">Manage subscription</div><div class="ls">${teamPlan ? 'Change plan, card, or cancel — Stripe portal' : `Change plan or cancel in the ${/android/i.test(navigator.userAgent || '') ? 'Play Store' : 'App Store'}`}</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
-      <div class="lrow" id="bill-restore" role="button">
+      ${teamPlan ? '' : `<div class="lrow" id="bill-restore" role="button">
         <div class="lic">${icon('bolt', 17)}</div>
         <div class="lm"><div class="lt">Restore purchases</div><div class="ls">Moved devices? Restore your membership</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
+      </div>`}
+    </section>` : operator ? `
+    <section class="card pad">
+      <button class="btn green" id="bill-upsell-pro" style="width:100%">See plans — free 14-day trial</button>
+      <div style="height:10px"></div>
+      <div style="font-size:12px;font-weight:600;color:var(--text-3);line-height:1.5;text-align:center">Every plan counts <b>active</b> athletes only — idle seats are free.</div>
     </section>` : `
     <section class="card pad">
       <button class="btn green" id="bill-upsell" style="width:100%">See membership plans</button>
@@ -398,9 +438,21 @@ export const billing = {
     if (!BILL.loaded) loadBilling();
     const msg = root.querySelector('#bill-msg');
     const manage = root.querySelector('#bill-manage');
-    if (manage) manage.addEventListener('click', () => roles.openExternal(storeSubUrl()));
+    if (manage) manage.addEventListener('click', async () => {
+      // A Stripe-rail plan manages in the Stripe portal; IAP manages in the store. Same row.
+      if (BILL.sub && BILL.sub.tier === 'team') {
+        if (msg) msg.textContent = 'Opening your billing portal…';
+        const p = await roles.openBillingPortal();
+        if (p.ok) { if (window.OnStandardNative?.openUrl) window.OnStandardNative.openUrl(p.url); else location.href = p.url; if (msg) msg.textContent = ''; }
+        else if (msg) msg.textContent = p.error;
+        return;
+      }
+      roles.openExternal(storeSubUrl());
+    });
     const upsell = root.querySelector('#bill-upsell');
     if (upsell) upsell.addEventListener('click', () => { if (window.__go) window.__go('paywall'); else location.hash = '#paywall'; });
+    const upsellPro = root.querySelector('#bill-upsell-pro');
+    if (upsellPro) upsellPro.addEventListener('click', () => { if (window.__go) window.__go('plan-upgrade'); else location.hash = '#plan-upgrade'; });
     const restore = root.querySelector('#bill-restore');
     if (restore) restore.addEventListener('click', async () => {
       if (msg) msg.textContent = 'Restoring…';

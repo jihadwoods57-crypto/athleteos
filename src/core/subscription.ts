@@ -94,11 +94,27 @@ export function normalizeEntitlement(e?: Partial<Entitlement> | null): Entitleme
   };
 }
 
-/** Whether paid features are unlocked. A team plan unlocks while active OR past_due
- *  (a grace window — don't lock a coach out the instant a card fails); canceled, paused,
- *  and preview do not. The single gate the app should check, mirroring isBackendLive. */
-export function isPro(e: Entitlement): boolean {
-  return isPaidTier(e.tier) && (e.status === 'active' || e.status === 'past_due');
+/** Grace after a failed payment, in days. MUST equal the interval in has_premium_access
+ *  (migration 0163) and GRACE_DAYS in proto settings.js — the parity test pins all three.
+ *  21 = Stripe's smart-retry window plus margin: long enough that a saveable card gets saved,
+ *  bounded so "never paid again" stops meaning "free forever". */
+export const GRACE_DAYS = 21;
+
+/** Whether paid features are unlocked. A paid plan unlocks while active, or while past_due
+ *  INSIDE the grace window measured from the recorded failure (don't lock a coach out the
+ *  instant a card fails; don't stay unlocked for life when it never recovers — the webhook
+ *  folds Stripe's terminal `unpaid` into past_due, so unbounded grace made non-payment free).
+ *  Canceled, paused, and preview never unlock. Mirrors has_premium_access (0163) exactly;
+ *  `now` is injectable so the boundary is testable. */
+export function isPro(e: Entitlement, now: number = Date.now()): boolean {
+  if (!isPaidTier(e.tier)) return false;
+  if (e.status === 'active') return true;
+  if (e.status !== 'past_due') return false;
+  const failedAt = e.paymentFailedAt ? Date.parse(e.paymentFailedAt) : NaN;
+  // No recorded failure timestamp: honor the grace rather than guessing a lockout — the SQL
+  // side falls back to updated_at, which the client row may not carry.
+  if (!Number.isFinite(failedAt)) return true;
+  return now - failedAt < GRACE_DAYS * 86400000;
 }
 
 /** Dunning surface: true when the plan needs a billing fix NOW (card failed / payment due).

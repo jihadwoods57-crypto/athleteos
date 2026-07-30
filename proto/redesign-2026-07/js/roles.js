@@ -1536,6 +1536,62 @@ export async function setMemoryFactStatus(uid, id, status) {
   } catch { return false; }
 }
 
+/* ---------------- billing (Stripe rail) ---------------- */
+
+/**
+ * Open a Stripe Checkout for a pro/org plan. Returns:
+ *   { ok: true,  url }              — send the user to Stripe (native: openUrl; web: location)
+ *   { ok: false, action: 'portal' } — already subscribed; plan changes belong in the portal
+ *   { ok: false, error }            — honest failure copy
+ * The server owns everything that matters (price lookup by generation, the 14-day trial, the
+ * duplicate-subscription guard, founding locks) — this passes intent and relays the answer.
+ */
+export async function startPlanCheckout(planId, cadence = 'annual') {
+  const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
+  try {
+    const { data, error } = await c.functions.invoke('billing-checkout', {
+      body: { plan_id: planId, cadence },
+    });
+    if (error) {
+      // supabase-js wraps non-2xx; the 409 duplicate guard rides in the response body.
+      const body = await (async () => { try { return await error.context?.json?.(); } catch { return null; } })();
+      if (body?.action === 'portal') return { ok: false, action: 'portal' };
+      return { ok: false, error: body?.error || 'Checkout is not available right now.' };
+    }
+    if (data?.action === 'portal') return { ok: false, action: 'portal' };
+    if (data?.url) return { ok: true, url: data.url };
+    return { ok: false, error: data?.error || 'Checkout is not available right now.' };
+  } catch (e) { return { ok: false, error: (e && e.message) || 'Checkout is not available right now.' }; }
+}
+
+/** Open the Stripe billing portal (plan changes, cards, invoices). Same contract as above. */
+export async function openBillingPortal() {
+  const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
+  try {
+    const { data, error } = await c.functions.invoke('billing-portal', { body: {} });
+    if (error) return { ok: false, error: 'The billing portal is not available right now.' };
+    return data?.url ? { ok: true, url: data.url } : { ok: false, error: 'The billing portal is not available right now.' };
+  } catch { return { ok: false, error: 'The billing portal is not available right now.' }; }
+}
+
+/** Founding 50 slots remaining (0163), or null when unknowable. Display-only. */
+export async function foundingSlotsLeft() {
+  const c = sb(); if (!c) return null;
+  try {
+    const { data, error } = await c.rpc('founding_slots_left');
+    return error ? null : (Number.isFinite(Number(data)) ? Number(data) : null);
+  } catch { return null; }
+}
+
+/** This month's active-athlete count for the signed-in owner (0163). Null when unknowable. */
+export async function myActiveAthleteCount() {
+  const c = sb(); if (!c) return null;
+  try {
+    const { data, error } = await c.rpc('my_active_athlete_count');
+    return error ? null : (Number.isFinite(Number(data)) ? Number(data) : null);
+  } catch { return null; }
+}
+
 /* ---------------- support / feedback intake (0125 + 0162) ---------------- */
 
 /**

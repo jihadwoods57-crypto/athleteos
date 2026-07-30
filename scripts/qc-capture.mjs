@@ -92,6 +92,10 @@ const SHOTS = [
   { g: 'athlete2', name: 'feedback-pick', seed: 'dayComplete', route: 'feedback', at: [21, 40] },
   { g: 'athlete2', name: 'feedback-bug', seed: 'feedbackBug', route: 'feedback', at: [21, 41] },
   { g: 'athlete2', name: 'feedback-safety', seed: 'feedbackSafety', route: 'feedback', at: [21, 42] },
+  // Subscription surfaces (0163/0164): the operator plan shop, and the keep-your-record card an
+  // athlete sees when a roster ends — the two purchase moments the review found missing entirely.
+  { g: 'athlete2', name: 'plan-upgrade', seed: 'coachUpgrade', route: 'plan-upgrade', at: [10, 0] },
+  { g: 'athlete2', name: 'home-roster-ended', seed: 'rosterEnded', route: 'home', at: [10, 5] },
   { g: 'meal', name: 'meal-analysis', seed: 'dayMidday', route: 'meal-analysis', at: [13, 5] },
   { g: 'meal', name: 'meal-detail', seed: 'dayMidday', route: 'meal-detail/lunch', at: [13, 8] },
   { g: 'meal', name: 'meal-thread', seed: 'dayMidday', route: 'meal-thread/lunch', at: [13, 9] },

@@ -239,6 +239,24 @@ const row = (i, hidePill) => `<div class="xrow-item ${i.color === 'green' ? 'gre
    phone" prompt that routes to the guardian screen; a failed push (offline/RLS) shows "saved on
    your phone, not synced yet." Both replace the OLD silent console.warn — an athlete can no
    longer log all week into a void without knowing. Nothing renders when sync is fine. */
+/* The "your record stays yours" card — the churn parachute. Renders on exactly one state: this
+   account HAS been on a roster (RT.hadRoster, set only on a confirmed link) and now has none
+   (both links confirmed empty). That is the moment an athlete's coach churned, they graduated,
+   or they were removed — the highest-intent consumer conversion moment the product has, and
+   until now nothing marked it. Once dismissed it never returns; an athlete who rejoins a roster
+   simply stops matching. Honest by construction: the free record really does stay theirs — the
+   card sells CONTINUING (Individual Plus's portable record + written coaching), not ransom. */
+function keepRecordCard() {
+  if (!RT.hadRoster || RT.keepRecordSeen) return '';
+  if ((RT.myCoach && RT.myCoach.teamId) || (RT.myTrainer && RT.myTrainer.practiceId)) return '';
+  return `<div class="lrow" id="keep-record" style="margin:12px 0 10px;background:linear-gradient(100deg, rgba(var(--green-rgb),0.10), rgba(var(--blue-rgb),0.05));border:1px solid var(--green-border);border-radius:14px;padding:12px 13px;cursor:pointer">
+    <div class="xico sm green">${icon('shield', 16)}</div>
+    <div class="xr"><div class="xa">Your record stays yours</div>
+    <div class="xb" style="white-space:normal;line-height:1.45">Your roster ended — every day you proved is still here. Keep it going.</div></div>
+    <span class="xpill green">Keep it</span>
+  </div>`;
+}
+
 function syncBanner() {
   const issue = S.syncIssue;
   if (issue === 'blocked') {
@@ -589,7 +607,9 @@ export default {
       <div class="ts">Your Standard adapted. Rehab is on the list while you heal.</div></div>
       ${icon('chevron', 18, 'style="color:var(--text-3)"')}
     </div>` : '';
-    const attention = sync || injuryCard;
+    // Keep-record joins the priority ladder LAST: a sync problem or an injury outranks a
+    // conversion moment — pitching a membership over a broken sync would read as tone-deaf.
+    const attention = sync || injuryCard || keepRecordCard();
     // Whatever lost the attention slot demotes to a quiet one-line row below the ladder.
     const demoted = [
       attention !== injuryCard && RT.injured
@@ -635,6 +655,13 @@ export default {
     // moment. Keying on the score (not just the day) keeps the part worth replaying: when the
     // number actually CHANGES because something was logged, it draws again.
     reveal(root, { key: `day:${DAY.date}:${S.exec.score}`, haptic: null });
+    // Keep-your-record: tapping goes to the plans (Individual Plus is the portable-record pitch);
+    // either way it is marked seen — a conversion card that nags is a churn card.
+    const keep = root.querySelector('#keep-record');
+    if (keep) keep.addEventListener('click', () => {
+      act.markKeepRecordSeen();
+      if (window.__go) window.__go('paywall'); else location.hash = '#paywall';
+    });
     // Yesterday's answer. The app tells an athlete "Day N locks at midnight" the night before and
     // never followed up; this closes that loop, once, on the next open. Guarded on a persisted
     // marker, so calling it from every Home mount is safe. Says nothing when yesterday has no row.

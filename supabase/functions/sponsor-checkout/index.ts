@@ -12,7 +12,13 @@ const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY') ?? '';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-const SEAT_PRICE = (() => { const n = Number(Deno.env.get('SPONSOR_SEAT_PRICE_CENTS') ?? '2000'); return Number.isFinite(n) && n > 0 ? Math.floor(n) : 2000; })();
+// $60/seat-year (was $20 — an env-var default nobody priced deliberately). The subscription
+// review found this undercut Individual ($126/yr) by ~6x for identical entitlement, with the
+// paywall itself advertising the cheaper door ("Have a sponsor code?"). $60 keeps sponsorship a
+// genuine community-access discount (~52% off list — a real reason for a booster club to exist)
+// without making a leaked code the rational way for any athlete to buy. Production uses the
+// SPONSOR_SEAT_PRICE_CENTS secret; this is the default when unset.
+const SEAT_PRICE = (() => { const n = Number(Deno.env.get('SPONSOR_SEAT_PRICE_CENTS') ?? '6000'); return Number.isFinite(n) && n > 0 ? Math.floor(n) : 6000; })();
 const RETURN_BASE = Deno.env.get('BILLING_RETURN_URL') ?? (SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/billing-return` : '');
 
 // Lazy construction: `new Stripe('')` throws at module load, which crashed the worker at import
