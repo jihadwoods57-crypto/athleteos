@@ -12,7 +12,10 @@
 //   * checkout.session.completed        -> plan becomes active (plan_id, seats, period end)
 //                                          + referral reward for the referrer (0042)
 //                                          -> OR (metadata.kind='offer_purchase', 0119) records
-//                                          an OnStandard Pay offer purchase into offer_payments
+//                                          an OnStandard Pay offer purchase into offer_payments,
+//                                          and (0166) grants trainer-funded premium to the client
+//                                          + their trainer — or, when the buyer has no account
+//                                          yet (public trainer page), mints an offer_claims code
 //                                          -> OR (metadata.kind='sponsor_seats', Task 4) records a
 //                                          sponsorships row with a generated redemption code
 //   * customer.subscription.updated     -> status/pause/cancel-at-period-end/plan changes
@@ -24,7 +27,10 @@
 //                                          continues through the grace window — isPro())
 //   * invoice.paid                      -> recovery: clears the dunning flag
 //                                          -> OR (0119) an offer-subscription renewal invoice
-//                                          records a new offer_payments row
+//                                          records a new offer_payments row, and (0166) pushes
+//                                          that subscription's funded grants forward — the whole
+//                                          "keep paying, keep access" mechanism, with no revoke
+//                                          path anywhere: a dead card simply lets a grant expire
 //   * charge.refunded                   -> (0119) marks the matching offer_payments row refunded
 //
 // Deploy (JWT OFF — Stripe has no Supabase JWT; the endpoint authenticates itself via the
@@ -199,6 +205,115 @@ async function recordOfferPayment(
   if (error) throw error;
 }
 
+// Trainer-funded access (0166) is maintained ENTIRELY from billing events: a grant is written when
+// an offer subscription is paid and extended on every renewal, so a failed card runs dunning, the
+// grant ages out, and access lapses on its own. There is deliberately no revoke path — if you find
+// yourself writing one, the expiry maintenance below is what actually needs fixing.
+//
+// Matches GRACE_DAYS in src/core/subscription.ts / proto settings.js / the SQL predicate: a client
+// keeps the app for a week past the period end while Stripe retries the card.
+const FUNDED_GRACE_DAYS = 7;
+
+/** period_end (unix seconds) + grace, as an ISO timestamp. Falls back to one month out when Stripe
+ *  gives us no period end, so a paid client is never left un-granted by a missing field. */
+function fundedExpiry(periodEndSeconds: number | null | undefined): string {
+  const base = periodEndSeconds ? periodEndSeconds * 1000 : Date.now() + 30 * 86400000;
+  return new Date(base + FUNDED_GRACE_DAYS * 86400000).toISOString();
+}
+
+/**
+ * Grant (or extend) trainer-funded premium for one client, and for their trainer alongside them.
+ * The owner grant is why a trainer running money through Pay never sees a paywall; it rides the
+ * same subscription id so it lapses with the client's.
+ *
+ * `greatest(existing, new)` semantics live in the table's ON CONFLICT via a manual read-modify —
+ * PostgREST upsert cannot express `greatest()`, so out-of-order Stripe deliveries (a renewal
+ * arriving before the checkout it follows) must never SHORTEN a grant.
+ */
+async function grantTrainerFunded(
+  svc: ReturnType<typeof createClient>,
+  fields: { athleteId: string; practiceId: string; subscriptionId: string; offerId: string | null; expiresAt: string },
+): Promise<void> {
+  const { data: practice } = await svc.from('practices')
+    .select('owner_id').eq('id', fields.practiceId).maybeSingle();
+  if (!practice?.owner_id) {
+    console.error('stripe-webhook: funded grant skipped, unknown practice', fields.practiceId);
+    return;
+  }
+
+  // The trainer is granted too — but never a self-grant row if the trainer somehow bought their
+  // own offer, which would otherwise collide on the (athlete, subscription) primary key.
+  const rows = [{
+    athlete_id: fields.athleteId, practice_id: fields.practiceId,
+    stripe_subscription_id: fields.subscriptionId, offer_id: fields.offerId,
+    is_owner_grant: false, expires_at: fields.expiresAt,
+  }];
+  if (practice.owner_id !== fields.athleteId) {
+    rows.push({
+      athlete_id: practice.owner_id, practice_id: fields.practiceId,
+      stripe_subscription_id: fields.subscriptionId, offer_id: fields.offerId,
+      is_owner_grant: true, expires_at: fields.expiresAt,
+    });
+  }
+
+  for (const row of rows) {
+    const { data: existing } = await svc.from('trainer_funded_access')
+      .select('expires_at')
+      .eq('athlete_id', row.athlete_id).eq('stripe_subscription_id', row.stripe_subscription_id)
+      .maybeSingle();
+    if (existing && new Date(existing.expires_at).getTime() >= new Date(row.expires_at).getTime()) continue;
+    const { error } = await svc.from('trainer_funded_access')
+      .upsert(row, { onConflict: 'athlete_id,stripe_subscription_id' });
+    if (error) throw error;
+  }
+}
+
+// Read-aloud code alphabet (no 0/O/1/I) — the sponsor-code convention, reused because a trainer
+// WILL read this to a client over the phone. Not a secret on its own: single-use, expiring, and
+// bound to one Stripe subscription.
+function offerClaimCode(): string {
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for (let i = 0; i < 8; i++) s += A[Math.floor(Math.random() * A.length)];
+  return `TR-${s.slice(0, 4)}-${s.slice(4)}`;
+}
+
+/**
+ * A purchase from the PUBLIC trainer page has no account to grant — that is the whole point of the
+ * pay-first funnel — so mint a claim code the buyer redeems after signing up (redeem_offer_code,
+ * 0166, creates the practice link and both grants in one transaction).
+ *
+ * Idempotency and the collision retry follow handleSponsorSeats exactly: a duplicate Stripe
+ * delivery must never mint a SECOND code for one payment (the buyer would have two codes and one
+ * subscription), so the session id carries a unique index and a 23505 on it means "already done".
+ */
+async function mintOfferClaim(
+  svc: ReturnType<typeof createClient>,
+  fields: { practiceId: string; offerId: string | null; subscriptionId: string; sessionId: string; email: string | null },
+): Promise<void> {
+  const { data: existing } = await svc.from('offer_claims')
+    .select('id').eq('stripe_checkout_session_id', fields.sessionId).maybeSingle();
+  if (existing) return;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { error } = await svc.from('offer_claims').insert({
+      code: offerClaimCode(),
+      practice_id: fields.practiceId,
+      offer_id: fields.offerId,
+      stripe_subscription_id: fields.subscriptionId,
+      stripe_checkout_session_id: fields.sessionId,
+      payer_email: fields.email,
+    });
+    if (!error) return;
+    if (error.code !== '23505') throw error;
+    // Same two-constraint disambiguation as sponsorships: a SESSION collision means a concurrent
+    // delivery already minted this claim (done); a CODE collision means retry with a fresh code.
+    const blob = `${error.message || ''} ${(error as { details?: string }).details || ''}`;
+    if (blob.includes('stripe_checkout_session_id') || blob.includes('offer_claims_stripe_checkout_session_id_key')) return;
+  }
+  throw new Error('offer claim code generation failed after retries');
+}
+
 /** A completed Checkout Session for an OnStandard Pay offer (metadata.kind='offer_purchase') —
  *  branches by mode to pull the REAL charged amount/fee off the resulting PaymentIntent (one-time)
  *  or the first invoice's Charge (recurring), then records it. */
@@ -233,6 +348,26 @@ async function handleOfferCheckout(svc: ReturnType<typeof createClient>, session
       checkoutSessionId: session.id, paymentIntentId: null, subscriptionId: sub.id, chargeId: charge?.id ?? null,
       amountCents: invoice?.amount_paid ?? 0, applicationFeeCents: charge?.application_fee_amount ?? 0,
     });
+
+    // Trainer-funded premium (0166) — RECURRING ONLY, which `mode === 'subscription'` already
+    // guarantees: pay-offer-checkout opens a subscription Checkout for month/week cadences and a
+    // one-off payment for 'one-time'/'session'. That is the rule stated plainly — you are funded
+    // while your subscription to your trainer is live — and it is why a $20 single session cannot
+    // buy a month of app access.
+    //
+    // A parent-funded purchase grants the CHILD, not the payer: the athlete is who uses the app.
+    const grantee = beneficiaryAthleteId || payerId;
+    const expiresAt = fundedExpiry(sub.current_period_end);
+    if (grantee) {
+      await grantTrainerFunded(svc, { athleteId: grantee, practiceId, subscriptionId: sub.id, offerId, expiresAt });
+    } else {
+      // No account behind this payment — a stranger bought from the public trainer page. Mint a
+      // claim code instead; redeem_offer_code turns it into the link + the grants after signup.
+      await mintOfferClaim(svc, {
+        practiceId, offerId, subscriptionId: sub.id, sessionId: session.id,
+        email: session.customer_details?.email ?? session.customer_email ?? null,
+      });
+    }
   }
 }
 
@@ -258,6 +393,17 @@ async function handleOfferRenewal(svc: ReturnType<typeof createClient>, invoice:
     checkoutSessionId: null, paymentIntentId: null, subscriptionId: subId, chargeId,
     amountCents: invoice.amount_paid, applicationFeeCents,
   });
+
+  // Push every grant on this subscription forward (0166). This single UPDATE is the entire
+  // "keep paying, keep access" mechanism — it covers the client and the trainer's owner grant at
+  // once, and it is a no-op for a claim nobody has redeemed yet, which is correct: an unredeemed
+  // claim has no grants to extend and its own 90-day window is untouched.
+  const renewedTo = fundedExpiry(invoice.period_end ?? invoice.lines?.data?.[0]?.period?.end ?? null);
+  const { error: grantErr } = await svc.from('trainer_funded_access')
+    .update({ expires_at: renewedTo })
+    .eq('stripe_subscription_id', subId)
+    .lt('expires_at', renewedTo);   // never SHORTEN a grant on an out-of-order delivery
+  if (grantErr) throw grantErr;
   return true;
 }
 
