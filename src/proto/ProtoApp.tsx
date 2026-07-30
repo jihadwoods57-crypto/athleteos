@@ -5,7 +5,9 @@ import React from 'react';
 import { ActivityIndicator, BackHandler, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
 import { ensureProtoExtracted, PROTO_ROOT_DIR } from './protoBundle';
+import { PROTO_VERSION } from './protoVersion';
 import { BRIDGE_SHIM, handleBridgeMessage, type BridgeMessage } from './bridge';
 import { authenticateBiometric } from '../lib/auth/biometrics';
 import { parseInviteCode } from '../lib/inviteLink';
@@ -51,7 +53,15 @@ const ANALYTICS_CONFIG = ANALYTICS_URL
   ? `window.__ANALYTICS_SINK = { url: ${JSON.stringify(ANALYTICS_URL)} }; true;`
   : `true;`;
 
-const PRELUDE = SUPABASE_CONFIG + ANALYTICS_CONFIG + CONSOLE_BRIDGE + BRIDGE_SHIM;
+/* Build identity for the WebView. A bug report cannot ask a person which build they are on, so the
+   feedback screen attaches it — but only if it is here to attach. Both are compile-time constants
+   (no device identifiers), which is what keeps them safe to put in a body a human will read. */
+const BUILD_CONFIG =
+  `window.__APP_VERSION = ${JSON.stringify(Constants.expoConfig?.version ?? 'dev')};` +
+  `window.__PROTO_VERSION = ${JSON.stringify(PROTO_VERSION)};` +
+  `window.__PLATFORM = ${JSON.stringify(Platform.OS)}; true;`;
+
+const PRELUDE = SUPABASE_CONFIG + ANALYTICS_CONFIG + BUILD_CONFIG + CONSOLE_BRIDGE + BRIDGE_SHIM;
 
 function Center({ children }: { children: React.ReactNode }) {
   return <View style={styles.center}>{children}</View>;

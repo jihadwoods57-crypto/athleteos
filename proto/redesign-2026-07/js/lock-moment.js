@@ -16,10 +16,12 @@
  * Nothing here writes to the database or touches scoring. The only persisted state is a marker
  * saying which lock has already been shown, so it is shown exactly once.
  */
-import { RT, act } from './state.js';
-import { DAY, addDaysISO } from './day.js';
+import { RT, S, act } from './state.js';
+import { DAY, addDaysISO, MEAL_KEYS } from './day.js';
 import { icon } from './icons.js';
 import { buzz } from './motion.js';
+import { shouldAskForReview, requestReview } from './review-ask.js';
+import { track, EVENTS } from './analytics.js';
 
 /* The streak bar. Same 80 as streakInfo()/ON_STANDARD — a day locks into the run when it is on
    standard, and this must never disagree with the number the ring shows. */
@@ -30,10 +32,16 @@ const MILESTONES = [7, 30, 100];
 
 let showing = false;
 
-function dismiss(el) {
+function dismiss(el, after) {
   if (!el) return;
   el.classList.remove('on');
-  setTimeout(() => { try { el.remove(); } catch { /* already gone */ } }, 220);
+  setTimeout(() => {
+    try { el.remove(); } catch { /* already gone */ }
+    // Anything that follows the stamp waits until the stamp is GONE. Stacking the OS rating modal
+    // on top of our own would read as a pile-up, and on iOS a prompt shown over another modal is a
+    // wasted ask out of three per year.
+    if (typeof after === 'function') { try { after(); } catch { /* never break dismissal */ } }
+  }, 240);
   showing = false;
 }
 
@@ -79,12 +87,51 @@ export function maybeShowLock(streakDays) {
   // should feel like a stamp coming down rather than another tap.
   buzz(milestone ? 'milestone' : 'lock');
 
-  el.querySelector('.ls-x').addEventListener('click', () => dismiss(el));
-  el.addEventListener('click', (e) => { if (e.target === el) dismiss(el); });
+  /* A milestone is the app's one honest "that went your way" moment, so it is the only place we ask
+     for a rating — and only after the athlete has closed it themselves. The predicate does the
+     deciding (review-ask.js); this just hands it the state and reports what it chose, because an ask
+     is otherwise invisible: no platform tells us whether a review was left. */
+  const afterStamp = milestone ? () => askForReviewAfterMilestone(streakDays, score) : null;
+  el.querySelector('.ls-x').addEventListener('click', () => dismiss(el, afterStamp));
+  el.addEventListener('click', (e) => { if (e.target === el) dismiss(el, afterStamp); });
 
   // Mark it seen as soon as it is SHOWN, not when dismissed: an athlete who backgrounds the app mid
   // stamp has still had the moment, and re-showing it on the next open would make it feel like a bug.
   try { act.markLockSeen(date, milestone ? streakDays : null); }
   catch { /* storage unavailable — worst case it shows once more */ }
   return true;
+}
+
+/**
+ * Consider a rating prompt after a milestone stamp closes.
+ *
+ * Everything that decides is in the pure predicate; this only gathers today's real state and records
+ * the outcome. The ask is marked spent only when a prompt was ACTUALLY requested — if the platform
+ * declined (TestFlight, an older Android, the kill switch), the cooldown must not be consumed or one
+ * unavailable moment would cost the athlete the next four months of eligibility.
+ */
+async function askForReviewAfterMilestone(streakDays, yesterdayScoreValue) {
+  try {
+    const decision = shouldAskForReview({
+      streakDays,
+      onStandard: S.score >= THRESH,
+      milestoneShown: true,
+      analysisFailed: MEAL_KEYS.some((k) => (DAY.slotMacros[k] || {}).analysisFailed),
+      syncIssue: S.syncIssue || null,
+      online: typeof navigator === 'undefined' ? true : navigator.onLine !== false,
+      lastAskedAt: RT.reviewAskedAt || null,
+      now: Date.now(),
+    });
+    track(EVENTS.REVIEW_PROMPT_DECIDED, { ask: decision.ask, reason: decision.reason, streak: streakDays });
+    if (!decision.ask) return false;
+
+    const asked = await requestReview();
+    if (asked) {
+      act.markReviewAsked(Date.now());
+      track(EVENTS.REVIEW_PROMPT_SHOWN, { streak: streakDays, score: yesterdayScoreValue });
+    }
+    return asked;
+  } catch {
+    return false;   // a rating prompt is never worth an error path
+  }
 }

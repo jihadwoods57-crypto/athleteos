@@ -29,6 +29,7 @@ import {
 } from '../lib/location';
 import { syncExecNotifications } from '../lib/notify/execSync';
 import { getPushToken } from '../lib/notify';
+import { getFlag } from '../store/flagsStore';
 
 type Ref = React.RefObject<WebView | null>;
 
@@ -45,6 +46,10 @@ export type BridgeMessage =
   | { type: 'GOOGLE_SIGNIN'; id: number }
   | { type: 'BIO_AVAILABLE'; id: number }
   | { type: 'NOTIFY_SYNC'; plan: import('../lib/notify/execSync').ExecPlanItem[] }
+  // The native star prompt. REQUEST returns whether a prompt was actually asked for — never
+  // whether anyone rated, which no platform reports. See the handler for why the flag is checked
+  // here rather than in the proto.
+  | { type: 'REVIEW_REQUEST'; id: number }
   | { type: 'PUSH_TOKEN'; id: number }
   | { type: 'OPEN_URL'; url?: string }
   | { type: 'IAP_AVAILABLE'; id: number }
@@ -361,6 +366,29 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
         resolve(ref, msg.id, null, String((e as Error)?.message ?? e));
       }
       return true;
+    case 'REVIEW_REQUEST': {
+      /* Ask the OS to show its rating prompt. Resolves TRUE only when we actually asked.
+       *
+       * The kill switch is evaluated HERE, not in the proto, because that is where the flag cache
+       * already lives (src/store/flagsStore) — the WebView has no flags channel, and adding one for
+       * a single boolean would be more plumbing than the feature. The founder can stop all asking
+       * with one column in feature_flags and no app update.
+       *
+       * Every unavailability is a quiet false, never an error: iOS reports the prompt unavailable in
+       * TestFlight, Android below 5.0 has no in-app card, web has neither. Nothing in the app should
+       * behave differently because the OS declined to show a modal.
+       */
+      try {
+        if (!getFlag('store_review_enabled')) { resolve(ref, msg.id, false); return true; }
+        const StoreReview = await import('expo-store-review');
+        if (!(await StoreReview.isAvailableAsync())) { resolve(ref, msg.id, false); return true; }
+        await StoreReview.requestReview();
+        resolve(ref, msg.id, true);
+      } catch (e) {
+        resolve(ref, msg.id, false, String((e as Error)?.message ?? e));
+      }
+      return true;
+    }
     case 'PUSH_TOKEN':
       // Expo push token for coach→athlete nudges (registered server-side by the proto via
       // register_device_token). Null when permission is denied / no EAS project / web.
@@ -422,6 +450,8 @@ export const BRIDGE_SHIM = `
     notify: { sync: function(plan){ post({ type: 'NOTIFY_SYNC', plan: plan || [] }); } },
     openUrl: function(url){ post({ type: 'OPEN_URL', url: String(url || '') }); },
     push: { token: function(){ return call('PUSH_TOKEN', {}); } },
+    // Resolves true only if a prompt was actually requested — never whether a review was left.
+    review: { request: function(){ return call('REVIEW_REQUEST', {}); } },
     iap: {
       available: function(){ return call('IAP_AVAILABLE', {}); },
       purchase: function(productId, appUserId){ return call('IAP_PURCHASE', { productId: String(productId||''), appUserId: String(appUserId||'') }); },

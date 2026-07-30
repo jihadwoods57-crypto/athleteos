@@ -15,6 +15,11 @@ export const DEFAULT_FLAGS: Record<string, boolean> = {
   trust_pass: false,
   streak_grace: false,
   assistant_gate: false,
+  // The only default-ON flag, matching its 0162 seed. The star prompt is already gated four ways in
+  // the client and cannot appear at all outside an App Store build, so defaulting it off would leave
+  // dead code somebody has to remember to enable during launch week. Stopping it is one column:
+  // `update feature_flags set kill_switch = true where name = 'store_review_enabled'`.
+  store_review_enabled: true,
 };
 
 const CACHE_KEY = 'os.flags.v1';

@@ -140,10 +140,20 @@ export const analyzing = {
       if (sl) sl.style.display = 'none';
       if (phase) phase.textContent = r.error || 'Analysis failed.';
       if (sub) { sub.textContent = 'Nothing was logged — your photo is still here.'; }
+      // Retake is the primary way out. The second button is the only place in the app where someone
+      // knows exactly what broke AND is already looking at it — a bug report filed from here needs
+      // no reconstruction, and the screen it came from is attached automatically.
       root.querySelector('.analyzing').insertAdjacentHTML('beforeend',
         `<div style="height:18px"></div>
-         <button class="btn green sm" id="an-retry" style="width:100%">${icon('camera', 18)} Retake photo</button>`);
+         <button class="btn green sm" id="an-retry" style="width:100%">${icon('camera', 18)} Retake photo</button>
+         <div style="height:10px"></div>
+         <button class="btn ghost sm" id="an-report" style="width:100%">${icon('message', 17)} Tell us what happened</button>`);
       root.querySelector('#an-retry').addEventListener('click', () => { location.hash = '#camera'; });
+      root.querySelector('#an-report').addEventListener('click', async () => {
+        const { openFeedback } = await import('./feedback.js');
+        openFeedback('analysis-failed', 'bug');
+        window.__go ? window.__go('feedback') : (location.hash = '#feedback');
+      });
       return;
     }
     // No photo → nothing to analyze. Send them back to capture instead of a fabricated analysis.

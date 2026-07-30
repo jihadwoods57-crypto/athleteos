@@ -26,6 +26,7 @@ import { coachInsights } from './coach-insights.js';
 import states from './states.js';
 import requirement from './requirement.js';
 import { messages, settings as prefs, privacy, billing, notifSettings, coachNotifSettings, deleteAccount, terms, planStylePicker } from './settings.js';
+import { feedback } from './feedback.js';
 import { foodSearch, labelScan } from './foodsearch.js';
 import { trust, streak, history, mealView } from './trust.js';
 import { role, coachOb, trainerOb, clientOb, coachProfile, trainerProfile } from './roles.js';
@@ -119,6 +120,7 @@ export const screens = {
   requirement,
   messages,
   settings: prefs,
+  feedback,
   'plan-style': planStylePicker,
   privacy,
   billing,

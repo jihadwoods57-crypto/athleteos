@@ -83,6 +83,18 @@ export const EVENTS = Object.freeze({
   CS_MANUAL: 'cs_manual',                     // {metric, review} — logged by hand instead
   CS_REVIEWED: 'cs_reviewed',                 // {approve} — coach ruled on a manual entry
   CS_DISPUTED: 'cs_disputed',                 // {metric} — athlete says the verdict is wrong
+
+  // Feedback intake (0162). The app had no way to accept a word from a user before this, so the
+  // first question these answer is whether anyone uses a door that finally exists.
+  FEEDBACK_OPENED: 'feedback_opened',         // {from} — 'settings' | 'analysis-failed'
+  FEEDBACK_SENT: 'feedback_sent',             // {category} — a ticket was really created
+
+  // The store-rating prompt. Its outcome is unobservable by design: no platform reports whether a
+  // review was left, and iOS silently discards the prompt after three asks a year. So the decision
+  // itself is the telemetry — REVIEW_PROMPT_DECIDED carries the machine-readable reason for every
+  // decline, which is the only way "why is nobody being asked?" is ever answerable.
+  REVIEW_PROMPT_DECIDED: 'review_prompt_decided', // {ask, reason, streak}
+  REVIEW_PROMPT_SHOWN: 'review_prompt_shown',     // {streak, score} — the OS agreed to show it
 });
 const EVENT_SET = new Set(Object.values(EVENTS));
 

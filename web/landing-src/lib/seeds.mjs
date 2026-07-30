@@ -139,6 +139,26 @@ export const stagedCapture = `${COMMON}${ATHLETE_IDENTITY}
   window.__render();
 `;
 
+/** Feedback, already on the compose step for a BUG — the kind whose treatment differs (it announces
+ *  that build context is attached). Set via the screen's own opener so the seed does not have to
+ *  know its internals. */
+export const feedbackBug = `${COMMON}${ATHLETE_IDENTITY}
+  ${LOG('breakfast', 505)}
+  DAY.ciLast = { date: iso(1), recovery: 82 };
+  window.__APP_VERSION = '1.0.0'; window.__PROTO_VERSION = 'seedbuild'; window.__PLATFORM = 'ios';
+  (await import('/js/screens/feedback.js')).openFeedback('settings', 'bug');
+  window.__render();
+`;
+
+/** Feedback, composing a SAFETY report: the one path that is deliberately set apart and routed
+ *  urgent server-side. Worth a still so the separation cannot quietly regress. */
+export const feedbackSafety = `${COMMON}${ATHLETE_IDENTITY}
+  ${LOG('breakfast', 505)}
+  DAY.ciLast = { date: iso(1), recovery: 82 };
+  (await import('/js/screens/feedback.js')).openFeedback('settings', 'safety');
+  window.__render();
+`;
+
 /** A late dinner — the "late counts half, still log it" state the site must be able to show. */
 export const dayLate = `${COMMON}${ATHLETE_IDENTITY}
   ${LOG('breakfast', 505)}
@@ -223,6 +243,7 @@ export const parentIdentity = `${COMMON}
 
 export const SEEDS = {
   dayMorning, dayMidday, dayComplete, dayLate, dayFirst, dayLockStamp, stagedCapture,
+  feedbackBug, feedbackSafety,
   styleStructured, styleGuided, styleIntuitive,
   coachIdentity, trainerIdentity, parentIdentity,
 };

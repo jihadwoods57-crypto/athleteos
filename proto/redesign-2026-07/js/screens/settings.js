@@ -721,7 +721,10 @@ export const terms = {
       <div class="lrow" data-go="privacy"><div class="lic">${icon('share', 16)}</div><div class="lm"><div class="lt">Data export</div><div class="ls">Download everything you own, in-app</div></div>${icon('chevron', 16, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="verified-discipline"><div class="lic">${icon('shield', 16)}</div><div class="lm"><div class="lt">Verified Discipline profile</div><div class="ls">See exactly what a recruiter would — off until you say so</div></div>${icon('chevron', 16, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('x', 16)}</div><div class="lm"><div class="lt">Account deletion</div><div class="ls">Permanent, in-app</div></div>${icon('chevron', 16, 'style="color:var(--text-3)"')}</div>
-      ${ext('mailto:support@onstandard.app', 'message', 'Contact & support', 'support@onstandard.app')}
+      <div class="lrow" data-go="feedback"><div class="lic">${icon('message', 16)}</div><div class="lm"><div class="lt">Send feedback</div><div class="ls">Report a bug, ask something, or tell us an idea</div></div>${icon('chevron', 16, 'style="color:var(--text-3)"')}</div>
+      ${/* The email stays. Someone locked out of their account cannot file an in-app ticket, and
+            that is exactly when they most need to reach a human. */ ''}
+      ${ext('mailto:support@onstandard.app', 'clipboard', 'Email us instead', 'support@onstandard.app')}
     </section>
     <div class="eyebrow">The short version</div>
     <section class="card" style="padding:6px 16px">

@@ -1536,4 +1536,27 @@ export async function setMemoryFactStatus(uid, id, status) {
   } catch { return false; }
 }
 
+/* ---------------- support / feedback intake (0125 + 0162) ---------------- */
+
+/**
+ * File a support ticket. Returns the new ticket id.
+ *
+ * THROWS on failure, unlike most helpers in this file, and deliberately: the caller has a person
+ * waiting who just typed something they cared enough to send, and the server's own message is the
+ * useful one ('rate limit…', 'invalid category', 'subject too short'). Swallowing it into a false
+ * would make every failure look identical and cost the 'idea' fallback its signal.
+ *
+ * All validation, the 5/hour rate limit, and the rule that a safety report becomes 'urgent' live in
+ * the RPC — never here. The client is not trusted to set priority.
+ */
+export async function createSupportTicket(category, subject, body) {
+  const c = sb();
+  if (!c) throw new Error('You need a connection to send this.');
+  const { data, error } = await c.rpc('create_support_ticket', {
+    p_category: category, p_subject: subject, p_body: body || '',
+  });
+  if (error) throw new Error(error.message || 'Could not send that.');
+  return data || null;
+}
+
 export { cap };

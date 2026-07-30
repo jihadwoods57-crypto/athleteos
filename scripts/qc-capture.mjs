@@ -86,6 +86,12 @@ const SHOTS = [
   // (camera-confirm → analyzing → thread) rather than by a still, which would race its own ceiling.
   { g: 'meal', name: 'camera-priming', seed: 'dayMorning', route: 'analyzing', at: [12, 41] },
   { g: 'meal', name: 'camera-confirm', seed: 'stagedCapture', route: 'camera-confirm', at: [12, 41] },
+  // Feedback intake (0162): the picker, and the compose step for the two kinds whose treatment
+  // differs — a bug (which announces its auto-attached context) and safety (which is deliberately
+  // set apart in red and routed urgent).
+  { g: 'athlete2', name: 'feedback-pick', seed: 'dayComplete', route: 'feedback', at: [21, 40] },
+  { g: 'athlete2', name: 'feedback-bug', seed: 'feedbackBug', route: 'feedback', at: [21, 41] },
+  { g: 'athlete2', name: 'feedback-safety', seed: 'feedbackSafety', route: 'feedback', at: [21, 42] },
   { g: 'meal', name: 'meal-analysis', seed: 'dayMidday', route: 'meal-analysis', at: [13, 5] },
   { g: 'meal', name: 'meal-detail', seed: 'dayMidday', route: 'meal-detail/lunch', at: [13, 8] },
   { g: 'meal', name: 'meal-thread', seed: 'dayMidday', route: 'meal-thread/lunch', at: [13, 9] },

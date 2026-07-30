@@ -56,6 +56,11 @@ const ALLOWED = new Set([
   // when they weren't, and it should be turned off rather than tuned.
   "cs_set", "cs_personal_set", "cs_card_shown", "cs_verified",
   "cs_manual", "cs_reviewed", "cs_disputed",
+  // Feedback intake + the store-rating prompt (0162, 2026-07-29). review_prompt_decided carries the
+  // decline reason, which is the only observable this feature has: no platform ever reports whether
+  // a review was actually left.
+  "feedback_opened", "feedback_sent",
+  "review_prompt_decided", "review_prompt_shown",
 ]);
 const ENUM_RE = /^[a-z0-9_.:-]{1,24}$/;
 const SID_RE = /^[a-z0-9_.:-]{1,64}$/i;

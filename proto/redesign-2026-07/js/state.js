@@ -230,6 +230,7 @@ const DEFAULT_RT = {
   homeOpenSections: {},  // WS6: per-section open state for Home's collapsible groups (Later/Done)
   lastLockSeen: null,    // 'YYYY-MM-DD' of the last locked day whose stamp was shown (lock-moment.js) — display only, never scoring
   lastMilestone: null,   // streak length whose milestone stamp was shown, so 7/30/100 fire once each
+  reviewAskedAt: null,   // epoch ms of the last store-rating prompt actually shown on this device (review-ask.js)
   profile: null,         // athlete identity: {name, sport, position, school, level, avatar(dataURL)} — from onboarding / signed-in profile, never fabricated
   ob: null,              // onboarding scratch — the athlete's real selections, captured as they build their Standard
   allergies: [],         // FLAT summary list (guardian check + profile row). Derived from restrictions when structured.
@@ -2201,6 +2202,15 @@ export const act = {
     if (!date) return;
     RT.lastLockSeen = date;
     if (milestone != null) RT.lastMilestone = milestone;
+    save();
+  },
+  /* A store-rating prompt was actually SHOWN on this device (never: a review was left — no platform
+     reports that). Only called when the OS agreed to show it, so a build where the prompt is
+     unavailable never burns the athlete's next eligibility window. */
+  markReviewAsked(at) {
+    const t = Number(at);
+    if (!Number.isFinite(t) || t <= 0) return;
+    RT.reviewAskedAt = t;
     save();
   },
   /* Coach activity feed: per-device seen marks (which meals the coach has opened). */
