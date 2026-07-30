@@ -64,9 +64,11 @@ proto render harness; nothing here is live yet.** Design doc:
 ## The rules worth remembering
 
 - **Access falls out of billing.** `expires_at` is written on purchase and pushed forward on every
-  renewal invoice. A dead card runs dunning and the grant ages out. **There is no revoke path and
-  there should never be one** — if access isn't lapsing, the expiry maintenance in
-  `handleOfferRenewal` is what's broken.
+  renewal invoice. **Non-payment has no revoke path and should never get one** — a dead card runs
+  dunning and the grant simply ages out, so if access isn't lapsing, the expiry maintenance in
+  `handleOfferRenewal` is what's broken, not the absence of a revoke.
+  Money coming *back* is the one exception: a full refund or a chargeback expires the grants
+  immediately (0167), because there is no period left to have paid for.
 - **Recurring only.** `month`/`week` fund access; `one-time`/`session` do not, and are not buyable
   from the public page. A funded grant lasts as long as a live subscription, so a one-off has no
   period to cover.
