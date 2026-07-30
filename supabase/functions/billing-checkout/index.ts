@@ -30,6 +30,12 @@ const REFERRAL_COUPON = Deno.env.get('STRIPE_REFERRAL_COUPON_ID') ?? '';
 // new Prices suffixed with the next generation (`pro_solo_monthly_v2`) and set this to `v2`;
 // founding members keep resolving to the generation stored on their row. See _shared/founding.ts.
 const PRICE_GENERATION = Deno.env.get('PRICE_GENERATION') ?? '';
+// Trial length for the Stripe rail. 14 matches every advertised surface (pricing page,
+// coaches/trainers pages, onboarding cards, planTerms) — change BOTH or neither. 0 disables.
+const TRIAL_DAYS = (() => {
+  const n = Math.floor(Number(Deno.env.get('STRIPE_TRIAL_DAYS') ?? '14'));
+  return Number.isFinite(n) && n >= 0 ? n : 14;
+})();
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -165,8 +171,20 @@ Deno.serve(async (req) => {
     // Reuse the Stripe customer from a prior subscription so upgrades/reactivations keep
     // one billing history (and the portal shows everything in one place).
     const { data: subRow } = await svc.from('subscriptions')
-      .select('stripe_customer_id').eq('owner_id', user.id).maybeSingle();
+      .select('stripe_customer_id, status, tier, stripe_subscription_id').eq('owner_id', user.id).maybeSingle();
     const existingCustomer = subRow?.stripe_customer_id ?? null;
+
+    // DUPLICATE-SUBSCRIPTION GUARD. This endpoint always creates a NEW subscription, and the
+    // webhook upserts on owner_id — so calling it with one already live would mint a second
+    // Stripe subscription and silently orphan the first as a live, invisible charge (the row's
+    // ids get overwritten; the customer keeps paying for something nothing tracks). A plan
+    // CHANGE is the portal's job, where Stripe handles proration and there is exactly one
+    // subscription to mutate. 409 so the client can route there.
+    const live = subRow && subRow.stripe_subscription_id
+      && (subRow.status === 'active' || subRow.status === 'past_due' || subRow.status === 'paused');
+    if (live) {
+      return json({ error: 'already subscribed', action: 'portal' }, 409, cors);
+    }
 
     const session = await stripeClient().checkout.sessions.create({
       mode: 'subscription',
@@ -178,6 +196,14 @@ Deno.serve(async (req) => {
         ? { discounts: [{ coupon: REFERRAL_COUPON }] }
         : { allow_promotion_codes: true }),
       subscription_data: {
+        // THE TRIAL THE SITE ALWAYS PROMISED. "14-day free trial" is stated on the pricing page,
+        // the coaches/trainers pages, every onboarding plan card, and by planTerms() — the
+        // function that exists to satisfy FTC auto-renewal disclosure. Until now no
+        // trial_period_days was ever sent, so the legally-load-bearing copy promised a trial and
+        // the checkout billed on click. One trial per customer: a returning customer (canceled
+        // and coming back) does not get a second one — trials are for first evaluation, and a
+        // second free fortnight for every re-subscribe is a churn incentive.
+        ...(TRIAL_DAYS > 0 && !existingCustomer ? { trial_period_days: TRIAL_DAYS } : {}),
         metadata: {
           owner_id: user.id,
           plan_id: planId,

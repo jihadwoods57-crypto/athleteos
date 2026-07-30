@@ -377,6 +377,34 @@ Deno.serve(async (req) => {
         if (UUID_RE.test(referrerId) && referrerId !== ownerId) {
           await rewardReferrer(svc, referrerId, ownerId, sub.metadata?.referral_code ?? '');
         }
+
+        // FOUNDING 50 BECOMES CLAIMABLE. The 0161 ledger was built with a service-role-only claim
+        // function that no code ever called, so the promise on four landing pages could apply to
+        // nobody. The claim moment is HERE — a completed checkout, not a created session — because
+        // "the first 50 coaches and facilities" has to mean the first 50 who actually subscribed,
+        // not the first 50 who opened a checkout page and left. claim_founding_slot is idempotent
+        // (re-claiming returns the existing slot) and enforces its own 50-cap, so a webhook retry
+        // can never double-claim and customer #51 is simply told no. Locked at the CURRENT price
+        // generation and the standard 1000¢ overage — what "today's price" means on the day they
+        // claimed. Best-effort: a failed claim must never 500 an otherwise-processed payment event
+        // (Stripe would retry the whole thing); it logs, and the founder can grant manually.
+        try {
+          const { data: claim, error: claimErr } = await svc.rpc('claim_founding_slot', {
+            p_user: ownerId,
+            p_generation: Deno.env.get('PRICE_GENERATION') ?? '',
+            p_extra_seat_cents: 1000,
+            p_note: `auto-claim on checkout ${session.id}`,
+          });
+          const row = Array.isArray(claim) ? claim[0] : claim;
+          if (claimErr) console.error('stripe-webhook: founding claim errored', claimErr.message);
+          else if (row?.ok) console.log(`stripe-webhook: founding slot ${row.slot_no} -> ${ownerId}`);
+        } catch (e) {
+          console.error('stripe-webhook: founding claim threw', String((e as Error)?.message ?? e));
+        }
+
+        // Give the new subscription an honest seats_used immediately rather than waiting for the
+        // nightly overage run — the Plan & billing screen reads it on the coach's next open.
+        try { await svc.rpc('stamp_seats_used'); } catch { /* the cron will catch it up */ }
         break;
       }
 
