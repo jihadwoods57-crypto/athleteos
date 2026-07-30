@@ -499,13 +499,30 @@
 .phase-bar .pb.on { background: linear-gradient(90deg, var(--green-bright), var(--blue-bright)); }
 
 /* ----- States gallery ----- */
-.state-demo { border: 1px dashed rgba(148,176,224,0.25); border-radius: var(--r-card); padding:22px 18px; text-align: center; margin-bottom:14px; }
-.state-demo .sd-ic { width: 56px; height: 56px; border-radius: var(--r-card-sm); margin:0 auto 14px; display: grid; place-items: center; background: var(--surface-2); color: var(--text-3); }
-.state-demo .sd-t { font-size: 15.5px; font-weight: 800; }
-.state-demo .sd-s { font-size: 13px; font-weight: 600; color: var(--text-2); margin-top:6px; line-height: 1.45; }
-.state-demo .sd-cta { margin-top:14px; }
-.err-box { border-color: var(--red-border); }
+/* The shared empty/error/permission state — the notifications screen's premium treatment
+   (.ne-empty) promoted to the primitive every coach, trainer, and athlete empty rides on. The old
+   dashed border read as a developer placeholder; an empty roster is a real product moment (often
+   the FIRST thing a new coach sees) and deserves a finished surface: a card with a soft brand wash
+   falling from the top, and the icon in a ringed circular vessel instead of a grey box. */
+.state-demo {
+  border: 1px solid var(--hairline); border-radius: var(--r-card);
+  padding:32px 22px 26px; text-align: center; margin-bottom:14px;
+  background: radial-gradient(120% 70% at 50% 0%, rgba(var(--blue-rgb), 0.07), transparent 60%), var(--surface-1);
+  box-shadow: var(--sh-card);
+}
+.state-demo .sd-ic {
+  width: 68px; height: 68px; border-radius: 50%; margin:0 auto 16px;
+  display: grid; place-items: center; position: relative;
+  background: var(--blue-surface); color: var(--blue-bright);
+}
+.state-demo .sd-ic::after { content: ''; position: absolute; inset: -7px; border-radius: 50%; border: 1px solid var(--blue-border); opacity: 0.5; }
+.state-demo .sd-t { font-size: 17px; font-weight: 800; letter-spacing: var(--title-tight); }
+.state-demo .sd-s { font-size: 13px; font-weight: 600; color: var(--text-2); margin-top:8px; line-height: 1.5; max-width: 34ch; margin-left:auto; margin-right:auto; }
+.state-demo .sd-cta { margin-top:16px; }
+/* Error variant: same vessel, red semantics — wash, ring, and icon all flip together. */
+.err-box { border-color: var(--red-border); background: radial-gradient(120% 70% at 50% 0%, rgba(var(--red-rgb), 0.07), transparent 60%), var(--surface-1); }
 .err-box .sd-ic { background: var(--red-surface); color: var(--red); }
+.err-box .sd-ic::after { border-color: var(--red-border); }
 
 /* ---------- Premium role picker (full-width rows, rich copy, tap affordance) ---------- */
 .role-list { display: flex; flex-direction: column; gap:12px; }
