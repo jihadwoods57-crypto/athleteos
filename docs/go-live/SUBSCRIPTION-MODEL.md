@@ -12,7 +12,7 @@ operations and every knob.
 | Billing metric (roster size) opposed the cost metric (usage) | Billing counts **active athletes** — logged ≥5 real days/month; idle seats free (0163) |
 | "14-day free trial" promised everywhere, implemented nowhere | `billing-checkout` sends `trial_period_days` (default 14, one per customer) |
 | Founding 50 unclaimable — the ledger had no callers | Auto-claim on first completed checkout; `founding_slots_left()` feeds the paywall |
-| `past_due` (incl. Stripe's terminal `unpaid`) unlocked forever | Grace bounded to **21 days** from `payment_failed_at`, in SQL + both client copies, parity-tested |
+| `past_due` (incl. Stripe's terminal `unpaid`) unlocked forever | Grace bounded to **7 days** from `payment_failed_at`, in SQL + both client copies, parity-tested |
 | Plan change would mint a duplicate Stripe subscription | Checkout 409s a live subscriber → routed to the Stripe portal |
 | Pro/org plans purchasable nowhere | `plan-upgrade` screen (role-aware) → Stripe Checkout via system browser |
 | `seats_used` never written; billing screen said "0 of 25" | Stamped daily by cron + on checkout; Plan & billing shows "N active · M included" |
@@ -64,7 +64,7 @@ operations and every knob.
 - **A charge may only happen if its ledger row inserted.** `billing_overage_reports (owner, month)`
   PK + Stripe idempotency keys derived from the same pair. Crashed runs resume at the ledger's
   recorded numbers; nothing can double-bill.
-- **Grace is 21 days, in one place per runtime, pinned by tests.** SQL (0163) ↔ `isPro`
+- **Grace is 7 days, in one place per runtime, pinned by tests.** SQL (0163) ↔ `isPro`
   (subscription.ts) ↔ `isPaid` (settings.js) — `entitlementParity.test.ts` fails if they drift.
 
 ## Still deliberately NOT built

@@ -96,9 +96,9 @@ export function normalizeEntitlement(e?: Partial<Entitlement> | null): Entitleme
 
 /** Grace after a failed payment, in days. MUST equal the interval in has_premium_access
  *  (migration 0163) and GRACE_DAYS in proto settings.js — the parity test pins all three.
- *  21 = Stripe's smart-retry window plus margin: long enough that a saveable card gets saved,
- *  bounded so "never paid again" stops meaning "free forever". */
-export const GRACE_DAYS = 21;
+ *  7 = the founder's call (2026-07-30): pay on time. A week still covers the common
+ *  expired-card fix and Stripe's first retries; it just stops funding a free month. */
+export const GRACE_DAYS = 7;
 
 /** Whether paid features are unlocked. A paid plan unlocks while active, or while past_due
  *  INSIDE the grace window measured from the recorded failure (don't lock a coach out the

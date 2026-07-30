@@ -96,7 +96,8 @@ revoke all on function public.stamp_seats_used() from public, anon, authenticate
 
 -- ---------------------------------------------------------------- bounded grace
 -- Same predicate as 0132, plus the one condition it was missing: past_due unlocks only within
--- GRACE (21 days — Stripe's smart-retry window plus margin) of the recorded failure. A row that
+-- GRACE (7 days — founder decision 2026-07-30: pay on time; a week covers the common expired-card
+-- fix and the first Stripe retries without funding a free month) of the recorded failure. A row that
 -- somehow reaches past_due with no timestamp gets the grace measured from updated_at rather than
 -- a free pass. `unpaid` still maps to past_due in the webhook; with the bound, that now means
 -- "three more weeks of access while dunning runs", not "free forever".
@@ -109,7 +110,7 @@ returns boolean language sql stable security definer set search_path = public as
       and (
         status = 'active'
         or (status = 'past_due'
-            and coalesce(payment_failed_at, updated_at) > now() - interval '21 days')
+            and coalesce(payment_failed_at, updated_at) > now() - interval '7 days')
       )
   )
   or exists (

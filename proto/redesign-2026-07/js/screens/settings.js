@@ -340,7 +340,7 @@ async function loadBilling() {
 /* MUST match has_premium_access (0163) and isPro (src/core/subscription.ts): paid tier, and
    either active or past_due within GRACE_DAYS of the recorded failure. Exported so the parity
    test can run the same cases through all the client copies. */
-export const GRACE_DAYS = 21;
+export const GRACE_DAYS = 7;
 export function isPaid(sub, now = Date.now()) {
   if (!sub) return false;
   const t = String(sub.tier || '').toLowerCase();

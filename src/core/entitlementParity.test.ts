@@ -31,9 +31,9 @@ const daysAgo = (n: number) => new Date(NOW - n * 86400000).toISOString();
 const CASES: Array<{ label: string; tier: string; status: string; failedAt: string | null; want: boolean }> = [
   { label: 'active team plan', tier: 'team', status: 'active', failedAt: null, want: true },
   { label: 'active consumer plan', tier: 'consumer', status: 'active', failedAt: null, want: true },
-  { label: 'past_due day 5 (grace)', tier: 'team', status: 'past_due', failedAt: daysAgo(5), want: true },
-  { label: 'past_due day 20 (last grace day)', tier: 'team', status: 'past_due', failedAt: daysAgo(20), want: true },
-  { label: 'past_due day 22 (grace over)', tier: 'team', status: 'past_due', failedAt: daysAgo(22), want: false },
+  { label: 'past_due day 2 (grace)', tier: 'team', status: 'past_due', failedAt: daysAgo(2), want: true },
+  { label: 'past_due day 6 (last grace day)', tier: 'team', status: 'past_due', failedAt: daysAgo(6), want: true },
+  { label: 'past_due day 8 (grace over)', tier: 'team', status: 'past_due', failedAt: daysAgo(8), want: false },
   { label: 'past_due, no timestamp', tier: 'consumer', status: 'past_due', failedAt: null, want: true },
   { label: 'canceled never unlocks', tier: 'team', status: 'canceled', failedAt: null, want: false },
   { label: 'paused never unlocks', tier: 'team', status: 'paused', failedAt: null, want: false },
@@ -43,7 +43,7 @@ const CASES: Array<{ label: string; tier: string; status: string; failedAt: stri
 describe('entitlement parity across the client copies', () => {
   test('the grace constants are one number', () => {
     expect(PROTO_GRACE).toBe(GRACE_DAYS);
-    expect(GRACE_DAYS).toBe(21); // 0163's `interval '21 days'` — change all three together
+    expect(GRACE_DAYS).toBe(7); // 0163's `interval '7 days'` (founder call 2026-07-30) — change all three together
   });
 
   test.each(CASES)('$label → $want in both copies', ({ tier, status, failedAt, want }) => {
