@@ -1,0 +1,39 @@
+# OnStandard — line-ending + diff rules.
+#
+# WHY THIS EXISTS (2026-07-30). core.autocrlf is `true` on the founder's Windows box, so git
+# rewrites line endings on checkout. assets/proto.zip is BUILT from the proto sources, so any
+# checkout that flips a source file between LF and CRLF changes the bundle's bytes and its content
+# hash (src/proto/protoVersion.ts) even though not one line of code changed.
+#
+# The symptom: `npm run preflight` regenerates the bundle, sees it differ from HEAD, and hard-stops
+# on a dirty tree — right at ship time, with nothing actually wrong. The risk is worse than the
+# annoyance: the obvious way out is to commit the "new" bundle, so the repo accumulates
+# no-op bundle churn and a genuinely stale bundle stops being distinguishable from a line-ending
+# one. (A stale bundle is how an OTA ships nothing — see the 2026-07-30 rebuild commit.)
+#
+# Marking the bundle binary stops git touching it. Marking the proto sources LF keeps what goes
+# INTO the bundle byte-stable regardless of the platform it was built on, which is what makes the
+# content hash mean "the proto changed" again.
+
+# Never transform archives or images. They are not text and a CRLF pass would corrupt them.
+*.zip     binary
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.webp    binary
+*.mp4     binary
+*.ttf     binary
+*.otf     binary
+*.woff    binary
+*.woff2   binary
+*.p12     binary
+*.p8      binary
+
+# The bundled proto: byte-identical on every platform, so PROTO_VERSION only moves when the
+# proto actually moves.
+proto/redesign-2026-07/**/*.js   text eol=lf
+proto/redesign-2026-07/**/*.mjs  text eol=lf
+proto/redesign-2026-07/**/*.css  text eol=lf
+proto/redesign-2026-07/**/*.html text eol=lf
+proto/redesign-2026-07/**/*.json text eol=lf
+proto/redesign-2026-07/**/*.md   text eol=lf
