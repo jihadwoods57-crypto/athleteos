@@ -31,14 +31,19 @@
 //                                          that subscription's funded grants forward — the whole
 //                                          "keep paying, keep access" mechanism, with no revoke
 //                                          path anywhere: a dead card simply lets a grant expire
-//   * charge.refunded                   -> (0119) marks the matching offer_payments row refunded
+//   * charge.refunded                   -> (0119) marks the matching offer_payments row refunded,
+//                                          and (0166) REVOKES the trainer-funded access that charge
+//                                          bought — otherwise buy/refund/keep-the-app is a free ride
+//   * charge.dispute.created            -> a chargeback is a refund taken by force: same revocation
 //
 // Deploy (JWT OFF — Stripe has no Supabase JWT; the endpoint authenticates itself via the
 // Stripe signature instead):
 //   supabase secrets set STRIPE_SECRET_KEY=sk_live_... STRIPE_WEBHOOK_SECRET=whsec_...
 //   supabase functions deploy stripe-webhook --no-verify-jwt
-// Then in Stripe: create a webhook to <project>/functions/v1/stripe-webhook for the six events
+// Then in Stripe: create a webhook to <project>/functions/v1/stripe-webhook for the SEVEN events
 // above (Connect's own account.updated goes to the SEPARATE connect-webhook endpoint instead).
+// charge.dispute.created is new with 0166 — an existing endpoint will not be subscribed to it, and
+// without it a chargeback silently keeps its premium.
 //
 // OWNER RESOLUTION: billing-checkout sets the paying owner's profile id as
 // `client_reference_id` and mirrors it into subscription metadata. Renewals/cancellations
@@ -333,6 +338,30 @@ async function mintOfferClaim(
     if (blob.includes('stripe_checkout_session_id') || blob.includes('offer_claims_stripe_checkout_session_id_key')) return;
   }
   throw new Error('offer claim code generation failed after retries');
+}
+
+/**
+ * Money came back, so access goes back. Expires every trainer-funded grant riding the refunded
+ * charge's subscription — the client's and the trainer's owner grant together, since they share the
+ * subscription id.
+ *
+ * Expiring (rather than deleting) keeps the audit trail and means recovery needs no special case:
+ * if the client pays again, handleOfferRenewal pushes expires_at forward and they are back. The
+ * trainer only loses premium if this was their LAST funded client; grants from other clients are
+ * untouched because the update is scoped by subscription.
+ */
+async function revokeFundedForCharge(svc: ReturnType<typeof createClient>, chargeId: string): Promise<void> {
+  const { data: row } = await svc.from('offer_payments')
+    .select('stripe_subscription_id').eq('stripe_charge_id', chargeId).maybeSingle();
+  const subId = row?.stripe_subscription_id;
+  if (!subId) return;   // a one-time offer purchase never granted access — nothing to take back
+  const now = new Date().toISOString();
+  const { error } = await svc.from('trainer_funded_access')
+    .update({ expires_at: now }).eq('stripe_subscription_id', subId).gt('expires_at', now);
+  if (error) throw error;
+  // An unredeemed claim for a refunded payment must never become redeemable premium later.
+  await svc.from('offer_claims')
+    .update({ expires_at: now }).eq('stripe_subscription_id', subId).eq('status', 'pending');
 }
 
 /**
@@ -676,16 +705,35 @@ Deno.serve(async (req) => {
       }
 
       case 'charge.refunded': {
-        // OnStandard Pay (0119): mark the matching ledger row refunded. Never touches the platform
-        // owner-subscription tables — a refunded offer charge has no bearing on app access.
+        // OnStandard Pay (0119): mark the matching ledger row refunded. It does NOT touch the
+        // platform owner-subscription tables — a refunded offer charge says nothing about the
+        // coach's own plan. It does, since 0166, have to take back TRAINER-FUNDED access: the
+        // offer charge is what grants that premium, so leaving it alone made "buy, refund, keep
+        // the app" a repeatable free ride.
+        //
         // Stripe fires charge.refunded on ANY refund including partial; the charge.refunded boolean
         // is only true once the FULL amount is returned. Our own refund-payment always refunds in
         // full, so gate on that — a PARTIAL refund issued straight from the Stripe Dashboard must
-        // not flip a still-mostly-paid sale to 'refunded'.
+        // not flip a still-mostly-paid sale to 'refunded', nor cut off a client mid-month.
         const charge = event.data.object as Stripe.Charge;
         if (charge.refunded === true) {
           const { error } = await svc.from('offer_payments').update({ status: 'refunded' }).eq('stripe_charge_id', charge.id);
           if (error) throw error;
+          await revokeFundedForCharge(svc, charge.id);
+        }
+        break;
+      }
+
+      case 'charge.dispute.created': {
+        // A chargeback is a refund the customer took by force: the money is gone the moment the
+        // dispute opens (Stripe pulls it immediately), so access has to go with it. Same handling
+        // as a refund, and deliberately NOT waiting for dispute.closed — if we win the dispute the
+        // next renewal invoice restores the grant on its own.
+        const dispute = event.data.object as Stripe.Dispute;
+        const chargeId = typeof dispute.charge === 'string' ? dispute.charge : dispute.charge?.id;
+        if (chargeId) {
+          await svc.from('offer_payments').update({ status: 'refunded' }).eq('stripe_charge_id', chargeId);
+          await revokeFundedForCharge(svc, chargeId);
         }
         break;
       }

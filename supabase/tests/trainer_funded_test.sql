@@ -229,17 +229,68 @@ select _ok(_try($$update offer_claims set status = 'pending', claimed_by = null$
   '0166: a client cannot reset a claim to redeem it again');
 select _superuser();
 
+-- ================================================================ 0167: chasing unredeemed buyers
+-- The worst non-security failure of pay-first: someone is charged monthly for an app they never
+-- opened. These pin the two queries that make it visible.
+insert into offer_claims (code, practice_id, offer_id, stripe_subscription_id, payer_email, created_at) values
+  ('TR-TEST-WAIT', '7ff00000-0000-0000-0000-00000000ff01', '7ff00000-0000-0000-0000-00000000ee01',
+   'sub_tf_wait', 'waiting@x.io', now() - interval '5 days');
+
+select _as('7ff00000-0000-0000-0000-000000000001');
+select _ok((select count(*) from my_pending_claims('7ff00000-0000-0000-0000-00000000ff01'::uuid)) = 1,
+  '0167: the trainer sees the buyer who paid and never redeemed');
+select _ok((select days_waiting from my_pending_claims('7ff00000-0000-0000-0000-00000000ff01'::uuid) limit 1) = 5,
+  '0167: and how long they have been waiting');
+select _superuser();
+select _as('7ff00000-0000-0000-0000-000000000002');
+select _ok(_try($$select * from my_pending_claims('7ff00000-0000-0000-0000-00000000ff01'::uuid)$$) like 'denied%',
+  '0167: another operator cannot read a practice''s buyer emails');
+select _superuser();
+
+select _ok((select count(*) from claims_needing_reminder(2, 2)) >= 1,
+  '0167: a 5-day-old unredeemed claim is due a reminder');
+select _ok((select count(*) from claims_needing_reminder(30, 2)) = 0,
+  '0167: a claim younger than the window is not chased');
+select mark_claim_reminded((select id from offer_claims where code = 'TR-TEST-WAIT'));
+select mark_claim_reminded((select id from offer_claims where code = 'TR-TEST-WAIT'));
+select _ok((select count(*) from claims_needing_reminder(2, 2)) = 0,
+  '0167: the ladder stops after two nudges — we never mail someone weekly');
+
+-- ================================================================ 0167: refund takes access back
+-- Before this, buy -> grant -> refund -> keep premium for the whole period was a repeatable free
+-- ride. The webhook calls the same UPDATE this models.
+select _ok(has_premium_access('7ff00000-0000-0000-0000-00000000000a') = true,
+  '0167: (setup) the funded client is premium before the refund');
+update trainer_funded_access set expires_at = now()
+  where stripe_subscription_id = 'sub_tf_1' and expires_at > now();
+select _ok(has_premium_access('7ff00000-0000-0000-0000-00000000000a') = false,
+  '0167: a refunded charge takes the client''s premium back');
+select _ok(active_athlete_count('7ff00000-0000-0000-0000-000000000001') = 2,
+  '0167: a refunded client returns to the billable seat count');
+
+-- The trainer is NOT cut off here, and that is the point: athlete ...000c redeemed a claim earlier,
+-- so a second live grant still funds them. Revocation is scoped by SUBSCRIPTION, so refunding one
+-- client can never knock a trainer with a full book off premium.
+select _ok(has_premium_access('7ff00000-0000-0000-0000-000000000001') = true,
+  '0167: refunding ONE client does not cut off a trainer who still has another');
+update trainer_funded_access set expires_at = now() where athlete_id = '7ff00000-0000-0000-0000-000000000001';
+select _ok(has_premium_access('7ff00000-0000-0000-0000-000000000001') = false,
+  '0167: the trainer loses premium only when their LAST funded client is gone');
+
 -- ================================================================ scoreboard
 do $$
-declare fails int; total int; n int;
+declare fails int; total int; bad text;
 begin
   select count(*) filter (where not ok), count(*) into fails, total from _tf_results;
   raise notice '================================================';
   raise notice 'TRAINER-FUNDED SUITE: % / % checks passed', total - fails, total;
   if fails > 0 then
     raise notice 'FAILED CHECKS:';
-    for n in select _tf_results.n from _tf_results where not ok loop
-      raise notice '  - %', (select label from _tf_results where _tf_results.n = n);
+    -- Iterate the LABELS directly. The earlier form declared a loop variable named `n` and selected
+    -- a column named `n`, which Postgres reports as ambiguous — and since the branch only runs when
+    -- something fails, the bug hid until the first real failure.
+    for bad in select label from _tf_results where not ok order by n loop
+      raise notice '  - %', bad;
     end loop;
     raise exception 'TRAINER-FUNDED SUITE FAILED: % check(s) — see the FAIL lines above', fails;
   end if;
