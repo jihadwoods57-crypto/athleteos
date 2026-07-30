@@ -121,21 +121,29 @@
 
   /* ---------- hero: ambient video loop (desktop enhancement) ---------- */
   const hvVideo = document.getElementById('hv-video');
+  const hvAmb = document.getElementById('hv-video-b');
   if (hvVideo && !reduced && innerWidth > 960
       && !(navigator.connection && navigator.connection.saveData)) {
-    const start = () => {
-      hvVideo.addEventListener('playing', () => hvVideo.classList.add('on'), { once: true });
-      hvVideo.preload = 'auto';
-      hvVideo.src = 'assets/video/hero-loop.mp4';
-      const p = hvVideo.play();
+    const boot = (v) => {
+      v.addEventListener('playing', () => v.classList.add('on'), { once: true });
+      v.preload = 'auto';
+      v.src = 'assets/video/hero-loop.mp4';
+      const p = v.play();
       if (p) p.catch(() => {});
+    };
+    const start = () => {
+      boot(hvVideo);
+      if (hvAmb) boot(hvAmb);
     };
     if (document.readyState === 'complete') setTimeout(start, 400);
     else addEventListener('load', () => setTimeout(start, 400), { once: true });
     document.addEventListener('visibilitychange', () => {
       if (!hvVideo.src) return;
-      if (document.hidden) hvVideo.pause();
-      else if (hvVideo.classList.contains('on')) hvVideo.play().catch(() => {});
+      for (const v of [hvVideo, hvAmb]) {
+        if (!v || !v.src) continue;
+        if (document.hidden) v.pause();
+        else if (v.classList.contains('on')) v.play().catch(() => {});
+      }
     });
   }
 

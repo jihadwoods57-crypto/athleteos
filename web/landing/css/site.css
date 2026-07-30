@@ -371,17 +371,41 @@ h1 .dot { color: var(--gold); }
 .hero-fine { color: var(--text-3); font-size: 13px; font-weight: 600; margin-top: 16px; }
 
 /* hero visual: blended athlete + 3D phones (copy -> athlete -> product, left to right) */
-.hero-ath {
-  position: absolute; z-index: 1; pointer-events: none;
-  bottom: -1px; left: 50%; transform: translateX(-31%);
-  height: min(124%, 892px); aspect-ratio: 2 / 3;
+/* ambient spill: the hero loop again, mirrored + blurred, glowing behind the
+   phones so the right side of the stage never sits empty. Same gates as the
+   crisp video (site.js boots both), fades in on `playing`. */
+.hero-amb {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
   -webkit-mask-image:
-    linear-gradient(to right, transparent 3%, #000 27%, #000 80%, transparent 99%),
-    linear-gradient(to bottom, transparent 0%, #000 9%, #000 88%, rgba(0, 0, 0, 0.55) 100%);
+    linear-gradient(to left, #000 68%, transparent 94%),
+    linear-gradient(to bottom, transparent 2%, #000 32%, #000 96%, rgba(0, 0, 0, 0.7) 100%);
   -webkit-mask-composite: source-in;
   mask-image:
-    linear-gradient(to right, transparent 3%, #000 27%, #000 80%, transparent 99%),
-    linear-gradient(to bottom, transparent 0%, #000 9%, #000 88%, rgba(0, 0, 0, 0.55) 100%);
+    linear-gradient(to left, #000 68%, transparent 94%),
+    linear-gradient(to bottom, transparent 2%, #000 32%, #000 96%, rgba(0, 0, 0, 0.7) 100%);
+  mask-composite: intersect;
+}
+.hv-amb {
+  position: absolute; right: -14%; bottom: -12%;
+  height: 128%; aspect-ratio: 2 / 3; object-fit: cover;
+  transform: scaleX(-1);
+  filter: blur(64px) brightness(0.5) saturate(1.15);
+  opacity: 0; transition: opacity 1.6s ease;
+}
+.hv-amb.on { opacity: 0.7; }
+@media (max-width: 960px) { .hero-amb { display: none; } }
+
+.hero-ath {
+  position: absolute; z-index: 1; pointer-events: none;
+  bottom: -1px; left: 50%; transform: translateX(-31.5%);
+  height: min(136%, 980px); aspect-ratio: 2 / 3;
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 2%, #000 23%, #000 84%, transparent 99%),
+    linear-gradient(to bottom, transparent 0%, #000 9%, #000 90%, rgba(0, 0, 0, 0.55) 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent 2%, #000 23%, #000 84%, transparent 99%),
+    linear-gradient(to bottom, transparent 0%, #000 9%, #000 90%, rgba(0, 0, 0, 0.55) 100%);
   mask-composite: intersect;
 }
 .hero-ath img, .hero-ath .hv-video {
@@ -436,14 +460,14 @@ h1 .dot { color: var(--gold); }
 
 @media (max-width: 1180px) and (min-width: 961px) {
   .hero-ath {
-    transform: translateX(-33%);
-    height: min(98%, 700px);
+    transform: translateX(-34%);
+    height: min(106%, 760px);
     -webkit-mask-image:
-      linear-gradient(to right, transparent 6%, #000 34%, #000 80%, transparent 99%),
-      linear-gradient(to bottom, transparent 0%, #000 9%, #000 88%, rgba(0, 0, 0, 0.55) 100%);
+      linear-gradient(to right, transparent 3%, #000 28%, #000 84%, transparent 99%),
+      linear-gradient(to bottom, transparent 0%, #000 9%, #000 90%, rgba(0, 0, 0, 0.55) 100%);
     mask-image:
-      linear-gradient(to right, transparent 6%, #000 34%, #000 80%, transparent 99%),
-      linear-gradient(to bottom, transparent 0%, #000 9%, #000 88%, rgba(0, 0, 0, 0.55) 100%);
+      linear-gradient(to right, transparent 3%, #000 28%, #000 84%, transparent 99%),
+      linear-gradient(to bottom, transparent 0%, #000 9%, #000 90%, rgba(0, 0, 0, 0.55) 100%);
   }
 }
 
