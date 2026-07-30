@@ -1549,8 +1549,11 @@ export async function setMemoryFactStatus(uid, id, status) {
 export async function startPlanCheckout(planId, cadence = 'annual') {
   const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
   try {
+    // camelCase `planId` — the server's contract since day one (billing-checkout reads
+    // body.planId). The first draft sent snake_case and every real purchase died with
+    // "unknown or non-Stripe plan"; caught by the paywall E2E, kept as a named test.
     const { data, error } = await c.functions.invoke('billing-checkout', {
-      body: { plan_id: planId, cadence },
+      body: { planId, cadence },
     });
     if (error) {
       // supabase-js wraps non-2xx; the 409 duplicate guard rides in the response body.

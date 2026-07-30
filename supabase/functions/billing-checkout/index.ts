@@ -186,8 +186,16 @@ Deno.serve(async (req) => {
       return json({ error: 'already subscribed', action: 'portal' }, 409, cors);
     }
 
+    // Managed Payments opt-out, the sponsor-checkout/pay-offer pattern. The account has Managed
+    // Payments on by default, which demands product tax codes AND an API version newer than the
+    // one every function pins — this was the LAST checkout function without the opt-out, purely
+    // because nothing ever called it before the paywall E2E did. Blindly bumping the API version
+    // instead would break stripe-webhook, which reads `invoice.subscription` (restructured in
+    // 2025-03-31.basil).
+    const managedPaymentsOptOut = { managed_payments: { enabled: false } } as Record<string, unknown>;
     const session = await stripeClient().checkout.sessions.create({
       mode: 'subscription',
+      ...managedPaymentsOptOut,
       client_reference_id: user.id,
       ...(existingCustomer ? { customer: existingCustomer } : user.email ? { customer_email: user.email } : {}),
       line_items: [{ price: price.id, quantity: 1 }],

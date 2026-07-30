@@ -38,6 +38,19 @@ price in the dashboard without a deploy.
 If you only want to start with one plan, create just Solo — the others' buttons will say
 "plan not available yet" honestly until you add them.)
 
+**Managed Payments (found the hard way, in the paywall E2E):** this Stripe account has Managed
+Payments on by default, which rejects checkouts whose products lack a tax code AND rejects the
+API version every function pins. billing-checkout now opts out per request (the same pattern
+sponsor-checkout and pay-offer-checkout already used), so no dashboard action is required — but
+if you ever remove the opt-out, set `tax_code` (SaaS: `txcd_10103001`) on every product first,
+and know that bumping the pinned API version instead would break stripe-webhook (the newer
+version restructures `invoice.subscription`, which the dunning handlers read).
+
+**The TEST account is already set up.** All ten Prices (five plans × two cadences, correct
+lookup_keys, tax codes) exist in test mode — created during the 2026-07-30 paywall E2E, which
+completed a real $249 Starter checkout with card 4242… end to end. Live mode still needs the
+same Prices created once, per the table above.
+
 **The trial needs NO dashboard setup.** billing-checkout sends `trial_period_days` (default 14,
 `STRIPE_TRIAL_DAYS` to change) on the session itself — this is what makes the "14-day free
 trial" promised on every surface true. One per customer: a returning buyer whose Stripe customer
