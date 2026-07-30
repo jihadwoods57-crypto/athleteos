@@ -369,7 +369,7 @@ export const coachHome = {
     ].filter(Boolean);
 
     return `${head}
-    <button class="btn ghost sm" data-scopes style="width:auto;padding:0 13px;height:30px;margin-bottom:10px">${icon('users', 13)} ${esc(scopeLabel(scope))} ▾</button>
+    <button class="btn ghost sm" data-scopes data-tour="roster" style="width:auto;padding:0 13px;height:30px;margin-bottom:10px">${icon('users', 13)} ${esc(scopeLabel(scope))} ▾</button>
     ${SHOW_SCOPES ? scopeSheet() : ''}
     ${pending.length ? `<div class="card" data-go="coach-inbox" style="padding:10px 15px;cursor:pointer;display:flex;align-items:center;gap:10px"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 15)}</div><div style="flex:1;font-size:12.5px;font-weight:700">${pending.length} join request${pending.length > 1 ? 's' : ''} waiting</div><span style="color:var(--text-3)">›</span></div>` : ''}
     ${entries === null ? '' : pulseCard(rows, statuses)}
@@ -385,12 +385,12 @@ export const coachHome = {
       return left ? collapseSection('coach-setup', vocab().setup, left, setupChecklistCard(st), false) : '';
     })()}
 
-    <div class="eyebrow">${esc(vocab().priorities)}</div>
+    <div class="eyebrow" data-tour="priority">${esc(vocab().priorities)}</div>
     ${entries === null ? `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bell', 17)}</div><div><div class="tt">Ranking the day…</div><div class="ts">Standards and exceptions are loading.</div></div></div>`
     : cards.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px;line-height:1.4">Nothing needs you right now. Anything you nudge, assign, or mark handled stays out of this queue until the reason changes.</div>`
     : cards.slice(0, 6).map((c, i) => priorityCard(c, i, (RT.coachNudged || {})[c.athleteId] === new Date().toISOString().slice(0, 10))).join('')}
 
-    <div class="eyebrow" style="display:flex;justify-content:space-between;align-items:baseline"><span>Live activity</span>${unseen ? `<span style="color:var(--blue-bright)">${unseen} new</span>` : ''}</div>
+    <div class="eyebrow" data-tour="activity" style="display:flex;justify-content:space-between;align-items:baseline"><span>Live activity</span>${unseen ? `<span style="color:var(--blue-bright)">${unseen} new</span>` : ''}</div>
     ${feed === null ? skeletonRows(2, 'Loading the activity feed')
     : feed.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px;line-height:1.4">No logs yet ${scope.kind === 'team' ? 'today' : 'in this group today'}. Every meal lands here the moment it's logged.</div>`
     : `<div style="display:flex;gap:9px;overflow-x:auto;padding-bottom:4px;margin:0 -2px">${feed.slice(0, 12).map(m => {
@@ -405,7 +405,7 @@ export const coachHome = {
         </div>`;
       }).join('')}</div>`}
 
-    <div class="eyebrow">Follow-ups</div>
+    <div class="eyebrow" data-tour="followups">Follow-ups</div>
     ${followUps.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px">All caught up.</div>`
     : `<section class="card" style="padding:6px 16px">${followUps.map(f => `
       <div class="lrow" ${f.go ? `data-go="${f.go}" style="cursor:pointer"` : 'style="cursor:default"'}>

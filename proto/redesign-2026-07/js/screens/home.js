@@ -363,7 +363,7 @@ function hero(e) {
   // roster and every score label already use — scoreBand()'s 80/60 thresholds — so the light in
   // the room agrees with the number instead of being a fourth opinion about it. Background only:
   // no text, border or icon colour reads from this.
-  return `<section class="xhero" data-band="${scoreBand(e.score) || 'off'}" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, ${S.tier.name}. ${e.met} of ${e.total} completed. Open score breakdown">
+  return `<section class="xhero" data-tour="score" data-band="${scoreBand(e.score) || 'off'}" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, ${S.tier.name}. ${e.met} of ${e.total} completed. Open score breakdown">
     <div class="xh-main">
       ${scoreRing({ score: e.score, possible: e.possible, size: 128, stroke: 11, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
       ${gain > 0 ? `<span class="xh-float" aria-hidden="true">+${gain}</span>` : ''}
@@ -396,7 +396,7 @@ function inProgressHero(e) {
   const line = e.met === 0 && left > 0
     ? 'Log your first requirement to start your score'
     : `<b>${e.met}</b> of <b>${e.total}</b> done today`;
-  return `<section class="xhero" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, in progress. ${e.met} of ${e.total} completed. Open score breakdown">
+  return `<section class="xhero" data-tour="score" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, in progress. ${e.met} of ${e.total} completed. Open score breakdown">
     <div class="xh-main">
       ${scoreRing({ score: e.score, possible: e.possible, size: 128, stroke: 11, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
       <div class="xh-body">
@@ -633,9 +633,9 @@ export default {
     ${appHead(headSub(e), trustShield())}
     ${(!S.dayDecided && S.tier.cls === 'r') ? inProgressHero(e) : hero(e)}
     ${outcomeBand()}
-    <div id="seen-row"></div>
+    <div id="seen-row" data-tour="coach-seen"></div>
     <div id="vc-slot"></div>
-    <div id="cs-slot"></div>
+    <div id="cs-slot" data-tour="standards"></div>
     ${attention}
     <div id="cv-nudge">${cachedNudge(e)}</div>
     ${e.overdue.filter((o) => o.id !== (e.now && e.now.id) && o.id !== (e.next && e.next.id)).map(row).join('')}

@@ -2708,10 +2708,10 @@ export const parent = {
     return `
     ${titleHead('Your athletes', 'Daily scores')}
 
-    <div id="par-list"><div class="sd-s" style="text-align:center;padding:28px 10px">Loading…</div></div>
+    <div id="par-list" data-tour="children"><div class="sd-s" style="text-align:center;padding:28px 10px">Loading…</div></div>
 
     <div style="height:12px"></div>
-    <div class="sidebox">
+    <div class="sidebox" data-tour="visibility">
       <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
       <div><div class="tt">What you can see</div>
       <div class="ts">Their daily score and grade, and the date of their latest logged day &mdash; that's the whole view. Meal photos, weight, and check-in answers stay between your athlete and their coach.</div></div>
@@ -2720,7 +2720,7 @@ export const parent = {
     <div style="height:12px"></div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="parent-link"><div class="lic">${icon('plus', 17)}</div><div class="lm"><div class="lt">Link an athlete</div><div class="ls">Enter the invite code they gave you</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="fund-plan">
+      <div class="lrow" data-go="fund-plan" data-tour="funding">
         <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div>
         <div class="lm"><div class="lt">Fund a plan</div><div class="ls">Pay for your child’s coaching package</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
