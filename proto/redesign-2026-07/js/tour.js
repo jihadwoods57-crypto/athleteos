@@ -24,8 +24,9 @@ import { RT, S, act, routeForRole } from './state.js';
 import { planTour, filterSteps, placeCard, TOUR_IDS } from './tour-plan.js';
 import { buzz } from './motion.js';
 
-/** Let the entrance stagger and the score ring finish before we dim everything. The number the
-    tour points at should already be at rest — pointing at a mid-animation ring reads as broken. */
+/** Let the entrance stagger, the score ring, AND Home's early re-render churn finish before we dim
+    everything. The number the tour points at should already be at rest, and the element it rings
+    should not be about to be replaced. */
 const SETTLE_MS = 600;
 /** Matches the CSS transition on .tour, the way image-viewer.js matches its own. */
 const FADE_MS = 180;
@@ -36,10 +37,8 @@ let active = null;      // { el, steps, i, ... } while an overlay is up
 let pending = false;    // a settle timer is armed; a second mount must not arm another
 let replayArmed = false; // Settings asked for a replay: bypass the seen flag exactly once
 
-const reduced = () => {
-  try { return matchMedia('(prefers-reduced-motion: reduce)').matches; }
-  catch { return false; }
-};
+/* Reduced motion is handled entirely in CSS (flows.css kills the transitions) — the tour itself
+   runs identically either way, including the settle above. */
 
 const routeNow = () => ((location.hash || '#home').slice(1).split('/')[0] || 'home');
 
@@ -72,7 +71,15 @@ function paintStep() {
   pL.style.cssText = `top:${px(hole.top)};left:0;width:${px(hole.left)};height:${px(hole.height)}`;
   pR.style.cssText = `top:${px(hole.top)};left:${px(hole.left + hole.width)};right:0;height:${px(hole.height)}`;
 
-  active.ring.style.cssText = `top:${px(hole.top)};left:${px(hole.left)};width:${px(hole.width)};height:${px(hole.height)}`;
+  // Match the ring to the shape it surrounds: a squircle drawn around the circular log FAB is the
+  // one thing here that reads as a generic tour library rather than this app.
+  let radius = 'var(--r-card)';
+  try {
+    const cr = getComputedStyle(el).borderTopLeftRadius || '';
+    const n = parseFloat(cr) || 0;
+    if (cr.includes('%') || n >= Math.min(r.width, r.height) / 2 - 0.5) radius = '999px';
+  } catch { /* keep the card radius */ }
+  active.ring.style.cssText = `top:${px(hole.top)};left:${px(hole.left)};width:${px(hole.width)};height:${px(hole.height)};border-radius:${radius}`;
 
   const last = active.i === active.steps.length - 1;
   active.title.textContent = step.title;
@@ -133,7 +140,7 @@ function open(id, steps) {
       <div class="tour-b"></div>
       <div class="tour-actions">
         <button class="tour-skip" type="button">Skip</button>
-        <button class="tour-next btn sm" type="button">Next</button>
+        <button class="tour-next btn primary sm" type="button">Next</button>
       </div>
     </div>`;
 
@@ -161,8 +168,11 @@ function open(id, steps) {
       if (e.key === 'ArrowRight') advance();
     },
     onResize: () => paintStep(),
-    // Any navigation ends the tour: every anchor it knows about lives on the screen it opened on.
-    onHash: () => close(),
+    // Leaving the screen ends the tour — every anchor it knows about lives here. But only a real
+    // route CHANGE counts: boot writes location.hash back to the route it is already on, and
+    // treating that as navigation closed the tour ~12ms after it opened.
+    route: routeNow(),
+    onHash: () => { if (active && routeNow() !== active.route) close(); },
   };
 
   active.next.addEventListener('click', advance);
@@ -226,8 +236,10 @@ export function maybeStartTour() {
     replayArmed = false;
     open(fresh.id, steps);
   };
-  if (reduced()) requestAnimationFrame(go);
-  else setTimeout(go, SETTLE_MS);
+  // The wait is NOT only about animation, which is why reduced-motion gets it too: Home renders
+  // several times during early load (standards, commitments, receipts all repaint on arrival),
+  // and a tour that opens into that churn is pointing at elements about to be replaced.
+  setTimeout(go, SETTLE_MS);
 }
 
 /** Settings' "Replay app tour": arm the bypass, then navigate. The landing screen's mount picks
@@ -263,7 +275,7 @@ export function maybeShowTip(id, tip) {
     }, { min: 1 });
     if (!steps.length) return;
     open(id, steps);
-  }, reduced() ? 0 : SETTLE_MS);
+  }, SETTLE_MS);
 }
 
 /** Test/QC seam: forget that anything has been shown in THIS page session. Never called by app code. */
