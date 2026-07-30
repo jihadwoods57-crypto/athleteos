@@ -79,20 +79,48 @@ notifications, the invite deep-links, and the camera** (all of which can't be te
 
 Apple asks what data you collect. Based on your actual app, answer:
 
-| Data type | Collected? | Linked to identity? | Used for tracking? |
-|---|---|---|---|
-| Contact Info — **Email** | Yes | Yes | No |
-| Health & Fitness (nutrition, weight, check-ins) | Yes | Yes | No |
-| User Content — **Photos** (meal photos) | Yes | Yes | No |
-| User Content — Other (messages, notes) | Yes | Yes | No |
-| Identifiers — User ID | Yes | Yes | No |
-| Usage Data / Analytics | **No** | — | — |
-| Location | **No** | — | — |
+Re-derived 2026-07-29 against the live schema, and it must stay in step with
+`app.json` → `ios.privacyManifests.NSPrivacyCollectedDataTypes`, which Apple cross-checks against
+these answers. Three rows below changed in that pass; they are marked.
 
-**Tracking:** answer **"No, this app does not track."** You have no third-party analytics, ads, or
-attribution SDKs, so there's **no App Tracking Transparency prompt** — which is correct and true.
+| Data type | Collected? | Linked to identity? | Purpose | Tracking? |
+|---|---|---|---|---|
+| Contact Info — **Name** *(added)* | Yes | Yes | App Functionality | No |
+| Contact Info — **Email** | Yes | Yes | App Functionality | No |
+| Health & Fitness (nutrition, weight, check-ins) | Yes | Yes | App Functionality | No |
+| User Content — **Photos** (meal + progress photos) | Yes | Yes | App Functionality | No |
+| User Content — Other (messages, notes) | Yes | Yes | App Functionality | No |
+| Identifiers — User ID | Yes | Yes | App Functionality | No |
+| Identifiers — **Device ID** *(added)* | Yes | Yes | App Functionality | No |
+| Usage Data — Product Interaction *(**was No**)* | **Yes** | **No** | Analytics | No |
+| Location | **No** — see below | — | — | — |
+| Purchases | Not yet | — | — | — |
 
-Each "Yes" above is **"App Functionality"** as the purpose (not advertising, not analytics).
+**Why Name and Device ID were missing.** `profiles.full_name` is collected at signup, and
+`device_tokens` stores an Expo push token per install. Both are linked to the account.
+
+**Why Usage Data flipped to Yes.** `analytics-ingest` is live and receiving `app_open`,
+`meal_logged`, `onboarding_step` and the rest. It is genuinely anonymous — `analytics_events` carries
+a per-install `session_id` and **no user id** — so it is collected but **not linked to identity**, and
+its purpose is Analytics rather than App Functionality. Declaring "No" while a live endpoint writes
+events would have been inaccurate.
+
+**Why Location is correctly No, and must not be "fixed" later.** Verified Commitments does use
+precise location, and `app.json` requests background location — so at a glance this row looks wrong.
+It isn't. The geofence is evaluated **on device**, and the only things transmitted are `arrived_at`,
+`arrival_source` and a status: `commitment_responses` has no latitude or longitude column. The
+coordinates in `commitment_locations` are the venue the *coach* defined, not anywhere the athlete has
+been. Apple's question is about what leaves the device, so the honest answer is No. Over-declaring
+here would make the privacy label worse than the product actually is.
+
+**Purchases** becomes Yes the day Stripe or IAP starts charging. Nothing has been charged yet
+(`subscriptions` is empty), so it is not collected today.
+
+**Tracking:** answer **"No, this app does not track."** There are no third-party analytics, ad or
+attribution SDKs, so there is **no App Tracking Transparency prompt** — correct and true.
+
+> This is a legal attestation. Read the table before you submit rather than pasting it; you are the
+> one signing it.
 
 ## 5. Age rating
 Because minors can use it and it involves messaging, expect a rating around **12+**. Answer the
