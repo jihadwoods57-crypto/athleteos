@@ -50,6 +50,18 @@ function claimBlock(fnBase: string): string {
     var sid = p.get('session') || '';
     var el = document.getElementById('claim-code');
     var note = document.getElementById('claim-note');
+    // Fire-and-forget funnel events. A buyer who reaches this page and never sees a code is being
+    // billed for an app they cannot open, so tf_claim_pending is the alarm worth watching. The
+    // Stripe session id is NEVER sent — it is the capability that reveals the code.
+    var ASID = 'r' + Math.random().toString(36).slice(2, 12);
+    function track(n, pr){
+      try {
+        fetch(${JSON.stringify(fnBase)} + '/analytics-ingest', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+          body: JSON.stringify({ events: [{ n: n, s: ASID, t: Date.now(), p: pr || {} }] }),
+        }).catch(function(){});
+      } catch (e) {}
+    }
     if (!/^cs_[A-Za-z0-9_]+$/.test(sid)) {
       el.textContent = '—';
       note.textContent = 'Check your email for your code.';
@@ -65,6 +77,7 @@ function claimBlock(fnBase: string): string {
         if (d && d.code) {
           el.textContent = d.code;
           note.textContent = 'Single use. Keep this code — you will need it when you create your account.';
+          track('tf_claim_shown', { tries: String(tries) });
           return;
         }
         if (d && d.claimed) {
@@ -75,10 +88,12 @@ function claimBlock(fnBase: string): string {
         if (tries < 10) return setTimeout(poll, 1500);
         el.textContent = '—';
         note.textContent = 'Still processing — refresh in a moment, or check your email.';
+        track('tf_claim_pending', { tries: String(tries) });
       }).catch(function(){
         if (tries < 10) return setTimeout(poll, 1500);
         el.textContent = '—';
         note.textContent = 'Still processing — refresh in a moment, or check your email.';
+        track('tf_claim_pending', { tries: 'err' });
       });
     }
     poll();

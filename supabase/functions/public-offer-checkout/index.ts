@@ -21,6 +21,7 @@
 import Stripe from 'npm:stripe@^17';
 import { createClient } from 'npm:@supabase/supabase-js@^2';
 import { clientIpFrom } from '../_shared/client-ip.ts';
+import { flagOn } from '../_shared/feature-flags.ts';
 
 const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY') ?? '';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
@@ -102,13 +103,16 @@ Deno.serve(async (req) => {
   if (rateLimited(req)) return json({ error: 'rate limited, slow down' }, 429, cors);
   if (!SUPABASE_URL || !SERVICE_ROLE) return json({ error: 'server not configured' }, 500, cors);
 
-  let body: { slug?: unknown; offerIndex?: unknown; action?: unknown; sessionId?: unknown };
+  let body: { slug?: unknown; offerIndex?: unknown; action?: unknown; sessionId?: unknown; expectPriceCents?: unknown; expectName?: unknown };
   try {
     body = await req.json();
   } catch {
     return json({ error: 'bad request' }, 400, cors);
   }
 
+  // The claim lookup is DELIBERATELY not behind the kill switch. Someone who has already been
+  // charged must always be able to retrieve their code — flipping the switch has to stop new sales,
+  // never strand a completed one.
   if (body.action === 'claim') {
     const sessionId = typeof body.sessionId === 'string' ? body.sessionId : '';
     if (!SESSION_RE.test(sessionId)) return json({ error: 'bad request' }, 400, cors);
@@ -116,6 +120,15 @@ Deno.serve(async (req) => {
   }
 
   if (!STRIPE_SECRET_KEY) return json({ error: 'billing not configured' }, 503, cors);
+
+  // Kill switch. There is no signed-in user here, so the flag is evaluated with an empty context —
+  // meaning only default_on and kill_switch apply, which is exactly the global on/off we want.
+  // flagOn fails CLOSED, so a flags-table outage stops sales rather than taking money we might not
+  // be able to honour.
+  const svcFlag = createClient(SUPABASE_URL, SERVICE_ROLE);
+  if (!(await flagOn(svcFlag, 'trainer_funded_v1', {}))) {
+    return json({ error: 'online checkout is temporarily unavailable — please apply instead' }, 503, cors);
+  }
 
   const slug = typeof body.slug === 'string' ? body.slug : '';
   if (!SLUG_RE.test(slug)) return json({ error: 'bad request' }, 400, cors);
@@ -142,6 +155,19 @@ Deno.serve(async (req) => {
   if (!offer) return json({ error: 'not available' }, 404, cors);
   if (offer.price_cents == null) {
     return json({ error: 'this offer has no set price — use Apply instead' }, 400, cors);
+  }
+
+  // Position is a POSITION, not an identity: if the trainer reorders, renames, deactivates or
+  // reprices a package between page load and click, index N is no longer the card the buyer read.
+  // Stripe's confirm screen would show the real price so nobody is charged an unseen amount, but
+  // they'd still be buying the wrong thing. The page echoes back what it displayed and we refuse
+  // the sale on any disagreement — the buyer reloads and sees the truth.
+  const expectPrice = Number(body.expectPriceCents);
+  const expectName = typeof body.expectName === 'string' ? body.expectName : null;
+  const drifted = (Number.isFinite(expectPrice) && expectPrice !== offer.price_cents)
+    || (expectName !== null && expectName !== offer.name);
+  if (drifted) {
+    return json({ error: 'this trainer just changed their packages — please refresh and try again' }, 409, cors);
   }
 
   // RECURRING ONLY on the public path. A funded grant lasts as long as a live subscription, so a

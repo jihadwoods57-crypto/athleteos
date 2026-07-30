@@ -10,7 +10,7 @@ import * as roles from '../roles.js';
 const SHARE_BASE = 'https://onstandard.app/t?t=';
 
 // Local cache + light UI state (which offer is being edited). Repaint after any load/change.
-let G = { practiceId: null, page: null, offers: null, apps: null, connect: null, payments: null, funded: null, loaded: false };
+let G = { practiceId: null, page: null, offers: null, apps: null, connect: null, payments: null, funded: null, claims: null, loaded: false };
 let UI = { editing: null, connecting: false };  // editing: null | 'new' | <offer id>
 
 function practiceId() { return (RT.practice && RT.practice.id) || G.practiceId || null; }
@@ -20,9 +20,10 @@ async function loadGrow(force) {
   let pid = practiceId();
   if (!pid) { const id = await roles.fetchMyPracticeIdentity(); if (id && id.id) { G.practiceId = pid = id.id; } }
   if (!pid) { G.loaded = true; if (window.__render) window.__render(); return; }
-  const [page, offers, apps, connect, payments, funded] = await Promise.all([
+  const [page, offers, apps, connect, payments, funded, claims] = await Promise.all([
     roles.fetchMyTrainerPage(pid), roles.fetchMyOffers(pid), roles.fetchMyApplications(pid),
     roles.fetchConnectStatus(pid), roles.fetchPracticePayments(pid), roles.fetchFundedClients(pid),
+    roles.fetchPendingClaims(pid),
   ]);
   G.page = page && !page.error ? page : (page && page.error ? G.page : null);
   G.offers = Array.isArray(offers) ? offers : [];
@@ -30,6 +31,7 @@ async function loadGrow(force) {
   G.connect = connect || { status: 'none' };
   G.payments = Array.isArray(payments) ? payments : [];
   G.funded = Array.isArray(funded) ? funded : [];
+  G.claims = Array.isArray(claims) ? claims : [];
   G.loaded = true;
   if (window.__render) window.__render();
 }
@@ -186,6 +188,21 @@ export const trainerGrow = {
         <div><div class="tt">Connect an accepted client</div><div class="ts">Send them your practice code <b>${esc(RT.practice.code)}</b> — they enter it after signing up to join your practice and unlock coaching.</div></div></div>` : ''}
     </section>
 
+    ${(G.claims || []).length ? `
+    <div class="eyebrow">Paid — waiting to join <span class="status-pill" style="background:rgba(245,158,11,0.16);color:var(--amber-bright);margin-left:6px">${(G.claims).length}</span></div>
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" style="cursor:default;padding:6px 0 10px">
+        <div class="lm"><div class="lt">They have paid you but haven't set up their app</div>
+          <div class="ls">Until they enter the code they're being billed for something they can't open. Read them the code, or refund them from Payments below.</div></div>
+      </div>
+      ${(G.claims).map(c => `
+      <div class="lrow" style="cursor:default">
+        <div class="lm"><div class="lt">${esc(c.payer_email || 'Buyer')}</div>
+          <div class="ls">${c.offer_name ? esc(c.offer_name) + ' · ' : ''}waiting ${esc(String(c.days_waiting))}d</div></div>
+        <button class="btn ghost sm" data-tg="copycode" data-code="${esc(c.code)}" style="width:auto;padding:0 12px;height:32px;font-family:var(--mono,monospace)">${esc(c.code)}</button>
+      </div>`).join('')}
+    </section>` : ''}
+
     ${G.connect && G.connect.status === 'active' ? `
     <div class="eyebrow">Covered clients</div>
     <section class="card" style="padding:6px 16px">
@@ -271,6 +288,13 @@ export const trainerGrow = {
     // offer add/edit/delete
     root.querySelectorAll('[data-tg]').forEach(b => b.addEventListener('click', async () => {
       const act = b.getAttribute('data-tg'), id = b.getAttribute('data-id');
+      if (act === 'copycode') {
+        const code = b.getAttribute('data-code') || '';
+        if (code) navigator.clipboard.writeText(code)
+          .then(() => { b.textContent = 'Copied'; setTimeout(() => { b.textContent = code; }, 1400); })
+          .catch(() => {});
+        return;
+      }
       if (act === 'add') { UI.editing = 'new'; if (window.__render) window.__render(); return; }
       if (act === 'edit') { UI.editing = id; if (window.__render) window.__render(); return; }
       if (act === 'cancel') { UI.editing = null; if (window.__render) window.__render(); return; }

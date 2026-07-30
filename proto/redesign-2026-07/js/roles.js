@@ -1326,6 +1326,13 @@ export async function fetchFundedClients(practiceId) {
   try { const { data } = await c.rpc('my_funded_clients', { p_practice: practiceId }); return data || []; }
   catch { return []; }
 }
+/** Operator: people who PAID from the public page and never redeemed their code (0167). They are
+ *  being billed for an app they can't open, and the trainer is the one who can actually fix it. */
+export async function fetchPendingClaims(practiceId) {
+  const c = sb(); if (!c || !practiceId) return [];
+  try { const { data } = await c.rpc('my_pending_claims', { p_practice: practiceId }); return data || []; }
+  catch { return []; }
+}
 
 /* ---------------- consumer subscription (App Store / Play IAP via RevenueCat) ----------------
    The native store rail. `iapAvailable()` is false in a browser/preview session and until the

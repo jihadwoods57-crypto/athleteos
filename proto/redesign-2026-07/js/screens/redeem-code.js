@@ -12,6 +12,7 @@
 import { backHead, esc } from '../components.js';
 import { icon } from '../icons.js';
 import * as roles from '../roles.js';
+import { track, EVENTS } from '../analytics.js';
 
 let UI = { code: '', busy: false, result: null, kind: null }; // kind: 'trainer' | 'sponsor' | null
 // Leaving the screen clears the last result so a return visit starts fresh — otherwise a stale
@@ -101,6 +102,10 @@ export default {
       UI.busy = false;
       UI.kind = kind;
       UI.result = r;
+      // A failed redemption is the signal that matters: someone standing at the door with a code
+      // that won't open it has already paid. The reason is a fixed enum, never the code itself.
+      if (r && r.ok) track(EVENTS.TF_CODE_REDEEMED, { kind });
+      else track(EVENTS.TF_CODE_FAILED, { reason: (r && r.reason) || 'error' });
       if (window.__render) window.__render();
     });
   },

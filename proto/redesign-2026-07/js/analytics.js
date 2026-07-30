@@ -95,6 +95,16 @@ export const EVENTS = Object.freeze({
   // decline, which is the only way "why is nobody being asked?" is ever answerable.
   REVIEW_PROMPT_DECIDED: 'review_prompt_decided', // {ask, reason, streak}
   REVIEW_PROMPT_SHOWN: 'review_prompt_shown',     // {streak, score} — the OS agreed to show it
+
+  // Trainer-funded access + pay-first checkout (0166/0167). The funnel starts on the PUBLIC page
+  // (tf_page_viewed / tf_checkout_started fire from web/landing/t.html, outside the app entirely),
+  // so these four in-app names only cover the second half: the buyer arriving with a code.
+  // TF_CLAIM_PENDING is the important one — it counts people who paid and have NOT redeemed, which
+  // is the difference between a working funnel and quietly billing someone for a locked app.
+  TF_CLAIM_SHOWN: 'tf_claim_shown',           // the return page rendered a code
+  TF_CLAIM_PENDING: 'tf_claim_pending',       // paid, but no code retrieved yet {tries}
+  TF_CODE_REDEEMED: 'tf_code_redeemed',       // {kind} — 'trainer' | 'sponsor'
+  TF_CODE_FAILED: 'tf_code_failed',           // {reason} — invalid_code | already_used | expired
 });
 const EVENT_SET = new Set(Object.values(EVENTS));
 

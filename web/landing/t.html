@@ -233,15 +233,43 @@
     // POSITION, not an offer id — the server re-resolves it from the same published, ordered list
     // this page rendered, so no internal ids ever reach the browser.
     const FN = 'https://ftwrvylzoyznhbzhgism.supabase.co/functions/v1';
-    async function startCheckout(i, btn){
+
+    /* Anonymous funnel events. This page is the ONLY place the top of the pay-first funnel is
+       observable — it lives outside the app, so nothing in analytics.js can see it, and without
+       these two names "does the buy button work?" is unanswerable. Same wire shape as the app
+       ({events:[{n,s,t,p}]}), a random per-visit session id, and no personal data of any kind:
+       the slug is deliberately NOT sent, since it identifies an individual trainer. Fire-and-
+       forget — analytics must never be able to break a checkout. */
+    const SID = (() => {
+      try {
+        let s = sessionStorage.getItem('os_sid');
+        if (!s) { s = 'w' + Math.random().toString(36).slice(2, 12); sessionStorage.setItem('os_sid', s); }
+        return s;
+      } catch { return 'w' + Math.random().toString(36).slice(2, 12); }
+    })();
+    function track(n, p){
+      try {
+        fetch(FN + '/analytics-ingest', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+          body: JSON.stringify({ events: [{ n, s: SID, t: Date.now(), p: p || {} }] }),
+        }).catch(() => {});
+      } catch { /* never let telemetry break the page */ }
+    }
+    async function startCheckout(i, btn, offer){
       const err = $('buyerr-' + i);
       err.className = 'msg'; err.textContent = '';
       const label = btn.textContent;
       btn.disabled = true; btn.textContent = 'Opening secure checkout…';
+      track('tf_checkout_started', { cadence: offer.cadence });
       try {
         const r = await fetch(FN + '/public-offer-checkout', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slug, offerIndex: i }),
+          // Echo what this card actually displayed. The server refuses the sale if the trainer has
+          // reordered or repriced since load, so a stale page can never sell the wrong package.
+          body: JSON.stringify({
+            slug, offerIndex: i,
+            expectPriceCents: offer.price_cents, expectName: offer.name,
+          }),
         });
         const d = await r.json();
         if (d && d.url) { location.href = d.url; return; }   // leaving the page; keep the button busy
@@ -249,9 +277,13 @@
         // The common real case is a coach who hasn't finished Stripe onboarding. Say so plainly and
         // point at the path that still works rather than showing a dead end.
         err.textContent = (d && d.error) || 'Checkout is unavailable right now — please apply below.';
+        // A blocked checkout is silent revenue loss; {status} separates "not set up for payments"
+        // (400) from the kill switch (503) and a stale page (409).
+        track('tf_checkout_blocked', { status: String(r.status).slice(0, 3) });
       } catch {
         err.className = 'msg err';
         err.textContent = 'Network error — please try again, or apply below.';
+        track('tf_checkout_blocked', { status: 'net' });
       }
       btn.disabled = false; btn.textContent = label;
     }
@@ -297,7 +329,7 @@
           card.appendChild(el('div','incl','OnStandard membership included — no separate app subscription.'));
           const b = el('button','btn cta','Start — ' + p.big + (p.per ? ' ' + p.per : ''));
           b.style.marginTop = 'auto';
-          b.onclick = () => startCheckout(i, b);
+          b.onclick = () => startCheckout(i, b, o);
           card.appendChild(b);
           const alt = el('button','alt','or apply first and talk it through');
           alt.type = 'button'; alt.onclick = applyTo;
@@ -323,6 +355,9 @@
       }
 
       show($('loading'),false); show($('page'),true);
+      // {buyable} counts how many packages can be bought — a page that renders with 0 is a trainer
+      // who hasn't finished Stripe onboarding, which is a different problem than nobody clicking.
+      track('tf_page_viewed', { buyable: offers.filter(o => o.price_cents != null && (o.cadence === 'month' || o.cadence === 'week')).length });
     }
 
     $('form').addEventListener('submit', async (e) => {

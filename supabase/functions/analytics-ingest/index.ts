@@ -61,6 +61,13 @@ const ALLOWED = new Set([
   // a review was actually left.
   "feedback_opened", "feedback_sent",
   "review_prompt_decided", "review_prompt_shown",
+  // Trainer-funded access + pay-first checkout (0166/0167, 2026-07-30). This funnel spans two
+  // ORIGINS — tf_page_viewed and tf_checkout_started fire from the public marketing page (no
+  // session, no app), the rest from inside the app — so it is the only way to see where a
+  // prospect drops. tf_claim_pending is the one that matters most: it counts buyers who paid and
+  // have not redeemed, i.e. people being billed for something they cannot open.
+  "tf_page_viewed", "tf_checkout_started", "tf_checkout_blocked",
+  "tf_claim_shown", "tf_claim_pending", "tf_code_redeemed", "tf_code_failed",
 ]);
 const ENUM_RE = /^[a-z0-9_.:-]{1,24}$/;
 const SID_RE = /^[a-z0-9_.:-]{1,64}$/i;
