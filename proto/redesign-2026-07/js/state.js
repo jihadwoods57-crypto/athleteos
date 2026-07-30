@@ -233,6 +233,7 @@ const DEFAULT_RT = {
   reviewAskedAt: null,   // epoch ms of the last store-rating prompt actually shown on this device (review-ask.js)
   hadRoster: false,      // this account has, at some point, been on a coach/trainer roster — set true, never back
   keepRecordSeen: false, // the "your record stays yours" card after leaving a roster was dismissed
+  obPlanCtaDone: false,  // the "you picked <plan> in onboarding" trial card was tapped/dismissed/superseded
   profile: null,         // athlete identity: {name, sport, position, school, level, avatar(dataURL)} — from onboarding / signed-in profile, never fabricated
   ob: null,              // onboarding scratch — the athlete's real selections, captured as they build their Standard
   allergies: [],         // FLAT summary list (guardian check + profile row). Derived from restrictions when structured.
@@ -2191,6 +2192,8 @@ export const act = {
   },
   /* The keep-your-record card was dismissed (or acted on) — never show it again. */
   markKeepRecordSeen() { RT.keepRecordSeen = true; save(); },
+  /* The "you picked <plan> in onboarding" card was acted on / superseded — never show it again. */
+  markObPlanCtaDone() { RT.obPlanCtaDone = true; save(); },
   /* Preferred coach name (0056): server value → RT.profile.coachName; a handle chosen in
      onboarding scratch (RT.ob.coach.coachName) is pushed on first authenticated hydrate,
      then the server copy is canonical. Best-effort: offline keeps last-known. */

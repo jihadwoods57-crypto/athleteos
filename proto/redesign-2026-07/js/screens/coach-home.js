@@ -4,6 +4,7 @@ import { avatarHead, esc, collapseSection, skeletonRows } from '../components.js
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope } from '../coach-data.js';
 import { buildPriorities } from '../priority.js';
+import { PLANS } from '../ob2.js';
 import { teamPulse } from '../status.js';
 import { scoreColor } from '../score-band.js';
 import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
@@ -117,6 +118,40 @@ function setupRow(i, required) {
       ${i.go ? icon('chevron', 17, 'style="color:var(--text-3)"') : (i.done ? '' : `<span style="font-size:10px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-3)">Soon</span>`)}
     </div>`;
 }
+/* The onboarding plan pick, honored. The onboarding plan step captured a choice into RT.ob.plan
+   and nothing ever read it — a coach "picked Starter", felt subscribed, landed here on the free
+   preview, and would meet their plan again only by rediscovering it in Settings and choosing it a
+   SECOND time. This card closes that loop: it names the plan they already picked and takes them to
+   the real checkout, preselected. It disappears forever once they start checkout, dismiss it, or
+   actually subscribe (module-cached subscription probe — never blocks render). */
+const PLAN_CTA = { sub: undefined };   // undefined = not probed yet; null = probed, none
+function obPlanCard() {
+  const picked = RT.ob && RT.ob.plan;
+  if (!picked || RT.obPlanCtaDone) return '';
+  // Resolve from the operator plan lists (ob2.js) — the proto's planById knows only consumer
+  // plans, and a consumer pick has its own rail (the IAP paywall), so it is correctly not here.
+  const plan = [...PLANS.pro, ...PLANS.org, ...PLANS.seat].find((p) => p.id === picked && !p.custom);
+  if (!plan) return '';
+  if (PLAN_CTA.sub === undefined) {
+    PLAN_CTA.sub = null;
+    void (async () => {
+      try {
+        const s = await roles.fetchMySubscription();
+        if (s && s.tier === 'team' && (s.status === 'active' || s.status === 'past_due')) {
+          act.markObPlanCtaDone();   // already subscribed — the loop closed itself
+          if (window.__render) window.__render();
+        }
+      } catch { /* keep showing; plan-upgrade routes an existing subscriber to the portal */ }
+    })();
+  }
+  return `<div class="lrow" id="ob-plan-cta" style="margin:0 0 10px;background:linear-gradient(100deg, rgba(var(--green-rgb),0.10), rgba(var(--blue-rgb),0.05));border:1px solid var(--green-border);border-radius:14px;padding:12px 13px;cursor:pointer">
+    <div class="xico sm green">${icon('flame', 16)}</div>
+    <div class="xr"><div class="xa">Your ${esc(plan.name)} plan is waiting</div>
+    <div class="xb" style="white-space:normal;line-height:1.45">Free for 14 days — nothing charges today.</div></div>
+    <span class="xpill green">Start trial</span>
+  </div>`;
+}
+
 /* Required + optional groups with a progress line. Required-incomplete card carries a restrained
    amber tint. Shared by the empty and populated dashboards, so guidance survives the first join. */
 function setupChecklistCard(st) {
@@ -181,6 +216,7 @@ export function emptyTeamDashboard(code, teamName) {
   return `
     ${banner}
     ${code ? coachInviteCard(code, teamName) : codeStateBox()}
+    ${obPlanCard()}
     <div class="eyebrow">${esc(vocab().setup)}</div>
     ${setupChecklistCard(st)}
     <div class="eyebrow">Team status</div>
@@ -337,6 +373,7 @@ export const coachHome = {
     ${SHOW_SCOPES ? scopeSheet() : ''}
     ${pending.length ? `<div class="card" data-go="coach-inbox" style="padding:10px 15px;cursor:pointer;display:flex;align-items:center;gap:10px"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 15)}</div><div style="flex:1;font-size:12.5px;font-weight:700">${pending.length} join request${pending.length > 1 ? 's' : ''} waiting</div><span style="color:var(--text-3)">›</span></div>` : ''}
     ${entries === null ? '' : pulseCard(rows, statuses)}
+    ${obPlanCard()}
     <div id="vc-board-slot"></div>
     <div id="cs-board-slot"></div>
 
@@ -380,6 +417,14 @@ export const coachHome = {
   },
   mount(root) {
     loadMyBook().then(() => loadActivity());
+    // The onboarding plan pick → the real checkout, preselected. Marked done on TAP (not on
+    // completed payment): a coach who opened checkout and bailed knows where plans live now, and
+    // a card that keeps reappearing after a deliberate bail is a nag, not a bridge.
+    const planCta = root.querySelector('#ob-plan-cta');
+    if (planCta) planCta.addEventListener('click', () => {
+      act.markObPlanCtaDone();
+      if (window.__go) window.__go('plan-upgrade'); else location.hash = '#plan-upgrade';
+    });
     // Verified Commitments (0138): the live "9 of 11 in" card, injected async into its own slot so
     // a board fetch never delays the priority queue. An operator who has scheduled nothing gets an
     // empty slot and this screen is byte-identical to before.

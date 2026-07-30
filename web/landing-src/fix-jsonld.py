@@ -9,7 +9,8 @@ FIX = {
  ('"text": "The professional pays; athletes are always free with a paying coach, trainer, or program. The first 50 coaches and facilities lock 50% off for 12 months."',
   # 2026-07-30: the 50%-off clause was replaced with the price-lock wording — re-running this
   # script must never reintroduce the retired offer into live JSON-LD.
-  '"text": "You pay; athletes never do. Programs run $249/mo up to 30 active participants, $499 up to 75, $799 up to 150. An independent coach on their own book is $99/mo up to 25 clients or $179/mo up to 50. Every plan has a 14-day trial and cancels in account settings. The first 50 coaches and facilities are free through the beta, then lock today\'s price permanently."'),
+  # Plan names added 2026-07-30 so the site and the app speak the same vocabulary.
+  '"text": "You pay; athletes never do. Programs run Starter $249/mo up to 30 active athletes, Growth $499 up to 75, Performance $799 up to 150. An independent coach on their own book is Solo $99/mo up to 25 clients or Professional $179/mo up to 50. Every plan has a 14-day trial and cancels in account settings. The first 50 coaches and facilities are free through the beta, then lock today\'s price permanently."'),
 ],
 "parents.html": [
  ('"text": "No. Parents see score, streaks, and completion only — never meal photos, weight, or check-in answers. Those stay between the athlete and their coach."',

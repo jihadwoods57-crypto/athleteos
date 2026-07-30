@@ -159,6 +159,17 @@ export const feedbackSafety = `${COMMON}${ATHLETE_IDENTITY}
   window.__render();
 `;
 
+/** A coach fresh out of onboarding who picked Starter there: the home card that closes the
+ *  onboarding→checkout loop ("You picked Starter — it's waiting"). */
+export const coachPickedPlan = `${COMMON}
+  RT.authRole = 'coach';
+  RT.userId = 'seed-coach';
+  RT.profile = { name: 'James Brooks' };
+  RT.ob = { ...(RT.ob || {}), plan: 'org_starter' };
+  RT.obPlanCtaDone = false;
+  window.__render();
+`;
+
 /** A coach on no plan, at the plan-upgrade screen — the first surface where the business's actual
  *  product (the pro/org tiers) can be bought. founding_slots_left is stubbed by the harness's
  *  supabase stub, so the Founding line renders deterministically. */
@@ -263,7 +274,7 @@ export const parentIdentity = `${COMMON}
 `;
 
 export const SEEDS = {
-  dayMorning, dayMidday, dayComplete, dayLate, dayFirst, dayLockStamp, stagedCapture, coachUpgrade, rosterEnded,
+  dayMorning, dayMidday, dayComplete, dayLate, dayFirst, dayLockStamp, stagedCapture, coachUpgrade, coachPickedPlan, rosterEnded,
   feedbackBug, feedbackSafety,
   styleStructured, styleGuided, styleIntuitive,
   coachIdentity, trainerIdentity, parentIdentity,

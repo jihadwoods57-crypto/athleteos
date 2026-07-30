@@ -14,7 +14,7 @@
  * the trial (server sends trial_period_days), the duplicate-subscription guard (server 409s and
  * this screen routes to the portal). The client states intent and renders answers.
  */
-import { RT, roleNav } from '../state.js';
+import { RT, act, roleNav } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
 import { PLANS, planCard } from '../ob2.js';
@@ -57,11 +57,14 @@ export const planUpgrade = {
           </div>
         </section>`
       : '';
+    // The plan picked during onboarding arrives preselected — this is the same choice they
+    // already made, honored, not a fresh decision forced twice.
+    const picked = (RT.ob && RT.ob.plan) || null;
     return `<div id="pu-root">${backHead('Choose a plan', 'Every paid plan starts with a free 14-day trial', 'settings')}
     ${founding}
-    <div class="eyebrow" style="margin-top:16px">Plans</div>
+    <div class="eyebrow" style="margin-top:16px">${picked && plans.some((p) => p.id === picked) ? 'Your pick from onboarding' : 'Plans'}</div>
     <div style="display:flex;flex-direction:column;gap:10px">
-      ${plans.map((p) => planCard({ ...p, on: false })).join('')}
+      ${plans.map((p) => planCard({ ...p, on: p.id === picked })).join('')}
     </div>
     <div style="font-size:11.5px;font-weight:600;color:var(--text-3);line-height:1.55;margin-top:14px">
       Billed by Stripe in your browser — the app never sees your card. Included seats count
@@ -92,6 +95,9 @@ export const planUpgrade = {
       const r = await roles.startPlanCheckout(planId, 'annual');
       UP.busy = null;
       if (r.ok) {
+        // Reaching a real checkout closes the onboarding loop however they got here — the home
+        // card should not reappear behind a coach who is already at Stripe.
+        try { act.markObPlanCtaDone(); } catch { /* display-state only */ }
         // Stripe opens in the SYSTEM browser; the webhook writes the row; entitlement lands on
         // the next open. On web (no bridge) fall through to a plain navigation.
         if (window.OnStandardNative?.openUrl) window.OnStandardNative.openUrl(r.url);
