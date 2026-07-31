@@ -12,5 +12,76 @@
     "hasSevereAllergen": false,
     "expectVerify": "none",
     "notes": "Real plate: baked/blackened salmon, white rice, roasted asparagus, dinner roll — well-lit, single plate, foods clearly visible; verify must stay quiet. FOOD_DB has no asparagus or dinner-roll entries, so green-beans (closest vegetable) and bread-whole-wheat (closest starch) stand in as nutritional proxies. Servings reverse-engineered to roughly match the app's own prior real analysis of this exact meal (46g protein / 62g carbs / 22g fat / 620 kcal) — reconstructs to ~47.5p/66c/22f/665kcal, fat exact. SOURCE NOTE: this file is an app screenshot (has status bar + confirm-screen UI chrome baked into the pixels), not a clean raw camera capture — replace with a real un-cropped device photo when the team adds one; it still exercises the full harness end-to-end."
+  },
+  {
+    "id": "meatball-tray",
+    "photo": "meatball-tray.jpeg",
+    "caseType": "mixed",
+    "expectedFoods": [
+      { "foodDbId": "ground-beef-90", "servings": 2.5 },
+      { "foodDbId": "white-rice", "servings": 0.75 },
+      { "foodDbId": "white-potato", "servings": 1 },
+      { "foodDbId": "bell-pepper", "servings": 1.5 }
+    ],
+    "hasSevereAllergen": false,
+    "expectVerify": "none",
+    "notes": "Real photo: staff lunch tray, 4 meatballs in marinara over rice, mashed potato and sauteed pepper/onion sides. Well-lit, distinct compartments; verify must stay quiet. FOOD_DB has no meatball, mashed-potato, or onion entries: ground-beef-90 stands in for the meatballs (undercounts the sauce and any egg/breadcrumb binder), white-potato for the mashed potato (a whole-potato serving, not truly equivalent to a mashed portion), and bell-pepper for the pepper/onion side (the onion itself has no DB entry at all and is fully excluded from ground truth). Expect the reconstructed macro truth to run LOW, especially fat/carbs, independent of which model reads the photo."
+  },
+  {
+    "id": "steak-potatoes",
+    "photo": "steak-potatoes.jpeg",
+    "caseType": "clear",
+    "expectedFoods": [
+      { "foodDbId": "sirloin-steak", "servings": 1.75 },
+      { "foodDbId": "white-potato", "servings": 2 },
+      { "foodDbId": "green-beans", "servings": 1 }
+    ],
+    "hasSevereAllergen": false,
+    "expectVerify": "none",
+    "notes": "Real photo: to-go container, sliced braised/roasted beef in its own jus, roasted potato wedges, green beans. Well-lit, single well-separated compartment, foods clearly visible; verify must stay quiet. FOOD_DB has no braised-beef entry, so sirloin-steak stands in (closest protein; the real dish is fattier/moister with pan jus, so this proxy likely undercounts fat and total kcal a bit)."
+  },
+  {
+    "id": "chicken-beef-collards",
+    "photo": "chicken-beef-collards.jpeg",
+    "caseType": "mixed",
+    "expectedFoods": [
+      { "foodDbId": "chicken-thigh", "servings": 1.1 },
+      { "foodDbId": "sirloin-steak", "servings": 0.9 },
+      { "foodDbId": "white-rice", "servings": 0.6 },
+      { "foodDbId": "spinach", "servings": 2 }
+    ],
+    "hasSevereAllergen": false,
+    "expectVerify": "none",
+    "notes": "Real photo: plated dinner, saucy chicken chunks, sliced beef in gravy, cooked collard greens, white rice. Well-lit, foods distinct; verify must stay quiet. FOOD_DB has no collard-greens entry — spinach (only 'greens'-aliased proxy) stands in, but real cooked collards (usually simmered with fat/pork) run FAR higher in kcal/fat per cup than raw spinach (7 kcal/cup vs. a real serving likely 60-100+ kcal). This proxy will make the collard-greens component read as nutritionally almost free no matter what any model reports — a FOOD_DB coverage gap, not a model error. Treat this case's kcal/fat ground truth as a floor, not a true value."
+  },
+  {
+    "id": "breakfast-plate",
+    "photo": "breakfast-plate.jpeg",
+    "caseType": "mixed",
+    "expectedFoods": [
+      { "foodDbId": "egg", "servings": 3 },
+      { "foodDbId": "oats", "servings": 1 },
+      { "foodDbId": "cheddar", "servings": 0.5 },
+      { "foodDbId": "grapes", "servings": 1 }
+    ],
+    "hasSevereAllergen": false,
+    "expectVerify": "none",
+    "notes": "Real photo: scrambled eggs, 3 bacon strips, 2 breakfast-sausage links, cheddar grits, side of grapes. Well-lit, foods clearly visible; verify must stay quiet. FOOD_DB HAS NO BACON, SAUSAGE, OR GRITS ENTRY AT ALL — bacon and sausage are fully excluded from expectedFoods (not proxied to anything; there is no reasonable stand-in), and oats (the only porridge-category item) proxies for the grits despite being a different grain. This is the most FOOD_DB-limited case in the set: expect ground-truth kcal/protein/fat to run far below any real read, for every model, because roughly half the plate's calories (bacon + sausage) have no ground-truth representation at all. A model that reports bacon/sausage honestly will look artificially WORSE on macro error here than one that hallucinates less food."
+  },
+  {
+    "id": "tacos",
+    "photo": "tacos.jpeg",
+    "caseType": "restaurant",
+    "expectedFoods": [
+      { "foodDbId": "sirloin-steak", "servings": 0.75 },
+      { "foodDbId": "chicken-breast", "servings": 0.5 },
+      { "foodDbId": "mixed-greens", "servings": 0.5 },
+      { "foodDbId": "white-rice", "servings": 1 },
+      { "foodDbId": "cheddar", "servings": 0.75 },
+      { "foodDbId": "tortilla", "servings": 2 }
+    ],
+    "hasSevereAllergen": false,
+    "expectVerify": "none",
+    "notes": "Real photo: 2 open-face loaded soft tacos (restaurant/prepared-meal style) — shredded beef, chicken chunks, rice, shredded lettuce, shredded cheddar, sour cream, pico, on flour tortillas. Well-lit, busy but legible; verify must stay quiet. FOOD_DB has no sour-cream or tomato/pico entry (excluded from ground truth, both fully uncounted); mixed-greens (alias 'lettuce') proxies the shredded lettuce. First 'restaurant' caseType in the set."
   }
 ]
