@@ -41,3 +41,8 @@ run_sql rls_authz_test.sql
 # (it picks three actors out of `profiles`), so it is skipped rather than failed on an empty db.
 echo "==> audit-fix suite (0169-0171)"
 run_sql code_entropy_and_limits_test.sql
+
+# 0174: the spend gate reserves what it approves — the read-then-decide race the 2026-07-30
+# audit deferred. Needs only app_config; safe on an empty db.
+echo "==> spend-gate suite (0174)"
+run_sql spend_gate_test.sql
