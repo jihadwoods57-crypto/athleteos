@@ -36,25 +36,26 @@ pricing docs. The offer is the price lock, only.
 a breaking expo-splash-screen major — ABI skew is a known launch-crash source, ITMS-90863) and
 brace-expansion copies pinned inside jest's own tree (dev-only; npm's offered fix is jest@25).
 
-## Still owed — founder actions (dashboards I can't reach)
+## Key rotation — status as verified 2026-07-31 ~11:00 UTC
 
-**Key rotation** (security audit 2026-07-30 finding #1 follow-through). Until the .easignore
-fix, `.env` was uploaded to EAS build servers on every build — retrievable by anyone with EAS
-project access or a stolen EAS token. The hole is closed; the exposed keys are not yet rotated:
+The founder rotated keys the same morning. Verified live against each provider:
 
-1. `STRIPE_SECRET_KEY` — **live-mode key; do this first.** Stripe Dashboard → Developers →
-   API keys → roll. Update `.env`; check Supabase function secrets independently (they were
-   never exposed via EAS, but if they share this key value, rolling it breaks them until
-   updated — `supabase secrets list` to compare).
-2. `CLOUDFLARE_API_TOKEN` — CF Dashboard → My Profile → API Tokens → roll. Update `.env`
-   (used for wrangler deploys of the landing + admin).
-3. `OPENAI_API_KEY` — platform.openai.com → API keys. Used by the eval harness only.
-4. `HIGGSFIELD_API_KEY` / `_SECRET` — hero-video pipeline; rotate or delete if done with it.
-5. `LANDING_ADMIN_KEY` — no reference anywhere in the repo; likely vestigial. Delete from
-   `.env`, or if the deployed worker still checks it, rotate via `wrangler secret put`.
-6. `STRIPE_TEST_SECRET_KEY` — test-mode; rotate whenever convenient.
+| Key | Status |
+|---|---|
+| `STRIPE_SECRET_KEY` (live) | ✅ **Rotated completely** — new key in `.env` AND Supabase fn secrets (digests match, 09:45 UTC), API accepts it |
+| Supabase platform keys | ✅ Changed 09:47 UTC without breakage — verified sign-in, authenticated REST, anon RPC (founding counter), edge fns + service-role writes all 200. Only `/rest/v1/` OpenAPI root is now service-role-only (harmless; clients never call it) |
+| `CLOUDFLARE_API_TOKEN` | ❌ **Rotated in dashboard but `.env` still has the DEAD token** — next `wrangler deploy` of landing/admin fails until the new token is pasted into `.env` |
+| `OPENAI_API_KEY` | ✅ Works — either rotated+updated or still pending per founder's count |
+| `HIGGSFIELD_*` | untested (nonstandard API); rotate or delete when done with hero-video |
+| `LANDING_ADMIN_KEY` | zero repo references — delete from `.env`, or `wrangler secret put` if the worker checks it |
+| `STRIPE_TEST_SECRET_KEY` | works; rotate at leisure |
 
-`EXPO_PUBLIC_*` values and the Supabase anon key are public by design — no action.
+**⚠️ Do NOT click "disable legacy API keys" in the Supabase dashboard.** The shipped app
+(build 23 + all OTAs) and the landing page authenticate with the LEGACY anon key. Functions
+already receive the new-style keys (`sb_publishable_`/`sb_secret_`), but disabling legacy
+kills every installed client until a new build/OTA ships with the publishable key. Migration
+path when ready: swap `EXPO_PUBLIC_SUPABASE_ANON_KEY` + landing `SB_ANON` to the publishable
+key → OTA + redeploy landing → verify → only then disable legacy.
 
 ## Known, accepted, not blockers
 
