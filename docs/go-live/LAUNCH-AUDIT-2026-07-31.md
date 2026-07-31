@@ -3,15 +3,22 @@
 A full production-readiness pass over the live system. State as verified this morning (UTC),
 not as remembered.
 
+> **Re-verified 11:20 UTC.** Every credential below was re-tested against the tool that actually
+> *consumes* it, rather than a generic verify endpoint. Four claims in the original pass were
+> wrong: `CLOUDFLARE_API_TOKEN` (healthy, not dead), `LANDING_ADMIN_KEY` (live, not orphaned),
+> the cron "all succeeded" line, and the function count. All four are corrected in place below.
+> The method note under *Key rotation* explains the class of mistake — worth reading before
+> trusting any future credential audit.
+
 ## Verified green
 
 | Surface | State |
 |---|---|
 | Prod DB | migrations **0001–0175** applied, local == remote |
-| Edge functions | meal-chat v25 (safety hand-off live); 38 fns deployed |
+| Edge functions | meal-chat **v25** ✅ (safety hand-off live); **41** fns deployed, all ACTIVE (not 38 — recount 11:20 UTC) |
 | OTA | b9772c90 (thread batch) — bundle `152ee013abf5a207` matches the committed proto.zip and already carries the founding-copy fix |
 | Landing | deployed (version `325c46ee`); live site verified free of the retired "free through the beta" clause |
-| Crons | 12 active; every job's last run succeeded (data-retention fixed today, see below) |
+| Crons | 12 active. **NOT "all succeeded"** — `data-retention`'s last scheduled run FAILED (07-31 03:17, 3 failures total); it predates today's 0175 fix, which is verified live. `billing-overage-invoice` + `weekly-digest` have never fired yet. The other 9 are green |
 | Tests | typecheck · 2796 jest · 181 proto · XSS lint · RLS/authz suites · spend-gate suite (9) · Metro iOS export — all green |
 | security-sweep | tracked_secrets ✅ · dep_cves ✅ (re-anchored after `npm audit fix`) |
 
@@ -44,11 +51,39 @@ The founder rotated keys the same morning. Verified live against each provider:
 |---|---|
 | `STRIPE_SECRET_KEY` (live) | ✅ **Rotated completely** — new key in `.env` AND Supabase fn secrets (digests match, 09:45 UTC), API accepts it |
 | Supabase platform keys | ✅ Changed 09:47 UTC without breakage — verified sign-in, authenticated REST, anon RPC (founding counter), edge fns + service-role writes all 200. Only `/rest/v1/` OpenAPI root is now service-role-only (harmless; clients never call it) |
-| `CLOUDFLARE_API_TOKEN` | ❌ **Rotated in dashboard but `.env` still has the DEAD token** — next `wrangler deploy` of landing/admin fails until the new token is pasted into `.env` |
+| `CLOUDFLARE_API_TOKEN` | ✅ **Live in `.env`; `wrangler whoami` authenticates as "Gelatinous Twin"** (re-verified 2026-07-31 ~11:15 UTC). The earlier ❌ was a BAD TEST, not a dead key — see the note below |
 | `OPENAI_API_KEY` | ✅ Works — either rotated+updated or still pending per founder's count |
-| `HIGGSFIELD_*` | untested (nonstandard API); rotate or delete when done with hero-video |
-| `LANDING_ADMIN_KEY` | zero repo references — delete from `.env`, or `wrangler secret put` if the worker checks it |
+| `HIGGSFIELD_*` | ✅ **Tested and working** (re-verified 11:20 UTC). `GET /requests/<bogus-id>/status` with real creds → 404 (auth passed); with bogus creds → 401. Rotate or delete when done with hero-video |
+| `LANDING_ADMIN_KEY` | ✅ **LIVE — do NOT delete.** The earlier "zero repo references" was a string-match miss: the worker reads it as **`env.ADMIN_KEY`** (worker.js:35), a Cloudflare Worker secret, which `wrangler secret list` confirms is set. `curl -H "x-admin-key: $LANDING_ADMIN_KEY" https://onstandard.app/api/leads` → **200**; wrong/absent key → 404 (fails closed, and deliberately hides the route). Deleting this from `.env` would have thrown away the only copy of a working credential |
 | `STRIPE_TEST_SECRET_KEY` | works; rotate at leisure |
+
+### ⚠️ How to test a Cloudflare token (the trap that produced a false ❌)
+
+OnStandard's token is an **Account API token** (`cfat_` prefix = CloudFlare Account Token), created
+under *Manage account → Account API tokens*. It is NOT a User API token (*My Profile → API Tokens*).
+The two live in different namespaces, and the popular verify endpoint only resolves user tokens:
+
+```sh
+# ✗ WRONG — always says "Invalid API Token" (code 1000) for an account token, even a perfect one
+curl https://api.cloudflare.com/client/v4/user/tokens/verify -H "Authorization: Bearer $TOK"
+
+# ✓ RIGHT — hit an account-scoped endpoint the token has rights to, or just ask wrangler
+curl https://api.cloudflare.com/client/v4/accounts/d526c8ba5659275611952133e471f3d4 \
+     -H "Authorization: Bearer $TOK"
+CLOUDFLARE_API_TOKEN=$TOK npx wrangler whoami
+```
+
+**Read the error code, they are not interchangeable:**
+
+| Code | Means |
+|---|---|
+| `1000 Invalid API Token` | wrong namespace — you tested an account token against `/user/`. Says nothing about validity |
+| `9109 Invalid access token` | genuinely revoked/rolled. This is what a real dead token returns |
+
+The 2026-07-31 morning audit used the `/user/` endpoint, declared a healthy token dead, and cost
+three unnecessary token rolls before the account-scoped call proved it had been working all along.
+A rolled token invalidates every prior secret, so each roll really did break `.env` until it was
+re-pasted — the "fix" was causing the failure it reported.
 
 **⚠️ Do NOT click "disable legacy API keys" in the Supabase dashboard.** The shipped app
 (build 23 + all OTAs) and the landing page authenticate with the LEGACY anon key. Functions
