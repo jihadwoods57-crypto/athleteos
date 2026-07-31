@@ -295,8 +295,8 @@ h1 .dot { color: var(--gold); }
 .nav-burger[aria-expanded="true"] rect:nth-child(3) { transform: translateY(-5.5px) rotate(-45deg); }
 .m-menu {
   display: none;
-  position: fixed; inset: 72px 0 auto 0; z-index: 79;
-  max-height: calc(100dvh - 72px); overflow-y: auto;
+  position: fixed; inset: 72px 0 0 0; z-index: 79;
+  height: calc(100dvh - 72px); overflow-y: auto;
   background: var(--bg);
   border-bottom: 1px solid var(--hairline);
   padding: 10px 4% 26px;
@@ -875,6 +875,7 @@ details[open] .fx::after { transform: scaleY(0); }
 
 /* ---------- finale ---------- */
 .finale { position: relative; padding: calc(var(--sect-y) * 1.2) 0; overflow: hidden; }
+@media (max-width: 860px) { .finale { padding: var(--sect-y) 0; } }
 .fin-media { position: absolute; inset: 0; z-index: -1; }
 .fin-media img { width: 100%; height: 100%; object-fit: cover; opacity: 0.5; filter: sepia(0.3) saturate(0.8); }
 .fin-media::after {
