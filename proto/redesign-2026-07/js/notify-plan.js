@@ -369,10 +369,15 @@ export function planNotifications({
   const vc = Array.isArray(commitments) ? commitments : [];
   for (const c of vc) {
     if (!c || typeof c.at !== 'number' || c.at <= nowMin) continue;
+    // No instance id, no notification. The id IS the payload here: it is what the deep link
+    // opens and what the lock-screen ack posts back, so an idless reminder can do neither —
+    // it would open `roll-call/` on a screen that has nothing to show and nothing to press.
+    const instanceId = c.instanceId || c.instance_id || '';
+    if (!instanceId) continue;
     out.push({
-      id: `vc:${c.instanceId || c.instance_id || ''}:${c.at}`,
+      id: `vc:${instanceId}:${c.at}`,
       fireAtMin: c.at, dayOffset, immediate: false, stage: 'commitment',
-      route: `roll-call/${c.instanceId || c.instance_id || ''}`,
+      route: `roll-call/${instanceId}`,
       title: c.title, body: c.body,
     });
   }

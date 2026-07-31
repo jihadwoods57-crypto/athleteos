@@ -162,11 +162,57 @@ export function mountCommitmentCard(root, rerender) {
 
 /* ---------------------------------------------------------------- detail screen */
 
+/* Resolving the instance behind a deep link, at most once per id.
+   `__render()` re-runs mount(), so an unguarded "not in cache → fetch → re-render" spins
+   forever whenever the id never resolves — an instance the coach cancelled, one the nightly
+   purge aged out, a push whose route carried an empty id, or simply being offline (loadMine
+   swallows the failure and returns an empty list). It looped fast enough to starve the page's
+   own event loop: the whole WebView stopped answering, including its own tab bar. Found
+   2026-07-31 by the QC sweep, which could not so much as evaluate an expression on the page.
+   One fetch in flight at a time, and no second attempt until the cache would have gone stale
+   anyway — so an athlete who taps the push again after regaining signal still gets a real try. */
+const RESOLVE = new Map();
+const RESOLVE_COOLDOWN_MS = 30_000;
+
+/** True when mount() should go to the server for this id. Marks the attempt as in flight. */
+export function shouldResolve(sub, now = Date.now(), m = RESOLVE) {
+  const k = String(sub || '');
+  const s = m.get(k);
+  if (s && (s.pending || now - s.at < RESOLVE_COOLDOWN_MS)) return false;
+  m.set(k, { at: now, pending: true });
+  return true;
+}
+
+/** The fetch for this id finished — in either direction. */
+export function resolveDone(sub, m = RESOLVE) {
+  const s = m.get(String(sub || ''));
+  if (s) s.pending = false;
+}
+
+/** 'never' before we have asked, 'pending' while a fetch is in flight, 'settled' once one
+ *  finished. render() uses it to tell "still loading" apart from "we looked, it's gone". */
+export function resolveState(sub, m = RESOLVE) {
+  const s = m.get(String(sub || ''));
+  return !s ? 'never' : s.pending ? 'pending' : 'settled';
+}
+
 export default {
   tab: 'home',
   render({ sub }) {
     const row = VC.instance(sub);
     if (!row) {
+      // We went to the server and still have nothing. Say so plainly and let them leave —
+      // never sit on "Loading…" forever. A missing record is not a miss, and nothing here
+      // counts against the athlete.
+      if (resolveState(sub) === 'settled') {
+        return `${backHead('Commitment', '', 'home')}
+        <section class="card pad">
+          <div class="tt">This commitment isn’t available</div>
+          <div class="ts" style="padding-top:6px">Your coach may have cancelled it, or it’s old enough that we no longer keep the record. Nothing is counted against you.</div>
+        </section>
+        <div style="height:12px"></div>
+        <button class="btn ghost" data-go="home" style="width:100%">Back to home</button>`;
+      }
       return `${backHead('Commitment', 'Loading…', 'home')}
       <section class="card pad"><div class="ts">Loading your commitment…</div></section>`;
     }
@@ -219,8 +265,14 @@ export default {
   },
 
   mount(root, { sub }) {
-    if (!VC.instance(sub)) {
-      loadMine(true).then(() => { if (root.isConnected) window.__render && window.__render(); });
+    if (!VC.instance(sub) && shouldResolve(sub)) {
+      // Settle on BOTH outcomes: a rejection that left `pending` set would strand the screen
+      // on "Loading…" with no attempt ever allowed again.
+      const settle = () => {
+        resolveDone(sub);
+        if (root.isConnected) window.__render && window.__render();
+      };
+      loadMine(true).then(settle, settle);
     }
     mountCommitmentCard(root, () => window.__render && window.__render());
 

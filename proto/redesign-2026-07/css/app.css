@@ -155,7 +155,10 @@ body {
 .iconbtn:active { transform: scale(0.94); background: var(--surface-2); }
 .iconbtn .dot {
   position: absolute; top: 6px; right: 7px; min-width: 18px; height: 18px; padding:0 4px;
-  border-radius: var(--r-pill); background: var(--red); color: #fff;
+  /* --danger-solid, not --red: this is 10.5px white text ON the fill, and --red is tuned to be
+     read AS text on a dark surface (3.27:1 the other way round). Same reason as the delete
+     button — the sweep only caught that one because no badge happened to be visible. */
+  border-radius: var(--r-pill); background: var(--danger-solid); color: #fff;
   font-size: 10.5px; font-weight: 800; display: grid; place-items: center;
   border: 2px solid var(--surface-1); font-variant-numeric: tabular-nums;
 }

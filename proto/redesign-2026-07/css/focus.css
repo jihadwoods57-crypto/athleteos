@@ -96,16 +96,22 @@
   box-sizing: border-box;
 }
 
-/* --- 2. Everything else: expand the hit area, keep the look --- */
+/* --- 2. Everything else: expand the hit area, keep the look ---
+   `.tour-skip` and `.est-note .link` joined the list on 2026-07-31: the first-run tour's Skip
+   button measured 32x29 on all 25 screens the tour can open over — the single most-repeated
+   miss in the app — and "Something off? Correct the analysis" was a 15px-tall line of text
+   that is the ONLY route to fixing a wrong meal reading. */
 :where(
   .co-chip, .btn.ghost, .btn.sm, .bk, .ai-full-toggle, .hd-avatar,
-  .si-forgot, .si-link, .chip, .pw-seg, .mq-skip, .markread, .lnk, .tl-del, .mt-retry
+  .si-forgot, .si-link, .chip, .pw-seg, .mq-skip, .markread, .lnk, .tl-del, .mt-retry,
+  .tour-skip, .est-note .link
 ) {
   position: relative;
 }
 :where(
   .co-chip, .btn.ghost, .btn.sm, .bk, .ai-full-toggle, .hd-avatar,
-  .si-forgot, .si-link, .chip, .pw-seg, .mq-skip, .markread, .lnk, .tl-del, .mt-retry
+  .si-forgot, .si-link, .chip, .pw-seg, .mq-skip, .markread, .lnk, .tl-del, .mt-retry,
+  .tour-skip, .est-note .link
 )::after {
   content: '';
   position: absolute;

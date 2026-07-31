@@ -174,6 +174,27 @@ describe('assigned tasks', () => {
   });
 });
 
+describe('verified commitments', () => {
+  const vc = (over: object = {}) => ({ at: 6 * 60, instanceId: 'rc-1', title: '5 AM Club', body: 'Respond by 5:15 AM.', ...over });
+
+  test('a commitment reminder deep-links to its own instance', () => {
+    const p = plan({ reqs: [], commitments: [vc()] });
+    expect(p).toHaveLength(1);
+    expect(p[0].route).toBe('roll-call/rc-1');
+    expect(p[0].fireAtMin).toBe(6 * 60);
+  });
+
+  test('an idless commitment is never scheduled — the route would open a screen with nothing to press', () => {
+    // Before 2026-07-31 this produced `roll-call/`, whose detail screen could not resolve an
+    // instance and spun on it until the WebView stopped responding.
+    expect(plan({ reqs: [], commitments: [vc({ instanceId: null, instance_id: null })] })).toEqual([]);
+    expect(plan({ reqs: [], commitments: [vc({ instanceId: undefined, instance_id: '' })] })).toEqual([]);
+    // The snake_case field alone is still a real id.
+    const p = plan({ reqs: [], commitments: [vc({ instanceId: null, instance_id: 'rc-2' })] });
+    expect(p[0].route).toBe('roll-call/rc-2');
+  });
+});
+
 describe('celebration', () => {
   test('celebration is a single immediate acknowledgment; gentle skips it', () => {
     const p = plan({ celebration: true, score: 91, streak: 6 });

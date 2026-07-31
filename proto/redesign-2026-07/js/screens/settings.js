@@ -772,7 +772,7 @@ export const deleteAccount = {
       <div class="ts">Download everything from Privacy & visibility before you delete. Deletion completes within 30 days everywhere, immediately in the app.</div></div>
     </div>
     <div style="height:18px"></div>
-    <button id="del-acct" class="btn" style="background:var(--red);color:#fff;box-shadow:0 10px 30px rgba(246,87,87,0.3)">${icon('x', 18)} Delete my account</button>
+    <button id="del-acct" class="btn" style="background:var(--danger-solid);color:#fff;box-shadow:0 10px 30px rgba(220,38,38,0.3)">${icon('x', 18)} Delete my account</button>
     <div id="del-status" style="text-align:center;font-size:13px;font-weight:600;color:var(--text-3);min-height:18px;margin-top:10px"></div>
     <button class="btn ghost" data-go="${roleProfileRoute()}">Keep my account</button>
     <div style="height:10px"></div>

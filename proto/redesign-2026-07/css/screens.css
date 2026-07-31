@@ -311,7 +311,13 @@
 .msg .quote .qtext {
   font-size: 10.5px; font-weight: 600; color: var(--text-3); background: var(--surface-2);
   border: 1px solid var(--hairline); border-radius: var(--r-chip); padding:4px 10px;
-  max-width: min(240px, 62vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: min(240px, 62vw);
+  /* Two lines, not one. A single nowrap line cut "That was a double portion of chicken, not
+     one" down to the half that does not contain the correction — and this quote exists solely
+     to say WHAT the updated reading is answering. Two lines fit every correction the eval set
+     has; anything longer still ellipses, which is the point at which it really is a summary. */
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+  overflow: hidden; white-space: normal; overflow-wrap: anywhere;
 }
 .msg .upd {
   /* Its own line: inline, it wedged itself into the first sentence and broke the paragraph. */
@@ -1134,7 +1140,7 @@
 .pp-cell-load{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-3)}
 .pp-cell-meta{position:absolute;left:0;right:0;bottom:0;padding:16px 10px 8px;font-size:11.5px;font-weight:700;color:#fff;background:linear-gradient(transparent, rgba(0,0,0,0.62))}
 .pp-del{position:absolute;top:6px;right:6px;height:24px;min-width:24px;padding:0 6px;border:none;border-radius:var(--r-chip);background:rgba(6,10,14,0.6);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer}
-.pp-del.arm{background:var(--red);color:#fff}
+.pp-del.arm{background:var(--danger-solid);color:#fff}   /* white ON the fill — see --danger-solid */
 
 /* ---- Training log delete (#training-history) ---- */
 .tl-del{background:none;border:none;color:var(--text-3);font-size:12px;font-weight:700;cursor:pointer;padding:2px 4px}
@@ -1186,7 +1192,9 @@
 .hist-thumb.icon{display:grid;place-items:center;background:linear-gradient(150deg,rgba(var(--amber-rgb), 0.18),rgba(var(--amber-rgb), 0.06));color:var(--amber-bright);position:relative}
 .ht-nophoto{position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);font-size:7px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);white-space:nowrap;display:none}
 .hist-main{flex:1;min-width:0}
-.hist-main .t{font-size:14px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Two lines: a one-line clamp cut "Chicken, rice & edamame bowl" mid-word, and the meal name is
+   the only thing distinguishing one row from the next in a list of them. */
+.hist-main .t{font-size:14px;font-weight:800;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
 .hist-main .s{font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:2px}
 .hist-score{font-size:15px;font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums}
 .hist-score small{font-size:10px;font-weight:700;color:var(--text-3)}
@@ -1447,10 +1455,15 @@
 .cont-earlier[hidden] { display: none; }
 
 /* Inline text links in an eyebrow read right but are only as tall as their text, which is a
-   14px tap target on a phone. Expand the hit area without moving a pixel of layout. (The QC
-   audit measures the element box, so it still reports the text height — the thumb does not.) */
+   14px tap target on a phone. Expand the hit area without moving a pixel of layout.
+   Written in the same centred min-44 form focus.css uses, rather than a bare negative inset:
+   that is the shape the QC audit recognises as a deliberate hit expander, so a real fix stops
+   being reported as a defect and a REGRESSION still gets caught. */
 .eyebrow .link { position: relative; }
-.eyebrow .link::after { content: ''; position: absolute; inset: -15px -10px; }
+.eyebrow .link::after {
+  content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 100%; height: 100%; min-width: 44px; min-height: 44px;
+}
 .cont-earlier:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
 .cont-earlier .ce-k {
   font-size: 9.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
@@ -1458,7 +1471,11 @@
 }
 .cont-earlier .ce-t {
   flex: 1; min-width: 0; font-size: 11.5px; font-weight: 600;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  /* Two lines. One nowrap line showed barely half of a coach's last message (487px of text in a
+     268px box), and this strip's whole job is to be worth tapping. The row is a centred flex
+     with a 44px floor, so the second line costs about 4px of height and nothing else moves. */
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+  overflow: hidden; white-space: normal; overflow-wrap: anywhere;
 }
 .cont-earlier .ce-t b { color: var(--text-2); font-weight: 800; }
 .cont-earlier .ce-go { flex: none; display: grid; place-items: center; }

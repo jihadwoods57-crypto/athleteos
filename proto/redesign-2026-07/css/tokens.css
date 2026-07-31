@@ -38,6 +38,11 @@
   --amber:  #F5A524;  --amber-bright: #FBBF24;  --amber-surface: rgba(245, 165, 36, 0.13);  --amber-border: rgba(245, 165, 36, 0.32);
   --purple: #A855F7;  --purple-bright:#C084FC;  --purple-surface:rgba(168, 85, 247, 0.13);  --purple-border:rgba(168, 85, 247, 0.30);
   --red:    #F65757;  --red-bright:   #F87171;  --red-surface:  rgba(246, 87, 87, 0.13);   --red-border: rgba(246, 87, 87, 0.30);
+  /* --red is tuned to be READ on a dark surface; white text ON it measures only 3.27:1, which
+     fails AA on the one control that must never be mistapped or misread. --danger-solid is the
+     fill for a solid destructive button. Identical in both themes: it clears AA on white text
+     either way, so a destructive action looks the same wherever it appears. */
+  --danger-solid: #DC2626;   /* white on this = 4.83:1 */
   --cyan:   #38BDF8;  --cyan-bright:  #38BDF8;  --cyan-surface: rgba(56, 189, 248, 0.13);  --cyan-border: rgba(56, 189, 248, 0.30);
 
   /* Ink for text sitting ON a filled accent. This MUST flip with the theme: dark-theme accents

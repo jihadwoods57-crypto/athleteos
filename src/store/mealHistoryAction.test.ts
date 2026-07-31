@@ -27,6 +27,13 @@ function loadStore(backendLive: boolean): UseBoundStore<StoreApi<Store>> {
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
+// Compiling the store's whole module graph under isolateModules costs seconds the first time,
+// and that cost lands inside whichever test happens to require it first. On 2026-07-31 that was
+// enough to blow jest's 5s default in a full parallel run while the same test passed in 2.8s on
+// its own — a flake that looks exactly like a product bug. Pay the compile once, up front, where
+// it is not racing a per-test budget.
+beforeAll(() => { loadStore(false); }, 60_000);
+
 beforeEach(() => {
   fetchRecentMeals.mockReset().mockResolvedValue([]);
 });
