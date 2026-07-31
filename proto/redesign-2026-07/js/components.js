@@ -181,6 +181,8 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
     </svg>
     ${showCenter ? `<div class="ring-center">
       <span class="score${score >= 100 ? ' d3' : ''}" data-count="${score}">${score}</span>
+      <span class="outof">/100</span>
+      ${tierName ? `<span class="tier-chip ${tierCls}">${tierName}</span>` : ''}
     </div>` : ''}
     ${centerNum ? `<div class="ring-center num"><span class="score${score >= 100 ? ' d3' : ''}" data-count="${score}">${score}</span></div>` : ''}
   </div>`;

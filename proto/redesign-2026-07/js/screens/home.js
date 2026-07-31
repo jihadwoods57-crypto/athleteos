@@ -458,7 +458,7 @@ function hydroNow(h) {
 function celebration(e) {
   return `<div class="xcelebwrap">
     <section class="hero" style="padding-bottom:8px">
-      ${scoreRing({ score: e.score })}
+      ${scoreRing({ score: e.score, tierName: S.tier.name, tierCls: S.tier.cls })}
     </section>
     <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-top:2px">You're OnStandard.</div>
     <!-- One meta line, no echoes: the ring already says the score and (by color) the tier; the
