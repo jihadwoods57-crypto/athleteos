@@ -58,7 +58,10 @@ Deno.serve(async (req) => {
   for (const c of claims ?? []) {
     // `code` comes from a fixed alphabet; practice_name is trainer-supplied, so it is escaped.
     const who = c.practice_name ? `your trainer at ${esc(c.practice_name)}` : 'your trainer';
+    // Branded header (brand law, docs/brand/LOGO.md): hosted PNG mark + two-tone wordmark.
     const html = `<div style="font-family:system-ui,-apple-system,sans-serif;color:#0F172A;line-height:1.5">
+      <div style="height:4px;background:linear-gradient(120deg,#34D399,#22D3EE,#3B82F6);border-radius:2px;margin-bottom:18px"></div>
+      <p style="margin:0 0 18px"><img src="https://onstandard.app/assets/brand/email-mark.png" width="30" height="30" alt="" style="vertical-align:middle;border-radius:9px"> <span style="font-size:17px;font-weight:800;letter-spacing:-.3px;vertical-align:middle"><span style="color:#0F172A">On</span><span style="color:#2563EB">Standard</span></span></p>
       <p>You paid for coaching with ${who}, but you haven't set up your OnStandard account yet — so you're paying for something you can't open.</p>
       <p>Download OnStandard, create your account, and enter this code:</p>
       <p style="font-family:ui-monospace,Menlo,monospace;font-size:24px;font-weight:800;letter-spacing:0.06em">${c.code}</p>

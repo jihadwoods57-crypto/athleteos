@@ -85,7 +85,10 @@ Deno.serve(async (req) => {
   //    request is still recorded (emailed:false); the founder can wire the key later without a redeploy.
   if (!RESEND_API_KEY || !VERIFY_BASE) return json({ ok: true, emailed: false, reason: 'email vendor not configured' }, 200, cors);
   const link = `${VERIFY_BASE}?token=${encodeURIComponent(row.token)}`;
+  // Branded header (brand law, docs/brand/LOGO.md): hosted PNG mark + two-tone wordmark.
   const html = `<div style="font-family:system-ui,-apple-system,sans-serif;color:#0F172A;line-height:1.5">
+    <div style="height:4px;background:linear-gradient(120deg,#34D399,#22D3EE,#3B82F6);border-radius:2px;margin-bottom:18px"></div>
+    <p style="margin:0 0 18px"><img src="https://onstandard.app/assets/brand/email-mark.png" width="30" height="30" alt="" style="vertical-align:middle;border-radius:9px"> <span style="font-size:17px;font-weight:800;letter-spacing:-.3px;vertical-align:middle"><span style="color:#0F172A">On</span><span style="color:#2563EB">Standard</span></span></p>
     <p>An OnStandard athlete listed you as their parent or guardian. Before any of their nutrition data can be shared with their coach, we need your approval.</p>
     <p><a href="${esc(link)}" style="display:inline-block;background:#2563EB;color:#fff;text-decoration:none;border-radius:12px;padding:12px 22px;font-weight:700">Review &amp; approve</a></p>
     <p style="color:#64748B;font-size:13px">If you did not expect this, you can ignore this email — nothing is shared until you approve. Questions: support@onstandard.app</p>

@@ -52,7 +52,19 @@ function page(status: number, title: string, body: string, button?: { token: str
     <title>OnStandard</title></head>
     <body style="font-family:system-ui,-apple-system,sans-serif;background:#F8FAFC;color:#0F172A;margin:0;padding:48px 24px;text-align:center">
       <div style="max-width:420px;margin:0 auto;background:#fff;border-radius:24px;padding:32px;box-shadow:0 10px 30px rgba(15,23,42,.06)">
-        <div style="font-weight:800;font-size:20px;color:#2563EB;margin-bottom:8px">OnStandard</div>
+        <div style="margin-bottom:8px">
+          <!-- Performance Dial, on-light flat variant (brand law, docs/brand/LOGO.md) -->
+          <svg width="44" height="44" viewBox="0 0 100 100" fill="none" style="vertical-align:middle" aria-hidden="true">
+            <defs><linearGradient id="gvDial" x1="26" y1="82" x2="58" y2="18" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#34D399"/><stop offset="50%" stop-color="#22D3EE"/><stop offset="100%" stop-color="#3B82F6"/>
+            </linearGradient></defs>
+            <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="#DCE7FB" stroke-width="12" stroke-linecap="round"/>
+            <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#gvDial)" stroke-width="12" stroke-linecap="round"/>
+            <circle cx="50" cy="18" r="10.5" fill="#FFFFFF" stroke="#DBEAFE" stroke-width="1.5"/>
+            <circle cx="50" cy="18" r="6" fill="#2563EB"/>
+          </svg>
+          <div style="font-weight:800;font-size:20px;letter-spacing:-.3px;margin-top:6px"><span style="color:#0F172A">On</span><span style="color:#2563EB">Standard</span></div>
+        </div>
         <h1 style="font-size:22px;margin:12px 0">${title}</h1>
         <p style="font-size:15px;color:#64748B;line-height:1.5">${body}</p>
         ${action}

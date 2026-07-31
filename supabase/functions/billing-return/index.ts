@@ -132,6 +132,19 @@ function page(state: string): string {
   small{display:block;margin-top:18px;color:#64748b;font-size:12px}
 </style></head>
 <body><main>
+  <!-- Performance Dial + two-tone wordmark (brand law, docs/brand/LOGO.md) -->
+  <div style="margin-bottom:22px">
+    <svg width="52" height="52" viewBox="0 0 100 100" fill="none" aria-hidden="true">
+      <defs><linearGradient id="brDial" x1="26" y1="82" x2="58" y2="18" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stop-color="#34D399"/><stop offset="50%" stop-color="#22D3EE"/><stop offset="100%" stop-color="#60A5FA"/>
+      </linearGradient></defs>
+      <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(255,255,255,0.16)" stroke-width="12" stroke-linecap="round"/>
+      <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#brDial)" stroke-width="12" stroke-linecap="round"/>
+      <circle cx="50" cy="18" r="10.5" fill="#0F172A"/>
+      <circle cx="50" cy="18" r="6" fill="#FFFFFF"/>
+    </svg>
+    <div style="font-weight:800;font-size:17px;letter-spacing:-.3px;margin-top:6px"><span style="color:#e7ecf5">On</span><span style="background:linear-gradient(90deg,#34D399,#22D3EE,#3B82F6);-webkit-background-clip:text;background-clip:text;color:transparent">Standard</span></div>
+  </div>
   <h1>${c.title}</h1>
   <p>${c.body}</p>
   ${extra}
