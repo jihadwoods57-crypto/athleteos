@@ -57,13 +57,17 @@ async function waitForWs(port, timeoutMs = 20000) {
  * silent failures here would produce blank screenshots that look like real empty states, which is
  * exactly the failure mode this whole exercise exists to avoid.
  */
-export async function launch({ port = 9333, scale = 3 } = {}) {
+export async function launch({ port = 9333, scale = 3, windowSize = null } = {}) {
   const exe = findChrome();
   if (!exe) throw new Error('No Chromium found. Expected a Playwright-managed build under ms-playwright.');
   const profile = await mkdtemp(join(tmpdir(), 'onstd-shot-'));
 
   const proc = spawn(exe, [
     '--headless=new',
+    // Screencast (Page.startScreencast) captures the real compositor surface, which follows the
+    // OS window — NOT the emulated device metrics that screenshots use. A caller recording video
+    // must size the window to the viewport or every frame is a letterboxed strip of the page.
+    ...(windowSize ? [`--window-size=${windowSize[0]},${windowSize[1]}`] : []),
     `--remote-debugging-port=${port}`,
     `--user-data-dir=${profile}`,
     '--no-first-run', '--no-default-browser-check', '--disable-extensions',
