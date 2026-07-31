@@ -22,6 +22,15 @@ const SOURCES = {
   thread: { max: 720, file: 'thread-hi.mp4' }, coachmeal: { max: 720, file: 'coachmeal-hi.mp4' },
   parenthome: { max: 720, file: 'parenthome-hi.mp4' }, ring: { max: 720, file: 'ring-hi.mp4' },
   bfast: { max: 720, file: 'bfast-hi.mp4' },
+  // role-demo flows (2026-07-31)
+  homeday: { max: 720, file: 'homeday-hi.mp4' }, plan: { max: 720, file: 'plan-hi.mp4' },
+  logsheet: { max: 720, file: 'logsheet-hi.mp4' }, checkin: { max: 720, file: 'checkin-hi.mp4' },
+  progress: { max: 720, file: 'progress-hi.mp4' }, streakmove: { max: 720, file: 'streakmove-hi.mp4' },
+  coachhome: { max: 720, file: 'coachhome-hi.mp4' }, roster: { max: 720, file: 'roster-hi.mp4' },
+  inbox: { max: 720, file: 'inbox-hi.mp4' }, commitboard: { max: 720, file: 'commitboard-hi.mp4' },
+  insights: { max: 720, file: 'insights-hi.mp4' }, announce: { max: 720, file: 'announce-hi.mp4' },
+  trainerbook: { max: 720, file: 'trainerbook-hi.mp4' }, trainerhome: { max: 720, file: 'trainerhome-hi.mp4' },
+  trainermeal: { max: 720, file: 'trainermeal-hi.mp4' }, trainergrow: { max: 720, file: 'trainergrow-hi.mp4' },
 };
 
 const probe = (f, entry) =>

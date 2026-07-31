@@ -12,7 +12,7 @@
 // Output: .tmp/commercial/ui/<seq>/frame-*.jpg + <seq>.mp4 + stills/*.png
 import { launch, goto, evalJs, seedOnNewDocument, screenshot, sleep } from '../../web/landing-src/lib/cdp.mjs';
 import { SEEDS } from '../../web/landing-src/lib/seeds.mjs';
-import { sbStubSource, ROSTER_ATHLETES } from '../../web/landing-src/lib/sb-stub.mjs';
+import { sbStubSource, ROSTER_ATHLETES, BOOK_CLIENTS } from '../../web/landing-src/lib/sb-stub.mjs';
 import { writeFile, mkdir, rm } from 'node:fs/promises';
 import { spawn, execFileSync } from 'node:child_process';
 import { join } from 'node:path';
@@ -208,10 +208,68 @@ const SEQS = [
 
   { name: 'breakdown', at: [21, 52], seed: SEEDS.dayComplete, route: 'score-breakdown',
     steps: [ { wait: 3200 }, { js: smoothScroll('#view > *:last-child', 2400) }, { wait: 900 } ] },
+
+  /* -------- demo-video flows (2026-07-31 role demos). Routes/seeds/clocks mirror the proven
+   * qc-capture SHOTS entries; every screen renders real seeded evidence through the engine. -------- */
+
+  // athlete
+  { name: 'homeday', at: [7, 52], seed: SEEDS.dayMorning, route: 'home',
+    steps: [ { wait: 3400 }, { js: smoothScroll('#view > *:last-child', 3000), log: true }, { wait: 1200 } ] },
+  { name: 'plan', at: [13, 20], seed: SEEDS.dayComplete, route: 'plan',
+    steps: [ { wait: 3200 }, { js: smoothScroll('#view > *:last-child', 3200) }, { wait: 1200 } ] },
+  { name: 'logsheet', at: [15, 30], seed: SEEDS.dayMidday, route: 'log',
+    steps: [ { wait: 3600 }, { wait: 1200 } ] },
+  { name: 'checkin', at: [21, 35], seed: SEEDS.dayMidday, route: 'checkin',
+    steps: [ { wait: 3200 }, { js: smoothScroll('#view > *:last-child', 3000) }, { wait: 1200 } ] },
+  { name: 'progress', at: [21, 55], seed: SEEDS.dayComplete, route: 'progress',
+    steps: [ { wait: 3400 }, { js: smoothScroll('#view > *:last-child', 3200) }, { wait: 1200 } ] },
+  // ensure_* + my_connected_standards round-trips land after first paint — give the loader time.
+  { name: 'standards', at: [18, 45], seed: SEEDS.dayMidday, route: 'connected-standard/csr-steps', cs: 'live',
+    steps: [ { wait: 6200 }, { js: smoothScroll('#view > *:last-child', 2600) }, { wait: 1200 } ] },
+  { name: 'streakmove', at: [21, 45], seed: SEEDS.dayComplete, route: 'streak',
+    steps: [ { wait: 3600 }, { js: smoothScroll('#view > *:last-child', 2600) }, { wait: 1000 } ] },
+
+  // coach
+  { name: 'coachhome', at: [20, 10], seed: SEEDS.coachIdentity, route: 'coach-home', book: 'team',
+    steps: [ { wait: 4000 }, { js: smoothScroll('#view > *:last-child', 3400), log: true }, { wait: 1200 } ] },
+  { name: 'roster', at: [20, 10], seed: SEEDS.coachIdentity, route: 'coach-roster', book: 'team',
+    steps: [ { wait: 4000 }, { js: smoothScroll('#view > *:last-child', 3200) }, { wait: 1200 } ] },
+  { name: 'inbox', at: [20, 10], seed: SEEDS.coachIdentity, route: 'coach-inbox', book: 'team',
+    steps: [ { wait: 4000 }, { js: smoothScroll('#view > *:last-child', 2800) }, { wait: 1200 } ] },
+  // 5:02, not 6:05 — after respond_by (5:15) the board resolves out and reads "0 of 0 in".
+  { name: 'commitboard', at: [5, 2], seed: SEEDS.coachIdentity, route: 'coach-commitments', book: 'team',
+    steps: [ { wait: 4800 }, { js: smoothScroll('#view > *:last-child', 2800) }, { wait: 1200 } ] },
+  { name: 'insights', at: [20, 10], seed: SEEDS.coachIdentity, route: 'coach-insights', book: 'team',
+    steps: [ { wait: 4000 }, { js: smoothScroll('#view > *:last-child', 3200) }, { wait: 1200 } ] },
+  { name: 'csboard', at: [20, 4], seed: SEEDS.coachIdentity, route: 'coach-standards', cs: 'live', book: 'team',
+    steps: [ { wait: 6800 }, { js: smoothScroll('#view > *:last-child', 2800) }, { wait: 1200 } ] },
+  { name: 'announce', at: [20, 10], seed: SEEDS.coachIdentity, route: 'coach-announce', book: 'team',
+    steps: [ { wait: 3600 }, { js: smoothScroll('#view > *:last-child', 2400) }, { wait: 1200 } ] },
+
+  // trainer
+  { name: 'trainerbook', at: [7, 30], seed: SEEDS.trainerIdentity, route: 'coach-roster', book: 'practice',
+    steps: [ { wait: 4000 }, { js: smoothScroll('#view > *:last-child', 3000) }, { wait: 1200 } ] },
+  { name: 'trainerhome', at: [7, 30], seed: SEEDS.trainerIdentity, route: 'coach-home', book: 'practice',
+    steps: [ { wait: 4000 }, { js: smoothScroll('#view > *:last-child', 3000) }, { wait: 1200 } ] },
+  { name: 'trainermeal', at: [7, 30], seed: SEEDS.trainerIdentity, route: 'coach-meal/meal-seed-lunch', book: 'practice',
+    steps: [ { wait: 3600 }, { js: smoothScroll('.composer, #view > *:last-child', 2400) }, { wait: 1400 } ] },
+  { name: 'trainergrow', at: [7, 30], seed: SEEDS.trainerIdentity, route: 'trainer-grow', book: 'practice',
+    steps: [ { wait: 3800 }, { js: smoothScroll('#view > *:last-child', 2800) }, { wait: 1200 } ] },
+  { name: 'trainerinbox', at: [7, 30], seed: SEEDS.trainerIdentity, route: 'trainer-inbox', book: 'practice',
+    steps: [ { wait: 4000 }, { js: smoothScroll('#view > *:last-child', 2800) }, { wait: 1200 } ] },
+
+  // parent
+  { name: 'fundplan', at: [19, 16], seed: SEEDS.parentIdentity, route: 'fund-plan', book: 'team',
+    steps: [ { wait: 3800 }, { js: smoothScroll('#view > *:last-child', 2800) }, { wait: 1200 } ] },
 ];
 
 /* ---------------- stills (for Remotion side-panels / end card) ---------------- */
 const STILLS = [
+  // The connected-standards loaders resolve under the stills path but wedge under the motion
+  // path (page-scale/screencast interaction never diagnosed) — these two ship as slow-pan
+  // stills in the demo edit instead.
+  { name: 'cs-detail', at: [18, 45], seed: SEEDS.dayMidday, route: 'connected-standard/csr-steps', cs: 'live' },
+  { name: 'cs-board', at: [20, 4], seed: SEEDS.coachIdentity, route: 'coach-standards', cs: 'live', book: 'team' },
   { name: 'home-morning', at: [7, 52], seed: SEEDS.dayMorning, route: 'home' },
   { name: 'meal-detail', at: [13, 8], seed: SEEDS.dayMidday, route: 'meal-detail/lunch' },
   { name: 'coach-roster', at: [20, 10], seed: SEEDS.coachIdentity, route: 'coach-roster', book: 'team' },
@@ -248,7 +306,10 @@ try {
     await page.send('Emulation.setPageScaleFactor', { pageScaleFactor: 2 });
     await seedOnNewDocument(page, clockAt(...s.at));
     if (s.vc) await seedOnNewDocument(page, `window.__VC_MODE = ${JSON.stringify(s.vc)};`);
-    await seedOnNewDocument(page, sbStubSource({ todayISO: TODAY, athletes: ROSTER_ATHLETES }));
+    await seedOnNewDocument(page, sbStubSource({
+      todayISO: TODAY,
+      athletes: s.book === 'practice' ? BOOK_CLIENTS : ROSTER_ATHLETES,
+    }));
     await goto(page, BASE, { settleMs: 1100 });
     await evalJs(page, `(async () => { ${s.seed} return 1; })()`);
     await evalJs(page, suppressTour);
@@ -316,7 +377,11 @@ try {
       const page = await b.newPage({ width: 390, height: 844 });
       await page.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
       await seedOnNewDocument(page, clockAt(...s.at));
-      await seedOnNewDocument(page, sbStubSource({ todayISO: TODAY, athletes: ROSTER_ATHLETES }));
+      if (s.cs) await seedOnNewDocument(page, `window.__CS_MODE = ${JSON.stringify(s.cs)};`);
+      await seedOnNewDocument(page, sbStubSource({
+        todayISO: TODAY,
+        athletes: s.book === 'practice' ? BOOK_CLIENTS : ROSTER_ATHLETES,
+      }));
       await goto(page, BASE, { settleMs: 1100 });
       await evalJs(page, `(async () => { ${s.seed} return 1; })()`);
       await evalJs(page, suppressTour);

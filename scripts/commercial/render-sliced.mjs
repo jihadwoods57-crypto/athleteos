@@ -11,9 +11,10 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const rem = join(here, 'remotion');
-const [comp, outName, totalStr, sliceStr] = process.argv.slice(2);
+const SILENT = process.argv.includes('--silent');
+const [comp, outName, totalStr, sliceStr] = process.argv.slice(2).filter((a) => a !== '--silent');
 if (!comp || !outName || !totalStr) {
-  console.error('usage: node render-sliced.mjs <CompId> <out.mp4> <totalFrames> [sliceLen=252]');
+  console.error('usage: node render-sliced.mjs <CompId> <out.mp4> <totalFrames> [sliceLen=252] [--silent]');
   process.exit(1);
 }
 const TOTAL = Number(totalStr);
@@ -40,10 +41,10 @@ for (let start = 0; start < TOTAL; start += SLICE) {
 const listFile = join(workDir, 'list.txt');
 writeFileSync(listFile, slices.map((f) => `file '${f.replace(/\\/g, '/')}'`).join('\n'));
 const outFile = join(rem, 'out', outName);
-// concat the video segments untouched, lay the score under it, end on the shorter stream
+// concat the video segments untouched; --silent skips the score (mix-audio.mjs muxes later)
 execFileSync('ffmpeg', ['-y', '-loglevel', 'error',
   '-f', 'concat', '-safe', '0', '-i', listFile,
-  '-i', join(rem, 'public', 'score.wav'),
-  '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest',
+  ...(SILENT ? ['-c:v', 'copy', '-an']
+    : ['-i', join(rem, 'public', 'score.wav'), '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest']),
   outFile]);
 console.log(`\nwrote ${outFile}`);

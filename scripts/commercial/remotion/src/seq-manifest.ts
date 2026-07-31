@@ -47,6 +47,74 @@ export const SEQS = {
   "bfast": {
     "fps": 30,
     "frames": 228
+  },
+  "homeday": {
+    "fps": 30,
+    "frames": 224
+  },
+  "plan": {
+    "fps": 30,
+    "frames": 227
+  },
+  "logsheet": {
+    "fps": 30,
+    "frames": 89
+  },
+  "checkin": {
+    "fps": 30,
+    "frames": 112
+  },
+  "progress": {
+    "fps": 30,
+    "frames": 239
+  },
+  "streakmove": {
+    "fps": 30,
+    "frames": 216
+  },
+  "coachhome": {
+    "fps": 30,
+    "frames": 266
+  },
+  "roster": {
+    "fps": 30,
+    "frames": 85
+  },
+  "inbox": {
+    "fps": 30,
+    "frames": 84
+  },
+  "commitboard": {
+    "fps": 30,
+    "frames": 85
+  },
+  "insights": {
+    "fps": 30,
+    "frames": 256
+  },
+  "announce": {
+    "fps": 30,
+    "frames": 209
+  },
+  "trainerbook": {
+    "fps": 30,
+    "frames": 88
+  },
+  "trainerhome": {
+    "fps": 30,
+    "frames": 247
+  },
+  "trainermeal": {
+    "fps": 30,
+    "frames": 223
+  },
+  "trainergrow": {
+    "fps": 30,
+    "frames": 89
+  },
+  "trainerinbox": {
+    "fps": 30,
+    "frames": 88
   }
 } as const;
 export type SeqName = keyof typeof SEQS;
