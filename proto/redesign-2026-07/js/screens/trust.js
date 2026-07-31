@@ -3,9 +3,10 @@ import { DAY, MEAL_KEYS } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg } from '../components.js';
 import { cachedMealPhoto, warmMealPhotos, resolveMealPhoto } from '../photo-store.js';
-import { fetchRecentMeals, daysAgoISO, fetchMealComments, postMealComment, fetchThreadParticipants } from '../roles.js';
+import { fetchRecentMeals, daysAgoISO, fetchMealComments, postMealComment, fetchThreadParticipants, signedMealPhotoUrl } from '../roles.js';
+import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos } from '../chat-attach.js';
 import { threadMessages } from '../meal-intel.js';
-import { layoutThread, authorName, initialsFor, isAnalysisUpdate, quotedFor } from '../chat-view.js';
+import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isEscalated, quotedFor } from '../chat-view.js';
 
 /* Message clock + day key for the past-meal conversation — local, so a message at 11:58pm and
    one at 12:01am are different days to the athlete whatever UTC thinks. */
@@ -305,18 +306,31 @@ function mountThread(root, mealId, meal) {
       const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
       const who = authorName(c, participants, RT.userId, S.coach.noun);
       const update = isAnalysisUpdate(c);
+      const escalated = isEscalated(c);
       const quoted = update ? quotedFor(c, msgs) : null;
+      const photo = attachedPhoto(c);
+      const photoOnly = isPhotoOnly(c);
       return `
         <div class="msg ${mine ? 'athlete' : c.role === 'ai' ? 'ai' : 'coach'}${item.firstOfRun ? '' : ' cont'}">
           ${!mine && item.firstOfRun ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : esc(initialsFor(who))}</div>` : '<div class="av-sp"></div>'}
           <div class="stack">
             ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
             ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
-            <div class="bubble">${update ? '<span class="upd">Updated analysis</span>' : ''}${esc(String(c.text || ''))}</div>
+            <div class="bubble">${update ? '<span class="upd">Updated analysis</span>' : escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(String(c.text || ''))}</div>
           </div>
         </div>`;
     }).join('');
+    // Resolve any attachments just painted. trust.js imports named roles functions rather than the
+    // module, so the helper is handed the one function it needs.
+    void hydrateThreadPhotos(threadEl, { signedMealPhotoUrl });
   };
+
+  // Tap an attached photo to open it full-screen. Delegated: every repaint replaces the <img>.
+  threadEl.addEventListener('click', (ev) => {
+    const im = ev.target && ev.target.closest ? ev.target.closest('img.bimg') : null;
+    if (!im || !im.src) return;
+    openImageViewer(im.src, 'Photo attached to this message');
+  });
 
   const refresh = async () => {
     const [fetched, people] = await Promise.all([

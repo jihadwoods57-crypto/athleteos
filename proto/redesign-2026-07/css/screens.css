@@ -319,6 +319,11 @@
   text-transform: uppercase; color: var(--blue-bright); background: var(--blue-surface);
   padding:2px 8px; border-radius: var(--r-pill); margin:0 0 6px;
 }
+.msg .esc {
+  display: block; width: fit-content; font-size: 9.5px; font-weight: 800; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--amber-bright); background: var(--amber-surface);
+  padding:2px 8px; border-radius: var(--r-pill); margin:0 0 6px;
+}
 
 /* The AI is composing. A live indicator, because that is what every other conversation this
    athlete has ever had looks like while someone types. */
@@ -402,6 +407,38 @@
   border: 0; padding:0; margin:0; font-family: var(--font); -webkit-appearance: none; appearance: none;
 }
 .composer .send:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
+/* The attach control is a QUIET sibling of send: same 48px hit target so the bar stays balanced,
+   but surface-toned, because sending is the primary action and a second bright circle would
+   compete with it. Only rendered when a caller opts in via composer({attachId}). */
+.composer .attach {
+  width: 48px; height: 48px; border-radius: 50%; background: var(--surface-2);
+  display:grid; place-items:center; color: var(--text-2); cursor:pointer; flex:none;
+  border: 1px solid var(--hairline); padding:0; margin:0; font-family: var(--font);
+  -webkit-appearance: none; appearance: none; transition: color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
+}
+.composer .attach:hover { color: var(--text); background: var(--surface-3, var(--surface-2)); }
+.composer .attach.on { color: var(--blue-bright); border-color: var(--blue-border, var(--hairline)); background: var(--blue-surface); }
+.composer .attach:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
+/* `.composer input` above sets flex:1 — the hidden file input is an <input> too, so pin it out of
+   the layout explicitly rather than relying on the UA stylesheet's [hidden] winning. */
+.composer input[type="file"] { display: none !important; }
+/* A pending attachment, shown above the bar so the athlete can see (and drop) what they picked
+   BEFORE it is sent. Nothing uploads until they hit send. */
+.composer-attach-pending {
+  display: flex; align-items: center; gap:10px; margin-top:10px; padding:8px 10px;
+  border: 1px solid var(--hairline); border-radius: var(--r-card-sm); background: var(--surface-1);
+}
+.composer-attach-pending img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; flex:none; }
+.composer-attach-pending .cap { flex:1; font-size: 12.5px; font-weight: 700; color: var(--text-2); }
+.composer-attach-pending button {
+  border:0; background: var(--surface-2); color: var(--text-2); cursor:pointer; flex:none;
+  border-radius: var(--r-pill); padding:6px 12px; font-family: var(--font); font-size: 12px; font-weight: 800;
+}
+/* A photo inside a chat bubble. Capped so a portrait shot cannot push the whole thread offscreen. */
+.msg .bimg {
+  display:block; margin:0 0 6px; max-width: 100%; width: 190px; max-height: 240px;
+  object-fit: cover; border-radius: 10px; cursor: zoom-in; background: var(--surface-2);
+}
 
 /* ----- Weight ----- */
 .weight-display { text-align: center; padding:22px 0 8px; }
@@ -957,6 +994,11 @@
 .qa-row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
 .qa{height:44px;padding:0 16px;border-radius:var(--r-chip);background:var(--surface-2);border:1px solid var(--hairline);color:var(--text-2);font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;transition:transform var(--dur-1) var(--ease-out)}
 .qa:active{transform:scale(0.97)}
+/* PRE-EXISTING GAP, found 2026-07-30: coach.js has rendered `class="qa on"` + aria-pressed for an
+   already-added reaction since the coach reaction bar shipped, but no `.qa.on` rule ever existed —
+   so the pressed state was announced to screen readers and invisible to everyone else. Now that
+   athletes get the same bar, it needs to actually read as on. */
+.qa.on{background:var(--blue-surface);border-color:var(--blue-border, var(--blue-bright));color:var(--blue-bright)}
 .conf-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:6px}
 .conf-dot.high{background:var(--green-bright)} .conf-dot.medium{background:var(--amber-bright)} .conf-dot.low{background:var(--text-3)}
 .foodchip .q{margin-left:6px;font-weight:800;color:var(--amber-bright);cursor:default}

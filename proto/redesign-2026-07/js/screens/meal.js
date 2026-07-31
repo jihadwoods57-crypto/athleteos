@@ -7,12 +7,17 @@ import {
   openingMessage, openingSummary, qualityBand, qualityReason, reactionGroups, threadMessages,
   contextForChat, applyFoodEdit, hasUserEdits, restrictionConflicts,
   estimateConfidence, estRange, mealPatterns, scoreRubric, followUpQuestion, coachThreadStatus,
+  REACTION_EMOJI,
 } from '../meal-intel.js';
+import {
+  attachedPhoto, isPhotoOnly, wireComposerAttach, postChatMessage,
+  bubblePhotoHtml, hydrateThreadPhotos,
+} from '../chat-attach.js';
 import { openImageViewer } from '../image-viewer.js';
 import { openMembersSheet } from '../members-sheet.js';
 import {
   layoutThread, authorName, initialsFor, participantList, participantSummary, participantMeta,
-  isAnalysisOpener, isAnalysisUpdate, quotedFor,
+  isAnalysisOpener, isAnalysisUpdate, isEscalated, quotedFor,
 } from '../chat-view.js';
 
 /* Recent same-athlete meals (14d) for REAL historical patterns in the AI opening — module
@@ -872,7 +877,9 @@ export const thread = {
       ${settled && !emptyRead ? `<button class="qa" id="qa-correct">Correct analysis</button>
       <button class="qa" id="qa-details">Add meal details</button>` : ''}
     </div>
-    ${composer({ inputId: 'meal-msg', sendId: 'meal-send', placeholder: 'Ask about this meal…', sendLabel: 'Send' })}
+    <div class="qa-row" id="meal-rx-row"></div>
+    ${composer({ inputId: 'meal-msg', sendId: 'meal-send', placeholder: 'Ask about this meal…', sendLabel: 'Send', attachId: 'meal-attach' })}
+    <div class="composer-attach-pending" id="meal-attach-pending" hidden></div>
     <div id="chat-note" style="min-height:18px"></div>` : ''}`;
 
     // ---- 4. NEXT ACTION (the exec engine's NOW) — context-aware (upgrade 2026-07-16):
@@ -1055,6 +1062,7 @@ export const thread = {
     };
     let gen = 0; // stale-response guard: only the newest refresh paints
     let comments = [];
+    let rxBusy = false; // one reaction write at a time — double-taps must not race into two rows
 
     // Message timestamps (feedback 2026-07-16: real chat mechanics). Local clock format;
     // '' for rows without a parseable created_at, so nothing renders rather than "NaN".
@@ -1113,19 +1121,26 @@ export const thread = {
         const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
         const who = authorName(c, participants, RT.userId, S.coach.noun);
         const update = isAnalysisUpdate(c);
+        const escalated = isEscalated(c);
         const quoted = update ? quotedFor(c, msgs) : null;
         // Reactions belong to the whole thread (0049 keys them to the meal, not to a message), so
         // they sit on the LAST bubble in it — the one the eye lands on. Putting them on the last
         // message of every run repeated the same pill down the page as if four people had each
         // reacted separately.
         const rx = c === lastMsg ? reactionGroups(comments) : [];
+        // An attached photo renders ABOVE the text, and the text is suppressed when it is only the
+        // NOT-NULL stand-in — a bubble reading "Sent a photo" under the photo it is describing is
+        // noise. The src is filled in after paint (signed URLs are async); until then the element
+        // is a sized placeholder, so the thread does not reflow when images land.
+        const photo = attachedPhoto(c);
+        const photoOnly = isPhotoOnly(c);
         return `
         <div class="msg ${mine ? 'athlete' : c.role === 'ai' ? 'ai' : 'coach'}${item.firstOfRun ? '' : ' cont'}${rx.length ? ' has-rx' : ''}">
           ${!mine && item.firstOfRun ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : esc(initialsFor(who))}</div>` : '<div class="av-sp"></div>'}
           <div class="stack">
             ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
             ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
-            <div class="bubble">${update ? '<span class="upd">Updated analysis</span>' : ''}${esc(c.text)}</div>
+            <div class="bubble">${update ? '<span class="upd">Updated analysis</span>' : escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(c.text)}</div>
             ${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}
           </div>
         </div>`;
@@ -1143,6 +1158,27 @@ export const thread = {
         + (tail.length ? `<div class="msg-status">${tail.join(' ')}</div>` : '');
       if (strip) strip.innerHTML = '';   // reactions now ride the bubble they belong to
       threadEl.scrollTop = threadEl.scrollHeight;
+      paintReactionRow();
+      void hydrateThreadPhotos(threadEl, roles);
+    };
+
+    /* The athlete's own one-tap acknowledgement bar. Reactions have existed since 0049 and the
+       athlete thread has ALWAYS rendered the aggregate — but only a coach could add one, so the
+       athlete could see a 🔥 and had no way to answer it. RLS already permits this row
+       (0046's insert policy is kind-agnostic); this was missing UI and nothing else.
+
+       Painted here rather than in render() because "which ones are mine" is a fact about the
+       fetched comments, which do not exist yet when render() runs. */
+    const paintReactionRow = () => {
+      const row = root.querySelector('#meal-rx-row');
+      if (!row || !M.mealId) return;
+      const list = Array.isArray(comments) ? comments : [];
+      const mineSet = new Set(list
+        .filter((c) => c && c.kind === 'reaction' && c.author_id === RT.userId)
+        .map((c) => String(c.text)));
+      row.innerHTML = REACTION_EMOJI
+        .map((e2) => `<button class="qa${mineSet.has(e2) ? ' on' : ''}" data-rx="${esc(e2)}" aria-pressed="${mineSet.has(e2)}" aria-label="React ${esc(e2)}">${esc(e2)}</button>`)
+        .join('');
     };
     const setTyping = (on) => { aiTyping = !!on; paint(); };
     const refresh = async () => {
@@ -1178,15 +1214,91 @@ export const thread = {
       openMembersSheet(participantList(PARTICIPANTS.uid === RT.userId ? PARTICIPANTS.rows : [], RT.userId));
     });
 
-    // Keep the thread live while it is open. There is no realtime anywhere in this app, so a
-    // coach's reply would otherwise sit unseen until the athlete navigated away and back. Paused
-    // while the tab is hidden — a backgrounded screen has nobody reading it.
+    // Keep the thread live while it is open, so a coach's reply does not sit unseen until the
+    // athlete navigates away and back. Paused while the tab is hidden — a backgrounded screen has
+    // nobody reading it.
+    //
+    // TWO MECHANISMS, deliberately, and the ordering matters:
+    //
+    //   1. REALTIME is the accelerator. It carries no data into the UI — the callback only calls
+    //      refresh(), which re-reads through the normal RLS-scoped SELECT. That is the whole
+    //      security argument: 0069 exists because 0068 leaked private coach notes to athletes, and
+    //      a realtime payload is delivered by a different auth path than the one that bug was
+    //      fixed in. By treating the socket as a doorbell rather than a delivery, a
+    //      mis-scoped subscription can at worst cause a redundant fetch that returns nothing new.
+    //      It can never render a row the athlete could not already have read.
+    //
+    //   2. POLLING remains the floor, NOT dead code. A websocket fails silently — a dropped
+    //      socket, an expired token, a publication that was never migrated — where a poll just
+    //      retries. So the interval stays, and simply runs slower once realtime is confirmed live.
+    //
+    // The interval is adaptive because the old flat 15s was wrong in both directions: too slow in
+    // the seconds after you send (when you are actually watching for a reply) and too costly at
+    // rest, since every tick refetched up to 200 full rows.
     try { clearInterval(window.__threadTick); } catch { /* first mount */ }
-    window.__threadTick = setInterval(() => {
-      if (typeof document !== 'undefined' && document.hidden) return;
-      if (threadBusy) return;
-      void refresh();
-    }, 15000);
+    try { if (window.__threadChannel) { void window.__threadChannel.unsubscribe(); window.__threadChannel = null; } } catch { /* none yet */ }
+
+    let rtLive = false;         // realtime confirmed subscribed — lets the poll relax
+    let burstUntil = 0;         // fast-poll window after the athlete sends
+    const BASE_MS = 15000, SLOW_MS = 45000, BURST_MS = 2500, FOCUS_MS = 6000;
+    const tickDelay = () => {
+      if (Date.now() < burstUntil) return BURST_MS;
+      // Looked up per call, not closed over: `input` is declared further down this mount, so
+      // closing over it would put the first synchronous tickDelay() inside its temporal dead zone.
+      const composerEl = root.querySelector('#meal-msg');
+      if (composerEl && typeof document !== 'undefined' && document.activeElement === composerEl) return FOCUS_MS;
+      return rtLive ? SLOW_MS : BASE_MS;
+    };
+    // A self-rescheduling timeout rather than setInterval: the delay has to be re-decided every
+    // tick, and setInterval fixes it at creation.
+    const scheduleTick = () => {
+      try { clearTimeout(window.__threadTick); } catch { /* first */ }
+      window.__threadTick = setTimeout(async () => {
+        if (typeof document === 'undefined' || !document.hidden) {
+          if (!threadBusy) await refresh().catch(() => {});
+        }
+        if (root.isConnected) scheduleTick();   // stop rescheduling once the screen is gone
+      }, tickDelay());
+    };
+    scheduleTick();
+    // Exposed so submit() can pull the thread into its fast window the moment a message lands.
+    const startBurst = (ms = 20000) => { burstUntil = Date.now() + ms; scheduleTick(); };
+
+    // Realtime subscription. Wrapped end-to-end: the vendored supabase-js already contains the
+    // realtime client, but the `meal_comments` table still has to be added to the
+    // supabase_realtime publication (see the migration alongside this change). Until that lands,
+    // subscribe() simply never reaches 'SUBSCRIBED', rtLive stays false, and the poll keeps
+    // running at its normal rate — the feature degrades to exactly today's behaviour.
+    void (async () => {
+      if (!M.mealId) return;
+      try {
+        // `window.sb` is the live client handle the whole proto shares (supabase.js assigns it;
+        // roles.js reads it the same way). NOT `import { sb }` — that export is the client
+        // INSTANCE, not a getter, and calling it would throw.
+        const c = typeof window !== 'undefined' ? window.sb : null;
+        if (!c || typeof c.channel !== 'function') return;
+        const ch = c.channel(`meal_thread:${M.mealId}`)
+          .on('postgres_changes',
+            { event: '*', schema: 'public', table: 'meal_comments', filter: `meal_id=eq.${M.mealId}` },
+            () => {
+              // Leaving this screen does not tear the socket down (the next mount does), so a
+              // stale channel would otherwise keep repainting a detached DOM and holding the
+              // subscription open. Close it the first time we notice the screen is gone.
+              if (!root.isConnected) {
+                try { void ch.unsubscribe(); if (window.__threadChannel === ch) window.__threadChannel = null; } catch { /* already gone */ }
+                return;
+              }
+              if (!threadBusy) void refresh().catch(() => {});
+            })
+          .subscribe((status) => {
+            rtLive = status === 'SUBSCRIBED';
+            // Re-decide the cadence immediately: going live should relax the poll now, and losing
+            // the socket should tighten it back up without waiting a full slow cycle.
+            scheduleTick();
+          });
+        window.__threadChannel = ch;
+      } catch { /* no realtime — the poll above is the whole mechanism, exactly as before */ }
+    })();
 
 
     // Composer: post athlete message → invoke meal-chat with client-composed context.
@@ -1233,7 +1345,10 @@ export const thread = {
     let busy = false;
     // Reaches the AI for an ALREADY-POSTED question. Retry re-runs only this — the athlete's
     // comment lands in meal_comments exactly once per question, never duplicated by a retry.
-    const askAI = async (text) => {
+    // `photoPath` is a storage KEY, never image bytes: meal-chat re-reads the object server-side
+    // with the service role, so the client cannot make the model look at anything the athlete did
+    // not actually attach to this thread.
+    const askAI = async (text, photoPath = null) => {
       try {
         const recent = await roles.fetchRecentMeals(RT.userId, roles.daysAgoISO(7)).catch(() => []);
         const ex = S.exec;
@@ -1249,7 +1364,16 @@ export const thread = {
           thread: threadMessages(comments).slice(-20).map((c) => ({ role: c.role, text: String(c.text).slice(0, 300) })),
         });
         setTyping(true);
-        const { data, error } = await window.sb.functions.invoke('meal-chat', { body: { mealId: M.mealId, question: text, context } });
+        const { data, error } = await window.sb.functions.invoke('meal-chat', {
+          body: {
+            mealId: M.mealId,
+            // A wordless photo still needs a question for the model to answer. Sent explicitly
+            // rather than left empty so the prompt reads as a real ask, not a blank turn.
+            question: text || 'I sent a photo — what do you make of it?',
+            context,
+            ...(photoPath ? { photoPath } : {}),
+          },
+        });
         setTyping(false);
         if (error || !data || data.error) {
           // The vendored supabase-js (js/vendor/supabase.js) throws FunctionsHttpError on any
@@ -1277,19 +1401,45 @@ export const thread = {
         busy = false;
       });
     };
+    /* ---- photo attachment ---- */
+    // All the DOM plumbing lives in chat-attach.js so the coach thread shares it verbatim rather
+    // than growing a second copy that drifts. Nothing uploads on pick.
+    const attach = wireComposerAttach({
+      root, attachId: 'meal-attach', pendingId: 'meal-attach-pending', safeImg, onNote: (m) => setNote(m),
+    });
+
     const submit = async () => {
-      const text = (input.value || '').trim();
-      if (!text || busy) return;
+      const typed = (input.value || '').trim();
+      const pendingPhoto = attach.get();
+      // A photo alone is a complete message — post-0173 it sends with genuinely empty text, and
+      // postChatMessage falls back to the legacy stand-in if this database still carries 0046's
+      // original length floor.
+      if ((!typed && !pendingPhoto) || busy) return;
       // The 3-message wall is gone (0157): this is a conversation now, and the database backstop
       // sits far past anything a person would type. Nothing to warn about up front.
       busy = true; setNote('');
       input.value = '';
-      const posted = await roles.postMealComment(M.mealId, RT.userId, RT.userId, 'athlete', text);
-      if (!posted) {
-        // Post failed (returns false, never throws): give the text back — re-submitting IS the
-        // retry — and don't reach the AI for a question that never landed.
-        input.value = text;
-        setNote("Couldn't send — try again.");
+      if (pendingPhoto) setNote('Uploading photo…');
+      // Upload happens BEFORE the row is written: a comment whose meta points at an object that
+      // failed to upload would render a permanently broken image. On upload failure nothing is
+      // posted at all, rather than silently dropping the picture from a message about it.
+      const res = await postChatMessage(roles, {
+        mealId: M.mealId, athleteId: RT.userId, authorId: RT.userId, role: 'athlete',
+        text: typed, photo: pendingPhoto,
+      });
+      const photoPath = res.photoPath;
+      if (res.ok) {
+        attach.clear();
+        setNote('');
+        // The seconds right after sending are when the athlete is actually watching for a reply.
+        startBurst();
+      } else {
+        // Give the text back — re-submitting IS the retry — and don't reach the AI for a question
+        // that never landed. The photo stays held so it is not lost with it.
+        input.value = typed;
+        setNote(res.error === 'upload'
+          ? "Couldn't upload that photo — try again, or remove it and send."
+          : "Couldn't send — try again.");
         busy = false;
         return;
       }
@@ -1298,17 +1448,57 @@ export const thread = {
       if (S.coach.hasCoach) {
         void roles.notifyMyCoach({
           kind: 'meal_action', urgent: true,
-          title: `${S.athlete.first || 'Your athlete'} asked about ${M.name}`,
-          body: `${text.slice(0, 140)} · Tap to open the conversation.`,
+          title: `${S.athlete.first || 'Your athlete'} ${photoPath && !typed ? 'sent a photo about' : 'asked about'} ${M.name}`,
+          // A wordless photo has no text to preview, so say what it IS rather than sending a
+          // notification whose body is an empty string.
+          body: `${(typed || 'Sent a photo').slice(0, 140)} · Tap to open the conversation.`,
           route: `coach-meal/${M.mealId}`,
         });
       }
       await refresh();
-      await askAI(text);
+      // The AI now SEES an attachment: meal-chat fetches it from storage server-side and passes it
+      // to the model as a real image block, so a wordless photo is a legitimate question ("what do
+      // you make of this?") rather than something only the coach can act on.
+      await askAI(typed, photoPath);
       busy = false;
     };
     if (send) send.addEventListener('click', submit);
     if (input) input.addEventListener('keydown', (e2) => { if (e2.key === 'Enter') submit(); });
+
+    /* ---- the athlete's reaction bar ---- */
+    // Delegated on the row because paintReactionRow() replaces its children on every repaint.
+    const rxRow = root.querySelector('#meal-rx-row');
+    if (rxRow) rxRow.addEventListener('click', async (ev) => {
+      const btn = ev.target && ev.target.closest ? ev.target.closest('[data-rx]') : null;
+      if (!btn || !M.mealId || rxBusy) return;
+      const emoji = btn.getAttribute('data-rx');
+      if (!emoji) return;
+      rxBusy = true;
+      // TOGGLE, not append. There is no uniqueness constraint on reaction rows and 0157's message
+      // cap deliberately exempts them, so an un-toggled bar would let one athlete write unbounded
+      // rows. Mirrors the coach bar's own toggle.
+      const existing = (Array.isArray(comments) ? comments : [])
+        .find((c) => c && c.kind === 'reaction' && c.author_id === RT.userId && String(c.text) === emoji);
+      let ok = false;
+      if (existing) {
+        ok = await roles.deleteMealComment(existing.id);
+      } else {
+        // role MUST be 'athlete' with athlete_id = self: 0046's insert policy routes a 'coach' row
+        // through an `athlete_id <> auth.uid()` arm that an athlete can never satisfy.
+        ok = await roles.postMealComment(M.mealId, RT.userId, RT.userId, 'athlete', emoji, 'reaction');
+      }
+      if (ok) await refresh(); else setNote("Couldn't save that reaction — try again.");
+      rxBusy = false;
+    });
+
+    // Tap an attached photo to open it full-screen, the same viewer the meal's own hero photo uses.
+    // Delegated on the thread because every repaint replaces these <img> elements.
+    const threadRoot = root.querySelector('#meal-thread');
+    if (threadRoot) threadRoot.addEventListener('click', (ev) => {
+      const im = ev.target && ev.target.closest ? ev.target.closest('img.bimg') : null;
+      if (!im || !im.src) return;
+      openImageViewer(im.src, 'Photo attached to this message');
+    });
   },
 };
 

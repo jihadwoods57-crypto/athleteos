@@ -30,6 +30,7 @@ import { checkSpend, EST_USD } from '../_shared/spend-gate.ts';
 import { loadMemoryForAthlete } from '../_shared/memory-load.ts';
 import { memoryBlock } from '../_shared/memory.ts';
 import { flagOn } from '../_shared/feature-flags.ts';
+import { routeForCoachMeal } from '../_shared/followup.ts';
 
 // Per-surface override first: one shared ANTHROPIC_MODEL meant chat could not move tiers
 // without dragging vision with it. Unset -> unchanged.
@@ -198,6 +199,11 @@ Deno.serve(async (req) => {
     const correctionUpdate = body?.correctionUpdate === true;
     const question = String((coachSupport ? body?.coachText : body?.question) ?? '').trim().slice(0, 500);
     const context = body?.context;
+    // A chat PHOTO ATTACHMENT, passed as a storage KEY and never as image bytes. The client cannot
+    // hand this function pixels: the object is re-read server-side with the service role below,
+    // and only after the key is proven to sit inside the meal owner's own folder. That means a
+    // caller cannot point the model at an arbitrary image, and cannot inflate the request body.
+    const photoPathRaw = typeof body?.photoPath === 'string' ? body.photoPath.trim() : '';
     if (!mealId || !context || (!draftMode && !correctionUpdate && !question)) return bad(400, 'bad_request', cors);
     if (JSON.stringify(context).length > CONTEXT_MAX) return bad(400, 'bad_request', cors);
 
@@ -262,7 +268,10 @@ Deno.serve(async (req) => {
         model: MODEL,
         max_tokens: 700, // 4 drafts x ~60 words + tool-call JSON; headroom so the 4th draft never truncates into a 502
         system: [{ type: 'text', text: composeSystem(DRAFT_SYSTEM, '', planStyle), cache_control: { type: 'ephemeral' } }],
-        tools: [DRAFT_TOOL],
+        // DRAFT_TOOL is `as const`, so input_schema.required is a readonly tuple the SDK's mutable
+        // string[] rejects — the same cast the reply/meal tool arrays below already use. Without
+        // it this file does not pass `deno check` at all.
+        tools: [DRAFT_TOOL] as unknown as Anthropic.Tool[],
         tool_choice: { type: 'tool', name: 'draft_replies' },
         messages: [{
           role: 'user',
@@ -321,8 +330,42 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ skipped: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
     } else if (!(await withinKeyCap(coachSupport ? `meal_chat_support:${callerId}` : `meal_chat:${callerId}`, DAILY_CAP))) return bad(429, 'limit', cors);
+    /* ---- resolve a chat photo attachment, if one was named ----
+       Only the ATHLETE path may attach: a coach reinforcing their own point and an acknowledgment
+       of a correction have no picture to look at, and letting them pass one would be a way to make
+       the model read an image outside the flow that produced it.
+
+       The key must sit inside the MEAL OWNER's own storage folder. Storage RLS (0003) keys on the
+       first path segment being a uid, so this check mirrors the same boundary server-side rather
+       than trusting the caller: a coach can read the athlete's folder through can_view(), but
+       neither party can point this at somebody else's. */
+    let photoB64: string | null = null;
+    if (photoPathRaw && !coachSupport && !correctionUpdate && !draftMode) {
+      const okShape = /^[0-9a-f-]{36}\/chat\/[A-Za-z0-9._-]{1,64}$/i.test(photoPathRaw)
+        && photoPathRaw.startsWith(`${mealRow.athlete_id}/`);
+      if (okShape) {
+        try {
+          const dl = await service.storage.from('meal-photos').download(photoPathRaw);
+          if (dl.data) {
+            const buf = new Uint8Array(await dl.data.arrayBuffer());
+            // Guard the model call, not the bucket: the client encodes to ~1000px/q0.82 (a few
+            // hundred KB), so anything past 6MB is not a chat attachment and is dropped rather
+            // than turned into an enormous, expensive request.
+            if (buf.length && buf.length <= 6_000_000) {
+              let bin = '';
+              for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+              photoB64 = btoa(bin);
+            }
+          }
+        } catch { /* unreadable attachment: answer the words, never fail the whole turn */ }
+      }
+    }
+
     // THE DOLLAR CEILING (0152): the caps above count CALLS, this counts MONEY. Fail-closed.
-    const spendChat = await checkSpend(EST_USD.text);
+    // A turn carrying an image is a VISION call and costs several times a text one, so it is
+    // estimated as such — charging it at the text rate would let attachments walk the daily
+    // ceiling past its actual limit.
+    const spendChat = await checkSpend(photoB64 ? EST_USD.vision : EST_USD.text);
     if (!spendChat.allowed) {
       console.log(JSON.stringify({ evt: 'ai_spend_block', fn: 'meal-chat', reason: spendChat.reason }));
       return bad(429, 'capacity', cors);
@@ -346,7 +389,23 @@ Deno.serve(async (req) => {
         // The job is to acknowledge the fix and re-read the plate with it, conversationally — not
         // to apologise, and not to re-litigate what the photo showed.
         ? `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nThe athlete just corrected your read of this meal. The numbers above are the CORRECTED ones. In 80 words or less, speaking to the athlete, acknowledge what they fixed in one short clause and give them the updated read: what it comes to now and what that means for their day. Conversational, no headings, no lists. Do not apologise and do not explain the mistake.`
-        : `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nAthlete's question: ${question}`;
+        : `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nAthlete's question: ${question}${photoB64 ? `
+
+The athlete ATTACHED THE IMAGE ABOVE to this message. It is a conversational attachment, NOT a
+logged meal: it has not been analyzed, it carries no macros, and nothing in the context above
+describes it. Read it yourself and answer what they actually asked about it. Do not report macro
+numbers for it as if they were computed or measured — say plainly that you are eyeballing the
+picture, and keep any figure you give it clearly an estimate. Every number about the LOGGED meal in
+the context stays exactly as given.` : ''}`;
+
+    // An image rides as its own content block ahead of the text. Only ever populated on the
+    // athlete question path (see the resolve step above).
+    const userContent = photoB64
+      ? [
+        { type: 'image' as const, source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: photoB64 } },
+        { type: 'text' as const, text: userTurn },
+      ]
+      : userTurn;
 
     const t0r = Date.now();
     const msg = await anthropic.messages.create({
@@ -359,9 +418,12 @@ ${memBlock}` : composeSystem(SYSTEM, '', planStyle), cache_control: { type: 'eph
       // reinforced and a correction being acknowledged have nothing in them to escalate.
       tools: coachSupport || correctionUpdate ? replyTools : athleteTools,
       tool_choice: coachSupport || correctionUpdate ? { type: 'tool', name: 'reply' } : { type: 'any' },
-      messages: [{ role: 'user', content: userTurn }],
+      messages: [{ role: 'user', content: userContent }],
     });
-    await recordAiCall({ fn: 'meal-chat', mode: 'reply', userId: callerId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0r, ok: true });
+    // phase marks the vision turns so the cost views can separate them: an attachment turn is
+    // several times the price of a text one, and rolling both into one 'reply' bucket would hide
+    // exactly the number that decides whether attachments stay free.
+    await recordAiCall({ fn: 'meal-chat', mode: 'reply', phase: photoB64 ? 'photo' : null, userId: callerId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0r, ok: true });
     const tool = msg.content.find((b) => b.type === 'tool_use') as { name?: string; input?: { message?: string; reason?: string; note?: string } } | undefined;
 
     // ESCALATION. The model declined to answer, so say so plainly to the athlete and put it in
@@ -379,9 +441,11 @@ ${memBlock}` : composeSystem(SYSTEM, '', planStyle), cache_control: { type: 'eph
       await service.from('meal_comments').insert({
         meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: mealRow.athlete_id,
         role: 'ai', kind: 'message', text: declineText,
+        meta: { t: 'escalated' },
       });
 
       let notified = false;
+      const notifiedStaffIds: string[] = [];
       if (withinFlagCap) {
         // Whoever actively staffs this athlete's team. A solo athlete has no one to notify — the
         // decline still stands, we just record that there was no coach.
@@ -397,9 +461,33 @@ ${memBlock}` : composeSystem(SYSTEM, '', planStyle), cache_control: { type: 'eph
               body: note || 'They asked a question the AI would not answer.',
             });
             notified = true;
+            notifiedStaffIds.push(st.staff_id);
           }
         }
       }
+
+      // PUSH — best-effort, same write-order guarantee as ai-followup: the notification row above
+      // is already durable, so a failed push here must never affect the response already sent to
+      // the athlete.
+      if (notifiedStaffIds.length) {
+        try {
+          const { data: toks } = await service.from('device_tokens').select('token').in('user_id', notifiedStaffIds);
+          const messages = ((toks ?? []) as Array<{ token: string }>).map((t) => ({
+            to: t.token,
+            title: 'An athlete asked something for you',
+            body: note || 'They asked a question the AI would not answer.',
+            data: { route: routeForCoachMeal(mealId) },
+            sound: 'default',
+          }));
+          for (let i = 0; i < messages.length; i += 100) {
+            await fetch('https://exp.host/--/api/v2/push/send', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(messages.slice(i, i + 100)),
+            }).catch(() => undefined);
+          }
+        } catch { /* notification row already landed; a push failure must not affect the athlete's response */ }
+      }
+
       await recordAiCall({ fn: 'meal-chat', mode: 'reply', phase: 'flagged_for_coach', userId: callerId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0r, ok: true });
       return new Response(JSON.stringify({ reply: declineText, flagged: reason, notified }), { headers: { ...cors, 'Content-Type': 'application/json' } });
     }
@@ -421,6 +509,10 @@ ${memBlock}` : composeSystem(SYSTEM, '', planStyle), cache_control: { type: 'eph
           system: [{ type: 'text', text: composeSystem(SYSTEM, '', planStyle), cache_control: { type: 'ephemeral' } }],
           tools: replyTools,
           tool_choice: { type: 'tool', name: 'reply' },
+          // TEXT-ONLY on purpose, even when the first turn carried an image: this retry asks the
+          // model to REPHRASE an answer it has already given (the discarded reply is right there),
+          // not to look at the picture again. Re-sending the image would double the expensive part
+          // of the turn to fix a wording problem.
           messages: [
             { role: 'user', content: userTurn },
             { role: 'assistant', content: `<discarded>${reply}</discarded>` },

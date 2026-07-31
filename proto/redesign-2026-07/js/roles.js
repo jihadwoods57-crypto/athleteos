@@ -266,6 +266,30 @@ export async function signedMealPhotoUrl(path) {
   try { const { data } = await c.storage.from('meal-photos').createSignedUrl(path, 3600); return (data && data.signedUrl) || null; } catch { return null; }
 }
 
+/** Upload a photo ATTACHED TO A CHAT MESSAGE (not a logged meal). Returns the storage path, or
+    null on any failure — the caller decides whether to still send the text.
+
+    Deliberately its own path segment (`<uid>/chat/…`) and NOT `todayMealPhotoPath()`'s
+    `<uid>/<date>/<slot>.jpg`: that key is the athlete's canonical photo FOR THAT MEAL SLOT, and
+    writing a chat attachment there would silently overwrite the logged plate. Storage RLS (0003)
+    only ever checks that the FIRST path segment is the caller's own uid, so this key needs no
+    policy change and stays coach-readable through the same can_view() arm.
+
+    It also never touches `meals`, so the 0062 photo-hash reuse wall cannot fire — attaching a
+    picture of a plate you already logged is a legitimate thing to do in conversation. */
+export async function uploadChatPhoto(userId, base64) {
+  const c = sb(); if (!c || !userId || !base64) return null;
+  const path = `${userId}/chat/${Date.now()}.jpg`;
+  try {
+    const bin = atob(base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const up = await c.storage.from('meal-photos').upload(path, bytes, { contentType: 'image/jpeg', upsert: false });
+    if (up.error) return null;
+    return path;
+  } catch { return null; }
+}
+
 /* ---------------- progress photos (before/after body-composition timeline, 0133) ---------------- */
 /** Upload a progress photo (raw base64 jpeg) to the private progress-photos bucket and record a
     row. Path MUST start with the athlete's id (storage RLS). Best-effort — returns the new row or null. */
@@ -453,13 +477,26 @@ export async function fetchMealComments(mealId) {
   const c = sb(); if (!c || !mealId) return [];
   try { const { data, error } = await c.from('meal_comments').select('*').eq('meal_id', mealId).order('created_at', { ascending: true }).limit(200); if (error) return { error: true }; return data || []; } catch { return { error: true }; }
 }
-export async function postMealComment(mealId, athleteId, authorId, role, text, kind = 'message') {
+/* `meta` (0157) is optional and rides the same row: clients may write it on their own rows because
+   the insert policy is row-level, not column-level. Used for a chat photo attachment
+   ({photo:'<uid>/chat/…'}); the retry paths below drop it first, since a database old enough to
+   lack `kind` also lacks `meta` and a message is worth more than its attachment. */
+export async function postMealComment(mealId, athleteId, authorId, role, text, kind = 'message', meta = null) {
   const c = sb(); if (!c || !mealId || !authorId) return false;
   try {
     const row = { meal_id: mealId, athlete_id: athleteId, author_id: authorId, role, text };
     if (kind !== 'message') row.kind = kind;
+    if (meta) row.meta = meta;
     const { error } = await c.from('meal_comments').insert(row);
     if (!error) return true;
+    // A `meta` the database does not have would fail an otherwise-valid message. Retry without it
+    // before giving up, so an attachment degrades to a plain text message instead of a lost one.
+    if (meta) {
+      const retry = { meal_id: mealId, athlete_id: athleteId, author_id: authorId, role, text };
+      if (kind !== 'message') retry.kind = kind;
+      const { error: eMeta } = await c.from('meal_comments').insert(retry);
+      if (!eMeta) return true;
+    }
     // pre-0049 DB: retry without kind so plain messages still post
     if (kind === 'message') return false;
     const { error: e2 } = await c.from('meal_comments').insert({ meal_id: mealId, athlete_id: athleteId, author_id: authorId, role, text });

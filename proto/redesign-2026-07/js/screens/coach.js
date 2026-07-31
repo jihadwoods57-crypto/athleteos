@@ -1,10 +1,14 @@
 import { S, RT, act, fmtClock, nutritionConfigForGoal } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, titleHead, esc, composer, sparkline, emptyState, errorState, skeletonRows } from '../components.js';
+import { backHead, titleHead, esc, safeImg, composer, sparkline, emptyState, errorState, skeletonRows } from '../components.js';
+import {
+  attachedPhoto, isPhotoOnly, wireComposerAttach, postChatMessage,
+  bubblePhotoHtml, hydrateThreadPhotos,
+} from '../chat-attach.js';
 import { coachSetupState, coachSetupSteps } from './coach-home.js';
 import * as roles from '../roles.js';
 import { openingMessage, qualityBand, qualityReason, scoreRubric, reactionGroups, threadMessages, privateNotes, REACTION_EMOJI } from '../meal-intel.js';
-import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpener, quotedFor } from '../chat-view.js';
+import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpener, isEscalated, quotedFor } from '../chat-view.js';
 import { openImageViewer } from '../image-viewer.js';
 import { CD, loadBook, bookKindFor, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor, localClock, logBookIntervention } from '../coach-data.js';
 import { STATUS_META } from '../status.js';
@@ -2419,14 +2423,17 @@ export const coachMeal = {
           const mine = c.author_id === RT.userId;
           const who = c.author_id === RT.userId ? 'You' : authorName(c, MC.participants || [], RT.userId);
           const update = isAnalysisUpdate(c);
+          const escalated = isEscalated(c);
           const quoted = update ? quotedFor(c, msgs) : null;
+          const photo = attachedPhoto(c);
+          const photoOnly = isPhotoOnly(c);
           return `
           <div class="msg ${mine ? 'athlete' : c.role === 'ai' ? 'ai' : 'coach'}${item.firstOfRun ? '' : ' cont'}">
             ${!mine && item.firstOfRun ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : esc(initialsFor(who))}</div>` : '<div class="av-sp"></div>'}
             <div class="stack">
               ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
               ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
-              <div class="bubble">${update ? '<span class="upd">Updated analysis</span>' : ''}${esc(c.text)}</div>
+              <div class="bubble">${update ? '<span class="upd">Updated analysis</span>' : escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(c.text)}</div>
             </div>
           </div>`;
         }).join('')}
@@ -2474,7 +2481,8 @@ export const coachMeal = {
         ${REACTION_EMOJI.map((e) => `<button class="qa${mine.has(e) ? ' on' : ''}" data-rx="${e}" aria-pressed="${mine.has(e)}">${e}</button>`).join('')}
       </div>`;
     })()}
-    ${composer({ inputId: 'cm-input', sendId: 'cm-send', placeholder: 'Comment on this meal…', sendLabel: 'Send comment' })}
+    ${composer({ inputId: 'cm-input', sendId: 'cm-send', placeholder: 'Comment on this meal…', sendLabel: 'Send comment', attachId: 'cm-attach' })}
+    <div class="composer-attach-pending" id="cm-attach-pending" hidden></div>
     <div id="cm-note" style="font-size:12.5px;font-weight:600;color:var(--red-bright);margin:6px 2px 0;min-height:16px"></div>
 
     ${(() => {
@@ -2549,23 +2557,50 @@ export const coachMeal = {
     // The 2-message cap is gone (0157). A meal thread is a conversation now, and a coach who has
     // more to say should be able to say it — the database backstop sits far past anything a
     // person would type, so there is nothing honest to warn about here.
+    // Resolve any attachments already in the thread. mount() re-runs on every __render(), which is
+    // exactly when a repaint has just wiped the resolved src attributes, so this belongs here.
+    void hydrateThreadPhotos(root, roles);
+    // Tap an attached photo to open it full-screen. Delegated because repaints replace the <img>.
+    root.addEventListener('click', (ev) => {
+      const im = ev.target && ev.target.closest ? ev.target.closest('img.bimg') : null;
+      if (!im || !im.src) return;
+      openImageViewer(im.src, 'Photo attached to this message');
+    });
+
+    // Same attach plumbing the athlete thread uses, shared from chat-attach.js rather than copied.
+    // A coach showing an athlete what a portion should look like is the mirror of the athlete
+    // showing the coach what they ate, and it is the same control doing it.
+    const cmAttach = wireComposerAttach({
+      root, attachId: 'cm-attach', pendingId: 'cm-attach-pending', safeImg,
+      onNote: (m) => { if (cmNote) cmNote.textContent = m; },
+    });
     const submit = async () => {
       const text = (input.value || '').trim();
-      if (!text) return;
+      const pendingPhoto = cmAttach.get();
+      if (!text && !pendingPhoto) return;
       const meal = mealById(sub);
       const athleteId = meal ? meal.athlete_id : (MC && MC.comments[0] && MC.comments[0].athlete_id);
       if (!athleteId) return;
-      if (cmNote) cmNote.textContent = '';
-      const ok = await roles.postMealComment(sub, athleteId, RT.userId, 'coach', text);
-      if (!ok) {
-        // Post failed (returns false, never throws): keep the typed text so it isn't lost, tell
-        // the coach, let them retry. The old code cleared the input BEFORE the await — a failed
-        // send silently ate the comment. Mirrors the reaction handler's honest failure path.
-        if (cmNote) cmNote.textContent = "Couldn't send — try again.";
+      if (cmNote) cmNote.textContent = pendingPhoto ? 'Uploading photo…' : '';
+      // Storage RLS keys the path on the UPLOADER's own uid, so a coach's attachment lands under
+      // their folder — and the athlete reads it through the same can_view() arm in reverse.
+      const res = await postChatMessage(roles, {
+        mealId: sub, athleteId, authorId: RT.userId, role: 'coach', text, photo: pendingPhoto,
+      });
+      if (!res.ok) {
+        // Post failed: keep the typed text so it isn't lost, tell the coach, let them retry. The
+        // old code cleared the input BEFORE the await — a failed send silently ate the comment.
+        if (cmNote) {
+          cmNote.textContent = res.error === 'upload'
+            ? "Couldn't upload that photo — try again, or remove it and send."
+            : "Couldn't send — try again.";
+        }
         return;
       }
+      if (cmNote) cmNote.textContent = '';
       input.value = '';
-      roles.nudgePush(athleteId, `${S.athlete.name} commented on your ${meal ? cap(meal.type) : 'meal'}`, text);
+      cmAttach.clear();
+      roles.nudgePush(athleteId, `${S.athlete.name} commented on your ${meal ? cap(meal.type) : 'meal'}`, text || 'Sent a photo');
       // AI's one supporting message (2/3/1): best-effort, selective server-side — it only
       // fires on a substantive coach point, at most once per meal, and never blocks the post.
       try {

@@ -100,3 +100,9 @@ export function routeForMeal(mealId: string): string {
 export function notificationKind(mealId: string): string {
   return `ai_followup:${mealId}`;
 }
+
+/** Where a COACH's tap lands: the meal thread as staff see it — distinct from the athlete's own
+ *  route, used when an escalation needs to route staff rather than the athlete. */
+export function routeForCoachMeal(mealId: string): string {
+  return `coach-meal/${mealId}`;
+}

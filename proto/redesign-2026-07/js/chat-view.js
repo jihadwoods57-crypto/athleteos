@@ -135,6 +135,11 @@ export function isAnalysisOpener(comment) {
   return !!(comment && comment.role === 'ai' && comment.meta && comment.meta.t === 'analysis');
 }
 
+/** Is this the AI's decline-and-hand-off message (flag_for_coach)? */
+export function isEscalated(comment) {
+  return !!(comment && comment.role === 'ai' && comment.meta && comment.meta.t === 'escalated');
+}
+
 /**
  * The message an update is answering — the athlete's correction just above it.
  *

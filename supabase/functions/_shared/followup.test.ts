@@ -3,7 +3,7 @@
 // mattered is muted too.
 import {
   inLocalWindow, localDateISO, pickFollowUpMeal, fallbackFollowUp, routeForMeal, notificationKind,
-  LOW_QUALITY, type MealRow,
+  routeForCoachMeal, LOW_QUALITY, type MealRow,
 } from './followup';
 
 const meal = (over: Partial<MealRow>): MealRow =>
@@ -114,5 +114,13 @@ describe('delivery addressing', () => {
   it('the route shape passes the native deep-link validator', () => {
     // ProtoApp.tsx deliverRoute: /^[a-z0-9/_-]{1,64}$/i
     expect(/^[a-z0-9/_-]{1,64}$/i.test(routeForMeal('7f3a1b2c-9d8e-4f5a-b6c7-d8e9f0a1b2c3'))).toBe(true);
+  });
+
+  it('routes a COACH to the staff-side meal thread, distinct from the athlete route', () => {
+    expect(routeForCoachMeal('abc-123')).toBe('coach-meal/abc-123');
+  });
+
+  it('the coach route shape also passes the native deep-link validator', () => {
+    expect(/^[a-z0-9/_-]{1,64}$/i.test(routeForCoachMeal('7f3a1b2c-9d8e-4f5a-b6c7-d8e9f0a1b2c3'))).toBe(true);
   });
 });
