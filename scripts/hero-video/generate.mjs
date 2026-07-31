@@ -32,7 +32,14 @@ const HAUTH = rawHk.includes(':') ? rawHk : (rawHk && rawHs ? `${rawHk}:${rawHs}
 if (ENGINE === 'openai' && !KEY) { console.error('no OPENAI_API_KEY in .env'); process.exit(1); }
 if (ENGINE === 'soul' && !HAUTH) { console.error('no Higgsfield credentials in .env'); process.exit(1); }
 
-const LOOK = `Photorealistic editorial sport photography. Full-frame camera, 50mm lens at f/2.0, shallow depth of field, rich fine film grain, deep crushed blacks. One large soft warm gold key light from camera left, wrapping the cheekbone, jaw and forearm in warm gold (#E8B44A). A second warm gold rim light traces the right shoulder and the far side of the face. The phone screen adds a faint cool-neutral fill under the chin and on the hands — the only cool light in the frame; no cyan or blue rim light anywhere. Background: near-black warm darkness (#0B0A08), completely unreadable, the real environment implied by one or two soft out-of-focus shapes only. Muted, desaturated palette. No haze, no lens flare, no bloom.`;
+// Brand refresh 2026-07-31: the landing site retired its warm gold chrome for the
+// product's own dark-navy + blue/teal signature (docs/brand/LOGO.md). This LOOK constant
+// used to bake the old gold (#E8B44A) / near-black-warm (#0B0A08) palette directly into the
+// art direction — updated to the cool key light used by every other landing photo
+// (web/landing-src/cool-photos-hf.mjs). NOTE: this alone does not fix the LIVE hero-loop.mp4,
+// which was rendered under the old LOOK and is still visibly warm/gold on faces and clothing
+// (confirmed by frame inspection) — it only stops a future re-run from reproducing that look.
+const LOOK = `Photorealistic editorial sport photography. Full-frame camera, 50mm lens at f/2.0, shallow depth of field, rich fine film grain, deep crushed blacks. One large soft cool blue-white key light from camera left, wrapping the cheekbone, jaw and forearm in cool light. A second subtle teal-cyan rim light traces the right shoulder and the far side of the face. The phone screen adds a faint cool-neutral fill under the chin and on the hands, consistent with the key light. Background: near-black blue-dark (#070B14), completely unreadable, the real environment implied by one or two soft out-of-focus shapes only. Muted, desaturated palette. No haze, no lens flare, no bloom.`;
 
 const FRAMING = `Vertical 2:3 portrait, chest-up. A thin strip of darkness, about one twelfth of the frame height, separates the top of the hair from the top edge of the frame — the hair never touches the top edge and the strip never grows taller than that. The eyes sit roughly one third of the way down the frame. The chin sits just above the vertical centre of the frame. The head is centred horizontally. The shoulders and chest run off the bottom edge of the frame — never a floating cut-off torso. The phone and the meal sit together in the lower middle of the frame, slightly left of centre, both fully inside frame and clearly readable as phone-over-food.`;
 

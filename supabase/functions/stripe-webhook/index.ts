@@ -377,7 +377,10 @@ async function revokeFundedForCharge(svc: ReturnType<typeof createClient>, charg
 async function emailOfferClaim(email: string | null, code: string): Promise<void> {
   if (!email || !RESEND_API_KEY) return;
   // `code` is generated from a fixed alphabet, never user input, so it is safe to interpolate.
+  // Branded header (brand law, docs/brand/LOGO.md): hosted PNG mark + two-tone wordmark.
   const html = `<div style="font-family:system-ui,-apple-system,sans-serif;color:#0F172A;line-height:1.5">
+    <div style="height:4px;background:linear-gradient(120deg,#34D399,#22D3EE,#3B82F6);border-radius:2px;margin-bottom:18px"></div>
+    <p style="margin:0 0 18px"><img src="https://onstandard.app/assets/brand/email-mark.png" width="30" height="30" alt="" style="vertical-align:middle;border-radius:9px"> <span style="font-size:17px;font-weight:800;letter-spacing:-.3px;vertical-align:middle"><span style="color:#0F172A">On</span><span style="color:#2563EB">Standard</span></span></p>
     <p>Your payment is confirmed — thanks for signing up with your trainer on OnStandard.</p>
     <p>Download the app, create your account, and enter this code to connect with them. Your OnStandard membership is included in what you already pay your trainer.</p>
     <p style="font-family:ui-monospace,Menlo,monospace;font-size:24px;font-weight:800;letter-spacing:0.06em">${code}</p>
