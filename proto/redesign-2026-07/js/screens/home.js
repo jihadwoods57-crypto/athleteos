@@ -458,10 +458,18 @@ function hydroNow(h) {
 function celebration(e) {
   return `<div class="xcelebwrap">
     <section class="hero" style="padding-bottom:8px">
-      ${scoreRing({ score: e.score, delta: (S.scoreYesterday != null && e.score > S.scoreYesterday) ? `+${e.score - S.scoreYesterday} pts` : null, streak: S.streakDays > 0 ? `${S.streakDays} day streak` : null, tierName: S.tier.name, tierCls: S.tier.cls })}
+      ${scoreRing({ score: e.score })}
     </section>
     <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-top:2px">You're OnStandard.</div>
-    <div style="font-size:12.5px;color:var(--text-2);line-height:1.55;max-width:34ch;margin-top:5px">Every requirement is in.${S.streakDays > 0 ? ` Day <b>${S.streakDays}</b> of your streak locks at midnight.` : ' Your streak starts the moment today locks at midnight.'}</div>
+    <!-- One meta line, no echoes: the ring already says the score and (by color) the tier; the
+         record list below already proves every requirement is in. Everything left that's UNIQUE
+         lives here — delta, streak day, and when it locks. -->
+    <div style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-2);margin-top:6px">
+      ${S.scoreYesterday != null && e.score > S.scoreYesterday ? `<span class="xh-delta up">${icon('arrowUp', 11)} ${e.score - S.scoreYesterday} <span class="m">vs yesterday</span></span><span style="opacity:.45">·</span>` : ''}
+      ${S.streakDays > 0
+        ? `<span style="display:inline-flex;align-items:center;gap:4px;font-weight:700;color:var(--amber-bright)">${icon('flame', 13)} Day ${S.streakDays}</span><span style="opacity:.45">·</span><span>locks at midnight</span>`
+        : `<span>your streak starts when today locks at midnight</span>`}
+    </div>
     <div style="height:14px"></div>
     <div class="eyebrow" style="align-self:flex-start">Today's record</div>
     <div class="xrecord" style="width:100%;box-sizing:border-box">

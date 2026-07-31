@@ -180,12 +180,7 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
       ${sparkle}
     </svg>
     ${showCenter ? `<div class="ring-center">
-      <span class="label">OnStandard Score</span>
       <span class="score${score >= 100 ? ' d3' : ''}" data-count="${score}">${score}</span>
-      <span class="outof">/100</span>
-      ${tierName ? `<span class="tier-chip ${tierCls}">${tierName}</span>` : ''}
-      ${delta ? `<span class="delta"><span class="up">${icon('arrowUp', 15)} ${delta}</span><span class="muted">vs yesterday</span></span>` : ''}
-      ${streak ? `<span class="streak-pill">${icon('flame', 15, 'class="flame"')} ${streak}</span>` : ''}
     </div>` : ''}
     ${centerNum ? `<div class="ring-center num"><span class="score${score >= 100 ? ' d3' : ''}" data-count="${score}">${score}</span></div>` : ''}
   </div>`;
@@ -338,13 +333,24 @@ export function sparkline(hist) {
 export function composer({
   inputId = '', sendId = '', placeholder = '', inputLabel = placeholder, sendLabel = 'Send',
   sendIcon = 'arrowUp', sendIconSize = 19, sendStyle = '', wrapStyle = '',
-  autocompleteOff = true, decorativeSend = false,
+  autocompleteOff = true, decorativeSend = false, attachId = '', attachLabel = 'Attach a photo',
 } = {}) {
   const sendAttrs = `class="send"${sendId ? ` id="${sendId}"` : ''}${sendStyle ? ` style="${sendStyle}"` : ''}`;
   const sendEl = decorativeSend
     ? `<span ${sendAttrs} aria-hidden="true">${icon(sendIcon, sendIconSize)}</span>`
     : `<button type="button" ${sendAttrs} aria-label="${esc(sendLabel)}">${icon(sendIcon, sendIconSize)}</button>`;
+  // OPT-IN, and deliberately so: this helper backs seven bars including a food SEARCH box and a
+  // private-note field, none of which should sprout a camera. Only a caller that passes attachId
+  // gets the control. The hidden <input type="file"> is the same web-platform capture the camera
+  // screen already relies on (no native bridge exists for photo capture), so this adds no new
+  // permission surface — accept="image/*" with no `capture` attribute lets the OS offer BOTH
+  // camera and library, which is what a chat attachment wants.
+  const attachEl = attachId
+    ? `<button type="button" class="attach" id="${attachId}" aria-label="${esc(attachLabel)}">${icon('camera', 18)}</button>
+    <input type="file" accept="image/*" id="${attachId}-file" hidden aria-hidden="true" tabindex="-1" />`
+    : '';
   return `<div class="composer"${wrapStyle ? ` style="${wrapStyle}"` : ''}>
+    ${attachEl}
     <input${inputId ? ` id="${inputId}"` : ''} placeholder="${esc(placeholder)}" aria-label="${esc(inputLabel)}"${autocompleteOff ? ' autocomplete="off"' : ''} />
     ${sendEl}
   </div>`;
