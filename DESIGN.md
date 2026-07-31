@@ -45,5 +45,7 @@ meal scan-line `aos-scan` · spinner `aos-spin` · subtle `aos-pulse`. Ease out 
 
 ## Iconography
 Inline SVG, 2px stroke, round caps/joins, currentColor-driven. No emoji. The logo mark is
-the **Performance Dial** (see `docs/brand/LOGO.md`) — one mark across app icon, in-app,
-and onstandard.app.
+the **Performance Dial** (see `docs/brand/LOGO.md`) — one geometry, two finishes (lit for
+big rendered surfaces, flat for small), one two-tone wordmark, across app icon, in-app,
+onstandard.app, admin, emails, and marketing (unified in the 2026-07-31 brand refresh;
+masters in `assets/brand/`, rasters via `scripts/gen-brand-assets.mjs`).
