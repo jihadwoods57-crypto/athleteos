@@ -1,5 +1,5 @@
 /* OnStandard — Connected Standards, athlete side (0155).
-   The Home card, its detail screen, and the personal editor a solo athlete uses to set their own.
+   The Home card, its detail screen, the list, and the personal editor a solo athlete uses.
 
    VOCABULARY: the athlete never sees the phrase "connected standard". They see the coach's own
    title ("Daily Movement", "Tuesday Conditioning") and a number moving toward a target. Every
@@ -11,14 +11,24 @@
      2. A sync gap NEVER reads as a miss. 'Awaiting sync' is amber and says the watch hasn't
         reported — not that the athlete failed.
      3. The rule is stated before the deadline, not after. A standard that counts only workout
-        distance says so on the card, so nobody walks three miles and then learns it didn't count. */
+        distance says so on the card, so nobody walks three miles and then learns it didn't count.
+
+   THE MARK is the column (see .cscol in screens.css and columnGeometry in the engine), not the
+   score ring. Rule 1 is the reason: the ring is the daily score's letterform, and borrowing it
+   here would contradict in pixels what the footnote says in words. The column gets the same
+   ceremony — the keyed reveal, the count-up, the landing haptic — through motion.js.
+
+   Rule 3 is why the "How this is counted" disclosure does not always collapse. A rule the athlete
+   would not guess (recorded workouts only, a minimum session length) stays open on the screen. */
 import { icon } from '../icons.js';
 import { track, EVENTS } from '../analytics.js';
-import { backHead, esc } from '../components.js';
+import { backHead, esc, emptyState } from '../components.js';
+import { reveal } from '../motion.js';
 import {
   csStatus, csProgressLine, remainingLabel, progressPct, syncedLabel,
   metricLabel, sourceRule, paceToGoal, groupForAthlete, activeOn, completedLabel,
   fmtValue, unitNoun, toCanonical, toDisplay, isComplete,
+  columnGeometry, streakOf, momentumOf,
 } from '../connected-standards.js';
 import {
   CS, loadMine, loadMyDefs, submitManual, disputeResult,
@@ -35,24 +45,51 @@ const METRIC_ICON = {
   workout_minutes: 'clock', active_minutes: 'clock',
 };
 
-/** The progress bar. Green once the target is met, amber when the week is off pace. */
-function bar(row, pace) {
-  const pct = progressPct(row);
-  const tone = isComplete(row.status) ? 'green'
-    : (pace && pace.state === 'behind') ? 'amber' : 'blue';
-  return `<div class="cs-bar ${tone}"><i style="width:${pct}%"></i></div>`;
+/* ---------------------------------------------------------------- the column */
+
+/**
+ * The mark, at either size. `geo` comes from the engine so the markup makes no judgements of
+ * its own — this function only draws what columnGeometry already decided.
+ *
+ * The fill carries BOTH its resting height and `data-fill`: the resting state must be the true
+ * one, because most paints are repaints that never animate (window.__render() re-runs mount()),
+ * and a column resting at 0 would read as "you did nothing" on every one of them. motion.js winds
+ * it back to zero only for the single reveal it plays.
+ */
+function column(geo, { mini = false } = {}) {
+  const cls = ['cscol', geo.state, mini ? 'mini' : '', geo.behind ? 'behind' : ''].filter(Boolean).join(' ');
+  if (geo.state === 'unknown') {
+    return `<div class="${cls}"><span class="qm" aria-hidden="true">?</span></div>`;
+  }
+  return `<div class="${cls}">
+    ${geo.state === 'partial' ? '<span class="hatch"></span>' : ''}
+    <span class="fill" style="height:${geo.fillPct}%" data-fill="${geo.fillPct}"></span>
+    ${geo.notchPct != null ? `<span class="notch" style="bottom:${geo.notchPct}%"></span>` : ''}
+  </div>`;
 }
 
-/* ---------------------------------------------------------------- the Home card */
+/** The count-up hooks for one value. `dec` is read back off the formatted string rather than
+ *  assumed per metric, so the last frame of the tween is byte-identical to fmtValue's output —
+ *  a counter that lands on "3.00" where the card says "3" is a counter nobody trusts. */
+function countAttrs(value, metric, unit) {
+  const shown = fmtValue(value, metric, unit);
+  const dec = (shown.split('.')[1] || '').length;
+  return { shown, attrs: `data-cs-count="${toDisplay(value, metric, unit)}" data-cs-dec="${dec}"` };
+}
 
-/** One row inside the Home card. */
+/* ---------------------------------------------------------------- the shared row
+   Home card and the Activity Standards list draw the same row. They used to draw two different
+   things — a bar-and-title block on Home, a generic icon row in the list — which made one feature
+   look like two. */
+
 function standardRow(row, todayIso) {
   const st = csStatus(row.status);
   const pace = paceToGoal(row, todayIso);
-  const id = esc(row.result_id || '');
+  const geo = columnGeometry(row, pace);
   const done = isComplete(row.status);
+  const id = esc(row.result_id || '');
 
-  // The line under the title changes with what the athlete actually needs to know next.
+  // The line under the number changes with what the athlete actually needs to know next.
   const sub = done
     ? esc(completedLabel(row))
     : row.status === 'awaiting_sync' ? 'Your watch hasn’t reported yet — this won’t count against you'
@@ -62,18 +99,21 @@ function standardRow(row, todayIso) {
     : pace ? `${esc(pace.label)}${pace.needLabel ? ` · ${esc(pace.needLabel)}` : ''}`
     : esc(remainingLabel(row) || syncedLabel(row, undefined, todayIso));
 
-  return `<div class="cs-row" data-cs-open="${id}">
-    <div class="cs-top">
-      <span class="cs-title">${esc(row.title || 'Standard')}</span>
-      <span class="xpill ${pillFor(row.status)}">${esc(st.label)}</span>
+  const progress = geo.state === 'unknown'
+    ? '—' : `${esc(fmtValue(row.progress, row.metric, row.display_unit))}${geo.state === 'partial' ? '+' : ''}`;
+
+  return `<div class="cs-srow" data-cs-open="${id}">
+    ${column(geo, { mini: true })}
+    <div class="mid">
+      <div class="t">${esc(row.title || 'Standard')}</div>
+      <div class="n">${progress} <em>/ ${esc(fmtValue(row.target, row.metric, row.display_unit))} ${esc(unitNoun(row.metric, row.display_unit, row.target))}</em></div>
+      <div class="m${geo.state === 'partial' ? ' amber' : ''}">${sub}</div>
     </div>
-    ${row.status === 'excused' ? '' : bar(row, pace)}
-    <div class="cs-nums">
-      <span class="cs-prog">${esc(csProgressLine(row))}</span>
-    </div>
-    <div class="cs-meta">${sub}</div>
+    <span class="xpill ${pillFor(row.status)}">${esc(st.label)}</span>
   </div>`;
 }
+
+/* ---------------------------------------------------------------- the Home card */
 
 /** The Home card. Returns '' when the athlete has no standards today — Home renders nothing
  *  rather than an empty shell, which is what keeps this feature invisible until it's turned on. */
@@ -111,33 +151,56 @@ export function mountStandardsCard(root) {
 
 /* ---------------------------------------------------------------- detail screen */
 
-/** The seven most recent periods for this standard, oldest first — the week strip. */
-function historyStrip(rows, current) {
-  const mine = rows
-    .filter((r) => r.standard_id === current.standard_id)
-    .sort((a, b) => String(a.period_start).localeCompare(String(b.period_start)))
-    .slice(-7);
-  if (mine.length < 2) return '';
+const DOW = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-  const glyph = (r) => isComplete(r.status) ? '✓'
-    : r.status === 'missed' ? '✕'
-    : r.status === 'excused' ? '–'
-    : csStatus(r.status).counts === 'excluded' ? '↻' : '•';
-  const cls = (r) => isComplete(r.status) ? 'ok'
-    : r.status === 'missed' ? 'miss'
-    : r.status === 'excused' ? 'exc'
-    : csStatus(r.status).counts === 'excluded' ? 'sync' : 'now';
-  const dow = (iso) => ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][
-    new Date(String(iso) + 'T12:00:00').getDay()];
+/** A daily period is a weekday; a weekly one is the week it started. Same strip, honest label. */
+function periodLabel(iso, period) {
+  const d = new Date(String(iso) + 'T12:00:00');
+  if (Number.isNaN(d.getTime())) return '';
+  return period === 'week' ? `${MON[d.getMonth()]} ${d.getDate()}` : DOW[d.getDay()];
+}
 
-  const anyGap = mine.some((r) => csStatus(r.status).counts === 'excluded');
+/** The last seven periods as bars. Below two periods there is no shape to read, so it stays away
+ *  rather than presenting a single bar as a trend. */
+function momentumCard(rows, current) {
+  const bars = momentumOf(rows, current.standard_id, 7);
+  if (bars.length < 2) return '';
+  const anyGap = bars.some((b) => b.cls === 'gap');
   return `<section class="card pad">
-    <div class="cs-eyebrow" style="margin-bottom:10px">RECENT</div>
-    <div class="cs-days">${mine.map((r) => `
-      <div class="cs-day ${cls(r)}"><i>${glyph(r)}</i><span>${esc(dow(r.period_start))}</span></div>`).join('')}
+    <div class="cs-eyebrow" style="margin-bottom:10px">LAST ${bars.length} ${current.period === 'week' ? 'WEEKS' : 'DAYS'}</div>
+    <div class="cs-mom">
+      <span class="tline"></span>
+      ${bars.map((b) => `<b class="${b.cls}" style="height:${Math.max(4, b.pct)}%"></b>`).join('')}
     </div>
-    ${anyGap ? `<div class="cs-p muted" style="margin-top:10px">A period marked ↻ is waiting on your device. It never counts against you.</div>` : ''}
+    <div class="cs-momlabs">${bars.map((b) => `<span>${esc(periodLabel(b.iso, current.period))}</span>`).join('')}</div>
+    ${anyGap ? `<div class="cs-p muted" style="margin-top:10px">A hatched bar is a period your device never reported. It never counts against you.</div>` : ''}
   </section>`;
+}
+
+/* The rule card. Collapsed when the rule is the one anybody would assume; OPEN when it is not.
+   Hiding "recorded workouts only" behind a chevron is precisely the surprise invariant 3 exists
+   to prevent, and a disclosure the athlete has to think to open is not a disclosure. */
+function ruleCard(row) {
+  const surprising = !!row.deliberate_workout || !!row.workout_min_duration_min;
+  const body = `<div class="cs-p">${esc(sourceRule(row.metric, row.deliberate_workout, row.workout_min_duration_min))}</div>
+    <div class="cs-p muted" style="margin-top:6px">${esc(syncedLabel(row, undefined, todayISO()))}${row.verified_source ? ` · ${esc(sourceLabel(row.verified_source))}` : ''}</div>
+    ${row.note ? `<div class="cs-p" style="margin-top:8px">${esc(row.note)}</div>` : ''}
+    ${row.owner_label ? `<div class="cs-p muted" style="margin-top:6px">Set by ${esc(row.owner_label)}</div>` : ''}`;
+
+  if (surprising) {
+    return `<section class="card pad">
+      <div class="cs-eyebrow" style="margin-bottom:8px">HOW THIS IS COUNTED</div>
+      ${body}
+    </section>`;
+  }
+  return `<details class="card pad xcollapse" data-sec="cs-rule">
+    <summary class="xsum" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer">
+      <span class="cs-eyebrow">HOW THIS IS COUNTED</span>
+      <span class="xchev">${icon('chevron', 14)}</span>
+    </summary>
+    <div class="xcollapse-body" style="margin-top:10px">${body}</div>
+  </details>`;
 }
 
 export default {
@@ -151,30 +214,63 @@ export default {
 
     const st = csStatus(row.status);
     const pace = paceToGoal(row, todayISO());
+    const geo = columnGeometry(row, pace);
     const done = isComplete(row.status);
     const canManual = row.allow_manual && !done && row.status !== 'excused';
     const canDispute = row.status === 'missed' && !row.disputed_at;
+    const streak = streakOf(CS.mine, row.standard_id);
+
+    const { shown, attrs } = countAttrs(row.progress, row.metric, row.display_unit);
+    const value = geo.state === 'unknown'
+      ? '<span class="cs-val dim">—</span>'
+      : `<div class="cs-val"><span ${attrs}>${esc(shown)}</span>${geo.state === 'partial' ? '<span class="plus">+</span>' : ''}</div>`;
+
+    // The pace line, and the tone it carries. 'behind' is the clock's verdict, never the fill's.
+    const paceTone = done ? 'done' : geo.behind ? 'behind' : pace ? 'on' : '';
+    const paceText = geo.state === 'unknown' ? 'Health access is off, so nothing is being counted.'
+      : geo.state === 'partial' ? `${esc(syncedLabel(row, undefined, todayISO()))}. This won’t count against you.`
+      : row.status === 'missed' ? `${esc(remainingLabel(row) || '')} short. The period is closed.`
+      : row.status === 'excused' ? esc(row.excused_reason || 'Excused by your coach')
+      : done ? esc(completedLabel(row))
+      : pace ? `${esc(pace.label)}${pace.needLabel ? ` · ${esc(pace.needLabel)}` : ''}`
+      : esc(remainingLabel(row) || 'Target met');
+
+    /* The hero's footer is ONE thing, chosen by state — the streak when there's a run worth
+       naming, otherwise the single action this state actually affords. These used to be three
+       cards parked on the screen permanently, offering manual entry to someone whose watch was
+       working fine and a dispute button to someone who hadn't missed anything. */
+    const foot = geo.state === 'unknown'
+      ? `<div class="cs-foot gray"><div class="ic">${icon('wifiOff', 14)}</div>
+         <div class="tx">Reconnect your health data, or log this by hand below.</div></div>`
+      : geo.state === 'partial'
+      ? `<div class="cs-foot amber"><div class="ic">${icon('clock', 14)}</div>
+         <div class="tx">Your watch hasn’t reported yet. Log it yourself if it doesn’t catch up.</div></div>`
+      : streak >= 2
+      ? `<div class="cs-foot ${done ? 'green' : ''}"><div class="ic">${icon('flame', 14)}</div>
+         <div class="tx">${streak} ${row.period === 'week' ? 'weeks' : 'days'} in a row</div></div>`
+      : '';
 
     return `${backHead(row.title || 'Standard', metricLabel(row.metric, row.deliberate_workout), 'home')}
 
-    <section class="card pad" style="text-align:center">
-      <div class="cs-eyebrow">${esc(row.period === 'week' ? 'THIS WEEK' : 'TODAY')}</div>
-      <div class="cs-hero">${esc(fmtValue(row.progress, row.metric, row.display_unit))}<br>
-        <small>of ${esc(fmtValue(row.target, row.metric, row.display_unit))} ${esc(unitNoun(row.metric, row.display_unit, row.target))}</small></div>
-      ${row.status === 'excused' ? '' : `<div class="cs-bar ${done ? 'green' : pace && pace.state === 'behind' ? 'amber' : 'blue'}" style="margin:14px 24px 6px"><i style="width:${progressPct(row)}%"></i></div>`}
-      <div class="cs-p muted">${esc(pace ? `${pace.label}${pace.needLabel ? ` · ${pace.needLabel}` : ''}` : (remainingLabel(row) || 'Target met'))}</div>
-      <div style="margin-top:10px"><span class="xpill ${pillFor(row.status)}">${esc(st.label)}</span></div>
+    <section class="card pad" id="cs-hero">
+      <div class="cs-head" style="margin-bottom:13px">
+        <span class="cs-eyebrow">${esc(row.period === 'week' ? 'THIS WEEK' : 'TODAY')}</span>
+        <span class="xpill ${pillFor(row.status)}">${esc(st.label)}</span>
+      </div>
+      <div class="cs-colrow">
+        ${column(geo)}
+        <div class="cs-colside">
+          ${value}
+          <div class="cs-of">of ${esc(fmtValue(row.target, row.metric, row.display_unit))} ${esc(unitNoun(row.metric, row.display_unit, row.target))}</div>
+          <div class="cs-pace ${paceTone}">${paceText}</div>
+        </div>
+      </div>
+      ${foot}
     </section>
 
-    <section class="card pad">
-      <div class="cs-eyebrow" style="margin-bottom:8px">HOW THIS IS COUNTED</div>
-      <div class="cs-p">${esc(sourceRule(row.metric, row.deliberate_workout, row.workout_min_duration_min))}</div>
-      <div class="cs-p muted" style="margin-top:6px">${esc(syncedLabel(row, undefined, todayISO()))}${row.verified_source ? ` · ${esc(sourceLabel(row.verified_source))}` : ''}</div>
-      ${row.note ? `<div class="cs-p" style="margin-top:8px">${esc(row.note)}</div>` : ''}
-      ${row.owner_label ? `<div class="cs-p muted" style="margin-top:6px">Set by ${esc(row.owner_label)}</div>` : ''}
-    </section>
+    ${momentumCard(CS.mine, row)}
 
-    ${historyStrip(CS.mine, row)}
+    ${ruleCard(row)}
 
     ${canManual ? `<section class="card pad">
       <div class="cs-eyebrow" style="margin-bottom:8px">WATCH NOT SYNCING?</div>
@@ -208,16 +304,29 @@ export default {
   mount(root) {
     const rerender = () => loadMine(true).then(() => { if (window.__render) window.__render(); });
 
+    /* The reveal, keyed to THIS number. __render() re-runs mount() for reasons that have nothing
+       to do with the column — a manual entry saving, the cache landing — and an unkeyed reveal
+       would replay the fill and the haptic on every one of them. The key changes only when the
+       value or the verdict actually changed, which is exactly when the moment is earned. */
+    const hero = root.querySelector('#cs-hero');
+    const row = CS.result((location.hash.split('/')[1] || ''));
+    if (hero && row) {
+      reveal(hero, {
+        key: `cs:${row.result_id}:${row.status}:${row.progress}`,
+        haptic: isComplete(row.status) ? 'reveal' : null,
+      });
+    }
+
     const manual = root.querySelector('#cs-manual');
     if (manual) manual.addEventListener('click', async () => {
       if (manual.disabled) return;
       manual.disabled = true; manual.textContent = 'Saving…';
-      const row = CS.result((location.hash.split('/')[1] || ''));
+      const r = CS.result((location.hash.split('/')[1] || ''));
       const note = (root.querySelector('#cs-note') || {}).value || '';
-      const res = await submitManual(row && row.instance_id, note);
+      const res = await submitManual(r && r.instance_id, note);
       if (res.ok) {
         try { if (navigator.vibrate) navigator.vibrate(14); } catch { /* no-op */ }
-        track(EVENTS.CS_MANUAL, { metric: row && row.metric, review: res.status === 'awaiting_review' });
+        track(EVENTS.CS_MANUAL, { metric: r && r.metric, review: res.status === 'awaiting_review' });
       } else { manual.disabled = false; manual.textContent = 'I did this'; }
       rerender();
     });
@@ -226,10 +335,10 @@ export default {
     if (dispute) dispute.addEventListener('click', async () => {
       if (dispute.disabled) return;
       dispute.disabled = true; dispute.textContent = 'Sending…';
-      const row = CS.result((location.hash.split('/')[1] || ''));
+      const r = CS.result((location.hash.split('/')[1] || ''));
       const note = (root.querySelector('#cs-dnote') || {}).value || '';
-      const res = await disputeResult(row && row.result_id, note);
-      if (res.ok) track(EVENTS.CS_DISPUTED, { metric: row && row.metric });
+      const res = await disputeResult(r && r.result_id, note);
+      if (res.ok) track(EVENTS.CS_DISPUTED, { metric: r && r.metric });
       rerender();
     });
   },
@@ -253,22 +362,26 @@ let LIST_SIG = null;
 export const connectedStandardsList = {
   tab: 'profile',
   render() {
-    const rows = activeOn(CS.mine, todayISO());
+    const today = todayISO();
+    const rows = activeOn(CS.mine, today);
     const { assigned, personal } = groupForAthlete(rows);
     const section = (title, list, empty) => `
       <div class="xgrp">${esc(title)}</div>
-      ${list.length ? list.map((r) => `
-        <div class="xrow-item" data-cs-open="${esc(r.result_id)}">
-          <div class="xico sm" style="background:var(--blue-surface);color:var(--blue-bright)">${icon(METRIC_ICON[r.metric] || 'bolt', 16)}</div>
-          <div class="xr"><div class="xa">${esc(r.title)}</div>
-          <div class="xb">${esc(csProgressLine(r))}</div></div>
-          <span class="xpill ${pillFor(r.status)}">${esc(csStatus(r.status).label)}</span>
-        </div>`).join('')
-      : `<section class="card pad"><div class="cs-p muted">${esc(empty)}</div></section>`}`;
+      ${list.length
+        ? `<section class="card" style="padding:2px 16px">${list.map((r) => standardRow(r, today)).join('')}</section>`
+        : empty}`;
 
     return `${backHead('Activity Standards', 'Verified from your device', 'profile')}
-    ${section('From your coach', assigned, 'Nothing assigned right now.')}
-    ${section('Personal', personal, 'Set your own target — steps, distance, or workouts.')}
+    ${section('From your coach', assigned, emptyState({
+      icon: 'target',
+      title: 'Nothing assigned right now',
+      body: 'When your coach sets an activity standard, it shows up here and on your Home screen.',
+    }))}
+    ${section('Personal', personal, emptyState({
+      icon: 'bolt',
+      title: 'Set your own target',
+      body: 'Steps, distance, workouts or active minutes — checked against your watch, and yours alone.',
+    }))}
     <div id="cs-connect-slot"></div>
     <div style="padding:12px 20px">
       <button class="btn" id="cs-new">Set a personal standard</button>
@@ -325,7 +438,7 @@ const METRICS = [
   { key: 'workouts', label: 'Workouts', unit: 'workouts', preset: 4 },
   { key: 'active_minutes', label: 'Active minutes', unit: 'min', preset: 30 },
 ];
-const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const DOW_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 /* Draft state for the editor. Module-scoped so a re-render (which the router does on every hash
    change) doesn't wipe half-entered input. */
@@ -336,6 +449,27 @@ function blankDraft() {
     id: null, metric: 'steps', display_unit: 'steps', target: 8000,
     period: 'day', repeat_days: [0, 1, 2, 3, 4, 5, 6], deliberate_workout: false, title: '',
   };
+}
+
+/* The commitment, read back as a sentence. "8,000 steps a day, every day" is a decision; a number
+   sitting in a text field is a value. The preview shows what was already chosen — it adds nothing
+   the knobs below don't already control, which is what keeps this a design pass. */
+function draftSentence(d) {
+  const noun = unitNoun(d.metric, d.display_unit, d.target || 2);
+  const cadence = d.period === 'week' ? 'across the week'
+    : d.repeat_days.length === 7 ? 'a day, every day'
+    : `a day, ${d.repeat_days.length} ${d.repeat_days.length === 1 ? 'day' : 'days'} a week`;
+  return `${noun} ${cadence}.`;
+}
+
+function previewCard(d) {
+  return `<div style="padding:0 20px 11px"><div class="cs-prev">
+    <div class="cscol live"><span class="fill"></span></div>
+    <div>
+      <div class="pv">${esc(fmtValue(toCanonical(d.target, d.metric, d.display_unit), d.metric, d.display_unit))}</div>
+      <div class="pl"><span class="ps">${esc(draftSentence(d))}</span><br>Verified from your watch.</div>
+    </div>
+  </div></div>`;
 }
 
 export const connectedStandardEdit = {
@@ -354,6 +488,8 @@ export const connectedStandardEdit = {
     const m = METRICS.find((x) => x.key === d.metric) || METRICS[0];
 
     return `${backHead(d.id ? 'Edit standard' : 'New standard', 'Your own target', 'connected-standards')}
+
+    ${previewCard(d)}
 
     <section class="card pad">
       <div class="cs-knob">
@@ -388,7 +524,7 @@ export const connectedStandardEdit = {
 
       ${d.period === 'day' ? `<div class="cs-knob">
         <div class="cs-knob-label">WHICH DAYS</div>
-        <div class="cs-seg">${DOW.map((lab, i) => `
+        <div class="cs-seg">${DOW_INITIALS.map((lab, i) => `
           <span class="${d.repeat_days.includes(i) ? 'on' : ''}" data-cs-dow="${i}">${esc(lab)}</span>`).join('')}
         </div>
       </div>` : ''}
@@ -430,8 +566,17 @@ export const connectedStandardEdit = {
       set({ repeat_days: days.length ? days : DRAFT.repeat_days });
     }));
 
+    /* The preview follows the target as it's typed. Deliberately NOT a __render(): re-rendering
+       on every keystroke would tear the input's caret out from under the thumb. Patch the two
+       nodes that actually changed instead. */
     const target = root.querySelector('#cs-target');
-    if (target) target.addEventListener('input', () => { DRAFT.target = Number(target.value) || 0; });
+    if (target) target.addEventListener('input', () => {
+      DRAFT.target = Number(target.value) || 0;
+      const pv = root.querySelector('.cs-prev .pv');
+      const ps = root.querySelector('.cs-prev .ps');
+      if (pv) pv.textContent = fmtValue(toCanonical(DRAFT.target, DRAFT.metric, DRAFT.display_unit), DRAFT.metric, DRAFT.display_unit);
+      if (ps) ps.textContent = draftSentence(DRAFT);
+    });
     const title = root.querySelector('#cs-title');
     if (title) title.addEventListener('input', () => { DRAFT.title = title.value; });
 

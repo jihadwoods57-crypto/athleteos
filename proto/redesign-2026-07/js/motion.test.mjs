@@ -18,7 +18,7 @@ import { register } from 'node:module';
 const LOADER = `
 const STUBS = {
   './state.js': 'export const RT = { haptics: true };',
-  './components.js': 'export function animateRing(root){ (globalThis.__drawn ||= []).push(root); }',
+  './components.js': 'export function animateRing(root){ (globalThis.__drawn ||= []).push(root); }\\nexport function animateFills(root){ (globalThis.__filled ||= []).push(root); }',
 };
 export function resolve(spec, ctx, next) {
   if (STUBS[spec]) return { url: 'stub:' + spec, shortCircuit: true };

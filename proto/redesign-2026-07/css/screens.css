@@ -1338,26 +1338,146 @@
   .cs-bar > i{transition:width var(--dur-3) var(--ease-out)}
 }
 
-/* ---- detail hero ---- */
-.cs-hero{font-size:var(--t-3xl);font-weight:800;letter-spacing:var(--num-tight);
-  font-variant-numeric:tabular-nums;line-height:1.05;margin-top:6px}
-.cs-hero small{display:block;font-size:var(--t-md);color:var(--text-3);font-weight:700;
-  letter-spacing:var(--title-tight);margin-top:2px}
+/* ---- THE COLUMN — the athlete's hero mark -----------------------------------------------------
+   Deliberately not the score ring. The ring is the daily 0-100's letterform; drawing it on the one
+   surface whose job is to say "tracked, not scored" would undo the honesty this feature was built
+   around. A column filling from the bottom reads as ACCUMULATING rather than GRADED, and it is
+   used by nothing else in the app, so the two numbers can never be confused for each other.
 
-/* The week strip. ✓ met · ✕ short · ↻ waiting on the device · – excused · • today.
-   max-width caps the cell so two periods of history read as the start of a strip rather than
-   two icons marooned at opposite edges; a full week still fills the row. */
-.cs-days{display:flex;gap:8px}
-.cs-day{flex:1 1 0;max-width:56px;text-align:center}
-.cs-day i{display:grid;place-items:center;width:26px;height:26px;margin:0 auto 4px;border-radius:var(--r-chip);
-  border:1px solid var(--hairline);background:var(--surface-2);font-style:normal;
-  font-size:var(--t-xs);font-weight:800;color:var(--text-3)}
-.cs-day span{font-size:var(--t-eyebrow);color:var(--text-3);font-weight:800;letter-spacing:var(--track-key)}
-.cs-day.ok i{background:var(--green-surface);border-color:var(--green-border);color:var(--green)}
-.cs-day.miss i{background:var(--red-surface);border-color:var(--red-border);color:var(--red)}
-.cs-day.sync i{background:var(--amber-surface);border-color:var(--amber-border);color:var(--amber-bright)}
-.cs-day.now i{background:var(--blue-surface);border-color:var(--blue-border);color:var(--blue-bright)}
-.cs-day.exc i{background:var(--surface-3);color:var(--text-3)}
+   The number beside it stays in --font, NOT --font-display. Archivo Expanded is reserved for
+   scores; spending it here would say "this is the number that matters" about a number that
+   explicitly is not the one that matters.
+
+   States, and why each is drawn the way it is — see columnGeometry() for the same list in prose:
+     .live      sweep fill                              still going
+     .partial   sweep fill + hatch over the unknown     the device owes us the rest of the truth
+     .unknown   dashed outline, no fill, "?"            no access; an empty column would claim the
+                                                        athlete did nothing, which we cannot know
+     .done      topped out, green lip, one-shot flare   green is status here, never decoration
+     .missed    fill stays where it landed, red lip     the work done is still true after midnight
+     .excused   flat and dim                            there is nothing to show */
+.cscol{position:relative;flex:none;width:52px;border-radius:var(--r-chip);
+  background:var(--surface-3);border:1px solid var(--hairline);overflow:hidden}
+/* The hatch sits UNDER the fill and covers the whole track, so the fill painting over its lower
+   portion leaves exactly the unknown region showing. One element, nothing to keep in sync. */
+.cscol .hatch{position:absolute;inset:0;
+  background:repeating-linear-gradient(135deg,rgba(var(--amber-rgb),.26) 0 5px,transparent 5px 10px)}
+.cscol .fill{position:absolute;left:0;right:0;bottom:0;height:0;
+  background:linear-gradient(180deg,var(--ring-b),var(--ring-c))}
+/* The lit lip is the fill's own ::after, so it rides the height for free — no second animated
+   property, and no chance of the surface and the water disagreeing mid-draw. */
+.cscol .fill::after{content:'';position:absolute;left:0;right:0;top:0;height:2px;
+  background:rgba(255,255,255,.9);box-shadow:0 0 12px rgba(255,255,255,.72)}
+.cscol.done .fill{background:linear-gradient(180deg,var(--ring-b),var(--ring-a))}
+.cscol.done .fill::after{background:#ECFFF7;box-shadow:0 0 16px 2px rgba(var(--green-rgb),.85)}
+.cscol.partial .fill::after{background:var(--amber-bright);box-shadow:0 0 12px rgba(var(--amber-rgb),.7)}
+.cscol.missed .fill::after{background:var(--red-bright);box-shadow:0 0 12px rgba(var(--red-rgb),.7)}
+.cscol.unknown{background:transparent;border:1.5px dashed rgba(148,176,224,.30)}
+.cscol.excused{opacity:.5}
+/* On the light canvas a white lip sits on a near-white track and disappears — and the lip is the
+   column's comet tip, the one mark that says where the number actually is. It goes deep instead,
+   and the two dashed lines (unknown outline, pace notch) take a darker slate for the same reason
+   .30 alpha of a pale blue is invisible on white. */
+:root[data-theme="light"] .cscol .fill::after{
+  background:rgba(255,255,255,.95);box-shadow:0 0 6px rgba(0,0,0,.28),0 1px 2px rgba(0,0,0,.35)}
+:root[data-theme="light"] .cscol.done .fill::after{
+  background:#FFFFFF;box-shadow:0 0 10px 1px rgba(var(--green-rgb),.75),0 1px 2px rgba(0,0,0,.3)}
+:root[data-theme="light"] .cscol.unknown{border-color:rgba(71,85,105,.38)}
+:root[data-theme="light"] .cscol .notch{border-top-color:rgba(71,85,105,.45)}
+.cscol .qm{position:absolute;inset:0;display:grid;place-items:center;
+  font-size:var(--t-xl);font-weight:800;color:var(--text-3)}
+/* Pace, not the target — the top of the column is already the target. Renders on weekly standards
+   only; a daily one has no honest pace line to draw (see columnGeometry). */
+.cscol .notch{position:absolute;left:0;right:0;height:0;z-index:2;
+  border-top:1.5px dashed rgba(148,176,224,.55)}
+.cscol.behind .notch{border-top-color:var(--amber-bright)}
+/* box-shadow on the element itself is not clipped by its own overflow:hidden. */
+.cscol.flare{animation:cscol-flare 900ms var(--ease-out) forwards}
+@keyframes cscol-flare{
+  0%{box-shadow:0 0 0 0 rgba(var(--green-rgb),0)}
+  35%{box-shadow:0 0 22px 6px rgba(var(--green-rgb),.55)}
+  100%{box-shadow:0 0 0 0 rgba(var(--green-rgb),0)}
+}
+@media (prefers-reduced-motion: reduce){ .cscol.flare{animation:none} }
+
+/* ---- detail hero ---- */
+.cs-colrow{display:flex;gap:16px;align-items:stretch;height:146px}
+.cs-colside{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center}
+.cs-val{font-size:var(--t-3xl);font-weight:800;letter-spacing:var(--num-tight);
+  font-variant-numeric:tabular-nums;line-height:1.05;color:var(--text)}
+.cs-val.dim{color:var(--text-3)}
+/* The "+" on a partial sync: the number is a floor, not a total, and the glyph says so. */
+.cs-val .plus{font-size:var(--t-xl);color:var(--text-3)}
+.cs-of{font-size:var(--t-xs);font-weight:700;color:var(--text-3);margin-top:5px}
+.cs-pace{font-size:var(--t-xs);font-weight:700;margin-top:9px;line-height:1.45;color:var(--text-3)}
+.cs-pace.on{color:var(--blue-bright)}
+.cs-pace.behind{color:var(--amber-bright)}
+.cs-pace.done{color:var(--green)}
+
+/* A footer inside the hero card: the streak, or the one action this state actually affords.
+   Both replace cards that used to sit parked on the screen whether or not they applied. */
+.cs-foot{display:flex;align-items:flex-start;gap:9px;margin-top:12px;padding-top:11px;
+  border-top:1px solid var(--hairline-soft)}
+.cs-foot .ic{width:26px;height:26px;border-radius:var(--r-chip);flex:none;display:grid;place-items:center;
+  background:var(--blue-surface);color:var(--blue-bright)}
+.cs-foot.green .ic{background:var(--green-surface);color:var(--green)}
+.cs-foot.amber .ic{background:var(--amber-surface);color:var(--amber-bright)}
+.cs-foot.gray .ic{background:var(--surface-3);color:var(--text-3)}
+.cs-foot .tx{font-size:var(--t-xs);font-weight:650;color:var(--text-2);line-height:1.45;padding-top:4px}
+
+/* ---- momentum: the week as bars, not glyphs ----
+   The old strip was ✓/✕/↻ in boxes — data, but nothing you could feel. Bars carry the same five
+   verdicts AND how close each period came, which is the part that reads as momentum. The dashed
+   line is the target, so a run of bars reaching it is legible without counting ticks. */
+.cs-mom{display:flex;align-items:flex-end;gap:6px;height:56px;position:relative}
+.cs-mom .tline{position:absolute;left:0;right:0;top:0;border-top:1px dashed rgba(148,176,224,.28)}
+/* max-width caps the bar for the same reason the old glyph strip capped its cell: a two-period
+   history stretched across the full width reads as two slabs, not as the start of a strip. A full
+   week still fills the row. The label track carries the identical cap so the two stay aligned. */
+.cs-mom b{flex:1 1 0;min-width:0;max-width:48px;border-radius:5px 5px 3px 3px;
+  background:var(--surface-3);min-height:3px;align-self:flex-end}
+.cs-mom b.ok{background:linear-gradient(180deg,var(--ring-b),var(--ring-c))}
+.cs-mom b.miss{background:rgba(var(--red-rgb),.32)}
+.cs-mom b.gap{background:repeating-linear-gradient(135deg,rgba(var(--amber-rgb),.30) 0 4px,transparent 4px 8px);
+  border:1px solid var(--amber-border)}
+.cs-mom b.exc{background:var(--surface-3);opacity:.5}
+.cs-mom b.now{background:linear-gradient(180deg,var(--ring-b),var(--ring-c));
+  box-shadow:0 0 14px rgba(var(--teal-rgb),.5)}
+.cs-momlabs{display:flex;gap:6px;margin-top:6px}
+.cs-momlabs span{flex:1 1 0;min-width:0;max-width:48px;text-align:center;font-size:var(--t-eyebrow);
+  font-weight:800;letter-spacing:var(--track-key);color:var(--text-3)}
+
+/* ---- the row: Home card + Activity Standards list, one component ----
+   The mini column is the hero shrunk, carrying the same state vocabulary. It replaces the generic
+   bolt tile the list drew for every metric, and it is what makes a row and the screen it opens
+   read as the same object rather than two components that happen to share a title. */
+.cscol.mini{width:9px;height:44px;border-radius:5px}
+.cscol.mini .fill::after{height:1.5px;box-shadow:0 0 7px rgba(255,255,255,.7)}
+.cscol.mini .qm{font-size:var(--t-eyebrow)}
+.cs-srow{display:flex;align-items:center;gap:12px;padding:12px 0;cursor:pointer}
+.cs-srow + .cs-srow{border-top:1px solid var(--hairline-soft)}
+.cs-srow .mid{flex:1;min-width:0}
+.cs-srow .t{font-size:var(--t-base);font-weight:750;letter-spacing:var(--title-tight);color:var(--text)}
+.cs-srow .n{font-size:var(--t-sm);font-weight:800;font-variant-numeric:tabular-nums;
+  color:var(--text-2);margin-top:3px}
+.cs-srow .n em{font-style:normal;font-weight:700;color:var(--text-3)}
+.cs-srow .m{font-size:var(--t-eyebrow);font-weight:600;color:var(--text-3);margin-top:3px;line-height:1.45}
+.cs-srow .m.amber{color:var(--amber-bright)}
+
+/* ---- editor: the live preview ----
+   You are committing to a number every day. Seeing the column you will actually be looking at,
+   and reading the commitment back as a sentence, is the difference between setting a value and
+   making a decision. It shows what you already chose — it does not add a choice. */
+.cs-prev{display:flex;gap:15px;align-items:center;background:var(--surface-2);
+  border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:14px 15px}
+.cs-prev .cscol{width:34px;height:78px}
+/* Ghosted, not disabled: it is a preview of a full column, so it has to still read AS a column.
+   At .35 the gradient flattened into a grey slab and the lit lip disappeared entirely. */
+.cs-prev .cscol .fill{height:100%;opacity:.5}
+.cs-prev .cscol .fill::after{opacity:.75}
+.cs-prev .pv{font-size:var(--t-2xl);font-weight:800;letter-spacing:var(--num-tight);
+  font-variant-numeric:tabular-nums;line-height:1;color:var(--text)}
+.cs-prev .pl{font-size:var(--t-xs);font-weight:700;color:var(--text-3);margin-top:5px;line-height:1.5}
 
 /* ---- coach board ---- */
 .cs-ini{background:var(--surface-3);color:var(--text-2);font-size:var(--t-xs);font-weight:800;

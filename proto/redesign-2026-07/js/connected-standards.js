@@ -223,12 +223,104 @@ export function paceToGoal(row, todayISO) {
 
   return {
     state, daysLeft, daysTotal: total, remaining, neededPerDay,
+    // Where the ideal line stands right now, as a percentage of the target. The column draws its
+    // pace notch here, so the notch and the `state` above can never disagree — both read `elapsed`.
+    expectedPct: Math.max(0, Math.min(100, Math.round((elapsed / total) * 100))),
     label: state === 'done' ? 'Complete'
          : state === 'ahead' ? 'Ahead of pace'
          : state === 'on_pace' ? 'On pace' : 'Behind pace',
     needLabel: state === 'done' || remaining <= 0 ? null
       : `Need ${fmtValue(neededPerDay, row.metric, row.display_unit)} ${unitNoun(row.metric, row.display_unit, neededPerDay)}/day`,
   };
+}
+
+/* ---------------------------------------------------------------- the column
+   The athlete's hero mark. Deliberately NOT the score ring: the ring is the daily 0-100's
+   letterform, and drawing it on the one surface whose job is to say "tracked, not scored" would
+   undo the honesty this feature was built around. A column that fills from the bottom says
+   "accumulating" instead of "graded", and it belongs to nothing else in the app.
+
+   `state` is the whole vocabulary, and it exists so a sync gap cannot be drawn as a shortfall:
+
+     live      still going, some of it verified          → sweep fill
+     partial   the device owes us the rest of the truth  → sweep fill + hatched unknown above it
+     unknown   no access at all; we know NOTHING         → dashed outline, no fill, no number
+     done      target met                                → topped out, green lip
+     missed    the period closed short                   → fill stays, lip goes red
+     excused   staff removed it                          → flat and dim; there is nothing to show
+
+   'partial' and 'unknown' are the two that matter. An empty column reads as "you did nothing",
+   which is a claim about the ATHLETE. Neither state has earned that claim — one is a watch that
+   hasn't reported and the other is a permission that was never granted. */
+export function columnGeometry(row, pace) {
+  const status = row?.status;
+  const state = status === 'disconnected' ? 'unknown'
+    : csStatus(status).counts === 'dropped' ? 'excused'
+    : isComplete(status) ? 'done'
+    : status === 'missed' ? 'missed'
+    : isDeviceGap(status) ? 'partial'
+    : 'live';
+
+  // 'unknown' and 'excused' have no honest height. Everything else draws what was actually seen —
+  // including 'missed', because the work the athlete did do is still true after the day closes.
+  const fillPct = (state === 'unknown' || state === 'excused') ? 0 : progressPct(row);
+
+  /* The notch is PACE, not the target — the top of the column is already the target, which frees
+     the line to carry the more useful fact. It renders only where pace is real: a weekly window.
+     paceToGoal returns null for a daily standard on purpose ("a one-day period has no pace, only
+     a progress line, and inventing one would be noise"), and a notch drawn from a made-up model
+     of when a day is supposed to be half over would be exactly that noise, dressed as precision. */
+  const notchPct = (pace && pace.expectedPct != null
+    && state !== 'done' && state !== 'excused' && state !== 'unknown')
+    ? pace.expectedPct : null;
+
+  return {
+    state, fillPct, notchPct,
+    // Behind is a fact about the clock, so it colours the NOTCH and the pace line — never the
+    // fill. Recolouring the work the athlete actually did as a warning is a verdict, not a fact.
+    behind: notchPct != null && fillPct < notchPct,
+  };
+}
+
+/** The rows for one standard, oldest first. Shared by the streak and the momentum chart so the
+ *  two can never disagree about which periods exist. */
+function periodsOf(rows, standardId) {
+  return (Array.isArray(rows) ? rows : [])
+    .filter((r) => r && r.standard_id === standardId)
+    .sort((a, b) => String(a.period_start).localeCompare(String(b.period_start)));
+}
+
+/**
+ * Consecutive completed periods, counting back from the most recent.
+ *
+ * A DEVICE GAP DOES NOT BREAK A RUN. This is the same doctrine `compliance()` holds one screen
+ * down — 'excluded' leaves the denominator because no evidence is not evidence of failure — and
+ * a streak that a dead battery could end would be measuring the watch, not the athlete. An open
+ * period (today, still live) is likewise not yet a failure. Only an affirmative 'missed' ends it.
+ */
+export function streakOf(rows, standardId) {
+  const mine = periodsOf(rows, standardId);
+  let n = 0;
+  for (let i = mine.length - 1; i >= 0; i--) {
+    const counts = csStatus(mine[i].status).counts;
+    if (counts === 'complete') { n++; continue; }
+    if (counts === 'missed') break;
+    // 'open', 'excluded', 'dropped' — neither extend the run nor end it.
+  }
+  return n;
+}
+
+/** The last `n` periods as bars. `pct` drives the height, `cls` the treatment. */
+export function momentumOf(rows, standardId, n = 7) {
+  return periodsOf(rows, standardId).slice(-n).map((r) => ({
+    iso: r.period_start,
+    status: r.status,
+    pct: progressPct(r),
+    cls: isComplete(r.status) ? 'ok'
+      : r.status === 'missed' ? 'miss'
+      : csStatus(r.status).counts === 'dropped' ? 'exc'
+      : isDeviceGap(r.status) ? 'gap' : 'now',
+  }));
 }
 
 /* ---------------------------------------------------------------- rollups

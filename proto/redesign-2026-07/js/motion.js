@@ -20,7 +20,7 @@
  * Deliberately NOT exported as a re-render trigger of any kind. Nothing here calls __render().
  */
 import { RT } from './state.js';
-import { animateRing } from './components.js';
+import { animateRing, animateFills } from './components.js';
 
 /* The app's haptic vocabulary, in one place.
  *
@@ -81,9 +81,16 @@ function windBack(root) {
     arc.style.strokeDashoffset = String(dash);
   });
   root.querySelectorAll('[data-count]').forEach((n) => { n.textContent = '0'; });
+  // The column's two hooks, same idea: rest at the true value, wind to zero for the one draw.
+  root.querySelectorAll('[data-fill]').forEach((el) => {
+    el.style.transition = 'none';
+    el.style.height = '0%';
+  });
+  root.querySelectorAll('[data-cs-count]').forEach((n) => { n.textContent = '0'; });
   // Strip a previous reveal's completion flare so this draw's landing can bloom again.
   // (classList guard: the node suites answer every selector with minimal fake elements.)
   root.querySelectorAll('.ring-wrap.flare').forEach((w) => { if (w.classList) w.classList.remove('flare'); });
+  root.querySelectorAll('.cscol.flare').forEach((c) => { if (c.classList) c.classList.remove('flare'); });
   // The comet tip rests VISIBLE (it marks where the arc ends, which is true whether or not anything
   // animated). Hide it for the draw so animateRing can fade it in as the band arrives.
   root.querySelectorAll('.ring-tip').forEach((tip) => { tip.style.transition = 'none'; tip.style.opacity = '0'; });
@@ -115,7 +122,7 @@ export function reveal(el, { key, haptic = 'reveal', whenSeen = false, threshold
     if (key) { PENDING.delete(key); DONE.add(key); }
     windBack(el);
     void el.offsetWidth;            // commit the wound-back state before animateRing re-adds the transition
-    const draw = () => animateRing(el);
+    const draw = () => { animateRing(el); animateFills(el); };
     // A frame's gap is what makes the wound-back state a starting point rather than a value the
     // browser coalesces away. Called directly where there are no frames to wait for (node suites).
     if (typeof requestAnimationFrame === 'function') requestAnimationFrame(draw); else draw();

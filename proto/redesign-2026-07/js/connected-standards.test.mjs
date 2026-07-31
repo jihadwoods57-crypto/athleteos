@@ -16,6 +16,7 @@ import {
   csProgressLine, remainingLabel, progressPct, syncedLabel, completedLabel, localDateISO,
   metricLabel, sourceRule, paceToGoal, daysBetween,
   compliance, boardCounts, needsAttention, groupForAthlete, activeOn,
+  columnGeometry, streakOf, momentumOf,
 } from './connected-standards.js';
 
 /* America/New_York in July. Passed explicitly everywhere. */
@@ -317,4 +318,114 @@ test('today shows the day that is today and the week that contains it', () => {
 test('a cancelled period disappears from the athlete\'s day', () => {
   const cancelled = { ...steps, instance_status: 'cancelled' };
   assert.equal(activeOn([cancelled], '2026-07-28').length, 0);
+});
+
+/* ---------------------------------------------------------------- the column
+   The mark the athlete actually reads. Every case below is a claim the drawing must not make:
+   an empty column claims the athlete did nothing, and only one of these states has earned it. */
+
+test('a column draws what was seen — and a device gap is never drawn as a shortfall', () => {
+  const live = columnGeometry({ ...steps, progress: 7412 }, null);
+  assert.equal(live.state, 'live');
+  assert.equal(live.fillPct, 74);
+
+  const partial = columnGeometry({ ...steps, progress: 4300, status: 'awaiting_sync' }, null);
+  assert.equal(partial.state, 'partial', 'the watch owes us the rest of the truth');
+  assert.equal(partial.fillPct, 43, 'what HAS synced is still true and still drawn');
+
+  const off = columnGeometry({ ...steps, progress: 0, status: 'disconnected' }, null);
+  assert.equal(off.state, 'unknown');
+  assert.equal(off.fillPct, 0, 'no access means no claim — the screen must not print a number');
+});
+
+test('a closed period keeps the work that was done', () => {
+  const miss = columnGeometry({ ...steps, progress: 6140, status: 'missed' }, null);
+  assert.equal(miss.state, 'missed');
+  assert.equal(miss.fillPct, 61, 'midnight does not undo the steps');
+});
+
+test('an excused period shows nothing rather than showing zero', () => {
+  const exc = columnGeometry({ ...steps, progress: 900, status: 'excused' }, null);
+  assert.equal(exc.state, 'excused');
+  assert.equal(exc.fillPct, 0);
+});
+
+test('a daily standard gets no pace notch, because it has no pace', () => {
+  const geo = columnGeometry(steps, paceToGoal(steps, '2026-07-28'));
+  assert.equal(geo.notchPct, null, 'inventing an intra-day pace model would be noise dressed as precision');
+  assert.equal(geo.behind, false);
+});
+
+test('the pace notch and the pace verdict read the same elapsed days', () => {
+  // Thursday of a Mon→Sun week: 4 of 7 days elapsed.
+  const pace = paceToGoal(weekly, '2026-07-30');
+  assert.equal(pace.expectedPct, 57);
+  const geo = columnGeometry(weekly, pace);
+  assert.equal(geo.notchPct, 57);
+  assert.equal(geo.behind, pace.state === 'behind',
+    'the notch can never say ahead while the sentence says behind');
+});
+
+test('a met target has no notch left to draw', () => {
+  const done = { ...weekly, progress: weekly.target, status: 'verified_complete' };
+  const geo = columnGeometry(done, paceToGoal(done, '2026-07-30'));
+  assert.equal(geo.state, 'done');
+  assert.equal(geo.fillPct, 100);
+  assert.equal(geo.notchPct, null);
+});
+
+/* ---------------------------------------------------------------- streak + momentum */
+
+const period = (start, status) => ({ ...steps, standard_id: 'S1', period_start: start, period_end: start, status });
+
+test('a dead battery does not end a run', () => {
+  const rows = [
+    period('2026-07-24', 'verified_complete'),
+    period('2026-07-25', 'awaiting_sync'),      // the watch failed, not the athlete
+    period('2026-07-26', 'verified_complete'),
+    period('2026-07-27', 'verified_complete'),
+  ];
+  assert.equal(streakOf(rows, 'S1'), 3, 'an excluded period is skipped, never counted and never fatal');
+});
+
+test('only an affirmative miss ends a run', () => {
+  const rows = [
+    period('2026-07-24', 'verified_complete'),
+    period('2026-07-25', 'missed'),
+    period('2026-07-26', 'verified_complete'),
+  ];
+  assert.equal(streakOf(rows, 'S1'), 1);
+});
+
+test('today still being live neither extends nor ends a run', () => {
+  const rows = [
+    period('2026-07-26', 'verified_complete'),
+    period('2026-07-27', 'verified_complete'),
+    period('2026-07-28', 'in_progress'),
+  ];
+  assert.equal(streakOf(rows, 'S1'), 2);
+});
+
+test('a streak counts only its own standard', () => {
+  const rows = [period('2026-07-26', 'verified_complete'), { ...period('2026-07-27', 'verified_complete'), standard_id: 'S2' }];
+  assert.equal(streakOf(rows, 'S1'), 1);
+});
+
+test('the momentum chart keeps the seven most recent periods, oldest first', () => {
+  const rows = ['07-21', '07-22', '07-23', '07-24', '07-25', '07-26', '07-27', '07-28']
+    .map((d) => period(`2026-${d}`, 'verified_complete'));
+  const bars = momentumOf(rows, 'S1', 7);
+  assert.equal(bars.length, 7);
+  assert.equal(bars[0].iso, '2026-07-22', 'the oldest of the eight falls off the front');
+  assert.equal(bars[6].iso, '2026-07-28');
+});
+
+test('every bar carries the verdict its column would have carried', () => {
+  const bars = momentumOf([
+    period('2026-07-25', 'verified_complete'),
+    period('2026-07-26', 'missed'),
+    period('2026-07-27', 'awaiting_sync'),
+    period('2026-07-28', 'in_progress'),
+  ], 'S1');
+  assert.deepEqual(bars.map((b) => b.cls), ['ok', 'miss', 'gap', 'now']);
 });

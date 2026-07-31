@@ -226,6 +226,56 @@ export function animateRing(root) {
   }
 }
 
+/* The column's half of the reveal — the same choreography animateRing plays, for the mark that
+   fills instead of sweeping. Separate function rather than a branch inside animateRing so that
+   every existing ring call site is byte-for-byte unaffected; motion.js calls both.
+
+   Like the ring, the markup RESTS AT ITS REAL VALUE (height already set, number already printed).
+   motion.js winds it back to zero for the one reveal it plays. A paint that doesn't animate must
+   still be honest — an undrawn column reading 0 is the same bug the ring shipped with once.
+
+   Two data hooks:
+     [data-fill]      final height as a percentage; the lit lip rides the fill's own ::after
+     [data-cs-count]  final numeric value + [data-cs-dec] decimals, so the count-up formats as it
+                      ticks. animateRing's [data-count] can't serve here: it Math.rounds, which
+                      turns a 1.24 mi target into a counter that reads 0,0,1,1. */
+export function animateFills(root) {
+  const reduceMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  root.querySelectorAll('[data-fill]').forEach((el) => {
+    const to = `${el.dataset.fill}%`;
+    if (reduceMotion) { el.style.transition = 'none'; el.style.height = to; return; }
+    el.style.transition = 'height var(--dur-ring) var(--ease-out)';
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => requestAnimationFrame(() => { el.style.height = to; }));
+    } else { el.style.height = to; }
+  });
+
+  // Completion bloom on the column, mirroring the ring's flare. Class-driven and one-shot so a
+  // repaint can't replay it; motion.js strips it before a genuine re-reveal.
+  if (!reduceMotion) setTimeout(() => {
+    root.querySelectorAll('.cscol.done').forEach((c) => { if (c.isConnected) c.classList.add('flare'); });
+  }, 900);
+
+  root.querySelectorAll('[data-cs-count]').forEach((el) => {
+    const target = Number(el.dataset.csCount);
+    const dec = Number(el.dataset.csDec) || 0;
+    if (!Number.isFinite(target)) return;
+    const paint = (v) => {
+      const [whole, frac] = v.toFixed(dec).split('.');
+      el.textContent = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (frac ? `.${frac}` : '');
+    };
+    if (reduceMotion) { paint(target); return; }
+    const dur = 1200, t0 = performance.now();
+    const step = (t) => {
+      const p = Math.min(1, (t - t0) / dur);
+      paint(target * (1 - Math.pow(1 - p, 3)));
+      if (p < 1) requestAnimationFrame(step);
+    };
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(step); else paint(target);
+  });
+}
+
 /* Brand mark: the "Performance Dial" (docs/brand/LOGO.md — the founder's hi-fi handoff,
    the same mark as the app icon and onstandard.app) — a score gauge reading at the very
    top of its scale whose silhouette reads as the letter "O". The progress arc carries the
