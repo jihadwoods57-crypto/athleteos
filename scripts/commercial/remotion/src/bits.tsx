@@ -79,10 +79,33 @@ export const Vignette: React.FC<{ strength?: number }> = ({ strength = 0.42 }) =
 /* ---------------- the phone ----------------
  * Device shell around a UI screen-capture. Screen aspect is the capture's 390:844.
  * `appear` runs a rise+settle entrance; `punch` drifts scale across the shot. */
+/* A fingertip: soft ripple + dim press dot at (x,y) in 0..1 screen coordinates, `at` frames in. */
+export type Tap = { at: number; x: number; y: number };
+const TapRipple: React.FC<{ tap: Tap; w: number; h: number }> = ({ tap, w, h }) => {
+  const frame = useCurrentFrame();
+  const t = frame - tap.at;
+  if (t < -6 || t > 22) return null;
+  const press = interpolate(t, [-6, 0], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const k = Math.max(0, t / 22);
+  const r = 18 + k * 46;
+  return (
+    <>
+      <div style={{ position: 'absolute', left: tap.x * w - 17, top: tap.y * h - 17, width: 34, height: 34,
+        borderRadius: '50%', background: 'rgba(255,255,255,0.28)', opacity: press * (t > 4 ? Math.max(0, 1 - (t - 4) / 8) : 1),
+        filter: 'blur(1px)' }} />
+      {t >= 0 && (
+        <div style={{ position: 'absolute', left: tap.x * w - r, top: tap.y * h - r, width: r * 2, height: r * 2,
+          borderRadius: '50%', border: '2.5px solid rgba(255,255,255,0.55)', opacity: 1 - k }} />
+      )}
+    </>
+  );
+};
+
 export const Phone: React.FC<{
   src: SeqName; startFrom?: number; height?: number; appear?: boolean;
   punchFrom?: number; punchTo?: number; playbackRate?: number; shiftY?: number; shiftX?: number;
-}> = ({ src, startFrom = 0, height = 920, appear = true, punchFrom = 1, punchTo = 1.05, playbackRate = 1, shiftY = 0, shiftX = 0 }) => {
+  taps?: Tap[];
+}> = ({ src, startFrom = 0, height = 920, appear = true, punchFrom = 1, punchTo = 1.05, playbackRate = 1, shiftY = 0, shiftX = 0, taps = [] }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
   const enter = appear
@@ -116,6 +139,7 @@ export const Phone: React.FC<{
           />
           {/* dynamic island */}
           <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', width: screenW * 0.26, height: 26, borderRadius: 14, background: '#000' }} />
+          {taps.map((tap, i) => <TapRipple key={i} tap={tap} w={screenW} h={screenH} />)}
           {/* glass sheen */}
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(115deg, rgba(255,255,255,0.07) 0%, transparent 24%)', pointerEvents: 'none' }} />
         </div>
