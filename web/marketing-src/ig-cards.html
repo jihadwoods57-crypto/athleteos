@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>OnStandard — Instagram set</title>
+<style>
+/* ============================================================
+   OnStandard Instagram set — rendered by render-ig.mjs.
+   Feed cards 1080×1350 (4:5), stories 1080×1920 (9:16).
+   Token system mirrors cards.html / web/landing (brand v4).
+   Screens under src-png/ig/ are REAL app captures (demo pipeline).
+   ============================================================ */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 200 800;
+  src: url('../landing/fonts/pjs.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Archivo Expanded';
+  font-weight: 900;
+  src: url('../landing/fonts/archivo-exp900.woff2') format('woff2');
+}
+:root {
+  --bg: #070B14; --bg-2: #0A1120;
+  --surface-1: #0E1421; --hairline: rgba(148, 176, 224, 0.10);
+  --text: #EEF3FB; --text-2: #9AA9C2; --text-3: #7C8BA6;
+  --blue: #3B82F6; --blue-bright: #60A5FA; --blue-deep: #2563EB;
+  --green: #34D399; --cyan: #22D3EE;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { background: #02040a; }
+body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: var(--text); -webkit-font-smoothing: antialiased; }
+img { display: block; }
+.sweep-text { background: linear-gradient(90deg, var(--green), var(--cyan), var(--blue-bright)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+.card { position: relative; width: 1080px; height: 1350px; background: var(--bg); overflow: hidden; margin: 40px auto; }
+.card.story { height: 1920px; }
+.card::after {
+  content: ''; position: absolute; inset: 0; z-index: 40; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity: 0.05;
+}
+.glow { position: absolute; z-index: 1; width: 1200px; height: 1200px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(34,211,238,0.10), transparent 62%); }
+
+/* head / foot */
+.head { position: absolute; top: 0; left: 0; right: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; padding: 56px 72px 0; }
+.brand { display: flex; align-items: center; gap: 16px; }
+.brand-name { font-size: 30px; font-weight: 800; letter-spacing: -0.04em; }
+.brand-name b { font-weight: 800; background: linear-gradient(90deg, #34D399, #22D3EE, #3B82F6); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.index { font-size: 19px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.index b { color: var(--blue-bright); }
+.foot { position: absolute; left: 72px; right: 72px; bottom: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; padding: 30px 0 44px; border-top: 1px solid var(--hairline); }
+.foot .url { font-size: 22px; font-weight: 700; color: var(--text-2); }
+.foot .tag { font-size: 19px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
+
+/* phone shell */
+.phone { position: absolute; z-index: 20; border-radius: 64px; padding: 13px;
+  background: linear-gradient(160deg, #10141d, #05070c);
+  border: 1.5px solid rgba(255,255,255,0.14);
+  box-shadow: 0 60px 140px rgba(0,0,0,0.65), 0 0 110px rgba(59,130,246,0.13); }
+.phone .screen { position: relative; border-radius: 50px; overflow: hidden; background: #000; }
+.phone .screen img { width: 100%; height: 100%; object-fit: cover; }
+.phone .island { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 26%; height: 26px; border-radius: 14px; background: #000; }
+.phone .sheen { position: absolute; inset: 0; background: linear-gradient(115deg, rgba(255,255,255,0.07) 0%, transparent 24%); }
+
+/* slide layout: copy left, phone right */
+.slide-copy { position: absolute; z-index: 25; left: 72px; top: 50%; transform: translateY(-50%); width: 430px; }
+.eyebrow { font-size: 21px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 22px; }
+h2.big { font-family: 'Archivo Expanded', 'Plus Jakarta Sans', sans-serif; font-weight: 900; text-transform: uppercase; font-size: 64px; line-height: 1.1; letter-spacing: 0.01em; }
+.sub { font-size: 29px; line-height: 1.5; font-weight: 500; color: var(--text-2); margin-top: 24px; }
+.slide-phone { top: 165px; left: 555px; }
+.slide-phone .screen { width: 424px; height: 918px; }
+
+/* type-only cards */
+.center-wrap { position: absolute; inset: 0; z-index: 25; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 90px; }
+h1.giant { font-family: 'Archivo Expanded', 'Plus Jakarta Sans', sans-serif; font-weight: 900; text-transform: uppercase; font-size: 118px; line-height: 1.06; letter-spacing: 0.005em; }
+h1.giant .dim { color: var(--text-3); }
+.rule { width: 148px; height: 5px; border-radius: 3px; background: linear-gradient(90deg, var(--green), var(--cyan), var(--blue-bright)); margin: 44px auto 0; }
+
+/* story layout */
+.story .stitle { position: absolute; z-index: 25; top: 150px; left: 0; right: 0; text-align: center; }
+.story .slide-phone { position: absolute; top: 435px; left: 50%; transform: translateX(-50%); }
+.story .slide-phone .screen { width: 500px; height: 1083px; }
+.story .cta-pill { position: absolute; z-index: 25; bottom: 150px; left: 50%; transform: translateX(-50%);
+  font-size: 30px; font-weight: 800; color: #fff; padding: 24px 54px; border-radius: 18px;
+  background: linear-gradient(165deg, var(--blue-bright), var(--blue-deep));
+  box-shadow: 0 18px 60px rgba(59,130,246,0.35); }
+</style>
+</head>
+<body>
+
+<!-- ============ carousel: ONE DAY. ONE NUMBER. (7 slides) ============ -->
+
+<section class="card" id="c01">
+  <div class="glow" style="top:-350px;left:-100px"></div>
+  <div class="head">
+    <div class="brand"><svg width="52" height="52" viewBox="0 0 100 100" fill="none"><defs><linearGradient id="d1" x1="26" y1="82" x2="58" y2="18" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#34D399"/><stop offset="50%" stop-color="#22D3EE"/><stop offset="100%" stop-color="#60A5FA"/></linearGradient></defs><path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(255,255,255,0.16)" stroke-width="12" stroke-linecap="round"/><path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#d1)" stroke-width="12" stroke-linecap="round"/><circle cx="50" cy="18" r="10.5" fill="#0F172A"/><circle cx="50" cy="18" r="6" fill="#FFFFFF"/></svg>
+    <span class="brand-name">On<b>Standard</b></span></div>
+    <span class="index"><b>01</b> / 07</span>
+  </div>
+  <div class="center-wrap">
+    <div class="eyebrow sweep-text">One day on standard</div>
+    <h1 class="giant">5:02 AM.<br><span class="dim">Nobody's</span><br><span class="dim">watching.</span><br>It still counts.</h1>
+    <div class="rule"></div>
+  </div>
+  <div class="foot"><span class="url">onstandard.app</span><span class="tag">Swipe →</span></div>
+</section>
+
+<section class="card" id="c02">
+  <div class="glow" style="top:-300px;right:-200px"></div>
+  <div class="head">
+    <div class="brand"><span class="brand-name">On<b>Standard</b></span></div>
+    <span class="index"><b>02</b> / 07</span>
+  </div>
+  <div class="slide-copy">
+    <div class="eyebrow sweep-text">Roll call</div>
+    <h2 class="big">One tap proves you're up.</h2>
+    <p class="sub">Time-stamped at 5:02 AM. On the record. Done.</p>
+  </div>
+  <div class="phone slide-phone"><div class="screen"><img src="src-png/ig/rollcall.jpg"><div class="island"></div><div class="sheen"></div></div></div>
+  <div class="foot"><span class="url">onstandard.app</span><span class="tag">Swipe →</span></div>
+</section>
+
+<section class="card" id="c03">
+  <div class="glow" style="bottom:-300px;left:-250px"></div>
+  <div class="head">
+    <div class="brand"><span class="brand-name">On<b>Standard</b></span></div>
+    <span class="index"><b>03</b> / 07</span>
+  </div>
+  <div class="slide-copy">
+    <div class="eyebrow sweep-text">Log a meal</div>
+    <h2 class="big">Shoot the plate.</h2>
+    <p class="sub">It counts the moment you log it. The AI read lands seconds later.</p>
+  </div>
+  <div class="phone slide-phone"><div class="screen"><img src="src-png/ig/confirm.jpg"><div class="island"></div><div class="sheen"></div></div></div>
+  <div class="foot"><span class="url">onstandard.app</span><span class="tag">Swipe →</span></div>
+</section>
+
+<section class="card" id="c04">
+  <div class="glow" style="top:-250px;right:-250px"></div>
+  <div class="head">
+    <div class="brand"><span class="brand-name">On<b>Standard</b></span></div>
+    <span class="index"><b>04</b> / 07</span>
+  </div>
+  <div class="slide-copy">
+    <div class="eyebrow sweep-text">The AI read</div>
+    <h2 class="big">No flattery. Just the read.</h2>
+    <p class="sub">Macros, meal quality, what to fix next time. "Not much. This plate works."</p>
+  </div>
+  <div class="phone slide-phone"><div class="screen"><img src="src-png/ig/bfast-a.jpg"><div class="island"></div><div class="sheen"></div></div></div>
+  <div class="foot"><span class="url">onstandard.app</span><span class="tag">Swipe →</span></div>
+</section>
+
+<section class="card" id="c05">
+  <div class="glow" style="bottom:-350px;right:-150px"></div>
+  <div class="head">
+    <div class="brand"><span class="brand-name">On<b>Standard</b></span></div>
+    <span class="index"><b>05</b> / 07</span>
+  </div>
+  <div class="slide-copy">
+    <div class="eyebrow sweep-text">The thread</div>
+    <h2 class="big">Coach. Family. AI. One record.</h2>
+    <p class="sub">Everyone in your corner, replying on the meal itself.</p>
+  </div>
+  <div class="phone slide-phone"><div class="screen"><img src="src-png/ig/thread.jpg"><div class="island"></div><div class="sheen"></div></div></div>
+  <div class="foot"><span class="url">onstandard.app</span><span class="tag">Swipe →</span></div>
+</section>
+
+<section class="card" id="c06">
+  <div class="glow" style="top:-200px;left:-250px"></div>
+  <div class="head">
+    <div class="brand"><span class="brand-name">On<b>Standard</b></span></div>
+    <span class="index"><b>06</b> / 07</span>
+  </div>
+  <div class="slide-copy">
+    <div class="eyebrow sweep-text">Midnight</div>
+    <h2 class="big">The day locks.</h2>
+    <p class="sub">92 today. Day 35 in a row. Tomorrow starts the same way — at zero, before dawn.</p>
+  </div>
+  <div class="phone slide-phone"><div class="screen"><img src="src-png/ig/ring.jpg"><div class="island"></div><div class="sheen"></div></div></div>
+  <div class="foot"><span class="url">onstandard.app</span><span class="tag">Swipe →</span></div>
+</section>
+
+<section class="card" id="c07">
+  <div class="glow" style="top:75px;left:-60px;width:1200px;height:1200px"></div>
+  <div class="center-wrap">
+    <div style="display:flex;align-items:center;gap:26px;margin-bottom:52px">
+      <svg width="132" height="132" viewBox="-25 -25 150 150" fill="none"><defs><linearGradient id="d7" x1="26" y1="82" x2="58" y2="18" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#34D399"/><stop offset="50%" stop-color="#22D3EE"/><stop offset="100%" stop-color="#60A5FA"/></linearGradient><radialGradient id="e7" cx="0.38" cy="0.32" r="1"><stop offset="0%" stop-color="#FFFFFF"/><stop offset="70%" stop-color="#F2F7FF"/><stop offset="100%" stop-color="#D8E4F5"/></radialGradient><filter id="b7" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="10"/></filter><filter id="g7" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4.5"/></filter></defs><path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#d7)" stroke-width="14" stroke-linecap="round" filter="url(#b7)" opacity="0.32"/><path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#d7)" stroke-width="12" stroke-linecap="round" filter="url(#g7)" opacity="0.6"/><path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="#161F30" stroke-width="12" stroke-linecap="round"/><path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#d7)" stroke-width="12" stroke-linecap="round"/><circle cx="50" cy="18" r="10.5" fill="#0F172A"/><circle cx="50" cy="18" r="6" fill="url(#e7)"/><circle cx="48.2" cy="16.2" r="1.4" fill="#FFFFFF" opacity="0.9"/></svg>
+      <span class="brand-name" style="font-size:64px">On<b>Standard</b></span>
+    </div>
+    <h1 class="giant" style="font-size:88px">One day<br>at a time.<br><span class="sweep-text">On standard.</span></h1>
+    <div style="margin-top:60px;font-size:30px;font-weight:800;color:#fff;padding:26px 60px;border-radius:18px;background:linear-gradient(165deg,var(--blue-bright),var(--blue-deep));box-shadow:0 18px 60px rgba(59,130,246,0.35)">Start free — onstandard.app</div>
+  </div>
+</section>
+
+<!-- ============ standalone feed posts ============ -->
+
+<section class="card" id="c08">
+  <div class="glow" style="top:60px;left:-40px"></div>
+  <div class="head">
+    <div class="brand"><span class="brand-name">On<b>Standard</b></span></div>
+    <span class="index"><b>OS</b></span>
+  </div>
+  <div class="center-wrap">
+    <h1 class="giant">Proof,<br>not<br><span class="sweep-text">promises.</span></h1>
+    <p class="sub" style="max-width:640px;margin-top:44px">Every meal, every wake-up, every rep — time-stamped on a record you own. The talk stops mattering.</p>
+    <div class="rule"></div>
+  </div>
+  <div class="foot"><span class="url">onstandard.app</span><span class="tag">The standard app</span></div>
+</section>
+
+<section class="card" id="c09">
+  <div class="glow" style="top:-300px;right:-200px"></div>
+  <div class="head">
+    <div class="brand"><span class="brand-name">On<b>Standard</b></span></div>
+    <span class="index"><b>For coaches</b></span>
+  </div>
+  <div class="slide-copy">
+    <div class="eyebrow sweep-text">Coach command center</div>
+    <h2 class="big">The whole roster in three seconds.</h2>
+    <p class="sub">Who's on standard, who's slipping, what needs you — triaged before you open it.</p>
+  </div>
+  <div class="phone slide-phone"><div class="screen"><img src="src-png/ig/coach-a.jpg"><div class="island"></div><div class="sheen"></div></div></div>
+  <div class="foot"><span class="url">onstandard.app/coaches</span><span class="tag">Free for teams to start</span></div>
+</section>
+
+<section class="card" id="c10">
+  <div class="glow" style="bottom:-300px;left:-200px"></div>
+  <div class="head">
+    <div class="brand"><span class="brand-name">On<b>Standard</b></span></div>
+    <span class="index"><b>The rules</b></span>
+  </div>
+  <div class="slide-copy">
+    <div class="eyebrow sweep-text">A streak with rules</div>
+    <h2 class="big">80 is the bar.</h2>
+    <p class="sub">One grace per week. Absent days count as misses. That's why the number means something.</p>
+  </div>
+  <div class="phone slide-phone"><div class="screen"><img src="src-png/ig/streak.jpg"><div class="island"></div><div class="sheen"></div></div></div>
+  <div class="foot"><span class="url">onstandard.app</span><span class="tag">The honest streak</span></div>
+</section>
+
+<!-- ============ stories (1080×1920) ============ -->
+
+<section class="card story" id="c11">
+  <div class="glow" style="top:340px;left:-60px"></div>
+  <div class="stitle">
+    <div class="eyebrow sweep-text" style="margin-bottom:18px">Tonight's number</div>
+    <h2 class="big" style="font-size:74px">The number<br>doesn't lie.</h2>
+  </div>
+  <div class="phone slide-phone"><div class="screen"><img src="src-png/ig/ring.jpg"><div class="island"></div><div class="sheen"></div></div></div>
+  <div class="cta-pill">onstandard.app</div>
+</section>
+
+<section class="card story" id="c12">
+  <div class="glow" style="top:300px;right:-100px"></div>
+  <div class="stitle">
+    <div class="eyebrow sweep-text" style="margin-bottom:18px">5:02 AM club</div>
+    <h2 class="big" style="font-size:74px">Proof, not<br>promises.</h2>
+  </div>
+  <div class="phone slide-phone"><div class="screen"><img src="src-png/ig/rollcall.jpg"><div class="island"></div><div class="sheen"></div></div></div>
+  <div class="cta-pill">Start free — onstandard.app</div>
+</section>
+
+</body>
+</html>
