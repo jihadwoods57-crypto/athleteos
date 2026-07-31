@@ -12,15 +12,15 @@
   :root{
     --ink:#080b11; --panel:#0f1620; --panel2:#141d29; --line:#1d2735; --line2:#2a3646;
     --fg:#eef3f9; --fg2:#a6b4c6; --mut:#6b7a8d;
-    --blue:#3d7dff; --teal:#2fd4c8;
-    --sweep:linear-gradient(100deg,#3d7dff 0%,#2fd4c8 100%);
+    --blue:#3B82F6; --teal:#22D3EE;
+    --sweep:linear-gradient(100deg,#3B82F6 0%,#22D3EE 100%);
     --display:'Archivo',system-ui,sans-serif; --body:'Inter',system-ui,sans-serif; --mono:'Fira Code',monospace;
     --r:16px;
   }
   *{box-sizing:border-box;} html{-webkit-text-size-adjust:100%;}
   body{margin:0;background:
-      radial-gradient(1100px 620px at 82% -8%,rgba(47,212,200,.10),transparent 55%),
-      radial-gradient(1000px 560px at -6% 4%,rgba(61,125,255,.12),transparent 52%),
+      radial-gradient(1100px 620px at 82% -8%,rgba(34,211,238,.10),transparent 55%),
+      radial-gradient(1000px 560px at -6% 4%,rgba(59,130,246,.12),transparent 52%),
       var(--ink);
     color:var(--fg);font-family:var(--body);line-height:1.55;-webkit-font-smoothing:antialiased;}
   a{color:var(--teal);text-decoration:none;}
@@ -31,14 +31,16 @@
     border-radius:12px;padding:13px 20px;border:1px solid var(--line2);background:var(--panel2);color:var(--fg);cursor:pointer;transition:transform .1s,border-color .16s,background .16s;}
   .btn:hover{border-color:#3a4a5e;background:#18222f;}
   .btn:active{transform:translateY(1px);}
-  .btn.cta{background:var(--sweep);color:#052027;border:0;font-weight:700;box-shadow:0 12px 34px -14px rgba(47,212,200,.55);}
+  .btn.cta{background:var(--sweep);color:#052027;border:0;font-weight:700;box-shadow:0 12px 34px -14px rgba(34,211,238,.55);}
   .btn.cta:hover{filter:brightness(1.06);}
   :focus-visible{outline:2px solid var(--teal);outline-offset:3px;}
 
   /* top trust bar */
   .top{display:flex;align-items:center;justify-content:space-between;padding:20px 0;}
   .powered{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:12px;color:var(--mut);letter-spacing:.04em;}
-  .mark{width:20px;height:20px;border-radius:6px;background:var(--sweep);}
+  .mark{width:20px;height:20px;display:inline-flex;flex:none;}
+  .mark svg{width:20px;height:20px;}
+  .powered b{font-weight:700;background:linear-gradient(90deg,#34D399,#22D3EE,#3B82F6);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
 
   /* hero */
   .hero{display:grid;grid-template-columns:1.15fr .85fr;gap:44px;align-items:center;padding:44px 0 64px;}
@@ -87,7 +89,7 @@
 
   /* "membership included" — the reason a client should buy HERE rather than pay the coach directly */
   .incl{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--teal);
-    background:rgba(47,212,200,.07);border:1px solid rgba(47,212,200,.22);border-radius:10px;padding:9px 11px;margin:0 0 14px;}
+    background:rgba(34,211,238,.07);border:1px solid rgba(34,211,238,.22);border-radius:10px;padding:9px 11px;margin:0 0 14px;}
   .alt{display:block;text-align:center;margin-top:10px;font-size:13px;color:var(--mut);cursor:pointer;background:none;border:0;font:inherit;width:100%;}
   .alt:hover{color:var(--fg2);}
 
@@ -123,7 +125,7 @@
   <div id="page" class="hidden">
     <div class="wrap">
       <div class="top">
-        <div class="powered"><span class="mark"></span> COACHING · POWERED BY ONSTANDARD</div>
+        <div class="powered"><span class="mark"><svg viewBox="0 0 100 100" fill="none" aria-hidden="true"><defs><linearGradient id="tDial1" x1="26" y1="82" x2="58" y2="18" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#34D399"/><stop offset="50%" stop-color="#22D3EE"/><stop offset="100%" stop-color="#60A5FA"/></linearGradient></defs><path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(255,255,255,0.16)" stroke-width="12" stroke-linecap="round"/><path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#tDial1)" stroke-width="12" stroke-linecap="round"/><circle cx="50" cy="18" r="10.5" fill="#0F172A"/><circle cx="50" cy="18" r="6" fill="#FFFFFF"/></svg></span> Coaching · Powered by On<b>Standard</b></div>
         <a class="btn" href="#apply" id="topcta">Apply</a>
       </div>
 
@@ -196,7 +198,7 @@
     </div></section>
 
     <footer><div class="wrap" style="display:flex;justify-content:space-between;width:100%;flex-wrap:wrap;gap:10px">
-      <div class="powered"><span class="mark"></span> Coaching Powered by OnStandard</div>
+      <div class="powered"><span class="mark"><svg viewBox="0 0 100 100" fill="none" aria-hidden="true"><defs><linearGradient id="tDial2" x1="26" y1="82" x2="58" y2="18" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#34D399"/><stop offset="50%" stop-color="#22D3EE"/><stop offset="100%" stop-color="#60A5FA"/></linearGradient></defs><path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(255,255,255,0.16)" stroke-width="12" stroke-linecap="round"/><path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#tDial2)" stroke-width="12" stroke-linecap="round"/><circle cx="50" cy="18" r="10.5" fill="#0F172A"/><circle cx="50" cy="18" r="6" fill="#FFFFFF"/></svg></span> Coaching Powered by On<b>Standard</b></div>
       <div>The layer between a plan and proof it was executed. <a href="https://onstandard.app">onstandard.app</a></div>
     </div></footer>
   </div>
