@@ -56,7 +56,7 @@ export function sparkline(values, opts = {}) {
   const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
   const lg = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
   lg.setAttribute('id', id); lg.setAttribute('x1', '0'); lg.setAttribute('x2', '1'); lg.setAttribute('y1', '0'); lg.setAttribute('y2', '0');
-  [['0', '#3b82f6'], ['1', '#33c6d6']].forEach(([o, c]) => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'stop'); s.setAttribute('offset', o); s.setAttribute('stop-color', c); lg.appendChild(s); });
+  [['0', '#3b82f6'], ['1', '#22D3EE']].forEach(([o, c]) => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'stop'); s.setAttribute('offset', o); s.setAttribute('stop-color', c); lg.appendChild(s); });
   defs.appendChild(lg); svg.appendChild(defs);
   const area = document.createElementNS('http://www.w3.org/2000/svg', 'path');
   area.setAttribute('d', `M0,${ht} ${pts.map((p) => `L${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')} L${w},${ht} Z`);
@@ -67,7 +67,7 @@ export function sparkline(values, opts = {}) {
   svg.appendChild(line);
   const last = pts[pts.length - 1];
   const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-  dot.setAttribute('cx', last[0].toFixed(1)); dot.setAttribute('cy', last[1].toFixed(1)); dot.setAttribute('r', '2.6'); dot.setAttribute('fill', '#33c6d6');
+  dot.setAttribute('cx', last[0].toFixed(1)); dot.setAttribute('cy', last[1].toFixed(1)); dot.setAttribute('r', '2.6'); dot.setAttribute('fill', '#22D3EE');
   svg.appendChild(dot);
   return svg;
 }
