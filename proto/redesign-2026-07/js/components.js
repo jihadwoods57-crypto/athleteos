@@ -231,18 +231,24 @@ export function animateRing(root) {
    top of its scale whose silhouette reads as the letter "O". The progress arc carries the
    signature green→teal→blue sweep (founder-ratified 2026-07-14); on-dark track/marker. */
 export function logoMark(size = 96, uid = 'lm') {
+  // Theme-adaptive: mirrors assets/brand/dial-flat-{dark,light}.svg exactly.
+  const light = document.documentElement.getAttribute('data-theme') === 'light';
+  const track = light ? '#DCE7FB' : 'rgba(255,255,255,0.16)';
+  const tip = light ? '#3B82F6' : '#60A5FA';
+  const bezel = light ? '<circle cx="50" cy="18" r="10.5" fill="#FFFFFF" stroke="#DBEAFE" stroke-width="1.5"/>' : '<circle cx="50" cy="18" r="10.5" fill="#0F172A"/>';
+  const core = light ? '#2563EB' : '#FFFFFF';
   return `<svg width="${size}" height="${size}" viewBox="0 0 100 100" fill="none">
     <defs>
       <linearGradient id="dial${uid}" x1="26" y1="82" x2="58" y2="18" gradientUnits="userSpaceOnUse">
         <stop offset="0%" stop-color="#34D399"/>
         <stop offset="50%" stop-color="#22D3EE"/>
-        <stop offset="100%" stop-color="#60A5FA"/>
+        <stop offset="100%" stop-color="${tip}"/>
       </linearGradient>
     </defs>
-    <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(255,255,255,0.16)" stroke-width="12" stroke-linecap="round"/>
+    <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="${track}" stroke-width="12" stroke-linecap="round"/>
     <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#dial${uid})" stroke-width="12" stroke-linecap="round"/>
-    <circle cx="50" cy="18" r="10.5" fill="#0F172A"/>
-    <circle cx="50" cy="18" r="6" fill="#FFFFFF"/>
+    ${bezel}
+    <circle cx="50" cy="18" r="6" fill="${core}"/>
   </svg>`;
 }
 

@@ -170,11 +170,44 @@ export async function drawScoreCard({ score = null, eyebrow = '', caption = '', 
       y += STEP;
     }
 
-    const mark = ctx.createLinearGradient(cx - 190, 0, cx + 190, 0);
-    mark.addColorStop(0, RING[0]); mark.addColorStop(1, RING[2]);
-    ctx.fillStyle = mark;
-    ctx.font = '900 44px Archivo, "Plus Jakarta Sans", sans-serif';
-    ctx.fillText('ONSTANDARD', cx, IMG.h - 84);
+    /* Footer lockup: flat dial + the two-tone wordmark (brand law, docs/brand/LOGO.md).
+       Canvas can't gradient-clip text per-glyph cheaply, so "On" is ink and "Standard"
+       carries the sweep gradient across its own width. */
+    const wordFont = '800 44px "Plus Jakarta Sans", -apple-system, Helvetica, Arial, sans-serif';
+    ctx.font = wordFont;
+    const onW = ctx.measureText('On').width;
+    const stdW = ctx.measureText('Standard').width;
+    const MARK_S = 56, GAP = 18;
+    const totalW = MARK_S + GAP + onW + stdW;
+    const baseY = IMG.h - 84;
+    const left = cx - totalW / 2;
+
+    // dial (geometry is law: track, sweep arc, marker — 100-unit box scaled)
+    const s = MARK_S / 100, mx = left, my = baseY - 14 - MARK_S / 2 - 8;
+    ctx.save();
+    ctx.translate(mx, my); ctx.scale(s, s);
+    ctx.lineCap = 'round'; ctx.lineWidth = 12;
+    ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+    ctx.stroke(new Path2D('M33 81.4 A34 34 0 1 1 67 81.4'));
+    const dialGrad = ctx.createLinearGradient(26, 82, 58, 18);
+    dialGrad.addColorStop(0, RING[0]); dialGrad.addColorStop(0.5, RING[1]); dialGrad.addColorStop(1, RING[2]);
+    ctx.strokeStyle = dialGrad;
+    ctx.stroke(new Path2D('M33 81.4 A34 34 0 0 1 50 18'));
+    ctx.fillStyle = '#0F172A'; ctx.beginPath(); ctx.arc(50, 18, 10.5, 0, 7); ctx.fill();
+    ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc(50, 18, 6, 0, 7); ctx.fill();
+    ctx.restore();
+
+    ctx.font = wordFont;
+    const prevAlign = ctx.textAlign;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = TEXT;
+    ctx.fillText('On', left + MARK_S + GAP, baseY);
+    const stdX = left + MARK_S + GAP + onW;
+    const stdGrad = ctx.createLinearGradient(stdX, 0, stdX + stdW, 0);
+    stdGrad.addColorStop(0, RING[0]); stdGrad.addColorStop(0.5, RING[1]); stdGrad.addColorStop(1, RING[2]);
+    ctx.fillStyle = stdGrad;
+    ctx.fillText('Standard', stdX, baseY);
+    ctx.textAlign = prevAlign;
 
     // Grain last, over everything, exactly like the app's overlay.
     const grain = grainPattern(ctx);
