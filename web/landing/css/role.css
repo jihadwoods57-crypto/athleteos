@@ -1,5 +1,5 @@
 /* OnStandard — role landing pages (coaches / athletes / parents / trainers / dietitians)
-   Extends the v3 "Gold Standard" system in site.css. Only role-page components live
+   Extends the v4 "One Brand" system in site.css. Only role-page components live
    here; nav, buttons, FAQ, finale, footer, dialog, reveals all come from site.css. */
 
 /* ---------- hero ---------- */
@@ -7,7 +7,7 @@
 .rp-hero::before {
   content: ''; position: absolute; inset: 0; z-index: -1;
   background:
-    radial-gradient(1000px 640px at 76% 24%, rgba(232, 180, 74, 0.16), transparent 60%),
+    radial-gradient(1000px 640px at 76% 24%, rgba(59, 130, 246, 0.16), transparent 60%),
     radial-gradient(720px 560px at 90% 70%, rgba(196, 146, 46, 0.10), transparent 62%),
     linear-gradient(180deg, var(--bg-2) 0%, var(--bg) 66%);
 }
@@ -79,7 +79,7 @@
   font-size: clamp(46px, 6vw, 82px); letter-spacing: -0.03em; color: var(--text);
   font-variant-numeric: tabular-nums;
 }
-.stake-num .u { color: var(--gold); }
+.stake-num .u { color: var(--accent); }
 .stake-kw {
   font-family: var(--display); text-transform: uppercase; font-weight: 900;
   font-size: clamp(30px, 4vw, 50px); letter-spacing: 0.01em; line-height: 0.98; color: var(--text);
@@ -89,7 +89,7 @@
   display: inline-flex; align-items: center; gap: 8px; margin-top: 16px;
   font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3);
 }
-.stake-src::before { content: ''; flex: none; width: 16px; height: 2px; border-radius: 2px; background: var(--gold); }
+.stake-src::before { content: ''; flex: none; width: 16px; height: 2px; border-radius: 2px; background: var(--accent); }
 .stake-body { padding-top: 4px; }
 .stake-claim { font-size: clamp(16.5px, 1.6vw, 20px); font-weight: 800; letter-spacing: -0.01em; line-height: 1.36; }
 .stake-body p { color: var(--text-2); font-size: clamp(13.5px, 1.05vw, 15px); line-height: 1.64; margin-top: 12px; max-width: 60ch; }
@@ -108,18 +108,18 @@
 .tl { margin-top: clamp(44px, 5.5vw, 72px); position: relative; display: grid; gap: 0; max-width: 980px; }
 .tl::before {
   content: ''; position: absolute; left: 89px; top: 14px; bottom: 14px; width: 1px;
-  background: linear-gradient(180deg, transparent, var(--gold-border) 8%, var(--gold-border) 92%, transparent);
+  background: linear-gradient(180deg, transparent, var(--accent-border) 8%, var(--accent-border) 92%, transparent);
 }
 .tl-row { display: grid; grid-template-columns: 72px 36px minmax(0, 1fr); gap: 0 18px; padding: clamp(14px, 1.6vw, 20px) 0; }
 .tl-when {
   text-align: right; font-family: var(--display); font-weight: 900; font-size: 12.5px;
-  letter-spacing: 0.05em; color: var(--gold); text-transform: uppercase; padding-top: 7px;
+  letter-spacing: 0.05em; color: var(--accent); text-transform: uppercase; padding-top: 7px;
   font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .tl-dot {
   position: relative; z-index: 1; width: 34px; height: 34px; border-radius: 11px; margin-left: 0.5px;
   display: grid; place-items: center;
-  background: var(--surface-1); border: 1px solid var(--gold-border); color: var(--gold-bright);
+  background: var(--surface-1); border: 1px solid var(--accent-border); color: var(--accent-bright);
 }
 .tl-dot svg { width: 16px; height: 16px; }
 .tl-body h3 { font-size: clamp(16.5px, 1.5vw, 19px); font-weight: 800; letter-spacing: -0.01em; padding-top: 5px; }
@@ -157,7 +157,7 @@
   flex: none; width: 30px; height: 30px; border-radius: 9px;
   display: grid; place-items: center;
   font-family: var(--display); font-weight: 900; font-size: 13px;
-  background: var(--gold-surface); border: 1px solid var(--gold-border); color: var(--gold-bright);
+  background: var(--accent-surface); border: 1px solid var(--accent-border); color: var(--accent-bright);
 }
 .wstep b { display: block; font-size: clamp(15px, 1.2vw, 16.5px); font-weight: 800; letter-spacing: -0.01em; }
 .wstep p { color: var(--text-2); font-size: clamp(13.5px, 1vw, 14.5px); line-height: 1.6; margin-top: 5px; max-width: 52ch; }
@@ -194,7 +194,7 @@
 .mk-score.r { color: var(--red); }
 .mk-score.mut { color: var(--text-3); font-size: 13px; font-weight: 700; }
 .mk-stat3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
-.mk-stat { border: 1px solid var(--hairline-soft); border-radius: 14px; padding: 13px 14px; background: rgba(232, 180, 74, 0.03); }
+.mk-stat { border: 1px solid var(--hairline-soft); border-radius: 14px; padding: 13px 14px; background: rgba(59, 130, 246, 0.03); }
 .mk-stat b { display: block; font-size: clamp(19px, 1.8vw, 24px); font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .mk-stat span { display: block; color: var(--text-3); font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-top: 3px; }
 .mk-note {
@@ -224,13 +224,13 @@
   background: var(--surface-1); padding: clamp(22px, 2.2vw, 34px);
   transition: transform .4s var(--ease), border-color .4s var(--ease);
 }
-.fcard:hover { transform: translateY(-4px); border-color: rgba(216, 190, 140, 0.3); }
-.fcard svg { color: var(--gold); width: 26px; height: 26px; }
+.fcard:hover { transform: translateY(-4px); border-color: rgba(143, 163, 194, 0.3); }
+.fcard svg { color: var(--accent); width: 26px; height: 26px; }
 .fcard h3 { font-size: clamp(16.5px, 1.5vw, 19px); font-weight: 800; letter-spacing: -0.01em; margin-top: 16px; }
 .fcard p { color: var(--text-2); font-size: clamp(13.5px, 1vw, 14.5px); line-height: 1.62; margin-top: 10px; }
 .fcard .fq {
   display: block; margin-top: 14px; padding: 10px 13px; border-radius: 10px;
-  border-left: 2px solid var(--gold); background: rgba(232, 180, 74, 0.05);
+  border-left: 2px solid var(--accent); background: rgba(59, 130, 246, 0.05);
   color: var(--text-2); font-size: 12.5px; font-style: italic; line-height: 1.5;
 }
 @media (max-width: 960px) { .fgrid { grid-template-columns: 1fr 1fr; } }
@@ -243,7 +243,7 @@
   gap: clamp(14px, 2.4vw, 40px); padding: clamp(18px, 2vw, 26px) 0;
   border-bottom: 1px solid var(--hairline);
 }
-.lg-row.hl { background: linear-gradient(90deg, rgba(232, 180, 74, 0.06), transparent 70%); }
+.lg-row.hl { background: linear-gradient(90deg, rgba(59, 130, 246, 0.06), transparent 70%); }
 .lg-who { font-family: var(--display); text-transform: uppercase; font-weight: 900; font-size: clamp(13.5px, 1.25vw, 16px); letter-spacing: 0.02em; padding-top: 2px; }
 .lg-who span { display: block; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; text-transform: none; color: var(--text-3); font-size: 12px; font-weight: 600; letter-spacing: 0; margin-top: 4px; }
 .lg-cell b {
@@ -263,7 +263,7 @@
   align-items: stretch;
 }
 .cmp-col { border-radius: 22px; padding: clamp(24px, 2.6vw, 40px); border: 1px solid var(--hairline-soft); background: var(--surface-1); }
-.cmp-col.now { border-color: var(--gold-border); background: linear-gradient(170deg, rgba(232, 180, 74, 0.09), var(--surface-1) 60%); }
+.cmp-col.now { border-color: var(--accent-border); background: linear-gradient(170deg, rgba(59, 130, 246, 0.09), var(--surface-1) 60%); }
 .cmp-col h3 { font-family: var(--display); text-transform: uppercase; font-size: clamp(14px, 1.35vw, 17px); font-weight: 900; letter-spacing: 0.03em; }
 .cmp-col.was h3 { color: var(--text-3); }
 .cmp-col ul { display: grid; gap: 0; margin-top: 12px; }
@@ -287,7 +287,7 @@
 }
 .scen .scen-tag {
   padding: 16px clamp(20px, 2vw, 28px) 0;
-  font-size: 11px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold);
+  font-size: 11px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent);
 }
 .scen h3 { padding: 8px clamp(20px, 2vw, 28px) 0; font-size: clamp(16.5px, 1.5vw, 19px); font-weight: 800; letter-spacing: -0.01em; }
 .scen p { padding: 10px clamp(20px, 2vw, 28px) clamp(20px, 2vw, 28px); color: var(--text-2); font-size: clamp(13.5px, 1vw, 14.5px); line-height: 1.62; }
@@ -296,10 +296,10 @@
 /* ---------- mid-page CTA band ---------- */
 .band {
   margin-top: clamp(56px, 7vw, 100px);
-  border-radius: 24px; border: 1px solid var(--gold-border);
+  border-radius: 24px; border: 1px solid var(--accent-border);
   background:
-    radial-gradient(640px 300px at 80% 0%, rgba(232, 180, 74, 0.14), transparent 65%),
-    linear-gradient(170deg, #17130D, #100E0A);
+    radial-gradient(640px 300px at 80% 0%, rgba(59, 130, 246, 0.14), transparent 65%),
+    linear-gradient(170deg, #101827, #0A1020);
   padding: clamp(30px, 3.6vw, 56px);
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 22px;
 }

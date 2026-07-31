@@ -1,6 +1,6 @@
 /* OnStandard landing v3 — motion + dial + waitlist.
    Systems: reveal choreography, sports ticker (CSS), hero 3D phone parallax,
-   gold dust particles, sticky scroll-driven system section, the score dial
+   signature dust particles, sticky scroll-driven system section, the score dial
    (SVG everywhere, WebGL enhancement on desktop), and the intent-aware
    early-access dialog backed by /api/waitlist. */
 (() => {
@@ -166,7 +166,7 @@
     });
   }
 
-  /* ---------- hero: gold dust ---------- */
+  /* ---------- hero: signature dust (teal) ---------- */
   const dust = document.getElementById('dust');
   if (dust && !reduced && matchMedia('(pointer: fine)').matches && innerWidth > 960) {
     const ctx = dust.getContext('2d');
@@ -201,7 +201,7 @@
         const tw = 0.55 + 0.45 * Math.sin(t * 1.7 + p.ph);
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(232, 180, 74, ${(p.a * tw).toFixed(3)})`;
+        ctx.fillStyle = `rgba(34, 211, 238, ${(p.a * tw).toFixed(3)})`;
         ctx.fill();
       }
     };
