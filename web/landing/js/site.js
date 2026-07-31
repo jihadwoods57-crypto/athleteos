@@ -444,7 +444,7 @@
       // revenue under the AI cost floor (pricing.ts), which is why every page was rewritten to
       // "today's price, locked for life". This string was missed in that pass, so the site promised
       // a lock everywhere except the dialog someone reads at the moment they convert.
-      sub: "The first 50 coaches and facilities are free through the beta, then lock today's price permanently — every later price rise passes them by. We reach out personally, usually within a day.",
+      sub: "The first 50 coaches and facilities lock today's price permanently — every later price rise passes them by. We reach out personally, usually within a day.",
       submit: 'Request founding access',
       role: 'Coach',
       ph: "Sport, roster size, and when you'd want to start",

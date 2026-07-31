@@ -38,6 +38,7 @@
         "npm:expo-secure-store@~57.0.1",
         "npm:expo-splash-screen@~57.0.5",
         "npm:expo-status-bar@~57.0.1",
+        "npm:expo-store-review@~57.0.1",
         "npm:expo-task-manager@~57.0.6",
         "npm:expo-updates@~57.0.10",
         "npm:expo@~57.0.8",

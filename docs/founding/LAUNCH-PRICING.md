@@ -44,9 +44,17 @@ for monthly and annual buyers, founding members at their locked rate.
 
 ## Founding 50
 
-Free through the beta, then **today's price locked permanently** — including the overage rate.
+**Today's price, locked permanently** — including the overage rate. The standard 14-day trial,
+nothing more: founding members pay like everyone else, they just never pay *more* than they do on
+the day they join.
+
 Deliberately a lock, never a discount: 50% off puts the pro tiers under the per-seat AI cost
-floor (that offer was retired 2026-07-23; see `web/landing-src/fix-founding.py`). Slots claim
+floor (that offer was retired 2026-07-23; see `web/landing-src/fix-founding.py`). The **"free
+through the beta"** clause was retired the same way on **2026-07-30**
+(`web/landing-src/fix-founding-free.py`) — free is the 50%-off problem made worse, since the
+fifty most engaged rosters would have been the fifty largest losses, and it was never implemented
+in any case: `founding_members.billing_starts_at` (0161) is vestigial, written and read by
+nothing. Slots claim
 automatically on a completed first checkout (`stripe-webhook` → `claim_founding_slot`; capped,
 idempotent). The remaining count is public via `founding_slots_left()`.
 

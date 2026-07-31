@@ -16,7 +16,7 @@
 - **Professional (trainers, RDs, private coaches):** Solo $99/mo (25 active clients) or Professional $179/mo (50 active clients); $10/mo per active client beyond. 14-day free trial.
 - **Programs & facilities:** $249 / $499 / $799/mo for 30 / 75 / 150 active athletes; $10/mo per active athlete beyond; Enterprise custom. 14-day free trial. Billing counts **active** athletes only — idle seats are free.
 - **Consumer (optional, IAP):** Individual $14.99, Individual Plus $24.99, Family $39.99 (4 athletes); annual = 30% off; 7-day trial.
-- **Founding 50:** free through the beta, then today's price locked permanently — a lock, never a discount.
+- **Founding 50:** today's price locked permanently, including the $10/mo overage rate — a lock, never a discount, and never free (the "free through the beta" clause was retired 2026-07-30).
 
 ## Target Audience
 **Buyers (who pays):** Coaches, personal trainers, registered dietitians (RDs), and programs/schools/performance gyms.
@@ -121,7 +121,7 @@ The honest read: **no one else verifies daily execution from a photo and scores 
 | OnStandard Score | The single 0–100 daily score against the fixed formula |
 | The standard | The individualized targets/windows a professional sets within platform rails |
 | The other 167 | The hours each week outside the session where results are actually decided |
-| Founding 50 | First 50 coaches/facilities; free through the beta, then today's price locked permanently — a price LOCK, never a discount (a 50% cut would put per-seat revenue under the AI cost floor) |
+| Founding 50 | First 50 coaches/facilities; today's price locked permanently, including the $10/mo per-active-client overage — a price LOCK, never a discount and never free (a 50% cut would put per-seat revenue under the AI cost floor; free is that problem made worse). They get the same 14-day trial as everyone else |
 | Score bands | Off Standard 0–59 · Building 60–74 · Locked In 75–89 · OnStandard 90–100 |
 
 ## Brand Voice
@@ -132,7 +132,7 @@ The honest read: **no one else verifies daily execution from a photo and scores 
 ## Proof Points
 **Metrics / mechanics that build trust:** Fixed published formula; per-food confidence; honest late credit; photo verification (live capture only).
 **Founder credibility:** Built by a former Division I athlete and college football coach who lived both sides of the gap — coaches plan, athletes promise, nobody can prove what happened between sessions.
-**Scarcity:** Founding 50 — first 50 coaches/facilities are free through the beta, then lock today's price permanently; every later price rise passes them by. Never framed as a discount. The landing page shows the live "N of 50 spots left" count from the same RPC the in-app paywall uses.
+**Scarcity:** Founding 50 — the first 50 coaches/facilities lock today's price permanently; every later price rise passes them by. Never framed as a discount, and never as free access. The landing page shows the live "N of 50 spots left" count from the same RPC the in-app paywall uses.
 **Value themes:**
 | Theme | Proof |
 |-------|-------|

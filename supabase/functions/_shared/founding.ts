@@ -1,9 +1,14 @@
 // OnStandard — Founding 50: making the landing page's promise enforceable.
 //
-// THE PROMISE (web/landing/index.html:533,593)
-//   "the first 50 coaches and facilities are free through the beta, then lock today's price
-//    permanently — including the $10/month per active client beyond a plan's limit. A later price
-//    rise never touches them."
+// THE PROMISE (web/landing/index.html, hero + story + pricing fine print)
+//   "the first 50 coaches and facilities lock today's price permanently — including the $10/month
+//    per active client beyond a plan's limit. A later price rise never touches them."
+//
+// The copy also said "free through the beta" until 2026-07-30. That clause is RETIRED (founder
+// decision; see docs/go-live/FOUNDING-50.md and web/landing-src/fix-founding-free.py) — it was
+// never implemented, it contradicted a claim path that requires a paid checkout, and free access
+// for the most engaged cohort on the platform is the retired 50%-off offer made worse. Founding
+// members get the standard 14-day trial and then pay; the lock is the whole offer.
 //
 // Until now that had NO implementation anywhere: no counter, no record of who claimed it, and
 // nothing stopping customer #51 — or #500 — from being told they were founding. It would have been

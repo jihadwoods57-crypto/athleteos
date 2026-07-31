@@ -1,30 +1,44 @@
 [
   {
-    "name": "thread-athlete",
-    "kb": 103,
+    "name": "loop-1-home-morning",
+    "kb": 91,
     "thin": false,
-    "use": "Flagship — athlete side: AI read, coach reply, correction, UPDATED ANALYSIS, facepile",
-    "head": "Lunch On time Lunch logged Logged 1:06 PM · on time · Coach replied 2 of 4 in today · 34 d"
+    "use": "Step 1 — open the app; breakfast is the one thing to do next",
+    "head": "Good morning, Marcus Thursday · Lincoln Varsity Football 2 MR 41 DAILY SCORE In progress 1"
   },
   {
-    "name": "thread-coach",
-    "kb": 65,
+    "name": "loop-4-home-midday",
+    "kb": 93,
     "thin": false,
-    "use": "Flagship — the coach side of a live conversation",
-    "head": "Breakfast Your comment lands on the athlete’s log Breakfast 46g protein 88 MEAL 88/100 MEA"
+    "use": "Step 4 — the score moved; dinner still open",
+    "head": "Good afternoon, Marcus Thursday · Lincoln Varsity Football 2 MR 49 DAILY SCORE In progress"
   },
   {
-    "name": "thread-season",
-    "kb": 68,
+    "name": "loop-7-home-complete",
+    "kb": 74,
     "thin": false,
-    "use": "The season-long merged stream: every meal, every reply, one conversation",
-    "head": "Nutrition chat You, James Brooks, AI Nutritionist Y JB You, James Brooks, AI Nutritionist "
+    "use": "Step 7 — the day lands; streak locks at midnight",
+    "head": "Good evening, Marcus Locked in for today 1 MR 92 /100 ONSTANDARD You're OnStandard. 1 vs y"
   },
   {
-    "name": "thread-analysis",
-    "kb": 65,
+    "name": "loop-8-breakdown",
+    "kb": 84,
     "thin": false,
-    "use": "The AI read: quality band, rubric, per-food confidence, correction chips",
-    "head": "Lunch On time Lunch logged Logged 1:06 PM · on time · Coach replied 2 of 4 in today · 34 d"
+    "use": "Step 8 — why the score is what it is",
+    "head": "Score Breakdown Why you have this score, and how to climb 92 /100 ONSTANDARD Nutrition 50%"
+  },
+  {
+    "name": "state-late-dinner",
+    "kb": 99,
+    "thin": false,
+    "use": "What happens if you are late — \"still counts, log it late\"",
+    "head": "Good evening, Marcus Thursday · Lincoln Varsity Football 2 MR 67 DAILY SCORE Building 24 v"
+  },
+  {
+    "name": "state-first-day",
+    "kb": 88,
+    "thin": false,
+    "use": "Day one — \"Not scored yet\", closed windows read \"Not required\"",
+    "head": "Good afternoon, Marcus Your standard is ready 2 MR — DAILY SCORE Not scored yet Ready to b"
   }
 ]

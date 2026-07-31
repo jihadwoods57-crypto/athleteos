@@ -64,7 +64,7 @@ export const planUpgrade = {
           <div style="display:flex;gap:12px;align-items:center">
             <div class="req-icon g" style="width:40px;height:40px">${icon('flame', 19)}</div>
             <div><div style="font-size:14.5px;font-weight:800">Founding 50 — ${UP.slots} spot${UP.slots === 1 ? '' : 's'} left</div>
-            <div style="font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5">Free through the beta, then today's price locked for good. Claimed automatically when you subscribe.</div></div>
+            <div style="font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5">Today's price locked for good — including the $10/mo per active client over your limit. Claimed automatically when you subscribe.</div></div>
           </div>
         </section>`
       : '';

@@ -2,10 +2,23 @@
 
 ## What the site promises
 
-> "the first 50 coaches and facilities are free through the beta, then lock today's price
-> permanently — including the $10/month per active client beyond a plan's limit. A later price rise
-> never touches them."
-> — `web/landing/index.html:533`, repeated at `:593`, `:566`, and on coaches / trainers / dietitians
+> "the first 50 coaches and facilities lock today's price permanently — including the $10/month
+> per active client beyond a plan's limit. A later price rise never touches them."
+> — `web/landing/index.html`, repeated in the hero, the story block and the pricing fine print,
+> and on coaches / trainers / dietitians
+
+**Free access is not part of the offer.** The copy said "free through the beta" until 2026-07-30,
+when it was retired across all six pages, `js/site.js` and the in-app paywall by
+`web/landing-src/fix-founding-free.py`. Two reasons, and either alone was enough:
+
+- It was never built. The clause's only trace in the system is the vestigial `billing_starts_at`
+  column below, which nothing writes and nothing reads.
+- Free is the retired 50%-off offer made worse. An engaged roster costs ~$2/seat in AI, and
+  founding members are by definition the most engaged cohort — the fifty most committed accounts
+  would have been the fifty largest losses.
+
+A founding member gets the same 14-day trial as everyone else, then pays. What they never do is
+pay *more* than they did on the day they joined.
 
 ## What existed before
 
@@ -55,8 +68,14 @@ The 51st claim returns `ok=false, reason='founding 50 is full'`. That is enforce
 simultaneous claims cannot both take slot 50 — verified by seeding 51 claims against a real
 database.
 
-"Free through the beta" is `billing_starts_at`: null while they are still free, set when billing
-begins for them.
+`billing_starts_at` was 0161's home for the retired "free through the beta" clause. It is now
+**vestigial** — no code writes it and no code reads it, and none should. Left in place rather than
+dropped because 0161 is applied in production and the column is harmless; treat it as dead.
+
+Note that the claim moment (`stripe-webhook`, on `checkout.session.completed`) has always required
+a completed, paid checkout. That is why the free clause was not merely unimplemented but
+self-contradictory: a coach who believed the copy and never subscribed would never have become
+founding at all.
 
 ## Worth knowing
 
