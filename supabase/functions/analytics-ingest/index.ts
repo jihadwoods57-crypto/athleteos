@@ -68,6 +68,11 @@ const ALLOWED = new Set([
   // have not redeemed, i.e. people being billed for something they cannot open.
   "tf_page_viewed", "tf_checkout_started", "tf_checkout_blocked",
   "tf_claim_shown", "tf_claim_pending", "tf_code_redeemed", "tf_code_failed",
+  // Homepage founding funnel (2026-07-30) — fired from onstandard.app's index (second public
+  // origin, same anonymous pattern as tf_*). wl_open/wl_submitted bracket the waitlist dialog,
+  // so the gap between them is the modal's abandonment rate — the first conversion signal the
+  // homepage has ever had. f50_seen carries the live founding_slots_left() count as a number.
+  "wl_open", "wl_submitted", "f50_seen",
 ]);
 const ENUM_RE = /^[a-z0-9_.:-]{1,24}$/;
 const SID_RE = /^[a-z0-9_.:-]{1,64}$/i;

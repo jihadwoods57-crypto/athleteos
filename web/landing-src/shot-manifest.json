@@ -1,16 +1,30 @@
 [
   {
-    "name": "state-privacy",
-    "kb": 70,
+    "name": "thread-athlete",
+    "kb": 103,
     "thin": false,
-    "use": "Who sees what, shown in-app",
-    "head": "Privacy & visibility Who sees what — nothing is public James Brooks Daily score, requireme"
+    "use": "Flagship — athlete side: AI read, coach reply, correction, UPDATED ANALYSIS, facepile",
+    "head": "Lunch On time Lunch logged Logged 1:06 PM · on time · Coach replied 2 of 4 in today · 34 d"
   },
   {
-    "name": "parent-1-dashboard",
-    "kb": 61,
+    "name": "thread-coach",
+    "kb": 65,
     "thin": false,
-    "use": "Score, grade, latest day — never photos, weight, or check-ins",
-    "head": "Your athletes Daily scores Marcus Reed Latest day: 2026-07-23 94 A What you can see Their "
+    "use": "Flagship — the coach side of a live conversation",
+    "head": "Breakfast Your comment lands on the athlete’s log Breakfast 46g protein 88 MEAL 88/100 MEA"
+  },
+  {
+    "name": "thread-season",
+    "kb": 68,
+    "thin": false,
+    "use": "The season-long merged stream: every meal, every reply, one conversation",
+    "head": "Nutrition chat You, James Brooks, AI Nutritionist Y JB You, James Brooks, AI Nutritionist "
+  },
+  {
+    "name": "thread-analysis",
+    "kb": 65,
+    "thin": false,
+    "use": "The AI read: quality band, rubric, per-food confidence, correction chips",
+    "head": "Lunch On time Lunch logged Logged 1:06 PM · on time · Coach replied 2 of 4 in today · 34 d"
   }
 ]

@@ -4,7 +4,7 @@
 
 ```
 index.html          the homepage
-privacy.html        Privacy Policy   → serves at /privacy on Pages/Netlify
+privacy.html        Privacy Policy   → serves at /privacy
 terms.html          Terms of Service → serves at /terms
 reset.html          password-reset completion page → /reset (the app's
                     forgot-password emails already point here; finished, no edits)
@@ -13,87 +13,51 @@ css/ js/ fonts/ assets/
 
 `web/landing-src/` is not part of the deploy (image-gen sources + QA artifacts).
 
-## LIVE NOW (temporary, claimable) — checked 2026-07-14
+## LIVE NOW — how onstandard.app is actually served (verified 2026-07-30)
 
-The site is deployed and serving on the public internet via a Cloudflare
-**temporary account** (credential-free deploy):
+The site is a **Cloudflare Worker**, not Cloudflare Pages: the source of truth
+is `web/landing-src/deploy/wrangler.jsonc` —
 
-- Live URL: **https://onstandard-site.sun-velvet.workers.dev**
-  (/, /privacy, /terms, /reset, /assets/og.png all verified 200; dial animates)
-- To OWN it, claim the account within 60 min of the last deploy. Claim links
-  expire fast; if it's lapsed, re-run `npx wrangler deploy --temporary` from
-  `web/landing-src/deploy/` and grab the fresh "Claim URL" it prints.
-- This temp URL is only for proving-it-works. The real home is onstandard.app
-  once DNS points there (below).
+```jsonc
+{
+  "name": "onstandard-site",
+  "main": "worker.js",
+  "assets": { "directory": "../../landing", "binding": "ASSETS" },
+  "kv_namespaces": [{ "binding": "WAITLIST", "id": "…" }],
+  "send_email": [{ "name": "NOTIFY", "destination_address": "…" }]
+}
+```
 
-## Current reality (checked 2026-07-14)
+`worker.js` serves every static file straight out of `web/landing/` via the
+`ASSETS` binding, and layers two API routes on top:
 
-- `onstandard.app` and `app.onstandard.app` resolve to **Porkbun parking**
-  (`pixie.porkbun.com`) — DNS is managed at Porkbun.
-- No Porkbun credentials on this machine, so the DNS flip and email forwarding
-  are founder steps.
-- **Supabase auth is ALREADY configured** (verified live via Management API):
-  Site URL `https://onstandard.app` and redirect allow-list already includes
-  `https://onstandard.app/reset`. No action needed — password reset will work
-  the moment DNS is live.
+- `POST /api/waitlist` — validates the waitlist form, writes to the `WAITLIST`
+  KV namespace, and sends the founder a notification email via the `NOTIFY`
+  send_email binding. This is what `js/site.js`'s dialog submit posts to.
+- `GET /api/leads` — lists captured leads, gated behind an `x-admin-key` header.
 
-## Founder to-dos BEFORE flipping DNS (5 minutes)
+**Deploy:**
 
-1. ~~Fill the legal blanks~~ **DONE (2026-07-14).** Both pages are complete:
-   operator "Jihad Woods, doing business as OnStandard", Orlando FL address,
-   Florida governing law (Orange County venue), $50-or-12-months liability cap,
-   30-day deletion window, auto-renewal/cancellation billing terms. Have a
-   lawyer review before scaling; if you form an LLC later, the entity name is a
-   find-and-replace in `privacy.html` + `terms.html`.
-2. ~~Decide app.onstandard.app~~ **RESOLVED for launch.** Every CTA now goes to
-   `mailto:support@onstandard.app` as a "Get early access" / "Request your
-   trial" action, so nothing points at the parked `app` subdomain. When the app
-   goes public, restoring the app CTAs is a small one-commit change — ask.
-3. **REQUIRED — make the CTA mailbox real.** Every button on the site emails
-   `support@onstandard.app`. At **Porkbun → onstandard.app → Email Forwarding**,
-   add `support@onstandard.app` → your inbox (free, ~2 minutes). Until this
-   exists, CTA emails bounce and the launch is silently broken.
+```
+cd web/landing-src/deploy
+npx wrangler deploy
+```
 
-## Option A — Cloudflare Pages (recommended, ~10 min)
+That's the entire release step — no build, no asset upload dance, no
+nameserver juggling. `onstandard.app` and `www.onstandard.app` already route to
+this Worker; DNS, TLS, and the KV/email bindings are live in production.
 
-1. Create a free Cloudflare account → **Add site** → `onstandard.app` (Free plan).
-   Cloudflare shows two nameservers.
-2. At **Porkbun → onstandard.app → Nameservers**, replace with Cloudflare's pair.
-   (Propagation is usually minutes, up to a few hours.)
-3. Cloudflare dashboard → **Workers & Pages → Create → Pages → Upload assets** →
-   drag the CONTENTS of `web/landing/` in → name it `onstandard-site` → Deploy.
-   (Or from a logged-in terminal:
-   `npx wrangler pages deploy web/landing --project-name onstandard-site`.)
-4. Pages project → **Custom domains** → add `onstandard.app` and `www.onstandard.app`.
-   Cloudflare writes the DNS records and issues TLS automatically.
-5. Verify: `https://onstandard.app` (dial animates 0→94), `/privacy`, `/terms`,
-   `/reset`, and `https://onstandard.app/assets/og.png`.
-
-Pages serves `privacy.html` at `/privacy` automatically, so the footer links and
-Apple's required URLs work with no config.
-
-## Option B — Netlify Drop (no nameserver change)
-
-1. https://app.netlify.com/drop → drag the `web/landing` folder in.
-2. Site settings → **Domain management** → add `onstandard.app`.
-3. At Porkbun → **DNS records** for onstandard.app: `ALIAS`/`A` apex record and
-   `CNAME www` exactly as Netlify displays them (delete the parking records).
-4. Same verification list as above. Netlify's "pretty URLs" serve `/privacy` etc.
-
-## After DNS is live — Supabase (ALREADY DONE ✅)
-
-Verified 2026-07-14 via the Management API: Site URL is `https://onstandard.app`
-and the redirect allow-list already contains `https://onstandard.app/reset`.
-Nothing to change — forgot-password will work as soon as the domain resolves.
+`web/landing-src/` itself (image-gen sources, QA artifacts, this `deploy/`
+folder) is not part of what ships — only `web/landing/` is served.
 
 ## Post-deploy checklist
 
 - [ ] Homepage loads over TLS, dial animates, console clean
 - [ ] `/privacy`, `/terms`, `/reset` answer (Apple submission needs the first two)
 - [ ] `assets/og.png` resolves; paste the URL into a Slack/iMessage to see the card
-- [ ] Send yourself a test email via the hero "Get early access" button and
-      confirm it arrives (proves Porkbun forwarding works)
-- [ ] Supabase redirect URL added
+- [ ] Submit the waitlist dialog once and confirm `POST /api/waitlist` succeeds
+      and the notification email arrives
+- [ ] `GET /api/leads` with the correct `x-admin-key` still returns the list
 
 ## Measured bars (Lighthouse 12, throttled mobile, final pass)
 

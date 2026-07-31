@@ -121,7 +121,7 @@ The honest read: **no one else verifies daily execution from a photo and scores 
 | OnStandard Score | The single 0–100 daily score against the fixed formula |
 | The standard | The individualized targets/windows a professional sets within platform rails |
 | The other 167 | The hours each week outside the session where results are actually decided |
-| Founding 50 | First 50 coaches/facilities; lock 50% off for 12 months, grandfathered |
+| Founding 50 | First 50 coaches/facilities; free through the beta, then today's price locked permanently — a price LOCK, never a discount (a 50% cut would put per-seat revenue under the AI cost floor) |
 | Score bands | Off Standard 0–59 · Building 60–74 · Locked In 75–89 · OnStandard 90–100 |
 
 ## Brand Voice
@@ -132,7 +132,7 @@ The honest read: **no one else verifies daily execution from a photo and scores 
 ## Proof Points
 **Metrics / mechanics that build trust:** Fixed published formula; per-food confidence; honest late credit; photo verification (live capture only).
 **Founder credibility:** Built by a former Division I athlete and college football coach who lived both sides of the gap — coaches plan, athletes promise, nobody can prove what happened between sessions.
-**Scarcity:** Founding 50 — first 50 coaches/facilities lock 50% off for 12 months, grandfathered against future price rises.
+**Scarcity:** Founding 50 — first 50 coaches/facilities are free through the beta, then lock today's price permanently; every later price rise passes them by. Never framed as a discount. The landing page shows the live "N of 50 spots left" count from the same RPC the in-app paywall uses.
 **Value themes:**
 | Theme | Proof |
 |-------|-------|

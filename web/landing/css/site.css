@@ -162,10 +162,11 @@ h1 .dot { color: var(--gold); }
    where the win matters and the sticky system stage isn't in play. */
 @media (max-width: 960px) {
   .nav.scrolled { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(11, 10, 8, 0.94); }
-  .whatis, .why, .roles, .score, .story, .pricing, .faq, .finale, .foot {
+  .whatis, .why, .roles, .score, .story, .pricing, .faq, .finale, .foot, .rp-sect {
     content-visibility: auto;
   }
   .whatis  { contain-intrinsic-size: auto 940px; }
+  .rp-sect { contain-intrinsic-size: auto 2600px; }
   .why     { contain-intrinsic-size: auto 1160px; }
   .roles   { contain-intrinsic-size: auto 3200px; }
   .score   { contain-intrinsic-size: auto 1700px; }
@@ -369,6 +370,8 @@ h1 .dot { color: var(--gold); }
 .hp span { display: block; font-size: 12px; color: var(--text-3); font-weight: 600; margin-top: 3px; line-height: 1.45; }
 .hero-cta { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 32px; }
 .hero-fine { color: var(--text-3); font-size: 13px; font-weight: 600; margin-top: 16px; }
+.f50 { color: var(--text); }
+.f50 b { font-variant-numeric: tabular-nums; }
 
 /* hero visual: blended athlete + 3D phones (copy -> athlete -> product, left to right) */
 /* ambient spill: the hero loop again, mirrored + blurred, glowing behind the
@@ -945,6 +948,8 @@ details[open] .fx::after { transform: scaleY(0); }
 .wl-close:hover { color: var(--text); border-color: rgba(232, 180, 74, 0.34); background: rgba(232, 180, 74, 0.1); }
 .wl-h { font-family: var(--display); text-transform: uppercase; font-size: clamp(22px, 3.6vw, 27px); font-weight: 900; margin-top: 12px; }
 .wl-sub { color: var(--text-2); font-size: 14.5px; line-height: 1.55; margin-top: 10px; max-width: 44ch; }
+.wl-slots { color: var(--text-2); font-size: 13px; font-weight: 600; line-height: 1.5; margin-top: 8px; max-width: 44ch; }
+.wl-slots b { color: var(--gold, var(--text)); font-variant-numeric: tabular-nums; }
 .wl-form { margin-top: 22px; display: grid; gap: 14px; }
 .wl-field { display: grid; gap: 6px; }
 .wl-field label { font-size: 12.5px; font-weight: 700; color: var(--text-2); }

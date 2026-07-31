@@ -26,7 +26,7 @@ sessionStorage.setItem('os:preloaded','1');
 document.documentElement.classList.add('pre');
 window.__preT=setTimeout(function(){document.documentElement.classList.remove('pre','pre-up');},3500);
 }catch(e){}})();</script>
-<link rel="stylesheet" href="css/site.css?v=13">
+<link rel="stylesheet" href="css/site.css?v=14">
 <link rel="stylesheet" href="css/role.css?v=3">
 <noscript><style>.reveal { opacity: 1 !important; transform: none !important; }</style></noscript>
 </head>
@@ -137,7 +137,7 @@ window.__preT=setTimeout(function(){document.documentElement.classList.remove('p
       <div class="rp-visual reveal d2" aria-hidden="true">
         <div class="rp-photo"><img src="assets/img/g-hero-dietitian.webp" width="1024" height="1536" alt="" fetchpriority="high"></div>
         <div class="p3d">
-          <div class="p3d-screen"><img src="assets/product/loop-3-meal-read.webp" width="390" height="760" alt="" decoding="async"></div>
+          <div class="p3d-screen"><img src="assets/product/loop-3-meal-read.webp?v=20260730" width="390" height="760" alt="" decoding="async"></div>
         </div>
       </div>
     </div>
@@ -274,24 +274,33 @@ window.__preT=setTimeout(function(){document.documentElement.classList.remove('p
       </div>
       <div class="loop reveal d2">
         <div class="loop-step">
-          <div class="phone sm"><img src="assets/product/loop-2-camera.webp" width="390" height="844" loading="lazy" decoding="async" alt="The OnStandard camera screen a client uses to log a meal."></div>
+          <div class="phone sm"><img src="assets/product/loop-2-camera.webp?v=20260730" width="390" height="844" loading="lazy" decoding="async" alt="The OnStandard camera screen a client uses to log a meal."></div>
           <div class="loop-txt"><span class="loop-n">1</span><p class="loop-do">Your client photographs the plate.</p>
           <p class="loop-get">No recall, no food diary that dies in week two, no typing. Packaged food is scanned from the Nutrition Facts panel and <b>transcribed rather than estimated</b> &mdash; estimation is reserved for plates that need it.</p></div>
         </div>
         <div class="loop-step">
-          <div class="phone sm"><img src="assets/product/loop-3-meal-read.webp" width="390" height="844" loading="lazy" decoding="async" alt="A logged OnStandard meal showing detected foods with confidence, macros and meal quality."></div>
+          <div class="phone sm"><img src="assets/product/loop-3-meal-read.webp?v=20260730" width="390" height="844" loading="lazy" decoding="async" alt="A logged OnStandard meal showing detected foods with confidence, macros and meal quality."></div>
           <div class="loop-txt"><span class="loop-n">2</span><p class="loop-do">The model reads it, and asks when it can't see.</p>
           <p class="loop-get">Each food carries <b>high, medium or low confidence</b>. When something invisible would move the numbers &mdash; cooking fat, a sauce, food off-frame &mdash; it asks one to three questions rather than guessing. Estimates are bounded by an energy-consistency check so one bad read can't distort a day.</p></div>
         </div>
         <div class="loop-step">
-          <div class="phone sm"><img src="assets/product/loop-8-breakdown.webp" width="390" height="844" loading="lazy" decoding="async" alt="The OnStandard score breakdown showing each component's contribution."></div>
+          <div class="phone sm"><img src="assets/product/loop-8-breakdown.webp?v=20260730" width="390" height="844" loading="lazy" decoding="async" alt="The OnStandard score breakdown showing each component's contribution."></div>
           <div class="loop-txt"><span class="loop-n">3</span><p class="loop-do">It lands as adherence you can compare.</p>
           <p class="loop-get">Timing is part of the record: on time counts full, late counts half, and the log says how late. You set the targets. <b>You can never move the weights</b>, and each has a published ceiling &mdash; which is what makes adherence comparable across your whole book.</p></div>
         </div>
         <div class="loop-step">
-          <div class="phone sm"><img src="assets/product/style-intuitive.webp" width="390" height="844" loading="lazy" decoding="async" alt="An OnStandard plan on the Intuitive style, showing no calorie or macro targets."></div>
+          <div class="phone sm"><img src="assets/product/style-intuitive.webp?v=20260730" width="390" height="844" loading="lazy" decoding="async" alt="An OnStandard plan on the Intuitive style, showing no calorie or macro targets."></div>
           <div class="loop-txt"><span class="loop-n">4</span><p class="loop-do">You choose how much structure they see.</p>
           <p class="loop-get">You are one of only three roles that can <b>assign a plan style</b>. Put a client on <b>Intuitive</b> and the app shows them no calories and no macros at all &mdash; scoring awareness, adequate fueling, hydration and consistency instead. Awareness is scored on <b>answering, not on the answer</b>: a 1-out-of-5 satisfaction scores exactly like a 5.</p></div>
+        </div>
+      </div>
+      <div class="duo reveal" style="margin-top:clamp(46px,6vw,80px)">
+        <div class="duo-shot"><div class="phone sm"><img src="assets/product/thread-season.webp?v=20260730" width="390" height="844" loading="lazy" decoding="async" alt="The season-long OnStandard nutrition conversation: meals enter the stream as photo cards between messages, scrolling back through earlier weeks."></div></div>
+        <div class="duo-body">
+          <p class="kicker">The meal thread</p>
+          <h3>Every plate, and every conversation about it, in one record.</h3>
+          <p>Each logged meal opens a thread: the <b>AI Nutritionist</b>'s read first, your comment, the client's reply &mdash; and it all rolls into a single season&#8209;long stream you can scroll back through at the next appointment. The AI answers questions <b>from the plan you wrote</b>; it never invents a number and never touches the score.</p>
+          <p>Adherence conversations stop being reconstructions. <b>The plate, the read, and what was said about it are one artifact</b> &mdash; timestamped, in order.</p>
         </div>
       </div>
       <p class="rp-fine reveal" style="margin-top:26px;max-width:76ch"><b>What it will not do:</b> it does not diagnose, deliver medical nutrition therapy, or set a target. It can flag a possible allergen conflict from what it detects and what the client declared &mdash; it can <b>never</b> confirm a plate is allergen-free, and it says so on the screen.</p>
@@ -350,9 +359,9 @@ window.__preT=setTimeout(function(){document.documentElement.classList.remove('p
         <h2 id="screens-h" class="h2 reveal d1">What your clients will hold.</h2>
       </div>
       <div class="shots reveal d2">
-        <figure><div class="phone sm"><img src="assets/product/loop-2-camera.webp" width="390" height="844" loading="lazy" decoding="async" alt="The OnStandard camera screen a client uses to log a meal."></div><figcaption><b>Capture</b> Camera on the plate — the log takes seconds, not willpower.</figcaption></figure>
-        <figure><div class="phone sm"><img src="assets/product/loop-3-meal-read.webp" width="390" height="844" loading="lazy" decoding="async" alt="A logged OnStandard meal: detected foods with confidence, macros, a meal-quality read and the timing stamp."></div><figcaption><b>The read</b> Foods with per-item confidence, macros, meal quality, and whether it landed inside its window.</figcaption></figure>
-        <figure><div class="phone sm"><img src="assets/product/style-intuitive.webp" width="390" height="844" loading="lazy" decoding="async" alt="An OnStandard plan on the Intuitive style: no calorie or macro targets shown to the client."></div><figcaption><b>Intuitive</b> A client who should not be looking at numbers doesn't see any. Same score, measured on awareness and adequate fueling instead.</figcaption></figure>
+        <figure><div class="phone sm"><img src="assets/product/loop-2-camera.webp?v=20260730" width="390" height="844" loading="lazy" decoding="async" alt="The OnStandard camera screen a client uses to log a meal."></div><figcaption><b>Capture</b> Camera on the plate — the log takes seconds, not willpower.</figcaption></figure>
+        <figure><div class="phone sm"><img src="assets/product/thread-athlete.webp?v=20260730" width="390" height="1050" loading="lazy" decoding="async" alt="An OnStandard meal thread: the AI Nutritionist's analysis, the professional's reply, the client's correction, and the AI's updated analysis."></div><figcaption><b>The thread</b> The AI's read, your comment, the client's reply — a correction updates the analysis on the record, never silently.</figcaption></figure>
+        <figure><div class="phone sm"><img src="assets/product/style-intuitive.webp?v=20260730" width="390" height="844" loading="lazy" decoding="async" alt="An OnStandard plan on the Intuitive style: no calorie or macro targets shown to the client."></div><figcaption><b>Intuitive</b> A client who should not be looking at numbers doesn't see any. Same score, measured on awareness and adequate fueling instead.</figcaption></figure>
       </div>
       <div class="band reveal d3">
         <div>
@@ -538,6 +547,6 @@ window.__preT=setTimeout(function(){document.documentElement.classList.remove('p
   ]
 }
 </script>
-<script src="js/site.js?v=14" defer></script>
+<script src="js/site.js?v=15" defer></script>
 </body>
 </html>

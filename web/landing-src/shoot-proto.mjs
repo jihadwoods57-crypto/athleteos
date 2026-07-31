@@ -13,12 +13,12 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const BASE = 'http://localhost:8799/index.html';
-const TODAY = '2026-07-23';
+const TODAY = '2026-07-30';
 const OUT = join(process.cwd(), 'web', 'landing', 'assets', 'product');
 
 // One frozen clock for the whole set: 8:10 PM on the seeded day. Without it the greeting, the
 // countdowns and the "now" ladder drift with wall-clock time and the set stops being reproducible.
-const clockAt = (h, m) => `(() => { const FAKE = new Date(2026,6,23,${h},${m},0).getTime(); const R = Date;
+const clockAt = (h, m) => `(() => { const FAKE = new Date(2026,6,30,${h},${m},0).getTime(); const R = Date;
   const D = function(...a){ return a.length ? new R(...a) : new R(FAKE); };
   D.now = () => FAKE; D.parse = R.parse; D.UTC = R.UTC; D.prototype = R.prototype;
   Object.setPrototypeOf(D, R); globalThis.Date = D; })();`;
@@ -112,6 +112,16 @@ const SHOTS = [
     use: 'Score, grade, latest day — never photos, weight, or check-ins' },
   { name: 'parent-2-fund', seed: 'parentIdentity', route: 'fund-plan', at: [19, 16], book: 'team',
     use: 'Fund a plan — parent pays the trainer package for their child' },
+
+  // ---------- the meal thread: the flagship section (index.html #thread) ----------
+  { name: 'thread-athlete', seed: 'dayMidday', route: 'meal-thread/lunch', at: [13, 30], scroll: '#meal-thread', vh: 1050,
+    use: 'Flagship — athlete side: AI read, coach reply, correction, UPDATED ANALYSIS, facepile' },
+  { name: 'thread-coach', seed: 'coachIdentity', route: 'coach-meal/meal-1', at: [13, 30], book: 'team', scroll: '.thread',
+    use: 'Flagship — the coach side of a live conversation' },
+  { name: 'thread-season', seed: 'dayMidday', route: 'nutrition-chat', at: [20, 15],
+    use: 'The season-long merged stream: every meal, every reply, one conversation' },
+  { name: 'thread-analysis', seed: 'dayMidday', route: 'meal-detail/lunch', at: [13, 8],
+    use: 'The AI read: quality band, rubric, per-food confidence, correction chips' },
 ];
 
 // A screen that waits on data the fixtures don't serve can hang forever; one bad shot must not
@@ -122,14 +132,33 @@ const withTimeout = (p, ms, what) => Promise.race([
 const FILTER = (process.argv[2] || '').split(',').map((x) => x.trim()).filter(Boolean);
 const TARGETS = FILTER.length ? SHOTS.filter((s) => FILTER.some((f) => s.name.includes(f))) : SHOTS;
 
-const b = await launch({ port: 9340, scale: 3 });
+// Default 3x matches the original set. The flagship thread shots ship at 2x (SHOT_SCALE=2):
+// they render in a ~250px-wide phone frame, so 2x is visually identical while cutting decode
+// area ~55% — at 3x the two thread images alone dragged Lighthouse mobile perf from 94 to 63,
+// because Chrome prefetches lazy images that sit within its viewport-distance threshold.
+const SCALE = Number(process.env.SHOT_SCALE) || 3;
+const b = await launch({ port: 9340, scale: SCALE });
 const made = [];
 try {
   await mkdir(OUT, { recursive: true });
   for (const s of TARGETS) {
-    const page = await b.newPage({ width: 390, height: 844 });
+    // Almost every shot is one real device screen (390x844). The flagship meal-thread shot is the
+    // one deliberate exception: it has to hold a full 3-way exchange (AI read, coach reply,
+    // athlete correction, updated AI analysis) plus the facepile in a single frame, and that run
+    // of messages is taller than one screen — so it gets a taller capture canvas instead of being
+    // cropped mid-conversation. Nothing on the site references this asset's exact pixel size yet.
+    const page = await b.newPage({ width: 390, height: s.vh || 844 });
     const [h, m] = s.at || [20, 10];
     await seedOnNewDocument(page, clockAt(h, m));
+    // The first-run spotlight tour (2026-07-30) fires for any account that has never dismissed it
+    // — which every fresh RT in this harness is. Marketing screenshots are meant to look like a
+    // real, settled user's app, not someone's first ten seconds in it, so every role's tour is
+    // pre-marked seen before the app boots. Written straight into the RT blob state.js's load()
+    // reads on startup, so it is in place before the app's own script runs.
+    await seedOnNewDocument(page, `localStorage.setItem('onstd-proto-rt-v1', JSON.stringify({
+      tourSeen: { 'tour:athlete': '2026-01-01T00:00:00.000Z', 'tour:coach': '2026-01-01T00:00:00.000Z',
+        'tour:trainer': '2026-01-01T00:00:00.000Z', 'tour:parent': '2026-01-01T00:00:00.000Z' },
+    }));`);
     if (s.vc) await seedOnNewDocument(page, `window.__VC_MODE = ${JSON.stringify(s.vc)};`);
     await seedOnNewDocument(page, sbStubSource({
       todayISO: TODAY,
@@ -143,7 +172,9 @@ try {
         await evalJs(page, `(() => { location.hash = '#${s.route}'; return 1; })()`);
         // Operator screens fetch through the stub before they can paint real rows.
         await sleep(s.route.startsWith('coach') || s.route === 'parent' ? 2600 : 1300);
-        await evalJs(page, `(() => { window.scrollTo(0,0); return 1; })()`);
+        await evalJs(page, s.scroll
+          ? `(() => { const el = document.querySelector(${JSON.stringify(s.scroll)}); if (el) el.scrollIntoView({block:'start'}); return 1; })()`
+          : `(() => { window.scrollTo(0,0); return 1; })()`);
         await sleep(250);
       })(), 45000, s.name);
 

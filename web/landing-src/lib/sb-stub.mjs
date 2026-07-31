@@ -81,6 +81,19 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
   const THREAD_MEAL = 'meal-seed-lunch';
   const tAt = (h, m) => TODAY + 'T' + String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':00Z';
   const MEAL_THREAD = [
+    // meal-1 is ath-1's (Marcus Reed) BREAKFAST (08:24, eggs/oats/berries, 46g protein, 620 kcal).
+    // The AI opener + coach reply below make the coach-side "thread-coach" shot read as a real
+    // three-party conversation instead of the bare athlete-question/AI-answer pair further down.
+    {
+      id: 'mc-r0', meal_id: 'meal-1', athlete_id: 'ath-1', author_id: 'ath-1',
+      role: 'ai', kind: 'message', meta: { t: 'analysis' }, created_at: tAt(8, 25),
+      text: "Solid start. I can see scrambled eggs, oats and mixed berries — around 46g of protein and 620 calories. That's 46 of 180g for the day with three meals left. Good carb base for a morning practice.",
+    },
+    {
+      id: 'mc-r0b', meal_id: 'meal-1', athlete_id: 'ath-1', author_id: 'seed-coach',
+      role: 'coach', kind: 'message', created_at: tAt(8, 41),
+      text: 'This is what a Tuesday should look like. Keep the morning anchored like this.',
+    },
     // A ROSTER athlete's meal, ending athlete-question -> AI-answer. This is the exact sequence
     // the group chat produces on every question, and the one that silently empties the coach's
     // "needs response" queue if the inbox ever counts the AI as having spoken last. The seeded
@@ -96,10 +109,16 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
       role: 'ai', kind: 'message', created_at: tAt(12, 41),
       text: 'It will hold you for a two hour session. If you are lifting after, a banana on the way out covers the gap.',
     },
-    // Yesterday's dinner, so the meal screen's "Earlier" continuity line and the stitched
-    // stream's multi-meal ordering are both exercised rather than assumed.
+    // Yesterday's dinner — a different (non-rendered) meal on purpose. meal-1 belongs to ath-1,
+    // not seed-athlete, so this row used to carry meal_id: 'meal-1' despite being seed-athlete's
+    // own comment — a fixture inconsistency that would have planted a stray, mistimed "yesterday"
+    // line at the TOP of the coach's live meal-1 thread (fetchMealComments filters by meal_id
+    // only). Re-keyed to a non-rendered past meal so it still exercises the meal screen's
+    // "Earlier" continuity line and the nutrition-chat stitched stream (neither depends on the
+    // exact id — only on the id NOT being one of the athlete's own recently-fetched meals) without
+    // polluting the meal-1 thread the coach-side flagship shot captures.
     {
-      id: 'mc-0', meal_id: 'meal-1', athlete_id: 'seed-athlete', author_id: 'seed-coach',
+      id: 'mc-0', meal_id: 'meal-y1', athlete_id: 'seed-athlete', author_id: 'seed-coach',
       role: 'coach', kind: 'message', created_at: shift(TODAY, -1) + 'T20:10:00Z',
       text: 'Good dinner last night. Same idea today and you are stacking a real week.',
     },

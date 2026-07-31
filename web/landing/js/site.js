@@ -34,7 +34,9 @@
         preEl.addEventListener('transitionend', gone, { once: true });
         setTimeout(gone, 800); /* transitionend can be swallowed in hidden tabs */
       };
-      const hard = setTimeout(end, 3000);
+      // 2s, not 3: on a throttled main thread the count-up can't finish, and every ms the
+      // curtain holds past the count is pure LCP delay on a first visit. The count needs 1150ms.
+      const hard = setTimeout(end, 2000);
       try {
         const run = () => {
           const t0 = performance.now();
@@ -91,6 +93,23 @@
       if (!pending.size) removeEventListener('scroll', sweep);
     };
     addEventListener('scroll', sweep, { passive: true });
+  }
+
+  /* ---------- deferred flagship images ----------
+     The #thread section sits one viewport down, inside Chrome's native lazy-load prefetch
+     distance — so its three big screenshots were fetched during boot, competing with this very
+     script on slow connections and pinning the preloader curtain (and the LCP behind it) to its
+     hard timeout. data-src + a strict 600px IO margin keeps boot bandwidth for the fold;
+     <noscript> twins carry the no-JS case. width/height attrs reserve the space, so no CLS. */
+  {
+    const defs = [...document.querySelectorAll('img[data-src]')];
+    if (defs.length) {
+      const load = (el) => { el.src = el.getAttribute('data-src'); el.removeAttribute('data-src'); dio.unobserve(el); };
+      const dio = new IntersectionObserver((es) => {
+        for (const e of es) if (e.isIntersecting) load(e.target);
+      }, { rootMargin: '600px 0px' });
+      defs.forEach((el) => dio.observe(el));
+    }
   }
 
   /* ---------- hero: 3D phone parallax ---------- */
@@ -396,6 +415,26 @@
     });
   }
 
+  /* ---------- anonymous funnel analytics ----------
+     Same wire shape as t.html's track(): a random per-visit session id, fire-and-forget,
+     keepalive so a page unload never drops an in-flight beacon. No PII of any kind. */
+  const ANALYTICS_FN = 'https://ftwrvylzoyznhbzhgism.supabase.co/functions/v1/analytics-ingest';
+  const SID = (() => {
+    try {
+      let s = sessionStorage.getItem('os_sid');
+      if (!s) { s = 'w' + Math.random().toString(36).slice(2, 12); sessionStorage.setItem('os_sid', s); }
+      return s;
+    } catch (_) { return 'w' + Math.random().toString(36).slice(2, 12); }
+  })();
+  const track = (n, p) => {
+    try {
+      fetch(ANALYTICS_FN, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, keepalive: true,
+        body: JSON.stringify({ events: [{ n, s: SID, t: Date.now(), p: p || {} }] }),
+      }).catch(() => {});
+    } catch (_) { /* never let telemetry break the page */ }
+  };
+
   /* ---------- waitlist dialog (intent-aware) ---------- */
   const INTENTS = {
     trial: {
@@ -408,6 +447,7 @@
       sub: "The first 50 coaches and facilities are free through the beta, then lock today's price permanently — every later price rise passes them by. We reach out personally, usually within a day.",
       submit: 'Request founding access',
       role: 'Coach',
+      ph: "Sport, roster size, and when you'd want to start",
     },
     join: {
       k: 'Athletes & clients',
@@ -415,6 +455,7 @@
       sub: "Tell us who coaches you and we'll get your whole team on. Your spot is free with a paying professional.",
       submit: 'Request my invite',
       role: 'Athlete',
+      ph: 'Who coaches you, and your sport',
     },
     demo: {
       k: 'Programs & facilities',
@@ -422,6 +463,7 @@
       sub: 'Schools, clubs, and performance facilities: twenty minutes, your roster structure, straight answers on rollout and consent.',
       submit: 'Request a demo',
       role: 'Gym or program',
+      ph: 'School/club, number of teams, timeline',
     },
     access: {
       k: 'Early access',
@@ -429,6 +471,7 @@
       sub: "Tell us who you are and we'll reach out as spots open.",
       submit: 'Request early access',
       role: null,
+      ph: "Sport, team, roster size, or what you're chasing",
     },
   };
 
@@ -437,11 +480,13 @@
     const form = document.getElementById('wl-form');
     const emailEl = document.getElementById('wl-email');
     const roleEl = document.getElementById('wl-role');
+    const noteEl = document.getElementById('wl-note');
     const msg = document.getElementById('wl-msg');
     const submit = document.getElementById('wl-submit');
     const kEl = document.getElementById('wl-k');
     const hEl = document.getElementById('wl-h');
     const subEl = document.getElementById('wl-sub');
+    const slotsEl = document.getElementById('wl-slots');
     const intentEl = document.getElementById('wl-intent');
     let opener = null;
 
@@ -454,12 +499,23 @@
       intentEl.value = intent || 'access';
       msg.textContent = ''; msg.classList.remove('err');
       submit.disabled = false;
+      if (noteEl && cfg.ph) noteEl.placeholder = cfg.ph;
+      if (slotsEl) {
+        const n = window.__f50;
+        if ((intent === 'trial' || intent === 'demo') && Number.isInteger(n) && n >= 1 && n <= 50) {
+          slotsEl.textContent = `${n} of 50 founding spots remain. We grant them in order of request.`;
+          slotsEl.hidden = false;
+        } else {
+          slotsEl.hidden = true;
+        }
+      }
       const pick = role || cfg.role;
       if (pick && roleEl) {
         const opt = [...roleEl.options].find((o) => o.value === pick);
         if (opt) roleEl.value = pick;
       }
       dlg.showModal();
+      track('wl_open', { intent: intent || 'access' });
       setTimeout(() => (document.getElementById('wl-name') || emailEl).focus(), 60);
     };
 
@@ -484,6 +540,7 @@
         msg.textContent = 'Please enter a valid email.'; msg.classList.add('err'); emailEl.focus(); return;
       }
       const label = submit.textContent;
+      const intentAtSubmit = intentEl.value || 'access';
       submit.disabled = true; submit.textContent = 'Sending…';
       try {
         const data = Object.fromEntries(new FormData(form));
@@ -494,10 +551,18 @@
         });
         const out = await res.json().catch(() => ({}));
         if (!res.ok || !out.ok) throw new Error(out.error || 'failed');
+        track('wl_submitted', { intent: intentAtSubmit, role: roleEl ? roleEl.value : '' });
+        const DONE = {
+          trial: { h: 'You’re in the room.', p: 'Founding spots are granted in order of request — we reach out personally, usually within a day, to set yours up.' },
+          join: { h: 'You’re in the room.', p: 'We’ll reach out about getting your coach or team on — usually within a day.' },
+          demo: { h: 'Demo requested.', p: 'We reach out personally, usually within a day, to set a time.' },
+          access: { h: 'You’re in the room.', p: 'We’ll reach out personally, usually within a day. Keep proving the work.' },
+        };
+        const done = DONE[intentAtSubmit] || DONE.access;
         const panel = dlg.querySelector('.wl-panel');
         panel.innerHTML = '<button type="button" class="wl-close" id="wl-close2" aria-label="Close"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>'
-          + '<div class="wl-done"><div class="wl-check"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>'
-          + '<h3>You’re in the room.</h3><p>We’ll reach out personally, usually within a day. Keep proving the work.</p></div>';
+          + `<div class="wl-done"><div class="wl-check"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>`
+          + `<h3>${done.h}</h3><p>${done.p}</p></div>`;
         document.getElementById('wl-close2').addEventListener('click', () => dlg.close());
       } catch (err) {
         submit.disabled = false; submit.textContent = label;
@@ -505,5 +570,30 @@
         msg.classList.add('err');
       }
     });
+  }
+
+  /* ---------- Founding 50 live counter ---------- */
+  // founding_slots_left() is a SECURITY DEFINER RPC granted to anon (0163) — the same number the
+  // in-app paywall shows. Guard is load-bearing: on ANY failure, or a genuine 0, the counters stay
+  // hidden and the static "first 50" copy carries the offer. Never paint 0 or garbage.
+  const SB_URL = 'https://ftwrvylzoyznhbzhgism.supabase.co';
+  const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ0d3J2eWx6b3l6bmhiemhnaXNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyODYyNDYsImV4cCI6MjA5Nzg2MjI0Nn0.mJBl-Esn2YRB_jaUv_SQXT8wGfbx06dx7Ss9xyGRoH0';
+  const f50 = document.querySelectorAll('[data-f50]');
+  if (f50.length) {
+    let seenTracked = false;
+    const paint = (n) => {
+      if (!Number.isInteger(n) || n < 1 || n > 50) return;
+      f50.forEach((el) => { const b = el.querySelector('[data-f50-n]'); if (b) b.textContent = n; el.hidden = false; });
+      window.__f50 = n;
+      if (!seenTracked) { seenTracked = true; track('f50_seen', { n }); }
+    };
+    let cached = null;
+    try { const c = JSON.parse(sessionStorage.getItem('os:f50') || 'null'); if (c && Date.now() - c.t < 600000) cached = c.n; } catch (_) {}
+    if (cached != null) paint(cached);
+    else fetch(SB_URL + '/rest/v1/rpc/founding_slots_left', {
+      method: 'POST', headers: { apikey: SB_ANON, 'content-type': 'application/json' }, body: '{}',
+    }).then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((n) => { try { sessionStorage.setItem('os:f50', JSON.stringify({ n, t: Date.now() })); } catch (_) {} paint(n); })
+      .catch(() => {});
   }
 })();
