@@ -134,11 +134,42 @@ export default {
       }
     }
 
-    // --- /api/testmail: REMOVED 2026-07-30 (security audit, finding #9).
-    // It was labelled "temporary: diagnose the email-send path", authenticated on ?key= like
-    // /api/leads did, and returned e.message + 400 chars of stack to the caller. The send path it
-    // was written to diagnose has been working for months. A permanent temporary endpoint that
-    // leaks stack traces is not worth keeping for a one-off. ---
+    // --- /api/testmail: re-added 2026-07-31, properly gated this time.
+    //
+    // The original was removed in the 2026-07-30 audit for authenticating on ?key= (like the old
+    // /api/leads) and returning e.message + a stack trace to the caller. It turned out to still be
+    // needed: notifySignup's own failure IS silently swallowed by design (`.catch(() => {})` at the
+    // waitlist handler, so a bad send never blocks a real signup) — and that is exactly what had
+    // been happening. A real coach signed up on 2026-07-24 and no alert ever arrived; nothing
+    // surfaced the failure because nothing was watching for it. This endpoint is that watch.
+    //
+    // Same x-admin-key header gate as /api/leads. Never leaks e.message or a stack to the response
+    // — only a bare true/false — so this can't regress into the thing it replaced. Detail goes to
+    // console.error only, for `wrangler tail`.
+    if (url.pathname === '/api/testmail') {
+      if (!adminOk(request, env)) return new Response('Not found', { status: 404 });
+
+      // notifySignup ITSELF returns silently — no throw, no signal — when the NOTIFY/
+      // NOTIFY_EMAIL/NOTIFY_FROM bindings are missing (`if (!env.NOTIFY || ...) return;`). Calling
+      // it as a black box here would report {sent:true} for exactly that failure mode, which is
+      // the false-positive that let a real signup's alert go missing for a week undetected. Check
+      // config presence explicitly first, so "configured but the send call itself failed" and
+      // "never configured at all" are told apart.
+      if (!env.NOTIFY || !env.NOTIFY_EMAIL || !env.NOTIFY_FROM) {
+        console.error('testmail: NOTIFY/NOTIFY_EMAIL/NOTIFY_FROM binding missing');
+        return json({ ok: false, sent: false, reason: 'not configured' });
+      }
+      try {
+        await notifySignup(env, {
+          id: 'diag-' + crypto.randomUUID(), email: 'diagnostic@onstandard.app', name: 'Diagnostic',
+          role: 'test', note: 'send path check', country: '', ts: new Date().toISOString(),
+        });
+        return json({ ok: true, sent: true });
+      } catch (e) {
+        console.error('testmail: notifySignup failed:', e && e.message, e && e.stack);
+        return json({ ok: false, sent: false, reason: 'send failed' });
+      }
+    }
 
     // --- admin-gated leads view (HTML or ?format=csv). Auth is the x-admin-key HEADER. ---
     if (url.pathname === '/api/leads') {
