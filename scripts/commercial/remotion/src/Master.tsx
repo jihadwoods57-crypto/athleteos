@@ -98,7 +98,9 @@ export const Master: React.FC = () => (
     {/* 0:45.6 the thread — coach, parent, AI, one record */}
     <Sequence from={1368} durationInFrames={240}>
       <BackPlate src="s3" frame={120} />
-      <Phone src="thread" startFrom={14} height={904} punchFrom={1} punchTo={1.05} shiftX={330} />
+      {/* rate 1.25: the hi take's scroll bunches near its tail — this reaches the conversation
+          with ~1.7s to spare, and srcIndex clamps to the last frame so it HOLDS there. */}
+      <Phone src="thread" startFrom={20} playbackRate={1.25} height={904} punchFrom={1} punchTo={1.05} shiftX={330} />
       <Sequence from={96} durationInFrames={136}>
         <Kinetic mode="left" lines={['Your people,', 'on the', 'record.']} size={88} gapFrames={10} />
       </Sequence>
