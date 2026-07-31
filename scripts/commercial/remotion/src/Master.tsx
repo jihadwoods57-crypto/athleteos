@@ -31,7 +31,7 @@ export const Master: React.FC = () => (
 
     {/* 0:02.4 S1 — waking up */}
     <Sequence from={72} durationInFrames={150}>
-      <FullBleed src="s1.mp4" />
+      <FullBleed src="s1" />
       <Sequence from={48} durationInFrames={96}>
         <Kinetic lines={['Nobody sees', 'this part.']} size={72} />
       </Sequence>
@@ -39,8 +39,8 @@ export const Master: React.FC = () => (
 
     {/* 0:07.4 roll call — the tap that proves it */}
     <Sequence from={222} durationInFrames={216}>
-      <BackPlate src="s1.mp4" frame={132} />
-      <Phone src="rollcall.mp4" startFrom={10} height={904} punchFrom={1} punchTo={1.06} shiftX={330} />
+      <BackPlate src="s1" frame={132} />
+      <Phone src="rollcall" startFrom={10} height={904} punchFrom={1} punchTo={1.06} shiftX={330} />
       <Sequence from={78} durationInFrames={138}>
         <Kinetic mode="left" lines={['Proof,', 'not', 'promises.']} size={92} gapFrames={10} />
       </Sequence>
@@ -51,13 +51,13 @@ export const Master: React.FC = () => (
 
     {/* 0:16.2 S2 — the plate (clean, no text: the gesture is the line) */}
     <Sequence from={486} durationInFrames={120}>
-      <FullBleed src="s2.mp4" startFrom={8} />
+      <FullBleed src="s2" startFrom={8} />
     </Sequence>
 
     {/* 0:20.2 snap — confirm → scan */}
     <Sequence from={606} durationInFrames={228}>
-      <BackPlate src="s2.mp4" frame={130} />
-      <Phone src="snap.mp4" startFrom={16} height={904} punchFrom={1} punchTo={1.055} shiftX={330} />
+      <BackPlate src="s2" frame={130} />
+      <Phone src="snap" startFrom={16} height={904} punchFrom={1} punchTo={1.055} shiftX={330} />
       <Sequence from={36} durationInFrames={180}>
         <Kinetic mode="left" lines={['Point.', 'Shoot.', 'Know.']} size={96} gapFrames={22} />
       </Sequence>
@@ -65,8 +65,8 @@ export const Master: React.FC = () => (
 
     {/* 0:27.8 the numbers land */}
     <Sequence from={834} durationInFrames={150}>
-      <BackPlate src="s2.mp4" frame={140} />
-      <Phone src="bfast.mp4" startFrom={22} height={904} punchFrom={1.02} punchTo={1.08} shiftX={330} />
+      <BackPlate src="s2" frame={140} />
+      <Phone src="bfast" startFrom={22} height={904} punchFrom={1.02} punchTo={1.08} shiftX={330} />
       <Sequence from={18} durationInFrames={126}>
         <Kinetic mode="left" lines={['Every plate', 'becomes', 'a number.']} size={84} gapFrames={10} />
       </Sequence>
@@ -77,13 +77,13 @@ export const Master: React.FC = () => (
 
     {/* 0:34.4 S3 parent / S4 coach — the same ping, two worlds */}
     <Sequence from={1032} durationInFrames={108}>
-      <FullBleed src="s3.mp4" startFrom={10} />
+      <FullBleed src="s3" startFrom={10} />
       <Sequence from={24} durationInFrames={80}>
         <Kinetic lines={['One meal.']} size={66} />
       </Sequence>
     </Sequence>
     <Sequence from={1140} durationInFrames={108}>
-      <FullBleed src="s4.mp4" startFrom={10} />
+      <FullBleed src="s4" startFrom={10} />
       <Sequence from={16} durationInFrames={88}>
         <Kinetic lines={['Everyone in the loop.']} size={62} />
       </Sequence>
@@ -91,14 +91,14 @@ export const Master: React.FC = () => (
 
     {/* 0:41.6 coach types the line */}
     <Sequence from={1248} durationInFrames={120}>
-      <BackPlate src="s4.mp4" frame={130} />
-      <Phone src="coachmeal.mp4" startFrom={104} height={904} punchFrom={1.01} punchTo={1.05} shiftX={330} />
+      <BackPlate src="s4" frame={130} />
+      <Phone src="coachmeal" startFrom={104} height={904} punchFrom={1.01} punchTo={1.05} shiftX={330} />
     </Sequence>
 
     {/* 0:45.6 the thread — coach, parent, AI, one record */}
     <Sequence from={1368} durationInFrames={240}>
-      <BackPlate src="s3.mp4" frame={120} />
-      <Phone src="thread.mp4" startFrom={14} height={904} punchFrom={1} punchTo={1.05} shiftX={330} />
+      <BackPlate src="s3" frame={120} />
+      <Phone src="thread" startFrom={14} height={904} punchFrom={1} punchTo={1.05} shiftX={330} />
       <Sequence from={96} durationInFrames={136}>
         <Kinetic mode="left" lines={['Your people,', 'on the', 'record.']} size={88} gapFrames={10} />
       </Sequence>
@@ -109,13 +109,13 @@ export const Master: React.FC = () => (
 
     {/* 0:55.2 S5 — day done */}
     <Sequence from={1656} durationInFrames={132}>
-      <FullBleed src="s5.mp4" startFrom={6} />
+      <FullBleed src="s5" startFrom={6} />
     </Sequence>
 
     {/* 0:59.6 the ring — locks its number on the music hit at 1:02.4 */}
     <Sequence from={1788} durationInFrames={180}>
-      <BackPlate src="s5.mp4" frame={130} />
-      <Phone src="ring.mp4" startFrom={24} height={940} punchFrom={1.03} punchTo={1.1} shiftY={40} shiftX={330} />
+      <BackPlate src="s5" frame={130} />
+      <Phone src="ring" startFrom={24} height={940} punchFrom={1.03} punchTo={1.1} shiftY={40} shiftX={330} />
       <Sequence from={84} durationInFrames={96}>
         <Kinetic mode="left" lines={['The number', 'doesn’t lie.', 'That’s the point.']} size={76} gapFrames={12} accent={[2]} />
       </Sequence>

@@ -1,26 +1,44 @@
 import React from 'react';
 import {
-  AbsoluteFill, Easing, Freeze, OffthreadVideo, interpolate, staticFile,
+  AbsoluteFill, Easing, Img, interpolate, staticFile,
   useCurrentFrame, useVideoConfig,
 } from 'remotion';
 import { C, F, ensureFonts, sweep } from './theme';
+import { SEQS, SeqName } from './seq-manifest';
 
 ensureFonts();
 
 const ease = Easing.bezier(0.22, 1, 0.36, 1);
 
+/* ---------------- footage = JPEG sequence ----------------
+ * Video decoding in the render tab is unstable on this machine (both OffthreadVideo and the
+ * <Video> tag wedge the page after ~200 frames). Frame JPEGs never miss — see explode.mjs.
+ * `startFrom`/`freezeAt` are in COMPOSITION frames (30fps), like the video props they replace. */
+const srcIndex = (name: SeqName, compFrames: number) => {
+  const { fps, frames } = SEQS[name];
+  return Math.max(1, Math.min(frames, Math.floor((compFrames / 30) * fps) + 1));
+};
+
+export const Footage: React.FC<{
+  name: SeqName; startFrom?: number; freezeAt?: number; playbackRate?: number; style?: React.CSSProperties;
+}> = ({ name, startFrom = 0, freezeAt, playbackRate = 1, style }) => {
+  const frame = useCurrentFrame();
+  const at = freezeAt !== undefined ? freezeAt : startFrom + frame * playbackRate;
+  const idx = srcIndex(name, at);
+  return <Img src={staticFile(`seq/${name}/${String(idx).padStart(4, '0')}.jpg`)} style={style} />;
+};
+
 /* ---------------- full-bleed Kling clip, graded for cohesion ---------------- */
 export const FullBleed: React.FC<{
-  src: string; startFrom?: number; zoomFrom?: number; zoomTo?: number;
+  src: SeqName; startFrom?: number; zoomFrom?: number; zoomTo?: number;
 }> = ({ src, startFrom = 0, zoomFrom = 1.04, zoomTo = 1.1 }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
   const z = interpolate(frame, [0, durationInFrames], [zoomFrom, zoomTo]);
   return (
     <AbsoluteFill style={{ background: C.bg, overflow: 'hidden' }}>
-      <OffthreadVideo
-        muted
-        src={staticFile(src)}
+      <Footage
+        name={src}
         startFrom={startFrom}
         style={{
           width: '100%', height: '100%', objectFit: 'cover',
@@ -34,19 +52,17 @@ export const FullBleed: React.FC<{
 };
 
 /* ---------------- frozen, blurred backplate from a clip frame ---------------- */
-export const BackPlate: React.FC<{ src: string; frame?: number }> = ({ src, frame = 130 }) => (
+export const BackPlate: React.FC<{ src: SeqName; frame?: number }> = ({ src, frame = 130 }) => (
   <AbsoluteFill style={{ background: C.bg, overflow: 'hidden' }}>
-    <Freeze frame={frame}>
-      <OffthreadVideo
-        muted
-        src={staticFile(src)}
-        style={{
-          width: '100%', height: '100%', objectFit: 'cover',
-          transform: 'scale(1.22)',
-          filter: 'blur(14px) brightness(0.38) saturate(0.75)',
-        }}
-      />
-    </Freeze>
+    <Footage
+      name={src}
+      freezeAt={frame}
+      style={{
+        width: '100%', height: '100%', objectFit: 'cover',
+        transform: 'scale(1.22)',
+        filter: 'blur(14px) brightness(0.38) saturate(0.75)',
+      }}
+    />
     <Vignette strength={0.55} />
   </AbsoluteFill>
 );
@@ -64,7 +80,7 @@ export const Vignette: React.FC<{ strength?: number }> = ({ strength = 0.42 }) =
  * Device shell around a UI screen-capture. Screen aspect is the capture's 390:844.
  * `appear` runs a rise+settle entrance; `punch` drifts scale across the shot. */
 export const Phone: React.FC<{
-  src: string; startFrom?: number; height?: number; appear?: boolean;
+  src: SeqName; startFrom?: number; height?: number; appear?: boolean;
   punchFrom?: number; punchTo?: number; playbackRate?: number; shiftY?: number; shiftX?: number;
 }> = ({ src, startFrom = 0, height = 920, appear = true, punchFrom = 1, punchTo = 1.05, playbackRate = 1, shiftY = 0, shiftX = 0 }) => {
   const frame = useCurrentFrame();
@@ -92,9 +108,8 @@ export const Phone: React.FC<{
         }}
       >
         <div style={{ width: screenW, height: screenH, borderRadius: radius - bezel + 4, overflow: 'hidden', background: '#000', position: 'relative' }}>
-          <OffthreadVideo
-            muted
-            src={staticFile(src)}
+          <Footage
+            name={src}
             startFrom={startFrom}
             playbackRate={playbackRate}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
@@ -176,23 +191,42 @@ export const TimeCard: React.FC<{ time: string; meridiem: string }> = ({ time, m
   );
 };
 
-/* ---------------- the brand dial (LOGO.md geometry, landing SVG paths) ---------------- */
+/* ---------------- the brand dial — LIT finish ----------------
+ * Embeds assets/brand/dial-lit.svg (LOGO.md v2 "F2 Balanced": >=120px uses the lit master,
+ * own gradient/filter defs per SVG). The three sweep layers share one draw-on progress; the
+ * enamel marker pops as the sweep arrives. */
 export const Dial: React.FC<{ size: number; progress: number; uid?: string }> = ({ size, progress, uid = 'd' }) => {
   const needle = interpolate(progress, [0.85, 1], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const SWEEP = 'M33 81.4 A34 34 0 0 1 50 18';
+  const dash = { pathLength: 100, strokeDasharray: 100, strokeDashoffset: 100 - progress * 100 } as const;
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+    <svg width={size} height={size} viewBox="-25 -25 150 150" fill="none">
       <defs>
-        <linearGradient id={`dial-${uid}`} x1="26" y1="82" x2="58" y2="18" gradientUnits="userSpaceOnUse">
+        <linearGradient id={`sweep-${uid}`} x1="26" y1="82" x2="58" y2="18" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor={C.ringA} /><stop offset="50%" stopColor={C.ringB} /><stop offset="100%" stopColor={C.ringC} />
         </linearGradient>
+        <radialGradient id={`enamel-${uid}`} cx="0.38" cy="0.32" r="1">
+          <stop offset="0%" stopColor="#FFFFFF" /><stop offset="70%" stopColor="#F2F7FF" /><stop offset="100%" stopColor="#D8E4F5" />
+        </radialGradient>
+        <filter id={`bloom-${uid}`} x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="10" /></filter>
+        <filter id={`glow-${uid}`} x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4.5" /></filter>
+        <filter id={`soft-${uid}`} x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="0.7" /></filter>
+        <filter id={`halo-${uid}`} x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="5" /></filter>
       </defs>
-      <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(255,255,255,0.16)" strokeWidth={12} strokeLinecap="round" />
-      <path
-        d="M33 81.4 A34 34 0 0 1 50 18" stroke={`url(#dial-${uid})`} strokeWidth={12} strokeLinecap="round"
-        pathLength={100} strokeDasharray={100} strokeDashoffset={100 - progress * 100}
-      />
+      {/* wide bloom -> tight glow */}
+      <path d={SWEEP} stroke={`url(#sweep-${uid})`} strokeWidth={14} strokeLinecap="round" filter={`url(#bloom-${uid})`} opacity={0.32 * progress} {...dash} />
+      <path d={SWEEP} stroke={`url(#sweep-${uid})`} strokeWidth={12} strokeLinecap="round" filter={`url(#glow-${uid})`} opacity={0.6 * progress} {...dash} />
+      {/* glass track */}
+      <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="#161F30" strokeWidth={12} strokeLinecap="round" />
+      <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(255,255,255,0.06)" strokeWidth={7} strokeLinecap="round" />
+      {/* crisp sweep + sheen */}
+      <path d={SWEEP} stroke={`url(#sweep-${uid})`} strokeWidth={12} strokeLinecap="round" {...dash} />
+      <path d={SWEEP} stroke="rgba(255,255,255,0.16)" strokeWidth={4.5} strokeLinecap="round" filter={`url(#soft-${uid})`} {...dash} />
+      {/* marker: halo -> bezel -> enamel -> specular */}
+      <circle cx={50} cy={18} r={9} fill="#FFFFFF" filter={`url(#halo-${uid})`} opacity={0.5 * needle} />
       <circle cx={50} cy={18} r={10.5} fill="#0F172A" opacity={needle} />
-      <circle cx={50} cy={18} r={6} fill="#FFFFFF" opacity={needle} transform-origin="50 18" style={{ transform: `scale(${0.5 + 0.5 * needle})` }} />
+      <circle cx={50} cy={18} r={6} fill={`url(#enamel-${uid})`} opacity={needle} />
+      <circle cx={48.2} cy={16.2} r={1.4} fill="#FFFFFF" opacity={0.9 * needle} />
     </svg>
   );
 };

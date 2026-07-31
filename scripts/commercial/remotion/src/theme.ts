@@ -20,18 +20,25 @@ export const F = {
   brand: 'Jakarta',    // Plus Jakarta Sans 800 — the wordmark (brand law)
 };
 
+/* FontFace.load() with a url() source intermittently HANGS in headless render tabs (killed two
+ * full renders at "delayRender 'fonts' not cleared"). Fetching the bytes and constructing the
+ * face from the ArrayBuffer skips the async loader entirely — parse is synchronous. */
+const addFont = async (name: string, file: string, desc: FontFaceDescriptors) => {
+  try {
+    const buf = await (await fetch(staticFile(file))).arrayBuffer();
+    document.fonts.add(new FontFace(name, buf, desc));
+  } catch { /* fallback font for this face — never block the render */ }
+};
+
 let loaded: Promise<void> | null = null;
 export const ensureFonts = () => {
   if (!loaded) {
-    const handle = delayRender('fonts');
+    const handle = delayRender('fonts', { timeoutInMilliseconds: 90000 });
     loaded = Promise.all([
-      new FontFace(F.exp, `url(${staticFile('archivo-exp900.woff2')})`, { weight: '900' }).load(),
-      new FontFace(F.body, `url(${staticFile('archivo-var.woff2')})`, { weight: '100 900' }).load(),
-      new FontFace(F.brand, `url(${staticFile('jakarta800.woff2')})`, { weight: '800' }).load(),
-    ]).then((faces) => {
-      faces.forEach((f) => document.fonts.add(f));
-      continueRender(handle);
-    });
+      addFont(F.exp, 'archivo-exp900.woff2', { weight: '900' }),
+      addFont(F.body, 'archivo-var.woff2', { weight: '100 900' }),
+      addFont(F.brand, 'jakarta800.woff2', { weight: '800' }),
+    ]).then(() => continueRender(handle));
   }
   return loaded;
 };
