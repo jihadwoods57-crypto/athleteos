@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="-25 -25 150 150" fill="none">
+  <!-- OnStandard Performance Dial — LIT finish (founder-approved "F2 Balanced", 2026-07-31).
+       Same geometry as the flat masters; the light is built in layers:
+       wide bloom -> tight glow -> glass track -> crisp sweep -> sheen -> enamel marker.
+       Padded viewBox so glow never clips. Use >=120px; below that use dial-flat-*. -->
+  <defs>
+    <linearGradient id="sweep" x1="26" y1="82" x2="58" y2="18" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#34D399"/>
+      <stop offset="50%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#60A5FA"/>
+    </linearGradient>
+    <radialGradient id="enamel" cx="0.38" cy="0.32" r="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="70%" stop-color="#F2F7FF"/>
+      <stop offset="100%" stop-color="#D8E4F5"/>
+    </radialGradient>
+    <filter id="bloom" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="10"/></filter>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4.5"/></filter>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="0.7"/></filter>
+    <filter id="halo" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="5"/></filter>
+  </defs>
+
+  <!-- wide bloom -->
+  <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#sweep)" stroke-width="14" stroke-linecap="round" filter="url(#bloom)" opacity="0.32"/>
+  <!-- tight glow -->
+  <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#sweep)" stroke-width="12" stroke-linecap="round" filter="url(#glow)" opacity="0.6"/>
+
+  <!-- glass track: dark body + faint top highlight -->
+  <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="#161F30" stroke-width="12" stroke-linecap="round"/>
+  <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(255,255,255,0.06)" stroke-width="7" stroke-linecap="round"/>
+
+  <!-- crisp sweep -->
+  <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#sweep)" stroke-width="12" stroke-linecap="round"/>
+  <!-- glass sheen on the sweep -->
+  <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="rgba(255,255,255,0.16)" stroke-width="4.5" stroke-linecap="round" filter="url(#soft)"/>
+
+  <!-- marker: halo -> bezel -> enamel -> specular -->
+  <circle cx="50" cy="18" r="9" fill="#FFFFFF" filter="url(#halo)" opacity="0.5"/>
+  <circle cx="50" cy="18" r="10.5" fill="#0F172A"/>
+  <circle cx="50" cy="18" r="6" fill="url(#enamel)"/>
+  <circle cx="48.2" cy="16.2" r="1.4" fill="#FFFFFF" opacity="0.9"/>
+</svg>

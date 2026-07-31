@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <!-- OnStandard app icon master: lit dial at 61% on the product canvas.
+       Rendered opaque (iOS masks its own corners); android adaptive fg/bg derive from the same layers. -->
+  <defs>
+    <radialGradient id="wash" cx="0.5" cy="0.3" r="0.9">
+      <stop offset="0%" stop-color="#0F1B33"/>
+      <stop offset="100%" stop-color="#070B14"/>
+    </radialGradient>
+    <linearGradient id="sweep" x1="26" y1="82" x2="58" y2="18" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#34D399"/>
+      <stop offset="50%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#60A5FA"/>
+    </linearGradient>
+    <radialGradient id="enamel" cx="0.38" cy="0.32" r="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="70%" stop-color="#F2F7FF"/>
+      <stop offset="100%" stop-color="#D8E4F5"/>
+    </radialGradient>
+    <filter id="bloom" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="10"/></filter>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4.5"/></filter>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="0.7"/></filter>
+    <filter id="halo" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="5"/></filter>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#wash)"/>
+
+  <!-- 61% dial: 100-unit art box scaled 6.2456x, centered -->
+  <g transform="translate(199.72 199.72) scale(6.2456)">
+    <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#sweep)" stroke-width="14" stroke-linecap="round" filter="url(#bloom)" opacity="0.32"/>
+    <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#sweep)" stroke-width="12" stroke-linecap="round" filter="url(#glow)" opacity="0.6"/>
+    <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="#161F30" stroke-width="12" stroke-linecap="round"/>
+    <path d="M33 81.4 A34 34 0 1 1 67 81.4" stroke="rgba(255,255,255,0.06)" stroke-width="7" stroke-linecap="round"/>
+    <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="url(#sweep)" stroke-width="12" stroke-linecap="round"/>
+    <path d="M33 81.4 A34 34 0 0 1 50 18" stroke="rgba(255,255,255,0.16)" stroke-width="4.5" stroke-linecap="round" filter="url(#soft)"/>
+    <circle cx="50" cy="18" r="9" fill="#FFFFFF" filter="url(#halo)" opacity="0.5"/>
+    <circle cx="50" cy="18" r="10.5" fill="#0F172A"/>
+    <circle cx="50" cy="18" r="6" fill="url(#enamel)"/>
+    <circle cx="48.2" cy="16.2" r="1.4" fill="#FFFFFF" opacity="0.9"/>
+  </g>
+</svg>
