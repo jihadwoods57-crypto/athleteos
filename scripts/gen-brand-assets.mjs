@@ -98,4 +98,47 @@ shoot({ name: 'apple-touch', html: body(`<img src="${svgUrl('icon-tile.svg')}" w
 shoot({ name: 'og',          html: ogHtml, w: 1200, h: 630, out: join(L, 'og.png') });
 shoot({ name: 'email-mark',  html: emailMarkHtml, w: 80, h: 80, out: join(L, 'brand', 'email-mark.png'), transparent: true });
 
+// ---- social media set (profile picture + platform header banners) ----
+const S = join(repo, 'assets', 'brand', 'social');
+
+// profile picture: same as the app icon (1024, opaque tile) — square works everywhere
+// (X, Instagram, LinkedIn, YouTube, Discord all crop to a circle from a square source).
+shoot({ name: 'soc-profile', html: body(`<img src="${svgUrl('icon-tile.svg')}" width="1024" height="1024" style="position:absolute;left:0;top:0">`, '#070B14'), w: 1024, h: 1024, out: join(S, 'profile-1024.png') });
+
+// wide banner html generator: lit dial + two-tone wordmark, centered, tuned per aspect.
+const bannerHtml = (w, h, markPx, fontPx, gap) => `<!doctype html><style>
+  @font-face { font-family:'PJS'; font-weight:200 800; src:url('${fontUrl('pjs.woff2')}') format('woff2'); }
+  body { margin:0; width:${w}px; height:${h}px; overflow:hidden; font-family:'PJS',sans-serif;
+         background:radial-gradient(120% 140% at 50% 15%, #0F1B33 0%, #070B14 62%); }
+  .row { position:absolute; left:0; right:0; top:50%; transform:translateY(-50%);
+         display:flex; justify-content:center; align-items:center; gap:${gap}px; }
+  .name { font-weight:800; font-size:${fontPx}px; letter-spacing:-0.04em; color:#EEF3FB; white-space:nowrap; }
+  .name b { font-weight:800; background:linear-gradient(90deg,#34D399,#22D3EE,#3B82F6);
+            -webkit-background-clip:text; background-clip:text; color:transparent; }
+</style><body>
+  <div class="row"><img src="${svgUrl('dial-lit.svg')}" width="${markPx}" height="${markPx}"><div class="name">On<b>Standard</b></div></div>
+</body>`;
+
+// X (Twitter) header: 1500x500
+shoot({ name: 'soc-x', html: bannerHtml(1500, 500, 180, 78, 26), w: 1500, h: 500, out: join(S, 'x-header-1500x500.png') });
+// LinkedIn banner (current spec): 1584x396
+shoot({ name: 'soc-li', html: bannerHtml(1584, 396, 150, 66, 22), w: 1584, h: 396, out: join(S, 'linkedin-banner-1584x396.png') });
+// Facebook page cover: 820x312
+shoot({ name: 'soc-fb', html: bannerHtml(820, 312, 118, 52, 18), w: 820, h: 312, out: join(S, 'facebook-cover-820x312.png') });
+// YouTube channel banner: 2560x1440, but keep the lockup inside the ~1546x423 safe zone centered
+shoot({ name: 'soc-yt', html: bannerHtml(2560, 1440, 220, 96, 30), w: 2560, h: 1440, out: join(S, 'youtube-banner-2560x1440.png') });
+
+// transparent lockup (mark + two-tone wordmark, no background) for placing on any color
+shoot({ name: 'soc-lockup-t', html: `<!doctype html><style>
+  @font-face { font-family:'PJS'; font-weight:200 800; src:url('${fontUrl('pjs.woff2')}') format('woff2'); }
+  body { margin:0; width:1200px; height:320px; overflow:hidden; font-family:'PJS',sans-serif; }
+  .row { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+         display:flex; justify-content:center; align-items:center; gap:28px; }
+  .name { font-weight:800; font-size:84px; letter-spacing:-0.04em; color:#EEF3FB; white-space:nowrap; }
+  .name b { font-weight:800; background:linear-gradient(90deg,#34D399,#22D3EE,#3B82F6);
+            -webkit-background-clip:text; background-clip:text; color:transparent; }
+</style><body>
+  <div class="row"><img src="${svgUrl('dial-lit.svg')}" width="190" height="190"><div class="name">On<b>Standard</b></div></div>
+</body>`, w: 1200, h: 320, out: join(S, 'lockup-transparent-1200x320.png'), transparent: true });
+
 console.log('\nAll brand rasters regenerated from masters.');
