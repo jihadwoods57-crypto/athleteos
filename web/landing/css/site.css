@@ -142,6 +142,27 @@ h1 .dot { color: var(--accent); }
 .btn-ghost:hover { border-color: rgba(59, 130, 246, 0.34); background: rgba(59, 130, 246, 0.09); }
 .btn-big { height: 60px; padding: 0 34px; font-size: 16.5px; }
 
+/* ---------- store badges ----------
+   The app isn't publicly listed yet (TestFlight-only, 2026-07-31), so these route through
+   the same lead-capture modal as "Join through your coach" (data-intent="join", .js-wl) —
+   swap the two hrefs to real apps.apple.com / play.google.com URLs the day the app goes
+   live and nothing else here needs to change. */
+.store-badges { display: flex; gap: 12px; flex-wrap: wrap; }
+.store-badge {
+  display: inline-flex; align-items: center; gap: 10px;
+  height: 52px; padding: 0 18px; border-radius: 13px;
+  border: 1px solid var(--hairline); background: var(--surface-1);
+  color: var(--text); transition: transform .3s var(--ease), border-color .3s var(--ease), background .3s var(--ease);
+}
+.store-badge:hover { transform: translateY(-2px); border-color: var(--accent-border); background: var(--surface-2); }
+.store-badge svg { flex: none; }
+.store-badge .sb-txt { display: flex; flex-direction: column; line-height: 1.15; }
+.store-badge .sb-eyebrow { font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; color: var(--text-3); text-transform: uppercase; }
+.store-badge .sb-name { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+.store-badges.compact .store-badge { height: 42px; padding: 0 14px; border-radius: 11px; gap: 8px; }
+.store-badges.compact .sb-eyebrow { font-size: 9.5px; }
+.store-badges.compact .sb-name { font-size: 13.5px; }
+
 /* ---------- nav ---------- */
 .nav {
   position: fixed; inset: 0 0 auto 0; z-index: 80;
