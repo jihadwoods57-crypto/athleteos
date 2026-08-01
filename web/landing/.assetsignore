@@ -1,0 +1,8 @@
+# Cloudflare Workers assets cap at 25 MiB each. These commercial/demo videos are
+# in-progress work from the video pipeline and exceed that limit — excluded from
+# the deploy bundle so `wrangler deploy` doesn't fail on them. Not deleted, not
+# moved; still on disk for whatever hosting the video pipeline lands on.
+assets/video/commercial-master.mp4
+assets/video/demo-athlete-16x9.mp4
+assets/video/demo-athlete.mp4
+assets/video/demo-coach.mp4
