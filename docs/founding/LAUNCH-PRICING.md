@@ -12,7 +12,7 @@
 The people who profit pay; the people who sweat don't. Athletes and clients are $0 on a roster.
 Professionals and organizations pay per **active athlete** — someone who logged at least 5 real
 days that month — with a block included in the plan and **$10/month per active athlete beyond
-it** on every Stripe tier. Idle seats are free: a kid who quits stops counting, which is both
+it** on Solo/Professional, **$15/month** on every organization (gym) tier. Idle seats are free: a kid who quits stops counting, which is both
 the honest pitch and the alignment of revenue with our real AI cost (only active athletes burn
 paid meal reads). Consumer plans are the moat, not the business: the free-with-roster record is
 the coach's switching cost, and Individual Plus is the "your record stays yours" continuation
@@ -26,7 +26,7 @@ when a roster ends.
 | Individual Plus | $24.99 | $210 | $17.50 | Portable record + recruiting card |
 | Family | $39.99 | $336 | $28.00 | Up to 4 athletes, one bill, parent dashboards |
 
-## Professional & organization (Stripe · 14-day trial · annual = 2 months free · $10/mo per active athlete beyond the block)
+## Professional & organization (Stripe · 14-day trial · annual = 2 months free · $10/mo overage on Solo/Professional, $15/mo on organization tiers)
 
 | Plan | Monthly | Annual | Active athletes included |
 |---|---|---|---|
@@ -63,9 +63,9 @@ idempotent). The remaining count is public via `founding_slots_left()`.
 - Measured AI cost: **~$0.0204 per meal read** on sonnet-5 intro pricing; the 0105 price table
   reverts to list (+50%) on **2026-09-01** automatically. ~120 meals/month ≈ $2.45 → $3.67 per
   heavy athlete.
-- Every included-seat price clears that ceiling, and the **$10 overage is ~3–4x heavy-seat
-  cost** — growth past the block is margin, not loss, which is what makes net revenue retention
-  able to exceed 100%.
+- Every included-seat price clears that ceiling, and overage runs **~3–4x heavy-seat cost on
+  Solo/Professional ($10) and ~4–6x on organization tiers ($15)** — growth past the block is
+  margin, not loss, which is what makes net revenue retention able to exceed 100%.
 - The cheap-first read router (`ANTHROPIC_MODEL_ANALYZE_FIRST` on analyze-meal) can roughly
   cancel the September increase — enable only after an eval replay shows quality holds.
 - Sponsor seats default **$60/seat-year** (`SPONSOR_SEAT_PRICE_CENTS=6000`): a real community

@@ -59,12 +59,14 @@ export const planUpgrade = {
   render() {
     if (!UP.loaded) void loadSlots();
     const plans = listFor();
+    // Overage rate differs by ladder — org (gym/facility) is $15/mo, pro/seat is $10/mo.
+    const overageRate = RT.authRole === 'trainer' ? 10 : 15;
     const founding = UP.slots != null && UP.slots > 0
       ? `<section class="card" style="padding:14px 16px;border-color:var(--green-border);margin-top:14px">
           <div style="display:flex;gap:12px;align-items:center">
             <div class="req-icon g" style="width:40px;height:40px">${icon('flame', 19)}</div>
             <div><div style="font-size:14.5px;font-weight:800">Founding 50 — ${UP.slots} spot${UP.slots === 1 ? '' : 's'} left</div>
-            <div style="font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5">Today's price locked for good — including the $10/mo per active client over your limit. Claimed automatically when you subscribe.</div></div>
+            <div style="font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5">Today's price locked for good — including the $${overageRate}/mo per active client over your limit. Claimed automatically when you subscribe.</div></div>
           </div>
         </section>`
       : '';

@@ -12,14 +12,16 @@
 export interface ServerPlan {
   /** Athlete/client seats the plan includes (null = custom/enterprise, not self-serve). */
   seats: number | null;
+  /** Cents per active seat beyond the included count — the standard (unlocked) overage rate. */
+  extraSeatCents: number;
 }
 
 export const STRIPE_PLANS: Record<string, ServerPlan> = {
-  pro_solo: { seats: 25 },
-  professional: { seats: 50 },
-  org_starter: { seats: 30 },
-  org_growth: { seats: 75 },
-  org_performance: { seats: 150 },
+  pro_solo: { seats: 25, extraSeatCents: 1000 },
+  professional: { seats: 50, extraSeatCents: 1000 },
+  org_starter: { seats: 30, extraSeatCents: 1500 },
+  org_growth: { seats: 75, extraSeatCents: 1500 },
+  org_performance: { seats: 150, extraSeatCents: 1500 },
 };
 
 export type Cadence = 'monthly' | 'annual';

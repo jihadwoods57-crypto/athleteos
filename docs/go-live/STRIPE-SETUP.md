@@ -58,7 +58,7 @@ already exists checks out without a second trial. Note this doc previously never
 trial at all, so following it produced checkouts that billed on click while the site promised
 two free weeks.
 
-**The $10/active-athlete overage also needs NO dashboard Price.** It bills monthly in arrears as
+**The active-athlete overage ($10 pro, $15 org) also needs NO dashboard Price.** It bills monthly in arrears as
 ad-hoc invoice items (`billing-overage-report` — see docs/go-live/SUBSCRIPTION-MODEL.md). If
 Stripe blocks ad-hoc `price_data` on the account, opt out of managed-payments restrictions (the
 same setting sponsor-checkout needed).

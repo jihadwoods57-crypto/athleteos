@@ -626,14 +626,19 @@ Deno.serve(async (req) => {
         // not the first 50 who opened a checkout page and left. claim_founding_slot is idempotent
         // (re-claiming returns the existing slot) and enforces its own 50-cap, so a webhook retry
         // can never double-claim and customer #51 is simply told no. Locked at the CURRENT price
-        // generation and the standard 1000¢ overage — what "today's price" means on the day they
-        // claimed. Best-effort: a failed claim must never 500 an otherwise-processed payment event
-        // (Stripe would retry the whole thing); it logs, and the founder can grant manually.
+        // generation and this subscription's own plan overage rate ($10 pro, $15 org, STRIPE_PLANS)
+        // — what "today's price" means, for THIS plan, on the day they claimed. A plan the map
+        // doesn't know (e.g. Enterprise, sold outside self-serve) falls back to the pro rate rather
+        // than guessing org pricing onto a custom deal. Best-effort: a failed claim must never 500
+        // an otherwise-processed payment event (Stripe would retry the whole thing); it logs, and
+        // the founder can grant manually.
         try {
+          const claimPlanId = planIdOf(sub);
+          const claimExtraSeatCents = claimPlanId ? STRIPE_PLANS[claimPlanId]?.extraSeatCents ?? 1000 : 1000;
           const { data: claim, error: claimErr } = await svc.rpc('claim_founding_slot', {
             p_user: ownerId,
             p_generation: Deno.env.get('PRICE_GENERATION') ?? '',
-            p_extra_seat_cents: 1000,
+            p_extra_seat_cents: claimExtraSeatCents,
             p_note: `auto-claim on checkout ${session.id}`,
           });
           const row = Array.isArray(claim) ? claim[0] : claim;

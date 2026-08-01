@@ -8,7 +8,7 @@ operations and every knob.
 
 | Weakness found | Fix shipped |
 |---|---|
-| No expansion revenue — a coach's bill could never grow | $10/mo **overage on every Stripe tier**, billed monthly in arrears (0164 + `billing-overage-report`) |
+| No expansion revenue — a coach's bill could never grow | **Overage on every Stripe tier** ($10/mo pro, $15/mo org), billed monthly in arrears (0164 + `billing-overage-report`) |
 | Billing metric (roster size) opposed the cost metric (usage) | Billing counts **active athletes** — logged ≥5 real days/month; idle seats free (0163) |
 | "14-day free trial" promised everywhere, implemented nowhere | `billing-checkout` sends `trial_period_days` (default 14, one per customer) |
 | Founding 50 unclaimable — the ledger had no callers | Auto-claim on first completed checkout; `founding_slots_left()` feeds the paywall |

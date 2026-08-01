@@ -387,9 +387,9 @@ export const PLANS = {
     { id: 'professional', name: 'Professional', price: '$179', sub: '50 active clients included, then $10/mo each. Priority support.' },
   ],
   org: [
-    { id: 'org_starter', name: 'Starter', price: '$249', sub: '30 active athletes included, then $10/mo each. Rooms, standards, alerts, staff seats.', tag: '14-day free trial' },
-    { id: 'org_growth', name: 'Growth', price: '$499', sub: '75 active athletes included, then $10/mo each. Position rooms + insights.' },
-    { id: 'org_performance', name: 'Performance', price: '$799', sub: '150 active athletes included, then $10/mo each. Org-wide standards and analytics.' },
+    { id: 'org_starter', name: 'Starter', price: '$249', sub: '30 active athletes included, then $15/mo each. Rooms, standards, alerts, staff seats.', tag: '14-day free trial' },
+    { id: 'org_growth', name: 'Growth', price: '$499', sub: '75 active athletes included, then $15/mo each. Position rooms + insights.' },
+    { id: 'org_performance', name: 'Performance', price: '$799', sub: '150 active athletes included, then $15/mo each. Org-wide standards and analytics.' },
     { id: 'enterprise', name: 'Enterprise', price: 'Custom', sub: 'Departments, multi-location & 150+. White-label, SSO, API, white-glove onboarding.', custom: true },
   ],
   seat: [

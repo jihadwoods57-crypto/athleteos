@@ -1,4 +1,5 @@
-// OnStandard — billing-overage-report: seats_used stamping + the $10/active-athlete overage.
+// OnStandard — billing-overage-report: seats_used stamping + the per-active-athlete overage
+// ($10 pro, $15 org — see OVERAGE_CENTS_BY_PLAN below).
 //
 // Two modes, scheduled by 0164's schedule_billing_overage():
 //   { mode: "stamp" }    daily — write this month's active-athlete count onto every Stripe-rail
@@ -29,6 +30,7 @@
 //   supabase functions deploy billing-overage-report --no-verify-jwt
 import Stripe from 'npm:stripe@17.7.0';
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
+import { STRIPE_PLANS } from '../_shared/plans.ts';
 
 const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY') ?? '';
 const CRON_KEY = Deno.env.get('BILLING_CRON_KEY') ?? '';
@@ -56,6 +58,7 @@ function previousMonthISO(now = new Date()): string {
 
 const MONTH_LABEL = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
+const DEFAULT_OVERAGE_CENTS = 1000; // plan_id not in STRIPE_PLANS (shouldn't happen for a Stripe-rail sub)
 
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
@@ -116,8 +119,8 @@ Deno.serve(async (req) => {
       const active = Number(activeData ?? 0);
       const overage = Math.max(0, active - included);
 
-      // Founding members pay their locked rate; everyone else the standard 1000¢.
-      let cents = 1000;
+      // Founding members pay their locked rate; everyone else the plan's standard rate.
+      let cents = STRIPE_PLANS[sub.plan_id ?? '']?.extraSeatCents ?? DEFAULT_OVERAGE_CENTS;
       const { data: lock } = await svc.rpc('founding_lock', { p_user: sub.owner_id });
       const lockRow = Array.isArray(lock) ? lock[0] : lock;
       if (lockRow && Number.isFinite(Number(lockRow.locked_extra_seat_cents))) {

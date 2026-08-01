@@ -70,12 +70,12 @@ export const PLAN_CATALOG: PricedPlan[] = [
     blurb: 'For the independent trainer or nutritionist. 25 active clients included; $10/mo per active client beyond. Idle clients are free.' },
   { id: 'professional', name: 'Professional', audience: 'professional', rail: 'stripe', monthly: 179, annual: 1790, trialDays: 14, seatLimit: 50, extraSeatMonthly: 10,
     blurb: 'For a busy practice. 50 active clients included; $10/mo per active client beyond. Idle clients are free.' },
-  { id: 'org_starter', name: 'Starter', audience: 'organization', rail: 'stripe', monthly: 249, annual: 2490, trialDays: 14, seatLimit: 30, extraSeatMonthly: 10,
-    blurb: 'Teams, gyms & facilities. 30 active athletes included; $10/mo per active athlete beyond.' },
-  { id: 'org_growth', name: 'Growth', audience: 'organization', rail: 'stripe', monthly: 499, annual: 4990, trialDays: 14, seatLimit: 75, extraSeatMonthly: 10,
-    blurb: '75 active athletes included; $10/mo per active athlete beyond.' },
-  { id: 'org_performance', name: 'Performance', audience: 'organization', rail: 'stripe', monthly: 799, annual: 7990, trialDays: 14, seatLimit: 150, extraSeatMonthly: 10,
-    blurb: '150 active athletes included; $10/mo per active athlete beyond.' },
+  { id: 'org_starter', name: 'Starter', audience: 'organization', rail: 'stripe', monthly: 249, annual: 2490, trialDays: 14, seatLimit: 30, extraSeatMonthly: 15,
+    blurb: 'Teams, gyms & facilities. 30 active athletes included; $15/mo per active athlete beyond.' },
+  { id: 'org_growth', name: 'Growth', audience: 'organization', rail: 'stripe', monthly: 499, annual: 4990, trialDays: 14, seatLimit: 75, extraSeatMonthly: 15,
+    blurb: '75 active athletes included; $15/mo per active athlete beyond.' },
+  { id: 'org_performance', name: 'Performance', audience: 'organization', rail: 'stripe', monthly: 799, annual: 7990, trialDays: 14, seatLimit: 150, extraSeatMonthly: 15,
+    blurb: '150 active athletes included; $15/mo per active athlete beyond.' },
   // trialDays 0, not 14: planTerms() suppresses the trial for custom plans, so a nonzero value here
   // was dead data that any future consumer of trialDays would have read as a real promise.
   { id: 'enterprise', name: 'Enterprise', audience: 'organization', rail: 'stripe', monthly: 0, annual: 0, trialDays: 0, custom: true,
