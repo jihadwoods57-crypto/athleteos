@@ -122,8 +122,10 @@ appears. Solo it is permanently empty — and the source comment at `:794-795` c
 user, in a slot already reserved for it.
 
 Fill it, solo only, with a true statement of what the record has accumulated — days on standard,
-current streak. **Honest by construction, exactly like `keepRecordCard`:** a thin record renders
-nothing at all rather than a hollow "0 days."
+current streak. **Honest by construction, exactly like `keepRecordCard`:** below **3 scored days**
+the slot renders nothing at all rather than a hollow "0 days." (Three, not one: day one is
+unscored by design — `js/activation.js:1-11` grants full first-day grace — so a record only becomes
+a statement worth making once it has survived a day the athlete could have broken it.)
 
 ### 2.2 Milestones as real moments
 
