@@ -61,8 +61,14 @@ export default {
     return `
     ${backHead('Score Breakdown', 'Why you have this score, and how to climb')}
 
+    <!-- The tier rides BELOW the ring here, not inside it. This ring is 200px (the home hero's is
+         338), but the centre stack kept the hero's metrics: the chip is ~123px wide and sits ~71px
+         below centre, where the band's inner edge only clears ~18px of half-width — so its ends
+         crossed straight through the arc. Outside the ring it is simply legible, and it reads the
+         same way home already states the tier under its own ring. -->
     <div class="bd-hero bd-hero-calm">
-      ${scoreRing({ score: S.score, size: 200, stroke: 13, uid: 'bd', tierName: S.tier.name, tierCls: S.tier.cls })}
+      ${scoreRing({ score: S.score, size: 200, stroke: 13, uid: 'bd' })}
+      <span class="tier-chip bd-tier ${S.tier.cls}">${esc(S.tier.name)}</span>
     </div>
 
     <section class="card bd-comp">

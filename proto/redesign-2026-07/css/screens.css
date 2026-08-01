@@ -1043,6 +1043,14 @@
 /* ----- Score Breakdown v2 (spec §2): expandable categories, exact remainders ----- */
 .bd-hero-calm .glow{opacity:0.55}   /* §2.9: slightly reduced glow behind the breakdown ring */
 .bd-hero-calm{padding-bottom:4px}
+/* The tier below the ring (see the note in breakdown.js). It is a real chip on the canvas now
+   rather than a translucent one floating over the arc, so it carries its own weight. */
+.bd-hero .bd-tier{margin-top:14px}
+/* This ring is 200px, not the hero's 338, but the centre stack inherited the hero's 88px numeral —
+   "92" measured ~107px wide across a band whose inner diameter is 146, leaving the digits'
+   corners grazing the arc. Sized to its own ring, the number breathes and the ring reads as a
+   ring. One custom property, so .d3 (a perfect 100) still scales itself from it. */
+.bd-hero .ring-center .score{--score-size:72px}
 .bd-comp .bd-weight{background:transparent;border:1px solid var(--hairline);color:var(--text-3)} /* §2.9: lower-contrast weight pills */
 .bd-cat{position:relative;display:block}
 .bd-cat>summary{list-style:none;cursor:pointer;position:relative}

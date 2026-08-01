@@ -482,12 +482,13 @@ body {
 /* The active tab is LIT, not just recolored: a soft cast of its own hue behind the glyph reads as
    a live indicator without adding a single pixel of chrome. drop-shadow (not box-shadow) hugs the
    icon's strokes, and the rgb triples keep the glow on-theme in light mode. */
+/* One accent for "you are here", on every tab. Home used to light green while Plan, Progress and
+   Profile lit blue, which made the bar look like green meant something on Home specifically — it
+   doesn't. Green in this bar now says exactly one thing, and it is the FAB: the thing you press.
+   Blue is the spine; the lit tab is state, the green disc is action. */
 .tab.active { color: var(--blue-bright); }
 .tab.active svg { filter: drop-shadow(0 0 9px rgba(var(--blue-rgb), 0.55)); }
-.tab.active.home { color: var(--green-bright); }
-.tab.active.home svg { filter: drop-shadow(0 0 9px rgba(var(--green-rgb), 0.50)); }
 :root[data-theme="light"] .tab.active svg { filter: drop-shadow(0 1px 6px rgba(var(--blue-rgb), 0.35)); }
-:root[data-theme="light"] .tab.active.home svg { filter: drop-shadow(0 1px 6px rgba(var(--green-rgb), 0.32)); }
 .tab svg { display: block; }
 /* On a genuine tab switch (router stamps .switch — never on a push, pop, or repaint) the arriving
    icon settles from slightly small: feedback that the BAR moved, timed with the view's own fade. */
@@ -503,8 +504,14 @@ body {
 .fab:active { transform: scale(0.92); filter: brightness(1.07); }
 
 /* ===== Buttons ===== */
+/* The base carries the SECONDARY fill, not nothing. It used to declare no background at all, so a
+   button written as `class="btn sm"` — no variant — fell through to the UA's own ButtonFace, which
+   on this canvas measured rgb(107,107,107): a flat mid-grey that reads as a disabled control.
+   ~25 call sites were doing exactly that (Progress' "Share today" among them). Variants below still
+   win on specificity, so this only ever catches the ones that named no variant. */
 .btn {
   height: 56px; border-radius: var(--r-btn); border: none; cursor: pointer;
+  background: var(--surface-2); color: var(--text);
   font-family: var(--font); font-size: 16px; font-weight: 800; letter-spacing: -0.01em;
   display: inline-flex; align-items: center; justify-content: center; gap:10px; width: 100%;
   transition: transform var(--dur-1) var(--ease-out), filter var(--dur-1) var(--ease-out);

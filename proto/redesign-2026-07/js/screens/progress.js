@@ -166,7 +166,7 @@ export default {
       </div>
       ${styleBandRow()}
       <div class="sd-cta" style="margin-top:12px">
-        <button class="btn sm" id="pg-share" style="width:auto;padding:0 18px" aria-label="Share today's score as an image">${icon('share', 16)} Share today</button>
+        <button class="btn ghost sm" id="pg-share" style="width:auto;padding:0 18px" aria-label="Share today's score as an image">${icon('share', 16)} Share today</button>
       </div>
     </section>
 
