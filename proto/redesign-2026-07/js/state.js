@@ -749,7 +749,17 @@ export const act = {
      any slot — not a hardcoded breakfast/dinner. Persists the AI plate (quality/foods/note)
      per slot so the meal-detail screen survives a reload. */
   logMeal(slotArg) {
-    const slot = nextOpenSlot(slotArg) || slotArg || MEAL.key;
+    /* A PHOTO belongs to the slot it was taken for. nextOpenSlot() exists so a MANUAL "log
+       something" lands on whatever slot is still open, but applying that redirect to a photo
+       capture silently files breakfast's plate under lunch — and because everything below keys
+       off `MEAL.key === slot`, the redirect also dropped the photo, skipped the `pending` marker,
+       and stamped the meal `source:'manual'`, settling it at 0g with no read ever queued. That
+       even suppressed the empty-read rescue link, which requires fromPhoto.
+       So: a capture pins its own slot. If that slot is already logged the guard below refuses the
+       double-log, which is honest — far better than inventing a zero-macro meal in a slot the
+       athlete never photographed. */
+    const captured = (MEAL.photoBase64 && MEAL.key) ? MEAL.key : null;
+    const slot = captured || nextOpenSlot(slotArg) || slotArg || MEAL.key;
     if (!slot || !MEAL_KEYS.includes(slot) || DAY.meals[slot]) return;
     const from = computeScore(componentsNow());
     const hasPhoto = MEAL.photoBase64 && MEAL.key === slot;

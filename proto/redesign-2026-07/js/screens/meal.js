@@ -101,7 +101,19 @@ export const analyzing = {
     const phase = root.querySelector('#an-phase');
     const sub = root.querySelector('#an-sub');
     const onScreen = () => location.hash.startsWith('#analyzing');
-    const phaseTimer = setTimeout(() => { if (phase && onScreen()) { phase.innerHTML = 'Estimating macros<span class="dots"></span>'; if (sub) sub.textContent = 'Matching to your plan'; } }, 1000);
+    /* Three beats instead of two. The screen used to switch copy once at 1s and then hold, which
+       was fine when it bailed after a second — now that it actually waits for the read (see the
+       dwell note below), one static line for several seconds reads as a hang. */
+    const PHASES = [
+      [1400, 'Estimating macros', 'Matching to your plan'],
+      [3800, 'Almost there', 'Building your breakdown'],
+    ];
+    const phaseTimers = PHASES.map(([at, head, tail]) => setTimeout(() => {
+      if (!phase || !onScreen()) return;
+      phase.innerHTML = `${head}<span class="dots"></span>`;
+      if (sub) sub.textContent = tail;
+    }, at));
+    const clearPhases = () => phaseTimers.forEach(clearTimeout);
 
     /* ---- WATCH MODE: the meal is ALREADY logged and the outbox owns the read. ----
        This is the path the camera takes now. Two things it must never do: start its own analysis
@@ -114,11 +126,20 @@ export const analyzing = {
        The breakdown lands here in a few seconds"). */
     const slot = slotArg || (MEAL && MEAL.key) || null;
     if (slot && DAY.meals[slot]) {
-      const MIN_MS = 1150, MAX_MS = 3200;
+      /* The dwell. MIN_MS is the floor so the scan always registers as work; MAX_MS is the
+         ceiling so this is a moment, never a gate — the meal is already committed and nothing
+         downstream waits on this screen.
+         Both were far too tight (1150 / 3200). The ceiling in particular sat below a real vision
+         call, so the athlete was handed off mid-read almost every time. Worse, `pending` was
+         never persisted (day.js dropped it from dayLogMeal's meta whitelist), so `landed` was
+         true on the very first tick and this always bailed at the 1150ms floor — which is what
+         "way too fast" was. With pending fixed this genuinely waits for the read, and the
+         ceiling now clears a typical call instead of cutting it off. */
+      const MIN_MS = 2600, MAX_MS = 9000;
       const t0 = Date.now();
-      const leave = () => { clearTimeout(phaseTimer); if (onScreen()) window.__go('meal-thread/' + slot); };
+      const leave = () => { clearPhases(); if (onScreen()) window.__go('meal-thread/' + slot); };
       const tick = () => {
-        if (!root.isConnected || !onScreen()) { clearTimeout(phaseTimer); return; }
+        if (!root.isConnected || !onScreen()) { clearPhases(); return; }
         const cur = DAY.slotMacros[slot] || {};
         const landed = !cur.pending;              // applyAnalysisResult clears it, success or not
         const waited = Date.now() - t0;
@@ -138,9 +159,9 @@ export const analyzing = {
       if (r.ok) { location.hash = r.kind === 'questions' ? '#meal-questions' : '#meal-analysis'; return; }
       // Failure state: stop the "still scanning" animation and give a real >=44px recovery
       // button instead of a 13px gray text tap — the old sub-line was nearly invisible at the
-      // exact moment the athlete's core action broke. A fast failure can land before the 1s
-      // phase timer, which would overwrite this copy — cancel it.
-      clearTimeout(phaseTimer);
+      // exact moment the athlete's core action broke. A fast failure can land before a queued
+      // phase timer, which would overwrite this copy — cancel them all.
+      clearPhases();
       const sl = root.querySelector('.scanline');
       if (sl) sl.style.display = 'none';
       if (phase) phase.textContent = r.error || 'Analysis failed.';
@@ -872,11 +893,17 @@ export const thread = {
       <div class="msg-status" id="thread-status">${M.mealId ? 'Loading the thread…' : (S.coach.hasCoach ? `Syncs when connected — your ${esc(S.coach.noun)} sees this log either way.` : 'Syncs when connected — this log is saved either way.')}</div>
     </div>
     ${M.mealId ? `
+    ${/* "Ask a question" is gone (founder, 2026-08-02). It carried data-qa="" — no prefill at all,
+          so its whole effect was to focus the composer sitting directly beneath it, whose
+          placeholder already reads "Ask about this meal…". A button whose only job is to point at
+          the visible control below it is noise. The row itself is now conditional too: with that
+          button removed it would otherwise render as an empty strip on any meal whose read hasn't
+          settled. */''}
+    ${settled && !emptyRead ? `
     <div class="qa-row">
-      <button class="qa" data-qa="">Ask a question</button>
-      ${settled && !emptyRead ? `<button class="qa" id="qa-correct">Correct analysis</button>
-      <button class="qa" id="qa-details">Add meal details</button>` : ''}
-    </div>
+      <button class="qa" id="qa-correct">Correct analysis</button>
+      <button class="qa" id="qa-details">Add meal details</button>
+    </div>` : ''}
     <div class="qa-row" id="meal-rx-row"></div>
     ${composer({ inputId: 'meal-msg', sendId: 'meal-send', placeholder: 'Ask about this meal…', sendLabel: 'Send', attachId: 'meal-attach' })}
     <div class="composer-attach-pending" id="meal-attach-pending" hidden></div>
@@ -913,7 +940,12 @@ export const thread = {
     // context of its OWN. The obvious shortcut — positioning #view — is shared by every screen and
     // breaks any absolutely-positioned overlay rendered inside one (it threw the quick-log sheet
     // off the top of the screen); see .meal-screen in screens.css.
-    return `<div class="meal-screen">${backHead(M.name, dupFlagged ? 'Duplicate photo' : (M.late ? 'Late · still counts' : 'On time'), 'home')}${execTop}${photoBlock}${breakdown}${discussion}${next}
+    // The header used to repeat the timing verdict the confirm card states one line below it —
+    // "Breakfast / On time" immediately above "Breakfast logged / Logged 8:24 AM · on time".
+    // Three facts, each said twice. This file's own rule is each fact exactly once, so the verdict
+    // now lives only in the card (which carries the real clock time with it). The header keeps the
+    // meal's name, and keeps the duplicate-photo flag — a different fact nothing else states.
+    return `<div class="meal-screen">${backHead(M.name, dupFlagged ? 'Duplicate photo' : '', 'home')}${execTop}${photoBlock}${breakdown}${discussion}${next}
     <div style="height:18px"></div>
     <button class="btn green" style="width:100%" data-go="home" aria-label="Done — back to home">${icon('check', 18)} Done</button>
     <div style="height:16px"></div></div>`;
@@ -1332,7 +1364,15 @@ export const thread = {
       if (!t) return;
       if (t.id === 'mt-retry-analysis') { act.retryAnalysis(M.slot); return; }
       // The same conversation, unbounded by this one plate.
-      if (t.id === 'open-full-chat' || t.id === 'thread-earlier') { location.hash = '#nutrition-chat'; return; }
+      // Route through the router, NOT a raw hash write. backHead's `to` is only a FALLBACK — back
+      // actually pops the per-tab origin stack, and only navigateTo() pushes onto it. Assigning
+      // location.hash directly skipped that push, so nutrition-chat had no recorded origin and its
+      // back button fell through to its 'home' fallback instead of returning to the meal the
+      // athlete opened it from.
+      if (t.id === 'open-full-chat' || t.id === 'thread-earlier') {
+        if (window.__navigate) window.__navigate('nutrition-chat'); else location.hash = '#nutrition-chat';
+        return;
+      }
       // A meal that settled at zero: put it back in the queue for another read.
       if (t.id === 'mt-reread') { t.textContent = 'Reading the plate…'; void act.rereadMeal(M.slot); return; }
       if (t.id === 'mq-thread-skip') { act.skipPendingQuestions(M.slot); return; }

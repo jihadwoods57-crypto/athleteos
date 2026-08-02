@@ -805,6 +805,18 @@ export function dayLogMeal(userId, key, macros, meta) {
     if (Array.isArray(meta.detectedRich)) m.detectedRich = meta.detectedRich.slice(0, 8);
     if (meta.live === false) m.live = false;
     if (meta.source) m.source = meta.source;          // 'live' | 'gallery' | 'manual' | 'label'
+    // LOG-FIRST, READ-AFTER (the optimistic photo path). These two were missing from this
+    // whitelist, and their absence broke the entire flow in a way that looked like two unrelated
+    // bugs:
+    //   1. applyAnalysisResult's first guard is `if (!cur.pending) return false`, so a finished
+    //      analysis could NEVER land — the meal sat at 0g protein / 0 cal permanently, which is
+    //      what "macros populating 0s when I clearly uploaded a meal" was.
+    //   2. #analyzing watches `landed = !cur.pending`, which was true on the first tick, so the
+    //      scan always bailed at its MIN_MS floor and read as "way too fast".
+    // pendingHash is the anti-stale guard applyAnalysisResult checks second (a result may only
+    // land on the slot whose photo produced it), so it is worthless without this one.
+    if (meta.pending) m.pending = true;
+    if (meta.pendingHash) m.pendingHash = meta.pendingHash;
     if (meta.analysis) m.analysis = String(meta.analysis).slice(0, 1200);
     // 0142 — the plan style the SERVER wrote this prose for. The client shows server prose only
     // when this matches its own resolved style, so an old deploy (no stamp) keeps suppressing.
