@@ -1,6 +1,6 @@
 import { S, RT, act, slotHasPhoto, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
-import { appHead, scoreRing, esc, safeImg, collapseSection } from '../components.js';
+import { appHead, scoreRing, esc, safeImg, collapseSection, emailVerifyBanner, wireEmailVerifyBanner } from '../components.js';
 import { reveal } from '../motion.js';
 import { scoreBand } from '../score-band.js';
 import { maybeShowLock } from '../lock-moment.js';
@@ -550,6 +550,7 @@ export default {
         ? `<div class="xgrp">${label}</div><div class="xgroup">${rows.map((i) => grow(i, opts || {})).join('')}</div>` : '';
       return `
       ${appHead('Your standard is ready', trustShield())}
+      ${emailVerifyBanner()}
       ${notScoredHero()}
       ${syncBanner()}
       ${first
@@ -573,6 +574,7 @@ export default {
       const upcoming = rest.filter((i) => !(i.required && i.state === 'overdue'));
       return `
       ${appHead(headSub(e), trustShield())}
+      ${emailVerifyBanner()}
       ${(!S.dayDecided && S.tier.cls === 'r') ? inProgressHero(e) : hero(e)}
       ${syncBanner()}
       <section class="xnow">
@@ -594,6 +596,7 @@ export default {
     if (e.celebration) {
       return `
       ${appHead(headSub(e), trustShield())}
+      ${emailVerifyBanner()}
       ${celebration(e)}
       ${outcomeBand()}
       <div id="seen-row" style="width:100%"></div>
@@ -641,6 +644,7 @@ export default {
 
     return `
     ${appHead(headSub(e), trustShield())}
+    ${emailVerifyBanner()}
     ${(!S.dayDecided && S.tier.cls === 'r') ? inProgressHero(e) : hero(e)}
     ${outcomeBand()}
     <div id="seen-row" data-tour="coach-seen"></div>
@@ -658,6 +662,7 @@ export default {
     <div style="height:20px"></div>`;
   },
   mount(root) {
+    wireEmailVerifyBanner(root);
     // The hero score, revealed once per value. This was an unconditional animateRing(root), so
     // every async paint that reaches Home — commitments landing, standards landing, the coach
     // receipt arriving, the exec tick — wound the ring back to empty and re-counted the number from

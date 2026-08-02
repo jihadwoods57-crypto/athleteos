@@ -1,6 +1,6 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { avatarHead, esc, collapseSection, skeletonRows } from '../components.js';
+import { avatarHead, esc, collapseSection, skeletonRows, emailVerifyBanner, wireEmailVerifyBanner } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope, logBookIntervention } from '../coach-data.js';
 import { buildPriorities } from '../priority.js';
@@ -357,7 +357,10 @@ export const coachHome = {
     const me = S.operatorIdentity;
     const teamName = CD.roster && CD.roster.book[0] ? CD.roster.book[0].name : me.bookName;
     const scope = getScope();
-    const head = avatarHead(`${S.greeting}, ${me.handle}`, `${teamName} · ${scopeLabel(scope)} · today`, me.initials);
+    // One `head` variable feeds every early return below (loading/offline/empty/populated) —
+    // appending here covers the whole screen in one place, unlike home.js which repeats the call
+    // at each of its own four render branches.
+    const head = avatarHead(`${S.greeting}, ${me.handle}`, `${teamName} · ${scopeLabel(scope)} · today`, me.initials) + emailVerifyBanner();
     if (CD.roster === null) return `${head}
       <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
       <div><div class="tt">${esc(vocab().loading)}</div><div class="ts">Pulling today's real numbers.</div></div></div>`;
@@ -436,6 +439,7 @@ export const coachHome = {
     <div class="co-bottom"></div>`;
   },
   mount(root) {
+    wireEmailVerifyBanner(root);
     loadMyBook().then(() => loadActivity());
     // The onboarding plan pick → the real checkout, preselected. Marked done on TAP (not on
     // completed payment): a coach who opened checkout and bailed knows where plans live now, and

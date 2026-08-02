@@ -204,6 +204,12 @@ const DEFAULT_RT = {
   // Declared here (not left as a dynamic key) so it round-trips through save/load and is reset
   // per-account by _wipeUserScopedState. Null whenever nobody is mid-confirmation.
   pendingConfirmEmail: null,
+  // Custom email verification (2026-08-02 — prod runs mailer_autoconfirm=true, so GoTrue itself
+  // never sends a confirmation and stamps every signup confirmed on arrival; see
+  // 0176_email_verification.sql). Tri-state on purpose: null = not loaded yet (never render the
+  // banner off a guess — that would flash it for every verified user for one frame), true/false =
+  // the real server value. Reset per-account by _wipeUserScopedState like everything above it.
+  emailVerified: null,
   dinnerLogged: false,
   recoveryDone: false,
   weightLogged: false,   // late log (window was 9 AM) — trend only, never scored
@@ -1933,6 +1939,10 @@ export const act = {
       RT.userId = data.user ? data.user.id : null;
       RT.authRole = role;
       RT.pendingConfirmEmail = null;
+      // A brand-new row's email_verified column DEFAULTs to false (0176) — known without a
+      // round trip, so the banner can render on the very first screen after signup instead of
+      // waiting for hydrateDay()'s query (which only runs from boot(), not from onSession(true)).
+      RT.emailVerified = false;
     } else {
       RT.userId = null;
       RT.authRole = null;
@@ -2800,6 +2810,39 @@ export const act = {
      ahead of the migrations on this branch, and a not-yet-existing column would fail that whole
      query, taking full_name and committed_at down with it. Isolated here, a pre-0165 DB costs
      one rejected request and the tour simply runs again on this device — the safe direction. */
+  /* Own isolated select (2026-08-02), same reasoning as _loadTourSeenIntoRt just below: prod may
+     run ahead of the migrations on this branch, and a not-yet-existing column would fail
+     _loadProfileIntoRt's whole query, taking full_name and committed_at down with it. A rejected
+     request here just leaves RT.emailVerified at its null default — no banner, no false claim. */
+  async _loadEmailVerifiedIntoRt(userId) {
+    if (!userId || !window.sb) return;
+    try {
+      const { data, error } = await window.sb.from('profiles').select('email_verified').eq('id', userId).maybeSingle();
+      if (error || !data || data.email_verified == null) return;
+      RT.emailVerified = !!data.email_verified;
+      save();
+    } catch { /* offline or pre-migration — banner stays hidden rather than guessing */ }
+  },
+  /* Fire-and-forget resend, called from the banner's Resend button. Never throws into the UI —
+     the caller reads the returned {ok,error} and shows it inline. */
+  async requestEmailVerification() {
+    const sb = window.sb;
+    if (!sb) return { ok: false, error: "You're offline — reconnect and try again." };
+    try {
+      const { data, error } = await sb.functions.invoke('send-verify-email');
+      if (error) {
+        // On a non-2xx, supabase-js throws FunctionsHttpError and `data` is null — the real
+        // body (our own "Wait N seconds…" text on a 429) lives on error.context.json() (same
+        // idiom as roles.js's billing-checkout / meal-chat handling).
+        const body = await (async () => { try { return await error.context?.json?.(); } catch { return null; } })();
+        return { ok: false, error: (body && body.error) || 'Could not send the verification email — try again.' };
+      }
+      if (data && data.ok === false) return { ok: false, error: data.error || 'Could not send the verification email — try again.' };
+      return { ok: true, emailed: !!(data && data.emailed) };
+    } catch {
+      return { ok: false, error: "Couldn't reach the server — check your connection." };
+    }
+  },
   async _loadTourSeenIntoRt(userId) {
     const id = TOUR_IDS[RT.authRole];
     if (!userId || !id || !window.sb) return;
@@ -2816,6 +2859,11 @@ export const act = {
     if (RT.userId) {
       await this._loadProfileIntoRt(RT.userId);
       await this._loadTourSeenIntoRt(RT.userId);
+      // Re-check every boot until it's TRUE, then stop — the flip happens server-side (the user
+      // clicks the emailed link in a browser, not in this app), so a cached `false` from an
+      // earlier session must not freeze the banner on forever; a cached `true` never needs
+      // asking again, same one-way logic as _loadTourSeenIntoRt just below.
+      if (RT.emailVerified !== true) await this._loadEmailVerifiedIntoRt(RT.userId);
       if (RT.authRole === 'trainer') await this._loadPracticeIntoRt(RT.userId);
       if (RT.authRole === 'coach') { await this._loadTeamIntoRt(RT.userId); await this._loadCoachHandleIntoRt(); }
       if (!RT.authRole || RT.authRole === 'athlete') {

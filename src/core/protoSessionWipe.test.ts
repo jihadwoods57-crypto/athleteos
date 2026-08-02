@@ -258,5 +258,25 @@ describe('signUp only claims an identity when a session actually came back', () 
     expect(RT.userId).toBe('user-new');
     expect(RT.authRole).toBe('coach');
     expect(RT.pendingConfirmEmail).toBeNull();
+    // A brand-new row's email_verified column DEFAULTs to false (0176) — known without a round
+    // trip, so the verify banner can render on the very first screen after signup rather than
+    // waiting for hydrateDay(), which only runs from boot(), not from the post-signup handoff.
+    expect(RT.emailVerified).toBe(false);
   });
+});
+
+/**
+ * SHARED-DEVICE SAFETY, extended to the two 2026-08 auth fields: emailVerified and
+ * pendingConfirmEmail must reset to their DEFAULT_RT value (null) on wipe, the same as every
+ * other user-scoped field above — a leftover `true` from the previous account on a shared device
+ * would hide the banner for someone whose OWN email is genuinely unverified.
+ */
+test('wipe resets emailVerified and pendingConfirmEmail like every other user-scoped field', async () => {
+  seedUserA();
+  RT.emailVerified = true;
+  RT.pendingConfirmEmail = 'stale@example.com';
+  (dom.window as any).sb = sbStub('user-a');
+  await act.signOut();
+  expect(RT.emailVerified).toBeNull();
+  expect(RT.pendingConfirmEmail).toBeNull();
 });

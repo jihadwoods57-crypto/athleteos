@@ -1,6 +1,6 @@
 import { S, RT, act, fmtClock, nutritionConfigForGoal } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, titleHead, esc, safeImg, composer, sparkline, emptyState, errorState, skeletonRows } from '../components.js';
+import { backHead, titleHead, esc, safeImg, composer, sparkline, emptyState, errorState, skeletonRows, emailVerifyBanner, wireEmailVerifyBanner } from '../components.js';
 import {
   attachedPhoto, isPhotoOnly, wireComposerAttach, postChatMessage,
   bubblePhotoHtml, hydrateThreadPhotos,
@@ -2743,6 +2743,7 @@ export const parent = {
   render() {
     return `
     ${titleHead('Your athletes', 'Daily scores')}
+    ${emailVerifyBanner()}
 
     <div id="par-list" data-tour="children"><div class="sd-s" style="text-align:center;padding:28px 10px">Loading…</div></div>
 
@@ -2775,6 +2776,7 @@ export const parent = {
     // Before the early returns below: every anchor a parent's tour points at comes from render(),
     // so it runs whether or not an athlete is linked yet. Safe on every repaint (see tour.js).
     maybeStartTour();
+    wireEmailVerifyBanner(root);
     const list = root.querySelector('#par-list');
     if (!list) return;
     let kids = [];

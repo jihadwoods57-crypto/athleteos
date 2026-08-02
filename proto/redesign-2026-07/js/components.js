@@ -1,5 +1,5 @@
 /* Shared UI pieces */
-import { S, roleProfileRoute } from './state.js';
+import { S, RT, act, roleProfileRoute } from './state.js';
 import { icon } from './icons.js';
 import { scoreColor } from './score-band.js';
 
@@ -485,4 +485,63 @@ export function planStyleCard(style, { onChange = null, compact = false } = {}) 
     ${compact ? '' : `<div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:10px;line-height:1.55">${esc(style.how)}</div>`}
     ${pref}
   </section>`;
+}
+
+/* Verify-your-email banner (2026-08-02). Shared across every role's home — athlete, coach,
+   trainer, parent — because email_verified is a per-account fact, not a role-specific one.
+   Mirrors home.js's syncBanner: a `.lrow` card that renders '' when there's nothing to say, so
+   callers just splice it into the template and it disappears on its own once verified.
+
+   Renders ONLY when the server has confirmed the address is NOT verified (RT.emailVerified ===
+   false). Two other states — null (not loaded yet) and true (verified) — both render nothing,
+   which means an unloaded state never flashes a false accusation for one frame.
+
+   Dismiss is a plain module variable, not RT: RT persists to localStorage (state.js save()), so
+   putting the flag there would make "dismiss" permanent across relaunches — the opposite of the
+   intent. This hides it for the rest of THIS app session only; it returns after a relaunch,
+   because an unverified address stays a real, recurring risk (see friendlyAuth's "already
+   registered" line — an unverified duplicate signup is exactly the enumeration/lockout case a
+   verified email closes off). Resend stays available from here even after a dismiss. */
+let EV_DISMISSED = false;
+export function emailVerifyBanner() {
+  if (RT.emailVerified !== false || EV_DISMISSED) return '';
+  // A restrained single row (syncBanner's weight, not the full-amber-fill "your team isn't ready"
+  // alert's) — this is a low-urgency nag that never blocks using the app, so it must not visually
+  // compete with a card that actually does. Icon + one line of text on the left; Resend and a
+  // small × dismiss sit inline on the right, never stacked into a tall column.
+  return `<div class="lrow" id="ev-banner" style="margin:12px 0 10px;background:rgba(var(--amber-rgb),0.08);border:1px solid var(--amber-border);border-radius:14px;padding:10px 11px;gap:10px">
+    <div class="xico sm" style="background:rgba(var(--amber-rgb),0.18);color:var(--amber-bright);flex:none">${icon('mail', 15)}</div>
+    <div class="xr" style="cursor:default;min-width:0">
+      <div class="xa">Verify your email</div>
+      <div class="xb" id="ev-banner-msg">${esc(RT.email || 'Confirm your address')}</div>
+    </div>
+    <button class="btn ghost sm" id="ev-resend" style="width:auto;padding:0 12px;height:28px;font-size:11.5px;flex:none">Resend</button>
+    <span role="button" tabindex="0" aria-label="Dismiss for now" id="ev-dismiss" style="cursor:pointer;color:var(--text-3);flex:none;padding:4px;display:grid;place-items:center">${icon('x', 14)}</span>
+  </div>`;
+}
+/* Wires the banner's two controls. querySelector-null-guarded (self-guarding, like coach-home.js
+   mount()) so a screen can call this unconditionally even when the banner didn't render. */
+export function wireEmailVerifyBanner(root) {
+  const banner = root.querySelector('#ev-banner');
+  if (!banner) return;
+  const resend = banner.querySelector('#ev-resend');
+  const dismiss = banner.querySelector('#ev-dismiss');
+  const msg = banner.querySelector('#ev-banner-msg');
+  const say = (text) => { if (msg) msg.textContent = text; };
+  if (resend) resend.addEventListener('click', async () => {
+    if (resend.disabled) return;
+    resend.disabled = true;
+    const was = resend.textContent;
+    resend.textContent = '…';
+    const r = await act.requestEmailVerification();
+    resend.disabled = false;
+    resend.textContent = was;
+    if (!r.ok) { say(r.error); return; }
+    say(r.emailed ? `Sent — check ${esc(RT.email || 'your inbox')}.` : "Saved — check your inbox shortly.");
+  });
+  const doDismiss = () => { EV_DISMISSED = true; if (window.__render) window.__render(); };
+  if (dismiss) {
+    dismiss.addEventListener('click', doDismiss);
+    dismiss.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); doDismiss(); } });
+  }
 }
