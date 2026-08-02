@@ -667,26 +667,18 @@
    Card chrome removed: hierarchy here comes from SIZE and SPACE, not from another box. The tap
    affordance survives as the chevron plus a press state, which is what carried it anyway. */
 .xhero{display:flex;flex-direction:column;background:none;border:none;border-radius:var(--r-card);padding:4px 2px 2px;cursor:pointer;box-shadow:none;transition:transform var(--dur-1) var(--ease-out);position:relative}
-/* Score-driven ambient. A wash behind the ring whose hue follows the day's band, so an athlete at 93
-   lives in a subtly greener room than one at 40 — without a single extra pixel of UI, and without
-   ever restating the number. Deliberately NOT red at the bottom of the scale: red is a status colour
-   in this app (a missed window, a failed write) and turning the whole canvas into it would read as
-   an error state rather than as a day still in progress. The low band gets the cool slate-blue end
-   of the signature sweep, which is where the ring starts anyway.
-   z-index 0 with the ring at z-index 2 (.ring-center) keeps this strictly behind the content, and it
-   is a background — no contrast measurement in the app is taken against it. */
-.xhero::before{
-  content:'';position:absolute;z-index:0;pointer-events:none;
-  left:-14%;top:-30%;width:74%;height:190%;
-  border-radius:50%;
-  filter:blur(34px);opacity:0.5;
-  transition:background var(--dur-3) var(--ease-out);
-  background:radial-gradient(closest-side, rgba(var(--blue-rgb),0.30), transparent 72%);
-}
-.xhero[data-band="on"]::before{background:radial-gradient(closest-side, rgba(var(--green-rgb),0.34), transparent 72%)}
-.xhero[data-band="close"]::before{background:radial-gradient(closest-side, rgba(var(--teal-rgb),0.30), transparent 72%)}
-:root[data-theme="light"] .xhero::before{opacity:0.34}
-@media (prefers-reduced-motion: reduce){.xhero::before{transition:none}}
+/* The score-driven ambient wash that used to sit behind the ring is GONE (founder, 2026-08-02:
+   "a weird translucent blurry square background behind it — remove that so it fits more
+   seamlessly").
+   It was a blurred radial gradient on .xhero::before whose hue followed the day's band. The idea
+   was a room that subtly agrees with the number, but a large `filter: blur()` is clipped to the
+   element's filter region, so instead of an open glow it rendered with straight edges — a faint
+   translucent panel behind the ring rather than light in the room. The ring already carries the
+   band in the arc gradient itself, which is the honest place for it, so nothing is lost by
+   letting it sit directly on the canvas.
+   Removed with it: the [data-band] variants, the light-theme opacity override, and the
+   reduced-motion transition guard, all of which existed only to serve this pseudo-element.
+   home.js no longer emits data-band at all. */
 .xhero:active{transform:scale(0.985)}
 .xhero .xh-main{display:flex;align-items:center;gap:14px;position:relative}
 .xhero .ring-wrap{flex:0 0 auto}

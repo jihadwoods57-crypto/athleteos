@@ -2,7 +2,6 @@ import { S, RT, act, slotHasPhoto, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
 import { appHead, scoreRing, esc, safeImg, collapseSection, emailVerifyBanner, wireEmailVerifyBanner } from '../components.js';
 import { reveal } from '../motion.js';
-import { scoreBand } from '../score-band.js';
 import { maybeShowLock } from '../lock-moment.js';
 import { DAY, MEAL_KEYS } from '../day.js';
 import { fetchMyDayReceipts } from '../roles.js';
@@ -361,11 +360,9 @@ function hero(e) {
     .map((b) => `<i class="${b.accent}" style="width:${b.earned}%"></i>`).join('');
   const gain = lastHomeScore != null && e.score > lastHomeScore ? e.score - lastHomeScore : 0;
   lastHomeScore = e.score;
-  // data-band drives the ambient wash behind the ring (screens.css). It is the SAME banding the
-  // roster and every score label already use — scoreBand()'s 80/60 thresholds — so the light in
-  // the room agrees with the number instead of being a fourth opinion about it. Background only:
-  // no text, border or icon colour reads from this.
-  return `<section class="xhero" data-tour="score" data-band="${scoreBand(e.score) || 'off'}" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, ${S.tier.name}. ${e.met} of ${e.total} completed. Open score breakdown">
+  // data-band is gone along with the ambient wash it drove (screens.css) — the ring's own arc
+  // gradient already carries the band, so the attribute had no reader left.
+  return `<section class="xhero" data-tour="score" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, ${S.tier.name}. ${e.met} of ${e.total} completed. Open score breakdown">
     <div class="xh-main">
       ${scoreRing({ score: e.score, possible: e.possible, size: 128, stroke: 11, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
       ${gain > 0 ? `<span class="xh-float" aria-hidden="true">+${gain}</span>` : ''}
