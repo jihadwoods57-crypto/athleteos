@@ -2,7 +2,29 @@
 -- Two working pairs, each linked exactly the way the app links them:
 --   coach@onstandard.app    <-> athlete1@onstandard.app   (team "Demo Varsity")
 --   trainer@onstandard.app  <-> client1@onstandard.app    (practice "Rivera Performance")
--- Shared password: Demo1234!
+--
+-- ############################################################################
+-- THE PASSWORD IS NOT IN THIS FILE, AND MUST NOT BE PUT BACK.
+-- ############################################################################
+-- This repository is PUBLIC, and these accounts are real sign-ins on the LIVE
+-- production database that also holds real users' (including minors') data. A
+-- committed shared password is a published credential: it hands anyone reading
+-- GitHub an authenticated foothold on prod, which is exactly the position from
+-- which RLS gets probed (see migration 0147 — a signed-in user was once enough
+-- to attempt cross-tenant escalation). The first version of this script did
+-- commit one; it was rotated out on 2026-08-02.
+--
+-- Supply it at run time instead, so it never enters git:
+--
+--   DEMO_PW='<the password>'
+--   sed "s/__DEMO_PASSWORD__/$DEMO_PW/" scripts/seed-demo-accounts.sql > /tmp/seed.sql
+--   npx supabase db query --linked --file /tmp/seed.sql
+--   rm /tmp/seed.sql
+--
+-- The live password lives in the founder's password manager / agent memory,
+-- never here. Rotate it with:
+--   update auth.users set encrypted_password = crypt('<new>', gen_salt('bf'))
+--    where raw_app_meta_data->>'demo' = 'true';
 --
 -- Method (from the 2026-07-13 seed, which worked): insert auth.users + auth.identities directly,
 -- let the handle_new_user trigger build the profile from raw_user_meta_data.role, then make the
@@ -35,7 +57,7 @@ insert into auth.users (
 )
 select
   '00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated',
-  d.email, crypt('Demo1234!', gen_salt('bf')), now(),
+  d.email, crypt('__DEMO_PASSWORD__', gen_salt('bf')), now(),
   jsonb_build_object('provider','email','providers',jsonb_build_array('email'),'demo',true),
   jsonb_build_object('full_name', d.full_name, 'role', d.role),
   now(), now()
