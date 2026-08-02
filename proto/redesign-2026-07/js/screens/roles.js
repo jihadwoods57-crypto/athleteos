@@ -1,6 +1,6 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, logoMark, esc } from '../components.js';
+import { backHead, titleHead, logoMark, esc } from '../components.js';
 import { accountBody, wireAccount } from './ob-account.js';
 import { standardForGoal, reqHeadTint, showConfirmPending } from '../ob-helpers.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
@@ -1031,7 +1031,10 @@ const CP_SECTIONS = [
   { sub: 'invitations', icon: 'share',     t: 'Athlete code & invites', s: 'The code athletes join with' },
   { sub: 'staff',       icon: 'users',     t: 'Staff & collaborators',  s: 'Invite staff, set their scope' },
   { sub: 'program',     icon: 'clipboard', t: 'Program',                s: 'Standards, templates, Coach Voice, visibility' },
-  { sub: 'analytics',   icon: 'bars',      t: 'Analytics',              s: 'Team trends and adherence' },
+  // Insights left the tab bar when You took the fifth slot. `go` sends this row STRAIGHT there
+  // rather than through coach-profile/analytics, whose whole content was a single row linking
+  // to Insights — three taps from Home to reach a screen that used to be one.
+  { sub: 'analytics',   icon: 'bars',      t: 'Insights',               s: 'Team trends and standard adherence', go: 'coach-insights' },
   { sub: 'preferences', icon: 'bell',      t: 'Preferences',            s: 'Notifications and appearance' },
 ];
 function cpNames() {
@@ -1048,7 +1051,10 @@ function cpIdCard(withHandle) {
   const { ci, name, metaLine } = cpNames();
   return `
     <section class="card id-card">
-      <div class="big-av" style="background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204">${esc((name[0] || 'C').toUpperCase())}</div>
+      ${/* ci.initials, not name[0]: the header chip that leads here renders "JB" and this card
+            rendered "J" for the same coach on the very next screen. One person, one monogram —
+            trainerProfile already used ti.initials. */''}
+      <div class="big-av" style="background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204">${esc(ci.initials || (name[0] || 'C').toUpperCase())}</div>
       <div style="flex:1">
         <div class="nm">${esc(name)}</div>
         <div class="meta">${metaLine}</div>
@@ -1203,15 +1209,19 @@ export const coachProfile = {
     if (alias === 'preferences') return `${back('Preferences', 'Notifications and appearance')}${cpPrefsBlock()}<div style="height:10px"></div>`;
     // Root: identity + a scannable section menu + sign out — never the old wall of settings.
     return `
-    ${backHead('Coach Profile', 'You, your team, your code', 'coach-home')}
+    ${titleHead('Coach Profile', 'You, your team, your code')}
     ${cpIdCard(false)}
     <div class="eyebrow">Manage</div>
     <section class="card" style="padding:6px 16px">
-      ${CP_SECTIONS.map(x => `<div class="lrow" data-go="coach-profile/${x.sub}"><div class="lic">${icon(x.icon, 17)}</div><div class="lm"><div class="lt">${esc(x.t)}</div><div class="ls">${esc(x.s)}</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>`).join('')}
+      ${CP_SECTIONS.map(x => `<div class="lrow" data-go="${esc(x.go || `coach-profile/${x.sub}`)}"><div class="lic">${icon(x.icon, 17)}</div><div class="lm"><div class="lt">${esc(x.t)}</div><div class="ls">${esc(x.s)}</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>`).join('')}
     </section>
     <div style="height:8px"></div>
     ${cpSignOut()}
-    <div style="height:10px"></div>
+    ${/* Sign out is the last thing on a tab-root screen, so it needs the same bottom clearance
+          every other coach screen uses. With a bare 10px it came to rest 60px under the tab bar,
+          and a tap at the row's centre hit the nav instead — the founder reported not being able
+          to sign out at all. */''}
+    <div class="co-bottom"></div>
     `;
   },
   mount(root, { sub } = {}) {
@@ -1426,9 +1436,18 @@ export const trainerProfile = {
     }
 
     return `
-    ${backHead('Practice HQ', sub, 'trainer')}
+    ${titleHead('Practice HQ', sub)}
     ${header}
     ${invite}
+
+    ${/* Grow and Insights moved off the tab bar when You took the fifth slot, so they get a
+          real home here — a route that leaves the bar without landing anywhere is just a
+          feature deleted by nav change. */''}
+    <div class="eyebrow">Your practice</div>
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" data-go="trainer-grow"><div class="lic" style="background:rgba(var(--purple-rgb),0.22);color:var(--purple-bright)">${icon('bars', 17)}</div><div class="lm"><div class="lt">Grow your practice</div><div class="ls">Offers, applications, and new clients</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="coach-insights"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('bars', 17)}</div><div class="lm"><div class="lt">Insights</div><div class="ls">Client trends and standard adherence</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+    </section>
 
     <div class="eyebrow">Practice settings</div>
     <section class="card" style="padding:6px 16px">
@@ -1437,8 +1456,9 @@ export const trainerProfile = {
         <div class="lm"><div class="lt">Default client standard</div><div class="ls">Meals, windows, and check-ins — applied to every client</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
+      <div class="lrow" data-go="coach-notif-settings"><div class="lic">${icon('bell', 17)}</div><div class="lm"><div class="lt">Notifications</div><div class="ls">Briefings, alerts, quiet hours</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="settings"><div class="lic">${icon('moon', 17)}</div><div class="lm"><div class="lt">Appearance &amp; preferences</div><div class="ls">Light / dark, units, reminders</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Your visibility scope</div><div class="ls">Recovery, readiness, consistency only</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="welcome"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Sign out</div></div></div>
     </section>
 
     <div class="eyebrow">Coming to Practice HQ</div>
@@ -1454,7 +1474,14 @@ export const trainerProfile = {
             .map((t) => `<div class="hq-ritem">${icon('lock', 14)}<span>${t}</span></div>`).join('')}
       </div>
     </section>
-    <div style="height:10px"></div>
+
+    ${/* Sign out gets its own card at the END, like the coach's, instead of sitting as the last
+          row of the settings list where it read as one more setting. co-bottom gives it the same
+          tab-bar clearance every other operator screen uses. */''}
+    <section class="card" style="padding:6px 16px;margin-top:10px">
+      <div class="lrow" data-go="welcome"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Sign out</div></div></div>
+    </section>
+    <div class="co-bottom"></div>
     `;
   },
   mount(root) {

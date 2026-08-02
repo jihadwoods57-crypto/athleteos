@@ -14,22 +14,26 @@ const NAVS = {
     { id: 'progress', route: 'progress', label: 'Progress', icon: 'bars' },
     { id: 'profile',  route: 'profile',  label: 'Profile',  icon: 'user' },
   ],
+  // The fifth tab is You (account + settings + SIGN OUT), matching the athlete shell.
+  // It used to be Insights/Grow, and profile had no tab at all — its only door was a 40px
+  // circle of initials in the header, which the founder could not find. Account settings and
+  // sign-out are not a power feature to hunt for; every other role's shell puts them in the bar.
+  // Insights and Grow keep their routes and are one tap deeper, under You.
   coach: [
-    { id: 'home',     route: 'coach-home',     label: 'Home',     icon: 'home' },
-    { id: 'roster',   route: 'coach-roster',   label: 'Roster',   icon: 'users' },
-    { id: 'create',   route: 'coach-create',   label: '',         icon: 'plus', fab: true },
-    { id: 'inbox',    route: 'coach-inbox',    label: 'Inbox',    icon: 'message' },
-    { id: 'insights', route: 'coach-insights', label: 'Insights', icon: 'bars' },
+    { id: 'home',    route: 'coach-home',    label: 'Home',   icon: 'home' },
+    { id: 'roster',  route: 'coach-roster',  label: 'Roster', icon: 'users' },
+    { id: 'create',  route: 'coach-create',  label: '',       icon: 'plus', fab: true },
+    { id: 'inbox',   route: 'coach-inbox',   label: 'Inbox',  icon: 'message' },
+    { id: 'profile', route: 'coach-profile', label: 'You',    icon: 'user' },
   ],
   // Same five tab IDS as coach, so ROOT_TAB below extends rather than forks and every
-  // operator-shared screen lights the right tab for either role. Only the routes and the
-  // fifth tab differ: a trainer's business surface (Grow) sits where a coach has Insights.
+  // operator-shared screen lights the right tab for either role. Only the routes differ.
   trainer: [
-    { id: 'home',     route: 'trainer',        label: 'Home',    icon: 'home' },
-    { id: 'roster',   route: 'trainer-roster', label: 'Clients', icon: 'heart' },
-    { id: 'create',   route: 'trainer-create', label: '',        icon: 'plus', fab: true },
-    { id: 'inbox',    route: 'trainer-inbox',  label: 'Inbox',   icon: 'message' },
-    { id: 'insights', route: 'trainer-grow',   label: 'Grow',    icon: 'bars' },
+    { id: 'home',    route: 'trainer',          label: 'Home',    icon: 'home' },
+    { id: 'roster',  route: 'trainer-roster',   label: 'Clients', icon: 'heart' },
+    { id: 'create',  route: 'trainer-create',   label: '',        icon: 'plus', fab: true },
+    { id: 'inbox',   route: 'trainer-inbox',    label: 'Inbox',   icon: 'message' },
+    { id: 'profile', route: 'trainer-profile',  label: 'You',     icon: 'user' },
   ],
 };
 
@@ -119,10 +123,14 @@ const NAV_KEY = 'onstd-nav-v1';
 const ROOT_TAB = {
   home: 'home', plan: 'plan', progress: 'progress', profile: 'profile',
   coach: 'home', 'coach-home': 'home', 'coach-roster': 'roster',
-  'coach-inbox': 'inbox', 'coach-insights': 'insights', 'coach-profile': 'profile',
+  // coach-insights / trainer-grow are deliberately ABSENT: they stopped being tab roots when You
+  // took the fifth slot. Listing them here would reset the profile stack on entry, so their back
+  // chevron would have no origin to return to; omitted, they push like any other detail screen
+  // and inherit the origin tab (mod.tab = 'profile' remains the deep-link fallback).
+  'coach-inbox': 'inbox', 'coach-profile': 'profile',
   'coach-plan': 'roster',
   trainer: 'home', 'trainer-roster': 'roster', 'trainer-create': 'create',
-  'trainer-inbox': 'inbox', 'trainer-grow': 'insights', 'trainer-profile': 'profile',
+  'trainer-inbox': 'inbox', 'trainer-profile': 'profile',
 };
 let NAV = (() => {
   try {

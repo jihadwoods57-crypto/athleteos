@@ -323,6 +323,24 @@ export function roleNav() {
     : RT.authRole === 'parent' ? 'parent'
     : 'athlete';
 }
+/* Team-creation failures in a coach's own words. A raw Postgres string ("permission denied for
+   table teams", "duplicate key value violates unique constraint …") tells a coach nothing and
+   reads as a crash; the console still carries the original for us. */
+function friendlyTeamCreate(err) {
+  const m = String((err && err.message) || err || '').toLowerCase();
+  if (err) { try { console.error('[createTeamNow]', err); } catch { /* no console */ } }
+  if (!m) return "Couldn't create your team — try again.";
+  if (m.includes('permission denied') || m.includes('row-level security') || m.includes('policy')) {
+    return "This account isn't allowed to create a team. If you joined with a staff code you're already on one — contact your head coach.";
+  }
+  if (m.includes('duplicate') || m.includes('already exists') || m.includes('unique constraint')) {
+    return 'You already have a team. Pull down to refresh, or reopen the app.';
+  }
+  if (m.includes('fetch') || m.includes('network') || m.includes('timeout') || m.includes('failed to send')) {
+    return "Couldn't reach the server — check your connection and try again.";
+  }
+  return "Couldn't create your team — try again.";
+}
 export function roleProfileRoute() {
   return RT.authRole === 'coach' ? 'coach-profile' : RT.authRole === 'trainer' ? 'trainer-profile' : 'profile';
 }
@@ -2618,6 +2636,37 @@ export const act = {
       try { await this._finishCreatedTeamSetup(); } catch { /* editor can publish later */ }
       return true;
     } catch { return false; }
+  },
+  /* Create the team from INSIDE the app, after onboarding is over.
+     This closes a hard dead end. persistCoachOnboarding() returns false when create_team fails
+     (RLS, a dropped connection, a bad org insert) and every caller ignored that boolean, so the
+     coach was marched onto the dashboard with no team. S.coachIdentity then reports state
+     'minting' and the empty dashboard said "Creating your athlete code… reopen the app and it'll
+     retry" — but NOTHING retried, and no act.* method could create a team outside onboarding.
+     The coach could never get a join code, so no athlete could ever join: the product was over
+     for them, with the UI blaming a mint that was never running.
+     Returns {ok} or {ok:false, error} so the caller can say what actually went wrong. */
+  async createTeamNow(name) {
+    const sb = window.sb;
+    if (!sb || !RT.userId) return { ok: false, error: "You're offline — reconnect and try again." };
+    const teamName = String(name || '').trim();
+    if (!teamName) return { ok: false, error: 'Give your team a name first.' };
+    const c = ((RT.ob || {}).coach) || {};
+    try {
+      const { data: code, error } = await sb.rpc('create_team', {
+        team_name: teamName,
+        team_sport: c.sport || (RT.profile && RT.profile.sport) || null,
+        team_org: c.orgId || null,
+        team_discoverable: c.discoverable !== false,
+      });
+      if (error || !code) return { ok: false, error: friendlyTeamCreate(error) };
+      this.captureOb({ teamCode: code });
+      try { await this._finishCreatedTeamSetup(); } catch { /* editor can publish later */ }
+      await this._loadTeamIntoRt(RT.userId);   // pull the real id/name/code back into RT
+      return { ok: true, code };
+    } catch (e) {
+      return { ok: false, error: friendlyTeamCreate(e) };
+    }
   },
   /* Slice F: after the team/staff link exists, apply the onboarding responsibility choice.
      A staff-code JOINER self-declares their initial narrowing via set_staff_scope (0078

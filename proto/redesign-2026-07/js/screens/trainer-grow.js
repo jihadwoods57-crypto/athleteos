@@ -4,7 +4,7 @@
    repaint via window.__render(). Reuses the shared .card/.lrow/.btn/.state-demo/.status-pill system. */
 import { RT } from '../state.js';
 import { icon } from '../icons.js';
-import { esc, titleHead } from '../components.js';
+import { esc, backHead } from '../components.js';
 import * as roles from '../roles.js';
 
 const SHARE_BASE = 'https://onstandard.app/t?t=';
@@ -107,16 +107,16 @@ function priceLabel(o) {
 function newApps() { return (G.apps || []).filter(a => a.status === 'new').length; }
 
 export const trainerGrow = {
-  nav: 'trainer', tab: 'insights',
+  nav: 'trainer', tab: 'profile',   // reached from You → Grow your practice; no longer its own tab
   badge() { return newApps(); },
   render() {
     if (!G.loaded) {
-      return `${titleHead('Grow', 'Your page, offers & applications')}
+      return `${backHead('Grow', 'Your page, offers & applications', 'trainer-profile')}
       <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bars', 17)}</div>
       <div><div class="tt">Loading…</div></div></div>`;
     }
     if (!practiceId()) {
-      return `${titleHead('Grow', 'Your page, offers & applications')}
+      return `${backHead('Grow', 'Your page, offers & applications', 'trainer-profile')}
       <div class="state-demo" data-go="trainer-profile" style="cursor:pointer"><div class="sd-ic">${icon('heart', 24)}</div>
       <div class="sd-t">Set up your practice first</div>
       <div class="sd-s">Your public page and offers hang off your practice. Finish your trainer profile to get started.</div></div>`;
@@ -126,7 +126,7 @@ export const trainerGrow = {
     const slug = p.public_slug || '';
     const shareUrl = slug ? SHARE_BASE + slug : '';
 
-    return `${titleHead('Grow', 'Your page, offers & applications')}
+    return `${backHead('Grow', 'Your page, offers & applications', 'trainer-profile')}
 
     <div class="eyebrow">Your public page</div>
     <section class="card tg-page" style="padding:16px">

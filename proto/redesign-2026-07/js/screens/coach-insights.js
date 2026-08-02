@@ -1,6 +1,6 @@
-import { S, RT } from '../state.js';
+import { S, RT, roleProfileRoute } from '../state.js';
 import { icon } from '../icons.js';
-import { avatarHead, esc, errorState, skeletonRows } from '../components.js';
+import { backHead, esc, errorState, skeletonRows } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, entriesFor, getScope, scopeFilter } from '../coach-data.js';
 
@@ -205,10 +205,13 @@ function weekSection() {
 }
 
 export const coachInsights = {
-  nav: 'operator', tab: 'insights',
+  nav: 'operator', tab: 'profile',   // reached from You → Analytics; no longer its own tab
   render() {
-    const me = S.operatorIdentity;
-    const head = avatarHead('Insights', 'What the numbers say', me.initials);
+    /* Insights is reached from You → Insights now that the fifth tab is the profile, so it needs
+       a real back chevron: an avatarHead/titleHead is for a TAB ROOT, and a screen with neither a
+       tab nor a back button is a dead end you can only leave by guessing at the tab bar.
+       roleProfileRoute() keeps the trainer's back landing on trainer-profile, not the coach's. */
+    const head = backHead('Insights', 'What the numbers say', roleProfileRoute());
     // Audit G-4: offline before the loading gate (CD.extras is null on a cold offline load too),
     // so an offline coach gets an honest retry instead of a permanent "Reading the day…".
     if (CD.roster && CD.roster.offline) return `${head}${errorState({ title: "Can't reach insights", body: `Your ${CD.kind === 'practice' ? "clients'" : "team's"} numbers are safe — reconnect and the read loads right here.`, retryId: 'insights-retry' })}`;

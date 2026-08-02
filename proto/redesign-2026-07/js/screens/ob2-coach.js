@@ -554,8 +554,12 @@ const steps = [
           </div>
           <div id="ob-code-status" style="font-size:12px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px;text-align:center">Make it yours — e.g. GATORS. The random code stops working once you save.</div>
         </div>` :
+        /* No code = create_team did not succeed. This used to promise the code "generates
+           automatically on your next sign-in" and send the coach to Profile → Team code; neither
+           was true, and the dashboard then claimed a mint was in progress forever. Say what
+           actually happened and point at the button that actually fixes it. */
         `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
-          <div><div class="tt">Code pending</div><div class="ts">We couldn’t mint your code yet (connection or pending email confirmation). It generates automatically on your next sign-in — check Profile → Team code.</div></div></div>`}
+          <div><div class="tt">We couldn’t create your team</div><div class="ts">Your account is set up — the team isn’t. Tap Continue and you’ll land on your dashboard with a <b>Create team</b> button waiting. It takes one tap.</div></div></div>`}
       </div>`;
     },
     mount(root) {
