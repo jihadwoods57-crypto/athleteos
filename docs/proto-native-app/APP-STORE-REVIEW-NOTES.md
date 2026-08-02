@@ -5,15 +5,28 @@ real values before submitting. Everything else reflects what's actually in the a
 
 ## Demo account (required — Apple reviews behind auth)
 - **Email:** `athlete1@onstandard.app`
-- **Password:** `Demo1234!`
-- Athlete role by default (Marcus Reed, WR). To see the coach view, sign in with
-  `coach@onstandard.app` / `Demo1234!` (Coach Dave Reynolds, `primary_role = 'coach'` on team
-  "Demo Varsity" / code `KDRFG3`, with athlete1–3 as active members).
+- **Password:** `<<DEMO_PASSWORD>>`
+- Athlete role by default (Marcus Reed, WR/Football). To see the coach view, sign in with
+  `coach@onstandard.app` / `<<DEMO_PASSWORD>>` (Coach Dave Reynolds, `primary_role = 'coach'` on
+  team "Demo Varsity", with athlete1 as an active member).
+- Trainer/client pair, if the reviewer wants the non-team experience:
+  `trainer@onstandard.app` (Alex Rivera, practice "Rivera Performance") and
+  `client1@onstandard.app` (Sarah Lane — a client is an athlete row with a general profile).
 
-> ⚠️ **BEFORE SUBMITTING — seed history.** As of the last seed (2026-07-13) these accounts are FRESH
-> with **zero logged days/meals**, so the reviewer would land on empty states. Log a few days + meals
-> for the athlete (and let the coach comment) so the reviewer sees real roster/review data. Re-run
-> `scratchpad/seed_demo.sql` with a history block, or log manually in-app before you submit.
+> 🔐 **The password is deliberately NOT written here — this repo is PUBLIC.** These are real
+> sign-ins on the live production database, so a committed password is a published foothold. Put
+> the real one in **App Store Connect's own "Sign-In Required → Demo Account" fields**, which are
+> private to Apple, not in this file. Current value lives in the founder's password manager.
+> Seeded/rotated by `scripts/seed-demo-accounts.sql` (see its header).
+
+> ⚠️ **BEFORE SUBMITTING — seed history.** These accounts are FRESH with **zero logged days/meals**,
+> so the reviewer would land on empty states. Log a few days + meals for the athlete (and let the
+> coach comment) so the reviewer sees real roster/review data. Note `days` rows need
+> meal+checkin+commitment evidence or the `days_score_evidence_ceiling` trigger (0041) zeroes the
+> score — easiest is to log manually in-app before you submit.
+
+> ⚠️ **Join codes regenerate on every reseed.** Don't quote one here; read it from
+> `teams.join_code` / `practices.join_code` at submission time if the reviewer needs it.
 
 ## What the app is
 OnStandard is an athlete-accountability app. The athlete logs meals with the camera; an AI reads
