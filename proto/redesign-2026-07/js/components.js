@@ -132,7 +132,18 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
           <stop offset="60%" stop-color="#22D3EE"/>
           <stop offset="100%" stop-color="#3B82F6"/>
         </linearGradient>
-        <filter id="soft${uid}" x="-40%" y="-40%" width="180%" height="180%">
+        ${/* THE BLURRED BOX BEHIND THE RING (founder, 2026-08-02) was this filter's region clipping
+              its own glow. An SVG filter region is measured from the element's OBJECT BOUNDING BOX,
+              which for a shape EXCLUDES its stroke — and the under-glow below is a hairline-radius
+              circle carrying a stroke 14px wider than the band. Measured on the 128px Home ring:
+              bbox 89px, stroked extent 114px, blur stdDeviation 9 needs ~3σ (27px) of bleed each
+              side = 168px of glow, against a region of only 180% × 89 = 160px. The last 8px were
+              cut off square, and because the glow is still bright there it read as a translucent
+              blurry panel boxing the ring rather than as light.
+              260% gives 231px — clear of the 168px the glow actually needs, with headroom. Stated
+              in PERCENT so it scales with every call site (the 338px breakdown ring included)
+              instead of only fixing Home. */''}
+        <filter id="soft${uid}" x="-80%" y="-80%" width="260%" height="260%">
           <feGaussianBlur stdDeviation="9"/>
         </filter>
         <filter id="tip${uid}" x="-160%" y="-160%" width="420%" height="420%">
