@@ -200,6 +200,10 @@ export function tier(s) {
 /* ---------------- Runtime (persisted) ---------------- */
 const KEY = 'onstd-proto-rt-v1';
 const DEFAULT_RT = {
+  // Whose email confirmation is still outstanding, when signUp returned a user but NO session.
+  // Declared here (not left as a dynamic key) so it round-trips through save/load and is reset
+  // per-account by _wipeUserScopedState. Null whenever nobody is mid-confirmation.
+  pendingConfirmEmail: null,
   dinnerLogged: false,
   recoveryDone: false,
   weightLogged: false,   // late log (window was 9 AM) — trend only, never scored
@@ -353,6 +357,13 @@ function friendlyAuth(msg) {
   if (m.includes('already registered') || m.includes('already been registered') || m.includes('user already')) return 'That email may already be registered — try signing in or resetting your password.';
   if (m.includes('provider') || m.includes('identity') || m.includes('oauth')) return 'That account uses a different sign-in method. Try email and password.';
   if (m.includes('rate limit') || m.includes('too many')) return 'Too many attempts. Wait a minute and try again, or reset your password.';
+  // GoTrue's email-frequency limit (prod smtp_max_frequency = 60s) phrases itself as
+  // "For security purposes, you can only request this after 47 seconds" — which matches none of
+  // the rules above, so it used to reach the user as raw server prose. Keep its real number.
+  if (m.includes('for security purposes') || m.includes('only request this after')) {
+    const secs = (String(msg).match(/(\d+)\s*second/) || [])[1];
+    return secs ? `Wait ${secs} seconds before trying that again.` : 'Wait a moment before trying that again.';
+  }
   if (m.includes('password')) return 'Use a longer password — at least 12 characters.';
   if (m.includes('valid email') || m.includes('email address')) return 'Enter a valid email address.';
   if (m.includes('network') || m.includes('fetch') || m.includes('failed to')) return 'Network problem — check your connection.';
@@ -1909,12 +1920,27 @@ export const act = {
     // the old user's local state; the fresh onboarding scratch (this person's own, keyed by
     // the email they just typed) survives via keepPendingOb.
     if (RT.userId && data.user && RT.userId !== data.user.id) this._wipeUserScopedState({ keepPendingOb: true });
-    RT.userId = data.user ? data.user.id : null;
     RT.email = email;
-    RT.authRole = role;
+    /* Only claim a signed-in identity when Supabase actually handed us a SESSION.
+       This used to set RT.userId + RT.authRole unconditionally. When the project requires email
+       confirmation, signUp returns a user but NO session — so the app believed someone was signed
+       in while Supabase disagreed. The next launch ran boot(), found no session, silently wiped
+       the user-scoped state and redirected to Welcome. That is precisely the reported
+       "I finish creating an account and I get signed out".
+       No session now means: stay signed out, and remember whose confirmation is outstanding so
+       the UI can say something true about it. */
+    if (data.session) {
+      RT.userId = data.user ? data.user.id : null;
+      RT.authRole = role;
+      RT.pendingConfirmEmail = null;
+    } else {
+      RT.userId = null;
+      RT.authRole = null;
+      RT.pendingConfirmEmail = email;
+    }
     save();
     track(EVENTS.ONBOARDING_COMPLETED, { role });
-    return { ok: true, session: !!data.session };
+    return { ok: true, session: !!data.session, email };
   },
   async signIn(email, password) {
     const sb = window.sb;

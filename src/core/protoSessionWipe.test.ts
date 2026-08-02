@@ -219,3 +219,44 @@ test('deleteAccount wipes everything including the pending scratch', async () =>
   expect(RT.profile).toBeNull();
   expect(DAY.meals.breakfast).toBe(false);
 });
+
+/**
+ * SIGN-UP MUST NOT INVENT A SESSION (2026-08-02).
+ * When a project requires email confirmation, signUp returns a user but NO session. signUp used
+ * to set RT.userId + RT.authRole regardless, so the app believed someone was signed in while
+ * Supabase did not. The next launch ran boot(), found no session, wiped the user-scoped state and
+ * redirected to Welcome — the founder's "I finish creating an account and I get signed out".
+ * RT.userId is the app's own "is someone signed in" predicate (router.js gates every route on
+ * it), so it may only be set when a real session exists.
+ */
+describe('signUp only claims an identity when a session actually came back', () => {
+  test('no session (email confirmation pending) leaves the app signed OUT', async () => {
+    (dom.window as any).sb = sbStub('user-new');   // stub returns session: null
+    const r = await act.signUp('new@example.com', 'a long enough password', 'New Coach', 'coach');
+
+    expect(r.ok).toBe(true);
+    expect(r.session).toBe(false);
+    // The app must not pretend to be signed in.
+    expect(RT.userId).toBeNull();
+    expect(RT.authRole).toBeNull();
+    // ...but it should remember whose confirmation is outstanding, so the UI can be truthful.
+    expect(RT.pendingConfirmEmail).toBe('new@example.com');
+    expect(RT.email).toBe('new@example.com');
+  });
+
+  test('a real session signs them straight in and clears the pending marker', async () => {
+    // sbStub's signUp is inferred as `session: null`; this case deliberately returns a real one.
+    const sb = sbStub('user-new');
+    sb.auth.signUp = (async () => ({
+      data: { user: { id: 'user-new' }, session: { access_token: 'real-token' } },
+      error: null,
+    })) as unknown as typeof sb.auth.signUp;
+    (dom.window as any).sb = sb;
+    const r = await act.signUp('new@example.com', 'a long enough password', 'New Coach', 'coach');
+
+    expect(r.session).toBe(true);
+    expect(RT.userId).toBe('user-new');
+    expect(RT.authRole).toBe('coach');
+    expect(RT.pendingConfirmEmail).toBeNull();
+  });
+});
