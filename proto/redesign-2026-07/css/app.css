@@ -535,6 +535,17 @@ body {
 .back-head .bk { width: 44px; height: 44px; border-radius: var(--r-card-sm); background: var(--surface-2); display: grid; place-items: center; color: var(--text); cursor: pointer; }
 .back-head .ht { font-size: 20px; font-weight: 800; letter-spacing: var(--title-tight); }
 .back-head .hs { font-size: 12px; font-weight: 600; color: var(--text-2); margin-top:1px; }
+/* min-width:0 so a long title truncates instead of shoving .bh-act off the right edge */
+.back-head .bh-t { min-width: 0; flex: 1; }
+.back-head .bh-act {
+  width: 44px; height: 44px; flex: 0 0 auto; margin-left: auto; border: none; padding: 0;
+  border-radius: var(--r-card-sm); background: var(--surface-2); color: var(--text-2);
+  display: grid; place-items: center; cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+.back-head .bh-act:active { transform: scale(0.94); }
+.back-head .bh-act[aria-expanded="true"] { background: var(--blue-surface); color: var(--blue-bright); }
+.back-head .bh-act:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
 .screen-title { font-size: 28px; font-weight: 800; letter-spacing: var(--title-tight); padding:8px 0 4px; }
 .muted { color: var(--text-2); }
 .tiny { color: var(--text-3); }

@@ -978,14 +978,11 @@
 /* honest estimate / no-targets note under the breakdown */
 .est-note{font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:8px;line-height:1.45}
 .est-note .link{color:var(--blue-bright);font-weight:700;cursor:pointer}
-/* AI Nutritionist structured opener + full-analysis expander */
-.ai-sum .sr{margin-bottom:10px}
-.ai-sum .sr:last-of-type{margin-bottom:0}
-/* `.ai-k`, not `.sk` — `.sk` is the skeleton-shimmer primitive (see above), and since this rule
-   never reset background/animation these labels inherited an infinite loading shimmer. */
-.ai-sum .ai-k{display:block;font-size:10px;font-weight:800;letter-spacing:0.09em;text-transform:uppercase;color:var(--blue-bright);margin-bottom:2px}
-.ai-full-toggle{display:block;margin-top:10px;background:none;border:none;padding:2px 0;font-family:var(--font);font-size:12px;font-weight:800;color:var(--blue-bright);cursor:pointer}
-.ai-full{margin-top:10px;padding-top:10px;border-top:1px solid var(--hairline-soft);font-size:13px;font-weight:600;line-height:1.5;color:var(--text-2)}
+/* A macro cell with no number in it yet. The card no longer SAYS it is waiting (the AI bubble is
+   the only narrator now — see meal.js's breakdown block); it shows it, by breathing. */
+.mv-wait{animation:mv-wait 1.5s var(--ease-in-out, ease-in-out) infinite}
+@keyframes mv-wait{0%,100%{opacity:0.35}50%{opacity:0.85}}
+@media (prefers-reduced-motion: reduce){ .mv-wait{animation:none;opacity:0.55} }
 /* chat mechanics: timestamps + quick actions */
 .msg .mtime{font-size:10px;font-weight:700;color:var(--text-3);margin-top:4px}
 .msg.athlete .mtime{text-align:right}
@@ -1005,6 +1002,34 @@
 .rx-strip{display:flex;gap:8px;margin:2px 0 10px;flex-wrap:wrap}
 .rx{display:flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-pill);padding:4px 12px;font-size:13px;font-weight:700}
 .rx .n{font-size:11px;color:var(--text-3)}
+
+/* ----- Thread actions, out of the thread (founder, 2026-08-02) -----
+   The meal conversation used to end in five stacked rows of controls — a reaction strip, two
+   quick-action chips, a resolve button, an AI-draft chip, a second reaction row — and only then
+   the composer. Everything below the last message that is not the composer now lives here,
+   behind the header's ⋯ button, closed by default. ----- */
+.tmenu{margin:0 0 10px;padding:10px 12px;border-radius:var(--r-tile);background:var(--surface-1);border:1px solid var(--hairline);display:flex;flex-direction:column;gap:8px}
+.tmenu[hidden]{display:none}
+.tmenu .tm-k{font-size:10px;font-weight:800;letter-spacing:0.09em;text-transform:uppercase;color:var(--text-3)}
+.tmenu .tm-row{display:flex;gap:8px;flex-wrap:wrap}
+.tmenu .tm-note{font-size:12px;font-weight:600;color:var(--text-3)}
+
+/* iMessage tapback: press and hold a bubble, pick a reaction. Anchored to the message the finger
+   is on, which is why it is positioned rather than laid out inline. */
+.tapback{position:fixed;z-index:60;display:flex;gap:2px;padding:5px;border-radius:var(--r-pill);
+  background:var(--surface-3, var(--surface-2));border:1px solid var(--hairline);
+  box-shadow:0 12px 32px rgba(0,0,0,0.45);transform-origin:50% 100%;
+  animation:tapback-in var(--dur-1, 140ms) var(--ease-out, ease-out)}
+.tapback button{width:42px;height:42px;border:none;background:none;border-radius:50%;font-size:20px;line-height:1;cursor:pointer;
+  display:grid;place-items:center;transition:transform var(--dur-1) var(--ease-out),background var(--dur-1) var(--ease-out)}
+.tapback button:active{transform:scale(0.88)}
+.tapback button.on{background:var(--blue-surface)}
+.tapback button:focus-visible{outline:2px solid var(--blue-bright);outline-offset:-2px}
+@keyframes tapback-in{from{opacity:0;transform:scale(0.82) translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){ .tapback{animation:none} }
+/* A long press must not also fire the OS text-selection / callout UI on the bubble underneath. */
+.thread .bubble{-webkit-touch-callout:none}
+.thread .bubble.pressing{transform:scale(0.97);transition:transform 120ms var(--ease-out)}
 .mt-retry{font-size:12px;font-weight:700;color:var(--amber-bright);cursor:pointer;padding:6px 2px}
 
 /* ----- Meal score rubric (conversation upgrade 2026-07-16) ----- */

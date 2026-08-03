@@ -29,10 +29,23 @@ describe('jobKey', () => {
 });
 
 describe('backoff', () => {
-  it('doubles and then holds at 32 minutes', () => {
-    expect(backoffMs(0)).toBe(60_000);
-    expect(backoffMs(1)).toBe(2 * 60_000);
-    expect(backoffMs(5)).toBe(32 * 60_000);
+  /**
+   * SECONDS FIRST, MINUTES LATER (2026-08-02). This schedule used to start at a full minute and
+   * double, which is the right shape for an entry waiting on a dead network and the wrong one for
+   * what actually happens: an athlete still standing over their plate, watching the thread for
+   * their numbers, whose first read hit a cold edge function. One blip read as a hang because the
+   * next attempt was two minutes away — the "it was loading for minutes" report.
+   */
+  it('gives the first retries in seconds, while the athlete is still watching', () => {
+    expect(backoffMs(0)).toBe(3_000);
+    expect(backoffMs(1)).toBe(12_000);
+    expect(backoffMs(2)).toBe(48_000);
+    // Every attempt a person could plausibly still be waiting through lands inside 90 seconds.
+    expect(backoffMs(0) + backoffMs(1) + backoffMs(2)).toBeLessThan(90_000);
+  });
+  it('still stretches out for the offline case, and holds at 32 minutes', () => {
+    expect(backoffMs(4)).toBeGreaterThan(3 * 60_000);
+    expect(backoffMs(9)).toBe(32 * 60_000);
     expect(backoffMs(50)).toBe(32 * 60_000);   // never runs away
   });
 });
@@ -43,8 +56,12 @@ describe('runnable', () => {
     expect(runnable(job(), NOW)).toBe(true);
   });
   it('respects backoff after a failed try', () => {
-    expect(runnable(job({ tries: 1, lastTryAt: NOW - 60_000 }), NOW)).toBe(false);
-    expect(runnable(job({ tries: 1, lastTryAt: NOW - 3 * 60_000 }), NOW)).toBe(true);
+    expect(runnable(job({ tries: 1, lastTryAt: NOW - 11_999 }), NOW)).toBe(false);
+    expect(runnable(job({ tries: 1, lastTryAt: NOW - 12_000 }), NOW)).toBe(true);
+  });
+  it('keeps an entry runnable while the photo is still owed, even once the read has landed', () => {
+    // The photo is the athlete's proof. A finished read must not strand it in the queue.
+    expect(runnable(job({ needUpload: true, needInsert: false, needAnalysis: false }), NOW)).toBe(true);
   });
   it('does not run a job with nothing left to do', () => {
     expect(runnable(job({ needUpload: false, needInsert: false, needAnalysis: false }), NOW)).toBe(false);

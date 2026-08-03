@@ -30,9 +30,17 @@ const CAP_MIN = 32;        // backoff ceiling, minutes
 /** Entry key: one job per athlete-day-slot. Re-logging the same slot replaces, never duplicates. */
 export function jobKey(uid, date, slot) { return `${uid}/${date}/${slot}`; }
 
-/** Exponential backoff with a ceiling: 1, 2, 4, 8, 16, 32, 32… minutes. */
+/**
+ * Retry delay: 3s, 12s, 48s, 3m, 13m, 32m, 32m…
+ *
+ * The first attempts are in SECONDS on purpose. This used to start at a full MINUTE and double,
+ * which is the right shape for an entry waiting on a dead network — and exactly the wrong one for
+ * the case that actually happens: an athlete still standing over their plate, watching the thread
+ * for their numbers, whose first read hit a cold edge function. A single blip read as a hang,
+ * because the next attempt was two minutes away. Seconds first, minutes later, same ceiling.
+ */
 export function backoffMs(tries) {
-  return Math.min(2 ** Math.max(0, tries), CAP_MIN) * 60_000;
+  return Math.min(3 * 4 ** Math.max(0, tries), CAP_MIN * 60) * 1000;
 }
 
 /** Is this entry allowed to run right now? */

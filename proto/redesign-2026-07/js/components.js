@@ -331,14 +331,20 @@ export function appHead(sub, extra) {
   </header>`;
 }
 
-export function backHead(title, sub, to = 'home') {
+export function backHead(title, sub, to = 'home', action = null) {
   // title/sub can carry cross-user text (e.g. a coach-assigned requirement title) — escape here
   // so every caller is safe. All current callers pass plain text, so this only hardens.
   // `to` is the FALLBACK only: data-back pops the per-tab origin stack (exact screen + scroll,
   // router.js), so back always returns where the user actually came from.
+  //
+  // `action` is an OPTIONAL trailing control — { id, label, icon } — for screens that have real
+  // actions which do not belong in the body. The meal thread is the reason it exists: its actions
+  // were stacked as five rows of chips between the last message and the composer, and a
+  // conversation with a control panel welded under it is not a conversation.
   return `<div class="back-head">
     <div class="bk" data-back="${to}" role="button" aria-label="Back">${icon('back', 20)}</div>
-    <div><div class="ht">${esc(title)}</div>${sub ? `<div class="hs">${esc(sub)}</div>` : ''}</div>
+    <div class="bh-t"><div class="ht">${esc(title)}</div>${sub ? `<div class="hs">${esc(sub)}</div>` : ''}</div>
+    ${action ? `<button type="button" class="bh-act" id="${esc(action.id)}" aria-label="${esc(action.label || 'More')}" aria-expanded="false" aria-haspopup="true">${icon(action.icon || 'more', 20)}</button>` : ''}
   </div>`;
 }
 

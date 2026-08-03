@@ -15,6 +15,7 @@ import {
 } from '../chat-attach.js';
 import { openImageViewer } from '../image-viewer.js';
 import { openMembersSheet } from '../members-sheet.js';
+import { wireTapback } from '../tapback.js';
 import {
   layoutThread, authorName, initialsFor, participantList, participantSummary, participantMeta,
   isAnalysisOpener, isAnalysisUpdate, isEscalated, quotedFor,
@@ -413,17 +414,24 @@ export function openingBlockHtml(M, { sum, fullText, fq, hasPersistedRead = fals
   // Without the fallback those meals would show a breakdown with nothing said about it.
   if (hasPersistedRead) return fq ? fqRow(fq) + confirmRow : confirmRow;
 
+  // ONE VOICE (founder, 2026-08-02). This is the bubble the athlete sees the instant the read
+  // lands locally, before the persisted `ai` row comes back from the server a beat later. It used
+  // to be a REPORT CARD — "What went well / Biggest opportunity / Next time" over a "View full
+  // analysis" expander — while the persisted message that replaced it seconds later was a plain
+  // conversational paragraph. Same read, two different voices, arriving one after the other: that
+  // is most of why the AI felt like a second process running behind the breakdown instead of one
+  // nutritionist talking. Both ends now say the same thing the same way, so the swap is invisible.
+  // `sum` stays as the floor for the rare read with no prose in it at all.
+  const body = fullText
+    ? esc(fullText)
+    : [sum && sum.wentWell, sum && sum.opportunity, sum && sum.next].filter(Boolean).map(esc).join(' ');
+  if (!body) return fq ? fqRow(fq) + confirmRow : confirmRow;
+
   return `
       <div class="msg ai">
         <div class="av">${icon('sparkle', 15)}</div>
         <div><div class="who">AI Nutritionist</div>
-        <div class="bubble ai-sum">
-          ${sum && sum.wentWell ? `<div class="sr"><span class="ai-k">What went well</span>${esc(sum.wentWell)}</div>` : ''}
-          ${sum && sum.opportunity ? `<div class="sr"><span class="ai-k">Biggest opportunity</span>${esc(sum.opportunity)}</div>` : ''}
-          ${sum && sum.next ? `<div class="sr"><span class="ai-k">Next time</span>${esc(sum.next)}</div>` : ''}
-          ${fullText ? `<button class="ai-full-toggle" id="ai-full-toggle" aria-expanded="false">View full analysis</button>
-          <div class="ai-full" id="ai-full" hidden>${esc(fullText)}</div>` : ''}
-        </div></div>
+        <div class="bubble">${body}</div></div>
       </div>
       ${fq ? fqRow(fq) : ''}
       ${confirmRow}`;
@@ -789,16 +797,21 @@ export const thread = {
     // While the read is in flight there are no numbers yet — and a macro row of zeros reads as a
     // measurement, not an absence. Show the honest placeholder instead of "0g protein · 0 cal",
     // and withhold the "Correct the analysis" link until there is something to correct.
+    //
+    // ONE PROCESS (founder, 2026-08-02). The card used to carry its own sentence — "Reading the
+    // plate. The numbers fill in here when it lands." — directly above an AI bubble saying
+    // "Reading your plate… the breakdown lands here in a few seconds". Two narrators announcing
+    // one wait is exactly what made the breakdown and the nutritionist read as separate systems.
+    // The AI keeps the words; the card shows what it IS — cells quietly filling in. The failure
+    // line stays, because that is a fact about the card, not a second commentary on the wait.
     const breakdown = !settled ? `
     <div class="eyebrow" style="margin-top:16px">Meal Breakdown</div>
     <section class="card pad" style="margin-top:8px">
       <div class="macro-row five">
         ${['Protein', 'Carbs', 'Fat', 'Calories', 'Fiber'].map((k) => `
-        <div class="macro"><div class="mv" style="color:var(--text-3)">&mdash;</div><div class="mk">${k}</div></div>`).join('')}
+        <div class="macro"><div class="mv${M.analysisFailed ? '' : ' mv-wait'}" style="color:var(--text-3)">&mdash;</div><div class="mk">${k}</div></div>`).join('')}
       </div>
-      <div class="est-note" style="margin-top:10px">${M.analysisFailed
-        ? 'No numbers for this one — the photo is still your proof that the meal happened.'
-        : 'Reading the plate. The numbers fill in here when it lands.'}</div>
+      ${M.analysisFailed ? `<div class="est-note" style="margin-top:10px">No numbers for this one — the photo is still your proof that the meal happened.</div>` : ''}
     </section>` : !showNums ? `
     <div class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">What was on the plate</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></div>
     ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
@@ -835,7 +848,14 @@ export const thread = {
     </section>` : `<div class="est-note">No coach targets set yet, so there's nothing to measure against. These are this meal's totals.</div>`}
     ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
     ${corrLog ? `<div class="est-note" style="margin-top:8px;color:var(--blue-bright)"><b style="color:var(--blue-bright)">Corrected by you</b> — ${corrLog} correction${corrLog === 1 ? '' : 's'} applied. The AI's original estimate is kept for reference${M.orig ? ` (was ~${M.orig.protein}g protein · ~${M.orig.kcal} cal)` : ''}.</div>` : ''}
-    ${emptyRead ? rereadNote : fromPhoto ? `<div class="est-note">Estimated from the photo · cooking oil or sauce may change these numbers.${M.mealId ? ` <span class="link" id="open-correct" role="button">Something off? Correct the analysis</span>` : ''}</div>` : ''}
+    ${/* The two entry points into the correction panel live HERE, with the numbers they correct,
+          rather than as chips floating above the composer at the bottom of the conversation
+          (founder, 2026-08-02). "Correct analysis" down there was a duplicate of the link that has
+          always sat on this line; "Add meal details" is the same panel with the free-text field
+          focused, and it is the one that had nowhere else to go. Both now render for a manually
+          logged meal too — the old chip row did, this line didn't, so a meal with no photo used to
+          lose its way in as soon as the row was removed. */''}
+    ${emptyRead ? rereadNote : M.mealId ? `<div class="est-note">${fromPhoto ? 'Estimated from the photo · cooking oil or sauce may change these numbers. ' : ''}<span class="link" id="open-correct" role="button">${fromPhoto ? 'Something off? Correct the analysis' : 'Correct the analysis'}</span> · <span class="link" id="qa-details" role="button">Add meal details</span></div>` : ''}
 
     <!-- Correct analysis (upgrade 2026-07-16): fix what the photo can't show; every chip is a
          deterministic, estimated adjustment with an audit trail — hidden until opened. -->
@@ -886,25 +906,23 @@ export const thread = {
       ${M.mealId ? `<span class="link" id="open-full-chat" role="button" style="margin-left:auto;text-transform:none;letter-spacing:0;font-size:12px">View full chat &rarr;</span>` : ''}
     </div>
     ${facepile}
-    <div class="rx-strip" id="rx-strip"></div>
+    ${/* The `#rx-strip` that used to sit here is gone: paint() has cleared it on every repaint
+          since reactions moved onto the bubble they belong to, so it was an element whose only
+          job was to be emptied. */''}
     ${M.mealId ? `<button class="cont-earlier" id="thread-earlier" hidden aria-label="Open the full conversation"></button>` : ''}
     <div class="thread" id="meal-thread">
       ${openingBlockHtml(M, { sum, fullText, fq })}
       <div class="msg-status" id="thread-status">${M.mealId ? 'Loading the thread…' : (S.coach.hasCoach ? `Syncs when connected — your ${esc(S.coach.noun)} sees this log either way.` : 'Syncs when connected — this log is saved either way.')}</div>
     </div>
     ${M.mealId ? `
-    ${/* "Ask a question" is gone (founder, 2026-08-02). It carried data-qa="" — no prefill at all,
-          so its whole effect was to focus the composer sitting directly beneath it, whose
-          placeholder already reads "Ask about this meal…". A button whose only job is to point at
-          the visible control below it is noise. The row itself is now conditional too: with that
-          button removed it would otherwise render as an empty strip on any meal whose read hasn't
-          settled. */''}
-    ${settled && !emptyRead ? `
-    <div class="qa-row">
-      <button class="qa" id="qa-correct">Correct analysis</button>
-      <button class="qa" id="qa-details">Add meal details</button>
-    </div>` : ''}
-    <div class="qa-row" id="meal-rx-row"></div>
+    ${/* "Ask a question" went first (founder, 2026-08-02): it carried data-qa="" — no prefill at
+          all — so its whole effect was to focus the composer directly beneath it, whose
+          placeholder already reads "Ask about this meal…".
+          The reaction row went with it, and for the same reason. Four emoji parked permanently
+          above the composer are not messaging mechanics; every thread the athlete has ever used
+          puts them behind a press-and-hold on the message being reacted to, and so does this one
+          now (tapback.js, wired in mount). What is left between the last message and the box you
+          type in is: nothing. */''}
     ${composer({ inputId: 'meal-msg', sendId: 'meal-send', placeholder: 'Ask about this meal…', sendLabel: 'Send', attachId: 'meal-attach' })}
     <div class="composer-attach-pending" id="meal-attach-pending" hidden></div>
     <div id="chat-note" style="min-height:18px"></div>` : ''}`;
@@ -975,7 +993,7 @@ export const thread = {
     reveal(root.querySelector('#meal-scorechip'), { key: `meal:${M.slot}:${M.mealId || ''}`, whenSeen: true });
 
     const roles = await import('../roles.js');
-    // Delegation target for render-injected content (the fq bubble, the analysis expander):
+    // Delegation target for render-injected content (the fq bubble, the tapback picker):
     // #view is REPLACED on every render, so listeners attached here die with the paint —
     // never the persistent device root, which would stack one listener per mount.
     const viewEl = root.querySelector('#view') || root;
@@ -1002,7 +1020,7 @@ export const thread = {
       if (focusOther) { const o = root.querySelector('#fx-other'); if (o) o.focus(); }
     };
     if (fixPanel && thread._fixOpen) fixPanel.hidden = false;
-    const openBtns = [['#open-correct', false], ['#qa-correct', false], ['#qa-details', true]];
+    const openBtns = [['#open-correct', false], ['#qa-details', true]];
     openBtns.forEach(([sel, focusOther]) => {
       const b = root.querySelector(sel);
       if (b) b.addEventListener('click', () => openFix(focusOther));
@@ -1059,23 +1077,12 @@ export const thread = {
         }
       }
     }
-    // "View full analysis" expander — delegated on the screen root, so it survives paint()
-    // rebuilding threadEl.innerHTML (the opening bubble is captured/re-prepended as HTML,
-    // which drops any listener attached to the button itself).
-    viewEl.addEventListener('click', (ev) => {
-      const t = ev.target.closest('#ai-full-toggle');
-      if (!t) return;
-      const full = root.querySelector('#ai-full');
-      if (!full) return;
-      const open = full.hasAttribute('hidden');
-      if (open) full.removeAttribute('hidden'); else full.setAttribute('hidden', '');
-      t.setAttribute('aria-expanded', String(open));
-      t.textContent = open ? 'Hide full analysis' : 'View full analysis';
-    });
+    // The "View full analysis" expander is gone with the report card it belonged to (2026-08-02):
+    // the AI's read is now one paragraph in one bubble, whether it arrives locally or from the
+    // server, so there is no second half of it left to hide behind a toggle.
     if (!M.mealId) return;
 
     const threadEl = root.querySelector('#meal-thread');
-    const strip = root.querySelector('#rx-strip');
     const statusEl = root.querySelector('#thread-status');
     let threadBusy = false;
     // Rewrites #thread-status in place into an honest failure block + Retry. Reuses statusEl so
@@ -1188,30 +1195,10 @@ export const thread = {
       threadEl.innerHTML = openingHtml + rows + (aiTyping ? typingRow() : '')
         + (seen ? `<div class="seen">${seen}</div>` : '')
         + (tail.length ? `<div class="msg-status">${tail.join(' ')}</div>` : '');
-      if (strip) strip.innerHTML = '';   // reactions now ride the bubble they belong to
       threadEl.scrollTop = threadEl.scrollHeight;
-      paintReactionRow();
       void hydrateThreadPhotos(threadEl, roles);
     };
 
-    /* The athlete's own one-tap acknowledgement bar. Reactions have existed since 0049 and the
-       athlete thread has ALWAYS rendered the aggregate — but only a coach could add one, so the
-       athlete could see a 🔥 and had no way to answer it. RLS already permits this row
-       (0046's insert policy is kind-agnostic); this was missing UI and nothing else.
-
-       Painted here rather than in render() because "which ones are mine" is a fact about the
-       fetched comments, which do not exist yet when render() runs. */
-    const paintReactionRow = () => {
-      const row = root.querySelector('#meal-rx-row');
-      if (!row || !M.mealId) return;
-      const list = Array.isArray(comments) ? comments : [];
-      const mineSet = new Set(list
-        .filter((c) => c && c.kind === 'reaction' && c.author_id === RT.userId)
-        .map((c) => String(c.text)));
-      row.innerHTML = REACTION_EMOJI
-        .map((e2) => `<button class="qa${mineSet.has(e2) ? ' on' : ''}" data-rx="${esc(e2)}" aria-pressed="${mineSet.has(e2)}" aria-label="React ${esc(e2)}">${esc(e2)}</button>`)
-        .join('');
-    };
     const setTyping = (on) => { aiTyping = !!on; paint(); };
     const refresh = async () => {
       const myGen = ++gen;
@@ -1505,30 +1492,38 @@ export const thread = {
     if (send) send.addEventListener('click', submit);
     if (input) input.addEventListener('keydown', (e2) => { if (e2.key === 'Enter') submit(); });
 
-    /* ---- the athlete's reaction bar ---- */
-    // Delegated on the row because paintReactionRow() replaces its children on every repaint.
-    const rxRow = root.querySelector('#meal-rx-row');
-    if (rxRow) rxRow.addEventListener('click', async (ev) => {
-      const btn = ev.target && ev.target.closest ? ev.target.closest('[data-rx]') : null;
-      if (!btn || !M.mealId || rxBusy) return;
-      const emoji = btn.getAttribute('data-rx');
-      if (!emoji) return;
-      rxBusy = true;
-      // TOGGLE, not append. There is no uniqueness constraint on reaction rows and 0157's message
-      // cap deliberately exempts them, so an un-toggled bar would let one athlete write unbounded
-      // rows. Mirrors the coach bar's own toggle.
-      const existing = (Array.isArray(comments) ? comments : [])
-        .find((c) => c && c.kind === 'reaction' && c.author_id === RT.userId && String(c.text) === emoji);
-      let ok = false;
-      if (existing) {
-        ok = await roles.deleteMealComment(existing.id);
-      } else {
-        // role MUST be 'athlete' with athlete_id = self: 0046's insert policy routes a 'coach' row
-        // through an `athlete_id <> auth.uid()` arm that an athlete can never satisfy.
-        ok = await roles.postMealComment(M.mealId, RT.userId, RT.userId, 'athlete', emoji, 'reaction');
-      }
-      if (ok) await refresh(); else setNote("Couldn't save that reaction — try again.");
-      rxBusy = false;
+    /* ---- reactions: press and hold a message ---- */
+    // The permanent four-emoji row above the composer is gone (founder, 2026-08-02). Same posting
+    // logic, same toggle, reached the way every messaging app on this phone reaches it. Wired on
+    // `root` — the node the router never replaces — because #view and everything in it is rebuilt
+    // on each render; wireTapback is re-entrant, so this re-mount swaps the callbacks rather than
+    // stacking listeners. The picker itself lives on <body>, out of the render's way.
+    if (M.mealId) wireTapback({
+      root,
+      scope: '#meal-thread',
+      emoji: REACTION_EMOJI,
+      mine: () => new Set((Array.isArray(comments) ? comments : [])
+        .filter((c) => c && c.kind === 'reaction' && c.author_id === RT.userId)
+        .map((c) => String(c.text))),
+      onReact: async (emoji) => {
+        if (!emoji || rxBusy) return;
+        rxBusy = true;
+        // TOGGLE, not append. There is no uniqueness constraint on reaction rows and 0157's message
+        // cap deliberately exempts them, so an un-toggled control would let one athlete write
+        // unbounded rows. Mirrors the coach side's own toggle.
+        const existing = (Array.isArray(comments) ? comments : [])
+          .find((c) => c && c.kind === 'reaction' && c.author_id === RT.userId && String(c.text) === emoji);
+        let ok = false;
+        if (existing) {
+          ok = await roles.deleteMealComment(existing.id);
+        } else {
+          // role MUST be 'athlete' with athlete_id = self: 0046's insert policy routes a 'coach' row
+          // through an `athlete_id <> auth.uid()` arm that an athlete can never satisfy.
+          ok = await roles.postMealComment(M.mealId, RT.userId, RT.userId, 'athlete', emoji, 'reaction');
+        }
+        if (ok) await refresh(); else setNote("Couldn't save that reaction — try again.");
+        rxBusy = false;
+      },
     });
 
     // Tap an attached photo to open it full-screen, the same viewer the meal's own hero photo uses.

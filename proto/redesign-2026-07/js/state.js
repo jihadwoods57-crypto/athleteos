@@ -26,7 +26,7 @@ import { commitmentReminders } from './commitments.js';
 import { normalizeCoachPrefs, alertKeys, buildCoachSyncPlan } from './coach-notify-plan.js';
 import { entriesFor, getScope, CD } from './coach-data.js';
 import { splitServerRows } from './notif-feed.js';
-import { jobKey, putJob, readQueue, removeJob, updateJob, due as dueJobs } from './meal-outbox.js';
+import { jobKey, putJob, readQueue, removeJob, updateJob, due as dueJobs, backoffMs } from './meal-outbox.js';
 import { factsFromCorrection, candidateFactsFromFoodChange, sameFact } from './memory.js';
 import { TOUR_IDS } from './tour-plan.js';
 import {
@@ -750,6 +750,37 @@ let PUSH_TOKEN_VALUE = null;
    reload) so the bell's mount → fetch → repaint cycle can never loop. */
 let NOTIF_FETCH_AT = 0;
 
+/* A vision read is the longest call this app makes; past this it is not slow, it is gone. */
+const ANALYSIS_TIMEOUT_MS = 45_000;
+
+/**
+ * An edge-function call that CANNOT hang.
+ *
+ * supabase-js's invoke() is a bare fetch with no deadline, and the meal outbox drains behind a
+ * single `_draining` lock — so ONE request that never settles (a cold function, a campus captive
+ * portal that accepts the socket and then answers nothing) froze the entire queue for the rest of
+ * the session. The meal sat on "Reading your plate…" forever, and neither foregrounding the app
+ * nor reconnecting could shake it loose, because both of those just call drainMealOutbox() and
+ * that returned immediately at the lock. A deadline turns an unbounded wait into an ordinary
+ * retryable failure, which the queue already knows how to handle.
+ *
+ * Racing rather than aborting: invoke() takes no AbortSignal, so the socket is abandoned rather
+ * than cancelled. That costs one dangling request and buys back the queue — the right trade.
+ *
+ * Never throws. Returns the same `{ data, error }` shape invoke() does, so callers are unchanged.
+ */
+function invokeWithDeadline(name, body, ms = ANALYSIS_TIMEOUT_MS) {
+  const sb = window.sb;
+  if (!sb) return Promise.resolve({ data: null, error: { message: 'offline' } });
+  let timer = null;
+  const deadline = new Promise((resolve) => {
+    timer = setTimeout(() => resolve({ data: null, error: { message: 'timeout' } }), ms);
+  });
+  return Promise.race([sb.functions.invoke(name, { body }), deadline])
+    .then((r) => { clearTimeout(timer); return r || { data: null, error: { message: 'empty' } }; })
+    .catch((e) => { clearTimeout(timer); return { data: null, error: e || { message: 'error' } }; });
+}
+
 export const act = {
   /* Log a real meal into a real slot. One implementation for every meal (camera or search),
      any slot — not a hardcoded breakfast/dinner. Persists the AI plate (quality/foods/note)
@@ -864,6 +895,7 @@ export const act = {
      mid-drain can never double-run a job.
      --------------------------------------------------------------------------------------- */
   _draining: false,
+  _drainTimer: null,
 
   async drainMealOutbox() {
     if (this._draining || typeof window === 'undefined') return;
@@ -874,7 +906,37 @@ export const act = {
         await this._runMealJob(job);
       }
     } catch { /* never let a queue error break the app */ }
-    finally { this._draining = false; }
+    finally { this._draining = false; this._scheduleDrain(); }
+  },
+
+  /**
+   * Wake the queue back up on our OWN clock.
+   *
+   * Every attempt after the first used to depend on an event from outside the app: the tab being
+   * backgrounded and foregrounded, or the network dropping and coming back. An athlete who logs a
+   * meal and then stands there watching "Reading your plate…" generates neither — so a read that
+   * failed once simply never ran again, and the bubble span until they left the app and returned.
+   * That is the whole "it was loading for minutes" report. This timer is the missing half of the
+   * outbox: after every drain, look at what is still owed and set an alarm for when it comes due.
+   *
+   * Idempotent and self-cancelling — an empty queue clears the timer rather than ticking forever.
+   */
+  _scheduleDrain() {
+    if (typeof window === 'undefined') return;
+    if (this._drainTimer) { clearTimeout(this._drainTimer); this._drainTimer = null; }
+    const now = Date.now();
+    const waiting = readQueue().filter((e) => e && e.uid === RT.userId && !e.dead
+      && (e.needUpload || e.needInsert || e.needAnalysis)
+      // An entry parked on the athlete's clarifying answers is not owed anything until they reply.
+      && !(e.needAnalysis && e.pendingQuestions && !e.answers));
+    if (!waiting.length) return;
+    const soonest = Math.min(...waiting.map((e) => Math.max(0, (e.lastTryAt || 0) + backoffMs(e.tries || 0) - now)));
+    // Floor so a run that finishes instantly can't spin; ceiling so a long backoff still gets
+    // checked periodically (a device that slept through its alarm re-arms on the next tick).
+    this._drainTimer = setTimeout(() => {
+      this._drainTimer = null;
+      void this.drainMealOutbox();
+    }, Math.max(600, Math.min(soonest, 60_000)));
   },
 
   async _runMealJob(job) {
@@ -886,10 +948,25 @@ export const act = {
       syncRtFromDay();
     }
 
-    if (job.needUpload && job.base64) {
-      const ok = await uploadMealPhoto(job.uid, slot, job.base64).then(() => true).catch(() => false);
-      if (ok) { updateJob(job.k, { needUpload: false }); invalidateMealPhoto(job.photoPath); }
-    }
+    // THE PHOTO UPLOAD IS PROOF, NOT AN INPUT. analyze-meal is handed the base64 straight off the
+    // capture, and the `meals` row only stores the object PATH — so nothing below this line waits
+    // on the bytes. Awaiting it here nonetheless put a ~200KB cell-network upload in front of every
+    // read, which on a stadium connection is most of the time the athlete spends staring at
+    // "Reading your plate…". It now runs alongside and is reconciled at the end of the job.
+    const upload = (job.needUpload && job.base64)
+      ? uploadMealPhoto(job.uid, slot, job.base64).then(() => true).catch(() => false)
+      : Promise.resolve(null);
+    const settleUpload = async () => {
+      const ok = await upload;
+      if (ok === null) return;   // nothing was owed
+      if (ok) { updateJob(job.k, { needUpload: false }); invalidateMealPhoto(job.photoPath); return; }
+      // A FAILED upload has to cost a try. Nothing used to increment here, which was harmless only
+      // because the queue was woken by foreground/reconnect events; now that it re-arms its own
+      // timer, an entry whose read has landed but whose photo keeps failing would come due
+      // instantly, fail, and come due instantly again — a retry loop with no backoff in it.
+      const cur = readQueue().find((e) => e.k === job.k);
+      if (cur) updateJob(job.k, { tries: (cur.tries || 0) + 1, lastTryAt: Date.now() });
+    };
 
     if (job.needInsert) {
       const res = await insertMeal(job.uid, slot, job.macros, job.meta, job.photoPath).catch(() => null);
@@ -898,6 +975,9 @@ export const act = {
         // but never scores. Stop here — there is nothing worth spending a vision call on.
         this._patchSlot(slot, { flagged: 'dup' });
         track(EVENTS.MEAL_DUP_BLOCKED, { stage: 'insert' });
+        // The slot stays logged as an honest record, so the photo behind it still belongs in
+        // storage — let the upload finish before the entry that carries it is dropped.
+        await settleUpload();
         removeJob(job.k);
         window.__render && window.__render();
         return;
@@ -909,12 +989,14 @@ export const act = {
         this._notifyCoachMealLogged(slot, job.meta);
         this._enrichMeal(job.meta);
       } else {
+        await settleUpload();   // don't make the retry re-send bytes that already landed
         updateJob(job.k, { tries: (job.tries || 0) + 1, lastTryAt: Date.now() });
         return; // no row yet — analysis can still run later, but retry the insert first
       }
     }
 
     if (job.needAnalysis && job.base64) await this._runAnalysisJob(job);
+    await settleUpload();
     const left = readQueue().find((e) => e.k === job.k);
     if (left && !left.needUpload && !left.needInsert && !left.needAnalysis) removeJob(job.k);
   },
@@ -973,7 +1055,7 @@ export const act = {
       const phase = job.answers ? 'finalize' : 'analyze';
       const body = { ...this._jobAnalysisBody(job), phase };
       if (phase === 'finalize') body.clarifications = buildClarifications(job.pendingQuestions || [], job.answers || []);
-      const { data, error } = await sb.functions.invoke('analyze-meal', { body });
+      const { data, error } = await invokeWithDeadline('analyze-meal', body);
       if (error) {
         const msg = String((error && error.message) || '');
         return fail(/429|capacity|limit/i.test(msg) ? 'capacity' : 'error');
@@ -1084,14 +1166,16 @@ export const act = {
    */
   async _postMealOpener(slot, r) {
     try {
-      const sb = window.sb;
       const meta = DAY.slotMacros[slot] || {};
       const mealId = meta.mealId;
-      if (!sb || !mealId || !RT.userId || !r) return;
+      if (!window.sb || !mealId || !RT.userId || !r) return;
       const loggedAt = DAY.mealLoggedAt ? DAY.mealLoggedAt[slot] : null;
       const timing = analysisTiming(loggedAt != null ? loggedAt : minutesNow(), slotDeadline(slot));
       const dp = S.mealDayProgress;
-      await sb.functions.invoke('analyze-meal', { body: {
+      // 15s, not 45s: mode 'opener' makes no model call at all — it composes from the read it is
+      // handed and inserts one row. Anything past a cold start here is a network that has gone,
+      // and the athlete already has their numbers, so there is nothing to wait around for.
+      await invokeWithDeadline('analyze-meal', {
         mode: 'opener',
         mealId,
         mealType: slotTitle(slot),
@@ -1109,7 +1193,7 @@ export const act = {
           proteinTarget: Math.max(0, Math.min(500, dp.proteinTarget)),
           mealsRemaining: Math.max(0, Math.min(8, dp.mealsRemaining)),
         },
-      } });
+      }, 15_000);
       window.__render && window.__render();
     } catch { /* a quieter thread, not a broken log */ }
   },
@@ -1684,13 +1768,16 @@ export const act = {
       });
       if (!gate.fire) return;
       this._verifyBudgetSpend();
-      const { data } = await sb.functions.invoke('analyze-meal', { body: {
+      // Deadlined like every other read. This one is awaited from INSIDE _runAnalysisJob, so a
+      // verify pass that never settled froze the whole outbox behind the drain lock — the first
+      // read had already landed and the athlete still watched "Reading your plate…" indefinitely.
+      const { data } = await invokeWithDeadline('analyze-meal', {
         ...this._analysisBody(),
         phase: 'verify',
         verifyTrigger: gate.trigger,
         severeRestrictions: severe,
         firstResult: { kcal: r.kcal, protein: r.protein },
-      } });
+      });
       if (!data || data.kind !== 'verify') return;
       if (data.trigger === 'allergen' && Array.isArray(data.allergensFound) && data.allergensFound.length) {
         MEAL.result.verifyAllergens = data.allergensFound.slice(0, 8);
@@ -1724,7 +1811,7 @@ export const act = {
     if (!sb || !MEAL.photoBase64) return { ok: false, error: 'No photo to analyze.' };
     MEAL.questions = null;
     try {
-      const { data, error } = await sb.functions.invoke('analyze-meal', { body: { ...this._analysisBody(), phase: 'analyze' } });
+      const { data, error } = await invokeWithDeadline('analyze-meal', { ...this._analysisBody(), phase: 'analyze' });
       if (error) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'error' }); return { ok: false, error: 'Analysis failed. Check your connection and retake.' }; }
       if (data && data.kind === 'questions') {
         const qs = Array.isArray(data.questions) ? data.questions.filter((q) => typeof q === 'string' && q.trim()).slice(0, 3) : [];
@@ -1750,7 +1837,7 @@ export const act = {
     if (!sb || !MEAL.photoBase64) return { ok: false, error: 'No photo to analyze.' };
     const clarifications = buildClarifications(MEAL.questions || [], answers || []);
     try {
-      const { data, error } = await sb.functions.invoke('analyze-meal', { body: { ...this._analysisBody(), phase: 'finalize', clarifications } });
+      const { data, error } = await invokeWithDeadline('analyze-meal', { ...this._analysisBody(), phase: 'finalize', clarifications });
       if (error) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'error' }); return { ok: false, error: 'Analysis failed. Check your connection and retake.' }; }
       if (data && data.kind === 'result') {
         const grounded = groundResult(data);
@@ -2875,6 +2962,10 @@ export const act = {
     if (!user) return;
     if (RT.userId && RT.userId !== user.id) this._wipeUserScopedState({ keepPendingOb: true });
     RT.userId = user.id; RT.email = user.email || RT.email; save();
+    // The queue is durable, so a launch can inherit work: a read killed mid-flight, a meal logged
+    // last night in a dead zone. It used to wait for the athlete to background and foreground the
+    // app before anything touched it. The moment there is a user to run it for, run it.
+    void this.drainMealOutbox();
     if (!RT.authRole) {
       try {
         const { data: prof } = await window.sb.from('profiles').select('primary_role').eq('id', user.id).maybeSingle();
@@ -2989,6 +3080,9 @@ if (typeof document !== 'undefined' && document.addEventListener) {
 if (typeof window !== 'undefined' && window.addEventListener) {
   window.addEventListener('online', () => { if (RT.userId) void act.drainMealOutbox(); });
 }
+// The third beat is the app's own: act._scheduleDrain() re-arms after every drain, so a retry no
+// longer depends on the athlete backgrounding the app to make it happen. Boot is covered by
+// _syncSession, which drains the moment there is a signed-in user to drain for.
 
 /* ---------------- The app state (live getters) ---------------- */
 export const S = {

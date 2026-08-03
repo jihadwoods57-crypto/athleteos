@@ -10,6 +10,7 @@ import * as roles from '../roles.js';
 import { openingMessage, qualityBand, qualityReason, scoreRubric, reactionGroups, threadMessages, privateNotes, REACTION_EMOJI } from '../meal-intel.js';
 import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpener, isEscalated, quotedFor } from '../chat-view.js';
 import { openImageViewer } from '../image-viewer.js';
+import { wireTapback } from '../tapback.js';
 import { CD, loadBook, bookKindFor, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor, localClock, logBookIntervention } from '../coach-data.js';
 import { STATUS_META } from '../status.js';
 import { CATALOG, PROOF, resolveRequirementSet, catalogFromItems, freqLabel, stdFromItems, fmtMin, planStyleFromItems } from '../requirements.js';
@@ -2327,6 +2328,13 @@ function mealById(mealId) {
    Module state keyed by mealId so switching meals never shows a stale draft for the wrong one. */
 let DRAFTS = { mealId: null, items: [], loading: false, error: null };
 const STANCE_LABEL = { supportive: 'Supportive', direct: 'Direct', context: 'Ask for context', followup: 'Set a follow-up' };
+/* Is the ⋯ menu open? Module state, not DOM state, because __render() rebuilds #view wholesale —
+   and "Let AI draft a reply" re-renders TWICE (once to show "Drafting…", once with the chips)
+   while the coach is looking at the very panel those chips land in. Keyed to the meal so opening
+   one thread's menu never leaves the next one's hanging open. */
+let MENU_FOR = null;
+/* Which meal mount() last ran for, so arriving at a DIFFERENT thread always starts closed. */
+let MENU_MOUNTED_FOR = null;
 export const coachMeal = {
   nav: 'operator', tab: 'roster',
   render({ sub }) {
@@ -2334,11 +2342,14 @@ export const coachMeal = {
     const meal = mealById(mealId);
     const title = meal ? cap(meal.type || 'Meal') : 'Meal';
     const backTo = (meal && meal.athlete_id) ? `coach-athlete/${meal.athlete_id}` : (RT.authRole === 'trainer' ? 'trainer' : 'coach-home');
-    const head = backHead(title, 'Your comment lands on the athlete’s log', backTo);
+    // No ⋯ until the thread is up: every action behind it needs the loaded meal, and a control
+    // that is visible before it can work is worse than one that arrives a beat later.
     if (!MC || MC.mealId !== mealId) {
-      return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('message', 17)}</div>
+      return `${backHead(title, 'Your comment lands on the athlete’s log', backTo)}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('message', 17)}</div>
       <div><div class="tt">Loading the thread…</div><div class="ts">Reading the athlete’s comments on this meal.</div></div></div>`;
     }
+    const head = backHead(title, 'Your comment lands on the athlete’s log', backTo,
+      { id: 'cm-more', label: 'Meal actions', icon: 'more' });
     const foods = meal && Array.isArray(meal.detected) ? meal.detected : [];
     return `
     ${head}
@@ -2406,9 +2417,16 @@ export const coachMeal = {
         goal: null, coachTargets: null,
         late: mlate == null ? null : mlate > 0, minutesLate: mlate,
       }) : '';
+      // Reactions ride the LAST bubble, the way the athlete's own thread has rendered them since
+      // the tapback pill shipped — not as a detached strip floating above the conversation. Same
+      // data (0049 keys reactions to the meal, not to a message), same place on both screens.
+      const lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
       return `
-      ${rx.length ? `<div class="rx-strip">${rx.map((r) => `<span class="rx">${esc(r.emoji)}<span class="n">${r.count}</span></span>`).join('')}</div>` : ''}
-      <div class="thread">
+      ${/* The id is load-bearing: the tapback listeners live on the persistent screen root, so the
+            gesture is scoped by selector rather than by which element it was attached to. A bare
+            `.thread` would also match plan, settings, trust and nutrition-chat, and a long press
+            over there would post a reaction to whichever meal was last open. */''}
+      <div class="thread" id="cm-thread">
         ${opening && !msgs.some(isAnalysisOpener) ? `
         <div class="msg">
           <div class="av">${icon('sparkle', 15)}</div>
@@ -2427,59 +2445,62 @@ export const coachMeal = {
           const quoted = update ? quotedFor(c, msgs) : null;
           const photo = attachedPhoto(c);
           const photoOnly = isPhotoOnly(c);
+          const bubbleRx = c === lastMsg ? rx : [];
           return `
-          <div class="msg ${mine ? 'athlete' : c.role === 'ai' ? 'ai' : 'coach'}${item.firstOfRun ? '' : ' cont'}">
+          <div class="msg ${mine ? 'athlete' : c.role === 'ai' ? 'ai' : 'coach'}${item.firstOfRun ? '' : ' cont'}${bubbleRx.length ? ' has-rx' : ''}">
             ${!mine && item.firstOfRun ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : esc(initialsFor(who))}</div>` : '<div class="av-sp"></div>'}
             <div class="stack">
               ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
               ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
               <div class="bubble">${update ? '<span class="upd">Updated analysis</span>' : escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(c.text)}</div>
+              ${bubbleRx.length ? `<span class="rxo">${bubbleRx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}
             </div>
           </div>`;
         }).join('')}
-        ${!msgs.length ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:2px 2px 8px">No comments yet. React or say something — the athlete sees it on the log.</div>` : ''}
+        ${!msgs.length ? `
+        ${/* Nothing to hang a tapback pill on — reactions can exist on a meal whose thread has no
+              messages at all (a coach who only ever reacted). Show them, rather than losing them
+              with the strip they used to live in. */''}
+        ${rx.length ? `<div class="rx-strip">${rx.map((r) => `<span class="rx">${esc(r.emoji)}<span class="n">${r.count}</span></span>`).join('')}</div>` : ''}
+        <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:2px 2px 8px">No comments yet — say something, or press and hold a message to react. The athlete sees it on the log.</div>` : ''}
       </div>`;
     })()}
-    <div class="rx-strip" id="rx-bar" style="margin-top:4px">
-      ${REACTION_EMOJI.map((e2) => `<span class="rx" data-rx="${e2}" style="cursor:pointer;font-size:16px;padding:6px 14px">${e2}</span>`).join('')}
-    </div>
-    <div id="rx-note" style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px"></div>
-    <div class="qa-row" style="margin-top:8px">
-      <button class="qa" id="cm-ask-photo">Request another photo</button>
-      <button class="qa" id="cm-note-toggle">Private note</button>
-    </div>
-    <div style="margin-top:8px;display:flex;align-items:center;gap:10px">
-      <button class="btn ghost sm" id="cm-resolve">${RESOLVED_MEALS.has(mealId) ? 'Resolved ✓' : 'Mark resolved'}</button>
-      <span id="cm-resolve-note" style="font-size:12.5px;font-weight:600;color:var(--text-3)"></span>
-    </div>
     ${(() => {
-      // Suggested replies. The 2-message cap is gone (0157), so this is no longer gated on how
-      // much the coach has already said — a conversation can keep going. It stays MANUAL: each
-      // draft is a paid call, and more importantly the AI must never post under the coach's name.
-      // It writes; the coach edits and sends, or does not.
-      if (DRAFTS.loading && DRAFTS.mealId === sub) {
-        return `<div class="qa-row" style="margin-top:8px"><span style="font-size:12.5px;font-weight:600;color:var(--text-3);padding:6px 2px">Drafting…</span></div>`;
-      }
-      if (DRAFTS.mealId === sub && DRAFTS.items.length) {
-        return `<div class="qa-row" style="margin-top:8px">
-          ${DRAFTS.items.map((d, i) => `<button class="qa" data-draft="${i}">${esc(STANCE_LABEL[d.stance] || cap(d.stance || 'Reply'))}</button>`).join('')}
-        </div>`;
-      }
-      const errLine = (DRAFTS.mealId === sub && DRAFTS.error)
-        ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:2px 2px 6px">Couldn't draft right now — write your own or try again.</div>` : '';
-      return `${errLine}<div class="qa-row" style="margin-top:8px"><button class="qa" id="cm-draft">✍️ Let AI draft a reply — you edit and send</button></div>`;
-    })()}
-    ${(() => {
-      // ONE-TAP ACKNOWLEDGEMENT. A coach watching 60 athletes cannot write 60 comments, so most
-      // meals get nothing — and "nothing" is indistinguishable from "not seen". A reaction is two
-      // seconds and closes that gap. kind='reaction' already exists (0049) and the athlete thread
-      // already renders reactionGroups, so this is coach-side UI and nothing else.
-      const mine = new Set((Array.isArray(MC && MC.comments) ? MC.comments : [])
-        .filter((c) => c && c.kind === 'reaction' && c.author_id === RT.userId)
-        .map((c) => String(c.text)));
-      return `<div class="qa-row" id="cm-rx-row" style="margin-top:8px">
-        ${REACTION_EMOJI.map((e) => `<button class="qa${mine.has(e) ? ' on' : ''}" data-rx="${e}" aria-pressed="${mine.has(e)}">${e}</button>`).join('')}
-      </div>`;
+      /* THE ACTIONS, OUT OF THE CONVERSATION (founder, 2026-08-02).
+         Between the last message and the composer there used to be FIVE stacked rows: a reaction
+         strip, "Request another photo" + "Private note", "Mark resolved", an AI-draft chip, and
+         then a SECOND reaction row (the strip and the row were separate controls doing the same
+         job, wired independently, shipped a week apart). The coach's actual next move — say
+         something — was the last thing on the screen and the smallest.
+         Nothing is gone. Everything below is the same control with the same handler; it is closed
+         by default and opens from the ⋯ in the header, so the thread ends where a thread should:
+         at the last message, above the box you type in. Reactions moved again, to where a phone
+         user already looks for them — press and hold a message (tapback.js). */
+      const drafting = DRAFTS.loading && DRAFTS.mealId === sub;
+      const drafts = (DRAFTS.mealId === sub && DRAFTS.items.length) ? DRAFTS.items : [];
+      return `
+    <div class="tmenu" id="cm-menu"${MENU_FOR === sub ? '' : ' hidden'}>
+      <div class="tm-row">
+        <button class="qa" id="cm-ask-photo">Request another photo</button>
+        <button class="qa" id="cm-note-toggle">Private note</button>
+      </div>
+      <div class="tm-row">
+        ${drafting
+          ? `<span class="tm-note" style="padding:6px 2px">Drafting…</span>`
+          : drafts.length
+            ? drafts.map((d, i) => `<button class="qa" data-draft="${i}">${esc(STANCE_LABEL[d.stance] || cap(d.stance || 'Reply'))}</button>`).join('')
+            // MANUAL by design and unchanged: each draft is a paid call, and the AI must never
+            // post under the coach's name. It writes; the coach edits and sends, or does not.
+            : `<button class="qa" id="cm-draft">✍️ Let AI draft a reply</button>`}
+      </div>
+      ${(DRAFTS.mealId === sub && DRAFTS.error && !drafts.length && !drafting)
+        ? `<div class="tm-note">Couldn't draft right now — write your own or try again.</div>` : ''}
+      <div class="tm-row" style="align-items:center">
+        <button class="btn ghost sm" id="cm-resolve">${RESOLVED_MEALS.has(mealId) ? 'Resolved ✓' : 'Mark resolved'}</button>
+        <span id="cm-resolve-note" class="tm-note"></span>
+      </div>
+      <div class="tm-note" id="rx-note">Press and hold any message to react to it.</div>
+    </div>`;
     })()}
     ${composer({ inputId: 'cm-input', sendId: 'cm-send', placeholder: 'Comment on this meal…', sendLabel: 'Send comment', attachId: 'cm-attach' })}
     <div class="composer-attach-pending" id="cm-attach-pending" hidden></div>
@@ -2503,6 +2524,7 @@ export const coachMeal = {
     `;
   },
   mount(root, { sub }) {
+    if (MENU_MOUNTED_FOR !== sub) { MENU_MOUNTED_FOR = sub; MENU_FOR = null; }
     loadMeal(sub);
     loadMealComments(sub);
     act.markMealSeen(sub); // clears this meal's unseen dot in the team activity feed
@@ -2515,6 +2537,22 @@ export const coachMeal = {
     }
     const threadRetry = root.querySelector('#coach-thread-retry');
     if (threadRetry) threadRetry.addEventListener('click', () => loadMealComments(sub, true));
+    // The ⋯ menu.
+    const moreBtn = root.querySelector('#cm-more');
+    const menu = root.querySelector('#cm-menu');
+    const setMenu = (open) => {
+      MENU_FOR = open ? sub : null;
+      if (menu) menu.hidden = !open;
+      if (moreBtn) moreBtn.setAttribute('aria-expanded', String(open));
+    };
+    if (moreBtn && menu) {
+      moreBtn.setAttribute('aria-expanded', String(!menu.hidden));
+      moreBtn.addEventListener('click', () => {
+        const open = menu.hidden;
+        setMenu(open);
+        if (open) menu.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      });
+    }
     // Full-screen zoom on the meal photo (same viewer as the athlete side).
     const hero = root.querySelector('#cm-hero');
     const heroImg = hero && hero.querySelector('img');
@@ -2527,13 +2565,14 @@ export const coachMeal = {
         input0.value = 'Can you send another photo of this one? I want to see the whole plate.';
         input0.focus();
       }
+      setMenu(false);   // it handed the coach to the composer; leaving it open just covers it
     });
     // Private note composer (0068): kind='note' — never visible to the athlete, no push.
     const noteToggle = root.querySelector('#cm-note-toggle');
     const noteBox = root.querySelector('#cm-note-box');
     if (noteToggle && noteBox) noteToggle.addEventListener('click', () => {
       noteBox.hidden = !noteBox.hidden;
-      if (!noteBox.hidden) { const ni = root.querySelector('#cm-note-input'); if (ni) ni.focus(); }
+      if (!noteBox.hidden) { setMenu(false); const ni = root.querySelector('#cm-note-input'); if (ni) ni.focus(); }
     });
     const noteSend = root.querySelector('#cm-note-send');
     const noteInput = root.querySelector('#cm-note-input');
@@ -2641,23 +2680,44 @@ export const coachMeal = {
       if (resolveNote) resolveNote.textContent = 'Resolved.';
       setTimeout(() => { location.hash = '#coach-inbox'; }, 800);
     });
-    // One-tap reactions. Toggle semantics: tapping an emoji you already sent removes it, so a
-    // mis-tap is undoable and the athlete never sees a reaction the coach didn't mean.
-    const rxRow = root.querySelector('#cm-rx-row');
-    if (rxRow) rxRow.addEventListener('click', async (ev) => {
-      const b = ev.target && ev.target.closest ? ev.target.closest('[data-rx]') : null;
-      if (!b || b.disabled) return;
-      const emoji = b.getAttribute('data-rx');
-      const meal = mealById(sub);
-      if (!meal) return;
-      b.disabled = true;
-      const existing = (Array.isArray(MC && MC.comments) ? MC.comments : [])
-        .find((c) => c && c.kind === 'reaction' && c.author_id === RT.userId && String(c.text) === emoji);
-      const ok = existing
-        ? await roles.deleteMealComment(existing.id).catch(() => false)
-        : await roles.postMealComment(sub, meal.athlete_id, RT.userId, 'coach', emoji, 'reaction').catch(() => false);
-      b.disabled = false;
-      if (ok) { await loadMealComments(sub); window.__render(); }
+    // REACTIONS, ONE IMPLEMENTATION, ONE GESTURE. There used to be two of these: a `.rx-strip`
+    // above the quick actions with its own busy-lock and error line, and a `.qa-row` below them
+    // with toggle semantics and neither. Both posted the same kind='reaction' row. They are now a
+    // single long-press tapback on the message itself (tapback.js) — and toggling is kept, because
+    // a mis-tap that the athlete can see and the coach can't undo is the worse failure.
+    const rxNote = root.querySelector('#rx-note');
+    let rxBusy = false;
+    // On `root`, not on `.thread`: the router rebuilds #view on every render, so a listener on the
+    // thread element dies with the next repaint and mount()'s re-attach lands only after an
+    // awaited fetch. wireTapback is re-entrant — this swaps the callbacks, it does not stack.
+    wireTapback({
+      root,
+      scope: '#cm-thread',
+      emoji: REACTION_EMOJI,
+      mine: () => new Set((Array.isArray(MC && MC.comments) ? MC.comments : [])
+        .filter((c) => c && c.kind === 'reaction' && c.author_id === RT.userId)
+        .map((c) => String(c.text))),
+      onReact: async (emoji) => {
+        if (rxBusy) return;
+        rxBusy = true;
+        const meal = mealById(sub);
+        const athleteId = meal ? meal.athlete_id : (MC && MC.comments[0] && MC.comments[0].athlete_id);
+        if (!athleteId) { rxBusy = false; return; }
+        const existing = (Array.isArray(MC && MC.comments) ? MC.comments : [])
+          .find((c) => c && c.kind === 'reaction' && c.author_id === RT.userId && String(c.text) === emoji);
+        const ok = existing
+          ? await roles.deleteMealComment(existing.id).catch(() => false)
+          : await roles.postMealComment(sub, athleteId, RT.userId, 'coach', emoji, 'reaction').catch(() => false);
+        if (!ok) {
+          // Never throws, returns false. Quiet note, no push, no reload — holding again IS the retry.
+          if (rxNote) rxNote.textContent = "Couldn't send — try again.";
+          rxBusy = false;
+          return;
+        }
+        if (!existing) roles.nudgePush(athleteId, `Coach reacted to your ${meal ? cap(meal.type) : 'meal'}`, emoji);
+        await loadMealComments(sub, true);
+        rxBusy = false;
+      },
     });
 
     // Draft a reply (Task 4): asks meal-chat's draft mode for four stance-labeled candidates.
@@ -2680,9 +2740,9 @@ export const coachMeal = {
       window.__render();
     });
     // Chip tap: fills the REAL #cm-input element (never re-renders over it — that would rebuild
-    // the DOM and wipe the value just set, same lesson as meal.js's prefill()). The chip row is
-    // removed directly from the DOM instead, and DRAFTS.items is cleared so a later legit
-    // re-render (e.g. a new comment landing) doesn't resurrect stale chips.
+    // the DOM and wipe the value just set, same lesson as meal.js's prefill()). The menu is closed
+    // directly on the DOM instead, and DRAFTS.items is cleared so a later legit re-render (e.g. a
+    // new comment landing) doesn't resurrect stale chips.
     root.querySelectorAll('[data-draft]').forEach((b) => b.addEventListener('click', () => {
       const i = +b.getAttribute('data-draft');
       const d = DRAFTS.items[i];
@@ -2692,29 +2752,7 @@ export const coachMeal = {
       const end = input.value.length;
       if (input.setSelectionRange) input.setSelectionRange(end, end);
       DRAFTS.items = [];
-      const row = b.closest('.qa-row');
-      if (row) row.remove();
-    }));
-    // One shared lock across all four emoji: a burst of taps lands exactly one reaction.
-    const rxNote = root.querySelector('#rx-note');
-    let rxBusy = false;
-    root.querySelectorAll('#rx-bar [data-rx]').forEach((btn) => btn.addEventListener('click', async () => {
-      if (rxBusy) return;
-      rxBusy = true;
-      if (rxNote) rxNote.textContent = '';
-      const meal = mealById(sub);
-      const athleteId = meal ? meal.athlete_id : (MC && MC.comments[0] && MC.comments[0].athlete_id);
-      if (!athleteId) { rxBusy = false; return; }
-      const ok = await roles.postMealComment(sub, athleteId, RT.userId, 'coach', btn.getAttribute('data-rx'), 'reaction');
-      if (!ok) {
-        // Post failed (returns false, never throws): quiet note, no push, no reload — tapping again IS the retry.
-        if (rxNote) rxNote.textContent = "Couldn't send — try again.";
-        rxBusy = false;
-        return;
-      }
-      roles.nudgePush(athleteId, `Coach reacted to your ${meal ? cap(meal.type) : 'meal'}`, btn.getAttribute('data-rx'));
-      await loadMealComments(sub, true);
-      rxBusy = false;
+      setMenu(false);   // the draft is in the box now; the panel would only be covering it
     }));
   },
 };
