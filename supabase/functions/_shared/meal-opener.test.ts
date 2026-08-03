@@ -19,7 +19,7 @@ const read = (over: Record<string, unknown> = {}) => ({
 describe('it reads like a person, not a form', () => {
   const out = composeOpenerText(read(), {
     planStyle: 'structured', late: false, mealName: 'Dinner',
-    day: { proteinSoFar: 81, proteinTarget: 180, mealsRemaining: 2 },
+    day: { proteinIncludingThisMeal: 81, proteinTarget: 180, mealsRemaining: 2 },
   });
 
   it('names what it can see, in plain words', () => {
@@ -31,7 +31,7 @@ describe('it reads like a person, not a form', () => {
   });
 
   it('connects the plate to the day', () => {
-    expect(out).toContain('81 of 180g for the day with 2 meals left');
+    expect(out).toContain('81 of 180g for the day with 2 required meals left');
   });
 
   it('carries the analysis through in the model\'s own words', () => {
@@ -82,7 +82,7 @@ describe('uncertainty is stated when it is real, and only then', () => {
 describe('Intuitive plans never see a number', () => {
   const out = composeOpenerText(read(), {
     planStyle: 'intuitive', late: false, mealName: 'Dinner',
-    day: { proteinSoFar: 81, proteinTarget: 180, mealsRemaining: 2 },
+    day: { proteinIncludingThisMeal: 81, proteinTarget: 180, mealsRemaining: 2 },
   });
 
   it('suppresses the macro sentence and the day math', () => {
@@ -124,6 +124,39 @@ describe('it refuses rather than posting something empty or unsafe', () => {
   it('drops the macro line when the read has no macros', () => {
     const out = composeOpenerText(read({ protein: 0, kcal: 0 }), { late: false, mealName: 'Dinner' });
     expect(out).not.toContain("I'd put it around");
+  });
+});
+
+/* Regression, founder report 2026-08-02. The athlete logged a ~29g breakfast and the AI told them
+   they were "near 0 of 155g for the day" — because the caller handed this composer the PRE-meal day
+   total (the engine sums only SCORED slots, and this plate was still being read when the analysis
+   request was built). The contract is now unambiguous in the name: `proteinIncludingThisMeal`, read
+   AFTER the meal lands. See OpenerContext. */
+describe('the day sentence counts the plate the athlete just logged', () => {
+  it('states the total INCLUDING this meal, never the total before it', () => {
+    const out = composeOpenerText(read({ protein: 29, kcal: 660 }), {
+      planStyle: 'structured', late: false, mealName: 'Breakfast',
+      day: { proteinIncludingThisMeal: 29, proteinTarget: 155, mealsRemaining: 2 },
+    });
+    expect(out).toContain('That puts you near 29 of 155g for the day');
+    expect(out).not.toContain('near 0 of 155g');
+  });
+
+  it('names the denominator, so it cannot read as contradicting the day-requirements counter', () => {
+    // The log card's "1 of 4 in today" counts every required day item (weigh-in, check-in), not
+    // meals. Saying "2 meals left" beside it read as a contradiction; "2 required meals left" does
+    // not, and is the number this field actually carries.
+    const day = { proteinIncludingThisMeal: 29, proteinTarget: 155 };
+    const at = (mealsRemaining: number) =>
+      composeOpenerText(read(), { late: false, mealName: 'Breakfast', day: { ...day, mealsRemaining } });
+    expect(at(2)).toContain('with 2 required meals left');
+    expect(at(1)).toContain('with one required meal left');
+    expect(at(0)).toContain('with your required meals in');
+  });
+
+  it('says nothing about the day when the engine gave it no numbers', () => {
+    const out = composeOpenerText(read(), { late: false, mealName: 'Breakfast', day: null });
+    expect(out).not.toContain('That puts you');
   });
 });
 

@@ -14,6 +14,10 @@
 //   * 'order'          — reword the Restaurant Coach order explanations (`why`) in a warmer voice.
 //                        Same contract as 'memory': prose only, every number preserved exactly,
 //                        client re-verifies before showing.
+//   * 'opener'         — NO MODEL CALL. Takes the client's finished GROUNDED read (the object the
+//                        Meal Breakdown card renders) and composes + inserts the AI's opening
+//                        message in the meal thread. The Meal Breakdown is the single source of
+//                        truth; this mode is what makes the thread agree with it.
 // Deploy:
 //   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 //   supabase functions deploy analyze-meal
@@ -263,8 +267,9 @@ interface OrderIn {
 }
 
 interface AnalyzeReq {
-  /** 'meal' estimates a plate; 'label' transcribes a panel; 'memory'/'order' reword prose. */
-  mode?: 'meal' | 'label' | 'memory' | 'order' | 'regen';
+  /** 'meal' estimates a plate; 'label' transcribes a panel; 'memory'/'order' reword prose;
+   *  'opener' posts the GROUNDED read into the thread (no model call at all). */
+  mode?: 'meal' | 'label' | 'memory' | 'order' | 'regen' | 'opener';
   mealType: 'Breakfast' | 'Lunch' | 'Snack' | 'Dinner';
   goal: string | null;
   description?: string;
@@ -300,6 +305,19 @@ interface AnalyzeReq {
    *  protein logged so far today, the athlete's real daily target, required meals remaining.
    *  Pure clamped numbers; the model may connect THIS meal to the day but never invent numbers. */
   dayContext?: { proteinSoFar?: number; proteinTarget?: number; mealsRemaining?: number };
+  /** Mode 'opener' ONLY: the day as it stands AFTER this plate landed. Distinct from dayContext
+   *  (which is the PRE-meal total the analysis prompt needs) because conflating the two is the
+   *  bug this mode exists to fix — see meal-opener.ts's OpenerContext. */
+  dayAfter?: { proteinIncludingThisMeal?: number; proteinTarget?: number; mealsRemaining?: number };
+  /** Mode 'opener' ONLY: the finished, GROUNDED read — the exact object the Meal Breakdown card
+   *  renders. Every figure the thread bubble states is composed from this and nothing else. */
+  read?: Record<string, unknown>;
+  /** Meal path: "I will post the opener myself once I have grounded this read" (mode 'opener').
+   *  Set by any client new enough to do so. Absent = a pre-2026-08-02 build, which cannot, so the
+   *  meal path posts the old inline bubble for it rather than leaving it with no AI message at all.
+   *  Note the inline bubble now omits the day sentence (postOpener reads `dayAfter`, which only a
+   *  current client sends) — a missing sentence, not the wrong one. */
+  deferOpener?: boolean;
   /** The meals row this read belongs to. Present once the meal has been logged (the optimistic
    *  path inserts the row before the analysis runs), and it is what lets the finished read be
    *  posted into the athlete's thread as a real message. Absent = analyze only, post nothing. */
@@ -730,6 +748,12 @@ function classifyVerifyOutcomeServer(first: { kcal?: number; protein?: number },
 /**
  * Post the finished read into the athlete's meal thread as a real AI message.
  *
+ * THE READ PASSED HERE IS THE GROUNDED ONE — the object that renders the Meal Breakdown card,
+ * handed back by the client through mode 'opener' AFTER it has re-derived the macros against the
+ * food DB and recomputed the score. This used to be called inline from the meal path with the
+ * model's RAW tool output, which the client then discarded and recomputed, so the thread bubble
+ * and the breakdown card disagreed on every number they shared. See meal-opener.ts's header.
+ *
  * Ownership is proved with the CALLER's token before the service role writes anything: a
  * service-role insert keyed on a mealId from the request body would let anyone who can call this
  * function put words in the AI's mouth on someone else's meal. The user-scoped select can only
@@ -739,8 +763,8 @@ function classifyVerifyOutcomeServer(first: { kcal?: number; protein?: number },
  * after clarifying questions, an athlete-triggered re-read), and each of those must not stack
  * another opener onto the thread.
  *
- * Every failure here is swallowed. The athlete is waiting on their macros; a thread write that
- * did not land is a missing bubble, not a failed meal.
+ * Every failure here is swallowed. The athlete already has their macros on screen; a thread write
+ * that did not land is a missing bubble, not a failed meal.
  */
 async function postOpener(
   mealId: string,
@@ -772,7 +796,11 @@ async function postOpener(
       planStyle,
       late,
       mealName: req.mealType ?? null,
-      day: req.dayContext ?? null,
+      // The day AFTER this plate landed, which only the client can know — it is the thing that
+      // recomputes the day. `dayContext` is deliberately NOT used here: that field carries the
+      // PRE-meal total (the plate is still being read when the analysis request is built), and
+      // printing it is what made a logged breakfast read "near 0 of 155g".
+      day: req.dayAfter ?? null,
       goal: req.goal ?? null,
     });
     if (!text) return;   // nothing honest to say — an empty bubble is worse than no bubble
@@ -808,7 +836,8 @@ Deno.serve(async (request) => {
   const isMemory = req?.mode === 'memory';
   const isOrder = req?.mode === 'order';
   const isRegen = req?.mode === 'regen';
-  const isMeal = !isLabel && !isMemory && !isOrder && !isRegen;
+  const isOpener = req?.mode === 'opener';
+  const isMeal = !isLabel && !isMemory && !isOrder && !isRegen && !isOpener;
   const isFinalize = isMeal && req?.phase === 'finalize';
   const isVerify = isMeal && req?.phase === 'verify' && (req.verifyTrigger === 'allergen' || req.verifyTrigger === 'accuracy');
 
@@ -849,6 +878,19 @@ Deno.serve(async (request) => {
     if (typeof req.photoBase64 !== 'string' || !req.photoBase64) {
       return new Response(JSON.stringify({ error: 'photo required for label scan' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
     }
+  } else if (isOpener) {
+    // Composition only — no photo, no model. Needs the meal it belongs to and the grounded read.
+    if (typeof req.mealId !== 'string' || !req.mealId.trim()) {
+      return new Response(JSON.stringify({ error: 'mealId required for opener' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
+    if (!req.read || typeof req.read !== 'object' || Array.isArray(req.read)) {
+      return new Response(JSON.stringify({ error: 'read required for opener' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
+    // The read is client-authored text. composeOpenerText strips markup and clips every field it
+    // uses, but a giant blob would still be wasted work and a wasted round trip — bound it here.
+    if (JSON.stringify(req.read).length > 16_000) {
+      return new Response(JSON.stringify({ error: 'read too large' }), { status: 413, headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
   } else if (!isRegen && (typeof req?.mealType !== 'string' || !req.mealType.trim())) {
     // The meal prompt needs the slot (and can infer a typical meal when no photo is sent).
     return new Response(JSON.stringify({ error: 'mealType required' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
@@ -860,6 +902,39 @@ Deno.serve(async (request) => {
   // Resolve the caller once, up front: which ceiling applies depends on it, and it's reused for
   // the daily cap below AND for cost telemetry (a single auth round-trip).
   const userId = await resolveUserId(request);
+
+  // ── opener: post the GROUNDED read into the athlete's thread as the AI's opening message.
+  // NO MODEL CALL AT ALL, which is why it sits ahead of every ceiling below: those exist to bound
+  // the Anthropic bill, and denying a free composition would only cost the athlete their bubble.
+  //
+  // This is the surface that makes the Meal Breakdown the single source of truth. The client has
+  // already re-derived every macro against the food DB and recomputed the score deterministically;
+  // this turns that finished object — the same one the card renders — into one paragraph. The meal
+  // path below deliberately no longer posts anything, because at that point the only numbers in
+  // hand are the model's raw estimate, which the client is about to replace.
+  if (isOpener) {
+    if (!userId) {
+      return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
+    // Plan style decides what is SAYABLE (an Intuitive athlete never sees a figure). Resolved
+    // server-side for the meal owner, exactly as the meal path does — never taken from the client,
+    // which would make suppression a client-side courtesy rather than a rail.
+    let openerStyle: PlanStyle | null = null;
+    const sbOpener = svcClient();
+    if (sbOpener) openerStyle = (await loadPlanStyleForAthlete(sbOpener, userId))?.style ?? null;
+    // Awaited rather than fire-and-forget: there is nothing else in flight in this request, and the
+    // client repaints the thread when the response lands. postOpener still swallows its own errors
+    // and is idempotent, so a retry cannot double-post.
+    await postOpener(
+      String(req.mealId).trim(),
+      userId,
+      req.read as Record<string, unknown>,
+      openerStyle,
+      req,
+      request.headers.get('authorization') ?? '',
+    );
+    return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+  }
   //
   // (1) GLOBAL bill backstop — ANONYMOUS callers ONLY. `phase` is client-controlled, so a caller
   // can send `phase:'finalize'` (a full paid VISION call) WITHOUT ever sending 'analyze' —
@@ -1292,15 +1367,23 @@ ${memBlock}`;
       }
       const grounded = groundMacros(input) as Record<string, unknown>;
 
-      // POST THE READ INTO THE THREAD. The AI's analysis used to be derived on the client and
-      // never written down, which is why the thread had nothing to reply to and a coach could not
-      // scroll back through what the athlete was told. Now it is a real message.
+      // THE THREAD BUBBLE IS NO LONGER POSTED HERE — for any client new enough to post it itself.
+      // It used to be, from exactly this object, but groundMacros is a passthrough, so "grounded"
+      // is the model's RAW estimate and the client is about to re-derive every macro against the
+      // food DB and recompute the score. Composing the athlete's opening message from numbers that
+      // are one function call from being replaced is what made the thread say 23g of protein under
+      // a card reading 29g, and praise protein the card had just called low. A current client calls
+      // back with the FINISHED read through mode 'opener' above.
       //
-      // Server-side and service-role because clients may never write role='ai' (0046) — that
-      // boundary is the only reason an AI bubble can be trusted. Fire-and-forget: a thread write
-      // must never be able to fail an analysis the athlete is waiting on.
+      // `deferOpener` is what makes the rollout seamless in BOTH deploy orders. A client that sets
+      // it is telling us it will post the grounded read itself, so we stay out of the way. A client
+      // that does not set it — anyone still on a build from before this OTA reaches them — keeps
+      // getting the old inline bubble. Dropping the inline post unconditionally would have left
+      // every not-yet-updated athlete with no AI message at all until their app happened to update,
+      // and a slightly-off bubble beats a missing one. This branch retires itself once the old
+      // builds age out.
       const openerMealId = typeof req.mealId === 'string' ? req.mealId.trim() : '';
-      if (openerMealId && userId) {
+      if (openerMealId && userId && req.deferOpener !== true) {
         void postOpener(openerMealId, userId, grounded, styleApplied ?? planStyle, req, request.headers.get('authorization') ?? '');
       }
 

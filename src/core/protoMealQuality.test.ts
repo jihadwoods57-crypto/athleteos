@@ -8,7 +8,7 @@
 // @ts-ignore — proto is plain ESM JS (allowJs)
 import {
   mealQualityScore, scoreRubric, qualityBand, normalizeDetected,
-  stripFoodMentions, analysisAgreesWithBand,
+  stripFoodMentions, analysisAgreesWithBand, analysisAgreesWithNumbers,
   // @ts-ignore
 } from '../../proto/redesign-2026-07/js/meal-intel.js';
 
@@ -126,5 +126,57 @@ describe('analysisAgreesWithBand — score and words from one evaluation', () =>
   test('honest nuance always passes', () => {
     expect(analysisAgreesWithBand('Solid protein, light on fiber. Add produce next time.', { cls: 'mid', label: 'Needs work' })).toBe(true);
     expect(analysisAgreesWithBand('', { cls: 'low' })).toBe(true);
+  });
+});
+
+/**
+ * analysisAgreesWithNumbers — the numeric half of the same invariant (founder call 2026-08-02:
+ * "the Meal Breakdown is the single source of truth"). The model writes its paragraph against its
+ * OWN estimate; grounding then re-derives the macros against the food DB. Prose quoting a figure
+ * the breakdown will not show is dropped, so the thread bubble and the card can never disagree.
+ */
+describe('analysisAgreesWithNumbers — prose figures must match the grounded breakdown', () => {
+  const truth = { protein: 29, carbs: 48, fat: 42, kcal: 660, fiber: 2 };
+
+  test('the founder bug: the model\'s own 23g cannot ride a grounded 29g read', () => {
+    expect(analysisAgreesWithNumbers("I'd put it around 23g of protein and 660 calories.", truth)).toBe(false);
+  });
+
+  test('the figure that matches passes, in either word order', () => {
+    expect(analysisAgreesWithNumbers('That is about 29g of protein and 660 calories.', truth)).toBe(true);
+    expect(analysisAgreesWithNumbers('Protein lands near 30g here.', truth)).toBe(true);
+  });
+
+  test('a hedged range passes when the grounded value falls inside it', () => {
+    // The system prompt actively ASKS for ranges on a photo estimate, so this must never fail.
+    expect(analysisAgreesWithNumbers('Roughly 25 to 34g of protein on this plate.', truth)).toBe(true);
+    expect(analysisAgreesWithNumbers('Roughly 40 to 55g of protein on this plate.', truth)).toBe(false);
+  });
+
+  test('rounding is allowed, contradiction is not', () => {
+    expect(analysisAgreesWithNumbers('About 31g of protein.', truth)).toBe(true);   // within 10%
+    expect(analysisAgreesWithNumbers('About 640 calories.', truth)).toBe(true);     // within 30 kcal
+    expect(analysisAgreesWithNumbers('About 1200 calories.', truth)).toBe(false);
+  });
+
+  test('bare numbers describing the plate never fail the prose', () => {
+    // "6 to 8 strips" and "2 eggs" are descriptions of the food, not claims about the totals.
+    expect(analysisAgreesWithNumbers('Looks like 6 to 8 strips of bacon and 2 eggs.', truth)).toBe(true);
+    expect(analysisAgreesWithNumbers('About 3 to 4 french toast sticks and 1 cup of home fries.', truth)).toBe(true);
+  });
+
+  test('carbs, fat and fiber are held to the same standard', () => {
+    expect(analysisAgreesWithNumbers('Around 48g of carbs and 42g of fat.', truth)).toBe(true);
+    expect(analysisAgreesWithNumbers('Only 5g of carbs here.', truth)).toBe(false);
+    expect(analysisAgreesWithNumbers('That is 2g of fiber.', truth)).toBe(true);
+    expect(analysisAgreesWithNumbers('That is 25g of fiber.', truth)).toBe(false);
+  });
+
+  test('silence is not disagreement', () => {
+    expect(analysisAgreesWithNumbers('Good timing. Get some produce on the next plate.', truth)).toBe(true);
+    expect(analysisAgreesWithNumbers('', truth)).toBe(true);
+    // A macro the grounded read does not carry can never fail the prose.
+    expect(analysisAgreesWithNumbers('Around 9g of fiber.', { protein: 29, kcal: 660 })).toBe(true);
+    expect(analysisAgreesWithNumbers('Around 9g of fiber.', null)).toBe(true);
   });
 });

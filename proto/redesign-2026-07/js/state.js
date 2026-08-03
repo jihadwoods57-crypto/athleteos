@@ -31,7 +31,7 @@ import { factsFromCorrection, candidateFactsFromFoodChange, sameFact } from './m
 import { TOUR_IDS } from './tour-plan.js';
 import {
   groundExtras, buildClarifications, analysisTiming, applyMealCorrection, classifyMealEvent, restrictionConflicts,
-  mealQualityScore, qualityBand, qualityReason, analysisAgreesWithBand, stripFoodMentions, shouldVerify,
+  mealQualityScore, qualityBand, qualityReason, analysisAgreesWithBand, analysisAgreesWithNumbers, stripFoodMentions, shouldVerify,
   contextForChat,
 } from './meal-intel.js';
 import { groundMealFromFoods, groundMealTotals, gapFoods, isCompleteMealResult } from './nutrition.js';
@@ -133,11 +133,17 @@ export function groundResult(d) {
   const aiQuality = d.quality != null ? clampN(d.quality, 100) : null;
   if (quality != null && aiQuality != null) track(EVENTS.MEAL_SCORE_DELTA, { ai: aiQuality, det: quality, delta: quality - aiQuality });
 
-  // ---- language: score and words must agree (one evaluation result)
+  // ---- language: score, NUMBERS and words must agree (one evaluation result)
+  // The band check governs tone; the numeric check governs figures. The model wrote its paragraph
+  // against its OWN estimate, and everything above has just replaced that estimate — so prose
+  // quoting a protein or calorie number the breakdown will not show is dropped here, before it can
+  // reach either the card or the thread bubble (which is now composed from this same object).
   const band = qualityBand(quality);
   let analysis = extras.analysis;
   let note = clean(d.note);
-  if (!analysisAgreesWithBand(analysis, band) || !analysisAgreesWithBand(note, band)) {
+  if (!analysisAgreesWithBand(analysis, band) || !analysisAgreesWithBand(note, band)
+    || !analysisAgreesWithNumbers(analysis, { ...gm, fiber: extras.fiber })
+    || !analysisAgreesWithNumbers(note, { ...gm, fiber: extras.fiber })) {
     track(EVENTS.MEAL_TEXT_CONFLICT, { det: quality != null ? quality : -1 });
     analysis = '';
     note = qualityReason(gm, extras.fiber, detectedRich) || 'Logged. The breakdown shows how this plate reads.';
@@ -932,6 +938,15 @@ export const act = {
       // by the time a job is drained it has one — that is what lets the finished read be posted
       // into the athlete's conversation instead of being derived and forgotten.
       ...(job.mealId ? { mealId: job.mealId } : {}),
+      // "Do not post the opener from this response — I will post it myself once I have grounded
+      // the read" (act._postMealOpener). Without this the edge function composes the bubble from
+      // the model's RAW estimate, which groundResult() is about to replace, and the thread ends up
+      // quoting numbers the breakdown card never shows. Older builds omit the flag and keep the
+      // inline bubble, so the rollout has no window where nobody gets a message.
+      deferOpener: true,
+      // The day BEFORE this plate (the engine sums scored slots, and this one is still pending) —
+      // which is what the analysis prompt wants. The opener's day sentence uses `dayAfter` instead;
+      // do not cross the two.
       dayContext: {
         proteinSoFar: Math.max(0, Math.min(500, dp.proteinSoFar)),
         proteinTarget: Math.max(0, Math.min(500, dp.proteinTarget)),
@@ -1039,9 +1054,64 @@ export const act = {
       } catch { /* the day row is the source of truth for the athlete */ }
     }
     track(EVENTS.MEAL_ANALYSIS_APPLIED, { slot });
+    // Now — and only now — say it in the thread. The bubble is composed from the object written
+    // just above, which is the one the breakdown card renders.
+    void this._postMealOpener(slot, r);
     this.clearMeal();
     window.__render && window.__render();
     return true;
+  },
+
+  /**
+   * Post the AI nutritionist's opening message, from the GROUNDED read.
+   *
+   * WHY THE CLIENT DRIVES THIS. analyze-meal used to compose and insert this bubble itself, inline
+   * with the analysis — but the only numbers it has at that moment are the model's raw estimate,
+   * and groundResult() then re-derives every macro against the food DB and recomputes the score.
+   * The thread told the athlete 23g of protein while the card in front of them read 29g, and the
+   * paragraph credited protein the card had just called low. The Meal Breakdown is the single
+   * source of truth, so the message has to be built from it, and the client is what holds it.
+   *
+   * The insert still happens server-side under the service role: clients may never write role='ai'
+   * (0046), and that boundary is the only reason an AI bubble can be trusted. Mode 'opener' makes
+   * no model call, so this costs nothing and is exempt from every spend ceiling.
+   *
+   * Day numbers are read AFTER the landing above, so `proteinSoFar` now includes this plate — which
+   * is exactly what the sentence needs to say and what the field name on the wire promises.
+   *
+   * Every failure is silent by design. The athlete already has their macros on screen; a missing
+   * bubble is a quieter thread, not a broken log. postOpener is idempotent, so a retry is safe.
+   */
+  async _postMealOpener(slot, r) {
+    try {
+      const sb = window.sb;
+      const meta = DAY.slotMacros[slot] || {};
+      const mealId = meta.mealId;
+      if (!sb || !mealId || !RT.userId || !r) return;
+      const loggedAt = DAY.mealLoggedAt ? DAY.mealLoggedAt[slot] : null;
+      const timing = analysisTiming(loggedAt != null ? loggedAt : minutesNow(), slotDeadline(slot));
+      const dp = S.mealDayProgress;
+      await sb.functions.invoke('analyze-meal', { body: {
+        mode: 'opener',
+        mealId,
+        mealType: slotTitle(slot),
+        goal: RT.primaryGoal || null,
+        // The finished read, exactly as the breakdown renders it. Nothing here is re-estimated.
+        read: {
+          name: r.name, quality: r.quality,
+          protein: r.protein, kcal: r.kcal, carbs: r.carbs, fat: r.fat, fiber: r.fiber,
+          detected: r.detectedRich || [],
+          note: r.note, analysis: r.analysis, highlights: r.highlights || [],
+        },
+        ...(timing ? { timing } : {}),
+        dayAfter: {
+          proteinIncludingThisMeal: Math.max(0, Math.min(500, dp.proteinSoFar)),
+          proteinTarget: Math.max(0, Math.min(500, dp.proteinTarget)),
+          mealsRemaining: Math.max(0, Math.min(8, dp.mealsRemaining)),
+        },
+      } });
+      window.__render && window.__render();
+    } catch { /* a quieter thread, not a broken log */ }
   },
 
   /** Athlete answered the clarifying questions from inside the thread. */
@@ -1819,9 +1889,14 @@ export const act = {
       const timing = analysisTiming(MEAL.capturedAtMin != null ? MEAL.capturedAtMin : minutesNow(), slotDeadline(MEAL.key || 'dinner'));
       const gm = { protein: r.protein, carbs: r.carbs, fat: r.fat, kcal: r.kcal };
       r.quality = mealQualityScore({ macros: gm, fiber: r.fiber, detected: r.detectedRich, minutesLate: timing ? timing.minutesLate : 0 });
-      // The score moved — re-check that the surviving prose still agrees with the new band.
+      // The score AND the macros moved — re-check that the surviving prose still agrees with both
+      // the new band and the new numbers. An edited plate is the most likely place for prose to
+      // start quoting figures the breakdown no longer shows: removing a food drops its macros but
+      // a sentence about the REST of the plate survives stripFoodMentions with its old totals in it.
       const band = qualityBand(r.quality);
-      if (!analysisAgreesWithBand(r.analysis, band) || !analysisAgreesWithBand(r.note, band)) {
+      if (!analysisAgreesWithBand(r.analysis, band) || !analysisAgreesWithBand(r.note, band)
+        || !analysisAgreesWithNumbers(r.analysis, { ...gm, fiber: r.fiber })
+        || !analysisAgreesWithNumbers(r.note, { ...gm, fiber: r.fiber })) {
         r.analysis = '';
         r.note = qualityReason(gm, r.fiber, r.detectedRich) || 'Logged. The breakdown shows how this plate reads.';
       }

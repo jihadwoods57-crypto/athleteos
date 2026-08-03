@@ -765,6 +765,81 @@ export function analysisAgreesWithBand(text, band) {
   return true;
 }
 
+/* THE NUMERIC RAIL — the sibling of analysisAgreesWithBand, and the reason the AI nutritionist
+   can no longer contradict the Meal Breakdown (founder call 2026-08-02).
+
+   The model writes its paragraph while looking at its OWN estimate. Grounding then re-derives every
+   macro against the food DB, so a paragraph that said "around 23g of protein" can end up sitting on
+   a card that reads 29g. analysisAgreesWithBand caught the TONE version of that conflict; nothing
+   caught the NUMBERS. This does: prose whose figures the card contradicts is dropped, and the
+   deterministic qualityReason line speaks in its place (see state.js groundResult).
+
+   Deliberately narrow, because a rail that fires on honest prose is worse than no rail:
+     * only figures the text ATTACHES to a macro count ("29g of protein", "660 calories"). A bare
+       number is a description of the plate, not a claim about the totals — "6 to 8 strips" of bacon
+       and "2 eggs" must never silence a correct paragraph.
+     * ranges pass when the grounded value falls inside them. The system prompt actively ASKS for
+       hedged ranges on a photo estimate, so "roughly 40 to 50g of protein" over a grounded 44 is
+       the model doing exactly what it was told.
+     * a figure is allowed to round: it passes within 10%, or 3g / 30kcal, whichever is larger.
+   What the prose may not do is state a number the athlete can see is different.
+
+   The meal SCORE is not checked here. The model is never told the final score (it is computed
+   after the fact from the grounded macros), so it does not quote one; the band check above is what
+   governs whether its language can sit next to that score. */
+// "29", or a hedged "25 to 34" / "25-34".
+const RANGE = '(\\d{1,5})(?:\\s*(?:to|-|–|—|or)\\s*(\\d{1,5}))?';
+// The window between a macro word and its figure, for the "protein lands near 30g" word order. It
+// is TEMPERED so it can never cross into a neighbouring macro's clause: in "48g of carbs and 42g of
+// fat" the 42 belongs to fat, and a plain [^.!?]{0,20} window would happily read it as carbs and
+// then fail honest prose. The window stops dead at any other macro word or the conjunction that
+// introduces one.
+const MACRO_WORDS = 'protein|carbs?|carbohydrates?|fat|fib(?:er|re)|calories|kcal|cals?';
+const GAP = `(?:(?!\\b(?:${MACRO_WORDS})\\b|\\band\\b)[^.!?]){0,20}?`;
+const unitFirst = (macro) => new RegExp(`${RANGE}\\s*g(?:rams?)?\\s+(?:of\\s+)?(?:${macro})`, 'gi');
+const macroFirst = (macro) => new RegExp(`\\b(?:${macro})\\b${GAP}${RANGE}\\s*g\\b`, 'gi');
+
+const MACRO_PATTERNS = [
+  // "29g of protein" / "29 grams protein", then "protein is about 29g".
+  ['protein', unitFirst('protein')],
+  ['protein', macroFirst('protein')],
+  ['carbs', unitFirst('carb|carbohydrate')],
+  ['carbs', macroFirst('carbs?|carbohydrates?')],
+  ['fat', unitFirst('fat\\b')],
+  ['fat', macroFirst('fat')],
+  ['fiber', unitFirst('fib(?:er|re)\\b')],
+  ['fiber', macroFirst('fib(?:er|re)')],
+  // "660 calories" / "660 kcal" / "660 cals".
+  ['kcal', new RegExp(`${RANGE}\\s*(?:kcal|cals?|calories)\\b`, 'gi')],
+];
+
+export function analysisAgreesWithNumbers(text, macros) {
+  const t = String(text == null ? '' : text);
+  if (!t) return true;
+  const m = macros && typeof macros === 'object' ? macros : null;
+  if (!m) return true;
+  const truth = {
+    protein: Number(m.protein), carbs: Number(m.carbs), fat: Number(m.fat),
+    kcal: Number(m.kcal), fiber: Number(m.fiber),
+  };
+  for (const [key, re] of MACRO_PATTERNS) {
+    const actual = truth[key];
+    // Nothing to contradict: a macro the grounded read does not carry (fiber is often absent) can
+    // never fail the prose. Silence is not disagreement.
+    if (!Number.isFinite(actual)) continue;
+    re.lastIndex = 0;
+    let hit;
+    while ((hit = re.exec(t)) !== null) {
+      const lo = Number(hit[1]);
+      const hi = hit[2] != null ? Number(hit[2]) : lo;
+      if (!Number.isFinite(lo) || !Number.isFinite(hi)) continue;
+      const tol = Math.max(key === 'kcal' ? 30 : 3, actual * 0.1);
+      if (actual < Math.min(lo, hi) - tol || actual > Math.max(lo, hi) + tol) return false;
+    }
+  }
+  return true;
+}
+
 /* ================================================================================
    MEAL EVENT CLASSIFIER (upgrade 2026-07-16) — coach-notification urgency.
      'logged'  — complete, no question, no major issue: feed + unread only.
