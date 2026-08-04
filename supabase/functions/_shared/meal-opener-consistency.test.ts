@@ -84,25 +84,25 @@ const bubbleFor = (grounded: any, over: Record<string, unknown> = {}) => compose
   planStyle: 'structured', late: false, mealName: 'Breakfast', day: dayFor(grounded), ...over,
 });
 
-describe('the thread bubble states the breakdown card\'s numbers, never a second estimate', () => {
-  it('quotes the GROUNDED protein and calories', () => {
-    const grounded = groundResult(rawPayload());
-    expect(bubbleFor(grounded)).toContain(
-      `I'd put it around ${grounded.protein}g of protein and ${grounded.kcal} calories`,
-    );
-  });
-
-  it('never quotes the model\'s raw estimate once grounding has moved it', () => {
-    const grounded = groundResult(rawPayload());
-    // Guard the test itself: if grounding did not move this payload there is nothing to prove here.
-    expect(grounded.protein).not.toBe(rawPayload().protein);
-    expect(bubbleFor(grounded)).not.toContain(`${rawPayload().protein}g of protein`);
-  });
-
-  it('names the same foods the breakdown lists', () => {
+describe('the thread bubble never re-states the breakdown card — and never re-estimates it', () => {
+  // The contract sharpened on 2026-08-04: the bubble used to be REQUIRED to quote the grounded
+  // macros (proof it wasn't a second estimate). Now the founder's rule is stronger — the card is
+  // on screen, so the bubble states NO meal-macro figures at all. No figures ⇒ no figure can
+  // disagree with the card ⇒ the single-source-of-truth invariant holds by construction.
+  it('states no macro figure for the plate at all — the card owns those numbers', () => {
     const grounded = groundResult(rawPayload());
     const bubble = bubbleFor(grounded);
-    for (const food of grounded.detected) expect(bubble.toLowerCase()).toContain(String(food).toLowerCase());
+    expect(bubble).not.toContain("I'd put it around");
+    expect(bubble).not.toContain(`${grounded.protein}g`);
+    expect(bubble).not.toContain(`${grounded.kcal} calories`);
+    expect(bubble).not.toContain(`${rawPayload().protein}g of protein`);
+  });
+
+  it('does not list the foods back — the athlete is looking at the photo', () => {
+    const grounded = groundResult(rawPayload());
+    const bubble = bubbleFor(grounded).toLowerCase();
+    expect(bubble).not.toContain('i can see');
+    expect(bubble).not.toContain('bacon, french toast sticks and home fries');
   });
 
   it('drops the model\'s paragraph when its figures contradict the grounded read', () => {
@@ -128,16 +128,26 @@ describe('the thread bubble states the breakdown card\'s numbers, never a second
     expect(bubbleFor(grounded)).toContain('almost entirely refined');
   });
 
-  it('counts the plate the athlete just logged in the day sentence', () => {
-    // The regression the founder reported: a logged breakfast that read "near 0 of 155g".
+  it('frames the day FORWARD from the grounded total — the gap, not a progress restatement', () => {
     const grounded = groundResult(rawPayload());
     const bubble = bubbleFor(grounded);
-    expect(bubble).toContain(`That puts you near ${grounded.protein} of 155g for the day`);
+    const gap = 155 - grounded.protein;
+    expect(bubble).toContain(`About ${gap}g of protein still to go across your last 2 required meals`);
+    expect(bubble).not.toContain('That puts you near');
     expect(bubble).not.toContain('near 0 of 155g');
   });
 
   it('says which meals it is counting, so it cannot read against the log card\'s counter', () => {
-    expect(bubbleFor(groundResult(rawPayload()))).toContain('2 required meals left');
+    expect(bubbleFor(groundResult(rawPayload()))).toContain('required meals');
+  });
+
+  it('sanitized client patterns ride through to the bubble', () => {
+    const grounded = groundResult({
+      ...rawPayload(),
+      analysis: 'The carbs here are almost entirely refined and fried, with no fruit or vegetable in sight.',
+    });
+    const bubble = bubbleFor(grounded, { patterns: ["You've logged breakfast on time 3 days running."] });
+    expect(bubble).toContain('3 days running');
   });
 
   it('an Intuitive athlete still sees no figure anywhere in it', () => {

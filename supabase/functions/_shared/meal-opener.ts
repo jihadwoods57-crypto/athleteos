@@ -44,18 +44,6 @@ const int = (v: unknown): number | null => {
   return Number.isFinite(n) ? Math.round(n) : null;
 };
 
-/** "steak, sweet potato fries and green beans" — how a person lists what they can see. */
-function foodList(detected: unknown): string {
-  if (!Array.isArray(detected)) return '';
-  const names = detected
-    .map((d) => text((d as { name?: unknown })?.name).toLowerCase())
-    .filter(Boolean)
-    .slice(0, 5);
-  if (!names.length) return '';
-  if (names.length === 1) return names[0];
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-}
-
 /** Does anything in the read look like a guess we should say out loud? */
 function lowConfidence(detected: unknown): boolean {
   if (!Array.isArray(detected)) return false;
@@ -80,6 +68,10 @@ export type OpenerContext = {
   /** null when the deadline is unknown; true = logged past it. */
   late?: boolean | null;
   mealName?: string | null;
+  /** Real history lines the CLIENT computed from the athlete's own recent meals (mealPatterns in
+   *  proto meal-intel.js) — "You've hit your protein bar in 3 of your last 4 dinners." At most
+   *  two are woven in, sanitized here; the server never invents history. */
+  patterns?: unknown;
   /**
    * The athlete's day, as it stands AFTER this plate has landed.
    *
@@ -110,54 +102,64 @@ export function composeOpenerText(input: MealInput, ctx: OpenerContext = {}): st
   const numbers = style !== 'intuitive';
   const parts: string[] = [];
 
-  const foods = foodList(input.detected);
   const meal = text(ctx.mealName) || text(input.name);
   const opening = meal ? meal.toLowerCase() : 'this one';
 
-  // 1. Timing — the standard, stated first, because it is the part the athlete controls.
-  if (ctx.late === true) parts.push(`Late on ${opening}, and logging it late still counts — hiding it wouldn't.`);
-  else if (ctx.late === false) parts.push(`Good timing on ${opening}.`);
+  // THE RULE THIS COMPOSER LIVES BY (founder 2026-08-04): never repeat what is already on the
+  // screen. The athlete can see the photo, the score, the reason chips, and the Meal Breakdown
+  // strip directly above this bubble — so the bubble never lists the foods back, never states
+  // the meal's macros, and never re-reads the progress bars. Its job is what the screen CANNOT
+  // say: the takeaway, one or two concrete next moves, and the athlete's own history.
 
-  // 2. What I can see.
-  if (foods) parts.push(`I can see ${foods}${parts.length ? '' : ' on this one'}.`);
-
-  // 3. Roughly what it comes to.
-  const p = int(input.protein), k = int(input.kcal);
-  if (numbers && p !== null && k !== null && (p > 0 || k > 0)) {
-    parts.push(`I'd put it around ${p}g of protein and ${k} calories.`);
-  }
-
-  // 4. How it fits the day — real numbers from the engine or nothing at all. The total is the day
-  // INCLUDING this plate (see OpenerContext.day); "required meals" names the denominator so this
-  // never reads as contradicting the day-requirements counter on the log card.
-  const dayTotal = int(ctx.day?.proteinIncludingThisMeal), target = int(ctx.day?.proteinTarget);
-  const remaining = int(ctx.day?.mealsRemaining);
-  if (numbers && dayTotal !== null && target !== null && target > 0) {
-    const rem = remaining === null ? ''
-      : remaining === 0 ? ' with your required meals in'
-      : remaining === 1 ? ' with one required meal left'
-      : ` with ${remaining} required meals left`;
-    parts.push(`That puts you near ${dayTotal} of ${target}g for the day${rem}.`);
-  }
-
-  // 5. The model's own read of how this supports the athlete — the substance of the message.
-  // Clipped on a sentence boundary, not at a character count: a paragraph that stops mid-clause
-  // reads as broken software, and the message is supposed to sound like a person wrote it.
-  const analysis = clip(text(input.analysis), 500);
+  // 1. The biggest takeaway first — the model's own read of how this plate supports the athlete.
+  // Clipped on a sentence boundary: a paragraph that stops mid-clause reads as broken software.
+  const analysis = clip(text(input.analysis), 420);
   const note = text(input.note);
   if (analysis) parts.push(analysis);
   else if (note) parts.push(note);
 
-  // 6. What I'm not sure about. Only for real uncertainty — a hedge on every meal is noise.
-  if (lowConfidence(input.detected)) {
-    parts.push("Some of that is a guess from the photo — portions, oil or sauce could move it, so correct anything I've misread.");
-  }
-
-  // 7. One practical thing, in the model's own words when it offered one.
+  // 2. One or two specific recommendations, in the model's own words when it offered them.
   const sub = text((input.substitution as { suggestion?: unknown } | undefined)?.suggestion);
   const highlight = Array.isArray(input.highlights) ? text(input.highlights[0]) : '';
   if (sub) parts.push(sub);
-  else if (highlight) parts.push(highlight);
+  if (highlight && highlight !== sub) parts.push(highlight);
+
+  // 3. The day, framed FORWARD — what's still to do, never a restatement of the bars above.
+  // Real engine numbers or nothing; the total already includes this plate (see OpenerContext.day).
+  const dayTotal = int(ctx.day?.proteinIncludingThisMeal), target = int(ctx.day?.proteinTarget);
+  const remaining = int(ctx.day?.mealsRemaining);
+  if (numbers && dayTotal !== null && target !== null && target > 0) {
+    const gap = target - dayTotal;
+    if (gap <= 0) {
+      parts.push(`That closes out your protein for the day — nothing left to chase there.`);
+    } else if (remaining !== null && remaining > 0) {
+      parts.push(`About ${gap}g of protein still to go across your last ${remaining === 1 ? 'required meal' : `${remaining} required meals`} — keep protein leading each plate and it lands.`);
+    } else if (remaining === 0) {
+      parts.push(`Your required meals are in — about ${gap}g short on protein; a protein-forward snack tonight closes most of that.`);
+    }
+  }
+
+  // 4. History — the thread remembers (founder 2026-08-04): at most two REAL pattern lines the
+  // client computed from this athlete's own recent meals. Each is individually style-railed so
+  // one numeric pattern can never cost an Intuitive athlete the whole message.
+  const rawPatterns = Array.isArray(ctx.patterns) ? ctx.patterns : [];
+  let woven = 0;
+  for (const p of rawPatterns) {
+    if (woven >= 2) break;
+    const line = text(p).slice(0, 160);
+    if (!line || violatesStyleLanguage(line, style)) continue;
+    parts.push(/[.!?]$/.test(line) ? line : `${line}.`);
+    woven++;
+  }
+
+  // 5. Timing — only when it needs saying. On-time praise lives in the score chips now; the
+  // bubble only speaks up when late, because that's the accountability half the chips soften.
+  if (ctx.late === true) parts.push(`And logging ${opening} late still counts — hiding it wouldn't.`);
+
+  // 6. What I'm not sure about. Only for real uncertainty — a hedge on every meal is noise.
+  if (lowConfidence(input.detected)) {
+    parts.push("Some of my read is a guess from the photo — portions, oil or sauce could move it, so correct anything I've misread.");
+  }
 
   const out = clip(parts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim());
   if (out.length < 2) return '';

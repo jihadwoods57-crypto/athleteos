@@ -312,6 +312,10 @@ interface AnalyzeReq {
   /** Mode 'opener' ONLY: the finished, GROUNDED read — the exact object the Meal Breakdown card
    *  renders. Every figure the thread bubble states is composed from this and nothing else. */
   read?: Record<string, unknown>;
+  /** Mode 'opener' ONLY: real history lines the client computed from this athlete's own recent
+   *  meals (proto meal-intel.js mealPatterns) — at most two are woven into the opener. Sanitized
+   *  in meal-opener.ts; the server never invents history. */
+  patterns?: string[];
   /** Meal path: "I will post the opener myself once I have grounded this read" (mode 'opener').
    *  Set by any client new enough to do so. Absent = a pre-2026-08-02 build, which cannot, so the
    *  meal path posts the old inline bubble for it rather than leaving it with no AI message at all.
@@ -363,7 +367,7 @@ const MEAL_TOOL = {
         description: 'Up to 3 short micronutrient highlights ONLY when clearly present (e.g. "Strong iron source, supports oxygen delivery"). Empty when nothing stands out. Never fabricate.',
       },
       note: { type: 'string', description: 'One coach-voiced sentence tying this meal to the athlete goal. No hype, no em dashes.' },
-      analysis: { type: 'string', description: 'The detailed athlete-facing read: one well-constructed paragraph of 3 to 6 sentences in the coach voice. Cover what the meal is and roughly how much, why the macros read the way they do, the single most valuable adjustment, and, when timing information was provided, acknowledge on-time or late plainly while holding the standard without shaming. No repetition of the raw numbers as a list, no hype, no em dashes.' },
+      analysis: { type: 'string', description: 'The athlete-facing read: 2 to 5 sentences written the way a real nutrition coach texts an athlete they know. Lead with the single biggest takeaway about this plate, then one or two specific, doable recommendations. The app already shows the athlete the photo, the score, and every macro number, so NEVER list or restate macros or calories; mention a number only when it is the point of the advice (e.g. a portion size to aim for). Warm, direct, personal, zero hype, no headers or bullets, no em dashes.' },
       reconcile: { type: 'string', description: 'Only when the athlete note CONTRADICTS what is plainly visible (e.g. says grilled but it is clearly fried, or "no sauce" when it is drowning): one short, non-accusatory coach sentence saying what you are counting and why, leaving them an out. Omit entirely when the note agrees with or merely adds hidden food. No em dashes.' },
       descriptionSignal: { type: 'string', enum: ['match', 'photo_heavier', 'photo_lighter', 'no_photo'], description: 'Relationship of the athlete note to the photo. "match": the note agrees with the photo or only adds plausible hidden/off-frame food (trust it). "photo_heavier": the plate visibly holds MORE than the note claims (the note underrated it). "photo_lighter": the plate visibly holds LESS than the note claims. "no_photo": no photo was provided.' },
       substitution: {
@@ -440,22 +444,26 @@ Confidence honesty: mark a detected food "low" whenever the photo alone cannot c
 ambiguous, or inferred from the athlete note). Fiber and highlights are estimates from what is
 visible; when nothing is clearly notable, return highlights as an empty array.
 
-The analysis field is the athlete's main read: one paragraph, 3 to 6 sentences, coach voice. When
-the message includes timing (due time, minutes late or early), open the analysis by holding the
-standard on timing: late gets named plainly ("late on lunch is not the standard") while crediting
-the log; on time gets credited ("in on time, that is the standard"). Never shame, never moralize
-food. Then read the plate: say why it helps or hurts performance (recovery, energy, fueling), give
-the SINGLE most valuable adjustment (never a list of generic tips), and one concrete next-meal
-action. When Day context numbers are provided, connect this meal to the day using ONLY those
-numbers plus your own estimate for this plate ("that puts you at roughly X of Yg protein with N
-meals to come"); never invent totals, targets, schedules, or history you were not given. You do
-NOT know the athlete's training schedule — never reference a specific practice, game, or session
-time ("this afternoon's training") as if you did.
+The analysis field is the athlete's main read: 2 to 5 sentences, written the way a real nutrition
+coach texts an athlete they know — warm, direct, specific to THIS plate and THIS athlete's day.
+Lead with the single biggest takeaway (why this plate helps or hurts recovery, energy, fueling),
+then give the SINGLE most valuable adjustment plus one concrete next-meal action. Never shame,
+never moralize food.
 
-Estimate language: your numbers are photo estimates and the analysis must sound like it. Prefer
-ranges and hedged phrasing for anything the photo cannot pin down ("roughly 42 to 50g of protein",
-"around 620 calories", "the portion looks smaller than a typical serving", "oil or sauce could
-move this"). Never present an estimate as an exact fact.
+THE SCREEN ALREADY SAYS IT (hard requirement): the athlete is looking at the photo, the score,
+score-reason chips, and a full macro breakdown while they read you. Never enumerate or restate
+the macros, the calories, or the score; never list the foods back at them; never re-describe what
+the photo plainly shows. Say what the screen cannot: what it means and what to do next. A number
+belongs in your text only when it IS the advice (a portion to aim for, a gap to close). When Day
+context numbers are provided, frame them FORWARD ("about 60g to go across your last two meals")
+using ONLY those numbers; never restate progress the app already charts, and never invent totals,
+targets, schedules, or history you were not given. You do NOT know the athlete's training
+schedule — never reference a specific practice, game, or session time as if you did. Do not open
+with timing verdicts; the app states on-time/late itself. You may reference timing only inside
+advice (e.g. eating earlier tomorrow).
+
+Estimate language: your read comes from a photo and the analysis must sound like it when you do
+use a number ("a palm-size portion", "roughly a cup"). Never present an estimate as an exact fact.
 
 Consistency rules, hard requirements: your written analysis, detected list, macro numbers, and
 quality score must agree with each other. Attribute the macros food by food: every detected food
@@ -801,6 +809,7 @@ async function postOpener(
       // PRE-meal total (the plate is still being read when the analysis request is built), and
       // printing it is what made a logged breakfast read "near 0 of 155g".
       day: req.dayAfter ?? null,
+      patterns: req.patterns ?? null,
       goal: req.goal ?? null,
     });
     if (!text) return;   // nothing honest to say — an empty bubble is worse than no bubble
