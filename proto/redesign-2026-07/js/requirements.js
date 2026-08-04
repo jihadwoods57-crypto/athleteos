@@ -68,10 +68,6 @@ export const CATALOG = [
     freq: { type: 'daily' }, window: { open: 18 * 60, due: 1230 }, required: true,
     impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium',
     note: 'Protein + slow carb + a vegetable. Close the day right.' },
-  { id: 'hydration', title: 'Hydration · 120 oz', icon: 'droplet', accent: 'b', proof: 'counter',
-    freq: { type: 'daily' }, window: { due: 21 * 60 + 30 }, required: false,
-    impact: { kind: 'focus' }, reminder: 'low',
-    note: '20 oz before practice. Water with every meal. Done by 9:30 PM.' },
   { id: 'recovery', title: 'Recovery Check-In', icon: 'moon', accent: 'p', proof: 'form',
     freq: { type: 'daily' }, window: { due: 23 * 60 + 30, label: 'Before bed' }, required: true,
     impact: { kind: 'component', comp: 'recovery' }, reminder: 'high',
@@ -260,7 +256,6 @@ export function stdFromSolo(standard) {
 const KIND_DEFAULTS = {
   meal:      { icon: 'utensils', accent: 'g', proof: 'photo', required: true, impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium', freq: { type: 'daily' } },
   lift:      { icon: 'bolt', accent: 'b', proof: 'check', required: true, impact: { kind: 'plan' }, reminder: 'medium', freq: { type: 'daily' } },
-  hydration: { icon: 'droplet', accent: 'b', proof: 'counter', required: false, impact: { kind: 'focus' }, reminder: 'low', freq: { type: 'daily' } },
   recovery:  { icon: 'moon', accent: 'p', proof: 'form', required: true, impact: { kind: 'component', comp: 'recovery' }, reminder: 'high', freq: { type: 'daily' } },
   weigh:     { icon: 'scale', accent: 'a', proof: 'scale', required: true, impact: { kind: 'trend' }, reminder: 'high', freq: { type: 'days', days: [1, 3, 5], label: 'Mon / Wed / Fri' } },
   checkin:   { icon: 'clipboard', accent: 'g', proof: 'form', required: true, impact: { kind: 'component', comp: 'checkin' }, reminder: 'high', freq: { type: 'weekly', day: 0, label: 'Sundays' }, route: 'checkin' },
@@ -273,6 +268,9 @@ export function catalogFromItems(items) {
   if (!Array.isArray(items)) return [];
   return items.map((it) => {
     if (!it || typeof it !== 'object' || !it.id || !it.title) return null;
+    // Hydration is off the app entirely — coach sets authored before the removal may still
+    // carry the item; it must not fall through to the 'custom' default and become a task.
+    if (it.kind === 'hydration') return null;
     const d = KIND_DEFAULTS[it.kind] || KIND_DEFAULTS.custom;
     return {
       id: String(it.id), title: String(it.title),

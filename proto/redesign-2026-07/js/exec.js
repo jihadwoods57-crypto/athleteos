@@ -52,7 +52,6 @@ const ROUTE = {
   lunch: (d) => (d ? 'meal-detail/lunch' : 'camera/lunch'),
   dinner: (d) => (d ? 'meal-detail/dinner' : 'camera/dinner'),
   weight: () => 'weight',
-  hydration: () => 'log',
   recovery: (d) => (d ? 'recovery-confirm' : 'recovery'),
 };
 
@@ -65,9 +64,7 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
   const rows = catalog.filter((r) => r.id !== 'weekly' && runsToday(r, dow));
   const items = rows.map((req) => {
     const st = status[req.id] || {};
-    const isHydro = req.id === 'hydration';
-    const hydroDone = isHydro && (st.oz || 0) >= 120;
-    const done = isHydro ? hydroDone : !!st.done;
+    const done = !!st.done;
     let state = itemState(req, { done, late: !!st.late }, nowMin);
     // First-day activation (no retroactive failure): a REQUIRED window that closed before the
     // athlete could act — activation moment + buffer — is not their responsibility today. It
@@ -75,17 +72,16 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
     // ladder, and reminders. A meal they logged anyway still counts (done wins).
     if (req.required && !done && windowPreActivation(req.window.due, activationMin)) state = 'not_required';
     // Optional items are never late in a way that matters — cap overdue/due_soon to
-    // 'ready' so hydration (etc.) never renders the red "still counts" treatment.
+    // 'ready' so a focus item never renders the red "still counts" treatment.
     if (!req.required && (state === 'overdue' || state === 'due_soon')) state = 'ready';
     const minsLeft = !done && nowMin <= req.window.due ? req.window.due - nowMin : null;
     const dueLabel = req.window.label || `due ${fmtMin(req.window.due)}`;
     const impact = IMPACT_LABEL[req.impact.comp || req.impact.kind] || '';
     let sub;
-    if (state === 'done' || state === 'done_late') sub = st.at ? `Logged at ${st.at}${st.late ? ' · late' : ''}` : (isHydro ? `${st.oz} oz · goal hit` : req.proof === 'form' ? 'Submitted' : 'In');
+    if (state === 'done' || state === 'done_late') sub = st.at ? `Logged at ${st.at}${st.late ? ' · late' : ''}` : (req.proof === 'form' ? 'Submitted' : 'In');
     else if (state === 'not_required') sub = `Closed at ${fmtMin(req.window.due)} — you joined after, so it won’t count`;
     else if (state === 'overdue') sub = `Was due ${fmtMin(req.window.due)} — still counts, log it late`;
     else if (state === 'locked') sub = `Opens at ${fmtMin(req.window.open)}`;
-    else if (isHydro) sub = `${st.oz || 0} of 120 oz · ${dueLabel}`;
     else sub = dueLabel;
     return {
       id: req.id, title: req.title, icon: req.icon, state, color: COLOR[state], pill: PILL[state],
@@ -96,7 +92,7 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
       route: ROUTE[req.id] ? ROUTE[req.id](done)
         : req.proof === 'photo' ? (done ? `meal-detail/${req.id}` : `camera/${req.id}`) : 'home',
       required: !!req.required, tracked: true,
-      window: req.window, proof: req.proof, oz: isHydro ? (st.oz || 0) : undefined,
+      window: req.window, proof: req.proof,
     };
   });
 

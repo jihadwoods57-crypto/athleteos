@@ -209,12 +209,13 @@ body {
   cursor: pointer;
 }
 .ring-wrap { position: relative; width: 338px; height: 338px; margin:0 auto; }
-/* living light: slow-rotating conic bloom bleeding onto the canvas */
+/* living light: slow-rotating conic bloom bleeding onto the canvas — brand sweep stops only
+   (--ring-a/b/c greens/teal/blue; the old lime #A3E635 and #4ADE80 were off-brand) */
 .ring-wrap .aurora {
   position: absolute; inset: -14%; border-radius: 50%; z-index: 0; pointer-events: none;
   background: conic-gradient(from -90deg,
-    rgba(74,222,128,0.50), rgba(163,230,53,0.34), rgba(var(--teal-rgb), 0.42),
-    rgba(var(--blue-rgb), 0.55), rgba(37,99,235,0.30), rgba(var(--green-rgb), 0.44), rgba(74,222,128,0.50));
+    rgba(var(--green-rgb), 0.50), rgba(var(--teal-rgb), 0.42),
+    rgba(var(--blue-rgb), 0.55), rgba(37,99,235,0.30), rgba(var(--green-rgb), 0.44), rgba(var(--green-rgb), 0.50));
   filter: blur(46px); opacity: 0.55;
   /* annulus mask: glow hugs the band, center stays dark */
   -webkit-mask: radial-gradient(closest-side, transparent 52%, #000 68%, #000 88%, transparent 100%);

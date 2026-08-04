@@ -40,9 +40,9 @@ describe('item state boundaries', () => {
     expect(b.color).toBe('red');
     expect(b.pill).toBe('Missed');
   });
-  test('optional hydration never renders overdue', () => {
-    const e = at(22 * 60); // past hydration's 21:30 target — optional items cap at 'ready'
-    expect(e.items.find((i: any) => i.id === 'hydration')!.state).toBe('ready');
+  test('hydration is gone from the catalog entirely (removed from the app)', () => {
+    const e = at(22 * 60);
+    expect(e.items.find((i: any) => i.id === 'hydration')).toBeUndefined();
   });
 
   // Home-screen dedup regression: in the evening, breakfast AND lunch are both overdue, so `now`
@@ -80,7 +80,7 @@ describe('NOW selection priority', () => {
     expect(e.now.id).toBe('dinner');
     expect(e.next.id).toBe('recovery');
   });
-  test('optional hydration never becomes NOW while required items open', () => {
+  test('NOW is never a hydration item (removed from the app)', () => {
     const e = at(19 * 60, { breakfast: { done: true }, lunch: { done: true }, weight: { done: true } });
     expect(e.now.id).not.toBe('hydration');
   });
@@ -118,7 +118,7 @@ describe('groups + progress + celebration', () => {
     expect(e.celebration).toBe(true);
     expect(e.now).toBeNull();
   });
-  test('hydration open does not block celebration', () => {
+  test('a stale hydration status key does not block celebration', () => {
     const e = at(22 * 60, { ...ALLDONE, hydration: { oz: 40 } });
     expect(e.celebration).toBe(true);
   });
@@ -155,7 +155,7 @@ describe('notification plan (delegated to notify-plan.js — see notifyPlan.test
     const e = at(8 * 60, { breakfast: { done: true } });
     expect(e.plan.filter((p: any) => p.id === 'breakfast')).toEqual([]);
   });
-  test('hydration never notifies', () =>
+  test('hydration never notifies (removed from the app)', () =>
     expect(at(8 * 60).plan.filter((p: any) => p.id === 'hydration')).toEqual([]));
   test('every reminder carries its deep-link route — tap lands on the screen, not Home (WS7)', () => {
     const e = at(6 * 60);

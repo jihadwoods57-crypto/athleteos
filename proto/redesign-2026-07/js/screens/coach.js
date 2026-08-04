@@ -712,7 +712,7 @@ const LIFT_DAYS = { 1: [2], 2: [2, 4], 3: [1, 3, 5], 4: [1, 2, 4, 5], 5: [1, 2, 
 // snack, which is what the "snack is optional" toggle marks as a bonus.
 const MEAL_NAMES = ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Meal 5', 'Meal 6'];
 const MEAL_WINDOWS = [{ open: 420, due: 570 }, { open: 720, due: 840 }, { open: 1080, due: 1230 }, { due: 1290 }, { due: 1320 }, { due: 1350 }];
-let KNOB = null; // { key, meals, lifts, weigh, hydration, recovery, checkin }
+let KNOB = null; // { key, meals, lifts, weigh, recovery, checkin }
 
 // Weekday short names by JS getDay() index (0 = Sunday) — the one label source for weigh cadence.
 const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -728,7 +728,6 @@ export function knobsFromItems(items) {
   const mealItems = items.filter(i => i.kind === 'meal');
   const lift = items.find(i => i.kind === 'lift');
   const weigh = items.find(i => i.kind === 'weigh');
-  const hyd = items.find(i => i.kind === 'hydration');
   const meals = Math.min(6, Math.max(1, mealItems.length));
   const slice = mealItems.slice(0, meals);
   const weighDaily = !!(weigh && weigh.freq && weigh.freq.type === 'daily');
@@ -743,9 +742,6 @@ export function knobsFromItems(items) {
     // reads back as 'custom' with its exact days selected — same schedule, now editable per-day.
     weigh: weigh ? (weighDaily ? 'daily' : 'custom') : 'off',
     weighDays: (weigh && weigh.freq && Array.isArray(weigh.freq.days)) ? weigh.freq.days.slice() : [1, 3, 5],
-    hydration: !!hyd,
-    hydrationOz: (hyd && typeof hyd.target === 'number') ? hyd.target
-      : (hyd && /(\d+)\s*oz/i.test(hyd.title || '') ? +(hyd.title.match(/(\d+)\s*oz/i)[1]) : 120),
     recovery: items.some(i => i.kind === 'recovery'),
     checkin: items.some(i => i.kind === 'checkin'),
     // Per-meal proof (Tier 2): read each meal's own proof; photoProof stays as the "all photo?"
@@ -835,11 +831,6 @@ export function itemsFromKnobs(k) {
       freq: daily ? { type: 'daily' } : { type: 'days', days, label: weighLabel(days) }, window: { due: 540 },
     });
   }
-  if (k.hydration) {
-    const oz = Math.min(999, Math.max(1, +k.hydrationOz || 120));
-    items.push({ id: 'hydration', title: `Hydration · ${oz} oz`, kind: 'hydration', proof: 'counter',
-                 freq: { type: 'daily' }, window: { due: 1290 }, required: false, target: oz });
-  }
   if (k.recovery) items.push({ id: 'recovery', title: 'Recovery Check-In', kind: 'recovery', proof: 'form', freq: { type: 'daily' }, window: { due: 1410, label: 'Before bed' } });
   if (k.checkin) items.push({ id: 'weekly', title: 'Weekly Check-In', kind: 'checkin', proof: 'form', freq: { type: 'weekly', day: 0, label: 'Sundays' }, window: { due: 1260 } });
   return items;
@@ -919,7 +910,7 @@ export const coachPlanSet = {
     if (!KNOB || KNOB.key !== key) {
       KNOB = existing
         ? { key, ...knobsFromItems(existing.items) }
-        : { key, meals: 3, lifts: 0, weigh: 'custom', weighDays: [1, 3, 5], hydration: true, hydrationOz: 120, recovery: true, checkin: true, photoProof: true };
+        : { key, meals: 3, lifts: 0, weigh: 'custom', weighDays: [1, 3, 5], recovery: true, checkin: true, photoProof: true };
     }
     // Slice F: position coaches and view-only staff SEE the governing standard but don't
     // edit it (founder matrix; 0078's set_team_requirements would bounce the save anyway).
@@ -980,7 +971,6 @@ export const coachPlanSet = {
         ${KNOB.photoProof ? sumChip('camera', 'Photo proof') : ''}
         ${KNOB.weigh !== 'off' ? sumChip('scale', KNOB.weigh === 'daily' ? 'Daily weigh' : `${weighLabel(KNOB.weighDays)} weigh`) : ''}
         ${KNOB.recovery ? sumChip('moon', 'Recovery') : ''}
-        ${KNOB.hydration ? sumChip('droplet', `<b>${KNOB.hydrationOz}</b> oz`) : ''}
       </div>
 
       <section class="std-mod">
@@ -1045,15 +1035,6 @@ export const coachPlanSet = {
         ${swRow('Coach review on meals', 'Flag each logged meal for your review', 'review', KNOB.coachReview)}
       </section>
 
-      <section class="std-mod">
-        ${modHead('droplet', 'std-ic-c', 'Hydration', 'A visible daily focus — tracked, not scored', KNOB.hydration ? `${KNOB.hydrationOz} oz` : 'Off')}
-        <div class="std-switch-row" style="padding-top:0">
-          <div class="std-sw-m"><div class="std-sw-t">Hydration focus</div><div class="std-sw-s">Shown on Home — tracked, not scored</div></div>
-          ${sw(KNOB.hydration, 'hydration')}
-        </div>
-        ${KNOB.hydration ? `<div class="std-lbl mt">Daily target</div><div class="std-chips">${[80, 100, 120, 150].map(n => chip(KNOB.hydrationOz === n, `${n} oz`, 'hydoz', n)).join('')}</div>` : ''}
-      </section>
-
       ${CD.caps.templates ? `
       <section class="std-mod">
         ${modHead('clipboard', 'std-ic-b', 'Templates', 'Start from a proven draft, or save this one')}
@@ -1093,7 +1074,7 @@ export const coachPlanSet = {
         const preview = previewFromKnobs(KNOB);
         if (!preview) return '';
         const { std, items } = preview;
-        const KIND_IC = { lift: 'bolt', weigh: 'scale', recovery: 'moon', checkin: 'clipboard', hydration: 'droplet' };
+        const KIND_IC = { lift: 'bolt', weigh: 'scale', recovery: 'moon', checkin: 'clipboard' };
         const scheduleLabel = (freq) => {
           if (!freq) return '';
           if (freq.type === 'daily') return 'Every day';
@@ -1229,12 +1210,10 @@ export const coachPlanSet = {
       const tog = (v) => (arg === 'toggle' ? !v : arg === '1');
       if (k === 'recovery') KNOB.recovery = tog(KNOB.recovery);
       if (k === 'checkin') KNOB.checkin = tog(KNOB.checkin);
-      if (k === 'hydration') KNOB.hydration = tog(KNOB.hydration);
       // Master photo switch: set EVERY meal at once (per-meal pills override individually after).
       if (k === 'photo') { materializeMeals(); const allPhoto = KNOB.mealProofs.every(p => p === 'photo'); const nextP = allPhoto ? 'check' : 'photo'; KNOB.mealProofs = KNOB.mealProofs.map(() => nextP); KNOB.photoProof = nextP === 'photo'; }
       if (k === 'review') KNOB.coachReview = tog(KNOB.coachReview);
       if (k === 'snack') KNOB.snackOptional = tog(KNOB.snackOptional);
-      if (k === 'hydoz') KNOB.hydrationOz = +arg;
       if (k === 'grace') KNOB.grace = +arg;
       if (k === 'late') KNOB.latePolicy = arg;
       // Applying a template only fills the knobs — it never writes the DB directly. The

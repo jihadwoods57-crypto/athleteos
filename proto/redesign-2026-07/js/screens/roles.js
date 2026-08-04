@@ -234,7 +234,7 @@ const coachSteps = {
     const sel = c.standardTemplate || 'default';
     const seeds = seedTemplates();
     const chosen = sel === 'default' ? null : seeds.find((s) => s.kind === sel);
-    const KIND_ICON = { meal: 'utensils', lift: 'bolt', hydration: 'droplet', recovery: 'moon', weigh: 'scale', checkin: 'clipboard', custom: 'clipboard' };
+    const KIND_ICON = { meal: 'utensils', lift: 'bolt', recovery: 'moon', weigh: 'scale', checkin: 'clipboard', custom: 'clipboard' };
     const PROOF_LABEL = { photo: 'photo proof', form: 'quick form', scale: 'scale', counter: 'count it', check: 'check it off' };
     // Team athletes land on the default plan style with the `athlete` goal profile — read that
     // row from the engine's weight table rather than restating it, so this preview can't drift.
@@ -248,7 +248,6 @@ const coachSteps = {
         ['moon', 'Recovery check-in · nightly', `Recovery · ${dpct('recovery')}%`],
         ['clipboard', 'Weekly check-in · Sundays', `Check-in · ${dpct('checkin')}%`],
         ['scale', 'Weight · Mon / Wed / Fri', 'Season trend · not scored'],
-        ['droplet', 'Hydration · 120 oz', 'Focus item · optional'],
       ];
     return frame(5, 7, 'Set the team standard.', 'Start from a proven template. Fine-tune meals, windows, and rooms anytime in Standards.', `
     <div class="chip-row" id="co-tpl">

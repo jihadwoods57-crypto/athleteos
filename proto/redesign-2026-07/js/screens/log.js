@@ -1,4 +1,4 @@
-import { S, RT, act, liveWeightPct } from '../state.js';
+import { S, liveWeightPct } from '../state.js';
 import { DAY } from '../day.js';
 import { icon } from '../icons.js';
 import { esc } from '../components.js';
@@ -40,12 +40,6 @@ export default {
           <div style="font-size:15px;font-weight:800;margin-top:2px">You're OnStandard.</div>
           <div style="font-size:12px;color:var(--text-2);margin-top:4px;line-height:1.5">Every requirement is in. Day ${S.streakDays} locks at midnight.</div>
         </div>
-        ${RT.hydrationOz < 120 ? `
-        <div class="sheet-row">
-          <div class="si" style="background:var(--cyan-surface);color:var(--cyan)">${icon('droplet', 20)}</div>
-          <div class="st"><div class="t">Log Water</div><div class="s">${RT.hydrationOz} of 120 oz · optional</div></div>
-          <div class="water-btns"><span class="wb2" data-water="8">+8</span><span class="wb2" data-water="16">+16</span></div>
-        </div>` : ''}
         <div class="cancel" data-back="home">Close</div>
       </div>`;
     }
@@ -68,7 +62,6 @@ export default {
         ${icon('chevron', 16, 'style="color:var(--text-3)"')}
       </div>` : '';
 
-    const hydro = e.items.find((i) => i.id === 'hydration');
     const weight = e.items.find((i) => i.id === 'weight');
     const recovery = e.items.find((i) => i.id === 'recovery');
     const weeklyToday = new Date().getDay() === 0;
@@ -80,16 +73,6 @@ export default {
       ${head}${segs}${syncRow}
       ${hero}
       <div class="xgrp" style="margin:0 2px 7px">Quick logs</div>
-      ${hydro && hydro.state !== 'done' ? `
-      <div class="sheet-row">
-        <div class="si" style="background:var(--cyan-surface);color:var(--cyan)">${icon('droplet', 20)}</div>
-        <div class="st"><div class="t">Log Water</div><div class="s">${RT.hydrationOz} of 120 oz today</div></div>
-        <div class="water-btns"><span class="wb2" data-water="8">+8</span><span class="wb2" data-water="16">+16</span></div>
-      </div>` : `
-      <div class="sheet-row" style="background:linear-gradient(90deg, rgba(52,211,153,0.14), transparent 85%);border-radius:16px">
-        <div class="si" style="background:var(--green-surface);color:var(--green-bright)">${icon('check', 20)}</div>
-        <div class="st"><div class="t">Hydration standard hit</div><div class="s">${RT.hydrationOz} oz · this week's focus, handled.</div></div>
-      </div>`}
       ${weight && !(e.now && e.now.id === 'weight') ? `
       <div class="sheet-row" data-go="weight">
         <div class="si" style="background:${weight.state === 'done' ? 'var(--green-surface);color:var(--green-bright)' : 'var(--surface-2);color:var(--text-3)'}">${icon(weight.state === 'done' ? 'check' : 'scale', 20)}</div>
@@ -117,24 +100,5 @@ export default {
       ${e.doneItems.length ? `<div class="hub-fold" data-go="home">${icon('check', 13)} ${e.doneItems.length} completed today — view on Home</div>` : ''}
       <div class="cancel" data-back="home">Cancel</div>
     </div>`;
-  },
-  // Water taps are the highest-frequency action on this sheet — patch the counter in place
-  // instead of going through the router's [data-act] auto-wire+re-render, which replayed the
-  // 320ms sheet entrance and reset scroll on every +8/+16 (SETTLED mount()-self-wire pattern).
-  mount(root) {
-    root.querySelectorAll('.water-btns [data-water]').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        try { if (navigator.vibrate) navigator.vibrate(14); } catch { /* no-op */ }
-        const oz = +btn.getAttribute('data-water');
-        act.addWater(oz);
-        // Crossing the goal is a genuine state change (hydration row flips to done) — the one
-        // case where a real re-render is correct, not the high-frequency in-place path below.
-        if (RT.hydrationOz >= 120) { window.__render(); return; }
-        const s = btn.closest('.sheet-row').querySelector('.st .s');
-        const i = s.textContent.indexOf(' of ');
-        if (i >= 0) s.textContent = RT.hydrationOz + s.textContent.slice(i);
-      });
-    });
   },
 };

@@ -41,19 +41,24 @@ function grainPattern(ctx) {
   return ctx.createPattern(t, 'repeat');
 }
 
-/** The signature ring: dim full track, blurred under-glow, then the gradient arc from 12 o'clock. */
+/** The signature ring, drawn as the BRAND DIAL (docs/brand/LOGO.md): a 300° gauge with a 60° gap
+ *  centered on 6 o'clock, the sweep gradient on the mark's own axis, and the marker knob (bezel +
+ *  enamel core) at the progress tip — the same silhouette the footer lockup draws, so the two can
+ *  no longer disagree on one canvas. 0% is the bottom-left arc end, 50% is dead top. */
 function drawRing(ctx, cx, cy, r, stroke, pct) {
-  const g = ctx.createLinearGradient(cx - r, cy + r, cx + r, cy - r);
-  g.addColorStop(0, RING[0]); g.addColorStop(0.55, RING[1]); g.addColorStop(1, RING[2]);
+  const g = ctx.createLinearGradient(cx - 0.71 * r, cy + 0.88 * r, cx + 0.24 * r, cy - r);
+  g.addColorStop(0, RING[0]); g.addColorStop(0.5, RING[1]); g.addColorStop(1, RING[2]);
+  const A0 = (120 * Math.PI) / 180;              // bottom-left arc end (screen coords, y down)
+  const SWEEP = (300 * Math.PI) / 180;
 
   ctx.lineCap = 'round';
   ctx.strokeStyle = 'rgba(148,176,224,0.12)';
   ctx.lineWidth = stroke;
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, r, A0, A0 + SWEEP); ctx.stroke();
 
   if (pct <= 0) return;
-  const from = -Math.PI / 2;
-  const to = from + Math.PI * 2 * Math.min(1, pct);
+  const from = A0;
+  const to = A0 + SWEEP * Math.min(1, pct);
 
   ctx.save();
   ctx.shadowColor = 'rgba(34,211,238,0.55)';
@@ -80,6 +85,13 @@ function drawRing(ctx, cx, cy, r, stroke, pct) {
   ctx.strokeStyle = sg;
   ctx.lineWidth = specW;
   ctx.beginPath(); ctx.arc(cx, cy, rs, from, to); ctx.stroke();
+
+  // Marker knob at the tip — proportions from the mark (bezel 10.5/12 of band, core 6/12).
+  const tx = cx + Math.cos(to) * r, ty = cy + Math.sin(to) * r;
+  ctx.fillStyle = '#0F172A';
+  ctx.beginPath(); ctx.arc(tx, ty, stroke * 0.875, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#FFFFFF';
+  ctx.beginPath(); ctx.arc(tx, ty, stroke * 0.5, 0, Math.PI * 2); ctx.fill();
 }
 
 /* The display face has to be LOADED before canvas can draw with it, or the browser silently

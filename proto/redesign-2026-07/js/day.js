@@ -835,8 +835,10 @@ export function daySubmitCheckin(userId, ciValues) {
 }
 export function daySetCommitment(userId, ans) { DAY.dailyCommitment = ans; pushDay(userId); }
 export function daySetFocus(userId, text) { DAY.commitmentFocus = text || null; pushDay(userId); }
-export function dayAddWaterOz(userId, oz) { DAY.hydrationL = Math.min(6, DAY.hydrationL + oz * 0.0295735); pushDay(userId); }
-export function dayLogWeight(userId, lb) { if (lb) DAY.currentWeight = Math.round(lb); pushDay(userId); }
+/* Tenths are kept (0179 widened days.current_weight to numeric(5,1)) — the stepper moves by
+   0.1 and the typed input accepts decimals, so rounding to a whole pound here was silently
+   discarding what the athlete actually entered. Range sanity lives in act.logWeight. */
+export function dayLogWeight(userId, lb) { if (lb) DAY.currentWeight = Math.round(Number(lb) * 10) / 10; pushDay(userId); }
 export function dayToggleQuick(userId, i) { DAY.quickAdded[i] = !DAY.quickAdded[i]; pushDay(userId); }
 /* Complete (or un-complete) a standing NON-MEAL check requirement for today (lift / custom). Tracked,
    not scored: it rides into days.tasks so the coach sees it, but never touches computeComponents. */

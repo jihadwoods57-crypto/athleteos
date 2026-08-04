@@ -222,10 +222,12 @@ describe('Intuitive — awareness and adequate fueling, never restriction', () =
     expect(skipped).toBe(cold);
   });
 
-  test('hydration carries real weight on Intuitive', () => {
+  test('hydration no longer moves an Intuitive score (removed from the app)', () => {
+    // With no way to log water, scoring it would silently cap every Intuitive athlete's
+    // nutrition sub-score. knobsFor zeroes the part and renormalizes, so wet === dry.
     const dry = computeComponents(styled('intuitive', { hydrationL: 0, signals: allSignals, ...withCi })).nutrition;
     const hydrated = computeComponents(styled('intuitive', { hydrationL: 3, signals: allSignals, ...withCi })).nutrition;
-    expect(hydrated).toBeGreaterThan(dry);
+    expect(hydrated).toBe(dry);
   });
 });
 
@@ -253,13 +255,16 @@ describe('the per-day stamp — a style change never rewrites history', () => {
 });
 
 describe('professional customization reaches the engine', () => {
-  test('customizing Structured opts into the composition path', () => {
+  test('customizing Structured opts into the composition path — but cannot resurrect hydration', () => {
     const custom = knobsFor('structured', { nutrition: { hydrationScored: true } });
     expect(custom.nutrition.formula).toBe('parts');
-    // ...so hydration now matters for this client, where default Structured ignored it.
+    // Hydration is off the app entirely: a stored pro override asking for it is force-cleared
+    // AFTER the merge, so water can never move a score that water can no longer be logged into.
+    expect(custom.nutrition.hydrationScored).toBe(false);
+    expect(custom.parts.hydration).toBe(0);
     const dry = fullDay({ planStyle: 'structured', planKnobs: custom, hydrationL: 0 });
     const wet = fullDay({ planStyle: 'structured', planKnobs: custom, hydrationL: 3 });
-    expect(computeComponents(wet).nutrition).toBeGreaterThan(computeComponents(dry).nutrition);
+    expect(computeComponents(wet).nutrition).toBe(computeComponents(dry).nutrition);
   });
 
   test('a tighter pro band on Guided is genuinely stricter', () => {

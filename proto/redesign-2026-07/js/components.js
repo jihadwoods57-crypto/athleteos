@@ -88,37 +88,52 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
   const r = (size - stroke) / 2 - 14;
   const rEcho = Math.max(0, r - stroke/2 - 8);
   const cx = size / 2, cy = size / 2;
-  const C = 2 * Math.PI * r;
-  const off = C * (1 - score / 100);
-  const CEcho = 2 * Math.PI * rEcho;
-  const offEcho = CEcho * (1 - score / 100);
+  // ---- Brand-dial geometry (docs/brand/LOGO.md v2) ----
+  // The mark is a 300° gauge with a 60° gap centered on 6 o'clock: the arc runs from the
+  // bottom-left (120° from 3 o'clock, screen coords) clockwise through 12 up to the
+  // bottom-right (60°). 0% sits at the bottom-left end, 50% is dead top — exactly where the
+  // logo's own progress arc terminates — and 100% lands at the bottom-right end. Every score
+  // surface in the app draws THIS silhouette so the working rings and the mark are one thing.
+  const A0 = 120, SWEEP = 300;
+  const pt = (rad, deg) => {
+    const a = (deg * Math.PI) / 180;
+    return `${(cx + Math.cos(a) * rad).toFixed(2)} ${(cy + Math.sin(a) * rad).toFixed(2)}`;
+  };
+  // One 300° arc command (large-arc=1, sweep=1) — the same path shape as the brand masters.
+  const dial = (rad) => `M ${pt(rad, A0)} A ${rad.toFixed(2)} ${rad.toFixed(2)} 0 1 1 ${pt(rad, A0 + SWEEP - 360)}`;
+  // pathLength="100" normalizes every animated layer: dasharray "100", dashoffset 100-score.
+  // windBack (motion.js) reads the first dasharray token to hide, animateRing drives data-off —
+  // both work unchanged on paths.
+  const off = (100 - score).toFixed(1);
   // Ceiling arc: the points STILL REACHABLE today, drawn as a dim continuation of the same band
-  // from `score` to `possible`. The number was already on the card ("max today 71") but the ring
-  // only ever showed what had been earned, so a bad morning read as an empty ring with no way
-  // back. Renders nothing once the day is decided (possible === score) or when no ceiling is
-  // passed, which is every other call site.
+  // from `score` to `possible` — the whole path rotated so its start sits at the progress tip.
+  // Since possible ≤ 100 the dash segment never crosses the gap.
   const ceil = (possible != null && possible > score) ? {
-    span: C * ((possible - score) / 100),
-    rot: -90 + (score / 100) * 360,   // DEGREES — tipA below is radians, do not copy it
+    span: (possible - score).toFixed(1),
+    rot: ((score / 100) * SWEEP).toFixed(2),
   } : null;
   // Specular edge: a thin light-catch riding the OUTER edge of the band, which is what makes the
-  // band read as a lit solid instead of a flat stroke. Its own radius means its own circumference,
-  // so it carries its own dasharray/data-off — windBack and animateRing then drive it like every
-  // other layer with zero special-casing.
+  // band read as a lit solid instead of a flat stroke (the flat-dial's answer to dial-lit's sheen).
   const specW = Math.max(1.6, stroke * 0.16);
   const rSpec = r + stroke / 2 - specW / 2 - 0.6;
-  const CSpec = 2 * Math.PI * rSpec;
-  const offSpec = CSpec * (1 - score / 100);
-  // comet tip position (start at top, clockwise)
-  const tipA = -Math.PI / 2 + (score / 100) * 2 * Math.PI;
+  // Marker knob at the progress tip — the dial's seated jewel (bezel + enamel core), replacing
+  // the old comet starburst. Proportions from the mark: bezel 10.5/12 of the band, core 6/12.
+  // Theme-adaptive exactly like logoMark().
+  const light = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'light';
+  const tipDeg = A0 + (score / 100) * SWEEP;
+  const tipA = (tipDeg * Math.PI) / 180;
   const tipX = cx + Math.cos(tipA) * r, tipY = cy + Math.sin(tipA) * r;
-  // No spark until there's arc to lead — at score 0 the tip would sit orphaned at the
-  // top of an empty ring, so the comet only renders once score >= 6.
-  const sparkle = score >= 6 ? `
+  const bezelR = Math.max(5, stroke * 0.875), coreR = Math.max(2.6, stroke * 0.5);
+  // No marker until there's arc to lead — at score 0 it would sit orphaned at the start of an
+  // empty ring, so it only renders once score >= 6 (the dotted "unstarted" track below).
+  const marker = score >= 6 ? `
       <g class="ring-tip" opacity="1">
-        <circle cx="${tipX.toFixed(1)}" cy="${tipY.toFixed(1)}" r="${(stroke/2+2).toFixed(1)}" fill="#F2FDF8" filter="url(#tip${uid})"/>
-        <path d="M ${tipX.toFixed(1)} ${(tipY-16).toFixed(1)} L ${(tipX+2.4).toFixed(1)} ${(tipY-2.4).toFixed(1)} L ${(tipX+16).toFixed(1)} ${tipY.toFixed(1)} L ${(tipX+2.4).toFixed(1)} ${(tipY+2.4).toFixed(1)} L ${tipX.toFixed(1)} ${(tipY+16).toFixed(1)} L ${(tipX-2.4).toFixed(1)} ${(tipY+2.4).toFixed(1)} L ${(tipX-16).toFixed(1)} ${tipY.toFixed(1)} L ${(tipX-2.4).toFixed(1)} ${(tipY-2.4).toFixed(1)} Z"
-          fill="#FFFFFF" opacity="0.9" filter="url(#tip${uid})"/>
+        <circle cx="${tipX.toFixed(1)}" cy="${tipY.toFixed(1)}" r="${(bezelR * 0.9).toFixed(1)}" fill="#FFFFFF" opacity="0.5" filter="url(#tip${uid})"/>
+        ${light
+          ? `<circle cx="${tipX.toFixed(1)}" cy="${tipY.toFixed(1)}" r="${bezelR.toFixed(1)}" fill="#FFFFFF" stroke="#DBEAFE" stroke-width="1.5"/>
+             <circle cx="${tipX.toFixed(1)}" cy="${tipY.toFixed(1)}" r="${coreR.toFixed(1)}" fill="#2563EB"/>`
+          : `<circle cx="${tipX.toFixed(1)}" cy="${tipY.toFixed(1)}" r="${bezelR.toFixed(1)}" fill="#0F172A"/>
+             <circle cx="${tipX.toFixed(1)}" cy="${tipY.toFixed(1)}" r="${coreR.toFixed(1)}" fill="#FFFFFF"/>`}
       </g>` : '';
 
   return `
@@ -126,23 +141,21 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
     ${glow ? '<div class="aurora"></div><div class="glow"></div>' : ''}
     <svg class="ring-svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
       <defs>
-        <linearGradient id="g${uid}" x1="0.05" y1="0.15" x2="0.95" y2="0.75">
-          <stop offset="0%" stop-color="#A3E635"/>
-          <stop offset="30%" stop-color="#34D399"/>
-          <stop offset="60%" stop-color="#22D3EE"/>
-          <stop offset="100%" stop-color="#3B82F6"/>
+        ${/* The signature sweep — the SAME three stops as the brand masters, from the theme
+              tokens (--ring-a/b/c flip on light), on the mark's own axis: bottom-left of the
+              arc up toward the marker (LOGO.md gradient (26,82)→(58,18), scaled to this r). */''}
+        <linearGradient id="g${uid}" gradientUnits="userSpaceOnUse"
+          x1="${(cx - 0.71 * r).toFixed(1)}" y1="${(cy + 0.88 * r).toFixed(1)}" x2="${(cx + 0.24 * r).toFixed(1)}" y2="${(cy - r).toFixed(1)}">
+          <stop offset="0%" stop-color="var(--ring-a)"/>
+          <stop offset="50%" stop-color="var(--ring-b)"/>
+          <stop offset="100%" stop-color="var(--ring-c)"/>
         </linearGradient>
         ${/* THE BLURRED BOX BEHIND THE RING (founder, 2026-08-02) was this filter's region clipping
               its own glow. An SVG filter region is measured from the element's OBJECT BOUNDING BOX,
-              which for a shape EXCLUDES its stroke — and the under-glow below is a hairline-radius
-              circle carrying a stroke 14px wider than the band. Measured on the 128px Home ring:
-              bbox 89px, stroked extent 114px, blur stdDeviation 9 needs ~3σ (27px) of bleed each
-              side = 168px of glow, against a region of only 180% × 89 = 160px. The last 8px were
-              cut off square, and because the glow is still bright there it read as a translucent
-              blurry panel boxing the ring rather than as light.
-              260% gives 231px — clear of the 168px the glow actually needs, with headroom. Stated
-              in PERCENT so it scales with every call site (the 338px breakdown ring included)
-              instead of only fixing Home. */''}
+              which for a shape EXCLUDES its stroke — and the under-glow below carries a stroke 14px
+              wider than the band, and blur stdDeviation 9 needs ~3σ of bleed each side.
+              260% stays clear of what the glow actually needs, with headroom, stated in PERCENT so
+              it scales with every call site. */''}
         <filter id="soft${uid}" x="-80%" y="-80%" width="260%" height="260%">
           <feGaussianBlur stdDeviation="9"/>
         </filter>
@@ -156,39 +169,33 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
         </linearGradient>
       </defs>
       <!-- under-glow: same arc, wider + blurred, light spills onto the canvas -->
-      <circle class="ring-arc ring-under" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="url(#g${uid})"
+      <path class="ring-arc ring-under" d="${dial(r)}" fill="none" stroke="url(#g${uid})"
         stroke-width="${stroke + 14}" stroke-linecap="round" opacity="0.55" filter="url(#soft${uid})"
-        stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" data-off="${off.toFixed(1)}"
-        transform="rotate(-90 ${cx} ${cy})"/>
-      <!-- track: dotted "ready" style below score 6 so an empty day reads as unstarted, not broken -->
-      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(148,176,224,0.10)" stroke-width="${stroke}"${score < 6 ? ' stroke-dasharray="1.4 5"' : ''}/>
+        pathLength="100" stroke-dasharray="100" stroke-dashoffset="${off}" data-off="${off}"/>
+      <!-- track: the dial's glass track; dotted "ready" style below score 6 so an empty day reads
+           as unstarted, not broken (no pathLength here — the dot pattern needs user units) -->
+      <path d="${dial(r)}" fill="none" stroke="rgba(148,176,224,0.10)" stroke-width="${stroke}" stroke-linecap="round"${score < 6 ? ' stroke-dasharray="1.4 5"' : ''}/>
       <!-- ceiling: sits between the track and the main band so the band's round cap paints over
-           the seam. butt cap, not round — a round cap would bulge past the comet tip and read as
+           the seam. butt cap, not round — a round cap would bulge past the marker and read as
            a second competing band. animateRing() drives it like any other .ring-arc. -->
-      ${ceil ? `<circle class="ring-arc ring-ceil" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="url(#g${uid})"
+      ${ceil ? `<path class="ring-arc ring-ceil" d="${dial(r)}" fill="none" stroke="url(#g${uid})"
         stroke-width="${stroke}" stroke-linecap="butt"
-        stroke-dasharray="${ceil.span.toFixed(1)} ${(C - ceil.span).toFixed(1)}"
+        pathLength="100" stroke-dasharray="${ceil.span} ${(100 - ceil.span)}"
         stroke-dashoffset="0" data-off="0"
-        transform="rotate(${ceil.rot.toFixed(2)} ${cx} ${cy})"/>` : ''}
+        transform="rotate(${ceil.rot} ${cx} ${cy})"/>` : ''}
       <!-- main band -->
-      <circle class="ring-arc" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="url(#g${uid})"
+      <path class="ring-arc" d="${dial(r)}" fill="none" stroke="url(#g${uid})"
         stroke-width="${stroke}" stroke-linecap="round"
-        stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" data-off="${off.toFixed(1)}"
-        transform="rotate(-90 ${cx} ${cy})"/>
+        pathLength="100" stroke-dasharray="100" stroke-dashoffset="${off}" data-off="${off}"/>
       <!-- specular edge: the band's lit outer rim (see rSpec above) -->
-      <circle class="ring-arc ring-spec" cx="${cx}" cy="${cy}" r="${rSpec.toFixed(1)}" fill="none" stroke="url(#spec${uid})"
+      <path class="ring-arc ring-spec" d="${dial(rSpec)}" fill="none" stroke="url(#spec${uid})"
         stroke-width="${specW.toFixed(1)}" stroke-linecap="round" opacity="0.5"
-        stroke-dasharray="${CSpec.toFixed(1)}" stroke-dashoffset="${offSpec.toFixed(1)}" data-off="${offSpec.toFixed(1)}"
-        transform="rotate(-90 ${cx} ${cy})"/>
-      <!-- inner echo ring (clamped ≥0: compact rings, e.g. the 52px score strip, would
-           otherwise compute a negative radius and emit an invalid SVG r attribute) -->
-      <circle class="ring-arc ring-echo" cx="${cx}" cy="${cy}" r="${rEcho}" fill="none" stroke="url(#g${uid})"
+        pathLength="100" stroke-dasharray="100" stroke-dashoffset="${off}" data-off="${off}"/>
+      <!-- inner echo ring (clamped ≥0: compact rings would otherwise compute a negative radius) -->
+      ${rEcho > 0 ? `<path class="ring-arc ring-echo" d="${dial(rEcho)}" fill="none" stroke="url(#g${uid})"
         stroke-width="1.5" opacity="0.35"
-        stroke-dasharray="${CEcho.toFixed(1)}"
-        stroke-dashoffset="${offEcho.toFixed(1)}"
-        data-off="${offEcho.toFixed(1)}"
-        transform="rotate(-90 ${cx} ${cy})"/>
-      ${sparkle}
+        pathLength="100" stroke-dasharray="100" stroke-dashoffset="${off}" data-off="${off}"/>` : ''}
+      ${marker}
     </svg>
     ${showCenter ? `<div class="ring-center">
       <span class="score${score >= 100 ? ' d3' : ''}" data-count="${score}">${score}</span>

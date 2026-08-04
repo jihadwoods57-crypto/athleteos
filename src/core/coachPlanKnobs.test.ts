@@ -25,20 +25,21 @@ const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http:
 const { itemsFromKnobs, knobsFromItems } = require('../../proto/redesign-2026-07/js/screens/coach.js');
 
 const base = {
-  key: 'team:', meals: 3, lifts: 0, weigh: 'off', hydration: true, hydrationOz: 120,
+  key: 'team:', meals: 3, lifts: 0, weigh: 'off',
   recovery: true, checkin: true, photoProof: true,
   mealNames: ['First Fuel', 'Lunch', 'Dinner'],
   mealWins: [{ open: 360, due: 540 }, { open: 720, due: 840 }, { open: 1080, due: 1230 }],
 };
 
-test('itemsFromKnobs carries custom names, windows, photo proof, hydration target', () => {
+test('itemsFromKnobs carries custom names, windows, photo proof — and never emits hydration', () => {
   const items = itemsFromKnobs(base);
   const meals = items.filter((i: any) => i.kind === 'meal');
   expect(meals.length).toBe(3);
   expect(meals[0]).toMatchObject({ id: 'meal-1', title: 'First Fuel', proof: 'photo', window: { open: 360, due: 540 } });
-  const hyd = items.find((i: any) => i.kind === 'hydration');
-  expect(hyd).toMatchObject({ target: 120, required: false });
-  expect(hyd.title).toBe('Hydration · 120 oz');
+  // Hydration is off the app — a saved standard can never gain a hydration item again,
+  // even from a stale knob object that still carries the old flags.
+  const stale = itemsFromKnobs({ ...base, hydration: true, hydrationOz: 120 });
+  expect(stale.find((i: any) => i.kind === 'hydration')).toBeUndefined();
 });
 
 test('photoProof=false downgrades meal proof to check', () => {
@@ -46,12 +47,11 @@ test('photoProof=false downgrades meal proof to check', () => {
   expect(meals.every((m: any) => m.proof === 'check')).toBe(true);
 });
 
-test('knobsFromItems round-trips names, windows, photo flag and target', () => {
+test('knobsFromItems round-trips names, windows and photo flag', () => {
   const k = knobsFromItems(itemsFromKnobs(base));
   expect(k.mealNames).toEqual(['First Fuel', 'Lunch', 'Dinner']);
   expect(k.mealWins).toEqual(base.mealWins);
   expect(k.photoProof).toBe(true);
-  expect(k.hydrationOz).toBe(120);
 });
 
 test('Part B rails: grace, late policy, and coach review round-trip through items', () => {
@@ -74,14 +74,15 @@ test('Part B defaults are omitted from items so existing standards stay byte-ide
   expect(k).toMatchObject({ grace: 0, latePolicy: 'half', coachReview: false });
 });
 
-test('legacy items (no custom fields) produce sane defaults', () => {
+test('legacy items (no custom fields) produce sane defaults — a stored hydration item is ignored', () => {
   const k = knobsFromItems([
     { id: 'meal-1', title: 'Breakfast', kind: 'meal', proof: 'photo', freq: { type: 'daily' }, window: { open: 420, due: 570 } },
     { id: 'hydration', title: 'Hydration · 120 oz', kind: 'hydration', proof: 'counter', freq: { type: 'daily' }, window: { due: 1290 }, required: false },
   ]);
   expect(k.meals).toBe(1);
   expect(k.mealNames).toEqual(['Breakfast']);
-  expect(k.hydrationOz).toBe(120);
+  expect(k).not.toHaveProperty('hydration');
+  expect(k).not.toHaveProperty('hydrationOz');
   expect(k.photoProof).toBe(true);
 });
 

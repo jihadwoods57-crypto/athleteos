@@ -266,12 +266,13 @@ export function saveProgressStep(ch = 3) {
 }
 
 /* ---------- Standard Meter (signature element) ----------
-   270° arc, green→teal→blue signature sweep. pct 0–100 fills the arc;
-   value/label sit centered. animateMeters() draws it in on mount. */
+   The brand dial's silhouette (docs/brand/LOGO.md): a 300° arc with a 60° gap centered on
+   6 o'clock, green→teal→blue signature sweep. pct 0–100 fills the arc; value/label sit
+   centered. animateMeters() draws it in on mount. */
 export function meter(pct, { size = 168, value = '', label = '', uid = 'm', muted = false } = {}) {
   const stroke = Math.max(10, Math.round(size / 14));
   const r = (size - stroke) / 2, c = size / 2;
-  const target = Math.max(0, Math.min(100, pct)) * 0.75; /* of pathLength 100 */
+  const target = Math.max(0, Math.min(100, pct)) * (300 / 360); /* of pathLength 100 */
   return `
   <div class="ob2-meter" style="position:relative;width:${size}px">
     <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true">
@@ -279,9 +280,9 @@ export function meter(pct, { size = 168, value = '', label = '', uid = 'm', mute
         <stop offset="0%" stop-color="var(--ring-a)"/><stop offset="50%" stop-color="var(--ring-b)"/><stop offset="100%" stop-color="var(--ring-c)"/>
       </linearGradient></defs>
       <circle class="arc-track" cx="${c}" cy="${c}" r="${r}" fill="none" stroke-width="${stroke}" stroke-linecap="round"
-        pathLength="100" stroke-dasharray="75 100" transform="rotate(135 ${c} ${c})"/>
+        pathLength="100" stroke-dasharray="${(300 / 360 * 100).toFixed(2)} 100" transform="rotate(120 ${c} ${c})"/>
       <circle class="arc-fill" cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${muted ? 'var(--text-3)' : `url(#og-${uid})`}" stroke-width="${stroke}" stroke-linecap="round"
-        pathLength="100" stroke-dasharray="0 100" data-arc="${target.toFixed(1)}" transform="rotate(135 ${c} ${c})"/>
+        pathLength="100" stroke-dasharray="0 100" data-arc="${target.toFixed(1)}" transform="rotate(120 ${c} ${c})"/>
     </svg>
     <div style="position:absolute;inset:0;display:grid;place-items:center;text-align:center">
       <div><div class="mv">${esc(value)}</div>${label ? `<div class="mk">${esc(label)}</div>` : ''}</div>

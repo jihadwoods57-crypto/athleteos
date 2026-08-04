@@ -68,7 +68,7 @@ export function weakPasswordReason(pw, email) {
    (build/health). Unknown goals fall back to maintain — never a blank standard. */
 const GOAL_EMPHASIS = {
   gain:     'Protein first — every meal moves the calorie floor.',
-  lose:     'Hydration and honest portions carry this. Keep protein high.',
+  lose:     'Honest portions carry this. Keep protein high.',
   maintain: 'Consistency over everything. Same standard, every day.',
   perform:  'Fuel training, then recover hard — the check-ins are where you win.',
   // canonical spelling (core's BaseGoal); 'perform' stays for legacy saved onboarding state

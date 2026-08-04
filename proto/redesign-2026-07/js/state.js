@@ -14,7 +14,7 @@ import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor, dayFromHistoryRow,
   streakDays as dayStreak, streakInfo, loadDay, pushDay, uploadMealPhoto, flushDayPush,
   setSyncBlocked, isSyncBlocked, SYNC, setDayTaskProvider,
-  dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayAddWaterOz, dayLogWeight, dayResetLocal, dayCheckTask,
+  dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayLogWeight, dayResetLocal, dayCheckTask,
   insertMeal, MEAL_KEYS, DEADLINE, minutesNow, mealScored,
   setDayStandard, slotDeadline, slotGrace, setDayGoalConfig, checkinReal,
   setDayPlanStyle, weightsForDay,
@@ -220,7 +220,6 @@ const DEFAULT_RT = {
   recoveryDone: false,
   weightLogged: false,   // late log (window was 9 AM) — trend only, never scored
   weightLoggedAt: null,  // minutes-from-midnight of the real weight log — drives honest "late"
-  hydrationOz: 0,        // real: 0 until the athlete logs water (syncRtFromDay reflects DAY.hydrationL)
   notifsRead: false,
   notifPrefs: null,      // reminder prefs {enabled,quietFrom,quietTo,allowDeadline}; null → framework defaults
   coachNotifPrefs: null, // COACH device reminder prefs (briefing/recap/hourly/immediate/quiet/myRoomOnly); null → coach defaults
@@ -538,7 +537,6 @@ export function syncRtFromDay() {
   RT.day0Breakfast = !!DAY.meals.breakfast;
   RT.weightLogged = DAY.currentWeight != null;
   if (!RT.weightLogged) RT.weightLoggedAt = null;
-  RT.hydrationOz = Math.round(DAY.hydrationL / 0.0295735);
   // "day 0" (fresh empty state) until the athlete logs anything real today
   RT.day0 = !DAY.meals.breakfast && !DAY.meals.lunch && !DAY.meals.snack && !DAY.meals.dinner && !DAY.ciSubmitted && !DAY.dailyCommitment;
   save();
@@ -1172,6 +1170,21 @@ export const act = {
       const loggedAt = DAY.mealLoggedAt ? DAY.mealLoggedAt[slot] : null;
       const timing = analysisTiming(loggedAt != null ? loggedAt : minutesNow(), slotDeadline(slot));
       const dp = S.mealDayProgress;
+      // Real history for the opener ("3 of your last 4 dinners…") — same shared cache the meal
+      // screen warms, computed with the same mealPatterns the fallback bubble uses. Best-effort:
+      // an empty cache (first log of the session before the screen warmed it) just means no
+      // pattern lines, never a blocked opener. Dynamic imports keep state.js cycle-free.
+      let patterns = [];
+      try {
+        const [rm, roles, intel] = await Promise.all([
+          import('./recent-meals.js'), import('./roles.js'), import('./meal-intel.js'),
+        ]);
+        const rows = (await rm.warmRecent(roles, RT.userId)) || [];
+        patterns = intel.mealPatterns(rows, {
+          slot,
+          mealProteinBar: dp.proteinTarget > 0 ? Math.round(dp.proteinTarget / 4) : 0,
+        }).slice(0, 2);
+      } catch { /* no history, no pattern lines */ }
       // 15s, not 45s: mode 'opener' makes no model call at all — it composes from the read it is
       // handed and inserts one row. Anything past a cold start here is a network that has gone,
       // and the athlete already has their numbers, so there is nothing to wait around for.
@@ -1193,6 +1206,7 @@ export const act = {
           proteinTarget: Math.max(0, Math.min(500, dp.proteinTarget)),
           mealsRemaining: Math.max(0, Math.min(8, dp.mealsRemaining)),
         },
+        ...(patterns.length ? { patterns } : {}),
       }, 15_000);
       window.__render && window.__render();
     } catch { /* a quieter thread, not a broken log */ }
@@ -1439,8 +1453,9 @@ export const act = {
      counts as having seen it too). Local-only like RT.theme/RT.notifsRead: this is a UI nag
      flag, not athlete data, so it doesn't need a server round trip or a fresh-device carry. */
   dismissPlanStylePrompt() { RT.planStylePromptSeen = true; save(); },
-  logWeight(lb) { const v = parseFloat(lb); if (!isFinite(v) || v <= 0) return; RT.weightLogged = true; RT.weightLoggedAt = minutesNow(); dayLogWeight(RT.userId, v); save(); track(EVENTS.WEIGHT_LOGGED); this.syncNotifications(); },
-  addWater(oz) { RT.hydrationOz = Math.min(160, RT.hydrationOz + oz); dayAddWaterOz(RT.userId, oz); save(); this.syncNotifications(); },
+  // 50–500 lb rail: a typed-entry typo (8.4, 1834) must not mark the day logged or poison the
+  // season trend. The weigh-in screen surfaces the same bounds before this is ever reached.
+  logWeight(lb) { const v = parseFloat(lb); if (!isFinite(v) || v < 50 || v > 500) return; RT.weightLogged = true; RT.weightLoggedAt = minutesNow(); dayLogWeight(RT.userId, v); save(); track(EVENTS.WEIGHT_LOGGED); this.syncNotifications(); },
   readNotifs() {
     RT.notifsRead = true;
     RT.serverAckAt = new Date().toISOString(); // offline badge-ack for server rows
@@ -3162,12 +3177,6 @@ export const S = {
     return SIGNAL_KEYS.filter(s => knobs && knobs.signals && knobs.signals[s.key]).map(s => s.label);
   },
 
-  /** The hydration target this athlete is actually scored against, in the unit they drink in. */
-  get hydrationTargetLabel() {
-    const l = DAY.hydrationTargetL > 0 ? DAY.hydrationTargetL : 3;
-    return `${Math.round(l * 33.814)} oz`;
-  },
-
   // display name. NEVER a fabricated persona: with no link, hasCoach is false and every
   // coach-specific surface must gate on it; `name`/`nameMid` degrade to honest generic copy.
   get coach() {
@@ -3506,7 +3515,6 @@ export const S = {
         case 'lunch':     return { done: mealScored(DAY, 'lunch'), late: lateMeal('lunch') };
         case 'dinner':    return { done: mealScored(DAY, 'dinner'), late: lateMeal('dinner') };
         case 'weight':    return { done: RT.weightLogged, late: RT.weightLogged };
-        case 'hydration': return { done: RT.hydrationOz >= 120, progress: `${RT.hydrationOz} of 120 oz` };
         case 'recovery':  return { done: DAY.ciSubmitted };
         default:
           // standard-driven meal slots (snack promoted to required, meal-5/meal-6)
@@ -3536,8 +3544,6 @@ export const S = {
         }
       } else if (d.id === 'weight') {
         meta = d.done ? 'Trend only' : 'Not scored'; route = 'weight';
-      } else if (d.id === 'hydration') {
-        meta = d.done ? 'Focus hit' : 'Optional'; route = 'log';
       } else if (d.id === 'recovery') {
         meta = d.done ? 'Recovery in' : 'Recovery · 25%'; route = d.done ? 'recovery-confirm' : 'recovery';
       } else { meta = ''; route = 'home'; }
@@ -3548,7 +3554,7 @@ export const S = {
     // standard (0055) swaps the meal rows for ITS slots — count, titles, and windows —
     // while weight/recovery keep their catalog behavior.
     const effCatalog = !RT.stdMeals
-      ? CATALOG.filter(r => runsToday(r) && r.id !== 'weekly' && r.id !== 'hydration')
+      ? CATALOG.filter(r => runsToday(r) && r.id !== 'weekly')
       : [
         ...reqMealSlots().map((k) => {
           const base = CATALOG.find(c => c.id === k);
@@ -3561,15 +3567,13 @@ export const S = {
             note: base ? base.note : 'Photo proof — part of your room standard.',
           };
         }),
-        ...CATALOG.filter(r => !REQ_MEAL_SLOTS.includes(r.id) && r.id !== 'weekly' && r.id !== 'hydration' && runsToday(r)),
+        ...CATALOG.filter(r => !REQ_MEAL_SLOTS.includes(r.id) && r.id !== 'weekly' && runsToday(r)),
       ];
     const rows = effCatalog.map(r => decorate(derive(r, resolve(r.id), now)));
-    // hydration rides as the optional row after the required set
-    const hydro = decorate(derive(CATALOG.find(r => r.id === 'hydration'), resolve('hydration'), now));
     const assigned = RT.assigned.map(a => ({ ...deriveAssigned(a), meta: a.done ? 'Coach sees it' : 'From coach', route: `requirement/${a.id}` }));
     const fresh = assigned.filter(a => a.fresh);
     const rest = assigned.filter(a => !a.fresh);
-    return [...fresh, ...rows, hydro, ...rest];
+    return [...fresh, ...rows, ...rest];
   },
   get metCount() {
     if (RT.day0) return RT.day0Breakfast ? 1 : 0;
@@ -3606,7 +3610,6 @@ export const S = {
         img, route: `meal-detail/${k}`,
       });
     }
-    if (RT.hydrationOz > 0) a.push({ time: 'Today', type: 'Hydration', icon: 'droplet', value: `${RT.hydrationOz} oz`, vClass: 'b', img: null, route: 'log' });
     if (RT.weightLogged && DAY.currentWeight != null) a.push({ time: 'Today', type: 'Morning Weight', icon: 'scale', value: `${DAY.currentWeight} lb`, vClass: 'muted', img: null, route: 'weight' });
     a.push(DAY.ciSubmitted
       ? { time: 'Today', type: 'Recovery Check-In', icon: 'moon', value: 'Submitted', vClass: 'g', img: null, route: 'recovery' }
@@ -3664,7 +3667,6 @@ export const S = {
       breakfast: mstat('breakfast'), lunch: mstat('lunch'), dinner: mstat('dinner'),
       // weight due comes from the catalog; late only when we actually know the log time
       weight: { done: RT.weightLogged, late: RT.weightLogged && RT.weightLoggedAt != null && RT.weightLoggedAt > WEIGHT_DUE },
-      hydration: { oz: RT.hydrationOz },
       recovery: { done: DAY.ciSubmitted },
     };
     if (std) for (const k of reqMealSlots()) status[k] = mstat(k);
@@ -4019,7 +4021,6 @@ export const S = {
       body: `${a.note} Due: ${(a.dueLabel || '').toLowerCase()}.`, when: 'now', icon: 'clipboard', route: `requirement/${a.id}`,
     }));
     if (RT.injured) fresh.push({ level: 'medium', title: 'Your Standard adapted', body: 'Rehab is on your list; nutrition tilts anti-inflammatory while you heal.', when: 'now', icon: 'bolt', route: 'injury' });
-    if (RT.hydrationOz >= 120) fresh.push({ level: 'positive', title: 'Hydration standard hit', body: `${RT.hydrationOz} oz in. This week's focus, handled. Coach sees it.`, when: 'now', icon: 'droplet', route: 'log' });
     if (e.celebration) fresh.push({
       level: 'positive', title: "You're OnStandard", body: `Every requirement is in at ${e.score}. Day ${this.streakDays} of your streak locks at midnight.`,
       when: 'now', icon: 'check', route: 'home',

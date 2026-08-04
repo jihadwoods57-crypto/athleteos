@@ -27,11 +27,10 @@ function wirePressure(root, sel) {
 }
 
 /* Context-aware AI replies: keyword-routed, plan-grounded. Any specifics come from REAL state
-   (hydration, live score) — never a fabricated "122g of 190g" / "88 oz" / "that's 94". */
+   (live score) — never a fabricated "122g of 190g" / "that's 94". */
 export function smartReply(text, fallback) {
   const t = text.toLowerCase();
   if (/(swap|instead|replace|substitute)/.test(t)) return 'Yes, swap it. Based on your plan: any protein for protein, any slow carb for slow carb, keep the portion the same. Rice, potatoes, oats, and tortillas are all interchangeable for you.';
-  if (/(water|hydrat|drink)/.test(t)) return `You’re at ${RT.hydrationOz} oz today — top it up before bed. It doesn’t move today’s score, but it shows in your trend.`;
   if (/(late|miss|forgot|skip)/.test(t)) return 'Honest answer: a late meal counts at half weight for punctuality, and a missed one just stays missed. Log it anyway — the trend matters more than one slot, and your coach respects a truthful log over a blank.';
   if (/(protein|macro)/.test(t)) return 'Aim protein-forward at every meal — a solid protein source plus a slow carb hits your plan. If a meal slot is still open, that’s where to close any gap.';
   if (/(eat out|restaurant|chipotle|fast food|on the go)/.test(t)) return 'From your plan’s approved list: Chipotle bowl (double chicken, rice, beans), a grilled sandwich, or a rice bowl. Order protein first, add the carb, skip nothing green.';
@@ -122,11 +121,6 @@ export const settings = {
         <div class="lic">${icon('scale', 17)}</div>
         <div class="lm"><div class="lt">Weight</div></div>
         <span class="status-pill b">lb</span>
-      </div>
-      <div class="lrow" style="cursor:default">
-        <div class="lic">${icon('droplet', 17)}</div>
-        <div class="lm"><div class="lt">Fluids</div></div>
-        <span class="status-pill b">oz</span>
       </div>
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('clock', 17)}</div>
@@ -560,7 +554,7 @@ export const notifSettings = {
 
     <div class="eyebrow">Urgency per requirement${S.coach.hasCoach ? ` · set by ${esc(S.coach.nameMid)}` : ' · from your plan'}</div>
     <section class="card" style="padding:6px 16px">
-      ${[['utensils', 'Meals', 'Medium'], ['scale', 'Morning Weight', 'High'], ['moon', 'Recovery Check-In', 'High'], ['droplet', 'Hydration', 'Low']].map(([ic, t, lv]) => `
+      ${[['utensils', 'Meals', 'Medium'], ['scale', 'Morning Weight', 'High'], ['moon', 'Recovery Check-In', 'High']].map(([ic, t, lv]) => `
         <div class="lrow" style="cursor:default">
           <div class="lic">${icon(ic, 17)}</div>
           <div class="lm"><div class="lt">${t}</div></div>

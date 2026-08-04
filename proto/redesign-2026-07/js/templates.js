@@ -62,13 +62,6 @@ function weighItem(mode) {
   };
 }
 
-function hydrationItem(oz) {
-  return {
-    id: 'hydration', title: `Hydration · ${oz} oz`, kind: 'hydration', proof: 'counter',
-    freq: { type: 'daily' }, window: { due: 1290 }, required: false, target: oz,
-  };
-}
-
 function recoveryItem() {
   return { id: 'recovery', title: 'Recovery Check-In', kind: 'recovery', proof: 'form', freq: { type: 'daily' }, window: { due: 1410, label: 'Before bed' } };
 }
@@ -84,7 +77,6 @@ const SEEDS = [
     ...mealItems(STANDARD_MEAL_WINDOWS),
     liftItem(3),
     weighItem('mwf'),
-    hydrationItem(120),
     recoveryItem(),
     checkinItem(),
   ] },
@@ -92,20 +84,17 @@ const SEEDS = [
     ...mealItems(STANDARD_MEAL_WINDOWS),
     liftItem(4),
     weighItem('mwf'),
-    hydrationItem(120),
     recoveryItem(),
     checkinItem(),
   ] },
   { name: 'Travel', kind: 'travel', items: [
     ...mealItems(TRAVEL_MEAL_WINDOWS),
-    hydrationItem(120),
     recoveryItem(),
   ] },
   { name: 'Recovery', kind: 'recovery', items: [
     ...mealItems(STANDARD_MEAL_WINDOWS),
     liftItem(1),
     weighItem('mwf'),
-    hydrationItem(150),
     recoveryItem(),
     checkinItem(),
   ] },
@@ -113,7 +102,6 @@ const SEEDS = [
     ...mealItems(STANDARD_MEAL_WINDOWS, [{ due: 1290 }, { due: 1350 }]),
     liftItem(4),
     weighItem('daily'),
-    hydrationItem(150),
     recoveryItem(),
     checkinItem(),
   ] },
@@ -121,14 +109,12 @@ const SEEDS = [
     ...mealItems(STANDARD_MEAL_WINDOWS),
     liftItem(4),
     weighItem('daily'),
-    hydrationItem(120),
     recoveryItem(),
     checkinItem(),
   ] },
   { name: 'Injured', kind: 'injured', items: [
     ...mealItems(STANDARD_MEAL_WINDOWS),
     weighItem('daily'),
-    hydrationItem(120),
     recoveryItem(),
     checkinItem(),
   ] },

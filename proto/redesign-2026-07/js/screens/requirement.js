@@ -13,7 +13,7 @@ export default {
     const id = sub || 'dinner';
     const assigned = RT.assigned.find(a => a.id === id);
     // Resolve from the built-in CATALOG first, then the coach's standing set items (lift/custom/extra
-    // hydration/weigh), so a coach NON-MEAL requirement opens a real detail screen, not "not found".
+    // weigh etc.), so a coach NON-MEAL requirement opens a real detail screen, not "not found".
     const req = assigned ? deriveAssigned(assigned) : (CATALOG.find(r => r.id === id) || catalogFromItems(RT.stdItems).find(r => r.id === id));
     // Unknown id (stale deep-link, removed assigned task): a legible empty state with a
     // forward path, not a bare "Nothing here" dead end.

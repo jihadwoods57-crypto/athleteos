@@ -162,15 +162,6 @@
 .sheet-row .st .t { font-size: 15.5px; font-weight: 800; }
 .sheet-row .st .s { font-size: 12px; font-weight: 600; color: var(--text-3); margin-top:1px; }
 .sheet-row .sv { font-size: 13px; font-weight: 800; }
-.water-btns { display: flex; gap:8px; }
-.water-btns .wb2 {
-  /* --cyan-bright, not --cyan: this is text on a tinted ground, and --cyan measured 4.1:1 on the
-     light canvas — under AA for 13px. The -bright variant is the deeper light-theme value. */
-  padding:8px 14px; border-radius: var(--r-chip); background: var(--cyan-surface); color: var(--cyan-bright);
-  font-size: 13px; font-weight: 800; cursor: pointer; border: 1px solid var(--cyan-border);
-  /* 44px tap floor (a11y) without changing the visual pill much */
-  display: inline-flex; align-items: center; justify-content: center; min-height: 44px;
-}
 .sheet .cancel { text-align: center; padding:14px 0 4px; font-size: 15px; font-weight: 700; color: var(--text-2); cursor: pointer; }
 
 /* ----- Analyzing state ----- */

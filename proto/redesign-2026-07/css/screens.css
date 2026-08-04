@@ -172,11 +172,10 @@
   background: rgba(7,11,20,0.65); backdrop-filter: blur(8px); border: none;
   box-shadow: 0 0 20px rgba(var(--green-rgb), 0.35);
 }
-/* The solid 2.5px border became a drawn arc: the meal score is the moment the whole product is
-   built around, and it used to arrive as static text. Same geometry, same weight — it just
-   reveals. animateRing() drives it (r=29.5 → C=185.35). */
+/* The chip's arc is the brand dial (300° gauge, 60° gap at 6 o'clock) drawn with the signature
+   --ring-a/b/c sweep — same silhouette as the day score ring and the mark. Status color lives
+   on the NUMBER below, never the arc (blue→teal on score surfaces; green is status-only). */
 .scorechip .sc-ring { position: absolute; inset: 0; }
-.scorechip .sc-arc { stroke: var(--green-bright); }
 .scorechip .v { font-family: var(--font-display); font-size: 21px; font-weight: 900; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--green-bright); line-height: 1; }
 .scorechip .k { font-size: 8.5px; font-weight: 800; letter-spacing: 0.08em; color: var(--text-2); text-transform: uppercase; margin-top:2px; }
 .foodchips { display: flex; flex-wrap: wrap; gap:8px; }
@@ -449,6 +448,14 @@
 /* ----- Weight ----- */
 .weight-display { text-align: center; padding:22px 0 8px; }
 .weight-display .wv { font-size: 76px; font-weight: 800; letter-spacing: -0.05em; line-height: 1; }
+/* The value is a real decimal input (tap to type) styled as the display it replaced. Width in ch
+   so five characters (183.4) fit without the input claiming the whole row. */
+input.wv {
+  background: transparent; border: none; outline: none; padding: 0;
+  color: var(--text); font-family: var(--font); text-align: center;
+  width: 5.2ch; min-width: 0; font-variant-numeric: tabular-nums; caret-color: var(--blue-bright);
+}
+input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .weight-display .wu { font-size: 17px; font-weight: 700; color: var(--text-3); }
 .stepper { display: flex; align-items: center; justify-content: center; gap:22px; margin-top:14px; }
 .stepper .sbtn { width: 52px; height: 52px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--hairline); display:grid; place-items:center; color: var(--text); font-size: 24px; font-weight: 700; cursor: pointer; }
@@ -747,24 +754,8 @@
 .xg-row .xr{flex:1;min-width:0}
 .xg-row .xa{font-size:14px;font-weight:700;letter-spacing:-.01em}
 .xg-row .xb{font-size:11.5px;color:var(--text-3);margin-top:1px}
-/* ---- ONE NOW system: any NOW card (required or the hydration takeover) wears the same
-   gold chrome and needs air below the hero. ---- */
+/* ---- ONE NOW system: any NOW card wears the same gold chrome and needs air below the hero. ---- */
 .xnow{margin-top:12px}
-/* hydration flavor of the NOW card: live progress + quick-adds inside the gold card */
-.hyd-now .xwhy{font-variant-numeric:tabular-nums}
-.hyd-now .hn-row{display:flex;align-items:center;gap:10px;margin-top:14px}
-.hyd-now .hn-bar{flex:1;height:6px;border-radius:var(--r-micro);background:rgba(7,11,20,0.35);overflow:hidden}
-.hyd-now .hn-bar i{display:block;height:100%;border-radius:var(--r-micro);background:linear-gradient(90deg,var(--cyan),var(--blue-bright));transition:width var(--dur-1) var(--ease-out)}
-.hyd-now .hn-pct{font-size:12px;font-weight:800;color:var(--text-2);font-variant-numeric:tabular-nums;flex:none}
-.hyd-now .hn-chips{display:flex;gap:8px;margin-top:12px}
-.hchip{flex:1;min-height:44px;border-radius:var(--r-card-sm);border:1px solid var(--amber-border);background:var(--amber-surface);color:var(--amber-bright);font-family:var(--font);font-size:13px;font-weight:800;letter-spacing:-.01em;cursor:pointer;transition:transform var(--dur-1) var(--ease-out);font-variant-numeric:tabular-nums}
-.hchip:active{transform:scale(0.95)}
-.hchip.ghost{background:var(--surface-2);border-color:var(--hairline);color:var(--text-2)}
-.hchip.solid{flex:0 0 92px;background:linear-gradient(150deg,var(--blue-bright),var(--blue-deep));border:none;color:#fff}
-.hyd-now .hn-custom{display:flex;gap:8px;margin-top:10px}
-.hyd-now .hn-custom[hidden]{display:none}
-.hyd-now .hn-custom input{flex:1;min-width:0;height:44px;border-radius:var(--r-card-sm);border:1px solid var(--hairline);background:var(--surface-2);color:var(--text);font-family:var(--font);font-size:14px;font-weight:700;padding:0 14px;outline:none}
-.hyd-now .hn-custom input:focus{border-color:var(--blue-border)}
 /* ---- Recent Results: lateral snap rail of outcome cards (photo or type-tinted icon,
    labeled numbers). One card anatomy for every type; the next card peeks at the screen
    edge so the swipe is discoverable. ---- */
@@ -957,13 +948,52 @@
 .mt-confirm .prog-line{display:flex;align-items:center;gap:10px;margin-top:12px}
 .mt-confirm .prog-line .xsegs{flex:1}
 .mt-confirm .prog-line .pk{font-size:11px;font-weight:700;color:var(--text-2);white-space:nowrap}
-/* Meal quality — its own concept and color; a 58 is amber, never success green. */
+/* Meal quality — its own concept and color on the NUMBER; a 58 is amber, never success green.
+   The arc itself always wears the brand sweep. */
 .scorechip.mid{box-shadow:0 0 20px rgba(var(--amber-rgb), 0.3)}
-.scorechip.mid .sc-arc{stroke:var(--amber-bright)}
 .scorechip.mid .v{color:var(--amber-bright)}
 .scorechip.low{box-shadow:0 0 20px rgba(var(--red-rgb), 0.3)}
-.scorechip.low .sc-arc{stroke:var(--red)}
 .scorechip.low .v{color:var(--red)}
+/* ---- Success motion (founder 2026-08-04: logging should feel rewarding, not distracting).
+   The confirm check pops once on the log that just happened; popIn already exists. ---- */
+.mt-confirm .ck.pop{animation:popIn 600ms var(--ease-out) both}
+@media (prefers-reduced-motion: reduce){ .mt-confirm .ck.pop{animation:none} }
+/* Next Action, elevated: the one row on the meal screen that asks for the next move. */
+.xrow-item.next-hot{border:1px solid var(--blue-border);background:linear-gradient(120deg, rgba(var(--blue-rgb),0.10), var(--surface-1) 70%);box-shadow:var(--sh-card)}
+/* Expanders settle instead of snapping (grid-rows trick; reduced-motion snaps). */
+.bd-wrap .bd-body, .rub .rub-body{overflow:hidden}
+.bd-wrap[open] .bd-body, .rub[open] .rub-body{animation:bd-open 260ms var(--ease-out)}
+@keyframes bd-open{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){ .bd-wrap[open] .bd-body, .rub[open] .rub-body{animation:none} }
+/* ---- Score reasons (founder 2026-08-04): the top 2-3 reasons under the score, as chips.
+   met/partial/miss are STATUS, so status colors are correct here — the arc above stays sweep. */
+.score-reasons{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:10px}
+.score-reasons .sr-band{font-family:var(--font-display);font-size:15px;font-weight:900;letter-spacing:-0.01em;font-variant-numeric:tabular-nums;margin-right:2px}
+.score-reasons .sr-band small{font-family:var(--font);font-size:11px;font-weight:700;color:var(--text-3)}
+.score-reasons .sr-band.good{color:var(--green-bright)}
+.score-reasons .sr-band.mid{color:var(--amber-bright)}
+.score-reasons .sr-band.low{color:var(--red)}
+.score-reasons .sr-chip{font-size:11.5px;font-weight:800;letter-spacing:-0.01em;padding:4px 10px;border-radius:var(--r-pill);border:1px solid var(--hairline);background:var(--surface-1);color:var(--text-2)}
+.score-reasons .sr-chip.met{background:var(--green-surface);border-color:var(--green-border);color:var(--green-bright)}
+.score-reasons .sr-chip.partial{background:var(--amber-surface);border-color:var(--amber-border);color:var(--amber-bright)}
+.score-reasons .sr-chip.miss{background:var(--red-surface);border-color:var(--red-border);color:var(--red)}
+/* ---- The one always-visible breakdown line + the expander that holds the rest ---- */
+.bd-strip{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-top:8px;padding:10px 14px;border-radius:var(--r-tile);background:var(--surface-1);border:1px solid var(--hairline);font-variant-numeric:tabular-nums}
+.bd-strip .bs-p{font-size:14.5px;font-weight:800}
+.bd-strip .bs-p small{font-size:11px;font-weight:700;color:var(--text-3)}
+.bd-strip .bs-m{font-size:12.5px;font-weight:700;color:var(--text-2)}
+.bd-wrap{margin-top:8px}
+.bd-wrap > summary{display:flex;align-items:center;gap:6px;list-style:none;cursor:pointer;font-size:12.5px;font-weight:700;color:var(--text-2);padding:8px 2px;-webkit-tap-highlight-color:transparent}
+.bd-wrap > summary::-webkit-details-marker{display:none}
+.bd-wrap > summary svg{transition:transform var(--dur-1) var(--ease-out)}
+.bd-wrap[open] > summary svg{transform:rotate(90deg)}
+/* ---- Coach pinned above the AI (founder 2026-08-04: coach leads, AI assists) ---- */
+.coach-pin{margin:2px 0 12px;padding:12px 14px;border-radius:var(--r-card-sm);background:var(--amber-surface);border:1px solid var(--amber-border)}
+.coach-pin .cp-head{display:flex;align-items:center;gap:8px}
+.coach-pin .cp-av{width:24px;height:24px;border-radius:50%;background:linear-gradient(150deg,var(--amber-bright),var(--amber));color:var(--ink-on-accent);display:grid;place-items:center;font-size:10px;font-weight:800;flex:none}
+.coach-pin .cp-who{font-size:12.5px;font-weight:800}
+.coach-pin .cp-tag{margin-left:auto;display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--amber-bright)}
+.coach-pin .cp-text{font-size:13.5px;font-weight:600;line-height:1.5;margin-top:6px}
 .qual-line{display:flex;align-items:center;gap:14px;margin-top:10px;padding:12px 14px;border-radius:var(--r-tile);background:var(--surface-1);border:1px solid var(--hairline)}
 .qual-line .qv{font-family:var(--font-display);font-size:24px;font-weight:900;letter-spacing:-0.01em;flex:none;font-variant-numeric:tabular-nums}
 /* the "/100" stays in the body face — it is a unit, not the score */

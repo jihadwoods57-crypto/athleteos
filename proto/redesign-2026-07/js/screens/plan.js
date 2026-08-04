@@ -55,11 +55,10 @@ function targetsRow() {
   // INTUITIVE: no calorie or macro number reaches the athlete. The targets still EXIST and the
   // professional still sees them (catching genuine under-fueling is a safety concern) — this is
   // a presentation gate, never a data one. What the athlete gets instead is what their plan
-  // actually measures: the signals they're tracking and their hydration.
+  // actually measures: the signals they're tracking.
   if (!PS.showMacros && !PS.showCalories) {
     const tracked = (S.trackedSignalLabels || []).join(' · ');
     return `<div class="macro-row">
-      <div class="macro"><div class="mv">${esc(String(S.hydrationTargetLabel || '—'))}</div><div class="mk">Hydration</div></div>
       <div class="macro" style="flex:2"><div class="mv" style="font-size:15px;line-height:1.35">${tracked ? esc(tracked) : 'Check-in signals'}</div><div class="mk">What you're tracking</div></div>
     </div>
     <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin-top:8px;line-height:1.5">Your plan doesn't set calorie or macro targets. Your ${esc(S.coach.noun)} can still see the full numbers.</div>`;
@@ -237,7 +236,7 @@ function planSummary(state, T) {
     ${tile('Current', S.weight.current != null ? S.weight.current + ' lb' : null)}
     ${S.planStyle.showMacros
       ? tile('Protein target', T && T.protein != null ? T.protein + 'g' : null)
-      : tile('Hydration', esc(String(S.hydrationTargetLabel)))}
+      : ''}
   </div>
   ${noteFor(state)}`;
 }
@@ -268,13 +267,6 @@ const nutrition = () => `
         <div style="font-size:14px;font-weight:700;margin-top:5px;line-height:1.5">${s.v}</div>
       </div>`).join('')}
   </section>
-
-  <div class="eyebrow">Hydration</div>
-  <div class="sidebox">
-    <div class="req-icon b" style="width:38px;height:38px;color:var(--cyan);background:var(--cyan-surface)">${icon('droplet', 18)}</div>
-    <div><div class="tt">Water with every meal</div>
-    <div class="ts">Get some in before practice, drink with each meal, and finish before bed so sleep stays clean. General guidance — not a scored target.</div></div>
-  </div>
 
   <div style="height:10px"></div>`;
 

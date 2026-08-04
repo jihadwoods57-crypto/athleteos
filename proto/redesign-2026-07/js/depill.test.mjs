@@ -49,8 +49,9 @@ function blocksFor(cls) {
 
 const RADIUS_PILL = /border-radius:\s*(var\(--r-pill\)|999px)/;
 
-/* Controls: tapped or typed into. Must NOT wear the fully-round pill radius. */
-const TAPPABLE = ['.co-chip', '.chp', '.qa', '.fx-chip', '.wb2'];
+/* Controls: tapped or typed into. Must NOT wear the fully-round pill radius.
+   (.wb2 left with the hydration removal, 2026-08-04.) */
+const TAPPABLE = ['.co-chip', '.chp', '.qa', '.fx-chip'];
 /* Read-only beads: a small fact you look at. The pill is theirs. */
 const READONLY = ['.status-pill', '.xpill', '.tier-chip', '.stk-pill', '.foodchip'];
 

@@ -105,9 +105,11 @@ describe('dayLogMeal meta persistence (slotMacros jsonb round-trip)', () => {
 
 describe('openingMessage', () => {
   const base = { name: 'Chicken & Rice', quality: 82, note: 'Solid protein anchor.', goal: 'gain', coachTargets: null, late: false };
-  test('on-time celebration first, note included, praise for quality >= 75', () => {
+  test('on-time says NOTHING about timing (the score chips own the praise); note leads', () => {
+    // Founder 2026-08-04: never repeat what the screen already states. On-time lives in the
+    // score-reason chips, so the message opens with the substance instead.
     const m = openingMessage(base);
-    expect(m).toMatch(/on time/i);
+    expect(m).not.toMatch(/on time/i);
     expect(m).toContain('Solid protein anchor.');
     expect(m).not.toMatch(/next time/i);
   });
@@ -137,14 +139,13 @@ describe('openingMessage', () => {
   test('minutesLate sharpens the late sentence with the real number', () => {
     const m = openingMessage({ ...base, late: true, minutesLate: 42 });
     expect(m).toMatch(/42 min past the window/);
-    expect(m).toMatch(/isn't the standard/i);
     expect(m).toMatch(/counts/i); // still credited, never shamed
   });
-  test('on-time copy holds the standard in the founder voice', () =>
-    expect(openingMessage(base)).toMatch(/in on time\. That's the standard\./));
-  test('highlights fold into ONE sentence inside the message', () => {
+  test('highlights ride as their own sentences — no report-card label', () => {
     const m = openingMessage({ ...base, highlights: ['Strong iron source', 'Good fiber'] });
-    expect(m).toContain('Worth knowing: Strong iron source. Good fiber.');
+    expect(m).toContain('Strong iron source.');
+    expect(m).toContain('Good fiber.');
+    expect(m).not.toContain('Worth knowing:');
   });
   test('late: null omits the timing sentence entirely (timing unknown, not guessed)', () => {
     const m = openingMessage({ ...base, late: null });
@@ -153,8 +154,8 @@ describe('openingMessage', () => {
     // the rest of the message (note, goal tie, quality praise) still renders
     expect(m).toContain('Solid protein anchor.');
   });
-  test('late true/false athlete-side behavior is unchanged by the null branch', () => {
-    expect(openingMessage(base)).toMatch(/on time/i);
+  test('late speaks, on-time stays quiet — the null branch changes neither', () => {
+    expect(openingMessage(base)).not.toMatch(/on time/i);
     expect(openingMessage({ ...base, late: true })).toMatch(/counts/i);
   });
 });

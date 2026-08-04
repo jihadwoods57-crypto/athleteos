@@ -174,7 +174,7 @@ export const PRESETS = {
       formula: 'legacy',                       // the shipped per-profile formula — see NUTRITION_PARTS
       calorie: 'exact', calorieBand: 0.1,
       protein: 'exact', proteinBand: 0.1,
-      timingScored: true, hydrationScored: true, qualityScored: false, awarenessScored: false,
+      timingScored: true, hydrationScored: false, qualityScored: false, awarenessScored: false,
     },
     parts: NUTRITION_PARTS.structured,
     signals: { hunger: false, fullness: false, satisfaction: false, digestion: false, cravings: false },
@@ -185,7 +185,7 @@ export const PRESETS = {
       formula: 'parts',
       calorie: 'range', calorieBand: 0.12,
       protein: 'range', proteinBand: 0.15,
-      timingScored: true, hydrationScored: true, qualityScored: true, awarenessScored: false,
+      timingScored: true, hydrationScored: false, qualityScored: true, awarenessScored: false,
     },
     parts: NUTRITION_PARTS.guided,
     // Meal-time signals are no longer captured anywhere — see SIGNAL_KEYS. Guided never scored
@@ -198,7 +198,7 @@ export const PRESETS = {
       formula: 'parts',
       calorie: 'adequacy', calorieBand: 0,
       protein: 'off', proteinBand: 0,
-      timingScored: false, hydrationScored: true, qualityScored: false, awarenessScored: true,
+      timingScored: false, hydrationScored: false, qualityScored: false, awarenessScored: true,
     },
     parts: NUTRITION_PARTS.intuitive,
     // Digestion and cravings still ride the check-in; the three meal-time ones are gone.
@@ -274,6 +274,10 @@ export function knobsFor(style, overrides) {
   // awareness credit forever. This runs AFTER the override merge precisely so a stored pro config
   // from before the removal cannot resurrect a prompt that isn't there.
   for (const k of MEAL_SIGNAL_KEYS) base.signals[k] = false;
+  // Hydration is off the app entirely — there is no way to log water, so scoring it would
+  // silently cap every Guided/Intuitive athlete's nutrition score. Runs AFTER the override
+  // merge so a stored pro config from before the removal cannot resurrect it.
+  base.nutrition.hydrationScored = false;
   base.parts = normalizeParts(base.parts, s);
   // A part can only earn credit when its knob is on — otherwise a pro could weight `quality` on
   // a style that never measures it and silently cap the athlete's nutrition score below 100.
@@ -471,7 +475,7 @@ export function styleLabel(style) {
       return {
         name: 'Structured',
         short: 'Clear numbers and expectations',
-        how: 'Exact calorie, protein, meal-timing and hydration targets. Your score leans on completing them.',
+        how: 'Exact calorie, protein and meal-timing targets. Your score leans on completing them.',
       };
     case 'intuitive':
       return {
@@ -479,7 +483,7 @@ export function styleLabel(style) {
         short: 'Focused on body signals',
         // Copy follows the surfaces that actually exist: the meal-time hunger/fullness prompt is
         // gone, so promising it would be a lie. Digestion and cravings live in the check-in.
-        how: 'No calorie or macro targets. Your score measures fueling enough, hydration and consistency, with digestion and cravings noticed in your check-in — never restriction.',
+        how: 'No calorie or macro targets. Your score measures fueling enough and consistency, with digestion and cravings noticed in your check-in — never restriction.',
       };
     case 'guided':
     default:

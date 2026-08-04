@@ -408,7 +408,7 @@ export const injury = {
 };
 
 /* ---------- #coach-voice · configure how the AI reinforces YOUR standards ---------- */
-const CV_PHRASES = ['That’s the standard.', 'Don’t chase the scale, we’re building.', 'Hydration is the standard this week.', 'Keep this structure.'];
+const CV_PHRASES = ['That’s the standard.', 'Don’t chase the scale, we’re building.', 'Protein first is the standard this week.', 'Keep this structure.'];
 export const coachVoice = {
   nav: 'coach', tab: 'profile',
   render() {

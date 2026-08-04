@@ -244,17 +244,14 @@ export function openingMessage({
   patterns,       // array of pattern strings from mealPatterns() — real history only
   impact,         // integer: how many Daily Score points this log actually earned (engine-computed)
 } = {}) {
+  // NEVER REPEAT THE SCREEN (founder 2026-08-04): the athlete can already see the photo, the
+  // score, the reason chips and the Meal Breakdown strip. This message leads with the takeaway,
+  // gives one or two concrete moves, frames the day FORWARD (what's left, not what the bars
+  // already show), and references real history. Same contract as the server composer
+  // (meal-opener.ts) so the fallback and the persisted opener speak with one voice.
   const parts = [];
   const who = clean(name) || 'this one';
-  if (late !== null) {
-    if (late) {
-      const mins = (typeof minutesLate === 'number' && isFinite(minutesLate) && minutesLate > 0)
-        ? ` — ${Math.round(minutesLate)} min past the window` : '';
-      parts.push(`Late on ${who}${mins}. That isn't the standard, but logging it late still counts — hiding it doesn't.`);
-    } else {
-      parts.push(`Good job getting ${who} in on time. That's the standard.`);
-    }
-  }
+  // 1. The biggest takeaway first.
   const deep = String(analysis == null ? '' : analysis).replace(/[<>]/g, '').slice(0, 900);
   if (deep) {
     parts.push(deep);
@@ -266,33 +263,40 @@ export function openingMessage({
       parts.push(quality >= 75 ? `A plate like this ${tie}.` : `Tightening this plate up ${tie}.`);
     }
   }
-  const hl = (Array.isArray(highlights) ? highlights : []).map((h) => clean(h)).filter(Boolean).slice(0, 3);
-  if (hl.length) parts.push(`Worth knowing: ${hl.join('. ')}.`);
-  // Day progress — the sentence that connects THIS meal to the day (real numbers only).
+  // 2. One or two specific moves.
+  const hl = (Array.isArray(highlights) ? highlights : []).map((h) => clean(h)).filter(Boolean).slice(0, 2);
+  for (const h of hl) parts.push(/[.!?]$/.test(h) ? h : `${h}.`);
+  if (!deep && quality != null && quality < 75) {
+    parts.push('One upgrade next time: add a protein or a vegetable and this score jumps.');
+  }
+  // 3. The day, framed forward — what's still to do, never a restatement of the bars above.
   if (day && day.proteinTarget > 0 && day.proteinSoFar != null) {
+    const gap = Math.round(day.proteinTarget) - Math.round(day.proteinSoFar);
     const rem = day.mealsRemaining;
-    const remTxt = rem == null ? '' : rem === 0 ? ' with the required meals in' : ` with ${rem === 1 ? 'one meal' : `${rem} meals`} still to come`;
-    parts.push(`That puts you at approximately ${Math.round(day.proteinSoFar)} of ${Math.round(day.proteinTarget)}g protein for the day${remTxt}.`);
+    if (gap <= 0) {
+      parts.push('That closes out your protein for the day — nothing left to chase there.');
+    } else if (rem != null && rem > 0) {
+      parts.push(`About ${gap}g of protein still to go across your last ${rem === 1 ? 'required meal' : `${rem} required meals`} — keep protein leading each plate and it lands.`);
+    }
   } else if (coachTargets && coachTargets.protein) {
     parts.push(`Coach's bar is ${coachTargets.protein}g protein on the day, and every meal moves it.`);
   }
-  // Real history, when it exists — mealPatterns() returns [] until there's enough data.
+  // 4. Real history, when it exists — mealPatterns() returns [] until there's enough data.
   for (const p of (Array.isArray(patterns) ? patterns : []).slice(0, 2)) parts.push(clean(p));
-  // Score impact — engine-computed accountability credit, stated plainly.
+  // 5. Timing — only when it needs saying; on-time praise lives in the score chips now.
+  if (late === true) {
+    const mins = (typeof minutesLate === 'number' && isFinite(minutesLate) && minutesLate > 0)
+      ? ` — ${Math.round(minutesLate)} min past the window` : '';
+    parts.push(`And ${who} went in late${mins}. Logging it late still counts — hiding it doesn't.`);
+  }
+  // 6. Score impact — engine-computed accountability credit, stated plainly.
   if (typeof impact === 'number' && isFinite(impact) && impact > 0) {
     parts.push(`This log moved your Daily Score by +${Math.round(impact)}.`);
   }
-  // Uncertainty, stated honestly for photo estimates.
+  // 7. Uncertainty, stated honestly for photo estimates — only when it's a real guess.
   const conf = estimateConfidence(source, detected);
-  if (conf !== 'exact' && source !== 'manual') {
-    parts.push(conf === 'high'
-      ? 'These numbers are photo estimates — close, but cooking oil or sauce could shift them.'
-      : `These numbers are photo estimates at ${conf} confidence — portions, oil, or sauce could move them, so correct anything I misread.`);
-  }
-  if (!deep && quality != null) {
-    parts.push(quality >= 75
-      ? `Strong plate${name ? ` — keep ${clean(name)} in rotation` : ''}.`
-      : 'One upgrade next time: add a protein or a vegetable and this score jumps.');
+  if (conf !== 'exact' && conf !== 'high' && source !== 'manual') {
+    parts.push(`My read is a photo estimate at ${conf} confidence — portions, oil, or sauce could move it, so correct anything I misread.`);
   }
   return parts.filter(Boolean).join(' ').slice(0, 1500);
 }
@@ -657,6 +661,50 @@ export function mealQualityScore({ macros, fiber, detected, minutesLate } = {}) 
   const score = pts.protein[s.protein] + pts.carbs[s.carbs] + pts.fat[s.fat]
     + pts.fiber[s.fiberState] + pts.timing[s.timing];
   return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+/** The score, immediately explainable (founder 2026-08-04): the top 2–3 reasons the meal
+ *  reads what it reads, as short chips under the number — "Protein low · Good timing · Fat
+ *  high". Ranked by POINTS LOST per component (the same componentStates + QUALITY_POINTS
+ *  arithmetic that sets the score, so chips and number can never disagree); when little was
+ *  lost, the strongest 'met' components lead instead. Returns [{ label, state }] — state is
+ *  met/partial/miss for the chip's tint. [] when there's nothing to judge. */
+export function scoreReasons({ macros, fiber, detected, minutesLate } = {}) {
+  const s = componentStates({ minutesLate, macros, fiber, detected });
+  if (!(s.total > 0)) return [];
+  const LABEL = {
+    protein: { met: 'Protein solid', partial: 'Protein a bit light', miss: 'Protein low' },
+    carbs: { met: 'Carbs balanced', partial: 'Carb-heavy' },
+    fat: { met: 'Fat in range', partial: 'Fat a bit high', miss: 'Fat high' },
+    fiber: { met: 'Good fiber', partial: 'Fiber light', miss: 'No fiber showing' },
+    timing: { met: 'Good timing', partial: 'Logged late', miss: 'Logged very late' },
+  };
+  const comps = [
+    { k: 'protein', state: s.protein },
+    { k: 'carbs', state: s.carbs },
+    { k: 'fat', state: s.fat },
+    { k: 'fiber', state: s.fiberState },
+    { k: 'timing', state: s.timing },
+  ].filter((c) => c.state != null);
+  // Fiber consistency guard (same rule as qualityReason): produce visible + a 0 fiber estimate
+  // means the ESTIMATE is the suspect — never chip "No fiber showing" against a visible salad.
+  const scored = comps
+    .filter((c) => !(c.k === 'fiber' && c.state === 'miss' && s.produce))
+    .map((c) => {
+      const table = QUALITY_POINTS[c.k];
+      const max = table.met;
+      const lost = max - (table[c.state] != null ? table[c.state] : max);
+      return { ...c, lost, label: (LABEL[c.k] && LABEL[c.k][c.state]) || '' };
+    })
+    .filter((c) => c.label);
+  const problems = scored.filter((c) => c.lost > 0).sort((a, b) => b.lost - a.lost);
+  const wins = scored.filter((c) => c.lost === 0).sort((a, b) => QUALITY_POINTS[b.k].met - QUALITY_POINTS[a.k].met);
+  // Up to 3 chips: the biggest costs first, then one win for balance (an all-problems row on a
+  // decent plate reads harsher than the number). A clean plate leads with its top two wins.
+  const out = [];
+  for (const c of problems.slice(0, problems.length >= 3 ? 3 : 2)) out.push(c);
+  for (const c of wins) { if (out.length >= 3) break; out.push(c); }
+  return out.slice(0, 3).map((c) => ({ label: c.label, state: c.state }));
 }
 
 export function scoreRubric({ quality, minutesLate, macros, fiber, detected, source, userNote, photoQ } = {}) {

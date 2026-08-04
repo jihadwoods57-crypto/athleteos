@@ -4,7 +4,7 @@ import { appHead, scoreRing, esc, safeImg, collapseSection, emailVerifyBanner, w
 import { reveal } from '../motion.js';
 import { maybeShowLock } from '../lock-moment.js';
 import { DAY, MEAL_KEYS } from '../day.js';
-import { fetchMyDayReceipts } from '../roles.js';
+import { fetchMyDayReceipts, fetchRecentMeals, signedMealPhotoUrl, daysAgoISO, todayISO } from '../roles.js';
 import { warmMealPhotos, todayMealPhotoPath } from '../photo-store.js';
 import { shouldNudge, nudgeSignature, nudgeData } from '../coach-nudge.js';
 import { deriveCommitment } from '../commitments.js';
@@ -127,7 +127,7 @@ const ACT_MEDIA = {
   utensils: ['rgba(245,165,36,0.22)', 'rgba(245,165,36,0.08)', 'var(--amber-bright)'],
 };
 // Micro-label above a non-quality result value — names what the number IS.
-const RES_K = { 'Hydration': 'Total today', 'Morning Weight': 'This morning', 'Recovery Check-In': 'Status' };
+const RES_K = { 'Morning Weight': 'This morning', 'Recovery Check-In': 'Status' };
 /* Recent RESULTS card (2-up grid): photo or icon media, then the outcome as labeled
    key/value lines. Meals show BOTH numbers — Meal Quality (the plate read, tiered color)
    and the honest computed Daily Score credit — because keeping those two ideas separate
@@ -178,11 +178,79 @@ function outcomeBand() {
   </section>`;
 }
 
+/* Past-days activity (founder 2026-08-04): Recent Results shows up to THREE days, not just
+   today. Real logged meals from the athlete's own `meals` rows, one fetch per mount per user
+   (60s cache), photos signed onto the row; the mount repaints once when rows land. */
+let PAST = { uid: null, rows: null, at: 0 };
+async function warmPastResults(uid) {
+  if (!uid || !window.sb) return;
+  if (PAST.uid === uid && PAST.rows && Date.now() - PAST.at < 60000) return;
+  const today = todayISO();
+  const rows = (await fetchRecentMeals(uid, daysAgoISO(2)).catch(() => [])) || [];
+  const past = rows.filter((r) => r && r.day_date && String(r.day_date) < today);
+  await Promise.all(past.map(async (r) => {
+    if (r.photo_path) r._img = await signedMealPhotoUrl(r.photo_path).catch(() => null);
+  }));
+  PAST = { uid, rows: past, at: Date.now() };
+  if (/^#?(home)?$/.test(location.hash)) window.__render && window.__render();
+}
+const tsClock = (ts) => {
+  const d = new Date(ts);
+  if (isNaN(d)) return '';
+  const h = ((d.getHours() + 11) % 12) + 1;
+  return `${h}:${String(d.getMinutes()).padStart(2, '0')} ${d.getHours() < 12 ? 'AM' : 'PM'}`;
+};
+const pastDayLabel = (isoStr) => {
+  const [y, m, dd] = String(isoStr).split('-').map(Number);
+  const d = new Date(y, m - 1, dd);
+  if (isNaN(d)) return String(isoStr);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff = Math.round((today - d) / 86400000);
+  return diff === 1 ? 'Yesterday'
+    : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getDay()];
+};
+/* Yesterday + the day before, each its own labeled rail. Past days route to Progress (the
+   meal thread only renders TODAY's slots — a past card must never open an empty thread). */
+const pastResults = () => {
+  const rows = (PAST.uid === RT.userId && PAST.rows) ? PAST.rows : [];
+  if (!rows.length) return '';
+  const byDay = new Map();
+  for (const r of rows) {
+    const k = String(r.day_date);
+    if (!byDay.has(k)) byDay.set(k, []);
+    byDay.get(k).push(r);
+  }
+  return [...byDay.keys()].sort().reverse().slice(0, 2).map((d) => {
+    const label = pastDayLabel(d);
+    const cards = byDay.get(d).map((r) => {
+      const clock = r.logged_at ? tsClock(r.logged_at) : '';
+      return resCard({
+        noPhoto: !r.photo_path,
+        time: clock ? `${label} · ${clock}` : label,
+        type: r.type || 'Meal', icon: 'utensils',
+        value: r.quality != null ? String(r.quality) : 'Logged',
+        unit: r.quality != null ? '/100' : null,
+        qualityLabel: r.quality != null,
+        vClass: r.quality != null ? (r.quality >= 80 ? 'g' : r.quality >= 50 ? 'a' : 'r') : 'muted',
+        impact: 0,
+        img: r._img || null,
+        route: 'progress',
+      });
+    }).join('');
+    return `<div class="eyebrow" style="margin-top:14px">${esc(label)}</div><div class="res-rail">${cards}</div>`;
+  }).join('');
+};
+
 const recentResults = () => {
   const rows = S.activity.filter((a) => !a.dim);
-  return rows.length ? `
+  const past = pastResults();
+  if (!rows.length && !past) return '';
+  return `
+    ${rows.length ? `
     <div class="eyebrow">Recent Results <span class="link" data-go="progress">View all</span></div>
-    <div class="res-rail">${rows.map(resCard).join('')}</div>` : '';
+    <div class="res-rail">${rows.map(resCard).join('')}</div>` : `
+    <div class="eyebrow">Recent Results <span class="link" data-go="progress">View all</span></div>`}
+    ${past}`;
 };
 
 const whyHtml = (why) => esc(why).replace(/\*\*(.+?)\*\*/, '<b>$1</b>');
@@ -314,8 +382,6 @@ function headSub(e) {
 function nextLabel(e) {
   const n = e.now;
   if (n) return (!n.proof || n.proof === 'check') ? `Mark ${n.title} done` : `${VERB[n.proof]} ${n.title}`;
-  const hydro = e.items.find((i) => i.id === 'hydration' && i.state === 'ready');
-  if (hydro) return 'Complete hydration';
   const locked = e.later.find((i) => i.state === 'locked');
   if (locked) return `${locked.title} · ${locked.sub.charAt(0).toLowerCase()}${locked.sub.slice(1)}`;
   return '';
@@ -418,37 +484,6 @@ const grow = (i, { hidePill, chev, checkIcon } = {}) => `<div class="xg-row" dat
     ${chev ? icon('chevron', 16, 'style="color:var(--text-3)"') : ''}
   </div>`;
 
-/* Hydration as the NOW card when nothing required is actionable. ONE NOW system (founder
-   call 2026-07-16): whatever holds the slot wears the same gold card with the internal NOW
-   label — no separate green section header, no second design language. Hydration's
-   optional-ness stays honest via the "Optional" pill, and its special powers (live progress
-   + quick-adds + custom amount) live inside the card. Never rendered when a required item
-   holds the NOW slot (hydration then stays a quiet Upcoming row). */
-function hydroNow(h) {
-  const pct = Math.min(100, Math.round(((h.oz || 0) / 120) * 100));
-  return `<section class="xnow hyd-now">
-    <div class="xlab"><span class="xl">NOW</span><span class="note">Optional</span></div>
-    <div class="xmain">
-      <div class="xico gold">${icon('droplet', 21)}</div>
-      <div><div class="xt">Hydration</div><div class="xwhy" id="hyd-sub">${esc(h.sub)}</div></div>
-    </div>
-    <div class="hn-row">
-      <div class="hn-bar" role="progressbar" aria-valuenow="${h.oz || 0}" aria-valuemin="0" aria-valuemax="120" aria-label="Hydration progress"><i id="hyd-fill" style="width:${pct}%"></i></div>
-      <span class="hn-pct" id="hyd-pct">${pct}%</span>
-    </div>
-    <div class="hn-chips">
-      <button class="hchip" data-water="8">+8 oz</button>
-      <button class="hchip" data-water="16">+16 oz</button>
-      <button class="hchip" data-water="24">+24 oz</button>
-      <button class="hchip ghost" id="hyd-other" aria-expanded="false">Other</button>
-    </div>
-    <div class="hn-custom" id="hyd-custom" hidden>
-      <input id="hyd-oz" type="number" inputmode="numeric" min="1" max="200" placeholder="How many oz?" aria-label="Ounces of water">
-      <button class="hchip solid" id="hyd-add">Add</button>
-    </div>
-  </section>`;
-}
-
 // Streak ribbon removed (founder call 2026-07-16): the streak's home surfaces are the
 // celebration screen and notifications — Home stays focused on score + next action.
 
@@ -472,7 +507,6 @@ function celebration(e) {
     <div class="xrecord" style="width:100%;box-sizing:border-box">
       ${e.doneItems.map((d) => `<div class="xrec"><span class="xtk">${icon('check', 12)}</span>${esc(d.title)}<span class="xtm">${esc((d.sub || '').replace(/^Logged at /, ''))}</span></div>`).join('')}
     </div>
-    ${RT.hydrationOz < 120 ? `<div style="width:100%;margin-top:10px"><div class="xrow-item" style="cursor:default"><div class="xico sm gray">${icon('droplet', 16)}</div><div class="xr"><div class="xa">Add water</div><div class="xb" id="home-water-sub">${RT.hydrationOz} of 120 oz — optional, still counts with coach</div></div><div class="water-btns"><span class="wb2" data-water="8">+8</span><span class="wb2" data-water="16">+16</span></div></div></div>` : ''}
   </div>`;
 }
 
@@ -517,13 +551,13 @@ function firstActionCard(n) {
 }
 
 /* The one sentence that makes first-day scoring feel fair — states the join time and that
-   nothing before it counts. Cumulative goals (hydration) start fresh tomorrow. */
+   nothing before it counts. */
 function fairnessNote(activationMin) {
   const t = fmtClock(activationMin);
   return `<div class="sidebox" style="margin-top:12px">
     <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
     <div><div class="tt">You're set up${t ? ` — you joined at ${t}` : ''}</div>
-    <div class="ts">Anything scheduled before now won't count against you today. Hydration and your first full score start fresh tomorrow.</div></div>
+    <div class="ts">Anything scheduled before now won't count against you today. Your first full score starts fresh tomorrow.</div></div>
   </div>`;
 }
 
@@ -541,7 +575,7 @@ export default {
       // e.next (the 2nd actionable item) lives in neither e.now nor e.later — without this it
       // vanished from the activation-day screen entirely (not in Start here, Later, Logged, or
       // Not counted). Surface it under "Later today", framed positively like the rest of day one.
-      const upcoming = [...(e.next ? [e.next] : []), ...e.later].filter((i) => i.state !== 'not_required' && i.id !== 'hydration');
+      const upcoming = [...(e.next ? [e.next] : []), ...e.later].filter((i) => i.state !== 'not_required');
       const excused = e.items.filter((i) => i.state === 'not_required');
       const grp = (label, rows, opts) => rows.length
         ? `<div class="xgrp">${label}</div><div class="xgroup">${rows.map((i) => grow(i, opts || {})).join('')}</div>` : '';
@@ -626,11 +660,7 @@ export default {
         ? `<div class="xrow-item" data-go="injury"><div class="xico sm" style="background:rgba(245,165,36,0.18);color:var(--amber-bright)">${icon('bolt', 16)}</div><div class="xr"><div class="xa">Injury mode active</div><div class="xb">Your Standard adapted while you heal</div></div><span class="xpill gold">On</span></div>` : '',
     ].filter(Boolean).join('');
 
-    // Hydration takes the NOW slot only when no required item holds it — the one actionable
-    // thing on an otherwise-locked screen gets the inline control instead of hiding in a fold.
-    const hydro = e.items.find((i) => i.id === 'hydration');
-    const hydroIsNow = !e.now && hydro && hydro.state === 'ready';
-    const upcoming = e.later.filter((i) => !(hydroIsNow && i.id === 'hydration'));
+    const upcoming = e.later;
 
     const laterHtml = upcoming.length
       ? collapseSection('later', 'Upcoming', upcoming.length, `<div class="xgroup">${upcoming.map((i) => grow(i, { hidePill: i.state === 'locked' })).join('')}</div>`, open.later === true)
@@ -650,7 +680,7 @@ export default {
     ${attention}
     <div id="cv-nudge">${cachedNudge(e)}</div>
     ${e.overdue.filter((o) => o.id !== (e.now && e.now.id) && o.id !== (e.next && e.next.id)).map(row).join('')}
-    ${e.now ? nowCard(e) : hydroIsNow ? hydroNow(hydro) : ''}
+    ${e.now ? nowCard(e) : ''}
     ${nextRows.length ? `<div class="xgrp">${e.next.state === 'overdue' ? 'Also overdue' : 'Next'}</div>${nextRows.map(row).join('')}` : ''}
     ${laterHtml}
     ${doneHtml}
@@ -696,6 +726,8 @@ export default {
     if (RT.userId) {
       warmMealPhotos(MEAL_KEYS.filter((k) => DAY.meals[k] && slotHasPhoto(k))
         .map((k) => todayMealPhotoPath(RT.userId, String(DAY.date), k)));
+      // Past-days rails (up to 3 days of Recent Results) — fire-and-forget, repaints once.
+      warmPastResults(RT.userId);
     }
     // Trust Pass shield popup: tap toggles; any tap outside closes. Listeners live on
     // elements inside this render, so they die with the next innerHTML swap — no stacking.
@@ -726,58 +758,6 @@ export default {
     root.querySelectorAll('details.xcollapse').forEach((d) => {
       d.addEventListener('toggle', () => act.setHomeSection(d.getAttribute('data-sec'), d.open));
     });
-    // One-tap water on Home (WS8): the highest-frequency micro-action used to cost two taps
-    // and a sheet animation. Same in-place patch pattern as the Action Hub — no re-render
-    // churn. patchWater covers BOTH surfaces (the NOW card and the celebration row): it
-    // rewrites whichever sub is present, plus the NOW card's live % and bar fill.
-    const patchWater = () => {
-      const oz = RT.hydrationOz;
-      for (const sel of ['#hyd-sub', '#home-water-sub']) {
-        const s = root.querySelector(sel);
-        if (s) { const t = s.textContent, i = t.indexOf(' of '); if (i >= 0) s.textContent = oz + t.slice(i); }
-      }
-      const pct = Math.min(100, Math.round((oz / 120) * 100));
-      const p = root.querySelector('#hyd-pct'); if (p) p.textContent = `${pct}%`;
-      const f = root.querySelector('#hyd-fill'); if (f) f.style.width = `${pct}%`;
-      const bar = root.querySelector('.hn-bar'); if (bar) bar.setAttribute('aria-valuenow', String(oz));
-    };
-    const logWater = (oz) => {
-      const before = RT.hydrationOz;
-      act.addWater(oz);
-      // Haptic grammar: a light tick per add; a distinct double-notch the moment the goal
-      // is crossed (physical feedback is the premium tell — Fitness/Whoop class).
-      try {
-        if (navigator.vibrate) navigator.vibrate(before < 120 && RT.hydrationOz >= 120 ? [18, 60, 26] : 14);
-      } catch { /* no-op */ }
-      // Crossing the goal is a real state change (hydration flips to Completed) — the one
-      // case where a full re-render is correct.
-      if (RT.hydrationOz >= 120) { window.__render(); return; }
-      patchWater();
-    };
-    root.querySelectorAll('[data-water]').forEach((btn) => {
-      btn.addEventListener('click', (ev) => { ev.stopPropagation(); logWater(+btn.getAttribute('data-water')); });
-    });
-    // "Other" reveals a real amount input inline — no prompt(), no detour.
-    const other = root.querySelector('#hyd-other');
-    if (other) other.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      const c = root.querySelector('#hyd-custom');
-      const show = c.hidden;
-      c.hidden = !show;
-      other.setAttribute('aria-expanded', String(show));
-      if (show) { const inp = root.querySelector('#hyd-oz'); if (inp) inp.focus(); }
-    });
-    const addCustom = () => {
-      const inp = root.querySelector('#hyd-oz');
-      const oz = Math.round(+((inp && inp.value) || 0));
-      if (!oz || oz < 1) return;
-      if (inp) inp.value = '';
-      logWater(Math.min(200, oz));
-    };
-    const addBtn = root.querySelector('#hyd-add');
-    if (addBtn) addBtn.addEventListener('click', (ev) => { ev.stopPropagation(); addCustom(); });
-    const ozInput = root.querySelector('#hyd-oz');
-    if (ozInput) ozInput.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); addCustom(); } });
     // Coach-seen receipt (0043, athlete side): "something visibly came back" — the row shows
     // ONLY when a real linked human actually opened this day. Nothing is ever fabricated;
     // no receipts → no row. Fetched per-mount (cheap indexed read), injected async.

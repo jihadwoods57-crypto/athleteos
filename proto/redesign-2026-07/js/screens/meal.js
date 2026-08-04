@@ -4,7 +4,7 @@ import { icon } from '../icons.js';
 import { backHead, esc, safeImg, nonLiveBadge, composer } from '../components.js';
 import { reveal } from '../motion.js';
 import {
-  openingMessage, openingSummary, qualityBand, qualityReason, reactionGroups, threadMessages,
+  openingMessage, openingSummary, qualityBand, scoreReasons, reactionGroups, threadMessages,
   contextForChat, applyFoodEdit, hasUserEdits, restrictionConflicts,
   estimateConfidence, estRange, mealPatterns, scoreRubric, followUpQuestion, coachThreadStatus,
   REACTION_EMOJI,
@@ -16,20 +16,46 @@ import {
 import { openImageViewer } from '../image-viewer.js';
 import { openMembersSheet } from '../members-sheet.js';
 import { wireTapback } from '../tapback.js';
+import { recentRows, warmRecent as warmRecentShared } from '../recent-meals.js';
 import {
   layoutThread, authorName, initialsFor, participantList, participantSummary, participantMeta,
   isAnalysisOpener, isAnalysisUpdate, isEscalated, quotedFor,
 } from '../chat-view.js';
 
-/* Recent same-athlete meals (14d) for REAL historical patterns in the AI opening — module
-   cache, one fetch per minute per user; the mount repaints once when rows land. */
-let RECENT = { uid: null, rows: null, at: 0 };
+/* The meal score chip's ring, drawn as the brand dial (docs/brand/LOGO.md): a 300° gauge with
+   a 60° gap at 6 o'clock and the signature --ring-a/b/c sweep — the same silhouette as the day
+   score ring and the mark itself. Status color (good/mid/low) lives on the chip's NUMBER, never
+   the arc: score surfaces wear the sweep, green stays status-only. Keeps .sc-arc/.ring-arc +
+   data-off so reveal()/windBack drive it unchanged. */
+function miniDial(score) {
+  const c = 31, r = 26, A0 = 120, SWEEP = 300;
+  const pt = (deg) => {
+    const a = (deg * Math.PI) / 180;
+    return `${(c + Math.cos(a) * r).toFixed(2)} ${(c + Math.sin(a) * r).toFixed(2)}`;
+  };
+  const d = `M ${pt(A0)} A ${r} ${r} 0 1 1 ${pt(60)}`;
+  const off = (100 - score).toFixed(1);
+  return `<svg class="sc-ring" width="62" height="62" viewBox="0 0 62 62" aria-hidden="true">
+    <defs>
+      <linearGradient id="scg" gradientUnits="userSpaceOnUse" x1="12.5" y1="53.9" x2="37.2" y2="5">
+        <stop offset="0%" stop-color="var(--ring-a)"/>
+        <stop offset="50%" stop-color="var(--ring-b)"/>
+        <stop offset="100%" stop-color="var(--ring-c)"/>
+      </linearGradient>
+    </defs>
+    <path d="${d}" fill="none" stroke="var(--hairline)" stroke-width="3.5" stroke-linecap="round"/>
+    <path class="ring-arc sc-arc" d="${d}" fill="none" stroke="url(#scg)" stroke-width="3.5" stroke-linecap="round"
+      pathLength="100" stroke-dasharray="100" stroke-dashoffset="${off}" data-off="${off}"/>
+  </svg>`;
+}
+
+/* Recent same-athlete meals (14d) for REAL historical patterns in the AI opening — shared cache
+   (recent-meals.js; state.js's _postMealOpener reads the same rows); the mount repaints once
+   when rows land. */
 async function warmRecent(rolesMod, uid) {
-  if (!uid) return;
-  if (RECENT.uid === uid && RECENT.rows && Date.now() - RECENT.at < 60000) return;
-  const rows = await rolesMod.fetchRecentMeals(uid, rolesMod.daysAgoISO(14)).catch(() => []);
-  RECENT = { uid, rows: (rows || []).slice().reverse(), at: Date.now() }; // ascending for mealPatterns
-  if (location.hash.startsWith('#meal-')) window.__render && window.__render();
+  const before = recentRows(uid);
+  const rows = await warmRecentShared(rolesMod, uid);
+  if (rows && rows !== before && location.hash.startsWith('#meal-')) window.__render && window.__render();
 }
 /* Pending memory facts (0019): things the athlete's corrections SUGGEST but which must never bind
    until they say so. Cached with the same idiom as RECENT/RECEIPT; the thread renders at most one
@@ -285,8 +311,8 @@ function openingInputs(M) {
   // Real context for the opening (upgrade 2026-07-16): the day's actual protein math, the
   // engine's score credit for THIS log, and historical patterns only when history exists.
   const dayP = S.mealDayProgress;
-  const recentRows = RECENT.uid === RT.userId && Array.isArray(RECENT.rows) ? RECENT.rows : [];
-  const patterns = mealPatterns(recentRows, {
+  const recent = recentRows(RT.userId) || [];
+  const patterns = mealPatterns(recent, {
     slot: M.slot,
     mealProteinBar: dayP.proteinTarget > 0 ? Math.round(dayP.proteinTarget / 4) : 0,
   });
@@ -662,7 +688,7 @@ export const thread = {
     const execTop = `
     <section class="mt-confirm">
       <div class="row1">
-        <div class="ck">${icon('check', 20)}</div>
+        <div class="ck${justLogged ? ' pop' : ''}">${icon('check', 20)}</div>
         <div><div class="t">${esc(M.name)} logged</div>
         <div class="s">${timing}${cStatus.label ? ` · <span id="coach-status">${esc(cStatus.label)}</span>` : ''}</div></div>
       </div>
@@ -686,7 +712,9 @@ export const thread = {
     // compliance — banded color, its own label, and a one-line WHY so 58 never reads as green
     // success or an arbitrary number). Provenance badges live here; name/timing not repeated.
     const band = qualityBand(M.score);
-    const reason = qualityReason(M.macros, M.fiber, M.detectedRich);
+    // The top 2-3 reasons the score is what it is (founder 2026-08-04: the score must be
+    // immediately explainable) — same componentStates arithmetic as the number itself.
+    const reasons = scoreReasons({ macros: M.macros, fiber: M.fiber, detected: M.detectedRich, minutesLate: M.minutesLate });
     // Expandable score rubric (upgrade 2026-07-16): the observable components behind the
     // number, each marked exact or estimated — same math as the feedback, so they agree.
     const rub = scoreRubric({
@@ -706,18 +734,13 @@ export const thread = {
       <div class="ph-grad"></div>
       <div class="ph-meta"><div>${M.live === false ? `<div>${nonLiveBadge()}</div>` : '<div></div>'}</div>
       ${M.score != null ? `<div class="scorechip ${band ? band.cls : ''}" id="meal-scorechip">
-        <svg class="sc-ring" width="62" height="62" viewBox="0 0 62 62" aria-hidden="true">
-          <circle cx="31" cy="31" r="29.5" fill="none" stroke="var(--hairline)" stroke-width="2.5"/>
-          <circle class="ring-arc sc-arc" cx="31" cy="31" r="29.5" fill="none" stroke-width="2.5" stroke-linecap="round"
-            stroke-dasharray="185.4" stroke-dashoffset="${(185.4 * (1 - M.score / 100)).toFixed(1)}" data-off="${(185.4 * (1 - M.score / 100)).toFixed(1)}"
-            transform="rotate(-90 31 31)"/>
-        </svg>
+        ${miniDial(M.score)}
         <span class="v" data-count="${M.score}">${M.score}</span><span class="k">Meal</span>
       </div>` : ''}</div>
     </div>
-    ${band ? `<div class="qual-line ${band.cls}">
-      <span class="qv">${M.score}<small>/100</small></span>
-      <div><div class="ql">Meal quality · ${band.label}</div>${reason ? `<div class="qr">${esc(reason)}</div>` : ''}</div>
+    ${band ? `<div class="score-reasons">
+      <span class="sr-band ${band.cls}">${M.score}<small>/100</small> · ${band.label}</span>
+      ${reasons.map((r) => `<span class="sr-chip ${r.state}">${esc(r.label)}</span>`).join('')}
     </div>
     <details class="rub">
       <summary>${esc(rub.headline)} ${icon('chevron', 13)}</summary>
@@ -818,69 +841,72 @@ export const thread = {
     ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
     <div class="est-note" style="margin-top:8px">Your plan tracks how food leaves you feeling rather than calorie and macro counts. Your ${esc(S.coach.noun)} can still see the full numbers.</div>
     ${emptyRead ? rereadNote : ''}` : `
+    ${/* THE ONE BREAKDOWN (founder 2026-08-04): the always-visible part is a single slim strip —
+          protein leading, since it's the number a coach actually sets — and everything supporting
+          (foods, target bars, notes, corrections) folds into one expandable section. The strip is
+          what keeps the Meal Breakdown the single source of truth on screen, so the AI never has
+          to restate a number; the old protein hero + 4-tile macro row said the same thing twice. */''}
     <div class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">Meal Breakdown</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></div>
-    ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
-    <div class="phero">
-      <span class="pv">${tilde}${M.macros.protein}g</span><span class="pk">Protein</span>
-      ${dayShare != null ? `<span class="pc">${dayShare}% of your day</span>` : ''}
-    </div>
-    <div class="macro-row four" style="margin-top:8px">
-      <div class="macro"><div class="mv">${tilde}${M.macros.carbs}g</div><div class="mk">Carbs</div></div>
-      <div class="macro"><div class="mv">${tilde}${M.macros.fat}g</div><div class="mk">Fat</div></div>
-      <div class="macro"><div class="mv">${tilde}${M.fiber}g</div><div class="mk">Fiber</div></div>
-      <div class="macro"><div class="mv">${tilde}${M.macros.cals}</div><div class="mk">Cals</div></div>
-    </div>
-    ${targetBars.length ? `<section class="card pad" style="margin-top:10px">
-      ${targetBars.map(([k, v, target, u, projected]) => {
-        const now = Math.min(100, Math.round((v / target) * 100));
-        // The striped segment is what is still COMING: the meals left today at their planned
-        // share. Without it, 81 of 180g at dinner reads as failing when it is on pace — the bar
-        // was answering "how much of the day is done" and the athlete reads it as a verdict.
-        const ahead = projected != null ? Math.max(0, Math.min(100 - now, Math.round((projected / target) * 100))) : 0;
-        return `
-        <div class="cons-row" style="margin-bottom:10px">
-          <span class="k" style="width:64px">${k}</span>
-          <div class="track"><div class="fillb" style="width:${now}%;background:linear-gradient(90deg,var(--blue),var(--teal, #39c6d6))"></div>${ahead ? `<div class="ghostb" style="left:${now}%;width:${ahead}%"></div>` : ''}</div>
-          <span class="v" style="width:110px">${tilde}${v}${u} <small style="color:var(--text-3)">of ${esc(String(target))}${u}</small></span>
-        </div>`;
-      }).join('')}
-      ${paceNote ? `<div class="pace">${esc(paceNote)}</div>` : ''}
-    </section>` : `<div class="est-note">No coach targets set yet, so there's nothing to measure against. These are this meal's totals.</div>`}
-    ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
-    ${corrLog ? `<div class="est-note" style="margin-top:8px;color:var(--blue-bright)"><b style="color:var(--blue-bright)">Corrected by you</b> — ${corrLog} correction${corrLog === 1 ? '' : 's'} applied. The AI's original estimate is kept for reference${M.orig ? ` (was ~${M.orig.protein}g protein · ~${M.orig.kcal} cal)` : ''}.</div>` : ''}
-    ${/* The two entry points into the correction panel live HERE, with the numbers they correct,
-          rather than as chips floating above the composer at the bottom of the conversation
-          (founder, 2026-08-02). "Correct analysis" down there was a duplicate of the link that has
-          always sat on this line; "Add meal details" is the same panel with the free-text field
-          focused, and it is the one that had nowhere else to go. Both now render for a manually
-          logged meal too — the old chip row did, this line didn't, so a meal with no photo used to
-          lose its way in as soon as the row was removed. */''}
-    ${emptyRead ? rereadNote : M.mealId ? `<div class="est-note">${fromPhoto ? 'Estimated from the photo · cooking oil or sauce may change these numbers. ' : ''}<span class="link" id="open-correct" role="button">${fromPhoto ? 'Something off? Correct the analysis' : 'Correct the analysis'}</span> · <span class="link" id="qa-details" role="button">Add meal details</span></div>` : ''}
+    ${emptyRead ? rereadNote : `
+    <div class="bd-strip">
+      <span class="bs-p">${tilde}${M.macros.protein}g protein${dayShare != null ? `<small> · ${dayShare}% of your day</small>` : ''}</span>
+      <span class="bs-m">${tilde}${M.macros.carbs}g carbs</span>
+      <span class="bs-m">${tilde}${M.macros.fat}g fat</span>
+      <span class="bs-m">${tilde}${M.macros.cals} cal</span>
+    </div>`}
+    <details class="bd-wrap"${thread._bdOpen || thread._fixOpen ? ' open' : ''}>
+      <summary>Full breakdown${targetBars.length ? ' &amp; targets' : ''} ${icon('chevron', 13)}</summary>
+      <div class="bd-body">
+      ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
+      ${targetBars.length ? `<section class="card pad" style="margin-top:10px">
+        ${targetBars.map(([k, v, target, u, projected]) => {
+          const now = Math.min(100, Math.round((v / target) * 100));
+          // The striped segment is what is still COMING: the meals left today at their planned
+          // share. Without it, 81 of 180g at dinner reads as failing when it is on pace — the bar
+          // was answering "how much of the day is done" and the athlete reads it as a verdict.
+          const ahead = projected != null ? Math.max(0, Math.min(100 - now, Math.round((projected / target) * 100))) : 0;
+          return `
+          <div class="cons-row" style="margin-bottom:10px">
+            <span class="k" style="width:64px">${k}</span>
+            <div class="track"><div class="fillb" style="width:${now}%;background:linear-gradient(90deg,var(--blue),var(--teal, #39c6d6))"></div>${ahead ? `<div class="ghostb" style="left:${now}%;width:${ahead}%"></div>` : ''}</div>
+            <span class="v" style="width:110px">${tilde}${v}${u} <small style="color:var(--text-3)">of ${esc(String(target))}${u}</small></span>
+          </div>`;
+        }).join('')}
+        ${paceNote ? `<div class="pace">${esc(paceNote)}</div>` : ''}
+      </section>` : `<div class="est-note">No coach targets set yet, so there's nothing to measure against. These are this meal's totals.</div>`}
+      <div class="est-note" style="margin-top:8px">~${M.fiber}g fiber estimated — the full component read lives under "Why this meal reads ${M.score != null ? M.score : 'what it reads'}".</div>
+      ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
+      ${corrLog ? `<div class="est-note" style="margin-top:8px;color:var(--blue-bright)"><b style="color:var(--blue-bright)">Corrected by you</b> — ${corrLog} correction${corrLog === 1 ? '' : 's'} applied. The AI's original estimate is kept for reference${M.orig ? ` (was ~${M.orig.protein}g protein · ~${M.orig.kcal} cal)` : ''}.</div>` : ''}
+      ${/* The two entry points into the correction panel live HERE, with the numbers they correct
+            (founder, 2026-08-02). Both render for a manually logged meal too. */''}
+      ${emptyRead ? '' : M.mealId ? `<div class="est-note">${fromPhoto ? 'Estimated from the photo · cooking oil or sauce may change these numbers. ' : ''}<span class="link" id="open-correct" role="button">${fromPhoto ? 'Something off? Correct the analysis' : 'Correct the analysis'}</span> · <span class="link" id="qa-details" role="button">Add meal details</span></div>` : ''}
 
-    <!-- Correct analysis (upgrade 2026-07-16): fix what the photo can't show; every chip is a
-         deterministic, estimated adjustment with an audit trail — hidden until opened. -->
-    <div id="fix-panel" hidden>
-      <div class="eyebrow" style="margin-top:14px">Correct the analysis</div>
-      <section class="card pad" style="padding-top:12px">
-        ${[
-          ['cooking', 'Cooking', [['Oil', 'oil'], ['Butter', 'butter'], ['Neither', 'neither']]],
-          ['sauce', 'Sauce', [['Creamy', 'creamy'], ['Sweet / glaze', 'sweet'], ['None', 'none']]],
-          ['drink', 'Drink', [['Water', 'water'], ['Milk', 'milk'], ['Juice', 'juice'], ['Soda', 'soda'], ['Sports drink', 'sports drink']]],
-          ['side', 'I also had', [['Fruit', 'fruit'], ['Vegetables', 'vegetables'], ['Bread / roll', 'bread']]],
-          ['portion', 'Portion was', [['About half', 'half'], ['A bit less', 'three-quarters'], ['Larger', 'larger'], ['Double', 'double']]],
-        ].map(([kind, label, opts]) => `
-        <div class="fx-row">
-          <span class="fx-k">${label}</span>
-          <div class="fx-chips">${opts.map(([l, v]) => `<button class="fx-chip" data-fix="${kind}" data-val="${esc(v)}">${l}</button>`).join('')}</div>
-        </div>`).join('')}
-        <div class="fx-row">
-          <span class="fx-k">Other</span>
-          <div class="fx-other"><input class="input" id="fx-other" maxlength="160" placeholder="Anything else the photo can't show…" style="height:40px"/><button class="btn ghost sm" id="fx-other-add" style="width:auto;flex:none;padding:0 14px;height:40px">Add</button></div>
-        </div>
-        <div id="fx-note" style="font-size:12px;font-weight:700;color:var(--green-bright);min-height:16px;margin-top:6px"></div>
-        <div class="rub-fine">Corrections update the estimate with rule-based kitchen math, keep the AI's original for the record, and ${S.coach.hasCoach ? `your ${esc(S.coach.noun)} sees the corrected numbers` : 'the corrected numbers are what your log keeps'}.</div>
-      </section>
-    </div>`;
+      <!-- Correct analysis (upgrade 2026-07-16): fix what the photo can't show; every chip is a
+           deterministic, estimated adjustment with an audit trail — hidden until opened. -->
+      <div id="fix-panel" hidden>
+        <div class="eyebrow" style="margin-top:14px">Correct the analysis</div>
+        <section class="card pad" style="padding-top:12px">
+          ${[
+            ['cooking', 'Cooking', [['Oil', 'oil'], ['Butter', 'butter'], ['Neither', 'neither']]],
+            ['sauce', 'Sauce', [['Creamy', 'creamy'], ['Sweet / glaze', 'sweet'], ['None', 'none']]],
+            ['drink', 'Drink', [['Water', 'water'], ['Milk', 'milk'], ['Juice', 'juice'], ['Soda', 'soda'], ['Sports drink', 'sports drink']]],
+            ['side', 'I also had', [['Fruit', 'fruit'], ['Vegetables', 'vegetables'], ['Bread / roll', 'bread']]],
+            ['portion', 'Portion was', [['About half', 'half'], ['A bit less', 'three-quarters'], ['Larger', 'larger'], ['Double', 'double']]],
+          ].map(([kind, label, opts]) => `
+          <div class="fx-row">
+            <span class="fx-k">${label}</span>
+            <div class="fx-chips">${opts.map(([l, v]) => `<button class="fx-chip" data-fix="${kind}" data-val="${esc(v)}">${l}</button>`).join('')}</div>
+          </div>`).join('')}
+          <div class="fx-row">
+            <span class="fx-k">Other</span>
+            <div class="fx-other"><input class="input" id="fx-other" maxlength="160" placeholder="Anything else the photo can't show…" style="height:40px"/><button class="btn ghost sm" id="fx-other-add" style="width:auto;flex:none;padding:0 14px;height:40px">Add</button></div>
+          </div>
+          <div id="fx-note" style="font-size:12px;font-weight:700;color:var(--green-bright);min-height:16px;margin-top:6px"></div>
+          <div class="rub-fine">Corrections update the estimate with rule-based kitchen math, keep the AI's original for the record, and ${S.coach.hasCoach ? `your ${esc(S.coach.noun)} sees the corrected numbers` : 'the corrected numbers are what your log keeps'}.</div>
+        </section>
+      </div>
+      </div>
+    </details>`;
 
     // ---- 4. GROUPCHAT — the SINGLE AI-insight surface. Feedback 2026-07-16: the opening
     // used to be a wall of text nobody reads. Now it's the 5-second structured summary
@@ -939,7 +965,7 @@ export const thread = {
       <div class="ts">All requirements in.${S.streakDays > 0 ? ` Day ${S.streakDays} locks at midnight.` : ' Your streak starts when today locks at midnight.'}</div></div>
     </div>` : n ? `
     <div class="eyebrow" style="margin-top:16px">Next Action</div>
-    <div class="xrow-item" data-go="${n.route}">
+    <div class="xrow-item next-hot" data-go="${n.route}">
       <div class="xico sm ${n.color}">${icon(n.icon, 17)}</div>
       <div class="xr"><div class="xa">${esc(n.title)}</div>
       <div class="xb">${n.state === 'overdue' ? 'Log now for partial credit — late still counts'
@@ -963,7 +989,10 @@ export const thread = {
     // Three facts, each said twice. This file's own rule is each fact exactly once, so the verdict
     // now lives only in the card (which carries the real clock time with it). The header keeps the
     // meal's name, and keeps the duplicate-photo flag — a different fact nothing else states.
-    return `<div class="meal-screen">${backHead(M.name, dupFlagged ? 'Duplicate photo' : '', 'home')}${execTop}${photoBlock}${breakdown}${discussion}${next}
+    // Next Action moved directly under the confirm strip (founder 2026-08-04): after logging,
+    // the very next required thing is visible without scrolling — the clearest possible
+    // "what now". The rest of the screen stays photo → score → conversation → details.
+    return `<div class="meal-screen">${backHead(M.name, dupFlagged ? 'Duplicate photo' : '', 'home')}${execTop}${next}${photoBlock}${breakdown}${discussion}
     <div style="height:18px"></div>
     <button class="btn green" style="width:100%" data-go="home" aria-label="Done — back to home">${icon('check', 18)} Done</button>
     <div style="height:16px"></div></div>`;
@@ -1011,10 +1040,15 @@ export const thread = {
 
     // ---- Correct analysis panel (upgrade 2026-07-16) ----
     if (thread._fixSlot !== M.slot) { thread._fixOpen = false; thread._fixSlot = M.slot; }
+    // Breakdown expander state survives the exec-tick re-render; `toggle` fires only on user
+    // changes, never on the initial `open` attribute.
+    const bdWrap = root.querySelector('.bd-wrap');
+    if (bdWrap) bdWrap.addEventListener('toggle', () => { thread._bdOpen = bdWrap.open; });
     const fixPanel = root.querySelector('#fix-panel');
     const openFix = (focusOther) => {
       if (!fixPanel) return;
       thread._fixOpen = true;
+      if (bdWrap) bdWrap.open = true; // the panel lives inside the breakdown expander
       fixPanel.hidden = false;
       fixPanel.scrollIntoView({ block: 'center', behavior: 'smooth' });
       if (focusOther) { const o = root.querySelector('#fx-other'); if (o) o.focus(); }
@@ -1192,7 +1226,19 @@ export const thread = {
         ? (RECEIPT.rows || []).map((r) => `Seen by ${esc(r.viewer_name || 'your coach')}`).slice(0, 1).join('')
         : '';
 
-      threadEl.innerHTML = openingHtml + rows + (aiTyping ? typingRow() : '')
+      // COACH LEADS, AI ASSISTS (founder 2026-08-04): when a coach has spoken on this meal,
+      // their latest word is PINNED above the AI's opener so the human's voice frames the
+      // machine's. A pin, not a move — the message stays in the chronological flow below
+      // (deduping would break layoutThread runs, last-bubble reactions, and quoted replies).
+      const lastCoach = [...msgs].reverse().find((c) => c && c.role === 'coach' && !isPhotoOnly(c) && String(c.text || '').trim());
+      const coachPin = lastCoach ? (() => {
+        const who = authorName(lastCoach, participants, RT.userId, S.coach.noun);
+        return `<div class="coach-pin">
+          <div class="cp-head"><span class="cp-av">${esc(initialsFor(who))}</span><span class="cp-who">${esc(who)}</span><span class="cp-tag">${icon('pin', 11)} Coach</span></div>
+          <div class="cp-text">${esc(String(lastCoach.text || ''))}</div>
+        </div>`;
+      })() : '';
+      threadEl.innerHTML = coachPin + openingHtml + rows + (aiTyping ? typingRow() : '')
         + (seen ? `<div class="seen">${seen}</div>` : '')
         + (tail.length ? `<div class="msg-status">${tail.join(' ')}</div>` : '');
       threadEl.scrollTop = threadEl.scrollHeight;

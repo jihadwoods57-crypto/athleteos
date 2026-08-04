@@ -83,10 +83,13 @@ describe('openingMessage (day progress, patterns, impact, uncertainty)', () => {
       patterns: ["That's your second lunch in a row logged on time."],
       impact: 13,
     });
-    expect(msg).toMatch(/92 of 180g protein/);
+    // Founder 2026-08-04: the day is framed FORWARD (the gap), never a progress restatement —
+    // the bars on the card already show 92 of 180.
+    expect(msg).toMatch(/88g of protein still to go/);
+    expect(msg).not.toMatch(/92 of 180g/);
     expect(msg).toMatch(/second lunch in a row/);
     expect(msg).toMatch(/\+13/);
-    expect(msg).toMatch(/photo estimates/i);
+    expect(msg).toMatch(/photo estimate/i);
   });
   test('never fabricates: absent day/patterns/impact produce no such sentences', () => {
     const msg = openingMessage({ name: 'Lunch', quality: 84, analysis: 'Solid.', late: false, source: 'label' });
