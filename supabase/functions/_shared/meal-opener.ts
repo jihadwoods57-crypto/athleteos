@@ -105,60 +105,64 @@ export function composeOpenerText(input: MealInput, ctx: OpenerContext = {}): st
   const meal = text(ctx.mealName) || text(input.name);
   const opening = meal ? meal.toLowerCase() : 'this one';
 
-  // THE RULE THIS COMPOSER LIVES BY (founder 2026-08-04): never repeat what is already on the
-  // screen. The athlete can see the photo, the score, the reason chips, and the Meal Breakdown
-  // strip directly above this bubble — so the bubble never lists the foods back, never states
-  // the meal's macros, and never re-reads the progress bars. Its job is what the screen CANNOT
-  // say: the takeaway, one or two concrete next moves, and the athlete's own history.
+  // THE RULE THIS COMPOSER LIVES BY (founder 2026-08-04, tightened 2026-08-05): never repeat
+  // what is already on the screen, and never run long. A coach texts FOUR sentences, not ten —
+  // the athlete's next decision, not a report. The client clamps anything past the core with a
+  // "Read more", but the core itself must stand alone: takeaway → one move → the day, forward.
 
-  // 1. The biggest takeaway first — the model's own read of how this plate supports the athlete.
-  // Clipped on a sentence boundary: a paragraph that stops mid-clause reads as broken software.
-  const analysis = clip(text(input.analysis), 420);
+  // 1. The biggest takeaway first — the model's own read, clipped hard on a sentence boundary
+  // (two sentences of substance beat five of narration).
+  const analysis = clip(text(input.analysis), 260);
   const note = text(input.note);
   if (analysis) parts.push(analysis);
   else if (note) parts.push(note);
 
-  // 2. One or two specific recommendations, in the model's own words when it offered them.
+  // 2. ONE specific recommendation, in the model's own words when it offered one.
   const sub = text((input.substitution as { suggestion?: unknown } | undefined)?.suggestion);
   const highlight = Array.isArray(input.highlights) ? text(input.highlights[0]) : '';
-  if (sub) parts.push(sub);
-  if (highlight && highlight !== sub) parts.push(highlight);
+  const rec = sub || highlight;
+  if (rec) parts.push(rec);
 
-  // 3. The day, framed FORWARD — what's still to do, never a restatement of the bars above.
-  // Real engine numbers or nothing; the total already includes this plate (see OpenerContext.day).
+  // 3. The day, framed FORWARD as the athlete's next decision — per-meal math, never a
+  // restatement of the bars above. Real engine numbers or nothing; the total already includes
+  // this plate (see OpenerContext.day).
   const dayTotal = int(ctx.day?.proteinIncludingThisMeal), target = int(ctx.day?.proteinTarget);
   const remaining = int(ctx.day?.mealsRemaining);
   if (numbers && dayTotal !== null && target !== null && target > 0) {
     const gap = target - dayTotal;
     if (gap <= 0) {
       parts.push(`That closes out your protein for the day — nothing left to chase there.`);
-    } else if (remaining !== null && remaining > 0) {
-      parts.push(`About ${gap}g of protein still to go across your last ${remaining === 1 ? 'required meal' : `${remaining} required meals`} — keep protein leading each plate and it lands.`);
+    } else if (remaining !== null && remaining > 1) {
+      // "~60g at each of your next two meals" — the decision, pre-computed. Rounded to 5g:
+      // a coach says "around 60", never "58.5".
+      const per = Math.max(5, Math.round(gap / remaining / 5) * 5);
+      parts.push(`Land around ${per}g of protein at each of your last ${remaining} meals and you'll hit today's target without forcing the last one.`);
+    } else if (remaining === 1) {
+      parts.push(`One meal left — bring it in around ${gap}g of protein and the day closes out.`);
     } else if (remaining === 0) {
       parts.push(`Your required meals are in — about ${gap}g short on protein; a protein-forward snack tonight closes most of that.`);
     }
   }
 
-  // 4. History — the thread remembers (founder 2026-08-04): at most two REAL pattern lines the
-  // client computed from this athlete's own recent meals. Each is individually style-railed so
-  // one numeric pattern can never cost an Intuitive athlete the whole message.
+  // ---- Everything below is "Read more" territory on the client — still worth having, never
+  // allowed to crowd the core. ----
+
+  // 4. History — ONE real pattern line the client computed from this athlete's own meals,
+  // individually style-railed so a numeric line can't cost an Intuitive athlete the message.
   const rawPatterns = Array.isArray(ctx.patterns) ? ctx.patterns : [];
-  let woven = 0;
   for (const p of rawPatterns) {
-    if (woven >= 2) break;
     const line = text(p).slice(0, 160);
     if (!line || violatesStyleLanguage(line, style)) continue;
     parts.push(/[.!?]$/.test(line) ? line : `${line}.`);
-    woven++;
+    break;
   }
 
-  // 5. Timing — only when it needs saying. On-time praise lives in the score chips now; the
-  // bubble only speaks up when late, because that's the accountability half the chips soften.
+  // 5. Timing — only when it needs saying. On-time praise lives in the score checklist now.
   if (ctx.late === true) parts.push(`And logging ${opening} late still counts — hiding it wouldn't.`);
 
   // 6. What I'm not sure about. Only for real uncertainty — a hedge on every meal is noise.
   if (lowConfidence(input.detected)) {
-    parts.push("Some of my read is a guess from the photo — portions, oil or sauce could move it, so correct anything I've misread.");
+    parts.push("Some of my read is a guess from the photo — correct anything I've misread.");
   }
 
   const out = clip(parts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim());

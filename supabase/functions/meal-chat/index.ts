@@ -388,7 +388,7 @@ Deno.serve(async (req) => {
         // The correction is already applied and the numbers in the context are the CORRECTED ones.
         // The job is to acknowledge the fix and re-read the plate with it, conversationally — not
         // to apologise, and not to re-litigate what the photo showed.
-        ? `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nThe athlete just corrected your read of this meal. The numbers above are the CORRECTED ones. In 80 words or less, speaking to the athlete, acknowledge what they fixed in one short clause and give them the updated read: what it comes to now and what that means for their day. Conversational, no headings, no lists. Do not apologise and do not explain the mistake.`
+        ? `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nThe athlete just corrected your read of this meal. The numbers above are the CORRECTED ones. In 50 words or less, reply like a coach texting back — open by thanking them for the correction in a short natural clause ("Thanks for correcting the oil — that changes things a bit."), then give the ONE thing the update means for their next meal. Two or three sentences, conversational, no headings, no lists. Do not apologise, do not explain the mistake, do not re-list the numbers.`
         : `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nAthlete's question: ${question}${photoB64 ? `
 
 The athlete ATTACHED THE IMAGE ABOVE to this message. It is a conversational attachment, NOT a

@@ -244,15 +244,14 @@ export function openingMessage({
   patterns,       // array of pattern strings from mealPatterns() — real history only
   impact,         // integer: how many Daily Score points this log actually earned (engine-computed)
 } = {}) {
-  // NEVER REPEAT THE SCREEN (founder 2026-08-04): the athlete can already see the photo, the
-  // score, the reason chips and the Meal Breakdown strip. This message leads with the takeaway,
-  // gives one or two concrete moves, frames the day FORWARD (what's left, not what the bars
-  // already show), and references real history. Same contract as the server composer
+  // NEVER REPEAT THE SCREEN, NEVER RUN LONG (founder 2026-08-04, tightened 2026-08-05): a coach
+  // texts FOUR sentences — takeaway, one move, the day framed forward as the next decision. The
+  // client clamps anything past the core with "Read more". Same contract as the server composer
   // (meal-opener.ts) so the fallback and the persisted opener speak with one voice.
   const parts = [];
   const who = clean(name) || 'this one';
   // 1. The biggest takeaway first.
-  const deep = String(analysis == null ? '' : analysis).replace(/[<>]/g, '').slice(0, 900);
+  const deep = String(analysis == null ? '' : analysis).replace(/[<>]/g, '').slice(0, 400);
   if (deep) {
     parts.push(deep);
   } else {
@@ -263,26 +262,29 @@ export function openingMessage({
       parts.push(quality >= 75 ? `A plate like this ${tie}.` : `Tightening this plate up ${tie}.`);
     }
   }
-  // 2. One or two specific moves.
-  const hl = (Array.isArray(highlights) ? highlights : []).map((h) => clean(h)).filter(Boolean).slice(0, 2);
+  // 2. ONE specific move.
+  const hl = (Array.isArray(highlights) ? highlights : []).map((h) => clean(h)).filter(Boolean).slice(0, 1);
   for (const h of hl) parts.push(/[.!?]$/.test(h) ? h : `${h}.`);
-  if (!deep && quality != null && quality < 75) {
+  if (!deep && !hl.length && quality != null && quality < 75) {
     parts.push('One upgrade next time: add a protein or a vegetable and this score jumps.');
   }
-  // 3. The day, framed forward — what's still to do, never a restatement of the bars above.
+  // 3. The day, framed forward as the next decision — per-meal math, never a restatement.
   if (day && day.proteinTarget > 0 && day.proteinSoFar != null) {
     const gap = Math.round(day.proteinTarget) - Math.round(day.proteinSoFar);
     const rem = day.mealsRemaining;
     if (gap <= 0) {
       parts.push('That closes out your protein for the day — nothing left to chase there.');
-    } else if (rem != null && rem > 0) {
-      parts.push(`About ${gap}g of protein still to go across your last ${rem === 1 ? 'required meal' : `${rem} required meals`} — keep protein leading each plate and it lands.`);
+    } else if (rem != null && rem > 1) {
+      const per = Math.max(5, Math.round(gap / rem / 5) * 5);
+      parts.push(`Land around ${per}g of protein at each of your last ${rem} meals and you'll hit today's target without forcing the last one.`);
+    } else if (rem === 1) {
+      parts.push(`One meal left — bring it in around ${gap}g of protein and the day closes out.`);
     }
   } else if (coachTargets && coachTargets.protein) {
     parts.push(`Coach's bar is ${coachTargets.protein}g protein on the day, and every meal moves it.`);
   }
-  // 4. Real history, when it exists — mealPatterns() returns [] until there's enough data.
-  for (const p of (Array.isArray(patterns) ? patterns : []).slice(0, 2)) parts.push(clean(p));
+  // 4. ONE real history line, when it exists — mealPatterns() returns [] until there's data.
+  for (const p of (Array.isArray(patterns) ? patterns : []).slice(0, 1)) parts.push(clean(p));
   // 5. Timing — only when it needs saying; on-time praise lives in the score chips now.
   if (late === true) {
     const mins = (typeof minutesLate === 'number' && isFinite(minutesLate) && minutesLate > 0)
@@ -705,6 +707,51 @@ export function scoreReasons({ macros, fiber, detected, minutesLate } = {}) {
   for (const c of problems.slice(0, problems.length >= 3 ? 3 : 2)) out.push(c);
   for (const c of wins) { if (out.length >= 3) break; out.push(c); }
   return out.slice(0, 3).map((c) => ({ label: c.label, state: c.state }));
+}
+
+/** Coach's Focus (founder 2026-08-05): the ONE line an athlete remembers after logging — the
+ *  single next decision, derived from the same component judgments that set the score plus the
+ *  day's real forward math. Deterministic and free (no model call), and honest: no coach's name
+ *  is ever attached, so it can never fabricate human speech. Returns a short imperative line,
+ *  praise when the plate is clean, '' when there's nothing to judge. `numbers:false` (Intuitive)
+ *  keeps every directive figure-free. */
+export function coachFocus({ macros, fiber, detected, minutesLate, nextMealName, dayGap, mealsRemaining, numbers = true } = {}) {
+  const s = componentStates({ minutesLate, macros, fiber, detected });
+  if (!(s.total > 0)) return '';
+  const next = nextMealName ? String(nextMealName).toLowerCase() : 'your next meal';
+  // The costliest miss owns the focus — ranked by the same points the score itself loses,
+  // with the produce-guarded fiber rule (never scold "no fiber" against a visible salad).
+  const costs = [
+    ['protein', s.protein], ['fat', s.fat], ['fiber', s.fiberState], ['carbs', s.carbs], ['timing', s.timing],
+  ].map(([k, st]) => ({
+    k, st,
+    lost: QUALITY_POINTS[k].met - (QUALITY_POINTS[k][st] != null ? QUALITY_POINTS[k][st] : QUALITY_POINTS[k].met),
+  }))
+    .filter((c) => !(c.k === 'fiber' && c.st === 'miss' && s.produce))
+    .sort((a, b) => b.lost - a.lost);
+  const worst = costs[0];
+  if (!worst || worst.lost === 0) return 'Great plate — repeat this structure tomorrow.';
+  switch (worst.k) {
+    case 'protein': {
+      const gap = Math.max(0, Number(dayGap) || 0);
+      const rem = Math.max(0, Number(mealsRemaining) || 0);
+      if (numbers && gap > 0 && rem > 1) {
+        const per = Math.max(5, Math.round(gap / rem / 5) * 5);
+        return `Prioritize lean protein at ${next} — around ${per}g gets you back on pace.`;
+      }
+      return `Prioritize lean protein at ${next}.`;
+    }
+    case 'fat':
+      return numbers ? `Keep ${next} leaner — aim under 20g of fat.` : `Keep ${next} leaner.`;
+    case 'fiber':
+      return 'Get something green on the next plate.';
+    case 'carbs':
+      return `Balance ${next} — protein and a vegetable before the extra carbs.`;
+    case 'timing':
+      return `Log ${next} inside its window.`;
+    default:
+      return '';
+  }
 }
 
 export function scoreRubric({ quality, minutesLate, macros, fiber, detected, source, userNote, photoQ } = {}) {

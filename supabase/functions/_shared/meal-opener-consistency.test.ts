@@ -128,17 +128,18 @@ describe('the thread bubble never re-states the breakdown card — and never re-
     expect(bubbleFor(grounded)).toContain('almost entirely refined');
   });
 
-  it('frames the day FORWARD from the grounded total — the gap, not a progress restatement', () => {
+  it('frames the day FORWARD from the grounded total — per-meal math, not a progress restatement', () => {
     const grounded = groundResult(rawPayload());
     const bubble = bubbleFor(grounded);
     const gap = 155 - grounded.protein;
-    expect(bubble).toContain(`About ${gap}g of protein still to go across your last 2 required meals`);
+    const per = Math.max(5, Math.round(gap / 2 / 5) * 5);
+    expect(bubble).toContain(`Land around ${per}g of protein at each of your last 2 meals`);
     expect(bubble).not.toContain('That puts you near');
     expect(bubble).not.toContain('near 0 of 155g');
   });
 
-  it('says which meals it is counting, so it cannot read against the log card\'s counter', () => {
-    expect(bubbleFor(groundResult(rawPayload()))).toContain('required meals');
+  it('talks about MEALS explicitly, so it cannot read against the log card\'s all-items counter', () => {
+    expect(bubbleFor(groundResult(rawPayload()))).toContain('meals');
   });
 
   it('sanitized client patterns ride through to the bubble', () => {

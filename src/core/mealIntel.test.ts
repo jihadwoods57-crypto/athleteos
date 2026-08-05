@@ -1,6 +1,6 @@
 // Proto is plain ESM JS (allowJs) — same import pattern as obHelpers/exec tests.
 // @ts-ignore
-import { normalizeDetected, groundExtras, openingMessage, openingSummary, qualityBand, qualityReason, reactionGroups, threadMessages, contextForChat, weightedConfidence, shouldVerify, classifyVerifyOutcome } from '../../proto/redesign-2026-07/js/meal-intel.js';
+import { normalizeDetected, groundExtras, openingMessage, openingSummary, qualityBand, qualityReason, reactionGroups, threadMessages, contextForChat, weightedConfidence, shouldVerify, classifyVerifyOutcome, scoreReasons, coachFocus } from '../../proto/redesign-2026-07/js/meal-intel.js';
 // @ts-ignore
 import { DAY, dayLogMeal } from '../../proto/redesign-2026-07/js/day.js';
 
@@ -141,10 +141,10 @@ describe('openingMessage', () => {
     expect(m).toMatch(/42 min past the window/);
     expect(m).toMatch(/counts/i); // still credited, never shamed
   });
-  test('highlights ride as their own sentences — no report-card label', () => {
+  test('ONE highlight rides as its own sentence — no report-card label, no list', () => {
     const m = openingMessage({ ...base, highlights: ['Strong iron source', 'Good fiber'] });
     expect(m).toContain('Strong iron source.');
-    expect(m).toContain('Good fiber.');
+    expect(m).not.toContain('Good fiber.');
     expect(m).not.toContain('Worth knowing:');
   });
   test('late: null omits the timing sentence entirely (timing unknown, not guessed)', () => {
@@ -322,5 +322,34 @@ describe('classifyVerifyOutcome', () => {
   });
   test('within tolerance and no allergen -> no_change', () => {
     expect(classifyVerifyOutcome({ kcal: 500, protein: 40 }, { kcal: 520, protein: 41 })).toBe('no_change');
+  });
+});
+
+describe("Coach's Focus — the one line an athlete remembers (founder 2026-08-05)", () => {
+  // Protein-light plate: protein loses the most points, so it owns the focus.
+  const lowProtein = { macros: { protein: 10, carbs: 60, fat: 15 }, fiber: 6, detected: [{ name: 'Rice' }], minutesLate: 0 };
+  // Balanced plate, everything met.
+  const clean = { macros: { protein: 45, carbs: 40, fat: 12 }, fiber: 8, detected: [{ name: 'Chicken' }, { name: 'Broccoli' }], minutesLate: 0 };
+
+  test('the costliest miss owns the focus, with per-meal day math when it is protein', () => {
+    const f = coachFocus({ ...lowProtein, nextMealName: 'Lunch', dayGap: 120, mealsRemaining: 2, numbers: true } as any);
+    expect(f).toBe('Prioritize lean protein at lunch — around 60g gets you back on pace.');
+  });
+  test('a clean plate earns the repeat line, never an invented problem', () => {
+    expect(coachFocus({ ...clean, nextMealName: 'Lunch', dayGap: 60, mealsRemaining: 2 } as any))
+      .toBe('Great plate — repeat this structure tomorrow.');
+  });
+  test('Intuitive (numbers:false) keeps every directive figure-free', () => {
+    const f = coachFocus({ ...lowProtein, nextMealName: 'Lunch', dayGap: 120, mealsRemaining: 2, numbers: false } as any);
+    expect(f).toBe('Prioritize lean protein at lunch.');
+    const fat = coachFocus({ macros: { protein: 40, carbs: 30, fat: 40 }, fiber: 6, detected: [], minutesLate: 0, numbers: false } as any);
+    expect(fat).not.toMatch(/\d/);
+  });
+  test('nothing to judge -> empty string, never a fabricated line', () => {
+    expect(coachFocus({ macros: null } as any)).toBe('');
+  });
+  test('scoreReasons and coachFocus judge from the same arithmetic — the focus is always a listed reason when something missed', () => {
+    const reasons = scoreReasons(lowProtein).map((r: any) => r.label);
+    expect(reasons).toContain('Protein low');
   });
 });

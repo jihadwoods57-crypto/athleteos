@@ -4,7 +4,7 @@ import { icon } from '../icons.js';
 import { backHead, esc, safeImg, nonLiveBadge, composer } from '../components.js';
 import { reveal } from '../motion.js';
 import {
-  openingMessage, openingSummary, qualityBand, scoreReasons, reactionGroups, threadMessages,
+  openingMessage, openingSummary, qualityBand, scoreReasons, coachFocus, reactionGroups, threadMessages,
   contextForChat, applyFoodEdit, hasUserEdits, restrictionConflicts,
   estimateConfidence, estRange, mealPatterns, scoreRubric, followUpQuestion, coachThreadStatus,
   REACTION_EMOJI,
@@ -57,6 +57,10 @@ async function warmRecent(rolesMod, uid) {
   const rows = await warmRecentShared(rolesMod, uid);
   if (rows && rows !== before && location.hash.startsWith('#meal-')) window.__render && window.__render();
 }
+/* "Read more" expansions the athlete has opened this session — keyed on each bubble's own text
+   head so they survive every thread repaint (and a navigate-away-and-back). */
+const expandedBubbles = new Set();
+
 /* Pending memory facts (0019): things the athlete's corrections SUGGEST but which must never bind
    until they say so. Cached with the same idiom as RECENT/RECEIPT; the thread renders at most one
    confirmation at a time, so a correction spree can't turn into an interrogation. */
@@ -715,6 +719,16 @@ export const thread = {
     // The top 2-3 reasons the score is what it is (founder 2026-08-04: the score must be
     // immediately explainable) — same componentStates arithmetic as the number itself.
     const reasons = scoreReasons({ macros: M.macros, fiber: M.fiber, detected: M.detectedRich, minutesLate: M.minutesLate });
+    // Coach's Focus (founder 2026-08-05): the one line to remember, from the same judgments.
+    const dayProgCF = S.mealDayProgress || {};
+    const nextMealCF = e.now && e.now.proof === 'photo' ? e.now.title : null;
+    const focus = coachFocus({
+      macros: M.macros, fiber: M.fiber, detected: M.detectedRich, minutesLate: M.minutesLate,
+      nextMealName: nextMealCF,
+      dayGap: (Number(dayProgCF.proteinTarget) || 0) - (Number(dayProgCF.proteinSoFar) || 0),
+      mealsRemaining: Number(dayProgCF.mealsRemaining) || 0,
+      numbers: S.planStyle.showMacros,
+    });
     // Expandable score rubric (upgrade 2026-07-16): the observable components behind the
     // number, each marked exact or estimated — same math as the feedback, so they agree.
     const rub = scoreRubric({
@@ -738,10 +752,20 @@ export const thread = {
         <span class="v" data-count="${M.score}">${M.score}</span><span class="k">Meal</span>
       </div>` : ''}</div>
     </div>
-    ${band ? `<div class="score-reasons">
-      <span class="sr-band ${band.cls}">${M.score}<small>/100</small> · ${band.label}</span>
-      ${reasons.map((r) => `<span class="sr-chip ${r.state}">${esc(r.label)}</span>`).join('')}
+    ${band ? `<div class="score-read">
+      <div class="sr-head">
+        <span class="sr-n">${M.score}<small>/100</small></span>
+        <span class="sr-band ${band.cls}">${band.label}</span>
+      </div>
+      ${reasons.length ? `<div class="sr-rows">
+        ${[...reasons].sort((a, b) => (a.state === 'met' ? -1 : 1) - (b.state === 'met' ? -1 : 1)).map((r) => `
+        <div class="sr-row ${r.state}"><span class="sr-ic">${icon(r.state === 'met' ? 'check' : 'x', 12)}</span>${esc(r.label)}</div>`).join('')}
+      </div>` : ''}
     </div>
+    ${focus ? `<div class="coach-focus">
+      <span class="cf-ic">${icon('target', 15)}</span>
+      <div><div class="cf-k">Coach's Focus</div><div class="cf-t">${esc(focus)}</div></div>
+    </div>` : ''}
     <details class="rub">
       <summary>${esc(rub.headline)} ${icon('chevron', 13)}</summary>
       <div class="rub-body">
@@ -841,21 +865,21 @@ export const thread = {
     ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
     <div class="est-note" style="margin-top:8px">Your plan tracks how food leaves you feeling rather than calorie and macro counts. Your ${esc(S.coach.noun)} can still see the full numbers.</div>
     ${emptyRead ? rereadNote : ''}` : `
-    ${/* THE ONE BREAKDOWN (founder 2026-08-04): the always-visible part is a single slim strip —
-          protein leading, since it's the number a coach actually sets — and everything supporting
-          (foods, target bars, notes, corrections) folds into one expandable section. The strip is
-          what keeps the Meal Breakdown the single source of truth on screen, so the AI never has
-          to restate a number; the old protein hero + 4-tile macro row said the same thing twice. */''}
-    <div class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">Meal Breakdown</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></div>
+    ${/* ESTIMATED NUTRITION (founder 2026-08-05: plain words, not a technical "breakdown") —
+          four clean value tiles, protein leading with its day share, and everything supporting
+          (foods, target bars, notes, corrections) behind one "View detected foods" expander.
+          These tiles are what keep the numbers the single source of truth on screen, so the AI
+          never has to restate one. */''}
+    <div class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">Estimated Nutrition</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></div>
     ${emptyRead ? rereadNote : `
-    <div class="bd-strip">
-      <span class="bs-p">${tilde}${M.macros.protein}g protein${dayShare != null ? `<small> · ${dayShare}% of your day</small>` : ''}</span>
-      <span class="bs-m">${tilde}${M.macros.carbs}g carbs</span>
-      <span class="bs-m">${tilde}${M.macros.fat}g fat</span>
-      <span class="bs-m">${tilde}${M.macros.cals} cal</span>
+    <div class="macro-row four" style="margin-top:8px">
+      <div class="macro"><div class="mv">${tilde}${M.macros.protein}g</div><div class="mk">Protein${dayShare != null ? ` · ${dayShare}% of day` : ''}</div></div>
+      <div class="macro"><div class="mv">${tilde}${M.macros.carbs}g</div><div class="mk">Carbs</div></div>
+      <div class="macro"><div class="mv">${tilde}${M.macros.fat}g</div><div class="mk">Fat</div></div>
+      <div class="macro"><div class="mv">${tilde}${M.macros.cals}</div><div class="mk">Calories</div></div>
     </div>`}
     <details class="bd-wrap"${thread._bdOpen || thread._fixOpen ? ' open' : ''}>
-      <summary>Full breakdown${targetBars.length ? ' &amp; targets' : ''} ${icon('chevron', 13)}</summary>
+      <summary>View detected foods ${icon('chevron', 13)}</summary>
       <div class="bd-body">
       ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
       ${targetBars.length ? `<section class="card pad" style="margin-top:10px">
@@ -1213,7 +1237,11 @@ export const thread = {
           <div class="stack">
             ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
             ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
-            <div class="bubble">${update ? '<span class="upd">Updated analysis</span>' : escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(c.text)}</div>
+            ${/* The "Updated analysis" badge is gone (founder 2026-08-05: robotic) — a correction
+                  reply is just the AI's next message, like a person texting back. The quote stem
+                  above already shows WHAT it answers. The escalation badge stays: "this reached
+                  your coach" is a fact worth labeling. */''}
+            <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(c.text)}</div>
             ${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}
           </div>
         </div>`;
@@ -1241,6 +1269,32 @@ export const thread = {
       threadEl.innerHTML = coachPin + openingHtml + rows + (aiTyping ? typingRow() : '')
         + (seen ? `<div class="seen">${seen}</div>` : '')
         + (tail.length ? `<div class="msg-status">${tail.join(' ')}</div>` : '');
+      // READ MORE (founder 2026-08-05): a long AI message clamps to its first four lines with a
+      // quiet expander — the core coaching stands alone; history/hedges are there for whoever
+      // wants them. Keyed on the text's own head so an expansion survives every repaint; photo
+      // bubbles and chip bubbles are never clamped (clipping a control would break it).
+      threadEl.querySelectorAll('.msg.ai .bubble').forEach((b) => {
+        if (b.closest('#ai-typing') || b.querySelector('.fq-chips, img, .chat-photo')) return;
+        const t = b.textContent || '';
+        if (t.length < 320) return;
+        const key = t.slice(0, 64);
+        if (expandedBubbles.has(key)) return;
+        // Clamp an inner wrapper, not the padded bubble itself — -webkit-line-clamp on a padded
+        // box lets a partial fifth line bleed into the padding.
+        const inner = document.createElement('div');
+        inner.className = 'bt-clamp';
+        while (b.firstChild) inner.appendChild(b.firstChild);
+        b.appendChild(inner);
+        const more = document.createElement('button');
+        more.className = 'read-more';
+        more.textContent = 'Read more';
+        b.after(more);
+        more.addEventListener('click', () => {
+          expandedBubbles.add(key);
+          inner.classList.remove('bt-clamp');
+          more.remove();
+        });
+      });
       threadEl.scrollTop = threadEl.scrollHeight;
       void hydrateThreadPhotos(threadEl, roles);
     };

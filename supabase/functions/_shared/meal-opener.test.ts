@@ -43,9 +43,13 @@ describe('it coaches instead of narrating the screen', () => {
     expect(out).toContain('Front-load a plate like this');
   });
 
-  it('frames the day FORWARD — the gap, not a progress restatement', () => {
-    expect(out).toContain('About 99g of protein still to go across your last 2 required meals');
+  it('frames the day FORWARD as the next decision — per-meal math, not a progress restatement', () => {
+    // gap 99 across 2 meals → "around 50g each": the decision, pre-computed, rounded like a
+    // coach rounds ("around 50", never "49.5").
+    expect(out).toContain('Land around 50g of protein at each of your last 2 meals');
+    expect(out).toContain('without forcing the last one');
     expect(out).not.toContain('That puts you near');
+    expect(out).not.toContain('still to go');
   });
 
   it('does not praise timing — on-time lives in the score chips now', () => {
@@ -74,9 +78,9 @@ describe('the forward day framing covers every arithmetic case', () => {
     expect(out).not.toContain('still to go');
   });
 
-  it('one meal left reads singular', () => {
+  it('one meal left names the exact number to bring in', () => {
     expect(at({ proteinIncludingThisMeal: 120, proteinTarget: 180, mealsRemaining: 1 }))
-      .toContain('across your last required meal');
+      .toContain('One meal left — bring it in around 60g of protein');
   });
 
   it('a short day with no meals left points at a snack', () => {
@@ -86,24 +90,22 @@ describe('the forward day framing covers every arithmetic case', () => {
 
   it('says nothing about the day when the engine gave it no numbers', () => {
     const out = composeOpenerText(read(), { late: false, mealName: 'Dinner', day: null });
-    expect(out).not.toContain('still to go');
+    expect(out).not.toContain('Land around');
     expect(out).not.toContain('closes out');
   });
 });
 
 describe('real history is woven in — the thread remembers', () => {
-  it('includes up to two pattern lines, sanitized', () => {
+  it('includes exactly ONE pattern line, sanitized — the message stays four sentences of coach', () => {
     const out = composeOpenerText(read(), {
       planStyle: 'structured', late: false, mealName: 'Dinner',
       patterns: [
         "You've hit your protein bar in 3 of your last 4 dinners.",
-        'Third day in a row logging dinner on time',
-        'A third pattern that must not appear.',
+        'A second pattern that must not appear.',
       ],
     });
     expect(out).toContain('3 of your last 4 dinners');
-    expect(out).toContain('Third day in a row logging dinner on time.');
-    expect(out).not.toContain('third pattern');
+    expect(out).not.toContain('second pattern');
   });
 
   it('a numeric pattern is dropped for an Intuitive athlete without killing the message', () => {

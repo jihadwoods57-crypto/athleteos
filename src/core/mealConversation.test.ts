@@ -83,9 +83,10 @@ describe('openingMessage (day progress, patterns, impact, uncertainty)', () => {
       patterns: ["That's your second lunch in a row logged on time."],
       impact: 13,
     });
-    // Founder 2026-08-04: the day is framed FORWARD (the gap), never a progress restatement —
-    // the bars on the card already show 92 of 180.
-    expect(msg).toMatch(/88g of protein still to go/);
+    // Founder 2026-08-05: the day is framed as the NEXT DECISION (per-meal math), never a
+    // progress restatement — the bars on the card already show 92 of 180. Gap 88 across 2
+    // meals → "around 45g each".
+    expect(msg).toMatch(/Land around 45g of protein at each of your last 2 meals/);
     expect(msg).not.toMatch(/92 of 180g/);
     expect(msg).toMatch(/second lunch in a row/);
     expect(msg).toMatch(/\+13/);
