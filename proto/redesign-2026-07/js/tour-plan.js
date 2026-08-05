@@ -4,10 +4,12 @@
  * This module decides what to explain. It is pure — no DOM, no clock, no storage — so the whole
  * personalization matrix is testable (tour-plan.test.mjs IS the spec).
  *
- * Two axes of personalization:
- *   WHICH steps  ← the role. Four lists: athlete, coach, trainer, parent.
- *   WHICH WORDS  ← what they set up. Goal shapes the plan line; a linked coach and a connected
- *                  wearable each unlock an optional step; a fitness client hears "trainer".
+ * Three axes of personalization:
+ *   WHETHER at all ← only a brand-new account auto-tours (isNewAccount). Existing users are never
+ *                    ambushed by an OTA; Settings replay is the deliberate way back in.
+ *   WHICH steps    ← the role. Four lists: athlete, coach, trainer, parent.
+ *   WHICH WORDS    ← what they set up. Goal shapes the plan line; a linked coach and a connected
+ *                    wearable each unlock an optional step; a fitness client hears "trainer".
  *
  * Every optional step is genuinely optional: a solo athlete with no watch gets four steps and a
  * linked athlete with one gets six, and both read as a complete tour rather than a truncated one.
@@ -55,84 +57,139 @@ const ATHLETE_STEPS = [
   {
     key: 'score', anchor: 'score',
     title: 'This is your Standard',
-    body: 'One number for the day. It moves when you log.',
+    body: "One number for the whole day. Every meal, session, and commitment you log moves it, and it settles when the day locks at midnight. Tap it any time to see exactly what's counted and what's still open.",
   },
   {
     key: 'log', anchor: 'log',
     title: 'Everything starts here',
-    body: 'Photograph a meal, log training, mark a commitment.',
+    body: 'Photograph a meal and the AI reads the plate — the breakdown lands in seconds. Training, weight, and check-ins live behind this button too. Gold dot means something is due; red means it is overdue.',
   },
   {
     key: 'plan', anchor: 'plan',
     title: 'Your plan lives here',
-    body: (ctx) => `What the day asks of you.${GOAL_TAIL[ctx.goal] || ''}`,
+    body: (ctx) => `The Plan tab is what today asks of you — meals, training, and check-ins, in order.${GOAL_TAIL[ctx.goal] || ''} It marks itself off as you log, so a glance tells you what's left.`,
+  },
+  {
+    key: 'progress', anchor: 'progress',
+    title: 'Proof it adds up',
+    body: 'Score trend, streak, and weight over time. One day is a data point — this tab is where weeks of showing up become something you can see.',
   },
   {
     key: 'coach-seen', anchor: 'coach-seen',
     when: (ctx) => !!ctx.hasCoach,
     title: (ctx) => `Your ${operatorNoun(ctx)} sees this`,
-    body: (ctx) => `What you log reaches your ${operatorNoun(ctx)}. This line shows when they've looked.`,
+    body: (ctx) => `Everything you log reaches your ${operatorNoun(ctx)} the moment it lands — meals, training, the number itself. This line shows when they've looked, so you never wonder whether the work went noticed.`,
   },
   {
     key: 'standards', anchor: 'standards',
     when: (ctx) => !!ctx.hasStandards,
     title: 'Some of it verifies itself',
-    body: 'Connected Standards confirm the work from your watch, without you logging it.',
+    body: 'Connected Standards read your watch and confirm the work without you logging a thing. A dead battery never becomes a miss — you can always log it yourself.',
+  },
+  {
+    key: 'profile', anchor: 'profile',
+    title: 'Yours to adjust',
+    body: 'Your goal, your connections, and your settings live under Profile. You can replay this tour from there any time.',
   },
   {
     key: 'close', anchor: 'log',
-    title: "That's it",
-    body: 'Log something and watch your number move.',
+    title: "That's the whole loop",
+    body: 'Log, watch your number move, keep the streak alive. Start now — photograph your next meal and see your Standard answer.',
   },
 ];
 
 /* Coach and trainer render the same screen module, so they share anchors. Only the nouns differ:
-   a trainer has a practice full of clients where a coach has a team full of athletes. */
+   a trainer has a practice full of clients where a coach has a team full of athletes.
+
+   `invite` is planned unconditionally and DOM-filtered: the invite card only renders on the
+   empty-team dashboard, where the four board anchors below it don't exist. So a populated board
+   drops `invite`, and a brand-new operator — who used to get NO tour at all, because the empty
+   board had no anchors — gets a real orientation: the code, the create menu, and the tabs. */
 const OPERATOR_STEPS = [
+  {
+    key: 'invite', anchor: 'invite',
+    title: 'The code is the door',
+    body: (ctx) => (ctx.role === 'trainer'
+      ? 'Clients join by entering your practice code — set it up here and hand it out. From then on your board fills itself in: their meals, their scores, who needs you.'
+      : 'Athletes join by entering your team code — set it up here and hand it out. From then on your board fills itself in: their meals, their scores, who needs you.'),
+  },
   {
     key: 'roster', anchor: 'roster',
     title: 'Everything here is scoped',
     body: (ctx) => (ctx.role === 'trainer'
-      ? 'Switch between your whole practice and a single group.'
-      : 'Switch between your whole team and a single group.'),
+      ? 'This board answers one question: how is your practice doing right now. Use this switch to narrow it from every client to a single group — every card below follows.'
+      : 'This board answers one question: how is the team doing right now. Use this switch to narrow it from the whole team to a single group — every card below follows.'),
   },
   {
     key: 'priority', anchor: 'priority',
     title: 'Who needs you today',
     body: (ctx) => (ctx.role === 'trainer'
-      ? 'Your clients, ranked by who needs attention. Start here every morning.'
-      : 'Your athletes, ranked by who needs attention. Start here every morning.'),
+      ? 'Your clients, ranked by who needs attention — slipping scores, overdue logs, flags you set. Handle one and it leaves the queue. Start here every morning and nobody slips through.'
+      : 'Your athletes, ranked by who needs attention — slipping scores, overdue logs, flags you set. Handle one and it leaves the queue. Start here every morning and nobody slips through.'),
   },
   {
     key: 'activity', anchor: 'activity',
     title: 'Live activity',
-    body: 'Meals and logs as they land, newest first.',
+    body: 'Every meal and log the moment it lands, newest first. The blue dot marks what you haven\'t opened. Tap any card to see the plate and answer in the thread.',
   },
   {
     key: 'followups', anchor: 'followups',
     title: 'Nothing gets lost',
-    body: 'Anything you flag waits here until you close it.',
+    body: "Join requests, unopened logs, anything you flag — it waits here until you close it. An empty list means you're genuinely caught up, not that something slipped.",
+  },
+  {
+    key: 'create', anchor: 'create',
+    title: 'Set the standard',
+    body: (ctx) => (ctx.role === 'trainer'
+      ? "Assign requirements, set verified standards, send announcements, message a client — everything you put in motion starts here, and it shows up on their Home as part of their day."
+      : "Assign requirements, schedule verified commitments, send announcements, message anyone — everything you put in motion starts here, and it shows up on each athlete's Home as part of their day."),
+  },
+  {
+    key: 'tab-roster', anchor: 'tab-roster',
+    title: (ctx) => (ctx.role === 'trainer' ? 'Your full book' : 'Your full roster'),
+    body: (ctx) => (ctx.role === 'trainer'
+      ? 'Every client with their score and streak. Tap anyone to open their full book — trends, meals, targets, and a direct thread.'
+      : 'Every athlete with their score and streak, and the groups you\'ve made. Tap anyone to open their full book — trends, meals, targets, and a direct thread.'),
+  },
+  {
+    key: 'tab-inbox', anchor: 'tab-inbox',
+    title: 'Where conversations live',
+    body: (ctx) => (ctx.role === 'trainer'
+      ? 'Join requests and client threads in one place. The badge counts what\'s waiting on you.'
+      : 'Join requests and athlete threads in one place. The badge counts what\'s waiting on you.'),
+  },
+  {
+    key: 'tab-you', anchor: 'tab-you',
+    title: 'Your account',
+    body: (ctx) => (ctx.role === 'trainer'
+      ? 'Practice settings, plans and billing, and sign-out live under You. You can replay this tour from there any time.'
+      : 'Team settings, plans and billing, and sign-out live under You. You can replay this tour from there any time.'),
   },
 ];
 
-/* Three steps, and that is honestly the whole parent surface. Padding it would be worse than
+/* Four steps, and that is honestly the whole parent surface. Padding it would be worse than
    ending early. The visibility step is the one that matters — it is the answer to the question
    every parent actually has. */
 const PARENT_STEPS = [
   {
     key: 'children', anchor: 'children',
     title: 'The athletes you follow',
-    body: 'Everyone you are linked to shows up here.',
+    body: "Everyone you're linked to shows up here with their daily score and grade. It updates as they log — a quiet way to know the work is happening without hovering.",
+  },
+  {
+    key: 'link', anchor: 'link',
+    title: 'Linking takes one code',
+    body: 'Ask your athlete for their invite code and enter it here. You can follow more than one.',
   },
   {
     key: 'visibility', anchor: 'visibility',
-    title: 'What you can see',
-    body: "Their standard and whether the work is happening. Not their photos, not their messages.",
+    title: "What you can see — and what you can't",
+    body: 'Their daily score, their grade, and the date of their latest logged day. Meal photos, weight, and check-in answers stay between your athlete and their coach. That line is deliberate.',
   },
   {
     key: 'funding', anchor: 'funding',
     title: 'You can cover their plan',
-    body: 'Fund an athlete from here and they keep full access.',
+    body: "Fund an athlete's plan from here and they keep full access — nothing about their day changes. Everything you're paying for stays listed under Funded plans.",
   },
 ];
 
@@ -144,6 +201,30 @@ const STEPS_BY_ROLE = Object.freeze({
 });
 
 const resolve = (v, ctx) => (typeof v === 'function' ? v(ctx) : v);
+
+/** How long after signup an account still counts as brand-new. Generous on purpose: signup on a
+    laptop Friday, first app open the next week, still toured. The seen flag — not this window —
+    is what guarantees at-most-once. */
+export const FIRST_RUN_WINDOW_DAYS = 7;
+
+/**
+ * Is this account new enough to be on its first-signup run?
+ *
+ * The founder call (2026-08-05): the tour is for people who just signed up, full stop. An account
+ * that predates the window — every user who existed before a tour change ships — must never be
+ * ambushed by an OTA. Unparseable or missing createdAt is NOT new: failing silent beats touring
+ * an account of unknown age, and the caller's seen flag stays unwritten so a later boot with a
+ * hydrated profile self-heals.
+ *
+ * @param {string|null|undefined} createdAt  profiles.created_at — the server birthday
+ * @param {number} nowMs                     Date.now(), passed in so this stays pure
+ */
+export function isNewAccount(createdAt, nowMs) {
+  if (!createdAt || !Number.isFinite(nowMs)) return false;
+  const t = Date.parse(createdAt);
+  if (!Number.isFinite(t)) return false;
+  return nowMs - t <= FIRST_RUN_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+}
 
 /**
  * Plan the tour for one person, right now.
@@ -158,8 +239,10 @@ const resolve = (v, ctx) => (typeof v === 'function' ? v(ctx) : v);
  * @param {boolean} [ctx.hasCoach]       linked to a coach or a trainer
  * @param {boolean} [ctx.hasStandards]   has at least one Connected Standard
  * @param {string|null} [ctx.seenAt]     RT.tourSeen[id] — any truthy value suppresses
+ * @param {string|null} [ctx.createdAt]  profiles.created_at — only a brand-new account auto-tours
+ * @param {number} [ctx.now]             Date.now(), injected for purity
  * @param {string} [ctx.route]           current hash route, must be the role's landing route
- * @param {boolean} [ctx.replay]         Settings replay — bypasses the seen check only
+ * @param {boolean} [ctx.replay]         Settings replay — bypasses seen + the first-signup gate
  * @returns {{id: string|null, steps: Array<{key,anchor,title,body}>, reason: string}}
  *          reason is always set, so a silent no is diagnosable.
  */
@@ -178,6 +261,14 @@ export function planTour(ctx) {
   if (ctx.route !== LANDING[role]) return { id, steps: [], reason: 'wrong-route' };
 
   if (ctx.seenAt && !ctx.replay) return { id, steps: [], reason: 'already-seen' };
+
+  // First-signup only (2026-08-05): the tour auto-opens for brand-new accounts, never for
+  // accounts that predate it. Replay from Settings is the deliberate exception. A missing
+  // createdAt suppresses WITHOUT marking seen — same self-healing shape as unknown-role.
+  if (!ctx.replay) {
+    if (!ctx.createdAt) return { id, steps: [], reason: 'no-birthdate' };
+    if (!isNewAccount(ctx.createdAt, ctx.now)) return { id, steps: [], reason: 'existing-account' };
+  }
 
   const steps = defs
     .filter((d) => (typeof d.when === 'function' ? !!d.when(ctx) : true))

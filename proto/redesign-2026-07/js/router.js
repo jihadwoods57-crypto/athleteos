@@ -85,9 +85,10 @@ function tabbar(activeTab, nav = 'athlete') {
       const fabLabel = nav === 'athlete' ? 'Log a meal' : 'Create';
       // .fabslot carries the scrim that keeps scrolling content from colliding with the FAB's
       // hard edge — see .tabbar .fabslot::before in app.css.
-      // data-tour marks the first-run tour's anchor (tour-plan.js). Only the athlete FAB is a
-      // tour target — the operator FAB is "Create", which no step explains.
-      const fabTour = nav === 'athlete' ? ' data-tour="log"' : '';
+      // data-tour marks the first-run tour's anchor (tour-plan.js). The athlete FAB is the "log"
+      // step; the operator FAB got its own "create" step in the v2 tour (2026-08-05).
+      const fabTour = nav === 'athlete' ? ' data-tour="log"'
+        : (nav === 'coach' || nav === 'trainer') ? ' data-tour="create"' : '';
       return `<div class="tab fabslot"><div class="fab" role="button" tabindex="0" aria-label="${fabLabel}" data-go="${t.route}"${fabTour} style="position:relative">${icon(t.icon, 26)}${dot}</div></div>`;
     }
     const on = t.id === activeTab ? `active ${t.id === 'home' ? 'home' : ''}` : '';
@@ -99,7 +100,15 @@ function tabbar(activeTab, nav = 'athlete') {
       const n = scr && scr.badge ? scr.badge() : 0;
       if (n) badge = `<span style="position:absolute;top:-3px;right:50%;margin-right:-16px;min-width:15px;height:15px;border-radius:999px;background:var(--red);color:#fff;font-size:9px;font-weight:800;display:grid;place-items:center;padding:0 3px;border:2px solid var(--bg)">${n > 9 ? '9+' : n}</span>`;
     } catch { /* pre-auth render */ }
-    const tabTour = t.route === 'plan' ? ' data-tour="plan"' : '';
+    // First-run tour anchors on the tabs themselves (tour-plan.js). Operator tab anchors are
+    // prefixed tab- so they never collide with the board's own `roster` anchor on coach-home.
+    const TAB_TOUR = {
+      plan: 'plan', progress: 'progress', profile: 'profile',
+      'coach-roster': 'tab-roster', 'trainer-roster': 'tab-roster',
+      'coach-inbox': 'tab-inbox', 'trainer-inbox': 'tab-inbox',
+      'coach-profile': 'tab-you', 'trainer-profile': 'tab-you',
+    };
+    const tabTour = TAB_TOUR[t.route] ? ` data-tour="${TAB_TOUR[t.route]}"` : '';
     return `<div class="tab ${on}" ${on ? 'aria-current="page"' : ''} data-go="${t.route}"${tabTour} style="position:relative">${badge}${icon(t.icon, 23)}<span>${t.label}</span></div>`;
   }).join('')}</nav>`;
 }

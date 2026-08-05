@@ -21,7 +21,7 @@
  */
 
 import { RT, S, act, routeForRole } from './state.js';
-import { planTour, filterSteps, placeCard, TOUR_IDS } from './tour-plan.js';
+import { planTour, filterSteps, placeCard, TOUR_IDS, isNewAccount } from './tour-plan.js';
 import { buzz } from './motion.js';
 
 /** Let the entrance stagger, the score ring, AND Home's early re-render churn finish before we dim
@@ -203,6 +203,11 @@ function context(replay) {
     hasCoach: !!(RT.myCoach || RT.myTrainer),
     hasStandards: Array.isArray(RT.csRows) && RT.csRows.length > 0,
     seenAt: (RT.tourSeen || {})[TOUR_IDS[RT.authRole]] || null,
+    // The server birthday (profiles.created_at, hydrated by _loadProfileIntoRt). Missing until
+    // that fetch lands, which planTour treats as "not now" — the seen flag stays unwritten, so a
+    // later boot with a hydrated profile self-heals. Only a brand-new account auto-tours.
+    createdAt: (RT.profile && RT.profile.createdAt) || null,
+    now: Date.now(),
     route: routeNow(),
     replay,
   };
@@ -254,15 +259,18 @@ export function armReplay() {
 /**
  * A one-step spotlight for a screen the main tour never covered.
  *
- * Suppressed until the role's main tour has been seen, so a brand-new user is never spotlighted
- * twice in one session. Device-local only — no server column, by design.
+ * For a brand-new account, suppressed until the role's main tour has been seen, so nobody is
+ * spotlighted twice in one session. An account too old for the main tour (the first-signup gate)
+ * would satisfy that condition never — so age itself unlocks tips there: no main tour is coming,
+ * hence no double-spotlight risk. Device-local only — no server column, by design.
  */
 export function maybeShowTip(id, tip) {
   if (active || pending || !id || !tip) return;
   const seen = RT.tourSeen || {};
   if (seen[id]) return;
   const mainId = TOUR_IDS[RT.authRole];
-  if (!mainId || !seen[mainId]) return;
+  if (!mainId) return;
+  if (!seen[mainId] && isNewAccount((RT.profile && RT.profile.createdAt) || null, Date.now())) return;
 
   pending = true;
   setTimeout(() => {

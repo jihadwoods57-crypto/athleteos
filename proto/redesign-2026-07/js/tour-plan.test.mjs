@@ -7,38 +7,62 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { planTour, filterSteps, placeCard, TOUR_IDS } from './tour-plan.js';
+import { planTour, filterSteps, placeCard, TOUR_IDS, isNewAccount, FIRST_RUN_WINDOW_DAYS } from './tour-plan.js';
 
 const keys = (r) => r.steps.map((s) => s.key);
+
+/* A fixed clock and a day-old account: the brand-new-signup case every fixture starts from. */
+const NOW = Date.parse('2026-08-05T12:00:00.000Z');
+const FRESH = '2026-08-04T12:00:00.000Z';
+const DAY = 24 * 60 * 60 * 1000;
 
 /* A linked athlete with a watch, sitting on Home, who has never seen the tour: the maximal case. */
 const athlete = (over = {}) => ({
   role: 'athlete', route: 'home', goal: 'gain',
-  hasCoach: true, hasStandards: true, seenAt: null, ...over,
+  hasCoach: true, hasStandards: true, seenAt: null, createdAt: FRESH, now: NOW, ...over,
 });
-const coach = (over = {}) => ({ role: 'coach', route: 'coach', seenAt: null, ...over });
-const trainer = (over = {}) => ({ role: 'trainer', route: 'trainer', seenAt: null, ...over });
-const parent = (over = {}) => ({ role: 'parent', route: 'parent', seenAt: null, ...over });
+const coach = (over = {}) => ({ role: 'coach', route: 'coach', seenAt: null, createdAt: FRESH, now: NOW, ...over });
+const trainer = (over = {}) => ({ role: 'trainer', route: 'trainer', seenAt: null, createdAt: FRESH, now: NOW, ...over });
+const parent = (over = {}) => ({ role: 'parent', route: 'parent', seenAt: null, createdAt: FRESH, now: NOW, ...over });
 
 /* ---------------- step lists ---------------- */
 
-test('the fully set-up athlete gets all six steps in order', () => {
-  assert.deepEqual(keys(planTour(athlete())), ['score', 'log', 'plan', 'coach-seen', 'standards', 'close']);
+test('the fully set-up athlete gets all eight steps in order', () => {
+  assert.deepEqual(keys(planTour(athlete())),
+    ['score', 'log', 'plan', 'progress', 'coach-seen', 'standards', 'profile', 'close']);
 });
 
-test('the solo athlete with no watch still gets a complete four-step tour', () => {
+test('the solo athlete with no watch still gets a complete six-step tour', () => {
   const r = planTour(athlete({ hasCoach: false, hasStandards: false }));
-  assert.deepEqual(keys(r), ['score', 'log', 'plan', 'close']);
+  assert.deepEqual(keys(r), ['score', 'log', 'plan', 'progress', 'profile', 'close']);
 });
 
 test('each optional step drops on its own', () => {
-  assert.deepEqual(keys(planTour(athlete({ hasCoach: false }))), ['score', 'log', 'plan', 'standards', 'close']);
-  assert.deepEqual(keys(planTour(athlete({ hasStandards: false }))), ['score', 'log', 'plan', 'coach-seen', 'close']);
+  assert.deepEqual(keys(planTour(athlete({ hasCoach: false }))),
+    ['score', 'log', 'plan', 'progress', 'standards', 'profile', 'close']);
+  assert.deepEqual(keys(planTour(athlete({ hasStandards: false }))),
+    ['score', 'log', 'plan', 'progress', 'coach-seen', 'profile', 'close']);
 });
 
 test('coach and parent lists', () => {
-  assert.deepEqual(keys(planTour(coach())), ['roster', 'priority', 'activity', 'followups']);
-  assert.deepEqual(keys(planTour(parent())), ['children', 'visibility', 'funding']);
+  assert.deepEqual(keys(planTour(coach())),
+    ['invite', 'roster', 'priority', 'activity', 'followups', 'create', 'tab-roster', 'tab-inbox', 'tab-you']);
+  assert.deepEqual(keys(planTour(parent())), ['children', 'link', 'visibility', 'funding']);
+});
+
+test('the empty-board operator still has a tour once the DOM filter runs', () => {
+  // A brand-new coach's dashboard renders NO board anchors — only the invite card, the FAB and
+  // the tabs. That must survive as a real tour, not collapse below the min-2 rule.
+  const emptyBoard = new Set(['invite', 'create', 'tab-roster', 'tab-inbox', 'tab-you']);
+  const alive = filterSteps(planTour(coach()).steps, (a) => (emptyBoard.has(a) ? { width: 40, height: 40 } : null));
+  assert.deepEqual(alive.map((s) => s.key), ['invite', 'create', 'tab-roster', 'tab-inbox', 'tab-you']);
+});
+
+test('the populated board drops the invite step, nothing else', () => {
+  const board = (a) => (a === 'invite' ? null : { width: 40, height: 40 });
+  const alive = filterSteps(planTour(coach()).steps, board);
+  assert.deepEqual(alive.map((s) => s.key),
+    ['roster', 'priority', 'activity', 'followups', 'create', 'tab-roster', 'tab-inbox', 'tab-you']);
 });
 
 test('trainer shares the coach anchors but carries its own id', () => {
@@ -51,12 +75,11 @@ test('trainer shares the coach anchors but carries its own id', () => {
 });
 
 test('trainer copy says practice and clients; coach copy says team and athletes', () => {
-  const t = planTour(trainer()).steps;
-  const c = planTour(coach()).steps;
-  assert.match(t[0].body, /practice/);
-  assert.match(t[1].body, /clients/);
-  assert.match(c[0].body, /team/);
-  assert.match(c[1].body, /athletes/);
+  const by = (r, k) => planTour(r).steps.find((s) => s.key === k);
+  assert.match(by(trainer(), 'invite').body, /practice/);
+  assert.match(by(trainer(), 'priority').body, /clients/);
+  assert.match(by(coach(), 'invite').body, /team/);
+  assert.match(by(coach(), 'priority').body, /athletes/);
 });
 
 /* ---------------- goals ---------------- */
@@ -68,10 +91,11 @@ test('every goal from both onboarding flows produces a distinct plan line', () =
   assert.equal(new Set(bodies).size, goals.length, 'two goals share a line');
 });
 
-test('an unknown or missing goal still reads as a finished sentence', () => {
+test('an unknown or missing goal still reads as a finished paragraph', () => {
   for (const goal of [undefined, null, '', 'scholarship', 'NIL opportunities']) {
     const body = planTour(athlete({ goal })).steps.find((s) => s.key === 'plan').body;
-    assert.equal(body, 'What the day asks of you.');
+    assert.doesNotMatch(body, /Yours is built around/, `goal ${goal} grew a tail`);
+    assert.doesNotMatch(body, /  /, `goal ${goal} left a double space`);
   }
 });
 
@@ -95,9 +119,58 @@ test('a seen tour returns nothing', () => {
   assert.equal(r.id, TOUR_IDS.athlete, 'the id still comes back so the caller can mark it');
 });
 
-test('replay overrides the seen flag but nothing else', () => {
-  assert.equal(planTour(athlete({ seenAt: 'x', replay: true })).steps.length, 6);
+test('replay overrides the seen flag but not the route guard', () => {
+  assert.equal(planTour(athlete({ seenAt: 'x', replay: true })).steps.length, 8);
   assert.deepEqual(planTour(athlete({ seenAt: 'x', replay: true, route: 'settings' })).steps, []);
+});
+
+/* ---------------- the first-signup gate ---------------- */
+
+test('an account older than the window is never auto-toured', () => {
+  const r = planTour(athlete({ createdAt: new Date(NOW - (FIRST_RUN_WINDOW_DAYS + 1) * DAY).toISOString() }));
+  assert.deepEqual(r.steps, []);
+  assert.equal(r.reason, 'existing-account');
+  assert.equal(r.id, TOUR_IDS.athlete, 'the id still comes back');
+});
+
+test('the gate holds for every role', () => {
+  const old = { createdAt: new Date(NOW - 90 * DAY).toISOString() };
+  for (const ctx of [athlete(old), coach(old), trainer(old), parent(old)]) {
+    const r = planTour(ctx);
+    assert.deepEqual(r.steps, [], `${ctx.role} toured an old account`);
+    assert.equal(r.reason, 'existing-account');
+  }
+});
+
+test('a missing birthday suppresses without a verdict, so a later boot can self-heal', () => {
+  for (const createdAt of [null, undefined, '']) {
+    const r = planTour(athlete({ createdAt }));
+    assert.deepEqual(r.steps, []);
+    assert.equal(r.reason, 'no-birthdate');
+  }
+});
+
+test('replay bypasses the age gate and the missing birthday', () => {
+  const old = new Date(NOW - 90 * DAY).toISOString();
+  assert.equal(planTour(athlete({ createdAt: old, replay: true })).steps.length, 8);
+  assert.equal(planTour(athlete({ createdAt: null, replay: true })).steps.length, 8);
+});
+
+test('the boundary sits at the window, inclusive', () => {
+  const inside = new Date(NOW - FIRST_RUN_WINDOW_DAYS * DAY).toISOString();
+  const outside = new Date(NOW - FIRST_RUN_WINDOW_DAYS * DAY - 1).toISOString();
+  assert.equal(planTour(athlete({ createdAt: inside })).reason, 'ok');
+  assert.equal(planTour(athlete({ createdAt: outside })).reason, 'existing-account');
+});
+
+test('isNewAccount is strict about garbage', () => {
+  assert.equal(isNewAccount(FRESH, NOW), true);
+  assert.equal(isNewAccount(new Date(NOW - 90 * DAY).toISOString(), NOW), false);
+  assert.equal(isNewAccount(null, NOW), false);
+  assert.equal(isNewAccount(undefined, NOW), false);
+  assert.equal(isNewAccount('not a date', NOW), false);
+  assert.equal(isNewAccount(FRESH, NaN), false);
+  assert.equal(isNewAccount(FRESH, undefined), false);
 });
 
 test('only the landing route opens a tour', () => {

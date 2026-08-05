@@ -110,7 +110,7 @@
               width var(--dur-2) var(--ease-out), height var(--dur-2) var(--ease-out);
 }
 .tour-card {
-  position: fixed; width: min(300px, calc(100vw - 24px));
+  position: fixed; width: min(320px, calc(100vw - 24px));
   background: var(--surface-1); border: 1px solid var(--hairline);
   border-radius: var(--r-card); padding: 15px 16px 13px;
   box-shadow: var(--sh-raised);

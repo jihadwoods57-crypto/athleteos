@@ -237,7 +237,9 @@ export function emptyTeamDashboard(code, teamName) {
       : `<div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin:0 2px 12px;line-height:1.45">No athletes yet. Hand out the code below — your roster, live activity, and team score all fill in from their logs.</div>`;
   return `
     ${orient}
-    ${code ? coachInviteCard(code, teamName) : codeStateBox()}
+    ${'' /* data-tour wraps card OR create-form: a brand-new operator's tour opens on this, the
+          one action day zero actually has — the board anchors below don't exist yet. */}
+    <div data-tour="invite">${code ? coachInviteCard(code, teamName) : codeStateBox()}</div>
     ${obPlanCard()}
     <div class="eyebrow">${esc(vocab().setup)}</div>
     ${setupChecklistCard(st)}
