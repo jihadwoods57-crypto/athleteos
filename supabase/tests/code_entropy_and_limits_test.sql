@@ -26,6 +26,21 @@ grant execute on function _as(uuid), _su() to authenticated, anon;
 do $$
 declare v_coach uuid; v_team uuid;
 begin
+  -- Self-seed the three actors this suite needs rather than borrowing whichever profiles happen to
+  -- sort first. run.sh claimed it was "skipped rather than failed on an empty db"; it actually
+  -- RAISED, so a clean `supabase start` (or any run right after a teardown) failed the whole
+  -- `npm run test:rls` gate at suite 2. Everything here is inside this file's begin/rollback.
+  insert into auth.users (id, email) values
+    ('00000000-0000-0000-0000-0000000ce001', 'ce-a@test.local'),
+    ('00000000-0000-0000-0000-0000000ce002', 'ce-b@test.local'),
+    ('00000000-0000-0000-0000-0000000ce003', 'ce-c@test.local')
+    on conflict (id) do nothing;
+  insert into profiles (id, full_name) values
+    ('00000000-0000-0000-0000-0000000ce001', 'CE One'),
+    ('00000000-0000-0000-0000-0000000ce002', 'CE Two'),
+    ('00000000-0000-0000-0000-0000000ce003', 'CE Three')
+    on conflict (id) do nothing;
+
   select id into v_coach from profiles order by created_at limit 1;
   if v_coach is null then raise exception 'seed at least one profile before running this suite'; end if;
   insert into teams (id, name, sport, join_code, created_by)

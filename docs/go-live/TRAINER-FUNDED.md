@@ -47,8 +47,11 @@ proto render harness; nothing here is live yet.** Design doc:
    # claim-reminders reuses BILLING_CRON_KEY from the subscription-model deploy.
    # Optional: CLAIM_REMINDER_AFTER_DAYS (2), CLAIM_REMINDER_MAX (2)
    ```
-4b. **Stripe webhook events.** The endpoint must now be subscribed to **`charge.dispute.created`**
-   as well. An existing endpoint will NOT have it, and without it a chargeback keeps its Premium.
+4b. **Stripe webhook events.** The endpoint must now be subscribed to BOTH
+   **`charge.refunded`** and **`charge.dispute.created`**. An existing endpoint will NOT have
+   either, and without them a refund or chargeback keeps its Premium — buy/refund/keep, free
+   and repeatable. See STRIPE-SETUP.md step 5: the full required set is SEVEN events.
+   Verify with a test-mode refund — `trainer_funded_access.expires_at` must jump to now.
 4c. **Schedule the reminder cron** (service role, once):
    ```sql
    select schedule_claim_reminders(

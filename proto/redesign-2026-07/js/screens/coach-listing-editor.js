@@ -5,6 +5,7 @@ import { backHead, esc, skeletonRows, permissionState } from '../components.js';
 import { icon } from '../icons.js';
 import * as roles from '../roles.js';
 import { roleNav } from '../state.js';
+import { tierPriceError } from '../marketplace-rules.js';
 
 const TIERS = [
   { key: 'essential', name: 'Essential Accountability', sub: 'Weekly written check-in · monitoring · alerts' },
@@ -132,6 +133,15 @@ export default {
       // at this point) and silently discards whatever the coach just typed but never saved.
       const patch = collectPatch();
       const prices = collectPrices();
+      // Catch an out-of-bounds price HERE. The server enforces the same bounds either way, but if
+      // it only fails there the coach publishes happily and the 409 surfaces weeks later at a
+      // client's checkout — the person who sees the error isn't the person who can fix it.
+      for (const t of TIERS) {
+        const raw = (root.querySelector(`#cle-price-${t.key}`) || {}).value;
+        if (!raw) continue;
+        const err = tierPriceError(t.key, raw, (G.flags || {}).tier_bounds);
+        if (err) { UI.err = `${t.name}: ${err}`; if (window.__render) window.__render(); return; }
+      }
       if (publish != null) patch.published = publish;
       UI.saving = true; UI.err = ''; UI.msg = '';
       if (window.__render) window.__render();

@@ -2771,6 +2771,202 @@ select _ok((select share_squad_score from profiles
              where id = 'dddddddd-0000-0000-0000-000000000004'),
   'squad: a teammate cannot flip someone else''s share switch');
 
+-- ================================================================ coach marketplace (0183-0190)
+-- The promises being probed, in the order a person would doubt them:
+--   the verified badge cannot be self-granted · an application's status cannot be self-asserted ·
+--   internal review notes are invisible to the person being reviewed · a coach cannot widen their
+--   own approved scope · a suspended or unpublished coach is gone from every read path ·
+--   the marketplace is adults-only and FAILS CLOSED on unknown age · a report is private to its
+--   reporter · and (0189) ending a relationship actually gives the capacity seat back.
+--
+-- These 25 checks ran green on local docker on ship day but lived in a session scratchpad and were
+-- never committed — so the repo's own oracle had ZERO coverage of the whole feature. That is the
+-- gap this section closes: a suite nobody can re-run is a suite nobody can trust.
+select _superuser();
+
+-- Re-assert fixtures: thousands of lines of suite have run and earlier sections mutate links.
+insert into auth.users (id, email) values
+  ('eeee0000-0000-0000-0000-00000000c0ac', 'mkt-coach@test.local'),
+  ('eeee0000-0000-0000-0000-00000000c11e', 'mkt-client@test.local')
+  on conflict (id) do nothing;
+insert into profiles (id, full_name, primary_role) values
+  ('eeee0000-0000-0000-0000-00000000c0ac', 'Mkt Coach', 'trainer'),
+  ('eeee0000-0000-0000-0000-00000000c11e', 'Mkt Client', 'athlete')
+  on conflict (id) do nothing;
+-- adult client (18+) vs the coach, who deliberately gets NO athlete_profiles row so the
+-- fail-closed age check has something to fail closed on
+insert into athlete_profiles (athlete_id, base_age) values ('eeee0000-0000-0000-0000-00000000c11e', 30)
+  on conflict (athlete_id) do update set base_age = 30;
+
+update app_config set value = 'true'::jsonb  where key = 'marketplace_enabled';
+update app_config set value = '[]'::jsonb    where key = 'marketplace_allowlist';
+
+insert into practices (id, owner_id, name, join_code)
+  values ('eeee1111-0000-0000-0000-0000000000d1','eeee0000-0000-0000-0000-00000000c0ac','Mkt Practice','MKTRLS01')
+  on conflict (id) do nothing;
+insert into coach_marketplace_applications (id, user_id, status, legal_name, display_name, bio, experience, categories)
+  values ('eeee2222-0000-0000-0000-0000000000a1','eeee0000-0000-0000-0000-00000000c0ac','submitted',
+          'Legal Name','Mkt Coach', repeat('b',50), repeat('e',25), '{accountability,cpt}')
+  on conflict (user_id) do update set status = 'submitted';
+insert into coach_application_notes (application_id, author_id, note)
+  values ('eeee2222-0000-0000-0000-0000000000a1', null, 'internal only — applicant must never see this');
+insert into coach_credentials (id, application_id, user_id, category, title, doc_path)
+  values ('eeee3333-0000-0000-0000-0000000000c1','eeee2222-0000-0000-0000-0000000000a1',
+          'eeee0000-0000-0000-0000-00000000c0ac','cpt','NASM-CPT','eeee0000-0000-0000-0000-00000000c0ac/d.pdf')
+  on conflict (application_id, category) do update set status = 'submitted';
+insert into coach_listings (practice_id, user_id, slug, display_name, categories, published, suspended, capacity)
+  values ('eeee1111-0000-0000-0000-0000000000d1','eeee0000-0000-0000-0000-00000000c0ac','mkt-rls-x1',
+          'Mkt Coach','{accountability}', true, false, 1)
+  on conflict (practice_id) do update set published = true, suspended = false, capacity = 1,
+    categories = '{accountability}';
+insert into offers (id, practice_id, name, price_cents, cadence, tier, active)
+  values ('eeee4444-0000-0000-0000-0000000000f1','eeee1111-0000-0000-0000-0000000000d1','Essential',8900,'month','essential',true)
+  on conflict (id) do update set active = true, price_cents = 8900;
+
+-- ---- applications: own-row only, status not self-assertable, notes invisible ----
+select _as('eeee0000-0000-0000-0000-00000000c0ac');
+select _ok((select count(*) from coach_marketplace_applications) = 1,
+  'mkt: applicant sees exactly their own application');
+select _ok(_try($f$ update coach_marketplace_applications set status = 'approved'
+                    where user_id = 'eeee0000-0000-0000-0000-00000000c0ac' $f$) <> 'ok',
+  'mkt: applicant cannot self-approve their application (no update grant)');
+select _ok(_try($f$ select note from coach_application_notes $f$) <> 'ok',
+  'mkt: applicant cannot read internal review notes');
+
+select _as('eeee0000-0000-0000-0000-00000000c11e');
+select _ok((select count(*) from coach_marketplace_applications) = 0,
+  'mkt: a stranger sees no applications at all');
+
+-- ---- credentials: the verified badge is not self-service ----
+select _as('eeee0000-0000-0000-0000-00000000c0ac');
+select _ok(_try($f$ update coach_credentials set status = 'verified'
+                    where id = 'eeee3333-0000-0000-0000-0000000000c1' $f$) <> 'ok',
+  'mkt: a coach cannot verify their own credential');
+select _as('eeee0000-0000-0000-0000-00000000c11e');
+select _ok((select count(*) from coach_credentials) = 0,
+  'mkt: a stranger cannot read someone else''s credential rows');
+
+-- ---- listings: presentation is yours, scope is not ----
+select _as('eeee0000-0000-0000-0000-00000000c0ac');
+select _ok(_try($f$ update coach_listings set headline = 'I hold the line'
+                    where user_id = 'eeee0000-0000-0000-0000-00000000c0ac' $f$) = 'ok',
+  'mkt: a coach may edit their own headline');
+select _ok(_try($f$ update coach_listings set categories = '{accountability,cpt}'
+                    where user_id = 'eeee0000-0000-0000-0000-00000000c0ac' $f$) <> 'ok',
+  'mkt: a coach cannot widen their own verified categories');
+select _ok(_try($f$ update coach_listings set suspended = false
+                    where user_id = 'eeee0000-0000-0000-0000-00000000c0ac' $f$) <> 'ok',
+  'mkt: a coach cannot lift their own suspension');
+select _ok(_try($f$ update coach_listings set slug = 'stolen-slug'
+                    where user_id = 'eeee0000-0000-0000-0000-00000000c0ac' $f$) <> 'ok',
+  'mkt: a coach cannot rewrite their own slug');
+select _as('eeee0000-0000-0000-0000-00000000c11e');
+select _ok((select count(*) from coach_listings) = 0,
+  'mkt: a client cannot read listing rows directly (definer RPCs only)');
+
+-- ---- directory + listing projections ----
+select _as('eeee0000-0000-0000-0000-00000000c11e');
+select _ok(jsonb_array_length(marketplace_directory()) >= 1,
+  'mkt: an adult sees a published coach in the directory');
+select _ok(marketplace_listing('mkt-rls-x1') is not null,
+  'mkt: an adult can open a published listing by slug');
+
+select _superuser();
+update coach_listings set suspended = true where practice_id = 'eeee1111-0000-0000-0000-0000000000d1';
+select _as('eeee0000-0000-0000-0000-00000000c11e');
+select _ok(jsonb_array_length(marketplace_directory()) = 0,
+  'mkt: a SUSPENDED coach vanishes from the directory');
+select _ok(marketplace_listing('mkt-rls-x1') is null,
+  'mkt: a SUSPENDED coach''s listing is unreachable even with the exact slug');
+select _superuser();
+update coach_listings set suspended = false, published = false where practice_id = 'eeee1111-0000-0000-0000-0000000000d1';
+select _as('eeee0000-0000-0000-0000-00000000c11e');
+select _ok(jsonb_array_length(marketplace_directory()) = 0,
+  'mkt: an UNPUBLISHED coach is not in the directory');
+select _superuser();
+update coach_listings set published = true where practice_id = 'eeee1111-0000-0000-0000-0000000000d1';
+
+-- ---- adults only, failing CLOSED ----
+-- the coach has no athlete_profiles row at all, so base_age is unknown
+select _as('eeee0000-0000-0000-0000-00000000c0ac');
+select _ok(jsonb_array_length(marketplace_directory()) = 0,
+  'mkt: unknown age is treated as a minor — directory is empty (fail closed)');
+select _ok((marketplace_flags()->>'can_hire')::boolean = false,
+  'mkt: unknown age cannot hire');
+select _as('eeee0000-0000-0000-0000-00000000c11e');
+select _ok((marketplace_flags()->>'can_hire')::boolean = true,
+  'mkt: a verified adult can hire');
+
+-- ---- the switch, and the 0190 allowlist ----
+select _superuser();
+update app_config set value = 'false'::jsonb where key = 'marketplace_enabled';
+select _as('eeee0000-0000-0000-0000-00000000c11e');
+select _ok(jsonb_array_length(marketplace_directory()) = 0,
+  'mkt: flag off + not allowlisted = nothing, for everyone');
+select _superuser();
+update app_config set value = '["eeee0000-0000-0000-0000-00000000c11e"]'::jsonb where key = 'marketplace_allowlist';
+select _as('eeee0000-0000-0000-0000-00000000c11e');
+select _ok(jsonb_array_length(marketplace_directory()) = 1,
+  'mkt: flag off + allowlisted = visible to exactly that tester (0190)');
+select _as('eeee0000-0000-0000-0000-00000000c0ac');
+select _ok((marketplace_flags()->>'enabled')::boolean = false,
+  'mkt: an un-allowlisted user stays dark while a tester is live');
+select _superuser();
+update app_config set value = 'true'::jsonb where key = 'marketplace_enabled';
+update app_config set value = '[]'::jsonb   where key = 'marketplace_allowlist';
+
+-- ---- reports: private to the reporter ----
+select _as('eeee0000-0000-0000-0000-00000000c11e');
+select _ok(_try($f$ insert into coach_reports (reporter_id, practice_id, reason, detail)
+                    values ('eeee0000-0000-0000-0000-00000000c11e','eeee1111-0000-0000-0000-0000000000d1','scope','t') $f$) = 'ok',
+  'mkt: a client can file a report');
+select _ok(_try($f$ insert into coach_reports (reporter_id, practice_id, reason, status)
+                    values ('eeee0000-0000-0000-0000-00000000c11e','eeee1111-0000-0000-0000-0000000000d1','spam','resolved') $f$) <> 'ok',
+  'mkt: a reporter cannot file a report pre-resolved');
+select _as('eeee0000-0000-0000-0000-00000000c0ac');
+select _ok((select count(*) from coach_reports) = 0,
+  'mkt: the reported coach cannot see reports about themselves');
+
+-- ---- admin surface is admin-only ----
+select _as('eeee0000-0000-0000-0000-00000000c11e');
+select _ok(_try($f$ select admin_mkt_list_applications(null) $f$) <> 'ok',
+  'mkt: a non-admin cannot list applications');
+select _ok(_try($f$ select admin_mkt_verify_credential('eeee3333-0000-0000-0000-0000000000c1','verified','') $f$) <> 'ok',
+  'mkt: a non-admin cannot verify a credential');
+select _ok(_try($f$ select admin_mkt_set_allowlist('eeee0000-0000-0000-0000-00000000c11e', true) $f$) <> 'ok',
+  'mkt: a non-admin cannot edit the rollout allowlist');
+
+-- ---- 0189: ending a relationship must GIVE THE SEAT BACK ----
+-- capacity is 1, so one active client hides the coach entirely; if deactivation failed to release
+-- the seat the coach would be delisted forever, which is the bug this proves is fixed.
+select _superuser();
+insert into practice_clients (practice_id, client_id, status)
+  values ('eeee1111-0000-0000-0000-0000000000d1','eeee0000-0000-0000-0000-00000000c11e','active')
+  on conflict (practice_id, client_id) do update set status = 'active';
+insert into coach_agreements (client_id, practice_id, tier, price_cents, agreement_version, stripe_checkout_session_id)
+  values ('eeee0000-0000-0000-0000-00000000c11e','eeee1111-0000-0000-0000-0000000000d1','essential',8900,'v1','cs_mkt_rls')
+  on conflict (stripe_checkout_session_id) do nothing;
+select _as('eeee0000-0000-0000-0000-00000000c11e');
+select _ok(jsonb_array_length(marketplace_directory()) = 0,
+  'mkt: a coach at capacity is correctly hidden from the directory');
+select _superuser();
+select marketplace_deactivate_client('eeee1111-0000-0000-0000-0000000000d1','eeee0000-0000-0000-0000-00000000c11e','refund');
+select _ok((select status::text from practice_clients
+             where practice_id = 'eeee1111-0000-0000-0000-0000000000d1'
+               and client_id = 'eeee0000-0000-0000-0000-00000000c11e') = 'removed',
+  'mkt: a refund removes the client from the coach''s roster (0189)');
+select _ok((select ended_reason from coach_agreements where stripe_checkout_session_id = 'cs_mkt_rls') = 'refund',
+  'mkt: the agreement records that it ended, and why (0189)');
+select _as('eeee0000-0000-0000-0000-00000000c11e');
+select _ok(jsonb_array_length(marketplace_directory()) = 1,
+  'mkt: the seat is released — the coach is BACK in the directory, not delisted forever (0189)');
+
+-- ---- agreements are the client's own record ----
+select _as('eeee0000-0000-0000-0000-00000000c0ac');
+select _ok((select count(*) from coach_agreements
+             where stripe_checkout_session_id = 'cs_mkt_rls') = 0,
+  'mkt: a coach cannot read their client''s agreement row');
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$

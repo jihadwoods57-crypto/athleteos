@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
   const svc = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   const { data: payment } = await svc.from('offer_payments')
-    .select('id, practice_id, stripe_charge_id, status').eq('id', paymentId).maybeSingle();
+    .select('id, practice_id, stripe_charge_id, stripe_subscription_id, status').eq('id', paymentId).maybeSingle();
   if (!payment) return json({ error: 'payment not found' }, 404, cors);
 
   // Ownership check under service role — only the practice's OWNER can refund its payments.
@@ -118,6 +118,21 @@ Deno.serve(async (req) => {
     });
     // Optimistic — charge.refunded (stripe-webhook) will independently confirm the same state.
     await svc.from('offer_payments').update({ status: 'refunded' }).eq('id', paymentId);
+
+    // 0189: if this payment was a MARKETPLACE hire, the refund also ends the relationship and
+    // releases the coach's capacity seat. Optimistic for the same reason the line above is — and
+    // load-bearing while a webhook endpoint might not be subscribed to charge.refunded at all
+    // (see STRIPE-SETUP.md step 5; that was live-unsubscribed until 2026-08-06). Idempotent, so
+    // the webhook doing it again a second later costs nothing.
+    if (payment.stripe_subscription_id) {
+      const { data: hire } = await svc.rpc('marketplace_hire_for_subscription',
+        { p_subscription: payment.stripe_subscription_id });
+      const row = Array.isArray(hire) ? hire[0] : hire;
+      if (row?.practice_id && row?.client_id) {
+        await svc.rpc('marketplace_deactivate_client',
+          { p_practice: row.practice_id, p_client: row.client_id, p_reason: 'refund' });
+      }
+    }
     return json({ ok: true }, 200, cors);
   } catch (e) {
     console.error('refund-payment error:', e);

@@ -7,6 +7,7 @@ import { icon } from '../icons.js';
 import * as roles from '../roles.js';
 import { roleNav } from '../state.js';
 import { track, EVENTS } from '../analytics.js';
+import { isApplicationEditable } from '../marketplace-rules.js';
 
 const CATS = [
   { key: 'accountability', label: 'Accountability coach', sub: 'Consistency, habits, follow-through. No credential needed — trained on the OnStandard method.', locked: true },
@@ -115,7 +116,10 @@ export default {
   render() {
     if (!G.loaded) return `${backHead('Become a coach', 'OnStandard Coach Partner Program', 'profile')}${skeletonRows(3)}`;
     const a = G.app;
-    const editable = !a || a.status === 'draft' || a.status === 'info_needed';
+    // Tested in marketplace-rules.test.mjs — a locally-merged object carries no `status`, and
+    // reading that as "not editable" is what once flipped a never-submitted application to
+    // "Application received" (3277745).
+    const editable = isApplicationEditable(a);
     return `${backHead('Become a coach', 'OnStandard Coach Partner Program', 'profile')}
     ${editable ? `
     <section class="card pad">

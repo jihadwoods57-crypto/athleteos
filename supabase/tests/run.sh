@@ -46,3 +46,16 @@ run_sql code_entropy_and_limits_test.sql
 # audit deferred. Needs only app_config; safe on an empty db.
 echo "==> spend-gate suite (0174)"
 run_sql spend_gate_test.sql
+
+# 0130 admin auth gate + 0131 monitor. These existed since 2026-07-22 and were run by NOTHING —
+# a suite nobody runs is a suite nobody trusts, and both cover the aal2 choke point that every
+# admin RPC (including the marketplace ones) leans on.
+echo "==> admin auth-gate suite (0130)"
+run_sql admin_auth_test.sql
+
+echo "==> admin monitor suite"
+run_sql admin_monitor_test.sql
+
+# 0166/0167 trainer-funded access — the grant/expiry mechanics the marketplace now shares.
+echo "==> trainer-funded suite (0166-0167)"
+run_sql trainer_funded_test.sql

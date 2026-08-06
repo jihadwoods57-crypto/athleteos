@@ -350,7 +350,10 @@ async function mintOfferClaim(
  * trainer only loses premium if this was their LAST funded client; grants from other clients are
  * untouched because the update is scoped by subscription.
  */
-async function revokeFundedForCharge(svc: ReturnType<typeof createClient>, chargeId: string): Promise<void> {
+async function revokeFundedForCharge(
+  svc: ReturnType<typeof createClient>, chargeId: string,
+  reason: 'refund' | 'dispute' = 'refund',
+): Promise<void> {
   const { data: row } = await svc.from('offer_payments')
     .select('stripe_subscription_id').eq('stripe_charge_id', chargeId).maybeSingle();
   const subId = row?.stripe_subscription_id;
@@ -362,6 +365,30 @@ async function revokeFundedForCharge(svc: ReturnType<typeof createClient>, charg
   // An unredeemed claim for a refunded payment must never become redeemable premium later.
   await svc.from('offer_claims')
     .update({ expires_at: now }).eq('stripe_subscription_id', subId).eq('status', 'pending');
+
+  // 0189: for a MARKETPLACE hire the payment is what created the relationship, so taking the money
+  // back has to end it too. Expiring the funded grant alone left the client active on the coach's
+  // roster forever AND permanently consumed one of the listing's capacity seats — and because
+  // marketplace_directory FILTERS on remaining capacity, enough refunds delist a coach for good.
+  // Deliberately scoped to marketplace hires only: an ordinary offer purchase had a client before
+  // the payment existed, and a refund there does not dissolve that coaching relationship.
+  await deactivateMarketplaceHire(svc, subId, reason);
+}
+
+/** End a marketplace relationship for a subscription, if that subscription is one. No-ops for an
+ *  ordinary trainer-offer subscription (the RPC only resolves rows that have a coach_agreements
+ *  row behind them), and idempotent so a Stripe retry costs nothing. */
+async function deactivateMarketplaceHire(
+  svc: ReturnType<typeof createClient>, subscriptionId: string,
+  reason: 'refund' | 'dispute' | 'cancelled',
+): Promise<void> {
+  const { data: hire } = await svc.rpc('marketplace_hire_for_subscription', { p_subscription: subscriptionId });
+  const row = Array.isArray(hire) ? hire[0] : hire;
+  if (!row?.practice_id || !row?.client_id) return;   // not a marketplace hire
+  const { error } = await svc.rpc('marketplace_deactivate_client', {
+    p_practice: row.practice_id, p_client: row.client_id, p_reason: reason,
+  });
+  if (error) throw error;
 }
 
 /**
@@ -735,6 +762,13 @@ Deno.serve(async (req) => {
           .update({ subscription_cancelled_at: new Date().toISOString() })
           .eq('stripe_subscription_id', sub.id).is('subscription_cancelled_at', null);
         if (offerError) throw offerError;
+
+        // 0189: a cancelled MARKETPLACE hire has to leave the roster and give its seat back. Note
+        // the asymmetry with premium access, which is deliberate and unchanged: trainer_funded
+        // grants run to period end + grace (they paid for the month), but the coaching relationship
+        // ends when the subscription does — the coach should not keep working a client who stopped
+        // paying, and the seat should be re-sellable immediately.
+        await deactivateMarketplaceHire(svc, sub.id, 'cancelled');
         break;
       }
 
@@ -799,8 +833,11 @@ Deno.serve(async (req) => {
         const dispute = event.data.object as Stripe.Dispute;
         const chargeId = typeof dispute.charge === 'string' ? dispute.charge : dispute.charge?.id;
         if (chargeId) {
-          await svc.from('offer_payments').update({ status: 'refunded' }).eq('stripe_charge_id', chargeId);
-          await revokeFundedForCharge(svc, chargeId);
+          // 'disputed', not 'refunded' (0189): a chargeback and a goodwill refund are the same
+          // money movement but completely different signals — dispute rate is a number Stripe
+          // judges the platform on, and it was uncomputable while both wrote the same value.
+          await svc.from('offer_payments').update({ status: 'disputed' }).eq('stripe_charge_id', chargeId);
+          await revokeFundedForCharge(svc, chargeId, 'dispute');
         }
         break;
       }

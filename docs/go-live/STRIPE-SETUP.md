@@ -81,9 +81,23 @@ per-customer portal session on demand.
    ```
    https://ftwrvylzoyznhbzhgism.supabase.co/functions/v1/stripe-webhook
    ```
-3. Select events: **`checkout.session.completed`**, **`customer.subscription.updated`**,
-   **`customer.subscription.deleted`**, **`invoice.payment_failed`**, **`invoice.paid`**.
-   (The last two power dunning — the "your card failed, fix it" banner and its all-clear.)
+3. Select **all SEVEN** events — the handler branches on every one of them:
+   - **`checkout.session.completed`** — the first payment of anything
+   - **`customer.subscription.updated`** / **`customer.subscription.deleted`**
+   - **`invoice.payment_failed`** / **`invoice.paid`** — these two power dunning (the
+     "your card failed, fix it" banner and its all-clear) and renewals
+   - **`charge.refunded`** — 🔴 **REQUIRED.** Without it a refunded buyer keeps the
+     premium access their money bought. Added with 0166 (trainer-funded access), so an
+     endpoint created before 2026-07-30 is **not** subscribed to it — go add it now.
+   - **`charge.dispute.created`** — 🔴 **REQUIRED.** Same failure for a chargeback.
+
+   > **If you set this endpoint up before 2026-08-06, you are almost certainly missing the
+   > last two** — this runbook listed only five until then, so buy → refund → keep-the-app
+   > has been free. Open the endpoint and confirm all seven are checked before anything else.
+   > Verify with a test-mode refund: `trainer_funded_access.expires_at` must jump to now.
+
+   Connect's own `account.updated` goes to the **separate** `connect-webhook` endpoint —
+   do not add it here.
 4. Add endpoint → copy the **Signing secret** (`whsec_...`).
 5. While you're in Billing settings: **Settings → Billing → Automatic collection → Smart
    Retries ON** (recovers 20-40% of failed charges for free).

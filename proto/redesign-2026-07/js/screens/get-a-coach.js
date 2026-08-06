@@ -7,6 +7,7 @@ import { backHead } from '../components.js';
 import { icon } from '../icons.js';
 import * as roles from '../roles.js';
 import { track, EVENTS } from '../analytics.js';
+import { marketplaceGate } from '../marketplace-rules.js';
 
 let CACHE = { flags: null, loaded: false };
 
@@ -28,7 +29,11 @@ function row(go, ic, iconStyle, title, sub) {
 export default {
   render() {
     const f = CACHE.flags || {};
-    const marketplaceOpen = CACHE.loaded && f.enabled && f.can_hire;
+    // Four states, four different honest explanations — see marketplaceGate. Collapsing them into
+    // a boolean is how you end up telling an adult "opens soon" when the real reason is their age,
+    // or telling a minor "opens soon" when it will never open for them.
+    const gate = marketplaceGate(f, CACHE.loaded);
+    const marketplaceOpen = gate === 'open';
     return `${backHead('Accountability', 'Who holds you to your standard', 'profile')}
 
     <section class="card pad">
@@ -49,10 +54,12 @@ export default {
         'I already have a coach', 'Enter their code to share your execution and hear from them')}
     </section>
 
-    ${CACHE.loaded && !marketplaceOpen ? `
+    ${gate === 'off' || gate === 'minor' ? `
     <div class="sidebox" style="margin-top:10px"><div class="req-icon b" style="width:34px;height:34px">${icon('lock', 15)}</div>
       <div><div class="tt">Coach hiring isn't available on this account yet</div>
-      <div class="ts">${f.enabled === false ? 'The coach marketplace opens soon.' : 'Marketplace coaching is for adults. Connect a coach you already work with instead.'}</div></div></div>` : ''}
+      <div class="ts">${gate === 'off'
+        ? 'The coach marketplace opens soon.'
+        : 'Marketplace coaching is for adults. Connect a coach you already work with instead.'}</div></div></div>` : ''}
 
     <div class="sidebox" style="margin-top:10px"><div class="req-icon b" style="width:34px;height:34px">${icon('eye', 15)}</div>
       <div><div class="tt">Accountability coaching is support, not treatment</div>

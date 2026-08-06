@@ -525,3 +525,11 @@ verify_jwt = false
 
 [functions.ai-followup]
 verify_jwt = false
+
+# marketplace-checkout resolves the caller itself (bearer → auth.getUser) and then re-checks the
+# switch, adulthood, listing state, capacity and tier bounds server-side, so it WANTS the default
+# verify_jwt = true. Pinned explicitly anyway: config.toml's own roll-call note above is the
+# cautionary tale — the trio shipped 2026-07-29 with no entries and came up with the wrong value.
+# An unpinned function is an undeclared one, and undeclared is how that happens.
+[functions.marketplace-checkout]
+verify_jwt = true

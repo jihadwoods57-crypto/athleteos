@@ -110,8 +110,15 @@ function grantedOps(): Map<string, Set<Op | 'select'>> {
     const sql = readFileSync(join(MIGRATIONS, f), 'utf8');
     // `grant select, insert, update on public.foo to authenticated;` — schema optional, and the
     // statement may wrap across lines.
+    //
+    // COLUMN-LEVEL grants count too: `grant update (a, b, c) on public.foo to authenticated`.
+    // That is a real, deliberate pattern here — 0103 uses it to wall off weight columns, and 0184
+    // uses it so a marketplace coach can edit their headline but NOT their verified categories,
+    // slug, or suspension. Before this, the optional `(cols)` broke the match and the table read
+    // as ungranted, which is a false alarm that would push someone toward "fixing" it with a
+    // whole-table grant — i.e. deleting the protection on purpose.
     for (const m of sql.matchAll(
-      /\bgrant\s+([a-z,\s]+?)\s+on\s+(?:table\s+)?(?:public\.)?([a-z0-9_]+)\s+to\s+([a-z_,\s]+?);/gi,
+      /\bgrant\s+([a-z,\s]+?)\s*(?:\([^)]*\)\s*)?(?:,\s*[a-z]+\s*\([^)]*\)\s*)*on\s+(?:table\s+)?(?:public\.)?([a-z0-9_]+)\s+to\s+([a-z_,\s]+?);/gi,
     )) {
       if (!/\bauthenticated\b/i.test(m[3])) continue;
       const ops = m[1].split(',').map((s) => s.trim().toLowerCase());

@@ -20,12 +20,41 @@ begin execute 'reset role';
 create or replace function _su() returns void language plpgsql as $$ begin execute 'reset role'; end $$;
 grant execute on function _as1(uuid),_as2(uuid),_su() to authenticated, anon;
 
+-- 0147 (execute-grant hardening) revoked is_platform_admin() from `authenticated`, so a test
+-- running AS that role can no longer call it directly — which silently broke this suite the day
+-- 0147 shipped. Nobody noticed, because run.sh didn't invoke this file until 2026-08-06.
+-- The probe below is the app's real seam: a definer wrapper the caller may execute, that reports
+-- only about the caller. It preserves what the assertions actually mean (aal2 admin -> true,
+-- aal1 admin -> false, non-admin -> false) without re-granting what 0147 deliberately took away.
+create or replace function _is_admin_probe() returns boolean
+language sql stable security definer set search_path = public as $$ select is_platform_admin() $$;
+grant execute on function _is_admin_probe() to authenticated, anon;
+
 do $$
 declare v_admin uuid; v_other uuid;
 begin
-  select id into v_admin from profiles order by created_at limit 1;
-  select id into v_other from profiles where id <> v_admin order by created_at limit 1;
+  -- Self-seed the two actors rather than borrowing whichever profiles happen to sort first.
+  -- Wired into `npm run test:rls` on 2026-08-06; until then this suite was run by nothing and
+  -- silently assumed a db with >=2 profiles — on a fresh `supabase start` it died with
+  -- `invalid input syntax for type uuid: ""` before the first assertion. Everything here is
+  -- inside the file's own begin/rollback, so the seeds never persist.
+  insert into auth.users (id, email) values
+    ('00000000-0000-0000-0000-0000000aa001', 'aa-admin@test.local'),
+    ('00000000-0000-0000-0000-0000000aa002', 'aa-other@test.local')
+    on conflict (id) do nothing;
+  insert into profiles (id, full_name) values
+    ('00000000-0000-0000-0000-0000000aa001', 'AA Admin'),
+    ('00000000-0000-0000-0000-0000000aa002', 'AA Other')
+    on conflict (id) do nothing;
+
+  -- Use OUR OWN actors, not "whichever profile sorts first". Borrowing ambient rows made the
+  -- result depend on what else happened to be in the db — if the borrowed "non-admin" was itself
+  -- a platform_admin (easy after any admin QC), three assertions failed for reasons that had
+  -- nothing to do with the gate being tested.
+  v_admin := '00000000-0000-0000-0000-0000000aa001';
+  v_other := '00000000-0000-0000-0000-0000000aa002';
   insert into platform_admins(user_id) values (v_admin) on conflict do nothing;
+  delete from platform_admins where user_id = v_other;   -- the control MUST be a non-admin
   perform set_config('aa.admin', v_admin::text, false);
   perform set_config('aa.other', v_other::text, false);
 end $$;
@@ -35,9 +64,9 @@ select _su();
 do $$
 declare a uuid := current_setting('aa.admin')::uuid; o uuid := current_setting('aa.other')::uuid; m text;
 begin
-  perform _as2(a); perform _ok(is_platform_admin(),'is_platform_admin: admin@aal2 -> true');
-  perform _as1(a); perform _ok(not is_platform_admin(),'is_platform_admin: admin@aal1 -> false');
-  perform _as2(o); perform _ok(not is_platform_admin(),'is_platform_admin: non-admin@aal2 -> false');
+  perform _as2(a); perform _ok(_is_admin_probe(),'is_platform_admin: admin@aal2 -> true');
+  perform _as1(a); perform _ok(not _is_admin_probe(),'is_platform_admin: admin@aal1 -> false');
+  perform _as2(o); perform _ok(not _is_admin_probe(),'is_platform_admin: non-admin@aal2 -> false');
 
   perform _as2(a);
   begin perform assert_admin_mfa(); perform _ok(true,'assert_admin_mfa: admin@aal2 passes');

@@ -6,6 +6,7 @@ import { backHead, esc, skeletonRows, emptyState, errorState } from '../componen
 import { icon } from '../icons.js';
 import * as roles from '../roles.js';
 import { track, EVENTS } from '../analytics.js';
+import { shouldLoad } from '../marketplace-rules.js';
 
 const CAT_LABEL = { accountability: 'Accountability', cpt: 'Certified trainer', snc: 'Strength & conditioning' };
 const PRICE_STEPS = [
@@ -20,14 +21,10 @@ let UI = { category: null, priceIdx: 0 };
 
 async function load(force) {
   const key = `${UI.category || ''}|${UI.priceIdx}`;
-  // `loading` (not just `list`) must gate re-entry: mount() calls load() unconditionally, and
-  // window.__render() below re-runs mount() SYNCHRONOUSLY (render.js:355) — before this async
-  // function has awaited anything. Guarding on `list` alone leaves a window where list is still
-  // null and the key already matches, so the re-entrant load() call passes the guard, fires
-  // another synchronous render(), which mounts again, which loads again — an unbounded
-  // synchronous recursion that stack-overflows and crashes the tab before a single network
-  // response ever lands.
-  if (CACHE.key === key && (CACHE.list || CACHE.loading) && !force) return;
+  // The guard lives in marketplace-rules.js so it can be tested — this exact condition is the
+  // difference between a working screen and an infinite synchronous render→mount→load recursion
+  // that crashes the tab (3277745). See shouldLoad's comment for why `loading` must be part of it.
+  if (!shouldLoad(CACHE, key, force)) return;
   CACHE = { list: null, error: false, key, loading: true };
   if (window.__render) window.__render();
   try {
