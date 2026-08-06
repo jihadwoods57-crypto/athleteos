@@ -54,7 +54,13 @@ function withMeal(day, slot, atMin, protein) {
   return d;
 }
 
-const CI_BEST = { energy: 10, recovery: 10, sleep: 10, confidence: 10, soreness: 0, motivation: 10 };
+/* The best possible check-in, per day.js polarity (soreness/cravings invert: 0 is best).
+   EXPORTED as the one shared ceiling constant — the Recovery Check-In screen's "earn up to"
+   reads this same object, so it and the breakdown's reach plan can never quote different
+   numbers. Includes the 0142 body signals so the ceiling stays honest for Guided/Intuitive
+   athletes; disabled fields are ignored by the engine (ciConfig gates them), so athletes
+   without them are byte-identical. */
+export const CI_BEST = { energy: 10, recovery: 10, sleep: 10, confidence: 10, soreness: 0, motivation: 10, digestion: 10, cravings: 0 };
 
 /** Ceiling day: everything still open completes as well as it possibly can — remaining meals
  *  logged on time (or with the late half-credit already locked in by the clock), remaining

@@ -35,7 +35,7 @@ import {
   contextForChat,
 } from './meal-intel.js';
 import { groundMealFromFoods, groundMealTotals, gapFoods, isCompleteMealResult } from './nutrition.js';
-import { explainCategories, reachPlan as modelReachPlan, maxPossibleScore, mealMaxGain } from './breakdown-model.js';
+import { explainCategories, reachPlan as modelReachPlan, maxPossibleScore, mealMaxGain, CI_BEST } from './breakdown-model.js';
 import { cachedMealPhoto, todayMealPhotoPath, invalidateMealPhoto, resolveMealPhoto } from './photo-store.js';
 import { base64ToBytes, sha256Hex, photoAgeMinutes } from './photo-hash.js';
 import {
@@ -529,6 +529,11 @@ export function checkinProjection(ci) {
   const to = scoreFor(p);
   return { to, gain: Math.max(0, to - computeScore(componentsNow())) };
 }
+
+/** The check-in's honest ceiling: submitting right now with the best possible answers — the
+ *  SAME CI_BEST constant the Score Breakdown's reach plan runs through the engine, so the
+ *  Recovery screen's "earn up to" and the breakdown can never quote different numbers. */
+export function checkinBestProjection() { return checkinProjection(CI_BEST); }
 
 /** After loadDay(), reflect the real day into the RT flags the rest of the UI still reads. */
 export function syncRtFromDay() {
@@ -3545,7 +3550,7 @@ export const S = {
       } else if (d.id === 'weight') {
         meta = d.done ? 'Trend only' : 'Not scored'; route = 'weight';
       } else if (d.id === 'recovery') {
-        meta = d.done ? 'Recovery in' : 'Recovery · 25%'; route = d.done ? 'recovery-confirm' : 'recovery';
+        meta = d.done ? 'Recovery in' : `Recovery · ${liveWeightPct('recovery')}%`; route = d.done ? 'recovery-confirm' : 'recovery';
       } else { meta = ''; route = 'home'; }
       return { ...d, meta, route, sub, subColor };
     };

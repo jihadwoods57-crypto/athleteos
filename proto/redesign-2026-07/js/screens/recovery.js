@@ -1,6 +1,8 @@
-import { S, RT, act, tier, checkinProjection, liveWeightPct } from '../state.js';
+import { S, RT, act, tier, checkinProjection, checkinBestProjection, liveWeightPct } from '../state.js';
+import { DAY } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
+import { recoveryCoachMessage } from '../recovery-intel.js';
 import * as roles from '../roles.js';
 
 export const recoveryConfirm = {
@@ -23,6 +25,21 @@ export const recoveryConfirm = {
         <span class="to" data-anim-to>${mv.to}</span>
       </div>
       <div class="confirm-sub" style="margin-top:0">OnStandard Score · +${mv.gain} pts</div>
+
+      ${(() => {
+        // The AI Nutritionist reads the answers just submitted and coaches — derived from
+        // DAY.ci (recovery-intel.js), so the points never arrive without a voice behind them.
+        const msg = recoveryCoachMessage({
+          ci: DAY.ci, ciConfig: DAY.ciConfig,
+          hasCoach: S.coach.hasCoach, coachName: S.coach.nameMid,
+        });
+        return msg ? `
+      <div class="sidebox" style="margin-top:18px; text-align:left; width:100%">
+        <div class="req-icon p" style="width:38px;height:38px">${icon('message', 17)}</div>
+        <div><div class="tt">AI Nutritionist</div>
+        <div class="ts">${esc(msg)}</div></div>
+      </div>` : '';
+      })()}
       ${promoted ? `<span class="tier-chip ${toTier.cls}" style="margin-top:16px; font-size:12.5px; padding:7px 18px">${toTier.name}</span>
       ${S.streakDays > 0 ? `<div class="confirm-sub" style="margin-top:10px">You finished the day on standard. Day ${S.streakDays} locks at midnight.</div>` : ''}` : ''}
 
@@ -69,9 +86,15 @@ export default {
       </div>`;
     }
     const R = S.recovery;
-    const P = checkinProjection();
+    const P = checkinProjection();          // projected score with the answers currently selected
+    const best = checkinBestProjection();   // ceiling — SAME CI_BEST math the Score Breakdown prints
     return `
-    ${backHead('Recovery Check-In', `Before bed · Refreshes Recovery (${liveWeightPct('recovery')}% of score)`)}
+    ${backHead('Recovery Check-In', 'Before bed · Takes 20 seconds')}
+
+    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:2px 2px 14px;line-height:1.55">
+      Recovery is ${liveWeightPct('recovery')}% of your OnStandard Score because readiness drives performance —
+      how recovered, rested, and available you are decides what tomorrow's work is worth.
+    </div>
 
     <section class="card" style="padding: 4px 18px 8px">
       ${R.fields.map(f => `
@@ -90,8 +113,10 @@ export default {
     <div style="height:14px"></div>
     <div class="sidebox">
       <div class="req-icon p" style="width:38px;height:38px">${icon('moon', 18)}</div>
-      <div><div class="tt" id="rec-gain">${P.gain > 0 ? `Worth +${P.gain} tonight → ${P.to}` : 'Refreshes your Recovery score tonight'}</div>
-      <div class="ts">Takes 20 seconds. ${S.coach.hasCoach ? `${esc(S.coach.name)} sees your readiness before tomorrow's practice.` : 'Honest answers are the whole point.'}</div></div>
+      <div><div class="tt" id="rec-gain">${best.gain > 0
+        ? `Current: ${S.score} · Earn up to +${best.gain} · Projected: <span data-proj>${P.to}</span>`
+        : 'Refreshes your Recovery score tonight'}</div>
+      <div class="ts">Same math as your Score Breakdown — your answers set the exact number. ${S.coach.hasCoach ? `${esc(S.coach.name)} sees your readiness before tomorrow's practice.` : 'Honest answers are the whole point.'}</div></div>
     </div>
 
     <div style="height:18px"></div>
@@ -124,11 +149,10 @@ export default {
           ch.classList.add('on');
           ch.setAttribute('aria-checked', 'true');
           answers[key] = n * 2;
-          const g = root.querySelector('#rec-gain');
-          if (g) {
-            const p = checkinProjection(answers);
-            g.textContent = p.gain > 0 ? `Worth +${p.gain} tonight → ${p.to}` : `Refreshes Recovery (${liveWeightPct('recovery')}% of your score)`;
-          }
+          // Live projection: only the Projected number moves with the answers — Current is the
+          // score as it stands, and "Earn up to" is the fixed ceiling (shared with the breakdown).
+          const proj = root.querySelector('[data-proj]');
+          if (proj) proj.textContent = String(checkinProjection(answers).to);
         });
       });
     });
