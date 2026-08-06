@@ -12,16 +12,25 @@ import { scoreColor } from '../score-band.js';
 import * as roles from '../roles.js';
 
 /* Module cache, loadAthleteProfile-style: null = loading, {offline:true} = failed honest,
-   {rows} = loaded. A generation counter so a slow first load can't clobber a retry. */
-let BOARD = null, boardGen = 0;
+   {rows} = loaded. A generation counter so a slow first load can't clobber a retry.
+   BOARD_FRESH_MS caps how long a populated board is trusted across re-visits — this is a
+   "today's standing" surface, not a profile: without a TTL, an athlete who opened Squad once
+   and comes back later (a teammate opted in, scores moved) would see the FIRST visit's numbers
+   for the rest of the app session with no signal they're stale and no retry button to fix it
+   (retry only ever renders on the offline branch). 20s matches the athlete bell's own
+   loadNotifications() throttle — fresh enough to feel live, cheap enough not to hammer the RPC
+   on fast tab-switching. */
+let BOARD = null, boardGen = 0, boardLoadedAt = 0;
+const BOARD_FRESH_MS = 20_000;
 async function loadBoard(force) {
   const teamId = RT.myCoach && RT.myCoach.teamId;
   if (!teamId) { BOARD = { rows: [] }; return; }
-  if (BOARD && BOARD.rows && !force) return;
+  if (BOARD && BOARD.rows && !force && Date.now() - boardLoadedAt < BOARD_FRESH_MS) return;
   const gen = ++boardGen;
   const rows = await roles.fetchSquadBoard(teamId);
   if (gen !== boardGen) return;
   BOARD = rows === null ? { offline: true } : { rows };
+  if (rows !== null) boardLoadedAt = Date.now();
   // The self row carries the authoritative switch state — mirror it so the Privacy sheet's
   // Teammates row reads the same truth without its own fetch.
   const me = rows && rows.find((r) => r.athlete_id === RT.userId);
