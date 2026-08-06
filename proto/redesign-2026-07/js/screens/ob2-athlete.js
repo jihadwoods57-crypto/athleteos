@@ -342,13 +342,13 @@ const steps = [
     sub: () => 'Your coach hands it out. It puts your score on their board from day one — and your team covers your access.',
     body: (o) => `
       <input id="tc-code" class="ob-input" placeholder="Team code" aria-label="Team code" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="12" value="${esc(o.join && o.join.kind === 'team' ? o.join.code || '' : '')}" />
-      <div id="tc-note" class="ob2-scan-note" style="text-align:left;min-height:18px">4–12 letters and numbers. No code? Skip — you can connect any time from Profile.</div>`,
+      <div id="tc-note" class="ob2-scan-note" style="text-align:left;min-height:18px">4–12 letters and numbers. No code? Skip — from Profile you can connect any time, or find a coach to hold you accountable.</div>`,
     mount(root) {
       const el = root.querySelector('#tc-code');
       const note = root.querySelector('#tc-note');
       const btn = root.querySelector('#ob2-next');
       const CODE_RE = /^[A-Z0-9]{4,12}$/;
-      const HINT = '4–12 letters and numbers. No code? Skip — you can connect any time from Profile.';
+      const HINT = '4–12 letters and numbers. No code? Skip — from Profile you can connect any time, or find a coach to hold you accountable.';
       if (btn) btn.setAttribute('data-gate-extra', '#tc-code.ok');
       /* A well-FORMED code is not a REAL code. Without this lookup a typo still flipped
          paywallVariant to team_covered, so the next screen promised "your team covers your

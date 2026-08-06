@@ -1,0 +1,139 @@
+/* Your marketplace listing — approved coaches only (the row exists only if the approval RPC made
+   one). Presentation fields + the three tier prices + the publish switch. Categories, slug and
+   suspension are admin-owned: not in this UI and not grant-writable even if someone tries. */
+import { backHead, esc, skeletonRows, permissionState } from '../components.js';
+import { icon } from '../icons.js';
+import * as roles from '../roles.js';
+import { roleNav } from '../state.js';
+
+const TIERS = [
+  { key: 'essential', name: 'Essential Accountability', sub: 'Weekly written check-in · monitoring · alerts' },
+  { key: 'daily', name: 'Daily Accountability', sub: 'Daily review · direct messages · follow-ups' },
+  { key: 'high_touch', name: 'High-Touch Accountability', sub: 'Daily review · priority replies · calls' },
+];
+
+let G = { listing: null, flags: null, prices: {}, loaded: false };
+let UI = { saving: false, msg: '', err: '' };
+
+async function load(force) {
+  if (G.loaded && !force) return;
+  const [listing, flags] = await Promise.all([
+    roles.fetchMyListing(), roles.fetchMarketplaceFlags(),
+  ]);
+  G.listing = listing;
+  G.flags = flags;
+  G.prices = {};
+  if (listing) {
+    const offers = await roles.fetchMyOffers(listing.practice_id);
+    for (const o of offers) if (o.tier && o.price_cents != null) G.prices[o.tier] = o.price_cents / 100;
+  }
+  G.loaded = true;
+  if (window.__render) window.__render();
+}
+
+function bounds(tier) {
+  const b = (G.flags && G.flags.tier_bounds && G.flags.tier_bounds[tier]) || {};
+  return { min: (b.min_cents ?? 0) / 100, max: (b.max_cents ?? 99900) / 100 };
+}
+
+export default {
+  // Shared screen — approved coaches may be signed in as trainer or athlete.
+  get nav() { return roleNav(); },
+  render() {
+    if (!G.loaded) return `${backHead('Your listing', 'How clients find you', 'coach-apply')}${skeletonRows(3)}`;
+    const l = G.listing;
+    if (!l) {
+      return `${backHead('Your listing', 'How clients find you', 'coach-apply')}
+      ${permissionState({ title: 'No listing yet', body: 'A listing is created when your coach application is approved.' })}`;
+    }
+    if (l.suspended) {
+      return `${backHead('Your listing', 'How clients find you', 'profile')}
+      <section class="state-demo"><div class="sd-ic" style="color:var(--red)">${icon('lock', 24)}</div>
+      <div class="sd-t">Your listing is suspended</div>
+      <div class="sd-s">You're hidden from the directory and can't take new clients while the OnStandard team reviews. Existing clients are unaffected. Check your email, or contact support.</div></section>`;
+    }
+    return `${backHead('Your listing', l.published ? 'Live in the directory' : 'Draft — publish when ready', 'profile')}
+
+    <section class="card tg-page" style="padding:16px">
+      <div class="lrow" style="cursor:default;padding:0 0 10px">
+        <div class="lm"><div class="lt">Directory listing</div>
+          <div class="ls">${l.published ? 'Clients can find and hire you' : 'Hidden until you publish'}</div></div>
+        <span class="status-pill" style="background:${l.published ? 'var(--green-surface)' : 'var(--surface-2)'};color:${l.published ? 'var(--green-bright)' : 'var(--text-3)'}">${l.published ? 'Published' : 'Draft'}</span>
+      </div>
+      <label class="tg-l">Coaching name</label><input id="cle-name" value="${esc(l.display_name || '')}">
+      <label class="tg-l">Headline (one line that sells the work)</label><input id="cle-head" value="${esc(l.headline || '')}" placeholder="I make your standard non-negotiable.">
+      <label class="tg-l">About you</label><textarea id="cle-bio">${esc(l.bio || '')}</textarea>
+      <label class="tg-l">Style tags, comma-separated</label><input id="cle-style" value="${esc((l.style_tags || []).join(', '))}" placeholder="direct, encouraging, structured">
+      <label class="tg-l">Languages, comma-separated</label><input id="cle-langs" value="${esc((l.languages || []).join(', '))}">
+      <label class="tg-l">Time zone</label><input id="cle-tz" value="${esc(l.timezone || '')}">
+      <label class="tg-l">Client capacity</label><input id="cle-cap" type="number" min="1" max="100" value="${esc(String(l.capacity || 10))}">
+    </section>
+
+    <div class="eyebrow">Your plans — monthly pricing</div>
+    <section class="card" style="padding:16px">
+      ${TIERS.map((t) => {
+        const b = bounds(t.key);
+        return `
+      <div style="padding:6px 0">
+        <div class="lt" style="font-size:14px">${t.name}</div>
+        <div class="ls">${t.sub} · $${b.min}–$${b.max}/mo</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+          <span style="font-weight:800;color:var(--text-2)">$</span>
+          <input id="cle-price-${t.key}" type="number" min="${b.min}" max="${b.max}" step="1"
+            value="${G.prices[t.key] != null ? esc(String(G.prices[t.key])) : ''}" placeholder="e.g. ${Math.round((b.min + b.max) / 2)}"
+            style="width:110px">
+          <span class="ls">/ month</span>
+        </div>
+      </div>`; }).join('')}
+      <div class="ls" style="margin-top:6px">Set all three so clients can choose. Price changes apply to new clients only — existing subscriptions keep their price.</div>
+    </section>
+
+    <div style="padding:0 16px 14px">
+      ${UI.err ? `<div style="color:var(--red);font-size:12.5px;font-weight:600;padding-bottom:8px">${esc(UI.err)}</div>` : ''}
+      ${UI.msg ? `<div style="color:var(--green-bright);font-size:12.5px;font-weight:600;padding-bottom:8px">${esc(UI.msg)}</div>` : ''}
+      <div style="display:flex;gap:10px">
+        <button class="btn ghost sm" data-cle-save style="width:auto;padding:0 18px">${UI.saving ? 'Saving…' : 'Save'}</button>
+        <button class="btn ${l.published ? 'ghost' : 'green'} sm" data-cle-pub style="width:auto;padding:0 18px">${l.published ? 'Unpublish' : 'Save & publish'}</button>
+      </div>
+    </div>`;
+  },
+  mount(root) {
+    load();
+    const collectPrices = () => {
+      const out = {};
+      for (const t of TIERS) {
+        const v = Number((root.querySelector(`#cle-price-${t.key}`) || {}).value);
+        if (v > 0) { out[t.key] = Math.round(v * 100); G.prices[t.key] = v; }
+      }
+      return out;
+    };
+    const collectPatch = () => ({
+      display_name: (root.querySelector('#cle-name') || {}).value || '',
+      headline: (root.querySelector('#cle-head') || {}).value || '',
+      bio: (root.querySelector('#cle-bio') || {}).value || '',
+      style_tags: ((root.querySelector('#cle-style') || {}).value || '').split(',').map((s) => s.trim()).filter(Boolean),
+      languages: ((root.querySelector('#cle-langs') || {}).value || '').split(',').map((s) => s.trim()).filter(Boolean),
+      timezone: (root.querySelector('#cle-tz') || {}).value || '',
+      capacity: Math.max(1, Math.min(100, Number((root.querySelector('#cle-cap') || {}).value) || 10)),
+    });
+    const save = async (publish) => {
+      if (UI.saving) return;
+      UI.saving = true; UI.err = ''; UI.msg = '';
+      if (window.__render) window.__render();
+      const patch = collectPatch();
+      if (publish != null) patch.published = publish;
+      const r1 = await roles.updateMyListing(patch);
+      const prices = collectPrices();
+      const r2 = Object.keys(prices).length ? await roles.setListingTierPrices(prices) : { ok: true };
+      UI.saving = false;
+      if (r1 && r1.error) UI.err = r1.error;
+      else if (r2 && r2.error) UI.err = r2.error;
+      else { UI.msg = publish === true ? 'Published — you’re in the directory' : publish === false ? 'Unpublished' : 'Saved'; await load(true); }
+      if (window.__render) window.__render();
+    };
+    const saveBtn = root.querySelector('[data-cle-save]');
+    if (saveBtn) saveBtn.addEventListener('click', () => save(null));
+    const pubBtn = root.querySelector('[data-cle-pub]');
+    if (pubBtn) pubBtn.addEventListener('click', () => save(!(G.listing && G.listing.published)));
+  },
+};

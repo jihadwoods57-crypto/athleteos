@@ -59,6 +59,17 @@ export const EVENTS = Object.freeze({
   COACH_CONNECTED: 'coach_connected',         // {kind}
   CODE_JOIN_FAILED: 'code_join_failed',
   APP_ERROR: 'app_error',                     // {where} — crash/unhandled rejection (truncated)
+  // Coach Marketplace (0183–0186). The hire funnel end-to-end: intro → directory → a coach's
+  // page → checkout intent → paid (MKT_HIRED is fired by billing-return state, not optimism),
+  // plus the two supply-side signals (applications) and the safety valve (reports). MUST stay
+  // in lockstep with analytics-ingest's ALLOWED set or the whole funnel silently drops.
+  MKT_INTRO_VIEWED: 'mkt_intro_viewed',
+  MKT_DIRECTORY_VIEWED: 'mkt_directory_viewed',
+  MKT_PROFILE_VIEWED: 'mkt_profile_viewed',
+  MKT_CHECKOUT_STARTED: 'mkt_checkout_started', // {tier}
+  MKT_HIRED: 'mkt_hired',                       // {tier} — listing turned already_client after a checkout this session
+  MKT_APPLICATION_SUBMITTED: 'mkt_application_submitted',
+  MKT_REPORT_SUBMITTED: 'mkt_report_submitted', // {reason}
   // Verified Commitments (0138–0141). The funnel a founder needs to answer "is anyone using
   // this?" — coach adoption, athlete response, and the two honesty signals that matter most:
   // how often verification FAILS, and how often an athlete says the record is wrong. If

@@ -455,6 +455,48 @@ async function handleOfferCheckout(svc: ReturnType<typeof createClient>, session
   }
 }
 
+/** A completed marketplace hire (metadata.kind='marketplace_hire') — the inverse of an offer
+ *  purchase: there the buyer was already a client; here the paid checkout IS what creates the
+ *  relationship. Order matters — link first, so even if payment recording throws and Stripe
+ *  retries, the client is attached and every later step is idempotent (payment upserts on
+ *  charge id, agreement upserts on session id, grants never shorten). Renewals then ride the
+ *  ordinary invoice.paid → handleOfferRenewal path because recordOfferPayment made this
+ *  subscription a known offer subscription. */
+async function handleMarketplaceHire(svc: ReturnType<typeof createClient>, session: Stripe.Checkout.Session): Promise<void> {
+  const practiceId = session.metadata?.practice_id ?? '';
+  const payerId = session.metadata?.payer_id ?? session.client_reference_id ?? '';
+  const tier = session.metadata?.tier ?? '';
+  if (!UUID_RE.test(practiceId) || !UUID_RE.test(payerId)) {
+    console.error('stripe-webhook: marketplace hire with bad ids', session.id);
+    return;
+  }
+
+  // 1. The relationship. Reactivate a lapsed link rather than duplicating it (same shape as
+  //    redeem_offer_code, 0166) — the coach's roster, chat, and RLS visibility all key off this row.
+  const { error: linkErr } = await svc.from('practice_clients')
+    .upsert({ practice_id: practiceId, client_id: payerId, status: 'active' },
+            { onConflict: 'practice_id,client_id' });
+  if (linkErr) throw linkErr;
+
+  // 2. Payment ledger + trainer-funded premium — identical mechanics to an offer purchase, and
+  //    handleOfferCheckout reads only the metadata fields both kinds share.
+  await handleOfferCheckout(svc, session);
+
+  // 3. The agreement record (legal): what plan, what price, which agreement version, when.
+  //    Idempotent on the checkout session id.
+  const { data: offer } = await svc.from('offers')
+    .select('price_cents').eq('id', session.metadata?.offer_id ?? '').maybeSingle();
+  const { error: agreeErr } = await svc.from('coach_agreements').upsert({
+    client_id: payerId,
+    practice_id: practiceId,
+    tier: ['essential', 'daily', 'high_touch'].includes(tier) ? tier : 'essential',
+    price_cents: offer?.price_cents ?? session.amount_total ?? 0,
+    agreement_version: session.metadata?.agreement_version ?? 'v1',
+    stripe_checkout_session_id: session.id,
+  }, { onConflict: 'stripe_checkout_session_id', ignoreDuplicates: true });
+  if (agreeErr) throw agreeErr;
+}
+
 /** A renewal invoice (2nd+ payment) on an offer subscription. The FIRST invoice is already
  *  recorded by handleOfferCheckout via checkout.session.completed — only `subscription_cycle`
  *  (a real renewal), never `subscription_create`, reaches here. Returns false when `subId` isn't
@@ -581,6 +623,12 @@ Deno.serve(async (req) => {
         // owner-subscription billing below — branch off first and never fall through into it.
         if (session.metadata?.kind === 'offer_purchase') {
           await handleOfferCheckout(svc, session);
+          break;
+        }
+
+        // Coach Marketplace hire (0184): the ONE place a paid marketplace relationship is created.
+        if (session.metadata?.kind === 'marketplace_hire') {
+          await handleMarketplaceHire(svc, session);
           break;
         }
 

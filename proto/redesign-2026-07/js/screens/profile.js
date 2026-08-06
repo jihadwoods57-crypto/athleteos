@@ -66,7 +66,10 @@ export default {
     <section class="card pad">
       <div style="font-size:15.5px;font-weight:800">Connect your coach or trainer</div>
       <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:4px;line-height:1.5">Share your execution, receive requirements, and communicate directly.</div>
-      <button class="btn primary sm" data-go="connect" style="margin-top:12px;width:auto;padding:0 22px">${icon('key', 16)} Connect</button>
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <button class="btn primary sm" data-go="connect" style="width:auto;padding:0 22px">${icon('key', 16)} Connect</button>
+        <button class="btn ghost sm" data-go="get-a-coach" style="width:auto;padding:0 18px">${icon('users', 16)} Get a coach</button>
+      </div>
     </section>`}
 
     <div class="eyebrow">Accountability</div>

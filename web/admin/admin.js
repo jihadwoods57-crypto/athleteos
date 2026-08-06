@@ -19,8 +19,9 @@ import support from './sections/support.js';
 import config from './sections/config.js';
 import scoring from './sections/scoring.js';
 import payments from './sections/payments.js';
+import marketplace from './sections/marketplace.js';
 
-const SECTIONS = [home, users, scoring, orgs, revenue, payments, ai, errors, support, audit, security, config];
+const SECTIONS = [home, users, scoring, orgs, revenue, payments, marketplace, ai, errors, support, audit, security, config];
 
 // ---- screen management: exactly one auth screen (or the app) visible ----
 const SCREENS = ['login', 'challenge', 'enroll', 'recovery', 'recovery-entry', 'app'];

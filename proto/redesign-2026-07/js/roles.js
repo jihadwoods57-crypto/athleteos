@@ -1729,4 +1729,107 @@ export async function createSupportTicket(category, subject, body) {
   return data || null;
 }
 
+/* ================================================================ Coach Marketplace (0183–0186)
+ * The marketplace ships dark: marketplace_flags() is the ONLY switch the proto trusts (the WebView
+ * has no feature-flags channel), and every server RPC re-checks it — hiding UI is courtesy, not
+ * enforcement. Flags are cached per session; call with force after actions that change them. */
+let MKT_FLAGS = null;
+export async function fetchMarketplaceFlags(force) {
+  if (MKT_FLAGS && !force) return MKT_FLAGS;
+  const c = sb(); if (!c) return { enabled: false, can_hire: false };
+  try {
+    const { data, error } = await c.rpc('marketplace_flags');
+    if (error) return { enabled: false, can_hire: false };
+    MKT_FLAGS = data || { enabled: false, can_hire: false };
+    return MKT_FLAGS;
+  } catch { return { enabled: false, can_hire: false }; }
+}
+export async function fetchMarketplaceDirectory(filters = {}) {
+  const c = sb(); if (!c) return [];
+  try {
+    const { data } = await c.rpc('marketplace_directory', {
+      p_category: filters.category || null, p_max_price_cents: filters.maxPriceCents || null,
+      p_style: filters.style || null, p_tz: filters.tz || null,
+    });
+    return data || [];
+  } catch { return []; }
+}
+export async function fetchMarketplaceListing(slug) {
+  const c = sb(); if (!c || !slug) return null;
+  try { const { data } = await c.rpc('marketplace_listing', { p_slug: slug }); return data || null; } catch { return null; }
+}
+/** Hire: Stripe Checkout for a tier offer. Returns { url } or { error }. */
+export async function startMarketplaceCheckout(offerId) {
+  return callFn('marketplace-checkout', { offerId });
+}
+/** Coach side: my application (+ credentials + listing pointer), or null when never started. */
+export async function fetchMyCoachApplication() {
+  const c = sb(); if (!c) return null;
+  try { const { data, error } = await c.rpc('my_coach_application'); if (error) return null; return data || null; } catch { return null; }
+}
+export async function saveCoachApplication(payload) {
+  const c = sb(); if (!c) return { error: 'not configured' };
+  try { const { data, error } = await c.rpc('save_coach_application', { p: payload }); if (error) return { error: error.message }; return data || {}; }
+  catch (e) { return { error: String((e && e.message) || e) }; }
+}
+export async function submitCoachApplication() {
+  const c = sb(); if (!c) return { error: 'not configured' };
+  try { const { data, error } = await c.rpc('submit_coach_application'); if (error) return { error: error.message }; return data || {}; }
+  catch (e) { return { error: String((e && e.message) || e) }; }
+}
+/** Upload a credential document into the applicant's own folder, then record the row. */
+export async function uploadCredential(applicationId, category, title, file) {
+  const c = sb(); if (!c) return { error: 'not configured' };
+  try {
+    const { data: u } = await c.auth.getUser();
+    const uid = u && u.user && u.user.id; if (!uid) return { error: 'sign in required' };
+    const path = `${uid}/${Date.now()}-${(file.name || 'credential').replace(/[^a-zA-Z0-9.-]+/g, '_')}`;
+    const { error: upErr } = await c.storage.from('coach-credentials').upload(path, file);
+    if (upErr) return { error: upErr.message };
+    const { error } = await c.from('coach_credentials').insert({
+      application_id: applicationId, user_id: uid, category, title: title || '', doc_path: path,
+    });
+    if (error) return { error: error.message };
+    return { ok: true };
+  } catch (e) { return { error: String((e && e.message) || e) }; }
+}
+/** The coach's own listing row (own-row RLS) — null until approved. */
+export async function fetchMyListing() {
+  const c = sb(); if (!c) return null;
+  try { const { data } = await c.from('coach_listings').select('*').maybeSingle(); return data || null; } catch { return null; }
+}
+/** Presentation fields + publish only — categories/suspended/slug are not grant-writable. */
+export async function updateMyListing(patch) {
+  const c = sb(); if (!c) return { error: 'not configured' };
+  const allowed = ['display_name', 'headline', 'bio', 'style_tags', 'languages', 'timezone', 'capacity', 'published'];
+  const clean = {};
+  for (const k of allowed) if (k in patch) clean[k] = patch[k];
+  clean.updated_at = new Date().toISOString();
+  try {
+    const { data: u } = await c.auth.getUser();
+    const uid = u && u.user && u.user.id; if (!uid) return { error: 'sign in required' };
+    const { error } = await c.from('coach_listings').update(clean).eq('user_id', uid);
+    if (error) return { error: error.message };
+    return { ok: true };
+  } catch (e) { return { error: String((e && e.message) || e) }; }
+}
+export async function setListingTierPrices(prices) {
+  const c = sb(); if (!c) return { error: 'not configured' };
+  try { const { error } = await c.rpc('set_listing_tier_prices', { p: prices }); if (error) return { error: error.message }; return { ok: true }; }
+  catch (e) { return { error: String((e && e.message) || e) }; }
+}
+/** Safety intake: report a marketplace coach. Reasons: scope|conduct|solicitation|spam|other. */
+export async function submitCoachReport(practiceId, reason, detail) {
+  const c = sb(); if (!c) return { error: 'not configured' };
+  try {
+    const { data: u } = await c.auth.getUser();
+    const uid = u && u.user && u.user.id; if (!uid) return { error: 'sign in required' };
+    const { error } = await c.from('coach_reports').insert({
+      reporter_id: uid, practice_id: practiceId, reason, detail: detail || '',
+    });
+    if (error) return { error: error.message };
+    return { ok: true };
+  } catch (e) { return { error: String((e && e.message) || e) }; }
+}
+
 export { cap };

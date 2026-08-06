@@ -63,6 +63,13 @@ import accountability from './accountability.js';
 import verifiedDiscipline from './verified-discipline.js';
 import { coachCommitments, coachCommitEdit, coachCommitManage } from './coach-commitments.js';
 import squad from './squad.js';
+// Coach Marketplace (0183–0186) — client side + coach side
+import getACoach from './get-a-coach.js';
+import coachDirectory from './coach-directory.js';
+import coachListing from './coach-listing.js';
+import reportCoach from './report-coach.js';
+import coachApply from './coach-apply.js';
+import coachListingEditor from './coach-listing-editor.js';
 
 export const screens = {
   home,
@@ -114,6 +121,13 @@ export const screens = {
   'trainer-inbox': coachInbox,
   'trainer-grow': trainerGrow,
   'my-trainer-offers': myTrainerOffers,
+  // Coach Marketplace
+  'get-a-coach': getACoach,
+  'coach-directory': coachDirectory,
+  'coach-listing': coachListing,
+  'report-coach': reportCoach,
+  'coach-apply': coachApply,
+  'coach-listing-editor': coachListingEditor,
   'fund-plan': fundPlan,
   'funded-plans': fundedPlans,
   parent,

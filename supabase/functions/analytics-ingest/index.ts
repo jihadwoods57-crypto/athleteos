@@ -73,6 +73,10 @@ const ALLOWED = new Set([
   // so the gap between them is the modal's abandonment rate — the first conversion signal the
   // homepage has ever had. f50_seen carries the live founding_slots_left() count as a number.
   "wl_open", "wl_submitted", "f50_seen",
+  // Coach Marketplace (0183–0186, 2026-08-06). The hire funnel: intro → directory → profile →
+  // checkout intent → paid, plus the supply signal (applications) and the safety valve (reports).
+  "mkt_intro_viewed", "mkt_directory_viewed", "mkt_profile_viewed",
+  "mkt_checkout_started", "mkt_hired", "mkt_application_submitted", "mkt_report_submitted",
 ]);
 const ENUM_RE = /^[a-z0-9_.:-]{1,24}$/;
 const SID_RE = /^[a-z0-9_.:-]{1,64}$/i;

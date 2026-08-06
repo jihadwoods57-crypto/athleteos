@@ -1446,6 +1446,7 @@ export const trainerProfile = {
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="trainer-grow"><div class="lic" style="background:rgba(var(--purple-rgb),0.22);color:var(--purple-bright)">${icon('bars', 17)}</div><div class="lm"><div class="lt">Grow your practice</div><div class="ls">Offers, applications, and new clients</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="coach-insights"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('bars', 17)}</div><div class="lm"><div class="lt">Insights</div><div class="ls">Client trends and standard adherence</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="coach-apply"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('users', 17)}</div><div class="lm"><div class="lt">Coach marketplace</div><div class="ls">Apply to be listed — clients find and hire you here</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
     </section>
 
     <div class="eyebrow">Practice settings</div>
