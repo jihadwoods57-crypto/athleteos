@@ -78,6 +78,10 @@ labeled set): contamination rate, correction rate, athlete satisfaction, coach a
 4. Run `EVAL_ANON_KEY=... npm run eval` once to cache a response, then iterate for free with
    `--replay`.
 
+See `PENDING-CASES.md` for cases that are fully specified (ground truth, manifest JSON ready to
+paste in) but blocked on step 1 — a real photo. Check there first before writing a new one from
+scratch.
+
 ### Case-type checklist
 
 Aim for 2–4 labeled meals per case type as the set grows:
