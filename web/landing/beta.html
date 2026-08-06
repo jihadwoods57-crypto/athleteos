@@ -3,7 +3,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Beta Board · OnStandard</title>
 <meta name="robots" content="noindex, nofollow">
-<meta name="description" content="Tell us what broke. Private beta feedback for OnStandard testers.">
+<meta name="description" content="Bugs, ideas, confusion, praise — private beta feedback for OnStandard testers.">
 <link rel="icon" href="assets/favicon.png" type="image/png">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <style>
@@ -62,6 +62,13 @@
   .boardhead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 14px;}
   h2{font-family:var(--display);font-weight:900;font-size:20px;letter-spacing:-.01em;margin:0;}
   .count{font-size:13px;color:var(--mut);}
+
+  /* Group headings. The board holds two different things — problems and ideas — that rank by
+     different rules, so the split is stated rather than left for the reader to infer. */
+  .grouphead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:22px 0 11px;
+    font-family:var(--display);font-weight:900;font-size:15px;letter-spacing:-.01em;color:var(--fg);}
+  .grouphead:first-child{margin-top:0;}
+  .groupsub{font-family:var(--body);font-weight:500;font-size:12.5px;color:var(--mut);letter-spacing:0;}
 
   .theme{border:1px solid var(--line);border-radius:var(--r);background:var(--panel);padding:17px 18px;margin-bottom:12px;
     transition:border-color .18s;}
@@ -127,10 +134,10 @@
 <div class="wrap" id="app" hidden>
   <header>
     <div class="eyebrow">OnStandard · Private Beta</div>
-    <h1>Tell us what broke.</h1>
-    <p class="sub">You're testing something unfinished on purpose. Anything confusing, slow, wrong, or
-      missing — put it here. Similar reports get grouped, so if someone already hit it you can just say
-      "me too."</p>
+    <h1>Tell us everything.</h1>
+    <p class="sub">You're testing something unfinished on purpose. A bug, an idea, something that
+      confused you, something you loved — all of it counts, and the small stuff is often the most
+      useful. Similar notes get grouped, so if someone already said it you can just add a "me too."</p>
   </header>
 
   <form class="compose" id="form">
@@ -144,9 +151,9 @@
         <input id="ver" maxlength="40" placeholder="e.g. 1.0.23">
       </div>
     </div>
-    <label for="body">What happened?</label>
+    <label for="body">What's on your mind?</label>
     <textarea id="body" maxlength="2000" required
-      placeholder="What you were doing, what you expected, what actually happened. Screens and steps help."></textarea>
+      placeholder="A bug, an idea, something confusing, something you liked — whatever it is. For bugs, what you were doing and what you expected helps."></textarea>
     <div class="composeFoot">
       <span class="hint">Your name and words are visible to other testers.</span>
       <button class="btn cta" id="send" type="submit">Send it</button>
@@ -155,13 +162,14 @@
   </form>
 
   <div class="boardhead">
-    <h2>What everyone's hitting</h2>
+    <h2>What everyone's saying</h2>
     <span class="count" id="count"></span>
   </div>
   <div id="board"></div>
 
   <footer>
-    Ranked by severity, then by how many people hit it. Statuses are set by the OnStandard team.
+    Problems rank by severity, then by how many people hit them. Ideas and praise rank by how many
+    people back them. Statuses are set by the OnStandard team.
     <span id="adminnote"></span>
   </footer>
 </div>
@@ -246,12 +254,27 @@
     if (!themes.length) {
       var e = el('div', 'empty');
       e.appendChild(el('b', '', 'Nothing here yet.'));
-      e.appendChild(el('div', '', 'Be the first — even "this button confused me" is worth sending.'));
+      e.appendChild(el('div', '', 'Be the first — a bug, an idea, or just what you liked.'));
       board.appendChild(e);
       return;
     }
 
+    // The board carries two different kinds of thing and they cannot share one ranking. Problems
+    // sort by severity (a crash must outrank a cosmetic bug), but ideas have no severity worth
+    // speaking of — ranking them the same way would bury every good idea under every minor bug.
+    // So: two groups, each ranked by what actually matters in it. The server already returns them
+    // in group order; this only draws the headings.
+    var lastGroup = null;
     themes.forEach(function (t) {
+      var group = (t.kind === 'idea' || t.kind === 'praise') ? 'signal' : 'problem';
+      if (group !== lastGroup) {
+        lastGroup = group;
+        var h = el('h3', 'grouphead', group === 'problem' ? 'Problems' : 'Ideas & praise');
+        h.appendChild(el('span', 'groupsub', group === 'problem'
+          ? 'Ranked by severity, then by how many hit it'
+          : 'Ranked by how many people back it'));
+        board.appendChild(h);
+      }
       var done = t.status === 'shipped' || t.status === 'wontdo';
       var card = el('div', 'theme' + (done ? ' done' : ''));
       var top = el('div', 'tTop');
@@ -260,28 +283,33 @@
       var badges = el('div', 'badges');
       badges.appendChild(el('span', 'badge ' + t.kind, t.kind));
       if (t.status !== 'open') badges.appendChild(el('span', 'badge st ' + t.status, STATUS_LABEL[t.status] || t.status));
-      var sev = el('span', 'sev');
-      sev.title = 'Severity ' + t.severity + ' of 5';
-      for (var i = 1; i <= 5; i++) sev.appendChild(el('i', i <= t.severity ? 'on' : ''));
-      badges.appendChild(sev);
+      // Severity pips only where severity means something. Showing "1 of 5" against an idea reads
+      // as "we rated your idea 1/5", which is the opposite of the message.
+      if (group === 'problem') {
+        var sev = el('span', 'sev');
+        sev.title = 'Severity ' + t.severity + ' of 5';
+        for (var i = 1; i <= 5; i++) sev.appendChild(el('i', i <= t.severity ? 'on' : ''));
+        badges.appendChild(sev);
+      }
       main.appendChild(badges);
 
       main.appendChild(el('h3', 'tTitle', t.title));
       if (t.summary) main.appendChild(el('p', 'tSum', t.summary));
       top.appendChild(main);
 
+      var votedLabel = group === 'problem' ? 'me too' : 'backed';
       var vb = el('button', 'vote' + (voted[t.id] ? ' on' : ''));
       vb.type = 'button';
       vb.appendChild(el('span', 'vn', String(t.vote_count || 0)));
-      vb.appendChild(el('span', 'vc', voted[t.id] ? 'me too' : '+1'));
-      vb.setAttribute('aria-label', 'Me too — ' + t.title);
+      vb.appendChild(el('span', 'vc', voted[t.id] ? votedLabel : '+1'));
+      vb.setAttribute('aria-label', (group === 'problem' ? 'Me too — ' : 'Back this — ') + t.title);
       vb.addEventListener('click', function () {
         if (voted[t.id]) return;
         voted[t.id] = 1;
         LS.set('os_beta_voted', JSON.stringify(voted));
         vb.className = 'vote on';
         vb.firstChild.textContent = String((t.vote_count || 0) + 1);
-        vb.lastChild.textContent = 'me too';
+        vb.lastChild.textContent = votedLabel;
         api({ action: 'vote', theme_id: t.id, voter_id: voterId }).catch(function () {});
       });
       top.appendChild(vb);

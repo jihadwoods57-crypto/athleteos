@@ -110,8 +110,19 @@ const TRIAGE_TOOL = {
       new_theme: {
         type: 'object',
         properties: {
-          title: { type: 'string', description: 'Short, specific, in the tester\'s terms. Max ~60 chars. Not "App issue".' },
-          summary: { type: 'string', description: 'One sentence stating the problem and where it happens.' },
+          title: {
+            type: 'string',
+            description:
+              'Short and specific, in the tester\'s own terms. Max ~60 chars. Not "App issue", and not ' +
+              'analyst-speak like "strong retention hook" — say the actual thing.',
+          },
+          summary: {
+            type: 'string',
+            description:
+              'One plain sentence: what happens and where. Write the way one person tells another, not ' +
+              'like a product report — no "the user did not understand", no "drives engagement". ' +
+              'Say "the number in the ring isn\'t explained anywhere", not "user failed to comprehend the metric".',
+          },
           kind: { type: 'string', enum: ['bug', 'confusing', 'idea', 'praise'] },
           severity: {
             type: 'integer',
@@ -127,11 +138,15 @@ const TRIAGE_TOOL = {
 
 const SYSTEM = [
   'You triage beta feedback for OnStandard, a daily-accountability app for athletes and their coaches.',
-  'You are given one new tester report and the themes already on the board.',
-  'Return exactly one tool call: either match the report to an existing theme, or open a new one.',
+  'You are given one new tester note and the themes already on the board.',
+  'The board takes ALL feedback, not just bugs: a broken thing (bug), something that worked but was',
+  'hard to find or understand (confusing), a suggestion or feature request (idea), and what someone',
+  'liked (praise). Ideas and praise are first-class here — classify them as what they are rather than',
+  'forcing them into "bug". A feature request is an idea, not a defect.',
+  'Return exactly one tool call: either match the note to an existing theme, or open a new one.',
   'Prefer matching — a board of near-duplicates is useless. But never merge two genuinely different',
-  'problems just because they touch the same screen.',
-  'Titles are written for the founder reading a fix list: specific, concrete, no filler.',
+  'things just because they touch the same screen, and never merge an idea into a bug.',
+  'Titles are written for the founder scanning the board: specific, concrete, no filler.',
 ].join(' ');
 
 type ThemeRow = { id: string; title: string; summary: string; kind: string; severity: number; status: string };
@@ -174,13 +189,20 @@ Deno.serve(async (request) => {
       .order('created_at', { ascending: false })
       .limit(500);
 
-    // Ranking: shipped/wontdo sink; then severity desc; then heat (2*votes + posts) desc. Crashes
-    // float above annoyances, and within a severity band the thing more people hit wins.
+    // Ranking. The board carries two different kinds of thing and they CANNOT share one ordering:
+    //   problems (bug/confusing) — severity first: a crash must outrank a cosmetic bug no matter
+    //     how many people mention the cosmetic one.
+    //   ideas/praise           — severity is meaningless (the model scores them 1-2 by definition),
+    //     so ranking them the same way would bury every good idea under every trivial bug. These
+    //     rank purely by how many people back them.
+    // Groups stay contiguous so the page can draw a heading when the group changes.
     const done = (s: string) => (s === 'shipped' || s === 'wontdo' ? 1 : 0);
+    const group = (k: string) => (k === 'idea' || k === 'praise' ? 1 : 0);
     const heat = (t: { vote_count: number; post_count: number }) => 2 * (t.vote_count ?? 0) + (t.post_count ?? 0);
     const ranked = (themes ?? []).sort((a, b) =>
       done(a.status) - done(b.status) ||
-      (b.severity ?? 0) - (a.severity ?? 0) ||
+      group(a.kind) - group(b.kind) ||
+      (group(a.kind) === 0 ? (b.severity ?? 0) - (a.severity ?? 0) : 0) ||
       heat(b) - heat(a) ||
       String(b.created_at).localeCompare(String(a.created_at))
     );
