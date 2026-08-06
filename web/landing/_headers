@@ -34,3 +34,18 @@
 /t*
   X-Frame-Options: DENY
   Content-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src https://ftwrvylzoyznhbzhgism.supabase.co https://ftwrvylzoyznhbzhgism.functions.supabase.co; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Referrer-Policy: no-referrer
+
+# The private beta feedback board. Reached only with a ?k= token, so:
+#   · no-store + no-referrer — the URL IS the credential; it must not sit in a shared cache, and it
+#     must never leak to a third party through the Referer header on an outbound click.
+#   · noindex is also set as a meta tag on the page itself; this is the belt to that's braces.
+#   · connect-src is the Functions origin only. The page talks to beta-board over plain fetch and
+#     loads no supabase-js at all, so it needs nothing else. Fonts are local (font-src 'self') —
+#     a Google Fonts <link> here would fail closed rather than quietly work.
+/beta*
+  X-Frame-Options: DENY
+  Cache-Control: no-store
+  Referrer-Policy: no-referrer
+  X-Robots-Tag: noindex, nofollow
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src https://ftwrvylzoyznhbzhgism.supabase.co https://ftwrvylzoyznhbzhgism.functions.supabase.co; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'

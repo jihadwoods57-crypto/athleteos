@@ -439,6 +439,14 @@ verify_jwt = false
 [functions.analytics-ingest]
 verify_jwt = false
 
+# beta-board backs the private TestFlight feedback board (web/landing/beta.html, migration 0191).
+# Its visitors are anonymous browsers holding a URL token — there is no Supabase session to present —
+# so it authenticates every request itself against BETA_BOARD_KEY (constant-time), with BETA_ADMIN_KEY
+# on top for the founder's status controls. Pinned false so a redeploy can't 401 the whole board
+# before its own auth ever runs.
+[functions.beta-board]
+verify_jwt = false
+
 # These three authenticate the CALLER themselves (not via a Supabase JWT), so they deploy with
 # --no-verify-jwt. Pinned here (security audit 2026-07-12) so a `functions deploy` that forgets the
 # flag can't flip verify_jwt back on and 401 the flow — same rationale as stripe-webhook above:
