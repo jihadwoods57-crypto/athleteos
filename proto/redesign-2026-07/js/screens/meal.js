@@ -6,7 +6,7 @@ import { reveal } from '../motion.js';
 import {
   openingMessage, openingSummary, qualityBand, scoreReasons, coachFocus, reactionGroups, threadMessages,
   contextForChat, applyFoodEdit, hasUserEdits, restrictionConflicts,
-  estimateConfidence, estRange, mealPatterns, scoreRubric, followUpQuestion, coachThreadStatus,
+  estimateConfidence, estRange, mealPatterns, scoreRubric, coachThreadStatus,
   REACTION_EMOJI,
 } from '../meal-intel.js';
 import {
@@ -343,13 +343,14 @@ function openingInputs(M) {
     detected: M.detectedRich, source: M.source, day: dayP, patterns,
     impact: S.mealScoreImpact(M.slot),
     });
-  // ONE useful follow-up when uncertainty materially affects the analysis — the chips map
-  // onto correction rules, so an answer UPDATES this estimate rather than forking a new one.
-  const fq = followUpQuestion({
-    source: M.source, userNote: M.userNote, note: M.note,
-    detectedRich: M.detectedRich, corrections: M.corrections,
-    });
-  return { sum, fullText, fq };
+  /* The "Was the chicken cooked with oil, butter, or neither?" chip bubble is GONE (founder,
+     2026-08-06). It was an unprompted interrogation in the middle of a conversation the athlete
+     did not start: the AI's read had already landed, and the thread's next voice was the machine
+     asking THEM for homework. Team Discussion is a conversation between people, not an intake
+     form. The capability is not lost — the exact same cooking/sauce/portion corrections live in
+     "Correct the analysis", where the athlete goes when they actually want to fix a number.
+     `fq` stays in the returned shape (null) so openingBlockHtml's signature is untouched. */
+  return { sum, fullText, fq: null };
 }
 
 /**
@@ -691,7 +692,7 @@ export const thread = {
     // Coach attention, from REAL signals only (comments load async; the mount updates this
     // line in place once they land): Sent to Coach → Reviewed by Coach → Coach replied.
     const cStatus = coachThreadStatus({
-      mealId: M.mealId, hasCoach: S.coach.hasCoach, comments: [],
+      mealId: M.mealId, hasCoach: S.coach.hasCoach, comments: [], noun: S.coach.noun,
       dayReviewed: RECEIPT.uid === RT.userId && RECEIPT.date === String(DAY.date) && RECEIPT.reviewed,
     });
     const execTop = `
@@ -789,10 +790,10 @@ export const thread = {
         <div class="sr-row ${r.state}"><span class="sr-ic">${icon(r.state === 'met' ? 'check' : 'x', 12)}</span>${esc(r.label)}</div>`).join('')}
       </div>` : ''}
     </div>
-    ${focus ? `<div class="coach-focus">
-      <span class="cf-ic">${icon('target', 15)}</span>
-      <div><div class="cf-k">Coach's Focus</div><div class="cf-t">${esc(focus)}</div></div>
-    </div>` : ''}
+    ${/* "Coach's Focus" removed (founder, 2026-08-06). The ✓/✕ reasons above already say what
+          landed and what didn't, and the AI's own message in the thread says what to do next —
+          a third restatement of the same judgment, in a box wearing the coach's name for a line
+          the coach never wrote, was the most redundant thing on the screen. */''}
     <details class="rub">
       <summary>${esc(rub.headline)} ${icon('chevron', 13)}</summary>
       <div class="rub-body">
@@ -890,19 +891,25 @@ export const thread = {
     ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
     <div class="est-note" style="margin-top:8px">Your plan tracks how food leaves you feeling rather than calorie and macro counts. Your ${esc(S.coach.noun)} can still see the full numbers.</div>
     ${emptyRead ? rereadNote : ''}` : `
-    ${/* ESTIMATED NUTRITION (founder 2026-08-05: plain words, not a technical "breakdown") —
-          four clean value tiles, protein leading with its day share, and everything supporting
-          (foods, target bars, notes, corrections) behind one "View detected foods" expander.
-          These tiles are what keep the numbers the single source of truth on screen, so the AI
-          never has to restate one. */''}
+    ${/* ESTIMATED NUTRITION (founder 2026-08-05: plain words, not a technical "breakdown").
+          These values are what keep the numbers the single source of truth on screen, so the AI
+          never has to restate one; the foods, notes and corrections stay behind the expander. */''}
     <div class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">Estimated Nutrition</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></div>
+    ${/* ONE nutrition panel (founder 2026-08-06: the tiles read stale). Four detached grey boxes
+          with a set of unattached bars floating under them was five separate objects describing
+          one plate. Now it is a single panel: a divided value strip on top, the day-target bars
+          in the same chrome beneath it, hairline-separated. Protein leads — it is the number a
+          coach actually sets — and carries the brand's blue→teal sweep on its value, which is
+          exactly what the design system reserves for a score surface. Same numbers, same
+          honesty markers (~ for photo estimates); it just reads as one considered block. */''}
     ${emptyRead ? rereadNote : `
-    <div class="macro-row four" style="margin-top:8px">
-      <div class="macro"><div class="mv">${tilde}${M.macros.protein}g</div><div class="mk">Protein</div></div>
-      <div class="macro"><div class="mv">${tilde}${M.macros.carbs}g</div><div class="mk">Carbs</div></div>
-      <div class="macro"><div class="mv">${tilde}${M.macros.fat}g</div><div class="mk">Fat</div></div>
-      <div class="macro"><div class="mv">${tilde}${M.macros.cals}</div><div class="mk">Calories</div></div>
-    </div>`}
+    <section class="nut-panel">
+      <div class="nut-values">
+        <div class="nv lead"><div class="mv">${tilde}${M.macros.protein}<i>g</i></div><div class="mk">Protein</div></div>
+        <div class="nv"><div class="mv">${tilde}${M.macros.carbs}<i>g</i></div><div class="mk">Carbs</div></div>
+        <div class="nv"><div class="mv">${tilde}${M.macros.fat}<i>g</i></div><div class="mk">Fat</div></div>
+        <div class="nv"><div class="mv">${tilde}${M.macros.cals}</div><div class="mk">Calories</div></div>
+      </div>`}
     ${/* THE DAY BARS LIVE IN THE OPEN (2026-08-06). This meal's share of the coach's daily target
           — with the striped "still coming" projection — was filed inside "View detected foods",
           which is both the wrong label for it and the wrong altitude: progress against the one
@@ -925,6 +932,7 @@ export const thread = {
         }).join('')}
         ${paceNote ? `<div class="pace">${esc(paceNote)}</div>` : ''}
     </div>` : ''}
+    ${emptyRead ? '' : '</section>'}
     <details class="bd-wrap"${thread._bdOpen || thread._fixOpen ? ' open' : ''}>
       <summary>View detected foods ${icon('chevron', 13)}</summary>
       <div class="bd-body">
@@ -1095,7 +1103,11 @@ export const thread = {
     void warmParticipants(roles, RT.userId).then((fetched) => { if (fetched) window.__render && window.__render(); });
     void warmReceipt(roles, RT.userId, String(DAY.date)).then(() => {
       const el = root.querySelector('#coach-status');
-      if (el && el.textContent === 'Sent to Coach' && RECEIPT.reviewed) el.textContent = 'Reviewed by Coach';
+      // The receipt landed after first paint: upgrade "Sent to <noun>" → "<Noun> opened your day".
+      // Same wording coachThreadStatus produces, so the two can never disagree mid-scroll.
+      if (el && RECEIPT.reviewed && /^Sent to /.test(el.textContent)) {
+        el.textContent = `${S.coach.noun.charAt(0).toUpperCase()}${S.coach.noun.slice(1)} opened your day`;
+      }
     });
 
     // ---- Correct analysis panel (upgrade 2026-07-16) ----
@@ -1240,12 +1252,13 @@ export const thread = {
       const coachSeen = (Array.isArray(comments) ? comments : []).some((c) => c && c.role === 'coach');
       const dayReviewed = RECEIPT.uid === RT.userId && RECEIPT.date === String(DAY.date) && RECEIPT.reviewed;
       const daySeen = (RECEIPT.rows || []).length > 0;
-      // Upgrade the header status line from the real thread: a coach row = "Coach replied".
+      // Upgrade the header status line from the real thread: a coach row = they actually replied.
       const csEl = root.querySelector('#coach-status');
-      if (csEl && coachSeen) csEl.textContent = 'Coach replied';
+      const Noun = S.coach.noun.charAt(0).toUpperCase() + S.coach.noun.slice(1);
+      if (csEl && coachSeen) csEl.textContent = `${Noun} replied`;
       const tail = [];
       if (!msgs.length && !aiTyping) tail.push('No replies yet. Ask below and the AI Nutritionist answers from your plan.');
-      if (S.coach.hasCoach && !coachSeen && !dayReviewed && !daySeen) tail.push("Coach hasn't seen this meal yet.");
+      if (S.coach.hasCoach && !coachSeen && !dayReviewed && !daySeen) tail.push(`Your ${S.coach.noun} hasn't opened this yet.`);
 
       // The pending / clarifying / failed rows are DERIVED, because they describe a read that has
       // not landed and so has nothing persisted to show. The READ ITSELF is now a real message in
@@ -1305,11 +1318,31 @@ export const thread = {
         </div>`;
       }).join('');
 
-      // The receipt, in the thread rather than buried in the header: "seen" is what tells an
-      // athlete their coach is actually there. coach_views is a DAY receipt, so it is stated as
-      // one — claiming a per-message read we do not have would be a lie.
-      const seen = coachSeen || (RECEIPT.rows || []).length
-        ? (RECEIPT.rows || []).map((r) => `Seen by ${esc(r.viewer_name || 'your coach')}`).slice(0, 1).join('')
+      /* THE RECEIPT MUST BE TRUE (founder, 2026-08-06). Three things were wrong with it:
+           1. It never compared TIME. `coach_views.seen_at` is when the coach opened the day; the
+              line rendered under the newest message regardless. A coach who looked at 9am and an
+              athlete who wrote at 8pm produced "Seen by Coach Brown" sitting directly beneath a
+              message the coach could not possibly have read. That is the one thing a read receipt
+              must never do, so the receipt now only renders when seen_at is AFTER the last
+              message in the thread.
+           2. It said "Seen", which reads as "saw this message". coach_views is a DAY receipt.
+              It now says what it actually knows — the coach opened the day — and stamps the time,
+              which is both more honest and more reassuring than a bare word.
+           3. `viewer_name` is written from S.operatorIdentity.handle, so it can be a handle
+              rather than a display name; it is only shown when it looks like a name. */
+      const lastMsgAt = msgs.length
+        ? Math.max(...msgs.map((c) => { const t = Date.parse(c && c.created_at); return isNaN(t) ? 0 : t; }))
+        : 0;
+      const freshReceipt = (RECEIPT.rows || [])
+        .map((r) => ({ ...r, _at: Date.parse(r && r.seen_at) }))
+        .filter((r) => !isNaN(r._at) && r._at >= lastMsgAt)
+        .sort((a, b) => b._at - a._at)[0] || null;
+      const seen = freshReceipt
+        ? (() => {
+            const nm = String(freshReceipt.viewer_name || '').trim();
+            const who = /^[A-Za-z][A-Za-z.'\- ]+$/.test(nm) ? nm : `Your ${S.coach.noun}`;
+            return `${esc(who)} opened your day · ${esc(fmtMsgTime(freshReceipt.seen_at))}`;
+          })()
         : '';
 
       // COACH LEADS, AI ASSISTS (founder 2026-08-04): when a coach has spoken on this meal,
@@ -1342,7 +1375,6 @@ export const thread = {
         const t = b.textContent || '';
         if (t.length < 320) return;
         const key = t.slice(0, 64);
-        if (expandedBubbles.has(key)) return;
         // Clamp an inner wrapper, not the padded bubble itself — -webkit-line-clamp on a padded
         // box lets a partial fifth line bleed into the padding.
         const inner = document.createElement('div');
@@ -1351,13 +1383,23 @@ export const thread = {
         b.appendChild(inner);
         const more = document.createElement('button');
         more.className = 'read-more';
-        more.textContent = 'Read more';
         b.after(more);
+        // A TOGGLE, not a one-way door (founder, 2026-08-06). Expanding used to delete the control,
+        // so a five-paragraph read stayed open forever and pushed the rest of the conversation off
+        // the screen with no way back. The expanded/collapsed state still keys on the text's own
+        // head so it survives every repaint — it is now just a two-way flag rather than a
+        // write-once one.
+        const sync = () => {
+          const open = expandedBubbles.has(key);
+          inner.classList.toggle('bt-clamp', !open);
+          more.textContent = open ? 'Read less' : 'Read more';
+          more.setAttribute('aria-expanded', open ? 'true' : 'false');
+        };
         more.addEventListener('click', () => {
-          expandedBubbles.add(key);
-          inner.classList.remove('bt-clamp');
-          more.remove();
+          if (expandedBubbles.has(key)) expandedBubbles.delete(key); else expandedBubbles.add(key);
+          sync();
         });
+        sync();
       });
       threadEl.scrollTop = threadEl.scrollHeight;
       void hydrateThreadPhotos(threadEl, roles);

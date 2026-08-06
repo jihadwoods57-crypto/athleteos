@@ -207,10 +207,22 @@ describe('followUpQuestion (one useful question, never redundant)', () => {
 });
 
 describe('coachThreadStatus (athlete-visible, real signals only)', () => {
-  test('walks sent → reviewed → replied on real evidence', () => {
-    expect(coachThreadStatus({ mealId: 'm1', hasCoach: true, comments: [] }).label).toBe('Sent to Coach');
-    expect(coachThreadStatus({ mealId: 'm1', hasCoach: true, comments: [], dayReviewed: true }).label).toBe('Reviewed by Coach');
+  test('walks sent → opened → replied on real evidence', () => {
+    expect(coachThreadStatus({ mealId: 'm1', hasCoach: true, comments: [] }).label).toBe('Sent to coach');
+    expect(coachThreadStatus({ mealId: 'm1', hasCoach: true, comments: [], dayReviewed: true }).label).toBe('Coach opened your day');
     expect(coachThreadStatus({ mealId: 'm1', hasCoach: true, comments: [{ role: 'coach', text: 'nice' }] }).label).toBe('Coach replied');
+  });
+  // A coach_views row means the coach OPENED the day — never that they reviewed or judged this
+  // meal. The label must not imply more than the evidence supports.
+  test('a day-view receipt never claims a review', () => {
+    const s = coachThreadStatus({ mealId: 'm1', hasCoach: true, comments: [], dayReviewed: true });
+    expect(s.state).toBe('seen');
+    expect(s.label).not.toMatch(/review/i);
+  });
+  test('the noun follows the real relationship', () => {
+    expect(coachThreadStatus({ mealId: 'm1', hasCoach: true, comments: [], noun: 'trainer' }).label).toBe('Sent to trainer');
+    expect(coachThreadStatus({ mealId: 'm1', hasCoach: true, comments: [], dayReviewed: true, noun: 'trainer' }).label)
+      .toBe('Trainer opened your day');
   });
   test('no coach or no persisted meal → no claim', () => {
     expect(coachThreadStatus({ mealId: 'm1', hasCoach: false }).state).toBe('none');

@@ -1182,12 +1182,21 @@ export function followUpQuestion(meta) {
      sent     — the meal row persisted and a coach is connected
    Simple states, no technical delivery language.
    ================================================================================ */
-export function coachThreadStatus({ mealId, hasCoach, comments, dayReviewed } = {}) {
+/**
+ * @param {{ mealId?: any, hasCoach?: any, comments?: any, dayReviewed?: any, noun?: string }} [opts]
+ */
+export function coachThreadStatus({ mealId, hasCoach, comments, dayReviewed, noun = 'coach' } = {}) {
   if (!hasCoach) return { state: 'none', label: '' };
+  const Noun = noun.charAt(0).toUpperCase() + noun.slice(1);
   const rows = Array.isArray(comments) ? comments : [];
-  if (rows.some((c) => c && c.role === 'coach')) return { state: 'replied', label: 'Coach replied' };
-  if (dayReviewed) return { state: 'reviewed', label: 'Reviewed by Coach' };
-  if (mealId) return { state: 'sent', label: 'Sent to Coach' };
+  if (rows.some((c) => c && c.role === 'coach')) return { state: 'replied', label: `${Noun} replied` };
+  // "Reviewed by Coach" OVERCLAIMED (founder, 2026-08-06). The only fact behind it is a
+  // `coach_views` row, which is written when the coach OPENS the athlete's day — not when they
+  // read this meal, and not when they form any judgment about it. An athlete who is told their
+  // coach "reviewed" a meal and then gets no reply has been lied to by the interface. Say the
+  // thing that is true: they opened it.
+  if (dayReviewed) return { state: 'seen', label: `${Noun} opened your day` };
+  if (mealId) return { state: 'sent', label: `Sent to ${noun}` };
   return { state: 'none', label: '' };
 }
 

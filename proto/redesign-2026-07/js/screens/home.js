@@ -209,8 +209,16 @@ const pastDayLabel = (isoStr) => {
   return diff === 1 ? 'Yesterday'
     : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getDay()];
 };
-/* Yesterday + the day before, each its own labeled rail. Past days route to Progress (the
-   meal thread only renders TODAY's slots — a past card must never open an empty thread). */
+/* Yesterday + the day before, each its own labeled rail.
+   Routing: a past card opens `meal-view/<id>` — the read-only past-meal screen (trust.js), which
+   renders from the fetched `meals` ROW and carries its own comment thread. It must NOT use
+   `meal-detail/<slot>` like today's card: mealDetail() reads the in-memory DAY singleton, which is
+   always TODAY, so a past slot would silently render today's plate under a "Yesterday" label.
+   These cards used to route to `progress` to dodge exactly that — but the tap then dropped the
+   athlete on a tab with no meal on it (and reset the nav stack getting there), which reads as the
+   card being broken. `meal-view` is the destination that was always correct: Activity History and
+   the push deep-links both already use it, and its mount falls back to fetchMealById() when the
+   history cache is cold, so opening one straight from Home works on a fresh launch. */
 const pastResults = () => {
   const rows = (PAST.uid === RT.userId && PAST.rows) ? PAST.rows : [];
   if (!rows.length) return '';
@@ -234,7 +242,7 @@ const pastResults = () => {
         vClass: r.quality != null ? (r.quality >= 80 ? 'g' : r.quality >= 50 ? 'a' : 'r') : 'muted',
         impact: 0,
         img: r._img || null,
-        route: 'progress',
+        route: r.id ? `meal-view/${r.id}` : 'history',
       });
     }).join('');
     return `<div class="eyebrow" style="margin-top:14px">${esc(label)}</div><div class="res-rail">${cards}</div>`;
