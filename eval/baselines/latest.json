@@ -1,10 +1,10 @@
 {
   "aggregate": {
     "meals": 6,
-    "detection_recall": 0.5,
-    "detection_precision": 0.75,
-    "kcal_err_pct": 0.189,
-    "protein_err_pct": 0.273,
+    "detection_recall": 0.833,
+    "detection_precision": 0.935,
+    "kcal_err_pct": 0.144,
+    "protein_err_pct": 0.116,
     "contradiction_rate": 0,
     "verify_trigger_accuracy": 1
   },

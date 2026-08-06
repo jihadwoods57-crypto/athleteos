@@ -31,6 +31,29 @@ describe('searchFoods / matchFood', () => {
     expect(matchFood('Pan-seared salmon with herbs')!.id).toBe('salmon');
     expect(matchFood('mystery casserole xyz')).toBeUndefined();
   });
+
+  /* A cooking method is not a food (accuracy fix 2026-08-06). The word fallback sorts by LENGTH,
+     which quietly assumed the longest word identifies the food — so in "Grilled steak", "grilled"
+     (7) beat "steak" (5) and matched "Grilled chicken breast". A ribeye was then bounded against
+     chicken's lean reference, clamping 34g of real fat down to 20g. */
+  test('preparation words never win over the actual food', () => {
+    expect(matchFood('Grilled steak')!.id).toBe('sirloin-steak');
+    expect(matchFood('Roasted potato wedges')!.id).toBe('white-potato');
+    expect(matchFood('Seasoned salmon fillet')!.id).toBe('salmon');
+    expect(matchFood('Shredded cheddar cheese')!.id).toBe('cheddar');
+    expect(matchFood('Grilled/braised steak chunks')!.id).toBe('sirloin-steak');
+  });
+
+  test('a name with no food word left returns undefined rather than a prep-word match', () => {
+    // "ribeye" has no entry, so the only remaining word is the method. No match leaves the
+    // estimate alone; matching on "grilled" would bound a steak against chicken.
+    expect(matchFood('Grilled ribeye')).toBeUndefined();
+  });
+
+  test('a grilled steak keeps its real fat instead of being clamped to chicken', () => {
+    const g = groundFood({ name: 'Grilled steak', per: { protein: 34, kcal: 450, carbs: 0, fat: 34 } });
+    expect(g.per.fat).toBeGreaterThan(20); // chicken-breast's band capped this at 20g
+  });
 });
 
 describe('parseServings', () => {

@@ -38,6 +38,9 @@ export const FOOD_DB = [
   { id: 'black-beans', name: 'Black beans', serving: '1/2 cup', per: m(8, 114, 20, 0), aliases: ['legumes'] },
   { id: 'lentils', name: 'Lentils', serving: '1/2 cup', per: m(9, 115, 20, 0), aliases: ['legumes', 'dal'] },
   { id: 'whey-protein', name: 'Whey protein (1 scoop)', serving: '1 scoop', per: m(24, 120, 3, 1), aliases: ['protein powder', 'shake'] },
+  { id: 'bacon', name: 'Bacon', serving: '3 strips', per: m(9, 129, 0, 10) },
+  { id: 'breakfast-sausage', name: 'Breakfast sausage', serving: '2 links', per: m(8, 170, 1, 15), aliases: ['sausage', 'sausage links'] },
+  { id: 'meatballs', name: 'Meatballs', serving: '3 meatballs', per: m(20, 240, 8, 17), aliases: ['meatball'] },
   // ---- grain / starch ----
   { id: 'white-rice', name: 'White rice (cooked)', serving: '1 cup', per: m(4, 205, 45, 0) },
   { id: 'brown-rice', name: 'Brown rice (cooked)', serving: '1 cup', per: m(5, 216, 45, 2) },
@@ -49,12 +52,16 @@ export const FOOD_DB = [
   { id: 'bread-whole-wheat', name: 'Whole wheat bread', serving: '1 slice', per: m(4, 80, 14, 1), aliases: ['toast'] },
   { id: 'bagel', name: 'Bagel', serving: '1 medium', per: m(11, 277, 55, 2) },
   { id: 'tortilla', name: 'Flour tortilla', serving: '1 medium', per: m(4, 140, 24, 4), aliases: ['wrap'] },
+  { id: 'grits', name: 'Grits (cooked)', serving: '1 cup', per: m(3, 143, 31, 0), aliases: ['polenta'] },
+  { id: 'dinner-roll', name: 'Dinner roll', serving: '1 roll', per: m(3, 87, 15, 2), aliases: ['roll', 'bun', 'bread roll'] },
+  { id: 'mashed-potato', name: 'Mashed potatoes', serving: '1/2 cup', per: m(2, 105, 18, 4), aliases: ['mashed potato'] },
   // ---- dairy ----
   { id: 'greek-yogurt', name: 'Greek yogurt (nonfat)', serving: '1 cup', per: m(23, 130, 9, 0) },
   { id: 'milk-2', name: 'Milk (2%)', serving: '1 cup', per: m(8, 122, 12, 5) },
   { id: 'cottage-cheese', name: 'Cottage cheese (low-fat)', serving: '1/2 cup', per: m(12, 90, 5, 2) },
   { id: 'cheddar', name: 'Cheddar cheese', serving: '1 oz', per: m(7, 113, 0, 9), aliases: ['cheese'] },
   { id: 'string-cheese', name: 'String cheese', serving: '1 stick', per: m(7, 80, 1, 6), aliases: ['mozzarella'] },
+  { id: 'sour-cream', name: 'Sour cream', serving: '2 tbsp', per: m(1, 60, 1, 6) },
   // ---- fruit ----
   { id: 'banana', name: 'Banana', serving: '1 medium', per: m(1, 105, 27, 0) },
   { id: 'apple', name: 'Apple', serving: '1 medium', per: m(1, 95, 25, 0) },
@@ -70,11 +77,17 @@ export const FOOD_DB = [
   { id: 'carrots', name: 'Carrots', serving: '1 cup', per: m(1, 52, 12, 0) },
   { id: 'bell-pepper', name: 'Bell pepper', serving: '1 medium', per: m(1, 31, 7, 0), aliases: ['capsicum'] },
   { id: 'avocado', name: 'Avocado', serving: '1/2 medium', per: m(2, 120, 6, 11) },
+  { id: 'asparagus', name: 'Asparagus', serving: '1 cup', per: m(3, 27, 5, 0) },
+  { id: 'collard-greens', name: 'Collard greens (cooked)', serving: '1 cup', per: m(4, 70, 8, 3), aliases: ['collards', 'mustard greens', 'turnip greens'] },
+  { id: 'onion', name: 'Onion', serving: '1/2 cup', per: m(1, 32, 7, 0), aliases: ['onions'] },
+  { id: 'salsa', name: 'Salsa', serving: '2 tbsp', per: m(0, 10, 2, 0), aliases: ['pico de gallo', 'pico'] },
+  { id: 'marinara', name: 'Marinara sauce', serving: '1/2 cup', per: m(2, 70, 10, 2), aliases: ['tomato sauce', 'pasta sauce', 'red sauce'] },
   // ---- fat ----
   { id: 'olive-oil', name: 'Olive oil', serving: '1 tbsp', per: m(0, 119, 0, 14), aliases: ['oil'] },
   { id: 'peanut-butter', name: 'Peanut butter', serving: '2 tbsp', per: m(7, 188, 8, 16), aliases: ['pb', 'nut butter'] },
   { id: 'almonds', name: 'Almonds', serving: '1 oz', per: m(6, 164, 6, 14), aliases: ['nuts'] },
   { id: 'walnuts', name: 'Walnuts', serving: '1 oz', per: m(4, 185, 4, 18), aliases: ['nuts'] },
+  { id: 'butter', name: 'Butter', serving: '1 tbsp', per: m(0, 102, 0, 12) },
   // ---- snack / drink ----
   { id: 'protein-bar', name: 'Protein bar', serving: '1 bar', per: m(20, 210, 22, 7), aliases: ['bar'] },
   { id: 'granola', name: 'Granola', serving: '1/2 cup', per: m(5, 230, 37, 7) },
@@ -110,14 +123,44 @@ export function searchFoods(query, limit = 20) {
   return scored.slice(0, Math.max(0, limit)).map((x) => x.f);
 }
 
-/** Best single DB match for a detected-food name; tries the full name, then its longest word
- *  (so "Grilled chicken with herbs" still finds chicken). Undefined when nothing matches. */
+/* PREPARATION AND SERVING WORDS — never a food's identity (accuracy fix 2026-08-06).
+   The word fallback below sorts by LENGTH, which quietly assumed the longest word is the most
+   identifying one. It is not: in "Grilled steak", "grilled" (7) beat "steak" (5), and "Grilled
+   chicken breast" starts with "grilled" — so a ribeye resolved to chicken, and chicken's lean
+   reference then clamped the steak's real 34g of fat down to 20g (450 kcal -> 316). Every word
+   here is a cooking method, a cut/serving noun, or a filler word, so they are never matched on at
+   all: a name with no food word left ("Grilled ribeye", before ribeye had an entry) returns
+   UNDEFINED rather than falling back to them. That is the safer failure — groundFood leaves an
+   unmatched food's estimate alone, while a wrong match actively clamps it against the wrong
+   reference, which is the damage being fixed here.
+   Deliberately NOT here: any word that is part of a real FOOD_DB name (mixed, green, white,
+   brown, sweet, dark, sour, string, whole, dinner, breakfast) — filtering those would break the
+   foods they identify. No FOOD_DB name consists only of words on this list. */
+const PREP_WORDS = new Set([
+  // cooking methods
+  'grilled', 'roasted', 'baked', 'fried', 'seasoned', 'sauteed', 'steamed', 'boiled', 'braised',
+  'smoked', 'broiled', 'poached', 'seared', 'scrambled', 'toasted', 'glazed', 'marinated',
+  'breaded', 'stuffed', 'cooked', 'raw', 'homemade', 'crispy', 'loaded', 'topped', 'fresh',
+  // cut / serving nouns
+  'shredded', 'sliced', 'diced', 'chopped', 'minced', 'strips', 'links', 'wedges', 'bites',
+  'chunks', 'fillet', 'filet', 'piece', 'pieces', 'slice', 'slices', 'portion', 'serving',
+  'side', 'plate', 'bowl', 'cup', 'cups', 'ounce', 'ounces', 'style',
+  // size / filler
+  'medium', 'large', 'small', 'with', 'and', 'the', 'some', 'half',
+]);
+
+/** Best single DB match for a detected-food name; tries the full name, then its most identifying
+ *  word (so "Grilled chicken with herbs" still finds chicken). Preparation and serving words are
+ *  never matched on. Undefined when nothing matches, which leaves the estimate unbounded rather
+ *  than bounding it against the wrong food. */
 export function matchFood(name) {
   const q = String(name == null ? '' : name).trim();
   if (!q) return undefined;
   const direct = searchFoods(q, 1)[0];
   if (direct) return direct;
-  const words = q.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3).sort((a, b) => b.length - a.length);
+  const words = q.toLowerCase().split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 3 && !PREP_WORDS.has(w))
+    .sort((a, b) => b.length - a.length);
   for (const w of words) {
     const hit = searchFoods(w, 1)[0];
     if (hit) return hit;

@@ -50,6 +50,11 @@ export const FOOD_DB: readonly FoodItem[] = [
   { id: 'chicken-breast', name: 'Grilled chicken breast', serving: '4 oz', category: 'protein', per: m(35, 187, 0, 4), aliases: ['poultry'] },
   { id: 'chicken-thigh', name: 'Chicken thigh', serving: '4 oz', category: 'protein', per: m(28, 250, 0, 14) },
   { id: 'ground-beef-90', name: 'Ground beef (90/10)', serving: '4 oz', category: 'protein', per: m(23, 199, 0, 11), aliases: ['hamburger', 'mince'] },
+  // NOTE: a dedicated ribeye entry was tried and reverted (2026-08-06). Its macros are genuinely
+  // different (25g fat vs 9g), but "Ribeye steak" ties with "Sirloin steak" on the word "steak"
+  // and wins the alphabetical tie-break — so a generic "Grilled steak" resolved to the fattiest
+  // beef in the table, loosening the plausibility band for the most common phrasing. Adding cuts
+  // needs name-based disambiguation first, not just another row.
   { id: 'sirloin-steak', name: 'Sirloin steak', serving: '4 oz', category: 'protein', per: m(31, 207, 0, 9), aliases: ['beef'] },
   { id: 'salmon', name: 'Salmon fillet', serving: '4 oz', category: 'protein', per: m(25, 233, 0, 14), aliases: ['fish'] },
   { id: 'tuna-canned', name: 'Canned tuna (in water)', serving: '1 can (5 oz)', category: 'protein', per: m(27, 121, 0, 1), aliases: ['fish'] },
@@ -62,6 +67,9 @@ export const FOOD_DB: readonly FoodItem[] = [
   { id: 'black-beans', name: 'Black beans', serving: '1/2 cup', category: 'protein', per: m(8, 114, 20, 0), aliases: ['legumes'] },
   { id: 'lentils', name: 'Lentils', serving: '1/2 cup', category: 'protein', per: m(9, 115, 20, 0), aliases: ['legumes', 'dal'] },
   { id: 'whey-protein', name: 'Whey protein (1 scoop)', serving: '1 scoop', category: 'protein', per: m(24, 120, 3, 1), aliases: ['protein powder', 'shake'] },
+  { id: 'bacon', name: 'Bacon', serving: '3 strips', category: 'protein', per: m(9, 129, 0, 10) },
+  { id: 'breakfast-sausage', name: 'Breakfast sausage', serving: '2 links', category: 'protein', per: m(8, 170, 1, 15), aliases: ['sausage', 'sausage links'] },
+  { id: 'meatballs', name: 'Meatballs', serving: '3 meatballs', category: 'protein', per: m(20, 240, 8, 17), aliases: ['meatball'] },
 
   // ---- grain / starch ----
   { id: 'white-rice', name: 'White rice (cooked)', serving: '1 cup', category: 'grain', per: m(4, 205, 45, 0) },
@@ -74,6 +82,9 @@ export const FOOD_DB: readonly FoodItem[] = [
   { id: 'bread-whole-wheat', name: 'Whole wheat bread', serving: '1 slice', category: 'grain', per: m(4, 80, 14, 1), aliases: ['toast'] },
   { id: 'bagel', name: 'Bagel', serving: '1 medium', category: 'grain', per: m(11, 277, 55, 2) },
   { id: 'tortilla', name: 'Flour tortilla', serving: '1 medium', category: 'grain', per: m(4, 140, 24, 4), aliases: ['wrap'] },
+  { id: 'grits', name: 'Grits (cooked)', serving: '1 cup', category: 'grain', per: m(3, 143, 31, 0), aliases: ['polenta'] },
+  { id: 'dinner-roll', name: 'Dinner roll', serving: '1 roll', category: 'grain', per: m(3, 87, 15, 2), aliases: ['roll', 'bun', 'bread roll'] },
+  { id: 'mashed-potato', name: 'Mashed potatoes', serving: '1/2 cup', category: 'grain', per: m(2, 105, 18, 4), aliases: ['mashed potato'] },
 
   // ---- dairy ----
   { id: 'greek-yogurt', name: 'Greek yogurt (nonfat)', serving: '1 cup', category: 'dairy', per: m(23, 130, 9, 0) },
@@ -81,6 +92,7 @@ export const FOOD_DB: readonly FoodItem[] = [
   { id: 'cottage-cheese', name: 'Cottage cheese (low-fat)', serving: '1/2 cup', category: 'dairy', per: m(12, 90, 5, 2) },
   { id: 'cheddar', name: 'Cheddar cheese', serving: '1 oz', category: 'dairy', per: m(7, 113, 0, 9), aliases: ['cheese'] },
   { id: 'string-cheese', name: 'String cheese', serving: '1 stick', category: 'dairy', per: m(7, 80, 1, 6), aliases: ['mozzarella'] },
+  { id: 'sour-cream', name: 'Sour cream', serving: '2 tbsp', category: 'dairy', per: m(1, 60, 1, 6) },
 
   // ---- fruit ----
   { id: 'banana', name: 'Banana', serving: '1 medium', category: 'fruit', per: m(1, 105, 27, 0) },
@@ -98,12 +110,18 @@ export const FOOD_DB: readonly FoodItem[] = [
   { id: 'carrots', name: 'Carrots', serving: '1 cup', category: 'vegetable', per: m(1, 52, 12, 0) },
   { id: 'bell-pepper', name: 'Bell pepper', serving: '1 medium', category: 'vegetable', per: m(1, 31, 7, 0), aliases: ['capsicum'] },
   { id: 'avocado', name: 'Avocado', serving: '1/2 medium', category: 'vegetable', per: m(2, 120, 6, 11) },
+  { id: 'asparagus', name: 'Asparagus', serving: '1 cup', category: 'vegetable', per: m(3, 27, 5, 0) },
+  { id: 'collard-greens', name: 'Collard greens (cooked)', serving: '1 cup', category: 'vegetable', per: m(4, 70, 8, 3), aliases: ['collards', 'mustard greens', 'turnip greens'] },
+  { id: 'onion', name: 'Onion', serving: '1/2 cup', category: 'vegetable', per: m(1, 32, 7, 0), aliases: ['onions'] },
+  { id: 'salsa', name: 'Salsa', serving: '2 tbsp', category: 'vegetable', per: m(0, 10, 2, 0), aliases: ['pico de gallo', 'pico'] },
+  { id: 'marinara', name: 'Marinara sauce', serving: '1/2 cup', category: 'vegetable', per: m(2, 70, 10, 2), aliases: ['tomato sauce', 'pasta sauce', 'red sauce'] },
 
   // ---- fat ----
   { id: 'olive-oil', name: 'Olive oil', serving: '1 tbsp', category: 'fat', per: m(0, 119, 0, 14), aliases: ['oil'] },
   { id: 'peanut-butter', name: 'Peanut butter', serving: '2 tbsp', category: 'fat', per: m(7, 188, 8, 16), aliases: ['pb', 'nut butter'] },
   { id: 'almonds', name: 'Almonds', serving: '1 oz', category: 'fat', per: m(6, 164, 6, 14), aliases: ['nuts'] },
   { id: 'walnuts', name: 'Walnuts', serving: '1 oz', category: 'fat', per: m(4, 185, 4, 18), aliases: ['nuts'] },
+  { id: 'butter', name: 'Butter', serving: '1 tbsp', category: 'fat', per: m(0, 102, 0, 12) },
 
   // ---- snack / drink ----
   { id: 'protein-bar', name: 'Protein bar', serving: '1 bar', category: 'snack', per: m(20, 210, 22, 7), aliases: ['bar'] },
