@@ -31,6 +31,8 @@ import { loadMemoryForAthlete } from '../_shared/memory-load.ts';
 import { memoryBlock } from '../_shared/memory.ts';
 import { flagOn } from '../_shared/feature-flags.ts';
 import { routeForCoachMeal } from '../_shared/followup.ts';
+import { chatVoiceDirective } from '../_shared/coach-voice.ts';
+import { loadVoiceForAthlete } from '../_shared/coach-voice-load.ts';
 
 // Per-surface override first: one shared ANTHROPIC_MODEL meant chat could not move tiers
 // without dragging vision with it. Unset -> unchanged.
@@ -140,6 +142,19 @@ Rules that bind you:
 6. These are drafts the coach will edit before sending. Do not sign them, do not send them.
 7. 60 words maximum per draft. No em dashes. No markdown.`;
 
+// Coach-question mode (founder, 2026-08-06): the coach ASKS the AI Nutritionist directly and it
+// ALWAYS answers — unlike the retired auto-support path, there is no topic regex and no
+// once-per-meal cap, because an explicit question deserves an explicit answer. The reply addresses
+// the coach; the athlete can read the thread, so the athlete is spoken about with respect, never
+// clinically dissected.
+const COACH_ASK_SYSTEM = `You are the OnStandard AI Nutritionist. A COACH or TRAINER reviewing one of their athlete's meals is asking YOU a question.
+Rules that bind you:
+1. Use ONLY the provided context (this meal, targets, the thread). Never invent, recompute, or adjust any number; you may repeat numbers exactly as given.
+2. Answer the coach directly and practically, like a staff nutritionist they trust. The athlete can read this thread too — refer to the athlete in the third person and stay respectful about them.
+3. When asked for a recommendation, give a clear one grounded in what is actually in the context. If the context cannot support a firm answer, say so plainly and name the one thing you would check.
+4. 100 words maximum. No em dashes. No markdown headers.
+5. Never give medical, injury, weight-cutting, or disordered-eating guidance — those belong with qualified humans.`;
+
 const SYSTEM = `You are the OnStandard AI Nutritionist inside an athlete's meal thread.
 Rules that bind you:
 1. Use ONLY the provided context (this meal, their plan and goal, today's summary, recent meals, the thread). Never invent, recompute, or adjust any number; you may repeat numbers exactly as given.
@@ -188,6 +203,9 @@ Deno.serve(async (req) => {
     // add AT MOST ONE short supporting message per meal — and only when the coach's message is
     // substantive (a question or a nutrition point), never on every post.
     const coachSupport = body?.coachSupport === true;
+    // Coach-ask mode (2026-08-06): the coach's own question TO the AI Nutritionist. Always
+    // answered — see COACH_ASK_SYSTEM. Question rides body.question, same as the athlete path.
+    const coachAsk = body?.coachAsk === true;
     // Coach OS Slice D — draft mode: the coach asks for FOUR candidate replies. No question is
     // sent (there is nothing to answer yet), and NOTHING is persisted — these are drafts.
     const draftMode = body?.draftReplies === true;
@@ -219,9 +237,10 @@ Deno.serve(async (req) => {
     if (!callerId) return bad(401, 'unauthorized', cors);
     const { data: mealRow } = await userClient.from('meals').select('id, athlete_id').eq('id', mealId).maybeSingle();
     if (!mealRow) return bad(403, 'unauthorized', cors);
-    // Coach modes (coachSupport + draft): the RLS-scoped select above succeeding for a NON-owner
-    // proves can_view (linked coach/staff), so a coach must NOT own the meal. Athlete mode: owner.
-    const coachMode = coachSupport || draftMode;
+    // Coach modes (coachSupport + coachAsk + draft): the RLS-scoped select above succeeding for a
+    // NON-owner proves can_view (linked coach/staff), so a coach must NOT own the meal. Athlete
+    // mode: owner.
+    const coachMode = coachSupport || coachAsk || draftMode;
     if (coachMode ? mealRow.athlete_id === callerId : mealRow.athlete_id !== callerId) return bad(403, 'unauthorized', cors);
 
     const service = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
@@ -239,6 +258,13 @@ Deno.serve(async (req) => {
     const memBlock = (await flagOn(service, 'ai_memory', { userId: mealRow.athlete_id }))
       ? memoryBlock(await loadMemoryForAthlete(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, mealRow.athlete_id))
       : '';
+    // COACH VOICE (2026-08-06): the team's (or, 0187, the practice's) AI Nutritionist config now
+    // shapes every chat surface — athlete replies, coach questions, drafts. Resolved for the MEAL
+    // OWNER like plan style and memory. Gated only by the config's own enabled flag (the page's
+    // On/Off is the control, not the analyze-meal pilot flag): loadVoiceForAthlete returns null
+    // when voice is off or unset, and a null directive keeps the prompt byte-identical to before.
+    const voice = await loadVoiceForAthlete(service, mealRow.athlete_id);
+    const voiceDirective = voice ? chatVoiceDirective(voice.cfg) : '';
     const styleSafe = (text: string): string => {
       // Shared tail of both call sites below: one corrected retry is handled inline by the
       // caller; this is the final rail that guarantees nothing unsafe is ever persisted.
@@ -267,7 +293,7 @@ Deno.serve(async (req) => {
       const msg = await anthropic.messages.create({
         model: MODEL,
         max_tokens: 700, // 4 drafts x ~60 words + tool-call JSON; headroom so the 4th draft never truncates into a 502
-        system: [{ type: 'text', text: composeSystem(DRAFT_SYSTEM, '', planStyle), cache_control: { type: 'ephemeral' } }],
+        system: [{ type: 'text', text: composeSystem(DRAFT_SYSTEM, voiceDirective, planStyle), cache_control: { type: 'ephemeral' } }],
         // DRAFT_TOOL is `as const`, so input_schema.required is a readonly tuple the SDK's mutable
         // string[] rejects — the same cast the reply/meal tool arrays below already use. Without
         // it this file does not pass `deno check` at all.
@@ -329,7 +355,7 @@ Deno.serve(async (req) => {
       if (!(await withinKeyCap(`meal_correction:${callerId}`, 5))) {
         return new Response(JSON.stringify({ skipped: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
-    } else if (!(await withinKeyCap(coachSupport ? `meal_chat_support:${callerId}` : `meal_chat:${callerId}`, DAILY_CAP))) return bad(429, 'limit', cors);
+    } else if (!(await withinKeyCap(coachAsk ? `meal_chat_ask:${callerId}` : coachSupport ? `meal_chat_support:${callerId}` : `meal_chat:${callerId}`, DAILY_CAP))) return bad(429, 'limit', cors);
     /* ---- resolve a chat photo attachment, if one was named ----
        Only the ATHLETE path may attach: a coach reinforcing their own point and an acknowledgment
        of a correction have no picture to look at, and letting them pass one would be a way to make
@@ -340,7 +366,7 @@ Deno.serve(async (req) => {
        than trusting the caller: a coach can read the athlete's folder through can_view(), but
        neither party can point this at somebody else's. */
     let photoB64: string | null = null;
-    if (photoPathRaw && !coachSupport && !correctionUpdate && !draftMode) {
+    if (photoPathRaw && !coachSupport && !coachAsk && !correctionUpdate && !draftMode) {
       const okShape = /^[0-9a-f-]{36}\/chat\/[A-Za-z0-9._-]{1,64}$/i.test(photoPathRaw)
         && photoPathRaw.startsWith(`${mealRow.athlete_id}/`);
       if (okShape) {
@@ -382,7 +408,9 @@ Deno.serve(async (req) => {
     // reinforced — there is nothing there to escalate, so it keeps the single forced tool.
     const athleteTools = [REPLY_TOOL, FLAG_TOOL] as unknown as Anthropic.Tool[];
     // The user turn, named once because the style-correction retry below has to replay it exactly.
-    const userTurn = coachSupport
+    const userTurn = coachAsk
+      ? `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nThe COACH reviewing this athlete's meal just asked you directly: "${question}"\n\nAnswer THE COACH in 100 words or less, using ONLY figures and foods already present in the context. Give a clear practical answer or recommendation; refer to the athlete in the third person. If the context cannot support a firm answer, say so and name the one thing you would check.`
+      : coachSupport
       ? `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nThe COACH just said this on the athlete's meal: "${question}"\n\nIn 60 words or less, speaking to the athlete, back the coach's point using ONLY figures already in the context. Do not add new requirements, do not soften the coach, do not contradict them. If the context has nothing relevant, one steady sentence reinforcing the coach is enough.`
       : correctionUpdate
         // The correction is already applied and the numbers in the context are the CORRECTED ones.
@@ -407,23 +435,28 @@ the context stays exactly as given.` : ''}`;
       ]
       : userTurn;
 
+    // The base identity depends on who is asking: a coach's direct question gets the
+    // coach-facing system; everything else keeps the athlete-thread system.
+    const baseSystem = coachAsk ? COACH_ASK_SYSTEM : SYSTEM;
+    const composedSystem = composeSystem(baseSystem, voiceDirective, planStyle);
     const t0r = Date.now();
     const msg = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 400,
-      system: [{ type: 'text', text: memBlock ? `${composeSystem(SYSTEM, '', planStyle)}
+      system: [{ type: 'text', text: memBlock ? `${composedSystem}
 
-${memBlock}` : composeSystem(SYSTEM, '', planStyle), cache_control: { type: 'ephemeral' } }],
+${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
       // Only the athlete's own QUESTION path can escalate to a human — a coach's point being
-      // reinforced and a correction being acknowledged have nothing in them to escalate.
-      tools: coachSupport || correctionUpdate ? replyTools : athleteTools,
-      tool_choice: coachSupport || correctionUpdate ? { type: 'tool', name: 'reply' } : { type: 'any' },
+      // reinforced, a coach's direct question, and a correction being acknowledged have nothing
+      // in them to escalate (the coach IS the human).
+      tools: coachSupport || coachAsk || correctionUpdate ? replyTools : athleteTools,
+      tool_choice: coachSupport || coachAsk || correctionUpdate ? { type: 'tool', name: 'reply' } : { type: 'any' },
       messages: [{ role: 'user', content: userContent }],
     });
     // phase marks the vision turns so the cost views can separate them: an attachment turn is
     // several times the price of a text one, and rolling both into one 'reply' bucket would hide
     // exactly the number that decides whether attachments stay free.
-    await recordAiCall({ fn: 'meal-chat', mode: 'reply', phase: photoB64 ? 'photo' : null, userId: callerId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0r, ok: true });
+    await recordAiCall({ fn: 'meal-chat', mode: 'reply', phase: photoB64 ? 'photo' : coachAsk ? 'coach_ask' : null, userId: callerId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0r, ok: true });
     const tool = msg.content.find((b) => b.type === 'tool_use') as { name?: string; input?: { message?: string; reason?: string; note?: string } } | undefined;
 
     // ESCALATION. The model declined to answer, so say so plainly to the athlete and put it in
@@ -506,7 +539,7 @@ ${memBlock}` : composeSystem(SYSTEM, '', planStyle), cache_control: { type: 'eph
         const retry = await anthropic.messages.create({
           model: MODEL,
           max_tokens: 400,
-          system: [{ type: 'text', text: composeSystem(SYSTEM, '', planStyle), cache_control: { type: 'ephemeral' } }],
+          system: [{ type: 'text', text: composedSystem, cache_control: { type: 'ephemeral' } }],
           tools: replyTools,
           tool_choice: { type: 'tool', name: 'reply' },
           // TEXT-ONLY on purpose, even when the first turn carried an image: this retry asks the

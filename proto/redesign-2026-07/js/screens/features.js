@@ -1,4 +1,4 @@
-import { S, RT, act } from '../state.js';
+import { S, RT, act, roleNav, roleProfileRoute } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
 import * as roles from '../roles.js';
@@ -407,33 +407,47 @@ export const injury = {
   },
 };
 
-/* ---------- #coach-voice · configure how the AI reinforces YOUR standards ---------- */
+/* ---------- #coach-voice · the AI Nutritionist page (founder, 2026-08-06) ----------
+   The one place a coach or trainer tunes how the AI Nutritionist talks — tone, accountability,
+   reply length, approved phrases, banned words, and free-text instructions. Served to a TEAM's
+   config (0094, coach_voice_config) or a PRACTICE's (0187, practice_voice_config) by
+   act.setCoachVoice; consumed server-side by meal-chat (thread replies, coach questions, drafts),
+   analyze-meal (the plate read), and coach-voice-nudge. */
 const CV_PHRASES = ['That’s the standard.', 'Don’t chase the scale, we’re building.', 'Protein first is the standard this week.', 'Keep this structure.'];
 export const coachVoice = {
-  nav: 'coach', tab: 'profile',
+  get nav() { return roleNav(); }, tab: 'profile',
   render() {
     const cv = RT.coachVoice || {};
     const enabled = cv.enabled !== false;
     const tone = cv.tone || 'direct';
     const level = cv.level || 'balanced';
+    const length = cv.length || 'standard';
     const approved = Array.isArray(cv.approved) ? cv.approved : CV_PHRASES;
     const chip = (on, label, key, val) => `<span class="chp ${on ? 'on' : ''}" data-cv="${key}:${val}">${label}</span>`;
     return `
-    ${backHead('Coach Voice', 'How the AI reinforces your standards — in your tone.', 'coach-profile')}
+    ${backHead('AI Nutritionist', 'Make it coach the way you coach.', roleProfileRoute())}
 
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div>
-        <div class="lm"><div class="lt">AI in your voice</div><div class="ls">${enabled ? 'On — always labeled as AI, never signed as you' : 'Off'}</div></div>
+        <div class="lm"><div class="lt">Coach your AI</div><div class="ls">${enabled ? 'On — always labeled as AI, never signed as you' : 'Off — the AI uses its neutral default voice'}</div></div>
         <div class="seg" style="width:104px" id="cv-enabled"><button class="${enabled ? 'on' : ''}">On</button><button class="${enabled ? '' : 'on'}">Off</button></div>
       </div>
     </section>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">Shapes every AI Nutritionist surface: meal analyses, thread replies, answers to your questions, and nudges.</div>
 
     <div class="eyebrow">Tone</div>
     <div class="chip-row" id="cv-tone">${chip(tone === 'calm', 'Calm', 'tone', 'calm')}${chip(tone === 'direct', 'Direct', 'tone', 'direct')}${chip(tone === 'fired', 'Fired up', 'tone', 'fired')}</div>
 
     <div class="eyebrow">Accountability</div>
     <div class="chip-row" id="cv-level">${chip(level === 'supportive', 'Supportive', 'level', 'supportive')}${chip(level === 'balanced', 'Balanced', 'level', 'balanced')}${chip(level === 'hard', 'Hard-nosed', 'level', 'hard')}</div>
+
+    <div class="eyebrow">Reply length · chat and questions</div>
+    <div class="chip-row" id="cv-length">${chip(length === 'brief', 'Brief', 'length', 'brief')}${chip(length === 'standard', 'Standard', 'length', 'standard')}${chip(length === 'detailed', 'Detailed', 'length', 'detailed')}</div>
+
+    <div class="eyebrow">Your instructions · optional</div>
+    <textarea id="cv-instructions" class="ob-input" maxlength="500" rows="3" style="min-height:76px;resize:vertical" placeholder="e.g. Always push vegetables. Keep advice tied to our 4-meal structure. Talk like a strength coach, not a dietitian.">${esc(cv.instructions || '')}</textarea>
+    <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin:6px 2px 0;line-height:1.4">Style guidance only — it can never change numbers, add requirements, or unlock medical advice.</div>
 
     <div class="eyebrow">Phrases the AI may echo · tap to approve</div>
     <section class="card" style="padding:6px 16px" id="cv-approved">
@@ -453,10 +467,15 @@ export const coachVoice = {
       <div><div class="tt">Hard limits</div>
       <div class="ts">Every AI message is labeled as AI and never signed as you. It reinforces rulings you already made, in your tone — it never creates requirements, changes deadlines, alters scores, or gives medical advice. New coaching always comes from you.</div></div>
     </div>
+    <div id="cv-status" style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px"></div>
     <div style="height:10px"></div>
     `;
   },
   mount(root) {
+    const saved = () => {
+      const el = root.querySelector('#cv-status');
+      if (el) { el.textContent = 'Saved.'; setTimeout(() => { if (el.textContent === 'Saved.') el.textContent = ''; }, 1400); }
+    };
     const seg = root.querySelector('#cv-enabled');
     if (seg) {
       const [on, off] = seg.querySelectorAll('button');
@@ -474,7 +493,10 @@ export const coachVoice = {
       act.setCoachVoice({ approved: [...set] }); window.__render();
     }));
     const prohibited = root.querySelector('#cv-prohibited');
-    if (prohibited) prohibited.addEventListener('change', () => act.setCoachVoice({ prohibited: prohibited.value.trim() }));
+    if (prohibited) prohibited.addEventListener('change', () => { act.setCoachVoice({ prohibited: prohibited.value.trim() }); saved(); });
+    // `change` (blur), not `input` — no mid-keystroke re-render, and one clean save per edit.
+    const instructions = root.querySelector('#cv-instructions');
+    if (instructions) instructions.addEventListener('change', () => { act.setCoachVoice({ instructions: instructions.value.trim().slice(0, 500) }); saved(); });
   },
 };
 

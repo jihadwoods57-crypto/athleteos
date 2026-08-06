@@ -435,6 +435,7 @@ export function composer({
   inputId = '', sendId = '', placeholder = '', inputLabel = placeholder, sendLabel = 'Send',
   sendIcon = 'arrowUp', sendIconSize = 19, sendStyle = '', wrapStyle = '',
   autocompleteOff = true, decorativeSend = false, attachId = '', attachLabel = 'Attach a photo',
+  aiId = '', aiLabel = 'Ask the AI Nutritionist',
 } = {}) {
   const sendAttrs = `class="send"${sendId ? ` id="${sendId}"` : ''}${sendStyle ? ` style="${sendStyle}"` : ''}`;
   const sendEl = decorativeSend
@@ -450,9 +451,16 @@ export function composer({
     ? `<button type="button" class="attach" id="${attachId}" aria-label="${esc(attachLabel)}">${icon('camera', 18)}</button>
     <input type="file" accept="image/*" id="${attachId}-file" hidden aria-hidden="true" tabindex="-1" />`
     : '';
+  // Same opt-in rule as attachId: only a caller that passes aiId gets the sparkle. It's a sibling
+  // of the send button so "say it to the team" and "ask the AI" read as two destinations for the
+  // same typed text — the caller wires what a tap does.
+  const aiEl = aiId
+    ? `<button type="button" class="ai-ask" id="${aiId}" aria-label="${esc(aiLabel)}" title="${esc(aiLabel)}">${icon('sparkle', 18)}</button>`
+    : '';
   return `<div class="composer"${wrapStyle ? ` style="${wrapStyle}"` : ''}>
     ${attachEl}
     <input${inputId ? ` id="${inputId}"` : ''} placeholder="${esc(placeholder)}" aria-label="${esc(inputLabel)}"${autocompleteOff ? ' autocomplete="off"' : ''} />
+    ${aiEl}
     ${sendEl}
   </div>`;
 }

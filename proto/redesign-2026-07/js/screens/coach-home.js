@@ -270,8 +270,14 @@ export function emptyTeamDashboard(code, teamName) {
           one action day zero actually has — the board anchors below don't exist yet. */}
     <div data-tour="invite">${code ? coachInviteCard(code, teamName) : codeStateBox()}</div>
     ${obPlanCard()}
-    <div class="eyebrow">${esc(vocab().setup)}</div>
-    ${setupChecklistCard(st)}
+    ${/* Setup card, honestly sized to its state (founder, 2026-08-06): while required steps are
+          open it stays a full inline checklist — day zero's whole job. Once both required steps
+          are done it collapses to the same one-line section the populated board uses (optional
+          steps inside), and once EVERYTHING is done it leaves the screen entirely — a finished
+          checklist parked on Home forever read as the app nagging about nothing. */''}
+    ${st.ready
+      ? (setupIncompleteCount(st) ? collapseSection('coach-setup', vocab().setup, setupIncompleteCount(st), setupChecklistCard(st), false) : '')
+      : `<div class="eyebrow">${esc(vocab().setup)}</div>${setupChecklistCard(st)}`}
     <div class="eyebrow">What fills in next</div>
     <section class="card" style="padding:13px 16px">
       <div style="font-size:12px;font-weight:600;color:var(--text-3);line-height:1.55">Once ${noun} join with your code, this screen becomes your command center: today's ${bookWord} score, who's on standard, who needs a nudge, and every meal as it's logged.</div>

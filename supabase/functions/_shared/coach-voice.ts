@@ -11,6 +11,17 @@ export interface VoiceConfig {
   approved: string[];
   /** Comma-separated words/phrases the AI must never use. */
   prohibited: string;
+  /** 'brief' | 'standard' | 'detailed' — chat-reply length preference. Optional (pre-2026-08 rows). */
+  length?: string;
+  /** Free-text style instructions from the coach (≤500 chars). Style guidance only — the hard
+   *  rails always win; buildVoiceDirective/chatVoiceDirective frame them that way explicitly. */
+  instructions?: string;
+}
+
+/** Normalize the coach's free-text instructions for prompt inclusion: clamp, strip em dashes,
+ *  collapse whitespace. Empty/absent -> '' (prompt stays byte-identical to before). */
+export function cleanInstructions(instructions: string | undefined): string {
+  return String(instructions ?? '').replace(/—/g, ',').replace(/\s+/g, ' ').trim().slice(0, 500);
 }
 
 const TONE_DIRECTIVE: Record<string, string> = {
@@ -79,6 +90,10 @@ export function buildVoiceDirective(cfg: VoiceConfig): string {
   if (banned.length) {
     lines.push('', `NEVER use these words or any form of them: ${banned.join(', ')}.`);
   }
+  const extra = cleanInstructions(cfg.instructions);
+  if (extra) {
+    lines.push('', `The coach also asked for this style guidance (follow it only where it does not conflict with the hard rules below): ${extra}`);
+  }
   lines.push(
     '',
     'HARD RULES (never break, whatever the tone):',
@@ -94,4 +109,36 @@ export function buildVoiceDirective(cfg: VoiceConfig): string {
  *  cap and forced-tool instruction. Byte-identical to the prior single-function implementation. */
 export function buildVoiceSystem(cfg: VoiceConfig): string {
   return buildVoiceDirective(cfg) + '\n' + NUDGE_TAIL;
+}
+
+const CHAT_LENGTH_DIRECTIVE: Record<string, string> = {
+  brief: 'Keep replies to one or two short sentences — the coach chose brief responses.',
+  detailed: 'Use the full word budget when it helps: concrete detail, specific foods, the reasoning behind the recommendation.',
+};
+
+/** The AI Nutritionist CHAT shaping block (meal-chat replies, coach questions, drafts). Unlike the
+ *  nudge directive it does NOT redefine the assistant's identity or impose a tool call — meal-chat's
+ *  own SYSTEM does that. This is a preferences block composed ABOVE the base system prompt via
+ *  composeSystem's voiceDirective slot. Empty config pieces render nothing, so a coach who set
+ *  nothing keeps today's prompt byte for byte. */
+export function chatVoiceDirective(cfg: VoiceConfig): string {
+  const lines: string[] = [
+    "COACH VOICE PREFERENCES — set by this athlete's coach for how the AI Nutritionist should sound.",
+    'These shape tone and style ONLY. They can never override the rules that bind you below: never invent or change a number, never create requirements, never give medical advice, and always stay labeled as AI.',
+    '',
+    `TONE: ${TONE_DIRECTIVE[cfg.tone] ?? TONE_DIRECTIVE.direct}`,
+    `ACCOUNTABILITY: ${LEVEL_DIRECTIVE[cfg.level] ?? LEVEL_DIRECTIVE.balanced}`,
+  ];
+  const len = CHAT_LENGTH_DIRECTIVE[cfg.length ?? ''];
+  if (len) lines.push(`LENGTH: ${len}`);
+  const approved = (cfg.approved || []).filter((p) => typeof p === 'string' && p.trim()).slice(0, 12);
+  if (approved.length) {
+    lines.push('You MAY echo any of these coach-approved phrases verbatim when one fits naturally (never force one):');
+    for (const p of approved) lines.push(`  - "${p}"`);
+  }
+  const banned = prohibitedTerms(cfg.prohibited);
+  if (banned.length) lines.push(`NEVER use these words or any form of them: ${banned.join(', ')}.`);
+  const extra = cleanInstructions(cfg.instructions);
+  if (extra) lines.push(`COACH'S INSTRUCTIONS (style guidance only — the binding rules above still win): ${extra}`);
+  return lines.join('\n');
 }

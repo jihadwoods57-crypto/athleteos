@@ -263,26 +263,32 @@
 .co-bottom { height: var(--s8); }
 
 /* ============================================================
-   Standards editor (coachPlanSet) — premium module redesign
-   Built entirely on design tokens so it adapts to light/dark.
+   Standards editor (coachPlanSet) — calm, de-boxed (2026-08-06)
+   It used to be boxes in boxes: bordered module cards holding
+   bordered chips, bordered inputs, bordered segs — the founder
+   called it "way too boxy, hard to look at." Now: flat sections
+   on the canvas separated by rhythm and a slim head, controls as
+   borderless filled pills, and ONE framed card kept on purpose —
+   the green "what the athlete sees" payoff, which earns it.
+   Behavior, markup, and every knob are untouched; this is CSS.
    ============================================================ */
 .std-wrap { padding-bottom:24px; }
 
 /* Live summary of the current standard, under the header */
-.std-summary { display:flex; flex-wrap:wrap; gap:8px; margin:2px 0 18px; }
-.std-sum { display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 12px;
-  border-radius:var(--r-pill); background:var(--surface-2); border:1px solid var(--hairline);
-  color:var(--text-2); font-size:12px; font-weight:700; }
-.std-sum svg { opacity:.9; }
+.std-summary { display:flex; flex-wrap:wrap; gap:6px; margin:2px 0 24px; }
+.std-sum { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 11px;
+  border-radius:var(--r-pill); background:var(--surface-2);
+  color:var(--text-2); font-size:11.5px; font-weight:700; }
+.std-sum svg { opacity:.8; }
 .std-sum b { color:var(--text); font-weight:800; }
 
-/* Module card */
-.std-mod { background:var(--surface-1); border:1px solid var(--hairline); border-radius:var(--r-card);
-  padding:16px 16px 18px; margin-bottom:14px; box-shadow:var(--sh-card); }
-.std-mod-head { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
-.std-mod-ic { width:37px; height:37px; border-radius:var(--r-chip); display:grid; place-items:center; flex:0 0 auto; }
+/* Module: a flat section, not a card. Separation is space + the head, never a frame. */
+.std-mod { padding:0; margin-bottom:32px; }
+.std-mod-head { display:flex; align-items:center; gap:11px; margin-bottom:14px; }
+.std-mod-ic { width:30px; height:30px; border-radius:9px; display:grid; place-items:center; flex:0 0 auto; }
+.std-mod-ic svg { width:15px; height:15px; }
 .std-mod-tt { min-width:0; }
-.std-mod-t { font-size:14.5px; font-weight:800; letter-spacing:var(--title-tight); line-height:1.15; }
+.std-mod-t { font-size:15px; font-weight:800; letter-spacing:var(--title-tight); line-height:1.15; }
 .std-mod-s { font-size:11.5px; font-weight:600; color:var(--text-3); margin-top:2px; line-height:1.35; }
 .std-mod-val { margin-left:auto; align-self:center; font-size:13px; font-weight:800; color:var(--text-2);
   font-variant-numeric:tabular-nums; white-space:nowrap; }
@@ -298,18 +304,18 @@
 .std-lbl.mt { margin-top:18px; }
 .std-help { font-size:11.5px; font-weight:600; color:var(--text-3); line-height:1.45; margin:10px 2px 0; }
 
-/* Chips */
+/* Chips — borderless filled pills; selection is a tint, not a ring-plus-glow. The transparent
+   resting border keeps the on-state border from shifting layout by a pixel. */
 .std-chips { display:flex; flex-wrap:wrap; gap:8px; }
 .std-chip { min-width:44px; min-height:42px; padding:0 16px; display:inline-flex; align-items:center;
   justify-content:center; border-radius:var(--r-chip); background:var(--surface-2);
-  border:1px solid var(--hairline); color:var(--text-2); font-size:13.5px; font-weight:700;
+  border:1px solid transparent; color:var(--text-2); font-size:13.5px; font-weight:700;
   cursor:pointer; user-select:none;
   transition: background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out),
-    color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out); }
+    color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out); }
 .std-chip:active { transform: scale(.95); }
-.std-chip.on { background:var(--blue-surface); border-color:var(--blue-border); color:var(--text);
-  box-shadow: 0 0 0 1px var(--blue-border) inset, var(--sh-blue); }
-.std-chip.dashed { border-style:dashed; color:var(--text-3); background:transparent; }
+.std-chip.on { background:var(--blue-surface); border-color:var(--blue-border); color:var(--text); }
+.std-chip.dashed { border:1px dashed var(--hairline); color:var(--text-3); background:transparent; }
 
 /* Circular meal-count chips */
 .std-count { display:flex; gap:8px; justify-content:space-between; }
@@ -318,8 +324,8 @@
 
 /* Segmented multi-choice (late policy, effective-from) */
 /* unified with athlete .seg: pill track, 44px buttons (a11y floor), surface-3 on-state */
-.std-seg { display:flex; gap:4px; padding:4px; background:var(--surface-1);
-  border:1px solid var(--hairline); border-radius:var(--r-pill); }
+.std-seg { display:flex; gap:4px; padding:4px; background:var(--surface-2);
+  border-radius:var(--r-pill); }
 .std-seg button { flex:1; min-height:44px; border:none; background:transparent; color:var(--text-2);
   font:700 13px var(--font); border-radius:var(--r-pill); cursor:pointer;
   transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out); }
@@ -335,7 +341,7 @@
 .std-sw-t { font-size:13.5px; font-weight:700; }
 .std-sw-s { font-size:11.5px; font-weight:600; color:var(--text-3); margin-top:2px; line-height:1.35; }
 .std-switch { flex:0 0 auto; width:50px; height:30px; border-radius:var(--r-pill); background:var(--surface-3);
-  border:1px solid var(--hairline); position:relative; cursor:pointer;
+  border:1px solid transparent; position:relative; cursor:pointer;
   transition: background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out); }
 .std-switch::after { content:""; position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:50%;
   background:var(--text-3); transition: transform var(--dur-2) var(--ease-out), background var(--dur-1) var(--ease-out); }
@@ -346,28 +352,28 @@
 .std-meal-card { display:flex; flex-direction:column; gap:8px; padding:12px 0; border-top:1px solid var(--hairline-soft); }
 .std-meal-card:first-child { border-top:none; padding-top:2px; }
 .std-meal { display:flex; align-items:center; gap:8px; }
-.std-name { flex:1; min-width:0; box-sizing:border-box; background:var(--surface-2); border:1px solid var(--hairline);
+.std-name { flex:1; min-width:0; box-sizing:border-box; background:var(--surface-2); border:1px solid transparent;
   border-radius:var(--r-chip); padding:10px 12px; color:var(--text); font:700 14px var(--font); }
 .std-name:focus { outline:none; border-color:var(--blue-border); background:var(--surface-3); }
 /* Per-meal proof pill: photo (default, green) vs tap-to-check (neutral) */
 .std-proof-pill { flex:0 0 auto; display:inline-flex; align-items:center; gap:6px; min-height:40px; padding:0 12px;
-  border-radius:var(--r-chip); border:1px solid var(--green-border); background:var(--green-surface); color:var(--green-bright);
+  border-radius:var(--r-chip); border:1px solid transparent; background:var(--green-surface); color:var(--green-bright);
   font:800 12px var(--font); cursor:pointer; white-space:nowrap; }
-.std-proof-pill.check { border-color:var(--hairline); background:var(--surface-2); color:var(--text-2); }
+.std-proof-pill.check { background:var(--surface-2); color:var(--text-2); }
 .std-proof-pill:active { transform:scale(.96); }
 .std-proof-pill svg { display:block; }
 /* Small chips shared by per-meal day-type and weigh weekdays */
 .std-daytype, .std-weighdays { display:flex; flex-wrap:wrap; gap:6px; }
 .std-weighdays { margin-top:8px; }
 .std-daychip { min-height:34px; padding:0 12px; display:inline-flex; align-items:center; justify-content:center;
-  border-radius:var(--r-chip); border:1px solid var(--hairline); background:var(--surface-2); color:var(--text-3);
+  border-radius:var(--r-chip); border:1px solid transparent; background:var(--surface-2); color:var(--text-3);
   font:800 12px var(--font); cursor:pointer; user-select:none; }
 .std-daychip.on { background:var(--blue-surface); border-color:var(--blue-border); color:var(--blue-bright); }
 .std-daychip:active { transform:scale(.95); }
 .std-meal-times { display:flex; align-items:center; gap:8px; }
 .std-tlabel { font-size:10.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
   color:var(--text-3); flex:0 0 auto; }
-.std-time { flex:1; min-width:0; box-sizing:border-box; background:var(--surface-3); border:1px solid var(--hairline);
+.std-time { flex:1; min-width:0; box-sizing:border-box; background:var(--surface-2); border:1px solid transparent;
   border-radius:var(--r-chip); color:var(--text); font:700 13px var(--font); font-variant-numeric:tabular-nums;
   padding:10px 10px; min-height:40px; }
 .std-time:focus { outline:none; border-color:var(--blue-border); }

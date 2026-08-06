@@ -486,7 +486,7 @@ export const coachPlan = {
       <section class="card" style="padding:6px 16px">
         <div class="lrow" data-go="coach-voice">
           <div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div>
-          <div class="lm"><div class="lt">AI in your voice</div><div class="ls">${RT.coachVoice ? 'Reinforces your rulings, never invents' : 'Set the tone the AI reinforces'}</div></div>
+          <div class="lm"><div class="lt">AI Nutritionist</div><div class="ls">${RT.coachVoice ? 'Tuned to your voice — never invents' : 'Set the tone the AI reinforces'}</div></div>
           <span class="status-pill ${RT.coachVoice && RT.coachVoice.enabled !== false ? 'g' : 'muted'}">${RT.coachVoice && RT.coachVoice.enabled !== false ? 'On' : 'Off'}</span>
           ${icon('chevron', 17, 'style="color:var(--text-3);margin-left:8px"')}
         </div>
@@ -1131,7 +1131,7 @@ export const coachPlanSet = {
       </section>
 
       <div class="std-save">
-        <button class="btn primary" id="set-save">${icon('check', 19)} Save the ${kind === 'team' ? 'team standard' : `${esc(value)} room standard`}</button>
+        <button class="btn primary" id="set-save">${icon('check', 19)} Save the ${kind === 'team' ? (CD.kind === 'practice' ? 'client standard' : 'team standard') : `${esc(value)} room standard`}</button>
         ${kind !== 'team' && existing ? `<div style="height:9px"></div><button class="btn ghost" id="set-clear">Use the team standard instead</button>` : ''}
         <div class="std-status" id="set-status"></div>
       </div>
@@ -1300,11 +1300,18 @@ export const coachPlanSet = {
       const r = await roles.setTeamRequirements(teamId, kind, value, itemsFromKnobs(KNOB), effDate, CD.kind);
       save.disabled = false;
       if (!r.ok) { say(r.error || 'Could not save — try again.', true); return; }
+      // Read BEFORE marking: was this save the one that completes the setup checklist?
+      const wasSetupOpen = !((RT.coachSetup || {}).standard);
       act.markCoachSetup('standard'); // real "reviewed your standard" signal for the setup checklist
       say(effDate === isoOffset(0) ? 'Saved. This is the standard now.'
         : effDate === isoOffset(1) ? 'Saved. It takes effect tomorrow — today is unchanged.'
         : `Saved. It takes effect ${effDate} — earlier days are unchanged.`);
       await loadSets(true);
+      // First-time setup save (founder, 2026-08-06): finishing the standard used to leave the
+      // coach parked on the editor with only a status line — done should feel done. Back to the
+      // board, where the checklist now shows the step complete. A mid-season edit (step already
+      // done) keeps the stay-and-confirm behavior: the coach may be adjusting several knobs.
+      if (wasSetupOpen) setTimeout(() => { location.hash = CD.kind === 'practice' ? '#trainer' : '#coach-home'; }, 700);
     });
     const clear = root.querySelector('#set-clear');
     if (clear) clear.addEventListener('click', async () => {
@@ -2345,12 +2352,45 @@ const STANCE_LABEL = { supportive: 'Supportive', direct: 'Direct', context: 'Ask
 let MENU_FOR = null;
 /* Which meal mount() last ran for, so arriving at a DIFFERENT thread always starts closed. */
 let MENU_MOUNTED_FOR = null;
+/* Deterministic context for a coach's direct question to the AI Nutritionist (coachAsk) — built
+   from the already-fetched meals row + the loaded thread + any loaded coach targets. Mirrors the
+   athlete side's discipline: numbers are carried, never computed here. Kept comfortably under
+   meal-chat's 8KB context clamp. */
+function coachAskContext(meal) {
+  const ctx = { meal: {} };
+  if (meal) {
+    ctx.meal = {
+      type: meal.type || null,
+      name: (typeof meal.name === 'string' && meal.name.trim()) ? meal.name.trim() : undefined,
+      protein: meal.protein, carbs: meal.carbs, fat: meal.fat, kcal: meal.kcal,
+      fiber: meal.fiber != null ? meal.fiber : undefined,
+      quality: meal.quality != null ? meal.quality : undefined,
+      minutesLate: (typeof meal.minutes_late === 'number') ? meal.minutes_late : undefined,
+      foods: (Array.isArray(meal.detected) ? meal.detected : []).slice(0, 8)
+        .map((f) => (typeof f === 'string' ? f : f && f.name)).filter(Boolean),
+    };
+    if (meal.analysis) ctx.aiRead = String(meal.analysis).slice(0, 400);
+    if (TGT && TGT.athleteId === meal.athlete_id && TGT.targets
+      && (TGT.targets.protein != null || TGT.targets.calories != null)) {
+      ctx.targets = { protein: TGT.targets.protein, calories: TGT.targets.calories };
+    }
+  }
+  const msgs = Array.isArray(MC && MC.comments) ? threadMessages(MC.comments).slice(-6) : [];
+  ctx.thread = msgs.map((c) => ({ role: c.role, text: String(c.text || '').slice(0, 200) }));
+  return ctx;
+}
 export const coachMeal = {
   nav: 'operator', tab: 'roster',
   render({ sub }) {
     const mealId = sub;
     const meal = mealById(mealId);
-    const title = meal ? cap(meal.type || 'Meal') : 'Meal';
+    const slotName = meal ? cap(meal.type || 'Meal') : 'Meal';
+    // The DISH name ("Steak and Eggs") — persisted at log time from the AI read (meals.name).
+    // Only shown when it says more than the slot: early/manual rows store the slot name there,
+    // and "Lunch · Lunch" would be the header restating itself.
+    const dishName = (meal && typeof meal.name === 'string' && meal.name.trim()
+      && meal.name.trim().toLowerCase() !== slotName.toLowerCase()) ? meal.name.trim() : null;
+    const title = dishName || slotName;
     const backTo = (meal && meal.athlete_id) ? `coach-athlete/${meal.athlete_id}` : (RT.authRole === 'trainer' ? 'trainer' : 'coach-home');
     // No ⋯ until the thread is up: every action behind it needs the loaded meal, and a control
     // that is visible before it can work is worse than one that arrives a beat later.
@@ -2365,10 +2405,13 @@ export const coachMeal = {
     ${head}
 
     ${meal ? `
-    <div class="photo-hero" id="cm-hero" ${meal._url ? 'style="cursor:zoom-in"' : 'style="background:linear-gradient(150deg, rgba(52,211,153,0.14), rgba(37,99,235,0.06))"'}>
-      ${meal._url ? `<img src="${esc(meal._url)}" alt="" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0"/>` : ''}
+    ${/* Aspect-honest hero (founder, 2026-08-06): the WHOLE plate, uncropped, letterboxed over a
+          blurred fill of itself — the coach shouldn't have to open the zoom viewer just to see the
+          edges of the photo. The fixed 210px cover-crop stays for every other surface. */''}
+    <div class="photo-hero${meal._url ? ' full' : ''}" id="cm-hero" ${meal._url ? 'style="cursor:zoom-in"' : 'style="background:linear-gradient(150deg, rgba(52,211,153,0.14), rgba(37,99,235,0.06))"'}>
+      ${meal._url ? `<div class="ph-bg" style="background-image:url('${esc(meal._url)}')" aria-hidden="true"></div><img class="ph-full" src="${esc(meal._url)}" alt=""/>` : ''}
       <div class="ph-grad"></div>
-      <div class="ph-meta"><div><div class="ph-t">${esc(title)}</div><div class="ph-s">${meal.protein != null ? `${meal.protein}g protein` : 'Logged'}${meal.source === 'gallery' ? ' · from gallery' : ''}${meal.source === 'manual' || meal.source === 'label' ? ' · no photo' : ''}</div></div>
+      <div class="ph-meta"><div><div class="ph-t">${esc(title)}</div><div class="ph-s">${dishName ? `${esc(slotName)}` : 'Logged'}${(() => { const c = msgClock(meal.logged_at); return c ? ` · ${c}` : ''; })()}${meal.source === 'gallery' ? ' · from gallery' : ''}${meal.source === 'manual' || meal.source === 'label' ? ' · no photo' : ''}</div></div>
       ${meal.quality != null ? `<div class="scorechip ${(qualityBand(meal.quality) || {}).cls || ''}"><span class="v">${meal.quality}</span><span class="k">Meal</span></div>` : ''}</div>
     </div>
     ${(() => {
@@ -2405,6 +2448,26 @@ export const coachMeal = {
           <div class="rub-fine">Exact items are facts (timing, what the athlete submitted). Estimated items come from the photo read.</div>
         </div>
       </details>`;
+    })()}
+    ${(() => {
+      // The visual macro breakdown (founder, 2026-08-06) — the same "Estimated Nutrition" tiles
+      // the athlete's own screen leads with, from the SAME persisted meals row. Numbers are
+      // rendered, never recomputed; a photo read keeps the honest ~ prefix, label/manual stay
+      // exact — the identical rule meal.js applies.
+      if ([meal.protein, meal.carbs, meal.fat, meal.kcal].every((v) => v == null)) return '';
+      const fromPhoto = meal.source !== 'label' && meal.source !== 'manual';
+      const t = fromPhoto ? '~' : '';
+      const srcLabel = meal.source === 'label' ? 'exact, from the nutrition label'
+        : meal.source === 'manual' ? 'entered by the athlete' : 'estimated from the photo';
+      return `
+      <div class="eyebrow" style="display:flex;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">Estimated Nutrition</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></div>
+      <div class="macro-row four">
+        <div class="macro"><div class="mv">${t}${meal.protein || 0}g</div><div class="mk">Protein</div></div>
+        <div class="macro"><div class="mv">${t}${meal.carbs || 0}g</div><div class="mk">Carbs</div></div>
+        <div class="macro"><div class="mv">${t}${meal.fat || 0}g</div><div class="mk">Fat</div></div>
+        <div class="macro"><div class="mv">${t}${meal.kcal || 0}</div><div class="mk">Calories</div></div>
+      </div>
+      ${meal.fiber != null ? `<div class="est-note" style="margin-top:6px">~${meal.fiber}g fiber estimated.</div>` : ''}`;
     })()}` : ''}
 
     ${foods.length ? `<div class="eyebrow">Detected</div><div class="foodchips">${foods.map(f => `<span class="foodchip"><span class="dot"></span>${esc(typeof f === 'string' ? f : f.name)}</span>`).join('')}</div>` : ''}
@@ -2447,9 +2510,12 @@ export const coachMeal = {
           if (item.type === 'time') return `<div class="tsep">${esc(item.label)}</div>`;
           const c = item.comment;
           // "athlete" styling is reserved for the OTHER side of the conversation; on the coach's
-          // screen the coach's own words are the ones that should sit on the right.
-          const mine = c.author_id === RT.userId;
-          const who = c.author_id === RT.userId ? 'You' : authorName(c, MC.participants || [], RT.userId);
+          // screen the coach's own words are the ones that should sit on the right. An 'ai' row is
+          // NEVER "mine" even when author_id is this coach — author_id records who TRIGGERED the
+          // AI (coachAsk / the old coachSupport), and rendering its answer as the coach's own
+          // right-side bubble would put the AI's words in the coach's mouth.
+          const mine = c.author_id === RT.userId && c.role !== 'ai';
+          const who = mine ? 'You' : authorName(c, MC.participants || [], RT.userId);
           const update = isAnalysisUpdate(c);
           const escalated = isEscalated(c);
           const quoted = update ? quotedFor(c, msgs) : null;
@@ -2512,7 +2578,8 @@ export const coachMeal = {
       <div class="tm-note" id="rx-note">Press and hold any message to react to it.</div>
     </div>`;
     })()}
-    ${composer({ inputId: 'cm-input', sendId: 'cm-send', placeholder: 'Comment on this meal…', sendLabel: 'Send comment', attachId: 'cm-attach' })}
+    ${composer({ inputId: 'cm-input', sendId: 'cm-send', placeholder: 'Comment on this meal…', sendLabel: 'Send comment', attachId: 'cm-attach', aiId: 'cm-ai' })}
+    <div style="font-size:11px;font-weight:600;color:var(--text-3);margin:5px 2px 0">${icon('sparkle', 11)} asks the AI Nutritionist — it always answers you, in the thread.</div>
     <div class="composer-attach-pending" id="cm-attach-pending" hidden></div>
     <div id="cm-note" style="font-size:12.5px;font-weight:600;color:var(--red-bright);margin:6px 2px 0;min-height:16px"></div>
 
@@ -2650,14 +2717,9 @@ export const coachMeal = {
       input.value = '';
       cmAttach.clear();
       roles.nudgePush(athleteId, `${S.athlete.name} commented on your ${meal ? cap(meal.type) : 'meal'}`, text || 'Sent a photo');
-      // AI's one supporting message (2/3/1): best-effort, selective server-side — it only
-      // fires on a substantive coach point, at most once per meal, and never blocks the post.
-      try {
-        await window.sb.functions.invoke('meal-chat', { body: {
-          mealId: sub, coachSupport: true, coachText: text,
-          context: meal ? { meal: { type: meal.type, protein: meal.protein, kcal: meal.kcal, quality: meal.quality } } : { meal: {} },
-        } });
-      } catch { /* skipped or unavailable — the coach's message already landed */ }
+      // The auto-support AI invoke that used to live here is GONE (founder, 2026-08-06): a coach
+      // sending a message got a second, unrequested AI message under it. The AI now speaks for a
+      // coach only when explicitly asked — the sparkle button (coachAsk) below.
       // Log the intervention for Inbox v2's categorizer (Slice D): fire-and-forget, never blocks
       // or breaks the send — the coach's message already landed by this point. reason_key MUST
       // be 'meal:'+sub (the exact convention the categorizer keys on). No-ops on a practice book
@@ -2667,6 +2729,42 @@ export const coachMeal = {
     };
     if (send) send.addEventListener('click', submit);
     if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    // ASK THE AI NUTRITIONIST (founder, 2026-08-06): explicit, and it ALWAYS answers — unlike the
+    // retired auto-support path there is no topic filter and no once-per-meal cap. The typed
+    // question posts to the thread as the coach's own message first, then meal-chat's coachAsk
+    // mode answers the COACH; the reply lands as the unforgeable 'ai' row. The thread refetch is
+    // deliberately deferred until the answer settles, so the "Asking…" status survives (a refetch
+    // repaints the screen and would wipe it mid-wait).
+    const aiBtn = root.querySelector('#cm-ai');
+    if (aiBtn) aiBtn.addEventListener('click', async () => {
+      const text = (input && input.value || '').trim();
+      const note = (msg, neutral) => { if (cmNote) { cmNote.style.color = neutral ? 'var(--text-3)' : 'var(--red-bright)'; cmNote.textContent = msg; } };
+      if (!text) { note('Type your question first, then tap the sparkle.', true); return; }
+      const meal0 = mealById(sub);
+      const athleteId0 = meal0 ? meal0.athlete_id : (MC && MC.comments[0] && MC.comments[0].athlete_id);
+      if (!athleteId0) return;
+      aiBtn.disabled = true;
+      note('Asking the AI Nutritionist…', true);
+      const res = await postChatMessage(roles, { mealId: sub, athleteId: athleteId0, authorId: RT.userId, role: 'coach', text });
+      if (!res.ok) { aiBtn.disabled = false; note("Couldn't send — try again."); return; }
+      if (input) input.value = '';
+      let failMsg = '';
+      try {
+        const { data, error } = await window.sb.functions.invoke('meal-chat', {
+          body: { mealId: sub, coachAsk: true, question: text, context: coachAskContext(meal0) },
+        });
+        if (error || !data || !data.reply) throw new Error('no-reply');
+      } catch {
+        failMsg = "The AI couldn't answer right now — your question was still posted to the thread.";
+      }
+      aiBtn.disabled = false;
+      await loadMealComments(sub, true);
+      if (failMsg) {
+        // The refetch repainted the screen, so the old note element is gone — re-query it.
+        const el = root.querySelector('#cm-note');
+        if (el) { el.style.color = 'var(--red-bright)'; el.textContent = failMsg; }
+      }
+    });
     // Mark resolved (Slice D): logs kind:'handled' so this meal moves to the Resolved category in
     // the coach inbox. Idempotent — a second tap just re-logs (harmless) since the button already
     // reads "Resolved ✓" once it succeeds.

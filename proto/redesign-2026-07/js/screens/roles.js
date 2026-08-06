@@ -1035,6 +1035,7 @@ const CP_SECTIONS = [
   // to Insights — three taps from Home to reach a screen that used to be one.
   { sub: 'analytics',   icon: 'bars',      t: 'Insights',               s: 'Team trends and standard adherence', go: 'coach-insights' },
   { sub: 'preferences', icon: 'bell',      t: 'Preferences',            s: 'Notifications and appearance' },
+  { sub: 'account',     icon: 'key',       t: 'Account',                s: 'Email, password, billing, delete' },
 ];
 function cpNames() {
   // Server-confirmed identity first (S.coachIdentity), onboarding scratch only as a fallback.
@@ -1166,7 +1167,7 @@ function cpProgramBlock() {
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="coach-plan"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Standards</div><div class="ls">Targets, focus, publish updates</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="coach-assign"><div class="lic">${icon('plus', 17)}</div><div class="lm"><div class="lt">Requirement templates</div><div class="ls">What you assign most</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="coach-voice"><div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div><div class="lm"><div class="lt">Coach Voice</div><div class="ls">Tone, phrases, hard limits</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="coach-voice"><div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div><div class="lm"><div class="lt">AI Nutritionist</div><div class="ls">Tone, length, instructions — make it coach like you</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Visibility rules</div><div class="ls">What parents and trainers can see</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
     </section>`;
 }
@@ -1192,6 +1193,59 @@ function cpSignOut() {
     </section>`;
 }
 
+/* Account section shared by the coach and trainer profiles (founder, 2026-08-06: "I'm missing
+   actual account settings"). Billing and delete-account screens already existed for every role
+   (roleNav-guarded) — operators just had no front door to them. Plus the two account facts that
+   had no operator surface at all: the signed-in email, and changing the password (via the
+   standard reset email — the same neutral, anti-enumeration flow sign-in uses). */
+function operatorAccountSection() {
+  return `
+    <div class="eyebrow">Account</div>
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" style="cursor:default">
+        <div class="lic">${icon('mail', 17)}</div>
+        <div class="lm"><div class="lt">Signed in as</div><div class="ls">${esc(RT.email || 'Email unavailable — sign in again to refresh')}</div></div>
+        ${RT.emailVerified === true ? '<span class="status-pill g">Verified</span>' : ''}
+      </div>
+      <div class="lrow" id="acct-pass" role="button" tabindex="0">
+        <div class="lic">${icon('lock', 17)}</div>
+        <div class="lm"><div class="lt">Change password</div><div class="ls" id="acct-pass-note">We email you a secure reset link</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+      <div class="lrow" data-go="billing">
+        <div class="lic">${icon('bars', 17)}</div>
+        <div class="lm"><div class="lt">Plan &amp; billing</div><div class="ls">Your subscription and invoices</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+      <div class="lrow" data-go="privacy">
+        <div class="lic">${icon('shield', 17)}</div>
+        <div class="lm"><div class="lt">Privacy &amp; your data</div><div class="ls">Who sees what · download your data</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+      <div class="lrow" data-go="delete-account">
+        <div class="lic" style="color:var(--red)">${icon('x', 17)}</div>
+        <div class="lm"><div class="lt" style="color:var(--red)">Delete account</div><div class="ls">Permanent — everything goes</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+    </section>`;
+}
+function wireOperatorAccount(root) {
+  const row = root.querySelector('#acct-pass');
+  if (!row) return;
+  let busy = false;
+  const send = async () => {
+    if (busy) return;
+    busy = true;
+    const note = root.querySelector('#acct-pass-note');
+    if (note) note.textContent = 'Sending…';
+    await act.requestPasswordReset(RT.email || '');
+    if (note) note.textContent = RT.email ? `Reset link sent to ${RT.email} — check your inbox.` : 'Could not find your email — sign in again first.';
+    busy = false;
+  };
+  row.addEventListener('click', send);
+  row.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); send(); } });
+}
+
 export const coachProfile = {
   nav: 'coach', tab: 'profile',
   render({ sub } = {}) {
@@ -1206,6 +1260,7 @@ export const coachProfile = {
     if (alias === 'program')     return `${back('Program', 'Standards, templates, and voice')}${cpProgramBlock()}<div style="height:10px"></div>`;
     if (alias === 'analytics')   return `${back('Analytics', 'What the numbers say')}${cpAnalyticsBlock()}<div style="height:10px"></div>`;
     if (alias === 'preferences') return `${back('Preferences', 'Notifications and appearance')}${cpPrefsBlock()}<div style="height:10px"></div>`;
+    if (alias === 'account')     return `${back('Account', 'Email, password, billing, delete')}${operatorAccountSection()}<div style="height:10px"></div>`;
     // Root: identity + a scannable section menu + sign out — never the old wall of settings.
     return `
     ${titleHead('Coach Profile', 'You, your team, your code')}
@@ -1229,6 +1284,7 @@ export const coachProfile = {
     // querySelector-null-guarded / forEach-over-empty), so it wires only the current section's
     // controls. Staff data is fetched only when the staff section is showing.
     if (sub === 'staff') loadStaff(RT.team && RT.team.id);
+    wireOperatorAccount(root); // Account section (self-guarding: no-ops unless its rows rendered)
     const sStatus = root.querySelector('#staff-status');
     const sSay = (msg, isErr) => { if (sStatus) { sStatus.style.color = isErr ? 'var(--red)' : 'var(--text-3)'; sStatus.textContent = msg; } };
     root.querySelectorAll('[data-staff-invite]').forEach(b => b.addEventListener('click', async () => {
@@ -1456,10 +1512,13 @@ export const trainerProfile = {
         <div class="lm"><div class="lt">Default client standard</div><div class="ls">Meals, windows, and check-ins — applied to every client</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
+      <div class="lrow" data-go="coach-voice"><div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div><div class="lm"><div class="lt">AI Nutritionist</div><div class="ls">Tone, length, instructions — make it coach like you</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="coach-notif-settings"><div class="lic">${icon('bell', 17)}</div><div class="lm"><div class="lt">Notifications</div><div class="ls">Briefings, alerts, quiet hours</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="settings"><div class="lic">${icon('moon', 17)}</div><div class="lm"><div class="lt">Appearance &amp; preferences</div><div class="ls">Light / dark, units, reminders</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Your visibility scope</div><div class="ls">Recovery, readiness, consistency only</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
     </section>
+
+    ${operatorAccountSection()}
 
     <div class="eyebrow">Coming to Practice HQ</div>
     <section class="card" style="padding:16px 18px">
@@ -1486,6 +1545,7 @@ export const trainerProfile = {
   },
   mount(root) {
     const ti = S.trainerIdentity;
+    wireOperatorAccount(root); // Account section (email / password / billing / delete)
     const copy = root.querySelector('#copy-code');
     if (copy) copy.addEventListener('click', async () => {
       try { await navigator.clipboard.writeText(ti.code || ''); } catch { /* no-op */ }

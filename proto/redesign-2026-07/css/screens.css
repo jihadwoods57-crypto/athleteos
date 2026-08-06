@@ -166,6 +166,18 @@
 .photo-hero .ph-meta { position: absolute; left: 16px; bottom: 14px; right: 16px; display:flex; align-items:flex-end; justify-content:space-between; }
 .photo-hero .ph-t { font-size: 19px; font-weight: 800; }
 .photo-hero .ph-s { font-size: 12.5px; font-weight: 700; color: var(--green-bright); margin-top:2px; }
+/* Aspect-honest hero (coach meal review): the WHOLE plate, uncropped, letterboxed over a blurred
+   fill of itself so the card stays composed at any aspect ratio. The fixed 210px cover-crop above
+   stays for every other surface. */
+.photo-hero.full { height: auto; min-height: 180px; }
+.photo-hero.full .ph-bg {
+  position: absolute; inset: -28px; background-size: cover; background-position: center;
+  filter: blur(26px) saturate(1.15); opacity: 0.6; transform: scale(1.12);
+}
+.photo-hero.full img.ph-full {
+  position: relative; display: block; width: 100%; height: auto; max-height: 420px;
+  object-fit: contain; margin: 0 auto;
+}
 .scorechip {
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   width: 62px; height: 62px; border-radius: 50%; position: relative;
@@ -424,6 +436,18 @@
 .composer .attach:hover { color: var(--text); background: var(--surface-3, var(--surface-2)); }
 .composer .attach.on { color: var(--blue-bright); border-color: var(--blue-border, var(--hairline)); background: var(--blue-surface); }
 .composer .attach:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
+/* Ask-the-AI sparkle (coach meal thread): the same quiet-sibling treatment as attach, tinted the
+   AI's purple so it reads as "this goes to the AI Nutritionist", not a second send. Opt-in via
+   composer({aiId}). */
+.composer .ai-ask {
+  width: 48px; height: 48px; border-radius: 50%; background: rgba(168,85,247,0.12);
+  display:grid; place-items:center; color: var(--purple-bright); cursor:pointer; flex:none;
+  border: 1px solid rgba(168,85,247,0.35); padding:0; margin:0; font-family: var(--font);
+  -webkit-appearance: none; appearance: none; transition: color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
+}
+.composer .ai-ask:hover { background: rgba(168,85,247,0.2); }
+.composer .ai-ask:disabled { opacity: 0.55; cursor: default; }
+.composer .ai-ask:focus-visible { outline: 2px solid var(--purple-bright); outline-offset: 2px; }
 /* `.composer input` above sets flex:1 — the hidden file input is an <input> too, so pin it out of
    the layout explicitly rather than relying on the UA stylesheet's [hidden] winning. */
 .composer input[type="file"] { display: none !important; }

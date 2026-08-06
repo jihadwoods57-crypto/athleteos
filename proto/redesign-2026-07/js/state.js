@@ -1716,12 +1716,18 @@ export const act = {
   setCoachVoice(patch) {
     RT.coachVoice = { ...(RT.coachVoice || {}), ...(patch || {}) };
     save();
-    // Best-effort server sync (0094) — local RT stays the fast path; a missing table or offline no-ops.
+    // Best-effort server sync — local RT stays the fast path; a missing table or offline no-ops.
+    // A coach's config lands on their team row (0094); a trainer's on their practice row (0187) —
+    // before 0187 a trainer's edits saved locally and the server never heard about them, so the
+    // AI Nutritionist page silently did nothing for a practice.
     try {
+      const payload = { enabled: RT.coachVoice.enabled !== false, config: RT.coachVoice, updated_by: RT.userId || null, updated_at: new Date().toISOString() };
       if (window.sb && RT.team && RT.team.id) {
         void window.sb.from('coach_voice_config').upsert(
-          { team_id: RT.team.id, enabled: RT.coachVoice.enabled !== false, config: RT.coachVoice, updated_by: RT.userId || null, updated_at: new Date().toISOString() },
-          { onConflict: 'team_id' });
+          { team_id: RT.team.id, ...payload }, { onConflict: 'team_id' });
+      } else if (window.sb && RT.practice && RT.practice.id) {
+        void window.sb.from('practice_voice_config').upsert(
+          { practice_id: RT.practice.id, ...payload }, { onConflict: 'practice_id' });
       }
     } catch { /* best-effort */ }
   },
