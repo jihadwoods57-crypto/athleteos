@@ -32,9 +32,10 @@ async function load(force) {
 }
 
 function field(id, label, value, placeholder, textarea) {
-  return `<label class="tg-l">${label}</label>${textarea
-    ? `<textarea id="${id}" placeholder="${esc(placeholder)}">${esc(value || '')}</textarea>`
-    : `<input id="${id}" value="${esc(value || '')}" placeholder="${esc(placeholder)}">`}`;
+  const labelHtml = `<label for="${id}" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin:14px 0 6px">${label}</label>`;
+  return textarea
+    ? `${labelHtml}<textarea id="${id}" placeholder="${esc(placeholder)}" style="width:100%;min-height:84px;border-radius:var(--r-card-sm);background:var(--surface-1);border:1.5px solid var(--hairline);color:var(--text);font-family:var(--font);font-size:15px;padding:12px 14px;outline:none;resize:vertical">${esc(value || '')}</textarea>`
+    : `${labelHtml}<input id="${id}" class="ob-input" value="${esc(value || '')}" placeholder="${esc(placeholder)}">`;
 }
 
 function editableForm(a) {
@@ -50,8 +51,8 @@ function editableForm(a) {
       ${field('ca-style', 'Coaching style, comma-separated', a && a.style, 'direct, encouraging, structured')}
       ${field('ca-langs', 'Languages, comma-separated', (a && a.languages || []).join(', '), 'English, Spanish')}
       ${field('ca-tz', 'Time zone', a && a.timezone, 'America/New_York')}
-      <label class="tg-l">Client capacity (how many you can genuinely serve)</label>
-      <input id="ca-cap" type="number" min="1" max="100" value="${esc(String((a && a.capacity) || 10))}">
+      <label for="ca-cap" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin:14px 0 6px">Client capacity (how many you can genuinely serve)</label>
+      <input id="ca-cap" class="ob-input" type="number" min="1" max="100" value="${esc(String((a && a.capacity) || 10))}">
     </section>
 
     <div class="eyebrow">What you're applying as</div>
@@ -150,8 +151,12 @@ export default {
       const cats = new Set((G.app && G.app.categories) || ['accountability']);
       if (cats.has(key)) cats.delete(key); else cats.add(key);
       cats.add('accountability');
-      // keep what's typed: the form repaints from G.app, so fold the live field values in first
-      G.app = { ...(G.app || {}), ...collect(), categories: [...cats] };
+      // keep what's typed: the form repaints from G.app, so fold the live field values in first.
+      // collect() has no `status` field — without pinning it explicitly, a brand-new (never-saved)
+      // application goes from G.app===null (editable) to a status-less object, and render()'s
+      // `!a || a.status==='draft'` check reads that as NOT editable, flipping the screen to the
+      // "submitted" status view before the applicant ever saved anything.
+      G.app = { ...(G.app || {}), ...collect(), status: (G.app && G.app.status) || 'draft', categories: [...cats] };
       if (window.__render) window.__render();
     }));
     root.querySelectorAll('[data-ca-upload]').forEach((btn) => btn.addEventListener('click', async (e) => {

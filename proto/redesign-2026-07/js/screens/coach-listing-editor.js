@@ -31,6 +31,14 @@ async function load(force) {
   if (window.__render) window.__render();
 }
 
+function field(id, label, value, placeholder, textarea, numeric) {
+  const labelHtml = `<label for="${id}" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin:14px 0 6px">${label}</label>`;
+  if (textarea) {
+    return `${labelHtml}<textarea id="${id}" placeholder="${esc(placeholder || '')}" style="width:100%;min-height:84px;border-radius:var(--r-card-sm);background:var(--surface-1);border:1.5px solid var(--hairline);color:var(--text);font-family:var(--font);font-size:15px;padding:12px 14px;outline:none;resize:vertical">${esc(value || '')}</textarea>`;
+  }
+  return `${labelHtml}<input id="${id}" class="ob-input" type="${numeric ? 'number' : 'text'}" ${numeric ? 'min="1" max="100"' : ''} value="${esc(value || '')}" placeholder="${esc(placeholder || '')}">`;
+}
+
 function bounds(tier) {
   const b = (G.flags && G.flags.tier_bounds && G.flags.tier_bounds[tier]) || {};
   return { min: (b.min_cents ?? 0) / 100, max: (b.max_cents ?? 99900) / 100 };
@@ -54,19 +62,19 @@ export default {
     }
     return `${backHead('Your listing', l.published ? 'Live in the directory' : 'Draft — publish when ready', 'profile')}
 
-    <section class="card tg-page" style="padding:16px">
+    <section class="card" style="padding:16px">
       <div class="lrow" style="cursor:default;padding:0 0 10px">
         <div class="lm"><div class="lt">Directory listing</div>
           <div class="ls">${l.published ? 'Clients can find and hire you' : 'Hidden until you publish'}</div></div>
         <span class="status-pill" style="background:${l.published ? 'var(--green-surface)' : 'var(--surface-2)'};color:${l.published ? 'var(--green-bright)' : 'var(--text-3)'}">${l.published ? 'Published' : 'Draft'}</span>
       </div>
-      <label class="tg-l">Coaching name</label><input id="cle-name" value="${esc(l.display_name || '')}">
-      <label class="tg-l">Headline (one line that sells the work)</label><input id="cle-head" value="${esc(l.headline || '')}" placeholder="I make your standard non-negotiable.">
-      <label class="tg-l">About you</label><textarea id="cle-bio">${esc(l.bio || '')}</textarea>
-      <label class="tg-l">Style tags, comma-separated</label><input id="cle-style" value="${esc((l.style_tags || []).join(', '))}" placeholder="direct, encouraging, structured">
-      <label class="tg-l">Languages, comma-separated</label><input id="cle-langs" value="${esc((l.languages || []).join(', '))}">
-      <label class="tg-l">Time zone</label><input id="cle-tz" value="${esc(l.timezone || '')}">
-      <label class="tg-l">Client capacity</label><input id="cle-cap" type="number" min="1" max="100" value="${esc(String(l.capacity || 10))}">
+      ${field('cle-name', 'Coaching name', l.display_name)}
+      ${field('cle-head', 'Headline (one line that sells the work)', l.headline, 'I make your standard non-negotiable.')}
+      ${field('cle-bio', 'About you', l.bio, '', true)}
+      ${field('cle-style', 'Style tags, comma-separated', (l.style_tags || []).join(', '), 'direct, encouraging, structured')}
+      ${field('cle-langs', 'Languages, comma-separated', (l.languages || []).join(', '))}
+      ${field('cle-tz', 'Time zone', l.timezone)}
+      ${field('cle-cap', 'Client capacity', l.capacity || 10, '', false, true)}
     </section>
 
     <div class="eyebrow">Your plans — monthly pricing</div>
@@ -79,9 +87,10 @@ export default {
         <div class="ls">${t.sub} · $${b.min}–$${b.max}/mo</div>
         <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
           <span style="font-weight:800;color:var(--text-2)">$</span>
-          <input id="cle-price-${t.key}" type="number" min="${b.min}" max="${b.max}" step="1"
+          <input id="cle-price-${t.key}" class="ob-input" type="number" min="${b.min}" max="${b.max}" step="1"
             value="${G.prices[t.key] != null ? esc(String(G.prices[t.key])) : ''}" placeholder="e.g. ${Math.round((b.min + b.max) / 2)}"
-            style="width:110px">
+            style="width:110px;height:44px">
+
           <span class="ls">/ month</span>
         </div>
       </div>`; }).join('')}
@@ -118,12 +127,15 @@ export default {
     });
     const save = async (publish) => {
       if (UI.saving) return;
+      // Read every field BEFORE flipping UI.saving — window.__render() below re-runs mount()
+      // against a fresh render of G/UI, which repaints these inputs from G.prices (still stale
+      // at this point) and silently discards whatever the coach just typed but never saved.
+      const patch = collectPatch();
+      const prices = collectPrices();
+      if (publish != null) patch.published = publish;
       UI.saving = true; UI.err = ''; UI.msg = '';
       if (window.__render) window.__render();
-      const patch = collectPatch();
-      if (publish != null) patch.published = publish;
       const r1 = await roles.updateMyListing(patch);
-      const prices = collectPrices();
       const r2 = Object.keys(prices).length ? await roles.setListingTierPrices(prices) : { ok: true };
       UI.saving = false;
       if (r1 && r1.error) UI.err = r1.error;

@@ -15,13 +15,20 @@ const PRICE_STEPS = [
   { label: 'Under $350/mo', cents: 34999 },
 ];
 
-let CACHE = { list: null, error: false, key: '' };
+let CACHE = { list: null, error: false, key: '', loading: false };
 let UI = { category: null, priceIdx: 0 };
 
 async function load(force) {
   const key = `${UI.category || ''}|${UI.priceIdx}`;
-  if (CACHE.key === key && CACHE.list && !force) return;
-  CACHE = { list: null, error: false, key };
+  // `loading` (not just `list`) must gate re-entry: mount() calls load() unconditionally, and
+  // window.__render() below re-runs mount() SYNCHRONOUSLY (render.js:355) — before this async
+  // function has awaited anything. Guarding on `list` alone leaves a window where list is still
+  // null and the key already matches, so the re-entrant load() call passes the guard, fires
+  // another synchronous render(), which mounts again, which loads again — an unbounded
+  // synchronous recursion that stack-overflows and crashes the tab before a single network
+  // response ever lands.
+  if (CACHE.key === key && (CACHE.list || CACHE.loading) && !force) return;
+  CACHE = { list: null, error: false, key, loading: true };
   if (window.__render) window.__render();
   try {
     const list = await roles.fetchMarketplaceDirectory({
@@ -32,6 +39,7 @@ async function load(force) {
   } catch {
     CACHE.error = true;
   }
+  CACHE.loading = false;
   if (window.__render) window.__render();
 }
 
