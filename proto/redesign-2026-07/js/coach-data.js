@@ -33,7 +33,7 @@ export function governingPlanStyle(row) {
 /* The position value a roster row resolves its standard against: the athlete's ASSIGNED room label
    (0101) when set, else their raw position. Unassigned (every athlete until a coach assigns) → raw
    position, byte-identical to before. */
-function resolvePos(row) {
+export function resolvePos(row) {
   return effectiveRoomLabel(row.roomId, (CD.extras && CD.extras.rooms) || []) || row.position;
 }
 

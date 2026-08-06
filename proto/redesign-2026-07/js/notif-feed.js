@@ -16,8 +16,29 @@ const KIND_META = {
   // The AI's own daily follow-up. Unlike the rows above it, this one IS a task: it opens a
   // conversation and expects a reply, so it deep-links to the meal it is about.
   ai_followup: { icon: 'sparkle', level: 'medium' },
+  // Coach-bound kinds. These existed in the table since their functions shipped but fell to
+  // DEFAULT_META because no coach screen ever rendered the feed — the bell is operator-visible
+  // now, so each one carries its real urgency and, where the row IS a task, its destination.
+  meal_flag: { icon: 'alert', level: 'high' },
+  commitment_escalation: { icon: 'bell', level: 'high' },
+  commitment_reminder: { icon: 'clock', level: 'high' },
+  cs_reminder: { icon: 'clock', level: 'medium' },
 };
 const DEFAULT_META = { icon: 'bell', level: 'medium' };
+
+/* kind → deep link. A server row is a RECORD, not a task, so most kinds deliberately stay
+   route-less; only rows that expect the reader to DO something somewhere specific link there.
+   Suffix-carrying kinds validate against the native deep-link shape — a junk suffix renders as
+   a plain record, never a link into nowhere. */
+const SUFFIX_OK = (s) => !!s && /^[a-z0-9-]{6,64}$/i.test(s);
+const KIND_ROUTE = {
+  ai_followup: (s) => (SUFFIX_OK(s) ? `meal-view/${s}` : null),         // athlete: answer the AI
+  meal_flag: (s) => (SUFFIX_OK(s) ? `coach-meal/${s}` : null),          // coach: review the flagged meal
+  commitment_escalation: (s) => (SUFFIX_OK(s) ? `roll-call/${s}` : null), // coach: who's still out
+  join_approved: () => 'home',
+  join_request: () => 'coach-inbox',                                     // coach: approve/decline lives there
+  digest: () => 'coach-insights',                                        // coach: the full weekly read
+};
 
 /** '2m ago' · '3h ago' · 'Mon' · '' for junk. Compact, feed-style. */
 export function fmtWhen(iso, nowMs) {
@@ -32,13 +53,9 @@ export function fmtWhen(iso, nowMs) {
 }
 
 /** One server row → the bell feed row shape ({level,title,body,when,icon,route,read}).
-    Malformed rows map to null (dropped, never invented).
-
-    Routes are deliberately none/home for most kinds: a server row is a RECORD, not a task, and
-    deep-linking belongs to reminders. `ai_followup` is the exception and the reason `kind` may now
-    carry a suffix (`ai_followup:<mealId>`) — the AI asked the athlete a question, so the row has
-    to be able to open the thread where they can answer it. The suffix rides `kind` because it is
-    free text (0027 has no CHECK), which keeps this a client change with no migration. */
+    Malformed rows map to null (dropped, never invented). Routing doctrine lives on KIND_ROUTE;
+    suffixes ride `kind` (`meal_flag:<mealId>`) because it is free text (0027 has no CHECK),
+    which keeps every new deep-linkable kind a client change with no migration. */
 export function feedRowFromServer(row, nowMs) {
   if (!row || typeof row !== 'object' || !row.title) return null;
   const rawKind = String(row.kind || '');
@@ -51,11 +68,7 @@ export function feedRowFromServer(row, nowMs) {
     title: String(row.title),
     body: String(row.body || ''),
     when: fmtWhen(row.created_at, nowMs),
-    route: baseKind === 'ai_followup'
-      // Only a well-formed id becomes a route — a junk suffix must render as a plain record, never
-      // as a link into nowhere. Shape matches the native deep-link validator.
-      ? (suffix && /^[a-z0-9-]{6,64}$/i.test(suffix) ? `meal-view/${suffix}` : null)
-      : baseKind === 'join_approved' ? 'home' : null,
+    route: KIND_ROUTE[baseKind] ? KIND_ROUTE[baseKind](suffix) : null,
     read: !!row.read_at,
     server: true,
   };

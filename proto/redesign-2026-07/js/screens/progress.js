@@ -203,6 +203,12 @@ export default {
     ${trainingCard()}
 
     <div style="height:10px"></div>
+    ${S.coach.hasCoach && S.coach.kind === 'coach' ? `
+    <div class="sidebox" data-go="squad" style="cursor:pointer">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
+      <div><div class="tt">Squad</div><div class="ts">Your team's board — opt-in, score number only</div></div>
+      ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+    </div>` : ''}
     <div class="sidebox" data-go="monthly-report" style="cursor:pointer">
       <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
       <div><div class="tt" style="display:flex;align-items:center;gap:7px">Monthly report <span class="status-pill b">Premium</span></div><div class="ts">Your month in review</div></div>
@@ -220,9 +226,9 @@ export default {
 
   /* The share card renderer has existed since the premium reports build and only the monthly report
      ever called it, so the DAILY score — the number the whole product is built around — could not
-     leave the app. This is the athlete's own number, shared by their own tap. It does not touch the
-     promise in settings.js that nobody on your team is shown your number: nothing here makes one
-     teammate visible to another. */
+     leave the app. This is the athlete's own number, shared by their own tap. Teammate visibility is
+     separately governed by the Squad board's opt-in (0180): nothing here makes one teammate visible
+     to another. */
   mount(root) {
     // One-line spotlight the first time someone opens Progress — the main tour never covers this
     // screen. Held back until the main tour has been seen, so a new athlete is never spotlighted

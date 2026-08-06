@@ -380,8 +380,14 @@ export function titleHead(title, sub) {
    preferences and SIGN OUT live behind it and nothing else in the app leads there, so it now
    carries a visible edge and a caret badge. Same 40px hit target, same position. */
 export function avatarHead(title, sub, initials) {
+  // The operator bell (2026-08-05): escalations, join requests and digests were landing in the
+  // notifications table with nowhere to surface — the athlete header had a bell, the operator
+  // header had none, so a coach who missed the push missed the message forever. Same affordance,
+  // same badge math as appHead.
+  const n = S.unreadNotifs;
   return `<div class="back-head" style="align-items:center">
     <div style="flex:1;min-width:0"><div class="ht">${esc(title)}</div>${sub ? `<div class="hs">${esc(sub)}</div>` : ''}</div>
+    <div class="iconbtn" data-go="notifications" role="button" aria-label="${n ? `Notifications, ${n} unread` : 'Notifications'}" style="margin-right:10px">${icon('bell', 20)}${n ? `<span class="dot">${n > 9 ? '9+' : n}</span>` : ''}</div>
     <div class="hd-avatar" role="button" tabindex="0" aria-label="Your profile and settings" data-go="${roleProfileRoute()}"
       style="position:relative;width:40px;height:40px;border-radius:50%;background:var(--blue-surface);color:var(--blue-bright);border:1.5px solid var(--blue-border);display:grid;place-items:center;font-size:13px;font-weight:800;letter-spacing:0.02em;flex:none;cursor:pointer">${esc(initials || 'C')}
       <span aria-hidden="true" style="position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:50%;background:var(--surface-3);border:1.5px solid var(--bg);display:grid;place-items:center;color:var(--text-2)">${icon('chevron', 10)}</span>

@@ -11,6 +11,30 @@
 
 function sb() { return window.sb; }
 
+import * as SQ from './sync-queue.js';
+
+/* Who to queue offline work FOR — registered by state.js (the setDayTaskProvider pattern; this
+   module must not import state.js, see header). Unregistered → no queueing, behavior as before. */
+let uidProvider = null;
+export function setVcUidProvider(fn) { uidProvider = typeof fn === 'function' ? fn : null; }
+
+/* A write that could not reach the server becomes a durable queue entry instead of vanishing.
+   Only for RPCs that are safe to replay: ack (server keeps the FIRST response), complete and
+   dispute (server-stamped, window-checked server-side on replay). verify_arrival is deliberately
+   NOT queued — its verdict compares a fix taken NOW against a window; replaying it later would
+   verify the wrong moment. Returns true when queued (callers then patch local optimistically
+   and show the tap as saved-and-syncing, which it is). */
+function queueVcWrite(rpc, instanceId, args) {
+  const uid = uidProvider ? uidProvider() : null;
+  if (!uid) return false;
+  SQ.putJob({ uid, kind: 'rpc', ref: `${rpc}:${instanceId}`, rpc, args, queuedAt: Date.now() });
+  const act = typeof window !== 'undefined' ? window.__act : null;
+  if (act && act._scheduleSyncDrain) act._scheduleSyncDrain();
+  return true;
+}
+const vcRetryable = (errMsg, threw) =>
+  SQ.retryable(errMsg, threw, typeof navigator !== 'undefined' && navigator.onLine === false);
+
 const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 export function todayISO() { return iso(new Date()); }
 export function shiftISO(dateISO, days) {
@@ -88,24 +112,38 @@ export async function loadMineRange(fromISO, toISO) {
  *  keeps the FIRST response, so a slow network can never cost an athlete their real time. */
 export async function ackCommitment(instanceId) {
   const c = sb(); if (!c || !instanceId) return null;
+  // The offline path: the tap is queued durably, the card shows it as answered, and the server
+  // stamps the REAL response time when the queue drains. That later stamp is honest — the server
+  // clock rule above means we never claim the tap time anyway.
+  const queueIt = () => {
+    if (!queueVcWrite('ack_commitment', instanceId, { p_instance: instanceId })) return null;
+    const at = new Date().toISOString();
+    patchLocal(instanceId, { acknowledged_at: at, status: 'acknowledged', pendingSync: true });
+    return at;
+  };
   try {
     const { data, error } = await c.rpc('ack_commitment', { p_instance: instanceId });
-    if (error) return null;
+    if (error) return vcRetryable(error.message, false) ? queueIt() : null;
     patchLocal(instanceId, { acknowledged_at: data, status: 'acknowledged' });
     return data || null;
-  } catch { return null; }
+  } catch { return queueIt(); }
 }
 
 /** "Something wrong?" — the athlete's route to correct a bad verification. */
 export async function disputeResponse(instanceId, note) {
   const c = sb(); if (!c || !instanceId) return false;
+  const args = { p_instance: instanceId, p_note: (note || '').slice(0, 200) };
+  const queueIt = () => {
+    if (!queueVcWrite('dispute_response', instanceId, args)) return false;
+    patchLocal(instanceId, { disputed_at: new Date().toISOString(), pendingSync: true });
+    return true;
+  };
   try {
-    const { error } = await c.rpc('dispute_response', {
-      p_instance: instanceId, p_note: (note || '').slice(0, 200) });
-    if (error) return false;
+    const { error } = await c.rpc('dispute_response', args);
+    if (error) return vcRetryable(error.message, false) ? queueIt() : false;
     patchLocal(instanceId, { disputed_at: new Date().toISOString() });
     return true;
-  } catch { return false; }
+  } catch { return queueIt(); }
 }
 
 /** Slice 2 writes. `within` false records 'unverified' with a reason — NEVER 'missed'. */
@@ -123,13 +161,19 @@ export async function verifyArrival(instanceId, source, within, reason) {
 
 export async function completeCommitment(instanceId, source) {
   const c = sb(); if (!c || !instanceId) return null;
+  const args = { p_instance: instanceId, p_source: source || 'manual' };
+  const queueIt = () => {
+    if (!queueVcWrite('complete_commitment', instanceId, args)) return null;
+    const at = new Date().toISOString();
+    patchLocal(instanceId, { completed_at: at, status: 'completed', pendingSync: true });
+    return at;
+  };
   try {
-    const { data, error } = await c.rpc('complete_commitment', {
-      p_instance: instanceId, p_source: source || 'manual' });
-    if (error) return null;
+    const { data, error } = await c.rpc('complete_commitment', args);
+    if (error) return vcRetryable(error.message, false) ? queueIt() : null;
     patchLocal(instanceId, { completed_at: data, status: 'completed' });
     return data || null;
-  } catch { return null; }
+  } catch { return queueIt(); }
 }
 
 /** Optimistic local patch so the card responds instantly; the next load reconciles from server. */

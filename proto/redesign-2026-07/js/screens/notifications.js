@@ -1,6 +1,8 @@
-import { S } from '../state.js';
+import { S, RT, roleNav } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
+
+const isOperator = () => RT.authRole === 'coach' || RT.authRole === 'trainer';
 
 function notif(n, read) {
   // title/body are built from cross-user text (coach-assigned titles, plan updates, trainer
@@ -17,6 +19,12 @@ function notif(n, read) {
 }
 
 export default {
+  // Per-role nav so the router's guards admit every signed-in role. This screen was always
+  // role-neutral (RLS scopes the rows to the caller) — but its implicit nav:'athlete' meant the
+  // mirror guard bounced a coach to #coach-home, so escalations landed in the table and no coach
+  // could ever see them. The feed itself needs no role branches; only the empty state and the
+  // settings row below differ.
+  get nav() { return roleNav(); },
   tab: 'home',
   async mount() {
     // Pull the server feed (coach nudges, join events, digests) first so THIS visit shows
@@ -52,19 +60,24 @@ export default {
       <div class="ne-t">You're all caught up</div>
       <div class="ne-s">No accountability moments waiting. When something needs you, it lands here first.</div>
       <div class="ne-list">
+        ${isOperator() ? `
+        <div class="ne-item"><span class="ne-d">${icon('alert', 15)}</span> Meals the AI flags for your eyes</div>
+        <div class="ne-item"><span class="ne-d">${icon('users', 15)}</span> Join requests and roll-call escalations</div>
+        <div class="ne-item"><span class="ne-d">${icon('clipboard', 15)}</span> Your weekly team digest</div>` : `
         <div class="ne-item"><span class="ne-d">${icon('utensils', 15)}</span> Meal and weigh-in nudges</div>
         <div class="ne-item"><span class="ne-d">${icon('clipboard', 15)}</span> Requirements your coach adds</div>
-        <div class="ne-item"><span class="ne-d">${icon('flame', 15)}</span> Streak reminders before midnight</div>
+        <div class="ne-item"><span class="ne-d">${icon('flame', 15)}</span> Streak reminders before midnight</div>`}
       </div>
     </div>` : ''}
 
     <div style="height:6px"></div>
+    ${isOperator() ? '' : `
     <div class="sidebox" data-go="notif-settings" style="cursor:pointer">
       <div class="req-icon b" style="width:38px;height:38px">${icon('gear', 17)}</div>
       <div style="flex:1"><div class="tt">Notification settings</div>
       <div class="ts">${S.coach.hasCoach ? `${esc(S.coach.name)} sets urgency per requirement.` : 'Urgency comes with each requirement.'} You set pressure level and quiet hours.</div></div>
       ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-    </div>
+    </div>`}
     <div style="height:10px"></div>
     `;
   },

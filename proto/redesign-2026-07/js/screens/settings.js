@@ -241,18 +241,21 @@ export const privacy = {
       });
     }
     if (S.coach.hasCoach && S.coach.kind === 'coach') {
-      /* Teammates genuinely see NOTHING today: there is no athlete-facing leaderboard and no
-         coach control to enable one (see the note in state.js — the Squad screen is an honest
-         "coming soon" with no backend). This row previously promised "leaderboard score only,
-         when your coach turns the board on", which described a feature that does not exist and
-         understated the athlete's actual privacy. If a board ever ships, change this row IN THE
-         SAME commit that ships it. */
+      /* The Squad board shipped (0180) — this row now tells the truth about it, per the standing
+         note that shipped with the old copy ("change this row IN THE SAME commit"). Default is
+         still nothing: the board shows an athlete only after they flip their own switch, which
+         lives ON the Squad screen where the effect is visible. */
+      const sharing = RT.shareSquadScore === true;
       rows.push({
-        ic: 'grid', t: 'Teammates', pill: 'No access',
-        s: 'Teammates cannot see anything about your day',
+        ic: 'grid', t: 'Teammates', pill: sharing ? 'Score only' : 'No access',
+        s: sharing ? 'Teammates see your score number on the Squad board — nothing else'
+          : 'Teammates cannot see anything about your day',
         detail: [
-          ['Can see', 'Nothing. There is no team feed and no leaderboard — nobody on your team is shown your number.'],
-          ['Cannot see', 'Your score, meals, photos, weight, and check-ins are never visible to teammates.'],
+          ['Can see', sharing
+            ? 'Your name and daily score number on your team’s Squad board. That is the whole disclosure.'
+            : 'Nothing. The Squad board shows teammates who opted in; you haven’t, so you appear only as a private count.'],
+          ['Cannot see', 'Your meals, photos, weight, and check-ins are never visible to teammates, shared or not.'],
+          ['Change it', 'The switch lives on the Squad screen (Progress → Squad), next to what it shows.'],
         ],
       });
     }
@@ -758,7 +761,7 @@ export const deleteAccount = {
 
     <div class="state-demo err-box" style="text-align:left">
       <div class="sd-t">What gets deleted</div>
-      <div class="sd-s">Your account, every meal photo, every log, every score, your coach connection, and your place on any leaderboard. Your coach keeps nothing of yours. This cannot be undone.</div>
+      <div class="sd-s">Your account, every meal photo, every log, every score, your coach connection, and your spot on your team's Squad board. Your coach keeps nothing of yours. This cannot be undone.</div>
     </div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>

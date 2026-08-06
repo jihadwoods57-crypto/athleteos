@@ -2702,6 +2702,75 @@ select _as('ddd77777-0000-0000-0000-00000000a001');
 select _ok((select count(*) from meal_comments where kind = 'note') = 0,
   '0068: private coach notes stay invisible to the athlete after the caps rework');
 
+-- ================================================================ squad board (0180)
+-- The opt-in athlete board. The promise being probed: a teammate who has NOT flipped their own
+-- switch is a nameless count, and nothing but name + daily score ever crosses even when they have.
+select _superuser();
+-- Re-assert the T1 fixture: 4,000 lines of suite have run by now and earlier sections mutate
+-- memberships (leave/remove probes). The board's contract needs two ACTIVE members.
+insert into team_members (team_id, athlete_id, status) values
+  ('77777777-1111-0000-0000-000000000001','aaaaaaaa-0000-0000-0000-000000000001','active'),
+  ('77777777-1111-0000-0000-000000000001','dddddddd-0000-0000-0000-000000000004','active')
+on conflict (team_id, athlete_id) do update set status = 'active';
+update profiles set share_squad_score = false
+  where id in ('aaaaaaaa-0000-0000-0000-000000000001','dddddddd-0000-0000-0000-000000000004');
+-- score 50 under a logged meal slot: within the 0041 evidence ceiling (nutrition unlocks 55),
+-- so the integrity trigger passes it through untouched. A bare 91 with no evidence would be
+-- clamped and the visibility assertion below would be testing the wrong thing. Upsert: earlier
+-- sections may already have given D a row for today.
+insert into days (athlete_id, date, score, meals) values
+  ('dddddddd-0000-0000-0000-000000000004', current_date, 50, '{"breakfast": true}'::jsonb)
+on conflict (athlete_id, date) do update set score = excluded.score, meals = excluded.meals;
+
+-- default off: a teammate appears as an anonymous stub — no name, no position, no score
+select _as('aaaaaaaa-0000-0000-0000-000000000001');
+-- (other suite sections add their own members to T1 — assert OUR two are both present rather
+-- than pinning the total)
+select _ok((select count(*) from squad_board('77777777-1111-0000-0000-000000000001')
+             where athlete_id in ('aaaaaaaa-0000-0000-0000-000000000001','dddddddd-0000-0000-0000-000000000004')) = 2,
+  'squad: every ACTIVE member is on the board (as a row or a stub)');
+select _ok((select athlete_name is null and "position" is null and score is null and not shared
+              from squad_board('77777777-1111-0000-0000-000000000001')
+             where athlete_id = 'dddddddd-0000-0000-0000-000000000004'),
+  'squad: an unshared teammate is a nameless, scoreless stub (default off)');
+select _ok((select count(*) from squad_board('77777777-1111-0000-0000-000000000001')
+             where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001') = 1,
+  'squad: the caller always sees their own row');
+
+-- the switch flips, the number appears — and ONLY the number
+select _superuser();
+update profiles set share_squad_score = true
+  where id = 'dddddddd-0000-0000-0000-000000000004';
+select _as('aaaaaaaa-0000-0000-0000-000000000001');
+select _ok((select athlete_name is not null and score = 50 and shared
+              from squad_board('77777777-1111-0000-0000-000000000001')
+             where athlete_id = 'dddddddd-0000-0000-0000-000000000004'),
+  'squad: an opted-in teammate shows name + daily score');
+-- the underlying tables stay sealed even while the board shares the number
+select _ok((select count(*) from days
+             where athlete_id = 'dddddddd-0000-0000-0000-000000000004') = 0,
+  'squad: opting in shares the NUMBER, not the day row (days RLS still holds)');
+select _ok((select count(*) from meals
+             where athlete_id = 'dddddddd-0000-0000-0000-000000000004') = 0,
+  'squad: opting in never exposes meals');
+
+-- strangers and staff are both refused: this RPC's disclosure surface is teammate-only
+select _as('bbbbbbbb-0000-0000-0000-000000000002');
+select _ok(_try($f$ select * from squad_board('77777777-1111-0000-0000-000000000001') $f$) <> 'ok',
+  'squad: an athlete from another team cannot open the board');
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select * from squad_board('77777777-1111-0000-0000-000000000001') $f$) <> 'ok',
+  'squad: staff are refused here — coach surfaces have their own gates');
+
+-- an athlete cannot flip a TEAMMATE's switch (self-update policy only)
+select _as('aaaaaaaa-0000-0000-0000-000000000001');
+select _try($f$ update profiles set share_squad_score = false
+    where id = 'dddddddd-0000-0000-0000-000000000004' $f$);
+select _superuser();
+select _ok((select share_squad_score from profiles
+             where id = 'dddddddd-0000-0000-0000-000000000004'),
+  'squad: a teammate cannot flip someone else''s share switch');
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$

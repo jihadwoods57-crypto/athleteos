@@ -248,9 +248,9 @@ export async function shareScoreCard(payload, caption) {
  *
  * Pure on purpose: what the card CLAIMS is testable without rendering a pixel.
  *
- * This shows one athlete their own number, shared by their own deliberate tap. It does not touch the
- * promise in settings.js that "there is no team feed and no leaderboard — nobody on your team is
- * shown your number": nothing here makes one teammate visible to another. */
+ * This shows one athlete their own number, shared by their own deliberate tap. Teammate visibility
+ * is separately governed by the Squad board's opt-in (0180, profiles.share_squad_score) — nothing
+ * HERE makes one teammate visible to another; the settings Teammates row states both truths. */
 
 /** The four bands the app uses everywhere else. */
 function tierLabel(score) {

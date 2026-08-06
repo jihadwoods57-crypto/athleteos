@@ -27,6 +27,8 @@ import { normalizeCoachPrefs, alertKeys, buildCoachSyncPlan } from './coach-noti
 import { entriesFor, getScope, CD } from './coach-data.js';
 import { splitServerRows } from './notif-feed.js';
 import { jobKey, putJob, readQueue, removeJob, updateJob, due as dueJobs, backoffMs } from './meal-outbox.js';
+import * as SQ from './sync-queue.js';
+import { setVcUidProvider } from './commitment-data.js';
 import { factsFromCorrection, candidateFactsFromFoodChange, sameFact } from './memory.js';
 import { TOUR_IDS } from './tour-plan.js';
 import {
@@ -942,6 +944,81 @@ export const act = {
     }, Math.max(600, Math.min(soonest, 60_000)));
   },
 
+  /* ---------------------------------------------------------------------------------------
+     THE SMALL-WRITES OUTBOX (sync-queue.js) — the writes AROUND the primary log that used to die
+     silently offline: roll-call RPCs (idempotent server-side) and meals-row patches (the mirror
+     of a correction). Same three beats as the meal outbox: foreground, reconnect, own clock.
+     Also the day-push healer: pushDay needs no queue (day.js re-derives the whole row + score
+     from live DAY at push time — replaying a stale serialized row could only fight the 0041
+     ceiling), so healing is simply "push again NOW that we're back".
+     --------------------------------------------------------------------------------------- */
+  _sqDraining: false,
+  _sqTimer: null,
+
+  async drainSyncQueue() {
+    if (this._sqDraining || typeof window === 'undefined') return;
+    this._sqDraining = true;
+    try {
+      for (const job of SQ.due(SQ.readQueue(), Date.now())) {
+        if (!job.uid || job.uid !== RT.userId) continue;   // another account's queue — leave it
+        const ok = await this._runSyncJob(job);
+        if (ok) SQ.removeJob(SQ.keyOf(job));
+        else SQ.patchJob(SQ.keyOf(job), { tries: (job.tries || 0) + 1, lastTryAt: Date.now() });
+      }
+    } catch { /* never let a queue error break the app */ }
+    finally { this._sqDraining = false; this._scheduleSyncDrain(); }
+  },
+
+  _scheduleSyncDrain() {
+    if (typeof window === 'undefined') return;
+    if (this._sqTimer) { clearTimeout(this._sqTimer); this._sqTimer = null; }
+    const now = Date.now();
+    const waiting = SQ.readQueue().filter((e) => e && e.uid === RT.userId && (e.tries || 0) < SQ.MAX_TRIES);
+    if (!waiting.length) return;
+    const soonest = Math.min(...waiting.map((e) => Math.max(0, (e.lastTryAt || 0) + SQ.backoffMs(e.tries || 0) - now)));
+    this._sqTimer = setTimeout(() => {
+      this._sqTimer = null;
+      void this.drainSyncQueue();
+    }, Math.max(600, Math.min(soonest, 60_000)));
+  },
+
+  async _runSyncJob(job) {
+    const sbc = typeof window !== 'undefined' ? window.sb : null;
+    if (!sbc) return false;
+    try {
+      if (job.kind === 'rpc') {
+        // Same deadline discipline as the meal outbox: one hung request behind the drain's
+        // serialization would freeze every queued write for the session.
+        const res = await Promise.race([
+          sbc.rpc(job.rpc, job.args || {}),
+          new Promise((resolve) => setTimeout(() => resolve({ error: { message: 'timeout' } }), 12_000)),
+        ]);
+        if (!res || !res.error) return true;
+        // A server "no" is terminal, not retryable — burn the remaining tries so it leaves the
+        // queue instead of replaying a refusal (the next real load reconciles the local patch).
+        if (!SQ.retryable(res.error.message, false, typeof navigator !== 'undefined' && navigator.onLine === false)) {
+          SQ.patchJob(SQ.keyOf(job), { tries: SQ.MAX_TRIES, lastTryAt: Date.now() });
+        }
+        return false;
+      }
+      if (job.kind === 'meal-update') {
+        const res = await Promise.race([
+          sbc.from('meals').update(job.fields || {}).eq('id', job.ref).eq('athlete_id', job.uid),
+          new Promise((resolve) => setTimeout(() => resolve({ error: { message: 'timeout' } }), 12_000)),
+        ]);
+        return !res || !res.error;
+      }
+      return true; // unknown kind: drop it rather than jam the queue forever
+    } catch { return false; }
+  },
+
+  /* The day-push healer, called on the same beats. SYNC.last === 'error' is day.js's own honest
+     record of "the last push did not land" — a fresh immediate push recomputes everything from
+     live DAY, so this can never resurrect stale data. */
+  healDaySync() {
+    if (RT.userId && SYNC.last === 'error') void pushDay(RT.userId, true);
+  },
+
   async _runMealJob(job) {
     const slot = job.slot;
     // Self-heal: the day row can be a beat behind the queue if the app died before pushDay
@@ -1128,15 +1205,30 @@ export const act = {
     if (to > from) RT.lastMove = { from, to, gain: to - from, what: cap(slot) };
     save();
 
-    // Best-effort: bring the server row up to date with what the coach should see.
+    // Bring the server row up to date with what the coach should see. No longer fire-and-forget:
+    // a failure lands in the small-writes outbox, because a mirror that silently diverges is a
+    // coach reading different numbers than the athlete — the exact bug class the grounded-card
+    // work exists to prevent.
     const mealId = DAY.slotMacros[slot].mealId;
     if (mealId && window.sb) {
+      const fields = {
+        protein: r.protein || 0, carbs: r.carbs || 0, fat: r.fat || 0, kcal: r.kcal || 0,
+        quality: r.quality, note: r.note || null,
+      };
       try {
-        window.sb.from('meals').update({
-          protein: r.protein || 0, carbs: r.carbs || 0, fat: r.fat || 0, kcal: r.kcal || 0,
-          quality: r.quality, note: r.note || null,
-        }).eq('id', mealId).eq('athlete_id', RT.userId).then(() => {}, () => {});
-      } catch { /* the day row is the source of truth for the athlete */ }
+        window.sb.from('meals').update(fields).eq('id', mealId).eq('athlete_id', RT.userId)
+          .then((res) => {
+            if (res && res.error && RT.userId) {
+              SQ.putJob({ uid: RT.userId, kind: 'meal-update', ref: mealId, fields, queuedAt: Date.now() });
+              this._scheduleSyncDrain();
+            }
+          }, () => {
+            if (RT.userId) {
+              SQ.putJob({ uid: RT.userId, kind: 'meal-update', ref: mealId, fields, queuedAt: Date.now() });
+              this._scheduleSyncDrain();
+            }
+          });
+      } catch { /* the day row is the athlete's source of truth; the queue owns the mirror now */ }
     }
     track(EVENTS.MEAL_ANALYSIS_APPLIED, { slot });
     // Now — and only now — say it in the thread. The bubble is composed from the object written
@@ -1906,15 +1998,25 @@ export const act = {
     const sb = window.sb;
     const mealId = r.meta.mealId;
     if (sb && RT.userId && mealId) {
+      const marker = `[Athlete correction] ${r.summary}`;
+      const note = `${r.meta.note ? r.meta.note + ' · ' : ''}${marker}`.slice(0, 500);
+      const fields = {
+        protein: r.meta.protein || 0, carbs: r.meta.carbs || 0, fat: r.meta.fat || 0,
+        kcal: r.meta.kcal || 0, quality: r.meta.quality != null ? r.meta.quality : null,
+        note,
+      };
+      // A lost mirror here was worse than elsewhere: the athlete corrected the numbers and the
+      // coach kept reading the wrong ones, forever. Failure → the small-writes outbox.
       try {
-        const marker = `[Athlete correction] ${r.summary}`;
-        const note = `${r.meta.note ? r.meta.note + ' · ' : ''}${marker}`.slice(0, 500);
-        await sb.from('meals').update({
-          protein: r.meta.protein || 0, carbs: r.meta.carbs || 0, fat: r.meta.fat || 0,
-          kcal: r.meta.kcal || 0, quality: r.meta.quality != null ? r.meta.quality : null,
-          note,
-        }).eq('id', mealId).eq('athlete_id', RT.userId);
-      } catch { /* best-effort — the corrected day is already persisted */ }
+        const { error } = await sb.from('meals').update(fields).eq('id', mealId).eq('athlete_id', RT.userId);
+        if (error) {
+          SQ.putJob({ uid: RT.userId, kind: 'meal-update', ref: mealId, fields, queuedAt: Date.now() });
+          this._scheduleSyncDrain();
+        }
+      } catch {
+        SQ.putJob({ uid: RT.userId, kind: 'meal-update', ref: mealId, fields, queuedAt: Date.now() });
+        this._scheduleSyncDrain();
+      }
     }
     track(EVENTS.MEAL_LOGGED, { slot, source: 'correction' });
     // Say so in the thread. A correction used to silently rewrite the numbers under a read that
@@ -3022,6 +3124,7 @@ export const act = {
     // last night in a dead zone. It used to wait for the athlete to background and foreground the
     // app before anything touched it. The moment there is a user to run it for, run it.
     void this.drainMealOutbox();
+    void this.drainSyncQueue();
     if (!RT.authRole) {
       try {
         const { data: prof } = await window.sb.from('profiles').select('primary_role').eq('id', user.id).maybeSingle();
@@ -3124,7 +3227,12 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     if (document.visibilityState !== 'visible' && RT.userId) flushDayPush(RT.userId);
     // Coming BACK is when queued meal work gets its chance: the athlete may have logged in a dead
     // zone, or the app may have been killed mid-analysis. The queue is durable; this is its beat.
-    if (document.visibilityState === 'visible' && RT.userId) void act.drainMealOutbox();
+    // The small-writes queue and the day-push healer ride the same beat.
+    if (document.visibilityState === 'visible' && RT.userId) {
+      void act.drainMealOutbox();
+      void act.drainSyncQueue();
+      act.healDaySync();
+    }
     // Re-stamp the daypart on resume. A phone put down at 4pm and picked up at 9pm would otherwise
     // greet you with "Good evening" over an afternoon canvas, which is exactly the disagreement
     // between copy and canvas this was built to remove.
@@ -3134,7 +3242,12 @@ if (typeof document !== 'undefined' && document.addEventListener) {
 // Reconnect is the other beat. Both are best-effort and the drain is serialized, so overlapping
 // events can never run a job twice.
 if (typeof window !== 'undefined' && window.addEventListener) {
-  window.addEventListener('online', () => { if (RT.userId) void act.drainMealOutbox(); });
+  window.addEventListener('online', () => {
+    if (!RT.userId) return;
+    void act.drainMealOutbox();
+    void act.drainSyncQueue();
+    act.healDaySync();
+  });
 }
 // The third beat is the app's own: act._scheduleDrain() re-arms after every drain, so a retry no
 // longer depends on the athlete backgrounding the app to make it happen. Boot is covered by
@@ -4040,11 +4153,21 @@ export const S = {
     return null;
   },
 
-  // Squad / leaderboard: no backend (comp_mode is unused; the real roster lives coach-side).
-  // The athlete Squad screen is an honest "coming soon" — no fabricated teammates here.
+  // Squad board: shipped 2026-08-05 (0180 squad_board RPC + screens/squad.js), opt-in via
+  // profiles.share_squad_score. No S getter on purpose — the screen owns its own load/cache the
+  // way coach screens do; nothing here fabricates teammates. (teams.competition_mode remains
+  // unused dead schema.)
 
   // ---------- NOTIFICATIONS (live) ----------
   get notifications() {
+    // Operators get the SERVER feed only. Every derived row below is athlete-day material
+    // (overdue requirements, streak-at-risk, celebration) built from this device's DAY — for a
+    // signed-in coach that day is empty scaffolding, and any row it produced would be a
+    // fabricated athlete moment in a coach's bell.
+    if (RT.authRole === 'coach' || RT.authRole === 'trainer') {
+      const srvOnly = splitServerRows(RT.serverNotifs, Date.now());
+      return { new: srvOnly.unread, earlier: srvOnly.read };
+    }
     const e = this.exec;
     const fresh = [];
     for (const o of e.overdue) fresh.push({
@@ -4112,6 +4235,11 @@ window.S = S; // debug
 // A period still waiting on a device is reported as NOT done rather than omitted: the coach's
 // "who is outstanding" list should include them, and the board (not this lane) is where the
 // difference between "hasn't walked" and "watch hasn't reported" is spelled out.
+// Who the small-writes outbox queues FOR (commitment-data.js cannot import state.js — the same
+// cycle hazard its header documents — so it asks us). Provider, not a snapshot: the queue must
+// follow account switches.
+setVcUidProvider(() => RT.userId);
+
 setDayTaskProvider(() => [
   ...S.exec.items.map((i) => ({ id: i.id, done: i.state === 'done' || i.state === 'done_late' })),
   ...(Array.isArray(RT.csRows) ? RT.csRows : [])

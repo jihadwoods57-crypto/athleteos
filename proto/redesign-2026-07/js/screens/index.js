@@ -28,7 +28,7 @@ import requirement from './requirement.js';
 import { messages, settings as prefs, privacy, billing, notifSettings, coachNotifSettings, deleteAccount, terms, planStylePicker } from './settings.js';
 import { feedback } from './feedback.js';
 import { planUpgrade } from './plan-upgrade.js';
-import { foodSearch, labelScan } from './foodsearch.js';
+import { foodSearch, labelScan, barcodeScan } from './foodsearch.js';
 import { trust, streak, history, mealView } from './trust.js';
 import { role, coachOb, trainerOb, clientOb, coachProfile, trainerProfile } from './roles.js';
 import { ob2Role } from './ob2-role.js';
@@ -62,6 +62,7 @@ import locationConsent from './location-consent.js';
 import accountability from './accountability.js';
 import verifiedDiscipline from './verified-discipline.js';
 import { coachCommitments, coachCommitEdit, coachCommitManage } from './coach-commitments.js';
+import squad from './squad.js';
 
 export const screens = {
   home,
@@ -80,6 +81,7 @@ export const screens = {
   recovery,
   'recovery-confirm': recoveryConfirm,
   progress,
+  squad,
   'monthly-report': monthlyReport,
   profile,
   connect,
@@ -128,6 +130,7 @@ export const screens = {
   billing,
   'food-search': foodSearch,
   'label-scan': labelScan,
+  'barcode-scan': barcodeScan,
   trust,
   streak,
   history,

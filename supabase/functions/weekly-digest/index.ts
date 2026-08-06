@@ -1,19 +1,30 @@
-// OnStandard — weekly-digest: the coach's proof-of-value receipt (churn build 2026-07-04).
+// OnStandard — weekly-digest: the coach's Monday-morning read (churn build 2026-07-04,
+// rebuilt 2026-08-05).
 //
-// A coach cancels when he can't tell the product is working. Once a week this sends every
-// coach/trainer a digest of their roster's week — logged days, team average, and who has
-// gone silent — as an in-app notification AND a device push, so even a coach who hasn't
-// opened the app gets reminded it's earning its keep. Numbers are computed HERE from the
-// same days rows the dashboard reads; nothing is invented, and a roster with zero athletes
-// gets an activation nudge, not a fake stat.
+// A coach cancels when he can't tell the product is working. Once a week every active staff
+// member gets their roster's week — who held the standard, who's slipping, whose run ended,
+// who's gone silent — as an in-app notification AND a device push, so even a coach who hasn't
+// opened the app gets reminded it's earning its keep. Numbers are computed HERE from the same
+// days rows the dashboard reads; nothing is invented, and a roster with zero athletes gets an
+// activation nudge, not a fake stat.
+//
+// The 2026-08-05 rebuild, three fixes in one pass:
+//   1. CAPACITY (audit F3, the "wrong number in a coach's hand" finding): the old version read
+//      teams/team_members/practices/practice_clients whole-table with max_rows=1000 — past a
+//      thousand members every roster silently truncated. Now it pages the BOOKS and reads each
+//      book's members with the filter in the query, so no read can exceed one roster.
+//   2. RECIPIENTS: created_by/owner_id only meant assistant coaches never got a digest. Teams
+//      now deliver to every ACTIVE team_staff row (send-push's announcement pattern).
+//   3. CONTENT + ROUTE: logged-days/average said nothing a coach could act on. The body now
+//      names who held standard, who's slipping, and whose streak broke, and the push carries
+//      data.route so the tap lands on the insights screen instead of wherever the app last was.
 //
 // INVOCATION: scheduled. Protected by a shared key so only the scheduler can fire it
 // (deploy with --no-verify-jwt; a browser/anon caller without the key gets 401):
 //   supabase secrets set DIGEST_CRON_KEY=<long random string>
 //   supabase functions deploy weekly-digest --use-api --no-verify-jwt
-// Then schedule it weekly (Supabase Dashboard -> Integrations -> Cron -> HTTP request, or
-// the SQL helper in migration 0044): POST <url>/functions/v1/weekly-digest with header
-// x-digest-key: <the same key>. Recommended: Sunday 18:00 team-local.
+// Schedule via migration 0044's helper (see docs/go-live/WEEKLY-DIGEST.md). Monday morning
+// beats Sunday night: the read leads the week it can still change.
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
@@ -35,56 +46,98 @@ function safeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-/** Local ISO date N days ago (UTC-based; the digest is a weekly summary, not a clock). */
+/** ISO date N days ago (UTC-based; the digest is a weekly summary, not a clock). */
 function daysAgo(n: number): string {
   const d = new Date(Date.now() - n * 86_400_000);
   return d.toISOString().slice(0, 10);
 }
 
+const PAGE = 500;           // rows per paged read — safely under config.toml max_rows=1000
+const BOOK_CAP = 2000;      // books per invocation; a run that hits it logs what it dropped
+const ON_STANDARD = 80;     // the same bar every athlete surface uses
+
 interface DayLite { athlete_id: string; date: string; score: number | null }
+interface Roster { athletes: { id: string; name: string }[]; recipients: string[] }
 
-/** One owner's digest copy from their athletes' week. Factual, no guilt, no em dash. */
-function digestBody(
-  athleteIds: string[],
-  days: DayLite[],
-  names: Map<string, string>,
-): { title: string; body: string } {
-  const mine = new Set(athleteIds);
-  const week = days.filter((d) => mine.has(d.athlete_id));
-  const loggedScores = week.map((d) => d.score).filter((s): s is number => typeof s === 'number');
-  const avg = loggedScores.length > 0 ? Math.round(loggedScores.reduce((a, b) => a + b, 0) / loggedScores.length) : null;
+const first = (name: string) => (name || '').split(' ')[0];
 
-  // Silent = no logged day in the last 3 days — the exact athlete accountability exists for.
-  const cutoff = daysAgo(2);
-  const recent = new Set(week.filter((d) => d.date >= cutoff).map((d) => d.athlete_id));
-  const silent = athleteIds.filter((id) => !recent.has(id));
-  const silentNames = silent
-    .map((id) => (names.get(id) ?? '').split(' ')[0])
-    .filter(Boolean)
-    .slice(0, 3);
-
-  if (athleteIds.length === 0) {
-    return {
-      title: 'Your OnStandard week',
-      body: 'No athletes on your roster yet. Share your join code and your first weekly report starts building.',
-    };
+/** Per-athlete week analysis over 14 days of rows (this week judges, last week gives streak
+ *  context). Pure; factual; no em dash; never a fabricated number. */
+function digestBody(roster: Roster): { title: string; body: string } {
+  const title = 'Your OnStandard week';
+  if (roster.athletes.length === 0) {
+    return { title, body: 'No athletes on your roster yet. Share your join code and your first weekly report starts building.' };
   }
+  return { title, body: buildBody(roster) };
+}
+
+let DAYS_BY_ATHLETE = new Map<string, DayLite[]>(); // set per-book before digestBody runs
+
+function buildBody(roster: Roster): string {
+  const weekFrom = daysAgo(6);
+  const silentFrom = daysAgo(2);
+  const held: string[] = [];
+  const slipping: string[] = [];
+  const silent: string[] = [];
+  const broke: { name: string; run: number }[] = [];
+
+  for (const a of roster.athletes) {
+    const rows = (DAYS_BY_ATHLETE.get(a.id) ?? []).slice().sort((x, y) => x.date.localeCompare(y.date));
+    const week = rows.filter((r) => r.date >= weekFrom);
+    const scored = week.map((r) => r.score).filter((s): s is number => typeof s === 'number');
+    if (!week.some((r) => r.date >= silentFrom)) silent.push(first(a.name));
+    if (scored.length === 0) continue; // silent covers them; an empty week is not "slipping"
+    const avg = scored.reduce((x, y) => x + y, 0) / scored.length;
+    if (avg >= ON_STANDARD) held.push(first(a.name));
+    else slipping.push(first(a.name));
+
+    // A run of 3+ on-standard days whose last day fell inside this week, followed by a day
+    // that broke it (off-standard or unlogged while later days exist). Longest such run wins.
+    const on = new Set(rows.filter((r) => (r.score ?? 0) >= ON_STANDARD).map((r) => r.date));
+    let run = 0;
+    let best = 0;
+    let bestEnd = '';
+    for (let n = 13; n >= 0; n--) {
+      const d = daysAgo(n);
+      if (on.has(d)) { run++; continue; }
+      if (run >= 3 && daysAgo(n + 1) >= weekFrom && run > best) { best = run; bestEnd = daysAgo(n + 1); }
+      run = 0;
+    }
+    // A run still alive through today is not broken; only a bestEnd strictly before today counts.
+    if (best >= 3 && bestEnd && bestEnd < daysAgo(0)) broke.push({ name: first(a.name), run: best });
+  }
+
+  const total = roster.athletes.length;
+  const listOf = (names: string[], cap = 3) =>
+    `${names.slice(0, cap).join(', ')}${names.length > cap ? ` and ${names.length - cap} more` : ''}`;
+
   const parts: string[] = [];
-  parts.push(`${week.length} logged ${week.length === 1 ? 'day' : 'days'} across ${athleteIds.length} ${athleteIds.length === 1 ? 'athlete' : 'athletes'}`);
-  if (avg != null) parts.push(`team average ${avg}`);
-  let tail: string;
-  if (silent.length === 0) {
-    tail = 'Nobody went silent this week.';
-  } else {
-    const who = silentNames.length > 0
-      ? `${silentNames.join(', ')}${silent.length > silentNames.length ? ` and ${silent.length - silentNames.length} more` : ''}`
-      : `${silent.length}`;
-    tail = `${silent.length === 1 ? 'One athlete has' : `${silent.length} athletes have`} not logged in 3+ days: ${who}. A quick check-in usually restarts them.`;
+  parts.push(held.length === 0
+    ? `Nobody averaged ${ON_STANDARD} this week across ${total} ${total === 1 ? 'athlete' : 'athletes'}.`
+    : `${held.length} of ${total} held the standard this week${held.length <= 3 ? `: ${listOf(held)}` : ''}.`);
+  if (slipping.length > 0) parts.push(`Below the bar: ${listOf(slipping)}.`);
+  if (broke.length > 0) {
+    const b = broke.sort((x, y) => y.run - x.run)[0];
+    parts.push(`${b.name}'s ${b.run} day run ended this week.`);
   }
-  return {
-    title: 'Your OnStandard week',
-    body: `${parts.join(', ')}. ${tail}`,
-  };
+  if (silent.length > 0) {
+    parts.push(`${silent.length === 1 ? 'One athlete has' : `${silent.length} athletes have`} not logged in 3 days: ${listOf(silent)}. A quick check-in usually restarts them.`);
+  } else if (slipping.length === 0 && broke.length === 0) {
+    parts.push('Nobody went silent.');
+  }
+  return parts.join(' ');
+}
+
+/** Paged read: every row matching the builder's filters, PAGE at a time. */
+async function allRows<T>(build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> {
+  const out: T[] = [];
+  for (let page = 0; page < 200; page++) {
+    const { data, error } = await build(page * PAGE, page * PAGE + PAGE - 1);
+    if (error || !data) break;
+    out.push(...data);
+    if (data.length < PAGE) break;
+  }
+  return out;
 }
 
 Deno.serve(async (req) => {
@@ -96,87 +149,97 @@ Deno.serve(async (req) => {
 
   const svc = createClient(SUPABASE_URL, SERVICE_ROLE);
   try {
-    // 1) Owners and their athletes: team coaches (created_by) + practice trainers (owner_id).
-    const [teamsRes, membersRes, practicesRes, clientsRes] = await Promise.all([
-      svc.from('teams').select('id, created_by'),
-      svc.from('team_members').select('team_id, athlete_id, status'),
-      svc.from('practices').select('id, owner_id'),
-      svc.from('practice_clients').select('practice_id, client_id, status'),
-    ]);
-    const rosters = new Map<string, Set<string>>(); // owner -> athlete ids
-    const teamOwner = new Map((teamsRes.data ?? []).map((t) => [t.id, t.created_by]).filter(([, o]) => !!o) as [string, string][]);
-    for (const m of membersRes.data ?? []) {
-      if (m.status !== 'active') continue;
-      const owner = teamOwner.get(m.team_id);
-      if (!owner) continue;
-      if (!rosters.has(owner)) rosters.set(owner, new Set());
-      rosters.get(owner)!.add(m.athlete_id);
-    }
-    const practiceOwner = new Map((practicesRes.data ?? []).map((p) => [p.id, p.owner_id]) as [string, string][]);
-    for (const pc of clientsRes.data ?? []) {
-      if (pc.status !== 'active') continue;
-      const owner = practiceOwner.get(pc.practice_id);
-      if (!owner) continue;
-      if (!rosters.has(owner)) rosters.set(owner, new Set());
-      rosters.get(owner)!.add(pc.client_id);
-    }
-    if (rosters.size === 0) return json({ ok: true, digests: 0 });
+    // 1) The books, paged. Teams deliver to every active staff member; practices to the owner.
+    const teams = await allRows<{ id: string; created_by: string | null }>((f, t) =>
+      svc.from('teams').select('id, created_by').order('id').range(f, t));
+    const practices = await allRows<{ id: string; owner_id: string }>((f, t) =>
+      svc.from('practices').select('id, owner_id').order('id').range(f, t));
+    const books: { kind: 'team' | 'practice'; id: string; fallbackOwner: string | null }[] = [
+      ...teams.map((t) => ({ kind: 'team' as const, id: t.id, fallbackOwner: t.created_by })),
+      ...practices.map((p) => ({ kind: 'practice' as const, id: p.id, fallbackOwner: p.owner_id })),
+    ];
+    if (books.length > BOOK_CAP) console.warn(`weekly-digest: ${books.length - BOOK_CAP} books over cap were skipped this run`);
+    const work = books.slice(0, BOOK_CAP);
 
-    // Honor the notification preference server-side (GDPR/PECR: a coach who turned notifications
-    // OFF must not receive this automated engagement digest). Resilient / fail-open: if the
-    // notifications_opt_out column is not applied yet the filter errors and we send as before,
-    // so function-deploy vs migration-apply order is not load-bearing.
-    const ownerIds = [...rosters.keys()];
-    let optedOut = new Set<string>();
-    {
-      const { data: outs, error: outErr } = await svc.from('profiles')
-        .select('id').eq('notifications_opt_out', true).in('id', ownerIds);
-      if (!outErr && outs) optedOut = new Set(outs.map((r: { id: string }) => r.id));
-    }
+    // 2) Dedupe + opt-out state is read per-recipient as we go, but the 6-day window is fixed.
+    const dedupeSince = new Date(Date.now() - 6 * 86_400_000).toISOString();
+    const seen = new Set<string>();      // recipients already handled this run (a coach on two teams gets ONE digest, first book wins)
+    let sent = 0, deduped = 0, optedOut = 0;
 
-    // 2) The week's day rows + names for every rostered athlete, in two bulk reads.
-    const allAthletes = [...new Set([...rosters.values()].flatMap((s) => [...s]))];
-    const [daysRes, profRes] = await Promise.all([
-      svc.from('days').select('athlete_id, date, score').gte('date', daysAgo(6)).in('athlete_id', allAthletes),
-      svc.from('profiles').select('id, full_name').in('id', allAthletes),
-    ]);
-    const days = (daysRes.data ?? []) as DayLite[];
-    const names = new Map((profRes.data ?? []).map((p) => [p.id, p.full_name ?? '']));
+    for (const book of work) {
+      // Roster: filter IN the query, page the read — no whole-table scan at any size (fix 1).
+      const athletes = book.kind === 'team'
+        ? await allRows<{ athlete_id: string }>((f, t) =>
+          svc.from('team_members').select('athlete_id').eq('team_id', book.id).eq('status', 'active').order('athlete_id').range(f, t))
+          .then((rows) => rows.map((r) => r.athlete_id))
+        : await allRows<{ client_id: string }>((f, t) =>
+          svc.from('practice_clients').select('client_id').eq('practice_id', book.id).eq('status', 'active').order('client_id').range(f, t))
+          .then((rows) => rows.map((r) => r.client_id));
 
-    // 2b) Idempotency guard: a digest already sent for this owner in the last 6 days means the
-    // scheduler fired twice in the same window (manual re-trigger, misconfigured cron) — skip it
-    // rather than double-deliver. Reduces the risk without a hard DB constraint; the cron only
-    // fires weekly in practice, so a same-week re-fire is the one failure mode worth guarding.
-    let alreadySent = new Set<string>();
-    {
-      const { data: recentDigests, error: rdErr } = await svc.from('notifications')
-        .select('user_id').eq('kind', 'digest').gte('created_at', new Date(Date.now() - 6 * 86_400_000).toISOString())
-        .in('user_id', ownerIds);
-      if (!rdErr && recentDigests) alreadySent = new Set(recentDigests.map((r: { user_id: string }) => r.user_id));
-    }
-
-    // 3) One digest per owner: in-app feed row + best-effort push to their devices.
-    let sent = 0;
-    let deduped = 0;
-    for (const [owner, athletes] of rosters) {
-      if (optedOut.has(owner)) continue; // respect the owner's notifications-off preference
-      if (alreadySent.has(owner)) { deduped++; continue; } // this week's digest already landed
-      const { title, body } = digestBody([...athletes], days, names);
-      await svc.from('notifications').insert({ user_id: owner, kind: 'digest', title, body });
-      const { data: toks } = await svc.from('device_tokens').select('token').eq('user_id', owner);
-      const tokens = (toks ?? []).map((t: { token: string }) => t.token).filter(Boolean);
-      if (tokens.length > 0) {
-        try {
-          await fetch('https://exp.host/--/api/v2/push/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(tokens.map((to) => ({ to, title, body, sound: 'default' }))),
-          });
-        } catch { /* push is best-effort; the feed entry already landed */ }
+      // Recipients: active staff for a team (fix 2), owner for a practice.
+      let recipients: string[] = [];
+      if (book.kind === 'team') {
+        recipients = await allRows<{ staff_id: string }>((f, t) =>
+          svc.from('team_staff').select('staff_id').eq('team_id', book.id).eq('status', 'active').order('staff_id').range(f, t))
+          .then((rows) => rows.map((r) => r.staff_id));
+        if (recipients.length === 0 && book.fallbackOwner) recipients = [book.fallbackOwner];
+      } else if (book.fallbackOwner) {
+        recipients = [book.fallbackOwner];
       }
-      sent++;
+      recipients = recipients.filter((r) => !seen.has(r));
+      if (recipients.length === 0) continue;
+
+      // 14 days of day rows (this week judges; last week gives streak context) + names.
+      let names = new Map<string, string>();
+      DAYS_BY_ATHLETE = new Map();
+      if (athletes.length > 0) {
+        const [dayRows, profRows] = await Promise.all([
+          allRows<DayLite>((f, t) =>
+            svc.from('days').select('athlete_id, date, score').gte('date', daysAgo(13)).in('athlete_id', athletes).order('athlete_id').range(f, t)),
+          allRows<{ id: string; full_name: string | null }>((f, t) =>
+            svc.from('profiles').select('id, full_name').in('id', athletes).order('id').range(f, t)),
+        ]);
+        names = new Map(profRows.map((p) => [p.id, p.full_name ?? '']));
+        for (const d of dayRows) {
+          if (!DAYS_BY_ATHLETE.has(d.athlete_id)) DAYS_BY_ATHLETE.set(d.athlete_id, []);
+          DAYS_BY_ATHLETE.get(d.athlete_id)!.push(d);
+        }
+      }
+      const roster: Roster = {
+        athletes: athletes.map((id) => ({ id, name: names.get(id) ?? '' })),
+        recipients,
+      };
+      const { title, body } = digestBody(roster);
+
+      // Per-recipient: opt-out gate, 6-day dedupe, durable row FIRST, then the push (winback's
+      // rule: the notifications row is both the record and the dedupe key).
+      for (const rid of recipients) {
+        seen.add(rid);
+        const { data: prof } = await svc.from('profiles').select('notifications_opt_out').eq('id', rid).maybeSingle();
+        if (prof?.notifications_opt_out === true) { optedOut++; continue; }
+        const { data: recent } = await svc.from('notifications')
+          .select('id').eq('user_id', rid).eq('kind', 'digest').gte('created_at', dedupeSince).limit(1);
+        if (recent && recent.length > 0) { deduped++; continue; }
+        await svc.from('notifications').insert({ user_id: rid, kind: 'digest', title, body });
+        const { data: toks } = await svc.from('device_tokens').select('token').eq('user_id', rid);
+        const tokens = (toks ?? []).map((t: { token: string }) => t.token).filter(Boolean);
+        for (let i = 0; i < tokens.length; i += 100) {
+          try {
+            await fetch('https://exp.host/--/api/v2/push/send', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(tokens.slice(i, i + 100).map((to) => ({
+                to, title, body, sound: 'default',
+                // Fix 3: the tap lands on the weekly insights read, not wherever the app last was.
+                data: { route: 'coach-insights' },
+              }))),
+            });
+          } catch { /* push is best-effort; the feed entry already landed */ }
+        }
+        sent++;
+      }
     }
-    return json({ ok: true, digests: sent, deduped });
+    return json({ ok: true, digests: sent, deduped, optedOut, books: work.length });
   } catch (e) {
     console.error('weekly-digest error:', e);
     return json({ error: 'digest failed' }, 500);

@@ -126,12 +126,22 @@ Deno.serve(async (req: Request) => {
     if (!digest) continue;
     const d = digest as Digest;
     if (!d.coach_ids?.length) continue;
+    // Durable row FIRST, push second (the winback rule: the row is the record). Before this,
+    // the escalation existed only as a push — a coach who missed the banner had no trace of it
+    // anywhere in the app. The suffix carries the instance id so the bell row deep-links to the
+    // same board the push does (notif-feed.js `commitment_escalation`).
+    const digestText = digestBody(d.title, d.total, d.not_up_names ?? []);
+    try {
+      await svc.from('notifications').insert(d.coach_ids.map((cid: string) => ({
+        user_id: cid, kind: `commitment_escalation:${instId}`, title: d.title, body: digestText,
+      })));
+    } catch { /* best-effort: a feed-row failure must never block the push */ }
     const { data: ctoks } = await svc
       .from('device_tokens').select('token,user_id').in('user_id', d.coach_ids);
     await push(((ctoks ?? []) as Array<{ token: string; user_id: string }>).map((t) => ({
       to: t.token,
       title: d.title,
-      body: digestBody(d.title, d.total, d.not_up_names ?? []),
+      body: digestText,
       data: { route: `roll-call/${instId}` },
       priority: 'high',
       sound: 'default',

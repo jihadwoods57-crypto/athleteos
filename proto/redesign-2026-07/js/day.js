@@ -733,6 +733,22 @@ function currentTasks() {
    console.warn, so an athlete can't log all week into a void without knowing. */
 export const SYNC = { last: null };
 
+/* Self-retry for a failed push (2026-08-05, the offline-safe pass): the wake beats (foreground,
+   reconnect) cover an athlete who LEFT, but one who logs and keeps the app open on a dead edge
+   generated no beat — the meal-outbox postmortem exactly. Seconds-first, capped, and reset by
+   any success; the honest "not synced" pill stays up the whole time. Browser only: the timer
+   must never fire after a Node test ends. */
+let pushRetryTimer = null, pushRetryCount = 0;
+function armPushRetry(userId) {
+  if (typeof window === 'undefined' || pushRetryTimer || pushRetryCount >= 6) return;
+  const delay = Math.min(3000 * 2 ** pushRetryCount, 120_000);
+  pushRetryCount++;
+  pushRetryTimer = setTimeout(() => {
+    pushRetryTimer = null;
+    if (SYNC.last === 'error') void pushDay(userId, true);
+  }, delay);
+}
+
 export function pushDay(userId, immediate) {
   saveCache(userId);
   if (pushTimer) { clearTimeout(pushTimer); pushTimer = null; }
@@ -769,8 +785,9 @@ export function pushDay(userId, immediate) {
       // sync pill is honest for RLS/constraint rejections as well as network deaths.
       const { error } = await sb.from('days').upsert(row, { onConflict: 'athlete_id,date' });
       SYNC.last = error ? 'error' : 'ok';
-      if (error) console.warn('[day] pushDay failed', error.message);
-    } catch (e) { SYNC.last = 'error'; console.warn('[day] pushDay failed', e && e.message); }
+      if (error) { console.warn('[day] pushDay failed', error.message); armPushRetry(userId); }
+      else pushRetryCount = 0;
+    } catch (e) { SYNC.last = 'error'; console.warn('[day] pushDay failed', e && e.message); armPushRetry(userId); }
   };
   if (immediate) return doPush();
   pushTimer = setTimeout(doPush, 1000); // debounce bursts of taps

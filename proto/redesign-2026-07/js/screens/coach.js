@@ -11,7 +11,7 @@ import { openingMessage, qualityBand, qualityReason, scoreRubric, reactionGroups
 import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpener, isEscalated, quotedFor } from '../chat-view.js';
 import { openImageViewer } from '../image-viewer.js';
 import { wireTapback } from '../tapback.js';
-import { CD, loadBook, bookKindFor, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor, localClock, logBookIntervention } from '../coach-data.js';
+import { CD, loadBook, bookKindFor, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor, localClock, logBookIntervention, resolvePos } from '../coach-data.js';
 import { STATUS_META } from '../status.js';
 import { CATALOG, PROOF, resolveRequirementSet, catalogFromItems, freqLabel, stdFromItems, fmtMin, planStyleFromItems } from '../requirements.js';
 import { STYLE_KEYS, styleLabel, knobsFor, resolveStyleKey } from '../plan-style.js';
@@ -1762,7 +1762,9 @@ function scoreSection(P, athleteId) {
   <div class="sidebox" style="margin-top:4px"><div class="req-icon a" style="width:38px;height:38px">${icon('clock', 17)}</div>
   <div><div class="tt">No score to break down yet</div><div class="ts">They haven't logged today. The category breakdown appears here once their day has something in it.</div></div></div>`;
   // Reconstruct the athlete's OWN standard + nutrition config — never this coach device's.
-  const set = resolveRequirementSet(CD.extras && CD.extras.sets, athleteId, P.row && P.row.position);
+  // resolvePos (room label > raw position) matches how entriesFor resolves the governing set, so
+  // the breakdown grades against the same standard the roster status chip used.
+  const set = resolveRequirementSet(CD.extras && CD.extras.sets, athleteId, P.row ? resolvePos(P.row) : null);
   const std = set ? stdFromItems(set.items) : null;
   const b = P.basics || {};
   const cfg = nutritionConfigForGoal(b.base_goal, b.base_weight, b.targets);
@@ -1865,18 +1867,30 @@ function overviewSection(P) {
   </section>` : ''}
   `;
 }
-function todaySection(P) {
+function todaySection(P, athleteId) {
   const day = P.day;
   const today = roles.todayISO();
   const todayMeals = (P.meals || []).filter(m => m.day_date === today);
   const score = day && day.score != null ? day.score : null;
   const mealsJson = (day && day.meals) || {};
   const ci = (day && day.checkin) || {};
-  const openSlots = ['breakfast', 'lunch', 'dinner'].filter(k => !mealsJson[k]);
+  // The athlete's OWN standard decides which slots exist, what they're called, and which are
+  // optional — same resolution scoreSection uses. Before this, the pane was a hardcoded
+  // 3-meal day: an athlete on a 5-meal standard never showed meal-5 as open, and a 2-meal
+  // athlete was nagged for phantom lunches. Optional slots (snack by default) never read as
+  // open — an unlogged snack is not a miss and must not look like one.
+  const set = resolveRequirementSet(CD.extras && CD.extras.sets, athleteId, P.row ? resolvePos(P.row) : null);
+  const std = set ? stdFromItems(set.items) : null;
+  const slots = std ? std.slots : MEAL_KEYS;
+  const optional = new Set(std ? (std.optional || []) : ['snack']);
+  const slotTitle = (k) => (std && std.titles && std.titles[k]) || cap(k);
+  const denom = std ? std.mealsRequired : slots.filter(k => !optional.has(k)).length;
+  const logged = slots.filter(k => mealsJson[k]).length;
+  const openSlots = slots.filter(k => !mealsJson[k] && !optional.has(k));
   return `
     <div class="co-tiles">
       <div class="co-stat"><div class="v" style="color:${scoreColor(score)}">${score != null ? score : '—'}</div><div class="k">Score today</div></div>
-      <div class="co-stat"><div class="v g">${MEAL_SLOTS.filter(k => mealsJson[k]).length}</div><div class="k">Meals logged</div></div>
+      <div class="co-stat"><div class="v g">${logged}<small>&thinsp;/&thinsp;${denom}</small></div><div class="k">Meals logged</div></div>
       <div class="co-stat"><div class="v ${ci.submitted ? 'g' : 'a'}">${ci.submitted ? 'In' : 'Open'}</div><div class="k">Recovery</div></div>
     </div>
 
@@ -1900,7 +1914,7 @@ function todaySection(P) {
       ${openSlots.length || !ci.submitted ? `
         ${openSlots.map(k => `
           <div class="lrow" style="cursor:default"><div class="lic" style="color:var(--amber-bright)">${icon('bowl', 17)}</div>
-          <div class="lm"><div class="lt">${cap(k)}</div><div class="ls">Not logged yet</div></div><span class="status-pill a">Open</span></div>`).join('')}
+          <div class="lm"><div class="lt">${esc(slotTitle(k))}</div><div class="ls">Not logged yet</div></div><span class="status-pill a">Open</span></div>`).join('')}
         ${!ci.submitted ? `<div class="lrow" style="cursor:default"><div class="lic" style="color:var(--purple-bright)">${icon('moon', 17)}</div>
           <div class="lm"><div class="lt">Recovery check-in</div><div class="ls">Before bed</div></div><span class="status-pill p">Open</span></div>` : ''}`
         : `<div class="lrow" style="cursor:default"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('check', 17)}</div>
@@ -2149,7 +2163,7 @@ export const coachAthlete = {
       <div class="sd-cta"><button class="btn ghost sm" data-go="coach-roster">Back to roster</button></div></div>
       <div style="height:10px"></div>`;
     }
-    const body = PSECTION === 'overview' ? overviewSection(P) : PSECTION === 'today' ? todaySection(P)
+    const body = PSECTION === 'overview' ? overviewSection(P) : PSECTION === 'today' ? todaySection(P, athleteId)
       : PSECTION === 'score' ? scoreSection(P, athleteId)
       : PSECTION === 'activity' ? activitySection(P) : PSECTION === 'conversation' ? conversationSection(P)
       : PSECTION === 'requirements' ? requirementsSection(P, athleteId) : notesSection(P);

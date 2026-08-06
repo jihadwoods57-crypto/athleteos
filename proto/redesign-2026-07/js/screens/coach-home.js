@@ -418,9 +418,13 @@ export const coachHome = {
     const seen = new Set(RT.coachSeenMealIds || []);
     const feed = CD.act && CD.act.rows ? CD.act.rows.filter(m => rows.some(r => r.athleteId === m.athlete_id)) : null;
     const unseen = feed ? feed.filter(m => !seen.has(m.id)).length : 0;
+    const unreadAlerts = S.unreadNotifs;
     const followUps = [
       unseen ? { n: unseen, t: `log${unseen > 1 ? 's' : ''} you haven't opened`, go: 'coach-inbox' } : null,
       pending.length ? { n: pending.length, t: `join request${pending.length > 1 ? 's' : ''} waiting`, go: 'coach-inbox' } : null,
+      // Server alerts (0027): flagged meals, roll-call escalations, digests. The bell badge says
+      // "how many"; this row makes sure the morning read includes them even if the bell is ignored.
+      unreadAlerts ? { n: unreadAlerts, t: `alert${unreadAlerts > 1 ? 's' : ''} in your bell`, go: 'notifications' } : null,
       cards.length ? { n: cards.length, t: `priorit${cards.length > 1 ? 'ies' : 'y'} not handled yet`, go: null } : null,
     ].filter(Boolean);
 
@@ -474,6 +478,10 @@ export const coachHome = {
   mount(root) {
     wireEmailVerifyBanner(root);
     loadMyBook().then(() => loadActivity());
+    // Server alerts feed the bell badge + the Follow-ups row. Same throttled loader the athlete
+    // header uses (15s), so a coach flipping between tabs costs nothing extra; repaint only when
+    // rows actually changed.
+    act.loadNotifications().then((changed) => { if (changed && window.__render) window.__render(); }).catch(() => {});
     // The onboarding plan pick → the real checkout, preselected. Marked done on TAP (not on
     // completed payment): a coach who opened checkout and bailed knows where plans live now, and
     // a card that keeps reappearing after a deliberate bail is a nag, not a bridge.

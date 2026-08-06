@@ -132,6 +132,52 @@ export async function fetchMyCoach() {
   } catch { return { error: true }; }
 }
 
+/* ---------------- athlete: barcode → packaged food (food-lookup fn) ---------------- */
+/** One exact packaged product for a scanned/typed barcode, via the food-lookup edge function
+    (Open Food Facts, cached server-side; founder decision D5 approved the licensing). Returns
+    { name, serving, per100: {protein,carbs,fat,kcal}, attribution } or null (not found /
+    unreachable — the screen renders the difference from navigator state, never invents food).
+    Deadline-raced: this sits between an athlete and logging a meal, exactly the spot where one
+    hung request used to freeze surfaces. */
+export async function fetchFoodByBarcode(barcode) {
+  const c = sb(); if (!c) return null;
+  const digits = String(barcode || '').replace(/\D/g, '').slice(0, 14);
+  if (digits.length < 8) return null;
+  try {
+    const res = await Promise.race([
+      c.functions.invoke('food-lookup', { body: { barcode: digits } }),
+      new Promise((resolve) => setTimeout(() => resolve({ error: { message: 'timeout' } }), 10_000)),
+    ]);
+    if (!res || res.error || !res.data || res.data.found !== true) return null;
+    const d = res.data;
+    if (!d.per100 || typeof d.per100 !== 'object') return null;
+    return { name: d.name || 'Scanned product', serving: d.serving || null, per100: d.per100, attribution: d.attribution || '' };
+  } catch { return null; }
+}
+
+/* ---------------- athlete: squad board (0180) ---------------- */
+/** The opt-in team board. Rows: { athlete_id, athlete_name, position, shared, day_date, score } —
+    full rows for the caller + teammates who opted in; anonymous stubs (everything null,
+    shared=false) for teammates who haven't, so the screen can count them without naming them.
+    Returns null on failure so the screen renders its honest offline state, never an empty board
+    that reads as "nobody shares". */
+export async function fetchSquadBoard(teamId) {
+  const c = sb(); if (!c || !teamId) return null;
+  try {
+    const { data, error } = await c.rpc('squad_board', { p_team: teamId });
+    if (error) return null;
+    return Array.isArray(data) ? data : [];
+  } catch { return null; }
+}
+/** Flip the athlete's own share switch (profiles.share_squad_score — 0138's pattern). */
+export async function setShareSquadScore(uid, on) {
+  const c = sb(); if (!c || !uid) return false;
+  try {
+    const { error } = await c.from('profiles').update({ share_squad_score: !!on }).eq('id', uid);
+    return !error;
+  } catch { return false; }
+}
+
 /* ---------------- coach: custom team code (0026 RPCs) ---------------- */
 /** Set a vanity join code (e.g. GATORS). Server validates ^[A-Z0-9]{4,12}$ + uniqueness and
     resolves the team from auth.uid() — nothing is trusted from the client. Returns

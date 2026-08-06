@@ -1,6 +1,7 @@
 import { S, RT, slotTitle } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc, composer } from '../components.js';
+import { fetchFoodByBarcode } from '../roles.js';
 
 /* Food database (proto-local; the real app notes "fuller database lands with backend"). */
 const DB = [
@@ -35,8 +36,14 @@ export const foodSearch = {
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">Common foods. For anything not listed, a photo or the nutrition label reads best.</div>
     <section class="card" style="padding:2px 0" id="fs-results"></section>
 
-    <div class="lrow" data-go="label-scan" style="border:1px solid var(--hairline);border-radius:15px;padding:12px 15px;margin-top:10px">
+    <div class="lrow" data-go="barcode-scan" style="border:1px solid var(--hairline);border-radius:15px;padding:12px 15px;margin-top:10px">
       <div class="lic">${icon('barcode', 17)}</div>
+      <div class="lm"><div class="lt">Scan a barcode</div><div class="ls">Packaged food, exact from the maker's own data</div></div>
+      ${icon('chevron', 16, 'style="color:var(--text-3)"')}
+    </div>
+
+    <div class="lrow" data-go="label-scan" style="border:1px solid var(--hairline);border-radius:15px;padding:12px 15px;margin-top:10px">
+      <div class="lic">${icon('edit', 17)}</div>
       <div class="lm"><div class="lt">Enter a nutrition label</div><div class="ls">Type the panel numbers — exact, never estimated</div></div>
       ${icon('chevron', 16, 'style="color:var(--text-3)"')}
     </div>
@@ -205,6 +212,182 @@ export const labelScan = {
         ['Label entry'], SLOT, 'label');
       // Same confirm gate as the photo path (WS7): review before it counts.
       location.hash = '#meal-analysis';
+    });
+  },
+};
+
+/* ---------- Barcode: one exact packaged product off the maker's own data (2026-08-05) ----------
+   The server half (food-lookup fn → Open Food Facts, cached, licensing settled by founder
+   decision D5) shipped weeks ago with zero callers — this is the missing client half. Two honest
+   input paths, never a fake scan:
+     · LIVE SCAN where the WebView has BarcodeDetector (Android today; iOS when WebKit ships it)
+     · TYPED DIGITS everywhere — the numbers printed under the bars ARE the barcode, so the
+       feature works on every device the day it lands, no vendored decoder, no native build.
+   The resolved product is per-100g; the athlete says how much they ate and we multiply — the
+   same "exact because the source is exact" contract as the label screen. */
+export const barcodeScan = {
+  tab: 'camera',
+  transient: true,
+  hideTabs: true,
+  render() {
+    const slot = S.currentSlot;
+    const slotName = slot ? slotTitle(slot) : 'meal';
+    const canLive = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+    return `
+    ${backHead(`Scan a barcode · ${slotName}`, "Packaged food, exact from the maker's own data", 'food-search')}
+
+    ${canLive ? `
+    <section class="card" style="padding:0;overflow:hidden;position:relative">
+      <video id="bc-video" autoplay playsinline muted style="width:100%;height:190px;object-fit:cover;display:block;background:#000"></video>
+      <div style="position:absolute;left:0;right:0;bottom:0;padding:8px 12px;background:linear-gradient(transparent, rgba(0,0,0,0.65));color:#fff;font-size:12px;font-weight:700;text-align:center">Hold the bars inside the frame</div>
+    </section>
+    <div style="height:12px"></div>` : ''}
+
+    <div class="eyebrow">${canLive ? 'Or type the numbers' : 'Type the numbers under the bars'}</div>
+    <section class="card pad">
+      <div style="display:flex;gap:10px">
+        <input id="bc-digits" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 038000138416" aria-label="Barcode digits"
+          style="flex:1;min-width:0;height:52px;border-radius:14px;background:var(--surface-1);border:1.5px solid var(--hairline);color:var(--text);font-size:17px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:0.06em" />
+        <button class="btn green" id="bc-lookup" aria-label="Look up barcode" style="width:auto;padding:0 18px;height:52px;flex:none">${icon('search', 18)}</button>
+      </div>
+      ${canLive ? '' : `<div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:8px;line-height:1.4">Live camera scanning isn't supported in this app's browser engine yet. The printed digits are the same code, so typing them is just as exact.</div>`}
+    </section>
+
+    <div id="bc-status" style="font-size:13px;font-weight:600;color:var(--text-3);min-height:20px;margin:10px 2px"></div>
+
+    <div id="bc-result" style="display:none">
+      <div class="eyebrow">Found</div>
+      <section class="card pad">
+        <div class="tt" id="bc-name" style="font-size:15px"></div>
+        <div class="ts" id="bc-serving" style="margin-top:2px"></div>
+        <div class="macro-row" style="margin-top:12px">
+          <div class="macro"><div class="mv" id="bc-p">0g</div><div class="mk">Protein</div></div>
+          <div class="macro"><div class="mv" id="bc-c">0g</div><div class="mk">Carbs</div></div>
+          <div class="macro"><div class="mv" id="bc-f">0g</div><div class="mk">Fat</div></div>
+          <div class="macro"><div class="mv" id="bc-k">0</div><div class="mk">Calories</div></div>
+        </div>
+        <div class="eyebrow" style="margin-top:14px">How much did you eat?</div>
+        <div class="chip-row" id="bc-grams">
+          <span class="chp" data-g="50">50g</span>
+          <span class="chp on" data-g="100">100g</span>
+          <span class="chp" data-g="150">150g</span>
+          <span class="chp" data-g="250">250g</span>
+        </div>
+        <div id="bc-attr" style="font-size:10.5px;font-weight:600;color:var(--text-3);margin-top:12px"></div>
+      </section>
+      <div style="height:14px"></div>
+      ${slot ? `<button class="btn green" id="bc-log">${icon('check', 19)} Add to ${slotName}</button>`
+        : `<button class="btn ghost" data-back="home">All meals logged · Done</button>`}
+    </div>
+    <div style="height:10px"></div>
+    `;
+  },
+  mount(root) {
+    const SLOT = S.currentSlot;
+    const status = root.querySelector('#bc-status');
+    const digits = root.querySelector('#bc-digits');
+    let found = null;   // { name, serving, per100, attribution }
+    let grams = 100;
+    let stream = null, scanTimer = null, busy = false;
+
+    const paint = () => {
+      const box = root.querySelector('#bc-result');
+      if (!found) { box.style.display = 'none'; return; }
+      const m = found.per100 || {};
+      const x = grams / 100;
+      root.querySelector('#bc-name').textContent = found.name;
+      root.querySelector('#bc-serving').textContent = found.serving
+        ? `Label serving: ${found.serving} · numbers below are for your ${grams}g`
+        : `Numbers below are for your ${grams}g`;
+      root.querySelector('#bc-p').textContent = Math.round((m.protein || 0) * x) + 'g';
+      root.querySelector('#bc-c').textContent = Math.round((m.carbs || 0) * x) + 'g';
+      root.querySelector('#bc-f').textContent = Math.round((m.fat || 0) * x) + 'g';
+      root.querySelector('#bc-k').textContent = Math.round((m.kcal || 0) * x);
+      root.querySelector('#bc-attr').textContent = found.attribution ? `Source: ${found.attribution}` : '';
+      box.style.display = 'block';
+    };
+
+    const lookup = async (code) => {
+      if (busy) return;
+      busy = true;
+      status.textContent = 'Looking it up…';
+      const res = await fetchFoodByBarcode(code);
+      busy = false;
+      if (!res) {
+        found = null; paint();
+        status.textContent = navigator.onLine === false
+          ? 'You need a connection for a barcode lookup. The label screen works offline.'
+          : 'No match for that code. Not every product is in the database — the label screen always works.';
+        return;
+      }
+      found = res;
+      status.textContent = '';
+      paint();
+    };
+
+    root.querySelector('#bc-lookup').addEventListener('click', () => {
+      const code = (digits.value || '').replace(/\D/g, '');
+      if (code.length < 8) { status.textContent = 'A barcode is at least 8 digits.'; return; }
+      lookup(code);
+    });
+    digits.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') root.querySelector('#bc-lookup').click(); });
+
+    root.querySelectorAll('#bc-grams .chp').forEach((ch) => ch.addEventListener('click', () => {
+      root.querySelectorAll('#bc-grams .chp').forEach((c) => c.classList.remove('on'));
+      ch.classList.add('on');
+      grams = +ch.dataset.g || 100;
+      paint();
+    }));
+
+    // Live scan — only where the engine really has it. detect() on an interval rather than rAF:
+    // a decode every 350ms reads a steady hand fine and doesn't cook the battery.
+    const video = root.querySelector('#bc-video');
+    const stop = () => {
+      if (scanTimer) { clearInterval(scanTimer); scanTimer = null; }
+      if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
+    };
+
+    const logBtn = root.querySelector('#bc-log');
+    if (logBtn && SLOT) logBtn.addEventListener('click', () => {
+      if (!found) return;
+      const m = found.per100 || {}, x = grams / 100;
+      window.__act.captureManual({
+        protein: (m.protein || 0) * x, carbs: (m.carbs || 0) * x,
+        fat: (m.fat || 0) * x, kcal: (m.kcal || 0) * x,
+      }, [`${found.name} (${grams}g)`], SLOT, 'label');
+      stop();
+      location.hash = '#meal-analysis';   // same confirm gate as every other path (WS7)
+    });
+
+    if (video && 'BarcodeDetector' in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      (async () => {
+        try {
+          const det = new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] });
+          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+          video.srcObject = stream;
+          scanTimer = setInterval(async () => {
+            if (busy || !stream) return;
+            try {
+              const codes = await det.detect(video);
+              const hit = codes && codes[0] && (codes[0].rawValue || '').replace(/\D/g, '');
+              if (hit && hit.length >= 8) {
+                digits.value = hit;
+                if (navigator.vibrate) { try { navigator.vibrate(12); } catch { /* no-op */ } }
+                lookup(hit);
+              }
+            } catch { /* a bad frame is not an error state */ }
+          }, 350);
+        } catch {
+          // Camera refused — the typed path above is the whole feature on this device.
+          const vf = video.closest('section'); if (vf) vf.style.display = 'none';
+        }
+      })();
+    }
+    // The router replaces innerHTML on navigation; stop the camera when the screen goes away
+    // (visibilitychange covers backgrounding mid-scan, pagehide covers a WebView teardown).
+    window.addEventListener('pagehide', stop, { once: true });
+    document.addEventListener('visibilitychange', function onVis() {
+      if (document.visibilityState !== 'visible') { stop(); document.removeEventListener('visibilitychange', onVis); }
     });
   },
 };
