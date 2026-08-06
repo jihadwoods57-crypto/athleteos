@@ -1562,10 +1562,10 @@ export const coachInbox = {
 
     ${isNeedsResponse ? `
     <div class="eyebrow">Daily briefing · from your real roster</div>
-    <section class="card pad" ${rows && !rows.length ? 'data-go="coach-profile" style="cursor:pointer;' : 'style="'}background:linear-gradient(180deg, rgba(168,85,247,0.10), rgba(168,85,247,0.03));border-color:rgba(168,85,247,0.26)">
+    <section class="card pad" ${rows && !rows.length ? 'data-go="coach-profile/code" style="cursor:pointer;' : 'style="'}background:linear-gradient(180deg, rgba(168,85,247,0.10), rgba(168,85,247,0.03));border-color:rgba(168,85,247,0.26)">
       <div style="display:flex;align-items:center;gap:7px;font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--purple-bright);margin-bottom:10px">${icon('sparkle', 13)} Today's read</div>
       <div style="font-size:13.5px;font-weight:600;color:var(--text-2);line-height:1.55">${briefing}</div>
-      ${rows && !rows.length && RT.team && RT.team.code ? `<div style="margin-top:10px;display:flex;gap:8px;align-items:center"><span class="btn ghost sm" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.team.code)}</span><button class="btn green sm" style="width:auto;padding:0 14px">Share code</button></div>` : ''}
+      ${rows && !rows.length && RT.team && RT.team.code ? `<div style="margin-top:10px;display:flex;gap:8px;align-items:center"><button class="btn ghost sm" id="inbox-copy-code" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.team.code)}</button><button class="btn green sm" id="inbox-share-code" style="width:auto;padding:0 14px">Share code</button></div>` : ''}
     </section>` : ''}
 
     <div class="co-seg co-scroll" id="inbox-cat-row">
@@ -1618,6 +1618,21 @@ export const coachInbox = {
       try { localStorage.setItem(INBOX_CAT_KEY, INBOX_CAT); } catch { /* in-memory only */ }
       window.__render();
     }));
+    // Briefing-card code chip + Share — these looked interactive but had no handlers, so a tap
+    // only "worked" by bubbling to the card's navigation. stopPropagation keeps the card put.
+    const copyChip = root.querySelector('#inbox-copy-code');
+    if (copyChip) copyChip.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const code = (RT.team && RT.team.code) || '';
+      try { await navigator.clipboard.writeText(code); } catch { /* no-op */ }
+      copyChip.textContent = 'Copied';
+      setTimeout(() => { copyChip.textContent = code; }, 1600);
+    });
+    const shareCode = root.querySelector('#inbox-share-code');
+    if (shareCode) shareCode.addEventListener('click', (e) => {
+      e.stopPropagation();
+      location.hash = '#coach-profile/code';
+    });
   },
 };
 
@@ -2175,7 +2190,7 @@ export const coachAthlete = {
     // without this guard the receipt call would re-fire on each of those instead of once.
     if (VIEWED_FOR !== athleteId) {
       VIEWED_FOR = athleteId;
-      try { roles.markDayViewed(athleteId, roles.todayISO(), RT.userId, S.coachIdentity.handle); } catch { /* best-effort */ }
+      try { roles.markDayViewed(athleteId, roles.todayISO(), RT.userId, S.operatorIdentity.handle); } catch { /* best-effort */ }
     }
     root.querySelectorAll('[data-psec]').forEach(el => el.addEventListener('click', () => {
       PSECTION = el.getAttribute('data-psec'); window.__render();
@@ -2186,7 +2201,9 @@ export const coachAthlete = {
       const id = el.getAttribute('data-anudge');
       const status = root.querySelector('#tp-status');
       el.disabled = true; if (status) { status.style.color = 'var(--text-3)'; status.textContent = 'Sending nudge…'; }
-      const ok = await roles.nudgePush(id, `${S.coachIdentity.handle} is waiting`, 'Your log is overdue. Get it in.');
+      // No tier context here (the detail screen nudge is always available), so the body must
+      // stay true for an athlete who isn't overdue at all.
+      const ok = await roles.nudgePush(id, `${S.operatorIdentity.handle} is waiting`, 'Time to get your log in.');
       if (ok) { try { act.markNudged(id); } catch { /* best-effort */ } try { await logBookIntervention({ athleteId: id, kind: 'nudge' }); } catch { /* best-effort */ } }
       el.disabled = false;
       if (status) { status.style.color = ok ? 'var(--green-bright)' : 'var(--red)'; status.textContent = ok ? 'Nudge sent — it lands on their phone.' : "Couldn't send it — check your connection."; }
@@ -2324,10 +2341,10 @@ export const coachMeal = {
     // No ⋯ until the thread is up: every action behind it needs the loaded meal, and a control
     // that is visible before it can work is worse than one that arrives a beat later.
     if (!MC || MC.mealId !== mealId) {
-      return `${backHead(title, 'Your comment lands on the athlete’s log', backTo)}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('message', 17)}</div>
+      return `${backHead(title, `Your comment lands on the ${CD.noun}’s log`, backTo)}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('message', 17)}</div>
       <div><div class="tt">Loading the thread…</div><div class="ts">Reading the athlete’s comments on this meal.</div></div></div>`;
     }
-    const head = backHead(title, 'Your comment lands on the athlete’s log', backTo,
+    const head = backHead(title, `Your comment lands on the ${CD.noun}’s log`, backTo,
       { id: 'cm-more', label: 'Meal actions', icon: 'more' });
     const foods = meal && Array.isArray(meal.detected) ? meal.detected : [];
     return `
@@ -2409,7 +2426,7 @@ export const coachMeal = {
         ${opening && !msgs.some(isAnalysisOpener) ? `
         <div class="msg">
           <div class="av">${icon('sparkle', 15)}</div>
-          <div><div class="who">AI Nutritionist · what the athlete was told</div>
+          <div><div class="who">AI Nutritionist · what the ${CD.noun} was told</div>
           <div class="bubble">${esc(opening)}</div></div>
         </div>` : ''}
         ${layoutThread(msgs, { fmtTime: msgClock, fmtDay: msgDay }).map((item) => {
@@ -2441,7 +2458,7 @@ export const coachMeal = {
               messages at all (a coach who only ever reacted). Show them, rather than losing them
               with the strip they used to live in. */''}
         ${rx.length ? `<div class="rx-strip">${rx.map((r) => `<span class="rx">${esc(r.emoji)}<span class="n">${r.count}</span></span>`).join('')}</div>` : ''}
-        <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:2px 2px 8px">No comments yet — say something, or press and hold a message to react. The athlete sees it on the log.</div>` : ''}
+        <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:2px 2px 8px">No comments yet — say something, or press and hold a message to react. The ${CD.noun} sees it on the log.</div>` : ''}
       </div>`;
     })()}
     ${(() => {

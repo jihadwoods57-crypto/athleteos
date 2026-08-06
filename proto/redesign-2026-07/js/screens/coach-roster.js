@@ -113,7 +113,7 @@ function groupSheet(groups) {
     <div class="eyebrow" style="margin:0 0 8px">Custom groups</div>
     ${groups.map(g => `
     <div class="lrow" style="cursor:default">
-      <div class="lm"><div class="lt">${esc(g.name)}</div><div class="ls">${(g.athlete_ids || []).length} athlete${(g.athlete_ids || []).length === 1 ? '' : 's'}</div></div>
+      <div class="lm"><div class="lt">${esc(g.name)}</div><div class="ls">${(g.athlete_ids || []).length} ${CD.noun}${(g.athlete_ids || []).length === 1 ? '' : 's'}</div></div>
       ${SEL.size ? `<button class="btn ghost sm" data-gadd="${esc(g.id)}" style="width:auto;padding:0 10px;height:30px">Add ${SEL.size}</button>` : ''}
       <button class="btn ghost sm" data-gdel="${esc(g.id)}" style="width:auto;padding:0 10px;height:30px;margin-left:6px;color:var(--red)">Delete</button>
     </div>`).join('') || `<div style="font-size:12px;font-weight:600;color:var(--text-3)">No groups yet.</div>`}
@@ -153,8 +153,8 @@ function wireGroupSheet(root, teamId) {
 function absenceSheet() {
   return `
   <section class="card" style="padding:13px 16px">
-    <div class="eyebrow" style="margin:0 0 8px">Excuse ${SEL.size} athlete${SEL.size === 1 ? '' : 's'}</div>
-    <div style="font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5;margin-bottom:8px">Excused athletes drop out of the priority queue and today's completion math — and nothing pings them while excused.</div>
+    <div class="eyebrow" style="margin:0 0 8px">Excuse ${SEL.size} ${CD.noun}${SEL.size === 1 ? '' : 's'}</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5;margin-bottom:8px">Excused ${CD.nouns} drop out of the priority queue and today's completion math — and nothing pings them while excused.</div>
     <input class="ob-input" id="abs-reason" maxlength="120" placeholder="Reason (travel, injury, family…)" style="height:36px" />
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px">
       <button class="btn sm" data-abs="0" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:12px">Just today</button>
@@ -227,16 +227,22 @@ export const coachRoster = {
     if (CD.roster && CD.roster.offline) return `${head}${errorState({ title: vocab().offlineTitle, body: vocab().offlineBody, retryId: 'roster-retry' })}`;
     if (CD.roster === null || !CD.extras) return `${head}${skeletonRows(5, vocab().loading)}`;
     const entries = entriesFor({ kind: 'team', value: null }) || [];
-    if (!entries.length) return `${head}
+    if (!entries.length) {
+      // coach-profile is nav:'coach' — a trainer tapping it gets silently bounced by the router,
+      // so the practice book routes its share action to the Practice HQ (which owns the code).
+      const practice = CD.kind === 'practice';
+      const noun = practice ? 'client' : 'athlete';
+      return `${head}
       <div class="state-demo">
         <div class="sd-ic">${icon('users', 24)}</div>
-        <div class="sd-t">No athletes yet</div>
-        <div class="sd-s">Share your athlete code — everyone who joins shows up here in real time.</div>
+        <div class="sd-t">No ${noun}s yet</div>
+        <div class="sd-s">Share your ${noun} code — everyone who joins shows up here in real time.</div>
         <div class="sd-cta" style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
-          <button class="btn primary sm" data-go="coach-profile/code">${icon('share', 16)} Share athlete code</button>
+          <button class="btn primary sm" data-go="${practice ? 'trainer-profile' : 'coach-profile/code'}">${icon('share', 16)} Share ${noun} code</button>
           <button class="btn ghost sm" data-go="coach-plan-set/team">${icon('clipboard', 16)} Set your standard</button>
         </div>
       </div>`;
+    }
 
     const positions = [...new Set(entries.map(e => (e.row.position || '').toUpperCase()).filter(Boolean))].sort();
     const groups = (CD.extras && CD.extras.groups) || [];
@@ -293,13 +299,15 @@ export const coachRoster = {
       const kind = b.getAttribute('data-bulk'); const ids = [...SEL];
       if (kind === 'nudge') {
         BULK_BUSY = true; BULK_STATUS = 'Sending…'; window.__render();
-        const today = new Date().toISOString().slice(0, 10);
+        const today = roles.todayISO();
         const already = ids.filter(id => (RT.coachNudged || {})[id] === today);
         const toSend = ids.filter(id => (RT.coachNudged || {})[id] !== today);
         let sent = 0, failed = 0;
         try {
           for (const id of toSend) {
-            const ok = await roles.nudgePush(id, `${S.operatorIdentity.handle} is waiting`, 'Your log is overdue. Get it in.');
+            // Bulk-nudge targets whatever the operator selected — "overdue" would be a lie for
+            // an athlete who's current, so the body stays neutral.
+            const ok = await roles.nudgePush(id, `${S.operatorIdentity.handle} is waiting`, 'Time to get your log in.');
             if (ok) { act.markNudged(id); await logBookIntervention({ athleteId: id, kind: 'nudge' }); sent++; }
             else failed++;
           }

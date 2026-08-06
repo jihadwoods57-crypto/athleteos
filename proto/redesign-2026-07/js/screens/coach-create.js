@@ -40,6 +40,8 @@ const TRAINER_SUB = {
   assign: 'All clients, or just one',
   standards: 'Meals, windows, and check-ins',
 };
+/* The option TITLES leaked "athlete" to a practice even with the sub-copy overridden. */
+const TRAINER_TITLE = { message_athlete: 'Message a client', add_athlete: 'Add a client' };
 
 export const coachCreate = {
   nav: 'operator', tab: 'create', transient: true,
@@ -63,7 +65,7 @@ export const coachCreate = {
       ${opts.map(o => `
       <div class="lrow" data-go="${(practice && TRAINER_GO[o.key]) || o.go}" style="cursor:pointer">
         <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon(o.icon, 17)}</div>
-        <div class="lm"><div class="lt">${esc(o.title)}</div><div class="ls">${esc((practice && TRAINER_SUB[o.key]) || o.sub)}</div></div>
+        <div class="lm"><div class="lt">${esc((practice && TRAINER_TITLE[o.key]) || o.title)}</div><div class="ls">${esc((practice && TRAINER_SUB[o.key]) || o.sub)}</div></div>
         <span style="color:var(--text-3)">›</span>
       </div>`).join('')}
     </section>

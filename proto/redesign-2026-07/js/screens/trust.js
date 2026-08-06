@@ -3,9 +3,10 @@ import { DAY, MEAL_KEYS } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg } from '../components.js';
 import { cachedMealPhoto, warmMealPhotos, resolveMealPhoto } from '../photo-store.js';
-import { fetchRecentMeals, daysAgoISO, fetchMealComments, postMealComment, fetchThreadParticipants, signedMealPhotoUrl } from '../roles.js';
-import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos } from '../chat-attach.js';
-import { threadMessages } from '../meal-intel.js';
+import { fetchRecentMeals, daysAgoISO, fetchMealComments, postMealComment, deleteMealComment, uploadChatPhoto, fetchThreadParticipants, signedMealPhotoUrl } from '../roles.js';
+import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos, wireComposerAttach, postChatMessage } from '../chat-attach.js';
+import { threadMessages, reactionGroups, REACTION_EMOJI } from '../meal-intel.js';
+import { wireTapback } from '../tapback.js';
 import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isEscalated, quotedFor } from '../chat-view.js';
 
 /* Message clock + day key for the past-meal conversation — local, so a message at 11:58pm and
@@ -300,7 +301,12 @@ function mountThread(root, mealId, meal) {
   const paint = () => {
     const msgs = threadMessages(rows);
     if (!msgs.length) { threadEl.innerHTML = '<div class="msg-status">No messages on this meal yet.</div>'; return; }
-    threadEl.innerHTML = layoutThread(msgs, { fmtTime: mvClock, fmtDay: mvDay }).map((item) => {
+    const items = layoutThread(msgs, { fmtTime: mvClock, fmtDay: mvDay });
+    // Reactions are keyed to the MEAL, not a message (0049) — same rule as the live thread:
+    // they sit once, on the last bubble, where the eye lands.
+    const msgItems = items.filter((i) => i.type !== 'time');
+    const lastMsg = msgItems.length ? msgItems[msgItems.length - 1].comment : null;
+    threadEl.innerHTML = items.map((item) => {
       if (item.type === 'time') return `<div class="tsep">${esc(item.label)}</div>`;
       const c = item.comment;
       const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
@@ -310,13 +316,15 @@ function mountThread(root, mealId, meal) {
       const quoted = update ? quotedFor(c, msgs) : null;
       const photo = attachedPhoto(c);
       const photoOnly = isPhotoOnly(c);
+      const rx = c === lastMsg ? reactionGroups(rows) : [];
       return `
-        <div class="msg ${mine ? 'athlete' : c.role === 'ai' ? 'ai' : 'coach'}${item.firstOfRun ? '' : ' cont'}">
+        <div class="msg ${mine ? 'athlete' : c.role === 'ai' ? 'ai' : 'coach'}${item.firstOfRun ? '' : ' cont'}${rx.length ? ' has-rx' : ''}">
           ${!mine && item.firstOfRun ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : esc(initialsFor(who))}</div>` : '<div class="av-sp"></div>'}
           <div class="stack">
             ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
             ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
             <div class="bubble">${update ? '<span class="upd">Updated analysis</span>' : escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(String(c.text || ''))}</div>
+            ${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}
           </div>
         </div>`;
     }).join('');
@@ -343,16 +351,61 @@ function mountThread(root, mealId, meal) {
   };
   void refresh();
 
+  // Press-and-hold reactions — this screen is where follow-up pushes land, so a coach's ❤️ on
+  // yesterday's dinner must be visible (and answerable) HERE, not only on the live thread.
+  // wireTapback is re-entrant; '#mv-thread' scopes it away from the other two renderers.
+  let rxBusy = false;
+  wireTapback({
+    root,
+    scope: '#mv-thread',
+    emoji: REACTION_EMOJI,
+    mine: () => new Set((rows || [])
+      .filter((c) => c && c.kind === 'reaction' && c.author_id === RT.userId)
+      .map((c) => String(c.text))),
+    onReact: async (emoji) => {
+      if (!emoji || rxBusy) return;
+      rxBusy = true;
+      // TOGGLE, not append — mirrors meal.js: reaction rows are exempt from the message cap, so
+      // an un-toggled control would let one athlete write unbounded rows.
+      const existing = (rows || []).find((c) => c && c.kind === 'reaction' && c.author_id === RT.userId && String(c.text) === emoji);
+      const ok = existing
+        ? await deleteMealComment(existing.id).catch(() => false)
+        : await postMealComment(mealId, meal.athlete_id || RT.userId, RT.userId, 'athlete', emoji, 'reaction').catch(() => false);
+      if (ok) await refresh(); else if (note) note.textContent = "Couldn't save that reaction — try again.";
+      rxBusy = false;
+    },
+  });
+
+  // Photo attachment — same shared plumbing as the live and coach threads (chat-attach.js), so
+  // the three renderers can't drift.
+  const attach = wireComposerAttach({
+    root, attachId: 'mv-attach', pendingId: 'mv-attach-pending', safeImg,
+    onNote: (m) => { if (note) note.textContent = m || ''; },
+  });
+
   let busy = false;
   const submit = async () => {
-    const text = input && input.value.trim();
-    if (!text || busy) return;
+    const text = (input && input.value.trim()) || '';
+    const pendingPhoto = attach.get();
+    if ((!text && !pendingPhoto) || busy) return;
     busy = true;
+    if (note) note.textContent = pendingPhoto ? 'Uploading photo…' : '';
+    const res = await postChatMessage({ postMealComment, uploadChatPhoto }, {
+      mealId, athleteId: meal.athlete_id || RT.userId, authorId: RT.userId, role: 'athlete',
+      text, photo: pendingPhoto,
+    });
+    if (!res.ok) {
+      busy = false;
+      if (note) note.textContent = res.error === 'upload'
+        ? "Couldn't upload that photo — try again, or remove it and send."
+        : "Couldn't send that. Try again when you're back online.";
+      return;
+    }
+    attach.clear();
     if (note) note.textContent = '';
-    const ok = await postMealComment(mealId, meal.athlete_id || RT.userId, RT.userId, 'athlete', text).catch(() => false);
-    if (!ok) { busy = false; if (note) note.textContent = "Couldn't send that. Try again when you're back online."; return; }
     if (input) input.value = '';
     await refresh();
+    if (!text) { busy = false; return; } // a photo alone is a complete message — nothing to ask the AI
     try {
       await window.sb.functions.invoke('meal-chat', { body: { mealId, question: text, context: {
         meal: { name: meal.name || meal.type, slot: meal.type, quality: meal.quality,
@@ -412,7 +465,8 @@ export const mealView = {
     <div class="thread" id="mv-thread">
       <div class="msg-status">Loading…</div>
     </div>
-    ${composer({ inputId: 'mv-msg', sendId: 'mv-send', placeholder: 'Reply about this meal…', sendLabel: 'Send' })}
+    ${composer({ inputId: 'mv-msg', sendId: 'mv-send', placeholder: 'Reply about this meal…', sendLabel: 'Send', attachId: 'mv-attach' })}
+    <div class="composer-attach-pending" id="mv-attach-pending" hidden></div>
     <div id="mv-note" style="min-height:18px"></div>
     <div style="height:10px"></div>`;
   },

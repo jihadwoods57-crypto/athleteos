@@ -97,8 +97,8 @@ function namesBody(fullNames) {
 /** n===1 uses the athlete's FIRST name (matching the body's name style); otherwise
  *  "<n> athletes missed <title>". Shared by grouped window alerts and the immediate-critical
  *  item so both read the same way. */
-function groupTitle(names, title) {
-  return names.length === 1 ? `${firstName(names[0])} missed ${title}` : `${names.length} athletes missed ${title}`;
+function groupTitle(names, title, noun = 'athlete') {
+  return names.length === 1 ? `${firstName(names[0])} missed ${title}` : `${names.length} ${noun}s missed ${title}`;
 }
 
 /** Does this athlete already have a today-intervention matching their CURRENT status signature
@@ -165,7 +165,7 @@ function quietPlace(t, prefs, nowMin, closeMin) {
  * the exact native shape notify-plan.js's athlete planner returns.
  */
 export function planCoachNotifications({
-  nowMin, dateISO = '', entries = [], interventions = [], prefs: rawPrefs = null, lastAlertKeys = [],
+  nowMin, dateISO = '', entries = [], interventions = [], prefs: rawPrefs = null, lastAlertKeys = [], noun = 'athlete',
 }) {
   void dateISO; // accepted, not consumed — see header
   const prefs = normalizeCoachPrefs(rawPrefs);
@@ -186,7 +186,7 @@ export function planCoachNotifications({
     out.push({
       id: `cn-due-overdue:${id}:${names.length}`, fireAtMin: clampMin(fireAtMin), dayOffset: 0,
       immediate: false, stage: 'due', route: 'coach-inbox',
-      title: groupTitle(names, g.title), body: namesBody(names),
+      title: groupTitle(names, g.title, noun), body: namesBody(names),
     });
   }
 
@@ -260,7 +260,7 @@ export function planCoachNotifications({
       }
       out.push({
         id: `cn-due-immediate:${k}`, fireAtMin: clampMin(fireAtMin), dayOffset: 0, immediate,
-        stage: 'due', route: 'coach-inbox', title: groupTitle(names, g.title), body: namesBody(names),
+        stage: 'due', route: 'coach-inbox', title: groupTitle(names, g.title, noun), body: namesBody(names),
       });
       break; // one immediate (or its quiet-demoted slot) max per plan
     }
@@ -292,11 +292,11 @@ export function planCoachNotifications({
  * that same snapshot and keep the NEW-critical diff honest.
  */
 export function buildCoachSyncPlan({
-  entries, interventions = [], prefs = null, nowMin, dateISO = '', lastAlertKeys = [],
+  entries, interventions = [], prefs = null, nowMin, dateISO = '', lastAlertKeys = [], noun = 'athlete',
 }) {
   if (entries == null) return null; // still loading — caller posts nothing, retries next trigger
-  const today = planCoachNotifications({ nowMin, dateISO, entries, interventions, prefs, lastAlertKeys });
-  const tomorrow = planCoachNotifications({ nowMin: -1, dateISO, entries, interventions, prefs, lastAlertKeys })
+  const today = planCoachNotifications({ nowMin, dateISO, entries, interventions, prefs, lastAlertKeys, noun });
+  const tomorrow = planCoachNotifications({ nowMin: -1, dateISO, entries, interventions, prefs, lastAlertKeys, noun })
     .filter((p) => p.id === 'cn-open-briefing')
     .map((p) => ({ ...p, dayOffset: 1 }));
   return [...today, ...tomorrow];

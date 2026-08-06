@@ -40,6 +40,8 @@ export const CS = {
   get board() { return RTC.board; },
   get mineError() { return RTC.mineError; },
   get boardError() { return RTC.boardError; },
+  /** Non-zero once a board fetch has settled — lets screens tell "loading" from "truly empty". */
+  get boardAt() { return RTC.boardAt; },
   /** One result row out of whichever cache holds it. */
   result(resultId) {
     return RTC.mine.find(r => r.result_id === resultId) || null;

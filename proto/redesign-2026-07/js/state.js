@@ -1560,6 +1560,7 @@ export const act = {
         interventions: (CD.extras && CD.extras.interventions) || [],
         prefs, nowMin: minutesNow(), dateISO: todayISO(),
         lastAlertKeys: RT._lastCoachAlertKeys || [],
+        noun: RT.authRole === 'trainer' ? 'client' : 'athlete', // a trainer's pushes say "clients"
       });
       if (plan == null) return; // coach data still loading — post nothing, retry on the next trigger
       const [y, mo, d] = String(DAY.date).split('-').map(Number);
@@ -2507,7 +2508,11 @@ export const act = {
     }
   },
   markNudged(athleteId) {
-    RT.coachNudged = { ...(RT.coachNudged || {}), [athleteId]: new Date().toISOString().slice(0, 10) };
+    // Local date, not UTC — toISOString flips the "day" at ~5-8pm for US coaches, which cleared
+    // the "Nudged ✓" state mid-evening and allowed a second nudge the same real day.
+    const d = new Date();
+    const local = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    RT.coachNudged = { ...(RT.coachNudged || {}), [athleteId]: local };
     save();
   },
   setTheme(mode) {

@@ -46,7 +46,7 @@ export function commitmentBoardCard() {
   if ((!rows || !rows.length) && VC.boardError) {
     return `<section class="card pad" style="border-color:var(--amber-border);margin-bottom:10px">
       <div class="tt">Roll call didn’t load</div>
-      <div class="ts" style="padding-top:4px">This isn’t a count of zero — we couldn’t reach the server. Pull to refresh in a moment.</div>
+      <div class="ts" style="padding-top:4px">This isn’t a count of zero — we couldn’t reach the server. It retries the next time you open this screen.</div>
     </section>`;
   }
   if (!rows || !rows.length) return '';
@@ -112,7 +112,7 @@ function athleteRow(r, asksArrival) {
     <div class="lm" style="flex:1">
       <div class="lt">${esc(r.name || 'Athlete')}</div>
       <div class="ls">${esc(when)}${esc(src)}${r.corrected_by_name ? esc(` · corrected by ${r.corrected_by_name}`) : ''}</div>
-      ${r.disputed_at ? `<div class="ls" style="color:var(--amber-bright);font-weight:700">Reported wrong by the athlete${r.dispute_note ? esc(` — ${r.dispute_note}`) : ''}</div>` : ''}
+      ${r.disputed_at ? `<div class="ls" style="color:var(--amber-bright);font-weight:700">Reported wrong by the ${CD.noun}${r.dispute_note ? esc(` — ${r.dispute_note}`) : ''}</div>` : ''}
     </div>
     <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
       <span class="xpill ${cls}">${esc(label)}</span>
@@ -168,7 +168,7 @@ export const coachCommitments = {
     <div class="eyebrow">Still waiting on ${missing.length}</div>
     <section class="card" style="padding:2px 16px">${missing.map((r) => athleteRow(r, !!inst.asks_arrival)).join('')}</section>
     <div style="height:10px"></div>
-    <button class="btn" id="vc-remind" style="width:100%">${icon('bell', 18)} Remind ${missing.length} missing ${missing.length === 1 ? 'athlete' : 'athletes'}</button>
+    <button class="btn" id="vc-remind" style="width:100%">${icon('bell', 18)} Remind ${missing.length} missing ${missing.length === 1 ? CD.noun : CD.nouns}</button>
     <div class="ts" style="text-align:center;padding-top:8px">Only these ${missing.length} get the reminder. Nobody who already responded is pinged.</div>
     ` : `
     <div class="sidebox" style="margin-top:12px">
@@ -185,7 +185,7 @@ export const coachCommitments = {
     <div class="sidebox" style="margin-top:14px">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 19)}</div>
       <div><div class="tt">What "Arrived" means</div>
-      <div class="ts">The athlete's phone reached ${esc(inst.location_name || 'the location')} inside the scheduled window. It does not prove the session was completed — that's the separate Completed signal.</div></div>
+      <div class="ts">The ${CD.noun}'s phone reached ${esc(inst.location_name || 'the location')} inside the scheduled window. It does not prove the session was completed — that's the separate Completed signal.</div></div>
     </div>` : ''}
     <div style="height:20px"></div>`;
   },
@@ -229,9 +229,10 @@ export const coachCommitments = {
     };
 
     root.querySelectorAll('[data-vc-mark]').forEach((b) => b.addEventListener('click', async () => {
+      const label = b.textContent; // 'Mark arrived' or 'Mark in' — restore the SAME one on failure
       b.disabled = true; b.textContent = '…';
       const ok = await setResponse(b.getAttribute('data-vc-mark'), 'acknowledged', null);
-      if (!ok) { b.disabled = false; b.textContent = 'Mark in'; return; }
+      if (!ok) { b.disabled = false; b.textContent = label; return; }
       await repaint();
     }));
 
@@ -360,7 +361,7 @@ export const coachCommitManage = {
       <section class="card" style="padding:2px 16px">${live.map(card).join('')}</section>` : ''}
     ${paused.length ? `<div class="eyebrow">Paused</div>
       <section class="card" style="padding:2px 16px">${paused.map(card).join('')}</section>
-      <div class="ts" style="padding-top:8px">Paused commitments stop appearing for athletes tomorrow. Everything already recorded against them stays exactly as it is.</div>` : ''}
+      <div class="ts" style="padding-top:8px">Paused commitments stop appearing for ${CD.nouns} tomorrow. Everything already recorded against them stays exactly as it is.</div>` : ''}
     <div style="height:14px"></div>
     <button class="btn green" id="vc-new" style="width:100%">${icon('plus', 18)} Schedule a commitment</button>
     <div style="height:20px"></div>`;
@@ -376,14 +377,14 @@ export const coachCommitManage = {
     const create = root.querySelector('#vc-new');
     if (create) create.addEventListener('click', () => {
       DRAFT = null;                       // a fresh sheet, not the last thing edited
-      location.hash = '#/coach-commit-edit';
+      location.hash = '#coach-commit-edit';
     });
 
     root.querySelectorAll('[data-vc-edit]').forEach((b) => b.addEventListener('click', () => {
       const row = (RT.vcCommitments || []).find((r) => r.id === b.getAttribute('data-vc-edit'));
       if (!row) return;
       editCommitment(row);
-      location.hash = '#/coach-commit-edit';
+      location.hash = '#coach-commit-edit';
     }));
 
     root.querySelectorAll('[data-vc-toggle]').forEach((b) => b.addEventListener('click', async () => {
@@ -429,7 +430,7 @@ export const coachCommitEdit = {
         ${TYPES.map((t) => `<button class="chip ${d.type === t ? 'on' : ''}" data-type="${t}">${esc(TYPE_LABEL[t])}</button>`).join('')}
       </div>
       <div style="height:14px"></div>
-      <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">What the athletes see as the title</div>
+      <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">What the ${CD.nouns} see as the title</div>
       <input class="ob-input" id="vc-title" maxlength="60" value="${esc(d.title)}" placeholder="${esc(TYPE_LABEL[d.type])}" />
       <div style="height:14px"></div>
       <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Your message <span style="color:var(--text-3);font-weight:600">· optional, your words</span></div>
@@ -462,12 +463,12 @@ export const coachCommitEdit = {
         ${timeInput('vc-start', 'Appears / starts', d.starts_min)}
         ${timeInput('vc-respond', 'Respond by', d.respond_by_min)}
       </div>
-      <div class="ts" style="padding-top:10px">A reminder goes out 15 and 5 minutes before the deadline — only to athletes who haven’t responded.</div>
+      <div class="ts" style="padding-top:10px">A reminder goes out 15 and 5 minutes before the deadline — only to ${CD.nouns} who haven’t responded.</div>
     </section>
 
     <div class="eyebrow">Where <span style="text-transform:none;letter-spacing:0">· optional</span></div>
     <section class="card pad">
-      <div class="ts" style="padding-bottom:10px">Attach a place and OnStandard confirms athletes actually got there. Leave it off and this stays a check-in only.</div>
+      <div class="ts" style="padding-bottom:10px">Attach a place and OnStandard confirms ${CD.nouns} actually got there. Leave it off and this stays a check-in only.</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px" id="vc-place">
         <button class="chip ${!d.location_id ? 'on' : ''}" data-place="">No location</button>
         ${(VC.locations || []).map((l) => `<button class="chip ${d.location_id === l.id ? 'on' : ''}" data-place="${esc(l.id)}">${esc(l.name)}</button>`).join('')}
@@ -476,12 +477,12 @@ export const coachCommitEdit = {
       <button class="btn ghost sm" id="vc-newplace" style="width:100%">${icon('target', 16)} Add the place I'm standing in</button>
       <div id="vc-placeform" hidden>
         <div style="height:12px"></div>
-        <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Call it what your athletes call it</div>
+        <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Call it what your ${CD.nouns} call it</div>
         <input class="ob-input" id="vc-placename" maxlength="60" placeholder="e.g. Football Facility" />
         <div style="height:10px"></div>
         <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">How close counts <span style="color:var(--text-3);font-weight:600">· metres</span></div>
         <input class="ob-input" id="vc-placeradius" type="number" min="50" max="1000" step="10" value="120" />
-        <div class="ts" style="padding-top:6px">120m covers a field and its building. Below 50m a phone's own GPS error starts marking honest athletes absent, so that's the floor.</div>
+        <div class="ts" style="padding-top:6px">120m covers a field and its building. Below 50m a phone's own GPS error starts marking honest ${CD.nouns} absent, so that's the floor.</div>
         <div style="height:10px"></div>
         <button class="btn green" id="vc-saveplace" style="width:100%">${icon('check', 17)} Use my current location</button>
         <div id="vc-placemsg" class="ts" style="padding-top:8px"></div>
@@ -507,7 +508,7 @@ export const coachCommitEdit = {
         ${(RT.vcCommitments || []).filter((c) => c.type !== 'morning_roll_call')
           .map((c) => `<option value="${esc(c.id)}" ${d.linked_commitment_id === c.id ? 'selected' : ''}>${esc(c.title)} · ${esc(fmtMin(c.starts_min))}</option>`).join('')}
       </select>
-      <div class="ts" style="padding-top:8px">Pick one and the athlete's card reads "Practice at 6:00 AM" underneath your message.</div>
+      <div class="ts" style="padding-top:8px">Pick one and the ${CD.noun}'s card reads "Practice at 6:00 AM" underneath your message.</div>
     </section>
 
     <div style="height:14px"></div>
@@ -657,7 +658,7 @@ export const coachCommitEdit = {
         RT.vcCommitments = await loadCommitments(owner, CD.kind, true);
         await loadBoard(owner, CD.kind, todayISO(), true);
       }
-      location.hash = '#/coach-commit-manage';
+      location.hash = '#coach-commit-manage';
     });
   },
 };

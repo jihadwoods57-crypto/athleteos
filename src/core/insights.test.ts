@@ -145,7 +145,7 @@ test('mostMissed: recovery IS counted on proto rows where the req id is absent f
   const m = mostMissed({ rollup, reqsByAthlete: RECOVERY_REQ, todayISO: TODAY } as never);
   expect(m).toEqual([{
     reqId: 'recovery', title: 'Recovery Check-In', missedCount: 5,
-    text: 'Recovery Check-In was missed 5 times across the team this week.',
+    text: 'Recovery Check-In was missed 5 times this week.',
   }]);
 });
 
@@ -170,7 +170,7 @@ test('mostMissed: meal positional rule is unchanged — only days the athlete ha
   const m = mostMissed({ rollup, reqsByAthlete, todayISO: TODAY } as never);
   expect(m).toEqual([{
     reqId: 'dinner', title: 'Dinner', missedCount: 5,
-    text: 'Dinner was missed 5 times across the team this week.',
+    text: 'Dinner was missed 5 times this week.',
   }]);
 });
 
@@ -186,7 +186,7 @@ test('mostMissed: weigh — counts a genuine miss only on the freq-required days
   const m = mostMissed({ rollup, reqsByAthlete, todayISO: TODAY } as never);
   expect(m).toEqual([{
     reqId: 'weight', title: 'Morning Weight', missedCount: 1,
-    text: 'Morning Weight was missed 1 time across the team this week.',
+    text: 'Morning Weight was missed 1 time this week.',
   }]);
 });
 
@@ -211,7 +211,7 @@ test('mostMissed: checkin — one miss per athlete per week, never per day, when
   const m = mostMissed({ rollup, reqsByAthlete, todayISO: TODAY } as never);
   expect(m).toEqual([{
     reqId: 'weekly', title: 'Weekly Check-In', missedCount: 1,
-    text: 'Weekly Check-In was missed 1 time across the team this week.',
+    text: 'Weekly Check-In was missed 1 time this week.',
   }]);
 });
 

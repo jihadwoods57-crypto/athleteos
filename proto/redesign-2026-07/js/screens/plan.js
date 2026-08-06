@@ -105,7 +105,9 @@ const OBJECTIVE_COPY = {
   }),
   loading: () => ({
     title: 'Log every meal, on time',
-    body: `Loading your targets… Consistency is the plan either way: ${mealsPhrase()} and your recovery check-in each day.`,
+    // The header subtitle already says "Loading your targets…" — repeating it here glued to a
+    // second sentence read like a rendering bug. State the constant truth instead.
+    body: `Consistency is the plan while your targets load: ${mealsPhrase()} and your recovery check-in each day.`,
   }),
   offline: () => ({
     title: 'Log every meal, on time',

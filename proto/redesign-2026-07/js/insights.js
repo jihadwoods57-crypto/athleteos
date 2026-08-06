@@ -330,7 +330,8 @@ export function mostMissed({ rollup = [], reqsByAthlete = {}, todayISO }) {
     .sort((a, b) => b.missedCount - a.missedCount)
     .map(x => ({
       reqId: x.reqId, title: x.title, missedCount: x.missedCount,
-      text: `${x.title} was missed ${plural(x.missedCount, 'time')} across the team this week.`,
+      // Role-neutral on purpose: this pure module doesn't know team vs practice.
+      text: `${x.title} was missed ${plural(x.missedCount, 'time')} this week.`,
     }));
 }
 

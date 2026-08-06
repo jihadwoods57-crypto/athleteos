@@ -136,7 +136,7 @@ export default {
     });
 
     const guardian = root.querySelector('#lc-guardian');
-    if (guardian) guardian.addEventListener('click', () => { location.hash = '#/guardian'; });
+    if (guardian) guardian.addEventListener('click', () => { location.hash = '#guardian'; });
   },
 };
 

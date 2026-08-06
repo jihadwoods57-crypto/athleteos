@@ -29,7 +29,10 @@ const VOCAB = {
     setup: 'Finish setting up your practice', loading: 'Loading your clients…',
   },
 };
-const vocab = () => VOCAB[CD.kind] || VOCAB.team;
+/* CD.kind only settles after the first loadBook resolves, so a trainer's very first paint would
+   flash team vocab — the signed-in role already knows the answer, so prefer it. */
+const isPractice = () => CD.kind === 'practice' || RT.authRole === 'trainer';
+const vocab = () => VOCAB[isPractice() ? 'practice' : 'team'];
 
 /* Athlete-invite link + share text (mirrors the trainer's inviteLink/inviteShareText inline,
    the same way state.js mirrors src/core in plain JS). Empty code → empty string: never link or
@@ -57,7 +60,7 @@ function coachInviteCard(code, teamName) {
     </div>
     <div style="display:flex;gap:14px;align-items:center">
       <div style="flex:none"><div class="hq-qr">${svg}</div><div class="hq-qcap">SCAN TO JOIN</div></div>
-      <div style="flex:1;min-width:0;font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.45">Athletes scan the code or enter it to join your team. Only you hand it out.</div>
+      <div style="flex:1;min-width:0;font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.45">${isPractice() ? 'Clients scan the code or enter it to join your practice.' : 'Athletes scan the code or enter it to join your team.'} Only you hand it out.</div>
     </div>
     <div class="btn-row" style="margin-top:16px">
       <button class="btn ghost sm" id="coach-copy-code">${icon('clipboard', 16)} Copy code</button>
@@ -90,15 +93,28 @@ export function coachSetupState() {
 }
 /* Setup steps split into REQUIRED (share code, review standard) and OPTIONAL. */
 export function coachSetupSteps(st) {
+  const practice = isPractice();
+  const noun = practice ? 'client' : 'athlete';
   return {
     required: [
-      { key: 'sharedCode', done: st.sharedCode, t: 'Share your athlete code', s: st.sharedCode ? 'Shared — athletes can join anytime' : 'Invite athletes to start tracking execution', go: 'coach-profile/code' },
+      { key: 'sharedCode', done: st.sharedCode, t: `Share your ${noun} code`,
+        s: st.sharedCode ? `Shared — ${noun}s can join anytime` : `Invite ${noun}s to start tracking execution`,
+        // coach-profile is nav:'coach' — the router silently bounces a trainer off it, so a
+        // practice book routes to the Practice HQ, which owns the client-code invite card.
+        go: practice ? 'trainer-profile' : 'coach-profile/code' },
       { key: 'standard', done: st.standard, t: 'Review your standard', s: 'Meals, windows, and requirements', go: 'coach-plan-set/team' },
     ],
     optional: [
-      { key: 'notif', done: st.notif, t: 'Set notification rules', s: 'When you and your athletes get nudged', go: 'coach-notif-settings' },
-      { key: 'staff', done: st.staff, t: 'Invite your staff', s: 'Coordinators, position coaches, and more', go: 'coach-profile/staff' },
-      { key: 'group', done: st.group, t: 'Organize your roster', s: st.hasAthletes ? 'Group by room or unit' : 'Rooms fill in as athletes join', go: st.hasAthletes ? 'coach-roster' : null },
+      // Notification rules and staff invites are team screens (nav:'coach'); on a practice book
+      // they'd render as dead taps, so they simply don't exist for a trainer.
+      ...(practice ? [] : [
+        { key: 'notif', done: st.notif, t: 'Set notification rules', s: 'When you and your athletes get nudged', go: 'coach-notif-settings' },
+        { key: 'staff', done: st.staff, t: 'Invite your staff', s: 'Coordinators, position coaches, and more', go: 'coach-profile/staff' },
+      ]),
+      { key: 'group', done: st.group, t: practice ? 'Organize your clients' : 'Organize your roster',
+        s: st.hasAthletes ? (practice ? 'Group clients however you work' : 'Group by room or unit')
+          : (practice ? 'Groups fill in as clients join' : 'Rooms fill in as athletes join'),
+        go: st.hasAthletes ? (practice ? 'trainer-roster' : 'coach-roster') : null },
     ],
   };
 }
@@ -185,10 +201,10 @@ function setupChecklistCard(st) {
 /* Honest code-card state when there's no live code yet: loading / offline (with retry) / no team
    (with a real CREATE action) — never a fake "minting… a few seconds" (T-13). */
 function codeStateBox() {
-  const state = S.coachIdentity.state;
+  const state = S.operatorIdentity.state;
   if (state === 'loading') {
     return `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
-      <div><div class="tt">Loading your team…</div><div class="ts">Checking your team and code.</div></div></div>`;
+      <div><div class="tt">${esc(vocab().loading)}</div><div class="ts">Checking your ${isPractice() ? 'practice' : 'team'} and code.</div></div></div>`;
   }
   if (state === 'offline') {
     return `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('wifiOff', 17)}</div>
@@ -199,6 +215,16 @@ function codeStateBox() {
      being created and tell the coach to reopen the app — but nothing was minting and nothing
      retried, so a create_team that failed during signup ended the product for that account.
      It is now the one thing it should always have been: a form that creates the team. */
+  if (isPractice()) {
+    // A trainer has no team row to create — the practice (and its client code) is minted by
+    // trainer onboarding on the server. The Practice HQ owns that state honestly; send them there
+    // instead of a coach team-create form that would write a team row onto a trainer account.
+    return `<section class="card" style="padding:18px">
+      <div class="eyebrow" style="margin:0 0 10px">Your client code</div>
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.45;margin-bottom:12px">Your practice isn't fully set up on the server yet, so there's no client code to hand out. Your Practice HQ shows it the moment it exists.</div>
+      <button class="btn sm" data-go="trainer-profile" style="width:100%;background:linear-gradient(150deg,var(--blue-bright),#2563eb);color:#fff">${icon('user', 16)} Open Practice HQ</button>
+    </section>`;
+  }
   const ob = (RT.ob && RT.ob.coach) || {};
   const suggested = ob.teamName || (RT.profile && RT.profile.school) || '';
   return `<section class="card" style="padding:18px">
@@ -230,11 +256,14 @@ export function emptyTeamDashboard(code, teamName) {
      done", so the hero card was restating its own checklist a card early. */
   /* The line must not promise a code that isn't on screen: with no team yet the card below is a
      CREATE form, not an invite code. */
+  const practice = isPractice();
+  const bookWord = practice ? 'practice' : 'team';
+  const noun = practice ? 'clients' : 'athletes';
   const orient = !code
-    ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin:0 2px 12px;line-height:1.45">Set your team up below to get the code athletes join with.</div>`
+    ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin:0 2px 12px;line-height:1.45">Set your ${bookWord} up below to get the code ${noun} join with.</div>`
     : st.ready
-      ? `<div style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--green-bright);margin:0 2px 12px;line-height:1.45">${icon('check', 14)} Your team is ready — hand out the code and your board fills in as athletes log.</div>`
-      : `<div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin:0 2px 12px;line-height:1.45">No athletes yet. Hand out the code below — your roster, live activity, and team score all fill in from their logs.</div>`;
+      ? `<div style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--green-bright);margin:0 2px 12px;line-height:1.45">${icon('check', 14)} Your ${bookWord} is ready — hand out the code and your board fills in as ${noun} log.</div>`
+      : `<div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin:0 2px 12px;line-height:1.45">No ${noun} yet. Hand out the code below — your roster, live activity, and ${bookWord} score all fill in from their logs.</div>`;
   return `
     ${orient}
     ${'' /* data-tour wraps card OR create-form: a brand-new operator's tour opens on this, the
@@ -245,7 +274,7 @@ export function emptyTeamDashboard(code, teamName) {
     ${setupChecklistCard(st)}
     <div class="eyebrow">What fills in next</div>
     <section class="card" style="padding:13px 16px">
-      <div style="font-size:12px;font-weight:600;color:var(--text-3);line-height:1.55">Once athletes join with your code, this screen becomes your command center: today's team score, who's on standard, who needs a nudge, and every meal as it's logged.</div>
+      <div style="font-size:12px;font-weight:600;color:var(--text-3);line-height:1.55">Once ${noun} join with your code, this screen becomes your command center: today's ${bookWord} score, who's on standard, who needs a nudge, and every meal as it's logged.</div>
     </section>
     <div class="co-bottom"></div>`;
 }
@@ -371,7 +400,9 @@ export const coachHome = {
       <div class="sd-t">Can't reach your team</div>
       <div class="sd-s">Check your connection — reopen to retry. Nothing is lost.</div></div>`;
     if (!CD.roster.rows.length) {
-      const code = RT.team && RT.team.code;
+      // operatorIdentity resolves the code for either book — RT.team is never populated for a
+      // trainer, so reading it here hid a live practice code behind the coach create-team form.
+      const code = S.operatorIdentity.code;
       const teamNm = (CD.roster.teams[0] && CD.roster.teams[0].name) || teamName;
       return `${head}${emptyTeamDashboard(code, teamNm)}`;
     }
@@ -413,7 +444,7 @@ export const coachHome = {
     <div class="eyebrow" data-tour="priority">${esc(vocab().priorities)}</div>
     ${entries === null ? `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bell', 17)}</div><div><div class="tt">Ranking the day…</div><div class="ts">Standards and exceptions are loading.</div></div></div>`
     : cards.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px;line-height:1.4">Nothing needs you right now. Anything you nudge, assign, or mark handled stays out of this queue until the reason changes.</div>`
-    : cards.slice(0, 6).map((c, i) => priorityCard(c, i, (RT.coachNudged || {})[c.athleteId] === new Date().toISOString().slice(0, 10))).join('')}
+    : cards.slice(0, 6).map((c, i) => priorityCard(c, i, (RT.coachNudged || {})[c.athleteId] === roles.todayISO())).join('')}
 
     <div class="eyebrow" data-tour="activity" style="display:flex;justify-content:space-between;align-items:baseline"><span>Live activity</span>${unseen ? `<span style="color:var(--blue-bright)">${unseen} new</span>` : ''}</div>
     ${feed === null ? skeletonRows(2, 'Loading the activity feed')
@@ -456,10 +487,11 @@ export const coachHome = {
     // empty slot and this screen is byte-identical to before.
     paintBoard(root);
     paintStandardsBoard(root);
-    // Empty-state invite card: Copy + native Share of the athlete code (present only before any
-    // athlete has joined).
-    const code = RT.team && RT.team.code;
-    const teamNm = (CD.roster && CD.roster.teams[0] && CD.roster.teams[0].name) || 'your team';
+    // Empty-state invite card: Copy + native Share of the invite code (present only before
+    // anyone has joined). operatorIdentity resolves the right code for a team OR a practice.
+    const code = S.operatorIdentity.code;
+    const teamNm = (CD.roster && CD.roster.teams[0] && CD.roster.teams[0].name) || S.operatorIdentity.bookName
+      || (isPractice() ? 'your practice' : 'your team');
     const copyBtn = root.querySelector('#coach-copy-code');
     if (copyBtn) copyBtn.addEventListener('click', async () => {
       try { await navigator.clipboard.writeText(code || ''); } catch { /* no-op */ }
@@ -496,7 +528,10 @@ export const coachHome = {
     const teamRetry = root.querySelector('#coach-team-retry');
     if (teamRetry) teamRetry.addEventListener('click', async () => {
       teamRetry.disabled = true; teamRetry.innerHTML = 'Retrying…';
-      try { await act._loadTeamIntoRt(RT.userId); } catch { /* still offline — honest state re-renders */ }
+      try {
+        if (isPractice()) await act._loadPracticeIntoRt(RT.userId);
+        else await act._loadTeamIntoRt(RT.userId);
+      } catch { /* still offline — honest state re-renders */ }
       window.__render();
     });
     const shareBtn = root.querySelector('#coach-share-invite');
@@ -548,7 +583,13 @@ export const coachHome = {
     root.querySelectorAll('[data-pnudge]').forEach(b => b.addEventListener('click', async () => {
       const id = b.getAttribute('data-pnudge');
       b.disabled = true; b.textContent = '…';
-      const ok = await roles.nudgePush(id, `${S.coachIdentity.handle} is waiting`, 'Your log is overdue. Get it in.');
+      // The body must match the tier the card showed — "overdue" to an athlete who logged on
+      // time but scored low reads as an accusation.
+      const tier = b.getAttribute('data-tier');
+      const body = tier === 'below' ? "You're below standard today. Close the gap."
+        : tier === 'due_soon' ? 'Your next log is due soon. Stay ahead of it.'
+          : 'Your log is overdue. Get it in.';
+      const ok = await roles.nudgePush(id, `${S.operatorIdentity.handle} is waiting`, body);
       if (!ok) {
         b.disabled = false; b.textContent = 'Nudge';
         sayFail(id, "Couldn't send the nudge — check your connection.");

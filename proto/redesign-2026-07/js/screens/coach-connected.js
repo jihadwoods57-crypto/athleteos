@@ -160,7 +160,7 @@ function athleteRow(r, inst) {
     : r.status === 'disconnected' ? 'Health access off'
     : r.status === 'insufficient_data' ? 'Never reported'
     : r.status === 'awaiting_review' ? esc(r.manual_note || 'Submitted by hand')
-    : r.status === 'completed_manually' ? 'Reported by the athlete'
+    : r.status === 'completed_manually' ? `Reported by the ${CD.noun}`
     : r.status === 'excused' ? esc(r.excused_reason || 'Excused')
     : r.status === 'verified_complete' ? ''
     : `${pct}% of target`;
@@ -193,6 +193,21 @@ export const coachStandards = {
     const back = CD.kind === 'practice' ? 'trainer' : 'coach-home';
     const inst = (CS.board || []).find((b) => b.instance_id === sub) || (CS.board || [])[0];
     if (!inst) {
+      // Three honest states — this used to render "Loading…" forever when the board resolved
+      // empty (nothing scheduled today / standard turned off) or errored.
+      if (CS.boardError) {
+        return `${backHead('Activity standard', "Can't reach the board", back)}
+        <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
+        <div class="sd-t">Can't reach the board</div>
+        <div class="sd-s">Check your connection — reopen this screen to retry. Nothing is lost.</div></div>`;
+      }
+      if (CS.boardAt) {
+        return `${backHead('Activity standard', 'Nothing scheduled today', back)}
+        <div class="state-demo"><div class="sd-ic">${icon('clipboard', 24)}</div>
+        <div class="sd-t">No activity standard today</div>
+        <div class="sd-s">When a standard is scheduled, everyone's verified results land here in real time.</div>
+        <div class="sd-cta" style="margin-top:16px"><button class="btn primary sm" data-go="coach-standards-manage">${icon('clipboard', 16)} Manage standards</button></div></div>`;
+      }
       return `${backHead('Activity standard', 'Loading…', back)}
       <section class="card pad"><div class="cs-p">Loading the board…</div></section>`;
     }
@@ -233,7 +248,7 @@ export const coachStandards = {
         <div class="ic">${icon('check', 19)}</div>
         <div>
           <div class="cs-h">Nothing waiting on you</div>
-          <div class="cs-p">Every athlete either met this or has a reason on file.</div>
+          <div class="cs-p">Every ${CD.noun} either met this or has a reason on file.</div>
         </div>
       </div>
     </section>` : ''}

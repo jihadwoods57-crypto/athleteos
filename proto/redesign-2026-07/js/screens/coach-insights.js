@@ -163,7 +163,7 @@ function weekSection() {
         <div class="lm"><div class="lt">${esc(a.name)}</div><div class="ls">${esc(sub)}</div></div>
       </div>`;
     sections.push(`
-    <div class="co-eyebrow">Athletes to watch</div>
+    <div class="co-eyebrow">${CD.kind === 'practice' ? 'Clients' : 'Athletes'} to watch</div>
     <section class="card" style="padding:6px 16px">
       ${decliners.length ? `<div class="eyebrow" style="margin:10px 2px 0">Trending down</div>${decliners.map(d => athRow(d, d.text)).join('')}` : ''}
       ${disengaging.length ? `<div class="eyebrow" style="margin:10px 2px 0">Going quiet</div>${disengaging.map(d => athRow(d, d.text)).join('')}` : ''}
@@ -219,7 +219,7 @@ export const coachInsights = {
     const entries = entriesFor({ kind: 'team', value: null }) || [];
     const by = (k) => entries.filter(e => e.status.key === k);
     const lines = [];
-    if (by('overdue').length) lines.push(`${by('overdue').length} athlete${by('overdue').length > 1 ? 's are' : ' is'} overdue right now: ${by('overdue').slice(0, 3).map(e => e.row.name.split(' ')[0]).join(', ')}${by('overdue').length > 3 ? '…' : ''}.`);
+    if (by('overdue').length) lines.push(`${by('overdue').length} ${CD.noun}${by('overdue').length > 1 ? 's are' : ' is'} overdue right now: ${by('overdue').slice(0, 3).map(e => e.row.name.split(' ')[0]).join(', ')}${by('overdue').length > 3 ? '…' : ''}.`);
     if (by('no_activity').length) lines.push(`${by('no_activity').length} ${by('no_activity').length > 1 ? 'have' : 'has'} no activity in the last day.`);
     if (by('below_standard').length) lines.push(`${by('below_standard').length} logged below the standard today.`);
     if (by('needs_review').length) lines.push(`${by('needs_review').length} log${by('needs_review').length > 1 ? 's are' : ' is'} in — waiting on a score or your review.`);

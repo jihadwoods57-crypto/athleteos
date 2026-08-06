@@ -134,8 +134,9 @@ export async function loadBook(force, kind) {
   // coach-home/coach-roster/coach-create/coach-insights depend on it too. The trainer routes
   // render from the same cache, so they repaint on the same arrival.
   const h = location.hash;
-  if (h === '#coach' || h === '#copilot' || h === '#coach-inbox' || h === '#trainer'
+  if (h === '#coach' || h === '#copilot' || h === '#coach-inbox'
     || h.startsWith('#coach-athlete') || h.startsWith('#coach-assign') || h.startsWith('#coach-plan')
+    || h.startsWith('#trainer') // every trainer tab renders from this cache, not just #trainer
     || h === '#coach-home' || h === '#coach-roster' || h === '#coach-create' || h === '#coach-insights') window.__render();
   // Operator data just became ready (roster + extras). Re-run the notification sync so this
   // operator's device now schedules the OPERATOR plan from live roster status — the boot-time sync
@@ -175,7 +176,9 @@ export async function loadActivity(force) {
     ACT = { rows, photos };
   } catch { ACT = { rows: [], photos: {} }; }
   finally { actLoading = false; actFetchedAt = Date.now(); }
-  if (location.hash === '#coach' || location.hash === '#coach-inbox') window.__render();
+  // '#coach-home' is the real Home tab route ('#coach' is only a legacy alias) — without it the
+  // Live activity section sat on its skeleton until an unrelated tap repainted the screen.
+  if (['#coach', '#coach-home', '#coach-inbox', '#trainer', '#trainer-inbox'].includes(location.hash)) window.__render();
 }
 export const actTime = (iso) => {
   const d = new Date(iso);
@@ -190,6 +193,11 @@ export const CD = {
   get profile() { return PROFILE; },
   /** 'team' (coach) | 'practice' (trainer) — which kind of book is loaded. */
   get kind() { return KIND; },
+  /* Operator noun vocabulary — shared screens must say "client"/"practice" to a trainer.
+     Header-level VOCAB maps exist per screen; these cover body copy, sheets, and composers. */
+  get noun() { return KIND === 'practice' ? 'client' : 'athlete'; },
+  get nouns() { return KIND === 'practice' ? 'clients' : 'athletes'; },
+  get bookWord() { return KIND === 'practice' ? 'practice' : 'team'; },
   /** What this operator can do with it. Coach caps are all 1, so no shipped coach screen
       needs to consult this; only new operator-shared surfaces do. */
   get caps() { return CAPS[KIND] || CAPS.team; },
