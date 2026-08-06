@@ -19,6 +19,10 @@ export const PROFILE_WEIGHTS = {
 };
 export const MEAL_KEYS = ['breakfast', 'lunch', 'snack', 'dinner'];
 export const DEADLINE = { breakfast: 570, lunch: 840, snack: 1020, dinner: 1230 }; // minutes from midnight
+/* The classic OPEN edge per slot — mirrors the CATALOG windows in requirements.js. A slot with
+   no entry is open all day. Scoring never reads this: it only decides whether a row reads
+   "Upcoming · Opens 6:00 PM" instead of its deadline. */
+export const OPEN = { breakfast: 420, lunch: 720, dinner: 1080 };
 const QUICK_G = [18, 30, 22]; // Greek yogurt / protein shake / turkey roll-ups (protein g)
 const QUICK_K = [150, 160, 120]; // kcal, index-aligned with QUICK_G (mirrors constants.ts QUICK_FOODS)
 const PROTEIN_TARGET = 180;
@@ -83,6 +87,14 @@ export function setDayGoalConfig(profile, proteinTarget, calTarget) {
 export function slotDeadline(k, std = STD) {
   if (std && std.deadlines && std.deadlines[k] != null) return std.deadlines[k];
   return DEADLINE[k] != null ? DEADLINE[k] : 1440;
+}
+/** A slot's OPEN edge: the standard's window when one governs, else the classic map, else null
+ *  ("open all day"). Never returns an open time that isn't strictly BEFORE the slot's deadline —
+ *  a coach who moves dinner to 5:00 PM must not leave a stale "Opens 6:00 PM" sitting on a window
+ *  that has already closed. Display only; no scoring path reads it. */
+export function slotOpen(k, std = STD) {
+  const o = (std && std.opens && std.opens[k] != null) ? std.opens[k] : (OPEN[k] != null ? OPEN[k] : null);
+  return (o != null && o < slotDeadline(k, std)) ? o : null;
 }
 /** Grace minutes for a slot — a meal logged within deadline+grace still counts on-time. A
  *  standard with no grace (every shipped standard + the classic day) is 0, so scoring stays

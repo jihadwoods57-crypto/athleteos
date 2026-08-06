@@ -186,6 +186,10 @@ export function stdFromItems(items) {
   const m = Math.min(6, Math.max(1, mealItems.length));
   const slots = STD_SLOT_MAP[m];
   const deadlines = /** @type {Record<string, number>} */ ({});
+  // The coach authors BOTH edges of each meal window; only `due` used to survive into the day,
+  // so every "Opens ..." line still quoted the classic catalog and could sit later than a
+  // deadline the coach had moved earlier. Both edges ride through now.
+  const opens = /** @type {Record<string, number>} */ ({});
   const titles = /** @type {Record<string, string>} */ ({});
   const grace = /** @type {Record<string, number>} */ ({});
   const latePolicy = /** @type {Record<string, string>} */ ({});
@@ -196,6 +200,7 @@ export function stdFromItems(items) {
   slots.forEach((k, i) => {
     const it = mealItems[i] || {};
     if (it.window && it.window.due != null) deadlines[k] = it.window.due;
+    if (it.window && it.window.open != null) opens[k] = it.window.open;
     if (it.title) titles[k] = it.title;
     // Part B item-schema depth: grace minutes + late policy ride each meal item into the day
     // engine (day.js slotGrace/slotLateCredit). Absent = the classic on-time/half-credit rule.
@@ -208,7 +213,7 @@ export function stdFromItems(items) {
   // required (never divide by zero).
   const requiredCount = mealItems.filter(it => it.snack !== true).length;
   const mealsRequired = Math.min(6, Math.max(1, requiredCount || m));
-  return { mealsRequired, slots, deadlines, titles, grace, latePolicy, optional };
+  return { mealsRequired, slots, deadlines, opens, titles, grace, latePolicy, optional };
 }
 
 /* ---- Day-type resolution (0086 item.dayType + 0100 team_week_pattern) ----

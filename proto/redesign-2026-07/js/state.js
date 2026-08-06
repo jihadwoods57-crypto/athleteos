@@ -15,8 +15,8 @@ import {
   streakDays as dayStreak, streakInfo, loadDay, pushDay, uploadMealPhoto, flushDayPush,
   setSyncBlocked, isSyncBlocked, SYNC, setDayTaskProvider,
   dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayLogWeight, dayResetLocal, dayCheckTask,
-  insertMeal, MEAL_KEYS, DEADLINE, minutesNow, mealScored,
-  setDayStandard, slotDeadline, slotGrace, setDayGoalConfig, checkinReal,
+  insertMeal, MEAL_KEYS, minutesNow, mealScored,
+  setDayStandard, slotDeadline, slotGrace, slotOpen, setDayGoalConfig, checkinReal,
   setDayPlanStyle, weightsForDay, DAY_SELECT_COLS,
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
@@ -437,8 +437,21 @@ function reqMealSlots() {
   return (RT.stdMeals && Array.isArray(RT.stdMeals.slots) && RT.stdMeals.slots.length)
     ? RT.stdMeals.slots : REQ_MEAL_SLOTS;
 }
-const SLOT_DUE = { breakfast: 'Due by 10:00 AM', lunch: 'Due by 2:00 PM', snack: 'Optional', dinner: 'Due by 8:00 PM' };
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+/** Is this slot loggable-but-not-required? The standard's own `optional` list when one governs,
+ *  else the classic rule (snack is the bonus slot). */
+function optionalSlot(k) {
+  const std = RT.stdMeals;
+  return std ? !!(Array.isArray(std.optional) && std.optional.includes(k)) : !REQ_MEAL_SLOTS.includes(k);
+}
+/** The deadline line for ONE named slot, coach-standard aware. Exported so a screen that already
+ *  knows which slot it's logging (the camera, routed as `camera/dinner`) reads THAT slot's
+ *  deadline instead of re-deriving a next-open slot and quoting a different meal's time. */
+export function mealDueLabel(k) {
+  if (optionalSlot(k)) return 'Optional — counts whenever you log it';
+  const dl = slotDeadline(k);
+  return dl != null ? `Due by ${fmtClock(dl)}` : 'Log when ready';
+}
 /** Display title for a meal slot key: the coach standard's title when one governs
  *  ("Post-practice fuel"), else a humanized key — never a raw "Meal-5" (WS7 audit fix). */
 export function slotTitle(k) {
@@ -449,12 +462,23 @@ export function slotTitle(k) {
 /* The slot a new capture should fill: an explicit choice (from a requirement row), else the
    next OPEN slot by time of day — the earliest unlogged slot whose deadline is still ahead,
    or the latest open slot if every window has passed. Never a hardcoded breakfast/dinner. */
+/* Every LOGGABLE slot: the standard's own slots when one governs, else the classic four. Wider
+   than reqMealSlots() — it keeps the classic snack, which is loggable but not required. */
+function allMealSlots() {
+  return (RT.stdMeals && Array.isArray(RT.stdMeals.slots) && RT.stdMeals.slots.length)
+    ? RT.stdMeals.slots : MEAL_KEYS;
+}
 function nextOpenSlot(explicit) {
-  if (explicit && MEAL_KEYS.includes(explicit) && !DAY.meals[explicit]) return explicit;
-  const open = MEAL_KEYS.filter(k => !DAY.meals[k]);
+  // The standard's OWN slots when one governs. Against the classic MEAL_KEYS a 5- or 6-meal
+  // standard's 'meal-5'/'meal-6' failed the membership test, so an explicit "Log Meal 5" fell
+  // through and filed the capture under whatever classic slot was open next. Slot keys 1–4 are
+  // identical either way, so the classic day is untouched (slotDeadline falls back to DEADLINE).
+  const keys = allMealSlots();
+  if (explicit && keys.includes(explicit) && !DAY.meals[explicit]) return explicit;
+  const open = keys.filter(k => !DAY.meals[k]);
   if (!open.length) return null;
   const now = minutesNow();
-  return open.find(k => now <= DEADLINE[k]) || open[open.length - 1];
+  return open.find(k => now <= slotDeadline(k)) || open[open.length - 1];
 }
 
 /** Does this logged slot have a photo behind it? Photo-sourced logs ('live'/'gallery' — or
@@ -715,7 +739,9 @@ function execCatalog() {
       return {
         id: k, title: (std.titles && std.titles[k]) || (b ? b.title : cap(k.replace('-', ' '))),
         icon: b ? b.icon : 'utensils', accent: b ? b.accent : 'g', proof: 'photo',
-        freq: { type: 'daily' }, window: { ...(b ? b.window : {}), due: slotDeadline(k), grace: slotGrace(k) },
+        // BOTH edges come from the standard. Spreading only `due` used to leave the catalog's
+        // classic open time behind, so a coach-moved dinner read "Opens 6:00 PM · Due by 5:00 PM".
+        freq: { type: 'daily' }, window: { ...(b ? b.window : {}), open: slotOpen(k), due: slotDeadline(k), grace: slotGrace(k) },
         // Snack-optional (0100/0086): a snack slot is loggable but not required — it never reads
         // overdue and drops out of the denominator. Every other slot stays required (parity).
         required: !(std.optional && std.optional.includes(k)),
@@ -3566,7 +3592,7 @@ export const S = {
           freq: { type: 'daily' },
           // label dropped on purpose: the standard's deadline is the truth; a cached classic
           // label ("Due by 8:00 PM") would lie about a moved window.
-          window: { ...(base ? base.window : {}), due: slotDeadline(k), label: null },
+          window: { ...(base ? base.window : {}), open: slotOpen(k), due: slotDeadline(k), label: null },
           required: true, impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium',
           note: base ? base.note : 'Photo proof — part of your room standard.',
         };
@@ -3731,7 +3757,7 @@ export const S = {
           const title = (RT.stdMeals.titles && RT.stdMeals.titles[k]) || (base ? base.title : cap(k.replace('-', ' ')));
           return {
             id: k, title, icon: base ? base.icon : 'utensils', accent: base ? base.accent : 'g', proof: 'photo',
-            freq: { type: 'daily' }, window: { ...(base ? base.window : {}), due: slotDeadline(k) },
+            freq: { type: 'daily' }, window: { ...(base ? base.window : {}), open: slotOpen(k), due: slotDeadline(k) },
             required: !(RT.stdMeals.optional && RT.stdMeals.optional.includes(k)), // snack slot = optional
             impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium',
             note: base ? base.note : 'Photo proof — part of your room standard.',
@@ -3756,18 +3782,21 @@ export const S = {
   // saved one), plus hydration/weight/recovery from real state. No canned 8:14 AM / 95 / 183.8 lb.
   get activity() {
     const a = [];
-    for (const k of MEAL_KEYS) {
+    for (const k of allMealSlots()) {
       if (!DAY.meals[k]) continue;
       const at = DAY.mealLoggedAt[k];
       const meta = DAY.slotMacros[k] || {};
-      const late = at != null && at > DEADLINE[k];
+      // Same lateness rule the score and the breakdown apply — deadline PLUS grace, both from
+      // the governing standard. A raw DEADLINE lookup here called a meal on-time that the
+      // breakdown was calling late on the very next screen.
+      const late = at != null && at > slotDeadline(k) + slotGrace(k);
       // in-session photo for the just-captured slot, else the cached signed Storage URL
       // (photo-store) — the actual submitted image, never a stock plate (spec §7.1).
       const img = slotImage(k);
       a.push({
         noPhoto: !slotHasPhoto(k), // manual/label log: placeholder is honest (§7.2)
         time: at != null ? `Today · ${fmtClock(at)}${late ? ' · late' : ''}` : 'Today',
-        type: cap(k), icon: 'utensils',
+        type: slotTitle(k), icon: 'utensils', // coach-standard title, never a raw "Meal-5"
         // Meal QUALITY is its own concept (the plate read) and never success-green at 58 —
         // tiers mirror the meal screen: 80+ green, 50+ amber, below red.
         value: meta.quality != null ? String(meta.quality) : 'Logged',
@@ -3792,9 +3821,9 @@ export const S = {
       ? { label: 'Log Lunch', gain: null, route: 'camera/lunch', accent: 'g' }
       : { label: 'Log First Meal', gain: null, route: 'camera', accent: 'g' };
     const openReq = reqMealSlots().filter(k => !mealScored(DAY, k));
-    const openSlot = openReq.find(k => minutesNow() <= DEADLINE[k]) || openReq[0];
+    const openSlot = openReq.find(k => minutesNow() <= slotDeadline(k)) || openReq[0];
     // Meal gain depends on the plate, unknown until analyzed → no fabricated "+6".
-    if (openSlot) return { label: `Log ${cap(openSlot)}`, gain: null, route: `camera/${openSlot}`, accent: 'g' };
+    if (openSlot) return { label: `Log ${slotTitle(openSlot)}`, gain: null, route: `camera/${openSlot}`, accent: 'g' };
     if (!DAY.ciSubmitted) return { label: 'Do Recovery Check-In', gain: checkinProjection().gain || null, route: 'recovery', accent: 'p' };
     return null; // day complete
   },
@@ -3904,10 +3933,11 @@ export const S = {
   // revisiting a logged slot; otherwise an HONEST empty state (never demo steak-and-potatoes).
   get logging() {
     const slot = MEAL.key || nextOpenSlot() || 'dinner';
-    // Coach-aware deadline label: honor the coach standard's per-slot window (slotDeadline)
-    // instead of the hardcoded SLOT_DUE map, so the camera header matches every other deadline
-    // surface (breakdown, requirement rows, timing pill) for the same slot.
-    const dueLabel = (s) => { const dl = slotDeadline(s); return dl != null ? `Due by ${fmtClock(dl)}` : (s === 'snack' ? 'Optional' : 'Log when ready'); };
+    // Coach-aware deadline label (mealDueLabel): honors the coach standard's per-slot window, so
+    // this matches every other deadline surface (breakdown, requirement rows, timing pill) for
+    // the SAME slot. Callers that already know their slot must pass it to mealDueLabel directly —
+    // `slot` here is re-derived and is only right when nothing more specific is known.
+    const dueLabel = mealDueLabel;
     if (MEAL.result) {
       const r = MEAL.result;
       return {
@@ -4146,13 +4176,17 @@ export const S = {
       const lateBy = {};
       for (const d of rows) {
         for (const k of Object.keys(d.mealLoggedAt || {})) {
-          if (d.mealLoggedAt[k] != null && DEADLINE[k] != null && d.mealLoggedAt[k] > DEADLINE[k]) lateBy[k] = (lateBy[k] || 0) + 1;
+          // The athlete's governing deadline, not the classic map — advice that names a time
+          // their coach never set is worse than no advice.
+          const dl = slotDeadline(k);
+          if (d.mealLoggedAt[k] != null && dl != null && d.mealLoggedAt[k] > dl + slotGrace(k)) lateBy[k] = (lateBy[k] || 0) + 1;
         }
       }
       const worst = Object.entries(lateBy).sort((a, b) => b[1] - a[1])[0];
       if (worst && worst[1] >= 2) {
         const [slot, n] = worst;
-        return `Late ${slot} logs are costing you nutrition points — it happened ${n} times recently. Logging ${slot} before ${fmtClock(DEADLINE[slot])} is your biggest easy win.`;
+        const name = slotTitle(slot).toLowerCase();
+        return `Late ${name} logs are costing you nutrition points — it happened ${n} times recently. Logging ${name} before ${fmtClock(slotDeadline(slot))} is your biggest easy win.`;
       }
     }
     const trends = this.categoryTrends;

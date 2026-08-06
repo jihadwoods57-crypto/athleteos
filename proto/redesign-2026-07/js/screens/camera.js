@@ -1,4 +1,4 @@
-import { S, RT, act, MEAL, slotTitle } from '../state.js';
+import { S, RT, act, MEAL, slotTitle, mealDueLabel } from '../state.js';
 import { icon } from '../icons.js';
 import { esc, safeImg, nonLiveBadge } from '../components.js';
 import { photoAgeMinutes, describePhotoAge } from '../photo-hash.js';
@@ -51,6 +51,10 @@ export default {
     const slotName = sub ? slotTitle(sub) : L.name; // coach-standard title, never raw "Meal-5"
     const slotKey = sub || S.currentSlot;
     const upTo = slotKey ? S.mealUpTo(slotKey) : 0;
+    // The deadline must come from THIS slot, not S.logging's — logging re-derives the next open
+    // slot by clock, so arriving from Home's Dinner row before 5:00 PM used to print the SNACK
+    // deadline under a "Log Dinner" header ("Opens 6:00 PM" on Home vs "Due by 5:00 PM" here).
+    const dueLine = slotKey ? mealDueLabel(slotKey) : L.due;
     // Apple-style permission priming: explain BEFORE the OS ever asks
     if (!RT.camPrimed) {
       return `
@@ -75,7 +79,7 @@ export default {
         <div class="bk iconbtn" data-back="home" style="width:40px;height:40px" role="button" aria-label="Back">${icon('back', 19)}</div>
         <div class="meta">
           <div class="t">Log ${slotName}</div>
-          <div class="s">${L.due}${upTo > 0 ? ` <span class="dim">· earn up to ${upTo} point${upTo === 1 ? '' : 's'}</span>` : ''}</div>
+          <div class="s">${dueLine}${upTo > 0 ? ` <span class="dim">· earn up to ${upTo} point${upTo === 1 ? '' : 's'}</span>` : ''}</div>
         </div>
       </div>
 
