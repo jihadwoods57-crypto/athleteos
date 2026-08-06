@@ -363,7 +363,14 @@ function openingInputs(M) {
  *   failed    — the read did not land. The meal stays logged as photo proof; retry is offered.
  *   result    — the normal case: summary, optional full analysis, and one follow-up question.
  */
-export function openingBlockHtml(M, { sum, fullText, fq, hasPersistedRead = false } = {}) {
+export function openingBlockHtml(M, { sum, fullText, fq, hasPersistedRead = false, part = 'all' } = {}) {
+  /* `part` exists because these rows live at two different points in time. The lead (the read
+     itself, or its pending/failed/questions state) is the OLDEST thing in the thread and paints
+     above the messages; the tail (the follow-up question, the memory confirmation) is the AI
+     speaking NOW and belongs after the newest message — rendering it above older bubbles read
+     as the thread being out of order. paint() asks for each half where it belongs; 'all' keeps
+     the render()-time call (no messages yet) working unchanged. */
+  const wrap = (lead, tail) => (part === 'lead' ? lead : part === 'tail' ? tail : lead + tail);
   const aiRow = (inner, id) => `
       <div class="msg ai"${id ? ` id="${id}"` : ''}>
         <div class="av">${icon('sparkle', 15)}</div>
@@ -373,15 +380,15 @@ export function openingBlockHtml(M, { sum, fullText, fq, hasPersistedRead = fals
 
   if (M && M.analysisFailed) {
     const capacity = M.analysisFailed === 'capacity';
-    return aiRow(`
+    return wrap(aiRow(`
           <div style="font-weight:700">${capacity ? "I couldn't get to this one today." : "I couldn't read this plate."}</div>
           <div style="margin-top:4px;color:var(--text-2)">It's logged and counts for timing either way — your photo is the proof.${capacity ? '' : ' Worth another try?'}</div>
-          ${capacity ? '' : `<div class="fq-chips"><button class="fx-chip" id="mt-retry-analysis">${icon('sparkle', 13)} Read it again</button></div>`}`, 'analysis-failed');
+          ${capacity ? '' : `<div class="fq-chips"><button class="fx-chip" id="mt-retry-analysis">${icon('sparkle', 13)} Read it again</button></div>`}`, 'analysis-failed'), '');
   }
 
   if (M && Array.isArray(M.pendingQuestions) && M.pendingQuestions.length) {
     const qs = M.pendingQuestions.slice(0, 3);
-    return aiRow(`
+    return wrap(aiRow(`
           <div style="font-weight:700">Two quick things and your numbers are exact.</div>
           <div style="margin-top:3px;color:var(--text-2)">A photo can't show what's under or off the plate.</div>
           <div class="mq-list" style="margin-top:10px">
@@ -395,13 +402,13 @@ export function openingBlockHtml(M, { sum, fullText, fq, hasPersistedRead = fals
           <div class="fq-chips">
             <button class="fx-chip" id="mq-thread-go">${icon('check', 13)} Get my result</button>
             <button class="fx-chip" id="mq-thread-skip">Skip, just estimate</button>
-          </div>`, 'mq-bubble');
+          </div>`, 'mq-bubble'), '');
   }
 
   if (M && M.pending) {
-    return aiRow(`
+    return wrap(aiRow(`
           <div style="font-weight:700">Reading your plate<span class="dots"></span></div>
-          <div style="margin-top:4px;color:var(--text-2)">Logged and counting. The breakdown lands here in a few seconds — you don't have to wait on this screen.</div>`, 'analysis-pending');
+          <div style="margin-top:4px;color:var(--text-2)">Logged and counting. The breakdown lands here in a few seconds — you don't have to wait on this screen.</div>`, 'analysis-pending'), '');
   }
 
   // ONE pending-fact confirmation, and only when it is about a food on THIS plate — an inferred
@@ -442,7 +449,7 @@ export function openingBlockHtml(M, { sum, fullText, fq, hasPersistedRead = fals
   // scroll back through with their coach. This derived block only fills in when that row is not
   // there: meals logged before the change, and the rare case where the thread write did not land.
   // Without the fallback those meals would show a breakdown with nothing said about it.
-  if (hasPersistedRead) return fq ? fqRow(fq) + confirmRow : confirmRow;
+  if (hasPersistedRead) return wrap('', (fq ? fqRow(fq) : '') + confirmRow);
 
   // ONE VOICE (founder, 2026-08-02). This is the bubble the athlete sees the instant the read
   // lands locally, before the persisted `ai` row comes back from the server a beat later. It used
@@ -455,16 +462,14 @@ export function openingBlockHtml(M, { sum, fullText, fq, hasPersistedRead = fals
   const body = fullText
     ? esc(fullText)
     : [sum && sum.wentWell, sum && sum.opportunity, sum && sum.next].filter(Boolean).map(esc).join(' ');
-  if (!body) return fq ? fqRow(fq) + confirmRow : confirmRow;
+  if (!body) return wrap('', (fq ? fqRow(fq) : '') + confirmRow);
 
-  return `
+  return wrap(`
       <div class="msg ai">
         <div class="av">${icon('sparkle', 15)}</div>
         <div><div class="who">AI Nutritionist</div>
         <div class="bubble">${body}</div></div>
-      </div>
-      ${fq ? fqRow(fq) : ''}
-      ${confirmRow}`;
+      </div>`, (fq ? fqRow(fq) : '') + confirmRow);
 }
 
 /* ---------- Meal Analysis (AI, pre-log) ----------
@@ -706,6 +711,19 @@ export const thread = {
         <span class="gain">+${RT.lastMove.gain}</span>
         ${toTier.name !== tier(RT.lastMove.from).name ? `<span class="tier-chip ${toTier.cls}">▲ ${esc(toTier.name)}</span>` : ''}
       </div>` : ''}
+      ${/* The credit is a fact about the day, not a one-time animation — it used to render only
+            on the justLogged paint, so the first background repaint (participants landing ~1s in)
+            erased the most rewarding line on the page, and a revisit never showed it at all.
+            The engine's own number (mealScoreImpact), so it can never disagree with the score. */''}
+      ${(() => {
+        if (justLogged || dupFlagged) return '';
+        const gain = S.mealScoreImpact(M.slot) || 0;
+        return gain > 0 ? `
+      <div class="score-line">
+        <span class="k">Daily Score</span>
+        <span class="gain">+${gain} from this meal</span>
+      </div>` : '';
+      })()}
       <div class="prog-line">
         <div class="xsegs">${Array.from({ length: e.total }, (_, i) => `<i class="${i < e.met ? 'on' : ''}"></i>`).join('')}</div>
         <span class="pk">${e.met} of ${e.total} in today${S.streakDays > 0 ? ` · ${S.streakDays} day streak` : ''}</span>
@@ -756,7 +774,13 @@ export const thread = {
           number — repeating "71/100" in a second big panel directly beneath it made the score
           read as two systems. The band verdict + the ✓/✕ reasons stay: they are the
           explanation, not a restatement. */''}
-    ${band ? `<div class="score-read">
+    ${/* ONE read, one card (2026-08-06): the verdict, the ✓/✕ reasons, the coach's one line, and
+          the rubric expander used to be four separately-chromed boxes in a row — four answers to
+          the same question ("how good was this meal?") each wearing its own border. They are one
+          unit now: verdict+reasons up top, the focus line as its footer, the rubric as the quiet
+          seam at the bottom. Inner class names stay so reveal()/tests keep working. */''}
+    ${band ? `<section class="meal-read">
+    <div class="score-read">
       <div class="sr-head">
         <span class="sr-band ${band.cls}">${band.label}</span>
       </div>
@@ -781,7 +805,8 @@ export const thread = {
         </div>`).join('')}
         <div class="rub-fine">Exact items are facts (timing, what you submitted). Estimated items come from the photo read and move if you correct the analysis.</div>
       </div>
-    </details>` : ''}`;
+    </details>
+    </section>` : ''}`;
 
     // ---- 3. MEAL BREAKDOWN (feedback 2026-07-16: progress bars imply a goal — they only
     // render against REAL coach targets. No targets → plain nutrient tiles, no fake
@@ -821,10 +846,6 @@ export const thread = {
       ['Protein', M.macros.protein, T.protein, 'g', project(T.protein, dayProg.proteinSoFar)],
       ['Calories', M.macros.cals, T.calories, '', null],
     ].filter(([, , target]) => target);
-    // What share of the day's protein this one plate carried. Protein leads the breakdown because
-    // it is the number a coach actually sets — the others are context for it.
-    const dayShare = T.protein && M.macros.protein
-      ? Math.round((M.macros.protein / T.protein) * 100) : null;
     const projectedTotal = T.protein ? (Number(dayProg.proteinSoFar) || 0) + (project(T.protein, dayProg.proteinSoFar) || 0) : null;
     const paceNote = projectedTotal && mealsLeft
       ? `On pace for about ${projectedTotal}g if your ${mealsLeft === 1 ? 'last meal lands' : `last ${mealsLeft} meals land`} on plan`
@@ -877,16 +898,18 @@ export const thread = {
     <div class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">Estimated Nutrition</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></div>
     ${emptyRead ? rereadNote : `
     <div class="macro-row four" style="margin-top:8px">
-      <div class="macro"><div class="mv">${tilde}${M.macros.protein}g</div><div class="mk">Protein${dayShare != null ? ` · ${dayShare}% of day` : ''}</div></div>
+      <div class="macro"><div class="mv">${tilde}${M.macros.protein}g</div><div class="mk">Protein</div></div>
       <div class="macro"><div class="mv">${tilde}${M.macros.carbs}g</div><div class="mk">Carbs</div></div>
       <div class="macro"><div class="mv">${tilde}${M.macros.fat}g</div><div class="mk">Fat</div></div>
       <div class="macro"><div class="mv">${tilde}${M.macros.cals}</div><div class="mk">Calories</div></div>
     </div>`}
-    <details class="bd-wrap"${thread._bdOpen || thread._fixOpen ? ' open' : ''}>
-      <summary>View detected foods ${icon('chevron', 13)}</summary>
-      <div class="bd-body">
-      ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
-      ${targetBars.length ? `<section class="card pad" style="margin-top:10px">
+    ${/* THE DAY BARS LIVE IN THE OPEN (2026-08-06). This meal's share of the coach's daily target
+          — with the striped "still coming" projection — was filed inside "View detected foods",
+          which is both the wrong label for it and the wrong altitude: progress against the one
+          number a coach actually sets is the meal's headline context, not a detail. The protein
+          tile's "· 23% of day" suffix went with the move — the bar states the same fact better,
+          and each fact renders exactly once. */''}
+    ${!emptyRead && targetBars.length ? `<div class="day-bars">
         ${targetBars.map(([k, v, target, u, projected]) => {
           const now = Math.min(100, Math.round((v / target) * 100));
           // The striped segment is what is still COMING: the meals left today at their planned
@@ -894,14 +917,19 @@ export const thread = {
           // was answering "how much of the day is done" and the athlete reads it as a verdict.
           const ahead = projected != null ? Math.max(0, Math.min(100 - now, Math.round((projected / target) * 100))) : 0;
           return `
-          <div class="cons-row" style="margin-bottom:10px">
+          <div class="cons-row">
             <span class="k" style="width:64px">${k}</span>
             <div class="track"><div class="fillb" style="width:${now}%;background:linear-gradient(90deg,var(--blue),var(--teal, #39c6d6))"></div>${ahead ? `<div class="ghostb" style="left:${now}%;width:${ahead}%"></div>` : ''}</div>
-            <span class="v" style="width:110px">${tilde}${v}${u} <small style="color:var(--text-3)">of ${esc(String(target))}${u}</small></span>
+            <span class="v" style="width:110px;white-space:nowrap">${tilde}${v}${u} <small style="color:var(--text-3)">of ${esc(String(target))}${u}</small></span>
           </div>`;
         }).join('')}
         ${paceNote ? `<div class="pace">${esc(paceNote)}</div>` : ''}
-      </section>` : `<div class="est-note">No coach targets set yet, so there's nothing to measure against. These are this meal's totals.</div>`}
+    </div>` : ''}
+    <details class="bd-wrap"${thread._bdOpen || thread._fixOpen ? ' open' : ''}>
+      <summary>View detected foods ${icon('chevron', 13)}</summary>
+      <div class="bd-body">
+      ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
+      ${targetBars.length ? '' : `<div class="est-note">No coach targets set yet, so there's nothing to measure against. These are this meal's totals.</div>`}
       <div class="est-note" style="margin-top:8px">~${M.fiber}g fiber estimated — the full component read lives under "Why this meal reads ${M.score != null ? M.score : 'what it reads'}".</div>
       ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
       ${corrLog ? `<div class="est-note" style="margin-top:8px;color:var(--blue-bright)"><b style="color:var(--blue-bright)">Corrected by you</b> — ${corrLog} correction${corrLog === 1 ? '' : 's'} applied. The AI's original estimate is kept for reference${M.orig ? ` (was ~${M.orig.protein}g protein · ~${M.orig.kcal} cal)` : ''}.</div>` : ''}
@@ -1022,7 +1050,11 @@ export const thread = {
     // "what now". The rest of the screen stays photo → score → conversation → details.
     return `<div class="meal-screen">${backHead(M.name, dupFlagged ? 'Duplicate photo' : '', 'home')}${execTop}${next}${photoBlock}${breakdown}${discussion}
     <div style="height:18px"></div>
-    <button class="btn green" style="width:100%" data-go="home" aria-label="Done — back to home">${icon('check', 18)} Done</button>
+    ${/* A quiet exit, not a second green CTA (2026-08-06): the meal is already logged — the only
+          green verdict on this screen is the confirm card at the top. A full-width "Done" in the
+          log-action color, sitting directly under a send composer, was two primary buttons
+          competing for the same thumb. */''}
+    <button class="btn ghost" style="width:100%" data-go="home" aria-label="Back to home">Back to Home</button>
     <div style="height:16px"></div></div>`;
   },
 
@@ -1222,7 +1254,12 @@ export const thread = {
       // Recomputed from the LIVE meal, not captured from render: a read that lands while this
       // screen is open (or a correction the athlete just made) has to change what these rows say.
       const live = mealDetail(M.slot) || M;
-      const openingHtml = openingBlockHtml(live, { ...openingInputs(live), hasPersistedRead });
+      // Two halves at two points in time: the read (or its pending state) is the thread's oldest
+      // row and paints first; the follow-up question / memory confirmation is the AI speaking NOW
+      // and paints after the newest message. One openingInputs() call feeds both.
+      const openingInp = { ...openingInputs(live), hasPersistedRead };
+      const openingLead = openingBlockHtml(live, { ...openingInp, part: 'lead' });
+      const openingTail = openingBlockHtml(live, { ...openingInp, part: 'tail' });
 
       // PREVIEW, NOT TRANSCRIPT (founder spec 2026-08-06): the meal page shows the tail of the
       // conversation — the read, the latest exchange — and the COMPLETE athlete–coach–AI
@@ -1280,17 +1317,20 @@ export const thread = {
       // machine's. A pin, not a move — the message stays in the chronological flow below
       // (deduping would break layoutThread runs, last-bubble reactions, and quoted replies).
       const lastCoach = [...msgs].reverse().find((c) => c && c.role === 'coach' && !isPhotoOnly(c) && String(c.text || '').trim());
-      const coachPin = lastCoach ? (() => {
+      // The pin exists to SURFACE a coach word that scrolled out of the preview. When that same
+      // message is one of the four bubbles right below it, the pin is a duplicate two inches
+      // above its original — so it only renders when its message is not already on screen.
+      const coachPin = lastCoach && !shown.includes(lastCoach) ? (() => {
         const who = authorName(lastCoach, participants, RT.userId, S.coach.noun);
         return `<div class="coach-pin">
-          <div class="cp-head"><span class="cp-av">${esc(initialsFor(who))}</span><span class="cp-who">${esc(who)}</span><span class="cp-tag">${icon('pin', 11)} Coach</span></div>
+          <div class="cp-head"><span class="cp-av">${esc(initialsFor(who))}</span><span class="cp-who">${esc(who)}</span><span class="cp-tag">${icon('pin', 11)} Pinned</span></div>
           <div class="cp-text">${esc(String(lastCoach.text || ''))}</div>
         </div>`;
       })() : '';
       const earlierBtn = hiddenCount > 0
         ? `<button class="cont-earlier" id="thread-more">View ${hiddenCount} earlier message${hiddenCount === 1 ? '' : 's'} &rarr;</button>`
         : '';
-      threadEl.innerHTML = coachPin + openingHtml + earlierBtn + rows + (aiTyping ? typingRow() : '')
+      threadEl.innerHTML = coachPin + openingLead + earlierBtn + rows + openingTail + (aiTyping ? typingRow() : '')
         + (seen ? `<div class="seen">${seen}</div>` : '')
         + (tail.length ? `<div class="msg-status">${tail.join(' ')}</div>` : '');
       // READ MORE (founder 2026-08-05): a long AI message clamps to its first four lines with a

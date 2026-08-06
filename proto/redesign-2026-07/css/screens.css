@@ -1012,6 +1012,17 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .coach-focus .cf-ic{width:30px;height:30px;border-radius:50%;background:var(--blue-surface);color:var(--blue-bright);display:grid;place-items:center;flex:none;margin-top:1px}
 .coach-focus .cf-k{font-size:10px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--blue-bright)}
 .coach-focus .cf-t{font-size:14px;font-weight:800;letter-spacing:-0.01em;line-height:1.45;margin-top:3px}
+/* ---- One read card (2026-08-06): verdict + reasons + Coach's Focus + rubric share one chrome.
+   The three blocks keep their own classes (reveal()/tests reach them); inside .meal-read each
+   sheds its individual card dressing and hairline seams do the separating. ---- */
+.meal-read{margin-top:12px;border-radius:var(--r-card);background:var(--surface-1);border:1px solid var(--hairline-soft);box-shadow:var(--sh-card);overflow:hidden}
+.meal-read .score-read{margin-top:0;border:none;box-shadow:none;background:none;border-radius:0;padding:15px 16px 13px}
+.meal-read .coach-focus{margin-top:0;border:none;border-radius:0;border-top:1px solid var(--hairline-soft);background:linear-gradient(120deg, rgba(var(--blue-rgb),0.08), transparent 72%)}
+.meal-read .rub{margin-top:0;border:none;border-radius:0;border-top:1px solid var(--hairline-soft);background:none}
+/* Day-target bars, out in the open under the nutrition tiles (2026-08-06) */
+.day-bars{margin-top:12px;display:flex;flex-direction:column;gap:10px;padding:0 2px}
+/* The photo is the page's subject — give it hero height on the logged-meal screen only */
+.meal-screen .photo-hero{height:248px}
 /* ---- Read more: a long AI bubble rests at four lines; the expander is quiet ---- */
 .bt-clamp{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
 .read-more{border:none;background:none;padding:0;margin:5px 0 0 14px;align-self:flex-start;color:var(--blue-bright);font-family:var(--font);font-size:12px;font-weight:800;cursor:pointer}
