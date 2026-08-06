@@ -17,7 +17,7 @@ import {
   dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayLogWeight, dayResetLocal, dayCheckTask,
   insertMeal, MEAL_KEYS, DEADLINE, minutesNow, mealScored,
   setDayStandard, slotDeadline, slotGrace, setDayGoalConfig, checkinReal,
-  setDayPlanStyle, weightsForDay,
+  setDayPlanStyle, weightsForDay, DAY_SELECT_COLS,
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { activationInfo, parseActivation } from './activation.js';
@@ -2689,13 +2689,29 @@ export const act = {
     const sb = window.sb;
     if (!sb || !RT.userId) return { ok: false, error: 'Sign in and connect to export.' };
     try {
-      const grab = async (table, col) => {
-        try { const { data } = await sb.from(table).select('*').eq(col, RT.userId); return data || []; }
+      // days/athlete_profiles carry COLUMN-LIST grants (0103's weight wall) — a select('*')
+      // on them is 42501, which made this export silently ship empty arrays. Enumerate the
+      // granted columns and pull the walled weight fields through their RPC doors, so the
+      // athlete's export really contains their weights (it's their own data).
+      const grab = async (table, col, cols = '*') => {
+        try { const { data } = await sb.from(table).select(cols).eq(col, RT.userId); return data || []; }
         catch { return []; }
       };
-      const [profile, athleteProfile, days, meals] = await Promise.all([
-        grab('profiles', 'id'), grab('athlete_profiles', 'athlete_id'), grab('days', 'athlete_id'), grab('meals', 'athlete_id'),
+      const rpcRows = async (fn, args) => {
+        try { const { data } = await sb.rpc(fn, args); return data || []; }
+        catch { return []; }
+      };
+      const [profile, athleteProfile, days, meals, weights, planMeta] = await Promise.all([
+        grab('profiles', 'id'),
+        grab('athlete_profiles', 'athlete_id', 'athlete_id,level,sport,position,base_height,base_age,base_goal,season_goal,team_code,updated_at,dob,standard'),
+        grab('days', 'athlete_id', DAY_SELECT_COLS),
+        grab('meals', 'athlete_id'),
+        rpcRows('weight_series', { athlete: RT.userId, days_back: 366 }),
+        rpcRows('athlete_plan_meta', { athlete: RT.userId }),
       ]);
+      const wByDate = new Map(weights.map((r) => [String(r.date), r.weight]));
+      for (const d of days) if (wByDate.has(String(d.date))) d.current_weight = wByDate.get(String(d.date));
+      if (athleteProfile[0] && planMeta[0]) Object.assign(athleteProfile[0], planMeta[0]);
       const payload = {
         exportedAt: new Date().toISOString(),
         account: { id: RT.userId, email: RT.email },
@@ -2718,8 +2734,23 @@ export const act = {
   async saveAthleteProfile(fields) {
     const sb = window.sb;
     if (!sb || !RT.userId) return false;
-    try { const { error } = await sb.from('athlete_profiles').upsert({ athlete_id: RT.userId, ...fields }); return !error; }
-    catch { return false; }
+    // base_weight rides the 0181 set_my_base_weight door, never the direct upsert: 0103's wall
+    // removed its SELECT grant, and Postgres rejects an ON CONFLICT upsert that references an
+    // ungranted column via `excluded.` — WITH base_weight in the row the whole save 42501'd,
+    // which silently failed onboarding's profile sync (same root cause as the day-push bug).
+    const { base_weight, ...rest } = fields || {};
+    try {
+      let ok = true;
+      if (Object.keys(rest).length) {
+        const { error } = await sb.from('athlete_profiles').upsert({ athlete_id: RT.userId, ...rest });
+        ok = !error;
+      }
+      if (base_weight != null) {
+        const { error } = await sb.rpc('set_my_base_weight', { w: Math.round(Number(base_weight)) });
+        ok = ok && !error;
+      }
+      return ok;
+    } catch { return false; }
   },
   /* Persist edited identity to the SERVER rows the coach actually reads: full_name → profiles,
      sport/position → athlete_profiles. The old editProfile saved only to local RT, so a coach

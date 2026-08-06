@@ -748,7 +748,11 @@ export function pushDay(userId, immediate) {
       athlete_id: userId, date: DAY.date,
       meals: DAY.meals, hydration_l: DAY.hydrationL, quick_added: DAY.quickAdded,
       checked_tasks: DAY.checkedTasks,
-      current_weight: DAY.currentWeight,
+      // current_weight is deliberately ABSENT: 0103's weight wall removed its SELECT grant, and
+      // Postgres requires SELECT on every column an ON CONFLICT DO UPDATE references via
+      // `excluded.` — with it in the row, the ENTIRE upsert 42501s and nothing ever syncs
+      // (the 2026-08-05 "Waiting to sync" bug). Weight goes through the log_my_weight door
+      // (dayLogWeight below), the write mirror of the weight_series read door.
       checkin: { ...DAY.ci, submitted: DAY.ciSubmitted, ciLast: DAY.ciLast, commitment: DAY.dailyCommitment, focus: DAY.commitmentFocus, mealLoggedAt: DAY.mealLoggedAt, slotMacros: DAY.slotMacros },
       score: s, grade: gradeFor(s),
       // The per-day STAMP: which style graded this day. Written every push so a style change
@@ -837,8 +841,21 @@ export function daySetCommitment(userId, ans) { DAY.dailyCommitment = ans; pushD
 export function daySetFocus(userId, text) { DAY.commitmentFocus = text || null; pushDay(userId); }
 /* Tenths are kept (0179 widened days.current_weight to numeric(5,1)) — the stepper moves by
    0.1 and the typed input accepts decimals, so rounding to a whole pound here was silently
-   discarding what the athlete actually entered. Range sanity lives in act.logWeight. */
-export function dayLogWeight(userId, lb) { if (lb) DAY.currentWeight = Math.round(Number(lb) * 10) / 10; pushDay(userId); }
+   discarding what the athlete actually entered. Range sanity lives in act.logWeight.
+   The server write rides the 0181 log_my_weight definer door, NOT the pushDay upsert —
+   current_weight has no SELECT grant (0103's wall), and an upsert that references it via
+   `excluded.` is rejected wholesale. Failure is honest: it sets SYNC.last so the same
+   "Waiting to sync" surface covers a weight that didn't land. */
+export function dayLogWeight(userId, lb) {
+  if (lb) DAY.currentWeight = Math.round(Number(lb) * 10) / 10;
+  pushDay(userId);
+  const sb = typeof window !== 'undefined' ? window.sb : null;
+  if (sb && userId && !SYNC_BLOCKED && DAY.currentWeight != null) {
+    sb.rpc('log_my_weight', { d: DAY.date, w: DAY.currentWeight })
+      .then(({ error }) => { if (error) { SYNC.last = 'error'; console.warn('[day] log_my_weight failed', error.message); } })
+      .catch((e) => { SYNC.last = 'error'; console.warn('[day] log_my_weight failed', e && e.message); });
+  }
+}
 export function dayToggleQuick(userId, i) { DAY.quickAdded[i] = !DAY.quickAdded[i]; pushDay(userId); }
 /* Complete (or un-complete) a standing NON-MEAL check requirement for today (lift / custom). Tracked,
    not scored: it rides into days.tasks so the coach sees it, but never touches computeComponents. */
