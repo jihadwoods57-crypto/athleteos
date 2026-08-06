@@ -149,6 +149,16 @@ export function foodHasMacros(f) {
 export function groundFood(food) {
   const est = food && food.per ? food.per : {};
   let p = nn(est.protein), c = nn(est.carbs), f = nn(est.fat), kcal = nn(est.kcal);
+  // READ beats REFERENCE (Core Power fix 2026-08-06): an item whose macros were read off its own
+  // packaging ('label') or resolved from a product database ('database') is NOT an estimate, and
+  // clamping it against a generic curated reference is how a true 42g-protein shake gets mangled
+  // back into a 14g one. Those items skip the plausibility band; the Atwater snap below still
+  // holds (a printed label can round, but it can't break food science by >25%).
+  if (food && (food.basis === 'label' || food.basis === 'database')) {
+    const atw = 4 * p + 4 * c + 9 * f;
+    if (atw > 0 && (kcal <= 0 || Math.abs(kcal - atw) / atw > 0.25)) kcal = atw;
+    return { per: { protein: Math.round(p), kcal: Math.round(kcal), carbs: Math.round(c), fat: Math.round(f) }, matched: true, adjusted: false };
+  }
   const hit = matchFood(food && food.name);
   let adjusted = false;
   if (hit) {
@@ -296,6 +306,9 @@ export function gapFoods(detectedRich, cap = 8) {
     if (name.length < 2) continue;
     const k = name.toLowerCase();
     if (seen.has(k)) continue;
+    // A label-read or product-resolved item is not a gap — its numbers came from the package or
+    // the product cache, and "enriching" it against a generic USDA entry would be a downgrade.
+    if (d && (d.basis === 'label' || d.basis === 'database')) continue;
     // Full-NAME match only (searchFoods), NOT matchFood's longest-word fallback: a food like
     // "Chipotle chicken burrito bowl" only weak-matches plain "chicken", which grounds a whole
     // bowl against 4 oz of breast — that poor partial match IS the gap enrichment exists to close.
@@ -305,6 +318,36 @@ export function gapFoods(detectedRich, cap = 8) {
     out.push({
       name,
       protein: nn(per.protein), kcal: nn(per.kcal), carbs: nn(per.carbs), fat: nn(per.fat),
+    });
+    if (out.length >= cap) break;
+  }
+  return out;
+}
+
+/**
+ * The PACKAGED PRODUCTS whose macros were READ off their label in this meal (basis 'label' with
+ * a brand or exact product name) — the payload that warms the server's product cache
+ * (enrich-meal `products`), so the next photo of the same product resolves from real data even
+ * when its label is turned away. Pure; [] when nothing qualifies.
+ */
+export function labelProducts(detectedRich, cap = 4) {
+  const list = Array.isArray(detectedRich) ? detectedRich.filter(Boolean) : [];
+  const out = [];
+  const seen = new Set();
+  for (const d of list) {
+    if (d.basis !== 'label') continue;
+    const brand = String(d.brand || '').trim();
+    const product = String(d.product || '').trim();
+    if (!brand && !product) continue;
+    const key = `${brand} ${product}`.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const per = d.per || {};
+    if (!(nn(per.kcal) > 0)) continue; // junk would poison every future resolution
+    out.push({
+      brand, product,
+      serving: typeof d.quantity === 'string' ? d.quantity : undefined,
+      per: { protein: nn(per.protein), kcal: nn(per.kcal), carbs: nn(per.carbs), fat: nn(per.fat) },
     });
     if (out.length >= cap) break;
   }

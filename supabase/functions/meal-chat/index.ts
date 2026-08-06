@@ -98,9 +98,41 @@ const REPLY_TOOL = {
   input_schema: {
     type: 'object',
     properties: {
-      message: { type: 'string', description: 'Coach-voiced reply, 150 words max, plain prose, no em dashes. Reference only numbers present in the provided context. Encourage consistency first; educate, never shame.' },
+      message: { type: 'string', description: 'Coach-voiced reply, 90 words max, plain prose, no em dashes. Reference only numbers present in the provided context. Encourage consistency first; educate, never shame.' },
     },
     required: ['message'],
+  },
+} as const;
+
+/**
+ * THE CORRECTION TOOL (founder escalation 2026-08-06). An athlete told the AI their Core Power
+ * bottle says 42g right on the label; the AI looked at the logged 14g, decided the log was the
+ * truth, and told the athlete to double-check their own bottle and "let your coach know". That
+ * conversation is the exact opposite of this product: the athlete is holding the bottle — they are
+ * the best sensor in the loop, and the system exists to update itself, not to delegate its own
+ * bookkeeping to a teenager.
+ *
+ * When the athlete states a factual correction about an item in THIS meal, the model calls this
+ * instead of writing a defensive paragraph. The app then applies the correction DETERMINISTICALLY
+ * (per-item macros, totals, score, rubric, coach focus, day targets all recompute client-side from
+ * the one canonical record) and every surface that renders this meal updates together. The model
+ * writes only the acknowledgment — numbers never come from prose.
+ */
+const CORRECTION_TOOL = {
+  name: 'apply_correction',
+  description: 'The athlete stated a factual correction about a specific item in THIS logged meal: wrong product variant, a macro that contradicts what their packaging prints, or a wrong portion. Call this INSTEAD of arguing, hedging, or telling them to update the log or tell their coach — the app applies the correction, recalculates every number and the meal score, and updates every surface automatically.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      item: { type: 'string', description: 'The detected food being corrected — match its name in the context items as closely as possible.' },
+      newName: { type: 'string', description: 'Corrected name / exact product variant, e.g. "Fairlife Core Power 42g chocolate". Omit when the name is unchanged.' },
+      protein: { type: 'integer', description: 'Corrected grams of protein for THIS item, exactly as the athlete stated or their packaging prints. Omit when unchanged.' },
+      kcal: { type: 'integer', description: 'Corrected calories for THIS item, only when the athlete stated them. Omit when unchanged.' },
+      carbs: { type: 'integer', description: 'Corrected grams of carbohydrate for THIS item. Omit when unchanged.' },
+      fat: { type: 'integer', description: 'Corrected grams of fat for THIS item. Omit when unchanged.' },
+      ack: { type: 'string', description: 'One to two conversational sentences to the athlete: own the miss plainly and without defensiveness ("Good catch, that is the 42g bottle") and say their numbers and score are updating now. Never tell them to update anything themselves or to notify their coach. Do NOT state new meal totals — they are recomputed after this. No em dashes.' },
+    },
+    required: ['item', 'ack'],
   },
 } as const;
 
@@ -161,11 +193,18 @@ Rules that bind you:
 2. Coach voice: specific, encouraging, practical. Consistency is praised before choices are critiqued. Never shame food, weight, or a late log.
 3. When coach guidance appears in the context, defer to it explicitly.
 4. Answer the athlete's question for THEIR goal and plan, not generic nutrition advice.
-5. 150 words maximum. No em dashes. No markdown headers.
+5. 90 words maximum — a capable staff nutritionist texts short. No em dashes. No markdown headers.
 6. STAY IN YOUR LANE. If the question is medical, an injury, weight cutting or making weight, or
    shows a troubled relationship with food, do NOT advise and do NOT reassure: call flag_for_coach.
    A confident-sounding answer from you is worse than silence there, because the athlete will act
-   on it. Their coach is a real person who can actually help.`;
+   on it. Their coach is a real person who can actually help.
+7. THE ATHLETE IS HOLDING THE FOOD; YOU ARE READING A LOG. The logged numbers came from a photo
+   estimate that can misread a product variant or a portion. When the athlete tells you what their
+   packaging actually prints, what the product actually is, or what the portion actually was, that
+   is better evidence than the log — NEVER argue with it, never ask them to double-check their own
+   label, and never tell them to update the log or to notify their coach. If apply_correction is
+   available, call it; if it is not, accept the correction plainly in your reply and answer their
+   question using their stated value.`;
 
 /**
  * The escape hatch. An AI nutritionist that answers "should I cut 8lb this week" or "my knee hurts
@@ -215,6 +254,11 @@ Deno.serve(async (req) => {
     // the athlete was first told and what they corrected. There is no question to answer here,
     // which is why it bypasses the question requirement below.
     const correctionUpdate = body?.correctionUpdate === true;
+    // Capability flag (2026-08-06): "I know how to apply a structured correction returned by
+    // apply_correction". Only a client that can actually recompute + resync every surface gets
+    // the tool offered — an older build keeps today's reply-only contract (with the never-argue
+    // prompt rule as its floor).
+    const canApplyCorrection = body?.canApplyCorrection === true;
     const question = String((coachSupport ? body?.coachText : body?.question) ?? '').trim().slice(0, 500);
     const context = body?.context;
     // A chat PHOTO ATTACHMENT, passed as a storage KEY and never as image bytes. The client cannot
@@ -404,9 +448,12 @@ Deno.serve(async (req) => {
     // its input_schema.required is a readonly tuple the SDK's mutable string[] rejects — tolerated
     // at a single call site, not at two.
     const replyTools = [REPLY_TOOL] as unknown as Anthropic.Tool[];
-    // The athlete path may also decline and escalate. coachSupport is the coach's own message being
-    // reinforced — there is nothing there to escalate, so it keeps the single forced tool.
-    const athleteTools = [REPLY_TOOL, FLAG_TOOL] as unknown as Anthropic.Tool[];
+    // The athlete path may also decline and escalate, and (capability-gated) apply a stated
+    // factual correction. coachSupport is the coach's own message being reinforced — there is
+    // nothing there to escalate or correct, so it keeps the single forced tool.
+    const athleteTools = (canApplyCorrection
+      ? [REPLY_TOOL, CORRECTION_TOOL, FLAG_TOOL]
+      : [REPLY_TOOL, FLAG_TOOL]) as unknown as Anthropic.Tool[];
     // The user turn, named once because the style-correction retry below has to replay it exactly.
     const userTurn = coachAsk
       ? `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nThe COACH reviewing this athlete's meal just asked you directly: "${question}"\n\nAnswer THE COACH in 100 words or less, using ONLY figures and foods already present in the context. Give a clear practical answer or recommendation; refer to the athlete in the third person. If the context cannot support a firm answer, say so and name the one thing you would check.`
@@ -457,7 +504,49 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
     // several times the price of a text one, and rolling both into one 'reply' bucket would hide
     // exactly the number that decides whether attachments stay free.
     await recordAiCall({ fn: 'meal-chat', mode: 'reply', phase: photoB64 ? 'photo' : coachAsk ? 'coach_ask' : null, userId: callerId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0r, ok: true });
-    const tool = msg.content.find((b) => b.type === 'tool_use') as { name?: string; input?: { message?: string; reason?: string; note?: string } } | undefined;
+    const tool = msg.content.find((b) => b.type === 'tool_use') as {
+      name?: string;
+      input?: {
+        message?: string; reason?: string; note?: string;
+        item?: string; newName?: string; ack?: string;
+        protein?: unknown; kcal?: unknown; carbs?: unknown; fat?: unknown;
+      };
+    } | undefined;
+
+    // ── APPLY CORRECTION: the athlete corrected the record, so the record corrects itself. ──
+    // The model contributes only the ack sentence and the structured field values the athlete
+    // stated; every downstream number (item macros, meal totals, score, rubric, coach focus, day
+    // targets) recomputes DETERMINISTICALLY on the client from the canonical meal record, and the
+    // client mirrors the corrected numbers to the meals row so coach view, daily score, and group
+    // chat all read the same finalized data. The ack is persisted here as the unforgeable 'ai'
+    // row (meta t 'analysis_update') so the thread shows the acknowledgment exactly once.
+    if (tool?.name === 'apply_correction') {
+      const gnum = (v: unknown, cap: number): number | null => {
+        const n = Math.round(Number(v));
+        return Number.isFinite(n) && n >= 0 && n <= cap ? n : null;
+      };
+      const item = String(tool.input?.item ?? '').replace(/[<>]/g, '').trim().slice(0, 80);
+      const newName = String(tool.input?.newName ?? '').replace(/[<>]/g, '').trim().slice(0, 80);
+      const per = {
+        protein: gnum(tool.input?.protein, 300), kcal: gnum(tool.input?.kcal, 2000),
+        carbs: gnum(tool.input?.carbs, 500), fat: gnum(tool.input?.fat, 300),
+      };
+      let ack = String(tool.input?.ack ?? '').replace(/—/g, ',').trim().slice(0, 500);
+      if (!ack) ack = 'Good catch. Updating your numbers and score now.';
+      ack = styleSafe(ack);
+      const hasChange = !!item && (!!newName || Object.values(per).some((v) => v != null));
+
+      const ackRow = { meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: callerId, role: 'ai', text: ack };
+      const { error: ackErr } = await service.from('meal_comments')
+        .insert({ ...ackRow, kind: 'message', meta: { t: 'analysis_update' } });
+      if (ackErr) await service.from('meal_comments').insert({ ...ackRow, kind: 'message' });
+
+      await recordAiCall({ fn: 'meal-chat', mode: 'reply', phase: 'correction_tool', userId: callerId, model: msg.model ?? MODEL, latencyMs: 0, ok: true, outcome: hasChange ? 'correction_returned' : 'ack_only' });
+      return new Response(
+        JSON.stringify(hasChange ? { reply: ack, correction: { item, newName: newName || null, per } } : { reply: ack }),
+        { headers: { ...cors, 'Content-Type': 'application/json' } },
+      );
+    }
 
     // ESCALATION. The model declined to answer, so say so plainly to the athlete and put it in
     // front of a human. The athlete is told what happened — a silent hand-off would read as the

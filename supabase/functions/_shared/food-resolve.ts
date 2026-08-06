@@ -25,6 +25,19 @@ export function num(x: unknown): number {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
+/**
+ * Cache key for a RESOLVED PACKAGED PRODUCT (food_cache source 'product'). For that source,
+ * `per100` holds PER-SERVING macros of the product as consumed — written by enrich-meal the first
+ * time a label claim on the product was actually READ off a photo, and read back by analyze-meal
+ * when a later photo shows the same product with its label turned away. One normalization, shared
+ * by the writer and the reader, so the two can never drift. '' when there's nothing to key on.
+ */
+export function productCacheKey(brand: unknown, product: unknown): string {
+  const key = `${typeof brand === 'string' ? brand : ''} ${typeof product === 'string' ? product : ''}`
+    .toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+  return key.length >= 4 ? key : '';
+}
+
 /** Normalize an Open Food Facts product into per-100g macros. Null if no usable macros. */
 export function fromOFF(product: Record<string, unknown> | undefined): FoodOut | null {
   const n = (product?.nutriments ?? {}) as Record<string, unknown>;

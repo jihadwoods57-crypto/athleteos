@@ -16,7 +16,7 @@
 //
 // Deploy: supabase functions deploy enrich-meal   (uses the same USDA_API_KEY secret as food-lookup)
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
-import { resolveByQuery } from '../_shared/food-resolve.ts';
+import { resolveByQuery, productCacheKey } from '../_shared/food-resolve.ts';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
@@ -64,7 +64,7 @@ Deno.serve(async (request) => {
     new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
   if (rateLimited(request)) return json({ ok: false, error: 'rate limited' }, 429);
 
-  let req: { foods?: unknown };
+  let req: { foods?: unknown; products?: unknown };
   try { req = await request.json(); } catch { return json({ ok: false, error: 'bad request' }, 400); }
 
   // Accept [{ name, protein, kcal, carbs, fat }]; the client sends only the foods it COULDN'T
@@ -80,10 +80,47 @@ Deno.serve(async (request) => {
     .filter((f) => f.name && f.name.length >= 2)
     .filter((f) => { const k = f.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
     .slice(0, MAX_FOODS);
-  if (!foods.length) return json({ ok: true, enriched: 0 });
+  // A call may carry gap FOODS, label-read PRODUCTS, or both — empty of both is a no-op.
+  if (!foods.length && !(Array.isArray(req.products) && req.products.length)) {
+    return json({ ok: true, enriched: 0 });
+  }
 
   const sb = SUPABASE_URL && SERVICE_ROLE_KEY ? createClient(SUPABASE_URL, SERVICE_ROLE_KEY) : null;
   if (!sb) return json({ ok: false, error: 'unavailable' }, 503);
+
+  // ── PRODUCT CACHE WARMING (the packaged-product half of the accuracy loop, 2026-08-06). ──
+  // The client sends the packaged items whose macros were READ off their label in this meal
+  // (basis 'label' — a Core Power bottle with "42g" printed on it). Each is cached per-serving
+  // under a normalized brand+product key (source 'product'; for that source, per100 holds
+  // PER-SERVING macros — see productCacheKey). Next time this population logs the same product
+  // with its label turned away, analyze-meal resolves it from here instead of guessing.
+  // Label reads OVERWRITE an older cached row (upsert): a read claim is the freshest truth.
+  const rawProducts = Array.isArray(req.products) ? req.products : [];
+  const seenP = new Set<string>();
+  let productsCached = 0;
+  for (const p of rawProducts.slice(0, MAX_FOODS)) {
+    if (!p || typeof p !== 'object') continue;
+    const pr = p as Record<string, unknown>;
+    const key = productCacheKey(pr.brand, pr.product);
+    if (!key || seenP.has(key)) continue;
+    seenP.add(key);
+    const per = (pr.per && typeof pr.per === 'object' ? pr.per : {}) as Record<string, unknown>;
+    const perServing = {
+      protein: nnInt(per.protein) ?? 0, kcal: nnInt(per.kcal) ?? 0,
+      carbs: nnInt(per.carbs) ?? 0, fat: nnInt(per.fat) ?? 0,
+    };
+    // A cacheable read has real calories and at least one macro — junk rows would poison
+    // every future resolution of this product.
+    if (perServing.kcal <= 0 || perServing.protein + perServing.carbs + perServing.fat <= 0) continue;
+    const name = typeof pr.product === 'string' && pr.product.trim()
+      ? `${typeof pr.brand === 'string' ? pr.brand.trim() + ' ' : ''}${pr.product.trim()}`.slice(0, 120)
+      : key;
+    await sb.from('food_cache').upsert({
+      source: 'product', key, name,
+      serving: typeof pr.serving === 'string' ? pr.serving.slice(0, 80) : 'per package as consumed',
+      per100: perServing, attribution: 'Label read (OnStandard vision)',
+    }).then(() => { productsCached++; }, () => {});
+  }
 
   let enriched = 0;
   for (const food of foods) {
@@ -107,5 +144,5 @@ Deno.serve(async (request) => {
       enriched++;
     } catch { /* best-effort per food; one bad lookup never fails the batch */ }
   }
-  return json({ ok: true, enriched });
+  return json({ ok: true, enriched, productsCached });
 });

@@ -36,7 +36,7 @@ import {
   mealQualityScore, qualityBand, qualityReason, analysisAgreesWithBand, analysisAgreesWithNumbers, stripFoodMentions, shouldVerify,
   contextForChat,
 } from './meal-intel.js';
-import { groundMealFromFoods, groundMealTotals, gapFoods, isCompleteMealResult } from './nutrition.js';
+import { groundMealFromFoods, groundMealTotals, gapFoods, labelProducts, isCompleteMealResult } from './nutrition.js';
 import { explainCategories, reachPlan as modelReachPlan, maxPossibleScore, mealMaxGain, CI_BEST } from './breakdown-model.js';
 import { cachedMealPhoto, todayMealPhotoPath, invalidateMealPhoto, resolveMealPhoto } from './photo-store.js';
 import { base64ToBytes, sha256Hex, photoAgeMinutes } from './photo-hash.js';
@@ -1472,8 +1472,14 @@ export const act = {
       const sb = window.sb;
       if (!sb || !sb.functions) return;
       const foods = gapFoods((meta && meta.detectedRich) || []);
-      if (!foods.length) return;
-      void sb.functions.invoke('enrich-meal', { body: { foods } }).then(() => {}, () => {});
+      // Label-read packaged products warm the server's product cache (source 'product'): the
+      // next photo of this exact product resolves from a READ claim even when its label is
+      // turned away. Same de-identification bar as gap foods — brand/product/macros only.
+      const products = labelProducts((meta && meta.detectedRich) || []);
+      if (!foods.length && !products.length) return;
+      void sb.functions.invoke('enrich-meal', {
+        body: { foods, ...(products.length ? { products } : {}) },
+      }).then(() => {}, () => {});
     } catch { /* enrichment is best-effort — it must never affect the logged meal */ }
   },
   /** Classified coach notification for a fresh meal insert (never for dups/retries).
@@ -1985,7 +1991,10 @@ export const act = {
    *  keeps the ORIGINAL AI estimate frozen in the meta (audit trail), pushes the corrected day,
    *  and best-effort updates the meals row so the coach reads the same corrected numbers —
    *  with a "corrected by athlete" marker appended to the note. Returns the summary line. */
-  async correctMeal(slot, correction) {
+  /** opts.skipAiUpdate: the chat correction path (apply_correction tool) — the AI's
+   *  acknowledgment row is ALREADY persisted server-side, so posting the correctionUpdate
+   *  message too would say the same thing twice in the thread. */
+  async correctMeal(slot, correction, opts = {}) {
     const meta = DAY.slotMacros[slot];
     if (!meta || !DAY.meals[slot]) return null;
     const r = applyMealCorrection(meta, correction);
@@ -2029,7 +2038,8 @@ export const act = {
     // still claimed the old ones — so the AI now posts a fresh read as a NEW message, leaving the
     // original where it was. The athlete sees they were heard; the coach sees both.
     // Fire-and-forget: the correction itself has already applied and been confirmed on screen.
-    void this._postCorrectionUpdate(slot, r);
+    // (Skipped for chat corrections: apply_correction already persisted the acknowledgment.)
+    if (!opts.skipAiUpdate) void this._postCorrectionUpdate(slot, r);
     // A correction that moved the numbers meaningfully is worth a coach look — once per meal.
     if (this._coachConnected() && r.kcalDelta >= 120 && !r.meta.correctionNotified) {
       DAY.slotMacros[slot] = { ...r.meta, correctionNotified: true };

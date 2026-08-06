@@ -38,6 +38,8 @@ import Anthropic from 'npm:@anthropic-ai/sdk@0.65.0';
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 import { validMealInput, rejectionOutcome } from '../_shared/meal-report.ts';
+import { repairMealReport, verifyCorrectionMessage } from '../_shared/meal-verify.ts';
+import { productCacheKey } from '../_shared/food-resolve.ts';
 import { composeOpenerText } from '../_shared/meal-opener.ts';
 import { buildVoiceDirective, violatesProhibited, type VoiceConfig } from '../_shared/coach-voice.ts';
 import { loadVoiceForAthlete as loadVoice } from '../_shared/coach-voice-load.ts';
@@ -344,19 +346,43 @@ const MEAL_TOOL = {
       kcal: { type: 'integer', description: 'Estimated calories.' },
       carbs: { type: 'integer', description: 'Estimated grams of carbohydrate.' },
       fat: { type: 'integer', description: 'Estimated grams of fat.' },
+      imageQuality: {
+        type: 'object',
+        description: 'Your read of whether this photo can be analyzed honestly. Report it FIRST, before identifying anything.',
+        properties: {
+          usable: { type: 'boolean', description: 'False only when the photo is too blurry, dark, obstructed, or cropped to identify the main items. Still report whatever you can see.' },
+          issues: { type: 'array', items: { type: 'string', enum: ['blur', 'dark', 'obstructed', 'partial', 'not_food'] }, description: 'What limits the read. Empty when the photo is clear.' },
+        },
+        required: ['usable'],
+      },
       detected: {
         type: 'array',
-        description: 'Foods identified in the photo, each with your confidence in the identification and its own macro estimate. The per-food protein/kcal/carbs/fat MUST sum to the meal-level totals — the app subtracts a food\'s numbers when the athlete removes it, so an unattributed calorie would survive the deletion.',
+        description: 'EVERY distinct food, beverage, packaged product, and meaningful condiment as its OWN entry — never average the plate into one item. Each carries your confidence and its own macro estimate. The per-food protein/kcal/carbs/fat MUST sum to the meal-level totals — the app subtracts a food\'s numbers when the athlete removes it, so an unattributed calorie would survive the deletion.',
         items: {
           type: 'object',
           properties: {
             name: { type: 'string', description: 'The food, e.g. "Grilled chicken".' },
-            confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'high = clearly visible; medium = probable; low = uncertain, the athlete should confirm.' },
+            kind: { type: 'string', enum: ['prepared', 'packaged', 'beverage', 'condiment'], description: 'packaged = a branded product in its packaging (bottle, wrapper, bar); beverage = a drink (packaged drinks are "packaged"); prepared = cooked/assembled food.' },
+            brand: { type: 'string', description: 'Brand readable on the packaging, e.g. "Fairlife". Omit when none is visible.' },
+            product: { type: 'string', description: 'The EXACT resolved product: line, flavor, and size, e.g. "Core Power 42g chocolate, 14 fl oz". Only when you can actually resolve it from the packaging — never guess a specific variant.' },
+            labelClaims: {
+              type: 'object',
+              description: 'Nutrition numbers READ off this item\'s packaging in the photo — front-of-pack claims ("42g protein"), Nutrition Facts values, printed serving sizes. These are transcription, not estimation, and they OVERRIDE any visual estimate. Report the value for the package as it will be consumed. Omit entirely when nothing is readable.',
+              properties: {
+                proteinG: { type: 'integer', description: 'Protein grams printed on the package.' },
+                kcal: { type: 'integer', description: 'Calories printed on the package.' },
+                carbsG: { type: 'integer', description: 'Carbohydrate grams printed on the package.' },
+                fatG: { type: 'integer', description: 'Fat grams printed on the package.' },
+                servingText: { type: 'string', description: 'Serving/size text as printed, e.g. "14 fl oz bottle".' },
+              },
+            },
+            basis: { type: 'string', enum: ['label', 'database', 'estimate'], description: 'Where THIS item\'s macros came from: "label" = read off its packaging; "database" = known nutrition data for the exact resolved product; "estimate" = visual estimate.' },
+            confidence: { type: 'string', enum: ['high', 'medium', 'low'], description: 'high = identity AND amount are solid (a readable label claim is high); medium = probable; low = uncertain, the athlete should confirm.' },
             quantity: { type: 'string', description: 'Estimated quantity in plain kitchen units, e.g. "2 eggs", "1 cup rice", "6 oz". Omit when unguessable.' },
-            protein: { type: 'integer', description: 'Estimated grams of protein from THIS food at the estimated quantity.' },
-            kcal: { type: 'integer', description: 'Estimated calories from THIS food.' },
-            carbs: { type: 'integer', description: 'Estimated grams of carbohydrate from THIS food.' },
-            fat: { type: 'integer', description: 'Estimated grams of fat from THIS food.' },
+            protein: { type: 'integer', description: 'Grams of protein from THIS food at the stated quantity/basis.' },
+            kcal: { type: 'integer', description: 'Calories from THIS food.' },
+            carbs: { type: 'integer', description: 'Grams of carbohydrate from THIS food.' },
+            fat: { type: 'integer', description: 'Grams of fat from THIS food.' },
           },
           required: ['name', 'confidence', 'protein', 'kcal', 'carbs', 'fat'],
         },
@@ -410,6 +436,41 @@ const SYSTEM = `You are the OnStandard nutrition coach: a sharp, encouraging spo
 serious high-school and college athletes (ages 13-22). Read the meal photo, identify the foods,
 estimate macros, and score the meal for THIS athlete's goal.
 
+THE PROCEDURE, in order, before you report anything:
+
+STEP 1 — INSPECT. Judge the photo itself first and fill imageQuality. If it is too blurry, dark,
+obstructed, or cropped to identify the main items, set usable=false with the issues; still report
+whatever you honestly can.
+
+STEP 2 — ENUMERATE ITEM BY ITEM. Every distinct food, beverage, packaged product, and meaningful
+condiment is its OWN detected entry. Never estimate the meal as one undifferentiated image. A
+printed order slip, receipt, or menu ticket in frame is EVIDENCE, not food: read it — including
+handwritten checkmarks and selections — and use it to identify what was ordered and how it was
+prepared (e.g. a slip with cheese, bacon, mushrooms, onion, peppers, spinach checked tells you
+exactly what is in the omelet).
+
+STEP 3 — READ EVERY VISIBLE LABEL. Brand names, product lines, flavors, sizes, serving text, and
+printed nutrition numbers. A large number on the front of a package (a shake bottle with "42" and
+"high quality protein" on it) is a NUTRITION CLAIM: transcribe it into that item's labelClaims.
+A printed claim is READ evidence and always beats a visual estimate.
+
+STEP 4 — RESOLVE EXACT PRODUCTS. For each packaged item, name the exact product (brand + line +
+flavor + size) in \`product\` when the packaging lets you. NEVER silently substitute a similar
+variant: if the bottle in the photo says 42g protein, it IS the 42g product — reporting the macros
+of a smaller sibling product is the worst error this system can make. When the exact variant is
+genuinely unreadable, leave \`product\` out and mark the item low confidence instead of guessing.
+
+STEP 5 — MACROS PER ITEM, by authority: (1) printed label claims for that package; (2) known
+nutrition data for the EXACT resolved product; (3) a visual estimate from portion size (plate
+diameter, utensils, known object scale). Set \`basis\` to say which one you used. An item's own
+calories must be consistent with its own macros. When a prepared item was plausibly cooked in oil
+or butter you cannot see, include a reasonable allowance in its fat — or ask, if it would
+materially change the read.
+
+STEP 6 — TOTALS are the sum of the items. The app re-checks this arithmetic; a total that your
+own items cannot produce (a 42g-protein shake inside a 44g-protein meal that also has an omelet)
+is a contradiction you must catch yourself before reporting.
+
 The photo is ground truth for what is VISIBLE, but a camera cannot show everything: food hidden
 under or behind other food, or off the plate entirely. The athlete's note is your source for what
 the camera cannot see.
@@ -441,8 +502,10 @@ restrictive advice, never frame food as good/bad in a way that could fuel disord
 toward fueling performance. Numbers are estimates; be reasonable. No em dashes in any text.
 
 Confidence honesty: mark a detected food "low" whenever the photo alone cannot confirm it (obscured,
-ambiguous, or inferred from the athlete note). Fiber and highlights are estimates from what is
-visible; when nothing is clearly notable, return highlights as an empty array.
+ambiguous, or inferred from the athlete note). A meal is only as confident as its biggest uncertain
+item: never present the read as high confidence while a major packaged product's exact variant is
+unresolved. Fiber and highlights are estimates from what is visible; when nothing is clearly
+notable, return highlights as an empty array.
 
 The analysis field is the athlete's main read: 2 to 3 sentences, written the way a real nutrition
 coach texts an athlete they know — warm, direct, specific to THIS plate and THIS athlete's day.
@@ -1016,7 +1079,7 @@ Deno.serve(async (request) => {
         model: TEXT_MODEL,
         max_tokens: 300,
         system: [{ type: 'text' as const, text: REGEN_SYSTEM, cache_control: { type: 'ephemeral' as const } }],
-        tools: [{ ...REGEN_TOOL, cache_control: { type: 'ephemeral' as const } }],
+        tools: [{ ...REGEN_TOOL, cache_control: { type: 'ephemeral' as const } }] as unknown as Anthropic.Tool[],
         tool_choice: { type: 'tool' as const, name: REGEN_TOOL.name },
         messages: [{ role: 'user', content: `Band: ${req.band}. Rewrite: ${src}` }],
       });
@@ -1051,10 +1114,10 @@ Deno.serve(async (request) => {
           model: MODEL,
           max_tokens: 512,
           system: [{ type: 'text' as const, text: VERIFY_ALLERGEN_SYSTEM, cache_control: { type: 'ephemeral' as const } }],
-          tools: [{ ...ALLERGEN_TOOL, cache_control: { type: 'ephemeral' as const } }],
+          tools: [{ ...ALLERGEN_TOOL, cache_control: { type: 'ephemeral' as const } }] as unknown as Anthropic.Tool[],
           tool_choice: { type: 'tool' as const, name: ALLERGEN_TOOL.name },
           messages: [{ role: 'user', content: [
-            { type: 'image' as const, source: { type: 'base64' as const, media_type: photoMime, data: req.photoBase64 } },
+            { type: 'image' as const, source: { type: 'base64' as const, media_type: photoMime as 'image/jpeg', data: req.photoBase64 } },
             { type: 'text' as const, text: `Check ONLY for these allergens: ${names.join(', ')}` },
           ] }],
         });
@@ -1069,16 +1132,17 @@ Deno.serve(async (request) => {
         model: MODEL,
         max_tokens: MEAL_MAX_TOKENS,
         system: [{ type: 'text' as const, text: VERIFY_ACCURACY_SYSTEM, cache_control: { type: 'ephemeral' as const } }],
-        tools: [{ ...MEAL_TOOL, cache_control: { type: 'ephemeral' as const } }],
+        tools: [{ ...MEAL_TOOL, cache_control: { type: 'ephemeral' as const } }] as unknown as Anthropic.Tool[],
         tool_choice: { type: 'tool' as const, name: MEAL_TOOL.name },
-        messages: [{ role: 'user', content: userContent(req, photoMime) }],
+        messages: [{ role: 'user', content: userContent(req, photoMime) as unknown as Anthropic.ContentBlockParam[] }],
       });
       const used = msg.content.find((b) => b.type === 'tool_use');
       if (!used || used.type !== 'tool_use') throw new Error('no structured output');
       // A second look that came back truncated must not overwrite the first read (state.js only
       // checks that kcal is a number) — fail the verify instead and leave the original standing.
       if (!validMealInput(used.input)) throw new Error(msg.stop_reason === 'max_tokens' ? 'truncated tool output' : 'incomplete meal report');
-      const grounded = groundMacros(used.input) as Record<string, unknown>;
+      // The second look is held to the same deterministic bar as the first read.
+      const grounded = groundMacros(repairMealReport(used.input as Record<string, unknown>, req.mealType).input) as Record<string, unknown>;
       const outcome = classifyVerifyOutcomeServer(req.firstResult || {}, grounded);
       await recordAiCall({ fn: 'analyze-meal', mode: 'verify', phase: 'accuracy', userId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0v, ok: true, outcome });
       return new Response(JSON.stringify({ kind: 'verify', trigger: 'accuracy', ...grounded }), { headers: { ...cors, 'Content-Type': 'application/json' } });
@@ -1274,6 +1338,106 @@ ${memBlock}`;
         throw new Error(msg.stop_reason === 'max_tokens' ? 'truncated tool output' : 'incomplete meal report');
       }
       let input = used.input as Record<string, unknown>;
+
+      /* ── DETERMINISTIC VERIFICATION + REPAIR (the Core Power fix, 2026-08-06) ─────────────
+         Before this read is returned, scored, or spoken, code checks it against itself:
+         printed label claims override estimates, totals re-derive from the items, calories
+         reconcile to food science, and prose can't call a breakfast "this lunch". What code
+         can fix is fixed for free; what it can't fix (a contradiction that survives repair)
+         triggers ONE corrective second pass — the model gets its own output back with the
+         specific contradictions named, which corrects far better than a cold re-read. The
+         escalated answer is adopted only if it verifies STRICTLY cleaner than the repaired
+         first read; otherwise the repaired first read stands. Everything is telemetried so
+         the escalation rate — the number that decides cost — is measurable. */
+      {
+        const rep = repairMealReport(input, req.mealType);
+        input = rep.input;
+        if (rep.repaired.length) {
+          await recordAiCall({
+            fn: 'analyze-meal', mode: telemMode, phase: telemPhase, userId,
+            model: msg.model ?? intendedModel, latencyMs: 0, ok: true,
+            outcome: `verify_repair:${rep.repaired[0]}`.slice(0, 60),
+          });
+        }
+        if (rep.remaining.length) {
+          const t0v2 = Date.now();
+          try {
+            const esc2 = await client.messages.create({
+              model: MODEL,
+              max_tokens: MEAL_MAX_TOKENS,
+              system: [{ type: 'text' as const, text: system, cache_control: { type: 'ephemeral' as const } }],
+              tools: mealToolOnly,
+              tool_choice: { type: 'tool' as const, name: MEAL_TOOL.name },
+              // Replay the model's OWN report, then reject it with the specific contradictions
+              // (same correction pattern the plan-style rail uses).
+              messages: [
+                { role: 'user', content },
+                { role: 'assistant', content: [{ type: 'tool_use' as const, id: used.id, name: used.name, input: used.input as Record<string, unknown> }] },
+                { role: 'user', content: [{ type: 'tool_result' as const, tool_use_id: used.id, content: verifyCorrectionMessage(rep.remaining), is_error: true }] },
+              ],
+            });
+            const eu2 = esc2.content.find((b) => b.type === 'tool_use');
+            let adopted2 = false;
+            if (eu2 && eu2.type === 'tool_use' && validMealInput(eu2.input)) {
+              const rep2 = repairMealReport(eu2.input as Record<string, unknown>, req.mealType);
+              if (rep2.remaining.length < rep.remaining.length) { input = rep2.input; adopted2 = true; }
+            }
+            await recordAiCall({
+              fn: 'analyze-meal', mode: telemMode, phase: 'verify_retry', userId,
+              model: esc2.model ?? MODEL, ...usageFrom(esc2.usage),
+              latencyMs: Date.now() - t0v2, ok: adopted2,
+              outcome: `${adopted2 ? 'fixed' : 'kept_first'}:${rep.remaining[0]?.kind ?? 'unknown'}`.slice(0, 60),
+            });
+          } catch (e) {
+            // The repaired first read is still a usable answer; a failed second pass must never
+            // cost the athlete their meal log.
+            await recordAiCall({
+              fn: 'analyze-meal', mode: telemMode, phase: 'verify_retry', userId,
+              model: MODEL, latencyMs: Date.now() - t0v2, ok: false, errorCode: 'upstream_error',
+            });
+            console.error('analyze-meal verify_retry error:', e);
+          }
+        }
+      }
+
+      /* ── PRODUCT CACHE (packaged items this population has already resolved) ─────────────
+         A packaged item whose exact product the vision pass NAMED but whose macros are still an
+         estimate (label turned away, claim unreadable) resolves against food_cache rows of
+         source 'product' — for that source, per100 holds PER-SERVING macros of the product as
+         consumed, written by enrich-meal the first time a label claim on that product was
+         actually READ. One indexed select per item, at most 3 items; fail-soft. */
+      {
+        const sbCache = svcClient();
+        const items = Array.isArray(input.detected) ? (input.detected as Array<Record<string, unknown>>) : [];
+        let cacheHit = false;
+        if (sbCache) {
+          const candidates = items.filter((d) => d && typeof d === 'object'
+            && (d.kind === 'packaged' || d.kind === 'beverage')
+            && d.basis !== 'label'
+            && (typeof d.brand === 'string' && d.brand || typeof d.product === 'string' && d.product)).slice(0, 3);
+          for (const d of candidates) {
+            try {
+              const key = productCacheKey(d.brand, d.product);
+              if (!key) continue;
+              const { data: hit } = await sbCache.from('food_cache')
+                .select('per100').eq('source', 'product').eq('key', key).maybeSingle();
+              const per = hit?.per100 as Record<string, unknown> | undefined;
+              if (per && Number(per.protein) >= 0 && Number(per.kcal) > 0) {
+                d.protein = Math.round(Number(per.protein) || 0);
+                d.kcal = Math.round(Number(per.kcal) || 0);
+                d.carbs = Math.round(Number(per.carbs) || 0);
+                d.fat = Math.round(Number(per.fat) || 0);
+                d.basis = 'database';
+                d.confidence = 'high';
+                cacheHit = true;
+              }
+            } catch { /* cache unreachable: the estimate stands */ }
+          }
+        }
+        // Adopted DB numbers change the items, so the totals re-derive once more (free).
+        if (cacheHit) input = repairMealReport(input, req.mealType).input;
+      }
+
       // Coach Voice safety: a banned word must never ship. If voice was applied and the free-text
       // note/analysis trips the guard (rare — the directive already forbids them), re-run the report
       // ONCE without the voice directive and use that. A required field can't be nulled the way a
@@ -1376,6 +1540,9 @@ ${memBlock}`;
           }
         }
       }
+      // The voice/style rails above can adopt a whole regenerated report; one more free
+      // deterministic pass re-pins claims/totals/slot-words no matter which report won.
+      input = repairMealReport(input, req.mealType).input;
       const grounded = groundMacros(input) as Record<string, unknown>;
 
       // THE THREAD BUBBLE IS NO LONGER POSTED HERE — for any client new enough to post it itself.

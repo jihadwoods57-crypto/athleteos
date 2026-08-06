@@ -38,19 +38,32 @@ describe('the tool contract', () => {
     }
   });
 
-  it('the athlete path OFFERS both tools — a forced reply tool cannot decline', () => {
-    expect(SRC).toContain('const athleteTools = [REPLY_TOOL, FLAG_TOOL]');
+  it('the athlete path OFFERS the flag tool — a forced reply tool cannot decline', () => {
+    // 2026-08-06: the athlete path also gained apply_correction (capability-gated), so the tool
+    // set is conditional now — but FLAG_TOOL must be present in BOTH branches, or the AI goes
+    // back to confidently answering medical questions for exactly the clients that can correct.
+    expect(SRC).toMatch(/const athleteTools = \(canApplyCorrection\s*\?\s*\[REPLY_TOOL, CORRECTION_TOOL, FLAG_TOOL\]\s*:\s*\[REPLY_TOOL, FLAG_TOOL\]\)/);
     // The escape hatch is offered on the athlete's QUESTION path and nowhere else. The condition
-    // gained correctionUpdate (2026-07-28) for the same reason coachSupport was there: a
-    // correction being acknowledged has nothing in it to escalate.
-    expect(SRC).toMatch(/tool_choice:\s*coachSupport \|\| correctionUpdate\s*\?\s*\{ type: 'tool', name: 'reply' \}\s*:\s*\{ type: 'any' \}/);
+    // gained correctionUpdate (2026-07-28) and coachAsk (2026-08-06) for the same reason
+    // coachSupport was there: those turns have nothing in them to escalate.
+    expect(SRC).toMatch(/tool_choice:\s*coachSupport \|\| coachAsk \|\| correctionUpdate\s*\?\s*\{ type: 'tool', name: 'reply' \}\s*:\s*\{ type: 'any' \}/);
   });
 
   it('only the athlete question path can escalate to a human', () => {
-    // Backing a coach's own message, or confirming a correction the athlete just made, has
-    // nothing to escalate; offering the hatch there would let the AI decline to reinforce its
-    // own coach, or decline to restate numbers the app has already computed.
-    expect(SRC).toMatch(/coachSupport \|\| correctionUpdate \? replyTools : athleteTools/);
+    // Backing a coach's own message, answering a coach's direct question, or confirming a
+    // correction the athlete just made, has nothing to escalate; offering the hatch there would
+    // let the AI decline to reinforce its own coach, or decline to restate numbers the app has
+    // already computed.
+    expect(SRC).toMatch(/coachSupport \|\| coachAsk \|\| correctionUpdate \? replyTools : athleteTools/);
+  });
+
+  it('the correction tool exists and the model is told to use it instead of arguing', () => {
+    // The Core Power failure (2026-08-06): the athlete said the bottle prints 42g and the AI
+    // argued with them and told them to update the log themselves. The contract now: the athlete
+    // holding the food is better evidence than the log, and corrections apply automatically.
+    expect(SRC).toContain("name: 'apply_correction'");
+    expect(SRC).toMatch(/NEVER argue with it/);
+    expect(SRC).toMatch(/never tell them to update the log or to notify their coach/i);
   });
 });
 

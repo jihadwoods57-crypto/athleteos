@@ -26,6 +26,16 @@ export function normalizeDetected(detected) {
     }
     if (d && d.edited) out.edited = true;
     if (d && d.userAdded) out.userAdded = true;
+    // Provenance (Core Power fix 2026-08-06): where this ITEM's numbers came from, and which
+    // exact product it is. 'label' = read off its packaging in the photo; 'database' = resolved
+    // from the product cache. These survive normalization because everything downstream —
+    // grounding (label items skip the DB clamp), confidence (an unresolved package caps the
+    // read), enrichment (label reads warm the product cache), the breakdown UI, and the chat
+    // context — keys off them.
+    if (d && (d.basis === 'label' || d.basis === 'database')) out.basis = d.basis;
+    if (d && (d.kind === 'packaged' || d.kind === 'beverage' || d.kind === 'condiment' || d.kind === 'prepared')) out.kind = d.kind;
+    if (d && typeof d.brand === 'string' && d.brand.trim()) out.brand = clean(d.brand).slice(0, 40);
+    if (d && typeof d.product === 'string' && d.product.trim()) out.product = clean(d.product).slice(0, 80);
     return out;
   }).filter((d) => d.name);
 }
@@ -142,6 +152,11 @@ export function estimateConfidence(source, detected) {
   if (!rich.length) return 'medium';
   if (rich.some((d) => d && d.confidence === 'low')) return 'low';
   if (rich.some((d) => d && d.confidence === 'medium')) return 'medium';
+  // A read is only as confident as its biggest guess: a PACKAGED product whose macros are still
+  // a visual estimate (no label read, no product-cache resolution, no exact product named) can
+  // be a whole different variant — never present that plate as "high confidence".
+  if (rich.some((d) => d && (d.kind === 'packaged' || d.kind === 'beverage')
+    && d.basis !== 'label' && d.basis !== 'database' && !d.product)) return 'medium';
   return 'high';
 }
 
@@ -1005,10 +1020,10 @@ const CORRECTION_RULES = {
   },
 };
 
-export function applyMealCorrection(meta, { kind, value, detail } = {}) {
+export function applyMealCorrection(meta, { kind, value, detail, item, newName, per, minutesLate } = {}) {
   const src = meta || {};
   const rule = (CORRECTION_RULES[kind] || {})[String(value || '').toLowerCase()];
-  if (!rule && kind !== 'other') return null;
+  if (!rule && kind !== 'other' && kind !== 'item') return null;
   // Freeze the ORIGINAL estimate exactly once — the audit trail's anchor.
   const orig = src.orig || {
     protein: src.protein || 0, carbs: src.carbs || 0, fat: src.fat || 0,
@@ -1017,6 +1032,73 @@ export function applyMealCorrection(meta, { kind, value, detail } = {}) {
   const next = { ...src, orig };
   const log = Array.isArray(src.corrections) ? src.corrections.slice() : [];
   let summary;
+
+  /* ── kind 'item' (Core Power fix 2026-08-06): a STRUCTURED per-item correction — the athlete
+     told us a specific detected food is a different product variant or carries different macros
+     than we logged ("the shake is the 42g bottle"). Applied deterministically: the item's own
+     macros update, its kcal re-derives from food science when not stated, meal totals re-derive
+     from the items, and the SCORE fully recomputes through the same mealQualityScore that set it
+     — never a fabricated re-score, never a nudge. The item is marked basis 'label' (the athlete
+     read their own package: that is READ evidence) so grounding never clamps it back. */
+  if (kind === 'item') {
+    const want = clean(item).toLowerCase();
+    const rich = Array.isArray(src.detectedRich) ? src.detectedRich.map((d) => ({ ...d })) : [];
+    if (!want || !rich.length) return null;
+    let idx = rich.findIndex((d) => clean(d.name).toLowerCase() === want);
+    if (idx === -1) idx = rich.findIndex((d) => clean(d.name).toLowerCase().includes(want) || want.includes(clean(d.name).toLowerCase()));
+    if (idx === -1) return null;
+    const row = rich[idx];
+    const oldPer = row.per && typeof row.per === 'object' ? row.per : { protein: 0, kcal: 0, carbs: 0, fat: 0 };
+    const numOr = (v, fallback) => { const n = Math.round(Number(v)); return isFinite(n) && n >= 0 ? n : fallback; };
+    const stated = per && typeof per === 'object' ? per : {};
+    const merged = {
+      protein: stated.protein != null ? numOr(stated.protein, oldPer.protein || 0) : (oldPer.protein || 0),
+      kcal: stated.kcal != null ? numOr(stated.kcal, oldPer.kcal || 0) : (oldPer.kcal || 0),
+      carbs: stated.carbs != null ? numOr(stated.carbs, oldPer.carbs || 0) : (oldPer.carbs || 0),
+      fat: stated.fat != null ? numOr(stated.fat, oldPer.fat || 0) : (oldPer.fat || 0),
+    };
+    // The athlete stated macros but not calories: calories are arithmetic, not opinion.
+    if (stated.kcal == null && (stated.protein != null || stated.carbs != null || stated.fat != null)) {
+      const atw = 4 * merged.protein + 4 * merged.carbs + 9 * merged.fat;
+      if (atw > 0) merged.kcal = Math.round(atw);
+    }
+    const nn2 = clean(newName).slice(0, 80);
+    const oldName = row.name;
+    row.per = merged;
+    if (nn2) row.name = nn2;
+    row.basis = 'label';
+    row.confidence = 'high';
+    row.edited = true;
+    next.detectedRich = rich;
+    // Keep the flat names (persisted `foods`) in lockstep with the rename.
+    if (nn2 && Array.isArray(src.foods)) {
+      next.foods = src.foods.map((f) => (clean(f).toLowerCase() === clean(oldName).toLowerCase() ? nn2 : f));
+    }
+    // Totals re-derive from the items when every item is priced; otherwise apply this item's
+    // delta to the stated totals (the honest partial recompute).
+    const priced = rich.every((d) => d && d.per && typeof d.per === 'object');
+    if (priced) {
+      let p = 0, c = 0, f2 = 0, k2 = 0;
+      for (const d of rich) { p += Number(d.per.protein) || 0; c += Number(d.per.carbs) || 0; f2 += Number(d.per.fat) || 0; k2 += Number(d.per.kcal) || 0; }
+      next.protein = Math.round(p); next.carbs = Math.round(c); next.fat = Math.round(f2); next.kcal = Math.round(k2);
+    } else {
+      for (const k of ['protein', 'carbs', 'fat', 'kcal']) {
+        next[k] = Math.max(0, Math.round((Number(src[k]) || 0) + (merged[k] - (Number(oldPer[k]) || 0))));
+      }
+    }
+    // The FULL deterministic re-score — same engine, same inputs, every surface agrees.
+    const q = mealQualityScore({
+      macros: next, fiber: next.fiber, detected: next.detectedRich,
+      minutesLate: typeof minutesLate === 'number' ? minutesLate : undefined,
+    });
+    if (q != null) { next.quality = q; delete next.qualityAdj; }
+    const label = nn2 && nn2 !== oldName ? `${clean(oldName)} → ${nn2}` : clean(oldName);
+    summary = `Corrected: ${label} updated from your correction — macros and score recalculated`;
+    log.push({ kind: 'item', item: clean(oldName), newName: nn2 || undefined, per: merged });
+    next.corrections = log.slice(0, 8);
+    const kcalDelta = Math.abs((next.kcal || 0) - (Number(src.kcal) || 0));
+    return { meta: next, summary, kcalDelta };
+  }
 
   if (kind === 'other') {
     const d = clean(detail).slice(0, 160);

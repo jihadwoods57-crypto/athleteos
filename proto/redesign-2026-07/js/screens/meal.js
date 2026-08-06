@@ -752,9 +752,12 @@ export const thread = {
         <span class="v" data-count="${M.score}">${M.score}</span><span class="k">Meal</span>
       </div>` : ''}</div>
     </div>
+    ${/* ONE score presentation (founder spec 2026-08-06): the ring chip on the photo IS the
+          number — repeating "71/100" in a second big panel directly beneath it made the score
+          read as two systems. The band verdict + the ✓/✕ reasons stay: they are the
+          explanation, not a restatement. */''}
     ${band ? `<div class="score-read">
       <div class="sr-head">
-        <span class="sr-n">${M.score}<small>/100</small></span>
         <span class="sr-band ${band.cls}">${band.label}</span>
       </div>
       ${reasons.length ? `<div class="sr-rows">
@@ -797,6 +800,7 @@ export const thread = {
         <span class="conf-dot ${esc(d.confidence || 'high')}"></span>
         <span class="fr-name">${esc(d.name)}</span>
         <span class="fr-qty">${d.quantity ? `${fromPhoto ? '~ ' : ''}${esc(d.quantity)}` : ''}</span>
+        ${d.basis === 'label' ? '<span class="rx-tag">label read</span>' : d.basis === 'database' ? '<span class="rx-tag">known product</span>' : ''}
       </div>`).join('');
     // Photo estimates present as estimates (~ prefix on tiles; the full range lives in the
     // rubric). Label/manual values stay exact — no false hedging on real numbers.
@@ -1193,14 +1197,23 @@ export const thread = {
     const paint = () => {
       if (!threadEl) return;
       const msgs = threadMessages(comments);
-      // Coach REVIEW status: any coach row (message or reaction) counts as reviewed.
+      // COACH ATTENTION, three DISTINCT facts that must never contradict each other on one
+      // screen (founder spec 2026-08-06 — the header said "Reviewed by Coach" while the thread
+      // tail said "Coach hasn't reviewed this meal yet."):
+      //   replied  — a coach actually wrote on THIS meal (comment/reaction row);
+      //   reviewed — the coach marked the athlete's DAY reviewed (coach_views receipt);
+      //   seen     — the coach opened the day (a view receipt exists, "Seen by <name>").
+      // The header states the strongest one; the tail placeholder renders ONLY when none of the
+      // three holds, and says "seen", which is the thing it can honestly claim.
       const coachSeen = (Array.isArray(comments) ? comments : []).some((c) => c && c.role === 'coach');
+      const dayReviewed = RECEIPT.uid === RT.userId && RECEIPT.date === String(DAY.date) && RECEIPT.reviewed;
+      const daySeen = (RECEIPT.rows || []).length > 0;
       // Upgrade the header status line from the real thread: a coach row = "Coach replied".
       const csEl = root.querySelector('#coach-status');
       if (csEl && coachSeen) csEl.textContent = 'Coach replied';
       const tail = [];
       if (!msgs.length && !aiTyping) tail.push('No replies yet. Ask below and the AI Nutritionist answers from your plan.');
-      if (!coachSeen) tail.push("Coach hasn't reviewed this meal yet.");
+      if (S.coach.hasCoach && !coachSeen && !dayReviewed && !daySeen) tail.push("Coach hasn't seen this meal yet.");
 
       // The pending / clarifying / failed rows are DERIVED, because they describe a read that has
       // not landed and so has nothing persisted to show. The READ ITSELF is now a real message in
@@ -1211,8 +1224,16 @@ export const thread = {
       const live = mealDetail(M.slot) || M;
       const openingHtml = openingBlockHtml(live, { ...openingInputs(live), hasPersistedRead });
 
+      // PREVIEW, NOT TRANSCRIPT (founder spec 2026-08-06): the meal page shows the tail of the
+      // conversation — the read, the latest exchange — and the COMPLETE athlete–coach–AI
+      // discussion lives on the dedicated chat screen. Slicing here (after the status logic
+      // above, which must see everything) keeps this screen scannable; the "View earlier
+      // messages" line inside the thread is the honest seam to the full history.
+      const PREVIEW_MSGS = 4;
+      const shown = msgs.slice(-PREVIEW_MSGS);
+      const hiddenCount = msgs.length - shown.length;
       const lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
-      const rows = layoutThread(msgs, { fmtTime: fmtMsgTime, fmtDay: dayKey }).map((item) => {
+      const rows = layoutThread(shown, { fmtTime: fmtMsgTime, fmtDay: dayKey }).map((item) => {
         if (item.type === 'time') return `<div class="tsep">${esc(item.label)}</div>`;
         const c = item.comment;
         const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
@@ -1266,7 +1287,10 @@ export const thread = {
           <div class="cp-text">${esc(String(lastCoach.text || ''))}</div>
         </div>`;
       })() : '';
-      threadEl.innerHTML = coachPin + openingHtml + rows + (aiTyping ? typingRow() : '')
+      const earlierBtn = hiddenCount > 0
+        ? `<button class="cont-earlier" id="thread-more">View ${hiddenCount} earlier message${hiddenCount === 1 ? '' : 's'} &rarr;</button>`
+        : '';
+      threadEl.innerHTML = coachPin + openingHtml + earlierBtn + rows + (aiTyping ? typingRow() : '')
         + (seen ? `<div class="seen">${seen}</div>` : '')
         + (tail.length ? `<div class="msg-status">${tail.join(' ')}</div>` : '');
       // READ MORE (founder 2026-08-05): a long AI message clamps to its first four lines with a
@@ -1447,7 +1471,7 @@ export const thread = {
         void act.confirmMemoryFact(id, fx.getAttribute('data-keep') === '1');
         return;
       }
-      const t = ev.target && ev.target.closest ? ev.target.closest('#mq-thread-go, #mq-thread-skip, #mt-retry-analysis, #mt-reread, #open-full-chat, #thread-earlier') : null;
+      const t = ev.target && ev.target.closest ? ev.target.closest('#mq-thread-go, #mq-thread-skip, #mt-retry-analysis, #mt-reread, #open-full-chat, #thread-earlier, #thread-more') : null;
       if (!t) return;
       if (t.id === 'mt-retry-analysis') { act.retryAnalysis(M.slot); return; }
       // The same conversation, unbounded by this one plate.
@@ -1456,7 +1480,7 @@ export const thread = {
       // location.hash directly skipped that push, so nutrition-chat had no recorded origin and its
       // back button fell through to its 'home' fallback instead of returning to the meal the
       // athlete opened it from.
-      if (t.id === 'open-full-chat' || t.id === 'thread-earlier') {
+      if (t.id === 'open-full-chat' || t.id === 'thread-earlier' || t.id === 'thread-more') {
         if (window.__navigate) window.__navigate('nutrition-chat'); else location.hash = '#nutrition-chat';
         return;
       }
@@ -1484,7 +1508,16 @@ export const thread = {
         // or the clamp discards the newest meals instead of the oldest. Reverse to ascending here.
         const recentAscending = (recent || []).slice().reverse();
         const context = contextForChat({
-          meal: { name: M.name, slot: M.slot, foods: M.detectedRich, macros: M.macros, fiber: M.fiber, quality: M.score, late: M.late, note: M.note },
+          meal: {
+            name: M.name, slot: M.slot, macros: M.macros, fiber: M.fiber, quality: M.score, late: M.late, note: M.note,
+            // Per-item provenance, not just names: the AI needs to see WHICH item carries WHICH
+            // logged value (and whether it was read off a label, resolved from the product
+            // cache, or estimated) to discuss the plate honestly and to apply a correction to
+            // the right item instead of arguing about the totals.
+            foods: (M.detectedRich || []).map((d) => d && ({
+              name: d.name, per: d.per, basis: d.basis, product: d.product, brand: d.brand, quantity: d.quantity,
+            })).filter(Boolean),
+          },
           plan: { goal: RT.profile && RT.profile.baseGoal, targets: S.planTargets, allergies: RT.allergies },
           exec: { met: ex.met, total: ex.total, score: ex.score, possible: ex.possible, next: ex.now && ex.now.title },
           recentMeals: recentAscending.map((m) => ({ type: m.type, protein: m.protein, kcal: m.kcal, quality: m.quality, date: m.day_date })),
@@ -1498,6 +1531,9 @@ export const thread = {
             // rather than left empty so the prompt reads as a real ask, not a blank turn.
             question: text || 'I sent a photo — what do you make of it?',
             context,
+            // "I can apply a structured correction": unlocks the apply_correction tool
+            // server-side. Only sent because the handler below actually applies it.
+            canApplyCorrection: true,
             ...(photoPath ? { photoPath } : {}),
           },
         });
@@ -1516,6 +1552,24 @@ export const thread = {
           if (parsed && parsed.error === 'limit') setNote("You've hit today's AI coaching limit — back tomorrow. Your coach still sees this.");
           else setNote("Couldn't reach your AI coach — tap to try again.", true);
         } else {
+          // THE CORRECTION LOOP CLOSES HERE (founder escalation 2026-08-06). The athlete stated
+          // a fact about their own food ("the shake is the 42g bottle") and the AI called
+          // apply_correction instead of arguing. The app now applies it DETERMINISTICALLY —
+          // per-item macros, meal totals, score, rubric, coach focus, and day targets all
+          // recompute from the one canonical record, and the meals row mirror keeps coach view,
+          // daily score, and group chat reading the same finalized data. The AI's acknowledgment
+          // row is already persisted server-side; refresh() below shows it.
+          if (data.correction && data.correction.item) {
+            const c = data.correction;
+            await act.correctMeal(M.slot, {
+              kind: 'item', item: c.item, newName: c.newName || undefined,
+              per: c.per || {}, minutesLate: M.minutesLate,
+            }, { skipAiUpdate: true });
+            // Full repaint: score ring, breakdown tiles, rubric, coach focus, day progress —
+            // every surface on this screen re-derives from the corrected record.
+            if (window.__render) window.__render();
+            return;
+          }
           await refresh();
         }
       } catch { setTyping(false); setNote("Couldn't reach your AI coach — tap to try again.", true); }
