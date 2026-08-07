@@ -1724,7 +1724,8 @@ let VIEWED_FOR = null;
 const ALL_PROFILE_SECTIONS = [
   ['overview', 'Overview', null], ['today', 'Today', null], ['score', 'Score', null],
   ['activity', 'Activity', null], ['conversation', 'Conversation', null],
-  ['requirements', 'Requirements', 'standards'], ['notes', 'Notes', 'notes'],
+  ['requirements', 'Requirements', 'standards'], ['foodmem', 'Food Memory', null],
+  ['notes', 'Notes', 'notes'],
 ];
 const profileSections = () => ALL_PROFILE_SECTIONS.filter(([, , cap]) => !cap || CD.caps[cap]);
 
@@ -2103,6 +2104,43 @@ function requirementsSection(P, athleteId) {
    rather than optimistically splicing — deleteCoachNote returns true even on an RLS no-op
    (deleting a note you don't own deletes 0 rows but still resolves true), so only the refreshed
    P.notes can honestly say whether it's gone. */
+/* Food Memory (0192) — the athlete's saved usual meals/orders, coach-readable via can_view.
+   The coach's one write is VERIFY (definer RPC): a verified meal carries a subtle badge on the
+   athlete's Plan and is treated as higher-confidence data by future AI reads. Wrong numbers?
+   Say so in the thread or a nudge — the memory belongs to the athlete. */
+let FMEM = { id: null, items: null, places: [] };
+function foodMemSection(P, athleteId) {
+  if (FMEM.id !== athleteId || FMEM.items === null) {
+    return `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('utensils', 17)}</div>
+    <div><div class="tt">Loading their saved meals…</div><div class="ts">What they eat repeatedly, learned from their logging.</div></div></div>`;
+  }
+  const items = FMEM.items.filter((i) => i.status !== 'archived');
+  if (!items.length) {
+    return `<div class="state-demo"><div class="sd-ic">${icon('utensils', 24)}</div>
+    <div class="sd-t">Nothing saved yet</div>
+    <div class="sd-s">As they log, OnStandard learns their usual meals and orders. Saved meals show up here for you to review and verify.</div></div>`;
+  }
+  const placeName = (pid) => { const p = FMEM.places.find((x) => x.id === pid); return p ? p.name : null; };
+  return `
+  <div class="co-eyebrow">Their usual meals <span class="n">${items.length}</span></div>
+  <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.5;margin:2px 2px 10px">Verify a meal you know is right — it gets a trusted badge on their Plan and future AI reads lean on it.</div>
+  <section class="card" style="padding:4px 16px">
+    ${items.map((it) => {
+      const pl = it.place_id ? placeName(it.place_id) : null;
+      return `<div class="bd-row" style="display:flex;align-items:center;gap:12px">
+      <div class="req-icon b" style="width:38px;height:38px;flex:none">${icon(it.kind === 'supplement' ? 'bolt' : 'utensils', 17)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.name)}</div>
+        <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-top:2px">${it.protein || 0}g protein · ${it.kcal || 0} cal${pl ? ` · ${esc(pl)}` : ''}${it.times_logged > 1 ? ` · logged ${it.times_logged}×` : ''}</div>
+      </div>
+      ${it.verified_at
+        ? `<span class="bd-weight" style="color:var(--green-bright);flex:none">✓ Verified</span>`
+        : `<button class="btn ghost sm" data-fm-verify="${esc(it.id)}" style="width:auto;padding:0 12px;height:30px;flex:none">Verify</button>`}
+    </div>`;
+    }).join('')}
+  </section>`;
+}
+
 function notesSection(P) {
   const notes = P.notes || [];
   return `
@@ -2173,7 +2211,8 @@ export const coachAthlete = {
     const body = PSECTION === 'overview' ? overviewSection(P) : PSECTION === 'today' ? todaySection(P, athleteId)
       : PSECTION === 'score' ? scoreSection(P, athleteId)
       : PSECTION === 'activity' ? activitySection(P) : PSECTION === 'conversation' ? conversationSection(P)
-      : PSECTION === 'requirements' ? requirementsSection(P, athleteId) : notesSection(P);
+      : PSECTION === 'requirements' ? requirementsSection(P, athleteId)
+      : PSECTION === 'foodmem' ? foodMemSection(P, athleteId) : notesSection(P);
     return `
     ${head}
 
@@ -2203,6 +2242,28 @@ export const coachAthlete = {
       TLOGS = { id: athleteId, rows: [] };
       roles.listTrainingLogs(athleteId).then((rows) => { if (TLOGS.id === athleteId) { TLOGS = { id: athleteId, rows: rows || [] }; if (window.__render) window.__render(); } }).catch(() => { /* best-effort */ });
     }
+    // Food Memory (0192) — once per athlete open, same guard pattern as TLOGS.
+    if (FMEM.id !== athleteId) {
+      FMEM = { id: athleteId, items: null, places: [] };
+      roles.fetchFoodMemory(athleteId).then((r) => {
+        if (FMEM.id !== athleteId) return;
+        FMEM = { id: athleteId, items: (r && !r.error && r.items) || [], places: (r && !r.error && r.places) || [] };
+        if (window.__render) window.__render();
+      }).catch(() => { /* best-effort */ });
+    }
+    // Verify a saved meal (definer RPC). Optimistic stamp on success; honest re-enable on failure.
+    root.querySelectorAll('[data-fm-verify]').forEach((el) => el.addEventListener('click', async () => {
+      if (el.disabled) return;
+      el.disabled = true; el.textContent = 'Verifying…';
+      const ok = await roles.coachVerifyMemoryItem(el.getAttribute('data-fm-verify'));
+      if (ok && FMEM.items) {
+        const it = FMEM.items.find((x) => x.id === el.getAttribute('data-fm-verify'));
+        if (it) it.verified_at = new Date().toISOString();
+        window.__render();
+      } else {
+        el.disabled = false; el.textContent = 'Verify';
+      }
+    }));
     // coachMeal now resolves its own meal via roles.fetchMeal (Task 6 Part C) — it no longer
     // depends on this screen keeping the legacy ATH cache warm, so the double-fetch is gone.
     // Day-view receipt: written HERE, not the loader — this is where a real viewer id (RT.userId)

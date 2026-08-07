@@ -312,6 +312,64 @@ export async function signedMealPhotoUrl(path) {
   try { const { data } = await c.storage.from('meal-photos').createSignedUrl(path, 3600); return (data && data.signedUrl) || null; } catch { return null; }
 }
 
+/* ---------------- food memory (0192): saved meals, orders + places ----------------
+   The Plan intelligence hub's data. RLS decides whose memory a caller may read: the athlete
+   reads their own; a coach/trainer reads any athlete they can_view — so ONE fetch serves both
+   sides. Writes are athlete-only by policy; the coach's single write (verify) goes through the
+   coach_verify_memory_item definer RPC. Every helper is best-effort: memory can never block
+   or break logging. */
+export async function fetchFoodMemory(athleteId) {
+  const c = sb(); if (!c || !athleteId) return { error: true };
+  try {
+    const [items, places] = await Promise.all([
+      c.from('food_memory_items').select('*').eq('athlete_id', athleteId).eq('status', 'active')
+        .order('times_logged', { ascending: false }).limit(100),
+      c.from('food_memory_places').select('*').eq('athlete_id', athleteId).eq('status', 'active')
+        .order('times_eaten', { ascending: false }).limit(40),
+    ]);
+    if (items.error || places.error) return { error: true };
+    return { items: items.data || [], places: places.data || [] };
+  } catch { return { error: true }; }
+}
+export async function insertFoodMemoryItem(row) {
+  const c = sb(); if (!c || !row || !row.athlete_id) return null;
+  try {
+    const { data, error } = await c.from('food_memory_items').insert(row).select('id').maybeSingle();
+    if (error) { console.warn('[memory] insert item failed', error.message); return null; }
+    return data ? data.id : null;
+  } catch { return null; }
+}
+export async function updateFoodMemoryItem(id, patch) {
+  const c = sb(); if (!c || !id || !patch) return false;
+  try { const { error } = await c.from('food_memory_items').update(patch).eq('id', id); return !error; } catch { return false; }
+}
+/** "Forget" — archived, never deleted, so it's recoverable and history stays honest. */
+export async function archiveFoodMemoryItem(id) { return updateFoodMemoryItem(id, { status: 'archived' }); }
+/** A saved meal was re-logged: count it. `current` avoids a read-modify-write round trip. */
+export async function bumpFoodMemoryItem(id, current) {
+  return updateFoodMemoryItem(id, { times_logged: (Number(current) || 1) + 1, last_logged_at: new Date().toISOString() });
+}
+/** Find-or-create a place by name (unique per athlete on lower(name)); bumps the visit count
+ *  on the existing row. Returns the place id or null. */
+export async function upsertFoodMemoryPlace(athleteId, name, kind = 'restaurant') {
+  const c = sb(); if (!c || !athleteId || !name) return null;
+  try {
+    const { data } = await c.from('food_memory_places').select('id,times_eaten')
+      .eq('athlete_id', athleteId).eq('status', 'active').ilike('name', name).limit(1).maybeSingle();
+    if (data && data.id) {
+      await c.from('food_memory_places').update({ times_eaten: (Number(data.times_eaten) || 1) + 1, last_eaten_at: new Date().toISOString() }).eq('id', data.id);
+      return data.id;
+    }
+    const ins = await c.from('food_memory_places').insert({ athlete_id: athleteId, name: String(name).slice(0, 80), kind }).select('id').maybeSingle();
+    return ins.data ? ins.data.id : null;
+  } catch { return null; }
+}
+/** Coach marks a saved meal verified (definer RPC — can flip ONLY the verified stamp). */
+export async function coachVerifyMemoryItem(itemId) {
+  const c = sb(); if (!c || !itemId) return false;
+  try { const { data, error } = await c.rpc('coach_verify_memory_item', { item: itemId }); return !error && data === true; } catch { return false; }
+}
+
 /** Upload a photo ATTACHED TO A CHAT MESSAGE (not a logged meal). Returns the storage path, or
     null on any failure — the caller decides whether to still send the text.
 

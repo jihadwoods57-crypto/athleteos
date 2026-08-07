@@ -1,6 +1,7 @@
 import home from './home.js';
 import breakdown from './breakdown.js';
 import plan from './plan.js';
+import memoryEdit from './memory-edit.js';
 import camera, { cameraConfirm } from './camera.js';
 import { analyzing, mealQuestions, analysis, confirm, detail, thread } from './meal.js';
 import nutritionChat from './nutrition-chat.js';
@@ -75,6 +76,7 @@ export const screens = {
   home,
   'score-breakdown': breakdown,
   plan,
+  'memory-edit': memoryEdit,
   camera,
   'camera-confirm': cameraConfirm,
   analyzing,

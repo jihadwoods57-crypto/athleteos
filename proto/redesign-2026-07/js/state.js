@@ -48,8 +48,12 @@ import {
   fetchMyCoachHandle, setMyCoachName, checkPhotoReuse, notifyMyCoach,
   fetchTrustPassPolicy, fetchTeamWeekPattern, fetchCoachSetupState, fetchMyRoomLabel,
   fetchMyMemoryFacts, upsertMemoryFact, setMemoryFactStatus,
+  fetchFoodMemory, insertFoodMemoryItem, updateFoodMemoryItem, archiveFoodMemoryItem,
+  bumpFoodMemoryItem, upsertFoodMemoryPlace,
   todayISO,
 } from './roles.js';
+import { itemFromMeal, memoryContextForAnalysis, mealSignature } from './food-memory.js';
+import { foodMemory, warmFoodMemory, invalidateFoodMemory } from './food-memory-data.js';
 import { track, EVENTS } from './analytics.js';
 
 /* minutes-from-midnight → "8:14 AM" (real logged times, never a canned '8:14 AM') */
@@ -70,6 +74,7 @@ export const MEAL = {
   questions: null, photoHash: null, source: null, takenAt: null, capturedAtMin: null,
   userNote: null, // athlete-entered invisible details (oil, sauce, prep) from the review step (spec §5.5)
   photoQ: null,   // measured capture stats {luma, sharpness} — real numbers from the capture canvas
+  memoryId: null, memoryTimes: null, // one-tap re-log of a saved Food Memory item (0192) — bumps its count on log
 };
 
 /* In-flight capture persistence (sessionStorage, NOT RT). The MEAL object holds the staged photo +
@@ -907,11 +912,18 @@ export const act = {
     // must clear the moment a real meal lands. logMeal used to hand-set only the two flags, so
     // RT.day0 went stale-true and Progress showed the day-0 empty state for the rest of the
     // session after the first log.
+    // A one-tap re-log of a saved Food Memory item: count it (fire-and-forget — memory can
+    // never block logging). Guarded on source so a stale memoryId from an abandoned stage can
+    // never miscount a photo log.
+    if (source === 'memory' && MEAL.memoryId) {
+      void bumpFoodMemoryItem(MEAL.memoryId, MEAL.memoryTimes);
+      invalidateFoodMemory();
+    }
     syncRtFromDay();
     const to = computeScore(componentsNow());
     RT.lastMove = { from, to, gain: to - from, what: cap(slot) };
     save();
-    track(EVENTS.MEAL_LOGGED, { slot, source: hasPhoto ? 'photo' : 'manual' });
+    track(EVENTS.MEAL_LOGGED, { slot, source: hasPhoto ? 'photo' : source });
     if (source === 'gallery') {
       track(EVENTS.MEAL_GALLERY_LOGGED, { slot });
       const age = photoAgeMinutes(MEAL.takenAt, Date.now());
@@ -1142,6 +1154,13 @@ export const act = {
       },
       ...(avoid.length ? { avoid } : {}),
       ...(job.userNote ? { athleteNote: job.userNote } : {}),
+      // Saved meals + usual orders (0192) — same bounded context the live path sends. Reads
+      // the cache only (warmed at the dup pre-check); an unwarmed cache just means no memory.
+      ...((() => {
+        const fm = foodMemory(job.uid);
+        const memory = fm ? memoryContextForAnalysis(fm.items, fm.places) : [];
+        return memory.length ? { foodMemory: memory } : {};
+      })()),
     };
   },
 
@@ -1857,6 +1876,10 @@ export const act = {
      offline or pre-migration the server unique index still backstops at insert time. */
   async checkPhotoReuse() {
     if (!MEAL.photoBase64) return { reused: false };
+    // Warm the Food Memory cache alongside the free dup pre-check, so the paid analyze call
+    // that follows can carry the athlete's saved meals as context. Fire-and-forget: a slow or
+    // failed warm just means this one read goes without memory.
+    void warmFoodMemory({ fetchFoodMemory }, RT.userId);
     if (!MEAL.photoHash) {
       try { MEAL.photoHash = await sha256Hex(base64ToBytes(MEAL.photoBase64)); } catch { /* no WebCrypto */ }
     }
@@ -1886,11 +1909,16 @@ export const act = {
     // Confirmed avoid-list (restriction names only — the model must not identify these
     // unless unmistakable, and never suggest them).
     const avoid = (RT.allergies || []).map((s) => String(s).split('·')[0].trim()).filter(Boolean).slice(0, 8);
+    // Saved meals + usual orders (0192): bounded, sanitized context so the read can match a
+    // known plate — and ASK "your usual?" on a wrapped/closed meal instead of guessing.
+    const fm = foodMemory(RT.userId);
+    const memory = fm ? memoryContextForAnalysis(fm.items, fm.places) : [];
     return {
       mode: 'meal', mealType: MEAL.mealType || 'Dinner', goal: RT.primaryGoal || null,
       photoBase64: MEAL.photoBase64, ...(timing ? { timing } : {}),
       dayContext,
       ...(avoid.length ? { avoid } : {}),
+      ...(memory.length ? { foodMemory: memory } : {}),
       // The athlete's review-step note (§5.5): what the camera can't see. The edge fn treats
       // it as context when present; an older deploy simply ignores the extra field.
       ...(MEAL.userNote ? { athleteNote: MEAL.userNote } : {}),
@@ -2004,6 +2032,7 @@ export const act = {
     MEAL.result = null; MEAL.live = true; MEAL.questions = null;
     MEAL.photoHash = null; MEAL.source = null; MEAL.takenAt = null; MEAL.capturedAtMin = null;
     MEAL.userNote = null; MEAL.photoQ = null;
+    MEAL.memoryId = null; MEAL.memoryTimes = null;
     saveMeal();
   },
   /** Review-step note (spec §5.5): what the photo can't show. Rides the analysis request and
@@ -2170,6 +2199,7 @@ export const act = {
     MEAL.live = true; // manual entries have no photo provenance — never inherit a prior gallery pick's non-live flag
     MEAL.source = source === 'label' ? 'label' : 'manual';
     MEAL.photoHash = null; MEAL.takenAt = null;
+    MEAL.memoryId = null; MEAL.memoryTimes = null; // never inherit a prior staged saved-meal
     MEAL.capturedAtMin = minutesNow();
     MEAL.result = {
       quality: null,
@@ -2178,6 +2208,106 @@ export const act = {
       detected: Array.isArray(foods) ? foods.slice(0, 8) : [], note: '',
     };
     saveMeal();
+  },
+
+  /* ---------------- Food Memory (0192): the Plan intelligence hub ---------------- */
+
+  /** One-tap re-log: stage a saved meal/order into the next open slot and route through the
+   *  SAME #meal-analysis confirm gate every other path uses (WS7: review before it counts).
+   *  No photo, no AI call — the macros are the saved item's own, at its stored trust tier.
+   *  Returns true when staged (caller navigates), false when the item is gone. */
+  stageSavedMeal(itemId) {
+    const fm = foodMemory(RT.userId);
+    const item = fm && fm.items.find((x) => x.id === itemId && x.status !== 'archived');
+    if (!item) return false;
+    const comp = Array.isArray(item.items) ? item.items.filter((c) => c && c.name) : [];
+    this.captureManual(
+      { protein: item.protein, carbs: item.carbs, fat: item.fat, kcal: item.kcal },
+      comp.length ? comp.map((c) => c.name) : [item.name],
+      null, 'manual'
+    );
+    // captureManual stamps the shared fields; these three make it a MEMORY log, not a manual one.
+    MEAL.source = 'memory';
+    MEAL.memoryId = item.id; MEAL.memoryTimes = item.times_logged;
+    MEAL.result.name = item.name;
+    MEAL.result.fiber = item.fiber || 0;
+    if (comp.length) MEAL.result.detectedRich = comp.slice(0, 8);
+    saveMeal();
+    return true;
+  },
+
+  /** Accept a passive "save it as your usual?" suggestion (or save straight from a logged meal).
+   *  Best-effort — memory can never block logging. `placeName` (optional) files it under a place. */
+  async saveMemorySuggestion(sug, placeName) {
+    if (!RT.userId || !sug) return false;
+    this._markMemoryHandled(sug.signature);
+    let placeId = null;
+    if (placeName) placeId = await upsertFoodMemoryPlace(RT.userId, placeName);
+    const id = await insertFoodMemoryItem({
+      athlete_id: RT.userId,
+      name: String(sug.name || 'Saved meal').slice(0, 120),
+      kind: placeId ? 'order' : 'meal',
+      ...(placeId ? { place_id: placeId } : {}),
+      items: (sug.foods || []).slice(0, 8).map((n) => ({ name: n })),
+      protein: sug.protein || 0, kcal: sug.kcal || 0, carbs: sug.carbs || 0, fat: sug.fat || 0,
+      fiber: sug.fiber || 0,
+      basis: 'confirmed', source: 'auto', times_logged: sug.count || 1,
+    });
+    if (id) invalidateFoodMemory();
+    return !!id;
+  },
+
+  /** Save an already-logged slot as a usual (from the meal thread / Plan). */
+  async saveMealToMemory(slot, opts = {}) {
+    const meta = DAY.slotMacros[slot];
+    if (!RT.userId || !meta) return false;
+    const draft = itemFromMeal(meta, opts);
+    if (!draft) return false;
+    this._markMemoryHandled(mealSignature((meta.foods && meta.foods.length) ? meta.foods : [meta.name]));
+    let placeId = null;
+    if (opts.placeName) placeId = await upsertFoodMemoryPlace(RT.userId, opts.placeName);
+    const id = await insertFoodMemoryItem({
+      athlete_id: RT.userId, ...draft, kind: placeId ? 'order' : draft.kind,
+      ...(placeId ? { place_id: placeId } : {}), source: 'athlete_saved',
+    });
+    if (id) invalidateFoodMemory();
+    return !!id;
+  },
+
+  /** Dismissed or saved — either way this signature never nags again. RT-persisted. */
+  _markMemoryHandled(sig) {
+    if (!sig) return;
+    const seen = Array.isArray(RT.fmHandled) ? RT.fmHandled : [];
+    if (!seen.includes(sig)) RT.fmHandled = [...seen, sig].slice(-80);
+    save();
+  },
+  dismissMemorySuggestion(sig) { this._markMemoryHandled(sig); },
+
+  /** "Forget" a memory (What OnStandard Knows): archived server-side, never deleted. */
+  async forgetMemoryItem(id) {
+    const ok = await archiveFoodMemoryItem(id);
+    if (ok) invalidateFoodMemory();
+    return ok;
+  },
+
+  /** Manual add/edit from the memory-edit sheet. `form` = {id?, name, kind, placeName?, macros}.
+   *  The typed place name is authoritative: set → find-or-create that place; cleared → unlink. */
+  async saveMemoryForm(form) {
+    if (!RT.userId || !form || !form.name) return false;
+    const clampN = (v, hi) => Math.max(0, Math.min(hi, Math.round(Number(v) || 0)));
+    const placeId = form.placeName ? await upsertFoodMemoryPlace(RT.userId, form.placeName) : null;
+    const row = {
+      name: String(form.name).slice(0, 120),
+      kind: ['meal', 'order', 'food', 'supplement'].includes(form.kind) ? form.kind : 'meal',
+      place_id: placeId,
+      protein: clampN(form.protein, 500), kcal: clampN(form.kcal, 5000),
+      carbs: clampN(form.carbs, 1000), fat: clampN(form.fat, 500),
+    };
+    const ok = form.id
+      ? await updateFoodMemoryItem(form.id, row)
+      : !!(await insertFoodMemoryItem({ athlete_id: RT.userId, ...row, basis: 'confirmed', source: 'manual' }));
+    if (ok) invalidateFoodMemory();
+    return ok;
   },
 
   startDay0() { RT.lastMove = null; dayResetLocal(); applyGoalToDay(); this._applyStandardFromSets(); applyPlanStyleToDay(); syncRtFromDay(); pushDay(RT.userId, true); save(); this.syncNotifications(); },
@@ -3679,6 +3809,18 @@ export const S = {
       proteinTarget: DAY.proteinTarget > 0 ? DAY.proteinTarget : 180,
       mealsRemaining: remaining,
     };
+  },
+  /** Consumed-so-far for Plan's What-Should-I-Eat card — same evidence rule as the score
+   *  (only scored slots count), kcal alongside protein. */
+  get dayConsumed() {
+    let protein = 0, kcal = 0;
+    for (const k of Object.keys(DAY.meals)) {
+      if (mealScored(DAY, k) && DAY.slotMacros[k]) {
+        protein += DAY.slotMacros[k].protein || 0;
+        kcal += DAY.slotMacros[k].kcal || 0;
+      }
+    }
+    return { protein: Math.round(protein), kcal: Math.round(kcal) };
   },
   /** Engine-computed Daily Score credit for one logged slot (exposed for the AI opening). */
   mealScoreImpact(slot) {
