@@ -92,9 +92,11 @@ function compactTargets() {
   const note = state === 'unset'
     ? (S.coach.hasCoach ? `No targets set yet — your ${S.coach.noun} can add them any time.` : 'No targets set yet. Your score is built from the standard itself.')
     : '';
-  // A range like "2464–3136" is 9 chars — at the tile's default size it clips. Scale, don't clip.
-  const mv = (v) => `<div class="mv"${String(v).length > 6 ? ' style="font-size:14px;letter-spacing:-0.02em"' : ''}>${esc(String(v))}</div>`;
-  return `<div class="macro-row">
+  // `.macro-row.four` is the design system's own 4-up density step (18px value, 10px label —
+  // same as the coach macro strip). A range like "2464–3136" is 9 chars and still clips even
+  // there, so values past 8 chars take one more step down. Scale, never clip.
+  const mv = (v) => `<div class="mv"${String(v).length > 8 ? ' style="font-size:14px;letter-spacing:-0.02em"' : ''}>${esc(String(v))}</div>`;
+  return `<div class="macro-row${chips.length >= 4 ? ' four' : ''}">
     ${chips.map(([v, k]) => `<div class="macro">${mv(v)}<div class="mk">${k}</div></div>`).join('')}
   </div>
   ${note ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0">${note}</div>` : ''}`;
@@ -110,11 +112,23 @@ const placesList = () => {
   return fm ? (fm.places || []).filter((p) => p.status !== 'archived') : [];
 };
 const savedSignature = (it) => mealSignature(Array.isArray(it.items) && it.items.length ? it.items : [it.name]);
+/* findRepeats scans every recent meal; render calls suggestions() more than once. Memoized on
+   the CACHE ARRAYS' identity (recent-meals and food-memory both hand out one stable array per
+   fetch), plus the handled-count — so it recomputes exactly when underlying data actually
+   changed, and a render pass costs one Map lookup. */
+let SUG = { rows: null, itemsRef: null, handled: -1, val: [] };
 function suggestions() {
   const rows = recentRows(RT.userId);
-  const items = activeItems();
-  if (!rows || !items) return [];
-  return findRepeats(rows, new Set(items.map(savedSignature)), new Set(RT.fmHandled || [])).slice(0, 2);
+  const fm = foodMemory(RT.userId);
+  if (!rows || !fm) return [];
+  const handled = (RT.fmHandled || []).length;
+  if (SUG.rows === rows && SUG.itemsRef === fm.items && SUG.handled === handled) return SUG.val;
+  const items = fm.items.filter((i) => i.status !== 'archived');
+  SUG = {
+    rows, itemsRef: fm.items, handled,
+    val: findRepeats(rows, new Set(items.map(savedSignature)), new Set(RT.fmHandled || [])).slice(0, 2),
+  };
+  return SUG.val;
 }
 const placeName = (id) => {
   const p = placesList().find((x) => x.id === id);
@@ -127,22 +141,33 @@ const macroLine = (it) => {
   return bits.join(' · ') || '—';
 };
 const verifiedBadge = (it) => (it.verified_at
-  ? `<span class="bd-weight" style="color:var(--green-bright)">✓ ${esc(S.coach.noun === 'trainer' ? 'Trainer' : 'Coach')} verified</span>` : '');
+  ? `<span class="bd-weight" style="color:var(--green-bright);display:inline-flex;align-items:center;gap:4px">${icon('check', 12)} ${esc(S.coach.noun === 'trainer' ? 'Trainer' : 'Coach')} verified</span>` : '');
 
-/* One saved item row. `logBtn` — the one-tap re-log (Overview + Memory tab both use it). */
-function itemRow(it, { logBtn = true, manage = false } = {}) {
+/* One saved item row.
+   Overview variant: the row exists to be RE-LOGGED — one primary Log button, nothing else.
+   Manage variant (Memory tab): the WHOLE ROW is the tap target and opens the edit sheet
+   (chevron affordance); Forget lives inside the sheet. Two buttons per row crushed the meal
+   name into an ellipsis and turned a review list into a control panel. */
+function itemRow(it, { manage = false } = {}) {
   const pl = it.place_id ? placeName(it.place_id) : null;
-  return `
-  <div class="bd-row" style="display:flex;align-items:center;gap:12px">
+  const inner = `
     <div class="req-icon b" style="width:40px;height:40px;flex:none">${icon(it.kind === 'supplement' ? 'bolt' : 'utensils', 18)}</div>
     <div style="flex:1;min-width:0">
       <div style="font-size:14.5px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.name)}</div>
       <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">${esc(macroLine(it))}${pl ? ` · ${esc(pl)}` : ''}${it.times_logged > 1 ? ` · logged ${it.times_logged}×` : ''}</div>
       ${it.verified_at ? `<div style="margin-top:5px">${verifiedBadge(it)}</div>` : ''}
-    </div>
-    ${logBtn ? `<button class="btn primary sm" data-fm-log="${esc(it.id)}" style="width:auto;padding:0 14px;height:32px;flex:none">Log</button>` : ''}
-    ${manage ? `<button class="btn ghost sm" data-fm-edit="${esc(it.id)}" style="width:auto;padding:0 12px;height:32px;flex:none">Edit</button>
-    <button class="btn ghost sm" data-fm-forget="${esc(it.id)}" style="width:auto;padding:0 12px;height:32px;flex:none">Forget</button>` : ''}
+    </div>`;
+  if (manage) {
+    return `
+  <div class="bd-row" data-fm-edit="${esc(it.id)}" style="display:flex;align-items:center;gap:12px;cursor:pointer">
+    ${inner}
+    ${icon('chevron', 16, 'style="color:var(--text-3);flex:none"')}
+  </div>`;
+  }
+  return `
+  <div class="bd-row" style="display:flex;align-items:center;gap:12px">
+    ${inner}
+    <button class="btn primary sm" data-fm-log="${esc(it.id)}" style="width:auto;padding:0 16px;height:36px;flex:none">Log</button>
   </div>`;
 }
 
@@ -156,9 +181,9 @@ function suggestionCards() {
     <div class="xico sm" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('sparkle', 16)}</div>
     <div class="xr"><div class="xa">You've eaten this ${g.count}× lately</div>
     <div class="xb">${esc(g.name)} · ${g.protein}g protein · ${g.kcal} cal. Save it as a usual and log it in one tap.</div>
-    <div style="display:flex;gap:8px;margin-top:8px">
-      <button class="btn primary sm" data-fm-save-sug="${esc(g.signature)}" style="width:auto;padding:0 14px;height:32px">Save it</button>
-      <button class="btn ghost sm" data-fm-dismiss-sug="${esc(g.signature)}" style="width:auto;padding:0 14px;height:32px">No thanks</button>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn primary sm" data-fm-save-sug="${esc(g.signature)}" style="width:auto;padding:0 16px;height:36px">Save it</button>
+      <button class="btn ghost sm" data-fm-dismiss-sug="${esc(g.signature)}" style="width:auto;padding:0 16px;height:36px">No thanks</button>
     </div></div>
   </div>`).join('');
 }
@@ -192,12 +217,12 @@ function whatToEat() {
   } else {
     const ranked = rankForRemaining(items, rem, 3);
     body = ranked.map(({ item, over }) => `
-      <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--hairline-soft)">
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--hairline-soft)">
         <div style="flex:1;min-width:0">
-          <div style="font-size:14px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(item.name)}${item.verified_at ? ' <span style="color:var(--green-bright)">✓</span>' : ''}</div>
-          <div style="font-size:12px;font-weight:600;color:var(--text-2)">${esc(macroLine(item))}${over ? ' · runs past what’s left' : ''}</div>
+          <div style="font-size:14px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:5px"><span style="overflow:hidden;text-overflow:ellipsis">${esc(item.name)}</span>${item.verified_at ? `<span style="color:var(--green-bright);flex:none;display:inline-flex">${icon('check', 13)}</span>` : ''}</div>
+          <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-top:1px">${esc(macroLine(item))}${over ? ' · runs past what’s left' : ''}</div>
         </div>
-        <button class="btn ghost sm" data-fm-log="${esc(item.id)}" style="width:auto;padding:0 14px;height:30px;flex:none">Log</button>
+        <button class="btn ghost sm" data-fm-log="${esc(item.id)}" style="width:auto;padding:0 16px;height:36px;flex:none">Log</button>
       </div>`).join('');
   }
   return `
@@ -214,11 +239,11 @@ function foodMemorySection() {
   if (items === null) return ''; // not loaded — show nothing rather than a false empty state
   const top = items.slice(0, 4);
   return `
-  <div class="eyebrow" style="display:flex;justify-content:space-between;align-items:center">Your usual meals
-    <span style="font-weight:700;color:var(--blue-bright);cursor:pointer" data-go="memory-edit/new">+ Add one</span></div>
+  <div class="eyebrow">Your usual meals
+    <span class="link" data-go="memory-edit/new">+ Add one</span></div>
   ${suggestionCards()}
   ${top.length ? `<section class="card" style="padding:4px 16px">${top.map((it) => itemRow(it)).join('')}</section>
-    ${items.length > top.length ? `<div style="font-size:12.5px;font-weight:700;color:var(--blue-bright);margin:8px 2px 0;cursor:pointer" data-go="plan/memory">See all ${items.length} saved meals</div>` : ''}`
+    ${items.length > top.length ? `<div class="link" style="font-size:12.5px;margin:10px 2px 0;padding:6px 0;cursor:pointer" data-go="plan/memory">See all ${items.length} saved meals</div>` : ''}`
     : (suggestions().length ? '' : `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('utensils', 17)}</div>
       <div><div class="tt">OnStandard learns what you eat</div><div class="ts">Log meals like normal. Repeats get offered as one-tap usuals — no database to maintain.</div></div></div>`)}`;
 }
@@ -398,11 +423,11 @@ function memoryTab() {
   const places = placesList();
   const facts = (FACTS.uid === RT.userId && Array.isArray(FACTS.rows) ? FACTS.rows : []).filter((f) => f && f.status === 'active');
   return `
-  <div class="eyebrow" style="display:flex;justify-content:space-between;align-items:center">What OnStandard knows
-    <span style="font-weight:700;color:var(--blue-bright);cursor:pointer" data-go="memory-edit/new">+ Add</span></div>
-  <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.5;margin:2px 2px 10px">Built automatically as you log — used to read your meals more accurately and recommend food you actually eat. Fix or forget anything; forgetting removes it from every future read.</div>
+  <div class="eyebrow">What OnStandard knows
+    <span class="link" data-go="memory-edit/new">+ Add</span></div>
+  <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.5;margin:2px 2px 12px">Built automatically as you log — used to read your meals more accurately and recommend food you actually eat. Tap a meal to fix its details or forget it.</div>
   ${items === null ? loadingCard() : items.length
-    ? `<section class="card" style="padding:4px 16px">${items.map((it) => itemRow(it, { logBtn: false, manage: true })).join('')}</section>`
+    ? `<section class="card" style="padding:4px 16px">${items.map((it) => itemRow(it, { manage: true })).join('')}</section>`
     : `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('utensils', 17)}</div>
       <div><div class="tt">Nothing saved yet</div><div class="ts">Keep logging like normal. When a meal repeats, OnStandard offers to remember it — or add one yourself above.</div></div></div>`}
   ${places.length ? `<div class="eyebrow">Places</div>
@@ -456,22 +481,15 @@ export default {
 
     // Food Memory actions (router only wires data-go/data-act; these need delegation).
     root.addEventListener('click', async (e) => {
-      const el = e.target && e.target.closest && e.target.closest('[data-fm-log],[data-fm-edit],[data-fm-forget],[data-fm-save-sug],[data-fm-dismiss-sug]');
+      const el = e.target && e.target.closest && e.target.closest('[data-fm-log],[data-fm-edit],[data-fm-save-sug],[data-fm-dismiss-sug]');
       if (!el) return;
       if (el.dataset.fmLog) {
         if (act.stageSavedMeal(el.dataset.fmLog)) location.hash = '#meal-analysis';
         return;
       }
+      // The whole row navigates to the edit sheet (Forget lives inside it, behind its own
+      // two-tap confirm) — a review list, not a control panel.
       if (el.dataset.fmEdit) { window.__go('memory-edit/' + el.dataset.fmEdit); return; }
-      if (el.dataset.fmForget) {
-        // Two-tap forget: no modal, but no accidental wipe either (it's archived, not deleted).
-        if (el.dataset.armed !== '1') { el.dataset.armed = '1'; el.textContent = 'Sure?'; return; }
-        el.disabled = true;
-        await act.forgetMemoryItem(el.dataset.fmForget);
-        await warmCaches().catch(() => {});
-        if (location.hash.startsWith('#plan')) window.__render();
-        return;
-      }
       if (el.dataset.fmSaveSug) {
         const sug = suggestions().find((g) => g.signature === el.dataset.fmSaveSug);
         if (!sug) return;
@@ -487,10 +505,15 @@ export default {
       }
     });
 
-    // Warm the shared caches, then repaint once with real memory — guard against the athlete
-    // having navigated away while the fetch ran (the async-screen rule every screen follows).
-    const before = activeItems();
+    // Warm the shared caches, then repaint EXACTLY ONCE when they transition from empty to
+    // loaded. The guard must compare stable loaded-ness booleans, never array identity:
+    // activeItems() filters a FRESH array every call, so an identity compare is always
+    // "changed" and mount→render→mount becomes a self-sustaining loop (~10 renders/sec,
+    // measured) — the WebView reads as frozen. Same freeze class as the roll-call loop.
+    // On a failed warm both booleans stay false: no repaint, no loop, honest empty screen.
+    const loadedBefore = !!(foodMemory(RT.userId) && recentRows(RT.userId));
     await warmCaches().catch(() => {});
-    if ((activeItems() !== before || before === null) && location.hash.startsWith('#plan')) window.__render();
+    const loadedAfter = !!(foodMemory(RT.userId) && recentRows(RT.userId));
+    if (!loadedBefore && loadedAfter && location.hash.startsWith('#plan')) window.__render();
   },
 };

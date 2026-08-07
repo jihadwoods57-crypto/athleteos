@@ -59,6 +59,8 @@ export default {
 
     <div id="me-err" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;margin-top:12px;text-align:center"></div>
     <button class="btn primary" id="me-save">${icon('check', 19)} ${it ? 'Save changes' : 'Save to Food Memory'}</button>
+    ${it ? `<div style="height:8px"></div>
+    <button class="btn ghost" id="me-forget" style="color:var(--red-bright);border-color:var(--red-border)">Forget this meal</button>` : ''}
     <div style="height:10px"></div>`;
   },
   async mount(root, { sub }) {
@@ -69,6 +71,14 @@ export default {
     root.querySelectorAll('#me-kind .chp').forEach((ch) => ch.addEventListener('click', () => { kind = ch.dataset.k || 'meal'; }));
     const err = root.querySelector('#me-err');
     const btn = root.querySelector('#me-save');
+    /* Force-refresh the shared cache BEFORE leaving: Plan repaints from the cache on arrival,
+       and its once-per-load repaint guard (the freeze fix) will not fire again for data that
+       merely changed — so going back with a stale cache would show the pre-edit list. */
+    const refreshMemory = async () => {
+      const roles = await import('../roles.js');
+      const fmd = await import('../food-memory-data.js');
+      await fmd.warmFoodMemory(roles, RT.userId, true).catch(() => {});
+    };
     if (btn) btn.addEventListener('click', async () => {
       const val = (id) => root.querySelector('#' + id).value;
       const name = String(val('me-name') || '').trim();
@@ -84,6 +94,18 @@ export default {
         protein: p, kcal, carbs: parseFloat(val('me-c')) || 0, fat: parseFloat(val('me-f')) || 0,
       });
       if (!ok) { btn.disabled = false; err.textContent = 'Couldn’t save right now. Check your connection and try again.'; return; }
+      await refreshMemory();
+      window.__back('plan');
+    });
+    // Destructive action, separated from Save and behind its own two-tap confirm. "Forget"
+    // archives (recoverable), never deletes — the copy stays honest about that scope.
+    const forget = root.querySelector('#me-forget');
+    if (forget && it) forget.addEventListener('click', async () => {
+      if (forget.dataset.armed !== '1') { forget.dataset.armed = '1'; forget.textContent = 'Tap again to forget'; return; }
+      forget.disabled = true; err.textContent = '';
+      const ok = await act.forgetMemoryItem(it.id);
+      if (!ok) { forget.disabled = false; forget.dataset.armed = ''; forget.textContent = 'Forget this meal'; err.textContent = 'Couldn’t forget it right now. Check your connection and try again.'; return; }
+      await refreshMemory();
       window.__back('plan');
     });
   },

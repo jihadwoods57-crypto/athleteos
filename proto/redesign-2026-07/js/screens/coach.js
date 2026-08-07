@@ -2134,8 +2134,8 @@ function foodMemSection(P, athleteId) {
         <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-top:2px">${it.protein || 0}g protein · ${it.kcal || 0} cal${pl ? ` · ${esc(pl)}` : ''}${it.times_logged > 1 ? ` · logged ${it.times_logged}×` : ''}</div>
       </div>
       ${it.verified_at
-        ? `<span class="bd-weight" style="color:var(--green-bright);flex:none">✓ Verified</span>`
-        : `<button class="btn ghost sm" data-fm-verify="${esc(it.id)}" style="width:auto;padding:0 12px;height:30px;flex:none">Verify</button>`}
+        ? `<span class="bd-weight" style="color:var(--green-bright);flex:none;display:inline-flex;align-items:center;gap:4px">${icon('check', 12)} Verified</span>`
+        : `<button class="btn ghost sm" data-fm-verify="${esc(it.id)}" style="width:auto;padding:0 14px;height:36px;flex:none">Verify</button>`}
     </div>`;
     }).join('')}
   </section>`;
