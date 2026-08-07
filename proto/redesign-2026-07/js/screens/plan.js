@@ -41,14 +41,13 @@ const HEAD_SUBTITLE = (who, hasTargets) => ({
 });
 function head() {
   const goal = S.planGoalLabel;
+  // ONE line under the title. "Your nutrition plan" restated the screen title and the tab
+  // label; the state subtitle is the only sentence here doing work.
   return `
   <div class="screen-title">Plan</div>
-  <div style="display:flex;align-items:center;justify-content:space-between">
-    <div>
-      <div style="font-size:16px;font-weight:800">Your nutrition plan</div>
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:3px">${HEAD_SUBTITLE(S.coach.noun, S.planStyle.showMacros || S.planStyle.showCalories)[S.planTargetsState]}</div>
-    </div>
-    ${goal ? `<span class="status-pill b">${esc(goal)}</span>` : ''}
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+    <div style="font-size:12.5px;font-weight:600;color:var(--text-2)">${HEAD_SUBTITLE(S.coach.noun, S.planStyle.showMacros || S.planStyle.showCalories)[S.planTargetsState]}</div>
+    ${goal ? `<span class="status-pill b" style="flex:none">${esc(goal)}</span>` : ''}
   </div>`;
 }
 
@@ -144,48 +143,55 @@ const verifiedBadge = (it) => (it.verified_at
   ? `<span class="bd-weight" style="color:var(--green-bright);display:inline-flex;align-items:center;gap:4px">${icon('check', 12)} ${esc(S.coach.noun === 'trainer' ? 'Trainer' : 'Coach')} verified</span>` : '');
 
 /* One saved item row.
-   Overview variant: the row exists to be RE-LOGGED — one primary Log button, nothing else.
-   Manage variant (Memory tab): the WHOLE ROW is the tap target and opens the edit sheet
-   (chevron affordance); Forget lives inside the sheet. Two buttons per row crushed the meal
-   name into an ellipsis and turned a review list into a control panel. */
+   Overview variant: exists to be RE-LOGGED — name (inline check when verified), macros, one
+   Log button. Frequency counts and the full verified badge are management detail and live on
+   the Memory tab only.
+   Manage variant (Memory tab): the WHOLE ROW opens the edit sheet (chevron); Forget lives
+   inside the sheet. Two buttons per row crushed names into ellipsis. */
 function itemRow(it, { manage = false } = {}) {
   const pl = it.place_id ? placeName(it.place_id) : null;
-  const inner = `
-    <div class="req-icon b" style="width:40px;height:40px;flex:none">${icon(it.kind === 'supplement' ? 'bolt' : 'utensils', 18)}</div>
-    <div style="flex:1;min-width:0">
-      <div style="font-size:14.5px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.name)}</div>
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">${esc(macroLine(it))}${pl ? ` · ${esc(pl)}` : ''}${it.times_logged > 1 ? ` · logged ${it.times_logged}×` : ''}</div>
-      ${it.verified_at ? `<div style="margin-top:5px">${verifiedBadge(it)}</div>` : ''}
-    </div>`;
+  const check = it.verified_at
+    ? `<span style="color:var(--green-bright);flex:none;display:inline-flex">${icon('check', 13)}</span>` : '';
+  const name = `<div style="font-size:14.5px;font-weight:800;display:flex;align-items:center;gap:5px;min-width:0">
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.name)}</span>${manage ? '' : check}</div>`;
   if (manage) {
     return `
   <div class="bd-row" data-fm-edit="${esc(it.id)}" style="display:flex;align-items:center;gap:12px;cursor:pointer">
-    ${inner}
+    <div class="req-icon b" style="width:40px;height:40px;flex:none">${icon(it.kind === 'supplement' ? 'bolt' : 'utensils', 18)}</div>
+    <div style="flex:1;min-width:0">
+      ${name}
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">${esc(macroLine(it))}${pl ? ` · ${esc(pl)}` : ''}${it.times_logged > 1 ? ` · logged ${it.times_logged}×` : ''}</div>
+      ${it.verified_at ? `<div style="margin-top:5px">${verifiedBadge(it)}</div>` : ''}
+    </div>
     ${icon('chevron', 16, 'style="color:var(--text-3);flex:none"')}
   </div>`;
   }
   return `
   <div class="bd-row" style="display:flex;align-items:center;gap:12px">
-    ${inner}
+    <div class="req-icon b" style="width:40px;height:40px;flex:none">${icon(it.kind === 'supplement' ? 'bolt' : 'utensils', 18)}</div>
+    <div style="flex:1;min-width:0">
+      ${name}
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">${esc(macroLine(it))}${pl ? ` · ${esc(pl)}` : ''}</div>
+    </div>
     <button class="btn primary sm" data-fm-log="${esc(it.id)}" style="width:auto;padding:0 16px;height:36px;flex:none">Log</button>
   </div>`;
 }
 
-/* Passive learning surfaced: "you've eaten this 3× — save it?" One tap either way, never a nag
-   (a handled signature is remembered in RT). */
+/* Passive learning surfaced. ONE card at a time (the top repeat), one question, the facts,
+   two buttons. Save and dismiss both remember the answer, so it never nags. */
 function suggestionCards() {
-  const sugs = suggestions();
-  if (!sugs.length) return '';
-  return sugs.map((g) => `
+  const g = suggestions()[0];
+  if (!g) return '';
+  return `
   <div class="lrow" style="margin-bottom:10px;background:rgba(59,130,246,0.08);border:1px solid var(--hairline);border-radius:14px;padding:12px 13px;cursor:default">
     <div class="xico sm" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('sparkle', 16)}</div>
-    <div class="xr"><div class="xa">You've eaten this ${g.count}× lately</div>
-    <div class="xb">${esc(g.name)} · ${g.protein}g protein · ${g.kcal} cal. Save it as a usual and log it in one tap.</div>
+    <div class="xr"><div class="xa">Save this as a usual?</div>
+    <div class="xb">${esc(g.name)} · ${g.protein}g protein · ${g.kcal} cal · eaten ${g.count}×</div>
     <div style="display:flex;gap:8px;margin-top:10px">
-      <button class="btn primary sm" data-fm-save-sug="${esc(g.signature)}" style="width:auto;padding:0 16px;height:36px">Save it</button>
+      <button class="btn primary sm" data-fm-save-sug="${esc(g.signature)}" style="width:auto;padding:0 16px;height:36px">Save</button>
       <button class="btn ghost sm" data-fm-dismiss-sug="${esc(g.signature)}" style="width:auto;padding:0 16px;height:36px">No thanks</button>
     </div></div>
-  </div>`).join('');
+  </div>`;
 }
 
 /* ---------------- What Should I Eat? — Plan useful BEFORE the meal ----------------
@@ -209,11 +215,12 @@ function whatToEat() {
   const noneLeft = S.mealDayProgress.mealsRemaining === 0;
   let body;
   if (noneLeft) {
-    body = `<div style="font-size:13px;font-weight:600;color:var(--text-2);line-height:1.5">All required meals are in for today. Anything extra still counts toward your totals.</div>`;
-  } else if (items === null) {
-    body = ''; // memory not loaded (offline / first paint) — never fake an empty state
-  } else if (!items.length) {
-    body = `<div style="font-size:13px;font-weight:600;color:var(--text-2);line-height:1.5">As OnStandard learns your usual meals, your best next options show up here ranked against what's left of your day.</div>`;
+    body = `<div style="font-size:13px;font-weight:600;color:var(--text-2);line-height:1.5">All meals are in. Anything extra still counts.</div>`;
+  } else if (items === null || !items.length) {
+    // No saved meals to rank: the card is the remaining numbers, or nothing. The usuals
+    // section below already explains how memory fills in — never two empty states in a row.
+    if (!parts.length) return '';
+    body = '';
   } else {
     const ranked = rankForRemaining(items, rem, 3);
     body = ranked.map(({ item, over }) => `
@@ -239,35 +246,24 @@ function foodMemorySection() {
   if (items === null) return ''; // not loaded — show nothing rather than a false empty state
   const top = items.slice(0, 4);
   return `
-  <div class="eyebrow">Your usual meals
-    <span class="link" data-go="memory-edit/new">+ Add one</span></div>
+  <div class="eyebrow">Your usual meals</div>
   ${suggestionCards()}
   ${top.length ? `<section class="card" style="padding:4px 16px">${top.map((it) => itemRow(it)).join('')}</section>
-    ${items.length > top.length ? `<div class="link" style="font-size:12.5px;margin:10px 2px 0;padding:6px 0;cursor:pointer" data-go="plan/memory">See all ${items.length} saved meals</div>` : ''}`
+    ${items.length > top.length ? `<div class="link" style="font-size:12.5px;margin:10px 2px 0;padding:6px 0;cursor:pointer" data-go="plan/memory">See all ${items.length}</div>` : ''}`
     : (suggestions().length ? '' : `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('utensils', 17)}</div>
-      <div><div class="tt">OnStandard learns what you eat</div><div class="ts">Log meals like normal. Repeats get offered as one-tap usuals — no database to maintain.</div></div></div>`)}`;
+      <div><div class="tt">OnStandard learns what you eat</div><div class="ts">Repeated meals show up here for one-tap logging.</div></div></div>`)}`;
 }
 
+/* Places, distilled to a chip row: the names ARE the information here. Kind labels, icons,
+   and per-place order counts are management detail — the Memory tab carries them. */
 function placesSection() {
   const places = placesList();
-  const items = activeItems() || [];
   if (!places.length) return '';
-  const ordersAt = (pid) => items.filter((i) => i.place_id === pid).length;
-  const KIND_LABEL = { restaurant: 'Restaurant', campus: 'Campus dining', team: 'Team dining', home: 'Home', store: 'Grocery', other: '' };
   return `
   <div class="eyebrow">Places you eat</div>
-  <section class="card" style="padding:4px 16px">
-    ${places.slice(0, 5).map((p) => {
-      const n = ordersAt(p.id);
-      return `<div class="bd-row" style="display:flex;align-items:center;gap:12px">
-        <div class="req-icon p" style="width:38px;height:38px;flex:none">${icon('pin', 17)}</div>
-        <div style="flex:1">
-          <div style="font-size:14.5px;font-weight:800">${esc(p.name)}</div>
-          <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">${KIND_LABEL[p.kind] || ''}${n ? `${KIND_LABEL[p.kind] ? ' · ' : ''}${n} saved order${n === 1 ? '' : 's'}` : ''}</div>
-        </div>
-      </div>`;
-    }).join('')}
-  </section>`;
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    ${places.slice(0, 6).map((p) => `<span class="bd-weight" data-go="plan/memory" style="cursor:pointer;padding:8px 13px">${esc(p.name)}</span>`).join('')}
+  </div>`;
 }
 
 /* No dangling controls: "Ask Coach" only when a coach actually exists. */
@@ -293,15 +289,17 @@ function legacyStylePrompt() {
   </div>`;
 }
 
+/* Overview answers the two questions and stops: what to hit (strip), what to eat next
+   (recommendations + usuals + places). The plan-style card moved to Nutrition — it explains
+   HOW the plan measures, which is that tab's whole subject — and the ask buttons stand
+   without a "Need clarity?" label restating them. */
 const overview = () => `
   ${legacyStylePrompt()}
   ${compactTargets()}
   ${whatToEat()}
   ${foodMemorySection()}
   ${placesSection()}
-  ${planStyleCard(S.planStyle, { onChange: 'plan-style' })}
-  <div class="eyebrow">Need clarity?</div>
-  <div class="btn-row">${askButtons()}</div>
+  <div class="btn-row" style="margin-top:26px">${askButtons()}</div>
   <div style="height:10px"></div>`;
 
 /* ---------------- Nutrition tab: full targets + Coach Rules (real data only) ---------------- */
@@ -360,12 +358,13 @@ function coachRules() {
   <div class="eyebrow">Coach Rules</div>
   ${blocks.length ? `<section class="card" style="padding:6px 16px">${blocks.join('<div style="border-top:1px solid var(--hairline-soft)"></div>')}</section>`
     : `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
-      <div><div class="tt">No food rules yet</div><div class="ts">${S.coach.hasCoach ? `When your ${S.coach.noun} adds food guidance, restrictions, or timing rules, they show up here.` : 'Restrictions you add in your profile and any coach guidance show up here.'}</div></div></div>`}`;
+      <div><div class="tt">No food rules yet</div><div class="ts">${S.coach.hasCoach ? `Your ${S.coach.noun}'s food guidance will show up here.` : 'Restrictions you add in your profile show up here.'}</div></div></div>`}`;
 }
 
 const nutrition = () => `
   <div class="eyebrow">${S.planStyle.showMacros ? 'Macro Targets' : 'What Your Plan Tracks'}${NUTRITION_EYEBROW_SUFFIX[S.planTargetsState]}</div>
   ${targetsRow()}
+  ${planStyleCard(S.planStyle, { onChange: 'plan-style' })}
   ${coachRules()}
   <div style="height:10px"></div>`;
 
@@ -425,7 +424,7 @@ function memoryTab() {
   return `
   <div class="eyebrow">What OnStandard knows
     <span class="link" data-go="memory-edit/new">+ Add</span></div>
-  <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.5;margin:2px 2px 12px">Built automatically as you log — used to read your meals more accurately and recommend food you actually eat. Tap a meal to fix its details or forget it.</div>
+  <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.5;margin:2px 2px 12px">Learned from your logging. Tap a meal to fix or forget it.</div>
   ${items === null ? loadingCard() : items.length
     ? `<section class="card" style="padding:4px 16px">${items.map((it) => itemRow(it, { manage: true })).join('')}</section>`
     : `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('utensils', 17)}</div>

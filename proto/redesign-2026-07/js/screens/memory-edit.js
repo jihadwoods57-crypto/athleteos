@@ -2,7 +2,7 @@
    normal logging; this sheet exists so manual control is always possible, never required:
    add a usual meal/order/supplement by hand, or fix a saved one's name, place, or numbers.
    Route: #memory-edit/new or #memory-edit/<itemId>. */
-import { S, RT, act } from '../state.js';
+import { RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
 import { foodMemory } from '../food-memory-data.js';
@@ -27,7 +27,7 @@ export default {
     const textField = 'width:100%;height:52px;border-radius:14px;background:var(--surface-1);border:1.5px solid var(--hairline);color:var(--text);font-size:15px;font-weight:700;padding:0 14px';
     const v = (x) => (x == null ? '' : esc(String(x)));
     return `
-    ${backHead(it ? 'Edit saved meal' : 'Save a usual meal', it ? 'Fix the name, place, or numbers' : 'Something you eat often — log it in one tap from Plan', 'plan')}
+    ${backHead(it ? 'Edit saved meal' : 'Save a usual meal', it ? 'Fix the name, place, or numbers' : 'Log it in one tap from Plan', 'plan')}
 
     <div class="eyebrow">What is it?</div>
     <section class="card pad">
@@ -50,12 +50,6 @@ export default {
         <div><div class="bk" style="margin-bottom:6px">Fat (g)</div><input id="me-f" type="number" inputmode="numeric" placeholder="0" value="${it ? v(it.fat) : ''}" style="${numField}" /></div>
       </div>
     </section>
-
-    <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 18)}</div>
-      <div><div class="tt">Your numbers, your call</div>
-      <div class="ts">Use the menu, the label, or what you know. Your ${esc(S.coach.noun)} can verify a saved meal to mark it trusted.</div></div>
-    </div>
 
     <div id="me-err" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;margin-top:12px;text-align:center"></div>
     <button class="btn primary" id="me-save">${icon('check', 19)} ${it ? 'Save changes' : 'Save to Food Memory'}</button>
