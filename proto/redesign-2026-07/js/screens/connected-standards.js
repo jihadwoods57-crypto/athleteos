@@ -132,10 +132,12 @@ export function standardsCard(rows, todayIso) {
 /** Shown when the fetch failed and nothing is cached. Silence and an outage look identical to an
  *  athlete, and they mean opposite things. */
 export function standardsOfflineCard() {
-  return `<div class="xrow-item" style="border-color:var(--amber-border)">
-    <div class="xico sm" style="background:var(--amber-surface);color:var(--amber-bright)">${icon('bolt', 16)}</div>
-    <div class="xr"><div class="xa">Can’t reach OnStandard</div>
-    <div class="xb">If your coach set an activity standard, it isn’t loading — try again when you have signal.</div></div>
+  // See commitmentOfflineCard (roll-call.js): distinct title, its own Retry, no duplicate alarm.
+  return `<div class="xrow-item" style="border-color:var(--hairline)">
+    <div class="xico sm" style="background:var(--surface-2);color:var(--text-3)">${icon('wifiOff', 16)}</div>
+    <div class="xr"><div class="xa">Activity standard isn’t loading</div>
+    <div class="xb">If your coach set one, it shows the moment you reconnect. Nothing is lost.</div></div>
+    <button class="btn ghost sm" data-cs-retry style="width:auto;padding:0 14px;height:34px;flex:none">Retry</button>
   </div>`;
 }
 

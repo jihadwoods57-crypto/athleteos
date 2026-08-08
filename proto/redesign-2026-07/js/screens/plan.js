@@ -48,14 +48,20 @@ const HEAD_SUBTITLE = (who, hasTargets) => ({
   offline: 'Targets will show when you reconnect',
   unset: S.coach.hasCoach ? `Log meals. Your ${who} can set targets any time` : 'Log meals. Your score works without targets',
 });
-function head() {
+function head(t) {
   const goal = S.planGoalLabel;
   // ONE line under the title. "Your nutrition plan" restated the screen title and the tab
   // label; the state subtitle is the only sentence here doing work.
+  // Schedule and Memory describe THEIR OWN content: the targets-fetch subtitle used to leak
+  // onto them, so "Loading your targets…" sat over a schedule that was fully rendered below
+  // it — the header contradicting the page.
+  const sub = t === 'schedule' ? 'Every requirement and its window'
+    : t === 'memory' ? 'What OnStandard knows about how you eat'
+      : HEAD_SUBTITLE(S.coach.noun, S.planStyle.showMacros || S.planStyle.showCalories)[S.planTargetsState];
   return `
   <div class="screen-title">Plan</div>
   <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
-    <div style="font-size:12.5px;font-weight:600;color:var(--text-2)">${HEAD_SUBTITLE(S.coach.noun, S.planStyle.showMacros || S.planStyle.showCalories)[S.planTargetsState]}</div>
+    <div style="font-size:12.5px;font-weight:600;color:var(--text-2)">${sub}</div>
     ${/* "Goal · Perform", not a bare "Perform" — an unlabeled word in an outlined pill reads as
           a status you were assigned, not the goal you picked. One word of context decodes it. */''}
     ${goal ? `<span class="status-pill b" style="flex:none">Goal · ${esc(goal)}</span>` : ''}
@@ -417,7 +423,12 @@ const rulesEyebrow = () => ((RT.reqSets || []).length && S.coach.hasCoach
 const schedule = () => `
   <div class="eyebrow">${rulesEyebrow()} · tap one for the why</div>
   <section class="card" style="padding:6px 16px">
-    ${S.scheduleCatalog.map(r => {
+    ${/* Chronological, not catalog order. The catalog places Morning Weight at index 2, so a
+          list HEADED by its own timekeeping ("Due by …") rendered a 9:00 AM item third — between
+          a 2:00 PM lunch and an 8:30 PM dinner. Ordering is the one thing a list says for free;
+          this one was saying something false. Day-anchored rows (weekly) sort by due within the
+          day; unwindowed rows keep their catalog position at the end. */''}
+    ${[...S.scheduleCatalog].sort((a, b) => (a.window && a.window.due || 24 * 60) - (b.window && b.window.due || 24 * 60)).map(r => {
       const impact = IMPACT_LABEL[r.impact.kind === 'component' ? r.impact.comp : r.impact.kind];
       const due = r.window.label || `Due by ${fmtMin(r.window.due)}`;
       return `
@@ -511,9 +522,28 @@ export default {
     // and warn in the console so the bad link gets fixed instead of surviving unreported.
     const t = planSub(sub);
     const body = t === 'nutrition' ? nutrition() : t === 'schedule' ? schedule() : t === 'memory' ? memoryTab() : overview();
-    return `${head()}${tabs(t)}${body}`;
+    return `${head(t)}${tabs(t)}${body}`;
   },
   async mount(root, { sub }) {
+    // A bad sub landed on Overview with the tab lit (render's planSub), but the wrong hash was
+    // still in the bar — rewrite it so the address agrees with the pixels, replace() so the bad
+    // link never enters history.
+    if (sub && planSub(sub) === 'overview' && sub !== 'overview' && sub !== '') {
+      if (!PLAN_SUBS.includes(sub) && sub !== 'notes') { location.replace('#plan'); return; }
+    }
+    // Loading must never be a terminal state. profileLoading defaults TRUE until the first
+    // hydrate settles it — so any path where the hydrate never runs (or never returns) left this
+    // screen saying "Loading your targets…" forever, with the offline card it should fall to
+    // sitting unreached ten lines up. Eight seconds is the ceiling; past it the honest answer is
+    // "can't reach your plan", with the Retry this screen already wires.
+    if (S.planTargetsState === 'loading') {
+      setTimeout(() => {
+        if (!root.isConnected || S.planTargetsState !== 'loading') return;
+        RT.profileOffline = true; RT.profileLoading = false;
+        window.__render();
+      }, 8000);
+    }
+
     const t = planSub(sub);
     if (t === 'memory') {
       const { wireComposer } = await import('./settings.js');

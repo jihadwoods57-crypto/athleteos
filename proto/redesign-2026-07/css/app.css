@@ -514,7 +514,7 @@ body {
 .btn.primary { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); color: #fff; box-shadow: var(--sh-blue); }
 .btn.green { background: linear-gradient(150deg, var(--green), var(--green-deep)); color: var(--ink-on-accent); box-shadow: var(--sh-green); }
 .btn.ghost { background: var(--surface-2); color: var(--text); border: 1px solid var(--hairline); box-shadow: none; }
-.btn.sm { height: 48px; font-size: 15px; }
+.btn.sm { height: 48px; font-size: var(--t-md); }
 /* Disabled = a muted "waiting for input" fill with a still-legible label — never a ghosted,
    broken-looking button (the label stays readable, not dropped to 45% with the fill). */
 .btn:disabled { background: var(--surface-2); color: var(--text-2); cursor: not-allowed; box-shadow: none; }

@@ -893,23 +893,34 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .tp-pop .tp-h b{color:var(--text);font-weight:800}
 .tp-pop .tp-n{font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5;margin-top:6px}
 .tp-pop .tp-link{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:10px;border-top:1px solid var(--hairline-soft);font-size:12.5px;font-weight:800;color:var(--blue-bright);cursor:pointer;min-height:24px}
-.xnow{background:linear-gradient(160deg,rgba(var(--amber-rgb), 0.16),rgba(var(--amber-rgb), 0.05) 55%),var(--surface-1);border:1px solid var(--amber-border);border-radius:var(--r-card);padding:16px 16px 14px;box-shadow:var(--sh-card)}
+/* The NOW card's hue is driven per-item through --now-* custom properties. The card used to be
+   amber unconditionally — wash, eyebrow, countdown, CTA — which gave the WARNING hue a daily
+   second job as "next action" and desensitised it (see the accent note in home.js nowCard).
+   Default stays amber, which is now only reached when it is true: closing-soon and late-savable
+   states emit no hue class. The g/p/b/c variants below just remap the three custom properties,
+   so every dependent rule (eyebrow, countdown, CTA fill, CTA shadow) follows in one move. */
+.xnow{--now-rgb:var(--amber-rgb);--now-ink:var(--amber-bright);--now-a:var(--amber);--now-b:var(--amber-deep);
+  background:linear-gradient(160deg,rgba(var(--now-rgb), 0.16),rgba(var(--now-rgb), 0.05) 55%),var(--surface-1);border:1px solid rgba(var(--now-rgb), 0.32);border-radius:var(--r-card);padding:16px 16px 14px;box-shadow:var(--sh-card)}
+.xnow.g{--now-rgb:var(--green-rgb);--now-ink:var(--green-bright);--now-a:var(--green);--now-b:var(--green-deep)}
+.xnow.p{--now-rgb:var(--purple-rgb);--now-ink:var(--purple-bright);--now-a:var(--purple);--now-b:var(--purple-deep)}
+.xnow.b{--now-rgb:var(--blue-rgb);--now-ink:var(--blue-bright);--now-a:var(--blue);--now-b:var(--blue-deep)}
+.xnow.c{--now-rgb:var(--cyan-rgb);--now-ink:var(--cyan-bright);--now-a:var(--cyan);--now-b:var(--cyan-deep)}
 .xnow.red{background:linear-gradient(160deg,rgba(var(--red-rgb), 0.16),rgba(var(--red-rgb), 0.05) 55%),var(--surface-1);border-color:var(--red-border)}
 .xnow .xlab{display:flex;justify-content:space-between;align-items:center}
-.xnow .xl{font-size:10px;font-weight:800;letter-spacing:.16em;color:var(--amber-bright)}
+.xnow .xl{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:.16em;color:var(--now-ink)}
 .xnow.red .xl{color:var(--red)}
 .xnow .xmain{display:flex;gap:12px;align-items:center;margin-top:12px}
 .xnow .xt{font-size:var(--t-xl);font-weight:800;letter-spacing:var(--title-tight)}
 .xnow .xwhy{font-size:var(--t-sm);color:var(--text-2);line-height:1.45;margin-top:2px}
 .xcount{display:flex;align-items:baseline;gap:8px;margin:14px 0 12px}
-.xcount .xcd{font-size:34px;font-weight:800;letter-spacing:var(--num-tight);color:var(--amber-bright);font-variant-numeric:tabular-nums}
+.xcount .xcd{font-size:34px;font-weight:800;letter-spacing:var(--num-tight);color:var(--now-ink);font-variant-numeric:tabular-nums}
 .xnow.red .xcd{color:var(--red)}
 .xcount .xdl{font-size:var(--t-sm);color:var(--text-2);font-weight:700}
 /* Overdue has no countdown to run, so it has no numeral: the sentence IS the content ("Was due
    2:00 PM — still counts, log it late"). It replaces the display-size "Late" that used to sit
    beside it saying less, and steps up to body size to carry the row on its own. */
 .xcount .xdl.lead{font-size:var(--t-base);color:var(--text);line-height:1.4}
-.xcta{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;box-sizing:border-box;padding:14px;border:none;border-radius:var(--r-btn);background:linear-gradient(150deg,var(--amber),var(--amber-deep));color:var(--ink-on-accent);font-family:var(--font);font-size:15px;font-weight:800;box-shadow:0 12px 34px rgba(var(--amber-rgb), 0.30);cursor:pointer}
+.xcta{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;box-sizing:border-box;padding:14px;border:none;border-radius:var(--r-btn);background:linear-gradient(150deg,var(--now-a),var(--now-b));color:var(--ink-on-accent);font-family:var(--font);font-size:var(--t-md);font-weight:800;box-shadow:0 12px 34px rgba(var(--now-rgb), 0.30);cursor:pointer}
 /* The red card is now reserved for a MISSED day (one the athlete can no longer fix) — a window
    that is merely late stays amber, because it is still savable and should not wear the verdict.
    The BUTTON stays different from the card either way: it is the way out, not the verdict.

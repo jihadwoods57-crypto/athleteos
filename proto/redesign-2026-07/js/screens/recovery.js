@@ -92,7 +92,7 @@ export default {
     ${backHead('Recovery Check-In', 'Before bed · Takes 20 seconds')}
 
     <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:2px 2px 14px;line-height:1.55">
-      Recovery is ${liveWeightPct('recovery')}% of your OnStandard Score because readiness drives performance —
+      Recovery is ${liveWeightPct('recovery')}% of your OnStandard Score because readiness drives performance;
       how recovered, rested, and available you are decides what tomorrow's work is worth.
     </div>
 
@@ -116,7 +116,7 @@ export default {
       <div><div class="tt" id="rec-gain">${best.gain > 0
         ? `Current: ${S.score} · Earn up to +${best.gain} · Projected: <span data-proj>${P.to}</span>`
         : 'Refreshes your Recovery score tonight'}</div>
-      <div class="ts">Same math as your Score Breakdown — your answers set the exact number. ${S.coach.hasCoach ? `${esc(S.coach.name)} sees your readiness before tomorrow's practice.` : 'Honest answers are the whole point.'}</div></div>
+      <div class="ts">Same math as your Score Breakdown: your answers set the exact number. ${S.coach.hasCoach ? `${esc(S.coach.name)} sees your readiness before tomorrow's practice.` : 'Honest answers are the whole point.'}</div></div>
     </div>
 
     <div style="height:18px"></div>

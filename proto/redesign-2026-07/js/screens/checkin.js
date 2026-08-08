@@ -69,7 +69,7 @@ export default {
       <div class="sidebox" style="margin-top:12px">
         <div class="req-icon p" style="width:38px;height:38px">${icon('moon', 17)}</div>
         <div><div class="tt">Your nightly check-in also counts</div>
-        <div class="ts">Any check-in inside the last 7 days holds these points — tonight's recovery check-in covers the week too.</div></div>
+        <div class="ts">Any check-in inside the last 7 days holds these points. Tonight's recovery check-in covers the week too.</div></div>
       </div>
       <div style="height:10px"></div>`;
     }
@@ -87,7 +87,7 @@ export default {
           </div>
         </div>`).join('')}
     </section>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:8px;padding:0 2px;line-height:1.5">Self-reported and scored as answered — soreness counts in the right direction (low soreness scores higher). Honest answers are the whole point.</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:8px;padding:0 2px;line-height:1.5">Self-reported and scored as answered. Soreness counts in the right direction (low soreness scores higher). Honest answers are the whole point.</div>
     <div style="height:12px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
@@ -119,7 +119,7 @@ export default {
       const need = weeklyFields().length;
       if (Object.keys(answers).length < need) {
         // Never a hardcoded "six" — a Guided/Intuitive athlete answers more than a classic one.
-        err.textContent = `Answer all ${need} — it takes under a minute.`;
+        err.textContent = `Answer all ${need}. It takes under a minute.`;
         return;
       }
       act.submitRecovery(answers); // the ONE check-in engine: recovery + weekly both update

@@ -3600,7 +3600,17 @@ export const S = {
 
   get components() { return { now: componentsNow(), done: componentsDone() }; },
   get score() { return computeScore(componentsNow()); },
-  get possible() { return computeScore(componentsDone()); },
+  /* ONE ceiling engine. This was `computeScore(componentsDone())` — a projection that marks every
+     remaining meal logged but never gives it protein, so with protein ~65% of nutrition it could
+     answer "up to 63" while the breakdown's reach plan (which spreads the remaining protein
+     across the open slots, sum-exact) answered "up to 100" ONE TAP AWAY, about the same day, at
+     the same instant. Two ceilings 37 points apart on a product whose first principle is that the
+     score is honest. The breakdown engine is the survivor: it is pure, sequential, and already
+     the number every "how to climb" row sums to. Home's ring arc, the action hub, the meal chip
+     and the coach nudge all read THIS getter, so the five surfaces can no longer disagree.
+     (projectedDay keeps componentsNow/components alive for the in-progress bars; it just no
+     longer gets to define the ceiling.) */
+  get possible() { try { return Math.max(this.score, this.maxPossible); } catch { return this.score; } },
   get tier() { return tier(this.score); },
   // Yesterday's real score from history, or null if yesterday has no row (the ring then
   // hides the "vs yesterday" delta rather than comparing against a different day).

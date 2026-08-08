@@ -93,7 +93,13 @@ export function reachPlan(day, { slots, titles = {}, optional = [], nowMin, fmtC
   const rows = [];
   let cur = clone(day);
   let curScore = dayScoreOf(cur);
-  const open = slots.filter((k) => !mealScored(day, k));
+  // Required meals first (by deadline), optional last. The walk is sequential and sum-exact, so
+  // ORDER is the advice: unsorted, "how to climb" ranked an optional snack above a required
+  // dinner, which is bad coaching — and it contradicted the 4-meal standard where snack is the
+  // bonus slot at the end. Sorting BEFORE the marginal-gain walk keeps every gain attached to
+  // its own row and the total unchanged.
+  const open = slots.filter((k) => !mealScored(day, k))
+    .sort((a, b) => ((optional.includes(a) ? 1 : 0) - (optional.includes(b) ? 1 : 0)) || (slotDeadline(a) - slotDeadline(b)));
   const remP = proteinRemaining(day, slots);
   const share = open.length ? Math.floor(remP / open.length) : 0;
   open.forEach((k, i) => {

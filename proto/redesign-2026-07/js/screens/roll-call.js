@@ -104,10 +104,15 @@ export function commitmentCard(d) {
  *  reach the server" mean opposite things to an athlete at 4:40 AM, and the app must not confuse
  *  them. Deliberately does NOT claim they're checked in, and points at the one thing that helps. */
 export function commitmentOfflineCard() {
-  return `<div class="xrow-item" data-go="home" style="border-color:var(--amber-border)">
-    <div class="xico sm" style="background:var(--amber-surface);color:var(--amber-bright)">${icon('bolt', 16)}</div>
-    <div class="xr"><div class="xa">Can’t reach OnStandard</div>
-    <div class="xb">If your coach scheduled a check-in, it isn’t loading — try again when you have signal.</div></div>
+  /* Distinct title + a real Retry. This and the standards card were BOTH headlined "Can't reach
+     OnStandard" — two identical alarms stacked on Home read as a broken app, not one offline
+     moment, and neither offered recovery beyond navigating away and hoping. Each card now names
+     the thing that failed and retries its own fetch (wired by the screen that painted it). */
+  return `<div class="xrow-item" style="border-color:var(--hairline)">
+    <div class="xico sm" style="background:var(--surface-2);color:var(--text-3)">${icon('wifiOff', 16)}</div>
+    <div class="xr"><div class="xa">Coach check-in isn’t loading</div>
+    <div class="xb">If your coach scheduled one, it shows the moment you reconnect. Nothing is lost.</div></div>
+    <button class="btn ghost sm" data-vc-retry style="width:auto;padding:0 14px;height:34px;flex:none">Retry</button>
   </div>`;
 }
 

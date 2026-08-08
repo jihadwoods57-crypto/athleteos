@@ -84,7 +84,10 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
     else if (state === 'locked') sub = `Opens at ${fmtMin(req.window.open)}`;
     else sub = dueLabel;
     return {
-      id: req.id, title: req.title, icon: req.icon, state, color: COLOR[state], pill: PILL[state],
+      // accent rides along so the NOW card can wear the hue of the thing it asks for (green
+      // meal, purple recovery, cyan weekly) instead of a blanket warning-amber — it was the one
+      // catalog field this projection dropped, which is why the card had no hue to read.
+      id: req.id, title: req.title, icon: req.icon, accent: req.accent, state, color: COLOR[state], pill: PILL[state],
       minsLeft, countdown: fmtCountdown(minsLeft), dueLabel, why: `${req.note} ${impact ? `**${impact}**` : ''}`.trim(),
       sub,
       // Dynamic standard slots (snack-as-required, meal-5/meal-6) follow the photo-proof

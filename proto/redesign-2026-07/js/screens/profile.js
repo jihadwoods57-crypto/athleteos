@@ -58,7 +58,10 @@ export default {
     ${S.coach.hasCoach ? `
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
-        <div class="lic" style="background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204;font-weight:800;font-size:14px">${esc(S.coach.initials)}</div>
+        ${/* Identity, not a warning: the person you answer to was painted in hardcoded amber — the
+      hue this system reserves for "at risk / off pace" — so the coach read as a hazard tile on
+      the athlete's own profile. Identity wears the brand spine. */''}
+        <div class="lic" style="background:linear-gradient(150deg,var(--blue),var(--blue-deep));color:#fff;font-weight:800;font-size:var(--t-base)">${esc(S.coach.initials)}</div>
         <div class="lm"><div class="lt">${esc(S.coach.name)}</div><div class="ls">${esc([S.coach.role, S.coach.team].filter(Boolean).join(' · '))}</div></div>
       </div>
       <div class="lrow" data-go="messages">
@@ -100,7 +103,7 @@ export default {
       </div>
       <div class="lrow" data-go="connected-standards">
         <div class="lic" style="color:var(--blue-bright)">${icon('bolt', 17)}</div>
-        <div class="lm"><div class="lt">Activity standards</div><div class="ls">Steps, distance and workouts — verified from your device</div></div>
+        <div class="lm"><div class="lt">Activity standards</div><div class="ls">Steps, distance and workouts · verified from your device</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
       <div class="lrow" data-go="checkin">
@@ -196,14 +199,14 @@ export default {
         const reader = new FileReader();
         reader.onerror = () => {
           setBusy(false);
-          err.textContent = "Couldn't read that photo — try a JPG or PNG.";
+          err.textContent = "Couldn't read that photo. Try a JPG or PNG.";
         };
         reader.onload = () => {
           // downscale via canvas so localStorage stays small
           const img = new Image();
           img.onerror = () => {
             setBusy(false);
-            err.textContent = "Couldn't read that photo — try a JPG or PNG.";
+            err.textContent = "Couldn't read that photo. Try a JPG or PNG.";
           };
           img.onload = () => {
             const c = document.createElement('canvas');
@@ -264,7 +267,7 @@ export const editProfile = {
     <div class="chip-row" id="ep-pos" data-toggle-group>
       ${positions.map(p => `<span class="chp ${a.position === p ? 'on' : ''}">${p}</span>`).join('')}
     </div>` : `
-    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);padding:2px 2px 4px">Pick a sport first — positions follow the sport.</div>`}
+    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);padding:2px 2px 4px">Pick a sport first; positions follow the sport.</div>`}
 
     <div class="eyebrow">School / organization</div>
     <input class="ob-input ep-field" id="ep-school" value="${esc(a.school)}" placeholder="Search your school or team" autocomplete="off" />

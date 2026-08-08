@@ -34,6 +34,9 @@ function paintCommitments(root) {
     // things — so when the fetch failed and we have nothing cached, say so.
     slot.innerHTML = html || (VC.mineError ? commitmentOfflineCard() : '');
     if (html) mountCommitmentCard(slot, () => paintCommitments(root));
+    // The offline card's Retry re-runs THIS fetch — recovery on the card, not a dead notice.
+    const retry = slot.querySelector('[data-vc-retry]');
+    if (retry) retry.addEventListener('click', () => { retry.disabled = true; paintCommitments(root); });
   };
   paint();                       // instant repaint from cache
   loadMine().then((rows) => {    // then reconcile with the server
@@ -66,6 +69,8 @@ function paintStandards(root) {
     // deadline today, silence and a failed fetch look identical and mean opposite things.
     slot.innerHTML = html || (CS.mineError ? standardsOfflineCard() : '');
     if (html) mountStandardsCard(slot);
+    const retry = slot.querySelector('[data-cs-retry]');
+    if (retry) retry.addEventListener('click', () => { retry.disabled = true; paintStandards(root); });
   };
   paint();
   loadStandards().then(() => {
@@ -293,7 +298,15 @@ function nowCard(e) {
   // so it goes in both overdue cases. Closing-soon drops it too: "CLOSING SOON" + the hot countdown
   // says it all.
   const pill = od || closing ? '' : `<span class="xpill ${n.color}">${n.pill}</span>`;
-  return `<section class="xnow ${missed ? 'red' : ''}${closing ? ' closing' : ''}">
+  // The card wears the hue of the thing it is ASKING FOR — green meal, purple recovery, blue
+  // commitment, cyan weekly — not a blanket amber. Amber is this system's warning ("at risk, off
+  // pace"), and painting every next action with it meant the app shouted an alarm at 9am about a
+  // check-in due before bed, every single day, and had nothing left to say when something truly
+  // was at risk. Amber now appears exactly when it is TRUE: the window is closing (<=45 min) or
+  // the log is late-but-savable. Missed stays red. An item with no accent falls back to amber,
+  // which is the old behaviour, never a broken style.
+  const hue = missed || od || closing ? '' : ({ g: 'g', p: 'p', b: 'b', c: 'c', muted: 'b' }[n.accent] || '');
+  return `<section class="xnow ${missed ? 'red' : ''}${closing ? ' closing' : ''}${hue ? ` ${hue}` : ''}">
     <div class="xlab"><span class="xl">${od ? (missed ? 'MISSED' : 'LATE') : closing ? 'NOW · CLOSING SOON' : 'NOW'}</span>${pill}</div>
     <div class="xmain">
       <div class="xico ${n.color}">${icon(n.icon, 21)}</div>
@@ -333,7 +346,7 @@ function keepRecordCard() {
   return `<div class="lrow" id="keep-record" style="margin:12px 0 10px;background:linear-gradient(100deg, rgba(var(--green-rgb),0.10), rgba(var(--blue-rgb),0.05));border:1px solid var(--green-border);border-radius:14px;padding:12px 13px;cursor:pointer">
     <div class="xico sm green">${icon('shield', 16)}</div>
     <div class="xr"><div class="xa">Your record stays yours</div>
-    <div class="xb" style="white-space:normal;line-height:1.45">Your roster ended — every day you proved is still here. Keep it going.</div></div>
+    <div class="xb" style="white-space:normal;line-height:1.45">Your roster ended. Every day you proved is still here; keep it going.</div></div>
     <span class="xpill green">Keep it</span>
   </div>`;
 }
@@ -345,7 +358,7 @@ function syncBanner() {
     return `<div class="lrow" data-go="guardian" style="margin:12px 0 10px;background:rgba(245,165,36,0.10);border:1px solid var(--amber-border);border-radius:14px;padding:12px 13px">
       <div class="xico sm" style="background:rgba(245,165,36,0.18);color:var(--amber-bright)">${icon('lock', 16)}</div>
       <div class="xr"><div class="xa">${em ? 'Waiting on your parent' : 'One step before your day syncs'}</div>
-      <div class="xb">${em ? 'Everything you log is safe on this phone until they approve.' : 'You’re under 18 — a parent approves before your day reaches your coach. Tap to send it.'}</div></div>
+      <div class="xb">${em ? 'Everything you log is safe on this phone until they approve.' : 'You’re under 18, so a parent approves before your day reaches your coach. Tap to send it.'}</div></div>
       ${icon('chevron', 16, 'style="color:var(--text-3)"')}
     </div>`;
   }
@@ -561,7 +574,7 @@ function notScoredHero() {
       <div class="xh-body">
         <div class="xh-k">Daily Score</div>
         <div class="xrow"><span class="status-pill" style="background:var(--surface-2);color:var(--text-2)">Not scored yet</span></div>
-        <div class="xh-flow">Ready to begin — your score starts with your next action.</div>
+        <div class="xh-flow">Ready to begin. Your score starts with your next action.</div>
       </div>
     </div>
   </section>`;
@@ -588,7 +601,7 @@ function fairnessNote(activationMin) {
   const t = fmtClock(activationMin);
   return `<div class="sidebox" style="margin-top:12px">
     <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
-    <div><div class="tt">You're set up${t ? ` — you joined at ${t}` : ''}</div>
+    <div><div class="tt">You're set up${t ? ` · joined at ${t}` : ''}</div>
     <div class="ts">Anything scheduled before now won't count against you today. Your first full score starts fresh tomorrow.</div></div>
   </div>`;
 }
@@ -618,7 +631,7 @@ export default {
       ${syncBanner()}
       ${first
           ? firstActionCard(first)
-          : `<div class="sidebox"><div class="req-icon g" style="width:38px;height:38px">${icon('check', 17)}</div><div><div class="tt">You're all set for today</div><div class="ts">Your first scored day begins tomorrow — rest up.</div></div></div>`}
+          : `<div class="sidebox"><div class="req-icon g" style="width:38px;height:38px">${icon('check', 17)}</div><div><div class="tt">You're all set for today</div><div class="ts">Your first scored day begins tomorrow. Rest up.</div></div></div>`}
       ${grp('Logged today', done, { checkIcon: true, chev: true })}
       ${grp('Later today', upcoming, { hidePill: false })}
       ${grp('Not counted today', excused)}
@@ -647,7 +660,7 @@ export default {
         <div style="height:10px"></div>
         <button class="xcta" data-go="camera">${icon('camera', 18)} Log First Meal</button>
       </section>
-      ${lateRows.length ? `<div class="xgrp">${e.decided ? 'Missed today' : 'Late — still counts'}</div>${lateRows.map(row).join('')}` : ''}
+      ${lateRows.length ? `<div class="xgrp">${e.decided ? 'Missed today' : 'Late · still counts'}</div>${lateRows.map(row).join('')}` : ''}
       ${upcoming.length ? `<div class="xgrp">Upcoming</div>
       <div class="xgroup">${upcoming.map((i) => grow(i, { hidePill: i.state === 'locked' })).join('')}</div>` : ''}
       <div class="eyebrow">Recent Results</div>
