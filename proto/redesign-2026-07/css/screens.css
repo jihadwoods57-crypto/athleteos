@@ -703,8 +703,11 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .meta-add { color: var(--blue-bright); cursor: pointer; display: inline-flex; align-items: center; gap:4px; min-height: 24px; }
 .meta-add::after { content: '›'; font-weight: 800; opacity: .7; }
 .ptabs .pt { flex: none; scroll-snap-align: start; }
-@media (max-width: 380px) { .ptabs { gap:16px; } }
-.ptabs .pt { padding:14px 4px 16px; min-height: 44px; box-sizing: border-box; display: flex; align-items: center; font-size: 14.5px; font-weight: 700; color: var(--text-3); cursor: pointer; position: relative; }
+/* Fluid, not a breakpoint. This was `@media (max-width: 380px)`, which misses 390px — the
+   viewport of every iPhone from the 12 to the 15 — by ten pixels, so the strip still overflowed
+   on the most common phone in the roster. A clamp has no edge to miss. */
+.ptabs { gap: clamp(12px, 4.2vw, 22px); }
+.ptabs .pt { padding:14px 4px 16px; min-height: 44px; box-sizing: border-box; display: flex; align-items: center; font-size: var(--t-base); font-weight: 700; color: var(--text-3); cursor: pointer; position: relative; }
 .ptabs .pt.on { color: var(--text); }
 .ptabs .pt.on::after { content:''; position:absolute; left:0; right:0; bottom:-1px; height: 2.5px; border-radius: var(--r-micro); background: linear-gradient(90deg, var(--green-bright), var(--blue-bright)); }
 

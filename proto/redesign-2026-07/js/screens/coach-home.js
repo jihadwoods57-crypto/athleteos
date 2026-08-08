@@ -121,8 +121,13 @@ export function coachSetupSteps(st) {
 function allSetupSteps(st) { const g = coachSetupSteps(st); return [...g.required, ...g.optional]; }
 function setupIncompleteCount(st) { return allSetupSteps(st).filter((i) => !i.done).length; }
 
-/* One checklist row. Done → green check; a required-incomplete step gets a restrained amber marker
-   (Warning token, no side-stripe/neon per PRODUCT.md); optional-incomplete stays neutral.
+/* One checklist row. Done → green check; a required-incomplete step gets a BLUE numbered marker;
+   optional-incomplete stays neutral.
+
+   These were amber. Amber is the app's warning hue (streak at risk, off pace, injury), and a
+   brand-new coach's very first screen was an amber-washed, amber-bordered, amber-numbered block
+   telling them they had failed two things they had not yet had a chance to do. A setup checklist
+   is a to-do list, not an alarm; blue is the accent that carries action.
 
    The incomplete markers used to be EMPTY 38px boxes — an amber square and a grey square with no
    glyph inside. At that size an empty bordered box reads as a failed image, not as "step not done
@@ -132,7 +137,7 @@ function setupRow(i, required, n) {
   const marker = i.done
     ? `<div class="xico sm green">${icon('check', 15)}</div>`
     : required
-      ? `<div class="xico sm" style="background:var(--amber-surface);border:1.5px solid var(--amber-border);color:var(--amber-bright);font-size:14px;font-weight:800">${n}</div>`
+      ? `<div class="xico sm" style="background:var(--blue-surface);border:1.5px solid var(--blue-border);color:var(--blue-bright);font-size:14px;font-weight:800">${n}</div>`
       : `<div class="xico sm gray"><span style="width:7px;height:7px;border-radius:50%;background:var(--text-3);display:block"></span></div>`;
   return `<div class="lrow" ${i.go ? `data-go="${i.go}" style="cursor:pointer"` : 'style="cursor:default;opacity:0.7"'}>
       ${marker}
@@ -174,17 +179,18 @@ function obPlanCard() {
   </div>`;
 }
 
-/* Required + optional groups with a progress line. Required-incomplete card carries a restrained
-   amber tint. Shared by the empty and populated dashboards, so guidance survives the first join. */
+/* Required + optional groups with a progress line. Required-incomplete carries a restrained BLUE
+   tint (see setupRow: this is a to-do list, not a warning). Shared by the empty and populated
+   dashboards, so guidance survives the first join. */
 function setupChecklistCard(st) {
   const { required, optional } = coachSetupSteps(st);
   const left = st.requiredTotal - st.requiredDone;
   const progress = st.ready
     ? `<div style="display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:800;color:var(--green-bright);margin:0 2px 8px">${icon('check', 13)} Required setup complete</div>`
-    : `<div style="font-size:11.5px;font-weight:800;letter-spacing:0.02em;color:var(--amber-bright);margin:0 2px 8px">${st.requiredDone} of ${st.requiredTotal} required steps done · ${left} to go</div>`;
+    : `<div style="font-size:11.5px;font-weight:800;letter-spacing:0.02em;color:var(--blue-bright);margin:0 2px 8px">${st.requiredDone} of ${st.requiredTotal} required steps done · ${left} to go</div>`;
   return `
     ${progress}
-    <section class="card" style="padding:6px 16px;${st.ready ? '' : 'background:var(--amber-surface);border-color:var(--amber-border)'}">
+    <section class="card" style="padding:6px 16px;${st.ready ? '' : 'background:var(--blue-surface);border-color:var(--blue-border)'}">
       ${required.map((i, n) => setupRow(i, true, n + 1)).join('')}
     </section>
     <div class="eyebrow" style="margin-top:14px">Optional</div>

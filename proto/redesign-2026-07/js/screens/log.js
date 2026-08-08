@@ -67,6 +67,22 @@ export default {
           <div style="font-size:15px;font-weight:800;margin-top:2px">You're OnStandard.</div>
           <div style="font-size:12px;color:var(--text-2);margin-top:4px;line-height:1.5">Every requirement is in. Day ${S.streakDays} locks at midnight.</div>
         </div>
+        ${/* The celebration is a HAT on the hub, not a replacement for it. This branch used to
+              return here with a single "Close", so the biggest, brightest button in the app
+              opened a dead end on the one night the athlete had done everything right — while
+              Plan was simultaneously promising "All meals are in. Anything extra still counts."
+              A late snack had nowhere to go. Keep the doors open. */''}
+        <div class="xgrp" style="margin:14px 2px 7px">Still want to log something?</div>
+        <div class="sheet-row" data-go="camera">
+          <div class="si" style="background:var(--green-surface);color:var(--green-bright)">${icon('camera', 20)}</div>
+          <div class="st"><div class="t">Log an extra meal</div><div class="s">Beyond the standard. It still counts toward your quality.</div></div>
+          ${icon('chevron', 16, 'style="color:var(--text-3)"')}
+        </div>
+        <div class="sheet-row" data-go="weight">
+          <div class="si" style="background:var(--surface-2);color:var(--text-3)">${icon('scale', 20)}</div>
+          <div class="st"><div class="t">Log Weight</div><div class="s">Trend only · never moves the daily score</div></div>
+          <span class="sv" style="color:var(--text-3)">trend</span>
+        </div>
         <div class="cancel" data-back="home">Close</div>
       </div>`;
     }

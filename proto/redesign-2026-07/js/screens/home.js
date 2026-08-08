@@ -402,7 +402,9 @@ function deltaChip(score) {
   const y = S.scoreYesterday;
   if (y == null || score === y) return '';
   const up = score > y;
-  return `<span class="xh-delta ${up ? 'up' : 'down'}">${icon(up ? 'arrowUp' : 'arrowDown', 11)} ${Math.abs(score - y)} <span class="m">vs yesterday</span></span>`;
+  // Signed. "↑ 82 vs yesterday" is a plausible SCORE, so on a big swing the delta could be read
+  // as the number itself; "+82" cannot.
+  return `<span class="xh-delta ${up ? 'up' : 'down'}">${icon(up ? 'arrowUp' : 'arrowDown', 11)} ${up ? '+' : '−'}${Math.abs(score - y)} <span class="m">vs yesterday</span></span>`;
 }
 
 /* The last score this Home render showed — lets the next render know a log just moved the
@@ -500,9 +502,15 @@ const grow = (i, { hidePill, chev, checkIcon } = {}) => `<div class="xg-row" dat
 // Streak ribbon removed (founder call 2026-07-16): the streak's home surfaces are the
 // celebration screen and notifications — Home stays focused on score + next action.
 
+/* The day-complete hero. It used to be the ONE state where the score was not tappable: no
+   data-go, no role, no aria-label, while the in-progress heroes above have all three. The record
+   rows were inert divs too, and the FAB's sheet offered only "Close". So finishing every
+   requirement — the exact behaviour this product exists to produce — was rewarded by the app
+   going dead under your thumb, on the night you most want to look at your own numbers. */
 function celebration(e) {
   return `<div class="xcelebwrap">
-    <section class="hero" style="padding-bottom:8px">
+    <section class="hero" style="padding-bottom:8px" data-go="score-breakdown" role="button"
+      aria-label="Daily Score ${e.score}, ${S.tier.name}. Every requirement complete. Open score breakdown">
       ${scoreRing({ score: e.score, tierName: S.tier.name, tierCls: S.tier.cls })}
     </section>
     <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-top:2px">You're OnStandard.</div>
@@ -510,7 +518,12 @@ function celebration(e) {
          record list below already proves every requirement is in. Everything left that's UNIQUE
          lives here — delta, streak day, and when it locks. -->
     <div style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-2);margin-top:6px">
-      ${S.scoreYesterday != null && e.score > S.scoreYesterday ? `<span class="xh-delta up">${icon('arrowUp', 11)} ${e.score - S.scoreYesterday} <span class="m">vs yesterday</span></span><span style="opacity:.45">·</span>` : ''}
+      ${/* deltaChip(), not a second inline copy of it. The copy that lived here rendered ONLY when
+            today beat yesterday, so a day where you completed everything and still came in lower
+            showed no delta at all — the app quietly hiding the one number that says you slipped,
+            on the screen celebrating you. deltaChip already handles a down-day honestly (muted
+            amber, never a screaming red) and has since it was written ten lines above. */''}
+      ${(() => { const d = deltaChip(e.score); return d ? `${d}<span style="opacity:.45">·</span>` : ''; })()}
       ${S.streakDays > 0
         ? `<span style="display:inline-flex;align-items:center;gap:4px;font-weight:700;color:var(--amber-bright)">${icon('flame', 13)} Day ${S.streakDays}</span><span style="opacity:.45">·</span><span>locks at midnight</span>`
         : `<span>your streak starts when today locks at midnight</span>`}
@@ -518,7 +531,9 @@ function celebration(e) {
     <div style="height:14px"></div>
     <div class="eyebrow" style="align-self:flex-start">Today's record</div>
     <div class="xrecord" style="width:100%;box-sizing:border-box">
-      ${e.doneItems.map((d) => `<div class="xrec"><span class="xtk">${icon('check', 12)}</span>${esc(d.title)}<span class="xtm">${esc((d.sub || '').replace(/^Logged at /, ''))}</span></div>`).join('')}
+      ${/* Each row opens the thing it logged, the same as its in-progress .xitem equivalent. They
+            were inert divs, so on a complete day tapping your own dinner did nothing. */''}
+      ${e.doneItems.map((d) => `<div class="xrec"${d.route ? ` data-go="${esc(d.route)}"` : ''}><span class="xtk">${icon('check', 12)}</span>${esc(d.title)}<span class="xtm">${esc((d.sub || '').replace(/^Logged at /, ''))}</span></div>`).join('')}
     </div>
   </div>`;
 }

@@ -71,8 +71,24 @@ fact, not a warning.
 `b` blue, `p` purple, `c` cyan. Resolve it through `accentVar(accent)` in `js/score-band.js`. Do
 not write the ternary inline; four screens did, each with a different fallback.
 
-**Signature sweep** (score ring, and nothing else): `--ring-a` → `--ring-b` → `--ring-c`, green →
-teal → blue. Dark `#34D399 · #22D3EE · #3B82F6`; light `#10B981 · #06B6D4 · #2563EB`.
+**The sweep**: `--ring-a` → `--ring-b` → `--ring-c`, green → teal → blue. Dark
+`#34D399 · #22D3EE · #3B82F6`; light `#10B981 · #06B6D4 · #2563EB`.
+
+> ⚠️ **Unresolved, and the docs must not pretend otherwise.** An earlier version of this file
+> called the sweep "the signature — score ring, and nothing else." That was an aspiration written
+> as a law, and the code has never obeyed it: **29 uses across 6 files** outside the ring
+> component (onboarding progress in `ob2.css`/`ob2.js`, the connected-standards bar and columns
+> and momentum strip in `screens.css`, a divider in `flows.css`, the meal ring in `meal.js`, the
+> Plan tab underline). A gradient used in thirty places is a house gradient, not a signature.
+>
+> Pick one, and then this section states a fact:
+> - **Reserve it.** Move those 29 to `--blue`/`--blue-deep` or the owning category's semantic hue
+>   (`accentVar()` already exists for exactly this), and the ring means "this is the number."
+> - **Redefine it.** Call it the brand's *progress gradient*, legitimate on any progress geometry,
+>   and give the ring some other reserved treatment.
+>
+> Until that call is made, do not describe it as reserved. Archivo *is* genuinely reserved for
+> scores and the code honours it; that is what a real reservation looks like here.
 
 **Contrast is measured against `--bg`**, and the light values are tuned to clear AA on it
 (`--red-bright` 6.2:1, `--cyan-bright` 5.4:1). `--text-3` is `#7C8BA6` on dark specifically because
@@ -107,8 +123,17 @@ tenth, and do not reach for a value between two of them.
 Weights 400–800. Tracking: `--num-tight` −0.03em on numerals, `--title-tight` −0.02em on headings,
 `--track-eyebrow` 0.14em on uppercase labels, `--track-key` 0.06em on small stat keys.
 
-> Legacy literals are being migrated screen by screen rather than in one sweep, so each change is
-> visible in the QC contact sheet. New and refactored rules use the tokens.
+> ⚠️ **The scale does not yet govern the flagship.** A count of every leaf text node on `#home`
+> found **twelve distinct computed sizes** — 9.5, 10, 10.5, 11, 12.5, 13, 13.5, 15, 16, 22, 27,
+> 88px — of which three are on the scale. The hero numeral is 88px against a `--t-hero` of 52px.
+> So on the most-visited screen in the product this table currently describes about a quarter of
+> the type.
+>
+> "Legacy literals are migrated screen by screen" is the stated plan, and it is a reasonable plan,
+> but it has to actually run or the scale is decoration. The cheapest way to make it true and keep
+> it true is a lint that fails on any `font-size` outside the token set, the same way
+> `lint:copy` and `lint:xss` already gate the build. That is an afternoon, and it settles the
+> question permanently instead of per-review.
 
 ## Shape
 

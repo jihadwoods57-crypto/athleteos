@@ -331,14 +331,25 @@ function render() {
       else render();
     });
   });
-  // Keyboard activation for the non-native controls. role="button" + tabindex gives a div FOCUS
-  // but not activation — only <button>/<a> get Enter/Space for free. Everything above wires
-  // click and nothing wired keys, so every role="button" div in the app (.xhero, .iconbtn,
-  // .hd-avatar, .roster-row, the stat tiles…) could be tabbed to and then not used. One
-  // delegation covers all of them; native elements are skipped so Space can't double-fire.
+  // Keyboard reachability AND activation for the non-native controls.
+  //
+  // This used to wire Enter/Space only, which fixed activation for the handful of divs that
+  // already carried role="button" + tabindex and did nothing at all for the rest — because a div
+  // with no tabindex cannot be focused, so the keydown listener could never fire. Tabbing through
+  // Home reached exactly two elements out of sixteen, and the entire tab bar was unreachable:
+  // .tab is a plain div, so css/focus.css's carefully-written `.tab:focus-visible` rule had no
+  // element to ever match. Invisible to a pointer-only QA pass, and a hard stop for an external
+  // keyboard, iOS Switch Control, or full keyboard access.
+  //
+  // Doing it HERE rather than at each of the ~80 call sites is the point: every data-go the app
+  // will ever add is covered the moment it is written, and it can't be forgotten in review.
+  // Native controls are skipped so Space can't double-fire, and an author-supplied tabindex or
+  // role always wins.
   device.querySelectorAll('[data-go],[data-act],[data-back]').forEach(el => {
     const tag = el.tagName;
     if (tag === 'BUTTON' || tag === 'A' || tag === 'SUMMARY' || tag === 'INPUT') return;
+    if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0');
+    if (!el.hasAttribute('role')) el.setAttribute('role', 'button');
     el.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       e.preventDefault();
