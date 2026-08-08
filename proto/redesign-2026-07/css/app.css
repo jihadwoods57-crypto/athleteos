@@ -99,7 +99,11 @@ body {
   scrollbar-width: none;
   /* Bottom pad must clear the tabbar on EVERY screen; a big home-indicator inset
      grows the clearance instead of eating it (nav must never cover the last action). */
-  padding: 4px var(--pad-screen) calc(var(--nav-h) + 32px + max(0px, env(safe-area-inset-bottom, 0px) - 22px));
+  /* The FAB scrim (.tabbar .fabslot::before) is a 150px circle centred 14px above the slot's
+     middle, so it reaches ~89px above the bar. The old +32px left the LAST content in a screen
+     sitting inside that wash at max scroll — text that isn't disabled reading as disabled, on
+     Progress ("Consistency") and the score breakdown. Clear the scrim's reach instead. */
+  padding: 4px var(--pad-screen) calc(var(--nav-h) + 62px + max(0px, env(safe-area-inset-bottom, 0px) - 22px));
   scroll-behavior: smooth;
 }
 .viewport::-webkit-scrollbar { display: none; }
@@ -134,7 +138,7 @@ body {
 .view .req-row:nth-of-type(5), .view .act-card:nth-of-type(5), .view .roster-row:nth-of-type(5) { animation-delay: 180ms; }
 .view .req-row:nth-of-type(6), .view .roster-row:nth-of-type(6) { animation-delay: 225ms; }
 @media (prefers-reduced-motion: reduce) {
-  .view, .view *, .ring-arc, .aurora, .tabbar, .tabbar *, .ring-wrap::after { animation: none !important; transition: none !important; }
+  .view, .view *, .ring-arc, .tabbar, .tabbar *, .ring-wrap::after { animation: none !important; transition: none !important; }
 }
 
 /* ===== App header ===== */
@@ -209,34 +213,14 @@ body {
   cursor: pointer;
 }
 .ring-wrap { position: relative; width: 338px; height: 338px; margin:0 auto; }
-/* living light: slow-rotating conic bloom bleeding onto the canvas — brand sweep stops only
-   (--ring-a/b/c greens/teal/blue; the old lime #A3E635 and #4ADE80 were off-brand) */
-.ring-wrap .aurora {
-  position: absolute; inset: -14%; border-radius: 50%; z-index: 0; pointer-events: none;
-  background: conic-gradient(from -90deg,
-    rgba(var(--green-rgb), 0.50), rgba(var(--teal-rgb), 0.42),
-    rgba(var(--blue-rgb), 0.55), rgba(37,99,235,0.30), rgba(var(--green-rgb), 0.44), rgba(var(--green-rgb), 0.50));
-  filter: blur(46px); opacity: 0.55;
-  /* annulus mask: glow hugs the band, center stays dark */
-  -webkit-mask: radial-gradient(closest-side, transparent 52%, #000 68%, #000 88%, transparent 100%);
-  mask: radial-gradient(closest-side, transparent 52%, #000 68%, #000 88%, transparent 100%);
-  animation: auroraSpin 22s linear infinite;
-}
-@keyframes auroraSpin { to { transform: rotate(360deg); } }
-.ring-wrap .glow {
-  position: absolute; inset: 8%; border-radius: 50%; z-index: 0; pointer-events: none;
-  background: radial-gradient(closest-side, transparent 58%, rgba(var(--cyan-rgb), 0.30) 78%, transparent 96%);
-  filter: blur(10px);
-  animation: breathe 4.5s ease-in-out infinite;
-}
-@keyframes breathe { 0%,100% { opacity: 0.65; } 50% { opacity: 1; } }
+/* A 22s rotating conic aurora and a 4.5s breathing cyan halo used to live here, both blurred,
+   both behind the score. Removed 2026-08-08 with the ring's other decorative layers; see the note
+   on scoreRing() in components.js. The band's own sweep is the signature. */
 /* The still-reachable stretch: present enough to read as a path, quiet enough that it can never
    be mistaken for points already earned. (SVG presentation attributes can't take var(), so the
    dimming lives here rather than on the element.) */
 .ring-arc.ring-ceil { opacity: 0.32; }
 :root[data-theme="light"] .ring-arc.ring-ceil { opacity: 0.38; }
-.ring-tip.pulse { animation: tipPulse 2.4s ease-in-out infinite; }
-@keyframes tipPulse { 0%,100% { opacity: 0.8; } 50% { opacity: 1; } }
 /* Completion flare — the band lands and the ring exhales once: a halo bloom expanding just past
    the band, then gone (fill forwards keeps it at opacity 0; the class only ever re-arms through
    windBack). Sits at z 0, behind the SVG, so it can never wash the numerals. Under reduced motion
@@ -341,6 +325,7 @@ body {
 .req-icon.a { background: rgba(var(--amber-rgb), 0.20); color: var(--amber-bright); }
 .req-icon.b { background: rgba(var(--blue-rgb), 0.22); color: var(--blue-bright); }
 .req-icon.p { background: rgba(var(--purple-rgb), 0.22); color: var(--purple-bright); }
+.req-icon.c { background: rgba(var(--cyan-rgb), 0.20); color: var(--cyan-bright); }
 .req-main { flex: 1 1 auto; min-width: 0; }
 .req-title { font-size: 15.5px; font-weight: 800; letter-spacing: -0.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .req-sub { font-size: 12.5px; font-weight: 600; margin-top:2px; white-space: nowrap; }

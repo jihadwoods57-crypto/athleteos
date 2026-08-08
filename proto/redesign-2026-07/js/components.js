@@ -60,6 +60,17 @@ export function errorState({ title = "Couldn't load this", body = 'Reconnect and
     <div class="sd-t">${esc(title)}</div><div class="sd-s">${esc(body)}</div>${a}</section>`;
 }
 
+/** The "N of M discrete things done" segment strip. One builder, because the same three-line
+ *  Array.from(...).map(...) was written out in log.js, meal.js and progress.js, and a change to
+ *  how completion reads had to be made in three places or it drifted. `label` is required: the
+ *  strip is a role="img", so a screen reader gets the count even though the dots don't say it. */
+export function segBar(done, total, label, extraStyle = '') {
+  const n = Math.max(0, total | 0);
+  const d = Math.max(0, Math.min(n, done | 0));
+  const cells = Array.from({ length: n }, (_, i) => `<i class="${i < d ? 'on' : ''}"></i>`).join('');
+  return `<div class="xsegs" role="img" aria-label="${esc(label)}"${extraStyle ? ` style="${extraStyle}"` : ''}>${cells}</div>`;
+}
+
 /** Permission-denied — honest and role-scoped, with no dangling controls. */
 export function permissionState({ title = 'Not your access', body = 'Your head coach can open this for you.' } = {}) {
   return `<section class="state-demo"><div class="sd-ic">${icon('shield', 24)}</div>
@@ -74,9 +85,18 @@ export function nonLiveBadge() {
   return `<span class="status-pill muted">${icon('image', 12)} Gallery upload</span>`;
 }
 
-/* Signature score ring — cinematic, uncontained. Layers:
-   rotating aurora (CSS) → under-glow arc → thick gradient band → inner echo
-   ring → comet tip + lens sparkle → center stack (label / N / /100 / delta / streak).
+/* Signature score ring. Layers:
+   track → ceiling arc → thick gradient band (the sweep) → specular rim → inner echo ring
+   → seated jewel marker → center stack (label / N / /100 / delta / streak).
+
+   QUIETED 2026-08-08. It used to carry four more layers on top of that: a 22s rotating conic
+   aurora, a 4.5s breathing cyan halo, a blurred colour-spill arc 14px wider than the band, and a
+   blurred white sparkle behind the marker — plus a 2.4s infinite pulse on the marker itself.
+   Five decorative effects and three infinite animations on the ONE number PRODUCT.md says must
+   read as honest, and the single biggest reason the app's palette was guessable from "fitness
+   app" alone. The sweep IS the signature and it stays, as do the specular rim and the echo,
+   which are lit-material craft rather than glow. The one-shot completion flare stays too: it
+   fires when the band lands, so it reports a state change rather than idling.
 
    The markup renders the ring AT ITS SCORE — a full arc and the real number — rather than at zero
    waiting to be animated. It used to render empty with a literal "0", which made animateRing
@@ -84,7 +104,7 @@ export function nonLiveBadge() {
    most don't) left an undrawn ring reading 0 where the athlete's score belongs. The resting state
    is now the honest one, and motion.js winds it back only for the one reveal it plays — the same
    arrangement the meal score chip has always used. */
-export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, showCenter = true, uid = 'r', delta = null, streak = null, tierName = null, tierCls = 'b', centerNum = false, possible = null } = {}) {
+export function scoreRing({ score = 82, size = 338, stroke = 20, showCenter = true, uid = 'r', delta = null, streak = null, tierName = null, tierCls = 'b', centerNum = false, possible = null } = {}) {
   const r = (size - stroke) / 2 - 14;
   const rEcho = Math.max(0, r - stroke/2 - 8);
   const cx = size / 2, cy = size / 2;
@@ -128,7 +148,8 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
   // empty ring, so it only renders once score >= 6 (the dotted "unstarted" track below).
   const marker = score >= 6 ? `
       <g class="ring-tip" opacity="1">
-        <circle cx="${tipX.toFixed(1)}" cy="${tipY.toFixed(1)}" r="${(bezelR * 0.9).toFixed(1)}" fill="#FFFFFF" opacity="0.5" filter="url(#tip${uid})"/>
+        ${/* The blurred white disc that sat here was the "lens sparkle". The seated jewel below is
+              the brand mark's own geometry (LOGO.md) and reads perfectly well unlit. */''}
         ${light
           ? `<circle cx="${tipX.toFixed(1)}" cy="${tipY.toFixed(1)}" r="${bezelR.toFixed(1)}" fill="#FFFFFF" stroke="#DBEAFE" stroke-width="1.5"/>
              <circle cx="${tipX.toFixed(1)}" cy="${tipY.toFixed(1)}" r="${coreR.toFixed(1)}" fill="#2563EB"/>`
@@ -138,7 +159,6 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
 
   return `
   <div class="ring-wrap" style="width:${size}px;height:${size}px">
-    ${glow ? '<div class="aurora"></div><div class="glow"></div>' : ''}
     <svg class="ring-svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
       <defs>
         ${/* The signature sweep — the SAME three stops as the brand masters, from the theme
@@ -156,22 +176,14 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, glow = true, sh
               wider than the band, and blur stdDeviation 9 needs ~3σ of bleed each side.
               260% stays clear of what the glow actually needs, with headroom, stated in PERCENT so
               it scales with every call site. */''}
-        <filter id="soft${uid}" x="-80%" y="-80%" width="260%" height="260%">
-          <feGaussianBlur stdDeviation="9"/>
-        </filter>
-        <filter id="tip${uid}" x="-160%" y="-160%" width="420%" height="420%">
-          <feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
+        ${/* The two Gaussian-blur filters that lived here (the under-glow's and the marker
+              sparkle's) went with the layers that used them. Nothing on this ring is blurred now. */''}
         <linearGradient id="spec${uid}" x1="0.1" y1="0.0" x2="0.9" y2="0.9">
           <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.65"/>
           <stop offset="45%" stop-color="#FFFFFF" stop-opacity="0.18"/>
           <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.40"/>
         </linearGradient>
       </defs>
-      <!-- under-glow: same arc, wider + blurred, light spills onto the canvas -->
-      <path class="ring-arc ring-under" d="${dial(r)}" fill="none" stroke="url(#g${uid})"
-        stroke-width="${stroke + 14}" stroke-linecap="round" opacity="0.55" filter="url(#soft${uid})"
-        pathLength="100" stroke-dasharray="100" stroke-dashoffset="${off}" data-off="${off}"/>
       <!-- track: the dial's glass track; dotted "ready" style below score 6 so an empty day reads
            as unstarted, not broken (no pathLength here — the dot pattern needs user units) -->
       <path d="${dial(r)}" fill="none" stroke="rgba(148,176,224,0.10)" stroke-width="${stroke}" stroke-linecap="round"${score < 6 ? ' stroke-dasharray="1.4 5"' : ''}/>
@@ -224,7 +236,9 @@ export function animateRing(root) {
     requestAnimationFrame(() => requestAnimationFrame(() => { arc.style.strokeDashoffset = arc.dataset.off; }));
   });
   const tip = root.querySelector('.ring-tip');
-  if (tip) { tip.style.transition = 'opacity 600ms ease'; setTimeout(() => { tip.style.opacity = '1'; tip.classList.add('pulse'); }, 1150); }
+  // Fades in as the band reaches it. It then pulsed forever at 2.4s, which is decorative motion
+  // on a number that had already finished changing.
+  if (tip) { tip.style.transition = 'opacity 600ms ease'; setTimeout(() => { tip.style.opacity = '1'; }, 1150); }
   // Completion flare: a one-shot halo bloom as the band lands — the moment the number becomes
   // final gets a physical exhale. Class-driven (CSS one-shot animation, fill forwards) so a
   // repaint can't replay it; windBack in motion.js strips it before a genuine re-reveal.
@@ -509,7 +523,11 @@ export function planStyleCard(style, { onChange = null, compact = false } = {}) 
     : '';
   const change = onChange && style.canChoose
     ? `<button class="btn ghost sm" data-go="${esc(onChange)}">Change</button>`
-    : (style.locked ? `<span class="status-pill a">Set for you</span>` : '');
+    // `muted`, not `a`. Amber is the app's WARNING colour (streak at risk, injury mode, off-pace
+    // weight). "Set for you" is provenance — a neutral fact about who chose the plan — and dressing
+    // it in the warning hue made a normal state look like something had gone wrong, while quietly
+    // giving amber a third meaning in a token file that says each colour has exactly one.
+    : (style.locked ? `<span class="status-pill muted">Set for you</span>` : '');
   return `
   <section class="card ps-card" style="padding:14px 16px">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">

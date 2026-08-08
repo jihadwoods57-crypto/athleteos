@@ -215,13 +215,12 @@ function patchList(root) {
 export const coachRoster = {
   nav: 'operator', tab: 'roster',
   render() {
-    // A coach's avatar initials come from their HANDLE with the "Coach " prefix stripped
-    // ("Coach Baker" → BA), which is not the same as name-initials — keep that exact derivation.
-    // A trainer has no handle, so theirs come from their name.
-    const initials = CD.kind === 'practice'
-      ? S.operatorIdentity.initials
-      : (S.coachIdentity.handle || 'C').replace(/coach\s*/i, '').slice(0, 2).toUpperCase();
-    const head = avatarHead(vocab().title, CD.roster && CD.roster.book[0] ? CD.roster.book[0].name : '', initials);
+    // ONE derivation, shared with coach-home. This screen used to re-derive a team coach's
+    // initials from their HANDLE with the "Coach " prefix stripped ("Coach Reynolds" → RE) while
+    // coach-home used S.operatorIdentity (name initials → DR). Same signed-in person, two sets of
+    // initials on two consecutive screens. Whichever rule is "right", it can only be one of them,
+    // and operatorIdentity is the one that already resolves coach vs trainer correctly.
+    const head = avatarHead(vocab().title, CD.roster && CD.roster.book[0] ? CD.roster.book[0].name : '', S.operatorIdentity.initials);
     // Audit G-4: offline is checked BEFORE the loading gate — CD.extras stays null on a cold
     // offline load, so gating loading on !CD.extras first (as before) hid this card forever.
     if (CD.roster && CD.roster.offline) return `${head}${errorState({ title: vocab().offlineTitle, body: vocab().offlineBody, retryId: 'roster-retry' })}`;
@@ -247,6 +246,17 @@ export const coachRoster = {
     const positions = [...new Set(entries.map(e => (e.row.position || '').toUpperCase()).filter(Boolean))].sort();
     const groups = (CD.extras && CD.extras.groups) || [];
     const list = applyView(entries);
+    // All seven status chips rendered unconditionally, so a one-athlete roster shipped eight
+    // filters — six of which could only ever return "No one matches that filter." A filter for a
+    // status nobody has is a dead control and pure scan cost on the screen a coach uses to find
+    // who needs attention fastest. Render only the statuses actually present, and put the count
+    // on the chip so the row doubles as the roster's shape at a glance. A full squad still gets
+    // every chip it earns; the currently-selected one is kept even if a search empties it, so the
+    // control you just used can't vanish under you.
+    const statusCount = entries.reduce((m, e) => (m[e.status.key] = (m[e.status.key] || 0) + 1, m), {});
+    const liveStatuses = STATUS_ORDER
+      .map((k) => [k, statusCount[k] || 0])
+      .filter(([k, n]) => n > 0 || (FILTER.kind === 'status' && FILTER.value === k));
     const fchip = (kind, value, label, dotColor) => {
       const on = FILTER.kind === kind && String(FILTER.value || '') === String(value || '');
       return `<button class="co-chip ${on ? 'on' : ''}" data-filter="${esc(kind)}:${esc(value == null ? '' : value)}">${dotColor ? `<span class="dot" style="background:${dotColor}"></span>` : ''}${esc(label)}</button>`;
@@ -258,7 +268,7 @@ export const coachRoster = {
       <button class="btn ${SELECTING ? 'green' : 'ghost'} sm" data-selmode>${SELECTING ? 'Done' : 'Select'}</button>
     </div>
     <div class="co-seg co-scroll">
-      ${fchip('all', '', 'All')}${STATUS_ORDER.map(k => fchip('status', k, STATUS_META[k].label, STATUS_META[k].color)).join('')}${positions.map(p => fchip('position', p, p)).join('')}${groups.map(g => fchip('group', g.id, g.name)).join('')}
+      ${fchip('all', '', `All ${entries.length}`)}${liveStatuses.map(([k, n]) => fchip('status', k, `${STATUS_META[k].label} ${n}`, STATUS_META[k].color)).join('')}${positions.map(p => fchip('position', p, p)).join('')}${groups.map(g => fchip('group', g.id, g.name)).join('')}
       ${CD.caps.groups ? '<button class="co-chip" data-groups>＋ Group</button>' : ''}
     </div>
     ${SHOW_GROUPS ? groupSheet(groups) : ''}

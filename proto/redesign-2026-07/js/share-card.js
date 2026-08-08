@@ -12,6 +12,10 @@
  * Nothing here invents a number. It renders exactly the payload it is handed; a missing value draws
  * as an em dash rather than a zero, because "—" is honest about not knowing and "0" is not.
  */
+// The one tier ladder. This module used to carry a fourth hand-written copy with a 75 floor, so a
+// shared card could label 79 "Locked In" while the app that produced it said the streak was at
+// risk. score-band.js is dependency-free, so importing it costs this module nothing.
+import { tierFor } from './score-band.js';
 
 /* Straight from tokens.css. Duplicated as literals ON PURPOSE: canvas cannot read CSS custom
    properties, and resolving them off a live element would make the exported image depend on which
@@ -252,13 +256,10 @@ export async function shareScoreCard(payload, caption) {
  * is separately governed by the Squad board's opt-in (0180, profiles.share_squad_score) — nothing
  * HERE makes one teammate visible to another; the settings Teammates row states both truths. */
 
-/** The four bands the app uses everywhere else. */
+/** The four bands the app uses everywhere else — from the one ladder in score-band.js. */
 function tierLabel(score) {
   if (score == null) return '';
-  if (score >= 90) return 'OnStandard';
-  if (score >= 75) return 'Locked In';
-  if (score >= 60) return 'Building';
-  return 'Off Standard';
+  return tierFor(score).name;
 }
 
 /**

@@ -462,7 +462,7 @@ export const coachStandardEdit = {
           <span class="cs-title">${esc((d.title || '').trim() || defaultTitle(d))}</span>
           <span class="xpill blue">In progress</span>
         </div>
-        <div class="cs-bar"><i style="width:0%"></i></div>
+        <div class="cs-bar"><i style="transform:scaleX(0)"></i></div>
         <div class="cs-nums"><span class="cs-prog">0 of ${esc(fmtValue(preview.target, d.metric, d.display_unit))} ${esc(unitNoun(d.metric, d.display_unit, preview.target))}</span></div>
         <div class="cs-meta">${esc(metricLabel(d.metric, d.deliberate_workout))} · Tracked, not scored</div>
       </div>

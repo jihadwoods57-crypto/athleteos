@@ -1,7 +1,7 @@
 import { S, RT, tier, act, MEAL, mealDetail, fmtClock } from '../state.js';
 import { DAY, slotDeadline } from '../day.js';
 import { icon } from '../icons.js';
-import { backHead, esc, safeImg, nonLiveBadge, composer } from '../components.js';
+import { backHead, esc, safeImg, nonLiveBadge, composer, segBar } from '../components.js';
 import { reveal } from '../motion.js';
 import {
   openingMessage, openingSummary, qualityBand, scoreReasons, coachFocus, reactionGroups, threadMessages,
@@ -726,7 +726,7 @@ export const thread = {
       </div>` : '';
       })()}
       <div class="prog-line">
-        <div class="xsegs">${Array.from({ length: e.total }, (_, i) => `<i class="${i < e.met ? 'on' : ''}"></i>`).join('')}</div>
+        ${segBar(e.met, e.total, `${e.met} of ${e.total} completed today`)}
         <span class="pk">${e.met} of ${e.total} in today${S.streakDays > 0 ? ` · ${S.streakDays} day streak` : ''}</span>
       </div>
     </section>`;
@@ -763,7 +763,7 @@ export const thread = {
          and behind everything: aria-hidden, no pointer events. -->
     <div class="meal-backdrop" aria-hidden="true"><img id="meal-backdrop-img" alt=""/></div>
     <div class="photo-hero" id="meal-hero" style="margin-top:14px;background:linear-gradient(150deg, rgba(52,211,153,0.14), rgba(37,99,235,0.06))">
-      <img id="meal-photo" alt="" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;display:none"/>
+      <img id="meal-photo" alt="Photo of this meal" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;display:none"/>
       <div class="ph-grad"></div>
       <div class="ph-meta"><div>${M.live === false ? `<div>${nonLiveBadge()}</div>` : '<div></div>'}</div>
       ${M.score != null ? `<div class="scorechip ${band ? band.cls : ''}" id="meal-scorechip">

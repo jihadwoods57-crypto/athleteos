@@ -2,7 +2,7 @@
    Reached from Progress. Includes the solo "Log a workout" entry (self-log, no coach requirement)
    so Individual-plan users with no coach still have a training surface. Tracked, not scored. */
 import { icon } from '../icons.js';
-import { backHead, esc } from '../components.js';
+import { backHead, esc, emptyState, skeletonRows } from '../components.js';
 import * as roles from '../roles.js';
 
 let CACHE = { logs: null, loading: false };
@@ -47,12 +47,16 @@ export default {
     if (!CACHE.loading && !logs.length && CACHE.logs !== null) {
       return `${head}
       ${addBtn}
-      <div class="state-demo" style="margin-top:14px"><div class="sd-ic">${icon('bolt', 24)}</div>
-      <div class="sd-t">No sessions yet</div>
-      <div class="sd-s">Log a workout after you train — what you did and how it went. If your coach programs sessions, they show up on your day and land here when you log them.</div></div>`;
+      ${emptyState({
+    icon: 'bolt',
+    title: 'No sessions yet',
+    body: 'Log a workout after you train: what you did and how it went. If your coach programs sessions, they show up on your day and land here when you log them.',
+    action: { label: 'Log a workout', go: 'log-training' },
+  })}`;
     }
     if (CACHE.logs === null) {
-      return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bolt', 17)}</div><div><div class="tt">Loading your sessions…</div></div></div>`;
+      // Skeleton shaped like the session rows it stands in for, not a text card announcing a wait.
+      return `${head}${skeletonRows(3, 'Loading your sessions')}`;
     }
     return `${head}
     ${addBtn}

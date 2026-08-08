@@ -1,6 +1,6 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
-import { esc } from '../components.js';
+import { esc, segBar } from '../components.js';
 import { scoreBand } from '../score-band.js';
 import { maybeShowTip } from '../tour.js';
 
@@ -10,13 +10,13 @@ import { maybeShowTip } from '../tour.js';
 
 /* Baseline card shared by day-0 and day-1..2 states: real numbers + the exact unlock rule. */
 function baseline(P) {
-  const dots = Array.from({ length: P.unlockNeed }, (_, i) => `<i class="${i < P.unlockHave ? 'on' : ''}"></i>`).join('');
+  const dots = segBar(P.unlockHave, P.unlockNeed, `${P.unlockHave} of ${P.unlockNeed} days logged toward your first trend`, 'flex:1');
   return `
   <section class="card pad">
     <div class="eyebrow" style="margin:0 0 10px">Progress starts today</div>
     <div class="bigstat"><span class="n">${S.score}</span><span class="d">Today's score</span></div>
     <div class="unlock-row">
-      <div class="xsegs" style="flex:1">${dots}</div>
+      ${dots}
       <span class="unlock-k">${P.unlockHave} of ${P.unlockNeed} days</span>
     </div>
     <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:6px;line-height:1.45">Log ${P.unlockNeed} days to unlock your first weekly trend. ${P.unlockNeed - P.unlockHave === 0 ? 'Unlocked tomorrow.' : `${P.unlockNeed - P.unlockHave} more to go.`}</div>
@@ -189,6 +189,17 @@ export default {
         </div>`).join('')}
     </section>` : ''}`;
 
+    // ONE actionable sentence, and it used to render dead last — under Weight, Photos, Training,
+    // Squad and Monthly report, well below the fold on every phone. The most useful thing on the
+    // screen was the least likely to be read. It sits directly under the trend that produced it.
+    const insightSection = insight ? `
+    <div class="eyebrow">Your biggest opportunity</div>
+    <div class="insight">
+      <div class="req-icon g" style="width:38px;height:38px;flex:none">${icon('target', 18)}</div>
+      <p>${esc(insight)}</p>
+    </div>
+    <div style="height:16px"></div>` : '';
+
     const bodySection = `${weightCard()}${photoCard()}`;
 
     // A client is chasing a body outcome, not a sport standard — their Progress tab leads with
@@ -199,10 +210,13 @@ export default {
     return `
     <div class="screen-title">Progress</div>
     ${streakRow}
-    ${isClient ? bodySection + scoreTrendSection : scoreTrendSection + bodySection}
+    ${isClient ? bodySection + scoreTrendSection + insightSection : scoreTrendSection + insightSection + bodySection}
     ${trainingCard()}
 
     <div style="height:10px"></div>
+    <!-- Squad and Monthly report used to follow trainingCard() with no eyebrow of their own, so
+         both sat visually inside the "TRAINING" group. Neither is training. Own heading. -->
+    <div class="eyebrow">More</div>
     ${S.coach.hasCoach && S.coach.kind === 'coach' ? `
     <div class="sidebox" data-go="squad" style="cursor:pointer">
       <div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
@@ -213,13 +227,6 @@ export default {
       <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
       <div><div class="tt" style="display:flex;align-items:center;gap:7px">Monthly report <span class="status-pill b">Premium</span></div><div class="ts">Your month in review</div></div>
     </div>
-
-    ${insight ? `
-    <div class="eyebrow">Your biggest opportunity</div>
-    <div class="insight">
-      <div class="req-icon g" style="width:38px;height:38px;flex:none">${icon('target', 18)}</div>
-      <p>${esc(insight)}</p>
-    </div>` : ''}
     <div style="height:10px"></div>
     `;
   },

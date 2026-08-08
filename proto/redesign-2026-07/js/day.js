@@ -10,6 +10,9 @@ import {
   LEGACY_STYLE, knobsFor, weightsFor, resolveStyleKey,
   rangeAdherence, fuelingAdequacy, awarenessScore, answeredSignals,
 } from './plan-style.js';
+// score-band.js is dependency-free on purpose, so the parity test can still import this module
+// under Node. It owns the tier thresholds; nothing here re-declares them.
+import { tierFor } from './score-band.js';
 
 /* ---------------- engine constants (ported exactly) ---------------- */
 export const PROFILE_WEIGHTS = {
@@ -484,7 +487,8 @@ export function projectedDay(nowMin) {
   return p;
 }
 export function dayComponents() { return computeComponents(DAY); }
-export function tierFor(s) { return s >= 90 ? { name: 'OnStandard', cls: 'g' } : s >= 75 ? { name: 'Locked In', cls: 'b' } : s >= 60 ? { name: 'Building', cls: 'a' } : { name: 'Off Standard', cls: 'r' }; }
+// Re-exported so existing importers keep working; the ladder itself lives in score-band.js.
+export { tierFor };
 
 /** Honest streak with the council-ruled grace (roadmap #11).
  *

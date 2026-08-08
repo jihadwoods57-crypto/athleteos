@@ -1,5 +1,6 @@
 import { S, RT, act, fmtClock, nutritionConfigForGoal } from '../state.js';
 import { icon } from '../icons.js';
+import { accentVar } from '../score-band.js';
 import { backHead, titleHead, esc, safeImg, composer, sparkline, emptyState, errorState, skeletonRows, emailVerifyBanner, wireEmailVerifyBanner } from '../components.js';
 import {
   attachedPhoto, isPhotoOnly, wireComposerAttach, postChatMessage,
@@ -1749,7 +1750,7 @@ function coachCatCard(b) {
         <span class="bd-name">${esc(b.key)} <span class="bd-weight">${b.weightPct}% of score</span></span>
         <span class="bd-val">${b.earned}<small>/${b.possible}</small></span>
       </div>
-      <div class="bd-bar"><div class="bd-fill ${b.accent}" style="width:${b.possible ? Math.round(b.earned / b.possible * 100) : 0}%"></div></div>
+      <div class="bd-bar"><div class="bd-fill ${b.accent}" style="transform:scaleX(${b.possible ? (b.earned / b.possible).toFixed(3) : 0})"></div></div>
       <div class="bd-note">${esc(b.note)}</div>
       <span class="bd-chev">${icon('chevron', 14)}</span>
     </summary>
@@ -1911,7 +1912,7 @@ function todaySection(P, athleteId) {
         <div class="act-card" data-go="coach-meal/${esc(m.id)}">
           <div class="act-time">${esc(cap(m.type || 'Meal'))}</div>
           ${P.photos[m.id]
-            ? `<div class="act-media"><img src="${esc(P.photos[m.id])}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"/></div>`
+            ? `<div class="act-media"><img src="${esc(P.photos[m.id])}" alt="Photo of this meal" style="width:100%;height:100%;object-fit:cover;display:block"/></div>`
             : `<div class="act-media icon" style="background:linear-gradient(150deg, rgba(52,211,153,0.2), rgba(37,99,235,0.1));color:var(--green-bright)">${icon('utensils', 26)}</div>`}
           <div class="act-body"><div class="act-type">${m.quality != null ? 'Meal score' : 'Logged'}</div><div class="act-value ${m.quality != null && m.quality >= 80 ? 'g' : 'b'}">${m.quality != null ? m.quality : '·'}</div></div>
         </div>`).join('')}
@@ -2036,7 +2037,7 @@ function conversationSection(P) {
   ${meals.slice(0, 30).map(m => `
     <div class="lrow" data-go="coach-meal/${esc(m.id)}">
       <div class="lic" style="overflow:hidden;padding:0">
-        ${P.photos[m.id] ? `<img src="${esc(P.photos[m.id])}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"/>` : icon('message', 17)}
+        ${P.photos[m.id] ? `<img src="${esc(P.photos[m.id])}" alt="Photo of this meal" style="width:100%;height:100%;object-fit:cover;display:block"/>` : icon('message', 17)}
       </div>
       <div class="lm"><div class="lt">${esc(cap(m.type || 'Meal'))}${m.quality != null ? ` · ${m.quality}` : ''}</div>
       <div class="ls">${esc(mealDateLabel(m))}</div></div>
@@ -2069,7 +2070,7 @@ function requirementsSection(P, athleteId) {
   <div class="eyebrow">Governing standard <span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0">· ${esc(source)}</span></div>
   <section class="card" style="padding:2px 16px">
     ${reqs.length ? reqs.map(r => `
-    <div class="lrow" style="cursor:default"><div class="lic" style="color:var(--${r.accent === 'g' ? 'green' : r.accent === 'a' ? 'amber' : r.accent === 'p' ? 'purple' : 'blue'}-bright)">${icon(r.icon || 'clipboard', 17)}</div>
+    <div class="lrow" style="cursor:default"><div class="lic" style="color:${accentVar(r.accent)}">${icon(r.icon || 'clipboard', 17)}</div>
     <div class="lm"><div class="lt">${esc(r.title)}</div><div class="ls">${esc((PROOF[r.proof] && PROOF[r.proof].label) || 'Proof')} · ${esc(freqLabel(r.freq))}</div></div></div>`).join('')
     : `<div class="lrow" style="cursor:default"><div class="lm"><div class="ls">No requirements set.</div></div></div>`}
   </section>
@@ -2470,7 +2471,7 @@ export const coachMeal = {
           blurred fill of itself — the coach shouldn't have to open the zoom viewer just to see the
           edges of the photo. The fixed 210px cover-crop stays for every other surface. */''}
     <div class="photo-hero${meal._url ? ' full' : ''}" id="cm-hero" ${meal._url ? 'style="cursor:zoom-in"' : 'style="background:linear-gradient(150deg, rgba(52,211,153,0.14), rgba(37,99,235,0.06))"'}>
-      ${meal._url ? `<div class="ph-bg" style="background-image:url('${esc(meal._url)}')" aria-hidden="true"></div><img class="ph-full" src="${esc(meal._url)}" alt=""/>` : ''}
+      ${meal._url ? `<div class="ph-bg" style="background-image:url('${esc(meal._url)}')" aria-hidden="true"></div><img class="ph-full" src="${esc(meal._url)}" alt="Photo of this meal"/>` : ''}
       <div class="ph-grad"></div>
       <div class="ph-meta"><div><div class="ph-t">${esc(title)}</div><div class="ph-s">${dishName ? `${esc(slotName)}` : 'Logged'}${(() => { const c = msgClock(meal.logged_at); return c ? ` · ${c}` : ''; })()}${meal.source === 'gallery' ? ' · from gallery' : ''}${meal.source === 'manual' || meal.source === 'label' ? ' · no photo' : ''}</div></div>
       ${meal.quality != null ? `<div class="scorechip ${(qualityBand(meal.quality) || {}).cls || ''}"><span class="v">${meal.quality}</span><span class="k">Meal</span></div>` : ''}</div>

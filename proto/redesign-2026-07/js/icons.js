@@ -1,10 +1,12 @@
 /* Inline SVG icons — 2px stroke, round caps/joins, currentColor. No emoji. */
+const WARNED = new Set();
 const P = {
   bell: '<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
   utensils: '<path d="M3 2v7c0 1.1.9 2 2 2h0a2 2 0 0 0 2-2V2"/><path d="M5 2v20"/><path d="M17 2v20"/><path d="M17 8c0-3 1.5-6 1.5-6S21 4 21 8c0 2-1 3-2 3s-2-1-2-3z"/>',
   bowl: '<path d="M3 11h18a8 8 0 0 1-16 0z" transform="translate(0 0)"/><path d="M4 11a8 8 0 0 0 16 0"/><path d="M8 6.5c0-1 1-1.5 1-2.5M12 6c0-1 1-1.5 1-2.5M16 6.5c0-1 1-1.5 1-2.5"/>',
   scale: '<rect x="3" y="4" width="18" height="16" rx="4"/><circle cx="12" cy="12" r="3.2"/><path d="M12 8.8V6.4"/>',
   moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+  sun: '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.4v2.2M12 19.4v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.4 12h2.2M19.4 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6"/>',
   clipboard: '<rect x="8" y="3" width="8" height="4" rx="1.4"/><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><path d="M9 12h6M9 16h4"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
   checkCircle: '<circle cx="12" cy="12" r="9"/><path d="M8.5 12.5 11 15l4.5-5"/>',
@@ -49,7 +51,12 @@ const P = {
   wifiOff: '<path d="M1 9a15.9 15.9 0 0 1 4.4-3.1"/><path d="M8.5 6.4A15.9 15.9 0 0 1 23 9"/><path d="M4.6 12.8a11 11 0 0 1 3.3-2.2"/><path d="M16.1 10.6a11 11 0 0 1 3.3 2.2"/><path d="M8.2 16.3a6.5 6.5 0 0 1 7.6 0"/><circle cx="12" cy="20" r="1"/><path d="M1 1l22 22"/>',
 };
 export function icon(name, size = 22, extra = '') {
+  // An unknown key used to fall through to '' and emit a path-less <svg>, so a typo or a glyph
+  // that was never added rendered as an invisible blank the same size as a real icon. It looked
+  // like a layout bug, not a missing asset, and 'sun' shipped that way in three screens. Warn
+  // once per name so the next one is caught in the console instead of in a screenshot review.
   const d = P[name] || '';
+  if (!d && !WARNED.has(name)) { WARNED.add(name); console.warn('[icons] no glyph for', name); }
   return `<svg class="ic ic-${name}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ${extra}>${d}</svg>`;
 }
 // filled check for done states

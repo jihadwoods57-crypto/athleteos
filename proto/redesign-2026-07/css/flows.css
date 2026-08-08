@@ -134,11 +134,26 @@
 /* The scrim's own darkness does most of the work, so its 3px blur was doing almost nothing —
    at 70% black you cannot see a 3px defocus. Enough blur to actually read as depth-of-field,
    which is what tells you the screen behind is still THERE rather than replaced. */
+/* The athlete's real day, painted behind the sheet by log.js dayBackdrop(). Inert scenery: no
+   listeners, no ids, no tab stops (see the note there). It scrolls nowhere and it is the thing
+   the scrim above actually blurs, which is what makes this read as a sheet over your day rather
+   than a modal over nothing. */
+.sheet-backdrop {
+  position: absolute; inset: 0; z-index: 4; overflow: hidden; pointer-events: none;
+  padding: max(14px, env(safe-area-inset-top)) var(--pad-screen) 0;
+  background:
+    radial-gradient(120% 70% at 50% 0%, var(--bg-grad-top) 0%, transparent 70%),
+    var(--bg);
+}
+.sheet-backdrop > * { pointer-events: none; }
+
 .sheet-scrim {
-  position: absolute; inset: 0; background: rgba(4,6,12,0.7); z-index: 5;
+  position: absolute; inset: 0; z-index: 5;
+  background: rgba(4,6,12,0.62);
   -webkit-backdrop-filter: blur(10px) saturate(1.1);
   backdrop-filter: blur(10px) saturate(1.1);
 }
+:root[data-theme="light"] .sheet-scrim { background: rgba(15,23,42,0.34); }
 .sheet {
   position: absolute; left: 10px; right: 10px; bottom: 14px; z-index: 6;
   background: #101827; border: 1px solid var(--hairline);
@@ -339,19 +354,13 @@
   letter-spacing: -0.02em; color: var(--text);
 }
 .wel-head .accent {
-  color: var(--blue-bright); /* fallback if background-clip unsupported */
-  background: linear-gradient(96deg, var(--blue-bright) 4%, var(--ring-b) 92%);
-  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  /* One solid colour. The blue->teal background-clip fill here was decoration on prose, and it
+     also meant the light theme needed a whole second rule just to stay legible. Athlete Blue
+     alone marks the payoff phrase; the weight it already inherits does the rest. */
+  color: var(--blue-bright);
 }
-/* Light theme: bright cyan drops below 3:1 on the light canvas, so the payoff line
-   uses a deeper blue→teal that stays legible. */
-:root[data-theme="light"] .wel-head .accent {
-  background: linear-gradient(96deg, var(--blue-deep) 4%, var(--teal-deep) 92%);
-  /* re-assert the text clip: the `background` shorthand above resets background-clip
-     to border-box, which would paint a solid bar instead of clipping to the glyphs. */
-  -webkit-background-clip: text; background-clip: text;
-  color: var(--blue-deep);
-}
+/* Bright blue drops below 3:1 on the light canvas, so light uses the deep step. */
+:root[data-theme="light"] .wel-head .accent { color: var(--blue-deep); }
 
 /* Primary CTA on welcome: deep blue→teal fill keeps white text ≥4.5:1 (the bright
    teal lives in the bloom, not under the label); reuses the .btn.primary base. */
@@ -495,7 +504,7 @@
 .finish-score-line .fs-goal { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; color: var(--green-bright); }
 .fs-bridge { flex: 1; }
 .fs-track { height: 7px; border-radius: var(--r-micro); background: var(--surface-3); overflow: hidden; }
-.fs-fill { height: 100%; border-radius: var(--r-micro); background: linear-gradient(90deg, var(--blue-bright), var(--green-bright)); transition: width 700ms var(--ease-out); }
+.fs-fill { height: 100%; border-radius: var(--r-micro); background: linear-gradient(90deg, var(--blue-bright), var(--green-bright)); }
 .fs-note { display: block; text-align: center; font-size: 10.5px; font-weight: 700; color: var(--text-3); margin-top:6px; }
 .finish-moves { margin-top:14px; display: flex; flex-direction: column; gap:8px; }
 .fmove {

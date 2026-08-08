@@ -1,6 +1,7 @@
 /* Hash router + chrome (status bar, tab bar). Screens register in js/screens/index.js */
 import { S, act, RT, routeForRole } from './state.js';
 import { icon } from './icons.js';
+import { skeletonRows } from './components.js';
 import { screens } from './screens/index.js';
 import { initAnalytics, track, EVENTS } from './analytics.js';
 import { emptyNav, pushOrigin, popOrigin, peekOrigin, resetTab } from './nav-stack.js';
@@ -230,7 +231,10 @@ function render() {
   if (!RT.userId && !AUTH_ROUTES.includes(route)) { location.hash = '#welcome'; return; }
   // Landing on Welcome (sign-out, fresh boot) drops every stack — the next account starts clean.
   if (route === 'welcome' && (NAV.tab !== 'home' || Object.keys(NAV.stacks).length)) { NAV = emptyNav(); navSave(); }
-  const mod = screens[route] || screens.home;
+  // An unknown route resolves to a REAL not-found screen, never to Home. Falling back to Home
+  // painted a correct-looking dashboard under a bogus hash, so stale deep links and renamed
+  // screens failed invisibly and were never reported. See screens/notfound.js.
+  const mod = screens[route] || screens.notfound;
   // Role-route guard: a screen declaring an operator nav belongs to an operator's dashboard.
   // A signed-in user of another role must not render its chrome (RLS still scopes the data, but
   // the shell is wrong — a role-integrity leak). Redirect to their own home. Only fires when the
@@ -247,7 +251,7 @@ function render() {
   // coach on the athlete dashboard. Shared utility screens (settings/privacy/billing/terms)
   // resolve their nav per role via roleNav(), so they pass through untouched.
   if (RT.userId && (RT.authRole === 'coach' || RT.authRole === 'trainer')
-    && (mod.nav || 'athlete') === 'athlete' && !AUTH_ROUTES.includes(route)) {
+    && (mod.nav || 'athlete') === 'athlete' && !mod.anyRole && !AUTH_ROUTES.includes(route)) {
     location.hash = '#' + routeForRole(RT.authRole);
     return;
   }
@@ -362,9 +366,44 @@ window.__render = render;
 // always reachable; fresh (signed-out) users land on Welcome. Runs once on load.
 const AUTH_ROUTES = ['welcome', 'role', 'signin', 'reset', 'onboarding', 'coach-ob', 'trainer-ob', 'client-ob', 'terms', 'privacy',
   'oba', 'obf', 'obk', 'obt', 'obp', 'obn']; // OB2 adaptive onboarding flows (2026-07 redesign)
+/* First paint, before the network. boot() awaits getSession() AND hydrateDay() — a real round
+   trip — before render() runs, so a returning athlete on school wifi used to stare at an empty
+   #device for seconds with no branding and nothing to read. Everything the shell needs is
+   knowable with ZERO network: the role is persisted, and the chrome never depends on today's
+   data. Paint it synchronously here, then let render() replace the whole subtree once the day
+   lands. Only for a persisted session — a signed-out boot goes to Welcome, which has no data to
+   wait on. The tab bar is inert (aria-hidden + pointer-events:none via .booting): showing the
+   real chrome keeps the layout from jumping, but it must not pretend to be live before it is. */
+function bootShell() {
+  const device = document.getElementById('device');
+  if (!device) return;
+  const navRole = RT.authRole === 'coach' || RT.authRole === 'trainer' ? RT.authRole : 'athlete';
+  device.innerHTML = `
+    <div class="island"></div>
+    <div class="screen booting">
+      ${statusbar()}
+      <div class="viewport" id="viewport">
+        <div class="view" id="view" aria-busy="true" aria-label="Loading your day">
+          <div class="sk-hero"><div class="sk-ring"></div><div class="sk-line sk-hero-l"></div></div>
+          ${skeletonRows(3, 'Loading your day')}
+          ${skeletonRows(2, '')}
+        </div>
+      </div>
+      ${tabbar('home', navRole)}
+    </div>`;
+  // pointer-events:none alone would still leave the inert tabs in the tab order, which is a
+  // keyboard trap that looks like a working control. Take them out of both trees.
+  const bar = device.querySelector('.tabbar');
+  if (bar) {
+    bar.setAttribute('aria-hidden', 'true');
+    bar.querySelectorAll('[data-go],[tabindex],button,a').forEach((el) => el.setAttribute('tabindex', '-1'));
+  }
+}
+
 async function boot() {
   initAnalytics(); // wire crash capture + visibility-flush (inert until a sink is configured)
   track(EVENTS.APP_OPEN, { role: RT.authRole || 'anon' });
+  if (RT.userId && !AUTH_ROUTES.includes(parse().route)) bootShell();
   let authed = false;
   try {
     const sb = window.sb;
@@ -382,6 +421,24 @@ async function boot() {
   if (authed && (route === 'welcome' || !location.hash)) { location.hash = '#' + routeForRole(RT.authRole || 'athlete'); return; }
   render();
 }
+
+/* Escape closes the frontmost dismissible thing, once, app-wide.
+   The tour, the image viewer, the members sheet and tapback each wired their own Escape handler,
+   but a `transient: true` ROUTE — the log sheet, the quick-log sheet, any screen whose scrim is
+   a data-back — had none: on a keyboard the only exit was to find and click the scrim. Screens
+   own their own handlers first (this runs at the document level, and theirs stopPropagation or
+   fire on their own nodes), so this is a floor, not an override. */
+window.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || e.defaultPrevented) return;
+  // Never steal Escape from a field the user is mid-edit in, or from an overlay that owns it.
+  const t = document.activeElement;
+  if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+  if (document.querySelector('.tour, .imgview, .memsheet, .tapback, .lockstamp')) return;
+  const scrim = document.querySelector('.sheet-scrim[data-back]');
+  if (!scrim) return;
+  e.preventDefault();
+  goBack(scrim.getAttribute('data-back') || undefined);
+});
 
 window.addEventListener('hashchange', render);
 window.addEventListener('DOMContentLoaded', boot);

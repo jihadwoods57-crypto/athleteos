@@ -1,6 +1,6 @@
 import { S, RT, act, slotHasPhoto, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
-import { appHead, scoreRing, esc, safeImg, collapseSection, emailVerifyBanner, wireEmailVerifyBanner } from '../components.js';
+import { appHead, scoreRing, esc, safeImg, collapseSection, emailVerifyBanner, wireEmailVerifyBanner, emptyState } from '../components.js';
 import { reveal } from '../motion.js';
 import { maybeShowLock } from '../lock-moment.js';
 import { DAY, MEAL_KEYS } from '../day.js';
@@ -423,7 +423,12 @@ window.addEventListener('hashchange', () => {
    sweep (status lives in the tier pill, never in the ring color). Label, completion,
    ceiling, the four-part formula, and the next move all live inside the one card; the
    whole surface opens the breakdown (chevron + press state carry the affordance). */
-function hero(e) {
+/* `backdrop` means "this paint is scenery behind a sheet, not the screen the athlete is on."
+   The only render-time side effect on this whole screen is the lastHomeScore write below, and
+   consuming it from a backdrop paint would silently eat the "+N" float on the NEXT real render:
+   the athlete logs a meal, the score moves, and the one moment that rewards them never fires.
+   Guarding it is what makes it safe for #log to render the real day behind its scrim. */
+function hero(e, backdrop = false) {
   const next = nextLabel(e);
   // The formula bar is S.breakdown verbatim — the same values and accent colors as the
   // breakdown screen, so the two surfaces can never disagree. Segments sum to /100.
@@ -432,13 +437,13 @@ function hero(e) {
   const parts = S.breakdown;
   const segs = parts.filter((b) => b.earned > 0)
     .map((b) => `<i class="${b.accent}" style="width:${b.earned}%"></i>`).join('');
-  const gain = lastHomeScore != null && e.score > lastHomeScore ? e.score - lastHomeScore : 0;
-  lastHomeScore = e.score;
+  const gain = !backdrop && lastHomeScore != null && e.score > lastHomeScore ? e.score - lastHomeScore : 0;
+  if (!backdrop) lastHomeScore = e.score;
   // data-band is gone along with the ambient wash it drove (screens.css) — the ring's own arc
   // gradient already carries the band, so the attribute had no reader left.
   return `<section class="xhero" data-tour="score" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, ${S.tier.name}. ${e.met} of ${e.total} completed. Open score breakdown">
     <div class="xh-main">
-      ${scoreRing({ score: e.score, possible: e.possible, size: 128, stroke: 11, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
+      ${scoreRing({ score: e.score, possible: e.possible, size: 128, stroke: 11, showCenter: false, centerNum: true, uid: 'hero' })}
       ${gain > 0 ? `<span class="xh-float" aria-hidden="true">+${gain}</span>` : ''}
       <div class="xh-body">
         <div class="xh-k">Daily Score</div>
@@ -471,7 +476,7 @@ function inProgressHero(e) {
     : `<b>${e.met}</b> of <b>${e.total}</b> done today`;
   return `<section class="xhero" data-tour="score" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, in progress. ${e.met} of ${e.total} completed. Open score breakdown">
     <div class="xh-main">
-      ${scoreRing({ score: e.score, possible: e.possible, size: 128, stroke: 11, glow: false, showCenter: false, centerNum: true, uid: 'hero' })}
+      ${scoreRing({ score: e.score, possible: e.possible, size: 128, stroke: 11, showCenter: false, centerNum: true, uid: 'hero' })}
       <div class="xh-body">
         <div class="xh-k">Daily Score</div>
         <div class="xrow"><span class="status-pill inprog">In progress</span></div>
@@ -571,7 +576,7 @@ function fairnessNote(activationMin) {
 
 export default {
   tab: 'home',
-  render() {
+  render({ backdrop = false } = {}) {
     const e = S.exec;
 
     // First-day activation: the athlete's very first day reads "Not scored yet" — they can log
@@ -614,7 +619,7 @@ export default {
       return `
       ${appHead(headSub(e), trustShield())}
       ${emailVerifyBanner()}
-      ${(!S.dayDecided && S.tier.cls === 'r') ? inProgressHero(e) : hero(e)}
+      ${(!S.dayDecided && S.tier.cls === 'r') ? inProgressHero(e) : hero(e, backdrop)}
       ${syncBanner()}
       <section class="xnow">
         <div class="xlab"><span class="xl">NOW</span><span class="note">Start here</span></div>
@@ -627,8 +632,12 @@ export default {
       ${upcoming.length ? `<div class="xgrp">Upcoming</div>
       <div class="xgroup">${upcoming.map((i) => grow(i, { hidePill: i.state === 'locked' })).join('')}</div>` : ''}
       <div class="eyebrow">Recent Results</div>
-      <div class="state-demo"><div class="sd-ic">${icon('camera', 24)}</div><div class="sd-t">No logs yet</div>
-      <div class="sd-s">Your proof trail builds here as you log. Take a photo to begin today's standard.</div></div>
+      ${emptyState({
+    icon: 'camera',
+    title: 'No logs yet',
+    body: "Your proof trail builds here as you log. Take a photo to begin today's standard.",
+    action: { label: 'Log a meal', go: 'camera' },
+  })}
       <div style="height:8px"></div>`;
     }
 
@@ -680,7 +689,7 @@ export default {
     return `
     ${appHead(headSub(e), trustShield())}
     ${emailVerifyBanner()}
-    ${(!S.dayDecided && S.tier.cls === 'r') ? inProgressHero(e) : hero(e)}
+    ${(!S.dayDecided && S.tier.cls === 'r') ? inProgressHero(e) : hero(e, backdrop)}
     ${outcomeBand()}
     <div id="seen-row" data-tour="coach-seen"></div>
     <div id="vc-slot"></div>

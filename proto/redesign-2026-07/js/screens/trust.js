@@ -1,7 +1,8 @@
 import { S, RT } from '../state.js';
 import { DAY, MEAL_KEYS } from '../day.js';
 import { icon } from '../icons.js';
-import { backHead, esc, safeImg } from '../components.js';
+import { backHead, esc, safeImg, emptyState, skeletonRows } from '../components.js';
+import { tierColor } from '../score-band.js';
 import { cachedMealPhoto, warmMealPhotos, resolveMealPhoto } from '../photo-store.js';
 import { fetchRecentMeals, daysAgoISO, fetchMealComments, postMealComment, deleteMealComment, uploadChatPhoto, fetchThreadParticipants, signedMealPhotoUrl } from '../roles.js';
 import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos, wireComposerAttach, postChatMessage } from '../chat-attach.js';
@@ -211,16 +212,20 @@ export const history = {
     const dayHead = (label, score, tierName) => `
       <div class="eyebrow" style="display:flex;justify-content:space-between;align-items:baseline">
         <span>${label}</span>
-        ${score != null ? `<span style="text-transform:none;letter-spacing:0;font-size:13px;font-weight:800;color:${score >= 90 ? 'var(--green-bright)' : score >= 75 ? 'var(--blue-bright)' : 'var(--amber-bright)'}">${score}${tierName ? ` · ${tierName}` : ''}</span>` : ''}
+        ${score != null ? `<span style="text-transform:none;letter-spacing:0;font-size:13px;font-weight:800;color:${tierColor(score)}">${score}${tierName ? ` · ${tierName}` : ''}</span>` : ''}
       </div>`;
     const todayLabel = `Today · ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date().getDay()]}`;
     const rows = HIST.rows;
     let body;
     if (rows === null) {
-      body = `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:8px 2px">Loading your history…</div>`;
+      body = skeletonRows(4, 'Loading your history');
     } else if (!rows.length) {
-      body = `<div class="sidebox" style="margin-top:12px"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
-      <div><div class="tt">Your proof trail builds here</div><div class="ts">Every meal you log — photo, time, and score — becomes part of your record.</div></div></div>`;
+      body = emptyState({
+        icon: 'clipboard',
+        title: 'Your proof trail builds here',
+        body: 'Every meal you log, with its photo, time and score, becomes part of your record.',
+        action: { label: 'Log a meal', go: 'camera' },
+      });
     } else {
       const scoreBy = {};
       for (const h of S.history) scoreBy[h.iso] = h;

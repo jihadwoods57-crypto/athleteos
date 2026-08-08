@@ -16,8 +16,9 @@
  * rows) and says so honestly when there is none. */
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { esc, composer, planStyleCard } from '../components.js';
+import { esc, composer, planStyleCard, emptyState, skeletonRows, errorState } from '../components.js';
 import { PROOF, IMPACT_LABEL, freqLabel, fmtMin } from '../requirements.js';
+import { accentVar } from '../score-band.js';
 import { foodMemory } from '../food-memory-data.js';
 import { recentRows } from '../recent-meals.js';
 import { findRepeats, mealSignature, rankForRemaining, remainingToday } from '../food-memory.js';
@@ -51,13 +52,17 @@ function head() {
   </div>`;
 }
 
-/* ---------------- shared honest-state cards ---------------- */
-const loadingCard = () => `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
-  <div><div class="tt">Loading your targets…</div><div class="ts">Reading what your ${S.coach.noun} set.</div></div></div>`;
-const offlineCard = () => `<div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
-  <div class="sd-t">Can't reach your plan</div>
-  <div class="sd-s">Your targets will show when you reconnect — nothing is lost.</div>
-  <div class="sd-cta"><button class="btn ghost sm" data-act="retryProfile">Retry</button></div></div>`;
+/* ---------------- shared honest-state cards ----------------
+   These were two hand-rolled one-offs (a sidebox for loading, a bespoke .state-demo for offline)
+   sitting next to components.js's skeletonRows/errorState, which every coach screen already used.
+   Same states, two vocabularies. The primitives now do both, so a change to how the app expresses
+   "loading" or "we couldn't reach this" lands on Plan too. */
+const loadingCard = () => skeletonRows(2, 'Loading your targets');
+const offlineCard = () => errorState({
+  title: "Can't reach your plan",
+  body: 'Your targets will show when you reconnect. Nothing is lost, and logging still counts in the meantime.',
+  retryId: 'plan-retry',
+});
 
 /* ---------------- "What am I supposed to hit?" — the compact strip ----------------
    Only targets that are actually SET render a chip; meals/day is always real (the standard).
@@ -71,7 +76,7 @@ function compactTargets() {
     const tracked = (S.trackedSignalLabels || []).join(' · ');
     return `<div class="macro-row">
       <div class="macro" style="flex:2"><div class="mv" style="font-size:15px;line-height:1.35">${tracked ? esc(tracked) : 'Check-in signals'}</div><div class="mk">What you're tracking</div></div>
-      <div class="macro"><div class="mv">${S.mealsRequiredCount}</div><div class="mk">Meals/day</div></div>
+      <div class="macro"><div class="mv">${S.mealsRequiredCount}</div><div class="mk">Required meals</div></div>
     </div>
     <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin-top:8px;line-height:1.5">Your plan doesn't set calorie or macro targets. Your ${esc(S.coach.noun)} can still see the full numbers.</div>`;
   }
@@ -87,7 +92,9 @@ function compactTargets() {
   }
   const w = T.weight != null ? T.weight : S.weight.target;
   if (PS.showMacros && w != null) chips.push([`${w} lb`, 'Target wt']);
-  chips.push([String(S.mealsRequiredCount), 'Meals/day']);
+  // "Meals/day" read as a contradiction next to a Home that tracks four slots. It counts the
+  // REQUIRED ones (snack is the loggable bonus, founder standard) — label it as what it is.
+  chips.push([String(S.mealsRequiredCount), 'Required meals']);
   const note = state === 'unset'
     ? (S.coach.hasCoach ? `No targets set yet — your ${S.coach.noun} can add them any time.` : 'No targets set yet. Your score is built from the standard itself.')
     : '';
@@ -318,6 +325,21 @@ function targetsRow() {
     </div>
     <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin-top:8px;line-height:1.5">Your plan doesn't set calorie or macro targets. Your ${esc(S.coach.noun)} can still see the full numbers.</div>`;
   }
+  // Nothing set at all: teach, don't render placeholders. This used to fall through to the three
+  // .macro tiles below, each holding a single "—" — an identical-card grid saying nothing three
+  // times, on the screen whose entire job is telling the athlete what to hit. An empty state that
+  // explains the situation and offers the one real action is the honest shape.
+  const T0 = T.protein == null && T.calories == null && (T.weight == null && S.weight.target == null);
+  if (state === 'unset' || T0) {
+    return emptyState({
+      icon: 'target',
+      title: 'No targets set yet',
+      body: S.coach.hasCoach
+        ? `Your ${S.coach.noun} can set protein, calories and a target weight any time. Until then your score comes from the standard itself: log your meals and it still counts in full.`
+        : 'Your score is built from the standard itself, so it works without targets. Connect a coach and they can set protein, calories and a target weight for you.',
+      action: S.coach.hasCoach ? { label: 'Log a meal', go: 'camera' } : { label: 'Connect a coach', go: 'connect' },
+    });
+  }
   const band = PS.knobs && PS.knobs.nutrition;
   const asRange = (v, b) => (v == null ? '—' : (b > 0 ? `${Math.round(v * (1 - b))}–${Math.round(v * (1 + b))}` : String(v)));
   const rangeMode = band && (band.protein === 'range' || band.calorie === 'range');
@@ -391,7 +413,7 @@ const schedule = () => `
         </div>
         <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
           <span class="bd-weight">${PROOF[r.proof].label}</span>
-          <span class="bd-weight" style="color:var(--${r.accent === 'g' ? 'green-bright' : r.accent === 'p' ? 'purple-bright' : r.accent === 'b' ? 'blue-bright' : 'amber-bright'})">${impact}</span>
+          <span class="bd-weight" style="color:${accentVar(r.accent)}">${impact}</span>
         </div>
       </div>`;
     }).join('')}
@@ -473,6 +495,12 @@ export default {
       const { wireComposer } = await import('./settings.js');
       wireComposer(root, 'ai', 'OnStandard AI', 'Based on your plan: yes, that fits — keep protein on target and get your water in before practice.');
     }
+    // errorState() hands the caller a button id rather than a data-act, so the shared primitive
+    // stays free of any one screen's action vocabulary. Wire it to the same recovery the bespoke
+    // offline card used to call directly.
+    const retry = root.querySelector('#plan-retry');
+    if (retry) retry.addEventListener('click', async () => { await act.retryProfile(); window.__render(); });
+
     const explore = root.querySelector('#ps-intro-explore');
     const dismiss = root.querySelector('#ps-intro-dismiss');
     if (explore) explore.addEventListener('click', () => { act.dismissPlanStylePrompt(); window.__navigate('plan-style'); });

@@ -6,7 +6,7 @@
    States: browse (grid + Add/Compare) and compose (staged shot + pose/weight/note → Save). */
 import { RT } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, esc, safeImg } from '../components.js';
+import { backHead, esc, safeImg, emptyState, skeletonRows } from '../components.js';
 import * as roles from '../roles.js';
 
 let CACHE = { photos: null, urls: {}, loading: false, resolving: false };
@@ -120,16 +120,17 @@ function browseView() {
   <input type="file" accept="image/*" capture="environment" id="pp-file" style="display:none" />
 
   ${CACHE.loading && !photos.length ? `
-    <div class="sidebox" style="margin-top:12px"><div class="req-icon b" style="width:38px;height:38px">${icon('bolt', 17)}</div><div><div class="tt">Loading your photos…</div></div></div>`
+    ${skeletonRows(3, 'Loading your photos')}`
   : photos.length ? `
     <div style="height:12px"></div>
     <div class="pp-grid">${photos.map(cell).join('')}</div>`
   : `
-    <div class="state-demo" style="margin-top:14px">
-      <div class="sd-ic">${icon('camera', 24)}</div>
-      <div class="sd-t">Start your timeline</div>
-      <div class="sd-s">Take a progress photo today. Same pose, same light, once a week — in a month you'll see the work. Only you and a coach you're linked to can see these.</div>
-    </div>`}
+    ${emptyState({
+    icon: 'camera',
+    title: 'Start your timeline',
+    body: "Take a progress photo today. Same pose, same light, once a week, and in a month you'll see the work. Only you and a coach you're linked to can see these.",
+    action: { label: 'Take the first one', id: 'pp-empty-shoot' },
+  })}`}
   <div style="height:14px"></div>`;
 }
 
@@ -169,6 +170,10 @@ export default {
     const file = root.querySelector('#pp-file');
     const add = root.querySelector('#pp-add');
     if (add && file) add.addEventListener('click', () => file.click());
+    // The empty state offers the same action rather than pointing at a button elsewhere on the
+    // screen — an empty state with a dead pointer is the thing emptyState() exists to prevent.
+    const emptyShoot = root.querySelector('#pp-empty-shoot');
+    if (emptyShoot && file) emptyShoot.addEventListener('click', () => file.click());
     if (file) file.addEventListener('change', async () => {
       const f = file.files && file.files[0]; if (!f) return;
       try {

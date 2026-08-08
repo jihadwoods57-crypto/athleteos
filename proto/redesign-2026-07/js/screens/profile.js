@@ -20,7 +20,9 @@ export default {
     <section class="card id-card">
       <div style="position:relative" id="avatar-wrap">
         ${avatarEl()}
-        <div id="avatar-btn" style="position:absolute;bottom:-6px;right:-6px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer" title="Upload photo" aria-label="Upload photo"><span class="req-badge b" style="position:static;width:28px;height:28px;place-items:center;box-shadow:0 2px 6px rgba(0,0,0,0.4)">${icon('camera', 14)}</span></div>
+        <!-- Pushed clear of the glyphs and given a canvas ring: at -6px the 28px badge overlapped
+             the initials, so "MR" read as "MP". The 44px hit area is unchanged. -->
+        <div id="avatar-btn" style="position:absolute;bottom:-10px;right:-10px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer" title="Upload photo" aria-label="Upload photo"><span class="req-badge b" style="position:static;width:26px;height:26px;place-items:center;border:2px solid var(--bg);box-shadow:0 2px 6px rgba(0,0,0,0.4)">${icon('camera', 13)}</span></div>
         <input type="file" id="avatar-file" accept="image/*" style="display:none" />
       </div>
       <div style="flex:1">
@@ -28,8 +30,15 @@ export default {
         ${S.audience === 'client' ? `
         <div class="meta">${esc(S.planGoalLabel || 'Personal plan')}</div>
         ${S.coach.kind === 'trainer' && S.coach.team ? `<div class="meta" style="margin-top:1px">${esc(S.coach.team)}</div>` : ''}` : `
-        <div class="meta"${[S.athlete.sport, S.athlete.position].filter(Boolean).length ? '' : ' style="color:var(--text-3)"'}>${esc([S.athlete.sport, S.athlete.position].filter(Boolean).join(' · ') || 'Add your sport')}</div>
-        <div class="meta" style="margin-top:1px${S.athlete.school ? '' : ';color:var(--text-3)'}">${esc(S.athlete.school || 'Add your school')}</div>`}
+        <!-- When these are empty they read "Add your sport" / "Add your school": an instruction
+             with nowhere to go, since only the Edit button was tappable. An empty prompt is a
+             control; give it the affordance it was already claiming. -->
+        ${[S.athlete.sport, S.athlete.position].filter(Boolean).length
+    ? `<div class="meta">${esc([S.athlete.sport, S.athlete.position].filter(Boolean).join(' · '))}</div>`
+    : `<div class="meta meta-add" data-go="edit-profile" role="button" tabindex="0">Add your sport</div>`}
+        ${S.athlete.school
+    ? `<div class="meta" style="margin-top:1px">${esc(S.athlete.school)}</div>`
+    : `<div class="meta meta-add" data-go="edit-profile" role="button" tabindex="0" style="margin-top:1px">Add your school</div>`}`}
       </div>
       <button class="btn ghost sm" style="width:auto;padding:0 16px;height:44px" data-go="edit-profile">Edit</button>
     </section>

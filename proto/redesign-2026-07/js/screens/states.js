@@ -1,5 +1,6 @@
 import { icon } from '../icons.js';
 import { backHead } from '../components.js';
+import { TIERS, tierRange } from '../score-band.js';
 
 /* Design-states gallery: every empty / loading / error / tier state in one place,
    so nothing ships as an afterthought. */
@@ -11,10 +12,7 @@ export default {
 
     <div class="eyebrow">Score tiers</div>
     <section class="card pad" style="display:flex;flex-wrap:wrap;gap:10px">
-      <span class="tier-chip r" style="margin:0">Off Standard · 0–59</span>
-      <span class="tier-chip a" style="margin:0">Building · 60–74</span>
-      <span class="tier-chip b" style="margin:0">Locked In · 75–89</span>
-      <span class="tier-chip g" style="margin:0">OnStandard · 90–100</span>
+      ${TIERS.map((t, i) => `<span class="tier-chip ${t.cls}" style="margin:0">${t.name} · ${tierRange(i)}</span>`).reverse().join('')}
     </section>
 
     <div class="eyebrow">Empty states</div>

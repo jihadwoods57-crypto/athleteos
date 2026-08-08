@@ -228,7 +228,7 @@ export function maybeStartTour() {
     pending = false;
     if (active) return;
     // Nothing else may be on screen: a tour landing on top of the day-locked stamp is two modals.
-    if (document.querySelector('.lockstamp, .imgview, .memsheet')) return;
+    if (document.querySelector('.lockstamp, .imgview, .memsheet, .sheet-scrim')) return;
     // Re-plan at fire time — 600ms is long enough for another device to have marked it, for the
     // athlete to have navigated away, or for the async slots to have filled in more anchors.
     const fresh = planTour(context(replay));
@@ -276,7 +276,7 @@ export function maybeShowTip(id, tip) {
   setTimeout(() => {
     pending = false;
     if (active || (RT.tourSeen || {})[id]) return;
-    if (document.querySelector('.lockstamp, .imgview, .memsheet')) return;
+    if (document.querySelector('.lockstamp, .imgview, .memsheet, .sheet-scrim')) return;
     const steps = filterSteps([tip], (a) => {
       const el = anchorEl(a);
       return el ? el.getBoundingClientRect() : null;

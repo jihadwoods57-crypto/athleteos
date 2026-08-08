@@ -10,6 +10,7 @@
 import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet, stdFromItems, stdFromSolo, dayTypeFor, filterItemsByDayType, catalogFromItems, planStyleFromItems, setImpactWeightsProvider } from './requirements.js';
 import { resolvePlanStyle, SIGNAL_KEYS, CHECKIN_SIGNAL_KEYS, styleLabel, styleSourceLabel } from './plan-style.js';
 import { TOS_VERSION } from './ob-helpers.js';
+import { tierFor } from './score-band.js';
 import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor, dayFromHistoryRow,
   streakDays as dayStreak, streakInfo, loadDay, pushDay, uploadMealPhoto, flushDayPush,
@@ -202,13 +203,10 @@ export function computeScore(c) {
   );
 }
 
-/* Score tiers (Bo's brief) — same bands everywhere. */
-export function tier(s) {
-  if (s >= 90) return { name: 'OnStandard', cls: 'g' };
-  if (s >= 75) return { name: 'Locked In',  cls: 'b' };
-  if (s >= 60) return { name: 'Building',   cls: 'a' };
-  return { name: 'Off Standard', cls: 'r' };
-}
+/* Score tiers — re-exported from score-band.js, which owns the thresholds. This used to be a
+   fourth hand-written copy of the ladder with a 75 floor for "Locked In", five points below the
+   80 the streak gate and the roster both use. One definition now; see score-band.js. */
+export const tier = tierFor;
 
 /* ---------------- Runtime (persisted) ---------------- */
 const KEY = 'onstd-proto-rt-v1';
@@ -3770,7 +3768,7 @@ export const S = {
       { key: 'Daily commitment', earned: Math.round(w.commitment * c.commitment), possible: pct('commitment'),
         note: commitNote, accent: 'b', weightPct: pct('commitment') },
       { key: 'Weekly check-in', earned: Math.round(w.checkin * c.checkin), possible: pct('checkin'),
-        note: c.checkin ? 'Checked in this week — full points held' : 'No check-in in the last 7 days — tonight’s earns it', accent: 'g', weightPct: pct('checkin') },
+        note: c.checkin ? 'Checked in this week — full points held' : 'No check-in in the last 7 days — tonight’s earns it', accent: 'c', weightPct: pct('checkin') },
     ];
   },
 

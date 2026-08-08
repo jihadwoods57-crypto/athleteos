@@ -14,10 +14,11 @@
 /* reset the global segmented-control `.seg` (app.css) that otherwise leaks padding/border here
    and collapses the 4px fill to zero height */
 .ob2-prog .seg { flex: 1; height: 4px; border-radius: var(--r-micro); background: var(--surface-3); overflow: hidden; padding:0; border: 0; display: block; box-sizing: border-box; }
-.ob2-prog .seg > i { display: block; height: 100%; width: 0; border-radius: var(--r-micro);
+/* scaleX, not width — the .seg track clips, so the fill carries no radius of its own. */
+.ob2-prog .seg > i { display: block; height: 100%; width: 100%; transform-origin: left; transform: scaleX(0);
   background: linear-gradient(90deg, var(--ring-b), var(--blue-bright));
-  transition: width var(--dur-2) var(--ease-out); }
-.ob2-prog .seg.done > i { width: 100%; background: linear-gradient(90deg, var(--ring-a), var(--ring-b)); }
+  transition: transform var(--dur-2) var(--ease-out); }
+.ob2-prog .seg.done > i { transform: scaleX(1); background: linear-gradient(90deg, var(--ring-a), var(--ring-b)); }
 .ob2-ch-label { font-size: 10.5px; font-weight: 800; letter-spacing: var(--track-eyebrow);
   text-transform: uppercase; color: var(--text-3); margin-left:10px; flex: none; }
 
@@ -44,15 +45,9 @@
 .ob2-hero .h-eyebrow { font-size: 11px; font-weight: 800; letter-spacing: var(--track-eyebrow);
   text-transform: uppercase; color: var(--text-3); margin-bottom:14px; }
 .ob2-hero .h-title { font-size: 33px; font-weight: 800; letter-spacing: -0.035em; line-height: 1.14; }
-.ob2-hero .h-title .accent {
-  color: var(--blue-bright);
-  background: linear-gradient(96deg, var(--blue-bright) 4%, var(--ring-b) 92%);
-  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-}
-:root[data-theme="light"] .ob2-hero .h-title .accent {
-  background: linear-gradient(96deg, var(--blue-deep) 4%, var(--teal-deep) 92%);
-  -webkit-background-clip: text; background-clip: text; color: var(--blue-deep);
-}
+/* Solid accent, not a sweep. See the note on .wel-head .accent in flows.css. */
+.ob2-hero .h-title .accent { color: var(--blue-bright); }
+:root[data-theme="light"] .ob2-hero .h-title .accent { color: var(--blue-deep); }
 .ob2-hero .h-body { font-size: 15.5px; font-weight: 600; color: var(--text-2); line-height: 1.6; margin-top:16px; text-wrap: balance; }
 .ob2-hero .h-note { font-size: 12.5px; font-weight: 600; color: var(--text-3); line-height: 1.5; margin-top:14px; }
 
@@ -83,12 +78,8 @@
 .ob2-count { text-align: center; padding:10px 0 4px; }
 .ob2-count .cv { font-size: 64px; font-weight: 800; letter-spacing: -0.045em; line-height: 1;
   font-variant-numeric: tabular-nums;
-  color: var(--blue-bright);
-  background: linear-gradient(120deg, var(--ring-a), var(--ring-b) 55%, var(--ring-c));
-  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-:root[data-theme="light"] .ob2-count .cv {
-  background: linear-gradient(120deg, var(--green), var(--teal-deep) 55%, var(--blue-deep));
-  -webkit-background-clip: text; background-clip: text; color: var(--blue-deep); }
+  color: var(--blue-bright); }
+:root[data-theme="light"] .ob2-count .cv { color: var(--blue-deep); }
 .ob2-count .ck { font-size: 13px; font-weight: 700; color: var(--text-2); margin-top:8px; line-height: 1.5; }
 .ob2-count .cmath { font-size: 12px; font-weight: 700; color: var(--text-3); margin-top:12px;
   font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
@@ -256,12 +247,8 @@
 /* ----- Habit anchor ----- */
 .ob2-habit { text-align: center; padding:18px 0 6px; }
 .ob2-habit .hb { font-size: 25px; font-weight: 800; letter-spacing: -0.025em; line-height: 1.3; }
-.ob2-habit .hb .accent { color: var(--blue-bright);
-  background: linear-gradient(96deg, var(--blue-bright), var(--ring-b));
-  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-:root[data-theme="light"] .ob2-habit .hb .accent {
-  background: linear-gradient(96deg, var(--blue-deep), var(--teal-deep));
-  -webkit-background-clip: text; background-clip: text; color: var(--blue-deep); }
+.ob2-habit .hb .accent { color: var(--blue-bright); }
+:root[data-theme="light"] .ob2-habit .hb .accent { color: var(--blue-deep); }
 .ob2-habit .hs { font-size: 13.5px; font-weight: 600; color: var(--text-2); margin-top:12px; line-height: 1.55; }
 
 /* ----- Boundary / privacy rows (parent) ----- */

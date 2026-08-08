@@ -61,6 +61,12 @@ function yesterdayScore() {
 export function maybeShowLock(streakDays) {
   if (showing) return false;
   if (typeof document === 'undefined' || !document.body) return false;
+  // The mirror of tour.js's own `.lockstamp` guard. That one stops a tour landing ON the stamp,
+  // but nothing stopped the stamp landing on an OPEN tour: Home repaints several times during
+  // early load, and a later repaint could fire this after the tour had already opened — two
+  // modals on one paint, which is what a first-time athlete was actually getting. Returning
+  // false here without claiming the marker means the stamp is simply owed on the next open.
+  if (document.querySelector('.tour, .imgview, .memsheet, .sheet-scrim')) return false;
   const { date, score } = yesterdayScore();
   if (score === null || score < THRESH) return false;      // nothing provable to celebrate
   if (RT.lastLockSeen === date) return false;               // already shown

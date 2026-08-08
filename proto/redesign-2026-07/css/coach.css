@@ -18,7 +18,7 @@
 /* ============================================================
    SIGNATURE — Team Pulse "Standing Bar"
    A wide calm band: the group score in the blue->teal signature, the roster's
-   real standing as one proportional bar, a restrained aurora glow beneath.
+   real standing as one proportional bar.
    ============================================================ */
 .co-pulse {
   position: relative;
@@ -31,13 +31,9 @@
   padding: var(--s5) var(--s5) var(--s4);
   overflow: hidden;
 }
-/* aurora echo — one soft blue->teal bloom, ties the coach hero to the athlete ring */
-.co-pulse::before {
-  content: ''; position: absolute; z-index: 0; inset: auto -20% -60% -20%; height: 150px;
-  background: radial-gradient(60% 100% at 30% 100%, rgba(var(--green-rgb), 0.16), transparent 60%),
-              radial-gradient(60% 100% at 75% 100%, rgba(var(--blue-rgb), 0.18), transparent 62%);
-  filter: blur(24px); opacity: 0.9; pointer-events: none;
-}
+/* The blue->teal bloom that sat under this hero echoed the athlete ring's aurora, and went with
+   it (2026-08-08). The card keeps its own faint corner wash above, which is a surface treatment
+   rather than a chromatic glow behind a number. */
 .co-pulse > * { position: relative; z-index: 1; }
 .co-pulse-top { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s4); }
 .co-pulse-score .k {
@@ -45,10 +41,12 @@
   color: var(--text-3); margin-bottom:2px;
 }
 .co-pulse-score .num {
+  /* Solid ink. This was a 105deg blue->teal background-clip fill: the gradient-accented hero
+     metric PRODUCT.md lists by name as an anti-reference, on the single number the coach reads
+     to decide who needs attention. Scale and weight already carry every bit of the emphasis. */
   font-size: 60px; font-weight: 800; line-height: 0.9; letter-spacing: -0.045em;
   font-variant-numeric: tabular-nums;
-  background: linear-gradient(105deg, var(--ring-a), var(--ring-b) 46%, var(--ring-c));
-  -webkit-background-clip: text; background-clip: text; color: transparent;
+  color: var(--text);
 }
 .co-pulse-score .delta { font-size: 13px; font-weight: 800; margin-top: var(--s2); display: inline-flex; align-items: center; gap:6px; }
 .co-pulse-score .delta.up { color: var(--green-bright); }

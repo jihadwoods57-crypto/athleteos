@@ -7,7 +7,7 @@
    rows, no grayed-out names implying data we won't show. */
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, esc } from '../components.js';
+import { backHead, esc, emptyState, errorState, skeletonRows } from '../components.js';
 import { scoreColor } from '../score-band.js';
 import * as roles from '../roles.js';
 
@@ -74,11 +74,12 @@ export default {
     const team = RT.myCoach;
     if (!team || !team.teamId) return `
     ${backHead('Squad', 'Your team, side by side', 'progress')}
-    <div class="ne-empty">
-      <div class="ne-ring">${icon('users', 30)}</div>
-      <div class="ne-t">No squad yet</div>
-      <div class="ne-s">The Squad board unlocks when you join a team. Ask your coach for their team code, then connect from your Profile.</div>
-    </div>
+    ${emptyState({
+    icon: 'users',
+    title: 'No squad yet',
+    body: 'The Squad board unlocks when you join a team. Ask your coach for their team code, then connect it from your Profile.',
+    action: { label: 'Connect a coach', go: 'connect' },
+  })}
     <div style="height:10px"></div>`;
 
     const sharing = RT.shareSquadScore === true;
@@ -94,16 +95,16 @@ export default {
     if (BOARD === null) return `
     ${backHead('Squad', esc(team.teamName || 'Your team'), 'progress')}
     ${toggle}
-    <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
-    <div><div class="tt">Pulling the board…</div><div class="ts">Real numbers only — one moment.</div></div></div>`;
+    ${skeletonRows(4, 'Pulling the board')}`;
 
     if (BOARD.offline) return `
     ${backHead('Squad', esc(team.teamName || 'Your team'), 'progress')}
     ${toggle}
-    <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
-    <div class="sd-t">Can't reach the board</div>
-    <div class="sd-s">Nothing is invented while it's down.</div>
-    <div class="sd-cta"><button class="btn ghost sm" id="squad-retry">Retry</button></div></div>`;
+    ${errorState({
+    title: "Can't reach the board",
+    body: "Nothing is invented while it's down. Your own score is still counting either way.",
+    retryId: 'squad-retry',
+  })}`;
 
     const today = roles.todayISO();
     const shared = (BOARD.rows || []).filter((r) => r.shared || r.athlete_id === RT.userId);

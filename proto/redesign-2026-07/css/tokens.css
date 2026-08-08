@@ -84,6 +84,11 @@
   --green-deep:  #16A34A;
   --amber-deep:  #D97706;
   --purple-deep: #7E22CE;
+  /* Weekly check-in's accent. The score bar had FOUR parts and only THREE hues — Nutrition and
+     Weekly check-in were both green — so two of the four segments were indistinguishable and the
+     bar could not be mapped onto the breakdown screen even by someone trying. Cyan was the one
+     free hue in the semantic set. */
+  --cyan-deep:   #0284C7;
   --red-deep:    #DC2626;
 
   /* Score ring gradient stops (green -> teal -> blue, the signature moment) */
@@ -256,6 +261,7 @@
   --green-deep:  #15803D;
   --amber-deep:  #B45309;
   --purple-deep: #6B21A8;
+  --cyan-deep:   #075985;
   --red-deep:    #B91C1C;
 
   /* signature sweep endpoints tuned for a light ground (deeper teal/blue, green kept) */

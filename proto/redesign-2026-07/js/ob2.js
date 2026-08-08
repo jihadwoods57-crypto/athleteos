@@ -40,7 +40,7 @@ function chapterProgress(steps, idx) {
     /* flex-grow = steps in this chapter; empty chapters keep a hairline presence */
     const w = ` style="flex:${counts[c] || 0.001}"`;
     if (c < cur) return `<div class="seg done"${w}><i></i></div>`;
-    if (c === cur) return `<div class="seg"${w}><i style="width:${pct}%"></i></div>`;
+    if (c === cur) return `<div class="seg"${w}><i style="transform:scaleX(${(pct / 100).toFixed(3)})"></i></div>`;
     return `<div class="seg"${w}><i></i></div>`;
   }).join('');
   return `<div class="ob2-prog" role="progressbar" aria-label="Step ${doneSteps} of ${total} — ${CHAPTERS[cur]}" aria-valuenow="${doneSteps}" aria-valuemin="0" aria-valuemax="${total}">${segs}</div><div class="ob2-ch-label">${CHAPTERS[cur]}</div>`;

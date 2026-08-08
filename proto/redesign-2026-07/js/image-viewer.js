@@ -22,7 +22,7 @@ export function openImageViewer(src, alt = 'Meal photo') {
   el.className = 'imgview';
   el.innerHTML = `
     <button class="iv-x" aria-label="Close">×</button>
-    <div class="iv-stage"><img class="iv-img" alt="" draggable="false"/></div>`;
+    <div class="iv-stage"><img class="iv-img" alt="Full-size photo" draggable="false"/></div>`;
   const img = el.querySelector('.iv-img');
   img.src = src; img.alt = alt;
   document.body.appendChild(el);

@@ -36,3 +36,61 @@ export function scoreColor(score) {
 /* The legacy one-letter flags ('g'/'y'/'r') that roles.js -> tierFlag() has always returned.
    Kept as a mapping rather than a second set of thresholds so the contract can't drift. */
 export const BAND_FLAG = { on: 'g', close: 'y', off: 'r' };
+
+/* ---------------- Tier ladder ----------------
+ * The names the athlete reads, on the SAME thresholds as scoreBand above.
+ *
+ * This ladder was written out four separate times (state.js tier(), day.js tierFor(),
+ * share-card.js, and the states gallery's hardcoded chips) and every copy put the "Locked In"
+ * floor at 75 — while ON_STANDARD, the streak gate, and the "days on standard (>=80)" copy all
+ * used 80. That five-point gap was visible in the product: at 79 Home showed a blue "Locked In"
+ * chip while Progress warned the streak was about to break. The score was honest; the LABEL was
+ * not, which is the one thing PRODUCT.md says can never happen.
+ *
+ * Locked In now begins at ON_STANDARD, so the badge and the streak mean the same thing. Building
+ * absorbs 60-79, which makes it exactly the 'close' band — three thresholds (60/80/90) for the
+ * whole system, defined once, impossible to drift. Tier names are unchanged (founder's brief). */
+export const TIERS = [
+  { min: 90,           name: 'OnStandard',   cls: 'g' },
+  { min: ON_STANDARD,  name: 'Locked In',    cls: 'b' },
+  { min: CLOSE,        name: 'Building',     cls: 'a' },
+  { min: 0,            name: 'Off Standard', cls: 'r' },
+];
+
+/** The tier for a score: `{ name, cls }`. The ONE definition; never re-inline these numbers. */
+export function tierFor(score) {
+  const s = Number(score) || 0;
+  return TIERS.find((t) => s >= t.min) || TIERS[TIERS.length - 1];
+}
+
+/* ---------------- Accent letters ----------------
+ * The one-letter accent a requirement / score part carries ('g','a','b','p','c') mapped to its
+ * token family. Four screens had each written their own inline ternary for this (breakdown,
+ * plan, coach, progress), every one with a different fallback, so adding a fifth accent silently
+ * rendered as amber in one place and blue in another. One map; add a hue here and it lands
+ * everywhere. */
+export const ACCENT_FAMILY = { g: 'green', a: 'amber', b: 'blue', p: 'purple', c: 'cyan' };
+
+/** `var(--green-bright)` for accent 'g'. `variant` is the token suffix ('bright', 'deep', ''). */
+export function accentVar(accent, variant = 'bright') {
+  const fam = ACCENT_FAMILY[accent] || ACCENT_FAMILY.b;
+  return `var(--${fam}${variant ? `-${variant}` : ''})`;
+}
+
+/* The token behind each tier's one-letter class, so a screen tinting a score by tier never has
+   to re-inline the thresholds to pick a colour. */
+export const TIER_COLOR = {
+  g: 'var(--green-bright)',
+  b: 'var(--blue-bright)',
+  a: 'var(--amber-bright)',
+  r: 'var(--red-bright)',
+};
+
+/** Token string for a score's TIER colour (distinct from scoreColor's three-way band colour). */
+export function tierColor(score) { return TIER_COLOR[tierFor(score).cls]; }
+
+/** "60–79" style range label for a tier, for legends and the design-states gallery. */
+export function tierRange(i) {
+  const hi = i === 0 ? 100 : TIERS[i - 1].min - 1;
+  return `${TIERS[i].min}–${hi}`;
+}

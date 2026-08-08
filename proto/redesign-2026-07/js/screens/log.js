@@ -1,7 +1,34 @@
 import { S, liveWeightPct } from '../state.js';
 import { DAY } from '../day.js';
 import { icon } from '../icons.js';
-import { esc } from '../components.js';
+import { esc, segBar } from '../components.js';
+import home from './home.js';
+
+/* The athlete's actual day, painted behind the sheet.
+
+   #log is a transient ROUTE, not an overlay, so by the time the sheet slides up the router has
+   already replaced the screen underneath it. The scrim's backdrop-filter therefore had nothing to
+   blur and the sheet rose over a flat black void — a bottom sheet with nothing behind it doesn't
+   read as a sheet, it reads as a broken modal.
+
+   This paints Home's real markup behind the scrim. Two things make that safe:
+
+   1. `backdrop: true` stops Home's one render-time side effect (the lastHomeScore write that
+      drives the "+N" float) from firing, so a scenery paint can never eat the reward moment.
+   2. Every interactive and identifying attribute is stripped from the STRING before it reaches
+      the DOM. The router wires data-go / data-act / data-back on everything inside #device and
+      does so BEFORE mount() runs, so there is no later hook to un-wire them from; and duplicate
+      `id`s would break getElementById for the sheet's own controls. Removing them up front means
+      no listeners are ever attached, no ids collide, and no `data-tour` anchor resolves to a
+      hidden copy sitting earlier in the document. Scenery, and nothing else. */
+const dayBackdrop = () => {
+  let html;
+  try { html = home.render({ backdrop: true }); }
+  catch { return ''; }   // scenery must never take the sheet down with it
+  return `<div class="sheet-backdrop" aria-hidden="true">${
+    html.replace(/\s(?:data-(?:go|act|back|then|tour)|id|tabindex|role)="[^"]*"/g, '')
+  }</div>`;
+};
 
 /* Action Hub — the FAB's execution dashboard. One question, always answered:
    "what is the single most important thing I should do right now?" */
@@ -12,7 +39,7 @@ export default {
   transient: true, // overlay sheet — closing returns to the exact origin, never a back-target itself
   render() {
     const e = S.exec;
-    const segs = `<div class="xsegs" style="margin:0 2px 12px">${Array.from({ length: e.total }, (_, i) => `<i class="${i < e.met ? 'on' : ''}"></i>`).join('')}</div>`;
+    const segs = segBar(e.met, e.total, `${e.met} of ${e.total} completed today`, 'margin:0 2px 12px');
     const head = `<div class="hub-head"><span class="a">${e.met} of ${e.total} completed</span><span class="b">${e.score} → <em>up to ${e.possible}</em></span></div>`;
 
     // Mirrors Home's syncBanner honesty (home.js syncBanner): the sheet is the primary write
@@ -31,7 +58,7 @@ export default {
 
     if (e.celebration) {
       return `
-      <div class="sheet-scrim" data-back="home"></div>
+      ${dayBackdrop()}<div class="sheet-scrim" data-back="home"></div>
       <div class="sheet">
         <div class="grab"></div>
         ${head}${segs}${syncRow}
@@ -67,7 +94,7 @@ export default {
     const weeklyToday = new Date().getDay() === 0;
 
     return `
-    <div class="sheet-scrim" data-back="home"></div>
+    ${dayBackdrop()}<div class="sheet-scrim" data-back="home"></div>
     <div class="sheet">
       <div class="grab"></div>
       ${head}${segs}${syncRow}

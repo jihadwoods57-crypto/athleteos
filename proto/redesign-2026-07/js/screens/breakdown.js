@@ -30,7 +30,7 @@ function catCard(b) {
         <span class="bd-name">${esc(b.key)} <span class="bd-weight">${b.weightPct}% of score</span></span>
         <span class="bd-val">${b.earned}<small>/${b.possible}</small></span>
       </div>
-      <div class="bd-bar"><div class="bd-fill ${b.accent}" style="width:${b.possible ? Math.round(b.earned / b.possible * 100) : 0}%"></div></div>
+      <div class="bd-bar"><div class="bd-fill ${b.accent}" style="transform:scaleX(${b.possible ? (b.earned / b.possible).toFixed(3) : 0})"></div></div>
       <div class="bd-note">${esc(b.note)}</div>
       ${b.remaining > 0 ? `<div class="bd-remaining">${b.remainingKind === 'guaranteed' ? `+${b.remaining} available · guaranteed` : `Up to +${b.remaining} still available`}</div>` : ''}
       <span class="bd-chev">${icon('chevron', 14)}</span>
