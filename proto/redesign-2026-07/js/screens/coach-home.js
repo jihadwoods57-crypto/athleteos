@@ -281,7 +281,12 @@ export function emptyTeamDashboard(code, teamName) {
           are done it collapses to the same one-line section the populated board uses (optional
           steps inside), and once EVERYTHING is done it leaves the screen entirely — a finished
           checklist parked on Home forever read as the app nagging about nothing. */''}
-    ${st.ready
+    ${/* While the team is still LOADING the checklist's inputs are unknown — sharedCode derives
+          from the roster, which hasn't arrived. This used to render "0 of 2 required steps done ·
+          2 to go" directly under a card saying "Loading your team…": the screen admitting it
+          doesn't know and asserting a count in the same viewport. Don't grade what hasn't loaded. */''}
+    ${S.operatorIdentity.state === 'loading' ? ''
+    : st.ready
       ? (setupIncompleteCount(st) ? collapseSection('coach-setup', vocab().setup, setupIncompleteCount(st), setupChecklistCard(st), false) : '')
       : `<div class="eyebrow">${esc(vocab().setup)}</div>${setupChecklistCard(st)}`}
     <div class="eyebrow">What fills in next</div>

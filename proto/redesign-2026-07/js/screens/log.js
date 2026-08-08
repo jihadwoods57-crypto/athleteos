@@ -40,7 +40,10 @@ export default {
   render() {
     const e = S.exec;
     const segs = segBar(e.met, e.total, `${e.met} of ${e.total} completed today`, 'margin:0 2px 12px');
-    const head = `<div class="hub-head"><span class="a">${e.met} of ${e.total} completed</span><span class="b">${e.score} → <em>up to ${e.possible}</em></span></div>`;
+    // "92 → up to 92" was rendered verbatim on a complete day: an arrow from the score to
+    // itself, on the surface that exists to answer "what should I do next". When nothing can
+    // move the number, say the honest thing instead of drawing a pointless trajectory.
+    const head = `<div class="hub-head"><span class="a">${e.met} of ${e.total} completed</span><span class="b">${e.possible > e.score ? `${e.score} → <em>up to ${e.possible}</em>` : `${e.score} · day complete`}</span></div>`;
 
     // Mirrors Home's syncBanner honesty (home.js syncBanner): the sheet is the primary write
     // surface, so a sync-blocked minor or a failed push needs the same feedback here, not silence.

@@ -26,6 +26,14 @@ import { findRepeats, mealSignature, rankForRemaining, remainingToday } from '..
 /* Learned facts (athlete_memory_facts) for the Memory tab — module cache, loaded in mount. */
 let FACTS = { uid: null, rows: null };
 
+const PLAN_SUBS = ['overview', 'nutrition', 'schedule', 'memory'];
+function planSub(sub) {
+  const t = sub === 'notes' ? 'memory' : (sub || 'overview'); // legacy #plan/notes lands on Memory
+  if (PLAN_SUBS.includes(t)) return t;
+  console.warn('[plan] unknown sub-tab', JSON.stringify(sub), '- showing Overview');
+  return 'overview';
+}
+
 function tabs(active) {
   const T = [['overview', 'Overview'], ['nutrition', 'Nutrition'], ['schedule', 'Schedule'], ['memory', 'Memory']];
   return `<div class="ptabs">${T.map(([k, l]) =>
@@ -38,7 +46,7 @@ const HEAD_SUBTITLE = (who, hasTargets) => ({
   set: hasTargets ? `Targets set by your ${who}` : `Plan style set by your ${who}`,
   loading: 'Loading your targets…',
   offline: 'Targets will show when you reconnect',
-  unset: S.coach.hasCoach ? `Log meals — your ${who} can set targets any time` : 'Log meals — your score works without targets',
+  unset: S.coach.hasCoach ? `Log meals. Your ${who} can set targets any time` : 'Log meals. Your score works without targets',
 });
 function head() {
   const goal = S.planGoalLabel;
@@ -48,7 +56,9 @@ function head() {
   <div class="screen-title">Plan</div>
   <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
     <div style="font-size:12.5px;font-weight:600;color:var(--text-2)">${HEAD_SUBTITLE(S.coach.noun, S.planStyle.showMacros || S.planStyle.showCalories)[S.planTargetsState]}</div>
-    ${goal ? `<span class="status-pill b" style="flex:none">${esc(goal)}</span>` : ''}
+    ${/* "Goal · Perform", not a bare "Perform" — an unlabeled word in an outlined pill reads as
+          a status you were assigned, not the goal you picked. One word of context decodes it. */''}
+    ${goal ? `<span class="status-pill b" style="flex:none">Goal · ${esc(goal)}</span>` : ''}
   </div>`;
 }
 
@@ -96,8 +106,17 @@ function compactTargets() {
   // REQUIRED ones (snack is the loggable bonus, founder standard) — label it as what it is.
   chips.push([String(S.mealsRequiredCount), 'Required meals']);
   const note = state === 'unset'
-    ? (S.coach.hasCoach ? `No targets set yet — your ${S.coach.noun} can add them any time.` : 'No targets set yet. Your score is built from the standard itself.')
+    ? (S.coach.hasCoach ? `No targets set yet. Your ${S.coach.noun} can add them any time.` : 'No targets set yet. Your score is built from the standard itself.')
     : '';
+  // With no targets set, `chips` holds ONLY the required-meals count — and a lone .macro tile
+  // made a static config value ("3") the single largest element on the tab, sitting directly
+  // above "No targets set yet". A number that never changes and asks for nothing must not
+  // out-shout everything that does. One sentence carries both facts at body weight.
+  if (chips.length === 1) {
+    return `<div style="font-size:13.5px;font-weight:600;color:var(--text-2);line-height:1.55;margin:2px 2px 0">
+      Your standard: <b style="color:var(--text)">${S.mealsRequiredCount} required meals a day</b>, logged with a photo.
+      ${esc(note)}</div>`;
+  }
   // `.macro-row.four` is the design system's own 4-up density step (18px value, 10px label —
   // same as the coach macro strip). A range like "2464–3136" is 9 chars and still clips even
   // there, so values past 8 chars take one more step down. Scale, never clip.
@@ -485,12 +504,17 @@ async function warmCaches() {
 export default {
   tab: 'plan',
   render({ sub }) {
-    const t = sub === 'notes' ? 'memory' : (sub || 'overview'); // legacy #plan/notes links land on Memory
+    // Normalize the sub-route through ONE list. An unknown SUB used to be swallowed silently:
+    // #plan/bogus rendered Overview's content with NO tab lit, so the strip showed four
+    // inactive tabs — an unknown ROUTE gets a first-class not-found screen (router.js), but an
+    // unknown sub left the navigation lying. Unknowns now land on Overview WITH its tab lit,
+    // and warn in the console so the bad link gets fixed instead of surviving unreported.
+    const t = planSub(sub);
     const body = t === 'nutrition' ? nutrition() : t === 'schedule' ? schedule() : t === 'memory' ? memoryTab() : overview();
     return `${head()}${tabs(t)}${body}`;
   },
   async mount(root, { sub }) {
-    const t = sub === 'notes' ? 'memory' : (sub || 'overview');
+    const t = planSub(sub);
     if (t === 'memory') {
       const { wireComposer } = await import('./settings.js');
       wireComposer(root, 'ai', 'OnStandard AI', 'Based on your plan: yes, that fits — keep protein on target and get your water in before practice.');

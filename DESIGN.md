@@ -71,24 +71,18 @@ fact, not a warning.
 `b` blue, `p` purple, `c` cyan. Resolve it through `accentVar(accent)` in `js/score-band.js`. Do
 not write the ternary inline; four screens did, each with a different fallback.
 
-**The sweep**: `--ring-a` → `--ring-b` → `--ring-c`, green → teal → blue. Dark
+**The sweep** — `--ring-a` → `--ring-b` → `--ring-c`, green → teal → blue. Dark
 `#34D399 · #22D3EE · #3B82F6`; light `#10B981 · #06B6D4 · #2563EB`.
 
-> ⚠️ **Unresolved, and the docs must not pretend otherwise.** An earlier version of this file
-> called the sweep "the signature — score ring, and nothing else." That was an aspiration written
-> as a law, and the code has never obeyed it: **29 uses across 6 files** outside the ring
-> component (onboarding progress in `ob2.css`/`ob2.js`, the connected-standards bar and columns
-> and momentum strip in `screens.css`, a divider in `flows.css`, the meal ring in `meal.js`, the
-> Plan tab underline). A gradient used in thirty places is a house gradient, not a signature.
->
-> Pick one, and then this section states a fact:
-> - **Reserve it.** Move those 29 to `--blue`/`--blue-deep` or the owning category's semantic hue
->   (`accentVar()` already exists for exactly this), and the ring means "this is the number."
-> - **Redefine it.** Call it the brand's *progress gradient*, legitimate on any progress geometry,
->   and give the ring some other reserved treatment.
->
-> Until that call is made, do not describe it as reserved. Archivo *is* genuinely reserved for
-> scores and the code honours it; that is what a real reservation looks like here.
+**Reserved for score surfaces, and the code complies** (resolved 2026-08-08; before that it had
+drifted onto 29 non-score uses). A score surface is something that displays or produces an
+OnStandard score: the daily ring (`components.js scoreRing()`), the onboarding score dial
+(`ob2.js meter()`), the meal-quality ring (`meal.js`), the analyzing scan-line (`flows.css
+.scanline`, the moment the meal score is being read), and the share card. Nothing else.
+Progress geometry — onboarding step segments, Connected-Standards bars/columns/momentum, the
+Plan tab underline — wears blue (the action accent) or its own status hue. If you are about to
+put `--ring-*` on something that is not a score, use `accentVar()` or `--blue`/`--blue-deep`
+instead; the reservation is what makes the ring mean "this is the number."
 
 **Contrast is measured against `--bg`**, and the light values are tuned to clear AA on it
 (`--red-bright` 6.2:1, `--cyan-bright` 5.4:1). `--text-3` is `#7C8BA6` on dark specifically because
@@ -123,17 +117,24 @@ tenth, and do not reach for a value between two of them.
 Weights 400–800. Tracking: `--num-tight` −0.03em on numerals, `--title-tight` −0.02em on headings,
 `--track-eyebrow` 0.14em on uppercase labels, `--track-key` 0.06em on small stat keys.
 
-> ⚠️ **The scale does not yet govern the flagship.** A count of every leaf text node on `#home`
-> found **twelve distinct computed sizes** — 9.5, 10, 10.5, 11, 12.5, 13, 13.5, 15, 16, 22, 27,
-> 88px — of which three are on the scale. The hero numeral is 88px against a `--t-hero` of 52px.
-> So on the most-visited screen in the product this table currently describes about a quarter of
-> the type.
+> **The scale is now enforced by a ratchet, and Home is migrated** (2026-08-08). Two things
+> changed from the earlier warning that stood here:
 >
-> "Legacy literals are migrated screen by screen" is the stated plan, and it is a reasonable plan,
-> but it has to actually run or the scale is decoration. The cheapest way to make it true and keep
-> it true is a lint that fails on any `font-size` outside the token set, the same way
-> `lint:copy` and `lint:xss` already gate the build. That is an afternoon, and it settles the
-> question permanently instead of per-review.
+> 1. **Home — the flagship — is on the tokens.** Its twelve distinct computed sizes (9.5 through
+>    88px, three of them on-scale) were snapped to the nearest step: hero chrome, eyebrows, group
+>    labels, record rows, result cards, the celebration, the ring's `/100` and delta. The ring
+>    numeral got a real tenth step, `--t-score: 88px`, instead of a magic number in `app.css` —
+>    and `--t-eyebrow` moved from its aspirational 10px to the 11px every real eyebrow has always
+>    been, because tokens describe the system, not a wish.
+> 2. **Drift now fails the build.** `npm run lint:type`
+>    (`proto/redesign-2026-07/tools/type-scale-ratchet.mjs`, inside `npm run verify` next to
+>    `lint:copy` and `lint:xss`) records every file's raw `font-size: Npx` count in a checked-in
+>    baseline and fails if any file's count ever rises. New files start at a ceiling of zero.
+>    Unmigrated screens are legacy debt that can only shrink; after a migration lowers a count,
+>    `--write` locks the new lower ceiling in.
+>
+> Baseline at the time of writing: ~900 raw declarations across 57 files, monotonically
+> decreasing by construction.
 
 ## Shape
 

@@ -25,7 +25,7 @@ function baseline(P) {
       <div><div class="k">Best score</div><div class="v">${P.bestScore}</div></div>
       <div><div class="k">Days logged</div><div class="v">${P.daysLogged}</div></div>
     </div>
-    <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-top:8px">Early baseline — these sharpen as days accumulate.</div>
+    <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-top:8px">Early baseline. These sharpen as days accumulate.</div>
   </section>`;
 }
 
@@ -59,7 +59,7 @@ function photoCard() {
   <section class="card" style="padding:6px 16px">
     <div class="lrow" data-go="progress-photos">
       <div class="lic">${icon('camera', 17)}</div>
-      <div class="lm"><div class="lt">Progress photos</div><div class="ls">Your before &amp; after — private to you &amp; your ${esc(S.coach.noun)}</div></div>
+      <div class="lm"><div class="lt">Progress photos</div><div class="ls">Your before &amp; after · private to you &amp; your ${esc(S.coach.noun)}</div></div>
       ${icon('chevron', 17, 'style="color:var(--text-3)"')}
     </div>
   </section>`;
@@ -73,12 +73,12 @@ function trainingCard() {
   <section class="card" style="padding:6px 16px">
     <div class="lrow" data-go="training-history">
       <div class="lic">${icon('bolt', 17)}</div>
-      <div class="lm"><div class="lt">Training log</div><div class="ls">Your sessions &amp; notes — tracked, not scored</div></div>
+      <div class="lm"><div class="lt">Training log</div><div class="ls">Your sessions &amp; notes · tracked, not scored</div></div>
       ${icon('chevron', 17, 'style="color:var(--text-3)"')}
     </div>
     <div class="lrow" data-go="accountability">
       <div class="lic">${icon('sun', 17)}</div>
-      <div class="lm"><div class="lt">Morning Readiness</div><div class="ls">Wake-ups, arrivals &amp; sessions — a separate record from your score</div></div>
+      <div class="lm"><div class="lt">Morning Readiness</div><div class="ls">Wake-ups, arrivals &amp; sessions · a separate record from your score</div></div>
       ${icon('chevron', 17, 'style="color:var(--text-3)"')}
     </div>
   </section>`;

@@ -127,7 +127,10 @@
      Plus Jakarta Sans 800 leads the fallback, so a font that fails to load degrades to exactly
      today's appearance rather than to a system serif. */
   --font-display: 'Archivo', 'Plus Jakarta Sans', system-ui, sans-serif;
-  --t-eyebrow: 10px;
+  /* 11, not the 10 this token was minted at: the app's real eyebrows (.eyebrow, .xgrp,
+     .co-eyebrow) have always been 11px. A token that disagrees with every instance of the role
+     it names is aspiration, not a scale — the token moved to reality (2026-08-08). */
+  --t-eyebrow: 11px;
   --t-xs:      11px;
   --t-sm:      12.5px;
   --t-base:    14px;
@@ -137,6 +140,9 @@
   --t-2xl:     24px;
   --t-3xl:     34px;
   --t-hero:    52px;
+  /* The ring numeral (Archivo). A tenth step ON the scale rather than a magic 88 in app.css:
+     the ring's --score-fit multiplier scales it per ring size, so one token serves every ring. */
+  --t-score:   88px;
   --num-tight: -0.03em;
   --title-tight: -0.02em;
   --track-eyebrow: 0.14em;  /* uppercase section labels */

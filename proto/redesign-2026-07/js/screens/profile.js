@@ -135,17 +135,30 @@ export default {
       </div>
     </section>
 
-    <div class="eyebrow">Settings</div>
+    ${/* Was ONE "Settings" group of nine consecutive rows, Plan & billing straight through to
+          Sign out — more than double the ≤4 chunk working memory holds, with billing, a privacy
+          audit and account deletion all reading as siblings. Three groups, each ≤4, each named
+          for what its rows share; the destructive pair sits alone at the bottom where every
+          platform convention puts it. Row count is unchanged — this is chunking, not burying. */''}
+    <div class="eyebrow">Membership</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="billing"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Plan &amp; billing</div><div class="ls">Your membership &amp; premium features</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="invite-parent"><div class="lic">${icon('users', 17)}</div><div class="lm"><div class="lt">Invite a parent</div><div class="ls">Let a parent see your score &amp; streak</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="redeem-code"><div class="lic">${icon('key', 17)}</div><div class="lm"><div class="lt">Redeem a code</div><div class="ls">Unlock premium with a sponsor code</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="sponsor"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Sponsor access</div><div class="ls">Fund premium for a group</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+    </section>
+
+    <div class="eyebrow">Privacy &amp; app</div>
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" data-go="invite-parent"><div class="lic">${icon('users', 17)}</div><div class="lm"><div class="lt">Invite a parent</div><div class="ls">Let a parent see your score &amp; streak</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Privacy & visibility</div><div class="ls">Who sees what · download your data</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="settings"><div class="lic">${icon('gear', 18)}</div><div class="lm"><div class="lt">Units & appearance</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="terms"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Terms & privacy policy</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Delete account</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+    </section>
+
+    <div class="eyebrow">Account</div>
+    <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="welcome"><div class="lic">${icon('back', 17)}</div><div class="lm"><div class="lt">Sign out</div></div></div>
+      <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Delete account</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
     </section>
 
     <div style="height:10px"></div>

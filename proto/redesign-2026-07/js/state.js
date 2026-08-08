@@ -3752,9 +3752,9 @@ export const S = {
       ? `${logged.length} of ${bdDenom} meals completed${nextDue ? ` · ${slotTitle(nextDue)} ${minutesNow() > slotDeadline(nextDue) ? 'overdue' : `due ${fmtClock(slotDeadline(nextDue))}`}` : logged.length >= bdDenom ? ' · full day' : ''}`
       : 'No meals completed yet — each one builds Nutrition';
     const commit = DAY.dailyCommitment;
-    const commitNote = commit === 'yes' ? 'Reflection complete — you executed your plan today'
-      : commit === 'partial' ? 'Reflection complete — a partial day, honestly logged'
-      : commit === 'no' ? 'Reflection complete — an off day, honestly logged'
+    const commitNote = commit === 'yes' ? 'Reflection complete: you executed your plan today'
+      : commit === 'partial' ? 'Reflection complete: a partial day, honestly logged'
+      : commit === 'no' ? 'Reflection complete: an off day, honestly logged'
       : 'End-of-day reflection still open — your honest answer earns it';
     // Weights come from the ENGINE's live style x profile mix — never 50/25/15/10 constants.
     const w = liveWeights();

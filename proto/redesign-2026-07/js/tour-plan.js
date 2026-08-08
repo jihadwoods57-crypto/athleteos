@@ -62,7 +62,9 @@ const ATHLETE_STEPS = [
   {
     key: 'log', anchor: 'log',
     title: 'Everything starts here',
-    body: 'Photograph a meal and the AI reads the plate — the breakdown lands in seconds. Training, weight, and check-ins live behind this button too. Gold dot means something is due; red means it is overdue.',
+    // The dot line is phrased as WHEN, not IS: on a complete day the FAB correctly carries no dot,
+    // and the old copy described a signal that wasn't on screen while pointing straight at it.
+    body: 'Photograph a meal and the AI reads the plate; the breakdown lands in seconds. Training, weight, and check-ins live behind this button too. When something is due, a gold dot appears here. Red means overdue.',
   },
   {
     key: 'plan', anchor: 'plan',

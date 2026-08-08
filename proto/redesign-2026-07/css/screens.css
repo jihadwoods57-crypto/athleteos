@@ -9,7 +9,7 @@
 .bd-row { padding:14px 2px; border-bottom: 1px solid var(--hairline-soft); }
 .bd-row:last-child { border-bottom: none; }
 .bd-top { display:flex; align-items:baseline; justify-content:space-between; }
-.bd-name { font-size: 15px; font-weight: 800; display:flex; align-items:center; gap:8px; }
+.bd-name { font-size: var(--t-md); font-weight: 800; display:flex; align-items:center; gap:8px; }
 .bd-weight { font-size: 11px; font-weight: 700; color: var(--text-3); background: var(--surface-2); padding:2px 8px; border-radius: var(--r-pill); }
 .bd-val { font-size: 15px; font-weight: 800; }
 .bd-val small { color: var(--text-3); font-weight: 700; }
@@ -32,8 +32,8 @@
 .reach-row .t { flex: 1; font-size: 14.5px; font-weight: 700; }
 .reach-row .gain { font-size: 15px; font-weight: 800; color: var(--green-bright); }
 .sidebox { padding:14px 16px; border-radius: var(--r-tile); background: var(--surface-2); border: 1px solid var(--hairline-soft); display:flex; gap:12px; align-items:flex-start; }
-.sidebox .tt { font-size: 13.5px; font-weight: 800; }
-.sidebox .ts { font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-top:4px; line-height: 1.45; }
+.sidebox .tt { font-size: var(--t-base); font-weight: 800; }
+.sidebox .ts { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:4px; line-height: 1.45; }
 
 /* GS-2 loading skeleton (T-22) — the honest loading state, never a spinner-in-content. Shimmer
    rows shaped like the list items they stand in for, so the layout doesn't jump when data lands. */
@@ -709,7 +709,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .ptabs { gap: clamp(12px, 4.2vw, 22px); }
 .ptabs .pt { padding:14px 4px 16px; min-height: 44px; box-sizing: border-box; display: flex; align-items: center; font-size: var(--t-base); font-weight: 700; color: var(--text-3); cursor: pointer; position: relative; }
 .ptabs .pt.on { color: var(--text); }
-.ptabs .pt.on::after { content:''; position:absolute; left:0; right:0; bottom:-1px; height: 2.5px; border-radius: var(--r-micro); background: linear-gradient(90deg, var(--green-bright), var(--blue-bright)); }
+.ptabs .pt.on::after { content:''; position:absolute; left:0; right:0; bottom:-1px; height: 2.5px; border-radius: var(--r-micro); background: var(--blue-bright); }
 
 /* ---- onboarding v2: back nav + segmented progress (replaces dots) ---- */
 .ob-nav{display:flex;align-items:center;gap:12px;padding:2px 0 16px}
@@ -792,12 +792,12 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* Neutral 'In progress' chip — a live day has no verdict yet, so it must not borrow a tier colour. */
 .status-pill.inprog{background:var(--surface-2);color:var(--text-2);border-color:transparent}
 .xhero .xh-line .sep{color:var(--text-3);margin:0 1px}
-.xh-delta{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;font-variant-numeric:tabular-nums}
+.xh-delta{display:inline-flex;align-items:center;gap:4px;font-size:var(--t-xs);font-weight:800;font-variant-numeric:tabular-nums}
 .xh-delta.up{color:var(--green-bright)} .xh-delta.down{color:var(--amber-bright)}
 .xh-delta .m{color:var(--text-3);font-weight:700}
 .xh-delta svg{width:11px;height:11px;flex:none}
 /* honest "+N" when a log just moved the number — floats up off the ring, then retires */
-.xh-float{position:absolute;left:88px;top:4px;font-size:15px;font-weight:800;color:var(--green-bright);text-shadow:0 0 16px rgba(var(--green-rgb), 0.5);pointer-events:none;animation:xh-float 1.7s var(--ease-out) forwards}
+.xh-float{position:absolute;left:88px;top:4px;font-size:var(--t-md);font-weight:800;color:var(--green-bright);text-shadow:0 0 16px rgba(var(--green-rgb), 0.5);pointer-events:none;animation:xh-float 1.7s var(--ease-out) forwards}
 @keyframes xh-float{0%{opacity:0;transform:translateY(9px)}18%{opacity:1;transform:translateY(0)}72%{opacity:1}100%{opacity:0;transform:translateY(-9px)}}
 /* formula: the same four parts the breakdown screen shows, as one stacked /100 bar.
    Segment growth runs on the ring's own clock so the score visibly assembles. */
@@ -810,7 +810,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xf-bar i.b{background:linear-gradient(90deg,var(--blue-deep),var(--blue-bright))}
 .xf-bar i.c{background:linear-gradient(90deg,var(--cyan-deep),var(--cyan-bright))}
 .xf-bar i.a{background:linear-gradient(90deg,var(--amber-deep),var(--amber-bright))}
-.xhero .xh-next{display:flex;align-items:flex-start;gap:6px;font-size:12px;font-weight:600;letter-spacing:-.01em;color:var(--text-2);margin-top:12px;padding-top:10px;border-top:1px solid var(--hairline-soft)}
+.xhero .xh-next{display:flex;align-items:flex-start;gap:6px;font-size:var(--t-sm);font-weight:600;letter-spacing:-.01em;color:var(--text-2);margin-top:12px;padding-top:10px;border-top:1px solid var(--hairline-soft)}
 .xhero .xh-next svg{color:var(--blue-bright);flex:none}
 .xhero .xh-next b{color:var(--text);font-weight:800}
 /* coach-seen receipt — proof a real person opened the day; injected only when true */
@@ -830,7 +830,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xg-row:active{background:var(--surface-2)}
 .xg-row .xr{flex:1;min-width:0}
 .xg-row .xa{font-size:14px;font-weight:700;letter-spacing:-.01em}
-.xg-row .xb{font-size:11.5px;color:var(--text-3);margin-top:1px}
+.xg-row .xb{font-size:var(--t-xs);color:var(--text-3);margin-top:1px}
 /* ---- ONE NOW system: any NOW card wears the same gold chrome and needs air below the hero. ---- */
 .xnow{margin-top:12px}
 /* ---- Recent Results: lateral snap rail of outcome cards (photo or type-tinted icon,
@@ -847,19 +847,19 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .res-nophoto{position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:8.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3)}
 .res-media.icon svg{width:30px;height:30px}
 .res-body{padding:12px 14px 14px}
-.res-t{font-size:13.5px;font-weight:800;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.res-time{font-size:10.5px;font-weight:700;color:var(--text-3);margin-top:2px}
+.res-t{font-size:var(--t-base);font-weight:800;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.res-time{font-size:var(--t-xs);font-weight:700;color:var(--text-3);margin-top:2px}
 .res-m{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--hairline-soft)}
-.res-m .k{font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);white-space:nowrap}
-.res-m .v{font-size:15px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.res-m .v small{font-size:10px;font-weight:700;color:var(--text-3)}
+.res-m .k{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);white-space:nowrap}
+.res-m .v{font-size:var(--t-md);font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.res-m .v small{font-size:var(--t-eyebrow);font-weight:700;color:var(--text-3)}
 .res-m .v.g{color:var(--green-bright)} .res-m .v.a{color:var(--amber-bright)}
 .res-m .v.r{color:var(--red)} .res-m .v.b{color:var(--blue-bright)}
 .res-m .v.muted{color:var(--text-2)}
 .xstrip .xmid{flex:1;display:flex;flex-direction:column;gap:8px}
 .xstrip .xrow{display:flex;align-items:center;gap:8px}
 /* score-in-ring: the 96px hero .score rule must not leak into the compact 64px strip dial */
-.xstrip .ring-center.num .score{font-size:22px;letter-spacing:var(--num-tight);color:var(--text);text-shadow:none}
+.xstrip .ring-center.num .score{font-size:var(--t-xl);letter-spacing:var(--num-tight);color:var(--text);text-shadow:none}
 .xsegs{display:flex;gap:6px}
 .xsegs i{height:5px;flex:1;border-radius:var(--r-micro);background:var(--surface-3)}
 .xsegs i.on{background:linear-gradient(90deg,var(--green),var(--green-bright))}
@@ -899,12 +899,12 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xnow .xl{font-size:10px;font-weight:800;letter-spacing:.16em;color:var(--amber-bright)}
 .xnow.red .xl{color:var(--red)}
 .xnow .xmain{display:flex;gap:12px;align-items:center;margin-top:12px}
-.xnow .xt{font-size:19px;font-weight:800;letter-spacing:var(--title-tight)}
-.xnow .xwhy{font-size:12px;color:var(--text-2);line-height:1.45;margin-top:2px}
+.xnow .xt{font-size:var(--t-xl);font-weight:800;letter-spacing:var(--title-tight)}
+.xnow .xwhy{font-size:var(--t-sm);color:var(--text-2);line-height:1.45;margin-top:2px}
 .xcount{display:flex;align-items:baseline;gap:8px;margin:14px 0 12px}
 .xcount .xcd{font-size:34px;font-weight:800;letter-spacing:var(--num-tight);color:var(--amber-bright);font-variant-numeric:tabular-nums}
 .xnow.red .xcd{color:var(--red)}
-.xcount .xdl{font-size:12px;color:var(--text-2);font-weight:700}
+.xcount .xdl{font-size:var(--t-sm);color:var(--text-2);font-weight:700}
 /* Overdue has no countdown to run, so it has no numeral: the sentence IS the content ("Was due
    2:00 PM — still counts, log it late"). It replaces the display-size "Late" that used to sit
    beside it saying less, and steps up to body size to carry the row on its own. */
@@ -917,7 +917,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    struggling athlete needs to press. (The amber card keeps its amber CTA: there, amber is the
    card's own identity, not a judgement about the athlete.) */
 .xnow.red .xcta{background:linear-gradient(150deg,var(--blue-bright),var(--blue-deep));color:#fff;box-shadow:var(--sh-blue)}
-.xgrp{font-size:11px;font-weight:800;letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--text-3);margin:12px 4px 8px}
+.xgrp{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--text-3);margin:12px 4px 8px}
 /* WS6 collapse primitive: a <details> whose summary reuses the .xgrp header look. Native
    toggle, no JS state; chevron rotates on open; body keeps the ladder's row rhythm. */
 .xcollapse{margin:0}
@@ -929,7 +929,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xrow-item{display:flex;align-items:center;gap:12px;background:var(--surface-1);border:1px solid transparent;border-radius:var(--r-card-sm);padding:10px 12px;cursor:pointer;box-shadow:var(--sh-card)}
 .xrow-item .xr{flex:1}
 .xrow-item .xa{font-size:14px;font-weight:700;letter-spacing:-.01em}
-.xrow-item .xb{font-size:11.5px;color:var(--text-3);margin-top:1px}
+.xrow-item .xb{font-size:var(--t-xs);color:var(--text-3);margin-top:1px}
 /* Done rows: green is an ACCENT (icon tile + soft border), not the row's identity — the
    old full green wash (bg gradient + green title + green pill) out-shouted the open NOW
    card. Completed work should read settled, not compete for attention. */
@@ -954,10 +954,10 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xico.red{background:var(--red-surface);color:var(--red);border:1px solid var(--red-border)}
 .xico.sm{width:38px;height:38px;border-radius:var(--r-chip)}
 .xrecord{background:var(--surface-1);border:1px solid transparent;border-radius:var(--r-card);padding:6px 14px;text-align:left;box-shadow:var(--sh-card)}
-.xrec{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--hairline-soft);font-size:13px;font-weight:700}
+.xrec{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--hairline-soft);font-size:var(--t-sm);font-weight:700}
 .xrec:last-child{border-bottom:none}
 .xrec .xtk{width:22px;height:22px;border-radius:var(--r-chip);background:var(--green-surface);color:var(--green-bright);display:grid;place-items:center;flex:0 0 auto}
-.xrec .xtm{margin-left:auto;font-size:11px;color:var(--text-3);font-weight:700;font-variant-numeric:tabular-nums}
+.xrec .xtm{margin-left:auto;font-size:var(--t-xs);color:var(--text-3);font-weight:700;font-variant-numeric:tabular-nums}
 .xcelebwrap{display:flex;flex-direction:column;align-items:center;text-align:center}
 /* Closing-soon: the last 45 minutes of a window. Same amber family (red stays reserved
    for overdue), but the wash deepens and the countdown breathes. */
@@ -992,8 +992,8 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 
 /* ---- action hub ---- */
 .hub-head{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 8px}
-.hub-head .a{font-size:15px;font-weight:800;letter-spacing:-.01em}
-.hub-head .b{font-size:11.5px;font-weight:800;color:var(--text-2);font-variant-numeric:tabular-nums}
+.hub-head .a{font-size:var(--t-md);font-weight:800;letter-spacing:-.01em}
+.hub-head .b{font-size:var(--t-xs);font-weight:800;color:var(--text-2);font-variant-numeric:tabular-nums}
 .hub-head .b em{font-style:normal;color:var(--green-bright)}
 .hub-hero{display:flex;align-items:center;gap:12px;background:linear-gradient(140deg,rgba(var(--amber-rgb), 0.18),rgba(var(--amber-rgb), 0.05)),var(--surface-2);border:1px solid var(--amber-border);border-radius:var(--r-card-sm);padding:14px 14px;margin:12px 0;cursor:pointer}
 .hub-hero.red{background:linear-gradient(140deg,rgba(var(--red-rgb), 0.18),rgba(var(--red-rgb), 0.05)),var(--surface-2);border-color:var(--red-border)}
@@ -1005,7 +1005,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .fab-dot.gold{background:var(--amber-bright)}
 .fab-dot.red{background:var(--red)}
 .hub-celeb{text-align:center;padding:10px 6px 4px}
-.hub-celeb .n{font-size:38px;font-weight:800;letter-spacing:var(--num-tight)}
+.hub-celeb .n{font-size:var(--t-3xl);font-weight:800;letter-spacing:var(--num-tight)}
 
 /* ---- meal thread page ---- */
 /* Compact logged confirmation (2026-07-16): green = compliance only. Left-aligned,
@@ -1509,8 +1509,8 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* The bar carries the state as well as the number, so the card reads at a glance without
    anyone having to parse "7,842 of 10,000". */
 .cs-bar{height:7px;border-radius:var(--r-pill);background:var(--surface-3);overflow:hidden;margin:10px 0 8px}
-.cs-bar > i{display:block;height:100%;width:100%;transform-origin:left;transform:scaleX(0);background:linear-gradient(90deg,var(--ring-c),var(--ring-b))}
-.cs-bar.green > i{background:linear-gradient(90deg,var(--ring-a),var(--ring-b))}
+.cs-bar > i{display:block;height:100%;width:100%;transform-origin:left;transform:scaleX(0);background:linear-gradient(90deg,var(--blue-deep),var(--blue-bright))}
+.cs-bar.green > i{background:linear-gradient(90deg,var(--green-deep),var(--green))}
 .cs-bar.amber > i{background:linear-gradient(90deg,var(--amber-deep),var(--amber))}
 @media (prefers-reduced-motion: no-preference){
   .cs-bar > i{transition:transform var(--dur-3) var(--ease-out)}
@@ -1541,12 +1541,12 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .cscol .hatch{position:absolute;inset:0;
   background:repeating-linear-gradient(135deg,rgba(var(--amber-rgb),.26) 0 5px,transparent 5px 10px)}
 .cscol .fill{position:absolute;left:0;right:0;bottom:0;height:0;
-  background:linear-gradient(180deg,var(--ring-b),var(--ring-c))}
+  background:linear-gradient(180deg,var(--blue),var(--blue-deep))}
 /* The lit lip is the fill's own ::after, so it rides the height for free — no second animated
    property, and no chance of the surface and the water disagreeing mid-draw. */
 .cscol .fill::after{content:'';position:absolute;left:0;right:0;top:0;height:2px;
   background:rgba(255,255,255,.9);box-shadow:0 0 12px rgba(255,255,255,.72)}
-.cscol.done .fill{background:linear-gradient(180deg,var(--ring-b),var(--ring-a))}
+.cscol.done .fill{background:linear-gradient(180deg,var(--green),var(--green-deep))}
 .cscol.done .fill::after{background:#ECFFF7;box-shadow:0 0 16px 2px rgba(var(--green-rgb),.85)}
 .cscol.partial .fill::after{background:var(--amber-bright);box-shadow:0 0 12px rgba(var(--amber-rgb),.7)}
 .cscol.missed .fill::after{background:var(--red-bright);box-shadow:0 0 12px rgba(var(--red-rgb),.7)}
@@ -1614,13 +1614,13 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    week still fills the row. The label track carries the identical cap so the two stay aligned. */
 .cs-mom b{flex:1 1 0;min-width:0;max-width:48px;border-radius:5px 5px 3px 3px;
   background:var(--surface-3);min-height:3px;align-self:flex-end}
-.cs-mom b.ok{background:linear-gradient(180deg,var(--ring-b),var(--ring-c))}
+.cs-mom b.ok{background:linear-gradient(180deg,var(--blue),var(--blue-deep))}
 .cs-mom b.miss{background:rgba(var(--red-rgb),.32)}
 .cs-mom b.gap{background:repeating-linear-gradient(135deg,rgba(var(--amber-rgb),.30) 0 4px,transparent 4px 8px);
   border:1px solid var(--amber-border)}
 .cs-mom b.exc{background:var(--surface-3);opacity:.5}
-.cs-mom b.now{background:linear-gradient(180deg,var(--ring-b),var(--ring-c));
-  box-shadow:0 0 14px rgba(var(--teal-rgb),.5)}
+.cs-mom b.now{background:linear-gradient(180deg,var(--blue),var(--blue-deep));
+  box-shadow:0 0 14px rgba(var(--blue-rgb),.5)}
 .cs-momlabs{display:flex;gap:6px;margin-top:6px}
 .cs-momlabs span{flex:1 1 0;min-width:0;max-width:48px;text-align:center;font-size:var(--t-eyebrow);
   font-weight:800;letter-spacing:var(--track-key);color:var(--text-3)}
@@ -1663,7 +1663,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* Roster-row progress: thin, because on the coach's board it is a glance-level cue next to the
    status pill, not the headline the athlete's own card makes it. */
 .cs-mini{height:4px;border-radius:var(--r-pill);background:var(--surface-3);overflow:hidden;margin-top:6px}
-.cs-mini > i{display:block;height:100%;border-radius:var(--r-pill);background:linear-gradient(90deg,var(--ring-c),var(--ring-b))}
+.cs-mini > i{display:block;height:100%;border-radius:var(--r-pill);background:linear-gradient(90deg,var(--blue-deep),var(--blue-bright))}
 .cs-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 
 /* ---- editor knobs ----

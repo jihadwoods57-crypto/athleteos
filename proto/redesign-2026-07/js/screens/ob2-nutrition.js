@@ -115,7 +115,7 @@ function queueRow({ name, meal, score, quiet, flagged, thumb }) {
 
 /* ---------- per-client protein-consistency bars (plain divs, no chart lib) ---------- */
 function trendRow(name, days, pct) {
-  const bars = days.map((h) => `<i style="display:block;width:9px;height:${Math.max(6, Math.round(h * 0.44))}px;border-radius:2.5px;background:${h >= 70 ? 'var(--ring-b)' : h >= 40 ? 'var(--amber-bright)' : 'var(--surface-3)'}"></i>`).join('');
+  const bars = days.map((h) => `<i style="display:block;width:9px;height:${Math.max(6, Math.round(h * 0.44))}px;border-radius:2.5px;background:${h >= 70 ? 'var(--green)' : h >= 40 ? 'var(--amber-bright)' : 'var(--surface-3)'}"></i>`).join('');
   return `
   <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--hairline-soft)">
     <div style="flex:1;min-width:0;font-size:13.5px;font-weight:700">${esc(name)}</div>

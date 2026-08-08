@@ -146,9 +146,9 @@ body {
   display: flex; align-items: flex-start; justify-content: space-between;
   padding:10px 0 18px;
 }
-.apphead .greeting { font-size: 15px; font-weight: 600; color: var(--text-2); letter-spacing: 0.01em; }
-.apphead .name { font-size: 27px; font-weight: 800; letter-spacing: var(--title-tight); margin-top:2px; }
-.apphead-sub { font-size: 13px; font-weight: 600; color: var(--text-2); margin-top:4px; white-space: nowrap; }
+.apphead .greeting { font-size: var(--t-md); font-weight: 600; color: var(--text-2); letter-spacing: 0.01em; }
+.apphead .name { font-size: var(--t-2xl); font-weight: 800; letter-spacing: var(--title-tight); margin-top:2px; }
+.apphead-sub { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:4px; white-space: nowrap; }
 .apphead .actions { display: flex; align-items: center; gap:10px; margin-top:4px; }
 .iconbtn {
   width: 44px; height: 44px; border-radius: var(--r-pill);
@@ -163,13 +163,13 @@ body {
      read AS text on a dark surface (3.27:1 the other way round). Same reason as the delete
      button — the sweep only caught that one because no badge happened to be visible. */
   border-radius: var(--r-pill); background: var(--danger-solid); color: #fff;
-  font-size: 10.5px; font-weight: 800; display: grid; place-items: center;
+  font-size: var(--t-eyebrow); font-weight: 800; display: grid; place-items: center;
   border: 2px solid var(--surface-1); font-variant-numeric: tabular-nums;
 }
 .avatar {
   width: 42px; height: 42px; border-radius: var(--r-pill);
   background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep));
-  color: #fff; font-weight: 800; font-size: 15px; display: grid; place-items: center;
+  color: #fff; font-weight: 800; font-size: var(--t-md); display: grid; place-items: center;
   box-shadow: var(--sh-blue); cursor: pointer; letter-spacing: -0.02em;
 }
 /* Header avatar holds the row's alignment against the now-44px bell and keeps the 44px floor. */
@@ -177,11 +177,11 @@ body {
 
 /* ===== Section label ===== */
 .eyebrow {
-  font-size: 11px; font-weight: 800; letter-spacing: var(--track-eyebrow); text-transform: uppercase;
+  font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-eyebrow); text-transform: uppercase;
   color: var(--text-3); margin:26px 2px 12px;
   display: flex; align-items: center; justify-content: space-between;
 }
-.eyebrow .link { color: var(--blue-bright); letter-spacing: 0.02em; text-transform: none; font-size: 13px; font-weight: 700; cursor: pointer; }
+.eyebrow .link { color: var(--blue-bright); letter-spacing: 0.02em; text-transform: none; font-size: var(--t-sm); font-weight: 700; cursor: pointer; }
 
 /* ===== Card =====
    ONE CONTAINER, DRAWN ONCE. This primitive used to carry a fill, a 1px border AND a shadow —
@@ -216,11 +216,13 @@ body {
 /* A 22s rotating conic aurora and a 4.5s breathing cyan halo used to live here, both blurred,
    both behind the score. Removed 2026-08-08 with the ring's other decorative layers; see the note
    on scoreRing() in components.js. The band's own sweep is the signature. */
-/* The still-reachable stretch: present enough to read as a path, quiet enough that it can never
-   be mistaken for points already earned. (SVG presentation attributes can't take var(), so the
-   dimming lives here rather than on the element.) */
-.ring-arc.ring-ceil { opacity: 0.32; }
-:root[data-theme="light"] .ring-arc.ring-ceil { opacity: 0.38; }
+/* The still-reachable stretch. It used to be the BAND's own gradient dimmed to 0.32, which put a
+   hard-capped chunk of dark band past the marker — at a glance it read as a drop shadow that
+   failed to render, not as "what you can still earn". A CSS stroke overrides the SVG attribute,
+   so it now wears the TRACK's family, brightened: unmistakably path, not points. The concept
+   stays quiet enough that it can never be confused with credit already banked. */
+.ring-arc.ring-ceil { stroke: rgba(148, 176, 224, 0.26); opacity: 1; }
+:root[data-theme="light"] .ring-arc.ring-ceil { stroke: rgba(15, 23, 42, 0.13); }
 /* Completion flare — the band lands and the ring exhales once: a halo bloom expanding just past
    the band, then gone (fill forwards keeps it at opacity 0; the class only ever re-arms through
    windBack). Sits at z 0, behind the SVG, so it can never wash the numerals. Under reduced motion
@@ -250,7 +252,7 @@ body {
    Custom properties cascade independently of that fight, so this cannot regress the same way. */
 .ring-center .score {
   font-family: var(--font-display);
-  --score-size: 88px;
+  --score-size: var(--t-score);
   --score-fit: 1;
   font-size: calc(var(--score-size) * var(--score-fit));
   font-weight: 900; line-height: 0.95; letter-spacing: -0.02em;
@@ -261,8 +263,8 @@ body {
 /* A perfect 100 is three digits in an EXPANDED face, ~50% wider than "92", and it has to fit inside
    the band rather than spill over it. Measured against every ring size the app renders. */
 .ring-center .score.d3 { --score-fit: 0.74; }
-.ring-center .outof { font-size: 16px; font-weight: 700; color: var(--text-2); margin-top:0; }
-.ring-center .delta { font-size: 14.5px; font-weight: 700; display: inline-flex; align-items: center; gap:6px; margin-top:10px; }
+.ring-center .outof { font-size: var(--t-md); font-weight: 700; color: var(--text-2); margin-top:0; }
+.ring-center .delta { font-size: var(--t-base); font-weight: 700; display: inline-flex; align-items: center; gap:6px; margin-top:10px; }
 .ring-center .delta .up { color: var(--green-bright); display: inline-flex; align-items: center; gap:4px; }
 .ring-center .delta .muted { color: var(--text-2); font-weight: 600; }
 .streak-pill {
@@ -337,7 +339,7 @@ body {
 .req-sub.b { color: var(--blue-bright); }  .req-sub.p { color: var(--purple-bright); }
 .req-right { display: flex; flex-direction: column; align-items: flex-end; gap:6px; flex: none; margin-left:2px; }
 .status-pill {
-  font-size: 11px; font-weight: 800; letter-spacing: 0.02em; padding:4px 10px; border-radius: var(--r-pill);
+  font-size: var(--t-xs); font-weight: 800; letter-spacing: 0.02em; padding:4px 10px; border-radius: var(--r-pill);
   border: 1.5px solid transparent;
 }
 .status-pill.g { color: var(--green-bright); border-color: var(--green-border); background: rgba(var(--green-rgb), 0.10); }
@@ -468,7 +470,7 @@ body {
     rgba(var(--bg-rgb), 0.72) 68%,
     rgba(var(--bg-rgb), 0)    100%);
 }
-.tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap:6px; min-height: 44px; color: var(--text-3); cursor: pointer; font-size: 10.5px; font-weight: 700; letter-spacing: 0.01em; transition: color var(--dur-2) var(--ease-out); }
+.tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap:6px; min-height: 44px; color: var(--text-3); cursor: pointer; font-size: var(--t-eyebrow); font-weight: 700; letter-spacing: 0.01em; transition: color var(--dur-2) var(--ease-out); }
 /* The active tab is LIT, not just recolored: a soft cast of its own hue behind the glyph reads as
    a live indicator without adding a single pixel of chrome. drop-shadow (not box-shadow) hugs the
    icon's strokes, and the rgb triples keep the glow on-theme in light mode. */

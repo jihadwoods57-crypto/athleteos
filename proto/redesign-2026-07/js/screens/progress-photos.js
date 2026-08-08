@@ -111,7 +111,7 @@ function cell(p) {
 function browseView() {
   const photos = CACHE.photos || [];
   const canCompare = photos.length >= 2;
-  return `${backHead('Progress photos', 'Your before & after — private to you and your coach', 'progress')}
+  return `${backHead('Progress photos', 'Your before & after · private to you and your coach', 'progress')}
 
   <div style="display:flex;gap:8px">
     <button class="btn green sm" id="pp-add" style="flex:1">${icon('camera', 16)} Add photo</button>

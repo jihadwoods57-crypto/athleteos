@@ -8,6 +8,11 @@
        accessibility, but an in-app WKWebView honours it. -->
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>OnStandard — Athlete App Redesign</title>
+  <!-- Without a declared icon the browser fires GET /favicon.ico on every load — a guaranteed 404
+       in the console noise, and the first "error" anyone profiling the app has to rule out. The
+       WebView never shows an icon, so an empty data: URI is the honest answer, not an asset. -->
+  <link rel="icon" href="data:," />
+
   <link rel="stylesheet" href="./css/fonts.css" />
   <link rel="stylesheet" href="./css/tokens.css" />
   <link rel="stylesheet" href="./css/app.css" />

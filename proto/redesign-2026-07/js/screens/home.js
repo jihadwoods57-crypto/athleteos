@@ -86,7 +86,7 @@ function coachNudgeHtml(text) {
   return `
   <div class="trust" style="margin:12px 0 10px;background:linear-gradient(100deg, rgba(168,85,247,0.12), rgba(59,130,246,0.05));border-color:var(--purple-border, rgba(168,85,247,0.35))">
     <div class="ic" style="background:rgba(168,85,247,0.18);color:var(--purple-bright)">${icon('sparkle', 20)}</div>
-    <div style="flex:1"><div class="tt" style="display:flex;align-items:center;gap:6px">Your coach<span class="status-pill muted" style="font-size:10px;padding:1px 6px">AI</span></div>
+    <div style="flex:1"><div class="tt" style="display:flex;align-items:center;gap:6px">Your coach<span class="status-pill muted" style="font-size:var(--t-eyebrow);padding:1px 6px">AI</span></div>
     <div class="ts">${esc(text)}</div></div>
   </div>`;
 }
@@ -139,7 +139,11 @@ function resCard(a) {
     : `<div class="res-media icon" style="background:linear-gradient(150deg, ${c1}, ${c2});color:${fg}">${icon(a.icon || 'droplet', 30)}${a.noPhoto ? '<span class="res-nophoto">No photo submitted</span>' : ''}</div>`;
   const metrics = a.qualityLabel
     ? `<div class="res-m"><span class="k">Meal Quality</span><span class="v ${a.vClass}">${a.value}<small>${a.unit}</small></span></div>
-      ${a.impact > 0 ? `<div class="res-m"><span class="k">Daily Score</span><span class="v g">+${a.impact}</span></div>` : ''}`
+      ${/* "Score credit", not "Daily Score". Two 0–100-ish numbers were sharing this card with
+            nothing relating them: "Meal Quality 65/100" (the plate read) beside "Daily Score +14",
+            where +14 is neither a score nor on the same scale — it is the points this meal banked.
+            "credit" names the relationship in one word. */''}
+      ${a.impact > 0 ? `<div class="res-m"><span class="k">Score credit</span><span class="v g">+${a.impact}</span></div>` : ''}`
     : `<div class="res-m"><span class="k">${RES_K[a.type] || 'Status'}</span><span class="v ${a.vClass}">${a.value}</span></div>`;
   return `<div class="res-card" ${a.route ? `data-go="${a.route}"` : ''}>
     ${media}
@@ -170,11 +174,11 @@ function outcomeBand() {
   return `<section class="card pad" data-go="progress" style="cursor:pointer;margin-top:12px">
     <div class="eyebrow" style="margin:0 0 8px">Your progress</div>
     <div style="display:flex;justify-content:space-between;align-items:baseline">
-      <div class="bigstat"><span class="n" style="font-size:30px">${esc(W.current)}<small style="font-size:13px;font-weight:700;color:var(--text-3)"> lb</small></span></div>
+      <div class="bigstat"><span class="n" style="font-size:var(--t-3xl)">${esc(W.current)}<small style="font-size:var(--t-sm);font-weight:700;color:var(--text-3)"> lb</small></span></div>
       ${W.pace ? `<span class="status-pill ${W.pace === 'On pace' ? 'g' : 'a'}">${W.pace}</span>` : ''}
     </div>
-    <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">${esc(deltaLabel)}${W.target != null ? ` · goal ${W.target} lb` : ''}</div>
-    ${days > 0 ? `<div style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:800;color:var(--amber-bright);margin-top:8px">${icon('flame', 14)}${days}-day streak</div>` : ''}
+    <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:2px">${esc(deltaLabel)}${W.target != null ? ` · goal ${W.target} lb` : ''}</div>
+    ${days > 0 ? `<div style="display:flex;align-items:center;gap:5px;font-size:var(--t-sm);font-weight:800;color:var(--amber-bright);margin-top:8px">${icon('flame', 14)}${days}-day streak</div>` : ''}
   </section>`;
 }
 
@@ -513,11 +517,11 @@ function celebration(e) {
       aria-label="Daily Score ${e.score}, ${S.tier.name}. Every requirement complete. Open score breakdown">
       ${scoreRing({ score: e.score, tierName: S.tier.name, tierCls: S.tier.cls })}
     </section>
-    <div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-top:2px">You're OnStandard.</div>
+    <div style="font-size:var(--t-xl);font-weight:800;letter-spacing:-.02em;margin-top:2px">You're OnStandard.</div>
     <!-- One meta line, no echoes: the ring already says the score and (by color) the tier; the
          record list below already proves every requirement is in. Everything left that's UNIQUE
          lives here — delta, streak day, and when it locks. -->
-    <div style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-2);margin-top:6px">
+    <div style="display:flex;align-items:center;gap:7px;font-size:var(--t-sm);color:var(--text-2);margin-top:6px">
       ${/* deltaChip(), not a second inline copy of it. The copy that lived here rendered ONLY when
             today beat yesterday, so a day where you completed everything and still came in lower
             showed no delta at all — the app quietly hiding the one number that says you slipped,
@@ -553,7 +557,7 @@ function notScoredHero() {
   return `<section class="xhero" style="cursor:default">
     <div class="xh-main">
       <div style="width:102px;height:102px;border-radius:50%;border:10px solid var(--surface-3);display:flex;align-items:center;justify-content:center;flex:0 0 auto">
-        <span style="font-size:34px;font-weight:800;color:var(--text-3)">—</span></div>
+        <span style="font-size:var(--t-3xl);font-weight:800;color:var(--text-3)">—</span></div>
       <div class="xh-body">
         <div class="xh-k">Daily Score</div>
         <div class="xrow"><span class="status-pill" style="background:var(--surface-2);color:var(--text-2)">Not scored yet</span></div>
