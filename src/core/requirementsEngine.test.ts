@@ -108,12 +108,37 @@ describe('catalogFromItems — server items to catalog-shaped requirements', () 
     expect(r!.proof).toBe('photo');
   });
   test('malformed items are dropped, not repaired', () => {
-    expect(catalogFromItems([{ kind: 'meal' }, null, 'nope' as any])).toEqual([]);
-    expect(catalogFromItems(undefined as any)).toEqual([]);
+    // v2 (score-breakdown Task 8 review, finding 1): recovery is force-included regardless of
+    // input (see the describe block below), so a malformed-only / missing input still yields
+    // exactly the forced recovery entry — never a repaired/invented meal or lift out of the junk.
+    expect(catalogFromItems([{ kind: 'meal' }, null, 'nope' as any]).map((r: any) => r.id)).toEqual(['recovery']);
+    expect(catalogFromItems(undefined as any).map((r: any) => r.id)).toEqual(['recovery']);
   });
   test('weigh keeps trend impact (never daily points)', () => {
     const [r] = catalogFromItems([{ id: 'w', title: 'Morning Weight', kind: 'weigh', proof: 'scale' }]);
     expect(r!.impact.kind).toBe('trend');
+  });
+});
+
+describe('catalogFromItems — recovery is force-included, never coach-optional (score-breakdown Task 8 review)', () => {
+  test('a stored standard with no recovery item still surfaces one', () => {
+    const reqs = catalogFromItems([{ id: 'm1', title: 'Breakfast', kind: 'meal', proof: 'photo' }]);
+    const recovery = reqs.find((r: any) => r.id === 'recovery');
+    expect(recovery).toBeTruthy();
+    expect(recovery!.required).toBe(true);
+    expect(recovery!.impact).toEqual({ kind: 'component', comp: 'recovery' });
+  });
+  test('a stored standard that already has recovery is never duplicated', () => {
+    const reqs = catalogFromItems([
+      { id: 'm1', title: 'Breakfast', kind: 'meal', proof: 'photo' },
+      { id: 'recovery', title: 'Recovery Check-In', kind: 'recovery', proof: 'form' },
+    ]);
+    expect(reqs.filter((r: any) => r.id === 'recovery').length).toBe(1);
+  });
+  test('a stale pre-cutover kind:checkin item still carries no route to the deleted screen', () => {
+    const reqs = catalogFromItems([{ id: 'weekly', title: 'Weekly Check-In', kind: 'checkin', proof: 'form' }]);
+    const stale = reqs.find((r: any) => r.id === 'weekly');
+    expect(stale!.route).toBeUndefined();
   });
 });
 

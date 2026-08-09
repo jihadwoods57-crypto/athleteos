@@ -41,7 +41,12 @@ export function weightPct(comp) { return Math.round((impactWeights()[comp] || 0)
 
 export const IMPACT_LABEL = {
   get nutrition() { return `Nutrition · ${weightPct('nutrition')}% of score`; },
-  get recovery()  { return `Recovery · ${weightPct('recovery')}% of score`; },
+  // v2: the Recovery pillar the athlete actually sees is the SUM of the engine's two internal
+  // slots (checkin + recovery) — see breakdown-model.js's "ONE Recovery card" comment. A lone
+  // weightPct('recovery') understates it by half (12% instead of 24%); this is the same
+  // liveWeightPct('checkin') + liveWeightPct('recovery') pattern already established in
+  // log.js/features.js/settings.js/ob2-meal.js/roles.js and screens/coach.js's standard editor.
+  get recovery()  { return `Recovery · ${weightPct('checkin') + weightPct('recovery')}% of score`; },
   trend:     'Season trend · not scored',
   focus:     "This week's focus · coach sees it",
   plan:      'Part of your plan · commitment covers it',
@@ -275,32 +280,55 @@ const KIND_DEFAULTS = {
   custom:    { icon: 'clipboard', accent: 'b', proof: 'check', required: true, impact: { kind: 'plan' }, reminder: 'medium', freq: { type: 'daily' } },
 };
 
+function catalogItemFrom(it) {
+  if (!it || typeof it !== 'object' || !it.id || !it.title) return null;
+  // Hydration is off the app entirely — coach sets authored before the removal may still
+  // carry the item; it must not fall through to the 'custom' default and become a task.
+  if (it.kind === 'hydration') return null;
+  const d = KIND_DEFAULTS[it.kind] || KIND_DEFAULTS.custom;
+  return {
+    id: String(it.id), title: String(it.title),
+    icon: it.icon || d.icon, accent: d.accent,
+    proof: PROOF[it.proof] ? it.proof : d.proof,
+    freq: it.freq && it.freq.type ? it.freq : d.freq,
+    window: it.window && typeof it.window === 'object' ? it.window : { due: 23 * 60 + 30, label: 'Before bed' },
+    // Grace minutes ride the requirement so the coach status engine (status.js) judges "overdue"
+    // with the SAME deadline+grace the athlete's day engine applies (day.js slotGrace). Clamped
+    // exactly like stdFromItems; absent/invalid grace = 0 (the shipped, grace-free behavior).
+    grace: typeof it.grace === 'number' && it.grace >= 0 ? Math.min(240, Math.round(it.grace)) : 0,
+    required: it.required !== false && d.required,
+    impact: d.impact, reminder: d.reminder,
+    note: typeof it.note === 'string' ? it.note : '',
+    ...(d.route ? { route: d.route } : {}),
+  };
+}
+
+// The exact recovery item itemsFromKnobs (coach.js) writes into every standard going forward —
+// reused here as the FORCED fallback below, so a synthesized entry is byte-identical to a real one.
+const RECOVERY_ITEM = { id: 'recovery', title: 'Recovery Check-In', kind: 'recovery', proof: 'form', freq: { type: 'daily' }, window: { due: 1410, label: 'Before bed' } };
+
 /** Map a server set's items (validated jsonb) into CATALOG-shaped requirements. Pure.
-    Unknown kinds fall back to 'custom'; a malformed item is dropped, never invented. */
+    Unknown kinds fall back to 'custom'; a malformed item is dropped, never invented.
+
+    v2: recovery is never optional, so this is the ONE chokepoint that guarantees every coach-
+    side consumer agrees with the athlete's actual score. A room's requirement_sets row saved
+    before the cutover may carry no recovery item at all (the old "off" state serialized as its
+    absence, not a `recovery:false` flag) — every reader of a stored set's items routes through
+    here (coach-data.js entriesFor/loadAthleteProfile, status.js's openItems downstream of those,
+    screens/coach.js requirementsSection, screens/coach-insights.js buildReqsByAthlete), so
+    forcing it in here — rather than patching each of those five call sites, or the data itself —
+    means the coach's Governing-standard pane, roster status, and insights can never show "no
+    Recovery" while the athlete is genuinely being scored on it. Mirrors what state.js's
+    execCatalog already does on the athlete side (always sources Recovery from the built-in
+    CATALOG, never from a coach's stored items). */
 export function catalogFromItems(items) {
-  if (!Array.isArray(items)) return [];
-  return items.map((it) => {
-    if (!it || typeof it !== 'object' || !it.id || !it.title) return null;
-    // Hydration is off the app entirely — coach sets authored before the removal may still
-    // carry the item; it must not fall through to the 'custom' default and become a task.
-    if (it.kind === 'hydration') return null;
-    const d = KIND_DEFAULTS[it.kind] || KIND_DEFAULTS.custom;
-    return {
-      id: String(it.id), title: String(it.title),
-      icon: it.icon || d.icon, accent: d.accent,
-      proof: PROOF[it.proof] ? it.proof : d.proof,
-      freq: it.freq && it.freq.type ? it.freq : d.freq,
-      window: it.window && typeof it.window === 'object' ? it.window : { due: 23 * 60 + 30, label: 'Before bed' },
-      // Grace minutes ride the requirement so the coach status engine (status.js) judges "overdue"
-      // with the SAME deadline+grace the athlete's day engine applies (day.js slotGrace). Clamped
-      // exactly like stdFromItems; absent/invalid grace = 0 (the shipped, grace-free behavior).
-      grace: typeof it.grace === 'number' && it.grace >= 0 ? Math.min(240, Math.round(it.grace)) : 0,
-      required: it.required !== false && d.required,
-      impact: d.impact, reminder: d.reminder,
-      note: typeof it.note === 'string' ? it.note : '',
-      ...(d.route ? { route: d.route } : {}),
-    };
-  }).filter(Boolean);
+  const list = Array.isArray(items) ? items : [];
+  const mapped = list.map(catalogItemFrom).filter(Boolean);
+  if (!mapped.some((r) => r.id === 'recovery')) {
+    const forced = catalogItemFrom(RECOVERY_ITEM);
+    if (forced) mapped.push(forced);
+  }
+  return mapped;
 }
 
 /** Map a requirement_assignments row into the RT.assigned runtime shape. Pure.

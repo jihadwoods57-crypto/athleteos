@@ -92,7 +92,7 @@ export default {
     ${backHead('Recovery Check-In', 'Before bed · Takes 20 seconds')}
 
     <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:2px 2px 14px;line-height:1.55">
-      Recovery is ${liveWeightPct('recovery')}% of your OnStandard Score because readiness drives performance;
+      Recovery is ${liveWeightPct('checkin') + liveWeightPct('recovery')}% of your OnStandard Score because readiness drives performance;
       how recovered, rested, and available you are decides what tomorrow's work is worth.
     </div>
 

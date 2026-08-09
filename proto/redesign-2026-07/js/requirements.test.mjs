@@ -80,3 +80,36 @@ test('a stored item that still carries kind:checkin never routes to the deleted 
   assert.notEqual(req.route, 'checkin', 'a stale checkin-kind item still routes to the deleted screen');
   assert.equal(req.route, undefined, 'a stale checkin-kind item should carry no route at all (falls to custom)');
 });
+
+test('review finding 1: a stored standard with no recovery item still surfaces one to the coach', () => {
+  // A pre-cutover requirement_sets row can have no recovery item at all (the old "off" knob
+  // serialized as its absence). Recovery is never optional under v2 — coach-data.js's
+  // entriesFor/loadAthleteProfile, screens/coach.js's requirementsSection, and
+  // screens/coach-insights.js's buildReqsByAthlete all route every stored standard through
+  // catalogFromItems, so forcing it in here is the one chokepoint that keeps the coach's view
+  // from ever disagreeing with the athlete's real, always-scored day.
+  const noRecovery = catalogFromItems([
+    { id: 'meal-1', title: 'Breakfast', kind: 'meal', proof: 'photo', freq: { type: 'daily' }, window: { due: 570 } },
+  ]);
+  const recovery = noRecovery.find((r) => r.id === 'recovery');
+  assert.ok(recovery, 'catalogFromItems dropped Recovery entirely for a standard with no recovery item');
+  assert.equal(recovery.required, true);
+  assert.deepEqual(recovery.impact, { kind: 'component', comp: 'recovery' });
+});
+
+test('review finding 1: a stored standard that already has recovery is never duplicated', () => {
+  const items = [
+    { id: 'meal-1', title: 'Breakfast', kind: 'meal', proof: 'photo', freq: { type: 'daily' }, window: { due: 570 } },
+    { id: 'recovery', title: 'Recovery Check-In', kind: 'recovery', proof: 'form', freq: { type: 'daily' }, window: { due: 1410, label: 'Before bed' } },
+  ];
+  const reqs = catalogFromItems(items);
+  assert.equal(reqs.filter((r) => r.id === 'recovery').length, 1);
+});
+
+test('review finding 3: IMPACT_LABEL.recovery is the SUM, never the lone engine slot', () => {
+  // liveWeightPct('recovery') alone is 12 (the FALLBACK_WEIGHTS athlete row) — half the real
+  // pillar. The athlete's actual Recovery card, and every other live surface, quotes
+  // checkin + recovery (24). This label (screens/requirement.js's "what it touches" fact, on
+  // the real nightly Recovery Check-In requirement) must match.
+  assert.equal(IMPACT_LABEL.recovery, 'Recovery · 24% of score');
+});

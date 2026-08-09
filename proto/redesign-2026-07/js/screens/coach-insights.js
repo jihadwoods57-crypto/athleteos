@@ -69,7 +69,16 @@ function buildReqsByAthlete(roster, extras) {
     const set = resolveRequirementSet(sets, r.athleteId, r.position);
     if (set) {
       const kindById = {};
-      for (const it of (set.items || [])) { if (it && it.id != null) kindById[String(it.id)] = it.kind; }
+      for (const it of (set.items || [])) {
+        if (!it || it.id == null) continue;
+        // v2: no live item is ever kind:'checkin' — the ritual and KIND_DEFAULTS.checkin are
+        // both deleted (Task 7/8). A pre-cutover row can still literally carry kind:'checkin'
+        // on a stale item; reattaching it unchanged would make mostMissed (insights.js:321)
+        // report it as a real weekly requirement forever (nothing can ever complete it again).
+        // Treat it like any other unrecognized kind — undefined here, so the fallback below
+        // reads it as 'custom', same silent disposition as a lift/custom item.
+        kindById[String(it.id)] = it.kind === 'checkin' ? undefined : it.kind;
+      }
       out[r.athleteId] = catalogFromItems(set.items).map(req => ({ ...req, kind: kindById[req.id] || 'custom' }));
     } else {
       out[r.athleteId] = CATALOG.map(c => ({ ...c, kind: CATALOG_KIND[c.id] }));
