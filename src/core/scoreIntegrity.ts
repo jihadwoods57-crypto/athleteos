@@ -125,12 +125,17 @@ export function evidenceFromDerived(d: Derived): ScoreEvidence {
 /**
  * Derive the evidence gates the SERVER trigger (0041) uses, from the row's OWN jsonb — not
  * from a Derived object. This mirrors the SQL exactly, so the property test can prove the
- * *server-side* ceiling (the authoritative control) never clamps an honest score — including
- * the weekly recovery CARRY, which the row self-describes via `checkin.ciLast` so the server
- * never has to reconstruct cross-day history it can't reliably see. Facts that genuinely live
- * outside the row (an active trust pass; a prior submitted row still visible server-side) are
- * passed via `ctx`; both only ever GRANT more ceiling, so omitting them stays a safe (never
- * false-positive) lower bound on what the SQL would allow.
+ * *server-side* ceiling (the authoritative control) never clamps an honest score. Facts that
+ * genuinely live outside the row (an active trust pass; a prior submitted row still visible
+ * server-side) are passed via `ctx`; both only ever GRANT more ceiling, so omitting them stays a
+ * safe (never false-positive) lower bound on what the SQL would allow.
+ *
+ * NOTE on the `ciLast` self-describe carry (pre-cutover rows only): it matches RN-WRITTEN rows
+ * only. `store/sync.ts` writes `ciLast` as a bare date STRING, which the check below and the SQL
+ * regex both accept. The proto — the shipped writer — writes the marker OBJECT `{date, recovery}`,
+ * which neither accepts, so for proto rows the cross-row `priorSubmittedInWeek` path is what
+ * actually grants the carry. Left as-is deliberately: no engine carries any more under v2, so
+ * widening a pre-cutover gate would buy nothing and only add tamper surface.
  */
 export function evidenceFromDayRow(
   row: {

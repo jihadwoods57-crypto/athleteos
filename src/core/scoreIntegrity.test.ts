@@ -118,8 +118,12 @@ describe('score v2 evidence ceiling — the cutover date guard', () => {
   });
 
   it('the pre-cutover ceiling is never TIGHTER than the post-cutover one for any evidence combination', () => {
-    // The invariant that makes the date guard safe in both directions. If this ever fails, some
-    // v2 row written under a pre-cutover date could be clamped below its honest score.
+    // HONEST SCOPE: this cannot fail while PRE_CUTOVER_CEILING is built with Math.max over the
+    // two eras — it is true by construction today. It is kept as a REGRESSION PIN, not a proof:
+    // the moment someone hardcodes the pre-cutover slots (the brief's original 55/35/15, say) or
+    // edits one of the three constants by hand, this is what catches it. What it genuinely
+    // guarantees is the property the date guard depends on — that a v2 score landing on a
+    // pre-cutover row can never be clamped below its honest value.
     for (const nutritionPossible of [false, true]) {
       for (const checkinPossible of [false, true]) {
         for (const commitmentPresent of [false, true]) {
@@ -224,7 +228,13 @@ describe('evidenceFromDayRow (mirrors the 0193 trigger gates)', () => {
   it('an all-false quick_added array is not evidence', () => {
     expect(evidenceFromDayRow({ date: D, meals: {}, checkin: {}, quick_added: [false, false, false] }).nutritionPossible).toBe(false);
   });
-  it('ignores a malformed quick_added without throwing', () => {
+  it('ignores a malformed quick_added without throwing (the SQL rejects such a row outright)', () => {
+    // Intentional divergence from the trigger, and the only one. 0193 fails CLOSED on an
+    // unreadable shape: it raises and the write is rejected, because there is no honest path to a
+    // non-array quick_added and a silent clamp would be the very corruption it guards against.
+    // This mirror stays tolerant instead — it runs inside the app process, where throwing would
+    // take down a render for a shape TypeScript already makes unreachable. The two agree on every
+    // row that can actually reach Postgres.
     expect(evidenceFromDayRow({ date: D, meals: {}, checkin: {}, quick_added: 'nope' as unknown as boolean[] }).nutritionPossible).toBe(false);
   });
   it('unlocks nutrition from an active trust pass (ctx)', () => {

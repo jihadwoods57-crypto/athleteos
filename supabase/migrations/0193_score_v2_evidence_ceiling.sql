@@ -29,6 +29,22 @@
 -- evidenceCeiling). scoreIntegrity.test.ts is the executable spec for all three.
 --
 -- ---------------------------------------------------------------------------------------------
+-- ROLLOUT CONSTRAINT — READ BEFORE APPLYING.
+-- Apply this migration any time BEFORE 2026-08-16. That is genuinely harmless: the pre-cutover
+-- ceiling is >= the v1 ceiling for every evidence combination, so no v1 client's honest score can
+-- be cut by it.
+--
+-- But the v2 CLIENT must be fully rolled out BY the cutover date, or the cutover date must move.
+-- From 2026-08-16 onward this trigger judges every row under the v2 slots, and any client still on
+-- v1 weights has its no-food days silently rewritten:
+--   * v1 client, checked in tonight, no food logged: computes 25 + 10 + 15 = 50; v2 ceiling 24
+--     -> stored 24.
+--   * v1 client, carry-backed check-in + commitment, no food: ~46; v2 ceiling 0 (no submission
+--     that day, and the carry no longer counts post-cutover) -> stored 0, grade F.
+-- That is this task's own failure mode pointed the other way. The staggering rule is therefore
+-- "0193 first, client no later than the cutover" — NOT "0193 is safe to apply alone indefinitely".
+--
+-- ---------------------------------------------------------------------------------------------
 -- THE DATE GUARD
 -- Rows dated before 2026-08-16 are judged under the PRE-CUTOVER ceiling; rows on or after it
 -- under the v2 ceiling. Without the guard, any later UPDATE that so much as touches a historical
@@ -95,6 +111,36 @@ begin
     return new;                                   -- nothing to bound on a fresh/unset day
   end if;
 
+  -- SHAPE CHECK — deliberately FAIL CLOSED AND LOUD, not fail-open and not a silent clamp.
+  --
+  -- A draft of this migration typeof-guarded each gate so a malformed value read as "no
+  -- evidence". That was wrong: it traded 0041's loud failure (jsonb_each raises on a non-object
+  -- and the write is rejected) for a SILENT clamp to 0 or 24 — the precise failure mode this
+  -- whole migration exists to eliminate. Fail-open (skip the clamp on an unreadable row) fixes
+  -- the silence but surrenders the control: a tampering client is the ONLY threat model here, and
+  -- `meals: "x"` would then store a flat 100 unclamped.
+  --
+  -- Fail-closed is right because there is NO HONEST PATH to these shapes. Both writers build them
+  -- structurally -- store/sync.ts from a typed Record/boolean[], day.js from object literals -- so
+  -- a malformed row is a tamperer or a code regression, never an athlete's real day. Blocking is
+  -- correct for the first and immediately visible for the second. Verified against live prod
+  -- 2026-08-09: 0 of 6 rows have a bad shape, so this can never fire on existing data.
+  --
+  -- "Err loose" governs HOW MUCH ceiling to grant when the evidence is ambiguous. It does not ask
+  -- us to accept a structurally invalid row.
+  if coalesce(jsonb_typeof(new.meals), 'null') <> 'object'
+     or coalesce(jsonb_typeof(new.checkin), 'null') <> 'object'
+     or coalesce(jsonb_typeof(new.quick_added), 'null') <> 'array' then
+    raise exception using
+      errcode = '22023',
+      message = 'days: unreadable evidence shape; refusing to score this row',
+      detail  = format('meals=%s checkin=%s quick_added=%s (expected object/object/array)',
+                       coalesce(jsonb_typeof(new.meals), 'null'),
+                       coalesce(jsonb_typeof(new.checkin), 'null'),
+                       coalesce(jsonb_typeof(new.quick_added), 'null')),
+      hint    = 'The evidence ceiling cannot bound a score it cannot read. Fix the writer rather than relaxing this check.';
+  end if;
+
   -- NUTRITION slot. The union of every way a day can earn food credit. Any ONE unlocks it:
   --   (a) any meal slot toggled logged. Scanned BY VALUE over the whole jsonb, never against a
   --       hardcoded classic-four key list — a room on a 5-/6-meal coach standard scores `meal-5`
@@ -105,14 +151,13 @@ begin
   --       erased whole quick-add-only days on the proto side until it was fixed there — a day
   --       with real nutrition credit and a server ceiling of 0.
   --   (d) an active, date-covering trust pass (a proven athlete's camera-free credit).
-  -- jsonb_typeof guards: `meals` and `quick_added` are `not null` with object/array defaults, but
-  -- a malformed value must read as "no evidence", never raise and fail the whole write.
+  -- Shapes are already proven by the check above, so these read the columns directly. The whole
+  -- expression is still coalesced: `checkin -> 'slotMacros'` is SQL NULL when the key is absent,
+  -- and without the coalesce three-valued logic would leave v_nutrition NULL rather than false.
   v_nutrition := coalesce(
-    (jsonb_typeof(new.meals) = 'object'
-       and exists (select 1 from jsonb_each(new.meals) e where e.value = 'true'::jsonb))
+    exists (select 1 from jsonb_each(new.meals) e where e.value = 'true'::jsonb)
     or (jsonb_typeof(new.checkin -> 'slotMacros') = 'object' and (new.checkin -> 'slotMacros') <> '{}'::jsonb)
-    or (jsonb_typeof(new.quick_added) = 'array'
-       and exists (select 1 from jsonb_array_elements(new.quick_added) q where q.value = 'true'::jsonb))
+    or exists (select 1 from jsonb_array_elements(new.quick_added) q where q.value = 'true'::jsonb)
     or exists (
       select 1 from trust_passes tp
       where tp.athlete_id = new.athlete_id
@@ -129,14 +174,24 @@ begin
   -- the cross-row scan.
   if new.date < v_cutover then
     v_carry := coalesce(
-      -- (a) the row's OWN last-check-in marker inside the trailing 6 days — an honest carry the
-      --     row SELF-DESCRIBES. This is what stops an honest carry day being clamped when the
-      --     original check-in day's row never reached Postgres (offline / pre-consent). The cast
-      --     is CASE-guarded so a malformed or tampered value can never raise.
+      -- (a) the row's OWN last-check-in marker inside the trailing 6 days — a carry the row
+      --     SELF-DESCRIBES, so the server need not reconstruct cross-day history it cannot see.
+      --
+      --     SCOPE: this branch only ever matches RN-WRITTEN rows. store/sync.ts writes ciLast as a
+      --     bare date STRING (`s.ciLast?.date ?? null`), which this regex matches. The proto —
+      --     the shipped writer — writes the whole marker OBJECT (`ciLast: DAY.ciLast`, i.e.
+      --     {date, recovery}; day.js), whose ->> text is `{"date":...}` and never matches. Live
+      --     prod 2026-08-09: 5 of 6 rows carry ciLast as an object, 0 as a string, so in practice
+      --     branch (b) is what has been doing the work. Documented rather than "fixed": no engine
+      --     carries any more, so widening a pre-cutover gate to accept objects would buy nothing
+      --     and only add tamper surface.
+      --
+      --     The cast is CASE-guarded so a malformed or tampered value can never raise.
       (case when new.checkin ->> 'ciLast' ~ '^\d{4}-\d{2}-\d{2}$'
             then (new.checkin ->> 'ciLast')::date between new.date - 6 and new.date
             else false end)
-      -- (b) a prior submitted row still visible in the trailing 6 days (bonus path).
+      -- (b) a prior submitted row still visible in the trailing 6 days. The path that actually
+      --     fires for proto-written rows; see the scope note above.
       or exists (
         select 1 from days d2
         where d2.athlete_id = new.athlete_id
