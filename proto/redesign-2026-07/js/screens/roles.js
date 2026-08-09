@@ -246,8 +246,7 @@ const coachSteps = {
           [(it.freq && it.freq.label) || (it.freq && it.freq.type === 'daily' ? 'Daily' : ''), PROOF_LABEL[it.proof] || ''].filter(Boolean).join(' · ')])
       : [
         ['utensils', 'Three meals · photo proof', `Nutrition · ${dpct('nutrition')}% of score`],
-        ['moon', 'Recovery check-in · nightly', `Recovery · ${dpct('recovery')}%`],
-        ['clipboard', 'Weekly check-in · Sundays', `Check-in · ${dpct('checkin')}%`],
+        ['moon', 'Recovery check-in · nightly', `Recovery · ${dpct('checkin') + dpct('recovery')}%`],
         ['scale', 'Weight · Mon / Wed / Fri', 'Season trend · not scored'],
       ];
     return frame(5, 7, 'Set the team standard.', 'Start from a proven template. Fine-tune meals, windows, and rooms anytime in Standards.', `

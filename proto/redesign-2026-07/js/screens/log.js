@@ -110,7 +110,6 @@ export default {
 
     const weight = e.items.find((i) => i.id === 'weight');
     const recovery = e.items.find((i) => i.id === 'recovery');
-    const weeklyToday = new Date().getDay() === 0;
 
     return `
     ${dayBackdrop()}<div class="sheet-scrim" data-back="home"></div>
@@ -137,11 +136,6 @@ export default {
         <div class="si" style="background:${recovery.state === 'done' ? 'var(--green-surface);color:var(--green-bright)' : 'rgba(168,85,247,0.22);color:var(--purple-bright)'}">${icon(recovery.state === 'done' ? 'check' : 'moon', 20)}</div>
         <div class="st"><div class="t">Recovery Check-In</div><div class="s">${recovery.state === 'done' ? 'Submitted tonight' : `Before bed · 20 seconds · Recovery ${liveWeightPct('checkin') + liveWeightPct('recovery')}%`}</div></div>
         <span class="xpill ${recovery.color}">${recovery.pill}</span>
-      </div>` : ''}
-      ${weeklyToday ? `
-      <div class="sheet-row" data-go="checkin">
-        <div class="si" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('clipboard', 19)}</div>
-        <div class="st"><div class="t">Weekly Check-In</div><div class="s">${S.weekly.status}</div></div>
       </div>` : ''}
       ${e.doneItems.length ? `<div class="hub-fold" data-go="home">${icon('check', 13)} ${e.doneItems.length} completed today — view on Home</div>` : ''}
       <div class="cancel" data-back="home">Cancel</div>

@@ -42,7 +42,6 @@ export function weightPct(comp) { return Math.round((impactWeights()[comp] || 0)
 export const IMPACT_LABEL = {
   get nutrition() { return `Nutrition · ${weightPct('nutrition')}% of score`; },
   get recovery()  { return `Recovery · ${weightPct('recovery')}% of score`; },
-  get checkin()   { return `Weekly check-in · ${weightPct('checkin')}% of score`; },
   trend:     'Season trend · not scored',
   focus:     "This week's focus · coach sees it",
   plan:      'Part of your plan · commitment covers it',
@@ -55,12 +54,13 @@ export const TODAY_DOW = 5; // Friday — Morning Weight runs Mon/Wed/Fri
    stays import-free by design, per the exec.test catalog/deadline enforcement seam). */
 export const ACTIVATION_BUFFER_MIN = 60;
 
-/* Accent letters are SEMANTIC, not decorative: 'g' nutrition, 'p' recovery, 'c' weekly check-in,
-   'b' action/commitment, 'muted' tracked-not-scored facts. Three drifted (dinner wore the action
-   blue beside two green siblings stating the identical "Nutrition · 50%" fact; morning weight
-   wore warning amber for "not scored", which is provenance; weekly wore nutrition's green while
-   cyan — minted FOR the weekly check-in — meant nothing). requirements.test.mjs now pins comp →
-   accent so the next drift fails the suite instead of shipping. */
+/* Accent letters are SEMANTIC, not decorative: 'g' nutrition, 'p' recovery, 'b' action/commitment,
+   'muted' tracked-not-scored facts. Two drifted (dinner wore the action blue beside two green
+   siblings stating the identical "Nutrition · 50%" fact; morning weight wore warning amber for
+   "not scored", which is provenance). requirements.test.mjs now pins comp → accent so the next
+   drift fails the suite instead of shipping. Cyan ('c') was minted for the Weekly Check-In ritual
+   (a distinct Sunday requirement); v2 deletes that ritual entirely, so cyan is retired — no
+   catalog entry wears it. */
 export const CATALOG = [
   { id: 'breakfast', title: 'Breakfast', icon: 'utensils', accent: 'g', proof: 'photo',
     freq: { type: 'daily' }, window: { open: 7 * 60, due: 570 }, required: true,
@@ -82,10 +82,6 @@ export const CATALOG = [
     freq: { type: 'daily' }, window: { due: 23 * 60 + 30, label: 'Before bed' }, required: true,
     impact: { kind: 'component', comp: 'recovery' }, reminder: 'high',
     note: '20 seconds. Coach reads readiness before tomorrow’s practice.' },
-  { id: 'weekly', title: 'Weekly Check-In', icon: 'clipboard', accent: 'c', proof: 'form',
-    freq: { type: 'weekly', day: 0, label: 'Sundays' }, window: { due: 21 * 60 }, required: true,
-    impact: { kind: 'component', comp: 'checkin' }, reminder: 'high', route: 'checkin',
-    note: 'The week in one honest read: energy, sleep, soreness, weight.' },
 ];
 
 export function fmtMin(m) {

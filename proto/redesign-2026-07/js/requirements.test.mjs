@@ -12,7 +12,7 @@
  * warning; its STATE can be). */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CATALOG } from './requirements.js';
+import { CATALOG, IMPACT_LABEL } from './requirements.js';
 
 const ACCENT_FOR_COMP = { nutrition: 'g', recovery: 'p', checkin: 'c', commitment: 'b' };
 
@@ -51,4 +51,19 @@ test('the same fact never renders two colours: identical impacts share one accen
     }
     byComp[k] = req.accent;
   }
+});
+
+test('the weekly check-in requirement is gone', () => {
+  assert.equal(CATALOG.find((r) => r.id === 'checkin'), undefined,
+    'v2 has one check-in: the nightly recovery one');
+});
+
+test('no requirement routes to the deleted weekly check-in screen', () => {
+  for (const r of CATALOG) {
+    assert.notEqual(r.route, 'checkin', `${r.id} still routes to the deleted screen`);
+  }
+});
+
+test('IMPACT_LABEL has no weekly check-in entry', () => {
+  assert.equal(Object.prototype.hasOwnProperty.call(IMPACT_LABEL, 'checkin'), false);
 });

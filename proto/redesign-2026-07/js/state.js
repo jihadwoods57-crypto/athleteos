@@ -18,7 +18,7 @@ import {
   setSyncBlocked, isSyncBlocked, SYNC, setDayTaskProvider,
   dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayLogWeight, dayResetLocal, dayCheckTask,
   insertMeal, MEAL_KEYS, minutesNow, mealScored,
-  setDayStandard, slotDeadline, slotGrace, slotOpen, setDayGoalConfig, checkinReal,
+  setDayStandard, slotDeadline, slotGrace, slotOpen, setDayGoalConfig,
   setDayPlanStyle, weightsForDay, DAY_SELECT_COLS, PROFILE_WEIGHTS,
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
@@ -4234,22 +4234,6 @@ export const S = {
     return { fields };
   },
 
-  // ---------- WEEKLY CHECK-IN ----------
-  // Engine truth: the weekly component is held by ANY check-in in the trailing 7 days
-  // (day.js checkinReal). The Sunday ritual submits through the same engine (checkin.js).
-  get weekly() {
-    const last = DAY.ciLast && DAY.ciLast.date ? DAY.ciLast : null;
-    const covered = !!(DAY.ciSubmitted || (last && checkinReal(DAY)));
-    const isSunday = new Date().getDay() === 0;
-    return {
-      status: DAY.ciSubmitted ? 'Checked in today · week covered'
-        : covered ? 'Covered by a recent check-in'
-        : isSunday ? 'Open today · worth 10 points' : 'Opens Sunday · worth 10 points',
-      submitted: !!DAY.ciSubmitted,
-      readiness: last ? Math.round(last.recovery) : null,
-    };
-  },
-
   // ---------- PROGRESS (real: computed from DAY.scoreHistory + today's live score) ----------
   // Only the metrics we can actually compute from real day rows. Per-requirement consistency,
   // "biggest pattern", coach/AI summaries etc. have no real source yet → the screen shows an
@@ -4311,7 +4295,6 @@ export const S = {
       mk('nutrition', 'Nutrition', 'g'),
       mk('recovery', 'Recovery', 'p'),
       mk('commitment', 'Daily Commitment', 'b'),
-      mk('checkin', 'Weekly Check-In', 'g'),
     ];
   },
 

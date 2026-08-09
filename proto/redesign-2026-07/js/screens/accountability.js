@@ -81,7 +81,7 @@ export default {
       <div class="req-icon g" style="width:38px;height:38px">${icon('shield', 19)}</div>
       <div>
         <div class="tt">This is not your daily score</div>
-        <div class="ts">Your daily number is still nutrition, recovery, commitment and the weekly check-in. This is a separate record of showing up.</div>
+        <div class="ts">Your daily number is still nutrition and recovery. This is a separate record of showing up.</div>
       </div>
     </div>
     <div style="height:20px"></div>`;

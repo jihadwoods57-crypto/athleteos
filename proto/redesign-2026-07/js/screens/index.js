@@ -15,7 +15,6 @@ import notifications from './notifications.js';
 import log from './log.js';
 import auth from './auth.js';
 import onboarding from './onboarding.js';
-import checkin from './checkin.js';
 import commitment from './commitment.js';
 import { coachAthlete, coachMeal, coachAssign, coachPlan, coachPlanSet, coachInbox, copilot, parent, inviteParent, parentLink } from './coach.js';
 import { coachHome } from './coach-home.js';
@@ -100,7 +99,6 @@ export const screens = {
   log,
   welcome: auth,
   onboarding,
-  checkin,
   commitment,
   'coach-home': coachHome, coach: coachHome,     // alias — old route renders the new Home
   'coach-roster': coachRoster,
