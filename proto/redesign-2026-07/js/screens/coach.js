@@ -1488,13 +1488,27 @@ function inboxRow(r) {
       <div class="lm"><div class="lt">${esc(r.title)}</div><div class="ls">${esc(r.sub || '')}</div></div>
     </div>`;
 }
+/* Identity on one line, the two decisions on the next.
+   This was a single .lrow: a 38px avatar, a flexible name block, and two fixed-width buttons.
+   At 402px the buttons and the avatar claim ~250px of the 362px of content width, so the name
+   block was handed about 110px and "Riley Sutton · DB" broke across three lines — a 150px row
+   for one join request, with the person's name the least legible thing in it. Stacking removes
+   the competition entirely: the name gets the full width, and Decline / Approve split the row
+   beneath it at a real 38px tap target instead of a squeezed 32. */
 function joinRow(q) {
   return `
-    <div class="lrow" style="cursor:default">
-      <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 17)}</div>
-      <div class="lm"><div class="lt">${esc(q.athlete_name || 'Athlete')}${q.position ? ` <small style="color:var(--text-3);font-weight:700">· ${esc(q.position)}</small>` : ''}</div><div class="ls">Wants to join</div></div>
-      <button class="btn ghost sm" data-jr="decline" data-team="${esc(q.teamId)}" data-ath="${esc(q.athlete_id)}" style="width:auto;padding:0 12px;height:32px">Decline</button>
-      <button class="btn green sm" data-jr="approve" data-team="${esc(q.teamId)}" data-ath="${esc(q.athlete_id)}" style="width:auto;padding:0 12px;height:32px;margin-left:6px">Approve</button>
+    <div class="jr">
+      <div class="jr-top">
+        <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 17)}</div>
+        <div class="jr-who">
+          <div class="t">${esc(q.athlete_name || 'Athlete')}${q.position ? ` <small style="color:var(--text-3);font-weight:700">· ${esc(q.position)}</small>` : ''}</div>
+          <div class="s">Wants to join</div>
+        </div>
+      </div>
+      <div class="jr-acts">
+        <button class="btn ghost sm" data-jr="decline" data-team="${esc(q.teamId)}" data-ath="${esc(q.athlete_id)}">Decline</button>
+        <button class="btn green sm" data-jr="approve" data-team="${esc(q.teamId)}" data-ath="${esc(q.athlete_id)}">Approve</button>
+      </div>
     </div>`;
 }
 const INBOX_EMPTY = {

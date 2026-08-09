@@ -15,6 +15,14 @@
 .co-eyebrow.tight { margin-top: var(--s4); }
 .co-note { font-size: 12.5px; font-weight: 600; color: var(--text-3); line-height: 1.5; margin: 2px 2px var(--s2); }
 
+/* Section rhythm. Every eyebrow on the operator dashboard sat at the same 26px, so the screen
+   read as one undifferentiated column of heading-then-card, four times over, with no signal
+   about which break mattered. These two modifiers give the page a beat that decelerates down the
+   scroll: a generous break where the screen changes job (the day's answer → the queue you act
+   on), the default between peers, and a tight one for a tail that belongs to what precedes it. */
+.eyebrow.co-major { margin-top: var(--s8); }
+.eyebrow.co-minor { margin-top: 18px; }
+
 /* ============================================================
    SIGNATURE — Team Pulse "Standing Bar"
    A wide calm band: the group score in the blue->teal signature, the roster's
@@ -165,6 +173,84 @@
 .co-abtn.primary.warn { background: linear-gradient(150deg, var(--red), var(--red-deep)); box-shadow: 0 6px 18px rgba(var(--red-rgb), 0.28); }
 .co-abtn:disabled { opacity: 0.5; }
 .co-pstatus { font-size: 11px; font-weight: 600; color: var(--text-3); min-height: 0; margin-top:6px; }
+
+/* ---------- rank hierarchy (2026-08-08) ----------
+   The queue is RANKED and rendered six deep, but every card was byte-identical: same padding,
+   same elevation, same four 44px buttons, same filled red "Nudge". Six filled alarms in one
+   column is not a ranking, it's a wall — the coach reads #1 and #6 as equally urgent and the
+   ordering work the priority engine did never reaches the eye.
+
+   So the first card leads and the rest subordinate. Nothing is removed: every card keeps Open,
+   Nudge, Assign and Handled. What changes is weight — the lead card is raised and carries the
+   one filled action on the screen; the followers are tighter, flatter, and state their primary
+   action in colour instead of fill. Tier still reads from the chip and the score, which are
+   untouched, so a critical athlete at rank 4 is still unmistakably critical. */
+.co-pri.lead {
+  padding: var(--s5) var(--s4) var(--s4);
+  border-color: var(--hairline); box-shadow: var(--sh-raised);
+  margin-bottom: var(--s5);
+}
+.co-pri.lead .co-pri-rank { width: 26px; font-size: var(--t-xl); color: var(--text-2); line-height: 1.15; }
+.co-pri.lead .co-pri-name { font-size: var(--t-lg); }
+/* 60 (group score) → 34 (the one athlete who needs you first) → 22 (the rest of the queue).
+   Three steps of the same scale, so the page states its own order in numerals alone. */
+.co-pri.lead .co-pri-score { font-size: var(--t-3xl); }
+.co-pri.sub { padding: var(--s3) var(--s4) var(--s4); }
+.co-pri.sub .co-pri-acts { margin-top: var(--s3); gap: 6px; }
+.co-pri.sub .co-abtn { height: 36px; }
+/* Subordinate primary: the same action, named in its own hue, with no fill and no halo. A tinted
+   fill was tried here first and read as a disabled control — five muddy red slabs down the
+   column. Colour on the label alone is the honest weight for "this, but not first". */
+.co-pri.sub .co-abtn.primary {
+  background: var(--surface-2); color: var(--blue-bright);
+  border-color: var(--hairline); box-shadow: none;
+}
+.co-pri.sub .co-abtn.primary.warn { color: var(--red-bright); }
+
+/* ---------- roster standing bands ----------
+   Fourteen rows at one uniform height in one uniform card is a column, not a roster: the coach
+   has to read every line to find the two athletes who need them. The list already sorts by
+   score — these heads make that sort visible, so the shape of the day is legible before a
+   single name is read. Bands come from tierFor() in score-band.js; the thresholds are never
+   re-inlined here. Rendered as <header> so the .roster-row:nth-of-type stagger in app.css
+   keeps counting rows and only rows. */
+.ro-band {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--s3);
+  padding: var(--s5) var(--s4) var(--s2);
+}
+.ro-band:first-child { padding-top: var(--s3); }
+.ro-band .l {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-eyebrow);
+  text-transform: uppercase; color: var(--text-3);
+}
+.ro-band .l .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.ro-band .n { font-size: var(--t-xs); font-weight: 800; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+/* ---------- join request ----------
+   Identity and actions were one flex row: a 38px avatar, two fixed-width buttons and whatever
+   was left for the name — about 110px at 402px wide, so "Riley Sutton · DB" wrapped to three
+   lines and the row grew to 150px. Name on its own line, actions beneath, nothing to squeeze. */
+.jr { padding: var(--s3) 0 var(--s4); border-bottom: 1px solid var(--hairline-soft); }
+.jr:last-child { border-bottom: none; }
+.jr-top { display: flex; align-items: center; gap: var(--s3); }
+.jr-top .lic { width: 38px; height: 38px; border-radius: var(--r-chip); display: grid; place-items: center; flex: none; }
+.jr-who { flex: 1; min-width: 0; }
+.jr-who .t { font-size: var(--t-md); font-weight: 700; }
+.jr-who .s { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); margin-top: 1px; }
+.jr-acts { display: flex; gap: var(--s2); margin-top: var(--s3); }
+.jr-acts .btn { flex: 1; width: auto; height: 38px; }
+
+/* ---------- a note INSIDE a card ----------
+   .sidebox is a canvas primitive: a filled, bordered block that sits on the background and reads
+   as its own surface. Dropped inside a .card it becomes a card in a card, which the design system
+   bans outright and which is exactly what "Bill through OnStandard" and "Connect an accepted
+   client" were doing on the Grow screen. Same content, same icon, no second frame: a hairline
+   above it does the separating that a border and a fill were doing badly. */
+.card > .sidebox.flat {
+  background: transparent; border: none; border-top: 1px solid var(--hairline-soft);
+  border-radius: 0; padding: var(--s4) 0 var(--s1);
+}
 
 /* ============================================================
    Status line — dot + calm label (red demoted from big display color)

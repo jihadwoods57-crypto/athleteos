@@ -10,7 +10,7 @@ import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, entriesFor, logBookIntervention } from '../coach-data.js';
 import { STATUS_META } from '../status.js';
 import { styleLabel } from '../plan-style.js';
-import { scoreColor } from '../score-band.js';
+import { scoreColor, tierFor } from '../score-band.js';
 
 /* Plan-style pill (0142): a one-letter chip naming the style a TEAM STANDARD governs for this
    row — S/G/I, or nothing when no standard sets one (most rosters, most of the time). This is
@@ -107,6 +107,49 @@ function rosterRow(e) {
       <span class="rs" style="color:${scoreCol}">${r.score != null ? r.score : '—'}</span>${stylePill(e.planStyle)}
     </div>
   </div>`;
+}
+
+/* ---------------- standing bands ----------------
+   The roster is sorted by score and rendered as one card of uniform rows, which makes a 14-person
+   squad a fourteen-line column where a 96 and a 47 look exactly alike: the coach has to read
+   every line to find the two people who need them. The sort already knows the answer — these
+   heads make it visible, so the shape of the day lands before a single name is read.
+
+   Tier names and thresholds come from tierFor() (score-band.js); nothing is re-inlined here, so
+   the roster can never disagree with the badge on the athlete's own screen. Rows with no score
+   are their own trailing band, because "hasn't logged" is a different fact from "scored low" and
+   the coach acts on it differently.
+
+   Bands appear only when the score sort is doing the ordering and the list is the whole book:
+   under a name/status/recent sort or a search the ordering means something else, and a band head
+   would be labelling a list it did not arrange. */
+const BAND_COLOR_BY_CLS = { g: 'var(--green-bright)', b: 'var(--blue-bright)', a: 'var(--amber-bright)', r: 'var(--red-bright)' };
+function bandKeyFor(e) {
+  if (e.row.score == null) return { key: 'none', name: 'No log today', color: 'var(--text-3)' };
+  const t = tierFor(e.row.score);
+  return { key: t.cls, name: t.name, color: BAND_COLOR_BY_CLS[t.cls] || 'var(--text-3)' };
+}
+/* Select mode keeps its bands. Dropping them there would re-flow the whole list the instant the
+   coach taps Select — the rows they were aiming at jump, which is the worst possible moment for
+   the layout to move. Checkboxes replace the status dot inside the row; the heads are untouched. */
+function bandsApply() {
+  return SORT === 'score' && !Q.trim() && FILTER.kind !== 'status';
+}
+function listHtml(view) {
+  if (!view.length) return NO_MATCH_HTML;
+  if (!bandsApply()) return view.map(rosterRow).join('');
+  let out = '', current = null;
+  for (let i = 0; i < view.length; i++) {
+    const b = bandKeyFor(view[i]);
+    if (b.key !== current) {
+      current = b.key;
+      let n = 0;
+      for (let j = i; j < view.length && bandKeyFor(view[j]).key === b.key; j++) n++;
+      out += `<header class="ro-band"><span class="l"><span class="dot" style="background:${b.color}"></span>${esc(b.name)}</span><span class="n">${n}</span></header>`;
+    }
+    out += rosterRow(view[i]);
+  }
+  return out;
 }
 
 function groupSheet(groups) {
@@ -217,7 +260,7 @@ function patchList(root) {
   if (!list) return;
   const entries = entriesFor({ kind: 'team', value: null }) || [];
   const view = applyView(entries);
-  list.innerHTML = view.length ? view.map(rosterRow).join('') : NO_MATCH_HTML;
+  list.innerHTML = listHtml(view);
   list.querySelectorAll('[data-sel]').forEach(b => b.addEventListener('click', () => {
     const id = b.getAttribute('data-sel'); SEL.has(id) ? SEL.delete(id) : SEL.add(id); window.__render();
   }));
@@ -290,7 +333,7 @@ export const coachRoster = {
     </div>
     ${SHOW_GROUPS ? groupSheet(groups) : ''}
     ${SHOW_ABSENCE ? absenceSheet() : ''}
-    <section class="card" id="roster-list" style="padding:2px 0">${list.length ? list.map(rosterRow).join('') : NO_MATCH_HTML}</section>
+    <section class="card" id="roster-list" style="padding:2px 0">${listHtml(list)}</section>
     ${SELECTING && SEL.size ? (BULK_NUDGE_ARM != null ? `
     <div class="card" style="position:sticky;bottom:calc(var(--nav-h) + 19px + env(safe-area-inset-bottom, 0px) + 8px);padding:9px;z-index:20">
       <input id="bulk-nudge-body" class="ob-input" maxlength="120" value="${esc(BULK_NUDGE_ARM)}" aria-label="Nudge message" style="width:100%;height:36px;font-size:var(--t-sm)" />

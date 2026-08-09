@@ -78,7 +78,7 @@ function connectSection() {
     </div>
     <button class="btn ${meta.tone} sm" id="tg-connect" style="width:auto;padding:0 16px;height:36px">${UI.connecting ? '…' : meta.cta}</button>
     <span id="tg-connect-msg" class="ls" style="margin-left:10px"></span>
-    <div class="sidebox" style="margin:12px 0 0"><div class="req-icon g" style="width:34px;height:34px">${icon('check', 15)}</div>
+    <div class="sidebox flat" style="margin:12px 0 0"><div class="req-icon g" style="width:34px;height:34px">${icon('check', 15)}</div>
       <div><div class="tt">Bill through OnStandard, and your clients ride free</div>
       <div class="ts">A client on a recurring package gets full OnStandard membership included, and you are not charged a seat for them. One bill for them, no seat bill for you — the platform fee covers it. Most trainers add ~$25 to the package and include the app.</div></div></div>
   `;
@@ -181,22 +181,32 @@ export const trainerGrow = {
       ${F.connect && !G.connect ? sectionErr('your Stripe status') : connectSection()}
     </section>
 
+    ${/* Grow was four eyebrow-then-card beats at the same weight, and two of those cards existed
+          only to draw a frame around one grey sentence. A card is for content the reader can act
+          on row by row; an empty state is a sentence and an invitation, so it sits on the canvas
+          and the page gets a change of texture where there is nothing to list yet. The card comes
+          back the moment there is a first offer or a first application to put in it. */''}
     <div class="eyebrow">Your offers</div>
+    ${(G.offers || []).length || UI.editing === 'new' || (F.offers && !(G.offers || []).length) ? `
     <section class="card" style="padding:6px 16px">
       ${F.offers && !(G.offers || []).length ? sectionErr('your offers') : ''}
-      ${(G.offers || []).length ? (G.offers).map(o => UI.editing === o.id ? offerForm(o) : `
+      ${(G.offers || []).map(o => UI.editing === o.id ? offerForm(o) : `
       <div class="lrow" style="cursor:default">
         <div class="lm"><div class="lt">${esc(o.name)} ${o.active ? '' : '<span class="ls">· hidden</span>'}</div>
           <div class="ls">${esc(priceLabel(o))}${o.blurb ? ' · ' + esc(o.blurb) : ''}</div></div>
         <button class="btn ghost sm" data-tg="edit" data-id="${esc(o.id)}" style="width:auto;padding:0 12px;height:32px">Edit</button>
-      </div>`).join('') : (F.offers ? '' : `<div class="ls" style="padding:10px 0">No offers yet. Add your first package — prospects apply to it from your page.</div>`)}
+      </div>`).join('')}
       ${UI.editing === 'new' ? offerForm(null) : `<div style="padding:10px 0"><button class="btn ghost sm" data-tg="add" style="width:auto;padding:0 14px;height:34px">${icon('plus', 15)} Add an offer</button></div>`}
-    </section>
+    </section>` : `
+    <div class="ls" style="margin:0 2px;line-height:1.5">No offers yet. Add your first package — prospects apply to it from your page.</div>
+    <button class="btn ghost sm" data-tg="add" style="width:auto;padding:0 14px;height:36px;margin-top:12px">${icon('plus', 15)} Add an offer</button>`}
 
     <div class="eyebrow">Applications ${newApps() ? `<span class="status-pill" style="background:rgba(var(--blue-rgb),0.14);color:var(--blue-bright);margin-left:6px">${newApps()} new</span>` : ''}</div>
+    ${!(G.apps || []).length && !F.apps ? `
+    <div class="ls" style="margin:0 2px;line-height:1.5">No applications yet. Publish your page and share the link — applications land here.</div>` : `
     <section class="card" style="padding:6px 16px">
       ${F.apps && !(G.apps || []).length ? sectionErr('applications') : ''}
-      ${(G.apps || []).length ? (G.apps).map(a => `
+      ${(G.apps || []).map(a => `
       <div class="lrow" style="cursor:default;align-items:flex-start">
         <div class="lm" style="flex:1">
           <div class="lt">${esc(a.applicant_name)} <span class="ls">· ${esc(a.applicant_contact)}</span></div>
@@ -208,11 +218,11 @@ export const trainerGrow = {
           <button class="btn ghost sm" data-tg="decline" data-id="${esc(a.id)}" style="width:auto;padding:0 10px;height:30px">Decline</button>
           <button class="btn green sm" data-tg="accept" data-id="${esc(a.id)}" style="width:auto;padding:0 10px;height:30px">Accept</button>
         </div>` : ''}
-      </div>`).join('') : (F.apps ? '' : `<div class="ls" style="padding:10px 0">No applications yet. Publish your page and share the link — applications land here.</div>`)}
+      </div>`).join('')}
       ${(G.apps || []).some(a => a.status === 'accepted') && RT.practice && RT.practice.code ? `
-      <div class="sidebox" style="margin:10px 0"><div class="req-icon b" style="width:34px;height:34px">${icon('lock', 15)}</div>
+      <div class="sidebox flat" style="margin:10px 0 0"><div class="req-icon b" style="width:34px;height:34px">${icon('lock', 15)}</div>
         <div><div class="tt">Connect an accepted client</div><div class="ts">Send them your practice code <b>${esc(RT.practice.code)}</b> — they enter it after signing up to join your practice and unlock coaching.</div></div></div>` : ''}
-    </section>
+    </section>`}
 
     ${F.claims && !(G.claims || []).length ? `
     <div class="eyebrow">Paid — waiting to join</div>

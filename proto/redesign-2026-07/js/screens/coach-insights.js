@@ -240,15 +240,17 @@ export const coachInsights = {
     const seg = (cls, c) => c ? `<span class="seg ${cls}" style="flex:${c}"></span>` : '';
     const leg = (cls, c, l) => c ? `<span class="it"><span class="dot ${cls}"></span><b>${c}</b> ${l}</span>` : '';
     const lineDot = (l) => /overdue/i.test(l) ? 'r' : /no activity/i.test(l) ? 'd' : /below|waiting|review/i.test(l) ? 'a' : /leads/i.test(l) ? 'g' : 'b';
+    /* One block, not two. The standing bar used to be its own eyebrow ("Where the team stands")
+       over its own card, and that card held nothing but a 12px bar and a legend — a heading and a
+       container built for two marks, floating above a second heading and a second container that
+       said the same thing in sentences. The bar is the picture and the read is the caption; they
+       belong to each other. So the bar leads the read's card, a hairline separates it from the
+       lines, and the screen loses a redundant heading and an empty frame. */
     return `${head}
-    ${entries.length ? `<div class="co-eyebrow tight">Where the team stands</div>
+    <div class="co-eyebrow tight">Today's read</div>
     <section class="card" style="padding:var(--s4)">
-      <div class="co-standing">${seg('g', g)}${seg('a', a)}${seg('r', r)}${seg('d', d)}</div>
-      <div class="co-legend">${leg('g', g, 'on standard')}${leg('a', a, 'need attention')}${leg('r', r, 'overdue')}${leg('d', d, 'no activity')}</div>
-    </section>` : ''}
-
-    <div class="co-eyebrow">Today's read</div>
-    <section class="card" style="padding:var(--s3) var(--s4)">
+      ${entries.length ? `<div class="co-standing" style="margin-top:0">${seg('g', g)}${seg('a', a)}${seg('r', r)}${seg('d', d)}</div>
+      <div class="co-legend" style="padding-bottom:var(--s4);border-bottom:1px solid var(--hairline-soft);margin-bottom:var(--s2)">${leg('g', g, 'on standard')}${leg('a', a, 'need attention')}${leg('r', r, 'overdue')}${leg('d', d, 'no activity')}</div>` : ''}
       ${lines.map(l => `<div style="display:flex;gap:10px;align-items:flex-start;padding:5px 0;font-size:13.5px;font-weight:600;color:var(--text);line-height:1.5"><span class="dot ${lineDot(l)}" style="width:7px;height:7px;border-radius:50%;margin-top:7px;flex:none"></span><span>${esc(l)}</span></div>`).join('')}
     </section>
     <div class="co-note">Computed from your roster's real logs — nothing here is generated.</div>

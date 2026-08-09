@@ -379,8 +379,11 @@ function priorityCard(c, i, nudgedToday) {
   const scoreCol = c.score == null ? '' : scoreColor(c.score);
   const openPrimary = tier === 'below';  // below-standard → review the log; critical/due → send the nudge
   const nudgeCls = !openPrimary ? (tier === 'critical' ? 'primary warn' : 'primary') : '';
+  // Rank weight. #1 leads (raised, filled action); #2+ subordinate (tighter, tinted action).
+  // See the "rank hierarchy" block in coach.css — every action survives, only weight changes.
+  const rankCls = i === 0 ? 'lead' : 'sub';
   return `
-  <div class="co-pri t-${tier}">
+  <div class="co-pri ${rankCls} t-${tier}">
     <div class="co-pri-head" data-go="coach-athlete/${esc(c.athleteId)}">
       <div class="co-pri-rank">${i + 1}</div>
       <div class="co-pri-main">
@@ -448,13 +451,19 @@ export const coachHome = {
     const feed = CD.act && CD.act.rows ? CD.act.rows.filter(m => rows.some(r => r.athleteId === m.athlete_id)) : null;
     const unseen = feed ? feed.filter(m => !seen.has(m.id)).length : 0;
     const unreadAlerts = S.unreadNotifs;
+    /* Follow-ups carries what is NOT already on this screen, and nothing else.
+       It used to carry four rows, three of which restated something the coach could see without
+       scrolling: "N logs you haven't opened" (the Live activity eyebrow prints "N new" directly
+       above it), "N join requests waiting" (a tappable card at the very top of the same screen),
+       and "N priorities not handled yet" (the queue itself, immediately above). Roughly 230px at
+       the end of the morning read that told the coach nothing they had not just read, and made
+       the screen's last impression a summary of itself.
+
+       Server alerts (0027 — flagged meals, roll-call escalations, digests) stay: their only other
+       surface is a numeric badge on the bell in the header, which is chrome, not content. When
+       there are none the section resolves to "All caught up." and the screen ends on the queue. */
     const followUps = [
-      unseen ? { n: unseen, t: `log${unseen > 1 ? 's' : ''} you haven't opened`, go: 'coach-inbox' } : null,
-      pending.length ? { n: pending.length, t: `join request${pending.length > 1 ? 's' : ''} waiting`, go: 'coach-inbox' } : null,
-      // Server alerts (0027): flagged meals, roll-call escalations, digests. The bell badge says
-      // "how many"; this row makes sure the morning read includes them even if the bell is ignored.
-      unreadAlerts ? { n: unreadAlerts, t: `alert${unreadAlerts > 1 ? 's' : ''} in your bell`, go: 'notifications' } : null,
-      cards.length ? { n: cards.length, t: `priorit${cards.length > 1 ? 'ies' : 'y'} not handled yet`, go: null } : null,
+      unreadAlerts ? { n: unreadAlerts, t: `Alert${unreadAlerts > 1 ? 's' : ''} in your bell`, go: 'notifications' } : null,
     ].filter(Boolean);
 
     return `${head}
@@ -474,7 +483,7 @@ export const coachHome = {
       return left ? collapseSection('coach-setup', vocab().setup, left, setupChecklistCard(st), false) : '';
     })()}
 
-    <div class="eyebrow" data-tour="priority">${esc(vocab().priorities)}</div>
+    <div class="eyebrow co-major" data-tour="priority">${esc(vocab().priorities)}</div>
     ${entries === null ? `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bell', 17)}</div><div><div class="tt">Ranking the day…</div><div class="ts">Standards and exceptions are loading.</div></div></div>`
     : cards.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px;line-height:1.4">Nothing needs you right now. Anything you nudge, assign, or mark handled stays out of this queue until the reason changes.</div>`
     : cards.slice(0, 6).map((c, i) => priorityCard(c, i, (RT.coachNudged || {})[c.athleteId] === roles.todayISO())).join('')}
@@ -494,12 +503,12 @@ export const coachHome = {
         </div>`;
       }).join('')}</div>`}
 
-    <div class="eyebrow" data-tour="followups">Follow-ups</div>
+    <div class="eyebrow co-minor" data-tour="followups">Follow-ups</div>
     ${followUps.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px">All caught up.</div>`
     : `<section class="card" style="padding:6px 16px">${followUps.map(f => `
       <div class="lrow" ${f.go ? `data-go="${f.go}" style="cursor:pointer"` : 'style="cursor:default"'}>
         <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)"><b>${f.n}</b></div>
-        <div class="lm"><div class="lt" style="text-transform:capitalize">${esc(f.t)}</div></div>
+        <div class="lm"><div class="lt">${esc(f.t)}</div></div>
         ${f.go ? icon('chevron', 14, 'style="color:var(--text-3)"') : ''}
       </div>`).join('')}</section>`}
     <div class="co-bottom"></div>`;
