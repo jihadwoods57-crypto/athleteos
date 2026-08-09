@@ -327,7 +327,150 @@ Recorded so they are not rediscovered as surprises.
 
 ---
 
-## 14. Success criteria
+## 14. Consistency across every role
+
+The score is not one screen. It is quoted to five audiences, and today it is quoted **inconsistently
+already**. Every surface below must land in the same release.
+
+### 14.1 The root cause: seven copies of the weights
+
+The number can drift between roles because it is written down seven separate times.
+
+| # | Location | Form |
+|---|---|---|
+| 1 | `proto/js/day.js:18` | `PROFILE_WEIGHTS` — the engine |
+| 2 | `proto/js/plan-style.js:67,78-93` | `WEIGHT_CAPS` + `STYLE_WEIGHTS` (9 rows) |
+| 3 | `proto/js/state.js:192` | `WEIGHTS` — grandfathering baseline |
+| 4 | `proto/js/requirements.js:29` | `FALLBACK_WEIGHTS` |
+| 5 | `src/core/scoringProfiles.ts` | `PROFILE_WEIGHTS` — RN engine |
+| 6 | `web/admin/sections/scoring.js:11-14` | `PROFILE_WEIGHTS` — Command Center |
+| 7 | `supabase/migrations/0041:77-80` | SQL literals `55 / 35 / 15` |
+
+**Requirement: collapse to one.** Copies 2–4 derive from copy 1. Copy 6 must read the shipped engine
+rather than re-declare it. Copies 5 and 7 cannot import (separate runtime, separate language) and
+stay pinned by the existing parity test and `scoreIntegrity.test.ts` respectively. Shipping v2
+against seven literals is how a coach and an athlete end up reading different percentages for the
+same day.
+
+The display path is already disciplined and must stay that way: `state.js:185 liveWeightPct()` is
+the sanctioned way to print a percentage, and `state.js:191` already carries the rule *"Nothing may
+print a percentage from here; use liveWeightPct()."* Every hardcoded percentage listed below is a
+violation of a rule this codebase already wrote down.
+
+### 14.2 Athlete
+
+- `screens/checkin.js:59-67` — **the Weekly Check-In screen** ("Opens Sunday", "10 Points",
+  "6 Questions"). See §14.7 — this screen dies.
+- `screens/log.js:138` — hardcoded `"Before bed · 20 seconds · Recovery 25%"`
+- `state.js:4271` — hardcoded `"Opens Sunday · worth 10 points"` / `"Open today · worth 10 points"`
+- `ob2-meal.js:254` — onboarding: `"50% of the score"`
+- `screens/breakdown.js:30` — model-driven (`b.weightPct`); follows automatically. No change.
+- `screens/home.js` — the four-segment score bar becomes two; the cyan Weekly Check-In hue retires.
+
+### 14.3 Coach
+
+- `screens/coach.js:1035` — `"Recovery check-in · Nightly · 25% of the score"`
+- `screens/coach.js:1036` — `"Weekly check-in · Sundays · 10% of the score"` — **an orphaned
+  toggle**; see §14.7
+- `requirements.js:270,272` — the `recovery` and `checkin` requirement definitions, including
+  `checkin`'s `freq: { type: 'weekly', day: 0, label: 'Sundays' }` and `route: 'checkin'`
+- The coach's athlete-detail and roster views inherit `breakdown-model.js`, so they follow the model
+  — provided the coach path passes the athlete's standard, which `explainCategories(…, std)` already
+  supports.
+
+### 14.4 Trainer / client
+
+Trainers run the same operator layer as coaches (`S.audience` is link-derived), so §14.3 covers them.
+One trainer-specific surface:
+
+- `screens/ob2-client.js:214` — `"One Daily Score — Nutrition 50 · recovery 25 · commitment 15 ·
+  check-in 10"`
+
+### 14.5 Parent / guardian
+
+Parent onboarding and the guardian view describe the score to a non-athlete. Both must be audited
+against the same list; a parent reading "daily commitment 15%" about a component that no longer
+exists is the worst version of this bug, because a parent cannot check it against the app.
+
+### 14.6 Admin / Command Center
+
+`web/admin/sections/scoring.js` exists specifically to make the formula inspectable, and every number
+in it goes stale at once:
+
+- `:11-14` its own `PROFILE_WEIGHTS`
+- `:20` `"the server evidence ceiling (0041) clamps score DOWN … (nutrition 55 / checkin 35 /
+  commitment 15)"`
+- `:52` `Nutrition (max) 55` · `Check-in (max) 35` · `Commitment (max) 15`
+- `:56` `Commitment (one-tap) — yes=100 · partial=60 · no=0`
+- `:59` the missing-data rule
+
+### 14.7 The Weekly Check-In is a whole ritual, not a line item
+
+This is the largest surprise in the audit and it enlarges the change.
+
+`screens/checkin.js` is a **dedicated Sunday ritual screen** — "Opens Sunday · 10 Points ·
+6 Questions · ~1 Minute" — with a requirement row (`requirements.js:272`, `freq: weekly, day: 0,
+label: 'Sundays'`), a route, and copy in `state.js:4271`.
+
+**The engine never backed it.** `checkinReal()` pays for *any* check-in in the trailing 7 days, and
+`breakdown-model.js:266-269` already warns in a comment that the copy *"must say that, not invent a
+separate Sunday-only ritual."* The shipped app therefore tells two contradictory stories today, and
+this spec is the moment to end that rather than port it forward.
+
+v2 removes the component. Therefore: **delete the Weekly Check-In screen, its requirement entry, its
+route, and the coach toggle at `coach.js:1036`.** The nightly recovery check-in is the only check-in
+in the product.
+
+### 14.8 Marketing and published claims — the part that is not code
+
+*"One fixed, published formula. A 94 means the same thing on every roster in the country"*
+(`.agents/product-marketing.md:80`) is a **core positioning claim**, and the exact percentages are
+published in places that do not update when you deploy:
+
+| Surface | Note |
+|---|---|
+| `docs/marketing/aso-listing.md:113,143` | **App Store listing copy** — requires a store submission |
+| `web/landing/athletes.html:274` | a graphic whose `aria-label` names all four weights |
+| `web/landing/index.html` | score explanation |
+| `web/marketing-src/cards.html:668` | `"nutrition is 50% of the score"` |
+| `docs/marketing/articles/athlete-accountability-guide.md:47` | published article |
+| `docs/marketing/articles/the-other-167-hours.md:75` | published article |
+| `docs/marketing/content-and-aiseo-plan.md:168` | the canonical definition used for AI-SEO |
+| `.agents/product-marketing.md:80` | the brief that generates **future** marketing — fix first, or every new asset reprints the old formula |
+
+A published formula is a promise. Changing it is legitimate, but it must be announced rather than
+quietly amended, and `.agents/product-marketing.md` must be corrected **before** the next marketing
+asset is generated.
+
+### 14.9 Already safe
+
+- `src/core/exec.test.ts:173` asserts AI-generated exec copy never quotes a percentage
+  (`not.toMatch(/\d+\s*%|the 50|Recovery 25/i)`). The AI voice stays consistent for free.
+- `screens/breakdown.js:30` and anything using `liveWeightPct()` follow the model automatically.
+- Verified Commitments (`commitments.js:253 WEIGHTS = { ack 10, arrival 30, completion 60 }`) is a
+  **separate feature with its own Accountability score** and is untouched. Do not conflate
+  `dailyCommitment` (removed here) with Verified Commitments (unchanged).
+- Engine-comment references in `0041`, `0138`, `0155`, `plan-style.js:20`, `BUILD-NOTES.md:16`, and
+  `docs/go-live/PLAN-STYLES.md:36` are stale-but-harmless documentation; fix opportunistically.
+
+---
+
+## 15. Open question this audit exposed
+
+**What happens to Recovery's 24 points when a coach switches the recovery knob off?**
+
+`coach.js:1035` lets a coach disable the recovery check-in for their room. Under the old model that
+moved 25 points; under v2 it moves 24 points with nowhere obvious to go. If they redistribute to
+nutrition, that room's athletes are scored **100% on food logging** — a materially different product
+sold under the same "one fixed formula" claim. If the knob simply disappears, coaches lose a control
+they have today.
+
+This must be decided before implementation. It is out of scope for the weights themselves but blocks
+a clean answer to "is the score consistent for every type of user".
+
+---
+
+## 16. Success criteria
 
 - `scripts/score-parity` green — proto and RN engines agree byte-for-byte on the new weights.
 - `scoreIntegrity.test.ts` proves the SQL ceiling never clamps an honest score, on **both** sides of
@@ -337,3 +480,10 @@ Recorded so they are not rediscovered as surprises.
 - `reachPlan` rows still sum exactly to `maxPossible − score` with the commitment row removed.
 - No historical row's score changes.
 - The breakdown screen and `reachPlan` never disagree about what is still earnable.
+- **No hardcoded score percentage survives anywhere in `proto/` or `web/`.** A repo-wide grep for
+  `% of (the )?score` and for the literal weight numbers returns only `liveWeightPct()` call sites.
+- **Every role reads the same numbers.** Athlete, coach, trainer, parent and Command Center are
+  walked end-to-end and quote identical weights for the same athlete-day.
+- The Weekly Check-In screen, its requirement entry, its route, and the coach toggle are gone —
+  no dead route, no orphaned switch.
+- `.agents/product-marketing.md` is corrected before any new marketing asset is generated.
