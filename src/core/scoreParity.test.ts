@@ -61,6 +61,10 @@ function parity(label: string, s: AppState, planStyle?: string | null) {
   expect({ label, nutrition: c.nutrition }).toEqual({ label, nutrition: d.nutritionScore });
   expect({ label, recovery: c.recoveryContribution }).toEqual({ label, recovery: d.recoveryScoreIsReal ? d.recoveryScore : 0 });
   expect({ label, checkin: c.checkin }).toEqual({ label, checkin: d.checkinScore });
+  // Compared even though its weight is 0 and it therefore can never move `score` below: the
+  // reflection sub-score is still shown to the coach (see commitment.ts), so a proto/RN
+  // divergence here would be invisible to every other assertion in this file.
+  expect({ label, commitment: c.commitment }).toEqual({ label, commitment: d.commitmentScore });
   expect({ label, score: scoreFor(day) }).toEqual({ label, score: d.athleteScore });
 }
 
@@ -81,6 +85,28 @@ describe('proto day.js ↔ RN engine score parity (athlete profile)', () => {
     parity('one-plate', { ...createInitialState(), athleteName: 'Real User', meals: { breakfast: true, lunch: false, snack: false, dinner: false }, mealFoods: { breakfast: [{ name: 'Eggs', servings: 1, per: { protein: 30, kcal: 300, carbs: 5, fat: 18 } }] } } as unknown as AppState));
   it('quick-add protein bumps nutrition', () =>
     parity('quick', { ...createInitialState(), quickAdded: [true, false, true] } as AppState));
+});
+
+// v2 retired two things client-side: the weekly check-in carry (a submission earlier this week
+// no longer backs today) and, separately, nothing changed about an all-questions-off submitted
+// check-in (checkin credits, recovery does not, because enabledCount is 0). Neither prior fixture
+// above ever set `ciLast` or an empty `ciConfig` — every one left them at createInitialState()'s
+// defaults (ciLast: null, all four classic questions on) — so nothing in this file could ever have
+// caught a proto/RN divergence in either retirement. These two fixtures close that gap directly.
+describe('proto day.js ↔ RN engine score parity (v2 retirements: no weekly carry / unscored check-in)', () => {
+  it('RETIRED: a check-in submitted earlier this week (ciLast, 2 days old) no longer backs an unsubmitted today', () =>
+    parity('carry-retired', {
+      ...createInitialState(),
+      dateStamp: '2026-07-03',
+      ciSubmitted: false,
+      ciLast: { date: '2026-07-01', recovery: 92 },
+    } as AppState));
+  it('a submitted check-in with every question OFF (enabledCount 0): checkin credits, recovery does not', () =>
+    parity('submitted-empty-config', {
+      ...createInitialState(),
+      ciSubmitted: true,
+      ciConfig: { energy: false, recovery: false, sleep: false, confidence: false, soreness: false, motivation: false },
+    } as AppState));
 });
 
 // A trainer's client (goal = lose/maintain) is scored on the `general` profile and a muscle-gain

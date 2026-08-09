@@ -315,10 +315,12 @@ export interface AppState {
   ciSubmitted: boolean;
   ciConfig: CiConfig;
   /** The latest REAL check-in submission (its date + earned recovery sub-score).
-   *  Cross-day (survives rollover, persisted): the ritual is branded WEEKLY, so
-   *  scoring credits this snapshot for 7 days — before it existed the credit
-   *  vanished at midnight and an honest perfect day capped at 65. Null until the
-   *  first real submission; never written by an unsubmitted day. */
+   *  Cross-day (survives rollover, persisted). v2: the daily score no longer credits
+   *  this snapshot at all — computeDerived only scores a check-in submitted TONIGHT
+   *  (see scoring.ts's checkinScore/recoveryContribution). Still written on every real
+   *  submission and still read by reminders.ts (due-again nudging) and scoreIntegrity.ts's
+   *  SERVER-side evidence ceiling (a separate, still-carry-aware gate — see Task 4). Null
+   *  until the first real submission; never written by an unsubmitted day. */
   ciLast: { date: string; recovery: number } | null;
 
   // ---- nav / overlays ----

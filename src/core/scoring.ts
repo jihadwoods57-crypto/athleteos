@@ -145,7 +145,8 @@ export function seasonGoalPhase(opts: {
 export interface ScoreWeight {
   key: 'nutrition' | 'recovery' | 'commitment' | 'checkin';
   label: string;
-  /** Whole-number percent weight in the Accountability Score (the four sum to 100). */
+  /** Whole-number percent weight in the Accountability Score (the listed entries sum to 100;
+   *  zero-weight components, e.g. commitment in v2, are dropped from SCORE_WEIGHTS entirely). */
   pct: number;
   /** Plain-language, honest description of the input behind this component. */
   desc: string;
@@ -341,10 +342,10 @@ export function computeDerived(s: AppState): Derived {
   // no-check-in day by w.recovery*86 unearned points — the exact "fake number" the honesty
   // keystone forbids (D-B). When recovery is not real it contributes 0, matching the UI.
   const recoveryContribution = recoveryScoreIsReal ? recoveryScore : 0;
-  // The daily plan-commitment (yes/partial/no one-tap) now carries the 0.15 behavioral slot
-  // that the retired, un-authored task checklist used to hold. On its own it can NEVER reach
-  // on-standard (>=80) — nutrition (0.5) is 0 without a logged meal, so photo logging stays
-  // the only road to 80. See docs/council/2026-07-02-trust-pass.md.
+  // The daily plan-commitment (yes/partial/no one-tap) is captured and shown to the coach, but
+  // v2 weights it at 0 — it no longer moves the score at all (PROFILE_WEIGHTS.*.commitment).
+  // Nutrition (0.76) is 0 without a logged meal, so photo logging stays the only road to 80.
+  // See docs/council/2026-07-02-trust-pass.md.
   const commitmentSubScore = commitmentScore(s.dailyCommitment);
   const athleteScore = clamp(
     Math.round(w.nutrition * nutritionScore + w.recovery * recoveryContribution + w.commitment * commitmentSubScore + w.checkin * checkinScore),

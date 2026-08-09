@@ -27,15 +27,16 @@
 // real differentiation lives in what the NUTRITION SUB-SCORE MEASURES (NUTRITION_PARTS), not in
 // the headline mix. `general` spends its little slack pushing nutrition to its own 0.78 cap.
 //
-// NOTE (2026-08-09, Task 2 of the score-breakdown-v2 plan): scoreIntegrity.ts's
-// MAX_SUBSCORE_WEIGHT is derived from ./scoringProfiles.ts's PROFILE_WEIGHTS, a SEPARATE table
-// from this file's — the RN engine's own copy, not this proto mirror. Task 3 updates it; until
-// then MAX_SUBSCORE_WEIGHT still reflects the pre-v2 numbers and legitimately disagrees with
-// WEIGHT_CAPS above. See planStyleCaps.test.ts and scoreParity.test.ts, both intentionally left
-// red by this task for that reason — do not "fix" either by editing scoringProfiles.ts here.
+// NOTE (2026-08-09, Task 3 of the score-breakdown-v2 plan — DONE): scoreIntegrity.ts's
+// MAX_SUBSCORE_WEIGHT is derived from ./scoringProfiles.ts's PROFILE_WEIGHTS, the RN engine's
+// OWN copy of this table. Task 3 moved that copy to the v2 numbers and this file's
+// `PROFILE_WEIGHTS` below now IMPORTS it directly (see below) instead of holding a second
+// literal, so the two can no longer drift apart by construction — planStyleCaps.test.ts and
+// scoreParity.test.ts are both green.
 //
 // MIRRORED BY proto/redesign-2026-07/js/plan-style.js — planStyleParity.test.ts locks the two together.
 import type { ScoringProfile } from './types';
+import { PROFILE_WEIGHTS as ENGINE_PROFILE_WEIGHTS } from './scoringProfiles';
 
 export type PlanStyle = 'structured' | 'guided' | 'intuitive';
 export type StyleSource = 'team' | 'pro' | 'preference' | 'self' | 'legacy' | 'default';
@@ -80,13 +81,13 @@ export interface StyleWeights {
 export const WEIGHT_CAPS: StyleWeights = { nutrition: 0.78, recovery: 0.12, commitment: 0, checkin: 0.12 };
 
 /** Headline mix per goal profile — v2. Plan style no longer re-weights the score — it shapes HOW
- *  nutrition is computed (knobsFor). MUST equal proto plan-style.js PROFILE_WEIGHTS;
- *  planStyleParity.test.ts asserts the two constant tables are identical. */
-export const PROFILE_WEIGHTS: Record<ScoringProfile, StyleWeights> = {
-  athlete: { nutrition: 0.76, recovery: 0.12, commitment: 0, checkin: 0.12 },
-  general: { nutrition: 0.78, recovery: 0.10, commitment: 0, checkin: 0.12 },
-  gain: { nutrition: 0.76, recovery: 0.12, commitment: 0, checkin: 0.12 },
-};
+ *  nutrition is computed (knobsFor). Re-exported straight from scoringProfiles.ts (the RN engine's
+ *  OWN copy) rather than a second literal, so this file and the engine cannot drift apart —
+ *  planStyleCaps.test.ts's "byte for byte" identity check is now a tautology, not a hope. That
+ *  engine table is itself asserted identical to proto plan-style.js's PROFILE_WEIGHTS by
+ *  scoreParity.test.ts / score-v2.test.mjs, so the whole chain (proto -> RN engine -> here) stays
+ *  pinned to one set of numbers. */
+export const PROFILE_WEIGHTS: Record<ScoringProfile, StyleWeights> = ENGINE_PROFILE_WEIGHTS;
 
 /** The headline mix for a (style, profile). `style` is accepted and ignored — the signature is
  *  kept so no call site changes. An unknown profile falls back to athlete. */
