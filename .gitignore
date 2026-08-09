@@ -93,3 +93,6 @@ qc/
 !eval/meals/*.jpeg
 baseline-*.png
 art*-final.png
+
+# Subagent-driven-development scratch (ledgers, briefs, review packages)
+.superpowers/
