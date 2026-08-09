@@ -3,6 +3,7 @@ import { icon } from '../icons.js';
 import { esc, segBar } from '../components.js';
 import { scoreBand } from '../score-band.js';
 import { maybeShowTip } from '../tour.js';
+import { cutoverIndex } from '../score-cutover.js';
 
 /* Progress (spec §8): day one is a real baseline, never an empty tab; populated stays
    athlete-friendly — one score trend, one consistency summary, one category breakdown,
@@ -151,19 +152,25 @@ export default {
     const ddir = wd > 0 ? ' up' : wd < 0 ? ' down' : '';
     const trends = S.categoryTrends;
     const insight = S.progressInsight;
+    // The first bar scored under the new weights, only when the chart also shows an older bar
+    // scored the old way — otherwise there's no visible step to explain.
+    const cutIdx = cutoverIndex(P.weekDates);
+    const CUTOVER_LABEL = 'Scoring changed — days before this were scored a different way';
 
     const scoreTrendSection = `
     <div class="eyebrow" data-tour="trend">Score Trend</div>
     <section class="card pad">
       <div class="bigstat"><span class="n">${P.weekAvg}</span>${P.weekDelta ? `<span class="d${ddir}">${P.weekDelta} vs prior week</span>` : ''}</div>
       <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${P.onDays} day${P.onDays === 1 ? '' : 's'} on standard (≥80) · best streak ${P.bestStreak}d</div>
-      <div class="weekbars" role="img" aria-label="Last ${P.weekScores.length} days: ${P.weekScores.map((v, i) => `${P.weekDayLabels[i] || ''} ${v}`).join(', ')}. The standard is 80.">
+      <div class="weekbars" role="img" aria-label="Last ${P.weekScores.length} days: ${P.weekScores.map((v, i) => `${P.weekDayLabels[i] || ''} ${v}`).join(', ')}. The standard is 80.${cutIdx !== -1 ? ` ${esc(CUTOVER_LABEL)}.` : ''}">
         ${P.weekScores.map((v, i) => `
+          ${i === cutIdx ? `<div class="wb-cutover" aria-hidden="true" title="${esc(CUTOVER_LABEL)}" style="align-self:stretch;width:2px;border-radius:1px;background:var(--text-3);opacity:.4"></div>` : ''}
           <div class="wb b-${scoreBand(v) || 'off'}">
             <div class="track"><div class="bar" style="height:${Math.max(0, Math.min(100, v))}%"></div></div>
             <span class="d">${P.weekDayLabels[i] || ''}</span>
           </div>`).join('')}
       </div>
+      ${cutIdx !== -1 ? `<div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:6px;line-height:1.4">${esc(CUTOVER_LABEL)}</div>` : ''}
       ${styleBandRow()}
       <div class="sd-cta" style="margin-top:12px">
         <button class="btn ghost sm" id="pg-share" style="width:auto;padding:0 18px" aria-label="Share today's score as an image">${icon('share', 16)} Share today</button>

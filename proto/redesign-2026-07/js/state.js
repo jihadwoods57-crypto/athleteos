@@ -3766,40 +3766,17 @@ export const S = {
     return openMeals + (DAY.ciSubmitted ? 0 : 1);
   },
 
-  /* Human-readable breakdown that MAPS onto the real weights and sums to /100. */
-  get breakdown() {
-    const c = componentsNow();
-    // Standard-aware counting (WS7 audit fix): a coach standard's slots + denominator (1–6)
-    // drive this line; the classic day keeps its 4-slot count (MEAL_KEYS incl. snack).
-    const std = RT.stdMeals;
-    const bdSlots = (std && Array.isArray(std.slots) && std.slots.length) ? std.slots : MEAL_KEYS;
-    const bdDenom = (std && std.mealsRequired) || 4;
-    const logged = bdSlots.filter(k => DAY.meals[k]);
-    const openReq = bdSlots.filter(k => k !== 'snack' && !mealScored(DAY, k));
-    const nextDue = openReq.find(k => minutesNow() <= slotDeadline(k)) || openReq[0];
-    const nutriNote = logged.length
-      ? `${logged.length} of ${bdDenom} meals completed${nextDue ? ` · ${slotTitle(nextDue)} ${minutesNow() > slotDeadline(nextDue) ? 'overdue' : `due ${fmtClock(slotDeadline(nextDue))}`}` : logged.length >= bdDenom ? ' · full day' : ''}`
-      : 'No meals completed yet — each one builds Nutrition';
-    const commit = DAY.dailyCommitment;
-    const commitNote = commit === 'yes' ? 'Reflection complete: you executed your plan today'
-      : commit === 'partial' ? 'Reflection complete: a partial day, honestly logged'
-      : commit === 'no' ? 'Reflection complete: an off day, honestly logged'
-      : 'End-of-day reflection still open — your honest answer earns it';
-    // Weights come from the ENGINE's live style x profile mix — never 50/25/15/10 constants.
-    const w = liveWeights();
-    const pct = (k) => Math.round(w[k] * 100);
-    return [
-      { key: 'Nutrition', earned: Math.round(w.nutrition * c.nutrition), possible: pct('nutrition'),
-        note: nutriNote, accent: 'g', weightPct: pct('nutrition') },
-      { key: 'Recovery', earned: Math.round(w.recovery * c.recovery), possible: pct('recovery'),
-        note: DAY.ciSubmitted ? 'Tonight’s check-in submitted'
-          : (DAY.ciLast ? 'Carried from your last check-in; tonight refreshes it' : 'No check-in yet — submit tonight to earn this'), accent: 'p', weightPct: pct('recovery') },
-      { key: 'Daily commitment', earned: Math.round(w.commitment * c.commitment), possible: pct('commitment'),
-        note: commitNote, accent: 'b', weightPct: pct('commitment') },
-      { key: 'Weekly check-in', earned: Math.round(w.checkin * c.checkin), possible: pct('checkin'),
-        note: c.checkin ? 'Checked in this week — full points held' : 'No check-in in the last 7 days — tonight’s earns it', accent: 'c', weightPct: pct('checkin') },
-    ];
-  },
+  /* Home's score-bar segments. THIS USED TO BE a second, independent four-category formula
+     (its own weights, its own copy) that could drift from the Score Breakdown screen — exactly
+     what breakdown-model.js's opening comment forbids ("never a second formula that could
+     drift"). It also credited `w.recovery * c.recovery` (raw answer quality) instead of
+     `c.recoveryContribution` (what the score actually pays, which is zero with no check-in
+     tonight), so it showed ~10 phantom points on every no-check-in day. Both bugs are gone
+     because this is no longer a formula: it's the SAME `explain` getter the Score Breakdown
+     screen renders (breakdown-model.js explainCategories) — two entries, Nutrition then
+     Recovery, each carrying { key, accent, earned, possible, ... }. The two surfaces literally
+     cannot disagree now. */
+  get breakdown() { return this.explain; },
 
   /* ---------- SCORE EXPLANATION (spec §2) — the pure model over the live day ---------- */
   // One options object for every breakdown-model call, so the explanation can never use a
@@ -4303,6 +4280,9 @@ export const S = {
       weekScores, weekAvg, weekDelta,
       onDays: `${weekScores.filter(s => s >= 80).length} of ${weekScores.length}`,
       weekDayLabels: last7.map(d => 'SMTWTFS'[new Date(d.date + 'T00:00:00').getDay()]),
+      // Raw ISO dates alongside weekScores/weekDayLabels — Progress uses this to place the
+      // scoring-cutover divider on the real day it falls on, never a bar-index guess.
+      weekDates: last7.map(d => d.date),
       monthConsistency, bestStreak: best,
     };
   },

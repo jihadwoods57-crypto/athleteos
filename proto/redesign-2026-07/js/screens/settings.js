@@ -34,10 +34,12 @@ export function smartReply(text, fallback) {
   if (/(late|miss|forgot|skip)/.test(t)) return 'Honest answer: a late meal counts at half weight for punctuality, and a missed one just stays missed. Log it anyway — the trend matters more than one slot, and your coach respects a truthful log over a blank.';
   if (/(protein|macro)/.test(t)) return 'Aim protein-forward at every meal — a solid protein source plus a slow carb hits your plan. If a meal slot is still open, that’s where to close any gap.';
   if (/(eat out|restaurant|chipotle|fast food|on the go)/.test(t)) return 'From your plan’s approved list: Chipotle bowl (double chicken, rice, beans), a grilled sandwich, or a rice bowl. Order protein first, add the carb, skip nothing green.';
-  // Never hardcode the split: the four weights move with the athlete's plan style x goal
-  // profile, and the assistant quoting a different mix than the score screens is exactly
-  // the contradiction this app can least afford.
-  if (/(score|point|tier)/.test(t)) return `Your score is four honest parts: Nutrition ${liveWeightPct('nutrition')}%, Recovery ${liveWeightPct('recovery')}%, Commitment ${liveWeightPct('commitment')}%, Weekly check-in ${liveWeightPct('checkin')}%. Right now you’re at ${S.score}; finishing what’s still open tonight takes you toward ${S.possible}.`;
+  // Never hardcode the split: the weights move with the athlete's plan style x goal profile,
+  // and the assistant quoting a different mix — or a different NUMBER OF CATEGORIES — than the
+  // Score Breakdown screen is exactly the contradiction this app can least afford. Score v2
+  // dropped Daily Commitment's weight to 0 (it's still asked, just never scored) and folded the
+  // weekly check-in into the Recovery card, so this is two parts now, not four.
+  if (/(score|point|tier)/.test(t)) return `Your score comes from two honest parts: Nutrition ${liveWeightPct('nutrition')}%, and Recovery ${liveWeightPct('checkin') + liveWeightPct('recovery')}% — tonight's check-in plus how you answered it. Right now you’re at ${S.score}; finishing what’s still open tonight takes you toward ${S.possible}.`;
   return fallback;
 }
 

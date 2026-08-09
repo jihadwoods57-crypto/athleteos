@@ -987,8 +987,10 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 @keyframes xf-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 .xf-bar i.g{background:linear-gradient(90deg,var(--green-deep),var(--green))}
 .xf-bar i.p{background:linear-gradient(90deg,var(--purple-deep),var(--purple))}
+/* .b (commitment) and .a (amber) kept for any future non-zero weight; the cyan weekly-check-in
+   hue is gone for good — that category merged into Recovery and .xf-bar i.c can never render
+   again (S.breakdown is now literally S.explain: two entries, 'g' then 'p'). */
 .xf-bar i.b{background:linear-gradient(90deg,var(--blue-deep),var(--blue-bright))}
-.xf-bar i.c{background:linear-gradient(90deg,var(--cyan-deep),var(--cyan-bright))}
 .xf-bar i.a{background:linear-gradient(90deg,var(--amber-deep),var(--amber-bright))}
 .xhero .xh-next{display:flex;align-items:flex-start;gap:6px;font-size:var(--t-sm);font-weight:600;letter-spacing:-.01em;color:var(--text-2);margin-top:12px;padding-top:10px;border-top:1px solid var(--hairline-soft)}
 .xhero .xh-next svg{color:var(--blue-bright);flex:none}

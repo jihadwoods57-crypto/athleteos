@@ -17,7 +17,7 @@
    lock, and a duplicate-photo check so a re-tap never spends a
    second call on the same picture.
    ============================================================ */
-import { RT } from './state.js';
+import { RT, liveWeightPct } from './state.js';
 import { icon } from './icons.js';
 import { esc } from './components.js';
 import { openingMessage, openingSummary, qualityBand, groundExtras } from './meal-intel.js';
@@ -251,10 +251,8 @@ export function mealDemoSteps({ route, voice = 'coach', computeScore }) {
           <div style="height:12px"></div>
           ${phoneCard('How the number is built', `
             <div class="comp-read">
-              <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">Nutrition</div><div class="cv">50% of the score — this meal grades ${r.quality}/100${band ? ' (' + esc(band.label || band.name || '') + ')' : ''}</div></div>
-              <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">Recovery</div><div class="cv">25% — sleep and recovery check-ins</div></div>
-              <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">Commitment</div><div class="cv">15% — doing what you said, on time</div></div>
-              <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">Check-in</div><div class="cv">10% — showing up daily</div></div>
+              <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">Nutrition</div><div class="cv">${liveWeightPct('nutrition')}% of the score — this meal grades ${r.quality}/100${band ? ' (' + esc(band.label || band.name || '') + ')' : ''}</div></div>
+              <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">Recovery</div><div class="cv">${liveWeightPct('checkin') + liveWeightPct('recovery')}% — tonight's check-in and how you answered</div></div>
             </div>`)}`;
       },
     },

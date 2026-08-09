@@ -128,14 +128,14 @@ export default {
       ${DAY.dailyCommitment == null ? `
       <div class="sheet-row" data-go="commitment">
         <div class="si" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('target', 19)}</div>
-        <div class="st"><div class="t">Daily Commitment</div><div class="s">End-of-day reflection · ${liveWeightPct('commitment')}% of your score</div></div>
+        <div class="st"><div class="t">Daily Commitment</div><div class="s">End-of-day reflection · doesn't change your score</div></div>
         <span class="xpill gray">Open</span>
       </div>` : ''}
       <div class="xgrp" style="margin:4px 2px 7px">Forms &amp; check-ins</div>
       ${recovery && !(e.now && e.now.id === 'recovery') ? `
       <div class="sheet-row" data-go="${recovery.route}">
         <div class="si" style="background:${recovery.state === 'done' ? 'var(--green-surface);color:var(--green-bright)' : 'rgba(168,85,247,0.22);color:var(--purple-bright)'}">${icon(recovery.state === 'done' ? 'check' : 'moon', 20)}</div>
-        <div class="st"><div class="t">Recovery Check-In</div><div class="s">${recovery.state === 'done' ? 'Submitted tonight' : 'Before bed · 20 seconds · Recovery 25%'}</div></div>
+        <div class="st"><div class="t">Recovery Check-In</div><div class="s">${recovery.state === 'done' ? 'Submitted tonight' : `Before bed · 20 seconds · Recovery ${liveWeightPct('checkin') + liveWeightPct('recovery')}%`}</div></div>
         <span class="xpill ${recovery.color}">${recovery.pill}</span>
       </div>` : ''}
       ${weeklyToday ? `
