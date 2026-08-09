@@ -105,17 +105,22 @@ describe('explainCategories (spec §2.2/§2.3)', () => {
     const day = freshDay({ ciSubmitted: true, ci: { energy: 6, recovery: 6, sleep: 4, confidence: 8, soreness: 4, motivation: 8 } });
     const rec = explainCategories(day, OPTS).find((c: any) => c.id === 'recovery')!;
     expect(rec.note).toMatch(/Recovery quality \d+%/);
-    expect(rec.note).toMatch(/Sleep/); // the biggest deficit is named
+    // v2: the merged Recovery card's headline note states check-in status and quality only —
+    // it no longer names the single biggest deficit inline (that duplicated the per-metric rows
+    // below it). The deficit is still visible, just in the expanded rows instead of the note.
+    expect(rec.rows.some((r: any) => r.label === 'Sleep' && r.value === '4/10')).toBe(true);
     expect(rec.remaining).toBe(0);     // settled for today — no phantom remaining points
   });
 
-  test('commitment still explains the reflection, but v2 pays it nothing (weight 0)', () => {
-    const com = explainCategories(freshDay(), OPTS).find((c: any) => c.id === 'commitment')!;
-    expect(com.remainingKind).toBe('guaranteed');
-    expect(com.remaining).toBe(0); // PROFILE_WEIGHTS.*.commitment is 0 — nothing left to guarantee
-    const done = explainCategories(freshDay({ dailyCommitment: 'partial' }), OPTS).find((c: any) => c.id === 'commitment')!;
-    expect(done.earned).toBe(0); // 0 × 60 — the reflection is captured, it just scores nothing
-    expect(done.remaining).toBe(0);
+  test('the daily commitment is no longer a scored category in explainCategories (v2)', () => {
+    // v2: PROFILE_WEIGHTS.*.commitment is 0, and explainCategories returns exactly two cards
+    // (nutrition, recovery) — a 'commitment' id must never appear, regardless of the reflection
+    // answer. The reflection itself is still captured on day.dailyCommitment and still shown to
+    // the coach elsewhere; it is simply not a category on this screen any more.
+    expect(explainCategories(freshDay(), OPTS).find((c: any) => c.id === 'commitment')).toBeUndefined();
+    const partial = explainCategories(freshDay({ dailyCommitment: 'partial' }), OPTS);
+    expect(partial.find((c: any) => c.id === 'commitment')).toBeUndefined();
+    expect(partial.map((c: any) => c.id)).toEqual(['nutrition', 'recovery']);
   });
 
   test('protein remaining feeds the nutrition explanation', () => {
@@ -123,6 +128,32 @@ describe('explainCategories (spec §2.2/§2.3)', () => {
     expect(proteinRemaining(day, OPTS.slots)).toBe(140);
     const nut = explainCategories(day, OPTS).find((c: any) => c.id === 'nutrition')!;
     expect(nut.note).toMatch(/1 of 4 meals completed/);
+  });
+});
+
+describe('score v2 breakdown', () => {
+  it('returns exactly two categories, nutrition and recovery', () => {
+    const cats = explainCategories(freshDay(), OPTS);
+    expect(cats.map((c: any) => c.id)).toEqual(['nutrition', 'recovery']);
+  });
+
+  it('the recovery card is worth 24 and names the guaranteed part', () => {
+    const rec = explainCategories(freshDay(), OPTS).find((c: any) => c.id === 'recovery')!;
+    expect(rec.possible).toBe(24);
+    expect(rec.rows[0].label).toBe('Checked in tonight');
+    expect(rec.rows[0].value).toBe('+12 on check-in');
+  });
+
+  it('reach plan has no commitment row', () => {
+    const { rows } = reachPlan(freshDay(), OPTS);
+    expect(rows.find((r: any) => r.id === 'commitment')).toBeUndefined();
+  });
+
+  it('reach plan rows still sum exactly to maxPossible minus score', () => {
+    const d = freshDay();
+    const { rows, maxPossible } = reachPlan(d, OPTS);
+    const total = rows.reduce((a: number, r: any) => a + r.gain, 0);
+    expect(total).toBe(maxPossible - dayScoreOf(d));
   });
 });
 

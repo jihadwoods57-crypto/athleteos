@@ -78,7 +78,6 @@ export function maxDay(day, { slots, nowMin }) {
     d = withMeal(d, k, nowMin > due ? nowMin : at, i === open.length - 1 ? remP - share * (open.length - 1) : share);
   });
   if (!d.ciSubmitted) { d.ciSubmitted = true; d.ci = { ...d.ci, ...CI_BEST }; }
-  if (d.dailyCommitment == null) d.dailyCommitment = 'yes';
   return d;
 }
 
@@ -125,18 +124,8 @@ export function reachPlan(day, { slots, titles = {}, optional = [], nowMin, fmtC
     const gain = dayScoreOf(next) - curScore;
     rows.push({
       id: 'recovery', label: 'Do Recovery Check-In',
-      sub: 'Tonight, before bed. Also refreshes your Weekly Check-In',
+      sub: 'Tonight, before bed. Submitting it is worth 12 on its own',
       gain, kind: 'upTo', route: 'recovery', accent: 'p', late: false,
-    });
-    cur = next; curScore += gain;
-  }
-  if (day.dailyCommitment == null) {
-    const next = clone(cur);
-    next.dailyCommitment = 'yes';
-    const gain = dayScoreOf(next) - curScore;
-    rows.push({
-      id: 'commitment', label: 'Complete Daily Commitment', sub: 'End-of-day reflection',
-      gain, kind: 'guaranteed', route: 'commitment', accent: 'b', late: false,
     });
     cur = next; curScore += gain;
   }
@@ -219,64 +208,35 @@ export function explainCategories(day, { slots, denom, titles = {}, optional = [
     nutriNote = parts.join(' · ');
   }
 
-  /* --- Recovery --- */
-  const recPossible = Math.round(w.recovery * 100);
-  const recEarned = Math.round(w.recovery * c.recoveryContribution);
+  /* --- Recovery ---
+     No headline "note" is built here: the merged card below states ciSubmitted status and
+     quality directly. This block's only job is recRows — the per-metric detail (Energy, Sleep,
+     ...) that only exists once the check-in is IN. When it is not, the two guaranteed rows on
+     the merged card ("Checked in tonight" / "How you answered") already say everything there is
+     to say; pushing a third "Tonight's check-in" row here would just repeat them. */
   const recRows = [];
-  let recNote, recRemaining = 0, recRemainingKind = 'upTo';
   if (day.ciSubmitted) {
-    recNote = `Check-in completed · Recovery quality ${c.recovery}%`;
-    const lost = recPossible - recEarned;
-    const deficits = Object.keys(CI_LABELS)
-      .filter((k) => day.ciConfig && day.ciConfig[k] && typeof day.ci[k] === 'number')
-      .map((k) => ({ k, miss: k === 'soreness' ? day.ci[k] : 10 - day.ci[k] }))
-      .filter((d) => d.miss > 0)
-      .sort((a, b) => b.miss - a.miss)
-      .slice(0, 2)
-      .map((d) => CI_LABELS[d.k]);
-    if (lost > 0 && deficits.length) recNote += ` · ${deficits.join(' and ')} cost ${lost} pt${lost === 1 ? '' : 's'}`;
     Object.keys(CI_LABELS).forEach((k) => {
       if (day.ciConfig && day.ciConfig[k] && typeof day.ci[k] === 'number') {
         const v = k === 'soreness' ? 10 - day.ci[k] : day.ci[k];
         recRows.push({ label: CI_LABELS[k], sub: k === 'soreness' ? 'Lower soreness scores higher' : '', value: `${v}/10`, state: v >= 8 ? 'done' : 'open' });
       }
     });
-  } else if (day.ciLast && day.ciLast.date) {
-    recNote = `Carried from your last check-in (${Math.round(day.ciLast.recovery)}%) · tonight's refreshes it`;
-    recRemaining = recPossible - recEarned;
-    recRows.push({ label: 'Tonight’s check-in', sub: 'Answers set the quality; best answers earn it all', value: `up to +${recRemaining}`, state: 'open' });
-  } else {
-    recNote = 'No check-in yet — answer tonight to earn this';
-    recRemaining = recPossible;
-    recRows.push({ label: 'Tonight’s check-in', sub: 'Answers set the quality; best answers earn it all', value: `up to +${recPossible}`, state: 'open' });
   }
 
-  /* --- Daily Commitment --- */
-  const comPossible = Math.round(w.commitment * 100);
-  const comEarned = Math.round(w.commitment * c.commitment);
-  const ans = day.dailyCommitment;
-  const comNote = ans === 'yes' ? 'Reflection complete: you executed your plan today'
-    : ans === 'partial' ? 'Reflection complete: a partial day, honestly logged'
-    : ans === 'no' ? 'Reflection complete: an off day, honestly logged'
-    : 'Set today’s commitment, then close the day with an honest reflection';
-  const comRows = [
-    { label: 'End-of-day reflection', sub: 'Did you execute today’s plan? Your honest answer sets the points', value: ans == null ? `up to +${comPossible}` : `${comEarned} of ${comPossible} pts`, state: ans == null ? 'open' : 'done' },
-    { label: 'Why it counts', sub: 'Intent vs. execution is the habit coaches trust — the answer is yours, and your coach sees it', value: '', state: 'info' },
-  ];
-
-  /* --- Weekly check-in ---
-     Engine truth (day.js checkinReal): this component is earned by ANY check-in inside the
-     trailing 7 days — tonight's recovery check-in both fills Recovery and keeps this green.
-     The copy must say that, not invent a separate Sunday-only ritual. */
-  const wkPossible = Math.round(w.checkin * 100);
-  const wkEarned = Math.round(w.checkin * c.checkin);
-  const wkIn = c.checkin > 0;
+  /* ONE Recovery card worth checkin + recovery. The engine keeps two internal slots because
+     `checkin` is binary and `recovery` is graded, but the athlete must never be shown two
+     categories for one action — that duplicate is exactly what v2 removes. */
+  const recPossible = Math.round((w.checkin + w.recovery) * 100);
+  const recEarned = Math.round(w.checkin * c.checkin + w.recovery * c.recoveryContribution);
+  const ciPts = Math.round(w.checkin * 100);
+  const ansPts = Math.round(w.recovery * 100);
 
   return [
     {
       id: 'nutrition', key: 'Nutrition', accent: 'g', weightPct: Math.round(w.nutrition * 100),
       earned: nutriEarned, possible: nutriPossible, note: nutriNote,
-      /* ACTION-AWARE, matching Recovery (ciSubmitted) and Commitment (ans == null) below — this
+      /* ACTION-AWARE, matching Recovery (ciSubmitted) below — this
          was the one category whose "remaining" was pure arithmetic (possible − earned). With every
          meal logged, a gap left by late half-credit or plate quality is NOT claimable by any
          action, but this card kept saying "Up to +4 still available … logs earn it all" while
@@ -291,37 +251,32 @@ export function explainCategories(day, { slots, denom, titles = {}, optional = [
       rows: nutriRows,
     },
     {
-      id: 'recovery', key: 'Recovery', accent: 'p', weightPct: Math.round(w.recovery * 100),
-      earned: recEarned, possible: recPossible, note: recNote,
-      remaining: recRemaining, remainingKind: recRemainingKind,
-      remainingNote: day.ciSubmitted ? 'Tonight’s check-in is in. This category is settled for today.'
-        : `Up to ${recRemaining || recPossible} points available tonight. Your answers set the exact number.`,
-      rows: recRows,
-    },
-    {
-      id: 'commitment', key: 'Daily Commitment', accent: 'b', weightPct: Math.round(w.commitment * 100),
-      earned: comEarned, possible: comPossible, note: comNote,
-      remaining: ans == null ? comPossible : 0, remainingKind: 'guaranteed',
-      remainingNote: ans == null ? `“Executed my plan” earns +${comPossible} · “Partially” earns +${Math.round(w.commitment * 60)} · an honest off day earns 0 and keeps your record true.` : 'Reflection is in. This category is settled for today.',
-      rows: comRows, action: ans == null ? { label: 'Complete reflection', route: 'commitment' } : null,
-    },
-    {
-      /* accent 'c', matching S.breakdown (state.js): cyan is Weekly Check-In's hue everywhere.
-         This was 'g' — the same green as Nutrition — so the four category fills on THIS screen
-         still showed the duplicate the home bar was cured of. Two sources, one palette. */
-      id: 'checkin', key: 'Weekly Check-In', accent: 'c', weightPct: Math.round(w.checkin * 100),
-      earned: wkEarned, possible: wkPossible,
-      note: wkIn ? 'Checked in this week · full points held' : 'No check-in in the last 7 days',
-      remaining: wkIn ? 0 : wkPossible, remainingKind: 'guaranteed',
-      remainingNote: wkIn
-        ? 'A check-in inside the last 7 days holds these points. Tonight’s check-in restarts the week.'
-        : `Tonight’s recovery check-in earns the full +${wkPossible}, guaranteed, and holds it for 7 days.`,
-      rows: [{
-        label: 'Checked in within 7 days',
-        sub: wkIn ? 'Your recovery check-ins keep this green' : 'Complete tonight’s recovery check-in to earn it',
-        value: wkIn ? `${wkEarned} of ${wkPossible} pts` : `+${wkPossible} on check-in`,
-        state: wkIn ? 'done' : 'open',
-      }],
+      id: 'recovery', key: 'Recovery', accent: 'p', weightPct: recPossible,
+      earned: recEarned, possible: recPossible,
+      note: day.ciSubmitted
+        ? `Checked in tonight · Recovery quality ${c.recovery}%`
+        : 'Not checked in yet — tonight’s check-in is the only way to earn this',
+      remaining: day.ciSubmitted ? 0 : recPossible,
+      remainingKind: day.ciSubmitted ? 'guaranteed' : 'upTo',
+      remainingNote: day.ciSubmitted
+        ? 'Tonight’s check-in is in. This category is settled for today.'
+        : `Submitting tonight’s check-in earns +${ciPts} guaranteed. Your answers set the last ${ansPts}.`,
+      rows: [
+        {
+          label: 'Checked in tonight',
+          sub: day.ciSubmitted ? 'Submitted · guaranteed points' : 'Before bed · nothing carries from another day',
+          value: day.ciSubmitted ? `${ciPts} of ${ciPts} pts` : `+${ciPts} on check-in`,
+          state: day.ciSubmitted ? 'done' : 'open',
+        },
+        {
+          label: 'How you answered',
+          sub: day.ciSubmitted ? '' : 'Honest answers cost you almost nothing — a rough night is a few points',
+          value: day.ciSubmitted ? `${Math.round(w.recovery * c.recoveryContribution)} of ${ansPts} pts` : `up to +${ansPts}`,
+          state: day.ciSubmitted ? 'done' : 'open',
+        },
+        ...recRows,
+      ],
+      action: day.ciSubmitted ? null : { label: 'Do check-in', route: 'recovery' },
     },
   ];
 }
