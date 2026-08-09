@@ -3502,6 +3502,45 @@ export const S = {
    *  the style x goal profile, and a number the athlete can check has to be the true one. */
   get nutritionWeightPct() { return Math.round(weightsForDay(DAY).nutrition * 100); },
 
+  /* WHAT the nutrition sub-score is actually made of, for the athlete who has no targets and
+     asks "then what am I being graded on?". Two engine paths, and this reports whichever one is
+     really running (day.js nutritionScore): the `parts` composition for Guided/Intuitive/
+     customized, or the shipped per-goal-profile formula for Structured. The numbers below are the
+     engine's own — legacyNutritionScore's literals — so a change there that isn't mirrored here
+     shows up as a contradiction on one screen rather than being invisible. */
+  get nutritionFormula() {
+    const PART_LABEL = {
+      protein: 'Protein', calorie: 'Calories', timing: 'Meals on time',
+      hydration: 'Hydration', quality: 'Meal quality', awareness: 'Body signals',
+    };
+    const knobs = this.planStyle.knobs;
+    if (knobs && knobs.nutrition && knobs.nutrition.formula === 'parts' && knobs.parts) {
+      const parts = Object.keys(PART_LABEL)
+        .filter((k) => (knobs.parts[k] || 0) > 0)
+        .map((k) => ({ key: k, label: PART_LABEL[k], pct: Math.round(knobs.parts[k]) }));
+      return { mode: 'parts', parts };
+    }
+    const profile = DAY.scoringProfile || 'athlete';
+    if (profile === 'general') {
+      return { mode: 'legacy', parts: [
+        { key: 'calorie', label: 'Calorie adherence', pct: 45 },
+        { key: 'protein', label: 'Protein', pct: 25 },
+        { key: 'timing', label: 'Meals logged', pct: 30 },
+      ] };
+    }
+    if (profile === 'gain') {
+      return { mode: 'legacy', parts: [
+        { key: 'calorie', label: 'Calorie floor', pct: 40 },
+        { key: 'protein', label: 'Protein', pct: 35 },
+        { key: 'timing', label: 'Meals logged', pct: 25 },
+      ] };
+    }
+    return { mode: 'legacy', parts: [
+      { key: 'protein', label: 'Protein', pct: 65 },
+      { key: 'timing', label: 'Meals on time', pct: 35 },
+    ] };
+  },
+
   /** The score timeline banded by the style that governed each stretch, newest last.
    *  [{ style, name, days, from, to, avg }] — Progress renders these so a trend break reads as
    *  "the plan changed here", never as an unexplained drop. Days with no stamp (pre-0142 history)
@@ -3708,6 +3747,74 @@ export const S = {
     const g = RT.profile && RT.profile.baseGoal;
     return g === 'gain' ? 'Gain weight' : g === 'lose' ? 'Lose fat' : g === 'maintain' ? 'Maintain' : (g === 'perform' || g === 'performance') ? 'Perform' : null;
   },
+  /* The goal, fully decoded — what the Plan header's goal pill opens into.
+     Every field is REAL or null; nothing here is a placeholder. In particular there is no stored
+     "target rate", so this does not invent one: it reports the actual measured movement and
+     whether that movement is heading toward the target (S.weight's own pace rule).
+     Provenance is split because the two halves genuinely have different owners: base_goal and
+     season_goal are written by the athlete's own onboarding, while athlete_profiles.targets is
+     written only by coach_set_goals — a coach or trainer. */
+  get planGoal() {
+    const p = RT.profile || {};
+    const key = p.baseGoal || null;
+    const w = this.weight;
+    const coachSet = !!this.planTargets;
+    const bw = (p.baseWeight != null ? +p.baseWeight : 0) || (w.current != null ? +w.current : 0) || 0;
+    // What the goal DOES: the scoring branch it selects and the numbers it derives when no
+    // professional has set their own. This is the honest answer to "what's the strategy".
+    const derived = key ? nutritionConfigForGoal(key, bw, null) : null;
+    const STRATEGY = {
+      lose: 'Calorie target below maintenance, protein held high.',
+      lose_fat: 'Calorie target below maintenance, protein held high.',
+      gain: 'Calorie surplus with protein scaled to bodyweight.',
+      build: 'Calorie surplus with protein scaled to bodyweight.',
+      maintain: 'Calories held near maintenance.',
+      health: 'Calories held near maintenance.',
+      perform: 'Fuel for training load — performance formula, not a weight formula.',
+      performance: 'Fuel for training load — performance formula, not a weight formula.',
+    };
+    return {
+      key,
+      label: this.planGoalLabel,
+      strategy: key ? (STRATEGY[key] || null) : null,
+      current: w.current != null ? Number(w.current) : null,
+      target: w.target,
+      start: w.start,
+      unit: w.unit,
+      // The measured movement across the logged history, and whether it points at the target.
+      // Null when there aren't two weigh-ins to compare — never a fabricated rate.
+      moved: w.deltaMonth,
+      pace: w.pace,
+      // Weight is deliberately outside the daily score; the pill must never imply otherwise.
+      weightScored: false,
+      derivedProtein: derived ? derived.proteinTarget : null,
+      derivedCalories: derived ? derived.calTarget : null,
+      targetsAreCoachSet: coachSet,
+      targetsSetBy: coachSet && this.coach.hasCoach && this.coach.isNamed ? this.coach.name : null,
+      startedOn: activationDateOnly(),
+    };
+  },
+
+  /* The requirement_set actually governing this athlete today — the provenance behind every row
+     on Plan · Requirements. Null when no coach set governs (the OnStandard baseline), which is
+     exactly the case where attributing rules to a named coach would be a lie. */
+  get governingStandard() {
+    const sets = RT.reqSets || [];
+    if (!sets.length) return null;
+    const set = resolveRequirementSet(sets, RT.userId, RT.myRoomLabel || (RT.profile || {}).position, String(DAY.date));
+    if (!set) return null;
+    return {
+      name: (set.name || '').trim() || null,
+      scopeKind: set.scope_kind || null,
+      scopeLabel: set.scope_kind === 'athlete' ? 'Set for you'
+        : set.scope_kind === 'position' ? `Set for ${set.scope_value || 'your room'}`
+          : 'Your team standard',
+      setBy: this.coach.hasCoach && this.coach.isNamed ? this.coach.name : null,
+      effectiveDate: set.effective_date || null,
+      updatedAt: set.updated_at || null,
+    };
+  },
+
   // Experience voice (mirrors roleVoice.experienceKind: general profile = lose/maintain →
   // the personal-client experience; athlete/gain keep the team frame). Gates recruiter/sport
   // copy that reads wrong aimed at an adult on a personal goal.

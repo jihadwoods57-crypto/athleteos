@@ -1,7 +1,7 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
-import { CATALOG, PROOF, IMPACT_LABEL, freqLabel, deriveAssigned, catalogFromItems } from '../requirements.js';
+import { CATALOG, PROOF, IMPACT_LABEL, freqLabel, fmtMin, deriveAssigned, catalogFromItems } from '../requirements.js';
 import { DAY } from '../day.js';
 
 /* Requirement Detail — every rule in the system is legible: what it is, when,
@@ -49,6 +49,41 @@ export default {
           : `<button class="btn green" data-act="completeCheck:${id}" data-then="requirement/${id}">${icon('check', 19)} Mark Done · coach sees it</button>`)
         : `<button class="btn primary" data-go="${req.route || proof.route || 'home'}">${icon(req.icon, 19)} ${proof.verb} ${req.title}</button>`;
 
+    /* "What counts as completion" — the question the proof label only half answered. Each line is
+       the ENGINE's real rule, not a description of one: meals run on day.js's on-time/late-credit
+       split (grace minutes ride the requirement when a coach set them), and a tracked-not-scored
+       row says plainly that late costs nothing because nothing was ever at stake. */
+    const grace = typeof req.grace === 'number' && req.grace > 0 ? req.grace : 0;
+    const scored = req.impact.kind === 'component';
+    const DONE_RULE = {
+      photo: { what: 'A photo of the plate', late: `Logged inside the window scores in full${grace ? `, plus ${grace} min grace` : ''}. Late still counts, at half credit.` },
+      form:  { what: 'The form submitted', late: 'Submitted any time tonight counts in full.' },
+      scale: { what: 'A weight entered', late: 'It feeds your season trend, so a late entry costs nothing.' },
+      counter: { what: 'The count reached', late: 'Add to it any time before the deadline.' },
+      check: { what: 'One tap to mark it done', late: assigned ? 'Your coach sees it either way.' : 'No deadline penalty.' },
+    };
+    const doneRule = DONE_RULE[req.proof] || DONE_RULE.check;
+    if (!scored) doneRule.late = 'Tracked, not scored. Logging late costs you nothing.';
+
+    /* Who set this rule, and when it last changed. Attributed ONLY when a coach requirement_set
+       actually governs: with none, these are the app's built-in defaults and naming a person
+       would be a fabrication. Coach-assigned tasks carry their own real assigner. */
+    const gov = S.governingStandard;
+    const fmtDate = (iso) => {
+      if (!iso) return null;
+      const d = new Date(String(iso).length <= 10 ? `${iso}T12:00:00` : iso);
+      return isNaN(d.getTime()) ? null : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    };
+    const provenance = assigned
+      ? { who: `Assigned by ${assigned.from || 'your coach'}`, when: assigned.dueLabel || 'One-time task' }
+      : gov
+        ? {
+          who: gov.setBy ? `${gov.scopeLabel} by ${gov.setBy}` : gov.scopeLabel,
+          when: gov.effectiveDate ? `In effect since ${fmtDate(gov.effectiveDate) || gov.effectiveDate}`
+            : gov.updatedAt ? `Last changed ${fmtDate(gov.updatedAt) || gov.updatedAt}` : 'In effect now',
+        }
+        : { who: 'The OnStandard baseline', when: 'Not replaced by a coach standard' };
+
     // Training override: route to the lightweight session log rather than a one-tap check.
     if (isTraining) actionBtn = checkDone
       ? `<button class="btn ghost" data-go="log-training/${id}" style="width:100%">${icon('check', 19)} Logged today · tap to update</button>`
@@ -60,7 +95,10 @@ export default {
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('clock', 17)}</div>
-        <div class="lm"><div class="lt">${req.dueLabel || (req.window && req.window.due ? 'Deadline set' : 'No deadline')}</div>
+        ${/* "Deadline set" was a label standing in for a deadline this screen already has: the
+              catalog carries the minute, and derive() (which builds dueLabel) never runs on this
+              route. Print the time. */''}
+        <div class="lm"><div class="lt">${req.dueLabel || (req.window && req.window.due != null ? `Due by ${fmtMin(req.window.due)}` : 'No deadline')}</div>
         <div class="ls">${assigned ? 'One-time task' : freqLabel(req.freq)}</div></div>
       </div>
       <div class="lrow" style="cursor:default">
@@ -69,12 +107,21 @@ export default {
       </div>
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('target', 17)}</div>
-        <div class="lm"><div class="lt">${impact}</div><div class="ls">What it touches — no black boxes</div></div>
+        <div class="lm"><div class="lt">${impact}</div><div class="ls">What it touches. No black boxes</div></div>
+      </div>
+      <div class="lrow" style="cursor:default">
+        <div class="lic">${icon('check', 17)}</div>
+        <div class="lm"><div class="lt">${esc(doneRule.what)}</div><div class="ls">${esc(doneRule.late)}</div></div>
       </div>
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('bell', 17)}</div>
         <div class="lm"><div class="lt">Reminders: ${req.reminder || 'medium'}</div><div class="ls">Coach sets urgency; you set quiet hours</div></div>
       </div>
+      ${provenance ? `
+      <div class="lrow" style="cursor:default">
+        <div class="lic">${icon('shield', 17)}</div>
+        <div class="lm"><div class="lt">${esc(provenance.who)}</div><div class="ls">${esc(provenance.when)}</div></div>
+      </div>` : ''}
     </section>
 
     <div class="eyebrow">Why it's on your standard</div>
