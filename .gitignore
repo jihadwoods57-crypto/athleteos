@@ -96,3 +96,6 @@ art*-final.png
 
 # Subagent-driven-development scratch (ledgers, briefs, review packages)
 .superpowers/
+
+# Git worktrees for isolated plan execution
+.worktrees/
