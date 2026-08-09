@@ -1,6 +1,6 @@
 import { S, RT, act, fmtClock, nutritionConfigForGoal } from '../state.js';
 import { icon } from '../icons.js';
-import { accentVar } from '../score-band.js';
+import { accentVar, scoreColor, ON_STANDARD } from '../score-band.js';
 import { backHead, titleHead, esc, safeImg, composer, sparkline, emptyState, errorState, skeletonRows, emailVerifyBanner, wireEmailVerifyBanner } from '../components.js';
 import {
   attachedPhoto, isPhotoOnly, wireComposerAttach, postChatMessage,
@@ -29,7 +29,8 @@ const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 // screen), but keeps this exact name/signature so any existing importer keeps working untouched.
 export { loadCoachRoster };
 
-const scoreColor = (s) => s == null ? 'var(--text-3)' : s >= 80 ? 'var(--green-bright)' : s >= 60 ? 'var(--amber-bright)' : 'var(--red)';
+// scoreColor now comes from score-band.js — this file used to re-inline its own 80/60 ladder,
+// which is exactly the drift the one-ladder rule exists to prevent.
 
 /* ---------- Coach assign flow — the + button (0055 requirements engine) ----------
    Who (team / position room / one athlete) → what (title) → proof → due → note → send.
@@ -486,7 +487,7 @@ export const coachPlan = {
       <div class="eyebrow">Program</div>
       <section class="card" style="padding:6px 16px">
         <div class="lrow" data-go="coach-voice">
-          <div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div>
+          <div class="lic" style="background:rgba(var(--purple-rgb),0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div>
           <div class="lm"><div class="lt">AI Nutritionist</div><div class="ls">${RT.coachVoice ? 'Tuned to your voice — never invents' : 'Set the tone the AI reinforces'}</div></div>
           <span class="status-pill ${RT.coachVoice && RT.coachVoice.enabled !== false ? 'g' : 'muted'}">${RT.coachVoice && RT.coachVoice.enabled !== false ? 'On' : 'Off'}</span>
           ${icon('chevron', 17, 'style="color:var(--text-3);margin-left:8px"')}
@@ -497,12 +498,12 @@ export const coachPlan = {
           ${icon('chevron', 17, 'style="color:var(--text-3)"')}
         </div>
         <div class="lrow" data-go="week-pattern">
-          <div class="lic" style="background:rgba(59,130,246,0.14);color:var(--blue-bright)">${icon('clock', 17)}</div>
+          <div class="lic" style="background:rgba(var(--blue-rgb),0.14);color:var(--blue-bright)">${icon('clock', 17)}</div>
           <div class="lm"><div class="lt">Training week</div><div class="ls">${(() => { const p = Array.isArray(RT.weekPattern) ? RT.weekPattern : []; const rest = p.filter((d) => d === 'rest').length; return rest ? `${7 - rest} training · ${rest} rest` : 'Every day training'; })()}</div></div>
           ${icon('chevron', 17, 'style="color:var(--text-3)"')}
         </div>
         <div class="lrow" data-go="coach-rooms">
-          <div class="lic" style="background:rgba(59,130,246,0.14);color:var(--blue-bright)">${icon('users', 17)}</div>
+          <div class="lic" style="background:rgba(var(--blue-rgb),0.14);color:var(--blue-bright)">${icon('users', 17)}</div>
           <div class="lm"><div class="lt">Position rooms</div><div class="ls">${(() => { const n = ((CD.extras && CD.extras.rooms) || []).length; return n ? `${n} room${n === 1 ? '' : 's'}` : 'Group your roster by position'; })()}</div></div>
           ${icon('chevron', 17, 'style="color:var(--text-3)"')}
         </div>
@@ -1543,7 +1544,7 @@ export const coachInbox = {
       return `
       ${titleHead('Inbox', "Can't reach your roster")}
       <div class="eyebrow">Daily briefing · from your real roster</div>
-      <section class="card pad" style="background:linear-gradient(180deg, rgba(168,85,247,0.10), rgba(168,85,247,0.03));border-color:rgba(168,85,247,0.26)">
+      <section class="card pad" style="background:linear-gradient(180deg, rgba(var(--purple-rgb),0.10), rgba(var(--purple-rgb),0.03));border-color:rgba(var(--purple-rgb),0.26)">
         <div style="display:flex;align-items:center;gap:7px;font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--purple-bright);margin-bottom:10px">${icon('sparkle', 13)} Today's read</div>
         <div style="font-size:13.5px;font-weight:600;color:var(--text-2);line-height:1.55">${briefing}</div>
       </section>
@@ -1570,7 +1571,7 @@ export const coachInbox = {
 
     ${isNeedsResponse ? `
     <div class="eyebrow">Daily briefing · from your real roster</div>
-    <section class="card pad" ${rows && !rows.length ? 'data-go="coach-profile/code" style="cursor:pointer;' : 'style="'}background:linear-gradient(180deg, rgba(168,85,247,0.10), rgba(168,85,247,0.03));border-color:rgba(168,85,247,0.26)">
+    <section class="card pad" ${rows && !rows.length ? 'data-go="coach-profile/code" style="cursor:pointer;' : 'style="'}background:linear-gradient(180deg, rgba(var(--purple-rgb),0.10), rgba(var(--purple-rgb),0.03));border-color:rgba(var(--purple-rgb),0.26)">
       <div style="display:flex;align-items:center;gap:7px;font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--purple-bright);margin-bottom:10px">${icon('sparkle', 13)} Today's read</div>
       <div style="font-size:13.5px;font-weight:600;color:var(--text-2);line-height:1.55">${briefing}</div>
       ${rows && !rows.length && RT.team && RT.team.code ? `<div style="margin-top:10px;display:flex;gap:8px;align-items:center"><button class="btn ghost sm" id="inbox-copy-code" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.team.code)}</button><button class="btn green sm" id="inbox-share-code" style="width:auto;padding:0 14px">Share code</button></div>` : ''}
@@ -1715,6 +1716,8 @@ const MEAL_SLOTS = ['breakfast', 'lunch', 'snack', 'dinner'];
    to keep it warm) is gone; coachMeal resolves its own meal standalone via roles.fetchMeal. ---------- */
 let PSECTION = 'overview';
 let PSEC_FOR = null;
+let NOTE_DEL = null;   // note id armed for delete (two-tap confirm), or null
+let NUDGE_ARM = null;  // { body } — nudge preview open on the athlete screen, or null
 // Day-view receipt de-dupe: markDayViewed only needs to fire once per athlete open, not on every
 // chip switch (mount() re-runs on every window.__render()). Track which athlete we've already
 // recorded a receipt for; reset naturally happens by comparing against the new athleteId.
@@ -1722,8 +1725,12 @@ let VIEWED_FOR = null;
 /* Each section names the book capability it needs (null = works on any book). Requirements and
    Notes read team-owned tables, so on a practice book they'd render permanently empty and the
    Notes composer would fail every save — better to not offer the chip at all until 0136. */
+/* Overview absorbed the old Today and Score chips (2026-08-08): all three opened on the same
+   "Score today" tile, and the first decision point offered 12 controls before the coach read
+   anything. One Overview now runs state → today's proof → what's open → why it scores this →
+   trend; the chip row is six. */
 const ALL_PROFILE_SECTIONS = [
-  ['overview', 'Overview', null], ['today', 'Today', null], ['score', 'Score', null],
+  ['overview', 'Overview', null],
   ['activity', 'Activity', null], ['conversation', 'Conversation', null],
   ['requirements', 'Requirements', 'standards'], ['foodmem', 'Food Memory', null],
   ['notes', 'Notes', 'notes'],
@@ -1765,11 +1772,12 @@ function coachCatCard(b) {
     </div>
   </details>`;
 }
-function scoreSection(P, athleteId) {
+/* The per-category "why the day scores this" card, rendered inside Overview. Empty string when
+   there is no day yet — todayBlock already says "No logs today", and two siblings saying the
+   same absence would be noise. */
+function breakdownBlock(P, athleteId) {
   const row = P.day; // raw days row (snake_case) or null when they have no day today
-  if (!row) return `
-  <div class="sidebox" style="margin-top:4px"><div class="req-icon a" style="width:38px;height:38px">${icon('clock', 17)}</div>
-  <div><div class="tt">No score to break down yet</div><div class="ts">They haven't logged today. The category breakdown appears here once their day has something in it.</div></div></div>`;
+  if (!row) return '';
   // Reconstruct the athlete's OWN standard + nutrition config — never this coach device's.
   // resolvePos (room label > raw position) matches how entriesFor resolves the governing set, so
   // the breakdown grades against the same standard the roster status chip used.
@@ -1796,13 +1804,8 @@ function scoreSection(P, athleteId) {
     optional: std ? (std.optional || []) : ['snack'],
     nowMin, fmtClock, std,
   });
-  const score = row.score != null ? row.score : null;
   const first = ((P.row && P.row.name) || 'This athlete').split(' ')[0];
   return `
-  <div class="co-tiles two" style="margin-top:4px">
-    <div class="co-stat"><div class="v" style="color:${scoreColor(score)}">${score != null ? score : '—'}</div><div class="k">Score today</div></div>
-    <div class="co-stat"><div class="v">${cfg.scoringProfile === 'gain' ? 'Gain' : cfg.scoringProfile === 'general' ? 'General' : 'Athlete'}</div><div class="k">Scoring profile</div></div>
-  </div>
   <div class="co-eyebrow" style="margin-top:14px">Why ${esc(first)}'s day scores this</div>
   <section class="card bd-comp" style="padding:2px 16px">
     ${cats.map(coachCatCard).join('')}
@@ -1844,11 +1847,8 @@ function coTrend(hist) {
     <div class="co-trend-x"><span>then</span><span>now</span></div>
   </div>`;
 }
-function overviewSection(P) {
+function overviewSection(P, athleteId) {
   const st = P.status, meta = st ? STATUS_META[st.key] : null;
-  const day = P.day;
-  const tasks = (day && day.tasks) || [];
-  const totalN = tasks.length, doneN = tasks.filter(t => t && t.done).length;
   const crit = st && (st.key === 'overdue' || st.key === 'no_activity');
   const last = lastActivityLabel(P.row && P.row.lastMealAt);
   const subtitle = (st && st.detail) || last || 'On track';
@@ -1862,10 +1862,8 @@ function overviewSection(P) {
     ${last && st && st.detail ? `<div style="font-size:11.5px;font-weight:700;color:var(--text-3);white-space:nowrap;flex:none">${esc(last)}</div>` : ''}
   </section>
 
-  <div class="co-tiles two" style="margin-top:var(--s3)">
-    <div class="co-stat"><div class="v" style="color:${scoreColor(day && day.score)}">${day && day.score != null ? day.score : '—'}</div><div class="k">Score today</div></div>
-    <div class="co-stat"><div class="v">${totalN ? `${doneN}<small>&thinsp;/&thinsp;${totalN}</small>` : '—'}</div><div class="k">Completion</div></div>
-  </div>
+  ${todayBlock(P, athleteId)}
+  ${breakdownBlock(P, athleteId)}
 
   <div class="co-eyebrow">7-day trend</div>
   ${coTrend((P.row && P.row.scoreHistory) || [])}
@@ -1876,7 +1874,8 @@ function overviewSection(P) {
   </section>` : ''}
   `;
 }
-function todaySection(P, athleteId) {
+/* Today's tiles + proof strip + open items, rendered inside Overview. */
+function todayBlock(P, athleteId) {
   const day = P.day;
   const today = roles.todayISO();
   const todayMeals = (P.meals || []).filter(m => m.day_date === today);
@@ -1913,7 +1912,7 @@ function todaySection(P, athleteId) {
           <div class="act-time">${esc(cap(m.type || 'Meal'))}</div>
           ${P.photos[m.id]
             ? `<div class="act-media"><img src="${esc(P.photos[m.id])}" alt="Photo of this meal" style="width:100%;height:100%;object-fit:cover;display:block"/></div>`
-            : `<div class="act-media icon" style="background:linear-gradient(150deg, rgba(52,211,153,0.2), rgba(37,99,235,0.1));color:var(--green-bright)">${icon('utensils', 26)}</div>`}
+            : `<div class="act-media icon" style="background:linear-gradient(150deg, rgba(var(--green-rgb),0.2), rgba(var(--blue-rgb),0.1));color:var(--green-bright)">${icon('utensils', 26)}</div>`}
           <div class="act-body"><div class="act-type">${m.quality != null ? 'Meal score' : 'Logged'}</div><div class="act-value ${m.quality != null && m.quality >= 80 ? 'g' : 'b'}">${m.quality != null ? m.quality : '·'}</div></div>
         </div>`).join('')}
     </div>` : `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:-2px 2px 10px">No meal photos logged today.</div>`}
@@ -2156,7 +2155,12 @@ function notesSection(P) {
         <div><span class="who">${n.author_id === RT.userId ? 'You' : 'Staff'}</span> <span class="when">· ${esc(relTime(n.created_at))}</span></div>
         <div class="body">${esc(n.body)}</div>
       </div>
-      <button class="co-abtn" data-del-note="${esc(n.id)}" style="flex:none;width:36px;height:36px;padding:0" aria-label="Delete note">${icon('x', 15)}</button>
+      ${NOTE_DEL === n.id ? `
+      <div style="display:flex;gap:6px;flex:none;align-items:center">
+        <button class="btn ghost sm" data-del-note-cancel="1" style="width:auto;padding:0 10px;height:30px">Keep</button>
+        <button class="btn sm" data-del-note-confirm="${esc(n.id)}" style="width:auto;padding:0 10px;height:30px;background:var(--danger-solid);color:#fff;border:none">Delete</button>
+      </div>` : `
+      <button class="co-abtn" data-del-note="${esc(n.id)}" style="flex:none;width:36px;height:36px;padding:0" aria-label="Delete note">${icon('x', 15)}</button>`}
     </div>`).join('')}
   </section>` : `<div class="co-note">No notes on this athlete yet — jot the first below.</div>`}
 
@@ -2173,7 +2177,7 @@ export const coachAthlete = {
   nav: 'operator', tab: 'roster',
   render({ sub }) {
     const athleteId = sub;
-    if (athleteId !== PSEC_FOR) { PSECTION = 'overview'; PSEC_FOR = athleteId; }
+    if (athleteId !== PSEC_FOR) { PSECTION = 'overview'; PSEC_FOR = athleteId; NUDGE_ARM = null; NOTE_DEL = null; }
     // A section the current book can't serve (a stale chip from a coach session) falls back to
     // Overview rather than rendering a permanently empty panel.
     if (!profileSections().some(([k]) => k === PSECTION)) PSECTION = 'overview';
@@ -2190,6 +2194,9 @@ export const coachAthlete = {
     const name = (P.row && P.row.name) || who.name;
     const position = (P.row && P.row.position) || who.unit;
     const head = backHead(name, (position ? `${position} · ` : '') + opView, opBack);
+    // An on-standard athlete has nothing to nudge — the always-available detail nudge used to be
+    // the one path where "Time to get your log in." could land on someone who logged everything.
+    const onStd = !!(P.row && P.row.score != null && P.row.score >= ON_STANDARD);
     if (P.offline) {
       return `${head}
       <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
@@ -2209,8 +2216,7 @@ export const coachAthlete = {
       <div class="sd-cta"><button class="btn ghost sm" data-go="coach-roster">Back to roster</button></div></div>
       <div style="height:10px"></div>`;
     }
-    const body = PSECTION === 'overview' ? overviewSection(P) : PSECTION === 'today' ? todaySection(P, athleteId)
-      : PSECTION === 'score' ? scoreSection(P, athleteId)
+    const body = PSECTION === 'overview' ? overviewSection(P, athleteId)
       : PSECTION === 'activity' ? activitySection(P) : PSECTION === 'conversation' ? conversationSection(P)
       : PSECTION === 'requirements' ? requirementsSection(P, athleteId)
       : PSECTION === 'foodmem' ? foodMemSection(P, athleteId) : notesSection(P);
@@ -2218,11 +2224,20 @@ export const coachAthlete = {
     ${head}
 
     <div class="co-actionbar">
-      <button class="co-act" data-anudge="${esc(athleteId)}">${icon('bell', 18)}<span class="lbl">Nudge</span></button>
+      ${onStd
+        ? `<button class="co-act" disabled aria-label="They're on standard today. Nothing to nudge." title="They're on standard today. Nothing to nudge.">${icon('bell', 18)}<span class="lbl">On standard</span></button>`
+        : `<button class="co-act" data-anudge="${esc(athleteId)}">${icon('bell', 18)}<span class="lbl">Nudge</span></button>`}
       <button class="co-act" data-go="coach-assign/${esc(athleteId)}">${icon('clipboard', 18)}<span class="lbl">Assign</span></button>
       <button class="co-act" data-go="coach-plan/${esc(athleteId)}">${icon('edit', 18)}<span class="lbl">Targets</span></button>
       ${CD.caps.trustPass ? `<button class="co-act ${P.trustPass ? 'hero' : ''}" id="tp-btn">${icon('shield', 18)}<span class="lbl">${P.trustPass ? 'End pass' : 'Trust'}</span></button>` : ''}
     </div>
+    ${NUDGE_ARM ? `
+    <div style="display:flex;gap:6px;align-items:center;margin:6px 0 2px">
+      <input id="anudge-body" class="ob-input" maxlength="120" value="${esc(NUDGE_ARM.body)}" aria-label="Nudge message" style="flex:1;height:36px;font-size:var(--t-sm)" />
+      <button class="btn ghost sm" data-anudge-cancel="1" style="width:auto;padding:0 12px;height:32px;flex:none">Cancel</button>
+      <button class="btn sm" data-anudge-send="${esc(athleteId)}" style="width:auto;padding:0 12px;height:32px;flex:none">Send</button>
+    </div>
+    <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:0 0 4px">This exact message lands on their phone, from "${esc(S.operatorIdentity.handle)} is waiting".</div>` : ''}
     <div id="tp-status" style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);min-height:0"></div>
 
     <div class="co-seg co-scroll" id="psec-row">
@@ -2278,18 +2293,28 @@ export const coachAthlete = {
     root.querySelectorAll('[data-psec]').forEach(el => el.addEventListener('click', () => {
       PSECTION = el.getAttribute('data-psec'); window.__render();
     }));
-    // Nudge from the action bar — one-tap push, honest inline status, never double-fires.
-    root.querySelectorAll('[data-anudge]').forEach(el => el.addEventListener('click', async () => {
+    // Nudge from the action bar: first tap opens the message preview (editable), Send pushes it.
+    // The coach sees and owns every word that goes out under their name.
+    root.querySelectorAll('[data-anudge]').forEach(el => el.addEventListener('click', () => {
       if (el.disabled) return;
-      const id = el.getAttribute('data-anudge');
+      NUDGE_ARM = { body: 'Time to get your log in.' };
+      window.__render();
+    }));
+    root.querySelectorAll('[data-anudge-cancel]').forEach(el => el.addEventListener('click', () => { NUDGE_ARM = null; window.__render(); }));
+    root.querySelectorAll('[data-anudge-send]').forEach(el => el.addEventListener('click', async () => {
+      if (el.disabled) return;
+      const id = el.getAttribute('data-anudge-send');
+      const input = root.querySelector('#anudge-body');
+      const body = ((input && input.value) || '').trim() || 'Time to get your log in.';
       const status = root.querySelector('#tp-status');
-      el.disabled = true; if (status) { status.style.color = 'var(--text-3)'; status.textContent = 'Sending nudge…'; }
-      // No tier context here (the detail screen nudge is always available), so the body must
-      // stay true for an athlete who isn't overdue at all.
-      const ok = await roles.nudgePush(id, `${S.operatorIdentity.handle} is waiting`, 'Time to get your log in.');
-      if (ok) { try { act.markNudged(id); } catch { /* best-effort */ } try { await logBookIntervention({ athleteId: id, kind: 'nudge' }); } catch { /* best-effort */ } }
-      el.disabled = false;
-      if (status) { status.style.color = ok ? 'var(--green-bright)' : 'var(--red)'; status.textContent = ok ? 'Nudge sent — it lands on their phone.' : "Couldn't send it — check your connection."; }
+      el.disabled = true; el.textContent = '…';
+      if (status) { status.style.color = 'var(--text-3)'; status.textContent = 'Sending nudge…'; }
+      const ok = await roles.nudgePush(id, `${S.operatorIdentity.handle} is waiting`, body);
+      if (ok) { try { act.markNudged(id); } catch { /* best-effort */ } try { await logBookIntervention({ athleteId: id, kind: 'nudge' }); } catch { /* best-effort */ } NUDGE_ARM = null; }
+      else { el.disabled = false; el.textContent = 'Send'; NUDGE_ARM = { body }; }
+      window.__render();
+      const st = document.querySelector('#tp-status');
+      if (st) { st.style.color = ok ? 'var(--green-bright)' : 'var(--red)'; st.textContent = ok ? 'Sent. It lands on their phone.' : "Couldn't send it — check your connection."; }
     }));
     // Private notes composer + delete (Task 7). Save keeps the typed text on failure — never
     // silently eats it — and both save and delete refresh from the server rather than
@@ -2310,10 +2335,15 @@ export const coachAthlete = {
       cnInput.value = '';
       loadAthleteProfile(athleteId, true);
     });
-    root.querySelectorAll('[data-del-note]').forEach(el => el.addEventListener('click', async () => {
-      const id = el.getAttribute('data-del-note');
+    // Note delete is two-tap: the × arms the row, the explicit Delete executes.
+    root.querySelectorAll('[data-del-note]').forEach(el => el.addEventListener('click', () => {
+      NOTE_DEL = el.getAttribute('data-del-note'); window.__render();
+    }));
+    root.querySelectorAll('[data-del-note-cancel]').forEach(el => el.addEventListener('click', () => { NOTE_DEL = null; window.__render(); }));
+    root.querySelectorAll('[data-del-note-confirm]').forEach(el => el.addEventListener('click', async () => {
       el.disabled = true;
-      await roles.deleteCoachNote(id);
+      await roles.deleteCoachNote(el.getAttribute('data-del-note-confirm'));
+      NOTE_DEL = null;
       loadAthleteProfile(athleteId, true); // ALWAYS refresh — a bare true can be an RLS no-op
     }));
     const btn = root.querySelector('#tp-btn');
@@ -2470,7 +2500,7 @@ export const coachMeal = {
     ${/* Aspect-honest hero (founder, 2026-08-06): the WHOLE plate, uncropped, letterboxed over a
           blurred fill of itself — the coach shouldn't have to open the zoom viewer just to see the
           edges of the photo. The fixed 210px cover-crop stays for every other surface. */''}
-    <div class="photo-hero${meal._url ? ' full' : ''}" id="cm-hero" ${meal._url ? 'style="cursor:zoom-in"' : 'style="background:linear-gradient(150deg, rgba(52,211,153,0.14), rgba(37,99,235,0.06))"'}>
+    <div class="photo-hero${meal._url ? ' full' : ''}" id="cm-hero" ${meal._url ? 'style="cursor:zoom-in"' : 'style="background:linear-gradient(150deg, rgba(var(--green-rgb),0.14), rgba(var(--blue-rgb),0.06))"'}>
       ${meal._url ? `<div class="ph-bg" style="background-image:url('${esc(meal._url)}')" aria-hidden="true"></div><img class="ph-full" src="${esc(meal._url)}" alt="Photo of this meal"/>` : ''}
       <div class="ph-grad"></div>
       <div class="ph-meta"><div><div class="ph-t">${esc(title)}</div><div class="ph-s">${dishName ? `${esc(slotName)}` : 'Logged'}${(() => { const c = msgClock(meal.logged_at); return c ? ` · ${c}` : ''; })()}${meal.source === 'gallery' ? ' · from gallery' : ''}${meal.source === 'manual' || meal.source === 'label' ? ' · no photo' : ''}</div></div>
@@ -2629,12 +2659,12 @@ export const coachMeal = {
             ? drafts.map((d, i) => `<button class="qa" data-draft="${i}">${esc(STANCE_LABEL[d.stance] || cap(d.stance || 'Reply'))}</button>`).join('')
             // MANUAL by design and unchanged: each draft is a paid call, and the AI must never
             // post under the coach's name. It writes; the coach edits and sends, or does not.
-            : `<button class="qa" id="cm-draft">✍️ Let AI draft a reply</button>`}
+            : `<button class="qa" id="cm-draft">${icon('sparkle', 13)} Let AI draft a reply</button>`}
       </div>
       ${(DRAFTS.mealId === sub && DRAFTS.error && !drafts.length && !drafting)
         ? `<div class="tm-note">Couldn't draft right now — write your own or try again.</div>` : ''}
       <div class="tm-row" style="align-items:center">
-        <button class="btn ghost sm" id="cm-resolve">${RESOLVED_MEALS.has(mealId) ? 'Resolved ✓' : 'Mark resolved'}</button>
+        <button class="btn ghost sm" id="cm-resolve">${RESOLVED_MEALS.has(mealId) ? `Resolved ${icon('check', 12)}` : 'Mark resolved'}</button>
         <span id="cm-resolve-note" class="tm-note"></span>
       </div>
       <div class="tm-note" id="rx-note">Press and hold any message to react to it.</div>
@@ -2656,7 +2686,7 @@ export const coachMeal = {
         </section>
       </div>
       <div id="cm-note-box" hidden style="margin-top:8px">
-        ${composer({ inputId: 'cm-note-input', sendId: 'cm-note-send', placeholder: 'Private note — the athlete never sees this…', sendLabel: 'Save note', sendIcon: 'lock', sendStyle: 'background:linear-gradient(150deg, var(--purple-bright), #7e22ce)' })}
+        ${composer({ inputId: 'cm-note-input', sendId: 'cm-note-send', placeholder: 'Private note — the athlete never sees this…', sendLabel: 'Save note', sendIcon: 'lock', sendStyle: 'background:linear-gradient(150deg, var(--purple), var(--purple-deep))' })}
       </div>`;
     })()}
     <div style="height:10px"></div>
@@ -2846,7 +2876,7 @@ export const coachMeal = {
         return;
       }
       RESOLVED_MEALS.add(sub);
-      resolveBtn.textContent = 'Resolved ✓';
+      resolveBtn.innerHTML = `Resolved ${icon('check', 12)}`;   // static markup, no user text
       if (resolveNote) resolveNote.textContent = 'Resolved.';
       setTimeout(() => { location.hash = '#coach-inbox'; }, 800);
     });

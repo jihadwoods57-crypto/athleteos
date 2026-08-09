@@ -26,7 +26,8 @@ async function load(force) {
   G.prices = {};
   if (listing) {
     const offers = await roles.fetchMyOffers(listing.practice_id);
-    for (const o of offers) if (o.tier && o.price_cents != null) G.prices[o.tier] = o.price_cents / 100;
+    // fetchMyOffers returns { error: true } on failure now; prices just stay unknown here.
+    if (Array.isArray(offers)) for (const o of offers) if (o.tier && o.price_cents != null) G.prices[o.tier] = o.price_cents / 100;
   }
   G.loaded = true;
   if (window.__render) window.__render();

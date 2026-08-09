@@ -1323,9 +1323,12 @@ export async function publishMyTrainerPage(practiceId, publish) {
     return { ok: true, page: Array.isArray(data) ? data[0] : data };
   } catch (e) { return { error: String(e) }; }
 }
+/* Money-surface reads return { error: true } on FAILURE (network down, RPC threw) instead of a
+   fabricated [] — "No payments yet." on a dead connection is a lie on the screen with dollars on
+   it. The `!c` guard keeps its benign empty: that's demo/preview mode, not a failure. */
 export async function fetchMyOffers(practiceId) {
   const c = sb(); if (!c || !practiceId) return [];
-  try { const { data } = await c.from('offers').select('*').eq('practice_id', practiceId).order('sort').order('created_at'); return data || []; } catch { return []; }
+  try { const { data } = await c.from('offers').select('*').eq('practice_id', practiceId).order('sort').order('created_at'); return data || []; } catch { return { error: true }; }
 }
 export async function saveOffer(offer) {
   const c = sb(); if (!c) return { error: 'no client' };
@@ -1341,7 +1344,7 @@ export async function deleteOffer(id) {
 }
 export async function fetchMyApplications(practiceId) {
   const c = sb(); if (!c || !practiceId) return [];
-  try { const { data } = await c.from('trainer_applications').select('*').eq('practice_id', practiceId).order('created_at', { ascending: false }); return data || []; } catch { return []; }
+  try { const { data } = await c.from('trainer_applications').select('*').eq('practice_id', practiceId).order('created_at', { ascending: false }); return data || []; } catch { return { error: true }; }
 }
 export async function setApplicationStatus(id, status) {
   const c = sb(); if (!c || !id) return false;
@@ -1389,16 +1392,16 @@ export async function refundOfferPayment(paymentId) {
 
 export async function fetchConnectStatus(practiceId) {
   const c = sb(); if (!c || !practiceId) return null;
-  try { const { data, error } = await c.rpc('my_connect_status', { p_practice: practiceId }); if (error) return null; const r = Array.isArray(data) ? data[0] : data; return r || null; } catch { return null; }
+  try { const { data, error } = await c.rpc('my_connect_status', { p_practice: practiceId }); if (error) return { error: true }; const r = Array.isArray(data) ? data[0] : data; return r || null; } catch { return { error: true }; }
 }
 export async function fetchPracticePayments(practiceId) {
   const c = sb(); if (!c || !practiceId) return [];
-  try { const { data } = await c.rpc('my_practice_payments', { p_practice: practiceId, p_limit: 30 }); return data || []; } catch { return []; }
+  try { const { data } = await c.rpc('my_practice_payments', { p_practice: practiceId, p_limit: 30 }); return data || []; } catch { return { error: true }; }
 }
 /** The signed-in CLIENT's own connected trainer's payable offers (active Connect + active offer). */
 export async function fetchMyTrainerOffers() {
   const c = sb(); if (!c) return [];
-  try { const { data } = await c.rpc('my_trainer_offers'); return data || []; } catch { return []; }
+  try { const { data } = await c.rpc('my_trainer_offers'); return data || []; } catch { return { error: true }; }
 }
 /** A guardian's children's trainers' payable offers (active guardianship + active client + active Connect). */
 export async function fetchFundedOffers() {
@@ -1465,14 +1468,14 @@ export async function myPremiumSource() {
 export async function fetchFundedClients(practiceId) {
   const c = sb(); if (!c || !practiceId) return [];
   try { const { data } = await c.rpc('my_funded_clients', { p_practice: practiceId }); return data || []; }
-  catch { return []; }
+  catch { return { error: true }; }
 }
 /** Operator: people who PAID from the public page and never redeemed their code (0167). They are
  *  being billed for an app they can't open, and the trainer is the one who can actually fix it. */
 export async function fetchPendingClaims(practiceId) {
   const c = sb(); if (!c || !practiceId) return [];
   try { const { data } = await c.rpc('my_pending_claims', { p_practice: practiceId }); return data || []; }
-  catch { return []; }
+  catch { return { error: true }; }
 }
 
 /* ---------------- consumer subscription (App Store / Play IAP via RevenueCat) ----------------

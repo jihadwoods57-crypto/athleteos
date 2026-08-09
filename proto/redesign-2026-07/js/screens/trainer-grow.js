@@ -4,14 +4,14 @@
    repaint via window.__render(). Reuses the shared .card/.lrow/.btn/.state-demo/.status-pill system. */
 import { RT } from '../state.js';
 import { icon } from '../icons.js';
-import { esc, backHead } from '../components.js';
+import { esc, backHead, skeletonRows, errorState } from '../components.js';
 import * as roles from '../roles.js';
 
 const SHARE_BASE = 'https://onstandard.app/t?t=';
 
 // Local cache + light UI state (which offer is being edited). Repaint after any load/change.
-let G = { practiceId: null, page: null, offers: null, apps: null, connect: null, payments: null, funded: null, claims: null, loaded: false };
-let UI = { editing: null, connecting: false };  // editing: null | 'new' | <offer id>
+let G = { practiceId: null, page: null, offers: null, apps: null, connect: null, payments: null, funded: null, claims: null, fail: {}, loaded: false };
+let UI = { editing: null, connecting: false, confirmRefund: null, payMsg: '' };  // editing: null | 'new' | <offer id>
 
 function practiceId() { return (RT.practice && RT.practice.id) || G.practiceId || null; }
 
@@ -25,15 +25,30 @@ async function loadGrow(force) {
     roles.fetchConnectStatus(pid), roles.fetchPracticePayments(pid), roles.fetchFundedClients(pid),
     roles.fetchPendingClaims(pid),
   ]);
-  G.page = page && !page.error ? page : (page && page.error ? G.page : null);
-  G.offers = Array.isArray(offers) ? offers : [];
-  G.apps = Array.isArray(apps) ? apps : [];
-  G.connect = connect || { status: 'none' };
-  G.payments = Array.isArray(payments) ? payments : [];
-  G.funded = Array.isArray(funded) ? funded : [];
-  G.claims = Array.isArray(claims) ? claims : [];
+  // Failed reads keep whatever we last had and set a fail flag — the screen renders an honest
+  // error for that section instead of a fabricated "No payments yet." (roles.js returns
+  // { error: true } on failure; a plain []/null really is empty).
+  const isErr = (x) => !!(x && !Array.isArray(x) && x.error);
+  G.fail = { page: isErr(page), offers: isErr(offers), apps: isErr(apps), connect: isErr(connect), payments: isErr(payments), funded: isErr(funded), claims: isErr(claims) };
+  if (!G.fail.page) G.page = page;
+  if (!G.fail.offers) G.offers = Array.isArray(offers) ? offers : [];
+  if (!G.fail.apps) G.apps = Array.isArray(apps) ? apps : [];
+  if (!G.fail.connect) G.connect = connect || { status: 'none' };
+  if (!G.fail.payments) G.payments = Array.isArray(payments) ? payments : [];
+  if (!G.fail.funded) G.funded = Array.isArray(funded) ? funded : [];
+  if (!G.fail.claims) G.claims = Array.isArray(claims) ? claims : [];
   G.loaded = true;
   if (window.__render) window.__render();
+}
+
+/* Inline per-section failure row: the section stays on screen, says it couldn't load, and offers
+   the same retry everywhere. Never renders as an empty state. */
+function sectionErr(what) {
+  return `<div class="lrow" style="cursor:default">
+    <div class="lm"><div class="lt" style="color:var(--red)">Couldn't load ${esc(what)}</div>
+      <div class="ls">Check your connection, then retry.</div></div>
+    <button class="btn ghost sm" data-tg="retry" style="width:auto;padding:0 12px;height:32px">Retry</button>
+  </div>`;
 }
 
 const CONNECT_LABEL = {
@@ -110,13 +125,22 @@ export const trainerGrow = {
   nav: 'trainer', tab: 'profile',   // reached from You → Grow your practice; no longer its own tab
   badge() { return newApps(); },
   render() {
+    const head = backHead('Grow', 'Your page, offers & applications', 'trainer-profile');
+    // Offline is checked BEFORE the loading gate (same order as coach-roster): a cold offline
+    // open would otherwise sit on a skeleton forever.
+    if (!G.loaded && !navigator.onLine) {
+      return `${head}${errorState({ title: "You're offline", body: 'Your page, offers and payments load right here when you reconnect.', retryId: 'tg-retry' })}`;
+    }
     if (!G.loaded) {
-      return `${backHead('Grow', 'Your page, offers & applications', 'trainer-profile')}
-      <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bars', 17)}</div>
-      <div><div class="tt">Loading…</div></div></div>`;
+      return `${head}${skeletonRows(4, 'Loading your practice')}`;
+    }
+    const F = G.fail || {};
+    // Every core read failed and there's nothing cached to show: one honest screen-level error.
+    if (F.page && F.offers && F.apps && !G.page && !(G.offers || []).length && !(G.apps || []).length) {
+      return `${head}${errorState({ title: "Couldn't load your practice", body: 'Nothing was lost. Reconnect and everything loads right here.', retryId: 'tg-retry' })}`;
     }
     if (!practiceId()) {
-      return `${backHead('Grow', 'Your page, offers & applications', 'trainer-profile')}
+      return `${head}
       <div class="state-demo" data-go="trainer-profile" style="cursor:pointer"><div class="sd-ic">${icon('heart', 24)}</div>
       <div class="sd-t">Set up your practice first</div>
       <div class="sd-s">Your public page and offers hang off your practice. Finish your trainer profile to get started.</div></div>`;
@@ -126,7 +150,7 @@ export const trainerGrow = {
     const slug = p.public_slug || '';
     const shareUrl = slug ? SHARE_BASE + slug : '';
 
-    return `${backHead('Grow', 'Your page, offers & applications', 'trainer-profile')}
+    return `${head}
 
     <div class="eyebrow">Your public page</div>
     <section class="card tg-page" style="padding:16px">
@@ -137,7 +161,7 @@ export const trainerGrow = {
       </div>
       ${published && shareUrl ? `
       <div class="code-boxes" style="display:flex;gap:8px;align-items:center;margin:4px 0 12px">
-        <input id="tg-link" readonly value="${esc(shareUrl)}" style="flex:1;font-size:12px;letter-spacing:0;text-align:left;padding:0 10px;height:44px">
+        <input id="tg-link" readonly value="${esc(shareUrl)}" style="flex:1;font-size:var(--t-sm);letter-spacing:0;text-align:left;padding:0 10px;height:44px">
         <button class="btn ghost sm" id="tg-copy" style="width:auto;padding:0 12px;height:36px">Copy</button>
       </div>` : ''}
       <label class="tg-l">Display name</label><input id="tg-name" value="${esc(p.display_name || RT.profile && RT.profile.full_name || '')}" placeholder="Your name">
@@ -154,22 +178,24 @@ export const trainerGrow = {
 
     <div class="eyebrow">Get paid</div>
     <section class="card" style="padding:16px">
-      ${connectSection()}
+      ${F.connect && !G.connect ? sectionErr('your Stripe status') : connectSection()}
     </section>
 
     <div class="eyebrow">Your offers</div>
     <section class="card" style="padding:6px 16px">
+      ${F.offers && !(G.offers || []).length ? sectionErr('your offers') : ''}
       ${(G.offers || []).length ? (G.offers).map(o => UI.editing === o.id ? offerForm(o) : `
       <div class="lrow" style="cursor:default">
         <div class="lm"><div class="lt">${esc(o.name)} ${o.active ? '' : '<span class="ls">· hidden</span>'}</div>
           <div class="ls">${esc(priceLabel(o))}${o.blurb ? ' · ' + esc(o.blurb) : ''}</div></div>
         <button class="btn ghost sm" data-tg="edit" data-id="${esc(o.id)}" style="width:auto;padding:0 12px;height:32px">Edit</button>
-      </div>`).join('') : `<div class="ls" style="padding:10px 0">No offers yet. Add your first package — prospects apply to it from your page.</div>`}
+      </div>`).join('') : (F.offers ? '' : `<div class="ls" style="padding:10px 0">No offers yet. Add your first package — prospects apply to it from your page.</div>`)}
       ${UI.editing === 'new' ? offerForm(null) : `<div style="padding:10px 0"><button class="btn ghost sm" data-tg="add" style="width:auto;padding:0 14px;height:34px">${icon('plus', 15)} Add an offer</button></div>`}
     </section>
 
-    <div class="eyebrow">Applications ${newApps() ? `<span class="status-pill" style="background:rgba(59,130,246,0.14);color:var(--blue-bright);margin-left:6px">${newApps()} new</span>` : ''}</div>
+    <div class="eyebrow">Applications ${newApps() ? `<span class="status-pill" style="background:rgba(var(--blue-rgb),0.14);color:var(--blue-bright);margin-left:6px">${newApps()} new</span>` : ''}</div>
     <section class="card" style="padding:6px 16px">
+      ${F.apps && !(G.apps || []).length ? sectionErr('applications') : ''}
       ${(G.apps || []).length ? (G.apps).map(a => `
       <div class="lrow" style="cursor:default;align-items:flex-start">
         <div class="lm" style="flex:1">
@@ -182,14 +208,17 @@ export const trainerGrow = {
           <button class="btn ghost sm" data-tg="decline" data-id="${esc(a.id)}" style="width:auto;padding:0 10px;height:30px">Decline</button>
           <button class="btn green sm" data-tg="accept" data-id="${esc(a.id)}" style="width:auto;padding:0 10px;height:30px">Accept</button>
         </div>` : ''}
-      </div>`).join('') : `<div class="ls" style="padding:10px 0">No applications yet. Publish your page and share the link — applications land here.</div>`}
+      </div>`).join('') : (F.apps ? '' : `<div class="ls" style="padding:10px 0">No applications yet. Publish your page and share the link — applications land here.</div>`)}
       ${(G.apps || []).some(a => a.status === 'accepted') && RT.practice && RT.practice.code ? `
       <div class="sidebox" style="margin:10px 0"><div class="req-icon b" style="width:34px;height:34px">${icon('lock', 15)}</div>
         <div><div class="tt">Connect an accepted client</div><div class="ts">Send them your practice code <b>${esc(RT.practice.code)}</b> — they enter it after signing up to join your practice and unlock coaching.</div></div></div>` : ''}
     </section>
 
+    ${F.claims && !(G.claims || []).length ? `
+    <div class="eyebrow">Paid — waiting to join</div>
+    <section class="card" style="padding:6px 16px">${sectionErr('pending buyers')}</section>` : ''}
     ${(G.claims || []).length ? `
-    <div class="eyebrow">Paid — waiting to join <span class="status-pill" style="background:rgba(245,158,11,0.16);color:var(--amber-bright);margin-left:6px">${(G.claims).length}</span></div>
+    <div class="eyebrow">Paid — waiting to join <span class="status-pill" style="background:rgba(var(--amber-rgb),0.16);color:var(--amber-bright);margin-left:6px">${(G.claims).length}</span></div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default;padding:6px 0 10px">
         <div class="lm"><div class="lt">They have paid you but haven't set up their app</div>
@@ -206,35 +235,26 @@ export const trainerGrow = {
     ${G.connect && G.connect.status === 'active' ? `
     <div class="eyebrow">Covered clients</div>
     <section class="card" style="padding:6px 16px">
-      ${fundedSection()}
+      ${F.funded && !(G.funded || []).length ? sectionErr('covered clients') : fundedSection()}
     </section>
 
     <div class="eyebrow">Payments</div>
     <section class="card" style="padding:6px 16px">
+      ${F.payments && !(G.payments || []).length ? sectionErr('payments') : ''}
       ${(G.payments || []).length ? (G.payments).map(p => `
       <div class="lrow" style="cursor:default">
         <div class="lm"><div class="lt">$${(p.amount_cents / 100).toFixed(2)} <span class="ls">${p.status === 'refunded' ? '· refunded' : ''}</span></div>
-          <div class="ls">${timeAgo(p.created_at)} · fee $${(p.application_fee_cents / 100).toFixed(2)}${p.beneficiary_name ? ` · parent-funded for ${esc(p.beneficiary_name)}` : ''}</div></div>
-        ${p.status === 'paid' ? `<button class="btn ghost sm" data-tg="refund" data-id="${esc(p.id)}" style="width:auto;padding:0 12px;height:30px">Refund</button>` : ''}
-      </div>`).join('') : `<div class="ls" style="padding:10px 0">No payments yet.</div>`}
+          <div class="ls">${timeAgo(p.created_at)} · fee $${(p.application_fee_cents / 100).toFixed(2)}${p.beneficiary_name ? ` · parent-funded for ${esc(p.beneficiary_name)}` : ''}</div>
+          ${UI.confirmRefund === p.id ? `<div class="ls" style="color:var(--red);margin-top:2px">Sends $${(p.amount_cents / 100).toFixed(2)} back to the client. This can't be undone.</div>` : ''}</div>
+        ${p.status === 'paid' ? (UI.confirmRefund === p.id ? `
+        <div style="display:flex;gap:6px;flex:none">
+          <button class="btn ghost sm" data-tg="refundkeep" style="width:auto;padding:0 10px;height:30px">Keep</button>
+          <button class="btn sm" data-tg="refundgo" data-id="${esc(p.id)}" style="width:auto;padding:0 12px;height:30px;background:var(--danger-solid);color:#fff;border:none">Confirm refund</button>
+        </div>` : `<button class="btn ghost sm" data-tg="refund" data-id="${esc(p.id)}" style="width:auto;padding:0 12px;height:30px">Refund</button>`) : ''}
+      </div>`).join('') : (F.payments ? '' : `<div class="ls" style="padding:10px 0">No payments yet.</div>`)}
+      ${UI.payMsg ? `<div class="ls" style="color:var(--red);padding:6px 0 10px">${esc(UI.payMsg)}</div>` : ''}
     </section>` : ''}
     <div style="height:16px"></div>
-    <style>
-      .tg-l{display:block;font-size:11px;color:var(--text-3);margin:12px 0 5px;letter-spacing:.02em}
-      /* Two compounding bugs, not a style choice: (1) this rule was scoped to #trainer-grow, an
-         id that exists NOWHERE in the DOM (the router wraps screens in id="view"), so the "Your
-         public page" fields (tg-name/tg-spec/tg-head/tg-bio/tg-cta) never matched this rule at
-         all — only .tg-of (the offer form) is a real class. (2) even where it matched, --line
-         and --text-1 aren't real tokens (see css/tokens.css), so the browser fell back to
-         invalid/inherited values. Fixed: scoped to the real .tg-page class on the page-form card,
-         using --hairline/--text — the actual border/foreground tokens every other input uses. */
-      .tg-page input,.tg-page textarea,.tg-of input,.tg-of textarea,.tg-of select{width:100%;background:var(--surface-2);border:1.5px solid var(--hairline);color:var(--text);border-radius:12px;padding:10px 12px;font-size:14px;font-weight:600;font-family:var(--font);outline:none}
-      .tg-page input:focus,.tg-page textarea:focus,.tg-of input:focus,.tg-of textarea:focus,.tg-of select:focus{border-color:var(--blue-bright)}
-      .tg-page textarea{min-height:84px;resize:vertical}
-      .tg-page input::placeholder,.tg-page textarea::placeholder,.tg-of input::placeholder,.tg-of textarea::placeholder{color:var(--text-3);font-weight:600}
-      .tg-of{padding:12px 0;border-top:1.5px solid var(--hairline)}
-      .tg-of .row2{display:flex;gap:8px}
-    </style>
     `;
   },
   mount(root) {
@@ -334,14 +354,31 @@ export const trainerGrow = {
         await roles.setApplicationStatus(id, act === 'accept' ? 'accepted' : 'declined');
         await loadGrow(true);
       }
-      if (act === 'refund') {
-        if (!window.confirm('Refund this payment? This cannot be undone.')) return;
+      // Refund is two-tap, inline: first tap arms it (the row states the consequence), the
+      // explicit "Confirm refund" executes. No window.confirm/alert — the app's own surface
+      // carries both the warning and the failure message.
+      if (act === 'refund') { UI.confirmRefund = id; UI.payMsg = ''; if (window.__render) window.__render(); return; }
+      if (act === 'refundkeep') { UI.confirmRefund = null; if (window.__render) window.__render(); return; }
+      if (act === 'refundgo') {
         b.disabled = true; b.textContent = '…';
         const r = await roles.refundOfferPayment(id);
-        if (!r || !r.ok) { b.disabled = false; b.textContent = 'Refund'; alert((r && r.error) || 'Refund failed'); return; }
+        UI.confirmRefund = null;
+        if (!r || !r.ok) { UI.payMsg = (r && r.error) || "The refund didn't go through. Nothing was returned; try again."; if (window.__render) window.__render(); return; }
+        UI.payMsg = '';
+        await loadGrow(true);
+      }
+      if (act === 'retry') {
+        b.disabled = true; b.textContent = '…';
         await loadGrow(true);
       }
     }));
+    // Screen-level error / offline retry (errorState renders a #tg-retry button).
+    const retryBtn = $('tg-retry');
+    if (retryBtn) retryBtn.addEventListener('click', async () => {
+      retryBtn.disabled = true;
+      if (!G.loaded) { if (window.__render) window.__render(); }
+      await loadGrow(true);
+    });
   },
 };
 

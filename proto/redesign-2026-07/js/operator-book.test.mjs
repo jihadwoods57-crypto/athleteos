@@ -347,11 +347,15 @@ assert.deepStrictEqual(snapshotStatus.practice, snapshotStatus.team,
   // The athlete deep-dive drops the two sections whose tables are team-owned.
   const teamAthlete = snapshots.team['coach-athlete'];
   const practiceAthlete = snapshots.practice['coach-athlete'];
-  // 0136 gave a practice its own requirement sets and coach notes, so the deep dive is now the
-  // SAME seven sections on either book — the trainer's client page is finally at coach caliber.
-  for (const sec of ['overview', 'today', 'score', 'activity', 'conversation', 'requirements', 'notes']) {
+  // 0136 gave a practice its own requirement sets and coach notes, so the deep dive is the SAME
+  // sections on either book. Overview absorbed the old Today and Score chips (2026-08-08): they
+  // must be GONE as chips, with their content (proof strip, open items, breakdown) inside Overview.
+  for (const sec of ['overview', 'activity', 'conversation', 'requirements', 'notes']) {
     assert.ok(teamAthlete.includes(`data-psec="${sec}"`), `a coach keeps the ${sec} section`);
     assert.ok(practiceAthlete.includes(`data-psec="${sec}"`), `0136: a trainer must now get the ${sec} section`);
+  }
+  for (const gone of ['today', 'score']) {
+    assert.ok(!teamAthlete.includes(`data-psec="${gone}"`), `the ${gone} chip merged into Overview`);
   }
   // Trust Pass is the one action that stays team-only FOREVER — grant_trust_pass (0099) checks
   // is_team_coach_of and never is_trainer_of, so a trainer's tap could only ever be refused.

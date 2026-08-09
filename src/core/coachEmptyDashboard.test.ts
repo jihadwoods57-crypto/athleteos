@@ -20,8 +20,12 @@ const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http:
 
 /* eslint-disable @typescript-eslint/no-var-requires */
 const { emptyTeamDashboard } = require('../../proto/redesign-2026-07/js/screens/coach-home.js');
+const { RT: RTState } = require('../../proto/redesign-2026-07/js/state.js');
 
 describe('coach empty dashboard — with a live athlete code', () => {
+  // The checklist is gated on the team having LOADED (operatorIdentity.state !== 'loading') —
+  // "don't grade what hasn't loaded". This describe is the loaded empty state.
+  RTState.teamLoading = false;
   const html: string = emptyTeamDashboard('ABC123', 'Varsity Football');
 
   test('invites athletes: code boxes, scannable QR, Copy + Share', () => {
@@ -54,14 +58,18 @@ describe('coach empty dashboard — with a live athlete code', () => {
   });
 });
 
-describe('coach empty dashboard — before the code has minted', () => {
+describe('coach empty dashboard — while the team is still loading', () => {
+  RTState.teamLoading = true;
   const html: string = emptyTeamDashboard(null, 'Varsity Football');
   test('shows an honest "checking" note instead of a dead code', () => {
     expect(html).toContain('Checking your team and code.'); // honest pending state, not a fake code
     expect(html).not.toContain('SCAN TO JOIN'); // no QR for a code that does not exist yet
   });
-  test('still shows the checklist, and still no fabricated score', () => {
-    expect(html).toContain('Finish setting up your team');
+  test('hides the checklist until the inputs exist, and still no fabricated score', () => {
+    // Deliberate (2026-08-08 campaign): sharedCode derives from the roster, which hasn't
+    // arrived — the screen must not assert "0 of 2 required steps done" under a card that
+    // says it's still loading. The checklist appears once the team resolves (describe above).
+    expect(html).not.toContain('Finish setting up your team');
     expect(html).not.toContain('co-pulse');
   });
 });

@@ -1,6 +1,6 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { avatarHead, esc, collapseSection, skeletonRows, emailVerifyBanner, wireEmailVerifyBanner } from '../components.js';
+import { avatarHead, esc, collapseSection, skeletonRows, errorState, emailVerifyBanner, wireEmailVerifyBanner } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope, logBookIntervention } from '../coach-data.js';
 import { buildPriorities } from '../priority.js';
@@ -64,7 +64,7 @@ function coachInviteCard(code, teamName) {
     </div>
     <div class="btn-row" style="margin-top:16px">
       <button class="btn ghost sm" id="coach-copy-code">${icon('clipboard', 16)} Copy code</button>
-      <button class="btn sm" id="coach-share-invite" style="background:linear-gradient(150deg,var(--blue-bright),#2563eb);color:#fff">${icon('share', 16)} Share invite</button>
+      <button class="btn sm" id="coach-share-invite" style="background:linear-gradient(150deg,var(--blue),var(--blue-deep));color:#fff">${icon('share', 16)} Share invite</button>
     </div>
   </section>`;
 }
@@ -228,7 +228,7 @@ function codeStateBox() {
     return `<section class="card" style="padding:18px">
       <div class="eyebrow" style="margin:0 0 10px">Your client code</div>
       <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.45;margin-bottom:12px">Your practice isn't fully set up on the server yet, so there's no client code to hand out. Your Practice HQ shows it the moment it exists.</div>
-      <button class="btn sm" data-go="trainer-profile" style="width:100%;background:linear-gradient(150deg,var(--blue-bright),#2563eb);color:#fff">${icon('user', 16)} Open Practice HQ</button>
+      <button class="btn sm" data-go="trainer-profile" style="width:100%;background:linear-gradient(150deg,var(--blue),var(--blue-deep));color:#fff">${icon('user', 16)} Open Practice HQ</button>
     </section>`;
   }
   const ob = (RT.ob && RT.ob.coach) || {};
@@ -239,7 +239,7 @@ function codeStateBox() {
     <input id="coach-team-name" type="text" class="input" placeholder="e.g. Lincoln Varsity Football"
       value="${esc(suggested)}" autocomplete="organization" maxlength="60"
       style="width:100%;height:46px;margin-bottom:12px" />
-    <button class="btn sm" id="coach-team-create" style="width:100%;background:linear-gradient(150deg,var(--blue-bright),#2563eb);color:#fff">${icon('users', 16)} Create team</button>
+    <button class="btn sm" id="coach-team-create" style="width:100%;background:linear-gradient(150deg,var(--blue),var(--blue-deep));color:#fff">${icon('users', 16)} Create team</button>
     <div id="coach-team-err" style="font-size:12px;font-weight:700;color:var(--red);margin-top:9px;line-height:1.4"></div>
   </section>`;
 }
@@ -391,13 +391,24 @@ function priorityCard(c, i, nudgedToday) {
     </div>
     <div class="co-pri-acts">
       <button class="co-abtn ${openPrimary ? 'primary' : ''}" data-go="coach-athlete/${esc(c.athleteId)}">${openPrimary ? 'Review' : 'Open'}</button>
-      <button class="co-abtn ${nudgeCls}" data-pnudge="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}" ${nudgedToday ? 'disabled' : ''}>${nudgedToday ? 'Nudged ✓' : 'Nudge'}</button>
+      <button class="co-abtn ${nudgeCls}" data-pnudge="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}" ${nudgedToday ? 'disabled' : ''}>${nudgedToday ? `Nudged ${icon('check', 11)}` : 'Nudge'}</button>
       ${CD.caps.assignments ? `<button class="co-abtn" data-passign="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Assign</button>` : ''}
       ${CD.caps.interventions ? `<button class="co-abtn" data-phandle="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Handled</button>` : ''}
     </div>
+    ${PNUDGE_ARM && PNUDGE_ARM.athleteId === c.athleteId ? `
+    <div style="display:flex;gap:6px;align-items:center;margin-top:8px">
+      <input id="pnudge-body" class="ob-input" maxlength="120" value="${esc(PNUDGE_ARM.body)}" aria-label="Nudge message" style="flex:1;height:36px;font-size:var(--t-sm)" />
+      <button class="co-abtn" data-pnudge-cancel="1">Cancel</button>
+      <button class="co-abtn primary" data-pnudge-send="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Send</button>
+    </div>
+    <div class="co-pri-reason" style="margin-top:4px">This exact message lands on their phone, from "${esc(S.operatorIdentity.handle)} is waiting".</div>` : ''}
     <div class="co-pstatus" id="pstatus-${esc(c.athleteId)}"></div>
   </div>`;
 }
+
+/* The nudge preview open on one priority card ({ athleteId, body }), or null. The coach reads
+   and can edit the exact words before anything is sent in their name. */
+let PNUDGE_ARM = null;
 
 export const coachHome = {
   nav: 'operator', tab: 'home',
@@ -412,10 +423,11 @@ export const coachHome = {
     if (CD.roster === null) return `${head}
       <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
       <div><div class="tt">${esc(vocab().loading)}</div><div class="ts">Pulling today's real numbers.</div></div></div>`;
-    if (CD.roster.offline) return `${head}
-      <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
-      <div class="sd-t">Can't reach your team</div>
-      <div class="sd-s">Check your connection — reopen to retry. Nothing is lost.</div></div>`;
+    if (CD.roster.offline) return `${head}${errorState({
+      title: "Can't reach your team",
+      body: 'Nothing is lost. Reconnect and today loads right here.',
+      retryId: 'home-retry',
+    })}`;
     if (!CD.roster.rows.length) {
       // operatorIdentity resolves the code for either book — RT.team is never populated for a
       // trainer, so reading it here hid a live practice code behind the coach create-team form.
@@ -446,9 +458,9 @@ export const coachHome = {
     ].filter(Boolean);
 
     return `${head}
-    <button class="btn ghost sm" data-scopes data-tour="roster" style="width:auto;padding:0 13px;height:30px;margin-bottom:10px">${icon('users', 13)} ${esc(scopeLabel(scope))} ▾</button>
+    <button class="btn ghost sm" data-scopes data-tour="roster" style="width:auto;padding:0 13px;height:30px;margin-bottom:10px">${icon('users', 13)} ${esc(scopeLabel(scope))} ${icon('chevron', 12, 'style="transform:rotate(90deg)"')}</button>
     ${SHOW_SCOPES ? scopeSheet() : ''}
-    ${pending.length ? `<div class="card" data-go="coach-inbox" style="padding:10px 15px;cursor:pointer;display:flex;align-items:center;gap:10px"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 15)}</div><div style="flex:1;font-size:12.5px;font-weight:700">${pending.length} join request${pending.length > 1 ? 's' : ''} waiting</div><span style="color:var(--text-3)">›</span></div>` : ''}
+    ${pending.length ? `<div class="card" data-go="coach-inbox" style="padding:10px 15px;cursor:pointer;display:flex;align-items:center;gap:10px"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 15)}</div><div style="flex:1;font-size:12.5px;font-weight:700">${pending.length} join request${pending.length > 1 ? 's' : ''} waiting</div>${icon('chevron', 14, 'style="color:var(--text-3)"')}</div>` : ''}
     ${entries === null ? '' : pulseCard(rows, statuses)}
     ${obPlanCard()}
     <div id="vc-board-slot"></div>
@@ -476,7 +488,7 @@ export const coachHome = {
         const bits = [cap(m.type || 'Meal'), actTime(m.logged_at)].filter(Boolean);
         return `<div class="act-card" data-go="coach-meal/${esc(m.id)}" style="position:relative;flex:0 0 47%">
           ${photo ? `<div class="act-media" style="height:64px;background-image:url('${esc(photo)}');background-size:cover;background-position:center"></div>` : `<div class="act-media" style="height:64px;background:linear-gradient(150deg,var(--surface-2),var(--surface-3))"></div>`}
-          ${seen.has(m.id) ? '' : `<span style="position:absolute;top:7px;right:7px;width:9px;height:9px;border-radius:50%;background:var(--blue-bright);box-shadow:0 0 9px rgba(96,165,250,0.7);border:2px solid rgba(5,8,15,0.8)"></span>`}
+          ${seen.has(m.id) ? '' : `<span style="position:absolute;top:7px;right:7px;width:9px;height:9px;border-radius:50%;background:var(--blue-bright);box-shadow:0 0 9px rgba(var(--blue-rgb),0.7);border:2px solid rgba(5,8,15,0.8)"></span>`}
           <div style="padding:8px 10px 9px"><div style="font-size:11px;font-weight:800">${esc((who.name || 'Athlete').split(' ')[0])}</div>
           <div style="font-size:9.5px;color:var(--text-3);font-weight:700;margin-top:2px">${esc(bits.join(' · '))}</div></div>
         </div>`;
@@ -488,13 +500,17 @@ export const coachHome = {
       <div class="lrow" ${f.go ? `data-go="${f.go}" style="cursor:pointer"` : 'style="cursor:default"'}>
         <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)"><b>${f.n}</b></div>
         <div class="lm"><div class="lt" style="text-transform:capitalize">${esc(f.t)}</div></div>
-        ${f.go ? '<span style="color:var(--text-3)">›</span>' : ''}
+        ${f.go ? icon('chevron', 14, 'style="color:var(--text-3)"') : ''}
       </div>`).join('')}</section>`}
     <div class="co-bottom"></div>`;
   },
   mount(root) {
     wireEmailVerifyBanner(root);
     loadMyBook().then(() => loadActivity());
+    // Offline retry — same shape as the roster's, so the two screens stop disagreeing about
+    // whether "reopen the app" is the coach's job.
+    const homeRetry = root.querySelector('#home-retry');
+    if (homeRetry) homeRetry.addEventListener('click', () => { homeRetry.disabled = true; loadMyBook(true).then(() => window.__render()); });
     // Server alerts feed the bell badge + the Follow-ups row. Same throttled loader the athlete
     // header uses (15s), so a coach flipping between tabs costs nothing extra; repaint only when
     // rows actually changed.
@@ -605,21 +621,33 @@ export const coachHome = {
       }
       window.__render();
     }));
-    root.querySelectorAll('[data-pnudge]').forEach(b => b.addEventListener('click', async () => {
+    // Nudge is two-step: the first tap opens the tier-matched message on the card, editable,
+    // and Send pushes exactly what the coach sees. Nothing goes out unread.
+    root.querySelectorAll('[data-pnudge]').forEach(b => b.addEventListener('click', () => {
       const id = b.getAttribute('data-pnudge');
-      b.disabled = true; b.textContent = '…';
       // The body must match the tier the card showed — "overdue" to an athlete who logged on
       // time but scored low reads as an accusation.
       const tier = b.getAttribute('data-tier');
       const body = tier === 'below' ? "You're below standard today. Close the gap."
         : tier === 'due_soon' ? 'Your next log is due soon. Stay ahead of it.'
           : 'Your log is overdue. Get it in.';
+      PNUDGE_ARM = PNUDGE_ARM && PNUDGE_ARM.athleteId === id ? null : { athleteId: id, body };
+      window.__render();
+    }));
+    root.querySelectorAll('[data-pnudge-cancel]').forEach(b => b.addEventListener('click', () => { PNUDGE_ARM = null; window.__render(); }));
+    root.querySelectorAll('[data-pnudge-send]').forEach(b => b.addEventListener('click', async () => {
+      if (b.disabled) return;
+      const id = b.getAttribute('data-pnudge-send');
+      const input = root.querySelector('#pnudge-body');
+      const body = ((input && input.value) || '').trim() || (PNUDGE_ARM && PNUDGE_ARM.body) || 'Time to get your log in.';
+      b.disabled = true; b.textContent = '…';
       const ok = await roles.nudgePush(id, `${S.operatorIdentity.handle} is waiting`, body);
       if (!ok) {
-        b.disabled = false; b.textContent = 'Nudge';
+        b.disabled = false; b.textContent = 'Send';
         sayFail(id, "Couldn't send the nudge — check your connection.");
         return;
       }
+      PNUDGE_ARM = null;
       act.markNudged(id);
       await log(id, 'nudge', b);
       window.__render();

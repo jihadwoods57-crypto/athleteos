@@ -18,6 +18,7 @@ let BUSY = false;        // guards double-submit while a write + reload is in fl
 let STAFF = null;        // team staff list (for the owner picker), lazy-loaded in mount
 let OPEN_OWNER = null;   // roomId whose owner picker is expanded, or null
 let RENAMING = null;     // roomId currently showing its inline rename input, or null
+let DELETING = null;     // roomId armed for delete (two-tap confirm), or null
 
 async function run(work) {
   if (BUSY) return;
@@ -32,7 +33,7 @@ const createRoom = (label) => run(async () => {
   const r = await roles.saveTeamRoom(id, { key, label: label.trim().slice(0, 40) });
   if (r.ok) { try { act.markCoachSetup('group'); } catch { /* best-effort */ } await loadCoachRoster(true); }
 });
-const deleteRoom = (roomId) => run(async () => { if (await roles.deleteTeamRoom(roomId)) await loadCoachRoster(true); });
+const deleteRoom = (roomId) => run(async () => { DELETING = null; if (await roles.deleteTeamRoom(roomId)) await loadCoachRoster(true); });
 // Rename reuses saveTeamRoom's existing update-by-id path (it already upserts on `id`) —
 // no new backend call needed. The room's key (used by position auto-assignment matching)
 // is deliberately left untouched by a rename; only the display label changes.
@@ -57,14 +58,20 @@ export const coachRooms = {
       const members = byRoom.get(rm.id) || [];
       return `
       <section class="card" style="padding:6px 16px;margin-bottom:10px">
-        ${RENAMING === rm.id ? `
+        ${DELETING === rm.id ? `
+        <div class="lrow" style="cursor:default;gap:8px">
+          <div class="lm"><div class="lt">Delete ${esc(rm.label)}?</div>
+            <div class="ls">${members.length ? `Its ${members.length} athlete${members.length === 1 ? '' : 's'} stay on the roster, unassigned. ` : ''}A standard scoped to this position keeps running until you clear it in the standards editor.</div></div>
+          <button class="btn ghost sm" data-room-del-cancel="1" style="width:auto;padding:0 12px;height:34px;flex:none">Keep</button>
+          <button class="btn sm" data-room-del-confirm="${esc(rm.id)}" style="width:auto;padding:0 12px;height:34px;flex:none;background:var(--danger-solid);color:#fff;border:none">Delete room</button>
+        </div>` : RENAMING === rm.id ? `
         <div class="lrow" style="cursor:default;gap:8px">
           <input class="ob-input room-rename-input" data-room-rename-input="${esc(rm.id)}" maxlength="40" value="${esc(rm.label)}" style="flex:1" />
           <button class="btn sm" data-room-rename-save="${esc(rm.id)}" style="width:auto;padding:0 12px;height:34px">Save</button>
           <button class="btn ghost sm" data-room-rename-cancel="1" style="width:auto;padding:0 12px;height:34px">Cancel</button>
         </div>` : `
         <div class="lrow" style="cursor:default">
-          <div class="lic" style="background:rgba(59,130,246,0.14);color:var(--blue-bright)">${icon('users', 17)}</div>
+          <div class="lic" style="background:rgba(var(--blue-rgb),0.14);color:var(--blue-bright)">${icon('users', 17)}</div>
           <div class="lm"><div class="lt">${esc(rm.label)}</div><div class="ls">${members.length ? `${members.length} athlete${members.length === 1 ? '' : 's'}` : 'No one assigned yet'}</div></div>
           <button class="btn ghost sm" data-room-rename="${esc(rm.id)}" aria-label="Rename room" style="width:34px;padding:0;height:30px;flex:none">${icon('edit', 15)}</button>
           <button class="btn ghost sm" data-go="coach-plan-set/position/${esc(String(rm.label).trim().toUpperCase())}" style="width:auto;padding:0 12px;height:30px">Standard</button>
@@ -108,7 +115,7 @@ export const coachRooms = {
     const suggestChips = suggestions.length ? `
       <div class="eyebrow">Suggested from your roster · tap to add</div>
       <div class="chip-row" id="room-suggest">
-        ${suggestions.map((s) => `<span class="chp" data-room-add="${esc(s.label)}">＋ ${esc(s.label)}</span>`).join('')}
+        ${suggestions.map((s) => `<span class="chp" data-room-add="${esc(s.label)}">${icon('plus', 12)} ${esc(s.label)}</span>`).join('')}
       </div>` : '';
 
     return `
@@ -147,7 +154,13 @@ export const coachRooms = {
     if (add) add.addEventListener('click', submit);
     if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
     root.querySelectorAll('[data-room-add]').forEach((el) => el.addEventListener('click', () => createRoom(el.getAttribute('data-room-add'))));
-    root.querySelectorAll('[data-room-del]').forEach((el) => el.addEventListener('click', () => deleteRoom(el.getAttribute('data-room-del'))));
+    // Delete is two-tap: the first tap arms the row (it states what actually happens), the
+    // explicit "Delete room" executes. Arming clears any other open inline editor.
+    root.querySelectorAll('[data-room-del]').forEach((el) => el.addEventListener('click', () => {
+      DELETING = el.getAttribute('data-room-del'); RENAMING = null; OPEN_OWNER = null; window.__render();
+    }));
+    root.querySelectorAll('[data-room-del-cancel]').forEach((el) => el.addEventListener('click', () => { DELETING = null; window.__render(); }));
+    root.querySelectorAll('[data-room-del-confirm]').forEach((el) => el.addEventListener('click', () => deleteRoom(el.getAttribute('data-room-del-confirm'))));
     root.querySelectorAll('[data-room-rename]').forEach((el) => el.addEventListener('click', () => {
       RENAMING = el.getAttribute('data-room-rename'); OPEN_OWNER = null; window.__render();
     }));

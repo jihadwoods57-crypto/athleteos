@@ -38,6 +38,8 @@ let Q = '', SORT = 'score', FILTER = { kind: 'all', value: null };
 let SELECTING = false; const SEL = new Set();
 let SHOW_GROUPS = false, SHOW_ABSENCE = false, BULK_STATUS = '';
 let BULK_BUSY = false;
+let GDEL = null;   // group id armed for delete (two-tap confirm), or null
+let BULK_NUDGE_ARM = null;   // the editable bulk-nudge body while previewing, or null
 
 const STATUS_ORDER = ['overdue', 'no_activity', 'needs_review', 'below_standard', 'due_soon', 'excused', 'on_standard'];
 
@@ -94,7 +96,7 @@ function rosterRow(e) {
     ? `data-sel="${esc(r.athleteId)}" role="checkbox" aria-checked="${sel}" tabindex="0" aria-label="${esc(r.name)}"`
     : `data-go="coach-athlete/${esc(r.athleteId)}" role="button" tabindex="0" aria-label="${esc(r.name)}${r.score != null ? `, score ${r.score}` : ''}. ${esc(meta.label)}"`}>
     ${SELECTING
-      ? `<div style="width:20px;height:20px;border-radius:6px;border:2px solid ${sel ? 'var(--green-bright)' : 'var(--hairline)'};background:${sel ? 'var(--green-bright)' : 'transparent'};display:grid;place-items:center;flex:none;color:#04140b;font-weight:900;font-size:12px">${sel ? '✓' : ''}</div>`
+      ? `<div style="width:20px;height:20px;border-radius:6px;border:2px solid ${sel ? 'var(--green-bright)' : 'var(--hairline)'};background:${sel ? 'var(--green-bright)' : 'transparent'};display:grid;place-items:center;flex:none;color:#04140b;font-weight:900">${sel ? icon('check', 13) : ''}</div>`
       : `<span style="width:9px;height:9px;border-radius:50%;background:${meta.color};flex:none;box-shadow:0 0 8px ${meta.color}40"></span>`}
     <div class="rn">
       <div class="t">${esc(r.name)}${r.unit ? ` <small style="color:var(--text-3);font-weight:700">· ${esc(r.unit)}</small>` : ''}</div>
@@ -111,7 +113,12 @@ function groupSheet(groups) {
   return `
   <section class="card" style="padding:13px 16px">
     <div class="eyebrow" style="margin:0 0 8px">Custom groups</div>
-    ${groups.map(g => `
+    ${groups.map(g => GDEL === g.id ? `
+    <div class="lrow" style="cursor:default">
+      <div class="lm"><div class="lt">Delete ${esc(g.name)}?</div><div class="ls">Groups are filters; nobody leaves the roster.</div></div>
+      <button class="btn ghost sm" data-gdel-cancel="1" style="width:auto;padding:0 10px;height:30px">Keep</button>
+      <button class="btn sm" data-gdel-confirm="${esc(g.id)}" style="width:auto;padding:0 10px;height:30px;margin-left:6px;background:var(--danger-solid);color:#fff;border:none">Delete group</button>
+    </div>` : `
     <div class="lrow" style="cursor:default">
       <div class="lm"><div class="lt">${esc(g.name)}</div><div class="ls">${(g.athlete_ids || []).length} ${CD.noun}${(g.athlete_ids || []).length === 1 ? '' : 's'}</div></div>
       ${SEL.size ? `<button class="btn ghost sm" data-gadd="${esc(g.id)}" style="width:auto;padding:0 10px;height:30px">Add ${SEL.size}</button>` : ''}
@@ -143,11 +150,21 @@ function wireGroupSheet(root, teamId) {
     if (r.ok) { SEL.clear(); SELECTING = false; await loadMyBook(true); }
     else { b.disabled = false; status(r.error || 'Could not update the group.', true); }
   }));
-  root.querySelectorAll('[data-gdel]').forEach(b => b.addEventListener('click', async () => {
+  // Two-tap delete: first tap arms the row (a group is only a filter, and the row says so),
+  // the explicit "Delete group" executes.
+  root.querySelectorAll('[data-gdel]').forEach(b => b.addEventListener('click', () => { GDEL = b.getAttribute('data-gdel'); window.__render(); }));
+  root.querySelectorAll('[data-gdel-cancel]').forEach(b => b.addEventListener('click', () => { GDEL = null; window.__render(); }));
+  root.querySelectorAll('[data-gdel-confirm]').forEach(b => b.addEventListener('click', async () => {
     b.disabled = true;
-    const ok = await roles.deleteCoachGroup(b.getAttribute('data-gdel'));
+    const ok = await roles.deleteCoachGroup(b.getAttribute('data-gdel-confirm'));
+    GDEL = null;
     if (ok) { if (FILTER.kind === 'group') FILTER = { kind: 'all', value: null }; await loadMyBook(true); }
-    else { b.disabled = false; status('Could not delete it — check your connection.', true); }
+    else {
+      window.__render();
+      // Re-query after the render (same pattern as the absence sheet) — the old node is gone.
+      const el = document.querySelector('#group-status');
+      if (el) { el.style.color = 'var(--red)'; el.textContent = 'Could not delete it — check your connection.'; }
+    }
   }));
 }
 function absenceSheet() {
@@ -269,18 +286,26 @@ export const coachRoster = {
     </div>
     <div class="co-seg co-scroll">
       ${fchip('all', '', `All ${entries.length}`)}${liveStatuses.map(([k, n]) => fchip('status', k, `${STATUS_META[k].label} ${n}`, STATUS_META[k].color)).join('')}${positions.map(p => fchip('position', p, p)).join('')}${groups.map(g => fchip('group', g.id, g.name)).join('')}
-      ${CD.caps.groups ? '<button class="co-chip" data-groups>＋ Group</button>' : ''}
+      ${CD.caps.groups ? `<button class="co-chip" data-groups>${icon('plus', 12)} Group</button>` : ''}
     </div>
     ${SHOW_GROUPS ? groupSheet(groups) : ''}
     ${SHOW_ABSENCE ? absenceSheet() : ''}
     <section class="card" id="roster-list" style="padding:2px 0">${list.length ? list.map(rosterRow).join('') : NO_MATCH_HTML}</section>
-    ${SELECTING && SEL.size ? `
+    ${SELECTING && SEL.size ? (BULK_NUDGE_ARM != null ? `
+    <div class="card" style="position:sticky;bottom:calc(var(--nav-h) + 19px + env(safe-area-inset-bottom, 0px) + 8px);padding:9px;z-index:20">
+      <input id="bulk-nudge-body" class="ob-input" maxlength="120" value="${esc(BULK_NUDGE_ARM)}" aria-label="Nudge message" style="width:100%;height:36px;font-size:var(--t-sm)" />
+      <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:6px 0">This exact message goes to all ${SEL.size}, from "${esc(S.operatorIdentity.handle)} is waiting".</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <button class="btn ghost sm" data-bulk="nudgecancel" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:var(--t-xs)">Cancel</button>
+        <button class="btn sm" data-bulk="nudgesend" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:var(--t-xs)">Send to ${SEL.size}</button>
+      </div>
+    </div>` : `
     <div class="card" style="position:sticky;bottom:calc(var(--nav-h) + 19px + env(safe-area-inset-bottom, 0px) + 8px);display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:9px;z-index:20">
       <button class="btn sm" data-bulk="nudge" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">Nudge ${SEL.size}</button>
       ${CD.caps.assignments ? `<button class="btn ghost sm" data-bulk="assign" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">Assign</button>` : ''}
       ${CD.caps.groups ? `<button class="btn ghost sm" data-bulk="group" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">→ Group</button>` : ''}
       ${CD.caps.exceptions ? `<button class="btn ghost sm" data-bulk="absence" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">Excuse</button>` : ''}
-    </div>` : ''}
+    </div>`) : ''}
     ${BULK_STATUS ? `<div id="bulk-status" style="font-size:11.5px;font-weight:600;color:var(--text-3);min-height:14px;margin-top:4px">${esc(BULK_STATUS)}</div>` : ''}
     <div style="height:10px"></div>`;
   },
@@ -294,7 +319,7 @@ export const coachRoster = {
     root.querySelectorAll('[data-sort]').forEach(b => b.addEventListener('click', () => {
       SORT = { score: 'status', status: 'name', name: 'activity', activity: 'score' }[SORT]; window.__render();
     }));
-    root.querySelectorAll('[data-selmode]').forEach(b => b.addEventListener('click', () => { SELECTING = !SELECTING; if (!SELECTING) SEL.clear(); BULK_STATUS = ''; window.__render(); }));
+    root.querySelectorAll('[data-selmode]').forEach(b => b.addEventListener('click', () => { SELECTING = !SELECTING; if (!SELECTING) SEL.clear(); BULK_STATUS = ''; BULK_NUDGE_ARM = null; window.__render(); }));
     root.querySelectorAll('[data-sel]').forEach(b => b.addEventListener('click', () => {
       const id = b.getAttribute('data-sel'); SEL.has(id) ? SEL.delete(id) : SEL.add(id); window.__render();
     }));
@@ -308,6 +333,18 @@ export const coachRoster = {
       if (BULK_BUSY) return;
       const kind = b.getAttribute('data-bulk'); const ids = [...SEL];
       if (kind === 'nudge') {
+        // Two-step: arm the editable preview first — the coach reads the exact words before
+        // they go to N phones under their name.
+        // Bulk-nudge targets whatever the operator selected — "overdue" would be a lie for
+        // an athlete who's current, so the default body stays neutral.
+        BULK_NUDGE_ARM = 'Time to get your log in.';
+        window.__render();
+      } else if (kind === 'nudgecancel') {
+        BULK_NUDGE_ARM = null; window.__render();
+      } else if (kind === 'nudgesend') {
+        const input = root.querySelector('#bulk-nudge-body');
+        const body = ((input && input.value) || '').trim() || 'Time to get your log in.';
+        BULK_NUDGE_ARM = null;
         BULK_BUSY = true; BULK_STATUS = 'Sending…'; window.__render();
         const today = roles.todayISO();
         const already = ids.filter(id => (RT.coachNudged || {})[id] === today);
@@ -315,9 +352,7 @@ export const coachRoster = {
         let sent = 0, failed = 0;
         try {
           for (const id of toSend) {
-            // Bulk-nudge targets whatever the operator selected — "overdue" would be a lie for
-            // an athlete who's current, so the body stays neutral.
-            const ok = await roles.nudgePush(id, `${S.operatorIdentity.handle} is waiting`, 'Time to get your log in.');
+            const ok = await roles.nudgePush(id, `${S.operatorIdentity.handle} is waiting`, body);
             if (ok) { act.markNudged(id); await logBookIntervention({ athleteId: id, kind: 'nudge' }); sent++; }
             else failed++;
           }
@@ -331,7 +366,12 @@ export const coachRoster = {
         if (!failed) { SEL.clear(); SELECTING = false; }
         window.__render();
       } else if (kind === 'assign') {
-        window.__go('coach-assign');   // composer already supports team/room scope; per-athlete multi-target lands with Create (slice C)
+        // The composer targets team/room scope or ONE athlete (coach-assign/<id>); per-athlete
+        // multi-target lands with Create (slice C). Until then the selection is never silently
+        // dropped: one selected deep-links to them, more than one says so honestly.
+        if (ids.length === 1) { window.__go('coach-assign/' + ids[0]); return; }
+        BULK_STATUS = `Assign targets one ${CD.noun} at a time for now. Keep one selected, or assign to everyone from Create.`;
+        window.__render();
       } else if (kind === 'group') {
         SHOW_GROUPS = true; window.__render();
       } else if (kind === 'absence') {

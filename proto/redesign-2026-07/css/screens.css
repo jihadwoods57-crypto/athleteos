@@ -1802,3 +1802,14 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
   font-size:var(--t-eyebrow);font-weight:800;letter-spacing:var(--track-eyebrow);
   text-transform:uppercase;color:var(--text-3);white-space:nowrap;
 }
+
+/* ---- Trainer Grow (trainer-grow.js) form fields ----
+   Moved out of a per-screen <style> block in the JS (the only screen that had one) so the rules
+   live with every other screen's and the type ratchet can see them. Values are tokens. */
+.tg-l{display:block;font-size:var(--t-xs);color:var(--text-3);margin:12px 0 5px;letter-spacing:.02em}
+.tg-page input,.tg-page textarea,.tg-of input,.tg-of textarea,.tg-of select{width:100%;background:var(--surface-2);border:1.5px solid var(--hairline);color:var(--text);border-radius:var(--r-chip);padding:10px 12px;font-size:var(--t-base);font-weight:600;font-family:var(--font);outline:none}
+.tg-page input:focus,.tg-page textarea:focus,.tg-of input:focus,.tg-of textarea:focus,.tg-of select:focus{border-color:var(--blue-bright)}
+.tg-page textarea{min-height:84px;resize:vertical}
+.tg-page input::placeholder,.tg-page textarea::placeholder,.tg-of input::placeholder,.tg-of textarea::placeholder{color:var(--text-3);font-weight:600}
+.tg-of{padding:12px 0;border-top:1.5px solid var(--hairline)}
+.tg-of .row2{display:flex;gap:8px}

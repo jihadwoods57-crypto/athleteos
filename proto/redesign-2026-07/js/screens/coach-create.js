@@ -66,7 +66,7 @@ export const coachCreate = {
       <div class="lrow" data-go="${(practice && TRAINER_GO[o.key]) || o.go}" style="cursor:pointer">
         <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon(o.icon, 17)}</div>
         <div class="lm"><div class="lt">${esc((practice && TRAINER_TITLE[o.key]) || o.title)}</div><div class="ls">${esc((practice && TRAINER_SUB[o.key]) || o.sub)}</div></div>
-        <span style="color:var(--text-3)">›</span>
+        ${icon('chevron', 14, 'style="color:var(--text-3)"')}
       </div>`).join('')}
     </section>
     ${practice ? `

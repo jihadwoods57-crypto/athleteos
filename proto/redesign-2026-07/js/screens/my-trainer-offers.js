@@ -2,16 +2,19 @@
    "Pay" button that opens Stripe Checkout (destination charge) in the system browser. Reached from
    Profile's "Trainer Connection" card. Only ever shows offers from a trainer whose Connect account
    is fully active (my_trainer_offers RPC enforces this server-side) — never a dead "pay" button. */
-import { backHead, esc } from '../components.js';
+import { backHead, esc, skeletonRows, errorState } from '../components.js';
 import { icon } from '../icons.js';
 import * as roles from '../roles.js';
 
-let CACHE = { offers: null, loaded: false };
+let CACHE = { offers: null, failed: false, loaded: false };
 let UI = { paying: null }; // offer_id currently starting checkout, or null
 
 async function load(force) {
   if (CACHE.loaded && !force) return;
-  CACHE.offers = await roles.fetchMyTrainerOffers();
+  const r = await roles.fetchMyTrainerOffers();
+  // { error: true } means the read FAILED — never render that as "your trainer has no packages".
+  CACHE.failed = !!(r && !Array.isArray(r) && r.error);
+  if (!CACHE.failed) CACHE.offers = Array.isArray(r) ? r : [];
   CACHE.loaded = true;
   if (window.__render) window.__render();
 }
@@ -25,9 +28,15 @@ function priceLabel(o) {
 
 export default {
   render() {
+    const head = backHead('Packages', 'Your trainer’s accountability packages', 'profile');
+    if (!CACHE.loaded && !navigator.onLine) {
+      return `${head}${errorState({ title: "You're offline", body: 'Your trainer’s packages load right here when you reconnect.', retryId: 'mto-retry' })}`;
+    }
     if (!CACHE.loaded) {
-      return `${backHead('Packages', 'Your trainer’s accountability packages', 'profile')}
-      <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bolt', 17)}</div><div><div class="tt">Loading…</div></div></div>`;
+      return `${head}${skeletonRows(3, 'Loading packages')}`;
+    }
+    if (CACHE.failed && !(CACHE.offers || []).length) {
+      return `${head}${errorState({ title: "Couldn't load packages", body: 'Check your connection and retry — nothing was charged.', retryId: 'mto-retry' })}`;
     }
     const offers = CACHE.offers || [];
     const trainerName = offers[0] && offers[0].trainer_name;
@@ -58,6 +67,8 @@ export default {
   },
   mount(root) {
     load();
+    const retry = root.querySelector('#mto-retry');
+    if (retry) retry.addEventListener('click', async () => { retry.disabled = true; await load(true); });
     root.querySelectorAll('[data-pay]').forEach(b => b.addEventListener('click', async () => {
       const offerId = b.getAttribute('data-pay');
       const err = root.querySelector('#mto-err');
