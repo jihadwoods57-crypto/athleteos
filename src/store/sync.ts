@@ -89,20 +89,23 @@ export function mapStateToDayRow(
       soreness: s.ciSoreness,
       motivation: s.ciMotivation,
       submitted: s.ciSubmitted,
-      // The date of the last real weekly check-in. The 0041 server-side score-integrity
-      // trigger honors a legitimate weekly recovery CARRY from this marker, so an honest
-      // carry day is NEVER clamped even when the original check-in day's row never reached
-      // Postgres (offline / pre-consent). The row self-describes its carry instead of the
-      // server trying to reconstruct cross-day history it can't reliably see.
+      // NOTE (score-v2, this layer is inert — see file header): this comment and the fields
+      // below describe the PRE-v2 weekly recovery carry (0041) and its 0.25/0.10 weights. The
+      // score-v2 spec retired the trailing-week carry entirely (proto day.js/ciCarryValid were
+      // deleted; the live evidence ceiling is 0193, not 0041) and commitment now weights 0, not
+      // 0.15. This RN sync path is unwired from the shipped app (the WebView + proto engine is
+      // the only live writer), so it was never corrected in step with the live engine. If this
+      // layer is ever revived, `mapStateToDayRow` needs a real audit against 0193 before it may
+      // write again, not just a comment fix — flagging rather than silently rewriting it here.
+      // The date of the last real check-in.
       ciLast: s.ciLast?.date ?? null,
-      // The carry's recovery MAGNITUDE rides alongside as its own key so a second device can
-      // rebuild the weekly recovery carry (0.25 recovery + 0.10 check-in) instead of dropping it
-      // and re-scoring the same lived day ~25-35 low, which then pushes the lower score back over
-      // the server row. Kept separate from `ciLast` so the 0041 SQL trigger still reads that as a
-      // plain date string.
+      // The carry's recovery MAGNITUDE rides alongside as its own key so a second device could
+      // rebuild the (pre-v2) carry instead of dropping it. Kept separate from `ciLast` so the
+      // (pre-v2) SQL trigger still reads that as a plain date string.
       ciLastRecovery: s.ciLast?.recovery ?? null,
-      // The one-tap plan commitment rides in the same jsonb (no schema change) so a
-      // second device can rebuild the full score instead of dropping the 0.15 slot.
+      // The one-tap plan commitment rides in the same jsonb (no schema change) so a second
+      // device can rebuild the full score. Under v2 this slot weighs 0 — captured and shown to
+      // the coach, but it no longer moves the score.
       commitment: s.dailyCommitment,
       // Per-slot macro totals for slots with a REAL plate. The evidence rule scores a
       // plate-less slot at 0 macros, so without these a photo-logged day would

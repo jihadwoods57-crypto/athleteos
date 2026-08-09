@@ -77,7 +77,7 @@ The honest read: **no one else verifies daily execution from a photo and scores 
 ## Differentiation
 **Key differentiators:**
 - **Photo-verified, not self-reported.** Live capture only; gallery photos never score. AI reads foods, portions, macros with per-food confidence and shows a "?" instead of guessing.
-- **One fixed, published formula.** A 94 means the same thing on every roster in the country. Weights are fixed (Nutrition 76%, Recovery 24% — 12 for closing the day out, 12 for how you answered); the professional individualizes the *standard underneath* within evidence-based rails. No coach can invent an easy formula; no athlete can sweet-talk the math.
+- **One fixed, published formula.** A 94 means the same thing on every roster in the country. Weights are fixed (Nutrition 76%, Recovery 24% — 12 for closing the day out, 12 for how you answered); the professional individualizes the *standard underneath* within evidence-based rails. No coach can invent an easy formula; no athlete can sweet-talk the math. <!-- lint-score-ok: canonical published claim (Task 10) — this file GENERATES future marketing assets, so this literal is the reviewed source of truth, not a drift risk -->
 - **AI reads but never decides.** It never sets targets, never touches the score, never invents a number a person acts on. Fixed math scores the day; the professional sets the bar.
 - **Honest credit.** On time counts full, late counts half, skipped reads as skipped.
 - **Portable, athlete-owned record** — yours forever, even after you leave. Programs get access, never ownership.

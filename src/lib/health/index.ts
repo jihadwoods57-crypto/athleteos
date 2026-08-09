@@ -2,7 +2,7 @@
 //
 // Ingests a real recovery reading (sleep / HRV / resting HR) from Apple Health (HealthKit)
 // or Android Health Connect. In v1 this data is DISPLAYED as honest context on the recovery
-// check-in and the #devices screen — it does NOT silently change the 25% recovery sub-score
+// check-in and the #devices screen — it does NOT silently change the recovery sub-score
 // (self-report stays the source of truth; blending device data into scoring is a founder-gated
 // decision, blendRecovery in core/recovery.ts is the ready path). Until the native module is
 // wired, isHealthAvailable is false, connect returns 'unavailable', and readRecoverySample
@@ -14,7 +14,8 @@
 //   2) implement healthConnected / connectHealth / readRecoverySample below against the module
 //   3) set isHealthAvailable = true
 //   4) (optional, founder-gated) fold the sample into scoring via blendRecovery at the recovery
-//      fold point — do NOT enable silently; it changes 25% of the daily score.
+//      fold point — do NOT enable silently; it changes a real share of the daily score
+//      (PROFILE_WEIGHTS.*.recovery — see src/core/scoringProfiles.ts for the live number).
 import type { RecoverySample } from '@/core';
 import type { ActivitySample } from '@/core/activity';
 

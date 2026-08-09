@@ -120,7 +120,7 @@ Voice check: direct, earned, plain-spoken coach voice; short declaratives; words
 ### C. Athlete Day-0 Home — first-log card + skipped-coach nudge (`home.js` Day-0 block)
 - **Card eyebrow:** START HERE
 - **Card title:** Log your first meal
-- **Card body:** Your score starts at zero and moves the second you log. Photo proof — Nutrition is 76% of the number. **(keep existing)**
+- **Card body:** Your score starts at zero and moves the second you log. Photo proof — Nutrition is 76% of the number. **(keep existing)** <!-- lint-score-ok: reviewed static-copy literal -->
 - **Button:** Log First Meal **(keep)**
 - **If coach was skipped (new one-line row):** No coach connected yet. Your proof only counts to someone if they're watching. → Connect a coach
 

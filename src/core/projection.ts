@@ -21,7 +21,7 @@ function deadlineFor(k: MealKey): number {
 }
 
 export interface ProjectedAction {
-  /** Stable key (e.g. 'protein', 'meal:dinner', 'checkin', 'tasks'). */
+  /** Stable key (e.g. 'protein', 'meal:dinner', 'checkin'). */
   key: string;
   /** Athlete-facing instruction, no guilt, no em dash. */
   label: string;
@@ -119,11 +119,13 @@ export function projectedScore(s: AppState, nowMin?: number): ScoreProjection {
   (Object.keys(s.meals) as MealKey[]).forEach((k) => {
     if (!s.meals[k]) actions.push({ key: `meal:${k}`, label: `Log ${MEAL_LABEL[k]}` });
   });
-  // The daily plan-commitment — the 0.15 lever that replaced the retired task checklist.
-  if (!s.dailyCommitment) {
-    actions.push({ key: 'commitment', label: 'Confirm you hit your plan today' });
-  }
-  // Submit the weekly check-in if it is still open.
+  // The daily plan-commitment is captured and shown to the coach, but v2 weights it at 0 — it
+  // no longer moves the score at all (PROFILE_WEIGHTS.*.commitment; see the score-v2 spec).
+  // idealizeDay still marks it 'yes' for the idealized-day shape, but this module only lists
+  // ACTIONS THAT MOVE THE PROJECTED NUMBER (its own file-header principle), so confirming the
+  // plan is deliberately not offered here — it would be a promise the score can't keep.
+  // Submit tonight's check-in if it is still open. (v2: nightly, not weekly — the Weekly
+  // Check-In ritual was deleted; see the score-v2 spec.)
   if (!s.ciSubmitted) {
     actions.push({ key: 'checkin', label: "Submit today's check-in" });
   }

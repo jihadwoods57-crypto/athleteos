@@ -1843,8 +1843,10 @@ export const useStore = create<Store>()(
         ciSoreness: s.ciSoreness,
         ciMotivation: s.ciMotivation,
         ciConfig: s.ciConfig,
-        // Cross-day weekly check-in snapshot (NOT a DAY_DEFAULT_KEY): the weekly
-        // credit must survive the nightly rollover â€” that's its whole job.
+        // Cross-day check-in snapshot (NOT a DAY_DEFAULT_KEY): kept across the nightly
+        // rollover for this dormant RN sync layer's pre-v2 carry mechanism (see sync.ts's
+        // score-v2 note) — that's its whole job, though the carry itself is retired in the
+        // live scoring engine.
         ciLast: s.ciLast,
         visibility: s.visibility,
         notif: s.notif,

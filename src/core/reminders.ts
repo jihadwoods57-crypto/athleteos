@@ -10,6 +10,16 @@
 // The actual LOCAL scheduling (expo-notifications) is a device seam (src/lib/notify),
 // gated by isNotifyAvailable; nothing here fires a notification. Copy follows the
 // shipped guardrails: factual, no guilt, no em dash.
+//
+// score-v2 NOTE: this module is superseded — the shipped app's reminders are exec-driven
+// from the proto WebView (proto/redesign-2026-07/js/notify-plan.js), not this native path
+// (see app/_layout.tsx: "Local reminders are exec-driven now"). Its 'checkin' reminder still
+// genuinely models the PRE-v2 weekly ritual end to end (label AND the withinTrailingWeek carry
+// logic in checkinDue below agree with each other, pinned by reminders.test.ts's "honors the
+// WEEKLY carry" case) — left as an internally-consistent whole rather than relabeling just the
+// copy, which would make it lie about its own logic instead. If this path is ever revived it
+// needs a real audit against the score-v2 spec (nightly check-in, no weekly carry), not a
+// find-and-replace.
 import { HYDRATION_TARGET } from './constants';
 import { withinTrailingWeek } from './clock';
 

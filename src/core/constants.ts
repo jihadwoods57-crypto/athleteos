@@ -210,7 +210,7 @@ export const TRACK_DATA = [
   { key: 'tasks', name: 'Tasks', desc: 'Daily accountability' },
 ] as const;
 
-/** Coach-configurable weekly check-in questions. */
+/** Coach-configurable nightly check-in questions. */
 export const CHECKIN_QUESTIONS = [
   { key: 'energy', label: 'Energy' },
   { key: 'recovery', label: 'Recovery' },

@@ -337,10 +337,11 @@ export function computeDerived(s: AppState): Derived {
   // rounds it out. Weights come from the account's scoring profile (score v2 mix).
   const w = PROFILE_WEIGHTS[profile];
   // Recovery only contributes to the accountability score once a real check-in backs it.
-  // The 86 `recoveryScore` fallback is a neutral DISPLAY placeholder (and the UI already
-  // shows "check-in not submitted" / 0%); crediting it into the blend was inflating every
-  // no-check-in day by w.recovery*86 unearned points — the exact "fake number" the honesty
-  // keystone forbids (D-B). When recovery is not real it contributes 0, matching the UI.
+  // The 86 `recoveryScore` fallback is a neutral DISPLAY placeholder (and the UI already shows
+  // "check-in not submitted" instead of a real number); crediting it into the blend was
+  // inflating every no-check-in day by w.recovery*86 unearned points — the exact "fake number"
+  // the honesty keystone forbids (D-B). When recovery is not real it contributes zero, matching
+  // the UI.
   const recoveryContribution = recoveryScoreIsReal ? recoveryScore : 0;
   // The daily plan-commitment (yes/partial/no one-tap) is captured and shown to the coach, but
   // v2 weights it at 0 — it no longer moves the score at all (PROFILE_WEIGHTS.*.commitment).

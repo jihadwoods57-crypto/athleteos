@@ -566,7 +566,8 @@ export function athleteSubtitle(position: string | null, sport?: string | null, 
 }
 
 export interface NotificationCopy {
-  /** The "weekly check-in due" reminder body, with an honest audience clause. */
+  /** The "tonight's check-in due" reminder body, with an honest audience clause. (v2: nightly,
+   *  not weekly — the Weekly Check-In ritual was deleted; see the score-v2 spec.) */
   checkin: string;
   /** The "score update" body; only the seeded demo claims a linebacker-room rank. */
   score: string;
@@ -602,7 +603,7 @@ export function notificationCopy(opts: {
   else if (has('parent')) checkin = 'Takes 2 minutes. Your parent will see your update.';
   else if (has('trainer')) checkin = 'Takes 2 minutes. Your trainer will see your update.';
   else if (has('nutritionist')) checkin = 'Takes 2 minutes. Your nutritionist will see your update.';
-  else checkin = 'Takes 2 minutes. Your weekly check-in keeps your score honest.';
+  else checkin = "Takes 2 minutes. Tonight's check-in keeps your score honest.";
   return {
     checkin,
     score: `Your OnStandard Score is ${opts.athleteScore}. Tap to see your week.`,
@@ -670,7 +671,7 @@ export function notificationFeed(opts: {
   if (!opts.isReal) {
     // Seeded showcase — unchanged from the original hardcoded cards.
     const list: FeedNotif[] = [
-      { key: 'checkin', kind: 'checkin', title: 'Weekly check-in due', time: '2m', text: copy.checkin, action: 'checkin', section: 'new' },
+      { key: 'checkin', kind: 'checkin', title: "Tonight's check-in due", time: '2m', text: copy.checkin, action: 'checkin', section: 'new' },
       { key: 'meal', kind: 'meal', title: 'Time to log dinner', time: '18m', text: `You're ${opts.proteinGap}g of protein from your target. One more meal does it.`, action: 'meal', section: 'new' },
       { key: 'score', kind: 'score', title: 'Score update', time: '1h', text: copy.score, action: 'squad', section: 'new' },
     ];
@@ -683,7 +684,7 @@ export function notificationFeed(opts: {
   // Real athlete — only currently-true reminders, honest timing, no fabricated past.
   const list: FeedNotif[] = [];
   if (!opts.checkinSubmitted) {
-    list.push({ key: 'checkin', kind: 'checkin', title: 'Weekly check-in due', time: 'Today', text: copy.checkin, action: 'checkin', section: 'new' });
+    list.push({ key: 'checkin', kind: 'checkin', title: "Tonight's check-in due", time: 'Today', text: copy.checkin, action: 'checkin', section: 'new' });
   }
   if (opts.proteinGap > 0) {
     list.push({ key: 'meal', kind: 'meal', title: 'Log your next meal', time: 'Now', text: `You're ${opts.proteinGap}g of protein from your target. One more meal does it.`, action: 'meal', section: 'new' });
@@ -731,7 +732,7 @@ export function squadView(opts: { isReal: boolean }): SquadView {
   };
 }
 
-/** The just-submitted weekly check-in answers, for an honest derived summary. */
+/** The just-submitted nightly check-in answers, for an honest derived summary. */
 export interface CheckinAnswers {
   name?: string;
   energy?: number;
@@ -745,7 +746,7 @@ export interface CheckinAnswers {
 }
 
 /**
- * Honest weekly check-in summary derived from the athlete's ACTUAL slider answers
+ * Honest nightly check-in summary derived from the athlete's ACTUAL slider answers
  * (replaces a static "Energy and confidence are up..." blurb that ignored what was
  * entered). Names only the enabled questions, classifies each strong (>=8) / watch
  * (<5), with soreness read inversely (high soreness = something to watch). Resilient

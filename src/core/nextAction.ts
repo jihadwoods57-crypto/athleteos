@@ -103,11 +103,12 @@ export function nextBestAction(s: AppState, d: Derived, now: Date = new Date()):
     };
   }
 
-  // 4) The weekly check-in is the only score lever the daily log can't fill.
+  // 4) Tonight's recovery check-in is the only score lever the daily log can't fill.
+  //    (v2: nightly, not weekly — the Weekly Check-In ritual was deleted; see the score-v2 spec.)
   if (!s.ciSubmitted) {
     return {
       key: 'checkin',
-      title: 'Do your weekly check-in',
+      title: "Do tonight's check-in",
       detail: "Your plate's handled. The 2-minute check-in is the last thing standing between you and a complete day.",
       cta: 'checkin',
       done: false,

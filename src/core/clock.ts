@@ -39,8 +39,16 @@ export function shiftStamp(stamp: string, deltaDays: number): string {
 }
 
 /** True when `fromStamp` falls within the trailing week ending at `toStamp`
- *  (0–6 whole days ago). The shared window behind the WEEKLY check-in credit:
- *  scoring, reminders, and the Home banner must all agree on "done this week". */
+ *  (0–6 whole days ago). Pure date math, no score opinion of its own.
+ *
+ *  score-v2 NOTE: this was "the shared window behind the WEEKLY check-in credit," but the
+ *  live scoring engine (proto/redesign-2026-07/js/day.js) no longer has a weekly carry at
+ *  all — checkinReal(day) is tonight-only (see the score-v2 spec). This dormant TS mirror
+ *  (src/core, unwired from the shipped WebView app) still has two carry-aware consumers,
+ *  reminders.ts:292 and scoreIntegrity.ts's evidence-ceiling carry check, that were NOT
+ *  re-audited against that retirement — flagging rather than silently changing their
+ *  behavior, since scoreIntegrity.ts is an integrity boundary and deserves its own review,
+ *  not a drive-by copy fix. */
 export function withinTrailingWeek(fromStamp: string, toStamp: string): boolean {
   const d = daysBetweenStamps(fromStamp, toStamp);
   return Number.isFinite(d) && d >= 0 && d <= 6;

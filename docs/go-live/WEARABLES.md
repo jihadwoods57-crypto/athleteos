@@ -8,10 +8,12 @@ work no dev machine can do.
 
 ## Design decision (important)
 Device data (last-night **sleep / HRV / resting HR**) is shown as **context** on the recovery
-check-in and `#devices`. It **does NOT change the 25% recovery score** — the athlete's self-report
-stays authoritative. Folding device data into the score is a **founder-gated** decision: the path
-exists (`blendRecovery` in `src/core/recovery.ts`), but enabling it silently would change a quarter
-of the daily score, so it's intentionally left off. Turn it on deliberately, not as a side effect.
+check-in and `#devices`. It **does NOT change the recovery portion of the score** — the athlete's
+self-report stays authoritative. Folding device data into the score is a **founder-gated**
+decision: the path exists (`blendRecovery` in `src/core/recovery.ts`), but enabling it silently
+would change a real share of the daily score (see `PROFILE_WEIGHTS` in
+`proto/redesign-2026-07/js/plan-style.js` / `src/core/scoringProfiles.ts` for the live weight), so
+it's intentionally left off. Turn it on deliberately, not as a side effect.
 
 ## 1. Native module + config plugin
 - iOS: add **react-native-health** (HealthKit) + a config plugin (or a local `withHealthKit`

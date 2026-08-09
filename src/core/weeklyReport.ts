@@ -24,7 +24,7 @@ export interface WeeklyReportInput {
   hydrationLow?: boolean;
   /** Weight goal stalled (no movement toward the target). */
   weightStalled?: boolean;
-  /** Days since the athlete's last weekly check-in (undefined = unknown). */
+  /** Days since the athlete's last check-in (undefined = unknown). */
   checkinDaysAgo?: number;
 }
 

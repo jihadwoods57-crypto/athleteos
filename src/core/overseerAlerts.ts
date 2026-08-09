@@ -18,7 +18,7 @@ export interface OverseerAlertDef {
 export const OVERSEER_ALERT_DEFS: OverseerAlertDef[] = [
   { key: 'below_line', label: 'Athlete falls below the line', desc: 'When a score drops into the needs-intervention band.', on: true },
   { key: 'missed_logging', label: 'Missed logging', desc: "When an athlete hasn't logged anything today.", on: true },
-  { key: 'checkin_ready', label: 'Check-in submitted', desc: 'When an athlete submits their weekly check-in.', on: true },
+  { key: 'checkin_ready', label: 'Check-in submitted', desc: 'When an athlete submits their nightly check-in.', on: true },
   { key: 'weekly_digest', label: 'Weekly digest', desc: 'A Sunday summary of the whole roster.', on: false },
 ];
 
