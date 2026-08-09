@@ -967,8 +967,10 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* The category tag: which scored part a rule feeds, WITHOUT restating the percentage on every
    row (three meals each reading "Nutrition · 52% of score" made each meal look worth 52% — 156%
    of a 100-point day). The weight is stated once, at the top of the tab.
-   The SCORED-CATEGORY strip itself reuses .macro-row.four — the design system's own 4-up density
-   step — rather than a fifth bespoke tile; only the value's hue is set per category. */
+   Score v2: two scored categories now (Nutrition, Recovery), so the SCORED-CATEGORY strip reuses
+   plain .macro-row — the design system's base density, no 4-up/5-up modifier needed for two
+   tiles; only the value's hue is set per category. `.pl-tag.c` (cyan) is unused code left over
+   from the deleted Weekly Check-In category — kept in case a future category needs the hue. */
 .pl-tag { font-size: var(--t-eyebrow); font-weight:800; letter-spacing:var(--track-key); text-transform:uppercase;
   padding:3px 7px; border-radius: var(--r-pill); background: var(--surface-2); color: var(--text-3); flex:none; }
 .pl-tag.g { color: var(--green-bright); } .pl-tag.p { color: var(--purple-bright); }

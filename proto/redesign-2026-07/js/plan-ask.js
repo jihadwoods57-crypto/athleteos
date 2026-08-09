@@ -27,11 +27,12 @@ const SLOT_WORDS = {
   breakfast: 'breakfast', lunch: 'lunch', dinner: 'dinner', supper: 'dinner', snack: 'snack',
 };
 
-/* Words that point at a requirement without naming it. The catalog titles carry the rest. */
+/* Words that point at a requirement without naming it. The catalog titles carry the rest.
+   Score v2: the deleted "weekly check-in" ritual had id 'weekly' here; no catalog requirement
+   carries that id anymore, so its synonym entry matched nothing and is gone with it. */
 const REQ_SYNONYMS = {
   weight: ['weigh', 'weighin', 'weighing', 'scale', 'weight'],
   recovery: ['recovery', 'sleep', 'soreness', 'readiness', 'bed', 'nightly'],
-  weekly: ['weekly', 'week', 'sunday', 'sundays'],
 };
 
 const round = (n) => Math.round(Number(n) || 0);

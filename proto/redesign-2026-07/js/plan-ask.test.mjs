@@ -18,9 +18,12 @@ const ctx = (over = {}) => ({
   hasTargets: true,
   targets: { protein: 180, calories: 3200, weight: 175 },
   remaining: { protein: 55, kcal: 980 },
+  // Score v2: two scored categories only (Nutrition, Recovery). The 52/25 split here (rather than
+  // the live 76/24) is deliberate — it exercises answerAsk's own summing/formatting against
+  // whatever weights ctx passes, never a constant, so a real S.breakdown shift can't silently
+  // desync this test from the engine.
   weights: [
-    { key: 'Nutrition', pct: 52 }, { key: 'Recovery', pct: 25 },
-    { key: 'Daily commitment', pct: 13 }, { key: 'Weekly check-in', pct: 10 },
+    { key: 'Nutrition', pct: 52 }, { key: 'Recovery', pct: 48 },
   ],
   nutritionParts: [{ label: 'Protein', pct: 20 }, { label: 'Calories', pct: 30 }],
   places: [{ name: 'Subway' }, { name: 'Chipotle' }],
@@ -110,7 +113,7 @@ test('the score answer sums to 100 and comes from the passed weights, never a co
   assert.match(a.lines.join('\n'), /Nutrition: 52%/);
   assert.match(a.lines.join('\n'), /That's 100% of the score/);
   const shifted = answerAsk('How is my score built?', ctx({
-    weights: [{ key: 'Nutrition', pct: 40 }, { key: 'Recovery', pct: 35 }, { key: 'Daily commitment', pct: 15 }, { key: 'Weekly check-in', pct: 10 }],
+    weights: [{ key: 'Nutrition', pct: 40 }, { key: 'Recovery', pct: 60 }],
   }));
   assert.match(shifted.lines.join('\n'), /Nutrition: 40%/);
 });

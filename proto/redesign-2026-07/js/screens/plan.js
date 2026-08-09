@@ -38,7 +38,7 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { esc, skeletonRows, errorState } from '../components.js';
-import { PROOF, freqLabel, fmtMin, runsToday } from '../requirements.js';
+import { PROOF, freqLabel, fmtMin } from '../requirements.js';
 import { accentVar } from '../score-band.js';
 import { foodMemory } from '../food-memory-data.js';
 import { recentRows } from '../recent-meals.js';
@@ -147,33 +147,24 @@ const offlineCard = () => errorState({
 /* ---------------- Today ----------------
    S.exec is the engine Home's ladder runs on: same items, same states, same deadlines. Plan shows
    the WHOLE day at a glance (Home shows the next move), and tapping a row goes exactly where Home
-   would send you. The weekly check-in sits outside exec (its completion is engine-derived, not
-   item-tracked), so it is appended from the catalog on the day it runs.
+   would send you.
 
    This list IS the standard, which is why the prose summary that used to sit above it is gone: it
    named the same meals, the same check-in and the same weigh-in days the rows state with their
-   real deadlines and live status, three lines earlier and with less information. */
+   real deadlines and live status, three lines earlier and with less information.
+
+   Score v2 note: this used to append a separate "weekly check-in" row from the catalog. That
+   component no longer exists — the nightly recovery check-in is the only check-in in the product,
+   and it is an ordinary exec item like every other row here. See the score v2 spec. */
 function todayRows() {
   let e;
   try { e = S.exec; } catch { return null; }
-  // The icon wears the hue of the THING (green meal, purple recovery, cyan weekly) — the same
-  // semantic accents the Requirements tab and Home use. Only a real miss goes amber.
-  const rows = e.items.map((i) => ({
+  // The icon wears the hue of the THING (green meal, purple recovery) — the same semantic accents
+  // the Requirements tab and Home use. Only a real miss goes amber.
+  return e.items.map((i) => ({
     id: i.id, title: i.title, icon: i.icon, color: i.color, pill: i.pill, accent: i.accent || 'b',
     sub: i.sub || i.dueLabel, route: i.route, done: i.state === 'done' || i.state === 'done_late',
   }));
-  const weekly = (S.scheduleCatalog || []).find((r) => r.id === 'weekly');
-  if (weekly && runsToday(weekly, new Date().getDay())) {
-    const wk = (S.breakdown || []).find((b) => b.key === 'Weekly check-in');
-    const done = !!(wk && wk.earned > 0);
-    rows.push({
-      id: 'weekly', title: weekly.title, icon: weekly.icon, accent: weekly.accent || 'c',
-      color: done ? 'green' : 'gold', pill: done ? 'Done' : 'Due today',
-      sub: done ? 'Checked in this week' : `Due by ${fmtMin(weekly.window.due)}`,
-      route: 'checkin', done,
-    });
-  }
-  return rows;
 }
 
 function todaySection() {
@@ -543,13 +534,13 @@ const nutrition = () => `
   ${askSection('nutrition')}`;
 
 /* ---------------- Requirements tab ----------------
-   The rules of the standard. Scoring weight is quoted ONCE, at the top, across all four scored
-   categories — and normalized so the four displayed numbers total exactly 100 (each is
-   independently rounded by the engine, so 52/25/13/10 can land on 99 or 101 and an athlete who
+   The rules of the standard. Scoring weight is quoted ONCE, at the top, across both scored
+   categories — and normalized so the two displayed numbers total exactly 100 (each is
+   independently rounded by the engine, so 76/24 can land on 99 or 101 and an athlete who
    adds them up deserves the answer to be 100). */
 
-const CAT_ACCENT = { Nutrition: 'g', Recovery: 'p', 'Daily commitment': 'b', 'Weekly check-in': 'c' };
-const CAT_SHORT = { Nutrition: 'Nutrition', Recovery: 'Recovery', 'Daily commitment': 'Commitment', 'Weekly check-in': 'Weekly' };
+const CAT_ACCENT = { Nutrition: 'g', Recovery: 'p' };
+const CAT_SHORT = { Nutrition: 'Nutrition', Recovery: 'Recovery' };
 
 function scoredWeights() {
   const rows = (S.breakdown || []).map((b) => ({ key: b.key, pct: b.weightPct }));
@@ -567,14 +558,16 @@ function scoredWeights() {
 function weightsStrip() {
   const rows = scoredWeights();
   if (!rows) return '';
-  // `.macro-row.four` is the design system's own 4-up density step — the same tile the coach macro
-  // strip and the targets row use. Only the value's hue is per-category; nothing bespoke.
-  // The strip is self-explanatory: four labelled shares that add to 100, above rules that each
-  // carry one of those four labels. The paragraph that used to explain the mechanism was longer
+  // Plain `.macro-row` (no density modifier) — the same base tile the 2-3-up rows elsewhere in the
+  // app use (features.js's record strip, meal-view's macro row). `.four`/`.five` only exist to
+  // shrink type for denser strips; two tiles is the least dense case there is, so it takes no
+  // modifier. Only the value's hue is per-category; nothing bespoke.
+  // The strip is self-explanatory: two labelled shares that add to 100, above rules that each
+  // carry one of those two labels. The paragraph that used to explain the mechanism was longer
   // than the mechanism.
   return `
   <div class="eyebrow">How your score is built</div>
-  <div class="macro-row four">
+  <div class="macro-row">
     ${rows.map((r) => `<div class="macro"><div class="mv" style="color:${accentVar(CAT_ACCENT[r.key] || 'b')}">${r.pct}%</div><div class="mk">${esc(CAT_SHORT[r.key] || r.key)}</div></div>`).join('')}
   </div>`;
 }
@@ -584,8 +577,8 @@ function weightsStrip() {
    `showFreq` is false inside the "Every day" group, where the group header already said it. */
 function reqRow(r, showFreq) {
   const scored = r.impact.kind === 'component';
-  const tag = scored ? (CAT_SHORT[{ nutrition: 'Nutrition', recovery: 'Recovery', checkin: 'Weekly check-in' }[r.impact.comp]] || r.impact.comp) : 'Not scored';
-  const accent = scored ? ({ nutrition: 'g', recovery: 'p', checkin: 'c' }[r.impact.comp] || 'b') : '';
+  const tag = scored ? (CAT_SHORT[{ nutrition: 'Nutrition', recovery: 'Recovery' }[r.impact.comp]] || r.impact.comp) : 'Not scored';
+  const accent = scored ? ({ nutrition: 'g', recovery: 'p' }[r.impact.comp] || 'b') : '';
   const due = r.window && r.window.due != null ? (r.window.label || `by ${fmtMin(r.window.due)}`) : (r.window && r.window.label) || '';
   const freq = showFreq ? freqLabel(r.freq).replace(/^Required (weekly · |)/, '') : '';
   const sub = [freq, due, PROOF[r.proof] ? PROOF[r.proof].label : 'One-tap check'].filter(Boolean).join(' · ');

@@ -12,7 +12,7 @@
 import { S, RT } from '../state.js';
 import { backHead, esc, composer } from '../components.js';
 import { foodMemory } from '../food-memory-data.js';
-import { PROOF, IMPACT_LABEL, freqLabel, fmtMin, runsToday } from '../requirements.js';
+import { PROOF, IMPACT_LABEL, freqLabel, fmtMin } from '../requirements.js';
 import { remainingToday } from '../food-memory.js';
 import { answerAsk, askSuggestions } from '../plan-ask.js';
 
@@ -40,7 +40,6 @@ function planAskContext() {
   const places = fm ? (fm.places || []).filter((p) => p.status !== 'archived') : [];
   const placeById = new Map(places.map((p) => [p.id, p.name]));
   const items = fm ? fm.items.filter((i) => i.status !== 'archived') : [];
-  const dow = new Date().getDay();
   const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
   const gov = S.governingStandard;
 
@@ -66,12 +65,9 @@ function planAskContext() {
 
   let today = [];
   try {
+    // Score v2: the nightly recovery check-in is an ordinary S.exec item now, so it's already in
+    // this list. There is no separate "weekly check-in" row to append anymore.
     today = S.exec.items.map((i) => ({ title: i.title, sub: i.sub || i.dueLabel, done: i.state === 'done' || i.state === 'done_late' }));
-    const weekly = (S.scheduleCatalog || []).find((r) => r.id === 'weekly');
-    if (weekly && runsToday(weekly, dow)) {
-      const wk = (S.breakdown || []).find((b) => b.key === 'Weekly check-in');
-      today.push({ title: weekly.title, sub: `due by ${fmtMin(weekly.window.due)}`, done: !!(wk && wk.earned > 0) });
-    }
   } catch { today = []; }
 
   const slotTitles = {}, slotDue = {};
