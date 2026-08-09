@@ -54,12 +54,16 @@ describe('reachPlan (spec §2.6: mathematically exact, sums to the ceiling)', ()
     expect(reachPlan(done, OPTS).rows).toEqual([]);
   });
 
-  test('meals and recovery are "up to"; commitment is guaranteed (spec §2.5/§2.6)', () => {
+  test('meals and recovery are "up to"; commitment earns nothing and never appears in the reach plan (v2)', () => {
+    // v2: PROFILE_WEIGHTS.*.commitment is 0, so a commitment answer's marginal gain is always 0.
+    // reachPlan already filters `rows.filter(r => r.gain > 0)` (unchanged code) — a 0-weight
+    // action correctly falls out of "how to reach 100" instead of dishonestly promising points
+    // an honest "no" would never actually pay.
     const { rows } = reachPlan(freshDay(), OPTS);
     const kinds = Object.fromEntries(rows.map((r: any) => [r.id, r.kind]));
     expect(kinds.lunch).toBe('upTo');
     expect(kinds.recovery).toBe('upTo');
-    expect(kinds.commitment).toBe('guaranteed');
+    expect(rows.find((r: any) => r.id === 'commitment')).toBeUndefined();
   });
 
   test('a slot past its deadline is labeled late (half credit), never silently on time', () => {
@@ -105,12 +109,12 @@ describe('explainCategories (spec §2.2/§2.3)', () => {
     expect(rec.remaining).toBe(0);     // settled for today — no phantom remaining points
   });
 
-  test('commitment explains the reflection and its guaranteed remainder', () => {
+  test('commitment still explains the reflection, but v2 pays it nothing (weight 0)', () => {
     const com = explainCategories(freshDay(), OPTS).find((c: any) => c.id === 'commitment')!;
     expect(com.remainingKind).toBe('guaranteed');
-    expect(com.remaining).toBe(15);
+    expect(com.remaining).toBe(0); // PROFILE_WEIGHTS.*.commitment is 0 — nothing left to guarantee
     const done = explainCategories(freshDay({ dailyCommitment: 'partial' }), OPTS).find((c: any) => c.id === 'commitment')!;
-    expect(done.earned).toBe(9); // 0.15 × 60
+    expect(done.earned).toBe(0); // 0 × 60 — the reflection is captured, it just scores nothing
     expect(done.remaining).toBe(0);
   });
 

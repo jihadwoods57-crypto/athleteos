@@ -15,17 +15,24 @@
 // ------------------------------------------------------------------------------------------
 // THE INTEGRITY INVARIANT (enforced by planStyleCaps.test.ts — do not break it)
 // ------------------------------------------------------------------------------------------
-// Migration 0041 clamps a written day score to an evidence ceiling built from the MAXIMUM weight
-// each component carries across all profiles (nutrition 55 / recovery 25 / commitment 15 /
-// checkin 10), mirrored here by scoreIntegrity.ts's MAX_SUBSCORE_WEIGHT. Neither knows about
+// Migration 0193 clamps a written day score to an evidence ceiling built from the MAXIMUM weight
+// each component carries across all profiles (v2: nutrition 78 / recovery 12 / commitment 0 /
+// checkin 12), mirrored here by scoreIntegrity.ts's MAX_SUBSCORE_WEIGHT. Neither knows about
 // styles, and neither should have to: NO style may push a component above its cap.
 //
-// Because the four weights must also sum to 1, the caps pin nutrition into [0.50, 0.55]:
-//   min nutrition = 1 - 0.25 - 0.15 - 0.10 = 0.50      max nutrition = 0.55 (its own cap)
-// The `athlete` profile already sits at that 0.50 floor with recovery at its 0.25 cap, so it has
-// NO headroom — every style scores an athlete on the same headline mix. That is by design: the
+// Because the four weights must also sum to 1, the caps pin nutrition into [0.76, 0.78]:
+//   min nutrition = 1 - 0.12 - 0 - 0.12 = 0.76      max nutrition = 0.78 (its own cap)
+// The `athlete` and `gain` profiles sit at that 0.76 floor with recovery at its 0.12 cap, so they
+// have NO headroom — every style scores them on the same headline mix. That is by design: the
 // real differentiation lives in what the NUTRITION SUB-SCORE MEASURES (NUTRITION_PARTS), not in
-// the headline mix. `general` and `gain` carry a little slack, spent moving nutrition -> recovery.
+// the headline mix. `general` spends its little slack pushing nutrition to its own 0.78 cap.
+//
+// NOTE (2026-08-09, Task 2 of the score-breakdown-v2 plan): scoreIntegrity.ts's
+// MAX_SUBSCORE_WEIGHT is derived from ./scoringProfiles.ts's PROFILE_WEIGHTS, a SEPARATE table
+// from this file's — the RN engine's own copy, not this proto mirror. Task 3 updates it; until
+// then MAX_SUBSCORE_WEIGHT still reflects the pre-v2 numbers and legitimately disagrees with
+// WEIGHT_CAPS above. See planStyleCaps.test.ts and scoreParity.test.ts, both intentionally left
+// red by this task for that reason — do not "fix" either by editing scoringProfiles.ts here.
 //
 // MIRRORED BY proto/redesign-2026-07/js/plan-style.js — planStyleParity.test.ts locks the two together.
 import type { ScoringProfile } from './types';
@@ -70,15 +77,15 @@ export interface StyleWeights {
 }
 
 /** Per-component ceiling. NOTHING may exceed these. Mirrors proto plan-style.js WEIGHT_CAPS. */
-export const WEIGHT_CAPS: StyleWeights = { nutrition: 0.55, recovery: 0.25, commitment: 0.15, checkin: 0.1 };
+export const WEIGHT_CAPS: StyleWeights = { nutrition: 0.78, recovery: 0.12, commitment: 0, checkin: 0.12 };
 
-/** Headline mix per goal profile. Plan style no longer re-weights the score — it shapes HOW
+/** Headline mix per goal profile — v2. Plan style no longer re-weights the score — it shapes HOW
  *  nutrition is computed (knobsFor). MUST equal proto plan-style.js PROFILE_WEIGHTS;
  *  planStyleParity.test.ts asserts the two constant tables are identical. */
 export const PROFILE_WEIGHTS: Record<ScoringProfile, StyleWeights> = {
-  athlete: { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 },
-  general: { nutrition: 0.55, recovery: 0.2, commitment: 0.15, checkin: 0.1 },
-  gain: { nutrition: 0.55, recovery: 0.25, commitment: 0.1, checkin: 0.1 },
+  athlete: { nutrition: 0.76, recovery: 0.12, commitment: 0, checkin: 0.12 },
+  general: { nutrition: 0.78, recovery: 0.10, commitment: 0, checkin: 0.12 },
+  gain: { nutrition: 0.76, recovery: 0.12, commitment: 0, checkin: 0.12 },
 };
 
 /** The headline mix for a (style, profile). `style` is accepted and ignored — the signature is

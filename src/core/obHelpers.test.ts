@@ -56,20 +56,20 @@ describe('standardForGoal', () => {
   // nutrition is computed, via knobsFor). Structured and Guided must therefore preview the
   // SAME headline mix for the same profile; asserting both styles here is what stops a stale
   // per-style row from creeping back in.
-  test('general profile on Structured relabels the weights (55/20/15/10)', () => {
+  test('general profile on Structured relabels the weights (v2: 78/10)', () => {
     const rows = standardForGoal('lose', 3, 'general', 'structured').rows;
-    expect(rows[0][2]).toContain('55%');
-    expect(rows[1][2]).toContain('20%');
+    expect(rows[0][2]).toContain('78%');
+    expect(rows[1][2]).toContain('10%');
   });
   test('general profile on Guided (the default style) matches the Structured row — style never re-weights', () => {
     const rows = standardForGoal('lose', 3, 'general').rows;
-    expect(rows[0][2]).toContain('55%');
-    expect(rows[1][2]).toContain('20%');
+    expect(rows[0][2]).toContain('78%');
+    expect(rows[1][2]).toContain('10%');
   });
-  test('athlete profile keeps 50/25/15/10', () => {
+  test('athlete profile keeps v2 76/12', () => {
     const rows = standardForGoal('gain').rows;
-    expect(rows[0][2]).toContain('50%');
-    expect(rows[1][2]).toContain('25%');
+    expect(rows[0][2]).toContain('76%');
+    expect(rows[1][2]).toContain('12%');
   });
 });
 

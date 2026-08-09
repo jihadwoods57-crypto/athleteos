@@ -16,18 +16,18 @@
  * ---------------------------------------------------------------------------------------------
  * THE INTEGRITY INVARIANT (do not break this — it is enforced by planStyleCaps.test.ts)
  * ---------------------------------------------------------------------------------------------
- * Migration 0041 clamps a written day score to an evidence ceiling built from the MAXIMUM weight
- * each component carries across all profiles (nutrition 55 / recovery 25 / commitment 15 /
- * checkin 10). src/core/scoreIntegrity.ts derives the same bound from PROFILE_WEIGHTS. Neither
+ * Migration 0193 clamps a written day score to an evidence ceiling built from the MAXIMUM weight
+ * each component carries across all profiles (v2: nutrition 78 / recovery 12 / commitment 0 /
+ * checkin 12). src/core/scoreIntegrity.ts derives the same bound from PROFILE_WEIGHTS. Neither
  * knows about styles, and neither should have to: NO style may push a component above its cap.
  *
- * Because the four weights must also sum to 1, the caps pin nutrition into [0.50, 0.55]:
- *   min nutrition = 1 - 0.25 - 0.15 - 0.10 = 0.50      max nutrition = 0.55 (its own cap)
- * The `athlete` profile already sits at that 0.50 floor with recovery at its 0.25 cap, so it has
- * NO headroom — every style scores an athlete on the same headline mix. That is fine and by
+ * Because the four weights must also sum to 1, the caps pin nutrition into [0.76, 0.78]:
+ *   min nutrition = 1 - 0.12 - 0 - 0.12 = 0.76      max nutrition = 0.78 (its own cap)
+ * The `athlete` and `gain` profiles sit at that 0.76 floor with recovery at its 0.12 cap, so they
+ * have NO headroom — every style scores them on the same headline mix. That is fine and by
  * design: the real differentiation between styles lives in what the NUTRITION SUB-SCORE MEASURES
- * (see NUTRITION_PARTS), not in the headline mix. `general` and `gain` carry a little slack, and
- * the styles spend it moving weight from nutrition toward recovery.
+ * (see NUTRITION_PARTS), not in the headline mix. `general` spends its little slack pushing
+ * nutrition to its own 0.78 cap instead, since commitment can no longer absorb it (weight 0).
  *
  * MIRROR of src/core/planStyle.ts — planStyleParity.test.ts asserts the two cannot drift.
  */
@@ -63,21 +63,21 @@ export function resolveStyleKey(x) {
 
 /* ---------------------------------------------------------------- weights */
 
-/** Per-component ceiling, mirroring the migration-0041 successor's slots. NOTHING may exceed these. */
-export const WEIGHT_CAPS = { nutrition: 0.55, recovery: 0.25, commitment: 0.15, checkin: 0.1 };
+/** Per-component ceiling, mirroring the 0193 evidence-ceiling slots. NOTHING may exceed these. */
+export const WEIGHT_CAPS = { nutrition: 0.78, recovery: 0.12, commitment: 0, checkin: 0.12 };
 
 /**
- * Headline mix per goal profile. THE single source of truth for the proto — day.js and state.js
- * re-export this; nothing else may declare a weight literal.
- *
- * Plan style no longer re-weights the score. It shapes HOW nutrition is computed (knobsFor), which
- * is where it earns its keep; the three style rows were already byte-identical for the athlete
- * profile and varied by 2-3 points elsewhere, which bought nothing.
+ * Headline mix per goal profile — v2. Two pillars the athlete sees, three slots the engine uses:
+ *   nutrition — plates logged, protein to target, on time
+ *   checkin   — a check-in was submitted TONIGHT (binary, guaranteed)
+ *   recovery  — how those answers scored
+ * `commitment` is 0: the end-of-day reflection is still captured and still shown to the coach, it
+ * just no longer scores, so an honest "no" costs nothing and the coach's data gets truthful.
  */
 export const PROFILE_WEIGHTS = {
-  athlete: { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 },
-  general: { nutrition: 0.55, recovery: 0.2, commitment: 0.15, checkin: 0.1 },
-  gain: { nutrition: 0.55, recovery: 0.25, commitment: 0.1, checkin: 0.1 },
+  athlete: { nutrition: 0.76, recovery: 0.12, commitment: 0, checkin: 0.12 },
+  general: { nutrition: 0.78, recovery: 0.10, commitment: 0, checkin: 0.12 },
+  gain: { nutrition: 0.76, recovery: 0.12, commitment: 0, checkin: 0.12 },
 };
 
 /** The headline mix for a (style, profile). `style` is accepted and ignored — the signature is

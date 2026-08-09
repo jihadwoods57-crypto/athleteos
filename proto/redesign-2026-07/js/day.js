@@ -310,27 +310,27 @@ function nutritionScore(day, std = STD) {
   return partsNutritionScore(day, std, knobs, proteinFrac, mealsFrac);
 }
 
+/* v2: no weekly carry. Recovery reflects TONIGHT's answers or it contributes nothing — the score
+   is what you did today. The old `ciLast` branch handed Monday's number back all week, which is
+   how a day with zero logging still banked ~21 points. */
 function recoveryParts(day) {
-  if (day.ciSubmitted) {
-    let sum = 0, count = 0;
-    for (const key of CI_KEYS) {
-      if (!(day.ciConfig && day.ciConfig[key])) continue;
-      const raw = day.ci ? day.ci[key] : undefined;
-      if (typeof raw !== 'number' || !isFinite(raw)) continue;
-      sum += CI_INVERSE[key] ? 10 - raw : raw; // soreness / cravings have inverse polarity
-      count++;
-    }
-    if (count > 0) return { score: clamp(Math.round((sum / (count * 10)) * 100), 0, 100), isReal: true };
-    return { score: 86, isReal: false };
+  if (!day.ciSubmitted) return { score: 86, isReal: false }; // display fallback; contributes 0
+  let sum = 0, count = 0;
+  for (const key of CI_KEYS) {
+    if (!(day.ciConfig && day.ciConfig[key])) continue;
+    const raw = day.ci ? day.ci[key] : undefined;
+    if (typeof raw !== 'number' || !isFinite(raw)) continue;
+    sum += CI_INVERSE[key] ? 10 - raw : raw; // soreness / cravings have inverse polarity
+    count++;
   }
-  if (day.ciLast && withinTrailingWeek(day.ciLast.date, day.date)) {
-    return { score: Math.round(day.ciLast.recovery), isReal: true }; // weekly carry
-  }
-  return { score: 86, isReal: false }; // display fallback; contributes 0
+  if (count > 0) return { score: clamp(Math.round((sum / (count * 10)) * 100), 0, 100), isReal: true };
+  return { score: 86, isReal: false };
 }
 
 function commitmentScore(ans) { return ans === 'yes' ? 100 : ans === 'partial' ? 60 : 0; }
-export function checkinReal(day) { return !!(day.ciSubmitted || (day.ciLast && withinTrailingWeek(day.ciLast.date, day.date))); }
+/* v2: "checked in TONIGHT", not "sometime this week". The trailing-7-day branch made this a
+   seven-day annuity — one check-in on Monday paid every day through Sunday. */
+export function checkinReal(day) { return !!day.ciSubmitted; }
 
 /** The four sub-scores. `recoveryContribution` is what the total uses (0 unless a real check-in
  *  backs it). Only nutrition depends on the standard (meal slots/windows/denominator); recovery,
@@ -363,12 +363,13 @@ export function gradeFor(s) { return s >= 90 ? 'A' : s >= 80 ? 'B' : s >= 70 ? '
 
 /* ---------------- evidence ceiling (mirror of the server trigger) ---------------- */
 // Keep the client score honest so the server clamp never has to silently lower it.
+/** Mirror of the 0193 server ceiling: the most the evidence on a row can justify. Nutrition
+ *  evidence unlocks 78 (the max across profiles); a real check-in unlocks recovery 12 + check-in
+ *  12. A commitment answer unlocks nothing — it no longer scores. */
 export function evidenceCeiling(day) {
   const hasNutrition = MEAL_KEYS.some((k) => day.meals && day.meals[k]) ||
     (day.slotMacros && Object.keys(day.slotMacros).length > 0);
-  const hasCheckin = checkinReal(day);
-  const hasCommitment = day.dailyCommitment === 'yes' || day.dailyCommitment === 'partial' || day.dailyCommitment === 'no';
-  return (hasNutrition ? 55 : 0) + (hasCheckin ? 35 : 0) + (hasCommitment ? 15 : 0);
+  return (hasNutrition ? 78 : 0) + (checkinReal(day) ? 24 : 0);
 }
 export function clampedScore(day) { return Math.min(scoreFor(day), evidenceCeiling(day)); }
 
