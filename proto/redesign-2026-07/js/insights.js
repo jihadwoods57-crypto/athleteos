@@ -299,7 +299,7 @@ export function mostMissed({ rollup = [], reqsByAthlete = {}, todayISO }) {
       const isWeigh = req.kind === 'weigh';
       // recovery is identified by id (built-in CATALOG carries no kind) OR kind (coach set).
       const isRecovery = req.id === 'recovery' || req.kind === 'recovery';
-      if (!isMeal && !isWeigh && !isRecovery) continue; // checkin below; lift/custom skipped
+      if (!isMeal && !isWeigh && !isRecovery) continue; // lift/custom skipped
       if (!runsOnLocal(req.freq, dow)) continue;
       let done;
       if (isMeal) done = loggedMeals > mealReqs.indexOf(req);
@@ -312,17 +312,13 @@ export function mostMissed({ rollup = [], reqsByAthlete = {}, todayISO }) {
     }
   }
 
-  // checkin: weekly cadence -> one miss per athlete per week window, never per day.
-  const rowsByAthlete = {};
-  for (const row of rows) (rowsByAthlete[row.athlete_id] = rowsByAthlete[row.athlete_id] || []).push(row);
-  for (const athleteId of Object.keys(rowsByAthlete)) {
-    const athleteRows = rowsByAthlete[athleteId];
-    if (!athleteRows.length) continue; // no data-day in the window -> silence, not a miss
-    const checkinReqs = (reqsByAthlete[athleteId] || []).filter(r => r && r.required && r.kind === 'checkin');
-    if (!checkinReqs.length) continue;
-    const anyDone = athleteRows.some(r => r.checkin_done === true);
-    if (!anyDone) for (const req of checkinReqs) bump(req);
-  }
+  // v2: no live requirement is ever kind:'checkin' — the Weekly Check-In ritual is deleted
+  // (Task 7), and coach-insights.js's buildReqsByAthlete neutralizes any pre-cutover stored item
+  // that still literally carries kind:'checkin' to 'custom' before it ever reaches this function
+  // (see that file's own comment, which cites this line by number). There used to be a second
+  // pass here treating 'checkin' as a weekly-cadence miss; removed as dead code — confirmed by
+  // grep that buildReqsByAthlete is reqsByAthlete's only producer and no test feeds this
+  // function a raw 'checkin' kind.
 
   return Object.keys(totals)
     .map(reqId => ({ reqId, ...totals[reqId] }))

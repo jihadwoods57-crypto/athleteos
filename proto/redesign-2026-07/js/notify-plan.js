@@ -57,18 +57,21 @@ const COLLAPSE_MIN = 60; // soon+due this close collapse into a single last-call
 const RANK = { due: 3, streak: 2.5, soon: 2, open: 1 };
 
 /** Template family for a requirement — inferred from proof/impact, never hardcoded ids, so
- *  coach-standard slots (meal-5, snack-as-required) and future kinds get sane copy. */
+ *  coach-standard slots (meal-5, snack-as-required) and future kinds get sane copy. There is no
+ *  'checkin' kind: that branch existed for the Weekly Check-In ritual, which v2 deleted — every
+ *  impact.comp the catalog (or a coach-standard slot, or a custom assignment) can ever produce is
+ *  'nutrition' or 'recovery', never 'checkin'. Confirmed by repo-wide grep before removing it. */
 export function reqKind(req) {
   if (req.proof === 'scale') return 'weigh';
   if (req.proof === 'photo') return 'meal';
-  if (req.proof === 'form') return req.impact && req.impact.comp === 'checkin' ? 'checkin' : 'recovery';
+  if (req.proof === 'form') return 'recovery';
   return 'task';
 }
 
 function routeFor(req) {
   if (req.proof === 'photo') return `camera/${req.id}`;
   if (req.proof === 'scale') return 'weight';
-  if (req.id === 'recovery' || (req.proof === 'form' && (!req.impact || req.impact.comp !== 'checkin'))) return 'recovery';
+  if (req.id === 'recovery' || req.proof === 'form') return 'recovery';
   return req.route || 'home';
 }
 
@@ -124,16 +127,6 @@ const COPY = {
     due: [
       (c) => ({ title: 'Check-in closes tonight', body: `Last thing before bed — 20 seconds and the day counts in full.` }),
       (c) => ({ title: 'Before you sleep', body: `Tonight’s check-in is the last open item. 20 seconds closes the day.` }),
-    ],
-  },
-  checkin: {
-    soon: [
-      (c) => ({ title: `${c.t} is ready`, body: `The week in one honest read — in by ${c.due}${c.coach ? `. ${c.coach} sees your update` : ''}.` }),
-      (c) => ({ title: `${c.t} today`, body: `Five questions, two minutes. Due by ${c.due}.` }),
-    ],
-    due: [
-      (c) => ({ title: `Last call: ${c.low}`, body: `Closes at ${c.due}. Two minutes and the week is on the record.` }),
-      (c) => ({ title: `${c.t} closes at ${c.due}`, body: `Get it in — your week only counts if it's written down.` }),
     ],
   },
   task: {

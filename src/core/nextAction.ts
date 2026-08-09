@@ -2,7 +2,7 @@
 // The app should coach forward, not just grade backward: surface the SINGLE
 // highest-impact thing the athlete can do right now to move today's plan, derived
 // from their real logged data + the time of day. Priority follows the score levers
-// — protein (50% of the score) and meals lead, then hydration, check-in, tasks.
+// — protein (nutrition is the majority of the score) and meals lead, then hydration, check-in, tasks.
 // Honest by construction: every line reads off real derived values, no fabrication.
 import { HYDRATION_TARGET } from './constants';
 import type { AppState, Derived, MealKey } from './types';

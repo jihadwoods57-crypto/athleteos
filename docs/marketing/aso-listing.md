@@ -45,7 +45,7 @@ Considered and rejected:
 
 **iOS Subtitle (30 char): `Coach-verified team nutrition`  → 29 char**
 
-Why: three high-intent, non-repeated search tokens in one honest phrase — `coach` (the buyer), `team` (roster/program search), `nutrition` (the 50%-weighted score component and the biggest search category we honestly touch). `verified` is the wedge word — the one thing no competitor can say. Reads as plain truth, not hype.
+Why: three high-intent, non-repeated search tokens in one honest phrase — `coach` (the buyer), `team` (roster/program search), `nutrition` (the 76%-weighted score component and the biggest search category we honestly touch). `verified` is the wedge word — the one thing no competitor can say. Reads as plain truth, not hype.
 
 **Google Play Short Description (80 char): → 76 char**
 
@@ -79,7 +79,7 @@ Who searches, and what they type:
 
 **Athletes / clients (the users — mostly directed, but some self-search):**
 - `macros`, `food`, `meal`, `log`, `photo` → the literal words behind "macro tracker," "meal photo log," "food log." These are the free-side habit searches.
-- `recovery` → the 25%-weighted score component; combines with `sleep`-adjacent recovery searches.
+- `recovery` → the 24%-weighted score component; combines with `sleep`-adjacent recovery searches.
 - `tracker` → **intercept keyword only.** Positioning forbids calling ourselves a tracker in *visible* copy, but people searching "macro tracker" / "nutrition tracker" are exactly our misrouted audience. We catch the search without ever using the word where a human reads our brand.
 
 Deliberately left out (space is finite): `compliance`, `client`, `performance`, `discipline`, `gym`, `RD`, `habit`. `client`/`compliance` are covered semantically by `checkin`+`roster`; `performance`/`discipline` are brand-voice words but weak as search tokens. Rotate these in via A/B once install data shows which head terms actually convert.
@@ -110,11 +110,11 @@ item, and shows a "?" instead of guessing. Then fixed math scores the day.
 ONE SCORE THAT MEANS SOMETHING
 
 Every day becomes a single OnStandard Score, 0-100, on one published formula:
-Nutrition 50%, Recovery 25%, Daily commitment 15%, Weekly check-in 10%. The
-weights are fixed and the same on every roster in the country — a 94 means the
-same thing everywhere. No coach can invent an easy formula. No athlete can
-sweet-talk the math. On time counts full. Late counts half. Skipped reads as
-skipped. Honest credit, every day.
+Nutrition 76%, Recovery 24% (12 for closing the day out, 12 for how you
+answered). The weights are fixed and the same on every roster in the country —
+a 94 means the same thing everywhere. No coach can invent an easy formula. No
+athlete can sweet-talk the math. On time counts full. Late counts half.
+Skipped reads as skipped. Honest credit, every day.
 
 THE AI READS. IT NEVER DECIDES.
 
@@ -140,7 +140,7 @@ forever, even after you leave. Programs get access, never ownership.
 WHAT YOU GET
 - Photo-verified nutrition logging (live capture only)
 - One fixed, published 0-100 score you can trust
-- Recovery, daily commitment, and weekly check-ins in one number
+- Recovery — closing the day out and how you answered — in one number
 - Honest late credit — on time full, late half, skipped skipped
 - A whole-roster view with needs-attention flags
 - A portable record the athlete owns for life
@@ -166,7 +166,7 @@ Designed for the first 3 to carry the whole pitch (90% of viewers never scroll p
 1. **Prove the work. Don't just claim it.**
 2. **One score. One fixed formula. A 94 means 94 everywhere.**
 3. **Photo-verified meals — live capture only. No gallery, no fakes.**
-4. **Recovery, check-ins, daily commitment — all in the number.**
+4. **Recovery: closing the day out, and how you answered — both in the number.**
 5. **The whole roster in one glance. See who's on standard.**
 6. **The AI reads your plate. It never decides your score.**
 7. **Your record. Yours forever — even after you leave.**

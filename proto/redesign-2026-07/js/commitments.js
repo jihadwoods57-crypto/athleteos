@@ -6,7 +6,8 @@
    Vocabulary note (founder decision 2026-07-22): "commitment" is COACH-facing vocabulary. The
    athlete never sees the bare word — they see the coach's own title ("Morning Roll Call",
    "5 AM Club"), and the rollup is called Morning Readiness / Accountability. The shipped
-   Daily Commitment (15% of the daily score, screens/commitment.js) is a DIFFERENT thing and is
+   Daily Commitment (screens/commitment.js) is a DIFFERENT thing — its weight is permanently 0
+   (the reflection is captured and shown to the coach, it just no longer scores) — and is
    deliberately untouched by this module.
 
    ⚠ Nothing here feeds the daily 0–100 score. Verified Commitments produces its own

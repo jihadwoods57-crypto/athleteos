@@ -19,8 +19,10 @@ export const PROOF = {
 };
 
 /* The headline mix is goal-profile aware (plan-style.js weightsFor), so the impact copy can never
-   be a constant — a general adult sees Nutrition 55%, not 50%. Style no longer moves this number
-   (PROFILE_WEIGHTS is profile-only; style shapes HOW nutrition is computed, not the headline mix).
+   be a constant — a general adult sees a different Nutrition percentage than an athlete/gain
+   profile does (PROFILE_WEIGHTS varies by profile; see plan-style.js for the live numbers). Style
+   no longer moves this number (PROFILE_WEIGHTS is profile-only; style shapes HOW nutrition is
+   computed, not the headline mix).
    requirements.js stays import-free by design, so state.js REGISTERS a provider that returns the
    live weights; until it does we fall back to the shipped athlete row. Every consumer keeps
    reading IMPACT_LABEL[key] — the values are getters, so they re-read the weights on every access. */
@@ -61,7 +63,7 @@ export const ACTIVATION_BUFFER_MIN = 60;
 
 /* Accent letters are SEMANTIC, not decorative: 'g' nutrition, 'p' recovery, 'b' action/commitment,
    'muted' tracked-not-scored facts. Two drifted (dinner wore the action blue beside two green
-   siblings stating the identical "Nutrition · 50%" fact; morning weight wore warning amber for
+   siblings stating the identical hardcoded nutrition-percent fact; morning weight wore warning amber for
    "not scored", which is provenance). requirements.test.mjs now pins comp → accent so the next
    drift fails the suite instead of shipping. Cyan ('c') was minted for the Weekly Check-In ritual
    (a distinct Sunday requirement); v2 deletes that ritual entirely, so cyan is retired — no

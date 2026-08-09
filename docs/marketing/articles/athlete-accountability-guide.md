@@ -44,7 +44,7 @@ Here's the shape of it, and it's the model OnStandard is built on:
 
 1. **Set the standard.** The professional defines the individualized targets and windows — what "on standard" means for this athlete — within evidence-based rails.
 2. **Require proof, not reports.** The athlete photographs each meal at the moment they eat it. Live capture only; saved gallery photos never count toward the score. An AI reads the foods and portions with per-food confidence and shows a "?" instead of a guess.
-3. **Score it on one fixed formula.** Every day becomes a single 0–100 number weighted the same way for everyone — Nutrition 50%, Recovery 25%, Daily commitment 15%, Weekly check-in 10%. On time counts full, late counts half, skipped reads as skipped.
+3. **Score it on one fixed formula.** Every day becomes a single 0–100 number weighted the same way for everyone — Nutrition 76%, Recovery 24% (12 for closing the day out, 12 for how you answered). On time counts full, late counts half, skipped reads as skipped.
 4. **Read the roster in seconds.** Each morning the whole roster surfaces who's on standard and who needs attention. You intervene early with the two athletes slipping — not all ninety.
 
 Chasing happens when you have to go find the truth. When the truth comes to you, verified and scored, there's nothing left to chase.

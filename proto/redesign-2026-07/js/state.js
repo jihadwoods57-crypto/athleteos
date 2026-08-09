@@ -181,7 +181,7 @@ export function groundResult(d) {
 /* The engine's own headline mix for TODAY (style x goal profile — plan-style.js weightsFor via
    day.js weightsForDay). Every surface that PRINTS a weight must read this, never a constant. */
 export function liveWeights() { return weightsForDay(DAY); }
-/** Whole-number weight for one component, for display copy ("Nutrition · 52% of score"). */
+/** Whole-number weight for one component, for display copy (e.g. "Nutrition · " + liveWeightPct('nutrition') + "% of score"). */
 export function liveWeightPct(comp) { return Math.round((liveWeights()[comp] || 0) * 100); }
 setImpactWeightsProvider(liveWeights);
 
@@ -4291,10 +4291,14 @@ export const S = {
       const now = avg(newer, k), prev = avg(older, k);
       return { key: label, accent, now, delta: now - prev };
     };
+    // Daily Commitment is deliberately NOT a row here: its weight is permanently 0, so its
+    // "trend" is always a flat 0% with a delta of exactly 0 — a bar that can never say anything,
+    // on the one chart whose whole point is to show real direction. See categoryTrends' own
+    // header comment: trends appear as real data accumulates, never fabricated — and a
+    // zero-weight category rendering here is a fabricated signal, not a real one.
     return [
       mk('nutrition', 'Nutrition', 'g'),
       mk('recovery', 'Recovery', 'p'),
-      mk('commitment', 'Daily Commitment', 'b'),
     ];
   },
 

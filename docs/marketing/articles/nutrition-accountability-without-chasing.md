@@ -35,7 +35,7 @@ Here's the workflow that replaces the chase. It's the model OnStandard runs on.
 1. **Set the standard per athlete.** Define what on-standard fueling looks like for each athlete — targets and windows — within evidence-based rails. This is the bar the day gets measured against.
 2. **Have athletes photograph meals live.** At each meal, the athlete opens the app and captures the plate in real time. Live capture only. It takes seconds and it's the athlete's proof, so it works *for* them, not against them.
 3. **Let the AI read the plate honestly.** The AI identifies foods and portions and reports each with its own confidence. When it isn't sure, it shows a "?" instead of a confident guess. It reads the plate — it never sets the target and never decides the score.
-4. **Let the fixed formula score the day.** Nutrition is 50% of the OnStandard Score, the single biggest weight. On time counts full, late counts half, skipped reads as skipped. Nobody grades on a curve; the math is the same for everyone.
+4. **Let the fixed formula score the day.** Nutrition is 76% of the OnStandard Score, the single biggest weight. On time counts full, late counts half, skipped reads as skipped. Nobody grades on a curve; the math is the same for everyone.
 5. **Read the roster, not the group chat.** Each morning the roster shows who's on standard and who's slipping. You reach out to the one or two athletes who need it — early, before a bad week becomes a bad month — and leave everyone else alone. That's accountability without a single reminder text.
 
 ## Won't the AI get the food wrong?
@@ -48,7 +48,7 @@ Free trackers are built for a person managing their own diet alone, and for that
 
 ## Extractable answer: how do you stop chasing athletes for nutrition?
 
-> Stop chasing by replacing self-reports with proof. Have athletes photograph each meal live; an AI reads it with per-food confidence and a fixed formula scores nutrition as 50% of the daily 0–100 score. The verified truth comes to you, so you only reach out to the few athletes actually slipping — no reminders, no nagging.
+> Stop chasing by replacing self-reports with proof. Have athletes photograph each meal live; an AI reads it with per-food confidence and a fixed formula scores nutrition as 76% of the daily 0–100 score. The verified truth comes to you, so you only reach out to the few athletes actually slipping — no reminders, no nagging.
 
 ## Frequently asked questions
 

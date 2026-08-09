@@ -202,28 +202,17 @@ test('mostMissed: weigh — zero misses on the required days is silent, not a ze
   expect(m).toEqual([]);
 });
 
-test('mostMissed: checkin — one miss per athlete per week, never per day, when no day in the window has checkin_done true', () => {
+test('mostMissed: a stale kind:checkin item (the deleted Weekly Check-In ritual) is inert, never a miss', () => {
+  // Task 10: the weekly-cadence 'checkin' branch was removed as dead code — no live requirement
+  // is ever kind:'checkin' (coach-insights.js's buildReqsByAthlete neutralizes any pre-cutover
+  // stored item to 'custom' before it reaches here), so a raw kind:'checkin' item falling through
+  // to this function directly must produce silence, not a fabricated miss, regardless of
+  // checkin_done.
   const reqsByAthlete = {
     a1: [{ id: 'weekly', title: 'Weekly Check-In', kind: 'checkin', required: true, freq: { type: 'weekly', day: 0 } }],
   };
   const rollup = ['2026-07-12', '2026-07-13', '2026-07-14', '2026-07-15', '2026-07-16']
     .map(d => rr('a1', d, { checkin_done: false })); // 5 data-days this week, never checked in
-  const m = mostMissed({ rollup, reqsByAthlete, todayISO: TODAY } as never);
-  expect(m).toEqual([{
-    reqId: 'weekly', title: 'Weekly Check-In', missedCount: 1,
-    text: 'Weekly Check-In was missed 1 time this week.',
-  }]);
-});
-
-test('mostMissed: checkin — any single true day in the window clears the whole week, silently', () => {
-  const reqsByAthlete = {
-    a1: [{ id: 'weekly', title: 'Weekly Check-In', kind: 'checkin', required: true, freq: { type: 'weekly', day: 0 } }],
-  };
-  const rollup = [
-    rr('a1', '2026-07-12', { checkin_done: false }),
-    rr('a1', '2026-07-13', { checkin_done: true }), // one true day is enough for the whole week
-    rr('a1', '2026-07-16', { checkin_done: false }),
-  ];
   const m = mostMissed({ rollup, reqsByAthlete, todayISO: TODAY } as never);
   expect(m).toEqual([]);
 });

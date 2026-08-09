@@ -76,7 +76,7 @@ Either way: verify your sending domain (SPF/DKIM) so emails don't spam-box.
 Hand this to the dietitian. These are the only numbers that need sign-off; all are tunable constants (a one-line edit,
 no rebuild).
 
-**Execution Score weights:** Nutrition 50% · Recovery 25% · Tasks 15% · Check-in 10%.
+**Execution Score weights:** Nutrition 76% · Recovery 24% (12 for closing the day out, 12 for how you answered). Daily commitment is captured and shown to the coach but weighted 0 — it does not score.
 
 **Nutrition sub-score, by goal profile:**
 - **Performance (athlete):** protein 65% + on-time meals 35%.

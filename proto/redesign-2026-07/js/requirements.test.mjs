@@ -6,15 +6,18 @@
  * letters were all valid tokens. The MEANING layer can: a requirement's accent is a function of
  * what it impacts, so pin the function and a typo'd letter fails the suite the day it is typed.
  *
- * DESIGN.md's hue table is the authority: green = nutrition, purple = recovery, cyan = weekly
- * check-in, blue = action/commitment, muted = tracked-not-scored facts, amber = WARNING ONLY
- * (which is why no catalog entry may ever carry it — a requirement's identity is never a
- * warning; its STATE can be). */
+ * DESIGN.md's hue table is the authority: green = nutrition, purple = recovery, blue =
+ * action/commitment, muted = tracked-not-scored facts, amber = WARNING ONLY (which is why no
+ * catalog entry may ever carry it — a requirement's identity is never a warning; its STATE can
+ * be). Cyan ('c') was minted for the Weekly Check-In ritual; v2 deletes that ritual entirely
+ * (requirements.js's own CATALOG comment says the same), so cyan is RETIRED — no live catalog
+ * entry's impact.comp is ever 'checkin', which is why ACCENT_FOR_COMP below carries no entry for
+ * it: a map that pinned 'checkin' -> 'c' would document a mapping the CATALOG can never exercise. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CATALOG, IMPACT_LABEL, catalogFromItems } from './requirements.js';
 
-const ACCENT_FOR_COMP = { nutrition: 'g', recovery: 'p', checkin: 'c', commitment: 'b' };
+const ACCENT_FOR_COMP = { nutrition: 'g', recovery: 'p', commitment: 'b' };
 
 test('every component-impact requirement wears its component\'s hue', () => {
   for (const req of CATALOG) {

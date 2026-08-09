@@ -144,7 +144,11 @@ describe('kinds + extensibility', () => {
     expect(reqKind({ proof: 'photo' })).toBe('meal');
     expect(reqKind({ proof: 'scale' })).toBe('weigh');
     expect(reqKind({ proof: 'form', impact: { comp: 'recovery' } })).toBe('recovery');
-    expect(reqKind({ proof: 'form', impact: { comp: 'checkin' } })).toBe('checkin');
+    // Task 10: there is no 'checkin' kind anymore — that branch existed for the Weekly Check-In
+    // ritual, which v2 deleted (no live impact.comp is ever 'checkin'), so every 'form' proof
+    // — including a stale pre-cutover item that still literally carries comp:'checkin' — reads
+    // as 'recovery' now.
+    expect(reqKind({ proof: 'form', impact: { comp: 'checkin' } })).toBe('recovery');
     expect(reqKind({ proof: 'check' })).toBe('task');
   });
   test('a brand-new custom requirement kind still gets sane copy and a route', () => {

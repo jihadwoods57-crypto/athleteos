@@ -7,7 +7,6 @@
   "js/components.js": 7,
   "js/router.js": 1,
   "js/screens/accountability.js": 1,
-  "js/screens/checkin.js": 11,
   "js/screens/coach-announce.js": 3,
   "js/screens/coach-apply.js": 8,
   "js/screens/coach-commitments.js": 12,

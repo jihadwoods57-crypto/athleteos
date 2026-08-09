@@ -72,7 +72,7 @@ No. The athlete owns the record forever and controls their own logging. There's 
 Both, for the same reason from different sides. A trainer or dietitian gets one hour and needs the other 167 to hold. A team coach has a roster's worth of 167s to watch at once. The gap is identical; only the scale changes.
 
 **Can you really measure what happens between sessions?**
-You can measure the parts that decide the result — fueling, recovery, daily commitment, weekly check-ins — if the athlete proves them rather than reports them. Verification is what turns "between-session hours" from a guess into a number.
+You can measure the parts that decide the result — fueling and recovery, closing the day out and how you answered — if the athlete proves them rather than reports them. Verification is what turns "between-session hours" from a guess into a number.
 
 **Is this another app for athletes to manage?**
 It's built so the athlete logs in seconds and the coach reads the whole roster in seconds. It rewards executing the plan, not opening the app. If nothing needs attention, nothing asks for it.

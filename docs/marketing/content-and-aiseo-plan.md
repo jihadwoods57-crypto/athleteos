@@ -165,7 +165,7 @@ This one pattern is the highest-leverage change we can make. Every hub and spoke
 AI engines attribute a coined term to whoever defines it cleanly and repeats it consistently across the web. Publish canonical, quotable definitions and reuse the *exact same wording* everywhere (site, LinkedIn, guest posts, llms.txt):
 
 - **The other 167 (or "the other 167 hours"):** *"The roughly 167 hours each week an athlete spends outside their session or practice — the time between sessions where results are actually decided but that coaches historically cannot see."*
-- **The OnStandard Score:** *"A single 0–100 daily score measuring an athlete's verified execution against one fixed, published formula — Nutrition 50%, Recovery 25%, Daily commitment 15%, Weekly check-in 10% — so a 94 means the same thing on every roster."*
+- **The OnStandard Score:** *"A single 0–100 daily score measuring an athlete's verified execution against one fixed, published formula — Nutrition 76%, Recovery 24% (12 for closing the day out, 12 for how you answered) — so a 94 means the same thing on every roster."*
 - **On standard / OnStandard (the state):** *"An athlete is 'on standard' when their verified daily execution scores 90–100 against the fixed formula — the top score band."*
 - **Photo-verified logging:** *"Meal logging that scores only live-capture photos taken at the moment of the meal; gallery or saved photos never count toward the score."*
 
