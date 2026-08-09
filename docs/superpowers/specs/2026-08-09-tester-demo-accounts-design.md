@@ -33,6 +33,9 @@ the founder's own demo and screenshot accounts.
 - Seeded day history. Testers start from zero logged days, so they exercise the real logging flow
   from clean.
 - A parent account per set. The seed has never created a parent link and that RPC path is untested.
+- **A "reset my set" button.** Testers will wreck their data and want to redo onboarding, which
+  makes this tempting. Rejected: it is deletion code aimed at production, triggered from an
+  unauthenticated page, to save ten people from asking. Do it by hand on request.
 
 ## Decisions
 
@@ -44,19 +47,29 @@ the founder's own demo and screenshot accounts.
 | Handoff | One shared link, self-claim, first-come |
 | Identification | Name + email before reveal; email is also the recovery key |
 | Count | 10, hard ceiling, no spares |
+| Feedback board | Tied in: one link, reports stamped with their set |
 
 ## Architecture
 
 Four layers, built in this order. Each is useless until the one before it exists.
 
 ```
-0195_tester_sets.sql          table + deny-all RLS
+0195_tester_sets.sql          table + deny-all RLS, + beta_posts.tester_set
         ↓
 seed-tester-accounts.sql      40 accounts, 10 teams, 10 practices, 10 handout rows
         ↓
 functions/tester-claim        session-less API, URL-token gated, service-role
         ↓
 web/landing/tester.html       the page the tester opens
+        ↓
+beta.html + beta-board        stamp each report with the tester's set
+```
+
+The tester's whole journey is one link:
+
+```
+tester.html?k=…  →  claim  →  card (4 logins + password)
+                                 └→ "Report anything" → beta.html?k=…  → post tagged "set 03"
 ```
 
 ### Layer 1 — migration `0195_tester_sets.sql`
@@ -87,6 +100,16 @@ impossible to duplicate at the DB level, not just in application logic.
 
 Note the standing gotcha (`supabase-table-grants-gotcha`): a new table gets no grants by default.
 That is the intent here — do **not** add `grant to authenticated`.
+
+The same migration adds one nullable column to 0191's board:
+
+```sql
+alter table beta_posts add column if not exists tester_set int;
+```
+
+Nullable is load-bearing — external TestFlight testers post to the same board and have no set.
+This column is a **hint, not an attestation**: it arrives from the browser and a determined visitor
+could forge it. That is acceptable for a feedback board; nothing is authorized on its basis.
 
 ### Layer 2 — `scripts/seed-tester-accounts.sql`
 
@@ -159,7 +182,12 @@ Four POST actions:
 | `resume` | device token | Returns that set. Refreshing never burns a new one. |
 | `claim` | name, email | Email already holds a set → return it. Otherwise take the next free set atomically. All ten taken → `exhausted`. |
 | `recover` | email | Returns that email's set, or 404. Covers "now I'm on my phone". |
-| `status` | — | Founder-only, second key. Who claimed what, when. |
+| `status` | — | Founder-only, second key. Who claimed what, when, and how many board reports they have filed — the nudge list. |
+
+`claim`, `resume`, and `recover` all return a **ready-to-tap feedback board URL** with
+`BETA_BOARD_KEY` already embedded. The function holds that secret and composes the URL server-side,
+so the key never appears in the page source. Without this the founder would be handing every tester
+two separate tokenized links and hoping they keep both.
 
 Assignment is one statement, so two testers tapping simultaneously cannot land on the same set:
 
@@ -184,6 +212,10 @@ Security:
 - Per-IP rate limit on `claim` and `recover` so the endpoint cannot be enumerated.
 - Every response returns **only the caller's own row**. No action ever lists sets.
 - No AI calls, so no spend gate.
+- **Kill switch:** if the link reaches the wrong group chat, rotating `TESTER_CLAIM_KEY`
+  (`supabase secrets set`) kills the page immediately for everyone. Already-claimed testers keep
+  working accounts — only further claiming stops. This belongs in the ops notes where it can be
+  found under pressure, not discovered.
 
 ### Layer 4 — `web/landing/tester.html`
 
@@ -200,8 +232,35 @@ Four states:
 
 On load, if `localStorage` holds a device token, it calls `resume` and skips straight to the card.
 Below the card sits a short start-here block: which account to sign in as first, how to switch
-between the four, the TestFlight link, and a pointer to [beta.html](../../../web/landing/beta.html)
-so feedback lands on the board instead of in the founder's texts.
+between the four, the TestFlight link, and a **Report anything** button pointing at the board URL
+the function returned — key already embedded — so feedback lands on the board instead of in the
+founder's texts.
+
+On a successful claim the page also writes two shared keys to `localStorage`:
+
+```
+os_tester_set   -> 3
+os_tester_name  -> "Jake Morrison"
+```
+
+Both pages are served from the same origin, so the board can read them directly. No plumbing
+between pages beyond that.
+
+### Layer 4b — changes to `beta.html` and `beta-board`
+
+Three small edits, all no-ops for external testers who have no set:
+
+- `beta.html` reads `os_tester_set` / `os_tester_name`, pre-fills the name field, and includes
+  `tester_set` in the `submit` payload.
+- `beta-board`'s `submit` accepts the optional `tester_set` and stores it on the post. Everything
+  else — theme clustering, the spend gate, the never-lose-a-report fallback into Unsorted — is
+  untouched.
+- The board shows the set number on a post so the founder can go straight from a complaint to that
+  tester's real production rows.
+
+This is the point of the whole tie-in. Today a report reads *"my score is stuck at 55"* with no way
+to tell which account produced it; afterwards it reads *"set 03 — my score is stuck at 55"* and the
+`days` rows behind it are one query away.
 
 ### Layer 5 — `scripts/tester-accounts.mjs`
 
@@ -222,10 +281,19 @@ fail every sign-in. The gates are:
 2. Roster check — `team_roster(<uuid>)` and `practice_roster(<uuid>)` (both take a UUID argument)
    confirm each athlete and client landed in their **own** tester's team/practice, with no
    cross-linking between sets.
-3. `tester-accounts.mjs smoke` — claim assigns set 01; re-claiming with the same email returns set
+3. **Cross-tenant assertion**, run with each tester's real session token: `t01-coach` must read
+   zero rows of `t02`'s roster, and `t01-athlete` must read zero of `t02-athlete`'s days. Forty
+   fresh accounts spread across ten isolated tenants is the cleanest RLS test bed this project will
+   get for free, and 0147 exists because an authenticated user once attempted exactly this
+   escalation. Asserting it across all ten boundaries costs a loop.
+4. `tester-accounts.mjs smoke` — claim assigns set 01; re-claiming with the same email returns set
    01 rather than burning 02; recover from a fresh device returns set 01; after ten claims the
-   eleventh returns `exhausted`.
-4. Manual — open the page on a phone, claim, sign into the athlete account, log one meal.
+   eleventh returns `exhausted`; the returned board URL loads the board rather than its gate screen.
+5. Manual — open the page on a phone, claim, sign into the athlete account, log one meal, then tap
+   **Report anything** and post. The post must land on the board carrying `tester_set = 1` and the
+   claimed name, not "Anonymous".
+6. Regression — post to the board from a browser that never claimed a set. It must still succeed,
+   with `tester_set` null.
 
 `raise notice` does not surface through `supabase db query`; the seed must **return rows** to
 report anything.
@@ -247,6 +315,10 @@ dropping the users first leaves the teams and practices unidentifiable and perma
 **Footgun, to be warned about at the top of both seed scripts:** the existing teardown and
 password-rotation one-liners key on `raw_app_meta_data->>'demo' = 'true'`, which after this change
 sweeps all forty-four accounts including the founder's four.
+
+`beta_posts` is deliberately **not** touched. The feedback outlives the accounts that produced it —
+that is the whole point of collecting it. Once `tester_sets` is gone the surviving `tester_set`
+numbers no longer resolve to a person, so run `status` and keep its output before tearing down.
 
 ## Risks
 
