@@ -455,18 +455,34 @@ asset is generated.
 
 ---
 
-## 15. Open question this audit exposed
+## 15. Recovery stops being optional
 
-**What happens to Recovery's 24 points when a coach switches the recovery knob off?**
+`coach.js:1035` currently lets a coach disable the recovery check-in for their room. Under v2 that
+would orphan 24 points — a quarter of the score with nowhere to go. Redistributing them to nutrition
+would score that room **100% on food logging**, which means a 94 in that room and a 94 next door are
+different achievements, under a claim that says they are not.
 
-`coach.js:1035` lets a coach disable the recovery check-in for their room. Under the old model that
-moved 25 points; under v2 it moves 24 points with nowhere obvious to go. If they redistribute to
-nutrition, that room's athletes are scored **100% on food logging** — a materially different product
-sold under the same "one fixed formula" claim. If the knob simply disappears, coaches lose a control
-they have today.
+**Decision: remove the knob. Recovery is part of the standard.**
 
-This must be decided before implementation. It is out of scope for the weights themselves but blocks
-a clean answer to "is the score consistent for every type of user".
+The line stays exactly where the Scoring Contract already draws it — *the platform owns the weights,
+the professional owns the targets underneath*. A coach configures meal count, windows, late policy,
+weigh-in cadence, and check-in content. A coach does not configure which components exist. A room
+that opts out of recovery is not running OnStandard; it is running a food log.
+
+**Migration consequence — do not skip this.** Rooms that have `recovery` switched off *today* have
+athletes whose scores currently ignore recovery entirely. Turning it back on scores them on a
+component they have never been asked for, and their numbers will drop overnight through no fault of
+their own.
+
+Required before cutover:
+
+1. Query `requirement_sets` for rooms with the recovery knob off, and count affected athletes.
+2. Notify those coaches directly, ahead of the date — not via an in-app banner their athletes see
+   first.
+3. Those athletes' first scored day under v2 must be the cutover date, never backfilled.
+
+`requirements.js:270` (`recovery`, `required: true`) already treats recovery as required; the coach
+toggle was the exception. Removing it makes the catalog and the standard editor agree.
 
 ---
 
