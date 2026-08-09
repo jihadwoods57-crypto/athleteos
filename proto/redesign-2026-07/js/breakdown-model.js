@@ -5,7 +5,7 @@
    src/core tests can drive every state.
 
    Vocabulary (spec §2.6): a gain is GUARANTEED when the engine pays it deterministically
-   for the action alone (weekly check-in, commitment answer); it is "up to" when the final
+   for the action alone (submitting tonight's check-in); it is "up to" when the final
    points depend on plate protein, answer quality, or timing. */
 
 import {
@@ -65,8 +65,8 @@ export const CI_BEST = { energy: 10, recovery: 10, sleep: 10, confidence: 10, so
 
 /** Ceiling day: everything still open completes as well as it possibly can — remaining meals
  *  logged on time (or with the late half-credit already locked in by the clock), remaining
- *  protein to target spread across them, best-case recovery answers, commitment "yes",
- *  weekly check-in submitted. This is the honest "up to" for the whole day. */
+ *  protein to target spread across them, best-case recovery answers, tonight's check-in
+ *  submitted. This is the honest "up to" for the whole day. */
 export function maxDay(day, { slots, nowMin }) {
   let d = clone(day);
   const open = slots.filter((k) => !mealScored(d, k));

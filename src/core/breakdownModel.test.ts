@@ -155,6 +155,16 @@ describe('score v2 breakdown', () => {
     const total = rows.reduce((a: number, r: any) => a + r.gain, 0);
     expect(total).toBe(maxPossible - dayScoreOf(d));
   });
+
+  it('an unsubmitted day never triples the check-in row — exactly two rows, never a redundant third', () => {
+    // The two guaranteed/graded rows ("Checked in tonight", "How you answered") already say
+    // everything there is to say before a check-in exists. A third "Tonight's check-in" row
+    // would repeat them — the same duplicate this whole task exists to remove, one level deeper.
+    const rec = explainCategories(freshDay(), OPTS).find((c: any) => c.id === 'recovery')!;
+    expect(rec.rows.length).toBe(2);
+    expect(rec.rows.some((r: any) => r.label === 'Tonight’s check-in')).toBe(false);
+    expect(rec.rows.map((r: any) => r.label)).toEqual(['Checked in tonight', 'How you answered']);
+  });
 });
 
 describe('restriction comparison (meal-intel, spec §18.3/§18.4)', () => {
