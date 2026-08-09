@@ -114,3 +114,33 @@ export function describePhotoAge(mins) {
   const days = Math.floor(mins / 1440);
   return days === 1 ? 'taken yesterday' : `taken ${days} days ago`;
 }
+
+/** The badge a stale gallery photo earns, weighted by how stale it actually is.
+ *  Transparency was already here; what was missing was proportion — a 20-hour-old photo
+ *  submitted as this morning's breakfast wore the same neutral grey as one taken four
+ *  minutes ago, so the most important fact on the review screen read as chrome. Three
+ *  bands, mapped onto hues the system already reserves: under two hours is a fact
+ *  (muted), a half-day is off pace (amber), past twelve hours is the loudest thing on the
+ *  screen (red) and prints the real capture time so there is nothing left to infer.
+ *  Still never a block — the athlete can always log it, and the coach can always see why. */
+export function photoAgeBadge(exifLocal, nowMs) {
+  const mins = photoAgeMinutes(exifLocal, nowMs);
+  const rel = describePhotoAge(mins);
+  if (!rel) return null; // fresh (<60 min), or no readable EXIF at all
+  // `short` drops the leading "Taken " so a caller can fold this into a sentence of its own
+  // ("Gallery · 20 hours ago, 2:34 PM") instead of standing a second pill next to it.
+  const short = rel.replace(/^taken /, '');
+  const cap1 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  if (mins < 120) return { cls: 'muted', text: cap1(rel), short };
+  if (mins < 720) return { cls: 'a', text: cap1(rel), short };
+  const at = clockOf(exifLocal);
+  return at
+    ? { cls: 'r', text: `${cap1(rel)}, ${at}`, short: `${short}, ${at}` }
+    : { cls: 'r', text: cap1(rel), short };
+}
+function clockOf(exifLocal) {
+  const d = new Date(exifLocal);
+  if (!isFinite(d.getTime())) return '';
+  let h = d.getHours() % 12; if (h === 0) h = 12;
+  return `${h}:${String(d.getMinutes()).padStart(2, '0')} ${d.getHours() < 12 ? 'AM' : 'PM'}`;
+}

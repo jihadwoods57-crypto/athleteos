@@ -50,6 +50,9 @@
      the ink is white. A single fixed value cannot serve both, which is why --text-on-accent
      (#FFFFFF in both themes) went unused and seven ad-hoc inks grew in its place. */
   --ink-on-accent: #06120C;
+  /* The same ink as a triple, so a rule that needs it at partial alpha (the shutter's inner ring)
+     can compose one instead of freezing a dark-theme rgba() that inverts wrong on light. */
+  --ink-on-accent-rgb: 6, 18, 12;
 
 
   /* ---- Brand hues as RGB TRIPLES ----
@@ -250,6 +253,7 @@
 
   /* Light-theme accents are deep, so ink on them is white (see the dark-theme note). */
   --ink-on-accent: #FFFFFF;
+  --ink-on-accent-rgb: 255, 255, 255;
 
 
   /* Same triples, light values — see the note in the dark block. */

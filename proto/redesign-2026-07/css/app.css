@@ -113,6 +113,17 @@ body {
    anyway — ~104px of dead scroll under the last button on the meal result, settings, recovery
    and 12 other screens. */
 .viewport.notabs { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+/* `fill: true` on a screen module: this screen owns its whole vertical rhythm and wants the real
+   height handed to it. #view is otherwise a plain block sized to its content, so a `margin-top:
+   auto` inside a screen has no free space to distribute and a bottom-anchored control just floats
+   wherever the content happens to end — the camera's shutter sat 150px above the bottom on a tall
+   phone and flush on a short one. The chain both grows AND shrinks: `min-height: 0` is what lets
+   a flex child go below its content size, and without it the camera's shutter row was pushed 24px
+   under the fold on a 360x640 phone — the primary action of the screen, unreachable without a
+   scroll. A screen whose own contents refuse to shrink still scrolls normally. */
+.viewport.fill { display: flex; flex-direction: column; }
+.viewport.fill > .view { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.viewport.fill > .view > * { flex: 1 1 auto; min-height: 0; }
 
 /* view fade-in — only on ARRIVAL (router adds .enter for a genuine navigation, never for a
    same-route repaint). #view is rebuilt on every render(), so an unconditional animation here

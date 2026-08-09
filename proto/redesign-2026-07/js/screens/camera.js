@@ -1,7 +1,7 @@
-import { S, RT, act, MEAL, slotTitle, mealDueLabel } from '../state.js';
+import { S, RT, act, MEAL, slotTitle, mealDueState } from '../state.js';
 import { icon } from '../icons.js';
 import { esc, safeImg, nonLiveBadge } from '../components.js';
-import { photoAgeMinutes, describePhotoAge } from '../photo-hash.js';
+import { photoAgeBadge } from '../photo-hash.js';
 import { photoStats, photoQuality } from '../meal-intel.js';
 
 /* ---- shared JPEG encode: one canvas pipeline for live frames AND picked files ----
@@ -45,6 +45,8 @@ const hapticTap = (style) => { try { window.OnStandardNative && window.OnStandar
 export default {
   tab: 'camera',
   hideTabs: true,
+  fill: true,  // owns its own vertical rhythm: the stage takes the slack, the deck anchors bottom
+  bleed: true, // the stage runs to the screen edges; .cam-head / .cam-deck own their safe areas
   transient: true, // flow interstitial: never a back-target — Done/Back from the flow returns to the pre-camera origin
   render({ sub } = {}) {
     const L = S.logging;
@@ -54,7 +56,9 @@ export default {
     // The deadline must come from THIS slot, not S.logging's — logging re-derives the next open
     // slot by clock, so arriving from Home's Dinner row before 5:00 PM used to print the SNACK
     // deadline under a "Log Dinner" header ("Opens 6:00 PM" on Home vs "Due by 5:00 PM" here).
-    const dueLine = slotKey ? mealDueLabel(slotKey) : L.due;
+    // mealDueState adds the honest read on top: this line used to be amber at every hour of the
+    // day, so an athlete an hour PAST the window saw the same colour as one two hours early.
+    const due = slotKey ? mealDueState(slotKey) : { label: L.due, tone: 'quiet' };
     // Apple-style permission priming: explain BEFORE the OS ever asks
     if (!RT.camPrimed) {
       return `
@@ -66,7 +70,7 @@ export default {
         </div>
         <div class="ob-foot" style="margin-top:auto">
           <button class="btn green" data-act="primeCamera" data-then="camera">Allow Camera</button>
-          <div style="text-align:center;padding-top:14px;font-size:14px;font-weight:700;color:var(--text-3);cursor:pointer" data-go="food-search">Log without a camera</div>
+          <button class="cam-textlink" type="button" data-go="food-search">Log without a camera</button>
         </div>
       </div>`;
     }
@@ -76,41 +80,45 @@ export default {
     return `
     <div class="cam">
       <div class="cam-head">
-        <div class="bk iconbtn" data-back="home" style="width:40px;height:40px" role="button" aria-label="Back">${icon('back', 19)}</div>
+        <button class="bk iconbtn" type="button" data-back="home" aria-label="Back">${icon('back', 19)}</button>
         <div class="meta">
-          <div class="t">Log ${slotName}</div>
-          <div class="s">${dueLine}${upTo > 0 ? ` <span class="dim">· earn up to ${upTo} point${upTo === 1 ? '' : 's'}</span>` : ''}</div>
+          <div class="t">Log ${esc(slotName)}</div>
+          <div class="s">
+            <span class="due-pill tone-${due.tone}">${esc(due.label)}</span>
+            ${upTo > 0 ? `<span>up to ${upTo} point${upTo === 1 ? '' : 's'}</span>` : ''}
+          </div>
         </div>
       </div>
 
-      <div class="cam-guide">
-        <b>Photograph everything you're having.</b>
-        <span>Full plate · Drink · Sides · Sauces · Supplements</span>
-      </div>
-
-      <div class="viewfinder" id="viewfinder">
+      <div class="cam-stage" id="viewfinder">
         <video id="vf-video" autoplay playsinline muted style="display:none"></video>
         <div class="vf-flash" id="vf-flash"></div>
-        <div class="vf-empty" id="vf-fallback">
+        <div class="vf-empty" id="vf-fallback" data-mode="starting">
           <div class="vf-lens">${icon('camera', 30)}</div>
-          <div class="vf-prompt">Take a photo to analyze</div>
-          <div class="vf-hint" id="vf-hint">Tap the shutter — your camera opens</div>
+          <div class="vf-state" data-when="starting">
+            <div class="vf-prompt">Opening the camera</div>
+            <div class="vf-hint">One second.</div>
+          </div>
+          <div class="vf-state" data-when="offline">
+            <div class="vf-prompt">Take a photo to analyze</div>
+            <div class="vf-hint">Tap the shutter, your camera opens.</div>
+          </div>
         </div>
-        ${L.empty ? '' : `<div class="vf-deadline">${icon('clock', 13)} ${L.remaining}</div>`}
-        <div class="vf-corner tl"></div><div class="vf-corner tr"></div>
-        <div class="vf-corner bl"></div><div class="vf-corner br"></div>
       </div>
 
       <input type="file" accept="image/*" capture="environment" id="cam-file" style="display:none" />
       <input type="file" accept="image/*" id="cam-gallery" style="display:none" />
-      <div class="cam-actions">
-        <div class="cam-side" id="gallery-btn"><div class="cbtn">${icon('image', 19)}</div>Gallery</div>
-        <div class="shutter" id="shutter"><div class="inner">${icon('camera', 26)}</div></div>
-        <div class="cam-side" data-go="food-search"><div class="cbtn">${icon('search', 20)}</div>No photo</div>
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding-bottom:10px">
-        <div style="font-size:11px;font-weight:600;color:var(--text-3);padding:0 24px;text-align:center">Gallery uploads are allowed. The same photo can't be submitted twice.</div>
-        <div id="cam-note" style="font-size:12.5px;font-weight:600;color:var(--amber-bright);text-align:center;min-height:16px;padding:0 20px"></div>
+      <div class="cam-deck">
+        <div class="cam-guide">
+          <b>Everything you're having, in one frame.</b>
+          <span>Plate · Drink · Sides · Sauces · Supplements</span>
+        </div>
+        <div id="cam-note" class="cam-alert"></div>
+        <div class="cam-actions">
+          <button class="cam-side" type="button" id="gallery-btn"><span class="cbtn">${icon('image', 19)}</span>Gallery</button>
+          <button class="shutter" type="button" id="shutter" aria-label="Take the photo"><span class="inner">${icon('camera', 26)}</span></button>
+          <button class="cam-side" type="button" data-go="food-search"><span class="cbtn">${icon('search', 20)}</span>Search food</button>
+        </div>
       </div>
     </div>`;
   },
@@ -136,10 +144,23 @@ export default {
     document.addEventListener('visibilitychange', onHide);
     // Router calls window.__screenCleanup before every re-render/route change — the stream must
     // never keep the camera light on behind another screen.
-    window.__screenCleanup = () => { document.removeEventListener('visibilitychange', onHide); stopStream(); };
+    window.__screenCleanup = () => { document.removeEventListener('visibilitychange', onHide); stopStream(); stopWatchdog(); };
 
+    // Until getUserMedia answers, the frame is genuinely "starting", not "no camera here" — the
+    // fallback copy used to render as the FIRST thing every athlete saw, so the normal path
+    // opened on a message describing the failure path. goOffline() is the only thing that
+    // promotes it to the real fallback.
+    const goOffline = () => { if (fallbackUi) fallbackUi.dataset.mode = 'offline'; };
+    // A permission grant is not a frame. A track can resolve and then never arm — the OS prompt
+    // sits open, the device is held by another app, the track has zero dimensions — and none of
+    // those reject, so waiting on the catch alone leaves the athlete reading "Opening the camera"
+    // with no way forward. After 2.5s the copy tells the truth instead: tap the shutter and the
+    // native camera opens, which is a path that has always worked. If the frame arms later,
+    // armed() hides this whole block anyway, so the watchdog costs nothing when the camera is fine.
+    let wake = setTimeout(goOffline, 2500);
+    const stopWatchdog = () => { clearTimeout(wake); wake = null; };
     const startLive = async () => {
-      if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) || !video) return;
+      if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) || !video) { stopWatchdog(); goOffline(); return; }
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1440 } },
@@ -151,13 +172,14 @@ export default {
         const armed = () => {
           if (video.videoWidth > 0) {
             liveReady = true;
+            stopWatchdog();
             video.style.display = 'block';
             if (fallbackUi) fallbackUi.style.display = 'none';
           }
         };
         if (video.videoWidth > 0) armed();
         else video.addEventListener('loadedmetadata', armed, { once: true });
-      } catch { stopStream(); /* denied/unavailable → file-input fallback, no error state */ }
+      } catch { stopStream(); stopWatchdog(); goOffline(); /* denied/unavailable → file-input fallback, no error state */ }
     };
     void startLive();
 
@@ -227,6 +249,8 @@ export default {
 export const cameraConfirm = {
   tab: 'camera',
   hideTabs: true,
+  fill: true,  // same skeleton as the viewfinder: stage takes the slack, deck anchors bottom
+  bleed: true, // the photo runs to the screen edges, exactly where the live preview was
   transient: true,
   render() {
     if (!MEAL.photoDataUrl) {
@@ -235,46 +259,68 @@ export const cameraConfirm = {
       return '';
     }
     const gallery = MEAL.source === 'gallery';
-    const age = gallery ? describePhotoAge(photoAgeMinutes(MEAL.takenAt, Date.now())) : null;
+    // Escalating provenance: a 20-hour-old photo filed as this morning's breakfast is the most
+    // important fact on this screen and used to wear the same grey as a four-minute-old one.
+    const age = gallery ? photoAgeBadge(MEAL.takenAt, Date.now()) : null;
+    const slotName = (MEAL.key && slotTitle(MEAL.key)) || MEAL.mealType || 'Meal';
+    const due = MEAL.key ? mealDueState(MEAL.key) : null;
+    // Measured capture feedback (spec §4.7): brightness + sharpness from the capture canvas — a
+    // gentle nudge, never a block. Silent when the photo reads clear.
+    const pq = photoQuality(MEAL.photoQ);
     return `
     <div class="cam cam-confirm">
       <div class="cam-head">
-        <div class="bk iconbtn" id="cc-back" style="width:40px;height:40px" role="button" aria-label="Back">${icon('back', 19)}</div>
+        <button class="bk iconbtn" type="button" id="cc-back" aria-label="Back">${icon('back', 19)}</button>
         <div class="meta">
           <div class="t">Use this photo?</div>
-          <div class="s"><span class="dim">${esc((MEAL.key && slotTitle(MEAL.key)) || MEAL.mealType || 'Meal')} · review your photo before analysis</span></div>
+          <div class="s">
+            <span class="slot">${esc(slotName)}</span>
+            ${due ? `<span class="due-pill tone-${due.tone}">${esc(due.label)}</span>` : ''}
+          </div>
         </div>
       </div>
-      <div class="viewfinder cc-photo" style="background-image:url('${safeImg(MEAL.photoDataUrl)}')">
-        ${gallery ? `<div class="cc-badges">${nonLiveBadge()}${age ? `<span class="status-pill muted">${icon('clock', 12)} ${esc(age.toUpperCase())}</span>` : ''}</div>` : ''}
-      </div>
-      <div class="cc-complete">
-        <b>Make sure everything you're having is visible.</b>
-        <div class="cc-chips">
-          <span class="cc-chip">Drink</span><span class="cc-chip">Sauce</span><span class="cc-chip">Side</span><span class="cc-chip">Supplement</span>
+      ${''/* The caption belongs to the PHOTO, so it lives in the stage with it. In the deck it
+           anchored to the deck's top edge instead, which on a wide plate left 130px of nothing
+           between the image and the line describing it. As one unit the pair can also centre in
+           whatever space the header and deck leave. */}
+      <div class="cam-stage">
+        ${''/* .cc-frame shrinks to the pixels the photo actually paints, so the stamps below can
+             be positioned against the IMAGE rather than against its box. Without it a portrait
+             photo (letterboxed inside a full-width box) left the stamps hanging 4px off the
+             picture and onto the page. */}
+        <div class="cc-frame">
+          <img class="cc-photo" src="${safeImg(MEAL.photoDataUrl)}" alt="The ${esc(slotName)} photo you are about to log" />
+          ${''/* Provenance is STAMPED ON THE EVIDENCE (founder call), not filed in the header: it
+               describes this photograph, not the state of the screen, and reads like a mark on a
+               document rather than another status row. Two stamps, because source and age are two
+               facts a coach may care about independently. They keep the escalating age band, and
+               .cc-badges gives them an opaque ground so a red stamp survives a white plate.
+               Absolutely positioned, so they cost the photo no height. */}
+          ${gallery ? `<div class="cc-badges">${nonLiveBadge()}${age
+            ? `<span class="status-pill ${age.cls}">${icon('clock', 12)} ${esc(age.text)}</span>`
+            : ''}</div>` : ''}
         </div>
-        ${(() => {
-          // Measured capture feedback (spec §4.7): brightness + sharpness from the capture
-          // canvas — a gentle nudge, never a block. Silent when the photo reads clear.
-          const pq = photoQuality(MEAL.photoQ);
-          return pq && pq.state !== 'met'
-            ? `<div style="font-size:12px;font-weight:700;color:var(--amber-bright);margin-top:8px">${esc(pq.hint)}</div>`
-            : '';
-        })()}
+        <div class="cc-check">Everything you're having should be in the frame.</div>
       </div>
-      <details class="cc-details">
-        <summary>${icon('edit', 15)} Add details AI may not know <span class="opt">Optional</span></summary>
-        <textarea id="cc-user-note" maxlength="240" rows="2"
-          placeholder="Sauce type, cooking method, oil used, portion changes, refills…">${esc(MEAL.userNote || '')}</textarea>
-        <div class="cc-details-hint">Notes improve the analysis, but everything consumed should still be shown in the photo.</div>
-      </details>
-      <div id="cc-note" style="font-size:12.5px;font-weight:700;color:var(--amber-bright);text-align:center;min-height:18px;padding:8px 24px 0"></div>
-      <div class="btn-row" style="padding:12px 20px 10px;margin-top:auto">
-        <button class="btn ghost sm" id="cc-retake" style="flex:1">${icon(gallery ? 'image' : 'camera', 17)} ${gallery ? 'Choose another' : 'Retake'}</button>
-        <button class="btn green sm" id="cc-analyze" style="flex:1.6">${icon('check', 17)} Log it</button>
+      <div class="cam-deck">
+        ${''/* The capture screen taught "everything in one frame" seconds ago; repeating the
+             full two-line guide here was the clutter. The completeness reminder (§5.4) survives
+             as the one quiet line above, and only the conditional alerts may speak here. */}
+        ${pq && pq.state !== 'met' ? `<div class="cam-alert">${esc(pq.hint)}</div>` : ''}
+        <div id="cc-note" class="cam-alert"></div>
+        <details class="cc-details">
+          <summary>${icon('edit', 15)} Add details AI may not know <span class="opt">Optional</span></summary>
+          <textarea id="cc-user-note" maxlength="240" rows="2"
+            placeholder="Sauce type, cooking method, oil used, portion changes, refills…">${esc(MEAL.userNote || '')}</textarea>
+          <div class="cc-details-hint">Notes improve the analysis, but everything consumed should still be shown in the photo.</div>
+        </details>
+        <div class="btn-row cc-actions">
+          <button class="btn ghost sm" type="button" id="cc-retake">${gallery ? 'Choose another' : 'Retake'}</button>
+          <button class="btn green sm" type="button" id="cc-analyze">${icon('check', 17)} Log it</button>
+        </div>
+        <div class="cc-commit">It counts the moment you log it.</div>
       </div>
       <input type="file" accept="image/*" id="cc-repick" style="display:none" />
-      <div style="text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);padding-bottom:10px">It counts the moment you log it. The AI read lands in your thread a few seconds later.</div>
     </div>`;
   },
   async mount(root) {
@@ -339,8 +385,10 @@ export const cameraConfirm = {
         const p = r.prior || {};
         const when = p.day_date ? `as ${String(p.meal_type || 'a meal')} on ${String(p.day_date)}` : 'once';
         // textContent, so the server strings render inert — no escaping needed here.
-        if (note) note.textContent = `This exact photo was already logged ${when}. Pick a different photo — repeats don't count.`;
-        if (analyzeBtn) { analyzeBtn.disabled = true; analyzeBtn.style.opacity = '0.45'; analyzeBtn.textContent = 'Already logged'; }
+        if (note) note.textContent = `This exact photo was already logged ${when}. Pick a different photo, repeats don't count.`;
+        // `.btn:disabled` already owns the disabled treatment; an inline opacity on top of it was
+        // a second vocabulary for the same state.
+        if (analyzeBtn) { analyzeBtn.disabled = true; analyzeBtn.textContent = 'Already logged'; }
       }
     } catch { /* pre-check is best-effort */ }
   },

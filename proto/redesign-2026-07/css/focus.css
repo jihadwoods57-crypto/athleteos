@@ -28,6 +28,22 @@
   border-radius: var(--r-chip);
 }
 
+/* ---- The capture flow ----
+   The shutter, Gallery and Search were click-handled <div>s, so they matched nothing above and
+   had no tab stop to show a ring on. They are <button>s now and the generic rule catches them,
+   but the shutter is a 78px circle and a 2px rectangle offset from it reads as a mistake, so it
+   states its own: a ring that follows the circle. */
+.shutter:focus-visible {
+  outline: 2px solid var(--blue-bright);
+  outline-offset: 3px;
+  border-radius: var(--r-pill);
+}
+.cam-side:focus-visible {
+  outline: 2px solid var(--blue-bright);
+  outline-offset: 4px;
+  border-radius: var(--r-card-sm);
+}
+
 /* ---- Text fields ----
    Each of these sets `outline: none` on its base rule, which applies in every state including
    focus. Adding `:focus-visible` to the same class raises specificity by one pseudo-class, so

@@ -60,60 +60,158 @@
 /* The boot chrome is present so the layout is stable, and inert because it is not live yet. */
 .screen.booting .tabbar { pointer-events: none; opacity: .55; }
 
-/* ----- Camera ----- */
+/* ----- Camera -----
+   ARCHITECTURE (layout pass 2026-08-09). The viewfinder and "Use this photo?" are ONE surface in
+   two states, not two screens that happen to sit next to each other:
+
+     .cam           full-height flex column on the app ground; the viewport is `bleed`, so this
+                    subtree owns its own safe-area insets
+       .cam-head    title + the deadline as a status pill (+ provenance badges on the review step)
+       .cam-stage   the media. EDGE TO EDGE — no card, no radius, no margin — takes all the slack
+       .cam-deck    the controls, pinned to the bottom, in the SAME place on both steps
+
+   What this replaces: the media used to live in a 22px-radius card with 20px margins and a capped
+   aspect ratio, floating on the same canvas as every other card in the app. On a flow whose whole
+   job is capturing and then verifying EVIDENCE, the evidence was the smallest-feeling element on
+   screen and both steps read as a form with a picture in it. Going edge to edge roughly doubles
+   the media's presence, and because the header and deck hold their positions across both steps,
+   capture → review now reads as one surface changing state instead of a layout swap.
+
+   The chrome deliberately does NOT float over the media. Camera apps overlay their controls and
+   it looks good, but here the media is evidence: nothing may sit on top of the plate, and a
+   translucent scrim over the bottom third is exactly where an athlete would frame a drink. */
+/* Transparent, not painted: the app canvas carries a hero wash (--bg-grad-top) that every other
+   screen sits on, and painting a flat --bg here cut a visible seam straight across the top of the
+   screen where the header met it. Letting the canvas through also means the header and deck share
+   the app's own ground while the stage supplies its own — which is the contrast that makes the
+   media read as media. */
 .cam { position: relative; height: 100%; display: flex; flex-direction: column; }
 /* Real <button>s, not click-handled <div>s. The shutter, Gallery and Search are the three
    most-used controls in the app and had no role, no tab stop and no focus ring between them.
    The reset lives here because the app carries no global button reset. */
 .cam button { font-family: var(--font); padding: 0; -webkit-appearance: none; appearance: none; }
-.cam-head { padding:8px 20px 12px; display:flex; align-items:center; gap:14px; }
-.cam-head .meta { flex: 1; min-width: 0; }
+
+.cam-head {
+  flex: none; display: flex; align-items: flex-start; gap:14px;
+  padding: calc(env(safe-area-inset-top, 0px) + 6px) var(--pad-screen) 14px;
+}
+.cam-head .meta { flex: 1; min-width: 0; padding-top:2px; }
 .cam-head .t { font-size: var(--t-xl); font-weight: 800; letter-spacing: var(--title-tight); }
-/* The line itself is neutral; only the deadline carries a hue, and only once it has earned one.
-   Amber is warning-only in this system, so a deadline two hours out has no business wearing it —
-   and a deadline that has already passed has no business wearing the same colour as one that
-   hasn't. tone-* comes from mealDueState(), the single source. */
-.cam-head .s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:2px; }
-.cam-head .s .due { font-weight: 800; }
-.cam-head .s .due.tone-quiet { color: var(--text); }
-.cam-head .s .due.tone-warn  { color: var(--amber-bright); }
-.cam-head .s .due.tone-late  { color: var(--red-bright); }
-.viewfinder {
-  position: relative; margin:2px 20px 0; border-radius: var(--r-card); overflow: hidden;
-  /* Bigger, live-first preview (founder ask): fills most of the screen but never crowds the
-     shutter row out of reach on short phones. */
-  aspect-ratio: 3/4.2; max-height: 62vh;
-  background:
-    radial-gradient(90% 70% at 50% 45%, #2b3548 0%, #141b29 70%),
-    var(--surface-2);
-  border: 1px solid var(--hairline);
+.cam-head .s {
+  display: flex; align-items: center; gap:8px; flex-wrap: wrap; margin-top:6px;
+  font-size: var(--t-xs); font-weight: 600; color: var(--text-3);
+}
+.cam-head .s .slot { font-weight: 700; color: var(--text-2); }
+/* The stakes get a shape. "Late by 1h 4m · earn up to 35 points" was one undifferentiated 12.5px
+   run-on sentence, which is a strange way to present the two facts the athlete is actually judged
+   on. The deadline becomes a status pill — the vocabulary the rest of the app already uses for
+   state — and the points sit beside it as the meta they are. Only the pill carries a hue, and
+   only once it has earned one: amber is warning-only in this system, so a deadline two hours out
+   has no business wearing it, and one that has already passed has no business wearing the same
+   colour as one that has not. tone-* comes from mealDueState(), the single source. */
+.due-pill {
+  display: inline-flex; align-items: center; gap:5px;
+  padding:4px 10px; border-radius: var(--r-pill);
+  font-size: var(--t-xs); font-weight: 800;
+  background: var(--surface-2); border: 1px solid var(--hairline); color: var(--text);
+}
+.due-pill.tone-warn { color: var(--amber-bright); border-color: var(--amber-border); background: var(--amber-surface); }
+.due-pill.tone-late { color: var(--red-bright);   border-color: var(--red-border);   background: var(--red-surface); }
+
+/* The stage. min-height is a floor, not a size: it takes every pixel the header and deck leave.
+   The gradient is a lens-like fall-off rather than a flat fill so the empty state reads as a
+   surface with depth instead of an unpainted buffer. */
+.cam-stage {
+  position: relative; flex: 1 1 auto; min-height: 160px; overflow: hidden;
+  background: radial-gradient(115% 85% at 50% 40%, #1B2534 0%, #0A101C 72%);
+}
+.cam-stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+
+.cam-deck {
+  flex: none; position: relative; z-index: 5;
+  padding: 14px var(--pad-screen) calc(env(safe-area-inset-bottom, 0px) + 10px);
 }
 /* One shared alert line for both steps: capture failure, measured photo-quality nudge, duplicate
    photo. Three different inline styles used to say the same thing three slightly different ways.
    Collapses to nothing when empty, so it costs no space on the happy path. */
+/* The "Log without a camera" escape on the permission-priming screen. It lives on `.ob`, not
+   `.cam`, so it carries its own button reset. Same reason as the shutter: it was a <div> with a
+   click handler, which is a dead end for anyone not using a finger. */
+.cam-textlink {
+  display: block; width: 100%; margin-top: 14px; padding: 6px 0;
+  background: none; border: 0; font-family: var(--font); cursor: pointer;
+  text-align: center; font-size: var(--t-base); font-weight: 700; color: var(--text-3);
+}
 .cam-alert:empty { display: none; }
 .cam-alert {
-  margin:10px 20px 0; text-align: center;
+  margin:10px 0 0; text-align: center;
   font-size: var(--t-sm); font-weight: 700; color: var(--amber-bright);
 }
-/* The live getUserMedia stream fills the frame; corner ticks + deadline pill overlay it. */
-.viewfinder video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
 /* Shutter flash: a white sheet that pops then fades — makes the frozen frame read as a capture. */
 .vf-flash { position: absolute; inset: 0; z-index: 5; background: #fff; opacity: 0; pointer-events: none; }
 .vf-flash.on { animation: vf-flash 260ms ease-out; }
 @keyframes vf-flash { 0% { opacity: 0.9; } 100% { opacity: 0; } }
-/* Capture confirm: the staged photo, WHOLE, provenance badges top-left.
-   It used to be a `background-size: cover` fill, which cropped the photo to the frame — under a
-   headline that asks the athlete to make sure everything is visible. The screen was hiding part
-   of the plate while asking whether the plate was all there. `contain` on a matte shows what was
-   actually captured, at the cost of letterboxing a photo whose shape doesn't match the frame,
-   which is the correct trade for a verification step. An <img> rather than a background so it
-   carries alt text. Frame geometry is inherited from .viewfinder unchanged, so the photo no
-   longer changes size between capture and confirm. */
-.cam-confirm { display: flex; flex-direction: column; min-height: 100%; }
-.cc-frame { background: var(--surface-2); }
-.cc-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; z-index: 1; }
+/* Capture confirm. The staged photo fills the same stage the live preview filled, `contain` so
+   nothing is cropped: it used to be a `background-size: cover` fill, which cut the plate off
+   under a headline asking the athlete to check that the whole plate was visible. Letterboxing
+   against the stage costs nothing now that the stage IS the screen rather than a visible card,
+   so the awkward band of empty matte an earlier fix produced has no card left to sit in. An
+   <img> rather than a background image so it carries alt text. */
+/* TRANSPARENT, not a fill. The viewfinder's radial gradient is a lens effect that competes with a
+   photograph, but replacing it with flat --bg was worse: the app canvas carries a hero wash that
+   is lighter than --bg up here, so a wide photo's letterbox showed as two darker bands and the
+   photo read as boxed. With the ground removed the stage is pure layout, the leftover space is
+   just the page, and the photo sits on the canvas rather than inside anything. Holds in both
+   themes for free, because there is no colour of its own to get wrong. */
+/* The stage HUGS the photo here rather than filling the slack, and `margin-top: auto` drops the
+   pair to the bottom. Filling it centred the photo inside a tall region, which pushed the caption
+   away from the thing it captions: 130px of nothing between a wide plate and "everything should
+   be in the frame". Hugging keeps that caption 8px off the actual image, and the leftover space
+   becomes one deliberate band of air under the header instead of a gap inside the content. The
+   photo, its caption and the decision now read as a single bottom-weighted group. */
+.cam-confirm .cam-stage {
+  background: transparent; overflow: visible;
+  /* Hug the photo, then sink the pair to meet the deck. Two rejected alternatives: FILLING the
+     slack centred the image inside a tall region while the caption stayed pinned to that region's
+     edge, so a wide plate sat 130px from the line describing it; CENTRING the hugged pair
+     (`margin: auto 0`) split the slack into two voids, one above the photo and one below the
+     caption, stranding the buttons. `margin-top: auto` puts all of it in one place, above, and
+     everything from the photo down reads as a single group within thumb reach.
+     `flex: 0 0 auto` because it must never shrink: it hugs a fixed-height image and shows its
+     overflow (the caption), so letting the flex algorithm squeeze it made the photo spill over
+     the buttons the moment the notes field opened on a short phone. When content genuinely
+     exceeds the screen the right answer is to scroll, not to crop or overlap. */
+  flex: 0 0 auto; min-height: 0; margin-top: auto;
+}
+/* The frame is exactly the painted image and nothing more, centred when the photo is narrower
+   than the screen. `width: auto` + the two maxima let the image settle at whichever constraint
+   binds first (screen width for a landscape plate, 56vh for a portrait one) with no letterbox
+   inside the box at all, which is what lets the provenance stamps land ON the picture. */
+.cc-frame { position: relative; margin: 0 auto; width: max-content; max-width: 100%; }
+.cc-photo { display: block; width: auto; max-width: 100%; max-height: 56vh; }
+/* Provenance stamps, ON the photo (founder call). Top-left, absolute, so they cost the image no
+   height, and they wrap harmlessly on a narrow phone because nothing below them moves.
+   Keeping them here is what lets the header stay two rows instead of three. */
 .cc-badges { position: absolute; top: 14px; left: 14px; right: 14px; z-index: 4; display: flex; gap:6px; flex-wrap: wrap; }
+/* A photo is any brightness it wants to be, and the base .status-pill tints are near transparent
+   because they normally sit on a known surface: the red staleness stamp, the one that matters
+   most, disappeared against a white plate. An opaque ground, with the hue carried by the text and
+   the border. The dark value is hardcoded on purpose and does NOT flip with the theme, because
+   the backdrop is a photograph rather than a themed surface: a light-theme chip would be
+   white-on-white over exactly the bright plates that broke the transparent version. */
+.cc-badges .status-pill {
+  background: rgba(7, 11, 20, 0.80);
+  backdrop-filter: blur(8px);
+  color: var(--text);
+}
+.cc-badges .status-pill.a { color: var(--amber-bright); border-color: var(--amber-border); }
+.cc-badges .status-pill.r { color: var(--red-bright); border-color: var(--red-border); }
+/* Same reason, one step further: light theme's -bright variants are the deep 700s tuned to read
+   as text on a near-white page, and they go muddy on this deliberately dark chip. The stamps keep
+   the dark theme's values. The ground decides the ink, and this ground is always dark. */
+:root[data-theme="light"] .cc-badges .status-pill { color: #EEF3FB; }
+:root[data-theme="light"] .cc-badges .status-pill.a { color: #FBBF24; }
+:root[data-theme="light"] .cc-badges .status-pill.r { color: #F87171; }
 /* Analysis breakdown rows (WS4): one editable list replaces chips + componentsRead. */
 .food-row { display: flex; align-items: center; gap:10px; padding:10px 0; border-bottom: 1px solid var(--hairline); }
 .food-row:last-of-type { border-bottom: none; }
@@ -136,55 +234,84 @@
 .vf-empty[data-mode="starting"] .vf-state[data-when="offline"],
 .vf-empty[data-mode="offline"] .vf-state[data-when="starting"] { display: none; }
 .vf-empty .vf-state { display: flex; flex-direction: column; gap:4px; }
+/* The viewfinder is a dark surface in BOTH themes: it stands in for a live camera feed, and a
+   near-white box behind a video preview is not a thing. Its contents therefore carry the dark
+   theme's ink explicitly rather than inheriting the page's. Inheriting painted --text #0F172A
+   onto a #141b29 ground in light mode, which is the empty state going invisible on the very
+   screen it exists to explain. The ground decides the ink; this ground is always dark. */
 .vf-empty .vf-lens {
   width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center;
-  background: rgba(7,11,20,0.45); border: 1px solid var(--hairline); color: var(--text-3); margin-bottom:4px;
+  background: rgba(7,11,20,0.45); border: 1px solid rgba(148,176,224,0.16); color: #7C8BA6; margin-bottom:4px;
 }
 /* The only motion on this screen, and it conveys state: the camera is being opened. It stops the
    moment the frame arms, because the element is hidden outright. */
 .vf-empty[data-mode="starting"] .vf-lens { animation: vf-wake 1600ms var(--ease-out) infinite; }
 @keyframes vf-wake { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .vf-empty[data-mode="starting"] .vf-lens { animation: none; } }
-.vf-empty .vf-prompt { font-size: var(--t-md); font-weight: 800; color: var(--text); letter-spacing: var(--title-tight); }
-.vf-empty .vf-hint { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); }
-.cam-note {
-  margin:14px 20px 0; padding:14px 16px; border-radius: var(--r-tile);
-  background: var(--surface-1); border: 1px solid transparent;
-  color: var(--text-3); font-size: var(--t-base); font-weight: 600; box-shadow: var(--sh-card);}
+.vf-empty .vf-prompt { font-size: var(--t-md); font-weight: 800; color: #EEF3FB; letter-spacing: var(--title-tight); }
+.vf-empty .vf-hint { font-size: var(--t-sm); font-weight: 600; color: #9AA9C2; }
 /* Photograph-everything guidance (§4.3) — plain text, deliberately NOT box-styled so it can't
    read as an input field (the old boxed hint looked like a text entry). Shared by BOTH steps
    now: the confirm screen had its own near-identical .cc-complete saying the same thing in a
    different size, which is exactly the inconsistent-vocabulary failure. Sits BELOW the frame, so
    the instruction is the last thing read before the shutter rather than the first thing read
    before there is anything to aim at. */
-.cam-guide { margin:12px 20px 0; text-align: center; }
+.cam-guide { margin:0; text-align: center; }
 .cam-guide b { display: block; font-size: var(--t-base); font-weight: 800; letter-spacing: var(--title-tight); }
 .cam-guide span { display: block; font-size: var(--t-xs); font-weight: 600; color: var(--text-3); margin-top:3px; }
-.cc-details { margin:10px 20px 0; border: 1px solid var(--hairline); border-radius: var(--r-tile); background: var(--surface-1); }
-.cc-details summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap:8px; padding:12px 14px; font-size: var(--t-sm); font-weight: 700; color: var(--text-2); }
+/* NOT a card. It was one: a bordered, filled tile wrapping a textarea that carries its own border
+   and fill, which is a container inside a container. It also made the least important thing in the
+   deck the heaviest — squint at the old screen and the details tile read as loud as the buttons.
+   A plain disclosure row instead, so when it opens the textarea is the only box present. */
+.cc-details { margin:20px 0 0; border: 0; border-radius: 0; background: none; }
+.cc-details summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; gap:8px;
+  min-height: 44px; padding:2px 0;
+  font-size: var(--t-sm); font-weight: 700; color: var(--text-2);
+}
 .cc-details summary::-webkit-details-marker { display: none; }
 .cc-details summary .opt { margin-left:auto; font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-key); text-transform: uppercase; color: var(--text-3); }
-.cc-details textarea { display: block; width: calc(100% - 28px); margin:0 14px 4px; box-sizing: border-box; border-radius: var(--r-chip); background: var(--surface-2); border: 1.5px solid var(--hairline); color: var(--text); font-family: var(--font); font-size: var(--t-base); font-weight: 600; padding:10px 12px; outline: none; resize: none; }
+.cc-details textarea { display: block; width: 100%; margin:4px 0 0; box-sizing: border-box; border-radius: var(--r-chip); background: var(--surface-2); border: 1.5px solid var(--hairline); color: var(--text); font-family: var(--font); font-size: var(--t-base); font-weight: 600; padding:10px 12px; outline: none; resize: none; }
 .cc-details textarea:focus { border-color: var(--blue-bright); }
-.cc-details-hint { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); padding:6px 14px 12px; line-height: 1.4; }
-/* The sentence that removes the hesitation from the green button, so it sits ON the button
-   rather than as the last line on the screen — it was --text-3 at the very bottom, the
-   lowest-contrast text present, below the thing it was reassuring the athlete about.
-   margin-top:auto pins the commit line and the buttons together at the foot of the screen. */
+.cc-details-hint { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); padding:6px 0 0; line-height: 1.4; }
+/* The whole deck is LEFT aligned now, on the same 20px screen edge the back button starts from.
+   It used to be a centered stack sitting under a left-aligned header, so the screen ran two
+   competing alignments and every deck element was a full-width band of equal weight. The two
+   captions also carry deliberately different weights, so they cannot read as a matched pair. */
+/* Caption ON the photo: tight to it (8px) so proximity groups them, and the quietest thing in the
+   deck. The photo above it is the actual check; this only names what to look for. */
+.cc-check {
+  margin:8px 0 0; padding:0 var(--pad-screen); text-align: left;
+  font-size: var(--t-xs); font-weight: 600; color: var(--text-3);
+}
+/* Caption ON the buttons: tight to them, and a step warmer than .cc-check, because this is the
+   line that removes hesitation from committing. */
 .cc-commit {
-  margin-top: auto; padding:14px 24px 8px; text-align: center;
+  padding:8px 0 0; text-align: left;
   font-size: var(--t-xs); font-weight: 600; color: var(--text-2); line-height: 1.45;
 }
 /* Equal columns: at flex 1 / 1.6 the ghost button was narrow enough that "Choose another" broke
    across two lines against a single-line "Log it". */
-.cc-actions { padding:0 20px 14px; }
+/* Deck rhythm on the review step, tight where things belong together and generous where a new
+   group starts, instead of the uniform 12px that made four bands read as one texture:
+   photo →8px→ its caption  →20px→  add-details  →14px→  the decision  →8px→  its caption. */
+.cc-actions { padding:14px 0 0; }
+.cam-confirm .cam-deck { padding-top: 0; }
 .cc-actions .btn { flex: 1; white-space: nowrap; }
-/* margin-top:auto anchors the shutter row to the bottom of the screen. Without it the whole
-   column sat under the frame and left dead space below the shutter on tall phones, which put the
-   most-pressed control in a different place on a 6.7" screen than on a 5.4" one. */
-.cam-actions { display: flex; align-items: center; justify-content: space-between; padding:14px 44px 12px; margin-top: auto; }
-.cam-side { display:flex; flex-direction:column; align-items:center; gap:6px; background: none; border: 0; color: var(--text-2); font-size: var(--t-xs); font-weight: 700; cursor:pointer; }
-.cam-side .cbtn { width: 50px; height: 50px; border-radius: var(--r-card-sm); background: var(--surface-2); border:1px solid var(--hairline); display:grid; place-items:center; color: var(--text); }
+.cam-actions { display: flex; align-items: center; justify-content: space-between; padding:16px 24px 4px; }
+/* The two side controls are subordinate to the shutter and should look it. They were 50px
+   bordered tiles, which is the app's "this is a button" chrome — three equal-weight controls in a
+   row, distinguished only by the shutter being green. Now they are circles, echoing the shutter's
+   geometry at half its size with no border and a whisper of fill: the same family, clearly one
+   rank down. Still a 44px target. */
+.cam-side { display:flex; flex-direction:column; align-items:center; gap:7px; width:72px; background: none; border: 0; color: var(--text-2); font-size: var(--t-xs); font-weight: 700; cursor:pointer; }
+.cam-side .cbtn {
+  width: 44px; height: 44px; border-radius: var(--r-pill);
+  background: rgba(var(--blue-rgb), 0.07); border: 1px solid var(--hairline-soft);
+  display:grid; place-items:center; color: var(--text);
+  transition: background var(--dur-1) var(--ease-out);
+}
+.cam-side:active .cbtn { background: rgba(var(--blue-rgb), 0.14); }
 /* One treatment, not four. This carried a gradient AND a coloured drop shadow AND a 7px halo ring
    AND a dark inner ring AND a glyph, which is more decoration than the primary action of the
    screen needs to be found. The halo goes; the drop shadow seats it; the inner ring stays as the

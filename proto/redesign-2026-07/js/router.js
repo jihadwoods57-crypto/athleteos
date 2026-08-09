@@ -287,7 +287,7 @@ function render() {
     <div class="island"></div>
     <div class="screen">
       ${statusbar()}
-      <div class="viewport ${mod.bleed ? 'bleed' : ''}${mod.hideTabs ? ' notabs' : ''}" id="viewport">
+      <div class="viewport ${mod.bleed ? 'bleed' : ''}${mod.hideTabs ? ' notabs' : ''}${mod.fill ? ' fill' : ''}" id="viewport">
         <div class="view${enter}${dirCls}" id="view">${body}</div>
       </div>
       ${mod.hideTabs ? '' : tabbar(activeTab, navRole)}
