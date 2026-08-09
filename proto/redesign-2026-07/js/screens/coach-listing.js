@@ -2,7 +2,8 @@
    pick a tier, accept the coaching agreement in a sheet, and hand off to Stripe. The webhook is
    what actually creates the relationship — this screen only ever starts a checkout. Scope copy is
    deliberate and unskippable: what this coach does, and what they are not. */
-import { backHead, esc, skeletonRows, emptyState } from '../components.js';
+import { backHead, esc, skeletonRows, emptyState, errorState } from '../components.js';
+import { initialsOf } from '../initials.js';
 import { icon } from '../icons.js';
 import * as roles from '../roles.js';
 import { track, EVENTS } from '../analytics.js';
@@ -35,9 +36,7 @@ async function load(slug, force) {
 }
 
 function money(c) { const d = c / 100; return `$${Number.isInteger(d) ? d : d.toFixed(2)}`; }
-function monogram(name) {
-  return (name || '?').trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
-}
+const monogram = (name) => initialsOf(name, '?');
 
 function agreementSheet(l, tier) {
   return `
@@ -70,6 +69,16 @@ export default {
     if (CACHE.slug !== slug) load(slug);
     const l = CACHE.listing;
     if (!CACHE.loaded) return `${backHead('Coach', '', 'coach-directory')}${skeletonRows(3)}`;
+    // A failed read is not evidence about this coach's business. Saying "at capacity or no
+    // longer taking clients" because a request dropped costs a real partner a real client.
+    if (l && l.error) {
+      return `${backHead('Coach', '', 'coach-directory')}
+      ${errorState({
+    title: "Couldn't load this coach",
+    body: 'Their page is still there. Reconnect and it loads right here.',
+    retryId: 'mkl-retry',
+  })}`;
+    }
     if (!l) {
       return `${backHead('Coach', '', 'coach-directory')}
       ${emptyState({ icon: 'users', title: 'This coach is not available', body: 'They may be at capacity or no longer taking clients.', action: { label: 'Browse coaches', go: 'coach-directory' } })}`;
@@ -131,6 +140,8 @@ export default {
     `;
   },
   mount(root) {
+    const mklRetry = root.querySelector('#mkl-retry');
+    if (mklRetry) mklRetry.addEventListener('click', () => { mklRetry.disabled = true; load(CACHE.slug, true); });
     track(EVENTS.MKT_PROFILE_VIEWED);
     // Back from Stripe with a checkout in flight? Re-pull the listing so already_client (set by
     // the webhook) lands. Throttled — __render() re-runs mount(), and an unguarded force here

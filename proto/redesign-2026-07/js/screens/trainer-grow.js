@@ -164,11 +164,11 @@ export const trainerGrow = {
         <input id="tg-link" readonly value="${esc(shareUrl)}" style="flex:1;font-size:var(--t-sm);letter-spacing:0;text-align:left;padding:0 10px;height:44px">
         <button class="btn ghost sm" id="tg-copy" style="width:auto;padding:0 12px;height:36px">Copy</button>
       </div>` : ''}
-      <label class="tg-l">Display name</label><input id="tg-name" value="${esc(p.display_name || RT.profile && RT.profile.full_name || '')}" placeholder="Your name">
-      <label class="tg-l">Specialty</label><input id="tg-spec" value="${esc(p.specialty || '')}" placeholder="Sports-performance nutrition & accountability">
-      <label class="tg-l">Headline (your promise)</label><input id="tg-head" value="${esc(p.headline || '')}" placeholder="Turn your training into daily execution you can see.">
-      <label class="tg-l">About you</label><textarea id="tg-bio" placeholder="Who you coach, how you work…">${esc(p.bio || '')}</textarea>
-      <label class="tg-l">Apply button label</label><input id="tg-cta" value="${esc(p.cta_label || 'Apply to work with me')}" placeholder="Apply to work with me">
+      <label class="tg-l">Display name</label><input id="tg-name" maxlength="60" value="${esc(p.display_name || RT.profile && RT.profile.full_name || '')}" placeholder="Your name">
+      <label class="tg-l">Specialty</label><input id="tg-spec" maxlength="80" value="${esc(p.specialty || '')}" placeholder="Sports-performance nutrition & accountability">
+      <label class="tg-l">Headline (your promise)</label><input id="tg-head" maxlength="100" value="${esc(p.headline || '')}" placeholder="Turn your training into daily execution you can see.">
+      <label class="tg-l">About you</label><textarea id="tg-bio" maxlength="600" placeholder="Who you coach, how you work…">${esc(p.bio || '')}</textarea>
+      <label class="tg-l">Apply button label</label><input id="tg-cta" maxlength="30" value="${esc(p.cta_label || 'Apply to work with me')}" placeholder="Apply to work with me">
       <div style="display:flex;gap:8px;margin-top:14px">
         <button class="btn ghost sm" id="tg-save" style="width:auto;padding:0 16px;height:38px">Save</button>
         <button class="btn ${published ? 'ghost' : 'green'} sm" id="tg-pub" style="width:auto;padding:0 16px;height:38px">${published ? 'Unpublish' : 'Save & publish'}</button>
@@ -399,8 +399,8 @@ function offerForm(o) {
   const cad = o.cadence || 'month';
   const opt = (v, l) => `<option value="${v}" ${cad === v ? 'selected' : ''}>${l}</option>`;
   return `<div class="tg-of">
-    <label class="tg-l">Name</label><input id="of-name" value="${esc(o.name || '')}" placeholder="Light Accountability">
-    <label class="tg-l">One-line description</label><input id="of-blurb" value="${esc(o.blurb || '')}" placeholder="Automated analysis + a weekly read on your week.">
+    <label class="tg-l">Name</label><input id="of-name" maxlength="60" value="${esc(o.name || '')}" placeholder="Light Accountability">
+    <label class="tg-l">One-line description</label><input id="of-blurb" maxlength="120" value="${esc(o.blurb || '')}" placeholder="Automated analysis + a weekly read on your week.">
     <div class="row2">
       <div style="flex:1"><label class="tg-l">Price ($, blank = contact)</label><input id="of-price" inputmode="decimal" value="${dollars}" placeholder="29"></div>
       <div style="width:130px"><label class="tg-l">Per</label><select id="of-cad">${opt('month', 'month')}${opt('week', 'week')}${opt('one-time', 'one-time')}${opt('session', 'session')}</select></div>
@@ -408,7 +408,7 @@ function offerForm(o) {
     <div class="ls" style="margin-top:8px;color:var(--text-3)">${cad === 'month' || cad === 'week'
       ? 'Priced monthly or weekly, so clients can buy this straight from your page — and their OnStandard membership is included at no seat cost to you.'
       : 'One-time and per-session packages are apply-only: membership is covered for as long as a package renews, so a one-off has no period to cover.'}</div>
-    <label class="tg-l">What's included (one per line)</label><textarea id="of-feat" placeholder="Weekly check-in&#10;Direct meal feedback">${esc((o.features || []).join('\n'))}</textarea>
+    <label class="tg-l">What's included (one per line)</label><textarea id="of-feat" maxlength="600" placeholder="Weekly check-in&#10;Direct meal feedback">${esc((o.features || []).join('\n'))}</textarea>
     <label class="tg-l" style="display:flex;align-items:center;gap:8px;margin-top:12px"><input type="checkbox" id="of-active" ${o.active === false ? '' : 'checked'} style="width:auto"> Visible on your page</label>
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="btn green sm" data-tg="osave" data-id="${esc(o.id || 'new')}" style="width:auto;padding:0 16px;height:34px">Save offer</button>

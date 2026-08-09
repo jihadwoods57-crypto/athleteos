@@ -27,7 +27,7 @@ export default {
       <input class="ob-input" id="sp-seats" type="number" min="1" step="1" inputmode="numeric" value="${esc(UI.seats)}" placeholder="10" />
       <div style="height:10px"></div>
       <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Label (optional)</div>
-      <input class="ob-input" id="sp-label" value="${esc(UI.label)}" placeholder="e.g. Fall roster, Jones family" />
+      <input class="ob-input" id="sp-label" maxlength="60" value="${esc(UI.label)}" placeholder="e.g. Fall roster, Jones family" />
       <div style="height:14px"></div>
       ${/* This form asked for a seat COUNT and never said what a seat costs, so the first time
             anyone saw a number was the Stripe page — and the default seat price is a server secret

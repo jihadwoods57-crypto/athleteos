@@ -15,6 +15,8 @@
  * of like a staff. That is why they are pinned by tests.
  */
 
+import { initialsOf } from './initials.js';
+
 /** Messages closer together than this belong to the same moment — no clock between them. */
 export const GROUP_GAP_MS = 10 * 60 * 1000;
 
@@ -40,10 +42,7 @@ export function participantMeta(kind) {
 
 /** "Coach Brown" -> "CB". One letter is fine; three is a logo, not an avatar. */
 export function initialsFor(name) {
-  const words = String(name || '').trim().split(/\s+/).filter(Boolean);
-  if (!words.length) return '?';
-  if (words.length === 1) return words[0].slice(0, 1).toUpperCase();
-  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+  return initialsOf(name, '?');
 }
 
 /**

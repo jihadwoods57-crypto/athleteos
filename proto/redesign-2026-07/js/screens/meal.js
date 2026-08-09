@@ -530,8 +530,8 @@ export const analysis = {
         </div>`).join('')}
       <div class="food-row fr-add" id="food-add" style="display:none">
         <span class="conf-dot high"></span>
-        <input class="fr-in name" id="add-name" placeholder="Add item (e.g. 2 eggs off-frame)" aria-label="Food name" />
-        <input class="fr-in qty" id="add-qty" placeholder="Qty" aria-label="Quantity" />
+        <input class="fr-in name" id="add-name" maxlength="60" placeholder="Add item (e.g. 2 eggs off-frame)" aria-label="Food name" />
+        <input class="fr-in qty" id="add-qty" maxlength="12" placeholder="Qty" aria-label="Quantity" />
         <button class="fr-ok" id="add-ok" aria-label="Add">${icon('check', 15)}</button>
       </div>
       ${edited ? `<div style="font-size:11px;font-weight:600;color:var(--text-3);padding:4px 0 8px">${MEAL.result && MEAL.result.recomputed ? 'Edited by you — macros and score recalculated from the foods listed.' : 'Edited by you — macros stay the AI’s estimate.'}</div>` : ''}
@@ -622,7 +622,7 @@ export const analysis = {
           if (applyFoodEdit(MEAL.result, op)) { act.recomputeStagedMeal(op); analysis._editing = true; window.__render(); }
         });
         if (nameEl) {
-          nameEl.innerHTML = `<input class="fr-in name" value="${esc(name)}" aria-label="Food name" />`;
+          nameEl.innerHTML = `<input class="fr-in name" maxlength="60" value="${esc(name)}" aria-label="Food name" />`;
           nameEl.querySelector('input').addEventListener('change', (e) => {
             const op = { kind: 'rename', name, newName: e.target.value };
             if (applyFoodEdit(MEAL.result, op)) act.recomputeStagedMeal(op);
@@ -630,7 +630,7 @@ export const analysis = {
           });
         }
         if (qtyEl) {
-          qtyEl.innerHTML = `<input class="fr-in qty" value="${esc((item && item.quantity) || '')}" placeholder="Qty" aria-label="Quantity" />`;
+          qtyEl.innerHTML = `<input class="fr-in qty" maxlength="12" value="${esc((item && item.quantity) || '')}" placeholder="Qty" aria-label="Quantity" />`;
           qtyEl.querySelector('input').addEventListener('change', (e) => {
             const op = { kind: 'quantity', name, quantity: e.target.value };
             if (applyFoodEdit(MEAL.result, op)) act.recomputeStagedMeal(op);

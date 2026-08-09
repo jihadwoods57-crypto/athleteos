@@ -1,6 +1,6 @@
 /* Parent "Fund a plan": each child's trainer's payable packages, with a Pay button that opens Stripe
    Checkout with the parent as payer and the child as beneficiary. Server verifies guardian+client. */
-import { backHead, esc } from '../components.js';
+import { backHead, esc, errorState } from '../components.js';
 import { icon } from '../icons.js';
 import * as roles from '../roles.js';
 
@@ -39,6 +39,16 @@ export default {
       return `${backHead('Fund a plan', 'Pay for your child’s coaching', 'parent')}
       <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bolt', 17)}</div><div><div class="tt">Loading…</div></div></div>`;
     }
+    // "Nothing to fund yet" is a statement about the child's trainer, so it may not be guessed
+    // from a failed read: it would send a parent off to chase a trainer who is already set up.
+    if (CACHE.rows && CACHE.rows.error) {
+      return `${backHead('Fund a plan', 'Pay for your child’s coaching', 'parent')}
+      ${errorState({
+    title: "Couldn't load the packages",
+    body: 'Nothing was charged. Reconnect and your children’s trainers load right here.',
+    retryId: 'fp-retry',
+  })}`;
+    }
     const groups = groupByChild(CACHE.rows);
     return `${backHead('Fund a plan', 'Pay for your child’s coaching', 'parent')}
     ${groups.length ? groups.map(g => `
@@ -63,6 +73,8 @@ export default {
   },
   mount(root) {
     load();
+    const retry = root.querySelector('#fp-retry');
+    if (retry) retry.addEventListener('click', () => { retry.disabled = true; load(true); });
     root.querySelectorAll('[data-pay]').forEach(b => b.addEventListener('click', async () => {
       const offerId = b.getAttribute('data-pay');
       const childId = b.getAttribute('data-child');

@@ -421,21 +421,24 @@ export async function uploadProgressPhoto(userId, base64, meta) {
 
 /** An athlete's progress photos, newest first (self by default; a coach passes an athleteId they
     can_view). Returns [{ id, photo_path, taken_on, weight_lb, pose, note }]. */
+/** The athlete's photo timeline. Same contract as listTrainingLogs: `[]` = none, `null` = the
+ *  fetch failed. A failed fetch used to read "Start your timeline" to someone with twelve
+ *  photos already saved, and hid the Compare button that proves they are there. */
 export async function listProgressPhotos(athleteId) {
-  const c = sb(); if (!c) return [];
+  const c = sb(); if (!c) return null;
   try {
     let uid = athleteId;
     if (!uid) { const { data: u } = await c.auth.getUser(); uid = u && u.user && u.user.id; }
-    if (!uid) return [];
+    if (!uid) return null;
     const { data, error } = await c.from('progress_photos')
       .select('id,photo_path,taken_on,weight_lb,pose,note')
       .eq('athlete_id', uid)
       .order('taken_on', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(60);
-    if (error) return [];
+    if (error) return null;
     return data || [];
-  } catch { return []; }
+  } catch { return null; }
 }
 
 /** Delete a progress photo (owner-RLS); best-effort object cleanup after the row goes. */
@@ -533,21 +536,25 @@ export async function saveTrainingLog(userId, opts) {
 }
 /** An athlete's training logs, newest first (self by default; a coach passes an athleteId they
     can_view). Returns [{ id, log_date, title, note, feel, source, requirement_id }]. */
+/** The athlete's session log. `[]` means they have none; **`null` means we could not find out**
+ *  — do not collapse the two. Returning [] on a failed fetch made training-history render "No
+ *  sessions yet" to an athlete with forty of them, which is the fabricated-data state
+ *  errorState() exists to prevent. The one coach-side caller already does `rows || []`. */
 export async function listTrainingLogs(athleteId) {
-  const c = sb(); if (!c) return [];
+  const c = sb(); if (!c) return null;
   try {
     let uid = athleteId;
     if (!uid) { const { data: u } = await c.auth.getUser(); uid = u && u.user && u.user.id; }
-    if (!uid) return [];
+    if (!uid) return null;
     const { data, error } = await c.from('training_logs')
       .select('id,log_date,title,note,feel,source,requirement_id')
       .eq('athlete_id', uid)
       .order('log_date', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(60);
-    if (error) return [];
+    if (error) return null;
     return data || [];
-  } catch { return []; }
+  } catch { return null; }
 }
 /** Delete a training log (owner-RLS). */
 export async function deleteTrainingLog(id) {
@@ -1403,15 +1410,20 @@ export async function fetchMyTrainerOffers() {
   const c = sb(); if (!c) return [];
   try { const { data } = await c.rpc('my_trainer_offers'); return data || []; } catch { return { error: true }; }
 }
-/** A guardian's children's trainers' payable offers (active guardianship + active client + active Connect). */
+/** A guardian's children's trainers' payable offers (active guardianship + active client + active Connect).
+ *  `{ error: true }` on failure, never `[]` — see fetchFundedPlans. */
 export async function fetchFundedOffers() {
-  const c = sb(); if (!c) return [];
-  try { const { data } = await c.rpc('my_funded_offers'); return data || []; } catch { return []; }
+  const c = sb(); if (!c) return { error: true };
+  try { const { data, error } = await c.rpc('my_funded_offers'); if (error) return { error: true }; return data || []; } catch { return { error: true }; }
 }
-/** The guardian's own funded plans (for the Funded plans list). */
+/** The guardian's own funded plans (for the Funded plans list).
+ *  **Money reads return `{ error: true }`, never `[]`.** This returned [] on any failure, so a
+ *  parent whose card is charged every month was shown "No funded plans yet" the moment the
+ *  request dropped — the app disowning a live subscription. Same rule the coach/trainer money
+ *  surfaces were put on 2026-08-08; these two were missed then. */
 export async function fetchFundedPlans() {
-  const c = sb(); if (!c) return [];
-  try { const { data } = await c.rpc('my_funded_plans', { p_limit: 50 }); return data || []; } catch { return []; }
+  const c = sb(); if (!c) return { error: true };
+  try { const { data, error } = await c.rpc('my_funded_plans', { p_limit: 50 }); if (error) return { error: true }; return data || []; } catch { return { error: true }; }
 }
 /** Start Checkout for an offer on behalf of a child. Returns { url } or { error }. */
 export async function startFundedCheckout(offerId, beneficiaryAthleteId) {
@@ -1815,9 +1827,13 @@ export async function fetchMarketplaceDirectory(filters = {}) {
     return data || [];
   } catch { return []; }
 }
+/** A public coach listing by slug. `null` = the RPC ran and there is no such listing;
+ *  `{ error: true }` = we could not find out. They were the same value, and the screen turns
+ *  `null` into "This coach is not available — they may be at capacity or no longer taking
+ *  clients", which is a claim about a real person's business invented from a dropped request. */
 export async function fetchMarketplaceListing(slug) {
-  const c = sb(); if (!c || !slug) return null;
-  try { const { data } = await c.rpc('marketplace_listing', { p_slug: slug }); return data || null; } catch { return null; }
+  const c = sb(); if (!c || !slug) return { error: true };
+  try { const { data, error } = await c.rpc('marketplace_listing', { p_slug: slug }); if (error) return { error: true }; return data || null; } catch { return { error: true }; }
 }
 /** Hire: Stripe Checkout for a tier offer. Returns { url } or { error }. */
 export async function startMarketplaceCheckout(offerId) {

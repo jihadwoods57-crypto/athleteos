@@ -42,7 +42,7 @@ export default {
 
     <div class="eyebrow">Details (optional)</div>
     <section class="card pad">
-      <textarea id="rc-detail" rows="4" placeholder="What would help us understand?"
+      <textarea id="rc-detail" rows="4" maxlength="500" placeholder="What would help us understand?"
         style="width:100%;background:transparent;border:1px solid var(--hairline);border-radius:12px;padding:10px 12px;color:var(--text);font:inherit;font-size:13.5px;resize:vertical">${esc(UI.detail || '')}</textarea>
       ${UI.err ? `<div style="color:var(--red);font-size:12.5px;font-weight:600;margin-top:8px">${esc(UI.err)}</div>` : ''}
       <button class="btn primary" data-rc-send ${UI.reason && !UI.sending ? '' : 'disabled'} style="margin-top:12px">${UI.sending ? 'Sending…' : 'Send report'}</button>

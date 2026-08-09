@@ -62,11 +62,22 @@
 
 /* ----- Camera ----- */
 .cam { position: relative; height: 100%; display: flex; flex-direction: column; }
+/* Real <button>s, not click-handled <div>s. The shutter, Gallery and Search are the three
+   most-used controls in the app and had no role, no tab stop and no focus ring between them.
+   The reset lives here because the app carries no global button reset. */
+.cam button { font-family: var(--font); padding: 0; -webkit-appearance: none; appearance: none; }
 .cam-head { padding:8px 20px 12px; display:flex; align-items:center; gap:14px; }
-.cam-head .meta { flex: 1; }
-.cam-head .t { font-size: 20px; font-weight: 800; letter-spacing: var(--title-tight); }
-.cam-head .s { font-size: 12.5px; font-weight: 700; color: var(--amber-bright); margin-top:2px; }
-.cam-head .s .dim { color: var(--text-2); font-weight: 600; }
+.cam-head .meta { flex: 1; min-width: 0; }
+.cam-head .t { font-size: var(--t-xl); font-weight: 800; letter-spacing: var(--title-tight); }
+/* The line itself is neutral; only the deadline carries a hue, and only once it has earned one.
+   Amber is warning-only in this system, so a deadline two hours out has no business wearing it —
+   and a deadline that has already passed has no business wearing the same colour as one that
+   hasn't. tone-* comes from mealDueState(), the single source. */
+.cam-head .s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:2px; }
+.cam-head .s .due { font-weight: 800; }
+.cam-head .s .due.tone-quiet { color: var(--text); }
+.cam-head .s .due.tone-warn  { color: var(--amber-bright); }
+.cam-head .s .due.tone-late  { color: var(--red-bright); }
 .viewfinder {
   position: relative; margin:2px 20px 0; border-radius: var(--r-card); overflow: hidden;
   /* Bigger, live-first preview (founder ask): fills most of the screen but never crowds the
@@ -77,16 +88,32 @@
     var(--surface-2);
   border: 1px solid var(--hairline);
 }
+/* One shared alert line for both steps: capture failure, measured photo-quality nudge, duplicate
+   photo. Three different inline styles used to say the same thing three slightly different ways.
+   Collapses to nothing when empty, so it costs no space on the happy path. */
+.cam-alert:empty { display: none; }
+.cam-alert {
+  margin:10px 20px 0; text-align: center;
+  font-size: var(--t-sm); font-weight: 700; color: var(--amber-bright);
+}
 /* The live getUserMedia stream fills the frame; corner ticks + deadline pill overlay it. */
 .viewfinder video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
 /* Shutter flash: a white sheet that pops then fades — makes the frozen frame read as a capture. */
 .vf-flash { position: absolute; inset: 0; z-index: 5; background: #fff; opacity: 0; pointer-events: none; }
 .vf-flash.on { animation: vf-flash 260ms ease-out; }
 @keyframes vf-flash { 0% { opacity: 0.9; } 100% { opacity: 0; } }
-/* Capture confirm: the staged photo full-bleed, provenance badges top-left. */
+/* Capture confirm: the staged photo, WHOLE, provenance badges top-left.
+   It used to be a `background-size: cover` fill, which cropped the photo to the frame — under a
+   headline that asks the athlete to make sure everything is visible. The screen was hiding part
+   of the plate while asking whether the plate was all there. `contain` on a matte shows what was
+   actually captured, at the cost of letterboxing a photo whose shape doesn't match the frame,
+   which is the correct trade for a verification step. An <img> rather than a background so it
+   carries alt text. Frame geometry is inherited from .viewfinder unchanged, so the photo no
+   longer changes size between capture and confirm. */
 .cam-confirm { display: flex; flex-direction: column; min-height: 100%; }
-.cam-confirm .cc-photo { background-size: cover; background-position: center; aspect-ratio: 3/4.2; max-height: 64vh; }
-.cc-badges { position: absolute; top: 14px; left: 14px; z-index: 4; display: flex; gap:6px; }
+.cc-frame { background: var(--surface-2); }
+.cc-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; z-index: 1; }
+.cc-badges { position: absolute; top: 14px; left: 14px; right: 14px; z-index: 4; display: flex; gap:6px; flex-wrap: wrap; }
 /* Analysis breakdown rows (WS4): one editable list replaces chips + componentsRead. */
 .food-row { display: flex; align-items: center; gap:10px; padding:10px 0; border-bottom: 1px solid var(--hairline); }
 .food-row:last-of-type { border-bottom: none; }
@@ -98,60 +125,80 @@
 .fr-in.qty { width: 86px; }
 .food-row.fr-add { gap:8px; }
 .fr-ok { width: 34px; height: 34px; border-radius: var(--r-chip); border: 1px solid var(--green-border); background: var(--green-surface); color: var(--green-bright); display: grid; place-items: center; cursor: pointer; }
+/* Two states in one box. The fallback copy ("Take a photo to analyze") used to be what EVERY
+   athlete saw first, because it renders before getUserMedia has answered — the normal path
+   opened on a description of the failure path. It now says what is actually happening, and only
+   promotes to the fallback once the camera has genuinely declined. */
 .vf-empty {
   position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap:8px; text-align: center; padding:0 28px;
 }
+.vf-empty[data-mode="starting"] .vf-state[data-when="offline"],
+.vf-empty[data-mode="offline"] .vf-state[data-when="starting"] { display: none; }
+.vf-empty .vf-state { display: flex; flex-direction: column; gap:4px; }
 .vf-empty .vf-lens {
   width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center;
   background: rgba(7,11,20,0.45); border: 1px solid var(--hairline); color: var(--text-3); margin-bottom:4px;
 }
-.vf-empty .vf-prompt { font-size: 15px; font-weight: 800; color: var(--text); letter-spacing: var(--title-tight); }
-.vf-empty .vf-hint { font-size: 12.5px; font-weight: 600; color: var(--text-2); }
-.vf-corner { position: absolute; width: 34px; height: 34px; border: 3px solid rgba(255,255,255,0.85); z-index: 3; }
-.vf-corner.tl { top: 16px; left: 16px; border-right: none; border-bottom: none; border-radius: var(--r-chip) 0 0 0; }
-.vf-corner.tr { top: 16px; right: 16px; border-left: none; border-bottom: none; border-radius: 0 var(--r-chip) 0 0; }
-.vf-corner.bl { bottom: 16px; left: 16px; border-right: none; border-top: none; border-radius: 0 0 0 var(--r-chip); }
-.vf-corner.br { bottom: 16px; right: 16px; border-left: none; border-top: none; border-radius: 0 0 var(--r-chip) 0; }
-.vf-deadline {
-  position:absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 4;
-  background: rgba(7,11,20,0.6); backdrop-filter: blur(8px); border: 1px solid rgba(var(--amber-rgb), 0.4);
-  color: var(--amber-bright); font-size: 12px; font-weight: 800; padding:6px 14px; border-radius: var(--r-pill);
-  white-space: nowrap;
-}
+/* The only motion on this screen, and it conveys state: the camera is being opened. It stops the
+   moment the frame arms, because the element is hidden outright. */
+.vf-empty[data-mode="starting"] .vf-lens { animation: vf-wake 1600ms var(--ease-out) infinite; }
+@keyframes vf-wake { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .vf-empty[data-mode="starting"] .vf-lens { animation: none; } }
+.vf-empty .vf-prompt { font-size: var(--t-md); font-weight: 800; color: var(--text); letter-spacing: var(--title-tight); }
+.vf-empty .vf-hint { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); }
 .cam-note {
   margin:14px 20px 0; padding:14px 16px; border-radius: var(--r-tile);
   background: var(--surface-1); border: 1px solid transparent;
-  color: var(--text-3); font-size: 13.5px; font-weight: 600; box-shadow: var(--sh-card);}
+  color: var(--text-3); font-size: var(--t-base); font-weight: 600; box-shadow: var(--sh-card);}
 /* Photograph-everything guidance (§4.3) — plain text, deliberately NOT box-styled so it can't
-   read as an input field (the old boxed hint looked like a text entry). */
-.cam-guide { margin:0 20px 10px; text-align: center; }
-.cam-guide b { display: block; font-size: 13px; font-weight: 800; letter-spacing: -0.01em; }
-.cam-guide span { display: block; font-size: 11.5px; font-weight: 600; color: var(--text-3); margin-top:2px; }
-/* Review-step completeness reminder + optional invisible-details field (§5.4/§5.5) */
-.cc-complete { padding:12px 20px 0; text-align: center; }
-.cc-complete b { font-size: 13px; font-weight: 800; }
-.cc-chips { display: flex; justify-content: center; gap:8px; margin-top:8px; flex-wrap: wrap; }
-.cc-chip { font-size: 11px; font-weight: 700; color: var(--text-2); border: 1px solid var(--hairline); border-radius: var(--r-pill); padding:4px 12px; }
+   read as an input field (the old boxed hint looked like a text entry). Shared by BOTH steps
+   now: the confirm screen had its own near-identical .cc-complete saying the same thing in a
+   different size, which is exactly the inconsistent-vocabulary failure. Sits BELOW the frame, so
+   the instruction is the last thing read before the shutter rather than the first thing read
+   before there is anything to aim at. */
+.cam-guide { margin:12px 20px 0; text-align: center; }
+.cam-guide b { display: block; font-size: var(--t-base); font-weight: 800; letter-spacing: var(--title-tight); }
+.cam-guide span { display: block; font-size: var(--t-xs); font-weight: 600; color: var(--text-3); margin-top:3px; }
 .cc-details { margin:10px 20px 0; border: 1px solid var(--hairline); border-radius: var(--r-tile); background: var(--surface-1); }
-.cc-details summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap:8px; padding:12px 14px; font-size: 13px; font-weight: 700; color: var(--text-2); }
+.cc-details summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap:8px; padding:12px 14px; font-size: var(--t-sm); font-weight: 700; color: var(--text-2); }
 .cc-details summary::-webkit-details-marker { display: none; }
-.cc-details summary .opt { margin-left:auto; font-size: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
-.cc-details textarea { display: block; width: calc(100% - 28px); margin:0 14px 4px; box-sizing: border-box; border-radius: var(--r-chip); background: var(--surface-2); border: 1.5px solid var(--hairline); color: var(--text); font-family: var(--font); font-size: 14px; font-weight: 600; padding:10px 12px; outline: none; resize: none; }
+.cc-details summary .opt { margin-left:auto; font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-key); text-transform: uppercase; color: var(--text-3); }
+.cc-details textarea { display: block; width: calc(100% - 28px); margin:0 14px 4px; box-sizing: border-box; border-radius: var(--r-chip); background: var(--surface-2); border: 1.5px solid var(--hairline); color: var(--text); font-family: var(--font); font-size: var(--t-base); font-weight: 600; padding:10px 12px; outline: none; resize: none; }
 .cc-details textarea:focus { border-color: var(--blue-bright); }
-.cc-details-hint { font-size: 11px; font-weight: 600; color: var(--text-3); padding:6px 14px 12px; line-height: 1.4; }
-.cam-actions { display: flex; align-items: center; justify-content: space-between; padding:16px 44px 10px; }
-.cam-side { display:flex; flex-direction:column; align-items:center; gap:6px; color: var(--text-2); font-size: 11px; font-weight: 700; cursor:pointer; }
+.cc-details-hint { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); padding:6px 14px 12px; line-height: 1.4; }
+/* The sentence that removes the hesitation from the green button, so it sits ON the button
+   rather than as the last line on the screen — it was --text-3 at the very bottom, the
+   lowest-contrast text present, below the thing it was reassuring the athlete about.
+   margin-top:auto pins the commit line and the buttons together at the foot of the screen. */
+.cc-commit {
+  margin-top: auto; padding:14px 24px 8px; text-align: center;
+  font-size: var(--t-xs); font-weight: 600; color: var(--text-2); line-height: 1.45;
+}
+/* Equal columns: at flex 1 / 1.6 the ghost button was narrow enough that "Choose another" broke
+   across two lines against a single-line "Log it". */
+.cc-actions { padding:0 20px 14px; }
+.cc-actions .btn { flex: 1; white-space: nowrap; }
+/* margin-top:auto anchors the shutter row to the bottom of the screen. Without it the whole
+   column sat under the frame and left dead space below the shutter on tall phones, which put the
+   most-pressed control in a different place on a 6.7" screen than on a 5.4" one. */
+.cam-actions { display: flex; align-items: center; justify-content: space-between; padding:14px 44px 12px; margin-top: auto; }
+.cam-side { display:flex; flex-direction:column; align-items:center; gap:6px; background: none; border: 0; color: var(--text-2); font-size: var(--t-xs); font-weight: 700; cursor:pointer; }
 .cam-side .cbtn { width: 50px; height: 50px; border-radius: var(--r-card-sm); background: var(--surface-2); border:1px solid var(--hairline); display:grid; place-items:center; color: var(--text); }
+/* One treatment, not four. This carried a gradient AND a coloured drop shadow AND a 7px halo ring
+   AND a dark inner ring AND a glyph, which is more decoration than the primary action of the
+   screen needs to be found. The halo goes; the drop shadow seats it; the inner ring stays as the
+   one detail that makes it read as a shutter. --ink-on-accent, not a frozen rgba, so the ring
+   holds in light theme instead of staying dark-tuned. */
 .shutter {
-  width: 78px; height: 78px; border-radius: 50%; cursor: pointer;
+  width: 78px; height: 78px; border-radius: 50%; cursor: pointer; border: 0;
   background: linear-gradient(155deg, var(--green), var(--green-deep));
-  box-shadow: var(--sh-green), 0 0 0 7px rgba(var(--green-rgb), 0.14);
+  box-shadow: var(--sh-green);
   display: grid; place-items: center; color: var(--ink-on-accent);
   transition: transform var(--dur-1) var(--ease-out);
 }
 .shutter:active { transform: scale(0.92); }
-.shutter .inner { width: 62px; height: 62px; border-radius: 50%; border: 3px solid rgba(4,20,11,0.35); display:grid; place-items:center; }
+.shutter .inner { width: 62px; height: 62px; border-radius: 50%; border: 3px solid rgba(var(--ink-on-accent-rgb), 0.32); display:grid; place-items:center; }
 
 /* ----- Analysis / detected foods ----- */
 /* The meal's own photo, blurred, as the top of the canvas. Absolutely positioned out of flow and
@@ -578,9 +625,15 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 
 /* ----- Profile / leaderboard ----- */
 .id-card { display: flex; align-items: center; gap:16px; padding:18px; }
-.id-card .big-av { width: 62px; height: 62px; border-radius: 50%; background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); display:grid; place-items:center; font-size: 22px; font-weight: 800; color: #fff; box-shadow: var(--sh-blue); }
-.id-card .nm { font-size: 19px; font-weight: 800; letter-spacing: -0.01em; }
-.id-card .meta { font-size: 13px; font-weight: 600; color: var(--text-2); margin-top:4px; }
+/* flex:none on the avatar and the Edit button, min-width:0 on the text: without it an unbroken
+   name pushed Edit 143px past the right edge, so the only way to fix a wrong name was gone. */
+.id-card .big-av { width: 62px; height: 62px; border-radius: 50%; background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); display:grid; place-items:center; font-size: 22px; font-weight: 800; color: #fff; box-shadow: var(--sh-blue); flex: none; }
+.id-card .id-txt { flex: 1; min-width: 0; }
+.id-card .btn { flex: none; }
+.id-card .nm { font-size: 19px; font-weight: 800; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+/* Two lines each for sport and school: a 45-character school name turned the header into a
+   six-line block that shoved the rest of Profile down the screen. */
+.id-card .meta { font-size: 13px; font-weight: 600; color: var(--text-2); margin-top:4px; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 .lb-row { display: flex; align-items: center; gap:14px; padding:14px 16px; border-bottom: 1px solid var(--hairline-soft); }
 .lb-row:last-child { border-bottom: none; }
 .lb-row.you { background: rgba(var(--blue-rgb), 0.10); border-radius: var(--r-card-sm); border: 1px solid var(--blue-border); margin:4px 6px; }

@@ -1,6 +1,7 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, titleHead, logoMark, esc } from '../components.js';
+import { initialsOf } from '../initials.js';
 import { accountBody, wireAccount } from './ob-account.js';
 import { standardForGoal, reqHeadTint, showConfirmPending } from '../ob-helpers.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
@@ -126,12 +127,12 @@ export const role = {
    notification preferences → account → code screen (customize surfaced at creation). */
 const coachSteps = {
   1: () => frame(1, 7, 'You, coach.', 'Your athletes see this name on every standard you set.', `
-    <input id="co-first" class="ob-input" placeholder="First name" aria-label="First name" autocomplete="given-name" autocapitalize="words" />
+    <input id="co-first" class="ob-input" maxlength="40" placeholder="First name" aria-label="First name" autocomplete="given-name" autocapitalize="words" />
     <div style="height:12px"></div>
-    <input id="co-last" class="ob-input" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" />
+    <input id="co-last" class="ob-input" maxlength="40" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" />
     <div class="eyebrow" style="margin:16px 2px 10px">What the room calls you</div>
     <div class="chip-row" id="co-handle"></div>
-    <input id="co-handle-custom" class="ob-input" placeholder="Or type it — e.g. Coach B" style="margin-top:10px" />
+    <input id="co-handle-custom" class="ob-input" maxlength="24" placeholder="Or type it — e.g. Coach B" style="margin-top:10px" />
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">This is the name athletes see everywhere — greetings, meal threads, your standard.</div>`, 'Next', 'coach-ob/2', { back: 'role' }),
 
   2: () => {
@@ -163,7 +164,7 @@ const coachSteps = {
       <button class="${mode === 'join' ? 'on' : ''}" data-mode="join">Join a staff</button>
     </div>`;
     const createBody = `
-    <input id="co-team" class="ob-input" placeholder="Team name (e.g. Varsity Football)" />
+    <input id="co-team" class="ob-input" maxlength="60" placeholder="Team name (e.g. Varsity Football)" />
     <div style="height:16px"></div>
     <div class="eyebrow" style="margin:8px 2px 10px">Sport</div>
     <div class="chip-row" id="co-sport">
@@ -460,10 +461,10 @@ export const coachOb = {
       $('#co-add').addEventListener('click', () => {
         gen++; // repainting out — invalidate any in-flight search
         out.innerHTML = `
-          <input id="co-add-name" class="ob-input" placeholder="School / organization name" />
+          <input id="co-add-name" class="ob-input" maxlength="80" placeholder="School / organization name" />
           <div style="height:10px"></div>
           <div class="dob-row">
-            <input id="co-add-city" class="ob-input" placeholder="City" style="flex:2" />
+            <input id="co-add-city" class="ob-input" maxlength="60" placeholder="City" style="flex:2" />
             <input id="co-add-state" class="ob-input" placeholder="ST" maxlength="2" autocapitalize="characters" />
           </div>
           <div style="height:10px"></div>
@@ -604,11 +605,11 @@ export const coachOb = {
 /* ============ TRAINER ONBOARDING (4 steps + code screen) ============ */
 const trainerSteps = {
   1: () => frame(1, 4, 'You, trainer.', 'Clients see this name on every note you send.', `
-    <input id="tr-first" class="ob-input" placeholder="First name" autocapitalize="words" />
+    <input id="tr-first" class="ob-input" maxlength="40" placeholder="First name" autocapitalize="words" />
     <div style="height:12px"></div>
-    <input id="tr-last" class="ob-input" placeholder="Last name" autocapitalize="words" />
+    <input id="tr-last" class="ob-input" maxlength="40" placeholder="Last name" autocapitalize="words" />
     <div style="height:16px"></div>
-    <input id="tr-practice" class="ob-input" placeholder="Practice name (e.g. Boone Performance)" />
+    <input id="tr-practice" class="ob-input" maxlength="60" placeholder="Practice name (e.g. Boone Performance)" />
     <div style="height:16px"></div>
     <div class="eyebrow" style="margin:8px 2px 10px">Who you train</div>
     <div class="chip-row" id="tr-audience">
@@ -749,9 +750,9 @@ const clientSteps = {
     </div>`, 'Next', 'client-ob/2'),
 
   2: () => frame(2, 6, 'Start with the basics', 'This is how your trainer will recognize you.', `
-    <input id="cl-first" class="ob-input" placeholder="First name" autocapitalize="words" autocorrect="off" spellcheck="false" />
+    <input id="cl-first" class="ob-input" maxlength="40" placeholder="First name" autocapitalize="words" autocorrect="off" spellcheck="false" />
     <div style="height:12px"></div>
-    <input id="cl-last" class="ob-input" placeholder="Last name" autocapitalize="words" autocorrect="off" spellcheck="false" />
+    <input id="cl-last" class="ob-input" maxlength="40" placeholder="Last name" autocapitalize="words" autocorrect="off" spellcheck="false" />
     <div style="height:16px"></div>
     <div class="eyebrow" style="margin:8px 2px 10px">Life, honestly</div>
     <div class="chip-row" id="cl-life">
@@ -1054,8 +1055,8 @@ function cpIdCard(withHandle) {
       ${/* ci.initials, not name[0]: the header chip that leads here renders "JB" and this card
             rendered "J" for the same coach on the very next screen. One person, one monogram —
             trainerProfile already used ti.initials. */''}
-      <div class="big-av" style="background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204">${esc(ci.initials || (name[0] || 'C').toUpperCase())}</div>
-      <div style="flex:1">
+      <div class="big-av" style="background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204">${esc(ci.initials || initialsOf(name, 'C'))}</div>
+      <div class="id-txt">
         <div class="nm">${esc(name)}</div>
         <div class="meta">${metaLine}</div>
         ${withHandle ? `<div class="meta" style="margin-top:3px">Goes by <b style="color:var(--text)">${esc(ci.handle)}</b> · <span id="handle-edit" style="color:var(--blue-bright);cursor:pointer;font-weight:800">Change</span></div>` : ''}
@@ -1424,7 +1425,7 @@ export const trainerProfile = {
     </section>` : `
     <section class="card id-card">
       <div class="big-av" style="background:linear-gradient(150deg,var(--purple-bright),#7e22ce)">${esc(ti.initials || 'T')}</div>
-      <div style="flex:1">
+      <div class="id-txt">
         <div class="nm">${esc(ti.name)}</div>
         <div class="meta">${esc(ti.practiceName)}</div>
         <div style="margin-top:9px">${offline ? `<span class="status-pill a">Reconnecting</span>` : minting ? `<span class="status-pill p">Setting up</span>` : `<span class="status-pill g">Live</span>`}</div>

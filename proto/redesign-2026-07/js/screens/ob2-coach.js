@@ -127,12 +127,12 @@ const steps = [
     title: () => 'You, coach.',
     sub: () => 'Your athletes see this name on every standard you set.',
     body: () => `
-      <input id="co-first" class="ob-input" placeholder="First name" aria-label="First name" autocomplete="given-name" autocapitalize="words" spellcheck="false" autocorrect="off" />
+      <input id="co-first" class="ob-input" maxlength="40" placeholder="First name" aria-label="First name" autocomplete="given-name" autocapitalize="words" spellcheck="false" autocorrect="off" />
       <div style="height:12px"></div>
-      <input id="co-last" class="ob-input" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" spellcheck="false" autocorrect="off" />
+      <input id="co-last" class="ob-input" maxlength="40" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" spellcheck="false" autocorrect="off" />
       <div class="eyebrow" style="margin:16px 2px 10px">What the room calls you</div>
       <div class="chip-row" id="co-handle"></div>
-      <input id="co-handle-custom" class="ob-input" placeholder="Or type it — e.g. Coach B" style="margin-top:10px" />
+      <input id="co-handle-custom" class="ob-input" maxlength="24" placeholder="Or type it — e.g. Coach B" style="margin-top:10px" />
       <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">This is the name athletes see everywhere — greetings, meal threads, your standard.</div>`,
     mount(root) {
       const $ = (s) => root.querySelector(s);
@@ -451,7 +451,7 @@ const steps = [
       <div class="eyebrow" style="margin:8px 2px 10px">Staff code</div>
       <input id="ok-staff-code" class="ob-input" maxlength="8" placeholder="Code from your head coach" autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" value="${esc(c.staffCode || '')}" />
       <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">Your head coach hands out staff codes. It lands you on their team’s staff with the role and permissions they set — you won’t create a new team.</div>` : `
-      <input id="ok-team" class="ob-input" placeholder="Team name (e.g. Varsity Football)" value="${esc(c.teamName || o.teamName || '')}" />
+      <input id="ok-team" class="ob-input" maxlength="60" placeholder="Team name (e.g. Varsity Football)" value="${esc(c.teamName || o.teamName || '')}" />
       <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:10px 2px 0;line-height:1.45">Your join code mints with your account on the next steps — send it to the group chat and the board starts filling.</div>`}`;
     },
     mount(root, ctx) {

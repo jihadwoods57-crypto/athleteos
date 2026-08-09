@@ -6,10 +6,13 @@
    States: browse (grid + Add/Compare) and compose (staged shot + pose/weight/note → Save). */
 import { RT } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, esc, safeImg, emptyState, skeletonRows } from '../components.js';
+import { backHead, esc, safeImg, emptyState, errorState, skeletonRows } from '../components.js';
 import * as roles from '../roles.js';
 
-let CACHE = { photos: null, urls: {}, loading: false, resolving: false };
+/* `failed` separates "we asked and could not find out" from "there are none". Without it a
+   dropped connection told an athlete with a year of photos to start their timeline, and hid
+   Compare — the one control that would have proved the photos were still there. */
+let CACHE = { photos: null, urls: {}, loading: false, resolving: false, failed: false };
 let STAGE = null;          // { dataUrl, base64, pose, weightLb, note, busy } while composing
 let PENDING_DELETE = null; // id awaiting a confirm tap
 
@@ -46,8 +49,11 @@ function encodeFile(file, maxDim, quality) {
 
 async function loadPhotos() {
   CACHE.loading = true;
-  CACHE.photos = await roles.listProgressPhotos();
+  CACHE.failed = false;
+  const rows = await roles.listProgressPhotos();
   CACHE.loading = false;
+  if (rows === null) CACHE.failed = true;
+  else CACHE.photos = rows;
   if (window.__render) window.__render();
   resolveUrls();
 }
@@ -83,7 +89,7 @@ function composeView() {
   <section class="card pad">
     <input class="ob-input" id="pp-weight" inputmode="decimal" placeholder="e.g. 182" value="${s.weightLb != null ? esc(String(s.weightLb)) : ''}" />
     <div style="height:10px"></div>
-    <input class="ob-input" id="pp-note" placeholder="Note (optional)" value="${s.note ? esc(s.note) : ''}" />
+    <input class="ob-input" id="pp-note" maxlength="120" placeholder="Note (optional)" value="${s.note ? esc(s.note) : ''}" />
   </section>
   <div style="height:14px"></div>
   <button class="btn green" id="pp-save" style="width:100%" ${s.busy ? 'disabled' : ''}>${s.busy ? 'Saving…' : 'Save to my timeline'}</button>
@@ -124,6 +130,12 @@ function browseView() {
   : photos.length ? `
     <div style="height:12px"></div>
     <div class="pp-grid">${photos.map(cell).join('')}</div>`
+  : CACHE.failed ? `
+    ${errorState({
+    title: "Couldn't load your photos",
+    body: 'Nothing was deleted. Your timeline is on the server and loads right here when you reconnect.',
+    retryId: 'pp-retry',
+  })}`
   : `
     ${emptyState({
     icon: 'camera',
@@ -164,8 +176,10 @@ export default {
     }
 
     // browse
-    if (CACHE.photos === null && !CACHE.loading) loadPhotos();
+    if (CACHE.photos === null && !CACHE.loading && !CACHE.failed) loadPhotos();
     else resolveUrls();
+    const ppRetry = root.querySelector('#pp-retry');
+    if (ppRetry) ppRetry.addEventListener('click', () => { if (!CACHE.loading) { ppRetry.disabled = true; loadPhotos(); } });
 
     const file = root.querySelector('#pp-file');
     const add = root.querySelector('#pp-add');

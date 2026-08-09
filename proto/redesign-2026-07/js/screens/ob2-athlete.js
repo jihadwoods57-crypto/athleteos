@@ -85,9 +85,9 @@ const steps = [
     title: () => 'Start with the basics',
     sub: () => 'This is how your coach and team will recognize you.',
     body: (o) => `
-      <input id="ob-first" class="ob-input" placeholder="First name" aria-label="First name" autocomplete="given-name" autocapitalize="words" autocorrect="off" spellcheck="false" value="${esc(o.firstName || '')}" />
+      <input id="ob-first" class="ob-input" maxlength="40" placeholder="First name" aria-label="First name" autocomplete="given-name" autocapitalize="words" autocorrect="off" spellcheck="false" value="${esc(o.firstName || '')}" />
       <div style="height:12px"></div>
-      <input id="ob-last" class="ob-input" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" autocorrect="off" spellcheck="false" value="${esc(o.lastName || '')}" />`,
+      <input id="ob-last" class="ob-input" maxlength="40" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" autocorrect="off" spellcheck="false" value="${esc(o.lastName || '')}" />`,
     mount(root) {
       const first = root.querySelector('#ob-first'), last = root.querySelector('#ob-last');
       const btn = root.querySelector('#ob2-next');

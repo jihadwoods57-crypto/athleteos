@@ -102,9 +102,9 @@ const steps = [
     title: () => 'First, your name',
     sub: () => 'This is the name on your account.',
     body: (o) => `
-      <input id="obp-first" class="ob-input" placeholder="First name" aria-label="First name" autocomplete="given-name" autocapitalize="words" autocorrect="off" spellcheck="false" value="${esc(o.firstName || '')}" />
+      <input id="obp-first" class="ob-input" maxlength="40" placeholder="First name" aria-label="First name" autocomplete="given-name" autocapitalize="words" autocorrect="off" spellcheck="false" value="${esc(o.firstName || '')}" />
       <div style="height:12px"></div>
-      <input id="obp-last" class="ob-input" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" autocorrect="off" spellcheck="false" value="${esc(o.lastName || '')}" />`,
+      <input id="obp-last" class="ob-input" maxlength="40" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" autocorrect="off" spellcheck="false" value="${esc(o.lastName || '')}" />`,
     mount(root) {
       const first = root.querySelector('#obp-first');
       const last = root.querySelector('#obp-last');
@@ -126,7 +126,7 @@ const steps = [
     title: () => 'Who are you supporting?',
     sub: () => 'A first name is all we need.',
     body: (o) => `
-      <input id="obp-aname" class="ob-input" placeholder="Their first name" aria-label="Athlete first name" autocapitalize="words" autocorrect="off" spellcheck="false" value="${esc(o.athleteName || '')}" />
+      <input id="obp-aname" class="ob-input" maxlength="40" placeholder="Their first name" aria-label="Athlete first name" autocapitalize="words" autocorrect="off" spellcheck="false" value="${esc(o.athleteName || '')}" />
       <div class="eyebrow" style="margin:16px 2px 10px">How old are they?</div>
       ${chipRow('athleteAge', [
         { v: '13-15', t: '13–15' },

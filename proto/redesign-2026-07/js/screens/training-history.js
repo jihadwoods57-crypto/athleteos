@@ -2,10 +2,13 @@
    Reached from Progress. Includes the solo "Log a workout" entry (self-log, no coach requirement)
    so Individual-plan users with no coach still have a training surface. Tracked, not scored. */
 import { icon } from '../icons.js';
-import { backHead, esc, emptyState, skeletonRows } from '../components.js';
+import { backHead, esc, emptyState, errorState, skeletonRows } from '../components.js';
 import * as roles from '../roles.js';
 
-let CACHE = { logs: null, loading: false };
+/* `logs: null` is "not loaded", `failed: true` is "we asked and could not find out". They were
+   the same value until now, so an offline athlete was shown the empty state and told they had
+   never trained. Cached rows survive a later failure: they were real when they arrived. */
+let CACHE = { logs: null, loading: false, failed: false };
 let PENDING_DELETE = null;
 const FEEL = ['', 'Rough', 'Tough', 'OK', 'Good', 'Great'];
 
@@ -17,8 +20,11 @@ function fmtDate(d) {
 
 async function load() {
   CACHE.loading = true;
-  CACHE.logs = await roles.listTrainingLogs();
+  CACHE.failed = false;
+  const rows = await roles.listTrainingLogs();
   CACHE.loading = false;
+  if (rows === null) CACHE.failed = true;
+  else CACHE.logs = rows;
   if (window.__render) window.__render();
 }
 
@@ -44,6 +50,17 @@ export default {
     const logs = CACHE.logs || [];
     const head = backHead('Training', 'Your sessions — tracked, not scored', 'progress');
     const addBtn = `<button class="btn green sm" data-go="log-training" style="width:100%">${icon('bolt', 16)} Log a workout</button>`;
+    // Honest failure BEFORE the empty state: with nothing cached we do not know whether they
+    // have sessions, and "No sessions yet" would be an answer we have not earned.
+    if (CACHE.failed && !logs.length) {
+      return `${head}
+      ${addBtn}
+      ${errorState({
+    title: "Couldn't load your sessions",
+    body: 'Your training log is safe on the server. Reconnect and it loads right here.',
+    retryId: 'th-retry',
+  })}`;
+    }
     if (!CACHE.loading && !logs.length && CACHE.logs !== null) {
       return `${head}
       ${addBtn}
@@ -65,7 +82,9 @@ export default {
     <div style="height:10px"></div>`;
   },
   mount(root) {
-    if (CACHE.logs === null && !CACHE.loading) load();
+    if (CACHE.logs === null && !CACHE.loading && !CACHE.failed) load();
+    const retry = root.querySelector('#th-retry');
+    if (retry) retry.addEventListener('click', () => { if (!CACHE.loading) { retry.disabled = true; load(); } });
     root.querySelectorAll('[data-tl-del]').forEach((el) => el.addEventListener('click', async () => {
       const id = el.getAttribute('data-tl-del');
       if (PENDING_DELETE !== id) { PENDING_DELETE = id; if (window.__render) window.__render(); return; }

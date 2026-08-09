@@ -337,7 +337,7 @@ export function logoMark(size = 96, uid = 'lm') {
 export function appHead(sub, extra) {
   const n = S.unreadNotifs;
   return `<header class="apphead">
-    <div>
+    <div class="apphead-id">
       <div class="greeting">${S.greeting},</div>
       <div class="name">${esc(S.athlete.first)}</div>
       ${sub ? `<div class="apphead-sub">${esc(sub)}</div>` : ''}

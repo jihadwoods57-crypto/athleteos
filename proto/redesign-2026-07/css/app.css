@@ -146,10 +146,18 @@ body {
   display: flex; align-items: flex-start; justify-content: space-between;
   padding:10px 0 18px;
 }
+/* min-width:0 is load-bearing, not tidiness. A flex item's default min-width is `auto`, so the
+   text block refused to shrink below its widest line and pushed .actions clean off the right
+   edge: a team name like "Our Lady of Perpetual Help Varsity Track & Field" put the bell AND the
+   avatar 53px outside the 402px viewport, which makes Notifications unreachable. The subtitle
+   stays one line (it's chrome, not content) but now ellipses instead of shoving the row wide. */
+.apphead .apphead-id { min-width: 0; flex: 1 1 auto; }
 .apphead .greeting { font-size: var(--t-md); font-weight: 600; color: var(--text-2); letter-spacing: 0.01em; }
-.apphead .name { font-size: var(--t-2xl); font-weight: 800; letter-spacing: var(--title-tight); margin-top:2px; }
-.apphead-sub { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:4px; white-space: nowrap; }
-.apphead .actions { display: flex; align-items: center; gap:10px; margin-top:4px; }
+/* overflow-wrap:anywhere so a single unbroken 30-character name breaks rather than overflowing;
+   there is no space for the browser to wrap at, and a name is exactly the field people paste. */
+.apphead .name { font-size: var(--t-2xl); font-weight: 800; letter-spacing: var(--title-tight); margin-top:2px; overflow-wrap: anywhere; }
+.apphead-sub { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.apphead .actions { display: flex; align-items: center; gap:10px; margin-top:4px; flex: none; }
 .iconbtn {
   width: 44px; height: 44px; border-radius: var(--r-pill);
   background: var(--surface-1); border: 1px solid var(--hairline);
@@ -581,5 +589,17 @@ body {
 .lrow { display: flex; align-items: center; gap:14px; padding:16px 2px; border-bottom: 1px solid var(--hairline-soft); cursor: pointer; }
 .lrow:last-child { border-bottom: none; }
 .lrow .lic { width: 38px; height: 38px; border-radius: var(--r-chip); background: var(--surface-2); display: grid; place-items: center; color: var(--text-2); flex: none; }
-.lrow .lm { flex: 1; } .lrow .lt { font-size: 15px; font-weight: 700; } .lrow .ls { font-size: 12px; font-weight: 600; color: var(--text-3); margin-top:1px; }
-.lrow .lv { font-size: 13px; font-weight: 700; color: var(--text-2); }
+/* .lrow is the most-reused row in the app (180+ instances across coach, settings, profile,
+   trainer and the role flows), so its flex rules are load-bearing for all of them.
+   `.lm` had flex:1 and no min-width:0, which means it refuses to shrink below its longest word
+   and pushes whatever follows it out of the phone: on coach Plan, the Grant button next to a
+   long athlete name sat 37px past the right edge and could not be tapped. Names arrive from
+   other people, so no screen can assume they are short. This is the same root cause as the
+   402px join-row bug in 3a08ac9, fixed at the primitive this time instead of at one caller. */
+.lrow .lm { flex: 1; min-width: 0; }
+.lrow .lt { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+.lrow .ls { font-size: 12px; font-weight: 600; color: var(--text-3); margin-top:1px; overflow-wrap: anywhere; }
+.lrow .lv { font-size: 13px; font-weight: 700; color: var(--text-2); flex: none; }
+/* The trailing control (a Grant/End button, a status pill, the chevron) is the row's ACTION.
+   It never shrinks and never scrolls away, whatever the name beside it turns out to be. */
+.lrow > .btn, .lrow > .status-pill, .lrow > svg, .lrow > .req-badge { flex: none; }

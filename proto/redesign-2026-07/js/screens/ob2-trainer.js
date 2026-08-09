@@ -116,11 +116,11 @@ const steps = [
     title: () => 'You, trainer.',
     sub: () => 'Clients see this name on every note you send.',
     body: (o) => `
-      <input id="tr-first" class="ob-input" placeholder="First name" aria-label="First name" autocomplete="given-name" autocapitalize="words" spellcheck="false" autocorrect="off" value="${esc(o.firstName || '')}" />
+      <input id="tr-first" class="ob-input" maxlength="40" placeholder="First name" aria-label="First name" autocomplete="given-name" autocapitalize="words" spellcheck="false" autocorrect="off" value="${esc(o.firstName || '')}" />
       <div style="height:12px"></div>
-      <input id="tr-last" class="ob-input" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" spellcheck="false" autocorrect="off" value="${esc(o.lastName || '')}" />
+      <input id="tr-last" class="ob-input" maxlength="40" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" spellcheck="false" autocorrect="off" value="${esc(o.lastName || '')}" />
       <div style="height:16px"></div>
-      <input id="tr-practice" class="ob-input" placeholder="Practice name (e.g. Boone Performance)" aria-label="Practice name" spellcheck="false" autocorrect="off" value="${esc(o.practiceName || '')}" />
+      <input id="tr-practice" class="ob-input" maxlength="60" placeholder="Practice name (e.g. Boone Performance)" aria-label="Practice name" spellcheck="false" autocorrect="off" value="${esc(o.practiceName || '')}" />
       <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">Your practice name goes on the invite your clients get. You can name it later.</div>`,
     mount(root, ctx) {
       const f = root.querySelector('#tr-first');

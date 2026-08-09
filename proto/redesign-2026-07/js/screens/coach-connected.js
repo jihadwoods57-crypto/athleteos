@@ -17,6 +17,7 @@
 import { icon } from '../icons.js';
 import { track, EVENTS } from '../analytics.js';
 import { backHead, esc } from '../components.js';
+import { initialsOf } from '../initials.js';
 import { CD, bookId } from '../coach-data.js';
 import { allowedCreateKeys, isReadonly } from '../staff-access.js';
 import {
@@ -181,8 +182,7 @@ function athleteRow(r, inst) {
   </div>`;
 }
 
-const initials = (name) => String(name || '?').trim().split(/\s+/)
-  .slice(0, 2).map((w) => w[0] || '').join('').toUpperCase() || '?';
+const initials = (name) => initialsOf(name, '?');
 
 /* Signature of the board the screen last painted — see the loop note in mount(). */
 let BOARD_SIG = null;

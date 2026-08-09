@@ -6,6 +6,7 @@
 import { RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc, emptyState, skeletonRows } from '../components.js';
+import { initialsOf } from '../initials.js';
 import * as roles from '../roles.js';
 import { CD, loadCoachRoster } from '../coach-data.js';
 import { suggestedRooms, slugifyRoomKey, groupRosterByRoom } from '../rooms.js';
@@ -88,7 +89,7 @@ export const coachRooms = {
         </div>` : ''}
         ${members.map((m) => `
         <div class="lrow" style="cursor:default;padding-left:6px">
-          <div class="xico sm gray" style="width:26px;height:26px">${esc((m.name || 'A').trim().charAt(0).toUpperCase())}</div>
+          <div class="xico sm gray" style="width:26px;height:26px">${esc(initialsOf(m.name, 'A', 1))}</div>
           <div class="lm"><div class="lt" style="font-size:14px">${esc(m.name)}</div>${m.position ? `<div class="ls">${esc(m.position)}</div>` : ''}</div>
           <button class="btn ghost sm" data-room-unassign="${esc(m.athleteId)}" style="width:auto;padding:0 10px;height:28px;font-size:11px">Remove</button>
         </div>`).join('')}
@@ -101,7 +102,7 @@ export const coachRooms = {
         ${needs.map((m) => `
         <div class="lrow" style="cursor:default;display:block;padding:10px 4px">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-            <div class="xico sm gray" style="width:26px;height:26px">${esc((m.name || 'A').trim().charAt(0).toUpperCase())}</div>
+            <div class="xico sm gray" style="width:26px;height:26px">${esc(initialsOf(m.name, 'A', 1))}</div>
             <div class="lm"><div class="lt" style="font-size:14px">${esc(m.name)}</div>${m.position ? `<div class="ls">${esc(m.position)}</div>` : ''}</div>
           </div>
           <div class="chip-row" style="margin:0">${rooms.map((rm) => `<span class="chp" data-assign="${esc(m.athleteId)}|${esc(rm.id)}">${esc(rm.label)}</span>`).join('')}</div>

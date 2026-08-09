@@ -11,6 +11,7 @@ import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow, resolveReq
 import { resolvePlanStyle, SIGNAL_KEYS, CHECKIN_SIGNAL_KEYS, styleLabel, styleSourceLabel } from './plan-style.js';
 import { TOS_VERSION } from './ob-helpers.js';
 import { tierFor } from './score-band.js';
+import { initialsOf } from './initials.js';
 import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor, dayFromHistoryRow,
   streakDays as dayStreak, streakInfo, loadDay, pushDay, uploadMealPhoto, flushDayPush,
@@ -63,6 +64,14 @@ export function fmtClock(min) {
   let h = Math.floor(min / 60) % 12; if (h === 0) h = 12;
   const ap = Math.floor(min / 60) < 12 ? 'AM' : 'PM';
   return `${h}:${String(min % 60).padStart(2, '0')} ${ap}`;
+}
+/** A coarse elapsed span for deadline copy: "45m", "1h 4m", "3h". Minutes alone under the hour,
+ *  and a clean hour drops its minutes so "2h" never prints as "2h 0m". */
+export function fmtGap(mins) {
+  const m = Math.max(0, Math.round(Number(mins) || 0));
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60), r = m % 60;
+  return r ? `${h}h ${r}m` : `${h}h`;
 }
 
 /* The meal currently being captured (Phase 5 AI loop). When MEAL.result is set, S.logging and
@@ -454,6 +463,22 @@ export function mealDueLabel(k) {
   if (optionalSlot(k)) return 'Optional — counts whenever you log it';
   const dl = slotDeadline(k);
   return dl != null ? `Due by ${fmtClock(dl)}` : 'Log when ready';
+}
+/** The same deadline, plus the honest state of it. ONE source, so no screen re-inlines its own
+ *  idea of "is this late" — the camera header used to paint every deadline amber, a deadline an
+ *  hour in the FUTURE and one an hour in the PAST reading identically, which is the opposite of
+ *  what amber means in this system (warning only: at risk, off pace). Three tones, mapped to the
+ *  hues already reserved for them: quiet on time, amber inside the last half hour, red once the
+ *  window has closed, and the red case says by how much rather than restating the time. An
+ *  optional slot carries no tone at all: there is nothing to be late for. */
+export function mealDueState(k) {
+  const label = mealDueLabel(k);
+  if (optionalSlot(k)) return { label, tone: 'quiet', minutesLate: 0 };
+  const dl = slotDeadline(k);
+  if (dl == null) return { label, tone: 'quiet', minutesLate: 0 };
+  const left = dl - minutesNow();
+  if (left < 0) return { label: `Late by ${fmtGap(-left)}`, tone: 'late', minutesLate: -left };
+  return { label, tone: left <= 30 ? 'warn' : 'quiet', minutesLate: 0 };
 }
 /** Display title for a meal slot key: the coach standard's title when one governs
  *  ("Post-practice fuel"), else a humanized key — never a raw "Meal-5" (WS7 audit fix). */
@@ -3435,7 +3460,7 @@ export const S = {
     const last = name ? name.split(' ').slice(1).join(' ') : '';
     return {
       first, last, name: name || 'Athlete',
-      initials: ((first[0] || 'A') + (last[0] || '')).toUpperCase(),
+      initials: initialsOf(name, 'A'),
       sport: p.sport || '', position: p.position || '',
       school: p.school || '', level: p.level || '',
       avatar: p.avatar || null,
@@ -3514,7 +3539,6 @@ export const S = {
     const kind = c ? 'coach' : (tr ? 'trainer' : null);
     const name = ((src && src.name) || '').trim();
     const team = c ? ((c.teamName || '').trim()) : ((tr && tr.practiceName) || '').trim();
-    const parts = name.split(/\s+/).filter(Boolean);
     return {
       hasCoach: !!src,                  // a real coach (team) OR trainer (practice) link exists
       kind,                             // 'coach' | 'trainer' | null — lets copy pick the noun
@@ -3522,7 +3546,7 @@ export const S = {
       isNamed: !!name,                  // the mentor's real display name is known
       name: name || (kind === 'trainer' ? 'Your trainer' : 'Your coach'),   // sentence-start
       nameMid: name || (kind === 'trainer' ? 'your trainer' : 'your coach'), // mid-sentence
-      initials: parts.length ? parts.slice(0, 2).map((w) => w[0].toUpperCase()).join('') : (kind === 'trainer' ? 'T' : 'C'),
+      initials: initialsOf(name, kind === 'trainer' ? 'T' : 'C'),
       role: name ? (kind === 'trainer' ? 'Trainer' : 'Head Coach') : '',
       team,                             // team name (coach) or practice name (trainer)
     };
@@ -3534,9 +3558,7 @@ export const S = {
     const realName = ((RT.profile && RT.profile.name) || '').trim();
     const realTeam = ((RT.team && RT.team.name) || '').trim();
     const code = (RT.team && RT.team.code) || '';
-    const initials = realName
-      ? realName.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('')
-      : 'C';
+    const initials = initialsOf(realName, 'C');
     const state = RT.teamLoading ? 'loading' : RT.teamOffline ? 'offline' : !code ? 'minting' : 'live';
     // The handle the room uses ("Coach JB") — 0056 server value first, then a last-name
     // derivation, never a bare fabricated persona.
@@ -3560,9 +3582,7 @@ export const S = {
     const realName = (RT.profile && RT.profile.name || '').trim();
     const realPractice = (RT.practice && RT.practice.name || '').trim();
     const code = (RT.practice && RT.practice.code) || '';
-    const initials = realName
-      ? realName.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('')
-      : 'T';
+    const initials = initialsOf(realName, 'T');
     const state = RT.practiceLoading ? 'loading' : RT.practiceOffline ? 'offline' : !code ? 'minting' : 'live';
     return {
       name: realName || 'Trainer',

@@ -25,7 +25,7 @@ export default {
         <div id="avatar-btn" style="position:absolute;bottom:-10px;right:-10px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer" title="Upload photo" aria-label="Upload photo"><span class="req-badge b" style="position:static;width:26px;height:26px;place-items:center;border:2px solid var(--bg);box-shadow:0 2px 6px rgba(0,0,0,0.4)">${icon('camera', 13)}</span></div>
         <input type="file" id="avatar-file" accept="image/*" style="display:none" />
       </div>
-      <div style="flex:1">
+      <div class="id-txt">
         <div class="nm">${esc(S.athlete.name)}</div>
         ${S.audience === 'client' ? `
         <div class="meta">${esc(S.planGoalLabel || 'Personal plan')}</div>
@@ -249,8 +249,8 @@ export const editProfile = {
 
     <div class="eyebrow">Name</div>
     <div style="display:flex;gap:10px">
-      <input class="ob-input ep-field" id="ep-first" value="${esc(a.first === 'Athlete' && !a.last ? '' : a.first)}" placeholder="First name" style="flex:1" />
-      <input class="ob-input ep-field" id="ep-last" value="${esc(a.last)}" placeholder="Last name" style="flex:1" />
+      <input class="ob-input ep-field" id="ep-first" maxlength="40" value="${esc(a.first === 'Athlete' && !a.last ? '' : a.first)}" placeholder="First name" style="flex:1" />
+      <input class="ob-input ep-field" id="ep-last" maxlength="40" value="${esc(a.last)}" placeholder="Last name" style="flex:1" />
     </div>
 
     <div class="eyebrow">Date of birth</div>
@@ -270,7 +270,7 @@ export const editProfile = {
     <div style="font-size:12.5px;font-weight:600;color:var(--text-3);padding:2px 2px 4px">Pick a sport first; positions follow the sport.</div>`}
 
     <div class="eyebrow">School / organization</div>
-    <input class="ob-input ep-field" id="ep-school" value="${esc(a.school)}" placeholder="Search your school or team" autocomplete="off" />
+    <input class="ob-input ep-field" id="ep-school" maxlength="80" value="${esc(a.school)}" placeholder="Search your school or team" autocomplete="off" />
     <div id="ep-school-results" class="ep-results" hidden></div>
 
     <div style="height:14px"></div>
