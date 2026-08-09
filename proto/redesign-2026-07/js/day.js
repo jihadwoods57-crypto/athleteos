@@ -245,6 +245,18 @@ function legacyNutritionScore(day, std, proteinFrac, mealsFrac) {
   return Math.min(100, Math.round(proteinFrac * 65 + mealsFrac * 35));
 }
 
+/** Whether this day carries ANY nutrition evidence — a logged plate, saved slot macros, or a
+ *  quick-add. This is the ONE shared gate `evidenceCeiling` and `partsNutritionScore`'s awareness
+ *  credit must both read: two separate hand-written expressions for "did they log food" is exactly
+ *  what let a quick-add-only day get clamped to a ceiling of 0 (quickAdded wasn't in the ceiling's
+ *  check) while a check-in-only day unlocked Intuitive's awareness credit anyway (the engaged gate
+ *  accepted a check-in as a substitute for food). Neither bug can recur if both read this. */
+export function hasNutritionEvidence(day) {
+  return MEAL_KEYS.some((k) => day.meals && day.meals[k]) ||
+    (day.slotMacros && Object.keys(day.slotMacros).length > 0) ||
+    (Array.isArray(day.quickAdded) && day.quickAdded.some(Boolean));
+}
+
 /** The composition path (Guided, Intuitive, and any customized style): each enabled part earns
  *  its share of 100. The parts are already normalized to sum to 100 by knobsFor, and a part whose
  *  knob is off is already zeroed there — so this is a straight weighted sum with no stranded
@@ -280,9 +292,15 @@ function partsNutritionScore(day, std, knobs, proteinFrac, mealsFrac) {
   // constant 1 — the no-drop grandfather, see its header — but a day the athlete never touched
   // must still floor at 0. Before the removal an untouched day answered no signals and scored no
   // awareness; handing it 35 free points would invent engagement that didn't happen. So the
-  // credit is gated on the athlete having done SOMETHING today: a meal, or a real check-in.
-  // Both branches are >= what the old code gave, which is what keeps the guarantee intact.
-  const engaged = mealsFrac > 0 || checkinReal(day);
+  // credit is gated on the athlete having logged FOOD today — a meal or a quick-add.
+  // FOUNDER RULING (2026-08-09, Task 2 review): a check-in alone must NOT unlock awareness. It
+  // used to (`mealsFrac > 0 || checkinReal(day)`), which meant Intuitive could earn ~47 nutrition
+  // points off a check-in with nothing on the plate, well above what evidenceCeiling would allow
+  // for a day with no nutrition evidence — the write-path clamp caught it, silently cutting the
+  // athlete's own displayed score. Fixed at the source instead of raising the ceiling: awareness
+  // now shares hasNutritionEvidence with evidenceCeiling, so a day with no food never has anything
+  // to be "aware" of, on either the display or the write path.
+  const engaged = hasNutritionEvidence(day);
   const awareCredit = n.awarenessScored && engaged
     ? awarenessScore(answeredSignals(day, checkinReal(day)), knobs, day.signalWeekRate)
     : 0;
@@ -365,11 +383,12 @@ export function gradeFor(s) { return s >= 90 ? 'A' : s >= 80 ? 'B' : s >= 70 ? '
 // Keep the client score honest so the server clamp never has to silently lower it.
 /** Mirror of the 0193 server ceiling: the most the evidence on a row can justify. Nutrition
  *  evidence unlocks 78 (the max across profiles); a real check-in unlocks recovery 12 + check-in
- *  12. A commitment answer unlocks nothing — it no longer scores. */
+ *  12. A commitment answer unlocks nothing — it no longer scores. `hasNutritionEvidence` is the
+ *  SAME check partsNutritionScore's awareness gate uses — see its comment for why that matters:
+ *  a quick-add-only day must count here, or a real logged day gets clamped to a lower stored score
+ *  than the one the athlete's own screen just showed them. */
 export function evidenceCeiling(day) {
-  const hasNutrition = MEAL_KEYS.some((k) => day.meals && day.meals[k]) ||
-    (day.slotMacros && Object.keys(day.slotMacros).length > 0);
-  return (hasNutrition ? 78 : 0) + (checkinReal(day) ? 24 : 0);
+  return (hasNutritionEvidence(day) ? 78 : 0) + (checkinReal(day) ? 24 : 0);
 }
 export function clampedScore(day) { return Math.min(scoreFor(day), evidenceCeiling(day)); }
 
