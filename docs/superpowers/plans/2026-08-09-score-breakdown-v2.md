@@ -48,9 +48,18 @@ Pure refactor. **The weights keep their OLD values in this task** — every exis
 
 **Files:**
 - Modify: `proto/redesign-2026-07/js/plan-style.js:67-102`
+- Modify: `src/core/planStyle.ts:73-101` — **must move in lockstep**, see below
 - Modify: `proto/redesign-2026-07/js/day.js:18-22`
 - Modify: `proto/redesign-2026-07/js/state.js:188-192`
 - Test: `proto/redesign-2026-07/js/weight-sources.test.mjs` (create)
+
+> **`src/core/planStyle.ts` is a full TS mirror of `plan-style.js`** — its own `WEIGHT_CAPS`,
+> its own nine-row `STYLE_WEIGHTS`, its own `weightsFor` and `weightsWithinCaps`.
+> `src/core/planStyleParity.test.ts` imports BOTH files and asserts the constant tables are
+> identical, so the two must change in the SAME commit or `npm test` fails. Every edit this task
+> makes to `plan-style.js` must be mirrored into `planStyle.ts` with TS types preserved
+> (`STYLE_WEIGHTS: Record<PlanStyle, Record<ScoringProfile, StyleWeights>>` becomes
+> `PROFILE_WEIGHTS: Record<ScoringProfile, StyleWeights>`).
 
 **Interfaces:**
 - Consumes: nothing.
@@ -148,13 +157,41 @@ export function weightsWithinCaps(w) {
 }
 ```
 
-Delete the now-unused `STYLE_WEIGHTS` export. Then grep for stragglers:
+Delete the now-unused `STYLE_WEIGHTS` export.
+
+Now mirror the SAME change into `src/core/planStyle.ts:73-101`, keeping the TS types. Values stay
+old; only the shape collapses:
+
+```typescript
+/** Per-component ceiling. NOTHING may exceed these. Mirrors proto plan-style.js WEIGHT_CAPS. */
+export const WEIGHT_CAPS: StyleWeights = { nutrition: 0.55, recovery: 0.25, commitment: 0.15, checkin: 0.1 };
+
+/** Headline mix per goal profile. Plan style no longer re-weights the score — it shapes HOW
+ *  nutrition is computed (knobsFor). MUST equal proto plan-style.js PROFILE_WEIGHTS;
+ *  planStyleParity.test.ts asserts the two constant tables are identical. */
+export const PROFILE_WEIGHTS: Record<ScoringProfile, StyleWeights> = {
+  athlete: { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 },
+  general: { nutrition: 0.55, recovery: 0.2, commitment: 0.15, checkin: 0.1 },
+  gain: { nutrition: 0.55, recovery: 0.25, commitment: 0.1, checkin: 0.1 },
+};
+
+/** The headline mix for a (style, profile). `style` is accepted and ignored — the signature is
+ *  kept so no call site changes. An unknown profile falls back to athlete. */
+export function weightsFor(style: PlanStyle | string | null | undefined, profile: ScoringProfile | string | null | undefined): StyleWeights {
+  const p = profile === 'general' || profile === 'gain' ? profile : 'athlete';
+  return PROFILE_WEIGHTS[p];
+}
+```
+
+Leave `weightsWithinCaps` in `planStyle.ts` unchanged. Then grep for stragglers:
 
 ```bash
 grep -rn "STYLE_WEIGHTS" proto/ src/ web/
 ```
 
-Update each hit to `PROFILE_WEIGHTS` (drop the style index level).
+Update each hit to `PROFILE_WEIGHTS` (drop the style index level). `planStyleParity.test.ts:16`
+("constant tables are identical") and `planStyleCaps.test.ts:40,58-59` both sweep these — update
+their iteration to the two-level shape, never weaken the assertion.
 
 - [ ] **Step 4: Make `day.js` re-export instead of redeclare**
 
@@ -201,7 +238,7 @@ Expected: PASS — `scoreParity.test.ts` still green, proving the refactor chang
 - [ ] **Step 8: Commit**
 
 ```bash
-git add proto/redesign-2026-07/js/plan-style.js proto/redesign-2026-07/js/day.js proto/redesign-2026-07/js/state.js proto/redesign-2026-07/js/requirements.js proto/redesign-2026-07/js/weight-sources.test.mjs
+git add proto/redesign-2026-07/js/plan-style.js proto/redesign-2026-07/js/day.js proto/redesign-2026-07/js/state.js proto/redesign-2026-07/js/requirements.js proto/redesign-2026-07/js/weight-sources.test.mjs src/core/planStyle.ts src/core/planStyleParity.test.ts src/core/planStyleCaps.test.ts
 git commit -m "refactor(proto): one owner for the score weights, drift pinned by test
 
 plan-style.js now owns PROFILE_WEIGHTS; day.js and state.js re-export it
@@ -219,9 +256,15 @@ Values are UNCHANGED. scoreParity.test.ts staying green is the proof."
 
 **Files:**
 - Modify: `proto/redesign-2026-07/js/plan-style.js` (`PROFILE_WEIGHTS`, `WEIGHT_CAPS`)
+- Modify: `src/core/planStyle.ts` (`PROFILE_WEIGHTS`, `WEIGHT_CAPS`) — **same commit, see below**
 - Modify: `proto/redesign-2026-07/js/day.js:317-337` (`recoveryParts`, `checkinReal`), `:370-376` (`evidenceCeiling`)
 - Modify: `proto/redesign-2026-07/js/requirements.js:29`
 - Test: `proto/redesign-2026-07/js/score-v2.test.mjs` (create)
+
+> **`src/core/planStyle.ts` mirrors `plan-style.js` and `planStyleParity.test.ts` asserts the two
+> constant tables are identical.** Apply the new `WEIGHT_CAPS` and `PROFILE_WEIGHTS` values to BOTH
+> files in this task's commit, or `npm test` fails. The TS file keeps its type annotations; only
+> the numbers change.
 
 **Interfaces:**
 - Consumes: `PROFILE_WEIGHTS` from Task 1.
@@ -404,7 +447,7 @@ Expected: all green.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add proto/redesign-2026-07/js/plan-style.js proto/redesign-2026-07/js/day.js proto/redesign-2026-07/js/requirements.js proto/redesign-2026-07/js/score-v2.test.mjs
+git add proto/redesign-2026-07/js/plan-style.js src/core/planStyle.ts proto/redesign-2026-07/js/day.js proto/redesign-2026-07/js/requirements.js proto/redesign-2026-07/js/score-v2.test.mjs
 git commit -m "feat(proto)!: score v2 — two pillars, nothing carries, nothing self-graded
 
 Nutrition .76, checked-in-tonight .12, answers .12, commitment 0.
