@@ -1,4 +1,4 @@
-import { S, RT, act, roleNav, roleProfileRoute } from '../state.js';
+import { S, RT, act, roleNav, roleProfileRoute, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
 import * as roles from '../roles.js';
@@ -366,7 +366,7 @@ export const injury = {
       ${[
         ['bolt', 'Rehab replaces intensity', 'Band work 2×15 before practice, on your requirements list now.'],
         ['utensils', 'Nutrition tilts anti-inflammatory', 'Protein stays on target; add color, cut the fried stuff while you heal.'],
-        ['moon', 'Recovery counts double attention', 'Sleep is when tissue heals — Recovery stays 25% of your score, with more eyes on it.'],
+        ['moon', 'Recovery counts double attention', `Sleep is when tissue heals — Recovery stays ${liveWeightPct('checkin') + liveWeightPct('recovery')}% of your score, with more eyes on it.`],
       ].map(([ic, t, s]) => `
         <div class="lrow" style="cursor:default">
           <div class="lic">${icon(ic, 17)}</div>

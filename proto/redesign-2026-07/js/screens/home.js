@@ -440,8 +440,9 @@ window.addEventListener('hashchange', () => {
 
 /* Daily Score hero — the score owns the screen. Ring keeps the signature green→teal→blue
    sweep (status lives in the tier pill, never in the ring color). Label, completion,
-   ceiling, the four-part formula, and the next move all live inside the one card; the
-   whole surface opens the breakdown (chevron + press state carry the affordance). */
+   ceiling, the two-part formula (Nutrition, Recovery — S.breakdown/explainCategories), and
+   the next move all live inside the one card; the whole surface opens the breakdown (chevron
+   + press state carry the affordance). */
 /* `backdrop` means "this paint is scenery behind a sheet, not the screen the athlete is on."
    The only render-time side effect on this whole screen is the lastHomeScore write below, and
    consuming it from a backdrop paint would silently eat the "+N" float on the NEXT real render:

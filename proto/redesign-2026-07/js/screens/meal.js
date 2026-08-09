@@ -1,4 +1,4 @@
-import { S, RT, tier, act, MEAL, mealDetail, fmtClock } from '../state.js';
+import { S, RT, tier, act, MEAL, mealDetail, fmtClock, liveWeightPct } from '../state.js';
 import { DAY, slotDeadline } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg, nonLiveBadge, composer, segBar } from '../components.js';
@@ -572,7 +572,7 @@ export const analysis = {
       <div><div class="who">AI Analysis</div><p>${esc(L.analysis || L.ai)}</p></div>
     </div>
 
-    ${already ? '' : `<div class="score-change">${icon('arrowUp', 16)} Logging this counts toward Nutrition (50%) and closes 1 of ${S.remainingCount} remaining tonight.</div>`}
+    ${already ? '' : `<div class="score-change">${icon('arrowUp', 16)} Logging this counts toward Nutrition (${liveWeightPct('nutrition')}%) and closes 1 of ${S.remainingCount} remaining tonight.</div>`}
 
     <div style="height:20px"></div>
     <div class="btn-row">
