@@ -269,7 +269,9 @@ const KIND_DEFAULTS = {
   lift:      { icon: 'bolt', accent: 'b', proof: 'check', required: true, impact: { kind: 'plan' }, reminder: 'medium', freq: { type: 'daily' } },
   recovery:  { icon: 'moon', accent: 'p', proof: 'form', required: true, impact: { kind: 'component', comp: 'recovery' }, reminder: 'high', freq: { type: 'daily' } },
   weigh:     { icon: 'scale', accent: 'a', proof: 'scale', required: true, impact: { kind: 'trend' }, reminder: 'high', freq: { type: 'days', days: [1, 3, 5], label: 'Mon / Wed / Fri' } },
-  checkin:   { icon: 'clipboard', accent: 'g', proof: 'form', required: true, impact: { kind: 'component', comp: 'checkin' }, reminder: 'high', freq: { type: 'weekly', day: 0, label: 'Sundays' }, route: 'checkin' },
+  // v2: no `checkin` entry — the weekly check-in ritual is deleted (Task 7). A stored item that
+  // still carries kind:'checkin' (a pre-cutover row) now falls through to `custom` below, same as
+  // any other unknown kind, so it can never resurrect the deleted screen's route.
   custom:    { icon: 'clipboard', accent: 'b', proof: 'check', required: true, impact: { kind: 'plan' }, reminder: 'medium', freq: { type: 'daily' } },
 };
 

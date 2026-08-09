@@ -16,7 +16,7 @@
    coach-ob/8 render AFTER account creation (the router's role
    mirror-guard exempts AUTH_ROUTES). Nothing else is needed.
    ============================================================ */
-import { RT, act } from '../state.js';
+import { RT, act, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
 import { esc } from '../components.js';
 import {
@@ -315,10 +315,8 @@ const steps = [
         ${phoneCard('Score breakdown', `
           <div style="display:flex;justify-content:center;padding:4px 0 10px">${meter(91, { size: 120, value: '91', label: 'Today', uid: 'obk-brk' })}</div>
           <div class="comp-read">
-            <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">Nutrition</div><div class="cv">50% — meals logged and graded to your standard</div></div>
-            <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">Recovery</div><div class="cv">25% — sleep and recovery check-in</div></div>
-            <div class="cr"><div class="ci warn">${icon('clock', 13)}</div><div class="ck">Commitment</div><div class="cv">15% — dinner logged late tonight</div></div>
-            <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">Check-in</div><div class="cv">10% — showed up today</div></div>
+            <div class="cr"><div class="ci warn">${icon('clock', 13)}</div><div class="ck">Nutrition</div><div class="cv">${liveWeightPct('nutrition')}% — meals logged and graded to your standard, dinner logged late tonight</div></div>
+            <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">Recovery</div><div class="cv">${liveWeightPct('checkin') + liveWeightPct('recovery')}% — sleep, recovery, and tonight's check-in</div></div>
           </div>`)}
       </div>`,
     mount(root) {

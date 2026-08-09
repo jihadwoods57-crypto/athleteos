@@ -12,7 +12,7 @@
  * warning; its STATE can be). */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CATALOG, IMPACT_LABEL } from './requirements.js';
+import { CATALOG, IMPACT_LABEL, catalogFromItems } from './requirements.js';
 
 const ACCENT_FOR_COMP = { nutrition: 'g', recovery: 'p', checkin: 'c', commitment: 'b' };
 
@@ -66,4 +66,17 @@ test('no requirement routes to the deleted weekly check-in screen', () => {
 
 test('IMPACT_LABEL has no weekly check-in entry', () => {
   assert.equal(Object.prototype.hasOwnProperty.call(IMPACT_LABEL, 'checkin'), false);
+});
+
+test('a stored item that still carries kind:checkin never routes to the deleted screen', () => {
+  // Task 8: KIND_DEFAULTS.checkin (which carried route:'checkin') is gone. A pre-cutover
+  // requirement_sets row can still have an item shaped like this; it must fall through to
+  // the 'custom' default — which has no route — rather than resurrect the deleted screen
+  // (screens/requirement.js:17's catalogFromItems(...).find(...) fallback would otherwise
+  // emit a dangling data-go="checkin").
+  const [req] = catalogFromItems([
+    { id: 'weekly', title: 'Weekly Check-In', kind: 'checkin', proof: 'form', freq: { type: 'weekly', day: 0, label: 'Sundays' }, window: { due: 1260 } },
+  ]);
+  assert.notEqual(req.route, 'checkin', 'a stale checkin-kind item still routes to the deleted screen');
+  assert.equal(req.route, undefined, 'a stale checkin-kind item should carry no route at all (falls to custom)');
 });

@@ -66,9 +66,8 @@ function recoveryItem() {
   return { id: 'recovery', title: 'Recovery Check-In', kind: 'recovery', proof: 'form', freq: { type: 'daily' }, window: { due: 1410, label: 'Before bed' } };
 }
 
-function checkinItem() {
-  return { id: 'weekly', title: 'Weekly Check-In', kind: 'checkin', proof: 'form', freq: { type: 'weekly', day: 0, label: 'Sundays' }, window: { due: 1260 } };
-}
+// v2: no checkinItem() — the weekly check-in ritual is deleted (Task 7) and recovery is never
+// a coach-toggleable item (Task 8), so every seed just carries recoveryItem() unconditionally.
 
 // Built once at module load. seedTemplates() below always hands back deep copies of this,
 // so a caller mutating a returned seed can never corrupt what the next caller receives.
@@ -78,14 +77,12 @@ const SEEDS = [
     liftItem(3),
     weighItem('mwf'),
     recoveryItem(),
-    checkinItem(),
   ] },
   { name: 'Off-season', kind: 'off_season', items: [
     ...mealItems(STANDARD_MEAL_WINDOWS),
     liftItem(4),
     weighItem('mwf'),
     recoveryItem(),
-    checkinItem(),
   ] },
   { name: 'Travel', kind: 'travel', items: [
     ...mealItems(TRAVEL_MEAL_WINDOWS),
@@ -96,27 +93,23 @@ const SEEDS = [
     liftItem(1),
     weighItem('mwf'),
     recoveryItem(),
-    checkinItem(),
   ] },
   { name: 'Weight gain', kind: 'weight_gain', items: [
     ...mealItems(STANDARD_MEAL_WINDOWS, [{ due: 1290 }, { due: 1350 }]),
     liftItem(4),
     weighItem('daily'),
     recoveryItem(),
-    checkinItem(),
   ] },
   { name: 'Weight loss', kind: 'weight_loss', items: [
     ...mealItems(STANDARD_MEAL_WINDOWS),
     liftItem(4),
     weighItem('daily'),
     recoveryItem(),
-    checkinItem(),
   ] },
   { name: 'Injured', kind: 'injured', items: [
     ...mealItems(STANDARD_MEAL_WINDOWS),
     weighItem('daily'),
     recoveryItem(),
-    checkinItem(),
   ] },
 ];
 

@@ -19,7 +19,7 @@
    therefore NOT forced off `obf/*`, so the spec order stands:
    proof → connect → account → covered/plans → destination.
    ============================================================ */
-import { RT, act, computeScore } from '../state.js';
+import { RT, act, computeScore, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
 import { esc } from '../components.js';
 import {
@@ -211,7 +211,7 @@ const steps = [
         <div style="height:12px"></div>
         ${phoneCard('The system', `<div class="comp-read">
           ${row('camera', 'One photo per meal', 'AI reads foods, portions, and macros in seconds')}
-          ${row('bars', 'One Daily Score', 'Nutrition 50 · recovery 25 · commitment 15 · check-in 10')}
+          ${row('bars', 'One Daily Score', `Nutrition ${liveWeightPct('nutrition')} · recovery ${liveWeightPct('checkin') + liveWeightPct('recovery')}`)}
           ${row('eye', 'A witness', 'Your trainer — or the AI — sees the score, not a story')}
         </div>`)}`;
     } },

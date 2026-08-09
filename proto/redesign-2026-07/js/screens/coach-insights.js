@@ -47,8 +47,11 @@ async function loadInsights(teamId, force) {
    (weeklyBrief/mostMissed branch on req.kind === 'meal'/'weigh'/'checkin') — CATALOG itself
    carries no `kind` field (see requirements.js). Anything not listed here (recovery,
    hydration) is honestly counted through its own tasks_done id instead, same as the server
-   does for those items — no fabricated kind, just a coarser real signal. */
-const CATALOG_KIND = { breakfast: 'meal', lunch: 'meal', dinner: 'meal', weight: 'weigh', weekly: 'checkin' };
+   does for those items — no fabricated kind, just a coarser real signal. v2: no 'weekly' entry
+   — the weekly check-in ritual (and its CATALOG id) is deleted (Task 7); insights.js's
+   req.kind === 'checkin' branch now only ever sees kind:'checkin' on a pre-cutover stored item,
+   never a live CATALOG one. */
+const CATALOG_KIND = { breakfast: 'meal', lunch: 'meal', dinner: 'meal', weight: 'weigh' };
 
 /* reqsByAthlete for the insights engine: {id, title, kind, required, freq, ...} per roster
    athlete, using the EXACT governance resolveRequirementSet already gives entriesFor

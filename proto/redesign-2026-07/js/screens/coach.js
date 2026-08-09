@@ -1,4 +1,4 @@
-import { S, RT, act, fmtClock, nutritionConfigForGoal } from '../state.js';
+import { S, RT, act, fmtClock, nutritionConfigForGoal, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
 import { accentVar, scoreColor, ON_STANDARD } from '../score-band.js';
 import { backHead, titleHead, esc, safeImg, composer, sparkline, emptyState, errorState, skeletonRows, emailVerifyBanner, wireEmailVerifyBanner } from '../components.js';
@@ -342,7 +342,7 @@ export const coachPlan = {
         <div class="lrow" data-go="coach-plan-set/team">
           <div class="lic" style="background:var(--surface-3);color:var(--text-2);font-weight:800;font-size:12px">CL</div>
           <div class="lm"><div class="lt">Your Client Standard${rows && rows.length ? ` <small style="color:var(--text-3);font-weight:700">· ${rows.length}</small>` : ''}</div>
-          <div class="ls">${practiceSet ? esc(setSummary(practiceSet.items)) : 'Built-in · 3 meals, recovery, weekly check-in'}</div></div>
+          <div class="ls">${practiceSet ? esc(setSummary(practiceSet.items)) : 'Built-in · 3 meals, recovery'}</div></div>
           ${practiceSet ? '<span class="status-pill b">Custom</span>' : ''}
           ${icon('chevron', 17, 'style="color:var(--text-3)"')}
         </div>
@@ -432,7 +432,7 @@ export const coachPlan = {
         <div class="lrow" data-go="coach-plan-set/team">
           <div class="lic" style="background:var(--surface-3);color:var(--text-2);font-weight:800;font-size:12px">TM</div>
           <div class="lm"><div class="lt">Your Team Standard${teamCount ? ` <small style="color:var(--text-3);font-weight:700">· ${teamCount}</small>` : ''}</div>
-          <div class="ls">${teamSet ? esc(setSummary(teamSet.items)) : 'Built-in · 3 meals, recovery, weekly check-in'}</div></div>
+          <div class="ls">${teamSet ? esc(setSummary(teamSet.items)) : 'Built-in · 3 meals, recovery'}</div></div>
           ${teamSet ? '<span class="status-pill b">Custom</span>' : ''}
           ${icon('chevron', 17, 'style="color:var(--text-3)"')}
         </div>
@@ -714,7 +714,7 @@ const LIFT_DAYS = { 1: [2], 2: [2, 4], 3: [1, 3, 5], 4: [1, 2, 4, 5], 5: [1, 2, 
 // snack, which is what the "snack is optional" toggle marks as a bonus.
 const MEAL_NAMES = ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Meal 5', 'Meal 6'];
 const MEAL_WINDOWS = [{ open: 420, due: 570 }, { open: 720, due: 840 }, { open: 1080, due: 1230 }, { due: 1290 }, { due: 1320 }, { due: 1350 }];
-let KNOB = null; // { key, meals, lifts, weigh, recovery, checkin }
+let KNOB = null; // { key, meals, lifts, weigh } — v2: recovery is never a knob (see below)
 
 // Weekday short names by JS getDay() index (0 = Sunday) — the one label source for weigh cadence.
 const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -744,8 +744,9 @@ export function knobsFromItems(items) {
     // reads back as 'custom' with its exact days selected — same schedule, now editable per-day.
     weigh: weigh ? (weighDaily ? 'daily' : 'custom') : 'off',
     weighDays: (weigh && weigh.freq && Array.isArray(weigh.freq.days)) ? weigh.freq.days.slice() : [1, 3, 5],
-    recovery: items.some(i => i.kind === 'recovery'),
-    checkin: items.some(i => i.kind === 'checkin'),
+    // v2: recovery is part of the standard and is never read from a stored config. Rooms saved
+    // before the cutover may carry recovery:false (or a weekly-checkin item); honouring either
+    // would score those athletes on a formula nobody else is on. See the score v2 spec §15.
     // Per-meal proof (Tier 2): read each meal's own proof; photoProof stays as the "all photo?"
     // summary the master toggle reads/writes. mealProofs is the authoritative per-meal source.
     photoProof: mealItems.length ? mealItems.every(m => m.proof === 'photo') : true,
@@ -833,8 +834,9 @@ export function itemsFromKnobs(k) {
       freq: daily ? { type: 'daily' } : { type: 'days', days, label: weighLabel(days) }, window: { due: 540 },
     });
   }
-  if (k.recovery) items.push({ id: 'recovery', title: 'Recovery Check-In', kind: 'recovery', proof: 'form', freq: { type: 'daily' }, window: { due: 1410, label: 'Before bed' } });
-  if (k.checkin) items.push({ id: 'weekly', title: 'Weekly Check-In', kind: 'checkin', proof: 'form', freq: { type: 'weekly', day: 0, label: 'Sundays' }, window: { due: 1260 } });
+  // v2: recovery is part of the standard, not a coach-toggleable item — every standard carries
+  // it. The weekly check-in ritual is gone; no item of that kind is ever written again.
+  items.push({ id: 'recovery', title: 'Recovery Check-In', kind: 'recovery', proof: 'form', freq: { type: 'daily' }, window: { due: 1410, label: 'Before bed' } });
   return items;
 }
 
@@ -909,10 +911,14 @@ export const coachPlanSet = {
     const sets = SETS && SETS.rows ? SETS.rows : [];
     const existing = sets.find(s => s.scope_kind === kind && String(s.scope_value || '').trim().toUpperCase() === (value || '').toUpperCase())
       || (kind === 'team' ? sets.find(s => s.scope_kind === 'team') : null);
+    // v2: recovery is part of the standard and is never read from a stored config. Rooms saved
+    // before the cutover may carry recovery:false; honouring it would score those athletes on a
+    // formula nobody else is on. See the score v2 spec §15. knobsFromItems no longer reads a
+    // stored recovery/checkin value at all, so hydrating from `existing` can't resurrect either.
     if (!KNOB || KNOB.key !== key) {
       KNOB = existing
         ? { key, ...knobsFromItems(existing.items) }
-        : { key, meals: 3, lifts: 0, weigh: 'custom', weighDays: [1, 3, 5], recovery: true, checkin: true, photoProof: true };
+        : { key, meals: 3, lifts: 0, weigh: 'custom', weighDays: [1, 3, 5], photoProof: true };
     }
     // Slice F: position coaches and view-only staff SEE the governing standard but don't
     // edit it (founder matrix; 0078's set_team_requirements would bounce the save anyway).
@@ -972,7 +978,7 @@ export const coachPlanSet = {
         ${sumChip('utensils', `<b>${KNOB.meals}</b> meal${KNOB.meals === 1 ? '' : 's'}`)}
         ${KNOB.photoProof ? sumChip('camera', 'Photo proof') : ''}
         ${KNOB.weigh !== 'off' ? sumChip('scale', KNOB.weigh === 'daily' ? 'Daily weigh' : `${weighLabel(KNOB.weighDays)} weigh`) : ''}
-        ${KNOB.recovery ? sumChip('moon', 'Recovery') : ''}
+        ${sumChip('moon', 'Recovery')}
       </div>
 
       <section class="std-mod">
@@ -1031,9 +1037,8 @@ export const coachPlanSet = {
       </section>
 
       <section class="std-mod">
-        ${modHead('moon', 'std-ic-p', 'Recovery &amp; check-ins', 'Scored pillars and your review preference')}
-        ${swRow('Recovery check-in', 'Nightly · 25% of the score', 'recovery', KNOB.recovery)}
-        ${swRow('Weekly check-in', 'Sundays · 10% of the score', 'checkin', KNOB.checkin)}
+        ${modHead('moon', 'std-ic-p', 'Recovery', 'Part of the standard — every athlete closes the day')}
+        <div class="std-help">The nightly check-in is ${liveWeightPct('checkin') + liveWeightPct('recovery')}% of the score. You set what it asks; you don't set whether it counts.</div>
         ${swRow('Coach review on meals', 'Flag each logged meal for your review', 'review', KNOB.coachReview)}
       </section>
 
@@ -1209,9 +1214,9 @@ export const coachPlanSet = {
       // Weigh: off / daily / custom. Entering custom seeds days from the current selection (or M/W/F).
       if (k === 'weigh') { KNOB.weigh = arg; if (arg === 'custom' && !(Array.isArray(KNOB.weighDays) && KNOB.weighDays.length)) KNOB.weighDays = [1, 3, 5]; }
       // Switch rows emit ":toggle" (flip); the legacy ":1"/":0" path is kept for safety.
+      // v2: no data-knob="recovery:*" / "checkin:*" element exists anymore — recovery is never
+      // a toggle (see the standard editor's Recovery section) and the weekly check-in is deleted.
       const tog = (v) => (arg === 'toggle' ? !v : arg === '1');
-      if (k === 'recovery') KNOB.recovery = tog(KNOB.recovery);
-      if (k === 'checkin') KNOB.checkin = tog(KNOB.checkin);
       // Master photo switch: set EVERY meal at once (per-meal pills override individually after).
       if (k === 'photo') { materializeMeals(); const allPhoto = KNOB.mealProofs.every(p => p === 'photo'); const nextP = allPhoto ? 'check' : 'photo'; KNOB.mealProofs = KNOB.mealProofs.map(() => nextP); KNOB.photoProof = nextP === 'photo'; }
       if (k === 'review') KNOB.coachReview = tog(KNOB.coachReview);
