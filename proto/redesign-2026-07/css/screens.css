@@ -877,6 +877,13 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
   -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 18px), transparent 100%);
   mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 18px), transparent 100%); }
 .ptabs::-webkit-scrollbar { display: none; }
+/* Once the strip has actually been scrolled, the LEFT edge is a hard cut through a word too
+   ("Overview" reading as "view"), so the fade becomes two-sided. Class-toggled rather than
+   always-on: at rest there is nothing off-screen to the left, and fading the first label there
+   would dim a tab for no reason. */
+.ptabs.scrolled {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 18px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 18px), transparent 100%); }
 
 /* An empty identity line ("Add your sport") is a control, not a caption — give it the tap
    affordance it was already promising. */
@@ -886,10 +893,121 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* Fluid, not a breakpoint. This was `@media (max-width: 380px)`, which misses 390px — the
    viewport of every iPhone from the 12 to the 15 — by ten pixels, so the strip still overflowed
    on the most common phone in the roster. A clamp has no edge to miss. */
-.ptabs { gap: clamp(12px, 4.2vw, 22px); }
-.ptabs .pt { padding:14px 4px 16px; min-height: 44px; box-sizing: border-box; display: flex; align-items: center; font-size: var(--t-base); font-weight: 700; color: var(--text-3); cursor: pointer; position: relative; }
+/* Four labels ("Today / Nutrition / Requirements / Food Memory") measure 378px against a 362px
+   viewport on a 402px phone. Trimming the gap and the per-tab side padding, neither of which was
+   doing visible work, lands the whole strip inside the fold on the common sizes; genuinely narrow
+   phones still scroll it, with the fade and the active-tab auto-scroll in plan.js. */
+.ptabs { gap: clamp(12px, 4vw, 22px); }
+.ptabs .pt { padding:14px 2px 16px; min-height: 44px; box-sizing: border-box; display: flex; align-items: center; font-size: var(--t-base); font-weight: 700; color: var(--text-3); cursor: pointer; position: relative; }
 .ptabs .pt.on { color: var(--text); }
 .ptabs .pt.on::after { content:''; position:absolute; left:0; right:0; bottom:-1px; height: 2.5px; border-radius: var(--r-micro); background: var(--blue-bright); }
+
+/* ================= Plan (2026-08-09 redesign) =================
+   The page used to be four tab-fulls of .card boxes: a card per targets strip, a card per rule
+   list, a card per memory group, each drawing its own edge around content that was already
+   grouped by its eyebrow. The primitives below give the same grouping with ONE hairline rhythm
+   and no boxes — the tab reads as one document, which is the whole point of Plan being the
+   definition of the standard rather than a folder of widgets. */
+
+/* The head's second line: state on the left, the interactive goal pill on the right. */
+.pl-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.pl-sub  { font-size: var(--t-sm); font-weight:600; color: var(--text-2); min-width:0; }
+
+/* The goal pill is a control, not a caption — it carries a caret and a real press state. */
+.pl-goalpill { display:inline-flex; align-items:center; gap:6px; flex:none; cursor:pointer;
+  border:1px solid var(--blue-border); color: var(--blue-bright); background:transparent;
+  border-radius: var(--r-pill); padding:7px 11px; font-size: var(--t-xs); font-weight:800;
+  letter-spacing:0.01em; min-height:32px; }
+.pl-goalpill .cv { transition: transform var(--dur-1) ease; display:inline-flex; }
+.pl-goalpill[aria-expanded="true"] { background: var(--blue-surface); }
+.pl-goalpill[aria-expanded="true"] .cv { transform: rotate(90deg); }
+.pl-goalpill:active { transform: scale(0.97); }
+
+/* The goal panel: a well, not a card — it belongs to the pill above it. */
+.pl-goalpanel { margin:10px 0 2px; padding:14px 16px; border-radius: var(--r-tile);
+  background: var(--surface-2); border:1px solid var(--hairline-soft); }
+.pl-gp-row { display:flex; align-items:baseline; justify-content:space-between; gap:14px; padding:7px 0; }
+.pl-gp-row + .pl-gp-row { border-top:1px solid var(--hairline-soft); }
+.pl-gp-k { font-size: var(--t-eyebrow); font-weight:800; letter-spacing:var(--track-key); text-transform:uppercase; color: var(--text-3); flex:none; }
+.pl-gp-v { font-size: var(--t-base); font-weight:700; text-align:right; min-width:0; overflow-wrap:anywhere; }
+.pl-gp-note { font-size: var(--t-sm); font-weight:600; color: var(--text-2); line-height:1.5; margin-top:10px; }
+
+/* One compact sentence carrying the whole standard. Sits directly under the head. */
+.pl-standard { font-size: var(--t-base); font-weight:600; color: var(--text-2); line-height:1.55; margin:14px 2px 0; }
+.pl-standard b { color: var(--text); font-weight:800; }
+/* `.link` is only styled under .eyebrow / .pl-grp / .est-note, so an inline action inside a
+   sentence rendered as plain body text — a control that doesn't look like one. */
+.pl-standard .link { color: var(--blue-bright); font-weight:700; cursor:pointer; }
+
+/* Group header INSIDE a tab — quieter than .eyebrow so a tab can have one eyebrow and several
+   groups without four competing uppercase labels down the page. */
+.pl-grp { display:flex; align-items:center; justify-content:space-between; gap:10px;
+  font-size: var(--t-eyebrow); font-weight:800; letter-spacing:var(--track-eyebrow); text-transform:uppercase;
+  color: var(--text-3); margin:20px 2px 4px; }
+.pl-grp .link { text-transform:none; letter-spacing:0.02em; font-size: var(--t-sm); font-weight:700; color: var(--blue-bright); cursor:pointer; }
+
+/* Boxless list: rows separated by a hairline, aligned to the page gutter. */
+.pl-list { padding:0 2px; }
+.pl-row { display:flex; align-items:center; gap:12px; padding:13px 0;
+  border-top:1px solid var(--hairline-soft); min-height:56px; }
+.pl-list > .pl-row:first-child { border-top:none; }
+.pl-row.tap { cursor:pointer; }
+.pl-row.tap:active { opacity:0.72; }
+.pl-row .plb { flex:1; min-width:0; }
+.pl-row .plt { font-size: var(--t-md); font-weight:800; display:flex; align-items:center; gap:6px; min-width:0; }
+.pl-row .plt > span.nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* WRAPS, deliberately. A requirement's sub carries three facts — frequency, deadline, proof —
+   and "Mon / Wed / Fri · by 9:00 AM · Scale entry" is longer than a phone row: with nowrap the
+   proof requirement, which is one of the three things this row exists to state, was the part
+   that got ellipsised away. The row grows instead. */
+.pl-row .pls { font-size: var(--t-sm); font-weight:600; color: var(--text-2); margin-top:2px;
+  line-height:1.4; overflow-wrap:anywhere; }
+.pl-row .plend { flex:none; display:flex; align-items:center; gap:8px; }
+
+/* The category tag: which scored part a rule feeds, WITHOUT restating the percentage on every
+   row (three meals each reading "Nutrition · 52% of score" made each meal look worth 52% — 156%
+   of a 100-point day). The weight is stated once, at the top of the tab.
+   The SCORED-CATEGORY strip itself reuses .macro-row.four — the design system's own 4-up density
+   step — rather than a fifth bespoke tile; only the value's hue is set per category. */
+.pl-tag { font-size: var(--t-eyebrow); font-weight:800; letter-spacing:var(--track-key); text-transform:uppercase;
+  padding:3px 7px; border-radius: var(--r-pill); background: var(--surface-2); color: var(--text-3); flex:none; }
+.pl-tag.g { color: var(--green-bright); } .pl-tag.p { color: var(--purple-bright); }
+.pl-tag.c { color: var(--cyan-bright); }  .pl-tag.b { color: var(--blue-bright); }
+
+/* The learn-a-usual prompt. Tinted and edged because it interrupts on purpose, but on the same
+   row rhythm as the list it sits above, so it stops out-shouting the content. */
+.pl-sug { display:flex; flex-direction:column; gap:10px; margin:2px 2px 4px; padding:13px 14px;
+  border-radius: var(--r-card-sm); background: var(--blue-surface); border:1px solid var(--blue-border); }
+.pl-sug .plt { font-size: var(--t-md); font-weight:800; display:flex; align-items:center; gap:7px; min-width:0; }
+.pl-sug .pls { font-size: var(--t-sm); font-weight:600; color: var(--text-2); margin-top:3px; line-height:1.45; }
+.pl-sug-a { display:flex; gap:8px; }
+
+/* Ask, at the foot of every Plan tab: one row, or two side by side when a coach exists. Both
+   destinations get identical weight and identical shape, so the pair reads as one control rather
+   than a card plus a button. */
+.pl-asks { display:grid; grid-template-columns:1fr; gap:10px; margin-top:22px; }
+.pl-asks.two { grid-template-columns:1fr 1fr; }
+.pl-ask { display:flex; align-items:center; gap:9px; cursor:pointer; min-width:0;
+  padding:0 13px; height:48px; border-radius: var(--r-card-sm);
+  background: var(--surface-2); border:1px solid var(--hairline); }
+.pl-ask:active { background: var(--surface-3); }
+.pl-ask .pa-i { color: var(--blue-bright); display:inline-flex; flex:none; }
+.pl-ask .pa-t { flex:1; min-width:0; font-size: var(--t-sm); font-weight:800;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* Suggested questions: real questions the engine can really answer, one tap each. The Plan tabs
+   no longer render these (the ask screen opens with them); it keeps them for its own use. */
+.pl-qs { display:flex; gap:8px; flex-wrap:wrap; padding:0 2px; }
+.pl-q { font-size: var(--t-sm); font-weight:700; color: var(--text-2); cursor:pointer;
+  background: var(--surface-2); border:1px solid var(--hairline); border-radius: var(--r-pill);
+  padding:8px 13px; min-height:36px; display:inline-flex; align-items:center; }
+.pl-q:active { transform: scale(0.97); background: var(--surface-3); }
+
+/* Ask thread answer block (plan-ask screen). */
+.pa-ans { border-radius: var(--r-tile); background: var(--surface-1); box-shadow: var(--sh-card); padding:14px 16px; }
+.pa-ans .pa-h { font-size: var(--t-md); font-weight:800; letter-spacing: var(--title-tight); }
+.pa-ans .pa-l { font-size: var(--t-base); font-weight:600; color: var(--text-2); line-height:1.55; margin-top:7px; }
+.pa-ans .pa-l.bullet { color: var(--text); font-weight:700; }
+.pa-ans .pa-chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
 
 /* ---- onboarding v2: back nav + segmented progress (replaces dots) ---- */
 .ob-nav{display:flex;align-items:center;gap:12px;padding:2px 0 16px}
