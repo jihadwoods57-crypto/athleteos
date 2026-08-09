@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { scoreFor, computeComponents, checkinReal, PROFILE_WEIGHTS, evidenceCeiling, hasNutritionEvidence } from './day.js';
+import {
+  scoreFor, computeComponents, checkinReal, PROFILE_WEIGHTS, evidenceCeiling, hasNutritionEvidence,
+  setDayStandard,
+} from './day.js';
+import { STD_SLOT_MAP } from './requirements.js';
 
 /* A day fixture. Protein target 180, four classic slots, all on time. */
 function day(over = {}) {
@@ -99,27 +103,92 @@ test('Intuitive + a check-in + no food earns zero nutrition credit — awareness
   assert.equal(c.nutrition, 0, 'no plate and no quick-add: awareness must not manufacture nutrition credit');
 });
 
-test('the write-path invariant: scoreFor(day) never exceeds evidenceCeiling(day)', () => {
+/* --------------------------------------------------------------------------------------------
+ * Round 2 (re-review, 2026-08-09): a 400k-case fuzz against the real engine found the shared
+ * `hasNutritionEvidence` gate still had two ways to disagree with the actual scoring path:
+ *  (a) it scanned the hardcoded classic MEAL_KEYS, not scoredSlotKeys(std) — a 5-/6-meal coach
+ *      standard's `meal-5`/`meal-6` slots (STD_SLOT_MAP, requirements.js) could score real
+ *      nutrition credit while the gate still saw nothing, erasing the whole day to a ceiling of 0.
+ *  (b) it counted any non-empty `slotMacros`, including a dup-flagged (photo-reuse) plate — the
+ *      0062 photo-hash wall exists specifically so a reused photo scores nothing; the old gate
+ *      handed it nutrition credit anyway.
+ * Both are now one thing: hasNutritionEvidence(day, std) routes every slot through mealScored
+ * (excludes dup) across scoredSlotKeys(std) (honors the standard). These tests pin the two
+ * counterexamples the fuzzer found, then sweep the general invariant across coach standards too.
+ * ------------------------------------------------------------------------------------------- */
+
+test('a dup-flagged plate is not nutrition evidence — the photo-reuse wall still walls', () => {
+  const d = day({
+    meals: { breakfast: true },
+    slotMacros: { breakfast: { protein: 45, flagged: 'dup' } },
+    planStyle: 'intuitive',
+  });
+  assert.equal(hasNutritionEvidence(d), false, 'a dup-flagged slot must not count as evidence');
+  const c = computeComponents(d);
+  assert.equal(c.nutrition, 0, 'reusing a photo must buy zero nutrition credit, not a third of it');
+  assert.equal(evidenceCeiling(d), 0, 'no real evidence on the day → no ceiling headroom');
+});
+
+test('a 6-meal coach standard: meal-5/meal-6 alone are real evidence, not an erased score', () => {
+  setDayStandard({ mealsRequired: 6, slots: STD_SLOT_MAP[6] });
+  try {
+    const d = day({ meals: { 'meal-5': true, 'meal-6': true }, scoringProfile: 'general', planStyle: 'guided' });
+    assert.equal(hasNutritionEvidence(d), true, 'meal-5/meal-6 must count under a 6-meal standard');
+    assert.ok(evidenceCeiling(d) > 0, 'the ceiling must not erase a real 6-meal-standard day to 0');
+    assert.ok(scoreFor(d) <= evidenceCeiling(d));
+  } finally {
+    setDayStandard(null); // never leak this module's STD into another test file
+  }
+});
+
+test('the write-path invariant: scoreFor(day) never exceeds evidenceCeiling(day), across coach standards', () => {
   const PROFILES = ['athlete', 'general', 'gain'];
   const STYLES = ['structured', 'guided', 'intuitive'];
-  const SHAPES = {
-    empty: () => day(),
-    quickAddOnly: () => day({ quickAdded: [true, true, true] }),
-    checkinOnly: () => day({ ...GOOD_CI }),
-    intuitiveCheckinOnlyNoFood: () => day({ ...GOOD_CI, planStyle: 'intuitive' }),
-    fullDay: () => day({ ...fed(180), ...GOOD_CI, dailyCommitment: 'yes' }),
-  };
-  for (const profile of PROFILES) {
-    for (const style of STYLES) {
-      for (const [label, make] of Object.entries(SHAPES)) {
-        const d = make();
-        d.scoringProfile = profile;
-        if (d.planStyle == null) d.planStyle = style; // explicit shapes (intuitive) keep their own stamp
-        const score = scoreFor(d);
-        const ceiling = evidenceCeiling(d);
-        assert.ok(score <= ceiling,
-          `${style}/${profile}/${label}: stored score ${score} exceeds evidence ceiling ${ceiling} — this is the exact server-side corruption Task 4's trigger would freeze in`);
+  const STANDARDS = [
+    { label: 'classic-4', std: null },
+    { label: '5-meal', std: { mealsRequired: 5, slots: STD_SLOT_MAP[5] } },
+    { label: '6-meal', std: { mealsRequired: 6, slots: STD_SLOT_MAP[6] } },
+  ];
+  let cases = 0;
+  try {
+    for (const { label: stdLabel, std } of STANDARDS) {
+      setDayStandard(std);
+      // The slots beyond the classic four (meal-5 [+ meal-6]) — the exact keys a hardcoded
+      // MEAL_KEYS check cannot see. Empty for the classic-4 standard.
+      const extraSlots = std ? std.slots.slice(4) : [];
+      const SHAPES = {
+        empty: () => day(),
+        quickAddOnly: () => day({ quickAdded: [true, true, true] }),
+        checkinOnly: () => day({ ...GOOD_CI }),
+        intuitiveCheckinOnlyNoFood: () => day({ ...GOOD_CI, planStyle: 'intuitive' }),
+        fullDay: () => day({ ...fed(180), ...GOOD_CI, dailyCommitment: 'yes' }),
+        dupFlaggedOnly: () => day({
+          meals: { breakfast: true },
+          slotMacros: { breakfast: { protein: 45, flagged: 'dup' } },
+        }),
+        ...(extraSlots.length ? {
+          // The reviewer's worst measured case: only the standard's NEW slots logged, nothing else.
+          extraSlotsOnly: () => day({ meals: Object.fromEntries(extraSlots.map((k) => [k, true])) }),
+        } : {}),
+      };
+      for (const profile of PROFILES) {
+        for (const style of STYLES) {
+          for (const [label, make] of Object.entries(SHAPES)) {
+            const d = make();
+            d.scoringProfile = profile;
+            if (d.planStyle == null) d.planStyle = style; // explicit shapes (intuitive) keep their own stamp
+            const score = scoreFor(d, std);
+            const ceiling = evidenceCeiling(d, std);
+            cases++;
+            assert.ok(score <= ceiling,
+              `${stdLabel}/${style}/${profile}/${label}: stored score ${score} exceeds evidence ceiling ${ceiling} — this is the exact server-side corruption Task 4's trigger would freeze in`);
+          }
+        }
       }
     }
+  } finally {
+    setDayStandard(null); // never leak module STD state into other test files
   }
+  // 3 profiles x 3 styles x (6 shapes on classic-4 + 7 shapes each on 5-meal and 6-meal) = 9 x 20 = 180
+  assert.equal(cases, 180, `expected a real sweep (180 cases), only ran ${cases}`);
 });

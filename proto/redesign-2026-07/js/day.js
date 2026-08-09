@@ -245,15 +245,25 @@ function legacyNutritionScore(day, std, proteinFrac, mealsFrac) {
   return Math.min(100, Math.round(proteinFrac * 65 + mealsFrac * 35));
 }
 
-/** Whether this day carries ANY nutrition evidence — a logged plate, saved slot macros, or a
- *  quick-add. This is the ONE shared gate `evidenceCeiling` and `partsNutritionScore`'s awareness
- *  credit must both read: two separate hand-written expressions for "did they log food" is exactly
- *  what let a quick-add-only day get clamped to a ceiling of 0 (quickAdded wasn't in the ceiling's
- *  check) while a check-in-only day unlocked Intuitive's awareness credit anyway (the engaged gate
- *  accepted a check-in as a substitute for food). Neither bug can recur if both read this. */
-export function hasNutritionEvidence(day) {
-  return MEAL_KEYS.some((k) => day.meals && day.meals[k]) ||
-    (day.slotMacros && Object.keys(day.slotMacros).length > 0) ||
+/** Whether this day carries ANY nutrition evidence — a slot that actually SCORES (mealScored:
+ *  logged AND not photo-reuse-flagged), across whatever slot set the governing coach standard
+ *  uses, or a quick-add. This is the ONE shared gate `evidenceCeiling` and `partsNutritionScore`'s
+ *  awareness credit must both read.
+ *
+ *  Two review rounds found two ways for a second hand-written "did they log food" check to drift
+ *  from the real scoring path:
+ *   (1) a raw `MEAL_KEYS.some(k => day.meals[k])` only ever sees the classic four slots. A 5- or
+ *       6-meal coach standard scores `meal-5`/`meal-6` too (scoredSlotKeys(std), STD_SLOT_MAP in
+ *       requirements.js) — those slots could earn real nutrition credit while this gate still saw
+ *       nothing, erasing the whole score. Fixed by scanning `scoredSlotKeys(std)`, the SAME set
+ *       `nutritionScore` scores, instead of the hardcoded classic four.
+ *   (2) a raw `day.slotMacros` non-empty check counted a dup-flagged plate as evidence — reusing a
+ *       photo bought nutrition credit the 0062 photo-hash wall exists specifically to deny. Fixed
+ *       by routing every slot through `mealScored`, which already excludes `flagged: 'dup'`.
+ *  `std` defaults to the module `STD`, exactly like `nutritionScore`/`computeComponents` — a
+ *  caller with a specific standard in hand (or a Node test) can still pass one explicitly. */
+export function hasNutritionEvidence(day, std = STD) {
+  return scoredSlotKeys(std).some((k) => mealScored(day, k)) ||
     (Array.isArray(day.quickAdded) && day.quickAdded.some(Boolean));
 }
 
@@ -300,7 +310,7 @@ function partsNutritionScore(day, std, knobs, proteinFrac, mealsFrac) {
   // athlete's own displayed score. Fixed at the source instead of raising the ceiling: awareness
   // now shares hasNutritionEvidence with evidenceCeiling, so a day with no food never has anything
   // to be "aware" of, on either the display or the write path.
-  const engaged = hasNutritionEvidence(day);
+  const engaged = hasNutritionEvidence(day, std);
   const awareCredit = n.awarenessScored && engaged
     ? awarenessScore(answeredSignals(day, checkinReal(day)), knobs, day.signalWeekRate)
     : 0;
@@ -386,9 +396,11 @@ export function gradeFor(s) { return s >= 90 ? 'A' : s >= 80 ? 'B' : s >= 70 ? '
  *  12. A commitment answer unlocks nothing — it no longer scores. `hasNutritionEvidence` is the
  *  SAME check partsNutritionScore's awareness gate uses — see its comment for why that matters:
  *  a quick-add-only day must count here, or a real logged day gets clamped to a lower stored score
- *  than the one the athlete's own screen just showed them. */
-export function evidenceCeiling(day) {
-  return (hasNutritionEvidence(day) ? 78 : 0) + (checkinReal(day) ? 24 : 0);
+ *  than the one the athlete's own screen just showed them. `std` defaults to the module STD, same
+ *  as `scoreFor`/`computeComponents`, so a 5-/6-meal coach standard's `meal-5`/`meal-6` slots are
+ *  evidence here too — a hardcoded classic-four check would erase the whole score on that room. */
+export function evidenceCeiling(day, std = STD) {
+  return (hasNutritionEvidence(day, std) ? 78 : 0) + (checkinReal(day) ? 24 : 0);
 }
 export function clampedScore(day) { return Math.min(scoreFor(day), evidenceCeiling(day)); }
 
