@@ -5,22 +5,31 @@
 // server recompute (0029/0193 warn a partial port mis-scores everyone). A live what-if simulator reuses
 // proto/breakdown-model.js and is a follow-up (the engine must be wired into web/admin first).
 //
-// PROFILE_WEIGHTS is IMPORTED from proto/redesign-2026-07/js/plan-style.js, not redeclared — this page
-// was the sixth of nine independent v1 copies of the weights this project has been eliminating, and a
-// stale copy on the one page whose job is to be the source of truth is worse than no page at all.
-// scoring.test.mjs pins the import to the engine's PROFILE_WEIGHTS so the two cannot silently drift.
+// PROFILE_WEIGHTS and WEIGHT_CAPS are IMPORTED from proto/redesign-2026-07/js/plan-style.js, not
+// redeclared — this page was the sixth of nine independent v1 copies of the weights this project
+// has been eliminating, and a stale copy on the one page whose job is to be the source of truth is
+// worse than no page at all. scoring.test.mjs pins both imports to the engine's so they cannot
+// silently drift, and every percent string below is computed from them at render time.
 import { $, h, card, row, badge, emptyState } from '../ui.js';
 
-/* THE weights, imported from the shipped engine — never a second literal. The whole point of this
-   page is that the formula is inspectable, so a stale copy here is worse than no page.
-   scoring.test.mjs pins this import's value to the engine's, so the two can never silently drift. */
-export { PROFILE_WEIGHTS } from '../../../proto/redesign-2026-07/js/plan-style.js';
-import { PROFILE_WEIGHTS } from '../../../proto/redesign-2026-07/js/plan-style.js';
+/* THE weights AND caps, imported from the shipped engine — never a second literal. The whole point
+   of this page is that the formula is inspectable, so a stale copy here is worse than no page.
+   scoring.test.mjs pins both imports to the engine's, so they can never silently drift. Every
+   percentage printed below is COMPUTED from these two objects at render time — no number on this
+   page is typed as a literal string, because a caption or a ceiling row that reads a stale percent
+   next to a bar that reads the true one is the same drift bug this page exists to prevent. */
+export { PROFILE_WEIGHTS, WEIGHT_CAPS } from '../../../proto/redesign-2026-07/js/plan-style.js';
+import { PROFILE_WEIGHTS, WEIGHT_CAPS } from '../../../proto/redesign-2026-07/js/plan-style.js';
+
+/** 0-decimal percent, matching the bars' own formatting — the ONE place a fraction becomes a string. */
+const wpct = (v) => (v * 100).toFixed(0) + '%';
+/** The two athlete-visible pillars: Nutrition, and Recovery = checkin + recovery combined. */
+const recoveryPillarPct = (w) => wpct(w.checkin + w.recovery);
 
 const CONTRADICTIONS = [
   ['A new user marked overdue immediately', 'Guarded — activation.js: pre-activation required windows read "Not required", drop out of the denominator, never break streak (activation anchors to profiles.created_at).'],
   ['A negative verdict before the day is decided', 'Guarded — dayverdict.js dayDecided(): "Missed/Off Standard" only shows once no required time-windowed item is still open.'],
-  ['A perfect score despite missed requirements', 'Guarded — the server evidence ceiling (0193) clamps score DOWN to what evidence supports (nutrition 78 / a real check-in 24). Rows before 2026-08-16 keep the v1 ceiling (55 / 35 / 15) so frozen history is never re-clamped.'],
+  ['A perfect score despite missed requirements', `Guarded — the server evidence ceiling (0193) clamps score DOWN to what evidence supports (nutrition ${wpct(WEIGHT_CAPS.nutrition)} / a real check-in ${recoveryPillarPct(WEIGHT_CAPS)}). Rows before 2026-08-16 keep the v1 ceiling (55 / 35 / 15) so frozen history is never re-clamped.`],
   ['A deleted meal still affecting analysis', 'Guarded — deleted-food isolation (per-meal DB grounding); a removed meal leaves the denominator.'],
   ['One meal included in another meal’s AI analysis', 'Guarded — session contamination fix; each analyze-meal call is scoped to its own meal.'],
   ['A duplicate photo scoring twice', 'Guarded — 0062 photo-hash unique index; a duplicate-flagged slot scores 0 (dup).'],
@@ -32,12 +41,18 @@ function weightsCard(profile, w) {
     h('span', { class: 'k', text: label }),
     h('span', { class: 'v', style: 'display:flex; align-items:center; gap:8px' }, [
       h('span', { style: `display:inline-block; height:8px; width:${Math.round(v * 120)}px; border-radius:4px; background:var(--sig)` }),
-      h('span', { class: 'num', text: (v * 100).toFixed(0) + '%' }),
+      h('span', { class: 'num', text: wpct(v) }),
     ]),
   ]);
+  // Nutrition either sits at its own cap (general) or at the shared floor forced by recovery
+  // sitting at ITS cap (athlete/gain) — computed, not asserted, so this can't drift from the bars.
+  const atNutritionCap = w.nutrition >= WEIGHT_CAPS.nutrition - 1e-9;
   return card(`Profile · ${profile}`, [
     bar('Nutrition', w.nutrition), bar('Checked in tonight', w.checkin), bar('Answers', w.recovery),
-    h('p', { class: 'cap', text: `Commitment is 0 — the reflection is captured and shown to the coach, it just no longer scores. ${profile === 'general' ? 'general spends the freed-up slack pushing nutrition to its 78% cap.' : `${profile} sits at the 76% nutrition floor / 12% recovery cap — no headroom, do not change.`}` }),
+    h('p', { class: 'cap', text: `The athlete sees ONE Recovery pillar (${recoveryPillarPct(w)}) — split into "Checked in tonight" and "Answers" above only for engine inspection.` }),
+    h('p', { class: 'cap', text: `Commitment is 0 — the reflection is captured and shown to the coach, it just no longer scores. ${atNutritionCap
+      ? `${profile} spends the freed-up slack pushing nutrition to its ${wpct(WEIGHT_CAPS.nutrition)} cap.`
+      : `${profile} sits at the ${wpct(w.nutrition)} nutrition floor / ${wpct(w.recovery)} recovery cap — no headroom, do not change.`}` }),
   ]);
 }
 
@@ -52,7 +67,9 @@ function mount(view) {
   grid.appendChild(weightsCard('gain', PROFILE_WEIGHTS.gain));
 
   grid.appendChild(card('Server evidence ceiling (0193)', [
-    row('Nutrition (max)', '78'), row('Real check-in (max)', '24 — checkin (12) + recovery (12) combined'), row('Commitment (max)', '0 — no longer scored'),
+    row('Nutrition (max)', wpct(WEIGHT_CAPS.nutrition)),
+    row('Real check-in (max)', `${recoveryPillarPct(WEIGHT_CAPS)} — checkin (${wpct(WEIGHT_CAPS.checkin)}) + recovery (${wpct(WEIGHT_CAPS.recovery)}) combined`),
+    row('Commitment (max)', WEIGHT_CAPS.commitment > 0 ? wpct(WEIGHT_CAPS.commitment) : '0 — no longer scored'),
     h('p', { class: 'cap', text: 'A monotone BEFORE-insert trigger caps a fabricated over-report. The only server-side scoring logic — it caps, never recomputes. Date-guarded at 2026-08-16: rows on/after that date get this ceiling; rows before it keep the pre-cutover v1 union (nutrition 55 / checkin 35 / commitment 15) so no historical row can move.' }),
   ]));
   grid.appendChild(card('Rules', [
