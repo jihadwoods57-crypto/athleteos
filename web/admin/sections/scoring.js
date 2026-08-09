@@ -2,22 +2,25 @@
 // inspectable: the platform-owned weights per profile, the server evidence ceiling, the rules, the
 // version signals, and the CONTRADICTION CATALOG (each guard + how it's enforced). The number is
 // DETERMINISTIC and client-computed; the server only clamps DOWN to an evidence ceiling — there is NO
-// server recompute (0029/0041 warn a partial port mis-scores everyone). A live what-if simulator reuses
+// server recompute (0029/0193 warn a partial port mis-scores everyone). A live what-if simulator reuses
 // proto/breakdown-model.js and is a follow-up (the engine must be wired into web/admin first).
 //
-// Values MIRROR src/core/scoringProfiles.ts + scoreIntegrity.ts + proto day.js — SYNC on any change.
+// PROFILE_WEIGHTS is IMPORTED from proto/redesign-2026-07/js/plan-style.js, not redeclared — this page
+// was the sixth of nine independent v1 copies of the weights this project has been eliminating, and a
+// stale copy on the one page whose job is to be the source of truth is worse than no page at all.
+// scoring.test.mjs pins the import to the engine's PROFILE_WEIGHTS so the two cannot silently drift.
 import { $, h, card, row, badge, emptyState } from '../ui.js';
 
-const PROFILE_WEIGHTS = {
-  athlete: { nutrition: 0.50, recovery: 0.25, commitment: 0.15, checkin: 0.10 },
-  general: { nutrition: 0.55, recovery: 0.20, commitment: 0.15, checkin: 0.10 },
-  gain:    { nutrition: 0.55, recovery: 0.25, commitment: 0.10, checkin: 0.10 },
-};
+/* THE weights, imported from the shipped engine — never a second literal. The whole point of this
+   page is that the formula is inspectable, so a stale copy here is worse than no page.
+   scoring.test.mjs pins this import's value to the engine's, so the two can never silently drift. */
+export { PROFILE_WEIGHTS } from '../../../proto/redesign-2026-07/js/plan-style.js';
+import { PROFILE_WEIGHTS } from '../../../proto/redesign-2026-07/js/plan-style.js';
 
 const CONTRADICTIONS = [
   ['A new user marked overdue immediately', 'Guarded — activation.js: pre-activation required windows read "Not required", drop out of the denominator, never break streak (activation anchors to profiles.created_at).'],
   ['A negative verdict before the day is decided', 'Guarded — dayverdict.js dayDecided(): "Missed/Off Standard" only shows once no required time-windowed item is still open.'],
-  ['A perfect score despite missed requirements', 'Guarded — the server evidence ceiling (0041) clamps score DOWN to what evidence supports (nutrition 55 / checkin 35 / commitment 15).'],
+  ['A perfect score despite missed requirements', 'Guarded — the server evidence ceiling (0193) clamps score DOWN to what evidence supports (nutrition 78 / a real check-in 24). Rows before 2026-08-16 keep the v1 ceiling (55 / 35 / 15) so frozen history is never re-clamped.'],
   ['A deleted meal still affecting analysis', 'Guarded — deleted-food isolation (per-meal DB grounding); a removed meal leaves the denominator.'],
   ['One meal included in another meal’s AI analysis', 'Guarded — session contamination fix; each analyze-meal call is scoped to its own meal.'],
   ['A duplicate photo scoring twice', 'Guarded — 0062 photo-hash unique index; a duplicate-flagged slot scores 0 (dup).'],
@@ -33,8 +36,8 @@ function weightsCard(profile, w) {
     ]),
   ]);
   return card(`Profile · ${profile}`, [
-    bar('Nutrition', w.nutrition), bar('Recovery', w.recovery), bar('Commitment', w.commitment), bar('Check-in', w.checkin),
-    h('p', { class: 'cap', text: profile === 'athlete' ? 'The shipped .50/.25/.15/.10 (do not change).' : 'v1 default — pending founder/RD sign-off.' }),
+    bar('Nutrition', w.nutrition), bar('Checked in tonight', w.checkin), bar('Answers', w.recovery),
+    h('p', { class: 'cap', text: `Commitment is 0 — the reflection is captured and shown to the coach, it just no longer scores. ${profile === 'general' ? 'general spends the freed-up slack pushing nutrition to its 78% cap.' : `${profile} sits at the 76% nutrition floor / 12% recovery cap — no headroom, do not change.`}` }),
   ]);
 }
 
@@ -48,15 +51,15 @@ function mount(view) {
   grid.appendChild(weightsCard('general', PROFILE_WEIGHTS.general));
   grid.appendChild(weightsCard('gain', PROFILE_WEIGHTS.gain));
 
-  grid.appendChild(card('Server evidence ceiling (0041)', [
-    row('Nutrition (max)', '55'), row('Check-in (max)', '35'), row('Commitment (max)', '15'),
-    h('p', { class: 'cap', text: 'A monotone BEFORE-insert trigger caps a fabricated over-report. The only server-side scoring logic — it caps, never recomputes.' }),
+  grid.appendChild(card('Server evidence ceiling (0193)', [
+    row('Nutrition (max)', '78'), row('Real check-in (max)', '24 — checkin (12) + recovery (12) combined'), row('Commitment (max)', '0 — no longer scored'),
+    h('p', { class: 'cap', text: 'A monotone BEFORE-insert trigger caps a fabricated over-report. The only server-side scoring logic — it caps, never recomputes. Date-guarded at 2026-08-16: rows on/after that date get this ceiling; rows before it keep the pre-cutover v1 union (nutrition 55 / checkin 35 / commitment 15) so no historical row can move.' }),
   ]));
   grid.appendChild(card('Rules', [
-    row('Commitment (one-tap)', 'yes=100 · partial=60 · no=0'),
+    row('Daily reflection', 'Captured and shown to the coach · worth 0 points — an honest "no" costs nothing'),
     row('Late meal credit', '0.5 (effectiveMealsLogged)'),
     row('Streak', 'grace + activation aware'),
-    row('Missing data', 'recovery/check-in only count with a real check-in (86 is a display fallback = 0)'),
+    row('Missing data', 'recovery and check-in only count when a check-in was submitted TODAY — nothing carries (86 is a display fallback = 0)'),
     row('Standard', 'requirement_sets (0055) reshape the nutrition denominator, resolved as-of-date'),
   ]));
   grid.appendChild(card('Version signals', [
