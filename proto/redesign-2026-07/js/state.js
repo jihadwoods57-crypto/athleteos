@@ -19,7 +19,7 @@ import {
   dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayLogWeight, dayResetLocal, dayCheckTask,
   insertMeal, MEAL_KEYS, minutesNow, mealScored,
   setDayStandard, slotDeadline, slotGrace, slotOpen, setDayGoalConfig, checkinReal,
-  setDayPlanStyle, weightsForDay, DAY_SELECT_COLS,
+  setDayPlanStyle, weightsForDay, DAY_SELECT_COLS, PROFILE_WEIGHTS,
 } from './day.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { activationInfo, parseActivation } from './activation.js';
@@ -185,11 +185,10 @@ export function liveWeights() { return weightsForDay(DAY); }
 export function liveWeightPct(comp) { return Math.round((liveWeights()[comp] || 0) * 100); }
 setImpactWeightsProvider(liveWeights);
 
-/* The Structured x athlete mix, kept ONLY as the documented grandfathering baseline and for
-   tests that pin it. It is identical to STYLE_WEIGHTS.structured.athlete, which is what makes
-   the alignment in computeScore() below a no-op for that population.
+/* The athlete-profile mix, kept ONLY as the documented grandfathering baseline and for tests
+   that pin it. Derived from the ONE owner (plan-style.js via day.js) so it can never drift.
    Nothing may print a percentage from here; use liveWeightPct(). */
-export const WEIGHTS = { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 };
+export const WEIGHTS = PROFILE_WEIGHTS.athlete;
 
 /* Weight's due time — read from the one catalog truth, never a second hardcoded copy. */
 const WEIGHT_DUE = CATALOG.find((r) => r.id === 'weight').window.due;
@@ -198,8 +197,8 @@ const WEIGHT_DUE = CATALOG.find((r) => r.id === 'weight').window.due;
    (day.js scoreFor -> weightsForDay), so S.score can no longer disagree with the breakdown
    that explains it — the contradiction this product can least afford.
 
-   This is NOT a scoring change: STYLE_WEIGHTS.structured.athlete is identical to WEIGHTS
-   above, so a Structured athlete's number is byte-for-byte unchanged (grandfathering holds).
+   This is NOT a scoring change: PROFILE_WEIGHTS.athlete is identical to WEIGHTS above, so an
+   athlete-profile account's number is byte-for-byte unchanged (grandfathering holds).
    For every other style/profile the engine ALREADY scored them on these weights; only the
    proto's displayed number was stale. */
 export function computeScore(c) {

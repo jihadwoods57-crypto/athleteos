@@ -9,12 +9,20 @@ import type { AppState } from './types';
 // proto is plain ESM JS (no types)
 // @ts-ignore — importing the proto's ported compute functions (allowJs)
 import { computeComponents, scoreFor } from '../../proto/redesign-2026-07/js/day.js';
+// @ts-ignore — the proto's own knobsFor, so a stamped test day carries the SAME knobs the live
+// app would resolve for that style, never a hand-rolled substitute (allowJs).
+import { knobsFor } from '../../proto/redesign-2026-07/js/plan-style.js';
 
 const MEAL_KEYS = ['breakfast', 'lunch', 'snack', 'dinner'] as const;
 
 // Map an AppState to the proto's DAY shape, mirroring the engine's evidence rule (mealSlotMacros):
 // showcase (blank name) → constant macros; real user → macros only if a plate exists.
-function toDay(s: AppState) {
+//
+// `planStyle` is a PROTO-ONLY axis — AppState / computeDerived have no concept of it, so RN always
+// scores the legacy formula regardless of what's passed here. Omitted (the default for every
+// fixture above the guided/intuitive describe block below), the day is unstamped and styleOf()
+// falls through to LEGACY_STYLE, exactly as before this parameter existed.
+function toDay(s: AppState, planStyle?: string | null) {
   const slotMacros: Record<string, unknown> = {};
   for (const k of MEAL_KEYS) {
     if (!s.meals[k]) continue;
@@ -41,12 +49,14 @@ function toDay(s: AppState) {
     proteinTarget: s.proteinTarget,
     calTarget: s.calTarget,
     scoringProfile: s.scoringProfile || 'athlete',
+    planStyle: planStyle || null,
+    planKnobs: planStyle ? knobsFor(planStyle, null) : null,
   };
 }
 
-function parity(label: string, s: AppState) {
+function parity(label: string, s: AppState, planStyle?: string | null) {
   const d = computeDerived(s);
-  const day = toDay(s);
+  const day = toDay(s, planStyle);
   const c = computeComponents(day);
   expect({ label, nutrition: c.nutrition }).toEqual({ label, nutrition: d.nutritionScore });
   expect({ label, recovery: c.recoveryContribution }).toEqual({ label, recovery: d.recoveryScoreIsReal ? d.recoveryScore : 0 });
@@ -106,4 +116,72 @@ describe('proto day.js ↔ RN engine score parity (general / gain profiles)', ()
     parity('gain-lin', cfg({ scoringProfile: 'gain', calTarget: 3000, meals: { ...full } })));
   it('gain: well under the floor (0 credit)', () =>
     parity('gain-under', cfg({ scoringProfile: 'gain', calTarget: 5000, meals: { breakfast: true, lunch: true } })));
+});
+
+// Every fixture above is UNSTAMPED, so styleOf() falls through to LEGACY_STYLE and this file has
+// only ever proven parity for the classic/structured formula. Plan style is a PROTO-ONLY axis —
+// AppState / computeDerived have no concept of it, so RN cannot be driven through Guided's range
+// curves or Intuitive's fueling-adequacy/awareness composition; there is no RN number to compare
+// a mid-range guided/intuitive day against. What CAN be proven, and what task-1's weight collapse
+// (STYLE_WEIGHTS -> PROFILE_WEIGHTS) needs proven, is the two points where every nutrition formula
+// — legacy, guided's parts, intuitive's parts — agrees by construction: a fully-executed day (every
+// sub-credit is 1, so any weighted composition sums to 100) and an untouched one (every sub-credit
+// is 0, so any composition sums to 0). Landing on the RN number at both ends, for a day actually
+// STAMPED guided/intuitive across all three profiles, is real coverage: it is what would catch a
+// stamped day silently mis-resolving PROFILE_WEIGHTS or double-counting a component under the new
+// profile-only lookup — the exact class of bug the athlete-profile-only sweep above cannot see.
+describe('proto day.js ↔ RN engine score parity (guided / intuitive style, all profiles)', () => {
+  const PROFILES = ['athlete', 'general', 'gain'] as const;
+  const STYLES = ['guided', 'intuitive'] as const;
+
+  // Exact-match macros: protein and calories hit the target with ZERO deviation, so every
+  // adherence curve in play (legacy's per-profile formula, guided's range bands, intuitive's
+  // fueling-adequacy floor) independently lands on full (1.0) credit — the one macro fixture
+  // that is formula-agnostic by construction, regardless of which style reads it.
+  const maxedDay = (profile: string): AppState => {
+    const per = { protein: 45, kcal: 800, carbs: 80, fat: 25 }; // x4 meals = 180g / 3200kcal
+    const mealFoods: Record<string, unknown> = {};
+    for (const k of MEAL_KEYS) mealFoods[k] = [{ name: 'Fixture meal', servings: 1, per }];
+    return {
+      ...createInitialState(),
+      athleteName: 'Real User',
+      scoringProfile: profile,
+      meals: { breakfast: true, lunch: true, snack: true, dinner: true },
+      mealFoods,
+      mealLoggedAt: { breakfast: 0, lunch: 0, snack: 0, dinner: 0 }, // every slot on time
+      proteinTarget: per.protein * 4,
+      calTarget: per.kcal * 4,
+      quickAdded: [false, false, false],
+      ciSubmitted: true,
+      // Maxed, not just submitted: createInitialState()'s realistic defaults (energy 8, recovery
+      // 7, sleep 8, confidence 9) only reach recoveryContribution 80, which would make this
+      // fixture's "every sub-credit is 1" claim false and silently pin the test to today's
+      // recovery WEIGHT instead of proving the boundary is weight-insensitive. All four enabled
+      // check-in questions (ciConfig defaults energy/recovery/sleep/confidence on) at the 0-10
+      // ceiling is what actually makes recoveryContribution 100 on both engines.
+      ciEnergy: 10,
+      ciRecovery: 10,
+      ciSleep: 10,
+      ciConfidence: 10,
+      dailyCommitment: 'yes',
+    } as unknown as AppState;
+  };
+
+  const emptyDay = (profile: string): AppState =>
+    ({
+      ...createInitialState(),
+      scoringProfile: profile,
+      meals: { breakfast: false, lunch: false, snack: false, dinner: false },
+      dailyCommitment: null,
+      ciSubmitted: false,
+    } as AppState);
+
+  for (const style of STYLES) {
+    for (const profile of PROFILES) {
+      it(`${style} x ${profile}: a fully-executed day scores 100 identically on both engines`, () =>
+        parity(`${style}-${profile}-full`, maxedDay(profile), style));
+      it(`${style} x ${profile}: an untouched day scores 0 identically on both engines`, () =>
+        parity(`${style}-${profile}-empty`, emptyDay(profile), style));
+    }
+  }
 });

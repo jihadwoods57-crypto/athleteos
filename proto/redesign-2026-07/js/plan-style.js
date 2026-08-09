@@ -63,45 +63,32 @@ export function resolveStyleKey(x) {
 
 /* ---------------------------------------------------------------- weights */
 
-/** Per-component ceiling, mirroring migration 0041's slots. NOTHING may exceed these. */
+/** Per-component ceiling, mirroring the migration-0041 successor's slots. NOTHING may exceed these. */
 export const WEIGHT_CAPS = { nutrition: 0.55, recovery: 0.25, commitment: 0.15, checkin: 0.1 };
 
 /**
- * Headline mix per (style x goal profile). The `structured` row is BYTE-IDENTICAL to
- * PROFILE_WEIGHTS in day.js / scoringProfiles.ts — that identity is what makes grandfathered
- * accounts provably unchanged (scoreParity.test.ts passes unmodified).
+ * Headline mix per goal profile. THE single source of truth for the proto — day.js and state.js
+ * re-export this; nothing else may declare a weight literal.
  *
- * Guided and Intuitive spend the small legal slack moving weight nutrition -> recovery: a more
- * flexible plan leans more on how the body is actually responding. The athlete row cannot move
- * (see the header note), so all three styles share it.
+ * Plan style no longer re-weights the score. It shapes HOW nutrition is computed (knobsFor), which
+ * is where it earns its keep; the three style rows were already byte-identical for the athlete
+ * profile and varied by 2-3 points elsewhere, which bought nothing.
  */
-export const STYLE_WEIGHTS = {
-  structured: {
-    athlete: { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 },
-    general: { nutrition: 0.55, recovery: 0.2, commitment: 0.15, checkin: 0.1 },
-    gain: { nutrition: 0.55, recovery: 0.25, commitment: 0.1, checkin: 0.1 },
-  },
-  guided: {
-    athlete: { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 }, // no headroom
-    general: { nutrition: 0.52, recovery: 0.23, commitment: 0.15, checkin: 0.1 },
-    gain: { nutrition: 0.53, recovery: 0.25, commitment: 0.12, checkin: 0.1 },
-  },
-  intuitive: {
-    athlete: { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 }, // no headroom
-    general: { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 },
-    gain: { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 },
-  },
+export const PROFILE_WEIGHTS = {
+  athlete: { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 },
+  general: { nutrition: 0.55, recovery: 0.2, commitment: 0.15, checkin: 0.1 },
+  gain: { nutrition: 0.55, recovery: 0.25, commitment: 0.1, checkin: 0.1 },
 };
 
-/** The headline mix for a (style, profile). Unknown either side falls back to the shipped athlete
- *  structured row, so a bad value can never produce a weightless — or over-weighted — day. */
+/** The headline mix for a (style, profile). `style` is accepted and ignored — the signature is
+ *  kept so no call site changes. An unknown profile falls back to athlete, so a bad value can
+ *  never produce a weightless or over-weighted day. */
 export function weightsFor(style, profile) {
-  const s = resolveStyleKey(style) || LEGACY_STYLE;
   const p = profile === 'general' || profile === 'gain' ? profile : 'athlete';
-  return STYLE_WEIGHTS[s][p];
+  return PROFILE_WEIGHTS[p];
 }
 
-/** True when every component is within its 0041 cap AND the mix sums to 1 (within float slop).
+/** True when every component is within its cap AND the mix sums to 1 (within float slop).
  *  Exported so the caps test can sweep every preset and every override permutation. */
 export function weightsWithinCaps(w) {
   if (!w) return false;

@@ -69,36 +69,23 @@ export interface StyleWeights {
   checkin: number;
 }
 
-/** Per-component ceiling, mirroring migration 0041's slots. NOTHING may exceed these. */
+/** Per-component ceiling. NOTHING may exceed these. Mirrors proto plan-style.js WEIGHT_CAPS. */
 export const WEIGHT_CAPS: StyleWeights = { nutrition: 0.55, recovery: 0.25, commitment: 0.15, checkin: 0.1 };
 
-/**
- * Headline mix per (style x goal profile). The `structured` row is BYTE-IDENTICAL to
- * PROFILE_WEIGHTS — that identity is what makes grandfathered accounts provably unchanged
- * (scoreParity.test.ts passes unmodified).
- */
-export const STYLE_WEIGHTS: Record<PlanStyle, Record<ScoringProfile, StyleWeights>> = {
-  structured: {
-    athlete: { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 },
-    general: { nutrition: 0.55, recovery: 0.2, commitment: 0.15, checkin: 0.1 },
-    gain: { nutrition: 0.55, recovery: 0.25, commitment: 0.1, checkin: 0.1 },
-  },
-  guided: {
-    athlete: { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 }, // no headroom
-    general: { nutrition: 0.52, recovery: 0.23, commitment: 0.15, checkin: 0.1 },
-    gain: { nutrition: 0.53, recovery: 0.25, commitment: 0.12, checkin: 0.1 },
-  },
-  intuitive: {
-    athlete: { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 }, // no headroom
-    general: { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 },
-    gain: { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 },
-  },
+/** Headline mix per goal profile. Plan style no longer re-weights the score — it shapes HOW
+ *  nutrition is computed (knobsFor). MUST equal proto plan-style.js PROFILE_WEIGHTS;
+ *  planStyleParity.test.ts asserts the two constant tables are identical. */
+export const PROFILE_WEIGHTS: Record<ScoringProfile, StyleWeights> = {
+  athlete: { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 },
+  general: { nutrition: 0.55, recovery: 0.2, commitment: 0.15, checkin: 0.1 },
+  gain: { nutrition: 0.55, recovery: 0.25, commitment: 0.1, checkin: 0.1 },
 };
 
-export function weightsFor(style: unknown, profile: unknown): StyleWeights {
-  const s = resolveStyleKey(style) || LEGACY_STYLE;
-  const p: ScoringProfile = profile === 'general' || profile === 'gain' ? (profile as ScoringProfile) : 'athlete';
-  return STYLE_WEIGHTS[s][p];
+/** The headline mix for a (style, profile). `style` is accepted and ignored — the signature is
+ *  kept so no call site changes. An unknown profile falls back to athlete. */
+export function weightsFor(style: PlanStyle | string | null | undefined, profile: ScoringProfile | string | null | undefined): StyleWeights {
+  const p = profile === 'general' || profile === 'gain' ? profile : 'athlete';
+  return PROFILE_WEIGHTS[p];
 }
 
 /** True when every component is within its 0041 cap AND the mix sums to 1 (within float slop). */

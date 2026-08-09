@@ -21,8 +21,8 @@ describe('constant tables are identical', () => {
     expect(PROTO.WEIGHT_CAPS).toEqual(CORE.WEIGHT_CAPS);
   });
 
-  test('the full style x profile weight matrix', () => {
-    expect(PROTO.STYLE_WEIGHTS).toEqual(CORE.STYLE_WEIGHTS);
+  test('the full profile weight matrix', () => {
+    expect(PROTO.PROFILE_WEIGHTS).toEqual(CORE.PROFILE_WEIGHTS);
   });
 
   test('nutrition parts, presets, signals and onboarding answers', () => {

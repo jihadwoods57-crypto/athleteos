@@ -17,8 +17,9 @@ function lateBadge(credit) { return credit >= 1 ? 'late (full credit)' : credit 
 function lateHint(credit) { return credit >= 1 ? 'log late, still full credit' : credit <= 0 ? 'logging late earns no credit now' : 'log late for half credit'; }
 
 const clone = (day) => JSON.parse(JSON.stringify(day));
-/* The headline mix is STYLE x profile aware — weightsForDay(day) is the same lookup the engine
-   scores with (day.js). A profile-only lookup would under-report Guided/Intuitive weights. */
+/* The headline mix is profile aware — weightsForDay(day) is the same lookup the engine scores
+   with (day.js). Style no longer re-weights the score (PROFILE_WEIGHTS is profile-only; style
+   shapes HOW nutrition is computed via knobsFor), so this reads identically for every style. */
 const weightsFor = (day) => weightsForDay(day);
 
 export function dayScoreOf(day) {

@@ -106,11 +106,14 @@ describe('headline weights per style x profile', () => {
     }
   });
 
-  test('Guided and Intuitive shift weight toward recovery where the caps allow', () => {
-    expect(weightsForDay(styled('guided', { scoringProfile: 'general' })).recovery)
-      .toBeGreaterThan((PROFILE_WEIGHTS as any).general.recovery);
-    expect(weightsForDay(styled('intuitive', { scoringProfile: 'general' })).recovery)
-      .toBeGreaterThan((PROFILE_WEIGHTS as any).general.recovery);
+  test('Guided and Intuitive no longer shift weight — style never re-weights the score', () => {
+    // Plan style used to move weight nutrition -> recovery for Guided/Intuitive on non-athlete
+    // profiles. It no longer does: PROFILE_WEIGHTS is the ONE headline mix, keyed by profile only,
+    // and style earns its keep entirely in knobsFor (HOW nutrition is computed), not the mix.
+    expect(weightsForDay(styled('guided', { scoringProfile: 'general' })))
+      .toEqual((PROFILE_WEIGHTS as any).general);
+    expect(weightsForDay(styled('intuitive', { scoringProfile: 'general' })))
+      .toEqual((PROFILE_WEIGHTS as any).general);
   });
 
   test('every resolved mix still sums to 1', () => {

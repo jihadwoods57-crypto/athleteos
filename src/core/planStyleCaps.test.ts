@@ -7,7 +7,7 @@
  * nor that constant knows plan styles exist.
  *
  * That is only safe while NO style pushes a component above its cap. This file is what makes it
- * safe: it sweeps every style x profile in STYLE_WEIGHTS and every reachable override permutation
+ * safe: it sweeps every style x profile through weightsFor and every reachable override permutation
  * of the knobs, asserting the caps hold and the mix still sums to 1. If a future founder tunes a
  * style past a cap, this fails LOUDLY here instead of silently loosening the server anti-tamper
  * bound for every user on the platform.
@@ -16,11 +16,11 @@
  * together, and understand that a tampered client gains exactly that much headroom.
  */
 import {
-  STYLE_KEYS, STYLE_WEIGHTS, WEIGHT_CAPS, PRESETS, NUTRITION_PARTS,
+  STYLE_KEYS, PROFILE_WEIGHTS, WEIGHT_CAPS, PRESETS, NUTRITION_PARTS,
   weightsFor, weightsWithinCaps, knobsFor, SIGNAL_KEYS,
   type PlanStyle,
 } from './planStyle';
-import { PROFILE_WEIGHTS } from './scoringProfiles';
+import { PROFILE_WEIGHTS as ENGINE_PROFILE_WEIGHTS } from './scoringProfiles';
 import { MAX_SUBSCORE_WEIGHT } from './scoreIntegrity';
 import type { ScoringProfile } from './types';
 
@@ -54,7 +54,7 @@ describe('plan-style weights can never breach the 0041 evidence ceiling', () => 
   });
 
   test('an unknown style or profile still resolves to a capped, valid mix', () => {
-    for (const bad of [null, undefined, '', 'keto', 'STRUCTURED ', 42]) {
+    for (const bad of [null, undefined, '', 'keto', 'STRUCTURED ', 42] as any[]) {
       expect(weightsWithinCaps(weightsFor(bad, 'athlete'))).toBe(true);
       expect(weightsWithinCaps(weightsFor('guided', bad))).toBe(true);
     }
@@ -62,10 +62,10 @@ describe('plan-style weights can never breach the 0041 evidence ceiling', () => 
 });
 
 describe('grandfathering is provable, not approximate', () => {
-  test('the structured row IS PROFILE_WEIGHTS, byte for byte', () => {
+  test('planStyle PROFILE_WEIGHTS IS the engine PROFILE_WEIGHTS, byte for byte', () => {
     // This identity is the whole proof that an existing account does not move on release day.
     for (const profile of PROFILES) {
-      expect(STYLE_WEIGHTS.structured[profile]).toEqual(PROFILE_WEIGHTS[profile]);
+      expect(PROFILE_WEIGHTS[profile]).toEqual(ENGINE_PROFILE_WEIGHTS[profile]);
     }
   });
 });

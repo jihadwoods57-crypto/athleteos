@@ -15,11 +15,7 @@ import {
 import { tierFor } from './score-band.js';
 
 /* ---------------- engine constants (ported exactly) ---------------- */
-export const PROFILE_WEIGHTS = {
-  athlete: { nutrition: 0.50, recovery: 0.25, commitment: 0.15, checkin: 0.10 },
-  general: { nutrition: 0.55, recovery: 0.20, commitment: 0.15, checkin: 0.10 },
-  gain:    { nutrition: 0.55, recovery: 0.25, commitment: 0.10, checkin: 0.10 },
-};
+export { PROFILE_WEIGHTS } from './plan-style.js';
 export const MEAL_KEYS = ['breakfast', 'lunch', 'snack', 'dinner'];
 export const DEADLINE = { breakfast: 570, lunch: 840, snack: 1020, dinner: 1230 }; // minutes from midnight
 /* The classic OPEN edge per slot — mirrors the CATALOG windows in requirements.js. A slot with
