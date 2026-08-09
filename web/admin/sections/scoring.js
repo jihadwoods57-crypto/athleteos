@@ -26,10 +26,28 @@ const wpct = (v) => (v * 100).toFixed(0) + '%';
 /** The two athlete-visible pillars: Nutrition, and Recovery = checkin + recovery combined. */
 const recoveryPillarPct = (w) => wpct(w.checkin + w.recovery);
 
+/* The pre-cutover (rows before 2026-08-16) evidence ceiling is the v1/v2 UNION, componentwise
+   max — same math as scoreIntegrity.ts's PRE_CUTOVER_CEILING (unexported, can't be imported
+   without touching the scoring engine, so it's derived here instead of copied by hand). The
+   nutrition slot is genuinely derived from WEIGHT_CAPS, the one v1 constant this page can import;
+   V1_NUTRITION_CEILING is the one literal that has to stay a literal — v1's own caps were
+   deleted with the v1 engine, so there is nothing left importable to derive it from. checkin+
+   recovery and commitment don't need deriving: v2's caps for both (WEIGHT_CAPS.checkin +
+   WEIGHT_CAPS.recovery, and WEIGHT_CAPS.commitment) are already below their v1 numbers, so the
+   union is just the v1 side. */
+const V1_NUTRITION_CEILING = 55;
+const V1_CHECKIN_RECOVERY_CEILING = 35;
+const V1_COMMITMENT_CEILING = 15;
+const preCutoverCeilingPct = () => ({
+  nutrition: Math.round(Math.max(V1_NUTRITION_CEILING, WEIGHT_CAPS.nutrition * 100)),
+  checkinAndRecovery: Math.round(Math.max(V1_CHECKIN_RECOVERY_CEILING, (WEIGHT_CAPS.checkin + WEIGHT_CAPS.recovery) * 100)),
+  commitment: Math.round(Math.max(V1_COMMITMENT_CEILING, WEIGHT_CAPS.commitment * 100)),
+});
+
 const CONTRADICTIONS = [
   ['A new user marked overdue immediately', 'Guarded — activation.js: pre-activation required windows read "Not required", drop out of the denominator, never break streak (activation anchors to profiles.created_at).'],
   ['A negative verdict before the day is decided', 'Guarded — dayverdict.js dayDecided(): "Missed/Off Standard" only shows once no required time-windowed item is still open.'],
-  ['A perfect score despite missed requirements', `Guarded — the server evidence ceiling (0193) clamps score DOWN to what evidence supports (nutrition ${wpct(WEIGHT_CAPS.nutrition)} / a real check-in ${recoveryPillarPct(WEIGHT_CAPS)}). Rows before 2026-08-16 keep the v1 ceiling (55 / 35 / 15) so frozen history is never re-clamped.`],
+  ['A perfect score despite missed requirements', `Guarded — the server evidence ceiling (0193) clamps score DOWN to what evidence supports (nutrition ${wpct(WEIGHT_CAPS.nutrition)} / a real check-in ${recoveryPillarPct(WEIGHT_CAPS)}). Rows before 2026-08-16 keep the pre-cutover union (${preCutoverCeilingPct().nutrition} / ${preCutoverCeilingPct().checkinAndRecovery} / ${preCutoverCeilingPct().commitment}) so frozen history is never re-clamped.`],
   ['A deleted meal still affecting analysis', 'Guarded — deleted-food isolation (per-meal DB grounding); a removed meal leaves the denominator.'],
   ['One meal included in another meal’s AI analysis', 'Guarded — session contamination fix; each analyze-meal call is scoped to its own meal.'],
   ['A duplicate photo scoring twice', 'Guarded — 0062 photo-hash unique index; a duplicate-flagged slot scores 0 (dup).'],
@@ -70,7 +88,7 @@ function mount(view) {
     row('Nutrition (max)', wpct(WEIGHT_CAPS.nutrition)),
     row('Real check-in (max)', `${recoveryPillarPct(WEIGHT_CAPS)} — checkin (${wpct(WEIGHT_CAPS.checkin)}) + recovery (${wpct(WEIGHT_CAPS.recovery)}) combined`),
     row('Commitment (max)', WEIGHT_CAPS.commitment > 0 ? wpct(WEIGHT_CAPS.commitment) : '0 — no longer scored'),
-    h('p', { class: 'cap', text: 'A monotone BEFORE-insert trigger caps a fabricated over-report. The only server-side scoring logic — it caps, never recomputes. Date-guarded at 2026-08-16: rows on/after that date get this ceiling; rows before it keep the pre-cutover v1 union (nutrition 55 / checkin 35 / commitment 15) so no historical row can move.' }),
+    h('p', { class: 'cap', text: `A monotone BEFORE-insert trigger caps a fabricated over-report. The only server-side scoring logic — it caps, never recomputes. Date-guarded at 2026-08-16: rows on/after that date get this ceiling; rows before it keep the pre-cutover union (nutrition ${preCutoverCeilingPct().nutrition} / checkin+recovery ${preCutoverCeilingPct().checkinAndRecovery} / commitment ${preCutoverCeilingPct().commitment}) so no historical row can move.` }),
   ]));
   grid.appendChild(card('Rules', [
     row('Daily reflection', 'Captured and shown to the coach · worth 0 points — an honest "no" costs nothing'),

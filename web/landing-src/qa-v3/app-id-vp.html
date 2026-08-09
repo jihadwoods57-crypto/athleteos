@@ -461,11 +461,14 @@
     +'<div class="nav">'+navHome.replace('Home','Team')+navPlan+cam+'<div class="nav-i"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 3z"/></svg>Inbox</div>'+navProf+'</div>';}
 
   function bdScr(){
-    var rows=[['Nutrition','50%',50,'linear-gradient(90deg,#2DD4A0,#34D399)'],['Recovery','25%',25,'linear-gradient(90deg,#8B5CF6,#A855F7)'],['Daily commitment','15%',15,'linear-gradient(90deg,#2563EB,#3B82F6)'],['Weekly check‑in','10%',10,'linear-gradient(90deg,#0EA5E9,#22D3EE)']];
+    // Static App Store screenshot copy, reviewed 2026-08-09 against plan-style.js's 'general'
+    // profile (nutrition .76 / recovery+checkin .24); this renderer has no bound scoring
+    // engine to call liveWeightPct() from. lint-score-ok
+    var rows=[['Nutrition','76%',76,'linear-gradient(90deg,#2DD4A0,#34D399)'],['Recovery','24%',24,'linear-gradient(90deg,#8B5CF6,#A855F7)']];
     var bd=rows.map(function(r){return '<div class="bd-row"><div class="bd-k">'+r[0]+'</div><div class="bd-w">'+r[1]+'</div><div class="bd-bar"><span class="bd-fill" style="width:'+r[2]+'%;background:'+r[3]+'"></span></div></div>';}).join('');
     return ''
     +'<div class="top"><div><div class="greet">Your standard</div><div class="name">The math</div></div><div class="top-ic">'+bell+'<div class="av">JC</div></div></div>'
-    +'<div class="vline" style="margin-top:18px"><div class="dl-num" style="font-size:52px">93</div><div class="dl-of">weighted from four categories</div></div>'
+    +'<div class="vline" style="margin-top:18px"><div class="dl-num" style="font-size:52px">93</div><div class="dl-of">weighted from two categories</div></div>'
     +'<div class="lbl">Category breakdown</div><div class="bd">'+bd+'</div>'
     +'<div class="lbl">Your tier</div>'
     +'<div class="row"><span class="row-m" style="color:var(--chrome);font-weight:800">OnStandard</span><span class="row-t">90 – 100</span></div>'

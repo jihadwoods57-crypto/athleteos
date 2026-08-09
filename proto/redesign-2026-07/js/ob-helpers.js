@@ -125,15 +125,16 @@ export function standardForGoal(goal, mealsPerDay, profile = 'athlete', style = 
   // never a hardcoded row, which showed new Guided users weights they'd never be scored on.
   const w = weightsFor(style, profile);
   const pct = (k) => Math.round(w[k] * 100);
-  const W = { n: pct('nutrition'), r: pct('recovery'), c: pct('commitment'), w: pct('checkin') };
+  // Recovery's DISPLAYED weight is the sum of the nightly check-in submission credit and the
+  // recovery-answers credit — a lone liveWeightPct('recovery')-style read under-reports it.
+  // Same pattern as log.js:137, features.js:369, recovery.js:95, requirements.js:44.
+  const W = { n: pct('nutrition'), r: pct('recovery') + pct('checkin') };
   return {
     meals,
     focus: GOAL_EMPHASIS[goal] || GOAL_EMPHASIS.maintain,
     rows: [
       ['utensils', `${MEAL_WORD[meals]} meals, photo proof`, `Nutrition · ${W.n}%`],
-      ['moon', 'Recovery check-in before bed', `Recovery · ${W.r}%`],
-      ['check', 'Daily commitment — one honest tap', `Commitment · ${W.c}%`],
-      ['clipboard', 'Weekly check-in on Sundays', `Check-in · ${W.w}%`],
+      ['moon', 'Nightly recovery check-in before bed', `Recovery · ${W.r}%`],
       ['scale', 'Weight Mon / Wed / Fri', 'Season trend · not scored'],
     ],
   };

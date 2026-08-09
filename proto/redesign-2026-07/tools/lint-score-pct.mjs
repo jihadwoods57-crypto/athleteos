@@ -75,7 +75,17 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, extname } from 'node:path';
 
-const ROOTS = ['proto/redesign-2026-07/js', 'web/landing', 'web/marketing-src', 'web/admin', 'docs', '.agents', 'src'];
+// web/landing-src added 2026-08-09 (final v2 review): it held a real, unscanned v1 violation
+// (app-id-preview.html / app-id-vp.html's App Store screenshot renderer, hardcoding
+// 50/25/15/10). Two trees the same review raised were deliberately NOT added:
+//   - scripts/ — scripts/commercial/remotion/node_modules is a vendored dependency tree
+//     sitting inside this root; walking it would sweep thousands of third-party files for
+//     false positives (CHANGELOGs, minified bundles) on every lint run.
+//   - repo-root *.md (README.md, PRODUCT.md) — there is no directory root that captures "just
+//     the root-level .md files" without either walking the whole repo (vendor dirs, .git) or a
+//     glob feature this walker doesn't have. Both flagged files were fixed by hand instead;
+//     see final-fix-report.md.
+const ROOTS = ['proto/redesign-2026-07/js', 'web/landing', 'web/landing-src', 'web/marketing-src', 'web/admin', 'docs', '.agents', 'src'];
 const EXT = new Set(['.js', '.mjs', '.html', '.md', '.ts', '.tsx']);
 // landing-rewrite.md carries its own "SUPERSEDED ... kept as the historical record" banner.
 // PERSONA-REVIEW-2026-06-24.md is a single dated review snapshot of an old demo build (its own

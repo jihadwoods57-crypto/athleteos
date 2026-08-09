@@ -62,7 +62,7 @@ notifications, the invite deep-links, and the camera** (all of which can't be te
 >
 > • Photo-log meals — AI reads the plate and scores it for your goal
 > • A daily accountability score that reflects what you actually did
-> • Protein, calories, hydration, weight, and weekly check-ins in one place
+> • Protein, calories, hydration, weight, and a nightly recovery check-in in one place
 > • Link your coach, trainer, or parent — they see what you agree to share
 > • Coaches: see your whole roster's day at a glance and nudge who's slipping
 >

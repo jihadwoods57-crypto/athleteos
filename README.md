@@ -1,8 +1,8 @@
 # OnStandard
 
-The accountability platform for serious athletes. Athletes log meals, complete daily
-tasks and weekly check-ins, and earn a daily **Athlete Score**; coaches, parents, and
-trainers get real-time visibility.
+The accountability platform for serious athletes. Athletes log meals and complete a nightly
+recovery check-in, and earn a daily **Athlete Score**; coaches, parents, and trainers get
+real-time visibility.
 
 A real Expo + React Native + TypeScript app, recreated faithfully from the Claude Design
 handoff. See [`docs/superpowers/specs/2026-06-21-onstandard-design.md`](docs/superpowers/specs/2026-06-21-onstandard-design.md).

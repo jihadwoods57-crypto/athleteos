@@ -621,7 +621,6 @@ const trainerSteps = {
         ['utensils', 'Three meals · photo proof', 'Nutrition, scored to their goal', true],
         ['moon', 'Recovery check-in · nightly', 'Sleep, soreness, stress', true],
         ['scale', 'Weight · weekly', 'Trend only, never a daily judgment', true],
-        ['clipboard', 'Weekly check-in', 'The honest week in one form', true],
       ].map(([ic, t, s, on]) => `
         <div class="lrow" style="cursor:default">
           <div class="lic">${icon(ic, 17)}</div>
@@ -745,7 +744,7 @@ const clientSteps = {
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('bars', 17)}</div>
       <div><div class="tt">How client scoring works</div>
-      <div class="ts">Same four components as athletes. Inside Nutrition, your goal changes the mix: for fat loss it's calorie window 45, protein 25, meals logged 30.</div></div>
+      <div class="ts">Same two pillars as athletes — Nutrition and Recovery. Inside Nutrition, your goal changes the mix: for fat loss it's calorie window 45, protein 25, meals logged 30.</div></div>
     </div>`, 'Next', 'client-ob/2'),
 
   2: () => frame(2, 6, 'Start with the basics', 'This is how your trainer will recognize you.', `

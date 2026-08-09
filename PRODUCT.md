@@ -3,8 +3,8 @@
 register: product
 
 ## Product purpose
-A mobile-first **athlete accountability platform**. Athletes log meals (AI analysis),
-complete daily tasks and weekly check-ins, and earn a daily **Athlete Score**; coaches,
+A mobile-first **athlete accountability platform**. Athletes log meals (AI analysis) and
+complete a nightly recovery check-in, and earn a daily **Athlete Score**; coaches,
 parents, and trainers get real-time visibility. The product answers one question:
 **"Is this athlete actually doing what they're supposed to be doing?"** Design SERVES that
 truth — the score is honest, never inflated, and every surface makes accountability legible.
