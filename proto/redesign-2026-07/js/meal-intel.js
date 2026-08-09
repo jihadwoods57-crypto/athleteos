@@ -1,8 +1,15 @@
-/* OnStandard — Meal Intelligence helpers (pure; no DOM, no state, no imports).
+/* OnStandard — Meal Intelligence helpers (pure; no DOM, no state).
    Owns: detected-food normalization + the new analysis extras, the DERIVED AI
    opening message (never stored — both athlete and coach threads render it from
    the same meal data, so it can't be forged and costs nothing), reaction/message
-   splitting, and the meal-chat context builder with its 8KB clamp. */
+   splitting, and the meal-chat context builder with its 8KB clamp.
+
+   ONE import, and it is deliberate: nutrition.js is a pure leaf too (no imports of
+   its own, so no cycle). applyMealCorrection prices athlete-added ingredients from
+   the curated reference rather than taking a number out of the AI's prose, and it
+   imports the pricer instead of accepting one, so a call site cannot silently lose
+   pricing by forgetting to inject it. */
+import { priceAddedFood } from './nutrition.js';
 
 const clean = (v) => String(v == null ? '' : v).replace(/[<>]/g, '').slice(0, 200);
 
@@ -1020,7 +1027,7 @@ const CORRECTION_RULES = {
   },
 };
 
-export function applyMealCorrection(meta, { kind, value, detail, item, newName, per, minutesLate } = {}) {
+export function applyMealCorrection(meta, { kind, value, detail, item, newName, per, add, minutesLate } = {}) {
   const src = meta || {};
   const rule = (CORRECTION_RULES[kind] || {})[String(value || '').toLowerCase()];
   if (!rule && kind !== 'other' && kind !== 'item') return null;
@@ -1046,8 +1053,72 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
     if (!want || !rich.length) return null;
     let idx = rich.findIndex((d) => clean(d.name).toLowerCase() === want);
     if (idx === -1) idx = rich.findIndex((d) => clean(d.name).toLowerCase().includes(want) || want.includes(clean(d.name).toLowerCase()));
+    // Token overlap, last (2026-08-09): the AI echoes a shortened item name back to us and a
+    // substring test misses on word order or a plural — "sausage breakfast sandwich" against a
+    // logged "breakfast sandwiches, foil-wrapped". A miss here used to return null and the caller
+    // dropped it on the floor, so the athlete watched their correction evaporate. Match on shared
+    // identifying words instead, and require a real majority so it can't grab the wrong plate.
+    if (idx === -1) {
+      const words = (s) => new Set(clean(s).toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3).map((w) => w.replace(/(ies|es|s)$/, '')));
+      const wantW = words(want);
+      if (wantW.size) {
+        let best = -1, bestScore = 0;
+        rich.forEach((d, i) => {
+          const dw = words(d.name);
+          if (!dw.size) return;
+          let hit = 0;
+          wantW.forEach((w) => { if (dw.has(w)) hit += 1; });
+          const score = hit / Math.min(wantW.size, dw.size);
+          if (score > bestScore) { bestScore = score; best = i; }
+        });
+        if (bestScore >= 0.5) idx = best;
+      }
+    }
     if (idx === -1) return null;
     const row = rich[idx];
+
+    /* ── INGREDIENTS THE ATHLETE ADDS (founder escalation 2026-08-09) ──────────────────────────
+       "It had egg and cheese on both as well." The athlete is describing COMPOSITION, not reading
+       a label, so they state no numbers — and the old tool had no field for this at all. The AI
+       said "updating this sandwich's numbers now" and nothing moved, because a correction with no
+       stated macro looked like a correction with nothing in it.
+
+       Numbers come from our own curated reference (priceAddedFood), never from the AI's prose:
+       the Breakdown stays the single source of truth and the model only names what was there.
+       A food the reference doesn't carry falls back to the model's stated estimate and is marked
+       'estimate'; one that can be neither priced nor estimated is REPORTED back to the caller so
+       the thread can ask for the number instead of quietly under-counting the plate. */
+    const adds = (Array.isArray(add) ? add : []).filter((a) => a && clean(a.name).trim());
+    const unpriced = [];
+    const applied = [];
+    let anyEstimated = false;
+    const addTot = { protein: 0, carbs: 0, fat: 0, kcal: 0 };
+    for (const a of adds.slice(0, 6)) {
+      const nm = clean(a.name).trim().slice(0, 60);
+      const qty = a.quantity == null ? '' : clean(a.quantity).slice(0, 24);
+      let priced = priceAddedFood(nm, qty);
+      if (!priced && a.per && typeof a.per === 'object') {
+        const g = (v) => { const n = Math.round(Number(v)); return isFinite(n) && n >= 0 ? Math.min(n, 2000) : 0; };
+        const e = a.per;
+        if (['protein', 'carbs', 'fat', 'kcal'].some((k) => e[k] != null)) {
+          priced = { protein: g(e.protein), carbs: g(e.carbs), fat: g(e.fat), kcal: g(e.kcal) };
+          anyEstimated = true;
+        }
+      }
+      if (!priced) { unpriced.push(nm); continue; }
+      if (!priced.kcal) {
+        const atw = 4 * priced.protein + 4 * priced.carbs + 9 * priced.fat;
+        if (atw > 0) priced.kcal = Math.round(atw);
+      }
+      for (const k of ['protein', 'carbs', 'fat', 'kcal']) addTot[k] += Number(priced[k]) || 0;
+      applied.push({ name: nm, quantity: qty || undefined, per: priced });
+    }
+
+    // A correction has to CHANGE something. One that states no macro, adds no priceable food and
+    // supplies no new name is a no-op, and returning a cheerful "recalculated" summary for it is
+    // how the thread ends up promising an update that never happened. Null says so plainly.
+    const statedAny = per && typeof per === 'object' && ['protein', 'kcal', 'carbs', 'fat'].some((k) => per[k] != null);
+    if (!statedAny && !applied.length && !clean(newName).trim()) return null;
     const oldPer = row.per && typeof row.per === 'object' ? row.per : { protein: 0, kcal: 0, carbs: 0, fat: 0 };
     const numOr = (v, fallback) => { const n = Math.round(Number(v)); return isFinite(n) && n >= 0 ? n : fallback; };
     const stated = per && typeof per === 'object' ? per : {};
@@ -1062,12 +1133,19 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
       const atw = 4 * merged.protein + 4 * merged.carbs + 9 * merged.fat;
       if (atw > 0) merged.kcal = Math.round(atw);
     }
+    // What the athlete added rides ON TOP of the item's own numbers — the sandwich still has its
+    // sausage, it just also has the egg and cheese they told us about.
+    for (const k of ['protein', 'carbs', 'fat', 'kcal']) merged[k] = Math.round(merged[k] + addTot[k]);
     const nn2 = clean(newName).slice(0, 80);
     const oldName = row.name;
     row.per = merged;
     if (nn2) row.name = nn2;
-    row.basis = 'label';
-    row.confidence = 'high';
+    // Provenance, honestly: a stated macro is a LABEL read (they looked at the package); an added
+    // ingredient priced from our curated reference is 'database'; one that fell back to the
+    // model's own number is an 'estimate' and has to say so. `edited` is what actually protects
+    // the row from being clamped back into a generic reference band — see groundFood.
+    row.basis = statedAny ? 'label' : anyEstimated ? 'estimate' : applied.length ? 'database' : row.basis;
+    if (statedAny) row.confidence = 'high';
     row.edited = true;
     next.detectedRich = rich;
     // Keep the flat names (persisted `foods`) in lockstep with the rename.
@@ -1093,11 +1171,23 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
     });
     if (q != null) { next.quality = q; delete next.qualityAdj; }
     const label = nn2 && nn2 !== oldName ? `${clean(oldName)} → ${nn2}` : clean(oldName);
-    summary = `Corrected: ${label} updated from your correction — macros and score recalculated`;
-    log.push({ kind: 'item', item: clean(oldName), newName: nn2 || undefined, per: merged });
-    next.corrections = log.slice(0, 8);
     const kcalDelta = Math.abs((next.kcal || 0) - (Number(src.kcal) || 0));
-    return { meta: next, summary, kcalDelta };
+    // The summary is what the athlete READS, so it may only claim what actually happened. A pure
+    // rename moved no macros and must not say the score recalculated; an ingredient we could not
+    // price has to be named out loud rather than quietly rounded away.
+    const addedNames = applied.map((a) => a.name);
+    if (statedAny || applied.length) {
+      summary = `Corrected: ${label}${addedNames.length ? ` — added ${addedNames.join(' and ')}` : ' updated from your correction'} · macros and score recalculated`;
+    } else {
+      summary = `Corrected: ${label} renamed — macros unchanged`;
+    }
+    if (unpriced.length) summary += ` · I don't have numbers for ${unpriced.join(' or ')}, so that isn't counted yet`;
+    log.push({
+      kind: 'item', item: clean(oldName), newName: nn2 || undefined, per: merged,
+      add: applied.length ? applied : undefined, unpriced: unpriced.length ? unpriced : undefined,
+    });
+    next.corrections = log.slice(0, 8);
+    return { meta: next, summary, kcalDelta, added: addedNames, unpriced, moved: statedAny || applied.length > 0 };
   }
 
   if (kind === 'other') {

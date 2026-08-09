@@ -197,7 +197,11 @@ export function groundFood(food) {
   // clamping it against a generic curated reference is how a true 42g-protein shake gets mangled
   // back into a 14g one. Those items skip the plausibility band; the Atwater snap below still
   // holds (a printed label can round, but it can't break food science by >25%).
-  if (food && (food.basis === 'label' || food.basis === 'database')) {
+  // `edited` joins the bypass (2026-08-09): once the athlete has told us what is actually in an
+  // item, the curated reference for its NAME no longer describes it. A sandwich they told us also
+  // has egg and cheese would otherwise be clamped straight back down into the plain-sandwich band,
+  // silently undoing the correction we just promised them — the same mangling as the 42g shake.
+  if (food && (food.basis === 'label' || food.basis === 'database' || food.edited === true)) {
     const atw = 4 * p + 4 * c + 9 * f;
     if (atw > 0 && (kcal <= 0 || Math.abs(kcal - atw) / atw > 0.25)) kcal = atw;
     return { per: { protein: Math.round(p), kcal: Math.round(kcal), carbs: Math.round(c), fat: Math.round(f) }, matched: true, adjusted: false };

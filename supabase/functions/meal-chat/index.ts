@@ -117,10 +117,19 @@ const REPLY_TOOL = {
  * (per-item macros, totals, score, rubric, coach focus, day targets all recompute client-side from
  * the one canonical record) and every surface that renders this meal updates together. The model
  * writes only the acknowledgment — numbers never come from prose.
+ *
+ * SECOND ESCALATION (2026-08-09). The same failure, one layer over: an athlete logged two sausage
+ * breakfast sandwiches and said "it had egg and cheese on both as well". The AI answered "Updating
+ * this sandwich's numbers now" and NOTHING moved — because this tool could only RESTATE an item's
+ * macros, never ADD a component to one. The athlete was describing composition, not reading a
+ * label, so every macro field came back empty and the server read the call as changing nothing.
+ * `add` is that missing half. The athlete names what was in it; the app prices each ingredient
+ * from its own curated food reference and only falls back to the model's estimate when the
+ * reference has no entry. Numbers still never come from prose.
  */
 const CORRECTION_TOOL = {
   name: 'apply_correction',
-  description: 'The athlete stated a factual correction about a specific item in THIS logged meal: wrong product variant, a macro that contradicts what their packaging prints, or a wrong portion. Call this INSTEAD of arguing, hedging, or telling them to update the log or tell their coach — the app applies the correction, recalculates every number and the meal score, and updates every surface automatically.',
+  description: 'The athlete stated a factual correction about a specific item in THIS logged meal: a wrong product variant, a macro that contradicts what their packaging prints, a wrong portion, or an ingredient the photo could not see ("it had egg and cheese on both"). Call this INSTEAD of arguing, hedging, or telling them to update the log or tell their coach — the app applies the correction, recalculates every number and the meal score, and updates every surface automatically.',
   input_schema: {
     type: 'object',
     properties: {
@@ -130,6 +139,22 @@ const CORRECTION_TOOL = {
       kcal: { type: 'integer', description: 'Corrected calories for THIS item, only when the athlete stated them. Omit when unchanged.' },
       carbs: { type: 'integer', description: 'Corrected grams of carbohydrate for THIS item. Omit when unchanged.' },
       fat: { type: 'integer', description: 'Corrected grams of fat for THIS item. Omit when unchanged.' },
+      add: {
+        type: 'array',
+        description: 'Ingredients the athlete says were part of THIS item but were not in the read ("it had egg and cheese on both", "there was avocado on it"). Use this whenever they describe what was in the food rather than restating its macros — it is the ONLY way an addition reaches their numbers. One entry per ingredient. Do not use it to correct an existing item\'s macros (use the macro fields) or to log a separate food they ate alongside it.',
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'The ingredient in plain words, e.g. "egg", "cheddar cheese", "avocado". No brand unless the athlete named one.' },
+            quantity: { type: 'string', description: 'How much, in kitchen units, counting the WHOLE item as logged: two sandwiches that each had one egg is "2 eggs". Omit only when the athlete gave no amount and one serving is the honest read.' },
+            protein: { type: 'integer', description: 'Your best estimate of protein in grams for this quantity. The app prefers its own food reference and uses your number only when it has no entry for this ingredient, so give it as a fallback, never as the intended source of truth.' },
+            kcal: { type: 'integer', description: 'Fallback calories estimate for this quantity. Same rule as protein.' },
+            carbs: { type: 'integer', description: 'Fallback carbohydrate estimate in grams for this quantity.' },
+            fat: { type: 'integer', description: 'Fallback fat estimate in grams for this quantity.' },
+          },
+          required: ['name'],
+        },
+      },
       ack: { type: 'string', description: 'One to two conversational sentences to the athlete: own the miss plainly and without defensiveness ("Good catch, that is the 42g bottle") and say their numbers and score are updating now. Never tell them to update anything themselves or to notify their coach. Do NOT state new meal totals — they are recomputed after this. No em dashes.' },
     },
     required: ['item', 'ack'],
@@ -204,7 +229,13 @@ Rules that bind you:
    is better evidence than the log — NEVER argue with it, never ask them to double-check their own
    label, and never tell them to update the log or to notify their coach. If apply_correction is
    available, call it; if it is not, accept the correction plainly in your reply and answer their
-   question using their stated value.`;
+   question using their stated value.
+8. AN INGREDIENT THEY NAME IS A CORRECTION, NOT SMALL TALK. "It had egg and cheese on both",
+   "there was avocado on it", "that was cooked in butter" are the athlete telling you the photo
+   missed something real, and it belongs in apply_correction's add list, not in a paragraph
+   agreeing with them. They will almost never state grams for these and they do not have to: the
+   app prices what they name from its own food reference. Never answer a named ingredient with
+   prose alone, and NEVER say numbers or a score are updating unless you actually called the tool.`;
 
 /**
  * The escape hatch. An AI nutritionist that answers "should I cut 8lb this week" or "my knee hurts
@@ -510,6 +541,7 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
         message?: string; reason?: string; note?: string;
         item?: string; newName?: string; ack?: string;
         protein?: unknown; kcal?: unknown; carbs?: unknown; fat?: unknown;
+        add?: unknown;
       };
     } | undefined;
 
@@ -531,19 +563,48 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
         protein: gnum(tool.input?.protein, 300), kcal: gnum(tool.input?.kcal, 2000),
         carbs: gnum(tool.input?.carbs, 500), fat: gnum(tool.input?.fat, 300),
       };
+      // Ingredients the athlete says were in the item. The model's macro numbers ride along ONLY
+      // as a fallback for foods our reference does not carry — the client prefers priceAddedFood
+      // every time, so a hallucinated 60g-protein egg loses to the curated entry.
+      const add = (Array.isArray(tool.input?.add) ? tool.input.add : [])
+        .slice(0, 6)
+        .map((raw) => {
+          const a = (raw ?? {}) as Record<string, unknown>;
+          const name = String(a.name ?? '').replace(/[<>]/g, '').trim().slice(0, 60);
+          if (!name) return null;
+          return {
+            name,
+            quantity: String(a.quantity ?? '').replace(/[<>]/g, '').trim().slice(0, 24) || null,
+            per: {
+              protein: gnum(a.protein, 300), kcal: gnum(a.kcal, 2000),
+              carbs: gnum(a.carbs, 500), fat: gnum(a.fat, 300),
+            },
+          };
+        })
+        .filter(Boolean);
+
       let ack = String(tool.input?.ack ?? '').replace(/—/g, ',').trim().slice(0, 500);
       if (!ack) ack = 'Good catch. Updating your numbers and score now.';
       ack = styleSafe(ack);
-      const hasChange = !!item && (!!newName || Object.values(per).some((v) => v != null));
+      const hasChange = !!item && (!!newName || add.length > 0 || Object.values(per).some((v) => v != null));
 
-      const ackRow = { meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: callerId, role: 'ai', text: ack };
+      // NEVER PROMISE WHAT CANNOT HAPPEN (2026-08-09). This ack used to be written to the thread
+      // unconditionally — including on the calls where the model conveyed nothing the app could
+      // apply. The athlete then read "updating this sandwich's numbers now" under a meal whose
+      // numbers had not moved and never would, which is worse than no answer: it teaches them the
+      // correction loop works when it did not. When there is nothing to apply, the AI says what is
+      // actually true and asks for the one thing that would let it act.
+      const text = hasChange
+        ? ack
+        : "I want to get that into your numbers, but I didn't catch enough to change them. Tell me what to fix, like the protein on the label or what else was in it, and I'll put it straight in.";
+      const ackRow = { meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: callerId, role: 'ai', text };
       const { error: ackErr } = await service.from('meal_comments')
-        .insert({ ...ackRow, kind: 'message', meta: { t: 'analysis_update' } });
+        .insert({ ...ackRow, kind: 'message', meta: hasChange ? { t: 'analysis_update' } : undefined });
       if (ackErr) await service.from('meal_comments').insert({ ...ackRow, kind: 'message' });
 
       await recordAiCall({ fn: 'meal-chat', mode: 'reply', phase: 'correction_tool', userId: callerId, model: msg.model ?? MODEL, latencyMs: 0, ok: true, outcome: hasChange ? 'correction_returned' : 'ack_only' });
       return new Response(
-        JSON.stringify(hasChange ? { reply: ack, correction: { item, newName: newName || null, per } } : { reply: ack }),
+        JSON.stringify(hasChange ? { reply: text, correction: { item, newName: newName || null, per, add } } : { reply: text }),
         { headers: { ...cors, 'Content-Type': 'application/json' } },
       );
     }

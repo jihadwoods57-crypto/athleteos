@@ -1643,10 +1643,28 @@ export const thread = {
           // row is already persisted server-side; refresh() below shows it.
           if (data.correction && data.correction.item) {
             const c = data.correction;
-            await act.correctMeal(M.slot, {
+            const applied = await act.correctMeal(M.slot, {
               kind: 'item', item: c.item, newName: c.newName || undefined,
-              per: c.per || {}, minutesLate: M.minutesLate,
+              per: c.per || {}, add: c.add || undefined, minutesLate: M.minutesLate,
             }, { skipAiUpdate: true });
+            // A CORRECTION THAT DID NOT LAND MUST SAY SO (2026-08-09). correctMeal returns null
+            // whenever it cannot act — the named item matches nothing in the read, the meal has no
+            // per-item detail, the day slot is gone. That null used to be discarded on the way
+            // past, and because the AI's "updating your numbers now" was already sitting in the
+            // thread, the athlete was left reading a promise the app had quietly failed. Now the
+            // thread admits it in the same breath and hands them the panel that always works.
+            if (!applied) {
+              setNote("That didn't line up with anything in this meal's read, so your numbers haven't changed. Fix it here and it will stick.");
+              openFix(true);
+              if (window.__render) window.__render();
+              return;
+            }
+            // An ingredient we have no reference for is named out loud rather than rounded away:
+            // the athlete is told exactly what is still missing and what would let us count it.
+            if (applied.unpriced && applied.unpriced.length) {
+              setNote(`Added what I could price. There are no numbers on file for ${applied.unpriced.join(' or ')}, so it isn't counted yet — add it here and it will be.`);
+              openFix(true);
+            } else setNote('');
             // Full repaint: score ring, breakdown tiles, rubric, coach focus, day progress —
             // every surface on this screen re-derives from the corrected record.
             if (window.__render) window.__render();
