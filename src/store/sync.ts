@@ -64,9 +64,15 @@ export function mapStateToDayRow(
   const d = computeDerived(s);
   // Defense in depth: never write a score above what this row's evidence can justify. A
   // no-op for an honest client (computeDerived's score is always <= its evidence ceiling),
-  // so it can only ever cut a regression/tamper. The authoritative control is the 0041
+  // so it can only ever cut a regression/tamper. The authoritative control is the 0193
   // server trigger — a tampered client bypasses everything in this process.
-  const score = clampScoreToEvidence(d.athleteScore, evidenceFromDerived(d));
+  //
+  // The ceiling is keyed on the DAY THE ROW BELONGS TO, not the wall clock, so it always
+  // matches the era the trigger will judge the same row under. (This is also why the
+  // pre-cutover ceiling is the union of both eras: a v2 score can legitimately land on a
+  // pre-cutover row — an offline backlog, or a pre-rollover push — and a strict v1 ceiling
+  // would cut it right here, silently, before it ever left the device.)
+  const score = clampScoreToEvidence(d.athleteScore, evidenceFromDerived(d), date);
   return {
     athlete_id: athleteId,
     date,
