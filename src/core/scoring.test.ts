@@ -43,8 +43,9 @@ describe('computeDerived — default state', () => {
     // The DISPLAY keeps 86 as a neutral placeholder, but an unearned recovery must
     // never inflate the accountability score (the UI already shows Recovery 0% /
     // "check-in not submitted"). So the score is the blend with recovery contributing 0.
+    // v2: commitment carries weight 0, so it drops out of the blend entirely.
     expect(d.recoveryScoreIsReal).toBe(false);
-    const expected = Math.round(0.5 * d.nutritionScore + 0.15 * d.commitmentScore + 0.1 * d.checkinScore);
+    const expected = Math.round(0.76 * d.nutritionScore + 0.12 * d.checkinScore);
     expect(d.athleteScore).toBe(expected);
   });
 
@@ -96,23 +97,23 @@ describe('computeDerived — default state', () => {
     expect(demo.fatTarget).toBe(80);
   });
 
-  it('weekly check-in carry: a submission earlier THIS week still backs recovery + check-in', () => {
-    // The product brands the ritual "Weekly Check-In", but the credit used to vanish
-    // at midnight — an honest perfect day (meals + protein + commitment) capped at 65
-    // (grade D) and on-standard was mathematically unreachable without re-answering a
-    // "weekly" form every single day.
+  it('v2: a check-in from earlier this week no longer backs today (no weekly carry)', () => {
+    // v1 let a Monday submission pay out recovery + check-in credit every day through
+    // Sunday. v2 is "checked in TONIGHT" only — the trailing-week carry is gone (mirrors
+    // proto day.js recoveryParts/checkinReal; see score-v2.test.mjs "a check-in from
+    // earlier in the week no longer counts today").
     const carried = computeDerived({
       ...createInitialState(),
       dateStamp: '2026-07-03',
       ciSubmitted: false,
       ciLast: { date: '2026-07-01', recovery: 72 },
     });
-    expect(carried.recoveryScoreIsReal).toBe(true);
-    expect(carried.recoveryScore).toBe(72);
-    expect(carried.checkinScore).toBe(100);
+    expect(carried.recoveryScoreIsReal).toBe(false);
+    expect(carried.recoveryScore).toBe(86); // neutral display fallback only
+    expect(carried.checkinScore).toBe(0);
   });
 
-  it('weekly check-in carry: a snapshot older than 7 days has expired (due again)', () => {
+  it('v2: a stale carry snapshot still grants nothing (no weekly carry at all)', () => {
     const expired = computeDerived({
       ...createInitialState(),
       dateStamp: '2026-07-09',
@@ -123,14 +124,14 @@ describe('computeDerived — default state', () => {
     expect(expired.checkinScore).toBe(0);
   });
 
-  it("weekly check-in carry: today's live submission wins over the carried snapshot", () => {
+  it("v2: today's live submission scores on tonight's answers, ignoring any stale ciLast", () => {
     const live = computeDerived({
       ...createInitialState(),
       ciSubmitted: true,
       ciLast: { date: '2026-06-30', recovery: 20 },
     });
     expect(live.recoveryScoreIsReal).toBe(true);
-    expect(live.recoveryScore).not.toBe(20); // computed from today's answers, not the snapshot
+    expect(live.recoveryScore).not.toBe(20); // computed from today's answers, never the old snapshot
   });
 
   it('tasks = 3 of 6 done -> 50 (protein task id 2 not done: 142 < 180)', () => {
@@ -146,12 +147,11 @@ describe('computeDerived — default state', () => {
     expect(d.checkinScore).toBe(0);
   });
 
-  it('accountability score = clamp(round(.5*78 + .25*0 + .15*0 + .1*0)) = 39 (recovery + commitment not given)', () => {
-    // 39 + 0 + 0 + 0 = 39 -> grade F. The seeded day has no real check-in (recovery 0)
-    // and no daily commitment answered (commitment 0), so only its logged nutrition
-    // scores. The 0.15 slot is the plan-commitment now (was the fake task checklist).
-    // Photo-logged nutrition is the only lever moving this day. Weight is not in the score.
-    expect(d.athleteScore).toBe(39);
+  it('accountability score = clamp(round(.76*78 + .12*0 + .12*0)) = 59 (recovery + checkin not given)', () => {
+    // 59.28 -> 59 -> grade F. The seeded day has no real check-in (recovery 0, checkin 0);
+    // commitment carries weight 0 in v2 (it no longer scores at all), so only its logged
+    // nutrition moves this day. Weight is not in the score.
+    expect(d.athleteScore).toBe(59);
     expect(d.grade.g).toBe('F');
   });
 
@@ -696,11 +696,10 @@ describe('computeDerived — week-over-week score delta', () => {
 });
 
 describe('SCORE_WEIGHTS', () => {
-  it('lists the four daily score components and nothing else (weight is tracked separately)', () => {
+  it('lists the three scoring components and nothing else (commitment is weight 0 in v2)', () => {
     expect(SCORE_WEIGHTS.map((w) => w.key)).toEqual([
       'nutrition',
       'recovery',
-      'commitment',
       'checkin',
     ]);
   });
@@ -710,12 +709,11 @@ describe('SCORE_WEIGHTS', () => {
   });
 
   it('matches the coefficients computeDerived actually applies (no invented weights)', () => {
-    // Mirror of athleteScore: 0.5 nutrition + 0.25 recovery + 0.15 commitment + 0.1 checkin.
+    // Mirror of athleteScore: 0.76 nutrition + 0.12 recovery + 0.12 checkin (v2).
     const expected: Record<string, number> = {
-      nutrition: 50,
-      recovery: 25,
-      commitment: 15,
-      checkin: 10,
+      nutrition: 76,
+      recovery: 12,
+      checkin: 12,
     };
     for (const w of SCORE_WEIGHTS) {
       expect(w.pct).toBe(expected[w.key]);

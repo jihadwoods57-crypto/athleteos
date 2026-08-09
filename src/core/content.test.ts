@@ -176,9 +176,16 @@ describe('aiInsight', () => {
   });
 
   it('a C-grade day (70-79) is "close", never "tracking well" or a promised A — matches heroStatus neutral band', () => {
-    // Seed + a submitted check-in scores in the C band (70-79). Since the nutrition
-    // floor was removed (D-B), the bare seed reads D; the check-in lifts it to a C.
-    const s = { ...createInitialState(), ciSubmitted: true, dailyCommitment: 'partial' } as AppState;
+    // Seed + a submitted check-in (with no recovery questions actually answered, so
+    // recovery contributes 0 — only its .12 checkin slot lands) scores in the C band
+    // (70-79). v2's recovery+checkin weight is only .24 combined, so unlike v1 a bare
+    // submitted check-in alone can no longer clear the nutrition-only floor into B.
+    const s = {
+      ...createInitialState(),
+      ciSubmitted: true,
+      ciConfig: { energy: false, recovery: false, sleep: false, confidence: false, soreness: false, motivation: false },
+      dailyCommitment: 'partial',
+    } as AppState;
     const d = computeDerived(s);
     expect(d.athleteScore).toBeGreaterThanOrEqual(70);
     expect(d.athleteScore).toBeLessThan(80);
@@ -257,17 +264,19 @@ describe('heroStatus', () => {
     expect(h.standingLabel).toBe('Top of your team'); // grade A
   });
 
-  it('day-complete but sub-90 (B band, moderate check-in) → complete copy with no ask/nag', () => {
-    // All four meals logged + protein cleared + a REAL but moderate check-in, so the score
-    // lands in [80,89]. (Recovery only counts once a real check-in backs it; an unsubmitted
-    // check-in now caps a completed day well below 80.) This used to fall through the lone
-    // `dayComplete && >=90` guard into the score-band branch and nag "finish the day strong".
+  it('day-complete but sub-90 (B band, low-but-real check-in) → complete copy with no ask/nag', () => {
+    // All four meals logged + protein cleared + a REAL but low-value check-in, so the score
+    // lands in [80,89]. v2 compresses recovery+checkin to a combined .24 of the score (was
+    // .35), so a full nutrition day (.76) plus a submitted-but-low recovery answer is what it
+    // takes to land sub-90 now — a fully "moderate" (mid-scale) answer already clears 90. This
+    // used to fall through the lone `dayComplete && >=90` guard into the score-band branch and
+    // nag "finish the day strong".
     const s = {
       ...createInitialState(),
       meals: { breakfast: true, lunch: true, snack: true, dinner: true },
       ciSubmitted: true,
       ciConfig: { energy: true, recovery: false, sleep: false, confidence: false, soreness: false, motivation: false },
-      ciEnergy: 5,
+      ciEnergy: 1,
       dailyCommitment: 'yes',
     } as AppState;
     const d = computeDerived(s);

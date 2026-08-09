@@ -22,17 +22,20 @@ import type { BaseGoal, ScoringProfile } from './types';
 
 export interface ProfileWeights {
   nutrition: number;
+  /** Quality of TONIGHT's check-in answers. No weekly carry (v2). */
   recovery: number;
-  /** The 0.15 daily-behavioral slot — the plan-commitment one-tap (formerly the task checklist). */
+  /** v2: 0. The end-of-day reflection is captured and shown to the coach, but no longer scores. */
   commitment: number;
+  /** v2: a check-in was submitted TONIGHT — binary, guaranteed. */
   checkin: number;
 }
 
-/** Headline mix per profile. Athlete is the shipped .50/.25/.15/.10 (do not change). */
+/** Headline mix per profile — score v2. MUST equal proto plan-style.js PROFILE_WEIGHTS;
+ *  scoreParity.test.ts proves the two engines agree. */
 export const PROFILE_WEIGHTS: Record<ScoringProfile, ProfileWeights> = {
-  athlete: { nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 },
-  general: { nutrition: 0.55, recovery: 0.2, commitment: 0.15, checkin: 0.1 }, // founder-ratified, see docs/council/2026-07-23-general-profile-weights.md
-  gain: { nutrition: 0.55, recovery: 0.25, commitment: 0.1, checkin: 0.1 }, // recovery held at athlete-level for hypertrophy; founder-ratified, see docs/council/2026-07-23-gain-profile-weights.md
+  athlete: { nutrition: 0.76, recovery: 0.12, commitment: 0, checkin: 0.12 },
+  general: { nutrition: 0.78, recovery: 0.10, commitment: 0, checkin: 0.12 },
+  gain: { nutrition: 0.76, recovery: 0.12, commitment: 0, checkin: 0.12 },
 };
 
 /** Map a user's GOAL to the platform-owned scoring profile. A solo client never gets a coach to

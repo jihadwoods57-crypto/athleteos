@@ -3,7 +3,7 @@
 // (penalizes under- AND over-eating), and computeDerived honors the profile while leaving
 // the athlete default untouched.
 import { calorieAdherence, calorieFloorAdherence, profileForGoal, profileNutritionScore, PROFILE_WEIGHTS, resolveProfile } from './scoringProfiles';
-import { computeDerived } from './scoring';
+import { computeDerived, SCORE_WEIGHTS } from './scoring';
 import { createInitialState } from './defaultState';
 
 describe('PROFILE_WEIGHTS', () => {
@@ -13,8 +13,8 @@ describe('PROFILE_WEIGHTS', () => {
       expect(w.nutrition + w.recovery + w.commitment + w.checkin).toBeCloseTo(1, 5);
     }
   });
-  it('athlete keeps the shipped .5/.25/.15/.1 mix', () => {
-    expect(PROFILE_WEIGHTS.athlete).toEqual({ nutrition: 0.5, recovery: 0.25, commitment: 0.15, checkin: 0.1 });
+  it('athlete carries the score v2 mix', () => {
+    expect(PROFILE_WEIGHTS.athlete).toEqual({ nutrition: 0.76, recovery: 0.12, commitment: 0, checkin: 0.12 });
   });
 });
 
@@ -112,5 +112,31 @@ describe('computeDerived honors the profile', () => {
     const general = computeDerived({ ...base, scoringProfile: 'general', calTarget: 100 });
     expect(general.nutritionScore).toBeLessThan(athlete.nutritionScore);
     expect(general.athleteScore).not.toBe(athlete.athleteScore);
+  });
+});
+
+describe('score v2 weights', () => {
+  it('matches the proto engine exactly', () => {
+    expect(PROFILE_WEIGHTS.athlete).toEqual({ nutrition: 0.76, recovery: 0.12, commitment: 0, checkin: 0.12 });
+    expect(PROFILE_WEIGHTS.general).toEqual({ nutrition: 0.78, recovery: 0.10, commitment: 0, checkin: 0.12 });
+    expect(PROFILE_WEIGHTS.gain).toEqual({ nutrition: 0.76, recovery: 0.12, commitment: 0, checkin: 0.12 });
+  });
+
+  it('every profile sums to 1', () => {
+    for (const [name, w] of Object.entries(PROFILE_WEIGHTS)) {
+      const sum = w.nutrition + w.recovery + w.commitment + w.checkin;
+      expect(`${name}:${sum.toFixed(6)}`).toBe(`${name}:${(1).toFixed(6)}`);
+    }
+  });
+
+  it('SCORE_WEIGHTS is derived from PROFILE_WEIGHTS, never a second literal', () => {
+    const byKey = Object.fromEntries(SCORE_WEIGHTS.map((s) => [s.key, s.pct]));
+    expect(byKey.nutrition).toBe(Math.round(PROFILE_WEIGHTS.athlete.nutrition * 100));
+    expect(byKey.recovery).toBe(Math.round(PROFILE_WEIGHTS.athlete.recovery * 100));
+    expect(byKey.checkin).toBe(Math.round(PROFILE_WEIGHTS.athlete.checkin * 100));
+  });
+
+  it('drops zero-weight components from the display breakdown', () => {
+    expect(SCORE_WEIGHTS.find((s) => s.key === 'commitment')).toBeUndefined();
   });
 });

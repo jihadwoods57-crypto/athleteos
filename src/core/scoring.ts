@@ -11,7 +11,6 @@ import {
   WEIGHT_START,
   WEIGHT_TARGET,
 } from './constants';
-import { withinTrailingWeek } from './clock';
 import { derivedMacroTargets } from './fuelTarget';
 import { trendSeries, realTrendDays } from './history';
 import { comebackInfo } from './comeback';
@@ -153,20 +152,21 @@ export interface ScoreWeight {
 }
 
 /**
- * Plain-language breakdown of what the Accountability Score is made of, mirrored
- * EXACTLY from computeDerived's athleteScore formula:
- *   0.5*nutrition + 0.25*recovery + 0.15*tasks + 0.1*checkin.
- * Surfaced by the Home "What's in this score?" panel so the number stops being
- * opaque. Descriptions are honest about which inputs are self-reported. Weight
- * progress is tracked SEPARATELY (a long-arc goal), not folded into this daily
- * score. No new data is introduced here; these are the existing weights, named.
+ * Plain-language breakdown of the score, DERIVED from PROFILE_WEIGHTS so it can never drift from
+ * the formula it describes. Zero-weight components are omitted — the athlete must not be shown a
+ * category worth nothing. Descriptions are honest about which inputs are self-reported.
+ *   0.76*nutrition + 0.12*recovery + 0.12*checkin.
  */
-export const SCORE_WEIGHTS: ScoreWeight[] = [
-  { key: 'nutrition', label: 'Nutrition', pct: 50, desc: 'Protein and the meals you log each day' },
-  { key: 'recovery', label: 'Recovery', pct: 25, desc: 'Your own weekly check-in answers, so this part is self-reported' },
-  { key: 'commitment', label: 'Commitment', pct: 15, desc: 'Your daily one-tap: did you hit your plan today?' },
-  { key: 'checkin', label: 'Check-in', pct: 10, desc: 'Completing your weekly check-in at all' },
-];
+const SCORE_WEIGHT_COPY: Record<ScoreWeight['key'], { label: string; desc: string }> = {
+  nutrition: { label: 'Nutrition', desc: 'Protein and the meals you log each day' },
+  recovery: { label: 'Recovery', desc: 'How you answered tonight’s check-in, so this part is self-reported' },
+  checkin: { label: 'Checked in', desc: 'Submitting tonight’s check-in at all' },
+  commitment: { label: 'Commitment', desc: 'No longer part of your score' },
+};
+
+export const SCORE_WEIGHTS: ScoreWeight[] = (['nutrition', 'recovery', 'checkin', 'commitment'] as const)
+  .filter((k) => PROFILE_WEIGHTS.athlete[k] > 0)
+  .map((k) => ({ key: k, pct: Math.round(PROFILE_WEIGHTS.athlete[k] * 100), ...SCORE_WEIGHT_COPY[k] }));
 
 /** Letter grade + colors for a 0–100 score. */
 export function gradeFor(score: number): Grade {
@@ -309,19 +309,6 @@ export function computeDerived(s: AppState): Derived {
       recoveryScoreIsReal = true;
     }
   }
-  // WEEKLY carry: the ritual is branded "Weekly Check-In", so a real submission
-  // earlier THIS week (ciLast snapshot, <=6 days old) still backs the number. It is
-  // earned evidence — a real check-in happened — not the banned neutral placeholder.
-  // Without it the credit vanished nightly and an honest perfect day capped at 65.
-  const ciCarryValid =
-    !recoveryScoreIsReal &&
-    s.ciLast != null &&
-    Number.isFinite(s.ciLast.recovery) &&
-    withinTrailingWeek(s.ciLast.date, s.dateStamp);
-  if (ciCarryValid) {
-    recoveryScore = Math.min(100, Math.max(0, Math.round(s.ciLast!.recovery)));
-    recoveryScoreIsReal = true;
-  }
   // Weight is a LONG-ARC goal, not a daily-accountability signal, so it is no
   // longer mixed into the daily score (a flawless day shouldn't be denied an A
   // because season weight progress is slow, which is partly outside daily control).
@@ -341,14 +328,12 @@ export function computeDerived(s: AppState): Derived {
   });
   const weightScore = weightPhase === 'first-run' ? 80 : clamp(weightProgress.pctThere, 0, 100);
   const tasksScore = tasksTotal > 0 ? Math.round((tasksDone / tasksTotal) * 100) : 0;
-  // Check-in credit follows the same weekly window: submitted today OR carried from
-  // a real submission this week (the 0.1 slot answers "did you check in this week?").
-  const checkinScore = s.ciSubmitted || ciCarryValid ? 100 : 0;
+  // v2: "checked in TONIGHT". The trailing-week carry is gone — see the score v2 spec.
+  const checkinScore = s.ciSubmitted ? 100 : 0;
 
   // Daily accountability score: what you did TODAY. Nutrition leads (the heaviest
-  // lever and the one the staff cares most about); recovery is self-reported; tasks
-  // and check-in round it out. Weights come from the account's scoring profile
-  // ('athlete' default = the shipped .5/.25/.15/.1 mix, unchanged).
+  // lever and the one the staff cares most about); recovery is self-reported; check-in
+  // rounds it out. Weights come from the account's scoring profile (score v2 mix).
   const w = PROFILE_WEIGHTS[profile];
   // Recovery only contributes to the accountability score once a real check-in backs it.
   // The 86 `recoveryScore` fallback is a neutral DISPLAY placeholder (and the UI already

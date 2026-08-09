@@ -16,11 +16,11 @@ import type { AppState, MealKey } from './types';
 
 describe('MAX_SUBSCORE_WEIGHT', () => {
   it('is the max weight each subscore carries across every scoring profile', () => {
-    // athlete .5/.25/.15/.1, general .55/.2/.15/.1, gain .55/.25/.1/.1
-    expect(MAX_SUBSCORE_WEIGHT.nutrition).toBeCloseTo(0.55);
-    expect(MAX_SUBSCORE_WEIGHT.recovery).toBeCloseTo(0.25);
-    expect(MAX_SUBSCORE_WEIGHT.commitment).toBeCloseTo(0.15);
-    expect(MAX_SUBSCORE_WEIGHT.checkin).toBeCloseTo(0.1);
+    // v2: athlete .76/.12/0/.12, general .78/.10/0/.12, gain .76/.12/0/.12
+    expect(MAX_SUBSCORE_WEIGHT.nutrition).toBeCloseTo(0.78);
+    expect(MAX_SUBSCORE_WEIGHT.recovery).toBeCloseTo(0.12);
+    expect(MAX_SUBSCORE_WEIGHT.commitment).toBeCloseTo(0);
+    expect(MAX_SUBSCORE_WEIGHT.checkin).toBeCloseTo(0.12);
   });
 });
 
@@ -29,23 +29,24 @@ describe('evidenceScoreCeiling', () => {
     expect(evidenceScoreCeiling({ nutritionPossible: false, checkinPossible: false, commitmentPresent: false })).toBe(0);
   });
 
-  it('caps a no-logging, no-check-in day below on-standard (photo logging is the only road to 80)', () => {
-    // nutrition gated off -> at most recovery+checkin+commitment = 35 + 15 = 50 < 80.
+  it('caps a no-logging day below on-standard (photo logging is the only road to 80)', () => {
+    // v2: nutrition gated off -> at most recovery+checkin+commitment = 24 + 0 = 24 < 80.
+    // (commitment carries weight 0 in v2, so a commitment answer alone adds nothing.)
     const ceil = evidenceScoreCeiling({ nutritionPossible: false, checkinPossible: true, commitmentPresent: true });
-    expect(ceil).toBe(50);
+    expect(ceil).toBe(24);
     expect(ceil).toBeLessThan(80);
   });
 
-  it('allows only the nutrition slot (55) when a meal is logged but nothing else', () => {
-    expect(evidenceScoreCeiling({ nutritionPossible: true, checkinPossible: false, commitmentPresent: false })).toBe(55);
+  it('allows only the nutrition slot (78) when a meal is logged but nothing else', () => {
+    expect(evidenceScoreCeiling({ nutritionPossible: true, checkinPossible: false, commitmentPresent: false })).toBe(78);
   });
 
-  it('allows recovery + check-in (35) for a submitted check-in alone', () => {
-    expect(evidenceScoreCeiling({ nutritionPossible: false, checkinPossible: true, commitmentPresent: false })).toBe(35);
+  it('allows recovery + check-in (24) for a submitted check-in alone', () => {
+    expect(evidenceScoreCeiling({ nutritionPossible: false, checkinPossible: true, commitmentPresent: false })).toBe(24);
   });
 
-  it('allows the commitment slot (15) for a plan-commitment answer alone', () => {
-    expect(evidenceScoreCeiling({ nutritionPossible: false, checkinPossible: false, commitmentPresent: true })).toBe(15);
+  it('v2: a plan-commitment answer alone unlocks nothing (commitment no longer scores)', () => {
+    expect(evidenceScoreCeiling({ nutritionPossible: false, checkinPossible: false, commitmentPresent: true })).toBe(0);
   });
 
   it('reaches a full 100 only with all three evidence gates present', () => {
@@ -62,8 +63,8 @@ describe('clampScoreToEvidence', () => {
     expect(clampScoreToEvidence(40, { nutritionPossible: true, checkinPossible: false, commitmentPresent: false })).toBe(40);
   });
 
-  it('clamps a claimed 95 with only a logged meal down to the 55 nutrition ceiling', () => {
-    expect(clampScoreToEvidence(95, { nutritionPossible: true, checkinPossible: false, commitmentPresent: false })).toBe(55);
+  it('clamps a claimed 95 with only a logged meal down to the 78 nutrition ceiling', () => {
+    expect(clampScoreToEvidence(95, { nutritionPossible: true, checkinPossible: false, commitmentPresent: false })).toBe(78);
   });
 });
 
@@ -207,10 +208,14 @@ describe('property (SERVER gates): a real score never exceeds the ceiling from i
     expect(checked).toBeGreaterThan(300);
   });
 
-  it('REGRESSION: an honest weekly-carry day is NOT clamped even when its check-in day never reached the server', () => {
-    // A real check-in earlier this week (recovery 92) that never synced to Postgres; today logs
-    // no meal but the carry legitimately backs recovery + check-in. The old cross-row-only gate
-    // clamped this honest day; the self-described ciLast marker fixes it.
+  it('v2: a stale weekly-carry day (no client credit) still never exceeds the server ceiling', () => {
+    // v1: a real check-in earlier this week (recovery 92) that never synced to Postgres still
+    // legitimately backed recovery + check-in via the client's carry, and this test proved the
+    // server ceiling (built from the row's self-described ciLast) never clamped that honest day.
+    // v2 retires the client-side carry entirely (score.ts §5: "checked in TONIGHT" only), so
+    // this day now scores 0 client-side — trivially at or under any ceiling. The SERVER-side
+    // evidenceFromDayRow gate below is untouched (Task 4's scope) and still recognizes ciLast,
+    // which is fine: a ceiling may be more generous than the score it bounds, never less.
     const s = stateWith({
       dateStamp: '2026-07-03',
       meals: mealsLogged(0) as unknown as AppState['meals'],
@@ -220,8 +225,8 @@ describe('property (SERVER gates): a real score never exceeds the ceiling from i
       dailyCommitment: 'yes',
     });
     const d = computeDerived(s);
-    expect(d.recoveryScoreIsReal).toBe(true); // the carry genuinely credits recovery
+    expect(d.recoveryScoreIsReal).toBe(false); // v2: no client-side weekly carry
     const ceil = evidenceScoreCeiling(evidenceFromDayRow(rowFromState(s), { priorSubmittedInWeek: false }));
-    expect(d.athleteScore).toBeLessThanOrEqual(ceil); // and the server ceiling honors it — no clamp
+    expect(d.athleteScore).toBeLessThanOrEqual(ceil); // still never clamped — score is 0, ceiling is >= 0
   });
 });
