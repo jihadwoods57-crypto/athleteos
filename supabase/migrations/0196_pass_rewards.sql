@@ -313,6 +313,104 @@ $$;
 revoke all on function public.end_pass(uuid) from public, anon;
 grant execute on function public.end_pass(uuid) to authenticated;
 
+-- ---------------------------------------------------------------- spend
+-- SELF ONLY, BY CONSTRUCTION. There is no athlete parameter, so "spending somebody else's
+-- credit" is not a permission check that could be written wrong: it is an argument that does not
+-- exist. auth.uid() is the athlete, full stop.
+--
+-- Deliberately NOT gated on the kill switch. Killing the flag stops new grants; somebody already
+-- holding credits must still be able to use them, or we have taken back a reward that was given.
+create or replace function public.spend_pass(p_day date, p_slot text) returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_pass trust_passes%rowtype;
+  v_used int;
+  v_id   uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'not signed in';
+  end if;
+  if p_slot is null or btrim(p_slot) = '' or length(p_slot) > 32 then
+    raise exception 'invalid slot';
+  end if;
+
+  select * into v_pass from trust_passes
+    where athlete_id = auth.uid() and ended_at is null;
+  if not found then
+    raise exception 'no active pass';
+  end if;
+  if p_day > v_pass.expires_on then
+    raise exception 'this pass has expired';
+  end if;
+  if v_pass.covers_from is not null and (p_day < v_pass.covers_from or p_day > v_pass.covers_until) then
+    raise exception 'that day is outside this pass';
+  end if;
+
+  -- A window pass covers every slot in range with no ledger row, so there is nothing to spend.
+  -- Saying so plainly beats silently writing a row that means nothing.
+  if v_pass.credits_total is null then
+    raise exception 'this pass already covers the whole window';
+  end if;
+
+  -- A slot that already holds a real meal has nothing to cover, and spending a credit on it
+  -- would silently burn the reward for no benefit. The UI only offers the button on an open
+  -- slot, but the UI is not the wall: without this, an outbox replay or a stale screen wastes a
+  -- credit the athlete earned. Note the refund trigger handles the reverse order (spend first,
+  -- log second); this closes log-first, spend-second.
+  if exists (select 1 from meals m
+             where m.athlete_id = auth.uid() and m.day_date = p_day
+               and lower(coalesce(m.type, '')) = lower(p_slot)) then
+    raise exception 'that meal is already logged';
+  end if;
+
+  select count(*) into v_used from pass_spends where pass_id = v_pass.id;
+  if v_used >= v_pass.credits_total then
+    raise exception 'no credits left on this pass';
+  end if;
+
+  insert into pass_spends (pass_id, athlete_id, day_date, slot)
+    values (v_pass.id, auth.uid(), p_day, p_slot)
+    returning id into v_id;
+  return v_id;
+exception
+  when unique_violation then
+    raise exception 'that slot is already covered';
+end;
+$$;
+revoke all on function public.spend_pass(date, text) from public, anon;
+grant execute on function public.spend_pass(date, text) to authenticated;
+
+-- ---------------------------------------------------------------- refund
+-- A TRIGGER, not a client call. A refund that only fires while the app is open is not a refund:
+-- the offline outbox can replay a meal insert long after the tap that caused it, and the athlete
+-- would be owed a credit nobody gives back.
+--
+-- meals.type carries the SLOT KEY verbatim — day.js insertMeal sets `type: key`, where key is
+-- 'breakfast' / 'dinner' / 'meal-5'. The 0001 column comment claims "Breakfast | Lunch | ..."
+-- and is STALE; lower() defensively in case an older RN-shaped row ever replays through the
+-- outbox.
+create or replace function public.refund_pass_spend() returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  delete from pass_spends
+    where athlete_id = new.athlete_id
+      and day_date  = new.day_date
+      and lower(slot) = lower(coalesce(new.type, ''));
+  return new;
+end;
+$$;
+
+drop trigger if exists meals_refund_pass_spend on public.meals;
+create trigger meals_refund_pass_spend
+  after insert on public.meals
+  for each row execute function public.refund_pass_spend();
+
 -- 0109 seeded trust_pass with default_on = false and NOTHING shipped ever read it (only the
 -- legacy src/store/flagsStore.ts). Now grant_pass reads it for real, so leaving it false would
 -- ship the whole feature silently off — the 0125 mistake, repeated.

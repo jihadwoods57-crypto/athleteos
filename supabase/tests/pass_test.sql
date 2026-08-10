@@ -300,6 +300,83 @@ update feature_flags set kill_switch = false where name = 'trust_pass';
 select _as('7aa00000-0000-0000-0000-000000000001');
 select grant_pass('7aa00000-0000-0000-0000-00000000000a'::uuid, 3);
 
+-- ================================================================ spend
+-- client_1 now holds a 3-credit pass. spend_pass takes NO athlete argument, so "spending for
+-- somebody else" is not a permission that can be got wrong: it is an argument that does not exist.
+
+select _as('7aa00000-0000-0000-0000-00000000000a');
+select _ok(_try($q$ select spend_pass(current_date, 'dinner') $q$) = 'ok',
+  '0196: the client can spend a credit on an open slot');
+
+select _ok((select count(*) from pass_spends
+            where athlete_id = '7aa00000-0000-0000-0000-00000000000a'
+              and day_date = current_date and slot = 'dinner') = 1,
+  '0196: exactly one spend row landed');
+
+select _ok(_try($q$ select spend_pass(current_date, 'dinner') $q$) <> 'ok',
+  '0196: the same slot cannot be spent twice');
+
+select _ok(_try($q$ select spend_pass(current_date, 'lunch') $q$) = 'ok',
+  '0196: a different slot on the same day is fine');
+
+select _ok(_try($q$ select spend_pass(current_date + 400, 'breakfast') $q$) <> 'ok',
+  '0196: a day past expiry cannot be spent');
+
+-- The seed logged a real dinner on every one of the last 7 days. Covering one of those would
+-- burn a credit for nothing, so the server refuses rather than trusting the UI to hide the
+-- button. This is the log-first/spend-second direction; the refund trigger handles the reverse.
+select _ok(_try($q$ select spend_pass(current_date - 1, 'dinner') $q$) <> 'ok',
+  '0196: a slot that already holds a logged meal cannot be covered');
+
+-- Three credits, three spends, then the wall. current_date carries no seeded meal.
+select _ok(_try($q$ select spend_pass(current_date, 'breakfast') $q$) = 'ok',
+  '0196: the third credit spends');
+select _ok(_try($q$ select spend_pass(current_date - 1, 'lunch') $q$) <> 'ok',
+  '0196: a fourth spend against a 3-credit pass is refused');
+
+-- An athlete with no pass at all cannot conjure one.
+select _as('7aa00000-0000-0000-0000-00000000000c');
+select _ok(_try($q$ select spend_pass(current_date, 'dinner') $q$) <> 'ok',
+  '0196: an athlete with no pass cannot spend');
+
+-- A WINDOW pass has nothing to spend: it already covers the range.
+select _as('7aa00000-0000-0000-0000-00000000000d');
+select _ok(_try($q$ select spend_pass(current_date, 'dinner') $q$) <> 'ok',
+  '0196: a window pass refuses a spend, because it already covers the day');
+
+-- ================================================================ refund
+-- A TRIGGER, not a client call. A refund that only fires while the app is open is not a refund,
+-- and the offline outbox can replay a meal insert long after the tap that caused it.
+select _superuser();
+insert into meals (athlete_id, day_date, type, photo_path, protein, kcal)
+  values ('7aa00000-0000-0000-0000-00000000000a', current_date, 'dinner',
+          'seed/refund/1.jpg', 45, 700);
+
+select _ok((select count(*) from pass_spends
+            where athlete_id = '7aa00000-0000-0000-0000-00000000000a'
+              and day_date = current_date and slot = 'dinner') = 0,
+  '0196: logging the meal anyway refunded that credit');
+
+select _ok((select count(*) from pass_spends
+            where athlete_id = '7aa00000-0000-0000-0000-00000000000a'
+              and day_date = current_date and slot = 'lunch') = 1,
+  '0196: the refund touched only the slot that was logged');
+
+-- ...and the returned credit is genuinely spendable again.
+select _as('7aa00000-0000-0000-0000-00000000000a');
+select _ok(_try($q$ select spend_pass(current_date - 1, 'lunch') $q$) = 'ok',
+  '0196: the refunded credit can be spent again');
+
+-- A meal logged for a slot nobody covered must not delete an unrelated spend. Live spends at
+-- this point: (today, lunch), (today, breakfast), (yesterday, lunch).
+select _superuser();
+insert into meals (athlete_id, day_date, type, photo_path, protein, kcal)
+  values ('7aa00000-0000-0000-0000-00000000000a', current_date - 3, 'breakfast',
+          'seed/refund/2.jpg', 30, 400);
+select _ok((select count(*) from pass_spends
+            where athlete_id = '7aa00000-0000-0000-0000-00000000000a') = 3,
+  '0196: an unrelated meal refunds nothing');
+
 -- ================================================================ scoreboard
 do $$
 declare fails int; total int; bad text;
