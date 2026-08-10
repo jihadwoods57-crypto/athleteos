@@ -17,13 +17,14 @@
   "js/screens/coach-listing.js": 11,
   "js/screens/coach-rooms.js": 4,
   "js/screens/coach-roster.js": 13,
-  "js/screens/coach.js": 63,
+  "js/screens/coach.js": 64,
   "js/screens/connect.js": 6,
   "js/screens/features.js": 18,
   "js/screens/feedback.js": 4,
   "js/screens/foodsearch.js": 13,
   "js/screens/get-a-coach.js": 2,
   "js/screens/guardian.js": 3,
+  "js/screens/home.js": 1,
   "js/screens/location-consent.js": 1,
   "js/screens/log-training.js": 4,
   "js/screens/log.js": 2,
@@ -50,6 +51,6 @@
   "js/screens/squad.js": 4,
   "js/screens/states.js": 1,
   "js/screens/training-history.js": 3,
-  "js/screens/trust.js": 11,
+  "js/screens/trust.js": 17,
   "js/screens/weight.js": 10
 }

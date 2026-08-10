@@ -1,7 +1,7 @@
 import { S, RT } from '../state.js';
 import { DAY, MEAL_KEYS } from '../day.js';
 import { icon } from '../icons.js';
-import { backHead, esc, safeImg, emptyState, skeletonRows } from '../components.js';
+import { backHead, esc, safeImg, emptyState, skeletonRows, segBar } from '../components.js';
 import { tierColor } from '../score-band.js';
 import { cachedMealPhoto, warmMealPhotos, resolveMealPhoto } from '../photo-store.js';
 import { fetchRecentMeals, daysAgoISO, fetchMealComments, postMealComment, deleteMealComment, uploadChatPhoto, fetchThreadParticipants, signedMealPhotoUrl } from '../roles.js';
@@ -26,88 +26,82 @@ const mvDay = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${d.g
 import { composer } from '../components.js';
 import { openImageViewer } from '../image-viewer.js';
 
-/* ---------- Trust Pass detail: the earned camera-free reward, rules visible ---------- */
+/* ---------- Trust Pass detail: the earned camera-free reward, rules visible (0196) ----------
+   Two active shapes (credits / window) plus a not-earned state with real progress. The old decay
+   curve modeled a single fixed 10-day window; neither surviving shape has a decay concept, so it
+   is gone rather than adapted. */
 export const trust = {
   tab: 'home',
   render() {
-    const t = S.trustPass;
+    const t = S.pass;
     if (!t.active) {
-      return `${backHead('Trust Pass', 'Not earned yet')}
-      <div class="state-demo">
-        <div class="sd-ic">${icon('shield', 24)}</div>
-        <div class="sd-t">Earn it with ${(RT.trustPolicy || { eligibility_days: 7 }).eligibility_days} on-standard days</div>
-        <div class="sd-s">Show the pattern with photos first. Then your coach can grant camera-free days credited from your real history.</div>
-      </div>`;
+      const need = (RT.passPolicy || { eligibility_days: 7 }).eligibility_days;
+      const have = Math.min(need, t.eligible || 0);
+      const earned = have >= need;
+      return `${backHead('Trust Pass', earned ? 'Earned, waiting on your coach' : 'Not earned yet')}
+      <section class="card pad">
+        <div style="font-size:17px;font-weight:800">${have} of ${need} photo-logged days</div>
+        ${segBar(have, need, `${have} of ${need} photo-logged days`, 'margin:10px 0 6px')}
+        <div style="font-size:12.5px;font-weight:600;color:var(--text-2)">${earned
+          ? 'You have the days. Your coach can grant a pass any time from your profile.'
+          : 'Show the pattern with photos first. Then your coach can give you camera-free meals, credited from your real history.'}</div>
+      </section>`;
     }
-    // decay curve: full credit through day 10, then -5%/day
-    const pts = Array.from({ length: 14 }, (_, i) => {
-      const d = i + 1;
-      const pct = d <= 10 ? 1 : Math.max(0, 1 - (d - 10) * 0.05);
-      return [16 + (i / 13) * 268, 74 - pct * 54];
-    });
-    const path = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
-    const youX = 16 + ((t.day - 1) / 13) * 268;
-    // Where the athlete's credit actually sits on the decay slope (same formula as pts).
-    const youY = 74 - (t.day <= 10 ? 1 : Math.max(0, 1 - (t.day - 10) * 0.05)) * 54;
-    // Next camera spot-check derived from the real current day — never a frozen "day 5".
-    const nextCheck = t.day < 5 && t.length >= 5 ? 5 : t.day < 10 && t.length >= 10 ? 10 : null;
-    return `
-    ${backHead('Trust Pass', `Day ${t.day} of ${t.length} · camera-free, honestly`)}
 
+    if (t.kind === 'credits') {
+      return `
+      ${backHead('Trust Pass', `${t.left} of ${t.total} camera-free meals left`)}
+      ${t.note ? `<section class="card pad"><div style="font-size:13px;font-weight:600;color:var(--text-2);font-style:italic">"${esc(t.note)}"</div><div style="font-size:11.5px;font-weight:700;color:var(--text-3);margin-top:6px">FROM YOUR COACH</div></section>` : ''}
+      <section class="card pad" style="border-color:var(--purple-border)">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div class="req-icon p" style="width:52px;height:52px;border-radius:16px">${icon('shield', 26)}</div>
+          <div style="flex:1">
+            <div style="font-size:17px;font-weight:800">${t.left} left</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:3px">Spend one on any meal from the hub. Expires ${esc(t.expires)}.</div>
+          </div>
+        </div>
+      </section>
+
+      <div class="eyebrow">How it scores</div>
+      <section class="card" style="padding:6px 16px">
+        <div class="lrow" style="cursor:default">
+          <div class="lic" style="background:var(--purple-surface);color:var(--purple-bright)">${icon('bars', 17)}</div>
+          <div class="lm"><div class="lt">Your trailing-10 median</div><div class="ls">Credit comes from your last 10 real photo-earned days for that slot. One hero plate can't inflate it, and a covered day never counts toward the median itself.</div></div>
+        </div>
+      </section>
+
+      <div class="eyebrow">Change your mind</div>
+      <section class="card" style="padding:6px 16px">
+        <div class="lrow" style="cursor:default">
+          <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('check', 17)}</div>
+          <div class="lm"><div class="lt">Log it anyway</div><div class="ls">Take the photo and the pass comes straight back. Nothing is lost by logging.</div></div>
+        </div>
+      </section>
+      <div style="height:10px"></div>
+      `;
+    }
+
+    // window
+    return `
+    ${backHead('Trust Pass', `Day ${t.day} of ${t.length} · camera-free`)}
+    ${t.note ? `<section class="card pad"><div style="font-size:13px;font-weight:600;color:var(--text-2);font-style:italic">"${esc(t.note)}"</div><div style="font-size:11.5px;font-weight:700;color:var(--text-3);margin-top:6px">FROM YOUR COACH</div></section>` : ''}
     <section class="card pad" style="border-color:var(--purple-border)">
       <div style="display:flex;align-items:center;gap:14px">
         <div class="req-icon p" style="width:52px;height:52px;border-radius:16px">${icon('shield', 26)}</div>
         <div style="flex:1">
-          <div style="font-size:17px;font-weight:800">Active · earned, not given</div>
-          <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:3px">Granted by ${esc(S.coach.nameMid)} after ${(RT.trustPolicy || { eligibility_days: 7 }).eligibility_days} on-standard days with photo proof.</div>
+          <div style="font-size:17px;font-weight:800">Every meal is covered</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:3px">Nothing to tap. Your score keeps moving from your real logging history through ${esc(t.covers_until)}.</div>
         </div>
-      </div>
-      <div class="pass-days">
-        ${Array.from({ length: t.length }, (_, i) => {
-          const d = i + 1;
-          const isCheck = d === 5 || d === 10;
-          const cls = d <= t.day ? 'done' : isCheck ? 'check' : '';
-          return `<div class="pd ${cls}">${d}</div>`;
-        }).join('')}
-      </div>
-      <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:10.5px;font-weight:700;color:var(--text-3)">
-        <span>DAY ${t.day} · CREDITED</span><span style="color:var(--amber-bright)">DAYS 5 & 10 · CAMERA CHECK</span>
       </div>
     </section>
 
-    <div class="eyebrow">How today gets credited</div>
+    <div class="eyebrow">How it scores</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic" style="background:var(--purple-surface);color:var(--purple-bright)">${icon('bars', 17)}</div>
-        <div class="lm"><div class="lt">Your trailing-10 median</div><div class="ls">Credit comes from your last 10 real photo-earned days. One hero plate can't inflate it.</div></div>
-      </div>
-      <div class="lrow" style="cursor:default">
-        <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('check', 17)}</div>
-        <div class="lm"><div class="lt">Your answer scales it</div><div class="ls">Yes = full credit · Partial = 60% · No = zero. Honesty is the input.</div></div>
-      </div>
-      <div class="lrow" style="cursor:default">
-        <div class="lic" style="background:var(--amber-surface);color:var(--amber-bright)">${icon('camera', 17)}</div>
-        <div class="lm"><div class="lt">Spot-check every 5th day</div><div class="ls">${nextCheck ? `Day 5 and day 10 the camera comes back. Next check: day ${nextCheck}.` : 'Day 5 and day 10 the camera came back — both checks cleared. Coast on your real logging.'}</div></div>
+        <div class="lm"><div class="lt">Your trailing-10 median</div><div class="ls">Each meal credits your last 10 real photo-earned days for that slot. One hero plate can't inflate it, and a covered day never counts toward the median itself.</div></div>
       </div>
     </section>
-
-    <div class="eyebrow">Credit decays if it goes stale</div>
-    <section class="card pad">
-      <svg width="100%" viewBox="0 0 300 84">
-        <path d="${path}" fill="none" stroke="url(#tg)" stroke-width="2.5" stroke-linecap="round"/>
-        <defs><linearGradient id="tg" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#A855F7"/><stop offset="70%" stop-color="#A855F7"/><stop offset="100%" stop-color="#F5A524"/>
-        </linearGradient></defs>
-        <line x1="${youX}" y1="14" x2="${youX}" y2="76" stroke="rgba(168,85,247,0.4)" stroke-width="1.5" stroke-dasharray="3 3"/>
-        <circle cx="${youX}" cy="${youY.toFixed(1)}" r="4" fill="#C084FC" stroke="#0B0F1A" stroke-width="1.5"/>
-        <text x="${youX}" y="10" fill="#C084FC" font-size="9" font-weight="800" text-anchor="middle" font-family="Plus Jakarta Sans">YOU · DAY ${t.day}</text>
-        <text x="16" y="82" fill="#64748B" font-size="8.5" font-weight="700" font-family="Plus Jakarta Sans">DAY 1</text>
-        <text x="220" y="82" fill="#64748B" font-size="8.5" font-weight="700" font-family="Plus Jakarta Sans">DAY 10</text>
-        <text x="284" y="82" fill="#64748B" font-size="8.5" font-weight="700" text-anchor="end" font-family="Plus Jakarta Sans">14</text>
-      </svg>
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:8px">Full credit through day 10, then it bleeds about 4 points a day. Fresh photos reset the baseline.</div>
-    </section>
-
     <div style="height:10px"></div>
     `;
   },
