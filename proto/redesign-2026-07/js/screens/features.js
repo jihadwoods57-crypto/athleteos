@@ -500,11 +500,11 @@ export const coachVoice = {
   },
 };
 
-/* ---------- #trust-pass-policy · the team defaults grant_trust_pass reads (0097/0099) ---------- */
+/* ---------- #trust-pass-policy · the book defaults grant_pass reads (0196) ---------- */
 export const trustPassPolicy = {
   nav: 'coach', tab: 'profile',
   render() {
-    const p = RT.trustPolicy || { length_days: 10, eligibility_days: 7 };
+    const p = RT.passPolicy || { default_credits: 3, default_window_days: 2, eligibility_days: 7, max_credits: 5 };
     const stepper = (label, key, val, lo, hi, unit) => `
     <div class="eyebrow">${label}</div>
     <section class="card" style="padding:10px 16px">
@@ -517,16 +517,18 @@ export const trustPassPolicy = {
       </div>
     </section>`;
     return `
-    ${backHead('Trust Pass', 'The default reward every grant on your team uses.', 'coach-profile')}
+    ${backHead('Trust Pass', 'The default reward every grant on your book uses.', 'coach-profile')}
 
-    ${stepper('Pass length', 'length_days', p.length_days, 1, 60, p.length_days === 1 ? 'day' : 'days')}
+    ${stepper('Default credits', 'default_credits', p.default_credits, 1, 14, p.default_credits === 1 ? 'meal' : 'meals')}
+    ${stepper('Default window', 'default_window_days', p.default_window_days, 1, 14, p.default_window_days === 1 ? 'day' : 'days')}
     ${stepper('Earned after', 'eligibility_days', p.eligibility_days, 1, 30, 'photo-logged days')}
+    ${stepper('Max credits per grant', 'max_credits', p.max_credits, 1, 14, p.max_credits === 1 ? 'meal' : 'meals')}
 
     <div style="height:10px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
       <div><div class="tt">How a Trust Pass works</div>
-      <div class="ts">A pass lets a proven athlete one-tap their trailing nutrition median instead of a photo, for <b>${p.length_days}</b> ${p.length_days === 1 ? 'day' : 'days'}. You grant it by hand from an athlete’s profile, and only after they’ve photo-logged a meal on <b>${p.eligibility_days}</b> separate days — the server checks that every time, so a pass can never be earned from nothing.</div></div>
+      <div class="ts">A pass lets a proven athlete skip the photo for a meal, or a whole weekend, and credits their trailing nutrition median instead. You grant it by hand from an athlete's profile, and only after they've photo-logged a meal on <b>${p.eligibility_days}</b> separate days. The server checks that every time, so a pass can never be earned from nothing.</div></div>
     </div>
     <div style="height:10px"></div>
     `;
@@ -535,7 +537,7 @@ export const trustPassPolicy = {
     root.querySelectorAll('[data-tpp]').forEach((seg) => {
       const key = seg.getAttribute('data-tpp');
       seg.querySelectorAll('[data-step]').forEach((b) => b.addEventListener('click', () => {
-        const cur = (RT.trustPolicy || { length_days: 10, eligibility_days: 7 })[key];
+        const cur = (RT.passPolicy || { default_credits: 3, default_window_days: 2, eligibility_days: 7, max_credits: 5 })[key];
         act.setTrustPolicy({ [key]: cur + Number(b.getAttribute('data-step')) });
         window.__render();
       }));

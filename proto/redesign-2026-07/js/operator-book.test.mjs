@@ -160,7 +160,7 @@ for (const kind of ['team', 'practice']) {
     assert.strictEqual(CD.caps.interventions, 1, '0136 gave a practice its own interventions');
     assert.strictEqual(CD.caps.notes, 1, '0136 gave a practice its own notes');
     assert.strictEqual(CD.caps.templates, 0, 'requirement_templates was NOT one of the six tables 0136 converted');
-    assert.strictEqual(CD.caps.trustPass, 0, 'grant_trust_pass never authorizes is_trainer_of');
+    assert.strictEqual(CD.caps.trustPass, 1, '0196: grant_pass authorizes is_trainer_of too, so a practice gets the reward');
     assert.strictEqual(CD.caps.rollups, 1, '0137 gave a practice its own insights rollup');
     assert.strictEqual(CD.caps.offers, 1, 'a trainer keeps their monetization surface');
   } else {
@@ -357,10 +357,14 @@ assert.deepStrictEqual(snapshotStatus.practice, snapshotStatus.team,
   for (const gone of ['today', 'score']) {
     assert.ok(!teamAthlete.includes(`data-psec="${gone}"`), `the ${gone} chip merged into Overview`);
   }
-  // Trust Pass is the one action that stays team-only FOREVER — grant_trust_pass (0099) checks
-  // is_team_coach_of and never is_trainer_of, so a trainer's tap could only ever be refused.
-  assert.ok(teamAthlete.includes('id="tp-btn"'), 'a coach keeps the Trust Pass action');
-  assert.ok(!practiceAthlete.includes('id="tp-btn"'), 'a trainer must never be shown Trust Pass — the server refuses it');
+  // Trust Pass is available to BOTH books as of 0196 — grant_pass authorizes is_team_coach_of OR
+  // is_trainer_of. Neither fixture athlete has an active pass (the stub answers trust_passes with
+  // []), so the actionbar shows the reward LINK (a route to the grant sheet), not the id="tp-btn"
+  // end-pass toggle, which only renders once a pass exists.
+  assert.ok(teamAthlete.includes('pass-grant/a1'), 'a coach can reward their athlete');
+  assert.ok(practiceAthlete.includes('pass-grant/a1'), '0196: a trainer can now reward their client too');
+  assert.ok(!teamAthlete.includes('id="tp-btn"') && !practiceAthlete.includes('id="tp-btn"'),
+    'neither fixture athlete has an active pass, so End is not shown');
   // ...but the three actions 0136 DID open are present on both.
   for (const marker of ['data-anudge=', 'data-go="coach-assign/', 'data-go="coach-plan/']) {
     assert.ok(teamAthlete.includes(marker) && practiceAthlete.includes(marker),

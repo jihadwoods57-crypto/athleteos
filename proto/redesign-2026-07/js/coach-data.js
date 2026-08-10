@@ -42,8 +42,9 @@ export function resolvePos(row) {
      · position rooms, staff scopes, practice/game-day patterns and 1-to-many broadcast are
        TEAM concepts. A trainer with 12 clients works 1:1, so rooms/staffRoles/weekPattern/
        announcements/recruiting have no practice equivalent to build.
-     · trustPass is server-refused outright: grant_trust_pass (0099) checks is_team_coach_of
-       only — unlike coach_set_goals (0054), it never accepts is_trainer_of.
+     · trustPass is available to BOTH books as of 0196: grant_pass authorizes
+       is_team_coach_of OR is_trainer_of, and trust_pass_policy carries a practice_id arm
+       (0136's dual-owner shape) — see roster/pass-grant.js for the shared UI.
      · templates (0074 requirement_templates) was not one of 0136's six dual-owner tables;
        a practice writes its standard directly instead of browsing team template drafts.
    Everything migration-gated has landed: standards/assignments/interventions/notes/
@@ -67,7 +68,7 @@ const CAPS = {
     // 0137 mirrors team_day_rollup/team_intervention_outcomes as practice_day_rollup/
     // practice_intervention_outcomes — Insights now reads real per-day-per-client history.
     rollups: 1,
-    rooms: 0, staffRoles: 0, weekPattern: 0, announcements: 0, recruiting: 0, trustPass: 0, // never
+    rooms: 0, staffRoles: 0, weekPattern: 0, announcements: 0, recruiting: 0, trustPass: 1,
     offers: 1, payments: 1, packages: 1,
   },
 };
@@ -353,10 +354,10 @@ export async function loadAthleteProfile(athleteId, force) {
     // interventions/notes are team-owned tables until 0136. Passing a PRACTICE id into them would
     // read nothing anyway (RLS), but gating keeps the intent explicit and the shape honest: a
     // trainer's profile simply has no notes/interventions section rather than a permanently empty one.
-    const [day, meals, trustPass, interventions, assignments, notes, basics, weights] = await Promise.all([
+    const [day, meals, passRaw, interventions, assignments, notes, basics, weights] = await Promise.all([
       roles.fetchDay(athleteId, roles.todayISO()),
       roles.fetchRecentMeals(athleteId, since30),
-      roles.fetchActiveTrustPass(athleteId),
+      roles.fetchActivePass(athleteId),
       c.interventions ? roles.fetchAthleteInterventions(bookId, athleteId, since30, KIND) : [],
       c.assignments ? roles.fetchAthleteAssignments(athleteId, since30) : [],
       c.notes ? roles.fetchCoachNotes(bookId, athleteId, KIND) : [],
@@ -395,7 +396,10 @@ export async function loadAthleteProfile(athleteId, force) {
       });
     }
     if (gen !== profileGen) return;                    // a newer load superseded us
-    PROFILE = { athleteId, day, meals: meals || [], photos, trustPass,
+    // fetchActivePass returns {error} on a real failure, distinct from null ("no pass") — only
+    // a row with an id is a real active pass, so an error object can never read as one.
+    const pass = passRaw && passRaw.id ? passRaw : null;
+    PROFILE = { athleteId, day, meals: meals || [], photos, pass,
       interventions, assignments, notes, exceptions, row, status, basics, offline: false,
       planStyle: set ? planStyleFromItems(set.items)?.style || null : null,
     };

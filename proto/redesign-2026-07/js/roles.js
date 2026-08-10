@@ -744,30 +744,71 @@ export async function draftMealReplies(mealId, context) {
     return { ok: true, drafts: Array.isArray(data.drafts) ? data.drafts : [] };
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 }
-export async function fetchActiveTrustPass(athleteId) {
+/* Trust Pass (0196). A grant is coach OR trainer authorized server-side (grant_pass); a spend is
+   self-only by construction, since spend_pass takes no athlete argument at all. */
+export async function fetchActivePass(athleteId) {
   const c = sb(); if (!c || !athleteId) return null;
-  try { const { data } = await c.from('trust_passes').select('granted_date,length_days').eq('athlete_id', athleteId).is('ended_at', null).maybeSingle(); return data || null; } catch { return null; }
-}
-export async function grantTrustPass(athleteId, lengthDays) {
-  const c = sb(); if (!c || !athleteId) return { ok: false };
-  // No length by default: the server resolves the team's trust_pass_policy (0099). An explicit
-  // number still overrides (back-compat).
-  const args = { p_athlete: athleteId };
-  if (typeof lengthDays === 'number') args.p_length = lengthDays;
-  try { const { error } = await c.rpc('grant_trust_pass', args); return { ok: !error, error: error && error.message }; } catch (e) { return { ok: false, error: e && e.message }; }
-}
-export async function endTrustPass(athleteId) {
-  const c = sb(); if (!c || !athleteId) return false;
-  try { const { error } = await c.rpc('end_trust_pass', { p_athlete: athleteId }); return !error; } catch { return false; }
-}
-/* Per-team Trust Pass policy (0097): the coach-chosen pass length + eligibility the grant reads.
-   Staff-scoped RLS; a missing row means the shipped 10-day / 7-day defaults are in effect. The
-   WRITE lives in state.js act.setTrustPolicy (it owns RT for updated_by), mirroring setCoachVoice. */
-export async function fetchTrustPassPolicy(teamId) {
-  const c = sb(); if (!c || !teamId) return null;
   try {
-    const { data } = await c.from('trust_pass_policy').select('length_days, eligibility_days').eq('team_id', teamId).maybeSingle();
+    const { data, error } = await c.from('trust_passes')
+      .select('id,credits_total,covers_from,covers_until,expires_on,note,created_at')
+      .eq('athlete_id', athleteId).is('ended_at', null).maybeSingle();
+    // A throw and an empty result are different facts. Returning null on an ERROR would read as
+    // "no pass" and quietly hide a credit the athlete owns.
+    if (error) return { error: error.message };
     return data || null;
+  } catch (e) { return { error: String((e && e.message) || e) }; }
+}
+
+export async function grantPass(athleteId, opts) {
+  const c = sb(); if (!c || !athleteId) return { ok: false };
+  const o = opts || {};
+  const args = { p_athlete: athleteId };
+  if (typeof o.credits === 'number') args.p_credits = o.credits;
+  if (o.from)  args.p_covers_from = o.from;
+  if (o.until) args.p_covers_until = o.until;
+  if (o.expires) args.p_expires_on = o.expires;
+  if (o.note) args.p_note = String(o.note).slice(0, 140);
+  try { const { error } = await c.rpc('grant_pass', args); return { ok: !error, error: error && error.message }; }
+  catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+}
+
+export async function endPass(athleteId) {
+  const c = sb(); if (!c || !athleteId) return false;
+  try { const { error } = await c.rpc('end_pass', { p_athlete: athleteId }); return !error; } catch { return false; }
+}
+
+export async function spendPass(dayISO, slot) {
+  const c = sb(); if (!c || !dayISO || !slot) return { ok: false };
+  try { const { error } = await c.rpc('spend_pass', { p_day: dayISO, p_slot: slot }); return { ok: !error, error: error && error.message }; }
+  catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+}
+
+/* One row per book (0196's dual-owner shape): teamId OR practiceId, never both — the caller
+   passes whichever their operator context has, exactly like every other 0136 dual-owner fetch. */
+export async function fetchPassPolicy({ teamId, practiceId } = {}) {
+  const c = sb(); if (!c || (!teamId && !practiceId)) return null;
+  try {
+    let q = c.from('trust_pass_policy')
+      .select('default_credits,default_window_days,eligibility_days,max_credits');
+    q = teamId ? q.eq('team_id', teamId) : q.eq('practice_id', practiceId);
+    const { data } = await q.maybeSingle();
+    return data || null;
+  } catch { return null; }
+}
+
+/* Active passes across the whole book, for the roster section. Returns a map keyed by athlete id,
+   or null on failure (never {} — an empty map from a failed fetch would read as "nobody has a
+   pass" and hide every active grant on the roster). */
+export async function fetchRosterPasses(athleteIds) {
+  const c = sb(); if (!c || !athleteIds || !athleteIds.length) return null;
+  try {
+    const { data, error } = await c.from('trust_passes')
+      .select('id,athlete_id,credits_total,covers_from,covers_until,expires_on')
+      .in('athlete_id', athleteIds).is('ended_at', null);
+    if (error) return null;
+    const map = {};
+    for (const r of data || []) map[r.athlete_id] = r;
+    return map;
   } catch { return null; }
 }
 /* Coach first-run setup progress (0092), read back so the checklist RESUMES after a reinstall or on

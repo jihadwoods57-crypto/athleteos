@@ -14,13 +14,14 @@ import { tierFor } from './score-band.js';
 import { initialsOf } from './initials.js';
 import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor, dayFromHistoryRow,
-  streakDays as dayStreak, streakInfo, loadDay, pushDay, uploadMealPhoto, flushDayPush,
+  streakDays as dayStreak, streakInfo, loadDay, reloadPassState, pushDay, uploadMealPhoto, flushDayPush,
   setSyncBlocked, isSyncBlocked, SYNC, setDayTaskProvider,
   dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayLogWeight, dayResetLocal, dayCheckTask,
   insertMeal, MEAL_KEYS, minutesNow, mealScored,
   setDayStandard, slotDeadline, slotGrace, slotOpen, setDayGoalConfig,
   setDayPlanStyle, weightsForDay, DAY_SELECT_COLS, PROFILE_WEIGHTS,
 } from './day.js';
+import { creditsLeft } from './pass.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { activationInfo, parseActivation } from './activation.js';
 import { normalizePrefs } from './notify-plan.js';
@@ -48,7 +49,7 @@ import {
   fetchRequirementSets, fetchMyAssignments, completeAssignmentRemote,
   fetchMyNotifications, markMyNotificationsRead,
   fetchMyCoachHandle, setMyCoachName, checkPhotoReuse, notifyMyCoach,
-  fetchTrustPassPolicy, fetchTeamWeekPattern, fetchCoachSetupState, fetchMyRoomLabel,
+  fetchPassPolicy, spendPass as rpcSpendPass, fetchTeamWeekPattern, fetchCoachSetupState, fetchMyRoomLabel,
   fetchMyMemoryFacts, upsertMemoryFact, setMemoryFactStatus,
   fetchFoodMemory, insertFoodMemoryItem, updateFoodMemoryItem, archiveFoodMemoryItem,
   bumpFoodMemoryItem, upsertFoodMemoryPlace,
@@ -1804,23 +1805,35 @@ export const act = {
       }
     } catch { /* best-effort */ }
   },
-  /* Trust Pass policy (0097): the per-team pass length + eligibility the grant reads. Local RT is the
-     fast path for the editor; best-effort server upsert (staff RLS) — a missing table or offline
-     no-ops. Values are clamped to the table's own bounds so the DB check can never reject them. */
+  /* Trust Pass policy (0196): per-book defaults the grant RPC reads (default_credits,
+     default_window_days, eligibility_days, max_credits). Dual-owner like every 0136 table — a
+     practice writes practice_id, a team writes team_id, never both, and the unique index is keyed
+     on coalesce(team_id, practice_id) so two policies for one practice can never coexist. Local RT
+     is the fast path for the editor; best-effort server upsert (staff RLS) — a missing table or
+     offline no-ops. Values are clamped to the table's own bounds so the DB check can never reject
+     them. */
   setTrustPolicy(patch) {
-    const cur = RT.trustPolicy || { length_days: 10, eligibility_days: 7 };
+    const cur = RT.passPolicy || { default_credits: 3, default_window_days: 2, eligibility_days: 7, max_credits: 5 };
     const clamp = (n, lo, hi, d) => { n = Math.round(Number(n)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
     const next = {
-      length_days: clamp(patch.length_days != null ? patch.length_days : cur.length_days, 1, 60, 10),
-      eligibility_days: clamp(patch.eligibility_days != null ? patch.eligibility_days : cur.eligibility_days, 1, 30, 7),
+      default_credits:     clamp(patch.default_credits     != null ? patch.default_credits     : cur.default_credits,     1, 14, 3),
+      default_window_days: clamp(patch.default_window_days != null ? patch.default_window_days : cur.default_window_days, 1, 14, 2),
+      eligibility_days:    clamp(patch.eligibility_days     != null ? patch.eligibility_days     : cur.eligibility_days,    1, 30, 7),
+      max_credits:         clamp(patch.max_credits          != null ? patch.max_credits          : cur.max_credits,        1, 14, 5),
     };
-    RT.trustPolicy = next;
+    RT.passPolicy = next;
     save();
     try {
-      if (window.sb && RT.team && RT.team.id) {
+      const owner = RT.team && RT.team.id ? { team_id: RT.team.id }
+        : RT.practice && RT.practice.id ? { practice_id: RT.practice.id }
+        : null;
+      if (window.sb && owner) {
+        // 0196's unique index is on coalesce(team_id, practice_id), one column across both books
+        // rather than two separate constraints — onConflict must name that exact expression, not
+        // either bare column, or Postgres reports no matching arbiter index.
         void window.sb.from('trust_pass_policy').upsert(
-          { team_id: RT.team.id, length_days: next.length_days, eligibility_days: next.eligibility_days, updated_by: RT.userId || null, updated_at: new Date().toISOString() },
-          { onConflict: 'team_id' });
+          { ...owner, ...next, updated_by: RT.userId || null, updated_at: new Date().toISOString() },
+          { onConflict: 'coalesce(team_id,practice_id)' });
       }
     } catch { /* best-effort */ }
   },
@@ -2597,6 +2610,15 @@ export const act = {
     }
     RT.practiceLoading = false;
     save();
+    // Trust Pass policy (0196): a practice is now an equal grantor, so it needs the same
+    // defaults-load a team already gets. Best-effort; never blocks practice load.
+    if (RT.practice && RT.practice.id) {
+      try {
+        const pol = await fetchPassPolicy({ practiceId: RT.practice.id });
+        RT.passPolicy = pol || (RT.passPolicy || { default_credits: 3, default_window_days: 2, eligibility_days: 7, max_credits: 5 });
+        save();
+      } catch { /* best-effort */ }
+    }
   },
   /* Shared-device safety: wipe EVERY user-scoped bit of local state (the in-memory DAY plus
      the persisted runtime) so the next account on this device can never inherit the previous
@@ -2650,14 +2672,12 @@ export const act = {
     }
     RT.teamLoading = false;
     save();
-    // Trust Pass policy (0097) into RT for the editor + grant copy. Best-effort; a missing row or
+    // Trust Pass policy (0196) into RT for the editor + grant copy. Best-effort; a missing row or
     // not-yet-applied table falls back to the shipped defaults. Never blocks team load.
     if (RT.team && RT.team.id) {
       try {
-        const pol = await fetchTrustPassPolicy(RT.team.id);
-        RT.trustPolicy = pol && pol.length_days != null
-          ? { length_days: pol.length_days, eligibility_days: pol.eligibility_days }
-          : (RT.trustPolicy || { length_days: 10, eligibility_days: 7 });
+        const pol = await fetchPassPolicy({ teamId: RT.team.id });
+        RT.passPolicy = pol || (RT.passPolicy || { default_credits: 3, default_window_days: 2, eligibility_days: 7, max_credits: 5 });
         const wp = await fetchTeamWeekPattern(RT.team.id);
         if (wp) RT.weekPattern = wp; // for the coach's weekly-pattern editor
         // T-21: resume first-run setup after a reinstall / on a new device. UNION the server's
@@ -2697,6 +2717,18 @@ export const act = {
     setSyncBlocked(blocked);
   },
   /* Ask a parent/guardian for consent (0008 RPC), then re-hydrate so the UI shows pending. */
+  /* Spend a Trust Pass credit on today's `slot` (0196). The server is the only wall (spend_pass
+     takes no athlete argument, so it cannot be pointed at anyone else) — this just relays intent
+     and re-reads the ledger afterward. A re-read rather than a local patch: the server owns the
+     count, and a refund trigger elsewhere (logging the meal mid-flight) can have already changed
+     it without this device knowing. */
+  async spendPass(slot) {
+    const r = await rpcSpendPass(DAY.date, slot);
+    if (!r.ok) return r;
+    await reloadPassState(RT.userId);
+    if (window.__render) window.__render();
+    return r;
+  },
   async requestGuardianConsent(email) {
     const addr = String(email || '').trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addr)) return { ok: false, error: 'Enter your parent or guardian’s email.' };
@@ -4098,16 +4130,47 @@ export const S = {
     };
   },
 
-  // Real Trust Pass: reflects an active `trust_passes` row (coach-granted, migration 0033/0039),
-  // loaded by day.js. No pass → honestly inactive; never a fabricated "day 3 of 14".
-  get trustPass() {
-    const tp = DAY.trustPass;
-    if (!tp || !tp.granted_date) return { active: false };
-    const start = new Date(tp.granted_date + 'T00:00:00');
-    const now = new Date(DAY.date + 'T00:00:00');
-    const len = tp.length_days || 10;
-    const day = Math.min(len, Math.max(1, Math.floor((now - start) / 86400000) + 1));
-    return { active: true, day, length: len, note: 'Camera-free today, credited from your real logging history.' };
+  // The athlete's own count toward the eligibility gate (0196: >= policy.eligibility_days
+  // photo-logged days, lifetime). A client-side PROXY, not authoritative — the server's
+  // grant_pass re-checks meals.photo_path directly and is the only wall that matters for
+  // security. This exists purely so the not-earned screen can show real progress instead of a
+  // static "earn it" message. `source` is set by day.js insertMeal from the real capture path
+  // ('live' | 'gallery' vs the no-photo 'manual' | 'label'), the closest thing scoreHistory
+  // carries to "was there a photo". Counts distinct DATES, since a day can log more than one
+  // photographed slot and the gate counts days, not meals. */
+  get passEligibleDays() {
+    const dates = new Set();
+    for (const r of DAY.scoreHistory || []) {
+      const sm = r.checkin && r.checkin.slotMacros;
+      if (sm && Object.values(sm).some((m) => m && (m.source === 'live' || m.source === 'gallery'))) {
+        dates.add(r.date);
+      }
+    }
+    return dates.size;
+  },
+
+  // The athlete's live pass (0196). Shape mirrors what the UI needs; no pass means honestly
+  // inactive, never a fabricated "day 3 of 14".
+  get pass() {
+    const list = (DAY.passes || []).filter((p) => p && !p.ended_at && DAY.date <= p.expires_on);
+    const p = list[0];
+    if (!p) return { active: false, eligible: this.passEligibleDays };
+    const left = creditsLeft(p, DAY.passSpends);
+    const isWindow = p.credits_total == null;
+    if (isWindow) {
+      const start = new Date(p.covers_from + 'T00:00:00');
+      const now = new Date(DAY.date + 'T00:00:00');
+      const len = Math.round((new Date(p.covers_until + 'T00:00:00') - start) / 86400000) + 1;
+      const day = Math.min(len, Math.max(1, Math.floor((now - start) / 86400000) + 1));
+      return {
+        active: true, kind: 'window', day, length: len, note: p.note || null,
+        covers_from: p.covers_from, covers_until: p.covers_until,
+      };
+    }
+    return {
+      active: true, kind: 'credits', left, total: p.credits_total,
+      expires: p.expires_on, note: p.note || null,
+    };
   },
 
   /* ---------- EXECUTION ENGINE (one derivation for Home / Hub / FAB / notifications) ---------- */

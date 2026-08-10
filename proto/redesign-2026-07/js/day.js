@@ -732,6 +732,37 @@ export async function fetchWeightSeries(sb, userId, daysBack) {
   return m;
 }
 
+/** Fetch DAY.passes / DAY.passSpends over the trailing `since..today` window. Shared by loadDay
+ *  (as part of the normal day load) and reloadPassState (after a spend, when only the pass side
+ *  needs a fresh read). A THROW MUST NOT BECOME []: an empty array is indistinguishable from "no
+ *  pass", so swallowing a failure would silently drop a credit the athlete owns and re-score
+ *  their day downward. On failure the previous value stands. */
+async function fetchPassState(sb, userId, since) {
+  try {
+    const [{ data: ps, error: pErr }, { data: sp, error: sErr }] = await Promise.all([
+      sb.from('trust_passes')
+        .select('id,credits_total,covers_from,covers_until,expires_on,note,ended_at,created_at')
+        .eq('athlete_id', userId).gte('expires_on', since),
+      sb.from('pass_spends')
+        .select('pass_id,day_date,slot')
+        .eq('athlete_id', userId).gte('day_date', since),
+    ]);
+    if (!pErr && Array.isArray(ps)) DAY.passes = ps;
+    if (!sErr && Array.isArray(sp)) DAY.passSpends = sp;
+  } catch (e) { console.warn('[day] pass state fetch failed, keeping the last known', e && e.message); }
+}
+
+/** Re-read just the pass ledger, e.g. right after a spend — the server owns the count, and a
+ *  refund trigger (the athlete logging the meal mid-flight) can have changed it without this
+ *  device knowing. Cheaper than a full loadDay: no days/meals/weight round trip. */
+export async function reloadPassState(userId) {
+  const sb = window.sb;
+  if (!sb || !userId) return;
+  const since = addDaysISO(DAY.date, -60);
+  await fetchPassState(sb, userId, since);
+  saveCache(userId);
+}
+
 export async function loadDay(userId) {
   // Reset to a fresh day FIRST — never merge the fetch onto a previous session's (or a
   // previous calendar day's) in-memory residue. Without this, a user with no server row
@@ -769,22 +800,7 @@ export async function loadDay(userId) {
     }));
     // Trust Pass state (0196). The 60-day window matches the history fetch above, which is what
     // lets slotMedians exclude previously-covered days without a second round trip.
-    //
-    // A THROW MUST NOT BECOME []. An empty array is indistinguishable from "no pass", so
-    // swallowing a failure would silently drop a credit the athlete owns and re-score their day
-    // downward. On failure the previous value stands.
-    try {
-      const [{ data: ps, error: pErr }, { data: sp, error: sErr }] = await Promise.all([
-        sb.from('trust_passes')
-          .select('id,credits_total,covers_from,covers_until,expires_on,note,ended_at,created_at')
-          .eq('athlete_id', userId).gte('expires_on', since),
-        sb.from('pass_spends')
-          .select('pass_id,day_date,slot')
-          .eq('athlete_id', userId).gte('day_date', since),
-      ]);
-      if (!pErr && Array.isArray(ps)) DAY.passes = ps;
-      if (!sErr && Array.isArray(sp)) DAY.passSpends = sp;
-    } catch (e) { console.warn('[day] pass state fetch failed, keeping the last known', e && e.message); }
+    await fetchPassState(sb, userId, since);
     saveCache(userId);
     // Reconnect healing: if this device's cached day carries progress the server row lacks
     // (offline logs, a push that never flushed before the app was killed), push the merged

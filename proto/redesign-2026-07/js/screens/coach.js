@@ -200,7 +200,8 @@ async function loadSets(force) {
   finally { setsLoading = false; }
   if (location.hash.startsWith('#coach-plan')) window.__render();
 }
-/* Trust passes across the roster (0033/0039 — earned camera-free reward, server-enforced). */
+/* Trust passes across the roster (0196 — earned camera-free reward, server-enforced, available to
+   both books). One batch call rather than N per-athlete round trips. */
 let TP = null;
 let tpLoading = false;
 async function loadTrust(force) {
@@ -209,9 +210,8 @@ async function loadTrust(force) {
   const rows = CD.roster ? CD.roster.rows.slice(0, 12) : [];
   tpLoading = true;
   try {
-    const map = {};
-    await Promise.all(rows.map(async (r) => { map[r.athleteId] = await roles.fetchActiveTrustPass(r.athleteId); }));
-    TP = { map };
+    const map = await roles.fetchRosterPasses(rows.map((r) => r.athleteId));
+    TP = { map: map || {} };
   } catch { TP = { map: {} }; }
   finally { tpLoading = false; }
   if (location.hash.startsWith('#coach-plan')) window.__render();
@@ -466,23 +466,29 @@ export const coachPlan = {
       </section>` : `
       ${emptyState({ icon: 'target', title: 'No athletes yet', body: 'Per-athlete protein, calorie, and target-weight numbers open here the moment your team joins.', action: { label: 'Invite athletes', go: 'coach-profile/code' } })}`}
 
-      <div class="eyebrow">Trust passes · earned camera-free days</div>
+      <div class="eyebrow">Trust passes · camera-free rewards</div>
       ${rows && rows.length ? `
       <section class="card" style="padding:6px 16px">
         ${rows.slice(0, 6).map(r => {
           const pass = TP && TP.map ? TP.map[r.athleteId] : undefined;
-          const active = pass && pass.granted_date;
+          const active = !!pass;
+          const sub = TP === null ? 'Checking…'
+            : !active ? `No pass · needs ${(RT.passPolicy || { eligibility_days: 7 }).eligibility_days} photo-logged days`
+            : pass.credits_total == null ? `Window · through ${esc(pass.covers_until)}`
+            : `${esc(String(pass.credits_total))} credits · expires ${esc(pass.expires_on)}`;
           return `
         <div class="lrow" style="cursor:default">
           <div class="lic" style="${active ? 'background:var(--green-surface);color:var(--green-bright)' : ''}">${icon('shield', 17)}</div>
           <div class="lm"><div class="lt">${esc(r.name)}</div>
-          <div class="ls">${TP === null ? 'Checking…' : active ? `Active · started ${esc(pass.granted_date)} · ${pass.length_days || 10} days` : `No pass · needs ${(RT.trustPolicy || { eligibility_days: 7 }).eligibility_days} photo-logged days on standard`}</div></div>
-          <button class="btn ghost sm" data-tp="${active ? 'end' : 'grant'}:${esc(r.athleteId)}" style="width:auto;padding:0 12px;height:30px;font-size:11px;${active ? 'color:var(--red)' : ''}">${active ? 'End' : 'Grant'}</button>
+          <div class="ls">${sub}</div></div>
+          ${active
+            ? `<button class="btn ghost sm" data-tp="end:${esc(r.athleteId)}" style="width:auto;padding:0 12px;height:30px;font-size:11px;color:var(--red)">End</button>`
+            : `<button class="btn ghost sm" data-go="pass-grant/${esc(r.athleteId)}" style="width:auto;padding:0 12px;height:30px;font-size:11px">Grant</button>`}
         </div>`;
         }).join('')}
         <div id="tp-plan-status" style="font-size:11.5px;font-weight:600;color:var(--text-3);min-height:14px;padding:2px 2px 8px"></div>
       </section>` : `
-      ${emptyState({ icon: 'shield', title: 'No trust passes yet', body: `A pass is earned after ${(RT.trustPolicy || { eligibility_days: 7 }).eligibility_days} photo-logged days on standard. Invite athletes to start the clock.`, action: { label: 'Invite athletes', go: 'coach-profile/code' } })}`}
+      ${emptyState({ icon: 'shield', title: 'No trust passes yet', body: `A pass is earned after ${(RT.passPolicy || { eligibility_days: 7 }).eligibility_days} photo-logged days. Invite athletes to start the clock.`, action: { label: 'Invite athletes', go: 'coach-profile/code' } })}`}
 
       <div class="eyebrow">Program</div>
       <section class="card" style="padding:6px 16px">
@@ -494,7 +500,7 @@ export const coachPlan = {
         </div>
         <div class="lrow" data-go="trust-pass-policy">
           <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('shield', 17)}</div>
-          <div class="lm"><div class="lt">Trust Pass defaults</div><div class="ls">${(RT.trustPolicy || { length_days: 10, eligibility_days: 7 }).length_days}-day pass · earned after ${(RT.trustPolicy || { eligibility_days: 7 }).eligibility_days} photo-logged days</div></div>
+          <div class="lm"><div class="lt">Trust Pass defaults</div><div class="ls">${(RT.passPolicy || { default_credits: 3, eligibility_days: 7 }).default_credits}-credit default · earned after ${(RT.passPolicy || { eligibility_days: 7 }).eligibility_days} photo-logged days</div></div>
           ${icon('chevron', 17, 'style="color:var(--text-3)"')}
         </div>
         <div class="lrow" data-go="week-pattern">
@@ -590,10 +596,10 @@ export const coachPlan = {
     `;
   },
   mount(root, { sub }) {
-    // Standing standards and trust passes are team-owned (0136 gives a practice its own
-    // standards; trust passes stay team-only — grant_trust_pass never authorizes is_trainer_of).
-    // Skip both fetches on a practice book rather than querying a table that will only ever hand
-    // back rows scoped to a team id this book doesn't have.
+    // Standing standards are team-owned (0136 gives a practice its own standards, so this still
+    // gates on caps.standards). Trust passes are NOT team-only as of 0196 — grant_pass authorizes
+    // is_trainer_of too, and trust_pass_policy carries a practice_id arm — so caps.trustPass is 1
+    // for both books and this fetch runs for either.
     loadBook(false, bookKindFor(RT.authRole)).then(() => {
       if (CD.caps.standards) loadSets();
       if (!sub && CD.caps.trustPass) loadTrust();
@@ -602,21 +608,17 @@ export const coachPlan = {
     const planRetry = root.querySelector('#plan-retry');
     if (planRetry) planRetry.addEventListener('click', () => { planRetry.disabled = true; loadBook(true, bookKindFor(RT.authRole)).then(() => { if (CD.caps.standards) loadSets(true); window.__render(); }); });
 
-    // Trust pass grant/end on the Plan home (server-enforced eligibility, honest errors)
+    // Trust pass end on the Plan home. Grant is a `data-go` link to the pass-grant sheet (0196:
+    // the form needs a shape, an amount and an optional note — an inline one-tap grant can no
+    // longer say all of that), so only End is handled here.
     root.querySelectorAll('[data-tp]').forEach(b => b.addEventListener('click', async () => {
-      const [what, id] = b.getAttribute('data-tp').split(':');
+      const [, id] = b.getAttribute('data-tp').split(':');
       const status = root.querySelector('#tp-plan-status');
       const say = (msg, isErr) => { if (status) { status.style.color = isErr ? 'var(--red)' : 'var(--text-3)'; status.textContent = msg; } };
-      b.disabled = true; say(what === 'grant' ? 'Granting…' : 'Ending…');
-      if (what === 'grant') {
-        const r = await roles.grantTrustPass(id, (RT.trustPolicy || { length_days: 10 }).length_days);
-        if (!r.ok) { b.disabled = false; say(r.error && /standard|photo|eligib/i.test(r.error) ? `Not eligible yet — needs ${(RT.trustPolicy || { eligibility_days: 7 }).eligibility_days} photo-logged days on standard.` : (r.error || 'Could not grant it.'), true); return; }
-        say('Granted — camera-free days start now.');
-      } else {
-        const ok = await roles.endTrustPass(id);
-        if (!ok) { b.disabled = false; say('Could not end it — try again.', true); return; }
-        say('Ended.');
-      }
+      b.disabled = true; say('Ending…');
+      const ok = await roles.endPass(id);
+      if (!ok) { b.disabled = false; say('Could not end it — try again.', true); return; }
+      say('Ended.');
       await loadTrust(true);
     }));
     if (!sub) return;
@@ -2248,7 +2250,11 @@ export const coachAthlete = {
         : `<button class="co-act" data-anudge="${esc(athleteId)}">${icon('bell', 18)}<span class="lbl">Nudge</span></button>`}
       <button class="co-act" data-go="coach-assign/${esc(athleteId)}">${icon('clipboard', 18)}<span class="lbl">Assign</span></button>
       <button class="co-act" data-go="coach-plan/${esc(athleteId)}">${icon('edit', 18)}<span class="lbl">Targets</span></button>
-      ${CD.caps.trustPass ? `<button class="co-act ${P.trustPass ? 'hero' : ''}" id="tp-btn">${icon('shield', 18)}<span class="lbl">${P.trustPass ? 'End pass' : 'Trust'}</span></button>` : ''}
+      ${CD.caps.trustPass
+        ? P.pass
+          ? `<button class="co-act hero" id="tp-btn">${icon('shield', 18)}<span class="lbl">End pass</span></button>`
+          : `<button class="co-act" data-go="pass-grant/${esc(athleteId)}">${icon('shield', 18)}<span class="lbl">Reward</span></button>`
+        : ''}
     </div>
     ${NUDGE_ARM ? `
     <div style="display:flex;gap:6px;align-items:center;margin:6px 0 2px">
@@ -2365,21 +2371,14 @@ export const coachAthlete = {
       NOTE_DEL = null;
       loadAthleteProfile(athleteId, true); // ALWAYS refresh — a bare true can be an RLS no-op
     }));
+    // Only END lives here now. Granting needs a shape, an amount and an optional note (0196), so
+    // the actionbar's "Reward" state is a `data-go` link to the pass-grant sheet instead.
     const btn = root.querySelector('#tp-btn');
     const status = root.querySelector('#tp-status');
     if (btn) btn.addEventListener('click', async () => {
-      const P = CD.profile;
-      const hasPass = P && P.trustPass;
-      btn.disabled = true; if (status) status.textContent = hasPass ? 'Ending…' : 'Granting…';
-      if (hasPass) {
-        const ok = await roles.endTrustPass(athleteId);
-        if (status) status.textContent = ok ? 'Trust Pass ended.' : 'Could not end it.';
-      } else {
-        // No length passed: the server resolves the team's trust_pass_policy (0099).
-        const pol = RT.trustPolicy || { length_days: 10, eligibility_days: 7 };
-        const r = await roles.grantTrustPass(athleteId);
-        if (status) status.textContent = r.ok ? `Trust Pass granted · ${pol.length_days} days.` : (r.error && /on.?standard|photo|eligib/i.test(r.error) ? `Not eligible yet — needs ${pol.eligibility_days} photo-logged days.` : 'Could not grant it.');
-      }
+      btn.disabled = true; if (status) status.textContent = 'Ending…';
+      const ok = await roles.endPass(athleteId);
+      if (status) status.textContent = ok ? 'Trust Pass ended.' : 'Could not end it.';
       setTimeout(() => { if (location.hash.startsWith('#coach-athlete')) loadAthleteProfile(athleteId, true); }, 500);
     });
   },
