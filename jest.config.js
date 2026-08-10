@@ -28,4 +28,9 @@ module.exports = {
     '^expo-secure-store$': '<rootDir>/jest/expoSecureStoreMock.js',
   },
   testMatch: ['**/*.test.ts', '**/*.test.tsx'],
+  // Jest's own default only ignores node_modules. Without .worktrees/ here, running the
+  // suite from the repo root while any git worktree is checked out under .worktrees/
+  // (a convention this repo now uses for isolated plan execution) re-discovers and runs
+  // that worktree's ENTIRE test suite a second time as if it were part of this repo.
+  testPathIgnorePatterns: ['/node_modules/', '/\\.worktrees/'],
 };

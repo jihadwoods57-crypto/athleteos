@@ -24,7 +24,7 @@ const ROOT = join(__dirname, '..', '..');
 /** Every source file we own, excluding tests, build output and dependencies. */
 function sourceFiles(dir: string, acc: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
-    if (['node_modules', '.git', 'dist', '.expo', '.aos-export', 'qc', 'web'].includes(name)) continue;
+    if (['node_modules', '.git', 'dist', '.expo', '.aos-export', 'qc', 'web', '.worktrees'].includes(name)) continue;
     const p = join(dir, name);
     const st = statSync(p);
     if (st.isDirectory()) sourceFiles(p, acc);
