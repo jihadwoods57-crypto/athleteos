@@ -4,7 +4,7 @@
    repaint via window.__render(). Reuses the shared .card/.lrow/.btn/.state-demo/.status-pill system. */
 import { RT } from '../state.js';
 import { icon } from '../icons.js';
-import { esc, backHead, skeletonRows, errorState } from '../components.js';
+import { esc, backHead, skeletonRows, errorState, emptyState, statusMsg, alertMsg } from '../components.js';
 import * as roles from '../roles.js';
 
 const SHARE_BASE = 'https://onstandard.app/t?t=';
@@ -47,7 +47,7 @@ function sectionErr(what) {
   return `<div class="lrow" style="cursor:default">
     <div class="lm"><div class="lt" style="color:var(--red)">Couldn't load ${esc(what)}</div>
       <div class="ls">Check your connection, then retry.</div></div>
-    <button class="btn ghost sm" data-tg="retry" style="width:auto;padding:0 12px;height:32px">Retry</button>
+    <button class="btn ghost sm" data-tg="retry" style="width:auto;padding:0 12px;height:44px">Retry</button>
   </div>`;
 }
 
@@ -69,18 +69,18 @@ function connectSection() {
     : status === 'pending'
       ? 'Finish the steps Stripe asked for to start accepting payments.'
       : status === 'restricted'
-        ? 'Stripe paused payouts — a document or detail needs attention.'
+        ? 'Stripe paused payouts: a document or detail needs attention.'
         : 'Connect a Stripe account so clients can pay for your offers right in the app.';
   return `
     <div class="lrow" style="cursor:default;padding:0 0 10px">
       <div class="lm"><div class="lt">Stripe account</div><div class="ls">${esc(sub)}</div></div>
       <span class="status-pill" style="background:var(--surface-2);color:${meta.color}">${meta.pill}</span>
     </div>
-    <button class="btn ${meta.tone} sm" id="tg-connect" style="width:auto;padding:0 16px;height:36px">${UI.connecting ? '…' : meta.cta}</button>
-    <span id="tg-connect-msg" class="ls" style="margin-left:10px"></span>
+    <button class="btn ${meta.tone} sm" id="tg-connect"${UI.connecting ? ' disabled aria-busy="true"' : ''} style="width:auto;padding:0 16px;height:44px">${UI.connecting ? '…' : meta.cta}</button>
+    ${statusMsg({ id: 'tg-connect-msg', style: 'margin-left:10px' })}
     <div class="sidebox flat" style="margin:12px 0 0"><div class="req-icon g" style="width:34px;height:34px">${icon('check', 15)}</div>
       <div><div class="tt">Bill through OnStandard, and your clients ride free</div>
-      <div class="ts">A client on a recurring package gets full OnStandard membership included, and you are not charged a seat for them. One bill for them, no seat bill for you — the platform fee covers it. Most trainers add ~$25 to the package and include the app.</div></div></div>
+      <div class="ts">A client on a recurring package gets full OnStandard membership included, and you are not charged a seat for them. One bill for them, no seat bill for you: the platform fee covers it. Most trainers add ~$25 to the package and include the app.</div></div></div>
   `;
 }
 
@@ -92,7 +92,7 @@ function fundedSection() {
   const live = rows.filter(r => r.is_active).length;
   const lapsed = rows.filter(r => !r.is_active);
   if (!rows.length) {
-    return `<div class="ls" style="padding:10px 0">No one yet. Share your page link — anyone who buys a monthly or weekly package is covered automatically, and never counts toward your seats.</div>`;
+    return `<div class="ls" style="padding:10px 0">No one yet. Share your page link: anyone who buys a monthly or weekly package is covered automatically, and never counts toward your seats.</div>`;
   }
   return `
     <div class="lrow" style="cursor:default;padding:6px 0 10px">
@@ -140,10 +140,14 @@ export const trainerGrow = {
       return `${head}${errorState({ title: "Couldn't load your practice", body: 'Nothing was lost. Reconnect and everything loads right here.', retryId: 'tg-retry' })}`;
     }
     if (!practiceId()) {
-      return `${head}
-      <div class="state-demo" data-go="trainer-profile" style="cursor:pointer"><div class="sd-ic">${icon('heart', 24)}</div>
-      <div class="sd-t">Set up your practice first</div>
-      <div class="sd-s">Your public page and offers hang off your practice. Finish your trainer profile to get started.</div></div>`;
+      // Was a whole-block data-go with no visible affordance that it was tappable (router.js's
+      // generic tabindex injection made it keyboard-reachable, but nothing told a pointer user
+      // the block itself was the control). A real button says so.
+      return `${head}${emptyState({
+        icon: 'heart', title: 'Set up your practice first',
+        body: 'Your public page and offers hang off your practice. Finish your trainer profile to get started.',
+        action: { label: 'Finish your trainer profile', go: 'trainer-profile' },
+      })}`;
     }
     const p = G.page || {};
     const published = !!p.published;
@@ -156,23 +160,28 @@ export const trainerGrow = {
     <section class="card tg-page" style="padding:16px">
       <div class="lrow" style="cursor:default;padding:0 0 10px">
         <div class="lm"><div class="lt">Acquisition page</div>
-          <div class="ls">${published ? 'Live — anyone with your link can apply' : 'Draft — publish to get a shareable link'}</div></div>
+          <div class="ls">${published ? 'Live: anyone with your link can apply' : 'Draft: publish to get a shareable link'}</div></div>
         <span class="status-pill" style="background:${published ? 'var(--green-surface)' : 'var(--surface-2)'};color:${published ? 'var(--green-bright)' : 'var(--text-3)'}">${published ? 'Published' : 'Draft'}</span>
       </div>
       ${published && shareUrl ? `
       <div class="code-boxes" style="display:flex;gap:8px;align-items:center;margin:4px 0 12px">
-        <input id="tg-link" readonly value="${esc(shareUrl)}" style="flex:1;font-size:var(--t-sm);letter-spacing:0;text-align:left;padding:0 10px;height:44px">
-        <button class="btn ghost sm" id="tg-copy" style="width:auto;padding:0 12px;height:36px">Copy</button>
+        <input id="tg-link" readonly aria-label="Your public page link" value="${esc(shareUrl)}" style="flex:1;font-size:var(--t-sm);letter-spacing:0;text-align:left;padding:0 10px;height:44px">
+        <button class="btn ghost sm" id="tg-copy" style="width:auto;padding:0 12px;height:44px">Copy</button>
       </div>` : ''}
-      <label class="tg-l">Display name</label><input id="tg-name" maxlength="60" value="${esc(p.display_name || RT.profile && RT.profile.full_name || '')}" placeholder="Your name">
-      <label class="tg-l">Specialty</label><input id="tg-spec" maxlength="80" value="${esc(p.specialty || '')}" placeholder="Sports-performance nutrition & accountability">
-      <label class="tg-l">Headline (your promise)</label><input id="tg-head" maxlength="100" value="${esc(p.headline || '')}" placeholder="Turn your training into daily execution you can see.">
-      <label class="tg-l">About you</label><textarea id="tg-bio" maxlength="600" placeholder="Who you coach, how you work…">${esc(p.bio || '')}</textarea>
-      <label class="tg-l">Apply button label</label><input id="tg-cta" maxlength="30" value="${esc(p.cta_label || 'Apply to work with me')}" placeholder="Apply to work with me">
+      ${/* Every label carries `for`. Without it these are styled text that only LOOKS like a
+            label: .tg-l is display:block so it reads as one visually, while a screen reader gets
+            the placeholder or nothing, on the nine fields that define a trainer's public page. */''}
+      <label class="tg-l" for="tg-name">Display name</label><input id="tg-name" maxlength="60" value="${esc(p.display_name || RT.profile && RT.profile.full_name || '')}" placeholder="Your name">
+      <label class="tg-l" for="tg-spec">Specialty</label><input id="tg-spec" maxlength="80" value="${esc(p.specialty || '')}" placeholder="Sports-performance nutrition & accountability">
+      <label class="tg-l" for="tg-head">Headline (your promise)</label><input id="tg-head" maxlength="100" value="${esc(p.headline || '')}" placeholder="Turn your training into daily execution you can see.">
+      <label class="tg-l" for="tg-bio">About you</label><textarea id="tg-bio" maxlength="600" placeholder="Who you coach, how you work…">${esc(p.bio || '')}</textarea>
+      <label class="tg-l" for="tg-cta">Apply button label</label><input id="tg-cta" maxlength="30" value="${esc(p.cta_label || 'Apply to work with me')}" placeholder="Apply to work with me">
       <div style="display:flex;gap:8px;margin-top:14px">
-        <button class="btn ghost sm" id="tg-save" style="width:auto;padding:0 16px;height:38px">Save</button>
-        <button class="btn ${published ? 'ghost' : 'green'} sm" id="tg-pub" style="width:auto;padding:0 16px;height:38px">${published ? 'Unpublish' : 'Save & publish'}</button>
-        <span id="tg-msg" class="ls" style="align-self:center"></span>
+        <button class="btn ghost sm" id="tg-save" style="width:auto;padding:0 16px;height:44px">Save</button>
+        <button class="btn ${published ? 'ghost' : 'green'} sm" id="tg-pub" style="width:auto;padding:0 16px;height:44px">${published ? 'Unpublish' : 'Save & publish'}</button>
+        ${/* "Saved" / "Save failed" / "Published" are written into this span by msg().
+              Without a live region a blind trainer taps Publish and is told nothing, either way. */''}
+        ${statusMsg({ id: 'tg-msg', style: 'align-self:center' })}
       </div>
     </section>
 
@@ -194,16 +203,16 @@ export const trainerGrow = {
       <div class="lrow" style="cursor:default">
         <div class="lm"><div class="lt">${esc(o.name)} ${o.active ? '' : '<span class="ls">· hidden</span>'}</div>
           <div class="ls">${esc(priceLabel(o))}${o.blurb ? ' · ' + esc(o.blurb) : ''}</div></div>
-        <button class="btn ghost sm" data-tg="edit" data-id="${esc(o.id)}" style="width:auto;padding:0 12px;height:32px">Edit</button>
+        <button class="btn ghost sm" data-tg="edit" data-id="${esc(o.id)}" style="width:auto;padding:0 12px;height:44px">Edit</button>
       </div>`).join('')}
-      ${UI.editing === 'new' ? offerForm(null) : `<div style="padding:10px 0"><button class="btn ghost sm" data-tg="add" style="width:auto;padding:0 14px;height:34px">${icon('plus', 15)} Add an offer</button></div>`}
+      ${UI.editing === 'new' ? offerForm(null) : `<div style="padding:10px 0"><button class="btn ghost sm" data-tg="add" style="width:auto;padding:0 14px;height:44px">${icon('plus', 15)} Add an offer</button></div>`}
     </section>` : `
-    <div class="ls" style="margin:0 2px;line-height:1.5">No offers yet. Add your first package — prospects apply to it from your page.</div>
-    <button class="btn ghost sm" data-tg="add" style="width:auto;padding:0 14px;height:36px;margin-top:12px">${icon('plus', 15)} Add an offer</button>`}
+    <div class="ls" style="margin:0 2px;line-height:1.5">No offers yet. Add your first package: prospects apply to it from your page.</div>
+    <button class="btn ghost sm" data-tg="add" style="width:auto;padding:0 14px;height:44px;margin-top:12px">${icon('plus', 15)} Add an offer</button>`}
 
     <div class="eyebrow">Applications ${newApps() ? `<span class="status-pill" style="background:rgba(var(--blue-rgb),0.14);color:var(--blue-bright);margin-left:6px">${newApps()} new</span>` : ''}</div>
     ${!(G.apps || []).length && !F.apps ? `
-    <div class="ls" style="margin:0 2px;line-height:1.5">No applications yet. Publish your page and share the link — applications land here.</div>` : `
+    <div class="ls" style="margin:0 2px;line-height:1.5">No applications yet. Publish your page and share the link. Applications land here.</div>` : `
     <section class="card" style="padding:6px 16px">
       ${F.apps && !(G.apps || []).length ? sectionErr('applications') : ''}
       ${(G.apps || []).map(a => `
@@ -215,20 +224,20 @@ export const trainerGrow = {
         </div>
         ${a.status === 'new' ? `
         <div style="display:flex;gap:6px;flex:none">
-          <button class="btn ghost sm" data-tg="decline" data-id="${esc(a.id)}" style="width:auto;padding:0 10px;height:30px">Decline</button>
-          <button class="btn green sm" data-tg="accept" data-id="${esc(a.id)}" style="width:auto;padding:0 10px;height:30px">Accept</button>
+          <button class="btn ghost sm" data-tg="decline" data-id="${esc(a.id)}" style="width:auto;padding:0 10px;height:44px">Decline</button>
+          <button class="btn green sm" data-tg="accept" data-id="${esc(a.id)}" style="width:auto;padding:0 10px;height:44px">Accept</button>
         </div>` : ''}
       </div>`).join('')}
       ${(G.apps || []).some(a => a.status === 'accepted') && RT.practice && RT.practice.code ? `
       <div class="sidebox flat" style="margin:10px 0 0"><div class="req-icon b" style="width:34px;height:34px">${icon('lock', 15)}</div>
-        <div><div class="tt">Connect an accepted client</div><div class="ts">Send them your practice code <b>${esc(RT.practice.code)}</b> — they enter it after signing up to join your practice and unlock coaching.</div></div></div>` : ''}
+        <div><div class="tt">Connect an accepted client</div><div class="ts">Send them your practice code <b>${esc(RT.practice.code)}</b>. They enter it after signing up to join your practice and unlock coaching.</div></div></div>` : ''}
     </section>`}
 
     ${F.claims && !(G.claims || []).length ? `
-    <div class="eyebrow">Paid — waiting to join</div>
+    <div class="eyebrow">Paid, waiting to join</div>
     <section class="card" style="padding:6px 16px">${sectionErr('pending buyers')}</section>` : ''}
     ${(G.claims || []).length ? `
-    <div class="eyebrow">Paid — waiting to join <span class="status-pill" style="background:rgba(var(--amber-rgb),0.16);color:var(--amber-bright);margin-left:6px">${(G.claims).length}</span></div>
+    <div class="eyebrow">Paid, waiting to join <span class="status-pill" style="background:rgba(var(--amber-rgb),0.16);color:var(--amber-bright);margin-left:6px">${(G.claims).length}</span></div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default;padding:6px 0 10px">
         <div class="lm"><div class="lt">They have paid you but haven't set up their app</div>
@@ -238,7 +247,7 @@ export const trainerGrow = {
       <div class="lrow" style="cursor:default">
         <div class="lm"><div class="lt">${esc(c.payer_email || 'Buyer')}</div>
           <div class="ls">${c.offer_name ? esc(c.offer_name) + ' · ' : ''}waiting ${esc(String(c.days_waiting))}d</div></div>
-        <button class="btn ghost sm" data-tg="copycode" data-code="${esc(c.code)}" style="width:auto;padding:0 12px;height:32px;font-family:var(--mono,monospace)">${esc(c.code)}</button>
+        <button class="btn ghost sm" data-tg="copycode" data-code="${esc(c.code)}" style="width:auto;padding:0 12px;height:44px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace">${esc(c.code)}</button>
       </div>`).join('')}
     </section>` : ''}
 
@@ -258,11 +267,14 @@ export const trainerGrow = {
           ${UI.confirmRefund === p.id ? `<div class="ls" style="color:var(--red);margin-top:2px">Sends $${(p.amount_cents / 100).toFixed(2)} back to the client. This can't be undone.</div>` : ''}</div>
         ${p.status === 'paid' ? (UI.confirmRefund === p.id ? `
         <div style="display:flex;gap:6px;flex:none">
-          <button class="btn ghost sm" data-tg="refundkeep" style="width:auto;padding:0 10px;height:30px">Keep</button>
-          <button class="btn sm" data-tg="refundgo" data-id="${esc(p.id)}" style="width:auto;padding:0 12px;height:30px;background:var(--danger-solid);color:#fff;border:none">Confirm refund</button>
-        </div>` : `<button class="btn ghost sm" data-tg="refund" data-id="${esc(p.id)}" style="width:auto;padding:0 12px;height:30px">Refund</button>`) : ''}
+          <button class="btn ghost sm" data-tg="refundkeep" style="width:auto;padding:0 10px;height:44px">Keep</button>
+          <button class="btn sm" data-tg="refundgo" data-id="${esc(p.id)}" style="width:auto;padding:0 12px;height:44px;background:var(--danger-solid);color:#fff;border:none">Confirm refund</button>
+        </div>` : `<button class="btn ghost sm" data-tg="refund" data-id="${esc(p.id)}" style="width:auto;padding:0 12px;height:44px">Refund</button>`) : ''}
       </div>`).join('') : (F.payments ? '' : `<div class="ls" style="padding:10px 0">No payments yet.</div>`)}
-      ${UI.payMsg ? `<div class="ls" style="color:var(--red);padding:6px 0 10px">${esc(UI.payMsg)}</div>` : ''}
+      ${/* This node is INSERTED when the refund fails, and role=alert (baked into alertMsg)
+            announces on insertion. A failed refund is the one message here that must never be
+            silent. */''}
+      ${UI.payMsg ? alertMsg({ text: UI.payMsg, style: 'color:var(--red);padding:6px 0 10px' }) : ''}
     </section>` : ''}
     <div style="height:16px"></div>
     `;
@@ -399,21 +411,21 @@ function offerForm(o) {
   const cad = o.cadence || 'month';
   const opt = (v, l) => `<option value="${v}" ${cad === v ? 'selected' : ''}>${l}</option>`;
   return `<div class="tg-of">
-    <label class="tg-l">Name</label><input id="of-name" maxlength="60" value="${esc(o.name || '')}" placeholder="Light Accountability">
-    <label class="tg-l">One-line description</label><input id="of-blurb" maxlength="120" value="${esc(o.blurb || '')}" placeholder="Automated analysis + a weekly read on your week.">
+    <label class="tg-l" for="of-name">Name</label><input id="of-name" maxlength="60" value="${esc(o.name || '')}" placeholder="Light Accountability">
+    <label class="tg-l" for="of-blurb">One-line description</label><input id="of-blurb" maxlength="120" value="${esc(o.blurb || '')}" placeholder="Automated analysis + a weekly read on your week.">
     <div class="row2">
-      <div style="flex:1"><label class="tg-l">Price ($, blank = contact)</label><input id="of-price" inputmode="decimal" value="${dollars}" placeholder="29"></div>
-      <div style="width:130px"><label class="tg-l">Per</label><select id="of-cad">${opt('month', 'month')}${opt('week', 'week')}${opt('one-time', 'one-time')}${opt('session', 'session')}</select></div>
+      <div style="flex:1"><label class="tg-l" for="of-price">Price ($, blank = contact)</label><input id="of-price" inputmode="decimal" value="${dollars}" placeholder="29"></div>
+      <div style="width:130px"><label class="tg-l" for="of-cad">Per</label><select id="of-cad">${opt('month', 'month')}${opt('week', 'week')}${opt('one-time', 'one-time')}${opt('session', 'session')}</select></div>
     </div>
     <div class="ls" style="margin-top:8px;color:var(--text-3)">${cad === 'month' || cad === 'week'
-      ? 'Priced monthly or weekly, so clients can buy this straight from your page — and their OnStandard membership is included at no seat cost to you.'
+      ? 'Priced monthly or weekly, so clients can buy this straight from your page, and their OnStandard membership is included at no seat cost to you.'
       : 'One-time and per-session packages are apply-only: membership is covered for as long as a package renews, so a one-off has no period to cover.'}</div>
-    <label class="tg-l">What's included (one per line)</label><textarea id="of-feat" maxlength="600" placeholder="Weekly check-in&#10;Direct meal feedback">${esc((o.features || []).join('\n'))}</textarea>
+    <label class="tg-l" for="of-feat">What's included (one per line)</label><textarea id="of-feat" maxlength="600" placeholder="Weekly check-in&#10;Direct meal feedback">${esc((o.features || []).join('\n'))}</textarea>
     <label class="tg-l" style="display:flex;align-items:center;gap:8px;margin-top:12px"><input type="checkbox" id="of-active" ${o.active === false ? '' : 'checked'} style="width:auto"> Visible on your page</label>
     <div style="display:flex;gap:8px;margin-top:12px">
-      <button class="btn green sm" data-tg="osave" data-id="${esc(o.id || 'new')}" style="width:auto;padding:0 16px;height:34px">Save offer</button>
-      <button class="btn ghost sm" data-tg="cancel" style="width:auto;padding:0 14px;height:34px">Cancel</button>
-      ${o.id ? `<button class="btn ghost sm" data-tg="del" data-id="${esc(o.id)}" style="width:auto;padding:0 12px;height:34px;color:var(--red);margin-left:auto">Delete</button>` : ''}
+      <button class="btn green sm" data-tg="osave" data-id="${esc(o.id || 'new')}" style="width:auto;padding:0 16px;height:44px">Save offer</button>
+      <button class="btn ghost sm" data-tg="cancel" style="width:auto;padding:0 14px;height:44px">Cancel</button>
+      ${o.id ? `<button class="btn ghost sm" data-tg="del" data-id="${esc(o.id)}" style="width:auto;padding:0 12px;height:44px;color:var(--red);margin-left:auto">Delete</button>` : ''}
     </div>
   </div>`;
 }

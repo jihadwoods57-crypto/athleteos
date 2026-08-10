@@ -52,9 +52,9 @@ const REQS = {
 };
 
 const AI_LABEL = {
-  autopilot: 'on full autopilot — nudges and drafts daily, everything waits for your approval',
-  drafts: 'in drafts-only mode — the AI writes, nothing sends without you',
-  observe: 'in observe mode — you drive, the AI stays quiet until you invite it',
+  autopilot: 'on full autopilot: nudges and drafts daily, everything waits for your approval',
+  drafts: 'in drafts-only mode: the AI writes, nothing sends without you',
+  observe: 'in observe mode: you drive, the AI stays quiet until you invite it',
 };
 
 /* Small stacked row inside a phone card (icon + title + sub). */
@@ -90,7 +90,7 @@ const steps = [
       <div class="ob2-hero">
         <div class="h-eyebrow">For trainers</div>
         <div class="h-title">Your value shouldn’t stop <span class="accent">when the session ends.</span></div>
-        <div class="h-body">You coach for an hour. Their results are decided in the 167 hours you can’t see — and right now, that time belongs to nobody.</div>
+        <div class="h-body">You coach for an hour. Their results are decided in the 167 hours you can’t see; right now, that time belongs to nobody.</div>
       </div>`,
   },
   {
@@ -99,7 +99,7 @@ const steps = [
       <div class="ob2-hero">
         <div class="h-eyebrow">The current way</div>
         <div class="h-title">Chasing clients by text <span class="accent">is unpaid work.</span></div>
-        <div class="h-body">Check-in texts. “Did you log?” reminders. Silence you can’t read. The clients who quietly drift between sessions are the ones who leave — and you find out at renewal.</div>
+        <div class="h-body">Check-in texts. “Did you log?” reminders. Silence you can’t read. The clients who quietly drift between sessions are the ones who leave; you find out at renewal.</div>
       </div>`,
   },
   {
@@ -148,7 +148,7 @@ const steps = [
   {
     id: 'clients', ch: 0, cta: 'Next',
     title: () => 'How many clients do you train?',
-    sub: () => 'This sizes your daily queue — and the numbers you’ll see in a minute.',
+    sub: () => 'This sizes your daily queue, and the numbers you’ll see in a minute.',
     body: () => chipRow('clientCount', [
       { v: '5', t: '5 or fewer' }, { v: '10', t: 'About 10' },
       { v: '20', t: 'About 20' }, { v: '30', t: '30 or more' },
@@ -166,7 +166,7 @@ const steps = [
   {
     id: 'followup-hours', ch: 0, cta: 'Next',
     title: () => 'Hours a week spent chasing check-ins?',
-    sub: () => 'Texts, reminders, “did you log?” — all the between-session follow-up.',
+    sub: () => 'Texts, reminders, “did you log?” All the between-session follow-up.',
     body: () => chipRow('followupHours', [
       { v: '1-2', t: '1–2' }, { v: '3-5', t: '3–5' }, { v: '6-10', t: '6–10' }, { v: 'more', t: 'More than 10' },
     ]),
@@ -185,7 +185,7 @@ const steps = [
   {
     id: 'price', ch: 0, cta: 'Next',
     title: () => 'What do you charge per client?',
-    sub: () => 'Roughly, per month. Stays private — it only sizes the projection coming up.',
+    sub: () => 'Roughly, per month. Stays private. It only sizes the projection coming up.',
     body: () => chipRow('pricePoint', [
       { v: 'under50', t: 'Under $50' }, { v: '50-100', t: '$50–$100' },
       { v: '100-200', t: '$100–$200' }, { v: '200plus', t: '$200+' },
@@ -204,15 +204,15 @@ const steps = [
       const hrs = Math.round(mid * 52);
       return `
         ${countStat(`${hrs} hrs`,
-          'unpaid hours a year chasing basics — check-in texts, reminders, “did you log?”',
-          `${mid} hrs a week × 52 weeks — your estimate`)}
-        <div style="font-size:14px;font-weight:600;color:var(--text-2);line-height:1.55;text-align:center;margin-top:16px;padding:0 6px">That’s work your expertise is subsidizing for free. OnStandard automates the chasing — reminders, first reads, drafted replies — and leaves you the calls only you can make.</div>`;
+          'unpaid hours a year chasing basics: check-in texts, reminders, “did you log?”',
+          `${mid} hrs a week × 52 weeks (your estimate)`)}
+        <div style="font-size:14px;font-weight:600;color:var(--text-2);line-height:1.55;text-align:center;margin-top:16px;padding:0 6px">That’s work your expertise is subsidizing for free. OnStandard automates the chasing (reminders, first reads, drafted replies) and leaves you the calls only you can make.</div>`;
     },
   },
   {
     id: 'req-build', ch: 1, cta: 'Next',
     title: () => 'Set a standard once.',
-    sub: () => 'Pick one requirement — every client you invite starts with it, automatically.',
+    sub: () => 'Pick one requirement: every client you invite starts with it, automatically.',
     body: (o) => {
       const r = REQS[o.sampleReq];
       return `
@@ -224,7 +224,7 @@ const steps = [
         ])}
         ${r ? `
         <div style="height:14px"></div>
-        ${simChip('Preview — simulated client card')}
+        ${simChip('Preview: simulated client card')}
         ${phoneCard('Every new client starts with', boundRow(r.ic, r.t, r.s))}` : ''}`;
     },
     mount(root) {
@@ -237,12 +237,12 @@ const steps = [
   {
     id: 'meal-review', ch: 1, cta: 'Next',
     title: () => 'Review a client meal in seconds.',
-    sub: () => 'The AI does the first read — foods, portions, macros. You approve or adjust, and your call is what the client sees.',
+    sub: () => 'The AI does the first read: foods, portions, macros. You approve or adjust, and your call is what the client sees.',
     body: () => `
-      ${simChip('Sample client meal — simulated')}
+      ${simChip('Sample client meal: simulated')}
       <img class="ob2-meal-photo" src="${esc(SAMPLE_MEAL.photo)}" alt="Sample client meal photo" />
       <div style="height:14px"></div>
-      ${phoneCard('AI first read — detected foods', `
+      ${phoneCard('AI first read: detected foods', `
         <div class="ob2-foods">${(SAMPLE_MEAL.detectedRich || []).map((f) => `
           <div class="fr">
             <div class="fn">${esc(f.name)}</div>
@@ -257,24 +257,24 @@ const steps = [
           <div class="mc"><div class="mv">${SAMPLE_MEAL.carbs}g</div><div class="mk">carbs</div></div>
           <div class="mc"><div class="mv">${SAMPLE_MEAL.fat}g</div><div class="mk">fat</div></div>
         </div>
-        <div class="ob2-scan-note" style="text-align:left;margin-top:10px">This meal grades ${SAMPLE_MEAL.quality}/100 — ${esc(SAMPLE_MEAL.note)} You can correct any line; your correction is what sticks.</div>`)}`,
+        <div class="ob2-scan-note" style="text-align:left;margin-top:10px">This meal grades ${SAMPLE_MEAL.quality}/100: ${esc(SAMPLE_MEAL.note)} You can correct any line; your correction is what sticks.</div>`)}`,
   },
   {
     id: 'summary', ch: 1, cta: 'Next',
     title: () => 'Your Monday, drafted.',
     sub: () => 'Every week the AI writes the summary and drafts your reply in four stances. Nothing sends without you.',
     body: () => `
-      ${simChip('Sample client week — simulated')}
-      ${phoneCard('Weekly summary — Jordan', `
+      ${simChip('Sample client week: simulated')}
+      ${phoneCard('Weekly summary: Jordan', `
         ${boundRow('check', '5 of 7 days logged', 'Best week this month')}
         ${boundRow('bolt', 'Protein average 132g', 'Up from 120g since the breakfast change')}
         ${boundRow('clock', 'Both misses were weekend dinners', 'Same pattern two weeks running')}`)}
       <div style="height:10px"></div>
-      ${phoneCard('Draft replies — pick your stance', `
-        ${stanceBubble('Supportive', 'Big week, Jordan — 5 of 7 logged and your best protein average yet. Keep Thursday’s dinner formula going.')}
-        ${stanceBubble('Direct', 'You logged 5 of 7. Both misses were weekends — that’s the pattern to break this week. Photos Saturday, no exceptions.')}
-        ${stanceBubble('Context', 'Protein is up 12g on average since we bumped breakfast. The weekend dip is the last leak — fix that and the scale follows.')}
-        ${stanceBubble('Follow-up', 'Haven’t seen a log since Thursday — everything good? One photo tonight gets the streak back.')}`)}`,
+      ${phoneCard('Draft replies: pick your stance', `
+        ${stanceBubble('Supportive', 'Big week, Jordan: 5 of 7 logged and your best protein average yet. Keep Thursday’s dinner formula going.')}
+        ${stanceBubble('Direct', 'You logged 5 of 7. Both misses were weekends: that’s the pattern to break this week. Photos Saturday, no exceptions.')}
+        ${stanceBubble('Context', 'Protein is up 12g on average since we bumped breakfast. The weekend dip is the last leak: fix that and the scale follows.')}
+        ${stanceBubble('Follow-up', 'Haven’t seen a log since Thursday. Everything good? One photo tonight gets the streak back.')}`)}`,
   },
   {
     id: 'client-view', ch: 1, cta: 'Next',
@@ -284,21 +284,21 @@ const steps = [
       const trainerName = (o.name || '').trim() || 'Your name';
       const init = trainerName[0].toUpperCase();
       return `
-        ${simChip('Simulated preview — a sample client’s screen')}
-        ${phoneCard('Jordan’s plan — set by you', `
+        ${simChip('Simulated preview: a sample client’s screen')}
+        ${phoneCard('Jordan’s plan: set by you', `
           ${boundRow('utensils', 'Three meals · photo proof', 'AI first read, your review')}
           ${boundRow('bolt', 'Protein target · 140g', 'Checked automatically from logs')}
           ${boundRow('scale', 'Weekly weigh-in · Monday', 'Trend only')}`)}
         <div style="height:12px"></div>
         ${chatSim([
-          { who: 'trainer', name: trainerName, init, sim: true, text: 'Good week — keep the breakfast anchor and let’s hold 140g through the weekend.' },
+          { who: 'trainer', name: trainerName, init, sim: true, text: 'Good week, keep the breakfast anchor and let’s hold 140g through the weekend.' },
         ])}`;
     },
   },
   {
     id: 'price-set', ch: 1, cta: 'Next',
     title: () => 'Set your client price.',
-    sub: () => 'Configuration only — OnStandard doesn’t bill your clients today. You set the real price when you invite them.',
+    sub: () => 'Configuration only: OnStandard doesn’t bill your clients today. You set the real price when you invite them.',
     body: (o) => {
       /* Seed the slider from the price band the trainer picked earlier (pricePoint) so their
          answer isn't discarded; once they drag, clientPrice takes over. */
@@ -316,7 +316,7 @@ const steps = [
           <div class="rv"><div class="v" id="pr-mo">${money(mo)}</div><div class="k">Per month · ${count} clients</div></div>
           <div class="rv"><div class="v" id="pr-yr">${money(mo * 12)}</div><div class="k">Per year</div></div>
         </div>
-        <div class="ob2-scan-note">Projection — you set the real price when you invite clients.${o.clientCount ? '' : ' Sized at 10 clients until you told us more.'} Nothing is charged through OnStandard today.</div>`;
+        <div class="ob2-scan-note">Projection: you set the real price when you invite clients.${o.clientCount ? '' : ' Sized at 10 clients until you told us more.'} Nothing is charged through OnStandard today.</div>`;
     },
     mount(root, ctx) {
       const range = root.querySelector('#pr-range');
@@ -344,7 +344,7 @@ const steps = [
       <div class="ob2-hero">
         <div class="h-eyebrow">Why it matters</div>
         <div class="h-title">Clients who see progress <span class="accent">stay.</span></div>
-        <div class="h-body">A client who logs daily, gets your feedback, and watches their score climb has a reason to renew that doesn’t depend on motivation. Visible progress — with your name attached — is the retention plan.</div>
+        <div class="h-body">A client who logs daily, gets your feedback, and watches their score climb has a reason to renew that doesn’t depend on motivation. Visible progress (with your name attached) is the retention plan.</div>
       </div>`,
   },
 
@@ -355,18 +355,18 @@ const steps = [
     body: (o) => {
       const style = styleLabel(styleForStructureAnswer(o.structurePref));
       const mirrors = [];
-      if (o.clientCount) mirrors.push(mirrorCard('users', `You said you train <b>~${esc(o.clientCount)} clients</b> — one code connects every one of them to your standard.`));
-      mirrors.push(mirrorCard('sparkle', `Default plan style: <b>${esc(style.name)}</b>. ${esc(style.short)}. You'll set this per client — anyone can propose a different one when they connect.`));
-      if (o.followupHours) mirrors.push(mirrorCard('clock', `You said <b>${esc(o.followupHours === 'more' ? 'more than 10' : o.followupHours)} hrs a week</b> goes to chasing — the daily queue and drafted replies take that back.`));
+      if (o.clientCount) mirrors.push(mirrorCard('users', `You said you train <b>~${esc(o.clientCount)} clients</b>: one code connects every one of them to your standard.`));
+      mirrors.push(mirrorCard('sparkle', `Default plan style: <b>${esc(style.name)}</b>. ${esc(style.short)}. You'll set this per client: anyone can propose a different one when they connect.`));
+      if (o.followupHours) mirrors.push(mirrorCard('clock', `You said <b>${esc(o.followupHours === 'more' ? 'more than 10' : o.followupHours)} hrs a week</b> goes to chasing: the daily queue and drafted replies take that back.`));
       const pains = Array.isArray(o.pains) ? o.pains : [];
       const p0 = pains.find((p) => PAIN_LABEL[p]);
-      if (p0) mirrors.push(mirrorCard('target', `You said <b>${esc(PAIN_LABEL[p0])}</b> costs you — every client’s day now lands in front of you as one score.`));
+      if (p0) mirrors.push(mirrorCard('target', `You said <b>${esc(PAIN_LABEL[p0])}</b> costs you: every client’s day now lands in front of you as one score.`));
       if (!mirrors.length) mirrors.push(mirrorCard('bars', 'OnStandard turns your between-session follow-up into a system that runs without you typing it.'));
       return `
         ${mirrors.join('')}
         <div style="height:12px"></div>
         ${phoneCard('The system we’re building for you', `
-          ${boundRow('key', 'One client code', 'Clients connect themselves — no setup calls')}
+          ${boundRow('key', 'One client code', 'Clients connect themselves, no setup calls')}
           ${boundRow('bars', 'A daily queue', 'Sorted by who needs you, not who texted last')}
           ${boundRow('sparkle', 'AI drafts you approve', 'The chasing is written for you; your name signs it')}`)}`;
     },
@@ -378,15 +378,15 @@ const steps = [
     title: () => 'How involved should OnStandard be?',
     sub: () => 'This sets your automation defaults. Change it anytime.',
     body: () => choiceGrid('aiInvolvement', [
-      { v: 'autopilot', t: 'Full autopilot', s: 'AI nudges and drafts daily — everything waits for your approval', ic: 'sparkle', tint: 'var(--purple-surface)', color: 'var(--purple-bright)' },
+      { v: 'autopilot', t: 'Full autopilot', s: 'AI nudges and drafts daily: everything waits for your approval', ic: 'sparkle', tint: 'var(--purple-surface)', color: 'var(--purple-bright)' },
       { v: 'drafts', t: 'Drafts only', s: 'AI writes, you decide what sends and when', ic: 'edit', tint: 'var(--purple-surface)', color: 'var(--purple-bright)' },
-      { v: 'observe', t: 'Observe first', s: 'You drive — the AI stays quiet until you invite it', ic: 'eye', tint: 'var(--purple-surface)', color: 'var(--purple-bright)' },
+      { v: 'observe', t: 'Observe first', s: 'You drive: the AI stays quiet until you invite it', ic: 'eye', tint: 'var(--purple-surface)', color: 'var(--purple-bright)' },
     ]),
   },
   {
     id: 'commit', ch: 3, noFoot: true,
     title: () => 'Put your name on it.',
-    sub: () => 'Your standard travels with every client — this is you signing it.',
+    sub: () => 'Your standard travels with every client: this is you signing it.',
     body: (o) => `
       ${mirrorCard('users', `Every client you invite starts on <b>your standard</b>${o.practiceName ? ` at <b>${esc(o.practiceName)}</b>` : ''}.`)}
       ${mirrorCard('sparkle', `The AI runs <b>${esc(AI_LABEL[o.aiInvolvement] || AI_LABEL.drafts)}</b>.`)}
@@ -410,7 +410,7 @@ const steps = [
     id: 'proof', ch: 4, cta: 'Next',
     title: () => 'What it looks like for a trainer.',
     body: () => `
-      <div class="eyebrow" style="margin:0 2px 12px">Illustrative examples — not actual customers yet</div>
+      <div class="eyebrow" style="margin:0 2px 12px">Illustrative examples (not actual customers yet)</div>
       ${/* Launch placeholders — the founder swaps these for real customers before go-live. */''}
       ${testimonial({
         quote: 'I used to spend Sunday night texting check-ins. Now I open the queue, approve the drafts, and it’s done before my coffee is.',
@@ -418,7 +418,7 @@ const steps = [
         stat: '4 hrs', statKey: 'won back weekly',
       })}
       ${testimonial({
-        quote: 'A client went quiet in week two — the queue flagged it, I sent one note, and she’s still with me. I would never have caught that over text.',
+        quote: 'A client went quiet in week two. The queue flagged it, I sent one note, and she’s still with me. I would never have caught that over text.',
         name: 'Marcus', role: 'Strength trainer · in-person', initials: 'M',
       })}`,
   },
@@ -453,15 +453,15 @@ const steps = [
       const code = (RT.ob || {}).practiceCode || '';
       return code ? `
         <div style="height:8px"></div>
-        <div class="code-boxes">${code.split('').map((c) => `<div class="cb filled" style="border-color:var(--purple-border);background:rgba(168,85,247,0.08)">${esc(c)}</div>`).join('')}</div>
+        <div class="code-boxes">${code.split('').map((c) => `<div class="cb filled" style="border-color:var(--purple-border);background:rgba(var(--purple-rgb),0.08)">${esc(c)}</div>`).join('')}</div>
         <div style="height:14px"></div>
         <div style="display:flex;justify-content:center;gap:8px">
           <button class="btn ghost sm" id="copy-code" style="width:auto;padding:0 22px">${icon('clipboard', 16)} Copy code</button>
           <button class="btn ghost sm" id="share-code" style="width:auto;padding:0 22px">${icon('share', 16)} Share invite</button>
         </div>
-        <div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:14px;line-height:1.5">Invite your first client — the moment they enter it, their days start landing in your queue.</div>` : `
+        <div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:14px;line-height:1.5">Invite your first client: the moment they enter it, their days start landing in your queue.</div>` : `
         <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
-          <div><div class="tt">Code pending</div><div class="ts">We couldn’t mint your code yet (connection or pending email confirmation). It generates automatically on your next sign-in — check Profile → Client code.</div></div></div>`;
+          <div><div class="tt">Code pending</div><div class="ts">We couldn’t mint your code yet (connection or pending email confirmation). It generates automatically on your next sign-in. Check Profile → Client code.</div></div></div>`;
     },
     mount(root, ctx) {
       const code = (ctx.ob || {}).practiceCode || '';
@@ -485,13 +485,13 @@ const steps = [
   {
     id: 'plans', ch: 4, noFoot: true,
     title: () => 'Pick your plan.',
-    sub: () => 'Start free today — billing turns on at launch, and nothing charges until then.',
+    sub: () => 'Start free today: billing turns on at launch, and nothing charges until then.',
     body: (o) => `
       <div class="ob2-plans" data-obkey="plan">
         ${PLANS.pro.map((p, i) => planCard({ ...p, on: o.plan ? o.plan === p.id : i === 0 })).join('')}
       </div>
       <div class="ob-foot" style="margin-top:18px">
-        <button class="btn primary" id="obt-start" data-go="trainer">Start free — no card today</button>
+        <button class="btn primary" id="obt-start" data-go="trainer">Start free, no card today</button>
         <div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:12px">Invite your first client from your dashboard.</div>
       </div>`,
     mount(root, ctx) {

@@ -9,7 +9,7 @@
    fall back to trying both, because someone reading a code off a page will not reliably tell us
    which kind they have. The RPCs remain the source of truth on validity — this screen only maps
    their result to plain English. */
-import { backHead, esc } from '../components.js';
+import { backHead, esc, alertMsg } from '../components.js';
 import { icon } from '../icons.js';
 import * as roles from '../roles.js';
 import { track, EVENTS } from '../analytics.js';
@@ -31,7 +31,7 @@ function reasonMessage(r) {
   if (reason === 'already_redeemed') return 'You already redeemed this.';
   // Trainer-code specific: the code was real but someone else got there first, or it aged out.
   if (reason === 'already_used') return 'That code has already been used on another account.';
-  if (reason === 'expired') return 'That code has expired — contact your trainer.';
+  if (reason === 'expired') return 'That code has expired. Contact your trainer.';
   if (reason === 'sign_in') return 'Please sign in.';
   return "That code isn't valid.";
 }
@@ -72,17 +72,22 @@ export default {
     const who = viaTrainer ? (r && r.trainer_name) : (r && r.label);
     return `${backHead('Redeem a code', 'Unlock premium with a code you were given', 'profile')}
 
+    ${/* "Your code" is a real <label for>, not styled text: this input is the ONLY path a
+          pay-first buyer has to what they were charged for, and it previously carried nothing but
+          a placeholder, so a screen reader announced an unlabelled edit field. The helper line is
+          wired with aria-describedby so "where do I get this?" is read out with it, and rc-err
+          uses the shared alertMsg so a rejected code is spoken rather than only turning red. */''}
     <section class="card pad">
-      <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Your code</div>
-      <input class="ob-input" id="rc-code" value="${esc(UI.code)}" placeholder="TR-XXXXX-XXXXX" autocapitalize="characters" autocomplete="off" />
-      <div style="font-size:12px;color:var(--text-3);margin-top:6px">From your trainer after you paid, or from a sponsor.</div>
+      <label for="rc-code" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Your code</label>
+      <input class="ob-input" id="rc-code" value="${esc(UI.code)}" placeholder="TR-XXXXX-XXXXX" aria-describedby="rc-hint" autocapitalize="characters" autocomplete="off" />
+      <div id="rc-hint" style="font-size:12px;color:var(--text-3);margin-top:6px">From your trainer after you paid, or from a sponsor.</div>
       <div style="height:14px"></div>
-      <div id="rc-err" style="color:var(--red);font-size:13px;font-weight:600;min-height:18px">${!success && r ? esc(reasonMessage(r)) : ''}</div>
-      <button class="btn primary" id="rc-redeem" ${UI.busy ? 'disabled style="opacity:.6"' : ''}>${icon('key', 18)} ${UI.busy ? 'Redeeming…' : 'Redeem'}</button>
+      ${alertMsg({ id: 'rc-err', text: !success && r ? reasonMessage(r) : '', style: 'color:var(--red);font-size:13px;font-weight:600;min-height:18px' })}
+      <button class="btn primary" id="rc-redeem" ${UI.busy ? 'disabled aria-busy="true" style="opacity:.6"' : ''}>${icon('key', 18)} ${UI.busy ? 'Redeeming…' : 'Redeem'}</button>
     </section>
 
     ${success ? `
-    <div class="sidebox" style="margin-top:10px"><div class="req-icon g" style="width:38px;height:38px">${icon('check', 18)}</div>
+    <div class="sidebox" role="status" style="margin-top:10px"><div class="req-icon g" style="width:38px;height:38px">${icon('check', 18)}</div>
       <div><div class="tt">${viaTrainer ? 'You are connected' : 'Premium unlocked'}</div>
       <div class="ts">${[
         viaTrainer

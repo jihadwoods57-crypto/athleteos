@@ -82,7 +82,7 @@ export const role = {
     // Full-width role rows: a tinted icon, a benefit-first line, and a chevron affordance so each
     // role reads as an intentional, tappable choice (not a flat tile). Accent bar per role.
     const card = (go, ic, tint, accent, t, s) => `
-      <div class="role-card" data-go="${go}" role="button" aria-label="${esc(t)} — ${esc(s)}" style="--role-accent:${accent}">
+      <div class="role-card" data-go="${go}" role="button" aria-label="${esc(t)}: ${esc(s)}" style="--role-accent:${accent}">
         <div class="role-ic" style="background:${tint};color:${accent}">${icon(ic, 21)}</div>
         <div class="role-tt"><div class="role-t">${esc(t)}</div><div class="role-s">${esc(s)}</div></div>
         <div class="role-chev">${icon('chevron', 18)}</div>
@@ -103,7 +103,7 @@ export const role = {
         <div class="sidebox">
           <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
           <div><div class="tt">Joining as a parent or guardian?</div>
-          <div class="ts">Open the invite your athlete or coach sent you — parents connect from there, and only ever see scores and streaks, never photos or weight.</div></div>
+          <div class="ts">Open the invite your athlete or coach sent you. Parents connect from there, and only ever see scores and streaks, never photos or weight.</div></div>
         </div>
       </div>
       <div class="ob-foot">
@@ -132,24 +132,24 @@ const coachSteps = {
     <input id="co-last" class="ob-input" maxlength="40" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" />
     <div class="eyebrow" style="margin:16px 2px 10px">What the room calls you</div>
     <div class="chip-row" id="co-handle"></div>
-    <input id="co-handle-custom" class="ob-input" maxlength="24" placeholder="Or type it — e.g. Coach B" style="margin-top:10px" />
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">This is the name athletes see everywhere — greetings, meal threads, your standard.</div>`, 'Next', 'coach-ob/2', { back: 'role' }),
+    <input id="co-handle-custom" class="ob-input" maxlength="24" placeholder="Or type it, e.g. Coach B" style="margin-top:10px" />
+    <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">This is the name athletes see everywhere: greetings, meal threads, your standard.</div>`, 'Next', 'coach-ob/2', { back: 'role' }),
 
   2: () => {
     const c = (RT.ob || {}).coach || {};
     return frame(2, 7, 'Your school.', 'Athletes find you by school. Same-name schools split by city.', c.schoolName ? `
       <section class="card team-preview">
         <div class="tp-av">${esc(c.schoolName[0])}</div>
-        <div style="flex:1"><div style="font-size:16px;font-weight:800">${esc(c.schoolName)}</div>
-        <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${esc([c.city, c.state].filter(Boolean).join(', ') || '—')}</div></div>
+        <div style="flex:1"><div style="font-size:var(--t-md);font-weight:800">${esc(c.schoolName)}</div>
+        <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:2px">${esc([c.city, c.state].filter(Boolean).join(', ') || '—')}</div></div>
         <span class="status-pill g">Set</span>
       </section>
       <div style="height:12px"></div>
-      <div style="text-align:center;font-size:13px;font-weight:700;color:var(--text-3);cursor:pointer" id="co-school-clear">Change school</div>` : `
+      <div style="text-align:center;font-size:var(--t-sm);font-weight:700;color:var(--text-3);cursor:pointer" id="co-school-clear">Change school</div>` : `
       <input id="co-q" class="ob-input" placeholder="Search your school" autocorrect="off" spellcheck="false" />
       <div id="co-out" style="margin-top:14px"></div>
       <div style="height:10px"></div>
-      <div id="co-add" style="text-align:center;font-size:14px;font-weight:700;color:var(--amber-bright);cursor:pointer">My school isn't listed — add it</div>`,
+      <div id="co-add" style="text-align:center;font-size:var(--t-base);font-weight:700;color:var(--amber-bright);cursor:pointer">My school isn't listed, add it</div>`,
       'Next', 'coach-ob/3', { back: 'coach-ob/1' });
   },
 
@@ -183,7 +183,7 @@ const coachSteps = {
     const joinBody = `
     <div class="eyebrow" style="margin:8px 2px 10px">Staff code</div>
     <input id="co-staff-code" class="ob-input" maxlength="8" placeholder="Code from your head coach" autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" />
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">Your head coach hands out staff codes. It lands you on their team's staff with the role and permissions they set — you won't create a new team.</div>`;
+    <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">Your head coach hands out staff codes. It lands you on their team's staff with the role and permissions they set. You won't create a new team.</div>`;
     return frame(3, 7,
       mode === 'join' ? 'Join a staff.' : 'Build the team.',
       mode === 'join' ? 'Enter the code from your head coach.' : 'Athletes join it with one code. You can run more than one group.',
@@ -200,22 +200,22 @@ const coachSteps = {
     const choice = c.responsibility || 'team';
     const needRooms = choice === 'side' || choice === 'room';
     const RESP_ICON = { org: 'shield', team: 'users', side: 'bars', room: 'target', individuals: 'user' };
-    return frame(4, 7, 'What’s yours to run?', 'This sets how far your view reaches — your roster, priorities, and alerts follow it.', `
+    return frame(4, 7, 'What’s yours to run?', 'This sets how far your view reaches: your roster, priorities, and alerts follow it.', `
     <div class="choice-grid" id="co-resp">
       ${RESPONSIBILITIES.map((r) => `
       <div class="choice ${choice === r.key ? 'on' : ''}" data-val="${r.key}" style="cursor:pointer">
-        <div class="cic" style="background:rgba(245,165,36,0.18);color:var(--amber-bright)">${icon(RESP_ICON[r.key] || 'users', 19)}</div>
+        <div class="cic" style="background:rgba(var(--amber-rgb),0.18);color:var(--amber-bright)">${icon(RESP_ICON[r.key] || 'users', 19)}</div>
         <div class="ct">${esc(r.title)}</div><div class="cs">${esc(r.sub)}</div>
       </div>`).join('')}
     </div>
     ${needRooms ? `
     <div class="eyebrow" style="margin:16px 2px 8px">${choice === 'room' ? 'Which room?' : 'Which rooms?'}</div>
     <input id="co-rooms" class="ob-input" placeholder="${choice === 'room' ? 'e.g. LB' : 'e.g. OL, TE, QB'}" autocapitalize="characters" autocorrect="off" spellcheck="false" />
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">Use the position names your athletes pick — that’s how the app knows who’s in your room. Leave it blank and you keep the whole team.</div>` : choice === 'individuals' ? `
+    <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">Use the position names your athletes pick: that’s how the app knows who’s in your room. Leave it blank and you keep the whole team.</div>` : choice === 'individuals' ? `
     <div style="height:14px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
-      <div><div class="tt">You’ll pick them after</div><div class="ts">A private “My athletes” group is created for you — add athletes to it from the Roster and your view follows it.</div></div>
+      <div><div class="tt">You’ll pick them after</div><div class="ts">A private “My athletes” group is created for you. Add athletes to it from the Roster and your view follows it.</div></div>
     </div>` : ''}`,
     'Next', 'coach-ob/5', { back: 'coach-ob/3' });
   },
@@ -226,7 +226,7 @@ const coachSteps = {
   5: () => {
     const c = (RT.ob || {}).coach || {};
     if (c.joinMode === 'join') {
-      return frame(5, 7, 'The standard is set.', 'Your head coach owns the team standard. You’ll see it — and everything your athletes log against it — the moment you’re on staff.', `
+      return frame(5, 7, 'The standard is set.', 'Your head coach owns the team standard. You’ll see it (and everything your athletes log against it) the moment you’re on staff.', `
       <div class="sidebox">
         <div class="req-icon g" style="width:38px;height:38px">${icon('check', 17)}</div>
         <div><div class="tt">Nothing to configure here</div><div class="ts">Meals, windows, recovery, and check-ins are already defined for this team. If your role includes standards, you can fine-tune them later in Standards.</div></div>
@@ -265,7 +265,7 @@ const coachSteps = {
         </div>`;
       }).join('')}
     </section>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:10px">Start from a template, then make the standard yours — meals, windows, and rooms are all editable in Standards.</div>`,
+    <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin-top:10px">Start from a template, then make the standard yours: meals, windows, and rooms are all editable in Standards.</div>`,
     'Next', 'coach-ob/6', { back: 'coach-ob/4' });
   },
 
@@ -278,12 +278,12 @@ const coachSteps = {
         <div class="lm"><div class="lt">${title}</div><div class="ls">${sub}</div></div>
         <div class="seg" style="width:104px" id="${id}"><button class="${on ? 'on' : ''}">On</button><button class="${on ? '' : 'on'}">Off</button></div>
       </div>`;
-    return frame(6, 7, 'How you hear from us.', 'Planned on your phone from your latest roster view — never noise for its own sake.', `
+    return frame(6, 7, 'How you hear from us.', 'Planned on your phone from your latest roster view, never noise for its own sake.', `
     <section class="card" style="padding:6px 16px">
       ${segRow('co-nf-brief', 'Morning briefing', '7:30 AM · who needs you today', n.briefing !== false)}
       ${segRow('co-nf-recap', 'Evening recap', '8:30 PM · how the day closed', n.recap !== false)}
       ${segRow('co-nf-crit', 'Critical alerts immediately', 'Overdue athletes, gone-quiet streaks', n.immediateCritical !== false)}
-      ${segRow('co-nf-hourly', 'Hourly summaries', 'Off by default — the briefing catches it', n.hourly === true)}
+      ${segRow('co-nf-hourly', 'Hourly summaries', 'Off by default: the briefing catches it', n.hourly === true)}
     </section>
     <div style="height:10px"></div>
     <div class="sidebox">
@@ -309,7 +309,7 @@ const coachSteps = {
       return `
   <div class="ob">
     <div class="standard-set">
-      <div class="halo"><div class="core" style="background:linear-gradient(155deg,#f59e0b,#d97706)">${icon('users', 34)}</div></div>
+      <div class="halo"><div class="core" style="background:linear-gradient(155deg,var(--amber),var(--amber-deep))">${icon('users', 34)}</div></div>
       <div class="ob-title" style="margin-top:22px">You're on staff.</div>
       <div class="ob-sub" style="padding:0 8px">${esc(joined.teamName || 'The team')} · ${esc(roleLabel(normalizeRole(joined.role)))}. The roster, standards, and activity feed are yours to work.</div>
     </div>
@@ -322,11 +322,11 @@ const coachSteps = {
     return `
   <div class="ob">
     <div class="standard-set">
-      <div class="halo"><div class="core" style="background:linear-gradient(155deg,#f59e0b,#d97706)">${icon('users', 34)}</div></div>
+      <div class="halo"><div class="core" style="background:linear-gradient(155deg,var(--amber),var(--amber-deep))">${icon('users', 34)}</div></div>
       <div class="ob-title" style="margin-top:22px">Your team code.</div>
       <div class="ob-sub" style="padding:0 8px">Send it to the group chat. Athletes enter it once and their work starts counting toward your board.</div>
       <div style="height:22px"></div>
-      ${code ? `<div class="code-boxes">${code.split('').map((c) => `<div class="cb filled" style="border-color:var(--amber-border);background:rgba(245,165,36,0.08)">${c}</div>`).join('')}</div>
+      ${code ? `<div class="code-boxes">${code.split('').map((c) => `<div class="cb filled" style="border-color:var(--amber-border);background:rgba(var(--amber-rgb),0.08)">${c}</div>`).join('')}</div>
       <div style="height:12px"></div>
       <div style="display:flex;justify-content:center;gap:8px">
         <button class="btn ghost sm" id="copy-code" style="width:auto;padding:0 22px">${icon('clipboard', 16)} Copy code</button>
@@ -338,10 +338,10 @@ const coachSteps = {
         <div style="display:flex;justify-content:center;gap:8px;margin-top:10px">
           <button class="btn green sm" id="ob-code-save" style="width:auto;padding:0 22px">Save code</button>
         </div>
-        <div id="ob-code-status" style="font-size:12px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px;text-align:center">Make it yours — e.g. GATORS. The random code stops working once you save.</div>
+        <div id="ob-code-status" style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px;text-align:center">Make it yours, e.g. GATORS. The random code stops working once you save.</div>
       </div>` :
       `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
-        <div><div class="tt">Code pending</div><div class="ts">We couldn't mint your code yet (connection or pending email confirmation). It generates automatically on your next sign-in — check Profile → Team code.</div></div></div>`}
+        <div><div class="tt">Code pending</div><div class="ts">We couldn't mint your code yet (connection or pending email confirmation). It generates automatically on your next sign-in. Check Profile → Team code.</div></div></div>`}
     </div>
     <div class="ob-foot" style="margin-top:auto">
       <button class="btn primary" data-go="coach-home">Open Coach Dashboard</button>
@@ -401,7 +401,7 @@ export const coachOb = {
         }
         const saved = (((RT.ob || {}).coach || {}).coachName || '').trim();
         handleRow.innerHTML = opts.map((o) => `<span class="chp ${saved === o ? 'on' : ''}">${esc(o)}</span>`).join('')
-          || `<span style="font-size:12px;font-weight:600;color:var(--text-3)">Type your name above and options appear.</span>`;
+          || `<span style="font-size:var(--t-sm);font-weight:600;color:var(--text-3)">Type your name above and options appear.</span>`;
         handleRow.querySelectorAll('.chp').forEach((el) => el.addEventListener('click', () => {
           autoHandle = false;
           handleRow.querySelectorAll('.on').forEach((x) => x.classList.remove('on'));
@@ -445,8 +445,8 @@ export const coachOb = {
           if (myGen !== gen || q.value.trim() !== v) return; // stale: repainted or query changed since
           out.innerHTML = orgs.length ? `<section class="card" style="padding:6px 16px">${orgs.map((o, i) => `
             <div class="lrow" data-org="${i}"><div class="lic"${o.verified ? ' style="color:var(--green-bright)"' : ''}>${icon('shield', 17)}</div>
-            <div class="lm"><div class="lt">${esc(o.name)}${o.verified ? ` <span style="font-size:10px;font-weight:800;color:var(--green-bright);letter-spacing:0.02em">✓ Verified</span>` : ''}</div><div class="ls">${esc([o.city, o.state].filter(Boolean).join(', ') || '—')}</div></div></div>`).join('')}</section>`
-            : `<div class="micro" style="color:var(--text-3);font-weight:700;padding:6px 2px">Nothing yet — add your school below.</div>`;
+            <div class="lm"><div class="lt">${esc(o.name)}${o.verified ? ` <span style="font-size:var(--t-eyebrow);font-weight:800;color:var(--green-bright);letter-spacing:0.02em">✓ Verified</span>` : ''}</div><div class="ls">${esc([o.city, o.state].filter(Boolean).join(', ') || '—')}</div></div></div>`).join('')}</section>`
+            : `<div class="micro" style="color:var(--text-3);font-weight:700;padding:6px 2px">Nothing yet. Add your school below.</div>`;
           out.querySelectorAll('[data-org]').forEach((el) => el.addEventListener('click', () => {
             const o = orgs[+el.getAttribute('data-org')];
             cap({ orgId: o.id, schoolName: o.name, city: o.city, state: o.state });
@@ -454,7 +454,7 @@ export const coachOb = {
           }));
         } catch {
           if (myGen !== gen) return; // stale: don't clobber whatever's on screen now
-          out.innerHTML = `<div class="micro" style="color:var(--text-3);font-weight:700;padding:6px 2px">Couldn't reach the directory — you can add your school below.</div>`;
+          out.innerHTML = `<div class="micro" style="color:var(--text-3);font-weight:700;padding:6px 2px">Couldn't reach the directory. You can add your school below.</div>`;
         }
       }, 300));
       $('#co-add').addEventListener('click', () => {
@@ -603,31 +603,63 @@ export const coachOb = {
 
 /* ============ TRAINER ONBOARDING (4 steps + code screen) ============ */
 const trainerSteps = {
-  1: () => frame(1, 4, 'You, trainer.', 'Clients see this name on every note you send.', `
-    <input id="tr-first" class="ob-input" maxlength="40" placeholder="First name" autocapitalize="words" />
+  /* Step 1 — identity + the ONE thing that is genuinely a signup-time decision: whether the
+     practice is listed in client search. create_practice takes is_discoverable and used to be
+     handed a hardcoded `true`, so every trainer was silently published to the directory with no
+     consent moment; the coach flow has always asked (step 3's "Listed in school search"). The
+     old "Who you train" chip row lived here too and was captured to RT.ob scratch that NOTHING
+     reads — S.audience is link-derived, not self-declared — so it asked a question, discarded the
+     answer, and cost a beat of the trainer's attention. Removed rather than faked. */
+  1: () => {
+    const t = (RT.ob || {}).trainer || {};
+    const listed = t.discoverable !== false;
+    return frame(1, 4, 'You, trainer.', 'Clients see this name on every note you send.', `
+    <input id="tr-first" class="ob-input" maxlength="40" placeholder="First name" aria-label="First name" autocomplete="given-name" autocapitalize="words" />
     <div style="height:12px"></div>
-    <input id="tr-last" class="ob-input" maxlength="40" placeholder="Last name" autocapitalize="words" />
+    <input id="tr-last" class="ob-input" maxlength="40" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" />
     <div style="height:16px"></div>
-    <input id="tr-practice" class="ob-input" maxlength="60" placeholder="Practice name (e.g. Boone Performance)" />
-    <div style="height:16px"></div>
-    <div class="eyebrow" style="margin:8px 2px 10px">Who you train</div>
-    <div class="chip-row" id="tr-audience">
-      <span class="chp">Athletes</span><span class="chp">General clients</span><span class="chp on">Both</span>
-    </div>`, 'Next', 'trainer-ob/2', { back: 'role' }),
+    <input id="tr-practice" class="ob-input" maxlength="60" placeholder="Practice name (e.g. Boone Performance)" aria-label="Practice name" autocapitalize="words" />
+    <div style="height:18px"></div>
+    <div class="lrow" style="cursor:default;padding:0 2px">
+      <div class="lm"><div class="lt">Listed in client search</div><div class="ls">Clients looking for a trainer can find your practice by name. Your code is still required to join.</div></div>
+      <div class="seg" style="width:104px" id="tr-disc"><button class="${listed ? 'on' : ''}">On</button><button class="${listed ? '' : 'on'}">Off</button></div>
+    </div>`, 'Next', 'trainer-ob/2', { back: 'role' });
+  },
 
-  2: () => frame(2, 4, 'Default client standard.', 'What every new client starts with. Tune it per client after.', `
+  /* Step 2 — a PREVIEW, not an editor. This screen used to render three On/Off switches over
+     "Default client standard"; they had no id, mount() never bound them, and
+     persistTrainerOnboarding writes only the practice name, so a trainer could switch weekly
+     weigh-ins off, watch it move, and every client still got them. The real editor already
+     exists and already works on a practice book (coachPlanSet renders scope 'team' as "Your
+     Client Standard"), and Practice HQ already links to it, so duplicating it here as a second
+     half-built copy was the whole mistake. The percentages come off the engine's own weight
+     table for the `general` profile every client lands on, the same way the coach's step 5
+     preview does, so this cannot drift from what actually scores. */
+  2: () => {
+    const w = weightsFor(DEFAULT_STYLE, 'general');
+    const pct = (k) => Math.round(w[k] * 100);
+    return frame(2, 4, 'What a client starts on.', 'Every new client lands on this. You tune it in Practice HQ once your practice is live.', `
     <section class="card" style="padding:6px 16px">
       ${[
-        ['utensils', 'Three meals · photo proof', 'Nutrition, scored to their goal', true],
-        ['moon', 'Recovery check-in · nightly', 'Sleep, soreness, stress', true],
-        ['scale', 'Weight · weekly', 'Trend only, never a daily judgment', true],
-      ].map(([ic, t, s, on]) => `
+        ['utensils', 'Meals, with photo proof', `Nutrition · ${pct('nutrition')}% of the daily score`],
+        ['moon', 'Recovery check-in, nightly', `Recovery · ${pct('checkin') + pct('recovery')}%`],
+        ['scale', 'Weight, on the days you pick', 'Trend only, tracked, not scored'],
+      ].map(([ic, t, s]) => {
+        const [bg, fg] = reqHeadTint(ic);
+        return `
         <div class="lrow" style="cursor:default">
-          <div class="lic">${icon(ic, 17)}</div>
+          <div class="lic" style="background:${bg};color:${fg}">${icon(ic, 17)}</div>
           <div class="lm"><div class="lt">${t}</div><div class="ls">${s}</div></div>
-          <div class="seg" style="width:104px"><button class="${on ? 'on' : ''}">On</button><button class="${on ? '' : 'on'}">Off</button></div>
-        </div>`).join('')}
-    </section>`, 'Next', 'trainer-ob/3', { back: 'trainer-ob/1' }),
+        </div>`;
+      }).join('')}
+    </section>
+    <div style="height:12px"></div>
+    <div class="sidebox">
+      <div class="req-icon p" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+      <div><div class="tt">Yours to change, per client too</div>
+      <div class="ts">Meal count, windows, and weigh-in days live in Practice HQ under Default client standard. Any single client can be moved off the default without touching everyone else.</div></div>
+    </div>`, 'Next', 'trainer-ob/3', { back: 'trainer-ob/1' });
+  },
 
   3: () => `
   <div class="ob">
@@ -644,18 +676,18 @@ const trainerSteps = {
     return `
   <div class="ob">
     <div class="standard-set">
-      <div class="halo"><div class="core" style="background:linear-gradient(155deg,var(--purple-bright),#7e22ce);color:#fff">${icon('heart', 34)}</div></div>
+      <div class="halo"><div class="core" style="background:linear-gradient(155deg,var(--purple),var(--purple-deep));color:var(--ink-on-accent)">${icon('heart', 34)}</div></div>
       <div class="ob-title" style="margin-top:22px">Your client code.</div>
       <div class="ob-sub" style="padding:0 8px">Send it to your clients. They enter it once and their work starts counting toward your view.</div>
       <div style="height:22px"></div>
-      ${code ? `<div class="code-boxes">${code.split('').map((c) => `<div class="cb filled" style="border-color:var(--purple-border);background:rgba(168,85,247,0.08)">${c}</div>`).join('')}</div>
+      ${code ? `<div class="code-boxes">${code.split('').map((c) => `<div class="cb filled" style="border-color:var(--purple-border);background:rgba(var(--purple-rgb),0.08)">${c}</div>`).join('')}</div>
       <div style="height:12px"></div>
       <button class="btn ghost sm" id="copy-code" style="width:auto;padding:0 26px;margin:0 auto">${icon('clipboard', 16)} Copy code</button>` :
       `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
-        <div><div class="tt">Code pending</div><div class="ts">We couldn't mint your code yet (connection or pending email confirmation). It generates automatically on your next sign-in — check Profile → Client code.</div></div></div>`}
+        <div><div class="tt">Code pending</div><div class="ts">We couldn't mint your code yet (connection or pending email confirmation). It generates automatically on your next sign-in. Check Profile → Client code.</div></div></div>`}
     </div>
     <div class="ob-foot" style="margin-top:auto">
-      <button class="btn primary" style="background:linear-gradient(150deg,var(--purple-bright),#7e22ce);box-shadow:0 10px 30px rgba(168,85,247,0.35)" data-go="trainer">Open Trainer View</button>
+      <button class="btn primary" style="background:linear-gradient(150deg,var(--purple),var(--purple-deep));box-shadow:0 10px 30px rgba(var(--purple-rgb),0.35)" data-go="trainer">Open Trainer View</button>
     </div>
   </div>`;
   },
@@ -681,26 +713,32 @@ export const trainerOb = {
       const match = items.find((el) => el.textContent.trim() === String(saved));
       if (match) { items.forEach((el) => el.classList.remove('on')); match.classList.add('on'); }
     };
-    // step 1: names + practice name + audience chips
+    // step 1: names + practice name + the real "Listed in client search" consent toggle
     const f = $('#tr-first');
     if (f) {
-      const l = $('#tr-last'), practice = $('#tr-practice'), audRow = $('#tr-audience');
+      const l = $('#tr-last'), practice = $('#tr-practice');
       const nextBtn = root.querySelector('.ob-foot .btn');
       const t = (RT.ob || {}).trainer || {};
       if (RT.ob && RT.ob.name) { const [tf, ...tl] = RT.ob.name.split(' '); f.value = tf; l.value = tl.join(' '); }
       if (t.practiceName) practice.value = t.practiceName;
-      restore('#tr-audience', t.audience);
+      // Restore the saved choice BEFORE the first sync, or re-entering the step would re-capture
+      // the default and clobber a trainer who deliberately turned listing off.
+      if (t.discoverable != null) restore('#tr-disc', t.discoverable !== false ? 'On' : 'Off');
       const sync = () => {
         const name = `${f.value.trim()} ${l.value.trim()}`.trim();
-        const on = audRow.querySelector('.on');
-        cap({ practiceName: practice.value.trim(), audience: on ? on.textContent.trim() : 'Both' });
+        const disc = $('#tr-disc .on');
+        cap({
+          practiceName: practice.value.trim(),
+          discoverable: !disc || disc.textContent.trim() === 'On',
+        });
         act.captureOb({ name }); // account step + profiles.full_name read RT.ob.name
         nextBtn.disabled = !(f.value.trim() && l.value.trim());
       };
       [f, l, practice].forEach((el) => el.addEventListener('input', sync));
-      // Per-chip binding: wireToggles' chip handler stopPropagation()s, so a group-level
-      // listener never fires. Attach order guarantees sync reads the fresh .on state.
-      audRow.querySelectorAll('.chp').forEach((el) => el.addEventListener('click', sync));
+      // Per-button binding: wireToggles' handler stopPropagation()s, so a group-level listener
+      // never fires. Attach order guarantees sync reads the fresh .on state.
+      const discSeg = $('#tr-disc');
+      if (discSeg) discSeg.querySelectorAll('button').forEach((el) => el.addEventListener('click', sync));
       sync();
     }
     // step 3: shared account → mint practice → code screen
@@ -726,25 +764,25 @@ export const trainerOb = {
    Clients sign up as role 'athlete' (general scoring profile) — same RT.ob shape as the
    athlete flow (goal, firstName/lastName/name, currentWeight/targetWeight/allergies, join,
    committedAt, standard), so act.persistOnboarding() needs no client-specific branch. */
-const numInputCl = 'width:100%;background:transparent;border:none;outline:none;text-align:center;font-size:34px;font-weight:800;color:inherit;font-family:inherit;padding:0';
+const numInputCl = 'width:100%;background:transparent;border:none;outline:none;text-align:center;font-size:var(--t-3xl);font-weight:800;color:inherit;font-family:inherit;padding:0';
 
 const clientSteps = {
   1: () => frame(1, 6, 'What are we fixing?', 'This picks how your nutrition gets scored. Honest either way.', `
     <div class="choice-grid" id="cl-goal">
-      <div class="choice on" data-val="lose"><div class="cic" style="background:rgba(245,165,36,0.18);color:var(--amber-bright)">${icon('target', 19)}</div>
+      <div class="choice on" data-val="lose"><div class="cic" style="background:rgba(var(--amber-rgb),0.18);color:var(--amber-bright)">${icon('target', 19)}</div>
         <div class="ct">Lose fat</div><div class="cs">Calorie window · protein held high</div></div>
       <div class="choice" data-val="maintain"><div class="cic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('shield', 19)}</div>
         <div class="ct">Maintain</div><div class="cs">Consistency over everything</div></div>
-      <div class="choice" data-val="build"><div class="cic" style="background:rgba(52,211,153,0.18);color:var(--green-bright)">${icon('arrowUp', 19)}</div>
+      <div class="choice" data-val="build"><div class="cic" style="background:rgba(var(--green-rgb),0.18);color:var(--green-bright)">${icon('arrowUp', 19)}</div>
         <div class="ct">Build</div><div class="cs">Calorie floor · never under-fueled</div></div>
-      <div class="choice" data-val="health"><div class="cic" style="background:rgba(168,85,247,0.18);color:var(--purple-bright)">${icon('heart', 19)}</div>
+      <div class="choice" data-val="health"><div class="cic" style="background:rgba(var(--purple-rgb),0.18);color:var(--purple-bright)">${icon('heart', 19)}</div>
         <div class="ct">Health</div><div class="cs">Energy, sleep, habits that hold</div></div>
     </div>
     <div style="height:14px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('bars', 17)}</div>
       <div><div class="tt">How client scoring works</div>
-      <div class="ts">Same two pillars as athletes — Nutrition and Recovery. Inside Nutrition, your goal changes the mix: for fat loss it's calorie window 45, protein 25, meals logged 30.</div></div>
+      <div class="ts">Same two pillars as athletes: Nutrition and Recovery. Inside Nutrition, your goal changes the mix: for fat loss it's calorie window 45, protein 25, meals logged 30.</div></div>
     </div>`, 'Next', 'client-ob/2'),
 
   2: () => frame(2, 6, 'Start with the basics', 'This is how your trainer will recognize you.', `
@@ -786,22 +824,22 @@ const clientSteps = {
       const title = j.trainerName || j.practiceName || 'Connected';
       return frame(4, 6, 'Trainer connected', 'Your logs will count toward their board from day one.', `
       <section class="card team-preview">
-        <div class="tp-av" style="background:linear-gradient(150deg,var(--purple-bright),#7e22ce);color:#fff">${esc(title[0])}</div>
+        <div class="tp-av" style="background:linear-gradient(150deg,var(--purple),var(--purple-deep));color:var(--ink-on-accent)">${esc(title[0])}</div>
         <div style="flex:1">
-          <div style="font-size:16px;font-weight:800">${esc(title)}</div>
-          <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${esc(j.practiceName || 'Trainer connection')}</div>
+          <div style="font-size:var(--t-md);font-weight:800">${esc(title)}</div>
+          <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:2px">${esc(j.practiceName || 'Trainer connection')}</div>
         </div>
         <span class="status-pill g">Connected</span>
       </section>
       <div style="height:12px"></div>
-      <div class="ob-textlink" style="font-size:13px" data-act="clearJoin">Remove connection</div>`,
+      <div class="ob-textlink" style="font-size:var(--t-sm)" data-act="clearJoin">Remove connection</div>`,
       'Continue', 'client-ob/5', { back: 'client-ob/3' });
     }
     return frame(4, 6, 'Connect your trainer.', 'Accountability needs a witness. Search for them, then enter the code they gave you.', `
       <input id="cl-q" class="ob-input" placeholder="Search your trainer" autocorrect="off" spellcheck="false" />
       <div id="cl-out" style="margin-top:14px"></div>
       <div style="height:10px"></div>
-      <div id="cl-alt" style="text-align:center;font-size:14px;font-weight:700;color:var(--purple-bright);cursor:pointer">My gym isn't listed</div>`,
+      <div id="cl-alt" style="text-align:center;font-size:var(--t-base);font-weight:700;color:var(--purple-bright);cursor:pointer">My gym isn't listed</div>`,
       'Continue', 'client-ob/5', { back: 'client-ob/3', skip: 'client-ob/5' });
   },
 
@@ -817,7 +855,7 @@ const clientSteps = {
     const trainerFirst = join && join.trainerName ? join.trainerName.trim().split(/\s+/)[0] : null;
     const title = join ? `${trainerFirst || 'Your trainer'}’s Standard` : 'Your Standard';
     const sub = join
-      ? `The deal with ${join.practiceName || 'your trainer'}. Your score is built on it — hold to commit.`
+      ? `The deal with ${join.practiceName || 'your trainer'}. Your score is built on it: hold to commit.`
       : 'Built from your goal. When you connect a trainer, their standard takes over.';
     const rows = std.rows.map(([ic, t, s]) => `
         <div class="lrow" style="cursor:default">
@@ -846,7 +884,7 @@ const clientSteps = {
     <div class="standard-set" style="padding-bottom:6px">
       <div class="halo"><div class="core">${icon('check', 38)}</div></div>
       <div class="ob-title" style="margin-top:18px">Your Standard is set.</div>
-      <div class="ob-sub" style="padding:0 10px">Create your account to save it — your score, meals, and trainer connection sync across devices.</div>
+      <div class="ob-sub" style="padding:0 10px">Create your account to save it: your score, meals, and trainer connection sync across devices.</div>
     </div>
     <div style="height:16px"></div>
     ${accountBody({ terms: 'clob' })}
@@ -929,7 +967,7 @@ export const clientOb = {
           ${ctx ? `<div class="sidebox" style="margin-bottom:12px"><div class="req-icon b" style="width:38px;height:38px">${icon('heart', 17)}</div>
             <div><div class="tt">${esc(ctx.title)}</div><div class="ts">${esc(ctx.sub)}</div></div></div>` : ''}
           <input id="cl-code" class="ob-input" placeholder="Client code" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="12" />
-          <div id="cl-code-err" style="color:var(--amber-bright);font-size:13px;font-weight:700;min-height:18px;margin-top:10px"></div>`;
+          <div id="cl-code-err" style="color:var(--amber-bright);font-size:var(--t-sm);font-weight:700;min-height:18px;margin-top:10px"></div>`;
         const codeEl = out.querySelector('#cl-code'), codeErr = out.querySelector('#cl-code-err');
         codeEl.addEventListener('input', debounce(async () => {
           const code = codeEl.value.trim().toUpperCase();
@@ -944,7 +982,7 @@ export const clientOb = {
             window.__render();
           } catch {
             if (myGen !== gen) return; // stale
-            codeErr.textContent = 'Could not check that code — you can also skip and connect later.';
+            codeErr.textContent = 'Could not check that code. You can also skip and connect later.';
           }
         }, 350));
         codeEl.focus();
@@ -960,7 +998,7 @@ export const clientOb = {
           if (myGen !== gen || q.value.trim() !== v) return; // stale
           if (!practices.length) {
             out.innerHTML = `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('heart', 17)}</div>
-              <div><div class="tt">Not listed yet</div><div class="ts">No trainer by that name is on OnStandard yet. Enter your client code below, or skip — you can connect anytime from Profile.</div></div></div>`;
+              <div><div class="tt">Not listed yet</div><div class="ts">No trainer by that name is on OnStandard yet. Enter your client code below, or skip; you can connect anytime from Profile.</div></div></div>`;
             return;
           }
           out.innerHTML = `<section class="card" style="padding:6px 16px">${practices.map((p, i) => `
@@ -971,7 +1009,7 @@ export const clientOb = {
             </div>`).join('')}</section>`;
           out.querySelectorAll('[data-prac]').forEach((el) => el.addEventListener('click', () => {
             const p = practices[+el.getAttribute('data-prac')];
-            codeEntry({ title: `Ask ${p.trainer_name || 'your trainer'} for your client code`, sub: `${p.name} · the code is the handshake — only your trainer hands it out.` });
+            codeEntry({ title: `Ask ${p.trainer_name || 'your trainer'} for your client code`, sub: `${p.name} · the code is the handshake: only your trainer hands it out.` });
           }));
         } catch {
           if (myGen !== gen) return; // stale
@@ -1053,7 +1091,7 @@ function cpIdCard(withHandle) {
       ${/* ci.initials, not name[0]: the header chip that leads here renders "JB" and this card
             rendered "J" for the same coach on the very next screen. One person, one monogram —
             trainerProfile already used ti.initials. */''}
-      <div class="big-av" style="background:linear-gradient(150deg,#f59e0b,#d97706);color:#1a1204">${esc(ci.initials || initialsOf(name, 'C'))}</div>
+      <div class="big-av" style="background:linear-gradient(150deg,var(--amber),var(--amber-deep));color:var(--ink-on-accent)">${esc(ci.initials || initialsOf(name, 'C'))}</div>
       <div class="id-txt">
         <div class="nm">${esc(name)}</div>
         <div class="meta">${metaLine}</div>
@@ -1070,7 +1108,7 @@ function cpHandleEditor() {
         <button class="btn ghost sm" id="handle-cancel" style="width:auto;padding:0 18px">Cancel</button>
         <button class="btn green sm" id="handle-save" style="width:auto;padding:0 22px">Save</button>
       </div>
-      <div id="handle-status" style="font-size:12px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:6px">Athletes see this everywhere — greetings, meal threads, your standard.</div>
+      <div id="handle-status" style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);min-height:16px;margin-top:6px">Athletes see this everywhere: greetings, meal threads, your standard.</div>
     </div>`;
 }
 function cpCodeBlock() {
@@ -1095,7 +1133,7 @@ function cpCodeBlock() {
           <button class="btn green sm" id="code-save" style="width:auto;padding:0 22px">Save code</button>
         </div>
       </div>
-      <div id="code-status" style="font-size:12.5px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px"></div>
+      <div id="code-status" style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px"></div>
     </section>` : ci.state === 'loading' ? `
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
@@ -1103,7 +1141,7 @@ function cpCodeBlock() {
     </div>` : ci.state === 'offline' ? `
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
-      <div><div class="tt">Can't reach the server</div><div class="ts">Your code is safe — reconnect and it shows right here.</div></div>
+      <div><div class="tt">Can't reach the server</div><div class="ts">Your code is safe: reconnect and it shows right here.</div></div>
     </div>` : `
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
@@ -1124,15 +1162,15 @@ function cpStaffBlock() {
       <div class="lm"><div class="lt">Loading your staff…</div></div></div>` : `
       ${staff.map(s => `
       <div class="lrow" style="cursor:default">
-        <div class="lic" style="${s.role === 'nutritionist' ? 'background:rgba(168,85,247,0.16);color:var(--purple-bright)' : ''}">${icon(s.role === 'nutritionist' ? 'heart' : s.role === 'readonly' ? 'eye' : 'user', 17)}</div>
+        <div class="lic" style="${s.role === 'nutritionist' ? 'background:rgba(var(--purple-rgb),0.16);color:var(--purple-bright)' : ''}">${icon(s.role === 'nutritionist' ? 'heart' : s.role === 'readonly' ? 'eye' : 'user', 17)}</div>
         <div class="lm"><div class="lt">${esc(s.name)}</div><div class="ls">${esc(roleLabel(normalizeRole(s.role)))}${s.role === 'head_coach' ? '' : ` · ${esc(scopeText(s.scope_kind ? { kind: s.scope_kind, value: s.scope_value } : null))}`}</div></div>
         ${iAmHead && s.role !== 'head_coach' && s.staff_id !== RT.userId ? `
-        <button class="btn ghost sm" data-staff-scope="${esc(s.staff_id)}" style="width:auto;padding:0 10px;height:30px;font-size:11px">Scope</button>
-        <button class="btn ghost sm" data-staff-rm="${esc(s.staff_id)}" style="width:auto;padding:0 10px;height:30px;font-size:11px;color:var(--red);margin-left:6px">Remove</button>` : ''}
+        <button class="btn ghost sm" data-staff-scope="${esc(s.staff_id)}" style="width:auto;padding:0 10px;height:44px;font-size:var(--t-xs)">Scope</button>
+        <button class="btn ghost sm" data-staff-rm="${esc(s.staff_id)}" style="width:auto;padding:0 10px;height:44px;font-size:var(--t-xs);color:var(--red);margin-left:6px">Remove</button>` : ''}
       </div>
       ${iAmHead && s.role !== 'head_coach' ? `
       <div id="staff-scope-ed-${esc(s.staff_id)}" style="display:none;padding:2px 2px 12px">
-        <input class="ob-input" data-scope-input="${esc(s.staff_id)}" placeholder="Rooms, comma-separated — e.g. LB or OL, TE. Blank = whole team"
+        <input class="ob-input" data-scope-input="${esc(s.staff_id)}" placeholder="Rooms, comma-separated, e.g. LB or OL, TE. Blank = whole team"
           autocapitalize="characters" autocorrect="off" spellcheck="false" value="${s.scope_kind === 'position' ? esc(s.scope_value || '') : ''}" />
         <div style="display:flex;gap:8px;margin-top:8px">
           <button class="btn green sm" data-scope-save="${esc(s.staff_id)}" style="width:auto;padding:0 18px">Save scope</button>
@@ -1152,12 +1190,12 @@ function cpStaffBlock() {
         <span class="chp" data-staff-invite="team_admin">Team Admin</span>
         <span class="chp" data-staff-invite="readonly">View only</span>
       </div>` : `
-      <div style="font-size:11.5px;font-weight:600;color:var(--text-3);padding:2px 2px 10px">Staff invites and scopes are managed by the head coach.</div>`}`}
+      <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);padding:2px 2px 10px">Staff invites and scopes are managed by the head coach.</div>`}`}
       <div id="staff-code-out" style="display:none;padding:4px 2px 10px">
         <div class="code-boxes" id="staff-code-boxes" style="padding:0 0 6px"></div>
-        <div style="font-size:11.5px;font-weight:600;color:var(--text-3);text-align:center">One use only. Text it to them — they pick "Coach" at sign-up and enter it as a staff code.</div>
+        <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);text-align:center">One use only. Text it to them. They pick "Coach" at sign-up and enter it as a staff code.</div>
       </div>
-      <div id="staff-status" style="font-size:11.5px;font-weight:600;color:var(--text-3);min-height:14px;padding:0 2px 8px"></div>
+      <div id="staff-status" style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);min-height:14px;padding:0 2px 8px"></div>
     </section>`;
 }
 function cpProgramBlock() {
@@ -1166,7 +1204,7 @@ function cpProgramBlock() {
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="coach-plan"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Standards</div><div class="ls">Targets, focus, publish updates</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="coach-assign"><div class="lic">${icon('plus', 17)}</div><div class="lm"><div class="lt">Requirement templates</div><div class="ls">What you assign most</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="coach-voice"><div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div><div class="lm"><div class="lt">AI Nutritionist</div><div class="ls">Tone, length, instructions — make it coach like you</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="coach-voice"><div class="lic" style="background:rgba(var(--purple-rgb),0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div><div class="lm"><div class="lt">AI Nutritionist</div><div class="ls">Tone, length, instructions: make it coach like you</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Visibility rules</div><div class="ls">What parents and trainers can see</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
     </section>`;
 }
@@ -1203,7 +1241,7 @@ function operatorAccountSection() {
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('mail', 17)}</div>
-        <div class="lm"><div class="lt">Signed in as</div><div class="ls">${esc(RT.email || 'Email unavailable — sign in again to refresh')}</div></div>
+        <div class="lm"><div class="lt">Signed in as</div><div class="ls">${esc(RT.email || 'Email unavailable, sign in again to refresh')}</div></div>
         ${RT.emailVerified === true ? '<span class="status-pill g">Verified</span>' : ''}
       </div>
       <div class="lrow" id="acct-pass" role="button" tabindex="0">
@@ -1223,7 +1261,7 @@ function operatorAccountSection() {
       </div>
       <div class="lrow" data-go="delete-account">
         <div class="lic" style="color:var(--red)">${icon('x', 17)}</div>
-        <div class="lm"><div class="lt" style="color:var(--red)">Delete account</div><div class="ls">Permanent — everything goes</div></div>
+        <div class="lm"><div class="lt" style="color:var(--red)">Delete account</div><div class="ls">Permanent: everything goes</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
     </section>`;
@@ -1238,7 +1276,7 @@ function wireOperatorAccount(root) {
     const note = root.querySelector('#acct-pass-note');
     if (note) note.textContent = 'Sending…';
     await act.requestPasswordReset(RT.email || '');
-    if (note) note.textContent = RT.email ? `Reset link sent to ${RT.email} — check your inbox.` : 'Could not find your email — sign in again first.';
+    if (note) note.textContent = RT.email ? `Reset link sent to ${RT.email}. Check your inbox.` : 'Could not find your email. Sign in again first.';
     busy = false;
   };
   row.addEventListener('click', send);
@@ -1254,7 +1292,7 @@ export const coachProfile = {
     const alias = sub === 'code' ? 'invitations' : (sub || '');
     const back = (t, s) => backHead(t, s, 'coach-profile');
     if (alias === 'personal')    return `${back('Personal profile', 'Your identity and handle')}${cpIdCard(true)}${cpHandleEditor()}<div style="height:8px"></div>${cpSignOut()}<div style="height:10px"></div>`;
-    if (alias === 'invitations') return `${back('Athlete code', 'Share it — athletes join with this')}${cpCodeBlock()}<div style="height:10px"></div>`;
+    if (alias === 'invitations') return `${back('Athlete code', 'Share it: athletes join with this')}${cpCodeBlock()}<div style="height:10px"></div>`;
     if (alias === 'staff')       return `${back('Staff & collaborators', 'Invite staff and set their scope')}${cpStaffBlock()}<div style="height:10px"></div>`;
     if (alias === 'program')     return `${back('Program', 'Standards, templates, and voice')}${cpProgramBlock()}<div style="height:10px"></div>`;
     if (alias === 'analytics')   return `${back('Analytics', 'What the numbers say')}${cpAnalyticsBlock()}<div style="height:10px"></div>`;
@@ -1307,7 +1345,7 @@ export const coachProfile = {
       b.disabled = true;
       const ok = await revokeStaff(RT.team && RT.team.id, b.getAttribute('data-staff-rm'));
       if (ok) await loadStaff(RT.team && RT.team.id, true);
-      else { b.disabled = false; b.textContent = 'Remove'; b.removeAttribute('data-armed'); sSay('Could not remove them — try again.', true); }
+      else { b.disabled = false; b.textContent = 'Remove'; b.removeAttribute('data-armed'); sSay('Could not remove them. Try again.', true); }
     }));
     // Slice F: per-staff scope editor (head coach only — 0078 set_staff_scope is the wall).
     // Blank input clears back to whole team; comma list narrows to those rooms.
@@ -1385,7 +1423,7 @@ export const coachProfile = {
     if (regen) {
       let armed = false;
       regen.addEventListener('click', async () => {
-        if (!armed) { armed = true; regen.textContent = 'Sure? Old code dies'; say('A new code replaces this one immediately — anyone holding the old code can no longer join.'); return; }
+        if (!armed) { armed = true; regen.textContent = 'Sure? Old code dies'; say('A new code replaces this one immediately. Anyone holding the old code can no longer join.'); return; }
         regen.disabled = true; say('Creating a new code…');
         const r = await regenerateMyTeamCode();
         regen.disabled = false; armed = false; regen.textContent = 'New code';
@@ -1422,7 +1460,7 @@ export const trainerProfile = {
       </div>
     </section>` : `
     <section class="card id-card">
-      <div class="big-av" style="background:linear-gradient(150deg,var(--purple-bright),#7e22ce)">${esc(ti.initials || 'T')}</div>
+      <div class="big-av" style="background:linear-gradient(150deg,var(--purple),var(--purple-deep))">${esc(ti.initials || 'T')}</div>
       <div class="id-txt">
         <div class="nm">${esc(ti.name)}</div>
         <div class="meta">${esc(ti.practiceName)}</div>
@@ -1459,7 +1497,7 @@ export const trainerProfile = {
       <div class="sidebox">
         <div class="req-icon a" style="width:38px;height:38px">${icon('wifiOff', 17)}</div>
         <div><div class="tt">Can't reach the server</div>
-        <div class="ts">We couldn't load your client code. Check your connection — this picks back up on its own once you're back online.</div></div>
+        <div class="ts">We couldn't load your client code. Check your connection: this picks back up on its own once you're back online.</div></div>
       </div>`;
     } else {
       const link = inviteLink(ti.code);
@@ -1471,9 +1509,9 @@ export const trainerProfile = {
           <div style="flex:1;min-width:0">
             <div class="eyebrow" style="margin:0 0 8px">Client code</div>
             <div class="code-boxes" style="justify-content:flex-start;padding:0">
-              ${ti.code.split('').map((ch) => `<div class="cb filled" style="border-color:var(--purple-border);background:rgba(168,85,247,0.08)">${esc(ch)}</div>`).join('')}
+              ${ti.code.split('').map((ch) => `<div class="cb filled" style="border-color:var(--purple-border);background:rgba(var(--purple-rgb),0.08)">${esc(ch)}</div>`).join('')}
             </div>
-            <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:10px;line-height:1.4">
+            <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:10px;line-height:1.4">
               ${offline ? 'Showing your saved code. Reconnect to share a fresh invite.' : 'They scan the code or enter it to request to join your practice.'}
             </div>
           </div>
@@ -1484,7 +1522,7 @@ export const trainerProfile = {
         </div>
         <div class="btn-row" style="margin-top:16px">
           <button class="btn ghost sm" id="copy-code">${icon('clipboard', 16)} Copy code</button>
-          <button class="btn sm" id="share-invite" style="background:linear-gradient(150deg,var(--purple-bright),#7e22ce);color:#fff"${offline ? ' disabled' : ''}>${icon('share', 16)} Share invite</button>
+          <button class="btn sm" id="share-invite" style="background:linear-gradient(150deg,var(--purple),var(--purple-deep));color:var(--ink-on-accent)"${offline ? ' disabled' : ''}>${icon('share', 16)} Share invite</button>
         </div>
       </section>`;
     }
@@ -1501,17 +1539,17 @@ export const trainerProfile = {
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="trainer-grow"><div class="lic" style="background:rgba(var(--purple-rgb),0.22);color:var(--purple-bright)">${icon('bars', 17)}</div><div class="lm"><div class="lt">Grow your practice</div><div class="ls">Offers, applications, and new clients</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="coach-insights"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('bars', 17)}</div><div class="lm"><div class="lt">Insights</div><div class="ls">Client trends and standard adherence</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="coach-apply"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('users', 17)}</div><div class="lm"><div class="lt">Coach marketplace</div><div class="ls">Apply to be listed — clients find and hire you here</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="coach-apply"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('users', 17)}</div><div class="lm"><div class="lt">Coach marketplace</div><div class="ls">Apply to be listed: clients find and hire you here</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
     </section>
 
     <div class="eyebrow">Practice settings</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="coach-plan-set/team" style="cursor:pointer">
         <div class="lic">${icon('clipboard', 17)}</div>
-        <div class="lm"><div class="lt">Default client standard</div><div class="ls">Meals, windows, and check-ins — applied to every client</div></div>
+        <div class="lm"><div class="lt">Default client standard</div><div class="ls">Meals, windows, and check-ins: applied to every client</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
-      <div class="lrow" data-go="coach-voice"><div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div><div class="lm"><div class="lt">AI Nutritionist</div><div class="ls">Tone, length, instructions — make it coach like you</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="coach-voice"><div class="lic" style="background:rgba(var(--purple-rgb),0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div><div class="lm"><div class="lt">AI Nutritionist</div><div class="ls">Tone, length, instructions: make it coach like you</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="coach-notif-settings"><div class="lic">${icon('bell', 17)}</div><div class="lm"><div class="lt">Notifications</div><div class="ls">Briefings, alerts, quiet hours</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="settings"><div class="lic">${icon('moon', 17)}</div><div class="lm"><div class="lt">Appearance &amp; preferences</div><div class="ls">Light / dark, units, reminders</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Your visibility scope</div><div class="ls">Recovery, readiness, consistency only</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
@@ -1521,8 +1559,8 @@ export const trainerProfile = {
 
     <div class="eyebrow">Coming to Practice HQ</div>
     <section class="card" style="padding:16px 18px">
-      <div style="font-size:13px;font-weight:800;display:flex;align-items:center;gap:8px">${icon('lock', 15)} Founder-gated sections</div>
-      <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin:5px 0 13px;line-height:1.45">Built and reviewed one slice at a time. Shown honestly as locked until they're real.</div>
+      <div style="font-size:var(--t-sm);font-weight:800;display:flex;align-items:center;gap:8px">${icon('lock', 15)} Founder-gated sections</div>
+      <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:5px 0 13px;line-height:1.45">Built and reviewed one slice at a time. Shown honestly as locked until they're real.</div>
       <div class="hq-roadmap-grid">
         ${/* 'Client health' left this list when the trainer Home dashboard shipped, and
               'Analytics' left when practice rollups (0137) reached Insights — a locked tile

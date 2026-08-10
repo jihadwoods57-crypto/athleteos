@@ -60,6 +60,25 @@ export function errorState({ title = "Couldn't load this", body = 'Reconnect and
     <div class="sd-t">${esc(title)}</div><div class="sd-s">${esc(body)}</div>${a}</section>`;
 }
 
+/** A transient status message region — "Saved", "Copied", "Published…". role="status" +
+ *  aria-live="polite" so assistive tech announces the text once it lands, without stealing
+ *  focus. Six call sites hand-wired this exact pair of attributes across five files (trainer
+ *  Grow, offers, fund-plan, redeem-code) before this existed, which is exactly the shape of gap
+ *  a shared primitive is for: the seventh call site should not have to remember either attribute.
+ *  The caller's mount() still owns writing the text and its color; this only guarantees the
+ *  region is wired to announce. Starts empty unless `text` is known at render time. */
+export function statusMsg({ id = null, text = '', style = '' } = {}) {
+  return `<span${id ? ` id="${esc(id)}"` : ''} class="ls" role="status" aria-live="polite" style="${style}">${esc(text)}</span>`;
+}
+
+/** An error/failure message region. role="alert" announces on insertion or text change with no
+ *  aria-live attribute needed — it is for the message the user most needs to hear, so it must
+ *  never be silent. Pass `text` when the result is known at render time (a redeem outcome);
+ *  otherwise the caller's mount() fills it in on failure. */
+export function alertMsg({ id = null, text = '', style = '' } = {}) {
+  return `<p${id ? ` id="${esc(id)}"` : ''} class="ls" role="alert" style="${style}">${esc(text)}</p>`;
+}
+
 /** The "N of M discrete things done" segment strip. One builder, because the same three-line
  *  Array.from(...).map(...) was written out in log.js, meal.js and progress.js, and a change to
  *  how completion reads had to be made in three places or it drifted. `label` is required: the

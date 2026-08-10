@@ -3294,8 +3294,13 @@ export const act = {
     await this._stampConsent(null); // best-effort; never gates practice creation
     if (ob.practiceCode) return true;
     try {
+      // is_discoverable carries the trainer's OWN answer from step 1's "Listed in client search"
+      // toggle. It used to be a hardcoded `true`, which published every practice to the directory
+      // with no consent moment at all. Absent (a session restored mid-flow from before the toggle
+      // existed) keeps the historical default rather than silently un-listing anyone.
       const { data: code, error } = await sb.rpc('create_practice', {
-        practice_name: t.practiceName || 'My Practice', practice_handle: null, is_discoverable: true,
+        practice_name: t.practiceName || 'My Practice', practice_handle: null,
+        is_discoverable: t.discoverable !== false,
       });
       if (error || !code) return false;
       this.captureOb({ practiceCode: code });

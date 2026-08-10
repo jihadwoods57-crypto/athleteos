@@ -2,7 +2,7 @@
    "Pay" button that opens Stripe Checkout (destination charge) in the system browser. Reached from
    Profile's "Trainer Connection" card. Only ever shows offers from a trainer whose Connect account
    is fully active (my_trainer_offers RPC enforces this server-side) — never a dead "pay" button. */
-import { backHead, esc, skeletonRows, errorState } from '../components.js';
+import { backHead, esc, skeletonRows, errorState, emptyState, alertMsg } from '../components.js';
 import { icon } from '../icons.js';
 import * as roles from '../roles.js';
 
@@ -36,7 +36,7 @@ export default {
       return `${head}${skeletonRows(3, 'Loading packages')}`;
     }
     if (CACHE.failed && !(CACHE.offers || []).length) {
-      return `${head}${errorState({ title: "Couldn't load packages", body: 'Check your connection and retry — nothing was charged.', retryId: 'mto-retry' })}`;
+      return `${head}${errorState({ title: "Couldn't load packages", body: 'Check your connection and retry; nothing was charged.', retryId: 'mto-retry' })}`;
     }
     const offers = CACHE.offers || [];
     const trainerName = offers[0] && offers[0].trainer_name;
@@ -51,18 +51,26 @@ export default {
           <div class="ls">${esc(priceLabel(o))}${o.blurb ? ' · ' + esc(o.blurb) : ''}</div>
           ${(o.features || []).length ? `<div class="ls" style="margin-top:4px">${(o.features || []).map(f => esc(f)).join(' · ')}</div>` : ''}
           ${o.cadence === 'month' || o.cadence === 'week'
-            ? `<div class="ls" style="margin-top:4px;color:var(--green-bright)">Includes OnStandard membership — no separate subscription.</div>` : ''}
+            ? `<div class="ls" style="margin-top:4px;color:var(--green-bright)">Includes OnStandard membership: no separate subscription.</div>` : ''}
         </div>
-        ${o.price_cents != null ? `<button class="btn green sm" data-pay="${esc(o.offer_id)}" style="width:auto;padding:0 14px;height:34px;flex:none">${UI.paying === o.offer_id ? '…' : 'Pay'}</button>` : ''}
+        ${/* disabled while this offer's checkout is opening, not just relabelled to '…': the
+              button kept its data-pay and stayed tappable, so a second tap during the
+              startOfferCheckout round trip opened a SECOND Stripe Checkout session for the same
+              package. aria-label carries the offer name so the button is not a bare "Pay". */''}
+        ${o.price_cents != null ? `<button class="btn green sm" data-pay="${esc(o.offer_id)}"${UI.paying === o.offer_id ? ' disabled aria-busy="true"' : ''} aria-label="Pay for ${esc(o.name)}, ${esc(priceLabel(o))}" style="width:auto;padding:0 14px;height:44px;flex:none">${UI.paying === o.offer_id ? '…' : 'Pay'}</button>` : ''}
       </div>`).join('')}
     </section>
     <div class="sidebox" style="margin-top:10px"><div class="req-icon b" style="width:34px;height:34px">${icon('lock', 15)}</div>
       <div><div class="tt">Secure checkout via Stripe</div><div class="ts">Opens in your browser. OnStandard never sees or stores your card details.</div></div></div>`
-    : `
-    <div class="state-demo"><div class="sd-ic">${icon('bolt', 24)}</div>
-    <div class="sd-t">No packages yet</div>
-    <div class="sd-s">Your trainer hasn't published any paid packages, or hasn't finished setting up payments yet.</div></div>`}
-    <p id="mto-err" class="ls" style="color:var(--red);padding:10px 16px"></p>
+    : emptyState({
+      // No action: a client has no in-app move that makes their trainer publish a package or
+      // finish Connect setup. emptyState() supports action: null for exactly this — a fabricated
+      // "Message your trainer" button with nowhere real to send it would be the dead pointer
+      // DESIGN.md bans, which is worse than an honest empty state with none.
+      icon: 'bolt', title: 'No packages yet',
+      body: "Your trainer hasn't published any paid packages, or hasn't finished setting up payments yet.",
+    })}
+    ${alertMsg({ id: 'mto-err', style: 'color:var(--red);padding:10px 16px' })}
     `;
   },
   mount(root) {
