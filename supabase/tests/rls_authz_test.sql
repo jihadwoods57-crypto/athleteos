@@ -551,8 +551,13 @@ select _ok(_try($q$insert into requirement_templates (team_id, name, kind, items
 select _superuser();
 -- A day whose checkin JSON marks it submitted, 10 days back so A's checkins-table row (submitted_at
 -- ~ current_date) is OUTSIDE its [day-6,day] window — this isolates the days.checkin source.
+--
+-- `submitted` must be a JSON BOOLEAN. The shipped writer sets it from a boolean
+-- (day.js pushDay: `submitted: DAY.ciSubmitted`), and every reader tests `->>'submitted' = 'true'`
+-- (0193's evidence ceiling, 0194's rollups). This fixture seeded a TIMESTAMP STRING, which no
+-- reader has ever matched — it only looked correct while the rollup used a looser predicate.
 insert into days (athlete_id, date, score, checkin) values
-  ('aaaaaaaa-0000-0000-0000-000000000001', current_date - 10, 88, '{"submitted":"2026-07-07T12:00:00Z"}'::jsonb);
+  ('aaaaaaaa-0000-0000-0000-000000000001', current_date - 10, 88, '{"submitted":true}'::jsonb);
 -- An intervention on A (day = current_date - 20) with days bracketing it: one in the before window
 -- [day-7,day-1] and one in the after window [day+1,day+7], to exercise the outcome averages.
 insert into coach_interventions (id, team_id, athlete_id, coach_id, kind, tier, day) values
@@ -618,10 +623,14 @@ select _ok((select checkin_done from team_day_rollup(
              '77777777-1111-0000-0000-000000000001', current_date - 30, current_date)
             where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001' and day = current_date - 10),
            'slice E: checkin_done is true from the day''s checkin JSON (submitted set)');
-select _ok((select checkin_done from team_day_rollup(
+-- 0194 DELETED the checkins-table carry: checkin_done means "submitted TONIGHT", full stop, so a
+-- row whose only evidence is a checkins entry inside the [day-6, day] window must now read false.
+-- This assertion used to demand the opposite and has been red since 35061ba shipped 0194.
+-- coalesce so an absent rollup row reads as "not done" rather than NULL.
+select _ok(coalesce((select checkin_done from team_day_rollup(
              '77777777-1111-0000-0000-000000000001', current_date - 30, current_date)
-            where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001' and day = current_date),
-           'slice E: checkin_done is true from the checkins table (submitted within the week window)');
+            where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001' and day = current_date), false) = false,
+           'slice E (0194): checkin_done no longer carries from the checkins table');
 
 -- ================================================================ COACH OS SLICE F: scoped staff roles (0077/0078)
 -- Placed before section 8 for the same reason as Slice E: these probes need athlete A's T1
