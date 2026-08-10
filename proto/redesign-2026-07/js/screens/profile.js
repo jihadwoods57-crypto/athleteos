@@ -13,7 +13,7 @@ function avatarEl(size = 62) {
 export default {
   tab: 'profile',
   render() {
-    const t = S.trustPass;
+    const t = S.pass;
     return `
     <div class="screen-title">Profile</div>
 
@@ -48,8 +48,8 @@ export default {
     <div class="trust" data-go="trust" style="cursor:pointer">
       <div class="ic">${icon('shield', 20)}</div>
       <div style="flex:1">
-        <div class="tt">Trust Pass active · day ${t.day} of ${t.length}</div>
-        <div class="ts">Earned with ${(RT.trustPolicy || { eligibility_days: 7 }).eligibility_days} on-standard days. Tap for the rules.</div>
+        <div class="tt">${t.kind === 'credits' ? `Trust Pass active · ${t.left} left` : `Trust Pass active · day ${t.day} of ${t.length}`}</div>
+        <div class="ts">Earned with ${(RT.passPolicy || { eligibility_days: 7 }).eligibility_days} photo-logged days. Tap for the rules.</div>
       </div>
       ${icon('chevron', 18, 'style="color:var(--text-3)"')}
     </div>` : ''}

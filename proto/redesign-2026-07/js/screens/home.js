@@ -375,15 +375,19 @@ function syncBanner() {
 /* Trust Pass, compressed (founder call 2026-07-16): a purple shield in the header row —
    same 44px metrics as the bell — instead of a full-width card eating the fold. Tap opens
    a quick anchored popup with the essentials; "Full details" goes to the existing trust
-   page. Renders ONLY while a real pass is active. */
+   page. Renders ONLY while a real pass is active (0196: two shapes, see S.pass). */
 function trustShield() {
-  const t = S.trustPass;
+  const t = S.pass;
   if (!t.active) return '';
+  const label = t.kind === 'credits' ? `${t.left} left` : `day ${t.day} of ${t.length}`;
+  const note = t.note || (t.kind === 'credits'
+    ? 'Camera-free meals you can spend whenever you want.'
+    : 'Camera-free through the window, credited from your real logging history.');
   return `<div class="tp-wrap">
-    <button class="iconbtn tp-btn" id="tp-btn" aria-expanded="false" aria-haspopup="true" aria-label="Trust Pass, day ${t.day} of ${t.length}. Show quick info">${icon('shield', 20)}</button>
+    <button class="iconbtn tp-btn" id="tp-btn" aria-expanded="false" aria-haspopup="true" aria-label="Trust Pass, ${esc(label)}. Show quick info">${icon('shield', 20)}</button>
     <div class="tp-pop" id="tp-pop" hidden>
-      <div class="tp-h">${icon('shield', 15)} Trust Pass · <b>day ${t.day} of ${t.length}</b></div>
-      <div class="tp-n">${esc(t.note)}</div>
+      <div class="tp-h">${icon('shield', 15)} Trust Pass · <b>${esc(label)}</b></div>
+      <div class="tp-n">${esc(note)}</div>
       <div class="tp-link" data-go="trust">Full details ${icon('chevron', 14)}</div>
     </div>
   </div>`;
@@ -510,12 +514,22 @@ function inProgressHero(e) {
 /* Grouped-card row: Upcoming/Completed rows share ONE card, split by hairlines, instead of
    a stack of separate bordered cards. Completed rows read status-first (green check) with a
    chevron into the receipt. */
-const grow = (i, { hidePill, chev, checkIcon } = {}) => `<div class="xg-row" data-go="${i.route}">
+const grow = (i, { hidePill, chev, checkIcon } = {}) => {
+  // A credit spent on this SLOT (0196). proof === 'photo' is the meal discriminator — exec.js
+  // has no `kind` field, but a meal item's `id` IS its slot key (breakfast/lunch/dinner or a
+  // coach standard's meal-N), the same id spend_pass takes. not_required is excluded: a
+  // pre-activation slot doesn't count either way, so covering it would spend a credit on
+  // nothing.
+  const spendable = i.proof === 'photo' && i.state !== 'done' && i.state !== 'done_late'
+    && i.state !== 'not_required' && S.pass.active && S.pass.kind === 'credits' && S.pass.left > 0;
+  return `<div class="xg-row" data-go="${i.route}">
     <div class="xico sm ${i.color}">${icon(checkIcon ? 'checkCircle' : i.icon, 17)}</div>
     <div class="xr"><div class="xa">${esc(i.title)}</div><div class="xb">${esc(i.sub)}</div></div>
+    ${spendable ? `<button class="btn ghost sm" data-spend="${esc(i.id)}" style="width:auto;padding:0 10px;height:30px;font-size:11px">${icon('shield', 13)} Use a pass</button>` : ''}
     ${hidePill ? '' : `<span class="xpill ${i.color}">${i.pill}</span>`}
     ${chev ? icon('chevron', 16, 'style="color:var(--text-3)"') : ''}
   </div>`;
+};
 
 // Streak ribbon removed (founder call 2026-07-16): the streak's home surfaces are the
 // celebration screen and notifications — Home stays focused on score + next action.
@@ -791,6 +805,23 @@ export default {
         if (!pop.hidden && !ev.target.closest('.tp-wrap')) setOpen(false);
       });
     }
+    // Spend a Trust Pass credit on an open meal slot (0196). stopPropagation because the button
+    // sits inside a data-go row (grow()) — without it the tap would also fire the row's own
+    // navigation. On failure the button's own label carries the reason rather than a toast,
+    // matching this screen's existing inline-status convention (no toast utility exists here).
+    root.querySelectorAll('[data-spend]').forEach((b) => b.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      const slot = b.getAttribute('data-spend');
+      const original = b.textContent;
+      b.disabled = true; b.textContent = 'Applying…';
+      const r = await act.spendPass(slot);
+      if (!r.ok) {
+        b.disabled = false; b.textContent = r.error || 'Could not apply it';
+        setTimeout(() => { if (b.isConnected) b.textContent = original; }, 2200);
+      }
+      // On success the credit count changes and the slot is now covered, so the next render
+      // (act.spendPass already calls window.__render()) removes this button entirely.
+    }));
     // Entrance choreography: hero settles first, then each block ~45ms behind, done in
     // about a third of a second. Plays only on ARRIVAL (homeEntrance gate) — the exec
     // tick's in-place re-render never replays it. Reduced-motion skips entirely.
