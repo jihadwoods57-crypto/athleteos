@@ -262,3 +262,62 @@ test('the write-path invariant survives a pass: scoreFor never exceeds evidenceC
   assert.ok(scoreFor(d) <= evidenceCeiling(d),
     `scoreFor ${scoreFor(d)} exceeded evidenceCeiling ${evidenceCeiling(d)} on a pass day`);
 });
+
+/* ---------------------------------------------------------------- milestone prompt (coach-data.js) */
+
+import { consecutiveOnStandard, passWorthy } from './coach-data.js';
+
+const day = (dateISO, score) => ({ date: dateISO, score });
+
+test('consecutiveOnStandard counts backward from the newest day', () => {
+  const h = [day('2026-08-05', 88), day('2026-08-06', 91), day('2026-08-07', 82), day('2026-08-08', 95), day('2026-08-09', 90)];
+  assert.equal(consecutiveOnStandard(h), 5);
+});
+
+test('consecutiveOnStandard stops at the first sub-80 day', () => {
+  const h = [day('2026-08-05', 88), day('2026-08-06', 62), day('2026-08-07', 91), day('2026-08-08', 95), day('2026-08-09', 90)];
+  assert.equal(consecutiveOnStandard(h), 3, 'the 62 on the 6th breaks the chain; only the 7th-9th count');
+});
+
+test('consecutiveOnStandard is order-independent (sorts internally)', () => {
+  const h = [day('2026-08-09', 90), day('2026-08-07', 91), day('2026-08-08', 95)];
+  assert.equal(consecutiveOnStandard(h), 3);
+});
+
+test('consecutiveOnStandard handles empty or missing history', () => {
+  assert.equal(consecutiveOnStandard([]), 0);
+  assert.equal(consecutiveOnStandard(null), 0);
+});
+
+test('consecutiveOnStandard breaks the chain on a MISSING day, not just a low score', () => {
+  // 05, 06, then a gap (no row at all for 07 — the athlete never logged that day), then 08, 09.
+  // A version that only checked score, not calendar contiguity, would count all five.
+  const h = [day('2026-08-05', 88), day('2026-08-06', 91), day('2026-08-08', 95), day('2026-08-09', 90)];
+  assert.equal(consecutiveOnStandard(h), 2, 'only the 8th and 9th are truly adjacent');
+});
+
+
+test('passWorthy surfaces a streak at or above the threshold with no active pass', () => {
+  const rows = [
+    { athleteId: 'a1', name: 'Devin', scoreHistory: [day('2026-08-05', 88), day('2026-08-06', 91), day('2026-08-07', 82), day('2026-08-08', 95), day('2026-08-09', 90)] },
+    { athleteId: 'a2', name: 'Sam', scoreHistory: [day('2026-08-09', 60)] },
+  ];
+  const worthy = passWorthy(rows, {}, 5);
+  assert.equal(worthy.length, 1);
+  assert.equal(worthy[0].row.athleteId, 'a1');
+  assert.equal(worthy[0].streak, 5);
+});
+
+test('passWorthy excludes an athlete who already holds a pass', () => {
+  const rows = [{ athleteId: 'a1', scoreHistory: [day('2026-08-05', 88), day('2026-08-06', 91), day('2026-08-07', 82), day('2026-08-08', 95), day('2026-08-09', 90)] }];
+  assert.equal(passWorthy(rows, { a1: { id: 'p1' } }, 5).length, 0);
+});
+
+test('passWorthy ranks the longest streak first', () => {
+  const rows = [
+    { athleteId: 'short', scoreHistory: [day('2026-08-05', 88), day('2026-08-06', 91), day('2026-08-07', 82), day('2026-08-08', 95), day('2026-08-09', 90)] },
+    { athleteId: 'long', scoreHistory: [day('2026-08-03', 85), day('2026-08-04', 86), day('2026-08-05', 88), day('2026-08-06', 91), day('2026-08-07', 82), day('2026-08-08', 95), day('2026-08-09', 90)] },
+  ];
+  const worthy = passWorthy(rows, {}, 5);
+  assert.deepEqual(worthy.map((w) => w.row.athleteId), ['long', 'short']);
+});

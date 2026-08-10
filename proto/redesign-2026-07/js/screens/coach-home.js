@@ -2,7 +2,7 @@ import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { avatarHead, esc, collapseSection, skeletonRows, errorState, emailVerifyBanner, wireEmailVerifyBanner } from '../components.js';
 import * as roles from '../roles.js';
-import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope, logBookIntervention } from '../coach-data.js';
+import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope, logBookIntervention, passWorthy } from '../coach-data.js';
 import { buildPriorities } from '../priority.js';
 import { PLANS } from '../ob2.js';
 import { teamPulse } from '../status.js';
@@ -300,6 +300,25 @@ const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 let SHOW_SCOPES = false;        // scope sheet open?
 let SHOW_PULSE = false;         // pulse breakdown open?
 
+/* Trust Pass milestone (0196): who just earned a reward and holds no active pass yet, from the
+   roster's own active-pass map. Same batch call the roster's trust-pass section already makes
+   (roles.fetchRosterPasses), just cached separately per screen so a route this screen doesn't
+   share can't leave a stale map behind. */
+let TP_MAP = null;
+let tpMapLoading = false;
+async function loadPassMap(force) {
+  if (tpMapLoading || (TP_MAP && !force)) return;
+  const rows = CD.roster ? CD.roster.rows : [];
+  if (!rows.length) return;
+  tpMapLoading = true;
+  try { TP_MAP = await roles.fetchRosterPasses(rows.map((r) => r.athleteId)) || {}; }
+  catch { TP_MAP = {}; }
+  finally { tpMapLoading = false; }
+  // Exact match, not a prefix: 'coach' alone must not catch 'coach-roster' repainting into a
+  // screen the operator already left.
+  if (['#coach-home', '#coach', '#trainer'].includes(location.hash || '') && window.__render) window.__render();
+}
+
 function scopeLabel(scope) {
   // Slice F: a scoped staff member's 'team' view is already server-narrowed to their
   // responsibility (0078) — calling it "Entire team" would overstate what they see.
@@ -466,10 +485,23 @@ export const coachHome = {
       unreadAlerts ? { n: unreadAlerts, t: `Alert${unreadAlerts > 1 ? 's' : ''} in your bell`, go: 'notifications' } : null,
     ].filter(Boolean);
 
+    // Trust Pass milestone (0196): at most ONE card, so a large roster crossing the bar in the
+    // same week becomes a single moment, not a queue. Ranked by streak in passWorthy, so the
+    // athlete closest to (or furthest past) the bar surfaces first.
+    const worthy = CD.caps.trustPass && TP_MAP ? passWorthy(rows, TP_MAP) : [];
+    const milestone = worthy.length ? `
+    <div class="sidebox" style="border-color:var(--purple-border)">
+      <div class="req-icon p" style="width:38px;height:38px">${icon('shield', 17)}</div>
+      <div style="flex:1"><div class="tt">${esc(worthy[0].row.name)} hit ${worthy[0].streak} straight days</div>
+      <div class="ts">Reward it with camera-free meals.</div></div>
+      <button class="btn sm" data-go="pass-grant/${esc(worthy[0].row.athleteId)}" style="width:auto;padding:0 12px;height:30px;flex:none">Give a pass</button>
+    </div>` : '';
+
     return `${head}
     <button class="btn ghost sm" data-scopes data-tour="roster" style="width:auto;padding:0 13px;height:30px;margin-bottom:10px">${icon('users', 13)} ${esc(scopeLabel(scope))} ${icon('chevron', 12, 'style="transform:rotate(90deg)"')}</button>
     ${SHOW_SCOPES ? scopeSheet() : ''}
     ${pending.length ? `<div class="card" data-go="coach-inbox" style="padding:10px 15px;cursor:pointer;display:flex;align-items:center;gap:10px"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 15)}</div><div style="flex:1;font-size:12.5px;font-weight:700">${pending.length} join request${pending.length > 1 ? 's' : ''} waiting</div>${icon('chevron', 14, 'style="color:var(--text-3)"')}</div>` : ''}
+    ${milestone}
     ${entries === null ? '' : pulseCard(rows, statuses)}
     ${obPlanCard()}
     <div id="vc-board-slot"></div>
@@ -515,7 +547,7 @@ export const coachHome = {
   },
   mount(root) {
     wireEmailVerifyBanner(root);
-    loadMyBook().then(() => loadActivity());
+    loadMyBook().then(() => { loadActivity(); if (CD.caps.trustPass) loadPassMap(); });
     // Offline retry — same shape as the roster's, so the two screens stop disagreeing about
     // whether "reopen the app" is the coach's job.
     const homeRetry = root.querySelector('#home-retry');
