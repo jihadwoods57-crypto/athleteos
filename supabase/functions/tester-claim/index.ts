@@ -108,6 +108,7 @@ function payload(row: SetRow, deviceToken: string) {
     emails: { coach: row.email_coach, athlete: row.email_athlete, trainer: row.email_trainer, client: row.email_client },
     team_join_code: row.team_join_code,
     practice_join_code: row.practice_join_code,
+    claimed_name: row.claimed_name,
     device_token: deviceToken,
     board_url: BOARD_KEY ? `${BOARD_ORIGIN}/beta.html?k=${encodeURIComponent(BOARD_KEY)}` : null,
   };

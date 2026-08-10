@@ -48,8 +48,8 @@ const WORDS = [
 
 function genPassword() {
   const picked = new Set();
-  while (picked.size < 3) picked.add(WORDS[randomInt(WORDS.length)]);
-  const digits = String(randomInt(10, 100));
+  while (picked.size < 4) picked.add(WORDS[randomInt(WORDS.length)]);
+  const digits = String(randomInt(1000, 10000));
   return [...picked].join('-') + '-' + digits;
 }
 
@@ -140,7 +140,7 @@ async function rpcPost(fn, token, args) {
     headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(args),
   });
-  return { ok: res.ok, status: res.status };
+  return { ok: res.ok, status: res.status, body: await res.json().catch(() => null) };
 }
 
 async function cmdVerify() {
@@ -182,11 +182,15 @@ async function cmdVerify() {
     const athleteN = sessions[c.emails.athlete];
     const athleteM = sessions[mCreds.emails.athlete];
 
+    // ok:2xx alone is the safe failure direction (false alarm, never false pass) but if either RPC
+    // ever legitimately returns 200 with an empty array instead of raising for unauthorized access,
+    // status-only would report a false "leak". Only flag it as a real leak if the body actually
+    // carries rows.
     const teamLeak = await rpcPost('team_roster', coach.access_token, { team: teamId[m] });
-    if (teamLeak.ok) { rosterFails++; console.log(`  FAIL  set ${c.set_no} coach read set ${m}'s team_roster`); }
+    if (teamLeak.ok && Array.isArray(teamLeak.body) && teamLeak.body.length > 0) { rosterFails++; console.log(`  FAIL  set ${c.set_no} coach read set ${m}'s team_roster`); }
 
     const practiceLeak = await rpcPost('practice_roster', trainer.access_token, { practice: practiceId[m] });
-    if (practiceLeak.ok) { rosterFails++; console.log(`  FAIL  set ${c.set_no} trainer read set ${m}'s practice_roster`); }
+    if (practiceLeak.ok && Array.isArray(practiceLeak.body) && practiceLeak.body.length > 0) { rosterFails++; console.log(`  FAIL  set ${c.set_no} trainer read set ${m}'s practice_roster`); }
 
     // A throwaway row proves the RLS check means something — with zero seeded history, an empty
     // result would look identical whether isolation works or there's simply nothing to leak. If the
@@ -196,26 +200,45 @@ async function cmdVerify() {
     if (!ins.ok) { daysFails++; console.log(`  FAIL  set ${c.set_no} could not insert its own throwaway days row (status ${ins.status}) — isolation check would be vacuous`); }
     const leak = await restGet(`days?athlete_id=eq.${athleteM.user_id}&select=id`, athleteN.access_token);
     if ((leak.body || []).length > 0) { daysFails++; console.log(`  FAIL  set ${c.set_no} athlete read set ${m}'s days`); }
-    await restDelete(`days?athlete_id=eq.${athleteN.user_id}&date=eq.2000-01-01`, athleteN.access_token);
+    // If this cleanup silently fails, the leftover 2000-01-01 row makes the NEXT verify run's insert
+    // conflict on the athlete_id+date unique constraint — which correctly surfaces as a daysFails
+    // failure on that LATER run (per Task 6's bug-2 fix), but the root cause (a failed cleanup here,
+    // not a real isolation leak) would be non-obvious without this warning pointing back at it.
+    const cleaned = await restDelete(`days?athlete_id=eq.${athleteN.user_id}&date=eq.2000-01-01`, athleteN.access_token);
+    if (!cleaned) console.log(`  WARN  set ${c.set_no} failed to delete its throwaway days row — next verify run's insert may conflict`);
   }
   console.log(`Roster isolation: ${rosterFails === 0 ? 'PASS — 10/10 boundaries held' : `FAIL — ${rosterFails} leak(s)`}`);
   console.log(`Days isolation:   ${daysFails === 0 ? 'PASS — 10/10 boundaries held' : `FAIL — ${daysFails} leak(s)`}`);
   if (rosterFails || daysFails) process.exitCode = 1;
 }
 
+// The real tester.html page calls the DEPLOYED function's custom `functions.supabase.co` domain
+// from origin https://onstandard.app (see web/landing/tester.html's FN constant + _headers'
+// /tester* CSP, which allows only that host in connect-src) — not `${SUPABASE_URL}/functions/v1/…`.
+// smoke must hit that same URL form with that same Origin header, or it can report all-PASS while
+// the real page is CORS-blocked in a browser. This is deliberately the DEPLOYED origin (local or
+// prod, per the plan), never the local stack's default URL.
+const FN_ORIGIN = 'https://ftwrvylzoyznhbzhgism.functions.supabase.co';
+const PAGE_ORIGIN = 'https://onstandard.app';
+let corsFailures = 0;
+
 async function fnPost(name, secretEnv, payload) {
   const key = process.env[secretEnv];
   if (!key) throw new Error(`Set ${secretEnv} in env.`);
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
+  const res = await fetch(`${FN_ORIGIN}/${name}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Origin: PAGE_ORIGIN },
     body: JSON.stringify({ ...payload, k: key }),
   });
+  const acao = res.headers.get('access-control-allow-origin');
+  if (acao !== PAGE_ORIGIN) {
+    corsFailures++;
+    console.log(`FAIL  ${name} ${payload.action || ''}: access-control-allow-origin was ${JSON.stringify(acao)}, expected ${JSON.stringify(PAGE_ORIGIN)} — the real page would be CORS-blocked here even though the function itself responded`);
+  }
   return { ok: res.ok, status: res.status, body: await res.json().catch(() => ({})) };
 }
 
 async function cmdSmoke() {
-  if (!SUPABASE_URL) throw new Error('Set SUPABASE_URL in env.');
   console.log('WARNING: this claims all 10 sets with synthetic emails.');
   console.log('Re-run `gen` and re-apply the seed afterward, before sharing the real link.\n');
 
@@ -250,7 +273,22 @@ async function cmdSmoke() {
   const posted = (list.body.posts || []).find((p) => p.body === 'smoke test report');
   console.log(posted && posted.tester_set === 1 ? 'PASS  post carries tester_set = 1 on the board' : 'FAIL  tester_set not on the returned post');
 
+  const adminKey = process.env.TESTER_ADMIN_KEY;
+  if (!adminKey) throw new Error('Set TESTER_ADMIN_KEY in env.');
+  const status = await fnPost('tester-claim', 'TESTER_CLAIM_KEY', { action: 'status', admin: adminKey });
+  console.log(status.ok && status.body.ok && Array.isArray(status.body.sets) && status.body.sets.length === 10
+    ? 'PASS  status returns ok:true with 10 sets'
+    : `FAIL  status: ${JSON.stringify(status.body)}`);
+
+  if (corsFailures) {
+    console.log(`\n${corsFailures} CORS check(s) FAILED — the real tester.html page would be blocked by the browser from https://onstandard.app even though the function itself responded. Fix before trusting this smoke run.`);
+    process.exitCode = 1;
+  }
+
   console.log('\nDone. Re-run `gen` + re-apply the seed before sharing the real link.');
+  console.log('NOTE: this run left a permanent "smoke test report" row in beta_posts (the board is');
+  console.log('never torn down, by design). Manually delete it or triage it "wontdo" in the board');
+  console.log('admin UI before handing the link to real testers — beta-board has no delete action.');
 }
 
 const cmd = process.argv[2];

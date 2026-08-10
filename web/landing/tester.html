@@ -59,7 +59,7 @@
   .field{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid rgba(29,39,53,.7);}
   .field:last-child{border-bottom:0;}
   .flabel{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:700;min-width:70px;}
-  .fval{font-family:'Fira Code',monospace;font-size:14px;color:var(--fg);word-break:break-all;text-align:right;flex:1;}
+  .fval{font-family:monospace;font-size:14px;color:var(--fg);word-break:break-all;text-align:right;flex:1;}
   .pw .fval{color:var(--teal);font-weight:700;}
 
   .starthere{margin-top:22px;padding-top:18px;border-top:1px dashed var(--line2);}
@@ -211,7 +211,8 @@
     LS.set('os_tester_device', data.device_token);
     LS.set('os_tester_set', String(data.set_no));
     var typedName = $('tname') && $('tname').value.trim();
-    if (typedName) LS.set('os_tester_name', typedName);
+    var nameToStore = typedName || data.claimed_name || '';
+    if (nameToStore) LS.set('os_tester_name', nameToStore);
 
     $('setno').textContent = 'Tester ' + String(data.set_no).padStart(2, '0');
     $('pw').textContent = data.password;
@@ -253,6 +254,8 @@
     api({ action: 'resume', device_token: device }).then(function (res) {
       if (res.ok) { renderCard(res.body); return; }
       LS.remove('os_tester_device');
+      LS.remove('os_tester_set');
+      LS.remove('os_tester_name');
       show('form');
     }).catch(function () { show('form'); });
   }

@@ -56,6 +56,10 @@
 #   · no-store + no-referrer — the URL IS the credential.
 #   · noindex — belt to the meta tag's braces.
 #   · fonts are local (font-src 'self') — same reasoning as /beta*.
+# NOTE: the pre-existing /t* block above (trainer page) also prefix-matches /tester* — both blocks
+# apply here, "more specific adds to, not replaces" per this file's header. Benign today because
+# this block's CSP is a strict subset of /t*'s, but intentional and worth knowing before editing
+# either block.
 /tester*
   X-Frame-Options: DENY
   Cache-Control: no-store

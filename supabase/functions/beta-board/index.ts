@@ -250,6 +250,9 @@ Deno.serve(async (request) => {
   const authorName = str(body.author_name, 40) || 'Anonymous';
   const text = str(body.body, 2000);
   const appVersion = str(body.app_version, 40) || null;
+  // 1-10 mirrors the tester count scripts/seed-tester-accounts.sql creates. If that seed ever grows
+  // (e.g. N=15 testers), this bound must grow with it, or valid tester_set values above 10 get
+  // silently nulled out here with no error surfaced anywhere.
   const testerSetRaw = Number(body.tester_set);
   const testerSet = Number.isInteger(testerSetRaw) && testerSetRaw >= 1 && testerSetRaw <= 10 ? testerSetRaw : null;
   if (text.length < 4) return json({ error: 'Tell us a little more than that.' }, 400);
