@@ -179,3 +179,86 @@ test('no coverage is a true no-op that returns the very same objects', () => {
   assert.equal(out.day, live, 'the common path must not clone');
   assert.equal(out.std, stdIn);
 });
+
+/* ---------------------------------------------------------------- integration with the scorer */
+
+import { computeComponents, setDayStandard, scoreFor, evidenceCeiling } from './day.js';
+
+const H = (n, protein) => Array.from({ length: n }, (_, i) => ({
+  date: `2026-07-${String(i + 1).padStart(2, '0')}`,
+  meals: { breakfast: true, lunch: true, dinner: true, snack: true },
+  checkin: { slotMacros: { dinner: { protein, kcal: protein * 15, carbs: 50, fat: 20, quality: 8 } } },
+}));
+
+function scenario(over = {}) {
+  return {
+    date: '2026-08-09',
+    meals: { breakfast: true, lunch: true, dinner: false, snack: true },
+    mealLoggedAt: {},
+    slotMacros: {
+      breakfast: { protein: 30, kcal: 500, quality: 8 },
+      lunch:     { protein: 40, kcal: 700, quality: 8 },
+      snack:     { protein: 15, kcal: 200, quality: 8 },
+    },
+    quickAdded: [false, false, false],
+    proteinTarget: 180, calTarget: 3200, scoringProfile: 'athlete',
+    dailyCommitment: null, ci: {}, ciConfig: {}, ciSubmitted: false, ciLast: null,
+    hydrationL: 3,
+    passes: [], passSpends: [], scoreHistory: H(10, 45),
+    ...over,
+  };
+}
+
+test('a covered dinner scores from the median instead of zero', () => {
+  setDayStandard(null);
+  const bare = computeComponents(scenario(), null);
+  const credited = computeComponents(scenario({
+    passes: [CREDITS],
+    passSpends: [{ pass_id: 'p2', day_date: '2026-08-09', slot: 'dinner' }],
+  }), null);
+  assert.ok(credited.nutrition > bare.nutrition,
+    `the pass must actually move nutrition (bare ${bare.nutrition}, credited ${credited.nutrition})`);
+});
+
+test('a day with no pass is scored byte-identically to before', () => {
+  setDayStandard(null);
+  const a = computeComponents(scenario(), null);
+  const b = computeComponents(scenario({ passes: undefined, passSpends: undefined }), null);
+  assert.deepEqual(a, b, 'the no-pass path must not change for anybody');
+});
+
+test('a thin history excuses the slot rather than tanking the score', () => {
+  setDayStandard(null);
+  const thin = { passes: [CREDITS], passSpends: [{ pass_id: 'p2', day_date: '2026-08-09', slot: 'dinner' }], scoreHistory: H(2, 45) };
+  const bare = computeComponents(scenario({ scoreHistory: H(2, 45) }), null);
+  const excusedDay = computeComponents(scenario(thin), null);
+  assert.ok(excusedDay.nutrition >= bare.nutrition,
+    `excusing must never score WORSE than not having the pass (bare ${bare.nutrition}, excused ${excusedDay.nutrition})`);
+});
+
+test("another athlete's passes cannot leak in through module state", () => {
+  setDayStandard(null);
+  // A reconstructed day that carries no pass context of its own must score as unpassed, whatever
+  // the signed-in user happens to be holding. coach.js:1811 scores other athletes this way.
+  const foreign = scenario();
+  delete foreign.passes;
+  delete foreign.passSpends;
+  assert.deepEqual(computeComponents(foreign, null), computeComponents(scenario(), null));
+});
+
+test('the write-path invariant survives a pass: scoreFor never exceeds evidenceCeiling', () => {
+  setDayStandard(null);
+  // score-v2.test.mjs pins this for logged days. A credited pass day must obey it too, or the
+  // client hands the server a score its own ceiling refuses and the athlete silently loses the
+  // points the reward just gave them.
+  // Nothing logged at all, so the PASS is the only nutrition evidence on the row. With three
+  // slots already logged the raw day has evidence anyway and the invariant holds by accident.
+  const d = scenario({
+    meals: { breakfast: false, lunch: false, dinner: false, snack: false },
+    slotMacros: {},
+    passes: [CREDITS],
+    passSpends: [{ pass_id: 'p2', day_date: '2026-08-09', slot: 'dinner' }],
+  });
+  assert.ok(scoreFor(d) <= evidenceCeiling(d),
+    `scoreFor ${scoreFor(d)} exceeded evidenceCeiling ${evidenceCeiling(d)} on a pass day`);
+});

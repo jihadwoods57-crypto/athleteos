@@ -13,6 +13,9 @@ import {
 // score-band.js is dependency-free on purpose, so the parity test can still import this module
 // under Node. It owns the tier thresholds; nothing here re-declares them.
 import { tierFor } from './score-band.js';
+// pass.js is dependency-free for the same reason score-band.js is: the parity/unit tests import
+// this module under Node.
+import { passCoverage, slotMedians, withPassCredit } from './pass.js';
 
 /* ---------------- engine constants (ported exactly) ---------------- */
 export { PROFILE_WEIGHTS } from './plan-style.js';
@@ -360,17 +363,49 @@ function commitmentScore(ans) { return ans === 'yes' ? 100 : ans === 'partial' ?
    seven-day annuity — one check-in on Monday paid every day through Sunday. */
 export function checkinReal(day) { return !!day.ciSubmitted; }
 
+/* ---- Trust Pass credit (0196) ----------------------------------------------------------------
+   A pass-covered slot has no logged meal, so the honest thing to score is the athlete's own
+   trailing median for that slot. pass.js synthesizes it into a CLONE and this is the single seam
+   where that clone enters the engine — nutritionScore and its six parts are untouched.
+
+   THE PASS CONTEXT RIDES ON THE DAY, never on module scope. coach.js reconstructs another
+   athlete's days through dayFromHistoryRow and scores them, so reading DAY.passes here would let
+   a coach who happens to hold a pass credit it to their athlete — the same cross-athlete hazard
+   the proteinTarget/std threading already closes. A day with no `passes` array is scored exactly
+   as it was before 0196, which is every fixture and every reconstructed row. */
+function scoringView(day, std = STD) {
+  const passes = (day && day.passes) || null;
+  const spends = (day && day.passSpends) || null;
+  if (!passes || !passes.length) return { day, std };
+
+  const coverage = passCoverage(day.date, passes, spends, (std && std.slots) || null);
+  if (!coverage.size) return { day, std };
+
+  // Every ${date}|${slot} a pass already covered in the loaded window. Excluding these is what
+  // stops the median averaging its own output; see invariant 1 in pass.js.
+  const coveredKeys = new Set();
+  for (const r of day.scoreHistory || []) {
+    for (const slot of passCoverage(r.date, passes, spends, (std && std.slots) || null)) {
+      coveredKeys.add(`${r.date}|${slot}`);
+    }
+  }
+
+  const medians = slotMedians(day.scoreHistory, (std && std.slots) || null, { coveredKeys });
+  return withPassCredit(day, std, coverage, medians);
+}
+
 /** The four sub-scores. `recoveryContribution` is what the total uses (0 unless a real check-in
  *  backs it). Only nutrition depends on the standard (meal slots/windows/denominator); recovery,
  *  commitment, and check-in are standard-independent, so `std` only reaches nutritionScore. */
 export function computeComponents(day, std = STD) {
-  const rec = recoveryParts(day);
+  const v = scoringView(day, std);
+  const rec = recoveryParts(v.day);
   return {
-    nutrition: nutritionScore(day, std),
+    nutrition: nutritionScore(v.day, v.std),
     recovery: rec.score,
     recoveryContribution: rec.isReal ? rec.score : 0,
-    commitment: commitmentScore(day.dailyCommitment),
-    checkin: checkinReal(day) ? 100 : 0,
+    commitment: commitmentScore(v.day.dailyCommitment),
+    checkin: checkinReal(v.day) ? 100 : 0,
   };
 }
 
@@ -400,7 +435,12 @@ export function gradeFor(s) { return s >= 90 ? 'A' : s >= 80 ? 'B' : s >= 70 ? '
  *  as `scoreFor`/`computeComponents`, so a 5-/6-meal coach standard's `meal-5`/`meal-6` slots are
  *  evidence here too — a hardcoded classic-four check would erase the whole score on that room. */
 export function evidenceCeiling(day, std = STD) {
-  return (hasNutritionEvidence(day, std) ? 78 : 0) + (checkinReal(day) ? 24 : 0);
+  // Runs on the SAME credited view scoreFor sees, or the two disagree the moment a pass is the
+  // only nutrition evidence on the row: scoreFor credits the median while this reads the raw day,
+  // sees no logged meal, and returns 0. clampedScore would then show the athlete a zero for the
+  // day their reward was supposed to protect. Mirrors gate (d) of 0196's server ceiling.
+  const v = scoringView(day, std);
+  return (hasNutritionEvidence(v.day, v.std) ? 78 : 0) + (checkinReal(v.day) ? 24 : 0);
 }
 export function clampedScore(day) { return Math.min(scoreFor(day), evidenceCeiling(day)); }
 
@@ -440,7 +480,11 @@ export const DAY = {
   hydrationTargetL: 0,   // 0 = the shipped 3.0 L default; a coach hydration item overrides it
   currentWeight: null,
   scoreHistory: [],      // [{date, score}] past days, for streak/trend
-  trustPass: null,       // { granted_date, length_days } from trust_passes, or null (real, coach-granted)
+  // Trust Pass state (0196). Carried ON THE DAY rather than read from module scope by the scorer,
+  // for the same reason proteinTarget is: coach.js reconstructs ANOTHER athlete's days and scores
+  // them, and a coach who happens to hold a pass must never credit it to their athlete.
+  passes: [],            // trust_passes rows overlapping the loaded window
+  passSpends: [],        // pass_spends rows in the same window
 };
 
 export function dayScore() { return scoreFor(DAY); }
@@ -483,6 +527,15 @@ export function dayFromHistoryRow(r, cfg) {
     hydrationTargetL: c.hydrationTargetL || 0,
     currentWeight: r.weight ?? null,
     scoreHistory: [],
+    // TRUST PASS: deliberately absent, so a reconstructed row scores exactly as it did before
+    // 0196. Two reasons, and both need answering before this changes:
+    //   1. cross-athlete. coach.js scores another athlete's days through here, so the passes
+    //      would have to come from THAT athlete via `cfg`, never from the device's own DAY.
+    //   2. the median would need a trailing window relative to THAT row's date. This object
+    //      carries scoreHistory: [], and handing it the live history would let days AFTER the
+    //      row leak into its own median.
+    // Until both are solved, Progress and the coach breakdown show a covered day uncredited,
+    // which is understating rather than inventing — the safe direction.
   };
 }
 /** "If you finish today" projection — all requirements done — for the reach/possible messaging. */
@@ -714,11 +767,24 @@ export async function loadDay(userId) {
       // dayFromHistoryRow grades each day by the style that actually governed it.
       planStyle: r.plan_style || null, signals: r.signals || null,
     }));
-    // Real active Trust Pass (coach-granted; migration 0033/0039). Null if none / not applied.
+    // Trust Pass state (0196). The 60-day window matches the history fetch above, which is what
+    // lets slotMedians exclude previously-covered days without a second round trip.
+    //
+    // A THROW MUST NOT BECOME []. An empty array is indistinguishable from "no pass", so
+    // swallowing a failure would silently drop a credit the athlete owns and re-score their day
+    // downward. On failure the previous value stands.
     try {
-      const { data: tp } = await sb.from('trust_passes').select('granted_date,length_days').eq('athlete_id', userId).is('ended_at', null).maybeSingle();
-      DAY.trustPass = tp || null;
-    } catch { DAY.trustPass = null; }
+      const [{ data: ps, error: pErr }, { data: sp, error: sErr }] = await Promise.all([
+        sb.from('trust_passes')
+          .select('id,credits_total,covers_from,covers_until,expires_on,note,ended_at,created_at')
+          .eq('athlete_id', userId).gte('expires_on', since),
+        sb.from('pass_spends')
+          .select('pass_id,day_date,slot')
+          .eq('athlete_id', userId).gte('day_date', since),
+      ]);
+      if (!pErr && Array.isArray(ps)) DAY.passes = ps;
+      if (!sErr && Array.isArray(sp)) DAY.passSpends = sp;
+    } catch (e) { console.warn('[day] pass state fetch failed, keeping the last known', e && e.message); }
     saveCache(userId);
     // Reconnect healing: if this device's cached day carries progress the server row lacks
     // (offline logs, a push that never flushed before the app was killed), push the merged
@@ -842,7 +908,7 @@ export function dayResetLocal() {
   seedStandardSlots(); // a governing standard's extra slots (meal-5/meal-6) survive the reset
   DAY.mealLoggedAt = {}; DAY.slotMacros = {}; DAY.quickAdded = [false, false, false]; DAY.checkedTasks = {};
   DAY.hydrationL = 0; DAY.dailyCommitment = null; DAY.commitmentFocus = null; DAY.ci = { ...DEFAULT_CI }; DAY.ciConfig = { ...DEFAULT_CICFG };
-  DAY.ciSubmitted = false; DAY.ciLast = null; DAY.currentWeight = null; DAY.scoreHistory = []; DAY.trustPass = null;
+  DAY.ciSubmitted = false; DAY.ciLast = null; DAY.currentWeight = null; DAY.scoreHistory = []; DAY.passes = []; DAY.passSpends = [];
   // The resolved style/knobs SURVIVE a local reset (they describe the athlete, not the day) —
   // state.js re-applies them on hydrate anyway. Today's captured signals do not.
   DAY.signals = {}; DAY.signalWeekRate = null;
