@@ -26,6 +26,12 @@
 --   update auth.users set encrypted_password = crypt('<new>', gen_salt('bf'))
 --    where raw_app_meta_data->>'demo' = 'true';
 --
+-- FOOTGUN (added 2026-08-09, scripts/seed-tester-accounts.sql): the ABOVE one-liner and any
+-- teardown keyed on `raw_app_meta_data->>'demo' = 'true'` also match the forty per-tester demo
+-- accounts once that script has run — 'demo' is true on ALL of them. If you only mean to touch
+-- THESE four, scope every such statement to
+-- `raw_app_meta_data->>'demo' = 'true' and not (raw_app_meta_data ? 'tester')` instead.
+--
 -- Method (from the 2026-07-13 seed, which worked): insert auth.users + auth.identities directly,
 -- let the handle_new_user trigger build the profile from raw_user_meta_data.role, then make the
 -- links by calling the app's OWN RPCs while impersonating each user. Nothing here writes a link
