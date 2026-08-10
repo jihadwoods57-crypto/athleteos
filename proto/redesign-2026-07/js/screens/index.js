@@ -51,6 +51,7 @@ import { devices, recruiting, restrictions, teamDiet, injury, coachVoice, trustP
 import bioOptin from './bio-optin.js';
 import sponsor from './sponsor.js';
 import redeemCode from './redeem-code.js';
+import passGrant from './pass-grant.js';
 import paywall from './paywall.js';
 import progressPhotos from './progress-photos.js';
 import progressCompare from './progress-compare.js';
@@ -187,6 +188,7 @@ export const screens = {
   'bio-optin': bioOptin,
   sponsor,
   'redeem-code': redeemCode,
+  'pass-grant': passGrant,
   paywall,
   'progress-photos': progressPhotos,
   'progress-compare': progressCompare,

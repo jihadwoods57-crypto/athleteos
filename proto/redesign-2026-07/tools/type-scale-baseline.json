@@ -38,6 +38,7 @@
   "js/screens/ob2-parent.js": 11,
   "js/screens/ob2-trainer.js": 6,
   "js/screens/onboarding.js": 10,
+  "js/screens/pass-grant.js": 2,
   "js/screens/paywall.js": 2,
   "js/screens/plan-upgrade.js": 4,
   "js/screens/plan.js": 1,

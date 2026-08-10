@@ -107,6 +107,19 @@ assert.strictEqual(navFor(OPERATOR, undefined), 'coach');
     assert.strictEqual(navFor(screens[route], 'coach'), 'coach');
     assert.strictEqual(navAdmits(screens[route], 'athlete'), false, `an athlete must not render '${route}'`);
   }
+  // 0196: pass-grant moves an athlete's score without them logging anything. It must be reachable
+  // by both operator books and by NEITHER athlete nor parent — an athlete opening their own grant
+  // sheet would be a self-grant path the server-side wall (grant_pass's is_team_coach_of OR
+  // is_trainer_of check) doesn't even get a chance to refuse, because there is nothing to render.
+  {
+    const mod = screens['pass-grant'];
+    assert.ok(mod, 'pass-grant must be registered');
+    assert.ok(navAdmits(mod, 'coach') && navAdmits(mod, 'trainer'), 'both operator books can reach pass-grant');
+    assert.strictEqual(navFor(mod, 'coach'), 'coach');
+    assert.strictEqual(navFor(mod, 'trainer'), 'trainer');
+    assert.strictEqual(navAdmits(mod, 'athlete'), false, 'an athlete must never render pass-grant');
+    assert.strictEqual(navAdmits(mod, 'parent'), false, 'a parent must never render pass-grant');
+  }
 }
 
 /* ---------------- declared tabs exist in the shell that renders them ---------------- */
