@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tester Access · OnStandard</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="Get your OnStandard tester accounts.">
+<link rel="icon" href="assets/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<style>
+  @font-face{font-family:'Archivo';font-style:normal;font-weight:900;font-display:swap;src:url('./fonts/archivo-exp900.woff2') format('woff2');}
+  @font-face{font-family:'Plus Jakarta Sans';font-style:normal;font-weight:200 800;font-display:swap;src:url('./fonts/pjs.woff2') format('woff2');}
+
+  :root{
+    --ink:#070B14; --panel:#0D1424; --panel2:#111A2E; --line:#1d2735; --line2:#2a3646;
+    --fg:#eef3f9; --fg2:#a6b4c6; --mut:#6b7a8d;
+    --blue:#3B82F6; --teal:#22D3EE;
+    --sweep:linear-gradient(100deg,#3B82F6 0%,#22D3EE 100%);
+    --display:'Archivo',system-ui,sans-serif; --body:'Plus Jakarta Sans',system-ui,sans-serif;
+    --r:16px;
+  }
+  *{box-sizing:border-box;} html{-webkit-text-size-adjust:100%;}
+  body{margin:0;background:
+      radial-gradient(1100px 620px at 82% -8%,rgba(34,211,238,.10),transparent 55%),
+      radial-gradient(1000px 560px at -6% 4%,rgba(59,130,246,.12),transparent 52%),
+      var(--ink);
+    color:var(--fg);font-family:var(--body);line-height:1.55;-webkit-font-smoothing:antialiased;
+    min-height:100vh;}
+  .wrap{max-width:640px;margin:0 auto;padding:0 20px 80px;}
+  :focus-visible{outline:2px solid var(--teal);outline-offset:3px;}
+
+  header{padding:34px 0 8px;}
+  .eyebrow{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--teal);font-weight:700;}
+  h1{font-family:var(--display);font-weight:900;font-size:clamp(28px,6vw,40px);line-height:1.05;letter-spacing:-.02em;margin:12px 0 0;}
+  .sub{color:var(--fg2);font-size:15px;margin-top:12px;max-width:52ch;}
+
+  .panel{border:1px solid var(--line);border-radius:var(--r);background:linear-gradient(180deg,#111a26,#0d141d);
+    padding:22px;margin:26px 0;box-shadow:0 30px 70px -40px rgba(0,0,0,.8);}
+  .row{margin-bottom:12px;}
+  label{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:700;margin-bottom:6px;}
+  input{width:100%;font-family:var(--body);font-size:16px;color:var(--fg);background:#0b121b;
+    border:1px solid var(--line);border-radius:11px;padding:12px 14px;transition:border-color .16s;}
+  input:focus{border-color:var(--teal);outline:none;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;font-family:var(--body);font-weight:700;font-size:15px;
+    border-radius:12px;padding:13px 20px;border:1px solid var(--line2);background:var(--panel2);color:var(--fg);cursor:pointer;
+    transition:transform .1s,border-color .16s,background .16s,filter .16s;}
+  .btn:hover{border-color:#3a4a5e;background:#18222f;}
+  .btn:active{transform:translateY(1px);}
+  .btn.cta{background:var(--sweep);color:#052027;border:0;box-shadow:0 12px 34px -14px rgba(34,211,238,.55);}
+  .btn.cta:hover{filter:brightness(1.06);}
+  .btn[disabled]{opacity:.55;cursor:default;transform:none;filter:none;}
+  .say{font-size:13.5px;margin-top:12px;min-height:19px;}
+  .say.bad{color:#F87171;}
+  .fine{font-size:13px;color:var(--mut);margin-top:14px;text-align:center;}
+  .fine button{background:none;border:0;padding:0;color:var(--teal);font-family:var(--body);font-size:13px;font-weight:600;cursor:pointer;}
+  .fine button:hover{text-decoration:underline;}
+
+  .setno{font-family:var(--display);font-weight:900;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);margin:0 0 4px;}
+  .cardtitle{font-family:var(--display);font-weight:900;font-size:24px;letter-spacing:-.01em;margin:0 0 18px;}
+  .field{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid rgba(29,39,53,.7);}
+  .field:last-child{border-bottom:0;}
+  .flabel{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:700;min-width:70px;}
+  .fval{font-family:monospace;font-size:14px;color:var(--fg);word-break:break-all;text-align:right;flex:1;}
+  .pw .fval{color:var(--teal);font-weight:700;}
+
+  .starthere{margin-top:22px;padding-top:18px;border-top:1px dashed var(--line2);}
+  .starthere h2{font-family:var(--display);font-weight:900;font-size:14px;letter-spacing:-.01em;margin:0 0 10px;}
+  .starthere ol{margin:0;padding-left:20px;color:var(--fg2);font-size:14px;}
+  .starthere li{margin-bottom:6px;}
+  .actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;}
+  .actions .btn{width:auto;flex:1;min-width:150px;}
+
+  .empty{border:1px dashed var(--line2);border-radius:var(--r);padding:34px 20px;text-align:center;color:var(--fg2);}
+  .empty b{display:block;font-family:var(--display);font-weight:900;font-size:18px;color:var(--fg);margin-bottom:6px;}
+  footer{margin-top:34px;padding-top:20px;border-top:1px solid var(--line);font-size:13px;color:var(--mut);}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">OnStandard · Private Beta</div>
+    <h1>Get your tester accounts.</h1>
+    <p class="sub">You'll get four linked logins — coach, athlete, trainer, client — so you can see
+      every side of the app. Nobody else's data, nobody sees yours.</p>
+  </header>
+
+  <div id="gate" class="panel" hidden>
+    <b class="cardtitle">You need an invite link</b>
+    <p class="sub">Use the full link you were sent — it ends in a code.</p>
+  </div>
+
+  <div id="form" class="panel" hidden>
+    <form id="claimform">
+      <div class="row">
+        <label for="tname">Your name</label>
+        <input id="tname" maxlength="60" placeholder="First name is fine" autocomplete="given-name">
+      </div>
+      <div class="row">
+        <label for="temail">Your email</label>
+        <input id="temail" type="email" maxlength="200" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <button class="btn cta" id="claimbtn" type="submit">Get my accounts</button>
+      <div class="say" id="formsay" role="status" aria-live="polite"></div>
+    </form>
+    <p class="fine">Already claimed on another device? <button type="button" id="recoverlink">Recover with your email</button></p>
+  </div>
+
+  <div id="card" class="panel" hidden>
+    <p class="setno" id="setno"></p>
+    <h2 class="cardtitle">Your accounts are ready</h2>
+
+    <div class="field pw">
+      <span class="flabel">Password</span>
+      <span class="fval" id="pw"></span>
+    </div>
+    <div class="field">
+      <span class="flabel">Coach</span>
+      <span class="fval" id="e-coach"></span>
+    </div>
+    <div class="field">
+      <span class="flabel">Athlete</span>
+      <span class="fval" id="e-athlete"></span>
+    </div>
+    <div class="field">
+      <span class="flabel">Trainer</span>
+      <span class="fval" id="e-trainer"></span>
+    </div>
+    <div class="field">
+      <span class="flabel">Client</span>
+      <span class="fval" id="e-client"></span>
+    </div>
+    <div class="field">
+      <span class="flabel">Team code</span>
+      <span class="fval" id="teamcode"></span>
+    </div>
+    <div class="field">
+      <span class="flabel">Practice code</span>
+      <span class="fval" id="practicecode"></span>
+    </div>
+
+    <div class="actions">
+      <button class="btn" id="copyall" type="button">Copy all</button>
+    </div>
+
+    <div class="starthere">
+      <h2>Start here</h2>
+      <ol>
+        <li>Install the app from TestFlight, then sign in as the <b>athlete</b> account first — that's the everyday experience.</li>
+        <li>Sign out and back in as <b>coach</b> to see the same athlete from the other side.</li>
+        <li>Same idea for <b>trainer</b> / <b>client</b> — that's a separate, second relationship.</li>
+        <li>Hit something confusing, broken, or good? Tap "Report anything" below — it lands on our board tagged with your tester number, not lost in a text thread.</li>
+      </ol>
+      <div class="actions">
+        <a class="btn" id="testflightlink" href="#" target="_blank" rel="noopener" hidden>Open TestFlight</a>
+        <a class="btn cta" id="reportlink" href="#" target="_blank" rel="noopener" hidden>Report anything</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="exhausted" class="panel" hidden>
+    <div class="empty">
+      <b>All ten sets are taken.</b>
+      <div>Text the founder — more testers means we bump the count.</div>
+    </div>
+  </div>
+
+  <footer>
+    Your accounts are real OnStandard sign-ins, seeded with no history so you can try the whole
+    logging flow from a clean slate. Nobody else can see what you do.
+  </footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var FN = 'https://ftwrvylzoyznhbzhgism.functions.supabase.co/tester-claim';
+  // Founder: paste the public TestFlight invite link here before sharing this page. Left blank,
+  // the button just stays hidden — never guess/invent this URL.
+  var TESTFLIGHT_URL = '';
+
+  var qs = new URLSearchParams(location.search);
+  var K = qs.get('k') || '';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var LS = {
+    get: function (k, d) { try { return localStorage.getItem(k) || d; } catch (e) { return d; } },
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+    remove: function (k) { try { localStorage.removeItem(k); } catch (e) {} }
+  };
+
+  function show(id) {
+    ['gate', 'form', 'card', 'exhausted'].forEach(function (s) { $(s).hidden = (s !== id); });
+  }
+
+  if (!K) { show('gate'); return; }
+
+  function api(payload) {
+    payload.k = K;
+    return fetch(FN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        return { ok: r.ok, status: r.status, body: j };
+      });
+    });
+  }
+
+  function renderCard(data) {
+    LS.set('os_tester_device', data.device_token);
+    LS.set('os_tester_set', String(data.set_no));
+    var typedName = $('tname') && $('tname').value.trim();
+    var nameToStore = typedName || data.claimed_name || '';
+    if (nameToStore) LS.set('os_tester_name', nameToStore);
+
+    $('setno').textContent = 'Tester ' + String(data.set_no).padStart(2, '0');
+    $('pw').textContent = data.password;
+    $('e-coach').textContent = data.emails.coach;
+    $('e-athlete').textContent = data.emails.athlete;
+    $('e-trainer').textContent = data.emails.trainer;
+    $('e-client').textContent = data.emails.client;
+    $('teamcode').textContent = data.team_join_code || '—';
+    $('practicecode').textContent = data.practice_join_code || '—';
+
+    var report = $('reportlink');
+    if (data.board_url) { report.href = data.board_url; report.hidden = false; } else { report.hidden = true; }
+
+    var tf = $('testflightlink');
+    if (TESTFLIGHT_URL) { tf.href = TESTFLIGHT_URL; tf.hidden = false; } else { tf.hidden = true; }
+
+    $('copyall').onclick = function () {
+      var text = [
+        'OnStandard tester ' + String(data.set_no).padStart(2, '0'),
+        'Password: ' + data.password,
+        'Coach:   ' + data.emails.coach,
+        'Athlete: ' + data.emails.athlete,
+        'Trainer: ' + data.emails.trainer,
+        'Client:  ' + data.emails.client
+      ].join('\n');
+      var btn = $('copyall');
+      navigator.clipboard.writeText(text).then(function () {
+        btn.textContent = 'Copied';
+        setTimeout(function () { btn.textContent = 'Copy all'; }, 1500);
+      }).catch(function () {});
+    };
+
+    show('card');
+  }
+
+  function tryResume() {
+    var device = LS.get('os_tester_device', '');
+    if (!device) { show('form'); return; }
+    api({ action: 'resume', device_token: device }).then(function (res) {
+      if (res.ok) { renderCard(res.body); return; }
+      LS.remove('os_tester_device');
+      LS.remove('os_tester_set');
+      LS.remove('os_tester_name');
+      show('form');
+    }).catch(function () { show('form'); });
+  }
+
+  $('claimform').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var say = $('formsay'), btn = $('claimbtn');
+    var name = $('tname').value.trim();
+    var email = $('temail').value.trim();
+    if (!name || !email || email.indexOf('@') === -1) {
+      say.className = 'say bad'; say.textContent = 'Name and a real email, please.';
+      return;
+    }
+    btn.disabled = true; btn.textContent = 'Getting your accounts…';
+    say.className = 'say'; say.textContent = '';
+    api({ action: 'claim', name: name, email: email }).then(function (res) {
+      if (res.ok) { renderCard(res.body); return; }
+      if (res.body && res.body.error === 'exhausted') { show('exhausted'); return; }
+      say.className = 'say bad';
+      say.textContent = (res.status === 429) ? 'Slow down a moment and try again.' : "Couldn't claim a set. Try again in a moment.";
+    }).catch(function () {
+      say.className = 'say bad'; say.textContent = 'Something went wrong. Try again.';
+    }).then(function () {
+      btn.disabled = false; btn.textContent = 'Get my accounts';
+    });
+  });
+
+  $('recoverlink').addEventListener('click', function (ev) {
+    ev.preventDefault();
+    var email = prompt('Email you claimed with:');
+    if (!email) return;
+    api({ action: 'recover', email: email.trim() }).then(function (res) {
+      if (res.ok) { renderCard(res.body); return; }
+      alert("Couldn't find a set for that email.");
+    }).catch(function () { alert('Something went wrong. Try again.'); });
+  });
+
+  tryResume();
+})();
+</script>
+</body></html>
