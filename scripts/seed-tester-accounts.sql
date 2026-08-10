@@ -67,6 +67,18 @@ delete from teams
  where created_by in (select id from auth.users where raw_app_meta_data ? 'tester');
 delete from practices
  where owner_id in (select id from auth.users where raw_app_meta_data ? 'tester');
+-- create_team's team_staff insert fires trg_team_staff_membership -> ensure_team_org(), which
+-- auto-creates an orgs row (created_by = the coach) and backfills teams.org_id EVEN THOUGH this
+-- script calls create_team(..., team_org => null) — that arg only skips the org lookup, it does
+-- not stop the trigger. orgs.created_by is ALSO ON DELETE SET NULL (same shape as teams.created_by
+-- above), so deleting auth.users first would orphan these orgs one re-run at a time. On a run where
+-- no prior orphan of the same name exists this is silent; it only surfaces two runs later, when a
+-- second orphan with the same name collides on orgs_directory_seed_unique (lower(name),
+-- coalesce(state,'')) WHERE created_by IS NULL — confirmed empirically: this line was missing
+-- through Task 2 and Task 6's first `verify` run failed on exactly that collision on its third
+-- overall run against a persistent local DB. Must run before the auth.users delete below.
+delete from orgs
+ where created_by in (select id from auth.users where raw_app_meta_data ? 'tester');
 delete from auth.users where raw_app_meta_data ? 'tester';
 delete from tester_sets;
 
