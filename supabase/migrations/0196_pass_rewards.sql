@@ -411,6 +411,176 @@ create trigger meals_refund_pass_spend
   after insert on public.meals
   for each row execute function public.refund_pass_spend();
 
+-- ---------------------------------------------------------------- the evidence ceiling
+-- 0193's clamp reads trust_passes directly, and 0196 removed the columns it read
+-- (granted_date / length_days), so this is a create-or-replace of the WHOLE function with gate
+-- (d) rewritten and nothing else touched. Copied mechanically out of 0193 rather than retyped:
+-- the fail-closed shape check, the pre/post-cutover split and the carry logic are load-bearing,
+-- and a transcription slip in any of them would silently mis-score real days.
+--
+-- The trigger is re-created at the end so the cached plan picks up the new table shape.
+
+create or replace function clamp_day_score_to_evidence() returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_cutover   constant date := date '2026-08-16';  -- == SCORING_V2_CUTOVER in scoreIntegrity.ts
+  v_nutrition boolean;
+  v_checkin   boolean;
+  v_commit    boolean;
+  v_carry     boolean;
+  v_ceiling   int;
+begin
+  if new.score is null then
+    return new;                                   -- nothing to bound on a fresh/unset day
+  end if;
+
+  -- SHAPE CHECK — deliberately FAIL CLOSED AND LOUD, not fail-open and not a silent clamp.
+  --
+  -- A draft of this migration typeof-guarded each gate so a malformed value read as "no
+  -- evidence". That was wrong: it traded 0041's loud failure (jsonb_each raises on a non-object
+  -- and the write is rejected) for a SILENT clamp to 0 or 24 — the precise failure mode this
+  -- whole migration exists to eliminate. Fail-open (skip the clamp on an unreadable row) fixes
+  -- the silence but surrenders the control: a tampering client is the ONLY threat model here, and
+  -- `meals: "x"` would then store a flat 100 unclamped.
+  --
+  -- Fail-closed is right because there is NO HONEST PATH to these shapes. Both writers build them
+  -- structurally -- store/sync.ts from a typed Record/boolean[], day.js from object literals -- so
+  -- a malformed row is a tamperer or a code regression, never an athlete's real day. Blocking is
+  -- correct for the first and immediately visible for the second. Verified against live prod
+  -- 2026-08-09: 0 of 6 rows have a bad shape, so this can never fire on existing data.
+  --
+  -- "Err loose" governs HOW MUCH ceiling to grant when the evidence is ambiguous. It does not ask
+  -- us to accept a structurally invalid row.
+  if coalesce(jsonb_typeof(new.meals), 'null') <> 'object'
+     or coalesce(jsonb_typeof(new.checkin), 'null') <> 'object'
+     or coalesce(jsonb_typeof(new.quick_added), 'null') <> 'array' then
+    raise exception using
+      errcode = '22023',
+      message = 'days: unreadable evidence shape; refusing to score this row',
+      detail  = format('meals=%s checkin=%s quick_added=%s (expected object/object/array)',
+                       coalesce(jsonb_typeof(new.meals), 'null'),
+                       coalesce(jsonb_typeof(new.checkin), 'null'),
+                       coalesce(jsonb_typeof(new.quick_added), 'null')),
+      hint    = 'The evidence ceiling cannot bound a score it cannot read. Fix the writer rather than relaxing this check.';
+  end if;
+
+  -- NUTRITION slot. The union of every way a day can earn food credit. Any ONE unlocks it:
+  --   (a) any meal slot toggled logged. Scanned BY VALUE over the whole jsonb, never against a
+  --       hardcoded classic-four key list — a room on a 5-/6-meal coach standard scores `meal-5`
+  --       and `meal-6` (requirements.js STD_SLOT_MAP), and a key-list check would see nothing and
+  --       erase that room's entire score.
+  --   (b) a real plate rode in on the check-in blob (`checkin.slotMacros` non-empty).
+  --   (c) a QUICK-ADD was tapped. This gate was missing from the TS mirror and is the bug that
+  --       erased whole quick-add-only days on the proto side until it was fixed there — a day
+  --       with real nutrition credit and a server ceiling of 0.
+  --   (d) an active, date-covering trust pass (a proven athlete's camera-free credit).
+  -- Shapes are already proven by the check above, so these read the columns directly. The whole
+  -- expression is still coalesced: `checkin -> 'slotMacros'` is SQL NULL when the key is absent,
+  -- and without the coalesce three-valued logic would leave v_nutrition NULL rather than false.
+  v_nutrition := coalesce(
+    exists (select 1 from jsonb_each(new.meals) e where e.value = 'true'::jsonb)
+    or (jsonb_typeof(new.checkin -> 'slotMacros') = 'object' and (new.checkin -> 'slotMacros') <> '{}'::jsonb)
+    or exists (select 1 from jsonb_array_elements(new.quick_added) q where q.value = 'true'::jsonb)
+    -- (d) an active pass covering this date. 0196 replaced the fixed granted_date +
+    --     length_days window with two shapes, so this is now two clauses: a WINDOW that
+    --     contains the date, or a SPENT CREDIT recorded against it. Without this the credited
+    --     score is clamped straight back down and the reward costs the athlete points.
+    or exists (
+      select 1 from trust_passes tp
+      where tp.athlete_id = new.athlete_id
+        and tp.ended_at is null
+        and new.date <= tp.expires_on
+        and tp.covers_from is not null
+        and new.date between tp.covers_from and tp.covers_until
+    )
+    or exists (
+      select 1 from pass_spends ps
+      where ps.athlete_id = new.athlete_id and ps.day_date = new.date
+    ), false);
+
+  -- CARRY. A weekly recovery carry is evidence for a PRE-cutover row ONLY. Under v2 the check-in
+  -- means TONIGHT: the engine (score.ts / day.js checkinReal) scores recovery and check-in at 0
+  -- unless the athlete submitted that day, so dropping the carry for a v2 row can never clamp an
+  -- honest score — and it closes the tamper path where a fabricated `ciLast` bought 24 points
+  -- with no check-in behind it. Computed only when it can matter, so a v2 write never pays for
+  -- the cross-row scan.
+  if new.date < v_cutover then
+    v_carry := coalesce(
+      -- (a) the row's OWN last-check-in marker inside the trailing 6 days — a carry the row
+      --     SELF-DESCRIBES, so the server need not reconstruct cross-day history it cannot see.
+      --
+      --     SCOPE: this branch only ever matches RN-WRITTEN rows. store/sync.ts writes ciLast as a
+      --     bare date STRING (`s.ciLast?.date ?? null`), which this regex matches. The proto —
+      --     the shipped writer — writes the whole marker OBJECT (`ciLast: DAY.ciLast`, i.e.
+      --     {date, recovery}; day.js), whose ->> text is `{"date":...}` and never matches. Live
+      --     prod 2026-08-09: 5 of 6 rows carry ciLast as an object, 0 as a string, so in practice
+      --     branch (b) is what has been doing the work. Documented rather than "fixed": no engine
+      --     carries any more, so widening a pre-cutover gate to accept objects would buy nothing
+      --     and only add tamper surface.
+      --
+      --     The cast is CASE-guarded so a malformed or tampered value can never raise.
+      (case when new.checkin ->> 'ciLast' ~ '^\d{4}-\d{2}-\d{2}$'
+            then (new.checkin ->> 'ciLast')::date between new.date - 6 and new.date
+            else false end)
+      -- (b) a prior submitted row still visible in the trailing 6 days. The path that actually
+      --     fires for proto-written rows; see the scope note above.
+      or exists (
+        select 1 from days d2
+        where d2.athlete_id = new.athlete_id
+          and d2.date < new.date
+          and d2.date >= new.date - 6
+          and (d2.checkin ->> 'submitted') = 'true'
+      ), false);
+  else
+    v_carry := false;
+  end if;
+
+  v_checkin := coalesce((new.checkin ->> 'submitted') = 'true', false) or v_carry;
+
+  -- COMMITMENT slot: a plan-commitment answer is present on the row. Scores nothing under v2;
+  -- still worth 15 on a frozen pre-cutover row, which is the whole reason the date guard exists.
+  v_commit := coalesce((new.checkin ->> 'commitment') in ('yes', 'partial', 'no'), false);
+
+  if new.date < v_cutover then
+    -- PRE-CUTOVER: the union of both eras, slot by slot. See the header note.
+    v_ceiling := least(100,
+        (case when v_nutrition then 78 else 0 end)   -- max(v1 55, v2 78)
+      + (case when v_checkin  then 35 else 0 end)    -- max(v1 recovery 25 + check-in 10, v2 24)
+      + (case when v_commit   then 15 else 0 end)    -- max(v1 15, v2 0)
+    );
+  else
+    -- v2: two pillars. Nutrition 78 (the max nutrition weight across athlete/general/gain), a
+    -- real check-in 24 (recovery 12 + check-in 12). A commitment answer unlocks nothing.
+    v_ceiling := least(100,
+        (case when v_nutrition then 78 else 0 end)
+      + (case when v_checkin  then 24 else 0 end)
+    );
+  end if;
+
+  if new.score > v_ceiling then
+    new.score := v_ceiling;
+    -- Recompute the letter to match the clamped score (mirror src/core scoring.ts gradeFor).
+    new.grade := case
+      when v_ceiling >= 90 then 'A'
+      when v_ceiling >= 80 then 'B'
+      when v_ceiling >= 70 then 'C'
+      when v_ceiling >= 60 then 'D'
+      else 'F'
+    end;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists days_score_evidence_ceiling on public.days;
+create trigger days_score_evidence_ceiling
+  before insert or update on public.days
+  for each row execute function clamp_day_score_to_evidence();
+
 -- 0109 seeded trust_pass with default_on = false and NOTHING shipped ever read it (only the
 -- legacy src/store/flagsStore.ts). Now grant_pass reads it for real, so leaving it false would
 -- ship the whole feature silently off — the 0125 mistake, repeated.

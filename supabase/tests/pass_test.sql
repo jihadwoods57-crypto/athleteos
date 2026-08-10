@@ -377,6 +377,49 @@ select _ok((select count(*) from pass_spends
             where athlete_id = '7aa00000-0000-0000-0000-00000000000a') = 3,
   '0196: an unrelated meal refunds nothing');
 
+-- ================================================================ evidence ceiling (0193 gate d)
+-- If the ceiling does not recognise a pass, the credited score is clamped straight back down and
+-- the reward silently COSTS the athlete points. Same score on every row here, so the only
+-- variable is whether a pass covers the date.
+--
+-- Live spends for client_1 at this point: (today, lunch), (today, breakfast), (yesterday, lunch).
+select _superuser();
+
+insert into days (athlete_id, date, meals, checkin, quick_added, score)
+  values ('7aa00000-0000-0000-0000-00000000000a', current_date - 5,
+          '{}'::jsonb, '{}'::jsonb, '[]'::jsonb, 70);
+select _ok((select score from days
+            where athlete_id = '7aa00000-0000-0000-0000-00000000000a' and date = current_date - 5) = 0,
+  '0196: a day with no evidence at all is still clamped to 0');
+
+insert into days (athlete_id, date, meals, checkin, quick_added, score)
+  values ('7aa00000-0000-0000-0000-00000000000a', current_date,
+          '{}'::jsonb, '{}'::jsonb, '[]'::jsonb, 70);
+select _ok((select score from days
+            where athlete_id = '7aa00000-0000-0000-0000-00000000000a' and date = current_date) = 70,
+  '0196: a slot covered by a SPENT CREDIT counts as nutrition evidence');
+
+-- team_a holds a window pass over [today, today+1].
+insert into days (athlete_id, date, meals, checkin, quick_added, score)
+  values ('7aa00000-0000-0000-0000-00000000000d', current_date,
+          '{}'::jsonb, '{}'::jsonb, '[]'::jsonb, 70);
+select _ok((select score from days
+            where athlete_id = '7aa00000-0000-0000-0000-00000000000d' and date = current_date) = 70,
+  '0196: a day inside a WINDOW pass counts as nutrition evidence');
+
+insert into days (athlete_id, date, meals, checkin, quick_added, score)
+  values ('7aa00000-0000-0000-0000-00000000000d', current_date - 5,
+          '{}'::jsonb, '{}'::jsonb, '[]'::jsonb, 70);
+select _ok((select score from days
+            where athlete_id = '7aa00000-0000-0000-0000-00000000000d' and date = current_date - 5) = 0,
+  '0196: a day OUTSIDE the window earns nothing from the pass');
+
+-- The fail-closed shape check from 0193 must survive the rewrite untouched.
+select _ok(_try($q$
+  insert into days (athlete_id, date, meals, checkin, quick_added, score)
+  values ('7aa00000-0000-0000-0000-00000000000b', current_date, '"x"'::jsonb, '{}'::jsonb, '[]'::jsonb, 70)
+$q$) <> 'ok', '0196: 0193''s fail-closed shape check still refuses an unreadable row');
+
 -- ================================================================ scoreboard
 do $$
 declare fails int; total int; bad text;

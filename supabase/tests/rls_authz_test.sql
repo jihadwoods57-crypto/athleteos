@@ -166,8 +166,11 @@ insert into days (athlete_id, date, current_weight, score) values
 insert into checkins (athlete_id, week, weight, notes) values
   ('aaaaaaaa-0000-0000-0000-000000000001','2026-W27',183,'A private note'),
   ('dddddddd-0000-0000-0000-000000000004','2026-W27',140,'M private note');
-insert into trust_passes (athlete_id, granted_by) values
-  ('aaaaaaaa-0000-0000-0000-000000000001','11111111-0000-0000-0000-000000000001');
+-- 0196 reshaped this table: a pass now needs an owning book, a shape, and an expiry. The old
+-- two-column insert relied on granted_date / length_days defaults that no longer exist.
+insert into trust_passes (athlete_id, granted_by, team_id, credits_total, expires_on) values
+  ('aaaaaaaa-0000-0000-0000-000000000001','11111111-0000-0000-0000-000000000001',
+   '77777777-1111-0000-0000-000000000001', 3, current_date + 14);
 insert into meal_comments (meal_id, athlete_id, author_id, role, text) values
   ('e0000000-0000-0000-0000-00000000000a','aaaaaaaa-0000-0000-0000-000000000001','11111111-0000-0000-0000-000000000001','coach','nice plate');
 insert into notifications (user_id, kind, title) values
@@ -229,9 +232,12 @@ select _ok(_try($q$insert into meal_comments (meal_id, athlete_id, author_id, ro
            'B cannot comment on A''s meal as a fake coach');
 select _ok(_try($q$insert into meal_comments (meal_id, athlete_id, author_id, role, text) values ('e0000000-0000-0000-0000-00000000000b','bbbbbbbb-0000-0000-0000-000000000002','bbbbbbbb-0000-0000-0000-000000000002','ai','fake ai')$q$) <> 'ok',
            'client cannot insert an AI-role comment');
-select _ok(_try($q$insert into trust_passes (athlete_id, granted_by) values ('bbbbbbbb-0000-0000-0000-000000000002','bbbbbbbb-0000-0000-0000-000000000002')$q$) <> 'ok',
+-- Deliberately a WELL-FORMED row under the 0196 shape, so the only thing that can refuse it is
+-- the absent insert policy. A malformed row would be rejected by a not-null constraint and the
+-- test would pass while proving nothing about authorization.
+select _ok(_try($q$insert into trust_passes (athlete_id, granted_by, team_id, credits_total, expires_on) values ('bbbbbbbb-0000-0000-0000-000000000002','bbbbbbbb-0000-0000-0000-000000000002','77777777-1111-0000-0000-000000000001',3,current_date + 14)$q$) <> 'ok',
            'B cannot self-grant a trust pass by direct insert');
-select _ok(_try($q$select grant_trust_pass('bbbbbbbb-0000-0000-0000-000000000002'::uuid)$q$) <> 'ok',
+select _ok(_try($q$select grant_pass('bbbbbbbb-0000-0000-0000-000000000002'::uuid)$q$) <> 'ok',
            'B cannot self-grant a trust pass via the RPC');
 select _ok(_try($q$insert into org_memberships (organization_id, member_id, role, scope_kind, scope_id) select organization_id, 'bbbbbbbb-0000-0000-0000-000000000002', 'admin', scope_kind, scope_id from org_memberships limit 1$q$) <> 'ok',
            'B cannot insert himself as an org admin');
@@ -313,7 +319,7 @@ select _ok((select count(*) from meals where athlete_id in ('aaaaaaaa-0000-0000-
            'stranger coach_2 sees none of A''s or minor M''s meals');
 select _ok((select count(*) from trust_passes) = 0, 'stranger coach_2 sees no foreign trust passes');
 select _ok((select count(*) from checkins) = 0, 'stranger coach_2 sees no foreign checkins');
-select _ok(_try($q$select grant_trust_pass('aaaaaaaa-0000-0000-0000-000000000001'::uuid)$q$) <> 'ok',
+select _ok(_try($q$select grant_pass('aaaaaaaa-0000-0000-0000-000000000001'::uuid)$q$) <> 'ok',
            'stranger coach_2 cannot grant a trust pass to A');
 select _ok(_try($q$select coach_set_goals('aaaaaaaa-0000-0000-0000-000000000001'::uuid, '{}'::jsonb)$q$) <> 'ok',
            'stranger coach_2 cannot set A''s goals (RPC guard)');
