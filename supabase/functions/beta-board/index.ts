@@ -185,7 +185,7 @@ Deno.serve(async (request) => {
 
     const { data: posts } = await sb
       .from('beta_posts')
-      .select('id,theme_id,author_name,body,app_version,created_at')
+      .select('id,theme_id,author_name,body,app_version,tester_set,created_at')
       .order('created_at', { ascending: false })
       .limit(500);
 
@@ -250,6 +250,8 @@ Deno.serve(async (request) => {
   const authorName = str(body.author_name, 40) || 'Anonymous';
   const text = str(body.body, 2000);
   const appVersion = str(body.app_version, 40) || null;
+  const testerSetRaw = Number(body.tester_set);
+  const testerSet = Number.isInteger(testerSetRaw) && testerSetRaw >= 1 && testerSetRaw <= 10 ? testerSetRaw : null;
   if (text.length < 4) return json({ error: 'Tell us a little more than that.' }, 400);
 
   // Durable per-IP daily cap. The counter returns a boolean and the CALLER decides — a SQL limit
@@ -267,7 +269,7 @@ Deno.serve(async (request) => {
   // Save FIRST, cluster second. If everything after this line fails, the report still exists.
   const { data: inserted, error: insErr } = await sb
     .from('beta_posts')
-    .insert({ author_name: authorName, body: text, app_version: appVersion })
+    .insert({ author_name: authorName, body: text, app_version: appVersion, tester_set: testerSet })
     .select('id')
     .single();
   if (insErr || !inserted) return json({ error: 'unavailable' }, 503);
