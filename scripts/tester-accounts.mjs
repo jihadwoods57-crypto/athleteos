@@ -150,12 +150,16 @@ async function cmdVerify() {
   console.log('Signing in 40 accounts…');
   const sessions = {};
   let failed = 0;
+  // Spaced out, not fired back-to-back: GoTrue's per-IP sign-in rate limit rejects a tight loop
+  // of 40 password grants on a real project (never triggered locally, which has no such limit).
+  const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
   for (const c of creds) {
     for (const role of ['coach', 'athlete', 'trainer', 'client']) {
       const email = c.emails[role];
       const r = await signIn(email, c.password);
       sessions[email] = r;
       if (!r.ok) { failed++; console.log(`  FAIL  ${email}  ${r.error || 'sign-in rejected'}`); }
+      await sleep(2000);
     }
   }
   console.log(`${40 - failed}/40 signed in.`);
