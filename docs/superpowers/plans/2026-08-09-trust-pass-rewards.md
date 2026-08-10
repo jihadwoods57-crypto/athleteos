@@ -4,7 +4,7 @@
 
 **Goal:** Turn the dormant Trust Pass into a reward a trainer or coach can grant, in meal credits or a date window, that actually credits the athlete's score from their own trailing median.
 
-**Architecture:** One migration (0195) drops and recreates the two empty pass tables with a dual-owner team/practice arm, adds a `pass_spends` ledger, and moves every write behind `security definer` RPCs. On the client, a new pure module `pass.js` resolves coverage and per-slot medians, then synthesizes the missing meal into a **clone** of the day so the existing six-part nutrition formula scores it unchanged. UI lands on both operator books through the existing shared coach/trainer screens.
+**Architecture:** One migration (0196) drops and recreates the two empty pass tables with a dual-owner team/practice arm, adds a `pass_spends` ledger, and moves every write behind `security definer` RPCs. On the client, a new pure module `pass.js` resolves coverage and per-slot medians, then synthesizes the missing meal into a **clone** of the day so the existing six-part nutrition formula scores it unchanged. UI lands on both operator books through the existing shared coach/trainer screens.
 
 **Tech Stack:** Postgres / Supabase (SQL migrations, RLS, `security definer` RPCs), vanilla ES modules in `proto/redesign-2026-07/js` (no build step), `node --test` for proto tests, `supabase/tests/run.sh` for SQL tests, Expo EAS Update for delivery.
 
@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- **Prod is at migration 0194.** This work is 0195. Nothing else may claim that number.
+- **Prod is at migration 0194.** This work is 0196. 0195 was already claimed by the in-flight tester-demo-accounts branch.
 - **The shipped UI is `proto/redesign-2026-07`, not `src/screens`.** `app/index.tsx` renders `ProtoApp`, a WebView over the proto. `src/core/trustPass.ts` is the legacy engine; do not wire it up, do not delete it in this plan.
 - **No em dashes in shipped copy.** Enforced by `npm run lint:copy`. Code comments are exempt.
 - **Every interpolation into HTML must go through `esc()`.** Enforced by `npm run lint:xss`.
@@ -31,7 +31,7 @@
 
 | File | Responsibility |
 | --- | --- |
-| `supabase/migrations/0195_pass_rewards.sql` | Tables, RLS, grants, four RPCs, refund trigger, ceiling rewrite, flag |
+| `supabase/migrations/0196_pass_rewards.sql` | Tables, RLS, grants, four RPCs, refund trigger, ceiling rewrite, flag |
 | `supabase/tests/pass_test.sql` | SQL suite: authorization both directions, eligibility, spend, refund, expiry |
 | `proto/redesign-2026-07/js/pass.js` | Pure coverage + median + day-synthesis. No imports from `state.js` or the DOM. |
 | `proto/redesign-2026-07/js/pass.test.mjs` | `node --test` suite for `pass.js` |
@@ -55,10 +55,10 @@
 
 ---
 
-### Task 1: Migration 0195, schema
+### Task 1: Migration 0196, schema
 
 **Files:**
-- Create: `supabase/migrations/0195_pass_rewards.sql`
+- Create: `supabase/migrations/0196_pass_rewards.sql`
 - Create: `supabase/tests/pass_test.sql`
 
 **Interfaces:**
@@ -125,7 +125,7 @@ Expected: FAIL, `relation "public.pass_spends" does not exist`.
 
 - [ ] **Step 4: Write the schema migration**
 
-Create `supabase/migrations/0195_pass_rewards.sql`:
+Create `supabase/migrations/0196_pass_rewards.sql`:
 
 ```sql
 -- OnStandard — Trust Pass rebuilt as a grantable reward (spec 2026-08-09).
@@ -262,8 +262,8 @@ Expected: the six schema assertions PASS. Anything referencing an RPC still fail
 - [ ] **Step 6: Commit**
 
 ```bash
-git add supabase/migrations/0195_pass_rewards.sql supabase/tests/pass_test.sql
-git commit -m "feat(pass): 0195 schema, dual-owner grant table plus a spend ledger"
+git add supabase/migrations/0196_pass_rewards.sql supabase/tests/pass_test.sql
+git commit -m "feat(pass): 0196 schema, dual-owner grant table plus a spend ledger"
 ```
 
 ---
@@ -271,7 +271,7 @@ git commit -m "feat(pass): 0195 schema, dual-owner grant table plus a spend ledg
 ### Task 2: `grant_pass` and `end_pass`
 
 **Files:**
-- Modify: `supabase/migrations/0195_pass_rewards.sql` (append before the final `commit;`)
+- Modify: `supabase/migrations/0196_pass_rewards.sql` (append before the final `commit;`)
 - Modify: `supabase/tests/pass_test.sql`
 
 **Interfaces:**
@@ -322,7 +322,7 @@ Expected: FAIL, `function grant_pass(...) does not exist`.
 
 - [ ] **Step 3: Implement both RPCs**
 
-Insert into `0195_pass_rewards.sql` immediately before the final `commit;`:
+Insert into `0196_pass_rewards.sql` immediately before the final `commit;`:
 
 ```sql
 -- ---------------------------------------------------------------- grant
@@ -453,7 +453,7 @@ revoke all on function public.end_pass(uuid) from public, anon;
 grant execute on function public.end_pass(uuid) to authenticated;
 ```
 
-Check the real name of the feature-flag helper before using `flag_on`. Open `supabase/migrations/0109_feature_flags.sql` and use whatever SQL-side function it defines; if the only flag evaluator lives in `supabase/functions/_shared`, add a small SQL mirror in 0195 that reads `feature_flags` with `kill_switch` evaluated FIRST and inverting `default_on`, and make an unreadable flags table raise rather than pass.
+Check the real name of the feature-flag helper before using `flag_on`. Open `supabase/migrations/0109_feature_flags.sql` and use whatever SQL-side function it defines; if the only flag evaluator lives in `supabase/functions/_shared`, add a small SQL mirror in 0196 that reads `feature_flags` with `kill_switch` evaluated FIRST and inverting `default_on`, and make an unreadable flags table raise rather than pass.
 
 - [ ] **Step 4: Run to verify it passes**
 
@@ -477,7 +477,7 @@ update public.feature_flags set default_on = true, kill_switch = false where nam
 - [ ] **Step 6: Commit**
 
 ```bash
-git add supabase/migrations/0195_pass_rewards.sql supabase/tests/pass_test.sql
+git add supabase/migrations/0196_pass_rewards.sql supabase/tests/pass_test.sql
 git commit -m "feat(pass): grant_pass and end_pass, authorized for a trainer as well as a coach"
 ```
 
@@ -486,7 +486,7 @@ git commit -m "feat(pass): grant_pass and end_pass, authorized for a trainer as 
 ### Task 3: `spend_pass` and the refund trigger
 
 **Files:**
-- Modify: `supabase/migrations/0195_pass_rewards.sql`
+- Modify: `supabase/migrations/0196_pass_rewards.sql`
 - Modify: `supabase/tests/pass_test.sql`
 
 **Interfaces:**
@@ -636,7 +636,7 @@ Expected: all five spend and refund assertions PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add supabase/migrations/0195_pass_rewards.sql supabase/tests/pass_test.sql
+git add supabase/migrations/0196_pass_rewards.sql supabase/tests/pass_test.sql
 git commit -m "feat(pass): spend_pass plus a trigger that refunds a credit when the meal is logged anyway"
 ```
 
@@ -645,7 +645,7 @@ git commit -m "feat(pass): spend_pass plus a trigger that refunds a credit when 
 ### Task 4: Evidence ceiling and the stale RLS cases
 
 **Files:**
-- Modify: `supabase/migrations/0195_pass_rewards.sql`
+- Modify: `supabase/migrations/0196_pass_rewards.sql`
 - Modify: `supabase/tests/rls_authz_test.sql:234,316`
 - Modify: `supabase/tests/pass_test.sql`
 
@@ -684,7 +684,7 @@ Expected: FAIL. The stored score is the old ceiling value, not 88.
 
 - [ ] **Step 3: Rewrite the ceiling gate**
 
-Open `supabase/migrations/0193_score_v2_evidence_ceiling.sql` and copy `clamp_day_score_to_evidence()` in full into 0195 as a `create or replace`. Change **only** gate (d) inside the `v_nutrition` expression. The old clause reads:
+Open `supabase/migrations/0193_score_v2_evidence_ceiling.sql` and copy `clamp_day_score_to_evidence()` in full into 0196 as a `create or replace`. Change **only** gate (d) inside the `v_nutrition` expression. The old clause reads:
 
 ```sql
     or exists (
@@ -700,7 +700,7 @@ Replace it with:
 
 ```sql
     -- (d) an active pass covering this date: either a WINDOW that contains it, or a spent
-    -- credit recorded against it. granted_date/length_days no longer exist (0195).
+    -- credit recorded against it. granted_date/length_days no longer exist (0196).
     or exists (
       select 1 from trust_passes tp
       where tp.athlete_id = new.athlete_id
@@ -715,7 +715,7 @@ Replace it with:
     ), false);
 ```
 
-Leave the fail-closed shape check above it, the carry logic below it, and the trigger registration untouched. Re-create the trigger at the end of 0195 so the plan cache picks up the new table:
+Leave the fail-closed shape check above it, the carry logic below it, and the trigger registration untouched. Re-create the trigger at the end of 0196 so the plan cache picks up the new table:
 
 ```sql
 drop trigger if exists days_score_evidence_ceiling on public.days;
@@ -741,7 +741,7 @@ Expected: every assertion in both files PASSES.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add supabase/migrations/0195_pass_rewards.sql supabase/tests/pass_test.sql supabase/tests/rls_authz_test.sql
+git add supabase/migrations/0196_pass_rewards.sql supabase/tests/pass_test.sql supabase/tests/rls_authz_test.sql
 git commit -m "feat(pass): teach the 0193 evidence ceiling the new pass shape"
 ```
 
@@ -1142,7 +1142,7 @@ git commit -m "feat(pass): credit a covered slot from the trailing median in the
 Delete `fetchActiveTrustPass`, `grantTrustPass`, `endTrustPass` and `fetchTrustPassPolicy` (lines 747 to 772) and write:
 
 ```js
-/* Trust Pass (0195). A grant is coach OR trainer authorized server-side; a spend is self-only by
+/* Trust Pass (0196). A grant is coach OR trainer authorized server-side; a spend is self-only by
    construction, since spend_pass takes no athlete argument. */
 export async function fetchActivePass(athleteId) {
   const c = sb(); if (!c || !athleteId) return null;
@@ -1216,7 +1216,7 @@ Returning `{ error }` rather than `null` on a failed fetch is deliberate: a fetc
 At line 4103, replace the getter with:
 
 ```js
-  /* The athlete's live pass (0195). Shape mirrors what the UI needs, never a fabricated
+  /* The athlete's live pass (0196). Shape mirrors what the UI needs, never a fabricated
      "day 3 of 14": no pass means honestly inactive. */
   get pass() {
     const list = (DAY.passes || []).filter((p) => p && !p.ended_at && DAY.date <= p.expires_on);
@@ -1260,7 +1260,7 @@ Add `reloadPassState(userId)` to `day.js` alongside `loadDay`, re-running only t
 In `coach-data.js`, change `trustPass: 0` to `trustPass: 1` in the practice capability map (line 70) and update the comment block at lines 44 to 46, which currently explains why a trainer can never have it:
 
 ```js
-     · trustPass is available to BOTH books as of 0195: grant_pass authorizes
+     · trustPass is available to BOTH books as of 0196: grant_pass authorizes
        is_team_coach_of OR is_trainer_of, and the policy table carries a practice_id arm.
 ```
 
@@ -1571,7 +1571,7 @@ git commit -m "feat(pass): prompt the operator when a client earns a reward"
 ### Task 12: Notifications
 
 **Files:**
-- Modify: `supabase/migrations/0195_pass_rewards.sql`
+- Modify: `supabase/migrations/0196_pass_rewards.sql`
 - Modify: whichever notification writer `0027` established (read it before writing)
 
 **Interfaces:**
@@ -1599,7 +1599,7 @@ Send at most one nudge per pass. A second reminder is a spam complaint, which is
 
 ```bash
 npm run test:rls
-git add supabase/migrations/0195_pass_rewards.sql
+git add supabase/migrations/0196_pass_rewards.sql
 git commit -m "feat(pass): notify on grant and nudge two days before credits expire"
 ```
 
@@ -1627,7 +1627,7 @@ npx supabase db push --linked
 npx supabase db query --linked "select version from supabase_migrations.schema_migrations order by version desc limit 1;"
 ```
 
-Expected: `0195`.
+Expected: `0196`.
 
 **This ordering is not optional.** If the client OTA lands first, every pass-credited day hits the old ceiling gate, which no longer matches the table shape, and the athlete silently loses the points the reward just gave them. Same trap as the Score v2 ceiling.
 

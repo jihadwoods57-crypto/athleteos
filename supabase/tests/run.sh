@@ -59,3 +59,8 @@ run_sql admin_monitor_test.sql
 # 0166/0167 trainer-funded access — the grant/expiry mechanics the marketplace now shares.
 echo "==> trainer-funded suite (0166-0167)"
 run_sql trainer_funded_test.sql
+
+# 0196 Trust Pass rewards. An operator can move an athlete's score without the athlete logging,
+# so the grant/spend walls are pinned here rather than trusted to review.
+echo "==> trust-pass suite (0196)"
+run_sql pass_test.sql
