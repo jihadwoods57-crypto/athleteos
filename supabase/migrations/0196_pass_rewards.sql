@@ -140,4 +140,182 @@ comment on table public.pass_spends is
   'One row per credit spent on one slot. Unique on (athlete_id, day_date, slot). Deleted by the '
   'refund trigger when the athlete logs that meal after all.';
 
+-- ---------------------------------------------------------------- the flag, in SQL
+-- 0109 shipped feature_flags but the only EVALUATOR is TypeScript
+-- (supabase/functions/_shared/feature-flags.ts), which a SQL RPC cannot call. Without this
+-- mirror, gating grant_pass would mean either no kill switch at all or a second hand-maintained
+-- copy of the precedence rule inside the RPC.
+--
+-- Precedence mirrors evaluateFlag(): kill_switch -> user -> role -> default_on. A MISSING flag
+-- row is false, and any failure to read is false, because a flag exists precisely because we are
+-- not yet certain.
+--
+-- DELIBERATE DIVERGENCE: the org arm is omitted. A SQL caller has no unambiguous "current org"
+-- the way an edge function's request context does, and inventing one would be a silent
+-- disagreement between the two evaluators. The omission makes this STRICTER than the TS version
+-- (a flag switched on only by org allowlist reads as off here), which is the safe direction.
+create or replace function public.flag_on(p_name text, p_user uuid default null)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  f public.feature_flags%rowtype;
+  v_role text;
+begin
+  select * into f from public.feature_flags where name = p_name;
+  if not found then return false; end if;
+  if f.kill_switch then return false; end if;
+  if p_user is not null and p_user = any (f.enabled_user_ids) then return true; end if;
+  if array_length(f.enabled_roles, 1) is not null and p_user is not null then
+    select primary_role into v_role from public.profiles where id = p_user;
+    if v_role is not null and v_role = any (f.enabled_roles) then return true; end if;
+  end if;
+  return f.default_on;
+exception when others then
+  return false;
+end;
+$$;
+revoke all on function public.flag_on(text, uuid) from public, anon;
+grant execute on function public.flag_on(text, uuid) to authenticated;
+
+-- ---------------------------------------------------------------- grant
+-- Authorized for a TEAM COACH **or** a TRAINER. The trainer arm is the entire point of 0196:
+-- 0099 checked is_team_coach_of only, which is why coach-data.js recorded the capability as
+-- permanently unavailable to a practice. is_trainer_of (0002) resolves through
+-- practice_clients -> practices.owner_id, the same wall every other trainer surface uses.
+create or replace function public.grant_pass(
+  p_athlete      uuid,
+  p_credits      int  default null,
+  p_covers_from  date default null,
+  p_covers_until date default null,
+  p_expires_on   date default null,
+  p_note         text default null
+) returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_team       uuid;
+  v_practice   uuid;
+  v_credits    int;
+  v_def_cred   int;
+  v_elig       int;
+  v_max        int;
+  v_photo_days int;
+  v_expires    date;
+  v_id         uuid;
+begin
+  if not (is_team_coach_of(p_athlete) or is_trainer_of(p_athlete)) then
+    raise exception 'not authorized to grant a pass to this athlete';
+  end if;
+
+  -- The kill switch gates NEW GRANTS ONLY. It must never gate spend or read: flipping it off has
+  -- to stop new grants without stranding a client already holding credits. Same reasoning as the
+  -- 0166 claim-code lookup, which is deliberately ungated for exactly this reason.
+  if not flag_on('trust_pass', auth.uid()) then
+    raise exception 'passes are temporarily unavailable';
+  end if;
+
+  -- Which book is granting decides which policy applies. Team first, then practice.
+  select m.team_id into v_team
+    from team_members m
+    join team_staff s on s.team_id = m.team_id
+    where m.athlete_id = p_athlete and m.status = 'active'
+      and s.staff_id = auth.uid() and s.status = 'active'
+    limit 1;
+
+  if v_team is null then
+    select p.id into v_practice
+      from practice_clients pc
+      join practices p on p.id = pc.practice_id
+      where pc.client_id = p_athlete and pc.status = 'active' and p.owner_id = auth.uid()
+      limit 1;
+  end if;
+
+  if v_team is null and v_practice is null then
+    raise exception 'no team or practice links you to this athlete';
+  end if;
+
+  select tpp.default_credits, tpp.eligibility_days, tpp.max_credits
+    into v_def_cred, v_elig, v_max
+    from trust_pass_policy tpp
+    where tpp.team_id is not distinct from v_team
+      and tpp.practice_id is not distinct from v_practice;
+
+  v_elig := coalesce(v_elig, 7);
+  v_max  := coalesce(v_max, 5);
+
+  -- Forgery-resistant eligibility, unchanged from 0039: distinct days the athlete PHOTOGRAPHED a
+  -- meal, which is a real storage upload, not the client-written days.score.
+  --
+  -- Deliberately a LIFETIME count with no date bound. This is a GATE, and re-locking somebody who
+  -- already earned it reads as punishment. The consequence is that a long-dormant athlete stays
+  -- eligible, which is exactly why pass.js refuses to credit a thin history and excuses the slot
+  -- instead. Two independent defenses, because this one is intentionally generous.
+  select count(distinct m.day_date) into v_photo_days
+    from meals m
+    where m.athlete_id = p_athlete and m.photo_path is not null;
+  if v_photo_days < v_elig then
+    raise exception 'athlete not eligible: % of % photo-logged days', v_photo_days, v_elig;
+  end if;
+
+  -- Resolve the shape. A caller supplying neither credits nor a window gets the book's default
+  -- credit grant, which is what the one-tap milestone prompt sends.
+  if p_credits is null and p_covers_from is null then
+    v_credits := coalesce(v_def_cred, 3);
+  else
+    v_credits := p_credits;
+  end if;
+
+  if v_credits is not null and v_credits > v_max then
+    raise exception 'pass exceeds this book''s maximum of % credits', v_max;
+  end if;
+
+  v_expires := coalesce(p_expires_on, p_covers_until, current_date + 14);
+
+  update trust_passes set ended_at = now() where athlete_id = p_athlete and ended_at is null;
+
+  insert into trust_passes (athlete_id, granted_by, team_id, practice_id,
+                            credits_total, covers_from, covers_until, expires_on, note)
+    values (p_athlete, auth.uid(), v_team, v_practice,
+            v_credits, p_covers_from, p_covers_until, v_expires,
+            nullif(btrim(coalesce(p_note, '')), ''))
+    returning id into v_id;
+  return v_id;
+end;
+$$;
+revoke all on function public.grant_pass(uuid, int, date, date, date, text) from public, anon;
+grant execute on function public.grant_pass(uuid, int, date, date, date, text) to authenticated;
+
+-- ---------------------------------------------------------------- end
+-- Same wall as the grant. Note the athlete is NOT authorized: ending a pass is a record of what
+-- an operator gave and took back, and letting the recipient erase it would make the ledger a
+-- suggestion.
+create or replace function public.end_pass(p_athlete uuid) returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare v_hit boolean;
+begin
+  if not (is_team_coach_of(p_athlete) or is_trainer_of(p_athlete)) then
+    raise exception 'not authorized to end a pass for this athlete';
+  end if;
+  update trust_passes set ended_at = now() where athlete_id = p_athlete and ended_at is null;
+  get diagnostics v_hit = row_count;
+  return v_hit;
+end;
+$$;
+revoke all on function public.end_pass(uuid) from public, anon;
+grant execute on function public.end_pass(uuid) to authenticated;
+
+-- 0109 seeded trust_pass with default_on = false and NOTHING shipped ever read it (only the
+-- legacy src/store/flagsStore.ts). Now grant_pass reads it for real, so leaving it false would
+-- ship the whole feature silently off — the 0125 mistake, repeated.
+update public.feature_flags set default_on = true, kill_switch = false where name = 'trust_pass';
+
 commit;

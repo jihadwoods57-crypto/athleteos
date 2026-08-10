@@ -194,6 +194,112 @@ select _ok(_try($q$
     ('7aa00000-0000-0000-0000-00000000ff01', 4)
 $q$) <> 'ok', '0196: two policies for one practice are refused (coalesce key holds)');
 
+-- ================================================================ grant authorization
+-- This is the wall the whole feature rests on. A pass moves an athlete's score without the
+-- athlete logging anything, so "who may grant" is a money-grade question.
+
+select _as('7aa00000-0000-0000-0000-00000000000a');
+select _ok(_try($q$
+  select grant_pass('7aa00000-0000-0000-0000-00000000000a'::uuid, 3)
+$q$) <> 'ok', '0196: an athlete cannot grant themselves a pass');
+
+select _as('7aa00000-0000-0000-0000-00000000000c');
+select _ok(_try($q$
+  select grant_pass('7aa00000-0000-0000-0000-00000000000a'::uuid, 3)
+$q$) <> 'ok', '0196: an unrelated athlete cannot grant to somebody else');
+
+-- THE NEW ARM. 0099 authorized is_team_coach_of only; this is the capability that did not exist.
+select _as('7aa00000-0000-0000-0000-000000000001');
+select _ok(_try($q$
+  select grant_pass('7aa00000-0000-0000-0000-00000000000a'::uuid, 3, null, null, null, 'Great week')
+$q$) = 'ok', '0196: a TRAINER can grant to their own client');
+
+select _ok((select credits_total from trust_passes
+            where athlete_id = '7aa00000-0000-0000-0000-00000000000a' and ended_at is null) = 3,
+  '0196: the grant landed with the credits asked for');
+select _ok((select practice_id from trust_passes
+            where athlete_id = '7aa00000-0000-0000-0000-00000000000a' and ended_at is null)
+           = '7aa00000-0000-0000-0000-00000000ff01',
+  '0196: the grant is stamped with the granting PRACTICE, not a team');
+select _ok((select note from trust_passes
+            where athlete_id = '7aa00000-0000-0000-0000-00000000000a' and ended_at is null) = 'Great week',
+  '0196: the trainer''s note rides along');
+
+select _ok(_try($q$
+  select grant_pass('7aa00000-0000-0000-0000-00000000000c'::uuid, 3)
+$q$) <> 'ok', '0196: a trainer cannot grant to ANOTHER practice''s client');
+
+-- The eligibility wall. client_2 has 3 photo-logged days against a default gate of 7.
+select _ok(_try($q$
+  select grant_pass('7aa00000-0000-0000-0000-00000000000b'::uuid, 3)
+$q$) <> 'ok', '0196: an ineligible client is refused');
+
+-- ...and the refusal has to be countable, because the operator UI shows it verbatim.
+select _ok(_try($q$
+  select grant_pass('7aa00000-0000-0000-0000-00000000000b'::uuid, 3)
+$q$) like '%3 of 7%', '0196: the refusal names the shortfall');
+
+-- The coach arm still works, through a team rather than a practice.
+select _as('7aa00000-0000-0000-0000-000000000002');
+select _ok(_try($q$
+  select grant_pass('7aa00000-0000-0000-0000-00000000000d'::uuid, null, current_date, current_date + 1)
+$q$) = 'ok', '0196: a TEAM COACH can still grant, as a window');
+select _ok((select team_id from trust_passes
+            where athlete_id = '7aa00000-0000-0000-0000-00000000000d' and ended_at is null)
+           = '7aa00000-0000-0000-0000-00000000dd01',
+  '0196: the coach grant is stamped with the team');
+select _ok((select credits_total from trust_passes
+            where athlete_id = '7aa00000-0000-0000-0000-00000000000d' and ended_at is null) is null,
+  '0196: a window grant carries no credit counter');
+
+-- max_credits is per-book and enforced server-side, not just in the form.
+select _superuser();
+insert into trust_pass_policy (practice_id, max_credits) values
+  ('7aa00000-0000-0000-0000-00000000ff01', 4);
+select _as('7aa00000-0000-0000-0000-000000000001');
+select _ok(_try($q$
+  select grant_pass('7aa00000-0000-0000-0000-00000000000a'::uuid, 9)
+$q$) <> 'ok', '0196: a grant above the book''s max_credits is refused');
+
+-- Granting again REPLACES the live pass rather than stacking a second one.
+select _ok(_try($q$
+  select grant_pass('7aa00000-0000-0000-0000-00000000000a'::uuid, 2)
+$q$) = 'ok', '0196: re-granting is allowed');
+select _ok((select count(*) from trust_passes
+            where athlete_id = '7aa00000-0000-0000-0000-00000000000a' and ended_at is null) = 1,
+  '0196: re-granting ends the previous pass instead of stacking');
+
+-- ================================================================ end
+select _as('7aa00000-0000-0000-0000-00000000000a');
+select _ok(_try($q$ select end_pass('7aa00000-0000-0000-0000-00000000000a'::uuid) $q$) <> 'ok',
+  '0196: an athlete cannot end their own pass to dodge the record');
+
+select _as('7aa00000-0000-0000-0000-000000000003');
+select _ok(_try($q$ select end_pass('7aa00000-0000-0000-0000-00000000000a'::uuid) $q$) <> 'ok',
+  '0196: a rival operator cannot end somebody else''s grant');
+
+select _as('7aa00000-0000-0000-0000-000000000001');
+select _ok(_try($q$ select end_pass('7aa00000-0000-0000-0000-00000000000a'::uuid) $q$) = 'ok',
+  '0196: the granting trainer can end it');
+select _ok((select count(*) from trust_passes
+            where athlete_id = '7aa00000-0000-0000-0000-00000000000a' and ended_at is null) = 0,
+  '0196: no live pass remains after end_pass');
+
+-- ================================================================ the kill switch
+-- It must stop NEW grants and nothing else. Killing it can never strand somebody mid-pass.
+select _superuser();
+update feature_flags set kill_switch = true where name = 'trust_pass';
+select _as('7aa00000-0000-0000-0000-000000000001');
+select _ok(_try($q$
+  select grant_pass('7aa00000-0000-0000-0000-00000000000a'::uuid, 3)
+$q$) <> 'ok', '0196: the kill switch stops a new grant');
+select _superuser();
+update feature_flags set kill_switch = false where name = 'trust_pass';
+
+-- Restore a live credit pass for the spend tests below.
+select _as('7aa00000-0000-0000-0000-000000000001');
+select grant_pass('7aa00000-0000-0000-0000-00000000000a'::uuid, 3);
+
 -- ================================================================ scoreboard
 do $$
 declare fails int; total int; bad text;
