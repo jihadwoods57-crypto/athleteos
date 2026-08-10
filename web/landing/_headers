@@ -49,3 +49,20 @@
   Referrer-Policy: no-referrer
   X-Robots-Tag: noindex, nofollow
   Content-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src https://ftwrvylzoyznhbzhgism.supabase.co https://ftwrvylzoyznhbzhgism.functions.supabase.co; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+
+# The per-tester demo-account handout. Reached only with a ?k= token and hands out LIVE prod
+# passwords, so it gets the same posture as /beta* — plus a TIGHTER connect-src, since this page
+# never talks to the REST origin, only the tester-claim function:
+#   · no-store + no-referrer — the URL IS the credential.
+#   · noindex — belt to the meta tag's braces.
+#   · fonts are local (font-src 'self') — same reasoning as /beta*.
+# NOTE: the pre-existing /t* block above (trainer page) also prefix-matches /tester* — both blocks
+# apply here, "more specific adds to, not replaces" per this file's header. Benign today because
+# this block's CSP is a strict subset of /t*'s, but intentional and worth knowing before editing
+# either block.
+/tester*
+  X-Frame-Options: DENY
+  Cache-Control: no-store
+  Referrer-Policy: no-referrer
+  X-Robots-Tag: noindex, nofollow
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src https://ftwrvylzoyznhbzhgism.functions.supabase.co; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'

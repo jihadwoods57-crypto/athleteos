@@ -447,6 +447,14 @@ verify_jwt = false
 [functions.beta-board]
 verify_jwt = false
 
+# tester-claim backs the per-tester demo-account handout (web/landing/tester.html, migration 0195).
+# Same posture as beta-board: an anonymous browser holding a URL token, no Supabase session, so it
+# authenticates every request itself against TESTER_CLAIM_KEY (constant-time), with
+# TESTER_ADMIN_KEY on top for the founder's status view. Pinned false so a redeploy can't 401 the
+# whole page before its own auth ever runs.
+[functions.tester-claim]
+verify_jwt = false
+
 # These three authenticate the CALLER themselves (not via a Supabase JWT), so they deploy with
 # --no-verify-jwt. Pinned here (security audit 2026-07-12) so a `functions deploy` that forgets the
 # flag can't flip verify_jwt back on and 401 the flow — same rationale as stripe-webhook above:
