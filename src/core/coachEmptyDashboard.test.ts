@@ -36,7 +36,9 @@ describe('coach empty dashboard — with a live athlete code', () => {
     for (const ch of 'ABC123') expect(html).toContain(`>${ch}</div>`); // each code char in its own box
   });
   test('shows a first-run setup checklist that links to real screens', () => {
-    expect(html).toContain('Finish setting up your team');
+    // "Finish setting up your team" became "Set up your team" (founder 2026-08-10: the old
+    // header read as a nag, and trainers saw it forever because their progress never persisted).
+    expect(html).toContain('Set up your team');
     // Routes tracked to the coach-experience restructure (Plan hub + Profile sections).
     expect(html).toContain('data-go="coach-plan-set/team"');
     expect(html).toContain('data-go="coach-notif-settings"');
@@ -69,7 +71,7 @@ describe('coach empty dashboard — while the team is still loading', () => {
     // Deliberate (2026-08-08 campaign): sharedCode derives from the roster, which hasn't
     // arrived — the screen must not assert "0 of 2 required steps done" under a card that
     // says it's still loading. The checklist appears once the team resolves (describe above).
-    expect(html).not.toContain('Finish setting up your team');
+    expect(html).not.toContain('Set up your team');
     expect(html).not.toContain('co-pulse');
   });
 });

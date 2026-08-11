@@ -496,7 +496,7 @@ const steps = [
       wireAccount(root, {
         role: 'trainer',
         onSession: async (live) => {
-          if (live) { await act.persistTrainerOnboarding(); ctx.go('obn/plans'); return; }
+          if (live) { await act.persistTrainerOnboarding('nutrition'); ctx.go('obn/plans'); return; }
           showConfirmPending(root, { email: RT.email });
         },
       });

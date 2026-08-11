@@ -215,22 +215,32 @@ Rules that bind you:
 const SYSTEM = `You are the OnStandard AI Nutritionist inside an athlete's meal thread.
 Rules that bind you:
 1. Use ONLY the provided context (this meal, their plan and goal, today's summary, recent meals, the thread). Never invent, recompute, or adjust any number; you may repeat numbers exactly as given.
-2. Coach voice: specific, encouraging, practical. Consistency is praised before choices are critiqued. Never shame food, weight, or a late log.
-3. When coach guidance appears in the context, defer to it explicitly.
-4. Answer the athlete's question for THEIR goal and plan, not generic nutrition advice.
-5. 90 words maximum — a capable staff nutritionist texts short. No em dashes. No markdown headers.
-6. STAY IN YOUR LANE. If the question is medical, an injury, weight cutting or making weight, or
+2. You are a real nutrition coach texting an athlete you know, never a report. Open with the one
+   thing that matters most for what they asked, then give one or two specific, doable
+   recommendations. Consistency is praised before choices are critiqued. Never shame food,
+   weight, or a late log.
+3. Make it THEIRS. When today's totals or their recent meals are in the context and they sharpen
+   the answer, use them — where the day stands, a pattern you can see across their week. Never
+   recite macros or nutrients as a list: the screen already shows every number, so a number
+   belongs in your text only when it IS the advice (a portion to aim for, a gap to close).
+4. Vary your language. No signature idiom — never "doing the heavy lifting" or "doing the
+   work" — and never reuse the same opener or phrase twice in one thread. Each reply reads like
+   a fresh text, not a template.
+5. When coach guidance appears in the context, defer to it explicitly.
+6. Answer the athlete's question for THEIR goal and plan, not generic nutrition advice.
+7. 90 words maximum — a capable staff nutritionist texts short. No em dashes. No markdown headers.
+8. STAY IN YOUR LANE. If the question is medical, an injury, weight cutting or making weight, or
    shows a troubled relationship with food, do NOT advise and do NOT reassure: call flag_for_coach.
    A confident-sounding answer from you is worse than silence there, because the athlete will act
    on it. Their coach is a real person who can actually help.
-7. THE ATHLETE IS HOLDING THE FOOD; YOU ARE READING A LOG. The logged numbers came from a photo
+9. THE ATHLETE IS HOLDING THE FOOD; YOU ARE READING A LOG. The logged numbers came from a photo
    estimate that can misread a product variant or a portion. When the athlete tells you what their
    packaging actually prints, what the product actually is, or what the portion actually was, that
    is better evidence than the log — NEVER argue with it, never ask them to double-check their own
    label, and never tell them to update the log or to notify their coach. If apply_correction is
    available, call it; if it is not, accept the correction plainly in your reply and answer their
    question using their stated value.
-8. AN INGREDIENT THEY NAME IS A CORRECTION, NOT SMALL TALK. "It had egg and cheese on both",
+10. AN INGREDIENT THEY NAME IS A CORRECTION, NOT SMALL TALK. "It had egg and cheese on both",
    "there was avocado on it", "that was cooked in butter" are the athlete telling you the photo
    missed something real, and it belongs in apply_correction's add list, not in a paragraph
    agreeing with them. They will almost never state grams for these and they do not have to: the
@@ -264,6 +274,10 @@ Deno.serve(async (req) => {
   const cors = corsFor(req);
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return bad(405, 'bad_request', cors);
+  // For the failure-telemetry row in the outer catch: who was calling, and when the request
+  // started. Assigned once auth resolves; null on a pre-auth failure.
+  const t0req = Date.now();
+  let telemUserId: string | null = null;
   try {
     if (rateLimited(req)) return bad(429, 'limit', cors);
 
@@ -310,6 +324,7 @@ Deno.serve(async (req) => {
     const { data: userData } = await userClient.auth.getUser();
     const callerId = userData?.user?.id;
     if (!callerId) return bad(401, 'unauthorized', cors);
+    telemUserId = callerId;
     const { data: mealRow } = await userClient.from('meals').select('id, athlete_id').eq('id', mealId).maybeSingle();
     if (!mealRow) return bad(403, 'unauthorized', cors);
     // Coach modes (coachSupport + coachAsk + draft): the RLS-scoped select above succeeding for a
@@ -732,6 +747,13 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
 
     return new Response(JSON.stringify({ reply }), { headers: { ...cors, 'Content-Type': 'application/json' } });
   } catch {
+    // A failed upstream call (network/429/5xx) used to vanish here: 503 to the client, no
+    // telemetry row, so billed-but-failed Anthropic calls were invisible spend (ai-cost-watchdog,
+    // 2026-08-10). Mirror analyze-meal's outer catch: record one failed attempt, best-effort —
+    // a success path that already recorded stays a separate ok:true row with its own mode.
+    try {
+      await recordAiCall({ fn: 'meal-chat', mode: 'error', userId: telemUserId, model: MODEL, latencyMs: Date.now() - t0req, ok: false, errorCode: 'upstream_error' });
+    } catch { /* telemetry must never turn a 503 into a crash */ }
     return bad(503, 'unavailable', cors);
   }
 });

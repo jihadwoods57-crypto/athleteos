@@ -8,6 +8,7 @@ import { fetchRecentMeals, daysAgoISO, fetchMealComments, postMealComment, delet
 import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos, wireComposerAttach, postChatMessage } from '../chat-attach.js';
 import { threadMessages, reactionGroups, REACTION_EMOJI } from '../meal-intel.js';
 import { wireTapback } from '../tapback.js';
+import { miniDial } from './meal.js';
 import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isEscalated, quotedFor } from '../chat-view.js';
 
 /* Message clock + day key for the past-meal conversation — local, so a message at 11:58pm and
@@ -441,7 +442,10 @@ export const mealView = {
       <div class="ph-grad"></div>
       <div class="ph-meta">
         <div>${m.photo_path ? '' : `<span class="status-pill muted">No photo submitted</span>`}</div>
-        ${m.quality != null ? `<div class="scorechip ${m.quality >= 80 ? '' : m.quality >= 50 ? 'mid' : 'low'}"><span class="v">${m.quality}</span><span class="k">Meal</span></div>` : ''}
+        ${/* Same brand dial as the live meal screen's chip — this twin wore a bare number while
+              every other score surface wears the mark (founder 2026-08-10: the working rings
+              ARE the logo). */''}
+        ${m.quality != null ? `<div class="scorechip ${m.quality >= 80 ? '' : m.quality >= 50 ? 'mid' : 'low'}">${miniDial(m.quality)}<span class="v">${m.quality}</span><span class="k">Meal</span></div>` : ''}
       </div>
     </div>
     ${Array.isArray(m.detected) && m.detected.length ? `

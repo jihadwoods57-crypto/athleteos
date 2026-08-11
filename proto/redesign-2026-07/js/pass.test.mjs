@@ -203,7 +203,6 @@ function scenario(over = {}) {
     quickAdded: [false, false, false],
     proteinTarget: 180, calTarget: 3200, scoringProfile: 'athlete',
     dailyCommitment: null, ci: {}, ciConfig: {}, ciSubmitted: false, ciLast: null,
-    hydrationL: 3,
     passes: [], passSpends: [], scoreHistory: H(10, 45),
     ...over,
   };

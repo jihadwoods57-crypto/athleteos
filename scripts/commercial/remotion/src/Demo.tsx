@@ -22,7 +22,8 @@ export type Beat = {
 };
 
 /* Still inside the phone shell with a slow Ken Burns pan down. */
-const StillPhone: React.FC<{ src: string; height?: number }> = ({ src, height = 880 }) => {
+const StillPhone: React.FC<{ src: string; height?: number; shiftX?: number; shiftY?: number }> =
+  ({ src, height = 880, shiftX = 330, shiftY = 0 }) => {
   const frame = useCurrentFrame();
   const bezel = 13;
   const radius = height * 0.072;
@@ -31,7 +32,7 @@ const StillPhone: React.FC<{ src: string; height?: number }> = ({ src, height = 
   const pan = interpolate(frame, [0, 200], [0, -screenH * 0.16], { extrapolateRight: 'clamp' });
   return (
     <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center' }}>
-      <div style={{ transform: 'translateX(330px)', borderRadius: radius, padding: bezel,
+      <div style={{ transform: `translateX(${shiftX}px) translateY(${shiftY}px)`, borderRadius: radius, padding: bezel,
         background: 'linear-gradient(160deg, #10141d, #05070c)', border: '1.5px solid rgba(255,255,255,0.14)',
         boxShadow: '0 60px 140px rgba(0,0,0,0.65), 0 0 110px rgba(59,130,246,0.13)' }}>
         <div style={{ width: screenW, height: screenH, borderRadius: radius - bezel + 4, overflow: 'hidden', background: '#000' }}>
@@ -74,6 +75,47 @@ const Caption: React.FC<{ eyebrow: string; title: string; body: string; index: n
           </div>
         </div>
       </AbsoluteFill>
+    );
+  };
+
+/* Vertical caption: same beats, but centered top-band over a full-bleed phone (mobile 9:16).
+ * A gradient scrim keeps text legible over whatever's on screen; progress ticks move to the
+ * bottom safe-area, clear of the phone. */
+const CaptionVertical: React.FC<{ eyebrow: string; title: string; body: string; index: number; count: number }> =
+  ({ eyebrow, title, body, index, count }) => {
+    const frame = useCurrentFrame();
+    const k = interpolate(frame, [4, 20], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: ease });
+    const k2 = interpolate(frame, [12, 30], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: ease });
+    return (
+      <>
+        <AbsoluteFill style={{ background: 'linear-gradient(180deg, rgba(3,5,10,0.94) 0%, rgba(3,5,10,0.8) 18%, rgba(3,5,10,0.4) 30%, transparent 42%)' }} />
+        <AbsoluteFill style={{ justifyContent: 'flex-start', alignItems: 'center', paddingTop: 92 }}>
+          <div style={{ width: 900, textAlign: 'center' }}>
+            <div style={{ fontFamily: F.body, fontWeight: 700, fontSize: 20, letterSpacing: '0.14em',
+              textTransform: 'uppercase', marginBottom: 16, background: sweep(90),
+              WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', opacity: k }}>
+              {eyebrow}
+            </div>
+            <div style={{ fontFamily: F.exp, fontWeight: 900, textTransform: 'uppercase', fontSize: 48,
+              lineHeight: 1.14, color: C.ink, letterSpacing: '0.01em',
+              clipPath: `inset(0 0 ${(1 - k) * 100}% 0)`, transform: `translateY(${(1 - k) * 24}px)`, opacity: k }}>
+              {title}
+            </div>
+            <div style={{ fontFamily: F.body, fontWeight: 500, fontSize: 27, lineHeight: 1.45, color: C.ink2,
+              marginTop: 18, opacity: k2, transform: `translateY(${(1 - k2) * 14}px)` }}>
+              {body}
+            </div>
+          </div>
+        </AbsoluteFill>
+        <AbsoluteFill style={{ justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 34 }}>
+          <div style={{ display: 'flex', gap: 8, opacity: k2 }}>
+            {Array.from({ length: count }, (_, i) => (
+              <div key={i} style={{ width: i === index ? 30 : 10, height: 5, borderRadius: 3,
+                background: i === index ? sweep(90) : i < index ? 'rgba(96,165,250,0.55)' : 'rgba(255,255,255,0.14)' }} />
+            ))}
+          </div>
+        </AbsoluteFill>
+      </>
     );
   };
 
@@ -127,6 +169,40 @@ export const DemoRole: React.FC<{ role: string; line: string; beats: Beat[] }> =
         </Sequence>
       ))}
       <Sequence from={at} durationInFrames={150}><EndCard /></Sequence>
+    </AbsoluteFill>
+  );
+};
+
+/* Vertical assembly (mobile 9:16): full-bleed phone, top-band captions, bottom-safe ticks. */
+const VPHONE_H = 1400;
+const VPHONE_SHIFT_Y = 210;
+
+export const DemoRoleVertical: React.FC<{ role: string; line: string; beats: Beat[] }> = ({ role, line, beats }) => {
+  let at = 78;
+  const spans = beats.map((b) => {
+    const s = { beat: b, from: at, dur: Math.round(b.secs * FPS) };
+    at += s.dur;
+    return s;
+  });
+  return (
+    <AbsoluteFill style={{ background: C.bg }}>
+      <Sequence from={0} durationInFrames={78}><RoleIntro role={role} line={line} /></Sequence>
+      {spans.map(({ beat, from, dur }, i) => (
+        <Sequence key={i} from={from} durationInFrames={dur}>
+          <FadeIn>
+            <AbsoluteFill style={{ background: `radial-gradient(ellipse at 50% 62%, ${C.bg2}, ${C.bg} 70%)` }} />
+            <Vignette strength={0.3} />
+            {beat.seq ? (
+              <Phone src={beat.seq} startFrom={beat.from ?? 0} playbackRate={beat.rate ?? 1}
+                height={VPHONE_H} appear={false} punchFrom={1.0} punchTo={1.03} shiftY={VPHONE_SHIFT_Y} taps={beat.taps} />
+            ) : (
+              <StillPhone src={beat.still!} height={VPHONE_H} shiftX={0} shiftY={VPHONE_SHIFT_Y} />
+            )}
+            <CaptionVertical eyebrow={`OnStandard for ${role}`} title={beat.title} body={beat.body} index={i} count={beats.length} />
+          </FadeIn>
+        </Sequence>
+      ))}
+      <Sequence from={at} durationInFrames={150}><EndCard compact /></Sequence>
     </AbsoluteFill>
   );
 };

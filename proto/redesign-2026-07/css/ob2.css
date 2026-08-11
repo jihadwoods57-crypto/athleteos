@@ -61,7 +61,7 @@
 .ob2-meter svg { display: block; }
 .ob2-meter .mv { font-size: 44px; font-weight: 800; letter-spacing: var(--num-tight); }
 .ob2-meter .mk { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: var(--track-key); color: var(--text-3); margin-top:2px; }
-.ob2-meter .arc-track { stroke: var(--surface-3); }
+.ob2-meter .arc-track { stroke: var(--ring-track); }
 .ob2-meter .arc-fill { transition: stroke-dashoffset 900ms var(--ease-out); }
 
 /* The aha gap:two meters, the space between them is the message */

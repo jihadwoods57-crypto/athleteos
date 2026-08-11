@@ -27,7 +27,7 @@ import {
    score ring and the mark itself. Status color (good/mid/low) lives on the chip's NUMBER, never
    the arc: score surfaces wear the sweep, green stays status-only. Keeps .sc-arc/.ring-arc +
    data-off so reveal()/windBack drive it unchanged. */
-function miniDial(score) {
+export function miniDial(score) {
   const c = 31, r = 26, A0 = 120, SWEEP = 300;
   const pt = (deg) => {
     const a = (deg * Math.PI) / 180;
@@ -35,6 +35,17 @@ function miniDial(score) {
   };
   const d = `M ${pt(A0)} A ${r} ${r} 0 1 1 ${pt(60)}`;
   const off = (100 - score).toFixed(1);
+  // The seated jewel at the tip, scaled from the mark (bezel 0.875×, core 0.5× of the band) —
+  // the chip wore the sweep but not the marker, which left it half a dial (founder 2026-08-10:
+  // every working ring IS the logo). Track moves off --hairline onto the mark's own glass.
+  const light = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'light';
+  const tipA = ((A0 + (score / 100) * SWEEP) * Math.PI) / 180;
+  const tx = c + Math.cos(tipA) * r, ty = c + Math.sin(tipA) * r;
+  const jewel = score >= 6 ? (light
+    ? `<circle cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="3.1" fill="#FFFFFF" stroke="#DBEAFE" stroke-width="1"/>
+       <circle cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="1.75" fill="#2563EB"/>`
+    : `<circle cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="3.1" fill="#0F172A"/>
+       <circle cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="1.75" fill="#FFFFFF"/>`) : '';
   return `<svg class="sc-ring" width="62" height="62" viewBox="0 0 62 62" aria-hidden="true">
     <defs>
       <linearGradient id="scg" gradientUnits="userSpaceOnUse" x1="12.5" y1="53.9" x2="37.2" y2="5">
@@ -43,9 +54,10 @@ function miniDial(score) {
         <stop offset="100%" stop-color="var(--ring-c)"/>
       </linearGradient>
     </defs>
-    <path d="${d}" fill="none" stroke="var(--hairline)" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="${d}" fill="none" stroke="var(--ring-track)" stroke-width="3.5" stroke-linecap="round"/>
     <path class="ring-arc sc-arc" d="${d}" fill="none" stroke="url(#scg)" stroke-width="3.5" stroke-linecap="round"
       pathLength="100" stroke-dasharray="100" stroke-dashoffset="${off}" data-off="${off}"/>
+    ${jewel}
   </svg>`;
 }
 
@@ -755,6 +767,79 @@ export const thread = {
       detected: M.detectedRich, source: M.source, userNote: M.userNote, photoQ: M.photoQ,
     });
     const RUB_DOT = { met: 'g', partial: 'a', miss: 'r' };
+    // ---- Nutrition facts, computed BEFORE the photo block because they now render inside the
+    // read card (founder 2026-08-10: the read and the numbers were two boxes saying almost the
+    // same thing — they are one card now, so the screen stacks confirm / photo / read, done).
+    // A read still in flight (or one that failed) has no numbers to correct — the correction
+    // affordances only appear once the analysis has settled.
+    const settled = !M.pending && !M.analysisFailed && !(Array.isArray(M.pendingQuestions) && M.pendingQuestions.length);
+    const T = S.planTargets || {};
+    const fromPhoto = M.source !== 'label' && M.source !== 'manual';
+    const conf = estimateConfidence(M.source, M.detectedRich);
+    const srcLabel = M.source === 'label' ? 'exact, from the nutrition label'
+      : M.source === 'manual' ? 'entered by you'
+      : `estimated from photo · ${conf} confidence`;
+    // Photo estimates present as estimates (~ prefix on tiles; the full range lives in the
+    // rubric). Label/manual values stay exact — no false hedging on real numbers.
+    const tilde = fromPhoto ? '~' : '';
+    // THE PROJECTION. A bar that only shows what is banked answers "how much of the day is done",
+    // but the athlete reads it as a verdict — 81 of 180g at dinner looks like failing when it is
+    // squarely on pace. So each bar also carries what is still COMING: the meals left today at
+    // the share this athlete's plan expects. Real engine numbers or nothing; never a flattering
+    // guess. `dayProg` is the same source the AI's day sentence uses, so the two always agree.
+    const dayProg = S.mealDayProgress || {};
+    const mealsLeft = Math.max(0, Number(dayProg.mealsRemaining) || 0);
+    const project = (target, soFar) => {
+      if (!target || !mealsLeft) return null;
+      const gap = Math.max(0, target - (Number(soFar) || 0));
+      return gap ? Math.round(gap / Math.max(1, mealsLeft)) * mealsLeft : 0;
+    };
+    const targetBars = [
+      ['Protein', M.macros.protein, T.protein, 'g', project(T.protein, dayProg.proteinSoFar)],
+      ['Calories', M.macros.cals, T.calories, '', null],
+    ].filter(([, , target]) => target);
+    const projectedTotal = T.protein ? (Number(dayProg.proteinSoFar) || 0) + (project(T.protein, dayProg.proteinSoFar) || 0) : null;
+    const paceNote = projectedTotal && mealsLeft
+      ? `On pace for about ${projectedTotal}g if your ${mealsLeft === 1 ? 'last meal lands' : `last ${mealsLeft} meals land`} on plan`
+      : '';
+    // THE EMPTY READ. A settled photo meal whose every macro is zero isn't a light meal — it's a
+    // read that came back with nothing in it (the truncated-report bug, now fixed at the source,
+    // but these meals are already in people's days). Correction chips are useless here, because
+    // every rule scales or nudges the stored numbers and all of those are zero. The only honest
+    // move is to offer the read again.
+    const emptyRead = settled && fromPhoto
+      && !M.macros.protein && !M.macros.carbs && !M.macros.fat && !M.macros.cals;
+    const rereadNote = `<div class="est-note" style="margin-top:8px">These numbers didn't land — the read came back empty, so nothing was measured.${M.mealId ? ` <span class="link" id="mt-reread" role="button">Re-read this meal</span>` : ''}${M.rereadError ? ` <b style="color:var(--text-2)">Couldn't fetch the photo just now — try again in a moment.</b>` : ''}</div>`;
+    // INTUITIVE (0142): no macro or calorie figure reaches the athlete. The plate itself, what
+    // was on it, and how it landed still do — the composition IS the feedback. Every number is
+    // still computed and still stored (the professional needs them, and under-fueling is a
+    // safety signal); this gate is presentation only. `showMacros` is the athlete's own
+    // opt-in-able switch, so someone who WANTS their numbers back can have them.
+    const showNums = S.planStyle.showMacros;
+    // The value strip + day bars, as one chrome-less block the read card hosts. Same numbers,
+    // same honesty markers (~ for photo estimates); provenance rides a quiet in-card line.
+    const nutInCard = settled && showNums ? `
+    <div class="nut-src">Estimated Nutrition · ${esc(srcLabel)}</div>
+    ${emptyRead ? `<div style="padding:0 16px 13px">${rereadNote}</div>` : `
+    <div class="nut-values">
+      <div class="nv lead"><div class="mv">${tilde}${M.macros.protein}<i>g</i></div><div class="mk">Protein</div></div>
+      <div class="nv"><div class="mv">${tilde}${M.macros.carbs}<i>g</i></div><div class="mk">Carbs</div></div>
+      <div class="nv"><div class="mv">${tilde}${M.macros.fat}<i>g</i></div><div class="mk">Fat</div></div>
+      <div class="nv"><div class="mv">${tilde}${M.macros.cals}</div><div class="mk">Calories</div></div>
+    </div>
+    ${targetBars.length ? `<div class="day-bars">
+        ${targetBars.map(([k, v, target, u, projected]) => {
+          const now = Math.min(100, Math.round((v / target) * 100));
+          const ahead = projected != null ? Math.max(0, Math.min(100 - now, Math.round((projected / target) * 100))) : 0;
+          return `
+          <div class="cons-row">
+            <span class="k" style="width:64px">${k}</span>
+            <div class="track"><div class="fillb" style="width:${now}%;background:linear-gradient(90deg,var(--blue),var(--teal, #39c6d6))"></div>${ahead ? `<div class="ghostb" style="left:${now}%;width:${ahead}%"></div>` : ''}</div>
+            <span class="v" style="width:110px;white-space:nowrap">${tilde}${v}${u} <small style="color:var(--text-3)">of ${esc(String(target))}${u}</small></span>
+          </div>`;
+        }).join('')}
+        ${paceNote ? `<div class="pace">${esc(paceNote)}</div>` : ''}
+    </div>` : ''}`}` : '';
     const photoBlock = `
     <!-- The plate, blurred, as the screen's own backdrop. The meal thread is the one screen with a
          real photograph on it, and it sat on the same flat canvas as everything else; letting the
@@ -794,6 +879,10 @@ export const thread = {
           landed and what didn't, and the AI's own message in the thread says what to do next —
           a third restatement of the same judgment, in a box wearing the coach's name for a line
           the coach never wrote, was the most redundant thing on the screen. */''}
+    ${/* The nutrition strip lives INSIDE this card now (founder 2026-08-10: the read card and
+          the Estimated Nutrition panel were two boxes making one point — the verdict and the
+          numbers behind it). Hairline seams, not borders, do the separating. */''}
+    ${nutInCard}
     <details class="rub">
       <summary>${esc(rub.headline)} ${icon('chevron', 13)}</summary>
       <div class="rub-body">
@@ -807,20 +896,11 @@ export const thread = {
         <div class="rub-fine">Exact items are facts (timing, what you submitted). Estimated items come from the photo read and move if you correct the analysis.</div>
       </div>
     </details>
-    </section>` : ''}`;
+    </section>` : nutInCard ? `<section class="meal-read">${nutInCard}</section>` : ''}`;
 
-    // ---- 3. MEAL BREAKDOWN (feedback 2026-07-16: progress bars imply a goal — they only
-    // render against REAL coach targets. No targets → plain nutrient tiles, no fake
-    // denominators. Detected foods are rows with portions + an honest estimate note.) ----
-    // A read still in flight (or one that failed) has no numbers to correct — the correction
-    // affordances only appear once the analysis has settled.
-    const settled = !M.pending && !M.analysisFailed && !(Array.isArray(M.pendingQuestions) && M.pendingQuestions.length);
-    const T = S.planTargets || {};
-    const fromPhoto = M.source !== 'label' && M.source !== 'manual';
-    const conf = estimateConfidence(M.source, M.detectedRich);
-    const srcLabel = M.source === 'label' ? 'exact, from the nutrition label'
-      : M.source === 'manual' ? 'entered by you'
-      : `estimated from photo · ${conf} confidence`;
+    // ---- 3. DETECTED FOODS + CORRECTIONS (feedback 2026-07-16; the value strip and day bars
+    // moved into the read card above, founder 2026-08-10). Detected foods are rows with
+    // portions + an honest estimate note; the correction affordances live with them. ----
     const foodRows = M.detectedRich.map((d) => `
       <div class="food-row">
         <span class="conf-dot ${esc(d.confidence || 'high')}"></span>
@@ -828,45 +908,7 @@ export const thread = {
         <span class="fr-qty">${d.quantity ? `${fromPhoto ? '~ ' : ''}${esc(d.quantity)}` : ''}</span>
         ${d.basis === 'label' ? '<span class="rx-tag">label read</span>' : d.basis === 'database' ? '<span class="rx-tag">known product</span>' : ''}
       </div>`).join('');
-    // Photo estimates present as estimates (~ prefix on tiles; the full range lives in the
-    // rubric). Label/manual values stay exact — no false hedging on real numbers.
-    const tilde = fromPhoto ? '~' : '';
-    // THE PROJECTION. A bar that only shows what is banked answers "how much of the day is done",
-    // but the athlete reads it as a verdict — 81 of 180g at dinner looks like failing when it is
-    // squarely on pace. So each bar also carries what is still COMING: the meals left today at
-    // the share this athlete's plan expects. Real engine numbers or nothing; never a flattering
-    // guess. `dayProg` is the same source the AI's day sentence uses, so the two always agree.
-    const dayProg = S.mealDayProgress || {};
-    const mealsLeft = Math.max(0, Number(dayProg.mealsRemaining) || 0);
-    const project = (target, soFar) => {
-      if (!target || !mealsLeft) return null;
-      const gap = Math.max(0, target - (Number(soFar) || 0));
-      return gap ? Math.round(gap / Math.max(1, mealsLeft)) * mealsLeft : 0;
-    };
-    const targetBars = [
-      ['Protein', M.macros.protein, T.protein, 'g', project(T.protein, dayProg.proteinSoFar)],
-      ['Calories', M.macros.cals, T.calories, '', null],
-    ].filter(([, , target]) => target);
-    const projectedTotal = T.protein ? (Number(dayProg.proteinSoFar) || 0) + (project(T.protein, dayProg.proteinSoFar) || 0) : null;
-    const paceNote = projectedTotal && mealsLeft
-      ? `On pace for about ${projectedTotal}g if your ${mealsLeft === 1 ? 'last meal lands' : `last ${mealsLeft} meals land`} on plan`
-      : '';
     const corrLog = (M.corrections || []).length;
-    // THE EMPTY READ. A settled photo meal whose every macro is zero isn't a light meal — it's a
-    // read that came back with nothing in it (the truncated-report bug, now fixed at the source,
-    // but these meals are already in people's days). Correction chips are useless here, because
-    // every rule scales or nudges the stored numbers and all of those are zero. The only honest
-    // move is to offer the read again.
-    const emptyRead = settled && fromPhoto
-      && !M.macros.protein && !M.macros.carbs && !M.macros.fat && !M.macros.cals;
-    const rereadNote = `<div class="est-note" style="margin-top:8px">These numbers didn't land — the read came back empty, so nothing was measured.${M.mealId ? ` <span class="link" id="mt-reread" role="button">Re-read this meal</span>` : ''}${M.rereadError ? ` <b style="color:var(--text-2)">Couldn't fetch the photo just now — try again in a moment.</b>` : ''}</div>`;
-
-    // INTUITIVE (0142): no macro or calorie figure reaches the athlete. The plate itself, what
-    // was on it, and how it landed still do — the composition IS the feedback. Every number is
-    // still computed and still stored (the professional needs them, and under-fueling is a
-    // safety signal); this gate is presentation only. `showMacros` is the athlete's own
-    // opt-in-able switch, so someone who WANTS their numbers back can have them.
-    const showNums = S.planStyle.showMacros;
     // While the read is in flight there are no numbers yet — and a macro row of zeros reads as a
     // measurement, not an absence. Show the honest placeholder instead of "0g protein · 0 cal",
     // and withhold the "Correct the analysis" link until there is something to correct.
@@ -891,48 +933,9 @@ export const thread = {
     ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
     <div class="est-note" style="margin-top:8px">Your plan tracks how food leaves you feeling rather than calorie and macro counts. Your ${esc(S.coach.noun)} can still see the full numbers.</div>
     ${emptyRead ? rereadNote : ''}` : `
-    ${/* ESTIMATED NUTRITION (founder 2026-08-05: plain words, not a technical "breakdown").
-          These values are what keep the numbers the single source of truth on screen, so the AI
-          never has to restate one; the foods, notes and corrections stay behind the expander. */''}
-    <div class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">Estimated Nutrition</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></div>
-    ${/* ONE nutrition panel (founder 2026-08-06: the tiles read stale). Four detached grey boxes
-          with a set of unattached bars floating under them was five separate objects describing
-          one plate. Now it is a single panel: a divided value strip on top, the day-target bars
-          in the same chrome beneath it, hairline-separated. Protein leads — it is the number a
-          coach actually sets — and carries the brand's blue→teal sweep on its value, which is
-          exactly what the design system reserves for a score surface. Same numbers, same
-          honesty markers (~ for photo estimates); it just reads as one considered block. */''}
-    ${emptyRead ? rereadNote : `
-    <section class="nut-panel">
-      <div class="nut-values">
-        <div class="nv lead"><div class="mv">${tilde}${M.macros.protein}<i>g</i></div><div class="mk">Protein</div></div>
-        <div class="nv"><div class="mv">${tilde}${M.macros.carbs}<i>g</i></div><div class="mk">Carbs</div></div>
-        <div class="nv"><div class="mv">${tilde}${M.macros.fat}<i>g</i></div><div class="mk">Fat</div></div>
-        <div class="nv"><div class="mv">${tilde}${M.macros.cals}</div><div class="mk">Calories</div></div>
-      </div>`}
-    ${/* THE DAY BARS LIVE IN THE OPEN (2026-08-06). This meal's share of the coach's daily target
-          — with the striped "still coming" projection — was filed inside "View detected foods",
-          which is both the wrong label for it and the wrong altitude: progress against the one
-          number a coach actually sets is the meal's headline context, not a detail. The protein
-          tile's "· 23% of day" suffix went with the move — the bar states the same fact better,
-          and each fact renders exactly once. */''}
-    ${!emptyRead && targetBars.length ? `<div class="day-bars">
-        ${targetBars.map(([k, v, target, u, projected]) => {
-          const now = Math.min(100, Math.round((v / target) * 100));
-          // The striped segment is what is still COMING: the meals left today at their planned
-          // share. Without it, 81 of 180g at dinner reads as failing when it is on pace — the bar
-          // was answering "how much of the day is done" and the athlete reads it as a verdict.
-          const ahead = projected != null ? Math.max(0, Math.min(100 - now, Math.round((projected / target) * 100))) : 0;
-          return `
-          <div class="cons-row">
-            <span class="k" style="width:64px">${k}</span>
-            <div class="track"><div class="fillb" style="width:${now}%;background:linear-gradient(90deg,var(--blue),var(--teal, #39c6d6))"></div>${ahead ? `<div class="ghostb" style="left:${now}%;width:${ahead}%"></div>` : ''}</div>
-            <span class="v" style="width:110px;white-space:nowrap">${tilde}${v}${u} <small style="color:var(--text-3)">of ${esc(String(target))}${u}</small></span>
-          </div>`;
-        }).join('')}
-        ${paceNote ? `<div class="pace">${esc(paceNote)}</div>` : ''}
-    </div>` : ''}
-    ${emptyRead ? '' : '</section>'}
+    ${/* The Estimated Nutrition panel that opened this section lives inside the read card now
+          (founder 2026-08-10) — what remains here is the detail drawer: foods, notes,
+          corrections, and the correction panel itself. */''}
     <details class="bd-wrap"${thread._bdOpen || thread._fixOpen ? ' open' : ''}>
       <summary>View detected foods ${icon('chevron', 13)}</summary>
       <div class="bd-body">
@@ -1602,6 +1605,10 @@ export const thread = {
           },
           plan: { goal: RT.profile && RT.profile.baseGoal, targets: S.planTargets, allergies: RT.allergies },
           exec: { met: ex.met, total: ex.total, score: ex.score, possible: ex.possible, next: ex.now && ex.now.title },
+          // Today's macro position — exec only counts requirements; this is where the day's fuel
+          // actually stands, so the AI can coach off it (founder 2026-08-10). Same source as the
+          // day bars on this screen.
+          day: (() => { const dp = S.mealDayProgress || {}; return { proteinSoFar: dp.proteinSoFar, proteinTarget: dp.proteinTarget, mealsRemaining: dp.mealsRemaining }; })(),
           recentMeals: recentAscending.map((m) => ({ type: m.type, protein: m.protein, kcal: m.kcal, quality: m.quality, date: m.day_date })),
           thread: threadMessages(comments).slice(-20).map((c) => ({ role: c.role, text: String(c.text).slice(0, 300) })),
         });

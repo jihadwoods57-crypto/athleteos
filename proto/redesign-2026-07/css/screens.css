@@ -1385,12 +1385,17 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .meal-read .score-read{margin-top:0;border:none;box-shadow:none;background:none;border-radius:0;padding:15px 16px 13px}
 .meal-read .coach-focus{margin-top:0;border:none;border-radius:0;border-top:1px solid var(--hairline-soft);background:linear-gradient(120deg, rgba(var(--blue-rgb),0.08), transparent 72%)}
 .meal-read .rub{margin-top:0;border:none;border-radius:0;border-top:1px solid var(--hairline-soft);background:none}
-/* ---- Estimated Nutrition, one panel (2026-08-06) ----
-   Was four detached grey tiles with unattached bars floating beneath: five objects describing one
-   plate. Now a single card — a divided value strip, then the day-target bars in the same chrome.
-   The dividers are hairlines between cells rather than four separate borders, which is what kills
-   the "everything is a rounded rectangle" read. ---- */
+/* ---- Estimated Nutrition (2026-08-06, folded into .meal-read 2026-08-10) ----
+   Was four detached grey tiles with unattached bars floating beneath, then its own .nut-panel
+   card. The founder's read: the verdict card and the numbers card were two boxes making one
+   point — so the value strip + day bars now live INSIDE .meal-read, under a quiet provenance
+   line, hairline-separated like every other seam in the card. .nut-panel chrome kept for any
+   standalone use. ---- */
 .nut-panel{margin-top:8px;border-radius:var(--r-card);background:var(--surface-1);border:1px solid var(--hairline-soft);box-shadow:var(--sh-card);overflow:hidden}
+.nut-src{border-top:1px solid var(--hairline-soft);padding:12px 16px 0;font-size:var(--t-eyebrow);font-weight:800;color:var(--text-3);text-transform:uppercase;letter-spacing:0.08em}
+.meal-read .nut-src:first-child{border-top:none}
+.meal-read .day-bars{margin-top:0;padding:13px 16px 14px}
+.meal-read .nut-values + .day-bars{border-top:1px solid var(--hairline-soft)}
 .nut-values{display:flex;align-items:stretch}
 .nut-values .nv{flex:1;min-width:0;text-align:center;padding:15px 4px 13px;position:relative}
 .nut-values .nv + .nv::before{content:'';position:absolute;left:0;top:22%;bottom:22%;width:1px;background:var(--hairline-soft)}

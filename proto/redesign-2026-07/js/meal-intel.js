@@ -526,11 +526,17 @@ export function buildClarifications(questions, answers) {
   return out;
 }
 
-export function contextForChat({ meal, plan, exec, recentMeals, thread } = {}) {
+export function contextForChat({ meal, plan, exec, day, recentMeals, thread } = {}) {
   const ctx = {
     meal: meal || {},
     plan: plan || {},
     exec: exec || {},
+    // Where TODAY stands in macros (proteinSoFar / proteinTarget / mealsRemaining) — `exec`
+    // carries requirement counts, which told the AI how many boxes were ticked but not where
+    // the day's fuel actually sat, so its "coaching" couldn't reference the day (founder
+    // 2026-08-10: reference the athlete's daily progress). Same engine source as the meal
+    // screen's day bars, so the two can never disagree.
+    day: day || {},
     recentMeals: Array.isArray(recentMeals) ? recentMeals.slice() : [],
     thread: Array.isArray(thread) ? thread.slice(-20) : [],
   };

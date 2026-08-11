@@ -823,6 +823,18 @@ export async function fetchCoachSetupState(teamId) {
     return map;
   } catch { return {}; }
 }
+/* The practice arm of the same resume (0197). fetchCoachSetupState only ever read by team_id, so
+   a trainer's checklist progress silently reset on every reinstall/new device — "Finish setting
+   up your practice" kept coming back for trainers who had finished (founder, 2026-08-10). */
+export async function fetchPracticeSetupState(practiceId) {
+  const c = sb(); if (!c || !practiceId) return {};
+  try {
+    const { data } = await c.from('practice_setup_state').select('step, state').eq('practice_id', practiceId).eq('state', 'completed');
+    const map = {};
+    for (const r of (data || [])) if (r && r.step) map[r.step] = true;
+    return map;
+  } catch { return {}; }
+}
 /* Per-team weekly training/rest pattern (0100): a 7-element array indexed by getDay() (0=Sun). Team
    MEMBERS read it (their scored day resolves day-type from it); staff write. A missing row means no
    day-type gating — every requirement item applies every day. The WRITE lives in state.js
@@ -1299,10 +1311,14 @@ export async function fetchMyPracticeIdentity() {
     // See fetchMyTeamIdentity: supabase-js returns { error } without throwing, so this must be
     // inspected explicitly or the { error: true } sentinel above is unreachable and Practice HQ
     // shows "Your client code is being created" forever on a flaky connection.
-    const { data, error } = await c.from('practices').select('id,name,join_code,owner_id,handle').limit(1).maybeSingle();
+    // discipline (0197): 'training' | 'nutrition' — the dietitian/nutritionist lens key. Read
+    // defensively so a pre-0197 DB (column missing → error) still yields the base identity.
+    let data, error;
+    ({ data, error } = await c.from('practices').select('id,name,join_code,owner_id,handle,discipline').limit(1).maybeSingle());
+    if (error) ({ data, error } = await c.from('practices').select('id,name,join_code,owner_id,handle').limit(1).maybeSingle());
     if (error) return { error: true };
     if (!data) return null;
-    return { id: data.id, name: data.name || '', code: data.join_code || '', handle: data.handle || null };
+    return { id: data.id, name: data.name || '', code: data.join_code || '', handle: data.handle || null, discipline: data.discipline === 'nutrition' ? 'nutrition' : 'training' };
   } catch { return { error: true }; }
 }
 

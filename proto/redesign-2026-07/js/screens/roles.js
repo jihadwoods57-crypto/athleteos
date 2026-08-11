@@ -1463,7 +1463,9 @@ export const trainerProfile = {
       <div class="big-av" style="background:linear-gradient(150deg,var(--purple),var(--purple-deep))">${esc(ti.initials || 'T')}</div>
       <div class="id-txt">
         <div class="nm">${esc(ti.name)}</div>
-        <div class="meta">${esc(ti.practiceName)}</div>
+        ${/* The discipline earns its line (0197): a dietitian's HQ says what they run. Any
+              sport — the label describes the operator, never the roster. */''}
+        <div class="meta">${esc(ti.practiceName)}${ti.discipline === 'nutrition' ? ' · Nutrition practice' : ''}</div>
         <div style="margin-top:9px">${offline ? `<span class="status-pill a">Reconnecting</span>` : minting ? `<span class="status-pill p">Setting up</span>` : `<span class="status-pill g">Live</span>`}</div>
       </div>
     </section>`;

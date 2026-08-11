@@ -61,7 +61,8 @@ and everything persists in localStorage until you reset. One `computeScore()` in
   equal the score at every state; reset returns to 82.
 - Round-trips proven in-browser: coach assigns (template or custom) → athlete Home +
   notification → complete → coach sees; coach publishes plan update → athlete Plan·Notes +
-  notification; coach comment → athlete meal thread; hydration 120 oz → payoff + notification.
+  notification; coach comment → athlete meal thread. (A hydration round-trip was verified here
+  too; hydration left the app in the 2026-08-04 founder pass, e45c56a.)
 - Food search: plate math correct (2× chicken = 62g protein); label scan: serving
   multiplier correct (2 servings = 280 cal).
 - Em-dash-free UI copy; real photography; honest clock (7:12 matches windows); composers

@@ -272,17 +272,44 @@ export function saveProgressStep(ch = 3) {
 export function meter(pct, { size = 168, value = '', label = '', uid = 'm', muted = false } = {}) {
   const stroke = Math.max(10, Math.round(size / 14));
   const r = (size - stroke) / 2, c = size / 2;
-  const target = Math.max(0, Math.min(100, pct)) * (300 / 360); /* of pathLength 100 */
+  const p = Math.max(0, Math.min(100, pct));
+  const target = p * (300 / 360); /* of pathLength 100 */
+  // The mark's own path command (300°, 60° gap at 6 o'clock) instead of a rotated <circle>, and
+  // the mark's gradient axis (LOGO.md (26,82)→(58,18), scaled to this r) instead of a 45°
+  // bounding-box diagonal — this meter was the one gauge drawing its own geometry (founder
+  // 2026-08-10: every working ring IS the logo). Both layers keep pathLength=100 + the same
+  // dasharray contract, so animateMeters() drives them unchanged.
+  const A0 = 120, SWEEP = 300;
+  const pt = (deg) => {
+    const a = (deg * Math.PI) / 180;
+    return `${(c + Math.cos(a) * r).toFixed(2)} ${(c + Math.sin(a) * r).toFixed(2)}`;
+  };
+  const d = `M ${pt(A0)} A ${r.toFixed(2)} ${r.toFixed(2)} 0 1 1 ${pt(A0 + SWEEP - 360)}`;
+  // The seated jewel at the fill's tip (bezel 0.875×, core 0.5× of the band, like scoreRing).
+  // Rendered at the FINAL position, hidden until animateMeters() lands the arc on it.
+  const light = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'light';
+  const tipA = ((A0 + (p / 100) * SWEEP) * Math.PI) / 180;
+  const tx = c + Math.cos(tipA) * r, ty = c + Math.sin(tipA) * r;
+  const bezelR = (stroke * 0.875).toFixed(1), coreR = (stroke * 0.5).toFixed(1);
+  const jewel = (!muted && p >= 6) ? `
+      <g class="arc-tip" opacity="0">${light
+        ? `<circle cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="${bezelR}" fill="#FFFFFF" stroke="#DBEAFE" stroke-width="1.5"/>
+           <circle cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="${coreR}" fill="#2563EB"/>`
+        : `<circle cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="${bezelR}" fill="#0F172A"/>
+           <circle cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="${coreR}" fill="#FFFFFF"/>`}
+      </g>` : '';
   return `
   <div class="ob2-meter" style="position:relative;width:${size}px">
     <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true">
-      <defs><linearGradient id="og-${uid}" x1="0%" y1="100%" x2="100%" y2="0%">
+      <defs><linearGradient id="og-${uid}" gradientUnits="userSpaceOnUse"
+        x1="${(c - 0.71 * r).toFixed(1)}" y1="${(c + 0.88 * r).toFixed(1)}" x2="${(c + 0.24 * r).toFixed(1)}" y2="${(c - r).toFixed(1)}">
         <stop offset="0%" stop-color="var(--ring-a)"/><stop offset="50%" stop-color="var(--ring-b)"/><stop offset="100%" stop-color="var(--ring-c)"/>
       </linearGradient></defs>
-      <circle class="arc-track" cx="${c}" cy="${c}" r="${r}" fill="none" stroke-width="${stroke}" stroke-linecap="round"
-        pathLength="100" stroke-dasharray="${(300 / 360 * 100).toFixed(2)} 100" transform="rotate(120 ${c} ${c})"/>
-      <circle class="arc-fill" cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${muted ? 'var(--text-3)' : `url(#og-${uid})`}" stroke-width="${stroke}" stroke-linecap="round"
-        pathLength="100" stroke-dasharray="0 100" data-arc="${target.toFixed(1)}" transform="rotate(120 ${c} ${c})"/>
+      <path class="arc-track" d="${d}" fill="none" stroke-width="${stroke}" stroke-linecap="round"
+        pathLength="100" stroke-dasharray="100"/>
+      <path class="arc-fill" d="${d}" fill="none" stroke="${muted ? 'var(--text-3)' : `url(#og-${uid})`}" stroke-width="${stroke}" stroke-linecap="round"
+        pathLength="100" stroke-dasharray="0 100" data-arc="${target.toFixed(1)}"/>
+      ${jewel}
     </svg>
     <div style="position:absolute;inset:0;display:grid;place-items:center;text-align:center">
       <div><div class="mv">${esc(value)}</div>${label ? `<div class="mk">${esc(label)}</div>` : ''}</div>
@@ -295,6 +322,12 @@ export function animateMeters(root) {
   requestAnimationFrame(() => requestAnimationFrame(() => {
     arcs.forEach((a) => { a.style.strokeDasharray = `${a.getAttribute('data-arc')} 100`; });
   }));
+  // The jewel fades in as the fill reaches it (same beat as scoreRing's 1150ms tip reveal,
+  // shortened to the meter's 900ms draw).
+  root.querySelectorAll('.arc-tip').forEach((t) => {
+    t.style.transition = 'opacity 400ms ease';
+    setTimeout(() => { t.style.opacity = '1'; }, 850);
+  });
 }
 
 /* ---------- shared narrative components ---------- */

@@ -49,7 +49,7 @@ import {
   fetchRequirementSets, fetchMyAssignments, completeAssignmentRemote,
   fetchMyNotifications, markMyNotificationsRead,
   fetchMyCoachHandle, setMyCoachName, checkPhotoReuse, notifyMyCoach,
-  fetchPassPolicy, spendPass as rpcSpendPass, fetchTeamWeekPattern, fetchCoachSetupState, fetchMyRoomLabel,
+  fetchPassPolicy, spendPass as rpcSpendPass, fetchTeamWeekPattern, fetchCoachSetupState, fetchPracticeSetupState, fetchMyRoomLabel,
   fetchMyMemoryFacts, upsertMemoryFact, setMemoryFactStatus,
   fetchFoodMemory, insertFoodMemoryItem, updateFoodMemoryItem, archiveFoodMemoryItem,
   bumpFoodMemoryItem, upsertFoodMemoryPlace,
@@ -1775,13 +1775,20 @@ export const act = {
     if (RT.coachSetup[key]) return;
     RT.coachSetup[key] = true;
     save();
-    // Best-effort server sync (0092). Local RT stays the fast path; a missing table (migration not
-    // applied yet) or offline just no-ops. onConflict keeps it idempotent per (team, step).
+    // Best-effort server sync (0092 team arm, 0197 practice arm). Local RT stays the fast path; a
+    // missing table (migration not applied yet) or offline just no-ops. onConflict keeps it
+    // idempotent per (book, step). The practice arm is what makes a TRAINER's checklist durable —
+    // this write used to be team-gated, so trainer progress never left the device (founder,
+    // 2026-08-10).
     try {
       if (window.sb && RT.team && RT.team.id) {
         void window.sb.from('coach_setup_state').upsert(
           { team_id: RT.team.id, step: key, state: 'completed', updated_by: RT.userId || null, updated_at: new Date().toISOString() },
           { onConflict: 'team_id,step' });
+      } else if (window.sb && RT.practice && RT.practice.id) {
+        void window.sb.from('practice_setup_state').upsert(
+          { practice_id: RT.practice.id, step: key, state: 'completed', updated_by: RT.userId || null, updated_at: new Date().toISOString() },
+          { onConflict: 'practice_id,step' });
       }
     } catch { /* best-effort */ }
   },
@@ -2608,7 +2615,7 @@ export const act = {
     const identity = await fetchMyPracticeIdentity();
     const fetchFailed = !!(identity && identity.error);
     if (identity && identity.code) {
-      RT.practice = { id: identity.id, name: identity.name, code: identity.code };
+      RT.practice = { id: identity.id, name: identity.name, code: identity.code, discipline: identity.discipline || 'training' };
       RT.practiceOffline = false;
     } else if (hadCache) {
       RT.practiceOffline = true; // keep RT.practice as-is (last-known real identity)
@@ -2627,6 +2634,14 @@ export const act = {
       try {
         const pol = await fetchPassPolicy({ practiceId: RT.practice.id });
         RT.passPolicy = pol || (RT.passPolicy || { default_credits: 3, default_window_days: 2, eligibility_days: 7, max_credits: 5 });
+        save();
+      } catch { /* best-effort */ }
+      // Resume first-run setup on a practice book (0197) — the same T-21 union the team arm gets:
+      // server-completed steps merged under anything marked locally this session, never
+      // un-completing a step. Without this a trainer's checklist reset on every reinstall.
+      try {
+        const remote = await fetchPracticeSetupState(RT.practice.id);
+        RT.coachSetup = { ...remote, ...(RT.coachSetup || {}) };
         save();
       } catch { /* best-effort */ }
     }
@@ -3328,8 +3343,11 @@ export const act = {
       } catch { /* the standards editor can publish it later */ }
     }
   },
-  /* Mint the trainer's real practice + client code. Idempotent via RT.ob.practiceCode. */
-  async persistTrainerOnboarding() {
+  /* Mint the trainer's real practice + client code. Idempotent via RT.ob.practiceCode.
+     `discipline` (0197): 'training' (default) or 'nutrition' — the Nutrition Pro onboarding
+     passes 'nutrition' so the dietitian/nutritionist identity survives server-side; before this
+     the flow graduated into a practice indistinguishable from any trainer's. */
+  async persistTrainerOnboarding(discipline) {
     const sb = window.sb;
     const ob = RT.ob || {};
     const t = ob.trainer || {};
@@ -3344,6 +3362,7 @@ export const act = {
       const { data: code, error } = await sb.rpc('create_practice', {
         practice_name: t.practiceName || 'My Practice', practice_handle: null,
         is_discoverable: t.discoverable !== false,
+        ...(discipline === 'nutrition' ? { p_discipline: 'nutrition' } : {}),
       });
       if (error || !code) return false;
       this.captureOb({ practiceCode: code });
@@ -3675,6 +3694,8 @@ export const S = {
       initials,
       practiceName: realPractice || 'Your practice',
       code,
+      // 'training' | 'nutrition' (0197) — the dietitian/nutritionist lens key for HQ + vocab.
+      discipline: (RT.practice && RT.practice.discipline) === 'nutrition' ? 'nutrition' : 'training',
       hasIdentity: !!realName && !!realPractice,
       state,
     };

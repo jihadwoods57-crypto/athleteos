@@ -23,7 +23,7 @@ import { tierFor } from './score-band.js';
 const IMG = { w: 1080, h: 1350 };
 const IMG_BG = '#070B14';
 const IMG_WASH = '#0F1B33';
-const RING = ['#34D399', '#22D3EE', '#3B82F6'];   // --ring-a / --ring-b / --ring-c
+const RING = ['#34D399', '#22D3EE', '#60A5FA'];   // --ring-a / --ring-b / --ring-c (on-dark tip = --blue-bright, per dial-lit.svg)
 const TEXT = '#EEF3FB';
 const TEXT_2 = '#9AA9C2';
 const TEXT_3 = '#7C8BA6';

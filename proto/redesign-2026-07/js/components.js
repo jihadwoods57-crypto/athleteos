@@ -125,7 +125,6 @@ export function nonLiveBadge() {
    arrangement the meal score chip has always used. */
 export function scoreRing({ score = 82, size = 338, stroke = 20, showCenter = true, uid = 'r', delta = null, streak = null, tierName = null, tierCls = 'b', centerNum = false, possible = null } = {}) {
   const r = (size - stroke) / 2 - 14;
-  const rEcho = Math.max(0, r - stroke/2 - 8);
   const cx = size / 2, cy = size / 2;
   // ---- Brand-dial geometry (docs/brand/LOGO.md v2) ----
   // The mark is a 300° gauge with a 60° gap centered on 6 o'clock: the arc runs from the
@@ -151,10 +150,11 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, showCenter = tr
     span: (possible - score).toFixed(1),
     rot: ((score / 100) * SWEEP).toFixed(2),
   } : null;
-  // Specular edge: a thin light-catch riding the OUTER edge of the band, which is what makes the
-  // band read as a lit solid instead of a flat stroke (the flat-dial's answer to dial-lit's sheen).
-  const specW = Math.max(1.6, stroke * 0.16);
-  const rSpec = r + stroke / 2 - specW / 2 - 0.6;
+  // Sheen: dial-lit's own treatment — CENTERED on the band at 0.375× stroke, flat white 0.16
+  // (dial-lit.svg layer 6). It used to ride the band's outer edge as a 0.16× rim with its own
+  // white gradient, which no brand master draws; centering it is what makes the band read as
+  // the mark's lit glass. Dark only — the flat-light master has no sheen.
+  const specW = Math.max(1.6, stroke * 0.375);
   // Marker knob at the progress tip — the dial's seated jewel (bezel + enamel core), replacing
   // the old comet starburst. Proportions from the mark: bezel 10.5/12 of the band, core 6/12.
   // Theme-adaptive exactly like logoMark().
@@ -173,7 +173,8 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, showCenter = tr
           ? `<circle cx="${tipX.toFixed(1)}" cy="${tipY.toFixed(1)}" r="${bezelR.toFixed(1)}" fill="#FFFFFF" stroke="#DBEAFE" stroke-width="1.5"/>
              <circle cx="${tipX.toFixed(1)}" cy="${tipY.toFixed(1)}" r="${coreR.toFixed(1)}" fill="#2563EB"/>`
           : `<circle cx="${tipX.toFixed(1)}" cy="${tipY.toFixed(1)}" r="${bezelR.toFixed(1)}" fill="#0F172A"/>
-             <circle cx="${tipX.toFixed(1)}" cy="${tipY.toFixed(1)}" r="${coreR.toFixed(1)}" fill="#FFFFFF"/>`}
+             <circle cx="${tipX.toFixed(1)}" cy="${tipY.toFixed(1)}" r="${coreR.toFixed(1)}" fill="url(#en${uid})"/>
+             <circle cx="${(tipX - 0.3 * coreR).toFixed(1)}" cy="${(tipY - 0.3 * coreR).toFixed(1)}" r="${(coreR * 0.233).toFixed(2)}" fill="#FFFFFF" opacity="0.9"/>`}
       </g>` : '';
 
   return `
@@ -197,15 +198,22 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, showCenter = tr
               it scales with every call site. */''}
         ${/* The two Gaussian-blur filters that lived here (the under-glow's and the marker
               sparkle's) went with the layers that used them. Nothing on this ring is blurred now. */''}
-        <linearGradient id="spec${uid}" x1="0.1" y1="0.0" x2="0.9" y2="0.9">
-          <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.65"/>
-          <stop offset="45%" stop-color="#FFFFFF" stop-opacity="0.18"/>
-          <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.40"/>
-        </linearGradient>
+        ${/* The jewel's enamel core — dial-lit.svg's own radial (white → #F2F7FF → #D8E4F5,
+              light source up-left at (.38,.32)), replacing the flat white disc. */''}
+        <radialGradient id="en${uid}" cx="0.38" cy="0.32" r="1">
+          <stop offset="0%" stop-color="#FFFFFF"/>
+          <stop offset="70%" stop-color="#F2F7FF"/>
+          <stop offset="100%" stop-color="#D8E4F5"/>
+        </radialGradient>
       </defs>
-      <!-- track: the dial's glass track; dotted "ready" style below score 6 so an empty day reads
-           as unstarted, not broken (no pathLength here — the dot pattern needs user units) -->
-      <path d="${dial(r)}" fill="none" stroke="rgba(148,176,224,0.10)" stroke-width="${stroke}" stroke-linecap="round"${score < 6 ? ' stroke-dasharray="1.4 5"' : ''}/>
+      <!-- track: the mark's own glass track value (--ring-track, per theme); dotted "ready" style
+           below score 6 so an empty day reads as unstarted, not broken (no pathLength here — the
+           dot pattern needs user units) -->
+      <path d="${dial(r)}" fill="none" stroke="var(--ring-track)" stroke-width="${stroke}" stroke-linecap="round"${score < 6 ? ' stroke-dasharray="1.4 5"' : ''}/>
+      ${/* Track top highlight — dial-lit's centered gloss line (0.06 white at 7/12 of the band
+            width). Dark only: the flat-light master's track is a solid fill with no gloss. */''}
+      ${!light && score >= 6 ? `<path d="${dial(r)}" fill="none" stroke="rgba(255,255,255,0.06)"
+        stroke-width="${(stroke * 0.58).toFixed(1)}" stroke-linecap="round"/>` : ''}
       <!-- ceiling: sits between the track and the main band so the band's round cap paints over
            the seam. butt cap, not round — a round cap would bulge past the marker and read as
            a second competing band. animateRing() drives it like any other .ring-arc. -->
@@ -218,14 +226,12 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, showCenter = tr
       <path class="ring-arc" d="${dial(r)}" fill="none" stroke="url(#g${uid})"
         stroke-width="${stroke}" stroke-linecap="round"
         pathLength="100" stroke-dasharray="100" stroke-dashoffset="${off}" data-off="${off}"/>
-      <!-- specular edge: the band's lit outer rim (see rSpec above) -->
-      <path class="ring-arc ring-spec" d="${dial(rSpec)}" fill="none" stroke="url(#spec${uid})"
-        stroke-width="${specW.toFixed(1)}" stroke-linecap="round" opacity="0.5"
-        pathLength="100" stroke-dasharray="100" stroke-dashoffset="${off}" data-off="${off}"/>
-      <!-- inner echo ring (clamped ≥0: compact rings would otherwise compute a negative radius) -->
-      ${rEcho > 0 ? `<path class="ring-arc ring-echo" d="${dial(rEcho)}" fill="none" stroke="url(#g${uid})"
-        stroke-width="1.5" opacity="0.35"
+      <!-- sheen: dial-lit's centered band gloss (see specW above); rides the band's own radius -->
+      ${!light ? `<path class="ring-arc ring-spec" d="${dial(r)}" fill="none" stroke="#FFFFFF"
+        stroke-width="${specW.toFixed(1)}" stroke-linecap="round" opacity="0.16"
         pathLength="100" stroke-dasharray="100" stroke-dashoffset="${off}" data-off="${off}"/>` : ''}
+      ${/* The inner echo ring that traced the band at r-stroke/2-8 went with this pass — no brand
+            master draws a second concentric dial, and it read as one (founder, 2026-08-10). */''}
       ${marker}
     </svg>
     ${showCenter ? `<div class="ring-center">

@@ -399,7 +399,7 @@ const MEAL_TOOL = {
         description: 'Up to 3 short micronutrient highlights ONLY when clearly present (e.g. "Strong iron source, supports oxygen delivery"). Empty when nothing stands out. Never fabricate.',
       },
       note: { type: 'string', description: 'One coach-voiced sentence tying this meal to the athlete goal. No hype, no em dashes.' },
-      analysis: { type: 'string', description: 'The athlete-facing read: 2 to 3 sentences written the way a real nutrition coach texts an athlete they know. Sentence one is the single biggest takeaway about this plate (name the food doing the work, e.g. "the eggs and sausage are doing most of the work here"); sentence two is the one doable adjustment that answers "what should I do next because of this". The app already shows the athlete the photo, the score, and every macro number, so NEVER list or restate macros or calories; mention a number only when it IS the advice (a portion to aim for). Warm, direct, personal, zero hype, no headers or bullets, no em dashes.' },
+      analysis: { type: 'string', description: 'The athlete-facing read: 2 to 3 sentences written the way a real nutrition coach texts an athlete they know. Sentence one is the single biggest takeaway about this plate; sentence two is the one doable adjustment that answers "what should I do next because of this". Vary your wording meal to meal: no signature idiom (never "doing the heavy lifting" or "doing the work"), no recycled openers — every meal reads like a fresh text from a coach, not a template. The app already shows the athlete the photo, the score, and every macro number, so NEVER list or restate macros or calories; mention a number only when it IS the advice (a portion to aim for). Warm, direct, personal, zero hype, no headers or bullets, no em dashes.' },
       reconcile: { type: 'string', description: 'Only when the athlete note CONTRADICTS what is plainly visible (e.g. says grilled but it is clearly fried, or "no sauce" when it is drowning): one short, non-accusatory coach sentence saying what you are counting and why, leaving them an out. Omit entirely when the note agrees with or merely adds hidden food. No em dashes.' },
       descriptionSignal: { type: 'string', enum: ['match', 'photo_heavier', 'photo_lighter', 'no_photo'], description: 'Relationship of the athlete note to the photo. "match": the note agrees with the photo or only adds plausible hidden/off-frame food (trust it). "photo_heavier": the plate visibly holds MORE than the note claims (the note underrated it). "photo_lighter": the plate visibly holds LESS than the note claims. "no_photo": no photo was provided.' },
       substitution: {
@@ -532,11 +532,13 @@ notable, return highlights as an empty array.
 
 The analysis field is the athlete's main read: 2 to 3 sentences, written the way a real nutrition
 coach texts an athlete they know — warm, direct, specific to THIS plate and THIS athlete's day.
-Sentence one: the single biggest takeaway (name the food doing the work — "the eggs and sausage
-are doing most of the work here"). Sentence two: the ONE adjustment that answers the athlete's
-next decision ("keep your next meal leaner and you're right back on track"). You are a coach, not
-an analyst — every sentence should help them decide what to do next, never prove what you noticed.
-Never shame, never moralize food.
+Sentence one: the single biggest takeaway about this plate. Sentence two: the ONE adjustment that
+answers the athlete's next decision. VARY YOUR LANGUAGE: real coaches do not have a catchphrase.
+Never write "doing the heavy lifting" or "doing the work"; never reuse the same sentence shape or
+opener from one meal to the next (these examples show RANGE, not lines to reuse: "that steak
+carries you into the afternoon", "solid balance, nothing to fix here", "light on protein for a
+lift day"). You are a coach, not an analyst — every sentence should help them decide what to do
+next, never prove what you noticed. Never shame, never moralize food.
 
 THE SCREEN ALREADY SAYS IT (hard requirement): the athlete is looking at the photo, the score,
 score-reason chips, and a full macro breakdown while they read you. Never enumerate or restate

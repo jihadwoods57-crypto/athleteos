@@ -69,12 +69,17 @@ export const coachCreate = {
         ${icon('chevron', 14, 'style="color:var(--text-3)"')}
       </div>`).join('')}
     </section>
+    ${/* This box claimed "standards, requirements and announcements are team tools" — stale
+          since 0136: the menu directly above it offers standards AND assignments to a practice.
+          It now names only what is genuinely team-shaped (broadcast announcements, staff roles),
+          so the screen stops apologising for features it just sold (founder trainer pass,
+          2026-08-10). The "Built for teams" title is asserted verbatim by operator-book.test. */''}
     ${practice ? `
     <div style="height:12px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
       <div><div class="tt">Built for teams</div>
-      <div class="ts">Standards, requirements and announcements are team tools today. They're coming to practices — until then this menu only shows what actually works on your book.</div></div>
+      <div class="ts">Broadcast announcements and staff roles are team tools. A practice is 1:1, so everything on this menu works on your book right now.</div></div>
     </div>` : ''}`;
   },
   mount() {

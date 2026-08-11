@@ -362,10 +362,17 @@ export const coachPlan = {
       ${emptyState({ icon: 'target', title: 'No clients yet', body: 'Per-client protein, calorie, and target-weight numbers open here the moment someone joins.', action: { label: 'Invite a client', go: 'trainer-profile' } })}`}
 
       <div style="height:12px"></div>
+      ${/* This box used to claim Trust Pass "stays a team tool" — stale since
+            CAPS.practice.trustPass went 1: the practice Home renders the Trust Pass milestone
+            card and "Give a pass" right now, so the two surfaces contradicted each other
+            (founder trainer pass, 2026-08-10). Rooms are the one true team-only on this page
+            (the policy editor is still a team screen; grants live on Home). The "Built for
+            teams" title is load-bearing: operator-book.test.mjs asserts it verbatim as the
+            practice plan home's reduced-page explanation. */''}
       <div class="sidebox">
         <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
         <div><div class="tt">Built for teams</div>
-        <div class="ts">Position rooms and Trust Pass stay team tools — a practice is 1:1, and a Trust Pass is granted through a team link. Everything else here is yours.</div></div>
+        <div class="ts">Position rooms are built around a team roster, and a practice is 1:1, so they don't apply here. Everything else on this page is yours. Giving a Trust Pass lives on your Home.</div></div>
       </div>
       <div style="height:10px"></div>`;
     }

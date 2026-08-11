@@ -22,17 +22,29 @@ const loadMyBook = (force) => loadBook(force, bookKindFor(RT.authRole));
 const VOCAB = {
   team: {
     everyone: 'Entire team', mine: 'My athletes', priorities: 'Coach priorities',
-    setup: 'Finish setting up your team', loading: 'Loading your team…',
+    setup: 'Set up your team', loading: 'Loading your team…',
   },
   practice: {
     everyone: 'All clients', mine: 'My clients', priorities: 'Client priorities',
-    setup: 'Finish setting up your practice', loading: 'Loading your clients…',
+    setup: 'Set up your practice', loading: 'Loading your clients…',
+  },
+  // The dietitian/nutritionist lens (0197 practices.discipline): same book, same mechanics,
+  // named for what this operator actually runs. Any sport — discipline describes the operator,
+  // not the roster.
+  nutrition: {
+    everyone: 'All clients', mine: 'My clients', priorities: 'Client priorities',
+    setup: 'Set up your nutrition practice', loading: 'Loading your clients…',
   },
 };
 /* CD.kind only settles after the first loadBook resolves, so a trainer's very first paint would
-   flash team vocab — the signed-in role already knows the answer, so prefer it. */
+   flash team vocab — the signed-in role already knows the answer, so prefer it.
+   ("Finish setting up…" became "Set up…" — founder 2026-08-10: the old header read as a nag,
+   and on a practice book it literally never went away because trainer progress never persisted;
+   0197 fixed the persistence, this fixes the tone.) */
 const isPractice = () => CD.kind === 'practice' || RT.authRole === 'trainer';
-const vocab = () => VOCAB[isPractice() ? 'practice' : 'team'];
+const vocab = () => VOCAB[isPractice()
+  ? (RT.practice && RT.practice.discipline === 'nutrition' ? 'nutrition' : 'practice')
+  : 'team'];
 
 /* Athlete-invite link + share text (mirrors the trainer's inviteLink/inviteShareText inline,
    the same way state.js mirrors src/core in plain JS). Empty code → empty string: never link or
@@ -105,16 +117,23 @@ export function coachSetupSteps(st) {
       { key: 'standard', done: st.standard, t: 'Review your standard', s: 'Meals, windows, and requirements', go: 'coach-plan-set/team' },
     ],
     optional: [
-      // Notification rules and staff invites are team screens (nav:'coach'); on a practice book
-      // they'd render as dead taps, so they simply don't exist for a trainer.
+      // coach-notif-settings is nav:'operator' (see screens/settings.js — trainerProfile links it
+      // too), so the notification step is real on BOTH books. Staff invites stay team-only:
+      // coach-profile/staff is genuinely nav:'coach' and a practice has no staff roles.
+      { key: 'notif', done: st.notif, t: 'Set notification rules',
+        s: practice ? 'When you and your clients get nudged' : 'When you and your athletes get nudged',
+        go: 'coach-notif-settings' },
       ...(practice ? [] : [
-        { key: 'notif', done: st.notif, t: 'Set notification rules', s: 'When you and your athletes get nudged', go: 'coach-notif-settings' },
         { key: 'staff', done: st.staff, t: 'Invite your staff', s: 'Coordinators, position coaches, and more', go: 'coach-profile/staff' },
       ]),
-      { key: 'group', done: st.group, t: practice ? 'Organize your clients' : 'Organize your roster',
-        s: st.hasAthletes ? (practice ? 'Group clients however you work' : 'Group by room or unit')
-          : (practice ? 'Groups fill in as clients join' : 'Rooms fill in as athletes join'),
-        go: st.hasAthletes ? (practice ? 'trainer-roster' : 'coach-roster') : null },
+      // Until anyone has joined there is nothing to organize — the row used to render as a dead
+      // 0.7-opacity "Soon" tap on a brand-new book (founder 2026-08-10: day zero showed a row
+      // that did nothing). It appears the moment the roster is real.
+      ...(st.hasAthletes ? [
+        { key: 'group', done: st.group, t: practice ? 'Organize your clients' : 'Organize your roster',
+          s: practice ? 'Group clients however you work' : 'Group by room or unit',
+          go: practice ? 'trainer-roster' : 'coach-roster' },
+      ] : []),
     ],
   };
 }
