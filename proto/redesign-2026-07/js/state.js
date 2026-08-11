@@ -1811,15 +1811,26 @@ export const act = {
      on coalesce(team_id, practice_id) so two policies for one practice can never coexist. Local RT
      is the fast path for the editor; best-effort server upsert (staff RLS) — a missing table or
      offline no-ops. Values are clamped to the table's own bounds so the DB check can never reject
-     them. */
+     them.
+
+     The two credit fields also have to agree with EACH OTHER, which the table cannot express:
+     0196's check constraints bound each to 1..14 independently, so `default_credits 10` next to
+     `max_credits 3` is a perfectly legal row that no longer means anything. grant_pass refuses any
+     pass over max, so the book's own default would be refused by the book's own ceiling — and
+     pass-grant.js seeds the sheet from default_credits while resolveArgs() clamps to max_credits,
+     which renders "10 camera-free meals / Max 3 per grant" and then quietly grants 3. Keep the
+     ceiling authoritative: max is clamped to the table bounds first, then default is clamped to
+     max. Lowering the ceiling pulls the default down with it, which is what "no grant on my book
+     exceeds 3" plainly means. */
   setTrustPolicy(patch) {
     const cur = RT.passPolicy || { default_credits: 3, default_window_days: 2, eligibility_days: 7, max_credits: 5 };
     const clamp = (n, lo, hi, d) => { n = Math.round(Number(n)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
+    const maxCredits = clamp(patch.max_credits != null ? patch.max_credits : cur.max_credits, 1, 14, 5);
     const next = {
-      default_credits:     clamp(patch.default_credits     != null ? patch.default_credits     : cur.default_credits,     1, 14, 3),
+      default_credits:     clamp(patch.default_credits     != null ? patch.default_credits     : cur.default_credits,     1, maxCredits, Math.min(3, maxCredits)),
       default_window_days: clamp(patch.default_window_days != null ? patch.default_window_days : cur.default_window_days, 1, 14, 2),
       eligibility_days:    clamp(patch.eligibility_days     != null ? patch.eligibility_days     : cur.eligibility_days,    1, 30, 7),
-      max_credits:         clamp(patch.max_credits          != null ? patch.max_credits          : cur.max_credits,        1, 14, 5),
+      max_credits:         maxCredits,
     };
     RT.passPolicy = next;
     save();

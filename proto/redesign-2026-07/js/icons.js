@@ -49,6 +49,12 @@ const P = {
   /* Filled, unlike its neighbours: three 2px-stroked rings at this size read as smudges. */
   more: '<circle cx="5" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.7" fill="currentColor" stroke="none"/>',
   wifiOff: '<path d="M1 9a15.9 15.9 0 0 1 4.4-3.1"/><path d="M8.5 6.4A15.9 15.9 0 0 1 23 9"/><path d="M4.6 12.8a11 11 0 0 1 3.3-2.2"/><path d="M16.1 10.6a11 11 0 0 1 3.3 2.2"/><path d="M8.2 16.3a6.5 6.5 0 0 1 7.6 0"/><circle cx="12" cy="20" r="1"/><path d="M1 1l22 22"/>',
+  /* Both added 2026-08-10 — they were being CALLED without existing, which is the exact blank-SVG
+     failure the note under this table describes, shipped again. `alert` is the coach's AI meal-flag
+     row (their highest-urgency notification) and the Notifications empty state; `info` sits beside
+     "Breakdown unavailable" and the "Set your training week" note. All rendered as holes. */
+  alert: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4.5"/><path d="M12 17.2h.01"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 16.5V11"/><path d="M12 7.8h.01"/>',
 };
 export function icon(name, size = 22, extra = '') {
   // An unknown key used to fall through to '' and emit a path-less <svg>, so a typo or a glyph

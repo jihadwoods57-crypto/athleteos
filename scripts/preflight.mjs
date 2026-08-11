@@ -54,8 +54,11 @@ if (dirty) {
   const extra = dirty.split('\n').length - 25;
   if (extra > 0) console.log(`    ${DIM}…and ${extra} more${RST}`);
   console.log('');
-  console.log(`  ${YEL}Commit them first, then build:${RST}`);
-  console.log(`  ${DIM}git add -A && git commit -m "what changed"${RST}`);
+  // Deliberately NOT `git add -A`. This repo regularly has more than one session working the same
+  // tree, and `-A` sweeps whatever the other one has half-finished into your commit — then EAS
+  // builds it. Name your paths; the list above is exactly what there is to choose from.
+  console.log(`  ${YEL}Commit them first, then build — stage your OWN paths, not -A:${RST}`);
+  console.log(`  ${DIM}git add <the files above that are yours> && git commit -m "what changed"${RST}`);
   console.log('');
   process.exit(1);
 }

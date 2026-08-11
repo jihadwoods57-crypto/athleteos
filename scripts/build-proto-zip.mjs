@@ -23,7 +23,23 @@ function walk(dir, acc = []) {
   return acc;
 }
 
-const files = walk(SRC).filter((p) => !/\.DS_Store$/.test(p));
+// Files that exist for developers and can never be reached by the WebView. Nothing in the proto
+// imports a *.test.mjs, and tools/ holds the lint scripts package.json runs from the repo — the
+// app has no path to either.
+//
+// Two costs, and the second is the one that matters. They were 307 KB of the 4.1 MB payload, which
+// every device downloads on every OTA. And because PROTO_VERSION is the content hash of this zip,
+// EDITING A TEST CHANGED THE HASH — so tightening an assertion in chat-view.test.mjs shipped a new
+// version stamp and made every phone re-extract the whole proto on next launch, for a change no
+// user could observe.
+//
+// fonts/NOTICE.md and the other .md files stay: they are a few KB and a font license notice is
+// meant to travel with the font.
+const DEV_ONLY = /(\.test\.mjs$)|(^tools[/\\])/;
+const files = walk(SRC).filter((p) => {
+  const rel = relative(SRC, p).split('\\').join('/');
+  return !/\.DS_Store$/.test(p) && !DEV_ONLY.test(rel);
+});
 const entries = {};
 for (const p of files) {
   const rel = relative(SRC, p).split('\\').join('/'); // zip uses forward slashes

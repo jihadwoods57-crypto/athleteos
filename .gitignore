@@ -94,6 +94,26 @@ qc/
 baseline-*.png
 art*-final.png
 
+# Commercial/demo video pipeline output (2026-07-31). The Remotion renderer and the landing-page
+# QC pass both drop stills, ffmpeg logs and numbered section screenshots beside their sources on
+# every run — 30 more untracked entries on top of the 131 the qc/ block above was written for.
+# Deliberately NOT a blanket *.jpg: proto/redesign-2026-07/assets/*.jpg are shipped app assets that
+# ride inside proto.zip, and an ignore broad enough to swallow a new one would break an OTA
+# silently, which is the exact failure this file is supposed to prevent.
+/[0-9][0-9]-*.jpg
+scripts/commercial/qc-*.jpg
+scripts/commercial/remotion/*.png
+scripts/commercial/remotion/render-*.txt
+
+# Licensed music + rendered commercial/demo videos. ~226 MB of .mp4 and the purchased audio behind
+# them. Kept out of git on purpose — the repo already carries 282 MB of tracked binaries — but that
+# means THESE FILES EXIST ONLY ON THIS MACHINE. They are deliverables, not build output: a lost
+# disk loses the licensed tracks and every render. They belong in object storage, not here.
+# hero-loop.mp4 is deliberately not matched: it is tracked, and the live site serves it.
+scripts/commercial/music/
+web/landing/assets/video/commercial-*.mp4
+web/landing/assets/video/demo-*.mp4
+
 # Subagent-driven-development scratch (ledgers, briefs, review packages)
 .superpowers/
 

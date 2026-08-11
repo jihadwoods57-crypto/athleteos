@@ -31,6 +31,32 @@ docs/
 # is part of the build.
 .claude/
 
+# ---------------------------------------------------------------- SCRATCH (2026-08-10)
+# ~958 MB of gitignored scratch that was uploading on EVERY build, because — per the header —
+# being in .gitignore does nothing here. Measured: .worktrees 530 MB / 14,855 files, .tmp 426 MB,
+# the rest small. Two of these are not merely wasteful:
+#
+#   · .tmp/ is where tools drop generated cron keys (.gitignore calls them out by name:
+#     "occasionally a secret"). `.tmp/billing-cron-key.local` was sitting there when this entry
+#     was written. That is finding #1 of the 2026-07-30 audit recurring in a new directory — a
+#     live credential shipped to a third party's servers on every build.
+#   · .agents/skills/ is the SAME symlink farm .claude/ is excluded for four lines above. It was
+#     never added, so the tarball hazard that entry exists to prevent was only half closed.
+#
+# .worktrees/ holds full checkouts of this repo on other branches. Uploading them means a build
+# can carry a half-finished feature's source to EAS alongside the branch you meant to ship.
+.worktrees/
+.tmp/
+.agents/
+.superpowers/
+.playwright-mcp/
+__pycache__/
+skills-lock.json
+#
+# Deliberately NOT added here, but worth a look next time someone runs a build: dist/ (27 MB of
+# `expo export` WEB output) and .expo/ (local dev state). Both are almost certainly dead weight
+# for a native build; left in only because excluding them could not be tested from this session.
+
 # Loose QA/marketing images dropped at the repo root (root-anchored so app assets are safe).
 /*.jpeg
 /*.jpg

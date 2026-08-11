@@ -127,10 +127,28 @@ const PATTERNS = [
   new RegExp(`${PCT}(?!\\s+of\\b)[^%\\n]{0,15}?\\b${WORD}\\b`, 'i'),
 ];
 
+// Directories under a ROOT that hold code this project did not write. Skipping them is not a
+// convenience, it is what keeps the gate meaningful: `.agents` was added to ROOTS for exactly ONE
+// tracked file (.agents/product-marketing.md, the asset generator the brief calls highest-risk),
+// but the gitignored `.agents/skills/` vendor drop sits beside it with 192 more — third-party
+// marketing playbooks whose benchmark tables are wall-to-wall percentages ("60% open rate",
+// "20-30% recovery"). They are not claims about the OnStandard score and can never be fixed by
+// calling liveWeightPct(), so they reported 19 violations that no one could ever clear.
+//
+// That is the failure that matters. `npm run verify` chains nine gates with &&, lint:score is the
+// FOURTH, and a gate nobody can turn green stops the five behind it: typecheck, jest, test:proto,
+// test:admin, bundle simply never ran. It hid three genuinely red jest tests on master. Same shape
+// as supabase/tests/run.sh aborting on ERROR and silently skipping every suite after it — a lint
+// that cries wolf about files the repo does not own is worse than no lint at all.
+//
+// The rule for adding to this list: a directory belongs here when nothing inside it is authored by
+// this project (a vendor drop or a gitignored tree), never merely because it is noisy.
+const SKIP_DIR = new Set(['skills', 'vendor', 'node_modules', 'dist', '.git']);
+
 function* walk(dir) {
   for (const e of readdirSync(dir)) {
     const p = join(dir, e);
-    if (statSync(p).isDirectory()) yield* walk(p);
+    if (statSync(p).isDirectory()) { if (!SKIP_DIR.has(e)) yield* walk(p); }
     else if (EXT.has(extname(p))) yield p;
   }
 }

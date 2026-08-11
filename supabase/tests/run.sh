@@ -33,34 +33,61 @@ else
   }
 fi
 
-echo "==> RLS authz suite against: ${DB%%\?*}"
-run_sql rls_authz_test.sql
+# EVERY SUITE RUNS, EVEN AFTER ONE FAILS — and the summary at the bottom names each one.
+#
+# This used to be a straight sequence of `run_sql` calls under `set -e`, which meant the FIRST
+# failure killed the script and every suite behind it never ran. That is not hypothetical: 35061ba
+# shipped migration 0194 and left rls_authz_test.sql red (a fixture seeded `checkin.submitted` as a
+# timestamp where the shipped writer sets a boolean). It is the first suite in this file, so from
+# that day forward the audit-fix, spend-gate, admin-auth, admin-monitor and trainer-funded suites
+# were ALL silently not running. Nobody noticed for weeks, because the output looked like a normal
+# failure rather than a failure plus five unknowns.
+#
+# So: collect a verdict per suite, print them together, and exit non-zero if any failed. A suite
+# that did not run must never look like a suite that passed.
+SUITES=(
+  # 0001+ the adversarial RLS / authorization core: seeds a cast of actors, probes every policy as
+  # each of them, rolls back.
+  "RLS authz|rls_authz_test.sql"
+  # 0169/0170/0171 audit fixes (security audit 2026-07-30): code entropy, the staff-code attempt
+  # budget, storage mime/size bounds, and the has_premium_access grant. Needs >=3 profiles to exist
+  # (it picks three actors out of `profiles`), so it is skipped rather than failed on an empty db.
+  "audit-fix (0169-0171)|code_entropy_and_limits_test.sql"
+  # 0174: the spend gate reserves what it approves — the read-then-decide race the 2026-07-30
+  # audit deferred. Needs only app_config; safe on an empty db.
+  "spend-gate (0174)|spend_gate_test.sql"
+  # 0130 admin auth gate + 0131 monitor. These existed since 2026-07-22 and were run by NOTHING —
+  # a suite nobody runs is a suite nobody trusts, and both cover the aal2 choke point that every
+  # admin RPC (including the marketplace ones) leans on.
+  "admin auth-gate (0130)|admin_auth_test.sql"
+  "admin monitor (0131)|admin_monitor_test.sql"
+  # 0166/0167 trainer-funded access — the grant/expiry mechanics the marketplace now shares.
+  "trainer-funded (0166-0167)|trainer_funded_test.sql"
+  # 0196 Trust Pass rewards. An operator can move an athlete's score without the athlete logging,
+  # so the grant/spend walls are pinned here rather than trusted to review.
+  "trust-pass (0196)|pass_test.sql"
+)
 
-# 0169/0170/0171 audit fixes (security audit 2026-07-30): code entropy, the staff-code attempt
-# budget, storage mime/size bounds, and the has_premium_access grant. Needs >=3 profiles to exist
-# (it picks three actors out of `profiles`), so it is skipped rather than failed on an empty db.
-echo "==> audit-fix suite (0169-0171)"
-run_sql code_entropy_and_limits_test.sql
+echo "==> SQL suites against: ${DB%%\?*}"
 
-# 0174: the spend gate reserves what it approves — the read-then-decide race the 2026-07-30
-# audit deferred. Needs only app_config; safe on an empty db.
-echo "==> spend-gate suite (0174)"
-run_sql spend_gate_test.sql
+PASSED=(); FAILED=()
+for entry in "${SUITES[@]}"; do
+  label="${entry%%|*}"; file="${entry##*|}"
+  echo ""
+  echo "==> ${label}  (${file})"
+  # The `if` is load-bearing: it suspends errexit for this call so a red suite records a verdict
+  # instead of killing the run.
+  if run_sql "$file"; then PASSED+=("$label"); else FAILED+=("$label"); fi
+done
 
-# 0130 admin auth gate + 0131 monitor. These existed since 2026-07-22 and were run by NOTHING —
-# a suite nobody runs is a suite nobody trusts, and both cover the aal2 choke point that every
-# admin RPC (including the marketplace ones) leans on.
-echo "==> admin auth-gate suite (0130)"
-run_sql admin_auth_test.sql
+echo ""
+echo "──────── ${#SUITES[@]} SQL suites ────────"
+for s in "${PASSED[@]:-}"; do [ -n "$s" ] && echo "  PASS  $s"; done
+for s in "${FAILED[@]:-}"; do [ -n "$s" ] && echo "  FAIL  $s"; done
+echo ""
 
-echo "==> admin monitor suite"
-run_sql admin_monitor_test.sql
-
-# 0166/0167 trainer-funded access — the grant/expiry mechanics the marketplace now shares.
-echo "==> trainer-funded suite (0166-0167)"
-run_sql trainer_funded_test.sql
-
-# 0196 Trust Pass rewards. An operator can move an athlete's score without the athlete logging,
-# so the grant/spend walls are pinned here rather than trusted to review.
-echo "==> trust-pass suite (0196)"
-run_sql pass_test.sql
+if [ ${#FAILED[@]} -gt 0 ]; then
+  echo "✗ ${#FAILED[@]} of ${#SUITES[@]} SQL suites failed: ${FAILED[*]}" >&2
+  exit 1
+fi
+echo "✓ all ${#SUITES[@]} SQL suites passed."

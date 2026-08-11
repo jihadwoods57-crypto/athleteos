@@ -604,13 +604,19 @@ export const notifSettings = {
    Every control writes straight through act.setCoachNotifPrefs (merge + save + resync + the
    opt-out mirror) — this screen never touches RT.coachNotifPrefs directly. */
 export const coachNotifSettings = {
-  nav: 'coach', tab: 'profile',
+  // `operator`, not `coach`. trainerProfile links this screen too (screens/roles.js), but a
+  // hardcoded nav:'coach' made navAdmits() refuse a trainer, so the router bounced them to their
+  // Home tab and Practice HQ → Notifications was a dead tap — the trainer could never open their
+  // notification preferences from anywhere in the UI. Same defect, same fix as deleteAccount
+  // below and coach-insights: `operator` admits both roles AND lights the right tab bar, since
+  // the coach and trainer NAVS share tab ids by design.
+  nav: 'operator', tab: 'profile',
   render() {
     const p = normalizeCoachPrefs(RT.coachNotifPrefs);
     const qf = Math.round(p.quietFrom / 60); // 21 | 22 | 23
     const qt = Math.round((p.quietTo != null ? p.quietTo : 7 * 60) / 60); // resume hour
     return `
-    ${backHead('Notifications', 'When and how you get alerts about your team.', 'coach-profile')}
+    ${backHead('Notifications', 'When and how you get alerts about your team.', roleProfileRoute())}
 
     <div class="eyebrow">Quick setup</div>
     <div class="chip-row" id="cns-preset">

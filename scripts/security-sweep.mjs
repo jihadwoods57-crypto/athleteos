@@ -46,17 +46,37 @@ try {
 }
 
 // 3. Adversarial RLS / authorization suite. Needs a local Postgres with migrations (supabase start
-//    → :54322). NEVER prod. If psql/DB is unreachable, mark skipped rather than fail.
-try {
-  run('psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -c "select 1"', { timeout: 15000 });
+//    → :54322). NEVER prod. If the DB is genuinely unreachable, mark skipped rather than fail.
+//
+//    The reachability probe used to be a bare `psql ... -c "select 1"`. psql is not on PATH on
+//    Windows, which is this founder's machine — so the probe threw every time, the most important
+//    check in the sweep was reported "⚪ skipped", and skipped never fails. The single check this
+//    tool exists for had been silently not running here.
+//
+//    supabase/tests/run.sh already solved exactly this: psql when present, otherwise `docker exec`
+//    into the local Supabase container. The probe just never got the same treatment. It does now —
+//    and "skipped" is reserved for the case where BOTH routes are unavailable.
+const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+const CONTAINER = process.env.SUPABASE_DB_CONTAINER || 'supabase_db_onstandard';
+function dbReachable() {
+  try { run(`psql "${DB_URL}" -c "select 1"`, { timeout: 15000 }); return true; } catch { /* fall through */ }
+  try {
+    const names = run('docker ps --format "{{.Names}}"', { timeout: 15000 });
+    if (!names.split(/\r?\n/).some((n) => n.trim() === CONTAINER)) return false;
+    run(`docker exec -i ${CONTAINER} psql "postgresql://postgres:postgres@127.0.0.1:5432/postgres" -c "select 1"`, { timeout: 20000 });
+    return true;
+  } catch { return false; }
+}
+
+if (dbReachable()) {
   try {
     run('bash supabase/tests/run.sh');
     checks.rls_authz = { ok: true, detail: 'all authorization boundaries held' };
   } catch (e) {
     checks.rls_authz = { ok: false, detail: (e.stdout || e.stderr || e.message || '').toString().slice(-1500) };
   }
-} catch {
-  checks.rls_authz = { ok: null, detail: 'skipped: local Supabase db not reachable (run `supabase start`)' };
+} else {
+  checks.rls_authz = { ok: null, detail: `skipped: no psql on PATH and container '${CONTAINER}' not running (run \`supabase start\`)` };
 }
 
 // ---- compare to baseline: flag only NEWLY broken ----

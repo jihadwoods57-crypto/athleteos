@@ -167,4 +167,42 @@ assert.strictEqual(navFor(OPERATOR, undefined), 'coach');
   }
 }
 
+/* ---------------- an operator settings screen must admit BOTH operators ----------------
+   Same defect as delete-account above, found again on 2026-08-10: `coachNotifSettings` declared a
+   hardcoded `nav: 'coach'`, so navAdmits() refused a trainer and the router bounced them to their
+   Home tab. trainerProfile links this screen (screens/roles.js, the "Notifications — Briefings,
+   alerts, quiet hours" row in Practice HQ), which made it a DEAD TAP: a trainer had no path to
+   their own notification preferences from anywhere in the UI, and nothing threw, logged, or
+   painted a not-found screen.
+
+   Note this is asserted per-screen rather than by walking every data-go link in the codebase. That
+   walk was tried and abandoned: role-adaptive screens declare `nav` as a GETTER over roleNav(), so
+   a static scan reads them all as athlete-only and reports ~157 "dead taps" that are nothing of the
+   sort. A lint that cries wolf gets ignored, which is the failure this repo has been paying for
+   all week — better a short list of real screens, asserted honestly. */
+{
+  const { RT } = await import('./state.js');
+  const before = RT.authRole;
+  // Screens an operator reaches from their own profile/HQ that are shared by both books.
+  const SHARED = ['coach-notif-settings'];
+  try {
+    for (const route of SHARED) {
+      const mod = screens[route];
+      assert.ok(mod, `${route} must stay registered`);
+      for (const role of ['coach', 'trainer']) {
+        RT.authRole = role;
+        assert.ok(navAdmits(mod, role), `a signed-in ${role} must be able to render ${route}`);
+        // It must also land in that operator's own shell, not the other one's.
+        assert.strictEqual(navFor(mod, role), role,
+          `${route} must render inside the ${role} shell for a ${role}`);
+      }
+      // ...and it is still not an athlete screen.
+      RT.authRole = 'athlete';
+      assert.ok(!navAdmits(mod, 'athlete'), `${route} must not admit an athlete`);
+    }
+  } finally {
+    RT.authRole = before;
+  }
+}
+
 console.log('router role matrix: all assertions passed');
