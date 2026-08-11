@@ -1414,7 +1414,21 @@ export const thread = {
       const fetched = await roles.fetchMealComments(M.mealId);
       if (myGen !== gen) return;
       if (fetched && fetched.error) { showThreadError(); return; }
-      comments = fetched; if (statusEl) statusEl.remove(); paint();
+      comments = fetched; if (statusEl) statusEl.remove();
+      // Professional corrections ride the thread (0199, meta t:'pro_correction'): the pro's
+      // device corrected the meals ROW; this device owns today's slotMacros and the score, so
+      // the correction applies HERE, once per comment, through the same engines as every other
+      // correction. A full re-render (not just paint) so the corrected numbers reach the
+      // nutrition strip above the thread — applyProCorrection's applied-ids marker makes the
+      // re-mounted refresh a no-op, so this cannot loop.
+      let proApplied = false;
+      for (const c of Array.isArray(comments) ? comments : []) {
+        if (c && c.meta && c.meta.t === 'pro_correction') {
+          if (act.applyProCorrection(M.slot, c)) proApplied = true;
+        }
+      }
+      if (proApplied && window.__render) { window.__render(); return; }
+      paint();
     };
     await refresh();
 

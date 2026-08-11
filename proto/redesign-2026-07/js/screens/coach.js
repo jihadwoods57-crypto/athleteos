@@ -8,7 +8,7 @@ import {
 } from '../chat-attach.js';
 import { coachSetupState, coachSetupSteps } from './coach-home.js';
 import * as roles from '../roles.js';
-import { openingMessage, qualityBand, qualityReason, scoreRubric, reactionGroups, threadMessages, privateNotes, REACTION_EMOJI } from '../meal-intel.js';
+import { openingMessage, qualityBand, qualityReason, scoreRubric, reactionGroups, threadMessages, privateNotes, REACTION_EMOJI, applyMealCorrection, applyFoodRemoval, normalizeDetected } from '../meal-intel.js';
 import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpener, isEscalated, quotedFor } from '../chat-view.js';
 import { openImageViewer } from '../image-viewer.js';
 import { wireTapback } from '../tapback.js';
@@ -1412,6 +1412,8 @@ async function loadInboxData(teamId, athleteIds, force) {
 const INBOX_CAT_KEY = 'onstd-inbox-cat-v1';
 const ALL_INBOX_CATEGORIES = [
   ['needsResponse', 'Needs response'],
+  // 0199: the flame's landing place — "your Monday starts with the flags, not the firehose".
+  ['flagged', 'Flagged'],
   ['athletes', 'Athletes'],
   ['mealReviews', 'Meal reviews'],
   ['staff', 'Staff'],
@@ -1537,6 +1539,7 @@ function joinRow(q) {
 }
 const INBOX_EMPTY = {
   needsResponse: 'No threads need you right now.',
+  flagged: 'Nothing flagged. Flame a meal from its thread and it waits for you here.',
   athletes: 'No athlete meal threads yet — logs land here as they come in.',
   mealReviews: "Nothing unopened — you've seen every log so far.",
   staff: 'No other staff on your team yet.',
@@ -2409,6 +2412,13 @@ let MC = null;            // { mealId, comments }
 // (kind:'handled', reason_key:'meal:'+id) — what the inbox categorizer reads; this Set keeps
 // the button honest across re-renders without a refetch.
 let RESOLVED_MEALS = new Set();
+// Flagged-for-follow-up meals (0199) — same posture as RESOLVED_MEALS: seeded from
+// coach_interventions (latest row wins on reason_key 'flag:meal:'+id) on thread open, kept
+// honest across re-renders by this Set. The flame is the operator's "needs a human later".
+let FLAGGED_MEALS = new Set();
+// Correct-the-read panel state: which meal's panel is open, and its one status line.
+let FIX_FOR = null;
+let FIX_NOTE = '';
 /* Message clock + day key for the coach thread. Timestamps were athlete-side only, so a coach
    reading a conversation could not tell whether an athlete asked something an hour ago or last
    Tuesday — which is exactly what decides whether it still needs answering. */
@@ -2594,7 +2604,35 @@ export const coachMeal = {
         <div class="macro"><div class="mv">${t}${meal.fat || 0}g</div><div class="mk">Fat</div></div>
         <div class="macro"><div class="mv">${t}${meal.kcal || 0}</div><div class="mk">Calories</div></div>
       </div>
-      ${meal.fiber != null ? `<div class="est-note" style="margin-top:6px">~${meal.fiber}g fiber estimated.</div>` : ''}`;
+      ${meal.fiber != null ? `<div class="est-note" style="margin-top:6px">~${meal.fiber}g fiber estimated.</div>` : ''}
+      ${/* Correct the read (0199): the professional lane ob2-nutrition promised. The numbers are
+            computed on THIS device by the same deterministic machinery the athlete's own
+            corrections use (applyFoodRemoval / applyMealCorrection); pro_correct_meal only
+            authorizes, clamps and persists; the athlete's day score follows through the thread
+            payload when they next open the meal. */''}
+      <div class="est-note" style="margin-top:6px"><span class="link" id="cm-correct" role="button">${FIX_FOR === mealId ? 'Close the correction panel' : 'Correct the read'}</span></div>
+      ${FIX_FOR === mealId ? (() => {
+        const rich = normalizeDetected(meal.detected);
+        return `
+      <section class="card pad" id="cm-fix" style="margin-top:8px;padding-top:12px">
+        <div class="eyebrow" style="margin:0 0 8px">Detected foods · tap × to remove a wrong line</div>
+        ${rich.length ? rich.map((d) => `
+        <div class="food-row">
+          <span class="conf-dot ${esc(d.confidence || 'high')}"></span>
+          <span class="fr-name">${esc(d.name)}</span>
+          <span class="fr-qty">${d.quantity ? esc(d.quantity) : ''}</span>
+          <button class="fx-chip" data-cm-rm="${esc(d.name)}" aria-label="Remove ${esc(d.name)}">×</button>
+        </div>`).join('') : `<div class="est-note">No itemized foods on this read, so there is nothing to remove. The portion check below still works.</div>`}
+        <div class="eyebrow" style="margin:12px 0 8px">Portion check · the whole plate</div>
+        <div class="fx-chips">
+          <button class="fx-chip" data-cm-portion="right">Looks right</button>
+          <button class="fx-chip" data-cm-portion="larger">Bigger than that</button>
+          <button class="fx-chip" data-cm-portion="three-quarters">Smaller than that</button>
+        </div>
+        <div id="cm-fix-note" class="est-note" style="margin-top:10px;min-height:16px">${esc(FIX_NOTE || `Your correction becomes part of the record, logged under your name. The ${CD.noun}'s day score updates when they next open this meal.`)}</div>
+        <div class="rub-fine">Removing a line subtracts that item's own numbers; a portion mark re-estimates the whole plate. The AI's original read stays on record either way.</div>
+      </section>`;
+      })() : ''}`;
     })()}` : ''}
 
     ${foods.length ? `<div class="eyebrow">Detected</div><div class="foodchips">${foods.map(f => `<span class="foodchip"><span class="dot"></span>${esc(typeof f === 'string' ? f : f.name)}</span>`).join('')}</div>` : ''}
@@ -2702,6 +2740,12 @@ export const coachMeal = {
         <button class="btn ghost sm" id="cm-resolve">${RESOLVED_MEALS.has(mealId) ? `Resolved ${icon('check', 12)}` : 'Mark resolved'}</button>
         <span id="cm-resolve-note" class="tm-note"></span>
       </div>
+      ${/* The flame (0199): "needs a human follow-up", the semantic opposite of resolved.
+            Flagged meals lead the Flagged inbox category and the dietitian queue. */''}
+      <div class="tm-row" style="align-items:center">
+        <button class="btn ghost sm" id="cm-flag"${FLAGGED_MEALS.has(mealId) ? ' style="color:var(--amber-bright);border-color:var(--amber-border)"' : ''}>${icon('flame', 12)} ${FLAGGED_MEALS.has(mealId) ? 'Flagged · tap to clear' : 'Flag for follow-up'}</button>
+        <span id="cm-flag-note" class="tm-note"></span>
+      </div>
       <div class="tm-note" id="rx-note">Press and hold any message to react to it.</div>
     </div>`;
     })()}
@@ -2737,6 +2781,11 @@ export const coachMeal = {
     if (sub && !RESOLVED_MEALS.has(sub)) {
       roles.fetchMealResolved(sub).then(done => {
         if (done) { RESOLVED_MEALS.add(sub); if (location.hash === `#coach-meal/${sub}`) window.__render(); }
+      }).catch(() => {});
+    }
+    if (sub && !FLAGGED_MEALS.has(sub)) {
+      roles.fetchMealFlagged(sub).then(on => {
+        if (on) { FLAGGED_MEALS.add(sub); if (location.hash === `#coach-meal/${sub}`) window.__render(); }
       }).catch(() => {});
     }
     const threadRetry = root.querySelector('#coach-thread-retry');
@@ -2915,6 +2964,91 @@ export const coachMeal = {
       if (resolveNote) resolveNote.textContent = 'Resolved.';
       setTimeout(() => { location.hash = '#coach-inbox'; }, 800);
     });
+    // ---- Flag for follow-up (0199): the flame toggle. Append-only table, latest row wins —
+    // flag sets kind:'flag', clearing appends kind:'handled' on the same reason_key. ----
+    const flagBtn = root.querySelector('#cm-flag');
+    const flagNote = root.querySelector('#cm-flag-note');
+    if (flagBtn) flagBtn.addEventListener('click', async () => {
+      const meal0 = mealById(sub);
+      const athleteId0 = meal0 ? meal0.athlete_id : (MC && MC.comments[0] && MC.comments[0].athlete_id);
+      if (!athleteId0) { if (flagNote) flagNote.textContent = "Couldn't flag — try again."; return; }
+      const wasOn = FLAGGED_MEALS.has(sub);
+      flagBtn.disabled = true;
+      const ok = await logBookIntervention({ athleteId: athleteId0, kind: wasOn ? 'handled' : 'flag', reasonKey: 'flag:meal:' + sub });
+      flagBtn.disabled = false;
+      if (!ok) { if (flagNote) flagNote.textContent = "Couldn't save the flag — try again."; return; }
+      if (wasOn) FLAGGED_MEALS.delete(sub); else FLAGGED_MEALS.add(sub);
+      window.__render();
+    });
+    // ---- Correct the read (0199): deterministic on THIS device, persisted via pro_correct_meal,
+    // announced in the thread with the machine payload the athlete's device applies. ----
+    const metaFromRow = (row) => {
+      const rich = normalizeDetected(row.detected);
+      return {
+        mealId: row.id,
+        protein: row.protein || 0, carbs: row.carbs || 0, fat: row.fat || 0, kcal: row.kcal || 0,
+        fiber: row.fiber || 0, quality: row.quality != null ? row.quality : null,
+        detectedRich: rich, detected: rich.map((d) => d.name),
+        corrections: [], minutesLate: row.minutes_late || 0,
+      };
+    };
+    const persistPro = async (r, payload, confirmOnly) => {
+      const row = MEAL.id === sub && MEAL.row ? MEAL.row : null;
+      if (!row) { FIX_NOTE = 'Still loading this meal. Try again in a second.'; window.__render(); return; }
+      const fields = confirmOnly ? {} : {
+        protein: r.meta.protein, carbs: r.meta.carbs, fat: r.meta.fat, kcal: r.meta.kcal,
+        fiber: r.meta.fiber || 0, quality: r.meta.quality != null ? r.meta.quality : null,
+        detected: r.meta.detectedRich,
+      };
+      const res = await roles.proCorrectMeal(sub, fields, r.summary);
+      if (!res.ok) { FIX_NOTE = res.error; window.__render(); return; }
+      // The thread bubble carries BOTH the human sentence (rendered under the operator's own
+      // name, per the demo's "logged under your name") and the machine payload (meta.c) the
+      // athlete's device applies through its own correction engines.
+      const text = confirmOnly
+        ? `Reviewed the read: ${r.summary}.`
+        : `Corrected the read: ${r.summary}. Now ~${r.meta.protein}g protein · ~${r.meta.kcal} cal.`;
+      await roles.postMealComment(sub, row.athlete_id, RT.userId, 'coach', text, 'message', { t: 'pro_correction', c: payload });
+      if (!confirmOnly) {
+        MEAL.row = {
+          ...row, protein: r.meta.protein, carbs: r.meta.carbs, fat: r.meta.fat, kcal: r.meta.kcal,
+          fiber: r.meta.fiber || 0, quality: r.meta.quality != null ? r.meta.quality : row.quality,
+          detected: r.meta.detectedRich,
+        };
+      }
+      FIX_NOTE = confirmOnly ? 'Sign-off logged in the thread.' : `${r.summary} · saved and posted in the thread.`;
+      loadMealComments(sub, true);
+      window.__render();
+    };
+    const correctLink = root.querySelector('#cm-correct');
+    if (correctLink) correctLink.addEventListener('click', () => {
+      FIX_FOR = FIX_FOR === sub ? null : sub;
+      FIX_NOTE = '';
+      window.__render();
+    });
+    root.querySelectorAll('[data-cm-rm]').forEach((b) => b.addEventListener('click', async () => {
+      const nm = b.getAttribute('data-cm-rm');
+      const row = MEAL.id === sub && MEAL.row ? MEAL.row : null;
+      if (!row) return;
+      b.disabled = true;
+      const r = applyFoodRemoval(metaFromRow(row), nm, { by: 'pro', minutesLate: row.minutes_late || 0 });
+      if (!r) { FIX_NOTE = "That line isn't on the read any more."; window.__render(); return; }
+      await persistPro(r, { edit: { kind: 'remove', name: nm } }, false);
+    }));
+    root.querySelectorAll('[data-cm-portion]').forEach((b) => b.addEventListener('click', async () => {
+      const v = b.getAttribute('data-cm-portion');
+      const row = MEAL.id === sub && MEAL.row ? MEAL.row : null;
+      if (!row) return;
+      b.disabled = true;
+      if (v === 'right') {
+        await persistPro({ meta: metaFromRow(row), summary: 'Portion confirmed' }, { kind: 'other', detail: 'Portion confirmed on review' }, true);
+        return;
+      }
+      const r = applyMealCorrection(metaFromRow(row), { kind: 'portion', value: v });
+      b.disabled = false;
+      if (!r) { FIX_NOTE = 'Nothing to adjust on this read.'; window.__render(); return; }
+      await persistPro(r, { kind: 'portion', value: v }, false);
+    }));
     // REACTIONS, ONE IMPLEMENTATION, ONE GESTURE. There used to be two of these: a `.rx-strip`
     // above the quick actions with its own busy-lock and error line, and a `.qa-row` below them
     // with toggle semantics and neither. Both posted the same kind='reaction' row. They are now a

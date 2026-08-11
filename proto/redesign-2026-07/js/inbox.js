@@ -37,6 +37,25 @@ function resolvedMealIdSet(interventions) {
   return out;
 }
 
+/** Latest-wins flag state per meal (0199): reason_key 'flag:meal:<id>' rows — kind 'flag' set
+ *  it, a later 'handled' on the SAME key cleared it. Input arrives created_at DESC (the
+ *  fetcher's order), so the first row seen per meal IS the latest; the table itself is
+ *  append-only by design. Exported: the dietitian board reads the same truth. */
+export function flagStateByMeal(interventions) {
+  const state = {};
+  for (const iv of (interventions || [])) {
+    if (!iv || typeof iv.reason_key !== 'string' || !iv.reason_key.startsWith('flag:meal:')) continue;
+    const id = iv.reason_key.slice(10);
+    if (!(id in state)) {
+      state[id] = {
+        kind: iv.kind, athleteId: iv.athlete_id,
+        ts: iv.created_at ? new Date(iv.created_at).getTime() : 0,
+      };
+    }
+  }
+  return state;
+}
+
 function nameFor(roster, athleteId) {
   const r = (roster || []).find(r => r && r.athleteId === athleteId);
   return (r && r.name) || 'Athlete';
@@ -106,6 +125,7 @@ export function categorizeInbox({ meals, comments, interventions, roster, pendin
   const seen = seenIds instanceof Set ? seenIds : new Set(Array.isArray(seenIds) ? seenIds : []);
   const lastRole = lastByMeal(comments);
   const resolvedIds = resolvedMealIdSet(interventions);
+  const flagState = flagStateByMeal(interventions);
 
   const tsOf = (m) => (m.logged_at ? new Date(m.logged_at).getTime() : 0);
 
@@ -171,10 +191,27 @@ export function categorizeInbox({ meals, comments, interventions, roster, pendin
   const needsResponse = [...needsResponseMeals, ...pendingRows]
     .sort((a, b) => (b.ts || 0) - (a.ts || 0));
 
+  // Flagged (0199): built from the interventions themselves, NOT from mealRows — a Monday
+  // follow-up list must survive the activity feed's short window, and the intervention row
+  // carries enough (athlete, timestamp) to render a tappable row even when the meal has aged
+  // out of `meals`. Resolving the meal clears it from here (a handled thing needs no follow-up).
+  const flagged = [];
+  for (const [id, f] of Object.entries(flagState)) {
+    if (f.kind !== 'flag' || resolvedIds.has(id)) continue;
+    const m = mealRows.find((x) => x && x.id === id);
+    const athleteId = (m && m.athlete_id) || f.athleteId;
+    flagged.push({
+      kind: 'meal', id, athleteId,
+      title: `${nameFor(roster, athleteId)} — ${(m && m.type) || 'meal'}`,
+      sub: 'Flagged for follow-up', ts: f.ts || (m ? tsOf(m) : 0),
+    });
+  }
+
   const sortDesc = (rows) => rows.sort((a, b) => (b.ts || 0) - (a.ts || 0));
 
   const counts = {
     needsResponse: needsResponse.length,
+    flagged: flagged.length,
     athletes: athletes.length,
     mealReviews: mealReviews.length,
     staff: staffRows.length,
@@ -184,6 +221,7 @@ export function categorizeInbox({ meals, comments, interventions, roster, pendin
 
   return {
     needsResponse,
+    flagged: sortDesc(flagged),
     athletes: sortDesc(athletes),
     mealReviews: sortDesc(mealReviews),
     staff: staffRows,

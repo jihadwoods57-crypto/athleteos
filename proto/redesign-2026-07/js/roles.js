@@ -85,13 +85,21 @@ export async function fetchMyConsent(athleteId) {
   } catch { return { error: true }; }
 }
 
-/** Ask a parent/guardian for consent (0008 RPC: creates/refreshes the request row + token;
-    the service-role verify endpoint flips it to verified). Returns { ok, error? }. */
+/** Ask a parent/guardian for consent. Goes through the guardian-request edge function because
+    that is the half that actually EMAILS the guardian (Resend); the raw 0008 RPC only writes the
+    pending row and token, so calling it alone records a request no parent ever hears about — the
+    exact silent dead-end that kept every minor's sync gate closed. The RPC remains the fallback
+    when the function is unreachable, and `emailed` tells the caller whether a real email left,
+    so the UI can stop claiming "sent" when it wasn't. Returns { ok, emailed?, error? }. */
 export async function requestGuardianConsent(email) {
   const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
+  const fn = await callFn('guardian-request', { guardian_email: email });
+  if (fn && fn.ok) return { ok: true, emailed: fn.emailed === true };
+  // Function unreachable or errored: record the request the old way so nothing is lost, but be
+  // honest that no email went out.
   try {
     const { error } = await c.rpc('request_guardian_consent', { guardian_email: email });
-    return error ? { ok: false, error: error.message } : { ok: true };
+    return error ? { ok: false, error: error.message } : { ok: true, emailed: false };
   } catch (e) { return { ok: false, error: (e && e.message) || 'Could not send the request.' }; }
 }
 
@@ -307,6 +315,30 @@ export async function fetchMealResolved(mealId) {
       .select('id').eq('reason_key', 'meal:' + mealId).eq('kind', 'handled').limit(1);
     return !!(data && data.length);
   } catch { return false; }
+}
+/* Is this meal currently flagged for follow-up (0199)? The table is append-only, so state is
+   "latest row wins" on reason_key 'flag:meal:<id>' — kind 'flag' set it, kind 'handled' with
+   the SAME reason_key cleared it. */
+export async function fetchMealFlagged(mealId) {
+  const c = sb(); if (!c || !mealId) return false;
+  try {
+    const { data } = await c.from('coach_interventions')
+      .select('kind').eq('reason_key', 'flag:meal:' + mealId)
+      .order('created_at', { ascending: false }).limit(1);
+    return !!(data && data.length && data[0].kind === 'flag');
+  } catch { return false; }
+}
+/* Persist a professional correction (0199 pro_correct_meal). The FIELDS are computed on the
+   operator's device by the same deterministic machinery the athlete uses (meal-intel.js) —
+   this wrapper only carries them; the server authorizes (write staff / trainer of the athlete),
+   clamps, and appends the '[Pro correction]' note marker. */
+export async function proCorrectMeal(mealId, fields, summary) {
+  const c = sb(); if (!c || !mealId) return { ok: false, error: 'You need a connection for this.' };
+  try {
+    const { error } = await c.rpc('pro_correct_meal', { p_meal: mealId, p_fields: fields, p_summary: summary });
+    if (error) return { ok: false, error: error.message || 'Could not save the correction.' };
+    return { ok: true };
+  } catch (e) { return { ok: false, error: (e && e.message) || 'Could not save the correction.' }; }
 }
 
 /* ---------------- coach → athlete review ---------------- */
@@ -1478,6 +1510,26 @@ async function callFn(name, body) {
   } catch (e) {
     return { error: String((e && e.message) || e) };
   }
+}
+
+/* ---------------- Verified Profile (0199): the recruiter-facing public page ----------------
+   All server-computed; the client only carries the athlete's intent (enable/publish/unpublish)
+   and, at publish time, the card PNG the ONE share-card renderer drew — the function stores it
+   where the tweet unfurler can reach it. Every wrapper returns { error } on failure, never throws. */
+export async function verifiedProfileStatus() {
+  return callFn('verified-profile', { action: 'status' });
+}
+export async function verifiedProfileEnable() {
+  return callFn('verified-profile', { action: 'enable' });
+}
+export async function verifiedProfilePublish(cardDataUrl) {
+  return callFn('verified-profile', { action: 'publish', card: cardDataUrl });
+}
+export async function verifiedProfileRefreshCard(cardDataUrl) {
+  return callFn('verified-profile', { action: 'refresh_card', card: cardDataUrl });
+}
+export async function verifiedProfileUnpublish() {
+  return callFn('verified-profile', { action: 'unpublish' });
 }
 
 /** Mint/resume the trainer's Stripe Connect onboarding link. Returns { url } or { error }. */

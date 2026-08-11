@@ -35,7 +35,7 @@ import { setVcUidProvider } from './commitment-data.js';
 import { factsFromCorrection, candidateFactsFromFoodChange, sameFact } from './memory.js';
 import { TOUR_IDS } from './tour-plan.js';
 import {
-  groundExtras, buildClarifications, analysisTiming, applyMealCorrection, classifyMealEvent, restrictionConflicts,
+  groundExtras, buildClarifications, analysisTiming, applyMealCorrection, applyFoodRemoval, classifyMealEvent, restrictionConflicts,
   mealQualityScore, qualityBand, qualityReason, analysisAgreesWithBand, analysisAgreesWithNumbers, stripFoodMentions, shouldVerify,
   contextForChat,
 } from './meal-intel.js';
@@ -2118,9 +2118,12 @@ export const act = {
     void this._learnFromCorrection(correction);
     // Mirror the corrected numbers onto the meals row the coach reads (athlete owns the row —
     // meals_update RLS). The original stays in the day meta's `orig`; the note carries the trail.
+    // Skipped for a PRO-sourced correction (0199): the professional's device already wrote the
+    // row through pro_correct_meal — mirroring again would only stamp an '[Athlete correction]'
+    // marker over a correction the athlete didn't make.
     const sb = window.sb;
     const mealId = r.meta.mealId;
-    if (sb && RT.userId && mealId) {
+    if (!opts.fromPro && sb && RT.userId && mealId) {
       const marker = `[Athlete correction] ${r.summary}`;
       const note = `${r.meta.note ? r.meta.note + ' · ' : ''}${marker}`.slice(0, 500);
       const fields = {
@@ -2149,7 +2152,9 @@ export const act = {
     // (Skipped for chat corrections: apply_correction already persisted the acknowledgment.)
     if (!opts.skipAiUpdate) void this._postCorrectionUpdate(slot, r);
     // A correction that moved the numbers meaningfully is worth a coach look — once per meal.
-    if (this._coachConnected() && r.kcalDelta >= 120 && !r.meta.correctionNotified) {
+    // (Not for a pro-sourced one: the professional made the correction; notifying them of
+    // their own change would be a circular ping.)
+    if (!opts.fromPro && this._coachConnected() && r.kcalDelta >= 120 && !r.meta.correctionNotified) {
       DAY.slotMacros[slot] = { ...r.meta, correctionNotified: true };
       pushDay(RT.userId);
       void notifyMyCoach({
@@ -2160,6 +2165,39 @@ export const act = {
       });
     }
     return r;
+  },
+  /* Apply a PROFESSIONAL's correction found in the meal thread (0199). The pro's device already
+     wrote the meals ROW through pro_correct_meal — but the athlete's copy of TODAY (slotMacros,
+     and therefore the day score) lives on this device and only moves HERE, through the same
+     deterministic engines every other correction uses. Applied exactly once per comment id
+     (proApplied on the slot meta, which rides days.checkin like the rest of the audit trail);
+     an unmatched correction is still marked consumed so it can never retry forever. */
+  applyProCorrection(slot, comment) {
+    try {
+      if (!comment || !comment.id || comment.role !== 'coach') return false;
+      if (!comment.meta || comment.meta.t !== 'pro_correction') return false;
+      const meta = DAY.slotMacros && DAY.slotMacros[slot];
+      if (!meta || !DAY.meals[slot]) return false;
+      const done = Array.isArray(meta.proApplied) ? meta.proApplied : [];
+      if (done.includes(comment.id)) return false;
+      const c = comment.meta.c || {};
+      let applied = false;
+      if (c.edit && c.edit.kind === 'remove' && c.edit.name) {
+        const r = applyFoodRemoval(meta, c.edit.name, { by: 'pro', minutesLate: meta.minutesLate || 0 });
+        if (r) { DAY.slotMacros[slot] = r.meta; applied = true; }
+      } else if (c.kind) {
+        // Chip/portion corrections ride the normal reducer; fromPro skips the meals mirror
+        // (the row is already corrected), the AI re-read (the pro's own bubble explains), and
+        // the coach notification (the pro IS the coach).
+        void this.correctMeal(slot, c, { skipAiUpdate: true, fromPro: true });
+        applied = true;
+      }
+      const cur = DAY.slotMacros[slot];
+      if (cur) { cur.proApplied = [...done, comment.id].slice(-12); }
+      pushDay(RT.userId);
+      save();
+      return applied;
+    } catch { return false; }
   },
   /** Ask the AI to re-read the plate out loud after the athlete corrected it.
    *
@@ -2763,7 +2801,9 @@ export const act = {
     RT.consent = { status: 'pending', guardianEmail: addr };
     save();
     this._armSyncGate();
-    return { ok: true };
+    // Pass `emailed` through so the guardian screen can be honest when the request was only
+    // recorded (function unreachable / email vendor down) and no parent actually got an email.
+    return { ok: true, emailed: r.emailed !== false };
   },
   /* Read the athlete's REAL linked coach (their team + the head coach's display name) into
      RT.myCoach. Confirmed "no team link" clears it (an athlete who left a team must not keep

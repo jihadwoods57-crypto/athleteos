@@ -115,6 +115,51 @@ export function applyFoodEdit(result, op) {
   }
 }
 
+/** Remove one detected line and take its numbers with it — the professional-lane removal
+ *  (ob2-nutrition's "tap × to remove a wrong line"), shared by the operator meal screen and
+ *  the athlete-side reconciliation so the math exists exactly ONCE. Deterministic: when the
+ *  item carries per-food numbers they are subtracted (clamped at zero) and the meal re-scores
+ *  through mealQualityScore, same as an item correction; an unpriced item leaves the totals
+ *  standing and the summary says so out loud (never a silent fake recompute). Follows
+ *  applyMealCorrection's contract: orig frozen once, corrections log capped at 8, src never
+ *  mutated. Returns null when the name matches nothing. */
+export function applyFoodRemoval(src, name, { by, minutesLate } = {}) {
+  if (!src || !name) return null;
+  const orig = src.orig || {
+    protein: src.protein || 0, carbs: src.carbs || 0, fat: src.fat || 0, kcal: src.kcal || 0,
+    fiber: src.fiber || 0, quality: src.quality != null ? src.quality : null,
+  };
+  const next = {
+    ...src, orig,
+    detectedRich: Array.isArray(src.detectedRich) ? src.detectedRich.map((d) => ({ ...d })) : [],
+    detected: Array.isArray(src.detected) ? src.detected.slice() : [],
+  };
+  const clean = String(name).trim();
+  const item = next.detectedRich.find((d) => d && d.name === clean);
+  if (!item) return null;
+  if (!applyFoodEdit(next, { kind: 'remove', name: clean })) return null;
+  const per = item.per && typeof item.per === 'object' ? item.per : null;
+  if (per) {
+    next.protein = Math.max(0, Math.round((next.protein || 0) - (Number(per.protein) || 0)));
+    next.carbs = Math.max(0, Math.round((next.carbs || 0) - (Number(per.carbs) || 0)));
+    next.fat = Math.max(0, Math.round((next.fat || 0) - (Number(per.fat) || 0)));
+    next.kcal = Math.max(0, Math.round((next.kcal || 0) - (Number(per.kcal) || 0)));
+    const q = mealQualityScore({
+      macros: next, fiber: next.fiber || 0, detected: next.detectedRich,
+      minutesLate: minutesLate != null ? minutesLate : (next.minutesLate || 0),
+    });
+    if (q != null) { next.quality = q; delete next.qualityAdj; }
+  }
+  next.corrections = [
+    ...(Array.isArray(src.corrections) ? src.corrections : []),
+    { kind: 'item', item: item.name, removed: true, ...(by ? { by } : {}) },
+  ].slice(-8);
+  const summary = per
+    ? `Removed ${item.name}`
+    : `Removed ${item.name} (it had no itemized numbers, so the totals stand)`;
+  return { meta: next, summary };
+}
+
 /** True when the staged plate was touched by the athlete (row edited/added, or any food
  *  removed) — drives the honest edit hint next to the breakdown ("recalculated" when the
  *  per-food recompute ran; "macros stay the AI's estimate" when it couldn't). */

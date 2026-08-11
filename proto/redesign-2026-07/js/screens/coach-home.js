@@ -9,6 +9,7 @@ import { teamPulse } from '../status.js';
 import { scoreColor } from '../score-band.js';
 import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
 import { paintBoard } from './coach-commitments.js';
+import { flagStateByMeal } from '../inbox.js';
 import { paintStandardsBoard } from './coach-connected.js';
 import { maybeStartTour } from '../tour.js';
 
@@ -416,7 +417,7 @@ function pulseCard(rows, statuses) {
    only exists on a practice whose discipline is 'nutrition'. Data: fetchTeamActivity WITH
    athleteIds (roles.js's capacity note: omitting ids defeats the meals index). 60s cache so
    tab-flipping costs one fetch a minute, same posture as the PAST cache on home. */
-const NUT = { key: '', rows: null, at: 0 };
+const NUT = { key: '', rows: null, flags: {}, at: 0 };
 async function paintNutritionBoard(root) {
   const slot = root.querySelector('#nut-board-slot');
   if (!slot) return;
@@ -426,21 +427,36 @@ async function paintNutritionBoard(root) {
   const key = ids.slice().sort().join(',');
   let meals = NUT.rows;
   if (NUT.key !== key || Date.now() - NUT.at > 60000) {
-    meals = await roles.fetchTeamActivity(roles.daysAgoISO(6), 400, ids).catch(() => null);
+    // Meals + flags fetched together on the same cadence: the flame state (0199) rides
+    // coach_interventions, latest row wins per 'flag:meal:<id>' — flagStateByMeal is the same
+    // reader the inbox categorizer uses, so the two surfaces can never disagree.
+    const [fetched, iv] = await Promise.all([
+      roles.fetchTeamActivity(roles.daysAgoISO(6), 400, ids).catch(() => null),
+      roles.fetchRecentInterventions(RT.practice && RT.practice.id, roles.daysAgoISO(13), 'practice').catch(() => []),
+    ]);
+    meals = fetched;
     if (meals === null && NUT.key === key) meals = NUT.rows; // keep last-known on a flaky fetch
-    NUT.key = key; NUT.rows = meals || []; NUT.at = Date.now();
+    NUT.key = key; NUT.rows = meals || []; NUT.flags = flagStateByMeal(iv); NUT.at = Date.now();
   }
   if (!slot.isConnected) return;
   meals = NUT.rows || [];
   const nameOf = {};
   for (const r of rows) nameOf[r.athleteId] = r.name || 'Client';
   const seen = new Set(RT.coachSeenMealIds || []);
+  const isFlagged = (id) => !!(NUT.flags[id] && NUT.flags[id].kind === 'flag');
 
-  // Queue: newest first, unopened surfaced before opened so review work leads.
+  // Queue: flags lead (the demo's "your Monday starts with the flags"), then unopened, then
+  // the rest — newest first within each band.
   const byNew = meals.slice().sort((a, b) => String(b.logged_at || '').localeCompare(String(a.logged_at || '')));
-  const queue = [...byNew.filter((m) => !seen.has(m.id)), ...byNew.filter((m) => seen.has(m.id))].slice(0, 6);
+  const queue = [
+    ...byNew.filter((m) => isFlagged(m.id)),
+    ...byNew.filter((m) => !isFlagged(m.id) && !seen.has(m.id)),
+    ...byNew.filter((m) => !isFlagged(m.id) && seen.has(m.id)),
+  ].slice(0, 6);
   const unopened = byNew.filter((m) => !seen.has(m.id)).length;
+  const flaggedCount = byNew.filter((m) => isFlagged(m.id)).length;
   const qRows = queue.map((m) => {
+    const flagged = isFlagged(m.id);
     const bits = [
       m.protein != null ? `~${m.protein}g protein` : null,
       m.quality != null ? `meal ${m.quality}` : null,
@@ -448,9 +464,9 @@ async function paintNutritionBoard(root) {
     ].filter(Boolean);
     return `
     <div class="lrow" data-go="coach-meal/${esc(m.id)}" style="cursor:pointer">
-      <div class="lic" style="background:${seen.has(m.id) ? 'var(--surface-2)' : 'var(--blue-surface)'};color:${seen.has(m.id) ? 'var(--text-3)' : 'var(--blue-bright)'}">${icon('bowl', 15)}</div>
+      <div class="lic" style="background:${flagged ? 'var(--amber-surface)' : seen.has(m.id) ? 'var(--surface-2)' : 'var(--blue-surface)'};color:${flagged ? 'var(--amber-bright)' : seen.has(m.id) ? 'var(--text-3)' : 'var(--blue-bright)'}">${icon(flagged ? 'flame' : 'bowl', 15)}</div>
       <div class="lm"><div class="lt">${esc((nameOf[m.athlete_id] || 'Client').split(' ')[0])} · ${esc(cap(m.type || 'Meal'))}</div>
-      <div class="ls">${esc(bits.join(' · '))}${seen.has(m.id) ? '' : ' · not yet opened'}</div></div>
+      <div class="ls">${esc(bits.join(' · '))}${flagged ? ' · flagged' : seen.has(m.id) ? '' : ' · not yet opened'}</div></div>
       ${icon('chevron', 14, 'style="color:var(--text-3)"')}
     </div>`;
   }).join('');
@@ -480,7 +496,7 @@ async function paintNutritionBoard(root) {
   }).join('');
 
   slot.innerHTML = `
-    <div class="eyebrow co-major" style="display:flex;justify-content:space-between;align-items:baseline"><span>Meal review</span>${unopened ? `<span style="color:var(--blue-bright)">${unopened} to review</span>` : ''}</div>
+    <div class="eyebrow co-major" style="display:flex;justify-content:space-between;align-items:baseline"><span>Meal review</span>${flaggedCount ? `<span style="color:var(--amber-bright)">${flaggedCount} flagged</span>` : unopened ? `<span style="color:var(--blue-bright)">${unopened} to review</span>` : ''}</div>
     ${queue.length ? `<section class="card" style="padding:6px 16px">${qRows}</section>
     <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:6px 2px 4px"><span class="link" data-go="trainer-inbox" role="button">The full queue lives in your Inbox</span></div>`
     : `<div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:0 2px 4px;line-height:1.4">No client meals in the last 7 days. Every logged meal lands here for review.</div>`}
