@@ -578,7 +578,7 @@ const steps = [
         });
         $('#ob-code-save').addEventListener('click', async (e) => {
           const raw = ((input && input.value) || '').trim().toUpperCase();
-          if (!/^[A-Z0-9]{4,12}$/.test(raw)) { status.style.color = 'var(--red)'; status.textContent = '4–12 letters or numbers only (A–Z, 0–9).'; return; }
+          if (!/^[A-Z0-9]{6,12}$/.test(raw)) { status.style.color = 'var(--red)'; status.textContent = '6–12 letters or numbers only (A–Z, 0–9).'; return; }
           e.target.disabled = true;
           status.style.color = 'var(--text-3)'; status.textContent = 'Saving…';
           const r = await setMyTeamCode(raw);

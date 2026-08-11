@@ -1414,6 +1414,14 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .day-bars{margin-top:12px;display:flex;flex-direction:column;gap:10px;padding:0 2px}
 .day-bars .cons-row .k{font-size:12.5px}
 .day-bars .pace{margin-top:2px}
+/* ---- Dietitian board (0197 discipline lens): per-client 7-day fueling strips ---- */
+.nb-row{display:grid;grid-template-columns:64px 1fr auto;align-items:center;gap:10px;padding:7px 0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.nb-row + .nb-row{border-top:1px solid var(--hairline-soft)}
+.nb-name{font-size:var(--t-sm);font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nb-bars{display:flex;align-items:flex-end;gap:3px;height:26px}
+/* protein is a score surface's cousin, not a status — it wears the sweep, same as the day bars */
+.nb-bars i{display:block;width:9px;border-radius:2.5px 2.5px 1px 1px;background:linear-gradient(180deg,var(--teal,#39c6d6),var(--blue))}
+.nb-avg{font-size:var(--t-xs);font-weight:700;color:var(--text-3);white-space:nowrap;font-variant-numeric:tabular-nums}
 /* The photo is the page's subject — give it hero height on the logged-meal screen only */
 .meal-screen .photo-hero{height:248px}
 /* ---- Read more: a long AI bubble rests at four lines; the expander is quiet ---- */

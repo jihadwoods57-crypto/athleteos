@@ -361,18 +361,27 @@ export const coachPlan = {
       </section>` : `
       ${emptyState({ icon: 'target', title: 'No clients yet', body: 'Per-client protein, calorie, and target-weight numbers open here the moment someone joins.', action: { label: 'Invite a client', go: 'trainer-profile' } })}`}
 
+      ${/* Program row (2026-08-11): the policy editor went nav:'operator', so the practice Plan
+            page finally links the defaults its own grants read — the coach's Program row, this
+            book's vocabulary. */''}
+      <div class="eyebrow">Program</div>
+      <section class="card" style="padding:6px 16px">
+        <div class="lrow" data-go="trust-pass-policy">
+          <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('shield', 17)}</div>
+          <div class="lm"><div class="lt">Trust Pass defaults</div><div class="ls">${(RT.passPolicy || { default_credits: 3 }).default_credits}-credit default · earned after ${(RT.passPolicy || { eligibility_days: 7 }).eligibility_days} photo-logged days</div></div>
+          ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        </div>
+      </section>
+
       <div style="height:12px"></div>
-      ${/* This box used to claim Trust Pass "stays a team tool" — stale since
-            CAPS.practice.trustPass went 1: the practice Home renders the Trust Pass milestone
-            card and "Give a pass" right now, so the two surfaces contradicted each other
-            (founder trainer pass, 2026-08-10). Rooms are the one true team-only on this page
-            (the policy editor is still a team screen; grants live on Home). The "Built for
-            teams" title is load-bearing: operator-book.test.mjs asserts it verbatim as the
-            practice plan home's reduced-page explanation. */''}
+      ${/* The "Built for teams" title is load-bearing: operator-book.test.mjs asserts it
+            verbatim as the practice plan home's reduced-page explanation. Body updated
+            2026-08-11 when the Trust Pass policy editor became reachable on this book —
+            rooms are now the ONLY thing on this page a practice doesn't get. */''}
       <div class="sidebox">
         <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
         <div><div class="tt">Built for teams</div>
-        <div class="ts">Position rooms are built around a team roster, and a practice is 1:1, so they don't apply here. Everything else on this page is yours. Giving a Trust Pass lives on your Home.</div></div>
+        <div class="ts">Position rooms are built around a team roster, and a practice is 1:1, so they don't apply here. Everything else on this page is yours.</div></div>
       </div>
       <div style="height:10px"></div>`;
     }
@@ -1384,11 +1393,12 @@ async function loadInboxData(teamId, athleteIds, force) {
   const sinceISO = new Date(Date.now() - 7 * 864e5).toISOString();
   try {
     // Meal threads are athlete-scoped (can_view) and work on either book — that's the inbox's
-    // core value. Interventions and staff are team-owned tables; a practice book skips them
-    // rather than issuing queries that RLS will answer with nothing. Real for practices at 0136.
+    // core value. Staff is a team-owned table; a practice book skips it rather than issuing a
+    // query RLS answers with nothing. Interventions are DUAL-owner since 0136 — the reader now
+    // filters the right column per book, so a practice's Resolved bucket is finally real.
     const [comments, interventions, staff, staffInvites] = await Promise.all([
       roles.fetchTeamMealComments(athleteIds, sinceISO),
-      CD.caps.interventions ? roles.fetchRecentInterventions(teamId, sinceISO) : [],
+      CD.caps.interventions ? roles.fetchRecentInterventions(teamId, sinceISO, CD.kind) : [],
       CD.caps.staffRoles ? roles.fetchTeamStaff(teamId) : [],
       CD.caps.staffRoles ? roles.fetchOpenStaffInvites(teamId) : [],
     ]);

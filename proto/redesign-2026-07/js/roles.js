@@ -179,7 +179,7 @@ export async function setShareSquadScore(uid, on) {
 }
 
 /* ---------------- coach: custom team code (0026 RPCs) ---------------- */
-/** Set a vanity join code (e.g. GATORS). Server validates ^[A-Z0-9]{4,12}$ + uniqueness and
+/** Set a vanity join code (e.g. GATORS). Server validates ^[A-Z0-9]{6,12}$ (0038) + uniqueness and
     resolves the team from auth.uid() — nothing is trusted from the client. Returns
     { ok, code?, error? } with the server's message (e.g. "already taken") surfaced verbatim. */
 export async function setMyTeamCode(code) {
@@ -198,6 +198,40 @@ export async function regenerateMyTeamCode() {
     if (error) return { ok: false, error: error.message || 'Could not make a new code.' };
     return { ok: true, code: (typeof data === 'string' && data) || '' };
   } catch (e) { return { ok: false, error: (e && e.message) || 'Could not make a new code.' }; }
+}
+/* The PRACTICE arms. set_my_practice_code / regenerate_my_practice_code have existed
+   server-side since 0026 (validation tightened to 6-12 chars in 0038) — no client ever
+   called them, which is why a trainer with a leaked code had no move until the 2026-08-11
+   open-items pass. Same contract as the team pair: the server resolves the practice from
+   auth.uid(), the server's own error message is surfaced verbatim. */
+export async function setMyPracticeCode(code) {
+  const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
+  try {
+    const { data, error } = await c.rpc('set_my_practice_code', { new_code: code });
+    if (error) return { ok: false, error: error.message || 'Could not save that code.' };
+    return { ok: true, code: (typeof data === 'string' && data) || String(code || '').trim().toUpperCase() };
+  } catch (e) { return { ok: false, error: (e && e.message) || 'Could not save that code.' }; }
+}
+export async function regenerateMyPracticeCode() {
+  const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
+  try {
+    const { data, error } = await c.rpc('regenerate_my_practice_code');
+    if (error) return { ok: false, error: error.message || 'Could not make a new code.' };
+    return { ok: true, code: (typeof data === 'string' && data) || '' };
+  } catch (e) { return { ok: false, error: (e && e.message) || 'Could not make a new code.' }; }
+}
+/** Rename the caller's practice. A direct owner-scoped update — practices_update RLS
+    (owner_id = auth.uid()) has allowed this since 0002/0053; no client offered it until the
+    2026-08-11 open-items pass ("write-once at onboarding" was an accident, not a rule). */
+export async function renamePractice(practiceId, name) {
+  const c = sb(); if (!c || !practiceId) return { ok: false, error: 'You need a connection for this.' };
+  const clean = String(name || '').trim().slice(0, 60);
+  if (!clean) return { ok: false, error: 'Give your practice a name first.' };
+  try {
+    const { error } = await c.from('practices').update({ name: clean }).eq('id', practiceId);
+    if (error) return { ok: false, error: error.message || 'Could not rename the practice.' };
+    return { ok: true, name: clean };
+  } catch (e) { return { ok: false, error: (e && e.message) || 'Could not rename the practice.' }; }
 }
 
 /* ---------------- coach: roster-wide activity feed (WS4) ---------------- */
@@ -233,12 +267,17 @@ export async function fetchTeamMealComments(athleteIds, sinceISO) {
 }
 /** Recent coach_interventions for the team (kind 'handled' + reason_key 'meal:<id>' marks a
     thread resolved — Task 5 writes it, inbox.js reads it). Best-effort []. */
-export async function fetchRecentInterventions(teamId, sinceISO) {
-  const c = sb(); if (!c || !teamId) return [];
+/* `book` (0136): 'team' filters team_id, 'practice' filters practice_id. The writer
+   (logIntervention) has taken a book arg since 0136 and ci_staff_read has always had the
+   practice arm — but this reader filtered team_id unconditionally, so a practice book's
+   "Resolved" inbox bucket and the meal screen's resolved seed were permanently empty even
+   though the rows existed (found in the 2026-08-11 open-items pass). */
+export async function fetchRecentInterventions(bookId, sinceISO, book = 'team') {
+  const c = sb(); if (!c || !bookId) return [];
   try {
     const { data } = await c.from('coach_interventions')
       .select('athlete_id,kind,reason_key,created_at')
-      .eq('team_id', teamId).gte('created_at', sinceISO)
+      .eq(book === 'practice' ? 'practice_id' : 'team_id', bookId).gte('created_at', sinceISO)
       .order('created_at', { ascending: false }).limit(500);
     return data || [];
   } catch { return []; }

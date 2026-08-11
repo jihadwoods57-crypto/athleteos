@@ -502,8 +502,14 @@ export const coachVoice = {
 
 /* ---------- #trust-pass-policy · the book defaults grant_pass reads (0196) ---------- */
 export const trustPassPolicy = {
-  nav: 'coach', tab: 'profile',
+  // `operator`, not `coach` (2026-08-11): a practice has been an equal grantor since 0196 —
+  // trust_pass_policy carries a practice_id arm, act.setTrustPolicy writes it, and the trainer
+  // Home renders "Give a pass" — but nav:'coach' meant the router bounced a trainer off this
+  // screen, so the defaults their own grants read were UNREACHABLE on a practice book. Same
+  // defect class (and same fix) as coach-notif-settings and coach-insights.
+  nav: 'operator', tab: 'profile',
   render() {
+    const trainer = RT.authRole === 'trainer';
     const p = RT.passPolicy || { default_credits: 3, default_window_days: 2, eligibility_days: 7, max_credits: 5 };
     const stepper = (label, key, val, lo, hi, unit) => `
     <div class="eyebrow">${label}</div>
@@ -517,7 +523,7 @@ export const trustPassPolicy = {
       </div>
     </section>`;
     return `
-    ${backHead('Trust Pass', 'The default reward every grant on your book uses.', 'coach-profile')}
+    ${backHead('Trust Pass', 'The default reward every grant on your book uses.', trainer ? 'trainer-profile' : 'coach-profile')}
 
     ${stepper('Default credits', 'default_credits', p.default_credits, 1, 14, p.default_credits === 1 ? 'meal' : 'meals')}
     ${stepper('Default window', 'default_window_days', p.default_window_days, 1, 14, p.default_window_days === 1 ? 'day' : 'days')}
@@ -528,7 +534,7 @@ export const trustPassPolicy = {
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
       <div><div class="tt">How a Trust Pass works</div>
-      <div class="ts">A pass lets a proven athlete skip the photo for a meal, or a whole weekend, and credits their trailing nutrition median instead. You grant it by hand from an athlete's profile, and only after they've photo-logged a meal on <b>${p.eligibility_days}</b> separate days. The server checks that every time, so a pass can never be earned from nothing.</div></div>
+      <div class="ts">A pass lets a proven ${trainer ? 'client' : 'athlete'} skip the photo for a meal, or a whole weekend, and credits their trailing nutrition median instead. You grant it by hand from ${trainer ? 'a client’s' : 'an athlete’s'} profile, and only after they've photo-logged a meal on <b>${p.eligibility_days}</b> separate days. The server checks that every time, so a pass can never be earned from nothing.</div></div>
     </div>
     <div style="height:10px"></div>
     `;

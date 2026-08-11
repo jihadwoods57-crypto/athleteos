@@ -7,7 +7,7 @@ import { standardForGoal, reqHeadTint, showConfirmPending } from '../ob-helpers.
 import { commitButton, wireCommit } from '../ob-commit.js';
 import { track, EVENTS } from '../analytics.js';
 import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
-import { setMyTeamCode, regenerateMyTeamCode, fetchTeamStaff, createStaffInvite, revokeStaff, setStaffScope } from '../roles.js';
+import { setMyTeamCode, regenerateMyTeamCode, setMyPracticeCode, regenerateMyPracticeCode, renamePractice, fetchTeamStaff, createStaffInvite, revokeStaff, setStaffScope } from '../roles.js';
 import { roleLabel, scopeText, normalizeRole, RESPONSIBILITIES } from '../staff-access.js';
 import { seedTemplates, templateLabel } from '../templates.js';
 import { weightsFor, styleForStructureAnswer, DEFAULT_STYLE } from '../plan-style.js';
@@ -333,7 +333,7 @@ const coachSteps = {
         <button class="btn ghost sm" id="ob-code-edit" style="width:auto;padding:0 22px">Customize</button>
       </div>
       <div id="ob-code-editor" style="display:none;margin-top:14px">
-        <input id="ob-code-input" class="ob-input" placeholder="YOUR CODE · 4–12 letters/numbers" maxlength="12"
+        <input id="ob-code-input" class="ob-input" placeholder="YOUR CODE · 6–12 letters/numbers" maxlength="12"
           autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" />
         <div style="display:flex;justify-content:center;gap:8px;margin-top:10px">
           <button class="btn green sm" id="ob-code-save" style="width:auto;padding:0 22px">Save code</button>
@@ -587,7 +587,7 @@ export const coachOb = {
       });
       $('#ob-code-save').addEventListener('click', async (e) => {
         const raw = ((input && input.value) || '').trim().toUpperCase();
-        if (!/^[A-Z0-9]{4,12}$/.test(raw)) { status.style.color = 'var(--red)'; status.textContent = '4–12 letters or numbers only (A–Z, 0–9).'; return; }
+        if (!/^[A-Z0-9]{6,12}$/.test(raw)) { status.style.color = 'var(--red)'; status.textContent = '6–12 letters or numbers only (A–Z, 0–9).'; return; }
         e.target.disabled = true;
         status.style.color = 'var(--text-3)'; status.textContent = 'Saving…';
         const r = await setMyTeamCode(raw);
@@ -1126,7 +1126,7 @@ function cpCodeBlock() {
         <button class="btn ghost sm" id="regen-code" style="width:auto;padding:0 18px">New code</button>
       </div>
       <div id="code-editor" style="display:none;margin-top:12px">
-        <input id="code-input" class="ob-input" placeholder="YOUR CODE · 4–12 letters/numbers" maxlength="12"
+        <input id="code-input" class="ob-input" placeholder="YOUR CODE · 6–12 letters/numbers" maxlength="12"
           autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" />
         <div style="display:flex;justify-content:center;gap:8px;margin-top:10px">
           <button class="btn ghost sm" id="code-cancel" style="width:auto;padding:0 18px">Cancel</button>
@@ -1412,7 +1412,10 @@ export const coachProfile = {
     const save = root.querySelector('#code-save');
     if (save) save.addEventListener('click', async () => {
       const raw = ((input && input.value) || '').trim().toUpperCase();
-      if (!/^[A-Z0-9]{4,12}$/.test(raw)) { say('4–12 letters or numbers only (A–Z, 0–9).', true); return; }
+      // The SERVER floor is 6 (0038 raised it from 0026's 4) — this client check said 4-12 for
+      // years, letting 4-5 char codes through to a raw server rejection. Join-side entry fields
+      // deliberately stay at 4+ (legacy pre-0038 codes still exist and must still work).
+      if (!/^[A-Z0-9]{6,12}$/.test(raw)) { say('6–12 letters or numbers only (A–Z, 0–9).', true); return; }
       save.disabled = true; say('Saving…');
       const r = await setMyTeamCode(raw);
       save.disabled = false;
@@ -1466,8 +1469,20 @@ export const trainerProfile = {
         ${/* The discipline earns its line (0197): a dietitian's HQ says what they run. Any
               sport — the label describes the operator, never the roster. */''}
         <div class="meta">${esc(ti.practiceName)}${ti.discipline === 'nutrition' ? ' · Nutrition practice' : ''}</div>
-        <div style="margin-top:9px">${offline ? `<span class="status-pill a">Reconnecting</span>` : minting ? `<span class="status-pill p">Setting up</span>` : `<span class="status-pill g">Live</span>`}</div>
+        <div style="margin-top:9px;display:flex;align-items:center;gap:10px">${offline ? `<span class="status-pill a">Reconnecting</span>` : minting ? `<span class="status-pill p">Setting up</span>` : `<span class="status-pill g">Live</span>`}${!offline && !minting ? `<span class="link" id="pr-rename" role="button" tabindex="0" style="font-size:var(--t-xs);font-weight:700">Rename</span>` : ''}</div>
       </div>
+    </section>
+    ${/* Rename editor (2026-08-11): the practice name was write-once at onboarding by accident,
+          not by rule — practices_update RLS always allowed the owner to change it. Hidden until
+          the Rename link above opens it. */''}
+    <section class="card" id="pr-rename-card" style="display:none;padding:14px 16px;margin-top:8px">
+      <div class="eyebrow" style="margin:0 0 8px">Practice name</div>
+      <input id="pr-name-input" class="ob-input" maxlength="60" placeholder="Your practice's name" value="${esc(ti.practiceName === 'Your practice' ? '' : ti.practiceName)}"/>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn ghost sm" id="pr-name-cancel" style="width:auto;padding:0 18px">Cancel</button>
+        <button class="btn sm" id="pr-name-save" style="width:auto;padding:0 22px;background:linear-gradient(150deg,var(--purple),var(--purple-deep));color:var(--ink-on-accent)">Save name</button>
+      </div>
+      <div id="pr-name-status" style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px"></div>
     </section>`;
 
     let invite;
@@ -1526,6 +1541,25 @@ export const trainerProfile = {
           <button class="btn ghost sm" id="copy-code">${icon('clipboard', 16)} Copy code</button>
           <button class="btn sm" id="share-invite" style="background:linear-gradient(150deg,var(--purple),var(--purple-deep));color:var(--ink-on-accent)"${offline ? ' disabled' : ''}>${icon('share', 16)} Share invite</button>
         </div>
+        ${/* Customize + regenerate (2026-08-11): the server RPCs (set_my_practice_code /
+              regenerate_my_practice_code) have existed since 0026 with no UI — a trainer with a
+              leaked code had NO move while the coach two tabs over had both buttons. Mirrors
+              cpCodeBlock's editor + two-tap regenerate, in this card's purple. Hidden offline:
+              both actions are server round-trips and a dead button is worse than none. */''}
+        ${offline ? '' : `
+        <div style="display:flex;justify-content:center;gap:8px;margin-top:10px">
+          <button class="btn ghost sm" id="pc-edit" style="width:auto;padding:0 18px">Customize</button>
+          <button class="btn ghost sm" id="pc-regen" style="width:auto;padding:0 18px">New code</button>
+        </div>
+        <div id="pc-editor" style="display:none;margin-top:12px">
+          <input id="pc-input" class="ob-input" placeholder="YOUR CODE · 6–12 letters/numbers" maxlength="12"
+            autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" />
+          <div style="display:flex;justify-content:center;gap:8px;margin-top:10px">
+            <button class="btn ghost sm" id="pc-cancel" style="width:auto;padding:0 18px">Cancel</button>
+            <button class="btn sm" id="pc-save" style="width:auto;padding:0 22px;background:linear-gradient(150deg,var(--purple),var(--purple-deep));color:var(--ink-on-accent)">Save code</button>
+          </div>
+        </div>
+        <div id="pc-status" style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px;text-align:center"></div>`}
       </section>`;
     }
 
@@ -1552,6 +1586,10 @@ export const trainerProfile = {
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
       <div class="lrow" data-go="coach-voice"><div class="lic" style="background:rgba(var(--purple-rgb),0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div><div class="lm"><div class="lt">AI Nutritionist</div><div class="ls">Tone, length, instructions: make it coach like you</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      ${/* Trust Pass defaults (2026-08-11): a trainer could GRANT passes since 0196 but the
+            policy screen was nav:'coach', so the defaults grant_pass reads were unreachable on
+            this book. Mirrors the coach's You → Program row. */''}
+      <div class="lrow" data-go="trust-pass-policy"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('shield', 17)}</div><div class="lm"><div class="lt">Trust Pass defaults</div><div class="ls">${(RT.passPolicy || { default_credits: 3 }).default_credits}-credit default · earned after ${(RT.passPolicy || { eligibility_days: 7 }).eligibility_days} photo-logged days</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="coach-notif-settings"><div class="lic">${icon('bell', 17)}</div><div class="lm"><div class="lt">Notifications</div><div class="ls">Briefings, alerts, quiet hours</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="settings"><div class="lic">${icon('moon', 17)}</div><div class="lm"><div class="lt">Appearance &amp; preferences</div><div class="ls">Light / dark, units, reminders</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Your visibility scope</div><div class="ls">Recovery, readiness, consistency only</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
@@ -1559,19 +1597,11 @@ export const trainerProfile = {
 
     ${operatorAccountSection()}
 
-    <div class="eyebrow">Coming to Practice HQ</div>
-    <section class="card" style="padding:16px 18px">
-      <div style="font-size:var(--t-sm);font-weight:800;display:flex;align-items:center;gap:8px">${icon('lock', 15)} Founder-gated sections</div>
-      <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:5px 0 13px;line-height:1.45">Built and reviewed one slice at a time. Shown honestly as locked until they're real.</div>
-      <div class="hq-roadmap-grid">
-        ${/* 'Client health' left this list when the trainer Home dashboard shipped, and
-              'Analytics' left when practice rollups (0137) reached Insights — a locked tile
-              for something that already works is the same dishonesty as a "Coming soon" pill
-              over a live feature. Only truly unbuilt sections stay here. */
-          ['Business health', 'AI assistant', 'Branding', 'Integrations']
-            .map((t) => `<div class="hq-ritem">${icon('lock', 14)}<span>${t}</span></div>`).join('')}
-      </div>
-    </section>
+    ${/* The four locked "Founder-gated sections" tiles left on 2026-08-11 (founder: ending the
+          screen on four dead squares reads as broken, not honest). The roadmap note survives as
+          ONE quiet line — still honest about what's unbuilt, no longer dressed as UI. When a
+          section ships it gets a real row above, same convention as before. */''}
+    <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:12px 4px 0;line-height:1.5">Business health, an AI assistant, branding, and integrations are being built one slice at a time. Each appears here the day it's real.</div>
 
     ${/* Sign out gets its own card at the END, like the coach's, instead of sitting as the last
           row of the settings list where it read as one more setting. co-bottom gives it the same
@@ -1606,6 +1636,82 @@ export const trainerProfile = {
           setTimeout(() => { share.innerHTML = `${icon('share', 16)} Share invite`; }, 1600);
         }
       } catch { /* share sheet dismissed — no-op */ }
+    });
+    // ---- Customize / regenerate the client code (mirrors cpCodeBlock's handlers) ----
+    const pcSay = (msg, isErr) => {
+      const el = root.querySelector('#pc-status');
+      if (el) { el.textContent = msg; el.style.color = isErr ? 'var(--red)' : 'var(--text-3)'; }
+    };
+    // Server value only, never optimistic — same rule as the coach's applyCode.
+    const pcApply = (code) => { RT.practice = { ...(RT.practice || {}), code }; if (window.__render) window.__render(); };
+    const pcEdit = root.querySelector('#pc-edit');
+    const pcEditor = root.querySelector('#pc-editor');
+    if (pcEdit && pcEditor) pcEdit.addEventListener('click', () => {
+      const open = pcEditor.style.display !== 'none';
+      pcEditor.style.display = open ? 'none' : 'block';
+      if (!open) { const inp = root.querySelector('#pc-input'); if (inp) inp.focus(); }
+    });
+    const pcCancel = root.querySelector('#pc-cancel');
+    if (pcCancel) pcCancel.addEventListener('click', () => { if (pcEditor) pcEditor.style.display = 'none'; pcSay('', false); });
+    const pcSave = root.querySelector('#pc-save');
+    if (pcSave) pcSave.addEventListener('click', async () => {
+      const inp = root.querySelector('#pc-input');
+      const raw = String((inp && inp.value) || '').trim().toUpperCase();
+      // The SERVER rule (0038): 6-12. The coach card shipped a 4-12 client check for years and
+      // let 4-char codes through to a raw server rejection — don't repeat that drift here.
+      if (!/^[A-Z0-9]{6,12}$/.test(raw)) { pcSay('6–12 letters or numbers only (A–Z, 0–9).', true); return; }
+      pcSave.disabled = true; pcSay('Saving…', false);
+      const r = await setMyPracticeCode(raw);
+      pcSave.disabled = false;
+      if (!r.ok) { pcSay(r.error, true); return; }
+      pcApply(r.code);
+    });
+    const pcRegen = root.querySelector('#pc-regen');
+    if (pcRegen) {
+      let armed = false;
+      pcRegen.addEventListener('click', async () => {
+        if (!armed) {
+          armed = true;
+          pcRegen.textContent = 'Sure? Old code dies';
+          pcSay('A new code replaces this one immediately. Anyone holding the old code can no longer join.', false);
+          return;
+        }
+        pcRegen.disabled = true; pcSay('Minting a new code…', false);
+        const r = await regenerateMyPracticeCode();
+        pcRegen.disabled = false; armed = false; pcRegen.textContent = 'New code';
+        if (!r.ok) { pcSay(r.error, true); return; }
+        pcApply(r.code);
+      });
+    }
+    // ---- Rename the practice ----
+    const prSay = (msg, isErr) => {
+      const el = root.querySelector('#pr-name-status');
+      if (el) { el.textContent = msg; el.style.color = isErr ? 'var(--red)' : 'var(--text-3)'; }
+    };
+    const prLink = root.querySelector('#pr-rename');
+    const prCard = root.querySelector('#pr-rename-card');
+    if (prLink && prCard) {
+      const toggle = () => {
+        const open = prCard.style.display !== 'none';
+        prCard.style.display = open ? 'none' : 'block';
+        if (!open) { const inp = root.querySelector('#pr-name-input'); if (inp) inp.focus(); }
+      };
+      prLink.addEventListener('click', toggle);
+      prLink.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); } });
+    }
+    const prCancel = root.querySelector('#pr-name-cancel');
+    if (prCancel) prCancel.addEventListener('click', () => { if (prCard) prCard.style.display = 'none'; prSay('', false); });
+    const prSave = root.querySelector('#pr-name-save');
+    if (prSave) prSave.addEventListener('click', async () => {
+      const inp = root.querySelector('#pr-name-input');
+      const name = String((inp && inp.value) || '').trim();
+      if (!name) { prSay('Give your practice a name first.', true); return; }
+      prSave.disabled = true; prSay('Saving…', false);
+      const r = await renamePractice(RT.practice && RT.practice.id, name);
+      prSave.disabled = false;
+      if (!r.ok) { prSay(r.error, true); return; }
+      RT.practice = { ...(RT.practice || {}), name: r.name };
+      if (window.__render) window.__render();
     });
   },
 };

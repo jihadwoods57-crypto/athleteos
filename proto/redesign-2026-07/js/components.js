@@ -125,6 +125,11 @@ export function nonLiveBadge() {
    arrangement the meal score chip has always used. */
 export function scoreRing({ score = 82, size = 338, stroke = 20, showCenter = true, uid = 'r', delta = null, streak = null, tierName = null, tierCls = 'b', centerNum = false, possible = null } = {}) {
   const r = (size - stroke) / 2 - 14;
+  // The inner echo ring — a thin second sweep tracing the band from inside. No brand master
+  // draws it; it left in the 2026-08-10 rings-are-the-logo pass and the founder asked for it
+  // BACK the next day (2026-08-11): it stays as the app's own flourish, a deliberate exception
+  // to logo parity, not an oversight. Clamped ≥0 so compact rings can't compute a negative radius.
+  const rEcho = Math.max(0, r - stroke / 2 - 8);
   const cx = size / 2, cy = size / 2;
   // ---- Brand-dial geometry (docs/brand/LOGO.md v2) ----
   // The mark is a 300° gauge with a 60° gap centered on 6 o'clock: the arc runs from the
@@ -230,8 +235,10 @@ export function scoreRing({ score = 82, size = 338, stroke = 20, showCenter = tr
       ${!light ? `<path class="ring-arc ring-spec" d="${dial(r)}" fill="none" stroke="#FFFFFF"
         stroke-width="${specW.toFixed(1)}" stroke-linecap="round" opacity="0.16"
         pathLength="100" stroke-dasharray="100" stroke-dashoffset="${off}" data-off="${off}"/>` : ''}
-      ${/* The inner echo ring that traced the band at r-stroke/2-8 went with this pass — no brand
-            master draws a second concentric dial, and it read as one (founder, 2026-08-10). */''}
+      <!-- inner echo ring: the app-only flourish the founder kept (see rEcho above) -->
+      ${rEcho > 0 ? `<path class="ring-arc ring-echo" d="${dial(rEcho)}" fill="none" stroke="url(#g${uid})"
+        stroke-width="1.5" opacity="0.35"
+        pathLength="100" stroke-dasharray="100" stroke-dashoffset="${off}" data-off="${off}"/>` : ''}
       ${marker}
     </svg>
     ${showCenter ? `<div class="ring-center">

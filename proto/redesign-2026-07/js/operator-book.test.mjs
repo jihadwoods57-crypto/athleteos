@@ -226,7 +226,10 @@ for (const kind of ['team', 'practice']) {
   const planHomeHtml = screens['coach-plan'].render({ sub: null, S });
   if (kind === 'practice') {
     assert.ok(planHomeHtml.includes('Built for teams'), 'a trainer must be told why the program home is reduced');
-    assert.ok(!planHomeHtml.includes('Trust passes'), 'trust passes must not appear on a practice program home (never authorized)');
+    // 2026-08-11: the policy editor went nav:'operator', so the practice plan home now links
+    // the defaults its own grants read. The active-passes LIST ('Trust passes') stays team-only.
+    assert.ok(planHomeHtml.includes('Trust Pass defaults'), 'a practice plan home must link its own Trust Pass defaults');
+    assert.ok(!planHomeHtml.includes('Trust passes'), 'the team-side active-passes section must not appear on a practice program home');
   } else {
     assert.ok(planHomeHtml.includes('Trust passes'), 'the coach program home is unchanged');
   }

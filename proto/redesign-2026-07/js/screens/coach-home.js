@@ -407,6 +407,88 @@ function pulseCard(rows, statuses) {
   </section>`;
 }
 
+/* ---------- The dietitian's board (0197 discipline lens) ----------
+   Two sections the Nutrition Pro onboarding promised and the product never built: the meal
+   review queue (every client meal from the last 7 days, unopened first, straight into the
+   operator meal screen) and per-client fueling (daily protein totals, aggregated CLIENT-SIDE
+   from the same meals rows — day rows carry no protein column, per the 0103 grant split).
+   Painted async into #nut-board-slot so the fetch never delays the priority queue; the slot
+   only exists on a practice whose discipline is 'nutrition'. Data: fetchTeamActivity WITH
+   athleteIds (roles.js's capacity note: omitting ids defeats the meals index). 60s cache so
+   tab-flipping costs one fetch a minute, same posture as the PAST cache on home. */
+const NUT = { key: '', rows: null, at: 0 };
+async function paintNutritionBoard(root) {
+  const slot = root.querySelector('#nut-board-slot');
+  if (!slot) return;
+  const rows = (CD.roster && CD.roster.rows) || [];
+  const ids = rows.map((r) => r.athleteId).filter(Boolean);
+  if (!ids.length) { slot.innerHTML = ''; return; }
+  const key = ids.slice().sort().join(',');
+  let meals = NUT.rows;
+  if (NUT.key !== key || Date.now() - NUT.at > 60000) {
+    meals = await roles.fetchTeamActivity(roles.daysAgoISO(6), 400, ids).catch(() => null);
+    if (meals === null && NUT.key === key) meals = NUT.rows; // keep last-known on a flaky fetch
+    NUT.key = key; NUT.rows = meals || []; NUT.at = Date.now();
+  }
+  if (!slot.isConnected) return;
+  meals = NUT.rows || [];
+  const nameOf = {};
+  for (const r of rows) nameOf[r.athleteId] = r.name || 'Client';
+  const seen = new Set(RT.coachSeenMealIds || []);
+
+  // Queue: newest first, unopened surfaced before opened so review work leads.
+  const byNew = meals.slice().sort((a, b) => String(b.logged_at || '').localeCompare(String(a.logged_at || '')));
+  const queue = [...byNew.filter((m) => !seen.has(m.id)), ...byNew.filter((m) => seen.has(m.id))].slice(0, 6);
+  const unopened = byNew.filter((m) => !seen.has(m.id)).length;
+  const qRows = queue.map((m) => {
+    const bits = [
+      m.protein != null ? `~${m.protein}g protein` : null,
+      m.quality != null ? `meal ${m.quality}` : null,
+      actTime(m.logged_at),
+    ].filter(Boolean);
+    return `
+    <div class="lrow" data-go="coach-meal/${esc(m.id)}" style="cursor:pointer">
+      <div class="lic" style="background:${seen.has(m.id) ? 'var(--surface-2)' : 'var(--blue-surface)'};color:${seen.has(m.id) ? 'var(--text-3)' : 'var(--blue-bright)'}">${icon('bowl', 15)}</div>
+      <div class="lm"><div class="lt">${esc((nameOf[m.athlete_id] || 'Client').split(' ')[0])} · ${esc(cap(m.type || 'Meal'))}</div>
+      <div class="ls">${esc(bits.join(' · '))}${seen.has(m.id) ? '' : ' · not yet opened'}</div></div>
+      ${icon('chevron', 14, 'style="color:var(--text-3)"')}
+    </div>`;
+  }).join('');
+
+  // Fueling: per client, protein summed per day over the last 7 days. Lightest fuelers first —
+  // under-fueling is the thing a dietitian is here to catch. Honest denominators: the average is
+  // over days that HAVE a log, and the logged-day count is said out loud.
+  const days = [];
+  for (let i = 6; i >= 0; i--) days.push(roles.daysAgoISO(i));
+  const perClient = ids.map((id) => {
+    const mine = meals.filter((m) => m.athlete_id === id);
+    const totals = days.map((d) => mine.filter((m) => m.day_date === d)
+      .reduce((s, m) => s + (Number(m.protein) || 0), 0));
+    const loggedDays = totals.filter((t) => t > 0).length;
+    const avg = loggedDays ? Math.round(totals.reduce((s, t) => s + t, 0) / loggedDays) : 0;
+    return { id, totals, loggedDays, avg };
+  }).filter((c) => c.loggedDays > 0)
+    .sort((a, b) => a.avg - b.avg).slice(0, 8);
+  const fRows = perClient.map((c) => {
+    const max = Math.max(60, ...c.totals);
+    return `
+    <div class="nb-row" data-go="coach-athlete/${esc(c.id)}">
+      <span class="nb-name">${esc((nameOf[c.id] || 'Client').split(' ')[0])}</span>
+      <span class="nb-bars" aria-hidden="true">${c.totals.map((t) => `<i style="height:${t ? Math.max(14, Math.round((t / max) * 100)) : 6}%${t ? '' : ';opacity:0.3'}"></i>`).join('')}</span>
+      <span class="nb-avg">~${c.avg}g avg · ${c.loggedDays} of 7 days</span>
+    </div>`;
+  }).join('');
+
+  slot.innerHTML = `
+    <div class="eyebrow co-major" style="display:flex;justify-content:space-between;align-items:baseline"><span>Meal review</span>${unopened ? `<span style="color:var(--blue-bright)">${unopened} to review</span>` : ''}</div>
+    ${queue.length ? `<section class="card" style="padding:6px 16px">${qRows}</section>
+    <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:6px 2px 4px"><span class="link" data-go="trainer-inbox" role="button">The full queue lives in your Inbox</span></div>`
+    : `<div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:0 2px 4px;line-height:1.4">No client meals in the last 7 days. Every logged meal lands here for review.</div>`}
+    ${perClient.length ? `
+    <div class="eyebrow">Client fueling · last 7 days</div>
+    <section class="card" style="padding:10px 16px 12px">${fRows}</section>` : ''}`;
+}
+
 /* Ranked priority — calm hierarchy, one primary action by tier, the rest subordinate. */
 function priorityCard(c, i, nudgedToday) {
   const tier = c.tier === 'critical' ? 'critical' : c.tier === 'below' ? 'below' : 'due';
@@ -525,6 +607,10 @@ export const coachHome = {
     ${obPlanCard()}
     <div id="vc-board-slot"></div>
     <div id="cs-board-slot"></div>
+    ${/* The dietitian's board (0197 discipline lens): a meal review queue + per-client fueling
+          trends, painted async into this slot so the fetch never delays the priority queue.
+          Emitted only on a nutrition practice — every other book renders byte-identical. */''}
+    ${isPractice() && RT.practice && RT.practice.discipline === 'nutrition' ? '<div id="nut-board-slot"></div>' : ''}
 
     ${(() => {
       // Setup guidance persists (collapsed) after the first athlete joins — it no longer vanishes
@@ -588,6 +674,7 @@ export const coachHome = {
     // empty slot and this screen is byte-identical to before.
     paintBoard(root);
     paintStandardsBoard(root);
+    paintNutritionBoard(root);
     // Empty-state invite card: Copy + native Share of the invite code (present only before
     // anyone has joined). operatorIdentity resolves the right code for a team OR a practice.
     const code = S.operatorIdentity.code;
