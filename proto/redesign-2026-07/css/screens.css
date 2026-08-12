@@ -1414,13 +1414,22 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .day-bars{margin-top:12px;display:flex;flex-direction:column;gap:10px;padding:0 2px}
 .day-bars .cons-row .k{font-size:12.5px}
 .day-bars .pace{margin-top:2px}
-/* ---- Dietitian board (0197 discipline lens): per-client 7-day fueling strips ---- */
+/* ---- Dietitian board (0197 discipline lens) ----
+   The queue leads with the PLATE: a photo thumb per row (a dietitian reviews food by eye), the
+   Live-activity blue dot for unopened, a small flame for flagged. The fueling strips wear
+   nutrition's own hue (green paired with green-deep, per the gradient law) — domain data, not a
+   score surface, so the sweep stays off them. ---- */
+.nbq-ph{position:relative;width:40px;height:40px;border-radius:var(--r-chip);overflow:hidden;flex:none;background:var(--surface-2)}
+.nbq-ph img{width:100%;height:100%;object-fit:cover;display:block}
+.nbq-ph.empty{display:grid;place-items:center;color:var(--text-3)}
+.nbq-dot{position:absolute;top:3px;right:3px;width:9px;height:9px;border-radius:var(--r-pill);background:var(--blue-bright);box-shadow:0 0 9px rgba(var(--blue-rgb),0.7);border:2px solid var(--surface-1)}
+.nbq-flame{color:var(--amber-bright);display:inline-flex;vertical-align:-1px}
+.nb-foot{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:6px 2px 4px;line-height:1.4}
 .nb-row{display:grid;grid-template-columns:64px 1fr auto;align-items:center;gap:10px;padding:7px 0;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .nb-row + .nb-row{border-top:1px solid var(--hairline-soft)}
 .nb-name{font-size:var(--t-sm);font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nb-bars{display:flex;align-items:flex-end;gap:3px;height:26px}
-/* protein is a score surface's cousin, not a status — it wears the sweep, same as the day bars */
-.nb-bars i{display:block;width:9px;border-radius:2.5px 2.5px 1px 1px;background:linear-gradient(180deg,var(--teal,#39c6d6),var(--blue))}
+.nb-bars i{display:block;width:9px;border-radius:var(--r-micro) var(--r-micro) 1px 1px;background:linear-gradient(180deg,var(--green),var(--green-deep))}
 .nb-avg{font-size:var(--t-xs);font-weight:700;color:var(--text-3);white-space:nowrap;font-variant-numeric:tabular-nums}
 /* The photo is the page's subject — give it hero height on the logged-meal screen only */
 .meal-screen .photo-hero{height:248px}
@@ -1530,6 +1539,13 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .fx-k{flex:none;width:86px;font-size:12px;font-weight:800;color:var(--text-2);padding-top:8px}
 .fx-chips{display:flex;flex-wrap:wrap;gap:8px;flex:1}
 .fx-chip{border:1px solid var(--hairline);background:var(--surface-2);color:var(--text);font-family:var(--font);font-size:12.5px;font-weight:700;border-radius:var(--r-chip);padding:8px 14px;cursor:pointer;transition:transform var(--dur-1) var(--ease-out)}
+.fx-chip:disabled{opacity:0.45;cursor:default}
+/* Correct-the-read (0199): removing a line is a destructive row ACTION, not a selectable chip —
+   it gets a real 30px target that stays quiet until touched and only turns red when pressed. */
+.cm-rm{width:30px;height:30px;flex:none;margin-left:auto;display:grid;place-items:center;border-radius:var(--r-chip);border:1px solid var(--hairline);background:none;color:var(--text-3);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.cm-rm:active{color:var(--red-bright);border-color:var(--red-border);background:var(--red-surface)}
+.cm-rm:disabled{opacity:0.45;cursor:default}
+.cm-rm:focus-visible{outline:2px solid var(--blue-bright);outline-offset:2px}
 .fx-chip:active{transform:scale(0.95)}
 .fx-other{display:flex;gap:8px;flex:1}
 .fx-other .input{flex:1}

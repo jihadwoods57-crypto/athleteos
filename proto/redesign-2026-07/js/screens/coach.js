@@ -2416,9 +2416,11 @@ let RESOLVED_MEALS = new Set();
 // coach_interventions (latest row wins on reason_key 'flag:meal:'+id) on thread open, kept
 // honest across re-renders by this Set. The flame is the operator's "needs a human later".
 let FLAGGED_MEALS = new Set();
-// Correct-the-read panel state: which meal's panel is open, and its one status line.
+// Correct-the-read panel state: which meal's panel is open, its one status line, and whether a
+// save is in flight (every control disables while it is — a correction must not double-fire).
 let FIX_FOR = null;
 let FIX_NOTE = '';
+let FIX_BUSY = false;
 /* Message clock + day key for the coach thread. Timestamps were athlete-side only, so a coach
    reading a conversation could not tell whether an athlete asked something an hour ago or last
    Tuesday — which is exactly what decides whether it still needs answering. */
@@ -2613,23 +2615,24 @@ export const coachMeal = {
       <div class="est-note" style="margin-top:6px"><span class="link" id="cm-correct" role="button">${FIX_FOR === mealId ? 'Close the correction panel' : 'Correct the read'}</span></div>
       ${FIX_FOR === mealId ? (() => {
         const rich = normalizeDetected(meal.detected);
+        const dis = FIX_BUSY ? ' disabled' : '';
         return `
-      <section class="card pad" id="cm-fix" style="margin-top:8px;padding-top:12px">
-        <div class="eyebrow" style="margin:0 0 8px">Detected foods · tap × to remove a wrong line</div>
+      <section class="card pad" id="cm-fix" style="margin-top:8px;padding-top:12px"${FIX_BUSY ? ' aria-busy="true"' : ''}>
+        <div class="eyebrow" style="margin:0 0 8px">Detected foods</div>
         ${rich.length ? rich.map((d) => `
         <div class="food-row">
           <span class="conf-dot ${esc(d.confidence || 'high')}"></span>
           <span class="fr-name">${esc(d.name)}</span>
           <span class="fr-qty">${d.quantity ? esc(d.quantity) : ''}</span>
-          <button class="fx-chip" data-cm-rm="${esc(d.name)}" aria-label="Remove ${esc(d.name)}">×</button>
+          <button class="cm-rm" data-cm-rm="${esc(d.name)}" aria-label="Remove ${esc(d.name)} from this read"${dis}>${icon('x', 13)}</button>
         </div>`).join('') : `<div class="est-note">No itemized foods on this read, so there is nothing to remove. The portion check below still works.</div>`}
         <div class="eyebrow" style="margin:12px 0 8px">Portion check · the whole plate</div>
         <div class="fx-chips">
-          <button class="fx-chip" data-cm-portion="right">Looks right</button>
-          <button class="fx-chip" data-cm-portion="larger">Bigger than that</button>
-          <button class="fx-chip" data-cm-portion="three-quarters">Smaller than that</button>
+          <button class="fx-chip" data-cm-portion="right"${dis}>Looks right</button>
+          <button class="fx-chip" data-cm-portion="larger"${dis}>Bigger than that</button>
+          <button class="fx-chip" data-cm-portion="three-quarters"${dis}>Smaller than that</button>
         </div>
-        <div id="cm-fix-note" class="est-note" style="margin-top:10px;min-height:16px">${esc(FIX_NOTE || `Your correction becomes part of the record, logged under your name. The ${CD.noun}'s day score updates when they next open this meal.`)}</div>
+        <div id="cm-fix-note" class="est-note" role="status" aria-live="polite" style="margin-top:10px;min-height:16px">${esc(FIX_BUSY ? 'Saving the correction…' : FIX_NOTE || `Your correction becomes part of the record, logged under your name. The ${CD.noun}'s day score updates when they next open this meal.`)}</div>
         <div class="rub-fine">Removing a line subtracts that item's own numbers; a portion mark re-estimates the whole plate. The AI's original read stays on record either way.</div>
       </section>`;
       })() : ''}`;
@@ -2995,13 +2998,14 @@ export const coachMeal = {
     const persistPro = async (r, payload, confirmOnly) => {
       const row = MEAL.id === sub && MEAL.row ? MEAL.row : null;
       if (!row) { FIX_NOTE = 'Still loading this meal. Try again in a second.'; window.__render(); return; }
+      FIX_BUSY = true; window.__render();
       const fields = confirmOnly ? {} : {
         protein: r.meta.protein, carbs: r.meta.carbs, fat: r.meta.fat, kcal: r.meta.kcal,
         fiber: r.meta.fiber || 0, quality: r.meta.quality != null ? r.meta.quality : null,
         detected: r.meta.detectedRich,
       };
       const res = await roles.proCorrectMeal(sub, fields, r.summary);
-      if (!res.ok) { FIX_NOTE = res.error; window.__render(); return; }
+      if (!res.ok) { FIX_BUSY = false; FIX_NOTE = res.error; window.__render(); return; }
       // The thread bubble carries BOTH the human sentence (rendered under the operator's own
       // name, per the demo's "logged under your name") and the machine payload (meta.c) the
       // athlete's device applies through its own correction engines.
@@ -3016,36 +3020,37 @@ export const coachMeal = {
           detected: r.meta.detectedRich,
         };
       }
+      FIX_BUSY = false;
       FIX_NOTE = confirmOnly ? 'Sign-off logged in the thread.' : `${r.summary} · saved and posted in the thread.`;
       loadMealComments(sub, true);
       window.__render();
     };
     const correctLink = root.querySelector('#cm-correct');
     if (correctLink) correctLink.addEventListener('click', () => {
+      if (FIX_BUSY) return;
       FIX_FOR = FIX_FOR === sub ? null : sub;
       FIX_NOTE = '';
       window.__render();
     });
     root.querySelectorAll('[data-cm-rm]').forEach((b) => b.addEventListener('click', async () => {
+      if (FIX_BUSY) return;
       const nm = b.getAttribute('data-cm-rm');
       const row = MEAL.id === sub && MEAL.row ? MEAL.row : null;
       if (!row) return;
-      b.disabled = true;
       const r = applyFoodRemoval(metaFromRow(row), nm, { by: 'pro', minutesLate: row.minutes_late || 0 });
       if (!r) { FIX_NOTE = "That line isn't on the read any more."; window.__render(); return; }
       await persistPro(r, { edit: { kind: 'remove', name: nm } }, false);
     }));
     root.querySelectorAll('[data-cm-portion]').forEach((b) => b.addEventListener('click', async () => {
+      if (FIX_BUSY) return;
       const v = b.getAttribute('data-cm-portion');
       const row = MEAL.id === sub && MEAL.row ? MEAL.row : null;
       if (!row) return;
-      b.disabled = true;
       if (v === 'right') {
         await persistPro({ meta: metaFromRow(row), summary: 'Portion confirmed' }, { kind: 'other', detail: 'Portion confirmed on review' }, true);
         return;
       }
       const r = applyMealCorrection(metaFromRow(row), { kind: 'portion', value: v });
-      b.disabled = false;
       if (!r) { FIX_NOTE = 'Nothing to adjust on this read.'; window.__render(); return; }
       await persistPro(r, { kind: 'portion', value: v }, false);
     }));

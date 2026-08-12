@@ -1,6 +1,6 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { avatarHead, esc, collapseSection, skeletonRows, errorState, emailVerifyBanner, wireEmailVerifyBanner } from '../components.js';
+import { avatarHead, esc, safeImg, collapseSection, skeletonRows, errorState, emailVerifyBanner, wireEmailVerifyBanner } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope, logBookIntervention, passWorthy } from '../coach-data.js';
 import { buildPriorities } from '../priority.js';
@@ -417,7 +417,7 @@ function pulseCard(rows, statuses) {
    only exists on a practice whose discipline is 'nutrition'. Data: fetchTeamActivity WITH
    athleteIds (roles.js's capacity note: omitting ids defeats the meals index). 60s cache so
    tab-flipping costs one fetch a minute, same posture as the PAST cache on home. */
-const NUT = { key: '', rows: null, flags: {}, at: 0 };
+const NUT = { key: '', rows: null, flags: {}, photos: {}, err: false, at: 0 };
 async function paintNutritionBoard(root) {
   const slot = root.querySelector('#nut-board-slot');
   if (!slot) return;
@@ -427,6 +427,11 @@ async function paintNutritionBoard(root) {
   const key = ids.slice().sort().join(',');
   let meals = NUT.rows;
   if (NUT.key !== key || Date.now() - NUT.at > 60000) {
+    // The four-states law: while the FIRST load is in flight the slot shows a skeleton shaped
+    // like the queue it stands in for, never a blank gap the sections below jump into.
+    if (NUT.key !== key || !NUT.rows) {
+      slot.innerHTML = `<div class="eyebrow co-major">Meal review</div>${skeletonRows(2, 'Loading client meals')}`;
+    }
     // Meals + flags fetched together on the same cadence: the flame state (0199) rides
     // coach_interventions, latest row wins per 'flag:meal:<id>' — flagStateByMeal is the same
     // reader the inbox categorizer uses, so the two surfaces can never disagree.
@@ -435,8 +440,9 @@ async function paintNutritionBoard(root) {
       roles.fetchRecentInterventions(RT.practice && RT.practice.id, roles.daysAgoISO(13), 'practice').catch(() => []),
     ]);
     meals = fetched;
+    NUT.err = meals === null;
     if (meals === null && NUT.key === key) meals = NUT.rows; // keep last-known on a flaky fetch
-    NUT.key = key; NUT.rows = meals || []; NUT.flags = flagStateByMeal(iv); NUT.at = Date.now();
+    NUT.key = key; NUT.rows = meals || []; NUT.flags = flagStateByMeal(iv); NUT.photos = {}; NUT.at = Date.now();
   }
   if (!slot.isConnected) return;
   meals = NUT.rows || [];
@@ -455,25 +461,44 @@ async function paintNutritionBoard(root) {
   ].slice(0, 6);
   const unopened = byNew.filter((m) => !seen.has(m.id)).length;
   const flaggedCount = byNew.filter((m) => isFlagged(m.id)).length;
+
+  // The plate itself leads each row. A dietitian reviews FOOD; a queue of identical icons made
+  // them read a list about meals instead of looking at meals. Signed thumbs, ≤6 per paint,
+  // re-signed with each 60s refetch so a URL can never outlive its hour. Best-effort: a missing
+  // photo falls back to the bowl tile and costs nothing.
+  const need = queue.filter((m) => m.photo_path && NUT.photos[m.id] === undefined);
+  if (need.length) {
+    const signed = await Promise.all(need.map((m) => roles.signedMealPhotoUrl(m.photo_path).catch(() => null)));
+    need.forEach((m, i) => { NUT.photos[m.id] = signed[i]; });
+    if (!slot.isConnected) return;
+  }
+
   const qRows = queue.map((m) => {
     const flagged = isFlagged(m.id);
+    const isNew = !seen.has(m.id);
+    const ph = NUT.photos[m.id] ? safeImg(NUT.photos[m.id]) : '';
+    // Protein, time, state — and nothing else. The meal score also lived here and pushed the
+    // state word onto a ragged second line at phone width (seen in the render QC); the score is
+    // one tap away on the meal itself, and the dietitian's scan number is protein.
     const bits = [
       m.protein != null ? `~${m.protein}g protein` : null,
-      m.quality != null ? `meal ${m.quality}` : null,
       actTime(m.logged_at),
+      flagged ? 'flagged' : isNew ? 'new' : null,
     ].filter(Boolean);
     return `
     <div class="lrow" data-go="coach-meal/${esc(m.id)}" style="cursor:pointer">
-      <div class="lic" style="background:${flagged ? 'var(--amber-surface)' : seen.has(m.id) ? 'var(--surface-2)' : 'var(--blue-surface)'};color:${flagged ? 'var(--amber-bright)' : seen.has(m.id) ? 'var(--text-3)' : 'var(--blue-bright)'}">${icon(flagged ? 'flame' : 'bowl', 15)}</div>
-      <div class="lm"><div class="lt">${esc((nameOf[m.athlete_id] || 'Client').split(' ')[0])} · ${esc(cap(m.type || 'Meal'))}</div>
-      <div class="ls">${esc(bits.join(' · '))}${flagged ? ' · flagged' : seen.has(m.id) ? '' : ' · not yet opened'}</div></div>
+      <div class="nbq-ph${ph ? '' : ' empty'}">${ph ? `<img src="${esc(ph)}" alt="" loading="lazy"/>` : icon('bowl', 16)}${isNew && !flagged ? '<span class="nbq-dot" aria-hidden="true"></span>' : ''}</div>
+      <div class="lm"><div class="lt">${esc((nameOf[m.athlete_id] || 'Client').split(' ')[0])} · ${esc(cap(m.type || 'Meal'))}${flagged ? ` <span class="nbq-flame">${icon('flame', 11)}</span>` : ''}</div>
+      <div class="ls">${esc(bits.join(' · '))}</div></div>
       ${icon('chevron', 14, 'style="color:var(--text-3)"')}
     </div>`;
   }).join('');
 
   // Fueling: per client, protein summed per day over the last 7 days. Lightest fuelers first —
   // under-fueling is the thing a dietitian is here to catch. Honest denominators: the average is
-  // over days that HAVE a log, and the logged-day count is said out loud.
+  // over days that HAVE a log, and the logged-day count is said out loud. The strips wear
+  // nutrition's own hue (green paired with green-deep, the gradient law) — this is domain data,
+  // not a score surface, so the sweep stays off it.
   const days = [];
   for (let i = 6; i >= 0; i--) days.push(roles.daysAgoISO(i));
   const perClient = ids.map((id) => {
@@ -487,10 +512,11 @@ async function paintNutritionBoard(root) {
     .sort((a, b) => a.avg - b.avg).slice(0, 8);
   const fRows = perClient.map((c) => {
     const max = Math.max(60, ...c.totals);
+    const label = `${(nameOf[c.id] || 'Client').split(' ')[0]}: about ${c.avg}g protein a day, ${c.loggedDays} of 7 days logged`;
     return `
     <div class="nb-row" data-go="coach-athlete/${esc(c.id)}">
       <span class="nb-name">${esc((nameOf[c.id] || 'Client').split(' ')[0])}</span>
-      <span class="nb-bars" aria-hidden="true">${c.totals.map((t) => `<i style="height:${t ? Math.max(14, Math.round((t / max) * 100)) : 6}%${t ? '' : ';opacity:0.3'}"></i>`).join('')}</span>
+      <span class="nb-bars" role="img" aria-label="${esc(label)}">${c.totals.map((t) => `<i style="height:${t ? Math.max(14, Math.round((t / max) * 100)) : 6}%${t ? '' : ';opacity:0.3'}"></i>`).join('')}</span>
       <span class="nb-avg">~${c.avg}g avg · ${c.loggedDays} of 7 days</span>
     </div>`;
   }).join('');
@@ -498,8 +524,9 @@ async function paintNutritionBoard(root) {
   slot.innerHTML = `
     <div class="eyebrow co-major" style="display:flex;justify-content:space-between;align-items:baseline"><span>Meal review</span>${flaggedCount ? `<span style="color:var(--amber-bright)">${flaggedCount} flagged</span>` : unopened ? `<span style="color:var(--blue-bright)">${unopened} to review</span>` : ''}</div>
     ${queue.length ? `<section class="card" style="padding:6px 16px">${qRows}</section>
-    <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:6px 2px 4px"><span class="link" data-go="trainer-inbox" role="button">The full queue lives in your Inbox</span></div>`
-    : `<div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:0 2px 4px;line-height:1.4">No client meals in the last 7 days. Every logged meal lands here for review.</div>`}
+    <div class="nb-foot"><span class="link" data-go="trainer-inbox" role="button">The full queue lives in your Inbox</span></div>`
+    : NUT.err ? `<div class="nb-foot">Couldn't reach the server for the queue. It reloads the next time this screen opens.</div>`
+    : `<div class="nb-foot">No client meals in the last 7 days. Every logged meal lands here for review.</div>`}
     ${perClient.length ? `
     <div class="eyebrow">Client fueling · last 7 days</div>
     <section class="card" style="padding:10px 16px 12px">${fRows}</section>` : ''}`;
