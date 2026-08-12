@@ -22,6 +22,19 @@ let BUSY = false;
 /* The SERVER's answer to "may this athlete be verified at all" (has_verification_consent, 0139).
    null = not asked yet, and renders as "checking" — never as permission. */
 let CONSENT = null;
+/* Whether a consent probe has SETTLED at least once. null + settled means the server couldn't be
+   asked — an honest "we couldn't confirm" with a retry, which is a different screen from
+   "checking". */
+let CONSENT_ASKED = false;
+
+/* call() in the native bridge has no timeout: a handler that never answers would strand whatever
+   awaits it — the arrival button on "Saving…", this screen on a probe — forever. Race the asks
+   that have no legitimate reason to block against a clock. (The OS permission dialog itself is
+   NOT raced: a person reading that prompt for a minute is normal, not a hang.) */
+const withTimeout = (p, ms) => new Promise((resolve, reject) => {
+  const t = setTimeout(() => reject(new Error('native call timed out')), ms);
+  p.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+});
 
 const bullet = (ic, title, body) => `
   <div class="lrow" style="align-items:flex-start;cursor:default">
@@ -37,6 +50,7 @@ export default {
     const needsGuardian = CONSENT === false;
     const on = STATE === 'always';
     const partial = STATE === 'when_in_use';
+    const denied = STATE === 'denied';
 
     return `
     ${backHead('Arrival check-in', 'How OnStandard confirms you showed up', 'home')}
@@ -58,7 +72,14 @@ export default {
         'Switch it off here or in your phone settings. You’ll check in by tapping a button instead, and nothing you already earned is deleted.')}
     </section>
 
-    ${needsGuardian ? `
+    ${AVAILABLE === false ? `
+    <div class="sidebox" style="margin-top:14px">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('bolt', 19)}</div>
+      <div>
+        <div class="tt">Not available on this version</div>
+        <div class="ts">Arrival check-in needs a newer build of the app. Until you update, you can check in by tapping the button on your commitment card — it counts exactly the same.</div>
+      </div>
+    </div>` : needsGuardian ? `
     <div class="sidebox" style="margin-top:14px">
       <div class="req-icon a" style="width:38px;height:38px">${icon('user', 19)}</div>
       <div>
@@ -70,12 +91,27 @@ export default {
     <button class="btn" id="lc-guardian" style="width:100%">${icon('message', 18)} Ask a parent to approve</button>
     <div style="height:10px"></div>
     <div class="ts" style="text-align:center">Nothing about your location is checked or stored until they do.</div>
-    ` : AVAILABLE === false ? `
+    ` : CONSENT === null ? (CONSENT_ASKED ? `
     <div class="sidebox" style="margin-top:14px">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('bolt', 19)}</div>
+      <div class="req-icon a" style="width:38px;height:38px">${icon('bolt', 19)}</div>
       <div>
-        <div class="tt">Not available on this version</div>
-        <div class="ts">Arrival check-in needs a newer build of the app. Until you update, you can check in by tapping the button on your commitment card — it counts exactly the same.</div>
+        <div class="tt">Couldn’t confirm your account just now</div>
+        <div class="ts">We couldn’t reach the server to check whether arrival check-in is set up for you, so nothing is switched on yet. You can still check in by tapping the button on your commitment card.</div>
+      </div>
+    </div>
+    <div style="height:14px"></div>
+    <button class="btn ghost" id="lc-consent-retry" style="width:100%">Try again</button>
+    ` : `
+    <div style="height:14px"></div>
+    <button class="btn" disabled style="width:100%">Checking your account…</button>
+    <div style="height:10px"></div>
+    <div class="ts" style="text-align:center">One moment: confirming arrival check-in is available for you.</div>
+    `) : denied ? `
+    <div class="sidebox" style="margin-top:14px">
+      <div class="req-icon a" style="width:38px;height:38px">${icon('target', 19)}</div>
+      <div>
+        <div class="tt">Your phone is blocking location for OnStandard</div>
+        <div class="ts">Location for this app is set to “Never” in your phone’s settings, so automatic check-in can’t run and asking again from here won’t bring the prompt back. To turn it on: open your phone’s Settings, find OnStandard, and set Location to “Always”. Until then, check in by tapping the button on your commitment card. It counts exactly the same.</div>
       </div>
     </div>` : `
     <div style="height:14px"></div>
@@ -96,22 +132,36 @@ export default {
 
   mount(root) {
     const loc = locationNative();
-    if (CONSENT === null) {
+    const rerender = () => { if (root.isConnected && window.__render) window.__render(); };
+
+    // Consent is re-asked while anything but a confirmed yes: null because a guardian may have
+    // said yes since the failed probe, false because one may have approved since the last paint —
+    // a stale "ask your parent" wall in front of an approved athlete is the worse failure.
+    // Re-render only on the first settle or a changed answer, so a repeated null can't loop.
+    if (CONSENT !== true) {
       loadVerificationConsent().then((ok) => {
-        if (ok === null) return;           // couldn't ask — leave it unknown, show nothing false
-        CONSENT = ok;
-        if (root.isConnected) window.__render && window.__render();
+        const first = !CONSENT_ASKED;
+        CONSENT_ASKED = true;
+        const prev = CONSENT;
+        if (ok !== null) CONSENT = ok;
+        if (first || CONSENT !== prev) rerender();
       });
     }
-    if (AVAILABLE === null) {
-      if (!loc) { AVAILABLE = false; STATE = 'unavailable'; }
-      else {
-        loc.available().then((r) => {
-          AVAILABLE = !!(r && r.available);
-          STATE = (r && r.state) || 'unavailable';
-          if (root.isConnected) window.__render && window.__render();
-        }).catch(() => { AVAILABLE = false; STATE = 'unavailable'; });
-      }
+
+    // Permission is re-probed on EVERY mount, not once per session: the athlete may have just
+    // changed it in the OS Settings app, and a screen reporting last week's answer reads as
+    // broken. The cached value paints immediately; the probe corrects it if it moved.
+    if (!loc) { AVAILABLE = false; STATE = 'unavailable'; }
+    else {
+      withTimeout(loc.available(), 8_000).then((r) => {
+        const a = !!(r && r.available);
+        const s = (r && r.state) || 'unavailable';
+        const changed = a !== AVAILABLE || s !== STATE;
+        AVAILABLE = a; STATE = s;
+        if (changed) rerender();
+      }).catch(() => {
+        if (AVAILABLE === null) { AVAILABLE = false; STATE = 'unavailable'; rerender(); }
+      });
     }
 
     const enable = root.querySelector('#lc-enable');
@@ -119,10 +169,22 @@ export default {
       if (!loc || BUSY) return;
       BUSY = true; enable.disabled = true; enable.textContent = 'Asking…';
       try {
+        // No timeout on request(): a person reading the OS dialog for a minute is not a hang.
         STATE = await loc.request(true);
-        if (STATE === 'always') await loc.arm();
-      } catch { STATE = 'unavailable'; }
+        if (STATE === 'always') await withTimeout(loc.arm(), 8_000);
+      } catch {
+        // The bridge failed or arm() stalled: re-probe for the truth instead of guessing at it.
+        try { const r = await withTimeout(loc.available(), 8_000); STATE = (r && r.state) || STATE; }
+        catch { /* keep the last known state */ }
+      }
       BUSY = false;
+      window.__render && window.__render();
+    });
+
+    const consentRetry = root.querySelector('#lc-consent-retry');
+    if (consentRetry) consentRetry.addEventListener('click', async () => {
+      consentRetry.disabled = true; consentRetry.textContent = 'Checking…';
+      await refreshConsent();
       window.__render && window.__render();
     });
 
@@ -155,7 +217,11 @@ export function armIfPermitted() {
 export function tapToVerify(instanceId) {
   const loc = locationNative();
   if (!loc) return Promise.resolve({ within: false, reason: 'Location is unavailable on this build' });
-  return loc.check(instanceId, true).catch(() => ({ within: false, reason: 'Couldn’t check right now' }));
+  // Raced against a clock: a stalled LOCATION_CHECK would otherwise pin the arrival button on
+  // "Saving…" forever. If the check does land after the race, the server still records the
+  // verdict and the next loadMine picks it up — the timeout only frees the athlete's thumb.
+  return withTimeout(loc.check(instanceId, true), 15_000)
+    .catch(() => ({ within: false, reason: 'Couldn’t check right now' }));
 }
 
 /** Re-ask the server on demand (e.g. after a guardian approves). */

@@ -17,9 +17,13 @@ import { deriveCommitment, TYPE_LABEL } from '../commitments.js';
 import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment } from '../commitment-data.js';
 import { tapToVerify, armIfPermitted } from './location-consent.js';
 
-/* The most recent "couldn't confirm" reason, so the card can say WHY rather than just failing.
-   Cleared on the next successful verification. */
-let LAST_VERIFY_REASON = null;
+/* Per-instance notes, keyed by instance id. A single global here once meant commitment A's
+   failure reason painted onto commitment B's card the moment two shared a morning.
+   VERIFY_REASON: the last "couldn't confirm" reason, cleared on the next successful verification.
+   SAVE_FAILED: a write that came back dead, so the card can SAY so — a button that flashes
+   "Saving…" and silently resets leaves an athlete at 4:48 AM not knowing if they're counted. */
+const VERIFY_REASON = new Map();
+const SAVE_FAILED = new Map();
 
 const ICON_FOR = {
   morning_roll_call: 'sun', practice: 'bolt', strength: 'bolt', speed: 'bolt',
@@ -61,8 +65,8 @@ export function commitmentCard(d) {
   if (d.stage === 'missed' || d.stage === 'unverified') {
     // Never the word "missed" on a verification failure — an absence of evidence is not evidence
     // of absence, and the detail screen offers a one-tap "I was there".
-    const line = d.stage === 'unverified' && LAST_VERIFY_REASON
-      ? `Couldn’t verify — ${LAST_VERIFY_REASON}` : d.confirmLine;
+    const reason = d.stage === 'unverified' ? VERIFY_REASON.get(d.instance_id) : null;
+    const line = reason ? `Couldn’t verify — ${reason}` : d.confirmLine;
     return `<div class="xrow-item" data-go="roll-call/${id}" style="border-color:var(--amber-border)">
       <div class="xico sm" style="background:var(--amber-surface);color:var(--amber-bright)">${icon('bolt', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
@@ -97,6 +101,7 @@ export function commitmentCard(d) {
     ${d.confirmLine && d.stage === 'awaiting_arrival' ? `<div class="vc-ctx">${icon('check', 13)} ${esc(d.confirmLine)}</div>` : ''}
     ${stageStrip(d)}
     ${action ? `<button class="xcta" ${action}>${icon('check', 18)} ${esc(actionText)}</button>` : ''}
+    ${action && SAVE_FAILED.get(d.instance_id) ? `<div class="vc-ctx" style="color:var(--amber-bright)">${icon('bolt', 13)} ${esc(SAVE_FAILED.get(d.instance_id))}</div>` : ''}
   </section>`;
 }
 
@@ -128,8 +133,17 @@ export function mountCommitmentCard(root, rerender) {
       if (el.disabled) return;
       el.disabled = true;
       el.textContent = 'Saving…';
-      const ok = await fn(el.getAttribute(attr));
-      if (ok) { try { if (navigator.vibrate) navigator.vibrate(14); } catch { /* no-op */ } }
+      const id = el.getAttribute(attr);
+      // A rejection must never strand the button on "Saving…" — the card rebuilds either way,
+      // and a dead write leaves a note the card renders instead of resetting in silence.
+      let ok = false;
+      try { ok = await fn(id); } catch { ok = false; }
+      if (ok) {
+        SAVE_FAILED.delete(id);
+        try { if (navigator.vibrate) navigator.vibrate(14); } catch { /* no-op */ }
+      } else {
+        SAVE_FAILED.set(id, 'Didn’t save. Check your signal and tap again.');
+      }
       if (rerender) rerender();
     });
   });
@@ -151,9 +165,9 @@ export function mountCommitmentCard(root, rerender) {
   // recorded too — as 'unverified' with a reason, never as 'missed' — so the coach sees an honest
   // "couldn't confirm" instead of silence, and the athlete gets a dispute button.
   go('data-vc-arrive', (id) => tapToVerify(id).then((r) => loadMine(true).then(() => {
-    if (r && r.within) { track(EVENTS.VC_ARRIVED, { source: 'manual' }); return true; }
-    LAST_VERIFY_REASON = (r && r.reason) || null;
-    track(EVENTS.VC_UNVERIFIED, { reason: LAST_VERIFY_REASON || 'unknown' });
+    if (r && r.within) { VERIFY_REASON.delete(id); track(EVENTS.VC_ARRIVED, { source: 'manual' }); return true; }
+    VERIFY_REASON.set(id, (r && r.reason) || 'Couldn’t confirm your location');
+    track(EVENTS.VC_UNVERIFIED, { reason: (r && r.reason) || 'unknown' });
     return true;
   })));
   root.querySelectorAll('[data-vc-open]').forEach((el) => el.addEventListener('click', (ev) => {
@@ -286,7 +300,8 @@ export default {
       dis.disabled = true; dis.textContent = 'Sending…';
       const ok = await disputeResponse(sub, 'Athlete reports this record is wrong.');
       if (ok) { track(EVENTS.VC_DISPUTED, {}); window.__render && window.__render(); }
-      else { dis.disabled = false; dis.textContent = 'Something wrong? Tell your coach'; }
+      // Name the failure — a button that quietly resets reads as "maybe it worked".
+      else { dis.disabled = false; dis.textContent = 'Couldn’t send. Tap to try again'; }
     });
   },
 };

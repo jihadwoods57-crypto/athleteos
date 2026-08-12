@@ -465,7 +465,9 @@
    blue-tinted surface with NO border, the coach on plain surface with a hairline that survives on
    both themes. Radius goes to the system's 18 with a 6px tail corner, which is the difference
    between "chat bubble" and "rounded rectangle". ---- */
-.msg .bubble { padding:11px 14px 12px; border-radius:18px; font-size:14.5px; font-weight:600; line-height:1.47; letter-spacing:-0.005em; }
+/* overflow-wrap: one long unbroken token (a pasted URL, a 60-char food name) must break inside
+   the bubble, not push it past the thread edge. Shared by all three thread renderers. */
+.msg .bubble { padding:11px 14px 12px; border-radius:18px; font-size:14.5px; font-weight:600; line-height:1.47; letter-spacing:-0.005em; overflow-wrap:anywhere; }
 .msg.coach .bubble { background: var(--surface-2); border: 1px solid var(--hairline-soft); border-top-left-radius: 6px; }
 .msg.ai .bubble { background: rgba(var(--blue-rgb), 0.09); border: none; border-top-left-radius: 6px; }
 .msg.athlete { align-self: flex-end; flex-direction: row-reverse; }

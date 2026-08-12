@@ -29,7 +29,10 @@ import { scrollThreadToEnd } from '../keyboard.js';
 const WINDOW_DAYS = 14;
 const PAGE = 200;
 
-let STATE = { uid: null, comments: [], meals: [], participants: [], oldestISO: null, more: true, error: false };
+/* mealsError: the meals fetch FAILED (fetchRecentMeals returns null on failure, [] on truly
+   none) — the two must never blur, because "log a meal first" said to an athlete with a year of
+   logs is a fabrication, the exact lie the fetcher itself was cured of. */
+let STATE = { uid: null, comments: [], meals: [], participants: [], oldestISO: null, more: true, error: false, mealsError: false };
 
 const fmtTime = (iso) => {
   if (!iso) return '';
@@ -120,7 +123,11 @@ export default {
       }
       const msgs = threadMessages(STATE.comments);
       if (!msgs.length && !STATE.meals.length) {
-        threadEl.innerHTML = `<div class="msg-status">Nothing here yet. Log a meal and the AI Nutritionist starts the conversation.</div>`;
+        // Empty because there IS nothing, or empty because the meals fetch died? Opposite
+        // messages — one invites a first log, the other must not pretend the logs are gone.
+        threadEl.innerHTML = STATE.mealsError
+          ? `<div class="msg-status">Couldn't load your meals right now — your logs are safe. <span class="link" id="nc-retry" role="button">Retry</span></div>`
+          : `<div class="msg-status">Nothing here yet. Log a meal and the AI Nutritionist starts the conversation.</div>`;
         return;
       }
       const { items } = stitchNutritionChat({ meals: STATE.meals, comments: msgs });
@@ -173,16 +180,25 @@ export default {
       const beforeISO = older && STATE.comments.length ? STATE.comments[0].created_at : null;
       const [fetched, meals, people] = await Promise.all([
         roles.fetchMyMealThread(RT.userId, { beforeISO, limit: PAGE }),
-        older ? Promise.resolve(STATE.meals) : roles.fetchRecentMeals(RT.userId, roles.daysAgoISO(WINDOW_DAYS)).catch(() => []),
+        // null = the meals fetch FAILED (the fetcher's own contract); [] = truly no meals.
+        older ? Promise.resolve(STATE.meals) : roles.fetchRecentMeals(RT.userId, roles.daysAgoISO(WINDOW_DAYS)).catch(() => null),
         roles.fetchThreadParticipants(RT.userId).catch(() => []),
       ]);
       busy = false;
-      if (fetched && fetched.error) { STATE.error = true; paint(); return; }
+      if (fetched && fetched.error) {
+        // An older page that fails must not tear down the conversation already on screen —
+        // losing a fortnight of scroll to one dropped request reads as the app eating the thread.
+        if (older && STATE.comments.length) { setNote("Couldn't load earlier messages. Try again."); paint(); return; }
+        STATE.error = true; paint(); return;
+      }
       const rows = Array.isArray(fetched) ? fetched : [];
+      const mealsKnown = Array.isArray(meals);
       STATE = {
         uid: RT.userId,
         comments: older ? rows.concat(STATE.comments) : rows,
-        meals: Array.isArray(meals) ? meals : [],
+        // On failure keep what we had; stale meals beat a thread stripped of its plates.
+        meals: mealsKnown ? meals : STATE.meals,
+        mealsError: older ? STATE.mealsError : !mealsKnown,
         participants: Array.isArray(people) ? people : [],
         oldestISO: rows.length ? rows[0].created_at : STATE.oldestISO,
         // A short page means we have reached the start of what there is.
@@ -211,7 +227,13 @@ export default {
       const text = (input.value || '').trim();
       if (!text || busy) return;
       const latest = STATE.meals.length ? STATE.meals[0] : null;
-      if (!latest) { setNote('Log a meal first — a message belongs to a plate.'); return; }
+      if (!latest) {
+        // Only claim "no meals" when we actually KNOW there are none.
+        setNote(STATE.mealsError
+          ? "Couldn't check your recent meals. Give it a moment and try again."
+          : 'Log a meal first — a message belongs to a plate.');
+        return;
+      }
       busy = true; setNote('');
       input.value = '';
       const posted = await roles.postMealComment(latest.id, RT.userId, RT.userId, 'athlete', text);
@@ -222,6 +244,8 @@ export default {
       scrollThreadToEnd(root, { force: true });
     };
     if (send) send.addEventListener('click', submit);
-    if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    // isComposing: Enter inside an IME composition (CJK keyboards) is choosing a character,
+    // not sending — firing submit there ships half a word.
+    if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) submit(); });
   },
 };
