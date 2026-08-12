@@ -604,7 +604,11 @@
   box-shadow: var(--sh-card); cursor: pointer; position: relative; overflow: hidden;
   transition: transform var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
 }
-.role-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--role-accent, transparent); opacity: .85; }
+/* The 3px accent stripe that sat here was the banned side-stripe pattern by structure (a
+   ::before instead of a border changes nothing). The icon tile already carries each role's
+   accent — tinted vessel, accent glyph — so the stripe was a second, redundant voice for the
+   same fact. Removed 2026-08-12; the resume card's full accent border stays (that one is legal
+   and does a real job: "this card is different from its siblings"). */
 .role-card:active { transform: scale(.985); }
 .role-card:hover { border-color: var(--hairline); box-shadow: var(--sh-raised); }
 .role-ic { width: 46px; height: 46px; border-radius: var(--r-card-sm); display: grid; place-items: center; flex: 0 0 auto; }

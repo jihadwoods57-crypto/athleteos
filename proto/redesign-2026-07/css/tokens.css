@@ -138,6 +138,12 @@
   /* 11, not the 10 this token was minted at: the app's real eyebrows (.eyebrow, .xgrp,
      .co-eyebrow) have always been 11px. A token that disagrees with every instance of the role
      it names is aspiration, not a scale — the token moved to reality (2026-08-08). */
+  /* The micro-label step: uppercase tier badges, tags, and pill text (.co-tier, .xpill and
+     kin). Minted 2026-08-12 for the same reason --t-score was: the app has a REAL populated
+     tier down here (~30 declarations at 9.5/10/10.5), and forcing it up to 11 would erase a
+     deliberate level while leaving it raw kept the mud. One value, named, so the 9.5-vs-10-
+     vs-10.5 drift has somewhere to converge under the ratchet. */
+  --t-micro:   10px;
   --t-eyebrow: 11px;
   --t-xs:      11px;
   --t-sm:      12.5px;

@@ -80,9 +80,11 @@ export const role = {
   hideTabs: true,
   render() {
     // Full-width role rows: a tinted icon, a benefit-first line, and a chevron affordance so each
-    // role reads as an intentional, tappable choice (not a flat tile). Accent bar per role.
+    // role reads as an intentional, tappable choice (not a flat tile). The icon tile carries the
+    // role's accent; it is the only accent voice on the card (the old 3px stripe was the banned
+    // side-stripe pattern and left 2026-08-12).
     const card = (go, ic, tint, accent, t, s) => `
-      <div class="role-card" data-go="${go}" role="button" aria-label="${esc(t)}: ${esc(s)}" style="--role-accent:${accent}">
+      <div class="role-card" data-go="${go}" role="button" aria-label="${esc(t)}: ${esc(s)}">
         <div class="role-ic" style="background:${tint};color:${accent}">${icon(ic, 21)}</div>
         <div class="role-tt"><div class="role-t">${esc(t)}</div><div class="role-s">${esc(s)}</div></div>
         <div class="role-chev">${icon('chevron', 18)}</div>

@@ -1266,7 +1266,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xrow-item.green .xa{color:var(--text)}
 .xrow-item.green .xb{color:var(--text-3)}
 .xrow-item.red{background:linear-gradient(90deg,var(--red-surface),transparent 75%);border-color:var(--red-border)}
-.xpill{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:var(--r-pill);white-space:nowrap}
+.xpill{font-size:var(--t-micro);font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:var(--r-pill);white-space:nowrap}
 .xpill.gold{background:var(--amber-surface);color:var(--amber-bright);border:1px solid var(--amber-border)}
 .xpill.gray{background:var(--surface-3);color:var(--text-3);border:1px solid var(--hairline)}
 .xpill.green{background:var(--green-surface);color:var(--green-bright);border:1px solid var(--green-border)}

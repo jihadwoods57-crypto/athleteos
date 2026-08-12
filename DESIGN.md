@@ -98,12 +98,15 @@ number in the marketing match. Use it for anything else and it stops meaning "th
 that matters." The fallback leads with Plus Jakarta Sans 800, so a failed font load degrades to
 today's appearance rather than a system serif.
 
-Nine steps. Each is far enough from its neighbour to read as a deliberate level. Do not add a
-tenth, and do not reach for a value between two of them.
+Twelve steps counting the two special-purpose ones (`--t-micro`, `--t-score`). Each is far
+enough from its neighbour to read as a deliberate level. Do not add another, and do not reach
+for a value between two of them. A step is only ever minted when a REAL populated tier exists
+with no token naming it (`--t-score` 2026-08-08, `--t-micro` 2026-08-12), never speculatively.
 
 | Token | Size | Use |
 |---|---|---|
-| `--t-eyebrow` | 10px | uppercase section labels, stat keys |
+| `--t-micro` | 10px | tier badges, tags, pill text (`.co-tier`, `.xpill`) |
+| `--t-eyebrow` | 11px | uppercase section labels, stat keys |
 | `--t-xs` | 11px | meta, timestamps, captions |
 | `--t-sm` | 12.5px | secondary body, list subtitles |
 | `--t-base` | 14px | body |

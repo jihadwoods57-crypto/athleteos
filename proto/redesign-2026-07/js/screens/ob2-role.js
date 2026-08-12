@@ -45,7 +45,7 @@ export const ob2Role = {
   render() {
     const resume = resumeTarget();
     const card = (r) => `
-      <div class="role-card" data-go="${r.go}" data-role="${r.key}" role="button" aria-label="${esc(r.t)} — ${esc(r.s)}" style="--role-accent:${r.accent}">
+      <div class="role-card" data-go="${r.go}" data-role="${r.key}" role="button" aria-label="${esc(r.t)} — ${esc(r.s)}">
         <div class="role-ic" style="background:${r.tint};color:${r.accent}">${icon(r.ic, 21)}</div>
         <div class="role-tt"><div class="role-t">${esc(r.t)}</div><div class="role-s">${esc(r.s)}</div></div>
         <div class="role-chev">${icon('chevron', 18)}</div>
@@ -57,7 +57,7 @@ export const ob2Role = {
       <div class="ob-sub" style="text-align:center">Everything that follows is built around your answer.</div>
       <div class="ob-body">
         ${resume ? `
-        <div class="role-card" id="ob2-resume" data-go="${esc(resume.go)}" role="button" aria-label="Continue where you left off — ${esc(resume.role.t)}" style="--role-accent:${resume.role.accent};border-color:${resume.role.accent}">
+        <div class="role-card" id="ob2-resume" data-go="${esc(resume.go)}" role="button" aria-label="Continue where you left off — ${esc(resume.role.t)}" style="border-color:${resume.role.accent}">
           <div class="role-ic" style="background:${resume.role.tint};color:${resume.role.accent}">${icon('back', 21)}</div>
           <div class="role-tt"><div class="role-t">Pick up where you left off</div><div class="role-s">Your ${esc(resume.role.t.toLowerCase())} answers are saved.</div></div>
           <div class="role-chev">${icon('chevron', 18)}</div>
