@@ -2,7 +2,7 @@
    draft/info_needed (auto-created on first save), read-only progress otherwise. Approval is
    human: everything here lands in the Command Center queue, and only the admin RPC can flip
    status — this screen never asserts anything about outcomes. */
-import { backHead, esc, skeletonRows } from '../components.js';
+import { backHead, esc, errorState, skeletonRows } from '../components.js';
 import { icon } from '../icons.js';
 import * as roles from '../roles.js';
 import { roleNav } from '../state.js';
@@ -22,13 +22,15 @@ const STATUS_COPY = {
   rejected: { t: 'Not this time', s: 'We couldn’t approve this application. You’re welcome to reach out to support if you believe we got it wrong.' },
 };
 
-let G = { app: null, loaded: false };
+let G = { app: null, loaded: false, failed: false };
 let UI = { saving: false, submitting: false, uploading: null, msg: '', err: '' };
 
 async function load(force) {
   if (G.loaded && !force) return;
-  G.app = await roles.fetchMyCoachApplication();
-  G.loaded = true;
+  const app = await roles.fetchMyCoachApplication();
+  // { error:true } = the read FAILED. Rendering the blank application form to a coach whose
+  // application is submitted or approved misstates their standing and invites a duplicate.
+  G = (app && app.error) ? { app: G.app, loaded: true, failed: true } : { app, loaded: true, failed: false };
   if (window.__render) window.__render();
 }
 
@@ -115,6 +117,14 @@ export default {
   get nav() { return roleNav(); },
   render() {
     if (!G.loaded) return `${backHead('Become a coach', 'OnStandard Coach Partner Program', 'profile')}${skeletonRows(3)}`;
+    if (G.failed && !G.app) {
+      return `${backHead('Become a coach', 'OnStandard Coach Partner Program', 'profile')}
+      ${errorState({
+        title: "Couldn't check your application",
+        body: 'If you already applied, your application is safe. Reconnect before starting a new one.',
+        retryId: 'ca-retry',
+      })}`;
+    }
     const a = G.app;
     // Tested in marketplace-rules.test.mjs — a locally-merged object carries no `status`, and
     // reading that as "not editable" is what once flipped a never-submitted application to
@@ -130,6 +140,8 @@ export default {
   },
   mount(root) {
     load();
+    const caRetry = root.querySelector('#ca-retry');
+    if (caRetry) caRetry.addEventListener('click', () => { G = { app: null, loaded: false, failed: false }; window.__render(); load(true); });
     const collect = () => ({
       legal_name: (root.querySelector('#ca-legal') || {}).value || '',
       display_name: (root.querySelector('#ca-name') || {}).value || '',

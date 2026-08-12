@@ -1,4 +1,4 @@
-import { S, RT, roleNav } from '../state.js';
+import { S, RT, roleNav, notifsFetchFailed } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
 
@@ -54,7 +54,13 @@ export default {
 
     ${N.earlier.length ? `<div class="eyebrow">Earlier</div>${N.earlier.map(row).join('')}` : ''}
 
-    ${!hasRows ? `
+    ${!hasRows && notifsFetchFailed ? `
+    <div class="ne-empty">
+      <div class="ne-ring" style="color:var(--amber-bright)">${icon('wifiOff', 30)}</div>
+      <div class="ne-t">Couldn't check notifications</div>
+      <div class="ne-s">Nothing was cleared; this screen just couldn't reach the server. It retries on its own, so check back in a moment.</div>
+    </div>` : ''}
+    ${!hasRows && !notifsFetchFailed ? `
     <div class="ne-empty">
       <div class="ne-ring">${icon('checkCircle', 30)}</div>
       <div class="ne-t">You're all caught up</div>

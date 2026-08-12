@@ -23,7 +23,7 @@ function panel(p, urls, label) {
   const url = urls[p.photo_path];
   const src = url ? safeImg(url) : '';
   const img = url === undefined ? `<div class="cmp-empty">${icon('bolt', 18)}</div>`
-    : (src ? `<img class="cmp-img" src="${src}" alt="${esc(label)} photo" />` : `<div class="cmp-empty">${icon('image', 18)}</div>`);
+    : (src ? `<img class="cmp-img" src="${src}" alt="${esc(label)} photo" decoding="async" />` : `<div class="cmp-empty">${icon('image', 18)}</div>`);
   const sub = [fmtDate(p.taken_on), p.weight_lb ? `${p.weight_lb} lb` : ''].filter(Boolean).join(' · ');
   return `<div class="cmp-panel"><div class="cmp-lab">${label}</div>${img}<div class="cmp-sub">${esc(sub)}</div></div>`;
 }
@@ -33,7 +33,7 @@ function strip(photos, urls, side, selId) {
     const url = urls[p.photo_path];
     const src = url ? safeImg(url) : '';
     const on = p.id === selId;
-    const inner = src ? `<img class="cmp-thumb-img" src="${src}" alt="" />` : `<div class="cmp-thumb-load">${icon('image', 12)}</div>`;
+    const inner = src ? `<img class="cmp-thumb-img" src="${src}" alt="" loading="lazy" decoding="async" />` : `<div class="cmp-thumb-load">${icon('image', 12)}</div>`;
     return `<button class="cmp-thumb${on ? ' on' : ''}" data-cmp-side="${side}" data-cmp-id="${p.id}" aria-pressed="${on}">${inner}</button>`;
   }).join('')}</div>`;
 }
@@ -41,11 +41,11 @@ function strip(photos, urls, side, selId) {
 async function resolveUrls() {
   const cache = progressPhotoCache();
   if (!cache.photos) return;
-  let changed = false;
-  for (const p of cache.photos) {
-    if (cache.urls[p.photo_path] === undefined) { cache.urls[p.photo_path] = await roles.signedProgressPhotoUrl(p.photo_path); changed = true; }
-  }
-  if (changed && window.__render) window.__render();
+  const want = cache.photos.filter((p) => cache.urls[p.photo_path] === undefined).map((p) => p.photo_path);
+  if (!want.length) return;
+  const urls = await roles.signedProgressPhotoUrls(want);
+  for (const path of want) cache.urls[path] = urls[path] || null;
+  if (window.__render) window.__render();
 }
 
 export default {

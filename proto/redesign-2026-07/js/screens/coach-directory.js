@@ -32,7 +32,10 @@ async function load(force) {
       category: UI.category, maxPriceCents: PRICE_STEPS[UI.priceIdx].cents,
     });
     if (CACHE.key !== key) return; // a newer filter won
-    CACHE.list = Array.isArray(list) ? list : [];
+    // null = the RPC FAILED — that's the error state, not "No coaches match". This branch is
+    // what finally makes the cd-retry errorState below reachable.
+    if (list === null) CACHE.error = true;
+    else CACHE.list = Array.isArray(list) ? list : [];
   } catch {
     CACHE.error = true;
   }

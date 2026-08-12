@@ -331,8 +331,13 @@ async function loadPassMap(force) {
   const rows = CD.roster ? CD.roster.rows : [];
   if (!rows.length) return;
   tpMapLoading = true;
-  try { TP_MAP = await roles.fetchRosterPasses(rows.map((r) => r.athleteId)) || {}; }
-  catch { TP_MAP = {}; }
+  try {
+    const m = await roles.fetchRosterPasses(rows.map((r) => r.athleteId));
+    // null = FAILED: leave TP_MAP unset (the milestone card simply doesn't render) rather than
+    // caching an empty map that claims nobody has a pass.
+    if (m !== null) TP_MAP = m;
+  }
+  catch { /* keep last-known; a later load retries */ }
   finally { tpMapLoading = false; }
   // Exact match, not a prefix: 'coach' alone must not catch 'coach-roster' repainting into a
   // screen the operator already left.

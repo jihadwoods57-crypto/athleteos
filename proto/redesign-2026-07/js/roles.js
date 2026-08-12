@@ -23,7 +23,9 @@ export async function fetchMyTeams() {
 }
 export async function fetchTeamRoster(teamId) {
   const c = sb(); if (!c || !teamId) return [];
-  try { const { data } = await c.rpc('team_roster', { team: teamId }); return data || []; } catch { return []; }
+  // null = FAILED, [] = confirmed empty. A dropped request must not paint "No athletes yet"
+  // over a real roster (loadCoachRoster turns null into the offline branch).
+  try { const { data, error } = await c.rpc('team_roster', { team: teamId }); if (error) return null; return data || []; } catch { return null; }
 }
 /** Days since `sinceISO` for the caller's linked roster. Pass `athleteIds` (the roster is
  *  already known by every real caller, resolved a few lines before this runs) so the query can
@@ -37,9 +39,12 @@ export async function fetchLinkedDaysSince(sinceISO, athleteIds) {
   try {
     let q = c.from('days').select('athlete_id,date,score,grade,tasks').gte('date', sinceISO);
     q = Array.isArray(athleteIds) && athleteIds.length ? q.in('athlete_id', athleteIds) : q.limit(2000);
-    const { data } = await q;
+    const { data, error } = await q;
+    // null = FAILED. [] here fabricates "No logs today" onto every named athlete on the roster
+    // (buildRosterRow flags each one red) — the single largest false-claim surface in the app.
+    if (error) return null;
     return data || [];
-  } catch { return []; }
+  } catch { return null; }
 }
 /** Athlete IANA timezones for the coach roster (0088), keyed by id. Best-effort and RLS-safe: a
  *  coach reads these through the SAME profiles access they already have (connected → can_view, the
@@ -58,7 +63,8 @@ export async function fetchProfileTimezones(ids) {
 }
 export async function pendingTeamRequests(teamId) {
   const c = sb(); if (!c || !teamId) return [];
-  try { const { data } = await c.rpc('pending_team_requests', { team: teamId }); return data || []; } catch { return []; }
+  // null = FAILED, so a dropped request can't read as "no join requests waiting".
+  try { const { data, error } = await c.rpc('pending_team_requests', { team: teamId }); if (error) return null; return data || []; } catch { return null; }
 }
 export async function approveMember(teamId, athleteId) {
   const c = sb(); if (!c) return false;
@@ -77,9 +83,10 @@ export async function declineMember(teamId, athleteId) {
 export async function fetchMyConsent(athleteId) {
   const c = sb(); if (!c || !athleteId) return null;
   try {
-    const { data } = await c.from('guardian_consent_requests')
+    const { data, error } = await c.from('guardian_consent_requests')
       .select('status,guardian_email,requested_at').eq('athlete_id', athleteId)
       .order('requested_at', { ascending: false }).limit(1).maybeSingle();
+    if (error) return { error: true };
     if (!data) return { status: 'none', guardianEmail: null };
     return { status: data.status || 'pending', guardianEmail: data.guardian_email || null };
   } catch { return { error: true }; }
@@ -373,15 +380,31 @@ export async function fetchAthleteWeights(athleteId, daysBack = 30) {
 }
 export async function fetchRecentMeals(athleteId, sinceISO) {
   const c = sb(); if (!c || !athleteId) return [];
+  // null = FAILED. [] on a dropped request told an athlete with a year of logs that their
+  // "proof trail builds here" — the same fabrication listTrainingLogs was cured of.
   try {
-    const { data } = await c.from('meals').select('*').eq('athlete_id', athleteId).gte('day_date', sinceISO).order('day_date', { ascending: false }).order('logged_at', { ascending: true });
+    const { data, error } = await c.from('meals').select('*').eq('athlete_id', athleteId).gte('day_date', sinceISO).order('day_date', { ascending: false }).order('logged_at', { ascending: true });
+    if (error) return null;
     return data || [];
-  } catch { return []; }
+  } catch { return null; }
 }
 export async function signedMealPhotoUrl(path) {
   const c = sb(); if (!c || !path) return null;
   try { const { data } = await c.storage.from('meal-photos').createSignedUrl(path, 3600); return (data && data.signedUrl) || null; } catch { return null; }
 }
+/* One round trip for a whole surface's photos instead of one per photo. Only successful paths
+   appear in the result, so a caller that treats `undefined` as "not yet" retries on repaint. */
+async function signedUrlMap(bucket, paths) {
+  const c = sb(); const out = {};
+  const want = [...new Set((paths || []).filter(Boolean))];
+  if (!c || !want.length) return out;
+  try {
+    const { data } = await c.storage.from(bucket).createSignedUrls(want, 3600);
+    for (const r of data || []) { if (r && r.signedUrl && !r.error) out[r.path] = r.signedUrl; }
+  } catch { /* partial or empty map; callers keep their placeholders */ }
+  return out;
+}
+export const signedMealPhotoUrls = (paths) => signedUrlMap('meal-photos', paths);
 
 /* ---------------- food memory (0192): saved meals, orders + places ----------------
    The Plan intelligence hub's data. RLS decides whose memory a caller may read: the athlete
@@ -527,6 +550,7 @@ export async function signedProgressPhotoUrl(path) {
   const c = sb(); if (!c || !path) return null;
   try { const { data } = await c.storage.from('progress-photos').createSignedUrl(path, 3600); return (data && data.signedUrl) || null; } catch { return null; }
 }
+export const signedProgressPhotoUrls = (paths) => signedUrlMap('progress-photos', paths);
 
 /* ---------------- health / wearables (Apple Health, Health Connect) — DISPLAY-only in v1 ----------------
    All false/null in a browser/preview or until the founder wires the native health module
@@ -559,25 +583,29 @@ export async function saveDietaryRestrictions(userId, data) {
     return !error;
   } catch { return false; }
 }
-/** The caller's own declaration (for cross-device hydrate). Returns the data object or null. */
+/** The caller's own declaration (for cross-device hydrate). Returns the data object, null when
+    the server confirms no declaration, or { error:true } on a FAILED read — allergy data must
+    not hydrate as "none declared" off a dropped request. */
 export async function fetchMyDietary() {
   const c = sb(); if (!c) return null;
   try {
     const { data: u } = await c.auth.getUser(); const uid = u && u.user && u.user.id; if (!uid) return null;
     const { data, error } = await c.from('dietary_restrictions').select('data').eq('athlete_id', uid).maybeSingle();
-    if (error) return null;
+    if (error) return { error: true };
     return (data && data.data) || null;
-  } catch { return null; }
+  } catch { return { error: true }; }
 }
 /** Coach read: declarations for a set of roster athletes (RLS gates to those they can_view).
     Returns [{ athlete_id, data }] — only athletes who have actually declared. */
 export async function fetchTeamDietary(athleteIds) {
   const c = sb(); if (!c || !athleteIds || !athleteIds.length) return [];
+  // null = FAILED. This feeds the Team Dietary Sheet — a safety surface a coach may order
+  // team meals from. A dropped request must never read as "no declarations".
   try {
     const { data, error } = await c.from('dietary_restrictions').select('athlete_id,data').in('athlete_id', athleteIds);
-    if (error) return [];
+    if (error) return null;
     return data || [];
-  } catch { return []; }
+  } catch { return null; }
 }
 
 /* ---------------- training logs (0135) — lightweight session + notes, tracked-not-scored ---------------- */
@@ -970,33 +998,39 @@ export async function setMyCoachName(name) {
     team, a trainer's is a practice; exactly one is ever set on a row. */
 export const ownerCol = (kind) => (kind === 'practice' ? 'practice_id' : 'team_id');
 
-/** The book's standing requirement sets (RLS: staff/owner + active members/clients). []. */
+/** The book's standing requirement sets (RLS: staff/owner + active members/clients).
+    null = FAILED: a fabricated [] here silently reverts the athlete's SCORED DAY to the
+    built-in catalog, dropping the coach's standard — callers keep last-known instead. */
 export async function fetchRequirementSets(bookId, kind = 'team') {
   const c = sb(); if (!c || !bookId) return [];
-  try { const { data } = await c.from('requirement_sets').select('*').eq(ownerCol(kind), bookId); return data || []; } catch { return []; }
+  try { const { data, error } = await c.from('requirement_sets').select('*').eq(ownerCol(kind), bookId); if (error) return null; return data || []; } catch { return null; }
 }
 /** The signed-in ATHLETE's assignments: everything open plus anything closed recently
-    (so a just-completed task still shows Done tonight). Best-effort []. */
+    (so a just-completed task still shows Done tonight). null = FAILED — [] on a dropped
+    request wiped every real coach assignment out of local state. */
 export async function fetchMyAssignments() {
   const c = sb(); if (!c) return [];
   try {
     const since = daysAgoISO(7);
-    const { data } = await c.from('requirement_assignments').select('*')
+    const { data, error } = await c.from('requirement_assignments').select('*')
       .neq('status', 'cancelled').gte('created_at', since)
       .order('created_at', { ascending: false }).limit(60);
+    if (error) return null;
     return data || [];
-  } catch { return []; }
+  } catch { return null; }
 }
 /** The signed-in user's server notification feed (0027): coach nudges, join events, digests.
-    Recent first, bounded, best-effort []. RLS scopes the select to the caller's own rows. */
+    Recent first, bounded. null = FAILED — [] here didn't just render "all caught up", it
+    overwrote and PERSISTED the cached feed as empty. RLS scopes the select to the caller. */
 export async function fetchMyNotifications(limit = 30) {
   const c = sb(); if (!c) return [];
   try {
-    const { data } = await c.from('notifications')
+    const { data, error } = await c.from('notifications')
       .select('id, kind, title, body, created_at, read_at')
       .order('created_at', { ascending: false }).limit(limit);
+    if (error) return null;
     return data || [];
-  } catch { return []; }
+  } catch { return null; }
 }
 /** Mark the caller's unread server notifications read (bell opened). Best-effort; RLS
     (notif_update, self-only) already scopes the update to the caller's own rows. */
@@ -1058,11 +1092,14 @@ export async function completeAssignmentRemote(id) {
 /* ---- Requirement templates (Slice C, 0074): named reusable requirement-set drafts ---- */
 export async function fetchRequirementTemplates(teamId) {
   const c = sb(); if (!c || !teamId) return [];
+  // null = FAILED. [] means "this team really has no templates", which is the trigger for the
+  // one-time seven-row seed — a failure must never impersonate it.
   try {
-    const { data } = await c.from('requirement_templates')
+    const { data, error } = await c.from('requirement_templates')
       .select('id,name,kind,items,created_at').eq('team_id', teamId).order('created_at');
+    if (error) return null;
     return data || [];
-  } catch { return []; }
+  } catch { return null; }
 }
 export async function saveRequirementTemplate(teamId, name, kind, items) {
   const c = sb(); if (!c) return { ok: false, error: 'Offline' };
@@ -1103,12 +1140,14 @@ export async function postAnnouncement({ teamId, scopeKind = 'team', scopeValue 
 }
 export async function fetchAnnouncements(teamId, limit = 10) {
   const c = sb(); if (!c || !teamId) return [];
+  // null = FAILED. "Nothing sent yet" on a dropped request invites a duplicate broadcast.
   try {
-    const { data } = await c.from('announcements')
+    const { data, error } = await c.from('announcements')
       .select('id,title,body,scope_kind,scope_value,sent_count,created_at')
       .eq('team_id', teamId).order('created_at', { ascending: false }).limit(limit);
+    if (error) return null;
     return data || [];
-  } catch { return []; }
+  } catch { return null; }
 }
 
 /* ---------------- Coach OS core (0071): interventions, groups, exceptions ---------------- */
@@ -1418,13 +1457,15 @@ export async function fetchMyTrainer() {
 export async function fetchPracticeRoster(practiceId) {
   const c = sb(); if (!c || !practiceId) return [];
   try {
-    const { data } = await c.rpc('practice_roster', { practice: practiceId });
+    const { data, error } = await c.rpc('practice_roster', { practice: practiceId });
+    if (error) return null; // null = FAILED, not "no clients yet" (mirrors fetchTeamRoster)
     return (data || []).map(r => ({ athlete_id: r.client_id, athlete_name: r.client_name, position: null, joined_at: r.joined_at }));
-  } catch { return []; }
+  } catch { return null; }
 }
 export async function pendingPracticeRequests(practiceId) {
   const c = sb(); if (!c || !practiceId) return [];
-  try { const { data } = await c.rpc('pending_practice_requests', { practice: practiceId }); return data || []; } catch { return []; }
+  // null = FAILED (mirrors pendingTeamRequests).
+  try { const { data, error } = await c.rpc('pending_practice_requests', { practice: practiceId }); if (error) return null; return data || []; } catch { return null; }
 }
 export async function approveClient(practiceId, clientId) {
   const c = sb(); if (!c) return false;
@@ -1440,7 +1481,7 @@ export async function declineClient(practiceId, clientId) {
    so no explicit owner filter; failures fall to a null/[]/{error} sentinel and never throw. */
 export async function fetchMyTrainerPage(practiceId) {
   const c = sb(); if (!c || !practiceId) return null;
-  try { const { data } = await c.from('trainer_public_pages').select('*').eq('practice_id', practiceId).maybeSingle(); return data || null; } catch { return { error: true }; }
+  try { const { data, error } = await c.from('trainer_public_pages').select('*').eq('practice_id', practiceId).maybeSingle(); if (error) return { error: true }; return data || null; } catch { return { error: true }; }
 }
 export async function saveMyTrainerPage(practiceId, fields) {
   const c = sb(); if (!c || !practiceId) return { error: 'no practice' };
@@ -1463,7 +1504,7 @@ export async function publishMyTrainerPage(practiceId, publish) {
    it. The `!c` guard keeps its benign empty: that's demo/preview mode, not a failure. */
 export async function fetchMyOffers(practiceId) {
   const c = sb(); if (!c || !practiceId) return [];
-  try { const { data } = await c.from('offers').select('*').eq('practice_id', practiceId).order('sort').order('created_at'); return data || []; } catch { return { error: true }; }
+  try { const { data, error } = await c.from('offers').select('*').eq('practice_id', practiceId).order('sort').order('created_at'); if (error) return { error: true }; return data || []; } catch { return { error: true }; }
 }
 export async function saveOffer(offer) {
   const c = sb(); if (!c) return { error: 'no client' };
@@ -1479,7 +1520,7 @@ export async function deleteOffer(id) {
 }
 export async function fetchMyApplications(practiceId) {
   const c = sb(); if (!c || !practiceId) return [];
-  try { const { data } = await c.from('trainer_applications').select('*').eq('practice_id', practiceId).order('created_at', { ascending: false }); return data || []; } catch { return { error: true }; }
+  try { const { data, error } = await c.from('trainer_applications').select('*').eq('practice_id', practiceId).order('created_at', { ascending: false }); if (error) return { error: true }; return data || []; } catch { return { error: true }; }
 }
 export async function setApplicationStatus(id, status) {
   const c = sb(); if (!c || !id) return false;
@@ -1551,12 +1592,12 @@ export async function fetchConnectStatus(practiceId) {
 }
 export async function fetchPracticePayments(practiceId) {
   const c = sb(); if (!c || !practiceId) return [];
-  try { const { data } = await c.rpc('my_practice_payments', { p_practice: practiceId, p_limit: 30 }); return data || []; } catch { return { error: true }; }
+  try { const { data, error } = await c.rpc('my_practice_payments', { p_practice: practiceId, p_limit: 30 }); if (error) return { error: true }; return data || []; } catch { return { error: true }; }
 }
 /** The signed-in CLIENT's own connected trainer's payable offers (active Connect + active offer). */
 export async function fetchMyTrainerOffers() {
   const c = sb(); if (!c) return [];
-  try { const { data } = await c.rpc('my_trainer_offers'); return data || []; } catch { return { error: true }; }
+  try { const { data, error } = await c.rpc('my_trainer_offers'); if (error) return { error: true }; return data || []; } catch { return { error: true }; }
 }
 /** A guardian's children's trainers' payable offers (active guardianship + active client + active Connect).
  *  `{ error: true }` on failure, never `[]` — see fetchFundedPlans. */
@@ -1601,7 +1642,9 @@ export async function startSponsorCheckout(seats, label) { return callFn('sponso
 /** Sponsor: my purchased seat batches (code + claimed count). */
 export async function fetchMySponsorships() {
   const c = sb(); if (!c) return [];
-  try { const { data } = await c.from('sponsorships').select('*').order('created_at', { ascending: false }); return data || []; } catch { return []; }
+  // null = FAILED — money surface: "No sponsorships yet, buy a batch above" must never be
+  // shown to someone whose purchased seats just didn't load.
+  try { const { data, error } = await c.from('sponsorships').select('*').order('created_at', { ascending: false }); if (error) return null; return data || []; } catch { return null; }
 }
 /** Athlete: redeem a sponsor code. Returns the RPC row { ok, reason, label, expires_at } or { error }. */
 export async function redeemSponsorCode(code) {
@@ -1621,20 +1664,22 @@ export async function redeemOfferCode(code) {
  *  tables, which is exactly why the screen used to say "Free" to someone who had premium. */
 export async function myPremiumSource() {
   const c = sb(); if (!c) return 'none';
-  try { const { data, error } = await c.rpc('my_premium_source'); if (error) return 'none'; return data || 'none'; }
-  catch { return 'none'; }
+  // null = FAILED; 'none' = the server confirmed no premium source. Same entitlement lie as
+  // fetchMySubscription when collapsed.
+  try { const { data, error } = await c.rpc('my_premium_source'); if (error) return null; return data || 'none'; }
+  catch { return null; }
 }
 /** Operator: the funded roster for a practice — who's covered, when they renew, who lapsed. */
 export async function fetchFundedClients(practiceId) {
   const c = sb(); if (!c || !practiceId) return [];
-  try { const { data } = await c.rpc('my_funded_clients', { p_practice: practiceId }); return data || []; }
+  try { const { data, error } = await c.rpc('my_funded_clients', { p_practice: practiceId }); if (error) return { error: true }; return data || []; }
   catch { return { error: true }; }
 }
 /** Operator: people who PAID from the public page and never redeemed their code (0167). They are
  *  being billed for an app they can't open, and the trainer is the one who can actually fix it. */
 export async function fetchPendingClaims(practiceId) {
   const c = sb(); if (!c || !practiceId) return [];
-  try { const { data } = await c.rpc('my_pending_claims', { p_practice: practiceId }); return data || []; }
+  try { const { data, error } = await c.rpc('my_pending_claims', { p_practice: practiceId }); if (error) return { error: true }; return data || []; }
   catch { return { error: true }; }
 }
 
@@ -1679,9 +1724,11 @@ export async function fetchMySubscription() {
     const { data, error } = await c.from('subscriptions')
       .select('tier,status,plan_id,current_period_end,cancel_at_period_end')
       .eq('owner_id', uid).maybeSingle();
-    if (error) return null;
+    // { error:true } = FAILED; null = confirmed no row. Collapsing them told a paying user
+    // "You have the free plan" whenever the read dropped.
+    if (error) return { error: true };
     return data || null;
-  } catch { return null; }
+  } catch { return { error: true }; }
 }
 
 /* ---------------- pure roster projection (honest: no invented numbers) ---------------- */
@@ -1766,6 +1813,9 @@ export async function loadCoachRoster() {
   if (teams.error) throw new Error('roster-fetch-failed'); // caller renders honest offline
   if (!teams.length) return { teams: [], rows: [] };
   const perTeam = await Promise.all(teams.map(t => fetchTeamRoster(t.id)));
+  // A failed roster read (null) must land in the same offline branch as a failed teams read:
+  // rows=[] here painted "No athletes yet — share your code" over a real roster.
+  if (perTeam.some(r => r === null)) throw new Error('roster-fetch-failed');
   const athleteIds = athleteIdsOf(perTeam);
   const [days, recentMeals, tzByAthlete] = await Promise.all([
     fetchLinkedDaysSince(daysAgoISO(7), athleteIds),
@@ -1775,6 +1825,9 @@ export async function loadCoachRoster() {
     // the coach clock (today's behavior).
     fetchProfileTimezones(athleteIds),
   ]);
+  // days === null means the day read FAILED — projecting it would flag every athlete
+  // "No logs today" (red) and feed the nudge queue a roster of fabricated delinquents.
+  if (days === null) throw new Error('roster-fetch-failed');
   return { teams, rows: projectRows(perTeam, days, recentMeals, tzByAthlete) };
 }
 
@@ -1788,12 +1841,14 @@ export async function loadTrainerBook() {
   if (practices.error) throw new Error('book-fetch-failed'); // caller renders honest offline
   if (!practices.length) return { practices: [], rows: [] };
   const perPractice = await Promise.all(practices.map(p => fetchPracticeRoster(p.id)));
+  if (perPractice.some(r => r === null)) throw new Error('book-fetch-failed');
   const athleteIds = athleteIdsOf(perPractice);
   const [days, recentMeals, tzByAthlete] = await Promise.all([
     fetchLinkedDaysSince(daysAgoISO(7), athleteIds),
     fetchTeamActivity(daysAgoISO(2), 400, athleteIds),
     fetchProfileTimezones(athleteIds),
   ]);
+  if (days === null) throw new Error('book-fetch-failed');
   return { practices, rows: projectRows(perPractice, days, recentMeals, tzByAthlete) };
 }
 
@@ -1823,15 +1878,17 @@ export async function fetchInterventionOutcomes(bookId, fromISO, kind = 'team') 
    best-effort and never throws: memory is an enhancement, and a failure here must never break a
    correction the athlete just made. */
 
-/** Active + pending facts for the signed-in athlete. */
+/** Active + pending facts for the signed-in athlete. null = FAILED — state.js uses this list
+    to dedupe before inserting, and a fabricated [] creates duplicate facts. */
 export async function fetchMyMemoryFacts(uid) {
   const c = sb(); if (!c || !uid) return [];
   try {
-    const { data } = await c.from('athlete_memory_facts')
+    const { data, error } = await c.from('athlete_memory_facts')
       .select('id,kind,value,confidence,evidence_n,status')
       .eq('athlete_id', uid).in('status', ['active', 'pending_confirmation']).limit(120);
+    if (error) return null;
     return data || [];
-  } catch { return []; }
+  } catch { return null; }
 }
 
 /** Insert a new fact, or accrue evidence on the one that already says the same thing. */
@@ -1968,12 +2025,13 @@ export async function fetchMarketplaceFlags(force) {
 export async function fetchMarketplaceDirectory(filters = {}) {
   const c = sb(); if (!c) return [];
   try {
-    const { data } = await c.rpc('marketplace_directory', {
+    const { data, error } = await c.rpc('marketplace_directory', {
       p_category: filters.category || null, p_max_price_cents: filters.maxPriceCents || null,
       p_style: filters.style || null, p_tz: filters.tz || null,
     });
+    if (error) return null; // null = FAILED, so "No coaches match" stays a real answer
     return data || [];
-  } catch { return []; }
+  } catch { return null; }
 }
 /** A public coach listing by slug. `null` = the RPC ran and there is no such listing;
  *  `{ error: true }` = we could not find out. They were the same value, and the screen turns
@@ -1987,10 +2045,12 @@ export async function fetchMarketplaceListing(slug) {
 export async function startMarketplaceCheckout(offerId) {
   return callFn('marketplace-checkout', { offerId });
 }
-/** Coach side: my application (+ credentials + listing pointer), or null when never started. */
+/** Coach side: my application (+ credentials + listing pointer). null = confirmed never
+    started; { error:true } = FAILED — collapsing them rendered the blank application form
+    to an already-approved coach and invited a duplicate submission. */
 export async function fetchMyCoachApplication() {
   const c = sb(); if (!c) return null;
-  try { const { data, error } = await c.rpc('my_coach_application'); if (error) return null; return data || null; } catch { return null; }
+  try { const { data, error } = await c.rpc('my_coach_application'); if (error) return { error: true }; return data || null; } catch { return { error: true }; }
 }
 export async function saveCoachApplication(payload) {
   const c = sb(); if (!c) return { error: 'not configured' };
@@ -2018,10 +2078,11 @@ export async function uploadCredential(applicationId, category, title, file) {
     return { ok: true };
   } catch (e) { return { error: String((e && e.message) || e) }; }
 }
-/** The coach's own listing row (own-row RLS) — null until approved. */
+/** The coach's own listing row (own-row RLS) — null until approved; { error:true } = FAILED
+    (a dropped read must not tell a published coach they have no listing). */
 export async function fetchMyListing() {
   const c = sb(); if (!c) return null;
-  try { const { data } = await c.from('coach_listings').select('*').maybeSingle(); return data || null; } catch { return null; }
+  try { const { data, error } = await c.from('coach_listings').select('*').maybeSingle(); if (error) return { error: true }; return data || null; } catch { return { error: true }; }
 }
 /** Presentation fields + publish only — categories/suspended/slug are not grant-writable. */
 export async function updateMyListing(patch) {

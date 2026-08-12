@@ -149,15 +149,22 @@ export async function loadBook(force, kind) {
     // client_id/client_name; normalize to the athlete_* shape the inbox already renders, so one
     // template serves both books.
     const pending = [];
-    for (const b of r.book) {
-      const reqs = k === 'practice' ? await roles.pendingPracticeRequests(b.id) : await roles.pendingTeamRequests(b.id);
-      for (const q of reqs) {
+    // All books at once: a trainer with several practices was paying one round trip per book,
+    // serially, before the inbox could paint its pending count. A null (FAILED) book must not
+    // read as "no requests waiting" — but it also must not mark a good roster offline, so it
+    // gets its own flag and the inbox keeps last-known instead of claiming "All caught up".
+    const perBook = await Promise.all(r.book.map((b) =>
+      (k === 'practice' ? roles.pendingPracticeRequests(b.id) : roles.pendingTeamRequests(b.id))));
+    r.pendingFailed = perBook.some((reqs) => reqs === null);
+    r.book.forEach((b, i) => {
+      for (const q of (perBook[i] || [])) {
         pending.push(k === 'practice'
           ? { teamId: b.id, bookId: b.id, athlete_id: q.client_id, athlete_name: q.client_name, position: null }
           : { teamId: b.id, bookId: b.id, ...q });
       }
-    }
-    r.pending = pending;
+    });
+    r.pending = (r.pendingFailed && ROSTER && ROSTER.kind === k && Array.isArray(ROSTER.pending) && ROSTER.pending.length)
+      ? ROSTER.pending : pending;
     r.offline = false;
     ROSTER = r;
     // Coach OS core (0071): requirement sets, groups, exceptions, today's interventions, and
@@ -215,11 +222,10 @@ export async function loadActivity(force) {
   actLoading = true;
   try {
     const rows = await roles.fetchTeamActivity(roles.daysAgoISO(1), 20);
+    const withPhotos = rows.slice(0, 10).filter(m => m.photo_path);
+    const urls = await roles.signedMealPhotoUrls(withPhotos.map(m => m.photo_path));
     const photos = {};
-    await Promise.all(rows.slice(0, 10).filter(m => m.photo_path).map(async (m) => {
-      const u = await roles.signedMealPhotoUrl(m.photo_path);
-      if (u) photos[m.id] = u;
-    }));
+    for (const m of withPhotos) { if (urls[m.photo_path]) photos[m.id] = urls[m.photo_path]; }
     ACT = { rows, photos };
   } catch { ACT = { rows: [], photos: {} }; }
   finally { actLoading = false; actFetchedAt = Date.now(); }
@@ -278,7 +284,7 @@ async function loadExtras(bookId) {
   // (0136). The resulting SHAPE is identical either way — `sets` is [] not undefined — which is
   // what lets entriesFor stay untouched: resolveRequirementSet([]) is null, so a book with no
   // configured standard falls through to the built-in CATALOG. Asserted in operator.test.mjs.
-  const [sets, groups, exceptions, interventions, access, rooms] = await Promise.all([
+  const [setsRaw, groups, exceptions, interventions, access, rooms] = await Promise.all([
     c.standards ? roles.fetchRequirementSets(bookId, KIND) : [],
     c.groups ? roles.fetchCoachGroups(bookId, KIND) : [],
     c.exceptions ? roles.fetchActiveExceptions(bookId, KIND) : [],
@@ -286,6 +292,10 @@ async function loadExtras(bookId) {
     c.staffRoles ? roles.fetchMyStaffAccess(bookId) : null,
     c.rooms ? roles.fetchTeamRooms(bookId) : [],
   ]);
+  // sets === null means the standards read FAILED (not "no standard configured") — keep the
+  // last-known sets so entriesFor doesn't silently re-score the roster against the built-in
+  // CATALOG for the duration of a network blip.
+  const sets = setsRaw === null ? ((CD.extras && CD.extras.sets) || []) : setsRaw;
   // Slice F: one read carries role + scope. `scope` keeps its pre-F shape for every existing
   // consumer; `myRole` is the client-side capability hint (staff-access.js) — the server
   // (0077/0078) is the real wall. `rooms` is T-04 slice 1 (position rooms, read-only here).
@@ -410,14 +420,18 @@ export async function loadAthleteProfile(athleteId, force) {
       roles.fetchAthleteBasics(athleteId), // base_goal/base_weight/targets → the score breakdown's nutrition config
       roles.fetchAthleteWeights(athleteId, 30), // 0103: empty map for weight-restricted roles — surfaces just go absent
     ]);
+    // meals === null means the read FAILED — throwing here lands in the offline catch below,
+    // which finally makes the "Can't reach their profile" state reachable instead of rendering
+    // "No logs today yet — nothing to review" over an athlete who logged.
+    if (meals === null) throw new Error('profile-fetch-failed');
     // Stitch today's weigh-in back onto the day row (current_weight left the direct grant).
     // Restricted roles get nothing here, so the activity "Weighed in" line and the breakdown's
     // weight simply don't exist for them — absence, never a blank or a fake.
     if (day && weights && weights.has(String(day.date))) day.current_weight = weights.get(String(day.date));
+    const withPhotos = (meals || []).slice(0, 12).filter(m => m.photo_path);
+    const photoUrls = await roles.signedMealPhotoUrls(withPhotos.map(m => m.photo_path));
     const photos = {};
-    await Promise.all((meals || []).slice(0, 12).filter(m => m.photo_path).map(async (m) => {
-      const u = await roles.signedMealPhotoUrl(m.photo_path); if (u) photos[m.id] = u;
-    }));
+    for (const m of withPhotos) { if (photoUrls[m.photo_path]) photos[m.id] = photoUrls[m.photo_path]; }
     const row = (CD.roster.rows || []).find(r => r.athleteId === athleteId) || null;
     const exceptions = ((CD.extras && CD.extras.exceptions) || []).filter(e => e.athlete_id === athleteId);
     // Mirrors entriesFor's own defensive style (`if (!ROSTER || !CD.extras) return null`):

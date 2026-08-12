@@ -195,7 +195,13 @@ async function loadSets(force) {
   if (!bookId || setsLoading) return;
   if (SETS && SETS.bookId === bookId && !force) return;
   setsLoading = true;
-  try { SETS = { bookId, rows: await roles.fetchRequirementSets(bookId, CD.kind) }; }
+  try {
+    const rows = await roles.fetchRequirementSets(bookId, CD.kind);
+    // null = FAILED: keep last-known rows for this book (or stay unloaded so a repaint
+    // retries) rather than painting the program editor as "no standard configured".
+    if (rows === null) { if (!(SETS && SETS.bookId === bookId)) SETS = null; }
+    else SETS = { bookId, rows };
+  }
   catch { SETS = { bookId, rows: [] }; }
   finally { setsLoading = false; }
   if (location.hash.startsWith('#coach-plan')) window.__render();
@@ -211,7 +217,10 @@ async function loadTrust(force) {
   tpLoading = true;
   try {
     const map = await roles.fetchRosterPasses(rows.map((r) => r.athleteId));
-    TP = { map: map || {} };
+    // null = FAILED (fetchRosterPasses' documented contract, which `|| {}` was erasing here):
+    // stay unloaded so the screen keeps its loading row and retries, instead of "No trust
+    // passes yet — invite athletes to start the clock" over a roster with live passes.
+    if (map !== null) TP = { map: map || {} };
   } catch { TP = { map: {} }; }
   finally { tpLoading = false; }
   if (location.hash.startsWith('#coach-plan')) window.__render();
@@ -888,21 +897,22 @@ async function loadTemplates(force) {
   tplLoading = true;
   try {
     const rows = await roles.fetchRequirementTemplates(teamId);
+    // null = the fetch FAILED — bail without seeding or caching. The seed below must only ever
+    // fire on a confirmed-empty read: a dropped request that impersonated "never had templates"
+    // used to send seven seed inserts at a team that already has them (the unique name index
+    // absorbed the damage, but only by erroring). The screen keeps its loading row and the next
+    // repaint retries.
+    if (rows === null) return;
     // Seed on first open: an empty result from a SUCCESSFUL fetch (not an offline/'no client'
     // short-circuit) with a real teamId means this team has never had templates — plant the
-    // seven seeds once. fetchRequirementTemplates has no way to distinguish "really empty"
-    // from "offline" (both return [] — see roles.js), so an offline athlete/coach opening this
-    // screen for the first time WILL attempt a seed insert here; each insert independently
-    // no-ops (saveRequirementTemplate resolves { ok:false } with no client) rather than
-    // throwing, so it's inert offline, not just "harmless" — no junk rows are ever created
-    // without a live connection. The unique (team_id, lower(name)) index also makes a
-    // concurrent double-seed from two tabs/agents harmless: the losing inserts come back as
+    // seven seeds once. The unique (team_id, lower(name)) index also makes a concurrent
+    // double-seed from two tabs/agents harmless: the losing inserts come back as
     // duplicate-name errors, which we ignore.
     if (rows.length === 0 && teamId) {
       for (const s of seedTemplates()) {
         await roles.saveRequirementTemplate(teamId, s.name, s.kind, s.items);
       }
-      TPL = { teamId, rows: await roles.fetchRequirementTemplates(teamId) };
+      TPL = { teamId, rows: (await roles.fetchRequirementTemplates(teamId)) || [] };
     } else {
       TPL = { teamId, rows };
     }
@@ -1371,7 +1381,12 @@ async function loadAnnouncements(teamId) {
   if (ANN_CACHE && ANN_CACHE.teamId === teamId) return;
   if (annLoadingId === teamId) return;
   annLoadingId = teamId;
-  try { ANN_CACHE = { teamId, rows: await roles.fetchAnnouncements(teamId, 3) }; }
+  try {
+    const rows = await roles.fetchAnnouncements(teamId, 3);
+    // null = FAILED: leave the cache unloaded (the tab keeps its loading row and the next
+    // repaint retries) rather than caching a false "No announcements yet".
+    if (rows !== null) ANN_CACHE = { teamId, rows };
+  }
   finally { annLoadingId = null; }
   if (location.hash === '#coach-inbox') window.__render();
 }
@@ -1952,7 +1967,7 @@ function todayBlock(P, athleteId) {
         <div class="act-card" data-go="coach-meal/${esc(m.id)}">
           <div class="act-time">${esc(cap(m.type || 'Meal'))}</div>
           ${P.photos[m.id]
-            ? `<div class="act-media"><img src="${esc(P.photos[m.id])}" alt="Photo of this meal" style="width:100%;height:100%;object-fit:cover;display:block"/></div>`
+            ? `<div class="act-media"><img src="${esc(P.photos[m.id])}" alt="Photo of this meal" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"/></div>`
             : `<div class="act-media icon" style="background:linear-gradient(150deg, rgba(var(--green-rgb),0.2), rgba(var(--blue-rgb),0.1));color:var(--green-bright)">${icon('utensils', 26)}</div>`}
           <div class="act-body"><div class="act-type">${m.quality != null ? 'Meal score' : 'Logged'}</div><div class="act-value ${m.quality != null && m.quality >= 80 ? 'g' : 'b'}">${m.quality != null ? m.quality : '·'}</div></div>
         </div>`).join('')}
@@ -2077,7 +2092,7 @@ function conversationSection(P) {
   ${meals.slice(0, 30).map(m => `
     <div class="lrow" data-go="coach-meal/${esc(m.id)}">
       <div class="lic" style="overflow:hidden;padding:0">
-        ${P.photos[m.id] ? `<img src="${esc(P.photos[m.id])}" alt="Photo of this meal" style="width:100%;height:100%;object-fit:cover;display:block"/>` : icon('message', 17)}
+        ${P.photos[m.id] ? `<img src="${esc(P.photos[m.id])}" alt="Photo of this meal" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"/>` : icon('message', 17)}
       </div>
       <div class="lm"><div class="lt">${esc(cap(m.type || 'Meal'))}${m.quality != null ? ` · ${m.quality}` : ''}</div>
       <div class="ls">${esc(mealDateLabel(m))}</div></div>
@@ -2548,7 +2563,7 @@ export const coachMeal = {
           blurred fill of itself — the coach shouldn't have to open the zoom viewer just to see the
           edges of the photo. The fixed 210px cover-crop stays for every other surface. */''}
     <div class="photo-hero${meal._url ? ' full' : ''}" id="cm-hero" ${meal._url ? 'style="cursor:zoom-in"' : 'style="background:linear-gradient(150deg, rgba(var(--green-rgb),0.14), rgba(var(--blue-rgb),0.06))"'}>
-      ${meal._url ? `<div class="ph-bg" style="background-image:url('${esc(meal._url)}')" aria-hidden="true"></div><img class="ph-full" src="${esc(meal._url)}" alt="Photo of this meal"/>` : ''}
+      ${meal._url ? `<div class="ph-bg" style="background-image:url('${esc(meal._url)}')" aria-hidden="true"></div><img class="ph-full" src="${esc(meal._url)}" alt="Photo of this meal" decoding="async"/>` : ''}
       <div class="ph-grad"></div>
       <div class="ph-meta"><div><div class="ph-t">${esc(title)}</div><div class="ph-s">${dishName ? `${esc(slotName)}` : 'Logged'}${(() => { const c = msgClock(meal.logged_at); return c ? ` · ${c}` : ''; })()}${meal.source === 'gallery' ? ' · from gallery' : ''}${meal.source === 'manual' || meal.source === 'label' ? ' · no photo' : ''}</div></div>
       ${meal.quality != null ? `<div class="scorechip ${(qualityBand(meal.quality) || {}).cls || ''}"><span class="v">${meal.quality}</span><span class="k">Meal</span></div>` : ''}</div>

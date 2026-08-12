@@ -1,10 +1,10 @@
 import { S, RT } from '../state.js';
 import { DAY, MEAL_KEYS } from '../day.js';
 import { icon } from '../icons.js';
-import { backHead, esc, safeImg, emptyState, skeletonRows, segBar } from '../components.js';
+import { backHead, esc, safeImg, emptyState, errorState, skeletonRows, segBar } from '../components.js';
 import { tierColor } from '../score-band.js';
 import { cachedMealPhoto, warmMealPhotos, resolveMealPhoto } from '../photo-store.js';
-import { fetchRecentMeals, daysAgoISO, fetchMealComments, postMealComment, deleteMealComment, uploadChatPhoto, fetchThreadParticipants, signedMealPhotoUrl } from '../roles.js';
+import { fetchRecentMeals, daysAgoISO, fetchMealComments, postMealComment, deleteMealComment, uploadChatPhoto, fetchThreadParticipants, signedMealPhotoUrl, signedMealPhotoUrls } from '../roles.js';
 import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos, wireComposerAttach, postChatMessage } from '../chat-attach.js';
 import { threadMessages, reactionGroups, REACTION_EMOJI } from '../meal-intel.js';
 import { wireTapback } from '../tapback.js';
@@ -170,7 +170,7 @@ export const streak = {
    day under the day's real score. Today's meals open the live meal thread; past meals open
    the read-only meal view. One name everywhere: Activity History. */
 
-let HIST = { rows: null, at: 0, uid: null }; // fetched meals cache (session; 60s freshness)
+let HIST = { rows: null, at: 0, uid: null, failed: false }; // fetched meals cache (session; 60s freshness)
 export function histMealById(id) {
   return (HIST.rows || []).find((m) => String(m.id) === String(id)) || null;
 }
@@ -212,7 +212,14 @@ export const history = {
     const todayLabel = `Today · ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date().getDay()]}`;
     const rows = HIST.rows;
     let body;
-    if (rows === null) {
+    if (HIST.failed && rows === null) {
+      // A dropped request must not claim "your proof trail builds here" over a real record.
+      body = errorState({
+        title: "Couldn't load your history",
+        body: 'Your logged meals are safe on the server. Reconnect and they load right here.',
+        retryId: 'hist-retry',
+      });
+    } else if (rows === null) {
       body = skeletonRows(4, 'Loading your history');
     } else if (!rows.length) {
       body = emptyState({
@@ -248,18 +255,27 @@ export const history = {
     <div style="height:10px"></div>
     `;
   },
-  mount() {
+  mount(root) {
     // Fetch real meal rows (14 days) once per minute per user; repaint when they land, then
     // warm photo signed-URLs (second repaint when those resolve). Both best-effort.
     if (!RT.userId) return;
+    const retry = root && root.querySelector('#hist-retry');
+    if (retry) retry.addEventListener('click', () => { HIST = { rows: null, at: 0, uid: null, failed: false }; window.__render(); });
     const fresh = HIST.uid === RT.userId && Date.now() - HIST.at < 60000;
     if (fresh) {
       warmMealPhotos((HIST.rows || []).map((m) => m.photo_path).filter(Boolean));
       return;
     }
     fetchRecentMeals(RT.userId, daysAgoISO(14)).then((rows) => {
-      HIST = { rows: rows || [], at: Date.now(), uid: RT.userId };
-      warmMealPhotos((rows || []).map((m) => m.photo_path).filter(Boolean));
+      // null = the fetch FAILED: keep last-known rows if this session has any (stamped stale so
+      // the next visit retries); only show the error state when there is nothing real to show.
+      if (rows === null) {
+        const keep = HIST.uid === RT.userId ? HIST.rows : null;
+        HIST = { rows: keep, at: 0, uid: RT.userId, failed: true };
+      } else {
+        HIST = { rows, at: Date.now(), uid: RT.userId, failed: false };
+        warmMealPhotos(rows.map((m) => m.photo_path).filter(Boolean));
+      }
       if (location.hash.startsWith('#history')) window.__render();
     });
   },
@@ -330,7 +346,7 @@ function mountThread(root, mealId, meal) {
     }).join('');
     // Resolve any attachments just painted. trust.js imports named roles functions rather than the
     // module, so the helper is handed the one function it needs.
-    void hydrateThreadPhotos(threadEl, { signedMealPhotoUrl });
+    void hydrateThreadPhotos(threadEl, { signedMealPhotoUrl, signedMealPhotoUrls });
   };
 
   // Tap an attached photo to open it full-screen. Delegated: every repaint replaces the <img>.

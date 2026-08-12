@@ -814,6 +814,9 @@ let PUSH_TOKEN_VALUE = null;
 /* Server-notification fetch throttle (in-memory: refetch at most every 15s, resets on
    reload) so the bell's mount → fetch → repaint cycle can never loop. */
 let NOTIF_FETCH_AT = 0;
+/* Live binding read by screens/notifications.js: true while the last server-notification fetch
+   FAILED (network, not empty). Never persisted — it resets to false on the next good fetch. */
+export let notifsFetchFailed = false;
 
 /* A vision read is the longest call this app makes; past this it is not slow, it is gone. */
 const ANALYSIS_TIMEOUT_MS = 45_000;
@@ -1511,7 +1514,10 @@ export const act = {
 
   async _writeMemoryCandidates(cands) {
     if (!RT.userId || !window.sb || !cands || !cands.length) return;
-    const existing = await fetchMyMemoryFacts(RT.userId).catch(() => []);
+    const existing = await fetchMyMemoryFacts(RT.userId).catch(() => null);
+    // null = the dedupe read FAILED. Writing without it creates duplicate facts (the exact
+    // thing the `prior` lookup below exists to prevent) — skip this round; candidates recur.
+    if (existing === null) return;
     for (const c of cands) {
       if (!c || !c.value) continue;
       if (this._memoryBudgetLeft() <= 0) return;
@@ -1524,7 +1530,7 @@ export const act = {
   /** Pending facts awaiting the athlete's yes/no. Cached per render pass by the thread. */
   async pendingMemoryFacts() {
     if (!RT.userId || !window.sb) return [];
-    const all = await fetchMyMemoryFacts(RT.userId).catch(() => []);
+    const all = (await fetchMyMemoryFacts(RT.userId).catch(() => null)) || [];
     return all.filter((f) => f && f.status === 'pending_confirmation');
   },
 
@@ -1668,6 +1674,12 @@ export const act = {
     if (now - NOTIF_FETCH_AT < 15000) return false;
     NOTIF_FETCH_AT = now;
     const rows = await fetchMyNotifications();
+    // null = the fetch FAILED. Diffing it in would overwrite AND PERSIST the cached feed as
+    // empty — a coach escalation silently erased. Keep last-known and let the next tick retry.
+    // The live-binding flag lets the bell screen say "couldn't check" instead of "all caught up"
+    // when there is no cached feed to fall back on.
+    notifsFetchFailed = rows === null;
+    if (rows === null) { NOTIF_FETCH_AT = 0; return false; }
     const changed = JSON.stringify(rows) !== JSON.stringify(RT.serverNotifs || []);
     if (changed) { RT.serverNotifs = rows; save(); }
     return changed;
@@ -2957,6 +2969,10 @@ export const act = {
   async _loadAssignmentsIntoRt() {
     if (!RT.userId) return;
     const rows = await fetchMyAssignments();
+    // null = the fetch FAILED. Splicing it in would wipe every real coach assignment out of
+    // local state and render the athlete's plan as if the coach never assigned anything.
+    // Keep last-known; the standard still resolves from whatever reqSets we already hold.
+    if (rows === null) { this._applyStandardFromSets(); return; }
     // Even with no coach assignments, a solo athlete still needs their standard resolved (their
     // personal meal count governs the scored day) — apply it before the early return.
     if (!rows.length && !RT.assigned.some(a => a.real)) { this._applyStandardFromSets(); return; }
@@ -2971,7 +2987,10 @@ export const act = {
     // resolves practice-default vs per-client scope only. Before 0136 a client loaded NO sets at
     // all, which is why plan.js used to attribute the app's built-in defaults to a named trainer.
     if (RT.myCoach && RT.myCoach.teamId) {
-      RT.reqSets = await fetchRequirementSets(RT.myCoach.teamId, 'team');
+      // null = FAILED: keep last-known sets — a fabricated [] silently reverts the athlete's
+      // scored day to the built-in catalog, dropping the coach's standard and deadlines.
+      const sets = await fetchRequirementSets(RT.myCoach.teamId, 'team');
+      if (sets !== null) RT.reqSets = sets;
       // The team's weekly pattern (0100) resolves this athlete's day-type. Best-effort; a null
       // (no pattern / not-applied table / offline) leaves day-type 'any' — no gating.
       try { RT.weekPattern = await fetchTeamWeekPattern(RT.myCoach.teamId); } catch { /* best-effort */ }
@@ -2980,7 +2999,8 @@ export const act = {
       // exact prior behavior. Best-effort.
       try { RT.myRoomLabel = await fetchMyRoomLabel(RT.myCoach.teamId); } catch { /* best-effort */ }
     } else if (RT.myTrainer && RT.myTrainer.practiceId) {
-      RT.reqSets = await fetchRequirementSets(RT.myTrainer.practiceId, 'practice');
+      const sets = await fetchRequirementSets(RT.myTrainer.practiceId, 'practice');
+      if (sets !== null) RT.reqSets = sets;
     }
     this._applyStandardFromSets();
     save();

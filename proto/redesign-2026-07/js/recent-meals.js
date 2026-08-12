@@ -16,7 +16,13 @@ export function recentRows(uid) {
 export async function warmRecent(rolesMod, uid) {
   if (!uid) return null;
   if (RECENT.uid === uid && RECENT.rows && Date.now() - RECENT.at < 60000) return RECENT.rows;
-  const rows = await rolesMod.fetchRecentMeals(uid, rolesMod.daysAgoISO(14)).catch(() => []);
-  RECENT = { uid, rows: (rows || []).slice().reverse(), at: Date.now() }; // ascending for mealPatterns
+  const rows = await rolesMod.fetchRecentMeals(uid, rolesMod.daysAgoISO(14)).catch(() => null);
+  if (rows === null) {
+    // Failed fetch: keep last-known rows (stamped stale so the next call retries) rather than
+    // caching a fabricated "no recent meals" for the freshness window.
+    RECENT = { uid, rows: (RECENT.uid === uid && RECENT.rows) || [], at: 0 };
+    return RECENT.rows;
+  }
+  RECENT = { uid, rows: rows.slice().reverse(), at: Date.now() }; // ascending for mealPatterns
   return RECENT.rows;
 }

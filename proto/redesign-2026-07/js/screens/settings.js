@@ -3,7 +3,7 @@ import { icon } from '../icons.js';
 import { mapPressure } from '../exec.js';
 import { normalizePrefs } from '../notify-plan.js';
 import { normalizeCoachPrefs } from '../coach-notify-plan.js';
-import { backHead, esc, planStyleCard } from '../components.js';
+import { backHead, esc, errorState, planStyleCard } from '../components.js';
 import { STYLE_KEYS, styleLabel } from '../plan-style.js';
 import * as roles from '../roles.js';
 import { planById } from '../pricing.js';
@@ -334,9 +334,13 @@ export const privacy = {
    IAP), so we never render a cancel button we can't honor — we deep-link to the store's own
    subscription manager (Apple's rule) and offer Restore. Free accounts get an honest upsell to
    the paywall. CACHE/load pattern mirrors monthly-report: fetch the row, then repaint. */
-const BILL = { sub: null, loaded: false, source: 'none', active: null };
+const BILL = { sub: null, loaded: false, source: 'none', active: null, failed: false };
 async function loadBilling() {
-  BILL.sub = await roles.fetchMySubscription();
+  const sub = await roles.fetchMySubscription();
+  // { error:true } = the read FAILED. "Free" printed off a dropped request is an entitlement
+  // lie to a paying user — render the unknown state instead of a fabricated plan.
+  BILL.failed = !!(sub && sub.error);
+  BILL.sub = BILL.failed ? null : sub;
   // Operators see their real usage ("34 active this month · 50 included") — the number 0163
   // finally made true. Best-effort; the screen renders without it.
   BILL.active = (BILL.sub && BILL.sub.tier === 'team') ? await roles.myActiveAthleteCount() : null;
@@ -344,9 +348,16 @@ async function loadBilling() {
   // bought (0166) — and both live in their own tables, not on the subscription row. That is why
   // this screen used to say "Free" to someone who had premium. Ask the server WHICH source, not
   // just whether: calling it all "sponsored" would be a lie to every trainer-funded client.
-  // Best-effort: on error the subscription row still renders.
   try {
-    BILL.source = isPaid(BILL.sub) ? 'subscription' : await roles.myPremiumSource();
+    if (BILL.failed) { BILL.source = 'none'; }
+    else if (isPaid(BILL.sub)) { BILL.source = 'subscription'; }
+    else {
+      const src = await roles.myPremiumSource();
+      // null = the source read FAILED — without it "Free" could still be printed over a
+      // trainer-funded or sponsored membership.
+      if (src === null) { BILL.failed = true; BILL.source = 'none'; }
+      else { BILL.source = src; }
+    }
   } catch { BILL.source = 'none'; }
   BILL.loaded = true;
   if (window.__render) window.__render();
@@ -409,6 +420,14 @@ export const billing = {
     if (!BILL.loaded) {
       return `${backHead('Plan & billing', 'Your membership', back)}
       <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bolt', 17)}</div><div><div class="tt">Loading your plan…</div></div></div>`;
+    }
+    if (BILL.failed) {
+      return `${backHead('Plan & billing', 'Your membership', back)}
+      ${errorState({
+        title: "Couldn't check your plan",
+        body: 'Nothing changed with your membership; this screen just could not reach the server. Reconnect and try again.',
+        retryId: 'bill-retry',
+      })}`;
     }
     const sub = BILL.sub;
     const paid = isPaid(sub);
@@ -483,6 +502,8 @@ export const billing = {
   },
   mount(root) {
     if (!BILL.loaded) loadBilling();
+    const billRetry = root.querySelector('#bill-retry');
+    if (billRetry) billRetry.addEventListener('click', () => { BILL.loaded = false; BILL.failed = false; window.__render(); loadBilling(); });
     const msg = root.querySelector('#bill-msg');
     const manage = root.querySelector('#bill-manage');
     if (manage) manage.addEventListener('click', async () => {

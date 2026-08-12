@@ -2,17 +2,19 @@
    Reached from Profile's Settings section. Buy flow opens Stripe Checkout in the system browser
    (same pattern as my-trainer-offers.js); below the buy form, a list of the sponsor's own
    sponsorships with the code prominent so it's easy to read out or copy. */
-import { backHead, esc } from '../components.js';
+import { backHead, esc, errorState } from '../components.js';
 import { icon } from '../icons.js';
 import * as roles from '../roles.js';
 
-let CACHE = { rows: null, loaded: false };
+let CACHE = { rows: null, loaded: false, failed: false };
 let UI = { seats: '10', label: '', buying: false, copied: null };
 
 async function load(force) {
   if (CACHE.loaded && !force) return;
-  CACHE.rows = await roles.fetchMySponsorships();
-  CACHE.loaded = true;
+  const rows = await roles.fetchMySponsorships();
+  // null = the read FAILED. "No sponsorships yet — buy a batch above" must never be shown to
+  // someone whose purchased seats just didn't load; that's a money claim, not an empty list.
+  CACHE = { rows: rows === null ? CACHE.rows : rows, loaded: true, failed: rows === null };
   if (window.__render) window.__render();
 }
 
@@ -47,6 +49,11 @@ export default {
     <div class="eyebrow" style="margin-top:16px">Your sponsorships</div>
     ${!CACHE.loaded ? `
     <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bolt', 17)}</div><div><div class="tt">Loading…</div></div></div>`
+    : CACHE.failed && !rows.length ? errorState({
+      title: "Couldn't load your sponsorships",
+      body: 'Any seats you bought are safe on the server. Reconnect and they list right here.',
+      retryId: 'sp-retry',
+    })
     : rows.length ? `
     <section class="card" style="padding:6px 16px">
       ${rows.map((r, i) => `
@@ -67,6 +74,8 @@ export default {
   },
   mount(root) {
     load();
+    const spRetry = root.querySelector('#sp-retry');
+    if (spRetry) spRetry.addEventListener('click', () => { CACHE = { rows: null, loaded: false, failed: false }; window.__render(); load(true); });
     const seatsEl = root.querySelector('#sp-seats');
     const labelEl = root.querySelector('#sp-label');
     if (seatsEl) seatsEl.addEventListener('input', () => { UI.seats = seatsEl.value; });

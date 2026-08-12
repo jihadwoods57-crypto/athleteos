@@ -123,19 +123,30 @@ const CHAT_PHOTO_TTL = 45 * 60 * 1000;
  *  codebase keeps rediscovering. */
 export function bubblePhotoHtml(path, escFn) {
   if (!path) return '';
-  return `<img class="bimg" data-photo="${escFn(path)}" alt="Photo attached to this message" />`;
+  return `<img class="bimg" data-photo="${escFn(path)}" alt="Photo attached to this message" loading="lazy" decoding="async" />`;
 }
 
 /** Resolve every pending attachment inside a painted thread. Safe to call on every repaint. */
 export async function hydrateThreadPhotos(rootEl, rolesMod) {
   if (!rootEl || !rolesMod) return;
   const imgs = Array.from(rootEl.querySelectorAll('img.bimg[data-photo]'));
+  const misses = [];
   for (const el of imgs) {
     const path = el.getAttribute('data-photo');
     if (!path) continue;
     const hit = CHAT_PHOTO_URLS.get(path);
     if (hit && Date.now() - hit.at < CHAT_PHOTO_TTL) { if (el.src !== hit.url) el.src = hit.url; continue; }
-    const url = await rolesMod.signedMealPhotoUrl(path).catch(() => null);
+    misses.push({ el, path });
+  }
+  if (!misses.length) return;
+  // One signing round trip for the whole thread. A 20-photo thread used to pay 20 sequential
+  // requests before the first pixel of the last photo could even start downloading.
+  const urls = await (rolesMod.signedMealPhotoUrls
+    ? rolesMod.signedMealPhotoUrls(misses.map(m => m.path))
+    : Promise.all(misses.map(async ({ path }) => [path, await rolesMod.signedMealPhotoUrl(path).catch(() => null)]))
+        .then(Object.fromEntries)).catch(() => ({}));
+  for (const { el, path } of misses) {
+    const url = urls[path] || null;
     if (!url) continue;                       // leave the placeholder; a repaint retries
     CHAT_PHOTO_URLS.set(path, { url, at: Date.now() });
     el.src = url;

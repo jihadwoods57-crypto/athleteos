@@ -1,6 +1,6 @@
 import { S, RT, act, roleNav, roleProfileRoute, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, esc } from '../components.js';
+import { backHead, esc, errorState } from '../components.js';
 import * as roles from '../roles.js';
 import * as CD from '../coach-data.js';
 
@@ -278,7 +278,9 @@ export const restrictions = {
     const hasLocal = RT.restrictions && ((RT.restrictions.allergies || []).length || (RT.restrictions.intolerances || []).length || (RT.restrictions.preferences || []).length);
     if (!hasLocal) {
       roles.fetchMyDietary().then((server) => {
-        if (server && ((server.allergies && server.allergies.length) || (server.intolerances && server.intolerances.length) || (server.preferences && server.preferences.length))) {
+        // { error:true } = the read FAILED (not "nothing declared") — leave local untouched so
+        // the next mount retries instead of treating the failure as an empty declaration.
+        if (server && !server.error && ((server.allergies && server.allergies.length) || (server.intolerances && server.intolerances.length) || (server.preferences && server.preferences.length))) {
           RT.restrictions = server;
           if (window.__render) window.__render();
         }
@@ -292,17 +294,26 @@ export const restrictions = {
    has declared, severity-flagged. This is a SAFETY surface — a coach could order team meals off
    it — so it renders ONLY real declarations (roles.fetchTeamDietary), never invented allergies,
    and honestly shows how many athletes have not declared. */
-let TD = { loaded: false, entries: [], byId: {} };
+let TD = { loaded: false, failed: false, entries: [], byId: {}, at: 0 };
+let tdLoading = false;
 async function loadTeamDiet() {
+  if (tdLoading) return;
+  tdLoading = true;
   try {
     await CD.loadCoachRoster();
     const entries = CD.entriesFor(CD.getScope()) || [];
     const ids = entries.map((e) => e.row && e.row.athleteId).filter(Boolean);
     const rows = await roles.fetchTeamDietary(ids);
-    const byId = {};
-    for (const r of rows) if (r && r.athlete_id) byId[r.athlete_id] = r.data || {};
-    TD = { loaded: true, entries, byId };
-  } catch { TD = { loaded: true, entries: [], byId: {} }; }
+    // null = the declarations read FAILED. This sheet is what a coach orders team meals from —
+    // "No declarations yet" over a dropped request is the one lie it must never tell.
+    if (rows === null) { TD = { loaded: true, failed: true, entries, byId: {}, at: 0 }; }
+    else {
+      const byId = {};
+      for (const r of rows) if (r && r.athlete_id) byId[r.athlete_id] = r.data || {};
+      TD = { loaded: true, failed: false, entries, byId, at: Date.now() };
+    }
+  } catch { TD = { loaded: true, failed: true, entries: [], byId: {}, at: 0 }; }
+  tdLoading = false;
   if (window.__render) window.__render();
 }
 function dietHasAny(d) {
@@ -330,6 +341,15 @@ export const teamDiet = {
     if (!TD.loaded) {
       return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bell', 17)}</div><div><div class="tt">Loading declarations…</div></div></div>`;
     }
+    if (TD.failed) {
+      return `${head}
+      ${errorState({
+        title: "Couldn't load the dietary sheet",
+        body: 'Declarations are safe on the server. Do not order from memory: reconnect and reload before the meal run.',
+        retryId: 'td-retry',
+      })}
+      <div style="height:10px"></div>`;
+    }
     const declared = TD.entries.filter((e) => dietHasAny(TD.byId[e.row && e.row.athleteId]));
     const undeclared = TD.entries.length - declared.length;
     if (!declared.length) {
@@ -345,7 +365,13 @@ export const teamDiet = {
     ${undeclared ? `<div style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);margin:6px 0 4px">${undeclared} athlete${undeclared === 1 ? '' : 's'} ${undeclared === 1 ? 'has' : 'have'} not declared restrictions</div>` : ''}
     <div style="height:10px"></div>`;
   },
-  mount() { loadTeamDiet(); },
+  mount(root) {
+    const retry = root && root.querySelector('#td-retry');
+    if (retry) retry.addEventListener('click', () => { TD = { loaded: false, failed: false, entries: [], byId: {}, at: 0 }; window.__render(); loadTeamDiet(); });
+    // 60s freshness window. The old unconditional call here re-fetched on EVERY repaint —
+    // loadTeamDiet ends in __render(), which mounts again, which fetched again, forever.
+    if (!TD.failed && (!TD.loaded || Date.now() - TD.at > 60000)) loadTeamDiet();
+  },
 };
 
 /* ---------- #injury · Injury Mode (spec §19): role boundaries enforced ----------

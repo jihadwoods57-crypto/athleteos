@@ -1,7 +1,7 @@
 /* Your marketplace listing — approved coaches only (the row exists only if the approval RPC made
    one). Presentation fields + the three tier prices + the publish switch. Categories, slug and
    suspension are admin-owned: not in this UI and not grant-writable even if someone tries. */
-import { backHead, esc, skeletonRows, permissionState } from '../components.js';
+import { backHead, esc, errorState, skeletonRows, permissionState } from '../components.js';
 import { icon } from '../icons.js';
 import * as roles from '../roles.js';
 import { roleNav } from '../state.js';
@@ -13,7 +13,7 @@ const TIERS = [
   { key: 'high_touch', name: 'High-Touch Accountability', sub: 'Daily review · priority replies · calls' },
 ];
 
-let G = { listing: null, flags: null, prices: {}, loaded: false };
+let G = { listing: null, flags: null, prices: {}, loaded: false, failed: false };
 let UI = { saving: false, msg: '', err: '' };
 
 async function load(force) {
@@ -21,6 +21,14 @@ async function load(force) {
   const [listing, flags] = await Promise.all([
     roles.fetchMyListing(), roles.fetchMarketplaceFlags(),
   ]);
+  // { error:true } = the read FAILED. "No listing yet" to a published coach is a false claim
+  // about their business; keep last-known and show the error state instead.
+  if (listing && listing.error) {
+    G = { ...G, flags, loaded: true, failed: true };
+    if (window.__render) window.__render();
+    return;
+  }
+  G.failed = false;
   G.listing = listing;
   G.flags = flags;
   G.prices = {};
@@ -51,6 +59,14 @@ export default {
   get nav() { return roleNav(); },
   render() {
     if (!G.loaded) return `${backHead('Your listing', 'How clients find you', 'coach-apply')}${skeletonRows(3)}`;
+    if (G.failed && !G.listing) {
+      return `${backHead('Your listing', 'How clients find you', 'coach-apply')}
+      ${errorState({
+        title: "Couldn't load your listing",
+        body: 'Your listing and its status are unchanged on the server. Reconnect and try again.',
+        retryId: 'cle-retry',
+      })}`;
+    }
     const l = G.listing;
     if (!l) {
       return `${backHead('Your listing', 'How clients find you', 'coach-apply')}
@@ -110,6 +126,8 @@ export default {
   },
   mount(root) {
     load();
+    const cleRetry = root.querySelector('#cle-retry');
+    if (cleRetry) cleRetry.addEventListener('click', () => { G = { listing: null, flags: null, prices: {}, loaded: false, failed: false }; window.__render(); load(true); });
     const collectPrices = () => {
       const out = {};
       for (const t of TIERS) {

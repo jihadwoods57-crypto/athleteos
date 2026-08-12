@@ -35,7 +35,13 @@ async function loadHistory(teamId, force) {
   if (HIST && HIST.teamId === teamId && !force) return;
   if (histLoadingId === teamId) return;
   histLoadingId = teamId;
-  try { HIST = { teamId, rows: await roles.fetchAnnouncements(teamId, 10) }; }
+  try {
+    const rows = await roles.fetchAnnouncements(teamId, 10);
+    // null = FAILED → the offline errorState (an-hist-retry), which existed for months but was
+    // unreachable while the fetcher swallowed failures to []. "Nothing sent yet" over a dropped
+    // request is how a duplicate broadcast happens.
+    HIST = rows === null ? { teamId, rows: [], offline: true } : { teamId, rows };
+  }
   catch { HIST = { teamId, rows: [], offline: true }; } // audit G-3: don't leave history stuck on "Loading…"
   finally { histLoadingId = null; }
   if (location.hash.startsWith('#coach-announce')) window.__render();

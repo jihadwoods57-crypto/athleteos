@@ -60,15 +60,15 @@ async function loadPhotos() {
 async function resolveUrls() {
   if (CACHE.resolving || !CACHE.photos) return;
   CACHE.resolving = true;
-  let changed = false;
-  for (const p of CACHE.photos) {
-    if (CACHE.urls[p.photo_path] === undefined) {
-      CACHE.urls[p.photo_path] = await roles.signedProgressPhotoUrl(p.photo_path);
-      changed = true;
-    }
+  // One batch signing call for the whole timeline; per-photo requests made a 20-photo
+  // gallery wait through 20 sequential round trips before the last cell could start loading.
+  const want = CACHE.photos.filter((p) => CACHE.urls[p.photo_path] === undefined).map((p) => p.photo_path);
+  if (want.length) {
+    const urls = await roles.signedProgressPhotoUrls(want);
+    for (const path of want) CACHE.urls[path] = urls[path] || null;
   }
   CACHE.resolving = false;
-  if (changed && window.__render) window.__render();
+  if (want.length && window.__render) window.__render();
 }
 
 function composeView() {
@@ -105,7 +105,7 @@ function cell(p) {
   const pending = PENDING_DELETE === p.id;
   const img = url === undefined
     ? `<div class="pp-cell-load">${icon('bolt', 18)}</div>`
-    : (src ? `<img class="pp-cell-img" src="${src}" alt="Progress photo" loading="lazy" />` : `<div class="pp-cell-load">${icon('image', 18)}</div>`);
+    : (src ? `<img class="pp-cell-img" src="${src}" alt="Progress photo" loading="lazy" decoding="async" />` : `<div class="pp-cell-load">${icon('image', 18)}</div>`);
   return `
   <div class="pp-cell">
     ${img}
