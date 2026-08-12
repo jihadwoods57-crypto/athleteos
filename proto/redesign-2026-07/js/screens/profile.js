@@ -116,6 +116,11 @@ export default {
         <div class="lic"${S.coach.hasCoach ? ' style="background:var(--green-surface);color:var(--green-bright)"' : ''}>${icon('shield', 17)}</div>
         <div class="lm"><div class="lt">Discipline record</div><div class="ls">${S.coach.hasCoach ? 'Coach-verified · proof of the work' : 'Not verified yet · connect a coach to verify'}</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+      <div class="lrow" data-go="verified-profile">
+        <div class="lic" style="color:var(--blue-bright)">${icon('share', 17)}</div>
+        <div class="lm"><div class="lt">Verified Profile</div><div class="ls">A public page recruiters can check</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>`}
     </section>
 

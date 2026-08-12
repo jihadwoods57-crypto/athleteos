@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verified Profile · OnStandard</title>
+<meta name="description" content="A verified accountability record. Served live by OnStandard; the athlete cannot edit it.">
+<meta name="robots" content="noindex">
+<!-- The Worker rewrites __VP_SLUG__ on /v/<slug> requests so the tweet unfurls with the
+     athlete's own card (rendered by the app's share-card renderer, stored publicly at publish
+     time). Served bare at /v the placeholders stay, which only ever happens outside a share. -->
+<meta property="og:title" content="Verified Profile · OnStandard">
+<meta property="og:description" content="A verified accountability record: days on record, roll-call rate, standard held. Computed by OnStandard, not self-reported.">
+<meta property="og:type" content="profile">
+<meta property="og:url" content="https://onstandard.app/v/__VP_SLUG__">
+<meta property="og:image" content="https://ftwrvylzoyznhbzhgism.supabase.co/storage/v1/object/public/verified-cards/cards/__VP_SLUG__.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://ftwrvylzoyznhbzhgism.supabase.co/storage/v1/object/public/verified-cards/cards/__VP_SLUG__.png">
+<link rel="icon" href="/assets/favicon.png">
+<style>
+  /* Values are the app's own tokens (proto tokens.css / site.css), duplicated as literals
+     because this page ships standalone. Dark is the only theme: the page must be the same
+     object as the card in the tweet. */
+  @font-face { font-family:'Archivo'; font-style:normal; font-weight:900; font-display:swap;
+    src:url('/fonts/archivo-exp900.woff2') format('woff2'); }
+  @font-face { font-family:'Plus Jakarta Sans'; font-style:normal; font-weight:200 800; font-display:swap;
+    src:url('/fonts/pjs.woff2') format('woff2'); }
+  :root {
+    color-scheme: dark;
+    --bg:#070B14; --wash:#0F1B33; --surface:#0E1421; --surface-2:#131C2D;
+    --text:#EEF3FB; --text-2:#9AA9C2; --text-3:#7C8BA6;
+    --hairline:rgba(148,176,224,.10); --hairline-soft:rgba(148,176,224,.055);
+    --blue:#3B82F6; --blue-bright:#60A5FA;
+    --green:#34D399; --amber:#F5A524; --red:#F65757; --cyan:#38BDF8;
+    --ring-a:#34D399; --ring-b:#22D3EE; --ring-c:#3B82F6;
+    --font:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --font-display:'Archivo','Plus Jakarta Sans',system-ui,sans-serif;
+  }
+  * { box-sizing:border-box; }
+  html { -webkit-text-size-adjust:100%; }
+  body { margin:0; background:radial-gradient(900px 480px at 50% -10%, var(--wash), transparent 60%), var(--bg);
+    color:var(--text); font-family:var(--font); line-height:1.55; -webkit-font-smoothing:antialiased; }
+  a { color:var(--blue-bright); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  :focus-visible { outline:2px solid var(--ring-b); outline-offset:3px; }
+
+  .doc { max-width:820px; margin:0 auto; padding:40px 24px 64px; }
+  .eyebrow { font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--text-3); }
+
+  /* identity band: a document header, not a hero */
+  header.id { display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
+    padding-bottom:20px; border-bottom:1px solid var(--hairline); }
+  .id h1 { margin:6px 0 2px; font-size:28px; font-weight:800; letter-spacing:-.02em; }
+  .id .sub { color:var(--text-2); font-size:14px; }
+  .mark { display:flex; align-items:center; gap:8px; color:var(--text-2); font-size:13px; font-weight:700; white-space:nowrap; padding-top:4px; }
+  .mark svg { display:block; }
+
+  /* the record: ring + the three numbers that carry the page */
+  .record { display:grid; grid-template-columns:180px 1fr; gap:28px; align-items:center; padding:28px 0; border-bottom:1px solid var(--hairline); }
+  .ringwrap { position:relative; width:180px; height:180px; }
+  .ringwrap .num { position:absolute; inset:0; display:grid; place-content:center; text-align:center; }
+  .ringwrap .num .v { font-family:var(--font-display); font-weight:900; font-size:52px; letter-spacing:-.03em; line-height:1; }
+  .ringwrap .num .k { font-size:11px; color:var(--text-3); margin-top:6px; }
+  .bignums { display:grid; grid-template-columns:repeat(3, 1fr); gap:20px; }
+  .bignums .n .v { font-size:34px; font-weight:800; letter-spacing:-.03em; font-variant-numeric:tabular-nums; }
+  .bignums .n .k { font-size:12.5px; color:var(--text-2); margin-top:2px; }
+  .bignums .n .t { font-size:11px; color:var(--text-3); margin-top:4px; }
+
+  section { padding:26px 0; border-bottom:1px solid var(--hairline); }
+  section h2 { margin:0 0 4px; font-size:17px; font-weight:800; letter-spacing:-.01em; }
+  section .lede { margin:0 0 18px; color:var(--text-2); font-size:13.5px; }
+
+  /* month timeline: bad months show; that is the product */
+  .timeline { display:flex; align-items:flex-end; gap:6px; padding-top:8px; }
+  .timeline .col { flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:6px; min-width:0; }
+  .timeline .bar { width:100%; max-width:38px; border-radius:4px 4px 0 0; background:var(--surface-2); position:relative; }
+  .timeline .lab { font-size:10px; color:var(--text-3); white-space:nowrap; }
+  .timeline .val { font-size:11px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .tl-legend { display:flex; flex-wrap:wrap; gap:8px 16px; margin-top:12px; font-size:11px; color:var(--text-3); }
+  .tl-legend span { white-space:nowrap; }
+  .tl-legend i { display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:5px; }
+
+  /* verification ledger */
+  .ledger { display:flex; flex-direction:column; }
+  .lrow { display:flex; align-items:baseline; justify-content:space-between; gap:14px; padding:12px 0; border-bottom:1px solid var(--hairline-soft); }
+  .lrow:last-child { border-bottom:0; }
+  .lrow .what { font-size:14px; font-weight:600; }
+  .lrow .how { font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; margin-left:10px; white-space:nowrap; }
+  .how.verified { color:var(--green); }
+  .how.coach { color:var(--cyan); }
+  .how.self { color:var(--text-3); }
+  .lrow .count { font-size:15.5px; font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+  .attest { display:flex; align-items:flex-start; gap:12px; font-size:14px; color:var(--text-2); }
+  .attest svg { flex:none; margin-top:3px; }
+  .attest b { color:var(--text); }
+
+  details.method { border:0; }
+  details.method summary { cursor:pointer; font-size:14px; font-weight:700; color:var(--blue-bright); list-style:none; }
+  details.method summary::-webkit-details-marker { display:none; }
+  details.method summary::before { content:'+'; display:inline-block; width:16px; color:var(--text-3); }
+  details.method[open] summary::before { content:'\2212'; }
+  details.method .body { color:var(--text-2); font-size:13.5px; max-width:68ch; padding:10px 0 0 16px; }
+  details.method .body p { margin:0 0 10px; }
+
+  footer.auth { padding-top:26px; color:var(--text-3); font-size:12.5px; max-width:68ch; }
+  footer.auth p { margin:0 0 8px; }
+
+  /* skeleton + unavailable */
+  .skel { animation:pulse 1.4s ease-in-out infinite; background:var(--surface); border-radius:8px; }
+  @keyframes pulse { 0%,100% { opacity:.55 } 50% { opacity:.9 } }
+  @media (prefers-reduced-motion: reduce) { .skel { animation:none; opacity:.7 } }
+  .gone { text-align:center; padding:96px 24px; }
+  .gone h1 { font-size:20px; font-weight:800; margin:0 0 8px; }
+  .gone p { color:var(--text-2); font-size:14px; margin:0; }
+
+  @media (max-width:640px) {
+    .doc { padding:28px 18px 48px; }
+    header.id { flex-direction:column; }
+    .mark { padding-top:0; }
+    .record { grid-template-columns:1fr; justify-items:center; text-align:center; }
+    .bignums { width:100%; }
+    .timeline { height:96px; }
+  }
+</style>
+</head><body>
+<div class="doc" id="root">
+  <!-- skeleton shaped like the document, replaced by render() -->
+  <div class="skel" style="height:72px;margin-bottom:24px"></div>
+  <div class="skel" style="height:180px;margin-bottom:24px"></div>
+  <div class="skel" style="height:120px;margin-bottom:24px"></div>
+  <div class="skel" style="height:160px"></div>
+</div>
+<script type="module">
+const FN = 'https://ftwrvylzoyznhbzhgism.supabase.co/functions/v1/verified-profile';
+const root = document.getElementById('root');
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
+  { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const DASH = '—'; // absence is honest; zero is not
+
+function readSlug() {
+  const m = location.pathname.match(/^\/v\/([a-f0-9]{10,64})\/?$/);
+  if (m) return m[1];
+  const q = new URLSearchParams(location.search).get('s') || '';
+  return /^[a-f0-9]{10,64}$/.test(q) ? q : null;
+}
+
+function tierColor(score) {
+  if (score == null) return 'var(--surface-2)';
+  if (score >= 90) return 'var(--green)';
+  if (score >= 80) return 'var(--blue)';
+  if (score >= 60) return 'var(--amber)';
+  return 'var(--red)';
+}
+function tierLabel(score) {
+  if (score == null) return DASH;
+  if (score >= 90) return 'OnStandard';
+  if (score >= 80) return 'Locked In';
+  if (score >= 60) return 'Building';
+  return 'Off Standard';
+}
+
+/* The signature ring — a score surface, the one place the sweep appears. */
+function ring(score) {
+  const pct = score == null ? 0 : Math.max(0, Math.min(100, score)) / 100;
+  const R = 78, C = 2 * Math.PI * R, arc = C * (300 / 360);
+  return `<svg width="180" height="180" viewBox="0 0 180 180" role="img" aria-label="30 day average score ${score == null ? 'unknown' : score} out of 100">
+    <defs><linearGradient id="sweep" x1="15%" y1="95%" x2="70%" y2="0%">
+      <stop offset="0" stop-color="var(--ring-a)"/><stop offset=".5" stop-color="var(--ring-b)"/><stop offset="1" stop-color="var(--ring-c)"/>
+    </linearGradient></defs>
+    <g transform="rotate(120 90 90)">
+      <circle cx="90" cy="90" r="${R}" fill="none" stroke="rgba(148,176,224,.12)" stroke-width="10"
+        stroke-linecap="round" stroke-dasharray="${arc} ${C}"/>
+      <circle cx="90" cy="90" r="${R}" fill="none" stroke="url(#sweep)" stroke-width="10"
+        stroke-linecap="round" stroke-dasharray="${arc * pct} ${C}"/>
+    </g></svg>`;
+}
+
+function monthName(ym) {
+  const [y, m] = ym.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' }).replace(' ', ' ’');
+}
+function fmtDate(iso) {
+  // Pinned to UTC: a public record's start date must not shift a day with the reader's timezone.
+  return iso ? new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : DASH;
+}
+
+function ledgerRow(what, how, howCls, count) {
+  return `<div class="lrow"><div class="what">${esc(what)}<span class="how ${howCls}">${esc(how)}</span></div>
+    <div class="count">${esc(count)}</div></div>`;
+}
+
+function render(p) {
+  const r = p.record || {};
+  const acc = r.accountability;
+  const who = [p.sport, p.position, p.level].filter(Boolean).join(' · ');
+  const teamLine = p.team ? esc(p.team.name) : '';
+  const months = (r.months || []).slice(-12);
+  const rate = (done, total) => total ? `${done} of ${total}` : DASH;
+  const pill = (v) => v == null ? DASH : String(v);
+
+  root.innerHTML = `
+  <header class="id">
+    <div>
+      <div class="eyebrow">Verified Profile</div>
+      <h1>${esc(p.name || 'OnStandard athlete')}</h1>
+      <div class="sub">${esc(who)}${who && teamLine ? ' · ' : ''}${teamLine}</div>
+    </div>
+    <div class="mark" aria-label="OnStandard">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" stroke="var(--blue)" stroke-width="2.4" stroke-linecap="round"
+          stroke-dasharray="47.1 9.4" transform="rotate(120 12 12)"/></svg>
+      OnStandard
+    </div>
+  </header>
+
+  <div class="record">
+    <div class="ringwrap">${ring(r.avg30)}
+      <div class="num"><div class="v">${r.avg30 == null ? DASH : esc(r.avg30)}</div><div class="k">30-day avg · ${esc(tierLabel(r.avg30))}</div></div>
+    </div>
+    <div class="bignums">
+      <div class="n"><div class="v">${pill(r.daysOnRecord)}</div><div class="k">Days on record</div><div class="t">since ${esc(fmtDate(r.enabledAt))}</div></div>
+      <div class="n"><div class="v">${r.onStandardPct == null ? DASH : esc(r.onStandardPct) + '%'}</div><div class="k">Days at standard</div><div class="t">a day counts at 80 or better</div></div>
+      <div class="n"><div class="v">${acc ? esc(Math.round((acc.earned / acc.possible) * 100)) + '%' : DASH}</div><div class="k">Accountability</div><div class="t">verified commitments held</div></div>
+    </div>
+  </div>
+
+  <section>
+    <h2>Consistency, month by month</h2>
+    <p class="lede">The full record since this profile was turned on. Months cannot be hidden or removed.</p>
+    <div class="timeline" role="img" aria-label="Average score by month">
+      ${months.length ? months.map((m) => `
+        <div class="col">
+          <div class="val" style="color:${tierColor(m.avg)}">${m.avg == null ? DASH : esc(m.avg)}</div>
+          <div class="bar" style="height:${m.avg == null ? 4 : Math.max(6, Math.round(m.avg * 0.72))}px;background:${tierColor(m.avg)}"></div>
+          <div class="lab">${esc(monthName(m.ym))}</div>
+        </div>`).join('') : `<p class="lede">No scored days yet.</p>`}
+    </div>
+    <div class="tl-legend">
+      <span><i style="background:var(--green)"></i>90+ OnStandard</span>
+      <span><i style="background:var(--blue)"></i>80–89 Locked In</span>
+      <span><i style="background:var(--amber)"></i>60–79 Building</span>
+      <span><i style="background:var(--red)"></i>Under 60</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>What is verified, and how</h2>
+    <p class="lede">Each line says how it was captured. What OnStandard cannot verify is labeled self-reported; that honesty is the point.</p>
+    <div class="ledger">
+      ${acc ? ledgerRow('On-time arrivals', 'Geofence-verified', 'verified', rate(acc.arrival_done, acc.arrival_total)) : ''}
+      ${acc ? ledgerRow('Morning roll calls answered', 'Time-stamped', 'verified', rate(acc.wake_done, acc.wake_total)) : ''}
+      ${acc ? ledgerRow('Commitments completed', 'Coach-confirmed', 'coach', rate(acc.complete_done, acc.complete_total)) : ''}
+      ${ledgerRow('Days with photo-logged meals', 'Photo-logged', 'verified', pill(r.photoMealDays))}
+      ${ledgerRow('Days logged', 'Self-reported', 'self', pill(r.daysOnRecord))}
+    </div>
+  </section>
+
+  ${p.team && p.team.coachName ? `
+  <section>
+    <div class="attest">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>
+      <div>Roster-verified: on <b>${esc(p.team.name)}</b> under <b>${esc(p.team.coachName)}</b>. The roster link is held on both sides; an athlete cannot add themselves to a team.</div>
+    </div>
+  </section>` : ''}
+
+  <section>
+    <details class="method">
+      <summary>How this score works</summary>
+      <div class="body">
+        <p>Every day, the athlete earns a 0 to 100 score from what they actually did: meals logged with photos, a nightly recovery check-in, and their plan's requirements. 80 or better counts as a day at standard. The app computes the number; the athlete cannot type a score in.</p>
+        <p>Accountability comes from scheduled commitments their coach set up: morning roll calls, practice arrivals inside a geofence, and completions a coach can audit and correct. Weighting: showing up on time counts three times a roll-call response; finishing counts six.</p>
+        <p>This page shows everything since the day the profile was turned on. The athlete chooses whether this page exists, never which weeks of it you see.</p>
+      </div>
+    </details>
+  </section>
+
+  <footer class="auth">
+    <p>Served live by OnStandard from its own records${r.enabledAt ? ', continuously since ' + esc(fmtDate(r.enabledAt)) : ''}. The athlete can take this page down; they cannot edit it.</p>
+    <p><a href="/">What is OnStandard?</a></p>
+  </footer>`;
+  document.title = (p.name ? p.name + ' · ' : '') + 'Verified Profile · OnStandard';
+}
+
+function unavailable() {
+  root.innerHTML = `<div class="gone">
+    <div class="eyebrow" style="margin-bottom:10px">OnStandard</div>
+    <h1>This profile isn't available</h1>
+    <p>The athlete may have taken it down. Nothing to see here isn't a judgment; it's a choice.</p>
+  </div>`;
+}
+
+const slug = readSlug();
+if (!slug) { unavailable(); }
+else {
+  fetch(FN, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'view', slug }),
+  }).then((res) => res.json()).then((out) => {
+    if (out && out.ok && out.profile) render(out.profile);
+    else unavailable();
+  }).catch(unavailable);
+}
+</script>
+</body></html>

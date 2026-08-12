@@ -64,6 +64,7 @@ import healthConsent from './health-consent.js';
 import locationConsent from './location-consent.js';
 import accountability from './accountability.js';
 import verifiedDiscipline from './verified-discipline.js';
+import verifiedProfile from './verified-profile.js';
 import { coachCommitments, coachCommitEdit, coachCommitManage } from './coach-commitments.js';
 import squad from './squad.js';
 // Coach Marketplace (0183–0186) — client side + coach side
@@ -200,6 +201,7 @@ export const screens = {
   'location-consent': locationConsent,
   accountability,
   'verified-discipline': verifiedDiscipline,
+  'verified-profile': verifiedProfile,
   'coach-commitments': coachCommitments,
   'coach-commit-edit': coachCommitEdit,
   'coach-commit-manage': coachCommitManage,

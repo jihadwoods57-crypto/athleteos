@@ -108,6 +108,15 @@ export default {
       const wasPending = (S.consent && S.consent.status) === 'pending';
       const r = await act.requestGuardianConsent(input.value);
       if (r.ok) {
+        // The request was recorded but no email actually left (vendor down / function
+        // unreachable). Claiming "sent" here would be the old silent dead-end: a pending row a
+        // parent never hears about. Say what happened and leave the button armed to retry.
+        if (r.emailed === false) {
+          err.style.color = 'var(--amber-bright)';
+          err.textContent = 'Saved, but the email could not be sent yet. Try again in a bit, or reach support@onstandard.app.';
+          btn.disabled = false; btn.textContent = was;
+          return;
+        }
         // Pending → pending repaints an identical view, so a successful reminder read as a
         // no-op. Show inline confirmation instead; the none/revoked → pending flip still repaints.
         if (wasPending) {

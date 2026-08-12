@@ -455,6 +455,14 @@ verify_jwt = false
 [functions.tester-claim]
 verify_jwt = false
 
+# verified-profile backs the recruiter-facing public page (web/landing/v.html, migration 0200).
+# Its primary visitor is an anonymous recruiter's browser holding only a slug — no Supabase
+# session — so the platform check is pinned off and the function does its own two-lane auth: the
+# published flag on the slug's row walls the anonymous `view` lane, and the athlete's own JWT is
+# verified in-function (guardian-request style) for publish/unpublish/status.
+[functions.verified-profile]
+verify_jwt = false
+
 # These three authenticate the CALLER themselves (not via a Supabase JWT), so they deploy with
 # --no-verify-jwt. Pinned here (security audit 2026-07-12) so a `functions deploy` that forgets the
 # flag can't flip verify_jwt back on and 401 the flow — same rationale as stripe-webhook above:

@@ -304,3 +304,68 @@ export async function shareDay(day) {
   const { payload, caption } = dayShareCard(day);
   return shareScoreCard(payload, caption);
 }
+
+/* ---------------- the week's payload ----------------
+ * The Verified Profile's weekly cadence (design doc 2026-08-11): a week is the smallest span a
+ * recruiter reads as consistency rather than a lucky day, and the free share every athlete keeps
+ * regardless of plan. Same ONE renderer; a week is still a score, a label and a few supporting
+ * numbers. Pure for the same reason dayShareCard is. */
+
+/**
+ * Build the {payload, caption} for a week.
+ * @param {object} week  { avg, onDays, total, delta, eyebrow }
+ *   avg    weekly average score (null when no scored day exists — never coerced to 0)
+ *   onDays days at standard (>= 80) this week
+ *   total  days with a score this week
+ *   delta  pre-signed vs-prior-week string from S.progress (e.g. "+4"), optional
+ */
+export function weekShareCard(week) {
+  const w = week || {};
+  const n = w.avg == null || w.avg === '' ? NaN : Number(w.avg);
+  const avg = Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : null;
+  const onDays = Number.isFinite(Number(w.onDays)) ? Math.max(0, Math.floor(Number(w.onDays))) : null;
+  const total = Number.isFinite(Number(w.total)) ? Math.max(0, Math.floor(Number(w.total))) : null;
+  const delta = typeof w.delta === 'string' && /^[+-]/.test(w.delta) ? w.delta : null;
+
+  const stats = [];
+  if (total) stats.push(['At standard', `${Math.min(onDays ?? 0, total)} of ${total} days`]);
+  if (delta) stats.push(['vs last week', delta]);
+  if (avg != null) stats.push(['Standard', tierLabel(avg)]);
+
+  return {
+    payload: {
+      score: avg,
+      eyebrow: typeof w.eyebrow === 'string' && w.eyebrow ? w.eyebrow : 'This week',
+      caption: 'Weekly average',
+      stats,
+    },
+    caption: onDays != null && total
+      ? `${onDays} of ${total} days at standard this week — ${avg != null ? avg : '—'} average on OnStandard.`
+      : `${avg != null ? avg : '—'} average this week on OnStandard.`,
+  };
+}
+
+/** Share the week. Never throws at a tap. */
+export async function shareWeek(week) {
+  const { payload, caption } = weekShareCard(week);
+  return shareScoreCard(payload, caption);
+}
+
+/** The Verified Profile unfurl card's claims (the record shape the verified-profile function
+ *  returns). The card is the page's first impression in a tweet, so it leads with the same three
+ *  numbers the page does: duration, consistency, accountability. Pure for the same reason the
+ *  day and week builders are. */
+export function profileCardPayload(record) {
+  const r = record || {};
+  const stats = [];
+  if (r.daysOnRecord != null) stats.push(['Days on record', String(r.daysOnRecord)]);
+  if (r.onStandardPct != null) stats.push(['At standard', `${r.onStandardPct}%`]);
+  const acc = r.accountability;
+  if (acc && acc.possible > 0) stats.push(['Accountability', `${Math.round((acc.earned / acc.possible) * 100)}%`]);
+  return {
+    score: r.avg30 == null ? null : r.avg30,
+    eyebrow: 'Verified Profile',
+    caption: '30-day average',
+    stats,
+  };
+}

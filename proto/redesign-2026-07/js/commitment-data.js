@@ -357,13 +357,13 @@ export async function loadVerificationConsent() {
   } catch { return null; }
 }
 
-/** Ask a guardian to approve location verification. Rides the existing guardian request flow. */
+/** Ask a guardian to approve location verification. Rides the existing guardian request flow —
+ *  through roles.js so the guardian actually receives an email (the raw RPC records the row but
+ *  never sends anything; see requestGuardianConsent there). */
 export async function requestVerificationConsent(email) {
-  const c = sb(); if (!c) return false;
-  try {
-    const { error } = await c.rpc('request_guardian_consent', { guardian_email: email });
-    return !error;
-  } catch { return false; }
+  const { requestGuardianConsent } = await import('./roles.js');
+  const r = await requestGuardianConsent(email);
+  return !!(r && r.ok);
 }
 
 /** The athlete's own share switch. Only the athlete can move it. */

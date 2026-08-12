@@ -36,6 +36,17 @@
   Content-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src https://ftwrvylzoyznhbzhgism.supabase.co https://ftwrvylzoyznhbzhgism.functions.supabase.co; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
   Referrer-Policy: no-referrer
 
+# The Verified Profile page (/v/<slug>, v.html): an athlete's public accountability record,
+# read by recruiters holding a shared link. No session, no payment, one fetch to the
+# verified-profile function — so connect-src is the Supabase origin only. noindex on purpose:
+# most subjects are minors, and the page is for the person holding the link, not for search.
+# Prefix /v* collides with nothing in this directory (checked: no other page starts with v).
+/v*
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  X-Robots-Tag: noindex
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src https://ftwrvylzoyznhbzhgism.supabase.co; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+
 # The private beta feedback board. Reached only with a ?k= token, so:
 #   · no-store + no-referrer — the URL IS the credential; it must not sit in a shared cache, and it
 #     must never leak to a third party through the Referer header on an outbound click.

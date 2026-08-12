@@ -228,6 +228,21 @@ export default {
       return env.ASSETS.fetch(new Request(new URL('/t', url), request));
     }
 
+    // --- Verified Profile: /v/<slug> ---
+    // Same clean-URL serve as /t/<slug>, plus one thing t.html never needed: the __VP_SLUG__
+    // placeholders in v.html's og:image / og:url meta tags are rewritten to the request's slug,
+    // because Twitter's unfurler executes no JavaScript — the per-athlete card URL must be in
+    // the HTML bytes it fetches. The card PNG itself lives in the public verified-cards bucket,
+    // uploaded by the verified-profile function at publish time.
+    const vMatch = url.pathname.match(/^\/v\/([a-f0-9]{10,64})\/?$/);
+    if (vMatch) {
+      const res = await env.ASSETS.fetch(new Request(new URL('/v', url), request));
+      const html = (await res.text()).replaceAll('__VP_SLUG__', vMatch[1]);
+      const headers = new Headers(res.headers);
+      headers.delete('content-length');
+      return new Response(html, { status: res.status, headers });
+    }
+
     // --- everything else: the static site ---
     return env.ASSETS.fetch(request);
   },

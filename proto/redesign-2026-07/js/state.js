@@ -4158,7 +4158,8 @@ export const S = {
       a.push({
         noPhoto: !slotHasPhoto(k), // manual/label log: placeholder is honest (§7.2)
         time: at != null ? `Today · ${fmtClock(at)}${late ? ' · late' : ''}` : 'Today',
-        type: slotTitle(k), icon: 'utensils', // coach-standard title, never a raw "Meal-5"
+        // Named slots wear their own glyph; overflow slots (meal-5, meal-6) stay generic.
+        type: slotTitle(k), icon: ['breakfast', 'lunch', 'dinner', 'snack'].includes(k) ? k : 'utensils',
         // Meal QUALITY is its own concept (the plate read) and never success-green at 58 —
         // tiers mirror the meal screen: 80+ green, 50+ amber, below red.
         value: meta.quality != null ? String(meta.quality) : 'Logged',
@@ -4173,8 +4174,8 @@ export const S = {
     }
     if (RT.weightLogged && DAY.currentWeight != null) a.push({ time: 'Today', type: 'Morning Weight', icon: 'scale', value: `${DAY.currentWeight} lb`, vClass: 'muted', img: null, route: 'weight' });
     a.push(DAY.ciSubmitted
-      ? { time: 'Today', type: 'Recovery Check-In', icon: 'moon', value: 'Submitted', vClass: 'g', img: null, route: 'recovery' }
-      : { time: 'Tonight', type: 'Recovery Check-In', icon: 'moon', value: 'Upcoming', vClass: 'muted', img: null, dim: true, route: 'recovery' });
+      ? { time: 'Today', type: 'Recovery Check-In', icon: 'moonStar', value: 'Submitted', vClass: 'g', img: null, route: 'recovery' }
+      : { time: 'Tonight', type: 'Recovery Check-In', icon: 'moonStar', value: 'Upcoming', vClass: 'muted', img: null, dim: true, route: 'recovery' });
     return a;
   },
 
