@@ -21,6 +21,7 @@
     --r:16px;
   }
   *{box-sizing:border-box;} html{-webkit-text-size-adjust:100%;}
+  [hidden]{display:none !important;} /* .row's display:flex must never beat the hidden attribute */
   body{margin:0;background:
       radial-gradient(1100px 620px at 82% -8%,rgba(34,211,238,.10),transparent 55%),
       radial-gradient(1000px 560px at -6% 4%,rgba(59,130,246,.12),transparent 52%),
@@ -30,23 +31,28 @@
   .wrap{max-width:780px;margin:0 auto;padding:0 20px 80px;}
   :focus-visible{outline:2px solid var(--teal);outline-offset:3px;}
 
-  header{padding:34px 0 8px;}
-  .eyebrow{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--teal);font-weight:700;}
-  h1{font-family:var(--display);font-weight:900;font-size:clamp(30px,6vw,46px);line-height:1.02;letter-spacing:-.02em;margin:12px 0 0;}
-  .sub{color:var(--fg2);font-size:15.5px;margin-top:12px;max-width:52ch;}
+  header{padding:24px 0 4px;}
+  .eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--teal);font-weight:700;}
+  h1{font-family:var(--display);font-weight:900;font-size:clamp(24px,5.5vw,34px);line-height:1.05;letter-spacing:-.02em;margin:10px 0 0;}
+  .sub{color:var(--fg2);font-size:14.5px;margin-top:8px;max-width:52ch;}
 
   /* ---------- the conversation ---------- */
   .compose{border:1px solid var(--line);border-radius:var(--r);background:linear-gradient(180deg,#111a26,#0d141d);
-    padding:20px;margin:26px 0 30px;box-shadow:0 30px 70px -40px rgba(0,0,0,.8);}
-  .row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+    padding:16px;margin:18px 0 24px;box-shadow:0 30px 70px -40px rgba(0,0,0,.8);}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
   label{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:700;margin-bottom:6px;}
-  input,textarea,select{width:100%;font-family:var(--body);font-size:15px;color:var(--fg);background:#0b121b;
+  input,textarea,select{width:100%;font-family:var(--body);font-size:16px;color:var(--fg);background:#0b121b;
     border:1px solid var(--line);border-radius:11px;padding:11px 13px;transition:border-color .16s;}
   input:focus,textarea:focus,select:focus{border-color:var(--teal);outline:none;}
   .row .f{flex:1;min-width:150px;}
+  /* Identity collapses to one line once known: the page is for talking, not form-filling. */
+  .idline{display:flex;align-items:baseline;gap:8px;font-size:13px;color:var(--mut);margin:0 0 10px;}
+  .idline b{color:var(--fg2);font-weight:600;}
+  .idline button{background:none;border:0;padding:4px;margin:-4px;color:var(--teal);font-family:var(--body);font-size:13px;font-weight:600;cursor:pointer;}
+  .idline button:hover{text-decoration:underline;}
 
-  .thread{display:flex;flex-direction:column;gap:10px;margin:2px 0 14px;}
-  .msg{max-width:88%;padding:10px 14px;border-radius:16px;font-size:14.5px;line-height:1.5;overflow-wrap:anywhere;white-space:pre-wrap;}
+  .thread{display:flex;flex-direction:column;gap:8px;margin:2px 0 12px;}
+  .msg{max-width:88%;padding:9px 13px;border-radius:15px;font-size:14px;line-height:1.5;overflow-wrap:anywhere;white-space:pre-wrap;}
   .msg.ceo{align-self:flex-start;background:#0b121b;border:1px solid var(--line);border-bottom-left-radius:6px;color:var(--fg);}
   .msg.me{align-self:flex-end;background:rgba(59,130,246,.16);border:1px solid rgba(59,130,246,.28);border-bottom-right-radius:6px;color:var(--fg);}
   .whoStandard{align-self:flex-start;font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:800;color:var(--teal);margin:2px 0 -4px 4px;}
@@ -82,25 +88,24 @@
   .say.ok{color:#34D399;} .say.bad{color:#F87171;}
 
   /* ---------- board ---------- */
-  .boardhead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 14px;}
-  h2{font-family:var(--display);font-weight:900;font-size:20px;letter-spacing:-.01em;margin:0;}
-  .count{font-size:13px;color:var(--mut);}
+  .boardhead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 10px;}
+  h2{font-family:var(--display);font-weight:900;font-size:16px;letter-spacing:-.01em;margin:0;}
+  .count{font-size:12.5px;color:var(--mut);}
 
   /* Group headings. The board holds two different things — problems and ideas — that rank by
      different rules, so the split is stated rather than left for the reader to infer. */
-  .grouphead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:22px 0 11px;
-    font-family:var(--display);font-weight:900;font-size:15px;letter-spacing:-.01em;color:var(--fg);}
+  .grouphead{margin:18px 0 9px;font-family:var(--display);font-weight:900;font-size:13px;
+    letter-spacing:.06em;text-transform:uppercase;color:var(--mut);}
   .grouphead:first-child{margin-top:0;}
-  .groupsub{font-family:var(--body);font-weight:500;font-size:12.5px;color:var(--mut);letter-spacing:0;}
 
-  .theme{border:1px solid var(--line);border-radius:var(--r);background:var(--panel);padding:17px 18px;margin-bottom:12px;
+  .theme{border:1px solid var(--line);border-radius:var(--r);background:var(--panel);padding:13px 14px;margin-bottom:9px;
     transition:border-color .18s;}
   .theme:hover{border-color:var(--line2);}
   .theme.done{opacity:.62;}
   .tTop{display:flex;align-items:flex-start;gap:12px;}
   .tMain{flex:1;min-width:0;}
   .badges{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:7px;}
-  .badge{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:999px;
+  .badge{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:999px;
     border:1px solid var(--line2);color:var(--fg2);}
   .badge.bug{color:#FCA5A5;border-color:#4b2b2b;background:rgba(248,113,113,.08);}
   .badge.confusing{color:#FCD34D;border-color:#4a3c1e;background:rgba(252,211,77,.08);}
@@ -113,18 +118,18 @@
   .sev{display:inline-flex;gap:2px;align-items:center;}
   .sev i{width:5px;height:11px;border-radius:2px;background:#22303f;display:block;}
   .sev i.on{background:var(--sweep);}
-  .tTitle{font-family:var(--display);font-weight:900;font-size:17px;line-height:1.25;margin:0;letter-spacing:-.01em;}
-  .tSum{color:var(--fg2);font-size:14px;margin:6px 0 0;}
+  .tTitle{font-family:var(--display);font-weight:900;font-size:15px;line-height:1.3;margin:0;letter-spacing:-.01em;}
+  .tSum{color:var(--fg2);font-size:13.5px;margin:5px 0 0;}
 
-  .vote{flex:none;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:52px;padding:8px 6px;
+  .vote{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:46px;min-height:46px;padding:5px;
     border:1px solid var(--line);border-radius:12px;background:#0b121b;cursor:pointer;transition:border-color .16s,background .16s;}
   .vote:hover{border-color:var(--teal);background:#0e1622;}
   .vote.on{border-color:var(--teal);background:rgba(34,211,238,.10);}
   .vote.on .vn{color:var(--teal);}
   .vote .vc{font-size:12px;color:var(--mut);line-height:1;}
-  .vote .vn{font-family:var(--display);font-weight:900;font-size:18px;line-height:1.1;}
+  .vote .vn{font-family:var(--display);font-weight:900;font-size:16px;line-height:1.1;}
 
-  .tFoot{display:flex;align-items:center;gap:14px;margin-top:12px;flex-wrap:wrap;}
+  .tFoot{display:flex;align-items:center;gap:14px;margin-top:9px;flex-wrap:wrap;}
   .link{background:none;border:0;padding:0;color:var(--teal);font-family:var(--body);font-size:13.5px;font-weight:600;cursor:pointer;}
   .link:hover{text-decoration:underline;}
   .posts{margin-top:12px;border-top:1px solid var(--line);padding-top:12px;display:none;}
@@ -143,8 +148,14 @@
   .gate{max-width:520px;margin:14vh auto;text-align:center;padding:0 20px;}
   .gate h1{font-size:clamp(26px,5vw,36px);}
   .gate p{color:var(--fg2);margin-top:14px;}
-  footer{margin-top:34px;padding-top:20px;border-top:1px solid var(--line);font-size:13px;color:var(--mut);}
-  @media (max-width:520px){ .composeFoot{flex-direction:column;align-items:stretch;} .composeFoot .btn{width:100%;} }
+  footer{margin-top:26px;padding-top:16px;border-top:1px solid var(--line);font-size:12.5px;color:var(--mut);}
+  @media (max-width:520px){
+    .wrap{padding:0 14px 56px;}
+    .compose{padding:13px;margin:14px 0 20px;}
+    header{padding:18px 0 2px;}
+    .msg{max-width:92%;}
+    .theme{padding:12px;}
+  }
 </style>
 </head>
 <body>
@@ -158,44 +169,45 @@
   <header>
     <div class="eyebrow">OnStandard · Private Beta</div>
     <h1>Tell us everything.</h1>
-    <p class="sub">You're testing something unfinished on purpose. Talk to Standard, the founder's
-      AI: it listens, asks the right follow-up, and files your words on the board exactly as you
-      wrote them. All of it counts, and the small stuff is often the most useful. If someone
-      already said it, add a "me too" below.</p>
+    <p class="sub">Talk to Standard, the founder's AI. It files your words on the board below,
+      exactly as you wrote them. The small stuff counts double.</p>
   </header>
 
   <div class="compose" id="chatpanel">
-    <div class="row">
+    <div class="idline" id="idline" hidden>
+      <span>Reporting as <b id="idname"></b><span id="idver"></span></span>
+      <button type="button" id="idedit">change</button>
+    </div>
+    <div class="row" id="idfields">
       <div class="f">
         <label for="name">Your name</label>
         <input id="name" maxlength="40" placeholder="First name is fine" autocomplete="given-name">
       </div>
-      <div class="f" style="max-width:180px">
+      <div class="f" style="max-width:160px">
         <label for="ver">Build <span style="text-transform:none;letter-spacing:0">(optional)</span></label>
-        <input id="ver" maxlength="40" placeholder="e.g. 1.0.23">
+        <input id="ver" maxlength="40" placeholder="1.0.25">
       </div>
     </div>
     <div class="thread" id="thread" aria-live="polite"></div>
     <form class="chatFoot" id="form">
       <textarea id="body" maxlength="1200" rows="1" required
-        placeholder="Tell Standard what you hit: a bug, an idea, confusion, praise."></textarea>
+        placeholder="A bug, an idea, confusion, praise"></textarea>
       <button class="btn cta" id="send" type="submit">Send</button>
     </form>
     <div class="say" id="say" role="status" aria-live="polite"></div>
-    <p class="hint" style="margin-top:10px">Standard is an AI. It files your words on the board
-      below exactly as you wrote them, tagged with your tester number, and the founder reads
-      every report. Your name and words are visible to other testers.</p>
+    <p class="hint" style="margin-top:10px">Standard is an AI. Your name and words are visible
+      to other testers.</p>
   </div>
 
   <div class="boardhead">
-    <h2>What everyone's saying</h2>
+    <h2>The board</h2>
     <span class="count" id="count"></span>
   </div>
   <div id="board"></div>
 
   <footer>
-    Problems rank by severity, then by how many people hit them. Ideas and praise rank by how many
-    people back them. Statuses are set by the OnStandard team.
+    Problems rank by severity, then reach. Ideas and praise rank by backing. Tap +1 if you hit
+    it too.
     <span id="adminnote"></span>
   </footer>
 </div>
@@ -230,6 +242,21 @@
   var testerSet = Number(LS.get('os_tester_set', '')) || null;
   $('name').value = LS.get('os_beta_name', '') || LS.get('os_tester_name', '');
   $('ver').value = LS.get('os_beta_ver', '');
+
+  // Identity is one quiet line once known — the panel is for talking, not form-filling.
+  function syncIdentity() {
+    var n = $('name').value.trim(), v = $('ver').value.trim();
+    $('idline').hidden = !n;
+    $('idfields').hidden = !!n;
+    if (n) {
+      $('idname').textContent = n;
+      $('idver').textContent = v ? ' · build ' + v : '';
+    }
+  }
+  $('idedit').addEventListener('click', function () {
+    $('idline').hidden = true; $('idfields').hidden = false; $('name').focus();
+  });
+  syncIdentity();
 
   function api(payload) {
     payload.k = K;
@@ -296,11 +323,7 @@
       var group = (t.kind === 'idea' || t.kind === 'praise') ? 'signal' : 'problem';
       if (group !== lastGroup) {
         lastGroup = group;
-        var h = el('h3', 'grouphead', group === 'problem' ? 'Problems' : 'Ideas & praise');
-        h.appendChild(el('span', 'groupsub', group === 'problem'
-          ? 'Ranked by severity, then by how many hit it'
-          : 'Ranked by how many people back it'));
-        board.appendChild(h);
+        board.appendChild(el('h3', 'grouphead', group === 'problem' ? 'Problems' : 'Ideas & praise'));
       }
       var done = t.status === 'shipped' || t.status === 'wontdo';
       var card = el('div', 'theme' + (done ? ' done' : ''));
@@ -505,6 +528,7 @@
     if (!text) return;
     LS.set('os_beta_name', $('name').value.trim());
     LS.set('os_beta_ver', $('ver').value.trim());
+    syncIdentity();
     sayEl.className = 'say'; sayEl.textContent = '';
 
     if (!transcript.length) transcript.push({ role: 'ceo', text: opener() });
