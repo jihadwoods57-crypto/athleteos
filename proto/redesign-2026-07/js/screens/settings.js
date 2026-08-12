@@ -293,12 +293,12 @@ export const privacy = {
     <div class="eyebrow">Your data</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" id="pv-export">
-        <div class="lic">${icon('share', 17)}</div>
+        <div class="lic">${icon('download', 17)}</div>
         <div class="lm"><div class="lt">Download my data</div><div class="ls">Profile, days, and meal records as a JSON file</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
       <div class="lrow" data-go="delete-account">
-        <div class="lic" style="color:var(--red)">${icon('x', 17)}</div>
+        <div class="lic" style="color:var(--red)">${icon('trash', 17)}</div>
         <div class="lm"><div class="lt" style="color:var(--red)">Delete my account</div><div class="ls">Permanent, in-app</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
@@ -455,12 +455,12 @@ export const billing = {
     </section>` : paid ? `
     <section class="card" style="padding:6px 16px">
       <div class="lrow" id="bill-manage" role="button">
-        <div class="lic">${icon('gear', 18)}</div>
+        <div class="lic">${icon('creditCard', 18)}</div>
         <div class="lm"><div class="lt">Manage subscription</div><div class="ls">${teamPlan ? 'Change plan, card, or cancel — Stripe portal' : `Change plan or cancel in the ${/android/i.test(navigator.userAgent || '') ? 'Play Store' : 'App Store'}`}</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
       ${teamPlan ? '' : `<div class="lrow" id="bill-restore" role="button">
-        <div class="lic">${icon('bolt', 17)}</div>
+        <div class="lic">${icon('rotate', 17)}</div>
         <div class="lm"><div class="lt">Restore purchases</div><div class="ls">Moved devices? Restore your membership</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>`}
@@ -474,7 +474,7 @@ export const billing = {
       <button class="btn green" id="bill-upsell" style="width:100%">See membership plans</button>
       <div style="height:10px"></div>
       <div class="lrow" data-go="redeem-code" style="cursor:pointer"><div class="lic">${icon('key', 17)}</div><div class="lm"><div class="lt">Have a code?</div><div class="ls">From your trainer or a sponsor — redeem it to unlock premium</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" id="bill-restore" role="button" style="cursor:pointer"><div class="lic">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Restore purchases</div><div class="ls">Already a member on another device?</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" id="bill-restore" role="button" style="cursor:pointer"><div class="lic">${icon('rotate', 17)}</div><div class="lm"><div class="lt">Restore purchases</div><div class="ls">Already a member on another device?</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
     </section>`}
 
     <div id="bill-msg" style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:12px"></div>
@@ -531,7 +531,7 @@ export const notifSettings = {
         <div class="seg" style="width:104px" id="ns-enabled"><button class="${p.enabled ? 'on' : ''}">On</button><button class="${p.enabled ? '' : 'on'}">Off</button></div>
       </div>
       <div class="lrow" id="ns-haptics" style="cursor:default">
-        <div class="lic">${icon('bolt', 17)}</div>
+        <div class="lic">${icon('vibrate', 17)}</div>
         <div class="lm"><div class="lt">Haptics</div><div class="ls">A light tick on taps and logs</div></div>
         <div class="seg" style="width:104px" id="ns-haptics-seg"><button class="${RT.haptics !== false ? 'on' : ''}">On</button><button class="${RT.haptics === false ? 'on' : ''}">Off</button></div>
       </div>
@@ -777,7 +777,7 @@ export const deleteAccount = {
       <div class="ts">Download everything from Privacy & visibility before you delete. Deletion completes within 30 days everywhere, immediately in the app.</div></div>
     </div>
     <div style="height:18px"></div>
-    <button id="del-acct" class="btn" style="background:var(--danger-solid);color:#fff;box-shadow:0 10px 30px rgba(220,38,38,0.3)">${icon('x', 18)} Delete my account</button>
+    <button id="del-acct" class="btn" style="background:var(--danger-solid);color:#fff;box-shadow:0 10px 30px rgba(220,38,38,0.3)">${icon('trash', 18)} Delete my account</button>
     <div id="del-status" style="text-align:center;font-size:13px;font-weight:600;color:var(--text-3);min-height:18px;margin-top:10px"></div>
     <button class="btn ghost" data-go="${roleProfileRoute()}">Keep my account</button>
     <div style="height:10px"></div>
@@ -816,16 +816,16 @@ export const terms = {
       <a class="lrow" href="${href}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">
         <div class="lic">${icon(ic, 16)}</div>
         <div class="lm"><div class="lt">${t}</div><div class="ls">${s}</div></div>
-        ${icon('share', 15, 'style="color:var(--text-3)"')}
+        ${icon('external', 15, 'style="color:var(--text-3)"')}
       </a>`;
     return `
     ${backHead('Terms & Privacy', 'The documents, and what they mean', back)}
     <section class="card" style="padding:6px 16px">
       ${ext('https://onstandard.app/terms', 'clipboard', 'Terms of Service', 'The full agreement')}
       ${ext('https://onstandard.app/privacy', 'lock', 'Privacy Policy', 'What we collect and why')}
-      <div class="lrow" data-go="privacy"><div class="lic">${icon('share', 16)}</div><div class="lm"><div class="lt">Data export</div><div class="ls">Download everything you own, in-app</div></div>${icon('chevron', 16, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="privacy"><div class="lic">${icon('download', 16)}</div><div class="lm"><div class="lt">Data export</div><div class="ls">Download everything you own, in-app</div></div>${icon('chevron', 16, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="verified-discipline"><div class="lic">${icon('shield', 16)}</div><div class="lm"><div class="lt">Verified Discipline profile</div><div class="ls">See exactly what a recruiter would — off until you say so</div></div>${icon('chevron', 16, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('x', 16)}</div><div class="lm"><div class="lt">Account deletion</div><div class="ls">Permanent, in-app</div></div>${icon('chevron', 16, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('trash', 16)}</div><div class="lm"><div class="lt">Account deletion</div><div class="ls">Permanent, in-app</div></div>${icon('chevron', 16, 'style="color:var(--text-3)"')}</div>
       <div class="lrow" data-go="feedback"><div class="lic">${icon('message', 16)}</div><div class="lm"><div class="lt">Send feedback</div><div class="ls">Report a bug, ask something, or tell us an idea</div></div>${icon('chevron', 16, 'style="color:var(--text-3)"')}</div>
       ${/* The email stays. Someone locked out of their account cannot file an in-app ticket, and
             that is exactly when they most need to reach a human. */ ''}

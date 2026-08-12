@@ -15,7 +15,7 @@ export const recoveryConfirm = {
     const promoted = tier(mv.from).name !== toTier.name;
     return `
     <div class="confirm-wrap">
-      <div class="big-check"><div class="core" style="background:linear-gradient(155deg, var(--purple-bright), #7e22ce); color:#fff; box-shadow: 0 0 44px rgba(168,85,247,0.55), 0 10px 34px rgba(0,0,0,0.4)">${icon('moon', 32)}</div></div>
+      <div class="big-check"><div class="core" style="background:linear-gradient(155deg, var(--purple-bright), #7e22ce); color:#fff; box-shadow: 0 0 44px rgba(168,85,247,0.55), 0 10px 34px rgba(0,0,0,0.4)">${icon('moonStar', 32)}</div></div>
       <div class="confirm-title">Check-In Submitted</div>
       <div class="confirm-sub">Recovery refreshed · ${S.coach.hasCoach ? `${esc(S.coach.nameMid)} can see your readiness` : 'counted toward tomorrow'}</div>
 
@@ -112,7 +112,7 @@ export default {
 
     <div style="height:14px"></div>
     <div class="sidebox">
-      <div class="req-icon p" style="width:38px;height:38px">${icon('moon', 18)}</div>
+      <div class="req-icon p" style="width:38px;height:38px">${icon('moonStar', 18)}</div>
       <div><div class="tt" id="rec-gain">${best.gain > 0
         ? `Current: ${S.score} · Earn up to +${best.gain} · Projected: <span data-proj>${P.to}</span>`
         : 'Refreshes your Recovery score tonight'}</div>
@@ -128,7 +128,7 @@ export default {
          this build (probed in mount) — device sleep/HRV is shown for CONTEXT on #devices and
          never changes the score. Keeps zero reachable "coming soon" until the module is wired. -->
     <div id="rec-connect" class="sidebox" data-go="devices" role="button" style="display:none;margin-top:14px;cursor:pointer">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('moon', 17)}</div>
+      <div class="req-icon b" style="width:38px;height:38px">${icon('moonStar', 17)}</div>
       <div><div class="tt">Connect Apple Health</div><div class="ts">Bring last night's sleep, HRV &amp; resting HR in for context</div></div>
     </div>
     <div style="height:8px"></div>

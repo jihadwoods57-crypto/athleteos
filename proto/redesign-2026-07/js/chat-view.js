@@ -23,18 +23,18 @@ export const GROUP_GAP_MS = 10 * 60 * 1000;
 /** How each kind of participant is introduced. `kind` comes from meal_thread_participants (0158),
  *  which returns real team_staff roles, plus the two client-side constants. */
 const KINDS = {
-  athlete: { emoji: '👤', noun: 'You', access: 'This is their own log' },
-  ai: { emoji: '🤖', noun: 'AI Nutritionist', access: 'Reads every meal and answers questions' },
-  head_coach: { emoji: '🏈', noun: 'Head coach', access: 'Sees this athlete’s meals and scores' },
-  assistant_coach: { emoji: '🏈', noun: 'Assistant coach', access: 'Sees this athlete’s meals and scores' },
-  s_and_c: { emoji: '🏋️', noun: 'Strength coach', access: 'Sees this athlete’s meals and scores' },
-  athletic_trainer: { emoji: '🩺', noun: 'Athletic trainer', access: 'Sees this athlete’s meals and scores' },
-  team_admin: { emoji: '📋', noun: 'Team admin', access: 'Sees this athlete’s meals and scores' },
-  readonly: { emoji: '👁', noun: 'Staff', access: 'Can read this thread' },
-  trainer: { emoji: '💪', noun: 'Trainer', access: 'Sees this athlete’s meals and scores' },
-  guardian: { emoji: '🛡', noun: 'Parent or guardian', access: 'Sees this athlete’s meals and scores' },
+  athlete: { ic: 'user', noun: 'You', access: 'This is their own log' },
+  ai: { ic: 'bot', noun: 'AI Nutritionist', access: 'Reads every meal and answers questions' },
+  head_coach: { ic: 'clipboard', noun: 'Head coach', access: 'Sees this athlete’s meals and scores' },
+  assistant_coach: { ic: 'clipboard', noun: 'Assistant coach', access: 'Sees this athlete’s meals and scores' },
+  s_and_c: { ic: 'dumbbell', noun: 'Strength coach', access: 'Sees this athlete’s meals and scores' },
+  athletic_trainer: { ic: 'stethoscope', noun: 'Athletic trainer', access: 'Sees this athlete’s meals and scores' },
+  team_admin: { ic: 'fileText', noun: 'Team admin', access: 'Sees this athlete’s meals and scores' },
+  readonly: { ic: 'eye', noun: 'Staff', access: 'Can read this thread' },
+  trainer: { ic: 'biceps', noun: 'Trainer', access: 'Sees this athlete’s meals and scores' },
+  guardian: { ic: 'shield', noun: 'Parent or guardian', access: 'Sees this athlete’s meals and scores' },
 };
-const FALLBACK = { emoji: '👤', noun: 'Staff', access: 'Can read this thread' };
+const FALLBACK = { ic: 'user', noun: 'Staff', access: 'Can read this thread' };
 
 export function participantMeta(kind) {
   return KINDS[String(kind || '')] || FALLBACK;

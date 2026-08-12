@@ -614,3 +614,32 @@ body {
 /* The trailing control (a Grant/End button, a status pill, the chevron) is the row's ACTION.
    It never shrinks and never scrolls away, whatever the name beside it turns out to be. */
 .lrow > .btn, .lrow > .status-pill, .lrow > svg, .lrow > .req-badge { flex: none; }
+
+/* ===== State-driven icon motion (2026-08-11) =====
+   Three moments, each tied to a real state change — never ambient decoration:
+   1. The header bell rings once when the unread count RISES this session (components.js
+      bellBtn stamps .bell-arrived only on an increase, never on first paint or re-render).
+   2. The celebration flame flickers once when the day completes (the .xcelebwrap block only
+      exists at that moment).
+   3. The celebration record checks draw themselves in, lightly staggered.
+   Everything sits inside no-preference so reduced-motion never sees it (the global reduce
+   rule above also kills it as a second belt). */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes bell-ring {
+    0% { transform: rotate(0); } 15% { transform: rotate(13deg); } 35% { transform: rotate(-10deg); }
+    55% { transform: rotate(6deg); } 75% { transform: rotate(-3deg); } 100% { transform: rotate(0); }
+  }
+  .iconbtn.bell-arrived .ic-bell { animation: bell-ring 700ms var(--ease-out) 1; transform-origin: 50% 15%; }
+  @keyframes flame-flicker {
+    0%, 100% { transform: scale(1); } 20% { transform: scale(1.16) rotate(-3deg); }
+    40% { transform: scale(0.94) rotate(2deg); } 60% { transform: scale(1.09) rotate(-2deg); } 80% { transform: scale(0.97); }
+  }
+  .xcelebwrap .ic-flame { animation: flame-flicker 900ms var(--ease-out) 1; transform-origin: 50% 85%; }
+  /* 24 dash units ≈ the Lucide check path length; `both` holds the drawn state after. */
+  @keyframes check-draw { from { stroke-dashoffset: 24; } to { stroke-dashoffset: 0; } }
+  .xcelebwrap .xtk svg path { stroke-dasharray: 24; animation: check-draw 480ms var(--ease-out-quart) both; }
+  .xcelebwrap .xrec:nth-child(2) .xtk svg path { animation-delay: 60ms; }
+  .xcelebwrap .xrec:nth-child(3) .xtk svg path { animation-delay: 120ms; }
+  .xcelebwrap .xrec:nth-child(4) .xtk svg path { animation-delay: 180ms; }
+  .xcelebwrap .xrec:nth-child(n+5) .xtk svg path { animation-delay: 240ms; }
+}

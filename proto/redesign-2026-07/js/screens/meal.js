@@ -627,7 +627,7 @@ export const analysis = {
         const nameEl = row.querySelector('.fr-name');
         const qtyEl = row.querySelector('.fr-qty');
         const item = MEAL.result && (MEAL.result.detectedRich || []).find((d) => d && d.name === name);
-        row.insertAdjacentHTML('beforeend', '<span class="rm" role="button" aria-label="Remove" style="margin-left:8px;color:var(--red);font-weight:800;cursor:pointer">✕</span>');
+        row.insertAdjacentHTML('beforeend', `<span class="rm" role="button" aria-label="Remove" style="margin-left:8px;color:var(--red);font-weight:800;cursor:pointer;display:inline-flex;vertical-align:middle">${icon('x', 14)}</span>`);
         row.querySelector('.rm').addEventListener('click', (e) => {
           e.stopPropagation();
           const op = { kind: 'remove', name };

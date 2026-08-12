@@ -985,7 +985,7 @@ export const coachPlanSet = {
     // Day-type tagging only bites once a training/rest week exists; surface it (with a link to set
     // one up) only then, so the coach is never offered a control that silently does nothing.
     const hasRestPattern = Array.isArray(RT.weekPattern) && RT.weekPattern.some((d) => d === 'rest');
-    const PREV_IC = { breakfast: 'utensils', lunch: 'bowl', dinner: 'bowl', snack: 'utensils' };
+    const PREV_IC = { breakfast: 'breakfast', lunch: 'lunch', dinner: 'dinner', snack: 'snack' };
     return `
     ${backHead(scopeName, kind === 'team'
       ? (CD.kind === 'practice' ? 'The starting standard for clients without an override' : 'The starting standard for athletes without an override')

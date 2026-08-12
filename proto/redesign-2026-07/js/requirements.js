@@ -69,11 +69,11 @@ export const ACTIVATION_BUFFER_MIN = 60;
    (a distinct Sunday requirement); v2 deletes that ritual entirely, so cyan is retired — no
    catalog entry wears it. */
 export const CATALOG = [
-  { id: 'breakfast', title: 'Breakfast', icon: 'utensils', accent: 'g', proof: 'photo',
+  { id: 'breakfast', title: 'Breakfast', icon: 'breakfast', accent: 'g', proof: 'photo',
     freq: { type: 'daily' }, window: { open: 7 * 60, due: 570 }, required: true,
     impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium',
     note: 'Protein first — 40g+ before 9:30 AM sets up the whole day.' },
-  { id: 'lunch', title: 'Lunch', icon: 'bowl', accent: 'g', proof: 'photo',
+  { id: 'lunch', title: 'Lunch', icon: 'lunch', accent: 'g', proof: 'photo',
     freq: { type: 'daily' }, window: { open: 12 * 60, due: 14 * 60 }, required: true,
     impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium',
     note: 'Don’t skip it. Carbs land around training.' },
@@ -81,11 +81,11 @@ export const CATALOG = [
     freq: { type: 'days', days: [1, 3, 5], label: 'Mon / Wed / Fri' }, window: { due: 9 * 60 }, required: true,
     impact: { kind: 'trend' }, reminder: 'high',
     note: 'Same time, same conditions. We read the trend, never one morning.' },
-  { id: 'dinner', title: 'Dinner', icon: 'bowl', accent: 'g', proof: 'photo',
+  { id: 'dinner', title: 'Dinner', icon: 'dinner', accent: 'g', proof: 'photo',
     freq: { type: 'daily' }, window: { open: 18 * 60, due: 1230 }, required: true,
     impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium',
     note: 'Protein + slow carb + a vegetable. Close the day right.' },
-  { id: 'recovery', title: 'Recovery Check-In', icon: 'moon', accent: 'p', proof: 'form',
+  { id: 'recovery', title: 'Recovery Check-In', icon: 'moonStar', accent: 'p', proof: 'form',
     freq: { type: 'daily' }, window: { due: 23 * 60 + 30, label: 'Before bed' }, required: true,
     impact: { kind: 'component', comp: 'recovery' }, reminder: 'high',
     note: '20 seconds. Coach reads readiness before tomorrow’s practice.' },
@@ -274,7 +274,7 @@ export function stdFromSolo(standard) {
 const KIND_DEFAULTS = {
   meal:      { icon: 'utensils', accent: 'g', proof: 'photo', required: true, impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium', freq: { type: 'daily' } },
   lift:      { icon: 'bolt', accent: 'b', proof: 'check', required: true, impact: { kind: 'plan' }, reminder: 'medium', freq: { type: 'daily' } },
-  recovery:  { icon: 'moon', accent: 'p', proof: 'form', required: true, impact: { kind: 'component', comp: 'recovery' }, reminder: 'high', freq: { type: 'daily' } },
+  recovery:  { icon: 'moonStar', accent: 'p', proof: 'form', required: true, impact: { kind: 'component', comp: 'recovery' }, reminder: 'high', freq: { type: 'daily' } },
   weigh:     { icon: 'scale', accent: 'a', proof: 'scale', required: true, impact: { kind: 'trend' }, reminder: 'high', freq: { type: 'days', days: [1, 3, 5], label: 'Mon / Wed / Fri' } },
   // v2: no `checkin` entry — the weekly check-in ritual is deleted (Task 7). A stored item that
   // still carries kind:'checkin' (a pre-cutover row) now falls through to `custom` below, same as

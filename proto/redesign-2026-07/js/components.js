@@ -366,6 +366,16 @@ export function logoMark(size = 96, uid = 'lm') {
   </svg>`;
 }
 
+/* The bell rings ONCE, when the unread count actually rises this session — never on a plain
+   re-render, never on first paint (a badge you walked in with is old news, not an arrival).
+   Motion conveys state: the animation class only exists at the moment something new landed. */
+let lastBellN = null;
+function bellBtn(n, extraStyle = '') {
+  const arrived = lastBellN !== null && n > lastBellN;
+  lastBellN = n;
+  return `<div class="iconbtn${arrived ? ' bell-arrived' : ''}" data-go="notifications" role="button" aria-label="${n ? `Notifications, ${n} unread` : 'Notifications'}"${extraStyle ? ` style="${extraStyle}"` : ''}>${icon('bell', 20)}${n ? `<span class="dot">${n > 9 ? '9+' : n}</span>` : ''}</div>`;
+}
+
 export function appHead(sub, extra) {
   const n = S.unreadNotifs;
   return `<header class="apphead">
@@ -376,7 +386,7 @@ export function appHead(sub, extra) {
     </div>
     <div class="actions">
       ${extra || ''}
-      <div class="iconbtn" data-go="notifications" role="button" aria-label="${n ? `Notifications, ${n} unread` : 'Notifications'}">${icon('bell', 20)}${n ? `<span class="dot">${n > 9 ? '9+' : n}</span>` : ''}</div>
+      ${bellBtn(n)}
       ${S.athlete.avatar && safeImg(S.athlete.avatar)
         ? `<div class="avatar" data-go="profile" style="background-image:url('${safeImg(S.athlete.avatar)}');background-size:cover;background-position:center"></div>`
         : `<div class="avatar" data-go="profile">${esc(S.athlete.initials)}</div>`}
@@ -433,7 +443,7 @@ export function avatarHead(title, sub, initials) {
   const n = S.unreadNotifs;
   return `<div class="back-head" style="align-items:center">
     <div style="flex:1;min-width:0"><div class="ht">${esc(title)}</div>${sub ? `<div class="hs">${esc(sub)}</div>` : ''}</div>
-    <div class="iconbtn" data-go="notifications" role="button" aria-label="${n ? `Notifications, ${n} unread` : 'Notifications'}" style="margin-right:10px">${icon('bell', 20)}${n ? `<span class="dot">${n > 9 ? '9+' : n}</span>` : ''}</div>
+    ${bellBtn(n, 'margin-right:10px')}
     <div class="hd-avatar" role="button" tabindex="0" aria-label="Your profile and settings" data-go="${roleProfileRoute()}"
       style="position:relative;width:40px;height:40px;border-radius:50%;background:var(--blue-surface);color:var(--blue-bright);border:1.5px solid var(--blue-border);display:grid;place-items:center;font-size:13px;font-weight:800;letter-spacing:0.02em;flex:none;cursor:pointer">${esc(initials || 'C')}
       <span aria-hidden="true" style="position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:50%;background:var(--surface-3);border:1.5px solid var(--bg);display:grid;place-items:center;color:var(--text-2)">${icon('chevron', 10)}</span>

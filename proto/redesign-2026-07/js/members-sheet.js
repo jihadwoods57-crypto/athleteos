@@ -14,6 +14,7 @@
 
 import { participantMeta, initialsFor } from './chat-view.js';
 import { esc } from './components.js';
+import { icon } from './icons.js';
 
 let overlay = null;
 
@@ -39,10 +40,10 @@ export function openMembersSheet(members) {
     const sub = p.self ? 'This is your log' : meta.access;
     return `
       <div class="ms-row">
-        <span class="ms-av ${esc(p.kind === 'ai' ? 'ai' : p.self ? 'self' : 'other')}">${p.kind === 'ai' ? '🤖' : esc(initialsFor(p.name))}</span>
+        <span class="ms-av ${esc(p.kind === 'ai' ? 'ai' : p.self ? 'self' : 'other')}">${p.kind === 'ai' ? icon('bot', 16) : esc(initialsFor(p.name))}</span>
         <span class="ms-txt">
           <span class="ms-name">${esc(p.name)}</span>
-          <span class="ms-kind">${esc(meta.emoji)} ${esc(p.self ? 'Athlete' : meta.noun)} · ${esc(sub)}</span>
+          <span class="ms-kind">${icon(meta.ic, 12, 'style="vertical-align:-2px;margin-right:1px"')} ${esc(p.self ? 'Athlete' : meta.noun)} · ${esc(sub)}</span>
         </span>
       </div>`;
   }).join('');

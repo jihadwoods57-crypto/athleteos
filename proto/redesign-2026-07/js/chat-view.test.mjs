@@ -44,7 +44,7 @@ test('a role nobody has taught us about still reads as a person, not as a blank'
   assert.equal(participantMeta('head_coach').noun, 'Head coach');
   assert.equal(participantMeta('guardian').noun, 'Parent or guardian');
   assert.equal(participantMeta('some_new_role_2027').noun, 'Staff');
-  assert.ok(participantMeta('trainer').emoji);
+  assert.ok(participantMeta('trainer').ic);
 });
 
 test('a message is attributed to the person who wrote it', () => {

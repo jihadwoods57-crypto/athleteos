@@ -125,11 +125,14 @@ function maybeCoachNudge(e) {
 }
 
 // Per-type icon media tints (a photo-less card shows its own icon — never someone else's).
+const MEAL_TINT = ['rgba(245,165,36,0.22)', 'rgba(245,165,36,0.08)', 'var(--amber-bright)'];
+const RECOVERY_TINT = ['rgba(168,85,247,0.24)', 'rgba(59,130,246,0.10)', 'var(--purple-bright)'];
 const ACT_MEDIA = {
   droplet: ['rgba(56,189,248,0.28)', 'rgba(37,99,235,0.16)', 'var(--cyan)'],
-  moon: ['rgba(168,85,247,0.24)', 'rgba(59,130,246,0.10)', 'var(--purple-bright)'],
+  moon: RECOVERY_TINT, moonStar: RECOVERY_TINT,
   scale: ['rgba(59,130,246,0.22)', 'rgba(37,99,235,0.10)', 'var(--blue-bright)'],
-  utensils: ['rgba(245,165,36,0.22)', 'rgba(245,165,36,0.08)', 'var(--amber-bright)'],
+  // Every meal-slot glyph shares the one nutrition tint; the glyph varies, the meaning doesn't.
+  utensils: MEAL_TINT, breakfast: MEAL_TINT, lunch: MEAL_TINT, dinner: MEAL_TINT, snack: MEAL_TINT,
 };
 // Micro-label above a non-quality result value — names what the number IS.
 const RES_K = { 'Morning Weight': 'This morning', 'Recovery Check-In': 'Status' };
@@ -273,7 +276,7 @@ const recentResults = () => {
 const whyHtml = (why) => esc(why).replace(/\*\*(.+?)\*\*/, '<b>$1</b>');
 
 const VERB = { form: 'Complete', scale: 'Log', photo: 'Log', counter: 'Add' };
-const CTA_ICON = { form: 'moon', scale: 'scale', photo: 'camera', counter: 'droplet' };
+const CTA_ICON = { form: 'moonStar', scale: 'scale', photo: 'camera', counter: 'droplet' };
 
 function nowCard(e) {
   const n = e.now;
