@@ -56,16 +56,26 @@
 
   .setno{font-family:var(--display);font-weight:900;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);margin:0 0 4px;}
   .cardtitle{font-family:var(--display);font-weight:900;font-size:24px;letter-spacing:-.01em;margin:0 0 18px;}
-  .field{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid rgba(29,39,53,.7);}
+  .cardsub{color:var(--fg2);font-size:14px;margin:-10px 0 18px;}
+  .field{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:2px 10px;padding:11px 0;border-bottom:1px solid rgba(29,39,53,.7);}
   .field:last-child{border-bottom:0;}
   .flabel{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:700;min-width:70px;}
   .fval{font-family:monospace;font-size:14px;color:var(--fg);word-break:break-all;text-align:right;flex:1;}
+  .fhint{flex-basis:100%;font-size:12.5px;color:var(--mut);line-height:1.45;}
   .pw .fval{color:var(--teal);font-weight:700;}
 
-  .starthere{margin-top:22px;padding-top:18px;border-top:1px dashed var(--line2);}
-  .starthere h2{font-family:var(--display);font-weight:900;font-size:14px;letter-spacing:-.01em;margin:0 0 10px;}
-  .starthere ol{margin:0;padding-left:20px;color:var(--fg2);font-size:14px;}
-  .starthere li{margin-bottom:6px;}
+  .guide{margin-top:26px;padding-top:20px;border-top:1px dashed var(--line2);}
+  .guide h2{font-family:var(--display);font-weight:900;font-size:17px;letter-spacing:-.01em;margin:0 0 10px;}
+  .guide > p{color:var(--fg2);font-size:14px;margin:0 0 12px;max-width:60ch;}
+  .guide b{color:var(--fg);}
+  .steps{counter-reset:step;margin:22px 0 0;padding:0;list-style:none;}
+  .steps li{counter-increment:step;position:relative;padding:0 0 20px 44px;}
+  .steps li::before{content:counter(step);position:absolute;left:0;top:-2px;width:28px;height:28px;
+    display:flex;align-items:center;justify-content:center;border-radius:999px;
+    font-family:var(--display);font-weight:900;font-size:13px;color:var(--teal);
+    border:1px solid var(--line2);background:var(--panel2);}
+  .steps h3{font-size:15px;font-weight:700;color:var(--fg);margin:0 0 4px;}
+  .steps p{color:var(--fg2);font-size:14px;margin:0 0 6px;max-width:56ch;}
   .actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;}
   .actions .btn{width:auto;flex:1;min-width:150px;}
 
@@ -80,13 +90,14 @@
   <header>
     <div class="eyebrow">OnStandard · Private Beta</div>
     <h1>Get your tester accounts.</h1>
-    <p class="sub">You'll get four linked logins — coach, athlete, trainer, client — so you can see
-      every side of the app. Nobody else's data, nobody sees yours.</p>
+    <p class="sub">OnStandard is an app that helps athletes prove they're doing the work: meals,
+      recovery, a daily score their coach can see. You're one of ten people trying it before
+      release. This page gives you your own private test accounts and walks you through everything.</p>
   </header>
 
   <div id="gate" class="panel" hidden>
     <b class="cardtitle">You need an invite link</b>
-    <p class="sub">Use the full link you were sent — it ends in a code.</p>
+    <p class="sub">Use the full link you were sent. It ends in a code; this page only opens with it.</p>
   </div>
 
   <div id="form" class="panel" hidden>
@@ -101,6 +112,8 @@
       </div>
       <button class="btn cta" id="claimbtn" type="submit">Get my accounts</button>
       <div class="say" id="formsay" role="status" aria-live="polite"></div>
+      <p class="fine" style="text-align:left">Your email is only the key back to this page. If you
+        switch phones or lose this tab, enter it again and your accounts come right back.</p>
     </form>
     <p class="fine">Already claimed on another device? <button type="button" id="recoverlink">Recover with your email</button></p>
   </div>
@@ -108,26 +121,34 @@
   <div id="card" class="panel" hidden>
     <p class="setno" id="setno"></p>
     <h2 class="cardtitle">Your accounts are ready</h2>
+    <p class="cardsub">Four logins, one password, all pretend people that belong only to you.
+      You can't break anything and nobody else can see what you do. Tap Copy all to save them,
+      then read the short guide below.</p>
 
     <div class="field pw">
       <span class="flabel">Password</span>
       <span class="fval" id="pw"></span>
-    </div>
-    <div class="field">
-      <span class="flabel">Coach</span>
-      <span class="fval" id="e-coach"></span>
+      <span class="fhint">The same password works for all four accounts.</span>
     </div>
     <div class="field">
       <span class="flabel">Athlete</span>
       <span class="fval" id="e-athlete"></span>
+      <span class="fhint">The main character. Logs meals, checks in at night, earns the daily score. Start here.</span>
+    </div>
+    <div class="field">
+      <span class="flabel">Coach</span>
+      <span class="fval" id="e-coach"></span>
+      <span class="fhint">Runs the team your athlete is on. Sees the whole roster and who's slipping.</span>
     </div>
     <div class="field">
       <span class="flabel">Trainer</span>
       <span class="fval" id="e-trainer"></span>
+      <span class="fhint">A personal trainer with their own business. Same idea as coach, but one-on-one clients instead of a team.</span>
     </div>
     <div class="field">
       <span class="flabel">Client</span>
       <span class="fval" id="e-client"></span>
+      <span class="fhint">The trainer's client. An everyday person using the app for their own goals, not a team athlete.</span>
     </div>
     <div class="field">
       <span class="flabel">Team code</span>
@@ -136,20 +157,59 @@
     <div class="field">
       <span class="flabel">Practice code</span>
       <span class="fval" id="practicecode"></span>
+      <span class="fhint">Your accounts are already linked together. You won't need these two codes unless the app asks for one.</span>
     </div>
 
     <div class="actions">
       <button class="btn" id="copyall" type="button">Copy all</button>
     </div>
 
-    <div class="starthere">
-      <h2>Start here</h2>
-      <ol>
-        <li>Install the app from TestFlight, then sign in as the <b>athlete</b> account first — that's the everyday experience.</li>
-        <li>Sign out and back in as <b>coach</b> to see the same athlete from the other side.</li>
-        <li>Same idea for <b>trainer</b> / <b>client</b> — that's a separate, second relationship.</li>
-        <li>Hit something confusing, broken, or good? Tap "Report anything" below — it lands on our board tagged with your tester number, not lost in a text thread.</li>
+    <div class="guide">
+      <h2>What you're testing, in plain English</h2>
+      <p>OnStandard answers one question for athletes and the people around them:
+        <b>is this athlete actually doing what they're supposed to?</b> An athlete takes a photo
+        of each meal, the app reads it and scores it, they do a short nightly check-in, and it
+        all rolls into one daily score out of 100. Their coach, trainer, or parent can see that
+        score, so the work is visible instead of taken on faith.</p>
+      <p>Your job is simple: <b>use it like it's real for a few days</b> and tell us everything.
+        The app isn't public yet, so what you catch now gets fixed before anyone else sees it.</p>
+
+      <ol class="steps">
+        <li>
+          <h3>Install the app through TestFlight</h3>
+          <p>The app isn't on the App Store yet. Apple's way of sharing pre-release apps is a free
+            Apple app called <b>TestFlight</b>. Install TestFlight from the App Store first, then
+            tap the button below and accept the invite. OnStandard installs from inside TestFlight
+            and works like any other app after that.</p>
+        </li>
+        <li>
+          <h3>Live as the athlete</h3>
+          <p>Sign in with the <b>athlete</b> email above. Go through the setup questions, then do
+            the real thing: photograph an actual meal you eat, answer the nightly check-in, watch
+            the score move. This is the everyday experience, so spend most of your time here.</p>
+        </li>
+        <li>
+          <h3>See what the coach sees</h3>
+          <p>Sign out (the <b>Profile</b> tab in the bottom corner, then Sign out), and sign back
+            in as the <b>coach</b>. That meal
+            you just logged? It's on this side too. This is how a coach watches a whole team
+            without texting "did you eat?" twenty times a day.</p>
+        </li>
+        <li>
+          <h3>Try the trainer and client pair</h3>
+          <p>Same idea, different world: a personal trainer and their client instead of a team
+            and its athletes. Log something as the <b>client</b>, then look at it as the
+            <b>trainer</b>.</p>
+        </li>
+        <li>
+          <h3>Report everything you notice</h3>
+          <p>Confusing, broken, slow, ugly, or great: it all counts, and the small stuff counts
+            double. The <b>Report anything</b> button below goes to our feedback board, tagged
+            with your tester number, so nothing gets lost in a text thread. Use it as many times
+            as you want, mid-session, the moment you hit something.</p>
+        </li>
       </ol>
+
       <div class="actions">
         <a class="btn" id="testflightlink" href="#" target="_blank" rel="noopener" hidden>Open TestFlight</a>
         <a class="btn cta" id="reportlink" href="#" target="_blank" rel="noopener" hidden>Report anything</a>
@@ -160,13 +220,14 @@
   <div id="exhausted" class="panel" hidden>
     <div class="empty">
       <b>All ten sets are taken.</b>
-      <div>Text the founder — more testers means we bump the count.</div>
+      <div>Text the founder. More testers means we bump the count.</div>
     </div>
   </div>
 
   <footer>
-    Your accounts are real OnStandard sign-ins, seeded with no history so you can try the whole
-    logging flow from a clean slate. Nobody else can see what you do.
+    Lost this page? Open your invite link again on any device and recover with the email you
+    signed up with. Your accounts start with zero history on purpose, so you experience the app
+    exactly the way a brand-new user would.
   </footer>
 </div>
 
@@ -230,9 +291,9 @@
     $('copyall').onclick = function () {
       var text = [
         'OnStandard tester ' + String(data.set_no).padStart(2, '0'),
-        'Password: ' + data.password,
-        'Coach:   ' + data.emails.coach,
+        'Password (same for all four): ' + data.password,
         'Athlete: ' + data.emails.athlete,
+        'Coach:   ' + data.emails.coach,
         'Trainer: ' + data.emails.trainer,
         'Client:  ' + data.emails.client
       ].join('\n');
