@@ -468,7 +468,7 @@ export const mealView = {
     <div class="thread" id="mv-thread">
       <div class="msg-status">Loading…</div>
     </div>
-    ${composer({ inputId: 'mv-msg', sendId: 'mv-send', placeholder: 'Reply about this meal…', sendLabel: 'Send', attachId: 'mv-attach' })}
+    ${composer({ inputId: 'mv-msg', sendId: 'mv-send', placeholder: 'Reply about this meal…', sendLabel: 'Send', attachId: 'mv-attach', atEnd: true })}
     <div class="composer-attach-pending" id="mv-attach-pending" hidden></div>
     <div id="mv-note" style="min-height:18px"></div>
     <div style="height:10px"></div>`;

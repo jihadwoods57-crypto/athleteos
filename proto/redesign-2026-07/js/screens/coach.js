@@ -2752,7 +2752,7 @@ export const coachMeal = {
       <div class="tm-note" id="rx-note">Press and hold any message to react to it.</div>
     </div>`;
     })()}
-    ${composer({ inputId: 'cm-input', sendId: 'cm-send', placeholder: 'Comment on this meal…', sendLabel: 'Send comment', attachId: 'cm-attach', aiId: 'cm-ai' })}
+    ${composer({ inputId: 'cm-input', sendId: 'cm-send', placeholder: 'Comment on this meal…', sendLabel: 'Send comment', attachId: 'cm-attach', aiId: 'cm-ai', atEnd: true })}
     <div style="font-size:11px;font-weight:600;color:var(--text-3);margin:5px 2px 0">${icon('sparkle', 11)} asks the AI Nutritionist — it always answers you, in the thread.</div>
     <div class="composer-attach-pending" id="cm-attach-pending" hidden></div>
     <div id="cm-note" style="font-size:12.5px;font-weight:600;color:var(--red-bright);margin:6px 2px 0;min-height:16px"></div>

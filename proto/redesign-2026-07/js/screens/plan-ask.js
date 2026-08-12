@@ -142,7 +142,7 @@ export default {
     <div class="pl-qs" id="pa-chips" style="margin:12px 0 6px">
       ${qs.map((q) => `<span class="pl-q" data-ask="${esc(q)}">${esc(q)}</span>`).join('')}
     </div>
-    ${composer({ inputId: 'pa-in', sendId: 'pa-send', placeholder: 'Ask about your plan…', sendLabel: 'Ask' })}
+    ${composer({ inputId: 'pa-in', sendId: 'pa-send', placeholder: 'Ask about your plan…', sendLabel: 'Ask', atEnd: true })}
     <div style="height:10px"></div>`;
   },
 

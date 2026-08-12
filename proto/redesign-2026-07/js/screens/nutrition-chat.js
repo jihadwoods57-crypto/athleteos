@@ -22,6 +22,7 @@ import {
 } from '../chat-view.js';
 import { openMembersSheet } from '../members-sheet.js';
 import { cachedMealPhoto, warmMealPhotos } from '../photo-store.js';
+import { scrollThreadToEnd } from '../keyboard.js';
 
 /** How far back the stream reaches on open. A season is long; a fortnight is what a person
  *  actually scrolls, and "Load earlier" walks back from there. */
@@ -86,7 +87,7 @@ export default {
     <div class="thread nc-thread" id="nc-thread">
       <div class="msg-status" id="nc-status">Loading your conversation…</div>
     </div>
-    ${composer({ inputId: 'nc-msg', sendId: 'nc-send', placeholder: 'Reply about your latest meal…', sendLabel: 'Send' })}
+    ${composer({ inputId: 'nc-msg', sendId: 'nc-send', placeholder: 'Reply about your latest meal…', sendLabel: 'Send', atEnd: true })}
     <div id="nc-note" style="min-height:18px"></div>`;
   },
 
@@ -139,7 +140,10 @@ export default {
       }
       flushRun();
       threadEl.innerHTML = html.join('');
-      threadEl.scrollTop = threadEl.scrollHeight;
+      // `.thread` is a flex column and has never had a scrollTop — the screen's scroller is
+      // #viewport, so the old line here moved nothing. Unforced: "Load earlier" must not fling the
+      // reader back to today the instant the older page paints.
+      scrollThreadToEnd(threadEl);
       paintHeader();
       // Fill in any meal photos that were not cached at paint time, then repaint once.
       warmMealPhotos(STATE.meals.map((m) => m.photo_path).filter(Boolean));
@@ -214,6 +218,8 @@ export default {
       busy = false;
       if (!posted) { setNote("Couldn't send that — check your connection and try again."); input.value = text; return; }
       await load();
+      // Forced: they just sent it and are watching for it to land.
+      scrollThreadToEnd(root, { force: true });
     };
     if (send) send.addEventListener('click', submit);
     if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });

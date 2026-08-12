@@ -20,10 +20,18 @@ body {
   padding:28px 0 44px;
 }
 
+/* How much of the app the soft keyboard is covering. js/keyboard.js keeps it honest; it is 0
+   everywhere the keyboard is not up, including every desktop browser. */
+:root { --kb: 0px; }
+
 /* ===== Device frame (realistic iPhone) ===== */
 .device {
   width: 402px;
   height: 872px;
+  /* The shell RESIZES with the keyboard instead of being scrolled out from under it (see the
+     header comment in js/keyboard.js). ~220ms is the iOS keyboard's own slide, so the app
+     shortening and the keys arriving read as one motion rather than two events. */
+  transition: height 220ms var(--ease-out);
   border-radius: var(--r-pill);
   padding:12px;
   background: linear-gradient(160deg, #20293b, #0a0f1a 60%);
@@ -72,12 +80,15 @@ body {
 /* ===== Phone-native mode: on a real phone the frame IS the phone ===== */
 @media (max-width: 520px) {
   body { padding:0; display: block; }
-  .device { width: 100vw; height: 100dvh; border-radius: 0; padding:0; box-shadow: none; background: none; }
+  /* The page itself is never the scroller — .viewport is. Without this, WKWebView's keyboard
+     content-inset gives the document somewhere to go, and iOS takes it: the whole app slides up
+     so a 48px composer can clear the keys. */
+  html, body { overflow: hidden; }
+  .device { width: 100vw; height: calc(100dvh - var(--kb)); border-radius: 0; padding:0; box-shadow: none; background: none; }
   .screen { border-radius: 0; }
   .island { display: none; }
-  .statusbar { display: none; }
-  .viewport { padding-top:max(14px, env(safe-area-inset-top)); }
-  .tabbar { padding-bottom:max(22px, env(safe-area-inset-bottom)); }
+  /* .statusbar, .viewport and .tabbar are phone-native too, but their overrides CANNOT live in
+     this block — see "PHONE-NATIVE OVERRIDES THAT MUST COME LAST" at the end of this file. */
 }
 
 /* ===== Status bar ===== */
@@ -150,7 +161,19 @@ body {
 .view .req-row:nth-of-type(6), .view .roster-row:nth-of-type(6) { animation-delay: 225ms; }
 @media (prefers-reduced-motion: reduce) {
   .view, .view *, .ring-arc, .tabbar, .tabbar *, .ring-wrap::after { animation: none !important; transition: none !important; }
+  /* The shell must still resize with the keyboard — it just arrives at the new height instead of
+     travelling there. */
+  .device { transition: none !important; }
 }
+
+/* ===== Keyboard-open shell (js/keyboard.js sets body.kb-open) =====
+   The app is a shorter app while you type, and the two pieces of chrome that would otherwise end
+   up BETWEEN the composer and the keys get out of the way. */
+.tabbar { transition: transform var(--dur-2) var(--ease-out), opacity var(--dur-2) var(--ease-out); }
+body.kb-open .tabbar { transform: translateY(100%); opacity: 0; pointer-events: none; }
+/* …and the clearance the bar was owed leaves with it, so the end of a conversation can actually
+   reach the top of the keyboard instead of resting 100px above it. */
+body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 
 /* ===== App header ===== */
 .apphead {
@@ -642,4 +665,29 @@ body {
   .xcelebwrap .xrec:nth-child(3) .xtk svg path { animation-delay: 120ms; }
   .xcelebwrap .xrec:nth-child(4) .xtk svg path { animation-delay: 180ms; }
   .xcelebwrap .xrec:nth-child(n+5) .xtk svg path { animation-delay: 240ms; }
+}
+
+/* ===== PHONE-NATIVE OVERRIDES THAT MUST COME LAST =====
+   These three belong, by subject, in the @media (max-width: 520px) block at the top of this file.
+   They cannot live there. Each one overrides a property that a LATER, equal-specificity base rule
+   sets — .statusbar's own `display: flex` (~line 96), .viewport's `padding` shorthand (~line 128,
+   which resets padding-top), .tabbar's `padding` shorthand (~line 485, which resets
+   padding-bottom). Cascade order decides equal-specificity ties, so sitting above them meant
+   losing to them, silently, on every phone the app has ever run on.
+
+   What that cost, measured against a real 402px render rather than read off the source:
+   - The frame's fake status bar never went away: 52px of empty strip above the header of every
+     screen, on a device that already draws its own status bar right there.
+   - .viewport's safe-area padding-top was 4px, not the inset. The ONLY reason content was not
+     sitting under the notch is that the dead status-bar rule happened to reserve 52px — one bug
+     covering for the other. Fixing either alone breaks the app; they have to move together.
+   - .tabbar kept a flat 22px bottom padding while its own height grew with the inset, so on a
+     home-indicator phone the icons drifted down into the indicator instead of clearing it.
+
+   Anything added here must override a base rule declared EARLIER. Anything that doesn't belongs
+   in the block at the top of the file with the rest of phone-native mode. */
+@media (max-width: 520px) {
+  .statusbar { display: none; }
+  .viewport { padding-top: max(14px, env(safe-area-inset-top)); }
+  .tabbar { padding-bottom: max(22px, env(safe-area-inset-bottom)); }
 }

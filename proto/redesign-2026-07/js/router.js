@@ -5,6 +5,12 @@ import { skeletonRows } from './components.js';
 import { screens } from './screens/index.js';
 import { initAnalytics, track, EVENTS } from './analytics.js';
 import { emptyNav, pushOrigin, popOrigin, peekOrigin, resetTab } from './nav-stack.js';
+import { initKeyboard } from './keyboard.js';
+
+// Shell-level and route-independent: the keyboard has to behave the same on the composer, the food
+// search box and a profile field, and #device outlives every render() so this is wired once here
+// rather than in seven mounts. Inert until something focusable is actually focused.
+initKeyboard();
 
 /* Each role gets its own dashboard shell — not a modal off someone else's app. */
 const NAVS = {

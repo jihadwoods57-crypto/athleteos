@@ -6,7 +6,11 @@
        lets you pinch-zoom and double-tap-zoom the whole UI, which instantly reads as "a website
        in a wrapper" — no native app behaves that way. Mobile Safari ignores user-scalable=no for
        accessibility, but an in-app WKWebView honours it. -->
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <!-- interactive-widget=resizes-content is the Android half of js/keyboard.js: it shrinks the
+       LAYOUT viewport when the keyboard opens, so 100dvh keeps meaning "the part of the app you
+       can see" and the shell needs no measuring there. iOS ignores it (WKWebView draws the keys
+       over the layout viewport instead), which is what the visualViewport math is for. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
   <title>OnStandard — Athlete App Redesign</title>
   <!-- Without a declared icon the browser fires GET /favicon.ico on every load — a guaranteed 404
        in the console noise, and the first "error" anyone profiling the app has to rule out. The

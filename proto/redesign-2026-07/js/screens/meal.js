@@ -16,6 +16,7 @@ import {
 import { openImageViewer } from '../image-viewer.js';
 import { openMembersSheet } from '../members-sheet.js';
 import { wireTapback } from '../tapback.js';
+import { scrollThreadToEnd, focusComposer } from '../keyboard.js';
 import { recentRows, warmRecent as warmRecentShared } from '../recent-meals.js';
 import {
   layoutThread, authorName, initialsFor, participantList, participantSummary, participantMeta,
@@ -1016,7 +1017,7 @@ export const thread = {
           puts them behind a press-and-hold on the message being reacted to, and so does this one
           now (tapback.js, wired in mount). What is left between the last message and the box you
           type in is: nothing. */''}
-    ${composer({ inputId: 'meal-msg', sendId: 'meal-send', placeholder: 'Ask about this meal…', sendLabel: 'Send', attachId: 'meal-attach' })}
+    ${composer({ inputId: 'meal-msg', sendId: 'meal-send', placeholder: 'Ask about this meal…', sendLabel: 'Send', attachId: 'meal-attach', atEnd: true })}
     <div class="composer-attach-pending" id="meal-attach-pending" hidden></div>
     <div id="chat-note" style="min-height:18px"></div>` : ''}`;
 
@@ -1404,7 +1405,11 @@ export const thread = {
         });
         sync();
       });
-      threadEl.scrollTop = threadEl.scrollHeight;
+      // `.thread` is a flex column, not a scroller — this line used to set scrollTop on an element
+      // that has never had any, so a repaint moved nothing. The screen's scroller is #viewport.
+      // Unforced, so the 15s poll can only re-pin a reader who was already at the end of the
+      // conversation; someone scrolled up reading the breakdown stays where they put themselves.
+      scrollThreadToEnd(threadEl);
       void hydrateThreadPhotos(threadEl, roles);
     };
 
@@ -1554,8 +1559,11 @@ export const thread = {
     const prefill = (text) => {
       if (!input) return;
       if (text) input.value = text;
-      input.focus();
-      input.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      // focusComposer, not focus() + scrollIntoView({block:'center'}): centring a 48px box in the
+      // room the keyboard leaves puts the composer in the middle of nowhere with the conversation
+      // it belongs to off-screen above it. The keyboard layer brings the thread down onto the keys
+      // and the bar arrives with it.
+      focusComposer(input);
     };
     root.querySelectorAll('.qa').forEach((b) => b.addEventListener('click', () => prefill(b.getAttribute('data-qa') || '')));
 
@@ -1758,6 +1766,9 @@ export const thread = {
         });
       }
       await refresh();
+      // Forced: the athlete just sent this and is watching for it to land. Every other repaint
+      // leaves a reader where they are; this one always shows them their own message.
+      scrollThreadToEnd(root, { force: true });
       // The AI now SEES an attachment: meal-chat fetches it from storage server-side and passes it
       // to the model as a real image block, so a wordless photo is a legitimate question ("what do
       // you make of this?") rather than something only the coach can act on.

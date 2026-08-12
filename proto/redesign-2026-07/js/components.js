@@ -491,7 +491,7 @@ export function composer({
   inputId = '', sendId = '', placeholder = '', inputLabel = placeholder, sendLabel = 'Send',
   sendIcon = 'arrowUp', sendIconSize = 19, sendStyle = '', wrapStyle = '',
   autocompleteOff = true, decorativeSend = false, attachId = '', attachLabel = 'Attach a photo',
-  aiId = '', aiLabel = 'Ask the AI Nutritionist',
+  aiId = '', aiLabel = 'Ask the AI Nutritionist', atEnd = false,
 } = {}) {
   const sendAttrs = `class="send"${sendId ? ` id="${sendId}"` : ''}${sendStyle ? ` style="${sendStyle}"` : ''}`;
   const sendEl = decorativeSend
@@ -513,9 +513,13 @@ export function composer({
   const aiEl = aiId
     ? `<button type="button" class="ai-ask" id="${aiId}" aria-label="${esc(aiLabel)}" title="${esc(aiLabel)}">${icon('sparkle', 18)}</button>`
     : '';
-  return `<div class="composer"${wrapStyle ? ` style="${wrapStyle}"` : ''}>
+  // atEnd = "this bar ends a conversation". Two consequences, both keyboard mechanics:
+  // js/keyboard.js brings the newest message down onto the keys when it is focused (rather than
+  // just lifting the input clear of them, which is right for the food SEARCH box and wrong here),
+  // and the return key reads Send instead of the generic Go.
+  return `<div class="composer${atEnd ? ' at-end' : ''}"${wrapStyle ? ` style="${wrapStyle}"` : ''}>
     ${attachEl}
-    <input${inputId ? ` id="${inputId}"` : ''} placeholder="${esc(placeholder)}" aria-label="${esc(inputLabel)}"${autocompleteOff ? ' autocomplete="off"' : ''} />
+    <input${inputId ? ` id="${inputId}"` : ''} placeholder="${esc(placeholder)}" aria-label="${esc(inputLabel)}"${autocompleteOff ? ' autocomplete="off"' : ''}${atEnd ? ' enterkeyhint="send"' : ''} />
     ${aiEl}
     ${sendEl}
   </div>`;
