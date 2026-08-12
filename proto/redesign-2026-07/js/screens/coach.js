@@ -1400,7 +1400,9 @@ let INBOX_DATA = null; // { teamId, comments, interventions, staff }
 let inboxLoadingId = null;
 async function loadInboxData(teamId, athleteIds, force) {
   if (!teamId) return;
-  if (INBOX_DATA && INBOX_DATA.teamId === teamId && !force) return;
+  // A FAILED load must not become sticky: this cache is never refetched without `force`, so
+  // without the `!INBOX_DATA.failed` term one bad load would freeze the inbox until a tab switch.
+  if (INBOX_DATA && INBOX_DATA.teamId === teamId && !INBOX_DATA.failed && !force) return;
   if (inboxLoadingId === teamId) return;
   inboxLoadingId = teamId;
   // A screen may read the real clock (inbox.js's pure functions never do — they always take
@@ -1417,7 +1419,25 @@ async function loadInboxData(teamId, athleteIds, force) {
       CD.caps.staffRoles ? roles.fetchTeamStaff(teamId) : [],
       CD.caps.staffRoles ? roles.fetchOpenStaffInvites(teamId) : [],
     ]);
-    INBOX_DATA = { teamId, comments, interventions, staff, staffInvites };
+    /* null on any of these means the read FAILED. `comments` is the one that matters most: it
+       drives the needsResponse count, and an empty one printed "All caught up" over an inbox
+       that may be full. Each slice keeps its last-known rows so the buckets stay populated,
+       and `failed` lets the header refuse to claim the coach is caught up. */
+    const prev = (INBOX_DATA && INBOX_DATA.teamId === teamId) ? INBOX_DATA : null;
+    const keep = (rows, field) => (rows === null ? ((prev && prev[field]) || []) : rows);
+    INBOX_DATA = {
+      teamId,
+      comments: keep(comments, 'comments'),
+      interventions: keep(interventions, 'interventions'),
+      staff: keep(staff, 'staff'),
+      staffInvites: keep(staffInvites, 'staffInvites'),
+      failed: [comments, interventions, staff, staffInvites].some(r => r === null),
+    };
+  } catch {
+    // loadInboxData had no catch at all: safe only while every fetcher swallowed its own
+    // failures. Now that they can return a sentinel, an unexpected throw must still leave a
+    // renderable, honest cache rather than an unhandled rejection.
+    INBOX_DATA = { teamId, comments: [], interventions: [], staff: [], staffInvites: [], failed: true };
   } finally { inboxLoadingId = null; }
   if (location.hash === '#coach-inbox') window.__render();
 }
@@ -1614,6 +1634,11 @@ export const coachInbox = {
     if (!inboxCategories().some(([key]) => key === INBOX_CAT)) INBOX_CAT = 'needsResponse';
     const out = inboxOut();
     const needsMe = out.counts.needsResponse;
+    // One or more inbox reads failed, so the counts below are a floor, not a total. The roster
+    // itself loaded (the offline branch above already returned), which is exactly why this
+    // needed its own flag: a good roster used to guarantee a confident "All caught up".
+    const teamIdNow = CD.roster && CD.roster.teams && CD.roster.teams[0] && CD.roster.teams[0].id;
+    const inboxFailed = !!(INBOX_DATA && INBOX_DATA.teamId === teamIdNow && INBOX_DATA.failed);
     const isNeedsResponse = INBOX_CAT === 'needsResponse';
     const showAddAnnouncement = INBOX_CAT === 'announcements';
     const catRows = out[INBOX_CAT] || [];
@@ -1623,7 +1648,8 @@ export const coachInbox = {
     const genericRows = isNeedsResponse ? catRows.filter(r => r.kind !== 'join') : catRows;
 
     return `
-    ${titleHead('Inbox', needsMe ? `${needsMe} need${needsMe === 1 ? 's' : ''} you` : 'All caught up')}
+    ${titleHead('Inbox', needsMe ? `${needsMe} need${needsMe === 1 ? 's' : ''} you` : (inboxFailed ? "Couldn't check" : 'All caught up'))}
+    ${inboxFailed ? `<div style="font-size:var(--t-sm);font-weight:600;color:var(--amber-bright);margin:0 2px 12px;line-height:1.5">Some of your inbox didn't load, so this may not be everything. Nothing was missed on the server; it retries when you reopen.</div>` : ''}
 
     ${isNeedsResponse ? `
     <div class="eyebrow">Daily briefing · from your real roster</div>
@@ -1652,7 +1678,9 @@ export const coachInbox = {
         <div class="lm"><div class="lt">New announcement</div></div>
       </div>` : ''}
     </section>` : (isNeedsResponse && pending.length ? '' : `
-    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px;line-height:1.5">${esc(INBOX_EMPTY[INBOX_CAT])}</div>${INBOX_EMPTY_ACTION[INBOX_CAT] ? `<div style="margin-top:12px"><button class="btn ghost sm" data-go="${esc(INBOX_EMPTY_ACTION[INBOX_CAT].go)}" style="width:auto;padding:0 16px">${esc(INBOX_EMPTY_ACTION[INBOX_CAT].label)}</button></div>` : ''}`)}
+    ${inboxFailed
+      ? `<div style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin:0 2px;line-height:1.5">This list couldn't be loaded, so it isn't empty as far as we know.</div>`
+      : `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px;line-height:1.5">${esc(INBOX_EMPTY[INBOX_CAT])}</div>${INBOX_EMPTY_ACTION[INBOX_CAT] ? `<div style="margin-top:12px"><button class="btn ghost sm" data-go="${esc(INBOX_EMPTY_ACTION[INBOX_CAT].go)}" style="width:auto;padding:0 16px">${esc(INBOX_EMPTY_ACTION[INBOX_CAT].label)}</button></div>` : ''}`}`)}
 
     <div style="height:10px"></div>
     `;
@@ -2121,6 +2149,8 @@ function requirementsSection(P, athleteId) {
   const source = requirementSourceLabel(set);
   const exceptions = P.exceptions || [];
   const assignments = P.assignments || [];
+  // A failed section read is not "none" — see coach-data.js loadProfile's failedSections.
+  const assignFailed = !!(P.failedSections && P.failedSections.assignments);
   return `
   <div class="eyebrow">Governing standard <span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0">· ${esc(source)}</span></div>
   <section class="card" style="padding:2px 16px">
@@ -2143,7 +2173,8 @@ function requirementsSection(P, athleteId) {
     <div class="lm"><div class="lt">${esc(e.reason || 'Excused')}</div><div class="ls">${esc(e.starts_on || '')}${e.ends_on ? ` – ${esc(e.ends_on)}` : ''}</div></div></div>`).join('')}
   </section>` : `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px">No active exceptions.</div>`}
 
-  <div class="eyebrow" style="margin-top:14px">Assignment history${assignments.length ? '' : ' · none'}</div>
+  <div class="eyebrow" style="margin-top:14px">Assignment history${assignments.length ? '' : (assignFailed ? '' : ' · none')}</div>
+  ${assignFailed && !assignments.length ? `<div style="font-size:var(--t-sm);font-weight:600;color:var(--amber-bright);margin:0 2px 8px">Couldn't load their assignment history. Nothing was changed; reopen to retry.</div>` : ''}
   ${assignments.length ? `
   <section class="card" style="padding:2px 16px">
     ${assignments.map(a => `
@@ -2199,6 +2230,7 @@ function foodMemSection(P, athleteId) {
 
 function notesSection(P) {
   const notes = P.notes || [];
+  const notesFailed = !!(P.failedSections && P.failedSections.notes);
   return `
   <div class="co-notebanner"><span class="ic">${icon('lock', 16)}</span><span>Private to your staff — <b>the athlete never sees these.</b></span></div>
 
@@ -2218,7 +2250,9 @@ function notesSection(P) {
       </div>` : `
       <button class="co-abtn" data-del-note="${esc(n.id)}" style="flex:none;width:36px;height:36px;padding:0" aria-label="Delete note">${icon('x', 15)}</button>`}
     </div>`).join('')}
-  </section>` : `<div class="co-note">No notes on this athlete yet — jot the first below.</div>`}
+  </section>` : notesFailed
+    ? `<div class="co-note" style="color:var(--amber-bright)">Couldn't load their notes. Any notes already written are safe; reopen to retry.</div>`
+    : `<div class="co-note">No notes on this athlete yet — jot the first below.</div>`}
 
   <div class="co-eyebrow">Add a note</div>
   <section class="card" style="padding:var(--s3) var(--s4)">

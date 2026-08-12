@@ -848,7 +848,10 @@ export default {
     const seenRow = root.querySelector('#seen-row');
     if (seenRow && RT.userId) {
       fetchMyDayReceipts(RT.userId, String(DAY.date)).then((rows) => {
-        if (!rows.length || !seenRow.isConnected) return;
+        // null = the read failed; no row, same as no receipts. Absence is the design here (a
+        // receipt is proof someone looked, so silence is honest), but reading .length off null
+        // threw a TypeError that the catch below swallowed.
+        if (!rows || !rows.length || !seenRow.isConnected) return;
         const fmt = (iso) => {
           const d = new Date(iso);
           let h = d.getHours() % 12; if (h === 0) h = 12;

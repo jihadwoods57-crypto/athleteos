@@ -220,15 +220,26 @@ export async function loadActivity(force) {
   if (actLoading) return;
   if (ACT && !force && Date.now() - actFetchedAt < 30000) return;
   actLoading = true;
+  let failed = false;
   try {
     const rows = await roles.fetchTeamActivity(roles.daysAgoISO(1), 20);
-    const withPhotos = rows.slice(0, 10).filter(m => m.photo_path);
-    const urls = await roles.signedMealPhotoUrls(withPhotos.map(m => m.photo_path));
-    const photos = {};
-    for (const m of withPhotos) { if (urls[m.photo_path]) photos[m.id] = urls[m.photo_path]; }
-    ACT = { rows, photos };
-  } catch { ACT = { rows: [], photos: {} }; }
-  finally { actLoading = false; actFetchedAt = Date.now(); }
+    // null = FAILED. Keep the last-known feed rather than laundering the failure into an empty
+    // one that reads as a genuinely quiet team. Previously rows.slice() below threw on null and
+    // the catch did exactly that laundering.
+    if (rows === null) {
+      failed = true;
+      ACT = ACT ? { ...ACT, failed: true } : { rows: [], photos: {}, failed: true };
+    } else {
+      const withPhotos = rows.slice(0, 10).filter(m => m.photo_path);
+      const urls = await roles.signedMealPhotoUrls(withPhotos.map(m => m.photo_path));
+      const photos = {};
+      for (const m of withPhotos) { if (urls[m.photo_path]) photos[m.id] = urls[m.photo_path]; }
+      ACT = { rows, photos, failed: false };
+    }
+  } catch { failed = true; ACT = ACT ? { ...ACT, failed: true } : { rows: [], photos: {}, failed: true }; }
+  // A failure leaves the freshness stamp at 0 so the next visit retries immediately instead of
+  // sitting on a known-bad cache for the full 30s window.
+  finally { actLoading = false; actFetchedAt = failed ? 0 : Date.now(); }
   // '#coach-home' is the real Home tab route ('#coach' is only a legacy alias) — without it the
   // Live activity section sat on its skeleton until an unrelated tap repainted the screen.
   if (['#coach', '#coach-home', '#coach-inbox', '#trainer', '#trainer-inbox'].includes(location.hash)) window.__render();
@@ -284,7 +295,7 @@ async function loadExtras(bookId) {
   // (0136). The resulting SHAPE is identical either way — `sets` is [] not undefined — which is
   // what lets entriesFor stay untouched: resolveRequirementSet([]) is null, so a book with no
   // configured standard falls through to the built-in CATALOG. Asserted in operator.test.mjs.
-  const [setsRaw, groups, exceptions, interventions, access, rooms] = await Promise.all([
+  const [setsRaw, groupsRaw, exceptionsRaw, interventionsRaw, access, roomsRaw] = await Promise.all([
     c.standards ? roles.fetchRequirementSets(bookId, KIND) : [],
     c.groups ? roles.fetchCoachGroups(bookId, KIND) : [],
     c.exceptions ? roles.fetchActiveExceptions(bookId, KIND) : [],
@@ -292,15 +303,25 @@ async function loadExtras(bookId) {
     c.staffRoles ? roles.fetchMyStaffAccess(bookId) : null,
     c.rooms ? roles.fetchTeamRooms(bookId) : [],
   ]);
-  // sets === null means the standards read FAILED (not "no standard configured") — keep the
-  // last-known sets so entriesFor doesn't silently re-score the roster against the built-in
-  // CATALOG for the duration of a network blip.
-  const sets = setsRaw === null ? ((CD.extras && CD.extras.sets) || []) : setsRaw;
+  /* null on any of these means the read FAILED, which is never the same as "none configured".
+     Each keeps its last-known value (the pattern `sets` has used since 2026-08-12), so every
+     consumer still receives an ARRAY and nothing downstream has to learn a new shape. That
+     matters because these feed scoring-adjacent reads: a fabricated empty `exceptions` marks
+     every excused athlete as failing the standard, and a fabricated empty `rooms` falls each
+     athlete's label back to their raw position. `failed` is for the surfaces whose empty state
+     is a written sentence rather than an absence. */
+  const keep = (raw, field) => (raw === null ? ((CD.extras && CD.extras[field]) || []) : raw);
+  const sets = keep(setsRaw, 'sets');
+  const groups = keep(groupsRaw, 'groups');
+  const exceptions = keep(exceptionsRaw, 'exceptions');
+  const interventions = keep(interventionsRaw, 'interventions');
+  const rooms = keep(roomsRaw, 'rooms');
   // Slice F: one read carries role + scope. `scope` keeps its pre-F shape for every existing
   // consumer; `myRole` is the client-side capability hint (staff-access.js) — the server
   // (0077/0078) is the real wall. `rooms` is T-04 slice 1 (position rooms, read-only here).
   CD.extras = {
     sets, groups, exceptions, interventions, rooms,
+    failed: [setsRaw, groupsRaw, exceptionsRaw, interventionsRaw, roomsRaw].some(r => r === null),
     scope: access ? access.scope : null,
     myRole: access ? access.role : null,
   };
@@ -369,7 +390,10 @@ export function entriesFor(scope) {
   if (!ROSTER || !CD.extras) return null;   // still loading — screens render skeletons
   const now = new Date(); const nowMs = now.getTime();
   const coachMin = now.getHours() * 60 + now.getMinutes(); const coachDow = now.getDay();
-  const excusedIds = new Set(CD.extras.exceptions.map(e => e.athlete_id));
+  // Guarded the same way every other CD.extras consumer is: the `!CD.extras` check above only
+  // proves the object exists, not that each field loaded. An unguarded .map here threw inside
+  // entriesFor, which the inbox, roster, home and insights all render from.
+  const excusedIds = new Set(((CD.extras && CD.extras.exceptions) || []).map(e => e.athlete_id));
   return scopeFilter(ROSTER.rows, scope).map((row) => {
     // resolveRequirementSet(sets, athleteId, position) → the governing SET row (or null), not a
     // reqs array — catalogFromItems maps its raw .items into the CATALOG-shaped requirements
@@ -459,8 +483,19 @@ export async function loadAthleteProfile(athleteId, force) {
     // fetchActivePass returns {error} on a real failure, distinct from null ("no pass") — only
     // a row with an id is a real active pass, so an error object can never read as one.
     const pass = passRaw && passRaw.id ? passRaw : null;
+    /* A failed SECTION is not a failed screen. meals === null already throws to the offline
+       state above (the profile is meaningless without the day), but interventions/assignments/
+       notes each own one section, so they degrade individually: the array stays empty and a
+       `failedSections` flag lets the screen say it could not load that one instead of printing
+       "No notes on this athlete yet" over notes that exist. */
+    const failedSections = {
+      interventions: interventions === null,
+      assignments: assignments === null,
+      notes: notes === null,
+    };
     PROFILE = { athleteId, day, meals: meals || [], photos, pass,
-      interventions, assignments, notes, exceptions, row, status, basics, offline: false,
+      interventions: interventions || [], assignments: assignments || [], notes: notes || [],
+      failedSections, exceptions, row, status, basics, offline: false,
       planStyle: set ? planStyleFromItems(set.items)?.style || null : null,
     };
     // Receipt moved to the screen's mount(), where a real viewer id (RT.userId/S.coachIdentity)
@@ -471,6 +506,7 @@ export async function loadAthleteProfile(athleteId, force) {
     if (gen === profileGen) PROFILE = {
       athleteId, offline: true, meals: [], photos: {},
       interventions: [], assignments: [], notes: [], exceptions: [],
+      failedSections: { interventions: true, assignments: true, notes: true },
     };
   } finally {
     if (gen === profileGen) profileLoadingId = null;

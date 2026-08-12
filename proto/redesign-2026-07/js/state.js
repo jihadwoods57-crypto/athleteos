@@ -2712,16 +2712,21 @@ export const act = {
     if (RT.practice && RT.practice.id) {
       try {
         const pol = await fetchPassPolicy({ practiceId: RT.practice.id });
-        RT.passPolicy = pol || (RT.passPolicy || { default_credits: 3, default_window_days: 2, eligibility_days: 7, max_credits: 5 });
-        save();
+        // { error:true } = the read FAILED, and it is TRUTHY, so assigning it straight through
+        // would install a policy whose every field is undefined. Keep last-known instead.
+        if (!(pol && pol.error)) {
+          RT.passPolicy = pol || (RT.passPolicy || { default_credits: 3, default_window_days: 2, eligibility_days: 7, max_credits: 5 });
+          save();
+        }
       } catch { /* best-effort */ }
       // Resume first-run setup on a practice book (0197) — the same T-21 union the team arm gets:
       // server-completed steps merged under anything marked locally this session, never
       // un-completing a step. Without this a trainer's checklist reset on every reinstall.
       try {
         const remote = await fetchPracticeSetupState(RT.practice.id);
-        RT.coachSetup = { ...remote, ...(RT.coachSetup || {}) };
-        save();
+        // null = FAILED: leave the checklist alone. Merging a fabricated {} is what re-opened
+        // "Finish setting up your practice" for trainers who had finished (0197).
+        if (remote) { RT.coachSetup = { ...remote, ...(RT.coachSetup || {}) }; save(); }
       } catch { /* best-effort */ }
     }
   },
@@ -2782,13 +2787,17 @@ export const act = {
     if (RT.team && RT.team.id) {
       try {
         const pol = await fetchPassPolicy({ teamId: RT.team.id });
-        RT.passPolicy = pol || (RT.passPolicy || { default_credits: 3, default_window_days: 2, eligibility_days: 7, max_credits: 5 });
+        // { error:true } is truthy; assigning it would install an all-undefined policy.
+        if (!(pol && pol.error)) {
+          RT.passPolicy = pol || (RT.passPolicy || { default_credits: 3, default_window_days: 2, eligibility_days: 7, max_credits: 5 });
+        }
         const wp = await fetchTeamWeekPattern(RT.team.id);
-        if (wp) RT.weekPattern = wp; // for the coach's weekly-pattern editor
+        // Array = a real pattern. The `if (wp)` alone would now also accept { error:true }.
+        if (Array.isArray(wp)) RT.weekPattern = wp; // for the coach's weekly-pattern editor
         // T-21: resume first-run setup after a reinstall / on a new device. UNION the server's
         // completed steps with anything marked locally this session — never un-complete a step.
         const remote = await fetchCoachSetupState(RT.team.id);
-        RT.coachSetup = { ...remote, ...(RT.coachSetup || {}) };
+        if (remote) RT.coachSetup = { ...remote, ...(RT.coachSetup || {}) };
         save();
       } catch { /* best-effort */ }
     }
@@ -2991,13 +3000,22 @@ export const act = {
       // scored day to the built-in catalog, dropping the coach's standard and deadlines.
       const sets = await fetchRequirementSets(RT.myCoach.teamId, 'team');
       if (sets !== null) RT.reqSets = sets;
-      // The team's weekly pattern (0100) resolves this athlete's day-type. Best-effort; a null
-      // (no pattern / not-applied table / offline) leaves day-type 'any' — no gating.
-      try { RT.weekPattern = await fetchTeamWeekPattern(RT.myCoach.teamId); } catch { /* best-effort */ }
+      // The team's weekly pattern (0100) resolves this athlete's day-type. A real null (no
+      // pattern configured) leaves day-type 'any', which is correct. { error:true } means the
+      // read FAILED, and assigning that dropped rest-day gating for the session: the athlete
+      // was then scored on training-day items on their rest day. Keep last-known instead.
+      try {
+        const wp = await fetchTeamWeekPattern(RT.myCoach.teamId);
+        if (!(wp && wp.error)) RT.weekPattern = wp;
+      } catch { /* best-effort */ }
       // The athlete's assigned room label (0101): when set, their standard resolves against the ROOM
       // instead of their raw position. null (unassigned — every athlete until a coach assigns) = the
-      // exact prior behavior. Best-effort.
-      try { RT.myRoomLabel = await fetchMyRoomLabel(RT.myCoach.teamId); } catch { /* best-effort */ }
+      // exact prior behavior; { error:true } = FAILED, which must not silently demote them to
+      // position-based resolution (a different standard, scored the same day).
+      try {
+        const rl = await fetchMyRoomLabel(RT.myCoach.teamId);
+        if (!(rl && rl.error)) RT.myRoomLabel = rl;
+      } catch { /* best-effort */ }
     } else if (RT.myTrainer && RT.myTrainer.practiceId) {
       const sets = await fetchRequirementSets(RT.myTrainer.practiceId, 'practice');
       if (sets !== null) RT.reqSets = sets;

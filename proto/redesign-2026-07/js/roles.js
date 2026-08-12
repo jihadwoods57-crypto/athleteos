@@ -262,9 +262,10 @@ export async function fetchTeamActivity(sinceISO, limit = 24, athleteIds) {
       .select('id,athlete_id,day_date,type,photo_path,name,protein,kcal,quality,logged_at')
       .gte('day_date', sinceISO);
     if (Array.isArray(athleteIds) && athleteIds.length) q = q.in('athlete_id', athleteIds);
-    const { data } = await q.order('logged_at', { ascending: false }).limit(limit);
+    const { data, error } = await q.order('logged_at', { ascending: false }).limit(limit);
+    if (error) return null; // null = FAILED (coach-home already branches on it)
     return data || [];
-  } catch { return []; }
+  } catch { return null; }
 }
 
 /* ---------------- coach: Inbox v2 (Slice D) — comment threads + intervention state ---------------- */
@@ -273,12 +274,15 @@ export async function fetchTeamActivity(sinceISO, limit = 24, athleteIds) {
 export async function fetchTeamMealComments(athleteIds, sinceISO) {
   const c = sb(); if (!c || !athleteIds || !athleteIds.length) return [];
   try {
-    const { data } = await c.from('meal_comments')
+    const { data, error } = await c.from('meal_comments')
       .select('meal_id,athlete_id,role,kind,created_at')
       .in('athlete_id', athleteIds).gte('created_at', sinceISO)
       .order('created_at', { ascending: true }).limit(1000);
+    // null = FAILED. This drives the inbox's needsResponse count, so [] on a dropped request
+    // printed "All caught up" over an inbox that may be full.
+    if (error) return null;
     return data || [];
-  } catch { return []; }
+  } catch { return null; }
 }
 /** Recent coach_interventions for the team (kind 'handled' + reason_key 'meal:<id>' marks a
     thread resolved — Task 5 writes it, inbox.js reads it). Best-effort []. */
@@ -290,12 +294,13 @@ export async function fetchTeamMealComments(athleteIds, sinceISO) {
 export async function fetchRecentInterventions(bookId, sinceISO, book = 'team') {
   const c = sb(); if (!c || !bookId) return [];
   try {
-    const { data } = await c.from('coach_interventions')
+    const { data, error } = await c.from('coach_interventions')
       .select('athlete_id,kind,reason_key,created_at')
       .eq(book === 'practice' ? 'practice_id' : 'team_id', bookId).gte('created_at', sinceISO)
       .order('created_at', { ascending: false }).limit(500);
+    if (error) return null; // null = FAILED
     return data || [];
-  } catch { return []; }
+  } catch { return null; }
 }
 
 /* Outstanding (unredeemed) staff invites for the Staff inbox category — used_by is null is
@@ -304,12 +309,13 @@ export async function fetchRecentInterventions(bookId, sinceISO, book = 'team') 
 export async function fetchOpenStaffInvites(teamId) {
   const c = sb(); if (!c || !teamId) return [];
   try {
-    const { data } = await c.from('staff_invites')
+    const { data, error } = await c.from('staff_invites')
       .select('id,role,created_at')
       .eq('team_id', teamId).is('used_by', null)
       .order('created_at', { ascending: false }).limit(50);
+    if (error) return null; // null = FAILED
     return data || [];
-  } catch { return []; }
+  } catch { return null; }
 }
 
 /* Has this meal thread been resolved (a handled intervention with reason_key meal:<id>)?
@@ -667,11 +673,14 @@ export async function deleteTrainingLog(id) {
 export async function fetchMyDayReceipts(athleteId, date) {
   const c = sb(); if (!c || !athleteId || !date) return [];
   try {
-    const { data } = await c.from('coach_views')
+    const { data, error } = await c.from('coach_views')
       .select('viewer_name,seen_at').eq('athlete_id', athleteId).eq('date', date)
       .order('seen_at', { ascending: false }).limit(8);
+    // null = FAILED. Both callers render nothing either way (a receipt is proof someone looked,
+    // so silence is the honest failure), but the distinction keeps .length off a null.
+    if (error) return null;
     return data || [];
-  } catch { return []; }
+  } catch { return null; }
 }
 
 export async function markDayViewed(athleteId, date, viewerId, viewerName) {
@@ -890,9 +899,12 @@ export async function fetchPassPolicy({ teamId, practiceId } = {}) {
     let q = c.from('trust_pass_policy')
       .select('default_credits,default_window_days,eligibility_days,max_credits');
     q = teamId ? q.eq('team_id', teamId) : q.eq('practice_id', practiceId);
-    const { data } = await q.maybeSingle();
+    const { data, error } = await q.maybeSingle();
+    // null = confirmed no custom policy (shipped defaults are correct); { error:true } = FAILED,
+    // where the shipped defaults would misstate the coach's own eligibility numbers.
+    if (error) return { error: true };
     return data || null;
-  } catch { return null; }
+  } catch { return { error: true }; }
 }
 
 /* Active passes across the whole book, for the roster section. Returns a map keyed by athlete id,
@@ -916,11 +928,14 @@ export async function fetchRosterPasses(athleteIds) {
 export async function fetchCoachSetupState(teamId) {
   const c = sb(); if (!c || !teamId) return {};
   try {
-    const { data } = await c.from('coach_setup_state').select('step, state').eq('team_id', teamId).eq('state', 'completed');
+    const { data, error } = await c.from('coach_setup_state').select('step, state').eq('team_id', teamId).eq('state', 'completed');
+    // null = FAILED, {} = confirmed nothing completed. A fabricated {} re-opens "Finish setting
+    // up your team" for steps that were completed on another device.
+    if (error) return null;
     const map = {};
     for (const r of (data || [])) if (r && r.step) map[r.step] = true;
     return map;
-  } catch { return {}; }
+  } catch { return null; }
 }
 /* The practice arm of the same resume (0197). fetchCoachSetupState only ever read by team_id, so
    a trainer's checklist progress silently reset on every reinstall/new device — "Finish setting
@@ -928,28 +943,35 @@ export async function fetchCoachSetupState(teamId) {
 export async function fetchPracticeSetupState(practiceId) {
   const c = sb(); if (!c || !practiceId) return {};
   try {
-    const { data } = await c.from('practice_setup_state').select('step, state').eq('practice_id', practiceId).eq('state', 'completed');
+    const { data, error } = await c.from('practice_setup_state').select('step, state').eq('practice_id', practiceId).eq('state', 'completed');
+    if (error) return null; // null = FAILED (this is the 0197 founder bug's other half)
     const map = {};
     for (const r of (data || [])) if (r && r.step) map[r.step] = true;
     return map;
-  } catch { return {}; }
+  } catch { return null; }
 }
 /* Per-team weekly training/rest pattern (0100): a 7-element array indexed by getDay() (0=Sun). Team
    MEMBERS read it (their scored day resolves day-type from it); staff write. A missing row means no
    day-type gating — every requirement item applies every day. The WRITE lives in state.js
    act.setWeekPattern (owns RT). */
+/* null already means "no pattern configured" (no day-type gating), so FAILURE needs its own
+   value: { error:true }. Callers must branch on it and keep last-known — overwriting
+   RT.weekPattern with null on a blip drops rest-day gating, and the athlete gets scored on
+   training-day items they were never meant to do. */
 export async function fetchTeamWeekPattern(teamId) {
   const c = sb(); if (!c || !teamId) return null;
   try {
-    const { data } = await c.from('team_week_pattern').select('pattern').eq('team_id', teamId).maybeSingle();
+    const { data, error } = await c.from('team_week_pattern').select('pattern').eq('team_id', teamId).maybeSingle();
+    if (error) return { error: true };
     return data && Array.isArray(data.pattern) ? data.pattern : null;
-  } catch { return null; }
+  } catch { return { error: true }; }
 }
 
 /* ---------------- staff & collaborators (0061) ---------------- */
 export async function fetchTeamStaff(teamId) {
   const c = sb(); if (!c || !teamId) return [];
-  try { const { data } = await c.rpc('team_staff_list', { p_team: teamId }); return data || []; } catch { return []; }
+  // null = FAILED, [] = confirmed no other staff.
+  try { const { data, error } = await c.rpc('team_staff_list', { p_team: teamId }); if (error) return null; return data || []; } catch { return null; }
 }
 export async function createStaffInvite(teamId, role) {
   const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
@@ -1168,15 +1190,18 @@ export async function logIntervention({ teamId, athleteId, kind, reasonKey, tier
 export async function fetchTodayInterventions(bookId, kind = 'team') {
   const c = sb(); if (!c || !bookId) return [];
   try {
-    const { data } = await c.from('coach_interventions')
+    const { data, error } = await c.from('coach_interventions')
       .select('athlete_id,kind,reason_key,tier,created_at')
       .eq(ownerCol(kind), bookId).eq('day', todayISO()).limit(400);
+    if (error) return null; // null = FAILED (loadExtras keeps last-known)
     return data || [];
-  } catch { return []; }
+  } catch { return null; }
 }
 export async function fetchCoachGroups(bookId, kind = 'team') {
   const c = sb(); if (!c || !bookId) return [];
-  try { const { data } = await c.from('coach_groups').select('id,name,athlete_ids').eq(ownerCol(kind), bookId).order('name'); return data || []; } catch { return []; }
+  // null = FAILED. [] also un-ticks the coach's "Create a group" setup step, so a blip made a
+  // finished checklist look unfinished.
+  try { const { data, error } = await c.from('coach_groups').select('id,name,athlete_ids').eq(ownerCol(kind), bookId).order('name'); if (error) return null; return data || []; } catch { return null; }
 }
 export async function saveCoachGroup(bookId, { id, name, athleteIds }, kind = 'team') {
   const c = sb(); if (!c || !bookId) return { ok: false, error: 'You need a connection for this.' };
@@ -1195,7 +1220,9 @@ export async function deleteCoachGroup(id) {
    read, staff write. Slice 1 is the object + CRUD only — no auto-assign, no scoring inheritance. */
 export async function fetchTeamRooms(teamId) {
   const c = sb(); if (!c || !teamId) return [];
-  try { const { data } = await c.from('team_rooms').select('id,key,label,sort,staff_owner_id').eq('team_id', teamId).order('sort').order('label'); return data || []; } catch { return []; }
+  // null = FAILED. [] silently falls every athlete's room label back to their raw position,
+  // which changes how their standard is displayed across the roster.
+  try { const { data, error } = await c.from('team_rooms').select('id,key,label,sort,staff_owner_id').eq('team_id', teamId).order('sort').order('label'); if (error) return null; return data || []; } catch { return null; }
 }
 export async function saveTeamRoom(teamId, { id, key, label, sort }) {
   const c = sb(); if (!c || !teamId) return { ok: false, error: 'You need a connection for this.' };
@@ -1224,13 +1251,17 @@ export async function fetchMyRoomLabel(teamId) {
   const c = sb(); if (!c || !teamId) return null;
   try {
     const u = await c.auth.getUser();
-    const uid = u.data.user && u.data.user.id;
+    const uid = u.data && u.data.user && u.data.user.id;
     if (!uid) return null;
-    const { data: mem } = await c.from('team_members').select('room_id').eq('team_id', teamId).eq('athlete_id', uid).eq('status', 'active').maybeSingle();
+    // null = confirmed unassigned; { error:true } = FAILED. Collapsing them silently resolved
+    // the athlete's standard against their raw position instead of their room.
+    const { data: mem, error: memErr } = await c.from('team_members').select('room_id').eq('team_id', teamId).eq('athlete_id', uid).eq('status', 'active').maybeSingle();
+    if (memErr) return { error: true };
     if (!mem || !mem.room_id) return null;
-    const { data: room } = await c.from('team_rooms').select('label').eq('id', mem.room_id).maybeSingle();
+    const { data: room, error: roomErr } = await c.from('team_rooms').select('label').eq('id', mem.room_id).maybeSingle();
+    if (roomErr) return { error: true };
     return room && room.label ? room.label : null;
-  } catch { return null; }
+  } catch { return { error: true }; }
 }
 /* Staff: assign (or reassign) an athlete to a room, or null to un-assign. Server re-checks the
    coach-link and that the room is on the athlete's team (assign_athlete_room, 0101). */
@@ -1243,11 +1274,14 @@ export async function fetchActiveExceptions(bookId, kind = 'team') {
   const c = sb(); if (!c || !bookId) return [];
   try {
     const t = todayISO();
-    const { data } = await c.from('athlete_exceptions')
+    const { data, error } = await c.from('athlete_exceptions')
       .select('id,athlete_id,starts_on,ends_on,reason')
       .eq(ownerCol(kind), bookId).lte('starts_on', t).gte('ends_on', t);
+    // null = FAILED. [] here means "nobody is excused", so every athlete with a real excuse
+    // (injury, travel) reads as failing the standard.
+    if (error) return null;
     return data || [];
-  } catch { return []; }
+  } catch { return null; }
 }
 export async function saveAthleteException(bookId, athleteId, startsOn, endsOn, reason, kind = 'team') {
   const c = sb(); if (!c || !bookId || !athleteId) return { ok: false, error: 'You need a connection for this.' };
@@ -1266,16 +1300,10 @@ export async function endAthleteException(id) {
     return !error;
   } catch { return false; }
 }
-/** The signed-in staff member's own scope on this team. null = whole team (default). */
-export async function fetchMyStaffScope(teamId) {
-  const c = sb(); if (!c || !teamId) return null;
-  try {
-    const uid = (await c.auth.getUser()).data.user.id;
-    const { data } = await c.from('team_staff').select('scope_kind,scope_value')
-      .eq('team_id', teamId).eq('staff_id', uid).maybeSingle();
-    return (data && data.scope_kind) ? { kind: data.scope_kind, value: data.scope_value } : null;
-  } catch { return null; }
-}
+/* fetchMyStaffScope (Slice A) lived here and was deleted 2026-08-12 with zero callers: Slice F's
+   fetchMyStaffAccess below superseded it by carrying role AND scope in one read, and every
+   consumer moved at that time. It also had an unguarded `.data.user.id` that would throw on a
+   signed-out client, so it was dead code with a latent crash in it. */
 
 /* ---------------- Coach OS Slice F (0077/0078): roles + scope management ---------------- */
 /** The signed-in staff member's own role + scope in ONE read: { role, scope } — scope null =
@@ -1319,11 +1347,12 @@ export async function setStaffRole(teamId, staffId, role) {
 export async function fetchCoachNotes(bookId, athleteId, kind = 'team') {
   const c = sb(); if (!c || !bookId || !athleteId) return [];
   try {
-    const { data } = await c.from('coach_notes').select('id,author_id,body,created_at')
+    const { data, error } = await c.from('coach_notes').select('id,author_id,body,created_at')
       .eq(ownerCol(kind), bookId).eq('athlete_id', athleteId)
       .order('created_at', { ascending: false }).limit(100);
+    if (error) return null; // null = FAILED
     return data || [];
-  } catch { return []; }
+  } catch { return null; }
 }
 export async function postCoachNote(bookId, athleteId, body, kind = 'team') {
   const c = sb(); if (!c || !bookId || !athleteId) return { ok: false, error: 'You need a connection for this.' };
@@ -1342,9 +1371,10 @@ export async function fetchAthleteInterventions(bookId, athleteId, sinceISO, kin
     let q = c.from('coach_interventions').select('kind,reason_key,tier,note,created_at')
       .eq(ownerCol(kind), bookId).eq('athlete_id', athleteId);
     if (sinceISO) q = q.gte('day', sinceISO);
-    const { data } = await q.order('created_at', { ascending: false }).limit(100);
+    const { data, error } = await q.order('created_at', { ascending: false }).limit(100);
+    if (error) return null; // null = FAILED (the profile marks the section, not the screen)
     return data || [];
-  } catch { return []; }
+  } catch { return null; }
 }
 export async function fetchAthleteAssignments(athleteId, sinceISO) {
   const c = sb(); if (!c || !athleteId) return [];
@@ -1352,9 +1382,10 @@ export async function fetchAthleteAssignments(athleteId, sinceISO) {
     let q = c.from('requirement_assignments').select('id,title,proof,status,due_at,created_at,note')
       .eq('athlete_id', athleteId);
     if (sinceISO) q = q.gte('created_at', sinceISO);
-    const { data } = await q.order('created_at', { ascending: false }).limit(60);
+    const { data, error } = await q.order('created_at', { ascending: false }).limit(60);
+    if (error) return null; // null = FAILED
     return data || [];
-  } catch { return []; }
+  } catch { return null; }
 }
 export async function fetchMeal(mealId) {
   const c = sb(); if (!c || !mealId) return null;
@@ -1859,8 +1890,11 @@ export async function fetchTeamDayRollup(bookId, fromISO, toISO, kind = 'team') 
   try {
     const { data, error } = await c.rpc(practice ? 'practice_day_rollup' : 'team_day_rollup',
       practice ? { p_practice: bookId, p_from: fromISO, p_to: toISO } : { p_team: bookId, p_from: fromISO, p_to: toISO });
-    return error ? [] : (data || []);
-  } catch { return []; }
+    // null = FAILED. [] made a failed week read indistinguishable from "not enough history yet",
+    // which is what kept coach-insights' own offline branch unreachable.
+    if (error) return null;
+    return data || [];
+  } catch { return null; }
 }
 export async function fetchInterventionOutcomes(bookId, fromISO, kind = 'team') {
   const c = sb(); if (!c || !bookId) return [];
@@ -1868,8 +1902,9 @@ export async function fetchInterventionOutcomes(bookId, fromISO, kind = 'team') 
   try {
     const { data, error } = await c.rpc(practice ? 'practice_intervention_outcomes' : 'team_intervention_outcomes',
       practice ? { p_practice: bookId, p_from: fromISO } : { p_team: bookId, p_from: fromISO });
-    return error ? [] : (data || []);
-  } catch { return []; }
+    if (error) return null; // null = FAILED (mirrors fetchTeamDayRollup)
+    return data || [];
+  } catch { return null; }
 }
 
 /* ---------------- Athlete memory (0019) ----------------

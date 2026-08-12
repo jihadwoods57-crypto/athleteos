@@ -5,7 +5,7 @@
    the standards editor's position scope) — that editor is slice 3. */
 import { RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, esc, emptyState, skeletonRows } from '../components.js';
+import { backHead, esc, emptyState, errorState, skeletonRows } from '../components.js';
 import { initialsOf } from '../initials.js';
 import * as roles from '../roles.js';
 import { CD, loadCoachRoster } from '../coach-data.js';
@@ -109,9 +109,14 @@ export const coachRooms = {
         </div>`).join('')}
       </section>` : '';
 
+    // An empty list after a FAILED extras read is not "no rooms yet", and this screen's empty
+    // state invites the coach to build rooms they may already have.
+    const roomsFailed = !!(CD.extras && CD.extras.failed) && !rooms.length;
     const roomList = rooms.length
       ? rooms.map(roomCard).join('')
-      : emptyState({ icon: 'users', title: 'No rooms yet', body: 'Create a room for each position group. Athletes drop into their room as they join.' });
+      : roomsFailed
+        ? errorState({ title: "Couldn't load your rooms", body: 'Any rooms you already built are safe. Reconnect and they list right here.', retryId: 'rooms-retry' })
+        : emptyState({ icon: 'users', title: 'No rooms yet', body: 'Create a room for each position group. Athletes drop into their room as they join.' });
 
     const suggestChips = suggestions.length ? `
       <div class="eyebrow">Suggested from your roster · tap to add</div>
@@ -142,7 +147,11 @@ export const coachRooms = {
   },
   mount(root) {
     // Lazy-load the staff list once, for the owner picker.
+    // `s || []` also absorbs a null (FAILED) read; the owner picker having no choices is an
+    // absence, not a claim, so it stays best-effort. A later mount retries.
     if (STAFF === null && teamId()) { STAFF = []; roles.fetchTeamStaff(teamId()).then((s) => { STAFF = s || []; window.__render(); }); }
+    const roomsRetry = root.querySelector('#rooms-retry');
+    if (roomsRetry) roomsRetry.addEventListener('click', () => { roomsRetry.disabled = true; loadCoachRoster(true).then(() => window.__render()); });
     root.querySelectorAll('[data-owner-toggle]').forEach((el) => el.addEventListener('click', () => {
       const id = el.getAttribute('data-owner-toggle'); OPEN_OWNER = OPEN_OWNER === id ? null : id; window.__render();
     }));

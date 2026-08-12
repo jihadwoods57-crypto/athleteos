@@ -19,8 +19,13 @@ async function loadStaff(teamId, force) {
   if (!teamId || staffLoadingFor === teamId) return;
   if (STAFF && STAFF.teamId === teamId && !force) return;
   staffLoadingFor = teamId;
-  try { STAFF = { teamId, rows: await fetchTeamStaff(teamId) }; }
-  catch { STAFF = { teamId, rows: [] }; }
+  // null = FAILED. Storing it as `rows` would leave the render's `staff === null` branch showing
+  // "Loading your staff…" forever, so failure gets its own flag and an honest line instead.
+  try {
+    const rows = await fetchTeamStaff(teamId);
+    STAFF = rows === null ? { teamId, rows: [], failed: true } : { teamId, rows, failed: false };
+  }
+  catch { STAFF = { teamId, rows: [], failed: true }; }
   finally { staffLoadingFor = null; }
   // T-19: staff now lives at #coach-profile/staff (a section route), so repaint on any coach-profile
   // route — an exact '#coach-profile' match would leave the staff section stuck on "Loading…".
@@ -1151,7 +1156,9 @@ function cpCodeBlock() {
     </div>`}`;
 }
 function cpStaffBlock() {
-  const staff = STAFF && STAFF.teamId === (RT.team && RT.team.id) ? STAFF.rows : null;
+  const mine = STAFF && STAFF.teamId === (RT.team && RT.team.id) ? STAFF : null;
+  const staff = mine ? mine.rows : null;
+  const staffFailed = !!(mine && mine.failed);
   // Slice F: only the head coach manages staff (0078 enforces; the client just doesn't dangle
   // controls a coordinator can't use). Fail-open while the list loads.
   const me = staff && staff.find(s => s.staff_id === RT.userId);
@@ -1159,7 +1166,9 @@ function cpStaffBlock() {
   return `
     <div class="eyebrow" id="cp-staff">Staff &amp; collaborators</div>
     <section class="card" style="padding:6px 16px">
-      ${staff === null ? `
+      ${staffFailed ? `
+      <div class="lrow" style="cursor:default"><div class="lic" style="color:var(--amber-bright)">${icon('wifiOff', 17)}</div>
+      <div class="lm"><div class="lt">Couldn't load your staff</div><div class="ls">Anyone you already invited is still on your team. Reopen to retry.</div></div></div>` : staff === null ? `
       <div class="lrow" style="cursor:default"><div class="lic">${icon('users', 17)}</div>
       <div class="lm"><div class="lt">Loading your staff…</div></div></div>` : `
       ${staff.map(s => `

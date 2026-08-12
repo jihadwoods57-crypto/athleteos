@@ -37,7 +37,12 @@ async function loadInsights(teamId, force) {
       roles.fetchTeamDayRollup(teamId, monthFrom, today, kind),
       roles.fetchInterventionOutcomes(teamId, roles.daysAgoISO(56), kind),
     ]);
-    INSIGHTS_DATA = { teamId, rollup, outcomes };
+    // null = the read FAILED, which is NOT "not enough history yet". Until the fetchers grew a
+    // failure sentinel this branch could not be reached and the week silently read as sparse.
+    // Outcomes alone failing is not an outage: the week still renders, its section stays absent.
+    INSIGHTS_DATA = rollup === null
+      ? { teamId, rollup: [], outcomes: [], offline: true }
+      : { teamId, rollup, outcomes: outcomes || [] };
   } catch { INSIGHTS_DATA = { teamId, rollup: [], outcomes: [], offline: true }; } // audit G-3: honest error, not perpetual "Reading the week…"
   finally { insightsLoadingId = null; }
   if (location.hash === '#coach-insights') window.__render();

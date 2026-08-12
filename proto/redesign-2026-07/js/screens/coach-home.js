@@ -442,12 +442,15 @@ async function paintNutritionBoard(root) {
     // reader the inbox categorizer uses, so the two surfaces can never disagree.
     const [fetched, iv] = await Promise.all([
       roles.fetchTeamActivity(roles.daysAgoISO(6), 400, ids).catch(() => null),
-      roles.fetchRecentInterventions(RT.practice && RT.practice.id, roles.daysAgoISO(13), 'practice').catch(() => []),
+      roles.fetchRecentInterventions(RT.practice && RT.practice.id, roles.daysAgoISO(13), 'practice').catch(() => null),
     ]);
     meals = fetched;
-    NUT.err = meals === null;
+    // Either read failing means the queue is not the whole truth: a lost interventions read
+    // would otherwise clear every flame off meals that are still flagged on the server.
+    NUT.err = meals === null || iv === null;
     if (meals === null && NUT.key === key) meals = NUT.rows; // keep last-known on a flaky fetch
-    NUT.key = key; NUT.rows = meals || []; NUT.flags = flagStateByMeal(iv); NUT.photos = {}; NUT.at = Date.now();
+    const flags = iv === null ? (NUT.key === key ? NUT.flags : {}) : flagStateByMeal(iv);
+    NUT.key = key; NUT.rows = meals || []; NUT.flags = flags || {}; NUT.photos = {}; NUT.at = Date.now();
   }
   if (!slot.isConnected) return;
   meals = NUT.rows || [];
@@ -798,7 +801,9 @@ export const coachHome = {
     const log = async (athleteId, kind, b) => {
       const reasonKey = b.getAttribute('data-key'), tier = b.getAttribute('data-tier');
       const ok = await logBookIntervention({ athleteId, kind, reasonKey, tier });
-      if (ok && CD.caps.interventions && CD.extras) CD.extras.interventions.push({ athlete_id: athleteId, kind, reason_key: reasonKey, tier });
+      if (ok && CD.caps.interventions && CD.extras && Array.isArray(CD.extras.interventions)) {
+        CD.extras.interventions.push({ athlete_id: athleteId, kind, reason_key: reasonKey, tier });
+      }
       return ok;
     };
     const sayFail = (athleteId, msg) => {
