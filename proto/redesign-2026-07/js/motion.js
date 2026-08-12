@@ -51,6 +51,27 @@ export function buzz(kind) {
   }
 }
 
+/* The collapse primitive's open choreography (components.js collapseSection / .xcollapse).
+ *
+ * The chevron always rotated; the body just appeared. CSS alone can't fix that safely: an
+ * animation keyed on `[open]` replays every time a repaint re-renders a section the athlete left
+ * open — Home repaints constantly — which is the settled-list-sliding-around bug all over again.
+ * So the class only ever comes from a REAL user toggle: stamped here, stripped on animationend,
+ * never present in fresh markup. One document-level listener in capture phase, because `toggle`
+ * does not bubble. Guarded for node (the test suites import this module without a document). */
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+  document.addEventListener('toggle', (e) => {
+    const d = e.target;
+    if (!d || !d.classList || !d.classList.contains('xcollapse') || !d.open) return;
+    const body = d.querySelector('.xcollapse-body');
+    if (!body || !body.classList) return;
+    body.classList.remove('opening');
+    void body.offsetWidth;                // restart cleanly if re-toggled mid-animation
+    body.classList.add('opening');
+    body.addEventListener('animationend', () => body.classList.remove('opening'), { once: true });
+  }, true);
+}
+
 /* Reveals that have already played, and reveals waiting on a node to become visible.
  *
  * PENDING maps key -> the element being observed, rather than being a plain Set, because a repaint

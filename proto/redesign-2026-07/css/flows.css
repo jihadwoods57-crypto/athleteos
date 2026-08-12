@@ -575,9 +575,22 @@
   background: var(--blue-surface); color: var(--blue-bright);
 }
 .state-demo .sd-ic::after { content: ''; position: absolute; inset: -7px; border-radius: 50%; border: 1px solid var(--blue-border); opacity: 0.5; }
-.state-demo .sd-t { font-size: 17px; font-weight: 800; letter-spacing: var(--title-tight); }
-.state-demo .sd-s { font-size: 13px; font-weight: 600; color: var(--text-2); margin-top:8px; line-height: 1.5; max-width: 34ch; margin-left:auto; margin-right:auto; }
+.state-demo .sd-t { font-size: var(--t-lg); font-weight: 800; letter-spacing: var(--title-tight); }
+.state-demo .sd-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:8px; line-height: 1.5; max-width: 34ch; margin-left:auto; margin-right:auto; }
 .state-demo .sd-cta { margin-top:16px; }
+/* Arrival: the vessel settles, the halo blooms after it, the words follow — the same one-shot
+   ceremony a populated list gets from rowIn, because "genuinely empty" is a loaded answer, not
+   a missing one. Gated on .view.enter exactly like every other entrance (the router only stamps
+   it for a real navigation), so an async repaint can never replay the settle under the reader.
+   Reduced motion: app.css's global `.view *` kill covers all four rules. */
+.view.enter .state-demo .sd-ic { animation: sdVessel 420ms var(--ease-out-quart) backwards; }
+.view.enter .state-demo .sd-ic::after { animation: sdHalo 520ms var(--ease-out-quart) 110ms backwards; }
+.view.enter .state-demo .sd-t,
+.view.enter .state-demo .sd-s { animation: rowIn 420ms var(--ease-out) backwards; animation-delay: 60ms; }
+.view.enter .state-demo .sd-s { animation-delay: 110ms; }
+.view.enter .state-demo .sd-cta { animation: rowIn 420ms var(--ease-out) 160ms backwards; }
+@keyframes sdVessel { from { opacity: 0; transform: scale(0.84); } to { opacity: 1; transform: none; } }
+@keyframes sdHalo { from { opacity: 0; transform: scale(0.86); } to { opacity: 0.5; transform: none; } }
 /* Error variant: same vessel, red semantics — wash, ring, and icon all flip together. */
 .err-box { border-color: var(--red-border); background: radial-gradient(120% 70% at 50% 0%, rgba(var(--red-rgb), 0.07), transparent 60%), var(--surface-1); }
 .err-box .sd-ic { background: var(--red-surface); color: var(--red); }

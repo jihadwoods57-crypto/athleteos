@@ -645,6 +645,10 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
    2. The celebration flame flickers once when the day completes (the .xcelebwrap block only
       exists at that moment).
    3. The celebration record checks draw themselves in, lightly staggered.
+   4. A live-region message ("Saved", "Sent — check your inbox") rises in when it lands instead
+      of materializing — the moment the region flips empty → filled, once. Scoped to the
+      role-carrying statusMsg/alertMsg spans ONLY: bare .ls is every list subtitle in the app,
+      and settled list text must never move.
    Everything sits inside no-preference so reduced-motion never sees it (the global reduce
    rule above also kills it as a second belt). */
 @media (prefers-reduced-motion: no-preference) {
@@ -665,6 +669,8 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
   .xcelebwrap .xrec:nth-child(3) .xtk svg path { animation-delay: 120ms; }
   .xcelebwrap .xrec:nth-child(4) .xtk svg path { animation-delay: 180ms; }
   .xcelebwrap .xrec:nth-child(n+5) .xtk svg path { animation-delay: 240ms; }
+  @keyframes statusIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+  .ls[role="status"]:not(:empty), .ls[role="alert"]:not(:empty) { animation: statusIn 240ms var(--ease-out); }
 }
 
 /* ===== PHONE-NATIVE OVERRIDES THAT MUST COME LAST =====

@@ -445,7 +445,7 @@ export function avatarHead(title, sub, initials) {
     <div style="flex:1;min-width:0"><div class="ht">${esc(title)}</div>${sub ? `<div class="hs">${esc(sub)}</div>` : ''}</div>
     ${bellBtn(n, 'margin-right:10px')}
     <div class="hd-avatar" role="button" tabindex="0" aria-label="Your profile and settings" data-go="${roleProfileRoute()}"
-      style="position:relative;width:40px;height:40px;border-radius:50%;background:var(--blue-surface);color:var(--blue-bright);border:1.5px solid var(--blue-border);display:grid;place-items:center;font-size:13px;font-weight:800;letter-spacing:0.02em;flex:none;cursor:pointer">${esc(initials || 'C')}
+      style="position:relative;width:40px;height:40px;border-radius:50%;background:var(--blue-surface);color:var(--blue-bright);border:1.5px solid var(--blue-border);display:grid;place-items:center;font-size:var(--t-sm);font-weight:800;letter-spacing:0.02em;flex:none;cursor:pointer">${esc(initials || 'C')}
       <span aria-hidden="true" style="position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:50%;background:var(--surface-3);border:1.5px solid var(--bg);display:grid;place-items:center;color:var(--text-2)">${icon('chevron', 10)}</span>
     </div>
   </div>`;
@@ -578,13 +578,13 @@ export function planStyleCard(style, { onChange = null, compact = false } = {}) 
   <section class="card ps-card" style="padding:14px 16px">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
       <div style="min-width:0">
-        <div style="font-size:12px;font-weight:700;color:var(--text-3);letter-spacing:.02em">PLAN STYLE</div>
-        <div style="font-size:17px;font-weight:800;margin-top:2px">${esc(style.name)}${style.customized ? ' <span style="font-size:12.5px;font-weight:700;color:var(--text-3)">(customized)</span>' : ''}</div>
-        <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">${esc(style.sourceLabel)}</div>
+        <div style="font-size:var(--t-eyebrow);font-weight:800;color:var(--text-3);letter-spacing:var(--track-eyebrow);text-transform:uppercase">Plan style</div>
+        <div style="font-size:var(--t-lg);font-weight:800;margin-top:2px">${esc(style.name)}${style.customized ? ' <span style="font-size:var(--t-sm);font-weight:700;color:var(--text-3)">(customized)</span>' : ''}</div>
+        <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:2px">${esc(style.sourceLabel)}</div>
       </div>
       ${change}
     </div>
-    ${compact ? '' : `<div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:10px;line-height:1.55">${esc(style.how)}</div>`}
+    ${compact ? '' : `<div style="font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:10px;line-height:1.55">${esc(style.how)}</div>`}
     ${pref}
   </section>`;
 }
@@ -617,7 +617,7 @@ export function emailVerifyBanner() {
       <div class="xa">Verify your email</div>
       <div class="xb" id="ev-banner-msg">${esc(RT.email || 'Confirm your address')}</div>
     </div>
-    <button class="btn ghost sm" id="ev-resend" style="width:auto;padding:0 12px;height:28px;font-size:11.5px;flex:none">Resend</button>
+    <button class="btn ghost sm" id="ev-resend" style="width:auto;padding:0 12px;height:28px;font-size:var(--t-xs);flex:none">Resend</button>
     <span role="button" tabindex="0" aria-label="Dismiss for now" id="ev-dismiss" style="cursor:pointer;color:var(--text-3);flex:none;padding:4px;display:grid;place-items:center">${icon('x', 14)}</span>
   </div>`;
 }

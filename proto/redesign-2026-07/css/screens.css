@@ -1248,6 +1248,13 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xcollapse .xchev{display:inline-flex;color:var(--text-3);transform:rotate(90deg);transition:transform var(--dur-1) var(--ease-out)}
 .xcollapse[open] .xchev{transform:rotate(270deg)}
 .xcollapse-body{display:grid;gap:8px;padding-top:6px}
+/* Opening settles the way the breakdown does (bd-open): the rows arrive, they don't pop. The
+   .opening class is stamped by motion.js on the native toggle event and stripped on animationend —
+   it is never present in fresh markup, so Home's constant repaints can't replay the settle on a
+   section the athlete left open (the exact bug .view.enter exists to prevent for rowIn). */
+.xcollapse-body.opening{animation:xcOpen var(--dur-2) var(--ease-out)}
+@keyframes xcOpen{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){ .xcollapse-body.opening{animation:none} }
 .xrow-item{display:flex;align-items:center;gap:12px;background:var(--surface-1);border:1px solid transparent;border-radius:var(--r-card-sm);padding:10px 12px;cursor:pointer;box-shadow:var(--sh-card)}
 .xrow-item .xr{flex:1}
 .xrow-item .xa{font-size:14px;font-weight:700;letter-spacing:-.01em}
