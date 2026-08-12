@@ -90,7 +90,9 @@ describe('openingMessage (day progress, patterns, impact, uncertainty)', () => {
     expect(msg).not.toMatch(/92 of 180g/);
     expect(msg).toMatch(/second lunch in a row/);
     expect(msg).toMatch(/\+13/);
-    expect(msg).toMatch(/photo estimate/i);
+    // Uncertainty voiced as a pro inviting the one missing detail, never an apology
+    // (founder 2026-08-11: "doesn't sound like the confident nutritionist it's supposed to be").
+    expect(msg).toMatch(/tell me and I'll tighten the numbers/i);
   });
   test('never fabricates: absent day/patterns/impact produce no such sentences', () => {
     const msg = openingMessage({ name: 'Lunch', quality: 84, analysis: 'Solid.', late: false, source: 'label' });

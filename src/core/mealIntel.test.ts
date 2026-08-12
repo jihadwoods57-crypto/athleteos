@@ -350,6 +350,6 @@ describe("Coach's Focus — the one line an athlete remembers (founder 2026-08-0
   });
   test('scoreReasons and coachFocus judge from the same arithmetic — the focus is always a listed reason when something missed', () => {
     const reasons = scoreReasons(lowProtein).map((r: any) => r.label);
-    expect(reasons).toContain('Protein low');
+    expect(reasons).toContain('Protein low for this plate');
   });
 });

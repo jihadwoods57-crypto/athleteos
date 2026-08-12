@@ -134,13 +134,14 @@ describe('timing speaks only when late', () => {
 });
 
 describe('uncertainty is stated when it is real, and only then', () => {
-  it('flags a guess the model was unsure about', () => {
+  it('flags a guess the model was unsure about — voiced as an expert inviting a detail, never an apology (founder 2026-08-11)', () => {
     const out = composeOpenerText(read({ detected: [{ name: 'some kind of stew', confidence: 'low' }] }), {});
-    expect(out).toContain('guess from the photo');
+    expect(out).toContain("tell me and I'll tighten the numbers");
+    expect(out).not.toContain('guess from the photo');
   });
 
   it('does not hedge a confident read — a hedge on every meal is noise', () => {
-    expect(composeOpenerText(read(), {})).not.toContain('guess from the photo');
+    expect(composeOpenerText(read(), {})).not.toContain("tighten the numbers");
   });
 });
 

@@ -8,7 +8,7 @@
 // @ts-ignore — proto is plain ESM JS (allowJs)
 import {
   mealQualityScore, scoreRubric, qualityBand, normalizeDetected,
-  stripFoodMentions, analysisAgreesWithBand, analysisAgreesWithNumbers,
+  stripFoodMentions, analysisAgreesWithBand, analysisAgreesWithNumbers, analysisAgreesWithComponents,
   // @ts-ignore
 } from '../../proto/redesign-2026-07/js/meal-intel.js';
 
@@ -126,6 +126,54 @@ describe('analysisAgreesWithBand — score and words from one evaluation', () =>
   test('honest nuance always passes', () => {
     expect(analysisAgreesWithBand('Solid protein, light on fiber. Add produce next time.', { cls: 'mid', label: 'Needs work' })).toBe(true);
     expect(analysisAgreesWithBand('', { cls: 'low' })).toBe(true);
+  });
+});
+
+/**
+ * analysisAgreesWithComponents — the verdict half of the same invariant (founder escalation
+ * 2026-08-11: the breakdown chips said "Protein low" while the AI's opener said "Good start on
+ * protein for the day" on the same screen). Prose may never praise a component the deterministic
+ * componentStates marks a miss, nor condemn one it marks met.
+ */
+describe('analysisAgreesWithComponents — prose verdicts must match the chips', () => {
+  // The 2026-08-11 breakfast: 41g protein in a 950-kcal plate (18% of energy → protein miss,
+  // fat 48g → 48% of energy → fat miss), sandwich + bacon, no produce, low fiber.
+  const breakfast = { macros: { protein: 41, carbs: 78, fat: 48, kcal: 950 }, fiber: 2, detected: [{ name: 'Breakfast sandwich' }, { name: 'Bacon' }], minutesLate: 0 };
+  const balancedPlate = { macros: { protein: 40, carbs: 45, fat: 15, kcal: 475 }, fiber: 7, detected: [], minutesLate: 0 };
+
+  test('the founder bug: protein praise cannot ride a protein-miss plate', () => {
+    expect(analysisAgreesWithComponents(
+      "Good start on protein for the day, that foil-wrapped sandwich plus the bacon puts you in solid shape early.",
+      breakfast,
+    )).toBe(false);
+  });
+  test('criticism of a MET component fails too', () => {
+    expect(analysisAgreesWithComponents('Protein came in low on this one.', balancedPlate)).toBe(false);
+    expect(analysisAgreesWithComponents('Too much fat on this plate.', balancedPlate)).toBe(false);
+  });
+  test('fat praise cannot ride a fat-miss plate', () => {
+    expect(analysisAgreesWithComponents('Fat is in a good range here.', breakfast)).toBe(false);
+  });
+  test('agreeing prose passes: the deterministic fallback can never re-trip the rail', () => {
+    expect(analysisAgreesWithComponents('Protein came in low next to the carbs and fat and fat ran above the range.', breakfast)).toBe(true);
+    expect(analysisAgreesWithComponents('Good start on protein for the day.', balancedPlate)).toBe(true);
+  });
+  test('honest nuance passes: each verdict judged against its own component', () => {
+    // protein met + fiber miss on this plate: praising protein and flagging fiber is exactly right
+    expect(analysisAgreesWithComponents('Solid protein, light on fiber. Add produce next time.',
+      { macros: { protein: 40, carbs: 45, fat: 15, kcal: 475 }, fiber: 0, detected: [], minutesLate: 0 })).toBe(true);
+  });
+  test('clause punctuation stops the window: one macro\'s adjective never smears onto another', () => {
+    expect(analysisAgreesWithComponents('Protein, carbs, and fat are in balance on this plate.', balancedPlate)).toBe(true);
+  });
+  test('partial components never silence prose (conservative like its siblings)', () => {
+    // protein share ~22% → partial, not miss: praise passes
+    expect(analysisAgreesWithComponents('Good protein here.',
+      { macros: { protein: 30, carbs: 60, fat: 20, kcal: 540 }, fiber: 6, detected: [], minutesLate: 0 })).toBe(true);
+  });
+  test('nothing to judge, nothing to contradict', () => {
+    expect(analysisAgreesWithComponents('Good start on protein.', { macros: {}, fiber: 0, detected: [] })).toBe(true);
+    expect(analysisAgreesWithComponents('', breakfast)).toBe(true);
   });
 });
 

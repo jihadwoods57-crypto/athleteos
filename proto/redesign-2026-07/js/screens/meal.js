@@ -840,6 +840,15 @@ export const thread = {
           </div>`;
         }).join('')}
         ${paceNote ? `<div class="pace">${esc(paceNote)}</div>` : ''}
+    </div>` : ''}
+    ${/* First-class correction entry (founder 2026-08-11: the flow has to be easier and more
+          seamless). Fixing a number used to take three moves: open "View detected foods", find a
+          12px link inside a footnote, tap it. The affordance now sits ON the numbers it corrects,
+          in the read card itself; both buttons drive the exact same openFix panel as before. */''}
+    ${M.mealId && fromPhoto ? `
+    <div class="nut-actions">
+      <button class="fx-chip" id="fix-cta">${icon('edit', 13)} Correct this read</button>
+      <button class="fx-chip" id="fix-cta-detail">${icon('plus', 13)} Add a detail</button>
     </div>` : ''}`}` : '';
     const photoBlock = `
     <!-- The plate, blurred, as the screen's own backdrop. The meal thread is the one screen with a
@@ -1003,7 +1012,11 @@ export const thread = {
     ${/* The `#rx-strip` that used to sit here is gone: paint() has cleared it on every repaint
           since reactions moved onto the bubble they belong to, so it was an element whose only
           job was to be emptied. */''}
-    ${M.mealId ? `<button class="cont-earlier" id="thread-earlier" hidden aria-label="Open the full conversation"></button>` : ''}
+    ${/* The "Earlier · <last message>" teaser row is GONE (founder, 2026-08-11): it opened the
+          exact same full chat as "View full chat" two lines above it — two controls, one
+          destination, and the teaser's preview text doubled as a third voice above the thread.
+          The in-thread "View N earlier messages" seam (#thread-more) stays: that one carries
+          information this screen truncated. */''}
     <div class="thread" id="meal-thread">
       ${openingBlockHtml(M, { sum, fullText, fq })}
       <div class="msg-status" id="thread-status">${M.mealId ? 'Loading the thread…' : (S.coach.hasCoach ? `Syncs when connected — your ${esc(S.coach.noun)} sees this log either way.` : 'Syncs when connected — this log is saved either way.')}</div>
@@ -1026,12 +1039,23 @@ export const thread = {
     // done but locked items remain, the row names what opens next instead of vanishing.
     const n = e.now;
     const nextLocked = !n && !e.celebration ? (e.later || []).find(i => i.state === 'locked' && i.required) : null;
+    // The day-complete moment (founder 2026-08-11: "we can do better than the 'that's
+    // everything, you're OnStandard' tag"). The green checkbox card read as one more status
+    // row; a complete day is the product's whole point, so it gets the product's own mark:
+    // the brand dial carrying the score (score surfaces wear the blue→teal sweep, per the
+    // design law), the tier it earned, and the one fact nothing else on this screen states —
+    // when the day locks. Tappable into the breakdown, same as Home's celebration hero.
+    const dayTier = e.celebration ? tier(e.score) : null;
     const next = e.celebration ? `
-    <div class="day-done" style="margin-top:16px">
-      <div class="req-icon g" style="width:44px;height:44px">${icon('check', 21)}</div>
-      <div><div class="tt">That's everything. You're OnStandard at ${e.score}.</div>
-      <div class="ts">All requirements in.${S.streakDays > 0 ? ` Day ${S.streakDays} locks at midnight.` : ' Your streak starts when today locks at midnight.'}</div></div>
-    </div>` : n ? `
+    <section class="day-sealed" data-go="score-breakdown" role="button" tabindex="0"
+      aria-label="Day complete. Daily Score ${e.score}, ${esc(dayTier.name)}. Open the score breakdown">
+      <div class="ds-dial">${miniDial(e.score)}<span class="ds-n">${e.score}</span></div>
+      <div class="ds-body">
+        <div class="ds-t">Everything's in.</div>
+        <div class="ds-s">${S.streakDays > 0 ? `Day ${S.streakDays} locks at midnight` : 'Locks at midnight · that starts your streak'}</div>
+      </div>
+      <span class="tier-chip ${dayTier.cls}" style="margin-top:0">${esc(dayTier.name)}</span>
+    </section>` : n ? `
     <div class="eyebrow" style="margin-top:16px">Next Action</div>
     <div class="xrow-item next-hot" data-go="${n.route}">
       <div class="xico sm ${n.color}">${icon(n.icon, 17)}</div>
@@ -1130,7 +1154,7 @@ export const thread = {
       if (focusOther) { const o = root.querySelector('#fx-other'); if (o) o.focus(); }
     };
     if (fixPanel && thread._fixOpen) fixPanel.hidden = false;
-    const openBtns = [['#open-correct', false], ['#qa-details', true]];
+    const openBtns = [['#open-correct', false], ['#qa-details', true], ['#fix-cta', false], ['#fix-cta-detail', true]];
     openBtns.forEach(([sel, focusOther]) => {
       const b = root.querySelector(sel);
       if (b) b.addEventListener('click', () => openFix(focusOther));
@@ -1167,24 +1191,48 @@ export const thread = {
       if (v === 'other') { openFix(true); return; }
       runCorrection({ kind: b.getAttribute('data-fq'), value: v });
     });
-    // Photo: the in-session capture, else a signed Storage URL so it survives a reload. The URL
-    // is set as an img.src property (not HTML), so no injection risk; best-effort.
+    // Photo: the in-session capture, else a signed Storage URL so it survives a reload. Resolved
+    // through photo-store (NOT a raw one-shot signedMealPhotoUrl): the cache retries a missing
+    // object after NEG_TTL, and the outbox calls invalidateMealPhoto + __render the moment a
+    // retried upload lands — so a photo that arrives seconds after this paint fills itself in.
+    // The URL is set as an img.src property (not HTML), so no injection risk; best-effort.
     const photo = root.querySelector('#meal-photo');
     if (photo) {
+      const store = await import('../photo-store.js');
       let url = M.img;
-      if (!url && RT.userId) url = await roles.signedMealPhotoUrl(`${RT.userId}/${DAY.date}/${M.slot}.jpg`);
+      if (!url && RT.userId && M.hasPhoto) {
+        url = await store.resolveMealPhoto(store.todayMealPhotoPath(RT.userId, String(DAY.date), M.slot));
+      }
+      const hero = root.querySelector('#meal-hero');
+      // The honest empty state. A meal that claims a photo the bucket can't serve (upload still
+      // in flight, or lost before the upload got its retry queue) collapses the frame and says
+      // so — a full-height empty box reads as broken, because it is.
+      const noPhoto = (label) => {
+        if (!hero || !root.isConnected) return;
+        photo.style.display = 'none';
+        hero.classList.add('ph-nophoto');
+        if (!hero.querySelector('.ph-wait')) hero.insertAdjacentHTML('beforeend', `<div class="ph-wait">${icon('image', 15)} <span></span></div>`);
+        hero.querySelector('.ph-wait span').textContent = label;
+      };
       if (url) {
+        // A signed URL can point at an object that was never stored (rows written before the
+        // upload had a retry queue). onerror keeps the honest placeholder, not a broken frame.
+        photo.onerror = () => noPhoto("This photo didn't sync from the device.");
         photo.src = url; photo.style.display = 'block';
         // Same URL into the blurred backdrop — one decode, two uses.
         const back = root.querySelector('#meal-backdrop-img');
         if (back) back.src = url;
         // Tapping the meal photo opens the original full-screen (§6.1) — a DOM overlay, so
         // closing returns to this exact scroll position with zero navigation.
-        const hero = root.querySelector('#meal-hero');
         if (hero) {
           hero.style.cursor = 'zoom-in';
           hero.addEventListener('click', () => openImageViewer(url, `${M.name} photo`));
         }
+      } else if (M.hasPhoto) {
+        // Still owed by the outbox → "syncing"; otherwise it never made it off the device.
+        const { getJob, jobKey } = await import('../meal-outbox.js');
+        const job = RT.userId ? getJob(jobKey(RT.userId, DAY.date, M.slot)) : null;
+        noPhoto(job && job.needUpload && !job.dead ? 'Photo syncing from your device…' : "This photo didn't sync from the device.");
       }
     }
     // The "View full analysis" expander is gone with the report card it belonged to (2026-08-02):
@@ -1437,22 +1485,9 @@ export const thread = {
     };
     await refresh();
 
-    // CONTINUITY. This meal's messages paint first and stay the fast path — but a conversation
-    // that starts over at every plate is the thing being fixed, so once the thread is up we go
-    // and find what was said before it and offer it as one line. Two messages, not a season: the
-    // meal screen is not the place to scroll a fortnight, which is what the full chat is for.
-    void (async () => {
-      const season = await roles.fetchMyMealThread(RT.userId, { limit: 60 }).catch(() => []);
-      if (!Array.isArray(season) || !season.length) return;
-      const before = season.filter((c) => c && c.meal_id !== M.mealId && (c.kind || 'message') === 'message');
-      if (!before.length) return;
-      const last = before[before.length - 1];
-      const el = root.querySelector('#thread-earlier');
-      if (!el) return;
-      const who = authorName(last, PARTICIPANTS.uid === RT.userId ? PARTICIPANTS.rows : [], RT.userId);
-      el.innerHTML = `<span class="ce-k">Earlier</span><span class="ce-t"><b>${esc(who)}:</b> ${esc(String(last.text || '').slice(0, 90))}</span><span class="ce-go">${icon('chevron', 13)}</span>`;
-      el.hidden = false;
-    })();
+    // (The "Earlier · <last message>" continuity teaser that used to be fetched and filled here
+    // is gone — founder 2026-08-11. "View full chat" in the section header is the one door to
+    // the full conversation, and it needs no fetch to justify itself.)
 
     // Open the member list. Built from the same resolved rows the header shows, so what the
     // athlete taps is exactly what they were looking at.
@@ -1578,7 +1613,7 @@ export const thread = {
         void act.confirmMemoryFact(id, fx.getAttribute('data-keep') === '1');
         return;
       }
-      const t = ev.target && ev.target.closest ? ev.target.closest('#mq-thread-go, #mq-thread-skip, #mt-retry-analysis, #mt-reread, #open-full-chat, #thread-earlier, #thread-more') : null;
+      const t = ev.target && ev.target.closest ? ev.target.closest('#mq-thread-go, #mq-thread-skip, #mt-retry-analysis, #mt-reread, #open-full-chat, #thread-more') : null;
       if (!t) return;
       if (t.id === 'mt-retry-analysis') { act.retryAnalysis(M.slot); return; }
       // The same conversation, unbounded by this one plate.
@@ -1587,7 +1622,7 @@ export const thread = {
       // location.hash directly skipped that push, so nutrition-chat had no recorded origin and its
       // back button fell through to its 'home' fallback instead of returning to the meal the
       // athlete opened it from.
-      if (t.id === 'open-full-chat' || t.id === 'thread-earlier' || t.id === 'thread-more') {
+      if (t.id === 'open-full-chat' || t.id === 'thread-more') {
         if (window.__navigate) window.__navigate('nutrition-chat'); else location.hash = '#nutrition-chat';
         return;
       }

@@ -160,9 +160,12 @@ export function composeOpenerText(input: MealInput, ctx: OpenerContext = {}): st
   // 5. Timing — only when it needs saying. On-time praise lives in the score checklist now.
   if (ctx.late === true) parts.push(`And logging ${opening} late still counts — hiding it wouldn't.`);
 
-  // 6. What I'm not sure about. Only for real uncertainty — a hedge on every meal is noise.
+  // 6. What the photo can't show, said the way a confident pro says it (founder 2026-08-11:
+  // "some of my read is a guess... correct anything I've misread" read as an AI apologizing,
+  // not a nutritionist offering precision). The honesty stays — this only renders on a read
+  // with real uncertainty in it — but the voice is an expert inviting a detail, never a hedge.
   if (lowConfidence(input.detected)) {
-    parts.push("Some of my read is a guess from the photo — correct anything I've misread.");
+    parts.push("If anything was cooked or portioned differently than it looks, tell me and I'll tighten the numbers.");
   }
 
   const out = clip(parts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim());

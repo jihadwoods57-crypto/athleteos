@@ -36,7 +36,7 @@ import { factsFromCorrection, candidateFactsFromFoodChange, sameFact } from './m
 import { TOUR_IDS } from './tour-plan.js';
 import {
   groundExtras, buildClarifications, analysisTiming, applyMealCorrection, applyFoodRemoval, classifyMealEvent, restrictionConflicts,
-  mealQualityScore, qualityBand, qualityReason, analysisAgreesWithBand, analysisAgreesWithNumbers, stripFoodMentions, shouldVerify,
+  mealQualityScore, qualityBand, qualityReason, analysisAgreesWithBand, analysisAgreesWithNumbers, analysisAgreesWithComponents, stripFoodMentions, shouldVerify,
   contextForChat,
 } from './meal-intel.js';
 import { groundMealFromFoods, groundMealTotals, gapFoods, labelProducts, isCompleteMealResult } from './nutrition.js';
@@ -159,9 +159,15 @@ export function groundResult(d) {
   const band = qualityBand(quality);
   let analysis = extras.analysis;
   let note = clean(d.note);
+  // The component rail rides with its siblings (founder 2026-08-11): prose praising a macro the
+  // chips just marked a miss ("Good start on protein" over a "Protein low" chip) is the same
+  // contradiction as a wrong figure, and gets the same fallback.
+  const verdictInputs = { macros: gm, fiber: extras.fiber, detected: detectedRich, minutesLate: timing ? timing.minutesLate : 0 };
   if (!analysisAgreesWithBand(analysis, band) || !analysisAgreesWithBand(note, band)
     || !analysisAgreesWithNumbers(analysis, { ...gm, fiber: extras.fiber })
-    || !analysisAgreesWithNumbers(note, { ...gm, fiber: extras.fiber })) {
+    || !analysisAgreesWithNumbers(note, { ...gm, fiber: extras.fiber })
+    || !analysisAgreesWithComponents(analysis, verdictInputs)
+    || !analysisAgreesWithComponents(note, verdictInputs)) {
     track(EVENTS.MEAL_TEXT_CONFLICT, { det: quality != null ? quality : -1 });
     analysis = '';
     note = qualityReason(gm, extras.fiber, detectedRich) || 'Logged. The breakdown shows how this plate reads.';
@@ -905,7 +911,24 @@ export const act = {
       });
       void this.drainMealOutbox();
     } else {
-      if (hasPhoto) uploadMealPhoto(RT.userId, slot, MEAL.photoBase64);
+      // The photo is proof; it must survive a bad connection. On a failed upload the bytes join
+      // the durable outbox as an upload-only job (insert/analysis are handled right here), so the
+      // same retry-with-backoff that guards the optimistic path guards this one. Fire-and-forget
+      // is still the shape — logging never waits on the network.
+      if (hasPhoto) {
+        const b64 = MEAL.photoBase64;
+        void uploadMealPhoto(RT.userId, slot, b64).then((ok) => {
+          if (ok || !RT.userId) return;
+          putJob({
+            k: jobKey(RT.userId, DAY.date, slot),
+            uid: RT.userId, date: DAY.date, slot,
+            base64: b64, photoPath, photoHash: MEAL.photoHash || null,
+            needUpload: true, needInsert: false, needAnalysis: false,
+            tries: 1, lastTryAt: Date.now(),
+          });
+          this._scheduleDrain();
+        });
+      }
       // Insert a real `meals` row so a coach can review + comment; persist the id for the thread.
       // A { dup: true } return means the 0062 photo-hash wall caught a reused photo that slipped
       // past the pre-check: the slot stays logged (honest record) but is flagged so it never
@@ -1095,7 +1118,10 @@ export const act = {
     // read, which on a stadium connection is most of the time the athlete spends staring at
     // "Reading your plate…". It now runs alongside and is reconciled at the end of the job.
     const upload = (job.needUpload && job.base64)
-      ? uploadMealPhoto(job.uid, slot, job.base64).then(() => true).catch(() => false)
+      // uploadMealPhoto reports honestly now (true = confirmed store). The old `.then(() => true)`
+      // laundered every failure into success, which cleared needUpload and permanently lost the
+      // photo on the first transient blip — the retry machinery below never got to run.
+      ? uploadMealPhoto(job.uid, slot, job.base64).then((ok) => !!ok).catch(() => false)
       : Promise.resolve(null);
     const settleUpload = async () => {
       const ok = await upload;
@@ -2266,9 +2292,12 @@ export const act = {
       // start quoting figures the breakdown no longer shows: removing a food drops its macros but
       // a sentence about the REST of the plate survives stripFoodMentions with its old totals in it.
       const band = qualityBand(r.quality);
+      const verdictInputs = { macros: gm, fiber: r.fiber, detected: r.detectedRich, minutesLate: timing ? timing.minutesLate : 0 };
       if (!analysisAgreesWithBand(r.analysis, band) || !analysisAgreesWithBand(r.note, band)
         || !analysisAgreesWithNumbers(r.analysis, { ...gm, fiber: r.fiber })
-        || !analysisAgreesWithNumbers(r.note, { ...gm, fiber: r.fiber })) {
+        || !analysisAgreesWithNumbers(r.note, { ...gm, fiber: r.fiber })
+        || !analysisAgreesWithComponents(r.analysis, verdictInputs)
+        || !analysisAgreesWithComponents(r.note, verdictInputs)) {
         r.analysis = '';
         r.note = qualityReason(gm, r.fiber, r.detectedRich) || 'Logged. The breakdown shows how this plate reads.';
       }

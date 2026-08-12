@@ -354,6 +354,15 @@
    sheet at y=-576 (off the top of the screen) and collapsed its scrim to zero height. */
 .meal-screen { position: relative; isolation: isolate; }
 .photo-hero { position: relative; border-radius: var(--r-card); overflow: hidden; height: 210px; background-size: cover; background-position: center; border: 1px solid var(--hairline); box-shadow: var(--sh-card); }
+/* No photo to show (upload in flight, or lost before uploads had a retry queue): the frame
+   deflates and says so — a full-height empty box reads as broken. The scrim exists to keep the
+   badges readable over a photograph; over the empty gradient it just muddies (worst on light). */
+.photo-hero.ph-nophoto { height: 128px; }
+.photo-hero.ph-nophoto .ph-grad { display: none; }
+.photo-hero .ph-wait {
+  position: absolute; inset: 0 0 44px 0; display: flex; align-items: center; justify-content: center;
+  gap: 7px; font-size: 12.5px; font-weight: 600; color: var(--text-3); pointer-events: none;
+}
 .photo-hero .ph-grad { position:absolute; inset:0; background: linear-gradient(180deg, transparent 40%, rgba(5,8,15,0.88)); }
 .photo-hero .ph-meta { position: absolute; left: 16px; bottom: 14px; right: 16px; display:flex; align-items:flex-end; justify-content:space-between; }
 .photo-hero .ph-t { font-size: 19px; font-weight: 800; }
@@ -1409,6 +1418,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    the two things that always carried it anyway: one step up in size, and the accent colour. */
 .nut-values .nv.lead .mv{font-size:24px;color:var(--blue-bright)}
 .nut-values .nv.lead .mv i{color:var(--text-3)}
+/* First-class correction entry inside the read card (2026-08-11): the affordance sits on the
+   numbers it corrects, instead of a 12px link buried in the detected-foods expander. */
+.meal-read .nut-actions{display:flex;gap:8px;padding:12px 16px 14px;border-top:1px solid var(--hairline-soft)}
 .nut-panel .day-bars{margin-top:0;border-top:1px solid var(--hairline-soft);padding:13px 16px 14px}
 /* Day-target bars (also render standalone if the panel is ever absent) */
 .day-bars{margin-top:12px;display:flex;flex-direction:column;gap:10px;padding:0 2px}
@@ -1433,6 +1445,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .nb-avg{font-size:var(--t-xs);font-weight:700;color:var(--text-3);white-space:nowrap;font-variant-numeric:tabular-nums}
 /* The photo is the page's subject — give it hero height on the logged-meal screen only */
 .meal-screen .photo-hero{height:248px}
+.meal-screen .photo-hero.ph-nophoto{height:128px}
 /* ---- Read more: a long AI bubble rests at four lines; the expander is quiet ---- */
 .bt-clamp{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
 /* A real two-way control: it now says "Read less" once open, so it needs a tap target rather than
@@ -2080,9 +2093,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
   letter-spacing: 0.11em; text-transform: uppercase; color: var(--text-3);
 }
 
-/* The last thing said before this plate. One line, tappable into the full conversation — the
-   meal screen is not where an athlete scrolls a fortnight, but it should not pretend the
-   conversation started here either. */
+/* The in-thread seam to messages this screen truncated ("View N earlier messages" — #thread-more).
+   The "Earlier · <last message>" teaser that shared this class is gone (founder 2026-08-11:
+   it duplicated "View full chat"), so only the seam wears it now. */
 .cont-earlier {
   display: flex; align-items: center; gap:10px; width: 100%; margin:2px 0 6px;
   background: none; border: 0; border-bottom: 1px dashed var(--hairline); padding:12px 2px;
@@ -2105,20 +2118,6 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
   width: 100%; height: 100%; min-width: 44px; min-height: 44px;
 }
 .cont-earlier:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
-.cont-earlier .ce-k {
-  font-size: 9.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--text-3); flex: none;
-}
-.cont-earlier .ce-t {
-  flex: 1; min-width: 0; font-size: 11.5px; font-weight: 600;
-  /* Two lines. One nowrap line showed barely half of a coach's last message (487px of text in a
-     268px box), and this strip's whole job is to be worth tapping. The row is a centred flex
-     with a 44px floor, so the second line costs about 4px of height and nothing else moves. */
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
-  overflow: hidden; white-space: normal; overflow-wrap: anywhere;
-}
-.cont-earlier .ce-t b { color: var(--text-2); font-weight: 800; }
-.cont-earlier .ce-go { flex: none; display: grid; place-items: center; }
 
 /* ---- the pill means ONE thing ----
    .xpill was carrying eight different jobs: status, toggle state, an instruction ("Start here"),

@@ -1057,14 +1057,20 @@ export async function insertMeal(userId, key, macros, meta, photoPath) {
 }
 
 /** Upload a meal photo (raw base64 jpeg) to the private meal-photos bucket. Path MUST start with
- *  the athlete's id (storage RLS). Best-effort — a failed upload never blocks logging the meal. */
+ *  the athlete's id (storage RLS). A failed upload never blocks logging the meal — but it MUST
+ *  report honestly. supabase-js storage does not throw: it resolves `{ error }`, and this
+ *  function used to resolve undefined either way, so the outbox marked failed uploads done and
+ *  the meals row pointed at an object that was never stored (the 2026-08-11 breakfast with no
+ *  photo). Returns true ONLY on a confirmed store; false means "still owed — retry me". */
 export async function uploadMealPhoto(userId, key, base64) {
   const sb = window.sb;
-  if (!sb || !userId || !base64 || SYNC_BLOCKED) return;
+  if (!sb || !userId || !base64 || SYNC_BLOCKED) return false;
   try {
     const bin = atob(base64);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    await sb.storage.from('meal-photos').upload(`${userId}/${DAY.date}/${key}.jpg`, bytes, { contentType: 'image/jpeg', upsert: true });
-  } catch (e) { console.warn('[day] photo upload failed', e && e.message); }
+    const { error } = await sb.storage.from('meal-photos').upload(`${userId}/${DAY.date}/${key}.jpg`, bytes, { contentType: 'image/jpeg', upsert: true }) || {};
+    if (error) { console.warn('[day] photo upload failed', error.message); return false; }
+    return true;
+  } catch (e) { console.warn('[day] photo upload failed', e && e.message); return false; }
 }

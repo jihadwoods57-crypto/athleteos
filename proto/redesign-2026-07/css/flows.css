@@ -24,8 +24,37 @@
   background: linear-gradient(100deg, rgba(var(--green-rgb), 0.16), rgba(var(--teal-rgb), 0.06));
   border: 1px solid var(--green-border);
 }
-.day-done .tt { font-size: 15.5px; font-weight: 800; }
-.day-done .ts { font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-top:2px; }
+.day-done .tt { font-size: var(--t-md); font-weight: 800; }
+.day-done .ts { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:2px; }
+
+/* ----- Day sealed (meal thread's day-complete moment, 2026-08-11) -----
+   The brand dial carrying the day's score, the tier it earned, and when it locks. A score
+   surface, so it wears the signature blue→teal (the dial's own sweep) — green stays on the
+   status rows above it. Tappable into the score breakdown. */
+.day-sealed {
+  position: relative;
+  display: flex; align-items: center; gap: 14px; margin-top: 16px; padding: 14px 16px;
+  border-radius: var(--r-card); border: 1px solid var(--blue-border);
+  background: linear-gradient(115deg, rgba(var(--blue-rgb), 0.12), rgba(var(--teal-rgb), 0.05) 60%, transparent);
+  box-shadow: 0 0 26px rgba(var(--blue-rgb), 0.10);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.day-sealed:active { transform: scale(0.99); }
+.day-sealed .ds-dial { position: relative; width: 62px; height: 62px; flex: none; }
+.day-sealed .ds-n {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: var(--t-xl); font-weight: 800; letter-spacing: -0.02em;
+}
+.day-sealed .ds-body { flex: 1; min-width: 0; }
+/* The headline shares its line with the corner chip; the reserve keeps them apart at 402px. */
+.day-sealed .ds-t { font-size: var(--t-md); font-weight: 800; letter-spacing: -0.01em; padding-right: 96px; }
+.day-sealed .ds-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top: 3px; }
+/* Corner chip, compact: in the flex row the full-size pill squeezed the body into wrapping its
+   own headline at 402px. Same tier tokens, quieter metal. */
+.day-sealed .tier-chip {
+  position: absolute; top: 13px; right: 14px; margin: 0;
+  font-size: 9.5px; padding: 4px 9px; letter-spacing: 0.08em; box-shadow: none;
+}
 
 /* ----- "Day N locked." stamp (lock-moment.js) -----
    A body-level overlay, not part of any screen, because the router rebuilds device.innerHTML on

@@ -362,10 +362,12 @@ export function openingMessage({
   if (typeof impact === 'number' && isFinite(impact) && impact > 0) {
     parts.push(`This log moved your Daily Score by +${Math.round(impact)}.`);
   }
-  // 7. Uncertainty, stated honestly for photo estimates — only when it's a real guess.
+  // 7. What the photo can't show — only when the read carries real uncertainty, and voiced as a
+  // confident pro inviting the one detail that sharpens the numbers, never an apology (founder
+  // 2026-08-11). Same line the server opener uses, so the two composers speak with one voice.
   const conf = estimateConfidence(source, detected);
   if (conf !== 'exact' && conf !== 'high' && source !== 'manual') {
-    parts.push(`My read is a photo estimate at ${conf} confidence — portions, oil, or sauce could move it, so correct anything I misread.`);
+    parts.push(`If anything was cooked or portioned differently than it looks, tell me and I'll tighten the numbers.`);
   }
   return parts.filter(Boolean).join(' ').slice(0, 1500);
 }
@@ -500,7 +502,7 @@ export function openingSummary({
     ? 'Not much. This plate works.'
     : reason;
   if (est && opportunity && !balanced && /fiber|fat ran/i.test(opportunity)) {
-    opportunity = opportunity.replace(/\.$/, '') + ' — a photo estimate, so correct me if the plate says otherwise.';
+    opportunity = opportunity.replace(/\.$/, '') + ". If the plate looked different in person, tell me and I'll adjust it.";
   }
 
   // Next time: a concrete fix mapped to that opportunity, never generic advice.
@@ -748,7 +750,12 @@ export function scoreReasons({ macros, fiber, detected, minutesLate } = {}) {
   const s = componentStates({ minutesLate, macros, fiber, detected });
   if (!(s.total > 0)) return [];
   const LABEL = {
-    protein: { met: 'Protein solid', partial: 'Protein a bit light', miss: 'Protein low' },
+    // "for this plate", because the judgment is the plate's own split, not the athlete's day
+    // total — 41g can meet the day's per-meal bar and still be the smallest slice of a 950-kcal
+    // plate. The unqualified "Protein low" sat directly under a day bar reading "41g of 160g"
+    // and directly above an AI message about day pace, and read as the app disagreeing with
+    // itself (founder, 2026-08-11).
+    protein: { met: 'Protein solid', partial: 'Protein a bit light', miss: 'Protein low for this plate' },
     carbs: { met: 'Carbs balanced', partial: 'Carb-heavy' },
     fat: { met: 'Fat in range', partial: 'Fat a bit high', miss: 'Fat high' },
     fiber: { met: 'Good fiber', partial: 'Fiber light', miss: 'No fiber showing' },
@@ -1004,6 +1011,55 @@ export function analysisAgreesWithNumbers(text, macros) {
       const tol = Math.max(key === 'kcal' ? 30 : 3, actual * 0.1);
       if (actual < Math.min(lo, hi) - tol || actual > Math.max(lo, hi) + tol) return false;
     }
+  }
+  return true;
+}
+
+/* THE COMPONENT RAIL — the third sibling (founder escalation 2026-08-11: the breakdown chips said
+   "Protein low" while the AI's opener said "Good start on protein for the day" ON THE SAME SCREEN).
+
+   The band rail catches overall tone; the numeric rail catches figures. Neither catches a VERDICT
+   conflict: the model praising a macro the deterministic componentStates just marked a miss. The
+   model judges protein by the athlete's day (41g toward 160g reads great); the score judges it by
+   the plate's own split (41g in a 950-kcal plate is the smallest slice) — both defensible, but two
+   verdicts wearing the same word on one screen is a contradiction, and the Meal Breakdown is the
+   single source of truth. Prose that praises a 'miss' component or condemns a 'met' one is dropped,
+   and the deterministic qualityReason line (which agrees with the chips by construction) speaks
+   instead.
+
+   Conservative on purpose, like its siblings: praise only fails on a hard 'miss', criticism only
+   on a clean 'met' — honest nuance ("solid protein, light on fiber") and 'partial' components never
+   silence a paragraph. Windows are short and stop at clause punctuation so "protein, carbs, and
+   fat are in balance" can never smear one macro's adjective onto another. */
+const V_GAP = '[^.!?,;:]{0,26}';
+const PRAISE_W = '(?:good|great|strong|solid|nice|excellent|plenty of|well[- ]covered)';
+const VERDICT_PATTERNS = {
+  protein: {
+    praise: new RegExp(`\\b${PRAISE_W}\\b${V_GAP}\\bprotein\\b|\\bprotein\\b${V_GAP}\\b(?:solid|strong|dialed in|on point|in (?:a )?good shape|looks? good|covered|handled|where you want)\\b`, 'i'),
+    condemn: new RegExp(`\\bprotein\\b${V_GAP}\\b(?:low|light|short|thin|lacking|under)\\b|\\b(?:low|light|short)\\b[^.!?,;:]{0,14}\\bon protein\\b|\\bneeds? more protein\\b`, 'i'),
+  },
+  fat: {
+    praise: new RegExp(`\\bfat\\b${V_GAP}\\b(?:in (?:a good |the )?range|in check|dialed in|fine|lean|reasonable|where you want)\\b|\\b(?:lean|light)\\b[^.!?,;:]{0,14}\\bon (?:the )?fat\\b`, 'i'),
+    condemn: new RegExp(`\\bfat\\b${V_GAP}\\b(?:high|heavy|ran (?:above|over)|over the range|too much)\\b|\\btoo much fat\\b|\\bheavy on (?:the )?fat\\b`, 'i'),
+  },
+  fiber: {
+    praise: new RegExp(`\\b${PRAISE_W}\\b[^.!?,;:]{0,16}\\bfib(?:er|re)\\b|\\bfib(?:er|re)\\b${V_GAP}\\b(?:solid|strong|covered|plenty)\\b`, 'i'),
+    condemn: new RegExp(`\\bfib(?:er|re)\\b${V_GAP}\\b(?:low|light|missing|lacking|thin)\\b|\\bno fib(?:er|re)\\b|\\b(?:low|light)\\b[^.!?,;:]{0,14}\\bon fib(?:er|re)\\b`, 'i'),
+  },
+};
+
+export function analysisAgreesWithComponents(text, { macros, fiber, detected, minutesLate } = {}) {
+  const t = String(text == null ? '' : text);
+  if (!t) return true;
+  const s = componentStates({ minutesLate, macros, fiber, detected });
+  if (!(s.total > 0)) return true; // nothing judged, nothing to contradict
+  const verdicts = { protein: s.protein, fat: s.fat, fiber: s.fiberState };
+  for (const key of Object.keys(VERDICT_PATTERNS)) {
+    const state = verdicts[key];
+    if (state == null) continue;
+    const p = VERDICT_PATTERNS[key];
+    if (state === 'miss' && p.praise.test(t)) return false;
+    if (state === 'met' && p.condemn.test(t)) return false;
   }
   return true;
 }
