@@ -15,7 +15,12 @@ export const recoveryConfirm = {
     const promoted = tier(mv.from).name !== toTier.name;
     return `
     <div class="confirm-wrap">
-      <div class="big-check"><div class="core" style="background:linear-gradient(155deg, var(--purple-bright), #7e22ce); color:#fff; box-shadow: 0 0 44px rgba(168,85,247,0.55), 0 10px 34px rgba(0,0,0,0.4)">${icon('moonStar', 32)}</div></div>
+      ${/* Composed from tokens, not frozen hexes. `#7e22ce` was the DARK --purple-deep written
+            literally, and on light theme that value is what --purple-bright becomes, so the
+            gradient collapsed toward a single flat purple on exactly the theme where it needed
+            the most separation. Pair --purple-bright with --purple-deep (never -bright with a
+            literal), and compose the halo from --purple-rgb. */''}
+      <div class="big-check"><div class="core" style="background:linear-gradient(155deg, var(--purple-bright), var(--purple-deep)); color:#fff; box-shadow: 0 0 44px rgba(var(--purple-rgb),0.55), 0 10px 34px rgba(0,0,0,0.4)">${icon('moonStar', 32)}</div></div>
       <div class="confirm-title">Check-In Submitted</div>
       <div class="confirm-sub">Recovery refreshed · ${S.coach.hasCoach ? `${esc(S.coach.nameMid)} can see your readiness` : 'counted toward tomorrow'}</div>
 
@@ -108,20 +113,27 @@ export default {
           </div>
         </div>`).join('')}
     </section>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:8px;padding:0 2px;line-height:1.5">Answers are self-reported. What you enter here becomes your Recovery score, so keep it honest.</div>
+    <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin-top:8px;padding:0 2px;line-height:1.5">Answers are self-reported. What you enter here becomes your Recovery score, so keep it honest.</div>
 
     <div style="height:14px"></div>
     <div class="sidebox">
       <div class="req-icon p" style="width:38px;height:38px">${icon('moonStar', 18)}</div>
+      ${/* No projected number until every question is answered. The projection merges the
+            athlete's answers over DAY.ci, so projecting from an empty form was projecting from
+            defaults nobody entered — the same fabrication the chips themselves used to carry.
+            The ceiling ("Earn up to") is real either way: it does not depend on the answers. */''}
       <div><div class="tt" id="rec-gain">${best.gain > 0
-        ? `Current: ${S.score} · Earn up to +${best.gain} · Projected: <span data-proj>${P.to}</span>`
+        ? `Current: ${S.score} · Earn up to +${best.gain}<span data-proj-wrap hidden> · Projected: <span data-proj>${P.to}</span></span>`
         : 'Refreshes your Recovery score tonight'}</div>
       <div class="ts">Same math as your Score Breakdown: your answers set the exact number. ${S.coach.hasCoach ? `${esc(S.coach.name)} sees your readiness before tomorrow's practice.` : 'Honest answers are the whole point.'}</div></div>
     </div>
 
     <div style="height:18px"></div>
-    <button class="btn primary" id="rec-submit" style="background:linear-gradient(150deg, var(--purple-bright), #7e22ce); box-shadow: 0 10px 30px rgba(168,85,247,0.35)">
-      ${icon('check', 19)} Submit Check-In
+    ${/* Gated until every question is answered. An unanswered question used to submit a
+          flattering default (see S.recovery in state.js), so the gate is what makes the
+          check-in the athlete's own words rather than the app's guess about them. */''}
+    <button class="btn recovery" id="rec-submit" disabled>
+      ${icon('check', 19)} <span id="rec-submit-label">Answer all ${R.fields.length} to submit</span>
     </button>
 
     <!-- Wearable connect: hidden unless Apple Health / Health Connect is actually available on
@@ -138,7 +150,26 @@ export default {
     // The chips are the real scoring inputs: 1–5 selection maps to the engine's 0–10 scale
     // as n*2. Selections update live; submit sends the ACTUAL answers to the engine.
     const answers = {};
-    root.querySelectorAll('[data-ci-key]').forEach(field => {
+    const fields = root.querySelectorAll('[data-ci-key]');
+    const total = fields.length;
+    const submit = root.querySelector('#rec-submit');
+    const submitLabel = root.querySelector('#rec-submit-label');
+    const projWrap = root.querySelector('[data-proj-wrap]');
+    // The gate. Every question has to be the athlete's own answer before this can be filed:
+    // a skipped question used to submit a flattering default in its place.
+    const refreshGate = () => {
+      const done = Object.keys(answers).length;
+      const ready = done >= total;
+      if (submit) submit.disabled = !ready;
+      if (submitLabel) submitLabel.textContent = ready ? 'Submit Check-In' : `${done} of ${total} answered`;
+      // The projection is only honest once it is projecting from real answers.
+      if (projWrap) projWrap.hidden = !ready;
+      if (ready) {
+        const proj = root.querySelector('[data-proj]');
+        if (proj) proj.textContent = String(checkinProjection(answers).to);
+      }
+    };
+    fields.forEach(field => {
       const key = field.getAttribute('data-ci-key');
       const chips = field.querySelectorAll('.c5');
       chips.forEach(ch => {
@@ -149,15 +180,15 @@ export default {
           ch.classList.add('on');
           ch.setAttribute('aria-checked', 'true');
           answers[key] = n * 2;
-          // Live projection: only the Projected number moves with the answers — Current is the
-          // score as it stands, and "Earn up to" is the fixed ceiling (shared with the breakdown).
-          const proj = root.querySelector('[data-proj]');
-          if (proj) proj.textContent = String(checkinProjection(answers).to);
+          refreshGate();
         });
       });
     });
-    const submit = root.querySelector('#rec-submit');
+    refreshGate();
     if (submit) submit.addEventListener('click', () => {
+      // Belt and braces: the button is disabled, but a check-in is scored and seen by a coach,
+      // so it does not get filed on a partial answer set under any circumstances.
+      if (Object.keys(answers).length < total) return;
       act.submitRecovery(answers);
       window.__go('recovery-confirm');
     });

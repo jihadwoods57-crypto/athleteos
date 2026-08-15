@@ -143,7 +143,7 @@ export const coachAssign = {
       if (!r.ok) { say(r.error || 'Could not send — try again.', true); return; }
       if (!r.count) { say(`No ${CD.kind === 'practice' ? 'clients' : 'athletes'} matched — check who you picked.`, true); return; }
       ASSIGN.title = ''; ASSIGN.note = '';
-      say(r.count === 1 ? 'Sent — it’s on their list now.' : `Sent — it’s on ${r.count} lists now.`);
+      say(r.count === 1 ? 'Sent. It’s on their list now.' : `Sent. It’s on ${r.count} lists now.`);
     });
   },
 };
@@ -508,7 +508,7 @@ export const coachPlan = {
           <div class="ls">${sub}</div></div>
           ${active
             ? `<button class="btn ghost sm" data-tp="end:${esc(r.athleteId)}" style="width:auto;padding:0 12px;height:30px;font-size:11px;color:var(--red)">End</button>`
-            : `<button class="btn ghost sm" data-go="pass-grant/${esc(r.athleteId)}" style="width:auto;padding:0 12px;height:30px;font-size:11px">Grant</button>`}
+            : `<button class="btn ghost micro" data-go="pass-grant/${esc(r.athleteId)}" style="width:auto">Grant</button>`}
         </div>`;
         }).join('')}
         <div id="tp-plan-status" style="font-size:11.5px;font-weight:600;color:var(--text-3);min-height:14px;padding:2px 2px 8px"></div>
@@ -2245,7 +2245,7 @@ function notesSection(P) {
       </div>
       ${NOTE_DEL === n.id ? `
       <div style="display:flex;gap:6px;flex:none;align-items:center">
-        <button class="btn ghost sm" data-del-note-cancel="1" style="width:auto;padding:0 10px;height:30px">Keep</button>
+        <button class="btn ghost micro" data-del-note-cancel="1" style="width:auto">Keep</button>
         <button class="btn sm" data-del-note-confirm="${esc(n.id)}" style="width:auto;padding:0 10px;height:30px;background:var(--danger-solid);color:#fff;border:none">Delete</button>
       </div>` : `
       <button class="co-abtn" data-del-note="${esc(n.id)}" style="flex:none;width:36px;height:36px;padding:0" aria-label="Delete note">${icon('x', 15)}</button>`}

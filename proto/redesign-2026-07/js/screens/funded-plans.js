@@ -40,7 +40,7 @@ export default {
       <div class="lrow" style="cursor:default">
         <div class="lm"><div class="lt">${esc(p.offer_name)} ${p.cancelled ? '<span class="ls">· cancelled</span>' : ''}</div>
           <div class="ls">${esc(money(p.amount_cents))}${esc(per(p.cadence))}${p.child_name ? ' · for ' + esc(p.child_name) : ''}</div></div>
-        ${(p.recurring && !p.cancelled) ? `<button class="btn ghost sm" data-cancel="${esc(p.id)}" style="width:auto;padding:0 12px;height:30px">${UI.cancelling === p.id ? '…' : 'Cancel'}</button>` : ''}
+        ${(p.recurring && !p.cancelled) ? `<button class="btn ghost micro" data-cancel="${esc(p.id)}" style="width:auto">${UI.cancelling === p.id ? '…' : 'Cancel'}</button>` : ''}
       </div>`).join('')}
     </section>` : `<div class="state-demo"><div class="sd-ic">${icon('bolt', 24)}</div>
       <div class="sd-t">No funded plans yet</div>

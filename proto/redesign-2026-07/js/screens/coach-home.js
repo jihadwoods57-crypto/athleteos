@@ -111,7 +111,7 @@ export function coachSetupSteps(st) {
   return {
     required: [
       { key: 'sharedCode', done: st.sharedCode, t: `Share your ${noun} code`,
-        s: st.sharedCode ? `Shared — ${noun}s can join anytime` : `Invite ${noun}s to start tracking execution`,
+        s: st.sharedCode ? `Shared. ${noun}s can join anytime` : `Invite ${noun}s to start tracking execution`,
         // coach-profile is nav:'coach' — the router silently bounces a trainer off it, so a
         // practice book routes to the Practice HQ, which owns the client-code invite card.
         go: practice ? 'trainer-profile' : 'coach-profile/code' },

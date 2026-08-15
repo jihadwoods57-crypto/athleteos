@@ -70,7 +70,7 @@ function editableForm(a) {
           ${on && !c.locked ? (cred
             ? `<div class="ls" style="margin-top:3px;color:var(--green-bright)">${icon('check', 12)} ${esc(cred.title || 'Document uploaded')} · ${cred.status === 'verified' ? 'verified' : 'awaiting review'}</div>`
             : `<div style="margin-top:6px"><input type="file" id="ca-doc-${c.key}" accept="image/*,.pdf" style="display:none">
-               <button class="btn ghost sm" data-ca-upload="${c.key}" style="width:auto;padding:0 12px;height:30px">${UI.uploading === c.key ? 'Uploading…' : 'Upload certificate'}</button></div>`) : ''}
+               <button class="btn ghost micro" data-ca-upload="${c.key}" style="width:auto">${UI.uploading === c.key ? 'Uploading…' : 'Upload certificate'}</button></div>`) : ''}
         </div>
       </div>`; }).join('')}
     </section>

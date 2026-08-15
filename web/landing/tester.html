@@ -10,13 +10,54 @@
   @font-face{font-family:'Archivo';font-style:normal;font-weight:900;font-display:swap;src:url('./fonts/archivo-exp900.woff2') format('woff2');}
   @font-face{font-family:'Plus Jakarta Sans';font-style:normal;font-weight:200 800;font-display:swap;src:url('./fonts/pjs.woff2') format('woff2');}
 
+  /* This page is session-less and standalone: it loads none of the proto's CSS, so the design
+     system is mirrored here as literal custom properties. Every value below is copied from
+     proto/redesign-2026-07/css/tokens.css and named the same, so the relationship is legible and
+     drift is visible. If the two ever disagree, tokens.css wins. Dark only, no light theme. */
   :root{
+    /* ---- Surfaces ---- */
     --ink:#070B14; --panel:#0D1424; --panel2:#111A2E; --line:#1d2735; --line2:#2a3646;
-    --fg:#eef3f9; --fg2:#a6b4c6; --mut:#6b7a8d;
+    --field:#0b121b;          /* inner well: the claim form's inputs */
+
+    /* ---- Text ----
+       --mut was #6b7a8d, which measures 4.00:1 on the .panel gradient's top stop (#111a26) and
+       3.32:1 on the canvas under both radial washes: a WCAG-AA fail on every field label, hint
+       and footer it drives. This is the same correction tokens.css already made for --text-3
+       (#64748B -> #7C8BA6); the value lands one notch lighter here because this page lays two
+       decorative washes over --ink that the app canvas does not have, and #7C8BA6 only reaches
+       4.22:1 where they overlap. Measured after: 6.11:1 on the panel gradient's top stop,
+       6.46:1 on its bottom stop, 5.08:1 on the fully-washed canvas. */
+    --fg:#eef3f9; --fg2:#a6b4c6; --mut:#8b9aae;
+
+    /* ---- Accent ---- */
     --blue:#3B82F6; --teal:#22D3EE;
     --sweep:linear-gradient(100deg,#3B82F6 0%,#22D3EE 100%);
+
     --display:'Archivo',system-ui,sans-serif; --body:'Plus Jakarta Sans',system-ui,sans-serif;
-    --r:16px;
+
+    /* ---- Type scale (tokens.css) ----
+       Every size on this page is one of these steps. No value between two steps, no new steps. */
+    --t-micro:10px; --t-eyebrow:11px; --t-xs:11px; --t-sm:12.5px; --t-base:14px;
+    --t-md:15.5px; --t-lg:17px; --t-xl:20px; --t-2xl:24px; --t-3xl:34px;
+    /* NOT a type step, and deliberately named so it can't be mistaken for one: iOS Safari zooms
+       the viewport on focus for any field under 16px. The fields hold 16 as a platform
+       constraint rather than snapping to --t-md and pulling the page around under the keyboard. */
+    --t-field:16px;
+    --title-tight:-.02em; --track-eyebrow:.14em; --track-key:.06em;
+
+    /* ---- Radii (tokens.css) ---- */
+    --r-micro:4px; --r-chip:11px; --r-card-sm:16px; --r-pill:999px;
+
+    /* ---- Elevation (tokens.css) ----
+       A card is placed, not glowing. The old .panel drew a 1px border under a 70px diffuse blur;
+       --sh-card's inset top highlight is what gives a card its edge on dark, so the border comes
+       off with the glow. --sh-cta is --sh-blue's geometry (10px drop, 30px blur) carried on the
+       sweep's teal endpoint. */
+    --sh-card:0 1px 0 rgba(255,255,255,.05) inset, 0 8px 24px rgba(0,0,0,.36);
+    --sh-cta:0 10px 30px rgba(34,211,238,.34);
+
+    /* ---- Motion (tokens.css) ---- */
+    --dur-1:160ms; --ease-out:cubic-bezier(.16,1,.3,1);
   }
   *{box-sizing:border-box;} html{-webkit-text-size-adjust:100%;}
   body{margin:0;background:
@@ -29,59 +70,61 @@
   :focus-visible{outline:2px solid var(--teal);outline-offset:3px;}
 
   header{padding:34px 0 8px;}
-  .eyebrow{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--teal);font-weight:700;}
-  h1{font-family:var(--display);font-weight:900;font-size:clamp(28px,6vw,40px);line-height:1.05;letter-spacing:-.02em;margin:12px 0 0;}
-  .sub{color:var(--fg2);font-size:15px;margin-top:12px;max-width:52ch;}
+  .eyebrow{font-size:var(--t-eyebrow);letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--teal);font-weight:700;}
+  h1{font-family:var(--display);font-weight:900;font-size:clamp(var(--t-2xl),6vw,var(--t-3xl));line-height:1.05;letter-spacing:var(--title-tight);margin:12px 0 0;}
+  .sub{color:var(--fg2);font-size:var(--t-md);margin-top:12px;max-width:52ch;}
 
-  .panel{border:1px solid var(--line);border-radius:var(--r);background:linear-gradient(180deg,#111a26,#0d141d);
-    padding:22px;margin:26px 0;box-shadow:0 30px 70px -40px rgba(0,0,0,.8);}
+  .panel{border-radius:var(--r-card-sm);background:linear-gradient(180deg,#111a26,#0d141d);
+    padding:22px;margin:26px 0;box-shadow:var(--sh-card);}
   .row{margin-bottom:12px;}
-  label{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:700;margin-bottom:6px;}
-  input{width:100%;font-family:var(--body);font-size:16px;color:var(--fg);background:#0b121b;
-    border:1px solid var(--line);border-radius:11px;padding:12px 14px;transition:border-color .16s;}
+  label{display:block;font-size:var(--t-eyebrow);letter-spacing:var(--track-key);text-transform:uppercase;color:var(--mut);font-weight:700;margin-bottom:6px;}
+  input{width:100%;font-family:var(--body);font-size:var(--t-field);color:var(--fg);background:var(--field);
+    border:1px solid var(--line);border-radius:var(--r-chip);padding:12px 14px;transition:border-color var(--dur-1) var(--ease-out);}
   input:focus{border-color:var(--teal);outline:none;}
-  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;font-family:var(--body);font-weight:700;font-size:15px;
-    text-decoration:none;border-radius:12px;padding:13px 20px;border:1px solid var(--line2);background:var(--panel2);color:var(--fg);cursor:pointer;
-    transition:transform .1s,border-color .16s,background .16s,filter .16s;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;font-family:var(--body);font-weight:700;font-size:var(--t-md);
+    text-decoration:none;border-radius:var(--r-chip);padding:13px 20px;border:1px solid var(--line2);background:var(--panel2);color:var(--fg);cursor:pointer;
+    transition:transform var(--dur-1) var(--ease-out),border-color var(--dur-1) var(--ease-out),background var(--dur-1) var(--ease-out),filter var(--dur-1) var(--ease-out);}
   .btn:hover{border-color:#3a4a5e;background:#18222f;}
   .btn:active{transform:translateY(1px);}
-  .btn.cta{background:var(--sweep);color:#052027;border:0;box-shadow:0 12px 34px -14px rgba(34,211,238,.55);}
+  .btn.cta{background:var(--sweep);color:#052027;border:0;box-shadow:var(--sh-cta);}
   .btn.cta:hover{filter:brightness(1.06);}
   .btn[disabled]{opacity:.55;cursor:default;transform:none;filter:none;}
-  .say{font-size:13.5px;margin-top:12px;min-height:19px;}
+  .say{font-size:var(--t-sm);margin-top:12px;min-height:19px;}
   .say.bad{color:#F87171;}
-  .fine{font-size:13px;color:var(--mut);margin-top:14px;text-align:center;}
-  .fine button{background:none;border:0;padding:0;color:var(--teal);font-family:var(--body);font-size:13px;font-weight:600;cursor:pointer;}
+  .fine{font-size:var(--t-sm);color:var(--mut);margin-top:14px;text-align:center;}
+  .fine button{background:none;border:0;padding:0;color:var(--teal);font-family:var(--body);font-size:var(--t-sm);font-weight:600;cursor:pointer;}
   .fine button:hover{text-decoration:underline;}
 
-  .setno{font-family:var(--display);font-weight:900;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);margin:0 0 4px;}
-  .cardtitle{font-family:var(--display);font-weight:900;font-size:24px;letter-spacing:-.01em;margin:0 0 18px;}
-  .cardsub{color:var(--fg2);font-size:14px;margin:-10px 0 18px;}
+  .setno{font-family:var(--display);font-weight:900;font-size:var(--t-eyebrow);letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--teal);margin:0 0 4px;}
+  .cardtitle{font-family:var(--display);font-weight:900;font-size:var(--t-2xl);letter-spacing:var(--title-tight);margin:0 0 18px;}
+  .cardsub{color:var(--fg2);font-size:var(--t-base);margin:-10px 0 18px;}
   .field{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:2px 10px;padding:11px 0;border-bottom:1px solid rgba(29,39,53,.7);}
   .field:last-child{border-bottom:0;}
-  .flabel{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:700;min-width:70px;}
-  .fval{font-family:monospace;font-size:14px;color:var(--fg);word-break:break-all;text-align:right;flex:1;}
-  .fhint{flex-basis:100%;font-size:12.5px;color:var(--mut);line-height:1.45;}
+  .flabel{font-size:var(--t-eyebrow);letter-spacing:var(--track-key);text-transform:uppercase;color:var(--mut);font-weight:700;min-width:70px;}
+  .fval{font-family:monospace;font-size:var(--t-base);color:var(--fg);word-break:break-all;text-align:right;flex:1;}
+  .fhint{flex-basis:100%;font-size:var(--t-sm);color:var(--mut);line-height:1.45;}
   .pw .fval{color:var(--teal);font-weight:700;}
 
   .guide{margin-top:26px;padding-top:20px;border-top:1px dashed var(--line2);}
-  .guide h2{font-family:var(--display);font-weight:900;font-size:17px;letter-spacing:-.01em;margin:0 0 10px;}
-  .guide > p{color:var(--fg2);font-size:14px;margin:0 0 12px;max-width:60ch;}
+  .guide h2{font-family:var(--display);font-weight:900;font-size:var(--t-xl);letter-spacing:var(--title-tight);margin:0 0 10px;}
+  .guide > p{color:var(--fg2);font-size:var(--t-base);margin:0 0 12px;max-width:60ch;}
   .guide b{color:var(--fg);}
   .steps{counter-reset:step;margin:22px 0 0;padding:0;list-style:none;}
   .steps li{counter-increment:step;position:relative;padding:0 0 20px 44px;}
   .steps li::before{content:counter(step);position:absolute;left:0;top:-2px;width:28px;height:28px;
-    display:flex;align-items:center;justify-content:center;border-radius:999px;
-    font-family:var(--display);font-weight:900;font-size:13px;color:var(--teal);
+    display:flex;align-items:center;justify-content:center;border-radius:var(--r-pill);
+    font-family:var(--display);font-weight:900;font-size:var(--t-sm);color:var(--teal);
     border:1px solid var(--line2);background:var(--panel2);}
-  .steps h3{font-size:15px;font-weight:700;color:var(--fg);margin:0 0 4px;}
-  .steps p{color:var(--fg2);font-size:14px;margin:0 0 6px;max-width:56ch;}
+  .steps h3{font-size:var(--t-md);font-weight:700;color:var(--fg);margin:0 0 4px;}
+  .steps p{color:var(--fg2);font-size:var(--t-base);margin:0 0 6px;max-width:56ch;}
   .actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;}
   .actions .btn{width:auto;flex:1;min-width:150px;}
 
-  .empty{border:1px dashed var(--line2);border-radius:var(--r);padding:34px 20px;text-align:center;color:var(--fg2);}
-  .empty b{display:block;font-family:var(--display);font-weight:900;font-size:18px;color:var(--fg);margin-bottom:6px;}
-  footer{margin-top:34px;padding-top:20px;border-top:1px solid var(--line);font-size:13px;color:var(--mut);}
+  /* The body copy inside this empty state is a bare <div>, so without this it inherits the
+     browser's 16px default and is the one string on the page off the scale. */
+  .empty{border:1px dashed var(--line2);border-radius:var(--r-card-sm);padding:34px 20px;text-align:center;color:var(--fg2);font-size:var(--t-base);}
+  .empty b{display:block;font-family:var(--display);font-weight:900;font-size:var(--t-lg);color:var(--fg);margin-bottom:6px;}
+  footer{margin-top:34px;padding-top:20px;border-top:1px solid var(--line);font-size:var(--t-sm);color:var(--mut);}
 </style>
 </head>
 <body>

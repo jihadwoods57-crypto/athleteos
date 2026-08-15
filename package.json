@@ -66,6 +66,8 @@
     "lint:xss": "node scripts/lint-innerhtml-esc.mjs",
     "lint:copy": "node proto/redesign-2026-07/tools/copy-lint.mjs",
     "lint:type": "node proto/redesign-2026-07/tools/type-scale-ratchet.mjs",
+    "lint:inline": "node proto/redesign-2026-07/tools/inline-style-ratchet.mjs",
+    "lint:dash": "node proto/redesign-2026-07/tools/em-dash-ratchet.mjs",
     "lint:score": "node proto/redesign-2026-07/tools/lint-score-pct.mjs",
     "test:proto": "node scripts/node-test.mjs \"proto/redesign-2026-07/js/**/*.test.mjs\"",
     "test:admin": "node scripts/node-test.mjs \"web/admin/**/*.test.mjs\"",

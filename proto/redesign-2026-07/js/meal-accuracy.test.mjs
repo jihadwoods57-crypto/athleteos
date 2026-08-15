@@ -17,7 +17,7 @@
      * labelProducts builds the product-cache warming payload from label-read items only. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeDetected, estimateConfidence, applyMealCorrection, mealQualityScore } from './meal-intel.js';
+import { normalizeDetected, estimateConfidence, applyMealCorrection, mealQualityScore, correctionAxes } from './meal-intel.js';
 import { groundFood, labelProducts, gapFoods } from './nutrition.js';
 
 /* ---------------- provenance survives normalization ---------------- */
@@ -64,6 +64,59 @@ test('a named exact product also keeps high (variant resolved, macros estimated)
     { name: 'Core Power', confidence: 'high', kind: 'packaged', product: 'Core Power 26g chocolate' },
   ]);
   assert.equal(conf, 'high');
+});
+
+/* ---------------- correction axes: rank on facts, never on an invented confidence ----------------
+   The panel shows ONE dimension at a time, so whichever axis leads is the one most athletes
+   will answer. It has to be earned from real data: there is no per-axis confidence in the
+   model's output, and these tests exist so nobody later "improves" this into pretending
+   there is. */
+
+test('a cooked protein puts Cooking first', () => {
+  const [lead] = correctionAxes({ source: 'live', detectedRich: [{ name: 'Grilled chicken', confidence: 'high' }] });
+  assert.equal(lead.kind, 'cooking');
+});
+
+test('an answered axis sinks and is marked, never leads again', () => {
+  const axes = correctionAxes({
+    source: 'live',
+    detectedRich: [{ name: 'Grilled chicken', confidence: 'high' }],
+    corrections: [{ kind: 'cooking', value: 'oil' }],
+  });
+  assert.notEqual(axes[0].kind, 'cooking');
+  assert.equal(axes.find((a) => a.kind === 'cooking').answered, true);
+  assert.equal(axes[axes.length - 1].kind, 'cooking');
+});
+
+test('a note that already states the cooking method demotes that axis', () => {
+  const axes = correctionAxes({
+    source: 'live',
+    detectedRich: [{ name: 'Grilled chicken', confidence: 'high' }],
+    userNote: 'air fried it, no oil',
+  });
+  assert.notEqual(axes[0].kind, 'cooking');
+});
+
+test('a drink already in frame ranks below one that never was', () => {
+  const withDrink = correctionAxes({ source: 'live', detectedRich: [{ name: 'Oatmeal' }, { name: 'Orange juice', kind: 'beverage' }] });
+  const without = correctionAxes({ source: 'live', detectedRich: [{ name: 'Oatmeal' }] });
+  const at = (axes) => axes.findIndex((a) => a.kind === 'drink');
+  assert.ok(at(withDrink) > at(without), 'a detected beverage should demote the Drink axis');
+});
+
+test('a low-confidence read leads with Portion', () => {
+  const [lead] = correctionAxes({ source: 'live', detectedRich: [{ name: 'Pasta bowl', confidence: 'low' }] });
+  assert.equal(lead.kind, 'portion');
+});
+
+test('every axis carries its own chips and the full set is always offered', () => {
+  const axes = correctionAxes({ source: 'live', detectedRich: [{ name: 'Toast' }] });
+  assert.equal(axes.length, 5);
+  assert.deepEqual(axes.map((a) => a.kind).sort(), ['cooking', 'drink', 'portion', 'sauce', 'side']);
+  axes.forEach((a) => {
+    assert.ok(a.opts.length >= 3, `${a.kind} should keep its options`);
+    assert.ok(a.label, `${a.kind} needs a label`);
+  });
 });
 
 /* ---------------- grounding respects READ evidence ---------------- */

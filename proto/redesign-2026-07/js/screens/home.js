@@ -89,8 +89,8 @@ function paintStandards(root) {
 let nudgeInFlight = null;
 function coachNudgeHtml(text) {
   return `
-  <div class="trust" style="margin:12px 0 10px;background:linear-gradient(100deg, rgba(168,85,247,0.12), rgba(59,130,246,0.05));border-color:var(--purple-border, rgba(168,85,247,0.35))">
-    <div class="ic" style="background:rgba(168,85,247,0.18);color:var(--purple-bright)">${icon('sparkle', 20)}</div>
+  <div class="trust" style="margin:12px 0 10px;background:linear-gradient(100deg, rgba(var(--purple-rgb), 0.12), rgba(var(--blue-rgb), 0.05));border-color:var(--purple-border, rgba(var(--purple-rgb), 0.35))">
+    <div class="ic" style="background:rgba(var(--purple-rgb), 0.18);color:var(--purple-bright)">${icon('sparkle', 20)}</div>
     <div style="flex:1"><div class="tt" style="display:flex;align-items:center;gap:6px">Your coach<span class="status-pill muted" style="font-size:var(--t-eyebrow);padding:1px 6px">AI</span></div>
     <div class="ts">${esc(text)}</div></div>
   </div>`;
@@ -125,12 +125,12 @@ function maybeCoachNudge(e) {
 }
 
 // Per-type icon media tints (a photo-less card shows its own icon — never someone else's).
-const MEAL_TINT = ['rgba(245,165,36,0.22)', 'rgba(245,165,36,0.08)', 'var(--amber-bright)'];
-const RECOVERY_TINT = ['rgba(168,85,247,0.24)', 'rgba(59,130,246,0.10)', 'var(--purple-bright)'];
+const MEAL_TINT = ['rgba(var(--amber-rgb), 0.22)', 'rgba(var(--amber-rgb), 0.08)', 'var(--amber-bright)'];
+const RECOVERY_TINT = ['rgba(var(--purple-rgb), 0.24)', 'rgba(var(--blue-rgb), 0.10)', 'var(--purple-bright)'];
 const ACT_MEDIA = {
-  droplet: ['rgba(56,189,248,0.28)', 'rgba(37,99,235,0.16)', 'var(--cyan)'],
+  droplet: ['rgba(var(--cyan-rgb), 0.28)', 'rgba(var(--blue-rgb), 0.16)', 'var(--cyan)'],
   moon: RECOVERY_TINT, moonStar: RECOVERY_TINT,
-  scale: ['rgba(59,130,246,0.22)', 'rgba(37,99,235,0.10)', 'var(--blue-bright)'],
+  scale: ['rgba(var(--blue-rgb), 0.22)', 'rgba(var(--blue-rgb), 0.10)', 'var(--blue-bright)'],
   // Every meal-slot glyph shares the one nutrition tint; the glyph varies, the meaning doesn't.
   utensils: MEAL_TINT, breakfast: MEAL_TINT, lunch: MEAL_TINT, dinner: MEAL_TINT, snack: MEAL_TINT,
 };
@@ -358,15 +358,15 @@ function syncBanner() {
   const issue = S.syncIssue;
   if (issue === 'blocked') {
     const em = S.consent.guardianEmail;
-    return `<div class="lrow" data-go="guardian" style="margin:12px 0 10px;background:rgba(245,165,36,0.10);border:1px solid var(--amber-border);border-radius:14px;padding:12px 13px">
-      <div class="xico sm" style="background:rgba(245,165,36,0.18);color:var(--amber-bright)">${icon('lock', 16)}</div>
+    return `<div class="lrow" data-go="guardian" style="margin:12px 0 10px;background:rgba(var(--amber-rgb), 0.10);border:1px solid var(--amber-border);border-radius:14px;padding:12px 13px">
+      <div class="xico sm" style="background:rgba(var(--amber-rgb), 0.18);color:var(--amber-bright)">${icon('lock', 16)}</div>
       <div class="xr"><div class="xa">${em ? 'Waiting on your parent' : 'One step before your day syncs'}</div>
       <div class="xb">${em ? 'Everything you log is safe on this phone until they approve.' : 'You’re under 18, so a parent approves before your day reaches your coach. Tap to send it.'}</div></div>
       ${icon('chevron', 16, 'style="color:var(--text-3)"')}
     </div>`;
   }
   if (issue === 'error') {
-    return `<div class="lrow" style="margin:12px 0 10px;background:rgba(59,130,246,0.08);border:1px solid var(--hairline);border-radius:14px;padding:12px 13px;cursor:default">
+    return `<div class="lrow" style="margin:12px 0 10px;background:rgba(var(--blue-rgb), 0.08);border:1px solid var(--hairline);border-radius:14px;padding:12px 13px;cursor:default">
       <div class="xico sm gray">${icon('wifiOff', 16)}</div>
       <div class="xr"><div class="xa">Waiting to sync</div>
       <div class="xb">Your entry is saved and will upload automatically when you reconnect.</div></div>
@@ -528,7 +528,7 @@ const grow = (i, { hidePill, chev, checkIcon } = {}) => {
   return `<div class="xg-row" data-go="${i.route}">
     <div class="xico sm ${i.color}">${icon(checkIcon ? 'checkCircle' : i.icon, 17)}</div>
     <div class="xr"><div class="xa">${esc(i.title)}</div><div class="xb">${esc(i.sub)}</div></div>
-    ${spendable ? `<button class="btn ghost sm" data-spend="${esc(i.id)}" style="width:auto;padding:0 10px;height:30px;font-size:11px">${icon('shield', 13)} Use a pass</button>` : ''}
+    ${spendable ? `<button class="btn ghost micro" data-spend="${esc(i.id)}" style="width:auto">${icon('shield', 13)} Use a pass</button>` : ''}
     ${hidePill ? '' : `<span class="xpill ${i.color}">${i.pill}</span>`}
     ${chev ? icon('chevron', 16, 'style="color:var(--text-3)"') : ''}
   </div>`;
@@ -712,8 +712,8 @@ export default {
     // Attention slot — exactly one card. syncBanner returns '' when sync is fine.
     const sync = syncBanner();
     const injuryCard = RT.injured ? `
-    <div class="trust" data-go="injury" style="cursor:pointer;margin:12px 0 10px;background:linear-gradient(100deg, rgba(245,165,36,0.14), rgba(59,130,246,0.05));border-color:var(--amber-border)">
-      <div class="ic" style="background:rgba(245,165,36,0.2);color:var(--amber-bright)">${icon('bolt', 20)}</div>
+    <div class="trust" data-go="injury" style="cursor:pointer;margin:12px 0 10px;background:linear-gradient(100deg, rgba(var(--amber-rgb), 0.14), rgba(var(--blue-rgb), 0.05));border-color:var(--amber-border)">
+      <div class="ic" style="background:rgba(var(--amber-rgb), 0.2);color:var(--amber-bright)">${icon('bolt', 20)}</div>
       <div style="flex:1"><div class="tt">Injury mode · active</div>
       <div class="ts">Your Standard adapted. Rehab is on the list while you heal.</div></div>
       ${icon('chevron', 18, 'style="color:var(--text-3)"')}
@@ -724,7 +724,7 @@ export default {
     // Whatever lost the attention slot demotes to a quiet one-line row below the ladder.
     const demoted = [
       attention !== injuryCard && RT.injured
-        ? `<div class="xrow-item" data-go="injury"><div class="xico sm" style="background:rgba(245,165,36,0.18);color:var(--amber-bright)">${icon('bolt', 16)}</div><div class="xr"><div class="xa">Injury mode active</div><div class="xb">Your Standard adapted while you heal</div></div><span class="xpill gold">On</span></div>` : '',
+        ? `<div class="xrow-item" data-go="injury"><div class="xico sm" style="background:rgba(var(--amber-rgb), 0.18);color:var(--amber-bright)">${icon('bolt', 16)}</div><div class="xr"><div class="xa">Injury mode active</div><div class="xb">Your Standard adapted while you heal</div></div><span class="xpill gold">On</span></div>` : '',
     ].filter(Boolean).join('');
 
     const upcoming = e.later;
@@ -812,19 +812,50 @@ export default {
     // sits inside a data-go row (grow()) — without it the tap would also fire the row's own
     // navigation. On failure the button's own label carries the reason rather than a toast,
     // matching this screen's existing inline-status convention (no toast utility exists here).
-    root.querySelectorAll('[data-spend]').forEach((b) => b.addEventListener('click', async (ev) => {
-      ev.stopPropagation();
-      const slot = b.getAttribute('data-spend');
-      const original = b.textContent;
-      b.disabled = true; b.textContent = 'Applying…';
-      const r = await act.spendPass(slot);
-      if (!r.ok) {
-        b.disabled = false; b.textContent = r.error || 'Could not apply it';
-        setTimeout(() => { if (b.isConnected) b.textContent = original; }, 2200);
-      }
-      // On success the credit count changes and the slot is now covered, so the next render
-      // (act.spendPass already calls window.__render()) removes this button entirely.
-    }));
+    //
+    // ARMED FIRST, SPENT SECOND. A pass is scarce, granted by a coach, and spending one is not
+    // undoable — and this button sits inside a row that is itself a navigation target, so a
+    // thumb aiming at "open my breakfast" was one pixel away from burning a credit silently.
+    // Two taps, with the cost named in between. Inline rather than a modal, matching the nudge
+    // preview's two-step and this screen's own status convention. Arming disarms itself after a
+    // few seconds and on any tap elsewhere, so the armed state can never be left lying around.
+    let armed = null, armTimer = null;
+    const disarm = () => {
+      if (armTimer) { clearTimeout(armTimer); armTimer = null; }
+      if (armed && armed.isConnected) { armed.innerHTML = armed.dataset.idle; armed.classList.remove('armed'); }
+      armed = null;
+    };
+    root.querySelectorAll('[data-spend]').forEach((b) => {
+      b.dataset.idle = b.innerHTML;
+      b.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        if (armed !== b) {
+          disarm();
+          armed = b;
+          b.classList.add('armed');
+          // Name what it costs and what is left. "Use a pass" never said either.
+          b.innerHTML = `${icon('shield', 13)} Spend 1 of ${S.pass.left}?`;
+          armTimer = setTimeout(disarm, 4200);
+          return;
+        }
+        disarm();
+        const slot = b.getAttribute('data-spend');
+        const idle = b.dataset.idle;
+        b.disabled = true; b.textContent = 'Applying…';
+        const r = await act.spendPass(slot);
+        if (!r.ok) {
+          b.disabled = false; b.textContent = r.error || 'Could not apply it';
+          setTimeout(() => { if (b.isConnected) b.innerHTML = idle; }, 2200);
+        }
+        // On success the credit count changes and the slot is now covered, so the next render
+        // (act.spendPass already calls window.__render()) removes this button entirely.
+      });
+    });
+    // Any tap that is not the armed button itself puts it back. Capture phase so it runs even
+    // though the row underneath stops propagation on its own handlers.
+    root.addEventListener('click', (ev) => {
+      if (armed && !ev.target.closest('[data-spend]')) disarm();
+    }, true);
     // Entrance choreography: hero settles first, then each block ~45ms behind, done in
     // about a third of a second. Plays only on ARRIVAL (homeEntrance gate) — the exec
     // tick's in-place re-render never replays it. Reduced-motion skips entirely.

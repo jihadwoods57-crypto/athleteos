@@ -1571,6 +1571,16 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .fx-chip:active{transform:scale(0.95)}
 .fx-other{display:flex;gap:8px;flex:1}
 .fx-other .input{flex:1}
+/* Dimension tabs (2026-08-14). The first decision in the panel is "which dimension", so the
+   tabs read as a quieter tier than the answer chips underneath them: no fill until selected,
+   and the selected one carries the action accent because it is the current selection. */
+.fx-axes{display:flex;flex-wrap:wrap;gap:6px;padding-bottom:12px;margin-bottom:2px;border-bottom:1px solid var(--hairline-soft)}
+.fx-axis{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--hairline);background:none;color:var(--text-2);font-family:var(--font);font-size:var(--t-sm);font-weight:700;border-radius:var(--r-pill);padding:7px 13px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:color var(--dur-1) var(--ease-out),border-color var(--dur-1) var(--ease-out),background var(--dur-1) var(--ease-out)}
+.fx-axis:active{transform:scale(0.96)}
+.fx-axis.on{color:var(--blue-bright);border-color:var(--blue-border);background:var(--blue-surface)}
+.fx-axis svg{color:var(--green-bright);opacity:.9}
+.fx-axis:focus-visible{outline:2px solid var(--blue-bright);outline-offset:2px}
+.fx-vals{padding-top:12px}
 .fq-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 
 /* ----- Score Breakdown v2 (spec §2): expandable categories, exact remainders ----- */

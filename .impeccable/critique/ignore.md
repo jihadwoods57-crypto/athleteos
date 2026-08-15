@@ -3,9 +3,14 @@
 Findings reviewed and deliberately accepted. `impeccable critique` drops any finding whose rule
 name or snippet matches a line here, so keep each line specific and keep the reason with it.
 
-Last reviewed 2026-08-08, against a detector run of 15 findings (down from 33).
+Last reviewed 2026-08-14, against a detector run of 14 findings.
 
 ## Documented parts of the design system
+
+- **layout-transition — `transition: height` (app.css:34 and its inlined copy in index.html).**
+  The deliberate iOS keyboard-resize mechanic: 220ms tuned to match the keyboard slide (see
+  js/keyboard.js and the comment at the rule). Judged exception 2026-08-14; the layout-animation
+  ban stands everywhere else.
 
 - **Overused font — Plus Jakarta Sans.** The committed brand face (DESIGN.md), paired with Archivo
   as the display face for scores. The detector reads it as a generic AI-UI default; here it is a

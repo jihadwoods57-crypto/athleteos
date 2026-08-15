@@ -556,9 +556,32 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 .btn.primary { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); color: #fff; box-shadow: var(--sh-blue); }
 .btn.green { background: linear-gradient(150deg, var(--green), var(--green-deep)); color: var(--ink-on-accent); box-shadow: var(--sh-green); }
 .btn.ghost { background: var(--surface-2); color: var(--text); border: 1px solid var(--hairline); box-shadow: none; }
+/* Recovery is the one flow with its own hue (purple = recovery, DESIGN.md's semantic table), and
+   its submit button was carrying the gradient as an inline style. That made it unstylable from
+   here: an inline background beats :disabled, so the gated button still looked live. As a variant
+   it composes from tokens, inverts correctly on light, and loses its fill when disabled. */
+.btn.recovery { background: linear-gradient(150deg, var(--purple-bright), var(--purple-deep)); color: #fff; box-shadow: 0 10px 30px rgba(var(--purple-rgb), 0.35); }
+
+/* ----- Size scale -----
+   Three steps below the 56px base, each one a REAL populated tier rather than a guess: an audit
+   of the four flagship screens found 86 inline `height:` declarations on buttons across six
+   different values (34px×36, 30px×21, 36px×13, 32px×10, 40px×4, 28px×2). Six bodies for one
+   idea. These collapse that to steps far enough apart to read as deliberate levels, the same
+   rule the type scale follows. Do not add a fourth, and do not reach for a value between two.
+   `xs` and `micro` set their own font-size and padding because a 36px control with 16px/800 text
+   has no room left for a label. */
 .btn.sm { height: 48px; font-size: var(--t-md); }
+.btn.xs { height: 36px; font-size: var(--t-sm); gap: 6px; padding: 0 14px; border-radius: var(--r-chip); }
+.btn.micro { height: 30px; font-size: var(--t-xs); gap: 5px; padding: 0 11px; border-radius: var(--r-chip); }
+/* Armed: a two-tap control that has been tapped once and is now asking for confirmation. The
+   action accent is exactly right here — this is the live action awaiting its second tap — and
+   it is deliberately NOT amber, which DESIGN.md reserves for warnings. Nothing is wrong; the
+   control is just about to spend something. */
+.btn.armed { color: var(--blue-bright); border-color: var(--blue-border); background: var(--blue-surface); }
 /* Disabled = a muted "waiting for input" fill with a still-legible label — never a ghosted,
-   broken-looking button (the label stays readable, not dropped to 45% with the fill). */
+   broken-looking button (the label stays readable, not dropped to 45% with the fill).
+   Listed after the variants so it wins on order against .primary/.green/.recovery, which all
+   set their own background: a disabled control must never keep an inviting fill. */
 .btn:disabled { background: var(--surface-2); color: var(--text-2); cursor: not-allowed; box-shadow: none; }
 .btn:disabled:active { transform: none; filter: none; }
 .btn-row { display: flex; gap:12px; }

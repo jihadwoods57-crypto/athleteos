@@ -159,17 +159,17 @@ function groupSheet(groups) {
     ${groups.map(g => GDEL === g.id ? `
     <div class="lrow" style="cursor:default">
       <div class="lm"><div class="lt">Delete ${esc(g.name)}?</div><div class="ls">Groups are filters; nobody leaves the roster.</div></div>
-      <button class="btn ghost sm" data-gdel-cancel="1" style="width:auto;padding:0 10px;height:30px">Keep</button>
+      <button class="btn ghost micro" data-gdel-cancel="1" style="width:auto">Keep</button>
       <button class="btn sm" data-gdel-confirm="${esc(g.id)}" style="width:auto;padding:0 10px;height:30px;margin-left:6px;background:var(--danger-solid);color:#fff;border:none">Delete group</button>
     </div>` : `
     <div class="lrow" style="cursor:default">
       <div class="lm"><div class="lt">${esc(g.name)}</div><div class="ls">${(g.athlete_ids || []).length} ${CD.noun}${(g.athlete_ids || []).length === 1 ? '' : 's'}</div></div>
-      ${SEL.size ? `<button class="btn ghost sm" data-gadd="${esc(g.id)}" style="width:auto;padding:0 10px;height:30px">Add ${SEL.size}</button>` : ''}
+      ${SEL.size ? `<button class="btn ghost micro" data-gadd="${esc(g.id)}" style="width:auto">Add ${SEL.size}</button>` : ''}
       <button class="btn ghost sm" data-gdel="${esc(g.id)}" style="width:auto;padding:0 10px;height:30px;margin-left:6px;color:var(--red)">Delete</button>
     </div>`).join('') || `<div style="font-size:12px;font-weight:600;color:var(--text-3)">No groups yet.</div>`}
     <div style="display:flex;gap:7px;margin-top:10px">
       <input class="ob-input" id="group-name" maxlength="40" placeholder="New group name" style="flex:1;height:36px" />
-      <button class="btn green sm" data-gnew style="width:auto;padding:0 12px;height:36px" ${SEL.size ? '' : 'disabled'}>Create with ${SEL.size || 0}</button>
+      <button class="btn green xs" data-gnew style="width:auto" ${SEL.size ? '' : 'disabled'}>Create with ${SEL.size || 0}</button>
     </div>
     <div id="group-status" style="font-size:11.5px;font-weight:600;color:var(--text-3);min-height:14px;margin-top:5px"></div>
   </section>`;

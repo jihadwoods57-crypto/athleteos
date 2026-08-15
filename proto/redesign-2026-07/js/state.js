@@ -4542,10 +4542,22 @@ export const S = {
       { key: 'digestion',  k: 'Digestion',     lo: 'Rough',   hi: 'Comfortable' },
       { key: 'cravings',   k: 'Cravings',      lo: 'None',    hi: 'Constant' },
     ];
-    // 5 chips map to the engine's 0–10 scale as 2/4/6/8/10; initial selection reflects the
-    // day's current values so reopening the form shows what will actually be submitted.
+    // 5 chips map to the engine's 0–10 scale as 2/4/6/8/10.
+    //
+    // `val` is null until the check-in has actually been submitted, and that is the whole point.
+    // It used to seed every chip from DAY.ci, which on an unsubmitted day is DEFAULT_CI —
+    // energy 8, sleep 8, confidence 9. So the form opened with Energy 4/5, Sleep 4/5 and
+    // Confidence 5/5 already lit, and an athlete who tapped Submit without touching anything
+    // (the likely path at 10pm after practice) filed a flattering recovery score they never
+    // claimed. daySubmitCheckin merges by key, so a PARTIAL answer set inherited those defaults
+    // for every question they skipped. That is the score inflating itself, on the one screen
+    // whose own copy says "what you enter here becomes your Recovery score, so keep it honest".
+    // Nothing is pre-answered now; the screen gates Submit until the athlete has answered.
     const fields = ANCHORS.filter(a => DAY.ciConfig && DAY.ciConfig[a.key])
-      .map(a => ({ ...a, val: Math.min(5, Math.max(1, Math.round((DAY.ci[a.key] ?? 6) / 2))) }));
+      .map(a => ({
+        ...a,
+        val: DAY.ciSubmitted ? Math.min(5, Math.max(1, Math.round((DAY.ci[a.key] ?? 6) / 2))) : null,
+      }));
     return { fields };
   },
 

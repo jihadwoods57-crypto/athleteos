@@ -7,7 +7,7 @@ import {
   openingMessage, openingSummary, qualityBand, scoreReasons, coachFocus, reactionGroups, threadMessages,
   contextForChat, applyFoodEdit, hasUserEdits, restrictionConflicts,
   estimateConfidence, estRange, mealPatterns, scoreRubric, coachThreadStatus,
-  REACTION_EMOJI,
+  correctionAxes, REACTION_EMOJI,
 } from '../meal-intel.js';
 import {
   attachedPhoto, isPhotoOnly, wireComposerAttach, postChatMessage,
@@ -145,19 +145,27 @@ export const analyzing = {
     const phase = root.querySelector('#an-phase');
     const sub = root.querySelector('#an-sub');
     const onScreen = () => location.hash.startsWith('#analyzing');
-    /* Three beats instead of two. The screen used to switch copy once at 1s and then hold, which
-       was fine when it bailed after a second — now that it actually waits for the read (see the
-       dwell note below), one static line for several seconds reads as a hang. */
-    const PHASES = [
-      [1400, 'Estimating macros', 'Matching to your plan'],
-      [3800, 'Almost there', 'Building your breakdown'],
-    ];
-    const phaseTimers = PHASES.map(([at, head, tail]) => setTimeout(() => {
-      if (!phase || !onScreen()) return;
-      phase.innerHTML = `${head}<span class="dots"></span>`;
-      if (sub) sub.textContent = tail;
-    }, at));
-    const clearPhases = () => phaseTimers.forEach(clearTimeout);
+    /* HONEST PHASE COPY (2026-08-14). This used to be a three-beat ladder on setTimeout:
+       "Estimating macros" at 1.4s, "Almost there" at 3.8s. Neither line knew anything. The
+       read had either landed or it had not, and the screen narrated stages it could not
+       observe — on the one surface whose entire job is reading the athlete's proof. In a
+       product whose spine is that the number is honest, the wait should not be theater.
+
+       What IS true and worth saying is elapsed time. Past a few seconds this is a slow read,
+       and saying so beats inventing a stage. One beat, and it only fires if the read genuinely
+       has not landed yet. */
+    const slotKey = slotArg || (MEAL && MEAL.key) || null;
+    const landed = () => {
+      if (!slotKey || !DAY.meals[slotKey]) return false;   // analysis still in flight
+      return !(DAY.slotMacros[slotKey] || {}).pending;      // applyAnalysisResult clears it
+    };
+    const SLOW_MS = 4200;
+    const slowTimer = setTimeout(() => {
+      if (!phase || !onScreen() || landed()) return;
+      phase.innerHTML = `Still reading<span class="dots"></span>`;
+      if (sub) sub.textContent = 'A careful read takes a few seconds';
+    }, SLOW_MS);
+    const clearPhases = () => clearTimeout(slowTimer);
 
     /* ---- WATCH MODE: the meal is ALREADY logged and the outbox owns the read. ----
        This is the path the camera takes now. Two things it must never do: start its own analysis
@@ -168,26 +176,26 @@ export const analyzing = {
        when the read comes back in 300ms, MAX_MS guarantees it is never a wait. Either way the next
        screen is the thread, which already states the pending case honestly ("Logged and counting.
        The breakdown lands here in a few seconds"). */
-    const slot = slotArg || (MEAL && MEAL.key) || null;
+    const slot = slotKey;
     if (slot && DAY.meals[slot]) {
-      /* The dwell. MIN_MS is the floor so the scan always registers as work; MAX_MS is the
-         ceiling so this is a moment, never a gate — the meal is already committed and nothing
-         downstream waits on this screen.
-         Both were far too tight (1150 / 3200). The ceiling in particular sat below a real vision
-         call, so the athlete was handed off mid-read almost every time. Worse, `pending` was
-         never persisted (day.js dropped it from dayLogMeal's meta whitelist), so `landed` was
-         true on the very first tick and this always bailed at the 1150ms floor — which is what
-         "way too fast" was. With pending fixed this genuinely waits for the read, and the
-         ceiling now clears a typical call instead of cutting it off. */
-      const MIN_MS = 2600, MAX_MS = 9000;
+      /* The dwell. MIN_MS is the floor so the scan actually registers as something that
+         happened; MAX_MS is the ceiling so this is a moment, never a gate — the meal is already
+         committed and nothing downstream waits on this screen.
+         The ceiling was once 3200, below a real vision call, so the athlete was handed off
+         mid-read almost every time; 9000 clears a typical call instead of cutting it off.
+         The FLOOR came down from 2600 to 1000 (2026-08-14). 2600 was chosen when `pending` was
+         never persisted and the screen always bailed instantly, so the floor was doing the work
+         of the whole wait. With pending fixed the floor's only job is to keep a landed-in-300ms
+         read from flashing past — 1000ms does that. Anything beyond it was the app holding an
+         athlete in front of a finished answer, roughly eight manufactured seconds a day for
+         someone who logs four meals. */
+      const MIN_MS = 1000, MAX_MS = 9000;
       const t0 = Date.now();
       const leave = () => { clearPhases(); if (onScreen()) window.__go('meal-thread/' + slot); };
       const tick = () => {
         if (!root.isConnected || !onScreen()) { clearPhases(); return; }
-        const cur = DAY.slotMacros[slot] || {};
-        const landed = !cur.pending;              // applyAnalysisResult clears it, success or not
         const waited = Date.now() - t0;
-        if ((landed && waited >= MIN_MS) || waited >= MAX_MS) { leave(); return; }
+        if ((landed() && waited >= MIN_MS) || waited >= MAX_MS) { leave(); return; }
         setTimeout(tick, 110);
       };
       setTimeout(tick, 110);
@@ -209,7 +217,7 @@ export const analyzing = {
       const sl = root.querySelector('.scanline');
       if (sl) sl.style.display = 'none';
       if (phase) phase.textContent = r.error || 'Analysis failed.';
-      if (sub) { sub.textContent = 'Nothing was logged — your photo is still here.'; }
+      if (sub) { sub.textContent = 'Nothing was logged. Your photo is still here.'; }
       // Retake is the primary way out. The second button is the only place in the app where someone
       // knows exactly what broke AND is already looking at it — a bug report filed from here needs
       // no reconstruction, and the screen it came from is attached automatically.
@@ -246,7 +254,11 @@ export const mealQuestions = {
     if (!qs.length) { if (location.hash === '#meal-questions') location.hash = '#camera'; return ''; }
     const img = safeImg((MEAL && MEAL.photoDataUrl) || S.logging.img);
     return `
-    ${backHead('Two quick things', "So your numbers are exact", 'camera')}
+    ${/* The header counts what is actually being asked. It said "Two quick things" for a list
+          the model builds at 1 to 3 questions, so a single-question screen opened by promising
+          two and a three-question screen undercounted itself. Small, but this screen's entire
+          pitch is that it does not guess. */''}
+    ${backHead(qs.length === 1 ? 'One quick thing' : qs.length === 2 ? 'Two quick things' : `${qs.length} quick things`, 'So your numbers are exact', 'camera')}
     ${img ? `<div class="mq-photo" style="background-image:url('${img}')"><div class="mq-grad"></div>
       <div class="mq-badge">${icon('sparkle', 13)} The camera can't see everything</div></div>` : ''}
     <div class="mq-lead">A photo can't show what's hidden under or off the plate. Answer these and your read is dead on.</div>
@@ -396,7 +408,7 @@ export function openingBlockHtml(M, { sum, fullText, fq, hasPersistedRead = fals
     const capacity = M.analysisFailed === 'capacity';
     return wrap(aiRow(`
           <div style="font-weight:700">${capacity ? "I couldn't get to this one today." : "I couldn't read this plate."}</div>
-          <div style="margin-top:4px;color:var(--text-2)">It's logged and counts for timing either way — your photo is the proof.${capacity ? '' : ' Worth another try?'}</div>
+          <div style="margin-top:4px;color:var(--text-2)">It's logged and counts for timing either way. Your photo is the proof.${capacity ? '' : ' Worth another try?'}</div>
           ${capacity ? '' : `<div class="fq-chips"><button class="fx-chip" id="mt-retry-analysis">${icon('sparkle', 13)} Read it again</button></div>`}`, 'analysis-failed'), '');
   }
 
@@ -422,7 +434,7 @@ export function openingBlockHtml(M, { sum, fullText, fq, hasPersistedRead = fals
   if (M && M.pending) {
     return wrap(aiRow(`
           <div style="font-weight:700">Reading your plate<span class="dots"></span></div>
-          <div style="margin-top:4px;color:var(--text-2)">Logged and counting. The breakdown lands here in a few seconds — you don't have to wait on this screen.</div>`, 'analysis-pending'), '');
+          <div style="margin-top:4px;color:var(--text-2)">Logged and counting. The breakdown lands here in a few seconds. You don't have to wait on this screen.</div>`, 'analysis-pending'), '');
   }
 
   // ONE pending-fact confirmation, and only when it is about a food on THIS plate — an inferred
@@ -437,8 +449,8 @@ export function openingBlockHtml(M, { sum, fullText, fq, hasPersistedRead = fals
         <div><div class="who">AI Nutritionist</div>
         <div class="bubble">
           ${esc(askFact.kind === 'dislike'
-            ? `Noted — you took ${askFact.value} off a plate. Skip it in future reads?`
-            : `Should I remember: ${askFact.kind.replace(/_/g, ' ')} — ${askFact.value}?`)}
+            ? `Noted. You took ${askFact.value} off a plate. Skip it in future reads?`
+            : `Should I remember: ${askFact.kind.replace(/_/g, ' ')} (${askFact.value})?`)}
           <div class="fq-chips">
             <button class="fx-chip" data-fact="${esc(askFact.id)}" data-keep="1">Yes, remember</button>
             <button class="fx-chip" data-fact="${esc(askFact.id)}" data-keep="0">No, one-off</button>
@@ -538,7 +550,7 @@ export const analysis = {
       ${rich.map((d) => `
         <div class="food-row" data-name="${esc(d.name)}">
           <span class="conf-dot ${esc(d.confidence)}"></span>
-          <span class="fr-name">${esc(d.name)}${d.confidence === 'low' ? '<span class="q" title="AI is unsure — confirm or remove">?</span>' : ''}</span>
+          <span class="fr-name">${esc(d.name)}${d.confidence === 'low' ? '<span class="q" title="AI is unsure. Confirm or remove">?</span>' : ''}</span>
           <span class="fr-qty">${d.quantity ? esc(d.quantity) : ''}</span>
         </div>`).join('')}
       <div class="food-row fr-add" id="food-add" style="display:none">
@@ -687,7 +699,7 @@ export const thread = {
       <div class="state-demo">
         <div class="sd-ic">${icon('camera', 24)}</div>
         <div class="sd-t">${esc(M.name)} isn't logged yet</div>
-        <div class="sd-s">Log it with a photo and its full breakdown — foods, macros, your team's take — lives here.</div>
+        <div class="sd-s">Log it with a photo and its full breakdown (foods, macros, your team's take) lives here.</div>
       </div>
       <button class="btn green" data-go="camera/${M.slot}">${icon('camera', 18)} Log ${esc(M.name)}</button>
       <div style="height:10px"></div>`;
@@ -810,7 +822,7 @@ export const thread = {
     // move is to offer the read again.
     const emptyRead = settled && fromPhoto
       && !M.macros.protein && !M.macros.carbs && !M.macros.fat && !M.macros.cals;
-    const rereadNote = `<div class="est-note" style="margin-top:8px">These numbers didn't land — the read came back empty, so nothing was measured.${M.mealId ? ` <span class="link" id="mt-reread" role="button">Re-read this meal</span>` : ''}${M.rereadError ? ` <b style="color:var(--text-2)">Couldn't fetch the photo just now — try again in a moment.</b>` : ''}</div>`;
+    const rereadNote = `<div class="est-note" style="margin-top:8px">These numbers didn't land. The read came back empty, so nothing was measured.${M.mealId ? ` <span class="link" id="mt-reread" role="button">Re-read this meal</span>` : ''}${M.rereadError ? ` <b style="color:var(--text-2)">Couldn't fetch the photo just now — try again in a moment.</b>` : ''}</div>`;
     // INTUITIVE (0142): no macro or calorie figure reaches the athlete. The plate itself, what
     // was on it, and how it landed still do — the composition IS the feedback. Every number is
     // still computed and still stored (the professional needs them, and under-fueling is a
@@ -936,7 +948,7 @@ export const thread = {
         ${['Protein', 'Carbs', 'Fat', 'Calories', 'Fiber'].map((k) => `
         <div class="macro"><div class="mv${M.analysisFailed ? '' : ' mv-wait'}" style="color:var(--text-3)">&mdash;</div><div class="mk">${k}</div></div>`).join('')}
       </div>
-      ${M.analysisFailed ? `<div class="est-note" style="margin-top:10px">No numbers for this one — the photo is still your proof that the meal happened.</div>` : ''}
+      ${M.analysisFailed ? `<div class="est-note" style="margin-top:10px">No numbers for this one. The photo is still your proof that the meal happened.</div>` : ''}
     </section>` : !showNums ? `
     <div class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">What was on the plate</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></div>
     ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
@@ -951,37 +963,47 @@ export const thread = {
       <div class="bd-body">
       ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
       ${targetBars.length ? '' : `<div class="est-note">No coach targets set yet, so there's nothing to measure against. These are this meal's totals.</div>`}
-      <div class="est-note" style="margin-top:8px">~${M.fiber}g fiber estimated — the full component read lives under "Why this meal reads ${M.score != null ? M.score : 'what it reads'}".</div>
+      <div class="est-note" style="margin-top:8px">~${M.fiber}g fiber estimated. The full component read lives under "Why this meal reads ${M.score != null ? M.score : 'what it reads'}".</div>
       ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
-      ${corrLog ? `<div class="est-note" style="margin-top:8px;color:var(--blue-bright)"><b style="color:var(--blue-bright)">Corrected by you</b> — ${corrLog} correction${corrLog === 1 ? '' : 's'} applied. The AI's original estimate is kept for reference${M.orig ? ` (was ~${M.orig.protein}g protein · ~${M.orig.kcal} cal)` : ''}.</div>` : ''}
+      ${corrLog ? `<div class="est-note" style="margin-top:8px;color:var(--blue-bright)"><b style="color:var(--blue-bright)">Corrected by you</b>: ${corrLog} correction${corrLog === 1 ? '' : 's'} applied. The AI's original estimate is kept for reference${M.orig ? ` (was ~${M.orig.protein}g protein · ~${M.orig.kcal} cal)` : ''}.</div>` : ''}
       ${/* The two entry points into the correction panel live HERE, with the numbers they correct
             (founder, 2026-08-02). Both render for a manually logged meal too. */''}
       ${emptyRead ? '' : M.mealId ? `<div class="est-note">${fromPhoto ? 'Estimated from the photo · cooking oil or sauce may change these numbers. ' : ''}<span class="link" id="open-correct" role="button">${fromPhoto ? 'Something off? Correct the analysis' : 'Correct the analysis'}</span> · <span class="link" id="qa-details" role="button">Add meal details</span></div>` : ''}
 
       <!-- Correct analysis (upgrade 2026-07-16): fix what the photo can't show; every chip is a
            deterministic, estimated adjustment with an audit trail — hidden until opened. -->
+      ${/* ONE DECISION AT A TIME (2026-08-14). This panel used to render all five dimensions
+            expanded at once: nineteen chips plus a free-text field, on the app's most-used
+            flow, for an athlete who arrived with exactly one thing to fix. Now the first
+            decision is "which dimension", and only that dimension's answers are on screen.
+            Every panel is in the DOM (so the chips keep their delegated handler and nothing
+            re-renders on a tab switch) but the inactive ones are `hidden`, which also takes
+            them out of the tab order. Order comes from correctionAxes(): real signals only. */''}
+      ${(() => {
+        const axes = correctionAxes(M);
+        const valid = new Set(axes.map((a) => a.kind).concat('other'));
+        const active = valid.has(thread._fixAxis) ? thread._fixAxis : axes[0].kind;
+        const tab = (kind, label, answered) => `<button class="fx-axis${kind === active ? ' on' : ''}" data-axis="${kind}" role="tab" aria-selected="${kind === active}">${label}${answered ? icon('check', 12) : ''}</button>`;
+        return `
       <div id="fix-panel" hidden>
         <div class="eyebrow" style="margin-top:14px">Correct the analysis</div>
         <section class="card pad" style="padding-top:12px">
-          ${[
-            ['cooking', 'Cooking', [['Oil', 'oil'], ['Butter', 'butter'], ['Neither', 'neither']]],
-            ['sauce', 'Sauce', [['Creamy', 'creamy'], ['Sweet / glaze', 'sweet'], ['None', 'none']]],
-            ['drink', 'Drink', [['Water', 'water'], ['Milk', 'milk'], ['Juice', 'juice'], ['Soda', 'soda'], ['Sports drink', 'sports drink']]],
-            ['side', 'I also had', [['Fruit', 'fruit'], ['Vegetables', 'vegetables'], ['Bread / roll', 'bread']]],
-            ['portion', 'Portion was', [['About half', 'half'], ['A bit less', 'three-quarters'], ['Larger', 'larger'], ['Double', 'double']]],
-          ].map(([kind, label, opts]) => `
-          <div class="fx-row">
-            <span class="fx-k">${label}</span>
-            <div class="fx-chips">${opts.map(([l, v]) => `<button class="fx-chip" data-fix="${kind}" data-val="${esc(v)}">${l}</button>`).join('')}</div>
+          <div class="fx-axes" role="tablist" aria-label="What to correct">
+            ${axes.map((a) => tab(a.kind, a.label, a.answered)).join('')}
+            ${tab('other', 'Something else', false)}
+          </div>
+          ${axes.map((a) => `
+          <div class="fx-vals" data-axis-panel="${a.kind}"${a.kind === active ? '' : ' hidden'}>
+            <div class="fx-chips">${a.opts.map(([l, v]) => `<button class="fx-chip" data-fix="${a.kind}" data-val="${esc(v)}">${l}</button>`).join('')}</div>
           </div>`).join('')}
-          <div class="fx-row">
-            <span class="fx-k">Other</span>
+          <div class="fx-vals" data-axis-panel="other"${active === 'other' ? '' : ' hidden'}>
             <div class="fx-other"><input class="input" id="fx-other" maxlength="160" placeholder="Anything else the photo can't show…" style="height:40px"/><button class="btn ghost sm" id="fx-other-add" style="width:auto;flex:none;padding:0 14px;height:40px">Add</button></div>
           </div>
-          <div id="fx-note" style="font-size:12px;font-weight:700;color:var(--green-bright);min-height:16px;margin-top:6px"></div>
+          <div id="fx-note" style="font-size:var(--t-sm);font-weight:700;color:var(--green-bright);min-height:16px;margin-top:6px"></div>
           <div class="rub-fine">Corrections update the estimate with rule-based kitchen math, keep the AI's original for the record, and ${S.coach.hasCoach ? `your ${esc(S.coach.noun)} sees the corrected numbers` : 'the corrected numbers are what your log keeps'}.</div>
         </section>
-      </div>
+      </div>`;
+      })()}
       </div>
     </details>`;
 
@@ -1060,7 +1082,7 @@ export const thread = {
     <div class="xrow-item next-hot" data-go="${n.route}">
       <div class="xico sm ${n.color}">${icon(n.icon, 17)}</div>
       <div class="xr"><div class="xa">${esc(n.title)}</div>
-      <div class="xb">${n.state === 'overdue' ? 'Log now for partial credit — late still counts'
+      <div class="xb">${n.state === 'overdue' ? 'Log now for partial credit. Late still counts'
         : `${n.countdown ? `⏱ ${esc(n.countdown)} · ` : ''}${esc(n.dueLabel)}`} · ${e.score} → ${e.possible}</div></div>
       <span class="xpill ${n.color}">${n.pill}</span>
     </div>` : nextLocked ? `
@@ -1139,17 +1161,32 @@ export const thread = {
     });
 
     // ---- Correct analysis panel (upgrade 2026-07-16) ----
-    if (thread._fixSlot !== M.slot) { thread._fixOpen = false; thread._fixSlot = M.slot; }
+    if (thread._fixSlot !== M.slot) { thread._fixOpen = false; thread._fixAxis = null; thread._fixSlot = M.slot; }
     // Breakdown expander state survives the exec-tick re-render; `toggle` fires only on user
     // changes, never on the initial `open` attribute.
     const bdWrap = root.querySelector('.bd-wrap');
     if (bdWrap) bdWrap.addEventListener('toggle', () => { thread._bdOpen = bdWrap.open; });
     const fixPanel = root.querySelector('#fix-panel');
+    // Switching dimension only flips `hidden` on panels that are already in the DOM: no
+    // re-render, no lost scroll position, and the delegated chip handler below stays valid.
+    const showAxis = (kind) => {
+      if (!fixPanel) return;
+      thread._fixAxis = kind;
+      fixPanel.querySelectorAll('[data-axis-panel]').forEach((p) => {
+        p.hidden = p.getAttribute('data-axis-panel') !== kind;
+      });
+      fixPanel.querySelectorAll('[data-axis]').forEach((b) => {
+        const on = b.getAttribute('data-axis') === kind;
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-selected', String(on));
+      });
+    };
     const openFix = (focusOther) => {
       if (!fixPanel) return;
       thread._fixOpen = true;
       if (bdWrap) bdWrap.open = true; // the panel lives inside the breakdown expander
       fixPanel.hidden = false;
+      if (focusOther) showAxis('other');
       fixPanel.scrollIntoView({ block: 'center', behavior: 'smooth' });
       if (focusOther) { const o = root.querySelector('#fx-other'); if (o) o.focus(); }
     };
@@ -1173,8 +1210,14 @@ export const thread = {
       }
       fixBusy = false;
     };
-    root.querySelectorAll('[data-fix]').forEach((b) => b.addEventListener('click', () =>
-      runCorrection({ kind: b.getAttribute('data-fix'), value: b.getAttribute('data-val') })));
+    // Delegated on the panel, not bound per chip: the dimension tabs show and hide chip groups,
+    // and a per-element listener would be the kind of thing that quietly stops working later.
+    if (fixPanel) fixPanel.addEventListener('click', (ev) => {
+      const axisBtn = ev.target.closest('[data-axis]');
+      if (axisBtn) { showAxis(axisBtn.getAttribute('data-axis')); return; }
+      const b = ev.target.closest('[data-fix]');
+      if (b) runCorrection({ kind: b.getAttribute('data-fix'), value: b.getAttribute('data-val') });
+    });
     const otherAdd = root.querySelector('#fx-other-add');
     if (otherAdd) otherAdd.addEventListener('click', () => {
       const o = root.querySelector('#fx-other');
@@ -1286,7 +1329,7 @@ export const thread = {
     const typingRow = () => `
         <div class="msg ai typing" id="ai-typing">
           <div class="av">${icon('sparkle', 15)}</div>
-          <div><div class="who">AI Nutritionist is typing<span class="sr-only"> — a reply is on its way</span></div>
+          <div><div class="who">AI Nutritionist is typing<span class="sr-only">, a reply is on its way</span></div>
           <div class="bubble tdots"><span></span><span></span><span></span></div></div>
         </div>`;
 

@@ -37,6 +37,8 @@ const GATES = [
   { name: 'lint:xss',   what: 'every user-data innerHTML interpolation is escaped' },
   { name: 'lint:copy',  what: 'no internal terminology in athlete/coach copy' },
   { name: 'lint:type',  what: 'the raw font-size count did not grow' },
+  { name: 'lint:inline', what: 'the inline-style count did not grow' },
+  { name: 'lint:dash',  what: 'em dashes in copy did not grow (DESIGN.md ban)' },
   { name: 'lint:score', what: 'no hardcoded score percentages' },
   { name: 'typecheck',  what: 'tsc --noEmit' },
   { name: 'test',       what: 'jest' },

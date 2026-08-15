@@ -113,7 +113,7 @@ function goalPanel() {
   return `<div class="pl-goalpanel" id="pl-goal-panel">
     ${rows.join('')}
     <div class="pl-gp-note">${note}</div>
-    <div style="margin-top:12px"><button class="btn ghost sm" data-go="profile" style="width:auto;padding:0 16px;height:36px">Edit in profile</button></div>
+    <div style="margin-top:12px"><button class="btn ghost xs" data-go="profile" style="width:auto">Edit in profile</button></div>
   </div>`;
 }
 
@@ -283,7 +283,7 @@ function itemRow(it, { manage = false } = {}) {
     </div>
     <div class="plend">${manage
     ? icon('chevron', 16, 'style="color:var(--text-3)"')
-    : `<button class="btn primary sm" data-fm-log="${esc(it.id)}" style="width:auto;padding:0 16px;height:36px">Log</button>`}</div>
+    : `<button class="btn primary xs" data-fm-log="${esc(it.id)}" style="width:auto">Log</button>`}</div>
   </div>`;
 }
 

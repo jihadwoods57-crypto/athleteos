@@ -240,17 +240,25 @@ function render() {
   // An unknown route resolves to a REAL not-found screen, never to Home. Falling back to Home
   // painted a correct-looking dashboard under a bogus hash, so stale deep links and renamed
   // screens failed invisibly and were never reported. See screens/notfound.js.
-  const mod = screens[route] || screens.notfound;
+  let mod = screens[route] || screens.notfound;
   // Role-route guard: a screen declaring an operator nav belongs to an operator's dashboard.
   // A signed-in user of another role must not render its chrome (RLS still scopes the data, but
-  // the shell is wrong — a role-integrity leak). Redirect to their own home. Only fires when the
-  // role is KNOWN (authRole set) so a pre-hydrate session is never bounced off its own dashboard;
-  // shared/auth/athlete screens are unaffected. `nav:'operator'` admits BOTH coach and trainer —
-  // that is the one screen module, two role shells seam.
+  // the shell is wrong — a role-integrity leak). Only fires when the role is KNOWN (authRole
+  // set) so a pre-hydrate session is never bounced off its own dashboard; shared/auth/athlete
+  // screens are unaffected. `nav:'operator'` admits BOTH coach and trainer — that is the one
+  // screen module, two role shells seam.
+  //
+  // This used to rewrite location.hash to the user's own home. Role integrity was kept and the
+  // user was told nothing: a tap that silently lands somewhere else is indistinguishable from a
+  // broken tap, and it hides the bug in whatever produced the link — exactly how the avatarHead
+  // trainer lockout stayed invisible. Render the denial instead, in the denied user's OWN
+  // chrome (notpermitted declares no nav, so navFor resolves to their shell) with a real door
+  // home. The refused screen module is never rendered, so nothing leaks.
+  let denied = false;
   if (RT.userId && RT.authRole && (mod.nav === 'coach' || mod.nav === 'trainer' || mod.nav === 'operator')
     && !navAdmits(mod, RT.authRole)) {
-    location.hash = '#' + routeForRole(RT.authRole);
-    return;
+    mod = screens.notpermitted;
+    denied = true;
   }
   // The mirror guard (role walkthrough 2026-07-15): a KNOWN coach/trainer must not render
   // ATHLETE-nav screens either — e.g. a stale #home hash surviving a reload used to leave a
@@ -264,7 +272,9 @@ function render() {
   // A tab ROOT stamps the active tab (covers boot deep-links and role switches); every other
   // screen inherits the ORIGIN tab from the stack, so a detail opened from Profile keeps
   // Profile lit (spec §10.4). mod.tab remains the fallback for direct/deep links.
-  if (ROOT_TAB[route] && !sub) NAV.tab = ROOT_TAB[route];
+  // A denied route never stamps a tab: it is not being rendered, and lighting the tab of a
+  // dashboard the user was just refused would be the shell claiming they are somewhere they are not.
+  if (ROOT_TAB[route] && !sub && !denied) NAV.tab = ROOT_TAB[route];
   const navRole = navFor(mod, RT.authRole);
   const roleTabs = (NAVS[navRole] || NAVS.athlete).map((t) => t.id);
   const activeTab = roleTabs.includes(NAV.tab) ? NAV.tab : (mod.tab || route);

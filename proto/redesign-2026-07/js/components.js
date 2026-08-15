@@ -90,10 +90,18 @@ export function segBar(done, total, label, extraStyle = '') {
   return `<div class="xsegs" role="img" aria-label="${esc(label)}"${extraStyle ? ` style="${extraStyle}"` : ''}>${cells}</div>`;
 }
 
-/** Permission-denied — honest and role-scoped, with no dangling controls. */
-export function permissionState({ title = 'Not your access', body = 'Your head coach can open this for you.' } = {}) {
+/** Permission-denied: honest and role-scoped, with no dangling controls.
+ *
+ *  `action` is the one control that is never dangling here: a door back to the denied user's
+ *  OWN home. Its absence is why this state was used on exactly one screen while the router
+ *  silently teleported everyone else instead, and a silent teleport reads as a broken tap
+ *  (see the role guard in router.js). Same shape as emptyState's action. */
+export function permissionState({ title = 'Not your access', body = 'Your head coach can open this for you.', action = null } = {}) {
+  const a = action
+    ? `<div class="sd-cta"><button class="btn ghost sm" ${action.go ? `data-go="${esc(action.go)}"` : ''}${action.id ? ` id="${esc(action.id)}"` : ''} style="width:auto;padding:0 18px">${esc(action.label)}</button></div>`
+    : '';
   return `<section class="state-demo"><div class="sd-ic">${icon('shield', 24)}</div>
-    <div class="sd-t">${esc(title)}</div><div class="sd-s">${esc(body)}</div></section>`;
+    <div class="sd-t">${esc(title)}</div><div class="sd-s">${esc(body)}</div>${a}</section>`;
 }
 
 /* Honest disclosure badge for a gallery-picked meal photo. Gallery photos SCORE now (founder
@@ -123,7 +131,17 @@ export function nonLiveBadge() {
    most don't) left an undrawn ring reading 0 where the athlete's score belongs. The resting state
    is now the honest one, and motion.js winds it back only for the one reveal it plays — the same
    arrangement the meal score chip has always used. */
-export function scoreRing({ score = 82, size = 338, stroke = 20, showCenter = true, uid = 'r', delta = null, streak = null, tierName = null, tierCls = 'b', centerNum = false, possible = null } = {}) {
+export function scoreRing({ score, size = 338, stroke = 20, showCenter = true, uid = 'r', delta = null, streak = null, tierName = null, tierCls = 'b', centerNum = false, possible = null } = {}) {
+  /* `score` used to default to 82. Every call site passes a real one, so the default never
+     fired — which is exactly what made it dangerous: the day a call site forgot the argument,
+     the app's most trusted surface would have drawn a confident "Locked In" 82 for a number
+     nobody computed, and it would have looked completely correct. This is the app whose whole
+     claim is that the number is honest. Follow the icon() precedent instead: loud in the
+     console, and 0 rather than an invented mid-band score. */
+  if (!Number.isFinite(score)) {
+    console.warn('[components] scoreRing called without a numeric score:', score);
+    score = 0;
+  }
   const r = (size - stroke) / 2 - 14;
   // The inner echo ring — a thin second sweep tracing the band from inside. No brand master
   // draws it; it left in the 2026-08-10 rings-are-the-logo pass and the founder asked for it
@@ -639,7 +657,7 @@ export function wireEmailVerifyBanner(root) {
     resend.disabled = false;
     resend.textContent = was;
     if (!r.ok) { say(r.error); return; }
-    say(r.emailed ? `Sent — check ${esc(RT.email || 'your inbox')}.` : "Saved — check your inbox shortly.");
+    say(r.emailed ? `Sent. Check ${esc(RT.email || 'your inbox')}.` : "Saved. Check your inbox shortly.");
   });
   const doDismiss = () => { EV_DISMISSED = true; if (window.__render) window.__render(); };
   if (dismiss) {

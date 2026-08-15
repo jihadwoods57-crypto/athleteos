@@ -100,9 +100,9 @@ export default {
     <div class="eyebrow">Presets</div>
     <section class="card pad">
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn ghost sm" data-preset="weekend" style="width:auto;padding:0 14px;height:36px">Weekend</button>
-        <button class="btn ghost sm" data-preset="travel" style="width:auto;padding:0 14px;height:36px">Travel</button>
-        <button class="btn ghost sm" data-preset="rest" style="width:auto;padding:0 14px;height:36px">Rest day</button>
+        <button class="btn ghost xs" data-preset="weekend" style="width:auto">Weekend</button>
+        <button class="btn ghost xs" data-preset="travel" style="width:auto">Travel</button>
+        <button class="btn ghost xs" data-preset="rest" style="width:auto">Rest day</button>
       </div>
     </section>
 

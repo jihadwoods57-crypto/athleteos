@@ -26,6 +26,7 @@ import { coachAnnounce } from './coach-announce.js';
 import { coachInsights } from './coach-insights.js';
 import states from './states.js';
 import notfound from './notfound.js';
+import notpermitted from './notpermitted.js';
 import requirement from './requirement.js';
 import { messages, settings as prefs, privacy, billing, notifSettings, coachNotifSettings, deleteAccount, terms, planStylePicker } from './settings.js';
 import { feedback } from './feedback.js';
@@ -140,6 +141,7 @@ export const screens = {
   'parent-link': parentLink,
   states,
   notfound,
+  notpermitted,
   requirement,
   messages,
   settings: prefs,
