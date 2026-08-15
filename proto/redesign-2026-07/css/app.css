@@ -660,6 +660,10 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 /* The trailing control (a Grant/End button, a status pill, the chevron) is the row's ACTION.
    It never shrinks and never scrolls away, whatever the name beside it turns out to be. */
 .lrow > .btn, .lrow > .status-pill, .lrow > svg, .lrow > .req-badge { flex: none; }
+/* The trailing chevron affordance is meta-colored by rule, not by an inline style pasted onto
+   every row (the inline-style ratchet's biggest single population). Scoped to a DIRECT child so
+   chevrons doing other jobs (.ob-back, .role-chev, .trust) keep their own color. */
+.lrow > .ic-chevron:last-child { color: var(--text-3); }
 
 /* ===== State-driven icon motion (2026-08-11) =====
    Three moments, each tied to a real state change — never ambient decoration:

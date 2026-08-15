@@ -89,7 +89,7 @@ export const role = {
     // role's accent; it is the only accent voice on the card (the old 3px stripe was the banned
     // side-stripe pattern and left 2026-08-12).
     const card = (go, ic, tint, accent, t, s) => `
-      <div class="role-card" data-go="${go}" role="button" aria-label="${esc(t)}: ${esc(s)}">
+      <div class="role-card" data-go="${go}" role="button" tabindex="0" aria-label="${esc(t)}: ${esc(s)}">
         <div class="role-ic" style="background:${tint};color:${accent}">${icon(ic, 21)}</div>
         <div class="role-tt"><div class="role-t">${esc(t)}</div><div class="role-s">${esc(s)}</div></div>
         <div class="role-chev">${icon('chevron', 18)}</div>
@@ -1098,7 +1098,10 @@ function cpIdCard(withHandle) {
       ${/* ci.initials, not name[0]: the header chip that leads here renders "JB" and this card
             rendered "J" for the same coach on the very next screen. One person, one monogram —
             trainerProfile already used ti.initials. */''}
-      <div class="big-av" style="background:linear-gradient(150deg,var(--amber),var(--amber-deep));color:var(--ink-on-accent)">${esc(ci.initials || initialsOf(name, 'C'))}</div>
+      ${/* Identity, not a warning: amber is reserved for "at risk / off pace" (DESIGN.md), and
+            the athlete-side view of a coach was already moved off it for exactly that reason
+            (profile.js). Identity wears the brand spine. */''}
+      <div class="big-av" style="background:linear-gradient(150deg,var(--blue),var(--blue-deep));color:#fff">${esc(ci.initials || initialsOf(name, 'C'))}</div>
       <div class="id-txt">
         <div class="nm">${esc(name)}</div>
         <div class="meta">${metaLine}</div>
@@ -1213,25 +1216,28 @@ function cpProgramBlock() {
   return `
     <div class="eyebrow">Program</div>
     <section class="card" style="padding:6px 16px">
-      <div class="lrow" data-go="coach-plan"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Standards</div><div class="ls">Targets, focus, publish updates</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="coach-assign"><div class="lic">${icon('plus', 17)}</div><div class="lm"><div class="lt">Requirement templates</div><div class="ls">What you assign most</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="coach-voice"><div class="lic" style="background:rgba(var(--purple-rgb),0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div><div class="lm"><div class="lt">AI Nutritionist</div><div class="ls">Tone, length, instructions: make it coach like you</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Visibility rules</div><div class="ls">What parents and trainers can see</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="coach-plan"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Standards</div><div class="ls">Targets, focus, publish updates</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="coach-assign"><div class="lic">${icon('plus', 17)}</div><div class="lm"><div class="lt">Requirement templates</div><div class="ls">What you assign most</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="coach-voice"><div class="lic" style="background:rgba(var(--purple-rgb),0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div><div class="lm"><div class="lt">AI Nutritionist</div><div class="ls">Tone, length, instructions: make it coach like you</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Visibility rules</div><div class="ls">What parents and trainers can see</div></div>${icon('chevron', 17)}</div>
     </section>`;
 }
 function cpAnalyticsBlock() {
   return `
     <div class="eyebrow">Analytics</div>
     <section class="card" style="padding:6px 16px">
-      <div class="lrow" data-go="coach-insights"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('bars', 17)}</div><div class="lm"><div class="lt">Insights</div><div class="ls">Team trends, standard adherence</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="coach-insights"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('bars', 17)}</div><div class="lm"><div class="lt">Insights</div><div class="ls">Team trends, standard adherence</div></div>${icon('chevron', 17)}</div>
     </section>`;
 }
 function cpPrefsBlock() {
   return `
     <div class="eyebrow">Preferences</div>
     <section class="card" style="padding:6px 16px">
-      <div class="lrow" data-go="coach-notif-settings"><div class="lic">${icon('bell', 17)}</div><div class="lm"><div class="lt">Notifications</div><div class="ls">Briefings, alerts, quiet hours</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="settings"><div class="lic">${icon('moon', 17)}</div><div class="lm"><div class="lt">Appearance &amp; preferences</div><div class="ls">Light / dark, units, reminders</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="coach-notif-settings"><div class="lic">${icon('bell', 17)}</div><div class="lm"><div class="lt">Notifications</div><div class="ls">Briefings, alerts, quiet hours</div></div>${icon('chevron', 17)}</div>
+      ${/* Same name the athlete sees ("Units & appearance"), and no promised "reminders" — those
+            deliberately live only in Notification Settings (spec §22.4), and a subtitle that
+            promises a control the screen doesn't have is a lie on arrival. */''}
+      <div class="lrow" data-go="settings"><div class="lic">${icon('moon', 17)}</div><div class="lm"><div class="lt">Units &amp; appearance</div><div class="ls">Light or dark, weight and time units</div></div>${icon('chevron', 17)}</div>
     </section>`;
 }
 function cpSignOut() {
@@ -1271,7 +1277,7 @@ function operatorAccountSection() {
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
       <div class="lrow" data-go="delete-account">
-        <div class="lic" style="color:var(--red)">${icon('x', 17)}</div>
+        <div class="lic" style="color:var(--red)">${icon('trash', 17)}</div>
         <div class="lm"><div class="lt" style="color:var(--red)">Delete account</div><div class="ls">Permanent: everything goes</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
@@ -1315,7 +1321,7 @@ export const coachProfile = {
     ${cpIdCard(false)}
     <div class="eyebrow">Manage</div>
     <section class="card" style="padding:6px 16px">
-      ${CP_SECTIONS.map(x => `<div class="lrow" data-go="${esc(x.go || `coach-profile/${x.sub}`)}"><div class="lic">${icon(x.icon, 17)}</div><div class="lm"><div class="lt">${esc(x.t)}</div><div class="ls">${esc(x.s)}</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>`).join('')}
+      ${CP_SECTIONS.map(x => `<div class="lrow" data-go="${esc(x.go || `coach-profile/${x.sub}`)}"><div class="lic">${icon(x.icon, 17)}</div><div class="lm"><div class="lt">${esc(x.t)}</div><div class="ls">${esc(x.s)}</div></div>${icon('chevron', 17)}</div>`).join('')}
     </section>
     <div style="height:8px"></div>
     ${cpSignOut()}
@@ -1455,15 +1461,55 @@ export const coachProfile = {
    landed yet — never shown as broken), offline (either a last-known cached identity with Share
    disabled, or — on a fetch failure with nothing cached — no identity to show at all, never
    misreported as still-minting), live (real name + real business + real code, QR, Copy, Share). */
+/* The trainer's settings, on their own routed section (2026-08-15). These six rows used to sit
+   in one card on the Practice HQ root, the tail of a ~1,900px wall — the exact layout the
+   coach's T-19 refactor comment calls a defect. Chunked the way working memory holds them:
+   what shapes the CLIENTS' experience, then the trainer's own app. */
+function trainerSettingsSections() {
+  return `
+    <div class="eyebrow">Your clients</div>
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" data-go="coach-plan-set/team" style="cursor:pointer">
+        <div class="lic">${icon('clipboard', 17)}</div>
+        <div class="lm"><div class="lt">Default client standard</div><div class="ls">Meals, windows, and check-ins: applied to every client</div></div>
+        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      </div>
+      <div class="lrow" data-go="coach-voice"><div class="lic" style="background:rgba(var(--purple-rgb),0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div><div class="lm"><div class="lt">AI Nutritionist</div><div class="ls">Tone, length, instructions: make it coach like you</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="trust-pass-policy"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('shield', 17)}</div><div class="lm"><div class="lt">Trust Pass defaults</div><div class="ls">${(RT.passPolicy || { default_credits: 3 }).default_credits}-credit default · earned after ${(RT.passPolicy || { eligibility_days: 7 }).eligibility_days} photo-logged days</div></div>${icon('chevron', 17)}</div>
+    </section>
+
+    <div class="eyebrow">Your app</div>
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" data-go="coach-notif-settings"><div class="lic">${icon('bell', 17)}</div><div class="lm"><div class="lt">Notifications</div><div class="ls">Briefings, alerts, quiet hours</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="settings"><div class="lic">${icon('moon', 17)}</div><div class="lm"><div class="lt">Units &amp; appearance</div><div class="ls">Light or dark, weight and time units</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Your visibility scope</div><div class="ls">Recovery, readiness, consistency only</div></div>${icon('chevron', 17)}</div>
+    </section>`;
+}
+
 export const trainerProfile = {
   nav: 'trainer', tab: 'profile',
-  render() {
+  render({ sub } = {}) {
+    // T-19's sibling (critique 2026-08-15): a scannable root (identity + the invite loop, the
+    // trainer's daily job) plus one routed section per concern — never the wall of settings.
+    if (sub === 'settings') {
+      return `
+    ${backHead('Practice settings', 'Your standard, voice, and app preferences', 'trainer-profile')}
+    ${trainerSettingsSections()}
+    <div style="height:10px"></div>`;
+    }
+    if (sub === 'account') {
+      return `
+    ${backHead('Account', 'Email, password, billing, delete', 'trainer-profile')}
+    ${operatorAccountSection()}
+    <div style="height:10px"></div>`;
+    }
     const ti = S.trainerIdentity;
     const loading = ti.state === 'loading';
     const minting = ti.state === 'minting';
     const offline = ti.state === 'offline';
     const offlineNoCode = offline && !ti.code; // fetch failed, nothing cached — no invite card to show
-    const sub = offline ? (ti.code ? 'Offline · showing your saved details' : 'Offline · reconnecting') : 'Manage your practice';
+    // `subTitle`, not `sub`: the render param `sub` is the routed section (settings/account).
+    const subTitle = offline ? (ti.code ? 'Offline · showing your saved details' : 'Offline · reconnecting') : 'Manage your practice';
 
     const header = loading ? `
     <section class="card id-card">
@@ -1575,7 +1621,7 @@ export const trainerProfile = {
     }
 
     return `
-    ${titleHead('Practice HQ', sub)}
+    ${titleHead('Practice HQ', subTitle)}
     ${header}
     ${invite}
 
@@ -1584,29 +1630,19 @@ export const trainerProfile = {
           feature deleted by nav change. */''}
     <div class="eyebrow">Your practice</div>
     <section class="card" style="padding:6px 16px">
-      <div class="lrow" data-go="trainer-grow"><div class="lic" style="background:rgba(var(--purple-rgb),0.22);color:var(--purple-bright)">${icon('bars', 17)}</div><div class="lm"><div class="lt">Grow your practice</div><div class="ls">Offers, applications, and new clients</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="coach-insights"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('bars', 17)}</div><div class="lm"><div class="lt">Insights</div><div class="ls">Client trends and standard adherence</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="coach-apply"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('users', 17)}</div><div class="lm"><div class="lt">Coach marketplace</div><div class="ls">Apply to be listed: clients find and hire you here</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="trainer-grow"><div class="lic" style="background:rgba(var(--purple-rgb),0.22);color:var(--purple-bright)">${icon('bars', 17)}</div><div class="lm"><div class="lt">Grow your practice</div><div class="ls">Offers, applications, and new clients</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="coach-insights"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('bars', 17)}</div><div class="lm"><div class="lt">Insights</div><div class="ls">Client trends and standard adherence</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="coach-apply"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('users', 17)}</div><div class="lm"><div class="lt">Coach marketplace</div><div class="ls">Apply to be listed: clients find and hire you here</div></div>${icon('chevron', 17)}</div>
     </section>
 
-    <div class="eyebrow">Practice settings</div>
+    ${/* Trust Pass defaults note (2026-08-11) lives on with its row inside trainer-profile/
+          settings: a trainer could GRANT passes since 0196 but the policy screen was
+          nav:'coach', so the defaults grant_pass reads were unreachable on this book. */''}
+    <div class="eyebrow">Manage</div>
     <section class="card" style="padding:6px 16px">
-      <div class="lrow" data-go="coach-plan-set/team" style="cursor:pointer">
-        <div class="lic">${icon('clipboard', 17)}</div>
-        <div class="lm"><div class="lt">Default client standard</div><div class="ls">Meals, windows, and check-ins: applied to every client</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
-      <div class="lrow" data-go="coach-voice"><div class="lic" style="background:rgba(var(--purple-rgb),0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div><div class="lm"><div class="lt">AI Nutritionist</div><div class="ls">Tone, length, instructions: make it coach like you</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      ${/* Trust Pass defaults (2026-08-11): a trainer could GRANT passes since 0196 but the
-            policy screen was nav:'coach', so the defaults grant_pass reads were unreachable on
-            this book. Mirrors the coach's You → Program row. */''}
-      <div class="lrow" data-go="trust-pass-policy"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('shield', 17)}</div><div class="lm"><div class="lt">Trust Pass defaults</div><div class="ls">${(RT.passPolicy || { default_credits: 3 }).default_credits}-credit default · earned after ${(RT.passPolicy || { eligibility_days: 7 }).eligibility_days} photo-logged days</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="coach-notif-settings"><div class="lic">${icon('bell', 17)}</div><div class="lm"><div class="lt">Notifications</div><div class="ls">Briefings, alerts, quiet hours</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="settings"><div class="lic">${icon('moon', 17)}</div><div class="lm"><div class="lt">Appearance &amp; preferences</div><div class="ls">Light / dark, units, reminders</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Your visibility scope</div><div class="ls">Recovery, readiness, consistency only</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="trainer-profile/settings"><div class="lic">${icon('gear', 17)}</div><div class="lm"><div class="lt">Practice settings</div><div class="ls">Standard, AI voice, notifications, appearance</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="trainer-profile/account"><div class="lic">${icon('key', 17)}</div><div class="lm"><div class="lt">Account</div><div class="ls">Email, password, billing, delete</div></div>${icon('chevron', 17)}</div>
     </section>
-
-    ${operatorAccountSection()}
 
     ${/* The four locked "Founder-gated sections" tiles left on 2026-08-11 (founder: ending the
           screen on four dead squares reads as broken, not honest). The roadmap note survives as

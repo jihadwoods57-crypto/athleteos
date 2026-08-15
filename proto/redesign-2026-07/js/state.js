@@ -377,7 +377,13 @@ function friendlyTeamCreate(err) {
   return "Couldn't create your team — try again.";
 }
 export function roleProfileRoute() {
-  return RT.authRole === 'coach' ? 'coach-profile' : RT.authRole === 'trainer' ? 'trainer-profile' : 'profile';
+  return RT.authRole === 'coach' ? 'coach-profile'
+    : RT.authRole === 'trainer' ? 'trainer-profile'
+    // A parent's hub IS their profile. Without this branch every shared settings screen's
+    // back/Done exit ("Keep my account", the appearance screen's Done) dropped a parent onto
+    // #profile — the ATHLETE Profile screen, a different role's UI.
+    : RT.authRole === 'parent' ? 'parent'
+    : 'profile';
 }
 function friendlyAuth(msg) {
   const m = String(msg || '').toLowerCase();

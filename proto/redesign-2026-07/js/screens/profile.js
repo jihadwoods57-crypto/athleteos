@@ -106,12 +106,23 @@ export default {
         <div class="lm"><div class="lt">Activity standards</div><div class="ls">Steps, distance and workouts · verified from your device</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
-      ${S.audience === 'client' && S.coach.kind === 'trainer' ? `
+    </section>
+
+    ${/* Split out of Accountability (critique 2026-08-15): that group ran 6 rows, over the ≤4
+          chunk the groups below already keep, and these rows share a different job — what the
+          work proves to outsiders, not the daily loop. Row count unchanged, like the split
+          below. */''}
+    ${S.audience === 'client' && S.coach.kind === 'trainer' ? `
+    <div class="eyebrow">Coaching</div>
+    <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="my-trainer-offers">
         <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div>
         <div class="lm"><div class="lt">Packages</div><div class="ls">Accountability packages${S.coach.isNamed ? ` from ${esc(S.coach.nameMid)}` : ''}</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>` : `
+      </div>
+    </section>` : `
+    <div class="eyebrow">Proof &amp; recruiting</div>
+    <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="recruiting">
         <div class="lic"${S.coach.hasCoach ? ' style="background:var(--green-surface);color:var(--green-bright)"' : ''}>${icon('shield', 17)}</div>
         <div class="lm"><div class="lt">Discipline record</div><div class="ls">${S.coach.hasCoach ? 'Coach-verified · proof of the work' : 'Not verified yet · connect a coach to verify'}</div></div>
@@ -121,8 +132,8 @@ export default {
         <div class="lic" style="color:var(--blue-bright)">${icon('share', 17)}</div>
         <div class="lm"><div class="lt">Verified Profile</div><div class="ls">A public page recruiters can check</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>`}
-    </section>
+      </div>
+    </section>`}
 
     <div class="eyebrow">Health & safety</div>
     <section class="card" style="padding:6px 16px">
@@ -145,23 +156,23 @@ export default {
           platform convention puts it. Row count is unchanged — this is chunking, not burying. */''}
     <div class="eyebrow">Membership</div>
     <section class="card" style="padding:6px 16px">
-      <div class="lrow" data-go="billing"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Plan &amp; billing</div><div class="ls">Your membership &amp; premium features</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="redeem-code"><div class="lic">${icon('key', 17)}</div><div class="lm"><div class="lt">Redeem a code</div><div class="ls">Unlock premium with a sponsor code</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="sponsor"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Sponsor access</div><div class="ls">Fund premium for a group</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="billing"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Plan &amp; billing</div><div class="ls">Your membership &amp; premium features</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="redeem-code"><div class="lic">${icon('key', 17)}</div><div class="lm"><div class="lt">Redeem a code</div><div class="ls">Unlock premium with a sponsor code</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="sponsor"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Sponsor access</div><div class="ls">Fund premium for a group</div></div>${icon('chevron', 17)}</div>
     </section>
 
     <div class="eyebrow">Privacy &amp; app</div>
     <section class="card" style="padding:6px 16px">
-      <div class="lrow" data-go="invite-parent"><div class="lic">${icon('users', 17)}</div><div class="lm"><div class="lt">Invite a parent</div><div class="ls">Let a parent see your score &amp; streak</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Privacy & visibility</div><div class="ls">Who sees what · download your data</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="settings"><div class="lic">${icon('gear', 18)}</div><div class="lm"><div class="lt">Units & appearance</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="terms"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Terms & privacy policy</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="invite-parent"><div class="lic">${icon('users', 17)}</div><div class="lm"><div class="lt">Invite a parent</div><div class="ls">Let a parent see your score &amp; streak</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Privacy & visibility</div><div class="ls">Who sees what · download your data</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="settings"><div class="lic">${icon('gear', 18)}</div><div class="lm"><div class="lt">Units & appearance</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="terms"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Terms & privacy policy</div></div>${icon('chevron', 17)}</div>
     </section>
 
     <div class="eyebrow">Account</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="welcome"><div class="lic">${icon('back', 17)}</div><div class="lm"><div class="lt">Sign out</div></div></div>
-      <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Delete account</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('trash', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Delete account</div></div>${icon('chevron', 17)}</div>
     </section>
 
     <div style="height:10px"></div>
@@ -356,7 +367,7 @@ export const editProfile = {
       const sport = root.querySelector('#ep-sport .on')?.textContent || '';
       const position = root.querySelector('#ep-pos .on')?.textContent || '';
       // Inline validation (spec §11.4). Never let a blank name wipe the identity.
-      if (!first) { err.textContent = 'Add your first name — your coach sees it on every log.'; return; }
+      if (!first) { err.textContent = 'Add your first name: your coach sees it on every log.'; return; }
       if (!last) { err.textContent = 'Add your last name.'; return; }
       if (dob) {
         const d = new Date(dob + 'T12:00:00');
@@ -373,7 +384,7 @@ export const editProfile = {
       const ok = await window.__act.saveIdentity({ full_name: name, sport, position });
       let dobOk = true;
       if (dob) dobOk = await window.__act.saveAthleteProfile({ dob });
-      if (ok === false || dobOk === false) { err.textContent = 'Saved on this phone — couldn’t reach the server. It’ll sync when you’re back online.'; btn.disabled = false; btn.textContent = was; return; }
+      if (ok === false || dobOk === false) { err.textContent = 'Saved on this phone, couldn’t reach the server. It’ll sync when you’re back online.'; btn.disabled = false; btn.textContent = was; return; }
       editProfile._dirty = false;
       btn.textContent = 'Saved ✓';
       setTimeout(() => window.__back('profile'), 350);

@@ -3212,23 +3212,43 @@ export const parent = {
     <div class="sidebox" data-tour="visibility">
       <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
       <div><div class="tt">What you can see</div>
-      <div class="ts">Their daily score and grade, and the date of their latest logged day &mdash; that's the whole view. Meal photos, weight, and check-in answers stay between your athlete and their coach.</div></div>
+      <div class="ts">Their daily score and grade, and the date of their latest logged day; that's the whole view. Meal photos, weight, and check-in answers stay between your athlete and their coach.</div></div>
     </div>
 
     <div style="height:12px"></div>
     <section class="card" style="padding:6px 16px">
-      <div class="lrow" data-go="parent-link" data-tour="link"><div class="lic">${icon('plus', 17)}</div><div class="lm"><div class="lt">Link an athlete</div><div class="ls">Enter the invite code they gave you</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="parent-link" data-tour="link"><div class="lic">${icon('plus', 17)}</div><div class="lm"><div class="lt">Link an athlete</div><div class="ls">Enter the invite code they gave you</div></div>${icon('chevron', 17)}</div>
       <div class="lrow" data-go="fund-plan" data-tour="funding">
         <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div>
         <div class="lm"><div class="lt">Fund a plan</div><div class="ls">Pay for your child’s coaching package</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        ${icon('chevron', 17)}
       </div>
       <div class="lrow" data-go="funded-plans">
         <div class="lic" style="background:var(--surface-2)">${icon('lock', 17)}</div>
         <div class="lm"><div class="lt">Funded plans</div><div class="ls">What you’re paying for</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        ${icon('chevron', 17)}
       </div>
-      <div class="lrow" data-go="welcome"><div class="lic" style="color:var(--red)">${icon('x', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Sign out</div></div></div>
+    </section>
+
+    ${/* A parent moves real money through this screen, yet had no path to the terms they agreed
+          to, their own data export, appearance, or account deletion — every one of those screens
+          already admits 'parent' (roleNav), they just had no front door on this hub. Same
+          grouping the athlete Profile uses: app stuff, then the destructive pair alone last. */''}
+    <div class="eyebrow">Privacy &amp; app</div>
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" style="cursor:default">
+        <div class="lic">${icon('mail', 17)}</div>
+        <div class="lm"><div class="lt">Signed in as</div><div class="ls">${esc(RT.email || 'Email unavailable, sign in again to refresh')}</div></div>
+      </div>
+      <div class="lrow" data-go="settings"><div class="lic">${icon('gear', 18)}</div><div class="lm"><div class="lt">Units &amp; appearance</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Privacy &amp; your data</div><div class="ls">Who sees what · download your data</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="terms"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Terms &amp; privacy policy</div></div>${icon('chevron', 17)}</div>
+    </section>
+
+    <div class="eyebrow">Account</div>
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" data-go="welcome"><div class="lic">${icon('back', 17)}</div><div class="lm"><div class="lt">Sign out</div></div></div>
+      <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('trash', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Delete account</div></div>${icon('chevron', 17)}</div>
     </section>
     <div style="height:10px"></div>
     `;

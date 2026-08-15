@@ -31,15 +31,15 @@ function wirePressure(root, sel) {
 export function smartReply(text, fallback) {
   const t = text.toLowerCase();
   if (/(swap|instead|replace|substitute)/.test(t)) return 'Yes, swap it. Based on your plan: any protein for protein, any slow carb for slow carb, keep the portion the same. Rice, potatoes, oats, and tortillas are all interchangeable for you.';
-  if (/(late|miss|forgot|skip)/.test(t)) return 'Honest answer: a late meal counts at half weight for punctuality, and a missed one just stays missed. Log it anyway — the trend matters more than one slot, and your coach respects a truthful log over a blank.';
-  if (/(protein|macro)/.test(t)) return 'Aim protein-forward at every meal — a solid protein source plus a slow carb hits your plan. If a meal slot is still open, that’s where to close any gap.';
+  if (/(late|miss|forgot|skip)/.test(t)) return 'Honest answer: a late meal counts at half weight for punctuality, and a missed one just stays missed. Log it anyway. The trend matters more than one slot, and your coach respects a truthful log over a blank.';
+  if (/(protein|macro)/.test(t)) return 'Aim protein-forward at every meal: a solid protein source plus a slow carb hits your plan. If a meal slot is still open, that’s where to close any gap.';
   if (/(eat out|restaurant|chipotle|fast food|on the go)/.test(t)) return 'From your plan’s approved list: Chipotle bowl (double chicken, rice, beans), a grilled sandwich, or a rice bowl. Order protein first, add the carb, skip nothing green.';
   // Never hardcode the split: the weights move with the athlete's plan style x goal profile,
   // and the assistant quoting a different mix — or a different NUMBER OF CATEGORIES — than the
   // Score Breakdown screen is exactly the contradiction this app can least afford. Score v2
   // dropped Daily Commitment's weight to 0 (it's still asked, just never scored) and folded the
   // weekly check-in into the Recovery card, so this is two parts now, not four.
-  if (/(score|point|tier)/.test(t)) return `Your score comes from two honest parts: Nutrition ${liveWeightPct('nutrition')}%, and Recovery ${liveWeightPct('checkin') + liveWeightPct('recovery')}% — tonight's check-in plus how you answered it. Right now you’re at ${S.score}; finishing what’s still open tonight takes you toward ${S.possible}.`;
+  if (/(score|point|tier)/.test(t)) return `Your score comes from two honest parts: Nutrition ${liveWeightPct('nutrition')}%, and Recovery ${liveWeightPct('checkin') + liveWeightPct('recovery')}% (tonight's check-in plus how you answered it). Right now you’re at ${S.score}; finishing what’s still open tonight takes you toward ${S.possible}.`;
   return fallback;
 }
 
@@ -87,7 +87,7 @@ export const messages = {
       <div class="state-demo">
         <div class="sd-ic">${icon('users', 24)}</div>
         <div class="sd-t">No coach connected</div>
-        <div class="sd-s">When you join a team, your coach shows up here — and sees your day.</div>
+        <div class="sd-s">When you join a team, your coach shows up here, and sees your day.</div>
         <div class="sd-cta"><button class="btn ghost sm" data-go="connect">Connect a coach</button></div>
       </div>
       <div style="height:10px"></div>
@@ -98,7 +98,7 @@ export const messages = {
     ${backHead(c.name, sub, 'profile')}
 
     <div class="thread">
-      <div class="msg-status">${esc(c.name)} talks to you on your meals — every comment and reaction lands in that meal's thread, and you reply right there.</div>
+      <div class="msg-status">${esc(c.name)} talks to you on your meals: every comment and reaction lands in that meal's thread, and you reply right there.</div>
     </div>
     <div style="height:14px"></div>
     <button class="btn ghost" data-go="history">Open activity history</button>
@@ -122,17 +122,19 @@ export const settings = {
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('scale', 17)}</div>
         <div class="lm"><div class="lt">Weight</div></div>
-        <span class="status-pill b">lb</span>
+        ${/* A read-only fact, not live status: the blue pill is the styling of actionable
+              state and invited dead taps. Muted is the documented provenance treatment. */''}
+        <span class="status-pill muted">lb</span>
       </div>
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('clock', 17)}</div>
         <div class="lm"><div class="lt">Time</div></div>
-        <span class="status-pill b">12-hour</span>
+        <span class="status-pill muted">12-hour</span>
       </div>
     </section>
 
     <div class="eyebrow">Appearance</div>
-    <div class="chip-row" id="set-theme">
+    <div class="chip-row" id="set-theme" data-toggle-group>
       ${['dark', 'light', 'system'].map((m) => `<span class="chp ${(RT.theme || 'dark') === m ? 'on' : ''}" data-theme-pick="${m}">${m === 'dark' ? 'Dark' : m === 'light' ? 'Light' : 'System'}</span>`).join('')}
     </div>
 
@@ -163,6 +165,7 @@ export const settings = {
   },
   mount(root) {
     wireToggles(root);
+    wireSegAria(root);
     // Its own listener, not a delegate: wireToggles' chip handler stopPropagation()s, and a
     // row-level delegate here would never fire (see the note at the top of this file).
     const tourRow = root.querySelector('#set-tour');
@@ -217,27 +220,27 @@ export const privacy = {
           ['Can see', 'Your daily score, requirement completion, meal logs and photos, check-ins, and weight trend.'],
           ['Can set', 'Your requirements, deadlines, targets, and reminder urgency.'],
           ['Required by team', 'Sharing execution with your coach is what connecting means.'],
-          ['To revoke', 'Leave the team — ask your coach to remove you, or contact support@onstandard.app.'],
+          ['To revoke', 'Leave the team: ask your coach to remove you, or contact support@onstandard.app.'],
         ],
       });
     }
     if (RT.myTrainer) {
       rows.push({
         ic: 'bolt', t: (RT.myTrainer.name || 'Your trainer'), pill: 'Limited access',
-        s: 'Recovery, readiness, nutrition consistency — not your full meal detail',
+        s: 'Recovery, readiness, and nutrition consistency, not your full meal detail',
         detail: [
           ['Can see', 'Recovery check-ins, readiness, and nutrition consistency.'],
           ['Cannot see', 'Your full meal photos and per-meal detail stay with you and your coach.'],
-          ['To revoke', 'Leave the practice — ask your trainer, or contact support@onstandard.app.'],
+          ['To revoke', 'Leave the practice: ask your trainer, or contact support@onstandard.app.'],
         ],
       });
     }
     if (S.consent.minor || (RT.consent && RT.consent.guardianEmail)) {
       rows.push({
         ic: 'heart', t: 'Parent / guardian', pill: 'Limited access',
-        s: RT.consent && RT.consent.guardianEmail ? `${RT.consent.guardianEmail} · consent + account controls` : 'Consent status and account controls — not your day-to-day logs',
+        s: RT.consent && RT.consent.guardianEmail ? `${RT.consent.guardianEmail} · consent + account controls` : 'Consent status and account controls, not your day-to-day logs',
         detail: [
-          ['Can do', 'Approve your account, request your data, or request deletion — legal guardian rights for minors.'],
+          ['Can do', 'Approve your account, request your data, or request deletion: legal guardian rights for minors.'],
           ['Cannot see', 'Your meal photos and daily logs are not mirrored to a guardian view.'],
         ],
       });
@@ -250,7 +253,7 @@ export const privacy = {
       const sharing = RT.shareSquadScore === true;
       rows.push({
         ic: 'grid', t: 'Teammates', pill: sharing ? 'Score only' : 'No access',
-        s: sharing ? 'Teammates see your score number on the Squad board — nothing else'
+        s: sharing ? 'Teammates see your score number on the Squad board, nothing else'
           : 'Teammates cannot see anything about your day',
         detail: [
           ['Can see', sharing
@@ -262,7 +265,7 @@ export const privacy = {
       });
     }
     return `
-    ${backHead('Privacy & visibility', 'Who sees what — nothing is public', back)}
+    ${backHead('Privacy & visibility', 'Who sees what: nothing is public', back)}
 
     ${rows.length ? `
     <section class="card" style="padding:6px 16px">
@@ -280,7 +283,7 @@ export const privacy = {
     </section>` : `
     <section class="card pad">
       <div style="font-size:15px;font-weight:800">No one is connected</div>
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:4px;line-height:1.5">Right now your data is visible to you alone. Connecting a coach or trainer shares your execution with them — you'll see exactly what before you join.</div>
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:4px;line-height:1.5">Right now your data is visible to you alone. Connecting a coach or trainer shares your execution with them; you'll see exactly what before you join.</div>
     </section>`}
 
     <div style="height:14px"></div>
@@ -292,7 +295,7 @@ export const privacy = {
 
     <div class="eyebrow">Your data</div>
     <section class="card" style="padding:6px 16px">
-      <div class="lrow" id="pv-export">
+      <div class="lrow" id="pv-export" role="button" tabindex="0">
         <div class="lic">${icon('download', 17)}</div>
         <div class="lm"><div class="lt">Download my data</div><div class="ls">Profile, days, and meal records as a JSON file</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
@@ -315,6 +318,7 @@ export const privacy = {
     const note = root.querySelector('#pv-export-note');
     if (!btn) return;
     let busy = false;
+    btn.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); btn.click(); } });
     btn.addEventListener('click', async () => {
       if (busy) return;
       busy = true;
@@ -397,12 +401,12 @@ function renewLine(sub) {
     const by = coveredBy();
     // Say plainly that there is nothing to pay. A trainer-funded client who thinks they owe a
     // second subscription is exactly the confusion this whole model exists to remove.
-    if (by === 'trainer') return 'Included with your coaching. Nothing to pay here — your membership lasts as long as your plan with your trainer.';
+    if (by === 'trainer') return 'Included with your coaching. Nothing to pay here: your membership lasts as long as your plan with your trainer.';
     if (by === 'sponsor') return 'A sponsor covers your premium access. Nothing to pay while it lasts.';
     return 'You have the free plan. Your stats are always yours; membership adds the written coaching.';
   }
   const when = sub.current_period_end ? (() => { try { return new Date(sub.current_period_end).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }); } catch { return ''; } })() : '';
-  if (sub.status === 'past_due') return `Payment issue — update your payment method in the store to keep premium${when ? ` (grace ends ${when})` : ''}.`;
+  if (sub.status === 'past_due') return `Payment issue: update your payment method in the store to keep premium${when ? ` (grace ends ${when})` : ''}.`;
   if (sub.cancel_at_period_end) return when ? `Cancels ${when}. You keep premium until then.` : 'Set to cancel at period end.';
   return when ? `Renews ${when}.` : 'Active.';
 }
@@ -473,27 +477,27 @@ export const billing = {
       </div>
     </section>` : paid ? `
     <section class="card" style="padding:6px 16px">
-      <div class="lrow" id="bill-manage" role="button">
+      <div class="lrow" id="bill-manage" role="button" tabindex="0">
         <div class="lic">${icon('creditCard', 18)}</div>
-        <div class="lm"><div class="lt">Manage subscription</div><div class="ls">${teamPlan ? 'Change plan, card, or cancel — Stripe portal' : `Change plan or cancel in the ${/android/i.test(navigator.userAgent || '') ? 'Play Store' : 'App Store'}`}</div></div>
+        <div class="lm"><div class="lt">Manage subscription</div><div class="ls">${teamPlan ? 'Change plan, card, or cancel in the Stripe portal' : `Change plan or cancel in the ${/android/i.test(navigator.userAgent || '') ? 'Play Store' : 'App Store'}`}</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
-      ${teamPlan ? '' : `<div class="lrow" id="bill-restore" role="button">
+      ${teamPlan ? '' : `<div class="lrow" id="bill-restore" role="button" tabindex="0">
         <div class="lic">${icon('rotate', 17)}</div>
         <div class="lm"><div class="lt">Restore purchases</div><div class="ls">Moved devices? Restore your membership</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>`}
     </section>` : operator ? `
     <section class="card pad">
-      <button class="btn green" id="bill-upsell-pro" style="width:100%">See plans — free 14-day trial</button>
+      <button class="btn green" id="bill-upsell-pro" style="width:100%">See plans · free 14-day trial</button>
       <div style="height:10px"></div>
-      <div style="font-size:12px;font-weight:600;color:var(--text-3);line-height:1.5;text-align:center">Every plan counts <b>active</b> athletes only — idle seats are free.</div>
+      <div style="font-size:12px;font-weight:600;color:var(--text-3);line-height:1.5;text-align:center">Every plan counts <b>active</b> athletes only; idle seats are free.</div>
     </section>` : `
     <section class="card pad">
       <button class="btn green" id="bill-upsell" style="width:100%">See membership plans</button>
       <div style="height:10px"></div>
-      <div class="lrow" data-go="redeem-code" style="cursor:pointer"><div class="lic">${icon('key', 17)}</div><div class="lm"><div class="lt">Have a code?</div><div class="ls">From your trainer or a sponsor — redeem it to unlock premium</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" id="bill-restore" role="button" style="cursor:pointer"><div class="lic">${icon('rotate', 17)}</div><div class="lm"><div class="lt">Restore purchases</div><div class="ls">Already a member on another device?</div></div>${icon('chevron', 17, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="redeem-code" style="cursor:pointer"><div class="lic">${icon('key', 17)}</div><div class="lm"><div class="lt">Have a code?</div><div class="ls">From your trainer or a sponsor: redeem it to unlock premium</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" id="bill-restore" role="button" tabindex="0" style="cursor:pointer"><div class="lic">${icon('rotate', 17)}</div><div class="lm"><div class="lt">Restore purchases</div><div class="ls">Already a member on another device?</div></div>${icon('chevron', 17)}</div>
     </section>`}
 
     <div id="bill-msg" style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:12px"></div>
@@ -502,6 +506,12 @@ export const billing = {
   },
   mount(root) {
     if (!BILL.loaded) loadBilling();
+    // The id-wired rows sit outside the router's data-go keyboard stamp (router.js wires
+    // Enter/Space onto data-go/act/back only), so they carry their own activation.
+    ['#bill-manage', '#bill-restore'].forEach((sel) => {
+      const el = root.querySelector(sel);
+      if (el) el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); } });
+    });
     const billRetry = root.querySelector('#bill-retry');
     if (billRetry) billRetry.addEventListener('click', () => { BILL.loaded = false; BILL.failed = false; window.__render(); loadBilling(); });
     const msg = root.querySelector('#bill-msg');
@@ -548,7 +558,7 @@ export const notifSettings = {
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('bell', 17)}</div>
-        <div class="lm"><div class="lt">Accountability notifications</div><div class="ls">${p.enabled ? 'On — reminders track what’s actually still open' : 'Paused'}</div></div>
+        <div class="lm"><div class="lt">Accountability notifications</div><div class="ls">${p.enabled ? 'On: reminders track what’s actually still open' : 'Paused'}</div></div>
         <div class="seg" style="width:104px" id="ns-enabled"><button class="${p.enabled ? 'on' : ''}">On</button><button class="${p.enabled ? '' : 'on'}">Off</button></div>
       </div>
       <div class="lrow" id="ns-haptics" style="cursor:default">
@@ -587,22 +597,26 @@ export const notifSettings = {
           <span class="status-pill ${lv === 'High' ? 'a' : lv === 'Medium' ? 'b' : 'p'}" style="display:inline-flex;align-items:center;gap:5px">${icon('lock', 11)} ${lv}</span>
         </div>`).join('')}
     </section>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:10px;padding:0 2px">${icon('lock', 11)} Urgency drives escalation and deadline warnings, and belongs to ${S.coach.hasCoach ? 'your coach' : 'your plan'} — your tone above only changes how reminders are worded. Completed requirements never remind you; finishing one cancels its reminders immediately.</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:10px;padding:0 2px">${icon('lock', 11)} Urgency drives escalation and deadline warnings, and belongs to ${S.coach.hasCoach ? 'your coach' : 'your plan'}; your tone above only changes how reminders are worded. Completed requirements never remind you; finishing one cancels its reminders immediately.</div>
     <div style="height:10px"></div>
     `;
   },
   async mount(root) {
     wireToggles(root);
+    wireSegAria(root);
     wirePressure(root, '#ns-pressure');
-    // Haptics: a REAL device preference — router's buzz() honors it on every tap.
+    // Haptics: a REAL device preference — router's buzz() honors it on every tap. Paint the
+    // buttons too: this seg saved the pref but never repainted, so tapping Off left On lit and
+    // the control read as broken (critique 2026-08-15).
     const hseg = root.querySelector('#ns-haptics-seg');
     if (hseg) {
       const [onB, offB] = hseg.querySelectorAll('button');
-      onB.addEventListener('click', () => act.setHaptics(true));
-      offB.addEventListener('click', () => act.setHaptics(false));
+      const paint = (on) => { onB.classList.toggle('on', on); offB.classList.toggle('on', !on); };
+      onB.addEventListener('click', () => { act.setHaptics(true); paint(true); });
+      offB.addEventListener('click', () => { act.setHaptics(false); paint(false); });
     }
     // Segmented controls persist straight into RT.notifPrefs and resync the device schedule.
-    const seg = (sel, value) => {
+    const seg = (sel, value, after) => {
       const row = root.querySelector(sel);
       if (!row) return;
       const btns = [...row.querySelectorAll('button')];
@@ -610,9 +624,15 @@ export const notifSettings = {
         btns.forEach((x) => x.classList.remove('on'));
         b.classList.add('on');
         act.setNotifPrefs(value(b.textContent.trim()));
+        if (after) after(b.textContent.trim());
       }));
     };
-    seg('#ns-enabled', (t) => ({ enabled: t === 'On' }));
+    // The master row's subtitle states the mode; it has to move with the toggle or the row
+    // contradicts itself ("On: reminders track…" under a lit Off).
+    seg('#ns-enabled', (t) => ({ enabled: t === 'On' }), (t) => {
+      const ls = root.querySelector('#ns-enabled')?.closest('.lrow')?.querySelector('.ls');
+      if (ls) ls.textContent = t === 'On' ? 'On: reminders track what’s actually still open' : 'Paused';
+    });
     seg('#ns-deadline', (t) => ({ allowDeadline: t === 'On' }));
     seg('#ns-quiet', (t) => ({ quietFrom: (t === '9 PM' ? 21 : t === '11 PM' ? 23 : 22) * 60 }));
   },
@@ -624,6 +644,19 @@ export const notifSettings = {
    yet, so the header sub-copy says exactly that (the honesty marker from the Slice E brief).
    Every control writes straight through act.setCoachNotifPrefs (merge + save + resync + the
    opt-out mirror) — this screen never touches RT.coachNotifPrefs directly. */
+/* Quick-setup bundles (Slice E). Module-scoped so render() can light the chip the current prefs
+   already match — a picker where no chip is ever lit reads as broken, and after a preset tap the
+   __render() repaint needs the same logic to show what stuck. */
+const COACH_PRESETS = {
+  Essential: { enabled: true, briefing: false, recap: false, hourly: false, immediateCritical: true, quietFrom: 21 * 60 },
+  Balanced: { enabled: true, briefing: true, briefingAt: 7 * 60 + 30, recap: true, recapAt: 20 * 60 + 30, hourly: true, immediateCritical: true, quietFrom: 22 * 60 },
+  'Hands-on': { enabled: true, briefing: true, briefingAt: 7 * 60, recap: true, recapAt: 20 * 60, hourly: true, immediateCritical: true, quietFrom: 23 * 60 },
+};
+function presetFor(p) {
+  const hit = Object.entries(COACH_PRESETS).find(([, b]) => Object.entries(b).every(([k, v]) => p[k] === v));
+  return hit ? hit[0] : null;
+}
+
 export const coachNotifSettings = {
   // `operator`, not `coach`. trainerProfile links this screen too (screens/roles.js), but a
   // hardcoded nav:'coach' made navAdmits() refuse a trainer, so the router bounced them to their
@@ -636,14 +669,13 @@ export const coachNotifSettings = {
     const p = normalizeCoachPrefs(RT.coachNotifPrefs);
     const qf = Math.round(p.quietFrom / 60); // 21 | 22 | 23
     const qt = Math.round((p.quietTo != null ? p.quietTo : 7 * 60) / 60); // resume hour
+    const preset = presetFor(p);
     return `
     ${backHead('Notifications', 'When and how you get alerts about your team.', roleProfileRoute())}
 
     <div class="eyebrow">Quick setup</div>
-    <div class="chip-row" id="cns-preset">
-      <span class="chp">Essential</span>
-      <span class="chp">Balanced</span>
-      <span class="chp">Hands-on</span>
+    <div class="chip-row" id="cns-preset" data-toggle-group>
+      ${Object.keys(COACH_PRESETS).map((k) => `<span class="chp ${preset === k ? 'on' : ''}">${k}</span>`).join('')}
     </div>
     <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin:0 2px 6px">Pick a starting point, then fine-tune below.</div>
 
@@ -656,7 +688,7 @@ export const coachNotifSettings = {
     </section>
 
     <div class="eyebrow">Morning briefing</div>
-    <div class="chip-row" id="cns-briefing">
+    <div class="chip-row" id="cns-briefing" data-toggle-group>
       <span class="chp ${!p.briefing ? 'on' : ''}">Off</span>
       <span class="chp ${p.briefing && p.briefingAt === 7 * 60 ? 'on' : ''}">7:00</span>
       <span class="chp ${p.briefing && p.briefingAt === 7 * 60 + 30 ? 'on' : ''}">7:30</span>
@@ -664,12 +696,16 @@ export const coachNotifSettings = {
     </div>
 
     <div class="eyebrow">Evening recap</div>
-    <div class="chip-row" id="cns-recap">
+    <div class="chip-row" id="cns-recap" data-toggle-group>
       <span class="chp ${!p.recap ? 'on' : ''}">Off</span>
       <span class="chp ${p.recap && p.recapAt === 20 * 60 ? 'on' : ''}">8:00 PM</span>
       <span class="chp ${p.recap && p.recapAt === 20 * 60 + 30 ? 'on' : ''}">8:30 PM</span>
       <span class="chp ${p.recap && p.recapAt === 21 * 60 ? 'on' : ''}">9:00 PM</span>
     </div>
+    ${/* Breathing room the other chip rows get from a following eyebrow: without it the card
+          below sits flush against the chips, and when this row wraps to two lines at 390px the
+          "9:00 PM" chip visibly collides with the Overdue digest card. */''}
+    <div style="height:12px"></div>
 
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
@@ -706,15 +742,33 @@ export const coachNotifSettings = {
     `;
   },
   mount(root) {
-    // Plain On/Off segments: each writes one field straight through act.setCoachNotifPrefs.
-    const seg2 = (sel, patch) => {
+    // Radiogroup semantics + Tab/Enter reach for the three chip rows, aria-pressed for the
+    // segs. wireToggles attaches FIRST so the per-chip persistence handlers below read fresh
+    // .on state (the attach-order rule the other screens document).
+    wireToggles(root);
+    wireSegAria(root);
+    // Plain On/Off segments: each writes one field straight through act.setCoachNotifPrefs —
+    // AND paints the buttons. These saved without repainting, so tapping Off left On lit and
+    // every seg on this screen read as broken (critique 2026-08-15; the athlete-side seg()
+    // always painted).
+    const seg2 = (sel, patch, after) => {
       const row = root.querySelector(sel);
       if (!row) return;
       const [onBtn, offBtn] = row.querySelectorAll('button');
-      onBtn.addEventListener('click', () => act.setCoachNotifPrefs(patch(true)));
-      offBtn.addEventListener('click', () => act.setCoachNotifPrefs(patch(false)));
+      const pick = (on) => {
+        onBtn.classList.toggle('on', on);
+        offBtn.classList.toggle('on', !on);
+        act.setCoachNotifPrefs(patch(on));
+        if (after) after(on);
+      };
+      onBtn.addEventListener('click', () => pick(true));
+      offBtn.addEventListener('click', () => pick(false));
     };
-    seg2('#cns-enabled', (on) => ({ enabled: on }));
+    seg2('#cns-enabled', (on) => ({ enabled: on }), (on) => {
+      // The master row's subtitle states the mode; it moves with the toggle or contradicts it.
+      const ls = root.querySelector('#cns-enabled')?.closest('.lrow')?.querySelector('.ls');
+      if (ls) ls.textContent = on ? 'On' : 'Paused';
+    });
     seg2('#cns-hourly', (on) => ({ hourly: on }));
     seg2('#cns-critical', (on) => ({ immediateCritical: on }));
     seg2('#cns-myroom', (on) => ({ myRoomOnly: on }));
@@ -744,16 +798,12 @@ export const coachNotifSettings = {
       }));
     }
 
-    // Quick-setup presets: apply a bundle of prefs, then repaint so every control reflects it.
+    // Quick-setup presets: apply a bundle of prefs, then repaint so every control reflects it
+    // (render() lights the matching chip via presetFor, so the tap visibly sticks).
     const presetRow = root.querySelector('#cns-preset');
     if (presetRow) {
-      const PRESETS = {
-        Essential: { enabled: true, briefing: false, recap: false, hourly: false, immediateCritical: true, quietFrom: 21 * 60 },
-        Balanced: { enabled: true, briefing: true, briefingAt: 7 * 60 + 30, recap: true, recapAt: 20 * 60 + 30, hourly: true, immediateCritical: true, quietFrom: 22 * 60 },
-        'Hands-on': { enabled: true, briefing: true, briefingAt: 7 * 60, recap: true, recapAt: 20 * 60, hourly: true, immediateCritical: true, quietFrom: 23 * 60 },
-      };
       presetRow.querySelectorAll('.chp').forEach((c) => c.addEventListener('click', () => {
-        const b = PRESETS[c.textContent.trim()];
+        const b = COACH_PRESETS[c.textContent.trim()];
         if (b) { act.setCoachNotifPrefs(b); window.__render(); }
       }));
     }
@@ -785,20 +835,32 @@ export const deleteAccount = {
   get nav() { return roleNav(); },
   hideTabs: true,
   render() {
+    /* The consequences differ by role, and this is the one screen where wrong-persona copy is
+       unforgivable. Each line states what the delete_account cascade actually does (0007/0079):
+       athlete-owned rows go, team-owned artifacts survive with attribution nulled, a trainer's
+       practice cascades away (and trainer_funded_access with it), guardian links go with the
+       parent. Never promise more or less than the RPC delivers. */
+    const WHAT = {
+      coach: "Your account, your sign-in, and everything only you own. Your team's standards, templates, and history stay with the team, with your name removed from them. Your athletes keep their own logs and scores. This cannot be undone.",
+      trainer: 'Your account, your practice, and its client code. Your clients keep their own logs and scores, but they lose their connection to you, and any premium access funded through your packages ends immediately. This cannot be undone.',
+      parent: 'Your account, your sign-in, and your links to your athletes. Your athletes keep their accounts and everything in them; they just lose your view. Any plan you fund is billed separately and does not cancel itself: cancel it under Funded plans first. This cannot be undone.',
+    };
+    const what = WHAT[RT.authRole] || "Your account, every meal photo, every log, every score, your coach connection, and your spot on your team's Squad board. Your coach keeps nothing of yours. This cannot be undone.";
     return `
     ${backHead('Delete Account', 'Permanent. We mean it.', roleProfileRoute())}
 
     <div class="state-demo err-box" style="text-align:left">
       <div class="sd-t">What gets deleted</div>
-      <div class="sd-s">Your account, every meal photo, every log, every score, your coach connection, and your spot on your team's Squad board. Your coach keeps nothing of yours. This cannot be undone.</div>
+      <div class="sd-s">${what}</div>
     </div>
+    <div id="del-sub-note"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
       <div><div class="tt">Want your data first?</div>
-      <div class="ts">Download everything from Privacy & visibility before you delete. Deletion completes within 30 days everywhere, immediately in the app.</div></div>
+      <div class="ts">Download everything before you delete: <span class="link" data-go="privacy" role="button" tabindex="0" style="font-weight:700">open Privacy &amp; visibility</span>. Deletion completes within 30 days everywhere, immediately in the app.</div></div>
     </div>
     <div style="height:18px"></div>
-    <button id="del-acct" class="btn" style="background:var(--danger-solid);color:#fff;box-shadow:0 10px 30px rgba(220,38,38,0.3)">${icon('trash', 18)} Delete my account</button>
+    <button id="del-acct" class="btn" style="background:var(--danger-solid);color:#fff;box-shadow:0 10px 30px rgba(var(--red-rgb),0.3)">${icon('trash', 18)} Delete my account</button>
     <div id="del-status" style="text-align:center;font-size:13px;font-weight:600;color:var(--text-3);min-height:18px;margin-top:10px"></div>
     <button class="btn ghost" data-go="${roleProfileRoute()}">Keep my account</button>
     <div style="height:10px"></div>
@@ -808,6 +870,40 @@ export const deleteAccount = {
     const btn = root.querySelector('#del-acct');
     const status = root.querySelector('#del-status');
     if (!btn) return;
+    /* Money before erasure: deleting an account cancels NO subscription (IAP bills through the
+       store, team plans through Stripe), so a paying user who deletes keeps getting charged.
+       Warn when we KNOW a plan is live; if the read fails, state the generic truth instead of
+       staying silent. Parents are covered by the funded-plans line in the copy above. */
+    const subNote = root.querySelector('#del-sub-note');
+    if (subNote && RT.authRole !== 'parent') {
+      (async () => {
+        const sub = await roles.fetchMySubscription();
+        const failed = !!(sub && sub.error);
+        if (!failed && !isPaid(sub)) return;
+        const team = !failed && sub.tier === 'team';
+        const store = /android/i.test(navigator.userAgent || '') ? 'Play Store' : 'App Store';
+        const manageLabel = team ? 'Open the billing portal' : `Manage it in the ${store}`;
+        subNote.innerHTML = `
+        <div class="sidebox">
+          <div class="req-icon a" style="width:38px;height:38px">${icon('creditCard', 17)}</div>
+          <div><div class="tt">${failed ? 'Paying for a membership?' : team ? 'Your Team plan keeps billing' : 'Your membership keeps billing'}</div>
+          <div class="ts">Deleting your account does not cancel it. <span class="link" id="del-sub-manage" role="button" tabindex="0" style="font-weight:700">${manageLabel}</span> first.</div></div>
+        </div>`;
+        const manage = subNote.querySelector('#del-sub-manage');
+        const go = async () => {
+          if (team) {
+            const p = await roles.openBillingPortal();
+            if (p.ok) { if (window.OnStandardNative?.openUrl) window.OnStandardNative.openUrl(p.url); else location.href = p.url; }
+            else if (status) { status.textContent = p.error || 'Could not open the billing portal.'; }
+            return;
+          }
+          roles.openExternal(storeSubUrl());
+        };
+        manage.addEventListener('click', go);
+        manage.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+      })();
+    }
+    const orig = btn.innerHTML; // 'Delete my account' with its icon: what a failed attempt resets to
     let armed = false;
     btn.addEventListener('click', async () => {
       if (!armed) { armed = true; btn.innerHTML = 'Tap again to permanently delete'; return; } // two-tap confirm
@@ -816,8 +912,8 @@ export const deleteAccount = {
       // Never claim the account is gone if the SERVER delete failed — that would tell the user
       // their data is erased while it's intact server-side. Local session is always signed out.
       if (serverOk === false) {
-        if (status) { status.style.color = 'var(--red-bright)'; status.textContent = "Couldn't reach the server — you're signed out, but your account may still exist. Try again online."; }
-        btn.disabled = false; btn.textContent = 'Delete account'; armed = false;
+        if (status) { status.style.color = 'var(--red-bright)'; status.textContent = "Couldn't reach the server. You're signed out, but your account may still exist. Try again online."; }
+        btn.disabled = false; btn.innerHTML = orig; armed = false;
         return;
       }
       if (status) status.textContent = 'Account deleted.';
@@ -844,10 +940,10 @@ export const terms = {
     <section class="card" style="padding:6px 16px">
       ${ext('https://onstandard.app/terms', 'clipboard', 'Terms of Service', 'The full agreement')}
       ${ext('https://onstandard.app/privacy', 'lock', 'Privacy Policy', 'What we collect and why')}
-      <div class="lrow" data-go="privacy"><div class="lic">${icon('download', 16)}</div><div class="lm"><div class="lt">Data export</div><div class="ls">Download everything you own, in-app</div></div>${icon('chevron', 16, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="verified-discipline"><div class="lic">${icon('shield', 16)}</div><div class="lm"><div class="lt">Verified Discipline profile</div><div class="ls">See exactly what a recruiter would — off until you say so</div></div>${icon('chevron', 16, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('trash', 16)}</div><div class="lm"><div class="lt">Account deletion</div><div class="ls">Permanent, in-app</div></div>${icon('chevron', 16, 'style="color:var(--text-3)"')}</div>
-      <div class="lrow" data-go="feedback"><div class="lic">${icon('message', 16)}</div><div class="lm"><div class="lt">Send feedback</div><div class="ls">Report a bug, ask something, or tell us an idea</div></div>${icon('chevron', 16, 'style="color:var(--text-3)"')}</div>
+      <div class="lrow" data-go="privacy"><div class="lic">${icon('download', 16)}</div><div class="lm"><div class="lt">Data export</div><div class="ls">Download everything you own, in-app</div></div>${icon('chevron', 16)}</div>
+      <div class="lrow" data-go="verified-discipline"><div class="lic">${icon('shield', 16)}</div><div class="lm"><div class="lt">Verified Discipline profile</div><div class="ls">See exactly what a recruiter would, off until you say so</div></div>${icon('chevron', 16)}</div>
+      <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('trash', 16)}</div><div class="lm"><div class="lt">Account deletion</div><div class="ls">Permanent, in-app</div></div>${icon('chevron', 16)}</div>
+      <div class="lrow" data-go="feedback"><div class="lic">${icon('message', 16)}</div><div class="lm"><div class="lt">Send feedback</div><div class="ls">Report a bug, ask something, or tell us an idea</div></div>${icon('chevron', 16)}</div>
       ${/* The email stays. Someone locked out of their account cannot file an in-app ticket, and
             that is exactly when they most need to reach a human. */ ''}
       ${ext('mailto:support@onstandard.app', 'clipboard', 'Email us instead', 'support@onstandard.app')}
@@ -856,7 +952,7 @@ export const terms = {
     <section class="card" style="padding:6px 16px">
       ${[
         ['Your photos are yours', 'Meal photos are private to your account and your coach connection. They are not public and not sold.'],
-        ['Health & AI disclaimer', 'OnStandard gives execution feedback, not medical or dietary advice. AI meal reads are estimates — verify anything health-critical yourself.'],
+        ['Health & AI disclaimer', 'OnStandard gives execution feedback, not medical or dietary advice. AI meal reads are estimates; verify anything health-critical yourself.'],
         ['Children & guardians', 'Under 13 requires a parent or guardian. A guardian of a minor can request access to or deletion of the minor’s data at any time.'],
         ['No ad tracking', 'No ad trackers or third-party ad identifiers in the app.'],
         ['Delete anytime', 'Full in-app account deletion. Export first if you want your history.'],
@@ -883,6 +979,14 @@ export function wireToggles(root) {
       x.setAttribute('aria-checked', x.classList.contains('on') ? 'true' : 'false');
     });
     items.forEach(el => {
+      // Chips are <span>s: without a tabindex the whole radiogroup is invisible to Tab and
+      // the "radio" role points at something keyboard users can never reach. Buttons keep
+      // their native focus; Enter/Space routes through click so every per-chip listener the
+      // screens attach (persistence, repaint) fires exactly as it does for touch.
+      if (el.tagName !== 'BUTTON' && !el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0');
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
+      });
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         g.querySelectorAll('.on').forEach(x => x.classList.remove('on'));
@@ -892,6 +996,18 @@ export function wireToggles(root) {
     });
     syncAria();
   });
+}
+
+/* Segmented On/Off controls are two real <button>s, so they focus natively — but their state
+   was conveyed by the .on class alone. Mirror it into aria-pressed, initially and after any
+   seg tap (delegated: the individual paint sites are many and this survives all of them). */
+export function wireSegAria(root) {
+  const sync = () => root.querySelectorAll('.seg button').forEach((b) =>
+    b.setAttribute('aria-pressed', b.classList.contains('on') ? 'true' : 'false'));
+  root.addEventListener('click', (e) => {
+    if (e.target.closest && e.target.closest('.seg')) requestAnimationFrame(sync);
+  });
+  sync();
 }
 
 /* ---------- Plan style picker (0142) ----------
@@ -919,7 +1035,7 @@ export const planStylePicker = {
     ${planStyleCard(PS, { compact: true })}
 
     <div class="eyebrow">${choosing ? 'Choose your style' : 'Tell your ' + esc(S.coach.noun) + ' what you prefer'}</div>
-    ${!choosing ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin:0 2px 10px;line-height:1.5">Your ${esc(S.coach.noun)} sets the plan you're scored on. What you pick here is shared with them — it doesn't change your scoring on its own.</div>` : ''}
+    ${!choosing ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin:0 2px 10px;line-height:1.5">Your ${esc(S.coach.noun)} sets the plan you're scored on. What you pick here is shared with them; it doesn't change your scoring on its own.</div>` : ''}
 
     <section class="card" style="padding:6px 16px" id="ps-options">
       ${STYLE_KEYS.map((k) => {
@@ -935,7 +1051,7 @@ export const planStylePicker = {
     </section>
 
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:12px;padding:0 2px;line-height:1.5">
-      Changing your style applies from today forward. Days you've already scored keep the score you earned — they were measured by the plan you were on then.
+      Changing your style applies from today forward. Days you've already scored keep the score you earned; they were measured by the plan you were on then.
     </div>
 
     <div style="height:16px"></div>
