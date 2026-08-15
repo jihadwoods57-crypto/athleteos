@@ -26,6 +26,15 @@ const SRC = join(ROOT, '..');
 const BASELINE = join(ROOT, 'type-scale-baseline.json');
 const WRITE = process.argv.includes('--write');
 
+// Standalone session-less pages outside the proto, brought onto the type scale by the 2026-08-14
+// impeccable fix pass and now held to it: their raw counts are 0 (all var(--t-*) now), so adding
+// them here locks that in rather than leaving the gate blind to them. NOT all of web/ — only the
+// two pages that pass actually touched.
+const EXTRA_FILES = [
+  join(ROOT, '..', '..', '..', 'web/landing/beta.html'),
+  join(ROOT, '..', '..', '..', 'web/landing/tester.html'),
+];
+
 // A numeric px font-size. Deliberately narrow: it must not match `font-size: var(--t-sm)`
 // or `font-size: calc(var(--t-score) * var(--score-fit))`.
 const RAW = /font-size:\s*[\d.]+px/g;
@@ -42,7 +51,7 @@ function walk(dir, acc = []) {
 }
 
 const counts = {};
-for (const p of walk(SRC)) {
+for (const p of [...walk(SRC), ...EXTRA_FILES]) {
   const n = (readFileSync(p, 'utf8').match(RAW) || []).length;
   if (n > 0) counts[relative(SRC, p).split('\\').join('/')] = n;
 }

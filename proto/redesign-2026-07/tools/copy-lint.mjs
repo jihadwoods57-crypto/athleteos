@@ -18,6 +18,16 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const JS_DIR = path.resolve(HERE, '..', 'js');
 
+// Standalone session-less pages had zero copy coverage (2026-08-15). Scoped to the two pages a
+// 2026-08-14 critique fix pass actually touched, NOT all of web/ — other marketing pages under
+// web/landing/ use phrases like "team default" and "weight never scored" as established, reviewed
+// copy that predates these product-specific bans, and would false-positive a hard-fail lint with
+// no ratchet to absorb the blast radius.
+const EXTRA_FILES = [
+  path.resolve(HERE, '..', '..', '..', 'web/landing/beta.html'),
+  path.resolve(HERE, '..', '..', '..', 'web/landing/tester.html'),
+];
+
 /* Each rule maps an internal phrase → the GS-5 replacement it should have been.
    Rules are matched against source with comments removed (see stripComments). */
 const BANNED = [
@@ -53,7 +63,7 @@ function walk(dir) {
 }
 
 const violations = [];
-for (const file of walk(JS_DIR)) {
+for (const file of [...walk(JS_DIR), ...EXTRA_FILES]) {
   const lines = stripComments(fs.readFileSync(file, 'utf8')).split('\n');
   lines.forEach((line, i) => {
     for (const rule of BANNED) {

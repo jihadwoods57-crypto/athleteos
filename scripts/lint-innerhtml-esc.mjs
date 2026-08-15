@@ -15,6 +15,17 @@ import { dirname, resolve, relative } from 'node:path';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DIR = resolve(ROOT, 'proto/redesign-2026-07/js');
 
+// Standalone session-less pages outside the proto (2026-08-15): they were shipping with NO xss
+// coverage at all — a 2026-08-14 impeccable critique's fix pass on these two touched inline
+// <script> and nobody was checking it. Each is a single .html file with its script inline, so it
+// is scanned as one more "file" alongside the proto's *.js glob; the template/interp regexes
+// operate on raw text and do not care that the JS is wrapped in <script> tags. Deliberately NOT
+// all of web/ — the marketing pages there are untouched by this pass and out of scope here.
+const EXTRA_FILES = [
+  resolve(ROOT, 'web/landing/beta.html'),
+  resolve(ROOT, 'web/landing/tester.html'),
+];
+
 // Names that carry user/coach/athlete-authored free text — the XSS-prone interpolations. Matched as
 // a PROPERTY ACCESS (`.text`, `.note`, `c.name`), which is how user data reaches templates here
 // (fetched-row fields). A bare identifier like `${body}` is rendered markup, not raw user text.
@@ -59,7 +70,7 @@ function interps(body) {
   return out;
 }
 
-const files = globSync('**/*.js', { cwd: DIR }).map((f) => resolve(DIR, f));
+const files = globSync('**/*.js', { cwd: DIR }).map((f) => resolve(DIR, f)).concat(EXTRA_FILES);
 const findings = [];
 for (const file of files) {
   const src = readFileSync(file, 'utf8');
