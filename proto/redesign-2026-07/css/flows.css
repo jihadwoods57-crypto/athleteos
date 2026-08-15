@@ -67,6 +67,9 @@
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   opacity: 0; transition: opacity var(--dur-2) var(--ease-out);
 }
+/* Same ruling as .sheet-scrim below: the 0.62 near-black wash dims a light canvas twice as
+   hard as every sheet, so light gets the established lighter ink scrim. */
+:root[data-theme="light"] .lockstamp { background: rgba(15,23,42,0.34); }
 .lockstamp.on { opacity: 1; }
 .lockstamp .ls-card {
   width: 100%; max-width: 320px; text-align: center;
@@ -222,11 +225,15 @@
    score it produces. The global prefers-reduced-motion rule stops the travel; the line stays put and
    the copy still says what is happening. */
 .scanline {
-  position: absolute; left: 0; right: 0; height: 3px;
+  position: absolute; left: 0; right: 0; top: 8%; height: 3px;
   background: linear-gradient(90deg, transparent, var(--ring-a), var(--ring-b) 55%, var(--ring-c), transparent);
-  box-shadow: 0 0 22px rgba(var(--teal-rgb), 0.75); animation: scan 1.6s ease-in-out infinite;
+  box-shadow: 0 0 22px rgba(var(--teal-rgb), 0.75); will-change: transform;
+  animation: scan 1.6s ease-in-out infinite;
 }
-@keyframes scan { 0%,100% { top: 8%; } 50% { top: 90%; } }
+/* Transform, not `top`: the sweep runs the whole AI wait, and animating a layout property
+   re-ran layout every frame while the WebView was busy uploading. Travel is identical:
+   the box is a fixed 230px square (above), so 8% -> 90% is a 188.6px ride. */
+@keyframes scan { 0%,100% { transform: translateY(0); } 50% { transform: translateY(188.6px); } }
 /* A faint wash under the line so the box reads as being READ, not merely striped. */
 .scanbox::after {
   content: ''; position: absolute; inset: 0; pointer-events: none;
@@ -256,7 +263,7 @@
 .ob { display: flex; flex-direction: column; min-height: 100%; padding-top:6px; }
 .ob-dots { display: flex; gap:8px; justify-content: center; padding:6px 0 20px; }
 .ob-dots .d { width: 7px; height: 7px; border-radius: 50%; background: var(--surface-3); transition: all var(--dur-2) var(--ease-out); }
-.ob-dots .d.on { width: 22px; border-radius: var(--r-micro); background: linear-gradient(90deg, var(--green-bright), var(--blue-bright)); }
+.ob-dots .d.on { width: 22px; border-radius: var(--r-micro); background: linear-gradient(90deg, var(--green), var(--blue)); }
 .ob-title { font-size: 27px; font-weight: 800; letter-spacing: var(--title-tight); line-height: 1.15; }
 .ob-sub { font-size: 14.5px; font-weight: 600; color: var(--text-2); margin-top:8px; line-height: 1.5; text-wrap: balance; }
 .ob-body { flex: 1; padding-top:22px; }
@@ -533,7 +540,7 @@
 .finish-score-line .fs-goal { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; color: var(--green-bright); }
 .fs-bridge { flex: 1; }
 .fs-track { height: 7px; border-radius: var(--r-micro); background: var(--surface-3); overflow: hidden; }
-.fs-fill { height: 100%; border-radius: var(--r-micro); background: linear-gradient(90deg, var(--blue-bright), var(--green-bright)); }
+.fs-fill { height: 100%; border-radius: var(--r-micro); background: linear-gradient(90deg, var(--blue), var(--green)); }
 .fs-note { display: block; text-align: center; font-size: 10.5px; font-weight: 700; color: var(--text-3); margin-top:6px; }
 .finish-moves { margin-top:14px; display: flex; flex-direction: column; gap:8px; }
 .fmove {
@@ -555,7 +562,7 @@
 /* ----- Plan phase progress ----- */
 .phase-bar { display: flex; gap:6px; margin-top:10px; }
 .phase-bar .pb { flex: 1; height: 5px; border-radius: var(--r-micro); background: var(--surface-3); }
-.phase-bar .pb.on { background: linear-gradient(90deg, var(--green-bright), var(--blue-bright)); }
+.phase-bar .pb.on { background: linear-gradient(90deg, var(--green), var(--blue)); }
 
 /* ----- States gallery ----- */
 /* The shared empty/error/permission state — the notifications screen's premium treatment

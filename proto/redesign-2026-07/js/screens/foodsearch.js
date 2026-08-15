@@ -91,9 +91,9 @@ export const foodSearch = {
       items.innerHTML = plate.map((x, i) => `
         <div class="chip-row" style="display:flex;flex-wrap:nowrap;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--hairline-soft)">
           <span style="flex:1;font-size:14px;font-weight:700">${esc(x.n)} <small style="color:var(--text-3)">· ${esc(x.unit)}</small></span>
-          <span class="chp" data-i="${i}" data-d="-1" role="button" aria-label="One less ${esc(x.n)}">−</span>
+          <span class="chp" data-i="${i}" data-d="-1" role="button" tabindex="0" aria-label="One less ${esc(x.n)}">−</span>
           <span style="font-size:14px;font-weight:800;width:26px;text-align:center">${x.q}</span>
-          <span class="chp" data-i="${i}" data-d="1" role="button" aria-label="One more ${esc(x.n)}">+</span>
+          <span class="chp" data-i="${i}" data-d="1" role="button" tabindex="0" aria-label="One more ${esc(x.n)}">+</span>
         </div>`).join('');
       items.querySelectorAll('.chp').forEach(b => b.addEventListener('click', () => {
         const i = +b.dataset.i, d = +b.dataset.d;
@@ -163,10 +163,10 @@ export const labelScan = {
     <div class="eyebrow">Per serving, off the panel</div>
     <section class="card pad">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div><div class="bk" style="margin-bottom:6px">Calories</div><input id="ls-kcal" type="number" inputmode="numeric" placeholder="0" style="${numField}" /></div>
-        <div><div class="bk" style="margin-bottom:6px">Protein (g)</div><input id="ls-p" type="number" inputmode="numeric" placeholder="0" style="${numField};color:var(--green-bright)" /></div>
-        <div><div class="bk" style="margin-bottom:6px">Carbs (g)</div><input id="ls-c" type="number" inputmode="numeric" placeholder="0" style="${numField}" /></div>
-        <div><div class="bk" style="margin-bottom:6px">Fat (g)</div><input id="ls-f" type="number" inputmode="numeric" placeholder="0" style="${numField}" /></div>
+        <div><div class="bk" style="margin-bottom:6px">Calories</div><input id="ls-kcal" type="number" inputmode="numeric" placeholder="0" aria-label="Calories" style="${numField}" /></div>
+        <div><div class="bk" style="margin-bottom:6px">Protein (g)</div><input id="ls-p" type="number" inputmode="numeric" placeholder="0" aria-label="Protein (g)" style="${numField};color:var(--green-bright)" /></div>
+        <div><div class="bk" style="margin-bottom:6px">Carbs (g)</div><input id="ls-c" type="number" inputmode="numeric" placeholder="0" aria-label="Carbs (g)" style="${numField}" /></div>
+        <div><div class="bk" style="margin-bottom:6px">Fat (g)</div><input id="ls-f" type="number" inputmode="numeric" placeholder="0" aria-label="Fat (g)" style="${numField}" /></div>
       </div>
     </section>
 
@@ -383,11 +383,16 @@ export const barcodeScan = {
         }
       })();
     }
-    // The router replaces innerHTML on navigation; stop the camera when the screen goes away
-    // (visibilitychange covers backgrounding mid-scan, pagehide covers a WebView teardown).
-    window.addEventListener('pagehide', stop, { once: true });
-    document.addEventListener('visibilitychange', function onVis() {
+    // Teardown on EVERY exit path. pagehide covers a WebView teardown, visibilitychange covers
+    // backgrounding mid-scan, but an in-app hash navigation (back header, a tab) fires neither:
+    // the stream and the 350ms detect loop kept running against a detached <video>, camera
+    // indicator lit, until the app was backgrounded. The router runs and nulls __screenCleanup
+    // exactly once per route change (router.js), the same hook camera.js registers.
+    const onVis = () => {
       if (document.visibilityState !== 'visible') { stop(); document.removeEventListener('visibilitychange', onVis); }
-    });
+    };
+    window.addEventListener('pagehide', stop, { once: true });
+    document.addEventListener('visibilitychange', onVis);
+    window.__screenCleanup = () => { stop(); document.removeEventListener('visibilitychange', onVis); };
   },
 };

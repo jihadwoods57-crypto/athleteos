@@ -357,11 +357,25 @@ export function animateFills(root) {
 
   root.querySelectorAll('[data-fill]').forEach((el) => {
     const to = `${el.dataset.fill}%`;
-    if (reduceMotion) { el.style.transition = 'none'; el.style.height = to; return; }
-    el.style.transition = 'height var(--dur-ring) var(--ease-out)';
+    // The reveal plays on transform, not height: transitioning height reruns layout on every
+    // frame of the 1400ms draw, while scaleY composites for free (the same rule the weekly
+    // bars' xf-grow-y already follows). The column rests at its REAL height; motion.js's
+    // wind-back parks the inline height at 0%, which is the only state with anything to
+    // reveal, so a plain repaint never replays the grow. The track (.cscol) owns the radius
+    // and clips, and the fill itself is square-cornered, so scaling distorts no corner; the
+    // 2px lit lip rides the scaled top edge and reaches full weight as the column lands.
+    const wound = el.style.height === '0%';
+    el.style.height = to;
+    if (reduceMotion || !wound) { el.style.transition = 'none'; el.style.transform = ''; return; }
+    el.style.transformOrigin = 'bottom';
+    el.style.transition = 'none';
+    el.style.transform = 'scaleY(0)';
     if (typeof requestAnimationFrame === 'function') {
-      requestAnimationFrame(() => requestAnimationFrame(() => { el.style.height = to; }));
-    } else { el.style.height = to; }
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        el.style.transition = 'transform var(--dur-ring) var(--ease-out)';
+        el.style.transform = 'scaleY(1)';
+      }));
+    } else { el.style.transform = ''; }
   });
 
   // Completion bloom on the column, mirroring the ring's flare. Class-driven and one-shot so a
@@ -437,8 +451,8 @@ export function appHead(sub, extra) {
       ${extra || ''}
       ${bellBtn(n)}
       ${S.athlete.avatar && safeImg(S.athlete.avatar)
-        ? `<div class="avatar" data-go="profile" style="background-image:url('${safeImg(S.athlete.avatar)}');background-size:cover;background-position:center"></div>`
-        : `<div class="avatar" data-go="profile">${esc(S.athlete.initials)}</div>`}
+        ? `<div class="avatar" data-go="profile" aria-label="Your profile" style="background-image:url('${safeImg(S.athlete.avatar)}');background-size:cover;background-position:center"></div>`
+        : `<div class="avatar" data-go="profile" aria-label="Your profile">${esc(S.athlete.initials)}</div>`}
     </div>
   </header>`;
 }

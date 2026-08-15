@@ -213,14 +213,19 @@ export async function staffSetResult(resultId, status, reason) {
   } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
 }
 
-/** Load the standards a coach or trainer owns, for the manage list (slice 3). */
+/** Load the standards a coach or trainer owns, for the manage list (slice 3).
+ *  null = FAILED (the fetcher contract): during an outage the manage screen must keep its
+ *  last-known rows and say the list didn't load, never "No activity standards yet" over
+ *  standards the coach owns (which reads as a deletion and invites a duplicate). The screen
+ *  branches on null (keep rows + error/retry) vs [] (a server-confirmed empty book). No
+ *  client is the same failure: the read never happened. */
 export async function loadOwnerStandards(teamId, practiceId) {
   const c = sb();
-  if (!c) return [];
+  if (!c) return null;
   try {
     const col = teamId ? 'team_id' : 'practice_id';
     const { data, error } = await c.from('connected_standards')
       .select('*').eq(col, teamId || practiceId).order('created_at', { ascending: false });
-    return error ? [] : (Array.isArray(data) ? data : []);
-  } catch { return []; }
+    return error ? null : (Array.isArray(data) ? data : []);
+  } catch { return null; }
 }

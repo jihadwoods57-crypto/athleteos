@@ -117,7 +117,7 @@ export default {
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="my-trainer-offers">
         <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div>
-        <div class="lm"><div class="lt">Packages</div><div class="ls">Accountability packages${S.coach.isNamed ? ` from ${esc(S.coach.nameMid)}` : ''}</div></div>
+        <div class="lm"><div class="lt">Packages</div><div class="ls">${S.coach.isNamed ? `What ${esc(S.coach.nameMid)} offers` : 'Plans your trainer offers'}</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
     </section>` : `

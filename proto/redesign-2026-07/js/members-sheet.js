@@ -17,6 +17,7 @@ import { esc } from './components.js';
 import { icon } from './icons.js';
 
 let overlay = null;
+let opener = null;   // the element that opened the sheet; focus returns to it on close
 
 function close() {
   if (!overlay) return;
@@ -25,6 +26,12 @@ function close() {
   o.classList.remove('on');
   setTimeout(() => { try { o.remove(); } catch { /* already gone */ } }, 180);
   try { document.removeEventListener('keydown', onKey); } catch { /* not attached */ }
+  // Round-trip focus: open() moves focus to the close button, so closing must hand it back or
+  // the user is dumped to <body> and loses the mid-conversation position this overlay exists
+  // to preserve.
+  const back = opener;
+  opener = null;
+  if (back && typeof back.focus === 'function') { try { back.focus(); } catch { /* opener left the DOM */ } }
 }
 function onKey(e) { if (e.key === 'Escape') close(); }
 
@@ -32,6 +39,8 @@ function onKey(e) { if (e.key === 'Escape') close(); }
 export function openMembersSheet(members) {
   const list = Array.isArray(members) ? members.filter(Boolean) : [];
   if (!list.length || overlay) return;
+  // Record who opened it BEFORE focus moves to the close button below; close() hands it back.
+  opener = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
 
   const rows = list.map((p) => {
     const meta = participantMeta(p.kind);

@@ -59,8 +59,12 @@ export const coachAnnounce = {
     const positions = [...new Set(rows.map((r) => (r.unit || '').trim().toUpperCase()).filter(Boolean))];
     const target = ANN.scopeKind === 'athlete' ? rows.find((r) => r.athleteId === ANN.scopeValue) : null;
     const group = ANN.scopeKind === 'group' ? groups.find((g) => g.id === ANN.scopeValue) : null;
+    // role="radio" + aria-checked from the same `on` flag the paint uses: the screen re-renders
+    // on every selection (the [data-ann] handler ends in window.__render), so the state can
+    // never drift. tabindex makes the chips reachable; the router's document-level Enter/Space
+    // net presses them (router.js).
     const chip = (on, label, act, arg) =>
-      `<span class="chp ${on ? 'on' : ''}" data-ann="${act}${arg != null ? ':' + esc(String(arg)) : ''}">${label}</span>`;
+      `<span class="chp ${on ? 'on' : ''}" role="radio" aria-checked="${on ? 'true' : 'false'}" tabindex="0" data-ann="${act}${arg != null ? ':' + esc(String(arg)) : ''}">${label}</span>`;
     const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
     const histRows = HIST && HIST.teamId === teamId ? HIST.rows : null;
     const sendLabel = ANN.scopeKind === 'athlete' ? `Send to ${esc(target ? target.name : 'this athlete')}`
@@ -74,7 +78,7 @@ export const coachAnnounce = {
     ${target ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px 8px">Sending to <b style="color:var(--text)">${esc(target.name)}</b> only.</div>` : ''}
 
     <div class="eyebrow">Who</div>
-    <div class="chip-row" id="an-who">
+    <div class="chip-row" id="an-who" role="radiogroup" aria-label="Who">
       ${chip(ANN.scopeKind === 'team', `Whole team${rows.length ? ` · ${rows.length}` : ''}`, 'team')}
       ${positions.map((p) => {
         const n = rows.filter((r) => (r.unit || '').trim().toUpperCase() === p).length;

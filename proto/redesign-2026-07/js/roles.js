@@ -977,9 +977,9 @@ export async function createStaffInvite(teamId, role) {
   const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };
   try {
     const { data, error } = await c.rpc('create_staff_invite', { p_team: teamId, p_role: role });
-    if (error) return { ok: false, error: error.message || 'Could not mint the code.' };
+    if (error) return { ok: false, error: error.message || 'Could not create the code.' };
     return { ok: true, code: (typeof data === 'string' && data) || '' };
-  } catch (e) { return { ok: false, error: (e && e.message) || 'Could not mint the code.' }; }
+  } catch (e) { return { ok: false, error: (e && e.message) || 'Could not create the code.' }; }
 }
 export async function joinStaff(code) {
   const c = sb(); if (!c) return { ok: false, error: 'You need a connection for this.' };

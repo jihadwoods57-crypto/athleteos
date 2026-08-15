@@ -71,7 +71,7 @@ const steps = {
         : `${j.teamName || ''}${j.school ? ' · ' + j.school : ''}`;
       return frame(2, j.kind === 'practice' ? 'Trainer connected' : 'Coach connected', 'Your logs will count toward their board from day one.', `
       <section class="card team-preview">
-        <div class="tp-av" style="background:linear-gradient(150deg,var(--green-bright),#0d9459);color:#04150c">${esc(title[0])}</div>
+        <div class="tp-av" style="background:linear-gradient(150deg,var(--green),var(--green-deep));color:var(--ink-on-accent)">${esc(title[0])}</div>
         <div style="flex:1">
           <div style="font-size:16px;font-weight:800">${esc(title)}</div>
           <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${esc(subLine)}</div>

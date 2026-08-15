@@ -145,7 +145,12 @@ const ROOT_TAB = {
   // and inherit the origin tab (mod.tab = 'profile' remains the deep-link fallback).
   'coach-inbox': 'inbox', 'coach-profile': 'profile',
   'coach-plan': 'roster',
-  trainer: 'home', 'trainer-roster': 'roster', 'trainer-create': 'create',
+  // trainer-create is deliberately ABSENT, exactly like coach-create above: both routes render
+  // the same transient coachCreate module, whose back button pops the pushed origin. Listing it
+  // here made the trainer's FAB reset an otherwise-unused 'create' stack instead of pushing the
+  // departing screen, so Back from the Create menu dumped the trainer on Home and NAV.tab stayed
+  // 'create' (no lit tab) for every detail screen opened from that menu.
+  trainer: 'home', 'trainer-roster': 'roster',
   'trainer-inbox': 'inbox', 'trainer-profile': 'profile',
 };
 let NAV = (() => {
@@ -455,6 +460,29 @@ async function boot() {
    a data-back — had none: on a keyboard the only exit was to find and click the scrim. Screens
    own their own handlers first (this runs at the document level, and theirs stopPropagation or
    fire on their own nodes), so this is a floor, not an override. */
+/* Enter/Space activation floor for every role-annotated non-native control, app-wide.
+   The per-render net above only reaches [data-go]/[data-act]/[data-back]; the switches, audience
+   chips, plan cards, steppers and photo openers carry their own data hooks, and several are
+   recreated by innerHTML patches AFTER render() has wired things (the food-search plate, the
+   meal food-edit rows), so per-element wiring can never be complete. One delegated listener
+   covers anything a builder marks with a role plus tabindex, whenever it is created.
+   Guards: native controls activate themselves (skipped by tag), and any handler that already
+   claimed the key with preventDefault wins (the per-render net, coach-connected's switches,
+   settings' wireToggles all do), so nothing double-fires. preventDefault stops Space from
+   scrolling the page under the activation. */
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  if (e.defaultPrevented) return;
+  const el = e.target;
+  if (!el || !el.getAttribute) return;
+  const role = el.getAttribute('role');
+  if (role !== 'button' && role !== 'switch' && role !== 'radio' && role !== 'tab') return;
+  const tag = el.tagName;
+  if (tag === 'BUTTON' || tag === 'A' || tag === 'SUMMARY' || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  e.preventDefault();
+  el.click();
+});
+
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || e.defaultPrevented) return;
   // Never steal Escape from a field the user is mid-edit in, or from an overlay that owns it.

@@ -133,7 +133,7 @@ export default {
       <div class="xgrp" style="margin:4px 2px 7px">Forms &amp; check-ins</div>
       ${recovery && !(e.now && e.now.id === 'recovery') ? `
       <div class="sheet-row" data-go="${recovery.route}">
-        <div class="si" style="background:${recovery.state === 'done' ? 'var(--green-surface);color:var(--green-bright)' : 'rgba(168,85,247,0.22);color:var(--purple-bright)'}">${icon(recovery.state === 'done' ? 'check' : 'moon', 20)}</div>
+        <div class="si" style="background:${recovery.state === 'done' ? 'var(--green-surface);color:var(--green-bright)' : 'rgba(var(--purple-rgb),0.22);color:var(--purple-bright)'}">${icon(recovery.state === 'done' ? 'check' : 'moon', 20)}</div>
         <div class="st"><div class="t">Recovery Check-In</div><div class="s">${recovery.state === 'done' ? 'Submitted tonight' : `Before bed · 20 seconds · Recovery ${liveWeightPct('checkin') + liveWeightPct('recovery')}%`}</div></div>
         <span class="xpill ${recovery.color}">${recovery.pill}</span>
       </div>` : ''}

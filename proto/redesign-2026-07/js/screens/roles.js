@@ -347,8 +347,11 @@ const coachSteps = {
         </div>
         <div id="ob-code-status" style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px;text-align:center">Make it yours, e.g. GATORS. The random code stops working once you save.</div>
       </div>` :
+      /* No code = create_team did not succeed. This used to promise the code "generates
+         automatically on your next sign-in" and point at Profile -> Team code; neither was
+         true (see ob2-coach.js). Say what happened and point at the button that fixes it. */
       `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
-        <div><div class="tt">Code pending</div><div class="ts">We couldn't mint your code yet (connection or pending email confirmation). It generates automatically on your next sign-in. Check Profile → Team code.</div></div></div>`}
+        <div><div class="tt">We couldn't create your team</div><div class="ts">Your account is set up. The team isn't yet. Open your dashboard below and use the <b>Create team</b> button waiting there. It takes one tap.</div></div></div>`}
     </div>
     <div class="ob-foot" style="margin-top:auto">
       <button class="btn primary" data-go="coach-home">Open Coach Dashboard</button>
@@ -690,8 +693,11 @@ const trainerSteps = {
       ${code ? `<div class="code-boxes">${code.split('').map((c) => `<div class="cb filled" style="border-color:var(--purple-border);background:rgba(var(--purple-rgb),0.08)">${c}</div>`).join('')}</div>
       <div style="height:12px"></div>
       <button class="btn ghost sm" id="copy-code" style="width:auto;padding:0 26px;margin:0 auto">${icon('clipboard', 16)} Copy code</button>` :
+      /* No code = create_practice did not succeed. Same false promise removed here as in the
+         coach step above: nothing regenerates on its own, and Profile has no fix. The trainer
+         dashboard owns the honest recovery path, so send them there. */
       `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
-        <div><div class="tt">Code pending</div><div class="ts">We couldn't mint your code yet (connection or pending email confirmation). It generates automatically on your next sign-in. Check Profile → Client code.</div></div></div>`}
+        <div><div class="tt">We couldn't create your practice</div><div class="ts">Your account is set up. The practice isn't yet. Open your Trainer View below and your dashboard will show how to finish setup. Your client code appears the moment it's done.</div></div></div>`}
     </div>
     <div class="ob-foot" style="margin-top:auto">
       <button class="btn primary" style="background:linear-gradient(150deg,var(--purple),var(--purple-deep));box-shadow:0 10px 30px rgba(var(--purple-rgb),0.35)" data-go="trainer">Open Trainer View</button>
@@ -1347,7 +1353,7 @@ export const coachProfile = {
       b.disabled = true; sSay('Creating a code…');
       const r = await createStaffInvite(teamId, b.getAttribute('data-staff-invite'));
       b.disabled = false;
-      if (!r.ok) { sSay(r.error || 'Could not mint the code.', true); return; }
+      if (!r.ok) { sSay(r.error || 'Could not create the code.', true); return; }
       act.markCoachSetup('staff'); // real "added another staff member" signal for the setup checklist
       const out = root.querySelector('#staff-code-out'), boxes = root.querySelector('#staff-code-boxes');
       if (out && boxes) {

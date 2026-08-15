@@ -375,7 +375,11 @@ export function planCard({ id, name, price, per = '/mo', sub, tag, on, cadence, 
     if (cadence === 'annual') { p = annual; u = '/yr'; saveLine = `${annualPer}/mo · ${save}`; }
     else { p = monthly; u = '/mo'; }
   }
-  return `<div class="ob2-plan ${on ? 'on' : ''}" data-val="${esc(id)}" role="button" aria-label="${esc(name)}">
+  // tabindex makes the card reachable (role="button" without it points at something keyboard
+  // users can never focus); activation rides the router's document-level Enter/Space net. The
+  // label carries the price and aria-pressed carries the selection, so the choice is complete
+  // without sight of the card.
+  return `<div class="ob2-plan ${on ? 'on' : ''}" data-val="${esc(id)}" role="button" tabindex="0" aria-pressed="${on ? 'true' : 'false'}" aria-label="${esc(name)}${p ? `, ${esc(String(p))}${esc(u || '')}` : ''}">
     ${tag ? `<div class="pl-tag">${esc(tag)}</div>` : ''}
     <div class="pl-row"><div class="pl-t">${esc(name)}</div><div class="pl-p">${esc(p)}<small>${esc(u)}</small></div></div>
     <div class="pl-s">${esc(sub)}</div>

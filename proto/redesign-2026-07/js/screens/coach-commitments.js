@@ -12,7 +12,7 @@
 import { RT } from '../state.js';
 import { icon } from '../icons.js';
 import { track, EVENTS } from '../analytics.js';
-import { backHead, esc } from '../components.js';
+import { backHead, esc, errorState } from '../components.js';
 import { CD, bookId } from '../coach-data.js';
 import { allowedCreateKeys, isReadonly } from '../staff-access.js';
 import { boardCounts, missingFrom, TYPE_LABEL } from '../commitments.js';
@@ -351,7 +351,8 @@ export const coachCommitManage = {
 
     return `
     ${backHead('Commitments', 'Everything you have standing', back)}
-    ${!rows.length ? `
+    ${VC.commitmentsError && !rows.length ? errorState({ title: "Couldn't load your commitments", body: 'Nothing was deleted. Reconnect and your schedule loads right here.', retryId: 'vc-manage-retry' })
+    : !rows.length ? `
       <div class="sidebox">
         <div class="req-icon b" style="width:38px;height:38px">${icon('clock', 17)}</div>
         <div><div class="tt">Nothing scheduled yet</div>
@@ -369,9 +370,19 @@ export const coachCommitManage = {
 
   mount(root) {
     const id = bookId();
+    const hadError = VC.commitmentsError;
     if (id) loadCommitments(id, CD.kind, true).then((rows) => {
+      // Repaint only when the rows or the error flag actually changed — __render re-runs
+      // this mount, and an unconditional refresh here would refetch and spin forever.
+      const changed = JSON.stringify(rows) !== JSON.stringify(RT.vcCommitments || null)
+        || VC.commitmentsError !== hadError;
       RT.vcCommitments = rows;
-      if (root.isConnected) window.__render && window.__render();
+      if (changed && root.isConnected) window.__render && window.__render();
+    });
+    const retry = root.querySelector('#vc-manage-retry');
+    if (retry) retry.addEventListener('click', () => {
+      // A repaint re-runs this mount, and the mount always refetches.
+      window.__render && window.__render();
     });
 
     const create = root.querySelector('#vc-new');

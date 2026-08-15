@@ -16,7 +16,7 @@
    nav:'operator' — one module renders for a coach's team AND a trainer's practice. */
 import { icon } from '../icons.js';
 import { track, EVENTS } from '../analytics.js';
-import { backHead, esc } from '../components.js';
+import { backHead, esc, errorState } from '../components.js';
 import { initialsOf } from '../initials.js';
 import { CD, bookId } from '../coach-data.js';
 import { allowedCreateKeys, isReadonly } from '../staff-access.js';
@@ -557,7 +557,7 @@ export const coachStandardEdit = {
 
 /* ---------------------------------------------------------------- manage list */
 
-let MANAGE = { rows: [], loaded: false };
+let MANAGE = { rows: [], loaded: false, error: false };
 
 export const coachStandardsManage = {
   nav: 'operator',
@@ -565,7 +565,8 @@ export const coachStandardsManage = {
     const back = CD.kind === 'practice' ? 'trainer' : 'coach-home';
     const rows = MANAGE.rows.filter((r) => r.active);
     return `${backHead('Activity standards', 'Verified from athlete devices', back)}
-    ${rows.length ? `<section class="card" style="padding:2px 16px">${rows.map((r) => `
+    ${MANAGE.error && !rows.length ? errorState({ title: "Couldn't load your standards", body: 'They are safe. Reconnect and they load right here.', retryId: 'cs-manage-retry' })
+    : rows.length ? `<section class="card" style="padding:2px 16px">${rows.map((r) => `
       <div class="lrow" data-go="coach-standard-edit/${esc(r.id)}">
         <div class="lic" style="color:var(--blue-bright)">${icon('bolt', 18)}</div>
         <div class="lm">
@@ -588,13 +589,25 @@ export const coachStandardsManage = {
     if (!id) return;
     loadOwnerStandards(CD.kind === 'practice' ? null : id, CD.kind === 'practice' ? id : null)
       .then((rows) => {
+        if (rows === null) {
+          // FAILED read: keep the last-known list, raise the flag once. The flag (not a
+          // refetch) is what repaints, so a persistent outage cannot spin.
+          if (!MANAGE.error) { MANAGE.error = true; if (root.isConnected && window.__render) window.__render(); }
+          return;
+        }
         const sig = rows.map((r) => `${r.id}:${r.active}`).join('|');
         const was = MANAGE.rows.map((r) => `${r.id}:${r.active}`).join('|');
-        MANAGE.rows = rows;
+        const cleared = MANAGE.error;
+        MANAGE.rows = rows; MANAGE.error = false;
         // Repaint only on a real change — __render re-runs this mount, so an unconditional
         // refresh here would spin forever.
-        if (sig !== was && root.isConnected && window.__render) window.__render();
+        if ((sig !== was || cleared) && root.isConnected && window.__render) window.__render();
       });
+    const retry = root.querySelector('#cs-manage-retry');
+    if (retry) retry.addEventListener('click', () => {
+      // A repaint re-runs this mount, and the mount always refetches.
+      window.__render && window.__render();
+    });
   },
 };
 

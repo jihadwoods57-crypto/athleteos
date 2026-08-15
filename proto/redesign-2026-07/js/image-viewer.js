@@ -4,6 +4,7 @@
    original orientation, no editing controls. */
 
 let overlay = null;
+let opener = null;   // the element that opened the viewer; focus returns to it on close
 
 function close() {
   if (!overlay) return;
@@ -12,14 +13,26 @@ function close() {
   o.classList.remove('on');
   setTimeout(() => { try { o.remove(); } catch { /* already gone */ } }, 180);
   try { document.removeEventListener('keydown', onKey); } catch { /* not attached */ }
+  // Round-trip focus: open() moves focus to the close button, so closing must hand it back or
+  // a keyboard/reader user is dumped to <body> and loses their place mid-thread.
+  const back = opener;
+  opener = null;
+  if (back && typeof back.focus === 'function') { try { back.focus(); } catch { /* opener left the DOM */ } }
 }
 function onKey(e) { if (e.key === 'Escape') close(); }
 
 /** Open the viewer on an image URL (data: or https). Safe to call from any screen. */
 export function openImageViewer(src, alt = 'Meal photo') {
   if (!src || overlay) return;
+  // Record who opened it BEFORE anything moves; close() hands focus back there.
+  opener = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
   const el = document.createElement('div');
   el.className = 'imgview';
+  // Dialog semantics: without these the overlay is announced as plain page content and the
+  // screen behind stays in the reading order as far as AT is concerned.
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-modal', 'true');
+  el.setAttribute('aria-label', alt || 'Photo viewer');
   el.innerHTML = `
     <button class="iv-x" aria-label="Close">×</button>
     <div class="iv-stage"><img class="iv-img" alt="Full-size photo" draggable="false"/></div>`;
@@ -30,6 +43,8 @@ export function openImageViewer(src, alt = 'Meal photo') {
   requestAnimationFrame(() => el.classList.add('on'));
   document.addEventListener('keydown', onKey);
   el.querySelector('.iv-x').addEventListener('click', close);
+  // Move focus INTO the dialog (the close button is its one real control), mirroring members-sheet.
+  try { el.querySelector('.iv-x').focus(); } catch { /* focus is a nicety */ }
 
   /* ---- gesture state ---- */
   let scale = 1, tx = 0, ty = 0;           // current transform
@@ -118,6 +133,11 @@ export function openImageViewer(src, alt = 'Meal photo') {
 export function wireImageViewers(root) {
   root.querySelectorAll('[data-viewer]').forEach((n) => {
     n.style.cursor = 'zoom-in';
+    // Keyboard path: these thumbnails are plain elements, so without a tabindex they are
+    // pointer-only. Activation rides the router's document-level Enter/Space net (role="button").
+    if (!n.hasAttribute('tabindex')) n.setAttribute('tabindex', '0');
+    if (!n.hasAttribute('role')) n.setAttribute('role', 'button');
+    if (!n.hasAttribute('aria-label') && !(n.tagName === 'IMG' && n.getAttribute('alt'))) n.setAttribute('aria-label', 'View photo full screen');
     n.addEventListener('click', (e) => {
       e.stopPropagation();
       const src = n.getAttribute('data-viewer') || (n.tagName === 'IMG' ? n.src : '');

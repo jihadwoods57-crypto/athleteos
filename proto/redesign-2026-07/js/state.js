@@ -3113,13 +3113,16 @@ export const act = {
   },
   /* ---------- Parent (guardian) — scoped read + invite (migration 0081). A guardian reads ONLY
      score/grade/day via the guardian_* RPCs; the server (0081) blocks meals/photos/weight/checkins.
-     All graceful when the RPCs aren't live yet (returns empty / not-ok), so the parent screen
-     renders its "no athletes linked" state instead of erroring. ---------- */
+     guardianChildren answers null = FAILED (the fetcher contract): a parent opening the hub on a
+     bad connection must see an honest error with retry, never "No athletes linked yet" over a
+     real link (which reads as the link being gone and invites a needless re-invite). The old
+     graceful-[] here targeted the pre-0081 "RPC not live yet" window, long past. [] stays the
+     answer only for the no-client short-circuit and a server-confirmed empty roster. ---------- */
   async guardianChildren() {
     const sb = window.sb;
     if (!sb) return [];
-    try { const { data, error } = await sb.rpc('guardian_children'); return error ? [] : (data || []); }
-    catch { return []; }
+    try { const { data, error } = await sb.rpc('guardian_children'); return error ? null : (data || []); }
+    catch { return null; }
   },
   async guardianChildDays(child, daysBack = 30) {
     const sb = window.sb;
@@ -3160,13 +3163,21 @@ export const act = {
       // on them is 42501, which made this export silently ship empty arrays. Enumerate the
       // granted columns and pull the walled weight fields through their RPC doors, so the
       // athlete's export really contains their weights (it's their own data).
+      //
+      // supabase-js RESOLVES failures into {error} — it does not throw — so a catch-only
+      // helper walked straight past every RLS rejection, timeout, and 5xx and shipped [] in
+      // that table's place while exportMyData still answered { ok: true }: a privacy export
+      // silently claiming "this is all your data". Any failed read now throws into the
+      // outer catch below, which answers ok:false instead of downloading a hollow file.
       const grab = async (table, col, cols = '*') => {
-        try { const { data } = await sb.from(table).select(cols).eq(col, RT.userId); return data || []; }
-        catch { return []; }
+        const { data, error } = await sb.from(table).select(cols).eq(col, RT.userId);
+        if (error) throw error;
+        return data || [];
       };
       const rpcRows = async (fn, args) => {
-        try { const { data } = await sb.rpc(fn, args); return data || []; }
-        catch { return []; }
+        const { data, error } = await sb.rpc(fn, args);
+        if (error) throw error;
+        return data || [];
       };
       const [profile, athleteProfile, days, meals, weights, planMeta] = await Promise.all([
         grab('profiles', 'id'),

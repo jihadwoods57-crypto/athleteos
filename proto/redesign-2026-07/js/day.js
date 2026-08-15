@@ -781,13 +781,22 @@ export async function loadDay(userId) {
     // parallel, and the weights are stitched back onto the fetched rows BEFORE any existing
     // processing — projectRowToDay, the history map, and every downstream consumer are unchanged.
     const since = addDaysISO(DAY.date, -60);
-    const [{ data }, { data: hist }, weights] = await Promise.all([
+    const [{ data, error: dayErr }, { data: hist, error: histErr }, weights] = await Promise.all([
       sb.from('days').select(DAY_SELECT_COLS).eq('athlete_id', userId).eq('date', DAY.date).maybeSingle(),
       // meals + checkin jsonb ride along so Progress can compute REAL per-category trends
       // (computeComponents over reconstructed past days) — never fabricated category numbers.
       sb.from('days').select('date,score,meals,checkin,hydration_l,quick_added,plan_style,signals').eq('athlete_id', userId).gte('date', since).lt('date', DAY.date).order('date'),
       fetchWeightSeries(sb, userId, 60),
     ]);
+    // supabase-js RESOLVES failures into {error}; it does not throw. A resolved failure used to
+    // leave `data` undefined — indistinguishable from "no row for today" — so projectRowToDay
+    // never merged the server's day, `!data && hasLoggedAnything()` read the cache-restored
+    // local day as AHEAD, and the reconnect-healing push below upserted meals/checkin WHOLESALE
+    // over a server row this device never read: meals logged from another device erased by a
+    // transient 5xx. A failed read must abort the whole merge-and-heal path, so throw into the
+    // catch below (the instant offline paint from loadCache stands, and nothing is written).
+    if (dayErr) throw dayErr;
+    if (histErr) throw histErr;
     if (data && weights.has(String(data.date))) data.current_weight = weights.get(String(data.date));
     const localAhead = projectRowToDay(data) || (!data && hasLoggedAnything());
     if (Array.isArray(hist)) DAY.scoreHistory = hist.map((r) => ({

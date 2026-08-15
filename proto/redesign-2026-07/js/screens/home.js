@@ -198,7 +198,16 @@ async function warmPastResults(uid) {
   if (!uid || !window.sb) return;
   if (PAST.uid === uid && PAST.rows && Date.now() - PAST.at < 60000) return;
   const today = todayISO();
-  const rows = (await fetchRecentMeals(uid, daysAgoISO(2)).catch(() => [])) || [];
+  // fetchRecentMeals resolves null = FAILED (the roles.js contract; it never rejects). A
+  // failure must not be laundered into [] and stamped fresh — that made the Yesterday rails
+  // silently vanish for a full minute per dropped request. Keep this athlete's last-known
+  // rows and leave the stamp cold so the very next mount retries.
+  const fetched = await fetchRecentMeals(uid, daysAgoISO(2));
+  if (fetched === null) {
+    PAST = { uid, rows: PAST.uid === uid ? PAST.rows : null, at: 0 };
+    return;
+  }
+  const rows = Array.isArray(fetched) ? fetched : [];
   const past = rows.filter((r) => r && r.day_date && String(r.day_date) < today);
   await Promise.all(past.map(async (r) => {
     if (r.photo_path) r._img = await signedMealPhotoUrl(r.photo_path).catch(() => null);
@@ -444,6 +453,12 @@ let homeEntrance = true;
 window.addEventListener('hashchange', () => {
   if ((location.hash || '#home').slice(1).split('/')[0] !== 'home') homeEntrance = true;
 });
+
+/* Coach-seen receipts, cached per (user, day) like PAST above: Home alone repaints for
+   commitments, standards, and every data-act tap, and each repaint re-runs mount() — without
+   this cache every checked-off task issued a fresh receipts read. A FAILED read (null) is
+   never cached, so the next mount retries. */
+let SEEN = { uid: null, date: null, rows: null, at: 0 };
 
 /* Daily Score hero — the score owns the screen. Ring keeps the signature green→teal→blue
    sweep (status lives in the tier pill, never in the ring color). Label, completion,
@@ -860,6 +875,9 @@ export default {
     // about a third of a second. Plays only on ARRIVAL (homeEntrance gate) — the exec
     // tick's in-place re-render never replays it. Reduced-motion skips entirely.
     const reduceMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // The seen-receipt below injects async, after homeEntrance is consumed — capture arrival
+    // now so its entrance plays under the same gate as home-in, never on a repaint.
+    const playSeenIn = homeEntrance && !reduceMotion;
     if (homeEntrance && !reduceMotion) {
       const view = root.querySelector('#view');
       if (view) Array.from(view.children).slice(0, 9).forEach((el, i) => {
@@ -878,7 +896,8 @@ export default {
     // no receipts → no row. Fetched per-mount (cheap indexed read), injected async.
     const seenRow = root.querySelector('#seen-row');
     if (seenRow && RT.userId) {
-      fetchMyDayReceipts(RT.userId, String(DAY.date)).then((rows) => {
+      const seenDay = String(DAY.date);
+      const injectReceipt = (rows) => {
         // null = the read failed; no row, same as no receipts. Absence is the design here (a
         // receipt is proof someone looked, so silence is honest), but reading .length off null
         // threw a TypeError that the catch below swallowed.
@@ -899,7 +918,25 @@ export default {
             <span class="stx"><b>${esc(who)}</b> saw your day${esc(extra)}</span>
             <span class="stm">${fmt(first.seen_at)}</span>
           </div>`;
-      }).catch(() => { /* best-effort — the card simply doesn't render */ });
+        // screens.css gives .seen-receipt an unconditional seen-in entrance; the same
+        // arrival-only law as home-in above applies (a repaint recreates this node, and
+        // without this the card visibly dipped and slid back in on every task tap).
+        if (!playSeenIn) {
+          const card = seenRow.firstElementChild;
+          if (card) card.style.animation = 'none';
+        }
+      };
+      const seenFresh = SEEN.uid === RT.userId && SEEN.date === seenDay && SEEN.rows && Date.now() - SEEN.at < 60000;
+      if (seenFresh) {
+        injectReceipt(SEEN.rows);
+      } else {
+        fetchMyDayReceipts(RT.userId, seenDay).then((rows) => {
+          // Only a real answer (rows, or a confirmed no-receipts []) is cached fresh; a
+          // FAILED read (null) leaves the cache cold so the next mount retries.
+          if (rows) SEEN = { uid: RT.userId, date: seenDay, rows, at: Date.now() };
+          injectReceipt(rows);
+        }).catch(() => { /* best-effort — the card simply doesn't render */ });
+      }
     }
     // Live loop: re-render when the derived state changes (minute ticks, state
     // transitions, day rollover). Cheap: derive → compare → maybe render. The router

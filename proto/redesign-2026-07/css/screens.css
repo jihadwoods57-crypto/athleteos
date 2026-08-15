@@ -613,6 +613,13 @@
   width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--hairline);
   background: var(--surface-2); color: var(--text-2); font-size: 17px; line-height: 1;
   cursor: pointer; font-family: var(--font); -webkit-appearance: none; appearance: none;
+  position: relative;
+}
+/* 30px visual, 44px hit target: the focus.css TAP TARGETS idiom (centred invisible ::after),
+   applied here so the sheet's one visible dismiss control clears the app's 44px floor. */
+.memsheet .ms-x::after {
+  content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 100%; height: 100%; min-width: 44px; min-height: 44px; pointer-events: auto;
 }
 .memsheet .ms-x:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
 .memsheet .ms-list { display: flex; flex-direction: column; gap:10px; }
@@ -658,12 +665,12 @@
    AI's purple so it reads as "this goes to the AI Nutritionist", not a second send. Opt-in via
    composer({aiId}). */
 .composer .ai-ask {
-  width: 48px; height: 48px; border-radius: 50%; background: rgba(168,85,247,0.12);
+  width: 48px; height: 48px; border-radius: 50%; background: rgba(var(--purple-rgb), 0.12);
   display:grid; place-items:center; color: var(--purple-bright); cursor:pointer; flex:none;
-  border: 1px solid rgba(168,85,247,0.35); padding:0; margin:0; font-family: var(--font);
+  border: 1px solid rgba(var(--purple-rgb), 0.35); padding:0; margin:0; font-family: var(--font);
   -webkit-appearance: none; appearance: none; transition: color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
 }
-.composer .ai-ask:hover { background: rgba(168,85,247,0.2); }
+.composer .ai-ask:hover { background: rgba(var(--purple-rgb), 0.2); }
 .composer .ai-ask:disabled { opacity: 0.55; cursor: default; }
 .composer .ai-ask:focus-visible { outline: 2px solid var(--purple-bright); outline-offset: 2px; }
 /* `.composer input` above sets flex:1 — the hidden file input is an <input> too, so pin it out of
@@ -679,7 +686,7 @@
 .composer-attach-pending .cap { flex:1; font-size: 12.5px; font-weight: 700; color: var(--text-2); }
 .composer-attach-pending button {
   border:0; background: var(--surface-2); color: var(--text-2); cursor:pointer; flex:none;
-  border-radius: var(--r-pill); padding:6px 12px; font-family: var(--font); font-size: 12px; font-weight: 800;
+  border-radius: var(--r-chip); padding:6px 12px; font-family: var(--font); font-size: 12px; font-weight: 800;
 }
 /* A photo inside a chat bubble. Capped so a portrait shot cannot push the whole thread offscreen. */
 .msg .bimg {
@@ -1034,7 +1041,8 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .dob-row #ob-dob-y{flex:1.5 1 0}
 /* hold-to-commit (used by Task 5) */
 .hold-btn{position:relative;overflow:hidden}
-.hold-fill{position:absolute;inset:0;width:0;background:rgba(255,255,255,0.22);pointer-events:none}
+/* Full-size fill revealed by scaleX (ob-commit.js): the button clips it and owns the radius. */
+.hold-fill{position:absolute;inset:0;transform:scaleX(0);transform-origin:left;background:rgba(255,255,255,0.22);pointer-events:none}
 .hold-label{position:relative}
 /* password meter (used by Task 6) */
 .pw-meter{display:flex;gap:6px;margin:10px 2px 4px}
@@ -1469,7 +1477,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* ---- Coach pinned above the AI (founder 2026-08-04: coach leads, AI assists) ---- */
 .coach-pin{margin:2px 0 12px;padding:12px 14px;border-radius:var(--r-card-sm);background:var(--amber-surface);border:1px solid var(--amber-border)}
 .coach-pin .cp-head{display:flex;align-items:center;gap:8px}
-.coach-pin .cp-av{width:24px;height:24px;border-radius:50%;background:linear-gradient(150deg,var(--amber-bright),var(--amber));color:var(--ink-on-accent);display:grid;place-items:center;font-size:10px;font-weight:800;flex:none}
+.coach-pin .cp-av{width:24px;height:24px;border-radius:50%;background:linear-gradient(150deg,var(--amber),var(--amber-deep));color:var(--ink-on-accent);display:grid;place-items:center;font-size:10px;font-weight:800;flex:none}
 .coach-pin .cp-who{font-size:12.5px;font-weight:800}
 .coach-pin .cp-tag{margin-left:auto;display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--amber-bright)}
 .coach-pin .cp-text{font-size:13.5px;font-weight:600;line-height:1.5;margin-top:6px}
@@ -1800,7 +1808,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .vc-mr-l{font-size:13px;font-weight:700}
 .vc-mr-n{font-size:12.5px;font-weight:800;color:var(--text-2)}
 .vc-mr-track{height:6px;border-radius:var(--r-micro);background:var(--surface-3);overflow:hidden}
-.vc-mr-fill{height:100%;border-radius:var(--r-micro);background:linear-gradient(90deg,var(--green-bright),var(--blue-bright))}
+.vc-mr-fill{height:100%;border-radius:var(--r-micro);background:linear-gradient(90deg,var(--green),var(--blue))}
 .vc-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .vc-stat{background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:12px}
 .vc-sv{font-size:24px;font-weight:800;letter-spacing:-.02em;color:var(--green-bright)}

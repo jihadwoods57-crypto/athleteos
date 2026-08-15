@@ -261,15 +261,33 @@ function patchList(root) {
   const entries = entriesFor({ kind: 'team', value: null }) || [];
   const view = applyView(entries);
   list.innerHTML = listHtml(view);
-  list.querySelectorAll('[data-sel]').forEach(b => b.addEventListener('click', () => {
-    const id = b.getAttribute('data-sel'); SEL.has(id) ? SEL.delete(id) : SEL.add(id); window.__render();
-  }));
+  list.querySelectorAll('[data-sel]').forEach(b => b.addEventListener('click', () => toggleSel(root, b.getAttribute('data-sel'))));
   // Route through the router's origin-tracking navigate (NOT bare __go) so Back from the
   // athlete page returns to this filtered roster instead of the coach dashboard.
   list.querySelectorAll('[data-go]').forEach(el => el.addEventListener('click', (e) => {
     e.stopPropagation();
     window.__navigate(el.getAttribute('data-go'));
   }));
+}
+
+/* A select-mode tap patches in place instead of tearing down the whole shell: window.__render()
+   per tap re-ran mount() (and loadMyBook) and replaced the search input, dropping its focus and
+   keyboard mid-filter — the exact hazard patchList exists for. Only the 0-to-1 boundary pays for
+   a full render, because the sticky bulk bar mounts and unmounts there. */
+function toggleSel(root, id) {
+  SEL.has(id) ? SEL.delete(id) : SEL.add(id);
+  if (SEL.size <= 1) { window.__render(); return; }
+  patchList(root);
+  updateBulkCounts(root);
+}
+function updateBulkCounts(root) {
+  const n = SEL.size;
+  const nudge = root.querySelector('[data-bulk="nudge"]');
+  if (nudge) nudge.textContent = `Nudge ${n}`;
+  const send = root.querySelector('[data-bulk="nudgesend"]');
+  if (send) send.textContent = `Send to ${n}`;
+  const note = root.querySelector('#bulk-nudge-note');
+  if (note) note.textContent = `This exact message goes to all ${n}, from "${S.operatorIdentity.handle} is waiting".`;
 }
 
 export const coachRoster = {
@@ -337,7 +355,7 @@ export const coachRoster = {
     ${SELECTING && SEL.size ? (BULK_NUDGE_ARM != null ? `
     <div class="card" style="position:sticky;bottom:calc(var(--nav-h) + 19px + env(safe-area-inset-bottom, 0px) + 8px);padding:9px;z-index:20">
       <input id="bulk-nudge-body" class="ob-input" maxlength="120" value="${esc(BULK_NUDGE_ARM)}" aria-label="Nudge message" style="width:100%;height:36px;font-size:var(--t-sm)" />
-      <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:6px 0">This exact message goes to all ${SEL.size}, from "${esc(S.operatorIdentity.handle)} is waiting".</div>
+      <div id="bulk-nudge-note" style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:6px 0">This exact message goes to all ${SEL.size}, from "${esc(S.operatorIdentity.handle)} is waiting".</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
         <button class="btn ghost sm" data-bulk="nudgecancel" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:var(--t-xs)">Cancel</button>
         <button class="btn sm" data-bulk="nudgesend" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:var(--t-xs)">Send to ${SEL.size}</button>
@@ -363,9 +381,7 @@ export const coachRoster = {
       SORT = { score: 'status', status: 'name', name: 'activity', activity: 'score' }[SORT]; window.__render();
     }));
     root.querySelectorAll('[data-selmode]').forEach(b => b.addEventListener('click', () => { SELECTING = !SELECTING; if (!SELECTING) SEL.clear(); BULK_STATUS = ''; BULK_NUDGE_ARM = null; window.__render(); }));
-    root.querySelectorAll('[data-sel]').forEach(b => b.addEventListener('click', () => {
-      const id = b.getAttribute('data-sel'); SEL.has(id) ? SEL.delete(id) : SEL.add(id); window.__render();
-    }));
+    root.querySelectorAll('[data-sel]').forEach(b => b.addEventListener('click', () => toggleSel(root, b.getAttribute('data-sel'))));
     root.querySelectorAll('[data-filter]').forEach(b => b.addEventListener('click', () => {
       const [kind, value] = b.getAttribute('data-filter').split(':');
       FILTER = kind === 'all' ? { kind: 'all', value: null } : { kind, value: value || null }; window.__render();

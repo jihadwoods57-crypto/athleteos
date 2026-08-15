@@ -613,9 +613,14 @@ export const analysis = {
   },
   mount(root) {
     // Tapping the pre-log photo opens it full-screen too (§6.1) — same viewer as the thread.
+    // role + tabindex make it keyboard-openable via the router's Enter/Space net; the viewer
+    // restores focus here on close.
     const hero = root.querySelector('.photo-hero');
     if (hero && MEAL.photoDataUrl) {
       hero.style.cursor = 'zoom-in';
+      hero.setAttribute('tabindex', '0');
+      hero.setAttribute('role', 'button');
+      hero.setAttribute('aria-label', 'View photo full screen');
       hero.addEventListener('click', () => openImageViewer(MEAL.photoDataUrl, 'Meal photo'));
     }
     // Edit mode (real editing, not a dead button): remove / rename / set quantity / add.
@@ -640,7 +645,7 @@ export const analysis = {
         const nameEl = row.querySelector('.fr-name');
         const qtyEl = row.querySelector('.fr-qty');
         const item = MEAL.result && (MEAL.result.detectedRich || []).find((d) => d && d.name === name);
-        row.insertAdjacentHTML('beforeend', `<span class="rm" role="button" aria-label="Remove" style="margin-left:8px;color:var(--red);font-weight:800;cursor:pointer;display:inline-flex;vertical-align:middle">${icon('x', 14)}</span>`);
+        row.insertAdjacentHTML('beforeend', `<span class="rm" role="button" tabindex="0" aria-label="Remove ${esc(name)}" style="margin-left:8px;color:var(--red);font-weight:800;cursor:pointer;display:inline-flex;vertical-align:middle">${icon('x', 14)}</span>`);
         row.querySelector('.rm').addEventListener('click', (e) => {
           e.stopPropagation();
           const op = { kind: 'remove', name };
@@ -1269,6 +1274,9 @@ export const thread = {
         // closing returns to this exact scroll position with zero navigation.
         if (hero) {
           hero.style.cursor = 'zoom-in';
+          hero.setAttribute('tabindex', '0');
+          hero.setAttribute('role', 'button');
+          hero.setAttribute('aria-label', 'View photo full screen');
           hero.addEventListener('click', () => openImageViewer(url, `${M.name} photo`));
         }
       } else if (M.hasPhoto) {

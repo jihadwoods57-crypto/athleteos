@@ -545,7 +545,7 @@ const steps = [
           <button class="btn ghost sm" id="ob-code-edit" style="width:auto;padding:0 22px">Customize</button>
         </div>
         <div id="ob-code-editor" style="display:none;margin-top:14px">
-          <input id="ob-code-input" class="ob-input" placeholder="YOUR CODE · 4–12 letters/numbers" maxlength="12"
+          <input id="ob-code-input" class="ob-input" placeholder="YOUR CODE · 6–12 letters/numbers" maxlength="12"
             autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" />
           <div style="display:flex;justify-content:center;gap:8px;margin-top:10px">
             <button class="btn green sm" id="ob-code-save" style="width:auto;padding:0 22px">Save code</button>

@@ -7,13 +7,14 @@
    cascade; excused and unverified leave the denominator instead of counting as failures. */
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, esc } from '../components.js';
+import { backHead, esc, errorState } from '../components.js';
 import { morningReadiness, commitmentStreak } from '../commitments.js';
 import { loadMineRange, todayISO, shiftISO } from '../commitment-data.js';
 
 let RANGE = 30;               // 7 | 30
 let ROWS = null;              // cached rows for the current range
 let LOADED_FOR = null;
+let FAILED = null;            // range:date key of a failed read; cleared by Retry or a range change
 
 function bar(label, done, total) {
   const pct = total ? Math.round((done / total) * 100) : null;
@@ -28,6 +29,11 @@ function bar(label, done, total) {
 export default {
   tab: 'progress',
   render() {
+    if (FAILED === `${RANGE}:${todayISO()}`) {
+      return `
+      ${backHead('Morning Readiness', 'Verified commitments', 'progress')}
+      ${errorState({ title: "Couldn't load your record", body: 'Nothing was lost. Reconnect and it loads right here.', retryId: 'mr-retry' })}`;
+    }
     const rows = ROWS || [];
     const m = morningReadiness(rows);
     const streak = commitmentStreak(rows, todayISO());
@@ -89,15 +95,23 @@ export default {
 
   mount(root) {
     const want = `${RANGE}:${todayISO()}`;
-    if (LOADED_FOR !== want) {
+    // FAILED gates the refetch: without it a persistent outage would loop
+    // fetch -> render -> mount -> fetch forever. Retry clears it deliberately.
+    if (LOADED_FOR !== want && FAILED !== want) {
       loadMineRange(shiftISO(todayISO(), -(RANGE - 1)), todayISO()).then((rows) => {
-        ROWS = rows; LOADED_FOR = want;
+        if (rows === null) { FAILED = want; }
+        else { ROWS = rows; LOADED_FOR = want; FAILED = null; }
         if (root.isConnected) window.__render && window.__render();
       });
     }
+    const retry = root.querySelector('#mr-retry');
+    if (retry) retry.addEventListener('click', () => {
+      FAILED = null;
+      window.__render && window.__render();
+    });
     root.querySelectorAll('[data-range]').forEach((b) => b.addEventListener('click', () => {
       RANGE = +b.getAttribute('data-range');
-      ROWS = null; LOADED_FOR = null;
+      ROWS = null; LOADED_FOR = null; FAILED = null;
       RT.vcRange = RANGE;
       window.__render && window.__render();
     }));

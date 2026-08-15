@@ -60,13 +60,16 @@ export const coachAssign = {
     const positions = practice ? [] : [...new Set(rows.map(r => (r.unit || '').trim().toUpperCase()).filter(Boolean))];
     const target = ASSIGN.scopeKind === 'athlete' ? rows.find(r => r.athleteId === ASSIGN.scopeValue) : null;
     const everyone = practice ? 'All clients' : 'Whole team';
+    // role="radio" + aria-checked from the same `on` flag the paint uses: the screen re-renders
+    // on every selection, so the state can never drift. tabindex makes the chips reachable; the
+    // router's document-level Enter/Space net presses them (router.js).
     const chip = (on, label, act, arg) =>
-      `<span class="chp ${on ? 'on' : ''}" data-assign="${act}${arg != null ? ':' + esc(String(arg)) : ''}">${label}</span>`;
+      `<span class="chp ${on ? 'on' : ''}" role="radio" aria-checked="${on ? 'true' : 'false'}" tabindex="0" data-assign="${act}${arg != null ? ':' + esc(String(arg)) : ''}">${label}</span>`;
     return `
     ${backHead('Assign', 'Put something on someone’s plate', practice ? 'trainer' : 'coach-home')}
 
     <div class="eyebrow">Who</div>
-    <div class="chip-row" id="as-who">
+    <div class="chip-row" id="as-who" role="radiogroup" aria-label="Who">
       ${chip(ASSIGN.scopeKind === 'team', `${everyone}${rows.length ? ` · ${rows.length}` : ''}`, 'team')}
       ${positions.map(p => {
         const n = rows.filter(r => (r.unit || '').trim().toUpperCase() === p).length;
@@ -74,7 +77,7 @@ export const coachAssign = {
       }).join('')}
     </div>
     ${rows.length ? `
-    <div class="chip-row" id="as-ath" style="margin-top:6px">
+    <div class="chip-row" id="as-ath" role="radiogroup" aria-label="One athlete" style="margin-top:6px">
       ${rows.slice(0, 12).map(r => chip(ASSIGN.scopeKind === 'athlete' && ASSIGN.scopeValue === r.athleteId, esc(r.name.split(' ')[0] || r.name), 'athlete', r.athleteId)).join('')}
     </div>` : `
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:2px 2px 0">${practice ? 'Clients loading… everyone works right away.' : 'Roster loading… team-wide works right away.'}</div>`}
@@ -83,12 +86,12 @@ export const coachAssign = {
     <input id="as-title" class="ob-input" maxlength="80" placeholder="e.g. Extra shake after lift" value="${esc(ASSIGN.title || '')}" />
 
     <div class="eyebrow">Proof</div>
-    <div class="chip-row" id="as-proof">
+    <div class="chip-row" id="as-proof" role="radiogroup" aria-label="Proof">
       ${PROOF_CHOICES.map(([id, ic, label]) => chip(ASSIGN.proof === id, `${icon(ic, 13)} ${label}`, 'proof', id)).join('')}
     </div>
 
     <div class="eyebrow">Due</div>
-    <div class="chip-row" id="as-due">
+    <div class="chip-row" id="as-due" role="radiogroup" aria-label="Due">
       ${Object.entries(DUE_CHOICES).map(([id, d]) => chip(ASSIGN.due === id, d.label, 'due', id)).join('')}
     </div>
 
@@ -977,11 +980,14 @@ export const coachPlanSet = {
       <div style="height:10px"></div>`;
     }
     const chip = (on, label, act, arg) => `<span class="std-chip ${on ? 'on' : ''}" data-knob="${act}:${arg}">${label}</span>`;
-    const sw = (on, act) => `<div class="std-switch ${on ? 'on' : ''}" role="switch" tabindex="0" aria-checked="${on ? 'true' : 'false'}" data-knob="${act}:toggle"></div>`;
+    // Space/Enter activation comes from the router's document-level net (role="switch" is in its
+    // selector); the optional label gives the bare knob an accessible NAME, since the row title
+    // is a sibling div the switch is not associated with.
+    const sw = (on, act, label) => `<div class="std-switch ${on ? 'on' : ''}" role="switch" tabindex="0" aria-checked="${on ? 'true' : 'false'}"${label ? ` aria-label="${label}"` : ''} data-knob="${act}:toggle"></div>`;
     const swRow = (title, subLabel, act, on) => `
       <div class="std-switch-row">
         <div class="std-sw-m"><div class="std-sw-t">${title}</div><div class="std-sw-s">${subLabel}</div></div>
-        ${sw(on, act)}
+        ${sw(on, act, title)}
       </div>`;
     const modHead = (ic, cls, title, subLabel, val) => `
       <div class="std-mod-head">
@@ -1031,7 +1037,7 @@ export const coachPlanSet = {
         </div>`).join('')}
         <div class="std-switch-row" style="margin-top:8px">
           <div class="std-sw-m"><div class="std-sw-t">Photo proof on every meal</div><div class="std-sw-s">Sets all meals at once — tweak any one above. Off = tap-to-check.</div></div>
-          ${sw(proofs.every(p => p === 'photo'), 'photo')}
+          ${sw(proofs.every(p => p === 'photo'), 'photo', 'Photo proof on every meal')}
         </div>
         ${hasRestPattern ? '' : `<div class="std-help" style="margin-top:6px">${icon('info', 12)} Want meals that only apply on training or rest days? <span class="link" data-go="week-pattern">Set your training week</span> first.</div>`}
         ${KNOB.meals >= 4 ? swRow('Snack is optional', 'Loggable for bonus, but never counts against the score', 'snack', KNOB.snackOptional) : ''}
@@ -2857,10 +2863,16 @@ export const coachMeal = {
         if (open) menu.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       });
     }
-    // Full-screen zoom on the meal photo (same viewer as the athlete side).
+    // Full-screen zoom on the meal photo (same viewer as the athlete side). role + tabindex make
+    // it keyboard-openable via the router's Enter/Space net; the viewer restores focus here on close.
     const hero = root.querySelector('#cm-hero');
     const heroImg = hero && hero.querySelector('img');
-    if (hero && heroImg && heroImg.src) hero.addEventListener('click', () => openImageViewer(heroImg.src, 'Meal photo'));
+    if (hero && heroImg && heroImg.src) {
+      hero.setAttribute('tabindex', '0');
+      hero.setAttribute('role', 'button');
+      hero.setAttribute('aria-label', 'View photo full screen');
+      hero.addEventListener('click', () => openImageViewer(heroImg.src, 'Meal photo'));
+    }
     // Request another photo: a templated coach message (counts as one of the 2) + push.
     const askPhoto = root.querySelector('#cm-ask-photo');
     if (askPhoto) askPhoto.addEventListener('click', () => {
@@ -3259,9 +3271,17 @@ export const parent = {
     wireEmailVerifyBanner(root);
     const list = root.querySelector('#par-list');
     if (!list) return;
-    let kids = [];
-    try { kids = await act.guardianChildren(); } catch { kids = []; }
-    if (!kids || !kids.length) {
+    let kids = null;
+    try { kids = await act.guardianChildren(); } catch { kids = null; }
+    if (kids === null) {
+      // FAILED read is not an empty roster: an outage must never tell a parent
+      // "No athletes linked yet" over a link that exists.
+      list.innerHTML = errorState({ title: "Couldn't load your athletes", body: 'Their record is safe. Reconnect and it loads right here.', retryId: 'par-retry' });
+      const retry = list.querySelector('#par-retry');
+      if (retry) retry.addEventListener('click', () => { window.__render && window.__render(); });
+      return;
+    }
+    if (!kids.length) {
       list.innerHTML = `
       <div class="state-demo">
         <div class="sd-ic">${icon('users', 24)}</div>

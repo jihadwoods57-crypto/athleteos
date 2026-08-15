@@ -26,16 +26,18 @@ export function wireCommit(root, onDone) {
   }
   const start = (e) => {
     e.preventDefault();
-    fill.style.transition = `width ${HOLD_MS}ms linear`;
-    fill.style.width = '100%';
+    // scaleX, never width: the fill is full-size and clipped by the button (overflow hidden),
+    // so the 1200ms sweep composites instead of running layout every frame of the press.
+    fill.style.transition = `transform ${HOLD_MS}ms linear`;
+    fill.style.transform = 'scaleX(1)';
     try { navigator.vibrate && navigator.vibrate(10); } catch { /* no-op */ }
     timer = setTimeout(done, HOLD_MS);
   };
   const cancel = () => {
     if (timer == null) return;
     clearTimeout(timer); timer = null;
-    fill.style.transition = 'width 160ms ease';
-    fill.style.width = '0%';
+    fill.style.transition = 'transform 160ms ease-out';
+    fill.style.transform = 'scaleX(0)';
   };
   btn.addEventListener('pointerdown', start);
   ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => btn.addEventListener(ev, cancel));

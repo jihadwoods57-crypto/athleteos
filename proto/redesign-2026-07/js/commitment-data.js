@@ -50,7 +50,7 @@ const RTC = {
   mine: [], mineDay: null, mineAt: 0, mineError: false,
   board: [], boardDay: null, boardAt: 0, boardError: false,
   locations: [], locationsAt: 0,
-  commitments: [], commitmentsAt: 0,
+  commitments: [], commitmentsAt: 0, commitmentsError: false,
 };
 
 export const VC = {
@@ -59,6 +59,7 @@ export const VC = {
   get locations() { return RTC.locations; },
   get mineError() { return RTC.mineError; },
   get boardError() { return RTC.boardError; },
+  get commitmentsError() { return RTC.commitmentsError; },
   /** Today's rows only — what Home renders. */
   today(dayISO) {
     const d = dayISO || todayISO();
@@ -96,14 +97,18 @@ export async function loadMine(force = false, dayISO = null) {
   } catch { RTC.mineError = true; return RTC.mine; }
 }
 
-/** A longer history window for the Accountability screen. Does not touch the Home cache. */
+/** A longer history window for the Accountability screen. Does not touch the Home cache.
+ *  null = FAILED (the fetcher contract): a dead network must never read as "Nothing to show
+ *  yet" on a record both the athlete and their coach act on. The screen branches on null
+ *  (error + retry) vs [] (a genuinely empty record). No client is the same failure: the
+ *  read never happened, so answering [] would fabricate emptiness the same way. */
 export async function loadMineRange(fromISO, toISO) {
-  const c = sb(); if (!c) return [];
+  const c = sb(); if (!c) return null;
   try {
     const { data, error } = await c.rpc('my_commitments', { p_from: fromISO, p_to: toISO });
-    if (error) return [];
+    if (error) return null;
     return Array.isArray(data) ? data : [];
-  } catch { return []; }
+  } catch { return null; }
 }
 
 /* ---------------------------------------------------------------- athlete writes */
@@ -211,17 +216,24 @@ export async function loadBoard(ownerId, kind, dayISO = null, force = false) {
  *  PAUSED ones are included: a coach has to be able to find and resume them, which they can't do
  *  if the only screen that lists commitments filters them out. */
 export async function loadCommitments(ownerId, kind, force = false) {
-  const c = sb(); if (!c || !ownerId) return [];
+  // Failure keeps the last-known rows AND raises the sticky commitmentsError flag (the
+  // mineError/boardError idiom above): on a cold open the last-known list is still the
+  // initial [], and without the flag the manage screen renders "Nothing scheduled yet"
+  // over a book of standing 5 AM roll calls it simply could not read. The flag lets the
+  // screen tell that outage from a truly empty book; success clears it.
+  const c = sb();
+  if (!c || !ownerId) { RTC.commitmentsError = !!ownerId; return RTC.commitments; }
   if (!force && RTC.commitments.length && Date.now() - RTC.commitmentsAt < FRESH_MS) return RTC.commitments;
   const col = kind === 'practice' ? 'practice_id' : 'team_id';
   try {
     const { data, error } = await c.from('commitments')
       .select('*').eq(col, ownerId).order('active', { ascending: false }).order('starts_min');
-    if (error) return RTC.commitments;
+    if (error) { RTC.commitmentsError = true; return RTC.commitments; }
     RTC.commitments = data || [];
     RTC.commitmentsAt = Date.now();
+    RTC.commitmentsError = false;
     return RTC.commitments;
-  } catch { return RTC.commitments; }
+  } catch { RTC.commitmentsError = true; return RTC.commitments; }
 }
 
 export async function loadLocations(ownerId, kind, force = false) {

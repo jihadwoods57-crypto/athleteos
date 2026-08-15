@@ -64,7 +64,7 @@ export default {
       return `
       <div class="ob" style="padding-top:40px">
         <div class="standard-set" style="padding-top:10px">
-          <div class="halo"><div class="core" style="background:linear-gradient(155deg, var(--green-bright), #16a34a)">${icon('camera', 34)}</div></div>
+          <div class="halo"><div class="core" style="background:linear-gradient(155deg, var(--green), var(--green-deep))">${icon('camera', 34)}</div></div>
           <div class="ob-title" style="margin-top:22px">Camera, for proof.</div>
           <div class="ob-sub" style="padding:0 8px">OnStandard uses your camera to capture meal photos. They go to your coach connection only — never public, never sold, never used to train anything without asking.</div>
         </div>

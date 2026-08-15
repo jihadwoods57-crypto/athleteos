@@ -461,7 +461,7 @@ const steps = [
         </div>
         <div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:14px;line-height:1.5">Invite your first client: the moment they enter it, their days start landing in your queue.</div>` : `
         <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
-          <div><div class="tt">Code pending</div><div class="ts">We couldn’t mint your code yet (connection or pending email confirmation). It generates automatically on your next sign-in. Check Profile → Client code.</div></div></div>`;
+          <div><div class="tt">We couldn't create your practice</div><div class="ts">Your account is set up. The practice isn't yet. Open your Trainer View and your dashboard will show how to finish setup. Your client code appears the moment it's done.</div></div></div>`;
     },
     mount(root, ctx) {
       const code = (ctx.ob || {}).practiceCode || '';
