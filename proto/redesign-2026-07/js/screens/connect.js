@@ -12,9 +12,15 @@ import { dir, CODE_RE } from '../ob-directory.js';
 let justJoined = null;      // 'team' | 'practice' — one-shot success banner
 let preview = null;         // { code, name, kind, teamName } — the confirm step's payload
 
+/* The invite deep link (onstandard://join?code=X → ProtoApp injects #connect/CODE) lands here
+   with the code as the route sub. It was silently DROPPED — the athlete who tapped a shared
+   link got an empty input, the last break in the shared-codes pipeline. Sanitize to the code
+   alphabet; the preview/join RPCs re-validate anyway. */
+const subCode = (sub) => (String(sub || '').match(/^[A-Za-z0-9]{4,12}$/) ? String(sub).toUpperCase() : '');
+
 export default {
   tab: 'profile',
-  render() {
+  render({ sub } = {}) {
     const c = S.coach;
     if (c.hasCoach || justJoined) {
       const wasPractice = justJoined === 'practice' && !c.hasCoach;
@@ -74,6 +80,7 @@ export default {
     <div style="height:14px"></div>
     <input id="cc-code" class="ob-input" placeholder="Team or trainer code" aria-label="Coach or trainer code"
       autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="go"
+      value="${esc(subCode(sub))}"
       style="text-align:center;letter-spacing:0.2em;font-weight:800;text-transform:uppercase" />
     <div style="text-align:center;font-size:12.5px;font-weight:600;color:var(--text-3);margin-top:10px">Ask your coach or team group chat for the code. Trainer codes work here too.</div>
     <div id="cc-err" role="alert" aria-live="assertive" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;margin-top:10px;text-align:center"></div>
@@ -125,6 +132,7 @@ export default {
     };
     input.addEventListener('input', normalize);
     input.addEventListener('paste', () => setTimeout(normalize, 0));
+    normalize(); // a deep-linked code arrives prefilled — light the Continue button for it
     const submit = async () => {
       if (btn.disabled) return;
       err.textContent = '';

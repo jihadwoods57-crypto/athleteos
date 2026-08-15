@@ -8,7 +8,7 @@
    minor, plan if the founder has flipped the paywall secret, then publish / live.
 
    Module shape mirrors monthly-report.js: CACHE + load() -> roles wrapper -> window.__render(). */
-import { backHead, esc, skeletonRows } from '../components.js';
+import { backHead, esc, skeletonRows, copyText } from '../components.js';
 import { icon } from '../icons.js';
 import { S } from '../state.js';
 import * as roles from '../roles.js';
@@ -203,7 +203,7 @@ export default {
       void shareScoreCard(p, `My verified record: ${st.url || ''}`);
     });
     on('#vp-copy', async () => {
-      try { await navigator.clipboard.writeText(st.url || ''); CACHE.copied = true; if (window.__render) window.__render(); } catch { /* clipboard denied: the share sheet still works */ }
+      if (await copyText(st.url || '')) { CACHE.copied = true; if (window.__render) window.__render(); } // on failure the share sheet still works
     });
     on('#vp-share-week', () => {
       const pg = S.progress || {};

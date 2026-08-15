@@ -585,6 +585,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 .btn:disabled { background: var(--surface-2); color: var(--text-2); cursor: not-allowed; box-shadow: none; }
 .btn:disabled:active { transform: none; filter: none; }
 .btn-row { display: flex; gap:12px; }
+.btn-row.mt { margin-top: 16px; } /* the standard gap under a card's content, by class not inline */
 
 /* ===== Generic bits reused across screens ===== */
 .back-head { display: flex; align-items: center; gap:14px; padding:6px 0 14px; }

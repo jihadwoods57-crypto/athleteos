@@ -4,7 +4,7 @@
    repaint via window.__render(). Reuses the shared .card/.lrow/.btn/.state-demo/.status-pill system. */
 import { RT } from '../state.js';
 import { icon } from '../icons.js';
-import { esc, backHead, skeletonRows, errorState, emptyState, statusMsg, alertMsg } from '../components.js';
+import { esc, backHead, skeletonRows, errorState, emptyState, statusMsg, alertMsg, copyText } from '../components.js';
 import * as roles from '../roles.js';
 
 const SHARE_BASE = 'https://onstandard.app/t?t=';
@@ -300,7 +300,7 @@ export const trainerGrow = {
     const copyBtn = $('tg-copy');
     if (copyBtn) copyBtn.addEventListener('click', () => {
       const v = $('tg-link') && $('tg-link').value;
-      if (v) { navigator.clipboard.writeText(v).then(() => { copyBtn.textContent = 'Copied'; setTimeout(() => copyBtn.textContent = 'Copy', 1400); }).catch(() => {}); }
+      if (v) { copyText(v).then((ok) => { copyBtn.textContent = ok ? 'Copied' : 'Couldn’t copy'; setTimeout(() => copyBtn.textContent = 'Copy', 1400); }); }
     });
 
     function pageFields() {
@@ -332,18 +332,11 @@ export const trainerGrow = {
       const act = b.getAttribute('data-tg'), id = b.getAttribute('data-id');
       if (act === 'copycode') {
         const code = b.getAttribute('data-code') || '';
-        // navigator.clipboard is UNDEFINED in any non-secure context, which includes the WebView
-        // this app actually runs in on some Android builds — so the bare `.writeText()` threw a
-        // TypeError synchronously, before any .catch() could see it, and the tap did nothing with
-        // an error in the console. Same try/catch shape coach-home.js already uses for its code.
-        // The code stays on screen either way: a trainer can always read it aloud, which is the
-        // primary way this is used.
-        if (code) {
-          try {
-            await navigator.clipboard.writeText(code);
-            b.textContent = 'Copied';
-            setTimeout(() => { b.textContent = code; }, 1400);
-          } catch { /* no clipboard here — the code is already legible on the button */ }
+        // copyText carries the execCommand fallback for the WebView's non-secure context (see
+        // components.js); the code stays legible on the button either way.
+        if (code && await copyText(code)) {
+          b.textContent = 'Copied';
+          setTimeout(() => { b.textContent = code; }, 1400);
         }
         return;
       }

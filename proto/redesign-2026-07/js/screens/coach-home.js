@@ -1,6 +1,6 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { avatarHead, esc, safeImg, collapseSection, skeletonRows, errorState, emailVerifyBanner, wireEmailVerifyBanner } from '../components.js';
+import { avatarHead, esc, safeImg, collapseSection, skeletonRows, errorState, emailVerifyBanner, wireEmailVerifyBanner, copyText } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope, logBookIntervention, passWorthy } from '../coach-data.js';
 import { buildPriorities } from '../priority.js';
@@ -75,7 +75,7 @@ function coachInviteCard(code, teamName) {
       <div style="flex:none"><div class="hq-qr">${svg}</div><div class="hq-qcap">SCAN TO JOIN</div></div>
       <div style="flex:1;min-width:0;font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.45">${isPractice() ? 'Clients scan the code or enter it to join your practice.' : 'Athletes scan the code or enter it to join your team.'} Only you hand it out.</div>
     </div>
-    <div class="btn-row" style="margin-top:16px">
+    <div class="btn-row mt">
       <button class="btn ghost sm" id="coach-copy-code">${icon('clipboard', 16)} Copy code</button>
       <button class="btn sm" id="coach-share-invite" style="background:linear-gradient(150deg,var(--blue),var(--blue-deep));color:#fff">${icon('share', 16)} Share invite</button>
     </div>
@@ -733,9 +733,9 @@ export const coachHome = {
       || (isPractice() ? 'your practice' : 'your team');
     const copyBtn = root.querySelector('#coach-copy-code');
     if (copyBtn) copyBtn.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(code || ''); } catch { /* no-op */ }
+      const ok = await copyText(code);
       if (code) act.markCoachSetup('sharedCode'); // real "shared" signal for the setup checklist
-      copyBtn.innerHTML = `${icon('check', 16)} Copied`;
+      copyBtn.innerHTML = ok ? `${icon('check', 16)} Copied` : 'Couldn’t copy. Use Share';
       setTimeout(() => { copyBtn.innerHTML = `${icon('clipboard', 16)} Copy code`; }, 1600);
     });
     // No-team recovery: actually create the team, then repaint into the real invite card.
@@ -782,8 +782,7 @@ export const coachHome = {
           window.OnStandardNative.share({ title: `Join ${teamNm}`, message: text, url });
         } else if (navigator.share) {
           await navigator.share({ title: `Join ${teamNm}`, text, url });
-        } else {
-          await navigator.clipboard.writeText(text);
+        } else if (await copyText(text)) {
           shareBtn.innerHTML = `${icon('check', 16)} Copied invite`;
           setTimeout(() => { shareBtn.innerHTML = `${icon('share', 16)} Share invite`; }, 1600);
         }

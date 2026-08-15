@@ -1,7 +1,7 @@
 import { S, RT, act, fmtClock, nutritionConfigForGoal, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
 import { accentVar, scoreColor, ON_STANDARD } from '../score-band.js';
-import { backHead, titleHead, esc, safeImg, composer, sparkline, emptyState, errorState, skeletonRows, emailVerifyBanner, wireEmailVerifyBanner } from '../components.js';
+import { backHead, titleHead, esc, safeImg, composer, sparkline, emptyState, errorState, skeletonRows, emailVerifyBanner, wireEmailVerifyBanner, copyText } from '../components.js';
 import {
   attachedPhoto, isPhotoOnly, wireComposerAttach, postChatMessage,
   bubblePhotoHtml, hydrateThreadPhotos,
@@ -1717,8 +1717,7 @@ export const coachInbox = {
     if (copyChip) copyChip.addEventListener('click', async (e) => {
       e.stopPropagation();
       const code = (RT.team && RT.team.code) || '';
-      try { await navigator.clipboard.writeText(code); } catch { /* no-op */ }
-      copyChip.textContent = 'Copied';
+      copyChip.textContent = (await copyText(code)) ? 'Copied' : 'Couldn’t copy';
       setTimeout(() => { copyChip.textContent = code; }, 1600);
     });
     const shareCode = root.querySelector('#inbox-share-code');
@@ -3317,7 +3316,30 @@ export const inviteParent = {
           <div class="ls" style="margin-bottom:6px">Give this code to your parent</div>
           <div style="font-size:30px;font-weight:800;letter-spacing:0.12em;color:var(--blue-bright)">${esc(r.token || '')}</div>
           <div class="ls" style="margin-top:8px">They tap “Link an athlete” and enter it. Single use · expires in 14 days.</div>
+          <div class="btn-row mt">
+            <button class="btn ghost sm" id="inv-copy">${icon('clipboard', 16)} Copy</button>
+            <button class="btn sm primary" id="inv-share">${icon('share', 16)} Share</button>
+          </div>
         </section>`;
+        // The code used to be display-only: the one code in the app whose whole job is to leave
+        // the phone had no way off it. Share is the primary path (a parent gets a text, not a
+        // read-aloud); copy backs it up via copyText's WebView-safe fallback.
+        const token = r.token || '';
+        const copyBtn = out.querySelector('#inv-copy');
+        if (copyBtn) copyBtn.addEventListener('click', async () => {
+          const ok = await copyText(token);
+          copyBtn.innerHTML = ok ? `${icon('check', 16)} Copied` : 'Couldn’t copy';
+          setTimeout(() => { copyBtn.innerHTML = `${icon('clipboard', 16)} Copy`; }, 1600);
+        });
+        const shareBtn = out.querySelector('#inv-share');
+        if (shareBtn) shareBtn.addEventListener('click', async () => {
+          const text = `OnStandard parent invite code: ${token}. Get the app, choose Parent, then tap "Link an athlete" and enter it. Single use, expires in 14 days.`;
+          try {
+            if (window.OnStandardNative && window.OnStandardNative.share) window.OnStandardNative.share({ title: 'OnStandard parent invite', message: text });
+            else if (navigator.share) await navigator.share({ text });
+            else if (await copyText(text)) { shareBtn.innerHTML = `${icon('check', 16)} Copied invite`; setTimeout(() => { shareBtn.innerHTML = `${icon('share', 16)} Share`; }, 1600); }
+          } catch { /* share sheet dismissed */ }
+        });
         btn.textContent = 'Generate another';
       } else {
         out.innerHTML = `<div class="si-err" style="text-align:center">${esc(r.error || 'Could not create an invite.')}</div>`;

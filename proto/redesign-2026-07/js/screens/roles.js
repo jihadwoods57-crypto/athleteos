@@ -1,6 +1,6 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, titleHead, logoMark, esc } from '../components.js';
+import { backHead, titleHead, logoMark, esc, copyText } from '../components.js';
 import { initialsOf } from '../initials.js';
 import { accountBody, wireAccount } from './ob-account.js';
 import { standardForGoal, reqHeadTint, showConfirmPending } from '../ob-helpers.js';
@@ -582,8 +582,8 @@ export const coachOb = {
     // step 8: copy the REAL code + customize it right here (set_my_team_code, 0026)
     const copy = $('#copy-code');
     if (copy) copy.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText((RT.ob || {}).teamCode || ''); } catch { /* label still confirms intent */ }
-      copy.innerHTML = `${icon('check', 16)} Copied`;
+      const ok = await copyText((RT.ob || {}).teamCode || '');
+      copy.innerHTML = ok ? `${icon('check', 16)} Copied` : 'Couldn’t copy';
     });
     const obCodeEdit = $('#ob-code-edit');
     if (obCodeEdit) {
@@ -761,8 +761,8 @@ export const trainerOb = {
     // step 4: copy the REAL code
     const copy = $('#copy-code');
     if (copy) copy.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText((RT.ob || {}).practiceCode || ''); } catch { /* label still confirms intent */ }
-      copy.innerHTML = `${icon('check', 16)} Copied`;
+      const ok = await copyText((RT.ob || {}).practiceCode || '');
+      copy.innerHTML = ok ? `${icon('check', 16)} Copied` : 'Couldn’t copy';
     });
   },
 };
@@ -1354,8 +1354,7 @@ export const coachProfile = {
         boxes.innerHTML = r.code.split('').map(ch => `<div class="cb filled" style="border-color:var(--blue-border)">${esc(ch)}</div>`).join('');
         out.style.display = '';
       }
-      sSay('');
-      try { await navigator.clipboard.writeText(r.code); sSay('Copied to clipboard.'); } catch { /* shown above */ }
+      sSay((await copyText(r.code)) ? 'Copied to clipboard.' : 'Copy it from the boxes above.');
     }));
     root.querySelectorAll('[data-staff-rm]').forEach(b => b.addEventListener('click', async () => {
       if (b.getAttribute('data-armed') !== '1') { b.setAttribute('data-armed', '1'); b.textContent = 'Sure?'; return; }
@@ -1403,8 +1402,8 @@ export const coachProfile = {
       // Copy the code the screen DISPLAYS (server identity first) — RT.ob is onboarding
       // scratch and is empty on a fresh-device sign-in, which silently copied ''.
       // Same source order as render and the trainerProfile pattern.
-      try { await navigator.clipboard.writeText(S.coachIdentity.code || (RT.ob || {}).teamCode || ''); } catch { /* no-op */ }
-      copy.innerHTML = `${icon('check', 16)} Copied`;
+      const ok = await copyText(S.coachIdentity.code || (RT.ob || {}).teamCode || '');
+      copy.innerHTML = ok ? `${icon('check', 16)} Copied` : 'Couldn’t copy';
       setTimeout(() => { copy.innerHTML = `${icon('clipboard', 16)} Copy`; }, 1600);
     });
 
@@ -1594,7 +1593,7 @@ export const trainerProfile = {
             <div class="hq-qcap">SCAN TO JOIN</div>
           </div>
         </div>
-        <div class="btn-row" style="margin-top:16px">
+        <div class="btn-row mt">
           <button class="btn ghost sm" id="copy-code">${icon('clipboard', 16)} Copy code</button>
           <button class="btn sm" id="share-invite" style="background:linear-gradient(150deg,var(--purple),var(--purple-deep));color:var(--ink-on-accent)"${offline ? ' disabled' : ''}>${icon('share', 16)} Share invite</button>
         </div>
@@ -1664,8 +1663,8 @@ export const trainerProfile = {
     wireOperatorAccount(root); // Account section (email / password / billing / delete)
     const copy = root.querySelector('#copy-code');
     if (copy) copy.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(ti.code || ''); } catch { /* no-op */ }
-      copy.innerHTML = `${icon('check', 16)} Copied`;
+      const ok = await copyText(ti.code || '');
+      copy.innerHTML = ok ? `${icon('check', 16)} Copied` : 'Couldn’t copy';
       setTimeout(() => { copy.innerHTML = `${icon('clipboard', 16)} Copy code`; }, 1600);
     });
     const share = root.querySelector('#share-invite');
@@ -1677,8 +1676,7 @@ export const trainerProfile = {
           window.OnStandardNative.share({ title: `Join ${ti.practiceName}`, message: text, url });
         } else if (navigator.share) {
           await navigator.share({ title: `Join ${ti.practiceName}`, text, url });
-        } else {
-          await navigator.clipboard.writeText(text);
+        } else if (await copyText(text)) {
           share.innerHTML = `${icon('check', 16)} Copied invite`;
           setTimeout(() => { share.innerHTML = `${icon('share', 16)} Share invite`; }, 1600);
         }

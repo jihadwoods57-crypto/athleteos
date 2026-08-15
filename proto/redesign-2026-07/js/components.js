@@ -17,6 +17,37 @@ export function esc(v) {
     .replace(/'/g, '&#39;');
 }
 
+/* Clipboard write that actually works in the shipped app. The WebView loads the proto from
+   file://, a NON-SECURE context, where navigator.clipboard is UNDEFINED — so every bare
+   `navigator.clipboard.writeText()` in the app threw synchronously, the catch swallowed it,
+   and most Copy buttons flipped to "Copied" with NOTHING on the clipboard. That lie is the
+   testers' "shared codes don't work". The execCommand textarea path is what WKWebView and
+   Android WebView honor inside a tap. Returns true ONLY when the text is really on the
+   clipboard; callers must not claim "Copied" on false. */
+export async function copyText(text) {
+  const t = String(text == null ? '' : text);
+  if (!t) return false;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(t);
+      return true;
+    }
+  } catch { /* fall through to execCommand */ }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = t;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, t.length); // iOS needs the explicit range
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return !!ok;
+  } catch { return false; }
+}
+
 /* Image values that flow into url('${...}') / background-image / src. Only allow our own
    bundled assets, self-produced data:image base64 (camera captures, downscaled avatars), and
    signed URLs from OUR storage host (meal photos resolved by photo-store.js). Every pattern

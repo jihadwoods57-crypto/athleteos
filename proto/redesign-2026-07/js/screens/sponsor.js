@@ -2,7 +2,7 @@
    Reached from Profile's Settings section. Buy flow opens Stripe Checkout in the system browser
    (same pattern as my-trainer-offers.js); below the buy form, a list of the sponsor's own
    sponsorships with the code prominent so it's easy to read out or copy. */
-import { backHead, esc, errorState } from '../components.js';
+import { backHead, esc, errorState, copyText } from '../components.js';
 import { icon } from '../icons.js';
 import * as roles from '../roles.js';
 
@@ -97,7 +97,8 @@ export default {
     root.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', async () => {
       const code = b.getAttribute('data-copy');
       const idx = Number(b.getAttribute('data-idx'));
-      try { if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(code); } catch { /* clipboard unavailable — code is still shown on screen */ }
+      // Only claim "Copied" when it is true; on failure the code stays legible on screen.
+      if (!(await copyText(code))) return;
       UI.copied = idx; if (window.__render) window.__render();
       setTimeout(() => { UI.copied = null; if (window.__render) window.__render(); }, 1500);
     }));

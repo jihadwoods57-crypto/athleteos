@@ -18,7 +18,7 @@
    ============================================================ */
 import { RT, act, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
-import { esc } from '../components.js';
+import { esc, copyText } from '../components.js';
 import {
   defineFlow, saveProgressStep, ob, capture, gateCta, meter, countStat, mirrorCard, simChip,
   chatSim, notifCard, phoneCard, testimonial, planCard, choiceGrid, chipRow, PLANS, structureStep,
@@ -566,8 +566,8 @@ const steps = [
       const $ = (s) => root.querySelector(s);
       const copy = $('#copy-code');
       if (copy) copy.addEventListener('click', async () => {
-        try { await navigator.clipboard.writeText((RT.ob || {}).teamCode || ''); } catch { /* label still confirms intent */ }
-        copy.innerHTML = `${icon('check', 16)} Copied`;
+        const ok = await copyText((RT.ob || {}).teamCode || '');
+        copy.innerHTML = ok ? `${icon('check', 16)} Copied` : 'Couldn’t copy';
       });
       const edit = $('#ob-code-edit');
       if (edit) {

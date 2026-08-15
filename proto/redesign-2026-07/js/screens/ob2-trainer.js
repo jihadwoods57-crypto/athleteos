@@ -18,7 +18,7 @@
    ============================================================ */
 import { RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { esc } from '../components.js';
+import { esc, copyText } from '../components.js';
 import {
   defineFlow, saveProgressStep, choiceGrid, chipRow, simChip, mirrorCard, countStat,
   phoneCard, testimonial, planCard, PLANS, chatSim, structureStep,
@@ -467,8 +467,8 @@ const steps = [
       const code = (ctx.ob || {}).practiceCode || '';
       const copy = root.querySelector('#copy-code');
       if (copy) copy.addEventListener('click', async () => {
-        try { await navigator.clipboard.writeText(code); } catch { /* label still confirms intent */ }
-        copy.innerHTML = `${icon('check', 16)} Copied`;
+        const ok = await copyText(code);
+        copy.innerHTML = ok ? `${icon('check', 16)} Copied` : 'Couldn’t copy';
       });
       const share = root.querySelector('#share-code');
       if (share) share.addEventListener('click', async () => {
@@ -476,8 +476,7 @@ const steps = [
         if (!text) return;
         try {
           if (navigator.share) { await navigator.share({ text }); return; }
-          await navigator.clipboard.writeText(text);
-          share.innerHTML = `${icon('check', 16)} Invite copied`;
+          if (await copyText(text)) share.innerHTML = `${icon('check', 16)} Invite copied`;
         } catch { /* user cancelled the share sheet — no-op */ }
       });
     },
