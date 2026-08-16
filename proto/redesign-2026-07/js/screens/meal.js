@@ -807,6 +807,11 @@ export const thread = {
     const T = S.planTargets || {};
     const fromPhoto = M.source !== 'label' && M.source !== 'manual';
     const conf = estimateConfidence(M.source, M.detectedRich);
+    /* The heading this feeds used to read "Estimated Nutrition · estimated from photo · high
+       confidence" — the word twice, over two lines, on the app's most-read card. Worse on the
+       other two branches: it announced an EXACT typed nutrition label as "Estimated Nutrition",
+       which is the one thing line 544 above exists to prevent. The heading is now just
+       "Nutrition" and the provenance is stated once, here, where it can be true for all three. */
     const srcLabel = M.source === 'label' ? 'exact, from the nutrition label'
       : M.source === 'manual' ? 'entered by you'
       : `estimated from photo · ${conf} confidence`;
@@ -850,7 +855,7 @@ export const thread = {
     // The value strip + day bars, as one chrome-less block the read card hosts. Same numbers,
     // same honesty markers (~ for photo estimates); provenance rides a quiet in-card line.
     const nutInCard = settled && showNums ? `
-    <div class="nut-src">Estimated Nutrition · ${esc(srcLabel)}</div>
+    <div class="nut-src">Nutrition · ${esc(srcLabel)}</div>
     ${emptyRead ? `<div style="padding:0 16px 13px">${rereadNote}</div>` : `
     <div class="nut-values">
       <div class="nv lead"><div class="mv">${tilde}${M.macros.protein}<i>g</i></div><div class="mk">Protein</div></div>

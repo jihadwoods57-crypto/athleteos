@@ -67,8 +67,55 @@ function planSub(sub) {
    `overview` so no link ever shipped has to change. */
 function tabs(active) {
   const T = [['overview', 'Today'], ['nutrition', 'Nutrition'], ['requirements', 'Requirements'], ['memory', 'Food Memory']];
+  // The underline is ONE element that travels, not a ::after that appears under whichever tab is
+  // lit. Four labels of four different widths meant the marker teleported across the strip with
+  // nothing connecting where it was to where it went — the clearest "you are here" signal on the
+  // screen, and the only one with no continuity. mount() positions it; it renders at zero width
+  // so a frame before measurement shows nothing rather than a bar parked at the left edge.
   return `<div class="ptabs">${T.map(([k, l]) =>
-    `<div class="pt ${k === active ? 'on' : ''}" data-go="plan/${k}">${l}</div>`).join('')}</div>`;
+    `<div class="pt ${k === active ? 'on' : ''}" data-go="plan/${k}">${l}</div>`).join('')}<i class="pt-ink" aria-hidden="true"></i></div>`;
+}
+
+/* Where the underline was last measured, so a tab change can travel FROM it.
+ *
+ * Module-level and keyed by tab, for the same reason every reveal in motion.js is keyed:
+ * window.__render() re-runs mount(), and Plan repaints for things that have nothing to do with
+ * which tab is lit (targets landing, the goal pill opening, the offline timeout). An unguarded
+ * slide would replay on every one of those, so the marker would crawl back and forth under a
+ * reader who never touched it. Same tab as last time = snap, no transition. */
+let INK_AT = null;
+let INK_GEO = null;
+
+/* The ink's own width is a fixed 100px and the real width comes from scaleX, so the marker moves
+ * and resizes on the compositor. Animating its `width` would have been the more obvious code and
+ * is the thing DESIGN.md bans outright; this is the same transform-origin/scaleX idiom the bar
+ * fills already use. */
+const INK_BASE = 100;
+
+function placeInk(strip, on) {
+  if (!strip || !on) return;
+  const ink = strip.querySelector('.pt-ink');
+  if (!ink) return;
+  const key = on.getAttribute('data-go') || '';
+  const geo = { left: on.offsetLeft, width: on.offsetWidth };
+  // Zero width means the strip has not been laid out yet (fonts still pending, or a detached
+  // render in the test harness). Placing the ink now would park it at the left edge at full
+  // width; leaving it at scaleX(0) shows nothing, which is the honest state.
+  if (!geo.width) return;
+  const at = (g) => `translateX(${g.left}px) scaleX(${g.width / INK_BASE})`;
+  const travelling = INK_AT && INK_AT !== key && INK_GEO;
+  if (travelling) {
+    // Start from where the marker actually was, commit that frame, then let it run.
+    ink.style.transition = 'none';
+    ink.style.transform = at(INK_GEO);
+    void ink.offsetWidth;
+    ink.style.transition = '';
+  } else {
+    ink.style.transition = 'none';
+  }
+  ink.style.transform = at(geo);
+  if (!travelling) { void ink.offsetWidth; ink.style.transition = ''; }
+  INK_AT = key; INK_GEO = geo;
 }
 
 /* ---------------- head: state line + the interactive goal ---------------- */
@@ -737,6 +784,12 @@ async function warmCaches() {
 
 export default {
   tab: 'plan',
+  /* These four subs are a TAB STRIP, not four detail pages, and the router needs to be told:
+     without it, `plan/nutrition` is indistinguishable from `connected-standard/csr-steps` and
+     gets the forward-push entrance plus a back-stack entry apiece. Declaring them makes a tap
+     across the strip a lateral replace. Order is the strip's own left-to-right order, because
+     the router derives the travel direction from the index. */
+  subs: PLAN_SUBS,
   render({ sub }) {
     const t = planSub(sub);
     const body = t === 'nutrition' ? nutrition()
@@ -791,6 +844,7 @@ export default {
       edge();
       strip.addEventListener('scroll', edge, { passive: true });
     }
+    placeInk(strip, on);
 
     const goalBtn = root.querySelector('#pl-goal');
     if (goalBtn) goalBtn.addEventListener('click', () => { GOAL_OPEN = !GOAL_OPEN; window.__render(); });

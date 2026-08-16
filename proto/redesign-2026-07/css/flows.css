@@ -209,7 +209,9 @@
 .sheet-row .st .t { font-size: 15.5px; font-weight: 800; }
 .sheet-row .st .s { font-size: 12px; font-weight: 600; color: var(--text-3); margin-top:1px; }
 .sheet-row .sv { font-size: 13px; font-weight: 800; }
-.sheet .cancel { text-align: center; padding:14px 0 4px; font-size: 15px; font-weight: 700; color: var(--text-2); cursor: pointer; }
+/* The one way out of the quick-log sheet, and it measured 37px. Full-width and transparent, so
+   the floor is free. */
+.sheet .cancel { text-align: center; padding:14px 0 8px; min-height: 44px; box-sizing: border-box; font-size: 15px; font-weight: 700; color: var(--text-2); cursor: pointer; }
 
 /* ----- Analyzing state ----- */
 /* Centred, not top-anchored: this is a one-beat full-screen moment with no tab bar, and pinned 40px

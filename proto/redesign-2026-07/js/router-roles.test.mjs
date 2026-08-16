@@ -16,7 +16,7 @@ globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} }
 globalThis.sessionStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 globalThis.location = globalThis.window.location;   // node supplies `navigator` itself (getter-only)
 
-const { navFor, navAdmits } = await import('./router.js');
+const { navFor, navAdmits, lateralStep } = await import('./router.js');
 const { screens } = await import('./screens/index.js');
 
 const ROLES = ['athlete', 'coach', 'trainer', 'parent'];
@@ -202,6 +202,52 @@ assert.strictEqual(navFor(OPERATOR, undefined), 'coach');
     }
   } finally {
     RT.authRole = before;
+  }
+}
+
+/* ---------------- lateralStep: sideways vs deeper ----------------
+   The distinction the router had no way to make. Every sub-route looked like a detail page, so
+   tapping across Plan's four-tab strip slid the screen in from the right AND pushed each tab onto
+   the back stack: leaving Plan from Food Memory took four backs. Both failures are silent, which
+   is why the rule is asserted here rather than trusted to a screenshot. */
+{
+  // Plan is the one screen with a declared strip, and it must stay declared.
+  const plan = screens.plan;
+  assert.ok(plan, 'plan must stay registered');
+  assert.ok(Array.isArray(plan.subs) && plan.subs.length >= 2,
+    'plan must declare its tab strip via `subs`, or every tab tap goes back to being a push');
+  assert.strictEqual(plan.subs[0], 'overview',
+    'the first sub must be what a bare #plan renders, since lateralStep treats "no sub" as index 0');
+
+  // Forward and backward across the strip, with the sign carrying the direction.
+  assert.strictEqual(lateralStep('plan', 'overview', 'plan/nutrition'), 1, 'one tab right is +1');
+  assert.strictEqual(lateralStep('plan', 'overview', 'plan/memory'), 3, 'three tabs right is +3');
+  assert.strictEqual(lateralStep('plan', 'memory', 'plan/overview'), -3, 'three tabs left is -3');
+  assert.strictEqual(lateralStep('plan', 'requirements', 'plan/nutrition'), -1, 'one tab left is -1');
+  // A bare #plan is resting on the first tab, not on "no tab".
+  assert.strictEqual(lateralStep('plan', null, 'plan/requirements'), 2,
+    'arriving from a bare #plan measures from the first tab');
+  // Re-tapping the tab you are already on is not a move; 0 sends it down the ordinary path
+  // rather than replacing history with the address it already has.
+  assert.strictEqual(lateralStep('plan', 'nutrition', 'plan/nutrition'), 0, 're-tapping the active tab is not travel');
+
+  // Everything that is NOT a sibling tab must stay a push, or Back stops working for it.
+  assert.strictEqual(lateralStep('plan', 'overview', 'plan'), 0, 'the bare root is not a lateral target');
+  assert.strictEqual(lateralStep('plan', 'overview', 'plan/bogus'), 0, 'an undeclared sub is not a tab');
+  assert.strictEqual(lateralStep('plan', 'overview', 'progress'), 0, 'a different screen is never lateral');
+  assert.strictEqual(lateralStep('home', null, 'home/anything'), 0, 'a screen with no strip has no lateral moves');
+  // The exact shape that made this necessary: same two-segment form, but a real detail screen.
+  assert.strictEqual(lateralStep('connected-standard', null, 'connected-standard/csr-steps'), 0,
+    'a detail sub-route must still push, or it becomes unreachable by Back');
+  assert.strictEqual(lateralStep('memory-edit', null, 'memory-edit/new'), 0, 'memory-edit/new is a detail, not a tab');
+
+  // Every screen that declares subs must declare them as strings that its own router can route.
+  for (const [route, mod] of Object.entries(screens)) {
+    if (!mod || !Array.isArray(mod.subs)) continue;
+    assert.ok(mod.subs.every((s) => typeof s === 'string' && s && !s.includes('/')),
+      `${route}.subs must be plain sub keys, never paths`);
+    assert.strictEqual(new Set(mod.subs).size, mod.subs.length,
+      `${route}.subs must not repeat a key, or two tabs share an index and the travel direction is a coin flip`);
   }
 }
 

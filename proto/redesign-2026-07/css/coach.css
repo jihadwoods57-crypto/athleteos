@@ -141,7 +141,7 @@
   padding: var(--s4); margin-bottom: var(--s3); overflow: hidden;
 }
 /* Tier is conveyed by the .co-tier chip + the score color — no side-stripe accent (T-14; PRODUCT.md ban). */
-.co-pri-head { display: flex; align-items: flex-start; gap: var(--s3); cursor: pointer; }
+.co-pri-head { display: flex; align-items: flex-start; gap: var(--s3); cursor: pointer; min-height: 44px; }
 .co-pri-rank {
   flex: none; width: 22px; font-size: var(--t-sm); font-weight: 800; color: var(--text-3);
   font-variant-numeric: tabular-nums; line-height: 1.5; padding-top:1px;
@@ -197,7 +197,11 @@
 .co-pri.lead .co-pri-score { font-size: var(--t-3xl); }
 .co-pri.sub { padding: var(--s3) var(--s4) var(--s4); }
 .co-pri.sub .co-pri-acts { margin-top: var(--s3); gap: 6px; }
-.co-pri.sub .co-abtn { height: 36px; }
+/* 36px was the compact read for a subordinate row, but these are the coach's actual actions on an
+   athlete ("Nudge", "Open") and they sit side by side, so a hit expander would have neighbours to
+   steal taps from. The floor wins; the row still reads subordinate through fill and colour, which
+   is what was carrying it anyway. */
+.co-pri.sub .co-abtn { height: 44px; }
 /* Subordinate primary: the same action, named in its own hue, with no fill and no halo. A tinted
    fill was tried here first and read as a disabled control — five muddy red slabs down the
    column. Colour on the label alone is the honest weight for "this, but not first". */

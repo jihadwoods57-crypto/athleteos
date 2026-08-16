@@ -167,9 +167,10 @@ function navSave() {
   catch { /* quota — nav still works in-memory this session */ }
 }
 let NAV_INTENT = false;   // this hash change came from our own handlers (vs browser/swipe back)
-let NAV_DIR = null;       // 'push' | 'pop' | 'tab' — how the user got here, so the entrance can
-                          // match the gesture (detail slides in from the right, back from the
-                          // left, tab roots keep the fade-up). Consumed once per render.
+let NAV_DIR = null;       // 'push' | 'pop' | 'tab' | 'lat-next' | 'lat-prev' — how the user got
+                          // here, so the entrance can match the gesture (detail slides in from the
+                          // right, back from the left, a sibling tab slides the way you reached
+                          // for, tab roots keep the fade-up). Consumed once per render.
 let RESTORE = null;       // {r, s} — scroll position to restore once that route paints
 let LAST_FULL = null;     // the route (route/sub) the previous render painted — lets a same-route
                           // re-render (window.__render) PRESERVE scroll instead of snapping to top (T-08)
@@ -177,17 +178,50 @@ let LAST_FULL = null;     // the route (route/sub) the previous render painted �
 function currentFull() { const { route, sub } = parse(); return sub ? `${route}/${sub}` : route; }
 function currentScroll() { const vp = document.getElementById('viewport'); return vp ? vp.scrollTop : 0; }
 
+/* A move ACROSS a screen's own sibling tabs, not deeper into it.
+ *
+ * A screen declares `subs: [...]` when its sub-routes are a tab strip rather than detail pages
+ * (Plan's Today / Nutrition / Requirements / Food Memory). Without this, `plan/nutrition` looked
+ * exactly like `connected-standard/csr-steps` to the router: a forward push. So tapping across
+ * the strip slid the whole screen in from the right — the "you went deeper" grammar for a move
+ * that goes sideways — AND pushed each tab onto the back stack, so leaving Plan from the fourth
+ * tab took four backs. Both were one missing distinction.
+ *
+ * Returns the signed distance travelled (target index − current index), or 0 when this is not a
+ * lateral move at all. The sign is the direction the content should arrive from.
+ *
+ * Exported for the router test, for the same reason navFor is: a wrong answer here is silent.
+ * Return 0 where it should have returned ±1 and the strip quietly goes back to piling up back
+ * targets; return ±1 where it should have returned 0 and a real detail screen stops being
+ * reachable by Back at all. Neither throws, and neither shows up in a screenshot. */
+export function lateralStep(curRoute, curSub, target) {
+  const [root, sub] = target.split('/');
+  if (root !== curRoute || !sub) return 0;
+  const mod = screens[curRoute];
+  const subs = mod && Array.isArray(mod.subs) ? mod.subs : null;
+  if (!subs || !subs.includes(sub)) return 0;
+  // No declared sub = resting on the first tab, which is what a bare `#plan` renders.
+  const from = curSub && subs.includes(curSub) ? subs.indexOf(curSub) : 0;
+  return subs.indexOf(sub) - from;
+}
+
 /** Forward navigation with origin tracking. Tab roots reset their stack; detail screens push
- *  the departing screen (unless it's a transient flow interstitial). Transient screens are
- *  REPLACED in browser history so a hardware/edge swipe-back skips the flow, matching the
- *  header back button. */
+ *  the departing screen (unless it's a transient flow interstitial); a sibling tab REPLACES,
+ *  so the strip never becomes a pile of back-targets. Transient screens are REPLACED in browser
+ *  history so a hardware/edge swipe-back skips the flow, matching the header back button. */
 function navigateTo(target) {
   NAV_INTENT = true;
-  const { route: cur } = parse();
+  const { route: cur, sub: curSub } = parse();
   const curMod = screens[cur];
   const transient = !!(curMod && curMod.transient);
   const targetRoot = ROOT_TAB[target.split('/')[0]];
-  if (targetRoot && !target.includes('/')) {
+  const lateral = lateralStep(cur, curSub, target);
+  if (lateral !== 0) {
+    // Sideways: no stack entry, no history entry. Back from any tab of the strip leaves the
+    // screen, which is the only reading of "back" that survives a four-tab strip.
+    NAV_DIR = lateral > 0 ? 'lat-next' : 'lat-prev';
+    try { location.replace('#' + target); return; } catch { /* fall through to go() */ }
+  } else if (targetRoot && !target.includes('/')) {
     NAV_DIR = 'tab';
     resetTab(NAV, targetRoot); navSave();
   } else if (curMod && !transient && !AUTH_ROUTES.includes(cur)) {
@@ -302,14 +336,29 @@ function render() {
   // Direction modifier: the entrance matches the gesture that caused it. Consumed here whether or
   // not it renders (a same-route repaint must not inherit a stale direction from an old tap).
   const dir = NAV_DIR; NAV_DIR = null;
-  const dirCls = enter && dir === 'push' ? ' dir-push' : enter && dir === 'pop' ? ' dir-pop' : '';
+  const DIR_CLS = { push: ' dir-push', pop: ' dir-pop', 'lat-next': ' dir-lat-next', 'lat-prev': ' dir-lat-prev' };
+  const dirCls = enter ? (DIR_CLS[dir] || '') : '';
   const body = mod.render({ sub, S });
+  /* The one state change the app makes constantly and never showed: a skeleton being replaced by
+     the real thing. Async screens repaint via __render() on the SAME route, which `enter` above
+     deliberately excludes — correct for the entrance choreography, but it left the most common
+     "your data landed" moment as a hard cut. `.settle` is a short opacity-only fade with no
+     travel, because the content is arriving in place rather than sliding in from somewhere, and
+     it is stamped only when the outgoing DOM held a SKELETON and the incoming one does not — a
+     transition that can only happen once per load, so there is no repaint to guard against.
+     Keyed on .sk-card, the skeleton primitive's own class, and deliberately NOT on aria-busy:
+     that attribute does double duty in this app, marking both a skeleton region and a button
+     mid-request (Pay, Redeem, Connect), and fading a whole screen because a button finished
+     would be exactly the decorative motion the product register bans. */
+  const settle = !enter && prevVp
+    && prevVp.querySelector('.sk-card')
+    && !/\bsk-card\b/.test(body) ? ' settle' : '';
   device.innerHTML = `
     <div class="island"></div>
     <div class="screen">
       ${statusbar()}
       <div class="viewport ${mod.bleed ? 'bleed' : ''}${mod.hideTabs ? ' notabs' : ''}${mod.fill ? ' fill' : ''}" id="viewport">
-        <div class="view${enter}${dirCls}" id="view">${body}</div>
+        <div class="view${enter}${dirCls}${settle}" id="view">${body}</div>
       </div>
       ${mod.hideTabs ? '' : tabbar(activeTab, navRole)}
     </div>`;

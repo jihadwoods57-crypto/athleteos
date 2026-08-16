@@ -137,8 +137,10 @@
 /* The "Log without a camera" escape on the permission-priming screen. It lives on `.ob`, not
    `.cam`, so it carries its own button reset. Same reason as the shutter: it was a <div> with a
    click handler, which is a dead end for anyone not using a finger. */
+/* Full-bleed and transparent, so the floor costs nothing visually — it was a 30px target sitting
+   under the shutter, which is the one place on the camera screen a thumb is already hovering. */
 .cam-textlink {
-  display: block; width: 100%; margin-top: 14px; padding: 6px 0;
+  display: block; width: 100%; margin-top: 8px; padding: 12px 0; min-height: 44px; box-sizing: border-box;
   background: none; border: 0; font-family: var(--font); cursor: pointer;
   text-align: center; font-size: var(--t-base); font-weight: 700; color: var(--text-3);
 }
@@ -916,9 +918,20 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    doing visible work, lands the whole strip inside the fold on the common sizes; genuinely narrow
    phones still scroll it, with the fade and the active-tab auto-scroll in plan.js. */
 .ptabs { gap: clamp(12px, 4vw, 22px); }
+.ptabs { position: relative; }
 .ptabs .pt { padding:14px 2px 16px; min-height: 44px; box-sizing: border-box; display: flex; align-items: center; font-size: var(--t-base); font-weight: 700; color: var(--text-3); cursor: pointer; position: relative; }
 .ptabs .pt.on { color: var(--text); }
-.ptabs .pt.on::after { content:''; position:absolute; left:0; right:0; bottom:-1px; height: 2.5px; border-radius: var(--r-micro); background: var(--blue-bright); }
+/* One marker that travels, positioned by plan.js placeInk(). It used to be a ::after on whichever
+   tab was lit, so it teleported: the strongest "you are here" signal on the screen, and the only
+   one with nothing connecting where it was to where it went. Absolute inside the scroller so it
+   scrolls with the labels, and driven purely by transform — width is fixed at the 100px placeInk()
+   divides by, so the travel and the resize both ride the compositor instead of relayouting a
+   scroll container mid-gesture. */
+.ptabs .pt-ink { position: absolute; left: 0; bottom: -1px; width: 100px; height: 2.5px;
+  border-radius: var(--r-micro); background: var(--blue-bright); transform-origin: left center;
+  transform: scaleX(0); pointer-events: none;
+  transition: transform var(--dur-2) var(--ease-out); }
+@media (prefers-reduced-motion: reduce) { .ptabs .pt-ink { transition: none; } }
 
 /* ================= Plan (2026-08-09 redesign) =================
    The page used to be four tab-fulls of .card boxes: a card per targets strip, a card per rule
@@ -1149,6 +1162,19 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xg-row{display:flex;align-items:center;gap:12px;padding:12px 12px;min-height:44px;box-sizing:border-box;cursor:pointer}
 .xg-row + .xg-row{border-top:1px solid var(--hairline-soft)}
 .xg-row:active{background:var(--surface-2)}
+/* ---- xr / xa / xb: the app's title-over-subtitle pair, wherever it lands ----
+   These three classes had NO base rule — they were only ever styled as descendants of .xg-row
+   and .xrow-item. Eleven rows across six screens put the same markup inside a .lrow instead
+   (Home's churn-parachute card and both sync banners, the coach's waiting-plan row, the
+   activity-standard and coach-check-in error rows, Plan's style row, the meal thread's next-up
+   rows, Roll Call's day rows), and every one of them rendered its title and its body at the
+   SAME inherited size and the same colour: a card with no hierarchy at all, which is how the
+   highest-intent conversion moment in the product ("Your record stays yours") ended up reading
+   as one run-on paragraph. Promoting the pair to a base rule fixes all eleven at the cause; the
+   two scoped blocks below still win on specificity, so nothing that already looked right moves. */
+.xr{flex:1;min-width:0}
+.xa{font-size:var(--t-base);font-weight:700;letter-spacing:var(--title-tight)}
+.xb{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:2px}
 .xg-row .xr{flex:1;min-width:0}
 .xg-row .xa{font-size:14px;font-weight:700;letter-spacing:-.01em}
 .xg-row .xb{font-size:var(--t-xs);color:var(--text-3);margin-top:1px}
@@ -1167,7 +1193,11 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .res-media.icon{display:grid;place-items:center;position:relative}
 .res-nophoto{position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:8.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3)}
 .res-media.icon svg{width:30px;height:30px}
-.res-body{padding:12px 14px 14px}
+/* 14px sides left 130px of a 158px card for the title, and "Recovery Check-In" measures 131 —
+   so the one card in the rail that names the nightly check-in was the one card that ellipsised
+   its own identity, by a single pixel. Trimming to 12 (still on the spacing scale) buys 4px and
+   leaves the rail's card width, gap, snap and peek exactly where the rhythm was tuned. */
+.res-body{padding:12px 12px 14px}
 .res-t{font-size:var(--t-base);font-weight:800;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .res-time{font-size:var(--t-xs);font-weight:700;color:var(--text-3);margin-top:2px}
 .res-m{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--hairline-soft)}
@@ -1293,7 +1323,11 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xico.red{background:var(--red-surface);color:var(--red);border:1px solid var(--red-border)}
 .xico.sm{width:38px;height:38px;border-radius:var(--r-chip)}
 .xrecord{background:var(--surface-1);border:1px solid transparent;border-radius:var(--r-card);padding:6px 14px;text-align:left;box-shadow:var(--sh-card)}
-.xrec{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--hairline-soft);font-size:var(--t-sm);font-weight:700}
+/* Each row carries a data-go to its own meal, and the router promotes every data-go to a real
+   role="button" control — so these are 43px tap targets on the most-visited list in the app.
+   min-height rather than more padding: the rows are hairline-separated and an extra pixel of
+   padding on both sides would open the whole record card up by 8. */
+.xrec{display:flex;align-items:center;gap:10px;padding:10px 0;min-height:44px;box-sizing:border-box;border-bottom:1px solid var(--hairline-soft);font-size:var(--t-sm);font-weight:700}
 .xrec:last-child{border-bottom:none}
 .xrec .xtk{width:22px;height:22px;border-radius:var(--r-chip);background:var(--green-surface);color:var(--green-bright);display:grid;place-items:center;flex:0 0 auto}
 .xrec .xtm{margin-left:auto;font-size:var(--t-xs);color:var(--text-3);font-weight:700;font-variant-numeric:tabular-nums}
@@ -2143,11 +2177,21 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    Written in the same centred min-44 form focus.css uses, rather than a bare negative inset:
    that is the shape the QC audit recognises as a deliberate hit expander, so a real fix stops
    being reported as a defect and a REGRESSION still gets caught. */
-.eyebrow .link { position: relative; }
-.eyebrow .link::after {
+/* The same treatment, extended to every control the QC sweep still measured under the floor and
+   which has to STAY small to the eye: Plan's goal pill (32px) and its inline section links (39px),
+   the meal thread's fix chips (34px), the quick-log sheet's fold toggle (27px). Grouped rather
+   than repeated so the next small control joins a list instead of reinventing the shape. */
+.eyebrow .link, .pl-standard .link, .pl-grp .link, .est-note .link,
+.pl-goalpill, .fx-chip, .hub-fold { position: relative; }
+.eyebrow .link::after, .pl-standard .link::after, .pl-grp .link::after, .est-note .link::after,
+.pl-goalpill::after, .fx-chip::after, .hub-fold::after {
   content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   width: 100%; height: 100%; min-width: 44px; min-height: 44px;
 }
+/* The chips wrap, and a 44px expander over a 34px chip hangs 5px past each edge — at the old 8px
+   gap two rows of expanders overlapped by 2px, which hands a tap on the boundary to whichever
+   chip happens to paint last. 10px is exactly the clearance the expanders need. */
+.fx-chips { gap: 10px; }
 .cont-earlier:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
 
 /* ---- the pill means ONE thing ----

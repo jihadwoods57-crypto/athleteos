@@ -2,7 +2,7 @@
    numbers) plus an optional AI headline/narrative/wins/focus when the athlete's plan includes it.
    Reached from Progress's "Monthly report" row. Module shape mirrors my-trainer-offers.js:
    CACHE + load() -> roles.fetchMonthlyReport() -> window.__render(), render()/mount(). */
-import { backHead, esc } from '../components.js';
+import { backHead, esc, skeletonRows, errorState } from '../components.js';
 import { icon } from '../icons.js';
 import { S } from '../state.js';
 import * as roles from '../roles.js';
@@ -42,14 +42,22 @@ function dayLabel(iso) {
 async function load(force) {
   if (CACHE.loaded && !force) return;
   const period = lastCompletedPeriod();
-  // Same real day-row source Progress reads from (S.history — past days derived from
-  // DAY.scoreHistory, newest first). Today is never in a completed past month, so it's
-  // excluded on purpose; buildMonthPayload only needs {date, score, weight}.
-  const days = (S.history || []).map(h => ({ date: h.iso, score: h.score, weight: h.weight }));
-  const payload = buildMonthPayload(days, period);
-  CACHE.payload = payload;
   CACHE.period = period;
-  CACHE.report = await roles.fetchMonthlyReport(period, payload);
+  try {
+    // Same real day-row source Progress reads from (S.history — past days derived from
+    // DAY.scoreHistory, newest first). Today is never in a completed past month, so it's
+    // excluded on purpose; buildMonthPayload only needs {date, score, weight}.
+    const days = (S.history || []).map(h => ({ date: h.iso, score: h.score, weight: h.weight }));
+    CACHE.payload = buildMonthPayload(days, period);
+    CACHE.report = await roles.fetchMonthlyReport(period, CACHE.payload);
+  } catch (e) {
+    // callFn resolves failures into { error } rather than throwing, so the only way in here is a
+    // local one — buildMonthPayload on a malformed history row, or the module failing to reach
+    // its client. Whatever it is, the screen must LAND: without this catch the rejection escapes
+    // (mount() calls load() bare), `loaded` stays false, and the screen sits on its loading state
+    // for the rest of the session with nothing on screen to explain it or to try again.
+    CACHE.report = { error: String((e && e.message) || e) };
+  }
   CACHE.loaded = true;
   // Exposure fires once the fetch has actually resolved to the locked state — never from
   // mount() (which runs before this async call settles) and never twice per screen visit.
@@ -192,21 +200,39 @@ export default {
   tab: 'progress',
   render() {
     if (!CACHE.loaded) {
+      // A skeleton shaped like the report, not a one-line "Building your report…" announcement
+      // over a screen of empty canvas. The old sidebox told the athlete something was happening
+      // and then showed them nothing happening, on the one screen whose fetch is a cold edge
+      // function that can genuinely take seconds. skeletonRows also earns the router's .settle
+      // fade when the real thing arrives, so the swap reads as resolving rather than snapping.
       return `${backHead('Monthly report', 'Your month in review', 'progress')}
-      <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bolt', 17)}</div><div><div class="tt">Building your report…</div></div></div>`;
+      ${skeletonRows(4, 'Building your monthly report')}`;
     }
     const report = CACHE.report;
     const period = CACHE.period;
     const locked = isLockedReport(report);
     return `${backHead('Monthly report', esc(monthLabel(period)), 'progress')}
     ${locked ? lockedCard(CACHE.payload, period) : report && !report.error ? reportBody(report, period) : `
-      <div class="state-demo"><div class="sd-ic">${icon('bolt', 24)}</div>
-      <div class="sd-t">Report unavailable</div>
-      <div class="sd-s">${esc((report && report.error) || 'Could not load your monthly report.')}</div></div>`}
+      ${errorState({
+        title: "Couldn't build your report",
+        // Never the raw transport string. "Failed to fetch" is what the browser calls a dropped
+        // request; it is not something an athlete can act on, and it reads like the report itself
+        // is broken rather than the connection. The month's numbers are all still on the server.
+        body: 'Your month is safe. This is the connection, not your record. Try again in a moment.',
+        retryId: 'mr-retry',
+      })}`}
     `;
   },
   mount(root) {
     load();
+    // errorState() hands back a button id rather than a data-act, so the shared primitive stays
+    // free of any one screen's action vocabulary (same contract plan.js's #plan-retry uses).
+    const retry = root.querySelector('#mr-retry');
+    if (retry) retry.addEventListener('click', () => {
+      CACHE.loaded = false;
+      if (window.__render) window.__render();
+      load(true);
+    });
     const share = root.querySelector('#mr-share');
     if (share) share.addEventListener('click', () => shareReport(CACHE.report, CACHE.period));
     // The locked-report CTA now opens the real membership paywall (App Store / Play IAP via

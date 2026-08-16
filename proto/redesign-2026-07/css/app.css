@@ -148,9 +148,27 @@ body {
 .view.enter.dir-pop  { animation-name: viewPop; }
 @keyframes viewPush { from { opacity: 0; transform: translateX(26px); } to { opacity: 1; transform: none; } }
 @keyframes viewPop  { from { opacity: 0; transform: translateX(-26px); } to { opacity: 1; transform: none; } }
+/* Sideways — a move across a screen's OWN tab strip (router: mod.subs). Deliberately a different
+   gesture from push/pop and not just a shorter one: 10px instead of 26 and --dur-1 instead of
+   --dur-2, because the frame is standing still and only its contents changed. Reading it as a
+   push made every Plan tab feel like a screen you had to come back out of, which is also exactly
+   what the back stack was doing before the router learned the difference. */
+.view.enter.dir-lat-next { animation: viewLatNext var(--dur-1) var(--ease-out); }
+.view.enter.dir-lat-prev { animation: viewLatPrev var(--dur-1) var(--ease-out); }
+@keyframes viewLatNext { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: none; } }
+@keyframes viewLatPrev { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+/* The skeleton handing over to the real thing (router stamps .settle on exactly that swap).
+   Opacity only, no travel: the content is resolving in place, not arriving from somewhere. */
+.view.settle { animation: viewSettle var(--dur-2) var(--ease-out); }
+@keyframes viewSettle { from { opacity: 0.35; } to { opacity: 1; } }
 /* staggered row entrances — list content settles like it landed, not popped. Also arrival-only:
-   these replaying on a repaint is what made a settled list slide around under the reader. */
-.view.enter .req-row, .view.enter .act-card, .view.enter .notif, .view.enter .roster-row {
+   these replaying on a repaint is what made a settled list slide around under the reader.
+   NOT on a lateral switch: the strip is one screen, and re-staggering six rows every time the
+   athlete taps across four tabs is the animation fatigue this whole gate exists to prevent. */
+.view.enter:not(.dir-lat-next):not(.dir-lat-prev) .req-row,
+.view.enter:not(.dir-lat-next):not(.dir-lat-prev) .act-card,
+.view.enter:not(.dir-lat-next):not(.dir-lat-prev) .notif,
+.view.enter:not(.dir-lat-next):not(.dir-lat-prev) .roster-row {
   animation: rowIn 420ms var(--ease-out) both;
 }
 @keyframes rowIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
@@ -608,10 +626,40 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 .muted { color: var(--text-2); }
 .tiny { color: var(--text-3); }
 
-/* segmented tabs (Plan, Progress filter) */
+/* segmented tabs (settings switches, notification windows, coach filters) */
 .seg { display: flex; gap:4px; padding:4px; background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-pill); }
 .seg button { flex: 1; height: 44px; border: none; background: transparent; color: var(--text-2); font-family: var(--font); font-weight: 700; font-size: 13px; border-radius: var(--r-pill); cursor: pointer; transition: all var(--dur-1) var(--ease-out); }
-.seg button.on { background: var(--surface-3); color: var(--text); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+.seg button.on { background: var(--surface-3); color: var(--text); box-shadow: var(--sh-thumb); }
+
+/* The selection TRAVELS.
+   Two buttons crossfading their backgrounds tells you which one is on now; it never tells you the
+   selection moved, or which way. On a control whose whole job is "this, not that" — every
+   notification toggle, every quiet-hours window — that is the one thing motion is for. A real
+   thumb slides between the segments and the buttons keep only their text colour.
+   Gated on :has() so a browser without it keeps the per-button fill above and loses nothing but
+   the travel; that is why the fallback rule is left intact rather than replaced. The thumb is
+   sized from --seg-n and positioned from --seg-i, both read off the DOM by :has() so no call site
+   has to pass an index — there are 30-odd of them and half build their buttons at runtime. */
+@supports selector(:has(*)) {
+  .seg:has(> button.on) { position: relative; --seg-n: 2; --seg-i: 0; }
+  .seg:has(> button:nth-child(3)) { --seg-n: 3; }
+  .seg:has(> button:nth-child(4)) { --seg-n: 4; }
+  .seg:has(> button:nth-child(2).on) { --seg-i: 1; }
+  .seg:has(> button:nth-child(3).on) { --seg-i: 2; }
+  .seg:has(> button:nth-child(4).on) { --seg-i: 3; }
+  .seg:has(> button.on)::before {
+    content: ''; position: absolute; top: 4px; bottom: 4px; left: 4px;
+    width: calc((100% - 8px - (var(--seg-n) - 1) * 4px) / var(--seg-n));
+    /* translateX percentages resolve against the thumb's OWN width, so one segment plus one gap
+       is exactly `100% + 4px` whatever the track measures. */
+    transform: translateX(calc(var(--seg-i) * (100% + 4px)));
+    border-radius: var(--r-pill); background: var(--surface-3); box-shadow: var(--sh-thumb);
+    transition: transform var(--dur-2) var(--ease-out); pointer-events: none;
+  }
+  .seg:has(> button.on) > button { position: relative; z-index: 1; background: transparent; box-shadow: none; }
+  .seg:has(> button.on) > button.on { color: var(--text); }
+  @media (prefers-reduced-motion: reduce) { .seg::before { transition: none; } }
+}
 
 /* stat tiles (2x2 in plan summary) */
 .tiles2 { display: grid; grid-template-columns: 1fr 1fr; gap:12px; }

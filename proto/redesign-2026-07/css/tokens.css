@@ -206,6 +206,12 @@
   --sh-raised: 0 14px 40px rgba(0,0,0,0.48);
   --sh-blue: 0 10px 30px rgba(37, 99, 235, 0.40);
   --sh-green: 0 12px 34px rgba(52, 211, 153, 0.34);
+  /* A control-sized lift, for a thumb riding INSIDE a track (the segmented control) rather than a
+     card sitting on the canvas. Minted because that tier is real and populated — every .seg in the
+     app — and nothing named it: the thumb was carrying a hardcoded `0 2px 8px rgba(0,0,0,0.3)`,
+     which is a frozen dark value that reads as a smudge under a near-white track in light theme.
+     --sh-card is the wrong size here; a 24px blur under a 36px pill is a halo, not an edge. */
+  --sh-thumb: 0 1px 1px rgba(0,0,0,0.28), 0 2px 6px rgba(0,0,0,0.30);
   /* hero score lift: teal halo + dark drop to seat white numerals on the dark ring */
   --score-lift: 0 0 44px rgba(94,234,212,0.25), 0 4px 26px rgba(0,0,0,0.5);
 
@@ -305,6 +311,8 @@
   /* on a light ground the numerals are dark ink — a dark drop would muddy them; keep only a soft teal halo */
   --score-lift: 0 0 40px rgba(20, 184, 166, 0.16);
   --sh-green: 0 10px 26px rgba(22, 163, 74, 0.22);
+  /* Slate ink, not black, and lighter: on a near-white track the thumb needs a seam, not a smudge. */
+  --sh-thumb: 0 1px 1px rgba(15, 23, 42, 0.07), 0 2px 5px rgba(15, 23, 42, 0.10);
 
   /* Same grain, half the amplitude: the noise tile is light-on-dark, so on a near-white canvas
      the identical opacity reads roughly twice as strong and starts to look like dirt. */
