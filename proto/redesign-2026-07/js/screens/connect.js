@@ -40,7 +40,7 @@ export default {
       </div>
       ${!isTrainer && RT.myRoomLabel ? `
       <div class="lrow" style="cursor:default;margin-top:10px">
-        <div class="lic" style="background:rgba(59,130,246,0.14);color:var(--blue-bright)">${icon('users', 17)}</div>
+        <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('users', 17)}</div>
         <div class="lm"><div class="lt">Your room</div><div class="ls">${esc(RT.myRoomLabel)} — your standard follows this room</div></div>
       </div>` : ''}
       <div style="height:10px"></div>

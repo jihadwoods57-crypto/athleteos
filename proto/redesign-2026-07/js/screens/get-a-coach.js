@@ -46,7 +46,7 @@ export default {
       ${row('home', 'bolt', 'background:var(--green-surface);color:var(--green-bright)',
         'Self-guided with AI', 'Your score, your streak, and the AI nutritionist — you drive')}
       ${marketplaceOpen ? `
-      ${row('coach-directory', 'users', 'background:var(--blue-surface, rgba(59,130,246,0.14));color:var(--blue-bright)',
+      ${row('coach-directory', 'users', 'background:var(--blue-surface);color:var(--blue-bright)',
         'OnStandard Coach', 'A real person who reviews your days and keeps you on standard')}
       ${row('coach-directory/verified', 'shield', '',
         'Verified professional', 'Certified trainers with credentials we checked ourselves')}` : ''}

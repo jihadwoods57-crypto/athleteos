@@ -325,7 +325,7 @@ function dietRow(name, d) {
   const allergyPills = (d.allergies || []).map((a) => {
     const nm = (a && a.name) || a;
     const severe = a && a.severity === 'severe';
-    const style = severe ? 'background:var(--red-surface);color:var(--red)' : 'background:rgba(245,165,36,0.16);color:var(--amber-bright)';
+    const style = severe ? 'background:var(--red-surface);color:var(--red)' : 'background:rgba(var(--amber-rgb),0.16);color:var(--amber-bright)';
     return `<span class="status-pill" style="${style}">${esc(nm)}${a && a.severity ? ` · ${esc(a.severity)}` : ''}</span>`;
   }).join(' ');
   const other = [...(d.intolerances || []), ...(d.preferences || [])].map((x) => `<span class="status-pill">${esc(x)}</span>`).join(' ');
@@ -455,7 +455,7 @@ export const coachVoice = {
 
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
-        <div class="lic" style="background:rgba(168,85,247,0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div>
+        <div class="lic" style="background:rgba(var(--purple-rgb),0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div>
         <div class="lm"><div class="lt">Coach your AI</div><div class="ls">${enabled ? 'On — always labeled as AI, never signed as you' : 'Off — the AI uses its neutral default voice'}</div></div>
         <div class="seg" style="width:104px" id="cv-enabled"><button class="${enabled ? 'on' : ''}">On</button><button class="${enabled ? '' : 'on'}">Off</button></div>
       </div>

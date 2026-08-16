@@ -138,10 +138,10 @@ const steps = [
     title: () => 'What are we building?',
     sub: () => 'This decides how your nutrition gets scored. Your coach can adjust it.',
     body: () => choiceGrid('goal', [
-      { v: 'gain', t: 'Gain weight', s: 'Calorie floor · protein heavy', ic: 'plus', tint: 'rgba(52,211,153,0.18)', color: 'var(--green-bright)' },
-      { v: 'lose', t: 'Lose fat', s: 'Calorie window · keep protein', ic: 'target', tint: 'rgba(245,165,36,0.18)', color: 'var(--amber-bright)' },
+      { v: 'gain', t: 'Gain weight', s: 'Calorie floor · protein heavy', ic: 'plus', tint: 'rgba(var(--green-rgb),0.18)', color: 'var(--green-bright)' },
+      { v: 'lose', t: 'Lose fat', s: 'Calorie window · keep protein', ic: 'target', tint: 'rgba(var(--amber-rgb),0.18)', color: 'var(--amber-bright)' },
       { v: 'maintain', t: 'Maintain', s: 'Consistency over everything', ic: 'shield' },
-      { v: 'performance', t: 'Perform', s: 'Fuel training · recover hard', ic: 'bolt', tint: 'rgba(168,85,247,0.18)', color: 'var(--purple-bright)' },
+      { v: 'performance', t: 'Perform', s: 'Fuel training · recover hard', ic: 'bolt', tint: 'rgba(var(--purple-rgb),0.18)', color: 'var(--purple-bright)' },
     ]),
   },
   /* 0142 — an independent athlete chooses their own plan style; a team athlete's answer
@@ -279,9 +279,9 @@ const steps = [
     title: () => 'What standard are you ready to hold yourself to?',
     sub: () => 'This sets how hard OnStandard pushes — reminder timing and intensity. You can change it any time.',
     body: () => choiceGrid('pressure', [
-      { v: 'all-in', t: 'All in', s: 'Every meal, every day — full reminders', ic: 'flame', tint: 'rgba(245,165,36,0.18)', color: 'var(--amber-bright)' },
+      { v: 'all-in', t: 'All in', s: 'Every meal, every day — full reminders', ic: 'flame', tint: 'rgba(var(--amber-rgb),0.18)', color: 'var(--amber-bright)' },
       { v: 'steady', t: 'Steady', s: 'Main meals, honest weeks — balanced reminders', ic: 'shield' },
-      { v: 'building', t: 'Building', s: 'Start with one meal a day — light touch', ic: 'plus', tint: 'rgba(52,211,153,0.18)', color: 'var(--green-bright)' },
+      { v: 'building', t: 'Building', s: 'Start with one meal a day — light touch', ic: 'plus', tint: 'rgba(var(--green-rgb),0.18)', color: 'var(--green-bright)' },
     ]),
   },
   {

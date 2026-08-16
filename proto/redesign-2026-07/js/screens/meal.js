@@ -537,7 +537,7 @@ export const analysis = {
     return `
     ${backHead(`${L.name} Analysis`, 'Check it before it counts', 'camera')}
 
-    <div class="photo-hero" style="${safeImg(L.img) ? `background-image:url('${safeImg(L.img)}')` : 'background:linear-gradient(150deg, rgba(52,211,153,0.14), rgba(37,99,235,0.06))'}">
+    <div class="photo-hero" style="${safeImg(L.img) ? `background-image:url('${safeImg(L.img)}')` : 'background:linear-gradient(150deg, rgba(var(--green-rgb),0.14), rgba(var(--blue-deep-rgb),0.06))'}">
       <div class="ph-grad"></div>
       <div class="ph-meta">
         <div><div class="ph-t">${esc(L.name)}</div><div class="ph-s">${esc(timingLine || (nonLive ? 'From your gallery' : 'Captured just now'))}</div>${nonLive ? `<div style="margin-top:6px">${nonLiveBadge()}</div>` : ''}</div>
@@ -874,7 +874,7 @@ export const thread = {
          src as the hero below (assigned once in mount), so this costs no second fetch. Decorative
          and behind everything: aria-hidden, no pointer events. -->
     <div class="meal-backdrop" aria-hidden="true"><img id="meal-backdrop-img" alt="" decoding="async"/></div>
-    <div class="photo-hero" id="meal-hero" style="margin-top:14px;background:linear-gradient(150deg, rgba(52,211,153,0.14), rgba(37,99,235,0.06))">
+    <div class="photo-hero" id="meal-hero" style="margin-top:14px;background:linear-gradient(150deg, rgba(var(--green-rgb),0.14), rgba(var(--blue-deep-rgb),0.06))">
       <img id="meal-photo" alt="Photo of this meal" decoding="async" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;display:none"/>
       <div class="ph-grad"></div>
       <div class="ph-meta"><div>${M.live === false ? `<div>${nonLiveBadge()}</div>` : '<div></div>'}</div>

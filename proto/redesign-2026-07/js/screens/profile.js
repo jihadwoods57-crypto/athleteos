@@ -143,7 +143,7 @@ export default {
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
       <div class="lrow" data-go="injury">
-        <div class="lic" style="background:rgba(245,165,36,0.16);color:var(--amber-bright)">${icon('bolt', 17)}</div>
+        <div class="lic" style="background:rgba(var(--amber-rgb),0.16);color:var(--amber-bright)">${icon('bolt', 17)}</div>
         <div class="lm"><div class="lt">Injury mode</div><div class="ls">${RT.injured ? 'Active · your Standard is adapted' : 'The Standard adapts when you’re hurt'}</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>

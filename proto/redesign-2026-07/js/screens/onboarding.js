@@ -110,13 +110,13 @@ const steps = {
 
   4: () => frame(4, 'What are we building?', 'This decides how your nutrition gets scored. Your coach can adjust it.', `
     <div class="choice-grid" id="ob-goal">
-      <div class="choice on" data-val="gain"><div class="cic" style="background:rgba(52,211,153,0.18);color:var(--green-bright)">${icon('arrowUp', 19)}</div>
+      <div class="choice on" data-val="gain"><div class="cic" style="background:rgba(var(--green-rgb),0.18);color:var(--green-bright)">${icon('arrowUp', 19)}</div>
         <div class="ct">Gain weight</div><div class="cs">Calorie floor · protein heavy</div></div>
-      <div class="choice" data-val="lose"><div class="cic" style="background:rgba(245,165,36,0.18);color:var(--amber-bright)">${icon('target', 19)}</div>
+      <div class="choice" data-val="lose"><div class="cic" style="background:rgba(var(--amber-rgb),0.18);color:var(--amber-bright)">${icon('target', 19)}</div>
         <div class="ct">Lose fat</div><div class="cs">Calorie window · keep protein</div></div>
       <div class="choice" data-val="maintain"><div class="cic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('shield', 19)}</div>
         <div class="ct">Maintain</div><div class="cs">Consistency over everything</div></div>
-      <div class="choice" data-val="performance"><div class="cic" style="background:rgba(168,85,247,0.18);color:var(--purple-bright)">${icon('bolt', 19)}</div>
+      <div class="choice" data-val="performance"><div class="cic" style="background:rgba(var(--purple-rgb),0.18);color:var(--purple-bright)">${icon('bolt', 19)}</div>
         <div class="ct">Perform</div><div class="cs">Fuel training · recover hard</div></div>
     </div>`, 'Next', 'onboarding/5'),
 

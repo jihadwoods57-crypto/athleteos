@@ -153,7 +153,7 @@ export const labelScan = {
     ${backHead('Enter the Label', 'Type the numbers straight off the panel — exact, never estimated', 'camera')}
 
     ${allergies.length ? `
-    <div class="sidebox" style="border-color:var(--amber-border);background:rgba(245,165,36,0.08)">
+    <div class="sidebox" style="border-color:var(--amber-border);background:rgba(var(--amber-rgb),0.08)">
       <div class="req-icon a" style="width:38px;height:38px;color:var(--amber-bright)">${icon('bell', 17)}</div>
       <div><div class="tt">Check it against your restrictions</div>
       <div class="ts">You flagged ${esc(allergies.join(', '))}. Read the ingredients before you log this.</div></div>

@@ -141,7 +141,7 @@ export default {
         </div>`;
       } else {
         streakRow = `<div class="streak-ribbon mild" data-go="streak" style="margin-top:2px">
-          <div class="sr-ic" style="background:rgba(52,211,153,0.10);color:var(--green-bright)">${icon('check', 18)}</div>
+          <div class="sr-ic" style="background:rgba(var(--green-rgb),0.10);color:var(--green-bright)">${icon('check', 18)}</div>
           <div class="sr-body"><div class="sr-t">${st.days}-day streak · secured</div>
           <div class="sr-s">Today counts. Day ${st.days} locks at midnight.</div></div>
           ${icon('chevron', 16, 'style="color:var(--text-3);flex:none"')}

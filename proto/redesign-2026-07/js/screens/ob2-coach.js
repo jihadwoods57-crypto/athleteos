@@ -538,7 +538,7 @@ const steps = [
         <div class="ob-title" style="margin-top:22px">Your team code.</div>
         <div class="ob-sub" style="padding:0 8px">Send it to the group chat. Athletes enter it once and their work starts counting toward your board.</div>
         <div style="height:22px"></div>
-        ${code ? `<div class="code-boxes">${code.split('').map((ch) => `<div class="cb filled" style="border-color:var(--amber-border);background:rgba(245,165,36,0.08)">${esc(ch)}</div>`).join('')}</div>
+        ${code ? `<div class="code-boxes">${code.split('').map((ch) => `<div class="cb filled" style="border-color:var(--amber-border);background:rgba(var(--amber-rgb),0.08)">${esc(ch)}</div>`).join('')}</div>
         <div style="height:12px"></div>
         <div style="display:flex;justify-content:center;gap:8px">
           <button class="btn ghost sm" id="copy-code" style="width:auto;padding:0 22px">${icon('clipboard', 16)} Copy code</button>

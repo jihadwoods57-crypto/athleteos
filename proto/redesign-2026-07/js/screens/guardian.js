@@ -36,7 +36,7 @@ export default {
       return `
       ${backHead('Parent Approval', 'Waiting on your parent', 'home')}
       <div class="state-demo">
-        <div class="sd-ic" style="background:rgba(245,165,36,0.16);color:var(--amber-bright)">${icon('clock', 24)}</div>
+        <div class="sd-ic" style="background:rgba(var(--amber-rgb),0.16);color:var(--amber-bright)">${icon('clock', 24)}</div>
         <div class="sd-t">Request sent</div>
         <div class="sd-s">We asked ${c.guardianEmail ? esc(c.guardianEmail) : 'your parent'} to approve. Until they do, everything you log stays on this phone — nothing is lost, and it all syncs the moment they say yes.</div>
       </div>
