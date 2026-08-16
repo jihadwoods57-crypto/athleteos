@@ -261,18 +261,15 @@
 .co-status.crit .lbl { color: var(--red-bright); }   /* only genuine critical gets warm text, and small */
 
 /* ============================================================
-   Stat tiles (score / completion / streak) — clean, tabular
+   Athlete-detail hero — ONE score artifact (the same ring the athlete reads),
+   status + last-activity beside it. Replaced the 3-tile stat row that printed
+   the score a second time and the meals/recovery counts the open list restates.
    ============================================================ */
-.co-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s3); }
-.co-tiles.two { grid-template-columns: repeat(2, 1fr); }
-.co-stat {
-  background: var(--surface-2); border: 1px solid var(--hairline-soft);
-  border-radius: var(--r-tile); padding: var(--s4) var(--s3); text-align: left;
-}
-.co-stat .v { font-size: 26px; font-weight: 800; letter-spacing: -0.035em; font-variant-numeric: tabular-nums; line-height: 1; color: var(--text); }
-.co-stat .v.g { color: var(--green-bright); } .co-stat .v.a { color: var(--amber-bright); } .co-stat .v.r { color: var(--red-bright); } .co-stat .v.b { color: var(--blue-bright); }
-.co-stat .v small { font-size: var(--t-sm); font-weight: 700; color: var(--text-3); letter-spacing: 0; }
-.co-stat .k { font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-key); text-transform: uppercase; color: var(--text-3); margin-top:8px; }
+.co-hero { display: flex; align-items: center; gap: var(--s4); padding: var(--s4); }
+.co-hero-ring { flex: none; }
+/* Context sizing only (see .ring-center .score in app.css): the 96px ring's opening is ~50px,
+   the same proportion the Home hero gives --t-hero inside its 128px ring. */
+.co-hero-ring .ring-center.num .score { --score-size: var(--t-3xl); }
 
 /* ============================================================
    Athlete profile — identity header + slim action bar

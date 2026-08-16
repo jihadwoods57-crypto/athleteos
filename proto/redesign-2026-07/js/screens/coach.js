@@ -1,7 +1,7 @@
 import { S, RT, act, fmtClock, nutritionConfigForGoal, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
 import { accentVar, scoreColor, ON_STANDARD } from '../score-band.js';
-import { backHead, titleHead, esc, safeImg, composer, sparkline, emptyState, errorState, skeletonRows, emailVerifyBanner, wireEmailVerifyBanner, copyText } from '../components.js';
+import { backHead, titleHead, esc, safeImg, composer, sparkline, emptyState, errorState, skeletonRows, emailVerifyBanner, wireEmailVerifyBanner, copyText, scoreRing } from '../components.js';
 import {
   attachedPhoto, isPhotoOnly, wireComposerAttach, postChatMessage,
   bubblePhotoHtml, hydrateThreadPhotos,
@@ -21,7 +21,10 @@ import { explainCategories } from '../breakdown-model.js';
 import { seedTemplates, templateLabel } from '../templates.js';
 import { canEditStandards, canViewWeight } from '../staff-access.js';
 import { categorizeInbox, inboxAlerts } from '../inbox.js';
+import { presetForStatus, tierForStatus, nudgeResultCopy, nudgedTodayFromInterventions } from '../nudge-presets.js';
+import { reasonKey } from '../priority.js';
 import { maybeStartTour } from '../tour.js';
+import { reveal } from '../motion.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -1843,14 +1846,17 @@ function coachCatCard(b) {
   <details class="bd-cat" data-cat="${b.id}">
     <summary class="bd-row">
       <div class="bd-top">
-        <span class="bd-name">${esc(b.key)} <span class="bd-weight">${b.weightPct}% of score</span></span>
+        <span class="bd-name">${esc(b.key)}</span>
         <span class="bd-val">${b.earned}<small>/${b.possible}</small></span>
       </div>
       <div class="bd-bar"><div class="bd-fill ${b.accent}" style="transform:scaleX(${b.possible ? (b.earned / b.possible).toFixed(3) : 0})"></div></div>
-      <div class="bd-note">${esc(b.note)}</div>
       <span class="bd-chev">${icon('chevron', 14)}</span>
     </summary>
     <div class="bd-detail">
+      ${/* Collapsed rows read name + earned/possible + bar and nothing else; the weight and
+            the running note are depth, so they open WITH the details — four data points per
+            closed row was the densest stack on the page. */''}
+      <div class="bd-note" style="margin-bottom:6px">${b.weightPct}% of the score${b.note ? ` · ${esc(b.note)}` : ''}</div>
       ${b.rows.map(r => `
         <div class="bd-req">
           <span class="bd-req-dot ${st(r.state).cls}"></span>
@@ -1899,7 +1905,6 @@ function breakdownBlock(P, athleteId) {
   <section class="card bd-comp" style="padding:2px 16px">
     ${cats.map(coachCatCard).join('')}
   </section>
-  <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">Graded against ${esc(first)}'s own standard and ${cfg.proteinTarget}g protein${cfg.scoringProfile !== 'athlete' ? ` / ${cfg.calTarget} kcal` : ''} target — the same numbers they're scored on. Reflects today; past days keep the score they earned.</div>
   <div style="height:10px"></div>`;
 }
 function lastActivityLabel(iso) {
@@ -1922,8 +1927,10 @@ function coTrend(hist) {
   const xy = pts.map((p, i) => [(i / (pts.length - 1)) * w, (h - 7) - ((p.score - min) / span) * (h - 14)]);
   const line = xy.map((c, i) => `${i ? 'L' : 'M'}${c[0].toFixed(1)},${c[1].toFixed(1)}`).join(' ');
   const area = `M0,${h} L${xy.map(c => `${c[0].toFixed(1)},${c[1].toFixed(1)}`).join(' L')} L${w},${h} Z`;
-  const up = pts[pts.length - 1].score >= pts[0].score;
-  const stroke = up ? 'var(--green-bright)' : 'var(--red-bright)';
+  // The line wears the CURRENT score's band color — it used to pick green/red by direction,
+  // so the trend and the hero ring could disagree in hue about the same day (an 85 that
+  // drifted down from 92 painted red next to a blue ring).
+  const stroke = scoreColor(pts[pts.length - 1].score);
   const lp = xy[xy.length - 1];
   return `<div class="co-trend">
     <div class="co-trend-top"><span class="lbl">Last ${pts.length} logged days</span><span class="rng">${min}–${max}</span></div>
@@ -1942,13 +1949,18 @@ function overviewSection(P, athleteId) {
   const last = lastActivityLabel(P.row && P.row.lastMealAt);
   const subtitle = (st && st.detail) || last || 'On track';
   const alerts = (P.exceptions || []).map(e => e.reason ? `Excused · ${e.reason}` : 'Excused');
+  // ONE score artifact. The ring is the most legible thing the athlete's own Home has, and it
+  // was the one thing this page dropped — while printing the same number three times (stat
+  // tile, "Finished day", trend endpoint). Now the ring carries it, once.
+  const score = P.day && P.day.score != null ? P.day.score : null;
   return `
-  <section class="card" style="padding:var(--s4);display:flex;align-items:center;justify-content:space-between;gap:var(--s3)">
-    <div style="min-width:0">
+  <section class="card co-hero">
+    ${score != null ? `<div class="co-hero-ring">${scoreRing({ score, size: 96, stroke: 9, showCenter: false, centerNum: true, uid: 'coathlete' })}</div>` : ''}
+    <div style="min-width:0;flex:1">
       <div class="co-status ${crit ? 'crit' : ''}"><span class="dot" style="background:${meta ? meta.color : 'var(--text-3)'}"></span><span class="lbl" style="font-size:14px;font-weight:800">${meta ? esc(meta.label) : '—'}</span></div>
       <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin-top:5px;line-height:1.4">${esc(subtitle)}</div>
+      ${last && st && st.detail ? `<div style="font-size:11.5px;font-weight:700;color:var(--text-3);margin-top:4px">${esc(last)}</div>` : ''}
     </div>
-    ${last && st && st.detail ? `<div style="font-size:11.5px;font-weight:700;color:var(--text-3);white-space:nowrap;flex:none">${esc(last)}</div>` : ''}
   </section>
 
   ${todayBlock(P, athleteId)}
@@ -1968,7 +1980,6 @@ function todayBlock(P, athleteId) {
   const day = P.day;
   const today = roles.todayISO();
   const todayMeals = (P.meals || []).filter(m => m.day_date === today);
-  const score = day && day.score != null ? day.score : null;
   const mealsJson = (day && day.meals) || {};
   const ci = (day && day.checkin) || {};
   // The athlete's OWN standard decides which slots exist, what they're called, and which are
@@ -1984,20 +1995,18 @@ function todayBlock(P, athleteId) {
   const denom = std ? std.mealsRequired : slots.filter(k => !optional.has(k)).length;
   const logged = slots.filter(k => mealsJson[k]).length;
   const openSlots = slots.filter(k => !mealsJson[k] && !optional.has(k));
+  // No stat tiles anymore: the hero ring carries the score, and the open list below IS the
+  // meals/recovery state — the tiles restated both and made the first viewport three surfaces
+  // deep in numbers before the coach read anything.
+  const requiredIn = Math.max(0, denom - openSlots.length);
   return `
-    <div class="co-tiles">
-      <div class="co-stat"><div class="v" style="color:${scoreColor(score)}">${score != null ? score : '—'}</div><div class="k">Score today</div></div>
-      <div class="co-stat"><div class="v g">${logged}<small>&thinsp;/&thinsp;${denom}</small></div><div class="k">Meals logged</div></div>
-      <div class="co-stat"><div class="v ${ci.submitted ? 'g' : 'a'}">${ci.submitted ? 'In' : 'Open'}</div><div class="k">Recovery</div></div>
-    </div>
-
     ${!day ? `<div class="sidebox" style="margin-top:14px"><div class="req-icon a" style="width:38px;height:38px">${icon('clock', 17)}</div>
     <div><div class="tt">No logs today yet</div><div class="ts">Nothing to review — they haven't logged. Their day appears here as they log it.</div></div></div>`
     : `
     <div class="eyebrow">Today's proof${todayMeals.length ? '' : ' · none yet'}</div>
     ${todayMeals.length ? `<div class="hscroll">
       ${todayMeals.map(m => `
-        <div class="act-card" data-go="coach-meal/${esc(m.id)}">
+        <div class="act-card" data-go="coach-meal/${esc(m.id)}" role="button" aria-label="Review and comment on ${esc(cap(m.type || 'Meal'))}">
           <div class="act-time">${esc(cap(m.type || 'Meal'))}</div>
           ${P.photos[m.id]
             ? `<div class="act-media"><img src="${esc(P.photos[m.id])}" alt="Photo of this meal" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"/></div>`
@@ -2006,18 +2015,17 @@ function todayBlock(P, athleteId) {
         </div>`).join('')}
     </div>` : `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:-2px 2px 10px">No meal photos logged today.</div>`}
 
-    <div class="eyebrow">What's open</div>
+    <div class="eyebrow">What's open · ${requiredIn} of ${denom} meals in</div>
     <section class="card" style="padding:6px 16px">
       ${openSlots.length || !ci.submitted ? `
         ${openSlots.map(k => `
           <div class="lrow" style="cursor:default"><div class="lic" style="color:var(--amber-bright)">${icon('bowl', 17)}</div>
           <div class="lm"><div class="lt">${esc(slotTitle(k))}</div><div class="ls">Not logged yet</div></div><span class="status-pill a">Open</span></div>`).join('')}
-        ${!ci.submitted ? `<div class="lrow" style="cursor:default"><div class="lic" style="color:var(--purple-bright)">${icon('moon', 17)}</div>
-          <div class="lm"><div class="lt">Recovery check-in</div><div class="ls">Before bed</div></div><span class="status-pill p">Open</span></div>` : ''}`
+        ${!ci.submitted ? `<div class="lrow" style="cursor:default"><div class="lic" style="color:var(--amber-bright)">${icon('moon', 17)}</div>
+          <div class="lm"><div class="lt">Recovery check-in</div><div class="ls">Before bed</div></div><span class="status-pill a">Open</span></div>` : ''}`
         : `<div class="lrow" style="cursor:default"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('check', 17)}</div>
-          <div class="lm"><div class="lt">Everything is in</div><div class="ls">Finished day${score != null ? ` · ${score}` : ''}</div></div></div>`}
+          <div class="lm"><div class="lt">Everything is in</div><div class="ls">Finished day</div></div></div>`}
     </section>`}
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:4px;padding:0 2px">Tap a meal photo to review and comment on it.</div>
     <div style="height:10px"></div>
   `;
 }
@@ -2086,15 +2094,16 @@ function activitySection(P) {
   }
   items.sort((x, y) => y.ts - x.ts);
   if (!items.length) return `
+  ${TLOGS.error ? `<div class="co-note" style="color:var(--amber-bright)">Training logs couldn't load just now. Reopen the page to retry.</div>` : ''}
   <div class="co-empty"><div class="ic">${icon('clock', 24)}</div>
   <div class="tt">No activity in the last 30 days</div>
   <div class="ts">Meal logs, weigh-ins, check-ins, and your own actions land here as they happen.</div></div>`;
   return `
   <div class="co-eyebrow">Last 30 days</div>
+  ${TLOGS.error ? `<div class="co-note" style="color:var(--amber-bright)">Training logs couldn't load just now, so they're missing from this list. Reopen the page to retry.</div>` : ''}
   <div class="co-tl">
     ${items.map(i => `<div class="co-tl-item ${i.cls}"${i.go ? ` data-go="${esc(i.go)}" style="cursor:pointer"` : ''}><div class="co-tl-when">${esc(i.when)}</div><div class="co-tl-what">${i.what}</div></div>`).join('')}
-  </div>
-  <div class="co-note">Weigh-ins and check-ins are shown for today; meal history spans 30 days.</div>`;
+  </div>`;
 }
 
 /* Date label for a meal row in Conversation: "Jul 15 · 2d ago" from its real logged_at
@@ -2202,11 +2211,21 @@ function requirementsSection(P, athleteId) {
    Say so in the thread or a nudge — the memory belongs to the athlete. */
 let FMEM = { id: null, items: null, places: [] };
 function foodMemSection(P, athleteId) {
-  if (FMEM.id !== athleteId || FMEM.items === null) {
+  if (FMEM.id !== athleteId || (FMEM.items === null && !FMEM.error)) {
     return `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('utensils', 17)}</div>
     <div><div class="tt">Loading their saved meals…</div><div class="ts">What they eat repeatedly, learned from their logging.</div></div></div>`;
   }
-  const items = FMEM.items.filter((i) => i.status !== 'archived');
+  // A failed read is a failed read — this used to coerce {error} to [] and render the
+  // "Nothing saved yet" empty state over a live outage, the one materially dishonest
+  // surface on this page.
+  if (FMEM.error) {
+    return errorState({
+      title: "Couldn't load their saved meals",
+      body: 'Nothing is missing on their side; this screen just could not reach the server.',
+      retryId: 'fm-retry',
+    });
+  }
+  const items = (FMEM.items || []).filter((i) => i.status !== 'archived');
   if (!items.length) {
     return `<div class="state-demo"><div class="sd-ic">${icon('utensils', 24)}</div>
     <div class="sd-t">Nothing saved yet</div>
@@ -2292,6 +2311,11 @@ export const coachAthlete = {
     // An on-standard athlete has nothing to nudge — the always-available detail nudge used to be
     // the one path where "Time to get your log in." could land on someone who logged everything.
     const onStd = !!(P.row && P.row.score != null && P.row.score >= ON_STANDARD);
+    // One nudge a day, held across devices and staff: the server's intervention rows are the
+    // record, RT.coachNudged is only this device's fast path. This page used to have no daily
+    // guard at all — a coach could ping the same athlete every two minutes from here.
+    const nudgedTodayHere = (RT.coachNudged || {})[athleteId] === roles.todayISO()
+      || nudgedTodayFromInterventions(P.interventions, roles.todayISO());
     if (P.offline) {
       return `${head}
       <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
@@ -2321,7 +2345,9 @@ export const coachAthlete = {
     <div class="co-actionbar">
       ${onStd
         ? `<button class="co-act" disabled aria-label="They're on standard today. Nothing to nudge." title="They're on standard today. Nothing to nudge.">${icon('bell', 18)}<span class="lbl">On standard</span></button>`
-        : `<button class="co-act" data-anudge="${esc(athleteId)}">${icon('bell', 18)}<span class="lbl">Nudge</span></button>`}
+        : nudgedTodayHere
+          ? `<button class="co-act" disabled aria-label="Already nudged today. One a day keeps it meaningful." title="Already nudged today. One a day keeps it meaningful.">${icon('check', 18)}<span class="lbl">Nudged today</span></button>`
+          : `<button class="co-act${P.pass ? '' : ' hero'}" data-anudge="${esc(athleteId)}">${icon('bell', 18)}<span class="lbl">Nudge</span></button>`}
       <button class="co-act" data-go="coach-assign/${esc(athleteId)}">${icon('clipboard', 18)}<span class="lbl">Assign</span></button>
       <button class="co-act" data-go="coach-plan/${esc(athleteId)}">${icon('edit', 18)}<span class="lbl">Targets</span></button>
       ${CD.caps.trustPass
@@ -2336,7 +2362,7 @@ export const coachAthlete = {
       <button class="btn ghost sm" data-anudge-cancel="1" style="width:auto;padding:0 12px;height:32px;flex:none">Cancel</button>
       <button class="btn sm" data-anudge-send="${esc(athleteId)}" style="width:auto;padding:0 12px;height:32px;flex:none">Send</button>
     </div>
-    <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:0 0 4px">This exact message lands on their phone, from "${esc(S.operatorIdentity.handle)} is waiting".</div>` : ''}
+    <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:0 0 4px">This exact message goes to them, from "${esc(S.operatorIdentity.handle)} is waiting".</div>` : ''}
     <div id="tp-status" style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);min-height:0"></div>
 
     <div class="co-seg co-scroll" id="psec-row">
@@ -2355,17 +2381,27 @@ export const coachAthlete = {
     // on every render; the id guard stops a re-fetch loop and clears stale rows on athlete switch).
     if (TLOGS.id !== athleteId) {
       TLOGS = { id: athleteId, rows: [] };
-      roles.listTrainingLogs(athleteId).then((rows) => { if (TLOGS.id === athleteId) { TLOGS = { id: athleteId, rows: rows || [] }; if (window.__render) window.__render(); } }).catch(() => { /* best-effort */ });
+      // null = the fetch FAILED (roles contract) — record it so the timeline can say the
+      // training half is missing instead of silently rendering "no training logs".
+      roles.listTrainingLogs(athleteId).then((rows) => { if (TLOGS.id === athleteId) { TLOGS = { id: athleteId, rows: rows || [], error: rows === null }; if (window.__render) window.__render(); } }).catch(() => { if (TLOGS.id === athleteId) { TLOGS = { id: athleteId, rows: [], error: true }; if (window.__render) window.__render(); } });
     }
-    // Food Memory (0192) — once per athlete open, same guard pattern as TLOGS.
+    // Food Memory (0192) — once per athlete open, same guard pattern as TLOGS. {error} stays
+    // an error: coercing it to [] rendered "Nothing saved yet" over a live outage.
     if (FMEM.id !== athleteId) {
       FMEM = { id: athleteId, items: null, places: [] };
       roles.fetchFoodMemory(athleteId).then((r) => {
         if (FMEM.id !== athleteId) return;
-        FMEM = { id: athleteId, items: (r && !r.error && r.items) || [], places: (r && !r.error && r.places) || [] };
+        FMEM = (r && r.error)
+          ? { id: athleteId, items: null, places: [], error: true }
+          : { id: athleteId, items: (r && r.items) || [], places: (r && r.places) || [] };
         if (window.__render) window.__render();
-      }).catch(() => { /* best-effort */ });
+      }).catch(() => {
+        if (FMEM.id === athleteId) { FMEM = { id: athleteId, items: null, places: [], error: true }; if (window.__render) window.__render(); }
+      });
     }
+    // Food Memory retry: reset the guard so this mount pass refetches, then repaint.
+    const fmRetry = root.querySelector('#fm-retry');
+    if (fmRetry) fmRetry.addEventListener('click', () => { FMEM = { id: null, items: null, places: [] }; window.__render(); });
     // Verify a saved meal (definer RPC). Optimistic stamp on success; honest re-enable on failure.
     root.querySelectorAll('[data-fm-verify]').forEach((el) => el.addEventListener('click', async () => {
       if (el.disabled) return;
@@ -2389,6 +2425,12 @@ export const coachAthlete = {
       VIEWED_FOR = athleteId;
       try { roles.markDayViewed(athleteId, roles.todayISO(), RT.userId, S.operatorIdentity.handle); } catch { /* best-effort */ }
     }
+    // The hero ring draws once per athlete+score (keyed like Home's) — scoreRing renders wound
+    // back and stays empty unless something calls the reveal.
+    const P0 = CD.profile;
+    if (P0 && P0.athleteId === athleteId && P0.day && P0.day.score != null) {
+      reveal(root, { key: `coathlete:${athleteId}:${P0.day.score}`, haptic: null });
+    }
     root.querySelectorAll('[data-psec]').forEach(el => el.addEventListener('click', () => {
       PSECTION = el.getAttribute('data-psec'); window.__render();
     }));
@@ -2396,7 +2438,10 @@ export const coachAthlete = {
     // The coach sees and owns every word that goes out under their name.
     root.querySelectorAll('[data-anudge]').forEach(el => el.addEventListener('click', () => {
       if (el.disabled) return;
-      NUDGE_ARM = { body: 'Time to get your log in.' };
+      // Tier-matched, like coach-home: "overdue" to an athlete who logged on time but scored
+      // low reads as an accusation. presetForStatus falls back to the neutral body.
+      const st0 = CD.profile && CD.profile.status;
+      NUDGE_ARM = { body: presetForStatus(st0 && st0.key) };
       window.__render();
     }));
     root.querySelectorAll('[data-anudge-cancel]').forEach(el => el.addEventListener('click', () => { NUDGE_ARM = null; window.__render(); }));
@@ -2408,12 +2453,30 @@ export const coachAthlete = {
       const status = root.querySelector('#tp-status');
       el.disabled = true; el.textContent = '…';
       if (status) { status.style.color = 'var(--text-3)'; status.textContent = 'Sending nudge…'; }
-      const ok = await roles.nudgePush(id, `${S.operatorIdentity.handle} is waiting`, body);
-      if (ok) { try { act.markNudged(id); } catch { /* best-effort */ } try { await logBookIntervention({ athleteId: id, kind: 'nudge' }); } catch { /* best-effort */ } NUDGE_ARM = null; }
-      else { el.disabled = false; el.textContent = 'Send'; NUDGE_ARM = { body }; }
+      const r = await roles.nudgePush(id, `${S.operatorIdentity.handle} is waiting`, body);
+      const copy = nudgeResultCopy(r);
+      if (copy.ok) {
+        try { act.markNudged(id); } catch { /* best-effort */ }
+        // reason_key + tier make this row visible to buildPriorities' acted-set, so the nudge
+        // clears the coach-home queue — a bare kind:'nudge' row was invisible to it. Mirror
+        // into the local cache the same way coach-home does, so the queue updates now.
+        try {
+          const st1 = CD.profile && CD.profile.status;
+          const rk = st1 ? reasonKey(st1) : undefined;
+          const tier = st1 ? (tierForStatus(st1.key) || undefined) : undefined;
+          const okLog = await logBookIntervention({ athleteId: id, kind: 'nudge', reasonKey: rk, tier });
+          if (okLog && CD.caps.interventions && CD.extras && Array.isArray(CD.extras.interventions) && rk) {
+            CD.extras.interventions.push({ athlete_id: id, kind: 'nudge', reason_key: rk, tier });
+          }
+        } catch { /* best-effort */ }
+        NUDGE_ARM = null;
+      } else { el.disabled = false; el.textContent = 'Send'; NUDGE_ARM = { body }; }
       window.__render();
       const st = document.querySelector('#tp-status');
-      if (st) { st.style.color = ok ? 'var(--green-bright)' : 'var(--red)'; st.textContent = ok ? 'Sent. It lands on their phone.' : "Couldn't send it — check your connection."; }
+      if (st) {
+        st.style.color = copy.tone === 'ok' ? 'var(--green-bright)' : copy.tone === 'warn' ? 'var(--amber-bright)' : 'var(--red)';
+        st.textContent = copy.msg;
+      }
     }));
     // Private notes composer + delete (Task 7). Save keeps the typed text on failure — never
     // silently eats it — and both save and delete refresh from the server rather than
@@ -2955,7 +3018,10 @@ export const coachMeal = {
       if (cmNote) cmNote.textContent = '';
       input.value = '';
       cmAttach.clear();
-      roles.nudgePush(athleteId, `${S.athlete.name} commented on your ${meal ? cap(meal.type) : 'meal'}`, text || 'Sent a photo');
+      // kind 'coach_comment' (not 'nudge'): the nudge dedupe used to eat the second comment
+      // inside two minutes, and the athlete's bell tagged a comment "urgent". ref deep-links
+      // the bell row and the push to this meal's thread.
+      roles.nudgePush(athleteId, `${S.athlete.name} commented on your ${meal ? cap(meal.type) : 'meal'}`, text || 'Sent a photo', { kind: 'coach_comment', ref: sub });
       // The auto-support AI invoke that used to live here is GONE (founder, 2026-08-06): a coach
       // sending a message got a second, unrequested AI message under it. The AI now speaks for a
       // coach only when explicitly asked — the sparkle button (coachAsk) below.
@@ -3148,7 +3214,7 @@ export const coachMeal = {
           rxBusy = false;
           return;
         }
-        if (!existing) roles.nudgePush(athleteId, `Coach reacted to your ${meal ? cap(meal.type) : 'meal'}`, emoji);
+        if (!existing) roles.nudgePush(athleteId, `Coach reacted to your ${meal ? cap(meal.type) : 'meal'}`, emoji, { kind: 'coach_react', ref: sub });
         await loadMealComments(sub, true);
         rxBusy = false;
       },

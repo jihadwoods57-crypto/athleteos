@@ -4,6 +4,7 @@ import { avatarHead, esc, safeImg, collapseSection, skeletonRows, errorState, em
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope, logBookIntervention, passWorthy } from '../coach-data.js';
 import { buildPriorities } from '../priority.js';
+import { nudgePreset, nudgeResultCopy } from '../nudge-presets.js';
 import { PLANS } from '../ob2.js';
 import { teamPulse } from '../status.js';
 import { scoreColor } from '../score-band.js';
@@ -575,7 +576,7 @@ function priorityCard(c, i, nudgedToday) {
       <button class="co-abtn" data-pnudge-cancel="1">Cancel</button>
       <button class="co-abtn primary" data-pnudge-send="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Send</button>
     </div>
-    <div class="co-pri-reason" style="margin-top:4px">This exact message lands on their phone, from "${esc(S.operatorIdentity.handle)} is waiting".</div>` : ''}
+    <div class="co-pri-reason" style="margin-top:4px">This exact message goes to them, from "${esc(S.operatorIdentity.handle)} is waiting".</div>` : ''}
     <div class="co-pstatus" id="pstatus-${esc(c.athleteId)}"></div>
   </div>`;
 }
@@ -827,9 +828,7 @@ export const coachHome = {
       // The body must match the tier the card showed — "overdue" to an athlete who logged on
       // time but scored low reads as an accusation.
       const tier = b.getAttribute('data-tier');
-      const body = tier === 'below' ? "You're below standard today. Close the gap."
-        : tier === 'due_soon' ? 'Your next log is due soon. Stay ahead of it.'
-          : 'Your log is overdue. Get it in.';
+      const body = nudgePreset(tier || 'critical');
       PNUDGE_ARM = PNUDGE_ARM && PNUDGE_ARM.athleteId === id ? null : { athleteId: id, body };
       window.__render();
     }));
@@ -840,16 +839,24 @@ export const coachHome = {
       const input = root.querySelector('#pnudge-body');
       const body = ((input && input.value) || '').trim() || (PNUDGE_ARM && PNUDGE_ARM.body) || 'Time to get your log in.';
       b.disabled = true; b.textContent = '…';
-      const ok = await roles.nudgePush(id, `${S.operatorIdentity.handle} is waiting`, body);
-      if (!ok) {
+      const r = await roles.nudgePush(id, `${S.operatorIdentity.handle} is waiting`, body);
+      const copy = nudgeResultCopy(r);
+      if (!copy.ok) {
         b.disabled = false; b.textContent = 'Send';
-        sayFail(id, "Couldn't send the nudge — check your connection.");
+        sayFail(id, copy.msg);
         return;
       }
       PNUDGE_ARM = null;
       act.markNudged(id);
       await log(id, 'nudge', b);
       window.__render();
+      // Post-render: the delivery truth. "Nudged ✓" on the button says it was recorded; this
+      // line says where it actually landed (phone push vs in-app inbox vs just-pinged).
+      const stEl = document.querySelector(`#pstatus-${id}`);
+      if (stEl) {
+        stEl.style.color = copy.tone === 'ok' ? 'var(--green-bright)' : 'var(--amber-bright)';
+        stEl.textContent = copy.msg;
+      }
     }));
     root.querySelectorAll('[data-passign]').forEach(b => b.addEventListener('click', async () => {
       if (b.disabled) return; // double-tap guard — navigates away, so no re-enable needed

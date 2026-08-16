@@ -59,6 +59,10 @@ Deno.serve(async (req) => {
      *  linked coach staff about their own meal. Caller identity comes from the JWT; the link
      *  is verified server-side (active team membership → active staff). */
     to_coach?: boolean; kind?: string; urgent?: boolean; route?: string;
+    /** Nudge v2 (2026-08-15): operator→athlete calls may carry a kind ('nudge' default,
+     *  'coach_comment', 'coach_react') plus a ref (meal id) so the bell row deep-links.
+     *  Comments/reactions are MESSAGES: they skip the nudge dedupe that used to eat them. */
+    ref?: string;
     /** Coach OS Slice C: push-only fan-out for an already-posted announcement (feed rows were
      *  already written by post_announcement — this mode must NEVER insert notifications). */
     announcement_id?: string;
@@ -205,7 +209,12 @@ Deno.serve(async (req) => {
     if (meErr || !athleteId2) return json({ error: 'unauthorized' }, 401, cors);
     const title2 = (payload.title ?? 'Athlete update').slice(0, 120);
     const body2 = (payload.body ?? '').slice(0, 300);
-    const kind = /^[a-z_]{3,32}$/.test(payload.kind ?? '') ? (payload.kind as string) : 'meal_logged';
+    // The kind may carry a deep-link suffix (`meal_review:<mealId>`) — the same convention
+    // meal-chat's meal_flag rows already use, so the coach bell can route a tap to the meal.
+    // The old regex rejected any suffix, which silently downgraded every row to a dead
+    // 'meal_logged' record the bell couldn't link anywhere.
+    const kind = /^[a-z_]{3,32}(:[A-Za-z0-9-]{6,64})?$/.test(payload.kind ?? '') ? (payload.kind as string) : 'meal_logged';
+    const baseKind = kind.split(':')[0];
     const route = typeof payload.route === 'string' ? payload.route.slice(0, 120) : null;
 
     // Resolve the athlete's ACTIVE coach staff via service role (RLS-free, link-verified).
@@ -228,7 +237,7 @@ Deno.serve(async (req) => {
     // Device push: 'meal_logged' stays quiet (in-app record only); review/action classes
     // push, action with sound. Each coach's notifications_opt_out suppresses their push.
     let pushed = 0;
-    if (payload.urgent === true || kind !== 'meal_logged') {
+    if (payload.urgent === true || baseKind !== 'meal_logged') {
       const { data: prefs } = await svc2.from('profiles')
         .select('id,notifications_opt_out').in('id', coachIds);
       const optedOut = new Set((prefs ?? [])
@@ -261,6 +270,17 @@ Deno.serve(async (req) => {
   if (!athleteId) return json({ error: 'athlete_id required' }, 400, cors);
   const title = (payload.title ?? 'Your coach sent a nudge').slice(0, 120);
   const message = (payload.body ?? '').slice(0, 300);
+  // Operator-origin kinds (nudge v2). 'nudge' keeps its dedupe; a comment or reaction is a
+  // MESSAGE riding the same authorized pipe — before this, two coach comments inside two
+  // minutes meant the second one produced no bell row and no push, silently. `ref` (the meal
+  // id) rides the row's kind as a suffix so the athlete's bell can deep-link the tap; `route`
+  // rides the push payload so the OS notification opens the right screen instead of nowhere.
+  const OP_KINDS = new Set(['nudge', 'coach_comment', 'coach_react']);
+  const opKind = OP_KINDS.has(payload.kind ?? '') ? (payload.kind as string) : 'nudge';
+  const opRef = typeof payload.ref === 'string' && /^[A-Za-z0-9-]{6,64}$/.test(payload.ref) ? payload.ref : null;
+  const opRoute = typeof payload.route === 'string' && /^[A-Za-z0-9/_-]{1,120}$/.test(payload.route)
+    ? payload.route
+    : (opKind === 'nudge' ? 'home' : (opRef ? `meal-view/${opRef}` : null));
 
   // 1) Authorize with the CALLER's jwt: can_view is true only if they're linked to the athlete.
   const caller = createClient(SUPABASE_URL, ANON, { global: { headers: { Authorization: authHeader } } });
@@ -273,14 +293,20 @@ Deno.serve(async (req) => {
   // should not double-deliver. Skip if this athlete already got a 'nudge' in the last 2 minutes —
   // long enough to absorb a retry/double-submit, short enough that a coach nudging again
   // moments later (different reason) still goes through.
+  // Scoped to actual nudges: comments and reactions are conversation, and deduping
+  // conversation means eating it.
   const DEDUPE_WINDOW_MS = 2 * 60_000;
-  const { data: recentNudge, error: dedupeErr } = await svc.from('notifications')
-    .select('id').eq('user_id', athleteId).eq('kind', 'nudge')
-    .gte('created_at', new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString()).limit(1).maybeSingle();
-  if (!dedupeErr && recentNudge) return json({ ok: true, pushed: 0, deduped: true }, 200, cors);
+  if (opKind === 'nudge') {
+    const { data: recentNudge, error: dedupeErr } = await svc.from('notifications')
+      .select('id').eq('user_id', athleteId).eq('kind', 'nudge')
+      .gte('created_at', new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString()).limit(1).maybeSingle();
+    if (!dedupeErr && recentNudge) return json({ ok: true, pushed: 0, deduped: true }, 200, cors);
+  }
 
   // 2) Record the in-app notification (service role bypasses the self-only insert policy).
-  await svc.from('notifications').insert({ user_id: athleteId, kind: 'nudge', title, body: message });
+  await svc.from('notifications').insert({
+    user_id: athleteId, kind: opRef ? `${opKind}:${opRef}` : opKind, title, body: message,
+  });
 
   // 2b) Honor the athlete's notification preference for the PUSH. The in-app notification above is
   // the durable record and always lands (it shows in the bell); we only suppress the device push
@@ -301,12 +327,17 @@ Deno.serve(async (req) => {
       const r = await fetch('https://exp.host/--/api/v2/push/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(tokens.map((to) => ({ to, title, body: message, sound: 'default' }))),
+        body: JSON.stringify(tokens.map((to) => ({
+          to, title, body: message, sound: 'default',
+          ...(opRoute ? { data: { route: opRoute } } : {}),
+        }))),
       });
       if (r.ok) pushed = tokens.length;
     } catch {
       /* push is best-effort; the in-app notification already landed */
     }
   }
-  return json({ ok: true, pushed }, 200, cors);
+  // `devices` lets the client tell "pushed to their phone" from "they have no push device" —
+  // the UI used to assert phone delivery either way.
+  return json({ ok: true, pushed, devices: tokens.length }, 200, cors);
 });

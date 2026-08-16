@@ -1403,9 +1403,35 @@ export async function checkPhotoReuse(hash) {
 }
 
 /* ---------------- notify (edge fn; must allowlist file:// null origin) ---------------- */
-export async function nudgePush(athleteId, title, body) {
-  const c = sb(); if (!c || !athleteId) return false;
-  try { const { error } = await c.functions.invoke('send-push', { body: { athlete_id: athleteId, title, body } }); return !error; } catch { return false; }
+/** Operator → athlete notification. Returns the delivery TRUTH, not a boolean: the server
+ *  distinguishes a real device push from "saved to the bell only" (no token / pushes off /
+ *  deduped), and the send surfaces owe the coach that distinction. Shape:
+ *  { ok, pushed, deduped, suppressed, devices, rateLimited }.
+ *  opts.kind: 'nudge' (default) | 'coach_comment' | 'coach_react' — comments/reactions skip
+ *  the server's nudge dedupe. opts.ref: meal id, makes the athlete's bell row deep-link. */
+export async function nudgePush(athleteId, title, body, opts = {}) {
+  const c = sb(); if (!c || !athleteId) return { ok: false };
+  try {
+    const { data, error } = await c.functions.invoke('send-push', {
+      body: {
+        athlete_id: athleteId, title, body,
+        ...(opts.kind ? { kind: opts.kind } : {}),
+        ...(opts.ref ? { ref: opts.ref } : {}),
+        ...(opts.route ? { route: opts.route } : {}),
+      },
+    });
+    if (error) {
+      // FunctionsHttpError carries the raw Response as context — a 429 is the rate limit,
+      // which bulk send reports as "wait a minute", not "check your connection".
+      const status = error && error.context && error.context.status;
+      return { ok: false, rateLimited: status === 429 };
+    }
+    const d = data || {};
+    return {
+      ok: d.ok !== false, pushed: d.pushed || 0, deduped: !!d.deduped,
+      suppressed: d.suppressed || null, devices: d.devices != null ? d.devices : null,
+    };
+  } catch { return { ok: false }; }
 }
 
 /** Coach OS Slice C: push-only fan-out for an already-posted announcement. The feed rows are

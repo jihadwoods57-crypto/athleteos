@@ -96,6 +96,9 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
         : req.proof === 'photo' ? (done ? `meal-detail/${req.id}` : `camera/${req.id}`) : 'home',
       required: !!req.required, tracked: true,
       window: req.window, proof: req.proof,
+      // The reminder urgency rides along so settings can SHOW the real level instead of the
+      // hardcoded card it used to fabricate (notify-plan keys escalation on this same field).
+      reminder: req.reminder || 'medium',
     };
   });
 

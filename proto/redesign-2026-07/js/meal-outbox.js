@@ -74,8 +74,11 @@ export function trimPhotos(list, max = MAX_PHOTOS) {
   const withPhoto = (list || []).filter((e) => e.base64);
   if (withPhoto.length <= max) return list || [];
   const strip = new Set(withPhoto.slice(0, withPhoto.length - max).map((e) => e.k));
+  // `lostPhoto` preserves the one fact the strip destroys: whether the photo had already made
+  // it to storage (needUpload false) or died with the bytes (needUpload true). The thread's
+  // failed state and the retry path both key on it.
   return (list || []).map((e) =>
-    strip.has(e.k) ? { ...e, base64: null, needUpload: false, needAnalysis: false, dead: 'quota' } : e);
+    strip.has(e.k) ? { ...e, base64: null, lostPhoto: !!e.needUpload, needUpload: false, needAnalysis: false, dead: 'quota' } : e);
 }
 
 /** All entries that may run now, oldest first. */
@@ -107,7 +110,7 @@ export function writeQueue(list) {
     return out;
   } catch {
     // Quota: shed every photo but keep the jobs, so the thread can still say what happened.
-    out = out.map((e) => (e.base64 ? { ...e, base64: null, needUpload: false, needAnalysis: false, dead: 'quota' } : e));
+    out = out.map((e) => (e.base64 ? { ...e, base64: null, lostPhoto: !!e.needUpload, needUpload: false, needAnalysis: false, dead: 'quota' } : e));
     try { localStorage.setItem(KEY, JSON.stringify(out)); } catch { /* in-memory only from here */ }
     return out;
   }

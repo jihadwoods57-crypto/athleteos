@@ -1548,6 +1548,10 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .thread .bubble{-webkit-touch-callout:none}
 .thread .bubble.pressing{transform:scale(0.97);transition:transform 120ms var(--ease-out)}
 .mt-retry{font-size:12px;font-weight:700;color:var(--amber-bright);cursor:pointer;padding:6px 2px}
+/* One-line warning inside an AI bubble (failed-read fetch hiccup) — inherits the bubble's size. */
+.mt-warnline{margin-top:4px;color:var(--amber-bright);font-weight:600}
+/* Settings footnote under a card — the lock/info explainer lines on notif-settings. */
+.set-note{font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin-top:10px;padding:0 2px;line-height:1.5}
 
 /* ----- Meal score rubric (conversation upgrade 2026-07-16) ----- */
 .rub{margin-top:8px;border:1px solid var(--hairline);border-radius:var(--r-tile);background:var(--surface-1)}

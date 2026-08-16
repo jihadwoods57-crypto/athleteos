@@ -1019,8 +1019,27 @@ export const act = {
    *
    * Idempotent and self-cancelling — an empty queue clears the timer rather than ticking forever.
    */
+  /** A quota-stripped job can never run again (runnable() is false forever), and nothing else
+   *  wrote that fact onto the slot — so the thread said "Reading your plate…" for good while
+   *  the queue held a tombstone. Stamp those slots with the honest failed state: recoverable
+   *  (photo made it to storage → generic failure, retry chip works via the storage rescue) or
+   *  not (bytes died before upload → 'photo_lost', no false retry). */
+  _reconcileDeadJobs() {
+    try {
+      for (const e of readQueue()) {
+        if (!e || !e.dead || e.uid !== RT.userId || e.date !== DAY.date || !e.slot) continue;
+        const m = DAY.slotMacros[e.slot];
+        if (m && m.pending && !m.analysisFailed) {
+          this._patchSlot(e.slot, { analysisFailed: e.lostPhoto ? 'photo_lost' : 'error' });
+          window.__render && window.__render();
+        }
+      }
+    } catch { /* reconcile is best-effort; never let it break the drain loop */ }
+  },
+
   _scheduleDrain() {
     if (typeof window === 'undefined') return;
+    this._reconcileDeadJobs();
     if (this._drainTimer) { clearTimeout(this._drainTimer); this._drainTimer = null; }
     const now = Date.now();
     const waiting = readQueue().filter((e) => e && e.uid === RT.userId && !e.dead
@@ -1423,14 +1442,21 @@ export const act = {
   },
   skipPendingQuestions(slot) { this.answerPendingQuestions(slot, []); },
 
-  /** Manual retry after a terminal analysis failure. */
-  retryAnalysis(slot) {
+  /** Manual retry after a terminal analysis failure. Always answers: local bytes when the
+   *  queue still has them, otherwise the same storage rescue rereadMeal uses (the photo budget
+   *  keeps only the two newest captures locally, but the upload usually made it). The old
+   *  version returned silently when the bytes were gone, which made the "Read it again" chip
+   *  a dead button for exactly the meals most likely to need it. */
+  async retryAnalysis(slot) {
     const job = readQueue().find((e) => e.slot === slot && e.uid === RT.userId && e.date === DAY.date);
-    if (!job || !job.base64) return;
-    updateJob(job.k, { needAnalysis: true, tries: 0, lastTryAt: 0 });
-    this._patchSlot(slot, { analysisFailed: null });
-    window.__render && window.__render();
-    void this.drainMealOutbox();
+    if (job && job.base64) {
+      updateJob(job.k, { needAnalysis: true, tries: 0, lastTryAt: 0 });
+      this._patchSlot(slot, { analysisFailed: null, rereadError: null });
+      window.__render && window.__render();
+      void this.drainMealOutbox();
+      return true;
+    }
+    return this.rereadMeal(slot);
   },
 
   /**
@@ -1608,10 +1634,15 @@ export const act = {
       const body = cls === 'logged'
         ? `${timing}${m.quality != null ? ` · Meal score ${m.quality}` : ''} · Tap to review the meal and join the conversation.`
         : `${reasons[0] ? reasons[0].charAt(0).toUpperCase() + reasons[0].slice(1) : 'Worth a look'} · ${timing}${m.quality != null ? ` · Meal score ${m.quality}` : ''} · Tap to open the conversation.`;
+      // The meal id rides the kind as a suffix (`meal_review:<id>`) so the coach's BELL row
+      // deep-links to the meal, not just the push payload — a coach who dismissed the push
+      // used to have no way back to the meal from the bell.
+      const mealId = DAY.slotMacros[slot] && DAY.slotMacros[slot].mealId;
+      const baseKind = cls === 'action' ? 'meal_action' : cls === 'review' ? 'meal_review' : 'meal_logged';
       void notifyMyCoach({
-        kind: cls === 'action' ? 'meal_action' : cls === 'review' ? 'meal_review' : 'meal_logged',
+        kind: mealId ? `${baseKind}:${mealId}` : baseKind,
         title, body, urgent: cls === 'action',
-        route: DAY.slotMacros[slot] && DAY.slotMacros[slot].mealId ? `coach-meal/${DAY.slotMacros[slot].mealId}` : undefined,
+        route: mealId ? `coach-meal/${mealId}` : undefined,
       });
     } catch { /* notification is best-effort — the log itself already landed */ }
   },
@@ -1667,6 +1698,10 @@ export const act = {
   logWeight(lb) { const v = parseFloat(lb); if (!isFinite(v) || v < 50 || v > 500) return; RT.weightLogged = true; RT.weightLoggedAt = minutesNow(); dayLogWeight(RT.userId, v); save(); track(EVENTS.WEIGHT_LOGGED); this.syncNotifications(); },
   readNotifs() {
     RT.notifsRead = true;
+    // The ack expires with the day it acked. notifsRead alone was a one-way latch: after one
+    // bell visit, "Lunch is overdue" / "your streak ends tonight" never raised the badge again
+    // on this device, ever — the derived rows regenerate daily but the flag never did.
+    RT.notifsReadDay = String(DAY.date);
     RT.serverAckAt = new Date().toISOString(); // offline badge-ack for server rows
     save();
     void markMyNotificationsRead(); // best-effort server truth; grouping updates on next fetch
@@ -4377,9 +4412,11 @@ export const S = {
   },
 
   get unreadNotifs() {
-    // Derived rows keep the coarse all-read flag; server rows count as unread until the
-    // server says read OR the bell was opened after they arrived (offline ack).
-    const derived = RT.notifsRead ? 0 : this.notifications.new.filter((n) => !n.server).length;
+    // Derived rows keep the coarse all-read flag, scoped to the day it was set — a new day's
+    // derived moments (overdue slots, streak defense) count as unread again. Server rows count
+    // as unread until the server says read OR the bell was opened after they arrived.
+    const readToday = RT.notifsRead && RT.notifsReadDay === String(DAY.date);
+    const derived = readToday ? 0 : this.notifications.new.filter((n) => !n.server).length;
     const ack = RT.serverAckAt ? Date.parse(RT.serverAckAt) : 0;
     const server = (RT.serverNotifs || []).filter(
       (r) => r && !r.read_at && (!r.created_at || Date.parse(r.created_at) > ack),

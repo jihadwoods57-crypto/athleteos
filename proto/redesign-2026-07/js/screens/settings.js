@@ -588,16 +588,33 @@ export const notifSettings = {
       </div>
     </section>
 
+    ${(() => {
+      // The REAL urgency levels, read from the same requirement objects the reminder planner
+      // escalates on (req.reminder via S.exec) — this card used to be a hardcoded three-row
+      // fiction that misreported any athlete on a custom standard. Meal slots group into one
+      // row (a 5-meal standard is one fact, not five rows) carrying their highest level.
+      const reqs = (S.exec.items || []).filter((i) => i && i.required && i.tracked && !i.assigned);
+      const meals = reqs.filter((i) => i.proof === 'photo');
+      const rest = reqs.filter((i) => i.proof !== 'photo');
+      const lvOf = (r) => (r.reminder === 'high' ? 'High' : 'Medium');
+      const rows = [];
+      if (meals.length) rows.push(['utensils', 'Meals', meals.some((m) => m.reminder === 'high') ? 'High' : 'Medium']);
+      for (const r of rest) rows.push([r.icon || 'clipboard', r.title, lvOf(r)]);
+      if (!rows.length) return '';
+      return `
     <div class="eyebrow">Urgency per requirement${S.coach.hasCoach ? ` · set by ${esc(S.coach.nameMid)}` : ' · from your plan'}</div>
     <section class="card" style="padding:6px 16px">
-      ${[['utensils', 'Meals', 'Medium'], ['scale', 'Morning Weight', 'High'], ['moon', 'Recovery Check-In', 'High']].map(([ic, t, lv]) => `
+      ${rows.map(([ic, t, lv]) => `
         <div class="lrow" style="cursor:default">
           <div class="lic">${icon(ic, 17)}</div>
-          <div class="lm"><div class="lt">${t}</div></div>
-          <span class="status-pill ${lv === 'High' ? 'a' : lv === 'Medium' ? 'b' : 'p'}" style="display:inline-flex;align-items:center;gap:5px">${icon('lock', 11)} ${lv}</span>
+          <div class="lm"><div class="lt">${esc(t)}</div></div>
+          <span class="status-pill ${lv === 'High' ? 'a' : 'b'}" style="display:inline-flex;align-items:center;gap:5px">${icon('lock', 11)} ${lv}</span>
         </div>`).join('')}
-    </section>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:10px;padding:0 2px">${icon('lock', 11)} Urgency drives escalation and deadline warnings, and belongs to ${S.coach.hasCoach ? 'your coach' : 'your plan'}; your tone above only changes how reminders are worded. Completed requirements never remind you; finishing one cancels its reminders immediately.</div>
+    </section>`;
+    })()}
+    <div class="set-note">${icon('lock', 11)} Urgency drives escalation and deadline warnings, and belongs to ${S.coach.hasCoach ? 'your coach' : 'your plan'}; your tone above only changes how reminders are worded. Completed requirements never remind you; finishing one cancels its reminders immediately.</div>
+    ${typeof window !== 'undefined' && !window.OnStandardNative ? `
+    <div class="set-note">${icon('info', 11)} Reminders are delivered by the phone app. In a browser these settings save, but nothing is scheduled on this device.</div>` : ''}
     <div style="height:10px"></div>
     `;
   },

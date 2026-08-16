@@ -205,7 +205,10 @@ export const analyzing = {
     if (MEAL && MEAL.photoBase64 && !MEAL.result) {
       // REAL analysis via the analyze-meal edge function.
       const r = await act.runAnalysis();
-      if (location.hash !== '#analyzing') return; // navigated away
+      // startsWith, not equality: the camera navigates to '#analyzing/<slot>', and the exact
+      // compare treated the sub-routed hash as "navigated away" — the screen then neither
+      // advanced nor failed, it just sat on a dead scanline.
+      if (!location.hash.startsWith('#analyzing')) return; // navigated away
       // THE CLARIFYING MOMENT: the model asked what the photo can't show — collect answers
       // before committing a number. A confident read goes straight to the analysis.
       if (r.ok) { location.hash = r.kind === 'questions' ? '#meal-questions' : '#meal-analysis'; return; }
@@ -235,7 +238,9 @@ export const analyzing = {
       return;
     }
     // No photo → nothing to analyze. Send them back to capture instead of a fabricated analysis.
-    if (location.hash === '#analyzing') location.hash = '#camera';
+    // (startsWith: a cold launch can land on '#analyzing/<slot>' with sessionStorage cleared —
+    // the exact compare left that case stranded on the scanline forever.)
+    if (location.hash.startsWith('#analyzing')) location.hash = '#camera';
   },
 };
 
@@ -406,16 +411,24 @@ export function openingBlockHtml(M, { sum, fullText, fq, hasPersistedRead = fals
 
   if (M && M.analysisFailed) {
     const capacity = M.analysisFailed === 'capacity';
+    // photo_lost: the device's photo budget dropped the bytes before they uploaded. There is
+    // nothing left to read, so no retry chip — offering one would be a dead button.
+    const lost = M.analysisFailed === 'photo_lost';
     return wrap(aiRow(`
-          <div style="font-weight:700">${capacity ? "I couldn't get to this one today." : "I couldn't read this plate."}</div>
-          <div style="margin-top:4px;color:var(--text-2)">It's logged and counts for timing either way. Your photo is the proof.${capacity ? '' : ' Worth another try?'}</div>
-          ${capacity ? '' : `<div class="fq-chips"><button class="fx-chip" id="mt-retry-analysis">${icon('sparkle', 13)} Read it again</button></div>`}`, 'analysis-failed'), '');
+          <div style="font-weight:700">${capacity ? "I couldn't get to this one today." : lost ? "I couldn't read this one." : "I couldn't read this plate."}</div>
+          <div style="margin-top:4px;color:var(--text-2)">${lost
+            ? "The photo couldn't be kept on this device, so there's nothing left to read. The log still counts for timing."
+            : `It's logged and counts for timing either way. Your photo is the proof.${capacity ? '' : ' Worth another try?'}`}</div>
+          ${M.rereadError ? `<div class="mt-warnline">Couldn't fetch the photo just now. Try again in a moment.</div>` : ''}
+          ${capacity || lost ? '' : `<div class="fq-chips"><button class="fx-chip" id="mt-retry-analysis">${icon('sparkle', 13)} Read it again</button></div>`}`, 'analysis-failed'), '');
   }
 
   if (M && Array.isArray(M.pendingQuestions) && M.pendingQuestions.length) {
     const qs = M.pendingQuestions.slice(0, 3);
+    // Count its own questions: this bubble promised "Two" over one question as easily as three.
+    const qHead = qs.length === 1 ? 'One quick thing' : qs.length === 2 ? 'Two quick things' : `${qs.length} quick things`;
     return wrap(aiRow(`
-          <div style="font-weight:700">Two quick things and your numbers are exact.</div>
+          <div style="font-weight:700">${qHead} and your numbers are exact.</div>
           <div style="margin-top:3px;color:var(--text-2)">A photo can't show what's under or off the plate.</div>
           <div class="mq-list" style="margin-top:10px">
             ${qs.map((q, i) => `
@@ -1666,7 +1679,15 @@ export const thread = {
       }
       const t = ev.target && ev.target.closest ? ev.target.closest('#mq-thread-go, #mq-thread-skip, #mt-retry-analysis, #mt-reread, #open-full-chat, #thread-more') : null;
       if (!t) return;
-      if (t.id === 'mt-retry-analysis') { act.retryAnalysis(M.slot); return; }
+      if (t.id === 'mt-retry-analysis') {
+        // Always answer the tap: in-flight label now, and retryAnalysis itself re-renders with
+        // either the pending state or an honest failure line. The old handler called a function
+        // that could return without doing anything, and the button just sat there.
+        t.disabled = true;
+        t.textContent = 'Reading the plate…';
+        void act.retryAnalysis(M.slot);
+        return;
+      }
       // The same conversation, unbounded by this one plate.
       // Route through the router, NOT a raw hash write. backHead's `to` is only a FALLBACK — back
       // actually pops the per-tab origin stack, and only navigateTo() pushes onto it. Assigning
@@ -1843,7 +1864,9 @@ export const thread = {
       // (spec: a direct athlete question is "action needed"). Best-effort, after the post landed.
       if (S.coach.hasCoach) {
         void roles.notifyMyCoach({
-          kind: 'meal_action', urgent: true,
+          // Suffix = deep link for the coach's bell row (notif-feed KIND_ROUTE), matching the
+          // push payload's route below.
+          kind: M.mealId ? `meal_action:${M.mealId}` : 'meal_action', urgent: true,
           title: `${S.athlete.first || 'Your athlete'} ${photoPath && !typed ? 'sent a photo about' : 'asked about'} ${M.name}`,
           // A wordless photo has no text to preview, so say what it IS rather than sending a
           // notification whose body is an empty string.

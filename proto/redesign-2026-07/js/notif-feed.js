@@ -7,8 +7,20 @@
 
 /* kind → presentation. Unknown kinds (added by future migrations) fall back to a plain
    bell row instead of vanishing — the feed keeps working as the server grows. */
+/* `tag` overrides the level's generic pill label ("urgent"/"reminder") where the level is
+   right for weight but wrong as a name — a coach's comment is medium-weight, but calling it
+   "reminder" misfiles it. Tags are static strings from this table, never row data. */
 const KIND_META = {
   nudge: { icon: 'bell', level: 'high' },
+  // A coach speaking is conversation, not an alarm. These used to ride kind:'nudge', which
+  // tagged an emoji react "urgent" and let the nudge dedupe eat back-to-back comments.
+  coach_comment: { icon: 'message', level: 'medium', tag: 'coach' },
+  coach_react: { icon: 'heart', level: 'positive', tag: 'coach' },
+  // Athlete → coach meal events (send-push to_coach). They fell to DEFAULT_META, so an
+  // urgent "needs review" wore the grey "reminder" pill and no row could route anywhere.
+  meal_logged: { icon: 'camera', level: 'medium', tag: 'logged' },
+  meal_review: { icon: 'utensils', level: 'medium', tag: 'review' },
+  meal_action: { icon: 'alert', level: 'high' },
   join_request: { icon: 'users', level: 'medium' },
   join_approved: { icon: 'check', level: 'positive' },
   digest: { icon: 'clipboard', level: 'medium' },
@@ -32,6 +44,12 @@ const DEFAULT_META = { icon: 'bell', level: 'medium' };
    a plain record, never a link into nowhere. */
 const SUFFIX_OK = (s) => !!s && /^[a-z0-9-]{6,64}$/i.test(s);
 const KIND_ROUTE = {
+  nudge: () => 'home',                                                   // athlete: the next action lives on Home
+  coach_comment: (s) => (SUFFIX_OK(s) ? `meal-view/${s}` : null),        // athlete: the thread they were spoken to in
+  coach_react: (s) => (SUFFIX_OK(s) ? `meal-view/${s}` : null),
+  meal_logged: (s) => (SUFFIX_OK(s) ? `coach-meal/${s}` : null),         // coach: the meal itself
+  meal_review: (s) => (SUFFIX_OK(s) ? `coach-meal/${s}` : null),
+  meal_action: (s) => (SUFFIX_OK(s) ? `coach-meal/${s}` : null),
   ai_followup: (s) => (SUFFIX_OK(s) ? `meal-view/${s}` : null),         // athlete: answer the AI
   meal_flag: (s) => (SUFFIX_OK(s) ? `coach-meal/${s}` : null),          // coach: review the flagged meal
   commitment_escalation: (s) => (SUFFIX_OK(s) ? `roll-call/${s}` : null), // coach: who's still out
@@ -64,6 +82,7 @@ export function feedRowFromServer(row, nowMs) {
   return {
     id: row.id || null,
     level: meta.level,
+    tag: meta.tag || null,
     icon: meta.icon,
     title: String(row.title),
     body: String(row.body || ''),
