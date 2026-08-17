@@ -122,8 +122,15 @@
   z-index: 3;
 }
 ::view-transition-image-pair(vt-shared) { isolation: auto; }
+/* `object-fit: cover`, not the UA's `fill`. The two snapshots are images with the OLD and NEW
+   element's aspect ratios, and the group tweens between those two boxes — so under `fill` anything
+   that changes shape as it travels is stretched for the length of the trip. The score ring is
+   square at both ends and does not care, but the meal photo goes full-bleed stage → 230px square →
+   hero box, and squashing a photograph is the one thing a photograph must never do. `cover` crops
+   to the box it is currently passing through, which is what the eye reads as the same picture
+   getting closer. */
 ::view-transition-old(vt-shared),
-::view-transition-new(vt-shared) { mix-blend-mode: normal; }
+::view-transition-new(vt-shared) { mix-blend-mode: normal; object-fit: cover; }
 /* The two images cross INSIDE the travelling group, and quickly. The group is doing the work the
    eye reads as continuity; a slow cross-fade on top of it just looks like two of the thing. */
 ::view-transition-old(vt-shared) { animation: vtSharedOut 140ms linear both; }

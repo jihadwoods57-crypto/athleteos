@@ -90,7 +90,10 @@ export default {
         </div>
       </div>
 
-      <div class="cam-stage" id="viewfinder">
+      <!-- data-vt="plate": the frame is the one thing that does NOT change when the shutter fires.
+           Marking it on both this stage and the confirm screen's photo makes the live view cross-fade
+           into the still INSIDE a box that holds still, which is what a shutter actually does. -->
+      <div class="cam-stage" id="viewfinder" data-vt="plate">
         <video id="vf-video" autoplay playsinline muted style="display:none"></video>
         <div class="vf-flash" id="vf-flash"></div>
         <div class="vf-empty" id="vf-fallback" data-mode="starting">
@@ -212,7 +215,7 @@ export default {
         }
         const { base64, dataUrl, stats } = await downscaleToJpeg(f, 1000, 0.82);
         act.captureMeal(base64, dataUrl, sub || undefined, live, { takenAt, stats });
-        window.__go('camera-confirm');
+        window.__go('camera-confirm', { dir: 'push', vt: 'plate' });
       } catch { failNote(); }
     };
 
@@ -224,7 +227,7 @@ export default {
         act.captureMeal(base64, dataUrl, sub || undefined, true, { stats });
         stopStream();
         // Let the flash read as a shutter click before the route swap.
-        setTimeout(() => window.__go('camera-confirm'), 120);
+        setTimeout(() => window.__go('camera-confirm', { dir: 'push', vt: 'plate' }), 120);
       } catch { failNote(); }
     };
 
@@ -289,7 +292,7 @@ export const cameraConfirm = {
              photo (letterboxed inside a full-width box) left the stamps hanging 4px off the
              picture and onto the page. */}
         <div class="cc-frame">
-          <img class="cc-photo" src="${safeImg(MEAL.photoDataUrl)}" alt="The ${esc(slotName)} photo you are about to log" />
+          <img class="cc-photo" data-vt="plate" src="${safeImg(MEAL.photoDataUrl)}" alt="The ${esc(slotName)} photo you are about to log" />
           ${''/* Provenance is STAMPED ON THE EVIDENCE (founder call), not filed in the header: it
                describes this photograph, not the state of the screen, and reads like a mark on a
                document rather than another status row. Two stamps, because source and age are two
@@ -375,7 +378,7 @@ export const cameraConfirm = {
       // never visibly LOOKED at — the most satisfying feedback in the app disappeared, and logging
       // started to feel like nothing happened. #analyzing now shows the work for a beat with a hard
       // ceiling, and hands off whether or not the read has landed. It starts no analysis of its own.
-      window.__go('analyzing/' + slot);
+      window.__go('analyzing/' + slot, { dir: 'push', vt: 'plate' });
     });
     // Duplicate pre-check (0062), free and before the paid analyze call. Fail-open: offline the
     // button stays enabled and the server's unique index still backstops at insert time.

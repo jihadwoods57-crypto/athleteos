@@ -131,7 +131,10 @@ export const analyzing = {
     const nonLive = MEAL && MEAL.live === false;
     return `
     <div class="analyzing">
-      <div class="scanbox">
+      <!-- Same data-vt="plate" as the photo on the confirm screen and the hero on the thread:
+           one key, one photograph, carried the whole length of the flow instead of being thrown away
+           and redrawn at each step. -->
+      <div class="scanbox" data-vt="plate">
         <div class="img" style="background-image:url('${img}')"></div>
         <div class="scanline"></div>
       </div>
@@ -191,7 +194,7 @@ export const analyzing = {
          someone who logs four meals. */
       const MIN_MS = 1000, MAX_MS = 9000;
       const t0 = Date.now();
-      const leave = () => { clearPhases(); if (onScreen()) window.__go('meal-thread/' + slot); };
+      const leave = () => { clearPhases(); if (onScreen()) window.__go('meal-thread/' + slot, { dir: 'push', vt: 'plate' }); };
       const tick = () => {
         if (!root.isConnected || !onScreen()) { clearPhases(); return; }
         const waited = Date.now() - t0;
@@ -892,7 +895,7 @@ export const thread = {
          src as the hero below (assigned once in mount), so this costs no second fetch. Decorative
          and behind everything: aria-hidden, no pointer events. -->
     <div class="meal-backdrop" aria-hidden="true"><img id="meal-backdrop-img" alt="" decoding="async"/></div>
-    <div class="photo-hero" id="meal-hero" style="margin-top:14px;background:linear-gradient(150deg, rgba(var(--green-rgb),0.14), rgba(var(--blue-deep-rgb),0.06))">
+    <div class="photo-hero" id="meal-hero" data-vt="plate" style="margin-top:14px;background:linear-gradient(150deg, rgba(var(--green-rgb),0.14), rgba(var(--blue-deep-rgb),0.06))">
       <img id="meal-photo" alt="Photo of this meal" decoding="async" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;display:none"/>
       <div class="ph-grad"></div>
       <div class="ph-meta"><div>${M.live === false ? `<div>${nonLiveBadge()}</div>` : '<div></div>'}</div>
@@ -1264,6 +1267,15 @@ export const thread = {
     // The URL is set as an img.src property (not HTML), so no injection risk; best-effort.
     const photo = root.querySelector('#meal-photo');
     if (photo) {
+      /* Fast path, and it has to be BEFORE the await. The morph that carries the plate onto this
+         screen snapshots the hero at the end of this mount, and everything after the dynamic import
+         below happens in a later frame — so the photo we were handed seconds ago in MEAL.photoDataUrl
+         was landing after the frame that needed it, and the flow ended on an empty gradient box that
+         filled in a beat later. Assigned as a property, not HTML, exactly like the resolve below.
+         Deliberately does NOT touch .ph-nophoto or the backdrop: this only brings forward a photo
+         the code below would have shown anyway, and every honesty path after it still runs and
+         still wins. A photo we do not already hold takes the slow road exactly as before. */
+      if (M.img) { photo.src = M.img; photo.style.display = 'block'; }
       const store = await import('../photo-store.js');
       let url = M.img;
       if (!url && RT.userId && M.hasPhoto) {

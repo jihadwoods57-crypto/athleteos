@@ -127,7 +127,25 @@ function parse() {
   return { route: route || 'home', sub: rest.join('/') };
 }
 
-export function go(route) { location.hash = '#' + route; }
+/**
+ * Change the route.
+ *
+ * `opts` exists for the navigations the router cannot read intent from. A `[data-go]` tap tells it
+ * everything: which gesture (navigateTo works it out) and what the finger was on (the `data-vt`
+ * mark). A screen that navigates from its OWN code — the shutter firing, an analysis finishing —
+ * tells it nothing, so those moves arrived with no direction at all and got the plain fade-up
+ * meant for a deep link. The whole meal capture flow was four such moves in a row.
+ *
+ * @param {string}  route
+ * @param {object?} opts
+ * @param {string?} opts.dir  the gesture this move should read as ('push' | 'pop' | 'tab')
+ * @param {string?} opts.vt   `data-vt` key to carry across it (see js/view-transition.js)
+ */
+export function go(route, opts) {
+  if (opts && opts.dir) { NAV_INTENT = true; NAV_DIR = opts.dir; }
+  if (opts && opts.vt) VT_KEY = opts.vt;
+  location.hash = '#' + route;
+}
 window.__go = go;
 
 /* ---------------- Navigation stacks (spec §1.5/§10) ----------------
