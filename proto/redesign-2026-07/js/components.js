@@ -162,7 +162,13 @@ export function nonLiveBadge() {
    most don't) left an undrawn ring reading 0 where the athlete's score belongs. The resting state
    is now the honest one, and motion.js winds it back only for the one reveal it plays — the same
    arrangement the meal score chip has always used. */
-export function scoreRing({ score, size = 338, stroke = 20, showCenter = true, uid = 'r', delta = null, streak = null, tierName = null, tierCls = 'b', centerNum = false, possible = null } = {}) {
+/* `vt` is OPT-IN, and stays opt-in. It stamps the `data-vt` marker that lets js/view-transition.js
+   carry this ring across a navigation instead of destroying it and drawing a new one on the next
+   screen. It is not defaulted to something clever like `score` because two elements sharing a
+   view-transition-name aborts the whole transition, and rings are not rare: Progress and the coach
+   roster put several on one screen. Only a screen that KNOWS it draws exactly one, and that has a
+   counterpart on the other side of a real navigation, passes it. */
+export function scoreRing({ score, size = 338, stroke = 20, showCenter = true, uid = 'r', delta = null, streak = null, tierName = null, tierCls = 'b', centerNum = false, possible = null, vt = null } = {}) {
   /* `score` used to default to 82. Every call site passes a real one, so the default never
      fired — which is exactly what made it dangerous: the day a call site forgot the argument,
      the app's most trusted surface would have drawn a confident "Locked In" 82 for a number
@@ -232,7 +238,7 @@ export function scoreRing({ score, size = 338, stroke = 20, showCenter = true, u
       </g>` : '';
 
   return `
-  <div class="ring-wrap" style="width:${size}px;height:${size}px">
+  <div class="ring-wrap"${vt ? ` data-vt="${vt}"` : ''} style="width:${size}px;height:${size}px">
     <svg class="ring-svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
       <defs>
         ${/* The signature sweep — the SAME three stops as the brand masters, from the theme

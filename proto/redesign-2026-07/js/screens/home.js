@@ -485,7 +485,7 @@ function hero(e, backdrop = false) {
   // gradient already carries the band, so the attribute had no reader left.
   return `<section class="xhero" data-tour="score" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, ${S.tier.name}. ${e.met} of ${e.total} completed. Open score breakdown">
     <div class="xh-main">
-      ${scoreRing({ score: e.score, possible: e.possible, size: 128, stroke: 11, showCenter: false, centerNum: true, uid: 'hero' })}
+      ${scoreRing({ score: e.score, possible: e.possible, size: 128, stroke: 11, showCenter: false, centerNum: true, uid: 'hero', vt: 'score' })}
       ${gain > 0 ? `<span class="xh-float" aria-hidden="true">+${gain}</span>` : ''}
       <div class="xh-body">
         <div class="xh-k">Daily Score</div>
@@ -518,7 +518,7 @@ function inProgressHero(e) {
     : `<b>${e.met}</b> of <b>${e.total}</b> done today`;
   return `<section class="xhero" data-tour="score" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, in progress. ${e.met} of ${e.total} completed. Open score breakdown">
     <div class="xh-main">
-      ${scoreRing({ score: e.score, possible: e.possible, size: 128, stroke: 11, showCenter: false, centerNum: true, uid: 'hero' })}
+      ${scoreRing({ score: e.score, possible: e.possible, size: 128, stroke: 11, showCenter: false, centerNum: true, uid: 'hero', vt: 'score' })}
       <div class="xh-body">
         <div class="xh-k">Daily Score</div>
         <div class="xrow"><span class="status-pill inprog">In progress</span></div>
@@ -561,7 +561,7 @@ function celebration(e) {
   return `<div class="xcelebwrap">
     <section class="hero" style="padding-bottom:8px" data-go="score-breakdown" role="button"
       aria-label="Daily Score ${e.score}, ${S.tier.name}. Every requirement complete. Open score breakdown">
-      ${scoreRing({ score: e.score, tierName: S.tier.name, tierCls: S.tier.cls })}
+      ${scoreRing({ score: e.score, tierName: S.tier.name, tierCls: S.tier.cls, vt: 'score' })}
     </section>
     <div style="font-size:var(--t-xl);font-weight:800;letter-spacing:-.02em;margin-top:2px">You're OnStandard.</div>
     <!-- One meta line, no echoes: the ring already says the score and (by color) the tier; the

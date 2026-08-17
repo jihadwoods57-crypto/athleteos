@@ -67,7 +67,7 @@ export default {
          crossed straight through the arc. Outside the ring it is simply legible, and it reads the
          same way home already states the tier under its own ring. -->
     <div class="bd-hero bd-hero-calm">
-      ${scoreRing({ score: S.score, size: 200, stroke: 13, uid: 'bd' })}
+      ${scoreRing({ score: S.score, size: 200, stroke: 13, uid: 'bd', vt: 'score' })}
       <span class="tier-chip bd-tier ${S.tier.cls}">${esc(S.tier.name)}</span>
     </div>
 

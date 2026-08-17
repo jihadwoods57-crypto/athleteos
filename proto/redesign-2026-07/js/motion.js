@@ -82,8 +82,38 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
 const DONE = new Set();
 const PENDING = new Map();
 
+/* Reveals held while the screen itself is in motion (js/view-transition.js).
+ *
+ * mount() runs INSIDE a view transition's update callback, which is where a screen claims its
+ * reveal. Left alone, the arc would draw while the screen is still travelling — the app's one
+ * moment of ceremony spent underneath a slide, off to the side of where the athlete is looking.
+ * Worse, when the ring MORPHED across the navigation it has already landed, and winding it back to
+ * zero to draw it again is the same ceremony twice, the second one contradicting the first.
+ *
+ * So a paused reveal is queued rather than skipped, and the resume decides which of those two
+ * situations it was: `drop` marks the keys done without playing (the morph was the moment), and
+ * anything else plays late, once the screen is standing still.
+ *
+ * Everything here is inert unless something calls pauseReveals(). No caller, no queue, no change. */
+let PAUSED = false;
+const QUEUE = [];
+
+/** Hold every reveal claimed from here until resumeReveals(). Idempotent. */
+export function pauseReveals() { PAUSED = true; }
+
+/** Release held reveals: play them, or (`drop`) retire their keys unplayed. Always unpauses. */
+export function resumeReveals({ drop = false } = {}) {
+  PAUSED = false;
+  const held = QUEUE.splice(0, QUEUE.length);
+  for (const h of held) {
+    if (!drop) { h.run(); continue; }
+    // Retire the key so a later paint of the same number does not play the reveal it just missed.
+    if (h.key) { PENDING.delete(h.key); DONE.add(h.key); }
+  }
+}
+
 /** Test seam — drop all reveal state so a suite can assert the once-only guard both ways. */
-export function resetReveals() { DONE.clear(); PENDING.clear(); }
+export function resetReveals() { DONE.clear(); PENDING.clear(); QUEUE.length = 0; PAUSED = false; }
 
 /** True when `key` has already been revealed this session. */
 export function revealed(key) { return DONE.has(key); }
@@ -149,7 +179,13 @@ export function reveal(el, { key, haptic = 'reveal', whenSeen = false, threshold
     if (typeof requestAnimationFrame === 'function') requestAnimationFrame(draw); else draw();
     if (haptic) buzz(haptic);
   };
-  if (!whenSeen || typeof IntersectionObserver !== 'function') { play(); return true; }
+  /* The one gate between claiming a reveal and drawing it. Held reveals keep their key, so the
+     once-only guard above still holds while they wait. */
+  const start = () => {
+    if (PAUSED) { QUEUE.push({ key, run: play }); return; }
+    play();
+  };
+  if (!whenSeen || typeof IntersectionObserver !== 'function') { start(); return true; }
   /* An element TALLER than the viewport can never reach a high intersection ratio — its maximum is
      viewportHeight/elementHeight — so a fixed 0.6 silently means "never" and the reveal is lost,
      leaving the markup's placeholder 0 and an undrawn ring on screen. (Exactly what happened when
@@ -161,7 +197,7 @@ export function reveal(el, { key, haptic = 'reveal', whenSeen = false, threshold
   const io = new IntersectionObserver((entries) => {
     if (!entries.some((en) => en.intersectionRatio >= t)) return;
     io.disconnect();
-    play();
+    start();
   }, { threshold: [0, t] });
   io.observe(el);
   return true;

@@ -6,6 +6,7 @@ import { screens } from './screens/index.js';
 import { initAnalytics, track, EVENTS } from './analytics.js';
 import { emptyNav, pushOrigin, popOrigin, peekOrigin, resetTab } from './nav-stack.js';
 import { initKeyboard } from './keyboard.js';
+import { withTransition, canTransition, transitioning, afterTransition } from './view-transition.js';
 
 // Shell-level and route-independent: the keyboard has to behave the same on the composer, the food
 // search box and a profile field, and #device outlives every render() so this is wired once here
@@ -171,6 +172,11 @@ let NAV_DIR = null;       // 'push' | 'pop' | 'tab' | 'lat-next' | 'lat-prev' �
                           // here, so the entrance can match the gesture (detail slides in from the
                           // right, back from the left, a sibling tab slides the way you reached
                           // for, tab roots keep the fade-up). Consumed once per render.
+let VT_KEY = null;        // `data-vt` key of the element the user tapped, so the same thing on the
+                          // next screen can be carried across the navigation instead of destroyed
+                          // and rebuilt somewhere else. Consumed once per render, exactly like
+                          // NAV_DIR — a stale key would pair a screen with whatever the athlete
+                          // last touched two navigations ago. See js/view-transition.js.
 let RESTORE = null;       // {r, s} — scroll position to restore once that route paints
 let LAST_FULL = null;     // the route (route/sub) the previous render painted — lets a same-route
                           // re-render (window.__render) PRESERVE scroll instead of snapping to top (T-08)
@@ -253,7 +259,25 @@ function goBack(fallback) {
 window.__back = goBack;
 window.__navigate = navigateTo; // Screens that patch subtrees (roster search) re-wire taps through the SAME origin-tracking path.
 
+let REPAINT_HELD = false;   // a same-route repaint is waiting out a transition (see below)
+
 function render() {
+  /* A repaint that lands mid-transition would replace the element the browser is animating, and
+     the browser answers that by cutting the transition short — the screen stops travelling and
+     simply appears. Screens fetch in mount() and repaint the moment the data arrives, so this is
+     not a rare race: it is the normal shape of every async screen in the app, and on a fast
+     connection it fires inside the first frames of the arrival.
+     Held, not dropped, and collapsed to one: whatever the latest state is gets painted the instant
+     the screen is standing still. Only a SAME-ROUTE repaint waits. A real navigation is the
+     athlete asking for something and goes through immediately, interrupting whatever is in
+     flight — which is what a second tap should do. */
+  if (transitioning() && LAST_FULL !== null && LAST_FULL === currentFull()) {
+    if (!REPAINT_HELD) {
+      REPAINT_HELD = true;
+      afterTransition(() => { REPAINT_HELD = false; render(); });
+    }
+    return;
+  }
   // Screens with live countdowns register a tick; every route change clears it.
   if (window.__execTick) { clearInterval(window.__execTick); window.__execTick = null; }
   // The meal thread polls for replies while it is open (there is no realtime in this app). It
@@ -353,12 +377,32 @@ function render() {
   const settle = !enter && prevVp
     && prevVp.querySelector('.sk-card')
     && !/\bsk-card\b/.test(body) ? ' settle' : '';
+  /* The shared-element key, consumed on the same terms as `dir`: only a real navigation may carry
+     one, so a repaint can never inherit the last tap's morph target. */
+  const vtKey = enter ? VT_KEY : null; VT_KEY = null;
+  /* A view transition is offered only for a navigation the router can NAME. A same-route repaint
+     (Home repaints constantly) and a boot deep-link both arrive with no direction, and both must
+     keep the synchronous path they have always had. */
+  const vtDir = enter ? dir : null;
+  /* Asked BEFORE the markup is built, because the answer changes it: under a transition the
+     transition IS the entrance, and leaving `.enter` on would run the screen's own fade-and-rise
+     underneath a slide already moving it — two choreographies for one arrival, at different
+     durations and curves. `.settle` is untouched; it belongs to a repaint, which never
+     transitions. */
+  const morph = canTransition(vtDir);
+  const enterCls = morph ? '' : enter;
+  const dirClsUsed = morph ? '' : dirCls;
+
+  /* Everything below mutates the DOM, and under a transition all of it runs inside the update
+     callback so the "after" snapshot is the finished screen — markup, wiring, scroll AND mount.
+     Splitting mount out would snapshot a screen its own code had not finished arranging yet. */
+  const commit = () => {
   device.innerHTML = `
     <div class="island"></div>
     <div class="screen">
       ${statusbar()}
       <div class="viewport ${mod.bleed ? 'bleed' : ''}${mod.hideTabs ? ' notabs' : ''}${mod.fill ? ' fill' : ''}" id="viewport">
-        <div class="view${enter}${dirCls}${settle}" id="view">${body}</div>
+        <div class="view${enterCls}${dirClsUsed}${settle}" id="view">${body}</div>
       </div>
       ${mod.hideTabs ? '' : tabbar(activeTab, navRole)}
     </div>`;
@@ -374,6 +418,13 @@ function render() {
     el.addEventListener('click', async (e) => {
       e.stopPropagation(); buzz(6);
       const target = el.getAttribute('data-go');
+      // What, if anything, should survive this navigation. The tapped element may BE the thing
+      // (a roster row) or merely contain it (Home's hero contains the ring, and it is the ring
+      // that has a counterpart on the breakdown — morphing the whole hero into a small card
+      // would smear two unrelated compositions into each other). `closest` first so a control
+      // nested inside a marked row still carries its row's key.
+      const mark = el.closest('[data-vt]') || el.querySelector('[data-vt]');
+      VT_KEY = mark ? mark.getAttribute('data-vt') : null;
       // Any path back to Welcome from inside the app is a sign-out (no-op if not signed in).
       if (target === 'welcome') { try { await act.signOut(); } catch { /* ignore */ } }
       navigateTo(target);
@@ -438,6 +489,10 @@ function render() {
   LAST_FULL = full;
   try { vp.scrollTo({ top: targetScroll, behavior: 'instant' }); } catch { vp.scrollTop = targetScroll; }
   if (mod.mount) mod.mount(device, { sub, S });
+  };
+  // Runs `commit` immediately when there is no transition to run, and inside one when there is.
+  // Either way it runs exactly once: a navigation is never the thing that gets dropped.
+  withTransition({ dir: vtDir, key: vtKey }, commit);
 }
 // Re-render the current route in place — used by async (data-driven) screens to repaint once a
 // best-effort fetch resolves. Guarded so a screen's own mount doesn't loop (fetch once, then paint).

@@ -32,7 +32,7 @@ export function load(url, ctx, next) {
 `;
 register(`data:text/javascript,${encodeURIComponent(LOADER)}`, import.meta.url);
 
-const { reveal, resetReveals, revealed, buzz, HAPTIC } = await import(
+const { reveal, resetReveals, revealed, buzz, HAPTIC, pauseReveals, resumeReveals } = await import(
   new URL('./motion.js', import.meta.url).href
 );
 
@@ -150,4 +150,52 @@ test('buzz maps the vocabulary to real bridge styles', () => {
   } finally {
     delete globalThis.window;
   }
+});
+
+/* ---- reveals held while the screen itself is moving (js/view-transition.js) --------------- */
+
+test('a paused reveal is HELD, not skipped, and plays when the screen stops moving', () => {
+  resetReveals();
+  globalThis.__drawn = [];
+  const el = fakeRing();
+  pauseReveals();
+  assert.equal(reveal(el, { key: 'day:2026-08-16:84', haptic: null }), true, 'the claim still happens');
+  assert.equal(el._num.textContent, '84', 'nothing is wound back while the screen is in flight');
+  assert.equal(globalThis.__drawn.length, 0);
+  resumeReveals();
+  assert.equal(el._num.textContent, '0', 'wound back only once there is a settled screen to draw on');
+  assert.equal(globalThis.__drawn.length, 1);
+});
+
+test('a dropped reveal never draws, and its key is retired so it cannot fire later', () => {
+  resetReveals();
+  globalThis.__drawn = [];
+  pauseReveals();
+  reveal(fakeRing(), { key: 'day:2026-08-16:84', haptic: null });
+  // A ring that MORPHED across the navigation has already landed; drawing it again would wind the
+  // number back to zero after the athlete has already read it.
+  resumeReveals({ drop: true });
+  assert.equal(globalThis.__drawn.length, 0);
+  assert.equal(revealed('day:2026-08-16:84'), true, 'retired, so the next repaint does not replay the moment it missed');
+  assert.equal(reveal(fakeRing(), { key: 'day:2026-08-16:84', haptic: null }), false);
+});
+
+test('the queue holds several reveals and releases them in order', () => {
+  resetReveals();
+  globalThis.__drawn = [];
+  pauseReveals();
+  const a = fakeRing(), b = fakeRing();
+  reveal(a, { key: 'a', haptic: null });
+  reveal(b, { key: 'b', haptic: null });
+  assert.equal(globalThis.__drawn.length, 0);
+  resumeReveals();
+  assert.deepEqual(globalThis.__drawn, [a, b]);
+});
+
+test('resetReveals clears a pause left behind by a torn-down transition', () => {
+  pauseReveals();
+  resetReveals();
+  globalThis.__drawn = [];
+  reveal(fakeRing(), { key: 'fresh', haptic: null });
+  assert.equal(globalThis.__drawn.length, 1, 'a stale pause would silently stop every reveal in the suite after it');
 });

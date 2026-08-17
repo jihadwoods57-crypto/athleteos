@@ -1,0 +1,126 @@
+/* OnStandard — the navigation transition layer (js/view-transition.js drives it)
+ *
+ * Every rule here targets a pseudo-element that only exists while a view transition is running.
+ * A browser without the API matches none of them and is unaffected; the router's synchronous path
+ * and `.view.enter` in app.css are still exactly what those browsers get.
+ *
+ * WHAT IS NAMED:
+ *   vt-view              .screen — the sheet, and the only thing that travels
+ *   vt-status, vt-tabs   promoted OUT of the sheet so they hold still while it slides
+ *   vt-shared            one element carried across the navigation (opt-in via `data-vt`)
+ * The device bezel, the island and the page behind them stay in the root capture, where both
+ * snapshots are identical and the default cross-fade is invisible.
+ *
+ * THE SHEET IS OPAQUE, AND THAT IS THE POINT. `.screen` owns the canvas gradient and the grain, so
+ * an arriving screen covers the one it replaces instead of being printed over it. The first
+ * version of this named `#viewport` instead, which is transparent, and the result was two legible
+ * screens double-exposed for the whole travel. Nothing below animates the incoming sheet's
+ * opacity for the same reason: a real sheet does not arrive translucent.
+ *
+ * WHY mix-blend-mode IS RESET ON EVERY PAIR THAT MOVES: the UA stylesheet puts `plus-lighter` on
+ * the old and new images so its DEFAULT cross-fade holds a constant total brightness. That is
+ * correct for a fade and wrong for anything else — two screens sliding past each other in
+ * plus-lighter add up, and the overlap blows out for the length of the travel. The status bar and
+ * tab bar are left alone deliberately: they genuinely do just cross-fade, so the UA default is
+ * already the right answer for them.
+ */
+
+/* The pseudo tree is a child of the document root, so it is NOT clipped by .screen's overflow: a
+   screen sliding in from the right would travel across the page background beside the phone. The
+   clip belongs HERE rather than on the group: ::view-transition is fixed to the viewport and never
+   transformed, so it is a stationary window, whereas a clip on a moving group travels with the
+   content and clips nothing. js/view-transition.js measures .screen and sets --vt-clip; on a real
+   phone .screen fills the viewport and this resolves to a no-op. */
+::view-transition { clip-path: var(--vt-clip, none); }
+
+/* ===== The travelling screen ===== */
+
+::view-transition-group(vt-view) { animation-duration: var(--dur-2); animation-timing-function: var(--ease-out-quart); }
+::view-transition-image-pair(vt-view) { isolation: auto; }
+::view-transition-old(vt-view),
+::view-transition-new(vt-view) { mix-blend-mode: normal; animation: none; backface-visibility: hidden; }
+
+/* Forward: the new sheet arrives from the right, fully opaque, and covers the old one. The old
+   does not slide out from under it at the same speed — it yields a third of the distance and
+   darkens, which is what reads as "it is still there, behind this". A departing screen that
+   travels the full width instead is the thing that makes web page transitions feel like a
+   carousel: two peers scrolling past each other, when one of them is underneath the other.
+   Same gesture and curve family as .view.enter.dir-push, which this replaces: the grammar the app
+   already taught, now with both halves present instead of only the arriving one. */
+:root[data-vt-dir="push"]::view-transition-new(vt-view) { animation: vtInFromRight var(--dur-2) var(--ease-out-quart) both; }
+:root[data-vt-dir="push"]::view-transition-old(vt-view) { animation: vtRecedeLeft  var(--dur-2) var(--ease-out-quart) both; }
+
+/* Back: the inverse, and the stacking inverts with it. Going back, the screen you are LEAVING is
+   the one on top — it slides away to the right and reveals the one that was always underneath.
+   Without the z-index swap the destination would slide in over the departing screen, which is the
+   forward gesture played backwards rather than the reverse of it, and the back stack stops
+   reading as a stack. */
+:root[data-vt-dir="pop"]::view-transition-old(vt-view) { animation: vtOutToRight var(--dur-2) var(--ease-out-quart) both; z-index: 1; }
+:root[data-vt-dir="pop"]::view-transition-new(vt-view) { animation: vtRecedeIn   var(--dur-2) var(--ease-out-quart) both; z-index: 0; }
+
+/* A move ACROSS a screen's own tab strip (router: mod.subs) is deliberately absent from this file.
+   It keeps `.view.enter.dir-lat-*` in app.css, which slides only #view by 10px and leaves the
+   screen's header and strip exactly where they are. That is the more precise animation, not the
+   lesser one: the frame really is standing still and only its contents changed, and sliding the
+   whole sheet would move the very tab strip the athlete is tapping across. js/view-transition.js
+   declines those two directions so the old path stays live for them.
+
+   A bottom-bar tab switch is different — the whole screen is replaced — but it is still a move
+   between peers, not into or out of anything, so it gets no travel. The arriving sheet resolves in
+   place over the outgoing one, which drifts a hair toward the viewer as it goes. The scale is on
+   the DEPARTING sheet on purpose: putting it on the arriving one leaves a rim of the old screen
+   showing around a not-quite-full-size cover. */
+:root[data-vt-dir="tab"]::view-transition-new(vt-view) { animation: vtTabIn var(--dur-2) var(--ease-out) both; }
+:root[data-vt-dir="tab"]::view-transition-old(vt-view) { animation: vtTabOut var(--dur-2) var(--ease-out) both; }
+
+/* The four halves of push and pop. Note what is NOT animated: the arriving sheet's opacity, ever.
+   It is opaque, it covers, and the brightness step is carried entirely by the sheet going behind.
+   The receding sheet keeps opacity 1 too — it is occluded, not faded, so fading it would only
+   show through the incoming one's own background and muddy it. */
+@keyframes vtInFromRight { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes vtRecedeLeft  { from { transform: none; filter: brightness(1); } to { transform: translateX(-32%); filter: brightness(0.62); } }
+@keyframes vtOutToRight  { from { transform: none; } to { transform: translateX(100%); } }
+@keyframes vtRecedeIn    { from { transform: translateX(-32%); filter: brightness(0.62); } to { transform: none; filter: brightness(1); } }
+@keyframes vtTabIn       { from { opacity: 0; } to { opacity: 1; } }
+@keyframes vtTabOut      { from { transform: none; } to { transform: scale(1.012); } }
+
+/* ===== The element that survives the navigation ===== */
+
+/* The group tween — position and size — is the morph. z-index lifts it clear of both sheets so it
+   never slides under the one arriving.
+
+   Same --dur-2 as the sheet, which is the whole point: one navigation is one beat, and the ring is
+   not a separate event happening near it. This ran on --dur-3 first. The overhang was invisible
+   (the curve is asymptotic — at 280ms a 460ms morph is already 98.5% home) but it was not free:
+   `finished` waits for the last animation, and everything gated on it, including the repaint that
+   paints the screen's real data, waited an extra 180ms for a frame nobody could see.
+
+   --ease-out rather than -quart, though: the shallower curve is what keeps a ring that is
+   shrinking as well as travelling from appearing to snap into place at the end. */
+::view-transition-group(vt-shared) {
+  animation-duration: var(--dur-2);
+  animation-timing-function: var(--ease-out);
+  z-index: 3;
+}
+::view-transition-image-pair(vt-shared) { isolation: auto; }
+::view-transition-old(vt-shared),
+::view-transition-new(vt-shared) { mix-blend-mode: normal; }
+/* The two images cross INSIDE the travelling group, and quickly. The group is doing the work the
+   eye reads as continuity; a slow cross-fade on top of it just looks like two of the thing. */
+::view-transition-old(vt-shared) { animation: vtSharedOut 140ms linear both; }
+::view-transition-new(vt-shared) { animation: vtSharedIn 260ms var(--ease-out) both; }
+@keyframes vtSharedOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes vtSharedIn  { from { opacity: 0; } to { opacity: 1; } }
+
+/* js/view-transition.js already declines to start a transition under reduced motion, so nothing
+   below should ever match. It is here because that guard reads one media query at one moment, and
+   this is the layer that would be left animating if the guard were ever refactored past it. The
+   accessibility requirement does not get to depend on a single line of JavaScript staying correct. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(vt-view),
+  ::view-transition-old(vt-view),
+  ::view-transition-new(vt-view),
+  ::view-transition-group(vt-shared),
+  ::view-transition-old(vt-shared),
+  ::view-transition-new(vt-shared) { animation: none !important; }
+}
