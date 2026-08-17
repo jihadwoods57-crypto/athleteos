@@ -241,6 +241,34 @@
   content: ''; position: absolute; inset: 0; pointer-events: none;
   background: radial-gradient(120% 60% at 50% 50%, rgba(var(--teal-rgb), 0.14), transparent 70%);
 }
+/* ----- The read landing -----
+   The scan used to have no ending. `landed()` in meal.js knows the exact instant the answer
+   arrived, and the only thing the screen did with that knowledge was navigate — so a 1.6s infinite
+   sweep got cut wherever it happened to be and the box flew away mid-stride. On the one screen
+   whose entire job is showing the athlete's food being read, the reading finishing was the one
+   event that went unmarked.
+
+   Two marks, both cheap and both meaning the same thing. The wash that made the box read as being
+   READ blooms once and CLEARS — the overlay lifts and leaves the plain photograph, which is both
+   the honest picture and the one the next screen is about to show. And the box takes --score-lift,
+   the teal halo this app puts under a number that has just landed. It is the same mark the score
+   ring wears, on the surface that just produced a score, which is the vocabulary working. */
+.scanbox.read { box-shadow: var(--score-lift); transition: box-shadow var(--dur-2) var(--ease-out); }
+.scanbox.read::after { animation: scanClear var(--dur-3) var(--ease-out) both; }
+@keyframes scanClear {
+  0%   { opacity: 1; transform: scale(1); }
+  30%  { opacity: 1; transform: scale(1.05); }
+  100% { opacity: 0; transform: scale(1.10); }
+}
+/* The line itself is finished off from JS, because where it stops depends on where it was: the
+   sweep is an infinite keyframe animation, and dropping the animation snaps the element back to its
+   base transform before any transition could start from it. meal.js pins the current translate,
+   then rides it to the bottom of the box. */
+@media (prefers-reduced-motion: reduce) {
+  .scanbox.read { transition: none; }
+  .scanbox.read::after { animation: none; opacity: 0; }
+}
+
 .analyzing .phase { margin-top:22px; font-size: 16.5px; font-weight: 800; }
 .analyzing .phase-sub { margin-top:6px; font-size: 13px; font-weight: 600; color: var(--text-3); }
 .dots::after { content: '…'; animation: dots 1.4s steps(3) infinite; }

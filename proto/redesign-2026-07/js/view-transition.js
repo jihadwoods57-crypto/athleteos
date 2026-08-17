@@ -95,7 +95,7 @@ const HELD = [['.statusbar', 'vt-status'], ['.tabbar', 'vt-tabs']];
  * whole sheet for it would move the tab strip the athlete is tapping across, which is a worse
  * animation than the one this file would be replacing. Declining here is what keeps that path
  * live. */
-const DIRS = new Set(['push', 'pop', 'tab', 'restate', 'overlay']);
+const DIRS = new Set(['push', 'pop', 'tab', 'restate', 'overlay', 'resolve']);
 
 /* 'restate' is the odd one, and the distinction it draws is the whole point of it.
  *
@@ -126,6 +126,26 @@ const DIRS = new Set(['push', 'pop', 'tab', 'restate', 'overlay']);
  * Both ends come in as NODES (`node` and `nodeAfter`), because the caller built the incoming element
  * and no search could find it — and because the thumbnail it came from is still sitting in the DOM
  * underneath, so a key shared by both would match twice and refuse to pair. */
+/* 'resolve' is the fourth shape, and it exists for one gesture the other three get wrong: a screen
+ * whose whole job was producing an answer handing that answer over. The meal scan is the case. The
+ * athlete watched a photograph being read; the read finished; the breakdown is what that photograph
+ * BECAME.
+ *
+ * 'push' was what it used to use, and push says the wrong thing. A push means "you went one level
+ * deeper", which is exactly right for camera → confirm → analyzing, three steps of one sequence. It
+ * is wrong here, and it was wrong loudly: the plate morph says "this is the same object" while a
+ * whole sheet sliding in from the right says "this is somewhere else you navigated to", and the
+ * sheet wins that argument because it is the entire screen.
+ *
+ * So a resolve names NOTHING STRUCTURAL — no sheet, no chrome, exactly like an overlay — and lets
+ * the root capture cross-fade the document from one state to the other. The only thing that travels
+ * is the plate, which is the point: the photograph is the through-line, and it moves INTO its answer
+ * rather than off to the side of one.
+ *
+ * Naming nothing structural is also what keeps it clean. A named descendant is cut OUT of its
+ * ancestor's snapshot, so the sheet shape would leave a hero-shaped hole in each of the two sheets
+ * and the one travelling plate can only ever fill one of them at a time. In a root cross-fade the
+ * two captures overlap for the whole beat, so each one covers the hole in the other. */
 const ROW_ATTR = 'data-vt-row';
 const ROW_CLASS = 'vtrow';
 
@@ -229,9 +249,11 @@ function setRadius() {
 /* Three shapes of transition, and each names a different set of things:
  *   'sheet'   a navigation. .screen travels, chrome is promoted out, one optional shared element.
  *   'rows'    a restate. Nothing travels but the rows, which rearrange inside a still frame.
- *   'shared'  an overlay opening or closing over the screen it belongs to. NOTHING structural is
- *             named — not the sheet, not the chrome — because none of it is going anywhere; only
- *             the one element that grows out of the page and later shrinks back into it. */
+ *   'shared'  NOTHING structural is named — not the sheet, not the chrome. Two directions use it,
+ *             for the same reason from opposite ends: an 'overlay' because the screen underneath is
+ *             not going anywhere, and a 'resolve' because the screen is being replaced but must not
+ *             appear to MOVE. Either way the only thing that travels is the one shared element, and
+ *             everything else is left to the root capture's own cross-fade. */
 function stamp(scope, { key = null, allowShared = true, node = null, id = null, mode = 'sheet' } = {}) {
   const named = [];
   if (mode === 'rows') {
@@ -364,10 +386,20 @@ export function withTransition({ dir, key, node = null, id = null, nodeAfter = n
   if (!device) { commit(); return false; }
 
   setRadius();
-  const mode = dir === 'restate' ? 'rows' : dir === 'overlay' ? 'shared' : 'sheet';
+  const mode = dir === 'restate' ? 'rows' : (dir === 'overlay' || dir === 'resolve') ? 'shared' : 'sheet';
   const before = stamp(device, { key, node, id, mode });
   const root = document.documentElement;
   root.setAttribute('data-vt-dir', dir);
+  /* The KEY, published to CSS the same way the direction is.
+   *
+   * `vt-shared` is one name for whatever happens to be travelling, so a rule written against it
+   * cannot tell a photograph from a score ring — and those two want opposite treatments. Both ends
+   * of a `plate` are the same photograph, so cross-fading them only softens the picture; both ends
+   * of a `score` are two DIFFERENT renderings (128px stroke 11 with the number in the middle, then
+   * 200px stroke 13), so the cross-fade there is the thing reconciling them and must stay.
+   * Only a key that already passed SAFE_KEY is published, because it lands in a selector. */
+  if (key && SAFE_KEY.test(key)) root.setAttribute('data-vt-key', key);
+  else root.removeAttribute('data-vt-key');
 
   const mine = ++token;
   CURRENT = dir;
@@ -386,8 +418,13 @@ export function withTransition({ dir, key, node = null, id = null, nodeAfter = n
        * leaks the name onto the surviving element afterwards. Both were observed.
        *
        * Releasing it here is safe: the browser took the outgoing snapshot BEFORE this callback ran,
-       * so the capture it needs is already made. */
-      if (mode === 'shared') unstamp(before.named);
+       * so the capture it needs is already made.
+       *
+       * Keyed on the DIRECTION, not the mode, even though 'resolve' shares the mode. A resolve is a
+       * real navigation — the commit below replaces #device.innerHTML, so its outgoing element is
+       * destroyed and takes its name with it, exactly like a push. Only the overlay has an outgoing
+       * element that is still standing there afterwards. */
+      if (dir === 'overlay') unstamp(before.named);
       commit();
       /* `nodeAfter` is for a caller that BUILT the incoming element and therefore knows it exactly —
          an overlay, where the thing that grows out of the page did not exist a moment ago and has no
@@ -401,7 +438,7 @@ export function withTransition({ dir, key, node = null, id = null, nodeAfter = n
     // The API exists but refused (a nested call, a detached document). The names are already on
     // the OLD nodes, which the commit is about to destroy, so there is nothing to unwind there.
     unstamp(before.named);
-    if (mine === token) { CURRENT = null; root.removeAttribute('data-vt-dir'); }
+    if (mine === token) { CURRENT = null; root.removeAttribute('data-vt-dir'); root.removeAttribute('data-vt-key'); }
     commit();
     resumeReveals({ drop: false });
     drain();
@@ -413,6 +450,7 @@ export function withTransition({ dir, key, node = null, id = null, nodeAfter = n
     CURRENT = null;
     unstamp(after.named);
     root.removeAttribute('data-vt-dir');
+    root.removeAttribute('data-vt-key');
     root.style.removeProperty('--vt-radius');
     // A morph already showed the number. Anything else still owes the athlete its reveal.
     resumeReveals({ drop: before.paired && after.paired });

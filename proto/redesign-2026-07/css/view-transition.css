@@ -157,6 +157,56 @@
 :root[data-vt-dir="overlay"]::view-transition-old(vt-shared) { animation: vtSharedOut var(--dur-1) linear both; }
 :root[data-vt-dir="overlay"]::view-transition-new(vt-shared) { animation: none; }
 
+/* ===== A resolve: nothing slides, and one thing becomes its answer ===== */
+
+/* The meal scan handing over to the breakdown. See the long note above ROW_ATTR in
+   js/view-transition.js for why this is not a push.
+ *
+ * There is almost nothing here, and that is the shape working rather than the shape being cheap.
+ * Nothing structural is named for a resolve, so both screens stay in the ROOT capture and the
+ * browser's own default for that pair is already exactly right: a straight cross-dissolve from one
+ * document to the other. All these two rules do is put it on the app's clock instead of the UA's
+ * 250ms, so the dissolve and the plate's travel are one beat rather than two events 30ms apart.
+ *
+ * `linear`, and deliberately — everywhere else in this file the app's ease-out is the right answer
+ * because something is TRAVELLING and travel decelerates. Nothing travels here. The UA pairs these
+ * two images in `plus-lighter` precisely so a cross-fade holds a constant total brightness, and
+ * that property only holds when the two halves are exact complements: same duration, same curve.
+ * Easing one of them is what makes a dissolve dip or bloom through its middle. */
+:root[data-vt-dir="resolve"]::view-transition-old(root),
+:root[data-vt-dir="resolve"]::view-transition-new(root) {
+  animation-duration: var(--dur-2);
+  animation-timing-function: linear;
+}
+
+/* ===== A photograph never cross-fades with itself ===== */
+
+/* Scoped to the KEY, not to a direction, because what makes this correct is what is travelling
+ * rather than how. Every `plate` morph in the app — the capture chain, Home's meal cards into the
+ * detail, the result cards, and both back-morphs — carries THE SAME PHOTOGRAPH at both ends, and
+ * both snapshots are `object-fit: cover` into the same group box, so at the instant the travel
+ * starts the two are identical pixels. There is nothing for a cross-fade to reconcile, and two
+ * things go wrong when it runs anyway:
+ *
+ * 1. THE PICTURE GOES SEE-THROUGH. This pair is `mix-blend-mode: normal` (correct, and required,
+ *    for a group that MOVES — see the note above), so the default 140/260 timing leaves the
+ *    outgoing image gone at 140ms while the incoming one is not fully opaque until 260ms. For that
+ *    ~120ms the page is legible through the middle of the photograph. Complementary timing does not
+ *    fix it either: an old at 50% under a new at 50% covers 75%, not 100%.
+ * 2. THE OUTGOING IMAGE GHOSTS. The two snapshots have different aspect ratios, so the taller one
+ *    hangs out below the other for the whole of its fade.
+ *
+ * Both were found by photographing the middle of the travel at a twentieth speed. Neither is
+ * visible at either endpoint, which is exactly how they shipped unnoticed.
+ *
+ * `score` is deliberately NOT included and keeps the default cross-fade above. Its two ends are two
+ * different renderings of the ring — 128px at stroke 11 with the number in the middle, then 200px
+ * at stroke 13 — so there the cross-fade is the thing doing the reconciling. It is also a stroke on
+ * transparent ground rather than an opaque rectangle, so the timing gap costs it a moment of
+ * faintness, not a hole. Same rule, opposite answer, which is why this is keyed. */
+:root[data-vt-key="plate"]::view-transition-old(vt-shared) { animation: none; opacity: 0; }
+:root[data-vt-key="plate"]::view-transition-new(vt-shared) { animation: none; }
+
 /* ===== A restate: the frame stands still, the rows rearrange inside it ===== */
 
 /* Every row carries a different view-transition-name (its own identity is the point), so no name
@@ -185,6 +235,8 @@
    this is the layer that would be left animating if the guard were ever refactored past it. The
    accessibility requirement does not get to depend on a single line of JavaScript staying correct. */
 @media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root),
   ::view-transition-group(vt-view),
   ::view-transition-old(vt-view),
   ::view-transition-new(vt-view),

@@ -78,18 +78,54 @@ test('every navigation in the flow states its gesture AND what it carries', () =
      own code, so they have to say it. `dir` is what stops the move reading as a deep link; `vt` is
      what makes the photo travel. */
   const MOVES = [
-    [CAMERA, 'camera-confirm', 'the shutter firing'],
-    [CAMERA, "'analyzing/' + slot", 'the confirm handing off'],
-    [MEAL, "'meal-thread/' + slot", 'the analysis landing'],
+    [CAMERA, 'camera-confirm', 'the shutter firing', /dir:\s*'push'/],
+    [CAMERA, "'analyzing/' + slot", 'the confirm handing off', /dir:\s*'push'/],
+    /* The last move states its gesture through a variable, because it has TWO of them — see the
+       "TWO EXITS" note in meal.js. So this asserts the call declares SOME direction; which two, and
+       that both are reachable, is the test below. */
+    [MEAL, "'meal-thread/' + slot", 'the analysis landing', /dir[,)]|dir:\s*'\w+'/],
   ];
-  for (const [src, target, label] of MOVES) {
+  for (const [src, target, label, gesture] of MOVES) {
     const calls = (src.match(/window\.__go\([^)]*\)/g) || []).filter((c) => c.includes(target));
     assert.ok(calls.length > 0, `${label}: no window.__go call targeting ${target}`);
     for (const c of calls) {
-      assert.match(c, /dir:\s*'push'/, `${label}: ${c} does not declare a gesture`);
+      assert.match(c, gesture, `${label}: ${c} does not declare a gesture`);
       assert.match(c, /vt:\s*'plate'/, `${label}: ${c} does not carry the plate`);
     }
   }
+});
+
+test('the analysis hands off with a DIFFERENT gesture depending on whether it landed', () => {
+  /* The two exits are the honesty of this screen, not a detail of it. A read that came back
+     resolves — nothing slides, the plate travels into the hero, the photograph became its answer.
+     A read that ran past the ceiling is still running, and the thread says so; that is a step
+     forward in a flow, so it pushes. Collapsing them back to one gesture would have the motion
+     claim an answer arrived when it did not, which is the one thing this flow may never do. */
+  const watch = MEAL.slice(MEAL.indexOf('WATCH MODE'), MEAL.indexOf('export const mealQuestions'));
+  assert.ok(watch.length > 0, 'could not locate the watch-mode block in meal.js');
+  assert.match(watch, /leave\('resolve'\)/, 'the landed path does not resolve');
+  assert.match(watch, /leave\('push'\)/, 'the timed-out path does not push');
+  assert.match(watch, /MAX_MS[\s\S]{0,80}leave\('push'\)/,
+    "the push exit is not the ceiling's — only a read that ran out of time may take it");
+});
+
+test('the scan is finished off before the hand-off, and from its real position', () => {
+  /* A sweep cut mid-stride is the bug this replaced. The pin-then-transition is the load-bearing
+     part: dropping the animation resets the element to its base transform in the same recalc, so a
+     transition declared without pinning first starts from the TOP of the box and the line appears
+     to jump backwards before finishing. */
+  /* Anchored on the full declaration, not the bare name: `indexOf('const finishScan')` also matches
+     `const finishScanSomethingElse`, so a renamed-away beat read as present and every assertion
+     below it passed against a function nothing calls. */
+  const i = MEAL.indexOf('const finishScan = () =>');
+  assert.ok(i > 0, 'the completion beat is gone; the scan is being cut mid-sweep again');
+  assert.ok(/\bfinishScan\(\)/.test(MEAL), 'the completion beat is declared but never run');
+  const beat = MEAL.slice(i, i + 1800);
+  assert.match(beat, /getComputedStyle\([^)]*\)\.transform/, 'the beat does not read where the sweep actually is');
+  assert.ok(beat.indexOf('style.animation') < beat.indexOf('style.transition'),
+    'the transition is declared before the animation is dropped');
+  assert.match(beat, /offsetWidth/, 'the pinned position is never committed, so the transition coalesces it away');
+  assert.match(beat, /classList\.add\('read'\)/, 'the box never takes the landed state');
 });
 
 test('the thread shows a photo it already holds BEFORE its first await', () => {

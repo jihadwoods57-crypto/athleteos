@@ -193,12 +193,77 @@ export const analyzing = {
          athlete in front of a finished answer, roughly eight manufactured seconds a day for
          someone who logs four meals. */
       const MIN_MS = 1000, MAX_MS = 9000;
+      /* How long the completion beat below is given before the hand-off. Long enough for the line
+         to finish its run (--dur-2) and the halo to arrive, short enough that it is a landing and
+         not a second wait. It is spent INSIDE the floor rather than after it (see `leaveAt`), so a
+         read that lands in 300ms still hands off at exactly MIN_MS — the beat costs a fast read
+         nothing at all, and only a genuinely slow one pays for it. */
+      const BEAT_MS = 420;
       const t0 = Date.now();
-      const leave = () => { clearPhases(); if (onScreen()) window.__go('meal-thread/' + slot, { dir: 'push', vt: 'plate' }); };
+      const reduced = (() => {
+        try { return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches; }
+        catch { return false; }
+      })();
+
+      /* THE RESOLUTION. The scan stops sweeping and finishes its run, the wash lifts off the
+         photograph, and the box takes the halo the app puts under a number that has just landed.
+         See the block above `.scanbox.read` in flows.css for why those are the two marks. */
+      const finishScan = () => {
+        const line = root.querySelector('.scanline');
+        if (line) {
+          /* Pin where the sweep actually IS before killing it. Dropping the animation resets the
+             element to its base transform in the same style recalc, so a transition declared after
+             that would start from translateY(0) — the line would jump to the top of the box and
+             then slide down, which is the opposite of finishing. Parsed off the computed matrix
+             (m42 is the y translate) rather than through DOMMatrix, which is one more API to be
+             missing in an old WebView for no gain. */
+          try {
+            const m = /matrix\(([^)]+)\)/.exec(getComputedStyle(line).transform || '');
+            const y = m ? (parseFloat(m[1].split(',')[5]) || 0) : 0;
+            line.style.animation = 'none';
+            line.style.transform = `translateY(${y}px)`;
+            void line.offsetWidth;   // commit the pinned position as the transition's start
+            line.style.transition = 'transform var(--dur-2) var(--ease-out-quart), opacity var(--dur-1) linear var(--dur-1)';
+            line.style.transform = 'translateY(188.6px)';   // the bottom of the 230px box, per @keyframes scan
+            line.style.opacity = '0';
+          } catch { line.style.display = 'none'; }
+        }
+        const box = root.querySelector('.scanbox');
+        if (box) box.classList.add('read');
+        /* textContent, which takes the animated `.dots` span with it — the ellipsis meant "still
+           working" and nothing is still working. */
+        if (phase) phase.textContent = 'Read complete';
+        if (sub) sub.textContent = 'Your breakdown is ready';
+      };
+
+      /* TWO EXITS, because there are two different truths to tell.
+         The read landed → 'resolve': nothing slides, the document dissolves, and the plate travels
+         into the hero. The photograph became its answer, and the motion says exactly that.
+         The ceiling ran out → 'push': the analysis is genuinely STILL RUNNING and the thread will
+         show it landing. That is a step forward in a flow, not a resolution, and dressing it as one
+         would have the motion claim an answer arrived when it did not. */
+      const leave = (dir) => { clearPhases(); if (onScreen()) window.__go('meal-thread/' + slot, { dir, vt: 'plate' }); };
+      let beatAt = 0;
       const tick = () => {
         if (!root.isConnected || !onScreen()) { clearPhases(); return; }
         const waited = Date.now() - t0;
-        if ((landed() && waited >= MIN_MS) || waited >= MAX_MS) { leave(); return; }
+        if (waited >= MAX_MS && !beatAt) { leave('push'); return; }
+        if (beatAt) {
+          if (Date.now() >= beatAt) leave('resolve'); else setTimeout(tick, 60);
+          return;
+        }
+        if (landed()) {
+          clearPhases();                     // nothing is "still reading"; the slow line must not fire
+          /* Reduced motion gets no beat — there is no sweep to finish and no halo to bloom, so
+             holding the athlete an extra 420ms would buy them nothing. It still gets the FLOOR,
+             though: MIN_MS is not about animation, it is about the screen registering as something
+             that happened, and a motionless screen shown for 110ms registers as a flicker. */
+          if (!reduced) finishScan();
+          beatAt = Math.max(Date.now() + (reduced ? 0 : BEAT_MS), t0 + MIN_MS);
+          if (Date.now() >= beatAt) { leave('resolve'); return; }
+          setTimeout(tick, 60);
+          return;
+        }
         setTimeout(tick, 110);
       };
       setTimeout(tick, 110);

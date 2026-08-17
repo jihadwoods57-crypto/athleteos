@@ -163,8 +163,79 @@ test('commit runs exactly once on the happy path, and reveals are paused across 
 
 test('push, pop and tab transition; the two strip moves deliberately do not', () => {
   install();
-  for (const d of ['push', 'pop', 'tab']) assert.equal(canTransition(d), true, d);
+  for (const d of ['push', 'pop', 'tab', 'resolve']) assert.equal(canTransition(d), true, d);
   for (const d of ['lat-next', 'lat-prev']) assert.equal(canTransition(d), false, d);
+});
+
+/* ---- a resolve: the plate travels and NOTHING else moves --------------------------------- */
+
+test('a resolve names no sheet and no chrome — only the element that travels', () => {
+  /* The whole shape of a resolve is that the screen is replaced without appearing to MOVE, so the
+     two documents are left in the root capture to cross-fade and the plate is the one thing named.
+     If the sheet were named here it would travel, and naming a sheet with nowhere to go is how the
+     meal scan ended up sliding sideways out of its own answer.
+     There is a mechanical reason too: a named descendant is cut OUT of its ancestor's snapshot, so
+     naming the sheet punches a hero-shaped hole in BOTH sheets and the one travelling plate can
+     only ever be in one of them. Unnamed, the two root captures overlap and cover each other. */
+  const f = install({ marks: [1, 1] });
+  withTransition({ dir: 'resolve', key: 'plate' }, () => {});
+  assert.equal(f.made.screen.style.viewTransitionName, undefined, 'the sheet must not travel on a resolve');
+  assert.equal(f.made.status.style.viewTransitionName, undefined, 'nothing is sliding, so the status bar needs no promoting');
+  assert.equal(f.made.tabs.style.viewTransitionName, undefined, 'nothing is sliding, so the tab bar needs no promoting');
+  assert.ok(f.made.shared.length > 0 && f.made.shared.every((e) => e.style.viewTransitionName === 'vt-shared'),
+    'the plate is the only thing named, and it must still pair');
+  assert.equal(f.root.attrs['data-vt-dir'], 'resolve', 'the CSS has no other way to know which shape this is');
+});
+
+/* ---- the key reaches CSS, so one rule can tell a photo from a ring ------------------------ */
+
+test('the shared key is published to the document, and withdrawn when the transition ends', async () => {
+  /* `vt-shared` is ONE name for whatever is travelling, so without this a stylesheet cannot tell a
+     photograph from a score ring — and those two want opposite treatments. A plate is the same
+     picture at both ends and must not cross-fade with itself; a score ring is two different
+     renderings and the cross-fade is what reconciles them. */
+  const f = install({ marks: [1, 1] });
+  withTransition({ dir: 'push', key: 'plate' }, () => {});
+  assert.equal(f.root.attrs['data-vt-key'], 'plate', 'CSS has no other way to know what is travelling');
+  f.settle();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal('data-vt-key' in f.root.attrs, false, 'a stale key would restyle the NEXT transition');
+
+  /* The separation this exists for: the score ring must NOT answer the plate's selector. Its two
+     ends are different renderings of the ring, so it keeps the cross-fade that reconciles them. */
+  const g = install({ marks: [1, 1] });
+  withTransition({ dir: 'push', key: 'score' }, () => {});
+  assert.equal(g.root.attrs['data-vt-key'], 'score',
+    'the ring must publish its own key, or the plate rule would strip the cross-fade it needs');
+});
+
+test('a transition with no key, or an unsafe one, publishes nothing', () => {
+  /* The overlay is the real no-key case: the photo viewer resolves both ends as nodes, because the
+     thumbnail it grew from is still in the DOM and a shared key would match twice. And the value
+     lands in an attribute selector, so anything that did not already clear SAFE_KEY is refused
+     rather than escaped. */
+  let f = install({ marks: [1, 1] });
+  withTransition({ dir: 'overlay', node: el(), nodeAfter: () => el() }, () => {});
+  assert.equal('data-vt-key' in f.root.attrs, false, 'an overlay carries no key');
+
+  f = install({ marks: [1, 1] });
+  withTransition({ dir: 'push', key: 'pla"te] , *' }, () => {});
+  assert.equal('data-vt-key' in f.root.attrs, false, 'a key that could break out of a selector is refused');
+});
+
+test('a resolve destroys its outgoing element, so it does not release the name mid-callback', async () => {
+  /* The overlay has to unstamp inside the callback because its outgoing element SURVIVES the update
+     and would hold a duplicate name. A resolve is a real navigation — the commit replaces the whole
+     device — so the outgoing node dies with its name, exactly like a push. Releasing it anyway would
+     be harmless today and quietly wrong the day something else reads that flag. */
+  const f = install({ marks: [1, 1] });
+  const tapped = el();
+  let nameAtCommit = null;
+  withTransition({ dir: 'resolve', key: 'plate', node: tapped }, () => { nameAtCommit = tapped.style.viewTransitionName; });
+  assert.equal(nameAtCommit, 'vt-shared', 'the outgoing plate still holds its name when the commit runs');
+  f.settle();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(globalThis.__mo.at(-1), 'resume:true', 'both sides paired, so a reveal on the far side is already spent');
 });
 
 /* ---- the shared element ----------------------------------------------------------------- */
