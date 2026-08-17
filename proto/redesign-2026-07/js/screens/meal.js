@@ -694,7 +694,7 @@ export const analysis = {
         }
       });
     }
-    btn.addEventListener('click', () => { analysis._editing = !analysis._editing; window.__render(); });
+    btn.addEventListener('click', () => { analysis._editing = !analysis._editing; window.__restate(); });
   },
 };
 analysis._editing = false;

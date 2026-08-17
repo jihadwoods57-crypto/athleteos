@@ -62,8 +62,11 @@ export default {
     if (sw) sw.addEventListener('click', async () => {
       const on = !(RT.shareSquadScore === true);
       // Optimistic flip; a failed write flips back with the honest reason.
-      RT.shareSquadScore = on; window.__render();
+      RT.shareSquadScore = on; window.__restate();
       const ok = await roles.setShareSquadScore(RT.userId, on);
+      /* The rollback stays a hard __render() on purpose. Smoothing a failure into a graceful glide
+         makes it easy to miss, and this one has to be noticed: the athlete believes they just
+         shared their score with the squad and they did not. The honest read is a snap. */
       if (!ok) { RT.shareSquadScore = !on; window.__render(); return; }
       loadBoard(true);
     });

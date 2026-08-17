@@ -1084,13 +1084,17 @@ export const coachPlanSet = {
         ${modHead('clipboard', 'std-ic-b', 'Templates', 'Start from a proven draft, or save this one')}
         ${SHOW_TPL_MANAGE ? `
         <div class="std-tpl-manage">
+          ${/* Same data-vt-row on both branches below, and that is the whole trick: a template row
+                and that row mid-rename are ONE row in two states, so it grows into the editor and
+                the rows under it slide down to make space. Different ids would read as one row
+                disappearing and an unrelated one arriving. */''}
           ${(TPL && TPL.rows ? TPL.rows : []).map(t => TPL_RENAMING === t.id ? `
-          <div class="lrow" style="cursor:default;gap:8px;padding-left:0">
+          <div class="lrow" data-vt-row="tpl-${esc(t.id)}" style="cursor:default;gap:8px;padding-left:0">
             <input class="std-name tpl-rename-input" data-tpl-rename-input="${esc(t.id)}" maxlength="40" value="${esc(t.name)}" style="flex:1" ${TPL_BUSY ? 'disabled' : ''} />
             <button class="btn sm" data-tpl-rename-save="${esc(t.id)}" style="width:auto;padding:0 12px;height:34px" ${TPL_BUSY ? 'disabled' : ''}>Save</button>
             <button class="btn ghost sm" data-tpl-rename-cancel="1" style="width:auto;padding:0 12px;height:34px" ${TPL_BUSY ? 'disabled' : ''}>Cancel</button>
           </div>` : `
-          <div class="lrow" style="cursor:default;padding-left:0">
+          <div class="lrow" data-vt-row="tpl-${esc(t.id)}" style="cursor:default;padding-left:0">
             <div class="lm"><div class="lt">${esc(t.name)}</div><div class="ls">${esc(templateLabel(t.kind))}</div></div>
             <button class="btn ghost sm" data-tpl-rename="${esc(t.id)}" aria-label="Rename template" style="width:34px;padding:0;height:30px;flex:none" ${TPL_BUSY ? 'disabled' : ''}>${icon('edit', 15)}</button>
             <button class="btn ghost sm" data-tpl-del="${esc(t.id)}" style="width:auto;padding:0 10px;height:30px;color:var(--red);margin-left:6px" ${TPL_BUSY ? 'disabled' : ''}>Delete</button>
@@ -1268,12 +1272,12 @@ export const coachPlanSet = {
       }
       if (k === 'tplsave') SHOW_TPL_SAVE = !SHOW_TPL_SAVE;
       if (k === 'tplmanage') { SHOW_TPL_MANAGE = !SHOW_TPL_MANAGE; TPL_RENAMING = null; }
-      window.__render();
+      window.__restate();
     }));
     root.querySelectorAll('[data-tpl-rename]').forEach(el => el.addEventListener('click', () => {
-      TPL_RENAMING = el.getAttribute('data-tpl-rename'); window.__render();
+      TPL_RENAMING = el.getAttribute('data-tpl-rename'); window.__restate();
     }));
-    root.querySelectorAll('[data-tpl-rename-cancel]').forEach(el => el.addEventListener('click', () => { TPL_RENAMING = null; window.__render(); }));
+    root.querySelectorAll('[data-tpl-rename-cancel]').forEach(el => el.addEventListener('click', () => { TPL_RENAMING = null; window.__restate(); }));
     const submitTplRename = async (id) => {
       const input = root.querySelector(`[data-tpl-rename-input="${id}"]`);
       const clean = ((input && input.value) || '').trim().slice(0, 40);
@@ -1286,7 +1290,7 @@ export const coachPlanSet = {
     root.querySelectorAll('[data-tpl-rename-save]').forEach(el => el.addEventListener('click', () => submitTplRename(el.getAttribute('data-tpl-rename-save'))));
     root.querySelectorAll('[data-tpl-rename-input]').forEach(el => el.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') submitTplRename(el.getAttribute('data-tpl-rename-input'));
-      else if (e.key === 'Escape') { TPL_RENAMING = null; window.__render(); }
+      else if (e.key === 'Escape') { TPL_RENAMING = null; window.__restate(); }
     }));
     root.querySelectorAll('[data-tpl-del]').forEach(el => el.addEventListener('click', async () => {
       if (TPL_BUSY) return;
@@ -2262,7 +2266,7 @@ function notesSection(P) {
   ${notes.length ? `
   <section class="card" style="padding:0 var(--s4)">
     ${notes.map(n => `
-    <div class="co-note-row">
+    <div class="co-note-row" data-vt-row="note-${esc(n.id)}">
       <div style="flex:1;min-width:0">
         <div><span class="who">${n.author_id === RT.userId ? 'You' : 'Staff'}</span> <span class="when">· ${esc(relTime(n.created_at))}</span></div>
         <div class="body">${esc(n.body)}</div>
@@ -2432,7 +2436,7 @@ export const coachAthlete = {
       reveal(root, { key: `coathlete:${athleteId}:${P0.day.score}`, haptic: null });
     }
     root.querySelectorAll('[data-psec]').forEach(el => el.addEventListener('click', () => {
-      PSECTION = el.getAttribute('data-psec'); window.__render();
+      PSECTION = el.getAttribute('data-psec'); window.__restate();
     }));
     // Nudge from the action bar: first tap opens the message preview (editable), Send pushes it.
     // The coach sees and owns every word that goes out under their name.
@@ -2442,9 +2446,9 @@ export const coachAthlete = {
       // low reads as an accusation. presetForStatus falls back to the neutral body.
       const st0 = CD.profile && CD.profile.status;
       NUDGE_ARM = { body: presetForStatus(st0 && st0.key) };
-      window.__render();
+      window.__restate();
     }));
-    root.querySelectorAll('[data-anudge-cancel]').forEach(el => el.addEventListener('click', () => { NUDGE_ARM = null; window.__render(); }));
+    root.querySelectorAll('[data-anudge-cancel]').forEach(el => el.addEventListener('click', () => { NUDGE_ARM = null; window.__restate(); }));
     root.querySelectorAll('[data-anudge-send]').forEach(el => el.addEventListener('click', async () => {
       if (el.disabled) return;
       const id = el.getAttribute('data-anudge-send');
@@ -2499,9 +2503,9 @@ export const coachAthlete = {
     });
     // Note delete is two-tap: the × arms the row, the explicit Delete executes.
     root.querySelectorAll('[data-del-note]').forEach(el => el.addEventListener('click', () => {
-      NOTE_DEL = el.getAttribute('data-del-note'); window.__render();
+      NOTE_DEL = el.getAttribute('data-del-note'); window.__restate();
     }));
-    root.querySelectorAll('[data-del-note-cancel]').forEach(el => el.addEventListener('click', () => { NOTE_DEL = null; window.__render(); }));
+    root.querySelectorAll('[data-del-note-cancel]').forEach(el => el.addEventListener('click', () => { NOTE_DEL = null; window.__restate(); }));
     root.querySelectorAll('[data-del-note-confirm]').forEach(el => el.addEventListener('click', async () => {
       el.disabled = true;
       await roles.deleteCoachNote(el.getAttribute('data-del-note-confirm'));

@@ -223,8 +223,10 @@ function todaySection() {
   return `
   <div class="eyebrow">Today · ${done} of ${rows.length} done <span class="link" data-go="plan/requirements">All rules</span></div>
   <div class="pl-list">
+    ${/* data-vt-row so opening the goal panel above pushes this list DOWN rather than teleporting
+          it. Keyed on the requirement's route, which is what identifies a row here. */''}
     ${rows.map((r) => `
-    <div class="pl-row tap" data-go="${esc(r.route)}">
+    <div class="pl-row tap" data-vt-row="req-${esc(r.route.replace(/[^A-Za-z0-9:_.-]/g, '_'))}" data-go="${esc(r.route)}">
       <div class="req-icon ${r.done ? 'g' : r.color === 'red' ? 'a' : esc(r.accent === 'muted' ? 'muted' : r.accent)}" style="width:38px;height:38px;flex:none">${icon(r.icon, 18)}</div>
       <div class="plb">
         <div class="plt"><span class="nm">${esc(r.title)}</span></div>
@@ -847,7 +849,7 @@ export default {
     placeInk(strip, on);
 
     const goalBtn = root.querySelector('#pl-goal');
-    if (goalBtn) goalBtn.addEventListener('click', () => { GOAL_OPEN = !GOAL_OPEN; window.__render(); });
+    if (goalBtn) goalBtn.addEventListener('click', () => { GOAL_OPEN = !GOAL_OPEN; window.__restate(); });
 
     const explore = root.querySelector('#ps-intro-explore');
     const dismiss = root.querySelector('#ps-intro-dismiss');

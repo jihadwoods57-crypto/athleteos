@@ -555,7 +555,12 @@ function priorityCard(c, i, nudgedToday) {
   // See the "rank hierarchy" block in coach.css — every action survives, only weight changes.
   const rankCls = i === 0 ? 'lead' : 'sub';
   return `
-  <div class="co-pri ${rankCls} t-${tier}">
+  ${/* data-vt-row: changing the scope re-filters and re-ranks this queue, and the rank IS the
+        message — a board that snaps into a new order makes the coach re-read all six cards to
+        find out who moved. Keyed on the athlete, never the rank: a rank is the slot, and keying
+        on it would tween card 1 into card 2 as if the person had changed rather than the
+        ordering. See window.__restate() in js/router.js. */''}
+  <div class="co-pri ${rankCls} t-${tier}" data-vt-row="pri-${esc(c.athleteId)}">
     <div class="co-pri-head" data-go="coach-athlete/${esc(c.athleteId)}">
       <div class="co-pri-rank">${i + 1}</div>
       <div class="co-pri-main">
@@ -789,11 +794,12 @@ export const coachHome = {
         }
       } catch { /* share sheet dismissed */ }
     });
-    root.querySelectorAll('[data-scopes]').forEach(b => b.addEventListener('click', () => { SHOW_SCOPES = !SHOW_SCOPES; window.__render(); }));
-    root.querySelectorAll('[data-pulse]').forEach(b => b.addEventListener('click', () => { SHOW_PULSE = !SHOW_PULSE; window.__render(); }));
+    root.querySelectorAll('[data-scopes]').forEach(b => b.addEventListener('click', () => { SHOW_SCOPES = !SHOW_SCOPES; window.__restate(); }));
+    root.querySelectorAll('[data-pulse]').forEach(b => b.addEventListener('click', () => { SHOW_PULSE = !SHOW_PULSE; window.__restate(); }));
     root.querySelectorAll('[data-scope]').forEach(b => b.addEventListener('click', () => {
       const [kind, value] = b.getAttribute('data-scope').split(':');
-      setScope({ kind: kind || 'team', value: value || null }); SHOW_SCOPES = false; window.__render();
+      // The flagship on this screen: a new scope re-filters and re-ranks the whole queue.
+      setScope({ kind: kind || 'team', value: value || null }); SHOW_SCOPES = false; window.__restate();
     }));
     // Failed writes never lie: log() only mirrors the intervention into the local cache when the
     // server took it, and returns the honest boolean so callers can keep the card + say so.
@@ -830,9 +836,11 @@ export const coachHome = {
       const tier = b.getAttribute('data-tier');
       const body = nudgePreset(tier || 'critical');
       PNUDGE_ARM = PNUDGE_ARM && PNUDGE_ARM.athleteId === id ? null : { athleteId: id, body };
-      window.__render();
+      // The composer opening on one card pushes every card below it down; gliding them is the
+      // difference between the list making room and the list jumping.
+      window.__restate();
     }));
-    root.querySelectorAll('[data-pnudge-cancel]').forEach(b => b.addEventListener('click', () => { PNUDGE_ARM = null; window.__render(); }));
+    root.querySelectorAll('[data-pnudge-cancel]').forEach(b => b.addEventListener('click', () => { PNUDGE_ARM = null; window.__restate(); }));
     root.querySelectorAll('[data-pnudge-send]').forEach(b => b.addEventListener('click', async () => {
       if (b.disabled) return;
       const id = b.getAttribute('data-pnudge-send');
