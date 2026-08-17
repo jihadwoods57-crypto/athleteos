@@ -1750,14 +1750,14 @@ export const copilot = {
     // when the roster fetch failed, CD.roster.rows is [] with offline=true, which would otherwise
     // fall through to the empty-roster summary. Mirror the Coach/Trainer tabs' honest offline card.
     if (CD.roster && CD.roster.offline) {
-      return `${backHead('Copilot', 'Deterministic roster reads', 'coach-home')}${errorState({ title: "Can't reach your roster", body: "Copilot reads only real team data — no numbers are invented while it's down. Reconnect and its reads fill in right here.", retryId: 'copilot-retry' })}`;
+      return `${backHead('Copilot', 'Real numbers from your roster, never guesses', 'coach-home')}${errorState({ title: "Can't reach your roster", body: "Copilot reads only real team data — no numbers are invented while it's down. Reconnect and its reads fill in right here.", retryId: 'copilot-retry' })}`;
     }
     if (rows === null) {
-      return `${backHead('Copilot', 'Deterministic roster reads', 'coach-home')}${skeletonRows(3, 'Loading the roster')}`;
+      return `${backHead('Copilot', 'Real numbers from your roster, never guesses', 'coach-home')}${skeletonRows(3, 'Loading the roster')}`;
     }
     if (rows.length === 0) {
       // Audit G-1: an actionable empty, not the dead-pointer "Share your team code to get started".
-      return `${backHead('Copilot', 'Deterministic reads over your real roster', 'coach-home')}${emptyState({ icon: 'users', title: 'No athletes yet', body: 'Copilot reads your real roster — share your athlete code and its reads fill in as your team logs.', action: { label: 'Share athlete code', go: 'coach-profile/code' } })}`;
+      return `${backHead('Copilot', 'Real numbers from your roster, never guesses', 'coach-home')}${emptyState({ icon: 'users', title: 'No athletes yet', body: 'Copilot reads your real roster — share your athlete code and its reads fill in as your team logs.', action: { label: 'Share athlete code', go: 'coach-profile/code' } })}`;
     }
     const attention = rows.filter(r => r.flag === 'r');
     const belowBar = rows.filter(r => r.score != null && r.score < 80);
@@ -1768,7 +1768,7 @@ export const copilot = {
         + (attention.length ? `${attention.length} need attention (no logs or off standard). ` : belowBar.length ? `${belowBar.length} logged below the standard today. ` : 'Everyone who logged is on standard. ')
         + (notLogged.length ? `${notLogged.length} haven't logged today.` : 'Everyone has logged today.');
     return `
-    ${backHead('Copilot', 'Deterministic reads over your real roster', 'coach-home')}
+    ${backHead('Copilot', 'Real numbers from your roster, never guesses', 'coach-home')}
 
     <div class="ai-note">
       <div class="av">${icon('sparkle', 18)}</div>
@@ -2764,8 +2764,8 @@ export const coachMeal = {
     <div class="eyebrow">Conversation</div>
     ${MC.comments && MC.comments.error ? `
     <div style="text-align:center;padding:14px 12px;border-radius:var(--r-tile);background:var(--surface-1);border:1px solid var(--hairline)">
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.4">Couldn't load the discussion — try again.</div>
-      <button class="btn ghost sm" id="coach-thread-retry" style="margin-top:10px">${icon('wifiOff', 15)} Retry</button>
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.4">Couldn't load the discussion. Nothing was lost.</div>
+      <button class="btn ghost sm" id="coach-thread-retry" style="margin-top:10px">${icon('wifiOff', 15)} Try again</button>
     </div>` : (() => {
       const rx = reactionGroups(MC.comments);
       const msgs = threadMessages(MC.comments);

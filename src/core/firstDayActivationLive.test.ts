@@ -135,8 +135,11 @@ describe('in-progress framing — no failure verdict on a day that is not over',
     DAY.date = todayISO;
     const home = require('../../proto/redesign-2026-07/js/screens/home.js').default;
     const html: string = home.render();
-    // Confirm we actually took the day0 branch (its unique "start here" NOW card).
-    expect(html).toContain('Log First Meal');
+    // Confirm we actually took the day0 branch (its unique "start here" NOW card). Assert on the
+    // marker the branch is named for, not on the CTA label: the card's title and button now follow
+    // the same `Breakfast` / `Log Breakfast` shape every other NOW card uses, so the label is no
+    // longer day0-only. `Start here` still is — the general NOW card renders a state pill instead.
+    expect(html).toContain('Start here');
     if (!S.dayDecided) {
       expect(html).not.toContain('Off Standard');
       expect(html).toContain('In progress');

@@ -69,7 +69,7 @@ export default {
           <div class="ob-sub" style="padding:0 8px">OnStandard uses your camera to capture meal photos. They go to your coach connection only — never public, never sold, never used to train anything without asking.</div>
         </div>
         <div class="ob-foot" style="margin-top:auto">
-          <button class="btn green" data-act="primeCamera" data-then="camera">Allow Camera</button>
+          <button class="btn green" data-act="primeCamera" data-then="camera">Allow camera</button>
           <button class="cam-textlink" type="button" data-go="food-search">Log without a camera</button>
         </div>
       </div>`;

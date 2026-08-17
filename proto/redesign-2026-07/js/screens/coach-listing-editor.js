@@ -58,7 +58,7 @@ export default {
   // Shared screen — approved coaches may be signed in as trainer or athlete.
   get nav() { return roleNav(); },
   render() {
-    if (!G.loaded) return `${backHead('Your listing', 'How clients find you', 'coach-apply')}${skeletonRows(3)}`;
+    if (!G.loaded) return `${backHead('Your listing', 'How clients find you', 'coach-apply')}${skeletonRows(3, 'Loading your listing')}`;
     if (G.failed && !G.listing) {
       return `${backHead('Your listing', 'How clients find you', 'coach-apply')}
       ${errorState({

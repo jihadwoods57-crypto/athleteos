@@ -321,7 +321,7 @@ const coachSteps = {
       <div class="ob-sub" style="padding:0 8px">${esc(joined.teamName || 'The team')} · ${esc(roleLabel(normalizeRole(joined.role)))}. The roster, standards, and activity feed are yours to work.</div>
     </div>
     <div class="ob-foot" style="margin-top:auto">
-      <button class="btn primary" data-go="coach-home">Open Coach Dashboard</button>
+      <button class="btn primary" data-go="coach-home">Open your dashboard</button>
     </div>
   </div>`;
     }
@@ -354,7 +354,7 @@ const coachSteps = {
         <div><div class="tt">We couldn't create your team</div><div class="ts">Your account is set up. The team isn't yet. Open your dashboard below and use the <b>Create team</b> button waiting there. It takes one tap.</div></div></div>`}
     </div>
     <div class="ob-foot" style="margin-top:auto">
-      <button class="btn primary" data-go="coach-home">Open Coach Dashboard</button>
+      <button class="btn primary" data-go="coach-home">Open your dashboard</button>
     </div>
   </div>`;
   },
@@ -700,7 +700,7 @@ const trainerSteps = {
         <div><div class="tt">We couldn't create your practice</div><div class="ts">Your account is set up. The practice isn't yet. Open your Trainer View below and your dashboard will show how to finish setup. Your client code appears the moment it's done.</div></div></div>`}
     </div>
     <div class="ob-foot" style="margin-top:auto">
-      <button class="btn primary" style="background:linear-gradient(150deg,var(--purple),var(--purple-deep));box-shadow:0 10px 30px rgba(var(--purple-rgb),0.35)" data-go="trainer">Open Trainer View</button>
+      <button class="btn primary" style="background:linear-gradient(150deg,var(--purple),var(--purple-deep));box-shadow:0 10px 30px rgba(var(--purple-rgb),0.35)" data-go="trainer">Open your Trainer View</button>
     </div>
   </div>`;
   },

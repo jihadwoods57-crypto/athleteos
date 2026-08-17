@@ -118,7 +118,7 @@ export default {
     const paint = () => {
       if (!threadEl) return;
       if (STATE.error) {
-        threadEl.innerHTML = `<div class="msg-status">Couldn't load your conversation — your logs are safe either way. <span class="link" id="nc-retry" role="button">Retry</span></div>`;
+        threadEl.innerHTML = `<div class="msg-status">Couldn't load your conversation — your logs are safe either way. <span class="link" id="nc-retry" role="button">Try again</span></div>`;
         return;
       }
       const msgs = threadMessages(STATE.comments);
@@ -126,7 +126,7 @@ export default {
         // Empty because there IS nothing, or empty because the meals fetch died? Opposite
         // messages — one invites a first log, the other must not pretend the logs are gone.
         threadEl.innerHTML = STATE.mealsError
-          ? `<div class="msg-status">Couldn't load your meals right now — your logs are safe. <span class="link" id="nc-retry" role="button">Retry</span></div>`
+          ? `<div class="msg-status">Couldn't load your meals right now — your logs are safe. <span class="link" id="nc-retry" role="button">Try again</span></div>`
           : `<div class="msg-status">Nothing here yet. Log a meal and the AI Nutritionist starts the conversation.</div>`;
         return;
       }

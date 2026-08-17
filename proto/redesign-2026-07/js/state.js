@@ -403,8 +403,13 @@ function friendlyAuth(msg) {
   }
   if (m.includes('password')) return 'Use a longer password — at least 12 characters.';
   if (m.includes('valid email') || m.includes('email address')) return 'Enter a valid email address.';
-  if (m.includes('network') || m.includes('fetch') || m.includes('failed to')) return 'Network problem — check your connection.';
-  return msg || 'Something went wrong. Try again.';
+  if (m.includes('network') || m.includes('fetch') || m.includes('failed to')) return "You're offline. Check your connection and try again.";
+  // The guardian RPCs (0008, 0081) raise their own prose. Most of it is already written for a
+  // reader ("this invite has expired — ask for a new one") and passes through below untouched;
+  // these two are engineer fragments that reached the user lowercase and mid-sentence.
+  if (m.includes('must be signed in')) return 'Sign in first, then try that again.';
+  if (m.includes('invalid guardian email')) return "That doesn't look like a valid email address. Check it and try again.";
+  return msg || "That didn't go through. Try again in a moment.";
 }
 
 /* ---------------- Derived (live) — REAL, from the persisted DAY (parity-proven engine) ---------------- */

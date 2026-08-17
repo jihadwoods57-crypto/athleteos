@@ -601,7 +601,7 @@ const steps = [
         <div class="ob-sub" style="padding:0 8px">Staff seats ride on the program’s plan — nothing to set up, nothing to pay.</div>
       </div>
       <div class="ob-foot" style="margin-top:auto">
-        <button class="btn primary" data-go="coach-home">Open Coach Dashboard</button>
+        <button class="btn primary" data-go="coach-home">Open your dashboard</button>
         <div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:12px">Your rooms are next.</div>
       </div>`,
     mount() { track(EVENTS.PAYWALL_VIEWED, { variant: 'staff_covered' }); },

@@ -318,7 +318,7 @@ export const mealQuestions = {
           `<div id="mq-err" class="mq-err">${icon('x', 14)} <span></span></div>`);
         err = root.querySelector('#mq-err');
       }
-      err.querySelector('span').textContent = r.error || 'Analysis failed. Try again.';
+      err.querySelector('span').textContent = r.error || "Couldn't get your result. Check your connection and try again.";
     };
     goBtn.addEventListener('click', () => finish(answers()));
     skipBtn.addEventListener('click', () => finish([]));
@@ -1330,7 +1330,7 @@ export const thread = {
       if (!statusEl) return;
       statusEl.style.cssText = 'align-self:stretch;text-align:center;padding:14px 12px;border-radius:var(--r-tile);background:var(--surface-1);border:1px solid var(--hairline);margin-top:2px';
       statusEl.innerHTML = `<div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.4">Couldn't load the discussion — your log is safe, coach can still see it.</div>
-        <button class="btn ghost sm" id="thread-retry" style="margin-top:10px">${icon('wifiOff', 15)} Retry</button>`;
+        <button class="btn ghost sm" id="thread-retry" style="margin-top:10px">${icon('wifiOff', 15)} Try again</button>`;
       const retryBtn = statusEl.querySelector('#thread-retry');
       if (retryBtn) retryBtn.addEventListener('click', () => {
         if (threadBusy) return;

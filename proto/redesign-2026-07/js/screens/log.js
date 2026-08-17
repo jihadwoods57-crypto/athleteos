@@ -83,7 +83,7 @@ export default {
         </div>
         <div class="sheet-row" data-go="weight">
           <div class="si" style="background:var(--surface-2);color:var(--text-3)">${icon('scale', 20)}</div>
-          <div class="st"><div class="t">Log Weight</div><div class="s">Trend only · never moves the daily score</div></div>
+          <div class="st"><div class="t">Log Weight</div><div class="s">Trend only · not scored</div></div>
           <span class="sv" style="color:var(--text-3)">trend</span>
         </div>
         <div class="cancel" data-back="home">Close</div>
@@ -121,7 +121,7 @@ export default {
       ${weight && !(e.now && e.now.id === 'weight') ? `
       <div class="sheet-row" data-go="weight">
         <div class="si" style="background:${weight.state === 'done' ? 'var(--green-surface);color:var(--green-bright)' : 'var(--surface-2);color:var(--text-3)'}">${icon(weight.state === 'done' ? 'check' : 'scale', 20)}</div>
-        <div class="st"><div class="t">Log Weight</div><div class="s">${weight.state === 'done' ? 'In for today · trend only' : 'Trend only · never moves the daily score'}</div></div>
+        <div class="st"><div class="t">Log Weight</div><div class="s">${weight.state === 'done' ? 'In for today · not scored' : 'Trend only · not scored'}</div></div>
         <span class="sv" style="color:var(--text-3)">trend</span>
       </div>` : ''}
       ${DAY.dailyCommitment == null ? `

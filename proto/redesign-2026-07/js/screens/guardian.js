@@ -17,7 +17,7 @@ export default {
         <div class="sd-ic">${icon('shield', 24)}</div>
         <div class="sd-t">You're all set</div>
         <div class="sd-s">Parent approval applies to athletes under 18. Your account syncs normally.</div>
-        <div class="sd-cta"><button class="btn ghost sm" data-go="home">Back Home</button></div>
+        <div class="sd-cta"><button class="btn ghost sm" data-go="home">Back home</button></div>
       </div>
       <div style="height:10px"></div>`;
     }
@@ -28,7 +28,7 @@ export default {
         <div class="sd-ic" style="background:var(--green-surface);color:var(--green-bright)">${icon('check', 24)}</div>
         <div class="sd-t">Approved</div>
         <div class="sd-s">${c.guardianEmail ? `${esc(c.guardianEmail)} approved your account.` : 'Your parent or guardian approved your account.'} Your day syncs and your coach can see it.</div>
-        <div class="sd-cta"><button class="btn ghost sm" data-go="home">Back Home</button></div>
+        <div class="sd-cta"><button class="btn ghost sm" data-go="home">Back home</button></div>
       </div>
       <div style="height:10px"></div>`;
     }

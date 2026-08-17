@@ -69,9 +69,9 @@ export default {
       ${chip(PRICE_STEPS[UI.priceIdx].label, UI.priceIdx > 0, 'data-price="1"')}
     </div>
 
-    ${CACHE.error ? errorState({ title: 'Could not load coaches', retryId: 'cd-retry' }) : ''}
-    ${!CACHE.error && !list ? skeletonRows(4) : ''}
-    ${list && !list.length ? emptyState({ icon: 'users', title: 'No coaches match', body: 'Loosen a filter — or check back soon, the partner program is growing.' }) : ''}
+    ${CACHE.error ? errorState({ title: "Couldn't load coaches", body: 'The directory is still there. Reconnect and it loads right here.', retryId: 'cd-retry' }) : ''}
+    ${!CACHE.error && !list ? skeletonRows(4, 'Loading coaches') : ''}
+    ${list && !list.length ? emptyState({ icon: 'users', title: 'No coaches match', body: 'Loosen a filter, or check back soon. The partner program is growing.' }) : ''}
 
     ${list && list.length ? `
     <section class="card" style="padding:6px 16px">

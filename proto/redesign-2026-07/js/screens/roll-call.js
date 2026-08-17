@@ -117,7 +117,7 @@ export function commitmentOfflineCard() {
     <div class="xico sm" style="background:var(--surface-2);color:var(--text-3)">${icon('wifiOff', 16)}</div>
     <div class="xr"><div class="xa">Coach check-in isn’t loading</div>
     <div class="xb">If your coach scheduled one, it shows the moment you reconnect. Nothing is lost.</div></div>
-    <button class="btn ghost sm" data-vc-retry style="width:auto;padding:0 14px;height:34px;flex:none">Retry</button>
+    <button class="btn ghost sm" data-vc-retry style="width:auto;padding:0 14px;height:34px;flex:none">Try again</button>
   </div>`;
 }
 

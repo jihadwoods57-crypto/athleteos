@@ -236,7 +236,7 @@ function codeStateBox() {
   if (state === 'offline') {
     return `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('wifiOff', 17)}</div>
       <div style="flex:1"><div class="tt">Can't reach the server</div><div class="ts">Your code is safe — reconnect and it shows right here.</div>
-      <button class="btn ghost sm" id="coach-team-retry" style="width:auto;padding:0 16px;margin-top:8px">${icon('wifiOff', 15)} Retry</button></div></div>`;
+      <button class="btn ghost sm" id="coach-team-retry" style="width:auto;padding:0 16px;margin-top:8px">${icon('wifiOff', 15)} Try again</button></div></div>`;
   }
   /* state === 'minting': signed in as a coach with NO team row. This used to claim a code was
      being created and tell the coach to reopen the app — but nothing was minting and nothing

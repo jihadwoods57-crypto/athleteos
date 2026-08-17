@@ -18,15 +18,15 @@ export default {
     <div class="eyebrow">Empty states</div>
     <div class="state-demo">
       <div class="sd-ic">${icon('camera', 24)}</div>
-      <div class="sd-t">No meals logged yet</div>
-      <div class="sd-s">Your score starts moving once you log your first meal. Take a photo to begin today's standard.</div>
-      <div class="sd-cta"><button class="btn green sm" style="width:auto;padding:0 22px" data-go="camera">Log First Meal</button></div>
+      <div class="sd-t">No logs yet</div>
+      <div class="sd-s">Your proof trail builds here as you log. Take a photo to begin today's standard.</div>
+      <div class="sd-cta"><button class="btn green sm" style="width:auto;padding:0 22px" data-go="camera">Log a meal</button></div>
     </div>
     <div class="state-demo">
       <div class="sd-ic">${icon('key', 22)}</div>
       <div class="sd-t">No coach connected</div>
       <div class="sd-s">Your work counts more when someone you respect can see it. Enter a coach code to join a group.</div>
-      <div class="sd-cta"><button class="btn ghost sm" style="width:auto;padding:0 22px" data-go="connect">Enter Coach Code</button></div>
+      <div class="sd-cta"><button class="btn ghost sm" style="width:auto;padding:0 22px" data-go="connect">Enter coach code</button></div>
     </div>
     <div class="state-demo">
       <div class="sd-ic">${icon('bars', 22)}</div>
@@ -48,12 +48,12 @@ export default {
       <div class="sd-ic">${icon('camera', 22)}</div>
       <div class="sd-t">Your meal photo didn't upload</div>
       <div class="sd-s">Check your connection and try again. The photo is saved on your phone; nothing is lost.</div>
-      <div class="sd-cta"><button class="btn ghost sm" style="width:auto;padding:0 22px" data-go="camera">Try Again</button></div>
+      <div class="sd-cta"><button class="btn ghost sm" style="width:auto;padding:0 22px" data-go="camera">Try again</button></div>
     </div>
     <div class="state-demo err-box">
       <div class="sd-ic">${icon('bolt', 22)}</div>
       <div class="sd-t">AI couldn't read this one</div>
-      <div class="sd-s">Log it manually with Search Food, or retake with better light. Your on-time credit still counts from the capture.</div>
+      <div class="sd-s">Log it by hand with Search food, or retake it in better light. Your on-time credit still counts from the capture.</div>
     </div>
     <div class="state-demo">
       <div class="sd-ic">${icon('shield', 22)}</div>

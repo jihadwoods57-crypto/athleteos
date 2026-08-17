@@ -45,7 +45,7 @@ export default {
 
       <div id="si-err" class="si-err" aria-live="polite"></div>
 
-      <button id="si-go" class="btn primary si-cta"><span class="si-go-label">Sign In</span><span class="si-arrow" aria-hidden="true">&#8594;</span></button>
+      <button id="si-go" class="btn primary si-cta"><span class="si-go-label">Sign in</span><span class="si-arrow" aria-hidden="true">&#8594;</span></button>
 
       <div class="si-social" id="si-social" style="display:none">
         <div class="si-or"><span></span>or<span></span></div>
@@ -96,7 +96,7 @@ export default {
     const setLoading = (on) => {
       btn.disabled = on;
       btn.classList.toggle('loading', on);
-      label.textContent = on ? 'Signing in…' : 'Sign In';
+      label.textContent = on ? 'Signing in…' : 'Sign in';
     };
 
     const submit = async () => {
@@ -107,12 +107,12 @@ export default {
       if (!email || !password) { err.textContent = 'Enter your email and password.'; return; }
       if (!EMAIL_RE.test(email)) { emailErr.textContent = 'Enter a valid email address.'; return; }
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-        err.textContent = 'Network problem — check your connection.'; return;
+        err.textContent = "You're offline. Check your connection and try again."; return;
       }
       setLoading(true);
       const r = await act.signIn(email, password);
       if (r.ok) { go(routeForRole(r.role)); }
-      else { err.textContent = r.error || 'Sign in failed.'; setLoading(false); }
+      else { err.textContent = r.error || "That didn't go through. Try again in a moment."; setLoading(false); }
     };
     btn.addEventListener('click', submit);
     emailEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });

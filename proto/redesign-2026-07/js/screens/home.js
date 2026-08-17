@@ -706,9 +706,9 @@ export default {
       <section class="xnow">
         <div class="xlab"><span class="xl">NOW</span><span class="note">Start here</span></div>
         <div class="xmain"><div class="xico gold">${icon('camera', 21)}</div>
-        <div><div class="xt">Log First Meal</div><div class="xwhy">Your score starts moving with your first log. <b>Nutrition · ${liveWeightPct('nutrition')}% of score.</b></div></div></div>
+        <div><div class="xt">Breakfast</div><div class="xwhy">Your score starts moving with your first log. <b>Nutrition · ${liveWeightPct('nutrition')}% of score.</b></div></div></div>
         <div style="height:10px"></div>
-        <button class="xcta" data-go="camera">${icon('camera', 18)} Log First Meal</button>
+        <button class="xcta" data-go="camera">${icon('camera', 18)} Log Breakfast</button>
       </section>
       ${lateRows.length ? `<div class="xgrp">${e.decided ? 'Missed today' : 'Late · still counts'}</div>${lateRows.map(row).join('')}` : ''}
       ${upcoming.length ? `<div class="xgrp">Upcoming</div>

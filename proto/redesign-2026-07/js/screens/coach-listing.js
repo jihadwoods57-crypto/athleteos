@@ -68,7 +68,7 @@ export default {
     const slug = (sub || '').trim();
     if (CACHE.slug !== slug) load(slug);
     const l = CACHE.listing;
-    if (!CACHE.loaded) return `${backHead('Coach', '', 'coach-directory')}${skeletonRows(3)}`;
+    if (!CACHE.loaded) return `${backHead('Coach', '', 'coach-directory')}${skeletonRows(3, 'Loading this coach')}`;
     // A failed read is not evidence about this coach's business. Saying "at capacity or no
     // longer taking clients" because a request dropped costs a real partner a real client.
     if (l && l.error) {

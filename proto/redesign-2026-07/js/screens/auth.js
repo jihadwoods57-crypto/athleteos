@@ -18,7 +18,7 @@ export default {
       </div>
 
       <div class="wel-actions">
-        <button class="btn primary wel-cta" data-go="role"><span>Get Started</span><span class="wel-arrow" aria-hidden="true">→</span></button>
+        <button class="btn primary wel-cta" data-go="role"><span>Get started</span><span class="wel-arrow" aria-hidden="true">→</span></button>
         <button class="wel-signin" data-go="signin">Already have an account? <b>Sign in</b></button>
         <div class="wel-trust">${icon('lock', 13)}<span>Built for accountability</span></div>
       </div>

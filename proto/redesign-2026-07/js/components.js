@@ -86,7 +86,7 @@ export function emptyState({ icon: ic = 'sparkle', title, body = '', action = nu
 
 /** Honest error + retry. `retryId` is wired by the caller's mount(); omit for a non-retryable note. */
 export function errorState({ title = "Couldn't load this", body = 'Reconnect and it loads right here — nothing was lost.', retryId = null } = {}) {
-  const a = retryId ? `<div class="sd-cta"><button class="btn ghost sm" id="${esc(retryId)}" style="width:auto;padding:0 18px">${icon('wifiOff', 15)} Retry</button></div>` : '';
+  const a = retryId ? `<div class="sd-cta"><button class="btn ghost sm" id="${esc(retryId)}" style="width:auto;padding:0 18px">${icon('wifiOff', 15)} Try again</button></div>` : '';
   return `<section class="state-demo err-box"><div class="sd-ic">${icon('wifiOff', 24)}</div>
     <div class="sd-t">${esc(title)}</div><div class="sd-s">${esc(body)}</div>${a}</section>`;
 }

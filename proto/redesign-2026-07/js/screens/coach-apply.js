@@ -116,7 +116,7 @@ export default {
   // Shared screen: an athlete OR a trainer can apply — render in the signed-in role's chrome.
   get nav() { return roleNav(); },
   render() {
-    if (!G.loaded) return `${backHead('Become a coach', 'OnStandard Coach Partner Program', 'profile')}${skeletonRows(3)}`;
+    if (!G.loaded) return `${backHead('Become a coach', 'OnStandard Coach Partner Program', 'profile')}${skeletonRows(3, 'Loading your application')}`;
     if (G.failed && !G.app) {
       return `${backHead('Become a coach', 'OnStandard Coach Partner Program', 'profile')}
       ${errorState({
