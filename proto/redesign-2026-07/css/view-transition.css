@@ -138,6 +138,25 @@
 @keyframes vtSharedOut { from { opacity: 1; } to { opacity: 0; } }
 @keyframes vtSharedIn  { from { opacity: 0; } to { opacity: 1; } }
 
+/* ===== An overlay growing out of the page, and shrinking back into it ===== */
+
+/* The photo viewer. Same shared-element machinery as a navigation morph, but it wants longer and a
+   softer landing: this travel is the biggest on-screen distance anything in the app makes (a 96px
+   thumbnail to the full screen), and at --dur-2 it reads as a pop rather than a zoom. --dur-3 is
+   the token for exactly that kind of larger move.
+
+   Nothing else is named for an overlay, so the black backdrop arriving and leaving is the root
+   capture's own cross-fade, which is the fade `.imgview` would have run for itself. */
+:root[data-vt-dir="overlay"]::view-transition-group(vt-shared) {
+  animation-duration: var(--dur-3);
+  animation-timing-function: var(--ease-out);
+}
+/* The photo is the SAME photo at both ends, so cross-fading two snapshots of it just softens the
+   picture mid-flight. Hold the incoming one at full opacity and let the group do the work — the
+   `object-fit: cover` above already keeps the aspect honest as the box changes shape. */
+:root[data-vt-dir="overlay"]::view-transition-old(vt-shared) { animation: vtSharedOut var(--dur-1) linear both; }
+:root[data-vt-dir="overlay"]::view-transition-new(vt-shared) { animation: none; }
+
 /* ===== A restate: the frame stands still, the rows rearrange inside it ===== */
 
 /* Every row carries a different view-transition-name (its own identity is the point), so no name

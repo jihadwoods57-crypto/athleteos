@@ -2938,7 +2938,7 @@ export const coachMeal = {
       hero.setAttribute('tabindex', '0');
       hero.setAttribute('role', 'button');
       hero.setAttribute('aria-label', 'View photo full screen');
-      hero.addEventListener('click', () => openImageViewer(heroImg.src, 'Meal photo'));
+      hero.addEventListener('click', () => openImageViewer(heroImg.src, 'Meal photo', heroImg));
     }
     // Request another photo: a templated coach message (counts as one of the 2) + push.
     const askPhoto = root.querySelector('#cm-ask-photo');
@@ -2986,7 +2986,7 @@ export const coachMeal = {
     root.addEventListener('click', (ev) => {
       const im = ev.target && ev.target.closest ? ev.target.closest('img.bimg') : null;
       if (!im || !im.src) return;
-      openImageViewer(im.src, 'Photo attached to this message');
+      openImageViewer(im.src, 'Photo attached to this message', im);
     });
 
     // Same attach plumbing the athlete thread uses, shared from chat-attach.js rather than copied.

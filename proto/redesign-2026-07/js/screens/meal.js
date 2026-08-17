@@ -637,7 +637,7 @@ export const analysis = {
       hero.setAttribute('tabindex', '0');
       hero.setAttribute('role', 'button');
       hero.setAttribute('aria-label', 'View photo full screen');
-      hero.addEventListener('click', () => openImageViewer(MEAL.photoDataUrl, 'Meal photo'));
+      hero.addEventListener('click', () => openImageViewer(MEAL.photoDataUrl, 'Meal photo', hero));
     }
     // Edit mode (real editing, not a dead button): remove / rename / set quantity / add.
     // Every mutation goes through applyFoodEdit so MEAL.result.detectedRich and .detected stay
@@ -1307,7 +1307,7 @@ export const thread = {
           hero.setAttribute('tabindex', '0');
           hero.setAttribute('role', 'button');
           hero.setAttribute('aria-label', 'View photo full screen');
-          hero.addEventListener('click', () => openImageViewer(url, `${M.name} photo`));
+          hero.addEventListener('click', () => openImageViewer(url, `${M.name} photo`, hero));
         }
       } else if (M.hasPhoto) {
         // Still owed by the outbox → "syncing"; otherwise it never made it off the device.
@@ -1944,7 +1944,7 @@ export const thread = {
     if (threadRoot) threadRoot.addEventListener('click', (ev) => {
       const im = ev.target && ev.target.closest ? ev.target.closest('img.bimg') : null;
       if (!im || !im.src) return;
-      openImageViewer(im.src, 'Photo attached to this message');
+      openImageViewer(im.src, 'Photo attached to this message', im);
     });
   },
 };

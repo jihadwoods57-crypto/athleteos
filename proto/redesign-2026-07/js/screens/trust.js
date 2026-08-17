@@ -353,7 +353,7 @@ function mountThread(root, mealId, meal) {
   threadEl.addEventListener('click', (ev) => {
     const im = ev.target && ev.target.closest ? ev.target.closest('img.bimg') : null;
     if (!im || !im.src) return;
-    openImageViewer(im.src, 'Photo attached to this message');
+    openImageViewer(im.src, 'Photo attached to this message', im);
   });
 
   const refresh = async () => {
@@ -500,7 +500,7 @@ export const mealView = {
       if (hero) {
         hero.style.backgroundImage = `url('${url.replace(/'/g, '')}')`;
         hero.style.cursor = 'zoom-in';
-        hero.addEventListener('click', () => openImageViewer(url, 'Meal photo'));
+        hero.addEventListener('click', () => openImageViewer(url, 'Meal photo', hero));
       }
     });
   },

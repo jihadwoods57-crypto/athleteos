@@ -416,7 +416,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 :root[data-theme="light"] .status-pill.muted { background: rgba(15,23,42,0.06); }
 
 /* ===== Full-screen image viewer (spec §6.1) ===== */
-.imgview { position: fixed; inset: 0; z-index: 400; background: rgba(3,5,10,0.94); display: grid; place-items: center; opacity: 0; transition: opacity 180ms ease; touch-action: none; }
+.imgview { position: fixed; inset: 0; z-index: 400; background: rgba(3,5,10,0.94); display: grid; place-items: center; opacity: 0; transition: opacity var(--dur-1) var(--ease-out); touch-action: none; }
 .imgview.on { opacity: 1; }
 .imgview .iv-stage { width: 100%; height: 100%; display: grid; place-items: center; overflow: hidden; }
 .imgview .iv-img { max-width: 100%; max-height: 100%; user-select: none; -webkit-user-drag: none; will-change: transform; }

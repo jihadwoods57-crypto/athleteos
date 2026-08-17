@@ -599,14 +599,14 @@
 /* Who can read this conversation - disclosure, opened from the facepile. */
 .memsheet {
   position: fixed; inset: 0; z-index: 60; display: grid; place-items: end center;
-  background: rgba(4, 7, 14, 0.62); opacity: 0; transition: opacity 0.18s ease;
+  background: rgba(4, 7, 14, 0.62); opacity: 0; transition: opacity var(--dur-1) var(--ease-out);
   padding:0 0 max(14px, env(safe-area-inset-bottom));
 }
 .memsheet.on { opacity: 1; }
 .memsheet .ms-card {
   width: min(440px, calc(100% - 20px)); background: var(--surface-1);
   border: 1px solid var(--hairline); border-radius: var(--r-card); padding:16px 16px 14px;
-  transform: translateY(10px); transition: transform 0.18s ease;
+  transform: translateY(10px); transition: transform var(--dur-1) var(--ease-out);
 }
 .memsheet.on .ms-card { transform: translateY(0); }
 .memsheet .ms-head { display: flex; align-items: center; gap:10px; margin-bottom:10px; }

@@ -3,15 +3,38 @@
    always lands on the exact scroll position the viewer opened from. Original image bytes,
    original orientation, no editing controls. */
 
+import { withTransition, canTransition } from './view-transition.js';
+
 let overlay = null;
 let opener = null;   // the element that opened the viewer; focus returns to it on close
+/* The thumbnail this viewer grew out of, kept separately from `opener`.
+ *
+ * They are usually the same element and must not be assumed to be: `opener` is whatever had focus,
+ * which on a pointer tap can be <body> or an ancestor, and it exists to hand focus back. This one
+ * exists to be MORPHED back into, so it has to be the picture itself or the photo appears to shrink
+ * into the wrong place. Cleared on close; checked for isConnected before use, because a repaint may
+ * have replaced the thumbnail while the viewer was open. */
+let cameFrom = null;
 
 function close() {
   if (!overlay) return;
   const o = overlay;
   overlay = null;
-  o.classList.remove('on');
-  setTimeout(() => { try { o.remove(); } catch { /* already gone */ } }, 180);
+  const img = o.querySelector('.iv-img');
+  /* `shrinkTo`, not `back` — this function already has a `back` for the focus round-trip below, and
+     the two are different things on purpose (see the note on `cameFrom`). */
+  const shrinkTo = cameFrom && cameFrom.isConnected ? cameFrom : null;
+  cameFrom = null;
+  /* Closing is the open played backwards: the full-screen photo shrinks into the thumbnail it came
+     from. Under a transition the overlay is torn down SYNCHRONOUSLY inside the update — the fade is
+     the transition's job now, and leaving the old 180ms timeout in would remove the element twice. */
+  const teardown = () => { o.classList.remove('on'); try { o.remove(); } catch { /* already gone */ } };
+  if (shrinkTo && canTransition('overlay')) {
+    withTransition({ dir: 'overlay', node: img, nodeAfter: () => shrinkTo }, teardown);
+  } else {
+    o.classList.remove('on');
+    setTimeout(() => { try { o.remove(); } catch { /* already gone */ } }, 180);
+  }
   try { document.removeEventListener('keydown', onKey); } catch { /* not attached */ }
   // Round-trip focus: open() moves focus to the close button, so closing must hand it back or
   // a keyboard/reader user is dumped to <body> and loses their place mid-thread.
@@ -22,8 +45,9 @@ function close() {
 function onKey(e) { if (e.key === 'Escape') close(); }
 
 /** Open the viewer on an image URL (data: or https). Safe to call from any screen. */
-export function openImageViewer(src, alt = 'Meal photo') {
+export function openImageViewer(src, alt = 'Meal photo', from = null) {
   if (!src || overlay) return;
+  cameFrom = from && from.isConnected ? from : null;
   // Record who opened it BEFORE anything moves; close() hands focus back there.
   opener = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
   const el = document.createElement('div');
@@ -38,9 +62,32 @@ export function openImageViewer(src, alt = 'Meal photo') {
     <div class="iv-stage"><img class="iv-img" alt="Full-size photo" draggable="false"/></div>`;
   const img = el.querySelector('.iv-img');
   img.src = src; img.alt = alt;
-  document.body.appendChild(el);
+  /* The photo grows out of the thumbnail that was tapped, instead of a black screen fading in over
+     it. Two things about that are load-bearing and neither is obvious.
+   *
+   * `overlay` is claimed HERE, not in mount(). It is what the re-entrancy guard at the top of this
+   * function tests, and moving the insertion into a transition callback made that callback
+   * ASYNCHRONOUS — so a second click in the same tick still saw `overlay === null` and opened a
+   * second viewer. Not hypothetical: the meal thread's hero carries two click listeners, harmless
+   * for as long as the guard worked, and it opened the viewer twice the moment the guard stopped.
+   * Both copies then claimed `vt-shared`, and a duplicate name aborts the transition entirely. The
+   * element already exists; only its insertion is deferred, so the slot can be claimed now.
+   *
+   * `.on` goes on SYNCHRONOUSLY on the transition path. The browser snapshots the new state at the
+   * end of the callback, and the rAF the non-transition path needs (to give the CSS transition a
+   * frame to start from) lands after that snapshot — so the overlay would be captured invisible and
+   * then fade in twice. */
   overlay = el;
-  requestAnimationFrame(() => el.classList.add('on'));
+  const mount = (sync) => {
+    document.body.appendChild(el);
+    if (sync) el.classList.add('on');
+    else requestAnimationFrame(() => el.classList.add('on'));
+  };
+  if (cameFrom && canTransition('overlay')) {
+    withTransition({ dir: 'overlay', node: cameFrom, nodeAfter: () => img }, () => mount(true));
+  } else {
+    mount(false);
+  }
   document.addEventListener('keydown', onKey);
   el.querySelector('.iv-x').addEventListener('click', close);
   // Move focus INTO the dialog (the close button is its one real control), mirroring members-sheet.
@@ -79,8 +126,10 @@ export function openImageViewer(src, alt = 'Meal photo') {
           tx = (r.width / 2 - t[0].clientX) * (scale - 1) / scale * 1.2;
           ty = (r.height / 2 - t[0].clientY) * (scale - 1) / scale * 1.2;
         }
-        img.style.transition = 'transform 220ms ease';
-        setTimeout(() => { img.style.transition = ''; }, 240);
+        // Tokens, not hand-picked numbers: DESIGN.md's Motion section is ease-out only, and 220ms
+        // is not one of the three durations. Custom properties resolve in inline styles.
+        img.style.transition = 'transform var(--dur-2) var(--ease-out)';
+        setTimeout(() => { img.style.transition = ''; }, 300);
         apply();
         lastTap = 0;
         return;
@@ -109,7 +158,7 @@ export function openImageViewer(src, alt = 'Meal photo') {
   el.addEventListener('touchend', (e) => {
     if (e.touches.length) return;
     if (scale === 1 && swipeY > 110) { close(); return; }
-    if (swipeY) { swipeY = 0; el.style.opacity = '1'; img.style.transition = 'transform 200ms ease'; apply(); setTimeout(() => { img.style.transition = ''; }, 220); }
+    if (swipeY) { swipeY = 0; el.style.opacity = '1'; img.style.transition = 'transform var(--dur-1) var(--ease-out)'; apply(); setTimeout(() => { img.style.transition = ''; }, 200); }
   });
 
   // Desktop conveniences (dev / web preview): wheel zoom, double-click zoom, click-outside close.
@@ -141,7 +190,8 @@ export function wireImageViewers(root) {
     n.addEventListener('click', (e) => {
       e.stopPropagation();
       const src = n.getAttribute('data-viewer') || (n.tagName === 'IMG' ? n.src : '');
-      if (src) openImageViewer(src);
+      // `n` is the thumbnail: the element the photo should grow out of, and shrink back into.
+      if (src) openImageViewer(src, 'Meal photo', n);
     });
   });
 }

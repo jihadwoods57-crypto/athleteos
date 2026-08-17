@@ -95,7 +95,7 @@ const HELD = [['.statusbar', 'vt-status'], ['.tabbar', 'vt-tabs']];
  * whole sheet for it would move the tab strip the athlete is tapping across, which is a worse
  * animation than the one this file would be replacing. Declining here is what keeps that path
  * live. */
-const DIRS = new Set(['push', 'pop', 'tab', 'restate']);
+const DIRS = new Set(['push', 'pop', 'tab', 'restate', 'overlay']);
 
 /* 'restate' is the odd one, and the distinction it draws is the whole point of it.
  *
@@ -114,6 +114,18 @@ const DIRS = new Set(['push', 'pop', 'tab', 'restate']);
  * browser then tweens from their old positions to their new ones — the default group animation is
  * exactly a position-and-size tween, so the glide costs no CSS at all. Everything unnamed stays in
  * the root capture and cross-fades in place, which for a header that did not change is invisible. */
+/* 'overlay' is the third shape: something opens ON TOP of the screen it belongs to, rather than
+ * replacing it. The full-screen photo viewer is the case it exists for — a thumbnail in a meal
+ * thread grows into the whole screen and later shrinks back into the exact thumbnail it came from.
+ *
+ * Nothing structural is named for it. The screen underneath is not going anywhere, so naming the
+ * sheet would capture it as a travelling image for no reason; the only thing moving is the photo.
+ * The overlay's own backdrop is left to the root capture's cross-fade, which is exactly the fade it
+ * would have done for itself.
+ *
+ * Both ends come in as NODES (`node` and `nodeAfter`), because the caller built the incoming element
+ * and no search could find it — and because the thumbnail it came from is still sitting in the DOM
+ * underneath, so a key shared by both would match twice and refuse to pair. */
 const ROW_ATTR = 'data-vt-row';
 const ROW_CLASS = 'vtrow';
 
@@ -214,20 +226,28 @@ function setRadius() {
  *  claim the name unless there is something for it to arrive from. (The reverse, an outgoing
  *  element with no counterpart, cannot be undone: its snapshot was taken before the update ran.
  *  That one is left to fade, which is at least honest about what is happening to it.) */
-function stamp(scope, key, allowShared = true, node = null, id = null, rows = false) {
+/* Three shapes of transition, and each names a different set of things:
+ *   'sheet'   a navigation. .screen travels, chrome is promoted out, one optional shared element.
+ *   'rows'    a restate. Nothing travels but the rows, which rearrange inside a still frame.
+ *   'shared'  an overlay opening or closing over the screen it belongs to. NOTHING structural is
+ *             named — not the sheet, not the chrome — because none of it is going anywhere; only
+ *             the one element that grows out of the page and later shrinks back into it. */
+function stamp(scope, { key = null, allowShared = true, node = null, id = null, mode = 'sheet' } = {}) {
   const named = [];
-  if (rows) {
+  if (mode === 'rows') {
     /* A restate: no sheet, only rows. Naming `.screen` here would make the whole screen a single
        travelling image, which is the opposite of what is wanted — the point is that the frame stands
        still while its contents rearrange inside it. */
     named.push(...stampRows(scope));
     return { named, paired: false };
   }
-  const view = scope.querySelector('.screen');
-  if (view && view.style) { view.style.viewTransitionName = VIEW_NAME; named.push(view); }
-  for (const [sel, name] of HELD) {
-    const el = scope.querySelector(sel);
-    if (el && el.style) { el.style.viewTransitionName = name; named.push(el); }
+  if (mode === 'sheet') {
+    const view = scope.querySelector('.screen');
+    if (view && view.style) { view.style.viewTransitionName = VIEW_NAME; named.push(view); }
+    for (const [sel, name] of HELD) {
+      const el = scope.querySelector(sel);
+      if (el && el.style) { el.style.viewTransitionName = name; named.push(el); }
+    }
   }
   let paired = false;
   if (allowShared) {
@@ -338,14 +358,14 @@ export function canTransition(dir) {
  * @param {Function} commit    the synchronous DOM update (innerHTML + wiring + scroll + mount)
  * @returns {boolean} whether the update ran inside a transition (i.e. asynchronously)
  */
-export function withTransition({ dir, key, node = null, id = null } = {}, commit) {
+export function withTransition({ dir, key, node = null, id = null, nodeAfter = null } = {}, commit) {
   if (!DIRS.has(dir) || !supported() || reducedMotion()) { commit(); return false; }
   const device = document.getElementById('device');
   if (!device) { commit(); return false; }
 
   setRadius();
-  const rows = dir === 'restate';
-  const before = stamp(device, key, true, node, id, rows);
+  const mode = dir === 'restate' ? 'rows' : dir === 'overlay' ? 'shared' : 'sheet';
+  const before = stamp(device, { key, node, id, mode });
   const root = document.documentElement;
   root.setAttribute('data-vt-dir', dir);
 
@@ -357,8 +377,25 @@ export function withTransition({ dir, key, node = null, id = null } = {}, commit
   let t;
   try {
     t = document.startViewTransition(() => {
+      /* An overlay's outgoing element SURVIVES, and that is what makes this line necessary.
+       *
+       * For a navigation the commit replaces #device.innerHTML, so the nodes named a moment ago are
+       * gone and their names go with them. An overlay is added on TOP of the screen it belongs to:
+       * the thumbnail is still sitting there holding `vt-shared` when the full-size image claims the
+       * same name, which is a duplicate — and a duplicate aborts the ENTIRE transition and then
+       * leaks the name onto the surviving element afterwards. Both were observed.
+       *
+       * Releasing it here is safe: the browser took the outgoing snapshot BEFORE this callback ran,
+       * so the capture it needs is already made. */
+      if (mode === 'shared') unstamp(before.named);
       commit();
-      after = stamp(device, key, before.paired, null, id, rows);
+      /* `nodeAfter` is for a caller that BUILT the incoming element and therefore knows it exactly —
+         an overlay, where the thing that grows out of the page did not exist a moment ago and has no
+         `data-vt` to be found by. It also avoids a trap the search would walk into: the thumbnail
+         that opened the viewer is still in the DOM underneath it, so a key present on both would
+         match twice and refuse. */
+      const incoming = typeof nodeAfter === 'function' ? nodeAfter() : null;
+      after = stamp(device, { key, allowShared: before.paired, node: incoming, id, mode });
     });
   } catch {
     // The API exists but refused (a nested call, a detached document). The names are already on
