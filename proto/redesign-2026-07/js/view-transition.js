@@ -143,32 +143,23 @@ function reducedMotion() {
   catch { return false; }
 }
 
-/* The pseudo-element tree is a child of the document root and is NOT clipped by `.screen`'s
-   overflow, so on a desktop viewport a sliding screen would travel straight out through the phone
-   bezel and across the page background. The clip has to sit on `::view-transition` itself: that
-   element is fixed to the viewport and never transformed, so a clip-path there is a stationary
-   window. Putting it on the sliding group instead would move the window along with the content,
-   which clips nothing. On a real phone `.screen` fills the viewport and this resolves to a no-op. */
-function setClip() {
+/* The sliding sheet is clipped to the frame by `clip-path: inset(0)` on its own group — see the
+   long note in css/view-transition.css for why the group and why `inset(0)` rather than a measured
+   rect. The one thing a self-referential clip cannot know is the frame's corner rounding, so that
+   single value comes from here.
+ *
+ * Wholesale try/catch, and deliberately so: rounded corners are decoration, a navigation is not.
+ * There is no version of "the corners squared off for 280ms" that justifies costing the athlete
+ * their tap, and a missing custom property just falls back to square. */
+function setRadius() {
   const root = document.documentElement;
-  /* Wholesale try/catch, and deliberately so: a clip is decoration, a navigation is not. Every
-     measurement below reads something a non-browser host (a test runner, a future harness) may not
-     have, and there is no version of "the corners were not masked" that justifies costing the
-     athlete their tap. Failing to a missing custom property just means `clip-path: none`. */
   try {
     const scr = document.querySelector('.screen');
-    if (!scr || typeof scr.getBoundingClientRect !== 'function') { root.style.removeProperty('--vt-clip'); return; }
-    const r = scr.getBoundingClientRect();
-    if (!r.width || !r.height) { root.style.removeProperty('--vt-clip'); return; }
-    let radius = '0px';
-    try { radius = getComputedStyle(scr).borderTopLeftRadius || '0px'; } catch { /* no layout engine */ }
-    const top = Math.max(0, r.top);
-    const right = Math.max(0, globalThis.innerWidth - r.right);
-    const bottom = Math.max(0, globalThis.innerHeight - r.bottom);
-    const left = Math.max(0, r.left);
-    root.style.setProperty('--vt-clip', `inset(${top}px ${right}px ${bottom}px ${left}px round ${radius})`);
+    const radius = scr ? (getComputedStyle(scr).borderTopLeftRadius || '') : '';
+    if (radius) root.style.setProperty('--vt-radius', radius);
+    else root.style.removeProperty('--vt-radius');
   } catch {
-    try { root.style.removeProperty('--vt-clip'); } catch { /* nothing left to clean */ }
+    try { root.style.removeProperty('--vt-radius'); } catch { /* nothing left to clean */ }
   }
 }
 
@@ -240,7 +231,7 @@ export function withTransition({ dir, key } = {}, commit) {
   const device = document.getElementById('device');
   if (!device) { commit(); return false; }
 
-  setClip();
+  setRadius();
   const before = stamp(device, key);
   const root = document.documentElement;
   root.setAttribute('data-vt-dir', dir);
@@ -272,7 +263,7 @@ export function withTransition({ dir, key } = {}, commit) {
     CURRENT = null;
     unstamp(after.named);
     root.removeAttribute('data-vt-dir');
-    root.style.removeProperty('--vt-clip');
+    root.style.removeProperty('--vt-radius');
     // A morph already showed the number. Anything else still owes the athlete its reveal.
     resumeReveals({ drop: before.paired && after.paired });
     // CURRENT is already null, so anything queued here that renders again is not re-deferred.

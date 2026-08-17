@@ -25,17 +25,36 @@
  * already the right answer for them.
  */
 
-/* The pseudo tree is a child of the document root, so it is NOT clipped by .screen's overflow: a
-   screen sliding in from the right would travel across the page background beside the phone. The
-   clip belongs HERE rather than on the group: ::view-transition is fixed to the viewport and never
-   transformed, so it is a stationary window, whereas a clip on a moving group travels with the
-   content and clips nothing. js/view-transition.js measures .screen and sets --vt-clip; on a real
-   phone .screen fills the viewport and this resolves to a no-op. */
-::view-transition { clip-path: var(--vt-clip, none); }
+/* How far the sheet going behind darkens. Light needs a much smaller step: 0.62 on a near-white
+   canvas does not read as "behind", it reads as grey. */
+:root { --vt-dim: 0.62; }
+:root[data-theme="light"] { --vt-dim: 0.82; }
 
 /* ===== The travelling screen ===== */
 
-::view-transition-group(vt-view) { animation-duration: var(--dur-2); animation-timing-function: var(--ease-out-quart); }
+/* The clip. The pseudo tree is a child of the document root and is NOT clipped by .screen's own
+   overflow, so without this a sheet sliding in from the right travels out past the phone and across
+   whatever is beside it.
+   `inset(0)` on THIS GROUP, and both halves of that are load-bearing:
+   - the GROUP, not `::view-transition`. Clipping the pseudo root also clips the ROOT snapshot,
+     which is everything outside the sheet: the bezel, the island, and any body-level overlay open
+     when a navigation fires. The usual objection to clipping a group is that a clip on a MOVING
+     group travels with it and clips nothing — but this group does not move. Old and new occupy the
+     same rect, so its tween is a no-op and every animation below is on the images inside it. The
+     group is the stationary window.
+   - `inset(0)`, not a measured rect. The group's box already IS the sheet rect, so the clip is
+     self-referential at every size and needs nothing measured, nothing recomputed on resize, and no
+     custom property that can go stale. The first version measured .screen into viewport
+     coordinates, which is correct only for `::view-transition` (fixed, inset 0) and clips the group
+     out of existence.
+   The radius is the exception, because a box cannot report its own corner rounding to a clip-path:
+   js/view-transition.js reads it off .screen into --vt-radius so a sliding sheet keeps the frame's
+   corners instead of squaring off for the length of the travel. Phone-native is 0 and unaffected. */
+::view-transition-group(vt-view) {
+  clip-path: inset(0 round var(--vt-radius, 0px));
+  animation-duration: var(--dur-2);
+  animation-timing-function: var(--ease-out-quart);
+}
 ::view-transition-image-pair(vt-view) { isolation: auto; }
 ::view-transition-old(vt-view),
 ::view-transition-new(vt-view) { mix-blend-mode: normal; animation: none; backface-visibility: hidden; }
@@ -78,9 +97,9 @@
    The receding sheet keeps opacity 1 too — it is occluded, not faded, so fading it would only
    show through the incoming one's own background and muddy it. */
 @keyframes vtInFromRight { from { transform: translateX(100%); } to { transform: none; } }
-@keyframes vtRecedeLeft  { from { transform: none; filter: brightness(1); } to { transform: translateX(-32%); filter: brightness(0.62); } }
+@keyframes vtRecedeLeft  { from { transform: none; filter: brightness(1); } to { transform: translateX(-32%); filter: brightness(var(--vt-dim)); } }
 @keyframes vtOutToRight  { from { transform: none; } to { transform: translateX(100%); } }
-@keyframes vtRecedeIn    { from { transform: translateX(-32%); filter: brightness(0.62); } to { transform: none; filter: brightness(1); } }
+@keyframes vtRecedeIn    { from { transform: translateX(-32%); filter: brightness(var(--vt-dim)); } to { transform: none; filter: brightness(1); } }
 @keyframes vtTabIn       { from { opacity: 0; } to { opacity: 1; } }
 @keyframes vtTabOut      { from { transform: none; } to { transform: scale(1.012); } }
 
