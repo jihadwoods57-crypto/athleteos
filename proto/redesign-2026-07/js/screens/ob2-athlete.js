@@ -408,9 +408,9 @@ const steps = [
       const [y, m, d] = o.dob ? String(o.dob).split('-') : ['', '', ''];
       return `
         <div class="dob-row">
-          <input id="ob-dob-m" class="ob-input" type="number" inputmode="numeric" placeholder="MM" aria-label="Birth month" value="${esc(m ? String(+m) : '')}" />
-          <input id="ob-dob-d" class="ob-input" type="number" inputmode="numeric" placeholder="DD" aria-label="Birth day" value="${esc(d ? String(+d) : '')}" />
-          <input id="ob-dob-y" class="ob-input" type="number" inputmode="numeric" placeholder="YYYY" aria-label="Birth year" value="${esc(y || '')}" />
+          <input id="ob-dob-m" class="ob-input" type="text" inputmode="numeric" maxlength="2" placeholder="MM" aria-label="Birth month" value="${esc(m ? String(+m) : '')}" />
+          <input id="ob-dob-d" class="ob-input" type="text" inputmode="numeric" maxlength="2" placeholder="DD" aria-label="Birth day" value="${esc(d ? String(+d) : '')}" />
+          <input id="ob-dob-y" class="ob-input" type="text" inputmode="numeric" maxlength="4" placeholder="YYYY" aria-label="Birth year" value="${esc(y || '')}" />
         </div>
         <div id="ob-age-err" style="color:var(--amber-bright);font-size:13px;font-weight:700;min-height:18px;margin-top:10px"></div>
         <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:6px;line-height:1.5">You must be 13 or older to use OnStandard.</div>`;
@@ -424,31 +424,49 @@ const steps = [
         const t = new Date();
         return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
       };
+      // Digits only — these switched from type="number" to type="text" so `maxlength` actually
+      // clamps the year (number inputs ignore maxlength entirely, which let a pasted or fat-
+      // fingered "99999999" sail straight through with no feedback).
+      const digitsOnly = (el, max) => { const v = el.value.replace(/\D/g, '').slice(0, max); if (v !== el.value) el.value = v; };
       const sync = () => {
+        const raw = !!(dm.value && dd.value && dy.value);
         const dob = dobFromParts(dm.value, dd.value, dy.value);
-        const under13 = dob != null && ageOn(dob, todayISO()) < 13;
+        const future = dob != null && dob > todayISO();
+        const under13 = dob != null && !future && ageOn(dob, todayISO()) < 13;
         /* COPPA (legacy parity): never persist a blocked minor's identity to
            localStorage — the captured name is nulled with the dob. A corrected
            DOB clears the block; the athlete re-enters their name via Back if
            it was wiped. */
         if (under13) capture({ firstName: '', lastName: '', name: '', dob: null, dobBlocked: true });
-        else capture({ dob, dobBlocked: false });
+        else capture({ dob: (dob && !future) ? dob : null, dobBlocked: false });
         if (!btn) return;
         if (under13) {
           errEl.textContent = 'OnStandard is for ages 13 and up.';
           btn.setAttribute('data-go', `${R}/blocked`);
           dy.classList.add('ok');
           btn.disabled = false;
+          return;
+        }
+        btn.setAttribute('data-go', `${R}/account`);
+        if (future) {
+          // Genuinely just a typo (2030 instead of 2003) — not the same thing as under-13, so
+          // it must not wipe the name or route to the age-blocked screen.
+          errEl.textContent = "That birth year hasn't happened yet.";
+          dy.classList.remove('ok');
+          btn.disabled = true;
+        } else if (raw && !dob) {
+          errEl.textContent = "That's not a valid date.";
+          dy.classList.remove('ok');
+          btn.disabled = true;
         } else {
           errEl.textContent = '';
-          btn.setAttribute('data-go', `${R}/account`);
           dy.classList.toggle('ok', !!dob);
           btn.disabled = !dob;
         }
       };
-      [dm, dd, dy].forEach((el) => el.addEventListener('input', sync));
-      dm.addEventListener('input', () => { if (dm.value.length >= 2) dd.focus(); });
-      dd.addEventListener('input', () => { if (dd.value.length >= 2) dy.focus(); });
+      dm.addEventListener('input', () => { digitsOnly(dm, 2); if (dm.value.length >= 2) dd.focus(); sync(); });
+      dd.addEventListener('input', () => { digitsOnly(dd, 2); if (dd.value.length >= 2) dy.focus(); sync(); });
+      dy.addEventListener('input', () => { digitsOnly(dy, 4); sync(); });
       sync();
     },
   },
