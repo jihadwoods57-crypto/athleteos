@@ -13,12 +13,14 @@
  *
  * WHAT GETS A TRANSITION, AND WHAT DOES NOT
  *
- * Only a navigation the router can NAME, and only three of the five names it uses: push, pop and
- * tab (see DIRS). Everything else falls through to the synchronous path unchanged:
+ * Only a move the router can NAME: push, pop, tab, and `restate` (see DIRS, and the block above
+ * ROW_ATTR for what restate is and why it is not the same thing as a repaint). Everything else falls
+ * through to the synchronous path unchanged:
  *
- *   - a same-route repaint (window.__render) — Home repaints constantly for commitments, activity
- *     standards, the coach receipt, participant names. Transitioning those is the settled-list-
- *     sliding-around bug with a bigger budget.
+ *   - a same-route repaint from window.__render() — Home repaints constantly for commitments,
+ *     activity standards, the coach receipt, participant names. Transitioning those is the
+ *     settled-list-sliding-around bug with a bigger budget. window.__restate() is the separate door
+ *     for the repaints a USER asked for.
  *   - a move across a screen's own tab strip, which has a better animation already.
  *   - first paint and boot deep-links — there is nothing to transition FROM; that swap is what
  *     `.settle` already covers.
@@ -93,7 +95,41 @@ const HELD = [['.statusbar', 'vt-status'], ['.tabbar', 'vt-tabs']];
  * whole sheet for it would move the tab strip the athlete is tapping across, which is a worse
  * animation than the one this file would be replacing. Declining here is what keeps that path
  * live. */
-const DIRS = new Set(['push', 'pop', 'tab']);
+const DIRS = new Set(['push', 'pop', 'tab', 'restate']);
+
+/* 'restate' is the odd one, and the distinction it draws is the whole point of it.
+ *
+ * The app repaints the current screen constantly through window.__render(), and every one of those
+ * is excluded above — Home alone repaints for commitments, activity standards, the coach receipt and
+ * participant names, and animating those is the settled-list-sliding-around bug.
+ *
+ * But two very different events were sharing that one door. "The data arrived" is content resolving
+ * in place, and it should not move. "The user changed what they are looking at" — a sort, a filter
+ * chip, a search, a group expanding — is a different thing entirely: the athlete or coach asked for
+ * the change, and in a re-ordered list the MOVEMENT IS THE INFORMATION. A roster of fourteen rows
+ * re-sorting by score is telling you something, and snapping to the new order throws that away.
+ * window.__restate() is that second door.
+ *
+ * A restate names no sheet, because no sheet is travelling. It names ROWS (`data-vt-row`), which the
+ * browser then tweens from their old positions to their new ones — the default group animation is
+ * exactly a position-and-size tween, so the glide costs no CSS at all. Everything unnamed stays in
+ * the root capture and cross-fades in place, which for a header that did not change is invisible. */
+const ROW_ATTR = 'data-vt-row';
+const ROW_CLASS = 'vtrow';
+
+/* A ceiling on how many rows may be promoted in one restate.
+ *
+ * Each named element becomes four pseudo-elements and its own compositor layer, so a 400-row list
+ * would spend more time building the transition than the transition lasts. Forty is well past any
+ * list a phone shows at once (a 14-person roster, a week of days) and far short of anything that
+ * costs a frame. Over the cap, nothing is named and the restate degrades to the cross-fade — the
+ * list still updates, it just does not glide. */
+const ROW_CAP = 40;
+
+/** Sanitise an author-supplied row id into a valid custom-ident. */
+function rowName(id) {
+  return 'vtr-' + String(id).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 48);
+}
 
 /* A key goes straight into an attribute selector, so it may only contain characters that cannot
    terminate one. Real keys are short identifiers ('score', 'meal:lunch'); anything else is a
@@ -178,8 +214,15 @@ function setRadius() {
  *  claim the name unless there is something for it to arrive from. (The reverse, an outgoing
  *  element with no counterpart, cannot be undone: its snapshot was taken before the update ran.
  *  That one is left to fade, which is at least honest about what is happening to it.) */
-function stamp(scope, key, allowShared = true, node = null) {
+function stamp(scope, key, allowShared = true, node = null, id = null, rows = false) {
   const named = [];
+  if (rows) {
+    /* A restate: no sheet, only rows. Naming `.screen` here would make the whole screen a single
+       travelling image, which is the opposite of what is wanted — the point is that the frame stands
+       still while its contents rearrange inside it. */
+    named.push(...stampRows(scope));
+    return { named, paired: false };
+  }
   const view = scope.querySelector('.screen');
   if (view && view.style) { view.style.viewTransitionName = VIEW_NAME; named.push(view); }
   for (const [sel, name] of HELD) {
@@ -198,7 +241,7 @@ function stamp(scope, key, allowShared = true, node = null) {
        The INCOMING side still searches and still demands exactly one, because there is no tap to
        read there and two elements sharing a name aborts the whole transition. */
     const hit = (node && node.isConnected) ? node
-      : (key && SAFE_KEY.test(key) ? onlyMatch(scope, key) : null);
+      : (key && SAFE_KEY.test(key) ? onlyMatch(scope, key, id) : null);
     if (hit && hit.style) {
       hit.style.viewTransitionName = SHARED_NAME;
       named.push(hit);
@@ -208,15 +251,59 @@ function stamp(scope, key, allowShared = true, node = null) {
   return { named, paired };
 }
 
-/** The single `[data-vt="key"]` in `scope`, or null when there are none or more than one. */
-function onlyMatch(scope, key) {
+/** Name every `[data-vt-row]` in `scope` so the browser tweens it from where it was to where it is.
+ *
+ *  A duplicate id would abort the whole transition, so ids are deduplicated here rather than trusted:
+ *  a row list is generated in a loop, and a loop that repeats a key is a normal mistake to make.
+ *  The first claimant wins and the rest go unnamed, which costs those rows their glide and nothing
+ *  else. Over ROW_CAP, nobody is named. */
+function stampRows(scope) {
+  const rows = scope.querySelectorAll(`[${ROW_ATTR}]`);
+  if (!rows.length || rows.length > ROW_CAP) return [];
+  const named = [];
+  const seen = new Set();
+  for (const row of rows) {
+    const id = row.getAttribute(ROW_ATTR);
+    if (!id) continue;
+    const name = rowName(id);
+    if (seen.has(name)) continue;
+    seen.add(name);
+    if (!row.style) continue;
+    row.style.viewTransitionName = name;
+    /* Every row needs the same timing, and each one has a DIFFERENT name, so there is no selector
+       that reaches them all by name. `view-transition-class` is what the group selector in
+       css/view-transition.css matches on. Where it is unsupported the assignment is a silent no-op
+       and the rows keep the UA's own 250ms — near enough to --dur-2 that nobody could pick it out,
+       which is exactly the fallback you want for a property this new. */
+    row.style.viewTransitionClass = ROW_CLASS;
+    named.push(row);
+  }
+  return named;
+}
+
+/** The one element in `scope` that this key (and optional instance id) resolves to, or null.
+ *
+ * The id is tried FIRST and the plain key is the fallback, which is what makes one function correct
+ * for both sides of a back-pop without either side needing to know which it is. Returning from a
+ * meal detail: the detail's hero has no id, so the id-qualified selector finds nothing and the plain
+ * key resolves it; the Home being returned to has three cards WITH ids, where the plain key would
+ * find three and refuse, and the id picks out the one that was tapped on the way in.
+ */
+function onlyMatch(scope, key, id = null) {
+  if (id && SAFE_KEY.test(id)) {
+    const exact = scope.querySelectorAll(`[data-vt="${key}"][data-vt-id="${id}"]`);
+    if (exact.length === 1) return exact[0];
+  }
   const hits = scope.querySelectorAll(`[data-vt="${key}"]`);
   return hits.length === 1 ? hits[0] : null;
 }
 
 function unstamp(named) {
   for (const el of named) {
-    try { el.style.viewTransitionName = ''; } catch { /* detached by a later render */ }
+    try {
+      el.style.viewTransitionName = '';
+      el.style.viewTransitionClass = '';
+    } catch { /* detached by a later render */ }
   }
 }
 
@@ -243,19 +330,22 @@ export function canTransition(dir) {
  * @param {object}   opts
  * @param {string?}  opts.dir  'push' | 'pop' | 'tab' | 'lat-next' | 'lat-prev', or null to skip
  * @param {string?}  opts.key  `data-vt` key of the element to carry across, if any
+ * @param {string?}  opts.id   instance id (`data-vt-id`) to prefer when a key matches several.
+ *                             Comes off the back stack on a pop, where there is no tap to read.
  * @param {Element?} opts.node the element the user actually TAPPED, when there was a tap. Used
  *                             for the outgoing side only; the incoming side always resolves by
  *                             key. Lets one screen hold several elements under one key.
  * @param {Function} commit    the synchronous DOM update (innerHTML + wiring + scroll + mount)
  * @returns {boolean} whether the update ran inside a transition (i.e. asynchronously)
  */
-export function withTransition({ dir, key, node = null } = {}, commit) {
+export function withTransition({ dir, key, node = null, id = null } = {}, commit) {
   if (!DIRS.has(dir) || !supported() || reducedMotion()) { commit(); return false; }
   const device = document.getElementById('device');
   if (!device) { commit(); return false; }
 
   setRadius();
-  const before = stamp(device, key, true, node);
+  const rows = dir === 'restate';
+  const before = stamp(device, key, true, node, id, rows);
   const root = document.documentElement;
   root.setAttribute('data-vt-dir', dir);
 
@@ -268,7 +358,7 @@ export function withTransition({ dir, key, node = null } = {}, commit) {
   try {
     t = document.startViewTransition(() => {
       commit();
-      after = stamp(device, key, before.paired, null);
+      after = stamp(device, key, before.paired, null, id, rows);
     });
   } catch {
     // The API exists but refused (a nested call, a detached document). The names are already on

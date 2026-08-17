@@ -47,16 +47,19 @@ const { withTransition, canTransition, afterTransition, transitioning } = await 
 /* ---- the smallest document this module can run against ---------------------------------- */
 
 function el(extra = {}) {
+  const attrs = extra.attrs || {};
   return {
     style: {}, isConnected: true,
+    getAttribute: (k) => (k in attrs ? attrs[k] : null),
     getBoundingClientRect: () => ({ top: 0, left: 0, right: 402, bottom: 872, width: 402, height: 872 }),
     ...extra,
   };
 }
 
-/** Build a fake document. `marks` is how many `[data-vt="<key>"]` elements each side has. */
-function fakeDoc({ supports = true, reduce = false, marks = [1, 1], throws = false } = {}) {
-  const made = { screen: el(), status: el(), tabs: el(), shared: [] };
+/** Build a fake document. `marks` is how many `[data-vt="<key>"]` elements each side has;
+ *  `idMarks` how many also carry the matching `data-vt-id`. */
+function fakeDoc({ supports = true, reduce = false, marks = [1, 1], idMarks = [0, 0], rowIds = [], throws = false } = {}) {
+  const made = { screen: el(), status: el(), tabs: el(), shared: [], rows: [] };
   let side = 0;
   const scope = {
     querySelector(sel) {
@@ -66,8 +69,16 @@ function fakeDoc({ supports = true, reduce = false, marks = [1, 1], throws = fal
       return null;
     },
     querySelectorAll(sel) {
+      if (sel === '[data-vt-row]') {
+        const out = rowIds.map((id) => el({ attrs: { 'data-vt-row': id } }));
+        made.rows.push(...out);
+        return out;
+      }
       if (!sel.startsWith('[data-vt=')) return [];
-      const n = marks[Math.min(side, marks.length - 1)] || 0;
+      // The id-qualified selector and the plain one have to answer DIFFERENTLY, or the fallback
+      // ordering in onlyMatch() is untestable.
+      const table = sel.includes('data-vt-id=') ? idMarks : marks;
+      const n = table[Math.min(side, table.length - 1)] || 0;
       const hits = Array.from({ length: n }, () => el());
       made.shared.push(...hits);
       return hits;
@@ -238,6 +249,38 @@ test('a key that could break out of the attribute selector is refused, not escap
   await new Promise((r) => setTimeout(r, 0));
 });
 
+/* ---- back-pop: the anchor off the stack ---------------------------------------------------- */
+
+test('an instance id resolves ONE element out of a rail of peers on the way back', async () => {
+  /* The pop, exactly as it happens: the detail screen being left has one marked hero and NO id, and
+     the Home being returned to has three marked cards WITH ids. One resolver has to get both right,
+     with no tap to read on either side. */
+  const f = install({ marks: [1, 3], idMarks: [0, 1] });
+  withTransition({ dir: 'pop', key: 'plate', id: 'meal-detail_lunch' }, () => {});
+  f.settle();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(globalThis.__mo.at(-1), 'resume:true',
+    'both sides paired: the id picked the card out of the rail, the plain key resolved the hero');
+});
+
+test('without an id, a pop into a rail of peers correctly declines', async () => {
+  // The state this feature exists to fix. Three candidates, nothing to choose by.
+  const f = install({ marks: [1, 3], idMarks: [0, 0] });
+  withTransition({ dir: 'pop', key: 'plate' }, () => {});
+  f.settle();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(globalThis.__mo.at(-1), 'resume:false');
+});
+
+test('an id that matches several is ignored in favour of the plain key', async () => {
+  // A duplicated id is a caller bug. Falling back beats picking one arbitrarily.
+  const f = install({ marks: [1, 1], idMarks: [0, 2] });
+  withTransition({ dir: 'pop', key: 'plate', id: 'dup' }, () => {});
+  f.settle();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(globalThis.__mo.at(-1), 'resume:true', 'the plain key still resolved its exactly-one');
+});
+
 /* ---- the sheet and the chrome ------------------------------------------------------------ */
 
 test('the sheet is .screen, with the status bar and tab bar promoted out of it', async () => {
@@ -252,6 +295,71 @@ test('the sheet is .screen, with the status bar and tab bar promoted out of it',
   assert.equal(f.made.screen.style.viewTransitionName, '', 'names come off, or they cost every later frame');
   assert.equal(f.made.status.style.viewTransitionName, '');
   assert.equal(f.made.tabs.style.viewTransitionName, '');
+});
+
+/* ---- restate: the frame stands still, the rows rearrange ----------------------------------- */
+
+test('a restate names every row and NO sheet', async () => {
+  /* Naming .screen here would make the whole screen one travelling image, which is the opposite of
+     the point: the frame has to stand still while its contents rearrange inside it. */
+  const f = install({ rowIds: ['ath-a', 'ath-b', 'ath-c'] });
+  const ran = withTransition({ dir: 'restate' }, () => {});
+  assert.equal(ran, true);
+  assert.equal(f.made.screen.style.viewTransitionName, undefined, 'the sheet must not travel on a restate');
+  assert.equal(f.made.tabs.style.viewTransitionName, undefined);
+  const named = f.made.rows.filter((r) => r.style.viewTransitionName);
+  assert.equal(named.length, 6, 'three rows, both sides');
+  assert.deepEqual([...new Set(named.map((r) => r.style.viewTransitionName))].sort(),
+    ['vtr-ath-a', 'vtr-ath-b', 'vtr-ath-c']);
+  assert.ok(named.every((r) => r.style.viewTransitionClass === 'vtrow'),
+    'each row needs the class too, or one rule cannot time a list of differently-named elements');
+  f.settle();
+  await new Promise((r) => setTimeout(r, 0));
+});
+
+test('restate is a real direction, so the router builds markup for it', () => {
+  install();
+  assert.equal(canTransition('restate'), true);
+});
+
+test('a duplicated row id is named once, not twice', async () => {
+  // A row list is built in a loop, and a loop that repeats a key is an ordinary mistake. Two
+  // elements sharing a name would abort the whole transition, so the second claimant goes unnamed.
+  const f = install({ rowIds: ['dup', 'dup', 'other'] });
+  withTransition({ dir: 'restate' }, () => {});
+  const perSide = f.made.rows.slice(0, 3).filter((r) => r.style.viewTransitionName);
+  assert.equal(perSide.length, 2, 'the repeat is skipped; the rest still glide');
+  f.settle();
+  await new Promise((r) => setTimeout(r, 0));
+});
+
+test('an id with characters no custom-ident allows is sanitised, not emitted raw', async () => {
+  const f = install({ rowIds: ['meal-detail/lunch #1'] });
+  withTransition({ dir: 'restate' }, () => {});
+  assert.equal(f.made.rows[0].style.viewTransitionName, 'vtr-meal-detail_lunch__1');
+  f.settle();
+  await new Promise((r) => setTimeout(r, 0));
+});
+
+test('past the row cap nothing is named, and the restate degrades to a cross-fade', async () => {
+  /* Each named element is four pseudo-elements and its own layer. A list long enough to cost frames
+     should lose the glide, not the frame rate. */
+  const many = Array.from({ length: 41 }, (_, i) => 'r' + i);
+  const f = install({ rowIds: many });
+  const ran = withTransition({ dir: 'restate' }, () => {});
+  assert.equal(ran, true, 'the transition still runs — only the row promotion is dropped');
+  assert.equal(f.made.rows.filter((r) => r.style.viewTransitionName).length, 0);
+  f.settle();
+  await new Promise((r) => setTimeout(r, 0));
+});
+
+test('a restate never claims the shared element, so it cannot drop a pending reveal', async () => {
+  const f = install({ rowIds: ['a'], marks: [1, 1] });
+  withTransition({ dir: 'restate', key: 'score' }, () => {});
+  f.settle();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(globalThis.__mo.at(-1), 'resume:false',
+    'nothing morphed, so a number still owes its reveal');
 });
 
 /* ---- deferred work ----------------------------------------------------------------------- */

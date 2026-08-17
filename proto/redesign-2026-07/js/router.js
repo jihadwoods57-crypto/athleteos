@@ -194,6 +194,8 @@ let VT_NODE = null;       // the tapped [data-vt] element itself. The OUTGOING s
                           // rather than searching, so one screen may hold several elements under
                           // one key — Home shows three meal photographs at once, all wanting
                           // `plate` on the far side. See stamp() in js/view-transition.js.
+let VT_ID = null;         // its `data-vt-id`, when it has one. Stored on the back stack so a pop can
+                          // morph back to the SAME element out of a rail of peers.
 let VT_KEY = null;        // `data-vt` key of the element the user tapped, so the same thing on the
                           // next screen can be carried across the navigation instead of destroyed
                           // and rebuilt somewhere else. Consumed once per render, exactly like
@@ -254,7 +256,11 @@ function navigateTo(target) {
     resetTab(NAV, targetRoot); navSave();
   } else if (curMod && !transient && !AUTH_ROUTES.includes(cur)) {
     NAV_DIR = 'push';
-    pushOrigin(NAV, currentFull(), currentScroll()); navSave();
+    /* The anchor rides the back stack so Back can morph to the SAME element. Only worth storing
+       when there is an instance id to disambiguate with: without one the pop's key search is
+       already as good as it gets. */
+    pushOrigin(NAV, currentFull(), currentScroll(), (VT_KEY && VT_ID) ? { k: VT_KEY, i: VT_ID } : null);
+    navSave();
   } else {
     NAV_DIR = 'push';   // flow interstitials still ARRIVE forward even though they don't stack
   }
@@ -405,10 +411,19 @@ function render() {
   /* The node the finger was on, when there was a finger. Consumed on the same terms as the key:
      a stale node would name an element from two navigations ago. */
   const vtNode = enter ? VT_NODE : null; VT_NODE = null;
+  /* On a pop the anchor comes off the stack entry we are returning to — there was no tap on the
+     thing that should travel, so the id is the only way to pick it out of a rail of peers. */
+  const popAnchor = (RESTORE && RESTORE.r === full && RESTORE.v) ? RESTORE.v : null;
+  const vtKey2 = vtKey || (popAnchor ? popAnchor.k : null);
+  const vtId = enter ? (VT_ID || (popAnchor ? popAnchor.i : null)) : null; VT_ID = null;
   /* A view transition is offered only for a navigation the router can NAME. A same-route repaint
      (Home repaints constantly) and a boot deep-link both arrive with no direction, and both must
      keep the synchronous path they have always had. */
-  const vtDir = enter ? dir : null;
+  /* A restate is a same-route repaint on purpose, so `enter` is empty for it and the usual
+     "only a real arrival transitions" test would refuse. It is the one repaint that has earned a
+     transition, so it is admitted explicitly. */
+  const restate = dir === 'restate';
+  const vtDir = (enter || restate) ? dir : null;
   /* Asked BEFORE the markup is built, because the answer changes it: under a transition the
      transition IS the entrance, and leaving `.enter` on would run the screen's own fade-and-rise
      underneath a slide already moving it — two choreographies for one arrival, at different
@@ -417,6 +432,9 @@ function render() {
   const morph = canTransition(vtDir);
   const enterCls = morph ? '' : enter;
   const dirClsUsed = morph ? '' : dirCls;
+  /* A restate must never carry `.settle` either: that fade belongs to a skeleton handing over to
+     real content, and a user-driven re-order is not that. Both would run at once otherwise. */
+  const settleCls = restate ? '' : settle;
 
   /* Everything below mutates the DOM, and under a transition all of it runs inside the update
      callback so the "after" snapshot is the finished screen — markup, wiring, scroll AND mount.
@@ -427,7 +445,7 @@ function render() {
     <div class="screen">
       ${statusbar()}
       <div class="viewport ${mod.bleed ? 'bleed' : ''}${mod.hideTabs ? ' notabs' : ''}${mod.fill ? ' fill' : ''}" id="viewport">
-        <div class="view${enterCls}${dirClsUsed}${settle}" id="view">${body}</div>
+        <div class="view${enterCls}${dirClsUsed}${settleCls}" id="view">${body}</div>
       </div>
       ${mod.hideTabs ? '' : tabbar(activeTab, navRole)}
     </div>`;
@@ -450,6 +468,7 @@ function render() {
       // nested inside a marked row still carries its row's key.
       const mark = el.closest('[data-vt]') || el.querySelector('[data-vt]');
       VT_KEY = mark ? mark.getAttribute('data-vt') : null;
+      VT_ID = mark ? mark.getAttribute('data-vt-id') : null;
       VT_NODE = mark;
       // Any path back to Welcome from inside the app is a sign-out (no-op if not signed in).
       if (target === 'welcome') { try { await act.signOut(); } catch { /* ignore */ } }
@@ -518,11 +537,30 @@ function render() {
   };
   // Runs `commit` immediately when there is no transition to run, and inside one when there is.
   // Either way it runs exactly once: a navigation is never the thing that gets dropped.
-  withTransition({ dir: vtDir, key: vtKey, node: vtNode }, commit);
+  withTransition({ dir: vtDir, key: vtKey2, node: vtNode, id: vtId }, commit);
 }
 // Re-render the current route in place — used by async (data-driven) screens to repaint once a
 // best-effort fetch resolves. Guarded so a screen's own mount doesn't loop (fetch once, then paint).
 window.__render = render;
+
+/* The SAME repaint, declared as something the user asked for.
+ *
+ * Two different events were sharing window.__render(). "Data arrived" is content resolving in place
+ * and must not move — that is what the entrance gate and the repaint deferral both exist to protect.
+ * "The user changed what they are looking at" is not that: a sort, a filter chip, a search, a group
+ * opening. In a re-ordered list the MOVEMENT IS THE INFORMATION, and snapping to the new order
+ * throws away the only thing that explains it. The router could not tell them apart, so every one of
+ * ~350 call sites got the no-motion treatment the first kind needs.
+ *
+ * Screens call this instead when a repaint is the direct result of a tap. Rows carrying
+ * `data-vt-row` then glide from their old positions to their new ones. Everything else about the
+ * repaint is unchanged, including the scroll preservation, so a screen can switch one handler at a
+ * time. Falls back to a plain render wherever transitions are unavailable. */
+window.__restate = function () {
+  NAV_INTENT = true;
+  NAV_DIR = 'restate';
+  render();
+};
 
 // Boot gate: restore a Keychain session and gate app screens behind auth. Auth screens are
 // always reachable; fresh (signed-out) users land on Welcome. Runs once on load.

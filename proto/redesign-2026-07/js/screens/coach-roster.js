@@ -93,8 +93,14 @@ function rosterRow(e) {
   const sub = REDUNDANT_STATUS.has(st.key)
     ? activity
     : `${esc(meta.label)} <span style="color:var(--text-3)">· ${activity}</span>`;
+  /* data-vt-row is what makes a re-sort READABLE. Without it the fourteen rows snap into a new
+     order and the coach has to re-read the whole list to find out what moved; with it each row
+     travels from its old position to its new one and the movement itself carries the answer. The
+     athlete id is the only stable identity a row has — an index would re-pair rows with whoever
+     happens to be standing in that slot afterwards, which animates the exact opposite of the
+     truth. See window.__restate() in js/router.js. */
   return `
-  <div class="roster-row" ${SELECTING
+  <div class="roster-row" data-vt-row="ath-${esc(r.athleteId)}" ${SELECTING
     ? `data-sel="${esc(r.athleteId)}" role="checkbox" aria-checked="${sel}" tabindex="0" aria-label="${esc(r.name)}"`
     : `data-go="coach-athlete/${esc(r.athleteId)}" role="button" tabindex="0" aria-label="${esc(r.name)}${r.score != null ? `, score ${r.score}` : ''}. ${esc(meta.label)}"`}>
     ${SELECTING
@@ -380,15 +386,16 @@ export const coachRoster = {
     const q = root.querySelector('#roster-q');
     if (q) q.addEventListener('input', () => { Q = q.value; patchList(root); });
     root.querySelectorAll('[data-sort]').forEach(b => b.addEventListener('click', () => {
-      SORT = { score: 'status', status: 'name', name: 'activity', activity: 'score' }[SORT]; window.__render();
+      // The sort is the flagship case: fourteen rows re-ordering is information, not a repaint.
+      SORT = { score: 'status', status: 'name', name: 'activity', activity: 'score' }[SORT]; window.__restate();
     }));
-    root.querySelectorAll('[data-selmode]').forEach(b => b.addEventListener('click', () => { SELECTING = !SELECTING; if (!SELECTING) SEL.clear(); BULK_STATUS = ''; BULK_NUDGE_ARM = null; window.__render(); }));
+    root.querySelectorAll('[data-selmode]').forEach(b => b.addEventListener('click', () => { SELECTING = !SELECTING; if (!SELECTING) SEL.clear(); BULK_STATUS = ''; BULK_NUDGE_ARM = null; window.__restate(); }));
     root.querySelectorAll('[data-sel]').forEach(b => b.addEventListener('click', () => toggleSel(root, b.getAttribute('data-sel'))));
     root.querySelectorAll('[data-filter]').forEach(b => b.addEventListener('click', () => {
       const [kind, value] = b.getAttribute('data-filter').split(':');
-      FILTER = kind === 'all' ? { kind: 'all', value: null } : { kind, value: value || null }; window.__render();
+      FILTER = kind === 'all' ? { kind: 'all', value: null } : { kind, value: value || null }; window.__restate();
     }));
-    root.querySelectorAll('[data-groups]').forEach(b => b.addEventListener('click', () => { SHOW_GROUPS = !SHOW_GROUPS; window.__render(); }));
+    root.querySelectorAll('[data-groups]').forEach(b => b.addEventListener('click', () => { SHOW_GROUPS = !SHOW_GROUPS; window.__restate(); }));
     const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
     root.querySelectorAll('[data-bulk]').forEach(b => b.addEventListener('click', async () => {
       if (BULK_BUSY) return;

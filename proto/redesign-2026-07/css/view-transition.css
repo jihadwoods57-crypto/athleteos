@@ -138,6 +138,29 @@
 @keyframes vtSharedOut { from { opacity: 1; } to { opacity: 0; } }
 @keyframes vtSharedIn  { from { opacity: 0; } to { opacity: 1; } }
 
+/* ===== A restate: the frame stands still, the rows rearrange inside it ===== */
+
+/* Every row carries a different view-transition-name (its own identity is the point), so no name
+   selector reaches them all — `view-transition-class` is how one rule times the whole list. The
+   glide itself needs no keyframes: the DEFAULT group animation is already a position-and-size tween,
+   which is precisely a row travelling from where it was to where it is. All this rule does is put
+   that tween on the app's own clock instead of the UA's 250ms, and use the app's curve.
+
+   Nothing here fires unless js/view-transition.js stamped the class, and it only does that for a
+   window.__restate() — a repaint the USER asked for. Data arriving still moves nothing.
+
+   z-index keeps a travelling row above the rows it passes; without it a row moving from position 12
+   to position 2 slides UNDER the nine it overtakes, which reads as the list swallowing it. */
+::view-transition-group(.vtrow) {
+  animation-duration: var(--dur-2);
+  animation-timing-function: var(--ease-out);
+  z-index: 2;
+}
+/* A row is the same row on both sides — the cross-fade between two snapshots of it is what makes a
+   changed score or pill legible mid-travel, so the UA default is right and only the timing moves. */
+::view-transition-old(.vtrow),
+::view-transition-new(.vtrow) { animation-duration: var(--dur-1); }
+
 /* js/view-transition.js already declines to start a transition under reduced motion, so nothing
    below should ever match. It is here because that guard reads one media query at one moment, and
    this is the layer that would be left animating if the guard were ever refactored past it. The
@@ -148,5 +171,8 @@
   ::view-transition-new(vt-view),
   ::view-transition-group(vt-shared),
   ::view-transition-old(vt-shared),
-  ::view-transition-new(vt-shared) { animation: none !important; }
+  ::view-transition-new(vt-shared),
+  ::view-transition-group(.vtrow),
+  ::view-transition-old(.vtrow),
+  ::view-transition-new(.vtrow) { animation: none !important; }
 }

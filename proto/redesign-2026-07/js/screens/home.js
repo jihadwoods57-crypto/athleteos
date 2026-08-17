@@ -152,7 +152,13 @@ function resCard(a) {
   /* meal-detail is the same module as meal-thread (`export const detail = thread`) and is the
      route these cards actually use; meal-view is the past-day read. All three land on a
      `.photo-hero` carrying this key. */
-  const carries = /^meal-(view|thread|detail)\//.test(a.route || '') ? ' data-vt="plate"' : '';
+  /* `data-vt-id` is what lets BACK morph to this exact card. Coming in, the tapped node names
+     itself and no id is needed; going out there is no tap, and this rail is several peers under one
+     key, so the pop has to be told which. The route is already unique per card and costs nothing to
+     reuse; sanitised because it goes into an attribute selector. */
+  const carries = /^meal-(view|thread|detail)\//.test(a.route || '')
+    ? ` data-vt="plate" data-vt-id="${a.route.replace(/[^A-Za-z0-9:_.-]/g, '_')}"`
+    : '';
   const media = a.img && safeImg(a.img)
     ? `<div class="res-media"${carries} style="background-image:url('${safeImg(a.img)}')"></div>`
     : `<div class="res-media icon"${carries} style="background:linear-gradient(150deg, ${c1}, ${c2});color:${fg}">${icon(a.icon || 'droplet', 30)}${a.noPhoto ? '<span class="res-nophoto">No photo submitted</span>' : ''}</div>`;
