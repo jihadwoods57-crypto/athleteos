@@ -44,11 +44,17 @@
  *
  * THE PAIRING CONTRACT
  *
- * An element declares `data-vt="<key>"`. The router remembers the key of the tapped element (or of
- * the single `[data-vt]` inside it) and hands it here. If the incoming DOM contains exactly one
- * element with the same key, the two are paired and morph. If it does not, nothing breaks: the
- * sheet transition runs alone. That is the whole failure mode, and it is why a screen can adopt
- * `data-vt` without coordinating with anything.
+ * An element declares `data-vt="<key>"`. The router remembers the tapped element (or the single
+ * `[data-vt]` inside it) and hands both the node and its key here.
+ *
+ * The two sides resolve DIFFERENTLY, and that asymmetry is the point. Outgoing: the tapped node is
+ * named directly, never searched for, so a screen may hold many elements under one key — Home shows
+ * today's lunch beside yesterday's lunch and the day before's dinner, every one of them a meal
+ * photograph wanting the same `plate` key. Incoming: resolved by key and required to match exactly
+ * once, because there is no tap to read and two elements sharing a name aborts the whole transition.
+ *
+ * If the incoming side has no match, nothing breaks: the sheet transition runs alone. That is the
+ * whole failure mode, and it is why a screen can adopt `data-vt` without coordinating with anything.
  *
  * WHY REVEALS PAUSE
  *
@@ -172,7 +178,7 @@ function setRadius() {
  *  claim the name unless there is something for it to arrive from. (The reverse, an outgoing
  *  element with no counterpart, cannot be undone: its snapshot was taken before the update ran.
  *  That one is left to fade, which is at least honest about what is happening to it.) */
-function stamp(scope, key, allowShared = true) {
+function stamp(scope, key, allowShared = true, node = null) {
   const named = [];
   const view = scope.querySelector('.screen');
   if (view && view.style) { view.style.viewTransitionName = VIEW_NAME; named.push(view); }
@@ -181,17 +187,31 @@ function stamp(scope, key, allowShared = true) {
     if (el && el.style) { el.style.viewTransitionName = name; named.push(el); }
   }
   let paired = false;
-  if (allowShared && key && SAFE_KEY.test(key)) {
-    const hits = scope.querySelectorAll(`[data-vt="${key}"]`);
-    // Exactly one, or none. Two sharing a name would take the entire transition down with them,
-    // which is a far worse outcome than simply not morphing.
-    if (hits.length === 1 && hits[0].style) {
-      hits[0].style.viewTransitionName = SHARED_NAME;
-      named.push(hits[0]);
+  if (allowShared) {
+    /* The OUTGOING side knows exactly which element the finger was on, so it names THAT and never
+       searches. This is what lets a screen hold several elements under one key: Home shows today's
+       lunch beside yesterday's lunch and the day before's dinner, all of them a meal photograph,
+       all of them wanting the same `plate` key on the far side. Searching by key there would find
+       three, refuse to pair (correctly — it cannot know which), and quietly drop the morph on the
+       most obvious surface in the app. Naming the tapped node makes the ambiguity disappear,
+       because there was never any: the user resolved it by tapping.
+       The INCOMING side still searches and still demands exactly one, because there is no tap to
+       read there and two elements sharing a name aborts the whole transition. */
+    const hit = (node && node.isConnected) ? node
+      : (key && SAFE_KEY.test(key) ? onlyMatch(scope, key) : null);
+    if (hit && hit.style) {
+      hit.style.viewTransitionName = SHARED_NAME;
+      named.push(hit);
       paired = true;
     }
   }
   return { named, paired };
+}
+
+/** The single `[data-vt="key"]` in `scope`, or null when there are none or more than one. */
+function onlyMatch(scope, key) {
+  const hits = scope.querySelectorAll(`[data-vt="${key}"]`);
+  return hits.length === 1 ? hits[0] : null;
 }
 
 function unstamp(named) {
@@ -223,16 +243,19 @@ export function canTransition(dir) {
  * @param {object}   opts
  * @param {string?}  opts.dir  'push' | 'pop' | 'tab' | 'lat-next' | 'lat-prev', or null to skip
  * @param {string?}  opts.key  `data-vt` key of the element to carry across, if any
+ * @param {Element?} opts.node the element the user actually TAPPED, when there was a tap. Used
+ *                             for the outgoing side only; the incoming side always resolves by
+ *                             key. Lets one screen hold several elements under one key.
  * @param {Function} commit    the synchronous DOM update (innerHTML + wiring + scroll + mount)
  * @returns {boolean} whether the update ran inside a transition (i.e. asynchronously)
  */
-export function withTransition({ dir, key } = {}, commit) {
+export function withTransition({ dir, key, node = null } = {}, commit) {
   if (!DIRS.has(dir) || !supported() || reducedMotion()) { commit(); return false; }
   const device = document.getElementById('device');
   if (!device) { commit(); return false; }
 
   setRadius();
-  const before = stamp(device, key);
+  const before = stamp(device, key, true, node);
   const root = document.documentElement;
   root.setAttribute('data-vt-dir', dir);
 
@@ -245,7 +268,7 @@ export function withTransition({ dir, key } = {}, commit) {
   try {
     t = document.startViewTransition(() => {
       commit();
-      after = stamp(device, key, before.paired);
+      after = stamp(device, key, before.paired, null);
     });
   } catch {
     // The API exists but refused (a nested call, a detached document). The names are already on

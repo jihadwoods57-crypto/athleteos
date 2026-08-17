@@ -190,6 +190,10 @@ let NAV_DIR = null;       // 'push' | 'pop' | 'tab' | 'lat-next' | 'lat-prev' �
                           // here, so the entrance can match the gesture (detail slides in from the
                           // right, back from the left, a sibling tab slides the way you reached
                           // for, tab roots keep the fade-up). Consumed once per render.
+let VT_NODE = null;       // the tapped [data-vt] element itself. The OUTGOING side names this
+                          // rather than searching, so one screen may hold several elements under
+                          // one key — Home shows three meal photographs at once, all wanting
+                          // `plate` on the far side. See stamp() in js/view-transition.js.
 let VT_KEY = null;        // `data-vt` key of the element the user tapped, so the same thing on the
                           // next screen can be carried across the navigation instead of destroyed
                           // and rebuilt somewhere else. Consumed once per render, exactly like
@@ -398,6 +402,9 @@ function render() {
   /* The shared-element key, consumed on the same terms as `dir`: only a real navigation may carry
      one, so a repaint can never inherit the last tap's morph target. */
   const vtKey = enter ? VT_KEY : null; VT_KEY = null;
+  /* The node the finger was on, when there was a finger. Consumed on the same terms as the key:
+     a stale node would name an element from two navigations ago. */
+  const vtNode = enter ? VT_NODE : null; VT_NODE = null;
   /* A view transition is offered only for a navigation the router can NAME. A same-route repaint
      (Home repaints constantly) and a boot deep-link both arrive with no direction, and both must
      keep the synchronous path they have always had. */
@@ -443,6 +450,7 @@ function render() {
       // nested inside a marked row still carries its row's key.
       const mark = el.closest('[data-vt]') || el.querySelector('[data-vt]');
       VT_KEY = mark ? mark.getAttribute('data-vt') : null;
+      VT_NODE = mark;
       // Any path back to Welcome from inside the app is a sign-out (no-op if not signed in).
       if (target === 'welcome') { try { await act.signOut(); } catch { /* ignore */ } }
       navigateTo(target);
@@ -510,7 +518,7 @@ function render() {
   };
   // Runs `commit` immediately when there is no transition to run, and inside one when there is.
   // Either way it runs exactly once: a navigation is never the thing that gets dropped.
-  withTransition({ dir: vtDir, key: vtKey }, commit);
+  withTransition({ dir: vtDir, key: vtKey, node: vtNode }, commit);
 }
 // Re-render the current route in place — used by async (data-driven) screens to repaint once a
 // best-effort fetch resolves. Guarded so a screen's own mount doesn't loop (fetch once, then paint).

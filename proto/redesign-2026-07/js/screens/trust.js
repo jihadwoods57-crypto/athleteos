@@ -454,7 +454,7 @@ export const mealView = {
     const when = isNaN(d) ? '' : `${MON[d.getMonth()]} ${d.getDate()}`;
     return `
     ${backHead(name, `${when}${fmtLoggedAt(m.logged_at) ? ` · ${fmtLoggedAt(m.logged_at)}` : ''} · ${late ? `${m.minutes_late} min late` : 'On time'}`, 'history')}
-    <div class="photo-hero" id="mv-hero" style="${img && safeImg(img) ? `background-image:url('${safeImg(img)}')` : 'background:linear-gradient(150deg, rgba(var(--green-rgb),0.14), rgba(var(--blue-deep-rgb),0.06))'}">
+    <div class="photo-hero" id="mv-hero" data-vt="plate" style="${img && safeImg(img) ? `background-image:url('${safeImg(img)}')` : 'background:linear-gradient(150deg, rgba(var(--green-rgb),0.14), rgba(var(--blue-deep-rgb),0.06))'}">
       <div class="ph-grad"></div>
       <div class="ph-meta">
         <div>${m.photo_path ? '' : `<span class="status-pill muted">No photo submitted</span>`}</div>

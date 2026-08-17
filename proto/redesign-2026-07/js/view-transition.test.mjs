@@ -47,7 +47,11 @@ const { withTransition, canTransition, afterTransition, transitioning } = await 
 /* ---- the smallest document this module can run against ---------------------------------- */
 
 function el(extra = {}) {
-  return { style: {}, getBoundingClientRect: () => ({ top: 0, left: 0, right: 402, bottom: 872, width: 402, height: 872 }), ...extra };
+  return {
+    style: {}, isConnected: true,
+    getBoundingClientRect: () => ({ top: 0, left: 0, right: 402, bottom: 872, width: 402, height: 872 }),
+    ...extra,
+  };
 }
 
 /** Build a fake document. `marks` is how many `[data-vt="<key>"]` elements each side has. */
@@ -173,6 +177,46 @@ test('two elements sharing a key are NOT stamped, on either side, and the reveal
   f.settle();
   await new Promise((r) => setTimeout(r, 0));
   assert.equal(globalThis.__mo.at(-1), 'resume:false');
+});
+
+/* ---- the tapped node beats the key search on the outgoing side ---------------------------- */
+
+test('the TAPPED node is named even when its key matches several on the same screen', async () => {
+  /* This is the case the whole asymmetry exists for. Home shows today's lunch beside yesterday's
+     lunch and the day before's dinner: three meal photographs, all wanting `plate` on the far side.
+     Searching by key here finds three and refuses (correctly — it cannot know which), which drops
+     the morph on the most obvious surface in the app. The tap already resolved the ambiguity. */
+  const f = install({ marks: [3, 1] });
+  const tapped = el();
+  withTransition({ dir: 'push', key: 'plate', node: tapped }, () => {});
+  assert.equal(tapped.style.viewTransitionName, 'vt-shared', 'the tapped element is the one that travels');
+  /* Only the INCOMING side searched: it found its 1. Had the outgoing side searched too it would
+     have produced 3 more, so 1 is the proof that being handed a node skips the search entirely. */
+  assert.equal(f.made.shared.length, 1, 'the outgoing side must not search when it was handed a node');
+  f.settle();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(globalThis.__mo.at(-1), 'resume:true');
+});
+
+test('the incoming side still refuses duplicates, node or not', async () => {
+  const f = install({ marks: [1, 2] });
+  const tapped = el();
+  withTransition({ dir: 'push', key: 'plate', node: tapped }, () => {});
+  f.settle();
+  await new Promise((r) => setTimeout(r, 0));
+  // Two on the ARRIVING screen would abort the whole transition, and there is no tap to disambiguate.
+  assert.equal(globalThis.__mo.at(-1), 'resume:false', 'no morph happened, so the reveal is still owed');
+});
+
+test('a node that is no longer in the document falls back to the key search', async () => {
+  const f = install({ marks: [1, 1] });
+  const stale = el({ isConnected: false });
+  withTransition({ dir: 'push', key: 'score', node: stale }, () => {});
+  assert.equal(stale.style.viewTransitionName, undefined, 'a detached node cannot be captured');
+  assert.ok(f.made.shared.length > 0 && f.made.shared[0].style.viewTransitionName === 'vt-shared',
+    'the key search should have taken over');
+  f.settle();
+  await new Promise((r) => setTimeout(r, 0));
 });
 
 test('a key with no counterpart on the incoming screen still transitions, without a morph', async () => {

@@ -142,9 +142,20 @@ const RES_K = { 'Morning Weight': 'This morning', 'Recovery Check-In': 'Status' 
    is the core of how the product grades. */
 function resCard(a) {
   const [c1, c2, fg] = ACT_MEDIA[a.icon] || ACT_MEDIA.droplet;
+  /* `plate` carries the meal photograph across the tap, into the photo hero on the meal thread or
+     the past-meal view. Only for a card that OPENS one of those: a weight or check-in result has no
+     counterpart on the far side, and a lone name animates by itself above the sheet rather than
+     morphing, which is worse than the plain push those cards now get anyway.
+     Marked on the media whether or not there is a picture in it. The far side is the same slot in
+     the same state — an unphotographed meal opens on a hero that also has no picture — so the frame
+     still travels, and it stays honest about being empty instead of inventing something to fly. */
+  /* meal-detail is the same module as meal-thread (`export const detail = thread`) and is the
+     route these cards actually use; meal-view is the past-day read. All three land on a
+     `.photo-hero` carrying this key. */
+  const carries = /^meal-(view|thread|detail)\//.test(a.route || '') ? ' data-vt="plate"' : '';
   const media = a.img && safeImg(a.img)
-    ? `<div class="res-media" style="background-image:url('${safeImg(a.img)}')"></div>`
-    : `<div class="res-media icon" style="background:linear-gradient(150deg, ${c1}, ${c2});color:${fg}">${icon(a.icon || 'droplet', 30)}${a.noPhoto ? '<span class="res-nophoto">No photo submitted</span>' : ''}</div>`;
+    ? `<div class="res-media"${carries} style="background-image:url('${safeImg(a.img)}')"></div>`
+    : `<div class="res-media icon"${carries} style="background:linear-gradient(150deg, ${c1}, ${c2});color:${fg}">${icon(a.icon || 'droplet', 30)}${a.noPhoto ? '<span class="res-nophoto">No photo submitted</span>' : ''}</div>`;
   const metrics = a.qualityLabel
     ? `<div class="res-m"><span class="k">Meal Quality</span><span class="v ${a.vClass}">${a.value}<small>${a.unit}</small></span></div>
       ${/* "Score credit", not "Daily Score". Two 0–100-ish numbers were sharing this card with
