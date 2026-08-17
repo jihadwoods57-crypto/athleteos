@@ -1408,8 +1408,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    The confirm check pops once on the log that just happened; popIn already exists. ---- */
 .mt-confirm .ck.pop{animation:popIn 600ms var(--ease-out) both}
 @media (prefers-reduced-motion: reduce){ .mt-confirm .ck.pop{animation:none} }
-/* Next Action, elevated: the one row on the meal screen that asks for the next move. */
-.xrow-item.next-hot{border:1px solid var(--blue-border);background:linear-gradient(120deg, rgba(var(--blue-rgb),0.10), var(--surface-1) 70%);box-shadow:var(--sh-card)}
+/* .xrow-item.next-hot removed 2026-08-17 with the Next Action row it dressed — the meal screen
+   no longer hands the athlete a different task before they have seen their plate. Home's row is
+   a plain .xrow-item and never used this rule. */
 /* Expanders settle instead of snapping (grid-rows trick; reduced-motion snaps). */
 .bd-wrap .bd-body, .rub .rub-body{overflow:hidden}
 .bd-wrap[open] .bd-body, .rub[open] .rub-body{animation:bd-open 260ms var(--ease-out)}
@@ -1469,9 +1470,6 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    the two things that always carried it anyway: one step up in size, and the accent colour. */
 .nut-values .nv.lead .mv{font-size:24px;color:var(--blue-bright)}
 .nut-values .nv.lead .mv i{color:var(--text-3)}
-/* First-class correction entry inside the read card (2026-08-11): the affordance sits on the
-   numbers it corrects, instead of a 12px link buried in the detected-foods expander. */
-.meal-read .nut-actions{display:flex;gap:8px;padding:12px 16px 14px;border-top:1px solid var(--hairline-soft)}
 .nut-panel .day-bars{margin-top:0;border-top:1px solid var(--hairline-soft);padding:13px 16px 14px}
 /* Day-target bars (also render standalone if the panel is ever absent) */
 .day-bars{margin-top:12px;display:flex;flex-direction:column;gap:10px;padding:0 2px}

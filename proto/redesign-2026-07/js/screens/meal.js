@@ -944,15 +944,10 @@ export const thread = {
         }).join('')}
         ${paceNote ? `<div class="pace">${esc(paceNote)}</div>` : ''}
     </div>` : ''}
-    ${/* First-class correction entry (founder 2026-08-11: the flow has to be easier and more
-          seamless). Fixing a number used to take three moves: open "View detected foods", find a
-          12px link inside a footnote, tap it. The affordance now sits ON the numbers it corrects,
-          in the read card itself; both buttons drive the exact same openFix panel as before. */''}
-    ${M.mealId && fromPhoto ? `
-    <div class="nut-actions">
-      <button class="fx-chip" id="fix-cta">${icon('edit', 13)} Correct this read</button>
-      <button class="fx-chip" id="fix-cta-detail">${icon('plus', 13)} Add a detail</button>
-    </div>` : ''}`}` : '';
+    ${/* No correction chips on the read card (founder, 2026-08-17). "Correct this read" and
+          "Add a detail" sat directly under the numbers and made every settled meal look like it
+          was asking to be argued with. The correction panel is unchanged and still one tap away
+          from where the foods actually are — the two links inside "View detected foods". */''}`}` : '';
     const photoBlock = `
     <!-- The plate, blurred, as the screen's own backdrop. The meal thread is the one screen with a
          real photograph on it, and it sat on the same flat canvas as everything else; letting the
@@ -1147,17 +1142,22 @@ export const thread = {
     <div class="composer-attach-pending" id="meal-attach-pending" hidden></div>
     <div id="chat-note" style="min-height:18px"></div>` : ''}`;
 
-    // ---- 4. NEXT ACTION (the exec engine's NOW) — context-aware (upgrade 2026-07-16):
-    // an overdue item says exactly what can still be earned; when everything actionable is
-    // done but locked items remain, the row names what opens next instead of vanishing.
-    const n = e.now;
-    const nextLocked = !n && !e.celebration ? (e.later || []).find(i => i.state === 'locked' && i.required) : null;
-    // The day-complete moment (founder 2026-08-11: "we can do better than the 'that's
-    // everything, you're OnStandard' tag"). The green checkbox card read as one more status
-    // row; a complete day is the product's whole point, so it gets the product's own mark:
-    // the brand dial carrying the score (score surfaces wear the blue→teal sweep, per the
-    // design law), the tier it earned, and the one fact nothing else on this screen states —
-    // when the day locks. Tappable into the breakdown, same as Home's celebration hero.
+    // ---- 4. DAY COMPLETE ----
+    // The Next Action row is GONE from this screen (founder, 2026-08-17). It rendered between
+    // "you logged dinner" and the dinner itself, so an athlete who opened a meal was handed a
+    // DIFFERENT task — frequently wearing the warning colour and a LATE pill — before they saw a
+    // single thing they had eaten. Nothing is lost by cutting it: Home builds the identical row
+    // from the same exec engine (S.exec.now), which is where "what do I do next" belongs. This
+    // screen's job is the meal.
+    //
+    // The day-complete moment below is NOT that row and does not go with it. It fires only once
+    // the whole day is closed, so it is about this day FINISHING rather than a next task
+    // (founder 2026-08-11: "we can do better than the 'that's everything, you're OnStandard'
+    // tag"). The green checkbox card read as one more status row; a complete day is the
+    // product's whole point, so it gets the product's own mark: the brand dial carrying the
+    // score (score surfaces wear the blue→teal sweep, per the design law), the tier it earned,
+    // and the one fact nothing else on this screen states — when the day locks. Tappable into
+    // the breakdown, same as Home's celebration hero.
     const dayTier = e.celebration ? tier(e.score) : null;
     const next = e.celebration ? `
     <section class="day-sealed" data-go="score-breakdown" role="button" tabindex="0"
@@ -1168,22 +1168,7 @@ export const thread = {
         <div class="ds-s">${S.streakDays > 0 ? `Day ${S.streakDays} locks at midnight` : 'Locks at midnight · that starts your streak'}</div>
       </div>
       <span class="tier-chip ${dayTier.cls}" style="margin-top:0">${esc(dayTier.name)}</span>
-    </section>` : n ? `
-    <div class="eyebrow" style="margin-top:16px">Next Action</div>
-    <div class="xrow-item next-hot" data-go="${n.route}">
-      <div class="xico sm ${n.color}">${icon(n.icon, 17)}</div>
-      <div class="xr"><div class="xa">${esc(n.title)}</div>
-      <div class="xb">${n.state === 'overdue' ? 'Log now for partial credit. Late still counts'
-        : `${n.countdown ? `⏱ ${esc(n.countdown)} · ` : ''}${esc(n.dueLabel)}`} · ${e.score} → ${e.possible}</div></div>
-      <span class="xpill ${n.color}">${n.pill}</span>
-    </div>` : nextLocked ? `
-    <div class="eyebrow" style="margin-top:16px">Next Action</div>
-    <div class="xrow-item" data-go="${nextLocked.route}">
-      <div class="xico sm gray">${icon(nextLocked.icon, 17)}</div>
-      <div class="xr"><div class="xa">Next up: ${esc(nextLocked.title)}</div>
-      <div class="xb">${esc(nextLocked.sub)} · nothing else is open right now</div></div>
-      <span class="xpill gray">Upcoming</span>
-    </div>` : '';
+    </section>` : '';
 
     // Wrapped so the blurred photo backdrop inside photoBlock has a containing block and a stacking
     // context of its OWN. The obvious shortcut — positioning #view — is shared by every screen and
@@ -1194,9 +1179,9 @@ export const thread = {
     // Three facts, each said twice. This file's own rule is each fact exactly once, so the verdict
     // now lives only in the card (which carries the real clock time with it). The header keeps the
     // meal's name, and keeps the duplicate-photo flag — a different fact nothing else states.
-    // Next Action moved directly under the confirm strip (founder 2026-08-04): after logging,
-    // the very next required thing is visible without scrolling — the clearest possible
-    // "what now". The rest of the screen stays photo → score → conversation → details.
+    // `next` is the day-complete seal ONLY, and is empty on every ordinary logged meal (founder
+    // 2026-08-17 — see the block above for why the Next Action row that used to share this slot
+    // is gone). The screen is confirm → photo → score → conversation → details.
     return `<div class="meal-screen">${backHead(M.name, dupFlagged ? 'Duplicate photo' : '', 'home')}${execTop}${next}${photoBlock}${breakdown}${discussion}
     <div style="height:18px"></div>
     ${/* A quiet exit, not a second green CTA (2026-08-06): the meal is already logged — the only
@@ -1282,7 +1267,7 @@ export const thread = {
       if (focusOther) { const o = root.querySelector('#fx-other'); if (o) o.focus(); }
     };
     if (fixPanel && thread._fixOpen) fixPanel.hidden = false;
-    const openBtns = [['#open-correct', false], ['#qa-details', true], ['#fix-cta', false], ['#fix-cta-detail', true]];
+    const openBtns = [['#open-correct', false], ['#qa-details', true]];
     openBtns.forEach(([sel, focusOther]) => {
       const b = root.querySelector(sel);
       if (b) b.addEventListener('click', () => openFix(focusOther));
