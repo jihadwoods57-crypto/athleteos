@@ -480,6 +480,15 @@ async function paintNutritionBoard(root) {
   const fallbackNoun = CD.kind === 'practice' ? 'Client' : 'Athlete';
   const nameOf = {};
   for (const r of rows) nameOf[r.athleteId] = r.name || fallbackNoun;
+  // First names alone collide on real rosters (two Mayas are indistinguishable in a queue).
+  // A colliding first name carries its last initial; unique ones stay short. One map, used by
+  // the queue and the fueling table alike so the two sections never name one athlete two ways.
+  const firstCount = {};
+  for (const r of rows) { const f = ((r.name || fallbackNoun).split(' ')[0]); firstCount[f] = (firstCount[f] || 0) + 1; }
+  const shortName = (id) => {
+    const parts = (nameOf[id] || fallbackNoun).split(' ');
+    return firstCount[parts[0]] > 1 && parts[1] ? `${parts[0]} ${parts[1][0]}.` : parts[0];
+  };
   const seen = new Set(RT.coachSeenMealIds || []);
   const isFlagged = (id) => !!(NUT.flags[id] && NUT.flags[id].kind === 'flag');
 
@@ -521,7 +530,7 @@ async function paintNutritionBoard(root) {
     return `
     <div class="lrow" data-go="coach-meal/${esc(m.id)}" style="cursor:pointer">
       <div class="nbq-ph${ph ? '' : ' empty'}">${ph ? `<img src="${esc(ph)}" alt="" loading="lazy"/>` : icon('bowl', 16)}${isNew && !flagged ? '<span class="nbq-dot" aria-hidden="true"></span>' : ''}</div>
-      <div class="lm"><div class="lt">${esc((nameOf[m.athlete_id] || 'Client').split(' ')[0])} · ${esc(cap(m.type || 'Meal'))}${flagged ? ` <span class="nbq-flame">${icon('flame', 11)}</span>` : ''}</div>
+      <div class="lm"><div class="lt">${esc(shortName(m.athlete_id))} · ${esc(cap(m.type || 'Meal'))}${flagged ? ` <span class="nbq-flame">${icon('flame', 11)}</span>` : ''}</div>
       <div class="ls">${esc(bits.join(' · '))}</div></div>
       ${icon('chevron', 14, 'style="color:var(--text-3)"')}
     </div>`;
@@ -559,7 +568,7 @@ async function paintNutritionBoard(root) {
     .sort((a, b) => a.risk - b.risk || a.avg - b.avg).slice(0, 8);
   const hasTargets = perClient.some((c) => c.target);
   const fRows = perClient.map((c) => {
-    const first = (nameOf[c.id] || 'Client').split(' ')[0];
+    const first = shortName(c.id);
     const low = c.loggedDays <= 3;                 // half the week or more unseen
     const under = c.pct != null && c.pct < 0.75;   // genuinely off pace: the warning hue is earned
     // With a target the bars share ITS scale, so a short bar means "under target", not "under
@@ -586,7 +595,7 @@ async function paintNutritionBoard(root) {
     <div class="eyebrow co-major" style="display:flex;justify-content:space-between;align-items:baseline"><span>Meal review</span>${flaggedCount ? `<span style="color:var(--amber-bright)">${capN(flaggedCount)} flagged</span>` : unopened ? `<span style="color:var(--blue-bright)">${capN(unopened)} to review</span>` : ''}</div>
     ${queue.length ? `<section class="card" style="padding:6px 16px">${qRows}</section>
     <div class="nb-foot"><span class="link" data-go="${CD.kind === 'practice' ? 'trainer-inbox' : 'coach-inbox'}" role="button">The full queue lives in your Inbox</span></div>`
-    : NUT.err ? `<div class="nb-foot">Couldn't reach the server for the queue. It reloads the next time this screen opens.</div>`
+    : NUT.err ? `<div class="nb-foot">Couldn't reach the server for the queue. <span class="link" id="nut-retry" role="button" tabindex="0">Try again</span></div>`
     : `<div class="nb-foot">No ${fallbackNoun.toLowerCase()} meals in the last 7 days. Every logged meal lands here for review.</div>`}
     ${perClient.length ? `
     <div class="eyebrow">${fallbackNoun} fueling · last 7 days</div>
@@ -594,6 +603,14 @@ async function paintNutritionBoard(root) {
     <div class="nb-foot">${hasTargets
       ? 'Riskiest first: fewest logged days, furthest under their protein target. Averages count logged days only.'
       : 'Riskiest first: fewest logged days, lightest plates. Averages count logged days only; set protein targets to rank against them.'}</div>` : ''}`;
+  // A dead-end error line violates the house errorState contract (honest failure PLUS retry):
+  // force the cache stale and repaint, right here, instead of "reopen the screen".
+  const nutRetry = slot.querySelector('#nut-retry');
+  if (nutRetry) nutRetry.addEventListener('click', () => {
+    nutRetry.textContent = 'Trying…';
+    NUT.at = 0;
+    paintNutritionBoard(root);
+  });
 }
 
 /* Ranked priority — calm hierarchy, one primary action by tier, the rest subordinate. */

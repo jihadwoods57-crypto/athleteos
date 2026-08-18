@@ -1517,6 +1517,11 @@ export const trainerProfile = {
     const offlineNoCode = offline && !ti.code; // fetch failed, nothing cached — no invite card to show
     // `subTitle`, not `sub`: the render param `sub` is the routed section (settings/account).
     const subTitle = offline ? (ti.code ? 'Offline · showing your saved details' : 'Offline · reconnecting') : 'Manage your practice';
+    // The HQ's identity hue follows the discipline (critique 2026-08-18): purple means
+    // RECOVERY in this app's semantic-hue law, and a nutrition practice's own front door was
+    // wearing it. Nutrition wears its own green (paired with green-deep, the gradient law);
+    // training practices keep purple unchanged.
+    const hue = ti.discipline === 'nutrition' ? 'green' : 'purple';
 
     const header = loading ? `
     <section class="card id-card">
@@ -1527,7 +1532,7 @@ export const trainerProfile = {
       </div>
     </section>` : `
     <section class="card id-card">
-      <div class="big-av" style="background:linear-gradient(150deg,var(--purple),var(--purple-deep))">${esc(ti.initials || 'T')}</div>
+      <div class="big-av" style="background:linear-gradient(150deg,var(--${hue}),var(--${hue}-deep))">${esc(ti.initials || 'T')}</div>
       <div class="id-txt">
         <div class="nm">${esc(ti.name)}</div>
         ${/* The discipline earns its line (0197): a dietitian's HQ says what they run. Any
@@ -1546,7 +1551,7 @@ export const trainerProfile = {
       <input id="pr-name-input" class="ob-input" maxlength="60" placeholder="Your practice's name" value="${esc(ti.practiceName === 'Your practice' ? '' : ti.practiceName)}"/>
       <div style="display:flex;gap:8px;margin-top:10px">
         <button class="btn ghost sm" id="pr-name-cancel" style="width:auto;padding:0 18px">Cancel</button>
-        <button class="btn sm" id="pr-name-save" style="width:auto;padding:0 22px;background:linear-gradient(150deg,var(--purple),var(--purple-deep));color:var(--ink-on-accent)">Save name</button>
+        <button class="btn sm" id="pr-name-save" style="width:auto;padding:0 22px;background:linear-gradient(150deg,var(--${hue}),var(--${hue}-deep));color:var(--ink-on-accent)">Save name</button>
       </div>
       <div id="pr-name-status" style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px"></div>
     </section>`;
@@ -1568,7 +1573,7 @@ export const trainerProfile = {
       invite = `
       <div class="eyebrow">Invite a client</div>
       <div class="sidebox">
-        <div class="req-icon p" style="width:38px;height:38px"><span class="hq-spin"></span></div>
+        <div class="req-icon ${hue === 'green' ? 'g' : 'p'}" style="width:38px;height:38px"><span class="hq-spin"></span></div>
         <div><div class="tt">Your client code is being created</div>
         <div class="ts">It mints the moment your practice is set up on the server, usually a few seconds. Nothing shows until it's real, so a client never gets a dead code.</div></div>
       </div>`;
@@ -1592,7 +1597,7 @@ export const trainerProfile = {
           <div style="flex:1;min-width:0">
             <div class="eyebrow" style="margin:0 0 8px">Client code</div>
             <div class="code-boxes fit" style="justify-content:flex-start;padding:0">
-              ${ti.code.split('').map((ch) => `<div class="cb filled" style="border-color:var(--purple-border);background:rgba(var(--purple-rgb),0.08)">${esc(ch)}</div>`).join('')}
+              ${ti.code.split('').map((ch) => `<div class="cb filled" style="border-color:var(--${hue}-border);background:rgba(var(--${hue}-rgb),0.08)">${esc(ch)}</div>`).join('')}
             </div>
             <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:10px;line-height:1.4">
               ${offline ? 'Showing your saved code. Reconnect to share a fresh invite.' : 'They scan the code or enter it to request to join your practice.'}
@@ -1605,7 +1610,7 @@ export const trainerProfile = {
         </div>
         <div class="btn-row mt">
           <button class="btn ghost sm" id="copy-code">${icon('clipboard', 16)} Copy code</button>
-          <button class="btn sm" id="share-invite" style="background:linear-gradient(150deg,var(--purple),var(--purple-deep));color:var(--ink-on-accent)"${offline ? ' disabled' : ''}>${icon('share', 16)} Share invite</button>
+          <button class="btn sm" id="share-invite" style="background:linear-gradient(150deg,var(--${hue}),var(--${hue}-deep));color:var(--ink-on-accent)"${offline ? ' disabled' : ''}>${icon('share', 16)} Share invite</button>
         </div>
         ${/* Customize + regenerate (2026-08-11): the server RPCs (set_my_practice_code /
               regenerate_my_practice_code) have existed since 0026 with no UI — a trainer with a
@@ -1625,7 +1630,7 @@ export const trainerProfile = {
             autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" />
           <div style="display:flex;justify-content:center;gap:8px;margin-top:10px">
             <button class="btn ghost sm" id="pc-cancel" style="width:auto;padding:0 18px">Cancel</button>
-            <button class="btn sm" id="pc-save" style="width:auto;padding:0 22px;background:linear-gradient(150deg,var(--purple),var(--purple-deep));color:var(--ink-on-accent)">Save code</button>
+            <button class="btn sm" id="pc-save" style="width:auto;padding:0 22px;background:linear-gradient(150deg,var(--${hue}),var(--${hue}-deep));color:var(--ink-on-accent)">Save code</button>
           </div>
         </div>
         <div id="pc-status" style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px;text-align:center"></div>`}
