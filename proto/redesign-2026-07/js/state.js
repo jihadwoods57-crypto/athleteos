@@ -553,8 +553,17 @@ export function mealDetail(slot) {
   const deadline = slotDeadline(k); // coach-standard aware, falls back to the classic map
   const late = at != null && at > deadline;
   const foods = Array.isArray(meta.foods) && meta.foods.length ? meta.foods : (logged ? ['Your logged meal'] : []);
+  /* The DISH name, and ONLY when it says more than the slot already does. Manual and label logs
+     store the slot name in this field, and rows logged before it was carried have nothing at all,
+     so "Dinner" and "" both resolve to null and every caller falls back to the slot exactly as it
+     did before. Deliberately a SEPARATE field from `name`: `name` is the slot and eight call sites
+     depend on that ("Dinner logged", "Log Dinner", the photo viewer label, the AI's prose) — none
+     of them want "Chicken, Rice & Broccoli logged". Same test the coach's meal review has used
+     since it started reading meals.name. */
+  const dishRaw = typeof meta.name === 'string' ? meta.name.trim() : '';
+  const dish = dishRaw && dishRaw.toLowerCase() !== cap(k).toLowerCase() ? dishRaw : null;
   return {
-    slot: k, logged, name: cap(k),
+    slot: k, logged, name: cap(k), dish,
     loggedAt: at != null ? fmtClock(at) : null, late,
     loggedAtMin: at != null ? at : null,
     deadlineMin: deadline, deadlineLabel: fmtClock(deadline),

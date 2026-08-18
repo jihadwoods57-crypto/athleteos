@@ -952,6 +952,14 @@ export function dayLogMeal(userId, key, macros, meta) {
   // Scoring reads only .protein.
   if (meta) {
     if (meta.quality != null) m.quality = meta.quality;
+    // The DISH name ("Chicken, Rice & Broccoli") the model returns and insertMeal already writes to
+    // meals.name for the coach. It was missing from this whitelist, so on the analyse-then-log path
+    // it reached the server row and NOT the athlete's own day — the coach could see what their
+    // athlete ate and the athlete could not. (The optimistic path got away with it by accident:
+    // applyAnalysisResult writes slotMacros directly and always carried `name`.) Same class of
+    // omission as `pending`/`pendingHash` above; a field that isn't listed here is a field that
+    // does not survive a reload.
+    if (meta.name) m.name = String(meta.name).slice(0, 80);
     if (Array.isArray(meta.foods)) m.foods = meta.foods.slice(0, 8);
     if (meta.note) m.note = meta.note;
     if (meta.userNote) m.userNote = String(meta.userNote).slice(0, 240); // athlete's review-step details (§5.5)

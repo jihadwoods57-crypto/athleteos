@@ -938,7 +938,13 @@ export const thread = {
           return `
           <div class="cons-row">
             <span class="k" style="width:64px">${k}</span>
-            <div class="track"><div class="fillb" style="width:${now}%;background:linear-gradient(90deg,var(--blue),var(--teal, #39c6d6))"></div>${ahead ? `<div class="ghostb" style="left:${now}%;width:${ahead}%"></div>` : ''}</div>
+            ${/* There is no --teal token — only --teal-rgb and --teal-deep — so this fill's old
+                  `var(--teal, #39c6d6)` ALWAYS fell through to a hardcoded hue, in both themes,
+                  which is the one thing tokens exist to prevent. It also wore the green→teal
+                  sweep, and that is reserved for surfaces that display a score; a macro-against-
+                  target bar is progress geometry, and progress geometry wears blue. Same
+                  deep→base ramp `.cat-trend .fillb.b` already uses. */''}
+            <div class="track"><div class="fillb" style="width:${now}%;background:linear-gradient(90deg,var(--blue-deep),var(--blue))"></div>${ahead ? `<div class="ghostb" style="left:${now}%;width:${ahead}%"></div>` : ''}</div>
             <span class="v" style="width:110px;white-space:nowrap">${tilde}${v}${u} <small style="color:var(--text-3)">of ${esc(String(target))}${u}</small></span>
           </div>`;
         }).join('')}
@@ -1182,7 +1188,13 @@ export const thread = {
     // `next` is the day-complete seal ONLY, and is empty on every ordinary logged meal (founder
     // 2026-08-17 — see the block above for why the Next Action row that used to share this slot
     // is gone). The screen is confirm → photo → score → conversation → details.
-    return `<div class="meal-screen">${backHead(M.name, dupFlagged ? 'Duplicate photo' : '', 'home')}${execTop}${next}${photoBlock}${breakdown}${discussion}
+    // The title names the FOOD when the read gave us a name for it, and the slot otherwise
+    // (M.dish is null unless it says more than the slot already does). The sub-line stays empty
+    // on purpose: the confirm card one line below already reads "Dinner logged · Logged 6:55 PM ·
+    // on time", so naming the slot up here too would state it twice on the screen whose own rule
+    // is each fact exactly once. The coach could see a name for their athlete's plate and the
+    // athlete could not; this is the read side of that fix.
+    return `<div class="meal-screen">${backHead(M.dish || M.name, dupFlagged ? 'Duplicate photo' : '', 'home')}${execTop}${next}${photoBlock}${breakdown}${discussion}
     <div style="height:18px"></div>
     ${/* A quiet exit, not a second green CTA (2026-08-06): the meal is already logged — the only
           green verdict on this screen is the confirm card at the top. A full-width "Done" in the
