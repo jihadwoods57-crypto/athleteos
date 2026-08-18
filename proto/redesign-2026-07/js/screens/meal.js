@@ -3,6 +3,7 @@ import { DAY, slotDeadline } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg, nonLiveBadge, composer, segBar } from '../components.js';
 import { reveal } from '../motion.js';
+import { scoreMoveBar, playScoreMove } from '../score-move.js';
 import {
   openingMessage, openingSummary, qualityBand, scoreReasons, coachFocus, reactionGroups, threadMessages,
   contextForChat, applyFoodEdit, hasUserEdits, restrictionConflicts,
@@ -794,12 +795,21 @@ export const thread = {
     // ---- 1. LOGGED CONFIRMATION — compact (founder feedback 2026-07-16: the old celebration
     // ate half the screen and mixed compliance with meal quality). Three facts only: logged
     // (green = accountability), the score move, progress on the day. Timing appears here ONCE.
-    const justLogged = RT.lastMove && !RT.lastMove._played && (RT.lastMove.what || '').toLowerCase() === M.slot;
+    /* `_played` is now retired by the MOVE ITSELF, when the sweep finishes (see the mount below),
+       rather than the instant mount ran. It used to be set on the first mount, which meant the very
+       next repaint — participants and comments land about a second into a thread — dropped this
+       whole line while its count-up was still running. The app's payoff was racing a network
+       response for the right to finish, and on a fast connection it lost. */
+    const move = RT.lastMove && (RT.lastMove.what || '').toLowerCase() === M.slot ? RT.lastMove : null;
+    const justLogged = !!move && !move._played;
     const dupFlagged = M.flagged === 'dup';
     const timing = M.loggedAt
       ? `Logged ${M.loggedAt} · ${M.minutesLate > 0 ? `${M.minutesLate} min late` : 'on time'}`
       : (M.late ? 'Logged late · still counts' : 'Logged on time');
-    const toTier = justLogged ? tier(RT.lastMove.to) : null;
+    const toTier = justLogged ? tier(move.to) : null;
+    // The athlete's very first log ever: no day before today has ever been scored. Derived, so
+    // there is no flag that can drift out of step with what actually happened.
+    const firstEver = justLogged && !(DAY.scoreHistory || []).some((h) => h && h.date && h.date < String(DAY.date));
     // Coach attention, from REAL signals only (comments load async; the mount updates this
     // line in place once they land): Sent to Coach → Reviewed by Coach → Coach replied.
     const cStatus = coachThreadStatus({
@@ -814,15 +824,21 @@ export const thread = {
         <div class="s">${timing}${cStatus.label ? ` · <span id="coach-status">${esc(cStatus.label)}</span>` : ''}</div></div>
       </div>
       ${dupFlagged ? `<div class="dup-note">Duplicate photo · recorded, but it doesn't count. Coach can see the flag.</div>` : ''}
-      ${justLogged && !dupFlagged ? `
-      <div class="score-line">
+      ${/* The same move the recovery confirm draws as a dial, as a strip — this sits inside a card
+            under a green confirmation, and a second hero here would be two celebrations arguing.
+            What the strip adds over the old bare numerals is the LADDER: ticks at 60 / 80 / 90, so
+            "+6" is read as a distance to the next line rather than as six of nothing. */''}
+      ${justLogged && !dupFlagged ? scoreMoveBar({
+        from: move.from, to: move.to, uid: 'mt',
+        head: `<div class="score-line">
         <span class="k">Daily Score</span>
-        <span class="from" data-anim-from>${RT.lastMove.from}</span>
+        <span class="from">${move.from}</span>
         <span class="arr">${icon('arrowRight', 14)}</span>
-        <span class="to" data-anim-to>${RT.lastMove.to}</span>
-        <span class="gain">+${RT.lastMove.gain}</span>
-        ${toTier.name !== tier(RT.lastMove.from).name ? `<span class="tier-chip ${toTier.cls}">▲ ${esc(toTier.name)}</span>` : ''}
-      </div>` : ''}
+        <span class="to ${toTier.cls}" data-sm-count="${move.to}">${move.to}</span>
+        <span class="gain ${toTier.cls}">+${move.gain}</span>
+        ${toTier.name !== tier(move.from).name ? `<span class="tier-chip ${toTier.cls}" data-sm-tier="▲ " data-sm-base="tier-chip">▲ ${esc(toTier.name)}</span>` : ''}
+      </div>`,
+      }) + (firstEver ? '<div class="sm-first">First one in. From here the number is live: every meal, every check-in, every day.</div>' : '') : ''}
       ${/* The credit is a fact about the day, not a one-time animation — it used to render only
             on the justLogged paint, so the first background repaint (participants landing ~1s in)
             erased the most rewarding line on the page, and a revisit never showed it at all.
@@ -830,10 +846,12 @@ export const thread = {
       ${(() => {
         if (justLogged || dupFlagged) return '';
         const gain = S.mealScoreImpact(M.slot) || 0;
+        // Tinted by where the day actually stands, like the move above it. Untinted, the pill fell
+        // through to the old flat green and told a 62 it was on standard.
         return gain > 0 ? `
       <div class="score-line">
         <span class="k">Daily Score</span>
-        <span class="gain">+${gain} from this meal</span>
+        <span class="gain ${tier(S.score).cls}">+${gain} from this meal</span>
       </div>` : '';
       })()}
       <div class="prog-line">
@@ -1207,14 +1225,20 @@ export const thread = {
   async mount(root, { sub }) {
     const slot = sub || MEAL.key || 'dinner';
     const M = mealDetail(slot);
-    // score count-up plays once per log
-    const to = root.querySelector('[data-anim-to]');
-    if (to) {
-      const target = +to.textContent; const from = +root.querySelector('[data-anim-from]').textContent; const t0 = performance.now();
-      const step = (t) => { const p = Math.min(1, (t - t0) / 900); to.textContent = Math.round(from + (target - from) * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(step); };
-      requestAnimationFrame(step);
-      // in-memory played flag only; worst case the count-up replays once after a reload — acceptable
-      if (RT.lastMove) RT.lastMove._played = true;
+    /* The score move — one keyed sweep, resumable, retired only once it has actually finished.
+       score-move.js owns the choreography now; the copy of the recovery confirm's count-up that
+       used to live here is gone. `_played` is set from onDone, which fires when the sweep lands OR
+       when a later mount finds the move already spent, so a repaint mid-sweep adopts the new node
+       and carries on instead of deleting the line out from under it.
+       In-memory until the next save, so worst case it replays once after a reload — acceptable, and
+       the same trade the old flag made. */
+    const mv = RT.lastMove && (RT.lastMove.what || '').toLowerCase() === slot ? RT.lastMove : null;
+    if (mv && !mv._played) {
+      playScoreMove(root, {
+        key: `move:${slot}:${DAY.date}:${mv.from}-${mv.to}`,
+        from: mv.from, to: mv.to,
+        onDone: () => { mv._played = true; },
+      });
     }
     if (!M.logged) return;
 

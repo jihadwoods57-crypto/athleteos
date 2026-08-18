@@ -444,10 +444,79 @@
 @keyframes popIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .confirm-title { font-size: 26px; font-weight: 800; letter-spacing: var(--title-tight); margin-top:18px; }
 .confirm-sub { font-size: 13.5px; font-weight: 600; color: var(--text-2); margin-top:6px; }
-.score-move { display: flex; align-items: center; justify-content: center; gap:16px; margin:22px 0 4px; }
-.score-move .from { font-size: 40px; font-weight: 800; color: var(--text-3); letter-spacing: -0.03em; }
-.score-move .to { font-size: 56px; font-weight: 800; color: var(--green-bright); letter-spacing: -0.04em; text-shadow: 0 0 34px rgba(var(--green-rgb), 0.35); }
-.score-move .arr { color: var(--text-3); }
+/* ===== The score move (js/score-move.js) =====
+   Replaces `.score-move`, which printed the old and new numbers side by side in a hardcoded
+   --green-bright at a hardcoded 56px. Two things were wrong with that beyond the raw sizes:
+   green is the "on standard" colour and the number it painted could be a 62, and a pair of static
+   numerals is the one shape that cannot show WHERE on the ladder either of them sits. The dial
+   shows both, and it is the app's own geometry rather than a shape invented for this screen. */
+.smove { position: relative; }
+/* The dial sizes itself from the svg's own width/height attributes; the wrapper only has to stop
+   being full-width so `margin: auto` can centre it. */
+.smove-dial { margin: 20px auto 4px; display: table; }
+.smove .sm-svg { position: relative; z-index: 1; display: block; }
+
+/* The tier light. Two stacked layers: the outgoing tier holds at full for the whole move and the
+   incoming one fades in over it (js/score-move.js glows() has the note on why not a cross-fade).
+   Sits behind the dial and never intercepts a tap. The hue comes from the ladder letter the
+   builder stamps, so light theme resolves its own value and nothing is frozen at a dark hex.
+
+   A HALO UNDER THE BAND, NOT A DISC BEHIND IT. The first version was a filled radial and it lit the
+   middle of the dial as brightly as the edge: `/100` sat on a bright field and stopped being
+   readable, and the whole thing acquired the frosted look DESIGN.md bans blur for. The stops open
+   at 52% and close at 100%, which straddles the band's own radius, so the light lands where the
+   score is drawn and the centre keeps the flat canvas the numeral needs.
+
+   The BRIGHTNESS lives here rather than in the driver, and it is not the same in both themes: the
+   light tokens are far more saturated against a near-white ground, so the value that reads as a
+   glow on dark reads as a painted blue ring on light. score-move.js reports progress as --sm-p on
+   the container and both layers read it.
+
+   AND THEY DO CROSS-FADE, contrary to the first attempt at this. Holding the outgoing tier at full
+   underneath the incoming one meant the finished state was amber AND blue at once, and two
+   complementary washes at equal weight average out to grey: the light stopped being a tier signal
+   at exactly the moment it was supposed to become one. The dip that argument was avoiding is real
+   for opaque layers and negligible here — two washes capped at 0.3 over a shared ground compose to
+   0.2775 at the midpoint against 0.30 at the ends, which is under a tenth of a stop. */
+.smove { --sm-p: 1; }
+.smove .sm-glow {
+  position: absolute; inset: -4%; z-index: 0; pointer-events: none; border-radius: var(--r-pill);
+  background: radial-gradient(circle at 50% 50%, transparent 50%, var(--sm-c) 80%, transparent 100%);
+  --sm-max: 0.34;
+  opacity: calc(var(--sm-max) * (1 - var(--sm-p)));
+}
+.smove .sm-glow.g { --sm-c: var(--green-bright); }
+.smove .sm-glow.b { --sm-c: var(--blue-bright); }
+.smove .sm-glow.a { --sm-c: var(--amber-bright); }
+.smove .sm-glow.r { --sm-c: var(--red-bright); }
+.smove .sm-glow-to { opacity: calc(var(--sm-max) * var(--sm-p)); }
+:root[data-theme="light"] .smove .sm-glow { --sm-max: 0.18; }
+
+/* The ladder, drawn on the dial. A threshold not yet reached is a hairline; one the score has
+   passed lights up in the text colour, so "which line did I just cross" is answered by the dial
+   itself instead of by a sentence underneath it. */
+.smove .sm-tick { stroke: var(--hairline); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+/* --text-2, not --text: at full ink on light theme a passed threshold was heavier than the band it
+   was marking, and a tick is an annotation on the score, never louder than it. */
+.smove .sm-tick.lit { stroke: var(--text-2); opacity: 0.75; }
+@media (prefers-reduced-motion: no-preference) {
+  .smove .sm-tick { transition: stroke var(--dur-1) var(--ease-out), opacity var(--dur-1) var(--ease-out); }
+}
+
+.smove-dial .sm-center {
+  position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 1px; pointer-events: none;
+}
+.smove-dial .sm-num {
+  font-size: var(--t-3xl); font-weight: 800; letter-spacing: var(--num-tight);
+  font-variant-numeric: tabular-nums; line-height: 1;
+}
+.smove-dial .sm-of { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); }
+.smove-dial .sm-tier { margin-top: 7px; }
+.smove-bar .sm-head { position: relative; z-index: 1; margin-bottom: 9px; }
+/* Pinned to the viewBox's own 6 units, so the band's stroke-width is 1:1 with pixels and a 4-unit
+   line is a 4px line however wide the row turns out to be. */
+.smove-bar .sm-svg { width: 100%; height: 6px; }
 
 /* ----- Chat (3-way) ----- */
 /* Breathing room between speakers, tight within a run — the rhythm is what makes it read as a
@@ -1389,12 +1458,36 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .mt-confirm .t{font-size:16.5px;font-weight:800;letter-spacing:var(--title-tight)}
 .mt-confirm .s{font-size:12px;font-weight:600;color:var(--text-2);margin-top:2px}
 .mt-confirm .dup-note{font-size:12px;font-weight:700;color:var(--amber-bright);margin-top:10px;line-height:1.4}
-.mt-confirm .score-line{display:flex;align-items:baseline;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--hairline-soft);font-variant-numeric:tabular-nums}
-.mt-confirm .score-line .k{font-size:10.5px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-3);margin-right:auto}
-.mt-confirm .score-line .from{font-size:17px;font-weight:800;color:var(--text-3)}
+/* The rule sits on whichever element is the section's direct child — the move strip when there is
+   a move to show, the bare credit line when the move has already played. A margin on .score-line
+   itself would collapse out through .sm-head and land nowhere. */
+.mt-confirm .smove-bar,.mt-confirm > .score-line{margin-top:12px;padding-top:12px;border-top:1px solid var(--hairline-soft)}
+.mt-confirm .score-line{display:flex;align-items:baseline;gap:10px;font-variant-numeric:tabular-nums}
+.mt-confirm .score-line .k{font-size:var(--t-micro);font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-3);margin-right:auto}
+.mt-confirm .score-line .from{font-size:var(--t-lg);font-weight:800;color:var(--text-3)}
 .mt-confirm .score-line .arr{color:var(--text-3);align-self:center;display:flex}
-.mt-confirm .score-line .to{font-size:24px;font-weight:800;color:var(--green-bright);letter-spacing:var(--num-tight)}
-.mt-confirm .score-line .gain{font-size:11.5px;font-weight:800;color:var(--green-bright);background:var(--green-surface);border:1px solid var(--green-border);border-radius:var(--r-pill);padding:2px 8px}
+/* The new number and the points that got it wear the TIER they landed in, never a fixed green.
+   These two were hardcoded --green-bright, which meant logging your way to a 62 printed the
+   "on standard" colour on a day that is Building — the score staying honest while the label
+   around it did not. The letters are the ladder's own (score-band.js), so a tier added there
+   only ever needs a colour here, never a threshold. */
+.mt-confirm .score-line .to{font-size:var(--t-2xl);font-weight:800;letter-spacing:var(--num-tight)}
+.mt-confirm .score-line .to.g{color:var(--green-bright)}
+.mt-confirm .score-line .to.b{color:var(--blue-bright)}
+.mt-confirm .score-line .to.a{color:var(--amber-bright)}
+.mt-confirm .score-line .to.r{color:var(--red-bright)}
+.mt-confirm .score-line .gain{font-size:var(--t-xs);font-weight:800;border-radius:var(--r-pill);padding:2px 8px}
+.mt-confirm .score-line .gain.g{color:var(--green-bright);background:var(--green-surface);border:1px solid var(--green-border)}
+.mt-confirm .score-line .gain.b{color:var(--blue-bright);background:var(--blue-surface);border:1px solid var(--blue-border)}
+.mt-confirm .score-line .gain.a{color:var(--amber-bright);background:var(--amber-surface);border:1px solid var(--amber-border)}
+.mt-confirm .score-line .gain.r{color:var(--red-bright);background:var(--red-surface);border:1px solid var(--red-border)}
+/* The promotion chip is the last thing on the row and the row is a flex line: without these it
+   shrank to its longest word and broke "Locked In" across two lines mid-sweep. A tier name is two
+   words at most and it never wraps. */
+.mt-confirm .score-line .tier-chip{flex:none;white-space:nowrap}
+/* The first log an athlete ever files. Sits under the move, once, and says what changed about the
+   product rather than congratulating them for pressing a button. */
+.mt-confirm .sm-first{font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-top:10px;line-height:1.45}
 .mt-confirm .prog-line{display:flex;align-items:center;gap:10px;margin-top:12px}
 .mt-confirm .prog-line .xsegs{flex:1}
 .mt-confirm .prog-line .pk{font-size:11px;font-weight:700;color:var(--text-2);white-space:nowrap}

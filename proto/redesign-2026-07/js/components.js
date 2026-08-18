@@ -162,6 +162,30 @@ export function nonLiveBadge() {
    most don't) left an undrawn ring reading 0 where the athlete's score belongs. The resting state
    is now the honest one, and motion.js winds it back only for the one reveal it plays — the same
    arrangement the meal score chip has always used. */
+/* ---- Brand-dial geometry (docs/brand/LOGO.md v2) ----
+ * The mark is a 300° gauge with a 60° gap centered on 6 o'clock: the arc runs from the bottom-left
+ * (120° from 3 o'clock, screen coords) clockwise through 12 up to the bottom-right (60°). 0% sits
+ * at the bottom-left end, 50% is dead top — exactly where the logo's own progress arc terminates —
+ * and 100% lands at the bottom-right end. Every score surface in the app draws THIS silhouette so
+ * the working rings and the mark are one thing.
+ *
+ * EXPORTED because it is now drawn in two modules. score-move.js builds the same dial for the
+ * confirm sweep, and a second copy of these three numbers is a second chance for the app's rings
+ * and the brand mark to disagree — which is the one thing LOGO.md exists to prevent. */
+export const DIAL_A0 = 120;
+export const DIAL_SWEEP = 300;
+
+/** A point on the dial at `deg` (screen degrees, 0 = 3 o'clock), radius `rad`, centred cx/cy. */
+export function dialPoint(cx, cy, rad, deg) {
+  const a = (deg * Math.PI) / 180;
+  return `${(cx + Math.cos(a) * rad).toFixed(2)} ${(cy + Math.sin(a) * rad).toFixed(2)}`;
+}
+
+/** One 300° arc command (large-arc=1, sweep=1) — the same path shape as the brand masters. */
+export function dialPath(cx, cy, rad) {
+  return `M ${dialPoint(cx, cy, rad, DIAL_A0)} A ${rad.toFixed(2)} ${rad.toFixed(2)} 0 1 1 ${dialPoint(cx, cy, rad, DIAL_A0 + DIAL_SWEEP - 360)}`;
+}
+
 /* `vt` is OPT-IN, and stays opt-in. It stamps the `data-vt` marker that lets js/view-transition.js
    carry this ring across a navigation instead of destroying it and drawing a new one on the next
    screen. It is not defaulted to something clever like `score` because two elements sharing a
@@ -186,19 +210,7 @@ export function scoreRing({ score, size = 338, stroke = 20, showCenter = true, u
   // to logo parity, not an oversight. Clamped ≥0 so compact rings can't compute a negative radius.
   const rEcho = Math.max(0, r - stroke / 2 - 8);
   const cx = size / 2, cy = size / 2;
-  // ---- Brand-dial geometry (docs/brand/LOGO.md v2) ----
-  // The mark is a 300° gauge with a 60° gap centered on 6 o'clock: the arc runs from the
-  // bottom-left (120° from 3 o'clock, screen coords) clockwise through 12 up to the
-  // bottom-right (60°). 0% sits at the bottom-left end, 50% is dead top — exactly where the
-  // logo's own progress arc terminates — and 100% lands at the bottom-right end. Every score
-  // surface in the app draws THIS silhouette so the working rings and the mark are one thing.
-  const A0 = 120, SWEEP = 300;
-  const pt = (rad, deg) => {
-    const a = (deg * Math.PI) / 180;
-    return `${(cx + Math.cos(a) * rad).toFixed(2)} ${(cy + Math.sin(a) * rad).toFixed(2)}`;
-  };
-  // One 300° arc command (large-arc=1, sweep=1) — the same path shape as the brand masters.
-  const dial = (rad) => `M ${pt(rad, A0)} A ${rad.toFixed(2)} ${rad.toFixed(2)} 0 1 1 ${pt(rad, A0 + SWEEP - 360)}`;
+  const dial = (rad) => dialPath(cx, cy, rad);
   // pathLength="100" normalizes every animated layer: dasharray "100", dashoffset 100-score.
   // windBack (motion.js) reads the first dasharray token to hide, animateRing drives data-off —
   // both work unchanged on paths.
@@ -208,7 +220,7 @@ export function scoreRing({ score, size = 338, stroke = 20, showCenter = true, u
   // Since possible ≤ 100 the dash segment never crosses the gap.
   const ceil = (possible != null && possible > score) ? {
     span: (possible - score).toFixed(1),
-    rot: ((score / 100) * SWEEP).toFixed(2),
+    rot: ((score / 100) * DIAL_SWEEP).toFixed(2),
   } : null;
   // Sheen: dial-lit's own treatment — CENTERED on the band at 0.375× stroke, flat white 0.16
   // (dial-lit.svg layer 6). It used to ride the band's outer edge as a 0.16× rim with its own
@@ -219,7 +231,7 @@ export function scoreRing({ score, size = 338, stroke = 20, showCenter = true, u
   // the old comet starburst. Proportions from the mark: bezel 10.5/12 of the band, core 6/12.
   // Theme-adaptive exactly like logoMark().
   const light = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'light';
-  const tipDeg = A0 + (score / 100) * SWEEP;
+  const tipDeg = DIAL_A0 + (score / 100) * DIAL_SWEEP;
   const tipA = (tipDeg * Math.PI) / 180;
   const tipX = cx + Math.cos(tipA) * r, tipY = cy + Math.sin(tipA) * r;
   const bezelR = Math.max(5, stroke * 0.875), coreR = Math.max(2.6, stroke * 0.5);

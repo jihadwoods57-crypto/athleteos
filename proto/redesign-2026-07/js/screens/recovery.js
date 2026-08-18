@@ -3,16 +3,37 @@ import { DAY } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
 import { recoveryCoachMessage } from '../recovery-intel.js';
+import { scoreMoveDial, playScoreMove } from '../score-move.js';
 import * as roles from '../roles.js';
+
+/* The move this screen is allowed to show.
+ *
+ * RT.lastMove is whatever moved the score MOST RECENTLY, from any source. This screen is also
+ * reachable without submitting anything — exec.js routes the finished Recovery row straight here —
+ * so opening the app hours later and tapping it used to print the last MEAL's points under the
+ * heading "Check-In Submitted". The check-in would be credited with points it did not earn, on the
+ * one screen whose whole job is to say what the check-in was worth. It shows a move only when the
+ * move is the check-in's own. */
+function checkinMove() {
+  const mv = RT.lastMove;
+  if (!mv || mv.what !== 'Recovery Check-In') return null;
+  return mv;
+}
+
+/** True when nothing before today has ever been scored — this is the athlete's first check-in. */
+function firstEver() {
+  const hist = DAY.scoreHistory || [];
+  return !hist.some((h) => h && h.date && h.date < String(DAY.date));
+}
 
 export const recoveryConfirm = {
   tab: 'home',
   hideTabs: true,
   transient: true, // post-submit interstitial — Done returns to the pre-check-in origin
   render() {
-    const mv = RT.lastMove || { from: S.score, to: S.score, gain: 0 };
-    const toTier = tier(mv.to);
-    const promoted = tier(mv.from).name !== toTier.name;
+    const mv = checkinMove();
+    const toTier = tier(mv ? mv.to : S.score);
+    const promoted = !!mv && tier(mv.from).name !== toTier.name;
     return `
     <div class="confirm-wrap">
       ${/* Composed from tokens, not frozen hexes. `#7e22ce` was the DARK --purple-deep written
@@ -24,12 +45,14 @@ export const recoveryConfirm = {
       <div class="confirm-title">Check-In Submitted</div>
       <div class="confirm-sub">Recovery refreshed · ${S.coach.hasCoach ? `${esc(S.coach.nameMid)} can see your readiness` : 'counted toward tomorrow'}</div>
 
-      <div class="score-move">
-        <span class="from" data-anim-from>${mv.from}</span>
-        <span class="arr">${icon('arrowRight', 26)}</span>
-        <span class="to" data-anim-to>${mv.to}</span>
-      </div>
-      <div class="confirm-sub" style="margin-top:0">OnStandard Score · +${mv.gain} pts</div>
+      ${/* The move, as the score's own dial: the points just filed sweep in from where the score
+            already was, the numeral counts through them, and the tier chip flips at the frame the
+            arc crosses the line. Nothing is shown at all when this visit is not the submit itself
+            (see checkinMove above) — a screen with no move to report says so. */''}
+      ${mv ? `${scoreMoveDial({ from: mv.from, to: mv.to, uid: 'rc' })}
+      <div class="confirm-sub">OnStandard Score · +${mv.gain} pts</div>`
+      : `<div class="confirm-sub">Recovery is in for tonight. Your score already counts it.</div>`}
+      ${mv && firstEver() ? `<div class="confirm-sub">Your first check-in. Recovery is ${liveWeightPct('checkin') + liveWeightPct('recovery')}% of the score, and it is the part only you can report.</div>` : ''}
 
       ${(() => {
         // The AI Nutritionist reads the answers just submitted and coaches — derived from
@@ -45,8 +68,11 @@ export const recoveryConfirm = {
         <div class="ts">${esc(msg)}</div></div>
       </div>` : '';
       })()}
-      ${promoted ? `<span class="tier-chip ${toTier.cls}" style="margin-top:16px; font-size:12.5px; padding:7px 18px">${toTier.name}</span>
-      ${S.streakDays > 0 ? `<div class="confirm-sub" style="margin-top:10px">You finished the day on standard. Day ${S.streakDays} locks at midnight.</div>` : ''}` : ''}
+      ${/* The standalone promotion chip that sat here is gone: the dial carries a tier chip of its
+            own now, and it flips to this exact tier mid-sweep, so a second chip printing the same
+            two words directly underneath read as the app saying it twice. What survives is the
+            line the chip could not say — which day is about to lock, and when. */''}
+      ${promoted && S.streakDays > 0 ? `<div class="confirm-sub">You finished the day on standard. Day ${S.streakDays} locks at midnight.</div>` : ''}
 
       ${S.nextMove ? '' : `
       <div style="height:20px"></div>
@@ -64,16 +90,13 @@ export const recoveryConfirm = {
     `;
   },
   mount(root) {
-    const to = root.querySelector('[data-anim-to]');
-    if (to) {
-      const target = +to.textContent; const t0 = performance.now(); const from = +root.querySelector('[data-anim-from]').textContent;
-      const step = (t) => {
-        const p = Math.min(1, (t - t0) / 900);
-        to.textContent = Math.round(from + (target - from) * (1 - Math.pow(1 - p, 3)));
-        if (p < 1) requestAnimationFrame(step);
-      };
-      requestAnimationFrame(step);
-    }
+    /* The nine lines of hand-rolled count-up that lived here — the same nine the meal thread had a
+       copy of — are now score-move.js, which also gives this screen the one thing it never had: a
+       haptic. Filing the check-in is one of the four scored parts and it landed in total silence,
+       while logging a meal buzzed. Keyed on the move itself, so a repaint paints the outcome
+       instead of replaying the ceremony. */
+    const mv = checkinMove();
+    if (mv) playScoreMove(root, { key: `move:checkin:${DAY.date}:${mv.from}-${mv.to}`, from: mv.from, to: mv.to });
   },
 };
 
