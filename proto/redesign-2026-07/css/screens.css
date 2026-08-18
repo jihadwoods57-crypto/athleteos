@@ -869,6 +869,13 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* full-width invite code row (7 boxes): flex so they always fit the card, never crush to slivers */
 .code-boxes.invite-code { gap:6px; }
 .code-boxes.invite-code .cb { flex: 1 1 0; min-width: 0; max-width: 46px; height: 46px; font-size: 18px; }
+/* Owner-side code DISPLAY (Practice HQ, coach code block): the server allows 6-12 chars, and a
+   fixed 46px box next to a 104px QR crushed a 12-char code into overlapping slivers with the
+   tail clipped. Boxes share the row down to a 28px floor, then wrap into even rows — a 12-char
+   code reads as two chunked rows of six, never as broken glyphs. Join-side ENTRY boxes keep the
+   fixed size: typing needs a stable target. */
+.code-boxes.fit { gap:6px; flex-wrap: wrap; }
+.code-boxes.fit .cb { flex: 1 1 28px; min-width: 0; max-width: 46px; height: 46px; font-size: 18px; }
 .team-preview { display: flex; align-items: center; gap:14px; padding:16px; }
 .team-preview .tp-av { width: 52px; height: 52px; border-radius: var(--r-card-sm); background: linear-gradient(150deg, var(--amber), var(--amber-deep)); display: grid; place-items: center; font-size: 19px; font-weight: 800; color: var(--ink-on-accent); }
 

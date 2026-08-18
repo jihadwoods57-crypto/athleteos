@@ -7,7 +7,7 @@
    upload is now queued in the outbox and retried, so a session-permanent negative cache would
    leave the athlete staring at a blank frame for a photo that has since landed. */
 
-import { signedMealPhotoUrl } from './roles.js';
+import { signedMealPhotoUrl, signedMealPhotoUrls } from './roles.js';
 
 const TTL = 45 * 60 * 1000; // signed URLs live 60 min (roles.js) — refresh comfortably before expiry
 const NEG_TTL = 60 * 1000;  // a confirmed-missing object is re-checked after a minute, not never
@@ -55,9 +55,19 @@ export function warmMealPhotos(paths) {
   const need = (paths || []).filter((p) => p && !CACHE[p] && !INFLIGHT.has(p));
   if (!need.length) return;
   need.forEach((p) => INFLIGHT.add(p));
-  Promise.all(need.map((p) => resolveMealPhoto(p).catch(() => null)))
-    .then((urls) => {
-      need.forEach((p) => INFLIGHT.delete(p));
-      if (urls.some(Boolean) && window.__render) window.__render();
-    });
+  // One createSignedUrls round trip for the whole surface. The per-path loop this replaces made
+  // 50-70 parallel storage calls on a 14-day history mount — the signer takes a batch.
+  signedMealPhotoUrls(need)
+    .then((map) => {
+      const at = Date.now();
+      let resolved = false;
+      for (const p of need) {
+        const url = (map && map[p]) || null;   // absent = missing or transient: cached as a miss, re-checked after NEG_TTL
+        CACHE[p] = { url, at };
+        if (url) resolved = true;
+      }
+      if (resolved && typeof window !== 'undefined' && window.__render) window.__render();
+    })
+    .catch(() => { /* transient — nothing cached, the next repaint retries */ })
+    .finally(() => { need.forEach((p) => INFLIGHT.delete(p)); });
 }

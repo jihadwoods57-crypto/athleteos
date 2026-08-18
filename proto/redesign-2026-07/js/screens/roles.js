@@ -333,7 +333,7 @@ const coachSteps = {
       <div class="ob-title" style="margin-top:22px">Your team code.</div>
       <div class="ob-sub" style="padding:0 8px">Send it to the group chat. Athletes enter it once and their work starts counting toward your board.</div>
       <div style="height:22px"></div>
-      ${code ? `<div class="code-boxes">${code.split('').map((c) => `<div class="cb filled" style="border-color:var(--amber-border);background:rgba(var(--amber-rgb),0.08)">${c}</div>`).join('')}</div>
+      ${code ? `<div class="code-boxes fit">${code.split('').map((c) => `<div class="cb filled" style="border-color:var(--amber-border);background:rgba(var(--amber-rgb),0.08)">${c}</div>`).join('')}</div>
       <div style="height:12px"></div>
       <div style="display:flex;justify-content:center;gap:8px">
         <button class="btn ghost sm" id="copy-code" style="width:auto;padding:0 22px">${icon('clipboard', 16)} Copy code</button>
@@ -690,7 +690,7 @@ const trainerSteps = {
       <div class="ob-title" style="margin-top:22px">Your client code.</div>
       <div class="ob-sub" style="padding:0 8px">Send it to your clients. They enter it once and their work starts counting toward your view.</div>
       <div style="height:22px"></div>
-      ${code ? `<div class="code-boxes">${code.split('').map((c) => `<div class="cb filled" style="border-color:var(--purple-border);background:rgba(var(--purple-rgb),0.08)">${c}</div>`).join('')}</div>
+      ${code ? `<div class="code-boxes fit">${code.split('').map((c) => `<div class="cb filled" style="border-color:var(--purple-border);background:rgba(var(--purple-rgb),0.08)">${c}</div>`).join('')}</div>
       <div style="height:12px"></div>
       <button class="btn ghost sm" id="copy-code" style="width:auto;padding:0 26px;margin:0 auto">${icon('clipboard', 16)} Copy code</button>` :
       /* No code = create_practice did not succeed. Same false promise removed here as in the
@@ -1133,7 +1133,7 @@ function cpCodeBlock() {
     <div class="eyebrow" id="cp-code">Athlete code · share it</div>
     ${code ? `
     <section class="card pad" style="text-align:center">
-      <div class="code-boxes" style="padding:0 0 4px">
+      <div class="code-boxes fit" style="padding:0 0 4px">
         ${code.split('').map(ch => `<div class="cb filled" style="border-color:var(--amber-border)">${esc(ch)}</div>`).join('')}
       </div>
       <div style="display:flex;justify-content:center;gap:8px;margin-top:8px">
@@ -1212,7 +1212,7 @@ function cpStaffBlock() {
       </div>` : `
       <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);padding:2px 2px 10px">Staff invites and scopes are managed by the head coach.</div>`}`}
       <div id="staff-code-out" style="display:none;padding:4px 2px 10px">
-        <div class="code-boxes" id="staff-code-boxes" style="padding:0 0 6px"></div>
+        <div class="code-boxes fit" id="staff-code-boxes" style="padding:0 0 6px"></div>
         <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);text-align:center">One use only. Text it to them. They pick "Coach" at sign-up and enter it as a staff code.</div>
       </div>
       <div id="staff-status" style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);min-height:14px;padding:0 2px 8px"></div>
@@ -1529,8 +1529,10 @@ export const trainerProfile = {
       <div class="id-txt">
         <div class="nm">${esc(ti.name)}</div>
         ${/* The discipline earns its line (0197): a dietitian's HQ says what they run. Any
-              sport — the label describes the operator, never the roster. */''}
-        <div class="meta">${esc(ti.practiceName)}${ti.discipline === 'nutrition' ? ' · Nutrition practice' : ''}</div>
+              sport — the label describes the operator, never the roster. Skipped when the
+              practice name already says it ("Reyes Performance Nutrition · Nutrition
+              practice" told the same fact twice). */''}
+        <div class="meta">${esc(ti.practiceName)}${ti.discipline === 'nutrition' && !/nutrition|dietitian|dietetic/i.test(ti.practiceName) ? ' · Nutrition practice' : ''}</div>
         <div style="margin-top:9px;display:flex;align-items:center;gap:10px">${offline ? `<span class="status-pill a">Reconnecting</span>` : minting ? `<span class="status-pill p">Setting up</span>` : `<span class="status-pill g">Live</span>`}${!offline && !minting ? `<span class="link" id="pr-rename" role="button" tabindex="0" style="font-size:var(--t-xs);font-weight:700">Rename</span>` : ''}</div>
       </div>
     </section>
@@ -1587,7 +1589,7 @@ export const trainerProfile = {
         <div class="hq-invite-top">
           <div style="flex:1;min-width:0">
             <div class="eyebrow" style="margin:0 0 8px">Client code</div>
-            <div class="code-boxes" style="justify-content:flex-start;padding:0">
+            <div class="code-boxes fit" style="justify-content:flex-start;padding:0">
               ${ti.code.split('').map((ch) => `<div class="cb filled" style="border-color:var(--purple-border);background:rgba(var(--purple-rgb),0.08)">${esc(ch)}</div>`).join('')}
             </div>
             <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:10px;line-height:1.4">
@@ -1609,9 +1611,12 @@ export const trainerProfile = {
               cpCodeBlock's editor + two-tap regenerate, in this card's purple. Hidden offline:
               both actions are server round-trips and a dead button is worse than none. */''}
         ${offline ? '' : `
-        <div style="display:flex;justify-content:center;gap:8px;margin-top:10px">
-          <button class="btn ghost sm" id="pc-edit" style="width:auto;padding:0 18px">Customize</button>
-          <button class="btn ghost sm" id="pc-regen" style="width:auto;padding:0 18px">New code</button>
+        ${/* Quiet links, not a second button row (2026-08-17): Copy + Share are the card's real
+              actions; Customize / New code are rare admin moves, and four same-weight pills read
+              as a 2x2 button grid with no primary. Same idiom as the id card's Rename link. */''}
+        <div style="display:flex;justify-content:center;gap:18px;margin-top:12px">
+          <span class="link" id="pc-edit" role="button" tabindex="0" style="font-size:var(--t-xs);font-weight:700">Customize code</span>
+          <span class="link" id="pc-regen" role="button" tabindex="0" style="font-size:var(--t-xs);font-weight:700">New code</span>
         </div>
         <div id="pc-editor" style="display:none;margin-top:12px">
           <input id="pc-input" class="ob-input" placeholder="YOUR CODE · 6–12 letters/numbers" maxlength="12"
@@ -1695,9 +1700,16 @@ export const trainerProfile = {
     };
     // Server value only, never optimistic — same rule as the coach's applyCode.
     const pcApply = (code) => { RT.practice = { ...(RT.practice || {}), code }; if (window.__render) window.__render(); };
+    // Customize / New code are links now (role="button" spans), so Enter/Space must activate
+    // them the way a real button would — same wiring the Rename link uses.
+    const linkWire = (el, fn) => {
+      if (!el) return;
+      el.addEventListener('click', fn);
+      el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); fn(); } });
+    };
     const pcEdit = root.querySelector('#pc-edit');
     const pcEditor = root.querySelector('#pc-editor');
-    if (pcEdit && pcEditor) pcEdit.addEventListener('click', () => {
+    if (pcEdit && pcEditor) linkWire(pcEdit, () => {
       const open = pcEditor.style.display !== 'none';
       pcEditor.style.display = open ? 'none' : 'block';
       if (!open) { const inp = root.querySelector('#pc-input'); if (inp) inp.focus(); }
@@ -1719,17 +1731,19 @@ export const trainerProfile = {
     });
     const pcRegen = root.querySelector('#pc-regen');
     if (pcRegen) {
-      let armed = false;
-      pcRegen.addEventListener('click', async () => {
+      // A span has no .disabled, so an explicit busy flag keeps a double-tap from minting twice.
+      let armed = false, regenBusy = false;
+      linkWire(pcRegen, async () => {
+        if (regenBusy) return;
         if (!armed) {
           armed = true;
           pcRegen.textContent = 'Sure? Old code dies';
           pcSay('A new code replaces this one immediately. Anyone holding the old code can no longer join.', false);
           return;
         }
-        pcRegen.disabled = true; pcSay('Minting a new code…', false);
+        regenBusy = true; pcSay('Minting a new code…', false);
         const r = await regenerateMyPracticeCode();
-        pcRegen.disabled = false; armed = false; pcRegen.textContent = 'New code';
+        regenBusy = false; armed = false; pcRegen.textContent = 'New code';
         if (!r.ok) { pcSay(r.error, true); return; }
         pcApply(r.code);
       });

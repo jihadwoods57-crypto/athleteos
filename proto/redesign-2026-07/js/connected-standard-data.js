@@ -86,7 +86,7 @@ export async function loadMyDefs(force = false) {
     const uid = (await c.auth.getUser())?.data?.user?.id;
     if (!uid) return RTC.defs;
     const { data, error } = await c.from('connected_standards')
-      .select('*').eq('owner_athlete', uid).order('created_at', { ascending: false });
+      .select('*').eq('owner_athlete', uid).order('created_at', { ascending: false }).limit(100);
     if (error) return RTC.defs;
     RTC.defs = Array.isArray(data) ? data : [];
     RTC.defsAt = Date.now();
@@ -225,7 +225,7 @@ export async function loadOwnerStandards(teamId, practiceId) {
   try {
     const col = teamId ? 'team_id' : 'practice_id';
     const { data, error } = await c.from('connected_standards')
-      .select('*').eq(col, teamId || practiceId).order('created_at', { ascending: false });
+      .select('*').eq(col, teamId || practiceId).order('created_at', { ascending: false }).limit(100);
     return error ? null : (Array.isArray(data) ? data : []);
   } catch { return null; }
 }

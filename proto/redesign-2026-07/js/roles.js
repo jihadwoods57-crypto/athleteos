@@ -38,7 +38,11 @@ export async function fetchLinkedDaysSince(sinceISO, athleteIds) {
   const c = sb(); if (!c) return [];
   try {
     let q = c.from('days').select('athlete_id,date,score,grade,tasks').gte('date', sinceISO);
-    q = Array.isArray(athleteIds) && athleteIds.length ? q.in('athlete_id', athleteIds) : q.limit(2000);
+    // The scoped branch gets a cap too (scale pass 2026-08-17): roster x window is the honest
+    // ceiling (a 7-day window has at most 8 calendar days per athlete, DST included). Without
+    // it only the UNSCOPED branch had the 2000-row guard, so the branch every real caller
+    // takes was the unbounded one.
+    q = Array.isArray(athleteIds) && athleteIds.length ? q.in('athlete_id', athleteIds).limit(athleteIds.length * 9) : q.limit(2000);
     const { data, error } = await q;
     // null = FAILED. [] here fabricates "No logs today" onto every named athlete on the roster
     // (buildRosterRow flags each one red) — the single largest false-claim surface in the app.
@@ -274,10 +278,14 @@ export async function fetchTeamActivity(sinceISO, limit = 24, athleteIds) {
 export async function fetchTeamMealComments(athleteIds, sinceISO) {
   const c = sb(); if (!c || !athleteIds || !athleteIds.length) return [];
   try {
+    // DESC, so the 1000-row cap drops the OLDEST rows. Ascending kept the oldest: on a big
+    // roster the newest messages fell off the end and lastByMeal computed "who spoke last"
+    // from a window missing the most recent speech — a wrong needsResponse queue, not just a
+    // truncated one. lastByMeal picks by timestamp, so it is order-agnostic.
     const { data, error } = await c.from('meal_comments')
       .select('meal_id,athlete_id,role,kind,created_at')
       .in('athlete_id', athleteIds).gte('created_at', sinceISO)
-      .order('created_at', { ascending: true }).limit(1000);
+      .order('created_at', { ascending: false }).limit(1000);
     // null = FAILED. This drives the inbox's needsResponse count, so [] on a dropped request
     // printed "All caught up" over an inbox that may be full.
     if (error) return null;
@@ -389,7 +397,17 @@ export async function fetchRecentMeals(athleteId, sinceISO) {
   // null = FAILED. [] on a dropped request told an athlete with a year of logs that their
   // "proof trail builds here" — the same fabrication listTrainingLogs was cured of.
   try {
-    const { data, error } = await c.from('meals').select('*').eq('athlete_id', athleteId).gte('day_date', sinceISO).order('day_date', { ascending: false }).order('logged_at', { ascending: true });
+    // Explicit columns, not `*` (scale pass 2026-08-17): the union every consumer actually
+    // reads — traced through trust/home/nutrition-chat/meal/coach-data/recent-meals down to
+    // meal-intel and food-memory. analysis/detected/note stay (the trust history renders
+    // them); what drops is photo_hash, photo_taken_at, macro_confidence, description_signal,
+    // favorited, source. The limit keeps the NEWEST days (day_date desc is the first sort
+    // key): 200 rows is 30 days at 6 logs/day — beyond that the window query was the lie.
+    const { data, error } = await c.from('meals')
+      .select('id,athlete_id,day_date,type,name,protein,carbs,fat,kcal,fiber,quality,photo_path,note,analysis,detected,logged_at,minutes_late')
+      .eq('athlete_id', athleteId).gte('day_date', sinceISO)
+      .order('day_date', { ascending: false }).order('logged_at', { ascending: true })
+      .limit(200);
     if (error) return null;
     return data || [];
   } catch { return null; }
@@ -1577,7 +1595,7 @@ export async function deleteOffer(id) {
 }
 export async function fetchMyApplications(practiceId) {
   const c = sb(); if (!c || !practiceId) return [];
-  try { const { data, error } = await c.from('trainer_applications').select('*').eq('practice_id', practiceId).order('created_at', { ascending: false }); if (error) return { error: true }; return data || []; } catch { return { error: true }; }
+  try { const { data, error } = await c.from('trainer_applications').select('*').eq('practice_id', practiceId).order('created_at', { ascending: false }).limit(100); if (error) return { error: true }; return data || []; } catch { return { error: true }; }
 }
 export async function setApplicationStatus(id, status) {
   const c = sb(); if (!c || !id) return false;
@@ -1701,7 +1719,7 @@ export async function fetchMySponsorships() {
   const c = sb(); if (!c) return [];
   // null = FAILED — money surface: "No sponsorships yet, buy a batch above" must never be
   // shown to someone whose purchased seats just didn't load.
-  try { const { data, error } = await c.from('sponsorships').select('*').order('created_at', { ascending: false }); if (error) return null; return data || []; } catch { return null; }
+  try { const { data, error } = await c.from('sponsorships').select('*').order('created_at', { ascending: false }).limit(100); if (error) return null; return data || []; } catch { return null; }
 }
 /** Athlete: redeem a sponsor code. Returns the RPC row { ok, reason, label, expires_at } or { error }. */
 export async function redeemSponsorCode(code) {

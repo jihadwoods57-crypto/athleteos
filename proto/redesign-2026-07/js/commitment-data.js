@@ -226,8 +226,10 @@ export async function loadCommitments(ownerId, kind, force = false) {
   if (!force && RTC.commitments.length && Date.now() - RTC.commitmentsAt < FRESH_MS) return RTC.commitments;
   const col = kind === 'practice' ? 'practice_id' : 'team_id';
   try {
+    // `active` sorts first, so the cap can only ever drop long-retired rows, never a live 5 AM
+    // roll call. A book does not hold 200 standing commitments; unbounded, this grew forever.
     const { data, error } = await c.from('commitments')
-      .select('*').eq(col, ownerId).order('active', { ascending: false }).order('starts_min');
+      .select('*').eq(col, ownerId).order('active', { ascending: false }).order('starts_min').limit(200);
     if (error) { RTC.commitmentsError = true; return RTC.commitments; }
     RTC.commitments = data || [];
     RTC.commitmentsAt = Date.now();
