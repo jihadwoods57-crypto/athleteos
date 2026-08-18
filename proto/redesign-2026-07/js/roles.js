@@ -6,6 +6,7 @@
    returns []/null so role screens render an HONEST empty state, never a fabricated one.
    No new endpoints — the exact tables/RPCs the RN app already uses. */
 import { scoreBand, BAND_FLAG } from './score-band.js';
+import { chunkIds } from './id-chunk.js';
 
 function sb() { return window.sb; }
 function iso(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
@@ -36,18 +37,22 @@ export async function fetchTeamRoster(teamId) {
  *  RLS-only, unscoped, .limit(2000) behavior for any caller that doesn't have a roster yet. */
 export async function fetchLinkedDaysSince(sinceISO, athleteIds) {
   const c = sb(); if (!c) return [];
+  const cols = 'athlete_id,date,score,grade,tasks';
   try {
-    let q = c.from('days').select('athlete_id,date,score,grade,tasks').gte('date', sinceISO);
-    // The scoped branch gets a cap too (scale pass 2026-08-17): roster x window is the honest
-    // ceiling (a 7-day window has at most 8 calendar days per athlete, DST included). Without
-    // it only the UNSCOPED branch had the 2000-row guard, so the branch every real caller
-    // takes was the unbounded one.
-    q = Array.isArray(athleteIds) && athleteIds.length ? q.in('athlete_id', athleteIds).limit(athleteIds.length * 9) : q.limit(2000);
-    const { data, error } = await q;
+    if (!Array.isArray(athleteIds) || !athleteIds.length) {
+      const { data, error } = await c.from('days').select(cols).gte('date', sinceISO).limit(2000);
+      if (error) return null;
+      return data || [];
+    }
+    // Chunked (scale pass 2026-08-18): a full roster's ids inlined into ONE .in() GET can 414
+    // past ~200 athletes (see id-chunk.js). Each chunk keeps its own limit scaled to ITS size —
+    // the roster x window cap (2026-08-17) — so the combined result matches the unchunked cap.
+    const results = await Promise.all(chunkIds(athleteIds).map((chunk) =>
+      c.from('days').select(cols).gte('date', sinceISO).in('athlete_id', chunk).limit(chunk.length * 9)));
     // null = FAILED. [] here fabricates "No logs today" onto every named athlete on the roster
     // (buildRosterRow flags each one red) — the single largest false-claim surface in the app.
-    if (error) return null;
-    return data || [];
+    if (results.some((r) => r.error)) return null;
+    return results.flatMap((r) => r.data || []);
   } catch { return null; }
 }
 /** Athlete IANA timezones for the coach roster (0088), keyed by id. Best-effort and RLS-safe: a
@@ -58,10 +63,15 @@ export async function fetchLinkedDaysSince(sinceISO, athleteIds) {
 export async function fetchProfileTimezones(ids) {
   const c = sb(); if (!c || !Array.isArray(ids) || !ids.length) return {};
   try {
-    const { data, error } = await c.from('profiles').select('id,timezone').in('id', ids);
-    if (error) return {};
+    // Chunked (scale pass 2026-08-18). This function is best-effort by its own contract (a
+    // failed chunk falls back to the coach clock, same as a whole-function failure always
+    // did) — so one bad chunk is skipped rather than voiding the roster's other chunks.
+    const results = await Promise.all(chunkIds(ids).map((chunk) => c.from('profiles').select('id,timezone').in('id', chunk)));
     const out = {};
-    for (const r of (data || [])) if (r && r.id && r.timezone) out[r.id] = r.timezone;
+    for (const r of results) {
+      if (r.error) continue;
+      for (const row of (r.data || [])) if (row && row.id && row.timezone) out[row.id] = row.timezone;
+    }
     return out;
   } catch { return {}; }
 }
@@ -263,14 +273,24 @@ export async function renamePractice(practiceId, name) {
  *  matching row in the table before the limit applies (capacity audit F6). */
 export async function fetchTeamActivity(sinceISO, limit = 24, athleteIds) {
   const c = sb(); if (!c) return [];
+  const cols = 'id,athlete_id,day_date,type,photo_path,name,protein,kcal,quality,logged_at';
   try {
-    let q = c.from('meals')
-      .select('id,athlete_id,day_date,type,photo_path,name,protein,kcal,quality,logged_at')
-      .gte('day_date', sinceISO);
-    if (Array.isArray(athleteIds) && athleteIds.length) q = q.in('athlete_id', athleteIds);
-    const { data, error } = await q.order('logged_at', { ascending: false }).limit(limit);
-    if (error) return null; // null = FAILED (coach-home already branches on it)
-    return data || [];
+    if (!Array.isArray(athleteIds) || !athleteIds.length) {
+      const { data, error } = await c.from('meals').select(cols).gte('day_date', sinceISO)
+        .order('logged_at', { ascending: false }).limit(limit);
+      if (error) return null; // null = FAILED (coach-home already branches on it)
+      return data || [];
+    }
+    // Chunked (scale pass 2026-08-18): each chunk asks for its own top-`limit` rows, so the
+    // TRUE global top-`limit` (by logged_at) is provably a subset of the union — any row in
+    // the real answer is certainly in its own chunk's top-`limit`. Re-sort + re-slice below.
+    const results = await Promise.all(chunkIds(athleteIds).map((chunk) =>
+      c.from('meals').select(cols).gte('day_date', sinceISO).in('athlete_id', chunk)
+        .order('logged_at', { ascending: false }).limit(limit)));
+    if (results.some((r) => r.error)) return null;
+    const merged = results.flatMap((r) => r.data || []);
+    merged.sort((a, b) => String(b.logged_at || '').localeCompare(String(a.logged_at || '')));
+    return merged.slice(0, limit);
   } catch { return null; }
 }
 
@@ -280,18 +300,20 @@ export async function fetchTeamActivity(sinceISO, limit = 24, athleteIds) {
 export async function fetchTeamMealComments(athleteIds, sinceISO) {
   const c = sb(); if (!c || !athleteIds || !athleteIds.length) return [];
   try {
-    // DESC, so the 1000-row cap drops the OLDEST rows. Ascending kept the oldest: on a big
-    // roster the newest messages fell off the end and lastByMeal computed "who spoke last"
-    // from a window missing the most recent speech — a wrong needsResponse queue, not just a
-    // truncated one. lastByMeal picks by timestamp, so it is order-agnostic.
-    const { data, error } = await c.from('meal_comments')
-      .select('meal_id,athlete_id,role,kind,created_at')
-      .in('athlete_id', athleteIds).gte('created_at', sinceISO)
-      .order('created_at', { ascending: false }).limit(1000);
+    // DESC per chunk, so each chunk's own 1000-row cap drops ITS oldest rows first — the same
+    // reasoning as the single-query version (2026-08-17): lastByMeal picks by timestamp, so
+    // merging is order-agnostic, and re-sorting + re-slicing the union to 1000 below preserves
+    // the exact "newest 1000 across the roster" contract chunking would otherwise blur.
+    const results = await Promise.all(chunkIds(athleteIds).map((chunk) =>
+      c.from('meal_comments').select('meal_id,athlete_id,role,kind,created_at')
+        .in('athlete_id', chunk).gte('created_at', sinceISO)
+        .order('created_at', { ascending: false }).limit(1000)));
     // null = FAILED. This drives the inbox's needsResponse count, so [] on a dropped request
     // printed "All caught up" over an inbox that may be full.
-    if (error) return null;
-    return data || [];
+    if (results.some((r) => r.error)) return null;
+    const merged = results.flatMap((r) => r.data || []);
+    merged.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+    return merged.slice(0, 1000);
   } catch { return null; }
 }
 /** Recent coach_interventions for the team (kind 'handled' + reason_key 'meal:<id>' marks a
@@ -628,9 +650,11 @@ export async function fetchTeamDietary(athleteIds) {
   // null = FAILED. This feeds the Team Dietary Sheet — a safety surface a coach may order
   // team meals from. A dropped request must never read as "no declarations".
   try {
-    const { data, error } = await c.from('dietary_restrictions').select('athlete_id,data').in('athlete_id', athleteIds);
-    if (error) return null;
-    return data || [];
+    // Chunked (scale pass 2026-08-18).
+    const results = await Promise.all(chunkIds(athleteIds).map((chunk) =>
+      c.from('dietary_restrictions').select('athlete_id,data').in('athlete_id', chunk)));
+    if (results.some((r) => r.error)) return null;
+    return results.flatMap((r) => r.data || []);
   } catch { return null; }
 }
 
@@ -711,10 +735,28 @@ export async function markDayViewed(athleteId, date, viewerId, viewerName) {
 /* ---------------- meal comments (the real coach↔athlete thread) ---------------- */
 /** Returns the meal's comment thread, oldest→newest — or the {error:true} sentinel (same
     pattern as fetchMyTeams) on a supabase {error} or thrown fetch, so an outage is never
-    mistaken for "no replies yet". */
-export async function fetchMealComments(mealId) {
+    mistaken for "no replies yet".
+ *  `sinceISO` (scale pass 2026-08-18): when passed, first runs a HEAD+count probe — an index
+ *  scan, not 200 rows of text/meta over the wire — and returns {unchanged:true} instead of
+ *  refetching if nothing landed after it. `.gt` not `.gte`, so a same-instant sibling row (two
+ *  comments sharing one transaction's `now()`) can go unseen by ONE probe; the poll's next
+ *  tick, its burst window after a send, and the realtime doorbell (which always fetches
+ *  unconditionally) each independently catch it, so the narrow miss self-heals fast. A probe
+ *  FAILURE falls through to the real fetch — this can only ever cost an extra round trip. Omit
+ *  sinceISO for the original always-full behavior (every other caller, and every other call
+ *  site in meal.js, does exactly that on purpose — a probe only serves the idle poll floor). */
+export async function fetchMealComments(mealId, sinceISO) {
   const c = sb(); if (!c || !mealId) return [];
-  try { const { data, error } = await c.from('meal_comments').select('*').eq('meal_id', mealId).order('created_at', { ascending: true }).limit(200); if (error) return { error: true }; return data || []; } catch { return { error: true }; }
+  try {
+    if (sinceISO) {
+      const { count, error: probeErr } = await c.from('meal_comments')
+        .select('id', { count: 'exact', head: true }).eq('meal_id', mealId).gt('created_at', sinceISO);
+      if (!probeErr && !count) return { unchanged: true };
+    }
+    const { data, error } = await c.from('meal_comments').select('*').eq('meal_id', mealId).order('created_at', { ascending: true }).limit(200);
+    if (error) return { error: true };
+    return data || [];
+  } catch { return { error: true }; }
 }
 /* `meta` (0157) is optional and rides the same row: clients may write it on their own rows because
    the insert policy is row-level, not column-level. Used for a chat photo attachment
@@ -933,12 +975,13 @@ export async function fetchPassPolicy({ teamId, practiceId } = {}) {
 export async function fetchRosterPasses(athleteIds) {
   const c = sb(); if (!c || !athleteIds || !athleteIds.length) return null;
   try {
-    const { data, error } = await c.from('trust_passes')
-      .select('id,athlete_id,credits_total,covers_from,covers_until,expires_on')
-      .in('athlete_id', athleteIds).is('ended_at', null);
-    if (error) return null;
+    // Chunked (scale pass 2026-08-18).
+    const results = await Promise.all(chunkIds(athleteIds).map((chunk) =>
+      c.from('trust_passes').select('id,athlete_id,credits_total,covers_from,covers_until,expires_on')
+        .in('athlete_id', chunk).is('ended_at', null)));
+    if (results.some((r) => r.error)) return null;
     const map = {};
-    for (const r of data || []) map[r.athlete_id] = r;
+    for (const r of results) for (const row of (r.data || [])) map[row.athlete_id] = row;
     return map;
   } catch { return null; }
 }

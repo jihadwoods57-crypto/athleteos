@@ -1426,6 +1426,11 @@ export const thread = {
     };
     let gen = 0; // stale-response guard: only the newest refresh paints
     let comments = [];
+    // Server-sourced cursor for the poll's cheap probe (scale pass 2026-08-18) — the max
+    // created_at from the last successful FULL fetch. Deliberately not a client clock reading:
+    // clock skew between this device and Postgres could push the cursor past a row that's
+    // legitimately new, which is exactly the silent-miss class of bug a scale fix must not add.
+    let lastKnownAt = null;
     let rxBusy = false; // one reaction write at a time — double-taps must not race into two rows
 
     // Message timestamps (feedback 2026-07-16: real chat mechanics). Local clock format;
@@ -1629,12 +1634,20 @@ export const thread = {
     };
 
     const setTyping = (on) => { aiTyping = !!on; paint(); };
-    const refresh = async () => {
+    // opts.probe: only the idle poll tick passes this (see scheduleTick below). Every other
+    // caller — initial mount, send, reaction toggle, retry, the realtime doorbell — wants the
+    // truth right now and calls refresh() with no args, which always does the full fetch.
+    const refresh = async (opts = {}) => {
       const myGen = ++gen;
-      const fetched = await roles.fetchMealComments(M.mealId);
+      const probeSince = opts.probe && lastKnownAt ? lastKnownAt : null;
+      const fetched = await roles.fetchMealComments(M.mealId, probeSince);
       if (myGen !== gen) return;
+      if (fetched && fetched.unchanged) return; // the cheap probe found nothing new — no repaint to do
       if (fetched && fetched.error) { showThreadError(); return; }
       comments = fetched; if (statusEl) statusEl.remove();
+      for (const row of Array.isArray(comments) ? comments : []) {
+        if (row && row.created_at && (!lastKnownAt || row.created_at > lastKnownAt)) lastKnownAt = row.created_at;
+      }
       // Professional corrections ride the thread (0199, meta t:'pro_correction'): the pro's
       // device corrected the meals ROW; this device owns today's slotMacros and the score, so
       // the correction applies HERE, once per comment, through the same engines as every other
@@ -1704,7 +1717,13 @@ export const thread = {
       try { clearTimeout(window.__threadTick); } catch { /* first */ }
       window.__threadTick = setTimeout(async () => {
         if (typeof document === 'undefined' || !document.hidden) {
-          if (!threadBusy) await refresh().catch(() => {});
+          if (!threadBusy) {
+            // Skip the probe during the post-send burst window: a reply IS expected there, so
+            // a cheap "anything new?" check first would only add a round trip before the full
+            // fetch that's about to happen anyway.
+            const probing = Date.now() >= burstUntil;
+            await refresh({ probe: probing }).catch(() => {});
+          }
         }
         if (root.isConnected) scheduleTick();   // stop rescheduling once the screen is gone
       }, tickDelay());
