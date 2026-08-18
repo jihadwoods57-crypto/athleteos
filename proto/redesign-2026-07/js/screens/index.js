@@ -46,6 +46,7 @@ import { obCoach } from './ob2-coach.js';
 import { obTrainer } from './ob2-trainer.js';
 import { obParent } from './ob2-parent.js';
 import { obNutrition } from './ob2-nutrition.js';
+import { obDietitian } from './ob2-dietitian.js';
 import signin from './signin.js';
 import reset from './reset.js';
 import { devices, recruiting, restrictions, teamDiet, injury, coachVoice, trustPassPolicy, weekPattern, safety } from './features.js';
@@ -167,6 +168,7 @@ export const screens = {
   obt: obTrainer,
   obp: obParent,
   obn: obNutrition,
+  obd: obDietitian,
   signin,
   reset,
   'coach-ob': coachOb,

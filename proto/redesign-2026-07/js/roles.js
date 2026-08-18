@@ -126,10 +126,12 @@ export async function fetchMyTeamIdentity() {
     // below never sees it. Inspecting `error` here is what makes the { error: true } sentinel
     // this function documents actually reachable — otherwise a flaky connection returned null,
     // which callers read as "no team yet" and showed "Setting up" forever.
-    const { data, error } = await c.from('teams').select('id,name,join_code').limit(1).maybeSingle();
+    const { data, error } = await c.from('teams').select('id,name,join_code,discipline').limit(1).maybeSingle();
     if (error) return { error: true };
     if (!data) return null;
-    return { id: data.id, name: data.name || '', code: data.join_code || '' };
+    // discipline (0202): 'training' | 'nutrition' — the team-book mirror of the practice lens
+    // key (0197). Same normalization: anything unexpected reads as 'training'.
+    return { id: data.id, name: data.name || '', code: data.join_code || '', discipline: data.discipline === 'nutrition' ? 'nutrition' : 'training' };
   } catch { return { error: true }; }
 }
 
@@ -1045,6 +1047,19 @@ export async function fetchRequirementSets(bookId, kind = 'team') {
   const c = sb(); if (!c || !bookId) return [];
   try { const { data, error } = await c.from('requirement_sets').select('*').eq(ownerCol(kind), bookId); if (error) return null; return data || []; } catch { return null; }
 }
+/** The BOUNDED read for athlete-side standard resolution (0203): per scope lane, everything
+ *  effective after (today - 7) plus the newest row at-or-before it — provably still contains
+ *  the governing row for any asOf resolveRequirementSet is called with. Falls back to the
+ *  full fetch on a pre-0203 server so an old database never breaks scoring. Same null-on-FAIL
+ *  contract as fetchRequirementSets: a fabricated [] would silently drop the coach's standard. */
+export async function fetchRelevantRequirementSets(bookId, kind = 'team') {
+  const c = sb(); if (!c || !bookId) return [];
+  try {
+    const { data, error } = await c.rpc('relevant_requirement_sets', { p_book: bookId, p_kind: kind });
+    if (!error) return data || [];
+    return fetchRequirementSets(bookId, kind); // RPC missing/failed: the unbounded read still tells the truth
+  } catch { return fetchRequirementSets(bookId, kind); }
+}
 /** The signed-in ATHLETE's assignments: everything open plus anything closed recently
     (so a just-completed task still shows Done tonight). null = FAILED — [] on a dropped
     request wiped every real coach assignment out of local state. */
@@ -1427,6 +1442,32 @@ export async function checkPhotoReuse(hash) {
  *  { ok, pushed, deduped, suppressed, devices, rateLimited }.
  *  opts.kind: 'nudge' (default) | 'coach_comment' | 'coach_react' — comments/reactions skip
  *  the server's nudge dedupe. opts.ref: meal id, makes the athlete's bell row deep-link. */
+/** Bulk operator → athletes nudge: ONE send-push call for a roster selection (scale pass
+ *  2026-08-18). The server authorizes set-based (caller runs the book, targets are its active
+ *  members), applies the same 2-minute dedupe and opt-out as the single path, writes the bell
+ *  rows AND the coach_interventions queue-clear rows, and returns per-athlete truth:
+ *  { ok, sent, inboxOnly, deduped, suppressed, dropped, results: [{athlete_id, pushed,
+ *  devices, deduped?, suppressed?}], rateLimited? }.
+ *  `reasons` is athleteId -> { reason_key, tier } so each intervention row can clear the
+ *  coach-home queue, exactly what the old client loop stamped one insert at a time. */
+export async function bulkNudgePush(athleteIds, title, body, { bookId, book = 'team', reasons } = {}) {
+  const c = sb(); if (!c || !Array.isArray(athleteIds) || !athleteIds.length || !bookId) return { ok: false };
+  try {
+    const { data, error } = await c.functions.invoke('send-push', {
+      body: { athlete_ids: athleteIds, title, body, book_id: bookId, book, ...(reasons ? { reasons } : {}) },
+    });
+    if (error) {
+      const status = error && error.context && error.context.status;
+      return { ok: false, rateLimited: status === 429 };
+    }
+    const d = data || {};
+    return {
+      ok: d.ok !== false, sent: d.sent || 0, inboxOnly: d.inboxOnly || 0,
+      deduped: d.deduped || 0, suppressed: d.suppressed || 0, dropped: d.dropped || 0,
+      results: Array.isArray(d.results) ? d.results : [],
+    };
+  } catch { return { ok: false }; }
+}
 export async function nudgePush(athleteId, title, body, opts = {}) {
   const c = sb(); if (!c || !athleteId) return { ok: false };
   try {

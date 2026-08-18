@@ -189,7 +189,9 @@ const coachSteps = {
     </div>`;
     const joinBody = `
     <div class="eyebrow" style="margin:8px 2px 10px">Staff code</div>
-    <input id="co-staff-code" class="ob-input" maxlength="8" placeholder="Code from your head coach" autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" />
+    ${/* maxlength 12, not 8: staff codes are 10 chars since 0169 and the old cap silently
+          truncated every real code into a guaranteed "did not work" (found 2026-08-18). */''}
+    <input id="co-staff-code" class="ob-input" maxlength="12" placeholder="Code from your head coach" autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" />
     <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">Your head coach hands out staff codes. It lands you on their team's staff with the role and permissions they set. You won't create a new team.</div>`;
     return frame(3, 7,
       mode === 'join' ? 'Join a staff.' : 'Build the team.',

@@ -6,6 +6,7 @@
 // verify_jwt stays ON (default) — only a signed-in, linked overseer can call this.
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { clientIpFrom } from '../_shared/client-ip.ts';
+import { sanitizeBulkPayload, aggregateBulkResults } from './logic.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -68,6 +69,11 @@ Deno.serve(async (req) => {
     announcement_id?: string;
     /** Service-role broadcast (security audit 2026-07-30). See the branch below. */
     user_ids?: unknown;
+    /** Operator bulk nudge (scale pass 2026-08-18): one call fans out to a roster selection.
+     *  Replaces the client's serial per-athlete loop (300 ms stagger, 20/min ceiling at
+     *  athlete 21). Authorization is set-based; see the branch below. */
+    athlete_ids?: unknown; book_id?: string; book?: string;
+    reasons?: Record<string, { reason_key?: string; tier?: string }>;
   };
   try {
     payload = await req.json();
@@ -199,6 +205,116 @@ Deno.serve(async (req) => {
       } catch { /* best-effort; feed rows already landed via post_announcement */ }
     }
     return json({ ok: true, pushed }, 200, cors);
+  }
+
+  // ---------- operator bulk nudge (athlete_ids mode) ----------
+  // One call for a whole roster selection. The single-athlete path authorizes with can_view per
+  // call, which is O(N) round trips from the client and guaranteed to trip the per-IP limiter at
+  // athlete 21; this branch authorizes SET-based the way the announcement fan-out already does:
+  // the caller must run the book, and the targets must be that book's active members. Everything
+  // else (2-minute dedupe, opt-out, bell rows, Expo chunks) matches the single path, batched.
+  if (Array.isArray(payload.athlete_ids)) {
+    const norm = sanitizeBulkPayload(payload);
+    if (!norm.ok) return json({ error: norm.error }, 400, cors);
+
+    const caller3 = createClient(SUPABASE_URL, ANON, { global: { headers: { Authorization: authHeader } } });
+    const { data: me3, error: meErr3 } = await caller3.auth.getUser();
+    const callerId3 = me3?.user?.id;
+    if (meErr3 || !callerId3) return json({ error: 'unauthorized' }, 401, cors);
+
+    const svc3 = createClient(SUPABASE_URL, SERVICE_ROLE);
+    let memberIds: string[] = [];
+    if (norm.book === 'team') {
+      const { data: staff3 } = await svc3.from('team_staff')
+        .select('role').eq('team_id', norm.bookId).eq('staff_id', callerId3).eq('status', 'active').maybeSingle();
+      if (!staff3 || staff3.role === 'readonly') return json({ error: 'not authorized for this team' }, 403, cors);
+      const { data: mem3 } = await svc3.from('team_members')
+        .select('athlete_id').eq('team_id', norm.bookId).eq('status', 'active').in('athlete_id', norm.ids);
+      memberIds = (mem3 ?? []).map((m: { athlete_id: string }) => m.athlete_id);
+    } else {
+      const { data: pr3 } = await svc3.from('practices')
+        .select('owner_id').eq('id', norm.bookId).maybeSingle();
+      if (!pr3 || pr3.owner_id !== callerId3) return json({ error: 'not authorized for this practice' }, 403, cors);
+      const { data: pc3 } = await svc3.from('practice_clients')
+        .select('client_id').eq('practice_id', norm.bookId).eq('status', 'active').in('client_id', norm.ids);
+      memberIds = (pc3 ?? []).map((m: { client_id: string }) => m.client_id);
+    }
+    const memberSet = new Set(memberIds);
+    const targets3 = norm.ids.filter((id) => memberSet.has(id));
+    const results: Array<{ athlete_id: string; pushed: number; devices: number; deduped?: boolean; suppressed?: string | null }> = [];
+    // Ids the book doesn't know get an honest per-athlete verdict, never a silent drop.
+    for (const id of norm.ids) if (!memberSet.has(id)) results.push({ athlete_id: id, pushed: 0, devices: 0, suppressed: 'not_on_roster' });
+    if (!targets3.length) return json({ ok: false, dropped: norm.dropped, results, ...aggregateBulkResults(results) }, 200, cors);
+
+    // Batched 2-minute nudge dedupe — same window as the single path, one read for all targets.
+    const DEDUPE_MS3 = 2 * 60_000;
+    const { data: recent3 } = await svc3.from('notifications')
+      .select('user_id').in('user_id', targets3).eq('kind', 'nudge')
+      .gte('created_at', new Date(Date.now() - DEDUPE_MS3).toISOString());
+    const dedupedSet3 = new Set((recent3 ?? []).map((n: { user_id: string }) => n.user_id));
+
+    // Opt-out, fail-open like the single path: a pre-0067 database pushes anyway.
+    let optedOut3 = new Set<string>();
+    try {
+      const { data: prefs3 } = await svc3.from('profiles').select('id,notifications_opt_out').in('id', targets3);
+      optedOut3 = new Set((prefs3 ?? [])
+        .filter((p: { notifications_opt_out?: boolean }) => p.notifications_opt_out === true)
+        .map((p: { id: string }) => p.id));
+    } catch { /* fail-open */ }
+
+    const live3 = targets3.filter((id) => !dedupedSet3.has(id) && !optedOut3.has(id));
+
+    // Durable bell rows first — they land even for a zero-device athlete (in-app only).
+    if (live3.length) {
+      await svc3.from('notifications').insert(live3.map((id) => ({ user_id: id, kind: 'nudge', title: norm.title, body: norm.body })));
+    }
+
+    // Tokens with per-athlete attribution, then Expo in chunks of 100.
+    const tokByUser = new Map<string, string[]>();
+    if (live3.length) {
+      const { data: toks3 } = await svc3.from('device_tokens').select('user_id,token').in('user_id', live3);
+      for (const t of (toks3 ?? []) as Array<{ user_id: string; token: string }>) {
+        if (!t?.token) continue;
+        const arr = tokByUser.get(t.user_id) ?? [];
+        arr.push(t.token);
+        tokByUser.set(t.user_id, arr);
+      }
+    }
+    const messages3 = live3.flatMap((id) => (tokByUser.get(id) ?? [])
+      .map((to) => ({ to, title: norm.title, body: norm.body, sound: 'default', data: { route: 'home' } })));
+    let expoOk3 = true;
+    for (let i = 0; i < messages3.length; i += 100) {
+      const chunk = messages3.slice(i, i + 100);
+      try {
+        const r3 = await fetch('https://exp.host/--/api/v2/push/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(chunk),
+        });
+        if (!r3.ok) expoOk3 = false;
+      } catch { expoOk3 = false; }
+    }
+
+    // The queue-clear rows, one bulk insert. coach_id must be EXPLICIT: under the service role
+    // the column's auth.uid() default is null and the row would violate not-null — and RLS's
+    // `coach_id = auth.uid()` check never runs for service role, so honesty is on us here.
+    // Exactly one owner column is set (the 0136 CHECK).
+    try {
+      const ownerCol3 = norm.book === 'practice' ? 'practice_id' : 'team_id';
+      await svc3.from('coach_interventions').insert(live3.map((id) => ({
+        [ownerCol3]: norm.bookId, athlete_id: id, coach_id: callerId3, kind: 'nudge',
+        reason_key: (norm.reasons[id] && norm.reasons[id].reason_key) || null,
+        tier: (norm.reasons[id] && norm.reasons[id].tier) || null,
+      })));
+    } catch { /* the nudge already landed; the queue-clear row stays best-effort, as it was client-side */ }
+
+    for (const id of targets3) {
+      if (dedupedSet3.has(id)) { results.push({ athlete_id: id, pushed: 0, devices: 0, deduped: true }); continue; }
+      if (optedOut3.has(id)) { results.push({ athlete_id: id, pushed: 0, devices: 0, suppressed: 'notifications_off' }); continue; }
+      const devices = (tokByUser.get(id) ?? []).length;
+      results.push({ athlete_id: id, pushed: expoOk3 ? devices : 0, devices });
+    }
+    return json({ ok: true, dropped: norm.dropped, results, ...aggregateBulkResults(results) }, 200, cors);
   }
 
   // ---------- athlete → coach (to_coach mode) ----------

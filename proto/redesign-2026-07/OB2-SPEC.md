@@ -79,9 +79,12 @@ import { accountBody, wireAccount } from './ob-account.js';
 // mount: wireAccount(root, { role: SERVER_ROLE, onSession: async (live) => { ...persist...; window.__go(DEST); } });
 ```
 Server roles: athlete flow `'athlete'`, client `'athlete'`, coach `'coach'`, trainer `'trainer'`,
-parent `'parent'`, nutritionist `'trainer'` (rides the practice rail).
-Persist calls: athlete+client `act.persistOnboarding()`; coach `act.persistCoachOnboarding()`
-(then its code-reveal screen); trainer+nutritionist `act.persistTrainerOnboarding()`.
+parent `'parent'`, nutritionist `'trainer'` (rides the practice rail), team dietitian `'coach'`
+(rides the team rail; the coach scratch carries `discipline:'nutrition'` so create_team mints a
+nutrition book, 0202).
+Persist calls: athlete+client `act.persistOnboarding()`; coach + team dietitian
+`act.persistCoachOnboarding()` (then their code-reveal screens); trainer+nutritionist
+`act.persistTrainerOnboarding()`.
 Parent: no persist fn — after session, if `ob.guardianToken` try
 `sb.rpc('accept_guardian_invite', { token })` best-effort (read `js/screens/guardian.js` first),
 then `window.__go('parent')`.
@@ -105,7 +108,8 @@ seam — the CTA continues; nothing charges. Copy must never promise a charge th
 ### Destinations (final `window.__go`)
 athlete → `home` (or `bio-optin` if `window.OnStandardNative?.biometrics` — copy legacy check),
 client → `home`, coach → its code-reveal screen then `coach-home`, trainer → `trainer`,
-parent → `parent`, nutritionist → `trainer`.
+parent → `parent`, nutritionist → `trainer`, team dietitian → its code-reveal screen then
+`coach-home` (the nutrition team book).
 
 ---
 
@@ -275,6 +279,28 @@ ch3: `commit-q` "How should your review day run?" (AI triage, I review flags / I
 ch4: `proof` professional testimonials; `account` (role 'trainer', persistTrainerOnboarding —
   practiceName carries over); `plans` PLANS.seat; destination `trainer` framed as
   "Your review queue is ready for its first client."
+
+### TEAM DIETITIAN — `js/screens/ob2-dietitian.js` · `export const obDietitian` · route `obd` (~18)
+The college sports RD who answers for a whole roster's fueling. Rides the COACH rail: signUp role
+`'coach'`, `persistCoachOnboarding()`, but the coach scratch carries `discipline:'nutrition'` so
+`create_team` (0202) mints a nutrition team book — coach-home then wears the teamNutrition vocab,
+the meal-review queue board, and the fueling strips.
+ch0: `why` "One dietitian. A whole roster's plates." / `gap` — you can't watch them eat; fueling
+  runs on trust and spot checks / `answer` — every plate photographed, every plate read.
+  `name` + optional `credential` chips (RD/RDN, CSSD, MS, student), `program` team name (required,
+  mirrored to coach scratch with `discipline:'nutrition'`) + sport (optional), `roster` chips →
+  `rosterCount` bands, `slip` choice → `dietSlip` (road trips / dining hall / weekends / quiet
+  underfueling), shared `structure` step (mode 'assign').
+ch1: `aha` — countStat rosterMid × 25 = plates/week + "the AI reads every one" verdict;
+  `queue` — flags-first review board preview (simChip, thumbs from the bundled meal assets);
+  `correct` — interactive portion correction on SAMPLE_MEAL (bigger / right / smaller chips,
+  macros move, "logged under your name").
+ch2: `plan` mirrorCards (rosterCount → queue, dietSlip → flags, standard promise);
+  `standard` choice → `teamStandard` (fuel4 / fuel3 / custom later).
+ch3: `commit` hold (verdict quotes the chosen standard); shared `save` step.
+ch4: `proof` program testimonials (launch placeholders); `account` (role 'coach',
+  persistCoachOnboarding, discipline stamped in mount); `code` reveal (`.code-boxes fit`, copy +
+  customize via set_my_team_code); `plans` PLANS.org; destination `coach-home`.
 
 ---
 

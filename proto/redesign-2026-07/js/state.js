@@ -46,7 +46,7 @@ import { base64ToBytes, sha256Hex, photoAgeMinutes } from './photo-hash.js';
 import {
   fetchMyPracticeIdentity, fetchMyTeamIdentity, fetchMyCoach, fetchMyTrainer, fetchMyConsent,
   requestGuardianConsent as rpcRequestConsent,
-  fetchRequirementSets, fetchMyAssignments, completeAssignmentRemote,
+  fetchRequirementSets, fetchRelevantRequirementSets, fetchMyAssignments, completeAssignmentRemote,
   fetchMyNotifications, markMyNotificationsRead,
   fetchMyCoachHandle, setMyCoachName, checkPhotoReuse, notifyMyCoach,
   fetchPassPolicy, spendPass as rpcSpendPass, fetchTeamWeekPattern, fetchCoachSetupState, fetchPracticeSetupState, fetchMyRoomLabel,
@@ -2824,7 +2824,7 @@ export const act = {
     const identity = await fetchMyTeamIdentity();
     const fetchFailed = !!(identity && identity.error);
     if (identity && identity.code) {
-      RT.team = { id: identity.id, name: identity.name, code: identity.code };
+      RT.team = { id: identity.id, name: identity.name, code: identity.code, discipline: identity.discipline || 'training' };
       RT.teamOffline = false;
     } else if (hadCache) {
       RT.teamOffline = true; // keep RT.team as-is (last-known real identity)
@@ -3053,7 +3053,9 @@ export const act = {
     if (RT.myCoach && RT.myCoach.teamId) {
       // null = FAILED: keep last-known sets — a fabricated [] silently reverts the athlete's
       // scored day to the built-in catalog, dropping the coach's standard and deadlines.
-      const sets = await fetchRequirementSets(RT.myCoach.teamId, 'team');
+      // Bounded read (0203): the RPC returns only the rows resolution can actually pick from;
+      // it falls back to the full fetch on a pre-0203 server.
+      const sets = await fetchRelevantRequirementSets(RT.myCoach.teamId, 'team');
       if (sets !== null) RT.reqSets = sets;
       // The team's weekly pattern (0100) resolves this athlete's day-type. A real null (no
       // pattern configured) leaves day-type 'any', which is correct. { error:true } means the
@@ -3072,7 +3074,7 @@ export const act = {
         if (!(rl && rl.error)) RT.myRoomLabel = rl;
       } catch { /* best-effort */ }
     } else if (RT.myTrainer && RT.myTrainer.practiceId) {
-      const sets = await fetchRequirementSets(RT.myTrainer.practiceId, 'practice');
+      const sets = await fetchRelevantRequirementSets(RT.myTrainer.practiceId, 'practice');
       if (sets !== null) RT.reqSets = sets;
     }
     this._applyStandardFromSets();
@@ -3419,6 +3421,9 @@ export const act = {
       const { data: code, error } = await sb.rpc('create_team', {
         team_name: c.teamName || 'My Team', team_sport: c.sport || null,
         team_org: orgId, team_discoverable: c.discoverable !== false,
+        // 0202: the dietitian flow (obd) rides this same rail with coach scratch carrying
+        // discipline 'nutrition' — the team book then wears the nutrition lens for good.
+        team_discipline: c.discipline === 'nutrition' ? 'nutrition' : 'training',
       });
       if (error || !code) return false;
       this.captureOb({ teamCode: code });
@@ -3449,6 +3454,7 @@ export const act = {
         team_sport: c.sport || (RT.profile && RT.profile.sport) || null,
         team_org: c.orgId || null,
         team_discoverable: c.discoverable !== false,
+        team_discipline: c.discipline === 'nutrition' ? 'nutrition' : 'training',
       });
       if (error || !code) return { ok: false, error: friendlyTeamCreate(error) };
       this.captureOb({ teamCode: code });

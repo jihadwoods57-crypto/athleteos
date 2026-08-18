@@ -447,7 +447,7 @@ const steps = [
       </div>
       ${mode === 'join' ? `
       <div class="eyebrow" style="margin:8px 2px 10px">Staff code</div>
-      <input id="ok-staff-code" class="ob-input" maxlength="8" placeholder="Code from your head coach" autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" value="${esc(c.staffCode || '')}" />
+      <input id="ok-staff-code" class="ob-input" maxlength="12" placeholder="Code from your head coach" autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" value="${esc(c.staffCode || '')}" />
       <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">Your head coach hands out staff codes. It lands you on their team’s staff with the role and permissions they set — you won’t create a new team.</div>` : `
       <input id="ok-team" class="ob-input" maxlength="60" placeholder="Team name (e.g. Varsity Football)" value="${esc(c.teamName || o.teamName || '')}" />
       <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:10px 2px 0;line-height:1.45">Your join code mints with your account on the next steps — send it to the group chat and the board starts filling.</div>`}`;

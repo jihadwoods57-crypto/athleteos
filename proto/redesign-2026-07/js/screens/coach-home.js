@@ -2,7 +2,7 @@ import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { avatarHead, esc, safeImg, collapseSection, skeletonRows, errorState, emailVerifyBanner, wireEmailVerifyBanner, copyText } from '../components.js';
 import * as roles from '../roles.js';
-import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope, logBookIntervention, passWorthy } from '../coach-data.js';
+import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope, logBookIntervention, passWorthy, bookId } from '../coach-data.js';
 import { buildPriorities } from '../priority.js';
 import { nudgePreset, nudgeResultCopy } from '../nudge-presets.js';
 import { PLANS } from '../ob2.js';
@@ -37,6 +37,12 @@ const VOCAB = {
     everyone: 'All clients', mine: 'My clients', priorities: 'Client priorities',
     setup: 'Set up your nutrition practice', loading: 'Loading your clients…',
   },
+  // The TEAM dietitian lens (0202 teams.discipline, the obd sign-up): a roster of athletes,
+  // run by a nutrition professional. Team nouns, fueling priorities.
+  teamNutrition: {
+    everyone: 'Entire team', mine: 'My athletes', priorities: 'Fueling priorities',
+    setup: 'Set up your team', loading: 'Loading your team…',
+  },
 };
 /* CD.kind only settles after the first loadBook resolves, so a trainer's very first paint would
    flash team vocab — the signed-in role already knows the answer, so prefer it.
@@ -44,9 +50,16 @@ const VOCAB = {
    and on a practice book it literally never went away because trainer progress never persisted;
    0197 fixed the persistence, this fixes the tone.) */
 const isPractice = () => CD.kind === 'practice' || RT.authRole === 'trainer';
+/* The nutrition lens has THREE doors now, not one (2026-08-18): a nutrition practice (0197),
+   a team whose OWNER is the dietitian (0202, the obd sign-up), or a staff member the head
+   coach invited with the Dietitian chip (team_staff role 'nutritionist' — the invite that
+   implicitly promised this board and never delivered it). */
+const isNutritionBook = () => (isPractice()
+  ? !!(RT.practice && RT.practice.discipline === 'nutrition')
+  : !!(RT.team && RT.team.discipline === 'nutrition') || (CD.extras && CD.extras.myRole) === 'nutritionist');
 const vocab = () => VOCAB[isPractice()
   ? (RT.practice && RT.practice.discipline === 'nutrition' ? 'nutrition' : 'practice')
-  : 'team'];
+  : (isNutritionBook() ? 'teamNutrition' : 'team')];
 
 /* Athlete-invite link + share text (mirrors the trainer's inviteLink/inviteShareText inline,
    the same way state.js mirrors src/core in plain JS). Empty code → empty string: never link or
@@ -436,14 +449,16 @@ async function paintNutritionBoard(root) {
     // The four-states law: while the FIRST load is in flight the slot shows a skeleton shaped
     // like the queue it stands in for, never a blank gap the sections below jump into.
     if (NUT.key !== key || !NUT.rows) {
-      slot.innerHTML = `<div class="eyebrow co-major">Meal review</div>${skeletonRows(2, 'Loading client meals')}`;
+      slot.innerHTML = `<div class="eyebrow co-major">Meal review</div>${skeletonRows(2, 'Loading meals')}`;
     }
     // Meals + flags fetched together on the same cadence: the flame state (0199) rides
     // coach_interventions, latest row wins per 'flag:meal:<id>' — flagStateByMeal is the same
     // reader the inbox categorizer uses, so the two surfaces can never disagree.
+    // Book-aware since 0202: the board serves practice books AND nutrition team books, so the
+    // flag read hangs off whichever owner the current book actually is.
     const [fetched, iv] = await Promise.all([
       roles.fetchTeamActivity(roles.daysAgoISO(6), 400, ids).catch(() => null),
-      roles.fetchRecentInterventions(RT.practice && RT.practice.id, roles.daysAgoISO(13), 'practice').catch(() => null),
+      roles.fetchRecentInterventions(bookId(), roles.daysAgoISO(13), CD.kind).catch(() => null),
     ]);
     meals = fetched;
     // Either read failing means the queue is not the whole truth: a lost interventions read
@@ -455,8 +470,10 @@ async function paintNutritionBoard(root) {
   }
   if (!slot.isConnected) return;
   meals = NUT.rows || [];
+  // "Client" on a practice, "Athlete" on a team book — the noun follows the roster.
+  const fallbackNoun = CD.kind === 'practice' ? 'Client' : 'Athlete';
   const nameOf = {};
-  for (const r of rows) nameOf[r.athleteId] = r.name || 'Client';
+  for (const r of rows) nameOf[r.athleteId] = r.name || fallbackNoun;
   const seen = new Set(RT.coachSeenMealIds || []);
   const isFlagged = (id) => !!(NUT.flags[id] && NUT.flags[id].kind === 'flag');
 
@@ -477,8 +494,9 @@ async function paintNutritionBoard(root) {
   // photo falls back to the bowl tile and costs nothing.
   const need = queue.filter((m) => m.photo_path && NUT.photos[m.id] === undefined);
   if (need.length) {
-    const signed = await Promise.all(need.map((m) => roles.signedMealPhotoUrl(m.photo_path).catch(() => null)));
-    need.forEach((m, i) => { NUT.photos[m.id] = signed[i]; });
+    // One createSignedUrls round trip for the batch (scale pass 2026-08-18), not one per thumb.
+    const map = await roles.signedMealPhotoUrls(need.map((m) => m.photo_path)).catch(() => ({}));
+    need.forEach((m) => { NUT.photos[m.id] = (map && map[m.photo_path]) || null; });
     if (!slot.isConnected) return;
   }
 
@@ -533,11 +551,11 @@ async function paintNutritionBoard(root) {
   slot.innerHTML = `
     <div class="eyebrow co-major" style="display:flex;justify-content:space-between;align-items:baseline"><span>Meal review</span>${flaggedCount ? `<span style="color:var(--amber-bright)">${flaggedCount} flagged</span>` : unopened ? `<span style="color:var(--blue-bright)">${unopened} to review</span>` : ''}</div>
     ${queue.length ? `<section class="card" style="padding:6px 16px">${qRows}</section>
-    <div class="nb-foot"><span class="link" data-go="trainer-inbox" role="button">The full queue lives in your Inbox</span></div>`
+    <div class="nb-foot"><span class="link" data-go="${CD.kind === 'practice' ? 'trainer-inbox' : 'coach-inbox'}" role="button">The full queue lives in your Inbox</span></div>`
     : NUT.err ? `<div class="nb-foot">Couldn't reach the server for the queue. It reloads the next time this screen opens.</div>`
-    : `<div class="nb-foot">No client meals in the last 7 days. Every logged meal lands here for review.</div>`}
+    : `<div class="nb-foot">No ${fallbackNoun.toLowerCase()} meals in the last 7 days. Every logged meal lands here for review.</div>`}
     ${perClient.length ? `
-    <div class="eyebrow">Client fueling · last 7 days</div>
+    <div class="eyebrow">${fallbackNoun} fueling · last 7 days</div>
     <section class="card" style="padding:10px 16px 12px">${fRows}</section>` : ''}`;
 }
 
@@ -664,10 +682,11 @@ export const coachHome = {
     ${obPlanCard()}
     <div id="vc-board-slot"></div>
     <div id="cs-board-slot"></div>
-    ${/* The dietitian's board (0197 discipline lens): a meal review queue + per-client fueling
-          trends, painted async into this slot so the fetch never delays the priority queue.
-          Emitted only on a nutrition practice — every other book renders byte-identical. */''}
-    ${isPractice() && RT.practice && RT.practice.discipline === 'nutrition' ? '<div id="nut-board-slot"></div>' : ''}
+    ${/* The dietitian's board (0197/0202 discipline lens): a meal review queue + per-athlete
+          fueling trends, painted async into this slot so the fetch never delays the priority
+          queue. Emitted on any nutrition book — practice, dietitian-owned team, or invited
+          team nutritionist. Every other book renders byte-identical. */''}
+    ${isNutritionBook() ? '<div id="nut-board-slot"></div>' : ''}
 
     ${(() => {
       // Setup guidance persists (collapsed) after the first athlete joins — it no longer vanishes

@@ -275,6 +275,24 @@
 /* Loading shimmer for the live analysis (skeleton, not spinner) */
 .ob2-scan-note { font-size: 12px; font-weight: 600; color: var(--text-3); text-align: center; margin-top:12px; line-height: 1.5; }
 
+/* ----- Team dietitian flow (obd) bits: class-only so the new file rides the ratchets clean.
+   The demo board's thumb backgrounds are set from JS (.style assignment), never in markup. */
+.ob2-vgap { height: 12px; }
+.ob2-fine.left { text-align: left; padding: 8px 2px 0; }
+.ob2-board .bt { width: 34px; height: 34px; border-radius: var(--r-chip); flex: none;
+  background-size: cover; background-position: center; background-color: var(--surface-3); }
+.ob2-board .bsc { flex: none; min-width: 34px; text-align: center; font-size: var(--t-sm); font-weight: 800;
+  padding: 4px 9px; border-radius: var(--r-chip); font-variant-numeric: tabular-nums;
+  background: var(--surface-3); color: var(--text-2); }
+.ob2-board .bsc.g { background: var(--green-surface); color: var(--green-bright); }
+.ob2-board .bsc.a { background: var(--amber-surface); color: var(--amber-bright); }
+.ob2-board .bf { flex: none; color: var(--amber-bright); }
+.ob2-code-input { text-align: center; letter-spacing: 0.12em; text-transform: uppercase; }
+.ob2-btn-pair { display: flex; justify-content: center; gap: 8px; }
+.ob2-btn-pair .btn { width: auto; padding: 0 22px; }
+.ob2-code-status { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); min-height: 16px;
+  margin-top: 8px; text-align: center; }
+
 /* Reduced motion: kill the entrance beats (mirrors the app-wide rule) */
 @media (prefers-reduced-motion: reduce) {
   .ob2-hero .h-title, .ob2-hero .h-body, .ob2-hero .h-note,

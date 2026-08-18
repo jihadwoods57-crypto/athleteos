@@ -7,11 +7,11 @@ import { RT, S, act } from '../state.js';
 import { icon } from '../icons.js';
 import { avatarHead, esc, sparkline, errorState, skeletonRows } from '../components.js';
 import * as roles from '../roles.js';
-import { CD, loadBook, bookKindFor, entriesFor, logBookIntervention } from '../coach-data.js';
+import { CD, loadBook, bookKindFor, entriesFor, bookId } from '../coach-data.js';
 import { STATUS_META } from '../status.js';
 import { styleLabel } from '../plan-style.js';
 import { scoreColor, tierFor } from '../score-band.js';
-import { nudgePreset, nudgeResultCopy, tierForStatus } from '../nudge-presets.js';
+import { nudgePreset, tierForStatus } from '../nudge-presets.js';
 import { reasonKey } from '../priority.js';
 
 /* Plan-style pill (0142): a one-letter chip naming the style a TEAM STANDARD governs for this
@@ -421,38 +421,43 @@ export const coachRoster = {
         // coach-home queue (a bare kind:'nudge' row is invisible to buildPriorities).
         const statusById = {};
         for (const e of (entriesFor({ kind: 'team', value: null }) || [])) statusById[e.row.athleteId] = e.status;
-        let sent = 0, failed = 0, inboxOnly = 0, remaining = 0, hitLimit = false;
+        /* ONE server call for the whole selection (scale pass 2026-08-18). The old loop was
+           serial per athlete with a 300 ms stagger and a guaranteed rate-limit cliff at
+           athlete 21; the server now fans out, dedupes, writes the bell rows AND the
+           intervention rows (with these reason keys, so the coach-home queue still clears),
+           and returns per-athlete truth. */
+        let r = null;
         try {
-          for (let i = 0; i < toSend.length; i++) {
-            const id = toSend[i];
-            // Stagger the fan-out: the server allows 20 calls a minute per address, and the
-            // old back-to-back loop tripped it at athlete 21 and called it "connection".
-            if (i) await new Promise(res => setTimeout(res, 300));
-            const r = await roles.nudgePush(id, `${S.operatorIdentity.handle} is waiting`, body);
-            if (r && r.rateLimited) { hitLimit = true; remaining = toSend.length - i; break; }
-            const copy = nudgeResultCopy(r);
-            if (copy.ok) {
-              act.markNudged(id);
+          if (toSend.length) {
+            const reasons = {};
+            for (const id of toSend) {
               const st = statusById[id];
-              await logBookIntervention({
-                athleteId: id, kind: 'nudge',
-                reasonKey: st ? reasonKey(st) : undefined,
-                tier: st ? (tierForStatus(st.key) || undefined) : undefined,
-              });
-              sent++;
-              if (copy.tone === 'warn') inboxOnly++;
-            } else failed++;
+              if (st) reasons[id] = { reason_key: reasonKey(st), tier: tierForStatus(st.key) || null };
+            }
+            r = await roles.bulkNudgePush(toSend, `${S.operatorIdentity.handle} is waiting`, body, {
+              bookId: bookId(), book: CD.kind, reasons,
+            });
+            if (r && r.ok) {
+              for (const row of (r.results || [])) {
+                if (row && !row.deduped && !row.suppressed) act.markNudged(row.athlete_id);
+              }
+            }
           }
         } finally {
           BULK_BUSY = false;
         }
-        const parts = [`Nudged ${sent}.`];
-        if (already.length) parts[0] = `Nudged ${sent} (${already.length} already nudged today).`;
-        if (inboxOnly) parts.push(`${inboxOnly} land in-app only (no push set up).`);
-        if (hitLimit) parts.push(`Stopped at the send limit with ${remaining} left. Try again in a minute.`);
-        if (failed) parts.push(`${failed} failed. Check your connection.`);
+        const failedAll = toSend.length && (!r || !r.ok);
+        const parts = [];
+        if (failedAll) {
+          parts.push(r && r.rateLimited ? 'The send limit is busy. Try again in a minute.' : 'Could not send. Check your connection.');
+        } else {
+          const sent = r ? r.sent : 0;
+          parts.push(already.length ? `Nudged ${sent} (${already.length} already nudged today).` : `Nudged ${sent}.`);
+          if (r && r.inboxOnly) parts.push(`${r.inboxOnly} land in-app only (no push set up).`);
+          if (r && r.deduped) parts.push(`${r.deduped} just got one and were skipped.`);
+        }
         BULK_STATUS = parts.join(' ');
-        if (!failed && !hitLimit) { SEL.clear(); SELECTING = false; }
+        if (!failedAll) { SEL.clear(); SELECTING = false; }
         window.__render();
       } else if (kind === 'assign') {
         // The composer targets team/room scope or ONE athlete (coach-assign/<id>); per-athlete

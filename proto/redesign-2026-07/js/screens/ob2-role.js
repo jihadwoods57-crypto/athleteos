@@ -22,14 +22,18 @@ const ROLES = [
     t: 'Trainer', s: 'Scale client accountability and increase your value.' },
   { go: 'obp/why', key: 'parent', ic: 'heart', tint: 'var(--red-surface)', accent: 'var(--red)',
     t: 'Parent', s: 'Support an athlete without constantly checking on them.' },
+  /* Two nutrition entries on purpose (2026-08-18): a college RD covering a roster and a
+     private-practice pro run different books. The subtitles carry the fork. */
+  { go: 'obd/why', key: 'dietitian', ic: 'bowl', tint: 'var(--green-surface)', accent: 'var(--green-bright)',
+    t: 'Team Dietitian / RD', s: 'Run fueling for a whole roster, any sport.' },
   { go: 'obn/why', key: 'nutritionist', ic: 'bowl', tint: 'var(--cyan-surface)', accent: 'var(--cyan)',
-    t: 'Nutrition Professional', s: 'Review meals, trends, and client progress efficiently.' },
+    t: 'Nutrition Professional', s: 'Your own practice: clients, reviews, progress.' },
 ];
 
 /* Resume crumb written by the OB2 engine on every step view. Only offered while the
    person is still signed out — once the account exists the flow is finished or the
    app itself is the right destination. Route must match a known flow or it's ignored. */
-const ROUTE_ROLE = { oba: 'athlete', obf: 'client', obk: 'coach', obt: 'trainer', obp: 'parent', obn: 'nutritionist' };
+const ROUTE_ROLE = { oba: 'athlete', obf: 'client', obk: 'coach', obt: 'trainer', obp: 'parent', obn: 'nutritionist', obd: 'dietitian' };
 let started = false;
 function resumeTarget() {
   if (RT.userId) return null;
