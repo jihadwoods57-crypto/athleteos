@@ -11,6 +11,7 @@ import { scoreColor } from '../score-band.js';
 import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
 import { paintBoard } from './coach-commitments.js';
 import { flagStateByMeal } from '../inbox.js';
+import { allowedCreateKeys } from '../staff-access.js';
 import { paintStandardsBoard } from './coach-connected.js';
 import { maybeStartTour } from '../tour.js';
 
@@ -54,7 +55,7 @@ const isPractice = () => CD.kind === 'practice' || RT.authRole === 'trainer';
    a team whose OWNER is the dietitian (0202, the obd sign-up), or a staff member the head
    coach invited with the Dietitian chip (team_staff role 'nutritionist' — the invite that
    implicitly promised this board and never delivered it). */
-const isNutritionBook = () => (isPractice()
+export const isNutritionBook = () => (isPractice()
   ? !!(RT.practice && RT.practice.discipline === 'nutrition')
   : !!(RT.team && RT.team.discipline === 'nutrition') || (CD.extras && CD.extras.myRole) === 'nutritionist');
 const vocab = () => VOCAB[isPractice()
@@ -208,7 +209,7 @@ function obPlanCard() {
   return `<div class="lrow" id="ob-plan-cta" style="margin:0 0 10px;background:linear-gradient(100deg, rgba(var(--green-rgb),0.10), rgba(var(--blue-rgb),0.05));border:1px solid var(--green-border);border-radius:14px;padding:12px 13px;cursor:pointer">
     <div class="xico sm green">${icon('flame', 16)}</div>
     <div class="xr"><div class="xa">Your ${esc(plan.name)} plan is waiting</div>
-    <div class="xb" style="white-space:normal;line-height:1.45">Free for 14 days — nothing charges today.</div></div>
+    <div class="xb" style="white-space:normal;line-height:1.45">Free for 14 days. Nothing charges today.</div></div>
     <span class="xpill green">Start trial</span>
   </div>`;
 }
@@ -302,7 +303,7 @@ export function emptyTeamDashboard(code, teamName) {
   const orient = !code
     ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin:0 2px 12px;line-height:1.45">Set your ${bookWord} up below to get the code ${noun} join with.</div>`
     : st.ready
-      ? `<div style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--green-bright);margin:0 2px 12px;line-height:1.45">${icon('check', 14)} Your ${bookWord} is ready — hand out the code and your board fills in as ${noun} log.</div>`
+      ? `<div style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--green-bright);margin:0 2px 12px;line-height:1.45">${icon('check', 14)} Your ${bookWord} is ready. Hand out the code and your board fills in as ${noun} log.</div>`
       : `<div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin:0 2px 12px;line-height:1.45">No ${noun} yet. Hand out the code below — your roster, live activity, and ${bookWord} score all fill in from their logs.</div>`;
   return `
     ${orient}
@@ -436,7 +437,7 @@ function pulseCard(rows, statuses) {
    only exists on a practice whose discipline is 'nutrition'. Data: fetchTeamActivity WITH
    athleteIds (roles.js's capacity note: omitting ids defeats the meals index). 60s cache so
    tab-flipping costs one fetch a minute, same posture as the PAST cache on home. */
-const NUT = { key: '', rows: null, flags: {}, photos: {}, err: false, at: 0 };
+const NUT = { key: '', rows: null, flags: {}, targets: {}, photos: {}, err: false, at: 0 };
 async function paintNutritionBoard(root) {
   const slot = root.querySelector('#nut-board-slot');
   if (!slot) return;
@@ -456,9 +457,13 @@ async function paintNutritionBoard(root) {
     // reader the inbox categorizer uses, so the two surfaces can never disagree.
     // Book-aware since 0202: the board serves practice books AND nutrition team books, so the
     // flag read hangs off whichever owner the current book actually is.
-    const [fetched, iv] = await Promise.all([
+    const [fetched, iv, tg] = await Promise.all([
       roles.fetchTeamActivity(roles.daysAgoISO(6), 400, ids).catch(() => null),
       roles.fetchRecentInterventions(bookId(), roles.daysAgoISO(13), CD.kind).catch(() => null),
+      // Coach-set targets for the risk ranking (0205 batch RPC, one round trip for the roster).
+      // null = FAILED or pre-0205 server: the board ranks by coverage alone and shows no
+      // targets -- degraded, never fabricated -- so this read joins neither NUT.err branch.
+      roles.fetchPlanMetaBatch(ids).catch(() => null),
     ]);
     meals = fetched;
     // Either read failing means the queue is not the whole truth: a lost interventions read
@@ -466,7 +471,8 @@ async function paintNutritionBoard(root) {
     NUT.err = meals === null || iv === null;
     if (meals === null && NUT.key === key) meals = NUT.rows; // keep last-known on a flaky fetch
     const flags = iv === null ? (NUT.key === key ? NUT.flags : {}) : flagStateByMeal(iv);
-    NUT.key = key; NUT.rows = meals || []; NUT.flags = flags || {}; NUT.photos = {}; NUT.at = Date.now();
+    const targets = tg === null ? (NUT.key === key ? NUT.targets : {}) : tg;
+    NUT.key = key; NUT.rows = meals || []; NUT.flags = flags || {}; NUT.targets = targets || {}; NUT.photos = {}; NUT.at = Date.now();
   }
   if (!slot.isConnected) return;
   meals = NUT.rows || [];
@@ -521,42 +527,73 @@ async function paintNutritionBoard(root) {
     </div>`;
   }).join('');
 
-  // Fueling: per client, protein summed per day over the last 7 days. Lightest fuelers first —
-  // under-fueling is the thing a dietitian is here to catch. Honest denominators: the average is
-  // over days that HAVE a log, and the logged-day count is said out loud. The strips wear
-  // nutrition's own hue (green paired with green-deep, the gradient law) — this is domain data,
-  // not a score surface, so the sweep stays off it.
+  // Fueling: per client, protein summed per day over the last 7 days, ranked by RISK rather
+  // than raw average. The old sort (lightest avg first) hid the riskiest pattern: an athlete
+  // logging 2 of 7 days can post a healthy-looking average while five days go unseen -- the
+  // render QC caught the table calling an athlete fine mid-table while the priority stack named
+  // the same athlete critical one scroll later. Risk = coverage x adequacy-vs-target, lowest
+  // first; targets are the coach_set_goals values via the 0205 batch RPC, and a failed or
+  // pre-0205 read degrades to coverage-alone ranking. Honest denominators stand: the average is
+  // over days that HAVE a log, said out loud per row. The strips wear nutrition's own hue
+  // (green paired with green-deep, the gradient law) — this is domain data, not a score
+  // surface, so the sweep stays off it.
   const days = [];
   for (let i = 6; i >= 0; i--) days.push(roles.daysAgoISO(i));
+  const tmap = NUT.targets || {};
   const perClient = ids.map((id) => {
     const mine = meals.filter((m) => m.athlete_id === id);
     const totals = days.map((d) => mine.filter((m) => m.day_date === d)
       .reduce((s, m) => s + (Number(m.protein) || 0), 0));
+    const kcals = days.map((d) => mine.filter((m) => m.day_date === d)
+      .reduce((s, m) => s + (Number(m.kcal) || 0), 0));
     const loggedDays = totals.filter((t) => t > 0).length;
     const avg = loggedDays ? Math.round(totals.reduce((s, t) => s + t, 0) / loggedDays) : 0;
-    return { id, totals, loggedDays, avg };
+    const kcalDays = kcals.filter((k) => k > 0).length;
+    const kcalAvg = kcalDays ? Math.round(kcals.reduce((s, k) => s + k, 0) / kcalDays) : 0;
+    const target = Number(((tmap[id] || {}).targets || {}).protein) || null;
+    const pct = target ? avg / target : null;
+    // Lower = riskier. No target -> adequacy counts as met, so coverage alone ranks the row.
+    const risk = (loggedDays / 7) * Math.min(1, pct == null ? 1 : pct);
+    return { id, totals, loggedDays, avg, kcalAvg, target, pct, risk };
   }).filter((c) => c.loggedDays > 0)
-    .sort((a, b) => a.avg - b.avg).slice(0, 8);
+    .sort((a, b) => a.risk - b.risk || a.avg - b.avg).slice(0, 8);
+  const hasTargets = perClient.some((c) => c.target);
   const fRows = perClient.map((c) => {
-    const max = Math.max(60, ...c.totals);
-    const label = `${(nameOf[c.id] || 'Client').split(' ')[0]}: about ${c.avg}g protein a day, ${c.loggedDays} of 7 days logged`;
+    const first = (nameOf[c.id] || 'Client').split(' ')[0];
+    const low = c.loggedDays <= 3;                 // half the week or more unseen
+    const under = c.pct != null && c.pct < 0.75;   // genuinely off pace: the warning hue is earned
+    // With a target the bars share ITS scale, so a short bar means "under target", not "under
+    // this athlete's own best day". Without one, the row's own max keeps the relative read.
+    const max = Math.max(c.target || 60, ...c.totals);
+    const line1 = c.target ? `~${c.avg}g of ${c.target}g`
+      : c.kcalAvg ? `~${c.avg}g · ${c.kcalAvg.toLocaleString()} kcal` : `~${c.avg}g avg`;
+    const label = `${first}: about ${c.avg}g protein a day`
+      + (c.target ? ` against a ${c.target}g target` : '')
+      + (c.kcalAvg ? `, about ${c.kcalAvg} calories` : '')
+      + `, ${c.loggedDays} of 7 days logged`;
     return `
     <div class="nb-row" data-go="coach-athlete/${esc(c.id)}">
-      <span class="nb-name">${esc((nameOf[c.id] || 'Client').split(' ')[0])}</span>
+      <span class="nb-name">${esc(first)}</span>
       <span class="nb-bars" role="img" aria-label="${esc(label)}">${c.totals.map((t) => `<i style="height:${t ? Math.max(14, Math.round((t / max) * 100)) : 6}%${t ? '' : ';opacity:0.3'}"></i>`).join('')}</span>
-      <span class="nb-avg">~${c.avg}g avg · ${c.loggedDays} of 7 days</span>
+      <span class="nb-avg"><b${under ? ' class="warn"' : ''}>${esc(line1)}</b><i${low ? ' class="warn"' : ''}>${c.loggedDays} of 7 days</i></span>
     </div>`;
   }).join('');
 
+  // A count is a signal, not a boast: past 99 the exact number stops informing and starts
+  // reading as notification-badge inflation ("114 NEW" in the render QC).
+  const capN = (n) => (n > 99 ? '99+' : n);
   slot.innerHTML = `
-    <div class="eyebrow co-major" style="display:flex;justify-content:space-between;align-items:baseline"><span>Meal review</span>${flaggedCount ? `<span style="color:var(--amber-bright)">${flaggedCount} flagged</span>` : unopened ? `<span style="color:var(--blue-bright)">${unopened} to review</span>` : ''}</div>
+    <div class="eyebrow co-major" style="display:flex;justify-content:space-between;align-items:baseline"><span>Meal review</span>${flaggedCount ? `<span style="color:var(--amber-bright)">${capN(flaggedCount)} flagged</span>` : unopened ? `<span style="color:var(--blue-bright)">${capN(unopened)} to review</span>` : ''}</div>
     ${queue.length ? `<section class="card" style="padding:6px 16px">${qRows}</section>
     <div class="nb-foot"><span class="link" data-go="${CD.kind === 'practice' ? 'trainer-inbox' : 'coach-inbox'}" role="button">The full queue lives in your Inbox</span></div>`
     : NUT.err ? `<div class="nb-foot">Couldn't reach the server for the queue. It reloads the next time this screen opens.</div>`
     : `<div class="nb-foot">No ${fallbackNoun.toLowerCase()} meals in the last 7 days. Every logged meal lands here for review.</div>`}
     ${perClient.length ? `
     <div class="eyebrow">${fallbackNoun} fueling · last 7 days</div>
-    <section class="card" style="padding:10px 16px 12px">${fRows}</section>` : ''}`;
+    <section class="card" style="padding:10px 16px 12px">${fRows}</section>
+    <div class="nb-foot">${hasTargets
+      ? 'Riskiest first: fewest logged days, furthest under their protein target. Averages count logged days only.'
+      : 'Riskiest first: fewest logged days, lightest plates. Averages count logged days only; set protein targets to rank against them.'}</div>` : ''}`;
 }
 
 /* Ranked priority — calm hierarchy, one primary action by tier, the rest subordinate. */
@@ -590,7 +627,12 @@ function priorityCard(c, i, nudgedToday) {
     <div class="co-pri-acts">
       <button class="co-abtn ${openPrimary ? 'primary' : ''}" data-go="coach-athlete/${esc(c.athleteId)}">${openPrimary ? 'Review' : 'Open'}</button>
       <button class="co-abtn ${nudgeCls}" data-pnudge="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}" ${nudgedToday ? 'disabled' : ''}>${nudgedToday ? `Nudged ${icon('check', 11)}` : 'Nudge'}</button>
-      ${CD.caps.assignments ? `<button class="co-abtn" data-passign="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Assign</button>` : ''}
+      ${/* Book caps say what the BOOK supports; the staff role says what THIS operator may do.
+            Gating on caps alone rendered Assign for an invited nutritionist, whose role has no
+            'assign' -- the server refuses it, violating staff-access.js's own contract ("a role
+            never stares at buttons the server would bounce"). allowedCreateKeys fails open to
+            the head-coach set on a null role, so the owner and a still-loading role keep it. */''}
+      ${CD.caps.assignments && allowedCreateKeys(CD.extras && CD.extras.myRole).includes('assign') ? `<button class="co-abtn" data-passign="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Assign</button>` : ''}
       ${CD.caps.interventions ? `<button class="co-abtn" data-phandle="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Handled</button>` : ''}
     </div>
     ${PNUDGE_ARM && PNUDGE_ARM.athleteId === c.athleteId ? `
@@ -617,7 +659,9 @@ export const coachHome = {
     // One `head` variable feeds every early return below (loading/offline/empty/populated) —
     // appending here covers the whole screen in one place, unlike home.js which repeats the call
     // at each of its own four render branches.
-    const head = avatarHead(`${S.greeting}, ${me.handle}`, `${teamName} · ${scopeLabel(scope)} · today`, me.initials) + emailVerifyBanner();
+    // The scope chip directly below owns the scope; repeating scopeLabel() here had the header
+    // and the chip saying "Entire team" two lines apart (critique 2026-08-18).
+    const head = avatarHead(`${S.greeting}, ${me.handle}`, `${teamName} · today`, me.initials) + emailVerifyBanner();
     if (CD.roster === null) return `${head}
       <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
       <div><div class="tt">${esc(vocab().loading)}</div><div class="ts">Pulling today's real numbers.</div></div></div>`;
@@ -678,15 +722,17 @@ export const coachHome = {
     ${SHOW_SCOPES ? scopeSheet() : ''}
     ${pending.length ? `<div class="card" data-go="coach-inbox" style="padding:10px 15px;cursor:pointer;display:flex;align-items:center;gap:10px"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 15)}</div><div style="flex:1;font-size:12.5px;font-weight:700">${pending.length} join request${pending.length > 1 ? 's' : ''} waiting</div>${icon('chevron', 14, 'style="color:var(--text-3)"')}</div>` : ''}
     ${milestone}
+    ${/* The dietitian's board (0197/0202 discipline lens): a meal review queue + per-athlete
+          fueling trends, painted async into this slot so the fetch never delays the priority
+          queue. Emitted on any nutrition book — practice, dietitian-owned team, or invited
+          team nutritionist. It LEADS the screen there (critique 2026-08-18: the queue is the
+          dietitian's whole day, and it sat third under a coach-shaped hero), with the group
+          pulse reading second. Every other book renders byte-identical to before. */''}
+    ${isNutritionBook() ? '<div id="nut-board-slot"></div>' : ''}
     ${entries === null ? '' : pulseCard(rows, statuses)}
     ${obPlanCard()}
     <div id="vc-board-slot"></div>
     <div id="cs-board-slot"></div>
-    ${/* The dietitian's board (0197/0202 discipline lens): a meal review queue + per-athlete
-          fueling trends, painted async into this slot so the fetch never delays the priority
-          queue. Emitted on any nutrition book — practice, dietitian-owned team, or invited
-          team nutritionist. Every other book renders byte-identical. */''}
-    ${isNutritionBook() ? '<div id="nut-board-slot"></div>' : ''}
 
     ${(() => {
       // Setup guidance persists (collapsed) after the first athlete joins — it no longer vanishes
@@ -701,7 +747,12 @@ export const coachHome = {
     : cards.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px;line-height:1.4">Nothing needs you right now. Anything you nudge, assign, or mark handled stays out of this queue until the reason changes.</div>`
     : cards.slice(0, 6).map((c, i) => priorityCard(c, i, (RT.coachNudged || {})[c.athleteId] === roles.todayISO())).join('')}
 
-    <div class="eyebrow" data-tour="activity" style="display:flex;justify-content:space-between;align-items:baseline"><span>Live activity</span>${unseen ? `<span style="color:var(--blue-bright)">${unseen} new</span>` : ''}</div>
+    ${/* On a nutrition book the activity rail is the SAME plates the meal-review queue just
+          listed (the feed is meals-only), so the whole section is a duplicate and the queue's
+          Inbox link is the full-history door. Every other book keeps it. The unseen count caps
+          at 99+: a three-digit badge stops informing and starts inflating. */''}
+    ${isNutritionBook() ? '' : `
+    <div class="eyebrow" data-tour="activity" style="display:flex;justify-content:space-between;align-items:baseline"><span>Live activity</span>${unseen ? `<span style="color:var(--blue-bright)">${unseen > 99 ? '99+' : unseen} new</span>` : ''}</div>
     ${feed === null ? skeletonRows(2, 'Loading the activity feed')
     : feed.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px;line-height:1.4">No logs yet ${scope.kind === 'team' ? 'today' : 'in this group today'}. Every meal lands here the moment it's logged.</div>`
     : `<div style="display:flex;gap:9px;overflow-x:auto;padding-bottom:4px;margin:0 -2px">${feed.slice(0, 12).map(m => {
@@ -714,7 +765,7 @@ export const coachHome = {
           <div style="padding:8px 10px 9px"><div style="font-size:11px;font-weight:800">${esc((who.name || 'Athlete').split(' ')[0])}</div>
           <div style="font-size:9.5px;color:var(--text-3);font-weight:700;margin-top:2px">${esc(bits.join(' · '))}</div></div>
         </div>`;
-      }).join('')}</div>`}
+      }).join('')}</div>`}`}
 
     <div class="eyebrow co-minor" data-tour="followups">Follow-ups</div>
     ${followUps.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px">All caught up.</div>`

@@ -6,7 +6,7 @@ import {
   attachedPhoto, isPhotoOnly, wireComposerAttach, postChatMessage,
   bubblePhotoHtml, hydrateThreadPhotos,
 } from '../chat-attach.js';
-import { coachSetupState, coachSetupSteps } from './coach-home.js';
+import { coachSetupState, coachSetupSteps, isNutritionBook } from './coach-home.js';
 import * as roles from '../roles.js';
 import { openingMessage, qualityBand, qualityReason, scoreRubric, reactionGroups, threadMessages, privateNotes, REACTION_EMOJI, applyMealCorrection, applyFoodRemoval, normalizeDetected } from '../meal-intel.js';
 import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpener, isEscalated, quotedFor } from '../chat-view.js';
@@ -449,11 +449,16 @@ export const coachPlan = {
       };
       // GS-2 / audit G-2: a coach who is merely OFFLINE must not be shown the fake "empty team"
       // program page (rooms/targets/trust reading "will appear once your team joins"). Honest error.
+      // The nutrition lens follows past Home (critique 2026-08-18: the vocabulary stopped at
+      // the dashboard): a dietitian's program IS fueling. Rooms and the training week keep
+      // their names on every book -- they describe the roster's real structure, accurate for a
+      // dietitian-run team too.
+      const planSub = isNutritionBook() ? 'Your fueling program, room by room' : 'Your program, room by room';
       if (CD.roster && CD.roster.offline) {
-        return `${titleHead('Plan', 'Your program, room by room')}${errorState({ title: "Can't reach your program", body: 'Your standards, rooms, and targets are safe — reconnect and they load right here.', retryId: 'plan-retry' })}`;
+        return `${titleHead('Plan', planSub)}${errorState({ title: "Can't reach your program", body: 'Your standards, rooms, and targets are safe — reconnect and they load right here.', retryId: 'plan-retry' })}`;
       }
       return `
-      ${titleHead('Plan', 'Your program, room by room')}
+      ${titleHead('Plan', planSub)}
 
       ${readinessCard()}
 

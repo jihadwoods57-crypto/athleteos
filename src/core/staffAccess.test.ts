@@ -19,13 +19,16 @@ describe('normalizeRole', () => {
 });
 
 describe('canViewWeight — per-field read visibility (0103), FAIL-CLOSED', () => {
-  test('exactly the founder-approved trio may see weight', () => {
+  test('exactly the founder-approved set may see weight (nutritionist joined by ruling 2026-08-18, 0204)', () => {
     expect(canViewWeight('head_coach')).toBe(true);
     expect(canViewWeight('athletic_trainer')).toBe(true);
     expect(canViewWeight('s_and_c')).toBe(true);
+    // Weight trend is the primary underfueling / RED-S signal for an RD; the founder reversed
+    // the original exclusion on 2026-08-18. Server mirror: can_view_weight() in 0204.
+    expect(canViewWeight('nutritionist')).toBe(true);
   });
-  test('every other role is denied — including the nutritionist (founder-confirmed exclusion)', () => {
-    for (const role of ['nutritionist', 'coordinator', 'assistant', 'position_coach', 'team_admin', 'readonly']) {
+  test('every other role is denied', () => {
+    for (const role of ['coordinator', 'assistant', 'position_coach', 'team_admin', 'readonly']) {
       expect(canViewWeight(role)).toBe(false);
     }
   });

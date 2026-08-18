@@ -1215,7 +1215,7 @@ function cpStaffBlock() {
       <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);padding:2px 2px 10px">Staff invites and scopes are managed by the head coach.</div>`}`}
       <div id="staff-code-out" style="display:none;padding:4px 2px 10px">
         <div class="code-boxes fit" id="staff-code-boxes" style="padding:0 0 6px"></div>
-        <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);text-align:center">One use only. Text it to them. They pick "Coach" at sign-up and enter it as a staff code.</div>
+        <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);text-align:center">One use only. Text it to them. At sign-up they pick "Coach" (a dietitian picks "Team Dietitian / RD"), choose "Join a staff", and enter it.</div>
       </div>
       <div id="staff-status" style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);min-height:14px;padding:0 2px 8px"></div>
     </section>`;

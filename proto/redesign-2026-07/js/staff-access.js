@@ -82,8 +82,9 @@ export function isReadonly(role) {
    yanking it is a leak, not a loading state. Unknown/absent/loading role → no weight UI; the
    0103 grants + RPCs are the real wall regardless — this map only keeps honest screens from
    offering fields the server would return redacted anyway. Keep the list in sync with
-   can_view_weight() in 0103. */
-const WEIGHT_VIEW_ROLES = ['head_coach', 'athletic_trainer', 's_and_c'];
+   can_view_weight() in 0103, as amended by 0204 (founder ruling 2026-08-18: the nutritionist
+   joins the set -- weight trend is the primary underfueling / RED-S signal for an RD). */
+const WEIGHT_VIEW_ROLES = ['head_coach', 'athletic_trainer', 's_and_c', 'nutritionist'];
 export function canViewWeight(role) {
   const r = normalizeRole(role);
   return !!r && WEIGHT_VIEW_ROLES.includes(r);

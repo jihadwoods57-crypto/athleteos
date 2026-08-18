@@ -23,6 +23,7 @@ import {
   phoneCard, testimonial, planCard, PLANS, capture, ob, gateCta, structureStep,
 } from '../ob2.js';
 import { SAMPLE_MEAL } from '../ob2-meal.js';
+import { roleLabel, normalizeRole } from '../staff-access.js';
 import { accountBody, wireAccount } from './ob-account.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
 import { showConfirmPending } from '../ob-helpers.js';
@@ -45,10 +46,20 @@ const SLIP_LABEL = {
   under: 'quiet underfueling',
 };
 const STANDARD_LABEL = { fuel4: 'the 4-meal standard', fuel3: 'three meals a day', custom: 'a standard you shape per room' };
+/* Credential chip -> the letters that ride the professional handle ("Dana Reyes, RD").
+   Student/intern carries no letters yet, so no badge -- never a fabricated credential. */
+const CRED_SUFFIX = { rd: 'RD', cssd: 'CSSD', ms: 'MS' };
 
 /* Nested coach scratch: persistCoachOnboarding reads RT.ob.coach.* for create_team, and
    discipline 'nutrition' (0202) is what makes the minted team wear the nutrition lens. */
 const cap = (patch) => capture({ coach: { ...((ob().coach) || {}), ...patch } });
+
+/* The two doors (2026-08-18). This flow used to mint a team UNCONDITIONALLY -- an RD holding a
+   head coach's staff code tapped the card named after their own profession, found no place to
+   enter it, and ended up owning an empty duplicate team while the invite silently never
+   redeemed. The fork mirrors obk's staff-or-create mechanics: RT.ob.coach.staffCode routes
+   persistCoachOnboarding to join_staff instead of create_team (state.js, 0061). */
+const isStaffJoin = (o) => !!o.joinedStaff || o.coachMode === 'join';
 
 /* Manual CTA gate for free-input steps (the shared idiom): a hidden marker satisfies the
    engine's data-gate-extra selector only while the inputs are valid. */
@@ -68,21 +79,24 @@ const hero = (eyebrow, title, body, note) => `
   </div>`;
 
 /* ---------- demo queue rows (fabricated, chipped as simulated on the step) ----------
-   Thumb backgrounds are stamped from mount via .style so the markup stays class-only. */
+   Thumb backgrounds are stamped from mount via .style so the markup stays class-only.
+   The rows mirror the SHIPPED board's anatomy exactly (critique item 5): photo, name, a
+   protein-led sub-line with the state word, flags first then unopened. The old demo scanned
+   by amber score pills the real board deliberately removed, and claimed "every row is a real
+   plate photo" over three blank tiles -- teaching a different board than ships. */
 const DEMO_QUEUE = [
-  { name: 'Reyes · Dinner', score: 52, flag: true, thumb: SAMPLE_MEAL.photo },
-  { name: 'Okafor · Lunch', score: 58, flag: true, thumb: 'assets/meal-lunch.jpg' },
-  { name: 'Tran · Breakfast', score: 88, flag: false, thumb: null },
-  { name: 'Bishop · Lunch', score: 82, flag: false, thumb: null },
-  { name: 'Silva · Dinner', score: 91, flag: false, thumb: null },
+  { name: 'Reyes · Dinner', protein: 24, state: 'flagged', flag: true, thumb: SAMPLE_MEAL.photo },
+  { name: 'Okafor · Lunch', protein: 19, state: 'flagged', flag: true, thumb: 'assets/meal-lunch.jpg' },
+  { name: 'Tran · Breakfast', protein: 38, state: 'new', flag: false, thumb: 'assets/meal-breakfast.jpg' },
+  { name: 'Bishop · Lunch', protein: 41, state: 'new', flag: false, thumb: 'assets/meal-lunch.jpg' },
+  { name: 'Silva · Dinner', protein: 46, state: null, flag: false, thumb: 'assets/meal-dinner.jpg' },
 ];
 function demoBoard() {
-  return `<div class="ob2-board">${DEMO_QUEUE.map((r, i) => `
+  return `<div class="ob2-board">${DEMO_QUEUE.map((r) => `
     <div class="br">
-      <div class="bt" data-thumb="${r.thumb ? esc(r.thumb) : ''}"></div>
-      <div class="bn">${esc(r.name)}</div>
-      <div class="bsc ${r.score >= 80 ? 'g' : 'a'}">${r.score}</div>
-      ${r.flag ? `<div class="bf">${icon('flame', 15)}</div>` : ''}
+      <div class="bt" data-thumb="${esc(r.thumb)}"></div>
+      <div class="bn">${esc(r.name)}${r.flag ? ` <span class="bf">${icon('flame', 12)}</span>` : ''}
+        <div class="bsub">~${r.protein}g protein${r.state ? ` · ${r.state}` : ''}</div></div>
     </div>`).join('')}</div>`;
 }
 
@@ -135,7 +149,7 @@ const steps = [
       ${chipRow('credential', [
         { v: 'rd', t: 'RD / RDN' }, { v: 'cssd', t: 'CSSD' }, { v: 'ms', t: 'MS Nutrition' }, { v: 'student', t: 'Student / intern' },
       ], { req: false })}
-      <div class="ob2-fine left">Credential is optional. It rides your name where staff see your reviews.</div>`,
+      <div class="ob2-fine left">Credential is optional. It rides your name on every review and nudge your athletes see.</div>`,
     mount(root) {
       const f = root.querySelector('#obd-first'), l = root.querySelector('#obd-last');
       const btn = root.querySelector('#ob2-next');
@@ -150,7 +164,49 @@ const steps = [
     },
   },
   {
+    id: 'door', ch: 0, cta: 'Next',
+    title: () => 'Your seat.',
+    sub: () => 'Run your own team board, or take the seat a head coach invited you to.',
+    body: (o) => {
+      const mode = o.coachMode === 'join' ? 'join' : 'create';
+      const c = (ob().coach) || {};
+      return `
+      <div class="seg" id="obd-doormode">
+        <button class="${mode === 'create' ? 'on' : ''}" data-mode="create">Start my team</button>
+        <button class="${mode === 'join' ? 'on' : ''}" data-mode="join">Join a staff</button>
+      </div>
+      <div class="ob2-vgap"></div>
+      ${mode === 'join' ? `
+      <input id="obd-staff-code" class="ob-input ob2-code-input" maxlength="12" placeholder="Staff code" aria-label="Staff code from the head coach"
+        autocapitalize="characters" autocorrect="off" spellcheck="false" value="${esc(c.staffCode || '')}" />
+      <div class="ob2-fine left">The head coach hands out staff codes. It seats you on their team as the dietitian they invited, roster already in your queue. You won't create a new team.</div>` : `
+      <div class="ob2-fine left">Your own board: you mint the join code, athletes enter it, and every plate lands in your queue.</div>`}`;
+    },
+    mount(root) {
+      const btn = root.querySelector('#ob2-next');
+      if (btn) btn.setAttribute('data-gate-extra', '#obd-door-ok');
+      const codeEl = root.querySelector('#obd-staff-code');
+      const sync = () => {
+        const v = codeEl ? codeEl.value.trim().toUpperCase() : '';
+        if (codeEl) { cap({ staffCode: v }); capture({ staffCode: v }); }
+        gateMark(root, 'obd-door-ok', ob().coachMode === 'join' ? v.length >= 4 : true);
+      };
+      root.querySelector('#obd-doormode').querySelectorAll('button[data-mode]').forEach((b) => b.addEventListener('click', () => {
+        const m = b.getAttribute('data-mode');
+        capture({ coachMode: m });
+        // Switching sides clears the other side's scratch so persistCoachOnboarding never routes
+        // on stale data -- a leftover staff code would wrongly skip team creation (obk idiom).
+        cap(m === 'create' ? { joinMode: 'create', staffCode: '' } : { joinMode: 'join' });
+        if (m === 'create') capture({ staffCode: '' });
+        window.__render();
+      }));
+      if (codeEl) codeEl.addEventListener('input', sync);
+      sync();
+    },
+  },
+  {
     id: 'program', ch: 0, cta: 'Next',
+    when: (o) => !isStaffJoin(o),
     title: () => 'Your team.',
     sub: () => 'The roster you cover. It goes on the join code your athletes use.',
     body: (o) => `
@@ -208,7 +264,7 @@ const steps = [
   {
     id: 'queue', ch: 1, cta: 'Next',
     title: () => 'Your Monday starts with the flags.',
-    sub: () => 'Lowest plates first, unopened next. The rest is already read.',
+    sub: () => 'Flags first, unopened next. The rest is already read.',
     body: () => `
       ${simChip('Simulated roster')}
       ${phoneCard('Meal review', demoBoard())}
@@ -268,6 +324,8 @@ const steps = [
   },
   {
     id: 'standard', ch: 2, cta: 'Next',
+    /* A staff joiner doesn't set the team's standard -- the head coach's book owns it. */
+    when: (o) => !isStaffJoin(o),
     title: () => 'Your team’s fueling standard.',
     sub: () => 'The default every athlete starts on. You refine it per room later.',
     body: () => choiceGrid('teamStandard', [
@@ -284,8 +342,11 @@ const steps = [
     body: (o) => {
       const std = STANDARD_LABEL[String((o || {}).teamStandard)] || 'the 4-meal standard';
       const committed = !!o.committedAt;
+      const verdict = isStaffJoin(o)
+        ? `Every plate on the roster gets a first read within a minute, your flags surface before morning lift, and nothing reaches an athlete’s record without a professional behind it.`
+        : `Every athlete on your roster gets <b>${esc(std)}</b>, every plate gets a first read within a minute, and nothing reaches an athlete’s record without a professional behind it.`;
       return `
-      <div class="ob2-gap-verdict">Every athlete on your roster gets <b>${esc(std)}</b>, every plate gets a first read within a minute, and nothing reaches an athlete’s record without a professional behind it.</div>
+      <div class="ob2-gap-verdict">${verdict}</div>
       <div class="ob-foot">
         ${committed
           ? `<button class="btn green" id="obd-commit-next">${icon('check', 18)}&nbsp; Committed. Continue</button>`
@@ -327,15 +388,26 @@ const steps = [
   {
     id: 'account', ch: 4, noFoot: true,
     title: () => 'Create your account.',
-    sub: () => 'Your team, its join code, and your review queue live on it.',
-    body: () => `
+    sub: (o) => (isStaffJoin(o)
+      ? 'Your staff seat and your review queue live on it.'
+      : 'Your team, its join code, and your review queue live on it.'),
+    body: (o) => `
       ${accountBody({ terms: 'cob' })}
-      <div class="ob-foot"><button id="su-go" class="btn primary" disabled>Create account &amp; Get my code</button></div>`,
+      <div class="ob-foot"><button id="su-go" class="btn primary" disabled>${isStaffJoin(o) ? 'Create account &amp; Join the staff' : 'Create account &amp; Get my code'}</button></div>`,
     mount(root, ctx) {
       /* The coach rail, discipline 'nutrition': signUp(role 'coach') so routing and the whole
          team-book machinery hold, then persistCoachOnboarding mints the TEAM with the
          discipline the program step captured (0202). No session (email confirm) swaps the CTA. */
       cap({ discipline: 'nutrition' });
+      /* The professional handle (0056 rail): "Dana Reyes, RD". Captured here, where name and
+         credential are final; _loadCoachHandleIntoRt pushes it to profiles.coach_display_name
+         on first authenticated hydrate, and the greeting, the nudge sender, and review
+         signatures all read that one rail. Without this the rail fell back to
+         "Coach <lastName>" -- the product un-naming the profession it just sold. */
+      const o = ob();
+      const base = `${(o.firstName || '').trim()} ${(o.lastName || '').trim()}`.trim();
+      const suffix = CRED_SUFFIX[String(o.credential)] || '';
+      if (base) cap({ coachName: suffix ? `${base}, ${suffix}` : base });
       wireAccount(root, {
         role: 'coach',
         onSession: async (live) => {
@@ -350,6 +422,31 @@ const steps = [
     /* Post-account: back can never return to the sign-up form. */
     back: 'coach-home',
     body: (o) => {
+      const joined = o.joinedStaff;
+      if (joined) {
+        return `
+        <div class="ob2-covered">
+          <div class="halo"><div class="core">${icon('users', 34)}</div></div>
+          <div class="ob-title">You’re on staff.</div>
+          <div class="ob-sub">${esc(joined.teamName || 'The team')} · ${esc(roleLabel(normalizeRole(joined.role)))}. The meal queue, fueling board, and roster are live the moment you open your dashboard.</div>
+        </div>`;
+      }
+      /* Join mode with no seat: the staff code didn't land (used, revoked, or a typo). The old
+         create-path copy pointed at a "Create team" button -- following it would mint exactly
+         the duplicate team this fork exists to prevent. Fix the code and retry HERE. */
+      if (isStaffJoin(o)) {
+        return `
+        <div class="ob2-covered">
+          <div class="halo"><div class="core">${icon('users', 34)}</div></div>
+          <div class="ob-title">That staff code didn’t land.</div>
+          <div class="ob-sub">Your account is set up; the staff seat isn’t. Staff codes are one use only, so check it or ask your head coach for a fresh one, then try again.</div>
+        </div>
+        <input id="obd-retry-code" class="ob-input ob2-code-input" maxlength="12" placeholder="Staff code"
+          autocapitalize="characters" autocorrect="off" spellcheck="false" value="${esc(((ob().coach) || {}).staffCode || '')}" />
+        <div class="ob2-vgap"></div>
+        <div class="ob2-btn-pair"><button class="btn green sm" id="obd-join-retry">Join the staff</button></div>
+        <div class="ob2-code-status" id="obd-join-status"></div>`;
+      }
       const code = o.teamCode || '';
       return `
       <div class="ob2-covered">
@@ -380,6 +477,23 @@ const steps = [
     },
     mount(root) {
       const $ = (s) => root.querySelector(s);
+      // Join-failure recovery: correct the code in place and re-run the same persistence rail.
+      const retry = $('#obd-join-retry');
+      if (retry) {
+        const input = $('#obd-retry-code'), status = $('#obd-join-status');
+        retry.addEventListener('click', async () => {
+          const raw = ((input && input.value) || '').trim().toUpperCase();
+          if (raw.length < 4) { status.textContent = 'Enter the code from your head coach.'; return; }
+          cap({ staffCode: raw });
+          retry.disabled = true;
+          status.textContent = 'Checking the code…';
+          const ok = await act.persistCoachOnboarding();
+          retry.disabled = false;
+          if (ok && (ob().joinedStaff)) { window.__render(); return; }
+          status.textContent = 'That code did not work. Staff codes are one use only; ask your head coach to mint a fresh one.';
+        });
+        return;
+      }
       const copy = $('#obd-copy');
       if (copy) copy.addEventListener('click', async () => {
         const ok = await copyText((RT.ob || {}).teamCode || '');
@@ -408,7 +522,20 @@ const steps = [
     },
   },
   {
+    id: 'covered', ch: 4, noFoot: true, back: 'obd/code',
+    when: (o) => isStaffJoin(o),
+    body: () => `
+      <div class="ob2-covered">
+        <div class="halo"><div class="core">${icon('check', 34)}</div></div>
+        <div class="ob-title">Your seat is covered.</div>
+        <div class="ob-sub">Staff seats ride on the program’s plan. Nothing to set up, nothing to pay.</div>
+      </div>
+      <div class="ob-foot"><button class="btn primary" data-go="coach-home">Open your board</button></div>`,
+    mount() { track(EVENTS.PAYWALL_VIEWED, { variant: 'staff_covered' }); },
+  },
+  {
     id: 'plans', ch: 4, noFoot: true, back: 'obd/code',
+    when: (o) => !isStaffJoin(o),
     title: () => 'Pick your program plan.',
     sub: () => 'Start free. Decide when the roster’s on the board.',
     body: (o) => `

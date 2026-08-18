@@ -287,6 +287,9 @@
 .ob2-board .bsc.g { background: var(--green-surface); color: var(--green-bright); }
 .ob2-board .bsc.a { background: var(--amber-surface); color: var(--amber-bright); }
 .ob2-board .bf { flex: none; color: var(--amber-bright); }
+/* Shipped-row anatomy for the demo queue: protein-led sub-line + inline flame in the name. */
+.ob2-board .bn .bsub { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); margin-top: 1px; }
+.ob2-board .bn .bf { display: inline-flex; vertical-align: -1px; }
 .ob2-code-input { text-align: center; letter-spacing: 0.12em; text-transform: uppercase; }
 .ob2-btn-pair { display: flex; justify-content: center; gap: 8px; }
 .ob2-btn-pair .btn { width: auto; padding: 0 22px; }

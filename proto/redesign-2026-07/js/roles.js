@@ -397,7 +397,8 @@ export async function fetchDay(athleteId, date) {
 }
 /** The athlete's weight-by-date map (0103 weight_series RPC). A restricted role gets an empty
  *  map — zero rows, never an error — so callers stitch best-effort and weight surfaces simply
- *  don't exist for roles outside [head_coach, athletic_trainer, s_and_c] (+ trainers, + self).
+ *  don't exist for roles outside [head_coach, athletic_trainer, s_and_c, nutritionist (0204)]
+ *  (+ trainers, + self).
  *  Pre-0103 fallback: the direct column read still works until the migration applies. */
 export async function fetchAthleteWeights(athleteId, daysBack = 30) {
   const c = sb(); const m = new Map();
@@ -852,6 +853,20 @@ async function fetchPlanMeta(athleteId) {
 export async function fetchAthleteTargets(athleteId) {
   const meta = await fetchPlanMeta(athleteId);
   return (meta && meta.targets) || null;
+}
+/** Batch plan meta for a whole roster (0205) — one round trip where the fueling board used to
+ *  need one RPC per athlete. Returns { [athleteId]: { base_weight, targets } }. null = FAILED
+ *  (contract: a lost read must never look like "nobody has targets"); a pre-0205 server errors
+ *  and lands here too, so callers degrade to targetless ranking rather than lying. */
+export async function fetchPlanMetaBatch(athleteIds) {
+  const c = sb(); if (!c || !Array.isArray(athleteIds) || !athleteIds.length) return null;
+  try {
+    const { data, error } = await c.rpc('athlete_plan_meta_batch', { p_athletes: athleteIds });
+    if (error) return null;
+    const map = {};
+    for (const row of (data || [])) map[row.athlete_id] = { base_weight: row.base_weight, targets: row.targets || null };
+    return map;
+  } catch { return null; }
 }
 /** Coach-visible athlete basics for target suggestions + the score breakdown's nutrition config
  *  (can_view-scoped). base_goal/position/sport stay direct reads (granted post-0103); base_weight

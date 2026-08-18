@@ -112,6 +112,7 @@ const READS = [
   ['fetchTeamDayRollup', () => roles.fetchTeamDayRollup('team-1', '2026-01-01', '2026-02-01', 'team')],
   ['fetchInterventionOutcomes', () => roles.fetchInterventionOutcomes('team-1', '2026-01-01', 'team')],
   ['fetchRosterPasses', () => roles.fetchRosterPasses(['a1'])],
+  ['fetchPlanMetaBatch', () => roles.fetchPlanMetaBatch(['a1'])],
   // config reads, where a fabricated value silently changes what the athlete is scored against
   ['fetchTeamWeekPattern', () => roles.fetchTeamWeekPattern('team-1')],
   ['fetchMyRoomLabel', () => roles.fetchMyRoomLabel('team-1')],
