@@ -151,17 +151,20 @@ export async function disputeResponse(instanceId, note) {
   } catch { return queueIt(); }
 }
 
-/** Slice 2 writes. `within` false records 'unverified' with a reason — NEVER 'missed'. */
+/** Slice 2 writes. `within` false records 'unverified' with a reason — NEVER 'missed'.
+ *  Returns { ok, row?, error? } so the caller can tell a recorded verdict from a refused one:
+ *  the old null-on-failure contract collapsed a consent refusal, a cancelled instance and a
+ *  dropped connection into the same silence, and the arrival card painted success over it. */
 export async function verifyArrival(instanceId, source, within, reason) {
-  const c = sb(); if (!c || !instanceId) return null;
+  const c = sb(); if (!c || !instanceId) return { ok: false };
   try {
     const { data, error } = await c.rpc('verify_arrival', {
       p_instance: instanceId, p_source: source || 'manual',
       p_within: !!within, p_reason: reason || null });
-    if (error) return null;
+    if (error) return { ok: false, error: error.message };
     await loadMine(true);
-    return data || null;
-  } catch { return null; }
+    return { ok: true, row: data || null };
+  } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
 }
 
 export async function completeCommitment(instanceId, source) {
@@ -378,6 +381,27 @@ export async function requestVerificationConsent(email) {
   const { requestGuardianConsent } = await import('./roles.js');
   const r = await requestGuardianConsent(email);
   return !!(r && r.ok);
+}
+
+/** The GUARDIAN side of 0139 consent: a linked parent approves location verification for one
+ *  athlete. Server-authorized (is_guardian_of); anyone else gets a refusal, not a row. */
+export async function grantVerificationConsent(athleteId) {
+  const c = sb(); if (!c || !athleteId) return false;
+  try {
+    const { error } = await c.rpc('grant_verification_consent', {
+      p_athlete: athleteId, p_kind: 'guardian', p_team: null, p_note: null });
+    return !error;
+  } catch { return false; }
+}
+
+/** Consent state for ONE athlete (a guardian checking a child, not just self). */
+export async function verificationConsentFor(athleteId) {
+  const c = sb(); if (!c || !athleteId) return null;
+  try {
+    const { data, error } = await c.rpc('has_verification_consent', { p_athlete: athleteId });
+    if (error) return null;
+    return data === true;
+  } catch { return null; }
 }
 
 /** The athlete's own share switch. Only the athlete can move it. */

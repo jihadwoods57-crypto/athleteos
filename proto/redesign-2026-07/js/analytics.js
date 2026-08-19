@@ -95,6 +95,12 @@ export const EVENTS = Object.freeze({
   CS_REVIEWED: 'cs_reviewed',                 // {approve} — coach ruled on a manual entry
   CS_DISPUTED: 'cs_disputed',                 // {metric} — athlete says the verdict is wrong
 
+  // Plan style (0142) + training log (0135). The most consequential setting in the app and the
+  // manual half of tracked-not-scored were both unmeasured until 2026-08-19. PLAN_STYLE_SET's
+  // `owned` distinguishes a real switch from a locked athlete's stated preference.
+  PLAN_STYLE_SET: 'plan_style_set',           // {style, owned} — athlete picked / preferred
+  TL_LOGGED: 'tl_logged',                     // {source, feel} — a training session was saved
+
   // Feedback intake (0162). The app had no way to accept a word from a user before this, so the
   // first question these answer is whether anyone uses a door that finally exists.
   FEEDBACK_OPENED: 'feedback_opened',         // {from} — 'settings' | 'analysis-failed'

@@ -7,8 +7,9 @@
    request instead. The server enforces the same rule (has_verification_consent, 0139), so a
    client bug cannot open the gate. */
 import { icon } from '../icons.js';
+import { RT, act } from '../state.js';
 import { backHead, esc } from '../components.js';
-import { loadVerificationConsent } from '../commitment-data.js';
+import { loadVerificationConsent, verifyArrival } from '../commitment-data.js';
 
 const native = () => (typeof window !== 'undefined' ? window.OnStandardNative : null);
 export const locationNative = () => {
@@ -48,8 +49,11 @@ export default {
     // Consent is the server's call. CONSENT === false means "you need a guardian first"; null
     // means we haven't heard back and we show neither switch nor false reassurance.
     const needsGuardian = CONSENT === false;
-    const on = STATE === 'always';
-    const partial = STATE === 'when_in_use';
+    // The athlete's own opt-out outranks the OS permission: "off" they chose here must READ as
+    // off, and stay off, even while the OS grant is still 'always'.
+    const optedOut = !!RT.locationOptOut;
+    const on = STATE === 'always' && !optedOut;
+    const partial = STATE === 'when_in_use' && !optedOut;
     const denied = STATE === 'denied';
 
     return `
@@ -88,9 +92,12 @@ export default {
       </div>
     </div>
     <div style="height:14px"></div>
-    <button class="btn" id="lc-guardian" style="width:100%">${icon('message', 18)} Ask a parent to approve</button>
+    ${RT.consent && RT.consent.guardianEmail ? `
+    <div class="ts center">Your parent is already linked (${esc(RT.consent.guardianEmail)}). They approve arrival check-in from their own OnStandard app, on your card under the Athletes tab.</div>
+    ` : `
+    <button class="btn" id="lc-guardian" style="width:100%">${icon('message', 18)} Invite a parent to OnStandard</button>
     <div style="height:10px"></div>
-    <div class="ts" style="text-align:center">Nothing about your location is checked or stored until they do.</div>
+    <div class="ts center">Once they're linked, they approve arrival check-in from their own app. Nothing about your location is checked or stored until they do.</div>`}
     ` : CONSENT === null ? (CONSENT_ASKED ? `
     <div class="sidebox" style="margin-top:14px">
       <div class="req-icon a" style="width:38px;height:38px">${icon('bolt', 19)}</div>
@@ -168,10 +175,15 @@ export default {
     if (enable) enable.addEventListener('click', async () => {
       if (!loc || BUSY) return;
       BUSY = true; enable.disabled = true; enable.textContent = 'Asking…';
+      // Turning it on is also how an opted-out athlete opts back in.
+      act.setLocationOptOut(false);
       try {
         // No timeout on request(): a person reading the OS dialog for a minute is not a hang.
         STATE = await loc.request(true);
-        if (STATE === 'always') await withTimeout(loc.arm(), 8_000);
+        if (STATE === 'always') {
+          const r = await withTimeout(loc.arm(), 8_000);
+          ARM_CAPPED = !!(r && r.capped);
+        }
       } catch {
         // The bridge failed or arm() stalled: re-probe for the truth instead of guessing at it.
         try { const r = await withTimeout(loc.available(), 8_000); STATE = (r && r.state) || STATE; }
@@ -192,36 +204,71 @@ export default {
     if (off) off.addEventListener('click', async () => {
       if (!loc) return;
       off.disabled = true; off.textContent = 'Turning off…';
+      // The persisted opt-out is what makes "off" TRUE. The old handler only disarmed and
+      // flipped a local variable — the next Home load saw the OS grant still 'always' and
+      // silently re-armed everything, breaking this screen's own promise.
+      act.setLocationOptOut(true);
       try { await loc.disarm(); } catch { /* already disarmed */ }
-      STATE = 'when_in_use';
       window.__render && window.__render();
     });
 
     const guardian = root.querySelector('#lc-guardian');
-    if (guardian) guardian.addEventListener('click', () => { location.hash = '#guardian'; });
+    // The old destination was '#guardian' — the 0008/0050 NUTRITION-data consent flow, which
+    // writes a different table and could never bring this wall down. The real path: link a
+    // parent (invite code), who then approves arrival check-in from their own hub.
+    if (guardian) guardian.addEventListener('click', () => { location.hash = '#invite-parent'; });
   },
 };
 
+/* Whether the last arm() hit the OS's 16-region cap — commitments past the cap get NO automatic
+   watch, and the athlete deserves to hear "tap when you arrive" instead of silence. */
+let ARM_CAPPED = false;
+export function armCapped() { return ARM_CAPPED; }
+
 /* Called from Home once per load: keep the OS watching whatever is inside its window right now.
-   Cheap and idempotent — refreshGeofences re-registers the current set and disarms when empty. */
+   Cheap and idempotent — refreshGeofences re-registers the current set and disarms when empty.
+   The athlete's opt-out is honored HERE, which is what makes the off-switch real: before this
+   check, "Turn it off" survived exactly until the next Home load re-armed everything. */
 export function armIfPermitted() {
   const loc = locationNative();
-  if (!loc) return Promise.resolve(null);
+  if (!loc || RT.locationOptOut) return Promise.resolve(null);
   return loc.available()
     .then((r) => (r && r.available && r.state === 'always' ? loc.arm() : null))
+    .then((r) => { if (r) ARM_CAPPED = !!r.capped; return r; })
     .catch(() => null);
 }
 
-/* Exposed for the arrival card: one fix, compared natively, verdict written server-side.
-   Returns { within, reason }. A negative verdict lands on 'unverified', never 'missed'. */
-export function tapToVerify(instanceId) {
+/* Exposed for the arrival card: one fix, compared on device, verdict written BY THIS CLIENT.
+   Returns { within, recorded, reason }.
+
+   The device check runs with report:false and the write goes through verifyArrival() here,
+   because the native bridge's own report path discards the server's answer — a consent refusal,
+   a cancelled instance or an expired session all painted as "arrived" on the athlete's phone
+   and silently reverted on the next fetch. Now a refused write is SAID: recorded:false, with
+   the reason. A negative device verdict still lands as 'unverified', never 'missed'. */
+export async function tapToVerify(instanceId) {
   const loc = locationNative();
-  if (!loc) return Promise.resolve({ within: false, reason: 'Location is unavailable on this build' });
-  // Raced against a clock: a stalled LOCATION_CHECK would otherwise pin the arrival button on
-  // "Saving…" forever. If the check does land after the race, the server still records the
-  // verdict and the next loadMine picks it up — the timeout only frees the athlete's thumb.
-  return withTimeout(loc.check(instanceId, true), 15_000)
-    .catch(() => ({ within: false, reason: 'Couldn’t check right now' }));
+  if (!loc) return { within: false, recorded: false, reason: 'Location is unavailable on this build' };
+  let device;
+  try {
+    // Raced against a clock: a stalled LOCATION_CHECK would otherwise pin the arrival button on
+    // "Saving…" forever.
+    device = await withTimeout(loc.check(instanceId, false), 15_000);
+  } catch {
+    return { within: false, recorded: false, reason: 'Couldn’t check right now' };
+  }
+  const within = !!(device && device.within);
+  const res = await verifyArrival(instanceId, 'manual', within, device && device.reason);
+  if (!res.ok) {
+    const consent = /consent/i.test(res.error || '');
+    return {
+      within: false, recorded: false,
+      reason: consent
+        ? 'A parent has to approve arrival check-in first: nothing was recorded'
+        : 'Couldn’t record this. Check your signal and tap again',
+    };
+  }
+  return { within, recorded: true, reason: device && device.reason };
 }
 
 /** Re-ask the server on demand (e.g. after a guardian approves). */

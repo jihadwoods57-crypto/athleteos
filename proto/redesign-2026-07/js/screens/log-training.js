@@ -4,6 +4,7 @@
    Reached from the training requirement detail, or as a solo self-log (no sub) from Training history. */
 import { RT, act } from '../state.js';
 import { icon } from '../icons.js';
+import { track, EVENTS } from '../analytics.js';
 import { backHead, esc } from '../components.js';
 import * as roles from '../roles.js';
 import { DAY } from '../day.js';
@@ -46,6 +47,26 @@ export default {
       el.classList.add('on'); el.setAttribute('aria-checked', 'true');
       feel = +el.getAttribute('data-feel');
     }));
+
+    // "Update log" edits TODAY'S entry, so show it. The old form opened blank and the save
+    // replaced the row — an update quietly erased the athlete's own note and rating.
+    if (id && DAY.checkedTasks && DAY.checkedTasks[id]) {
+      roles.listTrainingLogs(RT.userId).then((rows) => {
+        if (!rows || !root.isConnected) return;
+        const today = new Date().toISOString().slice(0, 10);
+        const ex = rows.find((r) => r.requirement_id === id && r.log_date === today);
+        if (!ex) return;
+        const t = root.querySelector('#tl-title');
+        if (t && ex.title) t.value = ex.title;
+        const n = root.querySelector('#tl-note');
+        if (n && ex.note && !n.value) n.value = ex.note;
+        if (ex.feel && !feel) {
+          const chip = root.querySelector(`#tl-feel .c5[data-feel="${ex.feel}"]`);
+          if (chip) chip.click();
+        }
+      });
+    }
+
     const save = root.querySelector('#tl-save');
     if (save) save.addEventListener('click', async () => {
       if (save.disabled) return;
@@ -55,10 +76,14 @@ export default {
       const row = await roles.saveTrainingLog(RT.userId, {
         title, note, feel: feel || null, source: id ? 'coach' : 'self', requirementId: id || null,
       });
-      // Mark the requirement done (tracked-not-scored) so Home + the coach's status reflect it.
-      if (id && act && act.markCheckDone) { try { act.markCheckDone(id); } catch { /* best-effort */ } }
-      if (row !== null) { if (window.__go) window.__go(id ? 'home' : 'training-history'); }
-      else { save.disabled = false; save.textContent = 'Save failed — try again'; }
+      if (row !== null) {
+        // Mark the requirement done (tracked-not-scored) ONLY once the save is real. Marking it
+        // before knowing meant a failed save still reported the session complete to the coach,
+        // with no training_logs row behind the checkmark.
+        if (id && act && act.markCheckDone) { try { act.markCheckDone(id); } catch { /* best-effort */ } }
+        track(EVENTS.TL_LOGGED, { source: id ? 'coach' : 'self', feel: feel || 0 });
+        if (window.__go) window.__go(id ? 'home' : 'training-history');
+      } else { save.disabled = false; save.textContent = 'Save failed — try again'; }
     });
   },
 };

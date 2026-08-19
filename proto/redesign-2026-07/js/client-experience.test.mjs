@@ -103,16 +103,20 @@ function resetDay() {
   DAY.scoreHistory = Array.from({ length: 10 }, (_, i) => ({ date: `2026-06-${String(i + 1).padStart(2, '0')}`, score: 75 + i, weight: 165 + i }));
   RT.myCoach = null; RT.myTrainer = { practiceId: 'p1', practiceName: 'Rivera Strength', name: 'Sam T' };
   RT.profile = { name: 'X', baseGoal: 'gain', seasonGoal: { start: 165, target: 180 } };
+  // 2026-08-19 hierarchy pass: weight + photos merged into ONE "Body" group (the old "Weight
+  // Trend" eyebrow is gone on purpose). The contract under test is unchanged: the client's
+  // outcome section leads, the team athlete's score section leads.
+  const BODY_MARK = '<div class="eyebrow">Body</div>';
   const clientHtml = progress.render();
-  const wIdx = clientHtml.indexOf('Weight Trend');
+  const wIdx = clientHtml.indexOf(BODY_MARK);
   const sIdx = clientHtml.indexOf('Score Trend');
   assert.ok(wIdx >= 0 && sIdx >= 0, 'both sections must render');
-  assert.ok(wIdx < sIdx, 'a client sees Weight Trend BEFORE Score Trend — the outcome leads');
+  assert.ok(wIdx < sIdx, 'a client sees the Body group BEFORE Score Trend — the outcome leads');
   assert.ok(clientHtml.includes(`private to you &amp; your trainer`), 'the photo card names the real link (trainer), not a hardcoded "coach"');
 
   RT.myCoach = { teamId: 't1', teamName: 'Northside Prep', name: 'Coach J' }; RT.myTrainer = null;
   const teamHtml = progress.render();
-  const wIdx2 = teamHtml.indexOf('Weight Trend');
+  const wIdx2 = teamHtml.indexOf(BODY_MARK);
   const sIdx2 = teamHtml.indexOf('Score Trend');
   assert.ok(sIdx2 < wIdx2, 'a team athlete keeps Score Trend FIRST — unchanged order');
   assert.ok(teamHtml.includes('private to you &amp; your coach'), 'a team athlete still sees "your coach"');

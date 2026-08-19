@@ -56,6 +56,9 @@ const ALLOWED = new Set([
   // when they weren't, and it should be turned off rather than tuned.
   "cs_set", "cs_personal_set", "cs_card_shown", "cs_verified",
   "cs_manual", "cs_reviewed", "cs_disputed",
+  // Plan style + training log (2026-08-19). The most consequential setting in the app and the
+  // manual half of tracked-not-scored were both unmeasured before these two names existed.
+  "plan_style_set", "tl_logged",
   // Feedback intake + the store-rating prompt (0162, 2026-07-29). review_prompt_decided carries the
   // decline reason, which is the only observable this feature has: no platform ever reports whether
   // a review was actually left.

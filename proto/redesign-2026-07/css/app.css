@@ -234,6 +234,10 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 }
 /* Header avatar holds the row's alignment against the now-44px bell and keeps the 44px floor. */
 .apphead .avatar { width: 44px; height: 44px; }
+/* Profile pictures (0206): once js/avatar.js hydrates a circle with a real photo, the marked
+   monogram hides. Only the marked span — siblings that must survive (avatarHead's chevron
+   badge) keep rendering over the photo. */
+[data-avatar-uid].has-photo [data-avatar-fallback] { visibility: hidden; }
 
 /* ===== Section label ===== */
 .eyebrow {
@@ -265,6 +269,11 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 /* 20px puts card padding on the --s5 step and matches --pad-screen, so the gutter inside a card
    and the gutter beside it are the same measurement instead of 18 vs 20. */
 .card.pad { padding: var(--s5); }
+/* A card of .lrow rows. The `style="padding:6px 16px"` string was hand-typed onto dozens of
+   sections; the class is the primitive the inline-style ratchet exists to make people mint. */
+.card.rows { padding: 6px 16px; }
+/* The trailing chevron's resting color, as a class for icon()'s attr slot. */
+.chev-dim { color: var(--text-3); }
 
 /* ===== Score hero — UNCONTAINED. The ring floats on the canvas and owns the top half. ===== */
 .hero {

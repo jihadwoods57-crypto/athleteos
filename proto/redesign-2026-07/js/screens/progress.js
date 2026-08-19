@@ -7,7 +7,13 @@ import { cutoverIndex } from '../score-cutover.js';
 
 /* Progress (spec §8): day one is a real baseline, never an empty tab; populated stays
    athlete-friendly — one score trend, one consistency summary, one category breakdown,
-   one weight trend, ONE actionable insight. Trend unlock is a precise rule (3 days). */
+   one weight trend, ONE actionable insight. Trend unlock is a precise rule (3 days).
+
+   HIERARCHY (2026-08-19 pass): the week average is THE headline and renders first, always at
+   the same height — before this pass a conditional streak ribbon pushed it up and down by
+   streak state, and the streak itself was drawn twice in two visual languages from two
+   DIFFERENT getters (grace-aware S.streak in the ribbon, raw S.streakDays in a borrowed
+   coach-dashboard tile) that could disagree on a grace day. One getter now, one render each. */
 
 /* Baseline card shared by day-0 and day-1..2 states: real numbers + the exact unlock rule. */
 function baseline(P) {
@@ -20,33 +26,32 @@ function baseline(P) {
       ${dots}
       <span class="unlock-k">${P.unlockHave} of ${P.unlockNeed} days</span>
     </div>
-    <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:6px;line-height:1.45">Log ${P.unlockNeed} days to unlock your first weekly trend. ${P.unlockNeed - P.unlockHave === 0 ? 'Unlocked tomorrow.' : `${P.unlockNeed - P.unlockHave} more to go.`}</div>
+    <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:6px;line-height:1.45">Log ${P.unlockNeed} days to unlock your first weekly trend. ${P.unlockNeed - P.unlockHave} more to go.</div>
     <div class="base-stats">
-      <div><div class="k">Current streak</div><div class="v">${S.streakDays} day${S.streakDays === 1 ? '' : 's'}</div></div>
+      <div><div class="k">Current streak</div><div class="v">${S.streak.days} day${S.streak.days === 1 ? '' : 's'}</div></div>
       <div><div class="k">Best score</div><div class="v">${P.bestScore}</div></div>
       <div><div class="k">Days logged</div><div class="v">${P.daysLogged}</div></div>
     </div>
-    <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-top:8px">Early baseline. These sharpen as days accumulate.</div>
+    <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:8px">Early baseline. These sharpen as days accumulate.</div>
   </section>`;
 }
 
 function weightCard() {
   const W = S.weight;
   return `
-  <div class="eyebrow">Weight Trend</div>
   <section class="card pad">
     ${W.current != null ? `
     <div style="display:flex;justify-content:space-between;align-items:baseline">
       <!-- weight direction is goal-dependent (a gain can be good or bad depending on the athlete's
            target) — the honest signal is the S.weight.pace pill, never color this by sign -->
-      <div class="bigstat"><span class="n" style="font-size:32px">${W.current}</span>${W.deltaMonth ? `<span class="d">${W.deltaMonth}</span>` : ''}</div>
+      <div class="bigstat"><span class="n" style="font-size:var(--t-3xl)">${W.current}</span>${W.deltaMonth ? `<span class="d">${W.deltaMonth}</span>` : ''}</div>
       ${W.pace ? `<span class="status-pill ${W.pace === 'On pace' ? 'g' : 'a'}">${W.pace}</span>` : ''}
     </div>
-    <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${W.start != null ? `Started ${W.start} lb · ` : ''}${W.target != null ? `goal ${W.target} lb · ` : ''}never affects your daily score</div>
+    <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:2px">${W.start != null ? `Started ${W.start} lb · ` : ''}${W.target != null ? `goal ${W.target} lb · ` : ''}never affects your daily score</div>
     <button class="btn ghost sm" data-go="weight" style="margin-top:12px;width:auto;padding:0 18px">${icon('scale', 16)} Log weight</button>`
     : `
-    <div style="font-size:15px;font-weight:800">Start your weight trend</div>
-    <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:4px;line-height:1.45">Weight tracks long-term progress and does not affect your daily score.</div>
+    <div style="font-size:var(--t-md);font-weight:800">Start your weight trend</div>
+    <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:4px;line-height:1.45">Weight tracks long-term progress and does not affect your daily score.</div>
     <button class="btn primary sm" data-go="weight" style="margin-top:12px;width:auto;padding:0 20px">${icon('scale', 16)} Log weight</button>`}
   </section>`;
 }
@@ -56,14 +61,22 @@ function weightCard() {
    the daily score, same as weight. */
 function photoCard() {
   return `
-  <div class="eyebrow">Progress Photos</div>
-  <section class="card" style="padding:6px 16px">
+  <section class="card" style="padding:6px 16px;margin-top:10px">
     <div class="lrow" data-go="progress-photos">
       <div class="lic">${icon('camera', 17)}</div>
       <div class="lm"><div class="lt">Progress photos</div><div class="ls">Your before &amp; after · private to you &amp; your ${esc(S.coach.noun)}</div></div>
       ${icon('chevron', 17, 'style="color:var(--text-3)"')}
     </div>
   </section>`;
+}
+
+/* Weight + photos are the same story (the body the work is building), so they share ONE group
+   under one eyebrow instead of two peer sections announcing themselves separately. */
+function bodySection() {
+  return `
+  <div class="eyebrow">Body</div>
+  ${weightCard()}
+  ${photoCard()}`;
 }
 
 /* Entry to the training log (0135). Quiet link-out; sessions live in #training-history. Tracked,
@@ -95,7 +108,7 @@ function styleBandRow() {
   <div class="ps-band" aria-label="Plan style history">
     ${bands.map(b => `<span class="seg s-${esc(b.style)}"><i></i>${esc(b.name)} · ${b.days}d · avg ${b.avg}</span>`).join('')}
   </div>
-  <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:6px;line-height:1.45">Your plan style changed during this stretch — each style measures your day differently, so compare within a band, not across.</div>`;
+  <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:6px;line-height:1.45">Your plan style changed during this stretch — each style measures your day differently, so compare within a band, not across.</div>`;
 }
 
 export default {
@@ -119,34 +132,24 @@ export default {
         <div class="ts">Your first meal photo starts the record.</div>
         <div class="sd-cta" style="margin-top:8px"><button class="btn green sm" style="width:auto;padding:0 22px" data-go="camera">${icon('camera', 17)} Log a Meal</button></div></div>
       </div>` : ''}
-      <div style="height:4px"></div>
-      ${weightCard()}
-    ${photoCard()}
-    ${trainingCard()}
+      ${bodySection()}
+      ${trainingCard()}
       <div style="height:10px"></div>`;
     }
 
-    // Grace-aware streak leads the retention surface (same S.streak getter and the same
-    // grace-calibrated urgency rule as Home: amber ONLY when the grace day is spent).
+    // The streak, ONCE, from the grace-aware getter. It rides as a ribbon only while today is
+    // still unsecured (that's when it can drive an action); a secured streak is a fact, and
+    // facts live in the stat row below with the other numbers.
     const st = S.streak;
     let streakRow = '';
-    if (st.days >= 2) {
-      if (!st.todayCounted) {
-        const strong = st.graceUsedRecently;
-        streakRow = `<div class="streak-ribbon ${strong ? 'strong' : 'mild'}" data-go="streak" style="margin-top:2px">
-          <div class="sr-ic">${icon(strong ? 'flame' : 'shield', 18)}</div>
-          <div class="sr-body"><div class="sr-t">${st.days}-day streak${strong ? ' · at risk' : ''}</div>
-          <div class="sr-s">${strong ? 'This week’s grace is used — reach 80 before the day closes to continue your streak.' : 'Today is still live. Reach 80 before the day closes to continue your streak.'}</div></div>
-          ${icon('chevron', 16, 'style="color:var(--text-3);flex:none"')}
-        </div>`;
-      } else {
-        streakRow = `<div class="streak-ribbon mild" data-go="streak" style="margin-top:2px">
-          <div class="sr-ic" style="background:rgba(var(--green-rgb),0.10);color:var(--green-bright)">${icon('check', 18)}</div>
-          <div class="sr-body"><div class="sr-t">${st.days}-day streak · secured</div>
-          <div class="sr-s">Today counts. Day ${st.days} locks at midnight.</div></div>
-          ${icon('chevron', 16, 'style="color:var(--text-3);flex:none"')}
-        </div>`;
-      }
+    if (st.days >= 2 && !st.todayCounted) {
+      const strong = st.graceUsedRecently;
+      streakRow = `<div class="streak-ribbon ${strong ? 'strong' : 'mild'}" data-go="streak" style="margin-top:14px">
+        <div class="sr-ic">${icon(strong ? 'flame' : 'shield', 18)}</div>
+        <div class="sr-body"><div class="sr-t">${st.days}-day streak${strong ? ' · at risk' : ''}</div>
+        <div class="sr-s">${strong ? 'This week’s grace is used — reach 80 before the day closes to continue your streak.' : 'Today is still live. Reach 80 before the day closes to continue your streak.'}</div></div>
+        ${icon('chevron', 16, 'style="color:var(--text-3);flex:none"')}
+      </div>`;
     }
     const wd = parseFloat(P.weekDelta);
     const ddir = wd > 0 ? ' up' : wd < 0 ? ' down' : '';
@@ -161,7 +164,7 @@ export default {
     <div class="eyebrow" data-tour="trend">Score Trend</div>
     <section class="card pad">
       <div class="bigstat"><span class="n">${P.weekAvg}</span>${P.weekDelta ? `<span class="d${ddir}">${P.weekDelta} vs prior week</span>` : ''}</div>
-      <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${P.onDays} day${P.onDays === 1 ? '' : 's'} on standard (≥80) · best streak ${P.bestStreak}d</div>
+      <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:2px">${P.onDays} days on standard (≥80) · best streak ${P.bestStreak}d</div>
       <div class="weekbars" role="img" aria-label="Last ${P.weekScores.length} days: ${P.weekScores.map((v, i) => `${P.weekDayLabels[i] || ''} ${v}`).join(', ')}. The standard is 80.${cutIdx !== -1 ? ` ${esc(CUTOVER_LABEL)}.` : ''}">
         ${P.weekScores.map((v, i) => `
           ${i === cutIdx ? `<div class="wb-cutover" aria-hidden="true" title="${esc(CUTOVER_LABEL)}" style="align-self:stretch;width:2px;border-radius:1px;background:var(--text-3);opacity:.4"></div>` : ''}
@@ -176,16 +179,19 @@ export default {
         <button class="btn ghost sm" id="pg-share" style="width:auto;padding:0 18px" aria-label="Share today's score as an image">${icon('share', 16)} Share today</button>
       </div>
     </section>
+    ${streakRow}
 
-    <div style="height:16px"></div>
-    <div class="coach-stats">
-      <div class="coach-stat tap" data-go="streak" role="button" tabindex="0" aria-label="Current streak, ${S.streakDays} days. Open streak details"><div class="v" style="color:var(--amber-bright)">${S.streakDays}d</div><div class="k">Current streak</div>${icon('chevron', 13)}</div>
-      ${P.monthConsistency != null ? `<div class="coach-stat"><div class="v">${P.monthConsistency}%</div><div class="k">Consistency (≥80)</div></div>` : ''}
-      <div class="coach-stat tap" data-go="history" role="button" tabindex="0" aria-label="Open your score history"><div class="v" style="color:var(--blue-bright)">${icon('clipboard', 22)}</div><div class="k">History</div>${icon('chevron', 13)}</div>
+    ${/* One stat row, one visual language: three numerals, always three columns. The old row
+          borrowed the coach dashboard's .coach-stat, put an icon in a numeral slot, and left a
+          visible hole in the grid whenever consistency was still null. */''}
+    <div class="pg-stats">
+      <div class="pg-stat tap" data-go="streak" role="button" tabindex="0" aria-label="Current streak, ${st.days} days. Open streak details"><div class="v">${st.days}d</div><div class="k">Streak</div></div>
+      <div class="pg-stat"><div class="v">${P.bestStreak}d</div><div class="k">Best streak</div></div>
+      <div class="pg-stat${P.monthConsistency == null ? ' dim' : ''}"><div class="v">${P.monthConsistency != null ? `${P.monthConsistency}%` : '–'}</div><div class="k">Consistency</div></div>
     </div>
 
+    <div class="eyebrow">Category trends</div>
     ${trends ? `
-    <div class="eyebrow">Category Trends</div>
     <section class="card pad" style="padding-top:8px;padding-bottom:8px">
       ${trends.map(t => `
         <div class="cat-trend">
@@ -194,7 +200,8 @@ export default {
           <span class="ct-v">${t.now}%</span>
           <span class="ct-d ${t.delta > 0 ? 'up' : t.delta < 0 ? 'down' : ''}">${t.delta > 0 ? `↑ ${t.delta}` : t.delta < 0 ? `↓ ${Math.abs(t.delta)}` : '–'}</span>
         </div>`).join('')}
-    </section>` : ''}`;
+    </section>` : `
+    <div class="pl-standard" style="margin-top:0">More appears as you log: category trends need four scored days of history.</div>`}`;
 
     // ONE actionable sentence, and it used to render dead last — under Weight, Photos, Training,
     // Squad and Monthly report, well below the fold on every phone. The most useful thing on the
@@ -204,10 +211,7 @@ export default {
     <div class="insight">
       <div class="req-icon g" style="width:38px;height:38px;flex:none">${icon('target', 18)}</div>
       <p>${esc(insight)}</p>
-    </div>
-    <div style="height:16px"></div>` : '';
-
-    const bodySection = `${weightCard()}${photoCard()}`;
+    </div>` : '';
 
     // A client is chasing a body outcome, not a sport standard — their Progress tab leads with
     // weight + photos; a team athlete keeps the score-first order (unchanged). Same sections,
@@ -216,11 +220,9 @@ export default {
     const isClient = S.audience === 'client';
     return `
     <div class="screen-title">Progress</div>
-    ${streakRow}
-    ${isClient ? bodySection + scoreTrendSection + insightSection : scoreTrendSection + insightSection + bodySection}
+    ${isClient ? bodySection() + scoreTrendSection + insightSection : scoreTrendSection + insightSection + bodySection()}
     ${trainingCard()}
 
-    <div style="height:10px"></div>
     <!-- Squad and Monthly report used to follow trainingCard() with no eyebrow of their own, so
          both sat visually inside the "TRAINING" group. Neither is training. Own heading. -->
     <div class="eyebrow">More</div>
@@ -230,6 +232,11 @@ export default {
       <div><div class="tt">Squad</div><div class="ts">Your team's board — opt-in, score number only</div></div>
       ${icon('chevron', 17, 'style="color:var(--text-3)"')}
     </div>` : ''}
+    <div class="sidebox" data-go="history" style="cursor:pointer">
+      <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+      <div><div class="tt">Score history</div><div class="ts">The proof trail, day by day</div></div>
+      ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+    </div>
     <div class="sidebox" data-go="monthly-report" style="cursor:pointer">
       <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
       <div><div class="tt" style="display:flex;align-items:center;gap:7px">Monthly report <span class="status-pill b">Premium</span></div><div class="ts">Your month in review</div></div>

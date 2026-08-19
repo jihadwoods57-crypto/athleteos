@@ -16,6 +16,7 @@ import {
 } from '../chat-attach.js';
 import { openImageViewer } from '../image-viewer.js';
 import { openMembersSheet } from '../members-sheet.js';
+import { hydrateAvatars } from '../avatar.js';
 import { wireTapback } from '../tapback.js';
 import { scrollThreadToEnd, focusComposer } from '../keyboard.js';
 import { recentRows, warmRecent as warmRecentShared } from '../recent-meals.js';
@@ -1130,7 +1131,7 @@ export const thread = {
     const people = participantList(PARTICIPANTS.uid === RT.userId ? PARTICIPANTS.rows : [], RT.userId);
     const facepile = !M.mealId ? '' : `
     <button class="facepile" id="meal-members" aria-label="Who can see this conversation">
-      <span class="fp">${people.slice(0, 4).map((p) => `<span class="fpav ${esc(p.kind === 'ai' ? 'ai' : p.self ? 'self' : 'other')}">${p.kind === 'ai' ? icon('sparkle', 13) : esc(initialsFor(p.name))}</span>`).join('')}</span>
+      <span class="fp">${people.slice(0, 4).map((p) => `<span class="fpav ${esc(p.kind === 'ai' ? 'ai' : p.self ? 'self' : 'other')}"${p.kind !== 'ai' && p.id ? ` data-avatar-uid="${esc(p.id)}"` : ''}>${p.kind === 'ai' ? icon('sparkle', 13) : `<span data-avatar-fallback>${esc(initialsFor(p.name))}</span>`}</span>`).join('')}</span>
       <span class="names">${esc(participantSummary(people))}<small>${people.length} in this conversation</small></span>
       <span class="chev">${icon('chevron', 15)}</span>
     </button>`;
@@ -1528,7 +1529,7 @@ export const thread = {
         const photoOnly = isPhotoOnly(c);
         return `
         <div class="msg ${mine ? 'athlete' : c.role === 'ai' ? 'ai' : 'coach'}${item.firstOfRun ? '' : ' cont'}${rx.length ? ' has-rx' : ''}">
-          ${!mine && item.firstOfRun ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : esc(initialsFor(who))}</div>` : '<div class="av-sp"></div>'}
+          ${!mine && item.firstOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? icon('sparkle', 15) : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
           <div class="stack">
             ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
             ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
@@ -1590,6 +1591,7 @@ export const thread = {
       threadEl.innerHTML = coachPin + openingLead + earlierBtn + rows + openingTail + (aiTyping ? typingRow() : '')
         + (seen ? `<div class="seen">${seen}</div>` : '')
         + (tail.length ? `<div class="msg-status">${tail.join(' ')}</div>` : '');
+      hydrateAvatars(threadEl);   // 0206: message monograms upgrade to real faces
       // READ MORE (founder 2026-08-05): a long AI message clamps to its first four lines with a
       // quiet expander — the core coaching stands alone; history/hedges are there for whoever
       // wants them. Keyed on the text's own head so an expansion survives every repaint; photo

@@ -537,6 +537,30 @@ export async function uploadChatPhoto(userId, base64) {
   } catch { return null; }
 }
 
+/* ---------------- profile pictures (0206) ---------------- */
+/** Upload the user's profile picture (raw base64 jpeg) to the public avatars bucket at its ONE
+    deterministic path — avatars/<uid>/avatar.jpg, upsert — so every connected surface can paint
+    it from the uid alone (js/avatar.js). Best-effort boolean. */
+export async function uploadAvatar(userId, base64) {
+  const c = sb(); if (!c || !userId || !base64) return false;
+  try {
+    const bin = atob(base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const up = await c.storage.from('avatars').upload(`${userId}/avatar.jpg`, bytes, { contentType: 'image/jpeg', upsert: true });
+    return !up.error;
+  } catch { return false; }
+}
+
+/** Remove the profile picture. Best-effort boolean. */
+export async function removeAvatar(userId) {
+  const c = sb(); if (!c || !userId) return false;
+  try {
+    const { error } = await c.storage.from('avatars').remove([`${userId}/avatar.jpg`]);
+    return !error;
+  } catch { return false; }
+}
+
 /* ---------------- progress photos (before/after body-composition timeline, 0133) ---------------- */
 /** Upload a progress photo (raw base64 jpeg) to the private progress-photos bucket and record a
     row. Path MUST start with the athlete's id (storage RLS). Best-effort — returns the new row or null. */
@@ -675,12 +699,15 @@ export async function saveTrainingLog(userId, opts) {
       source: o.source === 'coach' ? 'coach' : 'self',
       requirement_id: o.requirementId || null,
     };
-    // Replace any existing same-day entry for this programmed session so "update" never duplicates.
-    if (o.requirementId) {
-      try { await c.from('training_logs').delete().eq('athlete_id', userId).eq('requirement_id', o.requirementId).eq('log_date', today); } catch { /* best-effort */ }
-    }
+    // Insert first, THEN clear the older same-day entry for this programmed session (excluding
+    // the row just written) so "update" never duplicates. The old order deleted before
+    // inserting: a network drop between the two calls destroyed the athlete's existing log and
+    // replaced it with nothing. Now a failed insert leaves the original untouched.
     const { data, error } = await c.from('training_logs').insert(row).select().maybeSingle();
     if (error) return null;
+    if (o.requirementId && data && data.id) {
+      try { await c.from('training_logs').delete().eq('athlete_id', userId).eq('requirement_id', o.requirementId).eq('log_date', today).neq('id', data.id); } catch { /* best-effort */ }
+    }
     return data || null;
   } catch { return null; }
 }

@@ -1,6 +1,6 @@
 /* ============================================================
    OB2 role select — the fork for the adaptive onboarding.
-   "How will you use OnStandard?" Six benefit-first roles; the
+   "How will you use OnStandard?" Seven benefit-first roles; the
    entire narrative downstream (problem framing, discovery,
    demo, social proof, paywall, destination) adapts to this
    choice. Replaces the 4-card picker at route `role`; the
@@ -26,7 +26,10 @@ const ROLES = [
      private-practice pro run different books. The subtitles carry the fork. */
   { go: 'obd/why', key: 'dietitian', ic: 'bowl', tint: 'var(--green-surface)', accent: 'var(--green-bright)',
     t: 'Team Dietitian / RD', s: 'Run fueling for a whole roster, any sport.' },
-  { go: 'obn/why', key: 'nutritionist', ic: 'bowl', tint: 'var(--cyan-surface)', accent: 'var(--cyan)',
+  /* Its own glyph (2026-08-19): the two nutrition doors shared 'bowl' and were told apart only
+     by tint — the two most-confusable options were the two least visually separated. The
+     stethoscope says "private practice"; the bowl stays on the roster door. */
+  { go: 'obn/why', key: 'nutritionist', ic: 'stethoscope', tint: 'var(--cyan-surface)', accent: 'var(--cyan)',
     t: 'Nutrition Professional', s: 'Your own practice: clients, reviews, progress.' },
 ];
 

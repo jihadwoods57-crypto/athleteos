@@ -290,6 +290,7 @@ const blankDraft = () => ({
   repeat_days: [1, 2, 3, 4, 5], starts_min: 285, respond_by_min: 315,
   location_id: null, arrive_by_min: null, min_dwell_min: null,
   linked_commitment_id: null, reminder_offsets_min: [15, 5],
+  escalation: {},
 });
 
 const timeInput = (id, label, val) => `
@@ -323,6 +324,7 @@ export function editCommitment(row) {
     min_dwell_min: row.min_dwell_min,
     linked_commitment_id: row.linked_commitment_id || null,
     reminder_offsets_min: row.reminder_offsets_min || [15, 5],
+    escalation: (row.escalation && typeof row.escalation === 'object') ? { ...row.escalation } : {},
     active: row.active !== false,
   };
 }
@@ -477,7 +479,19 @@ export const coachCommitEdit = {
       <div class="ts" style="padding-top:10px">A reminder goes out 15 and 5 minutes before the deadline, only to ${CD.nouns} who haven’t responded.</div>
     </section>
 
-    <div class="eyebrow">Where <span style="text-transform:none;letter-spacing:0">· optional</span></div>
+    ${/* The escalation ladder (0145) ran server-side for a month with NO way to switch either
+          rung on — no UI ever wrote commitments.escalation, so the "louder" half of the ladder
+          could never fire for anyone. These two chips are that missing switch. */''}
+    <div class="eyebrow">If they miss it <span class="opt">· optional</span></div>
+    <section class="card pad">
+      <div class="vc-esc" id="vc-esc">
+        <button class="chip ${d.escalation && d.escalation.breakthrough ? 'on' : ''}" data-esc="breakthrough">Send a second, louder push</button>
+        <button class="chip ${d.escalation && d.escalation.notify_coach_on_miss ? 'on' : ''}" data-esc="notify_coach_on_miss">Tell me who missed</button>
+      </div>
+      <div class="ts mt">The louder push is time-sensitive and lands once, right after the deadline passes. "Tell me who missed" is one message to you naming everyone who never answered, not one per ${CD.noun}.</div>
+    </section>
+
+    <div class="eyebrow">Where <span class="opt">· optional</span></div>
     <section class="card pad">
       <div class="ts" style="padding-bottom:10px">Attach a place and OnStandard confirms ${CD.nouns} actually got there. Leave it off and this stays a check-in only.</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px" id="vc-place">
@@ -511,7 +525,7 @@ export const coachCommitEdit = {
       ` : ''}
     </section>
 
-    <div class="eyebrow">Linked event <span style="text-transform:none;letter-spacing:0">· optional</span></div>
+    <div class="eyebrow">Linked event <span class="opt">· optional</span></div>
     <section class="card pad">
       <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">What is this roll call for?</div>
       <select class="ob-input" id="vc-link">
@@ -576,6 +590,12 @@ export const coachCommitEdit = {
       capture();
       d.message = (STARTERS[d.type] || [])[+b.getAttribute('data-starter')] || d.message;
       window.__render && window.__render();
+    }));
+    root.querySelectorAll('#vc-esc [data-esc]').forEach((b) => b.addEventListener('click', () => {
+      const k = b.getAttribute('data-esc');
+      d.escalation = { ...(d.escalation || {}) };
+      d.escalation[k] = !d.escalation[k];
+      b.classList.toggle('on', !!d.escalation[k]);
     }));
     root.querySelectorAll('[data-aud]').forEach((b) => b.addEventListener('click', () => {
       capture();

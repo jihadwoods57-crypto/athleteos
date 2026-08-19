@@ -138,6 +138,20 @@ export const settings = {
       ${['dark', 'light', 'system'].map((m) => `<span class="chp ${(RT.theme || 'dark') === m ? 'on' : ''}" data-theme-pick="${m}">${m === 'dark' ? 'Dark' : m === 'light' ? 'Light' : 'System'}</span>`).join('')}
     </div>
 
+    ${/* The plan-style picker's only stable browsable home. Before this row existed the screen
+          it back-navigates to could not reach it: owners found it through the Plan tab's Change
+          button, locked athletes had no path at all (settings.js:1030's honesty contract was
+          unreachable). Athletes only — an operator's plan style is per-athlete, on the roster. */''}
+    ${RT.authRole === 'athlete' ? `
+    <div class="eyebrow">Plan</div>
+    <section class="card rows">
+      <div class="lrow" data-go="plan-style">
+        <div class="lic">${icon('target', 17)}</div>
+        <div class="lm"><div class="lt">Plan style</div><div class="ls">${esc(S.planStyle.name)} · ${S.planStyle.canChoose ? 'yours to change' : esc(S.planStyle.sourceLabel)}</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
+      </div>
+    </section>` : ''}
+
     <div id="set-bio-wrap" style="display:none">
       <div class="eyebrow">Security</div>
       <section class="card" style="padding:6px 16px">
@@ -1052,7 +1066,7 @@ export const planStylePicker = {
     ${planStyleCard(PS, { compact: true })}
 
     <div class="eyebrow">${choosing ? 'Choose your style' : 'Tell your ' + esc(S.coach.noun) + ' what you prefer'}</div>
-    ${!choosing ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin:0 2px 10px;line-height:1.5">Your ${esc(S.coach.noun)} sets the plan you're scored on. What you pick here is shared with them; it doesn't change your scoring on its own.</div>` : ''}
+    ${!choosing ? `<div class="ps-note lead">Your ${esc(S.coach.noun)} sets the plan you're scored on. What you pick here is shared with them; it doesn't change your scoring on its own.</div>` : ''}
 
     <section class="card" style="padding:6px 16px" id="ps-options">
       ${STYLE_KEYS.map((k) => {
@@ -1061,13 +1075,14 @@ export const planStylePicker = {
         return `
         <div class="lrow" data-ps-pick="${k}" role="radio" aria-checked="${on ? 'true' : 'false'}">
           <div class="lic">${icon(k === 'structured' ? 'clipboard' : k === 'guided' ? 'target' : 'heart', 17)}</div>
-          <div class="lm"><div class="lt">${esc(L.name)}${on ? ' <span class="status-pill g" style="margin-left:6px">Selected</span>' : ''}</div>
+          <div class="lm"><div class="lt">${esc(L.name)}${on ? ` <span class="status-pill ${choosing ? 'g' : 'muted'}" style="margin-left:6px">${choosing ? 'Selected' : 'Preferred'}</span>` : ''}</div>
           <div class="ls">${esc(L.how)}</div></div>
         </div>`;
       }).join('')}
     </section>
+    <div id="ps-save-status" role="status" class="ps-note err"></div>
 
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:12px;padding:0 2px;line-height:1.5">
+    <div class="ps-note" style="margin-top:4px">
       Changing your style applies from today forward. Days you've already scored keep the score you earned; they were measured by the plan you were on then.
     </div>
 
@@ -1076,9 +1091,17 @@ export const planStylePicker = {
     <div style="height:10px"></div>`;
   },
   mount(root) {
-    root.querySelectorAll('[data-ps-pick]').forEach((el) => el.addEventListener('click', () => {
-      act.setPlanStyle(el.getAttribute('data-ps-pick'));
+    root.querySelectorAll('[data-ps-pick]').forEach((el) => el.addEventListener('click', async () => {
+      // Optimistic paint first (the local change is already applied and saved), then the server's
+      // verdict. On a rejection act.setPlanStyle has reverted and re-rendered; the message is
+      // written into the FRESH screen's status line so the revert doesn't read as a silent no-op.
+      const p = act.setPlanStyle(el.getAttribute('data-ps-pick'));
       window.__render && window.__render();
+      const ok = await p;
+      if (!ok) {
+        const status = document.getElementById('ps-save-status');
+        if (status) status.textContent = "That change didn't save. Check your connection and try again.";
+      }
     }));
   },
 };

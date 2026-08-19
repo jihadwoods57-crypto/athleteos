@@ -10,6 +10,8 @@ import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, entriesFor, bookId } from '../coach-data.js';
 import { STATUS_META } from '../status.js';
 import { styleLabel } from '../plan-style.js';
+import { initialsOf } from '../initials.js';
+import { hydrateAvatars } from '../avatar.js';
 import { scoreColor, tierFor } from '../score-band.js';
 import { nudgePreset, tierForStatus } from '../nudge-presets.js';
 import { reasonKey } from '../priority.js';
@@ -105,7 +107,7 @@ function rosterRow(e) {
     : `data-go="coach-athlete/${esc(r.athleteId)}" role="button" tabindex="0" aria-label="${esc(r.name)}${r.score != null ? `, score ${r.score}` : ''}. ${esc(meta.label)}"`}>
     ${SELECTING
       ? `<div style="width:20px;height:20px;border-radius:6px;border:2px solid ${sel ? 'var(--green-bright)' : 'var(--hairline)'};background:${sel ? 'var(--green-bright)' : 'transparent'};display:grid;place-items:center;flex:none;color:var(--ink-on-accent);font-weight:900">${sel ? icon('check', 13) : ''}</div>`
-      : `<span style="width:9px;height:9px;border-radius:50%;background:${meta.color};flex:none;box-shadow:0 0 8px ${meta.color}40"></span>`}
+      : `<span class="ros-av" data-avatar-uid="${esc(r.athleteId)}" aria-hidden="true"><span data-avatar-fallback>${esc(initialsOf(r.name, '?'))}</span><i class="ros-dot" style="background:${meta.color}"></i></span>`}
     <div class="rn">
       <div class="t">${esc(r.name)}${r.unit ? ` <small style="color:var(--text-3);font-weight:700">· ${esc(r.unit)}</small>` : ''}</div>
       <div class="s" style="color:var(--text-2)">${sub}</div>
@@ -269,6 +271,7 @@ function patchList(root) {
   const entries = entriesFor({ kind: 'team', value: null }) || [];
   const view = applyView(entries);
   list.innerHTML = listHtml(view);
+  hydrateAvatars(list);
   list.querySelectorAll('[data-sel]').forEach(b => b.addEventListener('click', () => toggleSel(root, b.getAttribute('data-sel'))));
   // Route through the router's origin-tracking navigate (NOT bare __go) so Back from the
   // athlete page returns to this filtered roster instead of the coach dashboard.

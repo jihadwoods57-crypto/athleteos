@@ -119,7 +119,7 @@ function priceLabel(o) {
   return `$${n}${per}`;
 }
 
-function newApps() { return (G.apps || []).filter(a => a.status === 'new').length; }
+export function newApps() { return (G.apps || []).filter(a => a.status === 'new').length; }
 
 export const trainerGrow = {
   nav: 'trainer', tab: 'profile',   // reached from You → Grow your practice; no longer its own tab

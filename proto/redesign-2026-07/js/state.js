@@ -32,6 +32,7 @@ import { splitServerRows } from './notif-feed.js';
 import { jobKey, putJob, readQueue, removeJob, updateJob, due as dueJobs, backoffMs } from './meal-outbox.js';
 import * as SQ from './sync-queue.js';
 import { setVcUidProvider } from './commitment-data.js';
+import { CS as CS_DATA, loadMine as loadCsMine } from './connected-standard-data.js';
 import { factsFromCorrection, candidateFactsFromFoodChange, sameFact } from './memory.js';
 import { TOUR_IDS } from './tour-plan.js';
 import {
@@ -53,8 +54,10 @@ import {
   fetchMyMemoryFacts, upsertMemoryFact, setMemoryFactStatus,
   fetchFoodMemory, insertFoodMemoryItem, updateFoodMemoryItem, archiveFoodMemoryItem,
   bumpFoodMemoryItem, upsertFoodMemoryPlace,
+  uploadAvatar as rpcUploadAvatar, removeAvatar as rpcRemoveAvatar,
   todayISO,
 } from './roles.js';
+import { bustAvatar } from './avatar.js';
 import { itemFromMeal, memoryContextForAnalysis, mealSignature } from './food-memory.js';
 import { foodMemory, warmFoodMemory, invalidateFoodMemory } from './food-memory-data.js';
 import { track, EVENTS } from './analytics.js';
@@ -1684,22 +1687,37 @@ export const act = {
   async setPlanStyle(style) {
     const key = String(style || '');
     const p = RT.profile || (RT.profile = {});
+    const prev = { planStyle: p.planStyle, preference: p.planStylePreference };
     p.planStylePreference = key;
     if (S.planStyle.canChoose) p.planStyle = key;   // `planStyle` is an S getter, not an act method
     applyPlanStyleToDay();
     save();
+    track(EVENTS.PLAN_STYLE_SET, { style: key, owned: !!S.planStyle.canChoose });
     const sb = window.sb;
-    if (!sb || !RT.userId) return;                       // offline: the local choice stands and re-syncs
+    if (!sb || !RT.userId) return true;                  // offline: the local choice stands and re-syncs
     try {
       const { data, error } = await sb.rpc('set_my_plan_style', { p_style: key, p_preference: key });
-      if (!error && data) {
-        // The server's word, not ours: a governed athlete gets their standard back here.
-        p.planStyle = S.planStyle.canChoose ? data : null;
+      if (error) {
+        // The server said no (validation, RLS, outage). An optimistic paint left standing here
+        // is a switch the athlete believes happened and the server never recorded: revert.
+        p.planStyle = prev.planStyle;
+        p.planStylePreference = prev.preference;
+        applyPlanStyleToDay();
+        save();
+        window.__render && window.__render();
+        return false;
+      }
+      if (data) {
+        // The server's word, not ours: a governed athlete gets their standard back here. Their
+        // own stored choice is left alone — it is what they fall back to if they ever leave the
+        // team, not something a preference tap should destroy.
+        if (S.planStyle.canChoose) p.planStyle = data;
         applyPlanStyleToDay();
         save();
         window.__render && window.__render();
       }
-    } catch { /* offline — the local preference is kept and pushed on the next hydrate */ }
+      return true;
+    } catch { return true; /* offline — the local preference is kept and pushed on the next hydrate */ }
   },
 
   /* One-time "plan styles exist now" announcement (0142 release mechanics) — dismissed once,
@@ -1988,6 +2006,11 @@ export const act = {
       if (r && r.token) {
         PUSH_TOKEN_VALUE = r.token;
         await sb.rpc('register_device_token', { tok: r.token, plat: r.platform || null });
+        // Any notification plan computed BEFORE this token landed included the local
+        // commitment-reminder fallback (the PUSH_TOKEN_VALUE gate read null at the time) —
+        // and the server path will now also fire. Re-sync once so the local duplicates are
+        // cancelled and a 4:45 AM roll call rings once, not twice.
+        try { this.syncNotifications(); } catch { /* best-effort */ }
       }
     } catch { /* best-effort — permission denied / no EAS project / offline */ }
   },
@@ -2531,6 +2554,38 @@ export const act = {
     save();
   },
   saveProfile(p) { RT.profile = { ...(RT.profile || {}), ...p }; save(); },
+
+  /* Profile picture (0206). The server object at avatars/<uid>/avatar.jpg is the truth — it is
+     what every CONNECTED surface (roster, threads, parent cards) paints from — and the local
+     dataURL is only the instant-paint cache for this device. Before this existed the "upload"
+     stored the dataURL in localStorage and nothing else: it vanished on sign-out and no other
+     account ever saw it. Returns false when the server never got the photo, so the profile
+     screen can say so instead of showing a success that isn't one. */
+  async setAvatar(dataUrl) {
+    const uid = RT.userId;
+    const b64 = String(dataUrl || '').split(',')[1] || '';
+    if (!uid || !b64) return false;
+    const ok = await rpcUploadAvatar(uid, b64);
+    if (!ok) return false;
+    const p = RT.profile || (RT.profile = {});
+    p.avatar = dataUrl;
+    RT.avatarVer = String(Date.now());   // busts the session probe cache AND the CDN cache
+    bustAvatar(uid);
+    try { save(); } catch { /* localStorage full: the server copy is safe; next load hydrates */ }
+    return true;
+  },
+  async removeAvatar() {
+    const uid = RT.userId;
+    if (!uid) return false;
+    const ok = await rpcRemoveAvatar(uid);
+    if (!ok) return false;
+    const p = RT.profile || (RT.profile = {});
+    p.avatar = null;
+    RT.avatarVer = String(Date.now());
+    bustAvatar(uid);
+    try { save(); } catch { /* best-effort */ }
+    return true;
+  },
   /* Onboarding scratch: the athlete's real selections captured step-by-step (DOM is wiped
      between routes, so each interaction persists here rather than being read at the end). */
   captureOb(patch) { RT.ob = { ...(RT.ob || {}), ...patch }; save(); },
@@ -3146,9 +3201,20 @@ export const act = {
         await sb.from('device_tokens').delete().eq('user_id', RT.userId).eq('token', PUSH_TOKEN_VALUE);
       }
     } catch { /* best-effort */ }
+    // Tear down any armed geofences: the OS keeps regions across sign-out, and the background
+    // task would keep firing arrivals against a session that no longer exists (or, worse,
+    // attribute crossings under whoever signs in next on this phone).
+    try {
+      const N = window.OnStandardNative;
+      if (N && N.location) await N.location.disarm();
+    } catch { /* best-effort */ }
     try { if (sb) await sb.auth.signOut(); } catch { /* ignore */ }
     this._wipeUserScopedState({ keepPendingOb: true });
   },
+
+  /* Arrival check-in opt-out (0139 hardening 2026-08-19). The flag armIfPermitted() honors:
+     without it, "Turn it off" survived exactly until the next Home load re-armed the regions. */
+  setLocationOptOut(on) { RT.locationOptOut = !!on; save(); },
   /* Send a password-reset email. Neutral by design — we never reveal whether an account exists,
      so the same confirmation shows regardless (anti account-enumeration). The link lands on the
      configured recovery target; completing the reset (setting the new password) is handled there. */
@@ -3866,15 +3932,20 @@ export const S = {
     const realName = (RT.profile && RT.profile.name || '').trim();
     const realPractice = (RT.practice && RT.practice.name || '').trim();
     const code = (RT.practice && RT.practice.code) || '';
-    const initials = initialsOf(realName, 'T');
+    // 'training' | 'nutrition' (0197) — the dietitian/nutritionist lens key for HQ + vocab.
+    const discipline = (RT.practice && RT.practice.discipline) === 'nutrition' ? 'nutrition' : 'training';
+    // The neutral fallback follows the discipline: a nutrition practice with an un-hydrated
+    // profile was greeting its owner as "Trainer" with a "T" monogram on the screen the obn
+    // flow calls Practice HQ — the one word that role never chose for themselves.
+    const fallbackName = discipline === 'nutrition' ? 'Dietitian' : 'Trainer';
+    const initials = initialsOf(realName, discipline === 'nutrition' ? 'D' : 'T');
     const state = RT.practiceLoading ? 'loading' : RT.practiceOffline ? 'offline' : !code ? 'minting' : 'live';
     return {
-      name: realName || 'Trainer',
+      name: realName || fallbackName,
       initials,
       practiceName: realPractice || 'Your practice',
       code,
-      // 'training' | 'nutrition' (0197) — the dietitian/nutritionist lens key for HQ + vocab.
-      discipline: (RT.practice && RT.practice.discipline) === 'nutrition' ? 'nutrition' : 'training',
+      discipline,
       hasIdentity: !!realName && !!realPractice,
       state,
     };
@@ -4827,12 +4898,22 @@ window.S = S; // debug
 // follow account switches.
 setVcUidProvider(() => RT.userId);
 
-setDayTaskProvider(() => [
-  ...S.exec.items.map((i) => ({ id: i.id, done: i.state === 'done' || i.state === 'done_late' })),
-  ...(Array.isArray(RT.csRows) ? RT.csRows : [])
-    .filter((r) => r && r.period === 'day' && r.period_start === DAY.date)
-    .map((r) => ({
-      id: `cs:${r.standard_id}`,
-      done: r.status === 'verified_complete' || r.status === 'completed_manually',
-    })),
-]);
+setDayTaskProvider(() => {
+  // Read the live CS cache, not RT.csRows: RT.csRows was only ever written by Home's paint, so
+  // an athlete who logged a meal without visiting Home this session pushed a days.tasks payload
+  // with no cs: entries at all — the roster status chip silently lost the standard signal. The
+  // cache warm-up is fire-and-forget (30s-fresh, no-op when warm): the provider stays
+  // synchronous, so a cold FIRST push still omits them, but every later push carries them.
+  try { void loadCsMine(); } catch { /* best-effort */ }
+  const csRows = (CS_DATA.mine && CS_DATA.mine.length) ? CS_DATA.mine
+    : (Array.isArray(RT.csRows) ? RT.csRows : []);
+  return [
+    ...S.exec.items.map((i) => ({ id: i.id, done: i.state === 'done' || i.state === 'done_late' })),
+    ...csRows
+      .filter((r) => r && r.period === 'day' && r.period_start === DAY.date)
+      .map((r) => ({
+        id: `cs:${r.standard_id}`,
+        done: r.status === 'verified_complete' || r.status === 'completed_manually',
+      })),
+  ];
+});

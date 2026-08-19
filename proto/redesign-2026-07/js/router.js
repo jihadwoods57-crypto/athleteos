@@ -7,6 +7,7 @@ import { initAnalytics, track, EVENTS } from './analytics.js';
 import { emptyNav, pushOrigin, popOrigin, peekOrigin, resetTab } from './nav-stack.js';
 import { initKeyboard } from './keyboard.js';
 import { withTransition, canTransition, transitioning, afterTransition } from './view-transition.js';
+import { hydrateAvatars } from './avatar.js';
 
 // Shell-level and route-independent: the keyboard has to behave the same on the composer, the food
 // search box and a profile field, and #device outlives every render() so this is wired once here
@@ -292,6 +293,58 @@ window.__navigate = navigateTo; // Screens that patch subtrees (roster search) r
 
 let REPAINT_HELD = false;   // a same-route repaint is waiting out a transition (see below)
 
+/* Delegated navigation for ASYNC-PAINTED rows. The per-element [data-go] wiring inside render()
+   runs once, at render time — anything a mount() injects later (the dietitian's meal queue and
+   fueling board, the VC and CS operator boards) rendered a pointer cursor over a row that did
+   nothing, because no listener ever existed. One listener on #device (which survives every
+   innerHTML rebuild) catches those. Rows wired at render time never reach it: their own click
+   handlers stopPropagation(), and their keydown handlers preventDefault() (checked below), so
+   nothing fires twice. */
+let DELEGATED = false;
+function wireDelegatedNav(device) {
+  if (DELEGATED || !device) return;
+  DELEGATED = true;
+  const buzz = (ms) => { try { if (RT.haptics !== false && navigator.vibrate) navigator.vibrate(ms); } catch { /* no-op */ } };
+  device.addEventListener('click', async (e) => {
+    const el = e.target.closest && e.target.closest('[data-go],[data-back],[data-act]');
+    if (!el) return;
+    if (el.hasAttribute('data-go')) {
+      buzz(6);
+      const target = el.getAttribute('data-go');
+      const mark = el.closest('[data-vt]') || el.querySelector('[data-vt]');
+      VT_KEY = mark ? mark.getAttribute('data-vt') : null;
+      VT_ID = mark ? mark.getAttribute('data-vt-id') : null;
+      VT_NODE = mark;
+      if (target === 'welcome') { try { await act.signOut(); } catch { /* ignore */ } }
+      navigateTo(target);
+    } else if (el.hasAttribute('data-back')) {
+      buzz(6);
+      goBack(el.getAttribute('data-back') || undefined);
+    } else if (el.hasAttribute('data-act')) {
+      buzz(14);
+      const [name, arg] = el.getAttribute('data-act').split(':');
+      if (act[name]) await act[name](arg !== undefined ? +arg || arg : undefined);
+      const then = el.getAttribute('data-then');
+      if (then && then.startsWith('__back')) { goBack(then.split(':')[1] || undefined); }
+      else if (then) { if (('#' + then) === location.hash) render(); else navigateTo(then); }
+      else render();
+    }
+  });
+  // Keyboard activation for the same async rows. Render-time-wired elements preventDefault()
+  // in their own keydown handler before this bubbles up, so the defaultPrevented check is what
+  // stops a double click().
+  device.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    if (e.defaultPrevented) return;
+    const el = e.target.closest && e.target.closest('[data-go],[data-back],[data-act]');
+    if (!el) return;
+    const tag = el.tagName;
+    if (tag === 'BUTTON' || tag === 'A' || tag === 'SUMMARY' || tag === 'INPUT') return;
+    e.preventDefault();
+    el.click();
+  });
+}
+
 function render() {
   /* A repaint that lands mid-transition would replace the element the browser is animating, and
      the browser answers that by cutting the transition short — the screen stops travelling and
@@ -373,6 +426,7 @@ function render() {
   const roleTabs = (NAVS[navRole] || NAVS.athlete).map((t) => t.id);
   const activeTab = roleTabs.includes(NAV.tab) ? NAV.tab : (mod.tab || route);
   const device = document.getElementById('device');
+  wireDelegatedNav(device);
 
   // Capture the outgoing viewport's scroll BEFORE innerHTML replaces it, so a same-route re-render
   // can restore it — the fix for controls that call window.__render() (Team Standard editor knobs,
@@ -537,6 +591,9 @@ function render() {
   LAST_FULL = full;
   try { vp.scrollTo({ top: targetScroll, behavior: 'instant' }); } catch { vp.scrollTop = targetScroll; }
   if (mod.mount) mod.mount(device, { sub, S });
+  // Profile pictures (0206): upgrade every [data-avatar-uid] monogram this screen rendered.
+  // Screens that inject rows asynchronously call hydrateAvatars on their own slot.
+  hydrateAvatars(device);
   };
   // Runs `commit` immediately when there is no transition to run, and inside one when there is.
   // Either way it runs exactly once: a navigation is never the thing that gets dropped.

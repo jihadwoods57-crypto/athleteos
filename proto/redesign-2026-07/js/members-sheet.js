@@ -15,6 +15,7 @@
 import { participantMeta, initialsFor } from './chat-view.js';
 import { esc } from './components.js';
 import { icon } from './icons.js';
+import { hydrateAvatars } from './avatar.js';
 
 let overlay = null;
 let opener = null;   // the element that opened the sheet; focus returns to it on close
@@ -62,7 +63,7 @@ export function openMembersSheet(members) {
     const sub = p.self ? 'This is your log' : meta.access;
     return `
       <div class="ms-row">
-        <span class="ms-av ${esc(p.kind === 'ai' ? 'ai' : p.self ? 'self' : 'other')}">${p.kind === 'ai' ? icon('bot', 16) : esc(initialsFor(p.name))}</span>
+        <span class="ms-av ${esc(p.kind === 'ai' ? 'ai' : p.self ? 'self' : 'other')}"${p.kind !== 'ai' && p.id ? ` data-avatar-uid="${esc(p.id)}"` : ''}>${p.kind === 'ai' ? icon('bot', 16) : `<span data-avatar-fallback>${esc(initialsFor(p.name))}</span>`}</span>
         <span class="ms-txt">
           <span class="ms-name">${esc(p.name)}</span>
           <span class="ms-kind">${icon(meta.ic, 12, 'style="vertical-align:-2px;margin-right:1px"')} ${esc(p.self ? 'Athlete' : meta.noun)} · ${esc(sub)}</span>
@@ -84,6 +85,7 @@ export function openMembersSheet(members) {
 
   document.body.appendChild(el);
   overlay = el;
+  hydrateAvatars(el);   // faces answer "who can read this" faster than monograms (0206)
   requestAnimationFrame(() => el.classList.add('on'));
   document.addEventListener('keydown', onKey);
   el.querySelector('.ms-x').addEventListener('click', close);

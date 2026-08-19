@@ -469,6 +469,8 @@ const steps = [
       if (copy) copy.addEventListener('click', async () => {
         const ok = await copyText(code);
         copy.innerHTML = ok ? `${icon('check', 16)} Copied` : 'Couldn’t copy';
+        // Reset like every other copy handler in the app — a permanent "Copied" reads as stuck.
+        setTimeout(() => { copy.innerHTML = `${icon('clipboard', 16)} Copy code`; }, 1600);
       });
       const share = root.querySelector('#share-code');
       if (share) share.addEventListener('click', async () => {

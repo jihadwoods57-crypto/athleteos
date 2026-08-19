@@ -25,6 +25,9 @@ import { presetForStatus, tierForStatus, nudgeResultCopy, nudgedTodayFromInterve
 import { reasonKey } from '../priority.js';
 import { maybeStartTour } from '../tour.js';
 import { reveal } from '../motion.js';
+import { initialsOf } from '../initials.js';
+import { hydrateAvatars } from '../avatar.js';
+import { verificationConsentFor, grantVerificationConsent } from '../commitment-data.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -299,6 +302,7 @@ function planStyleSection(athleteId, who, targets) {
     </div>
     ${prefLine}
     <div id="ps-detail" style="margin-top:10px">${assigned ? planStyleDetail(assigned, knobs) : ''}</div>
+    <button class="btn primary sm" id="ps-apply" hidden>Apply to their plan</button>
     <div id="ps-status" style="font-size:12px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px"></div>
   </section>
   <div style="height:12px"></div>`;
@@ -317,7 +321,7 @@ function planStyleDetail(style, knobs) {
   <div style="border-top:1px solid var(--hairline-soft);padding-top:10px">
     <div class="lrow" style="cursor:default;padding:6px 0"><div class="lm"><div class="lt" style="font-size:12.5px">Calories</div></div>${seg('calorie', CAL_OPTS, n.calorie)}</div>
     <div class="lrow" style="cursor:default;padding:6px 0"><div class="lm"><div class="lt" style="font-size:12.5px">Protein</div></div>${seg('protein', PRO_OPTS, n.protein)}</div>
-    <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:4px;line-height:1.4">${styleLabel(style).name} defaults shown — change either and Save applies it just to this athlete.</div>
+    <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:4px;line-height:1.4">${styleLabel(style).name} defaults shown. Change either, then Apply saves it just to this athlete.</div>
   </div>`;
 }
 
@@ -705,40 +709,59 @@ export const coachPlan = {
       else { save.disabled = false; if (status) status.textContent = 'Could not save — check the connection.'; }
     });
 
-    // Plan style assignment + overrides (0142) — every tap writes immediately (set_athlete_plan_style),
-    // the same auto-apply pattern the athlete's own picker uses. Absent entirely when a team
-    // standard governs (planStyleSection renders no #ps-editor in that case).
+    // Plan style assignment + overrides (0142) — preview-then-Apply, never write-on-tap. The old
+    // handler saved on every chip tap with p_overrides:null, so a pro who tapped Structured just
+    // to COMPARE had durably wiped the overrides they'd set on Guided, with no confirm and no
+    // undo. Now taps only repaint the preview; the one Apply button does the one honest write.
+    // Absent entirely when a team standard governs (planStyleSection renders no #ps-editor then).
     const psEditor = root.querySelector('#ps-editor');
     if (psEditor) {
       const psStatus = root.querySelector('#ps-status');
+      const psApply = root.querySelector('#ps-apply');
       const psSay = (msg, bad) => { if (psStatus) { psStatus.style.color = bad ? 'var(--red)' : 'var(--text-3)'; psStatus.textContent = msg; } };
-      const currentOverrides = () => {
+      const storedStyle = TGT && TGT.targets ? resolveStyleKey(TGT.targets.style) : null;
+      const storedOverrides = (TGT && TGT.targets && TGT.targets.styleOverrides) || null;
+      const arm = () => { if (psApply) psApply.hidden = false; psSay(''); };
+      const selectedStyle = () => { const on = psEditor.querySelector('[data-ps].on'); return on ? on.getAttribute('data-ps') : null; };
+      // Only knobs that differ from the selected style's own defaults count as overrides —
+      // persisting a verbatim copy of the defaults would mark the athlete "customized" (and,
+      // for Structured, move them off the grandfathered formula) for nothing.
+      const draftOverrides = (style) => {
         const detail = root.querySelector('#ps-detail');
         const calBtn = detail && detail.querySelector('[data-psk="calorie"] button.on');
         const proBtn = detail && detail.querySelector('[data-psk="protein"] button.on');
         if (!calBtn && !proBtn) return null;
-        return { nutrition: { ...(calBtn ? { calorie: calBtn.getAttribute('data-psv') } : {}), ...(proBtn ? { protein: proBtn.getAttribute('data-psv') } : {}) } };
-      };
-      const saveStyle = async (style, overrides) => {
-        psSay('Saving…');
-        const ok = await roles.setAthletePlanStyle(sub, style, overrides);
-        if (ok) { psSay('Saved to their plan.'); TGT = null; loadTargets(sub); }
-        else psSay('Could not save — check the connection.', true);
+        const def = knobsFor(style, null).nutrition;
+        const out = {};
+        if (calBtn && calBtn.getAttribute('data-psv') !== def.calorie) out.calorie = calBtn.getAttribute('data-psv');
+        if (proBtn && proBtn.getAttribute('data-psv') !== def.protein) out.protein = proBtn.getAttribute('data-psv');
+        return Object.keys(out).length ? { nutrition: out } : null;
       };
       const wireDetailToggles = () => {
         root.querySelectorAll('#ps-detail [data-psk] button').forEach((b) => b.addEventListener('click', () => {
           b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
-          const active = psEditor.querySelector('[data-ps].on');
-          if (active) saveStyle(active.getAttribute('data-ps'), currentOverrides());
+          arm();
         }));
       };
       psEditor.querySelectorAll('[data-ps]').forEach((el) => el.addEventListener('click', () => {
         const style = el.getAttribute('data-ps');
         psEditor.querySelectorAll('[data-ps]').forEach((x) => x.classList.toggle('on', x === el));
         const detail = root.querySelector('#ps-detail');
-        if (detail) { detail.innerHTML = planStyleDetail(style, knobsFor(style, null)); wireDetailToggles(); }
-        saveStyle(style, null); // a freshly-picked style starts from its own defaults, not a stale override
+        // Returning to the stored assignment restores its stored overrides; a different style
+        // previews its own defaults. Nothing is written until Apply.
+        if (detail) { detail.innerHTML = planStyleDetail(style, knobsFor(style, style === storedStyle ? storedOverrides : null)); wireDetailToggles(); }
+        arm();
       }));
+      if (psApply) psApply.addEventListener('click', async () => {
+        const style = selectedStyle();
+        if (!style) return;
+        psApply.disabled = true;
+        psSay('Saving…');
+        const ok = await roles.setAthletePlanStyle(sub, style, draftOverrides(style));
+        psApply.disabled = false;
+        if (ok) { psSay('Saved to their plan.'); TGT = null; loadTargets(sub); }
+        else psSay('Could not save — check the connection.', true);
+      });
       wireDetailToggles();
     }
   },
@@ -1609,6 +1632,11 @@ const INBOX_EMPTY_ACTION = {
   announcements: { label: 'New announcement', go: 'coach-announce' },
 };
 
+/* Where "share your code" really lives for THIS book. The coach's code screen is nav:'coach';
+   routing a trainer or dietitian there bounced them off the role guard onto notpermitted — the
+   primary empty-state CTA was a dead end on every practice book. */
+const codeRoute = () => (CD.kind === 'practice' ? 'trainer-profile' : 'coach-profile/code');
+
 export const coachInbox = {
   nav: 'operator', tab: 'inbox',
   badge() {
@@ -1622,7 +1650,9 @@ export const coachInbox = {
     let briefing = '';
     if (rows === null) briefing = 'Reading your roster…';
     else if (CD.roster && CD.roster.offline) briefing = "Can't reach your roster — reopen to retry. Nothing is invented while it's down.";
-    else if (!rows.length) briefing = 'No athletes yet. Share your team code and this becomes your morning read.';
+    else if (!rows.length) briefing = CD.kind === 'practice'
+      ? 'No clients yet. Share your client code from your Practice HQ and this becomes your morning read.'
+      : 'No athletes yet. Share your team code and this becomes your morning read.';
     else {
       const notLogged = rows.filter(r => !r.loggedToday);
       const below = rows.filter(r => r.score != null && r.score < ON_STANDARD);
@@ -1634,14 +1664,18 @@ export const coachInbox = {
       briefing = lines.join('<div style="height:7px"></div>') || 'Quiet so far — logs land here as they come in.';
     }
 
+    // The briefing wears the book's hue: purple was reading as "recovery" on a nutrition book
+    // (a435eee's own semantic-hue ruling fixed the HQ and missed this card).
+    const bHue = isNutritionBook() ? 'green' : 'purple';
+
     // Honest offline state: one clear message, not a segmented control full of zero-count
     // categories over data we can't actually see.
     if (CD.roster && CD.roster.offline) {
       return `
       ${titleHead('Inbox', "Can't reach your roster")}
       <div class="eyebrow">Daily briefing · from your real roster</div>
-      <section class="card pad" style="background:linear-gradient(180deg, rgba(var(--purple-rgb),0.10), rgba(var(--purple-rgb),0.03));border-color:rgba(var(--purple-rgb),0.26)">
-        <div style="display:flex;align-items:center;gap:7px;font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--purple-bright);margin-bottom:10px">${icon('sparkle', 13)} Today's read</div>
+      <section class="card pad" style="background:linear-gradient(180deg, rgba(var(--${bHue}-rgb),0.10), rgba(var(--${bHue}-rgb),0.03));border-color:rgba(var(--${bHue}-rgb),0.26)">
+        <div style="display:flex;align-items:center;gap:7px;font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--${bHue}-bright);margin-bottom:10px">${icon('sparkle', 13)} Today's read</div>
         <div style="font-size:13.5px;font-weight:600;color:var(--text-2);line-height:1.55">${briefing}</div>
       </section>
       <div style="height:10px"></div>`;
@@ -1673,14 +1707,14 @@ export const coachInbox = {
 
     ${isNeedsResponse ? `
     <div class="eyebrow">Daily briefing · from your real roster</div>
-    <section class="card pad" ${rows && !rows.length ? 'data-go="coach-profile/code" style="cursor:pointer;' : 'style="'}background:linear-gradient(180deg, rgba(var(--purple-rgb),0.10), rgba(var(--purple-rgb),0.03));border-color:rgba(var(--purple-rgb),0.26)">
-      <div style="display:flex;align-items:center;gap:7px;font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--purple-bright);margin-bottom:10px">${icon('sparkle', 13)} Today's read</div>
+    <section class="card pad" ${rows && !rows.length ? `data-go="${codeRoute()}" style="cursor:pointer;` : 'style="'}background:linear-gradient(180deg, rgba(var(--${bHue}-rgb),0.10), rgba(var(--${bHue}-rgb),0.03));border-color:rgba(var(--${bHue}-rgb),0.26)">
+      <div style="display:flex;align-items:center;gap:7px;font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--${bHue}-bright);margin-bottom:10px">${icon('sparkle', 13)} Today's read</div>
       <div style="font-size:13.5px;font-weight:600;color:var(--text-2);line-height:1.55">${briefing}</div>
       ${rows && !rows.length && RT.team && RT.team.code ? `<div style="margin-top:10px;display:flex;gap:8px;align-items:center"><button class="btn ghost sm" id="inbox-copy-code" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.team.code)}</button><button class="btn green sm" id="inbox-share-code" style="width:auto;padding:0 14px">Share code</button></div>` : ''}
     </section>` : ''}
 
     <div class="co-seg co-scroll" id="inbox-cat-row">
-      ${inboxCategories().map(([key, label]) => `<button class="co-chip ${INBOX_CAT === key ? 'on' : ''}" data-icat="${key}">${esc(label)} <span class="cnt">${out.counts[key]}</span></button>`).join('')}
+      ${inboxCategories().map(([key, label]) => `<button class="co-chip ${INBOX_CAT === key ? 'on' : ''}" data-icat="${key}">${esc(key === 'athletes' && CD.kind === 'practice' ? 'Clients' : label)} <span class="cnt">${out.counts[key]}</span></button>`).join('')}
     </div>
 
     ${isNeedsResponse && pending.length ? `
@@ -1698,9 +1732,19 @@ export const coachInbox = {
         <div class="lm"><div class="lt">New announcement</div></div>
       </div>` : ''}
     </section>` : (isNeedsResponse && pending.length ? '' : `
-    ${inboxFailed
-      ? `<div style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin:0 2px;line-height:1.5">This list couldn't be loaded, so it isn't empty as far as we know.</div>`
-      : `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px;line-height:1.5">${esc(INBOX_EMPTY[INBOX_CAT])}</div>${INBOX_EMPTY_ACTION[INBOX_CAT] ? `<div style="margin-top:12px"><button class="btn ghost sm" data-go="${esc(INBOX_EMPTY_ACTION[INBOX_CAT].go)}" style="width:auto;padding:0 16px">${esc(INBOX_EMPTY_ACTION[INBOX_CAT].label)}</button></div>` : ''}`}`)}
+    ${(() => {
+      if (inboxFailed) return `<div style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin:0 2px;line-height:1.5">This list couldn't be loaded, so it isn't empty as far as we know.</div>`;
+      const practice = CD.kind === 'practice';
+      const emptyCopy = INBOX_CAT === 'athletes' && practice
+        ? 'No client meal threads yet — logs land here as they come in.' : INBOX_EMPTY[INBOX_CAT];
+      const a = INBOX_EMPTY_ACTION[INBOX_CAT];
+      // The athletes action used to route every book to the coach's code screen; on a practice
+      // that was a guaranteed notpermitted bounce (the exact dead end the comment at
+      // ALL_INBOX_CATEGORIES documents for staff/announcements and missed here).
+      const action = a && INBOX_CAT === 'athletes' && practice
+        ? { label: 'Share client code', go: codeRoute() } : a;
+      return `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px;line-height:1.5">${esc(emptyCopy)}</div>${action ? `<div style="margin-top:12px"><button class="btn ghost sm" data-go="${esc(action.go)}" style="width:auto;padding:0 16px">${esc(action.label)}</button></div>` : ''}`;
+    })()}`)}
 
     <div style="height:10px"></div>
     `;
@@ -1743,7 +1787,7 @@ export const coachInbox = {
     const shareCode = root.querySelector('#inbox-share-code');
     if (shareCode) shareCode.addEventListener('click', (e) => {
       e.stopPropagation();
-      location.hash = '#coach-profile/code';
+      location.hash = `#${codeRoute()}`;
     });
   },
 };
@@ -3371,16 +3415,45 @@ export const parent = {
       const score = (k.latest_score == null) ? '—' : String(k.latest_score);
       const grade = k.latest_grade ? esc(String(k.latest_grade)) : '';
       const when = k.latest_day ? esc(String(k.latest_day)) : 'No days logged yet';
+      const kidUid = k.athlete_id || k.id || '';
       return `
       <section class="card" style="padding:16px;margin-bottom:10px">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-          <div style="min-width:0"><div class="lt" style="font-size:16px">${esc(k.name || 'Athlete')}</div>
+          <span class="ros-av"${kidUid ? ` data-avatar-uid="${esc(kidUid)}"` : ''} aria-hidden="true"><span data-avatar-fallback>${esc(initialsOf(k.name || 'A', 'A'))}</span></span>
+          <div style="min-width:0;flex:1"><div class="lt" style="font-size:16px">${esc(k.name || 'Athlete')}</div>
           <div class="ls">Latest day: ${when}</div></div>
           <div style="text-align:right;flex:none"><div style="font-size:30px;font-weight:800;letter-spacing:-0.03em;color:var(--blue-bright)">${score}</div>
           <div class="ls">${grade}</div></div>
         </div>
+        ${kidUid ? `<div class="vc-consent-slot" data-kid="${esc(kidUid)}"></div>` : ''}
       </section>`;
     }).join('');
+    hydrateAvatars(list);
+
+    // Guardian approval for arrival check-in (0139). grant_verification_consent shipped a month
+    // ago with NO caller anywhere in the product, so a minor's "ask a parent to approve" wall
+    // could never come down — the parent approved the nutrition-data consent and the location
+    // gate stayed shut forever. The parent's own hub is where the approval belongs. Adults
+    // (has_verification_consent true without a row) never see this.
+    kids.forEach(async (k) => {
+      const kidUid = k.athlete_id || k.id;
+      if (!kidUid) return;
+      const slot = list.querySelector(`.vc-consent-slot[data-kid="${kidUid}"]`);
+      if (!slot) return;
+      const has = await verificationConsentFor(kidUid);
+      if (has !== false || !slot.isConnected) return;
+      const first = esc((k.name || 'your athlete').split(' ')[0]);
+      slot.innerHTML = `
+        <div class="ls">Arrival check-in needs your approval before ${first}'s coach can verify they showed up. Location is checked only around scheduled events, and only a yes or no is recorded.</div>
+        <div class="btn-row mt"><button class="btn ghost sm">Approve arrival check-in</button></div>`;
+      const b = slot.querySelector('button');
+      b.addEventListener('click', async () => {
+        b.disabled = true; b.textContent = 'Approving…';
+        const ok = await grantVerificationConsent(kidUid);
+        if (ok) { slot.innerHTML = `<div class="ls">Approved. ${first} can switch arrival check-in on now.</div>`; }
+        else { b.disabled = false; b.textContent = 'Approve arrival check-in'; }
+      });
+    });
   },
 };
 

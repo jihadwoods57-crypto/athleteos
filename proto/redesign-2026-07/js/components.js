@@ -470,7 +470,7 @@ export function appHead(sub, extra) {
       ${bellBtn(n)}
       ${S.athlete.avatar && safeImg(S.athlete.avatar)
         ? `<div class="avatar" data-go="profile" aria-label="Your profile" style="background-image:url('${safeImg(S.athlete.avatar)}');background-size:cover;background-position:center"></div>`
-        : `<div class="avatar" data-go="profile" aria-label="Your profile">${esc(S.athlete.initials)}</div>`}
+        : `<div class="avatar" data-go="profile" aria-label="Your profile" data-avatar-uid="${esc(RT.userId || '')}" data-avatar-ver="${esc(RT.avatarVer || '')}"><span data-avatar-fallback>${esc(S.athlete.initials)}</span></div>`}
     </div>
   </header>`;
 }
@@ -526,7 +526,8 @@ export function avatarHead(title, sub, initials) {
     <div style="flex:1;min-width:0"><h1 class="ht">${esc(title)}</h1>${sub ? `<div class="hs">${esc(sub)}</div>` : ''}</div>
     ${bellBtn(n, 'margin-right:10px')}
     <div class="hd-avatar" role="button" tabindex="0" aria-label="Your profile and settings" data-go="${roleProfileRoute()}"
-      style="position:relative;width:40px;height:40px;border-radius:50%;background:var(--blue-surface);color:var(--blue-bright);border:1.5px solid var(--blue-border);display:grid;place-items:center;font-size:var(--t-sm);font-weight:800;letter-spacing:0.02em;flex:none;cursor:pointer">${esc(initials || 'C')}
+      data-avatar-uid="${esc(RT.userId || '')}" data-avatar-ver="${esc(RT.avatarVer || '')}"
+      style="position:relative;width:40px;height:40px;border-radius:50%;background:var(--blue-surface);color:var(--blue-bright);border:1.5px solid var(--blue-border);display:grid;place-items:center;font-size:var(--t-sm);font-weight:800;letter-spacing:0.02em;flex:none;cursor:pointer"><span data-avatar-fallback>${esc(initials || 'C')}</span>
       <span aria-hidden="true" style="position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:50%;background:var(--surface-3);border:1.5px solid var(--bg);display:grid;place-items:center;color:var(--text-2)">${icon('chevron', 10)}</span>
     </div>
   </div>`;

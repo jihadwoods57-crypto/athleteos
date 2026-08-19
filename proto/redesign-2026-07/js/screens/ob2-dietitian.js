@@ -498,6 +498,8 @@ const steps = [
       if (copy) copy.addEventListener('click', async () => {
         const ok = await copyText((RT.ob || {}).teamCode || '');
         copy.innerHTML = ok ? `${icon('check', 16)} Copied` : 'Couldn’t copy';
+        // Reset like every other copy handler in the app — a permanent "Copied" reads as stuck.
+        setTimeout(() => { copy.innerHTML = `${icon('clipboard', 16)} Copy code`; }, 1600);
       });
       const edit = $('#obd-edit');
       if (edit) {

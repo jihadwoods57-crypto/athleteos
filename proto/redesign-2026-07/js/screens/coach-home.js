@@ -1,6 +1,6 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { avatarHead, esc, safeImg, collapseSection, skeletonRows, errorState, emailVerifyBanner, wireEmailVerifyBanner, copyText } from '../components.js';
+import { avatarHead, esc, safeImg, collapseSection, skeletonRows, errorState, emptyState, emailVerifyBanner, wireEmailVerifyBanner, copyText } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope, logBookIntervention, passWorthy, bookId } from '../coach-data.js';
 import { buildPriorities } from '../priority.js';
@@ -390,7 +390,7 @@ function scopeSheet() {
     <div>${chip('team', '', (CD.extras && CD.extras.scope) ? vocab().mine : vocab().everyone, is('team', ''))}
     ${positions.map(p => chip('position', p, `${p} room`, is('position', p))).join('')}
     ${groups.map(g => chip('group', g.id, g.name, is('group', g.id))).join('')}</div>
-    <div style="font-size:11.5px;color:var(--text-3);font-weight:600;margin-top:4px">Custom groups are built on the Roster tab.</div>
+    <div style="font-size:11.5px;color:var(--text-3);font-weight:600;margin-top:4px">Custom groups are built on the ${CD.kind === 'practice' ? 'Clients' : 'Roster'} tab.</div>
   </section>`;
 }
 
@@ -424,7 +424,7 @@ function pulseCard(rows, statuses) {
     </div>
     <div class="co-standing">${seg('g', g)}${seg('a', a)}${seg('r', r)}${seg('d', d)}</div>
     <div class="co-legend">${leg('g', g, 'on standard')}${leg('a', a, 'need attention')}${leg('r', r, 'overdue')}${leg('d', d, 'no activity')}</div>
-    ${SHOW_PULSE ? `<div style="border-top:1px solid var(--hairline-soft);margin-top:var(--s3);padding-top:var(--s3);font-size:12px;font-weight:600;color:var(--text-2);line-height:1.6">The group score averages today's real athlete scores (${scored} of ${rows.length} scored so far). The bar is your roster's live standing — nothing is estimated; an athlete with no log adds no score.</div>` : ''}
+    ${SHOW_PULSE ? `<div style="border-top:1px solid var(--hairline-soft);margin-top:var(--s3);padding-top:var(--s3);font-size:12px;font-weight:600;color:var(--text-2);line-height:1.6">The group score averages today's real ${CD.noun} scores (${scored} of ${rows.length} scored so far). The bar is your roster's live standing — nothing is estimated; a ${CD.noun} with no log adds no score.</div>` : ''}
   </section>`;
 }
 
@@ -443,7 +443,19 @@ async function paintNutritionBoard(root) {
   if (!slot) return;
   const rows = (CD.roster && CD.roster.rows) || [];
   const ids = rows.map((r) => r.athleteId).filter(Boolean);
-  if (!ids.length) { slot.innerHTML = ''; return; }
+  if (!ids.length) {
+    // A brand-new dietitian's board must EXIST before their first client does. The obd/obn
+    // flows promise "the meal queue and fueling board are live the moment you open your
+    // dashboard" — a silently absent section read as that promise breaking.
+    slot.innerHTML = `
+    <div class="eyebrow co-major">Meal review</div>
+    ${emptyState({
+      icon: 'bowl',
+      title: 'Your review queue is ready for its first plate',
+      body: `The moment a ${CD.kind === 'practice' ? 'client' : 'teammate'} logs a meal it lands here, flags first. Share your code from your HQ to bring the first one in.`,
+    })}`;
+    return;
+  }
   const key = ids.slice().sort().join(',');
   let meals = NUT.rows;
   if (NUT.key !== key || Date.now() - NUT.at > 60000) {
@@ -469,6 +481,8 @@ async function paintNutritionBoard(root) {
     // Either read failing means the queue is not the whole truth: a lost interventions read
     // would otherwise clear every flame off meals that are still flagged on the server.
     NUT.err = meals === null || iv === null;
+    // A failed targets read is DEGRADED ranking, not a missing feature — the foot says which.
+    NUT.tFail = tg === null;
     if (meals === null && NUT.key === key) meals = NUT.rows; // keep last-known on a flaky fetch
     const flags = iv === null ? (NUT.key === key ? NUT.flags : {}) : flagStateByMeal(iv);
     const targets = tg === null ? (NUT.key === key ? NUT.targets : {}) : tg;
@@ -528,11 +542,11 @@ async function paintNutritionBoard(root) {
       flagged ? 'flagged' : isNew ? 'new' : null,
     ].filter(Boolean);
     return `
-    <div class="lrow" data-go="coach-meal/${esc(m.id)}" style="cursor:pointer">
+    <div class="lrow" data-go="coach-meal/${esc(m.id)}" role="button" tabindex="0" style="cursor:pointer">
       <div class="nbq-ph${ph ? '' : ' empty'}">${ph ? `<img src="${esc(ph)}" alt="" loading="lazy"/>` : icon('bowl', 16)}${isNew && !flagged ? '<span class="nbq-dot" aria-hidden="true"></span>' : ''}</div>
       <div class="lm"><div class="lt">${esc(shortName(m.athlete_id))} · ${esc(cap(m.type || 'Meal'))}${flagged ? ` <span class="nbq-flame">${icon('flame', 11)}</span>` : ''}</div>
       <div class="ls">${esc(bits.join(' · '))}</div></div>
-      ${icon('chevron', 14, 'style="color:var(--text-3)"')}
+      ${icon('chevron', 14, 'class="chev-dim"')}
     </div>`;
   }).join('');
 
@@ -581,8 +595,8 @@ async function paintNutritionBoard(root) {
       + (c.kcalAvg ? `, about ${c.kcalAvg} calories` : '')
       + `, ${c.loggedDays} of 7 days logged`;
     return `
-    <div class="nb-row" data-go="coach-athlete/${esc(c.id)}">
-      <span class="nb-name">${esc(first)}</span>
+    <div class="nb-row" data-go="coach-athlete/${esc(c.id)}" role="button" tabindex="0">
+      <span class="nb-name" title="${esc(nameOf[c.id] || first)}">${esc(first)}</span>
       <span class="nb-bars" role="img" aria-label="${esc(label)}">${c.totals.map((t) => `<i style="height:${t ? Math.max(14, Math.round((t / max) * 100)) : 6}%${t ? '' : ';opacity:0.3'}"></i>`).join('')}</span>
       <span class="nb-avg"><b${under ? ' class="warn"' : ''}>${esc(line1)}</b><i${low ? ' class="warn"' : ''}>${c.loggedDays} of 7 days</i></span>
     </div>`;
@@ -602,7 +616,12 @@ async function paintNutritionBoard(root) {
     <section class="card" style="padding:10px 16px 12px">${fRows}</section>
     <div class="nb-foot">${hasTargets
       ? 'Riskiest first: fewest logged days, furthest under their protein target. Averages count logged days only.'
-      : 'Riskiest first: fewest logged days, lightest plates. Averages count logged days only; set protein targets to rank against them.'}</div>` : ''}`;
+      : NUT.tFail
+        ? 'Targets couldn’t load just now, so this ranks by logged days alone. Nothing here is made up.'
+        : 'Riskiest first: fewest logged days, lightest plates. Averages count logged days only; set protein targets to rank against them.'}</div>`
+    : `
+    <div class="eyebrow">${fallbackNoun} fueling · last 7 days</div>
+    <div class="nb-foot">No logged days yet this week. Each ${fallbackNoun.toLowerCase()}'s protein pattern builds here as meals come in.</div>`}`;
   // A dead-end error line violates the house errorState contract (honest failure PLUS retry):
   // force the cache stale and repaint, right here, instead of "reopen the screen".
   const nutRetry = slot.querySelector('#nut-retry');

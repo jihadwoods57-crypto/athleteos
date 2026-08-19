@@ -15,7 +15,7 @@ import { track, EVENTS } from '../analytics.js';
 import { backHead, esc } from '../components.js';
 import { deriveCommitment, TYPE_LABEL } from '../commitments.js';
 import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment } from '../commitment-data.js';
-import { tapToVerify, armIfPermitted } from './location-consent.js';
+import { tapToVerify, armIfPermitted, armCapped } from './location-consent.js';
 
 /* Per-instance notes, keyed by instance id. A single global here once meant commitment A's
    failure reason painted onto commitment B's card the moment two shared a morning.
@@ -165,9 +165,12 @@ export function mountCommitmentCard(root, rerender) {
   // recorded too — as 'unverified' with a reason, never as 'missed' — so the coach sees an honest
   // "couldn't confirm" instead of silence, and the athlete gets a dispute button.
   go('data-vc-arrive', (id) => tapToVerify(id).then((r) => loadMine(true).then(() => {
-    if (r && r.within) { VERIFY_REASON.delete(id); track(EVENTS.VC_ARRIVED, { source: 'manual' }); return true; }
+    // `recorded` is the server's word (tapToVerify writes through this client now). Success is
+    // claimed ONLY when the write really happened — a consent refusal or a dropped connection
+    // used to paint "arrived" here and silently revert on the next fetch.
+    if (r && r.within && r.recorded) { VERIFY_REASON.delete(id); track(EVENTS.VC_ARRIVED, { source: 'manual' }); return true; }
     VERIFY_REASON.set(id, (r && r.reason) || 'Couldn’t confirm your location');
-    track(EVENTS.VC_UNVERIFIED, { reason: (r && r.reason) || 'unknown' });
+    track(EVENTS.VC_UNVERIFIED, { reason: r && r.recorded === false ? 'not_recorded' : 'unknown' });
     return true;
   })));
   root.querySelectorAll('[data-vc-open]').forEach((el) => el.addEventListener('click', (ev) => {
@@ -265,6 +268,14 @@ export default {
       <button class="btn green" data-vc-complete="${esc(row.instance_id)}" style="width:100%">${icon('check', 19)} Mark complete</button>` : ''}
 
     ${asksArrival ? `
+    ${armCapped() && !row.arrived_at ? `
+    <div class="sidebox mt">
+      <div class="req-icon a s38">${icon('alert', 19)}</div>
+      <div>
+        <div class="tt">Your phone is watching its limit of places</div>
+        <div class="ts">You have more located events than your phone can watch at once, so this one may not check itself in. Tap the arrival button when you get there. It counts exactly the same.</div>
+      </div>
+    </div>` : ''}
     <div class="sidebox" style="margin-top:14px">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 19)}</div>
       <div>

@@ -7,7 +7,7 @@ function avatarEl(size = 62) {
   const a = S.athlete;
   return a.avatar && safeImg(a.avatar)
     ? `<div class="big-av" style="width:${size}px;height:${size}px;background-image:url('${safeImg(a.avatar)}');background-size:cover;background-position:center"></div>`
-    : `<div class="big-av" style="width:${size}px;height:${size}px">${esc(a.initials)}</div>`;
+    : `<div class="big-av" style="width:${size}px;height:${size}px" data-avatar-uid="${esc(RT.userId || '')}" data-avatar-ver="${esc(RT.avatarVer || '')}"><span data-avatar-fallback>${esc(a.initials)}</span></div>`;
 }
 
 export default {
@@ -104,7 +104,12 @@ export default {
       <div class="lrow" data-go="connected-standards">
         <div class="lic" style="color:var(--blue-bright)">${icon('bolt', 17)}</div>
         <div class="lm"><div class="lt">Activity standards</div><div class="ls">Steps, distance and workouts · verified from your device</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        ${icon('chevron', 17, 'class="chev-dim"')}
+      </div>
+      <div class="lrow" data-go="location-consent">
+        <div class="lic">${icon('target', 17)}</div>
+        <div class="lm"><div class="lt">Arrival check-in</div><div class="ls">How showing up is confirmed · on/off lives here</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
       </div>
     </section>
 
@@ -202,6 +207,30 @@ export default {
         if (busy) return;
         file.click();
       });
+      // "Remove photo" appears only once a photo exists (locally or on the server): a control for
+      // undoing something that hasn't happened is noise.
+      import('../avatar.js').then(({ avatarReady }) => {
+        if (S.athlete.avatar) return renderRemove();
+        avatarReady(RT.userId, RT.avatarVer || '').then((url) => { if (url) renderRemove(); });
+        function renderRemove() {
+          if (!err.isConnected || document.getElementById('avatar-remove')) return;
+          const rm = document.createElement('button');
+          rm.id = 'avatar-remove';
+          rm.className = 'btn ghost sm';
+          rm.style.cssText = 'width:auto;padding:0 14px;height:30px;margin:2px auto 0;display:block';
+          rm.textContent = 'Remove photo';
+          err.insertAdjacentElement('afterend', rm);
+          rm.addEventListener('click', async () => {
+            if (busy) return;
+            setBusy(true);
+            rm.disabled = true;
+            const ok = await window.__act.removeAvatar();
+            setBusy(false);
+            if (ok) { window.__render(); }
+            else { rm.disabled = false; err.textContent = "Couldn't remove it. Check your connection and try again."; }
+          });
+        }
+      });
       file.addEventListener('change', () => {
         const f = file.files && file.files[0];
         if (!f) return;
@@ -213,20 +242,26 @@ export default {
           err.textContent = "Couldn't read that photo. Try a JPG or PNG.";
         };
         reader.onload = () => {
-          // downscale via canvas so localStorage stays small
           const img = new Image();
           img.onerror = () => {
             setBusy(false);
             err.textContent = "Couldn't read that photo. Try a JPG or PNG.";
           };
-          img.onload = () => {
+          img.onload = async () => {
+            // 256px: 2x for the largest circle that renders it (the 62px id card on a 3x
+            // display), and still ~15KB as JPEG. The canvas centre-crop is unchanged.
             const c = document.createElement('canvas');
             const s = Math.min(img.width, img.height);
-            c.width = 128; c.height = 128;
+            c.width = 256; c.height = 256;
             const ctx = c.getContext('2d');
-            ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 128, 128);
-            window.__act.saveProfile({ avatar: c.toDataURL('image/jpeg', 0.82) });
-            window.__render();
+            ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 256, 256);
+            // The server object is the real save — it is what every connected surface paints
+            // from. The old path wrote localStorage only, so the photo died on sign-out and no
+            // coach, parent or teammate ever saw it.
+            const ok = await window.__act.setAvatar(c.toDataURL('image/jpeg', 0.82));
+            setBusy(false);
+            if (ok) { window.__render(); }
+            else { err.textContent = "The photo didn't upload. Check your connection and try again."; }
           };
           img.src = reader.result;
         };

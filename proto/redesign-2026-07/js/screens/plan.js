@@ -516,12 +516,13 @@ function planStyleRow() {
   const st = S.planStyle;
   if (!st) return '';
   const decider = st.lockedBy || (S.coach.hasCoach ? `Your ${S.coach.noun}` : 'Your coach');
-  // A locked row carries no trailing element at all. The pill that used to sit there ("Your coach
-  // decides") squeezed the subtitle into two wrapped lines to say something the subtitle can say
-  // in three words with the full row width. Unlocked rows keep the one control that does work.
+  // Owners keep the explicit Change button. A LOCKED athlete's row is tappable too — the picker
+  // is where their stated preference lives (it reaches the coach's roster), and before this the
+  // only path to it was a four-tap Ask OnStandard detour. A chevron, not a button: the tap opens
+  // a place to say what you'd prefer, it does not change the plan.
   const action = st.canChoose
     ? `<button class="btn ghost sm" data-go="plan-style" style="width:auto;padding:0 14px;height:34px">Change</button>`
-    : '';
+    : icon('chevron', 17, 'class="chev-dim"');
   const sub = st.source === 'preference'
     ? `${esc(st.short)} · awaiting your ${esc(S.coach.noun)}'s confirmation`
     : st.canChoose
@@ -530,7 +531,7 @@ function planStyleRow() {
   return `
   <div class="eyebrow">Plan style</div>
   <div class="pl-list">
-    <div class="pl-row">
+    <div class="pl-row"${st.canChoose ? '' : ' data-go="plan-style"'}>
       <div class="req-icon b" style="width:38px;height:38px;flex:none">${icon('target', 17)}</div>
       <div class="plb">
         <div class="plt"><span class="nm">${esc(st.name)}${st.customized ? ' (customized)' : ''}</span></div>

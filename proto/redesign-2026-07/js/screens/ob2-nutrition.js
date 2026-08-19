@@ -9,7 +9,7 @@
    ============================================================ */
 import { RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { esc } from '../components.js';
+import { esc, copyText } from '../components.js';
 import {
   defineFlow, saveProgressStep, choiceGrid, chipRow, simChip, mirrorCard, countStat, chatSim,
   phoneCard, testimonial, planCard, PLANS, capture, ob, gateCta, structureStep,
@@ -496,9 +496,60 @@ const steps = [
       wireAccount(root, {
         role: 'trainer',
         onSession: async (live) => {
-          if (live) { await act.persistTrainerOnboarding('nutrition'); ctx.go('obn/plans'); return; }
+          if (live) { await act.persistTrainerOnboarding('nutrition'); ctx.go('obn/code'); return; }
           showConfirmPending(root, { email: RT.email });
         },
+      });
+    },
+  },
+  {
+    /* The client code, the moment it exists. The trainer flow (obt) has handed its code over
+       since launch and the dietitian team flow (obd) does too; this flow ended on the seat
+       picker, so the nutrition pro walked out of onboarding with nothing to give a client and
+       had to discover Practice HQ unaided. */
+    id: 'code', ch: 4, cta: 'Continue', green: true,
+    back: 'trainer', /* post-account: back can never return to the sign-up form */
+    body: () => {
+      const code = ob().practiceCode || '';
+      return `
+      <div class="ob2-covered">
+        <div class="halo"><div class="core">${icon('bowl', 34)}</div></div>
+        <div class="ob-title">Your client code.</div>
+        <div class="ob-sub">Send it to your first client. They join in a minute and their next meal lands in your review queue.</div>
+      </div>
+      ${code ? `
+      <div class="code-boxes fit">${code.split('').map((ch) => `<div class="cb filled">${esc(ch)}</div>`).join('')}</div>
+      <div class="ob2-vgap"></div>
+      <div class="ob2-btn-pair">
+        <button class="btn ghost sm" id="obn-copy">${icon('clipboard', 16)} Copy code</button>
+        <button class="btn ghost sm" id="obn-share">${icon('share', 16)} Share invite</button>
+      </div>` : `
+      <div class="sidebox">
+        <div class="req-icon b">${icon('clipboard', 17)}</div>
+        <div><div class="tt">We couldn't create your practice</div>
+        <div class="ts">Your account is set up. The practice isn't yet. Open your dashboard and it shows how to finish; your client code appears the moment it's done.</div></div>
+      </div>`}`;
+    },
+    mount(root) {
+      const code = ob().practiceCode || '';
+      const copy = root.querySelector('#obn-copy');
+      if (copy) copy.addEventListener('click', async () => {
+        const ok = await copyText(code);
+        copy.innerHTML = ok ? `${icon('check', 16)} Copied` : 'Couldn’t copy';
+        setTimeout(() => { copy.innerHTML = `${icon('clipboard', 16)} Copy code`; }, 1600);
+      });
+      const share = root.querySelector('#obn-share');
+      if (share) share.addEventListener('click', async () => {
+        if (!code) return;
+        const name = ob().practiceName || 'my practice';
+        const text = `Join ${name} on OnStandard. Get the app and enter code ${code}. Your meals and check-ins land with me from day one.`;
+        try {
+          if (navigator.share) { await navigator.share({ text }); return; }
+          if (await copyText(text)) {
+            share.innerHTML = `${icon('check', 16)} Invite copied`;
+            setTimeout(() => { share.innerHTML = `${icon('share', 16)} Share invite`; }, 1600);
+          }
+        } catch { /* user cancelled the share sheet — no-op */ }
       });
     },
   },

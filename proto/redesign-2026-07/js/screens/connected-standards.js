@@ -21,6 +21,7 @@
    Rule 3 is why the "How this is counted" disclosure does not always collapse. A rule the athlete
    would not guess (recorded workouts only, a minimum session length) stays open on the screen. */
 import { icon } from '../icons.js';
+import { RT } from '../state.js';
 import { track, EVENTS } from '../analytics.js';
 import { backHead, esc, emptyState } from '../components.js';
 import { reveal } from '../motion.js';
@@ -153,6 +154,10 @@ export function mountStandardsCard(root) {
 
 /* ---------------------------------------------------------------- detail screen */
 
+/* Which sub the detail screen has already refetched for — separates "cache is cold, fetch is in
+   flight" from "the fetch settled and this row genuinely doesn't exist". */
+let DETAIL_TRIED = null;
+
 const DOW = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -210,6 +215,18 @@ export default {
   render({ sub }) {
     const row = CS.result(sub);
     if (!row) {
+      // Cold cache or a stale link. mount() refetches once; only after that fetch settles does
+      // this become "not found" — before this guard, a missing row was a permanent "Loading…"
+      // with no fetch behind it and no way out but the back button.
+      if (DETAIL_TRIED === sub) {
+        return `${backHead('Standard', '', 'home')}
+        ${emptyState({
+          icon: 'target',
+          title: "This standard isn't here anymore",
+          body: 'It may have been turned off or replaced. Everything current is on your list.',
+          action: { id: 'cs-gone-list', label: 'See your standards', go: 'connected-standards' },
+        })}`;
+      }
       return `${backHead('Standard', 'Loading…', 'home')}
       <section class="card pad"><div class="cs-p">Loading your standard…</div></section>`;
     }
@@ -246,7 +263,9 @@ export default {
          <div class="tx">Reconnect your health data, or log this by hand below.</div></div>`
       : geo.state === 'partial'
       ? `<div class="cs-foot amber"><div class="ic">${icon('clock', 14)}</div>
-         <div class="tx">Your watch hasn’t reported yet. Log it yourself if it doesn’t catch up.</div></div>`
+         <div class="tx">${row.allow_manual
+           ? 'Your watch hasn’t reported yet. Log it yourself below if it doesn’t catch up.'
+           : 'Your watch hasn’t reported yet. If it never does, this reads as unreported, never as a miss.'}</div></div>`
       : streak >= 2
       ? `<div class="cs-foot ${done ? 'green' : ''}"><div class="ic">${icon('flame', 14)}</div>
          <div class="tx">${streak} ${row.period === 'week' ? 'weeks' : 'days'} in a row</div></div>`
@@ -281,6 +300,7 @@ export default {
         : 'It’s recorded as reported rather than verified — nobody assumes you’re being dishonest.'}</div>
       <input class="input" id="cs-note" maxlength="200" placeholder="Anything your coach should know (optional)">
       <button class="btn" id="cs-manual" style="margin-top:10px">I did this</button>
+      <div id="cs-manual-err" role="status" class="cs-p cs-err"></div>
     </section>` : ''}
 
     ${row.manual_submitted_at ? `<section class="card pad">
@@ -292,10 +312,19 @@ export default {
       <div class="cs-p muted" style="margin-bottom:10px">If this is wrong, say so. Your coach sees your note — nothing changes automatically.</div>
       <input class="input" id="cs-dnote" maxlength="200" placeholder="What actually happened">
       <button class="btn ghost" id="cs-dispute" style="margin-top:10px">This isn’t right</button>
+      <div id="cs-dispute-err" role="status" class="cs-p cs-err"></div>
     </section>` : ''}
 
     ${row.disputed_at ? `<section class="card pad">
       <div class="cs-p muted">You flagged this for your coach.</div>
+    </section>` : ''}
+
+    ${row.source_kind === 'personal' ? `<section class="card rows">
+      <div class="lrow" data-go="connected-standard-edit/${esc(row.standard_id)}">
+        <div class="lic">${icon('edit', 16)}</div>
+        <div class="lm"><div class="lt">Edit this standard</div><div class="ls">Change the target, the days, or turn it off</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
+      </div>
     </section>` : ''}
 
     <div class="cs-p muted" style="text-align:center;margin:14px 20px 24px">
@@ -306,12 +335,19 @@ export default {
   mount(root) {
     const rerender = () => loadMine(true).then(() => { if (window.__render) window.__render(); });
 
+    // A cold cache (deep link, relaunch) gets exactly one refetch; after it settles the render
+    // above shows either the row or an honest "not here anymore" — never an eternal spinner.
+    const sub = (location.hash.split('/')[1] || '');
+    if (!CS.result(sub) && DETAIL_TRIED !== sub) {
+      loadMine(true).then(() => { DETAIL_TRIED = sub; if (window.__render) window.__render(); });
+    }
+
     /* The reveal, keyed to THIS number. __render() re-runs mount() for reasons that have nothing
        to do with the column — a manual entry saving, the cache landing — and an unkeyed reveal
        would replay the fill and the haptic on every one of them. The key changes only when the
        value or the verdict actually changed, which is exactly when the moment is earned. */
     const hero = root.querySelector('#cs-hero');
-    const row = CS.result((location.hash.split('/')[1] || ''));
+    const row = CS.result(sub);
     if (hero && row) {
       reveal(hero, {
         key: `cs:${row.result_id}:${row.status}:${row.progress}`,
@@ -329,8 +365,14 @@ export default {
       if (res.ok) {
         try { if (navigator.vibrate) navigator.vibrate(14); } catch { /* no-op */ }
         track(EVENTS.CS_MANUAL, { metric: r && r.metric, review: res.status === 'awaiting_review' });
-      } else { manual.disabled = false; manual.textContent = 'I did this'; }
-      rerender();
+        rerender();
+      } else {
+        // A failed save must SAY so. The old path restored the button and re-rendered the same
+        // screen: a tap, a flicker, and no trace of what happened — the entry looked recorded.
+        manual.disabled = false; manual.textContent = 'I did this';
+        const err = root.querySelector('#cs-manual-err');
+        if (err) err.textContent = "That didn't save. Check your connection and try again.";
+      }
     });
 
     const dispute = root.querySelector('#cs-dispute');
@@ -340,8 +382,14 @@ export default {
       const r = CS.result((location.hash.split('/')[1] || ''));
       const note = (root.querySelector('#cs-dnote') || {}).value || '';
       const res = await disputeResult(r && r.result_id, note);
-      if (res.ok) track(EVENTS.CS_DISPUTED, { metric: r && r.metric });
-      rerender();
+      if (res.ok) {
+        track(EVENTS.CS_DISPUTED, { metric: r && r.metric });
+        rerender();
+      } else {
+        dispute.disabled = false; dispute.textContent = 'This isn’t right';
+        const err = root.querySelector('#cs-dispute-err');
+        if (err) err.textContent = "Your note didn't send. Check your connection and try again.";
+      }
     });
   },
 };
@@ -373,17 +421,33 @@ export const connectedStandardsList = {
         ? `<section class="card" style="padding:2px 16px">${list.map((r) => standardRow(r, today)).join('')}</section>`
         : empty}`;
 
+    // Personal definitions with no live period today (a rest day, a weekly gap). Before these
+    // rows existed, a Mon/Wed/Fri standard viewed on Tuesday rendered as "Set your own target" —
+    // inviting a duplicate of a standard that already existed and could never be edited: the
+    // whole edit/turn-off branch of the editor was unreachable from anywhere in the app.
+    const liveIds = new Set(personal.map((r) => r.standard_id));
+    const resting = (CS.defs || []).filter((d) => d && d.active !== false && !liveIds.has(d.id));
+    const defRow = (d) => `<div class="lrow" data-go="connected-standard-edit/${esc(d.id)}">
+      <div class="lic">${icon(METRIC_ICON[d.metric] || 'bolt', 17)}</div>
+      <div class="lm"><div class="lt">${esc(d.title || 'Standard')}</div>
+      <div class="ls">${esc(fmtValue(d.target_value, d.metric, d.display_unit))} ${esc(unitNoun(d.metric, d.display_unit, d.target_value))} · not on today's schedule</div></div>
+      ${icon('chevron', 17, 'class="chev-dim"')}
+    </div>`;
+
     return `${backHead('Activity Standards', 'Verified from your device', 'profile')}
     ${section('From your coach', assigned, emptyState({
       icon: 'target',
       title: 'Nothing assigned right now',
       body: 'When your coach sets an activity standard, it shows up here and on your Home screen.',
     }))}
-    ${section('Personal', personal, emptyState({
+    <div class="xgrp">Personal</div>
+    ${personal.length ? `<section class="card rows">${personal.map((r) => standardRow(r, today)).join('')}</section>` : ''}
+    ${resting.length ? `<section class="card rows">${resting.map(defRow).join('')}</section>` : ''}
+    ${!personal.length && !resting.length ? emptyState({
       icon: 'bolt',
       title: 'Set your own target',
-      body: 'Steps, distance, workouts or active minutes — checked against your watch, and yours alone.',
-    }))}
+      body: 'Steps, distance, workouts or active minutes, checked against your watch, and yours alone.',
+    }) : ''}
     <div id="cs-connect-slot"></div>
     <div style="padding:12px 20px">
       <button class="btn" id="cs-new">Set a personal standard</button>
@@ -420,9 +484,11 @@ export const connectedStandardsList = {
     // ⚠ Re-render ONLY when the payload actually changed. __render() re-runs this mount, so an
     // unconditional refresh here is an infinite loop — and a forced reload would never let the
     // cache go quiet. Comparing a signature terminates after exactly one repaint: the second
-    // pass reads the now-fresh cache, the signature matches, and it stops.
-    loadMine().then((rows) => {
-      const sig = rows.map((r) => `${r.result_id}:${r.status}:${r.progress}`).join('|');
+    // pass reads the now-fresh cache, the signature matches, and it stops. Defs join the load
+    // (and the signature) because the Personal group is drawn from them, not just live rows.
+    Promise.all([loadMine(), loadMyDefs()]).then(([rows, defs]) => {
+      const sig = rows.map((r) => `${r.result_id}:${r.status}:${r.progress}`).join('|')
+        + '§' + (defs || []).map((d) => `${d.id}:${d.active}`).join('|');
       if (sig === LIST_SIG) return;
       LIST_SIG = sig;
       if (window.__render) window.__render();
@@ -438,6 +504,7 @@ const METRICS = [
   { key: 'steps', label: 'Steps', unit: 'steps', preset: 8000 },
   { key: 'distance', label: 'Distance', unit: 'mi', preset: 3 },
   { key: 'workouts', label: 'Workouts', unit: 'workouts', preset: 4 },
+  { key: 'workout_minutes', label: 'Workout minutes', unit: 'min', preset: 150 },
   { key: 'active_minutes', label: 'Active minutes', unit: 'min', preset: 30 },
 ];
 const DOW_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -477,7 +544,16 @@ function previewCard(d) {
 export const connectedStandardEdit = {
   tab: 'profile',
   render({ sub }) {
-    if (!DRAFT || (sub && DRAFT.id !== sub)) {
+    if (sub && !CS.def(sub)) {
+      // Deep link or cold relaunch: the defs cache hasn't landed yet (mount refetches). Without
+      // this guard the editor fell through to a BLANK draft — "edit" silently became "create a
+      // duplicate", which is how unremovable duplicates were born.
+      return `${backHead('Edit standard', 'Loading…', 'connected-standards')}
+      <section class="card pad"><div class="cs-p">Loading your standard…</div></section>`;
+    }
+    // Reset on any identity mismatch IN EITHER DIRECTION: arriving at "New standard" with a
+    // stale edit draft in the module would silently reopen the last edited standard.
+    if (!DRAFT || (sub ? DRAFT.id !== sub : DRAFT.id !== null)) {
       const def = sub ? CS.def(sub) : null;
       DRAFT = def ? {
         id: def.id, metric: def.metric, display_unit: def.display_unit,
@@ -588,8 +664,9 @@ export const connectedStandardEdit = {
       const d = DRAFT;
       if (!(Number(d.target) > 0)) { save.textContent = 'Enter a target first'; return; }
       save.disabled = true; save.textContent = 'Saving…';
-      const uid = await currentUserId();
-      if (!uid) { save.disabled = false; save.textContent = 'Set this standard'; return; }
+      // RT.userId is already in memory; the auth round trip is only for the cold edge case.
+      const uid = RT.userId || await currentUserId();
+      if (!uid) { save.disabled = false; save.textContent = 'Sign in to save this'; return; }
       const res = await saveStandard({
         id: d.id || undefined,
         owner_athlete: uid,
@@ -617,15 +694,27 @@ export const connectedStandardEdit = {
 
     const del = root.querySelector('#cs-del');
     if (del) del.addEventListener('click', async () => {
+      if (!DRAFT || !DRAFT.id || del.disabled) return;
       del.disabled = true; del.textContent = 'Turning off…';
-      await setStandardActive(DRAFT.id, false);
+      const res = await setStandardActive(DRAFT.id, false);
+      if (!res.ok) {
+        del.disabled = false; del.textContent = 'Turn this off';
+        const save = root.querySelector('#cs-save');
+        if (save) save.textContent = 'Couldn’t reach the server — try again';
+        return;
+      }
       DRAFT = null;
       await loadMyDefs(true);
       await loadMine(true);
       location.hash = '#connected-standards';
     });
 
-    loadMyDefs();
+    // Refetch defs, then repaint once if the deep-linked def just landed (the render above was
+    // the loading shell in that case).
+    loadMyDefs().then(() => {
+      const wantSub = (location.hash.split('/')[1] || '');
+      if (wantSub && (!DRAFT || DRAFT.id !== wantSub) && CS.def(wantSub) && window.__render) window.__render();
+    });
   },
 };
 
