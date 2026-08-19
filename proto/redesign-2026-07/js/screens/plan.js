@@ -427,7 +427,7 @@ function askSection(area) {
 function legacyStylePrompt() {
   if (RT.planStylePromptSeen || S.planStyle.source !== 'legacy') return '';
   return `
-  <div class="lrow" id="ps-intro" style="margin-bottom:10px;background:var(--blue-surface);border:1px solid var(--blue-border);border-radius:14px;padding:12px 13px;cursor:default">
+  <div class="lrow" id="ps-intro" style="margin-bottom:10px;background:var(--blue-surface);border:1px solid var(--blue-border);border-radius:var(--r-card-sm);padding:12px 13px;cursor:default">
     <div class="xico sm" style="background:rgba(var(--blue-rgb),0.22);color:var(--blue-bright)">${icon('sparkle', 16)}</div>
     <div class="xr"><div class="xa">Your plan style: Structured</div>
     <div class="xb">OnStandard now supports Guided and Intuitive too: different ways of measuring the same standard. Your score hasn't changed.</div>

@@ -103,11 +103,11 @@ const listRow = (ic, text) => `
 /* ---------- review-queue row (rides .ob2-board row styling) ---------- */
 function queueRow({ name, meal, score, quiet, flagged, thumb }) {
   const av = thumb
-    ? `<div style="width:34px;height:34px;border-radius:9px;flex:none;background-image:url('${esc(thumb)}');background-size:cover;background-position:center"></div>`
-    : `<div style="width:34px;height:34px;border-radius:9px;flex:none;display:grid;place-items:center;background:var(--surface-3);font-size:12px;font-weight:800;color:var(--text-2)">${esc((name || '?')[0])}</div>`;
+    ? `<div style="width:34px;height:34px;border-radius:var(--r-chip);flex:none;background-image:url('${esc(thumb)}');background-size:cover;background-position:center"></div>`
+    : `<div style="width:34px;height:34px;border-radius:var(--r-chip);flex:none;display:grid;place-items:center;background:var(--surface-3);font-size:12px;font-weight:800;color:var(--text-2)">${esc((name || '?')[0])}</div>`;
   const badge = quiet
     ? `<span class="status-pill muted">${esc(quiet)}</span>`
-    : `<div style="flex:none;min-width:34px;text-align:center;font-size:12px;font-weight:800;padding:4px 9px;border-radius:9px;font-variant-numeric:tabular-nums;background:${score >= 80 ? 'var(--green-surface)' : score >= 60 ? 'var(--amber-surface)' : 'var(--red-surface)'};color:${score >= 80 ? 'var(--green-bright)' : score >= 60 ? 'var(--amber-bright)' : 'var(--red)'}">${esc(String(score))}</div>`;
+    : `<div style="flex:none;min-width:34px;text-align:center;font-size:12px;font-weight:800;padding:4px 9px;border-radius:var(--r-chip);font-variant-numeric:tabular-nums;background:${score >= 80 ? 'var(--green-surface)' : score >= 60 ? 'var(--amber-surface)' : 'var(--red-surface)'};color:${score >= 80 ? 'var(--green-bright)' : score >= 60 ? 'var(--amber-bright)' : 'var(--red)'}">${esc(String(score))}</div>`;
   return `<div class="br">${av}
     <div class="bn">${esc(name)}<div style="font-size:11px;font-weight:600;color:var(--text-3);margin-top:1px">${esc(meal)}</div></div>
     ${badge}${flagged ? `<div style="flex:none;color:var(--amber-bright)">${icon('flame', 15)}</div>` : ''}</div>`;
@@ -125,9 +125,9 @@ function trendRow(name, days, pct) {
 }
 
 const REVIEW_MODES = {
-  triage: 'AI triage — the AI reviews everything, you work the flags.',
-  skim: 'You skim everything — the AI drafts, you approve every line.',
-  observe: 'Observe first — watch how the AI reads for a week, then decide.',
+  triage: 'AI triage: the AI reviews everything, you work the flags.',
+  skim: 'You skim everything. The AI drafts, you approve every line.',
+  observe: 'Observe first: watch how the AI reads for a week, then decide.',
 };
 
 /* ============================================================ */
@@ -138,7 +138,7 @@ const steps = [
     body: () => hero(
       'The math of a nutrition practice',
       `30 clients. <span class="accent">90 meal logs</span> a day.`,
-      `Every entry is something a client expects you to have seen. The load grows with every client you take on — and your reading hours grow right along with it.`,
+      `Every entry is something a client expects you to have seen. The load grows with every client you take on, and your reading hours grow right along with it.`,
     ),
   },
   {
@@ -154,7 +154,7 @@ const steps = [
     body: () => hero(
       'The OnStandard answer',
       `AI does the first read. <span class="accent">You make the call.</span>`,
-      `Every meal is analyzed the moment it’s logged — foods, portions, macros, a quality score. You spend your expertise where it moves outcomes: corrections, feedback, and the clients who actually need you this week.`,
+      `Every meal is analyzed the moment it’s logged: foods, portions, macros, a quality score. You spend your expertise where it moves outcomes: corrections, feedback, and the clients who actually need you this week.`,
     ),
   },
   {
@@ -204,7 +204,7 @@ const steps = [
   {
     id: 'workflow', ch: 0, cta: 'Next',
     title: () => 'Where do meal reviews live today?',
-    sub: () => 'However it works now — honestly.',
+    sub: () => 'However it works now, honestly.',
     body: () => choiceGrid('currentWorkflow', [
       { v: 'dms', t: 'DMs + screenshots', s: 'Photos arrive wherever they arrive', ic: 'message' },
       { v: 'diary', t: 'An app’s food diary', s: 'You log in and scroll their entries', ic: 'grid' },
@@ -215,7 +215,7 @@ const steps = [
   {
     id: 'review-hours', ch: 0, cta: 'Next',
     title: () => 'Hours a week spent reviewing food logs?',
-    sub: () => 'Reading, judging, and writing back — the whole loop.',
+    sub: () => 'Reading, judging, and writing back: the whole loop.',
     body: () => chipRow('reviewHours', [
       { v: '1-2', t: '1–2' }, { v: '3-5', t: '3–5' }, { v: '6-10', t: '6–10' }, { v: '10+', t: 'More than 10' },
     ]),
@@ -247,18 +247,18 @@ const steps = [
       return `
       ${countStat(`${entries} entries`,
         `land in your review pile every single week`,
-        `${who} × 3 meals × 7 days — at ~90 seconds each that’s ~${hours} hours of reading a week`)}
+        `${who} × 3 meals × 7 days. At ~90 seconds each that’s ~${hours} hours of reading a week`)}
       <div class="ob2-gap-verdict">${hrs
-        ? `You said reviews already take <b>${esc(hrs)} hours a week</b>. The first read is exactly the part that doesn’t need your license — it needs to be done before you sit down.`
-        : `The first read is exactly the part that doesn’t need your license — it needs to be done before you sit down.`}</div>`;
+        ? `You said reviews already take <b>${esc(hrs)} hours a week</b>. The first read is exactly the part that doesn’t need your license; it needs to be done before you sit down.`
+        : `The first read is exactly the part that doesn’t need your license; it needs to be done before you sit down.`}</div>`;
     },
   },
   {
     id: 'queue', ch: 1, cta: 'Open one',
     title: () => 'Monday, 8:04 am.',
-    sub: () => 'Every entry already read, scored, and sorted — lowest scores and quiet clients float to the top.',
+    sub: () => 'Every entry already read, scored, and sorted: lowest scores and quiet clients float to the top.',
     body: () => `
-      ${simChip('Simulated queue — sample clients')}
+      ${simChip('Simulated queue: sample clients')}
       ${phoneCard('Review queue · 8 waiting', `<div class="ob2-board">
         ${queueRow({ name: 'Sam T.', meal: 'Dinner · 9:41 pm', score: 52, flagged: true })}
         ${queueRow({ name: 'Chris B.', meal: 'No entries', quiet: 'Quiet 2 days' })}
@@ -269,34 +269,34 @@ const steps = [
         ${queueRow({ name: 'Jordan P.', meal: 'Dinner · 6:48 pm', score: 81 })}
         ${queueRow({ name: 'Maya R.', meal: 'Lunch · 12:40 pm', score: TOFU_BOWL.quality, thumb: TOFU_BOWL.photo })}
       </div>`)}
-      <div class="ob2-scan-note">No scrolling through DMs. The reading is done — the judgment is yours.</div>`,
+      <div class="ob2-scan-note">No scrolling through DMs. The reading is done; the judgment is yours.</div>`,
   },
   {
-    id: 'meal-open', ch: 1, cta: 'The read isn’t perfect — fix it',
+    id: 'meal-open', ch: 1, cta: 'The read isn’t perfect. Fix it',
     title: () => 'Devon’s dinner, pre-analyzed.',
-    sub: () => 'Foods, portions, macros, and a quality read — done before you opened it.',
+    sub: () => 'Foods, portions, macros, and a quality read, done before you opened it.',
     body: () => `
-      ${simChip('Sample analysis — bundled photo, no AI call')}
-      <img class="ob2-meal-photo" src="${esc(SAMPLE_MEAL.photo)}" alt="Client meal photo — steak and fries" />
+      ${simChip('Sample analysis: bundled photo, no AI call')}
+      <img class="ob2-meal-photo" src="${esc(SAMPLE_MEAL.photo)}" alt="Client meal photo: steak and fries" />
       <div style="height:14px"></div>
       ${phoneCard('Detected foods', foodsList(SAMPLE_MEAL.detectedRich))}
       <div style="height:10px"></div>
       ${phoneCard('Estimated macros', macroGrid(SAMPLE_MEAL) + `
-        <div class="ob2-scan-note" style="text-align:left;margin-top:10px">AI quality read: ${esc(String(SAMPLE_MEAL.quality))}/100 — strong protein anchor, no vegetable on the plate. Scored low enough to surface near the top of your queue.</div>`)}`,
+        <div class="ob2-scan-note" style="text-align:left;margin-top:10px">AI quality read: ${esc(String(SAMPLE_MEAL.quality))}/100. Strong protein anchor, no vegetable on the plate. Scored low enough to surface near the top of your queue.</div>`)}`,
   },
   {
     id: 'correct', ch: 1, cta: 'Sign off',
     title: () => 'Correct the read.',
-    sub: () => 'Your correction becomes part of the client’s record — the AI’s first read is a draft, your sign-off is the truth.',
+    sub: () => 'Your correction becomes part of the client’s record. The AI’s first read is a draft, your sign-off is the truth.',
     body: () => `
-      ${simChip('Sample correction — nothing is saved')}
+      ${simChip('Sample correction: nothing is saved')}
       ${phoneCard('Detected foods · tap × to remove a wrong line', foodsList(SAMPLE_MEAL.detectedRich, { removable: true, removed: CORRECT.removed }))}
       <div style="height:12px"></div>
-      <div class="eyebrow" style="margin:0 2px 10px">Portion check — the fries</div>
+      <div class="eyebrow" style="margin:0 2px 10px">Portion check: the fries</div>
       ${chipRow('portionCheck', [
         { v: 'right', t: 'Looks right' }, { v: 'bigger', t: 'Bigger than that' }, { v: 'smaller', t: 'Smaller than that' },
       ], { req: false })}
-      <div id="obn-correct-note" class="ob2-scan-note" style="text-align:left">Remove a line the camera got wrong, or judge the portion — the estimate updates before it reaches Devon’s record.</div>`,
+      <div id="obn-correct-note" class="ob2-scan-note" style="text-align:left">Remove a line the camera got wrong, or judge the portion. The estimate updates before it reaches Devon’s record.</div>`,
     mount(root) {
       const note = root.querySelector('#obn-correct-note');
       root.querySelectorAll('[data-remove]').forEach((x) => x.addEventListener('click', () => {
@@ -304,12 +304,12 @@ const steps = [
         if (!CORRECT.removed.includes(name)) CORRECT.removed.push(name);
         const row = x.closest('.fr');
         if (row) row.remove();
-        if (note) note.textContent = `Removed ${name} — the macros recompute without it, and the correction is logged under your name.`;
+        if (note) note.textContent = `Removed ${name}. The macros recompute without it, and the correction is logged under your name.`;
       }));
       const MSG = {
-        right: 'Portion confirmed — the macros stand, with your sign-off on the record.',
-        bigger: 'Marked bigger — calories and carbs are re-estimated up before they reach Devon’s record.',
-        smaller: 'Marked smaller — the estimate comes down before it reaches Devon’s record.',
+        right: 'Portion confirmed. The macros stand, with your sign-off on the record.',
+        bigger: 'Marked bigger. Calories and carbs are re-estimated up before they reach Devon’s record.',
+        smaller: 'Marked smaller. The estimate comes down before it reaches Devon’s record.',
       };
       root.querySelectorAll('[data-obkey="portionCheck"] [data-val]').forEach((el) => el.addEventListener('click', () => {
         if (note) note.textContent = MSG[el.getAttribute('data-val')] || '';
@@ -319,48 +319,48 @@ const steps = [
   {
     id: 'feedback', ch: 1, cta: 'Send it forward',
     title: () => 'Feedback, in your voice.',
-    sub: () => 'The AI drafts from the analysis and your correction. You edit — it sends under your name, not the machine’s.',
+    sub: () => 'The AI drafts from the analysis and your correction. You edit, and it sends under your name, not the machine’s.',
     body: (o) => {
       const first = (o.firstName || '').trim();
-      const draft = `Good protein anchor with the steak, Devon — keep that exactly as it is. The fries as your only carb are the issue: next dinner, swap half of them for rice or a green vegetable and this plate scores in the 80s.${first ? `\n— ${first}` : ''}`;
+      const draft = `Good protein anchor with the steak, Devon. Keep that exactly as it is. The fries as your only carb are the issue: next dinner, swap half of them for rice or a green vegetable and this plate scores in the 80s.${first ? `\n${first}` : ''}`;
       return `
-      ${simChip('AI draft — grounded in the analysis you just reviewed')}
+      ${simChip('AI draft, grounded in the analysis you just reviewed')}
       ${phoneCard('Your note to Devon · editable', `
         <textarea id="obn-fb" class="ob-input" rows="7" aria-label="Feedback draft" style="height:auto;min-height:168px;padding:14px;line-height:1.55;resize:none;font-size:14px">${esc(draft)}</textarea>
-        <div class="ob2-scan-note" style="text-align:left;margin-top:8px">Edit anything — in the demo nothing sends. In your practice, one tap approves it into the client’s thread.</div>`)}`;
+        <div class="ob2-scan-note" style="text-align:left;margin-top:8px">Edit anything; in the demo nothing sends. In your practice, one tap approves it into the client’s thread.</div>`)}`;
     },
   },
   {
     id: 'trends', ch: 1, cta: 'Next',
     title: () => 'The week, per client.',
-    sub: () => 'Protein consistency across seven days — drift is visible before the client feels it.',
+    sub: () => 'Protein consistency across seven days. Drift is visible before the client feels it.',
     body: () => `
-      ${simChip('Simulated week — sample clients')}
+      ${simChip('Simulated week: sample clients')}
       ${phoneCard('Protein consistency · this week', `
         ${trendRow('Maya R.', [88, 92, 95, 90, 86, 94, 91], 92)}
         ${trendRow('Jordan P.', [84, 78, 90, 82, 74, 80, 79], 81)}
         ${trendRow('Chris B.', [72, 66, 58, 61, 44, 0, 0], 58)}
         ${trendRow('Sam T.', [70, 62, 55, 48, 30, 26, 33], 46)}`)}
-      <div class="ob2-scan-note">Sam’s slide took four seconds to spot. In a food diary it takes four scrolls per client — if you look at all.</div>`,
+      <div class="ob2-scan-note">Sam’s slide took four seconds to spot. In a food diary it takes four scrolls per client, if you look at all.</div>`,
   },
   {
     id: 'flag', ch: 1, cta: 'Next',
     title: () => 'Flag it. Move on.',
-    sub: () => 'Tap the flag on anything that needs a human follow-up — your Monday starts with the flags, not the firehose.',
+    sub: () => 'Tap the flag on anything that needs a human follow-up. Your Monday starts with the flags, not the firehose.',
     body: () => `
-      ${simChip('Simulated — try the flags')}
+      ${simChip('Simulated: try the flags')}
       ${[
         { n: 'Sam T.', s: 'Protein under target 3 of the last 4 days' },
         { n: 'Chris B.', s: 'No entries since Friday' },
         { n: 'Devon K.', s: 'Dinner portions drifting up week over week' },
       ].map((r, i) => `
-      <div class="obn-flag-row" style="display:flex;align-items:center;gap:12px;padding:12px 12px;border-radius:14px;border:1px solid var(--hairline);background:var(--surface-1);margin-bottom:9px">
+      <div class="obn-flag-row" style="display:flex;align-items:center;gap:12px;padding:12px 12px;border-radius:var(--r-card-sm);border:1px solid var(--hairline);background:var(--surface-1);margin-bottom:9px">
         <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700">${esc(r.n)}</div>
         <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:2px">${esc(r.s)}</div></div>
         <div role="button" tabindex="0" aria-pressed="false" aria-label="Flag ${esc(r.n)} for follow-up" data-flag="${i}"
           style="width:38px;height:38px;border-radius:11px;flex:none;display:grid;place-items:center;background:var(--surface-2);color:var(--text-3);cursor:pointer">${icon('flame', 16)}</div>
       </div>`).join('')}
-      <div id="obn-flag-note" class="ob2-scan-note">Nothing flagged yet — tap a flame.</div>`,
+      <div id="obn-flag-note" class="ob2-scan-note">Nothing flagged yet. Tap a flame.</div>`,
     mount(root) {
       const note = root.querySelector('#obn-flag-note');
       let count = 0;
@@ -374,8 +374,8 @@ const steps = [
           if (row) row.style.borderColor = on ? 'var(--amber-border)' : 'var(--hairline)';
           count += on ? 1 : -1;
           if (note) note.textContent = count > 0
-            ? `${count} flagged — ${count === 1 ? 'it opens' : 'they open'} first on Monday.`
-            : 'Nothing flagged yet — tap a flame.';
+            ? `${count} flagged; ${count === 1 ? 'it opens' : 'they open'} first on Monday.`
+            : 'Nothing flagged yet. Tap a flame.';
         };
         btn.addEventListener('click', toggle);
         btn.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
@@ -385,13 +385,13 @@ const steps = [
   {
     id: 'collab', ch: 1, cta: 'That’s the loop', green: true,
     title: () => 'The whole circle, one thread.',
-    sub: () => 'Athletes with a coach already live in a shared thread — your read lands right inside it.',
+    sub: () => 'Athletes with a coach already live in a shared thread. Your read lands right inside it.',
     body: () => `
-      ${simChip('Simulated thread — sample athlete and coach')}
+      ${simChip('Simulated thread: sample athlete and coach')}
       ${chatSim([
-        { who: 'ai', name: 'Maya R. · Athlete', init: 'MR', sim: true, text: 'Lunch logged — tofu bowl before practice.' },
-        { who: 'coach', name: 'Coach Daniels', init: 'CD', sim: true, text: 'Big week for her — make sure she’s fueled for Thursday.' },
-        { who: 'me', name: 'You', text: 'Bowl is strong — 28g protein, quality 86. I’m adding 20g at breakfast Thursday so she hits the game-day target.' },
+        { who: 'ai', name: 'Maya R. · Athlete', init: 'MR', sim: true, text: 'Lunch logged: tofu bowl before practice.' },
+        { who: 'coach', name: 'Coach Daniels', init: 'CD', sim: true, text: 'Big week for her. Make sure she’s fueled for Thursday.' },
+        { who: 'me', name: 'You', text: 'Bowl is strong: 28g protein, quality 86. I’m adding 20g at breakfast Thursday so she hits the game-day target.' },
       ])}`,
   },
 
@@ -408,16 +408,16 @@ const steps = [
       const style = styleLabel(styleForStructureAnswer(o.structurePref));
       const mirrors = [
         mirrorCard('sparkle', `Default plan style: <b>${esc(style.name)}</b>. ${esc(style.short)}. You have full knob control per client from your dashboard.`),
-        b ? mirrorCard('users', `You said you carry <b>${esc(b.t)} clients</b> — so every meal they log is pre-read and scored before it reaches you.`) : '',
-        slips.length ? mirrorCard('flame', `You said clients slip on <b>${esc(slips.join(', '))}</b> — so the queue flags exactly those patterns instead of waiting for you to catch them.`) : '',
-        wf ? mirrorCard('message', `You said reviews live in <b>${esc(wf)}</b> — so everything lands in one queue with the history attached.`) : '',
-        hrs ? mirrorCard('clock', `You said reviews take <b>${esc(hrs)} hours a week</b> — triage puts the flags first and gives the rest back.`) : '',
+        b ? mirrorCard('users', `You said you carry <b>${esc(b.t)} clients</b>, so every meal they log is pre-read and scored before it reaches you.`) : '',
+        slips.length ? mirrorCard('flame', `You said clients slip on <b>${esc(slips.join(', '))}</b>, so the queue flags exactly those patterns instead of waiting for you to catch them.`) : '',
+        wf ? mirrorCard('message', `You said reviews live in <b>${esc(wf)}</b>, so everything lands in one queue with the history attached.`) : '',
+        hrs ? mirrorCard('clock', `You said reviews take <b>${esc(hrs)} hours a week</b>. Triage puts the flags first and gives the rest back.`) : '',
       ].filter(Boolean).join('');
       return `
-      ${mirrors || mirrorCard('flash', `Every meal your clients log gets a first read the moment it lands — you review with judgment, not from scratch.`)}
+      ${mirrors || mirrorCard('flash', `Every meal your clients log gets a first read the moment it lands. You review with judgment, not from scratch.`)}
       <div style="height:6px"></div>
       ${phoneCard('What gets built for you', `
-        ${listRow('key', 'One client code — your whole roster joins with it')}
+        ${listRow('key', 'One client code: your whole roster joins with it')}
         ${listRow('flash', 'A daily review queue, pre-analyzed and sorted')}
         ${listRow('edit', 'Corrections that become part of each client’s record')}
         ${listRow('flame', 'Flags that build your Monday follow-up list')}`)}`;
@@ -430,8 +430,8 @@ const steps = [
     title: () => 'How should your review day run?',
     sub: () => 'This sets your queue’s default sort and what the AI handles alone. Change it anytime.',
     body: () => choiceGrid('reviewMode', [
-      { v: 'triage', t: 'AI triage', s: 'The AI reviews everything — I work the flags', ic: 'flash' },
-      { v: 'skim', t: 'I skim everything', s: 'I see every entry — the AI drafts my replies', ic: 'eye' },
+      { v: 'triage', t: 'AI triage', s: 'The AI reviews everything; I work the flags', ic: 'flash' },
+      { v: 'skim', t: 'I skim everything', s: 'I see every entry; the AI drafts my replies', ic: 'eye' },
       { v: 'observe', t: 'Observe first', s: 'Watch how the AI reads for a week, then decide', ic: 'clock' },
     ]),
   },
@@ -445,7 +445,7 @@ const steps = [
       <div class="ob2-gap-verdict" style="margin-top:4px">Every client meal gets a first read within minutes. <b>${esc(mode)}</b> Nothing reaches a client’s record without your sign-off.</div>
       <div class="ob-foot" style="margin-top:auto">
         ${committed
-          ? `<button class="btn green" id="obn-commit-next">${icon('check', 18)}&nbsp; Committed — continue</button>`
+          ? `<button class="btn green" id="obn-commit-next">${icon('check', 18)}&nbsp; Committed. Continue</button>`
           : commitButton(false)}
       </div>`;
     },
@@ -467,16 +467,16 @@ const steps = [
     id: 'proof', ch: 4, cta: 'Continue',
     title: () => 'What it looks like in a practice.',
     body: () => `
-      <div class="eyebrow" style="margin:0 2px 12px">Illustrative examples — not actual customers yet</div>
-      <!-- LAUNCH PLACEHOLDERS: realistic sample testimonials — the founder swaps these
+      <div class="eyebrow" style="margin:0 2px 12px">Illustrative examples, not actual customers yet</div>
+      <!-- LAUNCH PLACEHOLDERS: realistic sample testimonials. The founder swaps these
            for real customer quotes before go-live. Not real people. -->
       ${testimonial({
-        quote: 'I went from two full evenings of log reading to about forty minutes on flags. Nobody lost attention — the quiet clients finally got more of it.',
+        quote: 'I went from two full evenings of log reading to about forty minutes on flags. Nobody lost attention; the quiet clients finally got more of it.',
         name: 'Renata', role: 'Sports dietitian · 24 clients', initials: 'R',
         stat: '6 hrs', statKey: 'back / week',
       })}
       ${testimonial({
-        quote: 'The corrections are the difference. My clients’ records read like I reviewed every meal — because I did, just not from scratch.',
+        quote: 'The corrections are the difference. My clients’ records read like I reviewed every meal. Because I did, just not from scratch.',
         name: 'Marcus', role: 'Nutrition coach', initials: 'M',
         stat: '31', statKey: 'clients',
       })}`,
@@ -488,7 +488,7 @@ const steps = [
        bounced off `obn/*` and the plans step below renders normally. */
     id: 'account', ch: 4, noFoot: true,
     title: () => 'Create your account.',
-    sub: () => 'Your practice, client code, and review queue live on it — ready for its first client.',
+    sub: () => 'Your practice, client code, and review queue live on it, ready for its first client.',
     body: () => `
       ${accountBody({ terms: 'tob' })}
       <div class="ob-foot" style="margin-top:18px"><button id="su-go" class="btn primary" disabled>Create account &amp; Start reviewing</button></div>`,
@@ -506,7 +506,7 @@ const steps = [
     id: 'plans', ch: 4, noFoot: true, next: () => null,
     back: 'trainer', /* no un-creating the account — back exits to the dashboard */
     title: () => 'Pick your seat.',
-    sub: () => 'Nothing charges today — billing turns on at launch, and you can change plans anytime.',
+    sub: () => 'Nothing charges today. Billing turns on at launch, and you can change plans anytime.',
     body: (o) => {
       const sel = o.plan || 'pro_solo';
       return `
@@ -515,7 +515,7 @@ const steps = [
       </div>
       <div class="ob2-scan-note">Both seats include the review queue, corrections, trends, and flags from day one.</div>
       <div class="ob-foot" style="margin-top:auto">
-        <button class="btn primary" id="obn-start" data-go="trainer">Start free — no card today</button>
+        <button class="btn primary" id="obn-start" data-go="trainer">Start free, no card today</button>
         <div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:12px">Your review queue is ready for its first client.</div>
       </div>`;
     },

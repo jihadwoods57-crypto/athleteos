@@ -2,7 +2,7 @@ import { S, RT } from '../state.js';
 import { DAY, MEAL_KEYS } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg, emptyState, errorState, skeletonRows, segBar } from '../components.js';
-import { tierColor } from '../score-band.js';
+import { tierColor, ON_STANDARD, qualityAccent } from '../score-band.js';
 import { cachedMealPhoto, warmMealPhotos, resolveMealPhoto } from '../photo-store.js';
 import { fetchRecentMeals, daysAgoISO, fetchMealComments, postMealComment, deleteMealComment, uploadChatPhoto, fetchThreadParticipants, signedMealPhotoUrl, signedMealPhotoUrls } from '../roles.js';
 import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos, wireComposerAttach, postChatMessage } from '../chat-attach.js';
@@ -126,7 +126,7 @@ export const streak = {
         <span style="font-size:52px;font-weight:800;letter-spacing:-0.04em">${S.streakDays}</span>
       </div>
       <div style="font-size:13px;font-weight:700;color:var(--text-2);margin-top:4px">days at 80 or better</div>
-      ${S.score >= 80
+      ${S.score >= ON_STANDARD
         ? `<div style="font-size:12.5px;font-weight:600;color:var(--green-bright);margin-top:10px">Today is above the bar.${S.streakDays > 0 ? ` Day ${S.streakDays} locks at midnight.` : ' Your streak starts when today locks at midnight.'}</div>`
         : `<div style="font-size:12.5px;font-weight:600;color:var(--amber-bright);margin-top:10px">Today is still live. Reach 80 before the day closes to continue your streak.</div>`}
       <div style="font-size:12px;font-weight:700;color:var(--text-2);margin-top:8px">Weekly grace available: ${graceAvailable}${graceAvailable ? '' : ` · used ${S.streak.label.replace('grace used ', '')}`}</div>
@@ -196,7 +196,7 @@ function histCard(m, isToday) {
       <div class="t">${esc(m.name || (m.type ? m.type.charAt(0).toUpperCase() + m.type.slice(1) : 'Meal'))}</div>
       <div class="s">${time ? `${time} · ` : ''}${late ? `${m.minutes_late} min late` : 'On time'}${m.photo_path ? '' : ' · No photo submitted'}</div>
     </div>
-    ${m.quality != null ? `<div class="hist-score ${m.quality >= 80 ? 'g' : m.quality >= 50 ? 'a' : 'r'}">${m.quality}<small>/100</small></div>` : ''}
+    ${m.quality != null ? `<div class="hist-score ${qualityAccent(m.quality)}">${m.quality}<small>/100</small></div>` : ''}
     ${icon('chevron', 15, 'style="color:var(--text-3);flex:none"')}
   </div>`;
 }
@@ -461,7 +461,7 @@ export const mealView = {
         ${/* Same brand dial as the live meal screen's chip — this twin wore a bare number while
               every other score surface wears the mark (founder 2026-08-10: the working rings
               ARE the logo). */''}
-        ${m.quality != null ? `<div class="scorechip ${m.quality >= 80 ? '' : m.quality >= 50 ? 'mid' : 'low'}">${miniDial(m.quality)}<span class="v">${m.quality}</span><span class="k">Meal</span></div>` : ''}
+        ${m.quality != null ? `<div class="scorechip ${({ g: '', a: 'mid', r: 'low' })[qualityAccent(m.quality)]}">${miniDial(m.quality)}<span class="v">${m.quality}</span><span class="k">Meal</span></div>` : ''}
       </div>
     </div>
     ${Array.isArray(m.detected) && m.detected.length ? `

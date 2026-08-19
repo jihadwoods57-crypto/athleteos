@@ -86,7 +86,7 @@ export const SAMPLE_MEAL = {
   ],
   detected: ['Grilled skirt steak', 'French fries', 'Parsley garnish'],
   note: 'Strong protein anchor, but the plate is missing a vegetable.',
-  analysis: 'This is a real dinner, not a snack — the steak carries roughly 48g of protein, which is the kind of anchor that actually moves a day. The fries are the honest concern: as the only carb source they bring most of the fat with them, and there is no vegetable on the plate beyond the garnish. Keep the steak exactly as it is. Swapping even half the fries for a green vegetable or rice would raise the quality of this plate significantly without shrinking it.',
+  analysis: 'This is a real dinner, not a snack: the steak carries roughly 48g of protein, which is the kind of anchor that actually moves a day. The fries are the honest concern: as the only carb source they bring most of the fat with them, and there is no vegetable on the plate beyond the garnish. Keep the steak exactly as it is. Swapping even half the fries for a green vegetable or rice would raise the quality of this plate significantly without shrinking it.',
 };
 
 /* ---- derived, clearly-simulated human feedback (structure: recognize → concern →
@@ -103,7 +103,7 @@ export function simulatedHumanLine(result, goal, voice) {
     performance: 'this is the kind of fuel that shows up in how you finish practice',
     health: 'this is exactly the consistency your goal is built on',
   }[g] || 'keep it tied to the goal you told me about';
-  const open = `Good — you logged it. Keep the ${anchor.replace(/^(grilled|fried|baked)\s+/, '')}`;
+  const open = `Good. You logged it. Keep the ${anchor.replace(/^(grilled|fried|baked)\s+/, '')}`;
   const fix = hasVeg
     ? `and don't let the portion shrink on busy days; ${goalLine}.`
     : `but get a vegetable on that plate next time; ${goalLine}.`;
@@ -152,11 +152,11 @@ export function mealDemoSteps({ route, voice = 'coach', computeScore }) {
       sub: () => 'One meal is all it takes to understand the whole system.',
       body: () => `
         <div class="ob2-demo-choice">
-          <div class="ob2-demo-card rec" id="demo-live" role="button" aria-label="Analyze my meal — recommended">
+          <div class="ob2-demo-card rec" id="demo-live" role="button" aria-label="Analyze my meal (recommended)">
             <div class="dc-tag">Recommended</div>
             <div class="dc-ic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('camera', 20)}</div>
             <div><div class="dc-t">Analyze my meal</div>
-            <div class="dc-s">Snap your next meal or pick a photo. Real AI analysis — foods, portions, macros — in seconds.</div></div>
+            <div class="dc-s">Snap your next meal or pick a photo. Real AI analysis (foods, portions, macros) in seconds.</div></div>
           </div>
           <div class="ob2-demo-card" id="demo-sample" role="button" aria-label="Try a sample meal">
             <div class="dc-ic" style="background:var(--green-surface);color:var(--green-bright)">${icon('utensils', 20)}</div>
@@ -165,12 +165,12 @@ export function mealDemoSteps({ route, voice = 'coach', computeScore }) {
           </div>
         </div>
         <input id="demo-file" type="file" accept="image/*" style="display:none" aria-hidden="true" />
-        <div class="ob2-scan-note" id="demo-note">${liveLeft() ? 'The live analysis runs on the same engine the full app uses.' : 'Live analysis limit reached for today — the sample meal shows the same experience.'}</div>`,
+        <div class="ob2-scan-note" id="demo-note">${liveLeft() ? 'The live analysis runs on the same engine the full app uses.' : 'Live analysis limit reached for today; the sample meal shows the same experience.'}</div>`,
       mount(root, ctx) {
         const file = root.querySelector('#demo-file');
         const live = root.querySelector('#demo-live');
         const start = () => {
-          if (!liveLeft()) { root.querySelector('#demo-note').textContent = 'Live analysis limit reached for today — try the sample meal instead.'; return; }
+          if (!liveLeft()) { root.querySelector('#demo-note').textContent = 'Live analysis limit reached for today. Try the sample meal instead.'; return; }
           file.click();
         };
         live.addEventListener('click', start);
@@ -183,7 +183,7 @@ export function mealDemoSteps({ route, voice = 'coach', computeScore }) {
             DEMO.result = null; DEMO.removed = []; DEMO.error = null;
             capture({ demoMode: 'live' });
             ctx.go(`${route}/demo-scan`);
-          } catch { root.querySelector('#demo-note').textContent = 'Could not read that photo — try another, or use the sample meal.'; }
+          } catch { root.querySelector('#demo-note').textContent = 'Could not read that photo. Try another, or use the sample meal.'; }
         });
         root.querySelector('#demo-sample').addEventListener('click', () => {
           DEMO.result = { ...SAMPLE_MEAL }; DEMO.removed = []; DEMO.photoDataUrl = SAMPLE_MEAL.photo;
@@ -211,20 +211,20 @@ export function mealDemoSteps({ route, voice = 'coach', computeScore }) {
 
     /* ---- result + correction ---- */
     {
-      id: 'demo-result', ch: 1, cta: 'Looks right — continue',
+      id: 'demo-result', ch: 1, cta: 'Looks right. Continue',
       title: () => (DEMO.result ? esc(DEMO.result.name) : 'Your analysis'),
-      sub: () => 'Check the read. Remove anything the camera got wrong — estimates stay honest either way.',
+      sub: () => 'Check the read. Remove anything the camera got wrong; estimates stay honest either way.',
       body: () => {
         const r = DEMO.result;
         if (!r) return `<div class="state-demo"><div class="sd-t">No analysis yet</div><div class="sd-s">Go back one step to run the demo.</div></div>`;
         const isSample = ob2mode() === 'sample';
         return `
-          ${isSample ? simChip('Sample analysis — no AI call was made') : ''}
+          ${isSample ? simChip('Sample analysis: no AI call was made') : ''}
           <img class="ob2-meal-photo" src="${esc(DEMO.photoDataUrl || '')}" alt="Your meal photo" />
           <div style="height:14px"></div>
           ${phoneCard('Detected foods', foodsList(r, true))}
           <div style="height:10px"></div>
-          ${phoneCard('Estimated macros', macroGrid(r) + `<div class="ob2-scan-note" style="text-align:left;margin-top:10px">Photo estimates — portions, oil, or sauce can move them. In the full app you can correct any line and the numbers stay yours.</div>`)}`;
+          ${phoneCard('Estimated macros', macroGrid(r) + `<div class="ob2-scan-note" style="text-align:left;margin-top:10px">Photo estimates: portions, oil, or sauce can move them. In the full app you can correct any line and the numbers stay yours.</div>`)}`;
       },
       mount(root) {
         root.querySelectorAll('[data-remove]').forEach((x) => x.addEventListener('click', () => {
@@ -246,13 +246,13 @@ export function mealDemoSteps({ route, voice = 'coach', computeScore }) {
         const score = exampleDayScore(r.quality, computeScore);
         const band = qualityBand(r.quality);
         return `
-          ${simChip('Example day — your real score starts fresh and is earned')}
+          ${simChip('Example day: your real score starts fresh and is earned')}
           <div style="display:flex;justify-content:center;padding:6px 0 2px">${meter(score, { value: String(score), label: 'Example score', uid: 'ds' })}</div>
           <div style="height:12px"></div>
           ${phoneCard('How the number is built', `
             <div class="comp-read">
-              <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">Nutrition</div><div class="cv">${liveWeightPct('nutrition')}% of the score — this meal grades ${r.quality}/100${band ? ' (' + esc(band.label || band.name || '') + ')' : ''}</div></div>
-              <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">Recovery</div><div class="cv">${liveWeightPct('checkin') + liveWeightPct('recovery')}% — tonight's check-in and how you answered</div></div>
+              <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">Nutrition</div><div class="cv">${liveWeightPct('nutrition')}% of the score; this meal grades ${r.quality}/100${band ? ' (' + esc(band.label || band.name || '') + ')' : ''}</div></div>
+              <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">Recovery</div><div class="cv">${liveWeightPct('checkin') + liveWeightPct('recovery')}%: tonight's check-in and how you answered</div></div>
             </div>`)}`;
       },
     },
@@ -261,7 +261,7 @@ export function mealDemoSteps({ route, voice = 'coach', computeScore }) {
     {
       id: 'demo-chat', ch: 1, cta: 'That’s the loop', green: true,
       title: () => 'This is not a food scanner',
-      sub: () => `Every meal opens a shared thread — you, the AI nutritionist, and your ${HUMAN.role}. Nobody has to chase anybody.`,
+      sub: () => `Every meal opens a shared thread: you, the AI nutritionist, and your ${HUMAN.role}. Nobody has to chase anybody.`,
       body: (o) => {
         const r = DEMO.result || SAMPLE_MEAL;
         /* Demo bubble is SHORT — the plate's own one-line note (aligned with the coach reply
@@ -276,7 +276,7 @@ export function mealDemoSteps({ route, voice = 'coach', computeScore }) {
         const aiRaw = (r.note || '').trim() || [s.opportunity, s.next].filter(Boolean).join(' ') || 'Logged and analyzed.';
         const ai = aiRaw.charAt(0).toUpperCase() + aiRaw.slice(1);
         return `
-          ${simChip(`Simulated preview — ${HUMAN.name} stands in for your real ${HUMAN.role}`)}
+          ${simChip(`Simulated preview: ${HUMAN.name} stands in for your real ${HUMAN.role}`)}
           ${chatSim([
             { who: 'me', name: 'You', text: `Logged: ${r.name}` },
             { who: 'ai', name: 'OnStandard AI · Nutritionist', text: ai },
@@ -313,7 +313,7 @@ async function runLiveAnalysis(root, ctx) {
     });
   };
   if (!window.sb) { fail('No connection to the analysis service.'); return; }
-  if (!DEMO.photoBase64) { fail('The photo didn’t make it — go back and pick it again.'); return; }
+  if (!DEMO.photoBase64) { fail('The photo didn’t make it. Go back and pick it again.'); return; }
   if (DEMO.busy) return; /* in-flight lock: a re-mount never double-spends */
   const sig = sigOf(DEMO.photoBase64);
   if (DEMO.lastSig === sig && DEMO.result) { ctx.go(ctx.nextRoute); return; } /* same photo → reuse result */

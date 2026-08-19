@@ -70,8 +70,10 @@
   border-radius: var(--r-pill); overflow: hidden;
 }
 .co-standing .seg { height: 100%; border-radius: var(--r-micro); min-width: 4px; transform-origin: left; }
-.co-standing .seg.g { background: linear-gradient(90deg, var(--green), var(--green-bright)); }
-.co-standing .seg.a { background: linear-gradient(90deg, var(--amber), var(--amber-bright)); }
+/* Fills pair the hue with its deep step (DESIGN.md rule 2): on light, -bright is the deeper
+   text variant, so a hue->bright fill shades backwards there. */
+.co-standing .seg.g { background: linear-gradient(90deg, var(--green-deep), var(--green)); }
+.co-standing .seg.a { background: linear-gradient(90deg, var(--amber-deep), var(--amber)); }
 .co-standing .seg.r { background: var(--red); }
 .co-standing .seg.d { background: var(--surface-3); }
 @media (prefers-reduced-motion: no-preference) {
@@ -169,7 +171,10 @@
   transition: transform var(--dur-1) var(--ease-out), filter var(--dur-1) var(--ease-out);
 }
 .co-abtn:active { transform: scale(0.97); }
-.co-abtn.primary { flex: 1.4; background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); color: #fff; border-color: transparent; box-shadow: 0 6px 18px rgba(37,99,235,0.30); }
+/* Ink follows --ink-on-accent (tokens.css): dark accents are 400-level so the ink is near-black
+   (white on --blue-bright measured 2.5:1); light accents are 700-level so it flips to white. */
+.co-abtn.primary { flex: 1.4; background: linear-gradient(150deg, var(--blue-bright), var(--blue)); color: var(--ink-on-accent); border-color: transparent; box-shadow: 0 6px 18px rgba(var(--blue-deep-rgb), 0.30); }
+:root[data-theme="light"] .co-abtn.primary { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); }
 .co-abtn.primary.warn { background: linear-gradient(150deg, var(--red), var(--red-deep)); box-shadow: 0 6px 18px rgba(var(--red-rgb), 0.28); }
 .co-abtn:disabled { opacity: 0.5; }
 .co-pstatus { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); min-height: 0; margin-top:6px; }
@@ -370,7 +375,7 @@
 /* Module: a flat section, not a card. Separation is space + the head, never a frame. */
 .std-mod { padding:0; margin-bottom:32px; }
 .std-mod-head { display:flex; align-items:center; gap:11px; margin-bottom:14px; }
-.std-mod-ic { width:30px; height:30px; border-radius:9px; display:grid; place-items:center; flex:0 0 auto; }
+.std-mod-ic { width:30px; height:30px; border-radius:var(--r-chip); display:grid; place-items:center; flex:0 0 auto; }
 .std-mod-ic svg { width:15px; height:15px; }
 .std-mod-tt { min-width:0; }
 .std-mod-t { font-size:var(--t-md); font-weight:800; letter-spacing:var(--title-tight); line-height:1.15; }
@@ -420,6 +425,11 @@
 
 /* Toggle switch rows (on/off requirements) */
 .std-switch-row { display:flex; align-items:center; gap:12px; padding:12px 0; border-top:1px solid var(--hairline-soft); }
+/* When the row itself is the switch (coach standards editor), it is a 44px+ control. */
+.std-switch-row[role="switch"] { cursor: pointer; min-height: 44px; }
+.std-switch-row[role="switch"]:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; border-radius: var(--r-card-sm); }
+.std-switch-row[role="switch"]:active .std-switch::after { transform: scaleX(1.14); transform-origin: left center; }
+.std-switch-row[role="switch"]:active .std-switch.on::after { transform: translateX(20px) scaleX(1.14); transform-origin: right center; }
 .std-switch-row:first-child { border-top:none; padding-top:2px; }
 .std-switch-row:last-child { padding-bottom:2px; }
 .std-sw-m { flex:1; min-width:0; }

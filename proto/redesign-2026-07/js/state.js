@@ -10,7 +10,7 @@
 import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet, stdFromItems, stdFromSolo, dayTypeFor, filterItemsByDayType, catalogFromItems, planStyleFromItems, setImpactWeightsProvider } from './requirements.js';
 import { resolvePlanStyle, SIGNAL_KEYS, CHECKIN_SIGNAL_KEYS, styleLabel, styleSourceLabel } from './plan-style.js';
 import { TOS_VERSION } from './ob-helpers.js';
-import { tierFor } from './score-band.js';
+import { tierFor, ON_STANDARD, qualityAccent } from './score-band.js';
 import { initialsOf } from './initials.js';
 import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor, dayFromHistoryRow,
@@ -4304,7 +4304,7 @@ export const S = {
         value: meta.quality != null ? String(meta.quality) : 'Logged',
         unit: meta.quality != null ? '/100' : null,
         qualityLabel: meta.quality != null,
-        vClass: meta.quality != null ? (meta.quality >= 80 ? 'g' : meta.quality >= 50 ? 'a' : 'r') : 'muted',
+        vClass: meta.quality != null ? qualityAccent(meta.quality) : 'muted',
         // Honest Daily Score attribution (computed, never canned) — the accountability credit
         // this log actually earned, separate from how good the plate was.
         impact: mealImpact(k),
@@ -4549,8 +4549,8 @@ export const S = {
       const s = isToday ? this.score : (typeof byDate[dISO] === 'number' ? byDate[dISO] : null);
       return {
         label, date: dISO, score: s,
-        on: s != null && s >= 80,
-        missed: !future && !isToday && (s == null || s < 80),
+        on: s != null && s >= ON_STANDARD,
+        missed: !future && !isToday && (s == null || s < ON_STANDARD),
         today: isToday, future,
         grace: graceDate === dISO,
       };
@@ -4562,10 +4562,10 @@ export const S = {
     const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const past = (DAY.scoreHistory || []).slice(-5).map(h => {
       const d = new Date(h.date + 'T00:00:00');
-      return { d: DOW[d.getDay()], s: h.score || 0, on: (h.score || 0) >= 80 };
+      return { d: DOW[d.getDay()], s: h.score || 0, on: (h.score || 0) >= ON_STANDARD };
     });
     const today = new Date(DAY.date + 'T00:00:00');
-    past.push({ d: DOW[today.getDay()], s: this.score, on: this.score >= 80, today: true });
+    past.push({ d: DOW[today.getDay()], s: this.score, on: this.score >= ON_STANDARD, today: true });
     return past;
   },
 
@@ -4650,9 +4650,9 @@ export const S = {
     const prevAvg = avg(prev7);
     const weekDelta = (weekAvg != null && prevAvg != null) ? `${weekAvg - prevAvg >= 0 ? '+' : ''}${weekAvg - prevAvg}` : null;
     const last30 = series.slice(-30);
-    const monthConsistency = last30.length >= 5 ? Math.round(last30.filter(d => d.score >= 80).length / last30.length * 100) : null;
+    const monthConsistency = last30.length >= 5 ? Math.round(last30.filter(d => d.score >= ON_STANDARD).length / last30.length * 100) : null;
     let best = 0, run = 0;
-    for (const d of series) { if (d.score >= 80) { run++; best = Math.max(best, run); } else run = 0; }
+    for (const d of series) { if (d.score >= ON_STANDARD) { run++; best = Math.max(best, run); } else run = 0; }
     // Best score ever recorded (incl. today) — the day-one baseline stat (spec §8.2).
     const bestScore = Math.max(...series.map(d => d.score));
     // Days with a real logged row (today counts once anything is logged).
@@ -4663,7 +4663,7 @@ export const S = {
       // Exact trend-unlock rule (spec §8.3): 3 logged days unlock the first weekly trend.
       unlockNeed: 3, unlockHave: Math.min(3, daysLogged),
       weekScores, weekAvg, weekDelta,
-      onDays: `${weekScores.filter(s => s >= 80).length} of ${weekScores.length}`,
+      onDays: `${weekScores.filter(s => s >= ON_STANDARD).length} of ${weekScores.length}`,
       weekDayLabels: last7.map(d => 'SMTWTFS'[new Date(d.date + 'T00:00:00').getDay()]),
       // Raw ISO dates alongside weekScores/weekDayLabels — Progress uses this to place the
       // scoring-cutover divider on the real day it falls on, never a bar-index guess.
@@ -4734,7 +4734,7 @@ export const S = {
       if (weakest && weakest.now < 70) return `${weakest.key} is your biggest opportunity — it's averaging ${weakest.now}%. Small daily wins there move your score fastest.`;
     }
     const p = this.progress;
-    if (p.hasHistory && p.weekAvg != null && p.weekAvg < 80) {
+    if (p.hasHistory && p.weekAvg != null && p.weekAvg < ON_STANDARD) {
       return `Your weekly average is ${p.weekAvg}. Hitting 80 today starts closing the gap to OnStandard.`;
     }
     return null;

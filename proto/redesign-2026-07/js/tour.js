@@ -49,11 +49,39 @@ const anchorEl = (name) => {
 
 /* ---------------- the overlay ---------------- */
 
+/* FLIP: the ring and card land at their NEW geometry instantly, then travel there visually as a
+   transform easing back to identity — never as animated top/left/width/height (DESIGN.md: never
+   animate a layout property; these two were the last violators). Mid-flight advances are fine:
+   getBoundingClientRect reads the transformed position, so the next hop starts from wherever the
+   element visually is. Reduced motion skips the travel entirely, matching the old CSS block. */
+const reducedMotion = () => {
+  try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; }
+};
+function flipFrom(node, before, withScale) {
+  if (!before || !before.width || reducedMotion()) return;
+  const after = node.getBoundingClientRect();
+  if (!after.width) return;
+  const dx = before.left - after.left, dy = before.top - after.top;
+  const sx = withScale ? before.width / after.width : 1;
+  const sy = withScale ? before.height / after.height : 1;
+  if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && Math.abs(sx - 1) < 0.01 && Math.abs(sy - 1) < 0.01) return;
+  node.style.transition = 'none';
+  node.style.transformOrigin = '0 0';
+  node.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+  requestAnimationFrame(() => {
+    node.style.transition = 'transform var(--dur-2) var(--ease-out)';
+    node.style.transform = '';
+  });
+}
+
 function paintStep() {
   if (!active) return;
   const step = active.steps[active.i];
   const el = anchorEl(step.anchor);
   if (!el) { advance(); return; } // vanished mid-tour (async slot emptied) — skip, don't stall
+
+  const ringPrev = active.painted ? active.ring.getBoundingClientRect() : null;
+  const cardPrev = active.painted ? active.card.getBoundingClientRect() : null;
 
   const r = el.getBoundingClientRect();
   const vp = { width: window.innerWidth, height: window.innerHeight };
@@ -95,6 +123,12 @@ function paintStep() {
   active.card.style.left = `${Math.round(pos.left)}px`;
   active.card.setAttribute('data-placement', pos.placement);
 
+  // The card travels position-only (its height changes with the copy and should snap); the ring
+  // travels and rescales, since its whole identity is "the same ring moved to the next thing".
+  flipFrom(active.ring, ringPrev, true);
+  flipFrom(active.card, cardPrev, false);
+  active.painted = true;
+
   try { active.next.focus({ preventScroll: true }); } catch { /* older WebView */ }
 }
 
@@ -134,7 +168,10 @@ function open(id, steps) {
     <div class="tour-panel" data-p="l"></div>
     <div class="tour-panel" data-p="r"></div>
     <div class="tour-ring" aria-hidden="true"></div>
-    <div class="tour-card" role="dialog" aria-modal="true" aria-labelledby="tour-t">
+    ${/* No aria-modal: the cutout deliberately leaves the highlighted element interactive, and
+          aria-modal would tell AT the page behind this card does not exist while the tour is
+          actively pointing at it. */''}
+    <div class="tour-card" role="dialog" aria-labelledby="tour-t">
       <div class="tour-count" aria-hidden="true"></div>
       <div class="tour-t" id="tour-t"></div>
       <div class="tour-b"></div>
@@ -228,7 +265,7 @@ export function maybeStartTour() {
     pending = false;
     if (active) return;
     // Nothing else may be on screen: a tour landing on top of the day-locked stamp is two modals.
-    if (document.querySelector('.lockstamp, .imgview, .memsheet, .sheet-scrim')) return;
+    if (document.querySelector('.lockstamp, .imgview, .memsheet, .sheet-scrim, .tapback')) return;
     // Re-plan at fire time — 600ms is long enough for another device to have marked it, for the
     // athlete to have navigated away, or for the async slots to have filled in more anchors.
     const fresh = planTour(context(replay));
@@ -276,7 +313,7 @@ export function maybeShowTip(id, tip) {
   setTimeout(() => {
     pending = false;
     if (active || (RT.tourSeen || {})[id]) return;
-    if (document.querySelector('.lockstamp, .imgview, .memsheet, .sheet-scrim')) return;
+    if (document.querySelector('.lockstamp, .imgview, .memsheet, .sheet-scrim, .tapback')) return;
     const steps = filterSteps([tip], (a) => {
       const el = anchorEl(a);
       return el ? el.getBoundingClientRect() : null;

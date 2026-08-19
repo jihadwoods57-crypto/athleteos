@@ -52,8 +52,8 @@ const steps = {
     <div class="ob-nav"><div class="ob-back" data-go="onboarding/1" aria-label="Back">${icon('chevron', 18)}</div></div>
     <div class="standard-set" style="padding-bottom:6px">
       <div class="halo"><div class="core" style="background:var(--surface-2);color:var(--text-2)">${icon('lock', 32)}</div></div>
-      <div class="ob-title" style="margin-top:18px">Not yet — but soon.</div>
-      <div class="ob-sub" style="padding:0 8px">OnStandard is for athletes 13 and older — that's the law for apps like this, and we take it seriously. Come back on your 13th birthday. The Standard will be waiting.</div>
+      <div class="ob-title" style="margin-top:18px">Not yet, but soon.</div>
+      <div class="ob-sub" style="padding:0 8px">OnStandard is for athletes 13 and older. That's the law for apps like this, and we take it seriously. Come back on your 13th birthday. The Standard will be waiting.</div>
     </div>
     <div class="ob-foot" style="margin-top:auto">
       <button class="btn ghost" data-go="welcome">Back to start</button>
@@ -132,7 +132,7 @@ const steps = {
       <span class="chp">Peanuts · severe</span><span class="chp">Tree nuts</span><span class="chp">Dairy</span>
       <span class="chp">Gluten</span><span class="chp">Shellfish</span><span class="chp">Vegetarian</span><span class="chp">Halal</span>
     </div>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">We use these to flag possible conflicts in meal feedback — it's a heads-up, not a guarantee. Always check ingredients yourself.</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">We use these to flag possible conflicts in meal feedback. It's a heads-up, not a guarantee. Always check ingredients yourself.</div>
     <div style="height:14px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 18)}</div>
@@ -153,7 +153,7 @@ const steps = {
       ? (pos ? `The ${pos} room standard` : `Coach ${coachLast || ''}’s Standard`.replace(/\s+’/, '’'))
       : 'Your Standard';
     const sub = join
-      ? `${pos && coachLast ? `Coach ${coachLast} sets it for your room. ` : ''}The deal on ${esc(join.teamName || 'the team')}. Your score is built on it — hold to commit.`
+      ? `${pos && coachLast ? `Coach ${coachLast} sets it for your room. ` : ''}The deal on ${esc(join.teamName || 'the team')}. Your score is built on it. Hold to commit.`
       : 'Built from your goal. When you connect a coach, their standard takes over.';
     const rows = std.rows.map(([ic, t, s]) => {
       const [bg, fg] = reqHeadTint(ic);
@@ -189,7 +189,7 @@ const steps = {
     <div class="standard-set" style="padding-bottom:6px">
       <div class="halo"><div class="core">${icon('check', 38)}</div></div>
       <div class="ob-title" style="margin-top:18px">Your Standard is set.</div>
-      <div class="ob-sub" style="padding:0 10px">Create your account to save it — your score, meals, and coach connection sync across devices.</div>
+      <div class="ob-sub" style="padding:0 10px">Create your account to save it. Your score, meals, and coach connection sync across devices.</div>
     </div>
     <div style="height:16px"></div>
     ${accountBody({ terms: 'ob' })}
@@ -305,7 +305,7 @@ export default {
             window.__render();
           } catch {
             if (myGen !== gen) return; // stale: don't clobber whatever's on screen now
-            codeErr.textContent = 'Could not check that code — you can also skip and connect later.';
+            codeErr.textContent = 'Could not check that code. You can also skip and connect later.';
           }
         }, 350));
         codeEl.focus();
@@ -326,7 +326,7 @@ export default {
             </div>`).join('')}</section>`;
           out.querySelectorAll('[data-team]').forEach((el) => el.addEventListener('click', () => {
             const t = teams[+el.getAttribute('data-team')];
-            codeEntry({ title: `Ask ${t.coach_name || 'your coach'} for the team code`, sub: `${t.name} · the code is the handshake — only your coach hands it out.` });
+            codeEntry({ title: `Ask ${t.coach_name || 'your coach'} for the team code`, sub: `${t.name} · the code is the handshake; only your coach hands it out.` });
           }));
         } catch {
           if (myGen !== gen) return; // stale
@@ -344,13 +344,13 @@ export default {
           if (myGen !== gen || scQ.value.trim() !== q) return; // stale: repainted or query changed since
           if (!orgs.length) {
             out.innerHTML = `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
-              <div><div class="tt">Not listed yet</div><div class="ts">No school by that name is on OnStandard yet. Enter your coach's code below, or skip — you can connect anytime from Profile.</div></div></div>`;
+              <div><div class="tt">Not listed yet</div><div class="ts">No school by that name is on OnStandard yet. Enter your coach's code below, or skip; you can connect anytime from Profile.</div></div></div>`;
             return;
           }
           out.innerHTML = `<section class="card" style="padding:6px 16px">${orgs.map((o, i) => `
             <div class="lrow" data-org="${i}">
               <div class="lic"${o.verified ? ' style="color:var(--green-bright)"' : ''}>${icon('shield', 17)}</div>
-              <div class="lm"><div class="lt">${esc(o.name)}${o.verified ? ` <span style="font-size:10px;font-weight:800;color:var(--green-bright);letter-spacing:0.02em">✓ Verified</span>` : ''}</div><div class="ls">${esc([o.city, o.state].filter(Boolean).join(', ') || '—')}${o.teams ? ` · ${o.teams} coach${o.teams > 1 ? 'es' : ''}` : ''}</div></div>
+              <div class="lm"><div class="lt">${esc(o.name)}${o.verified ? ` <span style="font-size:10px;font-weight:800;color:var(--green-bright);letter-spacing:0.02em">${icon('check', 12)} Verified</span>` : ''}</div><div class="ls">${esc([o.city, o.state].filter(Boolean).join(', ') || '—')}${o.teams ? ` · ${o.teams} coach${o.teams > 1 ? 'es' : ''}` : ''}</div></div>
               ${icon('chevron', 17, 'style="color:var(--text-3)"')}
             </div>`).join('')}</section>`;
           out.querySelectorAll('[data-org]').forEach((el) => el.addEventListener('click', () => showTeams(orgs[+el.getAttribute('data-org')])));
@@ -394,11 +394,11 @@ export default {
         const verb = dir === 'down' ? 'lose fat' : 'gain weight';
         const dirWord = dir === 'down' ? 'below' : 'above';
         hint.style.color = 'var(--amber-bright)';
-        hint.textContent = `You picked ${verb}, but your target is ${dir === 'down' ? 'at or above' : 'at or below'} your current weight. Set a target ${dirWord} ${Math.round(c)} lb — or change your goal.`;
+        hint.textContent = `You picked ${verb}, but your target is ${dir === 'down' ? 'at or above' : 'at or below'} your current weight. Set a target ${dirWord} ${Math.round(c)} lb, or change your goal.`;
       } else {
         const delta = Math.abs(Math.round(c - t));
         hint.style.color = 'var(--green-bright)';
-        hint.textContent = delta ? `${delta} lb to ${dir === 'down' ? 'lose' : 'gain'} — a season trend, not a deadline.` : '';
+        hint.textContent = delta ? `${delta} lb to ${dir === 'down' ? 'lose' : 'gain'}: a season trend, not a deadline.` : '';
       }
     };
     if (cur) cur.addEventListener('input', () => { cap({ currentWeight: parseFloat(cur.value) || null }); checkDir(); });

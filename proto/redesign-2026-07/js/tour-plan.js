@@ -69,24 +69,24 @@ const ATHLETE_STEPS = [
   {
     key: 'plan', anchor: 'plan',
     title: 'Your plan lives here',
-    body: (ctx) => `The Plan tab is what today asks of you — meals, training, and check-ins, in order.${GOAL_TAIL[ctx.goal] || ''} It marks itself off as you log, so a glance tells you what's left.`,
+    body: (ctx) => `The Plan tab is what today asks of you: meals, training, and check-ins, in order.${GOAL_TAIL[ctx.goal] || ''} It marks itself off as you log, so a glance tells you what's left.`,
   },
   {
     key: 'progress', anchor: 'progress',
     title: 'Proof it adds up',
-    body: 'Score trend, streak, and weight over time. One day is a data point — this tab is where weeks of showing up become something you can see.',
+    body: 'Score trend, streak, and weight over time. One day is a data point. This tab is where weeks of showing up become something you can see.',
   },
   {
     key: 'coach-seen', anchor: 'coach-seen',
     when: (ctx) => !!ctx.hasCoach,
     title: (ctx) => `Your ${operatorNoun(ctx)} sees this`,
-    body: (ctx) => `Everything you log reaches your ${operatorNoun(ctx)} the moment it lands — meals, training, the number itself. This line shows when they've looked, so you never wonder whether the work went noticed.`,
+    body: (ctx) => `Everything you log reaches your ${operatorNoun(ctx)} the moment it lands: meals, training, the number itself. This line shows when they've looked, so you never wonder whether the work went noticed.`,
   },
   {
     key: 'standards', anchor: 'standards',
     when: (ctx) => !!ctx.hasStandards,
     title: 'Some of it verifies itself',
-    body: 'Connected Standards read your watch and confirm the work without you logging a thing. A dead battery never becomes a miss — you can always log it yourself.',
+    body: 'Connected Standards read your watch and confirm the work without you logging a thing. A dead battery never becomes a miss; you can always log it yourself.',
   },
   {
     key: 'profile', anchor: 'profile',
@@ -96,7 +96,7 @@ const ATHLETE_STEPS = [
   {
     key: 'close', anchor: 'log',
     title: "That's the whole loop",
-    body: 'Log, watch your number move, keep the streak alive. Start now — photograph your next meal and see your Standard answer.',
+    body: 'Log, watch your number move, keep the streak alive. Start now: photograph your next meal and see your Standard answer.',
   },
 ];
 
@@ -112,22 +112,22 @@ const OPERATOR_STEPS = [
     key: 'invite', anchor: 'invite',
     title: 'The code is the door',
     body: (ctx) => (ctx.role === 'trainer'
-      ? 'Clients join by entering your practice code — set it up here and hand it out. From then on your board fills itself in: their meals, their scores, who needs you.'
-      : 'Athletes join by entering your team code — set it up here and hand it out. From then on your board fills itself in: their meals, their scores, who needs you.'),
+      ? 'Clients join by entering your practice code. Set it up here and hand it out. From then on your board fills itself in: their meals, their scores, who needs you.'
+      : 'Athletes join by entering your team code. Set it up here and hand it out. From then on your board fills itself in: their meals, their scores, who needs you.'),
   },
   {
     key: 'roster', anchor: 'roster',
     title: 'Everything here is scoped',
     body: (ctx) => (ctx.role === 'trainer'
-      ? 'This board answers one question: how is your practice doing right now. Use this switch to narrow it from every client to a single group — every card below follows.'
-      : 'This board answers one question: how is the team doing right now. Use this switch to narrow it from the whole team to a single group — every card below follows.'),
+      ? 'This board answers one question: how is your practice doing right now. Use this switch to narrow it from every client to a single group; every card below follows.'
+      : 'This board answers one question: how is the team doing right now. Use this switch to narrow it from the whole team to a single group; every card below follows.'),
   },
   {
     key: 'priority', anchor: 'priority',
     title: 'Who needs you today',
     body: (ctx) => (ctx.role === 'trainer'
-      ? 'Your clients, ranked by who needs attention — slipping scores, overdue logs, flags you set. Handle one and it leaves the queue. Start here every morning and nobody slips through.'
-      : 'Your athletes, ranked by who needs attention — slipping scores, overdue logs, flags you set. Handle one and it leaves the queue. Start here every morning and nobody slips through.'),
+      ? 'Your clients, ranked by who needs attention: slipping scores, overdue logs, flags you set. Handle one and it leaves the queue. Start here every morning and nobody slips through.'
+      : 'Your athletes, ranked by who needs attention: slipping scores, overdue logs, flags you set. Handle one and it leaves the queue. Start here every morning and nobody slips through.'),
   },
   {
     key: 'activity', anchor: 'activity',
@@ -137,21 +137,21 @@ const OPERATOR_STEPS = [
   {
     key: 'followups', anchor: 'followups',
     title: 'Nothing gets lost',
-    body: "Join requests, unopened logs, anything you flag — it waits here until you close it. An empty list means you're genuinely caught up, not that something slipped.",
+    body: "Join requests, unopened logs, anything you flag. It waits here until you close it. An empty list means you're genuinely caught up, not that something slipped.",
   },
   {
     key: 'create', anchor: 'create',
     title: 'Set the standard',
     body: (ctx) => (ctx.role === 'trainer'
-      ? "Assign requirements, set verified standards, send announcements, message a client — everything you put in motion starts here, and it shows up on their Home as part of their day."
-      : "Assign requirements, schedule verified commitments, send announcements, message anyone — everything you put in motion starts here, and it shows up on each athlete's Home as part of their day."),
+      ? "Assign requirements, set verified standards, send announcements, message a client. Everything you put in motion starts here, and it shows up on their Home as part of their day."
+      : "Assign requirements, schedule verified commitments, send announcements, message anyone. Everything you put in motion starts here, and it shows up on each athlete's Home as part of their day."),
   },
   {
     key: 'tab-roster', anchor: 'tab-roster',
     title: (ctx) => (ctx.role === 'trainer' ? 'Your full book' : 'Your full roster'),
     body: (ctx) => (ctx.role === 'trainer'
-      ? 'Every client with their score and streak. Tap anyone to open their full book — trends, meals, targets, and a direct thread.'
-      : 'Every athlete with their score and streak, and the groups you\'ve made. Tap anyone to open their full book — trends, meals, targets, and a direct thread.'),
+      ? 'Every client with their score and streak. Tap anyone to open their full book: trends, meals, targets, and a direct thread.'
+      : 'Every athlete with their score and streak, and the groups you\'ve made. Tap anyone to open their full book: trends, meals, targets, and a direct thread.'),
   },
   {
     key: 'tab-inbox', anchor: 'tab-inbox',
@@ -176,7 +176,7 @@ const PARENT_STEPS = [
   {
     key: 'children', anchor: 'children',
     title: 'The athletes you follow',
-    body: "Everyone you're linked to shows up here with their daily score and grade. It updates as they log — a quiet way to know the work is happening without hovering.",
+    body: "Everyone you're linked to shows up here with their daily score and grade. It updates as they log, a quiet way to know the work is happening without hovering.",
   },
   {
     key: 'link', anchor: 'link',
@@ -185,13 +185,13 @@ const PARENT_STEPS = [
   },
   {
     key: 'visibility', anchor: 'visibility',
-    title: "What you can see — and what you can't",
+    title: "What you can see, and what you can't",
     body: 'Their daily score, their grade, and the date of their latest logged day. Meal photos, weight, and check-in answers stay between your athlete and their coach. That line is deliberate.',
   },
   {
     key: 'funding', anchor: 'funding',
     title: 'You can cover their plan',
-    body: "Fund an athlete's plan from here and they keep full access — nothing about their day changes. Everything you're paying for stays listed under Funded plans.",
+    body: "Fund an athlete's plan from here and they keep full access; nothing about their day changes. Everything you're paying for stays listed under Funded plans.",
   },
 ];
 

@@ -103,10 +103,13 @@ function tabbar(activeTab, nav = 'athlete') {
     // Tab badge: any screen exposing badge() → live count, hidden at zero (Coach Inbox pending
     // joins/unopened logs; Trainer Grow new applications). Route-driven so it works for every role.
     let badge = '';
+    let badgeN = 0;
     try {
       const scr = screens[t.route];
       const n = scr && scr.badge ? scr.badge() : 0;
-      if (n) badge = `<span style="position:absolute;top:-3px;right:50%;margin-right:-16px;min-width:15px;height:15px;border-radius:999px;background:var(--red);color:#fff;font-size:9px;font-weight:800;display:grid;place-items:center;padding:0 3px;border:2px solid var(--bg)">${n > 9 ? '9+' : n}</span>`;
+      // aria-hidden: the raw "9+" read as part of the tab's name ("9+ Inbox", no unit). The count
+      // joins the tab's aria-label below instead, with a real noun.
+      if (n) { badgeN = n; badge = `<span aria-hidden="true" style="position:absolute;top:-3px;right:50%;margin-right:-16px;min-width:15px;height:15px;border-radius:999px;background:var(--red);color:#fff;font-size:9px;font-weight:800;display:grid;place-items:center;padding:0 3px;border:2px solid var(--bg)">${n > 9 ? '9+' : n}</span>`; }
     } catch { /* pre-auth render */ }
     // First-run tour anchors on the tabs themselves (tour-plan.js). Operator tab anchors are
     // prefixed tab- so they never collide with the board's own `roster` anchor on coach-home.
@@ -117,7 +120,7 @@ function tabbar(activeTab, nav = 'athlete') {
       'coach-profile': 'tab-you', 'trainer-profile': 'tab-you',
     };
     const tabTour = TAB_TOUR[t.route] ? ` data-tour="${TAB_TOUR[t.route]}"` : '';
-    return `<div class="tab ${on}" ${on ? 'aria-current="page"' : ''} data-go="${t.route}"${tabTour} style="position:relative">${badge}${icon(t.icon, 23)}<span>${t.label}</span></div>`;
+    return `<div class="tab ${on}" ${on ? 'aria-current="page"' : ''}${badgeN ? ` aria-label="${t.label}, ${badgeN > 9 ? '9 or more' : badgeN} new"` : ''} data-go="${t.route}"${tabTour} style="position:relative">${badge}${icon(t.icon, 23)}<span>${t.label}</span></div>`;
   }).join('')}</nav>`;
 }
 
@@ -541,7 +544,29 @@ function render() {
 }
 // Re-render the current route in place — used by async (data-driven) screens to repaint once a
 // best-effort fetch resolves. Guarded so a screen's own mount doesn't loop (fetch once, then paint).
-window.__render = render;
+//
+// Leading-edge synchronous, trailing-edge coalesced. A LONE call renders immediately, exactly as
+// before — callers may rely on the DOM being current when it returns. But every render here is a
+// full device.innerHTML rebuild plus re-wiring, and a Home mount can see several fetches (day,
+// standards, commitments, two photo-batch signings) resolve within the same fraction of a second;
+// paying the whole-tree cost once per arrival was the single largest main-thread burst at boot.
+// Calls landing within 50ms of a paint now fold into ONE repaint on the next frame.
+let lastRenderAt = 0, renderQueued = false;
+window.__render = function () {
+  const now = Date.now();
+  if (!renderQueued && now - lastRenderAt >= 50) {
+    lastRenderAt = now;
+    render();
+    return;
+  }
+  if (renderQueued) return;
+  renderQueued = true;
+  requestAnimationFrame(() => {
+    renderQueued = false;
+    lastRenderAt = Date.now();
+    render();
+  });
+};
 
 /* The SAME repaint, declared as something the user asked for.
  *

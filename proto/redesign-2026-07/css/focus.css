@@ -117,17 +117,20 @@
    button measured 32x29 on all 25 screens the tour can open over — the single most-repeated
    miss in the app — and "Something off? Correct the analysis" was a 15px-tall line of text
    that is the ONLY route to fixing a wrong meal reading. */
+/* `.fr-ok` (34px add-ingredient confirm), `.iv-x` (40px image-viewer close, the only exit from a
+   full-screen overlay) and the pending-attachment remove button (29px) joined 2026-08-18: all
+   three sit alone with no neighbour inside 44px, so the expanded area costs nothing. */
 :where(
   .co-chip, .btn.ghost, .btn.sm, .bk, .ai-full-toggle, .hd-avatar,
   .si-forgot, .si-link, .chip, .pw-seg, .mq-skip, .markread, .lnk, .tl-del, .mt-retry,
-  .tour-skip, .est-note .link
+  .tour-skip, .est-note .link, .fr-ok, .iv-x, .composer-attach-pending button
 ) {
   position: relative;
 }
 :where(
   .co-chip, .btn.ghost, .btn.sm, .bk, .ai-full-toggle, .hd-avatar,
   .si-forgot, .si-link, .chip, .pw-seg, .mq-skip, .markread, .lnk, .tl-del, .mt-retry,
-  .tour-skip, .est-note .link
+  .tour-skip, .est-note .link, .fr-ok, .iv-x, .composer-attach-pending button
 )::after {
   content: '';
   position: absolute;

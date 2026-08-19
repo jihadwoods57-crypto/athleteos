@@ -23,8 +23,8 @@ export default {
     const it = itemFor(sub);
     const fm = foodMemory(RT.userId);
     const place = it && it.place_id && fm ? (fm.places || []).find((p) => p.id === it.place_id) : null;
-    const numField = 'width:100%;height:52px;border-radius:14px;background:var(--surface-1);border:1.5px solid var(--hairline);color:var(--text);font-size:17px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums';
-    const textField = 'width:100%;height:52px;border-radius:14px;background:var(--surface-1);border:1.5px solid var(--hairline);color:var(--text);font-size:15px;font-weight:700;padding:0 14px';
+    const numField = 'width:100%;height:52px;border-radius:var(--r-card-sm);background:var(--surface-1);border:1.5px solid var(--hairline);color:var(--text);font-size:17px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums';
+    const textField = 'width:100%;height:52px;border-radius:var(--r-card-sm);background:var(--surface-1);border:1.5px solid var(--hairline);color:var(--text);font-size:15px;font-weight:700;padding:0 14px';
     const v = (x) => (x == null ? '' : esc(String(x)));
     return `
     ${backHead(it ? 'Edit saved meal' : 'Save a usual meal', it ? 'Fix the name, place, or numbers' : 'Log it in one tap from Plan', 'plan')}

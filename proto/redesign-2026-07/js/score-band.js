@@ -63,6 +63,28 @@ export function tierFor(score) {
   return TIERS.find((t) => s >= t.min) || TIERS[TIERS.length - 1];
 }
 
+/* ---------------- Meal quality ----------------
+ * Meal QUALITY is its own concept (the plate read) with its OWN two floors, distinct from the
+ * day-score ladder above: 80+ green, 50+ amber, below red. A plate is never success-green at 58.
+ * Four screens (home, state's activity feed, trust's history, coach's athlete day) had each
+ * re-inlined this ternary; the floors live here now. */
+export const MEAL_QUALITY_GOOD = 80;
+export const MEAL_QUALITY_OK = 50;
+
+/** The one-letter accent class ('g' | 'a' | 'r') a meal-quality score wears. Named
+ *  qualityACCENT, not qualityBand: meal-intel.js already exports a qualityBand() with its own
+ *  75/50 label ladder ({cls, label}), and state.js/coach.js import both. */
+export function qualityAccent(quality) {
+  return quality >= MEAL_QUALITY_GOOD ? 'g' : quality >= MEAL_QUALITY_OK ? 'a' : 'r';
+}
+
+/* ---------------- Letter grade ----------------
+ * The A-F letter a history day wears (day.js scoreHistory rows). Same 90/80/60 floors as the
+ * tier ladder, plus ONE extra step the tier ladder does not have: 70 splits Building into C and
+ * D so the letters read like school grades. Moved here from day.js so the shared floors can
+ * never drift from TIERS; the 70 stays a deliberate letter-only literal. */
+export function gradeFor(s) { return s >= 90 ? 'A' : s >= ON_STANDARD ? 'B' : s >= 70 ? 'C' : s >= CLOSE ? 'D' : 'F'; }
+
 /* ---------------- Accent letters ----------------
  * The one-letter accent a requirement / score part carries ('g','a','b','p','c') mapped to its
  * token family. Four screens had each written their own inline ternary for this (breakdown,

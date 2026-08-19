@@ -64,21 +64,21 @@ const steps = [
     id: 'why', ch: 0, cta: 'Continue',
     body: () => hero('The problem',
       'You train like it <span class="accent">matters.</span>',
-      'Practice is two hours. The other twenty — what you eat, how you sleep, what you skip — are the hours that decide the depth chart.',
+      'Practice is two hours. The other twenty (what you eat, how you sleep, what you skip) are the hours that decide the depth chart.',
       'Most athletes lose those hours quietly.'),
   },
   {
     id: 'gap', ch: 0, cta: 'Continue',
     body: () => hero('Why it slips',
       'What gets seen <span class="accent">gets done.</span>',
-      'Your coach sees effort at practice. Nobody sees the other twenty hours — so those hours drift, one skipped meal at a time.',
+      'Your coach sees effort at practice. Nobody sees the other twenty hours, so those hours drift, one skipped meal at a time.',
       'Willpower is not the problem. Visibility is.'),
   },
   {
     id: 'answer', ch: 0, cta: 'Show me',
     body: () => hero('The answer',
       'One number, <span class="accent">seen daily.</span>',
-      'OnStandard builds one Daily Score from what you actually do — meals, sleep, check-ins — and puts it in front of the people who hold you to it.'),
+      'OnStandard builds one Daily Score from what you actually do (meals, sleep, check-ins) and puts it in front of the people who hold you to it.'),
   },
   {
     id: 'name', ch: 0, cta: 'Next',
@@ -200,7 +200,7 @@ const steps = [
        scale measures. Keys are unchanged so every downstream read still works. */
     id: 'rate', ch: 1, cta: 'Next',
     title: () => 'Two quick reads',
-    sub: () => 'Be honest — both numbers come back on the next screen.',
+    sub: () => 'Be honest. Both numbers come back on the next screen.',
     body: () => `
       ${scale10('goalImportance', { label: 'How much does this goal matter to you?', lo: 'Not much', hi: 'It’s everything' })}
       <div style="height:22px"></div>
@@ -217,12 +217,12 @@ const steps = [
          with a self-rating comparison — a quiz, not an argument. Lead with the same kind of
          arithmetic the `why` screen set up, THEN land the personal gap. */
       const verdict = (!n && !m)
-        ? 'Rate both scales on the previous screen — the gap between them is exactly what OnStandard closes.'
+        ? 'Rate both scales on the previous screen. The gap between them is exactly what OnStandard closes.'
         : m >= n
-          ? `You rated this goal <b>${n}/10</b> and you say people notice at <b>${m}/10</b>. Good — that only holds while someone is watching. OnStandard makes it hold every day, on the record.`
-          : `You rated this goal <b>${n}/10</b> — but when you skip, notice lands at <b>${m}/10</b>. That gap is where the 140 hours go, and it is exactly what OnStandard closes.`;
+          ? `You rated this goal <b>${n}/10</b> and you say people notice at <b>${m}/10</b>. Good. That only holds while someone is watching, and OnStandard makes it hold every day, on the record.`
+          : `You rated this goal <b>${n}/10</b>, but when you skip, notice lands at <b>${m}/10</b>. That gap is where the 140 hours go, and it is exactly what OnStandard closes.`;
       return `
-        ${countStat('140 hrs', 'a week between practices — where your goal is actually won or lost',
+        ${countStat('140 hrs', 'a week between practices, where your goal is actually won or lost',
           '~20 unseen hours a day × 7 days')}
         <div style="height:18px"></div>
         <div class="ob2-gap">
@@ -237,7 +237,7 @@ const steps = [
   {
     id: 'plan', ch: 2, cta: 'Build the habit',
     title: () => 'The system we’re building for you',
-    sub: () => 'Assembled from your answers — nothing generic in it.',
+    sub: () => 'Assembled from your answers, nothing generic in it.',
     body: (o) => {
       const goal = GOAL_LABEL[o.goal] || 'your goal';
       const obs = Array.isArray(o.obstacles) && o.obstacles.length
@@ -247,19 +247,19 @@ const steps = [
       const supNames = sup.length ? sup.map((s) => supLabel[s] || s).join(', ') : null;
       const style = styleLabel(styleForStructureAnswer(o.structurePref));
       return `
-        ${mirrorCard('target', `You said <b>${esc(goal)}</b> — so every meal is scored against that goal, not a generic diet.`)}
-        ${mirrorCard('clipboard', `Your plan style: <b>${esc(style.name)}</b>. ${esc(style.short)}. If you connect a coach, they can adjust this — you can always change it yourself in Settings.`)}
+        ${mirrorCard('target', `You said <b>${esc(goal)}</b>, so every meal is scored against that goal, not a generic diet.`)}
+        ${mirrorCard('clipboard', `Your plan style: <b>${esc(style.name)}</b>. ${esc(style.short)}. If you connect a coach, they can adjust this; you can always change it yourself in Settings.`)}
         ${obs ? mirrorCard('flame', `Your risk zone: <b>${esc(obs)}</b>. Reminders and check-ins aim exactly there.`) : ''}
         ${supNames
-          ? mirrorCard('users', `Your circle: <b>${esc(supNames)}</b>. They see the score you earn — the invisible hours finally count.`)
-          : mirrorCard('users', 'No circle yet — your score still runs daily, and connecting a coach later takes one code.')}
+          ? mirrorCard('users', `Your circle: <b>${esc(supNames)}</b>. They see the score you earn; the invisible hours finally count.`)
+          : mirrorCard('users', 'No circle yet. Your score still runs daily, and connecting a coach later takes one code.')}
         <div style="height:8px"></div>
-        ${simChip('Example score — yours starts fresh and is earned')}
+        ${simChip('Example score: yours starts fresh and is earned')}
         <div style="display:flex;justify-content:center;padding:2px 0 12px">${meter(84, { value: '84', label: 'A day done right', uid: 'plan' })}</div>
         ${phoneCard('What runs daily', `
           <div class="comp-read">
             <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">Daily standard</div><div class="cv">Your meals and check-ins, scored into one number</div></div>
-            <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">AI analysis</div><div class="cv">Every photo read in seconds — foods, portions, macros</div></div>
+            <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">AI analysis</div><div class="cv">Every photo read in seconds: foods, portions, macros</div></div>
             <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">Your circle</div><div class="cv">The people you picked see the score, so effort gets seen</div></div>
           </div>`)}`;
     },
@@ -269,7 +269,7 @@ const steps = [
     body: () => `
       <div class="ob2-habit" style="display:flex;flex-direction:column;justify-content:center;flex:1">
         <div class="hb">Before your first bite,<br /><span class="accent">take one photo.</span></div>
-        <div class="hs">That is the whole habit. One photo starts the analysis, the score, and the streak — everything else follows from it.</div>
+        <div class="hs">That is the whole habit. One photo starts the analysis, the score, and the streak. Everything else follows from it.</div>
       </div>`,
   },
 
@@ -277,11 +277,11 @@ const steps = [
   {
     id: 'commit-q', ch: 3, cta: 'Next',
     title: () => 'What standard are you ready to hold yourself to?',
-    sub: () => 'This sets how hard OnStandard pushes — reminder timing and intensity. You can change it any time.',
+    sub: () => 'This sets how hard OnStandard pushes: reminder timing and intensity. You can change it any time.',
     body: () => choiceGrid('pressure', [
-      { v: 'all-in', t: 'All in', s: 'Every meal, every day — full reminders', ic: 'flame', tint: 'rgba(var(--amber-rgb),0.18)', color: 'var(--amber-bright)' },
-      { v: 'steady', t: 'Steady', s: 'Main meals, honest weeks — balanced reminders', ic: 'shield' },
-      { v: 'building', t: 'Building', s: 'Start with one meal a day — light touch', ic: 'plus', tint: 'rgba(var(--green-rgb),0.18)', color: 'var(--green-bright)' },
+      { v: 'all-in', t: 'All in', s: 'Every meal, every day. Full reminders', ic: 'flame', tint: 'rgba(var(--amber-rgb),0.18)', color: 'var(--amber-bright)' },
+      { v: 'steady', t: 'Steady', s: 'Main meals, honest weeks. Balanced reminders', ic: 'shield' },
+      { v: 'building', t: 'Building', s: 'Start with one meal a day. Light touch', ic: 'plus', tint: 'rgba(var(--green-rgb),0.18)', color: 'var(--green-bright)' },
     ]),
   },
   {
@@ -323,7 +323,7 @@ const steps = [
   {
     id: 'proof', ch: 4, cta: 'Next',
     title: () => 'It works when it’s seen',
-    sub: () => 'Illustrative — not actual customers yet.',
+    sub: () => 'Illustrative, not actual customers yet.',
     /* Launch placeholders — the founder swaps these for real customer quotes before release. */
     body: () => `
       ${testimonial({ quote: 'My coach stopped asking if I ate. He just checks the board. I put on 9 lb over the season without one nagging text.', name: 'Marcus', role: 'RB · high school senior', initials: 'M', stat: '+9 lb', statKey: 'in a season' })}
@@ -339,16 +339,16 @@ const steps = [
       ? (paywallVariant('athlete') === 'team_covered' ? 'covered' : 'plans')
       : 'dob'),
     title: () => 'Got a team code?',
-    sub: () => 'Your coach hands it out. It puts your score on their board from day one — and your team covers your access.',
+    sub: () => 'Your coach hands it out. It puts your score on their board from day one, and your team covers your access.',
     body: (o) => `
       <input id="tc-code" class="ob-input" placeholder="Team code" aria-label="Team code" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="12" value="${esc(o.join && o.join.kind === 'team' ? o.join.code || '' : '')}" />
-      <div id="tc-note" class="ob2-scan-note" style="text-align:left;min-height:18px">4–12 letters and numbers. No code? Skip — from Profile you can connect any time, or find a coach to hold you accountable.</div>`,
+      <div id="tc-note" class="ob2-scan-note" style="text-align:left;min-height:18px">4–12 letters and numbers. No code? Skip. From Profile you can connect any time, or find a coach to hold you accountable.</div>`,
     mount(root) {
       const el = root.querySelector('#tc-code');
       const note = root.querySelector('#tc-note');
       const btn = root.querySelector('#ob2-next');
       const CODE_RE = /^[A-Z0-9]{4,12}$/;
-      const HINT = '4–12 letters and numbers. No code? Skip — from Profile you can connect any time, or find a coach to hold you accountable.';
+      const HINT = '4–12 letters and numbers. No code? Skip. From Profile you can connect any time, or find a coach to hold you accountable.';
       if (btn) btn.setAttribute('data-gate-extra', '#tc-code.ok');
       /* A well-FORMED code is not a REAL code. Without this lookup a typo still flipped
          paywallVariant to team_covered, so the next screen promised "your team covers your
@@ -370,7 +370,7 @@ const steps = [
             } else {
               capture({ join: null });
               el.classList.remove('ok');
-              note.textContent = 'That code didn’t match a team — check it with your coach, or skip and connect later.';
+              note.textContent = 'That code didn’t match a team. Check it with your coach, or skip and connect later.';
               if (btn) btn.disabled = true;
             }
           } catch { /* directory unreachable — the code stays captured, note stays honest */ }
@@ -403,7 +403,7 @@ const steps = [
       return 'account';
     },
     title: () => 'Your birth date',
-    sub: () => 'Asked once — it verifies you are old enough to use OnStandard.',
+    sub: () => 'Asked once. It verifies you are old enough to use OnStandard.',
     body: (o) => {
       const [y, m, d] = o.dob ? String(o.dob).split('-') : ['', '', ''];
       return `
@@ -476,8 +476,8 @@ const steps = [
     body: () => `
       <div class="standard-set" style="padding-bottom:6px">
         <div class="halo" style="background:radial-gradient(closest-side,rgba(148,163,184,0.20),transparent 75%)"><div class="core" style="background:var(--surface-2);color:var(--text-2)">${icon('lock', 32)}</div></div>
-        <div class="ob-title" style="margin-top:18px">Not yet — but soon.</div>
-        <div class="ob-sub" style="padding:0 8px">OnStandard is for athletes 13 and older — that's the law for apps like this, and we take it seriously. Come back on your 13th birthday. The Standard will be waiting.</div>
+        <div class="ob-title" style="margin-top:18px">Not yet, but soon.</div>
+        <div class="ob-sub" style="padding:0 8px">OnStandard is for athletes 13 and older. That's the law for apps like this, and we take it seriously. Come back on your 13th birthday. The Standard will be waiting.</div>
       </div>
       <div class="ob-foot" style="margin-top:auto">
         <button class="btn ghost" data-go="welcome">Back to start</button>
@@ -487,7 +487,7 @@ const steps = [
   {
     id: 'account', ch: 4, noFoot: true,
     title: () => 'Your Standard is set.',
-    sub: () => 'Create your account to save it — your score, meals, and coach connection sync across devices.',
+    sub: () => 'Create your account to save it. Your score, meals, and coach connection sync across devices.',
     body: () => `
       ${accountBody({ terms: 'ob' })}
       <div style="height:18px"></div>
@@ -530,7 +530,7 @@ const steps = [
         <div class="ob2-covered">
           <div class="halo"><div class="core">${icon('check', 34)}</div></div>
           <div class="ob-title" style="margin-top:18px">Covered by ${team ? esc(team) : 'your team'}</div>
-          <div class="ob-sub" style="padding:0 8px">Your team code${code ? ` <b>${esc(code)}</b>` : ''} covers your access — no plans, no card, nothing to pay. Your coach's board is waiting for your first score.</div>
+          <div class="ob-sub" style="padding:0 8px">Your team code${code ? ` <b>${esc(code)}</b>` : ''} covers your access: no plans, no card, nothing to pay. Your coach's board is waiting for your first score.</div>
         </div>
         <div class="ob-foot" style="margin-top:auto">
           <button id="ob-enter" class="btn green">Enter OnStandard</button>
@@ -567,7 +567,7 @@ const steps = [
       </div>
       <div style="height:16px"></div>
       <div class="ob-foot" style="margin-top:auto">
-        <button id="ob-start" class="btn green">Start free — no card today</button>
+        <button id="ob-start" class="btn green">Start free, no card today</button>
         <div class="ob2-fine" id="ob-fine"></div>
         <div class="ob-textlink" style="padding-top:10px" data-go="${R}/connect">I have a code</div>
         <div class="ob2-scan-note">Today's standard is live. One photo starts it.</div>

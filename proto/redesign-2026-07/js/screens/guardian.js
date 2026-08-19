@@ -52,7 +52,7 @@ export default {
       ${backHead('Parent Approval', 'Approval was removed', 'home')}
 
       <div class="sidebox">
-        <div class="req-icon" style="width:38px;height:38px;background:rgba(248,113,113,0.16);color:var(--red-bright)">${icon('lock', 17)}</div>
+        <div class="req-icon" style="width:38px;height:38px;background:rgba(var(--red-rgb),0.16);color:var(--red-bright)">${icon('lock', 17)}</div>
         <div><div class="tt">Your guardian removed approval</div>
         <div class="ts">${c.guardianEmail ? esc(c.guardianEmail) : 'Your parent or guardian'} revoked consent, so your day stopped syncing and your coach can no longer see it. Everything you log now stays on this phone — nothing you've already logged is lost. Ask them to approve again to reconnect.</div></div>
       </div>

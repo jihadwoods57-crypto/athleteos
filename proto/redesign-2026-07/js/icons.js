@@ -80,7 +80,10 @@ export function icon(name, size = 22, extra = '') {
   // once per name so the next one is caught in the console instead of in a screenshot review.
   const d = P[name] || '';
   if (!d && !WARNED.has(name)) { WARNED.add(name); console.warn('[icons] no glyph for', name); }
-  return `<svg class="ic ic-${name}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ${extra}>${d}</svg>`;
+  // Decorative by default: nearly every call site sits next to its own text label, and some AT
+  // announces an untitled inline <svg> as "image". Passing any aria-* or role in `extra` opts out.
+  const hidden = /aria-|role=/.test(extra) ? '' : ' aria-hidden="true"';
+  return `<svg class="ic ic-${name}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"${hidden} ${extra}>${d}</svg>`;
 }
 // filled check for done states
 export function checkFill(size = 22) {

@@ -75,7 +75,7 @@ function composeView() {
   const s = STAGE;
   return `${backHead('New progress photo', 'Same pose, same light — the trend does the talking', 'progress-photos')}
   <section class="card pad">
-    <img src="${safeImg(s.dataUrl)}" alt="Progress photo preview" style="width:100%;border-radius:14px;display:block;max-height:340px;object-fit:cover" />
+    <img src="${safeImg(s.dataUrl)}" alt="Progress photo preview" style="width:100%;border-radius:var(--r-card-sm);display:block;max-height:340px;object-fit:cover" />
   </section>
   <div style="height:12px"></div>
   <div class="eyebrow">Pose</div>

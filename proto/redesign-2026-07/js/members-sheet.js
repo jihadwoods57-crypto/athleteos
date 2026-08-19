@@ -33,12 +33,25 @@ function close() {
   opener = null;
   if (back && typeof back.focus === 'function') { try { back.focus(); } catch { /* opener left the DOM */ } }
 }
-function onKey(e) { if (e.key === 'Escape') close(); }
+function onKey(e) {
+  if (e.key === 'Escape') { close(); return; }
+  // aria-modal promised AT the background doesn't exist; Tab has to keep that promise too.
+  if (e.key === 'Tab' && overlay) {
+    const f = overlay.querySelectorAll('button, [href], [tabindex]:not([tabindex="-1"])');
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (!overlay.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+    else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+}
 
 /** Open the sheet on a participant list (see chat-view.participantList). */
 export function openMembersSheet(members) {
   const list = Array.isArray(members) ? members.filter(Boolean) : [];
-  if (!list.length || overlay) return;
+  // One overlay at a time (DESIGN.md): the tour's cutout leaves the participants header live, so
+  // without this a tap there opened the sheet UNDER a running tour.
+  if (!list.length || overlay || document.querySelector('.tour, .lockstamp, .imgview')) return;
   // Record who opened it BEFORE focus moves to the close button below; close() hands it back.
   opener = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
 

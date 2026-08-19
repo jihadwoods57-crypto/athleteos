@@ -1,8 +1,10 @@
-/* Coach OS athlete statuses — PURE (no imports, no DOM, no fetch, no Date.now — callers pass nowMs): testable like notify-plan.js.
+/* Coach OS athlete statuses — PURE (no DOM, no fetch, no Date.now — callers pass nowMs; the one
+   import is the dependency-free score-band.js): testable like notify-plan.js.
    One athlete → one status, precedence-ordered so the roster chip is never ambiguous:
    excused > overdue > needs_review > below_standard > due_soon > no_activity > on_standard.
    Every input is real data (day row, resolved requirement windows, exception rows) —
    an unknown score/window degrades to the safest honest answer, never an invented one. */
+import { ON_STANDARD } from './score-band.js';
 
 /** @type {Record<string, { label: string, color: string }>} */
 export const STATUS_META = {
@@ -16,8 +18,9 @@ export const STATUS_META = {
 };
 const DUE_SOON_MIN = 60;
 
-/** Pure mirror of requirements.js `runsToday` — status.js stays import-free (no imports, no
- *  DOM, no fetch), so the schedule semantics are reproduced here rather than imported.
+/** Pure mirror of requirements.js `runsToday` — status.js stays free of app-state imports (no
+ *  DOM, no fetch; only the leaf score-band.js), so the schedule semantics are reproduced here
+ *  rather than imported.
  *  daily -> every day; days:[1,3,5] -> dow must be in the list; weekly -> only its one day.
  *  (exec.js additionally hard-excludes id 'weekly' from its own day filter because the
  *  Action Hub renders weekly check-in as a separate Sunday-only nav row outside that engine —
@@ -89,7 +92,7 @@ export function athleteStatus({ nowMin, nowMs = /** @type {number | null} */ (nu
   if (excused) return mk('excused', 'Excused today');
   if (overdue.length) return mk('overdue', `${joinTitles(overdue.map(i => i.title))} overdue`);
   if (needsReview) return mk('needs_review', 'A log is waiting on your review');
-  if (row.loggedToday && row.score != null && row.score < 80) return mk('below_standard', `Scored ${row.score} today`);
+  if (row.loggedToday && row.score != null && row.score < ON_STANDARD) return mk('below_standard', `Scored ${row.score} today`);
   if (dueSoon.length) {
     const next = dueSoon.reduce((a, b) => (a.dueMin ?? 9999) <= (b.dueMin ?? 9999) ? a : b);
     return mk('due_soon', `${next.title} window closes in ${Math.max(0, (next.dueMin ?? nowMin) - nowMin)} minutes`);

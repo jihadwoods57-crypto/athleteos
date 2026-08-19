@@ -4,6 +4,7 @@ import { icon } from '../icons.js';
 import { backHead, scoreRing, esc } from '../components.js';
 import { reveal } from '../motion.js';
 import { shareDay } from '../share-card.js';
+import { ON_STANDARD } from '../score-band.js';
 import { pressTilt } from '../tilt.js';
 
 /* Score Breakdown (spec §2): every category explains its exact math — weight, earned/available,
@@ -106,7 +107,7 @@ export default {
     <div class="day-done">
       <div class="req-icon g" style="width:44px;height:44px">${icon('check', 21)}</div>
       <div><div class="tt">Every point that was on the table is in.</div>
-      <div class="ts">${S.score} of 100. ${S.score >= 80 ? 'This is what OnStandard looks like.' : 'Every requirement is in; meal quality is what lifts it toward the standard.'}</div></div>
+      <div class="ts">${S.score} of 100. ${S.score >= ON_STANDARD ? 'This is what OnStandard looks like.' : 'Every requirement is in; meal quality is what lifts it toward the standard.'}</div></div>
     </div>`}
     <div style="height:8px"></div>
     ${S.score != null ? `<button class="btn ghost sm" id="bd-share" style="width:100%">${icon('share', 17)} Share today's score</button>

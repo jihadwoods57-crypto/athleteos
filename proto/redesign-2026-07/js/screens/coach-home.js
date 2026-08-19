@@ -206,7 +206,7 @@ function obPlanCard() {
       } catch { /* keep showing; plan-upgrade routes an existing subscriber to the portal */ }
     })();
   }
-  return `<div class="lrow" id="ob-plan-cta" style="margin:0 0 10px;background:linear-gradient(100deg, rgba(var(--green-rgb),0.10), rgba(var(--blue-rgb),0.05));border:1px solid var(--green-border);border-radius:14px;padding:12px 13px;cursor:pointer">
+  return `<div class="lrow" id="ob-plan-cta" style="margin:0 0 10px;background:linear-gradient(100deg, rgba(var(--green-rgb),0.10), rgba(var(--blue-rgb),0.05));border:1px solid var(--green-border);border-radius:var(--r-card-sm);padding:12px 13px;cursor:pointer">
     <div class="xico sm green">${icon('flame', 16)}</div>
     <div class="xr"><div class="xa">Your ${esc(plan.name)} plan is waiting</div>
     <div class="xb" style="white-space:normal;line-height:1.45">Free for 14 days. Nothing charges today.</div></div>

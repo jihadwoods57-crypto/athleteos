@@ -340,12 +340,12 @@ export function openingMessage({
     const gap = Math.round(day.proteinTarget) - Math.round(day.proteinSoFar);
     const rem = day.mealsRemaining;
     if (gap <= 0) {
-      parts.push('That closes out your protein for the day — nothing left to chase there.');
+      parts.push('That closes out your protein for the day. Nothing left to chase there.');
     } else if (rem != null && rem > 1) {
       const per = Math.max(5, Math.round(gap / rem / 5) * 5);
       parts.push(`Land around ${per}g of protein at each of your last ${rem} meals and you'll hit today's target without forcing the last one.`);
     } else if (rem === 1) {
-      parts.push(`One meal left — bring it in around ${gap}g of protein and the day closes out.`);
+      parts.push(`One meal left. Bring it in around ${gap}g of protein and the day closes out.`);
     }
   } else if (coachTargets && coachTargets.protein) {
     parts.push(`Coach's bar is ${coachTargets.protein}g protein on the day, and every meal moves it.`);
@@ -355,8 +355,8 @@ export function openingMessage({
   // 5. Timing — only when it needs saying; on-time praise lives in the score chips now.
   if (late === true) {
     const mins = (typeof minutesLate === 'number' && isFinite(minutesLate) && minutesLate > 0)
-      ? ` — ${Math.round(minutesLate)} min past the window` : '';
-    parts.push(`And ${who} went in late${mins}. Logging it late still counts — hiding it doesn't.`);
+      ? `, ${Math.round(minutesLate)} min past the window` : '';
+    parts.push(`And ${who} went in late${mins}. Logging it late still counts; hiding it doesn't.`);
   }
   // 6. Score impact — engine-computed accountability credit, stated plainly.
   if (typeof impact === 'number' && isFinite(impact) && impact > 0) {
@@ -453,7 +453,7 @@ function intuitiveSummary({ detected, fiber, late, deadlineClock, highlights } =
         ? 'Worth noticing whether this one holds you, or whether hunger comes back early.'
         : 'Worth noticing how long this one carries you before you are hungry again.',
     // No instruction to log a feeling: the meal-time prompt that used to ask for one is gone.
-    next: 'No fix needed — notice how it leaves you over the next couple of hours. That is the pattern worth having.',
+    next: 'No fix needed. Notice how it leaves you over the next couple of hours; that is the pattern worth having.',
   };
 }
 
@@ -679,7 +679,7 @@ export function mealPatterns(recentMeals, { slot, mealProteinBar } = {}) {
   if (fibered.length >= 3) {
     const recent3 = fibered.slice(-3);
     if (recent3.every((r) => r.fiber < 4)) {
-      out.push(`Produce has been light in your last ${recent3.length} ${plural} — a fruit or vegetable each time changes that fast.`);
+      out.push(`Produce has been light in your last ${recent3.length} ${plural}. A fruit or vegetable each time changes that fast.`);
     }
   }
   return out.slice(0, 2);
@@ -810,23 +810,23 @@ export function coachFocus({ macros, fiber, detected, minutesLate, nextMealName,
     .filter((c) => !(c.k === 'fiber' && c.st === 'miss' && s.produce))
     .sort((a, b) => b.lost - a.lost);
   const worst = costs[0];
-  if (!worst || worst.lost === 0) return 'Great plate — repeat this structure tomorrow.';
+  if (!worst || worst.lost === 0) return 'Great plate. Repeat this structure tomorrow.';
   switch (worst.k) {
     case 'protein': {
       const gap = Math.max(0, Number(dayGap) || 0);
       const rem = Math.max(0, Number(mealsRemaining) || 0);
       if (numbers && gap > 0 && rem > 1) {
         const per = Math.max(5, Math.round(gap / rem / 5) * 5);
-        return `Prioritize lean protein at ${next} — around ${per}g gets you back on pace.`;
+        return `Prioritize lean protein at ${next}; around ${per}g gets you back on pace.`;
       }
       return `Prioritize lean protein at ${next}.`;
     }
     case 'fat':
-      return numbers ? `Keep ${next} leaner — aim under 20g of fat.` : `Keep ${next} leaner.`;
+      return numbers ? `Keep ${next} leaner; aim under 20g of fat.` : `Keep ${next} leaner.`;
     case 'fiber':
       return 'Get something green on the next plate.';
     case 'carbs':
-      return `Balance ${next} — protein and a vegetable before the extra carbs.`;
+      return `Balance ${next}: protein and a vegetable before the extra carbs.`;
     case 'timing':
       return `Log ${next} inside its window.`;
     default:
@@ -879,7 +879,7 @@ export function scoreRubric({ quality, minutesLate, macros, fiber, detected, sou
   rows.push({
     k: 'Meal completeness', exact: true,
     state: noPhoto ? 'partial' : 'met',
-    note: noPhoto ? 'No photo — entered by hand' : (userNote ? 'Photo plus your added details' : 'Photo submitted'),
+    note: noPhoto ? 'No photo, entered by hand' : (userNote ? 'Photo plus your added details' : 'Photo submitted'),
   });
 
   // Photo quality — MEASURED at capture (brightness + edge energy), only when a real
@@ -889,7 +889,7 @@ export function scoreRubric({ quality, minutesLate, macros, fiber, detected, sou
     rows.push({
       k: 'Photo quality', exact: true,
       state: pq.state,
-      note: pq.label === 'Clear' ? 'Clear (measured)' : `${pq.label} (measured) — a clearer photo sharpens the read`,
+      note: pq.label === 'Clear' ? 'Clear (measured)' : `${pq.label} (measured); a clearer photo sharpens the read`,
     });
   }
 
@@ -1284,9 +1284,9 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
     // price has to be named out loud rather than quietly rounded away.
     const addedNames = applied.map((a) => a.name);
     if (statedAny || applied.length) {
-      summary = `Corrected: ${label}${addedNames.length ? ` — added ${addedNames.join(' and ')}` : ' updated from your correction'} · macros and score recalculated`;
+      summary = `Corrected: ${label}${addedNames.length ? `; added ${addedNames.join(' and ')}` : ' updated from your correction'} · macros and score recalculated`;
     } else {
-      summary = `Corrected: ${label} renamed — macros unchanged`;
+      summary = `Corrected: ${label} renamed; macros unchanged`;
     }
     if (unpriced.length) summary += ` · I don't have numbers for ${unpriced.join(' or ')}, so that isn't counted yet`;
     log.push({
@@ -1306,7 +1306,7 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
     for (const k of ['protein', 'carbs', 'fat', 'kcal', 'fiber']) {
       next[k] = Math.max(0, Math.round((Number(src[k]) || 0) * rule.scale));
     }
-    summary = `Corrected: ${rule.note} — macros rescaled (estimated)`;
+    summary = `Corrected: ${rule.note}; macros rescaled (estimated)`;
     log.push({ kind, value, scale: rule.scale });
   } else {
     const deltas = [];
@@ -1316,7 +1316,7 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
         deltas.push(`${k === 'kcal' ? 'calories' : k} ${rule[k] > 0 ? '+' : ''}${rule[k]}${k === 'kcal' ? '' : 'g'}`);
       }
     }
-    summary = `Corrected: ${rule.note}${deltas.length ? ` — ${deltas.join(', ')} (estimated)` : rule.certainty ? ' — estimate confirmed' : ''}`;
+    summary = `Corrected: ${rule.note}${deltas.length ? `; ${deltas.join(', ')} (estimated)` : rule.certainty ? '; estimate confirmed' : ''}`;
     log.push({ kind, value });
   }
   next.corrections = log.slice(0, 8);
@@ -1482,7 +1482,7 @@ export function photoStats(rgba, width, height) {
 /** Conservative classification of measured stats. Null stats → null (no claim). */
 export function photoQuality(stats) {
   if (!stats || typeof stats.luma !== 'number' || typeof stats.sharpness !== 'number') return null;
-  if (stats.luma < 50) return { label: 'Dim', state: 'partial', hint: 'Photo looks dark — brighter light gets a sharper read. Logging still counts.' };
-  if (stats.sharpness < 3) return { label: 'Soft', state: 'partial', hint: 'Photo looks blurry — hold steady for a sharper read. Logging still counts.' };
+  if (stats.luma < 50) return { label: 'Dim', state: 'partial', hint: 'Photo looks dark; brighter light gets a sharper read. Logging still counts.' };
+  if (stats.sharpness < 3) return { label: 'Soft', state: 'partial', hint: 'Photo looks blurry; hold steady for a sharper read. Logging still counts.' };
   return { label: 'Clear', state: 'met', hint: '' };
 }

@@ -140,7 +140,7 @@ export const analyzing = {
         <div class="scanline"></div>
       </div>
       ${nonLive ? `<div style="display:flex;justify-content:center;padding-top:10px">${nonLiveBadge()}</div>` : ''}
-      <div class="phase" id="an-phase">Analyzing meal<span class="dots"></span></div>
+      <div class="phase" id="an-phase" role="status">Analyzing meal<span class="dots"></span></div>
       <div class="phase-sub" id="an-sub">Detecting foods and portions</div>
     </div>`;
   },
@@ -1149,7 +1149,7 @@ export const thread = {
           destination, and the teaser's preview text doubled as a third voice above the thread.
           The in-thread "View N earlier messages" seam (#thread-more) stays: that one carries
           information this screen truncated. */''}
-    <div class="thread" id="meal-thread">
+    <div class="thread" id="meal-thread" role="log" aria-label="Meal conversation">
       ${openingBlockHtml(M, { sum, fullText, fq })}
       <div class="msg-status" id="thread-status">${M.mealId ? 'Loading the thread…' : (S.coach.hasCoach ? `Syncs when connected — your ${esc(S.coach.noun)} sees this log either way.` : 'Syncs when connected — this log is saved either way.')}</div>
     </div>
@@ -1634,6 +1634,7 @@ export const thread = {
     };
 
     const setTyping = (on) => { aiTyping = !!on; paint(); };
+    let lastFetchFp = null;   // fingerprint of the last painted fetch (see refresh below)
     // opts.probe: only the idle poll tick passes this (see scheduleTick below). Every other
     // caller — initial mount, send, reaction toggle, retry, the realtime doorbell — wants the
     // truth right now and calls refresh() with no args, which always does the full fetch.
@@ -1643,7 +1644,14 @@ export const thread = {
       const fetched = await roles.fetchMealComments(M.mealId, probeSince);
       if (myGen !== gen) return;
       if (fetched && fetched.unchanged) return; // the cheap probe found nothing new — no repaint to do
-      if (fetched && fetched.error) { showThreadError(); return; }
+      if (fetched && fetched.error) { lastFetchFp = null; showThreadError(); return; }
+      // Identical payload = identical thread: skip the innerHTML rebuild. The post-send burst
+      // poll (2.5s x ~8) used to fetch AND repaint even when nothing had arrived, which could
+      // swap the DOM under a reader's thumb mid-scroll. Cleared on error above so the retry
+      // fetch always repaints over the error row even when the data itself didn't change.
+      const fp = JSON.stringify(fetched);
+      const changed = fp !== lastFetchFp;
+      lastFetchFp = fp;
       comments = fetched; if (statusEl) statusEl.remove();
       for (const row of Array.isArray(comments) ? comments : []) {
         if (row && row.created_at && (!lastKnownAt || row.created_at > lastKnownAt)) lastKnownAt = row.created_at;
@@ -1661,7 +1669,7 @@ export const thread = {
         }
       }
       if (proApplied && window.__render) { window.__render(); return; }
-      paint();
+      if (changed) paint();
     };
     await refresh();
 

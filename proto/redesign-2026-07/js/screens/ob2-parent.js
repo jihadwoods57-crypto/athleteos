@@ -59,7 +59,7 @@ const STYLE_LABEL = {
 };
 const STYLE_LINE = {
   quiet: 'You watch the trendline and speak when it matters.',
-  celebrate: 'Milestones reach you — you make them count.',
+  celebrate: 'Milestones reach you; you make them count.',
   steady: 'A weekly rhythm, on their terms.',
 };
 
@@ -76,7 +76,7 @@ const steps = [
     id: 'why', ch: 0, cta: 'Continue',
     body: () => hero(
       'For parents',
-      'You want to support them — <span class="accent">not hover.</span>',
+      'You want to support them, <span class="accent">not hover.</span>',
       'They are putting in work you never get to see. The question is how to stand behind it without standing over it.',
     ),
   },
@@ -85,7 +85,7 @@ const steps = [
     body: () => hero(
       'The problem',
       'Asking makes you the nag. <span class="accent">Silence makes you worry.</span>',
-      'Three words — "did you eat?" — and suddenly you are checking up on them. Say nothing, and you are left guessing. Both of you lose.',
+      'Three words ("did you eat?") and suddenly you are checking up on them. Say nothing, and you are left guessing. Both of you lose.',
     ),
   },
   {
@@ -93,7 +93,7 @@ const steps = [
     body: () => hero(
       'The OnStandard answer',
       'See the effort. <span class="accent">Never the details.</span>',
-      'A daily score, a streak, a weekly grade — proof of effort, straight from the work they log. What they log stays theirs.',
+      'A daily score, a streak, a weekly grade: proof of effort, straight from the work they log. What they log stays theirs.',
       'Their privacy is a hard boundary here, not a setting.',
     ),
   },
@@ -155,7 +155,7 @@ const steps = [
     body: () => choiceGrid('seesToday', [
       { v: 'nothing', t: 'Almost nothing', s: 'They keep it to themselves', ic: 'eye' },
       { v: 'mentions', t: 'Whatever they mention', s: 'Bits and pieces, on their schedule', ic: 'message' },
-      { v: 'awkward', t: 'I ask — it gets awkward', s: 'The questions land like check-ups', ic: 'x' },
+      { v: 'awkward', t: 'I ask, it gets awkward', s: 'The questions land like check-ups', ic: 'x' },
     ]),
   },
   {
@@ -178,16 +178,16 @@ const steps = [
   /* ================= ch1 · See it ================= */
   {
     id: 'aha', ch: 1, cta: 'Continue',
-    title: () => 'Support works better when progress is visible — without surveillance.',
+    title: () => 'Support works better when progress is visible, without surveillance.',
     body: (o) => `
-      ${mirrorCard('eye', `<b>What you'll see:</b> a daily score, a streak, a weekly grade — the shape of ${nmEsc(o)}'s effort.`)}
+      ${mirrorCard('eye', `<b>What you'll see:</b> a daily score, a streak, a weekly grade, the shape of ${nmEsc(o)}'s effort.`)}
       ${mirrorCard('lock', `<b>What stays theirs:</b> photos, meals, weight, messages. Every detail, every time.`)}
-      <div class="ob2-gap-verdict">That's enough to answer <b>"are they okay?"</b> — without a single "did you eat?"</div>`,
+      <div class="ob2-gap-verdict">That's enough to answer <b>"are they okay?"</b> without a single "did you eat?"</div>`,
   },
   {
     id: 'summary', ch: 1, cta: 'Continue',
     title: () => 'One glance, once a week.',
-    sub: () => 'The weekly summary — everything you get, nothing you don\'t.',
+    sub: () => 'The weekly summary: everything you get, nothing you don\'t.',
     body: (o) => `
       ${simChip('Simulated preview')}
       ${phoneCard(`${nm(o)}'s week`, `
@@ -198,12 +198,12 @@ const steps = [
           <div style="font-size:11px;font-weight:700;color:var(--green-bright);margin-top:2px">Trending up</div></div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid var(--hairline-soft);margin-top:12px">
-          <div style="width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--green-surface);color:var(--green-bright);flex:none">${icon('flame', 15)}</div>
+          <div style="width:30px;height:30px;border-radius:var(--r-chip);display:grid;place-items:center;background:var(--green-surface);color:var(--green-bright);flex:none">${icon('flame', 15)}</div>
           <div style="font-size:14px;font-weight:700;flex:1">12-day streak</div>
           <div style="font-size:12px;font-weight:600;color:var(--text-3)">their longest yet</div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;padding-top:11px;border-top:1px solid var(--hairline-soft)">
-          <div style="width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--blue-surface);color:var(--blue-bright);flex:none">${icon('check', 15)}</div>
+          <div style="width:30px;height:30px;border-radius:var(--r-chip);display:grid;place-items:center;background:var(--blue-surface);color:var(--blue-bright);flex:none">${icon('check', 15)}</div>
           <div style="font-size:14px;font-weight:700;flex:1">Weekly grade</div>
           <div style="font-size:16px;font-weight:800;color:var(--blue-bright)">A−</div>
         </div>`)}
@@ -212,7 +212,7 @@ const steps = [
   {
     id: 'milestone', ch: 1, cta: 'Continue',
     title: () => 'The good news finds you.',
-    sub: () => 'Milestones you\'d hate to miss — worth celebrating, not monitoring.',
+    sub: () => 'Milestones you\'d hate to miss: worth celebrating, not monitoring.',
     body: (o) => `
       ${simChip('Simulated preview')}
       ${notifCard({ ic: 'flame', tint: 'var(--green-surface)', color: 'var(--green-bright)', title: `${nm(o)} hit a 14-day streak`, body: 'Fourteen straight days of showing up. Worth a text.', time: '6:12 PM' })}
@@ -224,13 +224,13 @@ const steps = [
     title: () => 'Missed-day alerts are a choice you make together.',
     body: (o) => `
       ${simChip('Simulated preview')}
-      ${notifCard({ ic: 'bell', tint: 'var(--amber-surface)', color: 'var(--amber-bright)', title: `${nm(o)} missed today's log`, body: 'First miss in 12 days. A good moment for encouragement — not a lecture.', time: '9:04 PM' })}
-      <div class="ob2-gap-verdict">These are off until <b>both of you</b> turn them on. ${nmEsc(o)} chooses to share them; you choose to receive them. Support, not surveillance — by design.</div>`,
+      ${notifCard({ ic: 'bell', tint: 'var(--amber-surface)', color: 'var(--amber-bright)', title: `${nm(o)} missed today's log`, body: 'First miss in 12 days. A good moment for encouragement, not a lecture.', time: '9:04 PM' })}
+      <div class="ob2-gap-verdict">These are off until <b>both of you</b> turn them on. ${nmEsc(o)} chooses to share them; you choose to receive them. Support, not surveillance, by design.</div>`,
   },
   {
     id: 'privacy', ch: 1, cta: 'That works for me',
     title: () => 'The boundary, in writing.',
-    sub: () => 'Enforced on our servers — not just hidden in the app.',
+    sub: () => 'Enforced on our servers, not just hidden in the app.',
     body: () => `
       <div class="ob2-phone">
         ${boundRow(true, 'Daily Score', 'Their effort, as one number')}
@@ -253,7 +253,7 @@ const steps = [
         { v: 'milestones', t: 'Milestones only', s: 'Streaks and bests, as they happen', ic: 'flame' },
         { v: 'milestones-missed', t: 'Milestones + missed days', s: `Missed-day alerts also need ${nm(o)}'s ok`, ic: 'bell' },
       ])}
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-3);text-align:center;line-height:1.5;margin-top:12px">Nothing is silent to them — ${nmEsc(o)} can always see what reaches you.</div>`,
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-3);text-align:center;line-height:1.5;margin-top:12px">Nothing is silent to them: ${nmEsc(o)} can always see what reaches you.</div>`,
   },
 
   /* ================= ch2 · Your plan ================= */
@@ -264,19 +264,19 @@ const steps = [
     body: (o) => {
       const worry = worryLine(o);
       const sees = {
-        nothing: `You see <b>almost nothing</b> today — the score gives you a signal without you asking for one.`,
-        mentions: `You hear <b>whatever they mention</b> — the trendline fills the gaps in between.`,
-        awkward: `You said asking <b>gets awkward</b> — now you never have to ask.`,
+        nothing: `You see <b>almost nothing</b> today. The score gives you a signal without you asking for one.`,
+        mentions: `You hear <b>whatever they mention</b>. The trendline fills the gaps in between.`,
+        awkward: `You said asking <b>gets awkward</b>. Now you never have to ask.`,
       }[o.seesToday];
       const digest = {
         weekly: `<b>Weekly digest</b>: one summary on Sunday evening. That's the whole ask.`,
         milestones: `<b>Milestones only</b>: the wins reach you the moment they happen.`,
-        'milestones-missed': `<b>Milestones + missed days</b> — missed-day alerts start only when ${nmEsc(o)} turns them on too.`,
+        'milestones-missed': `<b>Milestones + missed days</b>: missed-day alerts start only when ${nmEsc(o)} turns them on too.`,
       }[o.parentDigest];
       const style = o.structurePref ? styleLabel(styleForStructureAnswer(o.structurePref)) : null;
       return `
-        ${worry ? mirrorCard('heart', `You said you think about <b>${esc(worry)}</b> — the weekly summary answers that with a trend, not an interrogation.`) : ''}
-        ${style ? mirrorCard('clipboard', `You said ${nmEsc(o)} needs <b>${esc(style.name)}</b> — ${esc(style.short.toLowerCase())}. Their coach or trainer sets what actually governs their plan; this is worth sharing with them.`) : ''}
+        ${worry ? mirrorCard('heart', `You said you think about <b>${esc(worry)}</b>. The weekly summary answers that with a trend, not an interrogation.`) : ''}
+        ${style ? mirrorCard('clipboard', `You said ${nmEsc(o)} needs <b>${esc(style.name)}</b>: ${esc(style.short.toLowerCase())}. Their coach or trainer sets what actually governs their plan; this is worth sharing with them.`) : ''}
         ${sees ? mirrorCard('eye', sees) : ''}
         ${digest ? mirrorCard('bell', digest) : ''}
         <div class="ob2-gap-verdict">The deal: <b>${nmEsc(o)} owns the work. You get the trendline.</b></div>`;
@@ -290,7 +290,7 @@ const steps = [
     sub: () => 'This sets your defaults. Change it whenever life changes.',
     body: () => choiceGrid('parentStyle', [
       { v: 'quiet', t: 'Quiet supporter', s: 'Watch the trend. Speak when it matters.', ic: 'eye' },
-      { v: 'celebrate', t: 'Celebrate the wins', s: 'Milestones reach you — you make them count.', ic: 'flame' },
+      { v: 'celebrate', t: 'Celebrate the wins', s: 'Milestones reach you; you make them count.', ic: 'flame' },
       { v: 'steady', t: 'Steady check-ins', s: 'A weekly rhythm, on their terms.', ic: 'heart' },
     ]),
   },
@@ -299,7 +299,7 @@ const steps = [
     title: () => 'Support the standard.',
     sub: (o) => `${nmEsc(o)} holds the standard. You hold the support.`,
     body: (o) => `
-      ${mirrorCard('heart', `<b>${esc(STYLE_LABEL[o.parentStyle] || 'Your way')}.</b> ${esc(STYLE_LINE[o.parentStyle] || 'You see the effort — they keep the details.')}`)}
+      ${mirrorCard('heart', `<b>${esc(STYLE_LABEL[o.parentStyle] || 'Your way')}.</b> ${esc(STYLE_LINE[o.parentStyle] || 'You see the effort; they keep the details.')}`)}
       ${mirrorCard('lock', `You'll see scores, streaks, and grades. <b>Never</b> photos, weight, meals, or messages.`)}
       <div class="ob-foot" style="margin-top:18px">
         ${commitButton(!!o.committedAt)}
@@ -323,8 +323,8 @@ const steps = [
     body: (o) => `
       <input id="obp-code" class="ob-input" type="text" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="Invite code" aria-label="Invite code" style="text-transform:uppercase;letter-spacing:0.12em" value="${esc(o.guardianToken || '')}" />
       <div style="height:14px"></div>
-      ${mirrorCard('key', `Ask them to open their <b>Profile</b> and tap <b>"Invite a parent"</b> — they get a single-use code to send you. It expires in 14 days.`)}
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-3);text-align:center;line-height:1.5;margin-top:10px">No code yet? Skip this — you can connect any time.</div>`,
+      ${mirrorCard('key', `Ask them to open their <b>Profile</b> and tap <b>"Invite a parent"</b>. They get a single-use code to send you. It expires in 14 days.`)}
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-3);text-align:center;line-height:1.5;margin-top:10px">No code yet? Skip this. You can connect any time.</div>`,
     mount(root) {
       const input = root.querySelector('#obp-code');
       const btn = root.querySelector('#ob2-next');
@@ -347,17 +347,17 @@ const steps = [
       <div class="ob2-covered">
         <div class="halo"><div class="core">${icon('heart', 36)}</div></div>
         <div class="ob-title" style="margin-top:18px">Your account is free.</div>
-        <div class="ob-sub" style="padding:0 8px">Supporting ${nmEsc(o)} costs you nothing — no card, no trial clock, nothing to cancel.</div>
+        <div class="ob-sub" style="padding:0 8px">Supporting ${nmEsc(o)} costs you nothing: no card, no trial clock, nothing to cancel.</div>
       </div>
       <div style="height:8px"></div>
-      ${mirrorCard('shield', `Watching the effort is free for parents, full stop. If that ever changes, you'll hear it from us — never from a charge.`)}`,
+      ${mirrorCard('shield', `Watching the effort is free for parents, full stop. If that ever changes, you'll hear it from us, never from a charge.`)}`,
     /* The parent's coverage screen IS their paywall variant — track the exposure so the
        six flows share one funnel shape instead of parent silently having none. */
     mount() { track(EVENTS.PAYWALL_VIEWED, { variant: 'free' }); },
   },
   {
     id: 'account', ch: 4, noFoot: true,
-    title: () => 'Last step — make it yours.',
+    title: () => 'Last step: make it yours.',
     sub: (o) => (o.guardianToken
       ? `The moment your account exists, we'll link you to ${nmEsc(o)}.`
       : `${nmEsc(o)}'s summary lands here as soon as you connect.`),

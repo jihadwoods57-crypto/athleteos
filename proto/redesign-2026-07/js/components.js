@@ -250,8 +250,8 @@ export function scoreRing({ score, size = 338, stroke = 20, showCenter = true, u
       </g>` : '';
 
   return `
-  <div class="ring-wrap"${vt ? ` data-vt="${vt}"` : ''} style="width:${size}px;height:${size}px">
-    <svg class="ring-svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+  <div class="ring-wrap"${vt ? ` data-vt="${vt}"` : ''} style="width:min(${size}px,100%);aspect-ratio:1/1">
+    <svg class="ring-svg" width="100%" height="100%" viewBox="0 0 ${size} ${size}">
       <defs>
         ${/* The signature sweep — the SAME three stops as the brand masters, from the theme
               tokens (--ring-a/b/c flip on light), on the mark's own axis: bottom-left of the
@@ -487,7 +487,7 @@ export function backHead(title, sub, to = 'home', action = null) {
   // conversation with a control panel welded under it is not a conversation.
   return `<div class="back-head">
     <div class="bk" data-back="${to}" role="button" aria-label="Back">${icon('back', 20)}</div>
-    <div class="bh-t"><div class="ht">${esc(title)}</div>${sub ? `<div class="hs">${esc(sub)}</div>` : ''}</div>
+    <div class="bh-t"><h1 class="ht">${esc(title)}</h1>${sub ? `<div class="hs">${esc(sub)}</div>` : ''}</div>
     ${action ? `<button type="button" class="bh-act" id="${esc(action.id)}" aria-label="${esc(action.label || 'More')}" aria-expanded="false" aria-haspopup="true">${icon(action.icon || 'more', 20)}</button>` : ''}
   </div>`;
 }
@@ -499,7 +499,7 @@ export function backHead(title, sub, to = 'home', action = null) {
    instead; sub-screens keep backHead pointed at their own role's home. */
 export function titleHead(title, sub) {
   return `<div class="back-head">
-    <div><div class="ht">${esc(title)}</div>${sub ? `<div class="hs">${esc(sub)}</div>` : ''}</div>
+    <div><h1 class="ht">${esc(title)}</h1>${sub ? `<div class="hs">${esc(sub)}</div>` : ''}</div>
   </div>`;
 }
 
@@ -523,7 +523,7 @@ export function avatarHead(title, sub, initials) {
   // same badge math as appHead.
   const n = S.unreadNotifs;
   return `<div class="back-head" style="align-items:center">
-    <div style="flex:1;min-width:0"><div class="ht">${esc(title)}</div>${sub ? `<div class="hs">${esc(sub)}</div>` : ''}</div>
+    <div style="flex:1;min-width:0"><h1 class="ht">${esc(title)}</h1>${sub ? `<div class="hs">${esc(sub)}</div>` : ''}</div>
     ${bellBtn(n, 'margin-right:10px')}
     <div class="hd-avatar" role="button" tabindex="0" aria-label="Your profile and settings" data-go="${roleProfileRoute()}"
       style="position:relative;width:40px;height:40px;border-radius:50%;background:var(--blue-surface);color:var(--blue-bright);border:1.5px solid var(--blue-border);display:grid;place-items:center;font-size:var(--t-sm);font-weight:800;letter-spacing:0.02em;flex:none;cursor:pointer">${esc(initials || 'C')}
@@ -692,7 +692,7 @@ export function emailVerifyBanner() {
   // alert's) — this is a low-urgency nag that never blocks using the app, so it must not visually
   // compete with a card that actually does. Icon + one line of text on the left; Resend and a
   // small × dismiss sit inline on the right, never stacked into a tall column.
-  return `<div class="lrow" id="ev-banner" style="margin:12px 0 10px;background:rgba(var(--amber-rgb),0.08);border:1px solid var(--amber-border);border-radius:14px;padding:10px 11px;gap:10px">
+  return `<div class="lrow" id="ev-banner" style="margin:12px 0 10px;background:rgba(var(--amber-rgb),0.08);border:1px solid var(--amber-border);border-radius:var(--r-card-sm);padding:10px 11px;gap:10px">
     <div class="xico sm" style="background:rgba(var(--amber-rgb),0.18);color:var(--amber-bright);flex:none">${icon('mail', 15)}</div>
     <div class="xr" style="cursor:default;min-width:0">
       <div class="xa">Verify your email</div>

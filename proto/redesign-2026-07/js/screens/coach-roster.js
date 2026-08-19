@@ -104,7 +104,7 @@ function rosterRow(e) {
     ? `data-sel="${esc(r.athleteId)}" role="checkbox" aria-checked="${sel}" tabindex="0" aria-label="${esc(r.name)}"`
     : `data-go="coach-athlete/${esc(r.athleteId)}" role="button" tabindex="0" aria-label="${esc(r.name)}${r.score != null ? `, score ${r.score}` : ''}. ${esc(meta.label)}"`}>
     ${SELECTING
-      ? `<div style="width:20px;height:20px;border-radius:6px;border:2px solid ${sel ? 'var(--green-bright)' : 'var(--hairline)'};background:${sel ? 'var(--green-bright)' : 'transparent'};display:grid;place-items:center;flex:none;color:#04140b;font-weight:900">${sel ? icon('check', 13) : ''}</div>`
+      ? `<div style="width:20px;height:20px;border-radius:6px;border:2px solid ${sel ? 'var(--green-bright)' : 'var(--hairline)'};background:${sel ? 'var(--green-bright)' : 'transparent'};display:grid;place-items:center;flex:none;color:var(--ink-on-accent);font-weight:900">${sel ? icon('check', 13) : ''}</div>`
       : `<span style="width:9px;height:9px;border-radius:50%;background:${meta.color};flex:none;box-shadow:0 0 8px ${meta.color}40"></span>`}
     <div class="rn">
       <div class="t">${esc(r.name)}${r.unit ? ` <small style="color:var(--text-3);font-weight:700">· ${esc(r.unit)}</small>` : ''}</div>
@@ -345,7 +345,7 @@ export const coachRoster = {
       .filter(([k, n]) => n > 0 || (FILTER.kind === 'status' && FILTER.value === k));
     const fchip = (kind, value, label, dotColor) => {
       const on = FILTER.kind === kind && String(FILTER.value || '') === String(value || '');
-      return `<button class="co-chip ${on ? 'on' : ''}" data-filter="${esc(kind)}:${esc(value == null ? '' : value)}">${dotColor ? `<span class="dot" style="background:${dotColor}"></span>` : ''}${esc(label)}</button>`;
+      return `<button class="co-chip ${on ? 'on' : ''}" aria-pressed="${on ? 'true' : 'false'}" data-filter="${esc(kind)}:${esc(value == null ? '' : value)}">${dotColor ? `<span class="dot" style="background:${dotColor}"></span>` : ''}${esc(label)}</button>`;
     };
     return `${head}
     <div class="rtools">
@@ -384,7 +384,14 @@ export const coachRoster = {
     const rosterRetry = root.querySelector('#roster-retry');
     if (rosterRetry) rosterRetry.addEventListener('click', () => { rosterRetry.disabled = true; loadMyBook(true).then(() => window.__render()); });
     const q = root.querySelector('#roster-q');
-    if (q) q.addEventListener('input', () => { Q = q.value; patchList(root); });
+    // Debounced (the profile school search's own idiom): patchList rebuilds the list subtree and
+    // re-wires per-row listeners, and per-keystroke that grows linearly with the roster.
+    let qTimer = null;
+    if (q) q.addEventListener('input', () => {
+      Q = q.value;
+      if (qTimer) clearTimeout(qTimer);
+      qTimer = setTimeout(() => { qTimer = null; patchList(root); }, 120);
+    });
     root.querySelectorAll('[data-sort]').forEach(b => b.addEventListener('click', () => {
       // The sort is the flagship case: fourteen rows re-ordering is information, not a repaint.
       SORT = { score: 'status', status: 'name', name: 'activity', activity: 'score' }[SORT]; window.__restate();

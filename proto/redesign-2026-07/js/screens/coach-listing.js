@@ -88,7 +88,7 @@ export default {
     return `${backHead(esc(l.display_name), 'OnStandard Coach Partner', 'coach-directory')}
 
     <section class="card pad" style="display:flex;gap:14px;align-items:center">
-      <div class="lic" style="width:52px;height:52px;border-radius:16px;background:linear-gradient(150deg,var(--blue),var(--cyan));color:#06121f;font-weight:800;font-size:19px">${esc(monogram(l.display_name))}</div>
+      <div class="lic" style="width:52px;height:52px;border-radius:var(--r-card-sm);background:linear-gradient(150deg,var(--blue-bright),var(--blue));color:var(--ink-on-accent);font-weight:800;font-size:19px">${esc(monogram(l.display_name))}</div>
       <div style="flex:1">
         <div style="font-size:16px;font-weight:800">${esc(l.display_name)}</div>
         <div class="ls" style="margin-top:2px">${esc((l.categories || []).map((c) => CAT_LABEL[c] || c).join(' · '))}</div>

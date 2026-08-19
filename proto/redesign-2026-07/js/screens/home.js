@@ -2,6 +2,7 @@ import { S, RT, act, slotHasPhoto, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
 import { appHead, scoreRing, esc, safeImg, collapseSection, emailVerifyBanner, wireEmailVerifyBanner, emptyState } from '../components.js';
 import { reveal } from '../motion.js';
+import { qualityAccent } from '../score-band.js';
 import { maybeShowLock } from '../lock-moment.js';
 import { DAY, MEAL_KEYS } from '../day.js';
 import { fetchMyDayReceipts, fetchRecentMeals, signedMealPhotoUrl, daysAgoISO, todayISO } from '../roles.js';
@@ -277,7 +278,7 @@ const pastResults = () => {
         value: r.quality != null ? String(r.quality) : 'Logged',
         unit: r.quality != null ? '/100' : null,
         qualityLabel: r.quality != null,
-        vClass: r.quality != null ? (r.quality >= 80 ? 'g' : r.quality >= 50 ? 'a' : 'r') : 'muted',
+        vClass: r.quality != null ? qualityAccent(r.quality) : 'muted',
         impact: 0,
         img: r._img || null,
         route: r.id ? `meal-view/${r.id}` : 'history',
@@ -372,7 +373,7 @@ const row = (i, hidePill) => `<div class="xrow-item ${i.color === 'green' ? 'gre
 function keepRecordCard() {
   if (!RT.hadRoster || RT.keepRecordSeen) return '';
   if ((RT.myCoach && RT.myCoach.teamId) || (RT.myTrainer && RT.myTrainer.practiceId)) return '';
-  return `<div class="lrow" id="keep-record" style="margin:12px 0 10px;background:linear-gradient(100deg, rgba(var(--green-rgb),0.10), rgba(var(--blue-rgb),0.05));border:1px solid var(--green-border);border-radius:14px;padding:12px 13px;cursor:pointer">
+  return `<div class="lrow" id="keep-record" style="margin:12px 0 10px;background:linear-gradient(100deg, rgba(var(--green-rgb),0.10), rgba(var(--blue-rgb),0.05));border:1px solid var(--green-border);border-radius:var(--r-card-sm);padding:12px 13px;cursor:pointer">
     <div class="xico sm green">${icon('shield', 16)}</div>
     <div class="xr"><div class="xa">Your record stays yours</div>
     <div class="xb" style="white-space:normal;line-height:1.45">Your roster ended. Every day you proved is still here; keep it going.</div></div>
@@ -384,7 +385,7 @@ function syncBanner() {
   const issue = S.syncIssue;
   if (issue === 'blocked') {
     const em = S.consent.guardianEmail;
-    return `<div class="lrow" data-go="guardian" style="margin:12px 0 10px;background:rgba(var(--amber-rgb), 0.10);border:1px solid var(--amber-border);border-radius:14px;padding:12px 13px">
+    return `<div class="lrow" data-go="guardian" style="margin:12px 0 10px;background:rgba(var(--amber-rgb), 0.10);border:1px solid var(--amber-border);border-radius:var(--r-card-sm);padding:12px 13px">
       <div class="xico sm" style="background:rgba(var(--amber-rgb), 0.18);color:var(--amber-bright)">${icon('lock', 16)}</div>
       <div class="xr"><div class="xa">${em ? 'Waiting on your parent' : 'One step before your day syncs'}</div>
       <div class="xb">${em ? 'Everything you log is safe on this phone until they approve.' : 'You’re under 18, so a parent approves before your day reaches your coach. Tap to send it.'}</div></div>
@@ -392,7 +393,7 @@ function syncBanner() {
     </div>`;
   }
   if (issue === 'error') {
-    return `<div class="lrow" style="margin:12px 0 10px;background:rgba(var(--blue-rgb), 0.08);border:1px solid var(--hairline);border-radius:14px;padding:12px 13px;cursor:default">
+    return `<div class="lrow" style="margin:12px 0 10px;background:rgba(var(--blue-rgb), 0.08);border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:12px 13px;cursor:default">
       <div class="xico sm gray">${icon('wifiOff', 16)}</div>
       <div class="xr"><div class="xa">Waiting to sync</div>
       <div class="xb">Your entry is saved and will upload automatically when you reconnect.</div></div>

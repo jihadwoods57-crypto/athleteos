@@ -39,7 +39,7 @@ export const devices = {
       return `${head}
       <section class="card pad">
         <div style="font-size:15.5px;font-weight:800">Bring your recovery data in</div>
-        <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:6px;line-height:1.5">Connect and your last-night <b>sleep</b>, <b>HRV</b>, and <b>resting heart rate</b> show up here as context for your recovery check-in. Read-only — it never changes your score.</div>
+        <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:6px;line-height:1.5">Connect and your last-night <b>sleep</b>, <b>HRV</b>, and <b>resting heart rate</b> show up here as context for your recovery check-in. Read-only: it never changes your score.</div>
         <button class="btn green" id="dev-connect" style="width:100%;margin-top:14px" ${DEV.busy ? 'disabled' : ''}>${DEV.busy ? 'Connecting…' : 'Connect Apple Health / Health Connect'}</button>
       </section>`;
     }
@@ -52,7 +52,7 @@ export const devices = {
       ${s.sleepHours != null ? readingRow('moon', 'Sleep', fmtSleep(s.sleepHours)) : ''}
       ${s.hrvMs != null ? readingRow('bolt', 'HRV', `${Math.round(s.hrvMs)} ms`) : ''}
       ${s.restingHr != null ? readingRow('bolt', 'Resting HR', `${Math.round(s.restingHr)} bpm`) : ''}`
-      : `<div style="font-size:13px;font-weight:600;color:var(--text-2)">Connected — no reading yet. Your next sync will show last night's sleep, HRV, and resting heart rate here.</div>`}
+      : `<div style="font-size:13px;font-weight:600;color:var(--text-2)">Connected. No reading yet; your next sync will show last night's sleep, HRV, and resting heart rate here.</div>`}
     </section>
     <div style="text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:12px;padding:0 20px;line-height:1.4">Shown for context. Your recovery score still comes from your own check-in.</div>`;
   },
@@ -115,7 +115,7 @@ export const recruiting = {
     <div class="sidebox" style="margin-top:12px">
       <div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
       <div><div class="tt">Not verified yet</div>
-      <div class="ts">Connect a coach to begin building a verified record — verification means a real coach watches the same numbers.</div>
+      <div class="ts">Connect a coach to begin building a verified record. Verification means a real coach watches the same numbers.</div>
       <div style="margin-top:8px"><button class="btn ghost sm" data-go="connect" style="width:auto;padding:0 18px">Connect a coach</button></div></div>
     </div>`}
 
@@ -175,10 +175,10 @@ export const restrictions = {
     const R = currentRestrictions();
     const has = (arr, n) => arr.some((x) => (x.name || x) === n);
     const sevOf = (n) => { const a = R.allergies.find((x) => x.name === n); return a ? a.severity : 'severe'; };
-    const chip = (n, on) => `<span class="chp rx-chip ${on ? 'on' : ''}" data-name="${esc(n)}">${on ? '✓ ' : ''}${esc(n)}</span>`;
+    const chip = (n, on) => `<span class="chp rx-chip ${on ? 'on' : ''}" data-name="${esc(n)}">${on ? `${icon('check', 12)} ` : ''}${esc(n)}</span>`;
     const customs = (arr, opts) => arr.map((x) => x.name || x).filter((n) => !opts.includes(n));
     return `
-    ${backHead('Food Restrictions', 'Allergies, intolerances, and preferences — kept separate', 'profile')}
+    ${backHead('Food Restrictions', 'Allergies, intolerances, and preferences, kept separate', 'profile')}
 
     <div class="eyebrow">Allergies · medical, taken seriously</div>
     <div class="chip-row" id="rx-allergies">
@@ -203,7 +203,7 @@ export const restrictions = {
     <section class="card" style="padding:6px 16px">
       ${[
         ['camera', 'Detected foods are compared', 'The app compares detected foods and label entries with your saved restrictions. Detection may miss ingredients, preparation methods, or cross-contact.'],
-        ['bell', 'Severe allergies warn loudest', 'A possible severe-allergen conflict warns you before you confirm the log — it names the allergen and tells you what it can’t be sure of.'],
+        ['bell', 'Severe allergies warn loudest', 'A possible severe-allergen conflict warns you before you confirm the log. It names the allergen and tells you what it can’t be sure of.'],
         ['shield', 'Always verify severe allergens yourself', 'This never replaces reading labels, asking staff, or medical guidance. Treat every severe allergen as unverified until you check it.'],
       ].map(([ic, t, s]) => `
         <div class="lrow" style="cursor:default">
@@ -243,7 +243,7 @@ export const restrictions = {
     const wireChip = (ch) => ch.addEventListener('click', () => {
       ch.classList.toggle('on');
       const on = ch.classList.contains('on');
-      ch.textContent = `${on ? '✓ ' : ''}${ch.getAttribute('data-name')}`;
+      ch.innerHTML = `${on ? `${icon('check', 12)} ` : ''}${esc(ch.getAttribute('data-name'))}`;
       if (ch.closest('#rx-allergies')) paintSeverity();
     });
     root.querySelectorAll('.rx-chip').forEach(wireChip);
@@ -257,7 +257,7 @@ export const restrictions = {
       input.value = '';
       const wrap = root.querySelector(kind === 'allergy' ? '#rx-allergies' : kind === 'intolerance' ? '#rx-intolerances' : '#rx-preferences');
       if ([...wrap.querySelectorAll('.chp')].some((c) => c.getAttribute('data-name').toLowerCase() === name.toLowerCase())) return;
-      wrap.insertAdjacentHTML('beforeend', `<span class="chp rx-chip on" data-name="${esc(name)}">✓ ${esc(name)}</span>`);
+      wrap.insertAdjacentHTML('beforeend', `<span class="chp rx-chip on" data-name="${esc(name)}">${icon('check', 12)} ${esc(name)}</span>`);
       wireChip(wrap.lastElementChild);
       if (kind === 'allergy') paintSeverity();
     }));
@@ -356,7 +356,7 @@ export const teamDiet = {
       return `${head}
       <div class="state-demo"><div class="sd-ic">${icon('bell', 24)}</div>
       <div class="sd-t">No declarations yet</div>
-      <div class="sd-s">When your athletes declare restrictions and allergies in their profile, every one lands here — severity-flagged, one screen, travel-ready. Nothing shows until it's their real declaration; a dietary sheet is the last place for placeholder data.</div></div>
+      <div class="sd-s">When your athletes declare restrictions and allergies in their profile, every one lands here: severity-flagged, one screen, travel-ready. Nothing shows until it's their real declaration; a dietary sheet is the last place for placeholder data.</div></div>
       <div style="height:10px"></div>`;
     }
     return `${head}
@@ -384,7 +384,7 @@ export const injury = {
   render() {
     const on = RT.injured;
     return `
-    ${backHead('Injury Mode', on ? 'Your Standard adapts while you heal' : 'Report it — your Standard adapts', 'home')}
+    ${backHead('Injury Mode', on ? 'Your Standard adapts while you heal' : 'Report it. Your Standard adapts', 'home')}
 
     ${on ? `
     <div class="eyebrow">What changed in your Standard</div>
@@ -392,7 +392,7 @@ export const injury = {
       ${[
         ['bolt', 'Rehab replaces intensity', 'Band work 2×15 before practice, on your requirements list now.'],
         ['utensils', 'Nutrition tilts anti-inflammatory', 'Protein stays on target; add color, cut the fried stuff while you heal.'],
-        ['moon', 'Recovery counts double attention', `Sleep is when tissue heals — Recovery stays ${liveWeightPct('checkin') + liveWeightPct('recovery')}% of your score, with more eyes on it.`],
+        ['moon', 'Recovery counts double attention', `Sleep is when tissue heals. Recovery stays ${liveWeightPct('checkin') + liveWeightPct('recovery')}% of your score, with more eyes on it.`],
       ].map(([ic, t, s]) => `
         <div class="lrow" style="cursor:default">
           <div class="lic">${icon(ic, 17)}</div>
@@ -405,16 +405,16 @@ export const injury = {
     : `
     <section class="card pad">
       <div style="font-size:15.5px;font-weight:800">Hurt, or worried you might be?</div>
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:4px;line-height:1.5">Report it. Your Standard adapts — rehab joins your list and nutrition shifts to healing — and the right people see the right things.</div>
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:4px;line-height:1.5">Report it. Your Standard adapts (rehab joins your list and nutrition shifts to healing) and the right people see the right things.</div>
       <button class="btn primary sm" data-act="toggleInjury" data-then="injury" style="margin-top:12px;width:auto;padding:0 22px">${icon('bolt', 16)} Report an injury or pain</button>
     </section>`}
 
     <div class="eyebrow">Who does what</div>
     <section class="card" style="padding:6px 16px">
       ${[
-        ['user', 'You report', 'Pain or an injury concern — that’s your part. Reporting is never punished.'],
+        ['user', 'You report', 'Pain or an injury concern: that’s your part. Reporting is never punished.'],
         ['heart', 'Medical decides', 'An authorized athletic trainer or medical professional manages restrictions and clearance. Return-to-play is theirs, not an app setting.'],
-        ['users', 'Coach sees participation', 'Your coach sees your participation status and adapted Standard — not a diagnosis, and they never medically clear you.'],
+        ['users', 'Coach sees participation', 'Your coach sees your participation status and adapted Standard, not a diagnosis, and they never medically clear you.'],
       ].map(([ic, t, s]) => `
         <div class="lrow" style="cursor:default">
           <div class="lic">${icon(ic, 17)}</div>
@@ -426,7 +426,7 @@ export const injury = {
     <div class="sidebox">
       <div class="req-icon p" style="width:38px;height:38px">${icon('lock', 17)}</div>
       <div><div class="tt">Who can see injury details</div>
-      <div class="ts">Your report goes to your athletic trainer and coach connection only. Teammates never see it. If something feels urgent — severe pain, a head injury, numbness — tell an adult and get care first; the app comes second.</div></div>
+      <div class="ts">Your report goes to your athletic trainer and coach connection only. Teammates never see it. If something feels urgent (severe pain, a head injury, numbness), tell an adult and get care first; the app comes second.</div></div>
     </div>
     <div style="height:10px"></div>
     `;
@@ -456,7 +456,7 @@ export const coachVoice = {
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic" style="background:rgba(var(--purple-rgb),0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div>
-        <div class="lm"><div class="lt">Coach your AI</div><div class="ls">${enabled ? 'On — always labeled as AI, never signed as you' : 'Off — the AI uses its neutral default voice'}</div></div>
+        <div class="lm"><div class="lt">Coach your AI</div><div class="ls">${enabled ? 'On: always labeled as AI, never signed as you' : 'Off: the AI uses its neutral default voice'}</div></div>
         <div class="seg" style="width:104px" id="cv-enabled"><button class="${enabled ? 'on' : ''}">On</button><button class="${enabled ? '' : 'on'}">Off</button></div>
       </div>
     </section>
@@ -473,7 +473,7 @@ export const coachVoice = {
 
     <div class="eyebrow">Your instructions · optional</div>
     <textarea id="cv-instructions" class="ob-input" maxlength="500" rows="3" style="min-height:76px;resize:vertical" placeholder="e.g. Always push vegetables. Keep advice tied to our 4-meal structure. Talk like a strength coach, not a dietitian.">${esc(cv.instructions || '')}</textarea>
-    <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin:6px 2px 0;line-height:1.4">Style guidance only — it can never change numbers, add requirements, or unlock medical advice.</div>
+    <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin:6px 2px 0;line-height:1.4">Style guidance only. It can never change numbers, add requirements, or unlock medical advice.</div>
 
     <div class="eyebrow">Phrases the AI may echo · tap to approve</div>
     <section class="card" style="padding:6px 16px" id="cv-approved">
@@ -491,7 +491,7 @@ export const coachVoice = {
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
       <div><div class="tt">Hard limits</div>
-      <div class="ts">Every AI message is labeled as AI and never signed as you. It reinforces rulings you already made, in your tone — it never creates requirements, changes deadlines, alters scores, or gives medical advice. New coaching always comes from you.</div></div>
+      <div class="ts">Every AI message is labeled as AI and never signed as you. It reinforces rulings you already made, in your tone. It never creates requirements, changes deadlines, alters scores, or gives medical advice. New coaching always comes from you.</div></div>
     </div>
     <div id="cv-status" style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px"></div>
     <div style="height:10px"></div>
@@ -604,7 +604,7 @@ export const weekPattern = {
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('clock', 17)}</div>
       <div><div class="tt">How this is used</div>
-      <div class="ts">A requirement you tag as <b>training-only</b> or <b>rest-only</b> in the standards editor applies only on those days. On a rest day, training-only meals simply aren’t required — they don’t count against the athlete’s score. Leave every day “Training” for no change.</div></div>
+      <div class="ts">A requirement you tag as <b>training-only</b> or <b>rest-only</b> in the standards editor applies only on those days. On a rest day, training-only meals simply aren’t required; they don’t count against the athlete’s score. Leave every day “Training” for no change.</div></div>
     </div>
     <div style="height:10px"></div>
     `;

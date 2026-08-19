@@ -526,7 +526,7 @@ const steps = [
       if (joined) {
         return `
         <div class="standard-set">
-          <div class="halo"><div class="core" style="background:linear-gradient(155deg,#f59e0b,#d97706)">${icon('users', 34)}</div></div>
+          <div class="halo"><div class="core" style="background:linear-gradient(155deg,var(--blue),var(--blue-deep))">${icon('users', 34)}</div></div>
           <div class="ob-title" style="margin-top:22px">You’re on staff.</div>
           <div class="ob-sub" style="padding:0 8px">${esc(joined.teamName || 'The team')} · ${esc(roleLabel(normalizeRole(joined.role)))}. The roster, standards, and activity feed are yours to work.</div>
         </div>`;
@@ -534,11 +534,11 @@ const steps = [
       const code = o.teamCode || '';
       return `
       <div class="standard-set">
-        <div class="halo"><div class="core" style="background:linear-gradient(155deg,#f59e0b,#d97706)">${icon('users', 34)}</div></div>
+        <div class="halo"><div class="core" style="background:linear-gradient(155deg,var(--blue),var(--blue-deep))">${icon('users', 34)}</div></div>
         <div class="ob-title" style="margin-top:22px">Your team code.</div>
         <div class="ob-sub" style="padding:0 8px">Send it to the group chat. Athletes enter it once and their work starts counting toward your board.</div>
         <div style="height:22px"></div>
-        ${code ? `<div class="code-boxes">${code.split('').map((ch) => `<div class="cb filled" style="border-color:var(--amber-border);background:rgba(var(--amber-rgb),0.08)">${esc(ch)}</div>`).join('')}</div>
+        ${code ? `<div class="code-boxes fit">${code.split('').map((ch) => `<div class="cb filled" style="border-color:var(--amber-border);background:rgba(var(--amber-rgb),0.08)">${esc(ch)}</div>`).join('')}</div>
         <div style="height:12px"></div>
         <div style="display:flex;justify-content:center;gap:8px">
           <button class="btn ghost sm" id="copy-code" style="width:auto;padding:0 22px">${icon('clipboard', 16)} Copy code</button>

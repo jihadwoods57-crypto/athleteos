@@ -333,11 +333,12 @@ describe("Coach's Focus — the one line an athlete remembers (founder 2026-08-0
 
   test('the costliest miss owns the focus, with per-meal day math when it is protein', () => {
     const f = coachFocus({ ...lowProtein, nextMealName: 'Lunch', dayGap: 120, mealsRemaining: 2, numbers: true } as any);
-    expect(f).toBe('Prioritize lean protein at lunch — around 60g gets you back on pace.');
+    // Copy updated 2026-08-19: DESIGN.md bans em dashes in copy; the burn-down reworded these.
+    expect(f).toBe('Prioritize lean protein at lunch; around 60g gets you back on pace.');
   });
   test('a clean plate earns the repeat line, never an invented problem', () => {
     expect(coachFocus({ ...clean, nextMealName: 'Lunch', dayGap: 60, mealsRemaining: 2 } as any))
-      .toBe('Great plate — repeat this structure tomorrow.');
+      .toBe('Great plate. Repeat this structure tomorrow.');
   });
   test('Intuitive (numbers:false) keeps every directive figure-free', () => {
     const f = coachFocus({ ...lowProtein, nextMealName: 'Lunch', dayGap: 120, mealsRemaining: 2, numbers: false } as any);

@@ -77,7 +77,7 @@ export default {
     <section class="card" style="padding:6px 16px">
       ${list.map((l) => `
       <div class="lrow" data-go="coach-listing/${esc(l.slug)}" style="align-items:flex-start">
-        <div class="lic" style="background:linear-gradient(150deg,var(--blue),var(--cyan));color:#06121f;font-weight:800;font-size:14px">${esc(monogram(l.display_name))}</div>
+        <div class="lic" style="background:linear-gradient(150deg,var(--blue-bright),var(--blue));color:var(--ink-on-accent);font-weight:800;font-size:14px">${esc(monogram(l.display_name))}</div>
         <div class="lm" style="flex:1">
           <div class="lt">${esc(l.display_name)}${(l.categories || []).some((c) => c !== 'accountability') ? ` <span style="color:var(--blue-bright)">${icon('shield', 13)}</span>` : ''}</div>
           <div class="ls">${esc((l.categories || []).map((c) => CAT_LABEL[c] || c).join(' · '))}</div>

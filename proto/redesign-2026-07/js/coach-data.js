@@ -15,6 +15,7 @@
 import * as roles from './roles.js';
 import { CATALOG, resolveRequirementSet, catalogFromItems, planStyleFromItems } from './requirements.js';
 import { athleteStatus } from './status.js';
+import { ON_STANDARD } from './score-band.js';
 import { effectiveRoomLabel } from './rooms.js';
 
 /** The plan style a TEAM STANDARD governs for one roster row, or null when none does (0142).
@@ -57,7 +58,7 @@ export function consecutiveOnStandard(scoreHistory) {
   let n = 0;
   let expected = null;
   for (const r of rows) {
-    if (!r || typeof r.score !== 'number' || r.score < 80) break;
+    if (!r || typeof r.score !== 'number' || r.score < ON_STANDARD) break;
     if (expected !== null && r.date !== expected) break;
     n++;
     const d = new Date(r.date + 'T00:00:00');

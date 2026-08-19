@@ -453,7 +453,7 @@ const steps = [
       const code = (RT.ob || {}).practiceCode || '';
       return code ? `
         <div style="height:8px"></div>
-        <div class="code-boxes">${code.split('').map((c) => `<div class="cb filled" style="border-color:var(--purple-border);background:rgba(var(--purple-rgb),0.08)">${esc(c)}</div>`).join('')}</div>
+        <div class="code-boxes fit">${code.split('').map((c) => `<div class="cb filled" style="border-color:var(--purple-border);background:rgba(var(--purple-rgb),0.08)">${esc(c)}</div>`).join('')}</div>
         <div style="height:14px"></div>
         <div style="display:flex;justify-content:center;gap:8px">
           <button class="btn ghost sm" id="copy-code" style="width:auto;padding:0 22px">${icon('clipboard', 16)} Copy code</button>

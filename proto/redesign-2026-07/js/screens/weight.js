@@ -25,13 +25,15 @@ function sparkline(hist, w = 300, h = 70) {
   });
   const d = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
   const last = pts[pts.length - 1];
+  /* Inline SVG inherits CSS custom properties, so the stops ride the theme tokens: the old
+     hardcoded #3B82F6/#34D399 stayed at dark values on the light canvas (mint on white). */
   return `<svg class="trendline" width="100%" viewBox="0 0 ${w} ${h}">
     <defs><linearGradient id="wg" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.4"/><stop offset="100%" stop-color="#34D399"/>
+      <stop offset="0%" stop-color="var(--blue)" stop-opacity="0.4"/><stop offset="100%" stop-color="var(--green)"/>
     </linearGradient></defs>
     <path d="${d}" fill="none" stroke="url(#wg)" stroke-width="2.5" stroke-linecap="round"/>
-    <circle cx="${last[0]}" cy="${last[1]}" r="4.5" fill="#34D399"/>
-    <circle cx="${last[0]}" cy="${last[1]}" r="8.5" fill="#34D399" opacity="0.25"/>
+    <circle cx="${last[0]}" cy="${last[1]}" r="4.5" fill="var(--green)"/>
+    <circle cx="${last[0]}" cy="${last[1]}" r="8.5" fill="var(--green)" opacity="0.25"/>
   </svg>`;
 }
 

@@ -102,7 +102,8 @@
   60%  { transform: scale(0.94); opacity: 1; }
   to   { transform: none; opacity: 1; }
 }
-.lockstamp .ls-t { font-family: var(--font-display); font-size: 26px; font-weight: 900; letter-spacing: -0.01em; }
+/* Prose title, not a score: --font-display is reserved for score numerals (DESIGN.md). */
+.lockstamp .ls-t { font-family: var(--font); font-size: 26px; font-weight: 800; letter-spacing: -0.01em; }
 .lockstamp .ls-s { font-size: 13px; font-weight: 600; color: var(--text-2); line-height: 1.5; margin-top: 8px; }
 .lockstamp .ls-x {
   margin-top: 18px; width: 100%; padding: 13px; border: none; cursor: pointer;
@@ -138,18 +139,17 @@
   position: fixed; pointer-events: none;
   border: 1.5px solid var(--blue-bright); border-radius: var(--r-card);
   box-shadow: 0 0 0 1px rgba(4,6,12,0.5), 0 0 22px rgba(var(--blue-rgb), 0.35);
-  transition: top var(--dur-2) var(--ease-out), left var(--dur-2) var(--ease-out),
-              width var(--dur-2) var(--ease-out), height var(--dur-2) var(--ease-out);
+  /* Step travel is FLIP (tour.js): geometry snaps, an inline transform carries the motion.
+     The old top/left/width/height transitions here were the app's last layout-property animation. */
 }
 .tour-card {
   position: fixed; width: min(320px, calc(100vw - 24px));
   background: var(--surface-1); border: 1px solid var(--hairline);
   border-radius: var(--r-card); padding: 15px 16px 13px;
   box-shadow: var(--sh-raised);
-  transition: top var(--dur-2) var(--ease-out), left var(--dur-2) var(--ease-out);
 }
 .tour-count { font-size: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
-.tour-t { font-family: var(--font-display); font-size: 17px; font-weight: 900; letter-spacing: -0.01em; margin-top: 3px; }
+.tour-t { font-family: var(--font); font-size: 17px; font-weight: 800; letter-spacing: -0.01em; margin-top: 3px; }
 .tour-b { font-size: 13px; font-weight: 600; color: var(--text-2); line-height: 1.5; margin-top: 6px; }
 .tour-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
 .tour-skip {
@@ -187,7 +187,9 @@
 }
 :root[data-theme="light"] .sheet-scrim { background: rgba(15,23,42,0.34); }
 .sheet {
-  position: absolute; left: 10px; right: 10px; bottom: 14px; z-index: 6;
+  /* max() with the home-indicator inset, same idiom as .memsheet: at a bare 14px the Cancel row
+     sat inside the iOS gesture zone and a tap there could fire the home gesture instead. */
+  position: absolute; left: 10px; right: 10px; bottom: max(14px, env(safe-area-inset-bottom, 0px)); z-index: 6;
   background: #101827; border: 1px solid var(--hairline);
   border-radius: var(--r-card); padding:18px 16px 14px;
   box-shadow: 0 -18px 60px rgba(0,0,0,0.6);
@@ -391,11 +393,11 @@
 .wel-logo {
   position: relative; width: 104px; height: 104px; margin:0 auto 16px;
   /* subtle teal→blue ambient glow behind the mark; the rest stays near-black */
-  filter: drop-shadow(0 0 24px rgba(var(--teal-rgb), 0.22)) drop-shadow(0 0 54px rgba(37,99,235,0.20));
+  filter: drop-shadow(0 0 24px rgba(var(--teal-rgb), 0.22)) drop-shadow(0 0 54px rgba(var(--blue-deep-rgb), 0.20));
 }
 .wel-logo::before {
   content: ''; position: absolute; inset: -44px; z-index: -1; pointer-events: none;
-  background: radial-gradient(closest-side, rgba(var(--teal-rgb), 0.15), rgba(37,99,235,0.09) 52%, transparent 74%);
+  background: radial-gradient(closest-side, rgba(var(--teal-rgb), 0.15), rgba(var(--blue-deep-rgb), 0.09) 52%, transparent 74%);
 }
 /* The payoff arc draws itself in on entry — the score climbing to the standard.
    Arc length measured ≈88.85 (getTotalLength); dasharray 89 covers it exactly.
@@ -433,6 +435,7 @@
 .wel .btn.primary {
   background: linear-gradient(133deg, var(--blue-deep), var(--teal-deep));
   box-shadow: var(--sh-blue), 0 8px 36px rgba(var(--teal-rgb), 0.26);
+  color: #fff; /* deep fill in BOTH themes, so the ink stays white (base .btn.primary ink flips) */
 }
 .wel .btn.primary:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 3px; }
 .wel-arrow { font-weight: 800; }
@@ -466,11 +469,11 @@
 }
 .si-logo {
   position: relative; width: 60px; height: 60px; margin:0 auto 12px;
-  filter: drop-shadow(0 0 20px rgba(var(--teal-rgb), 0.22)) drop-shadow(0 0 44px rgba(37,99,235,0.20));
+  filter: drop-shadow(0 0 20px rgba(var(--teal-rgb), 0.22)) drop-shadow(0 0 44px rgba(var(--blue-deep-rgb), 0.20));
 }
 .si-logo::before {
   content: ''; position: absolute; inset: -36px; z-index: -1; pointer-events: none;
-  background: radial-gradient(closest-side, rgba(var(--teal-rgb), 0.15), rgba(37,99,235,0.09) 52%, transparent 74%);
+  background: radial-gradient(closest-side, rgba(var(--teal-rgb), 0.15), rgba(var(--blue-deep-rgb), 0.09) 52%, transparent 74%);
 }
 .si-mark { font-size: 28px; font-weight: 800; letter-spacing: -0.045em; line-height: 1; color: var(--blue-bright); }
 .si-mark .on { color: var(--text); }
@@ -498,6 +501,7 @@
   margin-top:22px;
   background: linear-gradient(133deg, var(--blue-deep), var(--teal-deep));
   box-shadow: var(--sh-blue), 0 8px 36px rgba(var(--teal-rgb), 0.26);
+  color: #fff; /* deep fill in BOTH themes, so the ink stays white (base .btn.primary ink flips) */
 }
 .si .btn.primary.si-cta:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 3px; }
 .si-cta.loading .si-arrow { display: none; }

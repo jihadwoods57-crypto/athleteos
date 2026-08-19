@@ -41,7 +41,11 @@
       anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ0d3J2eWx6b3l6bmhiemhnaXNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyODYyNDYsImV4cCI6MjA5Nzg2MjI0Nn0.mJBl-Esn2YRB_jaUv_SQXT8wGfbx06dx7Ss9xyGRoH0'
     };
   </script>
-  <script src="./js/vendor/supabase.js"></script>
+  <!-- defer: ~200KB of synchronous parse used to sit between HTML parse and DOMContentLoaded,
+       delaying the boot skeleton. Everything that touches window.supabase (js/supabase.js, and
+       router.js behind it) is a module, and modules are deferred by spec — so ordering holds:
+       deferred scripts run in document order before DOMContentLoaded. -->
+  <script src="./js/vendor/supabase.js" defer></script>
   <script type="module" src="./js/supabase.js"></script>
   <script type="module" src="./js/router.js"></script>
 </body>

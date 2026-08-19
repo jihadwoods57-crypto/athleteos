@@ -36,13 +36,13 @@ export const foodSearch = {
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">Common foods. For anything not listed, a photo or the nutrition label reads best.</div>
     <section class="card" style="padding:2px 0" id="fs-results"></section>
 
-    <div class="lrow" data-go="barcode-scan" style="border:1px solid var(--hairline);border-radius:15px;padding:12px 15px;margin-top:10px">
+    <div class="lrow" data-go="barcode-scan" style="border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:12px 15px;margin-top:10px">
       <div class="lic">${icon('barcode', 17)}</div>
       <div class="lm"><div class="lt">Scan a barcode</div><div class="ls">Packaged food, exact from the maker's own data</div></div>
       ${icon('chevron', 16, 'style="color:var(--text-3)"')}
     </div>
 
-    <div class="lrow" data-go="label-scan" style="border:1px solid var(--hairline);border-radius:15px;padding:12px 15px;margin-top:10px">
+    <div class="lrow" data-go="label-scan" style="border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:12px 15px;margin-top:10px">
       <div class="lic">${icon('edit', 17)}</div>
       <div class="lm"><div class="lt">Enter a nutrition label</div><div class="ls">Type the panel numbers — exact, never estimated</div></div>
       ${icon('chevron', 16, 'style="color:var(--text-3)"')}
@@ -148,7 +148,7 @@ export const labelScan = {
     const slot = S.currentSlot;
     const slotName = slot ? slotTitle(slot) : 'meal';
     const allergies = (RT.allergies || []).filter(Boolean);
-    const numField = 'width:100%;height:52px;border-radius:14px;background:var(--surface-1);border:1.5px solid var(--hairline);color:var(--text);font-size:17px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums';
+    const numField = 'width:100%;height:52px;border-radius:var(--r-card-sm);background:var(--surface-1);border:1.5px solid var(--hairline);color:var(--text);font-size:17px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums';
     return `
     ${backHead('Enter the Label', 'Type the numbers straight off the panel — exact, never estimated', 'camera')}
 
@@ -247,7 +247,7 @@ export const barcodeScan = {
     <section class="card pad">
       <div style="display:flex;gap:10px">
         <input id="bc-digits" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 038000138416" aria-label="Barcode digits"
-          style="flex:1;min-width:0;height:52px;border-radius:14px;background:var(--surface-1);border:1.5px solid var(--hairline);color:var(--text);font-size:17px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:0.06em" />
+          style="flex:1;min-width:0;height:52px;border-radius:var(--r-card-sm);background:var(--surface-1);border:1.5px solid var(--hairline);color:var(--text);font-size:17px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:0.06em" />
         <button class="btn green" id="bc-lookup" aria-label="Look up barcode" style="width:auto;padding:0 18px;height:52px;flex:none">${icon('search', 18)}</button>
       </div>
       ${canLive ? '' : `<div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:8px;line-height:1.4">Live camera scanning isn't supported in this app's browser engine yet. The printed digits are the same code, so typing them is just as exact.</div>`}

@@ -75,7 +75,7 @@ const steps = [
       <div class="ob2-hero">
         <div class="h-eyebrow">The problem</div>
         <div class="h-title">Your trainer sees <span class="accent">3 hours</span> a week.</div>
-        <div class="h-body">Sessions get coached. Meals, sleep, weekends — the rest of your week runs unwatched. That&rsquo;s where results are actually decided.</div>
+        <div class="h-body">Sessions get coached. Meals, sleep, weekends: the rest of your week runs unwatched. That&rsquo;s where results are actually decided.</div>
       </div>` },
 
   { id: 'gap', ch: 0, cta: 'So what closes it?',
@@ -86,7 +86,7 @@ const steps = [
       </div>
       ${countStat('3', 'hours a week with your trainer', '168 hours in your week − 3 coached = 165 on your own')}
       <div class="ob2-hero" style="flex:none;padding:0">
-        <div class="h-note">Retelling your week from memory isn&rsquo;t accountability. It&rsquo;s a story — and stories flatter.</div>
+        <div class="h-note">Retelling your week from memory isn&rsquo;t accountability. It&rsquo;s a story, and stories flatter.</div>
       </div>` },
 
   { id: 'answer', ch: 0, cta: 'Show me',
@@ -94,7 +94,7 @@ const steps = [
       <div class="ob2-hero">
         <div class="h-eyebrow">OnStandard&rsquo;s answer</div>
         <div class="h-title">One number. <span class="accent">All 168 hours.</span></div>
-        <div class="h-body">Every meal you photograph becomes part of one Daily Score — built from what you actually do, visible to the person who holds you to it.</div>
+        <div class="h-body">Every meal you photograph becomes part of one Daily Score, built from what you actually do, visible to the person who holds you to it.</div>
         <div class="h-note">No food diary. No retelling. One photo per meal is the whole job.</div>
       </div>` },
 
@@ -145,7 +145,7 @@ const steps = [
 
   { id: 'sessions', ch: 0, cta: 'Next',
     title: () => 'How many training sessions a week?',
-    sub: () => 'With a trainer or on your own — count them all.',
+    sub: () => 'With a trainer or on your own, count them all.',
     body: () => chipRow('sessionsPerWeek', [
       { v: '1-2', t: '1–2' }, { v: '3-4', t: '3–4' }, { v: '5+', t: '5+' },
       { v: 'none', t: 'None right now' },
@@ -153,17 +153,17 @@ const steps = [
 
   { id: 'between', ch: 0, cta: 'Next',
     title: () => 'What actually happens between sessions?',
-    sub: () => 'Pick everything that sounds familiar. No judgment — this is the part we fix.',
+    sub: () => 'Pick everything that sounds familiar. No judgment; this is the part we fix.',
     body: () => chipRow('betweenSessions', [
       { v: 'wing-it', t: 'I wing it' },
       { v: 'remember', t: 'I try to remember the plan' },
       { v: 'weekends', t: 'Weekends undo the week' },
-      { v: 'prove', t: 'I eat fine — I just can’t prove it' },
+      { v: 'prove', t: 'I eat fine, I just can’t prove it' },
     ], { multi: true }) },
 
   { id: 'acct-rate', ch: 0, cta: 'Next',
     title: () => 'How strong is your accountability right now?',
-    sub: () => 'The thing that catches you when motivation dips. Rate it honestly — nobody else is grading this.',
+    sub: () => 'The thing that catches you when motivation dips. Rate it honestly; nobody else is grading this.',
     body: () => scale10('accountabilityRating') },
 
   /* ==================== ch1 · See it ==================== */
@@ -175,8 +175,8 @@ const steps = [
       const verdict = !r
         ? 'Most results are decided in the hours nobody sees. OnStandard is how those hours start counting.'
         : r >= 8
-          ? `You rated your between-session accountability <b>${esc(String(r))}/10</b> — strong. OnStandard doesn’t replace that. It makes it visible, so the work you already do finally shows.`
-          : `You rated your between-session accountability <b>${esc(String(r))}/10</b>. Those 165 hours are exactly where it slips — and exactly the hours OnStandard covers.`;
+          ? `You rated your between-session accountability <b>${esc(String(r))}/10</b>. Strong. OnStandard doesn’t replace that. It makes it visible, so the work you already do finally shows.`
+          : `You rated your between-session accountability <b>${esc(String(r))}/10</b>. Those 165 hours are exactly where it slips, and exactly the hours OnStandard covers.`;
       return `
         ${countStat('165', 'hours a week your results are <b>on you</b>', 'Your trainer can coach ~3 of your 168 hours. The other 165 shape the outcome.')}
         <div class="ob2-gap-verdict">${verdict}</div>`;
@@ -197,22 +197,22 @@ const steps = [
       const style = styleLabel(styleForStructureAnswer(o.structurePref));
       const mirrors = [
         mirrorCard('target', goal
-          ? `You said your goal is <b>${esc(goal)}</b> — so every meal is scored against it, not against a generic diet.`
-          : 'Your goal sets the scoring — every meal is graded against it, not a generic diet.'),
+          ? `You said your goal is <b>${esc(goal)}</b>, so every meal is scored against it, not against a generic diet.`
+          : 'Your goal sets the scoring: every meal is graded against it, not a generic diet.'),
         mirrorCard('clipboard', `Your plan style: <b>${esc(style.name)}</b>. ${esc(style.short)}. Your trainer can confirm or adjust it once you connect.`),
         mirrorCard('clock', slip
-          ? `You said <b>${esc(slip)}</b> — so your score runs all seven days. Weekends count the same as Tuesdays.`
+          ? `You said <b>${esc(slip)}</b>, so your score runs all seven days. Weekends count the same as Tuesdays.`
           : 'Your score runs all seven days. Weekends count the same as Tuesdays.'),
         mirrorCard(o.trainerStatus === 'have' ? 'users' : 'sparkle', o.trainerStatus === 'have'
-          ? 'You have a trainer — your score hands them your whole week, not just your sessions.'
-          : 'No trainer connected yet — the AI nutritionist reads every meal and holds the line daily until you add one.'),
+          ? 'You have a trainer. Your score hands them your whole week, not just your sessions.'
+          : 'No trainer connected yet. The AI nutritionist reads every meal and holds the line daily until you add one.'),
       ].join('');
       return `${mirrors}
         <div style="height:12px"></div>
         ${phoneCard('The system', `<div class="comp-read">
           ${row('camera', 'One photo per meal', 'AI reads foods, portions, and macros in seconds')}
           ${row('bars', 'One Daily Score', `Nutrition ${liveWeightPct('nutrition')} · recovery ${liveWeightPct('checkin') + liveWeightPct('recovery')}`)}
-          ${row('eye', 'A witness', 'Your trainer — or the AI — sees the score, not a story')}
+          ${row('eye', 'A witness', 'Your trainer (or the AI) sees the score, not a story')}
         </div>`)}`;
     } },
 
@@ -220,7 +220,7 @@ const steps = [
     body: () => `
       <div class="ob2-habit" style="padding-top:56px">
         <div class="hb">Before your first bite, <span class="accent">take one photo.</span></div>
-        <div class="hs">That&rsquo;s the entire ask. One habit starts the whole system — the analysis, the score, and the accountability all follow from it.</div>
+        <div class="hs">That&rsquo;s the entire ask. One habit starts the whole system: the analysis, the score, and the accountability all follow from it.</div>
       </div>` },
 
   /* ==================== ch3 · Commit ==================== */
@@ -245,7 +245,7 @@ const steps = [
         ${phoneCard('Your standard', `<div class="comp-read">
           ${row('camera', 'The habit', 'One photo before the first bite, every meal')}
           ${row('target', 'The goal', goal ? `Every meal scored against ${goal}` : 'Every meal scored against your goal')}
-          ${row('bell', 'The pressure', p ? `${p[0]} — ${p[1]}` : 'Set on the last screen — change it any time')}
+          ${row('bell', 'The pressure', p ? `${p[0]} · ${p[1]}` : 'Set on the last screen; change it any time')}
         </div>`)}
         <div class="ob-foot" style="margin-top:auto">
           ${commitButton(committed)}
@@ -265,13 +265,13 @@ const steps = [
 
   { id: 'proof', ch: 4, cta: 'Continue',
     title: () => 'What holding it looks like.',
-    sub: () => 'Illustrative — not actual customers yet.',
+    sub: () => 'Illustrative, not actual customers yet.',
     /* LAUNCH PLACEHOLDERS — realistic composites, not real customers. The founder
        swaps these for real client quotes (with permission) before go-live. */
     body: () => `
       ${testimonial({ quote: 'I stopped narrating my week to my trainer. She opens my score and we spend the session training instead of confessing.', name: 'Dana', role: 'Fitness client', initials: 'D', stat: '9 wk', statKey: 'logging streak' })}
       ${testimonial({ quote: 'The weekends were my black box. One photo per meal fixed what two years of food diaries never did.', name: 'Marcus', role: 'Fitness client', initials: 'M', stat: '−14 lb', statKey: 'in 5 months' })}
-      <div class="ob2-scan-note">Results vary with consistency — the score only reflects what you actually log.</div>` },
+      <div class="ob2-scan-note">Results vary with consistency. The score only reflects what you actually log.</div>` },
 
   { id: 'connect', ch: 4, cta: 'Continue', skip: true,
     /* If the account already exists (user returned here via "I have a code" on the paywall),
@@ -279,8 +279,8 @@ const steps = [
     next: () => (RT.userId ? (paywallVariant('client') === 'trainer_covered' ? 'covered' : 'plans') : 'account'),
     title: (o) => (o.trainerStatus === 'have' ? 'Connect your trainer.' : 'Have a trainer code?'),
     sub: (o) => (o.trainerStatus === 'have'
-      ? 'Ask your trainer for your client code — it links your daily score to their board from day one.'
-      : 'If a trainer gave you a code, enter it here. No trainer? Skip — the AI holds the line, and you can connect one any time from Profile.'),
+      ? 'Ask your trainer for your client code. It links your daily score to their board from day one.'
+      : 'If a trainer gave you a code, enter it here. No trainer? Skip. The AI holds the line, and you can connect one any time from Profile.'),
     body: (o) => `
       <input id="cl-code" class="ob-input" placeholder="Client code" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="12" value="${esc((o.join && o.join.kind === 'practice' && o.join.code) || '')}" />
       <div id="cl-code-note" class="ob2-scan-note" style="text-align:left;min-height:18px"></div>`,
@@ -308,7 +308,7 @@ const steps = [
             } else {
               capture({ join: null });
               inp.removeAttribute('data-ok');
-              note.textContent = 'That code didn’t match a trainer — check it with them, or skip and connect later.';
+              note.textContent = 'That code didn’t match a trainer. Check it with them, or skip and connect later.';
               gateCta(root);
             }
           } catch { /* directory unreachable — code stays captured, note already honest */ }
@@ -332,7 +332,7 @@ const steps = [
         }
         inp.setAttribute('data-ok', '');
         capture({ join: { kind: 'practice', code } });
-        note.textContent = 'Code saved — it links you to your trainer when your account is created.';
+        note.textContent = 'Code saved. It links you to your trainer when your account is created.';
         gateCta(root);
         preview(code);
       };
@@ -382,7 +382,7 @@ const steps = [
         <div class="ob2-covered">
           <div class="halo"><div class="core">${icon('check', 38)}</div></div>
           <div class="ob-title" style="margin-top:18px">Covered by ${esc(who)}</div>
-          <div class="ob-sub" style="padding:0 10px">Your access rides on ${esc(where)}. Your trainer sets your price — no consumer paywall here.</div>
+          <div class="ob-sub" style="padding:0 10px">Your access rides on ${esc(where)}. Your trainer sets your price; no consumer paywall here.</div>
         </div>
         <div class="ob2-scan-note">Questions about cost go to your trainer, not to us.</div>
         <div class="ob-foot" style="margin-top:auto">
@@ -398,14 +398,14 @@ const steps = [
   { id: 'plans', ch: 4, noFoot: true,
     when: () => paywallVariant('client') !== 'trainer_covered',
     title: () => 'Pick your plan.',
-    sub: () => 'Today’s plan is ready — your trainer connection is one code away.',
+    sub: () => 'Today’s plan is ready. Your trainer connection is one code away.',
     body: (o) => `
       <div class="ob2-plans" data-obkey="plan">
         ${PLANS.individual.map((p) => planCard({ ...p, on: (o.plan || 'individual') === p.id })).join('')}
       </div>
-      <div class="ob2-scan-note">Nothing is charged today — you’re starting on the free preview either way.</div>
+      <div class="ob2-scan-note">Nothing is charged today. You’re starting on the free preview either way.</div>
       <div class="ob-foot" style="margin-top:auto">
-        <button class="btn green" id="ob2-finish">Start free — no card today</button>
+        <button class="btn green" id="ob2-finish">Start free, no card today</button>
         <div class="ob-textlink" role="button" data-go="obf/connect">I have a code</div>
       </div>`,
     mount(root) {

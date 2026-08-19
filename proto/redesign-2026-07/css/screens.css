@@ -21,9 +21,9 @@
   transition: transform 900ms var(--ease-out); }
 .bd-fill.g { background: linear-gradient(90deg, var(--green-deep), var(--green)); }
 .bd-fill.p { background: linear-gradient(90deg, var(--purple-deep), var(--purple)); }
-.bd-fill.b { background: linear-gradient(90deg, var(--blue-deep), var(--blue-bright)); }
-.bd-fill.c { background: linear-gradient(90deg, var(--cyan-deep), var(--cyan-bright)); }
-.bd-fill.a { background: linear-gradient(90deg, var(--amber-deep), var(--amber-bright)); }
+.bd-fill.b { background: linear-gradient(90deg, var(--blue-deep), var(--blue)); }
+.bd-fill.c { background: linear-gradient(90deg, var(--cyan-deep), var(--cyan)); }
+.bd-fill.a { background: linear-gradient(90deg, var(--amber-deep), var(--amber)); }
 .bd-note { font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-top:8px; }
 .reach { padding:16px; }
 .reach-row { display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom: 1px solid var(--hairline-soft); }
@@ -535,17 +535,17 @@
    the athlete keeps the solid blue (the only saturated blue in the thread), the AI sits on a quiet
    blue-tinted surface with NO border, the coach on plain surface with a hairline that survives on
    both themes. Radius goes to the system's 18 with a 6px tail corner, which is the difference
-   between "chat bubble" and "rounded rectangle". ---- */
+   between "chat bubble" and "rounded rectangle". (Radius later snapped to var(--r-card-sm).) ---- */
 /* overflow-wrap: one long unbroken token (a pasted URL, a 60-char food name) must break inside
    the bubble, not push it past the thread edge. Shared by all three thread renderers. */
-.msg .bubble { padding:11px 14px 12px; border-radius:18px; font-size:14.5px; font-weight:600; line-height:1.47; letter-spacing:-0.005em; overflow-wrap:anywhere; }
+.msg .bubble { padding:11px 14px 12px; border-radius:var(--r-card-sm); font-size:14.5px; font-weight:600; line-height:1.47; letter-spacing:-0.005em; overflow-wrap:anywhere; }
 .msg.coach .bubble { background: var(--surface-2); border: 1px solid var(--hairline-soft); border-top-left-radius: 6px; }
 .msg.ai .bubble { background: rgba(var(--blue-rgb), 0.09); border: none; border-top-left-radius: 6px; }
 .msg.athlete { align-self: flex-end; flex-direction: row-reverse; }
 .msg.athlete .bubble { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); color: #fff; border-top-right-radius: 6px; box-shadow: 0 2px 10px rgba(var(--blue-rgb),0.22); }
 /* A run of messages from one person tapers: only the first bubble wears the tail. */
-.msg.cont.coach .bubble, .msg.cont.ai .bubble { border-top-left-radius: 18px; }
-.msg.cont.athlete .bubble { border-top-right-radius: 18px; }
+.msg.cont.coach .bubble, .msg.cont.ai .bubble { border-top-left-radius: var(--r-card-sm); }
+.msg.cont.athlete .bubble { border-top-right-radius: var(--r-card-sm); }
 .msg .who { font-size:10.5px; font-weight:800; color: var(--text-3); margin-bottom:5px; margin-left:2px; letter-spacing:0.05em; text-transform:uppercase; }
 
 /* ---- the thread as a conversation (2026-07-28) ----------------------------------------------
@@ -1218,8 +1218,8 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* .b (commitment) and .a (amber) kept for any future non-zero weight; the cyan weekly-check-in
    hue is gone for good — that category merged into Recovery and .xf-bar i.c can never render
    again (S.breakdown is now literally S.explain: two entries, 'g' then 'p'). */
-.xf-bar i.b{background:linear-gradient(90deg,var(--blue-deep),var(--blue-bright))}
-.xf-bar i.a{background:linear-gradient(90deg,var(--amber-deep),var(--amber-bright))}
+.xf-bar i.b{background:linear-gradient(90deg,var(--blue-deep),var(--blue))}
+.xf-bar i.a{background:linear-gradient(90deg,var(--amber-deep),var(--amber))}
 .xhero .xh-next{display:flex;align-items:flex-start;gap:6px;font-size:var(--t-sm);font-weight:600;letter-spacing:-.01em;color:var(--text-2);margin-top:12px;padding-top:10px;border-top:1px solid var(--hairline-soft)}
 .xhero .xh-next svg{color:var(--blue-bright);flex:none}
 .xhero .xh-next b{color:var(--text);font-weight:800}
@@ -1289,7 +1289,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xstrip .ring-center.num .score{font-size:var(--t-xl);letter-spacing:var(--num-tight);color:var(--text);text-shadow:none}
 .xsegs{display:flex;gap:6px}
 .xsegs i{height:5px;flex:1;border-radius:var(--r-micro);background:var(--surface-3)}
-.xsegs i.on{background:linear-gradient(90deg,var(--green),var(--green-bright))}
+.xsegs i.on{background:linear-gradient(90deg,var(--green-deep),var(--green))}
 .seglabel{font-size:11.5px;font-weight:700;color:var(--text-2)}
 .seglabel b{color:var(--text);font-variant-numeric:tabular-nums}
 /* Tiered streak pill (strip) — passive-🔥 stays for a counted/short streak; once a 2+ day
@@ -1675,7 +1675,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
   background:var(--surface-3, var(--surface-2));border:1px solid var(--hairline);
   box-shadow:0 12px 32px rgba(0,0,0,0.45);transform-origin:50% 100%;
   animation:tapback-in var(--dur-1, 140ms) var(--ease-out, ease-out)}
-.tapback button{width:42px;height:42px;border:none;background:none;border-radius:50%;font-size:20px;line-height:1;cursor:pointer;
+.tapback button{width:44px;height:44px;border:none;background:none;border-radius:50%;font-size:20px;line-height:1;cursor:pointer;
   display:grid;place-items:center;transition:transform var(--dur-1) var(--ease-out),background var(--dur-1) var(--ease-out)}
 .tapback button:active{transform:scale(0.88)}
 .tapback button.on{background:var(--blue-surface)}
@@ -1867,9 +1867,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .cat-trend .fillb{height:100%;border-radius:var(--r-micro)}
 .cat-trend .fillb.g{background:linear-gradient(90deg,var(--green-deep),var(--green))}
 .cat-trend .fillb.p{background:linear-gradient(90deg,var(--purple-deep),var(--purple))}
-.cat-trend .fillb.b{background:linear-gradient(90deg,var(--blue-deep),var(--blue-bright))}
-.cat-trend .fillb.c{background:linear-gradient(90deg,var(--cyan-deep),var(--cyan-bright))}
-.cat-trend .fillb.a{background:linear-gradient(90deg,var(--amber-deep),var(--amber-bright))}
+.cat-trend .fillb.b{background:linear-gradient(90deg,var(--blue-deep),var(--blue))}
+.cat-trend .fillb.c{background:linear-gradient(90deg,var(--cyan-deep),var(--cyan))}
+.cat-trend .fillb.a{background:linear-gradient(90deg,var(--amber-deep),var(--amber))}
 .cat-trend .ct-v{width:38px;text-align:right;font-size:12.5px;font-weight:800;flex:none;font-variant-numeric:tabular-nums}
 .cat-trend .ct-d{width:36px;text-align:right;font-size:11px;font-weight:800;flex:none;color:var(--text-3);font-variant-numeric:tabular-nums}
 .cat-trend .ct-d.up{color:var(--green-bright)}
@@ -1975,9 +1975,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
   font-size:11.5px;font-weight:700;color:var(--text-2);white-space:nowrap;
 }
 .ps-band .seg i{width:7px;height:7px;border-radius:50%;background:var(--cyan);display:inline-block}
-.ps-band .seg.s-structured i{background:var(--blue-bright,#60a5fa)}
+.ps-band .seg.s-structured i{background:var(--blue-bright)}
 .ps-band .seg.s-guided i{background:var(--cyan)}
-.ps-band .seg.s-intuitive i{background:var(--green-bright,#4ade80)}
+.ps-band .seg.s-intuitive i{background:var(--green-bright)}
 
 /* ================= Connected Standards (0155) =================
    TYPE. Everything here sits on the nine-step scale in tokens.css — no ad-hoc px sizes, because
@@ -2136,7 +2136,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* max-width caps the bar for the same reason the old glyph strip capped its cell: a two-period
    history stretched across the full width reads as two slabs, not as the start of a strip. A full
    week still fills the row. The label track carries the identical cap so the two stay aligned. */
-.cs-mom b{flex:1 1 0;min-width:0;max-width:48px;border-radius:5px 5px 3px 3px;
+.cs-mom b{flex:1 1 0;min-width:0;max-width:48px;border-radius:4px 4px 2px 2px;
   background:var(--surface-3);min-height:3px;align-self:flex-end}
 .cs-mom b.ok{background:linear-gradient(180deg,var(--blue),var(--blue-deep))}
 .cs-mom b.miss{background:rgba(var(--red-rgb),.32)}
@@ -2215,8 +2215,8 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    meanings the commitment board never had to draw: "still going" (live, no action) and "waiting
    on you" (the only segment that is actually a task). Same gradient treatment as the originals
    so the bar reads as one instrument. */
-.co-standing .seg.b{background:linear-gradient(90deg,var(--blue),var(--blue-bright))}
-.co-standing .seg.p{background:linear-gradient(90deg,var(--purple),var(--purple-bright))}
+.co-standing .seg.b{background:linear-gradient(90deg,var(--blue-deep),var(--blue))}
+.co-standing .seg.p{background:linear-gradient(90deg,var(--purple-deep),var(--purple))}
 .co-legend .dot.p{background:var(--purple-bright)}
 
 .cs-board{cursor:pointer;margin-bottom:10px}

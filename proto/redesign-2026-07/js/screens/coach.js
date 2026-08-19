@@ -1,6 +1,6 @@
 import { S, RT, act, fmtClock, nutritionConfigForGoal, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
-import { accentVar, scoreColor, ON_STANDARD } from '../score-band.js';
+import { accentVar, scoreColor, ON_STANDARD, qualityAccent } from '../score-band.js';
 import { backHead, titleHead, esc, safeImg, composer, sparkline, emptyState, errorState, skeletonRows, emailVerifyBanner, wireEmailVerifyBanner, copyText, scoreRing } from '../components.js';
 import {
   attachedPhoto, isPhotoOnly, wireComposerAttach, postChatMessage,
@@ -988,14 +988,16 @@ export const coachPlanSet = {
       <div style="height:10px"></div>`;
     }
     const chip = (on, label, act, arg) => `<span class="std-chip ${on ? 'on' : ''}" data-knob="${act}:${arg}">${label}</span>`;
+    // The WHOLE ROW is the switch (coach-connected's pattern): the 50x30 pill alone was the only
+    // target, 14px under the touch floor, and it can't use the focus.css ::after idiom because
+    // its ::after IS the knob. The row carries role/tabindex/data-knob; the pill is decorative.
     // Space/Enter activation comes from the router's document-level net (role="switch" is in its
-    // selector); the optional label gives the bare knob an accessible NAME, since the row title
-    // is a sibling div the switch is not associated with.
-    const sw = (on, act, label) => `<div class="std-switch ${on ? 'on' : ''}" role="switch" tabindex="0" aria-checked="${on ? 'true' : 'false'}"${label ? ` aria-label="${label}"` : ''} data-knob="${act}:toggle"></div>`;
+    // selector), and the row's title text becomes part of the accessible name via aria-label.
+    const sw = (on) => `<div class="std-switch ${on ? 'on' : ''}" aria-hidden="true"></div>`;
     const swRow = (title, subLabel, act, on) => `
-      <div class="std-switch-row">
+      <div class="std-switch-row" role="switch" tabindex="0" aria-checked="${on ? 'true' : 'false'}" aria-label="${title}" data-knob="${act}:toggle">
         <div class="std-sw-m"><div class="std-sw-t">${title}</div><div class="std-sw-s">${subLabel}</div></div>
-        ${sw(on, act, title)}
+        ${sw(on)}
       </div>`;
     const modHead = (ic, cls, title, subLabel, val) => `
       <div class="std-mod-head">
@@ -1043,9 +1045,9 @@ export const coachPlanSet = {
             ${['any', 'training', 'rest'].map(dt => `<span class="std-daychip ${dayTypes[i] === dt ? 'on' : ''}" data-mealday="${i}:${dt}">${dt === 'any' ? 'Every day' : dt === 'training' ? 'Training only' : 'Rest only'}</span>`).join('')}
           </div>` : ''}
         </div>`).join('')}
-        <div class="std-switch-row" style="margin-top:8px">
+        <div class="std-switch-row" style="margin-top:8px" role="switch" tabindex="0" aria-checked="${proofs.every(p => p === 'photo') ? 'true' : 'false'}" aria-label="Photo proof on every meal" data-knob="photo:toggle">
           <div class="std-sw-m"><div class="std-sw-t">Photo proof on every meal</div><div class="std-sw-s">Sets all meals at once — tweak any one above. Off = tap-to-check.</div></div>
-          ${sw(proofs.every(p => p === 'photo'), 'photo', 'Photo proof on every meal')}
+          ${sw(proofs.every(p => p === 'photo'))}
         </div>
         ${hasRestPattern ? '' : `<div class="std-help" style="margin-top:6px">${icon('info', 12)} Want meals that only apply on training or rest days? <span class="link" data-go="week-pattern">Set your training week</span> first.</div>`}
         ${KNOB.meals >= 4 ? swRow('Snack is optional', 'Loggable for bonus, but never counts against the score', 'snack', KNOB.snackOptional) : ''}
@@ -1623,8 +1625,8 @@ export const coachInbox = {
     else if (!rows.length) briefing = 'No athletes yet. Share your team code and this becomes your morning read.';
     else {
       const notLogged = rows.filter(r => !r.loggedToday);
-      const below = rows.filter(r => r.score != null && r.score < 80);
-      const top = rows.filter(r => r.score != null && r.score >= 80).sort((a, b) => b.score - a.score)[0];
+      const below = rows.filter(r => r.score != null && r.score < ON_STANDARD);
+      const top = rows.filter(r => r.score != null && r.score >= ON_STANDARD).sort((a, b) => b.score - a.score)[0];
       const lines = [];
       if (notLogged.length) lines.push(`<div style="display:flex;gap:8px;align-items:flex-start"><span style="width:7px;height:7px;border-radius:50%;background:var(--red);flex:none;margin-top:5px"></span><span><b>${notLogged.length} not logged yet</b> — ${esc(notLogged.slice(0, 3).map(r => r.name.split(' ')[0]).join(', '))}${notLogged.length > 3 ? '…' : ''}.</span></div>`);
       if (below.length) lines.push(`<div style="display:flex;gap:8px;align-items:flex-start"><span style="width:7px;height:7px;border-radius:50%;background:var(--amber-bright);flex:none;margin-top:5px"></span><span><b>${below.length} below the bar</b> today (under 80).</span></div>`);
@@ -1765,7 +1767,7 @@ export const copilot = {
       return `${backHead('Copilot', 'Real numbers from your roster, never guesses', 'coach-home')}${emptyState({ icon: 'users', title: 'No athletes yet', body: 'Copilot reads your real roster — share your athlete code and its reads fill in as your team logs.', action: { label: 'Share athlete code', go: 'coach-profile/code' } })}`;
     }
     const attention = rows.filter(r => r.flag === 'r');
-    const belowBar = rows.filter(r => r.score != null && r.score < 80);
+    const belowBar = rows.filter(r => r.score != null && r.score < ON_STANDARD);
     const notLogged = rows.filter(r => !r.loggedToday);
     const summary = rows.length === 0
       ? 'No athletes on your roster yet. Share your team code to get started.'
@@ -2020,7 +2022,7 @@ function todayBlock(P, athleteId) {
           ${P.photos[m.id]
             ? `<div class="act-media"><img src="${esc(P.photos[m.id])}" alt="Photo of this meal" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"/></div>`
             : `<div class="act-media icon" style="background:linear-gradient(150deg, rgba(var(--green-rgb),0.2), rgba(var(--blue-rgb),0.1));color:var(--green-bright)">${icon('utensils', 26)}</div>`}
-          <div class="act-body"><div class="act-type">${m.quality != null ? 'Meal score' : 'Logged'}</div><div class="act-value ${m.quality != null && m.quality >= 80 ? 'g' : 'b'}">${m.quality != null ? m.quality : '·'}</div></div>
+          <div class="act-body"><div class="act-type">${m.quality != null ? 'Meal score' : 'Logged'}</div><div class="act-value ${m.quality != null && qualityAccent(m.quality) === 'g' ? 'g' : 'b'}">${m.quality != null ? m.quality : '·'}</div></div>
         </div>`).join('')}
     </div>` : `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:-2px 2px 10px">No meal photos logged today.</div>`}
 
@@ -2793,7 +2795,7 @@ export const coachMeal = {
             gesture is scoped by selector rather than by which element it was attached to. A bare
             `.thread` would also match plan, settings, trust and nutrition-chat, and a long press
             over there would post a reaction to whichever meal was last open. */''}
-      <div class="thread" id="cm-thread">
+      <div class="thread" id="cm-thread" role="log" aria-label="Meal review conversation">
         ${opening && !msgs.some(isAnalysisOpener) ? `
         <div class="msg">
           <div class="av">${icon('sparkle', 15)}</div>

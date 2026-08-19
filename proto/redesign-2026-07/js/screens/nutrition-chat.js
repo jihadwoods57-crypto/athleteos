@@ -87,7 +87,7 @@ export default {
       <span class="names">${esc(participantSummary(people))}<small>${people.length} in this conversation</small></span>
       <span class="chev">${icon('chevron', 15)}</span>
     </button>
-    <div class="thread nc-thread" id="nc-thread">
+    <div class="thread nc-thread" id="nc-thread" role="log" aria-label="Nutrition chat">
       <div class="msg-status" id="nc-status">Loading your conversation…</div>
     </div>
     ${composer({ inputId: 'nc-msg', sendId: 'nc-send', placeholder: 'Reply about your latest meal…', sendLabel: 'Send', atEnd: true })}

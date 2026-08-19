@@ -272,7 +272,10 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
   padding:6px 0 4px;
   cursor: pointer;
 }
-.ring-wrap { position: relative; width: 338px; height: 338px; margin:0 auto; }
+/* min() + aspect-ratio, not a fixed square: 338px minus nothing overflowed the 335px content
+   column of a 375px phone and clipped one-sided on anything smaller. The SVG inside scales with
+   the wrap (width 100% against its viewBox). */
+.ring-wrap { position: relative; width: min(338px, 100%); aspect-ratio: 1 / 1; margin:0 auto; }
 /* A 22s rotating conic aurora and a 4.5s breathing cyan halo used to live here, both blurred,
    both behind the score. Removed 2026-08-08 with the ring's other decorative layers; see the note
    on scoreRing() in components.js. The band's own sweep is the signature. */
@@ -331,9 +334,13 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
   display: inline-flex; align-items: center; gap:8px;
   padding:8px 16px 8px 14px; border-radius: var(--r-pill);
   background: rgba(13,20,34,0.72); border: 1px solid rgba(148,176,224,0.16);
-  backdrop-filter: blur(6px);
   font-size: 13.5px; font-weight: 800; color: var(--text);
   margin-top:12px;
+}
+/* Blur is gated (DESIGN.md: glass needs a documented fallback): without support the 0.72 ground
+   above still reads on its own; with it, the pill frosts the hero behind it. */
+@supports (backdrop-filter: blur(6px)) or (-webkit-backdrop-filter: blur(6px)) {
+  .streak-pill { -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 }
 .streak-pill .flame { color: var(--amber-bright); filter: drop-shadow(0 0 6px rgba(var(--amber-rgb), 0.6)); }
 /* light theme: the hardcoded-dark pill would be a dark blob on the light hero — frost it */
@@ -377,12 +384,18 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 }
 .req-badge {
   position: absolute; top: -5px; left: -5px; width: 18px; height: 18px; border-radius: 50%;
-  display: grid; place-items: center; border: 2px solid #10182a;
+  display: grid; place-items: center; border: 2px solid var(--surface-1);
 }
 .req-badge.g { background: linear-gradient(150deg, var(--green), var(--green-deep)); color: var(--ink-on-accent); box-shadow: 0 0 10px rgba(var(--green-rgb), 0.5); }
 .req-badge.a { background: #241a08; color: var(--amber-bright); border-color: var(--amber); }
 .req-badge.b { background: #0d1a30; color: var(--blue-bright); border-color: var(--blue); }
 .req-badge.p { background: #1c1030; color: var(--purple-bright); border-color: var(--purple); }
+/* light theme: the a/b/p grounds above are deliberate dark tints (they sit on the dark card and
+   need to stay opaque under the tile corner). On white they read as near-black dots with 2.9:1
+   inks, so light swaps them for the theme's own surface washes; the inks are already theme-aware. */
+:root[data-theme="light"] .req-badge.a { background: var(--amber-surface); }
+:root[data-theme="light"] .req-badge.b { background: var(--blue-surface); }
+:root[data-theme="light"] .req-badge.p { background: var(--purple-surface); }
 .req-icon.g { background: rgba(var(--green-rgb), 0.20); color: var(--green-bright); }
 .req-icon.a { background: rgba(var(--amber-rgb), 0.20); color: var(--amber-bright); }
 .req-icon.b { background: rgba(var(--blue-rgb), 0.22); color: var(--blue-bright); }
@@ -571,14 +584,21 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 /* Press = scale down + a touch brighter: the surface compresses AND catches light, which is what a
    physical press does. The transition already covers filter, so release eases back on its own. */
 .btn:active { transform: scale(0.98); filter: brightness(1.08); }
-.btn.primary { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); color: #fff; box-shadow: var(--sh-blue); }
+/* Ink rides --ink-on-accent, the same logic .btn.green already uses: dark accents are 400-level
+   (white on --blue-bright measured 2.5:1, an AA failure on the app's most important control), so
+   the dark ink is near-black; light accents are 700-level and the token flips to white. The dark
+   fill ends at --blue rather than --blue-deep so one ink clears both stops. Light keeps its
+   original bright->deep fill below. */
+.btn.primary { background: linear-gradient(150deg, var(--blue-bright), var(--blue)); color: var(--ink-on-accent); box-shadow: var(--sh-blue); }
+:root[data-theme="light"] .btn.primary { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); }
 .btn.green { background: linear-gradient(150deg, var(--green), var(--green-deep)); color: var(--ink-on-accent); box-shadow: var(--sh-green); }
 .btn.ghost { background: var(--surface-2); color: var(--text); border: 1px solid var(--hairline); box-shadow: none; }
 /* Recovery is the one flow with its own hue (purple = recovery, DESIGN.md's semantic table), and
    its submit button was carrying the gradient as an inline style. That made it unstylable from
    here: an inline background beats :disabled, so the gated button still looked live. As a variant
    it composes from tokens, inverts correctly on light, and loses its fill when disabled. */
-.btn.recovery { background: linear-gradient(150deg, var(--purple-bright), var(--purple-deep)); color: #fff; box-shadow: 0 10px 30px rgba(var(--purple-rgb), 0.35); }
+.btn.recovery { background: linear-gradient(150deg, var(--purple-bright), var(--purple)); color: var(--ink-on-accent); box-shadow: 0 10px 30px rgba(var(--purple-rgb), 0.35); }
+:root[data-theme="light"] .btn.recovery { background: linear-gradient(150deg, var(--purple-bright), var(--purple-deep)); }
 
 /* ----- Size scale -----
    Three steps below the 56px base, each one a REAL populated tier rather than a guess: an audit
@@ -609,7 +629,10 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 .back-head { display: flex; align-items: center; gap:14px; padding:6px 0 14px; }
 /* unified back control — matches .ob-back (44px rounded-square clears the a11y tap floor) */
 .back-head .bk { width: 44px; height: 44px; border-radius: var(--r-card-sm); background: var(--surface-2); display: grid; place-items: center; color: var(--text); cursor: pointer; }
-.back-head .ht { font-size: 20px; font-weight: 800; letter-spacing: var(--title-tight); }
+/* The screen title is a real <h1> now (SR heading navigation had nothing to land on: three
+   headings existed in the whole app, all in auth). Same box as the old div — the UA's h1
+   margin/size are neutralized here. */
+.back-head .ht { font-size: 20px; font-weight: 800; letter-spacing: var(--title-tight); margin: 0; }
 .back-head .hs { font-size: 12px; font-weight: 600; color: var(--text-2); margin-top:1px; }
 /* min-width:0 so a long title truncates instead of shoving .bh-act off the right edge */
 .back-head .bh-t { min-width: 0; flex: 1; }

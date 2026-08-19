@@ -85,6 +85,9 @@ export function wireTapback({ root, scope = '.thread', emoji, mine, onReact }) {
   };
 
   const open = (bubble) => {
+    // One overlay at a time (DESIGN.md): a long-press on a bubble the tour or another overlay is
+    // sitting over must not stack a reaction picker on top of it.
+    if (document.querySelector('.tour, .lockstamp, .imgview, .memsheet')) return;
     closeTapback();
     const { emoji: emojiNow, mine: mineNow, onReact: reactNow } = live.cfg;
     const already = (() => { try { return mineNow ? mineNow() : new Set(); } catch { return new Set(); } })();

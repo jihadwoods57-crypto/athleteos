@@ -12,7 +12,7 @@ import {
 } from './plan-style.js';
 // score-band.js is dependency-free on purpose, so the parity test can still import this module
 // under Node. It owns the tier thresholds; nothing here re-declares them.
-import { tierFor } from './score-band.js';
+import { tierFor, gradeFor } from './score-band.js';
 // pass.js is dependency-free for the same reason score-band.js is: the parity/unit tests import
 // this module under Node.
 import { passCoverage, slotMedians, withPassCredit } from './pass.js';
@@ -422,7 +422,9 @@ export function scoreFor(day, std = STD) {
   return clamp(Math.round(w.nutrition * c.nutrition + w.recovery * c.recoveryContribution + w.commitment * c.commitment + w.checkin * c.checkin), 0, 100);
 }
 
-export function gradeFor(s) { return s >= 90 ? 'A' : s >= 80 ? 'B' : s >= 70 ? 'C' : s >= 60 ? 'D' : 'F'; }
+// gradeFor moved to score-band.js (the letter ladder shares the tier floors plus its own 70 step);
+// re-exported below so existing importers keep working.
+export { gradeFor };
 
 /* ---------------- evidence ceiling (mirror of the server trigger) ---------------- */
 // Keep the client score honest so the server clamp never has to silently lower it.

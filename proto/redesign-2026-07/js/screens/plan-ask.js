@@ -138,7 +138,7 @@ export default {
     const qs = askSuggestions(planAskContext(), AREA);
     return `
     ${backHead('Ask OnStandard', 'Answers from your plan, never a guess', 'plan')}
-    <div class="thread" id="pa-thread" style="gap:0">${threadHtml()}</div>
+    <div class="thread" id="pa-thread" style="gap:0" role="log" aria-label="Plan answers">${threadHtml()}</div>
     <div class="pl-qs" id="pa-chips" style="margin:12px 0 6px">
       ${qs.map((q) => `<span class="pl-q" data-ask="${esc(q)}">${esc(q)}</span>`).join('')}
     </div>

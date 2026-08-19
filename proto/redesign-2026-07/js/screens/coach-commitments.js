@@ -46,7 +46,7 @@ export function commitmentBoardCard() {
   if ((!rows || !rows.length) && VC.boardError) {
     return `<section class="card pad" style="border-color:var(--amber-border);margin-bottom:10px">
       <div class="tt">Roll call didn’t load</div>
-      <div class="ts" style="padding-top:4px">This isn’t a count of zero — we couldn’t reach the server. It retries the next time you open this screen.</div>
+      <div class="ts" style="padding-top:4px">This isn’t a count of zero; we couldn’t reach the server. It retries the next time you open this screen.</div>
     </section>`;
   }
   if (!rows || !rows.length) return '';
@@ -112,7 +112,7 @@ function athleteRow(r, asksArrival) {
     <div class="lm" style="flex:1">
       <div class="lt">${esc(r.name || 'Athlete')}</div>
       <div class="ls">${esc(when)}${esc(src)}${r.corrected_by_name ? esc(` · corrected by ${r.corrected_by_name}`) : ''}</div>
-      ${r.disputed_at ? `<div class="ls" style="color:var(--amber-bright);font-weight:700">Reported wrong by the ${CD.noun}${r.dispute_note ? esc(` — ${r.dispute_note}`) : ''}</div>` : ''}
+      ${r.disputed_at ? `<div class="ls" style="color:var(--amber-bright);font-weight:700">Reported wrong by the ${CD.noun}${r.dispute_note ? esc(`: ${r.dispute_note}`) : ''}</div>` : ''}
     </div>
     <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
       <span class="xpill ${cls}">${esc(label)}</span>
@@ -135,7 +135,7 @@ export const coachCommitments = {
       <div class="sidebox">
         <div class="req-icon b" style="width:38px;height:38px">${icon('clock', 17)}</div>
         <div><div class="tt">No commitments today</div>
-        <div class="ts">Schedule a morning roll call, a lift, or a study hall and you'll see live responses here — without counting replies in a group chat.</div></div>
+        <div class="ts">Schedule a morning roll call, a lift, or a study hall and you'll see live responses here, without counting replies in a group chat.</div></div>
       </div>
       ${canSchedule() ? `<div style="height:14px"></div>
       <button class="btn" data-go="coach-commit-edit" style="width:100%">${icon('plus', 18)} Schedule a commitment</button>` : ''}`;
@@ -185,7 +185,7 @@ export const coachCommitments = {
     <div class="sidebox" style="margin-top:14px">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 19)}</div>
       <div><div class="tt">What "Arrived" means</div>
-      <div class="ts">The ${CD.noun}'s phone reached ${esc(inst.location_name || 'the location')} inside the scheduled window. It does not prove the session was completed — that's the separate Completed signal.</div></div>
+      <div class="ts">The ${CD.noun}'s phone reached ${esc(inst.location_name || 'the location')} inside the scheduled window. It does not prove the session was completed; that's the separate Completed signal.</div></div>
     </div>` : ''}
     <div style="height:20px"></div>`;
   },
@@ -218,7 +218,7 @@ export const coachCommitments = {
       remind.disabled = true; remind.textContent = 'Sending…';
       const n = await remindMissing(sub);
       if (n) track(EVENTS.VC_REMINDED, { n });
-      remind.textContent = n ? `Reminded ${n}` : 'Couldn’t send — try again';
+      remind.textContent = n ? `Reminded ${n}` : 'Couldn’t send. Try again';
       if (!n) remind.disabled = false;
     });
 
@@ -276,9 +276,9 @@ const DOW = ['Su', 'M', 'Tu', 'W', 'Th', 'F', 'Sa'];
    ever persisted unless the coach leaves it in the box. A coach who types nothing ships a card
    with no message rather than a sentence OnStandard invented for them. */
 const STARTERS = {
-  morning_roll_call: ['Everyone up? Ready to rise and conquer?', 'Feet on the floor. Let’s go.', 'Up and moving — today starts now.'],
+  morning_roll_call: ['Everyone up? Ready to rise and conquer?', 'Feet on the floor. Let’s go.', 'Up and moving. Today starts now.'],
   study_hall: ['Books open. Two hours, no phones.'],
-  rehab: ['Rehab today — don’t skip it, it’s how you get back.'],
+  rehab: ['Rehab today. Don’t skip it, it’s how you get back.'],
 };
 
 /* The commitment currently being edited, or null for a new one. Set by the manage screen so the
@@ -356,7 +356,7 @@ export const coachCommitManage = {
       <div class="sidebox">
         <div class="req-icon b" style="width:38px;height:38px">${icon('clock', 17)}</div>
         <div><div class="tt">Nothing scheduled yet</div>
-        <div class="ts">Schedule a morning roll call, a lift, or a study hall and it'll live here — editable, pausable, and never silently deleted.</div></div>
+        <div class="ts">Schedule a morning roll call, a lift, or a study hall and it'll live here: editable, pausable, and never silently deleted.</div></div>
       </div>` : ''}
     ${live.length ? `<div class="eyebrow">Running</div>
       <section class="card" style="padding:2px 16px">${live.map(card).join('')}</section>` : ''}
@@ -449,7 +449,7 @@ export const coachCommitEdit = {
       ${starters.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
         ${starters.map((s, i) => `<button class="chip" data-starter="${i}">${esc(s.length > 34 ? s.slice(0, 32) + '…' : s)}</button>`).join('')}
       </div>
-      <div class="ts" style="padding-top:6px">Tap one to load it in and edit it — or ignore them and write your own.</div>` : ''}
+      <div class="ts" style="padding-top:6px">Tap one to load it in and edit it, or ignore them and write your own.</div>` : ''}
       <div style="height:14px"></div>
       <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Button label</div>
       <input class="ob-input" id="vc-action" maxlength="24" value="${esc(d.action_label)}" placeholder="${d.type === 'morning_roll_call' ? 'I’m Up' : 'I’m here'}" />
@@ -474,7 +474,7 @@ export const coachCommitEdit = {
         ${timeInput('vc-start', 'Appears / starts', d.starts_min)}
         ${timeInput('vc-respond', 'Respond by', d.respond_by_min)}
       </div>
-      <div class="ts" style="padding-top:10px">A reminder goes out 15 and 5 minutes before the deadline — only to ${CD.nouns} who haven’t responded.</div>
+      <div class="ts" style="padding-top:10px">A reminder goes out 15 and 5 minutes before the deadline, only to ${CD.nouns} who haven’t responded.</div>
     </section>
 
     <div class="eyebrow">Where <span style="text-transform:none;letter-spacing:0">· optional</span></div>
@@ -507,7 +507,7 @@ export const coachCommitEdit = {
           <input class="ob-input" id="vc-dwell" type="number" min="0" max="480" step="5" value="${d.min_dwell_min == null ? '' : esc(String(d.min_dwell_min))}" placeholder="45" />
         </div>
       </div>
-      <div class="ts" style="padding-top:10px">Arriving counts when their phone reaches the place inside this window. It does not prove the work got done — completing the session is a separate signal, and nothing in OnStandard claims otherwise.</div>
+      <div class="ts" style="padding-top:10px">Arriving counts when their phone reaches the place inside this window. It does not prove the work got done; completing the session is a separate signal, and nothing in OnStandard claims otherwise.</div>
       ` : ''}
     </section>
 
@@ -515,7 +515,7 @@ export const coachCommitEdit = {
     <section class="card pad">
       <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">What is this roll call for?</div>
       <select class="ob-input" id="vc-link">
-        <option value="">Nothing — it stands alone</option>
+        <option value="">Nothing, it stands alone</option>
         ${(RT.vcCommitments || []).filter((c) => c.type !== 'morning_roll_call')
           .map((c) => `<option value="${esc(c.id)}" ${d.linked_commitment_id === c.id ? 'selected' : ''}>${esc(c.title)} · ${esc(fmtMin(c.starts_min))}</option>`).join('')}
       </select>
@@ -614,7 +614,7 @@ export const coachCommitEdit = {
       const radius = Math.max(50, Math.min(1000, parseInt((root.querySelector('#vc-placeradius') || {}).value, 10) || 120));
       const nat = typeof window !== 'undefined' && window.OnStandardNative && window.OnStandardNative.location;
       if (!nat || !nat.place) {
-        if (msg) msg.textContent = 'Capturing a location needs the phone app — this build can’t do it.';
+        if (msg) msg.textContent = 'Capturing a location needs the phone app; this build can’t do it.';
         return;
       }
       savePlace.disabled = true; savePlace.textContent = 'Getting your location…';
@@ -660,7 +660,7 @@ export const coachCommitEdit = {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York',
       };
       const newId = await saveCommitment(payload);
-      if (!newId) { save.disabled = false; save.textContent = 'Couldn’t save — try again'; return; }
+      if (!newId) { save.disabled = false; save.textContent = 'Couldn’t save. Try again'; return; }
       track(EVENTS.VC_SCHEDULED, {
         type: d.type, audience: d.audience_kind, hasLocation: !!d.location_id,
       });

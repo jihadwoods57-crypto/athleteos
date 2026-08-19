@@ -5,7 +5,7 @@
    Every call is best-effort: on a missing client, a not-applied table/RPC, or any error it
    returns []/null so role screens render an HONEST empty state, never a fabricated one.
    No new endpoints — the exact tables/RPCs the RN app already uses. */
-import { scoreBand, BAND_FLAG } from './score-band.js';
+import { scoreBand, BAND_FLAG, ON_STANDARD } from './score-band.js';
 import { chunkIds } from './id-chunk.js';
 
 function sb() { return window.sb; }
@@ -1925,7 +1925,7 @@ export function buildRosterRow(member, dayRow, extras = {}) {
     flag: logged ? tierFlag(score) : 'r',
     logs: logged && tasks.length ? `${done}/${tasks.length}` : (logged ? 'Logged' : '—'),
     note: logged
-      ? (score != null ? (score >= 80 ? 'On standard today' : 'Logged · below the bar') : 'Logged today')
+      ? (score != null ? (score >= ON_STANDARD ? 'On standard today' : 'Logged · below the bar') : 'Logged today')
       : 'No logs today',
     tasks,
     scoreHistory: extras.scoreHistory || [],
