@@ -52,7 +52,7 @@ function fromPrice(c) {
   return `From $${Number.isInteger(d) ? d : d.toFixed(2)}/mo`;
 }
 function chip(label, active, attr) {
-  return `<button class="chip" ${attr} style="${active ? 'background:var(--blue-bright);color:#fff;border-color:transparent' : ''}">${label}</button>`;
+  return `<button class="chip" ${attr} style="${active ? 'background:var(--blue-bright);color:var(--ink-on-accent);border-color:transparent' : ''}">${label}</button>`;
 }
 
 export default {

@@ -44,7 +44,7 @@ export default {
     <section class="card">
       <div class="ts" style="padding-bottom:10px">Did you execute today's plan? ${esc(VALUE_PROP)}</div>
       ${CHOICES.map(c => `
-        <div class="cmt-choice ${ans === c.v ? 'on ' + c.cls : ''}" data-choice="${c.v}" role="button" aria-pressed="${ans === c.v}">
+        <div class="cmt-choice ${ans === c.v ? 'on ' + c.cls : ''}" data-choice="${c.v}" role="button" tabindex="0" aria-pressed="${ans === c.v}">
           <div class="cmt-main">
             <div class="t">${c.t}</div>
             <div class="s">${c.s}</div>

@@ -25,7 +25,7 @@ function planCard(p) {
     : 'billed monthly';
   const seat = p.seatLimit ? `<span class="status-pill b" style="margin-left:6px">Up to ${p.seatLimit}</span>` : '';
   return `
-  <div class="pw-plan${selected ? ' on' : ''}" data-pw-plan="${p.id}" role="button" aria-pressed="${selected}">
+  <div class="pw-plan${selected ? ' on' : ''}" data-pw-plan="${p.id}" role="button" tabindex="0" aria-pressed="${selected}">
     <div class="pw-plan-top">
       <div class="pw-plan-name">${esc(p.name)}${seat}</div>
       <div class="pw-plan-price"><span class="n">${parts.amount}</span><span class="per">${parts.per}</span></div>

@@ -65,7 +65,7 @@ function editableForm(a) {
         const cred = creds.find((x) => x.category === c.key);
         return `
       <div class="lrow" ${c.locked ? 'style="cursor:default"' : `data-ca-cat="${c.key}"`}>
-        <div class="lic"${on ? ' style="background:var(--blue-bright);color:#fff"' : ''}>${icon(on ? 'check' : 'shield', 16)}</div>
+        <div class="lic"${on ? ' style="background:var(--blue-bright);color:var(--ink-on-accent)"' : ''}>${icon(on ? 'check' : 'shield', 16)}</div>
         <div class="lm"><div class="lt">${c.label}</div><div class="ls">${c.sub}</div>
           ${on && !c.locked ? (cred
             ? `<div class="ls" style="margin-top:3px;color:var(--green-bright)">${icon('check', 12)} ${esc(cred.title || 'Document uploaded')} · ${cred.status === 'verified' ? 'verified' : 'awaiting review'}</div>`

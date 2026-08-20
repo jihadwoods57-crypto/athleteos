@@ -419,7 +419,7 @@
 .std-seg button { flex:1; min-height:44px; border:none; background:transparent; color:var(--text-2);
   font:700 var(--t-sm) var(--font); border-radius:var(--r-pill); cursor:pointer;
   transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out); }
-.std-seg button.on { background:var(--surface-3); color:var(--text); box-shadow:0 2px 8px rgba(0,0,0,0.3); }
+.std-seg button.on { background:var(--surface-3); color:var(--text); box-shadow:var(--sh-thumb); }
 .std-seg.accent button.on { background:var(--blue-surface); color:var(--blue-bright);
   box-shadow: 0 0 0 1px var(--blue-border) inset; }
 

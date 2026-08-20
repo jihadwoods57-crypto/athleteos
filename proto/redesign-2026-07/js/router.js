@@ -110,7 +110,7 @@ function tabbar(activeTab, nav = 'athlete') {
       const n = scr && scr.badge ? scr.badge() : 0;
       // aria-hidden: the raw "9+" read as part of the tab's name ("9+ Inbox", no unit). The count
       // joins the tab's aria-label below instead, with a real noun.
-      if (n) { badgeN = n; badge = `<span aria-hidden="true" style="position:absolute;top:-3px;right:50%;margin-right:-16px;min-width:15px;height:15px;border-radius:999px;background:var(--red);color:#fff;font-size:9px;font-weight:800;display:grid;place-items:center;padding:0 3px;border:2px solid var(--bg)">${n > 9 ? '9+' : n}</span>`; }
+      if (n) { badgeN = n; badge = `<span aria-hidden="true" style="position:absolute;top:-3px;right:50%;margin-right:-16px;min-width:15px;height:15px;border-radius:999px;background:var(--danger-solid);color:#fff;font-size:9px;font-weight:800;display:grid;place-items:center;padding:0 3px;border:2px solid var(--bg)">${n > 9 ? '9+' : n}</span>`; }
     } catch { /* pre-auth render */ }
     // First-run tour anchors on the tabs themselves (tour-plan.js). Operator tab anchors are
     // prefixed tab- so they never collide with the board's own `roster` anchor on coach-home.

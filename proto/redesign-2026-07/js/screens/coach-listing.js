@@ -113,7 +113,7 @@ export default {
     ${tiers.length ? `<section class="card" style="padding:6px 16px">
       ${tiers.map((t) => `
       <div class="lrow" data-mkt-tier="${esc(t.tier)}" style="align-items:flex-start${UI.tier === t.tier ? ';background:var(--surface-2);border-radius:12px' : ''}">
-        <div class="lic"${UI.tier === t.tier ? ' style="background:var(--blue-bright);color:#fff"' : ''}>${icon(UI.tier === t.tier ? 'check' : 'bolt', 16)}</div>
+        <div class="lic"${UI.tier === t.tier ? ' style="background:var(--blue-bright);color:var(--ink-on-accent)"' : ''}>${icon(UI.tier === t.tier ? 'check' : 'bolt', 16)}</div>
         <div class="lm" style="flex:1">
           <div class="lt">${esc(t.name)}</div>
           <div class="ls">${esc(TIER_SUB[t.tier] || t.blurb || '')}</div>

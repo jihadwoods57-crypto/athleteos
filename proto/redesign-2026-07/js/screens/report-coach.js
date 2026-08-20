@@ -35,7 +35,7 @@ export default {
     <section class="card" style="padding:6px 16px">
       ${REASONS.map((r) => `
       <div class="lrow" data-rc-reason="${r.key}">
-        <div class="lic"${UI.reason === r.key ? ' style="background:var(--blue-bright);color:#fff"' : ''}>${icon(UI.reason === r.key ? 'check' : 'bell', 16)}</div>
+        <div class="lic"${UI.reason === r.key ? ' style="background:var(--blue-bright);color:var(--ink-on-accent)"' : ''}>${icon(UI.reason === r.key ? 'check' : 'bell', 16)}</div>
         <div class="lm"><div class="lt">${esc(r.label)}</div><div class="ls">${esc(r.sub)}</div></div>
       </div>`).join('')}
     </section>

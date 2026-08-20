@@ -53,7 +53,7 @@
   "js/screens/onboarding.js": 3,
   "js/screens/plan-upgrade.js": 5,
   "js/screens/plan.js": 2,
-  "js/screens/progress-photos.js": 1,
+  "js/screens/progress-photos.js": 2,
   "js/screens/progress.js": 5,
   "js/screens/recovery.js": 1,
   "js/screens/report-coach.js": 3,
@@ -68,7 +68,7 @@
   "js/screens/weight.js": 2,
   "js/share-card.js": 7,
   "js/staff-access.js": 1,
-  "js/state.js": 30,
+  "js/state.js": 29,
   "js/status.js": 1,
   "js/supabase.js": 2
 }

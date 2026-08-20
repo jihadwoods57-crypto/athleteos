@@ -1073,7 +1073,7 @@ export const planStylePicker = {
         const L = styleLabel(k);
         const on = selected === k;
         return `
-        <div class="lrow" data-ps-pick="${k}" role="radio" aria-checked="${on ? 'true' : 'false'}">
+        <div class="lrow" data-ps-pick="${k}" role="radio" tabindex="0" aria-checked="${on ? 'true' : 'false'}">
           <div class="lic">${icon(k === 'structured' ? 'clipboard' : k === 'guided' ? 'target' : 'heart', 17)}</div>
           <div class="lm"><div class="lt">${esc(L.name)}${on ? ` <span class="status-pill ${choosing ? 'g' : 'muted'}" style="margin-left:6px">${choosing ? 'Selected' : 'Preferred'}</span>` : ''}</div>
           <div class="ls">${esc(L.how)}</div></div>

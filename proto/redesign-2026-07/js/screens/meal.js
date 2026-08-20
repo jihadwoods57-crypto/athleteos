@@ -76,6 +76,17 @@ async function warmRecent(rolesMod, uid) {
    head so they survive every thread repaint (and a navigate-away-and-back). */
 const expandedBubbles = new Set();
 
+// Thread cache (deep audit 2026-08-19). The router remounts this screen on every render, and
+// each mount awaited a full comment fetch and tore down + rebuilt the realtime channel — a
+// network round trip and a socket handshake per REPAINT, not per visit. Keyed on mealId: a
+// same-meal remount paints the last known thread instantly and verifies with the cheap probe,
+// and the channel survives remounts by calling through _liveThreadRefresh (always the newest
+// mount's refresh) instead of a closure over a dead mount's DOM.
+const THREAD_CACHE = { mealId: null, comments: [], lastKnownAt: null, fp: null };
+let _liveThreadRefresh = null;  // set by every thread mount; the persistent channel's only door
+let _liveThreadRtStatus = null; // lets the persistent channel re-tune the CURRENT mount's poll
+let _threadRtLive = false;      // survives remounts so a reused live socket still relaxes the poll
+
 /* Pending memory facts (0019): things the athlete's corrections SUGGEST but which must never bind
    until they say so. Cached with the same idiom as RECENT/RECEIPT; the thread renders at most one
    confirmation at a time, so a correction spree can't turn into an interrogation. */
@@ -932,7 +943,7 @@ export const thread = {
     // move is to offer the read again.
     const emptyRead = settled && fromPhoto
       && !M.macros.protein && !M.macros.carbs && !M.macros.fat && !M.macros.cals;
-    const rereadNote = `<div class="est-note" style="margin-top:8px">These numbers didn't land. The read came back empty, so nothing was measured.${M.mealId ? ` <span class="link" id="mt-reread" role="button">Re-read this meal</span>` : ''}${M.rereadError ? ` <b style="color:var(--text-2)">Couldn't fetch the photo just now — try again in a moment.</b>` : ''}</div>`;
+    const rereadNote = `<div class="est-note" style="margin-top:8px">These numbers didn't land. The read came back empty, so nothing was measured.${M.mealId ? ` <span class="link" id="mt-reread" role="button" tabindex="0">Re-read this meal</span>` : ''}${M.rereadError ? ` <b style="color:var(--text-2)">Couldn't fetch the photo just now — try again in a moment.</b>` : ''}</div>`;
     // INTUITIVE (0142): no macro or calorie figure reaches the athlete. The plate itself, what
     // was on it, and how it landed still do — the composition IS the feedback. Every number is
     // still computed and still stored (the professional needs them, and under-fueling is a
@@ -1079,7 +1090,7 @@ export const thread = {
       ${corrLog ? `<div class="est-note" style="margin-top:8px;color:var(--blue-bright)"><b style="color:var(--blue-bright)">Corrected by you</b>: ${corrLog} correction${corrLog === 1 ? '' : 's'} applied. The AI's original estimate is kept for reference${M.orig ? ` (was ~${M.orig.protein}g protein · ~${M.orig.kcal} cal)` : ''}.</div>` : ''}
       ${/* The two entry points into the correction panel live HERE, with the numbers they correct
             (founder, 2026-08-02). Both render for a manually logged meal too. */''}
-      ${emptyRead ? '' : M.mealId ? `<div class="est-note">${fromPhoto ? 'Estimated from the photo · cooking oil or sauce may change these numbers. ' : ''}<span class="link" id="open-correct" role="button">${fromPhoto ? 'Something off? Correct the analysis' : 'Correct the analysis'}</span> · <span class="link" id="qa-details" role="button">Add meal details</span></div>` : ''}
+      ${emptyRead ? '' : M.mealId ? `<div class="est-note">${fromPhoto ? 'Estimated from the photo · cooking oil or sauce may change these numbers. ' : ''}<span class="link" id="open-correct" role="button" tabindex="0">${fromPhoto ? 'Something off? Correct the analysis' : 'Correct the analysis'}</span> · <span class="link" id="qa-details" role="button" tabindex="0">Add meal details</span></div>` : ''}
 
       <!-- Correct analysis (upgrade 2026-07-16): fix what the photo can't show; every chip is a
            deterministic, estimated adjustment with an audit trail — hidden until opened. -->
@@ -1139,7 +1150,7 @@ export const thread = {
     const discussion = `
     <div class="eyebrow" style="margin-top:18px;display:flex;align-items:baseline;gap:8px">
       <span>Team Discussion</span>
-      ${M.mealId ? `<span class="link" id="open-full-chat" role="button" style="margin-left:auto;text-transform:none;letter-spacing:0;font-size:12px">View full chat &rarr;</span>` : ''}
+      ${M.mealId ? `<span class="link" id="open-full-chat" role="button" tabindex="0" style="margin-left:auto;text-transform:none;letter-spacing:0;font-size:12px">View full chat &rarr;</span>` : ''}
     </div>
     ${facepile}
     ${/* The `#rx-strip` that used to sit here is gone: paint() has cleared it on every repaint
@@ -1426,12 +1437,15 @@ export const thread = {
       });
     };
     let gen = 0; // stale-response guard: only the newest refresh paints
-    let comments = [];
+    // A same-meal remount starts from the cache instead of an empty thread — the awaited
+    // network fetch below then downgrades to the cheap probe.
+    const cacheHit = THREAD_CACHE.mealId === M.mealId;
+    let comments = cacheHit ? THREAD_CACHE.comments : [];
     // Server-sourced cursor for the poll's cheap probe (scale pass 2026-08-18) — the max
     // created_at from the last successful FULL fetch. Deliberately not a client clock reading:
     // clock skew between this device and Postgres could push the cursor past a row that's
     // legitimately new, which is exactly the silent-miss class of bug a scale fix must not add.
-    let lastKnownAt = null;
+    let lastKnownAt = cacheHit ? THREAD_CACHE.lastKnownAt : null;
     let rxBusy = false; // one reaction write at a time — double-taps must not race into two rows
 
     // Message timestamps (feedback 2026-07-16: real chat mechanics). Local clock format;
@@ -1636,7 +1650,7 @@ export const thread = {
     };
 
     const setTyping = (on) => { aiTyping = !!on; paint(); };
-    let lastFetchFp = null;   // fingerprint of the last painted fetch (see refresh below)
+    let lastFetchFp = cacheHit ? THREAD_CACHE.fp : null;   // fingerprint of the last painted fetch (see refresh below)
     // opts.probe: only the idle poll tick passes this (see scheduleTick below). Every other
     // caller — initial mount, send, reaction toggle, retry, the realtime doorbell — wants the
     // truth right now and calls refresh() with no args, which always does the full fetch.
@@ -1646,7 +1660,7 @@ export const thread = {
       const fetched = await roles.fetchMealComments(M.mealId, probeSince);
       if (myGen !== gen) return;
       if (fetched && fetched.unchanged) return; // the cheap probe found nothing new — no repaint to do
-      if (fetched && fetched.error) { lastFetchFp = null; showThreadError(); return; }
+      if (fetched && fetched.error) { lastFetchFp = null; THREAD_CACHE.fp = null; showThreadError(); return; }
       // Identical payload = identical thread: skip the innerHTML rebuild. The post-send burst
       // poll (2.5s x ~8) used to fetch AND repaint even when nothing had arrived, which could
       // swap the DOM under a reader's thumb mid-scroll. Cleared on error above so the retry
@@ -1658,6 +1672,9 @@ export const thread = {
       for (const row of Array.isArray(comments) ? comments : []) {
         if (row && row.created_at && (!lastKnownAt || row.created_at > lastKnownAt)) lastKnownAt = row.created_at;
       }
+      // Write-through so the NEXT remount of this meal starts warm instead of refetching.
+      THREAD_CACHE.mealId = M.mealId; THREAD_CACHE.comments = comments;
+      THREAD_CACHE.lastKnownAt = lastKnownAt; THREAD_CACHE.fp = fp;
       // Professional corrections ride the thread (0199, meta t:'pro_correction'): the pro's
       // device corrected the meals ROW; this device owns today's slotMacros and the score, so
       // the correction applies HERE, once per comment, through the same engines as every other
@@ -1673,7 +1690,15 @@ export const thread = {
       if (proApplied && window.__render) { window.__render(); return; }
       if (changed) paint();
     };
-    await refresh();
+    if (cacheHit) {
+      // Warm start: the cached rows are already correct as of the last fetch, so paint them now
+      // and let the cheap probe confirm — a full fetch only happens if something actually landed.
+      if (statusEl) statusEl.remove();
+      paint();
+      void refresh({ probe: true }).catch(() => {});
+    } else {
+      await refresh();
+    }
 
     // (The "Earlier · <last message>" continuity teaser that used to be fetched and filled here
     // is gone — founder 2026-08-11. "View full chat" in the section header is the one door to
@@ -1708,9 +1733,18 @@ export const thread = {
     // the seconds after you send (when you are actually watching for a reply) and too costly at
     // rest, since every tick refetched up to 200 full rows.
     try { clearInterval(window.__threadTick); } catch { /* first mount */ }
-    try { if (window.__threadChannel) { void window.__threadChannel.unsubscribe(); window.__threadChannel = null; } } catch { /* none yet */ }
+    // Tear the socket down only when this mount is for a DIFFERENT meal. A same-meal remount
+    // (every router repaint) reuses the live channel — rebuilding it per paint was the deep
+    // audit's per-repaint handshake cost, and reconnecting also dropped rtLive back to false,
+    // tightening the poll for no reason.
+    const channelReused = !!(window.__threadChannel && window.__threadChannelMealId === M.mealId);
+    try {
+      if (window.__threadChannel && !channelReused) {
+        void window.__threadChannel.unsubscribe(); window.__threadChannel = null; window.__threadChannelMealId = null;
+      }
+    } catch { /* none yet */ }
 
-    let rtLive = false;         // realtime confirmed subscribed — lets the poll relax
+    let rtLive = channelReused ? _threadRtLive : false; // realtime confirmed subscribed — lets the poll relax
     let burstUntil = 0;         // fast-poll window after the athlete sends
     const BASE_MS = 15000, SLOW_MS = 45000, BURST_MS = 2500, FOCUS_MS = 6000;
     const tickDelay = () => {
@@ -1742,13 +1776,34 @@ export const thread = {
     // Exposed so submit() can pull the thread into its fast window the moment a message lands.
     const startBurst = (ms = 20000) => { burstUntil = Date.now() + ms; scheduleTick(); };
 
+    // Hand the persistent channel this mount's live handles. The channel outlives the mount, so
+    // its callbacks must never close over this mount's DOM directly — they call through these,
+    // which always belong to the NEWEST mount. If the screen is gone and no newer mount replaced
+    // us, the athlete left the thread: close the socket, exactly as the old self-cleanup did.
+    _liveThreadRefresh = (opts) => {
+      if (!root.isConnected) {
+        try {
+          if (window.__threadChannel) { void window.__threadChannel.unsubscribe(); window.__threadChannel = null; window.__threadChannelMealId = null; }
+        } catch { /* already gone */ }
+        return;
+      }
+      if (!threadBusy) void refresh(opts).catch(() => {});
+    };
+    _liveThreadRtStatus = (live) => {
+      if (!root.isConnected) return;
+      rtLive = live;
+      // Re-decide the cadence immediately: going live should relax the poll now, and losing
+      // the socket should tighten it back up without waiting a full slow cycle.
+      scheduleTick();
+    };
+
     // Realtime subscription. Wrapped end-to-end: the vendored supabase-js already contains the
     // realtime client, but the `meal_comments` table still has to be added to the
     // supabase_realtime publication (see the migration alongside this change). Until that lands,
     // subscribe() simply never reaches 'SUBSCRIBED', rtLive stays false, and the poll keeps
     // running at its normal rate — the feature degrades to exactly today's behaviour.
     void (async () => {
-      if (!M.mealId) return;
+      if (!M.mealId || channelReused) return; // the live socket for this meal already exists
       try {
         // `window.sb` is the live client handle the whole proto shares (supabase.js assigns it;
         // roles.js reads it the same way). NOT `import { sb }` — that export is the client
@@ -1758,23 +1813,16 @@ export const thread = {
         const ch = c.channel(`meal_thread:${M.mealId}`)
           .on('postgres_changes',
             { event: '*', schema: 'public', table: 'meal_comments', filter: `meal_id=eq.${M.mealId}` },
-            () => {
-              // Leaving this screen does not tear the socket down (the next mount does), so a
-              // stale channel would otherwise keep repainting a detached DOM and holding the
-              // subscription open. Close it the first time we notice the screen is gone.
-              if (!root.isConnected) {
-                try { void ch.unsubscribe(); if (window.__threadChannel === ch) window.__threadChannel = null; } catch { /* already gone */ }
-                return;
-              }
-              if (!threadBusy) void refresh().catch(() => {});
-            })
+            // The channel persists across remounts, so this must not close over THIS mount's
+            // refresh/root — _liveThreadRefresh always belongs to the newest mount, and it owns
+            // the "screen is gone → close the socket" cleanup.
+            () => { if (_liveThreadRefresh) _liveThreadRefresh(); })
           .subscribe((status) => {
-            rtLive = status === 'SUBSCRIBED';
-            // Re-decide the cadence immediately: going live should relax the poll now, and losing
-            // the socket should tighten it back up without waiting a full slow cycle.
-            scheduleTick();
+            _threadRtLive = status === 'SUBSCRIBED';
+            if (_liveThreadRtStatus) _liveThreadRtStatus(_threadRtLive);
           });
         window.__threadChannel = ch;
+        window.__threadChannelMealId = M.mealId;
       } catch { /* no realtime — the poll above is the whole mechanism, exactly as before */ }
     })();
 

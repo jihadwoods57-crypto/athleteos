@@ -137,7 +137,21 @@ export function wireTapback({ root, scope = '.thread', emoji, mine, onReact }) {
       if (reactNow) await reactNow(pick);
     };
     const onAway = (ev) => { if (!el.contains(ev.target)) closeTapback(); };
-    const onKey = (ev) => { if (ev.key === 'Escape') closeTapback(); };
+    // Focus management (deep audit 2026-08-19): the picker's items are real <button>s, but focus
+    // never moved into the menu, so a keyboard or switch-control user who got it open was still
+    // tabbing the thread underneath it. Arrow keys walk the set (role="menu" semantics); focus
+    // returns to wherever it was when the menu closes.
+    const prevFocus = document.activeElement;
+    const onKey = (ev) => {
+      if (ev.key === 'Escape') { closeTapback(); return; }
+      if (ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') return;
+      const items = Array.from(el.querySelectorAll('[data-tb]'));
+      if (!items.length) return;
+      const at = items.indexOf(document.activeElement);
+      const next = ev.key === 'ArrowRight' ? (at + 1) % items.length : (at - 1 + items.length) % items.length;
+      ev.preventDefault();
+      items[next].focus();
+    };
 
     /* THE PICKER FOLLOWS ITS BUBBLE; IT DOES NOT DIE ON SCROLL.
        This closed on any scroll event, which looked correct and was not: the app sets
@@ -161,6 +175,10 @@ export function wireTapback({ root, scope = '.thread', emoji, mine, onReact }) {
     };
 
     el.addEventListener('click', onPick);
+    // Into the menu, not just onto the screen — focusing a button opens no software keyboard,
+    // so this is safe for the touch path too.
+    const first = el.querySelector('[data-tb]');
+    if (first) first.focus();
     // Capture phase, and on the next frame: the same pointerup that ENDED the long press would
     // otherwise land here immediately and dismiss the picker before a finger could reach it.
     let armed = false;
@@ -178,6 +196,11 @@ export function wireTapback({ root, scope = '.thread', emoji, mine, onReact }) {
         document.removeEventListener('keydown', onKey);
         window.removeEventListener('scroll', onScroll, true);
         bubble.classList.remove('pressing');
+        // Only hand focus back if the menu still holds it — a pick that navigated or focused
+        // the composer must not have its focus yanked away by this cleanup.
+        try {
+          if (el.contains(document.activeElement) && prevFocus && prevFocus.isConnected && typeof prevFocus.focus === 'function') prevFocus.focus();
+        } catch { /* focus restoration is best-effort */ }
       },
     };
   };

@@ -14,6 +14,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stripComments } from './strip-comments.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const JS_DIR = path.resolve(HERE, '..', 'js');
@@ -45,12 +46,13 @@ const BANNED = [
 
 /* Remove block + line comments so documentation of internal terms isn't flagged.
    String URLs (https://…) are preserved: the line-comment strip ignores a `//`
-   that is preceded by ':' or '/'. */
-function stripComments(src) {
-  return src
-    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' ')) // keep line numbers
-    .replace(/(?<![:/])\/\/[^\n]*/g, '');
-}
+   that is preceded by ':' or '/'.
+
+   A scanner, not a regex (tool-debt fix 2026-08-20, identical to em-dash-ratchet's): the regex
+   pass could not tell a string from a comment, so a string containing a slash-star — a mime
+   type, a glob — opened a phantom block comment that blanked real copy until the file's next
+   comment terminator, and rules silently stopped matching it. */
+/* stripComments lives in strip-comments.mjs — the ONE shared stripper, with tests. */
 
 function walk(dir) {
   const out = [];

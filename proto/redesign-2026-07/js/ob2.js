@@ -165,7 +165,7 @@ export function choiceGrid(key, opts, { multi = false, req = true, current = nul
   const cur = current != null ? current : ob()[key];
   const on = (v) => (multi ? (Array.isArray(cur) && cur.map(String).includes(String(v))) : String(cur) === String(v));
   return `<div class="choice-grid" ${multi ? 'data-obkey-multi' : 'data-obkey'}="${key}" ${req ? 'data-req' : ''}>${opts.map((o) => `
-    <div class="choice ${on(o.v) ? 'on' : ''}" data-val="${esc(o.v)}" role="button" aria-pressed="${on(o.v) ? 'true' : 'false'}" aria-label="${esc(o.t)}">
+    <div class="choice ${on(o.v) ? 'on' : ''}" data-val="${esc(o.v)}" role="button" tabindex="0" aria-pressed="${on(o.v) ? 'true' : 'false'}" aria-label="${esc(o.t)}">
       ${o.ic ? `<div class="cic" style="background:${o.tint || 'var(--blue-surface)'};color:${o.color || 'var(--blue-bright)'}">${icon(o.ic, 18)}</div>` : ''}
       <div class="ct">${esc(o.t)}</div>${o.s ? `<div class="cs">${esc(o.s)}</div>` : ''}
     </div>`).join('')}</div>`;
@@ -214,7 +214,7 @@ export function chipRow(key, opts, { multi = false, req = true } = {}) {
   const on = (v) => (multi ? (Array.isArray(cur) && cur.map(String).includes(String(v))) : String(cur) === String(v));
   return `<div class="chip-row" ${multi ? 'data-obkey-multi' : 'data-obkey'}="${key}" ${req ? 'data-req' : ''}>${opts.map((o) => {
     const v = typeof o === 'string' ? o : o.v; const t = typeof o === 'string' ? o : o.t;
-    return `<div class="chp ${on(v) ? 'on' : ''}" data-val="${esc(v)}" role="button" aria-pressed="${on(v) ? 'true' : 'false'}">${esc(t)}</div>`;
+    return `<div class="chp ${on(v) ? 'on' : ''}" data-val="${esc(v)}" role="button" tabindex="0" aria-pressed="${on(v) ? 'true' : 'false'}">${esc(t)}</div>`;
   }).join('')}</div>`;
 }
 /* `lo`/`hi` label the ends of the scale. They default to the original wording, but a scale
@@ -224,7 +224,7 @@ export function scale10(key, { lo = 'Not close', hi = 'All the way', label = '' 
   const cur = ob()[key];
   return `${label ? `<div class="eyebrow" style="margin:0 2px 10px">${esc(label)}</div>` : ''}
   <div class="ob2-scale" data-obkey="${key}" data-req role="group" aria-label="${esc(label || 'Rate from 1 to 10')}">${
-    Array.from({ length: 10 }, (_, i) => `<div class="sc ${cur === i + 1 ? 'on' : ''}" data-val="${i + 1}" role="button" aria-pressed="${cur === i + 1 ? 'true' : 'false'}" aria-label="${i + 1}">${i + 1}</div>`).join('')
+    Array.from({ length: 10 }, (_, i) => `<div class="sc ${cur === i + 1 ? 'on' : ''}" data-val="${i + 1}" role="button" tabindex="0" aria-pressed="${cur === i + 1 ? 'true' : 'false'}" aria-label="${i + 1}">${i + 1}</div>`).join('')
   }</div><div class="ob2-scale-keys"><span>${esc(lo)}</span><span>${esc(hi)}</span></div>`;
 }
 

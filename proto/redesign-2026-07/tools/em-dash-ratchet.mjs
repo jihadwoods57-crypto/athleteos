@@ -26,6 +26,7 @@
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stripComments } from './strip-comments.mjs';
 
 const ROOT = dirname(fileURLToPath(new URL(import.meta.url)));
 const SRC = join(ROOT, '..', 'js');
@@ -36,12 +37,15 @@ const LIST = process.argv.includes('--list');
 const DASH = /\u2014|&mdash;/g;
 
 /* Identical to copy-lint's stripper: block and line comments out, line numbering preserved,
-   and a `//` inside a URL left alone. */
-function stripComments(src) {
-  return src
-    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
-    .replace(/(?<![:/])\/\/[^\n]*/g, '');
-}
+   and a `//` inside a URL left alone.
+
+   A scanner, not a regex (tool-debt fix 2026-08-20): the old regex pass could not tell a string
+   from a comment, so any string containing `/*` — `accept="image/*"`, a glob, a mime type —
+   opened a phantom block comment that blanked every line of real copy until the file's next
+   comment terminator. That silently UNDERCOUNTED, which for a ratchet means the gate wasn't guarding what
+   it claimed. Strings (including template literals) are kept verbatim; comments become spaces
+   so line numbers hold. */
+/* stripComments lives in strip-comments.mjs — the ONE shared stripper, with tests. */
 
 function walk(dir, acc = []) {
   for (const name of readdirSync(dir)) {

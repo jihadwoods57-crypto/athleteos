@@ -542,7 +542,9 @@
 .msg.coach .bubble { background: var(--surface-2); border: 1px solid var(--hairline-soft); border-top-left-radius: 6px; }
 .msg.ai .bubble { background: rgba(var(--blue-rgb), 0.09); border: none; border-top-left-radius: 6px; }
 .msg.athlete { align-self: flex-end; flex-direction: row-reverse; }
-.msg.athlete .bubble { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); color: #fff; border-top-right-radius: 6px; box-shadow: 0 2px 10px rgba(var(--blue-rgb),0.22); }
+/* --ink-on-accent, not #fff: --blue-bright is LIGHT in the dark theme, where white body copy
+   on it measured ~2.5:1 (deep audit 2026-08-19). The token flips with the theme. */
+.msg.athlete .bubble { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); color: var(--ink-on-accent); border-top-right-radius: 6px; box-shadow: 0 2px 10px rgba(var(--blue-rgb),0.22); }
 /* A run of messages from one person tapers: only the first bubble wears the tail. */
 .msg.cont.coach .bubble, .msg.cont.ai .bubble { border-top-left-radius: var(--r-card-sm); }
 .msg.cont.athlete .bubble { border-top-right-radius: var(--r-card-sm); }
@@ -711,7 +713,9 @@
 
 .composer { display: flex; gap:10px; margin-top:16px; }
 .composer input {
-  flex: 1; height: 48px; border-radius: var(--r-card-sm); border: 1px solid var(--hairline);
+  /* min-width:0 — a flex item's default min-width is its content size, so on a 375px frame the
+     coach's 3-button composer pushed Send off-screen (deep audit 2026-08-19). */
+  flex: 1; min-width: 0; height: 48px; border-radius: var(--r-card-sm); border: 1px solid var(--hairline);
   background: var(--surface-1); color: var(--text); padding:0 18px; font-family: var(--font); font-size: 14px; font-weight: 600; outline: none;
 }
 .composer .send {
@@ -1819,7 +1823,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* ---- Consumer paywall (#paywall) ---- */
 .pw-toggle{display:flex;gap:6px;background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:4px;margin:2px 0 14px}
 .pw-seg{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:40px;border:none;background:transparent;border-radius:var(--r-chip);font-size:13.5px;font-weight:800;color:var(--text-2);cursor:pointer}
-.pw-seg.on{background:var(--surface-1);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.18)}
+.pw-seg.on{background:var(--surface-1);color:var(--text);box-shadow:var(--sh-thumb)}
 /* Ink must flip with the theme: --green-bright is light in dark theme and DEEP in light theme,
    so a fixed near-black ink measured 3.77:1 on the light build. --ink-on-accent flips. */
 .pw-save{font-size:10px;font-weight:800;letter-spacing:0.02em;color:var(--ink-on-accent);background:var(--green-bright);border-radius:var(--r-pill);padding:2px 8px}
@@ -2157,7 +2161,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    verdicts AND how close each period came, which is the part that reads as momentum. The dashed
    line is the target, so a run of bars reaching it is legible without counting ticks. */
 .cs-mom{display:flex;align-items:flex-end;gap:6px;height:56px;position:relative}
-.cs-mom .tline{position:absolute;left:0;right:0;top:0;border-top:1px dashed rgba(148,176,224,.28)}
+/* var(--hairline), not a fixed pale-blue rgba: that constant was tuned on dark and vanished
+   entirely on the light theme (deep audit 2026-08-19). */
+.cs-mom .tline{position:absolute;left:0;right:0;top:0;border-top:1px dashed var(--hairline)}
 /* max-width caps the bar for the same reason the old glyph strip capped its cell: a two-period
    history stretched across the full width reads as two slabs, not as the start of a strip. A full
    week still fills the row. The label track carries the identical cap so the two stay aligned. */
