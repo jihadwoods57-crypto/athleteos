@@ -108,7 +108,11 @@ export default {
       </div>
       <div class="lrow" data-go="location-consent">
         <div class="lic">${icon('target', 17)}</div>
-        <div class="lm"><div class="lt">Arrival check-in</div><div class="ls">How showing up is confirmed · on/off lives here</div></div>
+        ${/* "on/off lives here" was the only way to learn the state without opening the screen.
+              The pill says it now, so the subtitle stops repeating it and stops wrapping to a
+              second line at 390px next to the pill. */''}
+        <div class="lm"><div class="lt">Arrival check-in</div><div class="ls">How showing up is confirmed</div></div>
+        <span id="pf-arrival-state"></span>
         ${icon('chevron', 17, 'class="chev-dim"')}
       </div>
     </section>
@@ -184,6 +188,46 @@ export default {
     `;
   },
   mount(root) {
+    /* Arrival check-in wears its own state, so "is this actually on" is readable from Profile
+       without opening the screen (PRODUCT.md: glanceable truth in under 3 seconds). Before this
+       the row read the same sentence whether the athlete had it armed, had never granted the
+       permission, or had it blocked in iOS Settings, so the only way to learn the answer was to
+       go looking for it.
+
+       Probed live on every mount rather than cached: the athlete may have changed the grant in
+       the Settings app since the last paint, and a row reporting last week's answer is worse
+       than a row reporting nothing. The row renders stateless and only ever GAINS a pill, so a
+       missing bridge, a refused probe, or an older build degrades to exactly today's appearance
+       instead of an empty box or a wrong claim.
+
+       Written straight into the slot instead of through __render(): mount() re-runs on every
+       render, so re-rendering from here is the infinite loop connected-standards.js documents. */
+    (async () => {
+      const slot = root.querySelector('#pf-arrival-state');
+      if (!slot) return;
+      // Built with textContent, never an HTML sink. The labels below are literals today, but a
+      // status pill is exactly the kind of thing someone later feeds a server string, and this
+      // shape makes that safe by construction instead of by remembering.
+      const paint = (cls, label) => {
+        const el = document.createElement('span');
+        el.className = `status-pill ${cls}`;
+        el.textContent = label;
+        slot.replaceWith(el);
+      };
+      // The athlete's own opt-out outranks the OS grant, exactly as it does on the screen itself:
+      // "off" they chose has to READ as off even while iOS still says 'always'.
+      if (RT.locationOptOut) { paint('muted', 'Off'); return; }
+      const loc = (typeof window !== 'undefined' && window.OnStandardNative)
+        ? window.OnStandardNative.location : null;
+      if (!loc) return;
+      let r = null;
+      try { r = await loc.available(); } catch { return; }
+      if (!slot.isConnected || !r || !r.available) return;
+      if (r.state === 'always') paint('g', 'On');
+      else if (r.state === 'when_in_use') paint('a', 'App open only');
+      else if (r.state === 'denied') paint('a', 'Blocked');
+    })();
+
     const btn = root.querySelector('#avatar-btn');
     const file = root.querySelector('#avatar-file');
     if (btn && file) {

@@ -131,6 +131,14 @@ export default {
       : partial
         ? 'Right now it only works while the app is open. Allowing "Always" means you never have to think about it.'
         : 'Your phone will ask next. Choosing "Always" is what lets it work at 5:43 AM without you opening anything.'}</div>
+    ${on && ARM_CAPPED ? `
+    <div class="sidebox mt">
+      <div class="req-icon a s38">${icon('alert', 19)}</div>
+      <div>
+        <div class="tt">Your phone is watching its limit of places</div>
+        <div class="ts">You have more located events than your phone can watch at once, so the ones past the limit will not check themselves in. Tap the arrival button when you get to those. It counts exactly the same.</div>
+      </div>
+    </div>` : ''}
     ${on || partial ? `<div style="height:10px"></div>
       <button class="btn ghost" id="lc-off" style="width:100%">Turn it off</button>` : ''}
     `}
