@@ -12,9 +12,12 @@ export default {
   render({ sub }) {
     const id = sub || 'dinner';
     const assigned = RT.assigned.find(a => a.id === id);
-    // Resolve from the built-in CATALOG first, then the coach's standing set items (lift/custom/extra
-    // weigh etc.), so a coach NON-MEAL requirement opens a real detail screen, not "not found".
-    const req = assigned ? deriveAssigned(assigned) : (CATALOG.find(r => r.id === id) || catalogFromItems(RT.stdItems).find(r => r.id === id));
+    // Resolve from the live rulebook (S.scheduleCatalog) first — it carries the classic snack row
+    // and, under a coach standard, the TRUE meal windows (the raw CATALOG would print a classic
+    // deadline a coach has moved) — then the built-in CATALOG, then the coach's standing set items
+    // (lift/custom/extra weigh etc.), so a coach NON-MEAL requirement opens a real detail screen.
+    const req = assigned ? deriveAssigned(assigned)
+      : ((S.scheduleCatalog || []).find(r => r.id === id) || CATALOG.find(r => r.id === id) || catalogFromItems(RT.stdItems).find(r => r.id === id));
     // Unknown id (stale deep-link, removed assigned task): a legible empty state with a
     // forward path, not a bare "Nothing here" dead end.
     if (!req) return `${backHead('Requirement', 'Not found', 'plan')}
@@ -89,8 +92,12 @@ export default {
       ? `<button class="btn ghost" data-go="log-training/${id}" style="width:100%">${icon('check', 19)} Logged today · tap to update</button>`
       : `<button class="btn green" data-go="log-training/${id}">${icon('bolt', 19)} Log this session</button>`;
 
+    // An optional row (the classic snack) must never introduce itself as "Required daily" —
+    // freqLabel only speaks for required frequencies.
+    const freqText = req.required === false ? 'Optional · skipping is never a miss' : freqLabel(req.freq);
+
     return `
-    ${backHead(req.title, assigned ? `Assigned by ${assigned.from}` : freqLabel(req.freq), 'home')}
+    ${backHead(req.title, assigned ? `Assigned by ${assigned.from}` : freqText, 'home')}
 
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
@@ -99,7 +106,7 @@ export default {
               catalog carries the minute, and derive() (which builds dueLabel) never runs on this
               route. Print the time. */''}
         <div class="lm"><div class="lt">${req.dueLabel || (req.window && req.window.due != null ? `Due by ${fmtMin(req.window.due)}` : 'No deadline')}</div>
-        <div class="ls">${assigned ? 'One-time task' : freqLabel(req.freq)}</div></div>
+        <div class="ls">${assigned ? 'One-time task' : freqText}</div></div>
       </div>
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('camera', 17)}</div>

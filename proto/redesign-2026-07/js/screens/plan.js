@@ -672,11 +672,25 @@ function requirementsTab() {
         </div>
         <div class="plend"><span class="pl-tag b">Your plan</span>${icon('chevron', 15, 'style="color:var(--text-3)"')}</div>
       </div>`).join('')}</div>` : ''}
-  ${/* Provenance, and nothing else. "Tap any rule for why it exists…" was instructions for a
-        chevron. */''}
-  <div class="pl-standard" style="margin-top:18px">${gov
-    ? `${esc(gov.scopeLabel)}${gov.setBy ? ` by ${esc(gov.setBy)}` : ''}${gov.effectiveDate ? `, effective ${esc(fmtDate(gov.effectiveDate) || gov.effectiveDate)}` : ''}.`
-    : 'The OnStandard baseline. No coach has replaced these.'}</div>
+  ${/* Provenance as a real row, not a footnote. The old floating sentence ("The OnStandard
+        baseline. No coach has replaced these.") read like an apology under the very standard a
+        solo athlete is scored on; the row gives the rulebook an author the same way every rule
+        above it has a deadline. Same honesty gates: a coach is named only when a coach set
+        actually governs. */''}
+  <div class="pl-grp">Who set this</div>
+  <div class="pl-list">
+    <div class="pl-row">
+      <div class="req-icon muted" style="width:38px;height:38px;flex:none">${icon('shield', 18)}</div>
+      <div class="plb">
+        <div class="plt"><span class="nm">${gov
+    ? `${esc(gov.scopeLabel)}${gov.setBy ? ` by ${esc(gov.setBy)}` : ''}`
+    : 'The OnStandard baseline'}</span></div>
+        <div class="pls">${gov
+    ? (gov.effectiveDate ? `In effect since ${esc(fmtDate(gov.effectiveDate) || gov.effectiveDate)}` : 'In effect now')
+    : (S.coach.hasCoach ? `Yours until your ${esc(S.coach.noun)} sets their own standard` : 'The standard every athlete starts on')}</div>
+      </div>
+    </div>
+  </div>
   ${askSection('requirements')}`;
 }
 

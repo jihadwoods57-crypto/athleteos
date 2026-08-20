@@ -7,7 +7,7 @@
    Weight is deliberately OUT of the daily score (season-goal arc, weightProgress.ts).
 */
 
-import { CATALOG, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet, stdFromItems, stdFromSolo, dayTypeFor, filterItemsByDayType, catalogFromItems, planStyleFromItems, setImpactWeightsProvider } from './requirements.js';
+import { CATALOG, SNACK_BONUS, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet, stdFromItems, stdFromSolo, dayTypeFor, filterItemsByDayType, catalogFromItems, planStyleFromItems, setImpactWeightsProvider } from './requirements.js';
 import { resolvePlanStyle, SIGNAL_KEYS, CHECKIN_SIGNAL_KEYS, styleLabel, styleSourceLabel } from './plan-style.js';
 import { TOS_VERSION } from './ob-helpers.js';
 import { tierFor, ON_STANDARD, qualityAccent } from './score-band.js';
@@ -4165,7 +4165,10 @@ export const S = {
      standard governs (WS3 slice 2) — ITS meal slots (count/titles/windows) plus the non-meal
      catalog rows. Same mapping as the exec engine, so the rulebook can never contradict Home. */
   get scheduleCatalog() {
-    if (!RT.stdMeals) return CATALOG;
+    // Classic baseline: the rulebook admits to the snack the engine already scores (denominator 4,
+    // 5:00 PM deadline) instead of hiding a slot worth a quarter of the meals count. Display layer
+    // only — exec.js keeps deriving Home from the unchanged CATALOG.
+    if (!RT.stdMeals) return [...CATALOG, SNACK_BONUS];
     return [
       ...reqMealSlots().map((k) => {
         const base = CATALOG.find(c => c.id === k);

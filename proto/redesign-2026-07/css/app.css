@@ -413,7 +413,9 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 /* Neutral. For rows that state a FACT rather than a state — "not in today's score" is not a
    warning, and dressing it in amber gave that hue a third job in a token file that says each
    colour has exactly one. */
-.req-icon.muted { background: var(--surface-2); color: var(--text-3); }
+/* --text-2, not --text-3: the glyph sits on --surface-2 (not --bg, where text-3 was tuned), and
+   at 18px stroke weight text-3 rendered as a barely-there outline. Still quiet, now legible. */
+.req-icon.muted { background: var(--surface-2); color: var(--text-2); }
 .req-main { flex: 1 1 auto; min-width: 0; }
 .req-title { font-size: 15.5px; font-weight: 800; letter-spacing: -0.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .req-sub { font-size: 12.5px; font-weight: 600; margin-top:2px; white-space: nowrap; }

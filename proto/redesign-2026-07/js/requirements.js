@@ -91,6 +91,19 @@ export const CATALOG = [
     note: '20 seconds. Coach reads readiness before tomorrow’s practice.' },
 ];
 
+/* The classic snack — scored but not required. day.js counts FOUR slots on the baseline
+   (denominator 4, DEADLINE.snack 5:00 PM, late = half credit), so the slot is real points the
+   rulebook has to admit to; but it never reads overdue and skipping it is never a miss, which is
+   why it lives OUTSIDE the exec CATALOG: Home's ladder and the day denominator that exec derives
+   must not change. S.scheduleCatalog appends it on the classic branch only — a coach standard
+   states its own snack policy (item.snack). */
+export const SNACK_BONUS = {
+  id: 'snack', title: 'Snack', icon: 'snack', accent: 'g', proof: 'photo',
+  freq: { type: 'daily' }, window: { due: 17 * 60 }, required: false,
+  impact: { kind: 'component', comp: 'nutrition' }, reminder: 'low',
+  note: 'The fourth plate of the classic 4-count. Skipping it never reads as a miss, but a real snack is the difference between 3 of 4 and a full meals score.',
+};
+
 export function fmtMin(m) {
   const h24 = Math.floor(m / 60), mm = m % 60;
   const h = ((h24 + 11) % 12) + 1;
@@ -275,7 +288,9 @@ const KIND_DEFAULTS = {
   meal:      { icon: 'utensils', accent: 'g', proof: 'photo', required: true, impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium', freq: { type: 'daily' } },
   lift:      { icon: 'bolt', accent: 'b', proof: 'check', required: true, impact: { kind: 'plan' }, reminder: 'medium', freq: { type: 'daily' } },
   recovery:  { icon: 'moonStar', accent: 'p', proof: 'form', required: true, impact: { kind: 'component', comp: 'recovery' }, reminder: 'high', freq: { type: 'daily' } },
-  weigh:     { icon: 'scale', accent: 'a', proof: 'scale', required: true, impact: { kind: 'trend' }, reminder: 'high', freq: { type: 'days', days: [1, 3, 5], label: 'Mon / Wed / Fri' } },
+  // accent 'muted', not 'a': amber means WARNING (DESIGN.md semantic-hue law) and a weigh-in is
+  // neutral provenance — the classic CATALOG's own weight row already wears muted.
+  weigh:     { icon: 'scale', accent: 'muted', proof: 'scale', required: true, impact: { kind: 'trend' }, reminder: 'high', freq: { type: 'days', days: [1, 3, 5], label: 'Mon / Wed / Fri' } },
   // v2: no `checkin` entry — the weekly check-in ritual is deleted (Task 7). A stored item that
   // still carries kind:'checkin' (a pre-cutover row) now falls through to `custom` below, same as
   // any other unknown kind, so it can never resurrect the deleted screen's route.
