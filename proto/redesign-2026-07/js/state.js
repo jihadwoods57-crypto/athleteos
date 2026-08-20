@@ -18,7 +18,7 @@ import {
   setSyncBlocked, isSyncBlocked, SYNC, setDayTaskProvider,
   dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayLogWeight, dayResetLocal, dayCheckTask,
   insertMeal, MEAL_KEYS, minutesNow, mealScored,
-  setDayStandard, slotDeadline, slotGrace, slotOpen, setDayGoalConfig,
+  setDayStandard, slotDeadline, slotGrace, slotLateCredit, slotOpen, setDayGoalConfig,
   setDayPlanStyle, weightsForDay, DAY_SELECT_COLS, PROFILE_WEIGHTS,
 } from './day.js';
 import { creditsLeft } from './pass.js';
@@ -480,7 +480,14 @@ function optionalSlot(k) {
  *  knows which slot it's logging (the camera, routed as `camera/dinner`) reads THAT slot's
  *  deadline instead of re-deriving a next-open slot and quoting a different meal's time. */
 export function mealDueLabel(k) {
-  if (optionalSlot(k)) return 'Optional — counts whenever you log it';
+  // Founder ruling 2026-08-20: the engine's rule stands (an optional slot logged past its
+  // deadline earns the late credit, half by default), so the copy states it — "counts whenever
+  // you log it" was only true under a coach's late-forgives-all policy.
+  if (optionalSlot(k)) {
+    const dl = slotDeadline(k);
+    // A coach's late-forgives-all policy really does mean "whenever"; only then say so.
+    return (dl != null && slotLateCredit(k) < 1) ? `Optional · full credit by ${fmtClock(dl)}` : 'Optional · counts whenever you log it';
+  }
   const dl = slotDeadline(k);
   return dl != null ? `Due by ${fmtClock(dl)}` : 'Log when ready';
 }

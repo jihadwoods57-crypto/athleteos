@@ -105,14 +105,20 @@ export function reachPlan(day, { slots, titles = {}, optional = [], nowMin, fmtC
   open.forEach((k, i) => {
     const due = slotDeadline(k);
     const opt = optional.includes(k);
-    const late = !opt && nowMin > due;
-    const at = late ? nowMin : Math.min(Math.max(nowMin, 0), due);
+    const pastDue = nowMin > due;
+    const late = !opt && pastDue;
+    // Simulate the log at the REAL clock for optional slots too: pinning a late optional at its
+    // deadline promised a full-credit gain the engine would then halve on the actual log.
+    const at = pastDue ? nowMin : Math.min(Math.max(nowMin, 0), due);
+    const credit = slotLateCredit(k);
     const p = i === open.length - 1 ? remP - share * (open.length - 1) : share;
     const next = withMeal(cur, k, at, p);
     const gain = dayScoreOf(next) - curScore;
     rows.push({
       id: k, label: `Log ${titles[k] || k.charAt(0).toUpperCase() + k.slice(1)}`,
-      sub: opt ? 'Optional · counts whenever you log it'
+      sub: opt ? (credit >= 1 ? 'Optional · counts whenever you log it'
+        : pastDue ? `Optional · past ${fmtClock(due)} · ${credit ? 'counts for half' : 'window closed'}`
+          : `Optional · full credit by ${fmtClock(due)}`)
         : late ? `Past ${fmtClock(due)} · late still counts for half` : `Due by ${fmtClock(due)}`,
       gain, kind: 'upTo', route: `camera/${k}`, accent: 'g', late,
     });
@@ -180,13 +186,20 @@ export function explainCategories(day, { slots, denom, titles = {}, optional = [
     const dupped = day.meals && day.meals[k] && day.slotMacros && day.slotMacros[k] && day.slotMacros[k].flagged === 'dup';
     if (dupped) return { label: title(k), sub: 'Duplicate photo — logged, not scored', value: '0 pts', state: 'flagged' };
     const opt = optional.includes(k);
-    const late = !opt && nowMin > due + slotGrace(k, std);
+    const pastDue = nowMin > due + slotGrace(k, std);
+    const late = !opt && pastDue;
     const credit = slotLateCredit(k, std);
+    // Founder ruling 2026-08-20: the engine halves a late optional slot too, so an optional row
+    // past its window quotes the halved value and says why — "counts whenever you log it" is
+    // reserved for a late-forgives-all policy, the one case where it is true. It still never
+    // reads 'overdue': skipping stays penalty-free.
     return {
       label: title(k),
-      sub: opt ? 'Optional · counts whenever you log it'
+      sub: opt ? (credit >= 1 ? 'Optional · counts whenever you log it'
+        : pastDue ? `Optional · past ${fmtClock(due)} · ${credit ? 'half credit now' : 'window closed'}`
+          : `Optional · full credit by ${fmtClock(due)}`)
         : late ? `Was due ${fmtClock(due)} — ${lateHint(credit)}` : `Due by ${fmtClock(due)}`,
-      value: `+${Math.round(w.nutrition * 35 / denom * (late ? credit : 1))} on log`,
+      value: `+${Math.round(w.nutrition * 35 / denom * (pastDue ? credit : 1))} on log`,
       state: late ? 'overdue' : 'open',
     };
   });

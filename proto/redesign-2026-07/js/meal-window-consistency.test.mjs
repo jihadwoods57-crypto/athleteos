@@ -16,7 +16,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { stdFromItems, derive, fmtMin } from './requirements.js';
-import { setDayStandard, slotOpen, slotDeadline, OPEN, DEADLINE } from './day.js';
+import { setDayStandard, slotOpen, slotDeadline, slotLateCredit, OPEN, DEADLINE } from './day.js';
 
 const meal = (title, open, due, extra = {}) => ({ kind: 'meal', title, window: { open, due }, ...extra });
 /* The shipped 4-meal standard, dinner moved to 5:00 PM by the coach. Snack keeps its 5:00 PM
@@ -88,7 +88,11 @@ test('an untouched catalog window still reads "Upcoming · Opens ..." before it 
    re-stated against those directly: whatever slot you name, you get THAT slot's deadline. */
 const mealDueLabelFor = (k, std) => {
   const optional = std ? (std.optional || []).includes(k) : !['breakfast', 'lunch', 'dinner'].includes(k);
-  if (optional) return 'Optional — counts whenever you log it';
+  if (optional) {
+    const dl = slotDeadline(k, std);
+    // "Whenever" only under a late-forgives-all policy; otherwise the late-credit clock is real.
+    return (dl != null && slotLateCredit(k, std) < 1) ? `Optional · full credit by ${fmtMin(dl)}` : 'Optional · counts whenever you log it';
+  }
   const dl = slotDeadline(k, std);
   return dl != null ? `Due by ${fmtMin(dl)}` : 'Log when ready';
 };
