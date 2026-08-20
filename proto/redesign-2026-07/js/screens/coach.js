@@ -1120,7 +1120,7 @@ export const coachPlanSet = {
                 disappearing and an unrelated one arriving. */''}
           ${(TPL && TPL.rows ? TPL.rows : []).map(t => TPL_RENAMING === t.id ? `
           <div class="lrow" data-vt-row="tpl-${esc(t.id)}" style="cursor:default;gap:8px;padding-left:0">
-            <input class="std-name tpl-rename-input" data-tpl-rename-input="${esc(t.id)}" maxlength="40" value="${esc(t.name)}" style="flex:1" ${TPL_BUSY ? 'disabled' : ''} />
+            <input class="std-name tpl-rename-input" data-tpl-rename-input="${esc(t.id)}" maxlength="40" value="${esc(t.name)}" style="flex:1" aria-label="Rename ${esc(t.name)}" ${TPL_BUSY ? 'disabled' : ''} />
             <button class="btn sm" data-tpl-rename-save="${esc(t.id)}" style="width:auto;padding:0 12px;height:34px" ${TPL_BUSY ? 'disabled' : ''}>Save</button>
             <button class="btn ghost sm" data-tpl-rename-cancel="1" style="width:auto;padding:0 12px;height:34px" ${TPL_BUSY ? 'disabled' : ''}>Cancel</button>
           </div>` : `

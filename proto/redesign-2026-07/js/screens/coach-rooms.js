@@ -67,7 +67,7 @@ export const coachRooms = {
           <button class="btn sm" data-room-del-confirm="${esc(rm.id)}" style="width:auto;padding:0 12px;height:34px;flex:none;background:var(--danger-solid);color:#fff;border:none">Delete room</button>
         </div>` : RENAMING === rm.id ? `
         <div class="lrow" style="cursor:default;gap:8px">
-          <input class="ob-input room-rename-input" data-room-rename-input="${esc(rm.id)}" maxlength="40" value="${esc(rm.label)}" style="flex:1" />
+          <input class="ob-input room-rename-input" data-room-rename-input="${esc(rm.id)}" maxlength="40" value="${esc(rm.label)}" style="flex:1" aria-label="Rename ${esc(rm.label)}" />
           <button class="btn sm" data-room-rename-save="${esc(rm.id)}" style="width:auto;padding:0 12px;height:34px">Save</button>
           <button class="btn ghost sm" data-room-rename-cancel="1" style="width:auto;padding:0 12px;height:34px">Cancel</button>
         </div>` : `

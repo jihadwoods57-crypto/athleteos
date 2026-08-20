@@ -293,9 +293,12 @@ const blankDraft = () => ({
   escalation: {},
 });
 
+/* The visible caption is a <label for>, not a styled <div>: a time field whose name lives in an
+   unassociated div is announced as just "time" by a screen reader, and the caption is not a tap
+   target. `display:block` keeps the label sitting on its own line exactly as the div did. */
 const timeInput = (id, label, val) => `
   <div style="flex:1">
-    <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">${esc(label)}</div>
+    <label for="${id}" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">${esc(label)}</label>
     <input class="ob-input" id="${id}" type="time" value="${esc(val == null ? '' : `${String(Math.floor(val / 60)).padStart(2, '0')}:${String(val % 60).padStart(2, '0')}`)}" />
   </div>`;
 
@@ -502,10 +505,10 @@ export const coachCommitEdit = {
       <button class="btn ghost sm" id="vc-newplace" style="width:100%">${icon('target', 16)} Add the place I'm standing in</button>
       <div id="vc-placeform" hidden>
         <div style="height:12px"></div>
-        <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Call it what your ${CD.nouns} call it</div>
+        <label for="vc-placename" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Call it what your ${CD.nouns} call it</label>
         <input class="ob-input" id="vc-placename" maxlength="60" placeholder="e.g. Football Facility" />
         <div style="height:10px"></div>
-        <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">How close counts <span style="color:var(--text-3);font-weight:600">· metres</span></div>
+        <label for="vc-placeradius" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">How close counts <span style="color:var(--text-3);font-weight:600">· metres</span></label>
         <input class="ob-input" id="vc-placeradius" type="number" min="50" max="1000" step="10" value="120" />
         <div class="ts" style="padding-top:6px">120m covers a field and its building. Below 50m a phone's own GPS error starts marking honest ${CD.nouns} absent, so that's the floor.</div>
         <div style="height:10px"></div>
@@ -517,7 +520,7 @@ export const coachCommitEdit = {
       <div style="display:flex;gap:10px">
         ${timeInput('vc-arrive', 'Arrive by', d.arrive_by_min)}
         <div style="flex:1">
-          <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Stay at least <span style="color:var(--text-3);font-weight:600">· min</span></div>
+          <label for="vc-dwell" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Stay at least <span style="color:var(--text-3);font-weight:600">· min</span></label>
           <input class="ob-input" id="vc-dwell" type="number" min="0" max="480" step="5" value="${d.min_dwell_min == null ? '' : esc(String(d.min_dwell_min))}" placeholder="45" />
         </div>
       </div>
@@ -527,7 +530,7 @@ export const coachCommitEdit = {
 
     <div class="eyebrow">Linked event <span class="opt">· optional</span></div>
     <section class="card pad">
-      <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">What is this roll call for?</div>
+      <label for="vc-link" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">What is this roll call for?</label>
       <select class="ob-input" id="vc-link">
         <option value="">Nothing, it stands alone</option>
         ${(RT.vcCommitments || []).filter((c) => c.type !== 'morning_roll_call')

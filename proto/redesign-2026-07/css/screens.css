@@ -2226,10 +2226,16 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    it for chips would inherit the track and style nothing. */
 .cs-knob{padding:14px 0;border-top:1px solid var(--hairline-soft)}
 .cs-knob:first-child{border-top:0;padding-top:2px}
-.cs-knob-label{font-size:var(--t-eyebrow);letter-spacing:var(--track-eyebrow);text-transform:uppercase;
+/* display:block because the captions that head a real input are <label for> elements now, not
+   divs — a label is inline by default and would drop margin-bottom and sit on the field's line. */
+.cs-knob-label{display:block;font-size:var(--t-eyebrow);letter-spacing:var(--track-eyebrow);text-transform:uppercase;
   color:var(--text-3);font-weight:800;margin-bottom:8px}
 .cs-seg{display:flex;gap:6px;flex-wrap:wrap}
-.cs-seg span{display:inline-flex;align-items:center;min-height:44px;padding:6px 14px;
+/* min-width matches the min-height for the same reason: the WHICH DAYS chips are single letters,
+   which QC measured at 37-43px wide against the 44px touch floor. Every other chip in this
+   component is already wider than 44px, so a minimum only ever moves the day initials. */
+.cs-seg span{display:inline-flex;align-items:center;justify-content:center;
+  min-height:44px;min-width:44px;padding:6px 14px;
   border-radius:var(--r-chip);background:var(--surface-2);border:1px solid var(--hairline);
   color:var(--text-2);font-size:var(--t-sm);font-weight:700;cursor:pointer;
   transition:background var(--dur-1) var(--ease-out),border-color var(--dur-1) var(--ease-out)}

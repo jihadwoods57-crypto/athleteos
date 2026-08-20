@@ -333,6 +333,7 @@ const METRICS = [
   { key: 'active_minutes', label: 'Active minutes', unit: 'min', preset: 30 },
 ];
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const DOW_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DEADLINES = [
   { min: null, label: 'End of day' }, { min: 1020, label: '5:00 PM' },
   { min: 1140, label: '7:00 PM' }, { min: 1260, label: '9:00 PM' },
@@ -353,6 +354,18 @@ const sw = (key, on, title, sub) => `
     </div>
     <div class="std-switch ${on ? 'on' : ''}" aria-hidden="true"></div>
   </div>`;
+
+/* The choice chips inside .cs-seg. They were bare <span>s with a click listener: no tab stop, no
+   role, no checked state, so a keyboard or screen-reader user could not set the metric, the
+   period, the days, or the deadline AT ALL — every knob in this editor except the switches above.
+   screens.css even shipped a `.cs-seg span:focus-visible` outline, which nothing could ever
+   trigger, so the intent was there and only the attributes were missing.
+
+   `multi` picks the honest role: WHICH DAYS is a multi-select (checkbox), every other group is
+   one-of-N (radio). Enter and Space are wired in mount() the same way the switch row does it. */
+const chip = (attr, on, label, multi, name) => `
+  <span class="${on ? 'on' : ''}" role="${multi ? 'checkbox' : 'radio'}" tabindex="0"
+        aria-checked="${on ? 'true' : 'false'}"${name ? ` aria-label="${esc(name)}"` : ''} ${attr}>${esc(label)}</span>`;
 
 let DRAFT = null;
 const blank = () => ({
@@ -395,46 +408,48 @@ export const coachStandardEdit = {
 
     <section class="card pad">
       <div class="cs-knob">
-        <div class="cs-knob-label">WHAT YOU’RE ASKING FOR</div>
-        <div class="cs-seg">${METRICS.map((m) => `
-          <span class="${m.key === d.metric ? 'on' : ''}" data-cs-metric="${m.key}">${esc(m.label)}</span>`).join('')}
+        <div class="cs-knob-label" id="cs-lb-metric">WHAT YOU’RE ASKING FOR</div>
+        <div class="cs-seg" role="radiogroup" aria-labelledby="cs-lb-metric">${METRICS.map((m) =>
+          chip(`data-cs-metric="${esc(m.key)}"`, m.key === d.metric, m.label)).join('')}
         </div>
       </div>
 
       ${d.metric === 'distance' ? `<div class="cs-knob">
-        <div class="cs-knob-label">WHAT COUNTS</div>
-        <div class="cs-seg">
-          <span class="${d.deliberate_workout ? '' : 'on'}" data-cs-delib="0">Any walking or running</span>
-          <span class="${d.deliberate_workout ? 'on' : ''}" data-cs-delib="1">A recorded workout</span>
+        <div class="cs-knob-label" id="cs-lb-counts">WHAT COUNTS</div>
+        <div class="cs-seg" role="radiogroup" aria-labelledby="cs-lb-counts">
+          ${chip('data-cs-delib="0"', !d.deliberate_workout, 'Any walking or running')}
+          ${chip('data-cs-delib="1"', !!d.deliberate_workout, 'A recorded workout')}
         </div>
         <div class="cs-p muted" style="margin-top:8px">${esc(sourceRule(d.metric, d.deliberate_workout, d.workout_min_duration_min))}</div>
       </div>` : ''}
 
       <div class="cs-knob">
-        <div class="cs-knob-label">TARGET</div>
+        <label class="cs-knob-label" for="cs-target">TARGET</label>
         <input class="input" id="cs-target" type="number" inputmode="decimal" min="1" value="${esc(String(d.target))}">
         <div class="cs-p muted" style="margin-top:6px">${esc(unitNoun(d.metric, d.display_unit, 2))} per ${d.period === 'week' ? 'week' : 'day'}</div>
       </div>
 
       <div class="cs-knob">
-        <div class="cs-knob-label">HOW OFTEN</div>
-        <div class="cs-seg">
-          <span class="${d.period === 'day' ? 'on' : ''}" data-cs-period="day">Every day</span>
-          <span class="${d.period === 'week' ? 'on' : ''}" data-cs-period="week">Across the week</span>
+        <div class="cs-knob-label" id="cs-lb-often">HOW OFTEN</div>
+        <div class="cs-seg" role="radiogroup" aria-labelledby="cs-lb-often">
+          ${chip('data-cs-period="day"', d.period === 'day', 'Every day')}
+          ${chip('data-cs-period="week"', d.period === 'week', 'Across the week')}
         </div>
       </div>
 
       ${d.period === 'day' ? `
       <div class="cs-knob">
-        <div class="cs-knob-label">WHICH DAYS</div>
-        <div class="cs-seg">${DOW.map((lab, i) => `
-          <span class="${d.repeat_days.includes(i) ? 'on' : ''}" data-cs-dow="${i}">${esc(lab)}</span>`).join('')}
+        <div class="cs-knob-label" id="cs-lb-days">WHICH DAYS</div>
+        ${/* The visible initials repeat — S, T and S again — so each day carries its full name as
+              its accessible name. "T" twice tells a screen-reader user nothing. */''}
+        <div class="cs-seg" role="group" aria-labelledby="cs-lb-days">${DOW.map((lab, i) =>
+          chip(`data-cs-dow="${i}"`, d.repeat_days.includes(i), lab, true, DOW_FULL[i])).join('')}
         </div>
       </div>
       <div class="cs-knob">
-        <div class="cs-knob-label">DUE BY</div>
-        <div class="cs-seg">${DEADLINES.map((x) => `
-          <span class="${d.deadline_min === x.min ? 'on' : ''}" data-cs-due="${x.min === null ? '' : x.min}">${esc(x.label)}</span>`).join('')}
+        <div class="cs-knob-label" id="cs-lb-due">DUE BY</div>
+        <div class="cs-seg" role="radiogroup" aria-labelledby="cs-lb-due">${DEADLINES.map((x) =>
+          chip(`data-cs-due="${x.min === null ? '' : x.min}"`, d.deadline_min === x.min, x.label)).join('')}
         </div>
       </div>` : ''}
 
@@ -450,7 +465,7 @@ export const coachStandardEdit = {
       </div>
 
       <div class="cs-knob">
-        <div class="cs-knob-label">NAME IT</div>
+        <label class="cs-knob-label" for="cs-title">NAME IT</label>
         <input class="input" id="cs-title" maxlength="60" value="${esc(d.title)}" placeholder="${esc(defaultTitle(d))}">
       </div>
     </section>
@@ -477,6 +492,12 @@ export const coachStandardEdit = {
 
   mount(root) {
     const set = (patch) => { DRAFT = { ...DRAFT, ...patch }; if (window.__render) window.__render(); };
+
+    /* No keydown wiring here on purpose. router.js promotes every .cs-seg chip to a tab stop and
+       turns Enter/Space into a click centrally, and it restores focus across the repaint these
+       knobs trigger. A second listener on the same chip fired click() TWICE per keypress, which
+       toggled a day off and straight back on — the knob looked broken while being pressed
+       correctly. One listener, in one place. */
 
     root.querySelectorAll('[data-cs-metric]').forEach((el) => el.addEventListener('click', () => {
       const m = METRICS.find((x) => x.key === el.getAttribute('data-cs-metric')) || METRICS[0];

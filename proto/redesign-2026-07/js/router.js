@@ -301,6 +301,20 @@ let REPAINT_HELD = false;   // a same-route repaint is waiting out a transition 
    handlers stopPropagation(), and their keydown handlers preventDefault() (checked below), so
    nothing fires twice. */
 let DELEGATED = false;
+/* A selector that will find this element again after the subtree is rebuilt, or '' if it has
+   nothing stable to find it by. Screens key their controls off an id or a data-* attribute, and
+   both survive a re-render because they come from the template that just re-ran. Module scope, not
+   inside render(): the capture happens in render() and would not see a helper declared in the
+   nested commit() closure. */
+function focusKeyOf(el) {
+  if (!el || el === document.body || !el.closest || !el.closest('#device')) return '';
+  try {
+    if (el.id) return `#${CSS.escape(el.id)}`;
+    const at = el.getAttributeNames().find((n) => n.startsWith('data-') && el.getAttribute(n));
+    return at ? `[${at}="${CSS.escape(el.getAttribute(at))}"]` : '';
+  } catch { return ''; }
+}
+
 function wireDelegatedNav(device) {
   if (DELEGATED || !device) return;
   DELEGATED = true;
@@ -433,6 +447,13 @@ function render() {
   // athlete profile chips) snapping the page to the top (T-08).
   const prevVp = document.getElementById('viewport');
   const prevScroll = prevVp ? prevVp.scrollTop : 0;
+  // Focus is the same problem as the scroll above, one layer up, and it has the same fix. A knob
+  // that calls window.__render() replaces the subtree it lives in, so the element the user was
+  // standing on is destroyed and focus falls back to <body>. With a pointer that is invisible;
+  // with a keyboard it means every knob press throws you back to the top of the screen and you
+  // tab down again to reach the next one, which makes a reachable control still unusable.
+  // Captured here as a SELECTOR rather than a node, because the node itself does not survive.
+  const prevFocus = focusKeyOf(document.activeElement);
   // The entrance animation belongs to ARRIVING somewhere, not to repainting where you already are.
   // .view carried it unconditionally, and #view is rebuilt on every render() — including the
   // same-route repaints async screens do constantly (Home alone repaints for commitments, activity
@@ -568,9 +589,12 @@ function render() {
   // will ever add is covered the moment it is written, and it can't be forgotten in review.
   // Native controls are skipped so Space can't double-fire, and an author-supplied tabindex or
   // role always wins.
-  device.querySelectorAll('[data-go],[data-act],[data-back]').forEach(el => {
+  const promote = (el) => {
     const tag = el.tagName;
-    if (tag === 'BUTTON' || tag === 'A' || tag === 'SUMMARY' || tag === 'INPUT') return;
+    if (tag === 'BUTTON' || tag === 'A' || tag === 'SUMMARY' || tag === 'INPUT'
+      || tag === 'SELECT' || tag === 'TEXTAREA' || tag === 'LABEL') return;
+    if (el.hasAttribute('data-kb-wired')) return;   // a re-render reuses nodes; wire each once
+    el.setAttribute('data-kb-wired', '');
     if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0');
     if (!el.hasAttribute('role')) el.setAttribute('role', 'button');
     el.addEventListener('keydown', (e) => {
@@ -578,6 +602,35 @@ function render() {
       e.preventDefault();
       el.click();
     });
+  };
+  device.querySelectorAll('[data-go],[data-act],[data-back]').forEach(promote);
+
+  /* The SECOND half of the same promise, and the reason the first half was not enough.
+     `data-go` covers navigation. It does not cover the controls a screen wires up itself in
+     mount() against its own attribute — data-cs-metric, data-theme-pick, data-staff-invite,
+     data-tpl, data-cv, and about fifty more. Those were plain <span>s and <div>s with a click
+     listener: no tab stop, so no keyboard, no Switch Control, no full keyboard access. The
+     Connected Standards editor was the clearest case — every knob on it was pointer-only.
+
+     css/focus.css ALREADY names the affordance classes and draws them a focus ring. That ring
+     was dead code for any of them that never became focusable, so this is not a new policy;
+     it is the app finally keeping a promise its own stylesheet already made. The class list
+     below is copied from that rule deliberately — if a class earns a ring there, it earns a
+     tab stop here, and the two lists are meant to be read together.
+
+     The cursor is what separates a control from decoration, and it is trustworthy here because
+     this codebase already opts out by hand: `.lrow` ships `cursor:pointer`, and the display-only
+     rows that reuse the class set `cursor:default` inline precisely because they are not
+     clickable. So: styled like a control ⇒ reachable like one. An author-supplied role or
+     tabindex still wins, exactly as above. */
+  device.querySelectorAll(
+    '.tap,.tab,.chip,.chp,.choice,.lrow,.sheet-row,.co-chip,.hchip,.tile,.seg > *,.cs-seg > *'
+  ).forEach((el) => {
+    if (el.hasAttribute('data-kb-wired')) return;
+    let cur = '';
+    try { cur = getComputedStyle(el).cursor; } catch { /* detached node */ }
+    if (cur !== 'pointer') return;
+    promote(el);
   });
   // Scroll: restore the exact origin position on a back-pop; fresh forward views start at top.
   // scrollTo with behavior:'instant' overrides the viewport's smooth scroll-behavior — a
@@ -587,9 +640,21 @@ function render() {
   // editor knob calling window.__render) → keep where the user was; a real forward view → top.
   const targetScroll = (RESTORE && RESTORE.r === full) ? (RESTORE.s || 0)
     : (LAST_FULL === full ? prevScroll : 0);
+  const sameRoute = LAST_FULL === full;
   RESTORE = null;
   LAST_FULL = full;
   try { vp.scrollTo({ top: targetScroll, behavior: 'instant' }); } catch { vp.scrollTop = targetScroll; }
+  // Put the keyboard back where it was, under exactly the condition the scroll restore uses: a
+  // SAME-ROUTE repaint. Navigating somewhere new must never steal focus — arriving on a screen
+  // with the caret already in some field is its own bug — so this deliberately does nothing on a
+  // real navigation. `preventScroll` because the scroll position was just decided above and the
+  // browser's own reveal-the-focused-element would override it.
+  if (sameRoute && prevFocus) {
+    try {
+      const back = device.querySelector(prevFocus);
+      if (back && back !== document.activeElement) back.focus({ preventScroll: true });
+    } catch { /* selector no longer resolves — the control genuinely went away */ }
+  }
   if (mod.mount) mod.mount(device, { sub, S });
   // Profile pictures (0206): upgrade every [data-avatar-uid] monogram this screen rendered.
   // Screens that inject rows asynchronously call hydrateAvatars on their own slot.

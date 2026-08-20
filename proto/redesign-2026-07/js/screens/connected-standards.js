@@ -508,6 +508,15 @@ const METRICS = [
   { key: 'active_minutes', label: 'Active minutes', unit: 'min', preset: 30 },
 ];
 const DOW_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const DOW_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/* Same fix, same reason as the coach-side editor (coach-connected.js): these chips were bare
+   <span>s with a click listener, so every knob on this screen was unreachable without a mouse.
+   `multi` picks checkbox for WHICH DAYS and radio for the one-of-N groups; `name` gives the
+   repeated day initials a distinct accessible name. Enter/Space are wired in mount(). */
+const chip = (attr, on, label, multi, name) => `
+  <span class="${on ? 'on' : ''}" role="${multi ? 'checkbox' : 'radio'}" tabindex="0"
+        aria-checked="${on ? 'true' : 'false'}"${name ? ` aria-label="${esc(name)}"` : ''} ${attr}>${esc(label)}</span>`;
 
 /* Draft state for the editor. Module-scoped so a re-render (which the router does on every hash
    change) doesn't wipe half-entered input. */
@@ -571,44 +580,44 @@ export const connectedStandardEdit = {
 
     <section class="card pad">
       <div class="cs-knob">
-        <div class="cs-knob-label">WHAT YOU’RE TRACKING</div>
-        <div class="cs-seg">${METRICS.map((x) => `
-          <span class="${x.key === d.metric ? 'on' : ''}" data-cs-metric="${x.key}">${esc(x.label)}</span>`).join('')}
+        <div class="cs-knob-label" id="cs-lb-metric">WHAT YOU’RE TRACKING</div>
+        <div class="cs-seg" role="radiogroup" aria-labelledby="cs-lb-metric">${METRICS.map((x) =>
+          chip(`data-cs-metric="${esc(x.key)}"`, x.key === d.metric, x.label)).join('')}
         </div>
       </div>
 
       ${d.metric === 'distance' ? `<div class="cs-knob">
-        <div class="cs-knob-label">WHAT COUNTS</div>
-        <div class="cs-seg">
-          <span class="${d.deliberate_workout ? '' : 'on'}" data-cs-delib="0">Any walking or running</span>
-          <span class="${d.deliberate_workout ? 'on' : ''}" data-cs-delib="1">Recorded workouts only</span>
+        <div class="cs-knob-label" id="cs-lb-counts">WHAT COUNTS</div>
+        <div class="cs-seg" role="radiogroup" aria-labelledby="cs-lb-counts">
+          ${chip('data-cs-delib="0"', !d.deliberate_workout, 'Any walking or running')}
+          ${chip('data-cs-delib="1"', !!d.deliberate_workout, 'Recorded workouts only')}
         </div>
       </div>` : ''}
 
       <div class="cs-knob">
-        <div class="cs-knob-label">TARGET</div>
+        <label class="cs-knob-label" for="cs-target">TARGET</label>
         <input class="input" id="cs-target" type="number" inputmode="decimal" min="1"
                value="${esc(String(d.target))}" placeholder="${esc(String(m.preset))}">
         <div class="cs-p muted" style="margin-top:6px">${esc(unitNoun(d.metric, d.display_unit, 2))} per ${d.period === 'week' ? 'week' : 'day'}</div>
       </div>
 
       <div class="cs-knob">
-        <div class="cs-knob-label">HOW OFTEN</div>
-        <div class="cs-seg">
-          <span class="${d.period === 'day' ? 'on' : ''}" data-cs-period="day">Every day</span>
-          <span class="${d.period === 'week' ? 'on' : ''}" data-cs-period="week">Across the week</span>
+        <div class="cs-knob-label" id="cs-lb-often">HOW OFTEN</div>
+        <div class="cs-seg" role="radiogroup" aria-labelledby="cs-lb-often">
+          ${chip('data-cs-period="day"', d.period === 'day', 'Every day')}
+          ${chip('data-cs-period="week"', d.period === 'week', 'Across the week')}
         </div>
       </div>
 
       ${d.period === 'day' ? `<div class="cs-knob">
-        <div class="cs-knob-label">WHICH DAYS</div>
-        <div class="cs-seg">${DOW_INITIALS.map((lab, i) => `
-          <span class="${d.repeat_days.includes(i) ? 'on' : ''}" data-cs-dow="${i}">${esc(lab)}</span>`).join('')}
+        <div class="cs-knob-label" id="cs-lb-days">WHICH DAYS</div>
+        <div class="cs-seg" role="group" aria-labelledby="cs-lb-days">${DOW_INITIALS.map((lab, i) =>
+          chip(`data-cs-dow="${i}"`, d.repeat_days.includes(i), lab, true, DOW_FULL[i])).join('')}
         </div>
       </div>` : ''}
 
       <div class="cs-knob">
-        <div class="cs-knob-label">NAME IT (OPTIONAL)</div>
+        <label class="cs-knob-label" for="cs-title">NAME IT (OPTIONAL)</label>
         <input class="input" id="cs-title" maxlength="60" value="${esc(d.title)}"
                placeholder="${esc(defaultTitle(d))}">
       </div>
@@ -626,6 +635,9 @@ export const connectedStandardEdit = {
 
   mount(root) {
     const set = (patch) => { DRAFT = { ...DRAFT, ...patch }; if (window.__render) window.__render(); };
+
+    /* No keydown wiring here — router.js owns Enter/Space and focus restoration for these chips.
+       See the note in coach-connected.js mount(). */
 
     root.querySelectorAll('[data-cs-metric]').forEach((el) => el.addEventListener('click', () => {
       const key = el.getAttribute('data-cs-metric');
