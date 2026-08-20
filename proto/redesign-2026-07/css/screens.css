@@ -2028,6 +2028,14 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .cs-p{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.55}
 .cs-p.muted{color:var(--text-3)}
 .cs-p + .cs-p{margin-top:6px}
+/* #health-consent stacks explainer cards and then one state card whose border carries the tone.
+   By class, not inline, so inline-style-ratchet.mjs keeps falling. `warn` is amber because a
+   connection that yielded nothing is at risk, not broken; `good` is green because it verified. */
+.hc-card{margin-top:10px}
+.hc-card.warn{border-color:var(--amber-border)}
+.hc-card.good{border-color:var(--green-border)}
+.hc-act{margin-top:12px}
+.hc-act.tight{margin-top:8px}
 /* the app runs a tighter pair inside a sidebox; keep that rhythm, on-scale */
 .sidebox .cs-h{font-size:var(--t-base)}
 .sidebox .cs-p{font-size:var(--t-sm)}

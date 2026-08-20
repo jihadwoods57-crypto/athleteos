@@ -250,8 +250,10 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
       }
       return true;
     case 'HEALTH_AVAILABLE':
-      // Whether Apple Health / Health Connect can be read on this build. False until the founder
-      // wires the native module (src/lib/health) — the #devices connect affordance stays hidden.
+      // Whether Apple Health can be read on this build. TRUE since 2026-08-20 (ffd1526) on an iOS
+      // binary that has the module compiled in; still false on Android, on iPad (no HealthKit
+      // store), and on any binary built before #27 — an OTA reaches those, so every caller keeps
+      // treating false as normal rather than as an error.
       resolve(ref, msg.id, isHealthAvailable);
       return true;
     case 'HEALTH_CONNECTED':

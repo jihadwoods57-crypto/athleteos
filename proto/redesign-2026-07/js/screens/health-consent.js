@@ -24,6 +24,27 @@ let CONNECTED = false;
 let CONSENT = null;     // the SERVER's answer; null renders as "checking", never as permission
 let IS_MINOR = null;
 let BUSY = false;
+/* Whether anything has ACTUALLY come through from Health. null = not looked yet.
+   ⚠ This exists because "connected" cannot mean what it looks like it means. iOS deliberately
+   never tells an app which read categories were allowed (that would leak the fact that someone
+   has no data for a type), so the most the platform will say is "this person has been through
+   the sheet". An athlete who unchecked every box is indistinguishable from one who allowed
+   everything. Claiming "your standards are verifying themselves" on that basis would be the app
+   asserting something it cannot know, so the claim is earned with a real read instead. */
+let READING = null;
+
+/* Did a real activity read return anything at all? readActivity returns null when it could not
+   read, and a sample with no fields when there is genuinely nothing yet; both are "no". */
+async function probeReading() {
+  const h = healthNative();
+  if (!h || !h.readActivity) { READING = false; return; }
+  const to = new Date();
+  const from = new Date(to);
+  from.setHours(0, 0, 0, 0);
+  const a = await h.readActivity(from.toISOString(), to.toISOString()).catch(() => null);
+  READING = !!(a && (a.steps != null || a.distanceMeters != null
+    || a.activeMinutes != null || (a.workouts && a.workouts.length)));
+}
 
 const bullet = (ic, title, body) => `
   <div class="lrow" style="align-items:flex-start;cursor:default">
@@ -35,6 +56,9 @@ async function probe() {
   const h = healthNative();
   AVAILABLE = h ? await h.available().catch(() => false) : false;
   if (AVAILABLE && h) CONNECTED = await h.connected().catch(() => false);
+  // Only worth asking once the sheet has been seen; before that "nothing came through" is
+  // trivially true and would read as a fault rather than a not-yet.
+  if (CONNECTED) await probeReading();
   const c = window.sb;
   if (!c) return;
   try {
@@ -64,7 +88,7 @@ export default {
       <div class="cs-p" style="padding-top:6px">Your coach set an activity standard. With Health connected, OnStandard reads your totals and marks it complete on its own — no screenshots, no logging.</div>
     </section>
 
-    <section class="card" style="padding:6px 16px;margin-top:10px">
+    <section class="card hc-card" style="padding:6px 16px">
       ${bullet('bolt', 'What OnStandard reads',
         'Step count, walking and running distance, and workout totals — only for the standards assigned to you.')}
       ${bullet('shield', 'What your coach sees',
@@ -76,21 +100,28 @@ export default {
     </section>
 
     ${CONSENT === null ? `
-      <section class="card pad" style="margin-top:10px"><div class="cs-p muted">Checking your account…</div></section>`
+      <section class="card pad hc-card"><div class="cs-p muted">Checking your account…</div></section>`
     : needsGuardian ? `
-      <section class="card pad" style="margin-top:10px;border-color:var(--amber-border)">
+      <section class="card pad hc-card warn">
         <div class="cs-h">A parent or guardian has to approve this</div>
         <div class="cs-p" style="padding-top:6px">You’re under 18, so we ask your guardian before reading any health data — your own tap isn’t enough, and the server enforces that too.</div>
-        <button class="btn" data-go="guardian" style="margin-top:12px">Ask my guardian</button>
+        <button class="btn hc-act" data-go="guardian">Ask my guardian</button>
       </section>`
-    : CONNECTED ? `
-      <section class="card pad" style="margin-top:10px;border-color:var(--green-border)">
+    : CONNECTED ? (READING === false ? `
+      <section class="card pad hc-card warn">
+        <div class="cs-h">Connected, but nothing has come through</div>
+        <div class="cs-p" style="padding-top:6px">Apple never tells an app which categories you allowed, so we checked instead: no activity has reached OnStandard yet. If you left anything unchecked on Apple's screen, open Health, then Sharing, then Apps, and switch OnStandard's categories on. Logging a standard by hand works either way.</div>
+        <button class="btn ghost hc-act" id="hc-recheck">Check again</button>
+        <button class="btn ghost hc-act tight" id="hc-off">Disconnect</button>
+      </section>`
+    : `
+      <section class="card pad hc-card good">
         <div class="cs-h">Connected</div>
         <div class="cs-p" style="padding-top:6px">Your standards are verifying themselves. You can disconnect any time.</div>
-        <button class="btn ghost" id="hc-off" style="margin-top:12px">Disconnect</button>
-      </section>`
+        <button class="btn ghost hc-act" id="hc-off">Disconnect</button>
+      </section>`)
     : AVAILABLE === false ? `
-      <section class="card pad" style="margin-top:10px"><div class="cs-p muted">Taking you back…</div></section>`
+      <section class="card pad hc-card"><div class="cs-p muted">Taking you back…</div></section>`
     : `
       <div style="padding:12px 20px 0">
         <button class="btn" id="hc-go">Continue to Apple Health</button>
@@ -133,11 +164,22 @@ export default {
           : { connected: false };
         CONNECTED = !!(res && res.connected);
         CONSENT = true;
+        // Earn the claim before making it: see READING above for why "connected" is not enough.
+        if (CONNECTED) await probeReading();
         if (CONNECTED && h && h.observeActivity) await h.observeActivity().catch(() => false);
       } finally {
         BUSY = false;
         if (window.__render) window.__render();
       }
+    });
+
+    // The athlete's recourse after fixing categories in the Health app is to re-ask, and there is
+    // no way for us to observe that change: background delivery is deliberately off.
+    const recheck = root.querySelector('#hc-recheck');
+    if (recheck) recheck.addEventListener('click', async () => {
+      recheck.disabled = true; recheck.textContent = 'Checking…';
+      await probeReading();
+      if (window.__render) window.__render();
     });
 
     const off = root.querySelector('#hc-off');
@@ -148,7 +190,7 @@ export default {
         const { data: u } = await c.auth.getUser();
         const uid = u && u.user && u.user.id;
         await c.rpc('revoke_health_consent', { p_athlete: uid });
-        CONNECTED = false; CONSENT = false;
+        CONNECTED = false; CONSENT = false; READING = null;
       } catch { /* the button re-renders either way */ }
       if (window.__render) window.__render();
     });
@@ -156,4 +198,4 @@ export default {
 };
 
 /** Reset the probe so a fresh visit re-asks the server rather than trusting a stale yes. */
-export function refreshHealthConsent() { AVAILABLE = null; CONSENT = null; CONNECTED = false; }
+export function refreshHealthConsent() { AVAILABLE = null; CONSENT = null; CONNECTED = false; READING = null; }
