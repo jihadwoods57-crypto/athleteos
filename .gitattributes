@@ -37,3 +37,10 @@ proto/redesign-2026-07/**/*.css  text eol=lf
 proto/redesign-2026-07/**/*.html text eol=lf
 proto/redesign-2026-07/**/*.json text eol=lf
 proto/redesign-2026-07/**/*.md   text eol=lf
+
+# The OTHER generated build artifact. scripts/build-proto-zip.mjs writes this with LF, so without
+# a rule core.autocrlf expects CRLF and every rebuild leaves the tree "modified" with an EMPTY
+# diff — preflight then hard-stops at ship time for a change that does not exist. (2026-08-20:
+# this is the last mile of the same bug the header describes; fixing the proto sources alone got
+# the bundle byte-stable but left this file dirtying the tree on every build.)
+src/proto/protoVersion.ts        text eol=lf
