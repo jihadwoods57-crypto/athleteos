@@ -32,9 +32,10 @@ finishing and hardening real flows over inventing speculative ones.
 - **Friday — MARKET SCOUT.** No shipping. Research competitors, pricing moves, and what
   athletes/coaches complain about in rival products; file ranked opportunities into the
   backlog with a founder-voice take on each.
-- **ERROR RESPONSE (webhook-fired).** The app's error monitor detected a spike. Find the
-  cause in the analytics/error events, reproduce it, fix it, ship it per full discipline.
-  This session outranks all routine work — real users are hitting it right now.
+- **ERROR SENTRY (overnight, ~11:30 PM and ~5:30 AM).** Covers the hours no other
+  session is awake. Check the live error/analytics events for a spike; if real users are
+  hitting something, fixing it outranks everything — full discipline, ship it. If the
+  night is quiet, say so in one line and end cheaply.
 
 One main thing done fully beats three things half-done. Stop early rather than sprawl.
 
