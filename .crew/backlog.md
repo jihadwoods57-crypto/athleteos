@@ -1,66 +1,46 @@
-# Founder Product Backlog
+# Founder Sessions Backlog
 
-Judgment / security-migration items the crew found but will **not** ship on its own — they need a DB
-migration (crew never touches live schema) or a product decision only the founder makes. The crew ranks
-them; you decide. Seeded by cycle i1 (2026-07-09).
+Ranked queue for the daily cloud sessions (see `founder-sessions.md`). The 7 PM session
+rewrites the ranking each night. Seeded 2026-08-22 by the founder + Claude from the
+open-debts list. Items marked **[verify first]** came from a July audit of the legacy
+`src/` engine — confirm they're still real against the live DB before building.
 
-## Format
-```
-### #<rank> · <pillar> · <title>   (impact 1-5, effort s/m/l)
-- Why: ...
-- Fix: ...
-- Evidence: file:line
-```
+## Ranked
 
-## Backlog
+### 1 · security (live DB) · `base_age` is athlete-editable → bypasses minor gates  **[verify first]**  (impact 5, effort m)
+A minor who edits their own age flips both the minor-messaging gate and guardian-consent
+gate. COPPA-adjacent. Fix: make age server-authoritative (service-role-only write path).
+Found 2026-07-09 against `0001_schema.sql` / `0002_rls.sql` — confirm the write path is
+still open on live before migrating. Dump schema first per charter.
 
-### P1 · reliability/security (migration) · `base_age` is athlete-editable → minor bypasses parental consent + supervision   (impact 5, effort m)
-- Why: a 15-yo who sets `base_age = 18` (a write RLS permits) flips BOTH the minor-messaging gate and the
-  guardian-consent gate — unsupervised adult threads AND real health-data sync with no parental consent.
-  COPPA-adjacent. Independently re-confirmed; already noted in `docs/audit/2026-07-02-PHASE-0-GO-LIVE.md`.
-- Fix (needs a migration you apply to live): make age server-authoritative + immutable by the athlete —
-  capture at signup into a `service_role`-only column (or `profiles` via `handle_new_user`) and forbid the
-  athlete update path from changing `base_age` (a `WITH CHECK`, or move it off `athlete_profiles`). Both
-  gates keep reading the same value; only the write becomes untrusted-client-proof.
-- Evidence: `0001_schema.sql:126`, `0002_rls.sql:91`, `0006_messaging_minor_gate.sql:50-53`, `src/core/consent.ts:36-37`.
+### 2 · security (live DB) · client-set `days.score` can fake ≥80 without a photo  **[verify first]**  (impact 3, effort m)
+Tampered client persists a high score with no photo evidence; trust-pass grants gate on
+score ≥ 80. Fix: tighten the evidence-ceiling SQL to require real photo evidence.
+Same July caveat — re-verify against live schema (score logic has been rebuilt since).
 
-### P2 · reliability/security (migration) · `days.score` is client-set → fabricate a ≥80 with no photo → game trust-pass   (impact 3, effort m)
-- Why: the 0041 evidence ceiling derives from client-authored JSON (a bare `meals` toggle counts as full
-  nutrition), so a tampered client persists `score=100` with no photo; `grant_trust_pass` gates on
-  `score >= 80`. Breaks "photo is the only path to ≥80."
-- Fix (needs a migration): tighten 0041's nutrition-evidence clause to require real photo evidence (a
-  `meals` row with `photo_path` / `slotMacros` / active trust pass), not a `days.meals` boolean; cap the
-  ceiling below 80 when no photo evidence exists.
-- Evidence: `0041_score_evidence_ceiling.sql:41-50,61-81`, `0033_trust_passes.sql:47`.
+### 3 · scale · dietitian queue filters client-side → move to a server RPC  (impact 4, effort m)
+The dietitian review queue fetches broadly and filters in the proto. Breaks at real
+roster sizes. Build a server-side RPC (remember: explicit grants to authenticated).
 
-### P3 · reliability (verify) · confirm fix #2's baseGoal/scoringProfile consistency   (impact 2, effort s)
-- The plan hydration sets targets + scoring profile; verify the goal-direction tone fully tracks it, or hydrate `baseGoal` too.
+### 4 · scale · day.js reads ~60 days of JSONB to paint today  (impact 3, effort m)
+The day screen's history read is unbounded-ish. Narrow the window or add a summary RPC.
 
-## Judgment items (scout findings, your call)
-- **Trust-pass median counts non-photo 0-days** — `trailingEarnedNutritionMedian` takes the last 10
-  `nutritionHistory` entries unfiltered, but rollover archives a 0 for every opened-but-unlogged day; so
-  "median of last 10 **photo-earned** days" is really the last 10 **calendar** days. Firewall-safe (only
-  ever lowers credit) but deviates from the literal spec. `trustPass.ts:19-29`, `dayRollover.ts:74-78`.
-- **No realtime anywhere** — coach/trainer roster is fetch-on-open; a dashboard left open won't reflect a
-  live log. Constitution mentions realtime board updates. Decide for v1. (grep `.channel(`/`.subscribe(` empty.)
-- **Round-trip parity has no exhaustive test** — `mapStateToDayRow`/`dayRowToState` is hand-maintained
-  field-by-field; `ciLast` was the 2nd field to slip (after the 2026-07-04 weight/ci fixes). Add a
-  property-based round-trip test to fence the whole class.
-- **`send-push` reports `ok: true` without checking the notification-insert error** — a failed feed write
-  is reported as success. `supabase/functions/send-push/index.ts:73`.
-- **quick-add + bare meal toggles vs "photo-only ≥80"** — `addMeal` sets `meals[key]=true` even with a
-  null analysis; assert `addMeal` is unreachable without photo evidence. `useStore.ts:1071-1095`.
+### 5 · perf · 3MB eager boot graph in the proto  (impact 3, effort l)
+Everything loads at boot. Lazy-load heavy screens/modules so first paint is fast on a
+real phone. Careful: no build step — dynamic import() patterns must be click-time-safe.
 
-## Deferred by the 2026-07-10 fix-all run (sound reasons — not shipped)
-- **Role hydration drops the granular role on a fresh device** — `hydrateProfile` can only restore the
-  coarse DB enum (`profiles.primary_role`), so a nutritionist/trainer-subtype loses personalization on a
-  new device. Real fix needs a **migration**: persist the granular Role server-side (new `profiles`
-  column or metadata), then hydrate from it. `useStore.ts:1187-1189`, `constants.ts:107-114`.
-- **`base_age` immutability (P1 above) + `days.score` photo-evidence (P2 above)** — security migrations
-  I could not author safely because **`test:rls` can't run here** (needs `supabase start`/docker on
-  54322). Author + test these in a local Supabase before applying. COPPA-adjacent — do not skip.
-- **Meal-thumbnail N+1 signed URLs** — `MealCardItem`'s `MealThumb` signs one URL per card in a per-card
-  effect. Fix: add `db.signedMealPhotoUrls(paths[])` (storage `createSignedUrls` plural), have
-  `MealCardItem` accept an optional pre-resolved `photoUrl`, and prefetch a path→url map in the 3 list
-  parents (`MealHistory` DaySection, `PersonDetail`, `MealReview`). 5 files, perf-only, un-unit-tested
-  surfaces — do it deliberately, not at the tail of a session. `MealCardItem.tsx:16-30`, `queries.ts:101`.
+### 6 · copy/design · 414 em dashes in UI copy + eyebrow-h2 semantics  (impact 2, effort s)
+Founder taste: no em dashes in user-facing copy. Sweep and rewrite naturally (don't
+search-and-replace into comma splices). Fix eyebrow-h2 heading semantics while in there.
+
+### 7 · design · blue-bright ink cluster from the 2026-08-19 deep audit  (impact 2, effort s)
+A cluster of screens uses bright blue as text ink where it should be reserved for the
+score signature. Re-audit and normalize to the token system.
+
+## Awaits founder ruling — recommend only, never ship
+- Locked In floor 75 → 80.
+- Re-enabling pinch zoom app-wide (WCAG 1.4.4).
+- Proactive AI spend (ai-followup cron).
+
+## Out of reach from the cloud — park, never fake
+- Build #27 App Store submission, HealthKit device QA, geofencing device QA, key rotation.
