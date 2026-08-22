@@ -1,15 +1,19 @@
 /* loadDay's trailing history is fetched SPLIT: the near window rides the heavy jsonb
-   (meals/checkin/quick_added/signals), the far tail travels light (date,score,plan_style).
-   This is the regression net for that split. It runs the REAL loadDay against a recording
-   stub client — one that hands back ONLY the columns the client asked for, the way PostgREST
-   does — and proves:
+   (meals/checkin/quick_added/signals), the far tail travels light (date,score,plan_style),
+   and pass eligibility comes from the meals table (lifetime, the same rows grant_pass counts)
+   instead of a proxy bounded by the history window. This is the regression net for all of it.
+   It runs the REAL loadDay against a recording stub client — one that hands back ONLY the
+   columns the client asked for, generated from the query's own date range so the suite cannot
+   flake across a midnight boundary — and proves:
      1. the heavy jsonb is requested ONLY for the near HISTORY_HEAVY_DAYS window,
      2. the two ranges merge into ONE date-ascending scoreHistory spanning HISTORY_DAYS,
      3. a far row reconstructs to null (its consumers skip it) while a near row reconstructs
         whole — trends and medians read real recent data, never a truncated fabrication,
-     4. weight from the weight_series RPC still stitches onto FAR rows (the split must not
-        shorten the weight chart), and
-     5. a failed history read aborts the merge-and-heal path: no wholesale upsert of a local
+     4. weight from the weight_series RPC still stitches onto FAR rows,
+     5. DAY.photoDays counts DISTINCT lifetime photo days — including days older than the
+        heavy window, the exact case a history-bounded proxy would understate — and a failed
+        meals read keeps the last known value instead of fabricating 0, and
+     6. a failed history read aborts the merge-and-heal path: no wholesale upsert of a local
         day over a server row this device never read. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -21,13 +25,7 @@ globalThis.window = {};
 
 const { loadDay, dayFromHistoryRow, DAY, HISTORY_DAYS, HISTORY_HEAVY_DAYS, addDaysISO } = await import('./day.js');
 
-/* LOCAL date parts, matching day.js todayISO — behind UTC the two must not disagree. */
-const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-const TODAY = iso(new Date());
-const HEAVY_SINCE = addDaysISO(TODAY, -HISTORY_HEAVY_DAYS);
-const SINCE = addDaysISO(TODAY, -HISTORY_DAYS);
-
-/* A complete server day row per past date. The stub strips each row down to the SELECTed
+/* A complete server day row for any past date. The stub strips each row down to the SELECTed
    column list, so what reaches loadDay is exactly what the wire would carry. */
 function serverRow(date) {
   return {
@@ -40,12 +38,22 @@ function serverRow(date) {
     signals: {},
   };
 }
-const ALL_DAYS = [];
-for (let n = 1; n <= HISTORY_DAYS + 10; n++) ALL_DAYS.push(serverRow(addDaysISO(TODAY, -n)));
 
 const CALLS = [];        // every awaited days RANGE query: { cols, gte, lt }
+let MEAL_CALLS = 0;      // meals-table eligibility reads
 let FAIL_HISTORY = false;
+let FAIL_MEALS = false;
 let UPSERTS = 0;
+/* Photo-day fixture for the meals table: 40 distinct days, every one OLDER than the heavy
+   window (so a history-bounded proxy would see none of them), plus a duplicate second meal on
+   the oldest day to prove the count is distinct-days, not rows. Dates derive from DAY.date at
+   query time — no import-time clock to go stale. */
+function photoRows(today) {
+  const rows = [];
+  for (let n = 0; n < 40; n++) rows.push({ day_date: addDaysISO(today, -(HISTORY_HEAVY_DAYS + 1 + n)) });
+  rows.push({ day_date: rows[rows.length - 1].day_date }); // second plate, same day
+  return rows;
+}
 
 function daysBuilder() {
   const q = { cols: null, gte: null, lt: null };
@@ -60,11 +68,27 @@ function daysBuilder() {
       CALLS.push(q);
       if (FAIL_HISTORY) return Promise.resolve({ data: null, error: { message: 'transient 5xx' } }).then(res, rej);
       const cols = String(q.cols || '').split(',');
-      const rows = ALL_DAYS
-        .filter((r) => (q.gte == null || r.date >= q.gte) && (q.lt == null || r.date < q.lt))
-        .map((r) => Object.fromEntries(cols.filter((c) => c in r).map((c) => [c, r[c]])))
-        .sort((a, z) => (a.date < z.date ? -1 : 1));
+      const rows = [];
+      // Generate straight from the requested range: whatever date loadDay's clock landed on,
+      // the fixture agrees with it.
+      for (let d = q.gte; d != null && q.lt != null && d < q.lt; d = addDaysISO(d, 1)) {
+        const r = serverRow(d);
+        rows.push(Object.fromEntries(cols.filter((c) => c in r).map((c) => [c, r[c]])));
+      }
       return Promise.resolve({ data: rows, error: null }).then(res, rej);
+    },
+  };
+  return b;
+}
+function mealsBuilder() {
+  const b = {
+    select() { return b; }, eq() { return b; }, gte() { return b; }, lt() { return b; },
+    in() { return b; }, is() { return b; }, not() { return b; }, order() { return b; }, limit() { return b; },
+    maybeSingle() { return Promise.resolve({ data: null, error: null }); },
+    then(res, rej) {
+      MEAL_CALLS++;
+      if (FAIL_MEALS) return Promise.resolve({ data: null, error: { message: 'transient 5xx' } }).then(res, rej);
+      return Promise.resolve({ data: photoRows(DAY.date), error: null }).then(res, rej);
     },
   };
   return b;
@@ -79,16 +103,22 @@ const emptyBuilder = () => {
   return b;
 };
 globalThis.window.sb = {
-  from: (name) => (name === 'days' ? daysBuilder() : emptyBuilder()),
+  from: (name) => (name === 'days' ? daysBuilder() : name === 'meals' ? mealsBuilder() : emptyBuilder()),
   async rpc(fn) {
     // One weight deep in the FAR tail — it must still reach that row's scoreHistory entry.
-    if (fn === 'weight_series') return { data: [{ date: addDaysISO(TODAY, -50), weight: 172 }], error: null };
+    if (fn === 'weight_series') return { data: [{ date: addDaysISO(DAY.date, -50), weight: 172 }], error: null };
     return { data: [], error: null };
   },
 };
 
+let DATE1 = null; // DAY.date as of the first load, for the cross-midnight guard in the last test
+
 test('history splits into a heavy near window and a light far tail, merged in order', async () => {
   await loadDay('u1');
+  DATE1 = DAY.date;
+  const TODAY = DAY.date;
+  const HEAVY_SINCE = addDaysISO(TODAY, -HISTORY_HEAVY_DAYS);
+  const SINCE = addDaysISO(TODAY, -HISTORY_DAYS);
 
   assert.equal(CALLS.length, 2, 'exactly two range queries: near (heavy) + far (light)');
   const heavy = CALLS.find((c) => c.cols.includes('meals'));
@@ -124,10 +154,33 @@ test('history splits into a heavy near window and a light far tail, merged in or
   assert.equal(UPSERTS, 0, 'nothing local to heal, so nothing was pushed');
 });
 
+test('pass eligibility is the lifetime distinct-day count, not a history-window proxy', async () => {
+  assert.equal(MEAL_CALLS, 1, 'the day load read the meals table once');
+  // 41 photo rows on 40 distinct days, every one older than the heavy window: the proxy would
+  // say 0 and an earned athlete would watch their progress run backwards on update.
+  assert.equal(DAY.photoDays, 40, 'distinct lifetime days, including days the history no longer holds');
+});
+
+test('a failed meals read keeps the last known count instead of fabricating 0', async () => {
+  FAIL_MEALS = true;
+  await loadDay('u1');
+  FAIL_MEALS = false;
+  if (DAY.date === DATE1) {
+    // dayResetLocal nulls photoDays, the cache restore brings back the last known 40, and the
+    // failed fetch must leave that standing.
+    assert.equal(DAY.photoDays, 40, 'cache-restored count survives a failed meals read');
+  }
+});
+
 test('a failed history read aborts the merge-and-heal path', async () => {
   FAIL_HISTORY = true;
   await loadDay('u1');
-  // The instant offline paint (cache from the load above) stands; nothing is written.
-  assert.equal(DAY.scoreHistory.length, HISTORY_DAYS, 'cache-restored history survives the failed fetch');
+  FAIL_HISTORY = false;
+  // The instant offline paint (cache from the loads above) stands; nothing is written. The
+  // content assertion is guarded against the marginal case of the suite straddling midnight
+  // (the cache key is date-scoped); the no-upsert wall holds unconditionally.
+  if (DAY.date === DATE1) {
+    assert.equal(DAY.scoreHistory.length, HISTORY_DAYS, 'cache-restored history survives the failed fetch');
+  }
   assert.equal(UPSERTS, 0, 'a failed read never becomes a wholesale upsert over the server row');
 });

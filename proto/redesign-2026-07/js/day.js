@@ -487,6 +487,12 @@ export const DAY = {
   // them, and a coach who happens to hold a pass must never credit it to their athlete.
   passes: [],            // trust_passes rows overlapping the loaded window
   passSpends: [],        // pass_spends rows in the same window
+  /* Lifetime count of distinct photo-logged days, read from the SAME rows 0196's grant_pass
+     wall counts (meals where photo_path is not null) — so the eligibility screen shows the
+     number the server will actually check, not a proxy bounded by however much history this
+     device happens to hold. null = never fetched (offline); the passEligibleDays getter then
+     falls back to the history proxy rather than showing a fabricated 0. */
+  photoDays: null,
 };
 
 export function dayScore() { return scoreFor(DAY); }
@@ -799,7 +805,7 @@ export async function loadDay(userId) {
     // processing — projectRowToDay, the history map, and every downstream consumer are unchanged.
     const since = addDaysISO(DAY.date, -HISTORY_DAYS);
     const heavySince = addDaysISO(DAY.date, -HISTORY_HEAVY_DAYS);
-    const [{ data, error: dayErr }, { data: histNear, error: nearErr }, { data: histFar, error: farErr }, weights] = await Promise.all([
+    const [{ data, error: dayErr }, { data: histNear, error: nearErr }, { data: histFar, error: farErr }, weights, { data: photoRows, error: photoErr }] = await Promise.all([
       sb.from('days').select(DAY_SELECT_COLS).eq('athlete_id', userId).eq('date', DAY.date).maybeSingle(),
       // meals + checkin jsonb ride along on the NEAR window so Progress can compute REAL
       // per-category trends (computeComponents over reconstructed past days) — never fabricated
@@ -812,6 +818,11 @@ export async function loadDay(userId) {
       // skip by design — trends read the recent past, never a truncated fabrication.
       sb.from('days').select('date,score,plan_style').eq('athlete_id', userId).gte('date', since).lt('date', heavySince).order('date'),
       fetchWeightSeries(sb, userId, HISTORY_DAYS),
+      // Pass eligibility, from the horse's mouth: the SAME rows 0196's grant_pass wall counts
+      // (lifetime, distinct days), so "N of M photo-logged days" can never go backwards just
+      // because this fetch holds a bounded history window. One short column; failure is soft —
+      // the getter falls back to the history proxy, never to a fabricated 0.
+      sb.from('meals').select('day_date').eq('athlete_id', userId).not('photo_path', 'is', null),
     ]);
     // supabase-js RESOLVES failures into {error}; it does not throw. A resolved failure used to
     // leave `data` undefined — indistinguishable from "no row for today" — so projectRowToDay
@@ -836,6 +847,9 @@ export async function loadDay(userId) {
       // dayFromHistoryRow grades each day by the style that actually governed it.
       planStyle: r.plan_style || null, signals: r.signals || null,
     }));
+    // Distinct DAYS, not meals — a day with three photographed plates counts once, exactly as
+    // grant_pass counts it. A failed read keeps the last known value; 0 is only ever real.
+    if (!photoErr && Array.isArray(photoRows)) DAY.photoDays = new Set(photoRows.map((r) => String(r.day_date))).size;
     // Trust Pass state (0196). The pass window matches the FULL history window, and coverage
     // exclusion (coveredKeys in scoringView) reads only each history row's date — which the
     // light far rows still carry — so slotMedians keeps excluding previously-covered days
@@ -968,6 +982,7 @@ export function dayResetLocal() {
   // The resolved style/knobs SURVIVE a local reset (they describe the athlete, not the day) —
   // state.js re-applies them on hydrate anyway. Today's captured signals do not.
   DAY.signals = {}; DAY.signalWeekRate = null;
+  DAY.photoDays = null; // lifetime count is per ACCOUNT — never leak it across users on a shared device
 }
 
 

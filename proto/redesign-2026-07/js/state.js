@@ -4424,14 +4424,17 @@ export const S = {
   },
 
   // The athlete's own count toward the eligibility gate (0196: >= policy.eligibility_days
-  // photo-logged days, lifetime). A client-side PROXY, not authoritative — the server's
-  // grant_pass re-checks meals.photo_path directly and is the only wall that matters for
-  // security. This exists purely so the not-earned screen can show real progress instead of a
-  // static "earn it" message. `source` is set by day.js insertMeal from the real capture path
-  // ('live' | 'gallery' vs the no-photo 'manual' | 'label'), the closest thing scoreHistory
-  // carries to "was there a photo". Counts distinct DATES, since a day can log more than one
-  // photographed slot and the gate counts days, not meals. */
+  // photo-logged days, lifetime). Primary source is DAY.photoDays — loadDay reads it from the
+  // SAME rows grant_pass counts (meals where photo_path is not null, distinct days, lifetime),
+  // so the number here is the number the server will actually check. The history sweep below is
+  // the OFFLINE fallback only: it is bounded by the heavy-jsonb history window, so it can
+  // understate lifetime truth — which is why it never wins over a fetched count. `source` is
+  // set by day.js insertMeal from the real capture path ('live' | 'gallery' vs the no-photo
+  // 'manual' | 'label'), the closest thing scoreHistory carries to "was there a photo".
+  // Counts distinct DATES, since a day can log more than one photographed slot and the gate
+  // counts days, not meals. */
   get passEligibleDays() {
+    if (typeof DAY.photoDays === 'number') return DAY.photoDays;
     const dates = new Set();
     for (const r of DAY.scoreHistory || []) {
       const sm = r.checkin && r.checkin.slotMacros;

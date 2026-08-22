@@ -67,7 +67,7 @@ export const trust = {
       <section class="card" style="padding:6px 16px">
         <div class="lrow" style="cursor:default">
           <div class="lic" style="background:var(--purple-surface);color:var(--purple-bright)">${icon('bars', 17)}</div>
-          <div class="lm"><div class="lt">Your trailing-10 median</div><div class="ls">Credit comes from your last 10 real photo-earned days for that slot. One hero plate can't inflate it, and a covered day never counts toward the median itself.</div></div>
+          <div class="lm"><div class="lt">Your trailing-10 median</div><div class="ls">Credit comes from your recent photo-earned days for that slot, up to the last 10. One hero plate can't inflate it, and a covered day never counts toward the median itself.</div></div>
         </div>
       </section>
 
@@ -100,7 +100,7 @@ export const trust = {
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic" style="background:var(--purple-surface);color:var(--purple-bright)">${icon('bars', 17)}</div>
-        <div class="lm"><div class="lt">Your trailing-10 median</div><div class="ls">Each meal credits your last 10 real photo-earned days for that slot. One hero plate can't inflate it, and a covered day never counts toward the median itself.</div></div>
+        <div class="lm"><div class="lt">Your trailing-10 median</div><div class="ls">Each meal credits your recent photo-earned days for that slot, up to the last 10. One hero plate can't inflate it, and a covered day never counts toward the median itself.</div></div>
       </div>
     </section>
     <div style="height:10px"></div>
