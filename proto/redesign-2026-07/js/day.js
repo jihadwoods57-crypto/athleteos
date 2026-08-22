@@ -712,6 +712,21 @@ function projectRowToDay(row) {
    grant list (and add any future days column to BOTH). */
 export const DAY_SELECT_COLS = 'id,athlete_id,date,meals,hydration_l,tasks,checked_tasks,quick_added,checkin,score,grade,plan_style,signals,computed_at,updated_at';
 
+/* Trailing-history windows. HISTORY_DAYS is how far back the day load reaches at all — the
+   streak walk, Progress's 30-day consistency and the monthly report read that whole span, but
+   only as {date, score, plan_style} (weight rides the weight_series RPC). HISTORY_HEAVY_DAYS
+   bounds the jsonb ride-along (meals/checkin/quick_added/signals — checkin carries every slot's
+   full AI macro meta, which is what made the old 60-day ride-along the heaviest payload behind
+   painting today). Every consumer of the heavy fields is trailing-N: slotMedians' trailing-10
+   evidence days, categoryTrends/progressInsight over the reconstructed recent past,
+   signalWeekRate's trailing 7, and the pass-eligibility proxy, whose server policy caps
+   eligibility_days at 30 (0196's check constraint) — so 35 covers them all with room. The one
+   visible edge: a slot photo-logged fewer than 5 times in 35 days no longer reaches back 60 for
+   a median, so a pass excuses it instead of crediting stale macros — understating, never
+   inventing, same direction dayFromHistoryRow already chose. */
+export const HISTORY_DAYS = 60;
+export const HISTORY_HEAVY_DAYS = 35;
+
 /** The athlete's weight-by-date map via the 0103 weight_series RPC (is_self always passes;
  *  a restricted viewer gets zero rows, never an error). Pre-apply fallback: before 0103 lands
  *  the RPC doesn't exist, so a direct column select (still granted then) keeps weight working —
@@ -760,7 +775,7 @@ async function fetchPassState(sb, userId, since) {
 export async function reloadPassState(userId) {
   const sb = window.sb;
   if (!sb || !userId) return;
-  const since = addDaysISO(DAY.date, -60);
+  const since = addDaysISO(DAY.date, -HISTORY_DAYS);
   await fetchPassState(sb, userId, since);
   saveCache(userId);
 }
@@ -782,13 +797,21 @@ export async function loadDay(userId) {
     // are enumerated (never '*', which 42501s once the grant splits), the series is fetched in
     // parallel, and the weights are stitched back onto the fetched rows BEFORE any existing
     // processing — projectRowToDay, the history map, and every downstream consumer are unchanged.
-    const since = addDaysISO(DAY.date, -60);
-    const [{ data, error: dayErr }, { data: hist, error: histErr }, weights] = await Promise.all([
+    const since = addDaysISO(DAY.date, -HISTORY_DAYS);
+    const heavySince = addDaysISO(DAY.date, -HISTORY_HEAVY_DAYS);
+    const [{ data, error: dayErr }, { data: histNear, error: nearErr }, { data: histFar, error: farErr }, weights] = await Promise.all([
       sb.from('days').select(DAY_SELECT_COLS).eq('athlete_id', userId).eq('date', DAY.date).maybeSingle(),
-      // meals + checkin jsonb ride along so Progress can compute REAL per-category trends
-      // (computeComponents over reconstructed past days) — never fabricated category numbers.
-      sb.from('days').select('date,score,meals,checkin,hydration_l,quick_added,plan_style,signals').eq('athlete_id', userId).gte('date', since).lt('date', DAY.date).order('date'),
-      fetchWeightSeries(sb, userId, 60),
+      // meals + checkin jsonb ride along on the NEAR window so Progress can compute REAL
+      // per-category trends (computeComponents over reconstructed past days) — never fabricated
+      // category numbers. Near only: every reader of the heavy jsonb is trailing-N (see the
+      // HISTORY_HEAVY_DAYS note above).
+      sb.from('days').select('date,score,meals,checkin,hydration_l,quick_added,plan_style,signals').eq('athlete_id', userId).gte('date', heavySince).lt('date', DAY.date).order('date'),
+      // The far tail stays in the window but travels light: date + score feed the streak walk,
+      // Progress averages and the monthly report; plan_style feeds the style timeline. Far rows
+      // reconstruct to null in dayFromHistoryRow (no meals/checkin), which its callers already
+      // skip by design — trends read the recent past, never a truncated fabrication.
+      sb.from('days').select('date,score,plan_style').eq('athlete_id', userId).gte('date', since).lt('date', heavySince).order('date'),
+      fetchWeightSeries(sb, userId, HISTORY_DAYS),
     ]);
     // supabase-js RESOLVES failures into {error}; it does not throw. A resolved failure used to
     // leave `data` undefined — indistinguishable from "no row for today" — so projectRowToDay
@@ -798,10 +821,14 @@ export async function loadDay(userId) {
     // transient 5xx. A failed read must abort the whole merge-and-heal path, so throw into the
     // catch below (the instant offline paint from loadCache stands, and nothing is written).
     if (dayErr) throw dayErr;
-    if (histErr) throw histErr;
+    if (nearErr) throw nearErr;
+    if (farErr) throw farErr;
     if (data && weights.has(String(data.date))) data.current_weight = weights.get(String(data.date));
     const localAhead = projectRowToDay(data) || (!data && hasLoggedAnything());
-    if (Array.isArray(hist)) DAY.scoreHistory = hist.map((r) => ({
+    // Far tail first, then near — both arrive date-ascending and the ranges don't overlap, so
+    // the concat IS the ordered 60-day history every consumer has always read.
+    const hist = [...(Array.isArray(histFar) ? histFar : []), ...(Array.isArray(histNear) ? histNear : [])];
+    if (Array.isArray(histNear) || Array.isArray(histFar)) DAY.scoreHistory = hist.map((r) => ({
       date: r.date, score: r.score ?? 0, weight: weights.has(String(r.date)) ? weights.get(String(r.date)) : null,
       meals: r.meals || null, checkin: r.checkin || null,
       hydrationL: Number(r.hydration_l) || 0, quickAdded: Array.isArray(r.quick_added) ? r.quick_added : [],
@@ -809,8 +836,10 @@ export async function loadDay(userId) {
       // dayFromHistoryRow grades each day by the style that actually governed it.
       planStyle: r.plan_style || null, signals: r.signals || null,
     }));
-    // Trust Pass state (0196). The 60-day window matches the history fetch above, which is what
-    // lets slotMedians exclude previously-covered days without a second round trip.
+    // Trust Pass state (0196). The pass window matches the FULL history window, and coverage
+    // exclusion (coveredKeys in scoringView) reads only each history row's date — which the
+    // light far rows still carry — so slotMedians keeps excluding previously-covered days
+    // across all 60 days without a second round trip.
     await fetchPassState(sb, userId, since);
     saveCache(userId);
     // Reconnect healing: if this device's cached day carries progress the server row lacks
