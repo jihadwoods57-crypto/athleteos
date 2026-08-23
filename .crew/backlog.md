@@ -20,6 +20,13 @@ shipped." First session with `EXPO_TOKEN`: fetch the live update manifest, compa
 against the committed `assets/proto.zip` (md5 + sha256), publish if stale, prove it, and
 report which commit users are actually running. If the token is missing, report exactly
 that and move on.
+**Status 2026-08-23 (8 AM):** diagnosed, blocked on credentials. Live manifest fetched:
+users run `00e994e` (Aug 20 08:49; update group `6d8fcb2c`, published Aug 20 12:53 UTC —
+live proto.zip md5 `d27eb984…` matched against every committed zip). Stale by three
+user-facing commits: `ca92278`, `22b1cda`, `9a5b1bb`. `EXPO_TOKEN` exists but Expo
+rejects it (permanent 401, format ruled out) — founder must mint a fresh token. Once it
+works: gates are green, committed zip is current and byte-reproducible; just publish
+(`eas update --branch production --environment production`) and prove hashes.
 
 ### 2 · security (live DB) · `base_age` is athlete-editable → bypasses minor gates  **[verify first]**  (impact 5, effort m)
 A minor who edits their own age flips both the minor-messaging gate and guardian-consent
