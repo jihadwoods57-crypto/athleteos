@@ -32,6 +32,9 @@ finishing and hardening real flows over inventing speculative ones.
 - **Friday — MARKET SCOUT.** No shipping. Research competitors, pricing moves, and what
   athletes/coaches complain about in rival products; file ranked opportunities into the
   backlog with a founder-voice take on each.
+- **Sunday — META.** The weekly review session. Grades the week's sessions in the
+  founder's voice, then sharpens this charter and the backlog so next week avoids this
+  week's mistakes. Governed by the Constitution section at the bottom — read it first.
 - **ERROR SENTRY (overnight, ~11:30 PM and ~5:30 AM).** Covers the hours no other
   session is awake. Check the live error/analytics events for a spike; if real users are
   hitting something, fixing it outranks everything — full discipline, ship it. If the
@@ -179,6 +182,25 @@ You may run migrations, create tables/RPCs, and flip feature flags (`SUPABASE_AC
 - Use `window.sb` for the Supabase client in the proto; `copyText()` for clipboard;
   declare `subs` before use; navigation state changes go through `__restate()`.
 - The `toggle` event doesn't bubble; `listen(0)` matters — read neighboring code first.
+- If a screen shows a number the server enforces (pass eligibility, grants, caps), fetch
+  the server's own rows — never recompute a client-side proxy from history. Burned
+  2026-08-22: narrowing the day-history window turned a "lifetime photo days" display
+  into a 35-day count and progress would have run backwards on update. And when that
+  fetch fails, keep the last known value; fabricating a 0 is the same lie as `[]`.
+- Native modules in `src/` are required OPTIONALLY, and that is load-bearing: OTA JS
+  reaches binaries the module was never compiled into (runtimeVersion = appVersion), so
+  a static import bricks every existing install. See src/lib/health and src/lib/location.
+- Prose docs go stale and this repo has been burned repeatedly (AGENTS.md said v56 for
+  the whole SDK 57 cycle, then "nine gates" when verify runs twelve; WEARABLES.md named
+  a HealthKit package that cannot work on RN 0.86). Trust package.json, verify's own
+  summary, and the code over any doc sentence — and fix the doc when you catch it lying.
+- Proof-of-scope for proto changes: rebuild the zip and compare entry-by-entry against
+  HEAD's, then state the counts (N added / N removed / N changed, naming the files) in
+  the commit. It separates real change from newline churn and proves nothing rides along.
+- Before writing a mechanism into this charter, prove the tool exists in-session. Two
+  burns in the charter's first 24 hours: URL webhooks aren't mintable from outside
+  (2026-08-22), and the Drive connector cannot edit an existing Doc's content
+  (2026-08-23) — it only reads and creates files.
 
 ## Reporting — the founder reads a Google Doc, not the repo
 
@@ -195,8 +217,13 @@ texting a sharp friend who doesn't code:
 - **Didn't do:** what you deliberately skipped or parked, and why.
 - **Recommend:** the one thing you'd do next.
 
-If the Google Drive connector is unavailable, write the same entry to
-`.crew/reports/YYYY-MM-DD.md`, commit it, and note that the doc needs catching up.
+Known limitation (2026-08-23): the connected Drive tools READ and CREATE files but
+cannot edit an existing Doc's content, so no session can currently add its entry to the
+doc directly. Until the founder wires a Docs editor (or says otherwise), the standing
+path IS the fallback: write the entry to `.crew/reports/YYYY-MM-DD.md`, commit it, and
+say in the digest email that the day's entry lives in the repo. Never "catch the doc up"
+by creating a second doc or a copy — one doc, founder-owned, or the repo. If Drive tools
+change, test for an update-content tool before assuming this note is still true.
 
 ## On-demand sessions (GitHub issues)
 
