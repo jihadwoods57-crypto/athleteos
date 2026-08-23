@@ -188,10 +188,16 @@ export async function loadBook(force, kind) {
   // coach-athlete also depends on the roster (name + membership guard for a stale/dead link).
   // coach-home/coach-roster/coach-create/coach-insights depend on it too. The trainer routes
   // render from the same cache, so they repaint on the same arrival.
+  // ⚠ This runs on FAILURE too (we're past the catch), and screens rely on that: a screen whose
+  // hash is missing from this list never learns the load finished and hangs on its loading state
+  // forever on direct entry. coach-standards/-manage/-edit and coach-rooms fell through exactly
+  // that hole (audit 2026-08-23). If you add an operator screen, add its hash here.
   const h = location.hash;
   if (h === '#coach' || h === '#copilot' || h === '#coach-inbox'
     || h.startsWith('#coach-athlete') || h.startsWith('#coach-assign') || h.startsWith('#coach-plan')
     || h.startsWith('#trainer') // every trainer tab renders from this cache, not just #trainer
+    || h.startsWith('#coach-standards') // the board, its /sub routes, and -manage
+    || h === '#coach-standard-edit' || h === '#coach-rooms'
     || h === '#coach-home' || h === '#coach-roster' || h === '#coach-create' || h === '#coach-insights') window.__render();
   // Operator data just became ready (roster + extras). Re-run the notification sync so this
   // operator's device now schedules the OPERATOR plan from live roster status — the boot-time sync

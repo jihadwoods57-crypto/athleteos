@@ -22,7 +22,7 @@
   "js/screens/camera.js": 2,
   "js/screens/coach-announce.js": 5,
   "js/screens/coach-apply.js": 7,
-  "js/screens/coach-connected.js": 6,
+  "js/screens/coach-connected.js": 5,
   "js/screens/coach-create.js": 3,
   "js/screens/coach-directory.js": 1,
   "js/screens/coach-home.js": 6,

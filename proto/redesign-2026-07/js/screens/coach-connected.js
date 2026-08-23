@@ -18,7 +18,8 @@ import { icon } from '../icons.js';
 import { track, EVENTS } from '../analytics.js';
 import { backHead, esc, errorState } from '../components.js';
 import { initialsOf } from '../initials.js';
-import { CD, bookId } from '../coach-data.js';
+import { RT } from '../state.js';
+import { CD, bookId, loadBook, bookKindFor } from '../coach-data.js';
 import { allowedCreateKeys, isReadonly } from '../staff-access.js';
 import {
   boardCounts, needsAttention, csStatus, fmtValue, unitNoun,
@@ -187,12 +188,55 @@ const initials = (name) => initialsOf(name, '?');
 /* Signature of the board the screen last painted — see the loop note in mount(). */
 let BOARD_SIG = null;
 
+/* Direct entry — a relaunch restoring #coach-standards, or a typed link — reaches these mounts
+   before any coach screen has fetched the book. bookId() is null then, and without this kick
+   nothing ever loads it: the board sat on "Loading the board…" forever and the manage list swore
+   the coach had no standards. The kick is all this does: loadBook dedupes in-flight and cached
+   loads, and its own arrival hook (coach-data.js) repaints these hashes on success AND failure,
+   so there is no repaint here to loop. Retrying past a cached failed load is the Retry button's
+   job (bookRetry below), never the mount's — a mount that forces would refetch every repaint. */
+const ensureBook = () => {
+  if (bookId()) return true;
+  loadBook(false, bookKindFor(RT.authRole));
+  return false;
+};
+
+/* The operator noun before the book has loaded: CD.bookWord follows the LOADED book's kind,
+   which defaults to 'team' until then — a lie to a trainer on the failure path, where no
+   arrival ever corrects the paint. The signed-in role is known before any fetch; use it. */
+const bookWord = () => (bookKindFor(RT.authRole) === 'practice' ? 'practice' : 'team');
+const bookBack = () => (bookKindFor(RT.authRole) === 'practice' ? 'trainer' : 'coach-home');
+
+/* The book itself couldn't load (or this account has none). One honest screen for the three
+   book-less ways to land here, instead of a spinner that never resolves. */
+const bookless = (title, back) => {
+  const offline = CD.roster && CD.roster.offline;
+  return `${backHead(title, offline ? "Can't reach your " + bookWord() : 'Loading…', back)}
+  ${offline ? `<div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
+    <div class="sd-t">Can't reach your ${esc(bookWord())}</div>
+    <div class="sd-s">Check your connection and try again. Nothing is lost.</div>
+    <div class="sd-cta"><button class="btn primary sm" id="book-retry">Try again</button></div></div>`
+  : CD.roster ? `<div class="state-demo"><div class="sd-ic">${icon('clipboard', 24)}</div>
+    <div class="sd-t">No ${esc(bookWord())} yet</div>
+    <div class="sd-s">Standards live on your ${esc(bookWord())}. Set one up first and the board opens here.</div></div>`
+  : `<section class="card pad"><div class="cs-p">Loading…</div></section>`}`;
+};
+
+/* Wire bookless()'s Try again. A forced load punches through the cached offline ROSTER (the
+   plain kick would early-return on it); the arrival hook repaints, so no .then here. */
+const wireBookRetry = (root) => {
+  const rt = root.querySelector('#book-retry');
+  if (rt) rt.addEventListener('click', () => { rt.disabled = true; loadBook(true, bookKindFor(RT.authRole)); });
+};
+
 export const coachStandards = {
   nav: 'operator',
   render({ sub }) {
-    const back = CD.kind === 'practice' ? 'trainer' : 'coach-home';
+    const back = bookBack();
     const inst = (CS.board || []).find((b) => b.instance_id === sub) || (CS.board || [])[0];
     if (!inst) {
+      // No book means no board fetch ever started — that's a book problem, not a board one.
+      if (!bookId()) return bookless('Activity standard', back);
       // Three honest states — this used to render "Loading…" forever when the board resolved
       // empty (nothing scheduled today / standard turned off) or errored.
       if (CS.boardError) {
@@ -290,6 +334,10 @@ export const coachStandards = {
   },
 
   mount(root, { sub }) {
+    // Bail to the bookless paint only when there is ALSO no board to show — render paints a
+    // board it already holds even if the roster cache was since lost (a failed forced reload
+    // elsewhere), and bailing here would leave that board's Approve buttons dead.
+    if (!ensureBook() && !(CS.board || []).length) { wireBookRetry(root); return; }
     const id = bookId();
     // ⚠ Repaint ONLY on a real change. __render() re-runs this mount, so an unconditional
     // refresh here is an infinite loop — and forcing the reload every pass never lets it settle.
@@ -491,6 +539,9 @@ export const coachStandardEdit = {
   },
 
   mount(root) {
+    // The builder renders fine from DRAFT alone, but Save needs the book id — kick the load now
+    // (deduped if already in) so it's there before the coach finishes filling the form.
+    ensureBook();
     const set = (patch) => { DRAFT = { ...DRAFT, ...patch }; if (window.__render) window.__render(); };
 
     /* No keydown wiring here on purpose. router.js promotes every .cs-seg chip to a tab stop and
@@ -540,6 +591,11 @@ export const coachStandardEdit = {
       if (!(Number(d.target) > 0)) { save.textContent = 'Enter a target first'; return; }
       save.disabled = true; save.textContent = 'Saving…';
       const id = bookId();
+      // No book id would file the standard against NULL — the insert fails silently server-side
+      // and the coach's work vanishes. Refuse honestly, leave the draft intact, and force a
+      // book refetch so "Try again" is a real offer, not a treadmill (the plain kick
+      // early-returns on a cached failed load).
+      if (!id) { loadBook(true, bookKindFor(RT.authRole)); save.disabled = false; save.textContent = 'Couldn’t save. Try again'; return; }
       const res = await saveStandard({
         id: d.id || undefined,
         team_id: CD.kind === 'practice' ? undefined : id,
@@ -562,7 +618,7 @@ export const coachStandardEdit = {
         location.hash = '#coach-standards-manage';
       } else {
         save.disabled = false;
-        save.textContent = 'Couldn’t save — try again';
+        save.textContent = 'Couldn’t save. Try again';
       }
     });
 
@@ -583,7 +639,9 @@ let MANAGE = { rows: [], loaded: false, error: false };
 export const coachStandardsManage = {
   nav: 'operator',
   render() {
-    const back = CD.kind === 'practice' ? 'trainer' : 'coach-home';
+    const back = bookBack();
+    // Last-known rows beat the bookless screen: the list is real data already fetched.
+    if (!bookId() && !MANAGE.rows.length) return bookless('Activity standards', back);
     const rows = MANAGE.rows.filter((r) => r.active);
     return `${backHead('Activity standards', 'Verified from athlete devices', back)}
     ${MANAGE.error && !rows.length ? errorState({ title: "Couldn't load your standards", body: 'They are safe. Reconnect and they load right here.', retryId: 'cs-manage-retry' })
@@ -596,19 +654,23 @@ export const coachStandardsManage = {
         </div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>`).join('')}</section>`
-    : `<section class="card pad">
+    : MANAGE.loaded ? `<section class="card pad">
         <div class="cs-h">No activity standards yet</div>
         <div class="cs-p" style="padding-top:4px">Set one and it verifies itself from your athletes’ phones and watches — no screenshots, no check-ins.</div>
-      </section>`}
+      </section>`
+    // Before the first fetch resolves this screen KNOWS NOTHING — "No activity standards yet"
+    // here reads as a deletion to a coach who has three (the exact lie loadOwnerStandards'
+    // contract exists to prevent). Loading is the only honest word.
+    : `<section class="card pad"><div class="cs-p">Loading your standards…</div></section>`}
     ${canSet() ? `<div style="padding:12px 20px">
       <button class="btn" data-go="coach-standard-edit">Set a standard</button>
     </div>` : ''}
     <div style="height:20px"></div>`;
   },
   mount(root) {
+    if (!ensureBook() && !MANAGE.rows.length) { wireBookRetry(root); return; }
     const id = bookId();
-    if (!id) return;
-    loadOwnerStandards(CD.kind === 'practice' ? null : id, CD.kind === 'practice' ? id : null)
+    if (id) loadOwnerStandards(CD.kind === 'practice' ? null : id, CD.kind === 'practice' ? id : null)
       .then((rows) => {
         if (rows === null) {
           // FAILED read: keep the last-known list, raise the flag once. The flag (not a
@@ -618,8 +680,8 @@ export const coachStandardsManage = {
         }
         const sig = rows.map((r) => `${r.id}:${r.active}`).join('|');
         const was = MANAGE.rows.map((r) => `${r.id}:${r.active}`).join('|');
-        const cleared = MANAGE.error;
-        MANAGE.rows = rows; MANAGE.error = false;
+        const cleared = MANAGE.error || !MANAGE.loaded; // first arrival must replace "Loading…"
+        MANAGE.rows = rows; MANAGE.error = false; MANAGE.loaded = true;
         // Repaint only on a real change — __render re-runs this mount, so an unconditional
         // refresh here would spin forever.
         if ((sig !== was || cleared) && root.isConnected && window.__render) window.__render();

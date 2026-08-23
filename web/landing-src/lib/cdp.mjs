@@ -17,6 +17,7 @@ import { existsSync, readdirSync } from 'node:fs';
  *  headless shell: the shell can't rasterize some CSS the proto uses (backdrop-filter). */
 export function findChrome() {
   const roots = [
+    process.env.PLAYWRIGHT_BROWSERS_PATH || '',
     join(process.env.LOCALAPPDATA || '', 'ms-playwright'),
     join(process.env.HOME || '', '.cache', 'ms-playwright'),
   ].filter((r) => r && existsSync(r));
@@ -64,6 +65,9 @@ export async function launch({ port = 9333, scale = 3, windowSize = null } = {})
 
   const proc = spawn(exe, [
     '--headless=new',
+    // Containers run us as root, where Chromium refuses to start its sandbox and exits before
+    // DevTools ever listens. Only dropped when actually root, so a desktop run keeps the sandbox.
+    ...(process.getuid?.() === 0 ? ['--no-sandbox'] : []),
     // Screencast (Page.startScreencast) captures the real compositor surface, which follows the
     // OS window — NOT the emulated device metrics that screenshots use. A caller recording video
     // must size the window to the viewport or every frame is a letterboxed strip of the page.

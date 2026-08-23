@@ -1049,6 +1049,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* `.link` is only styled under .eyebrow / .pl-grp / .est-note, so an inline action inside a
    sentence rendered as plain body text — a control that doesn't look like one. */
 .pl-standard .link { color: var(--blue-bright); font-weight:700; cursor:pointer; }
+/* Same disease on the delete-account sidebox: "open Privacy & visibility" is the one route to a
+   data download before deletion, and it painted as plain bold body text. */
+.sidebox .link { color: var(--blue-bright); font-weight:700; cursor:pointer; }
 
 /* Group header INSIDE a tab — quieter than .eyebrow so a tab can have one eyebrow and several
    groups without four competing uppercase labels down the page. */
@@ -2330,9 +2333,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    which has to STAY small to the eye: Plan's goal pill (32px) and its inline section links (39px),
    the meal thread's fix chips (34px), the quick-log sheet's fold toggle (27px). Grouped rather
    than repeated so the next small control joins a list instead of reinventing the shape. */
-.eyebrow .link, .pl-standard .link, .pl-grp .link, .est-note .link,
+.eyebrow .link, .pl-standard .link, .pl-grp .link, .est-note .link, .sidebox .link,
 .pl-goalpill, .fx-chip, .hub-fold { position: relative; }
-.eyebrow .link::after, .pl-standard .link::after, .pl-grp .link::after, .est-note .link::after,
+.eyebrow .link::after, .pl-standard .link::after, .pl-grp .link::after, .est-note .link::after, .sidebox .link::after,
 .pl-goalpill::after, .fx-chip::after, .hub-fold::after {
   content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   width: 100%; height: 100%; min-width: 44px; min-height: 44px;

@@ -52,8 +52,22 @@ real phone. Careful: no build step — dynamic import() patterns must be click-t
 ### 6 · copy/design · em dashes in UI copy + eyebrow-h2 semantics  (impact 2, effort s)
 Founder taste: no em dashes in user-facing copy. `05c9faf` already removed 246 and the
 `lint:dash` gate ratchets against growth, so RE-COUNT before sweeping — the seeded "414"
-predates that commit. Rewrite naturally (don't search-and-replace into comma splices).
-Fix eyebrow-h2 heading semantics while in there.
+predates that commit. Current count 413 across 72 files (baseline refreshed 2026-08-23,
+1 PM session, after a two-dash burn-down in coach-connected.js). Rewrite naturally
+(don't search-and-replace into comma splices). Fix eyebrow-h2 heading semantics while
+in there.
+
+### 8 · robustness · loadBook's arrival-repaint hash whitelist is a footgun  (impact 3, effort s)
+`coach-data.js` repaints on roster arrival only for a hard-coded list of hashes. Three
+screens had fallen through it (coach-standards, coach-standards-manage, coach-rooms):
+on direct entry (relaunch restoring the hash) nothing loaded the book and nothing
+repainted — infinite spinner, or worse, manage swearing "No activity standards yet"
+over a coach's real standards. The 1 PM audit 2026-08-23 fixed all three screen-side
+(ensureBook kick + honest bookless states; proven by qc-capture, which reproduced the
+hang before and a full board after). The whitelist itself remains: every new operator
+screen must remember to join it or kick the load in mount. Systemic fix: replace the
+hash list with an arrival subscription (subscribers register a repaint callback), then
+delete the list. Audit any other mount that reads bookId()/CD.roster without kicking.
 
 ### 7 · design · blue-bright ink cluster from the 2026-08-19 deep audit  (impact 2, effort s)
 A cluster of screens uses bright blue as text ink where it should be reserved for the

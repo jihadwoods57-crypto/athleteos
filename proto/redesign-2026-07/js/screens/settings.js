@@ -888,7 +888,7 @@ export const deleteAccount = {
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
       <div><div class="tt">Want your data first?</div>
-      <div class="ts">Download everything before you delete: <span class="link" data-go="privacy" role="button" tabindex="0" style="font-weight:700">open Privacy &amp; visibility</span>. Deletion completes within 30 days everywhere, immediately in the app.</div></div>
+      <div class="ts">Download everything before you delete: <span class="link" data-go="privacy" role="button" tabindex="0">open Privacy &amp; visibility</span>. Deletion completes within 30 days everywhere, immediately in the app.</div></div>
     </div>
     <div style="height:18px"></div>
     <button id="del-acct" class="btn" style="background:var(--danger-solid);color:#fff;box-shadow:0 10px 30px rgba(var(--red-rgb),0.3)">${icon('trash', 18)} Delete my account</button>

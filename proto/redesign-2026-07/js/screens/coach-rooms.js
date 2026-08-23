@@ -50,7 +50,13 @@ const assign = (athleteId, roomId) => run(async () => { const r = await roles.as
 export const coachRooms = {
   nav: 'coach', tab: 'profile',
   render() {
-    if (CD.roster === null || !CD.extras) return `${backHead('Rooms', 'Position units for your team.', 'coach-profile')}${skeletonRows(3, 'Loading your team')}`;
+    const head = backHead('Rooms', 'Position units for your team.', 'coach-profile');
+    if (!CD.extras) {
+      // Roster resolved but the book couldn't load: a skeleton here never resolves (there is no
+      // fetch left in flight), so it has to say so. Retry re-runs the roster load.
+      if (CD.roster && CD.roster.offline) return `${head}${errorState({ title: "Couldn't load your team", body: 'Your rooms are safe. Reconnect and they load right here.', retryId: 'rooms-retry' })}`;
+      return `${head}${skeletonRows(3, 'Loading your team')}`;
+    }
     const rooms = (CD.extras && CD.extras.rooms) || [];
     const { byRoom, needs } = groupRosterByRoom(rosterRows(), rooms);
     const suggestions = suggestedRooms(rosterPositions(), rooms);
@@ -146,6 +152,11 @@ export const coachRooms = {
     `;
   },
   mount(root) {
+    // Direct entry (a relaunch restoring #coach-rooms) reaches this mount before any coach
+    // screen has fetched the roster — the skeleton never resolved. Kick the load; the arrival
+    // hook in loadBook repaints #coach-rooms on success and failure alike, so no .then here
+    // (one on the deduped early-return path repainted every frame while a load was in flight).
+    if (CD.roster === null) loadCoachRoster();
     // Lazy-load the staff list once, for the owner picker.
     // `s || []` also absorbs a null (FAILED) read; the owner picker having no choices is an
     // absence, not a claim, so it stays best-effort. A later mount retries.
