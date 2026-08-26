@@ -36,12 +36,14 @@ const iconFor = (t) => ICON_FOR[t] || 'clipboard';
    call shows one dot, a workout with a location shows three. */
 function stageStrip(d) {
   if (!d.stages || d.stages.length < 2) return '';
-  return `<div class="vc-stages" role="list">${d.stages.map((s) => `
-    <div class="vc-stage ${s.done ? 'on' : ''}" role="listitem">
-      <span class="vc-dot">${s.done ? icon('check', 11) : ''}</span>
+  // An <ol>, because this genuinely IS ordered, and the old <div role="list"> threw that away
+  // along with the visual order (see the .vc-track note in screens.css).
+  return `<ol class="vc-track">${d.stages.map((s) => `
+    <li class="vc-step${s.done ? ' on' : ''}">
+      <span class="vc-node">${s.done ? icon('check', 9) : ''}</span>
       <span class="vc-sl">${esc(s.label)}</span>
-      ${s.at ? `<span class="vc-st">${esc(s.at)}</span>` : ''}
-    </div>`).join('')}</div>`;
+      <span class="vc-st">${s.at ? esc(s.at) : ''}</span>
+    </li>`).join('')}</ol>`;
 }
 
 /** The live card for Home. Returns '' when the commitment isn't visible yet (before it opens,
@@ -114,16 +116,40 @@ export function commitmentCard(d) {
   const actionText = d.canAck ? d.actionLabel
     : d.canArrive ? (d.actionLabel && d.stage !== 'open' ? 'I’m here' : d.actionLabel)
     : 'Mark complete';
-  const deadline = d.stage === 'awaiting_arrival' && d.arrive_by_min != null
+  /* The pill exists to say "you still have to do this by then". Once they are inside the
+     building it is answering a question nobody is asking any more, and it was still printing
+     "ARRIVE BY 3:10 PM" on a card that says they arrived at 5:43 AM. It now lives only while the
+     deadline is genuinely still ahead of them. */
+  const deadlineStillMatters = d.stage === 'open' || d.stage === 'awaiting_arrival';
+  const deadline = !deadlineStillMatters ? ''
+    : d.stage === 'awaiting_arrival' && d.arrive_by_min != null
     ? `Arrive by ${esc(d.deadlineLine.replace(/^Arrive by /, ''))}` : esc(d.deadlineLine);
 
-  return `<section class="xnow vc-card" data-vc-open="${id}">
+  /* The eyebrow is the commitment TYPE and the title is the coach's own words. When the coach
+     has not renamed it, `title` falls back to that very same TYPE_LABEL, so the card printed
+     "STUDY HALL" in an eyebrow directly above "Study Hall" in a heading. The span still renders
+     when the text is dropped, empty, so `justify-content:space-between` keeps the deadline pill
+     on the right instead of letting it slide left. */
+  const eyebrow = TYPE_LABEL[d.type] || 'Commitment';
+  const eyebrowEarnsItsPlace = eyebrow.trim().toLowerCase() !== String(d.title || '').trim().toLowerCase();
+
+  /* deriveCommitment has computed `statusColor` for every state since 0138 and this card has
+     never once read it, so EVERY commitment rendered amber: the wash, the border, the eyebrow and
+     the CTA all key off --now-rgb, which defaults to amber. That is why a perfectly healthy
+     in-progress session looked like a warning, and it is most of the "everything is orange" read.
+     DESIGN.md is explicit that amber means warning only.
+
+     The hues already exist as .xnow.g / .xnow.b and cost nothing to switch on. Amber stays the
+     default precisely because it still fits the one state that has NOT been answered yet. */
+  const hue = d.statusColor === 'g' ? ' g' : d.statusColor === 'b' ? ' b' : '';
+
+  return `<section class="xnow vc-card${hue}" data-vc-open="${id}">
     <div class="xlab">
-      <span class="xl">${esc((TYPE_LABEL[d.type] || 'Commitment').toUpperCase())}</span>
+      <span class="xl">${eyebrowEarnsItsPlace ? esc(eyebrow.toUpperCase()) : ''}</span>
       ${deadline ? `<span class="xpill gold">${deadline}</span>` : ''}
     </div>
     <div class="xmain">
-      <div class="xico gold">${icon(iconFor(d.type), 21)}</div>
+      <div class="xico">${icon(iconFor(d.type), 20)}</div>
       <div>
         <div class="xt">${esc(d.title)}</div>
         ${d.message ? `<div class="xwhy">${esc(d.message)}</div>` : ''}

@@ -1361,6 +1361,12 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xnow .xl{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:.16em;color:var(--now-ink)}
 .xnow.red .xl{color:var(--red)}
 .xnow .xmain{display:flex;gap:12px;align-items:center;margin-top:12px}
+/* A 46px tile beside a 20px title is the wrong ratio, and the glyph only repeats what the title
+   already says, so it is the element that gives up the width. It also used to be hardcoded
+   `.xico.gold` in the markup, which left an amber tile marooned on a blue or green card once the
+   state hue was switched on. It reads --now-rgb like everything else on the card now.
+   Scoped: .xico elsewhere is untouched. */
+.xnow .xico{width:40px;height:40px;background:rgba(var(--now-rgb), 0.13);color:var(--now-ink);border:1px solid rgba(var(--now-rgb), 0.26)}
 .xnow .xt{font-size:var(--t-xl);font-weight:800;letter-spacing:var(--title-tight)}
 .xnow .xwhy{font-size:var(--t-sm);color:var(--text-2);line-height:1.45;margin-top:2px}
 .xcount{display:flex;align-items:baseline;gap:8px;margin:14px 0 12px}
@@ -1988,16 +1994,31 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* ---- Verified Commitments (0138): roll-call card + stage strip ---------------------------
    The card reuses .xnow so a coach-scheduled commitment reads as the NOW action it is at
    4:45 AM, rather than introducing a second visual language on Home. */
-.vc-ctx{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--text-2);margin-top:10px}
+.vc-ctx{display:flex;align-items:center;gap:6px;font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-top:10px}
 .vc-ctx svg{flex:none;color:var(--text-3)}
-.vc-stages{display:flex;gap:6px;margin-top:12px}
-.vc-stage{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border-radius:var(--r-card-sm);background:var(--surface-2);border:1px solid var(--hairline)}
-.vc-stage.on{background:var(--green-surface);border-color:var(--green-border)}
-.vc-stage .vc-dot{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:var(--surface-3);color:var(--text-3);border:1px solid var(--hairline)}
-.vc-stage.on .vc-dot{background:var(--green-bright);color:var(--bg);border-color:transparent}
-.vc-sl{font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
-.vc-stage.on .vc-sl{color:var(--green-bright)}
-.vc-st{font-size:10.5px;font-weight:700;color:var(--text-2)}
+/* ---- the stage track ----------------------------------------------------------------
+   Was three equal-width boxes, each with its own surface, 1px border and 16px radius: cards
+   nested inside a card (banned outright), repeated as three identical dot+label+time tiles
+   (the identical-card-grid pattern in miniature). Between them they were most of the reason
+   the card read as machine-made, and the 16px radius on a 40px-tall tile is what made it read
+   cheap: that step is for a top-level inner surface, not for a chip.
+
+   It is ONE progression now, drawn on a rail, which also lets it show the order the three
+   separate boxes threw away. The rail segment belongs to the step it leaves, so the last step
+   never draws one; it overhangs 6px into its neighbour so the segments meet at the dot centres.
+   No layout property is animated and nothing here is a container, so `--r-micro` (a mark, not a
+   surface) is the correct radius. */
+.vc-track{display:flex;list-style:none;margin:14px 0 0;padding:0}
+.vc-step{flex:1;min-width:0;position:relative;padding-top:21px;display:flex;flex-direction:column;gap:2px}
+.vc-step:not(:last-child)::before{content:"";position:absolute;left:6px;right:-6px;top:5px;height:2px;border-radius:var(--r-micro);background:var(--surface-3)}
+.vc-step.on:not(:last-child)::before{background:rgba(var(--green-rgb), 0.40)}
+.vc-node{position:absolute;top:0;left:0;width:12px;height:12px;border-radius:var(--r-pill);display:grid;place-items:center;background:var(--surface-3);border:1px solid var(--hairline);color:var(--bg)}
+.vc-step.on .vc-node{background:var(--green-bright);border-color:transparent}
+/* Left-aligned, and a real step between the two sizes: the old pair was 10px over 10.5px, which
+   is not a hierarchy, it is a rounding error. */
+.vc-sl{font-size:var(--t-micro);font-weight:800;letter-spacing:var(--track-key);text-transform:uppercase;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vc-step.on .vc-sl{color:var(--green-bright)}
+.vc-st{font-size:var(--t-xs);font-weight:700;color:var(--text-2);font-variant-numeric:tabular-nums;min-height:1em}
 .vc-line{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--hairline)}
 .vc-line:last-child{border-bottom:0}
 .vc-line .vc-dot{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--surface-3);color:var(--text-3);border:1px solid var(--hairline)}
