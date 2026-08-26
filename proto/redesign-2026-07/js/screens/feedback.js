@@ -24,7 +24,7 @@
  *      Rather than show an athlete an error for helping, the send falls back to 'question' with the
  *      subject labelled — see sendTicket().
  */
-import { S, RT, act, roleNav } from '../state.js';
+import { S, RT, act, roleNav, roleProfileRoute } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
 import { track, EVENTS } from '../analytics.js';
@@ -140,8 +140,13 @@ export const feedback = {
     }
     PRIMED = false;
 
+    // Exits return to where the reporter actually came from (F.origin captures it on arrival),
+    // never to a hardcoded 'settings' that most callers did not arrive through. When origin is
+    // unknown, the role's own profile hub is the honest neutral landing.
+    const exit = F.origin && F.origin !== 'feedback' ? F.origin : roleProfileRoute();
+
     if (F.sent) {
-      return `<div id="fb-root">${backHead('Sent', LABEL[F.sent] || 'Thank you', 'settings')}
+      return `<div id="fb-root">${backHead('Sent', LABEL[F.sent] || 'Thank you', exit)}
       <section class="card" style="padding:22px 18px;text-align:center;margin-top:14px">
         <div class="req-icon g" style="width:52px;height:52px;margin:0 auto 14px">${icon('check', 25)}</div>
         <div style="font-size:18px;font-weight:800;letter-spacing:var(--title-tight)">That's with us.</div>
@@ -150,7 +155,7 @@ export const feedback = {
         </div>
       </section>
       <div style="height:14px"></div>
-      <button class="btn ghost sm" style="width:100%" data-go="settings">Done</button></div>`;
+      <button class="btn ghost sm" style="width:100%" data-go="${esc(exit)}">Done</button></div>`;
     }
 
     // Step 1 — what kind of thing is this.
@@ -161,7 +166,7 @@ export const feedback = {
           <div class="lm"><div class="lt">${esc(k.t)}</div><div class="ls" style="white-space:normal;line-height:1.45">${esc(k.s)}</div></div>
           ${icon('chevron', 16, 'style="color:var(--text-3)"')}
         </div>`;
-      return `<div id="fb-root">${backHead('Send feedback', 'We read all of it', 'settings')}
+      return `<div id="fb-root">${backHead('Send feedback', 'We read all of it', exit)}
       <section class="card" style="padding:6px 16px;margin-top:14px">${KINDS.map(row).join('')}</section>
       <div class="eyebrow" style="margin-top:18px">Urgent</div>
       <section class="card" style="padding:6px 16px;border-color:var(--red-border)">
@@ -192,7 +197,7 @@ export const feedback = {
       <textarea class="ob-input" id="fb-body" maxlength="4000" rows="6" style="margin-top:8px;resize:vertical"
         placeholder="${esc(bug ? 'What you were doing when it happened.' : safety ? 'Anything you can tell us. A person reads this.' : 'Whatever you want us to know.')}">${esc(F.body)}</textarea>
       ${bug ? `<div style="font-size:11.5px;font-weight:600;color:var(--text-3);line-height:1.5;margin-top:10px">
-        Your app version and the screen you were on are attached automatically — you don't have to describe them.
+        Your app version and the screen you were on are attached automatically. You don't have to describe them.
       </div>` : ''}
     </section>
     ${F.error ? `<div style="font-size:12.5px;font-weight:700;color:var(--red-bright);text-align:center;padding:12px 16px 0">${esc(F.error)}</div>` : ''}
@@ -208,14 +213,14 @@ export const feedback = {
   mount(root) {
     // Kind picker. data-go can't serve here (it would need a route per category), so these are
     // wired directly; listeners die with the next paint like every other screen's.
+    // Click only: these rows are promoted by the router's central keyboard wiring, so a local
+    // Enter/Space handler double-fired the pick.
     root.querySelectorAll('[data-fb-kind]').forEach((el) => {
-      const pick = () => {
+      el.addEventListener('click', () => {
         F.cat = el.getAttribute('data-fb-kind');
         F.error = null;
         window.__render && window.__render();
-      };
-      el.addEventListener('click', pick);
-      el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+      });
     });
 
     /* Back to the picker, and "pick a different kind", both clear the category IN PLACE. Navigating
@@ -244,7 +249,7 @@ export const feedback = {
       const subject = (F.subject || '').trim();
       // Mirror the server's own floor rather than inventing a rule: 0125 requires 3 characters.
       if (subject.length < 3) {
-        F.error = 'Give it one line first — even a few words.';
+        F.error = 'Give it one line first, even a few words.';
         window.__render && window.__render();
         return;
       }
@@ -261,10 +266,10 @@ export const feedback = {
         const msg = String((e && e.message) || e).toLowerCase();
         F.sending = false;
         F.error = msg.includes('rate limit')
-          ? "That's a few in a row — give it an hour and send the rest."
+          ? "That's a few in a row. Give it an hour and send the rest."
           : msg.includes('not authenticated')
-            ? 'Sign in first, then send this — it needs to reach your account.'
-            : "That didn't send. Nothing was lost — try again, or email support@onstandard.app.";
+            ? 'Sign in first, then send this. It needs to reach your account.'
+            : "That didn't send. Nothing was lost. Try again, or email support@onstandard.app.";
       }
       window.__render && window.__render();
     });

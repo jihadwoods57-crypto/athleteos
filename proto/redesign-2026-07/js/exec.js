@@ -16,7 +16,10 @@ export const DUE_SOON_MIN = 90;
 export function mapPressure(label) {
   const s = String(label || '').toLowerCase();
   if (s.includes('gentl') || s.includes('support')) return 'gentle';
-  if (s.includes('max') || s.includes('intens') || s.includes('high')) return 'max';
+  // 'strict' is the normalized slug (ob-helpers normalizePressure, 2026-08-26) for the same
+  // intent the legacy labels spelled "High accountability" / "Max pressure". Without this rule
+  // a normalized capture would silently downgrade those athletes to the middle tier.
+  if (s.includes('max') || s.includes('intens') || s.includes('high') || s.includes('strict')) return 'max';
   return 'accountable';
 }
 

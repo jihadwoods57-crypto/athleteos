@@ -9,6 +9,7 @@ import * as roles from '../roles.js';
 import { buildMonthPayload } from '../monthly.js';
 import { track, EVENTS } from '../analytics.js';
 import { shareScoreCard } from '../share-card.js';
+import { planById, effectiveMonthly, fmtPrice } from '../pricing.js';
 
 let CACHE = { report: null, period: null, loaded: false, payload: null, paywallFired: false };
 
@@ -30,13 +31,14 @@ function lastCompletedPeriod() {
 function monthLabel(period) {
   const [y, m] = String(period).split('-').map(Number);
   if (!y || !m) return period;
-  return new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  // Device locale (undefined), the app's date-formatting policy everywhere else.
+  return new Date(y, m - 1, 1).toLocaleString(undefined, { month: 'long', year: 'numeric' });
 }
 
 function dayLabel(iso) {
   if (!iso) return '';
   const d = new Date(iso + 'T00:00:00');
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric' });
 }
 
 async function load(force) {
@@ -113,6 +115,12 @@ function baseStatsBlock(report) {
 function lockedCard(payload, period) {
   const report = payload || {};
   const monthWord = esc(monthLabel(period)).split(' ')[0];
+  // Priced from the one catalog (js/pricing.js), never hardcoded: the paywall, onboarding and
+  // this line must all quote the same number or one of them is lying.
+  const plan = planById('individual');
+  const trialLine = plan
+    ? `${plan.name}: free for ${plan.trialDays} days, then ${fmtPrice(effectiveMonthly(plan))}/mo billed annually. No card today.`
+    : 'Individual: free trial first. No card today.';
   return `
   <section class="card pad">
     <div class="bigstat"><span class="n">${report.avgScore != null ? report.avgScore : '—'}</span><span class="d">Average score</span></div>
@@ -124,7 +132,7 @@ function lockedCard(payload, period) {
   ${baseStatsBlock(report)}
 
   <div style="height:16px"></div>
-  <div class="eyebrow">Coach's take</div>
+  <div class="eyebrow">AI coach's read</div>
   <section class="card pad mr-locked">
     <div class="mr-skel" aria-hidden="true">
       <div class="mr-skel-line" style="width:78%"></div>
@@ -142,7 +150,7 @@ function lockedCard(payload, period) {
   <div class="eyebrow">Unlock the full report</div>
   <section class="card pad">
     <button class="btn green" id="mr-trial" style="width:100%">Start free trial</button>
-    <div style="text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:8px;line-height:1.4">Individual — free for 7 days, then $10.50/mo billed annually. No card today.</div>
+    <div style="text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:8px;line-height:1.4">${esc(trialLine)}</div>
     <div class="mr-or">or unlock now</div>
     <div class="sidebox mr-coderow" data-go="redeem-code" role="button" aria-label="Redeem a sponsor code to unlock premium instantly">
       <div class="req-icon b" style="width:38px;height:38px">${icon('key', 17)}</div>
@@ -170,7 +178,7 @@ function reportBody(report, period) {
 
   ${report.headline || report.narrative ? `
   <div style="height:16px"></div>
-  <div class="eyebrow">Coach's take</div>
+  <div class="eyebrow">AI coach's read</div>
   <section class="card pad">
     ${report.headline ? `<div style="font-size:16px;font-weight:800">${esc(report.headline)}</div>` : ''}
     ${report.narrative ? `<p style="font-size:13.5px;font-weight:600;color:var(--text-2);margin-top:8px;line-height:1.5">${esc(report.narrative)}</p>` : ''}

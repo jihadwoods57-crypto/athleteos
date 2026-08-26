@@ -52,8 +52,9 @@ function fromPrice(c) {
   return `From $${Number.isInteger(d) ? d : d.toFixed(2)}/mo`;
 }
 function chip(label, active, attr) {
-  return `<button class="chip" ${attr} style="${active ? 'background:var(--blue-bright);color:var(--ink-on-accent);border-color:transparent' : ''}">${label}</button>`;
+  return `<button class="chip" ${attr} aria-pressed="${active ? 'true' : 'false'}" style="${active ? 'background:var(--blue-bright);color:var(--ink-on-accent);border-color:transparent' : ''}">${label}</button>`;
 }
+const PRICE_CHIP = ['Any', 'Under $100', 'Under $200', 'Under $350'];
 
 export default {
   render({ sub }) {
@@ -66,7 +67,9 @@ export default {
       ${chip('Accountability', UI.category === 'accountability', 'data-cat="accountability"')}
       ${chip('Certified trainer', UI.category === 'cpt', 'data-cat="cpt"')}
       ${chip('S&C', UI.category === 'snc', 'data-cat="snc"')}
-      ${chip(PRICE_STEPS[UI.priceIdx].label, UI.priceIdx > 0, 'data-price="1"')}
+      ${/* One chip per price band, not a cycling button: state and control were sharing one
+            label, and reaching "Any" again took three taps through every other band. */''}
+      ${PRICE_STEPS.map((p, i) => chip(PRICE_CHIP[i], UI.priceIdx === i, `data-price="${i}"`)).join('')}
     </div>
 
     ${CACHE.error ? errorState({ title: "Couldn't load coaches", body: 'The directory is still there. Reconnect and it loads right here.', retryId: 'cd-retry' }) : ''}
@@ -82,13 +85,14 @@ export default {
           <div class="lt">${esc(l.display_name)}${(l.categories || []).some((c) => c !== 'accountability') ? ` <span style="color:var(--blue-bright)">${icon('shield', 13)}</span>` : ''}</div>
           <div class="ls">${esc((l.categories || []).map((c) => CAT_LABEL[c] || c).join(' · '))}</div>
           ${l.headline ? `<div class="ls" style="margin-top:3px">${esc(l.headline)}</div>` : ''}
-          <div class="ls" style="margin-top:3px;color:var(--text-2)">${esc(fromPrice(l.from_cents))}${l.seats_left != null && l.seats_left <= 3 ? ` · <span style="color:var(--amber-bright)">${l.seats_left} ${l.seats_left === 1 ? 'spot' : 'spots'} left</span>` : ''}</div>
+          ${/* A seat count is a plain fact, not a scarcity lever: no amber, no urgency. */''}
+          <div class="ls" style="margin-top:3px;color:var(--text-2)">${esc(fromPrice(l.from_cents))}${l.seats_left != null ? ` · <span style="color:var(--text-2)">${l.capacity != null ? `${l.seats_left} of ${l.capacity} spots open` : `${l.seats_left} ${l.seats_left === 1 ? 'spot' : 'spots'} open`}</span>` : ''}</div>
         </div>
         ${icon('chevron', 17, 'style="color:var(--text-3);margin-top:10px"')}
       </div>`).join('')}
     </section>
     <div class="sidebox" style="margin-top:10px"><div class="req-icon b" style="width:34px;height:34px">${icon('shield', 15)}</div>
-      <div><div class="tt">The shield means we checked</div><div class="ts">Verified badges are earned by documents we reviewed — never self-declared. Accountability coaches keep you consistent; they don't prescribe.</div></div></div>` : ''}
+      <div><div class="tt">The shield means we checked</div><div class="ts">Verified badges are earned by documents we reviewed. Never self-declared. Accountability coaches keep you consistent; they don't prescribe.</div></div></div>` : ''}
 
     <div class="lrow" data-go="coach-apply" style="margin:4px 16px 14px">
       <div class="lic">${icon('users', 16)}</div>
@@ -104,11 +108,10 @@ export default {
       UI.category = b.getAttribute('data-cat') || null;
       load(true);
     }));
-    const priceBtn = root.querySelector('[data-price]');
-    if (priceBtn) priceBtn.addEventListener('click', () => {
-      UI.priceIdx = (UI.priceIdx + 1) % PRICE_STEPS.length;
+    root.querySelectorAll('[data-price]').forEach((b) => b.addEventListener('click', () => {
+      UI.priceIdx = Number(b.getAttribute('data-price')) || 0;
       load(true);
-    });
+    }));
     const retry = root.querySelector('#cd-retry');
     if (retry) retry.addEventListener('click', () => load(true));
   },

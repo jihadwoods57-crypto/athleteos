@@ -1,24 +1,24 @@
 /* Parent "Fund a plan": each child's trainer's payable packages, with a Pay button that opens Stripe
    Checkout with the parent as payer and the child as beneficiary. Server verifies guardian+client. */
-import { backHead, esc, errorState, skeletonRows, emptyState, alertMsg } from '../components.js';
+import { backHead, esc, errorState, skeletonRows, emptyState, alertMsg, statusMsg } from '../components.js';
 import { icon } from '../icons.js';
 import * as roles from '../roles.js';
+import { priceLabel } from '../funded.js';
 
 let CACHE = { rows: null, loaded: false };
 let UI = { paying: null };
+// offer_id -> true once Stripe Checkout was opened for it this session. The button used to
+// re-arm instantly as "Pay", which read as "that didn't work" and invited a second checkout.
+let OPENED = {};
 
 async function load(force) {
   if (CACHE.loaded && !force) return;
   CACHE.rows = await roles.fetchFundedOffers();
   CACHE.loaded = true;
+  // A successful refresh means the list reflects the server again (a finished purchase shows up
+  // server-side), so the "checkout opened" reminder resets with the data it described.
+  if (force && CACHE.rows && !CACHE.rows.error) OPENED = {};
   if (window.__render) window.__render();
-}
-
-function priceLabel(o) {
-  if (o.price_cents == null) return 'Contact for pricing';
-  const d = o.price_cents / 100; const n = Number.isInteger(d) ? d : d.toFixed(2);
-  const per = o.cadence === 'one-time' ? ' one-time' : o.cadence === 'session' ? ' / session' : o.cadence === 'week' ? ' / wk' : ' / mo';
-  return `$${n}${per}`;
 }
 
 // One group per (child, practice) — a child can be an active client of more than one trainer, and
@@ -76,8 +76,9 @@ export default {
         ${/* disabled, not just relabelled: the button stayed tappable while checkout opened, so a
               second tap started a SECOND Stripe Checkout for the same package. The label carries
               the child's name because a parent funding two kids sees two identical "Pay" buttons. */''}
-        ${o.price_cents != null ? `<button class="btn green sm" data-pay="${esc(o.offer_id)}" data-child="${esc(o.child_id)}"${UI.paying === o.offer_id ? ' disabled aria-busy="true"' : ''} aria-label="Pay for ${esc(o.name)} for ${esc(g.child_name || 'your child')}, ${esc(priceLabel(o))}" style="width:auto;padding:0 14px;height:44px;flex:none">${UI.paying === o.offer_id ? '…' : 'Pay'}</button>` : ''}
-      </div>`).join('')}
+        ${o.price_cents != null ? `<button class="btn green sm" data-pay="${esc(o.offer_id)}" data-child="${esc(o.child_id)}"${UI.paying === o.offer_id ? ' disabled aria-busy="true"' : ''} aria-label="${OPENED[o.offer_id] ? `Reopen checkout for ${esc(o.name)}` : `Pay for ${esc(o.name)} for ${esc(g.child_name || 'your child')}, ${esc(priceLabel(o))}`}" style="width:auto;padding:0 14px;height:44px;flex:none">${UI.paying === o.offer_id ? '…' : OPENED[o.offer_id] ? 'Reopen checkout' : 'Pay'}</button>` : ''}
+      </div>
+      ${OPENED[o.offer_id] ? statusMsg({ text: 'Checkout opened in your browser. Finished paying? It shows here within a minute.', style: 'display:block;color:var(--text-2);padding:0 0 10px' }) : ''}`).join('')}
     </section>`).join('') + `
     <div class="sidebox" style="margin-top:10px"><div class="req-icon b" style="width:34px;height:34px">${icon('lock', 15)}</div>
       <div><div class="tt">Secure checkout via Stripe</div><div class="ts">Opens in your browser. OnStandard never sees or stores your card details.</div></div></div>`
@@ -100,7 +101,7 @@ export default {
       UI.paying = offerId; if (window.__render) window.__render();
       const r = await roles.startFundedCheckout(offerId, childId);
       UI.paying = null;
-      if (r && r.url) { roles.openExternal(r.url); if (window.__render) window.__render(); }
+      if (r && r.url) { OPENED[offerId] = true; roles.openExternal(r.url); if (window.__render) window.__render(); }
       else { if (window.__render) window.__render(); const e2 = root.querySelector('#fp-err'); if (e2) e2.textContent = (r && r.error) || 'Could not start checkout'; }
     }));
   },

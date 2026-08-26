@@ -16,6 +16,7 @@ import { participantMeta, initialsFor } from './chat-view.js';
 import { esc } from './components.js';
 import { icon } from './icons.js';
 import { hydrateAvatars } from './avatar.js';
+import { overlayOpen } from './overlay-guard.js';
 
 let overlay = null;
 let opener = null;   // the element that opened the sheet; focus returns to it on close
@@ -51,8 +52,9 @@ function onKey(e) {
 export function openMembersSheet(members) {
   const list = Array.isArray(members) ? members.filter(Boolean) : [];
   // One overlay at a time (DESIGN.md): the tour's cutout leaves the participants header live, so
-  // without this a tap there opened the sheet UNDER a running tour.
-  if (!list.length || overlay || document.querySelector('.tour, .lockstamp, .imgview')) return;
+  // without this a tap there opened the sheet UNDER a running tour. The marker list lives in
+  // overlay-guard.js; this caller only excludes its own.
+  if (!list.length || overlay || overlayOpen('.memsheet')) return;
   // Record who opened it BEFORE focus moves to the close button below; close() hands it back.
   opener = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
 
@@ -63,7 +65,7 @@ export function openMembersSheet(members) {
     const sub = p.self ? 'This is your log' : meta.access;
     return `
       <div class="ms-row">
-        <span class="ms-av ${esc(p.kind === 'ai' ? 'ai' : p.self ? 'self' : 'other')}"${p.kind !== 'ai' && p.id ? ` data-avatar-uid="${esc(p.id)}"` : ''}>${p.kind === 'ai' ? icon('bot', 16) : `<span data-avatar-fallback>${esc(initialsFor(p.name))}</span>`}</span>
+        <span class="ms-av ${esc(p.kind === 'ai' ? 'ai' : p.self ? 'self' : 'other')}"${p.kind !== 'ai' && p.id ? ` data-avatar-uid="${esc(p.id)}"` : ''}>${p.kind === 'ai' ? icon(meta.ic, 16) : `<span data-avatar-fallback>${esc(initialsFor(p.name))}</span>`}</span>
         <span class="ms-txt">
           <span class="ms-name">${esc(p.name)}</span>
           <span class="ms-kind">${icon(meta.ic, 12, 'style="vertical-align:-2px;margin-right:1px"')} ${esc(p.self ? 'Athlete' : meta.noun)} · ${esc(sub)}</span>
@@ -80,7 +82,7 @@ export function openMembersSheet(members) {
         <button class="ms-x" aria-label="Close">×</button>
       </div>
       <div class="ms-list">${rows}</div>
-      <div class="ms-foot">Anyone connected to your plan — coaches, trainers, parents, dietitians — appears here. Nobody else can read this.</div>
+      <div class="ms-foot">Anyone connected to your plan (coaches, trainers, parents, dietitians) appears here. Nobody else can read this.</div>
     </div>`;
 
   document.body.appendChild(el);

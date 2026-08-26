@@ -13,7 +13,7 @@
 import { icon } from '../icons.js';
 import { track, EVENTS } from '../analytics.js';
 import { backHead, esc } from '../components.js';
-import { deriveCommitment, TYPE_LABEL } from '../commitments.js';
+import { deriveCommitment, TYPE_LABEL, fmtAt, offsetFor } from '../commitments.js';
 import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment } from '../commitment-data.js';
 import { tapToVerify, armIfPermitted, armCapped } from './location-consent.js';
 
@@ -51,27 +51,59 @@ export function commitmentCard(d) {
   const id = esc(d.instance_id || '');
 
   if (d.collapsed) {
-    const cls = d.stage === 'excused' ? '' : 'green';
-    const pill = d.stage === 'completed' ? 'Completed'
-      : d.stage === 'excused' ? 'Excused' : 'In';
-    return `<div class="xrow-item ${cls}" data-go="roll-call/${id}">
-      <div class="xico sm" style="background:var(--green-surface);color:var(--green-bright)">${icon('check', 16)}</div>
+    // A completion that followed a verified early departure keeps its verdict (0208): amber,
+    // the departure on the receipt, and the door into the detail screen's dispute path. Without
+    // this, "Mark complete" quietly upgraded an amber card to a clean green one while the score
+    // still withheld the arrival weight.
+    if (d.stage === 'completed' && d.presence === 'left_early') {
+      return `<div class="xrow-item warn" data-go="roll-call/${id}">
+      <div class="xico sm gold">${icon('clock', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)}</div></div>
-      <span class="xpill ${d.stage === 'excused' ? 'gray' : 'green'}">${pill}</span>
+      <span class="xpill gold">Left early</span>
+    </div>`;
+    }
+    // Excused wears neutral, not the green "earned" treatment: it's a resolved absence, not a
+    // completion, and green is reserved for things the athlete actually did.
+    const excused = d.stage === 'excused';
+    const pill = d.stage === 'completed' ? 'Completed' : excused ? 'Excused' : 'Checked in';
+    return `<div class="xrow-item ${excused ? '' : 'green'}" data-go="roll-call/${id}">
+      <div class="xico sm" style="${excused ? 'background:var(--surface-2);color:var(--text-3)' : 'background:var(--green-surface);color:var(--green-bright)'}">${icon('check', 16)}</div>
+      <div class="xr"><div class="xa">${esc(d.title)}</div>
+      <div class="xb">${esc(d.confirmLine)}</div></div>
+      <span class="xpill ${excused ? 'gray' : 'green'}">${pill}</span>
+    </div>`;
+  }
+
+  // A sustained departure before the coach's minimum stay (0208). Amber, because unlike
+  // 'unverified' this is something the system actually KNOWS and the founder ruled it counts.
+  // It gets its own row rather than folding into the block below, because "Left early" and
+  // "Couldn't verify" are opposite claims: one is evidence, the other is the absence of it, and
+  // an athlete must never read the second as the first. The word "missed" appears in neither.
+  if (d.stage === 'left_early') {
+    return `<div class="xrow-item warn" data-go="roll-call/${id}">
+      <div class="xico sm gold">${icon('clock', 16)}</div>
+      <div class="xr"><div class="xa">${esc(d.title)}</div>
+      <div class="xb">${esc(d.confirmLine)} · Counts unless corrected</div></div>
+      <span class="xpill gold">Left early</span>
     </div>`;
   }
 
   if (d.stage === 'missed' || d.stage === 'unverified') {
     // Never the word "missed" on a verification failure — an absence of evidence is not evidence
     // of absence, and the detail screen offers a one-tap "I was there".
-    const reason = d.stage === 'unverified' ? VERIFY_REASON.get(d.instance_id) : null;
-    const line = reason ? `Couldn’t verify — ${reason}` : d.confirmLine;
-    return `<div class="xrow-item" data-go="roll-call/${id}" style="border-color:var(--amber-border)">
-      <div class="xico sm" style="background:var(--amber-surface);color:var(--amber-bright)">${icon('bolt', 16)}</div>
+    // The two states also stop dressing alike: 'unverified' is a gap in evidence that does NOT
+    // count against the athlete, so it wears neutral; 'no response' is a real unanswered deadline
+    // and keeps the warning treatment. Each sub-line now states its consequence.
+    const un = d.stage === 'unverified';
+    const reason = un ? VERIFY_REASON.get(d.instance_id) : null;
+    const line = reason ? `Couldn’t verify: ${reason}` : d.confirmLine;
+    const sub = un ? `${line} · Doesn’t count against you` : `${line} · Tap if this is wrong`;
+    return `<div class="xrow-item${un ? '' : ' warn'}" data-go="roll-call/${id}">
+      <div class="xico sm" style="${un ? 'background:var(--surface-2);color:var(--text-3)' : 'background:var(--amber-surface);color:var(--amber-bright)'}">${icon(un ? 'shield' : 'bolt', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
-      <div class="xb">${esc(line)}</div></div>
-      <span class="xpill gold">${d.stage === 'unverified' ? 'Unverified' : 'No response'}</span>
+      <div class="xb">${esc(sub)}</div></div>
+      <span class="xpill ${un ? 'gray' : 'gold'}">${un ? 'Unverified' : 'No response'}</span>
     </div>`;
   }
 
@@ -98,7 +130,11 @@ export function commitmentCard(d) {
       </div>
     </div>
     ${d.contextLine ? `<div class="vc-ctx">${icon('clock', 13)} ${esc(d.contextLine)}</div>` : ''}
-    ${d.confirmLine && d.stage === 'awaiting_arrival' ? `<div class="vc-ctx">${icon('check', 13)} ${esc(d.confirmLine)}</div>` : ''}
+    ${/* 'arrived' joined 'awaiting_arrival' here (0208). Without it the card printed no confirm
+          line at all once the athlete was inside, so "At the facility since 5:43 AM" (a stay still
+          running) and "Arrived at the facility at 5:43 AM" (a stay already met) rendered as the
+          exact same card. The distinction is the entire feature. */''}
+    ${d.confirmLine && (d.stage === 'awaiting_arrival' || d.stage === 'arrived') ? `<div class="vc-ctx">${icon(d.presence === 'provisional' ? 'clock' : 'check', 13)} ${esc(d.confirmLine)}</div>` : ''}
     ${stageStrip(d)}
     ${action ? `<button class="xcta" ${action}>${icon('check', 18)} ${esc(actionText)}</button>` : ''}
     ${action && SAVE_FAILED.get(d.instance_id) ? `<div class="vc-ctx" style="color:var(--amber-bright)">${icon('bolt', 13)} ${esc(SAVE_FAILED.get(d.instance_id))}</div>` : ''}
@@ -117,7 +153,7 @@ export function commitmentOfflineCard() {
     <div class="xico sm" style="background:var(--surface-2);color:var(--text-3)">${icon('wifiOff', 16)}</div>
     <div class="xr"><div class="xa">Coach check-in isn’t loading</div>
     <div class="xb">If your coach scheduled one, it shows the moment you reconnect. Nothing is lost.</div></div>
-    <button class="btn ghost sm" data-vc-retry style="width:auto;padding:0 14px;height:34px;flex:none">Try again</button>
+    <button class="btn ghost sm" data-vc-retry style="width:auto;padding:0 14px;height:44px;flex:none">Try again</button>
   </div>`;
 }
 
@@ -227,26 +263,33 @@ export default {
       // never sit on "Loading…" forever. A missing record is not a miss, and nothing here
       // counts against the athlete.
       if (resolveState(sub) === 'settled') {
-        return `${backHead('Commitment', '', 'home')}
+        return `${backHead('Check-in', '', 'home')}
         <section class="card pad">
-          <div class="tt">This commitment isn’t available</div>
+          <div class="tt">This check-in isn’t available</div>
           <div class="ts" style="padding-top:6px">Your coach may have cancelled it, or it’s old enough that we no longer keep the record. Nothing is counted against you.</div>
         </section>
         <div style="height:12px"></div>
         <button class="btn ghost" data-go="home" style="width:100%">Back to home</button>`;
       }
-      return `${backHead('Commitment', 'Loading…', 'home')}
-      <section class="card pad"><div class="ts">Loading your commitment…</div></section>`;
+      return `${backHead('Check-in', 'Loading…', 'home')}
+      <section class="card pad"><div class="ts">Loading your check-in…</div></section>`;
     }
     const d = deriveCommitment(row, new Date().toISOString());
     const asksArrival = !!row.asks_arrival;
 
-    const line = (label, time, on) => `
+    // `offText` lets an unmet line say WHY instead of shrugging with a dash. "Left at 5:52 AM" and
+    // "Still going" are different facts and an athlete reading their own record deserves both.
+    const line = (label, time, on, offText) => `
       <div class="vc-line ${on ? 'on' : ''}">
         <span class="vc-dot">${on ? icon('check', 11) : ''}</span>
         <div class="vc-lt"><div class="vc-la">${esc(label)}</div>
-        <div class="vc-lb">${on ? esc(time) : '—'}</div></div>
+        <div class="vc-lb">${on ? esc(time) : esc(offText || '—')}</div></div>
       </div>`;
+    // Team-zone clock, the same one the card's own stamps use (offsetFor). The device-local
+    // toLocaleTimeString that lived here printed "Left at 2:52 AM" on this screen under a Home
+    // card saying "Left at 5:52 AM" the moment an athlete crossed a timezone.
+    const off = offsetFor(row, new Date().toISOString());
+    const clock = (iso) => fmtAt(iso, off);
 
     return `
     ${backHead(d.title, d.contextLine || TYPE_LABEL[row.type] || '', 'home')}
@@ -257,15 +300,28 @@ export default {
 
     <div class="eyebrow">Today</div>
     <section class="card pad">
-      ${line('Acknowledged', d.acknowledged_at ? new Date(d.acknowledged_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '', !!row.acknowledged_at)}
-      ${asksArrival ? line(`Arrived at ${row.location_name || 'the facility'}`, row.arrived_at ? new Date(row.arrived_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '', !!row.arrived_at) : ''}
-      ${row.type !== 'morning_roll_call' ? line('Completed', row.completed_at ? new Date(row.completed_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '', !!row.completed_at) : ''}
+      ${line('Checked in', clock(row.acknowledged_at), !!row.acknowledged_at)}
+      ${asksArrival ? line(`Arrived at ${row.location_name || 'the facility'}`, clock(row.arrived_at), !!row.arrived_at) : ''}
+      ${/* The stay line only exists when the coach actually asked for one. Before 0208 this
+            requirement was invisible to the athlete AND unenforced, so a number the coach
+            genuinely cared about was the one fact nobody could see. */''}
+      ${asksArrival && row.min_dwell_min ? line(
+        `Stayed ${row.min_dwell_min} minutes`,
+        'Met',
+        d.presence === 'confirmed',
+        d.presence === 'left_early' ? `Left at ${clock(row.departed_at)}`
+          : row.arrived_at ? 'Still going' : '—',
+      ) : ''}
+      ${row.type !== 'morning_roll_call' ? line('Completed', clock(row.completed_at), !!row.completed_at) : ''}
     </section>
 
     ${d.canAck ? `<div style="height:12px"></div>
       <button class="btn green" data-vc-ack="${esc(row.instance_id)}" style="width:100%">${icon('check', 19)} ${esc(d.actionLabel)}</button>` : ''}
     ${d.canComplete ? `<div style="height:12px"></div>
       <button class="btn green" data-vc-complete="${esc(row.instance_id)}" style="width:100%">${icon('check', 19)} Mark complete</button>` : ''}
+    ${/* The card's failure note, on the detail screen too: a deep-linked athlete whose write
+          died was the one reader who never saw it (the file's own cardinal sin, line 24). */''}
+    ${SAVE_FAILED.get(row.instance_id) ? `<div class="vc-ctx" style="color:var(--amber-bright);margin-top:10px">${icon('bolt', 13)} ${esc(SAVE_FAILED.get(row.instance_id))}</div>` : ''}
 
     ${asksArrival ? `
     ${armCapped() && !row.arrived_at ? `
@@ -276,11 +332,29 @@ export default {
         <div class="ts">You have more located events than your phone can watch at once, so this one may not check itself in. Tap the arrival button when you get there. It counts exactly the same.</div>
       </div>
     </div>` : ''}
+    ${/* Verified absence (0208). Said plainly, with the time, and immediately next to the way to
+          contest it. Because this one COUNTS (founder ruling), the athlete is owed both the
+          mechanism that produced it and the door out of it. */''}
+    ${d.stage === 'left_early' ? `
+    <div class="sidebox mt">
+      <div class="req-icon a s38">${icon('clock', 19)}</div>
+      <div>
+        <div class="tt">You left before the time your coach asked for</div>
+        <div class="ts">Your coach asked for ${esc(String(row.min_dwell_min))} minutes at ${esc(row.location_name || 'the facility')}. Your phone left at ${esc(clock(row.departed_at))} and did not come back, so this one did not count. If your phone got that wrong, say so below and your coach can correct it.</div>
+      </div>
+    </div>` : ''}
     <div class="sidebox" style="margin-top:14px">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 19)}</div>
       <div>
-        <div class="tt">What arrival actually proves</div>
-        <div class="ts">Your phone reached ${esc(row.location_name || 'the facility')} during the scheduled window — that's it. It does not mean the work got done, and nobody is claiming it does. Your location is checked only around this event and never stored.</div>
+        <div class="tt">What this actually proves</div>
+        ${/* Tense follows the record. This box once asserted "your phone reached X and stayed
+              the 45 minutes" as fact on a commitment where nothing had been recorded yet, and on
+              one where the athlete verifiably left early. */''}
+        <div class="ts">${!row.arrived_at
+          ? `When you arrive, this records that your phone reached ${esc(row.location_name || 'the facility')} inside the scheduled window${row.min_dwell_min ? ` and stayed the ${esc(String(row.min_dwell_min))} minutes your coach asked for` : ''}. That is all it will mean.`
+          : (row.min_dwell_min && d.presence === 'confirmed')
+            ? `Your phone reached ${esc(row.location_name || 'the facility')} inside the scheduled window and stayed the ${esc(String(row.min_dwell_min))} minutes your coach asked for. That is all it means.`
+            : `Your phone reached ${esc(row.location_name || 'the facility')} inside the scheduled window. That is all it means.`} It does not mean the work got done, and nobody is claiming it does. Your location is checked only around this event and never stored.</div>
       </div>
     </div>
     <div style="height:10px"></div>
@@ -288,9 +362,12 @@ export default {
 
     ${(d.stage === 'unverified' || d.stage === 'missed' || row.arrived_at) && !row.disputed_at ? `
       <div style="height:14px"></div>
-      <button class="btn ghost" id="vc-dispute" style="width:100%">Something wrong? Tell your coach</button>` : ''}
+      ${/* The coach receives the athlete's own words, same as the standards dispute — a canned
+            "record is wrong" with no note gave them nothing to act on. */''}
+      <input class="input" id="vc-dispute-note" maxlength="200" placeholder="What actually happened? (optional)" aria-label="What actually happened" autocomplete="off">
+      <button class="btn ghost" id="vc-dispute" style="width:100%;margin-top:10px">Something wrong? Tell your coach</button>` : ''}
     ${row.disputed_at ? `<div style="height:14px"></div>
-      <div class="ts" style="text-align:center">Reported — your coach can see this and correct it.</div>` : ''}
+      <div class="ts" style="text-align:center">Reported. Your coach can see this and correct it.</div>` : ''}
     <div style="height:20px"></div>`;
   },
 
@@ -309,7 +386,9 @@ export default {
     const dis = root.querySelector('#vc-dispute');
     if (dis) dis.addEventListener('click', async () => {
       dis.disabled = true; dis.textContent = 'Sending…';
-      const ok = await disputeResponse(sub, 'Athlete reports this record is wrong.');
+      const note = root.querySelector('#vc-dispute-note');
+      const said = note && note.value.trim();
+      const ok = await disputeResponse(sub, said || 'Athlete reports this record is wrong.');
       if (ok) { track(EVENTS.VC_DISPUTED, {}); window.__render && window.__render(); }
       // Name the failure — a button that quietly resets reads as "maybe it worked".
       else { dis.disabled = false; dis.textContent = 'Couldn’t send. Tap to try again'; }

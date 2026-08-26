@@ -8,10 +8,11 @@
    location, a class name, a time of day, or a schedule. */
 import { RT } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, esc } from '../components.js';
+import { backHead, esc, skeletonRows, errorState } from '../components.js';
 import { loadVerifiedDiscipline, setShareDiscipline, todayISO, shiftISO } from '../commitment-data.js';
 
 let DATA = null;
+let FAILED = false;   // the read came back null; distinct from "no record yet"
 let SHARING = null;   // null = unknown until the profile row lands
 
 const stat = (label, value, suffix = '') => `
@@ -23,8 +24,20 @@ const stat = (label, value, suffix = '') => `
 export default {
   tab: 'profile',
   render() {
+    // Loading, failed, and "no record yet" are three different facts on a recruiter-facing
+    // surface. Four permanent dashes used to stand in for all three.
+    if (FAILED) {
+      return `${backHead('Verified Discipline', 'What a recruiter would see', 'settings')}
+      ${errorState({ title: "Couldn't load your record", body: 'Nothing was lost. Reconnect and it loads right here.', retryId: 'vd-retry' })}`;
+    }
+    if (DATA === null) {
+      return `${backHead('Verified Discipline', 'What a recruiter would see', 'settings')}
+      ${skeletonRows(2, 'Pulling your record')}`;
+    }
     const d = DATA || {};
     const on = SHARING === true;
+    const noRecord = ['on_time_arrival_pct', 'morning_response_pct', 'commitments_completed', 'accountability_pct']
+      .every((k) => d[k] == null);
 
     return `
     ${backHead('Verified Discipline', 'What a recruiter would see', 'settings')}
@@ -37,6 +50,7 @@ export default {
         ${stat('Commitments completed', d.commitments_completed)}
         ${stat('Accountability', d.accountability_pct, '%')}
       </div>
+      ${noRecord ? `<div class="ts" style="margin-top:10px">No verified commitments in the last 90 days yet. They appear here as your coach schedules them.</div>` : ''}
     </section>
 
     <div class="sidebox" style="margin-top:14px">
@@ -62,12 +76,18 @@ export default {
 
   mount(root) {
     const uid = RT.userId;
-    if (uid && DATA === null) {
+    if (uid && DATA === null && !FAILED) {
       loadVerifiedDiscipline(uid, shiftISO(todayISO(), -89), todayISO()).then((d) => {
-        DATA = d || {};
+        // null is the data layer's word for "the read failed" — never render it as a record.
+        if (d === null) FAILED = true; else DATA = d;
         if (root.isConnected) window.__render && window.__render();
       });
     }
+    const retry = root.querySelector('#vd-retry');
+    if (retry) retry.addEventListener('click', () => {
+      FAILED = false;
+      window.__render && window.__render();
+    });
     if (SHARING === null) {
       SHARING = !!RT.shareVerifiedDiscipline;
     }

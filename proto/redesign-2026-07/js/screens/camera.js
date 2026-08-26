@@ -66,7 +66,7 @@ export default {
         <div class="standard-set" style="padding-top:10px">
           <div class="halo"><div class="core" style="background:linear-gradient(155deg, var(--green), var(--green-deep))">${icon('camera', 34)}</div></div>
           <div class="ob-title" style="margin-top:22px">Camera, for proof.</div>
-          <div class="ob-sub" style="padding:0 8px">OnStandard uses your camera to capture meal photos. They go to your coach connection only — never public, never sold, never used to train anything without asking.</div>
+          <div class="ob-sub" style="padding:0 8px">OnStandard uses your camera to capture meal photos. They go to your coach connection only: never public, never sold, never used to train anything without asking.</div>
         </div>
         <div class="ob-foot" style="margin-top:auto">
           <button class="btn green" data-act="primeCamera" data-then="camera">Allow camera</button>
@@ -105,6 +105,12 @@ export default {
           <div class="vf-state" data-when="offline">
             <div class="vf-prompt">Take a photo to analyze</div>
             <div class="vf-hint">Tap the shutter, your camera opens.</div>
+          </div>
+          ${''/* Denied is its own state, not "starting" forever: getUserMedia said NO, and the only
+               fix lives in the OS Settings app. Honest copy plus the two paths that still work. */}
+          <div class="vf-state" data-when="denied">
+            <div class="vf-prompt">Camera access is off for OnStandard</div>
+            <div class="vf-hint">Turn it on in your phone's Settings, or use Gallery or Search food below.</div>
           </div>
         </div>
       </div>
@@ -154,6 +160,9 @@ export default {
     // opened on a message describing the failure path. goOffline() is the only thing that
     // promotes it to the real fallback.
     const goOffline = () => { if (fallbackUi) fallbackUi.dataset.mode = 'offline'; };
+    // Permission DENIED is not "still starting" and not the generic fallback: nothing here will
+    // ever produce a frame until the athlete flips the OS switch, so the copy says that.
+    const goDenied = () => { if (fallbackUi) fallbackUi.dataset.mode = 'denied'; };
     // A permission grant is not a frame. A track can resolve and then never arm — the OS prompt
     // sits open, the device is held by another app, the track has zero dimensions — and none of
     // those reject, so waiting on the catch alone leaves the athlete reading "Opening the camera"
@@ -182,7 +191,14 @@ export default {
         };
         if (video.videoWidth > 0) armed();
         else video.addEventListener('loadedmetadata', armed, { once: true });
-      } catch { stopStream(); stopWatchdog(); goOffline(); /* denied/unavailable → file-input fallback, no error state */ }
+      } catch (err) {
+        stopStream(); stopWatchdog();
+        // NotAllowedError (and WebKit's older spellings) = the permission is off. Everything
+        // else (device busy, no camera) keeps the generic file-input fallback copy.
+        const name = err && err.name;
+        if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || name === 'SecurityError') goDenied();
+        else goOffline();
+      }
     };
     void startLive();
 
@@ -194,7 +210,7 @@ export default {
       // camera that just failed — matching the primed screen's no-camera path. The router
       // only wires [data-go] at render time, so this post-mount injection wires its own tap.
       if (note) {
-        note.innerHTML = `Couldn't get the photo — check camera access, or <span class="lnk">log without a camera</span>.`;
+        note.innerHTML = `Couldn't get the photo. Check camera access, or <span class="lnk">log without a camera</span>.`;
         note.querySelector('.lnk').addEventListener('click', () => window.__go('food-search'));
       }
     };

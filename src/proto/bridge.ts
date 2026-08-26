@@ -26,6 +26,7 @@ import {
 import {
   isLocationAvailable, getPermissionState, requestPermission,
   refreshGeofences, disarmAll, checkArrival, reportArrival, capturePlace,
+  REPORTS_PRESENCE,
 } from '../lib/location';
 import { syncExecNotifications } from '../lib/notify/execSync';
 import { getPushToken } from '../lib/notify';
@@ -315,9 +316,17 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
       // False on any binary built before slice 2 shipped — an OTA update can land on such a build,
       // and the arrival affordance simply stays hidden rather than throwing.
       try {
-        resolve(ref, msg.id, { available: isLocationAvailable(), state: await getPermissionState() });
+        // `presence` (0208) is ABSENT on every binary built before region exits were reported,
+        // which is exactly what makes it usable as a capability probe: the proto reads a missing
+        // field as false and stops claiming a minimum-stay is enforced. Never widen this to a
+        // truthy default.
+        resolve(ref, msg.id, {
+          available: isLocationAvailable(),
+          state: await getPermissionState(),
+          presence: REPORTS_PRESENCE,
+        });
       } catch (e) {
-        resolve(ref, msg.id, { available: false, state: 'unavailable' }, String((e as Error)?.message ?? e));
+        resolve(ref, msg.id, { available: false, state: 'unavailable', presence: false }, String((e as Error)?.message ?? e));
       }
       return true;
     case 'LOCATION_PERMISSION':

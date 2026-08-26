@@ -2,12 +2,16 @@
    "Pay" button that opens Stripe Checkout (destination charge) in the system browser. Reached from
    Profile's "Trainer Connection" card. Only ever shows offers from a trainer whose Connect account
    is fully active (my_trainer_offers RPC enforces this server-side) — never a dead "pay" button. */
-import { backHead, esc, skeletonRows, errorState, emptyState, alertMsg } from '../components.js';
+import { backHead, esc, skeletonRows, errorState, emptyState, alertMsg, statusMsg } from '../components.js';
 import { icon } from '../icons.js';
 import * as roles from '../roles.js';
+import { priceLabel } from '../funded.js';
 
 let CACHE = { offers: null, failed: false, loaded: false };
 let UI = { paying: null }; // offer_id currently starting checkout, or null
+// offer_id -> true once Stripe Checkout was opened for it this session. The button used to
+// re-arm instantly as "Pay", which read as "that didn't work" and invited a second checkout.
+let OPENED = {};
 
 async function load(force) {
   if (CACHE.loaded && !force) return;
@@ -16,14 +20,10 @@ async function load(force) {
   CACHE.failed = !!(r && !Array.isArray(r) && r.error);
   if (!CACHE.failed) CACHE.offers = Array.isArray(r) ? r : [];
   CACHE.loaded = true;
+  // A successful refresh reflects the server again (a finished purchase shows up server-side),
+  // so the "checkout opened" reminder resets with the data it described.
+  if (force && !CACHE.failed) OPENED = {};
   if (window.__render) window.__render();
-}
-
-function priceLabel(o) {
-  if (o.price_cents == null) return 'Contact for pricing';
-  const d = o.price_cents / 100; const n = Number.isInteger(d) ? d : d.toFixed(2);
-  const per = o.cadence === 'one-time' ? ' one-time' : o.cadence === 'session' ? ' / session' : o.cadence === 'week' ? ' / wk' : ' / mo';
-  return `$${n}${per}`;
 }
 
 export default {
@@ -57,8 +57,9 @@ export default {
               button kept its data-pay and stayed tappable, so a second tap during the
               startOfferCheckout round trip opened a SECOND Stripe Checkout session for the same
               package. aria-label carries the offer name so the button is not a bare "Pay". */''}
-        ${o.price_cents != null ? `<button class="btn green sm" data-pay="${esc(o.offer_id)}"${UI.paying === o.offer_id ? ' disabled aria-busy="true"' : ''} aria-label="Pay for ${esc(o.name)}, ${esc(priceLabel(o))}" style="width:auto;padding:0 14px;height:44px;flex:none">${UI.paying === o.offer_id ? '…' : 'Pay'}</button>` : ''}
-      </div>`).join('')}
+        ${o.price_cents != null ? `<button class="btn green sm" data-pay="${esc(o.offer_id)}"${UI.paying === o.offer_id ? ' disabled aria-busy="true"' : ''} aria-label="${OPENED[o.offer_id] ? `Reopen checkout for ${esc(o.name)}` : `Pay for ${esc(o.name)}, ${esc(priceLabel(o))}`}" style="width:auto;padding:0 14px;height:44px;flex:none">${UI.paying === o.offer_id ? '…' : OPENED[o.offer_id] ? 'Reopen checkout' : 'Pay'}</button>` : ''}
+      </div>
+      ${OPENED[o.offer_id] ? statusMsg({ text: 'Checkout opened in your browser. Finished paying? It shows here within a minute.', style: 'display:block;color:var(--text-2);padding:0 0 10px' }) : ''}`).join('')}
     </section>
     <div class="sidebox" style="margin-top:10px"><div class="req-icon b" style="width:34px;height:34px">${icon('lock', 15)}</div>
       <div><div class="tt">Secure checkout via Stripe</div><div class="ts">Opens in your browser. OnStandard never sees or stores your card details.</div></div></div>`
@@ -84,7 +85,7 @@ export default {
       UI.paying = offerId; if (window.__render) window.__render();
       const r = await roles.startOfferCheckout(offerId);
       UI.paying = null;
-      if (r && r.url) { roles.openExternal(r.url); if (window.__render) window.__render(); }
+      if (r && r.url) { OPENED[offerId] = true; roles.openExternal(r.url); if (window.__render) window.__render(); }
       else { if (window.__render) window.__render(); const e2 = root.querySelector('#mto-err'); if (e2) e2.textContent = (r && r.error) || 'Could not start checkout'; }
     }));
   },

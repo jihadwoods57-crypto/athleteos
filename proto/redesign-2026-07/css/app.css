@@ -662,7 +662,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 
 /* segmented tabs (settings switches, notification windows, coach filters) */
 .seg { display: flex; gap:4px; padding:4px; background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-pill); }
-.seg button { flex: 1; height: 44px; border: none; background: transparent; color: var(--text-2); font-family: var(--font); font-weight: 700; font-size: 13px; border-radius: var(--r-pill); cursor: pointer; transition: all var(--dur-1) var(--ease-out); }
+.seg button { flex: 1; height: 44px; border: none; background: transparent; color: var(--text-2); font-family: var(--font); font-weight: 700; font-size: var(--t-sm); border-radius: var(--r-pill); cursor: pointer; transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out); }
 .seg button.on { background: var(--surface-3); color: var(--text); box-shadow: var(--sh-thumb); }
 
 /* The selection TRAVELS.
@@ -806,4 +806,31 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
   .statusbar { display: none; }
   .viewport { padding-top: max(14px, env(safe-area-inset-top)); }
   .tabbar { padding-bottom: max(22px, env(safe-area-inset-bottom)); }
+}
+
+/* The bare `.chip` control: athlete range pickers (accountability), the share toggles
+   (verified-discipline), the coach commitment composer, and the directory filters all emit
+   <button class="chip"> — and no stylesheet ever defined it, so every one rendered as a
+   browser-default button and a selected chip was indistinguishable from an unselected one.
+   Mirrors .co-seg .co-chip (coach.css), at the 44px touch floor. */
+.chip {
+  height: 44px; padding: 0 16px; border-radius: var(--r-chip);
+  background: var(--surface-1); border: 1px solid var(--hairline);
+  color: var(--text-2); font-family: var(--font); font-size: var(--t-sm); font-weight: 700;
+  letter-spacing: -0.005em; cursor: pointer; white-space: nowrap;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  transition: color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+}
+.chip:active { transform: scale(0.96); }
+.chip.on { background: var(--surface-3); color: var(--text); border-color: var(--blue-border); }
+
+/* Tab badge (router.js tabbar). Was inline color:#fff + font-size:9px in the router — the one
+   piece of chrome that could not follow a theme or the type scale. */
+.tab-badge {
+  position: absolute; top: -3px; right: 50%; margin-right: -16px;
+  min-width: 15px; height: 15px; padding: 0 3px;
+  border-radius: var(--r-pill); border: 2px solid var(--bg);
+  background: var(--danger-solid); color: var(--ink-on-danger, #fff);
+  font-size: var(--t-micro); font-weight: 800;
+  display: grid; place-items: center;
 }

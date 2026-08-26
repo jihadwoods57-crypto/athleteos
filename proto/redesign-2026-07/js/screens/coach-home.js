@@ -249,7 +249,7 @@ function codeStateBox() {
   }
   if (state === 'offline') {
     return `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('wifiOff', 17)}</div>
-      <div style="flex:1"><div class="tt">Can't reach the server</div><div class="ts">Your code is safe — reconnect and it shows right here.</div>
+      <div style="flex:1"><div class="tt">Can't reach the server</div><div class="ts">Your code is safe. Reconnect and it shows right here.</div>
       <button class="btn ghost sm" id="coach-team-retry" style="width:auto;padding:0 16px;margin-top:8px">${icon('wifiOff', 15)} Try again</button></div></div>`;
   }
   /* state === 'minting': signed in as a coach with NO team row. This used to claim a code was
@@ -304,7 +304,7 @@ export function emptyTeamDashboard(code, teamName) {
     ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin:0 2px 12px;line-height:1.45">Set your ${bookWord} up below to get the code ${noun} join with.</div>`
     : st.ready
       ? `<div style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--green-bright);margin:0 2px 12px;line-height:1.45">${icon('check', 14)} Your ${bookWord} is ready. Hand out the code and your board fills in as ${noun} log.</div>`
-      : `<div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin:0 2px 12px;line-height:1.45">No ${noun} yet. Hand out the code below — your roster, live activity, and ${bookWord} score all fill in from their logs.</div>`;
+      : `<div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin:0 2px 12px;line-height:1.45">No ${noun} yet. Hand out the code below. Your roster, live activity, and ${bookWord} score all fill in from their logs.</div>`;
   return `
     ${orient}
     ${'' /* data-tour wraps card OR create-form: a brand-new operator's tour opens on this, the
@@ -424,7 +424,7 @@ function pulseCard(rows, statuses) {
     </div>
     <div class="co-standing">${seg('g', g)}${seg('a', a)}${seg('r', r)}${seg('d', d)}</div>
     <div class="co-legend">${leg('g', g, 'on standard')}${leg('a', a, 'need attention')}${leg('r', r, 'overdue')}${leg('d', d, 'no activity')}</div>
-    ${SHOW_PULSE ? `<div style="border-top:1px solid var(--hairline-soft);margin-top:var(--s3);padding-top:var(--s3);font-size:12px;font-weight:600;color:var(--text-2);line-height:1.6">The group score averages today's real ${CD.noun} scores (${scored} of ${rows.length} scored so far). The bar is your roster's live standing — nothing is estimated; a ${CD.noun} with no log adds no score.</div>` : ''}
+    ${SHOW_PULSE ? `<div style="border-top:1px solid var(--hairline-soft);margin-top:var(--s3);padding-top:var(--s3);font-size:12px;font-weight:600;color:var(--text-2);line-height:1.6">The group score averages today's real ${CD.noun} scores (${scored} of ${rows.length} scored so far). The bar is your roster's live standing. Nothing is estimated; a ${CD.noun} with no log adds no score.</div>` : ''}
   </section>`;
 }
 
@@ -453,6 +453,8 @@ async function paintNutritionBoard(root) {
       icon: 'bowl',
       title: 'Your review queue is ready for its first plate',
       body: `The moment a ${CD.kind === 'practice' ? 'client' : 'teammate'} logs a meal it lands here, flags first. Share your code from your HQ to bring the first one in.`,
+      // "your HQ" = the Practice HQ on a practice book; a team book's code lives on coach-profile.
+      action: { label: 'Share your code', go: CD.kind === 'practice' ? 'trainer-profile' : 'coach-profile/code' },
     })}`;
     return;
   }
@@ -632,7 +634,7 @@ async function paintNutritionBoard(root) {
   });
 }
 
-/* Ranked priority — calm hierarchy, one primary action by tier, the rest subordinate. */
+/* Ranked priority. Calm hierarchy, one primary action by tier, the rest subordinate. */
 function priorityCard(c, i, nudgedToday) {
   const tier = c.tier === 'critical' ? 'critical' : c.tier === 'below' ? 'below' : 'due';
   // needs_review also tiers as 'below', but "Below standard" would contradict its own reason
@@ -781,7 +783,8 @@ export const coachHome = {
     <div class="eyebrow co-major" data-tour="priority">${esc(vocab().priorities)}</div>
     ${entries === null ? `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bell', 17)}</div><div><div class="tt">Ranking the day…</div><div class="ts">Standards and exceptions are loading.</div></div></div>`
     : cards.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px;line-height:1.4">Nothing needs you right now. Anything you nudge, assign, or mark handled stays out of this queue until the reason changes.</div>`
-    : cards.slice(0, 6).map((c, i) => priorityCard(c, i, (RT.coachNudged || {})[c.athleteId] === roles.todayISO())).join('')}
+    : cards.slice(0, 6).map((c, i) => priorityCard(c, i, (RT.coachNudged || {})[c.athleteId] === roles.todayISO())).join('')
+      + (cards.length > 6 ? `<button class="btn ghost sm" data-go="coach-roster" style="width:auto;padding:0 16px;margin-top:4px">${cards.length - 6} more need attention</button>` : '')}
 
     ${/* On a nutrition book the activity rail is the SAME plates the meal-review queue just
           listed (the feed is meals-only), so the whole section is a duplicate and the queue's
@@ -882,7 +885,7 @@ export const coachHome = {
       try {
         if (isPractice()) await act._loadPracticeIntoRt(RT.userId);
         else await act._loadTeamIntoRt(RT.userId);
-      } catch { /* still offline — honest state re-renders */ }
+      } catch { /* still offline. Honest state re-renders */ }
       window.__render();
     });
     const shareBtn = root.querySelector('#coach-share-invite');
@@ -928,7 +931,7 @@ export const coachHome = {
       const ok = await log(id, 'handled', b);
       if (!ok) {
         b.disabled = false; b.textContent = 'Handled';
-        sayFail(id, "Couldn't save that — check your connection.");
+        sayFail(id, "Couldn't save that. Check your connection.");
         return;
       }
       window.__render();

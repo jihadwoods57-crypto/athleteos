@@ -25,14 +25,14 @@ import { esc } from '../components.js';
 import {
   defineFlow, saveProgressStep, choiceGrid, chipRow, scale10, countStat, mirrorCard,
   phoneCard, testimonial, planCard, paywallVariant, PLANS,
-  capture, ob, gateCta, structureStep,
+  capture, ob, gateCta, structureStep, commitContinue,
 } from '../ob2.js';
 import { mealDemoSteps } from '../ob2-meal.js';
 import { styleForStructureAnswer, styleLabel } from '../plan-style.js';
 import { track, EVENTS } from '../analytics.js';
 import { accountBody, wireAccount } from './ob-account.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
-import { showConfirmPending } from '../ob-helpers.js';
+import { dobFromParts, ageOn, normalizePressure, showConfirmPending } from '../ob-helpers.js';
 
 const ROUTE = 'obf';
 const CODE_RE = /^[A-Z0-9]{4,12}$/; // same shape ob-directory validates
@@ -70,7 +70,7 @@ const steps = [
 
   /* ==================== ch0 · Discover ==================== */
 
-  { id: 'why', ch: 0, cta: 'Keep going',
+  { id: 'why', ch: 0, cta: 'Continue',
     body: () => `
       <div class="ob2-hero">
         <div class="h-eyebrow">The problem</div>
@@ -78,7 +78,7 @@ const steps = [
         <div class="h-body">Sessions get coached. Meals, sleep, weekends: the rest of your week runs unwatched. That&rsquo;s where results are actually decided.</div>
       </div>` },
 
-  { id: 'gap', ch: 0, cta: 'So what closes it?',
+  { id: 'gap', ch: 0, cta: 'Continue',
     body: () => `
       <div class="ob2-hero" style="padding-bottom:8px">
         <div class="h-eyebrow">Why the current way fails</div>
@@ -102,9 +102,9 @@ const steps = [
     title: () => 'Start with the basics',
     sub: () => 'This is how your trainer will recognize you.',
     body: (o) => `
-      <input id="cl-first" class="ob-input" maxlength="40" placeholder="First name" autocapitalize="words" autocorrect="off" spellcheck="false" value="${esc(o.firstName || '')}" />
+      <input id="cl-first" class="ob-input" maxlength="40" placeholder="First name" aria-label="First name" autocomplete="given-name" autocapitalize="words" autocorrect="off" spellcheck="false" value="${esc(o.firstName || '')}" />
       <div style="height:12px"></div>
-      <input id="cl-last" class="ob-input" maxlength="40" placeholder="Last name" autocapitalize="words" autocorrect="off" spellcheck="false" value="${esc(o.lastName || '')}" />`,
+      <input id="cl-last" class="ob-input" maxlength="40" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" autocorrect="off" spellcheck="false" value="${esc(o.lastName || '')}" />`,
     mount(root) {
       const first = root.querySelector('#cl-first'), last = root.querySelector('#cl-last');
       const btn = root.querySelector('#ob2-next');
@@ -164,7 +164,7 @@ const steps = [
   { id: 'acct-rate', ch: 0, cta: 'Next',
     title: () => 'How strong is your accountability right now?',
     sub: () => 'The thing that catches you when motivation dips. Rate it honestly; nobody else is grading this.',
-    body: () => scale10('accountabilityRating') },
+    body: () => scale10('accountabilityRating', { lo: 'Nothing catches me', hi: 'Someone always notices' }) },
 
   /* ==================== ch1 · See it ==================== */
 
@@ -248,14 +248,22 @@ const steps = [
           ${row('bell', 'The pressure', p ? `${p[0]} · ${p[1]}` : 'Set on the last screen; change it any time')}
         </div>`)}
         <div class="ob-foot" style="margin-top:auto">
-          ${commitButton(committed)}
-          ${committed ? '<div class="ob-textlink" id="ob2-commit-done" role="button">Continue</div>' : ''}
+          ${committed ? commitContinue() : commitButton(false)}
         </div>`;
     },
     mount(root, ctx) {
-      wireCommit(root, () => { capture({ committedAt: new Date().toISOString() }); ctx.next(); });
-      const done = root.querySelector('#ob2-commit-done');
-      if (done) done.addEventListener('click', () => ctx.next());
+      const done = root.querySelector('#ob2-commit-next');
+      if (done) { done.addEventListener('click', () => ctx.next()); return; }
+      wireCommit(root, () => {
+        capture({
+          committedAt: new Date().toISOString(),
+          /* standard{} parity with the athlete contract; pressure rides the one shared
+             vocabulary (normalizePressure in ob-helpers.js). The exec engine reads
+             standard.pressure, which this flow never wrote at all. */
+          standard: { ...((ob().standard) || {}), mealsPerDay: ((ob().standard) || {}).mealsPerDay || 3, pressure: normalizePressure(ob().pressure) },
+        });
+        ctx.next();
+      });
     } },
 
   /* Peak-intent email capture — see saveProgressStep() in ob2.js. */
@@ -276,7 +284,7 @@ const steps = [
   { id: 'connect', ch: 4, cta: 'Continue', skip: true,
     /* If the account already exists (user returned here via "I have a code" on the paywall),
        don't loop them back through signup — resolve straight to the paywall they came from. */
-    next: () => (RT.userId ? (paywallVariant('client') === 'trainer_covered' ? 'covered' : 'plans') : 'account'),
+    next: () => (RT.userId ? (paywallVariant('client') === 'trainer_covered' ? 'covered' : 'plans') : 'dob'),
     title: (o) => (o.trainerStatus === 'have' ? 'Connect your trainer.' : 'Have a trainer code?'),
     sub: (o) => (o.trainerStatus === 'have'
       ? 'Ask your trainer for your client code. It links your daily score to their board from day one.'
@@ -338,6 +346,94 @@ const steps = [
       };
       inp.addEventListener('input', sync);
       sync();
+    } },
+
+  /* Age gate (2026-08-25). This flow creates the same server 'athlete' account the athlete
+     flow does but shipped with NO dob step, so the obf door skipped the 13+ check the oba
+     door enforces. Same mechanics as oba/dob: COPPA scrub on the blocked step, future dates
+     and bad dates treated as typos, not blocks. */
+  { id: 'dob', ch: 4, cta: 'Next',
+    next: (o) => {
+      if (o.dobBlocked) return 'blocked';
+      if (RT.userId) return paywallVariant('client') === 'trainer_covered' ? 'covered' : 'plans';
+      return 'account';
+    },
+    title: () => 'Your birth date',
+    sub: () => 'Asked once. It verifies you are old enough to use OnStandard.',
+    body: (o) => {
+      const [y, m, d] = o.dob ? String(o.dob).split('-') : ['', '', ''];
+      return `
+        <div class="dob-row">
+          <input id="ob-dob-m" class="ob-input" type="text" inputmode="numeric" maxlength="2" placeholder="MM" aria-label="Birth month" value="${esc(m ? String(+m) : '')}" />
+          <input id="ob-dob-d" class="ob-input" type="text" inputmode="numeric" maxlength="2" placeholder="DD" aria-label="Birth day" value="${esc(d ? String(+d) : '')}" />
+          <input id="ob-dob-y" class="ob-input" type="text" inputmode="numeric" maxlength="4" placeholder="YYYY" aria-label="Birth year" value="${esc(y || '')}" />
+        </div>
+        <div id="ob-age-err" style="color:var(--amber-bright);font-size:var(--t-sm);font-weight:700;min-height:18px;margin-top:10px"></div>
+        <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin-top:6px;line-height:1.5">You must be 13 or older to use OnStandard.</div>`;
+    },
+    mount(root) {
+      const dm = root.querySelector('#ob-dob-m'), dd = root.querySelector('#ob-dob-d'), dy = root.querySelector('#ob-dob-y');
+      const errEl = root.querySelector('#ob-age-err');
+      const btn = root.querySelector('#ob2-next');
+      if (btn) btn.setAttribute('data-gate-extra', '#ob-dob-y.ok');
+      const todayISO = () => {
+        const t = new Date();
+        return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+      };
+      const digitsOnly = (el, max) => { const v = el.value.replace(/\D/g, '').slice(0, max); if (v !== el.value) el.value = v; };
+      const sync = () => {
+        const raw = !!(dm.value && dd.value && dy.value);
+        const dob = dobFromParts(dm.value, dd.value, dy.value);
+        const future = dob != null && dob > todayISO();
+        const under13 = dob != null && !future && ageOn(dob, todayISO()) < 13;
+        /* COPPA: the blocked step does the identity scrub on arrival, never per keystroke. */
+        if (under13) capture({ dob: null, dobBlocked: true });
+        else capture({ dob: (dob && !future) ? dob : null, dobBlocked: false });
+        if (!btn) return;
+        if (under13) {
+          errEl.textContent = 'OnStandard is for ages 13 and up.';
+          btn.setAttribute('data-go', `${ROUTE}/blocked`);
+          dy.classList.add('ok');
+          btn.disabled = false;
+          return;
+        }
+        const dest = RT.userId ? (paywallVariant('client') === 'trainer_covered' ? 'covered' : 'plans') : 'account';
+        btn.setAttribute('data-go', `${ROUTE}/${dest}`);
+        if (future) {
+          errEl.textContent = "That birth year hasn't happened yet.";
+          dy.classList.remove('ok');
+          btn.disabled = true;
+        } else if (raw && !dob) {
+          errEl.textContent = "That's not a valid date.";
+          dy.classList.remove('ok');
+          btn.disabled = true;
+        } else {
+          errEl.textContent = '';
+          dy.classList.toggle('ok', !!dob);
+          btn.disabled = !dob;
+        }
+      };
+      dm.addEventListener('input', () => { digitsOnly(dm, 2); if (dm.value.length >= 2) dd.focus(); sync(); });
+      dd.addEventListener('input', () => { digitsOnly(dd, 2); if (dd.value.length >= 2) dy.focus(); sync(); });
+      dy.addEventListener('input', () => { digitsOnly(dy, 4); sync(); });
+      sync();
+    } },
+
+  { id: 'blocked', ch: 4, noFoot: true, back: `${ROUTE}/dob`,
+    when: (o) => !!o.dobBlocked,
+    body: () => `
+      <div class="standard-set" style="padding-bottom:6px">
+        <div class="halo"><div class="core" style="background:var(--surface-2);color:var(--text-2)">${icon('lock', 32)}</div></div>
+        <div class="ob-title" style="margin-top:18px">Not yet, but soon.</div>
+        <div class="ob-sub" style="padding:0 8px">OnStandard is for athletes 13 and older. That's the law for apps like this, and we take it seriously. Come back on your 13th birthday. The Standard will be waiting.</div>
+      </div>
+      <div class="ob-foot" style="margin-top:auto">
+        <button class="btn ghost" data-go="welcome">Back to start</button>
+      </div>`,
+    mount() {
+      /* COPPA scrub on arrival (matches oba/blocked): identity never persists for a blocked minor. */
+      capture({ firstName: '', lastName: '', name: '' });
+      track(EVENTS.AGE_BLOCKED);
     } },
 
   { id: 'account', ch: 4, noFoot: true,

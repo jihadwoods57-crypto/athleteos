@@ -16,6 +16,12 @@ function athleteName(athleteId) {
 const policy = () => RT.passPolicy || { default_credits: 3, default_window_days: 2, eligibility_days: 7, max_credits: 5 };
 
 function isoDate(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+/** "Sat, Aug 29", never raw ISO: this line is what a coach reads aloud to the athlete. Parsed at
+ *  local midnight so a negative-offset timezone can't shift the weekday back a day. */
+function fmtDay(iso) {
+  try { return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); }
+  catch { return String(iso); }
+}
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
 /** The coming Saturday (today if today IS Saturday) through the following Sunday. */
 function comingWeekend() {
@@ -93,7 +99,11 @@ export default {
     <div class="eyebrow">Window</div>
     <section class="card pad">
       <div class="lrow" style="cursor:default">
-        <div class="lm"><div class="lt">${esc(UI.from || wknd.from)} through ${esc(UI.until || wknd.until)}</div><div class="ls">Every meal in range is covered, nothing to spend</div></div>
+        <div class="lm"><div class="lt">${esc(fmtDay(UI.from || wknd.from))} through ${esc(fmtDay(UI.until || wknd.until))}</div><div class="ls">Every meal in range is covered, nothing to spend</div></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <div style="flex:1"><label for="pg-from" style="display:block;font-size:var(--t-xs);font-weight:700;color:var(--text-2);margin-bottom:4px">From</label><input class="ob-input" type="date" id="pg-from" value="${esc(UI.from || wknd.from)}" /></div>
+        <div style="flex:1"><label for="pg-until" style="display:block;font-size:var(--t-xs);font-weight:700;color:var(--text-2);margin-bottom:4px">Until</label><input class="ob-input" type="date" id="pg-until" value="${esc(UI.until || wknd.until)}" /></div>
       </div>
     </section>`}
 
@@ -156,6 +166,25 @@ export default {
       UI.error = null;
       if (window.__render) window.__render();
     }));
+
+    // Native date inputs bound to the window. The presets stay: they write the same UI.from and
+    // UI.until fields, so a preset tap and a hand-picked date render identically.
+    const wireDate = (id, key) => {
+      const el = root.querySelector('#' + id);
+      if (!el) return;
+      el.addEventListener('change', () => {
+        const w = comingWeekend();
+        if (!UI.from) UI.from = w.from;
+        if (!UI.until) UI.until = w.until;
+        if (el.value) UI[key] = el.value;
+        // Keep the window ordered: an until before from would grant a window covering nothing.
+        if (UI.until < UI.from) { if (key === 'from') UI.until = UI.from; else UI.from = UI.until; }
+        UI.error = null;
+        if (window.__render) window.__render();
+      });
+    };
+    wireDate('pg-from', 'from');
+    wireDate('pg-until', 'until');
 
     const noteEl = root.querySelector('#pg-note');
     if (noteEl) noteEl.addEventListener('input', () => { UI.note = noteEl.value.slice(0, 140); });

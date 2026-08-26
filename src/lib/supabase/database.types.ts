@@ -436,8 +436,23 @@ export interface Database {
         Returns: {
           status: string;
           arrived_at: string | null;
+          departed_at: string | null;
+          presence: string;
           arrival_source: string | null;
           unverified_reason: string | null;
+        };
+      };
+      // Presence (0208). The writer commitment_responses.departed_at never had — which is why the
+      // coach's minimum-stay was decorative for its entire life. Takes an instance and nothing
+      // else: no coordinate, no timestamp the device chose, no verdict. The device reports THAT a
+      // boundary was crossed; the server decides what it means.
+      record_departure: {
+        Args: { p_instance: string };
+        Returns: {
+          recorded: boolean;
+          departed_at?: string | null;
+          presence?: string;
+          reason?: string;
         };
       };
       // Connected Standards (0155). Only the one the NATIVE layer calls is typed here — the proto

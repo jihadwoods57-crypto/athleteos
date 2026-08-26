@@ -10,15 +10,15 @@ import { track, EVENTS } from '../analytics.js';
 import { isApplicationEditable } from '../marketplace-rules.js';
 
 const CATS = [
-  { key: 'accountability', label: 'Accountability coach', sub: 'Consistency, habits, follow-through. No credential needed — trained on the OnStandard method.', locked: true },
-  { key: 'cpt', label: 'Certified personal trainer', sub: 'NASM, ACE, ISSA or equivalent — upload the certificate below.' },
-  { key: 'snc', label: 'Strength & conditioning', sub: 'CSCS or equivalent — upload the certificate below.' },
+  { key: 'accountability', label: 'Accountability coach', sub: 'Consistency, habits, follow-through. No credential needed. Trained on the OnStandard method.', locked: true },
+  { key: 'cpt', label: 'Certified personal trainer', sub: 'NASM, ACE, ISSA or equivalent. Upload the certificate below.' },
+  { key: 'snc', label: 'Strength & conditioning', sub: 'CSCS or equivalent. Upload the certificate below.' },
 ];
 const STATUS_COPY = {
   submitted: { t: 'Application received', s: 'A person on the OnStandard team reviews every application. We usually respond within a few days.' },
   under_review: { t: 'Under review', s: 'Your application is being reviewed right now. Nothing more is needed from you yet.' },
-  info_needed: { t: 'We need a little more', s: 'Update your application below and submit again — check your email for what was missing.' },
-  approved: { t: 'You’re in — welcome to the Partner Program', s: 'Set up your listing: your headline, plans and pricing. Publish when you’re ready to take clients.' },
+  info_needed: { t: 'We need a little more', s: 'Update your application below and submit again. Check your email for what was missing.' },
+  approved: { t: 'You’re in. Welcome to the Partner Program', s: 'Set up your listing: your headline, plans and pricing. Publish when you’re ready to take clients.' },
   rejected: { t: 'Not this time', s: 'We couldn’t approve this application. You’re welcome to reach out to support if you believe we got it wrong.' },
 };
 
@@ -87,8 +87,8 @@ function editableForm(a) {
       ${UI.err ? `<div style="color:var(--red);font-size:12.5px;font-weight:600;padding-bottom:8px">${esc(UI.err)}</div>` : ''}
       ${UI.msg ? `<div style="color:var(--green-bright);font-size:12.5px;font-weight:600;padding-bottom:8px">${esc(UI.msg)}</div>` : ''}
       <div style="display:flex;gap:10px">
-        <button class="btn ghost sm" data-ca-save style="width:auto;padding:0 18px">${UI.saving ? 'Saving…' : 'Save draft'}</button>
-        <button class="btn primary sm" data-ca-submit style="width:auto;padding:0 18px">${UI.submitting ? 'Submitting…' : 'Submit application'}</button>
+        <button class="btn ghost sm" data-ca-save ${UI.saving || UI.submitting ? 'disabled' : ''} style="width:auto;padding:0 18px">${UI.saving ? 'Saving…' : 'Save draft'}</button>
+        <button class="btn primary sm" data-ca-submit ${UI.saving || UI.submitting ? 'disabled' : ''} style="width:auto;padding:0 18px">${UI.submitting ? 'Submitting…' : 'Submit application'}</button>
       </div>
     </div>`;
 }
@@ -154,6 +154,7 @@ export default {
       categories: (G.app && G.app.categories) || ['accountability'],
     });
     const save = async (quiet) => {
+      if (UI.saving) return null;   // double-tap guard: one draft write at a time
       UI.saving = true; UI.err = ''; UI.msg = '';
       const r = await roles.saveCoachApplication(collect());
       UI.saving = false;

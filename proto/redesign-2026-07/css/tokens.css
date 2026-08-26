@@ -50,6 +50,7 @@
      the ink is white. A single fixed value cannot serve both, which is why --text-on-accent
      (#FFFFFF in both themes) went unused and seven ad-hoc inks grew in its place. */
   --ink-on-accent: #06120C;
+  --ink-on-danger: #FFFFFF;            /* white clears 4.8:1 on --danger-solid in both themes */
   /* The same ink as a triple, so a rule that needs it at partial alpha (the shutter's inner ring)
      can compose one instead of freezing a dark-theme rgba() that inverts wrong on light. */
   --ink-on-accent-rgb: 6, 18, 12;
@@ -218,6 +219,11 @@
   /* ---- Motion ---- */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);      /* ease-out-expo-ish */
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  /* For SYMMETRIC loops only (shimmer, breathe, ping-pong scans): a loop that eases out on the
+     way up must ease in on the way back or the cycle stutters. One-shot motion stays ease-out.
+     Minted 2026-08-25: authors kept hand-writing the keyword, and one rule had already invented
+     this token in a var() fallback. */
+  --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
   --dur-1: 160ms; --dur-2: 280ms; --dur-3: 460ms; --dur-ring: 1400ms;
 
   /* ---- Material ----
@@ -271,6 +277,7 @@
 
   /* Light-theme accents are deep, so ink on them is white (see the dark-theme note). */
   --ink-on-accent: #FFFFFF;
+  --ink-on-danger: #FFFFFF;            /* white clears 4.8:1 on --danger-solid in both themes */
   --ink-on-accent-rgb: 255, 255, 255;
 
 

@@ -48,12 +48,12 @@ function agreementSheet(l, tier) {
       Your coach reviews your OnStandard activity, holds you to the standards you set, and responds inside this app.
       Billing renews monthly through Stripe; cancel any time and access runs to the end of the period.<br><br>
       <b style="color:var(--text)">What your coach is not:</b> accountability coaching is not medical care, therapy,
-      licensed nutrition counseling, or emergency support — and your coach won't pretend otherwise.
+      licensed nutrition counseling, or emergency support. And your coach won't pretend otherwise.
       Payment and communication stay on OnStandard; that protection is the deal.
     </div>
     <label class="sheet-row" style="gap:10px;cursor:pointer">
       <input type="checkbox" data-mkt-agree ${UI.agreed ? 'checked' : ''} style="width:18px;height:18px;accent-color:var(--blue-bright)">
-      <span style="font-size:13px;font-weight:700">I understand what this coaching includes — and what it doesn't.</span>
+      <span style="font-size:13px;font-weight:700">I understand what this coaching includes. And what it doesn't.</span>
     </label>
     ${UI.err ? `<div style="color:var(--red);font-size:12.5px;font-weight:600;padding:4px 2px">${esc(UI.err)}</div>` : ''}
     <button class="btn primary" data-mkt-pay ${UI.agreed && !UI.paying ? '' : 'disabled'} style="margin-top:10px">
@@ -102,11 +102,11 @@ export default {
     <div class="eyebrow">What this coach does</div>
     <section class="card" style="padding:10px 16px;font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.7">
       <div>${icon('check', 14, 'style="color:var(--green-bright)"')} Reviews your Accountability Score, meals, weigh-ins and missed standards</div>
-      <div>${icon('check', 14, 'style="color:var(--green-bright)"')} Messages you with course corrections — and celebrates when you deliver</div>
+      <div>${icon('check', 14, 'style="color:var(--green-bright)"')} Messages you with course corrections. And celebrates when you deliver</div>
       <div>${icon('check', 14, 'style="color:var(--green-bright)"')} Runs your weekly check-in and keeps your standards realistic</div>
       <div style="margin-top:6px">${icon('x', 14, 'style="color:var(--red)"')} ${(l.categories || []).some((c) => c !== 'accountability')
         ? 'No medical, mental-health, or clinical nutrition treatment'
-        : 'No workout or nutrition prescriptions — they hold you to a plan you already have'}</div>
+        : 'No workout or nutrition prescriptions. They hold you to a plan you already have'}</div>
     </section>
 
     <div class="eyebrow">Plans</div>

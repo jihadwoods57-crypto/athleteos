@@ -4,6 +4,7 @@
    original orientation, no editing controls. */
 
 import { withTransition, canTransition } from './view-transition.js';
+import { overlayOpen } from './overlay-guard.js';
 
 let overlay = null;
 let opener = null;   // the element that opened the viewer; focus returns to it on close
@@ -58,8 +59,9 @@ function onKey(e) {
 /** Open the viewer on an image URL (data: or https). Safe to call from any screen. */
 export function openImageViewer(src, alt = 'Meal photo', from = null) {
   // One overlay at a time (DESIGN.md): the tour cutout leaves its highlighted element live, so a
-  // ringed meal photo could open the viewer under a running tour without this.
-  if (!src || overlay || document.querySelector('.tour, .lockstamp, .memsheet')) return;
+  // ringed meal photo could open the viewer under a running tour without this. The marker list
+  // lives in overlay-guard.js; this caller only excludes its own.
+  if (!src || overlay || overlayOpen('.imgview')) return;
   cameFrom = from && from.isConnected ? from : null;
   // Record who opened it BEFORE anything moves; close() hands focus back there.
   opener = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;

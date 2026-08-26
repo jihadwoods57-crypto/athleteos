@@ -115,7 +115,7 @@
           mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 30px), transparent 100%);
 }
 .co-seg .co-chip {
-  flex: none; height: 40px; padding:0 16px; border-radius: var(--r-chip);
+  flex: none; height: 44px; padding:0 16px; border-radius: var(--r-chip);
   background: var(--surface-1); border: 1px solid var(--hairline);
   color: var(--text-2); font-family: var(--font); font-size: var(--t-sm); font-weight: 700;
   letter-spacing: -0.005em; cursor: pointer; white-space: nowrap;

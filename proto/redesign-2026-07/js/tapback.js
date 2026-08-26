@@ -17,6 +17,8 @@
  * every render, so a picker parented inside the thread would vanish mid-gesture on any repaint.
  */
 
+import { overlayOpen } from './overlay-guard.js';
+
 const LONG_PRESS_MS = 420;
 /* Past this the finger is scrolling the thread, not holding a message. */
 const SLOP_PX = 10;
@@ -86,8 +88,9 @@ export function wireTapback({ root, scope = '.thread', emoji, mine, onReact }) {
 
   const open = (bubble) => {
     // One overlay at a time (DESIGN.md): a long-press on a bubble the tour or another overlay is
-    // sitting over must not stack a reaction picker on top of it.
-    if (document.querySelector('.tour, .lockstamp, .imgview, .memsheet')) return;
+    // sitting over must not stack a reaction picker on top of it. The marker list lives in
+    // overlay-guard.js; this caller only excludes its own.
+    if (overlayOpen('.tapback')) return;
     closeTapback();
     const { emoji: emojiNow, mine: mineNow, onReact: reactNow } = live.cfg;
     const already = (() => { try { return mineNow ? mineNow() : new Set(); } catch { return new Set(); } })();

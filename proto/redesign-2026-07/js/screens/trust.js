@@ -9,7 +9,11 @@ import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos, wireC
 import { threadMessages, reactionGroups, REACTION_EMOJI } from '../meal-intel.js';
 import { wireTapback } from '../tapback.js';
 import { miniDial } from './meal.js';
-import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isEscalated, quotedFor } from '../chat-view.js';
+import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isEscalated, quotedFor,
+  dayLabelOf, participantList, participantSummary,
+} from '../chat-view.js';
+import { openMembersSheet } from '../members-sheet.js';
+import { hydrateAvatars } from '../avatar.js';
 
 /* Message clock + day key for the past-meal conversation — local, so a message at 11:58pm and
    one at 12:01am are different days to the athlete whatever UTC thinks. */
@@ -53,9 +57,9 @@ export const trust = {
       return `
       ${backHead('Trust Pass', `${t.left} of ${t.total} camera-free meals left`)}
       ${t.note ? `<section class="card pad"><div style="font-size:13px;font-weight:600;color:var(--text-2);font-style:italic">"${esc(t.note)}"</div><div style="font-size:11.5px;font-weight:700;color:var(--text-3);margin-top:6px">FROM YOUR COACH</div></section>` : ''}
-      <section class="card pad" style="border-color:var(--purple-border)">
+      <section class="card pad" style="border-color:var(--blue-border)">
         <div style="display:flex;align-items:center;gap:14px">
-          <div class="req-icon p" style="width:52px;height:52px;border-radius:16px">${icon('shield', 26)}</div>
+          <div class="req-icon b" style="width:52px;height:52px;border-radius:16px">${icon('shield', 26)}</div>
           <div style="flex:1">
             <div style="font-size:17px;font-weight:800">${t.left} left</div>
             <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:3px">Spend one on any meal from the hub. Expires ${esc(t.expires)}.</div>
@@ -66,7 +70,7 @@ export const trust = {
       <div class="eyebrow">How it scores</div>
       <section class="card" style="padding:6px 16px">
         <div class="lrow" style="cursor:default">
-          <div class="lic" style="background:var(--purple-surface);color:var(--purple-bright)">${icon('bars', 17)}</div>
+          <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('bars', 17)}</div>
           <div class="lm"><div class="lt">Your trailing-10 median</div><div class="ls">Credit comes from your recent photo-earned days for that slot, up to the last 10. One hero plate can't inflate it, and a covered day never counts toward the median itself.</div></div>
         </div>
       </section>
@@ -86,9 +90,9 @@ export const trust = {
     return `
     ${backHead('Trust Pass', `Day ${t.day} of ${t.length} · camera-free`)}
     ${t.note ? `<section class="card pad"><div style="font-size:13px;font-weight:600;color:var(--text-2);font-style:italic">"${esc(t.note)}"</div><div style="font-size:11.5px;font-weight:700;color:var(--text-3);margin-top:6px">FROM YOUR COACH</div></section>` : ''}
-    <section class="card pad" style="border-color:var(--purple-border)">
+    <section class="card pad" style="border-color:var(--blue-border)">
       <div style="display:flex;align-items:center;gap:14px">
-        <div class="req-icon p" style="width:52px;height:52px;border-radius:16px">${icon('shield', 26)}</div>
+        <div class="req-icon b" style="width:52px;height:52px;border-radius:16px">${icon('shield', 26)}</div>
         <div style="flex:1">
           <div style="font-size:17px;font-weight:800">Every meal is covered</div>
           <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:3px">Nothing to tap. Your score keeps moving from your real logging history through ${esc(t.covers_until)}.</div>
@@ -99,7 +103,7 @@ export const trust = {
     <div class="eyebrow">How it scores</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
-        <div class="lic" style="background:var(--purple-surface);color:var(--purple-bright)">${icon('bars', 17)}</div>
+        <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('bars', 17)}</div>
         <div class="lm"><div class="lt">Your trailing-10 median</div><div class="ls">Each meal credits your recent photo-earned days for that slot, up to the last 10. One hero plate can't inflate it, and a covered day never counts toward the median itself.</div></div>
       </div>
     </section>
@@ -250,7 +254,7 @@ export const history = {
       }).join('');
     }
     return `
-    ${backHead('Activity History', 'The proof trail, day by day', 'progress')}
+    ${backHead('Activity history', 'The proof trail, day by day', 'progress')}
     ${body}
     <div style="height:10px"></div>
     `;
@@ -317,7 +321,7 @@ function mountThread(root, mealId, meal) {
   const paint = () => {
     const msgs = threadMessages(rows);
     if (!msgs.length) { threadEl.innerHTML = '<div class="msg-status">No messages on this meal yet.</div>'; return; }
-    const items = layoutThread(msgs, { fmtTime: mvClock, fmtDay: mvDay });
+    const items = layoutThread(msgs, { fmtTime: mvClock, fmtDay: mvDay, fmtDayLabel: dayLabelOf });
     // Reactions are keyed to the MEAL, not a message (0049) — same rule as the live thread:
     // they sit once, on the last bubble, where the eye lands.
     const msgItems = items.filter((i) => i.type !== 'time');
@@ -339,7 +343,9 @@ function mountThread(root, mealId, meal) {
           <div class="stack">
             ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
             ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
-            <div class="bubble">${update ? '<span class="upd">Updated analysis</span>' : escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(String(c.text || ''))}</div>
+            ${/* No "Updated analysis" badge on correction replies (founder: robotic; the live
+                  thread already dropped it) — the quote stem above says what it answers. */''}
+            <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(String(c.text || ''))}</div>
             ${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}
           </div>
         </div>`;
@@ -356,6 +362,29 @@ function mountThread(root, mealId, meal) {
     openImageViewer(im.src, 'Photo attached to this message', im);
   });
 
+  /* Who can read the room — the same facepile header the live thread wears (meal.js). A composer
+     with no audience disclosure is a privacy problem: an athlete answering a follow-up about a
+     past meal deserves to know, before they hit send, that their coach and their mother can both
+     read the reply. Painted when the participant fetch lands; repainted only if the list changes.
+     The sheet it opens is disclosure only (members-sheet.js). */
+  const membersSlot = root.querySelector('#mv-members-slot');
+  let membersPainted = -1;
+  const paintMembers = () => {
+    if (!membersSlot) return;
+    const people = participantList(participants, RT.userId);
+    if (people.length === membersPainted) return;
+    membersPainted = people.length;
+    membersSlot.innerHTML = `
+      <button class="facepile" id="mv-members" aria-label="Who can see this conversation">
+        <span class="fp">${people.slice(0, 4).map((p) => `<span class="fpav ${esc(p.kind === 'ai' ? 'ai' : p.self ? 'self' : 'other')}"${p.kind !== 'ai' && p.id ? ` data-avatar-uid="${esc(p.id)}"` : ''}>${p.kind === 'ai' ? icon('sparkle', 13) : `<span data-avatar-fallback>${esc(initialsFor(p.name))}</span>`}</span>`).join('')}</span>
+        <span class="names">${esc(participantSummary(people))}<small>${people.length} in this conversation</small></span>
+        <span class="chev">${icon('chevron', 15)}</span>
+      </button>`;
+    const btn = membersSlot.querySelector('#mv-members');
+    if (btn) btn.addEventListener('click', () => openMembersSheet(participantList(participants, RT.userId)));
+    hydrateAvatars(membersSlot);   // faces answer "who can read this" faster than monograms (0206)
+  };
+
   const refresh = async () => {
     const [fetched, people] = await Promise.all([
       fetchMealComments(mealId).catch(() => []),
@@ -363,7 +392,7 @@ function mountThread(root, mealId, meal) {
     ]);
     rows = Array.isArray(fetched) ? fetched : [];
     participants = Array.isArray(people) ? people : [];
-    if (root.isConnected) paint();
+    if (root.isConnected) { paintMembers(); paint(); }
   };
   void refresh();
 
@@ -481,6 +510,9 @@ export const mealView = {
       <div><div class="who">AI Analysis</div><p>${esc(m.analysis || m.note)}</p></div>
     </div>` : ''}
     <div class="eyebrow" style="margin-top:16px">Conversation</div>
+    ${/* Audience disclosure slot: mountThread paints the same facepile header the live thread
+          wears (meal.js) once the participant fetch lands. */''}
+    <div id="mv-members-slot"></div>
     <div class="thread" id="mv-thread">
       <div class="msg-status">Loading…</div>
     </div>

@@ -20,32 +20,39 @@ let STAFF = null;        // team staff list (for the owner picker), lazy-loaded 
 let OPEN_OWNER = null;   // roomId whose owner picker is expanded, or null
 let RENAMING = null;     // roomId currently showing its inline rename input, or null
 let DELETING = null;     // roomId armed for delete (two-tap confirm), or null
+let ERR = '';            // one red status line (#rooms-status); set by any failed write
+let ADD_VAL = '';        // the typed room name, preserved across a failed add
+let RENAME_VAL = null;   // the typed rename, preserved across a failed save, or null
 
 async function run(work) {
   if (BUSY) return;
-  BUSY = true; window.__render();
+  BUSY = true; ERR = ''; window.__render();
   try { await work(); } finally { BUSY = false; window.__render(); }
 }
+/* Every write reports failure through the one status line. run() used to swallow results:
+   a failed save re-rendered into a screen that looked exactly like success minus the room. */
+const FAIL = "Couldn't save that. Check your connection.";
 const staffName = (id) => { const s = (STAFF || []).find((x) => x.staff_id === id); return s ? s.name : null; };
-const setOwner = (roomId, staffId) => run(async () => { OPEN_OWNER = null; const r = await roles.setRoomOwner(roomId, staffId); if (r.ok) await loadCoachRoster(true); });
+const setOwner = (roomId, staffId) => run(async () => { OPEN_OWNER = null; const r = await roles.setRoomOwner(roomId, staffId); if (r.ok) await loadCoachRoster(true); else ERR = FAIL; });
 const createRoom = (label) => run(async () => {
   const id = teamId(); const key = slugifyRoomKey(label);
   if (!id || !key) return;
   const r = await roles.saveTeamRoom(id, { key, label: label.trim().slice(0, 40) });
-  if (r.ok) { try { act.markCoachSetup('group'); } catch { /* best-effort */ } await loadCoachRoster(true); }
+  if (r.ok) { ADD_VAL = ''; try { act.markCoachSetup('group'); } catch { /* best-effort */ } await loadCoachRoster(true); }
+  else { ADD_VAL = label; ERR = FAIL; }   // the typed name survives the failure
 });
-const deleteRoom = (roomId) => run(async () => { DELETING = null; if (await roles.deleteTeamRoom(roomId)) await loadCoachRoster(true); });
+const deleteRoom = (roomId) => run(async () => { DELETING = null; if (await roles.deleteTeamRoom(roomId)) await loadCoachRoster(true); else ERR = FAIL; });
 // Rename reuses saveTeamRoom's existing update-by-id path (it already upserts on `id`) —
 // no new backend call needed. The room's key (used by position auto-assignment matching)
 // is deliberately left untouched by a rename; only the display label changes.
 const renameRoom = (room, label) => run(async () => {
   const clean = String(label || '').trim().slice(0, 40);
-  if (!clean || clean === room.label) { RENAMING = null; return; }
+  if (!clean || clean === room.label) { RENAMING = null; RENAME_VAL = null; return; }
   const r = await roles.saveTeamRoom(teamId(), { id: room.id, key: room.key, label: clean });
-  RENAMING = null;
-  if (r.ok) await loadCoachRoster(true);
+  if (r.ok) { RENAMING = null; RENAME_VAL = null; await loadCoachRoster(true); }
+  else { RENAME_VAL = clean; ERR = FAIL; }   // editor stays open with the typed value
 });
-const assign = (athleteId, roomId) => run(async () => { const r = await roles.assignAthleteRoom(athleteId, roomId); if (r.ok) await loadCoachRoster(true); });
+const assign = (athleteId, roomId) => run(async () => { const r = await roles.assignAthleteRoom(athleteId, roomId); if (r.ok) await loadCoachRoster(true); else ERR = FAIL; });
 
 export const coachRooms = {
   nav: 'coach', tab: 'profile',
@@ -73,7 +80,7 @@ export const coachRooms = {
           <button class="btn sm" data-room-del-confirm="${esc(rm.id)}" style="width:auto;padding:0 12px;height:34px;flex:none;background:var(--danger-solid);color:#fff;border:none">Delete room</button>
         </div>` : RENAMING === rm.id ? `
         <div class="lrow" style="cursor:default;gap:8px">
-          <input class="ob-input room-rename-input" data-room-rename-input="${esc(rm.id)}" maxlength="40" value="${esc(rm.label)}" style="flex:1" aria-label="Rename ${esc(rm.label)}" />
+          <input class="ob-input room-rename-input" data-room-rename-input="${esc(rm.id)}" maxlength="40" value="${esc(RENAMING === rm.id && RENAME_VAL != null ? RENAME_VAL : rm.label)}" style="flex:1" aria-label="Rename ${esc(rm.label)}" />
           <button class="btn sm" data-room-rename-save="${esc(rm.id)}" style="width:auto;padding:0 12px;height:34px">Save</button>
           <button class="btn ghost sm" data-room-rename-cancel="1" style="width:auto;padding:0 12px;height:34px">Cancel</button>
         </div>` : `
@@ -90,14 +97,14 @@ export const coachRooms = {
           ${icon('chevron', 16, 'style="color:var(--text-3)"')}
         </div>
         ${OPEN_OWNER === rm.id ? `<div class="chip-row" role="radiogroup" aria-label="Room owner" style="margin:2px 0 8px 6px">
-          ${(STAFF || []).map((s) => `<span class="chp ${s.staff_id === rm.staff_owner_id ? 'on' : ''}" role="radio" aria-checked="${s.staff_id === rm.staff_owner_id ? 'true' : 'false'}" tabindex="0" data-set-owner="${esc(rm.id)}|${esc(s.staff_id)}">${esc(s.name)}</span>`).join('') || '<span class="ls">No staff yet — invite staff first.</span>'}
+          ${(STAFF || []).map((s) => `<span class="chp ${s.staff_id === rm.staff_owner_id ? 'on' : ''}" role="radio" aria-checked="${s.staff_id === rm.staff_owner_id ? 'true' : 'false'}" tabindex="0" data-set-owner="${esc(rm.id)}|${esc(s.staff_id)}">${esc(s.name)}</span>`).join('') || '<span class="ls">No staff yet. Invite staff first.</span>'}
           ${rm.staff_owner_id ? `<span class="chp" role="button" tabindex="0" data-set-owner="${esc(rm.id)}|">Clear</span>` : ''}
         </div>` : ''}
         ${members.map((m) => `
         <div class="lrow" style="cursor:default;padding-left:6px">
           <div class="xico sm gray" style="width:26px;height:26px">${esc(initialsOf(m.name, 'A', 1))}</div>
-          <div class="lm"><div class="lt" style="font-size:14px">${esc(m.name)}</div>${m.position ? `<div class="ls">${esc(m.position)}</div>` : ''}</div>
-          <button class="btn ghost sm" data-room-unassign="${esc(m.athleteId)}" style="width:auto;padding:0 10px;height:28px;font-size:11px">Remove</button>
+          <div class="lm"><div class="lt" style="font-size:14px">${esc(m.name)}</div><div class="ls">${m.position ? `${esc(m.position)} · ` : ''}They stay on the roster, just not in this room.</div></div>
+          <button class="btn ghost sm" data-room-unassign="${esc(m.athleteId)}" style="width:auto;padding:0 10px;height:28px;font-size:var(--t-xs)">Unassign</button>
         </div>`).join('')}
       </section>`;
     };
@@ -122,7 +129,7 @@ export const coachRooms = {
       ? rooms.map(roomCard).join('')
       : roomsFailed
         ? errorState({ title: "Couldn't load your rooms", body: 'Any rooms you already built are safe. Reconnect and they list right here.', retryId: 'rooms-retry' })
-        : emptyState({ icon: 'users', title: 'No rooms yet', body: 'Create a room for each position group. Athletes drop into their room as they join.' });
+        : emptyState({ icon: 'users', title: 'No rooms yet', body: 'Create a room for each position group. Athletes drop into their room as they join.', action: { label: 'Add a room', id: 'rooms-empty-add' } });
 
     const suggestChips = suggestions.length ? `
       <div class="eyebrow">Suggested from your roster · tap to add</div>
@@ -131,22 +138,23 @@ export const coachRooms = {
       </div>` : '';
 
     return `
-    ${backHead('Rooms', 'Position units — build them before athletes join; assign anyone below.', 'coach-profile')}
+    ${backHead('Rooms', 'Position units. Build them before athletes join; assign anyone below.', 'coach-profile')}
     ${roomList}
     ${needsCard}
     ${suggestChips}
 
     <div class="eyebrow">Add a room</div>
     <div style="display:flex;gap:8px;align-items:center">
-      <input id="room-name" class="ob-input" maxlength="40" placeholder="e.g. Defensive Backs" style="flex:1" ${BUSY ? 'disabled' : ''} />
+      <input id="room-name" class="ob-input" maxlength="40" placeholder="e.g. Defensive Backs" value="${esc(ADD_VAL)}" style="flex:1" ${BUSY ? 'disabled' : ''} />
       <button class="btn sm" id="room-add" style="width:auto;padding:0 16px" ${BUSY ? 'disabled' : ''}>${BUSY ? 'Adding…' : 'Add'}</button>
     </div>
+    <div id="rooms-status" style="font-size:var(--t-xs);font-weight:700;color:var(--red);min-height:16px;margin-top:6px">${esc(ERR)}</div>
 
     <div style="height:12px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
       <div><div class="tt">Rooms vs groups</div>
-      <div class="ts">A <b>room</b> is a permanent position unit an athlete belongs to — it can carry its own standard (set the position scope in the standards editor). A custom <b>group</b> on the roster is an ad-hoc filter you build any time. New athletes auto-join the room matching their position.</div></div>
+      <div class="ts">A <b>room</b> is a permanent position unit an athlete belongs to. It can carry its own standard (set the position scope in the standards editor). A custom <b>group</b> on the roster is an ad-hoc filter you build any time. New athletes auto-join the room matching their position.</div></div>
     </div>
     <div style="height:10px"></div>
     `;
@@ -182,8 +190,17 @@ export const coachRooms = {
     }));
     root.querySelectorAll('[data-room-del-cancel]').forEach((el) => el.addEventListener('click', () => { DELETING = null; window.__render(); }));
     root.querySelectorAll('[data-room-del-confirm]').forEach((el) => el.addEventListener('click', () => deleteRoom(el.getAttribute('data-room-del-confirm'))));
+    // The empty state's Add-a-room action hands focus to the real input below it.
+    const emptyAdd = root.querySelector('#rooms-empty-add');
+    if (emptyAdd) emptyAdd.addEventListener('click', () => {
+      const nameInput = root.querySelector('#room-name');
+      if (nameInput) {
+        nameInput.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        nameInput.focus();
+      }
+    });
     root.querySelectorAll('[data-room-rename]').forEach((el) => el.addEventListener('click', () => {
-      RENAMING = el.getAttribute('data-room-rename'); OPEN_OWNER = null; window.__render();
+      RENAMING = el.getAttribute('data-room-rename'); RENAME_VAL = null; OPEN_OWNER = null; window.__render();
     }));
     root.querySelectorAll('[data-room-rename-cancel]').forEach((el) => el.addEventListener('click', () => { RENAMING = null; window.__render(); }));
     const submitRename = (roomId) => {

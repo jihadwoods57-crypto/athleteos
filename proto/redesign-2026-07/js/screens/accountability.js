@@ -48,14 +48,19 @@ export default {
         <div class="ts">${S.coach.hasCoach
           ? `When your ${esc(S.coach.noun)} schedules a roll call, a lift, or a study hall`
           : 'When a roll call, a lift, or a study hall is scheduled for you'}, your responses and arrivals build this record. It's separate from your daily score.</div></div>
-      </div>`;
+      </div>
+      ${S.coach.hasCoach ? '' : `<div style="height:12px"></div>
+      <button class="btn ghost" data-go="connect" style="width:100%">Connect a coach</button>`}`;
     }
 
     return `
     ${backHead('Morning Readiness', `Last ${RANGE} days`, 'progress')}
 
     <section class="card pad" style="text-align:center">
-      <div style="font-size:44px;font-weight:800;letter-spacing:-.03em;line-height:1;color:var(--green-bright)">
+      ${/* Neutral ink, not green: green means "done / on standard" and a 38% painted in the
+            done hue inflates the one number this feature promises never to inflate. The value
+            speaks for itself; the bars below carry the detail. */''}
+      <div style="font-size:var(--t-hero);font-weight:800;letter-spacing:var(--num-tight);line-height:1;color:var(--text)">
         ${loading ? '—' : (m.pct == null ? '—' : `${m.pct}%`)}</div>
       <div class="ts" style="padding-top:8px">Accountability across every commitment ${S.coach.hasCoach ? `your ${esc(S.coach.noun)} scheduled` : 'scheduled for you'}</div>
       ${streak ? `<div style="height:12px"></div>

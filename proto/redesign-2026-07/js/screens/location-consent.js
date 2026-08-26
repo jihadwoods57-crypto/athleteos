@@ -18,6 +18,11 @@ export const locationNative = () => {
 };
 
 let STATE = null;      // 'always' | 'when_in_use' | 'denied' | 'undetermined' | 'unavailable'
+/* Whether the BINARY under this WebView reports region exits, and can therefore confirm a stay
+   (0208). The proto ships over the air onto builds older than itself, so this screen must not
+   describe behaviour the binary it is running on does not have. Absent field = false = the
+   pre-0208 wording, which is exactly what an older build still does. */
+let PRESENCE_CAP = false;
 let AVAILABLE = null;  // null = not probed yet
 let BUSY = false;
 /* The SERVER's answer to "may this athlete be verified at all" (has_verification_consent, 0139).
@@ -61,15 +66,16 @@ export default {
 
     <section class="card pad">
       <div class="tt" style="font-size:15px">You tap once. Or you don’t have to tap at all.</div>
-      <div class="ts" style="padding-top:6px">Your coach schedules a practice at a place. OnStandard confirms your phone got there inside the window they set — so you never have to argue about whether you showed up.</div>
+      <div class="ts" style="padding-top:6px">Your coach schedules a practice at a place. OnStandard confirms your phone got there inside the window they set, so you never have to argue about whether you showed up.</div>
     </section>
 
     <div class="eyebrow">What actually happens</div>
     <section class="card" style="padding:2px 16px">
       ${bullet('clock', 'Only around a scheduled commitment',
         'Your location is checked only in the window your coach set for that one event. Outside that window nothing is watched at all.')}
-      ${bullet('shield', 'Only a yes or no is recorded',
-        'Your phone compares itself to the place your coach picked and reports "arrived" or "couldn’t confirm". No coordinates leave your phone and none are stored.')}
+      ${bullet('shield', 'Only a yes or no is recorded', PRESENCE_CAP
+        ? 'Your phone reports two things: that you arrived, and, only if your coach set a stay time, whether you were still there when it ended. Never where you are. No coordinates leave your phone.'
+        : 'Your phone compares itself to the place your coach picked and reports "arrived" or "couldn’t confirm". No coordinates leave your phone and none are stored.')}
       ${bullet('eye', 'Only your coaching staff can see it',
         'Your arrival time is visible to the staff responsible for you. There is no team list of who was late and no way for other athletes to see your record.')}
       ${bullet('x', 'You can turn it off whenever you want',
@@ -81,14 +87,14 @@ export default {
       <div class="req-icon b" style="width:38px;height:38px">${icon('bolt', 19)}</div>
       <div>
         <div class="tt">Not available on this version</div>
-        <div class="ts">Arrival check-in needs a newer build of the app. Until you update, you can check in by tapping the button on your commitment card — it counts exactly the same.</div>
+        <div class="ts">Arrival check-in needs a newer build of the app. Until you update, you can check in by tapping the button on your commitment card. It counts exactly the same.</div>
       </div>
     </div>` : needsGuardian ? `
     <div class="sidebox" style="margin-top:14px">
       <div class="req-icon a" style="width:38px;height:38px">${icon('user', 19)}</div>
       <div>
         <div class="tt">A parent or guardian has to approve this first</div>
-        <div class="ts">You're under 18, so OnStandard won't check your location until a guardian says yes — or your school records that they already have your family's consent on file. Until then you can still check in by tapping.</div>
+        <div class="ts">You're under 18, so OnStandard won't check your location until a guardian says yes, or your school records that they already have your family's consent on file. Until then you can still check in by tapping.</div>
       </div>
     </div>
     <div style="height:14px"></div>
@@ -127,7 +133,7 @@ export default {
     </button>
     <div style="height:10px"></div>
     <div class="ts" style="text-align:center">${on
-      ? 'You don’t have to open the app — arriving is enough.'
+      ? 'You don’t have to open the app. Arriving is enough.'
       : partial
         ? 'Right now it only works while the app is open. Allowing "Always" means you never have to think about it.'
         : 'Your phone will ask next. Choosing "Always" is what lets it work at 5:43 AM without you opening anything.'}</div>
@@ -171,8 +177,9 @@ export default {
       withTimeout(loc.available(), 8_000).then((r) => {
         const a = !!(r && r.available);
         const s = (r && r.state) || 'unavailable';
-        const changed = a !== AVAILABLE || s !== STATE;
-        AVAILABLE = a; STATE = s;
+        const p = !!(r && r.presence);
+        const changed = a !== AVAILABLE || s !== STATE || p !== PRESENCE_CAP;
+        AVAILABLE = a; STATE = s; PRESENCE_CAP = p;
         if (changed) rerender();
       }).catch(() => {
         if (AVAILABLE === null) { AVAILABLE = false; STATE = 'unavailable'; rerender(); }

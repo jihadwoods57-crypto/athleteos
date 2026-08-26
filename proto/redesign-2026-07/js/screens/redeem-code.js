@@ -27,7 +27,7 @@ function reasonMessage(r) {
   if (r && r.error) return r.error;
   const reason = r && r.reason;
   if (reason === 'invalid_code') return "That code isn't valid.";
-  if (reason === 'full') return 'This sponsorship is full.';
+  if (reason === 'full') return "This sponsorship's seats are all claimed. Ask whoever gave you the code for another, or start a membership from the plans page.";
   if (reason === 'already_redeemed') return 'You already redeemed this.';
   // Trainer-code specific: the code was real but someone else got there first, or it aged out.
   if (reason === 'already_used') return 'That code has already been used on another account.';
@@ -77,14 +77,18 @@ export default {
           a placeholder, so a screen reader announced an unlabelled edit field. The helper line is
           wired with aria-describedby so "where do I get this?" is read out with it, and rc-err
           uses the shared alertMsg so a rejected code is spoken rather than only turning red. */''}
+    ${/* On success the form disappears entirely: the Redeem button stayed live before, so the
+          next tap re-submitted an already-redeemed code and greeted a paying member with an
+          error. The success card plus one next step replaces it below. */''}
+    ${success ? '' : `
     <section class="card pad">
       <label for="rc-code" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Your code</label>
       <input class="ob-input" id="rc-code" value="${esc(UI.code)}" placeholder="TR-XXXXX-XXXXX" aria-describedby="rc-hint" autocapitalize="characters" autocomplete="off" />
       <div id="rc-hint" style="font-size:12px;color:var(--text-3);margin-top:6px">From your trainer after you paid, or from a sponsor.</div>
       <div style="height:14px"></div>
-      ${alertMsg({ id: 'rc-err', text: !success && r ? reasonMessage(r) : '', style: 'color:var(--red);font-size:13px;font-weight:600;min-height:18px' })}
+      ${alertMsg({ id: 'rc-err', text: r ? reasonMessage(r) : '', style: 'color:var(--red);font-size:13px;font-weight:600;min-height:18px' })}
       <button class="btn primary" id="rc-redeem" ${UI.busy ? 'disabled aria-busy="true" style="opacity:.6"' : ''}>${icon('key', 18)} ${UI.busy ? 'Redeeming…' : 'Redeem'}</button>
-    </section>
+    </section>`}
 
     ${success ? `
     <div class="sidebox" role="status" style="margin-top:10px"><div class="req-icon g" style="width:38px;height:38px">${icon('check', 18)}</div>
@@ -95,7 +99,8 @@ export default {
           : (who ? `Sponsored by ${esc(who)}` : ''),
         r.expires_at ? `${viaTrainer ? 'Covered through' : 'Until'} ${esc(formatDate(r.expires_at))}` : '',
       ].filter(Boolean).join(' · ')}</div></div>
-    </div>` : ''}
+    </div>
+    <button class="btn green" data-go="home" style="margin-top:12px">Start your day</button>` : ''}
     <div style="height:10px"></div>
     `;
   },

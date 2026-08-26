@@ -2,6 +2,9 @@ import { logoMark } from '../components.js';
 import { icon } from '../icons.js';
 import { act } from '../state.js';
 
+/* Same shape signin.js validates with: cheap, permissive, catches the no-@ / no-dot typos. */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 /* Request a password-reset email (returning users who forgot their password). The link in the
    email lands on the configured recovery target where the new password is set. Confirmation is
    neutral — it never reveals whether the address has an account (anti-enumeration). Reshaped
@@ -41,6 +44,7 @@ export default {
       msg.style.color = 'var(--red-bright)';
       const email = (emailEl.value || '').trim().toLowerCase();
       if (!email) { msg.textContent = 'Enter your email.'; return; }
+      if (!EMAIL_RE.test(email)) { msg.textContent = 'Enter a valid email address.'; return; }
       btn.disabled = true;
       btn.textContent = 'Sending…';
       await act.requestPasswordReset(email);

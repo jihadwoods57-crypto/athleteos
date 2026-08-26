@@ -3,11 +3,12 @@ import { icon } from '../icons.js';
 import { mapPressure } from '../exec.js';
 import { normalizePrefs } from '../notify-plan.js';
 import { normalizeCoachPrefs } from '../coach-notify-plan.js';
-import { backHead, esc, errorState, planStyleCard } from '../components.js';
+import { backHead, esc, errorState, planStyleCard, skeletonRows } from '../components.js';
 import { STYLE_KEYS, styleLabel } from '../plan-style.js';
 import * as roles from '../roles.js';
 import { planById } from '../pricing.js';
 import { armReplay } from '../tour.js';
+import { normalizePressure } from '../ob-helpers.js';
 
 /* Reminder-pressure chips: restore the athlete's REAL saved pressure and persist taps into
    RT.ob.standard.pressure (the same field onboarding writes, which drives the exec engine's
@@ -21,7 +22,9 @@ function wirePressure(root, sel) {
   const match = chips.find((c) => mapPressure(c.textContent.trim()) === mapPressure(saved));
   if (match) { chips.forEach((c) => c.classList.remove('on')); match.classList.add('on'); }
   chips.forEach((c) => c.addEventListener('click', () => {
-    act.captureOb({ standard: { ...((RT.ob || {}).standard || {}), pressure: c.textContent.trim() } });
+    // Persist the normalized slug, not the chip's display label: three capture surfaces once
+    // wrote three vocabularies into this one field (see ob-helpers normalizePressure).
+    act.captureOb({ standard: { ...((RT.ob || {}).standard || {}), pressure: normalizePressure(c.textContent.trim()) } });
     act.syncNotifications();
   }));
 }
@@ -83,7 +86,7 @@ export const messages = {
     const c = S.coach;
     if (!c.hasCoach) {
       return `
-      ${backHead('Your Coach', 'No coach connected yet', 'plan')}
+      ${backHead('Your coach', 'No coach connected yet', 'plan')}
       <div class="state-demo">
         <div class="sd-ic">${icon('users', 24)}</div>
         <div class="sd-t">No coach connected</div>
@@ -119,17 +122,12 @@ export const settings = {
 
     <div class="eyebrow">Units</div>
     <section class="card" style="padding:6px 16px">
+      ${/* ONE read-only fact, not two dead rows. The old pair wore row styling with nothing to
+            tap, which is a fake affordance; a single non-interactive line states the fact and
+            the sub says why there is no control yet. */''}
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('scale', 17)}</div>
-        <div class="lm"><div class="lt">Weight</div></div>
-        ${/* A read-only fact, not live status: the blue pill is the styling of actionable
-              state and invited dead taps. Muted is the documented provenance treatment. */''}
-        <span class="status-pill muted">lb</span>
-      </div>
-      <div class="lrow" style="cursor:default">
-        <div class="lic">${icon('clock', 17)}</div>
-        <div class="lm"><div class="lt">Time</div></div>
-        <span class="status-pill muted">12-hour</span>
+        <div class="lm"><div class="lt">Units · lb, 12-hour</div><div class="ls">US units for now.</div></div>
       </div>
     </section>
 
@@ -182,12 +180,10 @@ export const settings = {
     wireSegAria(root);
     // Its own listener, not a delegate: wireToggles' chip handler stopPropagation()s, and a
     // row-level delegate here would never fire (see the note at the top of this file).
+    // Click only: the router promotes this row centrally (cursor:pointer promotion), so a local
+    // Enter/Space handler here would DOUBLE-FIRE the replay.
     const tourRow = root.querySelector('#set-tour');
-    if (tourRow) {
-      const replay = () => armReplay();
-      tourRow.addEventListener('click', replay);
-      tourRow.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); replay(); } });
-    }
+    if (tourRow) tourRow.addEventListener('click', () => armReplay());
     // Appearance: applies instantly (data-theme on the root), persists in RT.theme.
     root.querySelectorAll('[data-theme-pick]').forEach((el) => el.addEventListener('click', () => {
       act.setTheme(el.getAttribute('data-theme-pick'));
@@ -331,8 +327,9 @@ export const privacy = {
     const btn = root.querySelector('#pv-export');
     const note = root.querySelector('#pv-export-note');
     if (!btn) return;
+    // No local keydown: the router's central keyboard promotion already drives click here, and a
+    // second handler double-fired the export.
     let busy = false;
-    btn.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); btn.click(); } });
     btn.addEventListener('click', async () => {
       if (busy) return;
       busy = true;
@@ -437,7 +434,7 @@ export const billing = {
     const back = roleProfileRoute();
     if (!BILL.loaded) {
       return `${backHead('Plan & billing', 'Your membership', back)}
-      <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bolt', 17)}</div><div><div class="tt">Loading your plan…</div></div></div>`;
+      ${skeletonRows(3, 'Loading your plan')}`;
     }
     if (BILL.failed) {
       return `${backHead('Plan & billing', 'Your membership', back)}
@@ -466,7 +463,7 @@ export const billing = {
     const operator = RT.authRole === 'coach' || RT.authRole === 'trainer';
     const teamPlan = paid && sub && sub.tier === 'team';
     const usage = teamPlan && BILL.active != null && sub.seats
-      ? `<div style="height:8px"></div><div style="font-size:12px;font-weight:700;color:var(--text-2)">${BILL.active} active athlete${BILL.active === 1 ? '' : 's'} this month · ${sub.seats} included${BILL.active > sub.seats ? ` · ${BILL.active - sub.seats} over at $10/mo` : ''}</div>`
+      ? `<div style="height:8px"></div><div style="font-size:12px;font-weight:700;color:var(--text-2)">${BILL.active} active athlete${BILL.active === 1 ? '' : 's'} this month · ${sub.seats} included${BILL.active > sub.seats ? ` · ${BILL.active - sub.seats} over your included seats` : ''}</div>`
       : '';
     return `${backHead('Plan & billing', 'Your membership', back)}
 
@@ -520,12 +517,9 @@ export const billing = {
   },
   mount(root) {
     if (!BILL.loaded) loadBilling();
-    // The id-wired rows sit outside the router's data-go keyboard stamp (router.js wires
-    // Enter/Space onto data-go/act/back only), so they carry their own activation.
-    ['#bill-manage', '#bill-restore'].forEach((sel) => {
-      const el = root.querySelector(sel);
-      if (el) el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); } });
-    });
+    // No local Enter/Space wiring on #bill-manage / #bill-restore: the router's central
+    // cursor:pointer promotion already drives click on them, and a second handler double-fired
+    // the store deep-link and the restore call.
     const billRetry = root.querySelector('#bill-retry');
     if (billRetry) billRetry.addEventListener('click', () => { BILL.loaded = false; BILL.failed = false; window.__render(); loadBilling(); });
     const msg = root.querySelector('#bill-msg');
@@ -572,7 +566,7 @@ export const notifSettings = {
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('bell', 17)}</div>
-        <div class="lm"><div class="lt">Accountability notifications</div><div class="ls">${p.enabled ? 'On: reminders track what’s actually still open' : 'Paused'}</div></div>
+        <div class="lm"><div class="lt">Accountability notifications</div><div class="ls">${p.enabled ? 'On: reminders track what’s actually still open' : 'Off'}</div></div>
         <div class="seg" style="width:104px" id="ns-enabled"><button class="${p.enabled ? 'on' : ''}">On</button><button class="${p.enabled ? '' : 'on'}">Off</button></div>
       </div>
       <div class="lrow" id="ns-haptics" style="cursor:default">
@@ -582,6 +576,11 @@ export const notifSettings = {
       </div>
     </section>
 
+    ${/* Everything below depends on the master switch above. When it is Off the sections stay
+          visible (so nothing "disappears") but dimmed and inert, with one line saying why,
+          instead of live-looking controls that silently do nothing. */''}
+    <div id="ns-off-note" role="status" style="font-size:var(--t-xs);font-weight:700;color:var(--text-3);margin:2px 2px 8px;${p.enabled ? 'display:none' : ''}">Off: nothing below fires until you turn it back on.</div>
+    <div id="ns-deps"${p.enabled ? '' : ' aria-disabled="true" style="opacity:.45;pointer-events:none"'}>
     <div class="eyebrow">Your tone · changes the wording, never the schedule</div>
     <div class="chip-row" id="ns-pressure" data-toggle-group>
       <span class="chp">Supportive</span><span class="chp on">Direct</span><span class="chp">Intense</span>
@@ -627,6 +626,7 @@ export const notifSettings = {
     </section>`;
     })()}
     <div class="set-note">${icon('lock', 11)} Urgency drives escalation and deadline warnings, and belongs to ${S.coach.hasCoach ? 'your coach' : 'your plan'}; your tone above only changes how reminders are worded. Completed requirements never remind you; finishing one cancels its reminders immediately.</div>
+    </div>
     ${typeof window !== 'undefined' && !window.OnStandardNative ? `
     <div class="set-note">${icon('info', 11)} Reminders are delivered by the phone app. In a browser these settings save, but nothing is scheduled on this device.</div>` : ''}
     <div style="height:10px"></div>
@@ -661,8 +661,18 @@ export const notifSettings = {
     // The master row's subtitle states the mode; it has to move with the toggle or the row
     // contradicts itself ("On: reminders track…" under a lit Off).
     seg('#ns-enabled', (t) => ({ enabled: t === 'On' }), (t) => {
+      const on = t === 'On';
       const ls = root.querySelector('#ns-enabled')?.closest('.lrow')?.querySelector('.ls');
-      if (ls) ls.textContent = t === 'On' ? 'On: reminders track what’s actually still open' : 'Paused';
+      if (ls) ls.textContent = on ? 'On: reminders track what’s actually still open' : 'Off';
+      // The dependent sections dim and go inert with the master, live, without a re-render.
+      const deps = root.querySelector('#ns-deps');
+      if (deps) {
+        deps.style.opacity = on ? '' : '.45';
+        deps.style.pointerEvents = on ? '' : 'none';
+        if (on) deps.removeAttribute('aria-disabled'); else deps.setAttribute('aria-disabled', 'true');
+      }
+      const note = root.querySelector('#ns-off-note');
+      if (note) note.style.display = on ? 'none' : '';
     });
     seg('#ns-deadline', (t) => ({ allowDeadline: t === 'On' }));
     seg('#ns-quiet', (t) => ({ quietFrom: (t === '9 PM' ? 21 : t === '11 PM' ? 23 : 22) * 60 }));
@@ -713,7 +723,7 @@ export const coachNotifSettings = {
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('bell', 17)}</div>
-        <div class="lm"><div class="lt">Coach notifications</div><div class="ls">${p.enabled ? 'On' : 'Paused'}</div></div>
+        <div class="lm"><div class="lt">Coach notifications</div><div class="ls">${p.enabled ? 'On' : 'Off'}</div></div>
         <div class="seg" style="width:104px" id="cns-enabled"><button class="${p.enabled ? 'on' : ''}">On</button><button class="${p.enabled ? '' : 'on'}">Off</button></div>
       </div>
     </section>
@@ -798,7 +808,7 @@ export const coachNotifSettings = {
     seg2('#cns-enabled', (on) => ({ enabled: on }), (on) => {
       // The master row's subtitle states the mode; it moves with the toggle or contradicts it.
       const ls = root.querySelector('#cns-enabled')?.closest('.lrow')?.querySelector('.ls');
-      if (ls) ls.textContent = on ? 'On' : 'Paused';
+      if (ls) ls.textContent = on ? 'On' : 'Off';
     });
     seg2('#cns-hourly', (on) => ({ hourly: on }));
     seg2('#cns-critical', (on) => ({ immediateCritical: on }));
@@ -878,7 +888,7 @@ export const deleteAccount = {
     };
     const what = WHAT[RT.authRole] || "Your account, every meal photo, every log, every score, your coach connection, and your spot on your team's Squad board. Your coach keeps nothing of yours. This cannot be undone.";
     return `
-    ${backHead('Delete Account', 'Permanent. We mean it.', roleProfileRoute())}
+    ${backHead('Delete account', 'Permanent. We mean it.', roleProfileRoute())}
 
     <div class="state-demo err-box" style="text-align:left">
       <div class="sd-t">What gets deleted</div>
@@ -892,6 +902,16 @@ export const deleteAccount = {
     </div>
     <div style="height:18px"></div>
     <button id="del-acct" class="btn" style="background:var(--danger-solid);color:#fff;box-shadow:0 10px 30px rgba(var(--red-rgb),0.3)">${icon('trash', 18)} Delete my account</button>
+    ${/* The armed state is a DISTINCT confirm row, not the same button rebadged: the old two-tap
+          armed the same control forever, so a double-tap (or a tap that landed twice) deleted the
+          account with no way out. This row disarms after 5 seconds and on any tap outside it. */''}
+    <div id="del-confirm" style="display:none">
+      <div style="text-align:center;font-size:var(--t-sm);font-weight:700;color:var(--red-bright);margin-bottom:10px">Delete everything? This cannot be undone.</div>
+      <div style="display:flex;gap:10px">
+        <button id="del-cancel" class="btn ghost" style="flex:1">Cancel</button>
+        <button id="del-go" class="btn" style="flex:1;background:var(--danger-solid);color:#fff">Delete everything</button>
+      </div>
+    </div>
     <div id="del-status" style="text-align:center;font-size:13px;font-weight:600;color:var(--text-3);min-height:18px;margin-top:10px"></div>
     <button class="btn ghost" data-go="${roleProfileRoute()}">Keep my account</button>
     <div style="height:10px"></div>
@@ -934,17 +954,41 @@ export const deleteAccount = {
         manage.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
       })();
     }
-    const orig = btn.innerHTML; // 'Delete my account' with its icon: what a failed attempt resets to
-    let armed = false;
-    btn.addEventListener('click', async () => {
-      if (!armed) { armed = true; btn.innerHTML = 'Tap again to permanently delete'; return; } // two-tap confirm
-      btn.disabled = true; btn.textContent = 'Deleting…';
+    const confirmRow = root.querySelector('#del-confirm');
+    const cancelBtn = root.querySelector('#del-cancel');
+    const goBtn = root.querySelector('#del-go');
+    let armTimer = null;
+    const onOutside = (e) => { if (confirmRow && !confirmRow.contains(e.target)) disarm(); };
+    const disarm = () => {
+      if (armTimer) { clearTimeout(armTimer); armTimer = null; }
+      document.removeEventListener('pointerdown', onOutside, true);
+      if (confirmRow) confirmRow.style.display = 'none';
+      btn.style.display = '';
+    };
+    btn.addEventListener('click', () => {
+      btn.style.display = 'none';
+      if (confirmRow) confirmRow.style.display = '';
+      // Armed for 5 seconds only; any tap outside the confirm row also disarms. The outside
+      // listener attaches on the NEXT tick so the arming tap's own events can't disarm it.
+      armTimer = setTimeout(disarm, 5000);
+      setTimeout(() => document.addEventListener('pointerdown', onOutside, true), 0);
+    });
+    if (cancelBtn) cancelBtn.addEventListener('click', disarm);
+    if (goBtn) goBtn.addEventListener('click', async () => {
+      if (armTimer) { clearTimeout(armTimer); armTimer = null; }
+      document.removeEventListener('pointerdown', onOutside, true);
+      goBtn.disabled = true;
+      if (cancelBtn) cancelBtn.disabled = true;
+      goBtn.textContent = 'Deleting…';
       const serverOk = await window.__act.deleteAccount(); // real delete_account RPC + sign-out + local wipe
       // Never claim the account is gone if the SERVER delete failed — that would tell the user
       // their data is erased while it's intact server-side. Local session is always signed out.
       if (serverOk === false) {
         if (status) { status.style.color = 'var(--red-bright)'; status.textContent = "Couldn't reach the server. You're signed out, but your account may still exist. Try again online."; }
-        btn.disabled = false; btn.innerHTML = orig; armed = false;
+        goBtn.disabled = false;
+        if (cancelBtn) cancelBtn.disabled = false;
+        goBtn.textContent = 'Delete everything';
+        disarm();
         return;
       }
       if (status) status.textContent = 'Account deleted.';

@@ -2,7 +2,7 @@
    with the weight change and days between. Shares the cache + signed-URL map with the
    progress-photos screen. Defaults to oldest (before) vs newest (after). */
 import { icon } from '../icons.js';
-import { backHead, esc, safeImg } from '../components.js';
+import { backHead, esc, safeImg, errorState } from '../components.js';
 import * as roles from '../roles.js';
 import { progressPhotoCache, ensureProgressPhotos } from './progress-photos.js';
 
@@ -53,6 +53,16 @@ export default {
   render() {
     const cache = progressPhotoCache();
     const photos = cache.photos || [];
+    // The load FAILED vs there ARE too few: opposite messages. Without this branch a dropped
+    // connection told an athlete with a year of photos to go add two.
+    if (cache.failed && photos.length < 2) {
+      return `${backHead('Compare', 'Before & after', 'progress-photos')}
+      ${errorState({
+        title: "Couldn't load your photos",
+        body: 'Nothing was deleted. Reconnect and they load right here.',
+        retryId: 'cmp-retry',
+      })}`;
+    }
     if (photos.length < 2) {
       return `${backHead('Compare', 'Before & after', 'progress-photos')}
       <div class="state-demo" style="margin-top:14px"><div class="sd-ic">${icon('image', 24)}</div>
@@ -87,6 +97,14 @@ export default {
     <div style="height:14px"></div>`;
   },
   async mount(root) {
+    const retry = root.querySelector('#cmp-retry');
+    if (retry) retry.addEventListener('click', async () => {
+      retry.disabled = true;
+      progressPhotoCache().failed = false;
+      await ensureProgressPhotos();
+      resolveUrls();
+      if (window.__render) window.__render();
+    });
     await ensureProgressPhotos();
     resolveUrls();
     root.querySelectorAll('[data-cmp-id]').forEach((el) => el.addEventListener('click', () => {

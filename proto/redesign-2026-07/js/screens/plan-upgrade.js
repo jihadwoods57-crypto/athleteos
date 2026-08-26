@@ -16,7 +16,7 @@
  */
 import { RT, act, roleNav } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, esc } from '../components.js';
+import { backHead, alertMsg, statusMsg } from '../components.js';
 import { PLANS, planCard } from '../ob2.js';
 import { track, EVENTS } from '../analytics.js';
 
@@ -65,8 +65,8 @@ export const planUpgrade = {
       ? `<section class="card" style="padding:14px 16px;border-color:var(--green-border);margin-top:14px">
           <div style="display:flex;gap:12px;align-items:center">
             <div class="req-icon g" style="width:40px;height:40px">${icon('flame', 19)}</div>
-            <div><div style="font-size:14.5px;font-weight:800">Founding 50 — ${UP.slots} spot${UP.slots === 1 ? '' : 's'} left</div>
-            <div style="font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5">Today's price locked for good — including the $${overageRate}/mo per active client over your limit. Claimed automatically when you subscribe.</div></div>
+            <div><div style="font-size:14.5px;font-weight:800">Founding 50 · ${UP.slots} spot${UP.slots === 1 ? '' : 's'} left</div>
+            <div style="font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5">Today's price locked for good, including the $${overageRate}/mo per active client over your limit. Claimed automatically when you subscribe.</div></div>
           </div>
         </section>`
       : '';
@@ -81,14 +81,29 @@ export const planUpgrade = {
     ${founding}
     <div class="eyebrow" style="margin-top:16px">${picked && plans.some((p) => p.id === picked) ? 'Your pick from onboarding' : 'Plans'}</div>
     <div style="display:flex;flex-direction:column;gap:10px">
-      ${plans.map((p) => planCard({ ...p, on: p.id === picked })).join('')}
+      ${plans.map((p) => {
+        const card = planCard({ ...p, on: p.id === picked });
+        // Busy is RENDERED state, not a hand-set el.style: the tapped card carries aria-busy and
+        // says what is happening, and the other cards go inert so a second checkout can't start
+        // while the first is in flight. Cleared when the round trip settles either way.
+        if (UP.busy === p.id) return `<div aria-busy="true" style="opacity:.6">${card}<div style="font-size:var(--t-sm);font-weight:700;color:var(--text-2);text-align:center;padding:6px 0 0">Opening Stripe…</div></div>`;
+        return UP.busy ? `<div style="opacity:.55;pointer-events:none" aria-disabled="true">${card}</div>` : card;
+      }).join('')}
     </div>
+    ${/* The header promises a 14-day trial but only one card carries the tag. This states the
+          server's actual rule: trial_period_days rides only the FIRST checkout. */''}
+    <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:10px">The 14-day trial applies to whichever plan you start first.</div>
     <div style="font-size:11.5px;font-weight:600;color:var(--text-3);line-height:1.55;margin-top:14px">
-      Billed by Stripe in your browser — the app never sees your card. Included seats count
-      <b>active</b> athletes only: someone who stops logging stops counting, and $10/mo covers each
+      Billed by Stripe in your browser. The app never sees your card. Included seats count
+      <b>active</b> athletes only: someone who stops logging stops counting, and $${overageRate}/mo covers each
       active athlete beyond your plan. Cancel anytime in your account settings.
     </div>
-    ${UP.note ? `<div style="font-size:12.5px;font-weight:700;color:var(--amber-bright);text-align:center;padding:12px 8px 0">${esc(UP.note)}</div>` : ''}
+    ${/* Failures and info notes shared one amber div, so "checkout failed" and "opening your
+          portal" wore the same clothes. A failure is red and announced (alertMsg, role=alert);
+          an informational note is quiet grey (statusMsg, role=status). */''}
+    ${UP.note ? (UP.note.kind === 'error'
+      ? alertMsg({ text: UP.note.text, style: 'color:var(--red);font-size:var(--t-sm);font-weight:700;text-align:center;padding:12px 8px 0' })
+      : statusMsg({ text: UP.note.text, style: 'display:block;color:var(--text-2);font-size:var(--t-sm);font-weight:700;text-align:center;padding:12px 8px 0' })) : ''}
     <div style="height:20px"></div></div>`;
   },
 
@@ -101,12 +116,12 @@ export const planUpgrade = {
       if (plan.custom) {
         // Enterprise has no self-serve price — the honest CTA is a conversation.
         try { window.OnStandardNative?.openUrl?.('https://onstandard.app/coaches#pricing'); } catch { /* web */ }
-        UP.note = 'Enterprise is quoted — email support@onstandard.app and we’ll set it up with you.';
+        UP.note = { kind: 'info', text: 'Enterprise is quoted. Email support@onstandard.app and we’ll set it up with you.' };
         window.__render && window.__render();
         return;
       }
       UP.busy = planId; UP.note = null;
-      el.style.opacity = '0.6';
+      window.__render && window.__render();
       track(EVENTS.PLAN_SELECTED, { plan: planId });
       const roles = await import('../roles.js');
       // MONTHLY, because monthly is what this screen SHOWS. The operator plan cards (ob2.js PLANS
@@ -123,21 +138,21 @@ export const planUpgrade = {
         try { act.markObPlanCtaDone(); } catch { /* display-state only */ }
         // Stripe opens in the SYSTEM browser; the webhook writes the row; entitlement lands on
         // the next open. On web (no bridge) fall through to a plain navigation.
-        if (window.OnStandardNative?.openUrl) window.OnStandardNative.openUrl(r.url);
+        if (window.OnStandardNative?.openUrl) { window.OnStandardNative.openUrl(r.url); window.__render && window.__render(); }
         else location.href = r.url;
         return;
       }
       if (r.action === 'portal') {
-        UP.note = 'You already have a plan — opening your billing portal to change it.';
+        UP.note = { kind: 'info', text: 'You already have a plan. Opening your billing portal to change it.' };
         window.__render && window.__render();
         const p = await roles.openBillingPortal();
         if (p.ok) {
           if (window.OnStandardNative?.openUrl) window.OnStandardNative.openUrl(p.url);
           else location.href = p.url;
-        } else { UP.note = p.error; window.__render && window.__render(); }
+        } else { UP.note = { kind: 'error', text: p.error || 'Could not open the billing portal. Try again.' }; window.__render && window.__render(); }
         return;
       }
-      UP.note = r.error;
+      UP.note = { kind: 'error', text: r.error || 'Could not start checkout. Try again.' };
       window.__render && window.__render();
     }));
   },

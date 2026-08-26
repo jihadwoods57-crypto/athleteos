@@ -40,6 +40,16 @@ try {
 
 export const isLocationAvailable = (): boolean => !!Location && !!TaskManager;
 
+/** Whether THIS BINARY reports region exits, and therefore whether a minimum-stay can actually be
+ *  enforced for an athlete running it (migration 0208).
+ *
+ *  This exists because the proto ships over the air and lands on binaries older than itself. On a
+ *  build made before 0208 the task drops every Exit, so `departed_at` is never written and the
+ *  server's 'confirmed' verdict degrades to "arrived, and enough clock time passed" — which is
+ *  precisely the overclaim 0208 was written to end. The UI must not promise enforcement it cannot
+ *  deliver on the binary it happens to be running on, so it asks. */
+export const REPORTS_PRESENCE = true;
+
 /** Regions currently armed, kept so a background crossing can be matched to its instance without
  *  another network round trip. Rebuilt on every arm; empty after disarm. */
 let ARMED: ArmableInstance[] = [];
@@ -174,6 +184,28 @@ export async function reportArrival(
   }
 }
 
+/** Record a region EXIT (migration 0208). Writes commitment_responses.departed_at, which had no
+ *  writer at all until now — the coach's "Stay at least N min" was therefore never enforced.
+ *
+ *  WHAT THIS DOES NOT DO, AND WHY THAT IS THE POINT. It does not decide whether the athlete
+ *  actually left. Indoors, which is exactly where "classroom" commitments live, iOS fires
+ *  spurious Exit events for a phone sitting perfectly still. Debouncing here would need a timer
+ *  that survives the app being killed in the background, which is the one thing iOS does not
+ *  promise. So the device reports the raw crossing and the SERVER decides: a re-entry erases the
+ *  departure, and a surviving one is only believed after the grace has elapsed. See 0208.
+ *
+ *  record_departure cannot write `status` and refuses outright when there is no arrival to depart
+ *  from, so a stray event can neither invent a departure nor mark anyone missed. */
+export async function reportDeparture(instanceId: string): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    const { error } = await supabase.rpc('record_departure', { p_instance: instanceId });
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 /* ---------------------------------------------------------------- coach: capture a place */
 
 /** The one function in this file that RETURNS a coordinate, and the distinction matters:
@@ -209,10 +241,17 @@ export function registerGeofenceTask(): void {
       const { eventType, region } = data;
       const instanceId = region?.identifier;
       if (!instanceId) return;
-      // Enter === 1 per GeofencingEventType. An Exit is recorded as a departure only; we never
-      // downgrade an arrival that already happened.
+      // BOTH edges are reported as of 0208. Until then this branched on Enter alone and dropped
+      // every Exit on the floor, while the comment here claimed departures were recorded — so
+      // `departed_at` had no writer and the coach's minimum-stay was decorative.
+      //
+      // An arrival is still never downgraded: verify_arrival coalesces arrived_at (it only ever
+      // moves from null) and record_departure cannot touch `status`. The two edges are inputs to
+      // a verdict the server computes, not verdicts themselves.
       if (eventType === Location!.GeofencingEventType.Enter) {
         await reportArrival(instanceId, 'geofence', true, null);
+      } else if (eventType === Location!.GeofencingEventType.Exit) {
+        await reportDeparture(instanceId);
       }
     });
   } catch { /* a defineTask collision on fast refresh is harmless */ }

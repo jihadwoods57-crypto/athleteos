@@ -44,7 +44,7 @@ export const foodSearch = {
 
     <div class="lrow" data-go="label-scan" style="border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:12px 15px;margin-top:10px">
       <div class="lic">${icon('edit', 17)}</div>
-      <div class="lm"><div class="lt">Enter a nutrition label</div><div class="ls">Type the panel numbers — exact, never estimated</div></div>
+      <div class="lm"><div class="lt">Enter a nutrition label</div><div class="ls">Type the panel numbers. Exact, never estimated</div></div>
       ${icon('chevron', 16, 'style="color:var(--text-3)"')}
     </div>
 
@@ -63,7 +63,7 @@ export const foodSearch = {
     <div style="height:16px"></div>
     ${!slot
       ? `<button class="btn ghost" data-back="home">All meals logged · Done</button>`
-      : `<button class="btn green" id="fs-log" style="opacity:.45;pointer-events:none">${icon('check', 19)} Log ${slotName}</button>`}
+      : `<button class="btn green" id="fs-log" disabled>${icon('check', 19)} Log ${slotName}</button>`}
     <div style="height:10px"></div>
     `;
   },
@@ -85,7 +85,9 @@ export const foodSearch = {
       root.querySelector('#t-k').textContent = Math.round(sum.kc);
       totals.style.display = plate.length ? 'flex' : 'none';
       empty.style.display = plate.length ? 'none' : 'block';
-      if (logBtn) { logBtn.style.opacity = plate.length ? '1' : '.45'; logBtn.style.pointerEvents = plate.length ? 'auto' : 'none'; }
+      // The REAL disabled attribute, not an opacity/pointer-events costume: .btn:disabled owns
+      // the treatment, screen readers hear the state, and focus can't land on a dead control.
+      if (logBtn) logBtn.disabled = !plate.length;
     };
     const renderPlate = () => {
       items.innerHTML = plate.map((x, i) => `
@@ -110,7 +112,12 @@ export const foodSearch = {
           <div class="lic">${icon('plus', 16)}</div>
           <div class="lm"><div class="lt">${esc(x.n)}</div><div class="ls">${esc(x.unit)} · ${x.p}g protein · ${x.kc} cal</div></div>
         </div>`).join('')
-        : `<div style="padding:16px;font-size:13px;font-weight:600;color:var(--text-3)">No match. The full database lands with the backend; photo logging always works.</div>`;
+        : `<div style="padding:14px 16px;font-size:var(--t-sm);font-weight:600;color:var(--text-3);line-height:1.5">No match for that. Snap a photo instead. It reads anything.
+            <button class="btn ghost sm" id="fs-to-cam" style="width:auto;padding:0 16px;margin-top:10px;display:flex;align-items:center;gap:6px">${icon('camera', 15)} Take a photo</button></div>`;
+      // Direct door to the camera, not a sentence pointing at one: the router only wires
+      // data-go at render time, so this post-paint button carries its own tap.
+      const toCam = results.querySelector('#fs-to-cam');
+      if (toCam) toCam.addEventListener('click', () => window.__go(SLOT ? `camera/${SLOT}` : 'camera'));
       results.querySelectorAll('[data-add]').forEach(r => r.addEventListener('click', () => {
         const f = DB[+r.dataset.add];
         const hit = plate.find(x => x.n === f.n);
@@ -150,7 +157,7 @@ export const labelScan = {
     const allergies = (RT.allergies || []).filter(Boolean);
     const numField = 'width:100%;height:52px;border-radius:var(--r-card-sm);background:var(--surface-1);border:1.5px solid var(--hairline);color:var(--text);font-size:17px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums';
     return `
-    ${backHead('Enter the Label', 'Type the numbers straight off the panel — exact, never estimated', 'camera')}
+    ${backHead('Enter the label', 'Type the numbers straight off the panel. Exact, never estimated', 'camera')}
 
     ${allergies.length ? `
     <div class="sidebox" style="border-color:var(--amber-border);background:rgba(var(--amber-rgb),0.08)">
@@ -182,7 +189,7 @@ export const labelScan = {
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 18)}</div>
       <div><div class="tt">Exact, because you read it</div>
-      <div class="ts">You copy the numbers off the real panel; we just multiply by your servings. No guessing a packaged food — and no fake scan.</div></div>
+      <div class="ts">You copy the numbers off the real panel; we just multiply by your servings. No guessing a packaged food, and no fake scan.</div></div>
     </div>
 
     <div id="ls-err" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;margin-top:12px;text-align:center"></div>
@@ -267,7 +274,7 @@ export const barcodeScan = {
           <div class="macro"><div class="mv" id="bc-k">0</div><div class="mk">Calories</div></div>
         </div>
         <div class="eyebrow" style="margin-top:14px">How much did you eat?</div>
-        <div class="chip-row" id="bc-grams">
+        <div class="chip-row" id="bc-grams" data-toggle-group>
           <span class="chp" data-g="50">50g</span>
           <span class="chp on" data-g="100">100g</span>
           <span class="chp" data-g="150">150g</span>
@@ -282,7 +289,11 @@ export const barcodeScan = {
     <div style="height:10px"></div>
     `;
   },
-  mount(root) {
+  async mount(root) {
+    // Radiogroup roles + aria-checked + Tab reach for #bc-grams, the same wireToggles treatment
+    // every other chip row gets (the labelScan screen above already imports it this way).
+    const { wireToggles } = await import('./settings.js');
+    wireToggles(root);
     const SLOT = S.currentSlot;
     const status = root.querySelector('#bc-status');
     const digits = root.querySelector('#bc-digits');
@@ -317,7 +328,7 @@ export const barcodeScan = {
         found = null; paint();
         status.textContent = navigator.onLine === false
           ? 'You need a connection for a barcode lookup. The label screen works offline.'
-          : 'No match for that code. Not every product is in the database — the label screen always works.';
+          : 'No match for that code. Not every product is in the database. The label screen always works.';
         return;
       }
       found = res;

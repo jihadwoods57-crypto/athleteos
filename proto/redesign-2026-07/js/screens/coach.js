@@ -9,7 +9,9 @@ import {
 import { coachSetupState, coachSetupSteps, isNutritionBook } from './coach-home.js';
 import * as roles from '../roles.js';
 import { openingMessage, qualityBand, qualityReason, scoreRubric, reactionGroups, threadMessages, privateNotes, REACTION_EMOJI, applyMealCorrection, applyFoodRemoval, normalizeDetected } from '../meal-intel.js';
-import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpener, isEscalated, quotedFor } from '../chat-view.js';
+import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpener, isEscalated, quotedFor,
+  dayLabelOf,
+} from '../chat-view.js';
 import { openImageViewer } from '../image-viewer.js';
 import { wireTapback } from '../tapback.js';
 import { CD, loadBook, bookKindFor, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor, localClock, logBookIntervention, resolvePos } from '../coach-data.js';
@@ -21,6 +23,7 @@ import { explainCategories } from '../breakdown-model.js';
 import { seedTemplates, templateLabel } from '../templates.js';
 import { canEditStandards, canViewWeight } from '../staff-access.js';
 import { categorizeInbox, inboxAlerts } from '../inbox.js';
+import { fmtWhen } from '../notif-feed.js';
 import { presetForStatus, tierForStatus, nudgeResultCopy, nudgedTodayFromInterventions } from '../nudge-presets.js';
 import { reasonKey } from '../priority.js';
 import { maybeStartTour } from '../tour.js';
@@ -84,7 +87,9 @@ export const coachAssign = {
     </div>
     ${rows.length ? `
     <div class="chip-row" id="as-ath" role="radiogroup" aria-label="One athlete" style="margin-top:6px">
-      ${rows.slice(0, 12).map(r => chip(ASSIGN.scopeKind === 'athlete' && ASSIGN.scopeValue === r.athleteId, esc(r.name.split(' ')[0] || r.name), 'athlete', r.athleteId)).join('')}
+      ${/* Every athlete, not the first 12: the chip row wraps (flows.css), and a truncated
+            picker silently made the back half of a roster unassignable from here. */''}
+      ${rows.map(r => chip(ASSIGN.scopeKind === 'athlete' && ASSIGN.scopeValue === r.athleteId, esc(r.name.split(' ')[0] || r.name), 'athlete', r.athleteId)).join('')}
     </div>` : `
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:2px 2px 0">${practice ? 'Clients loading… everyone works right away.' : 'Roster loading… team-wide works right away.'}</div>`}
 
@@ -134,9 +139,9 @@ export const coachAssign = {
     if (send) send.addEventListener('click', async () => {
       keep();
       const title = ASSIGN.title.trim();
-      if (title.length < 2) { say('Give it a name first — what are they doing?', true); return; }
+      if (title.length < 2) { say('Give it a name first. What are they doing?', true); return; }
       const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
-      if (!teamId) { say('Your roster hasn’t loaded yet — give it a second and try again.', true); return; }
+      if (!teamId) { say('Your roster hasn’t loaded yet. Give it a second and try again.', true); return; }
       const due = DUE_CHOICES[ASSIGN.due];
       const dueAt = due.at();
       send.disabled = true; say('Sending…');
@@ -149,8 +154,8 @@ export const coachAssign = {
         kind: CD.kind,
       });
       send.disabled = false;
-      if (!r.ok) { say(r.error || 'Could not send — try again.', true); return; }
-      if (!r.count) { say(`No ${CD.kind === 'practice' ? 'clients' : 'athletes'} matched — check who you picked.`, true); return; }
+      if (!r.ok) { say(r.error || 'Could not send. Try again.', true); return; }
+      if (!r.count) { say(`No ${CD.kind === 'practice' ? 'clients' : 'athletes'} matched. Check who you picked.`, true); return; }
       ASSIGN.title = ''; ASSIGN.note = '';
       say(r.count === 1 ? 'Sent. It’s on their list now.' : `Sent. It’s on ${r.count} lists now.`);
     });
@@ -187,9 +192,9 @@ function suggestTargets(targetWeight, baseWeight) {
   const mode = tw > bw + 5 ? 'bulk' : tw < bw - 5 ? 'cut' : 'hold';
   const protein = Math.round((tw * (mode === 'cut' ? 1.2 : mode === 'bulk' ? 1.1 : 0.9)) / 5) * 5;
   const calories = Math.round((tw * (mode === 'bulk' ? 17 : mode === 'cut' ? 13 : 15)) / 50) * 50;
-  const why = mode === 'bulk' ? `building to ${tw} lb — surplus + 1.1g/lb protein`
-    : mode === 'cut' ? `cutting to ${tw} lb — deficit + 1.2g/lb to hold muscle`
-    : `holding ${tw} lb — maintenance + 0.9g/lb`;
+  const why = mode === 'bulk' ? `building to ${tw} lb. Surplus + 1.1g/lb protein`
+    : mode === 'cut' ? `cutting to ${tw} lb. Deficit + 1.2g/lb to hold muscle`
+    : `holding ${tw} lb. Maintenance + 0.9g/lb`;
   return { protein, calories, mode, why };
 }
 /* ---------- Plan tab = Coach Control Center (WS5.1) ----------
@@ -266,8 +271,8 @@ function planStyleSection(athleteId, who, targets) {
   const pref = TGT.preference ? resolveStyleKey(TGT.preference) : null;
   const effective = teamStyle || assigned;
   const prefLine = pref && pref !== effective
-    ? `<div class="ps-pref">${esc(who.name.split(' ')[0])}'s preference: <b>${esc(styleLabel(pref).name)}</b> — differs from ${effective ? 'what they\'re on' : 'the default'}.</div>`
-    : (pref ? `<div class="ps-pref">${esc(who.name.split(' ')[0])}'s preference: <b>${esc(styleLabel(pref).name)}</b> — matches what they're on.</div>` : '');
+    ? `<div class="ps-pref">${esc(who.name.split(' ')[0])}'s preference: <b>${esc(styleLabel(pref).name)}</b>. Differs from ${effective ? 'what they\'re on' : 'the default'}.</div>`
+    : (pref ? `<div class="ps-pref">${esc(who.name.split(' ')[0])}'s preference: <b>${esc(styleLabel(pref).name)}</b>. Matches what they're on.</div>` : '');
 
   if (teamStyle) {
     const l = styleLabel(teamStyle);
@@ -289,7 +294,7 @@ function planStyleSection(athleteId, who, targets) {
   return `
   <section class="card" style="padding:14px 16px" id="ps-editor">
     <div style="font-size:12px;font-weight:700;color:var(--text-3);letter-spacing:.02em">PLAN STYLE</div>
-    <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">${assigned ? `Assigned by you` : 'Not set — pick one to start scoring their nutrition against it'}</div>
+    <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px">${assigned ? `Assigned by you` : 'Not set. Pick one to start scoring their nutrition against it'}</div>
     <div style="display:flex;gap:8px;margin-top:12px" id="ps-pick">
       ${STYLE_KEYS.map((k) => {
         const l = styleLabel(k);
@@ -350,7 +355,7 @@ export const coachPlan = {
       const sets = SETS && SETS.rows ? SETS.rows : null;
       const practiceSet = sets && sets.find(x => x.scope_kind === 'team');
       if (CD.roster && CD.roster.offline) {
-        return `${titleHead('Plan', 'Your standard, client by client')}${errorState({ title: "Can't reach your clients", body: 'Your standard and their targets are safe — reconnect and they load right here.', retryId: 'plan-retry' })}`;
+        return `${titleHead('Plan', 'Your standard, client by client')}${errorState({ title: "Can't reach your clients", body: 'Your standard and their targets are safe. Reconnect and they load right here.', retryId: 'plan-retry' })}`;
       }
       return `
       ${titleHead('Plan', 'Your standard, client by client')}
@@ -459,7 +464,7 @@ export const coachPlan = {
       // dietitian-run team too.
       const planSub = isNutritionBook() ? 'Your fueling program, room by room' : 'Your program, room by room';
       if (CD.roster && CD.roster.offline) {
-        return `${titleHead('Plan', planSub)}${errorState({ title: "Can't reach your program", body: 'Your standards, rooms, and targets are safe — reconnect and they load right here.', retryId: 'plan-retry' })}`;
+        return `${titleHead('Plan', planSub)}${errorState({ title: "Can't reach your program", body: 'Your standards, rooms, and targets are safe. Reconnect and they load right here.', retryId: 'plan-retry' })}`;
       }
       return `
       ${titleHead('Plan', planSub)}
@@ -478,7 +483,7 @@ export const coachPlan = {
         </div>
         ${positions.map(roomCard).join('')}
       </section>
-      ${positions.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">Rooms appear as athletes with positions join — the team standard covers everyone until then.${rows && !rows.length ? ` <span data-go="coach-profile/code" style="color:var(--blue-bright);font-weight:800;cursor:pointer">Invite athletes</span>` : ''}</div>` : ''}`}
+      ${positions.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">Rooms appear as athletes with positions join. The team standard covers everyone until then.${rows && !rows.length ? ` <span data-go="coach-profile/code" style="color:var(--blue-bright);font-weight:800;cursor:pointer">Invite athletes</span>` : ''}</div>` : ''}`}
 
       <div class="eyebrow">Upcoming changes</div>
       ${sets === null ? skeletonRows(1, 'Loading scheduled changes') : upcoming.length ? `
@@ -491,7 +496,7 @@ export const coachPlan = {
           ${icon('chevron', 17, 'style="color:var(--text-3)"')}
         </div>`).join('')}
       </section>` : `
-      <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 2px;line-height:1.4">No scheduled changes. Publish a standard with a future date and it lists here — today's scoring stays untouched.</div>`}
+      <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 2px;line-height:1.4">No scheduled changes. Publish a standard with a future date and it lists here. Today's scoring stays untouched.</div>`}
 
       <div class="eyebrow">Targets · per athlete</div>
       ${rows && rows.length ? `
@@ -503,7 +508,9 @@ export const coachPlan = {
           <div class="ls">Protein · calories · target weight</div></div>
           ${icon('chevron', 17, 'style="color:var(--text-3)"')}
         </div>`).join('')}
-      </section>` : `
+      </section>
+      ${rows.length > 6 ? `<div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:6px 2px 0">Showing 6 of ${rows.length}</div>
+      <button class="btn ghost sm" data-go="coach-roster" style="width:auto;padding:0 16px;margin-top:6px">All ${rows.length} athletes</button>` : ''}` : `
       ${emptyState({ icon: 'target', title: 'No athletes yet', body: 'Per-athlete protein, calorie, and target-weight numbers open here the moment your team joins.', action: { label: 'Invite athletes', go: 'coach-profile/code' } })}`}
 
       <div class="eyebrow">Trust passes · camera-free rewards</div>
@@ -527,14 +534,16 @@ export const coachPlan = {
         </div>`;
         }).join('')}
         <div id="tp-plan-status" style="font-size:11.5px;font-weight:600;color:var(--text-3);min-height:14px;padding:2px 2px 8px"></div>
-      </section>` : `
+      </section>
+      ${rows.length > 6 ? `<div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:6px 2px 0">Showing 6 of ${rows.length}</div>
+      <button class="btn ghost sm" data-go="coach-roster" style="width:auto;padding:0 16px;margin-top:6px">All ${rows.length} athletes</button>` : ''}` : `
       ${emptyState({ icon: 'shield', title: 'No trust passes yet', body: `A pass is earned after ${(RT.passPolicy || { eligibility_days: 7 }).eligibility_days} photo-logged days. Invite athletes to start the clock.`, action: { label: 'Invite athletes', go: 'coach-profile/code' } })}`}
 
       <div class="eyebrow">Program</div>
       <section class="card" style="padding:6px 16px">
         <div class="lrow" data-go="coach-voice">
           <div class="lic" style="background:rgba(var(--purple-rgb),0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div>
-          <div class="lm"><div class="lt">AI Nutritionist</div><div class="ls">${RT.coachVoice ? 'Tuned to your voice — never invents' : 'Set the tone the AI reinforces'}</div></div>
+          <div class="lm"><div class="lt">AI Nutritionist</div><div class="ls">${RT.coachVoice ? 'Tuned to your voice. Never invents' : 'Set the tone the AI reinforces'}</div></div>
           <span class="status-pill ${RT.coachVoice && RT.coachVoice.enabled !== false ? 'g' : 'muted'}">${RT.coachVoice && RT.coachVoice.enabled !== false ? 'On' : 'Off'}</span>
           ${icon('chevron', 17, 'style="color:var(--text-3);margin-left:8px"')}
         </div>
@@ -566,7 +575,7 @@ export const coachPlan = {
       return `${head}${skeletonRows(3, 'Loading their targets')}`;
     }
     if (TGT.offline) {
-      return `${head}${errorState({ title: "Couldn't load their targets", body: 'Their plan is safe — reconnect and it loads right here.', retryId: 'tgt-retry' })}`;
+      return `${head}${errorState({ title: "Couldn't load their targets", body: 'Their plan is safe. Reconnect and it loads right here.', retryId: 'tgt-retry' })}`;
     }
     const t = TGT.targets || {};
     const planStyleCard = planStyleSection(athleteId, who, t);
@@ -579,8 +588,8 @@ export const coachPlan = {
     // Distinguish "no targets set yet" (starter defaults shown as a starting point) from real
     // saved values — a coach shouldn't think targets already exist when they're just placeholders.
     const unset = t.protein == null && t.calories == null && (!seeWeight || t.weight == null);
-    const rows = [['Protein', 'tg-protein', t.protein != null ? t.protein : 180, 'g', 5], ['Calories', 'tg-calories', t.calories != null ? t.calories : 2400, '', 50],
-      ...(seeWeight ? [['Target weight', 'tg-weight', t.weight != null ? t.weight : 180, ' lb', 1]] : [])];
+    const rows = [['Protein', 'tg-protein', t.protein != null ? t.protein : 180, 'g', 5, 20, 400], ['Calories', 'tg-calories', t.calories != null ? t.calories : 2400, 'kcal', 50, 800, 8000],
+      ...(seeWeight ? [['Target weight', 'tg-weight', t.weight != null ? t.weight : 180, 'lb', 1, 80, 450]] : [])];
     return `
     ${head}
 
@@ -589,12 +598,15 @@ export const coachPlan = {
     <div class="eyebrow">Targets${unset ? ' · not set yet' : ''}</div>
     ${unset ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">Starting points, not saved. Adjust and Save to set ${esc(who.name.split(' ')[0])}'s real targets.</div>` : ''}
     <section class="card" style="padding:6px 16px">
-      ${rows.map(([k, id, v, u, step]) => `
+      ${/* Real buttons and a real number input. The old − / + were bare spans with no CSS
+            class behind them, no role, and no keyboard path, and the value lived in
+            textContent that Save re-parsed from display text, step-only and unbounded. */''}
+      ${rows.map(([k, id, v, u, step, lo, hi]) => `
         <div class="lrow" style="cursor:default">
-          <div class="lm"><div class="lt">${k}</div></div>
-          <span class="wb2" data-step="${id}" data-d="-1" data-s="${step}" style="padding:6px 13px">−</span>
-          <span id="${id}" data-u="${u}" style="font-size:16px;font-weight:800;width:84px;text-align:center">${v}${u}</span>
-          <span class="wb2" data-step="${id}" data-d="1" data-s="${step}" style="padding:6px 13px">+</span>
+          <div class="lm"><div class="lt">${k}${u ? ` <small style="color:var(--text-3);font-weight:700">${u}</small>` : ''}</div></div>
+          <button class="co-abtn" data-step="${id}" data-d="-1" data-s="${step}" style="flex:none;width:44px" aria-label="Decrease ${k.toLowerCase()}">−</button>
+          <input type="number" inputmode="numeric" class="input" id="${id}" min="${lo}" max="${hi}" step="${step}" value="${v}" style="width:90px;text-align:center" aria-label="${k}" />
+          <button class="co-abtn" data-step="${id}" data-d="1" data-s="${step}" style="flex:none;width:44px" aria-label="Increase ${k.toLowerCase()}">+</button>
         </div>`).join('')}
     </section>
     ${seeWeight ? `
@@ -612,7 +624,7 @@ export const coachPlan = {
           <div><span id="sg-calories" style="font-size:19px;font-weight:800;font-variant-numeric:tabular-nums">—</span><span style="font-size:11px;font-weight:700;color:var(--text-3)"> kcal</span></div>
           <button class="btn green sm" id="sg-use" style="width:auto;padding:0 16px;height:32px;margin-left:auto">Use these</button>
         </div>
-        <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-top:6px">Open math, not a black box — you approve, then Save writes it.</div>
+        <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-top:6px">Open math, not a black box. You approve, then Save writes it.</div>
       </div>
     </section>` : `
     <div style="height:12px"></div>
@@ -626,7 +638,7 @@ export const coachPlan = {
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
       <div><div class="tt">${cap(noun)} owns the numbers</div>
-      <div class="ts">Saving writes these to their plan (athlete_profiles.targets) via the coach_set_goals RPC. Their nutrition scoring is unaffected — the score is always the four honest components.</div></div>
+      <div class="ts">Saving writes these to their plan (athlete_profiles.targets) via the coach_set_goals RPC. Their nutrition scoring is unaffected. The score is always the four honest components.</div></div>
     </div>
 
     <div style="height:16px"></div>
@@ -657,7 +669,7 @@ export const coachPlan = {
       const say = (msg, isErr) => { if (status) { status.style.color = isErr ? 'var(--red)' : 'var(--text-3)'; status.textContent = msg; } };
       b.disabled = true; say('Ending…');
       const ok = await roles.endPass(id);
-      if (!ok) { b.disabled = false; say('Could not end it — try again.', true); return; }
+      if (!ok) { b.disabled = false; say('Could not end it. Try again.', true); return; }
       say('Ended.');
       await loadTrust(true);
     }));
@@ -667,16 +679,18 @@ export const coachPlan = {
     if (tgtRetry) tgtRetry.addEventListener('click', () => { tgtRetry.disabled = true; TGT = null; loadTargets(sub); }); // audit G-3 retry: clear the cache then refetch
     root.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
       const el = root.querySelector('#' + b.getAttribute('data-step'));
-      const u = el.getAttribute('data-u');
+      if (!el) return;
       const step = +b.getAttribute('data-s') || 1;
-      el.textContent = Math.max(0, parseInt(el.textContent) + step * +b.dataset.d) + u;
+      const lo = +el.min || 0, hi = +el.max || 9999;
+      const cur = parseInt(el.value, 10);
+      el.value = Math.max(lo, Math.min(hi, (isFinite(cur) ? cur : lo) + step * +b.dataset.d));
     }));
     // Suggested targets: reads the CURRENT target-weight stepper, fills protein/calories.
     const sgBtn = root.querySelector('#sg-btn');
     if (sgBtn) {
       let sg = null;
       sgBtn.addEventListener('click', () => {
-        const tw = parseInt((root.querySelector('#tg-weight') || {}).textContent) || 0;
+        const tw = parseInt((root.querySelector('#tg-weight') || {}).value, 10) || 0;
         const bw = TGT && TGT.basics && TGT.basics.base_weight;
         sg = suggestTargets(tw, bw);
         const why = root.querySelector('#sg-why'), out = root.querySelector('#sg-out');
@@ -690,23 +704,29 @@ export const coachPlan = {
       if (use) use.addEventListener('click', () => {
         if (!sg) return;
         const pEl = root.querySelector('#tg-protein'), kEl = root.querySelector('#tg-calories');
-        if (pEl) pEl.textContent = `${sg.protein}${pEl.getAttribute('data-u') || ''}`;
-        if (kEl) kEl.textContent = `${sg.calories}${kEl.getAttribute('data-u') || ''}`;
+        if (pEl) pEl.value = sg.protein;
+        if (kEl) kEl.value = sg.calories;
       });
     }
     const save = root.querySelector('#save-targets');
     const status = root.querySelector('#tg-status');
     if (save) save.addEventListener('click', async () => {
-      const num = (id) => parseInt(root.querySelector('#' + id).textContent) || 0;
+      // Save reads the inputs' values and clamps to the same bounds the fields declare, so a
+      // hand-typed 12g or 20,000 kcal can never round-trip into an athlete's plan.
+      const num = (id, lo, hi, dflt) => {
+        const el = root.querySelector('#' + id);
+        const v = parseInt(el && el.value, 10);
+        return Math.max(lo, Math.min(hi, isFinite(v) ? v : dflt));
+      };
       save.disabled = true; if (status) status.textContent = 'Saving…';
       // 0103: a weight-restricted role's payload carries no weight key at all — the field wasn't
       // rendered, and sending a fabricated default would be dishonest even though the server
       // guard preserves the stored value regardless. Only send what this role actually edited.
-      const payload = { protein: num('tg-protein'), calories: num('tg-calories') };
-      if (root.querySelector('#tg-weight')) payload.weight = num('tg-weight');
+      const payload = { protein: num('tg-protein', 20, 400, 180), calories: num('tg-calories', 800, 8000, 2400) };
+      if (root.querySelector('#tg-weight')) payload.weight = num('tg-weight', 80, 450, 180);
       const ok = await roles.coachSetGoals(sub, payload);
       if (ok) { if (status) status.textContent = 'Saved to their plan.'; TGT = null; setTimeout(() => { location.hash = `#coach-athlete/${sub}`; }, 600); }
-      else { save.disabled = false; if (status) status.textContent = 'Could not save — check the connection.'; }
+      else { save.disabled = false; if (status) status.textContent = 'Could not save. Check the connection.'; }
     });
 
     // Plan style assignment + overrides (0142) — preview-then-Apply, never write-on-tap. The old
@@ -760,7 +780,7 @@ export const coachPlan = {
         const ok = await roles.setAthletePlanStyle(sub, style, draftOverrides(style));
         psApply.disabled = false;
         if (ok) { psSay('Saved to their plan.'); TGT = null; loadTargets(sub); }
-        else psSay('Could not save — check the connection.', true);
+        else psSay('Could not save. Check the connection.', true);
       });
       wireDetailToggles();
     }
@@ -989,7 +1009,7 @@ export const coachPlanSet = {
     if (CD.kind !== 'practice' && CD.extras && !canEditStandards(CD.extras.myRole)) {
       const preview = previewFromKnobs(KNOB);
       return `
-      ${backHead(scopeName, 'View only — standards are set by the head coach', 'coach-plan')}
+      ${backHead(scopeName, 'View only. Standards are set by the head coach', 'coach-plan')}
       <div class="sidebox">
         <div class="req-icon b" style="width:38px;height:38px">${icon('eye', 17)}</div>
         <div><div class="tt">The standard, as your athletes see it</div>
@@ -1069,7 +1089,7 @@ export const coachPlanSet = {
           </div>` : ''}
         </div>`).join('')}
         <div class="std-switch-row" style="margin-top:8px" role="switch" tabindex="0" aria-checked="${proofs.every(p => p === 'photo') ? 'true' : 'false'}" aria-label="Photo proof on every meal" data-knob="photo:toggle">
-          <div class="std-sw-m"><div class="std-sw-t">Photo proof on every meal</div><div class="std-sw-s">Sets all meals at once — tweak any one above. Off = tap-to-check.</div></div>
+          <div class="std-sw-m"><div class="std-sw-t">Photo proof on every meal</div><div class="std-sw-s">Sets all meals at once. Tweak any one above. Off = tap-to-check.</div></div>
           ${sw(proofs.every(p => p === 'photo'))}
         </div>
         ${hasRestPattern ? '' : `<div class="std-help" style="margin-top:6px">${icon('info', 12)} Want meals that only apply on training or rest days? <span class="link" data-go="week-pattern">Set your training week</span> first.</div>`}
@@ -1104,7 +1124,7 @@ export const coachPlanSet = {
       </section>
 
       <section class="std-mod">
-        ${modHead('moon', 'std-ic-p', 'Recovery', 'Part of the standard — every athlete closes the day')}
+        ${modHead('moon', 'std-ic-p', 'Recovery', 'Part of the standard. Every athlete closes the day')}
         <div class="std-help">The nightly check-in is ${liveWeightPct('checkin') + liveWeightPct('recovery')}% of the score. You set what it asks; you don't set whether it counts.</div>
         ${swRow('Coach review on meals', 'Flag each logged meal for your review', 'review', KNOB.coachReview)}
       </section>
@@ -1198,7 +1218,7 @@ export const coachPlanSet = {
       })()}
 
       <section class="std-mod">
-        ${modHead('arrowRight', 'std-ic-b', 'Effective from', 'Applies going forward — today never changes')}
+        ${modHead('arrowRight', 'std-ic-b', 'Effective from', 'Applies going forward. Today never changes')}
         <div class="std-seg" id="set-effective">
           <button class="${existing ? '' : 'on'}" data-eff="today">Today</button>
           <button class="${existing ? 'on' : ''}" data-eff="tomorrow">Tomorrow</button>
@@ -1335,7 +1355,7 @@ export const coachPlanSet = {
       const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
       const name = ((root.querySelector('#tpl-name') || {}).value || '').trim();
       if (!name) { say('Name the template first.', true); return; }
-      if (!teamId) { say('Your team hasn’t loaded yet — give it a second.', true); return; }
+      if (!teamId) { say('Your team hasn’t loaded yet. Give it a second.', true); return; }
       tplSaveBtn.disabled = true; say('Saving template…');
       const r = await roles.saveRequirementTemplate(teamId, name, 'custom', itemsFromKnobs(KNOB));
       tplSaveBtn.disabled = false;
@@ -1355,12 +1375,12 @@ export const coachPlanSet = {
     const save = root.querySelector('#set-save');
     if (save) save.addEventListener('click', async () => {
       const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
-      if (!teamId) { say('Your team hasn’t loaded yet — give it a second.', true); return; }
+      if (!teamId) { say('Your team hasn’t loaded yet. Give it a second.', true); return; }
       const { wins } = resolveMeals(KNOB);
       for (let i = 0; i < wins.length; i++) {
         const w = wins[i];
-        if (w.due == null) { say(`Meal ${i + 1}'s window closes before it opens — fix the times.`, true); return; }
-        if (w.open != null && !(w.open < w.due)) { say(`Meal ${i + 1}'s window closes before it opens — fix the times.`, true); return; }
+        if (w.due == null) { say(`Meal ${i + 1}'s window closes before it opens. Fix the times.`, true); return; }
+        if (w.open != null && !(w.open < w.due)) { say(`Meal ${i + 1}'s window closes before it opens. Fix the times.`, true); return; }
       }
       // Prospective effective date (0085): a version dated tomorrow leaves today's scoring
       // untouched; "Today" applies it now. Never null from the editor — null is the creation seed.
@@ -1377,13 +1397,13 @@ export const coachPlanSet = {
       save.disabled = true; say('Saving…');
       const r = await roles.setTeamRequirements(teamId, kind, value, itemsFromKnobs(KNOB), effDate, CD.kind);
       save.disabled = false;
-      if (!r.ok) { say(r.error || 'Could not save — try again.', true); return; }
+      if (!r.ok) { say(r.error || 'Could not save. Try again.', true); return; }
       // Read BEFORE marking: was this save the one that completes the setup checklist?
       const wasSetupOpen = !((RT.coachSetup || {}).standard);
       act.markCoachSetup('standard'); // real "reviewed your standard" signal for the setup checklist
       say(effDate === isoOffset(0) ? 'Saved. This is the standard now.'
-        : effDate === isoOffset(1) ? 'Saved. It takes effect tomorrow — today is unchanged.'
-        : `Saved. It takes effect ${effDate} — earlier days are unchanged.`);
+        : effDate === isoOffset(1) ? 'Saved. It takes effect tomorrow. Today is unchanged.'
+        : `Saved. It takes effect ${effDate}. Earlier days are unchanged.`);
       await loadSets(true);
       // First-time setup save (founder, 2026-08-06): finishing the standard used to leave the
       // coach parked on the editor with only a status line — done should feel done. Back to the
@@ -1398,7 +1418,7 @@ export const coachPlanSet = {
       clear.disabled = true; say('Resetting…');
       const r = await roles.clearTeamRequirements(teamId, kind, value, CD.kind);
       clear.disabled = false;
-      if (!r.ok) { say(r.error || 'Could not reset — try again.', true); return; }
+      if (!r.ok) { say(r.error || 'Could not reset. Try again.', true); return; }
       KNOB = null;
       await loadSets(true);
       location.hash = '#coach-plan';
@@ -1551,11 +1571,16 @@ function inboxOut() {
    teamId/athleteId the approve/decline buttons need, so those render straight off the raw
    pending list instead, verbatim from the pre-Slice-D markup. */
 function inboxRow(r) {
+  // Right-aligned relative stamp per row (fmtWhen, the bell feed's own clock) so a coach can
+  // tell an hour-old thread from last Tuesday's without opening either.
+  const when = r.ts ? fmtWhen(new Date(r.ts).toISOString(), Date.now()) : '';
+  const stamp = when ? `<span style="flex:none;font-size:var(--t-xs);font-weight:600;color:var(--text-3)">${esc(when)}</span>` : '';
   if (r.kind === 'meal') {
     return `
     <div class="lrow" data-go="coach-meal/${esc(r.id)}">
       <div class="lic">${icon('utensils', 17)}</div>
       <div class="lm"><div class="lt">${esc(r.title)}</div><div class="ls">${esc(r.sub || '')}</div></div>
+      ${stamp}
       ${icon('chevron', 17, 'style="color:var(--text-3)"')}
     </div>`;
   }
@@ -1564,6 +1589,7 @@ function inboxRow(r) {
     <div class="lrow" data-go="coach-announce" style="cursor:pointer">
       <div class="lic">${icon('share', 17)}</div>
       <div class="lm"><div class="lt">${esc(r.title)}</div><div class="ls">${esc(r.sub || '')}</div></div>
+      ${stamp}
     </div>`;
   }
   if (r.kind === 'staff') {
@@ -1574,6 +1600,7 @@ function inboxRow(r) {
     <div class="lrow"${clickable ? ` data-go="${esc(r.go)}" style="cursor:pointer"` : ' style="cursor:default"'}>
       <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 17)}</div>
       <div class="lm"><div class="lt">${esc(r.title)}</div><div class="ls">${esc(r.sub || '')}</div></div>
+      ${stamp}
       ${clickable ? icon('chevron', 17, 'style="color:var(--text-3)"') : ''}
     </div>`;
   }
@@ -1582,6 +1609,7 @@ function inboxRow(r) {
     <div class="lrow" style="cursor:default">
       <div class="lic" style="background:var(--amber-surface);color:var(--amber-bright)">${icon('bell', 17)}</div>
       <div class="lm"><div class="lt">${esc(r.title)}</div><div class="ls">${esc(r.sub || '')}</div></div>
+      ${stamp}
     </div>`;
   }
   // resolved meals land here too (kind 'meal') via the branch above; anything unrecognized
@@ -1590,6 +1618,7 @@ function inboxRow(r) {
     <div class="lrow" style="cursor:default">
       <div class="lic">${icon('checkCircle', 17)}</div>
       <div class="lm"><div class="lt">${esc(r.title)}</div><div class="ls">${esc(r.sub || '')}</div></div>
+      ${stamp}
     </div>`;
 }
 /* Identity on one line, the two decisions on the next.
@@ -1599,29 +1628,38 @@ function inboxRow(r) {
    for one join request, with the person's name the least legible thing in it. Stacking removes
    the competition entirely: the name gets the full width, and Decline / Approve split the row
    beneath it at a real 38px tap target instead of a squeezed 32. */
+/* The join row armed for decline (two-tap, mirroring the roster's data-gdel pattern):
+   'teamId:athleteId', or null. Declining removes a real request, so it gets a confirm. */
+let JR_DECLINE = null;
 function joinRow(q) {
+  const key = `${q.teamId}:${q.athlete_id}`;
+  const armed = JR_DECLINE === key;
   return `
     <div class="jr">
       <div class="jr-top">
         <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 17)}</div>
         <div class="jr-who">
-          <div class="t">${esc(q.athlete_name || 'Athlete')}${q.position ? ` <small style="color:var(--text-3);font-weight:700">· ${esc(q.position)}</small>` : ''}</div>
-          <div class="s">Wants to join</div>
+          <div class="t">${armed ? `Decline ${esc(q.athlete_name || 'this athlete')}?` : `${esc(q.athlete_name || 'Athlete')}${q.position ? ` <small style="color:var(--text-3);font-weight:700">· ${esc(q.position)}</small>` : ''}`}</div>
+          <div class="s">${armed ? 'They can request again with your code.' : 'Wants to join'}</div>
         </div>
       </div>
       <div class="jr-acts">
-        <button class="btn ghost sm" data-jr="decline" data-team="${esc(q.teamId)}" data-ath="${esc(q.athlete_id)}">Decline</button>
-        <button class="btn green sm" data-jr="approve" data-team="${esc(q.teamId)}" data-ath="${esc(q.athlete_id)}">Approve</button>
+        ${armed ? `
+        <button class="btn ghost sm" data-jr-keep="${esc(key)}">Keep</button>
+        <button class="btn sm" data-jr="decline" data-team="${esc(q.teamId)}" data-ath="${esc(q.athlete_id)}" style="background:var(--danger-solid);color:#fff;border:none">Decline</button>` : `
+        <button class="btn ghost sm" data-jr-arm="${esc(key)}">Decline</button>
+        <button class="btn green sm" data-jr="approve" data-team="${esc(q.teamId)}" data-ath="${esc(q.athlete_id)}">Approve</button>`}
       </div>
+      <div class="jr-err" style="font-size:var(--t-xs);font-weight:600;color:var(--red);min-height:0"></div>
     </div>`;
 }
 const INBOX_EMPTY = {
   needsResponse: 'No threads need you right now.',
   flagged: 'Nothing flagged. Flame a meal from its thread and it waits for you here.',
-  athletes: 'No athlete meal threads yet — logs land here as they come in.',
-  mealReviews: "Nothing unopened — you've seen every log so far.",
+  athletes: 'No athlete meal threads yet. Logs land here as they come in.',
+  mealReviews: "Nothing unopened. You've seen every log so far.",
   staff: 'No other staff on your team yet.',
-  announcements: 'No announcements yet — send your first from here.',
+  announcements: 'No announcements yet. Send your first from here.',
   resolved: 'Nothing marked resolved yet.',
 };
 /* Audit G-1: the categories whose empty state is a real next action, not just a status line —
@@ -1649,7 +1687,7 @@ export const coachInbox = {
 
     let briefing = '';
     if (rows === null) briefing = 'Reading your roster…';
-    else if (CD.roster && CD.roster.offline) briefing = "Can't reach your roster — reopen to retry. Nothing is invented while it's down.";
+    else if (CD.roster && CD.roster.offline) briefing = "Can't reach your roster. Reopen to retry. Nothing is invented while it's down.";
     else if (!rows.length) briefing = CD.kind === 'practice'
       ? 'No clients yet. Share your client code from your Practice HQ and this becomes your morning read.'
       : 'No athletes yet. Share your team code and this becomes your morning read.';
@@ -1658,10 +1696,10 @@ export const coachInbox = {
       const below = rows.filter(r => r.score != null && r.score < ON_STANDARD);
       const top = rows.filter(r => r.score != null && r.score >= ON_STANDARD).sort((a, b) => b.score - a.score)[0];
       const lines = [];
-      if (notLogged.length) lines.push(`<div style="display:flex;gap:8px;align-items:flex-start"><span style="width:7px;height:7px;border-radius:50%;background:var(--red);flex:none;margin-top:5px"></span><span><b>${notLogged.length} not logged yet</b> — ${esc(notLogged.slice(0, 3).map(r => r.name.split(' ')[0]).join(', '))}${notLogged.length > 3 ? '…' : ''}.</span></div>`);
+      if (notLogged.length) lines.push(`<div style="display:flex;gap:8px;align-items:flex-start"><span style="width:7px;height:7px;border-radius:50%;background:var(--red);flex:none;margin-top:5px"></span><span><b>${notLogged.length} not logged yet</b>. ${esc(notLogged.slice(0, 3).map(r => r.name.split(' ')[0]).join(', '))}${notLogged.length > 3 ? '…' : ''}.</span></div>`);
       if (below.length) lines.push(`<div style="display:flex;gap:8px;align-items:flex-start"><span style="width:7px;height:7px;border-radius:50%;background:var(--amber-bright);flex:none;margin-top:5px"></span><span><b>${below.length} below the bar</b> today (under 80).</span></div>`);
       if (top) lines.push(`<div style="display:flex;gap:8px;align-items:flex-start"><span style="width:7px;height:7px;border-radius:50%;background:var(--green-bright);flex:none;margin-top:5px"></span><span><b>${esc(top.name)}</b> leads the day at ${top.score}.</span></div>`);
-      briefing = lines.join('<div style="height:7px"></div>') || 'Quiet so far — logs land here as they come in.';
+      briefing = lines.join('<div style="height:7px"></div>') || 'Quiet so far. Logs land here as they come in.';
     }
 
     // The briefing wears the book's hue: purple was reading as "recovery" on a nutrition book
@@ -1736,7 +1774,7 @@ export const coachInbox = {
       if (inboxFailed) return `<div style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin:0 2px;line-height:1.5">This list couldn't be loaded, so it isn't empty as far as we know.</div>`;
       const practice = CD.kind === 'practice';
       const emptyCopy = INBOX_CAT === 'athletes' && practice
-        ? 'No client meal threads yet — logs land here as they come in.' : INBOX_EMPTY[INBOX_CAT];
+        ? 'No client meal threads yet. Logs land here as they come in.' : INBOX_EMPTY[INBOX_CAT];
       const a = INBOX_EMPTY_ACTION[INBOX_CAT];
       // The athletes action used to route every book to the coach's code screen; on a practice
       // that was a guaranteed notpermitted bounce (the exact dead end the comment at
@@ -1761,13 +1799,34 @@ export const coachInbox = {
         loadInboxData(bookId, athleteIds);
       }
     });
+    // Decline is two-tap (data-jr-arm arms, the armed row's Decline executes), and BOTH verbs
+    // now check their result: the helpers return an honest boolean, and the old fire-and-forget
+    // meant a dropped request looked identical to a processed one.
+    root.querySelectorAll('[data-jr-arm]').forEach(b => b.addEventListener('click', () => {
+      JR_DECLINE = b.getAttribute('data-jr-arm');
+      window.__restate ? window.__restate() : window.__render();
+    }));
+    root.querySelectorAll('[data-jr-keep]').forEach(b => b.addEventListener('click', () => {
+      JR_DECLINE = null;
+      window.__restate ? window.__restate() : window.__render();
+    }));
     root.querySelectorAll('[data-jr]').forEach(b => b.addEventListener('click', async () => {
       const bookId = b.getAttribute('data-team'), ath = b.getAttribute('data-ath');
       const approve = b.getAttribute('data-jr') === 'approve';
       const practice = CD.kind === 'practice';
+      const label = b.textContent;
       b.disabled = true; b.textContent = '…';
-      if (approve) await (practice ? roles.approveClient(bookId, ath) : roles.approveMember(bookId, ath));
-      else await (practice ? roles.declineClient(bookId, ath) : roles.declineMember(bookId, ath));
+      const ok = approve
+        ? await (practice ? roles.approveClient(bookId, ath) : roles.approveMember(bookId, ath))
+        : await (practice ? roles.declineClient(bookId, ath) : roles.declineMember(bookId, ath));
+      if (!ok) {
+        b.disabled = false; b.textContent = label;
+        const wrap = b.closest('.jr');
+        const err = wrap && wrap.querySelector('.jr-err');
+        if (err) err.textContent = "Couldn't save that. Try again.";
+        return;
+      }
+      JR_DECLINE = null;
       await loadBook(true, bookKindFor(RT.authRole));
     }));
     root.querySelectorAll('[data-icat]').forEach(el => el.addEventListener('click', () => {
@@ -1801,14 +1860,14 @@ export const copilot = {
     // when the roster fetch failed, CD.roster.rows is [] with offline=true, which would otherwise
     // fall through to the empty-roster summary. Mirror the Coach/Trainer tabs' honest offline card.
     if (CD.roster && CD.roster.offline) {
-      return `${backHead('Copilot', 'Real numbers from your roster, never guesses', 'coach-home')}${errorState({ title: "Can't reach your roster", body: "Copilot reads only real team data — no numbers are invented while it's down. Reconnect and its reads fill in right here.", retryId: 'copilot-retry' })}`;
+      return `${backHead('Copilot', 'Real numbers from your roster, never guesses', 'coach-home')}${errorState({ title: "Can't reach your roster", body: "Copilot reads only real team data. No numbers are invented while it's down. Reconnect and its reads fill in right here.", retryId: 'copilot-retry' })}`;
     }
     if (rows === null) {
       return `${backHead('Copilot', 'Real numbers from your roster, never guesses', 'coach-home')}${skeletonRows(3, 'Loading the roster')}`;
     }
     if (rows.length === 0) {
       // Audit G-1: an actionable empty, not the dead-pointer "Share your team code to get started".
-      return `${backHead('Copilot', 'Real numbers from your roster, never guesses', 'coach-home')}${emptyState({ icon: 'users', title: 'No athletes yet', body: 'Copilot reads your real roster — share your athlete code and its reads fill in as your team logs.', action: { label: 'Share athlete code', go: 'coach-profile/code' } })}`;
+      return `${backHead('Copilot', 'Real numbers from your roster, never guesses', 'coach-home')}${emptyState({ icon: 'users', title: 'No athletes yet', body: 'Copilot reads your real roster. Share your athlete code and its reads fill in as your team logs.', action: { label: 'Share athlete code', go: 'coach-profile/code' } })}`;
     }
     const attention = rows.filter(r => r.flag === 'r');
     const belowBar = rows.filter(r => r.score != null && r.score < ON_STANDARD);
@@ -2056,7 +2115,7 @@ function todayBlock(P, athleteId) {
   const requiredIn = Math.max(0, denom - openSlots.length);
   return `
     ${!day ? `<div class="sidebox" style="margin-top:14px"><div class="req-icon a" style="width:38px;height:38px">${icon('clock', 17)}</div>
-    <div><div class="tt">No logs today yet</div><div class="ts">Nothing to review — they haven't logged. Their day appears here as they log it.</div></div></div>`
+    <div><div class="tt">No logs today yet</div><div class="ts">Nothing to review. They haven't logged. Their day appears here as they log it.</div></div></div>`
     : `
     <div class="eyebrow">Today's proof${todayMeals.length ? '' : ' · none yet'}</div>
     ${todayMeals.length ? `<div class="hscroll">
@@ -2167,7 +2226,7 @@ function mealDateLabel(m) {
   const d = m.logged_at ? new Date(m.logged_at) : (m.day_date ? new Date(`${m.day_date}T00:00:00`) : null);
   if (!d || isNaN(d)) return '';
   const rel = relTime(m.logged_at || m.day_date);
-  return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}${rel ? ` · ${rel}` : ''}`;
+  return `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}${rel ? ` · ${rel}` : ''}`;
 }
 
 /* ---------- Conversation pane (Task 6): a DIRECTORY into existing meal threads — deliberately
@@ -2184,7 +2243,7 @@ function conversationSection(P) {
   <div style="height:10px"></div>`;
   return `
   <div class="eyebrow">Meal threads</div>
-  <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 8px">Tap any meal to open its full thread — the AI's read, your comments, and theirs.</div>
+  <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 8px">Tap any meal to open its full thread. The AI's read, your comments, and theirs.</div>
   <section class="card" style="padding:2px 16px">
   ${meals.slice(0, 30).map(m => `
     <div class="lrow" data-go="coach-meal/${esc(m.id)}">
@@ -2289,7 +2348,7 @@ function foodMemSection(P, athleteId) {
   const placeName = (pid) => { const p = FMEM.places.find((x) => x.id === pid); return p ? p.name : null; };
   return `
   <div class="co-eyebrow">Their usual meals <span class="n">${items.length}</span></div>
-  <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.5;margin:2px 2px 10px">Verify a meal you know is right — it gets a trusted badge on their Plan and future AI reads lean on it.</div>
+  <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.5;margin:2px 2px 10px">Verify a meal you know is right. It gets a trusted badge on their Plan and future AI reads lean on it.</div>
   <section class="card" style="padding:4px 16px">
     ${items.map((it) => {
       const pl = it.place_id ? placeName(it.place_id) : null;
@@ -2311,7 +2370,7 @@ function notesSection(P) {
   const notes = P.notes || [];
   const notesFailed = !!(P.failedSections && P.failedSections.notes);
   return `
-  <div class="co-notebanner"><span class="ic">${icon('lock', 16)}</span><span>Private to your staff — <b>the athlete never sees these.</b></span></div>
+  <div class="co-notebanner"><span class="ic">${icon('lock', 16)}</span><span>Private to your staff. <b>the athlete never sees these.</b></span></div>
 
   <div class="co-eyebrow">Notes${notes.length ? ` <span class="n">${notes.length}</span>` : ' · none yet'}</div>
   ${notes.length ? `
@@ -2331,7 +2390,7 @@ function notesSection(P) {
     </div>`).join('')}
   </section>` : notesFailed
     ? `<div class="co-note" style="color:var(--amber-bright)">Couldn't load their notes. Any notes already written are safe; reopen to retry.</div>`
-    : `<div class="co-note">No notes on this athlete yet — jot the first below.</div>`}
+    : `<div class="co-note">No notes on this athlete yet. Jot the first below.</div>`}
 
   <div class="co-eyebrow">Add a note</div>
   <section class="card" style="padding:var(--s3) var(--s4)">
@@ -2373,9 +2432,7 @@ export const coachAthlete = {
       || nudgedTodayFromInterventions(P.interventions, roles.todayISO());
     if (P.offline) {
       return `${head}
-      <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
-      <div class="sd-t">Can't reach their profile</div>
-      <div class="sd-s">Reopen this page to retry — nothing is invented while it's down.</div></div>`;
+      ${errorState({ title: "Can't reach their profile", body: "Nothing is invented while it's down. Their record is safe on the server.", retryId: 'coach-ath-retry' })}`;
     }
     // Dead/stale-link guard: once the roster is loaded, an id that isn't a member and has no data
     // is a bad link, not a real athlete with an empty day — say so instead of a blank review. Only
@@ -2386,7 +2443,7 @@ export const coachAthlete = {
       return `${head}
       <div class="state-demo"><div class="sd-ic">${icon('user', 24)}</div>
       <div class="sd-t">Athlete not found</div>
-      <div class="sd-s">This athlete isn't on your roster — the link may be old, or they left your team. Head back and pick someone from your roster.</div>
+      <div class="sd-s">This athlete isn't on your roster. The link may be old, or they left your team. Head back and pick someone from your roster.</div>
       <div class="sd-cta"><button class="btn ghost sm" data-go="coach-roster">Back to roster</button></div></div>
       <div style="height:10px"></div>`;
     }
@@ -2432,6 +2489,9 @@ export const coachAthlete = {
     const athleteId = sub;
     loadBook(false, bookKindFor(RT.authRole)); // ensure the name is available
     loadAthleteProfile(athleteId);
+    // Offline retry: a forced profile refetch. The loader repaints when it lands.
+    const athRetry = root.querySelector('#coach-ath-retry');
+    if (athRetry) athRetry.addEventListener('click', () => { athRetry.disabled = true; loadAthleteProfile(athleteId, true); });
     // Training logs (0135) for the Activity timeline — fetch once per athlete open (mount re-runs
     // on every render; the id guard stops a re-fetch loop and clears stale rows on athlete switch).
     if (TLOGS.id !== athleteId) {
@@ -2544,11 +2604,11 @@ export const coachAthlete = {
       if (cnErr) cnErr.textContent = '';
       if (!body) { if (cnErr) cnErr.textContent = 'Write something first.'; return; }
       const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
-      if (!teamId) { if (cnErr) cnErr.textContent = "Couldn't save — no team found."; return; }
+      if (!teamId) { if (cnErr) cnErr.textContent = "Couldn't save. No team found."; return; }
       cnSave.disabled = true;
       const r = await roles.postCoachNote(teamId, athleteId, body, CD.kind);
       cnSave.disabled = false;
-      if (!r.ok) { if (cnErr) cnErr.textContent = r.error || "Couldn't save — try again."; return; }
+      if (!r.ok) { if (cnErr) cnErr.textContent = r.error || "Couldn't save. Try again."; return; }
       cnInput.value = '';
       loadAthleteProfile(athleteId, true);
     });
@@ -2846,7 +2906,7 @@ export const coachMeal = {
           <div><div class="who">AI Nutritionist · what the ${CD.noun} was told</div>
           <div class="bubble">${esc(opening)}</div></div>
         </div>` : ''}
-        ${layoutThread(msgs, { fmtTime: msgClock, fmtDay: msgDay }).map((item) => {
+        ${layoutThread(msgs, { fmtTime: msgClock, fmtDay: msgDay, fmtDayLabel: dayLabelOf }).map((item) => {
           if (item.type === 'time') return `<div class="tsep">${esc(item.label)}</div>`;
           const c = item.comment;
           // "athlete" styling is reserved for the OTHER side of the conversation; on the coach's
@@ -2864,11 +2924,15 @@ export const coachMeal = {
           const bubbleRx = c === lastMsg ? rx : [];
           return `
           <div class="msg ${mine ? 'athlete' : c.role === 'ai' ? 'ai' : 'coach'}${item.firstOfRun ? '' : ' cont'}${bubbleRx.length ? ' has-rx' : ''}">
-            ${!mine && item.firstOfRun ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : esc(initialsFor(who))}</div>` : '<div class="av-sp"></div>'}
+            ${/* Real faces where they exist (meal.js's own pattern): the monogram stays as the
+                  fallback span, and hydrateAvatars upgrades it after paint. Never on 'ai'. */''}
+            ${!mine && item.firstOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? icon('sparkle', 15) : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
             <div class="stack">
               ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
               ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
-              <div class="bubble">${update ? '<span class="upd">Updated analysis</span>' : escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(c.text)}</div>
+              ${/* The "Updated analysis" badge is gone (founder ruling: robotic; the athlete
+                    thread already dropped it). The quote above still marks what changed. */''}
+              <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(c.text)}</div>
               ${bubbleRx.length ? `<span class="rxo">${bubbleRx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}
             </div>
           </div>`;
@@ -2878,7 +2942,7 @@ export const coachMeal = {
               messages at all (a coach who only ever reacted). Show them, rather than losing them
               with the strip they used to live in. */''}
         ${rx.length ? `<div class="rx-strip">${rx.map((r) => `<span class="rx">${esc(r.emoji)}<span class="n">${r.count}</span></span>`).join('')}</div>` : ''}
-        <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:2px 2px 8px">No comments yet — say something, or press and hold a message to react. The ${CD.noun} sees it on the log.</div>` : ''}
+        <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:2px 2px 8px">No comments yet. Say something, or press and hold a message to react. The ${CD.noun} sees it on the log.</div>` : ''}
       </div>`;
     })()}
     ${(() => {
@@ -2910,7 +2974,7 @@ export const coachMeal = {
             : `<button class="qa" id="cm-draft">${icon('sparkle', 13)} Let AI draft a reply</button>`}
       </div>
       ${(DRAFTS.mealId === sub && DRAFTS.error && !drafts.length && !drafting)
-        ? `<div class="tm-note">Couldn't draft right now — write your own or try again.</div>` : ''}
+        ? `<div class="tm-note">Couldn't draft right now. Write your own or try again.</div>` : ''}
       <div class="tm-row" style="align-items:center">
         <button class="btn ghost sm" id="cm-resolve">${RESOLVED_MEALS.has(mealId) ? `Resolved ${icon('check', 12)}` : 'Mark resolved'}</button>
         <span id="cm-resolve-note" class="tm-note"></span>
@@ -2925,7 +2989,7 @@ export const coachMeal = {
     </div>`;
     })()}
     ${composer({ inputId: 'cm-input', sendId: 'cm-send', placeholder: 'Comment on this meal…', sendLabel: 'Send comment', attachId: 'cm-attach', aiId: 'cm-ai', atEnd: true })}
-    <div style="font-size:11px;font-weight:600;color:var(--text-3);margin:5px 2px 0">${icon('sparkle', 11)} asks the AI Nutritionist — it always answers you, in the thread.</div>
+    <div style="font-size:11px;font-weight:600;color:var(--text-3);margin:5px 2px 0">${icon('sparkle', 11)} asks the AI Nutritionist. It always answers you, in the thread.</div>
     <div class="composer-attach-pending" id="cm-attach-pending" hidden></div>
     <div id="cm-note" style="font-size:12.5px;font-weight:600;color:var(--red-bright);margin:6px 2px 0;min-height:16px"></div>
 
@@ -2940,7 +3004,7 @@ export const coachMeal = {
         </section>
       </div>
       <div id="cm-note-box" hidden style="margin-top:8px">
-        ${composer({ inputId: 'cm-note-input', sendId: 'cm-note-send', placeholder: 'Private note — the athlete never sees this…', sendLabel: 'Save note', sendIcon: 'lock', sendStyle: 'background:linear-gradient(150deg, var(--purple), var(--purple-deep))' })}
+        ${composer({ inputId: 'cm-note-input', sendId: 'cm-note-send', placeholder: 'Private note. The athlete never sees this…', sendLabel: 'Save note', sendIcon: 'lock', sendStyle: 'background:linear-gradient(150deg, var(--purple), var(--purple-deep))' })}
       </div>`;
     })()}
     <div style="height:10px"></div>
@@ -3033,6 +3097,7 @@ export const coachMeal = {
     // Resolve any attachments already in the thread. mount() re-runs on every __render(), which is
     // exactly when a repaint has just wiped the resolved src attributes, so this belongs here.
     void hydrateThreadPhotos(root, roles);
+    hydrateAvatars(root);   // message monograms upgrade to real faces (0206), same as meal.js
     // Tap an attached photo to open it full-screen. Delegated because repaints replace the <img>.
     root.addEventListener('click', (ev) => {
       const im = ev.target && ev.target.closest ? ev.target.closest('img.bimg') : null;
@@ -3065,8 +3130,8 @@ export const coachMeal = {
         // old code cleared the input BEFORE the await — a failed send silently ate the comment.
         if (cmNote) {
           cmNote.textContent = res.error === 'upload'
-            ? "Couldn't upload that photo — try again, or remove it and send."
-            : "Couldn't send — try again.";
+            ? "Couldn't upload that photo. Try again, or remove it and send."
+            : "Couldn't send. Try again.";
         }
         return;
       }
@@ -3106,7 +3171,7 @@ export const coachMeal = {
       aiBtn.disabled = true;
       note('Asking the AI Nutritionist…', true);
       const res = await postChatMessage(roles, { mealId: sub, athleteId: athleteId0, authorId: RT.userId, role: 'coach', text });
-      if (!res.ok) { aiBtn.disabled = false; note("Couldn't send — try again."); return; }
+      if (!res.ok) { aiBtn.disabled = false; note("Couldn't send. Try again."); return; }
       if (input) input.value = '';
       let failMsg = '';
       try {
@@ -3115,7 +3180,7 @@ export const coachMeal = {
         });
         if (error || !data || !data.reply) throw new Error('no-reply');
       } catch {
-        failMsg = "The AI couldn't answer right now — your question was still posted to the thread.";
+        failMsg = "The AI couldn't answer right now. Your question was still posted to the thread.";
       }
       aiBtn.disabled = false;
       await loadMealComments(sub, true);
@@ -3135,12 +3200,12 @@ export const coachMeal = {
       const athleteId0 = meal0 ? meal0.athlete_id : (MC && MC.comments[0] && MC.comments[0].athlete_id);
       const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
       if (!athleteId0 || !teamId) {
-        if (resolveNote) resolveNote.textContent = "Couldn't resolve — try again.";
+        if (resolveNote) resolveNote.textContent = "Couldn't resolve. Try again.";
         return;
       }
       const ok = await logBookIntervention({ athleteId: athleteId0, kind: 'handled', reasonKey: 'meal:' + sub });
       if (!ok) {
-        if (resolveNote) resolveNote.textContent = "Couldn't resolve — try again.";
+        if (resolveNote) resolveNote.textContent = "Couldn't resolve. Try again.";
         return;
       }
       RESOLVED_MEALS.add(sub);
@@ -3155,12 +3220,12 @@ export const coachMeal = {
     if (flagBtn) flagBtn.addEventListener('click', async () => {
       const meal0 = mealById(sub);
       const athleteId0 = meal0 ? meal0.athlete_id : (MC && MC.comments[0] && MC.comments[0].athlete_id);
-      if (!athleteId0) { if (flagNote) flagNote.textContent = "Couldn't flag — try again."; return; }
+      if (!athleteId0) { if (flagNote) flagNote.textContent = "Couldn't flag. Try again."; return; }
       const wasOn = FLAGGED_MEALS.has(sub);
       flagBtn.disabled = true;
       const ok = await logBookIntervention({ athleteId: athleteId0, kind: wasOn ? 'handled' : 'flag', reasonKey: 'flag:meal:' + sub });
       flagBtn.disabled = false;
-      if (!ok) { if (flagNote) flagNote.textContent = "Couldn't save the flag — try again."; return; }
+      if (!ok) { if (flagNote) flagNote.textContent = "Couldn't save the flag. Try again."; return; }
       if (wasOn) FLAGGED_MEALS.delete(sub); else FLAGGED_MEALS.add(sub);
       window.__render();
     });
@@ -3265,7 +3330,7 @@ export const coachMeal = {
           : await roles.postMealComment(sub, athleteId, RT.userId, 'coach', emoji, 'reaction').catch(() => false);
         if (!ok) {
           // Never throws, returns false. Quiet note, no push, no reload — holding again IS the retry.
-          if (rxNote) rxNote.textContent = "Couldn't send — try again.";
+          if (rxNote) rxNote.textContent = "Couldn't send. Try again.";
           rxBusy = false;
           return;
         }
@@ -3407,7 +3472,7 @@ export const parent = {
       <div class="state-demo">
         <div class="sd-ic">${icon('users', 24)}</div>
         <div class="sd-t">No athletes linked yet</div>
-        <div class="sd-s">When your athlete sends you an invite and you accept it, their daily score and grade show up here — never their photos, weight, or check-in answers.</div>
+        <div class="sd-s">When your athlete sends you an invite and you accept it, their daily score and grade show up here. Never their photos, weight, or check-in answers.</div>
       </div>`;
       return;
     }
@@ -3466,7 +3531,7 @@ export const inviteParent = {
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
       <div><div class="tt">What they'll see</div>
-      <div class="ts">Your daily score, streak, and completion — never your meal photos, weight, or check-in answers.</div></div>
+      <div class="ts">Your daily score, streak, and completion. Never your meal photos, weight, or check-in answers.</div></div>
     </div>
     <div style="height:16px"></div>
     <div id="inv-out"></div>
@@ -3544,7 +3609,7 @@ export const parentLink = {
       btn.disabled = true; btn.textContent = 'Linking…';
       const r = await act.acceptGuardianInvite(token, 'parent');
       if (r.ok) { window.__go('parent'); }
-      else { err.textContent = r.error || 'Could not link — check the code.'; btn.disabled = false; btn.textContent = 'Link athlete'; }
+      else { err.textContent = r.error || 'Could not link. Check the code.'; btn.disabled = false; btn.textContent = 'Link athlete'; }
     };
     btn.addEventListener('click', submit);
     code.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });

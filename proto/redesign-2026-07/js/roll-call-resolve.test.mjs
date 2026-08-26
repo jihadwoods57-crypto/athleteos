@@ -95,14 +95,14 @@ test('resolveState reports the three states render() distinguishes', () => {
 test('an unresolved instance renders "Loading…" first, then a terminal not-available screen', () => {
   // Fresh id, nothing asked yet: honest loading state.
   const loading = screen.render({ sub: 'rc-unknown-a' });
-  assert.match(loading, /Loading your commitment/);
+  assert.match(loading, /Loading your check-in/);
 
   // Now the module's own state cell goes through a real lookup that finds nothing.
   shouldResolve('rc-unknown-a');
   resolveDone('rc-unknown-a');
 
   const gone = screen.render({ sub: 'rc-unknown-a' });
-  assert.doesNotMatch(gone, /Loading your commitment/, 'never sit on Loading… after a settled lookup');
+  assert.doesNotMatch(gone, /Loading your check-in/, 'never sit on Loading… after a settled lookup');
   assert.match(gone, /isn’t available/);
   assert.match(gone, /Nothing is counted against you/, 'a missing record is not a miss');
   assert.match(gone, /data-go="home"/, 'the athlete must have a way out');

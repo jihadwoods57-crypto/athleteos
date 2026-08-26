@@ -22,6 +22,14 @@ import { answerAsk, askSuggestions } from '../plan-ask.js';
 let THREAD = [];
 let AREA = 'overview';
 let SEED = null;
+// Leaving the route clears the transcript (the same hashchange pattern redeem-code.js uses):
+// module state survives repaints on purpose, but a return visit hours later should start fresh,
+// not greet the athlete with a stale conversation about a different question.
+if (typeof window !== 'undefined') {
+  window.addEventListener('hashchange', () => {
+    if ((location.hash || '').slice(1).split('/')[0] !== 'plan-ask') { THREAD = []; SEED = null; }
+  });
+}
 
 /** Plan taps a suggestion chip → the question rides here, and mount asks it. */
 export function seedAsk(q) { SEED = String(q || '').trim() || null; }
@@ -114,7 +122,7 @@ function planAskContext() {
 
 function answerHtml(a) {
   const chips = (a.chips || []).map((ch) =>
-    `<button class="btn ghost sm" data-go="${esc(ch.go)}" style="width:auto;padding:0 14px;height:34px">${esc(ch.label)}</button>`).join('');
+    `<button class="btn ghost sm" data-go="${esc(ch.go)}" style="width:auto;padding:0 14px;height:44px">${esc(ch.label)}</button>`).join('');
   return `<div class="pa-ans">
     <div class="pa-h">${esc(a.title)}</div>
     ${(a.lines || []).map((l) => `<div class="pa-l${l.startsWith('•') ? ' bullet' : ''}">${esc(l)}</div>`).join('')}

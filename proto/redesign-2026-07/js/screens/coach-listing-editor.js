@@ -14,7 +14,7 @@ const TIERS = [
 ];
 
 let G = { listing: null, flags: null, prices: {}, loaded: false, failed: false };
-let UI = { saving: false, msg: '', err: '' };
+let UI = { saving: false, msg: '', err: '', armUnpub: false };
 
 async function load(force) {
   if (G.loaded && !force) return;
@@ -78,7 +78,7 @@ export default {
       <div class="sd-t">Your listing is suspended</div>
       <div class="sd-s">You're hidden from the directory and can't take new clients while the OnStandard team reviews. Existing clients are unaffected. Check your email, or contact support.</div></section>`;
     }
-    return `${backHead('Your listing', l.published ? 'Live in the directory' : 'Draft — publish when ready', 'profile')}
+    return `${backHead('Your listing', l.published ? 'Live in the directory' : 'Draft. Publish when ready', 'profile')}
 
     <section class="card" style="padding:16px">
       <div class="lrow" style="cursor:default;padding:0 0 10px">
@@ -95,7 +95,7 @@ export default {
       ${field('cle-cap', 'Client capacity', l.capacity || 10, '', false, true)}
     </section>
 
-    <div class="eyebrow">Your plans — monthly pricing</div>
+    <div class="eyebrow">Your plans. Monthly pricing</div>
     <section class="card" style="padding:16px">
       ${TIERS.map((t) => {
         const b = bounds(t.key);
@@ -112,16 +112,22 @@ export default {
           <span class="ls">/ month</span>
         </div>
       </div>`; }).join('')}
-      <div class="ls" style="margin-top:6px">Set all three so clients can choose. Price changes apply to new clients only — existing subscriptions keep their price.</div>
+      <div class="ls" style="margin-top:6px">Set all three so clients can choose. Price changes apply to new clients only. Existing subscriptions keep their price.</div>
     </section>
 
     <div style="padding:0 16px 14px">
       ${UI.err ? `<div style="color:var(--red);font-size:12.5px;font-weight:600;padding-bottom:8px">${esc(UI.err)}</div>` : ''}
       ${UI.msg ? `<div style="color:var(--green-bright);font-size:12.5px;font-weight:600;padding-bottom:8px">${esc(UI.msg)}</div>` : ''}
+      ${l.published && UI.armUnpub ? `
+      <div class="ls" style="padding-bottom:8px">You'll be hidden from the directory. Existing clients are unaffected.</div>
       <div style="display:flex;gap:10px">
-        <button class="btn ghost sm" data-cle-save style="width:auto;padding:0 18px">${UI.saving ? 'Saving…' : 'Save'}</button>
-        <button class="btn ${l.published ? 'ghost' : 'green'} sm" data-cle-pub style="width:auto;padding:0 18px">${l.published ? 'Unpublish' : 'Save & publish'}</button>
-      </div>
+        <button class="btn ghost sm" data-cle-keep style="width:auto;padding:0 18px">Keep live</button>
+        <button class="btn sm" data-cle-pub ${UI.saving ? 'disabled' : ''} style="width:auto;padding:0 18px">Unpublish now</button>
+      </div>` : `
+      <div style="display:flex;gap:10px">
+        <button class="btn ghost sm" data-cle-save ${UI.saving ? 'disabled' : ''} style="width:auto;padding:0 18px">${UI.saving ? 'Saving…' : 'Save'}</button>
+        <button class="btn ${l.published ? 'ghost' : 'green'} sm" data-cle-pub ${UI.saving ? 'disabled' : ''} style="width:auto;padding:0 18px">${l.published ? 'Unpublish' : 'Save & publish'}</button>
+      </div>`}
     </div>`;
   },
   mount(root) {
@@ -169,12 +175,21 @@ export default {
       UI.saving = false;
       if (r1 && r1.error) UI.err = r1.error;
       else if (r2 && r2.error) UI.err = r2.error;
-      else { UI.msg = publish === true ? 'Published — you’re in the directory' : publish === false ? 'Unpublished' : 'Saved'; await load(true); }
+      else { UI.msg = publish === true ? 'Published. You’re in the directory' : publish === false ? 'Unpublished' : 'Saved'; await load(true); }
       if (window.__render) window.__render();
     };
     const saveBtn = root.querySelector('[data-cle-save]');
     if (saveBtn) saveBtn.addEventListener('click', () => save(null));
+    // Unpublish is two-tap: taking a live business out of the directory should never ride on
+    // one mis-tap. Publishing stays one tap; the armed row's button executes the unpublish.
     const pubBtn = root.querySelector('[data-cle-pub]');
-    if (pubBtn) pubBtn.addEventListener('click', () => save(!(G.listing && G.listing.published)));
+    if (pubBtn) pubBtn.addEventListener('click', () => {
+      const published = !!(G.listing && G.listing.published);
+      if (published && !UI.armUnpub) { UI.armUnpub = true; if (window.__render) window.__render(); return; }
+      UI.armUnpub = false;
+      save(!published);
+    });
+    const keepBtn = root.querySelector('[data-cle-keep]');
+    if (keepBtn) keepBtn.addEventListener('click', () => { UI.armUnpub = false; if (window.__render) window.__render(); });
   },
 };

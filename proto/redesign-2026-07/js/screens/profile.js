@@ -92,7 +92,9 @@ export default {
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
       <div class="lrow" data-go="streak">
-        <div class="lic" style="color:var(--amber-bright)">${icon('flame', 18)}</div>
+        ${/* Default .lic treatment: amber is the warning hue, and a healthy streak is not a
+              warning. The flame reads fine in the neutral icon well. */''}
+        <div class="lic">${icon('flame', 18)}</div>
         <div class="lm"><div class="lt">Streak</div><div class="ls">Days on standard · 1 grace per rolling week</div></div>
         <span class="lv">${S.streakDays}d</span>${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
@@ -180,7 +182,9 @@ export default {
 
     <div class="eyebrow">Account</div>
     <section class="card" style="padding:6px 16px">
-      <div class="lrow" data-go="welcome"><div class="lic">${icon('back', 17)}</div><div class="lm"><div class="lt">Sign out</div></div></div>
+      ${/* Two-tap confirm, wired in mount(): a single unguarded tap signed the athlete out, and
+            on a shared phone that is one brush of a thumb. Disarms after ~5 seconds. */''}
+      <div class="lrow" id="pf-signout" role="button" tabindex="0"><div class="lic">${icon('back', 17)}</div><div class="lm"><div class="lt">Sign out</div><div class="ls" id="pf-signout-sub" style="display:none">You'll need your password to get back in.</div></div></div>
       <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('trash', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Delete account</div></div>${icon('chevron', 17)}</div>
     </section>
 
@@ -227,6 +231,27 @@ export default {
       else if (r.state === 'when_in_use') paint('a', 'App open only');
       else if (r.state === 'denied') paint('a', 'Blocked');
     })();
+
+    // Sign out arms on the first tap and executes on a second tap within 5 seconds; leaving it
+    // alone (or tapping elsewhere and coming back) disarms. Keyboard activation comes from the
+    // router's central promotion: no local keydown handler, it would double-fire.
+    const signout = root.querySelector('#pf-signout');
+    if (signout) {
+      const lt = signout.querySelector('.lt');
+      const sub = signout.querySelector('#pf-signout-sub');
+      let armTimer = null;
+      const disarm = () => {
+        if (armTimer) { clearTimeout(armTimer); armTimer = null; }
+        if (lt) lt.textContent = 'Sign out';
+        if (sub) sub.style.display = 'none';
+      };
+      signout.addEventListener('click', () => {
+        if (armTimer) { disarm(); window.__go('welcome'); return; }
+        if (lt) lt.textContent = 'Tap again to sign out';
+        if (sub) sub.style.display = '';
+        armTimer = setTimeout(disarm, 5000);
+      });
+    }
 
     const btn = root.querySelector('#avatar-btn');
     const file = root.querySelector('#avatar-file');
@@ -335,7 +360,7 @@ export const editProfile = {
     const sport = a.sport && SPORT_POSITIONS[a.sport] ? a.sport : a.sport;
     const positions = SPORT_POSITIONS[sport] || null;
     return `
-    ${backHead('Edit Profile', 'Only what your coach and score need', 'profile')}
+    ${backHead('Edit profile', 'Only what your coach and score need', 'profile')}
 
     <div class="eyebrow">Name</div>
     <div style="display:flex;gap:10px">
@@ -465,7 +490,7 @@ export const editProfile = {
       if (dob) dobOk = await window.__act.saveAthleteProfile({ dob });
       if (ok === false || dobOk === false) { err.textContent = 'Saved on this phone, couldn’t reach the server. It’ll sync when you’re back online.'; btn.disabled = false; btn.textContent = was; return; }
       editProfile._dirty = false;
-      btn.textContent = 'Saved ✓';
+      btn.textContent = 'Saved';
       setTimeout(() => window.__back('profile'), 350);
     });
 

@@ -21,13 +21,13 @@
 import { RT, act, computeScore } from '../state.js';
 import { icon } from '../icons.js';
 import { esc } from '../components.js';
-import { dobFromParts, ageOn, showConfirmPending } from '../ob-helpers.js';
+import { dobFromParts, ageOn, normalizePressure, showConfirmPending } from '../ob-helpers.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
 import { accountBody, wireAccount } from './ob-account.js';
 import { track, EVENTS } from '../analytics.js';
 import {
   defineFlow, saveProgressStep, choiceGrid, chipRow, scale10, meter, mirrorCard, simChip, countStat,
-  phoneCard, testimonial, planCard, paywallVariant, PLANS, capture, structureStep,
+  phoneCard, testimonial, planCard, paywallVariant, PLANS, capture, structureStep, commitContinue,
 } from '../ob2.js';
 import { mealDemoSteps } from '../ob2-meal.js';
 import { styleForStructureAnswer, styleLabel } from '../plan-style.js';
@@ -101,6 +101,96 @@ const steps = [
       };
       [first, last].forEach((el) => el.addEventListener('input', sync));
       sync();
+    },
+  },
+  /* Age gate moved to ch0 (2026-08-25), right after the name. The flow used to collect
+     eighteen screens of answers and a signed commitment before telling a 12-year-old none
+     of it could be kept. The engine is data-driven, so the pair rides here unchanged. */
+  {
+    id: 'dob', ch: 0, cta: 'Next',
+    next: (o) => (o.dobBlocked ? 'blocked' : 'sport'),
+    title: () => 'Your birth date',
+    sub: () => 'Asked once. It verifies you are old enough to use OnStandard.',
+    body: (o) => {
+      const [y, m, d] = o.dob ? String(o.dob).split('-') : ['', '', ''];
+      return `
+        <div class="dob-row">
+          <input id="ob-dob-m" class="ob-input" type="text" inputmode="numeric" maxlength="2" placeholder="MM" aria-label="Birth month" value="${esc(m ? String(+m) : '')}" />
+          <input id="ob-dob-d" class="ob-input" type="text" inputmode="numeric" maxlength="2" placeholder="DD" aria-label="Birth day" value="${esc(d ? String(+d) : '')}" />
+          <input id="ob-dob-y" class="ob-input" type="text" inputmode="numeric" maxlength="4" placeholder="YYYY" aria-label="Birth year" value="${esc(y || '')}" />
+        </div>
+        <div id="ob-age-err" style="color:var(--amber-bright);font-size:var(--t-sm);font-weight:700;min-height:18px;margin-top:10px"></div>
+        <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin-top:6px;line-height:1.5">You must be 13 or older to use OnStandard.</div>`;
+    },
+    mount(root) {
+      const dm = root.querySelector('#ob-dob-m'), dd = root.querySelector('#ob-dob-d'), dy = root.querySelector('#ob-dob-y');
+      const errEl = root.querySelector('#ob-age-err');
+      const btn = root.querySelector('#ob2-next');
+      if (btn) btn.setAttribute('data-gate-extra', '#ob-dob-y.ok');
+      const todayISO = () => {
+        const t = new Date();
+        return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+      };
+      // Digits only. These are type="text" so `maxlength` actually clamps the year (number
+      // inputs ignore maxlength entirely, which let a pasted "99999999" sail through).
+      const digitsOnly = (el, max) => { const v = el.value.replace(/\D/g, '').slice(0, max); if (v !== el.value) el.value = v; };
+      const sync = () => {
+        const raw = !!(dm.value && dd.value && dy.value);
+        const dob = dobFromParts(dm.value, dd.value, dy.value);
+        const future = dob != null && dob > todayISO();
+        const under13 = dob != null && !future && ageOn(dob, todayISO()) < 13;
+        /* COPPA: the blocked step does the identity scrub on arrival. Scrubbing per keystroke
+           here erased the typed name on transient under-13 reads while typing the year. */
+        if (under13) capture({ dob: null, dobBlocked: true });
+        else capture({ dob: (dob && !future) ? dob : null, dobBlocked: false });
+        if (!btn) return;
+        if (under13) {
+          errEl.textContent = 'OnStandard is for ages 13 and up.';
+          btn.setAttribute('data-go', `${R}/blocked`);
+          dy.classList.add('ok');
+          btn.disabled = false;
+          return;
+        }
+        btn.setAttribute('data-go', `${R}/sport`);
+        if (future) {
+          // Genuinely just a typo (2030 instead of 2003), not the same thing as under-13, so
+          // it must not route to the age-blocked screen.
+          errEl.textContent = "That birth year hasn't happened yet.";
+          dy.classList.remove('ok');
+          btn.disabled = true;
+        } else if (raw && !dob) {
+          errEl.textContent = "That's not a valid date.";
+          dy.classList.remove('ok');
+          btn.disabled = true;
+        } else {
+          errEl.textContent = '';
+          dy.classList.toggle('ok', !!dob);
+          btn.disabled = !dob;
+        }
+      };
+      dm.addEventListener('input', () => { digitsOnly(dm, 2); if (dm.value.length >= 2) dd.focus(); sync(); });
+      dd.addEventListener('input', () => { digitsOnly(dd, 2); if (dd.value.length >= 2) dy.focus(); sync(); });
+      dy.addEventListener('input', () => { digitsOnly(dy, 4); sync(); });
+      sync();
+    },
+  },
+  {
+    id: 'blocked', ch: 0, noFoot: true, back: `${R}/dob`,
+    when: (o) => !!o.dobBlocked,
+    body: () => `
+      <div class="standard-set" style="padding-bottom:6px">
+        <div class="halo" style="background:radial-gradient(closest-side,rgba(148,163,184,0.20),transparent 75%)"><div class="core" style="background:var(--surface-2);color:var(--text-2)">${icon('lock', 32)}</div></div>
+        <div class="ob-title" style="margin-top:18px">Not yet, but soon.</div>
+        <div class="ob-sub" style="padding:0 8px">OnStandard is for athletes 13 and older. That's the law for apps like this, and we take it seriously. Come back on your 13th birthday. The Standard will be waiting.</div>
+      </div>
+      <div class="ob-foot" style="margin-top:auto">
+        <button class="btn ghost" data-go="welcome">Back to start</button>
+      </div>`,
+    mount() {
+      /* COPPA scrub happens HERE, on actually landing blocked. A corrected DOB clears the
+         block; the name is re-entered via Back on the name step. */
+      capture({ firstName: '', lastName: '', name: '' });
+      track(EVENTS.AGE_BLOCKED);
     },
   },
   {
@@ -300,16 +390,18 @@ const steps = [
           <div class="hs">${esc(o.firstName ? `${o.firstName}, this` : 'This')} is the deal you are making with yourself. The score simply reports whether you kept it.</div>
         </div>
         <div style="height:24px"></div>
-        ${commitButton(committed)}
-        ${committed ? `<div style="height:12px"></div><button class="btn green" data-go="${R}/proof">Continue</button>` : ''}`;
+        ${committed ? commitContinue() : commitButton(false)}`;
     },
     mount(root, ctx) {
+      const done = root.querySelector('#ob2-commit-next');
+      if (done) { done.addEventListener('click', () => ctx.next()); return; }
       wireCommit(root, () => {
         const o = RT.ob || {};
-        /* standard{} keeps persistence parity with the legacy contract step. */
+        /* standard{} keeps persistence parity with the legacy contract step; pressure rides
+           the one shared vocabulary (normalizePressure in ob-helpers.js). */
         capture({
           committedAt: new Date().toISOString(),
-          standard: { mealsPerDay: (o.standard && o.standard.mealsPerDay) || 3, pressure: o.pressure || 'steady' },
+          standard: { mealsPerDay: (o.standard && o.standard.mealsPerDay) || 3, pressure: normalizePressure(o.pressure) },
         });
         ctx.next();
       });
@@ -337,7 +429,7 @@ const steps = [
        just earned, or to plans if it didn't. (Same guard the client flow already had.) */
     next: () => (RT.userId
       ? (paywallVariant('athlete') === 'team_covered' ? 'covered' : 'plans')
-      : 'dob'),
+      : 'account'),
     title: () => 'Got a team code?',
     sub: () => 'Your coach hands it out. It puts your score on their board from day one, and your team covers your access.',
     body: (o) => `
@@ -379,6 +471,16 @@ const steps = [
       const sync = () => {
         const v = el.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
         if (el.value !== v) el.value = v;
+        /* Client-flow mechanics (2026-08-25): empty means "no code" and Continue moves on;
+           only a partial code disables. The old empty-disables gate made Skip the only way
+           past a step most athletes legitimately have nothing to type into. */
+        if (!v) {
+          if (RT.ob && RT.ob.join && RT.ob.join.kind === 'team') capture({ join: null });
+          el.classList.add('ok');
+          note.textContent = HINT;
+          if (btn) btn.disabled = false;
+          return;
+        }
         const ok = CODE_RE.test(v);
         /* An edited-away code must not leave a stale team join behind (it would
            flip the paywall to "covered" dishonestly). */
@@ -392,97 +494,6 @@ const steps = [
       el.addEventListener('input', sync);
       sync();
     },
-  },
-  {
-    id: 'dob', ch: 4, cta: 'Next',
-    /* `account` is the normal target; the RT.userId branch only matters if this step is
-       reached with a session already in hand (deep link / back-nav after signup). */
-    next: (o) => {
-      if (o.dobBlocked) return 'blocked';
-      if (RT.userId) return paywallVariant('athlete') === 'team_covered' ? 'covered' : 'plans';
-      return 'account';
-    },
-    title: () => 'Your birth date',
-    sub: () => 'Asked once. It verifies you are old enough to use OnStandard.',
-    body: (o) => {
-      const [y, m, d] = o.dob ? String(o.dob).split('-') : ['', '', ''];
-      return `
-        <div class="dob-row">
-          <input id="ob-dob-m" class="ob-input" type="text" inputmode="numeric" maxlength="2" placeholder="MM" aria-label="Birth month" value="${esc(m ? String(+m) : '')}" />
-          <input id="ob-dob-d" class="ob-input" type="text" inputmode="numeric" maxlength="2" placeholder="DD" aria-label="Birth day" value="${esc(d ? String(+d) : '')}" />
-          <input id="ob-dob-y" class="ob-input" type="text" inputmode="numeric" maxlength="4" placeholder="YYYY" aria-label="Birth year" value="${esc(y || '')}" />
-        </div>
-        <div id="ob-age-err" style="color:var(--amber-bright);font-size:13px;font-weight:700;min-height:18px;margin-top:10px"></div>
-        <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:6px;line-height:1.5">You must be 13 or older to use OnStandard.</div>`;
-    },
-    mount(root) {
-      const dm = root.querySelector('#ob-dob-m'), dd = root.querySelector('#ob-dob-d'), dy = root.querySelector('#ob-dob-y');
-      const errEl = root.querySelector('#ob-age-err');
-      const btn = root.querySelector('#ob2-next');
-      if (btn) btn.setAttribute('data-gate-extra', '#ob-dob-y.ok');
-      const todayISO = () => {
-        const t = new Date();
-        return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
-      };
-      // Digits only — these switched from type="number" to type="text" so `maxlength` actually
-      // clamps the year (number inputs ignore maxlength entirely, which let a pasted or fat-
-      // fingered "99999999" sail straight through with no feedback).
-      const digitsOnly = (el, max) => { const v = el.value.replace(/\D/g, '').slice(0, max); if (v !== el.value) el.value = v; };
-      const sync = () => {
-        const raw = !!(dm.value && dd.value && dy.value);
-        const dob = dobFromParts(dm.value, dd.value, dy.value);
-        const future = dob != null && dob > todayISO();
-        const under13 = dob != null && !future && ageOn(dob, todayISO()) < 13;
-        /* COPPA (legacy parity): never persist a blocked minor's identity to
-           localStorage — the captured name is nulled with the dob. A corrected
-           DOB clears the block; the athlete re-enters their name via Back if
-           it was wiped. */
-        if (under13) capture({ firstName: '', lastName: '', name: '', dob: null, dobBlocked: true });
-        else capture({ dob: (dob && !future) ? dob : null, dobBlocked: false });
-        if (!btn) return;
-        if (under13) {
-          errEl.textContent = 'OnStandard is for ages 13 and up.';
-          btn.setAttribute('data-go', `${R}/blocked`);
-          dy.classList.add('ok');
-          btn.disabled = false;
-          return;
-        }
-        btn.setAttribute('data-go', `${R}/account`);
-        if (future) {
-          // Genuinely just a typo (2030 instead of 2003) — not the same thing as under-13, so
-          // it must not wipe the name or route to the age-blocked screen.
-          errEl.textContent = "That birth year hasn't happened yet.";
-          dy.classList.remove('ok');
-          btn.disabled = true;
-        } else if (raw && !dob) {
-          errEl.textContent = "That's not a valid date.";
-          dy.classList.remove('ok');
-          btn.disabled = true;
-        } else {
-          errEl.textContent = '';
-          dy.classList.toggle('ok', !!dob);
-          btn.disabled = !dob;
-        }
-      };
-      dm.addEventListener('input', () => { digitsOnly(dm, 2); if (dm.value.length >= 2) dd.focus(); sync(); });
-      dd.addEventListener('input', () => { digitsOnly(dd, 2); if (dd.value.length >= 2) dy.focus(); sync(); });
-      dy.addEventListener('input', () => { digitsOnly(dy, 4); sync(); });
-      sync();
-    },
-  },
-  {
-    id: 'blocked', ch: 4, noFoot: true, back: `${R}/dob`,
-    when: (o) => !!o.dobBlocked,
-    body: () => `
-      <div class="standard-set" style="padding-bottom:6px">
-        <div class="halo" style="background:radial-gradient(closest-side,rgba(148,163,184,0.20),transparent 75%)"><div class="core" style="background:var(--surface-2);color:var(--text-2)">${icon('lock', 32)}</div></div>
-        <div class="ob-title" style="margin-top:18px">Not yet, but soon.</div>
-        <div class="ob-sub" style="padding:0 8px">OnStandard is for athletes 13 and older. That's the law for apps like this, and we take it seriously. Come back on your 13th birthday. The Standard will be waiting.</div>
-      </div>
-      <div class="ob-foot" style="margin-top:auto">
-        <button class="btn ghost" data-go="welcome">Back to start</button>
-      </div>`,
-    mount() { track(EVENTS.AGE_BLOCKED); },
   },
   {
     id: 'account', ch: 4, noFoot: true,
@@ -557,6 +568,7 @@ const steps = [
       return `
       ${/* Deliberately NOT the Marcus quote from `proof` three screens back — the same
             words twice reads as one customer, not as proof. Launch placeholder either way. */''}
+      <div class="ob2-scan-note">Illustrative, not actual customers yet.</div>
       ${testimonial({ quote: 'The photo takes five seconds. Knowing my trainer sees the score is what actually changed my weekends.', name: 'Dani', role: 'Soccer · college sophomore', initials: 'D', stat: '41 days', statKey: 'logging streak' })}
       <div class="ob2-cadence" role="tablist" aria-label="Billing period">
         <button class="cad ${cad === 'annual' ? 'on' : ''}" data-cad="annual" role="tab" aria-selected="${cad === 'annual'}">Annual<small>Save 30%</small></button>

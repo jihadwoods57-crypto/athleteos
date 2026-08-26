@@ -24,10 +24,13 @@ export default {
     const practice = (sub || '').trim();
     if (UI.practice !== practice) UI = { practice, reason: null, detail: '', sending: false, sent: false, err: '' };
     if (UI.sent) {
-      return `${backHead('Report received', '', 'profile')}
+      // Back and the success exit both land on the directory the reporter came from: 'profile'
+      // stranded them a tab away from where they were browsing.
+      return `${backHead('Report received', '', 'coach-directory')}
       <section class="state-demo"><div class="sd-ic" style="color:var(--green-bright)">${icon('check', 24)}</div>
-      <div class="sd-t">Thank you — we take this seriously</div>
-      <div class="sd-s">A person on the OnStandard team reviews every report. If this is an emergency, contact local emergency services — the app is not an emergency channel.</div></section>`;
+      <div class="sd-t">Thank you. We take this seriously</div>
+      <div class="sd-s">A person on the OnStandard team reviews every report. If this is an emergency, contact local emergency services. The app is not an emergency channel.</div>
+      <div class="sd-cta"><button class="btn ghost sm" data-go="coach-directory">Back to coaches</button></div></section>`;
     }
     return `${backHead('Report this coach', 'Reviewed by the OnStandard team', 'coach-directory')}
 
@@ -70,7 +73,7 @@ export default {
       const r = await roles.submitCoachReport(practiceId, UI.reason, detail);
       UI.sending = false;
       if (r && r.ok) { UI.sent = true; track(EVENTS.MKT_REPORT_SUBMITTED, { reason: UI.reason }); }
-      else UI.err = (r && r.error) || 'Could not send the report — try again';
+      else UI.err = (r && r.error) || 'Could not send the report. Try again';
       if (window.__render) window.__render();
     });
   },

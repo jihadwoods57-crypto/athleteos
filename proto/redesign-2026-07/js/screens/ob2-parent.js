@@ -9,15 +9,16 @@
    4 Start (connect → free confirmation → account LAST; after
    the session a captured invite code is redeemed best-effort).
    ============================================================ */
-import { act } from '../state.js';
+import { RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { esc, sparkline } from '../components.js';
 import {
   defineFlow, saveProgressStep, ob, capture, gateCta, choiceGrid, chipRow,
-  simChip, mirrorCard, notifCard, phoneCard, structureStep,
+  simChip, mirrorCard, notifCard, phoneCard, structureStep, commitContinue,
 } from '../ob2.js';
 import { styleForStructureAnswer, styleLabel } from '../plan-style.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
+import { showConfirmPending } from '../ob-helpers.js';
 import { track, EVENTS } from '../analytics.js';
 import { accountBody, wireAccount } from './ob-account.js';
 
@@ -302,13 +303,12 @@ const steps = [
       ${mirrorCard('heart', `<b>${esc(STYLE_LABEL[o.parentStyle] || 'Your way')}.</b> ${esc(STYLE_LINE[o.parentStyle] || 'You see the effort; they keep the details.')}`)}
       ${mirrorCard('lock', `You'll see scores, streaks, and grades. <b>Never</b> photos, weight, meals, or messages.`)}
       <div class="ob-foot" style="margin-top:18px">
-        ${commitButton(!!o.committedAt)}
-        ${o.committedAt ? `<button class="btn ghost" id="obp-commit-next" style="margin-top:10px">Continue</button>` : ''}
+        ${o.committedAt ? commitContinue() : commitButton(false)}
       </div>`,
     mount(root, ctx) {
+      const done = root.querySelector('#ob2-commit-next');
+      if (done) { done.addEventListener('click', () => ctx.next()); return; }
       wireCommit(root, () => { capture({ committedAt: new Date().toISOString() }); ctx.next(); });
-      const again = root.querySelector('#obp-commit-next');
-      if (again) again.addEventListener('click', () => ctx.next());
     },
   },
 
@@ -369,7 +369,11 @@ const steps = [
     mount(root) {
       wireAccount(root, {
         role: 'parent',
-        onSession: async () => {
+        /* `live` was ignored (2026-08-25): with email confirmation on, signUp returns no
+           session and this handler marched on to a dead redeem plus redirect. Match the
+           other six flows: no session means confirm-pending hand-off, then stop. */
+        onSession: async (live) => {
+          if (!live) { showConfirmPending(root, { email: RT.email }); return; }
           const o = ob();
           if (o.guardianToken) {
             // Best-effort: redeem the invite the athlete minted. Never block or

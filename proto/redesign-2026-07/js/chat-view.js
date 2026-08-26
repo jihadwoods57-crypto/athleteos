@@ -24,7 +24,10 @@ export const GROUP_GAP_MS = 10 * 60 * 1000;
  *  which returns real team_staff roles, plus the two client-side constants. */
 const KINDS = {
   athlete: { ic: 'user', noun: 'You', access: 'This is their own log' },
-  ai: { ic: 'bot', noun: 'AI Nutritionist', access: 'Reads every meal and answers questions' },
+  // 'sparkle', not 'bot': every facepile and thread bubble introduces the AI with the sparkle
+  // glyph, and the members sheet opens FROM the facepile — the same participant must not change
+  // faces mid-gesture.
+  ai: { ic: 'sparkle', noun: 'AI Nutritionist', access: 'Reads every meal and answers questions' },
   head_coach: { ic: 'clipboard', noun: 'Head coach', access: 'Sees this athlete’s meals and scores' },
   assistant_coach: { ic: 'clipboard', noun: 'Assistant coach', access: 'Sees this athlete’s meals and scores' },
   s_and_c: { ic: 'dumbbell', noun: 'Strength coach', access: 'Sees this athlete’s meals and scores' },
@@ -98,8 +101,13 @@ export function authorName(comment, participants, selfId, fallbackNoun) {
  *
  * `fmtTime` is injected so this module holds no clock and no locale — the same input produces
  * the same output on a CI box in UTC and on a phone in New York.
+ *
+ * `fmtDay` is the COMPARE key ("did the day change?"); `fmtDayLabel` is what the separator
+ * PRINTS. They used to be one function, and every call site passed its machine key — so a
+ * thread crossing midnight printed "2026-7-24 · 11:58 PM" (zero-indexed month and all) as a
+ * separator. When fmtDayLabel is absent, fmtDay still labels, which keeps old callers working.
  */
-export function layoutThread(msgs, { fmtTime = () => '', fmtDay = null } = {}) {
+export function layoutThread(msgs, { fmtTime = () => '', fmtDay = null, fmtDayLabel = null } = {}) {
   const list = (Array.isArray(msgs) ? msgs : []).filter(Boolean);
   const out = [];
   let prev = null;
@@ -110,7 +118,7 @@ export function layoutThread(msgs, { fmtTime = () => '', fmtDay = null } = {}) {
     const gap = !prev || !isFinite(at) || !isFinite(prevAt) || (at - prevAt) >= GROUP_GAP_MS;
     const newDay = fmtDay && prev && isFinite(at) && isFinite(prevAt) && fmtDay(at) !== fmtDay(prevAt);
     if ((gap || newDay) && isFinite(at)) {
-      const label = newDay && fmtDay ? `${fmtDay(at)} · ${fmtTime(c.created_at)}` : fmtTime(c.created_at);
+      const label = newDay && fmtDay ? `${(fmtDayLabel || fmtDay)(at)} · ${fmtTime(c.created_at)}` : fmtTime(c.created_at);
       if (label) out.push({ type: 'time', label, at });
     }
     const sameSpeaker = prev && prev.author_id === c.author_id && prev.role === c.role && !gap && !newDay;
@@ -122,6 +130,21 @@ export function layoutThread(msgs, { fmtTime = () => '', fmtDay = null } = {}) {
     prev = c;
   }
   return out;
+}
+
+/** The one human day label every thread shares: "Today", "Yesterday", then "Monday, Aug 24".
+ *  `now` is an explicit argument (tests pass it; screens take the default) — the one deliberate
+ *  relaxation of this module's no-clock rule, contained to a default parameter. The weekday line
+ *  uses the device locale on purpose: a separator is glanceable furniture, not record data. */
+export function dayLabelOf(ms, now = Date.now()) {
+  const d = new Date(ms);
+  if (isNaN(d.getTime())) return '';
+  const today = new Date(now);
+  const same = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const yest = new Date(today.getTime() - 86400000);
+  if (same(d, today)) return 'Today';
+  if (same(d, yest)) return 'Yesterday';
+  return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
 }
 
 /** Is this the AI's re-read after a correction? (0157 `meta.t`.) */

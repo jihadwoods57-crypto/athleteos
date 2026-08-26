@@ -13,7 +13,7 @@ export default {
       <div class="wel-hero">
         <div class="wel-logo">${logoMark(104, 'welcome')}</div>
         <div class="wel-mark"><span class="on">On</span>Standard</div>
-        <div class="wel-kicker">Execution &amp; accountability platform</div>
+        <div class="wel-kicker">Built for athletes. Read by coaches.</div>
         <h1 class="wel-head">The coach sets the standard.<br>You prove the work.<br><span class="accent">The score never lies.</span></h1>
       </div>
 

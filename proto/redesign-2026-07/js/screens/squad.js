@@ -44,7 +44,7 @@ function boardRow(r, rank, today) {
   const fresh = r.day_date === today;
   const scoreCell = r.score == null
     ? `<span class="status-pill" style="color:var(--text-3)">No log yet</span>`
-    : `<div style="text-align:right"><div style="font-size:17px;font-weight:800;color:${scoreColor(r.score)}">${r.score}</div>${fresh ? '' : `<div style="font-size:9.5px;font-weight:700;color:var(--text-3)">yesterday</div>`}</div>`;
+    : `<div style="text-align:right"><div style="font-size:var(--t-lg);font-weight:800;color:${scoreColor(r.score)}">${r.score}</div>${fresh ? '' : `<div style="font-size:var(--t-micro);font-weight:700;color:var(--text-3)">yesterday</div>`}</div>`;
   return `
     <div class="lrow" style="cursor:default${me ? ';background:var(--blue-surface);margin:0 -16px;padding-left:16px;padding-right:16px;border-radius:12px' : ''}">
       <div class="lic" style="${me ? 'background:var(--blue-surface);color:var(--blue-bright)' : ''}"><b>${rank}</b></div>
@@ -90,7 +90,7 @@ export default {
     <section class="card" style="padding:6px 16px">
       <div class="std-switch-row">
         <div class="std-sw-m"><div class="std-sw-t">Show my number to the squad</div>
-        <div class="std-sw-s">${sharing ? 'Your name and daily score are on the board. Nothing else ever is.' : 'Off — teammates see you only as a private count. Flip it and they see your name and daily score. Never meals, photos, or check-ins.'}</div></div>
+        <div class="std-sw-s">${sharing ? 'Your name and daily score are on the board. Nothing else ever is.' : 'Off. Teammates see you only as a private count. Flip it and they see your name and daily score. Never meals, photos, or check-ins.'}</div></div>
         <div class="std-switch ${sharing ? 'on' : ''}" id="squad-share" role="switch" aria-checked="${sharing}" tabindex="0" aria-label="Show my number to the squad"></div>
       </div>
     </section>`;

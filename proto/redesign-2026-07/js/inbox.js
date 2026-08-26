@@ -138,7 +138,7 @@ export function categorizeInbox({ meals, comments, interventions, roster, pendin
     if (!m || !m.id) continue;
     const id = m.id;
     const athleteId = m.athlete_id;
-    const title = `${nameFor(roster, athleteId)} — ${m.type || 'Meal'}`;
+    const title = `${nameFor(roster, athleteId)} · ${m.type || 'Meal'}`;
     const ts = tsOf(m);
     const isResolved = resolvedIds.has(id);
     const sub = previewSub(m, lastRole[id], isResolved);
@@ -202,7 +202,7 @@ export function categorizeInbox({ meals, comments, interventions, roster, pendin
     const athleteId = (m && m.athlete_id) || f.athleteId;
     flagged.push({
       kind: 'meal', id, athleteId,
-      title: `${nameFor(roster, athleteId)} — ${(m && m.type) || 'meal'}`,
+      title: `${nameFor(roster, athleteId)} · ${(m && m.type) || 'meal'}`,
       sub: 'Flagged for follow-up', ts: f.ts || (m ? tsOf(m) : 0),
     });
   }

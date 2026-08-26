@@ -134,6 +134,10 @@
 .tour { position: fixed; inset: 0; z-index: 420; opacity: 0; transition: opacity var(--dur-2) var(--ease-out); }
 .tour.on { opacity: 1; }
 .tour-panel { position: fixed; background: rgba(3,5,10,0.82); }
+/* Light theme: same scrim weight as the lockstamp and sheet-scrim. Without these two overrides
+   the first-run tour dimmed a light canvas roughly twice as hard as every other overlay. */
+:root[data-theme="light"] .tour-panel { background: rgba(15,23,42,0.34); }
+:root[data-theme="light"] .tour-ring { box-shadow: 0 0 0 1px rgba(15,23,42,0.18), 0 0 22px rgba(var(--blue-rgb), 0.28); }
 /* The ring is the only ornament: a hairline in the signature blue around whatever we're naming. */
 .tour-ring {
   position: fixed; pointer-events: none;
@@ -232,7 +236,7 @@
   position: absolute; left: 0; right: 0; top: 8%; height: 3px;
   background: linear-gradient(90deg, transparent, var(--ring-a), var(--ring-b) 55%, var(--ring-c), transparent);
   box-shadow: 0 0 22px rgba(var(--teal-rgb), 0.75); will-change: transform;
-  animation: scan 1.6s ease-in-out infinite;
+  animation: scan 1.6s var(--ease-in-out) infinite;
 }
 /* Transform, not `top`: the sweep runs the whole AI wait, and animating a layout property
    re-ran layout every frame while the WebView was busy uploading. Travel is identical:
@@ -294,8 +298,12 @@
 /* ----- Onboarding ----- */
 .ob { display: flex; flex-direction: column; min-height: 100%; padding-top:6px; }
 .ob-dots { display: flex; gap:8px; justify-content: center; padding:6px 0 20px; }
-.ob-dots .d { width: 7px; height: 7px; border-radius: 50%; background: var(--surface-3); transition: all var(--dur-2) var(--ease-out); }
-.ob-dots .d.on { width: 22px; border-radius: var(--r-micro); background: linear-gradient(90deg, var(--green), var(--blue)); }
+/* Width SNAPS; only paint properties tween. `transition: all` here made every onboarding step
+   advance re-lay-out the dot row on each frame of the tween — the banned layout animation, let
+   in by `all`. The fill is blue paired with its own -deep: progress geometry wears the action
+   accent, and the old green→blue crossed two semantic hues. */
+.ob-dots .d { width: 7px; height: 7px; border-radius: 50%; background: var(--surface-3); transition: background var(--dur-2) var(--ease-out), border-radius var(--dur-2) var(--ease-out); }
+.ob-dots .d.on { width: 22px; border-radius: var(--r-micro); background: linear-gradient(90deg, var(--blue-deep), var(--blue)); }
 .ob-title { font-size: 27px; font-weight: 800; letter-spacing: var(--title-tight); line-height: 1.15; }
 .ob-sub { font-size: 14.5px; font-weight: 600; color: var(--text-2); margin-top:8px; line-height: 1.5; text-wrap: balance; }
 .ob-body { flex: 1; padding-top:22px; }
@@ -306,7 +314,7 @@
 .choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap:12px; }
 .choice {
   padding:18px 16px; border-radius: var(--r-card-sm); background: var(--surface-1); border: 1px solid var(--hairline);
-  cursor: pointer; transition: all var(--dur-1) var(--ease-out);
+  cursor: pointer; transition: background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
 }
 .choice.on { border-color: var(--blue-bright); background: rgba(var(--blue-rgb), 0.10); box-shadow: 0 0 18px rgba(var(--blue-rgb), 0.18); }
 .choice .ct { font-size: 15px; font-weight: 800; margin-top:10px; }
@@ -657,3 +665,14 @@
 .role-t { font-size: 16.5px; font-weight: 800; letter-spacing: var(--title-tight); line-height: 1.1; }
 .role-s { font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-top:4px; line-height: 1.4; }
 .role-chev { color: var(--text-3); flex: 0 0 auto; display: grid; place-items: center; }
+
+/* Tour Back (tour.js): a fumbled tap used to burn a step forever; Back mirrors Skip's weight so
+   the exits stay the loud controls. Next keeps the right edge. */
+.tour-back {
+  border: none; background: none; cursor: pointer; padding: 6px 2px;
+  font-family: var(--font); font-size: var(--t-sm); font-weight: 700; color: var(--text-3);
+}
+.tour-back:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
+.tour-actions .tour-next { margin-left: auto; }
+/* The lock stamp's button is focused programmatically now (role=dialog); the ring must be real. */
+.ls-x:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }

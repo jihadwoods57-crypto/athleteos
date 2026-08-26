@@ -44,7 +44,7 @@
 .sk-lines { flex: 1; display: flex; flex-direction: column; gap:8px; }
 .sk-line { height: 10px; border-radius: var(--r-micro); width: 70%; }
 .sk-line.sk-line-2 { width: 45%; }
-.sk-dot, .sk-line { background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%); background-size: 400% 100%; animation: skShimmer 1.4s ease-in-out infinite; }
+.sk-dot, .sk-line { background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%); background-size: 400% 100%; animation: skShimmer 1.4s var(--ease-in-out) infinite; }
 @keyframes skShimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
 @media (prefers-reduced-motion: reduce) { .sk-dot, .sk-line { animation: none; } }
 
@@ -52,7 +52,7 @@
    the same silhouette as the screen that replaces it and nothing jumps when the day lands. */
 .sk-hero { display:flex; flex-direction:column; align-items:center; gap:16px; padding: 26px 20px 22px; }
 .sk-ring { width: 168px; height: 168px; border-radius: 50%; background: var(--surface-2);
-  box-shadow: inset 0 0 0 14px var(--surface-1); animation: skShimmer 1.4s ease-in-out infinite;
+  box-shadow: inset 0 0 0 14px var(--surface-1); animation: skShimmer 1.4s var(--ease-in-out) infinite;
   background-image: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%);
   background-size: 400% 100%; }
 .sk-hero-l { width: 38%; height: 12px; }
@@ -233,9 +233,12 @@
   position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap:8px; text-align: center; padding:0 28px;
 }
-.vf-empty[data-mode="starting"] .vf-state[data-when="offline"],
-.vf-empty[data-mode="offline"] .vf-state[data-when="starting"] { display: none; }
-.vf-empty .vf-state { display: flex; flex-direction: column; gap:4px; }
+/* Generic mode matching: only the state whose data-when matches the lens's data-mode shows.
+   The old pairwise hide rules stopped scaling the day a third state (permission denied) landed. */
+.vf-empty .vf-state { display: none; }
+.vf-empty[data-mode="starting"] .vf-state[data-when="starting"],
+.vf-empty[data-mode="offline"] .vf-state[data-when="offline"],
+.vf-empty[data-mode="denied"] .vf-state[data-when="denied"] { display: flex; flex-direction: column; gap:4px; }
 /* The viewfinder is a dark surface in BOTH themes: it stands in for a live camera feed, and a
    near-white box behind a video preview is not a thing. Its contents therefore carry the dark
    theme's ink explicitly rather than inheriting the page's. Inheriting painted --text #0F172A
@@ -757,7 +760,7 @@
   display: flex; align-items: center; gap:10px; margin-top:10px; padding:8px 10px;
   border: 1px solid var(--hairline); border-radius: var(--r-card-sm); background: var(--surface-1);
 }
-.composer-attach-pending img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; flex:none; }
+.composer-attach-pending img { width: 40px; height: 40px; border-radius: var(--r-chip); object-fit: cover; flex:none; }
 .composer-attach-pending .cap { flex:1; font-size: 12.5px; font-weight: 700; color: var(--text-2); }
 .composer-attach-pending button {
   border:0; background: var(--surface-2); color: var(--text-2); cursor:pointer; flex:none;
@@ -766,7 +769,7 @@
 /* A photo inside a chat bubble. Capped so a portrait shot cannot push the whole thread offscreen. */
 .msg .bimg {
   display:block; margin:0 0 6px; max-width: 100%; width: 190px; max-height: 240px;
-  object-fit: cover; border-radius: 10px; cursor: zoom-in; background: var(--surface-2);
+  object-fit: cover; border-radius: var(--r-chip); cursor: zoom-in; background: var(--surface-2);
 }
 
 /* ----- Weight ----- */
@@ -796,7 +799,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
   flex: 1; height: 44px; border-radius: var(--r-chip); display: grid; place-items: center;
   background: var(--surface-2); border: 1px solid var(--hairline-soft);
   font-size: 14px; font-weight: 800; color: var(--text-3); cursor: pointer;
-  transition: all var(--dur-1) var(--ease-out);
+  /* Enumerated, not `all`: `all` is how a later rule quietly starts tweening a layout property. */
+  transition: background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
 }
 .chips5 .c5.on { background: rgba(var(--purple-rgb), 0.20); border-color: var(--purple-border); color: var(--purple-bright); box-shadow: 0 0 14px rgba(var(--purple-rgb), 0.2); }
 
@@ -884,7 +889,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .team-preview .tp-av { width: 52px; height: 52px; border-radius: var(--r-card-sm); background: linear-gradient(150deg, var(--amber), var(--amber-deep)); display: grid; place-items: center; font-size: 19px; font-weight: 800; color: var(--ink-on-accent); }
 
 /* ----- Practice HQ (trainer identity + invite loop) ----- */
-.sk { background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%); background-size: 400% 100%; animation: sk-sheen 1.4s ease infinite; border-radius: var(--r-chip); }
+.sk { background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%); background-size: 400% 100%; animation: sk-sheen 1.4s var(--ease-in-out) infinite; border-radius: var(--r-chip); }
 @keyframes sk-sheen { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
 @media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
 .hq-invite-top { display: flex; gap:16px; align-items: center; }
@@ -1029,7 +1034,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
   border:1px solid var(--blue-border); color: var(--blue-bright); background:transparent;
   border-radius: var(--r-pill); padding:7px 11px; font-size: var(--t-xs); font-weight:800;
   letter-spacing:0.01em; min-height:32px; }
-.pl-goalpill .cv { transition: transform var(--dur-1) ease; display:inline-flex; }
+.pl-goalpill .cv { transition: transform var(--dur-1) var(--ease-out); display:inline-flex; }
 .pl-goalpill[aria-expanded="true"] { background: var(--blue-surface); }
 .pl-goalpill[aria-expanded="true"] .cv { transform: rotate(90deg); }
 .pl-goalpill:active { transform: scale(0.97); }
@@ -1237,6 +1242,18 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .seen-receipt .stx{font-size:12px;font-weight:700;color:var(--text-2)}
 .seen-receipt .stx b{color:var(--green-bright)}
 .seen-receipt .stm{margin-left:auto;font-size:11px;font-weight:700;color:var(--text-3);font-variant-numeric:tabular-nums;flex:none}
+/* 0208 — the confirmed-presence receipt. Shares .seen-receipt's row grammar on purpose: the two
+   sit together under the score and have to read as one list of receipts, not two competing cards
+   in two visual languages. What separates them is the icon and the direction of the wash. The
+   alpha is composed from --green-rgb rather than a frozen rgba(), so the light theme gets the
+   light green instead of a mint stain on near-white. */
+.seen-receipt.presence{background:linear-gradient(260deg,rgba(var(--green-rgb),.14),transparent 80%),var(--surface-1)}
+/* Grouped, not stacked: 8px reads as "two lines of one thing", 12px reads as two blocks. */
+#presence-row{width:100%}
+#presence-row:not(:empty) + #seen-row .seen-receipt{margin-top:8px}
+/* The left-early row (0208). A named class rather than the inline border the rows beside it still
+   carry, because this one is NEW and the inline-style ratchet only ever ratchets down. */
+.xrow-item.warn{border-color:var(--amber-border)}
 /* entrance choreography: plays ONLY on arrival at Home (hashchange-gated in home.js),
    never on the 30s tick re-render */
 @keyframes home-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
@@ -1418,7 +1435,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* Closing-soon: the last 45 minutes of a window. Same amber family (red stays reserved
    for overdue), but the wash deepens and the countdown breathes. */
 .xnow.closing{background:linear-gradient(160deg,rgba(var(--amber-rgb), 0.24),rgba(var(--amber-rgb), 0.06) 55%),var(--surface-1)}
-.xnow.closing .xcd{animation:xcd-breathe 2.2s ease-in-out infinite}
+.xnow.closing .xcd{animation:xcd-breathe 2.2s var(--ease-in-out) infinite}
 @keyframes xcd-breathe{0%,100%{opacity:1}50%{opacity:0.62}}
 /* ---- premium pass (2026-07-16): light, not shadow. A 1px inner top highlight + a
    whisper of a top-lit gradient makes dark cards read as machined material. Flat cards
@@ -1453,6 +1470,13 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .hub-head .b em{font-style:normal;color:var(--green-bright)}
 .hub-hero{display:flex;align-items:center;gap:12px;background:linear-gradient(140deg,rgba(var(--amber-rgb), 0.18),rgba(var(--amber-rgb), 0.05)),var(--surface-2);border:1px solid var(--amber-border);border-radius:var(--r-card-sm);padding:14px 14px;margin:12px 0;cursor:pointer}
 .hub-hero.red{background:linear-gradient(140deg,rgba(var(--red-rgb), 0.18),rgba(var(--red-rgb), 0.05)),var(--surface-2);border-color:var(--red-border)}
+/* Semantic-hue variants (2026-08-25): the hub hero mirrors Home's nowCard rule — amber only when
+   the window is genuinely closing or late, red once missed, otherwise the hue of the thing it
+   asks for. Before these existed, a 9 AM bedtime check-in shouted the warning hue all day. */
+.hub-hero.g{background:linear-gradient(140deg,rgba(var(--green-rgb), 0.18),rgba(var(--green-rgb), 0.05)),var(--surface-2);border-color:var(--green-border)}
+.hub-hero.p{background:linear-gradient(140deg,rgba(var(--purple-rgb), 0.18),rgba(var(--purple-rgb), 0.05)),var(--surface-2);border-color:var(--purple-border)}
+.hub-hero.b{background:linear-gradient(140deg,rgba(var(--blue-rgb), 0.18),rgba(var(--blue-rgb), 0.05)),var(--surface-2);border-color:var(--blue-border)}
+.hub-hero.c{background:linear-gradient(140deg,rgba(var(--cyan-rgb), 0.18),rgba(var(--cyan-rgb), 0.05)),var(--surface-2);border-color:var(--cyan-border)}
 .hub-hero .ht{flex:1}
 .hub-hero .ht .a{font-size:16px;font-weight:800;letter-spacing:-.015em}
 .hub-hero .ht .b{font-size:11.5px;color:var(--text-2);margin-top:2px;font-variant-numeric:tabular-nums}
@@ -1644,7 +1668,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .est-note .link{color:var(--blue-bright);font-weight:700;cursor:pointer}
 /* A macro cell with no number in it yet. The card no longer SAYS it is waiting (the AI bubble is
    the only narrator now — see meal.js's breakdown block); it shows it, by breathing. */
-.mv-wait{animation:mv-wait 1.5s var(--ease-in-out, ease-in-out) infinite}
+.mv-wait{animation:mv-wait 1.5s var(--ease-in-out) infinite}
 @keyframes mv-wait{0%,100%{opacity:0.35}50%{opacity:0.85}}
 @media (prefers-reduced-motion: reduce){ .mv-wait{animation:none;opacity:0.55} }
 /* chat mechanics: timestamps + quick actions */
@@ -1850,9 +1874,13 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .pp-cell-meta{position:absolute;left:0;right:0;bottom:0;padding:16px 10px 8px;font-size:11.5px;font-weight:700;color:#fff;background:linear-gradient(transparent, rgba(0,0,0,0.62))}
 .pp-del{position:absolute;top:6px;right:6px;height:24px;min-width:24px;padding:0 6px;border:none;border-radius:var(--r-chip);background:rgba(6,10,14,0.6);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .pp-del.arm{background:var(--danger-solid);color:#fff}   /* white ON the fill — see --danger-solid */
+/* 44px hit area without visual bloat: the visible chip stays 24px, the touch target doesn't. */
+.pp-del::after{content:'';position:absolute;inset:-12px}
 
 /* ---- Training log delete (#training-history) ---- */
-.tl-del{background:none;border:none;color:var(--text-3);font-size:12px;font-weight:700;cursor:pointer;padding:2px 4px}
+/* A destructive control at the 44px floor: 2px of padding on a delete button meant a post-practice
+   thumb missed it, or worse, hit the row's navigation instead. */
+.tl-del{background:none;border:none;color:var(--text-3);font-size:var(--t-sm);font-weight:700;cursor:pointer;padding:12px 10px;min-height:44px}
 .tl-del.arm{color:var(--red)}
 
 /* ---- Before/after compare (#progress-compare) ---- */
@@ -1982,7 +2010,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .vc-mr-l{font-size:13px;font-weight:700}
 .vc-mr-n{font-size:12.5px;font-weight:800;color:var(--text-2)}
 .vc-mr-track{height:6px;border-radius:var(--r-micro);background:var(--surface-3);overflow:hidden}
-.vc-mr-fill{height:100%;border-radius:var(--r-micro);background:linear-gradient(90deg,var(--green),var(--blue))}
+/* Progress geometry wears blue (the action accent), paired with its own -deep per the gradient
+   law. The old green→blue crossed two semantic hues AND borrowed the score signature. */
+.vc-mr-fill{height:100%;border-radius:var(--r-micro);background:linear-gradient(90deg,var(--blue-deep),var(--blue))}
 .vc-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .vc-stat{background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:12px}
 .vc-sv{font-size:24px;font-weight:800;letter-spacing:-.02em;color:var(--green-bright)}

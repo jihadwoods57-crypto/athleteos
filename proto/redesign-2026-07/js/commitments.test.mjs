@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import {
   TYPE_LABEL, occursOn, opensMinFor, deriveCommitment, boardCounts, missingFrom,
   WEIGHTS, signalsAsked, accountability, morningReadiness, commitmentStreak,
-  commitmentReminders, zoneOffsetMin,
+  commitmentReminders, zoneOffsetMin, presenceOf, PRESENCE,
 } from './commitments.js';
 
 /* America/New_York in July. Passed explicitly everywhere. */
@@ -189,9 +189,13 @@ test('board counts split responded, awaiting, excused and unverified', () => {
     { status: 'excused' }, { status: 'unverified' },
   ];
   assert.deepEqual(boardCounts(rows),
-    { total: 7, responded: 3, awaiting: 2, excused: 1, unverified: 1 });
+    { total: 7, responded: 3, awaiting: 2, excused: 1, unverified: 1, leftEarly: 0 });
   assert.equal(missingFrom(rows).length, 2);
-  assert.deepEqual(boardCounts([]), { total: 0, responded: 0, awaiting: 0, excused: 0, unverified: 0 });
+  assert.equal(boardCounts([
+    { status: 'arrived', arrived_at: '2026-07-22T09:43:00Z', presence: 'left_early' },
+    { status: 'arrived', arrived_at: '2026-07-22T09:43:00Z' },
+  ]).leftEarly, 1);
+  assert.deepEqual(boardCounts([]), { total: 0, responded: 0, awaiting: 0, excused: 0, unverified: 0, leftEarly: 0 });
 });
 
 test('every commitment type has a label', () => {
@@ -345,4 +349,116 @@ test('reminders are only planned for the day being planned', () => {
   assert.equal(commitmentReminders(
     [{ instance_id: 'i3', respond_by_min: 315, reminder_offsets_min: [15],
        status: 'pending', occurs_on: '2026-07-21' }], '2026-07-22').length, 0);
+});
+
+/* ---------------------------------------------------------------- presence (0208)
+
+   Arrival is a boundary CROSSING; presence is whether they were actually there for the stay the
+   coach asked for. Before 0208 min_dwell_min gated nothing at all, so a drive-by scored exactly
+   like a two-hour session. Every case below encodes a founder rule from 2026-08-23. */
+
+/* A located commitment with a real 45-minute stay requirement. */
+const lift = {
+  ...rollCall, type: 'strength', title: 'Lift', asks_arrival: true,
+  arrive_by_at: '2026-07-22T09:50:00Z', min_dwell_min: 45,
+  status: 'arrived', acknowledged_at: '2026-07-22T08:48:00Z',
+  arrived_at: '2026-07-22T09:43:00Z', arrival_source: 'geofence', departed_at: null,
+};
+
+test('a payload with no presence field degrades to confirmed, never to a downgrade', () => {
+  // A server older than 0208 sends no verdict. Reading absence as anything else would
+  // retroactively demote every arrival already on the record.
+  assert.equal(presenceOf(lift), PRESENCE.CONFIRMED);
+  assert.equal(presenceOf({ ...lift, presence: 'nonsense' }), PRESENCE.CONFIRMED);
+});
+
+test('presence is none when there is no arrival to have presence at', () => {
+  assert.equal(presenceOf({ ...lift, arrived_at: null }), PRESENCE.NONE);
+  assert.equal(presenceOf(null), PRESENCE.NONE);
+});
+
+test('mid-session presence reads as in-progress, not as a settled green result', () => {
+  const d = deriveCommitment({ ...lift, presence: 'provisional' }, '2026-07-22T10:00:00Z', EDT);
+  assert.equal(d.stage, 'arrived');
+  assert.equal(d.statusColor, 'b');           // NOT 'g' — a running session is not a result
+  assert.equal(d.confirmLine, 'At the facility since 5:43 AM · 17 of 45 min');
+  assert.equal(d.canDispute, false);          // nothing has been held against them yet
+});
+
+test('a sustained early departure is its own stage, and is disputable', () => {
+  const d = deriveCommitment(
+    { ...lift, presence: 'left_early', departed_at: '2026-07-22T09:52:00Z' },
+    '2026-07-22T10:30:00Z', EDT);
+  assert.equal(d.stage, 'left_early');
+  assert.equal(d.statusColor, 'a');
+  assert.equal(d.confirmLine, 'Left the facility at 5:52 AM');
+  // It COUNTS against them (founder ruling), which is exactly why it must be contestable.
+  assert.equal(d.canDispute, true);
+});
+
+test('leaving early is never converted into missed or unverified', () => {
+  const d = deriveCommitment(
+    { ...lift, presence: 'left_early', departed_at: '2026-07-22T09:52:00Z' },
+    '2026-07-22T10:30:00Z', EDT);
+  assert.notEqual(d.stage, 'missed');
+  assert.notEqual(d.stage, 'unverified');
+});
+
+test('a sustained early departure forfeits the arrival weight', () => {
+  const onTime = accountability([{ ...lift, presence: 'confirmed' }]);
+  const left   = accountability([{ ...lift, presence: 'left_early',
+                                   departed_at: '2026-07-22T09:52:00Z' }]);
+  // Same denominator: they were asked for the same thing either way.
+  assert.equal(onTime.possible, left.possible);
+  assert.equal(onTime.earned - left.earned, WEIGHTS.arrival);
+});
+
+test('an unresolved stay still counts, so a score never runs backwards mid-session', () => {
+  // The athlete is sitting in the room doing exactly what was asked. Docking them now and
+  // silently restoring it later is the failure mode this rule exists to prevent.
+  const mid  = accountability([{ ...lift, presence: 'provisional' }]);
+  const done = accountability([{ ...lift, presence: 'confirmed' }]);
+  assert.equal(mid.earned, done.earned);
+  assert.equal(mid.pct, done.pct);
+});
+
+test('morning readiness counts an early departure as an arrival not made', () => {
+  const m = morningReadiness([{ ...lift, presence: 'left_early',
+                                departed_at: '2026-07-22T09:52:00Z' }]);
+  assert.equal(m.arrival.total, 1);
+  assert.equal(m.arrival.done, 0);
+});
+
+test('leaving early breaks a clean-day streak; staying does not', () => {
+  const day = (presence, extra) => ({
+    ...lift, occurs_on: '2026-07-22', completed_at: '2026-07-22T11:00:00Z',
+    presence, ...extra,
+  });
+  assert.equal(commitmentStreak([day('confirmed')], '2026-07-22'), 1);
+  assert.equal(
+    commitmentStreak([day('left_early', { departed_at: '2026-07-22T09:52:00Z' })], '2026-07-22'),
+    0);
+});
+
+test('completing after an early departure keeps the verdict on the receipt', () => {
+  // "Mark complete" must not upgrade an amber card to a clean green one while the score still
+  // withholds the arrival weight. The receipt carries both facts and stays disputable.
+  const d = deriveCommitment(
+    { ...lift, presence: 'left_early', departed_at: '2026-07-22T09:52:00Z',
+      completed_at: '2026-07-22T11:05:00Z', status: 'completed' },
+    '2026-07-22T11:30:00Z', EDT);
+  assert.equal(d.stage, 'completed');
+  assert.equal(d.statusColor, 'a');
+  assert.equal(d.canDispute, true);
+  assert.equal(d.confirmLine, 'Completed at 7:05 AM · left the facility at 5:52 AM');
+});
+
+test('a commitment with no stay requirement is untouched by presence', () => {
+  // Blast radius: when the coach never asked for a minimum stay, arriving IS the requirement and
+  // behaviour must be byte-identical to before 0208.
+  const noDwell = { ...lift, min_dwell_min: null, presence: 'confirmed' };
+  const d = deriveCommitment(noDwell, '2026-07-22T10:00:00Z', EDT);
+  assert.equal(d.stage, 'arrived');
+  assert.equal(d.statusColor, 'g');
+  assert.equal(d.confirmLine, 'Arrived at the facility at 5:43 AM');
 });

@@ -138,7 +138,7 @@ export function standardsOfflineCard() {
     <div class="xico sm" style="background:var(--surface-2);color:var(--text-3)">${icon('wifiOff', 16)}</div>
     <div class="xr"><div class="xa">Activity standard isn’t loading</div>
     <div class="xb">If your coach set one, it shows the moment you reconnect. Nothing is lost.</div></div>
-    <button class="btn ghost sm" data-cs-retry style="width:auto;padding:0 14px;height:34px;flex:none">Try again</button>
+    <button class="btn ghost sm" data-cs-retry style="width:auto;padding:0 14px;height:44px;flex:none">Try again</button>
   </div>`;
 }
 
@@ -434,7 +434,7 @@ export const connectedStandardsList = {
       ${icon('chevron', 17, 'class="chev-dim"')}
     </div>`;
 
-    return `${backHead('Activity Standards', 'Verified from your device', 'profile')}
+    return `${backHead('Activity standards', 'Verified from your device', 'profile')}
     ${section('From your coach', assigned, emptyState({
       icon: 'target',
       title: 'Nothing assigned right now',

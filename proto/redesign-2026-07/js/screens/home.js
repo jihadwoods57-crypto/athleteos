@@ -8,7 +8,7 @@ import { DAY, MEAL_KEYS } from '../day.js';
 import { fetchMyDayReceipts, fetchRecentMeals, signedMealPhotoUrl, daysAgoISO, todayISO } from '../roles.js';
 import { warmMealPhotos, todayMealPhotoPath } from '../photo-store.js';
 import { shouldNudge, nudgeSignature, nudgeData } from '../coach-nudge.js';
-import { deriveCommitment } from '../commitments.js';
+import { deriveCommitment, presenceOf, PRESENCE } from '../commitments.js';
 import { VC, loadMine, todayISO as vcToday } from '../commitment-data.js';
 import { commitmentCard, mountCommitmentCard, commitmentOfflineCard } from './roll-call.js';
 import { armIfPermitted } from './location-consent.js';
@@ -21,12 +21,110 @@ import { pressTilt } from '../tilt.js';
    visible — usually zero or one, occasionally a roll call plus an afternoon study hall.
    commitmentCard() escapes every coach-authored string, so assigning its return value is the same
    discipline the rest of this file follows for rendered markup. */
+/* ---------------------------------------------------------------- presence receipt (0208)
+
+   The gap this closes: an automatic check-in produced NO feedback anywhere in the product. The
+   geofence fired, the server recorded it, and the athlete walked into the building to silence.
+   They found out only by opening a commitment card later and reading a line that did not even
+   mention their phone had done it for them.
+
+   Deliberately NOT a celebration. PRODUCT.md bans gamification by name, and this whole feature
+   rests on "being there does not prove the work got done". So the receipt states one fact with a
+   place and a time, in the same row grammar as the coach-seen receipt directly below it, and says
+   nothing further.
+
+   Shown once per DAY, not once per render. Once found, the decision sticks for the life of the
+   page so the 30-second exec tick cannot yank a receipt out from under someone mid-read;
+   act.markPresenceSeen() is what stops it returning fresh on tomorrow's first launch. */
+let PRESENCE_RECEIPT = { day: null, data: null, seenMarked: false };
+
+function paintPresenceReceipt(root) {
+  const slot = root.querySelector('#presence-row');
+  if (!slot || !slot.isConnected) return;
+  const day = String(DAY.date);
+  if (PRESENCE_RECEIPT.day !== day) PRESENCE_RECEIPT = { day, data: null, seenMarked: false };
+
+  // Re-scanned until one is found rather than cached as "nothing": presence legitimately moves
+  // from provisional to confirmed while the app is open, and locking in an early empty answer
+  // would mean the receipt never arrives for the athlete who is watching the screen.
+  let justFound = false;
+  if (!PRESENCE_RECEIPT.data) {
+    const seen = act.presenceSeenIds(day);
+    const row = (Array.isArray(RT.vcRows) ? RT.vcRows : []).find((r) => r
+      && r.asks_arrival && r.occurs_on === day
+      // 'confirmed' covers both shapes: with a minimum stay it waits for the stay to be met,
+      // without one it lands the moment they arrive. 'provisional' deliberately says nothing yet.
+      && presenceOf(r) === PRESENCE.CONFIRMED
+      // A manual tap needs no receipt when arriving was the whole ask: it would only tell the
+      // athlete what they themselves just did. A confirmed STAY is news either way, because
+      // nobody tapped anything to earn it.
+      && (r.min_dwell_min ? true : r.arrival_source === 'geofence')
+      && seen.indexOf(r.instance_id) < 0);
+    if (row) {
+      const t = Date.parse(row.arrived_at || '');
+      PRESENCE_RECEIPT.data = {
+        where: row.location_name || 'the facility',
+        mins: row.min_dwell_min || 0,
+        at: isFinite(t) ? new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '',
+        instanceId: row.instance_id,
+      };
+      // NOT marked seen here: the receipt is once per day, and burning it on a paint the athlete
+      // never scrolled to would spend it unseen. The mark fires below, when the card is visible.
+      justFound = true;
+    }
+  }
+  const d = PRESENCE_RECEIPT.data;
+  if (!d) { slot.replaceChildren(); return; }
+
+  // Built as nodes, not markup: `where` is coach-authored free text and textContent is the only
+  // treatment that is safe by construction rather than by remembering to escape.
+  const card = document.createElement('div');
+  card.className = 'seen-receipt presence';
+  const ic = document.createElement('span');
+  ic.className = 'sic';
+  ic.innerHTML = icon('pin', 15);          // our own module's SVG, not user data
+  const tx = document.createElement('span');
+  tx.className = 'stx';
+  const b = document.createElement('b');
+  b.textContent = d.where;
+  // Two sentences, because two different things happened. A confirmed stay is a claim about
+  // duration; a plain arrival is a claim about a moment. Saying the stronger one when only the
+  // weaker is true is the overclaim this whole change exists to end.
+  if (d.mins) tx.append('You were at ', b, ` for the full ${d.mins} minutes`);
+  else tx.append('Your phone checked you in at ', b);
+  const tm = document.createElement('span');
+  tm.className = 'stm';
+  tm.textContent = d.at;
+  card.append(ic, tx, tm);
+  // Same arrival-only law the seen-receipt follows: the entrance plays on the paint that
+  // DISCOVERED the receipt, never on the repaint that merely redraws it.
+  if (!justFound) card.style.animation = 'none';
+  slot.replaceChildren(card);
+  // "Seen" means seen: the once-per-day mark fires only when the card has actually been on
+  // screen, watched via the same observe-then-act idiom the meal score chip uses (whenSeen).
+  // Old WebViews without IntersectionObserver fall back to marking immediately.
+  if (!PRESENCE_RECEIPT.seenMarked && d.instanceId) {
+    const markSeen = () => {
+      if (PRESENCE_RECEIPT.seenMarked) return;
+      PRESENCE_RECEIPT.seenMarked = true;
+      act.markPresenceSeen(day, d.instanceId);
+    };
+    if (typeof IntersectionObserver === 'function') {
+      const io = new IntersectionObserver((entries) => {
+        if (entries.some((en) => en.isIntersecting)) { markSeen(); io.disconnect(); }
+      }, { threshold: 0.6 });
+      io.observe(card);
+    } else markSeen();
+  }
+}
+
 function paintCommitments(root) {
   const slot = root.querySelector('#vc-slot');
   if (!slot) return;
   const paint = () => {
     if (!slot.isConnected) return;
     const now = new Date().toISOString();
+    paintPresenceReceipt(root);
     const html = VC.today(vcToday())
       .map((r) => commitmentCard(deriveCommitment(r, now)))
       .filter(Boolean).join('');
@@ -126,7 +224,7 @@ function maybeCoachNudge(e) {
 }
 
 // Per-type icon media tints (a photo-less card shows its own icon — never someone else's).
-const MEAL_TINT = ['rgba(var(--amber-rgb), 0.22)', 'rgba(var(--amber-rgb), 0.08)', 'var(--amber-bright)'];
+const MEAL_TINT = ['rgba(var(--green-rgb), 0.22)', 'rgba(var(--green-rgb), 0.08)', 'var(--green-bright)'];
 const RECOVERY_TINT = ['rgba(var(--purple-rgb), 0.24)', 'rgba(var(--blue-rgb), 0.10)', 'var(--purple-bright)'];
 const ACT_MEDIA = {
   droplet: ['rgba(var(--cyan-rgb), 0.28)', 'rgba(var(--blue-rgb), 0.16)', 'var(--cyan)'],
@@ -294,9 +392,9 @@ const recentResults = () => {
   if (!rows.length && !past) return '';
   return `
     ${rows.length ? `
-    <div class="eyebrow">Recent Results <span class="link" data-go="progress">View all</span></div>
+    <div class="eyebrow">Recent Results <span class="link" data-go="history">View all</span></div>
     <div class="res-rail">${rows.map(resCard).join('')}</div>` : `
-    <div class="eyebrow">Recent Results <span class="link" data-go="progress">View all</span></div>`}
+    <div class="eyebrow">Recent Results <span class="link" data-go="history">View all</span></div>`}
     ${past}`;
 };
 
@@ -376,8 +474,8 @@ function keepRecordCard() {
   return `<div class="lrow" id="keep-record" style="margin:12px 0 10px;background:linear-gradient(100deg, rgba(var(--green-rgb),0.10), rgba(var(--blue-rgb),0.05));border:1px solid var(--green-border);border-radius:var(--r-card-sm);padding:12px 13px;cursor:pointer">
     <div class="xico sm green">${icon('shield', 16)}</div>
     <div class="xr"><div class="xa">Your record stays yours</div>
-    <div class="xb" style="white-space:normal;line-height:1.45">Your roster ended. Every day you proved is still here; keep it going.</div></div>
-    <span class="xpill green">Keep it</span>
+    <div class="xb" style="white-space:normal;line-height:1.45">Your roster ended. Every day you proved is still here. See Individual Plus to keep it going.</div></div>
+    <span class="xpill green">See plans</span>
   </div>`;
 }
 
@@ -561,7 +659,7 @@ const grow = (i, { hidePill, chev, checkIcon } = {}) => {
   return `<div class="xg-row" data-go="${i.route}">
     <div class="xico sm ${i.color}">${icon(checkIcon ? 'checkCircle' : i.icon, 17)}</div>
     <div class="xr"><div class="xa">${esc(i.title)}</div><div class="xb">${esc(i.sub)}</div></div>
-    ${spendable ? `<button class="btn ghost micro" data-spend="${esc(i.id)}" style="width:auto">${icon('shield', 13)} Use a pass</button>` : ''}
+    ${spendable ? `<button class="btn ghost micro" data-spend="${esc(i.id)}" style="width:auto;height:44px">${icon('shield', 13)} Use a pass</button>` : ''}
     ${hidePill ? '' : `<span class="xpill ${i.color}">${i.pill}</span>`}
     ${chev ? icon('chevron', 16, 'style="color:var(--text-3)"') : ''}
   </div>`;
@@ -639,7 +737,7 @@ function firstActionCard(n) {
   const ctaIcon = isCheck ? 'check' : CTA_ICON[n.proof];
   return `<section class="xnow">
     <div class="xlab"><span class="xl">NOW</span><span class="note">Start here</span></div>
-    <div class="xmain"><div class="xico gold">${icon(n.icon, 21)}</div>
+    <div class="xmain"><div class="xico ${n.proof === 'photo' ? 'green' : 'gold'}">${icon(n.icon, 21)}</div>
       <div><div class="xt">${esc(n.title)}</div><div class="xwhy">Your score starts moving with your first log. ${whyHtml(n.why)}</div></div></div>
     <div style="height:10px"></div>
     <button class="xcta" data-go="${n.route}">${icon(ctaIcon, 18)} ${label}</button>
@@ -706,12 +804,12 @@ export default {
       ${syncBanner()}
       <section class="xnow">
         <div class="xlab"><span class="xl">NOW</span><span class="note">Start here</span></div>
-        <div class="xmain"><div class="xico gold">${icon('camera', 21)}</div>
+        <div class="xmain"><div class="xico green">${icon('camera', 21)}</div>
         <div><div class="xt">Breakfast</div><div class="xwhy">Your score starts moving with your first log. <b>Nutrition · ${liveWeightPct('nutrition')}% of score.</b></div></div></div>
         <div style="height:10px"></div>
         <button class="xcta" data-go="camera">${icon('camera', 18)} Log Breakfast</button>
       </section>
-      ${lateRows.length ? `<div class="xgrp">${e.decided ? 'Missed today' : 'Late · still counts'}</div>${lateRows.map(row).join('')}` : ''}
+      ${lateRows.length ? `<div class="xgrp">${e.decided ? 'Missed today' : 'Late · still counts'}</div>${lateRows.map((i) => row(i)).join('')}` : ''}
       ${upcoming.length ? `<div class="xgrp">Upcoming</div>
       <div class="xgroup">${upcoming.map((i) => grow(i, { hidePill: i.state === 'locked' })).join('')}</div>` : ''}
       <div class="eyebrow">Recent Results</div>
@@ -730,6 +828,7 @@ export default {
       ${emailVerifyBanner()}
       ${celebration(e)}
       ${outcomeBand()}
+      <div id="presence-row"></div>
       <div id="seen-row" style="width:100%"></div>
       ${recentResults()}
       <div style="height:20px"></div>`;
@@ -774,12 +873,16 @@ export default {
     ${emailVerifyBanner()}
     ${(!S.dayDecided && S.tier.cls === 'r') ? inProgressHero(e) : hero(e, backdrop)}
     ${outcomeBand()}
+    ${/* Receipts region: presence leads (the athlete's own conduct), being seen follows
+          (someone else's). Two slots rather than one so neither can clobber the other's async
+          injection, sharing one row grammar so they read as a list and not as two cards. */''}
+    <div id="presence-row"></div>
     <div id="seen-row" data-tour="coach-seen"></div>
     <div id="vc-slot"></div>
     <div id="cs-slot" data-tour="standards"></div>
     ${attention}
     <div id="cv-nudge">${cachedNudge(e)}</div>
-    ${e.overdue.filter((o) => o.id !== (e.now && e.now.id) && o.id !== (e.next && e.next.id)).map(row).join('')}
+    ${e.overdue.filter((o) => o.id !== (e.now && e.now.id) && o.id !== (e.next && e.next.id)).map((i) => row(i)).join('')}
     ${e.now ? nowCard(e) : ''}
     ${nextRows.length ? `<div class="xgrp">${e.next.state === 'overdue' ? 'Also overdue' : 'Next'}</div>${nextRows.map(row).join('')}` : ''}
     ${laterHtml}

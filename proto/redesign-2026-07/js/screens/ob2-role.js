@@ -16,11 +16,15 @@ const ROLES = [
     t: 'Athlete', s: 'Build and prove your daily consistency.' },
   { go: 'obf/why', key: 'client', ic: 'user', tint: 'var(--green-surface)', accent: 'var(--green-bright)',
     t: 'Fitness Client', s: 'Stay accountable between training sessions.' },
-  { go: 'obk/why', key: 'coach', ic: 'users', tint: 'var(--amber-surface)', accent: 'var(--amber-bright)',
+  /* Blue family (2026-08-25): amber is a status hue app-wide (warnings, due-soon), so the
+     Coach door wore a caution color as identity. */
+  { go: 'obk/why', key: 'coach', ic: 'users', tint: 'var(--blue-surface)', accent: 'var(--blue-bright)',
     t: 'Coach', s: 'Set expectations and see who is executing.' },
   { go: 'obt/why', key: 'trainer', ic: 'bars', tint: 'var(--purple-surface)', accent: 'var(--purple-bright)',
     t: 'Trainer', s: 'Scale client accountability and increase your value.' },
-  { go: 'obp/why', key: 'parent', ic: 'heart', tint: 'var(--red-surface)', accent: 'var(--red)',
+  /* Neutral (2026-08-25): red is the miss/danger hue. The one door a worried parent taps
+     should not be dressed as an alert. */
+  { go: 'obp/why', key: 'parent', ic: 'heart', tint: 'var(--surface-3)', accent: 'var(--text-2)',
     t: 'Parent', s: 'Support an athlete without constantly checking on them.' },
   /* Two nutrition entries on purpose (2026-08-18): a college RD covering a roster and a
      private-practice pro run different books. The subtitles carry the fork. */
@@ -52,7 +56,7 @@ export const ob2Role = {
   render() {
     const resume = resumeTarget();
     const card = (r) => `
-      <div class="role-card" data-go="${r.go}" data-role="${r.key}" role="button" aria-label="${esc(r.t)} — ${esc(r.s)}">
+      <div class="role-card" data-go="${r.go}" data-role="${r.key}" role="button" aria-label="${esc(r.t)}. ${esc(r.s)}">
         <div class="role-ic" style="background:${r.tint};color:${r.accent}">${icon(r.ic, 21)}</div>
         <div class="role-tt"><div class="role-t">${esc(r.t)}</div><div class="role-s">${esc(r.s)}</div></div>
         <div class="role-chev">${icon('chevron', 18)}</div>
@@ -64,14 +68,14 @@ export const ob2Role = {
       <div class="ob-sub" style="text-align:center">Everything that follows is built around your answer.</div>
       <div class="ob-body">
         ${resume ? `
-        <div class="role-card" id="ob2-resume" data-go="${esc(resume.go)}" role="button" aria-label="Continue where you left off — ${esc(resume.role.t)}" style="border-color:${resume.role.accent}">
+        <div class="role-card" id="ob2-resume" data-go="${esc(resume.go)}" role="button" aria-label="Continue where you left off. ${esc(resume.role.t)}" style="border-color:${resume.role.accent}">
           <div class="role-ic" style="background:${resume.role.tint};color:${resume.role.accent}">${icon('back', 21)}</div>
           <div class="role-tt"><div class="role-t">Pick up where you left off</div><div class="role-s">Your ${esc(resume.role.t.toLowerCase())} answers are saved.</div></div>
           <div class="role-chev">${icon('chevron', 18)}</div>
         </div>
         <div class="role-note" style="text-align:center;margin:10px 0 16px">Or start over with a different role.</div>` : ''}
         <div class="role-list">${ROLES.map(card).join('')}</div>
-        <div class="role-note" style="text-align:center">Invited by a coach, trainer, or athlete? Pick your role — you’ll connect with your code in a minute.</div>
+        <div class="role-note" style="text-align:center">Invited by a coach, trainer, or athlete? Pick your role. You’ll connect with your code in a minute.</div>
       </div>
       <div class="ob-foot">
         <div class="ob-textlink" role="button" tabindex="0" aria-label="Back to welcome" data-go="welcome">Back</div>

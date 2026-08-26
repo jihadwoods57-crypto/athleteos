@@ -10,6 +10,7 @@ import * as roles from '../roles.js';
    never trained. Cached rows survive a later failure: they were real when they arrived. */
 let CACHE = { logs: null, loading: false, failed: false };
 let PENDING_DELETE = null;
+let FAILED_DELETE = null; // a delete the server refused: the button stays armed and says so
 const FEEL = ['', 'Rough', 'Tough', 'OK', 'Good', 'Great'];
 
 function fmtDate(d) {
@@ -29,18 +30,19 @@ async function load() {
 }
 
 function logCard(l) {
-  const feelCls = l.feel >= 4 ? 'g' : l.feel >= 3 ? 'a' : 'r';
-  const feel = l.feel ? `<span class="status-pill ${feelCls}">${esc(FEEL[l.feel] || '')}</span>` : '';
+  // Self-reported mood is never a warning: 4+ reads green, everything else stays neutral.
+  const feelCls = l.feel >= 4 ? 'g' : '';
+  const feel = l.feel ? `<span class="status-pill${feelCls ? ` ${feelCls}` : ''}">${esc(FEEL[l.feel] || '')}</span>` : '';
   const self = l.source === 'self' ? `<span class="status-pill">Self-logged</span>` : '';
   const pending = PENDING_DELETE === l.id;
   return `<section class="card pad" style="margin-bottom:8px">
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
-      <div style="font-size:14.5px;font-weight:800">${esc(l.title || 'Workout')}</div>
-      <div style="font-size:11.5px;font-weight:700;color:var(--text-3);white-space:nowrap">${esc(fmtDate(l.log_date))}</div>
+      <div style="font-size:var(--t-base);font-weight:800">${esc(l.title || 'Workout')}</div>
+      <div style="font-size:var(--t-xs);font-weight:700;color:var(--text-3);white-space:nowrap">${esc(fmtDate(l.log_date))}</div>
     </div>
     ${feel || self ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${feel}${self}</div>` : ''}
-    ${l.note ? `<p style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:8px;line-height:1.45">${esc(l.note)}</p>` : ''}
-    <div style="text-align:right;margin-top:6px"><button class="tl-del${pending ? ' arm' : ''}" data-tl-del="${l.id}">${pending ? 'Delete?' : 'Delete'}</button></div>
+    ${l.note ? `<p style="font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:8px;line-height:1.45">${esc(l.note)}</p>` : ''}
+    <div style="text-align:right;margin-top:6px"><button class="tl-del${pending ? ' arm' : ''}" data-tl-del="${l.id}">${pending ? (FAILED_DELETE === l.id ? "Couldn't delete · tap to retry" : 'Delete?') : 'Delete'}</button></div>
   </section>`;
 }
 
@@ -48,7 +50,7 @@ export default {
   tab: 'progress',
   render() {
     const logs = CACHE.logs || [];
-    const head = backHead('Training', 'Your sessions — tracked, not scored', 'progress');
+    const head = backHead('Training', 'Your sessions · tracked, not scored', 'progress');
     const addBtn = `<button class="btn green sm" data-go="log-training" style="width:100%">${icon('bolt', 16)} Log a workout</button>`;
     // Honest failure BEFORE the empty state: with nothing cached we do not know whether they
     // have sessions, and "No sessions yet" would be an answer we have not earned.
@@ -87,10 +89,16 @@ export default {
     if (retry) retry.addEventListener('click', () => { if (!CACHE.loading) { retry.disabled = true; load(); } });
     root.querySelectorAll('[data-tl-del]').forEach((el) => el.addEventListener('click', async () => {
       const id = el.getAttribute('data-tl-del');
-      if (PENDING_DELETE !== id) { PENDING_DELETE = id; if (window.__render) window.__render(); return; }
-      PENDING_DELETE = null;
+      if (PENDING_DELETE !== id) { PENDING_DELETE = id; FAILED_DELETE = null; if (window.__render) window.__render(); return; }
       const ok = await roles.deleteTrainingLog(id);
-      if (ok && CACHE.logs) CACHE.logs = CACHE.logs.filter((l) => l.id !== id);
+      if (ok) {
+        PENDING_DELETE = null; FAILED_DELETE = null;
+        if (CACHE.logs) CACHE.logs = CACHE.logs.filter((l) => l.id !== id);
+      } else {
+        // The server said no: stay armed and say so, instead of silently repainting back to
+        // "Delete" as if nothing happened. The next tap retries the delete directly.
+        PENDING_DELETE = id; FAILED_DELETE = id;
+      }
       if (window.__render) window.__render();
     }));
   },

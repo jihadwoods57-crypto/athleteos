@@ -24,7 +24,7 @@ async function probeHealth() {
   DEV.checked = true;
   if (window.__render) window.__render();
 }
-function fmtSleep(h) { if (h == null) return '—'; const H = Math.floor(h), M = Math.round((h - H) * 60); return `${H}h${M ? ` ${M}m` : ''}`; }
+function fmtSleep(h) { if (h == null) return '·'; const H = Math.floor(h), M = Math.round((h - H) * 60); return `${H}h${M ? ` ${M}m` : ''}`; }
 function readingRow(icn, label, val) {
   return `<div class="lrow" style="cursor:default"><div class="lic">${icon(icn, 17)}</div><div class="lm"><div class="lt">${esc(label)}</div></div><span class="lv">${esc(val)}</span></div>`;
 }
@@ -86,7 +86,7 @@ export const recruiting = {
       : null;
     const verified = S.coach.hasCoach;
     return `
-    ${backHead('Discipline Record', 'Your real execution, yours to share', 'profile')}
+    ${backHead('Discipline record', 'Your real execution, yours to share', 'profile')}
 
     <section class="card pad" style="border-color:${verified ? 'var(--green-border)' : 'var(--hairline)'}">
       <div style="display:flex;align-items:center;gap:14px">
@@ -178,7 +178,7 @@ export const restrictions = {
     const chip = (n, on) => `<span class="chp rx-chip ${on ? 'on' : ''}" data-name="${esc(n)}">${on ? `${icon('check', 12)} ` : ''}${esc(n)}</span>`;
     const customs = (arr, opts) => arr.map((x) => x.name || x).filter((n) => !opts.includes(n));
     return `
-    ${backHead('Food Restrictions', 'Allergies, intolerances, and preferences, kept separate', 'profile')}
+    ${backHead('Food restrictions', 'Allergies, intolerances, and preferences, kept separate', 'profile')}
 
     <div class="eyebrow">Allergies · medical, taken seriously</div>
     <div class="chip-row" id="rx-allergies">
@@ -384,7 +384,7 @@ export const injury = {
   render() {
     const on = RT.injured;
     return `
-    ${backHead('Injury Mode', on ? 'Your Standard adapts while you heal' : 'Report it. Your Standard adapts', 'home')}
+    ${backHead('Injury mode', on ? 'Your Standard adapts while you heal' : 'Report it. Your Standard adapts', 'home')}
 
     ${on ? `
     <div class="eyebrow">What changed in your Standard</div>
@@ -625,7 +625,7 @@ export const safety = {
   nav: 'coach', tab: 'roster',
   render() {
     return `
-    ${backHead('Wellness Flags', 'Protective, never punitive', 'coach-home')}
+    ${backHead('Wellness flags', 'Protective, never punitive', 'coach-home')}
 
     <section class="card pad" style="border-color:var(--green-border)">
       <div style="display:flex;align-items:center;gap:13px">

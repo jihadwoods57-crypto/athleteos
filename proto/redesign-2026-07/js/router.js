@@ -46,6 +46,11 @@ const NAVS = {
   ],
 };
 
+/* Tab-badge roll-ups. trainer-grow (new client applications) lost its tab slot when You took the
+   fifth trainer tab; its badge() count now surfaces on the You tab it lives under, so a new
+   application is no longer invisible until the trainer happens to open Grow. */
+const BADGE_ROLLUP = { 'trainer-profile': ['trainer-grow'] };
+
 /** Which tab bar a screen renders. `nav: 'operator'` means "whichever operator is signed in" —
  *  one screen module, two role shells. Anything else is a literal nav name.
  *  Exported for the router matrix test: both guards below `return` after setting location.hash,
@@ -107,10 +112,17 @@ function tabbar(activeTab, nav = 'athlete') {
     let badgeN = 0;
     try {
       const scr = screens[t.route];
-      const n = scr && scr.badge ? scr.badge() : 0;
+      let n = scr && scr.badge ? scr.badge() : 0;
+      // Roll-ups: a screen that lost its tab slot but still counts things an operator must see
+      // surfaces its badge() on the tab that now houses it (BADGE_ROLLUP below NAVS).
+      for (const r of BADGE_ROLLUP[t.route] || []) {
+        const s = screens[r];
+        if (s && s.badge) n += s.badge() || 0;
+      }
       // aria-hidden: the raw "9+" read as part of the tab's name ("9+ Inbox", no unit). The count
       // joins the tab's aria-label below instead, with a real noun.
-      if (n) { badgeN = n; badge = `<span aria-hidden="true" style="position:absolute;top:-3px;right:50%;margin-right:-16px;min-width:15px;height:15px;border-radius:999px;background:var(--danger-solid);color:#fff;font-size:9px;font-weight:800;display:grid;place-items:center;padding:0 3px;border:2px solid var(--bg)">${n > 9 ? '9+' : n}</span>`; }
+      // Styling lives on .tab-badge (css) — the inline color/font-size literals are gone.
+      if (n) { badgeN = n; badge = `<span class="tab-badge" aria-hidden="true">${n > 9 ? '9+' : n}</span>`; }
     } catch { /* pre-auth render */ }
     // First-run tour anchors on the tabs themselves (tour-plan.js). Operator tab anchors are
     // prefixed tab- so they never collide with the board's own `roster` anchor on coach-home.
@@ -724,7 +736,12 @@ const AUTH_ROUTES = ['welcome', 'role', 'signin', 'reset', 'onboarding', 'coach-
 function bootShell() {
   const device = document.getElementById('device');
   if (!device) return;
-  const navRole = RT.authRole === 'coach' || RT.authRole === 'trainer' ? RT.authRole : 'athlete';
+  // Strict role resolution, matching tabbar()'s own fail-to-nothing rule: a role with no NAVS
+  // entry boots with NO tab bar. Parents used to get a flash of ATHLETE chrome here (five tabs
+  // to places a parent has no account for); an unhydrated role (null) also renders no bar rather
+  // than guessing athlete. `: null` on purpose — tabbar's default parameter only fires on
+  // undefined, so null can never resurrect the athlete bar.
+  const navRole = NAVS[RT.authRole] ? RT.authRole : null;
   device.innerHTML = `
     <div class="island"></div>
     <div class="screen booting">

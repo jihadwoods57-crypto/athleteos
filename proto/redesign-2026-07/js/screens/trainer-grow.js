@@ -6,6 +6,7 @@ import { RT } from '../state.js';
 import { icon } from '../icons.js';
 import { esc, backHead, skeletonRows, errorState, emptyState, statusMsg, alertMsg, copyText } from '../components.js';
 import * as roles from '../roles.js';
+import { priceLabel } from '../funded.js';
 
 const SHARE_BASE = 'https://onstandard.app/t?t=';
 
@@ -79,8 +80,12 @@ function connectSection() {
     <button class="btn ${meta.tone} sm" id="tg-connect"${UI.connecting ? ' disabled aria-busy="true"' : ''} style="width:auto;padding:0 16px;height:44px">${UI.connecting ? '…' : meta.cta}</button>
     ${statusMsg({ id: 'tg-connect-msg', style: 'margin-left:10px' })}
     <div class="sidebox flat" style="margin:12px 0 0"><div class="req-icon g" style="width:34px;height:34px">${icon('check', 15)}</div>
+      ${/* No "$25" pricing folklore and no fee percentage: the fee lives in pay_platform_config
+            on the server, so a number typed here would be a second source of truth that drifts
+            the day the founder changes the row. Point at the payouts list, which shows the real
+            fee on every payment. */''}
       <div><div class="tt">Bill through OnStandard, and your clients ride free</div>
-      <div class="ts">A client on a recurring package gets full OnStandard membership included, and you are not charged a seat for them. One bill for them, no seat bill for you: the platform fee covers it. Most trainers add ~$25 to the package and include the app.</div></div></div>
+      <div class="ts">A client on a recurring package gets full OnStandard membership included, and you are not charged a seat for them. One bill for them, no seat bill for you. OnStandard keeps a platform fee from each payment. You see the exact split on every payout below.</div></div></div>
   `;
 }
 
@@ -112,12 +117,8 @@ function shortDate(d) {
   try { return new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); } catch { return ''; }
 }
 
-function priceLabel(o) {
-  if (o.price_cents == null) return 'Contact for pricing';
-  const d = o.price_cents / 100; const n = Number.isInteger(d) ? d : d.toFixed(2);
-  const per = o.cadence === 'one-time' ? ' one-time' : o.cadence === 'session' ? ' / session' : o.cadence === 'week' ? ' / wk' : ' / mo';
-  return `$${n}${per}`;
-}
+// priceLabel lives in ../funded.js now: three screens carried their own copy and all three
+// price-labelled unknown cadences as " / mo".
 
 export function newApps() { return (G.apps || []).filter(a => a.status === 'new').length; }
 

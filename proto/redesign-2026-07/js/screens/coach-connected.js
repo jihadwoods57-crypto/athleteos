@@ -108,7 +108,7 @@ export function standardsBoardCard() {
   if ((!rows || !rows.length) && CS.boardError) {
     return `<section class="card pad" style="border-color:var(--amber-border);margin-bottom:10px">
       <div class="cs-h">Activity standards didn’t load</div>
-      <div class="cs-p" style="padding-top:4px">This isn’t a count of zero — we couldn’t reach the server. Try again in a moment.</div>
+      <div class="cs-p" style="padding-top:4px">This isn’t a count of zero. We couldn’t reach the server. Try again in a moment.</div>
     </section>`;
   }
   if (!rows || !rows.length) return '';
@@ -185,7 +185,7 @@ function athleteRow(r, inst) {
 
 const initials = (name) => initialsOf(name, '?');
 
-/* Signature of the board the screen last painted — see the loop note in mount(). */
+/* Signature of the board the screen last painted. See the loop note in mount(). */
 let BOARD_SIG = null;
 
 /* Direct entry — a relaunch restoring #coach-standards, or a typed link — reaches these mounts
@@ -241,9 +241,7 @@ export const coachStandards = {
       // empty (nothing scheduled today / standard turned off) or errored.
       if (CS.boardError) {
         return `${backHead('Activity standard', "Can't reach the board", back)}
-        <div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
-        <div class="sd-t">Can't reach the board</div>
-        <div class="sd-s">Check your connection — reopen this screen to retry. Nothing is lost.</div></div>`;
+        ${errorState({ title: "Can't reach the board", body: 'Nothing is lost. Check your connection and try again.', retryId: 'cs-board-retry' })}`;
       }
       if (CS.boardAt) {
         return `${backHead('Activity standard', 'Nothing scheduled today', back)}
@@ -313,7 +311,7 @@ export const coachStandards = {
       ${athleteRow(r, inst)}
       ${r.dispute_note ? `<div class="cs-p" style="padding:0 0 10px">“${esc(r.dispute_note)}”</div>` : ''}`).join('')}
     </section>
-    <div class="cs-p" style="padding:8px 20px 0">Nothing changed on its own — the record still reads as it did. Correcting it is yours to do, and your name goes on it.</div>` : ''}
+    <div class="cs-p" style="padding:8px 20px 0">Nothing changed on its own. The record still reads as it did. Correcting it is yours to do, and your name goes on it.</div>` : ''}
 
     ${gaps.length ? `
     <div class="eyebrow">Couldn’t be verified · ${gaps.length}</div>
@@ -329,7 +327,7 @@ export const coachStandards = {
     <section class="card" style="padding:2px 16px">${rest.map((r) => athleteRow(r, inst)).join('')}</section>` : ''}
 
     <div class="cs-p" style="text-align:center;padding:14px 20px 24px">
-      You see progress toward the target you set — never anyone’s raw health data.
+      You see progress toward the target you set. Never anyone’s raw health data.
     </div>`;
   },
 
@@ -351,11 +349,35 @@ export const coachStandards = {
       if (root.isConnected && window.__render) window.__render();
     });
 
+    // The failed-board retry: a forced reload, then repaint whatever came back.
+    const boardRetry = root.querySelector('#cs-board-retry');
+    if (boardRetry) boardRetry.addEventListener('click', async () => {
+      boardRetry.disabled = true;
+      const bid = bookId();
+      if (bid) await loadBoard(CD.kind === 'practice' ? null : bid,
+        CD.kind === 'practice' ? bid : null, todayISO(), true);
+      if (window.__render) window.__render();
+    });
+
+    // A ruling that fails must SAY so: the old version discarded the result and reloaded,
+    // so a dropped Approve looked processed and the row just came back. Now a failure
+    // restores the button and prints why, and only a real success refreshes the board.
     const act = (attr, fn, busy) => root.querySelectorAll(`[${attr}]`).forEach((el) =>
       el.addEventListener('click', async () => {
         if (el.disabled) return;
+        const label = el.textContent;
         el.disabled = true; el.textContent = busy;
-        await fn(el.getAttribute(attr));
+        const r = await fn(el.getAttribute(attr));
+        if (!r || !r.ok) {
+          el.disabled = false; el.textContent = label;
+          const wrap = el.parentElement;
+          if (wrap && !(wrap.nextElementSibling && wrap.nextElementSibling.classList
+            && wrap.nextElementSibling.classList.contains('cs-act-err'))) {
+            wrap.insertAdjacentHTML('afterend',
+              `<div class="cs-act-err" style="color:var(--red);font-size:var(--t-xs);font-weight:700;padding:0 0 10px">Couldn't save that ruling. Try again.</div>`);
+          }
+          return;
+        }
         const bid = bookId();
         if (bid) await loadBoard(CD.kind === 'practice' ? null : bid,
           CD.kind === 'practice' ? bid : null, todayISO(), true);
@@ -364,9 +386,11 @@ export const coachStandards = {
 
     act('data-cs-ok', (rid) => reviewManual(rid, true).then((r) => {
       if (r.ok) track(EVENTS.CS_REVIEWED, { approve: true });
+      return r;
     }), 'Approving…');
     act('data-cs-no', (rid) => reviewManual(rid, false).then((r) => {
       if (r.ok) track(EVENTS.CS_REVIEWED, { approve: false });
+      return r;
     }), 'Saving…');
   },
 };
@@ -622,13 +646,26 @@ export const coachStandardEdit = {
       }
     });
 
+    // Turning a standard off is two-tap, and the result is CHECKED: the old handler ignored
+    // it and navigated, so a failed write left the standard live while the coach believed it
+    // was off. On failure the button re-enables and says so instead of navigating.
     const off = root.querySelector('#cs-off');
-    if (off) off.addEventListener('click', async () => {
-      off.disabled = true; off.textContent = 'Turning off…';
-      await setStandardActive(DRAFT.id, false);
-      DRAFT = null;
-      location.hash = '#coach-standards-manage';
-    });
+    if (off) {
+      let armed = false;
+      off.addEventListener('click', async () => {
+        if (off.disabled) return;
+        if (!armed) { armed = true; off.textContent = 'Turn off this standard?'; return; }
+        off.disabled = true; off.textContent = 'Turning off…';
+        const r = await setStandardActive(DRAFT.id, false);
+        if (!r || !r.ok) {
+          off.disabled = false; armed = false;
+          off.textContent = 'Couldn’t turn it off. Try again';
+          return;
+        }
+        DRAFT = null;
+        location.hash = '#coach-standards-manage';
+      });
+    }
   },
 };
 
@@ -656,7 +693,7 @@ export const coachStandardsManage = {
       </div>`).join('')}</section>`
     : MANAGE.loaded ? `<section class="card pad">
         <div class="cs-h">No activity standards yet</div>
-        <div class="cs-p" style="padding-top:4px">Set one and it verifies itself from your athletes’ phones and watches — no screenshots, no check-ins.</div>
+        <div class="cs-p" style="padding-top:4px">Set one and it verifies itself from your athletes’ phones and watches. No screenshots, no check-ins.</div>
       </section>`
     // Before the first fetch resolves this screen KNOWS NOTHING — "No activity standards yet"
     // here reads as a deletion to a coach who has three (the exact lie loadOwnerStandards'

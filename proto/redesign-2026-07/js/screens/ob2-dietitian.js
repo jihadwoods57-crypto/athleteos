@@ -20,7 +20,7 @@ import { esc, copyText } from '../components.js';
 import { setMyTeamCode } from '../roles.js';
 import {
   defineFlow, saveProgressStep, choiceGrid, chipRow, simChip, mirrorCard, countStat,
-  phoneCard, testimonial, planCard, PLANS, capture, ob, gateCta, structureStep,
+  phoneCard, testimonial, planCard, PLANS, capture, ob, gateCta, structureStep, commitContinue,
 } from '../ob2.js';
 import { SAMPLE_MEAL } from '../ob2-meal.js';
 import { roleLabel, normalizeRole } from '../staff-access.js';
@@ -268,7 +268,7 @@ const steps = [
     body: () => `
       ${simChip('Simulated roster')}
       ${phoneCard('Meal review', demoBoard())}
-      <div class="ob2-fine">Every row is a real plate photo with the AI’s read attached. Tap one and you are looking at what the athlete actually ate.</div>`,
+      <div class="ob2-fine">In your live queue, every row is the athlete’s actual plate photo with the AI’s read attached. Tap one and you are looking at what they actually ate.</div>`,
     mount(root) {
       root.querySelectorAll('[data-thumb]').forEach((el) => {
         const src = el.getAttribute('data-thumb');
@@ -292,6 +292,9 @@ const steps = [
         </div>
         <div class="ob2-fine" id="obd-fix-note">${FIX.pick ? 'Correction logged under your name. The athlete’s numbers update instantly.' : 'The AI estimated this plate. Correct the portion and watch the numbers move.'}</div>`)}`,
     mount(root) {
+      /* Fresh demo on re-entry: the module scratch survives navigation, so a previous
+         visit's pick stayed applied. Reset, then repaint once so body() renders clean. */
+      if (FIX.pick) { FIX.pick = null; window.__render(); return; }
       const wrap = root.querySelector('#obd-fix-chips');
       if (!wrap) return;
       wrap.addEventListener('click', (e) => {
@@ -348,13 +351,11 @@ const steps = [
       return `
       <div class="ob2-gap-verdict">${verdict}</div>
       <div class="ob-foot">
-        ${committed
-          ? `<button class="btn green" id="obd-commit-next">${icon('check', 18)}&nbsp; Committed. Continue</button>`
-          : commitButton(false)}
+        ${committed ? commitContinue() : commitButton(false)}
       </div>`;
     },
     mount(root, ctx) {
-      const done = root.querySelector('#obd-commit-next');
+      const done = root.querySelector('#ob2-commit-next');
       if (done) { done.addEventListener('click', () => ctx.next()); return; }
       wireCommit(root, () => {
         capture({ committedAt: new Date().toISOString() });
@@ -370,8 +371,8 @@ const steps = [
   {
     id: 'proof', ch: 4, cta: 'Continue',
     title: () => 'What it looks like in a program.',
+    sub: () => 'Illustrative, not actual customers yet.',
     body: () => `
-      <div class="ob2-fine left">Illustrative examples. Not actual customers yet.</div>
       <!-- LAUNCH PLACEHOLDERS: realistic sample testimonials. The founder swaps these
            for real customer quotes before go-live. Not real people. -->
       ${testimonial({
@@ -472,7 +473,7 @@ const steps = [
       <div class="sidebox">
         <div class="req-icon b">${icon('clipboard', 17)}</div>
         <div><div class="tt">We couldn’t create your team</div>
-        <div class="ts">Your account is set up. The team isn’t. Tap Continue and you’ll land on your dashboard with a <b>Create team</b> button waiting. One tap.</div></div>
+        <div class="ts">Your account is set up. The team isn’t. Pick a plan, then your dashboard has a <b>Create team</b> button waiting.</div></div>
       </div>`}`;
     },
     mount(root) {

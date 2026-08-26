@@ -1,6 +1,6 @@
 import { S, act } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, esc } from '../components.js';
+import { backHead, esc, alertMsg, statusMsg } from '../components.js';
 
 /* Guardian consent — the athlete side of 0008/0050. A provable minor's real data stays
    ON THIS DEVICE until a parent/guardian verifies; this screen explains that honestly and
@@ -12,7 +12,7 @@ export default {
     const c = S.consent;
     if (!c.minor) {
       return `
-      ${backHead('Parent Approval', 'Not needed for your account', 'home')}
+      ${backHead('Parent approval', 'Not needed for your account', 'home')}
       <div class="state-demo">
         <div class="sd-ic">${icon('shield', 24)}</div>
         <div class="sd-t">You're all set</div>
@@ -23,7 +23,7 @@ export default {
     }
     if (c.status === 'verified') {
       return `
-      ${backHead('Parent Approval', 'Approved', 'home')}
+      ${backHead('Parent approval', 'Approved', 'home')}
       <div class="state-demo" style="border-style:solid;border-color:var(--green-border)">
         <div class="sd-ic" style="background:var(--green-surface);color:var(--green-bright)">${icon('check', 24)}</div>
         <div class="sd-t">Approved</div>
@@ -34,70 +34,75 @@ export default {
     }
     if (c.status === 'pending') {
       return `
-      ${backHead('Parent Approval', 'Waiting on your parent', 'home')}
+      ${backHead('Parent approval', 'Waiting on your parent', 'home')}
       <div class="state-demo">
         <div class="sd-ic" style="background:rgba(var(--amber-rgb),0.16);color:var(--amber-bright)">${icon('clock', 24)}</div>
         <div class="sd-t">Request sent</div>
-        <div class="sd-s">We asked ${c.guardianEmail ? esc(c.guardianEmail) : 'your parent'} to approve. Until they do, everything you log stays on this phone — nothing is lost, and it all syncs the moment they say yes.</div>
+        <div class="sd-s">We asked ${c.guardianEmail ? esc(c.guardianEmail) : 'your parent'} to approve. Until they do, everything you log stays on this phone. Nothing is lost, and it all syncs the moment they say yes.</div>
       </div>
       <div style="height:14px"></div>
-      <div class="eyebrow">Haven't heard back? Send a reminder — or fix the email.</div>
+      <div class="eyebrow">Haven't heard back? Send a reminder, or fix the email.</div>
       <input id="gd-email" class="ob-input" type="email" inputmode="email" autocapitalize="none" value="${esc(c.guardianEmail || '')}" placeholder="Parent or guardian email" />
-      <div id="gd-err" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;margin-top:10px;text-align:center"></div>
+      ${alertMsg({ id: 'gd-err', style: 'color:var(--red);font-weight:600;min-height:18px;margin-top:10px;text-align:center' })}
+      ${statusMsg({ id: 'gd-ok', style: 'display:block;color:var(--green-bright);font-weight:600;text-align:center' })}
       <button class="btn ghost" id="gd-send">Send reminder</button>
       <div style="height:10px"></div>`;
     }
     if (c.status === 'revoked') {
       return `
-      ${backHead('Parent Approval', 'Approval was removed', 'home')}
+      ${backHead('Parent approval', 'Approval was removed', 'home')}
 
       <div class="sidebox">
         <div class="req-icon" style="width:38px;height:38px;background:rgba(var(--red-rgb),0.16);color:var(--red-bright)">${icon('lock', 17)}</div>
         <div><div class="tt">Your guardian removed approval</div>
-        <div class="ts">${c.guardianEmail ? esc(c.guardianEmail) : 'Your parent or guardian'} revoked consent, so your day stopped syncing and your coach can no longer see it. Everything you log now stays on this phone — nothing you've already logged is lost. Ask them to approve again to reconnect.</div></div>
+        <div class="ts">${c.guardianEmail ? esc(c.guardianEmail) : 'Your parent or guardian'} revoked consent, so your day stopped syncing and your coach can no longer see it. Everything you log now stays on this phone. Nothing you've already logged is lost. Ask them to approve again to reconnect.</div></div>
       </div>
 
       <div style="height:16px"></div>
       <div class="eyebrow">Send a new approval request</div>
       <input id="gd-email" class="ob-input" type="email" inputmode="email" autocapitalize="none" value="${esc(c.guardianEmail || '')}" placeholder="Parent or guardian email" />
-      <div id="gd-err" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;margin-top:10px;text-align:center"></div>
+      ${alertMsg({ id: 'gd-err', style: 'color:var(--red);font-weight:600;min-height:18px;margin-top:10px;text-align:center' })}
+      ${statusMsg({ id: 'gd-ok', style: 'display:block;color:var(--green-bright);font-weight:600;text-align:center' })}
       <button class="btn" id="gd-send">Ask for approval again</button>
       <div style="height:10px"></div>`;
     }
     return `
-    ${backHead('Parent Approval', 'One step before your day can sync', 'home')}
+    ${backHead('Parent approval', 'One step before your day can sync', 'home')}
 
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
       <div><div class="tt">Why this exists</div>
-      <div class="ts">You're under 18, so the law says a parent or guardian approves before your data leaves this phone. Everything you log still counts here — it just stays private until they say yes.</div></div>
+      <div class="ts">You're under 18, so the law says a parent or guardian approves before your data leaves this phone. Everything you log still counts here. It just stays private until they say yes.</div></div>
     </div>
 
     <div style="height:16px"></div>
     <div class="eyebrow">Send the approval request</div>
     <input id="gd-email" class="ob-input" type="email" inputmode="email" autocapitalize="none" placeholder="Parent or guardian email" />
-    <div id="gd-err" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;margin-top:10px;text-align:center"></div>
+    ${alertMsg({ id: 'gd-err', style: 'color:var(--red);font-weight:600;min-height:18px;margin-top:10px;text-align:center' })}
+    ${statusMsg({ id: 'gd-ok', style: 'display:block;color:var(--green-bright);font-weight:600;text-align:center' })}
     <button class="btn" id="gd-send">Ask for approval</button>
 
     <div style="height:14px"></div>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
       <div><div class="tt">What they see</div>
-      <div class="ts">One email with one approve button. They never get your meals or photos — approving just lets your score reach your coach.</div></div>
+      <div class="ts">One email with one approve button. They never get your meals or photos. Approving just lets your score reach your coach.</div></div>
     </div>
     <div style="height:10px"></div>`;
   },
   mount(root) {
     const btn = root.querySelector('#gd-send');
     const input = root.querySelector('#gd-email');
+    // Two dedicated regions instead of one div whose color was mutated in JS: gd-err (alertMsg,
+    // role=alert, red) for anything that still needs the athlete to act, and gd-ok (statusMsg,
+    // role=status, green) for a confirmed send. Both reset each submit so nothing stale lingers.
     const err = root.querySelector('#gd-err');
+    const ok = root.querySelector('#gd-ok');
     if (!btn || !input) return;
     const submit = async () => {
       if (btn.disabled) return;
-      // Reset BOTH text and color each submit — a prior "Reminder sent" turns this slot green
-      // (line below), and without this reset a following error would render in that success green.
-      err.textContent = '';
-      err.style.color = '';
+      if (err) err.textContent = '';
+      if (ok) ok.textContent = '';
       btn.disabled = true;
       const was = btn.textContent;
       btn.textContent = 'Sending…';
@@ -112,21 +117,21 @@ export default {
         // unreachable). Claiming "sent" here would be the old silent dead-end: a pending row a
         // parent never hears about. Say what happened and leave the button armed to retry.
         if (r.emailed === false) {
-          err.style.color = 'var(--amber-bright)';
-          err.textContent = 'Saved, but the email could not be sent yet. Try again in a bit, or reach support@onstandard.app.';
+          // Recorded but no email actually left. The athlete still has to act (retry), so this
+          // is an error in red, not an amber warning shade.
+          if (err) err.textContent = 'Saved, but the email could not be sent yet. Try again in a bit, or reach support@onstandard.app.';
           btn.disabled = false; btn.textContent = was;
           return;
         }
         // Pending → pending repaints an identical view, so a successful reminder read as a
         // no-op. Show inline confirmation instead; the none/revoked → pending flip still repaints.
         if (wasPending) {
-          err.style.color = 'var(--green-bright)';
-          err.textContent = `Reminder sent${input.value ? ' to ' + input.value : ''}.`;
+          if (ok) ok.textContent = `Reminder sent${input.value ? ' to ' + input.value : ''}.`;
           btn.disabled = false; btn.textContent = was;
         } else { window.__render(); }
         return;
       }
-      err.textContent = r.error || 'Could not send. Try again.';
+      if (err) err.textContent = r.error || 'Could not send. Try again.';
       btn.disabled = false;
       btn.textContent = was;
     };

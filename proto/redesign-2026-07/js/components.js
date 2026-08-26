@@ -87,7 +87,7 @@ export function emptyState({ icon: ic = 'sparkle', title, body = '', action = nu
 /** Honest error + retry. `retryId` is wired by the caller's mount(); omit for a non-retryable note. */
 export function errorState({ title = "Couldn't load this", body = 'Reconnect and it loads right here — nothing was lost.', retryId = null } = {}) {
   const a = retryId ? `<div class="sd-cta"><button class="btn ghost sm" id="${esc(retryId)}" style="width:auto;padding:0 18px">${icon('wifiOff', 15)} Try again</button></div>` : '';
-  return `<section class="state-demo err-box"><div class="sd-ic">${icon('wifiOff', 24)}</div>
+  return `<section class="state-demo err-box" role="alert"><div class="sd-ic">${icon('wifiOff', 24)}</div>
     <div class="sd-t">${esc(title)}</div><div class="sd-s">${esc(body)}</div>${a}</section>`;
 }
 
@@ -337,7 +337,7 @@ export function animateRing(root) {
   const tip = root.querySelector('.ring-tip');
   // Fades in as the band reaches it. It then pulsed forever at 2.4s, which is decorative motion
   // on a number that had already finished changing.
-  if (tip) { tip.style.transition = 'opacity 600ms ease'; setTimeout(() => { tip.style.opacity = '1'; }, 1150); }
+  if (tip) { tip.style.transition = 'opacity 600ms var(--ease-out)'; setTimeout(() => { tip.style.opacity = '1'; }, 1150); }
   // Completion flare: a one-shot halo bloom as the band lands — the moment the number becomes
   // final gets a physical exhale. Class-driven (CSS one-shot animation, fill forwards) so a
   // repaint can't replay it; windBack in motion.js strips it before a genuine re-reveal.

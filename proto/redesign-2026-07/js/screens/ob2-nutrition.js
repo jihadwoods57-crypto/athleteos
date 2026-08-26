@@ -12,7 +12,7 @@ import { icon } from '../icons.js';
 import { esc, copyText } from '../components.js';
 import {
   defineFlow, saveProgressStep, choiceGrid, chipRow, simChip, mirrorCard, countStat, chatSim,
-  phoneCard, testimonial, planCard, PLANS, capture, ob, gateCta, structureStep,
+  phoneCard, testimonial, planCard, PLANS, capture, ob, gateCta, structureStep, commitContinue,
 } from '../ob2.js';
 import { styleForStructureAnswer, styleLabel } from '../plan-style.js';
 import { SAMPLE_MEAL } from '../ob2-meal.js';
@@ -95,32 +95,35 @@ const hero = (eyebrow, title, body, note) => `
   </div>`;
 
 const listRow = (ic, text) => `
-  <div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--hairline-soft)">
-    <div style="width:32px;height:32px;border-radius:10px;flex:none;display:grid;place-items:center;background:var(--blue-surface);color:var(--blue-bright)">${icon(ic, 16)}</div>
-    <div style="font-size:13.5px;font-weight:700;line-height:1.4">${text}</div>
+  <div class="ob2-feat">
+    <div class="fi">${icon(ic, 16)}</div>
+    <div class="ft">${text}</div>
   </div>`;
 
 /* ---------- review-queue row (rides .ob2-board row styling) ---------- */
 function queueRow({ name, meal, score, quiet, flagged, thumb }) {
+  /* Class-only, riding the obd board anatomy (.bt/.bini/.bsub/.bsc/.bf in css/ob2.css);
+     thumb backgrounds are stamped from the step mount so the markup carries no inline url. */
   const av = thumb
-    ? `<div style="width:34px;height:34px;border-radius:var(--r-chip);flex:none;background-image:url('${esc(thumb)}');background-size:cover;background-position:center"></div>`
-    : `<div style="width:34px;height:34px;border-radius:var(--r-chip);flex:none;display:grid;place-items:center;background:var(--surface-3);font-size:12px;font-weight:800;color:var(--text-2)">${esc((name || '?')[0])}</div>`;
+    ? `<div class="bt" data-thumb="${esc(thumb)}"></div>`
+    : `<div class="bini">${esc((name || '?')[0])}</div>`;
+  const tone = score >= 80 ? 'g' : score >= 60 ? 'a' : 'r';
   const badge = quiet
     ? `<span class="status-pill muted">${esc(quiet)}</span>`
-    : `<div style="flex:none;min-width:34px;text-align:center;font-size:12px;font-weight:800;padding:4px 9px;border-radius:var(--r-chip);font-variant-numeric:tabular-nums;background:${score >= 80 ? 'var(--green-surface)' : score >= 60 ? 'var(--amber-surface)' : 'var(--red-surface)'};color:${score >= 80 ? 'var(--green-bright)' : score >= 60 ? 'var(--amber-bright)' : 'var(--red)'}">${esc(String(score))}</div>`;
+    : `<div class="bsc ${tone}">${esc(String(score))}</div>`;
   return `<div class="br">${av}
-    <div class="bn">${esc(name)}<div style="font-size:11px;font-weight:600;color:var(--text-3);margin-top:1px">${esc(meal)}</div></div>
-    ${badge}${flagged ? `<div style="flex:none;color:var(--amber-bright)">${icon('flame', 15)}</div>` : ''}</div>`;
+    <div class="bn">${esc(name)}<div class="bsub">${esc(meal)}</div></div>
+    ${badge}${flagged ? `<div class="bf">${icon('flame', 15)}</div>` : ''}</div>`;
 }
 
 /* ---------- per-client protein-consistency bars (plain divs, no chart lib) ---------- */
 function trendRow(name, days, pct) {
-  const bars = days.map((h) => `<i style="display:block;width:9px;height:${Math.max(6, Math.round(h * 0.44))}px;border-radius:2.5px;background:${h >= 70 ? 'var(--green)' : h >= 40 ? 'var(--amber-bright)' : 'var(--surface-3)'}"></i>`).join('');
+  const bars = days.map((h) => `<i style="height:${Math.max(6, Math.round(h * 0.44))}px;background:${h >= 70 ? 'var(--green)' : h >= 40 ? 'var(--amber-bright)' : 'var(--surface-3)'}"></i>`).join('');
   return `
-  <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--hairline-soft)">
-    <div style="flex:1;min-width:0;font-size:13.5px;font-weight:700">${esc(name)}</div>
-    <div style="display:flex;gap:3px;height:44px;align-items:flex-end" aria-hidden="true">${bars}</div>
-    <div style="flex:none;width:42px;text-align:right;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;color:${pct >= 70 ? 'var(--green-bright)' : 'var(--amber-bright)'}">${esc(String(pct))}%</div>
+  <div class="ob2-trend">
+    <div class="tn">${esc(name)}</div>
+    <div class="tb" aria-hidden="true">${bars}</div>
+    <div class="tp" style="color:${pct >= 70 ? 'var(--green-bright)' : 'var(--amber-bright)'}">${esc(String(pct))}%</div>
   </div>`;
 }
 
@@ -270,6 +273,12 @@ const steps = [
         ${queueRow({ name: 'Maya R.', meal: 'Lunch · 12:40 pm', score: TOFU_BOWL.quality, thumb: TOFU_BOWL.photo })}
       </div>`)}
       <div class="ob2-scan-note">No scrolling through DMs. The reading is done; the judgment is yours.</div>`,
+    mount(root) {
+      root.querySelectorAll('[data-thumb]').forEach((el) => {
+        const src = el.getAttribute('data-thumb');
+        if (src) el.style.backgroundImage = `url('${src}')`;
+      });
+    },
   },
   {
     id: 'meal-open', ch: 1, cta: 'The read isn’t perfect. Fix it',
@@ -298,6 +307,9 @@ const steps = [
       ], { req: false })}
       <div id="obn-correct-note" class="ob2-scan-note" style="text-align:left">Remove a line the camera got wrong, or judge the portion. The estimate updates before it reaches Devon’s record.</div>`,
     mount(root) {
+      /* Fresh demo on re-entry: the module scratch survives navigation, so rows a previous
+         visit removed stayed gone. Reset, then repaint once so body() renders clean. */
+      if (CORRECT.removed.length) { CORRECT.removed = []; window.__render(); return; }
       const note = root.querySelector('#obn-correct-note');
       root.querySelectorAll('[data-remove]').forEach((x) => x.addEventListener('click', () => {
         const name = x.getAttribute('data-remove');
@@ -354,11 +366,10 @@ const steps = [
         { n: 'Chris B.', s: 'No entries since Friday' },
         { n: 'Devon K.', s: 'Dinner portions drifting up week over week' },
       ].map((r, i) => `
-      <div class="obn-flag-row" style="display:flex;align-items:center;gap:12px;padding:12px 12px;border-radius:var(--r-card-sm);border:1px solid var(--hairline);background:var(--surface-1);margin-bottom:9px">
-        <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:700">${esc(r.n)}</div>
-        <div style="font-size:12px;font-weight:600;color:var(--text-3);margin-top:2px">${esc(r.s)}</div></div>
-        <div role="button" tabindex="0" aria-pressed="false" aria-label="Flag ${esc(r.n)} for follow-up" data-flag="${i}"
-          style="width:38px;height:38px;border-radius:11px;flex:none;display:grid;place-items:center;background:var(--surface-2);color:var(--text-3);cursor:pointer">${icon('flame', 16)}</div>
+      <div class="ob2-flagrow obn-flag-row">
+        <div style="flex:1;min-width:0"><div class="fn">${esc(r.n)}</div>
+        <div class="fs">${esc(r.s)}</div></div>
+        <div class="ob2-flagbtn" role="button" tabindex="0" aria-pressed="false" aria-label="Flag ${esc(r.n)} for follow-up" data-flag="${i}">${icon('flame', 16)}</div>
       </div>`).join('')}
       <div id="obn-flag-note" class="ob2-scan-note">Nothing flagged yet. Tap a flame.</div>`,
     mount(root) {
@@ -377,8 +388,9 @@ const steps = [
             ? `${count} flagged; ${count === 1 ? 'it opens' : 'they open'} first on Monday.`
             : 'Nothing flagged yet. Tap a flame.';
         };
+        /* Click only: Enter/Space ride the router's central activation net, and a local
+           keydown alongside it double-fires the toggle into a net no-op. */
         btn.addEventListener('click', toggle);
-        btn.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
       });
     },
   },
@@ -444,13 +456,11 @@ const steps = [
       return `
       <div class="ob2-gap-verdict" style="margin-top:4px">Every client meal gets a first read within minutes. <b>${esc(mode)}</b> Nothing reaches a client’s record without your sign-off.</div>
       <div class="ob-foot" style="margin-top:auto">
-        ${committed
-          ? `<button class="btn green" id="obn-commit-next">${icon('check', 18)}&nbsp; Committed. Continue</button>`
-          : commitButton(false)}
+        ${committed ? commitContinue() : commitButton(false)}
       </div>`;
     },
     mount(root, ctx) {
-      const done = root.querySelector('#obn-commit-next');
+      const done = root.querySelector('#ob2-commit-next');
       if (done) { done.addEventListener('click', () => ctx.next()); return; }
       wireCommit(root, () => {
         capture({ committedAt: new Date().toISOString() });
@@ -466,8 +476,8 @@ const steps = [
   {
     id: 'proof', ch: 4, cta: 'Continue',
     title: () => 'What it looks like in a practice.',
+    sub: () => 'Illustrative, not actual customers yet.',
     body: () => `
-      <div class="eyebrow" style="margin:0 2px 12px">Illustrative examples, not actual customers yet</div>
       <!-- LAUNCH PLACEHOLDERS: realistic sample testimonials. The founder swaps these
            for real customer quotes before go-live. Not real people. -->
       ${testimonial({

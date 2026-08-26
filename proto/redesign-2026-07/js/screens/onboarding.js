@@ -122,8 +122,8 @@ const steps = {
 
   5: () => frame(5, 'Where are you now?', 'Weight is a season trend here, never a daily judgment.', `
     <div class="bignum-pair">
-      <div class="bignum"><input id="ob-cur" type="number" inputmode="decimal" placeholder="—" aria-label="Current weight in pounds" style="${numInput}" /><div class="bk">Current lb</div></div>
-      <div class="bignum" style="border-color:var(--green-border)"><input id="ob-tgt" type="number" inputmode="decimal" placeholder="—" aria-label="Target weight in pounds" style="${numInput};color:var(--green-bright)" /><div class="bk">Target lb</div></div>
+      <div class="bignum"><input id="ob-cur" type="number" inputmode="decimal" placeholder="–" aria-label="Current weight in pounds" style="${numInput}" /><div class="bk">Current lb</div></div>
+      <div class="bignum" style="border-color:var(--green-border)"><input id="ob-tgt" type="number" inputmode="decimal" placeholder="–" aria-label="Target weight in pounds" style="${numInput};color:var(--green-bright)" /><div class="bk">Target lb</div></div>
     </div>
     <div id="ob-wt-hint" style="font-size:12.5px;font-weight:700;margin:10px 2px 0;min-height:17px;line-height:1.4"></div>
     <div style="height:8px"></div>
@@ -350,7 +350,7 @@ export default {
           out.innerHTML = `<section class="card" style="padding:6px 16px">${orgs.map((o, i) => `
             <div class="lrow" data-org="${i}">
               <div class="lic"${o.verified ? ' style="color:var(--green-bright)"' : ''}>${icon('shield', 17)}</div>
-              <div class="lm"><div class="lt">${esc(o.name)}${o.verified ? ` <span style="font-size:10px;font-weight:800;color:var(--green-bright);letter-spacing:0.02em">${icon('check', 12)} Verified</span>` : ''}</div><div class="ls">${esc([o.city, o.state].filter(Boolean).join(', ') || '—')}${o.teams ? ` · ${o.teams} coach${o.teams > 1 ? 'es' : ''}` : ''}</div></div>
+              <div class="lm"><div class="lt">${esc(o.name)}${o.verified ? ` <span style="font-size:10px;font-weight:800;color:var(--green-bright);letter-spacing:0.02em">${icon('check', 12)} Verified</span>` : ''}</div><div class="ls">${esc([o.city, o.state].filter(Boolean).join(', ') || '–')}${o.teams ? ` · ${o.teams} coach${o.teams > 1 ? 'es' : ''}` : ''}</div></div>
               ${icon('chevron', 17, 'style="color:var(--text-3)"')}
             </div>`).join('')}</section>`;
           out.querySelectorAll('[data-org]').forEach((el) => el.addEventListener('click', () => showTeams(orgs[+el.getAttribute('data-org')])));

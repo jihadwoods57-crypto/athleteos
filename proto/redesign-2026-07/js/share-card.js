@@ -294,7 +294,7 @@ export function dayShareCard(day) {
     // The text that rides along. States what held, never what was missed: a card someone chooses to
     // post is a moment of pride, and nobody shares a scolding.
     caption: streak >= 2
-      ? `Day ${streak} of my streak — ${score != null ? score : '—'} on OnStandard.`
+      ? `Day ${streak} of my streak · ${score != null ? score : '—'} on OnStandard.`
       : `${score != null ? score : '—'} on OnStandard today.`,
   };
 }
@@ -340,7 +340,7 @@ export function weekShareCard(week) {
       stats,
     },
     caption: onDays != null && total
-      ? `${onDays} of ${total} days at standard this week — ${avg != null ? avg : '—'} average on OnStandard.`
+      ? `${onDays} of ${total} days at standard this week · ${avg != null ? avg : '—'} average on OnStandard.`
       : `${avg != null ? avg : '—'} average this week on OnStandard.`,
   };
 }

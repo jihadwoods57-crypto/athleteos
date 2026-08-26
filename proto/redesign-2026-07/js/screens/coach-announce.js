@@ -12,6 +12,9 @@ import { CD, loadCoachRoster } from '../coach-data.js';
 import { fmtWhen } from '../notif-feed.js';
 
 const ANN = { scopeKind: 'team', scopeValue: null, title: '', body: '' };
+/* Two-step send: the first tap arms (names the real audience count, offers Cancel, states the
+   irreversibility), the second sends. Disarmed by Cancel or any audience change. */
+let ARM = false;
 let HIST = null;          // { teamId, rows } — fetchAnnouncements cache
 let histLoadingId = null;
 
@@ -71,6 +74,11 @@ export const coachAnnounce = {
       : ANN.scopeKind === 'position' ? `Send to the ${esc(ANN.scopeValue || '')} room`
       : ANN.scopeKind === 'group' ? `Send to ${esc(group ? group.name : 'the group')}`
       : 'Send to the whole team';
+    // The real audience count for the armed confirm, by the same match rules the server fans out.
+    const armCount = ANN.scopeKind === 'athlete' ? 1
+      : ANN.scopeKind === 'position' ? rows.filter((r) => (r.unit || '').trim().toUpperCase() === ANN.scopeValue).length
+      : ANN.scopeKind === 'group' ? ((group && group.athlete_ids) || []).length
+      : rows.length;
 
     return `
     ${backHead('Announcement', 'Lands in every selected athlete’s feed', 'coach-create')}
@@ -94,19 +102,25 @@ export const coachAnnounce = {
     <textarea id="an-body" class="ob-input" maxlength="500" rows="4" placeholder="What they need to know" style="height:auto;padding-top:10px;padding-bottom:10px">${esc(ANN.body || '')}</textarea>
 
     <div style="height:16px"></div>
-    <button class="btn" id="an-send">${icon('share', 18)} ${sendLabel}</button>
+    ${ARM ? `
+    <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-2);text-align:center;margin-bottom:8px">They get this in their feed and on their phone. It can't be recalled.</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn ghost" id="an-cancel" style="flex:1">Cancel</button>
+      <button class="btn" id="an-send" style="flex:1.4">${icon('share', 18)} ${armCount ? `Send to ${armCount} athlete${armCount === 1 ? '' : 's'} now` : 'Send now'}</button>
+    </div>` : `
+    <button class="btn" id="an-send">${icon('share', 18)} ${sendLabel}</button>`}
     <div id="an-status" style="text-align:center;font-size:12.5px;font-weight:600;color:var(--text-3);min-height:18px;margin-top:8px"></div>
 
     <div class="eyebrow" style="margin-top:18px">Recent announcements</div>
-    ${(HIST && HIST.teamId === teamId && HIST.offline) ? errorState({ title: "Couldn't load history", body: 'Your sent announcements are safe — reconnect to see them.', retryId: 'an-hist-retry' }) : histRows === null ? skeletonRows(2, 'Loading announcements') : histRows.length ? `
+    ${(HIST && HIST.teamId === teamId && HIST.offline) ? errorState({ title: "Couldn't load history", body: 'Your sent announcements are safe. Reconnect to see them.', retryId: 'an-hist-retry' }) : histRows === null ? skeletonRows(2, 'Loading announcements') : histRows.length ? `
     <section class="card" style="padding:6px 16px">
       ${histRows.map((a) => `
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('share', 17)}</div>
-        <div class="lm"><div class="lt">${esc(a.title)}</div><div class="ls">${esc(audienceLabel(a.scope_kind, a.scope_value, groups))} · ${esc(fmtWhen(a.created_at, Date.now()))}${a.sent_count != null ? ` · → ${a.sent_count}` : ''}</div></div>
+        <div class="lm"><div class="lt">${esc(a.title)}</div><div class="ls">${esc(audienceLabel(a.scope_kind, a.scope_value, groups))} · ${esc(fmtWhen(a.created_at, Date.now()))}${a.sent_count != null ? ` · Reached ${a.sent_count}` : ''}</div></div>
       </div>`).join('')}
     </section>` : `
-    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px">Nothing sent yet — your first one shows up here.</div>`}
+    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px">Nothing sent yet. Your first one shows up here.</div>`}
     <div style="height:10px"></div>
     `;
   },
@@ -130,27 +144,33 @@ export const coachAnnounce = {
     };
     root.querySelectorAll('[data-ann]').forEach((el) => el.addEventListener('click', () => {
       keep();
+      ARM = false;   // a new audience must be re-confirmed, never sent on a stale arm
       const [act, arg] = el.getAttribute('data-ann').split(':');
       if (act === 'team') { ANN.scopeKind = 'team'; ANN.scopeValue = null; }
       if (act === 'position') { ANN.scopeKind = 'position'; ANN.scopeValue = arg; }
       if (act === 'group') { ANN.scopeKind = 'group'; ANN.scopeValue = arg; }
       window.__render();
     }));
+    const cancel = root.querySelector('#an-cancel');
+    if (cancel) cancel.addEventListener('click', () => { keep(); ARM = false; window.__render(); });
     const send = root.querySelector('#an-send');
     if (send) send.addEventListener('click', async () => {
       keep();
       const title = ANN.title.trim();
       const body = ANN.body.trim();
       if (title.length < 2) { say('Give it a title first.', true); return; }
-      if (!body.length) { say('Add what they need to know — the message can’t be blank.', true); return; }
+      if (!body.length) { say('Add what they need to know. The message can’t be blank.', true); return; }
       const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
-      if (!teamId) { say('Your roster hasn’t loaded yet — give it a second and try again.', true); return; }
+      if (!teamId) { say('Your roster hasn’t loaded yet. Give it a second and try again.', true); return; }
+      // First tap arms; the second, on the armed button, actually broadcasts.
+      if (!ARM) { ARM = true; window.__render(); return; }
+      ARM = false;
       send.disabled = true; say('Sending…');
       const r = await roles.postAnnouncement({
         teamId, scopeKind: ANN.scopeKind, scopeValue: ANN.scopeValue, title, body,
       });
       send.disabled = false;
-      if (!r.ok) { say(r.error || 'Could not send — try again.', true); return; }
+      if (!r.ok) { say(r.error || 'Could not send. Try again.', true); return; }
       // Push is best-effort on top of the guaranteed feed rows the RPC already wrote —
       // fire-and-forget, never allowed to affect the status copy below.
       roles.pushAnnouncement(r.id).catch(() => {});

@@ -27,6 +27,23 @@ export function ageOn(dobISO, todayISO) {
   return age;
 }
 
+/* One vocabulary for the pressure knob the OB2 flows write into standard.pressure.
+   Three writers used three: the athlete flow's all-in/steady/building, the client flow's
+   gentle/steady/strict, and the legacy onboarding chip labels ("Hold me accountable").
+   Canonical slugs: 'gentle' | 'steady' | 'strict'. The exec engine (exec.js mapPressure)
+   folds label text into gentle/accountable/max; 'steady' and 'strict' both land on
+   'accountable' there, exactly where the old OB2 values landed, so storing the slug never
+   changes engine behavior. NOTE: mapPressure has no 'strict' rule, so the strict slug
+   cannot reach the engine's 'max' tier until exec.js learns it; the legacy onboarding
+   still captures its label strings for that reason (they are the only path to 'max'). */
+export function normalizePressure(v) {
+  const s = String(v || '').toLowerCase().trim();
+  if (s === 'gentle' || s === 'steady' || s === 'strict') return s;
+  if (s === 'building' || s.includes('gentl') || s.includes('support')) return 'gentle';
+  if (s === 'all-in' || s.includes('max') || s.includes('high') || s.includes('intens') || s.includes('strict')) return 'strict';
+  return 'steady';
+}
+
 /** 3-band strength: floor is 12 chars (long passphrases welcome). +1 for 2+ character
     classes; +1 for 16+ chars OR 3+ classes. Passphrases win on length, not symbol soup. */
 export function passwordStrength(pw) {
@@ -53,7 +70,7 @@ const COMMON_PW = new Set([
 export function weakPasswordReason(pw, email) {
   const p = String(pw || '');
   const low = p.toLowerCase();
-  if (COMMON_PW.has(low)) return 'That password is too common — pick something unique.';
+  if (COMMON_PW.has(low)) return 'That password is too common. Pick something unique.';
   if (low.includes('onstandard')) return "Don't put the app name in your password.";
   const e = String(email || '').trim().toLowerCase();
   if (e) {
@@ -67,13 +84,13 @@ export function weakPasswordReason(pw, email) {
 /* Goal → emphasis copy. Athlete goals (gain/lose/maintain/perform) + client goals
    (build/health). Unknown goals fall back to maintain — never a blank standard. */
 const GOAL_EMPHASIS = {
-  gain:     'Protein first — every meal moves the calorie floor.',
+  gain:     'Protein first. Every meal moves the calorie floor.',
   lose:     'Honest portions carry this. Keep protein high.',
   maintain: 'Consistency over everything. Same standard, every day.',
-  perform:  'Fuel training, then recover hard — the check-ins are where you win.',
+  perform:  'Fuel training, then recover hard. The check-ins are where you win.',
   // canonical spelling (core's BaseGoal); 'perform' stays for legacy saved onboarding state
-  performance: 'Fuel training, then recover hard — the check-ins are where you win.',
-  build:    'Protein first — never under-fueled, every meal counts.',
+  performance: 'Fuel training, then recover hard. The check-ins are where you win.',
+  build:    'Protein first. Never under-fueled, every meal counts.',
   health:   'Small meals logged honestly. Consistency is the whole game.',
 };
 const MEAL_WORD = { 2: 'Two', 3: 'Three', 4: 'Four' };
@@ -150,14 +167,14 @@ export function showConfirmPending(root, { email } = {}) {
   if (err) {
     err.style.color = 'var(--text-2)';
     err.textContent = email
-      ? `Account created. We sent a confirmation link to ${email} — tap it, then sign in to start.`
+      ? `Account created. We sent a confirmation link to ${email}. Tap it, then sign in to start.`
       : 'Account created. Check your email for the confirmation link, then sign in to start.';
   }
   const btn = root.querySelector('#su-go');
   if (btn) {
     // Shallow-clone to strip the signup submit listener, then wire the sign-in hand-off.
     const fresh = btn.cloneNode(false);
-    fresh.textContent = "I've confirmed — sign in";
+    fresh.textContent = "I've confirmed. Sign in";
     fresh.disabled = false;
     btn.replaceWith(fresh);
     fresh.addEventListener('click', () => window.__go('signin'));

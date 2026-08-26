@@ -21,7 +21,7 @@ import { icon } from '../icons.js';
 import { esc, copyText } from '../components.js';
 import {
   defineFlow, saveProgressStep, choiceGrid, chipRow, simChip, mirrorCard, countStat,
-  phoneCard, testimonial, planCard, PLANS, chatSim, structureStep,
+  phoneCard, testimonial, planCard, PLANS, chatSim, structureStep, commitContinue,
 } from '../ob2.js';
 import { styleForStructureAnswer, styleLabel } from '../plan-style.js';
 import { SAMPLE_MEAL } from '../ob2-meal.js';
@@ -66,9 +66,9 @@ const boundRow = (ic, t, s) => `
 
 /* Labeled draft-reply bubble — the four stances ARE the shipped product's stances. */
 const stanceBubble = (label, text) => `
-  <div style="margin-bottom:12px">
-    <div style="font-size:10px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);margin:0 2px 4px">${esc(label)}</div>
-    <div style="padding:11px 14px;border-radius:16px;background:var(--surface-2);border:1px solid var(--hairline-soft);font-size:13.5px;font-weight:600;line-height:1.5">${esc(text)}</div>
+  <div class="ob2-stance">
+    <div class="sl">${esc(label)}</div>
+    <div class="sb">${esc(text)}</div>
   </div>`;
 
 /* Practice invite share text — mirrors src/core/practiceIdentity.ts inline the same way
@@ -391,10 +391,11 @@ const steps = [
       ${mirrorCard('users', `Every client you invite starts on <b>your standard</b>${o.practiceName ? ` at <b>${esc(o.practiceName)}</b>` : ''}.`)}
       ${mirrorCard('sparkle', `The AI runs <b>${esc(AI_LABEL[o.aiInvolvement] || AI_LABEL.drafts)}</b>.`)}
       <div class="ob-foot" style="margin-top:18px">
-        ${commitButton(!!o.committedAt)}
-        ${o.committedAt ? `<div style="height:10px"></div><button class="btn green" data-go="obt/proof">Continue</button>` : ''}
+        ${o.committedAt ? commitContinue() : commitButton(false)}
       </div>`,
     mount(root, ctx) {
+      const done = root.querySelector('#ob2-commit-next');
+      if (done) { done.addEventListener('click', () => ctx.next()); return; }
       wireCommit(root, () => {
         ctx.capture({ committedAt: new Date().toISOString() });
         ctx.next();
@@ -409,8 +410,8 @@ const steps = [
   {
     id: 'proof', ch: 4, cta: 'Next',
     title: () => 'What it looks like for a trainer.',
+    sub: () => 'Illustrative, not actual customers yet.',
     body: () => `
-      <div class="eyebrow" style="margin:0 2px 12px">Illustrative examples (not actual customers yet)</div>
       ${/* Launch placeholders — the founder swaps these for real customers before go-live. */''}
       ${testimonial({
         quote: 'I used to spend Sunday night texting check-ins. Now I open the queue, approve the drafts, and it’s done before my coffee is.',

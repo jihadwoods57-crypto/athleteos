@@ -13,7 +13,7 @@ import { allowedCreateKeys, isReadonly } from '../staff-access.js';
    actually works against it — never a button that would write a practice id into a team-owned
    table and fail silently. `cap: null` means "no book capability required". */
 const OPTIONS = [
-  { key: 'assign',          cap: 'assignments',    icon: 'clipboard', title: 'Assign a requirement',  sub: 'Team, room, group, or one athlete', go: 'coach-assign' },
+  { key: 'assign',          cap: 'assignments',    icon: 'clipboard', title: 'Assign a one-off task', sub: 'Team, room, group, or one athlete', go: 'coach-assign' },
   { key: 'announce',        cap: 'announcements',  icon: 'share',     title: 'Send an announcement',  sub: 'Feed + push to the room you pick',  go: 'coach-announce' },
   { key: 'message_athlete', cap: null,             icon: 'message',   title: 'Message an athlete',    sub: 'Pick from the roster',              go: 'coach-roster' },
   { key: 'message_group',   cap: 'announcements',  icon: 'users',     title: 'Message a group',       sub: 'Announce to a custom group',        go: 'coach-announce' },
@@ -21,10 +21,10 @@ const OPTIONS = [
   { key: 'schedule',        cap: 'exceptions',     icon: 'clock',     title: 'Adjust a schedule',     sub: 'Mark travel or an excused stretch', go: 'coach-roster' },
   // Verified Commitments (0138). Distinct from 'schedule' above, which excuses an athlete for a
   // stretch of days; this SCHEDULES the thing they're accountable for in the first place.
-  { key: 'commitments',     cap: null,             icon: 'sun',       title: 'Schedule a commitment', sub: 'Roll call, lift, study hall — verified', go: 'coach-commit-manage' },
+  { key: 'commitments',     cap: null,             icon: 'sun',       title: 'Schedule a commitment', sub: 'Roll call, lift, study hall. Verified', go: 'coach-commit-manage' },
   // Connected Standards (0155). Distinct from 'commitments' above, which schedules a PLACE and a
   // time; this sets a measurable amount of activity the athlete's own device answers for.
-  { key: 'activity',        cap: 'standards',      icon: 'bolt',      title: 'Set an activity standard', sub: 'Steps, distance or workouts — verified by their watch', go: 'coach-standards-manage' },
+  { key: 'activity',        cap: 'standards',      icon: 'bolt',      title: 'Set an activity standard', sub: 'Steps, distance or workouts. Verified by their watch', go: 'coach-standards-manage' },
   { key: 'add_athlete',     cap: null,             icon: 'user',      title: 'Add an athlete',        sub: 'Share your team code',              go: 'coach-profile/code' },
   { key: 'invite_staff',    cap: 'staffRoles',     icon: 'users',     title: 'Invite staff',          sub: 'Coordinator, room, or view-only',   go: 'coach-profile/staff' },
   { key: 'team_diet',       cap: 'recruiting',     icon: 'heart',     title: 'Team diet',             sub: 'Meal-plan tools',                   go: 'team-diet' },
@@ -55,7 +55,7 @@ export const coachCreate = {
       <div class="sidebox">
         <div class="req-icon b" style="width:38px;height:38px">${icon('eye', 17)}</div>
         <div><div class="tt">You have view-only access</div>
-        <div class="ts">You can see the roster, standards, and activity for your scope — creating and assigning is for the coaching staff. Ask the head coach if that should change.</div></div>
+        <div class="ts">You can see the roster, standards, and activity for your scope. Creating and assigning is for the coaching staff. Ask the head coach if that should change.</div></div>
       </div>`;
     }
     const allowed = practice ? OPTIONS.map(o => o.key) : allowedCreateKeys(myRole);

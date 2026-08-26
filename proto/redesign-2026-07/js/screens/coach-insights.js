@@ -4,7 +4,7 @@ import { backHead, esc, errorState, skeletonRows } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, entriesFor, getScope, scopeFilter } from '../coach-data.js';
 
-/* nav:'operator' — load whichever book the signed-in role owns (see coach-home.js). */
+/* nav:'operator'. Load whichever book the signed-in role owns (see coach-home.js). */
 const loadMyBook = (force) => loadBook(force, bookKindFor(RT.authRole));
 import { CATALOG, resolveRequirementSet, catalogFromItems } from '../requirements.js';
 import { weekWindows, weeklyBrief, athletesToWatch, mostMissed, weekVsMonth, interventionOutcomes } from '../insights.js';
@@ -120,7 +120,7 @@ const EMPTY_COPY = `
     <div class="co-eyebrow">This week</div>
     <div class="co-empty"><div class="ic">${icon('bars', 24)}</div>
     <div class="tt">Trends unlock as history builds</div>
-    <div class="ts">Weekly change, most-missed requirements, and whether your nudges are working — this screen fills in from your team's real data. Every action you take is already recording toward it.</div></div>`;
+    <div class="ts">Weekly change, most-missed requirements, and whether your nudges are working. This screen fills in from your team's real data. Every action you take is already recording toward it.</div></div>`;
 
 /* Builds the whole "This week" lower half, or the honest placeholder when there isn't enough
    history yet. Kept as one function so render() below stays a straight read. */
@@ -132,7 +132,7 @@ function weekSection() {
   if (data && data.offline) {
     return `
     <div class="co-eyebrow">This week</div>
-    ${errorState({ title: "Couldn't load the week", body: 'Your weekly trends are safe — reconnect and they load right here.', retryId: 'insights-week-retry' })}`;
+    ${errorState({ title: "Couldn't load the week", body: 'Your weekly trends are safe. Reconnect and they load right here.', retryId: 'insights-week-retry' })}`;
   }
   if (!data) {
     return `
@@ -215,7 +215,7 @@ function weekSection() {
   <section class="card" style="padding:var(--s3) var(--s4)">
     ${outcomes.unlocked
       ? `${dotLine(outcomes.text, 'b')}${(outcomes.byKind || []).map(k => dotLine(`${humanizeKind(k.kind)} · ${k.n} use${k.n === 1 ? '' : 's'} · ${k.avgLift >= 0 ? '+' : ''}${k.avgLift} avg lift`, 'b')).join('')}`
-      : `<div style="display:flex;gap:10px;align-items:flex-start"><span style="flex:none;color:var(--text-3);margin-top:1px">${icon('lock', 15)}</span><span style="font-size:13.5px;font-weight:600;color:var(--text-2);line-height:1.5">Intervention tracking started ${esc(sinceLabel)} — outcomes unlock once there's enough tracked history.</span></div>`}
+      : `<div style="display:flex;gap:10px;align-items:flex-start"><span style="flex:none;color:var(--text-3);margin-top:1px">${icon('lock', 15)}</span><span style="font-size:13.5px;font-weight:600;color:var(--text-2);line-height:1.5">Intervention tracking started ${esc(sinceLabel)}. Outcomes unlock once there's enough tracked history.</span></div>`}
   </section>`);
 
   return sections.join('');
@@ -231,22 +231,25 @@ export const coachInsights = {
     const head = backHead('Insights', 'What the numbers say', roleProfileRoute());
     // Audit G-4: offline before the loading gate (CD.extras is null on a cold offline load too),
     // so an offline coach gets an honest retry instead of a permanent "Reading the day…".
-    if (CD.roster && CD.roster.offline) return `${head}${errorState({ title: "Can't reach insights", body: `Your ${CD.kind === 'practice' ? "clients'" : "team's"} numbers are safe — reconnect and the read loads right here.`, retryId: 'insights-retry' })}`;
+    if (CD.roster && CD.roster.offline) return `${head}${errorState({ title: "Can't reach insights", body: `Your ${CD.kind === 'practice' ? "clients'" : "team's"} numbers are safe. Reconnect and the read loads right here.`, retryId: 'insights-retry' })}`;
     if (CD.roster === null || !CD.extras) return `${head}${skeletonRows(3, 'Reading the day')}`;
-    const entries = entriesFor({ kind: 'team', value: null }) || [];
+    // The SAME scope the week section already respects. Today's read used to render team-wide
+    // regardless, so a coach scoped to the WR room got a whole-team read over a scoped week.
+    const scope = getScope();
+    const entries = entriesFor(scope) || [];
     const by = (k) => entries.filter(e => e.status.key === k);
     const lines = [];
     if (by('overdue').length) lines.push(`${by('overdue').length} ${CD.noun}${by('overdue').length > 1 ? 's are' : ' is'} overdue right now: ${by('overdue').slice(0, 3).map(e => e.row.name.split(' ')[0]).join(', ')}${by('overdue').length > 3 ? '…' : ''}.`);
     if (by('no_activity').length) lines.push(`${by('no_activity').length} ${by('no_activity').length > 1 ? 'have' : 'has'} no activity in the last day.`);
     if (by('below_standard').length) lines.push(`${by('below_standard').length} logged below the standard today.`);
-    if (by('needs_review').length) lines.push(`${by('needs_review').length} log${by('needs_review').length > 1 ? 's are' : ' is'} in — waiting on a score or your review.`);
+    if (by('needs_review').length) lines.push(`${by('needs_review').length} log${by('needs_review').length > 1 ? 's are' : ' is'} in. Waiting on a score or your review.`);
     const top = entries.filter(e => e.row.score != null).sort((a, b) => b.row.score - a.row.score)[0];
     if (top) lines.push(`${top.row.name} leads the day at ${top.row.score}.`);
     if (!lines.length) {
       const logged = entries.filter(e => e.row.loggedToday).length;
       lines.push(!entries.length ? `No ${CD.kind === 'practice' ? 'clients' : 'athletes'} on the roster yet.`
-        : logged ? `${logged} of ${entries.length} ${logged === 1 ? 'has' : 'have'} logged today — nothing needs your attention right now.`
-        : 'Quiet so far — no logs yet today.');
+        : logged ? `${logged} of ${entries.length} ${logged === 1 ? 'has' : 'have'} logged today. Nothing needs your attention right now.`
+        : 'Quiet so far. No logs yet today.');
     }
     // Recurring standing-bar motif — the same signature language as Home, so Insights opens
     // on the team's real shape at a glance before the sentences explain it.
@@ -264,13 +267,13 @@ export const coachInsights = {
        belong to each other. So the bar leads the read's card, a hairline separates it from the
        lines, and the screen loses a redundant heading and an empty frame. */
     return `${head}
-    <div class="co-eyebrow tight">Today's read</div>
+    <div class="co-eyebrow tight">Today's read · ${esc(scopeLabel(scope))}</div>
     <section class="card" style="padding:var(--s4)">
       ${entries.length ? `<div class="co-standing" style="margin-top:0">${seg('g', g)}${seg('a', a)}${seg('r', r)}${seg('d', d)}</div>
       <div class="co-legend" style="padding-bottom:var(--s4);border-bottom:1px solid var(--hairline-soft);margin-bottom:var(--s2)">${leg('g', g, 'on standard')}${leg('a', a, 'need attention')}${leg('r', r, 'overdue')}${leg('d', d, 'no activity')}</div>` : ''}
       ${lines.map(l => `<div style="display:flex;gap:10px;align-items:flex-start;padding:5px 0;font-size:13.5px;font-weight:600;color:var(--text);line-height:1.5"><span class="dot ${lineDot(l)}" style="width:7px;height:7px;border-radius:50%;margin-top:7px;flex:none"></span><span>${esc(l)}</span></div>`).join('')}
     </section>
-    <div class="co-note">Computed from your roster's real logs — nothing here is generated.</div>
+    <div class="co-note">Computed from your roster's real logs. Nothing here is generated.</div>
 
     ${weekSection()}
     <div class="co-bottom"></div>`;

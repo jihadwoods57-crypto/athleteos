@@ -12,10 +12,10 @@
 import { RT } from '../state.js';
 import { icon } from '../icons.js';
 import { track, EVENTS } from '../analytics.js';
-import { backHead, esc, errorState } from '../components.js';
+import { backHead, esc, errorState, skeletonRows, segBar } from '../components.js';
 import { CD, bookId } from '../coach-data.js';
 import { allowedCreateKeys, isReadonly } from '../staff-access.js';
-import { boardCounts, missingFrom, TYPE_LABEL } from '../commitments.js';
+import { boardCounts, missingFrom, TYPE_LABEL, presenceOf, PRESENCE } from '../commitments.js';
 import { fmtMin } from '../requirements.js';
 import {
   VC, loadBoard, loadCommitments, loadLocations, saveCommitment, saveLocation,
@@ -64,15 +64,17 @@ export function commitmentBoardCard() {
     <section class="card pad vc-board" data-go="coach-commitments/${esc(inst.instance_id)}" style="cursor:pointer;margin-bottom:10px">
       <div class="eyebrow" style="margin:0 0 6px">${esc(inst.title || TYPE_LABEL[inst.type] || 'Commitment')}</div>
       <div class="ts" style="padding-bottom:10px">${esc(ctx)}</div>
-      <div style="display:flex;align-items:baseline;gap:10px">
-        <div style="font-size:26px;font-weight:800;letter-spacing:-.02em;color:${allIn ? 'var(--green-bright)' : 'var(--text)'}">
+      ${segBar(c.responded, c.total, `${c.responded} of ${c.total} responded`)}
+      <div style="display:flex;align-items:baseline;gap:10px;padding-top:8px">
+        <div style="font-size:var(--t-2xl);font-weight:800;letter-spacing:-.02em;color:${allIn ? 'var(--green-bright)' : 'var(--text)'}">
           ${c.responded} of ${c.total}</div>
-        <div style="font-size:13px;font-weight:700;color:var(--text-2)">in</div>
+        <div style="font-size:var(--t-sm);font-weight:700;color:var(--text-2)">in</div>
         <div style="flex:1"></div>
         <span class="xpill ${allIn ? 'green' : 'gold'}">${allIn ? 'All in' : `${c.awaiting} awaiting`}</span>
       </div>
-      ${c.excused || c.unverified ? `<div class="ts" style="padding-top:8px">${
-        [c.excused ? `${c.excused} excused` : '', c.unverified ? `${c.unverified} unverified` : '']
+      ${c.excused || c.unverified || c.leftEarly ? `<div class="ts" style="padding-top:8px">${
+        [c.excused ? `${c.excused} excused` : '', c.unverified ? `${c.unverified} unverified` : '',
+          c.leftEarly ? `${c.leftEarly} left early` : '']
           .filter(Boolean).join(' · ')}</div>` : ''}
     </section>`;
   }).filter(Boolean).join('');
@@ -90,20 +92,33 @@ export function paintBoard(root, slotId = '#vc-board-slot') {
 
 /* ---------------------------------------------------------------- roster breakdown */
 
+/* pending is a neutral fact, not a warning, so it reads gray; unverified is a gap in
+   evidence (the product's own ruling), so it reads blue, never gold. Gold stays reserved
+   for a deadline that was genuinely missed (the Left early presence pill below). */
 const STATUS_PILL = {
-  pending: ['gold', 'Awaiting'], acknowledged: ['green', 'In'],
+  pending: ['gray', 'Awaiting'], acknowledged: ['green', 'In'],
   arrived: ['green', 'Arrived'], completed: ['green', 'Completed'],
-  excused: ['gray', 'Excused'], unverified: ['gold', 'Unverified'], missed: ['red', 'No response'],
+  excused: ['gray', 'Excused'], unverified: ['blue', 'Unverified'], missed: ['red', 'No response'],
 };
 
-function athleteRow(r, asksArrival) {
+function athleteRow(r, asksArrival, dwellMin) {
   const [cls, label] = STATUS_PILL[r.status] || ['gray', r.status];
-  const when = r.completed_at ? `Completed ${hhmm(r.completed_at)}`
+  // Presence (0208): the server's verdict on whether they stayed. Left early is a verified
+  // miss of the stay, so it earns gold; provisional is a session still running, blue.
+  const pres = presenceOf(r);
+  const needed = r.min_dwell_min != null ? r.min_dwell_min : dwellMin;
+  const when = pres === PRESENCE.LEFT_EARLY
+    ? `Left ${hhmm(r.departed_at) || 'early'}${needed ? ` · needed ${needed}m` : ''}`
+    : pres === PRESENCE.PROVISIONAL && r.arrived_at
+    ? `At the location since ${hhmm(r.arrived_at)}`
+    : r.completed_at ? `Completed ${hhmm(r.completed_at)}`
     : r.arrived_at ? `Arrived ${hhmm(r.arrived_at)}`
     : r.acknowledged_at ? `Responded ${hhmm(r.acknowledged_at)}`
     : r.status === 'excused' ? (r.excused_reason || 'Excused')
     : r.status === 'unverified' ? (r.unverified_reason || 'Couldn’t verify')
     : 'No response yet';
+  const presPill = pres === PRESENCE.LEFT_EARLY ? '<span class="xpill gold">Left early</span>'
+    : pres === PRESENCE.PROVISIONAL && r.arrived_at ? '<span class="xpill blue">Still there</span>' : '';
   const src = r.arrival_source === 'staff' ? ' · set by staff'
     : r.arrival_source === 'geofence' ? ' · verified at the location'
     : r.arrival_source === 'manual' ? ' · self-reported' : '';
@@ -115,7 +130,7 @@ function athleteRow(r, asksArrival) {
       ${r.disputed_at ? `<div class="ls" style="color:var(--amber-bright);font-weight:700">Reported wrong by the ${CD.noun}${r.dispute_note ? esc(`: ${r.dispute_note}`) : ''}</div>` : ''}
     </div>
     <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
-      <span class="xpill ${cls}">${esc(label)}</span>
+      <span class="xpill ${cls}">${esc(label)}</span>${presPill}
       <div style="display:flex;gap:6px">
         ${r.status !== 'excused' ? `<button class="chip" data-vc-excuse="${esc(r.athlete_id)}">Excuse</button>` : ''}
         ${r.status === 'pending' || r.status === 'unverified' || r.status === 'missed'
@@ -125,12 +140,26 @@ function athleteRow(r, asksArrival) {
   </div>`;
 }
 
+/* Whether a board load has ever settled this session. VC exposes boardError but no loaded
+   stamp, and without one an in-flight first load is indistinguishable from a confirmed-empty
+   day, which is the difference between a skeleton and "Nothing scheduled today". */
+let BOARD_LOADED = false;
+
 export const coachCommitments = {
   nav: 'operator', tab: 'home',
   render({ sub }) {
     const back = CD.kind === 'practice' ? 'trainer' : 'coach-home';
     const inst = (VC.board || []).find((b) => b.instance_id === sub) || (VC.board || [])[0];
     if (!inst) {
+      // A failed load is NOT a count of zero, and a load still in flight is not one either.
+      // Only a confirmed-empty board earns the "Nothing scheduled today" copy.
+      if (VC.boardError) {
+        return `${backHead('Roll call', 'Couldn’t reach the server', back)}
+        ${errorState({ title: "Roll call didn't load", body: "This isn't a count of zero. We couldn't reach the server.", retryId: 'vc-board-retry' })}`;
+      }
+      if (!BOARD_LOADED) {
+        return `${backHead('Roll call', 'Loading', back)}${skeletonRows(3, 'Loading the board')}`;
+      }
       return `${backHead('Roll call', 'Nothing scheduled today', back)}
       <div class="sidebox">
         <div class="req-icon b" style="width:38px;height:38px">${icon('clock', 17)}</div>
@@ -155,18 +184,22 @@ export const coachCommitments = {
     ${backHead(inst.title || TYPE_LABEL[inst.type] || 'Commitment', ctx, back)}
 
     <section class="card pad">
-      <div style="display:flex;align-items:baseline;gap:10px">
-        <div style="font-size:30px;font-weight:800;letter-spacing:-.02em;color:${c.awaiting ? 'var(--text)' : 'var(--green-bright)'}">${c.responded} of ${c.total}</div>
-        <div style="font-size:14px;font-weight:700;color:var(--text-2)">in</div>
+      ${segBar(c.responded, c.total, `${c.responded} of ${c.total} responded`)}
+      <div style="display:flex;align-items:baseline;gap:10px;padding-top:8px">
+        <div style="font-size:var(--t-3xl);font-weight:800;letter-spacing:-.02em;color:${c.awaiting ? 'var(--text)' : 'var(--green-bright)'}">${c.responded} of ${c.total}</div>
+        <div style="font-size:var(--t-base);font-weight:700;color:var(--text-2)">in</div>
         <div style="flex:1"></div>
         <span class="xpill ${c.awaiting ? 'gold' : 'green'}">${c.awaiting ? `${c.awaiting} awaiting` : 'All in'}</span>
       </div>
-      ${inst.respond_by_at ? `<div class="ts" style="padding-top:8px">Responses due by ${esc(hhmm(inst.respond_by_at))}</div>` : ''}
+      ${inst.respond_by_at || c.leftEarly ? `<div class="ts" style="padding-top:8px">${[
+        inst.respond_by_at ? `Responses due by ${esc(hhmm(inst.respond_by_at))}` : '',
+        c.leftEarly ? `${c.leftEarly} left early` : '',
+      ].filter(Boolean).join(' · ')}</div>` : ''}
     </section>
 
     ${missing.length ? `
     <div class="eyebrow">Still waiting on ${missing.length}</div>
-    <section class="card" style="padding:2px 16px">${missing.map((r) => athleteRow(r, !!inst.asks_arrival)).join('')}</section>
+    <section class="card" style="padding:2px 16px">${missing.map((r) => athleteRow(r, !!inst.asks_arrival, inst.min_dwell_min)).join('')}</section>
     <div style="height:10px"></div>
     <button class="btn" id="vc-remind" style="width:100%">${icon('bell', 18)} Remind ${missing.length} missing ${missing.length === 1 ? CD.noun : CD.nouns}</button>
     <div class="ts" style="text-align:center;padding-top:8px">Only these ${missing.length} get the reminder. Nobody who already responded is pinged.</div>
@@ -179,7 +212,7 @@ export const coachCommitments = {
 
     ${responded.length ? `
     <div class="eyebrow">Responded</div>
-    <section class="card" style="padding:2px 16px">${responded.map((r) => athleteRow(r, !!inst.asks_arrival)).join('')}</section>` : ''}
+    <section class="card" style="padding:2px 16px">${responded.map((r) => athleteRow(r, !!inst.asks_arrival, inst.min_dwell_min)).join('')}</section>` : ''}
 
     ${inst.asks_arrival ? `
     <div class="sidebox" style="margin-top:14px">
@@ -207,11 +240,25 @@ export const coachCommitments = {
     if (id) {
       const before = JSON.stringify(VC.board);
       loadBoard(id, CD.kind, todayISO()).then(() => {
+        // The first settled load must repaint even when the board is unchanged (an empty [] is
+        // unchanged from the seed), or the skeleton above never resolves into a real state.
+        const first = !BOARD_LOADED;
+        BOARD_LOADED = true;
         if (!root.isConnected) return;
-        if (JSON.stringify(VC.board) === before) return;
+        if (!first && JSON.stringify(VC.board) === before) return;
         window.__render && window.__render();
       });
     }
+
+    // The failed-load state's retry: a FORCED board load, then repaint whatever came back.
+    const boardRetry = root.querySelector('#vc-board-retry');
+    if (boardRetry) boardRetry.addEventListener('click', async () => {
+      boardRetry.disabled = true;
+      const bid = bookId();
+      if (bid) await loadBoard(bid, CD.kind, todayISO(), true);
+      BOARD_LOADED = true;
+      window.__render && window.__render();
+    });
 
     const remind = root.querySelector('#vc-remind');
     if (remind) remind.addEventListener('click', async () => {
@@ -244,7 +291,7 @@ export const coachCommitments = {
       const wrap = b.parentElement;
       if (!wrap) return;
       const opts = [['Today', 0], ['3 days', 2], ['A week', 6]];
-      wrap.replaceChildren(...opts.map(([label, addDays]) => {
+      const optEls = opts.map(([label, addDays]) => {
         const el = document.createElement('button');
         el.className = 'chip';
         el.textContent = label;
@@ -259,7 +306,13 @@ export const coachCommitments = {
           await repaint();
         });
         return el;
-      }));
+      });
+      // A way out: a mis-tap on Excuse must not leave the coach stuck choosing a duration.
+      const cancel = document.createElement('button');
+      cancel.className = 'chip';
+      cancel.textContent = 'Cancel';
+      cancel.addEventListener('click', () => { window.__render && window.__render(); });
+      wrap.replaceChildren(...optEls, cancel);
     }));
   },
 };
@@ -442,8 +495,8 @@ export const coachCommitEdit = {
 
     <div class="eyebrow">What is it</div>
     <section class="card pad">
-      <div class="chips-wrap" id="vc-type" style="display:flex;flex-wrap:wrap;gap:6px">
-        ${TYPES.map((t) => `<button class="chip ${d.type === t ? 'on' : ''}" data-type="${t}">${esc(TYPE_LABEL[t])}</button>`).join('')}
+      <div class="chips-wrap" id="vc-type" style="display:flex;flex-wrap:wrap;gap:6px" role="radiogroup" aria-label="Commitment type">
+        ${TYPES.map((t) => `<button class="chip ${d.type === t ? 'on' : ''}" role="radio" aria-checked="${d.type === t ? 'true' : 'false'}" data-type="${t}">${esc(TYPE_LABEL[t])}</button>`).join('')}
       </div>
       <div style="height:14px"></div>
       <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">What the ${CD.nouns} see as the title</div>
@@ -462,17 +515,17 @@ export const coachCommitEdit = {
 
     <div class="eyebrow">Who gets it</div>
     <section class="card pad">
-      <div style="display:flex;flex-wrap:wrap;gap:6px" id="vc-aud">
-        <button class="chip ${d.audience_kind === 'team' ? 'on' : ''}" data-aud="team">${CD.kind === 'practice' ? 'All clients' : 'Entire team'}</button>
-        ${rooms.map((r) => `<button class="chip ${d.audience_value === r.id ? 'on' : ''}" data-aud="room:${esc(r.id)}">${esc(r.label)}</button>`).join('')}
-        ${groups.map((g) => `<button class="chip ${d.audience_value === g.id ? 'on' : ''}" data-aud="group:${esc(g.id)}">${esc(g.name)}</button>`).join('')}
+      <div style="display:flex;flex-wrap:wrap;gap:6px" id="vc-aud" role="radiogroup" aria-label="Who gets it">
+        <button class="chip ${d.audience_kind === 'team' ? 'on' : ''}" role="radio" aria-checked="${d.audience_kind === 'team' ? 'true' : 'false'}" data-aud="team">${CD.kind === 'practice' ? 'All clients' : 'Entire team'}</button>
+        ${rooms.map((r) => `<button class="chip ${d.audience_value === r.id ? 'on' : ''}" role="radio" aria-checked="${d.audience_value === r.id ? 'true' : 'false'}" data-aud="room:${esc(r.id)}">${esc(r.label)}</button>`).join('')}
+        ${groups.map((g) => `<button class="chip ${d.audience_value === g.id ? 'on' : ''}" role="radio" aria-checked="${d.audience_value === g.id ? 'true' : 'false'}" data-aud="group:${esc(g.id)}">${esc(g.name)}</button>`).join('')}
       </div>
     </section>
 
     <div class="eyebrow">When</div>
     <section class="card pad">
-      <div style="display:flex;gap:6px" id="vc-days">
-        ${DOW.map((n, i) => `<button class="chip ${d.repeat_days.includes(i) ? 'on' : ''}" data-day="${i}" style="flex:1;padding:8px 0">${n}</button>`).join('')}
+      <div style="display:flex;gap:6px" id="vc-days" role="group" aria-label="Repeat on days">
+        ${DOW.map((n, i) => `<button class="chip ${d.repeat_days.includes(i) ? 'on' : ''}" role="checkbox" aria-checked="${d.repeat_days.includes(i) ? 'true' : 'false'}" aria-label="${DOW_FULL[i]}" data-day="${i}" style="flex:1;padding:8px 0">${n}</button>`).join('')}
       </div>
       <div style="height:14px"></div>
       <div style="display:flex;gap:10px">
@@ -487,9 +540,9 @@ export const coachCommitEdit = {
           could never fire for anyone. These two chips are that missing switch. */''}
     <div class="eyebrow">If they miss it <span class="opt">· optional</span></div>
     <section class="card pad">
-      <div class="vc-esc" id="vc-esc">
-        <button class="chip ${d.escalation && d.escalation.breakthrough ? 'on' : ''}" data-esc="breakthrough">Send a second, louder push</button>
-        <button class="chip ${d.escalation && d.escalation.notify_coach_on_miss ? 'on' : ''}" data-esc="notify_coach_on_miss">Tell me who missed</button>
+      <div class="vc-esc" id="vc-esc" role="group" aria-label="If they miss it">
+        <button class="chip ${d.escalation && d.escalation.breakthrough ? 'on' : ''}" role="checkbox" aria-checked="${d.escalation && d.escalation.breakthrough ? 'true' : 'false'}" data-esc="breakthrough">Send a second, louder push</button>
+        <button class="chip ${d.escalation && d.escalation.notify_coach_on_miss ? 'on' : ''}" role="checkbox" aria-checked="${d.escalation && d.escalation.notify_coach_on_miss ? 'true' : 'false'}" data-esc="notify_coach_on_miss">Tell me who missed</button>
       </div>
       <div class="ts mt">The louder push is time-sensitive and lands once, right after the deadline passes. "Tell me who missed" is one message to you naming everyone who never answered, not one per ${CD.noun}.</div>
     </section>
@@ -497,9 +550,9 @@ export const coachCommitEdit = {
     <div class="eyebrow">Where <span class="opt">· optional</span></div>
     <section class="card pad">
       <div class="ts" style="padding-bottom:10px">Attach a place and OnStandard confirms ${CD.nouns} actually got there. Leave it off and this stays a check-in only.</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px" id="vc-place">
-        <button class="chip ${!d.location_id ? 'on' : ''}" data-place="">No location</button>
-        ${(VC.locations || []).map((l) => `<button class="chip ${d.location_id === l.id ? 'on' : ''}" data-place="${esc(l.id)}">${esc(l.name)}</button>`).join('')}
+      <div style="display:flex;flex-wrap:wrap;gap:6px" id="vc-place" role="radiogroup" aria-label="Location">
+        <button class="chip ${!d.location_id ? 'on' : ''}" role="radio" aria-checked="${!d.location_id ? 'true' : 'false'}" data-place="">No location</button>
+        ${(VC.locations || []).map((l) => `<button class="chip ${d.location_id === l.id ? 'on' : ''}" role="radio" aria-checked="${d.location_id === l.id ? 'true' : 'false'}" data-place="${esc(l.id)}">${esc(l.name)}</button>`).join('')}
       </div>
       <div style="height:12px"></div>
       <button class="btn ghost sm" id="vc-newplace" style="width:100%">${icon('target', 16)} Add the place I'm standing in</button>
@@ -524,7 +577,12 @@ export const coachCommitEdit = {
           <input class="ob-input" id="vc-dwell" type="number" min="0" max="480" step="5" value="${d.min_dwell_min == null ? '' : esc(String(d.min_dwell_min))}" placeholder="45" />
         </div>
       </div>
-      <div class="ts" style="padding-top:10px">Arriving counts when their phone reaches the place inside this window. It does not prove the work got done; completing the session is a separate signal, and nothing in OnStandard claims otherwise.</div>
+      ${/* 0208. This line used to describe arrival only, while the "Stay at least" box beside it
+            wrote a number that enforced NOTHING: min_dwell_min round-tripped through this form
+            and no code anywhere ever read it, so a coach setting 45 got the same result as a
+            coach setting nothing, and a drive-by scored like a full session. It is real now, and
+            the copy says what it actually checks, including where it falls back. */''}
+      <div class="ts" style="padding-top:10px">Arriving counts when their phone reaches the place inside this window. A minimum stay counts only once their phone has been there that long without leaving, and a phone that cannot report leaving falls back to arrival alone. Neither proves the work got done; completing the session is a separate signal, and nothing in OnStandard claims otherwise.</div>
       ` : ''}
     </section>
 
@@ -541,6 +599,7 @@ export const coachCommitEdit = {
 
     <div style="height:14px"></div>
     <button class="btn green" id="vc-save" style="width:100%">${icon('check', 19)} Schedule it</button>
+    <div id="vc-save-err" class="ts" style="color:var(--red);text-align:center;min-height:16px"></div>
     <div style="height:10px"></div>
     <div class="ts" style="text-align:center">Athletes see this on Home when it opens. Responses land on your board live.</div>
     <div style="height:20px"></div>`;
@@ -568,6 +627,9 @@ export const coachCommitEdit = {
     };
     // Capture every free-text field before any re-render, so a chip tap never eats typing.
     const capture = () => {
+      // A stale validation message must not outlive the coach's next action.
+      const errEl = root.querySelector('#vc-save-err');
+      if (errEl) errEl.textContent = '';
       d.title = val('#vc-title').trim();
       d.message = val('#vc-msg').trim();
       d.action_label = val('#vc-action').trim();
@@ -599,6 +661,7 @@ export const coachCommitEdit = {
       d.escalation = { ...(d.escalation || {}) };
       d.escalation[k] = !d.escalation[k];
       b.classList.toggle('on', !!d.escalation[k]);
+      b.setAttribute('aria-checked', d.escalation[k] ? 'true' : 'false');
     }));
     root.querySelectorAll('[data-aud]').forEach((b) => b.addEventListener('click', () => {
       capture();
@@ -666,11 +729,15 @@ export const coachCommitEdit = {
     });
 
     const save = root.querySelector('#vc-save');
+    // Validation speaks in its own line, never by overwriting the button's label: a button
+    // that suddenly reads "Give it a title first" stops looking like the way to schedule.
+    const sayErr = (msg) => { const el = root.querySelector('#vc-save-err'); if (el) el.textContent = msg; };
     if (save) save.addEventListener('click', async () => {
       if (save.disabled) return;
       capture();
-      if (!d.title) { save.textContent = 'Give it a title first'; return; }
-      if (!d.repeat_days.length) { save.textContent = 'Pick at least one day'; return; }
+      if (!d.title) { sayErr('Give it a title first.'); return; }
+      if (!d.repeat_days.length) { sayErr('Pick at least one day.'); return; }
+      const origLabel = save.innerHTML;
       save.disabled = true; save.textContent = 'Scheduling…';
       const owner = bookId();
       const payload = {
@@ -683,7 +750,7 @@ export const coachCommitEdit = {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York',
       };
       const newId = await saveCommitment(payload);
-      if (!newId) { save.disabled = false; save.textContent = 'Couldn’t save. Try again'; return; }
+      if (!newId) { save.disabled = false; save.innerHTML = origLabel; sayErr('Couldn’t save. Check your connection and try again.'); return; }
       track(EVENTS.VC_SCHEDULED, {
         type: d.type, audience: d.audience_kind, hasLocation: !!d.location_id,
       });

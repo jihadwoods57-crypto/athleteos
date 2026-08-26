@@ -3222,6 +3222,24 @@ export const act = {
   /* Arrival check-in opt-out (0139 hardening 2026-08-19). The flag armIfPermitted() honors:
      without it, "Turn it off" survived exactly until the next Home load re-armed the regions. */
   setLocationOptOut(on) { RT.locationOptOut = !!on; save(); },
+
+  /* Which confirmed-presence receipts have already been shown on Home (0208).
+     The receipt is a MOMENT, not a standing banner: once the athlete has been told their stay was
+     confirmed, the durable record lives on the commitment card and Home goes quiet again.
+     Scoped to one day and REPLACED (not merged) when the day changes, so it can never grow without
+     bound and yesterday's receipt can never resurrect after a rollover. */
+  markPresenceSeen(day, id) {
+    if (!day || !id) return;
+    const same = RT.presenceSeen && RT.presenceSeen.day === day;
+    const prev = same && Array.isArray(RT.presenceSeen.ids) ? RT.presenceSeen.ids : [];
+    if (prev.indexOf(id) >= 0) return;
+    RT.presenceSeen = { day, ids: prev.concat(id) };
+    save();
+  },
+  presenceSeenIds(day) {
+    const s = RT.presenceSeen;
+    return (s && s.day === day && Array.isArray(s.ids)) ? s.ids : [];
+  },
   /* Send a password-reset email. Neutral by design — we never reveal whether an account exists,
      so the same confirmation shows regardless (anti account-enumeration). The link lands on the
      configured recovery target; completing the reset (setting the new password) is handled there. */

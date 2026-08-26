@@ -44,7 +44,7 @@ export default {
     <div class="eyebrow">Your options</div>
     <section class="card" style="padding:6px 16px">
       ${row('home', 'bolt', 'background:var(--green-surface);color:var(--green-bright)',
-        'Self-guided with AI', 'Your score, your streak, and the AI nutritionist — you drive')}
+        'Self-guided with AI', 'Your score, your streak, and the AI nutritionist · you drive')}
       ${marketplaceOpen ? `
       ${row('coach-directory', 'users', 'background:var(--blue-surface);color:var(--blue-bright)',
         'OnStandard Coach', 'A real person who reviews your days and keeps you on standard')}

@@ -50,7 +50,7 @@ export const recoveryConfirm = {
             arc crosses the line. Nothing is shown at all when this visit is not the submit itself
             (see checkinMove above) — a screen with no move to report says so. */''}
       ${mv ? `${scoreMoveDial({ from: mv.from, to: mv.to, uid: 'rc' })}
-      <div class="confirm-sub">OnStandard Score · +${mv.gain} pts</div>`
+      <div class="confirm-sub">Daily Score · +${mv.gain} pts</div>`
       : `<div class="confirm-sub">Recovery is in for tonight. Your score already counts it.</div>`}
       ${mv && firstEver() ? `<div class="confirm-sub">Your first check-in. Recovery is ${liveWeightPct('checkin') + liveWeightPct('recovery')}% of the score, and it is the part only you can report.</div>` : ''}
 
@@ -119,11 +119,8 @@ export default {
     return `
     ${backHead('Recovery Check-In', 'Before bed · Takes 20 seconds')}
 
-    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:2px 2px 14px;line-height:1.55">
-      Recovery is ${liveWeightPct('checkin') + liveWeightPct('recovery')}% of your OnStandard Score because readiness drives performance;
-      how recovered, rested, and available you are decides what tomorrow's work is worth.
-    </div>
-
+    ${/* The rationale paragraph that sat here is gone: the backHead already names the screen,
+          and the projection sidebox below carries the score stakes with real numbers. */''}
     <section class="card" style="padding: 4px 18px 8px">
       ${R.fields.map(f => `
         <div class="rec-field" data-ci-key="${f.key}">

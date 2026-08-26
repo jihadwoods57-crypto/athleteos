@@ -95,10 +95,12 @@ export default {
     }
     const st = CACHE.st || {};
     if (st.error) {
+      // Log the raw failure; never print a server string ("JWT expired") as athlete-facing copy.
+      console.warn('[verified-profile]', st.error);
       return `${head}
-      <section class="card" style="padding:16px">
+      <section class="card" style="padding:16px" role="alert">
         <div class="tt">Couldn't load your profile</div>
-        <div class="ts" style="margin:6px 0 12px">${esc(st.error)}</div>
+        <div class="ts" style="margin:6px 0 12px">Check your connection and try again. Nothing was lost.</div>
         <button class="btn ghost" id="vp-retry">Try again</button>
       </section>`;
     }

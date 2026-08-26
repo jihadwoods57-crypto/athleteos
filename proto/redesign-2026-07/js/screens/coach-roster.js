@@ -28,13 +28,13 @@ function stylePill(style) {
   return `<span class="status-pill b" style="margin-left:6px;padding:1px 7px;font-size:10.5px" title="${esc(l.name)} standard">${STYLE_LETTER[style] || '?'}</span>`;
 }
 
-/* nav:'operator' — load whichever book the signed-in role owns (see coach-home.js). */
+/* nav:'operator'. Load whichever book the signed-in role owns (see coach-home.js). */
 const loadMyBook = (force) => loadBook(force, bookKindFor(RT.authRole));
 
-/* Operator vocabulary — a trainer manages CLIENTS, not a roster of athletes. */
+/* Operator vocabulary. A trainer manages CLIENTS, not a roster of athletes. */
 const VOCAB = {
-  team: { title: 'Roster', search: 'Search athletes', loading: 'Loading the roster', offlineTitle: "Can't reach the roster", offlineBody: 'Your team and their scores are safe — reconnect and the roster loads right here.' },
-  practice: { title: 'Clients', search: 'Search clients', loading: 'Loading your clients', offlineTitle: "Can't reach your clients", offlineBody: 'Your clients and their scores are safe — reconnect and the list loads right here.' },
+  team: { title: 'Roster', search: 'Search athletes', loading: 'Loading the roster', offlineTitle: "Can't reach the roster", offlineBody: 'Your team and their scores are safe. Reconnect and the roster loads right here.' },
+  practice: { title: 'Clients', search: 'Search clients', loading: 'Loading your clients', offlineTitle: "Can't reach your clients", offlineBody: 'Your clients and their scores are safe. Reconnect and the list loads right here.' },
 };
 const vocab = () => VOCAB[CD.kind] || VOCAB.team;
 
@@ -192,7 +192,7 @@ function wireGroupSheet(root, teamId) {
     b.disabled = true;
     const r = await roles.saveCoachGroup(teamId, { name, athleteIds: [...SEL] }, CD.kind);
     if (r.ok) { act.markCoachSetup('group'); SEL.clear(); SELECTING = false; SHOW_GROUPS = false; await loadMyBook(true); }
-    else { b.disabled = false; status(r.error || 'Could not save the group — check your connection.', true); }
+    else { b.disabled = false; status(r.error || 'Could not save the group. Check your connection.', true); }
   }));
   root.querySelectorAll('[data-gadd]').forEach(b => b.addEventListener('click', async () => {
     const g = ((CD.extras && CD.extras.groups) || []).find(x => x.id === b.getAttribute('data-gadd'));
@@ -216,7 +216,7 @@ function wireGroupSheet(root, teamId) {
       window.__render();
       // Re-query after the render (same pattern as the absence sheet) — the old node is gone.
       const el = document.querySelector('#group-status');
-      if (el) { el.style.color = 'var(--red)'; el.textContent = 'Could not delete it — check your connection.'; }
+      if (el) { el.style.color = 'var(--red)'; el.textContent = 'Could not delete it. Check your connection.'; }
     }
   }));
 }
@@ -224,7 +224,7 @@ function absenceSheet() {
   return `
   <section class="card" style="padding:13px 16px">
     <div class="eyebrow" style="margin:0 0 8px">Excuse ${SEL.size} ${CD.noun}${SEL.size === 1 ? '' : 's'}</div>
-    <div style="font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5;margin-bottom:8px">Excused ${CD.nouns} drop out of the priority queue and today's completion math — and nothing pings them while excused.</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5;margin-bottom:8px">Excused ${CD.nouns} drop out of the priority queue and today's completion math. And nothing pings them while excused.</div>
     <input class="ob-input" id="abs-reason" maxlength="120" placeholder="Reason (travel, injury, family…)" style="height:36px" />
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px">
       <button class="btn sm" data-abs="0" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:12px">Just today</button>
@@ -255,7 +255,7 @@ function wireAbsenceSheet(root, teamId) {
       // Re-query after the render: the clicked BUTTON node is gone (root itself is the
       // persistent #device node and stays valid — only element references go stale).
       const el = document.querySelector('#abs-status');
-      if (el) { el.style.color = 'var(--red)'; el.textContent = `Could not excuse ${failed} — check your connection.`; }
+      if (el) { el.style.color = 'var(--red)'; el.textContent = `Could not excuse ${failed}. Check your connection.`; }
       return;
     }
     SEL.clear(); SELECTING = false; SHOW_ABSENCE = false;
@@ -324,7 +324,7 @@ export const coachRoster = {
       <div class="state-demo">
         <div class="sd-ic">${icon('users', 24)}</div>
         <div class="sd-t">No ${noun}s yet</div>
-        <div class="sd-s">Share your ${noun} code — everyone who joins shows up here in real time.</div>
+        <div class="sd-s">Share your ${noun} code. Everyone who joins shows up here in real time.</div>
         <div class="sd-cta" style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
           <button class="btn primary sm" data-go="${practice ? 'trainer-profile' : 'coach-profile/code'}">${icon('share', 16)} Share ${noun} code</button>
           <button class="btn ghost sm" data-go="coach-plan-set/team">${icon('clipboard', 16)} Set your standard</button>
@@ -353,7 +353,7 @@ export const coachRoster = {
     return `${head}
     <div class="rtools">
       <input class="ob-input rq" id="roster-q" placeholder="${esc(vocab().search)}" value="${esc(Q)}" />
-      <button class="btn ghost sm" data-sort>${{ score: 'Score ↓', status: 'Status', name: 'A–Z', activity: 'Recent' }[SORT]}</button>
+      <button class="btn ghost sm" data-sort>Sort: ${{ score: 'Score', status: 'Status', name: 'A–Z', activity: 'Recent' }[SORT]}</button>
       <button class="btn ${SELECTING ? 'green' : 'ghost'} sm" data-selmode>${SELECTING ? 'Done' : 'Select'}</button>
     </div>
     <div class="co-seg co-scroll">
@@ -368,15 +368,15 @@ export const coachRoster = {
       <input id="bulk-nudge-body" class="ob-input" maxlength="120" value="${esc(BULK_NUDGE_ARM)}" aria-label="Nudge message" style="width:100%;height:36px;font-size:var(--t-sm)" />
       <div id="bulk-nudge-note" style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:6px 0">This exact message goes to all ${SEL.size}, from "${esc(S.operatorIdentity.handle)} is waiting".</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-        <button class="btn ghost sm" data-bulk="nudgecancel" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:var(--t-xs)">Cancel</button>
-        <button class="btn sm" data-bulk="nudgesend" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:var(--t-xs)">Send to ${SEL.size}</button>
+        <button class="btn ghost sm" data-bulk="nudgecancel" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-xs)">Cancel</button>
+        <button class="btn sm" data-bulk="nudgesend" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-xs)">Send to ${SEL.size}</button>
       </div>
     </div>` : `
     <div class="card" style="position:sticky;bottom:calc(var(--nav-h) + 19px + env(safe-area-inset-bottom, 0px) + 8px);display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:9px;z-index:20">
-      <button class="btn sm" data-bulk="nudge" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">Nudge ${SEL.size}</button>
-      ${CD.caps.assignments ? `<button class="btn ghost sm" data-bulk="assign" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">Assign</button>` : ''}
-      ${CD.caps.groups ? `<button class="btn ghost sm" data-bulk="group" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">→ Group</button>` : ''}
-      ${CD.caps.exceptions ? `<button class="btn ghost sm" data-bulk="absence" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:11.5px">Excuse</button>` : ''}
+      <button class="btn sm" data-bulk="nudge" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">Nudge ${SEL.size}</button>
+      ${CD.caps.assignments ? `<button class="btn ghost sm" data-bulk="assign" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">Assign</button>` : ''}
+      ${CD.caps.groups ? `<button class="btn ghost sm" data-bulk="group" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">→ Group</button>` : ''}
+      ${CD.caps.exceptions ? `<button class="btn ghost sm" data-bulk="absence" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">Excuse</button>` : ''}
     </div>`) : ''}
     ${BULK_STATUS ? `<div id="bulk-status" style="font-size:11.5px;font-weight:600;color:var(--text-3);min-height:14px;margin-top:4px">${esc(BULK_STATUS)}</div>` : ''}
     <div style="height:10px"></div>`;

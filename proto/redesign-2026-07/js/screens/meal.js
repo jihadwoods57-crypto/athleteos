@@ -1,7 +1,7 @@
 import { S, RT, tier, act, MEAL, mealDetail, fmtClock, liveWeightPct } from '../state.js';
 import { DAY, slotDeadline } from '../day.js';
 import { icon } from '../icons.js';
-import { backHead, esc, safeImg, nonLiveBadge, composer, segBar } from '../components.js';
+import { backHead, esc, safeImg, nonLiveBadge, composer, segBar, skeletonRows } from '../components.js';
 import { reveal } from '../motion.js';
 import { scoreMoveBar, playScoreMove } from '../score-move.js';
 import {
@@ -23,6 +23,7 @@ import { recentRows, warmRecent as warmRecentShared } from '../recent-meals.js';
 import {
   layoutThread, authorName, initialsFor, participantList, participantSummary, participantMeta,
   isAnalysisOpener, isAnalysisUpdate, isEscalated, quotedFor,
+  dayLabelOf,
 } from '../chat-view.js';
 
 /* The meal score chip's ring, drawn as the brand dial (docs/brand/LOGO.md): a 300° gauge with
@@ -300,8 +301,15 @@ export const analyzing = {
       clearPhases();
       const sl = root.querySelector('.scanline');
       if (sl) sl.style.display = 'none';
-      if (phase) phase.textContent = r.error || 'Analysis failed.';
-      if (sub) { sub.textContent = 'Nothing was logged. Your photo is still here.'; }
+      // One honest headline, always. r.error rides the sub only when it is short and reads like
+      // a sentence: status codes and stack fragments help nobody standing over a plate.
+      if (phase) phase.textContent = "Couldn't read this plate.";
+      if (sub) {
+        const errTxt = typeof r.error === 'string' ? r.error.trim() : '';
+        const human = errTxt && errTxt.length <= 90 && !/[{}<>\n]/.test(errTxt)
+          && !/\b[45]\d{2}\b/.test(errTxt) && !/(error code|exception|stack|traceback|undefined)/i.test(errTxt);
+        sub.textContent = `Nothing was logged. Your photo is still here.${human ? ` ${errTxt}` : ''}`;
+      }
       // Retake is the primary way out. The second button is the only place in the app where someone
       // knows exactly what broke AND is already looking at it — a bug report filed from here needs
       // no reconstruction, and the screen it came from is attached automatically.
@@ -629,7 +637,7 @@ export const analysis = {
       : src === 'manual' ? 'entered by you'
       : 'estimated from photo';
     return `
-    ${backHead(`${L.name} Analysis`, 'Check it before it counts', 'camera')}
+    ${backHead(`${L.name} Analysis`, already ? 'Already logged' : 'Check it before it counts', 'camera')}
 
     <div class="photo-hero" style="${safeImg(L.img) ? `background-image:url('${safeImg(L.img)}')` : 'background:linear-gradient(150deg, rgba(var(--green-rgb),0.14), rgba(var(--blue-deep-rgb),0.06))'}">
       <div class="ph-grad"></div>
@@ -653,10 +661,10 @@ export const analysis = {
         <input class="fr-in qty" id="add-qty" maxlength="12" placeholder="Qty" aria-label="Quantity" />
         <button class="fr-ok" id="add-ok" aria-label="Add">${icon('check', 15)}</button>
       </div>
-      ${edited ? `<div style="font-size:11px;font-weight:600;color:var(--text-3);padding:4px 0 8px">${MEAL.result && MEAL.result.recomputed ? 'Edited by you — macros and score recalculated from the foods listed.' : 'Edited by you — macros stay the AI’s estimate.'}</div>` : ''}
+      ${edited ? `<div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);padding:4px 0 8px">${MEAL.result && MEAL.result.recomputed ? 'Edited by you. Macros and score recalculated from the foods listed.' : 'Edited by you. Macros stay the AI’s estimate.'}</div>` : ''}
     </section>
 
-    <div class="eyebrow">Estimated</div>
+    <div class="eyebrow">${src === 'label' ? 'From the label' : src === 'manual' ? 'As entered' : 'Estimated'}</div>
     ${macroRow(L.macros)}
 
     <div style="height:14px"></div>
@@ -672,16 +680,16 @@ export const analysis = {
       if (severeHits.length) return `
       <div style="display:flex;gap:10px;padding:13px 14px;border-radius:var(--r-tile);background:var(--red-surface);border:1.5px solid var(--red-border)">
         ${icon('bell', 17, 'style="color:var(--red);flex:none;margin-top:1px"')}
-        <div><div style="font-size:13.5px;font-weight:800;color:var(--red-bright)">Possible severe allergen: ${esc(severeHits.join(', '))}</div>
-        <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-top:3px;line-height:1.45">A detected food may contain it — the read can't see every ingredient or cross-contact. Check the label or ask staff before you eat or log this.</div></div>
+        <div><div style="font-size:var(--t-sm);font-weight:800;color:var(--red-bright)">Possible severe allergen: ${esc(severeHits.join(', '))}</div>
+        <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:3px;line-height:1.45">A detected food may contain it. The read can't see every ingredient or cross-contact. Check the label or ask staff before you eat or log this.</div></div>
       </div>`;
       if (cf.moderate.length || cf.noted.length) return `
       <div style="display:flex;align-items:center;gap:9px;padding:10px 14px;border-radius:var(--r-tile);background:var(--amber-surface);border:1px solid var(--amber-border)">
-        ${icon('bell', 15)} <span style="font-size:12.5px;font-weight:700;color:var(--amber-bright)">Heads up: this may contain ${esc([...cf.moderate, ...cf.noted].join(', '))} from your restrictions.</span>
+        ${icon('bell', 15)} <span style="font-size:var(--t-sm);font-weight:700;color:var(--amber-bright)">Heads up: this may contain ${esc([...cf.moderate, ...cf.noted].join(', '))} from your restrictions.</span>
       </div>`;
       return `
       <div style="display:flex;align-items:center;gap:9px;padding:10px 14px;border-radius:var(--r-tile);background:var(--surface-2);border:1px solid var(--hairline)">
-        ${icon('shield', 15)} <span style="font-size:12px;font-weight:600;color:var(--text-2)">Compared with your saved restrictions — no matches detected. Detection can miss ingredients or cross-contact; always verify severe allergens yourself.</span>
+        ${icon('shield', 15)} <span style="font-size:var(--t-sm);font-weight:600;color:var(--text-2)">Compared with your saved restrictions. No matches detected. Detection can miss ingredients or cross-contact; always verify severe allergens yourself.</span>
       </div>`;
     })()}
 
@@ -699,7 +707,7 @@ export const analysis = {
         : src === 'label' ? `<button class="btn ghost sm" style="flex:1" data-go="label-scan">${icon('barcode', 17)} Edit label</button>`
         : `<button class="btn ghost sm" style="flex:1" data-go="camera/${slot}">${icon('camera', 17)} Retake</button>`}
       ${already
-        ? `<button class="btn ghost sm" style="flex:1.6" data-back="home">Already logged</button>`
+        ? `<button class="btn ghost sm" style="flex:1.6" data-back="home">Back to Home</button>`
         : `<button class="btn green sm" style="flex:1.6" data-act="logMeal:${slot}" data-then="meal-thread/${slot}">${icon('check', 18)} Log ${esc(L.name)}</button>`}
     </div>
     <div style="height:10px"></div>
@@ -943,7 +951,7 @@ export const thread = {
     // move is to offer the read again.
     const emptyRead = settled && fromPhoto
       && !M.macros.protein && !M.macros.carbs && !M.macros.fat && !M.macros.cals;
-    const rereadNote = `<div class="est-note" style="margin-top:8px">These numbers didn't land. The read came back empty, so nothing was measured.${M.mealId ? ` <span class="link" id="mt-reread" role="button" tabindex="0">Re-read this meal</span>` : ''}${M.rereadError ? ` <b style="color:var(--text-2)">Couldn't fetch the photo just now — try again in a moment.</b>` : ''}</div>`;
+    const rereadNote = `<div class="est-note" style="margin-top:8px">These numbers didn't land. The read came back empty, so nothing was measured.${M.mealId ? ` <span class="link" id="mt-reread" role="button" tabindex="0">Re-read this meal</span>` : ''}${M.rereadError ? ` <b style="color:var(--text-2)">Couldn't fetch the photo just now. Try again in a moment.</b>` : ''}</div>`;
     // INTUITIVE (0142): no macro or calorie figure reaches the athlete. The plate itself, what
     // was on it, and how it landed still do — the composition IS the feedback. Every number is
     // still computed and still stored (the professional needs them, and under-fueling is a
@@ -1163,7 +1171,12 @@ export const thread = {
           information this screen truncated. */''}
     <div class="thread" id="meal-thread" role="log" aria-label="Meal conversation">
       ${openingBlockHtml(M, { sum, fullText, fq })}
-      <div class="msg-status" id="thread-status">${M.mealId ? 'Loading the thread…' : (S.coach.hasCoach ? `Syncs when connected — your ${esc(S.coach.noun)} sees this log either way.` : 'Syncs when connected — this log is saved either way.')}</div>
+      ${/* Loading is a skeleton shaped like the messages it stands in for, and only when there
+            is no cached thread to paint instantly. The id stays: the mount removes it on load
+            and rewrites it in place on failure. */''}
+      ${M.mealId
+        ? `<div id="thread-status">${THREAD_CACHE.mealId === M.mealId ? '' : skeletonRows(2, 'Loading the thread')}</div>`
+        : `<div class="msg-status" id="thread-status">${S.coach.hasCoach ? `Syncs when connected · your ${esc(S.coach.noun)} sees this log either way.` : 'Syncs when connected · this log is saved either way.'}</div>`}
     </div>
     ${M.mealId ? `
     ${/* "Ask a question" went first (founder, 2026-08-02): it carried data-qa="" — no prefill at
@@ -1427,7 +1440,7 @@ export const thread = {
     const showThreadError = () => {
       if (!statusEl) return;
       statusEl.style.cssText = 'align-self:stretch;text-align:center;padding:14px 12px;border-radius:var(--r-tile);background:var(--surface-1);border:1px solid var(--hairline);margin-top:2px';
-      statusEl.innerHTML = `<div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.4">Couldn't load the discussion — your log is safe, coach can still see it.</div>
+      statusEl.innerHTML = `<div style="font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.4">Couldn't load the discussion. Your log is safe, coach can still see it.</div>
         <button class="btn ghost sm" id="thread-retry" style="margin-top:10px">${icon('wifiOff', 15)} Try again</button>`;
       const retryBtn = statusEl.querySelector('#thread-retry');
       if (retryBtn) retryBtn.addEventListener('click', () => {
@@ -1522,7 +1535,7 @@ export const thread = {
       const shown = msgs.slice(-PREVIEW_MSGS);
       const hiddenCount = msgs.length - shown.length;
       const lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
-      const rows = layoutThread(shown, { fmtTime: fmtMsgTime, fmtDay: dayKey }).map((item) => {
+      const rows = layoutThread(shown, { fmtTime: fmtMsgTime, fmtDay: dayKey, fmtDayLabel: dayLabelOf }).map((item) => {
         if (item.type === 'time') return `<div class="tsep">${esc(item.label)}</div>`;
         const c = item.comment;
         const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
@@ -1927,7 +1940,7 @@ export const thread = {
             mealId: M.mealId,
             // A wordless photo still needs a question for the model to answer. Sent explicitly
             // rather than left empty so the prompt reads as a real ask, not a blank turn.
-            question: text || 'I sent a photo — what do you make of it?',
+            question: text || 'I sent a photo. What do you make of it?',
             context,
             // "I can apply a structured correction": unlocks the apply_correction tool
             // server-side. Only sent because the handler below actually applies it.
@@ -1947,8 +1960,8 @@ export const thread = {
           if (!parsed && error && error.context && typeof error.context.json === 'function') {
             parsed = await error.context.json().catch(() => null);
           }
-          if (parsed && parsed.error === 'limit') setNote("You've hit today's AI coaching limit — back tomorrow. Your coach still sees this.");
-          else setNote("Couldn't reach your AI coach — tap to try again.", true);
+          if (parsed && parsed.error === 'limit') setNote("You've hit today's AI coaching limit. Back tomorrow. Your coach still sees this.");
+          else setNote("Couldn't reach your AI coach. Tap to try again.", true);
         } else {
           // THE CORRECTION LOOP CLOSES HERE (founder escalation 2026-08-06). The athlete stated
           // a fact about their own food ("the shake is the 42g bottle") and the AI called
@@ -1978,7 +1991,7 @@ export const thread = {
             // An ingredient we have no reference for is named out loud rather than rounded away:
             // the athlete is told exactly what is still missing and what would let us count it.
             if (applied.unpriced && applied.unpriced.length) {
-              setNote(`Added what I could price. There are no numbers on file for ${applied.unpriced.join(' or ')}, so it isn't counted yet — add it here and it will be.`);
+              setNote(`Added what I could price. There are no numbers on file for ${applied.unpriced.join(' or ')}, so it isn't counted yet. Add it here and it will be.`);
               openFix(true);
             } else setNote('');
             // Full repaint: score ring, breakdown tiles, rubric, coach focus, day progress —
@@ -1988,7 +2001,7 @@ export const thread = {
           }
           await refresh();
         }
-      } catch { setTyping(false); setNote("Couldn't reach your AI coach — tap to try again.", true); }
+      } catch { setTyping(false); setNote("Couldn't reach your AI coach. Tap to try again.", true); }
       // The question is already in the thread — retry only re-reaches the AI (no input refill).
       const retry = root.querySelector('#chat-retry');
       if (retry) retry.addEventListener('click', async () => {
@@ -2035,8 +2048,8 @@ export const thread = {
         // that never landed. The photo stays held so it is not lost with it.
         input.value = typed;
         setNote(res.error === 'upload'
-          ? "Couldn't upload that photo — try again, or remove it and send."
-          : "Couldn't send — try again.");
+          ? "Couldn't upload that photo. Try again, or remove it and send."
+          : "Couldn't send. Try again.");
         busy = false;
         return;
       }
@@ -2096,7 +2109,7 @@ export const thread = {
           // through an `athlete_id <> auth.uid()` arm that an athlete can never satisfy.
           ok = await roles.postMealComment(M.mealId, RT.userId, RT.userId, 'athlete', emoji, 'reaction');
         }
-        if (ok) await refresh(); else setNote("Couldn't save that reaction — try again.");
+        if (ok) await refresh(); else setNote("Couldn't save that reaction. Try again.");
         rxBusy = false;
       },
     });

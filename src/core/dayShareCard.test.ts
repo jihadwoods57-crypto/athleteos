@@ -65,7 +65,7 @@ describe('the supporting stats only claim what exists', () => {
 
 describe('the caption is something a person would actually post', () => {
   test('a streak leads with the streak', () => {
-    expect(card({ score: 91, streak: 6 }).caption).toBe('Day 6 of my streak — 91 on OnStandard.');
+    expect(card({ score: 91, streak: 6 }).caption).toBe('Day 6 of my streak · 91 on OnStandard.');
   });
 
   test('without a streak it is just the number', () => {

@@ -21,7 +21,7 @@ import { icon } from '../icons.js';
 import { esc, copyText } from '../components.js';
 import {
   defineFlow, saveProgressStep, ob, capture, gateCta, meter, countStat, mirrorCard, simChip,
-  chatSim, notifCard, phoneCard, testimonial, planCard, choiceGrid, chipRow, PLANS, structureStep,
+  chatSim, notifCard, phoneCard, testimonial, planCard, choiceGrid, chipRow, PLANS, structureStep, commitContinue,
 } from '../ob2.js';
 import { styleForStructureAnswer, styleLabel } from '../plan-style.js';
 import { accountBody, wireAccount } from './ob-account.js';
@@ -95,21 +95,21 @@ const steps = [
 
   /* ================= ch0 — DISCOVER ================= */
   {
-    id: 'why', ch: 0, cta: 'Keep going',
+    id: 'why', ch: 0, cta: 'Continue',
     body: () => `
       <div class="ob2-hero">
         <div class="h-eyebrow">For coaches</div>
         <div class="h-title">You set the standard. <span class="accent">Can you see who meets it?</span></div>
-        <div class="h-body">Practice shows you effort. The depth chart shows you outcomes. What happens between the two — meals, sleep, recovery — you mostly take on faith.</div>
+        <div class="h-body">Practice shows you effort. The depth chart shows you outcomes. What happens between the two (meals, sleep, recovery) you mostly take on faith.</div>
       </div>`,
   },
   {
-    id: 'gap', ch: 0, cta: 'Keep going',
+    id: 'gap', ch: 0, cta: 'Continue',
     body: () => `
       <div class="ob2-hero">
         <div class="h-eyebrow">The monitoring math</div>
         <div class="h-title">The standard you can’t see <span class="accent">slips first.</span></div>
-        <div class="h-body">A roster of athletes, each with daily non-negotiables, seven days a week — that’s hundreds of individual actions no staff can check by hand. So nobody does, and you find out on the scale, in the film, in February.</div>
+        <div class="h-body">A roster of athletes, each with daily non-negotiables, seven days a week: that’s hundreds of individual actions no staff can check by hand. So nobody does, and you find out on the scale, in the film, in February.</div>
         <div class="h-note">In a minute we’ll run your program’s exact number.</div>
       </div>`,
   },
@@ -119,7 +119,7 @@ const steps = [
       <div class="ob2-hero">
         <div class="h-eyebrow">The OnStandard answer</div>
         <div class="h-title">One score per athlete. <span class="accent">Readable in five seconds.</span></div>
-        <div class="h-body">Your standard becomes daily requirements with proof — photos, check-ins, the scale. Every athlete carries one Daily Score built from what they actually did, and your board shows all of them at once.</div>
+        <div class="h-body">Your standard becomes daily requirements with proof: photos, check-ins, the scale. Every athlete carries one Daily Score built from what they actually did, and your board shows all of them at once.</div>
       </div>`,
   },
   {
@@ -132,8 +132,8 @@ const steps = [
       <input id="co-last" class="ob-input" maxlength="40" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" spellcheck="false" autocorrect="off" />
       <div class="eyebrow" style="margin:16px 2px 10px">What the room calls you</div>
       <div class="chip-row" id="co-handle"></div>
-      <input id="co-handle-custom" class="ob-input" maxlength="24" placeholder="Or type it — e.g. Coach B" style="margin-top:10px" />
-      <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">This is the name athletes see everywhere — greetings, meal threads, your standard.</div>`,
+      <input id="co-handle-custom" class="ob-input" maxlength="24" placeholder="Or type it, e.g. Coach B" style="margin-top:10px" />
+      <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">This is the name athletes see everywhere: greetings, meal threads, your standard.</div>`,
     mount(root) {
       const $ = (s) => root.querySelector(s);
       const f = $('#co-first'), l = $('#co-last');
@@ -220,7 +220,7 @@ const steps = [
   {
     id: 'expectations', ch: 0, cta: 'Next',
     title: () => 'Daily non-negotiables.',
-    sub: () => 'The things every athlete owes you every day — meals, weigh-in, recovery, lift log.',
+    sub: () => 'The things every athlete owes you every day: meals, weigh-in, recovery, lift log.',
     body: (o) => `${chipRow('dailyExpectations', [
       { v: 2, t: '2' }, { v: 3, t: '3' }, { v: 4, t: '4' }, { v: 5, t: '5' },
     ])}
@@ -229,10 +229,10 @@ const steps = [
   {
     id: 'tracking', ch: 0, cta: 'Next',
     title: () => 'How do you track it today?',
-    sub: () => 'Honest answer — it shapes what we show you next.',
+    sub: () => 'Honest answer. It shapes what we show you next.',
     body: () => choiceGrid('currentTracking', [
       { v: 'chat', ic: 'message', t: 'Group chat + memory', s: 'Photos scroll past, misses vanish' },
-      { v: 'sheets', ic: 'grid', t: 'Spreadsheets', s: 'Somebody types it in — sometimes' },
+      { v: 'sheets', ic: 'grid', t: 'Spreadsheets', s: 'Somebody types it in, sometimes' },
       { v: 'app', ic: 'bell', t: 'An app they ignore', s: 'Logging died after week two' },
       { v: 'none', ic: 'eye', t: 'Nothing formal', s: 'You trust it, until you can’t' },
     ]),
@@ -269,14 +269,14 @@ const steps = [
       return `${countStat(ts * de * 7,
         `individual actions a week your staff is trying to track <b>${esc(track)}</b>.`,
         `${ts} athletes × ${de} daily expectations × 7 days`)}
-      <div style="font-size:13px;font-weight:600;color:var(--text-2);text-align:center;margin-top:16px;line-height:1.55">No staff checks that by hand. So the standard becomes a hope. Let’s make it a board instead — build one requirement right now.</div>`;
+      <div style="font-size:13px;font-weight:600;color:var(--text-2);text-align:center;margin-top:16px;line-height:1.55">No staff checks that by hand. So the standard becomes a hope. Let’s make it a board instead. Build one requirement right now.</div>`;
     },
   },
   {
     id: 'req-build', ch: 1, cta: 'Create it',
     title: () => 'Build your first requirement.',
     sub: () => 'Pick one to try. Windows, proof, and full templates are yours to tune later in Standards.',
-    body: () => `${simChip('Sample requirement — yours are fully custom')}
+    body: () => `${simChip('Sample requirement · yours are fully custom')}
       ${choiceGrid('sampleReq', [
         { v: 'meals', ic: 'utensils', t: 'Meal photos', s: '3 a day · photo proof' },
         { v: 'protein', ic: 'flame', t: 'Protein target', s: 'Daily · counted, not guessed' },
@@ -292,37 +292,41 @@ const steps = [
       { v: 'team', t: 'Whole team' },
       ...roomsFor(o).map(([v, t]) => ({ v, t })),
     ])}
-    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:14px 2px 0;line-height:1.5">Rooms come from the positions your athletes pick — one tap and the requirement lands on everyone in it.</div>`,
+    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:14px 2px 0;line-height:1.5">Rooms come from the positions your athletes pick. One tap and the requirement lands on everyone in it.</div>`,
   },
   {
     id: 'board', ch: 1, cta: 'How’s a score built?',
     title: () => 'Tuesday, 8:40 pm.',
-    sub: (o) => `${REQ_LABEL[o.sampleReq] || 'Your standard'} on ${roomLabel(o, o.sampleAssign)} — every athlete, without sending a single text.`,
-    body: (o) => `${simChip('Simulated roster — your real board fills as athletes join')}
+    sub: (o) => `${REQ_LABEL[o.sampleReq] || 'Your standard'} on ${roomLabel(o, o.sampleAssign)}: every athlete, without sending a single text.`,
+    body: (o) => `${simChip('Simulated roster · your real board fills as athletes join')}
       ${phoneCard('Completion board', `<div class="ob2-board">${boardRows(expectationsOf(o), o.sport)}</div>`)}
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:12px 2px 0;line-height:1.5">${icon('check', 10)} done · ${icon('x', 10)} missed — one column per daily expectation.</div>`,
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:12px 2px 0;line-height:1.5">${icon('check', 10)} done · ${icon('x', 10)} missed · one column per daily expectation.</div>`,
   },
   {
     id: 'breakdown', ch: 1, cta: 'Next',
     title: () => 'Tap a name. See the why.',
-    sub: () => 'Every score opens the same honest breakdown — the real weights, not a vibe.',
-    body: (o) => `${simChip('Simulated athlete — real breakdowns come from real logs')}
-      <div class="lrow" id="obk-open" role="button" aria-label="Open Marcus’s breakdown" style="border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:12px 14px;background:var(--surface-1)">
-        <div class="lm"><div class="lt">Marcus${(SPORT_POS[o.sport] || [])[1] ? ` · ${esc((SPORT_POS[o.sport] || [])[1])}` : ''}</div><div class="ls">Today’s score — the honest weights</div></div>
+    sub: () => 'Every score opens the same honest breakdown: the real weights, not a vibe.',
+    body: (o) => `${simChip('Simulated athlete · real breakdowns come from real logs')}
+      <div class="lrow" id="obk-open" role="button" aria-label="Open Marcus’s breakdown" aria-expanded="false" style="border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:12px 14px;background:var(--surface-1)">
+        <div class="lm"><div class="lt">Marcus${(SPORT_POS[o.sport] || [])[1] ? ` · ${esc((SPORT_POS[o.sport] || [])[1])}` : ''}</div><div class="ls">Today’s score · the honest weights</div></div>
         <div style="font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--green-bright)">91</div>
       </div>
-      <div id="obk-detail" style="display:block;margin-top:12px">
+      <div id="obk-detail" style="display:none;margin-top:12px">
         ${phoneCard('Score breakdown', `
           <div style="display:flex;justify-content:center;padding:4px 0 10px">${meter(91, { size: 120, value: '91', label: 'Today', uid: 'obk-brk' })}</div>
           <div class="comp-read">
-            <div class="cr"><div class="ci warn">${icon('clock', 13)}</div><div class="ck">Nutrition</div><div class="cv">${liveWeightPct('nutrition')}% — meals logged and graded to your standard, dinner logged late tonight</div></div>
-            <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">Recovery</div><div class="cv">${liveWeightPct('checkin') + liveWeightPct('recovery')}% — sleep, recovery, and tonight's check-in</div></div>
+            <div class="cr"><div class="ci warn">${icon('clock', 13)}</div><div class="ck">Nutrition</div><div class="cv">${liveWeightPct('nutrition')}% · meals logged and graded to your standard, dinner logged late tonight</div></div>
+            <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">Recovery</div><div class="cv">${liveWeightPct('checkin') + liveWeightPct('recovery')}% · sleep, recovery, and tonight's check-in</div></div>
           </div>`)}
       </div>`,
     mount(root) {
       const open = root.querySelector('#obk-open'), detail = root.querySelector('#obk-detail');
+      /* Starts hidden (2026-08-25): it rendered open, so the advertised "Tap a name. See the
+         why." collapsed the breakdown instead of revealing it. */
       if (open && detail) open.addEventListener('click', () => {
-        detail.style.display = detail.style.display === 'none' ? '' : 'none';
+        const show = detail.style.display === 'none';
+        detail.style.display = show ? '' : 'none';
+        open.setAttribute('aria-expanded', String(show));
       });
     },
   },
@@ -331,9 +335,9 @@ const steps = [
     title: () => 'Know the moment it slips.',
     sub: () => 'You choose what’s worth a ping. Everything else waits for your morning brief.',
     body: () => `${simChip('Simulated alert previews')}
-      ${notifCard({ ic: 'bell', tint: 'var(--red-surface)', color: 'var(--red)', title: 'Jaylen — missed dinner log', body: '2nd day in a row. Flagged to you, not the group chat.', time: '8:41 pm' })}
-      ${notifCard({ ic: 'clock', tint: 'var(--amber-surface)', color: 'var(--amber-bright)', title: 'Weigh-ins due in 2 hours', body: '6 of 8 done — Tyler and Trey outstanding.', time: '7:00 am' })}
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:6px 2px 0;line-height:1.5">Alert rules are yours — per requirement, per room, or off entirely.</div>`,
+      ${notifCard({ ic: 'bell', tint: 'var(--red-surface)', color: 'var(--red)', title: 'Jaylen · missed dinner log', body: '2nd day in a row. Flagged to you, not the group chat.', time: '8:41 pm' })}
+      ${notifCard({ ic: 'clock', tint: 'var(--amber-surface)', color: 'var(--amber-bright)', title: 'Weigh-ins due in 2 hours', body: '6 of 8 done. Tyler and Trey outstanding.', time: '7:00 am' })}
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:6px 2px 0;line-height:1.5">Alert rules are yours: per requirement, per room, or off entirely.</div>`,
   },
   {
     id: 'thread', ch: 1, cta: 'Next',
@@ -342,7 +346,7 @@ const steps = [
     body: () => `${simChip('Simulated thread')}
       ${chatSim([
         { who: 'trainer', init: 'A', name: 'Andre', sim: true, text: 'Post-practice dinner.' },
-        { who: 'ai', name: 'OnStandard AI', sim: true, text: 'Grilled chicken, rice, broccoli — solid plate. Protein on target; carbs a little light for tomorrow’s lift.' },
+        { who: 'ai', name: 'OnStandard AI', sim: true, text: 'Grilled chicken, rice, broccoli: solid plate. Protein on target; carbs a little light for tomorrow’s lift.' },
         { who: 'me', name: 'You', init: 'C', sim: true, text: 'Good plate. Add a carb at breakfast before the lift.' },
       ])}`,
   },
@@ -351,9 +355,9 @@ const steps = [
     title: () => 'The texts nobody sends.',
     body: (o) => {
       const ts = teamSizeOf(o), de = expectationsOf(o);
-      return `${countStat(Math.round(ts * de * 7 * 0.7),
-        `follow-up checks a week handled for you — reminders, first reads, and miss flags your staff never makes by hand.`,
-        `estimate — ${ts} athletes × ${de} expectations × 7 days, at a typical 70% handled automatically`)}
+      return `${countStat(ts * de * 7,
+        `follow-up actions a week on your standard. Most of these become reminders, first reads, and flags the system handles.`,
+        `${ts} athletes × ${de} expectations × 7 days`)}
       <div style="font-size:13px;font-weight:600;color:var(--text-2);text-align:center;margin-top:16px;line-height:1.55">Your staff’s hours go to coaching. The system does the counting.</div>`;
     },
   },
@@ -369,13 +373,13 @@ const steps = [
       const blinds = (Array.isArray(o.blindspots) ? o.blindspots : []).map((b) => BLIND[b]).filter(Boolean);
       const style = styleLabel(styleForStructureAnswer(o.structurePref));
       return `
-      ${o.teamSize ? mirrorCard('users', `You said <b>${esc(ts)} athletes</b> — the board tracks every one, daily.`) : ''}
-      ${mirrorCard('sparkle', `Default plan style: <b>${esc(style.name)}</b>. ${esc(style.short)}. This seeds your standard — you set it per athlete, and any athlete can share a different preference.`)}
+      ${o.teamSize ? mirrorCard('users', `You said <b>${esc(ts)} athletes</b>. The board tracks every one, daily.`) : ''}
+      ${mirrorCard('sparkle', `Default plan style: <b>${esc(style.name)}</b>. ${esc(style.short)}. This seeds your standard. You set it per athlete, and any athlete can share a different preference.`)}
       ${o.dailyExpectations ? mirrorCard('clipboard', `Your <b>${esc(de)} daily non-negotiables</b> become requirements with proof, not reminders in a chat.`) : ''}
-      ${blinds.length ? mirrorCard('eye', `Your blind spots — <b>${esc(blinds.join(', '))}</b> — are exactly what alerts and the board make visible.`) : mirrorCard('eye', `The hours you can’t see — home, weekends, travel — are exactly what the board makes visible.`)}
+      ${blinds.length ? mirrorCard('eye', `Your blind spots (<b>${esc(blinds.join(', '))}</b>) are exactly what alerts and the board make visible.`) : mirrorCard('eye', `The hours you can’t see (home, weekends, travel) are exactly what the board makes visible.`)}
       <div style="height:8px"></div>
       ${phoneCard('What you get', `
-        <div class="ob2-bound"><div class="bi yes">${icon('check', 15)}</div><div><div class="bt">A daily standard with proof</div><div class="bs">Photos, check-ins, the scale — per room or team-wide</div></div></div>
+        <div class="ob2-bound"><div class="bi yes">${icon('check', 15)}</div><div><div class="bt">A daily standard with proof</div><div class="bs">Photos, check-ins, the scale · per room or team-wide</div></div></div>
         <div class="ob2-bound"><div class="bi yes">${icon('check', 15)}</div><div><div class="bt">AI first-read on every meal</div><div class="bs">You step into threads only where it matters</div></div></div>
         <div class="ob2-bound"><div class="bi yes">${icon('check', 15)}</div><div><div class="bt">Staff see their rooms</div><div class="bs">You see everything, alerts on your rules</div></div></div>`)}`;
     },
@@ -385,9 +389,9 @@ const steps = [
   {
     id: 'commit-q', ch: 3, cta: 'Next',
     title: () => 'How much do you want to see?',
-    sub: () => 'This sets your alert defaults — tune any of it later in Notifications.',
+    sub: () => 'This sets your alert defaults. Tune any of it later in Notifications.',
     body: () => choiceGrid('visibilityLevel', [
-      { v: 'scores', ic: 'bars', t: 'Scores only', s: 'The board and the numbers — alerts stay off by default' },
+      { v: 'scores', ic: 'bars', t: 'Scores only', s: 'The board and the numbers · alerts stay off by default' },
       { v: 'alerts', ic: 'bell', t: 'Scores + alerts', s: 'Misses worth a ping reach you as they happen' },
       { v: 'detail', ic: 'eye', t: 'Full detail', s: 'Scores, alerts, and every meal thread as it lands' },
     ]),
@@ -400,14 +404,15 @@ const steps = [
       const committed = !!o.committedAt;
       return `
       ${mirrorCard('users', `A board for <b>${esc(teamSizeOf(o))} athletes</b>, filled without asking.`)}
-      ${mirrorCard('bell', `Visibility: <b>${esc(VIS_LABEL[o.visibilityLevel] || 'scores + alerts')}</b> — your alert defaults follow it.`)}
-      ${mirrorCard('shield', `The standard gets written down, proven daily, and seen — by you.`)}
+      ${mirrorCard('bell', `Visibility: <b>${esc(VIS_LABEL[o.visibilityLevel] || 'scores + alerts')}</b>. Your alert defaults follow it.`)}
+      ${mirrorCard('shield', `The standard gets written down, proven daily, and seen, by you.`)}
       <div class="ob-foot" style="margin-top:auto">
-        ${commitButton(committed)}
-        ${committed ? `<div class="ob-textlink" style="padding-top:14px" data-go="obk/proof">Continue</div>` : ''}
+        ${committed ? commitContinue() : commitButton(false)}
       </div>`;
     },
     mount(root, ctx) {
+      const done = root.querySelector('#ob2-commit-next');
+      if (done) { done.addEventListener('click', () => ctx.next()); return; }
       wireCommit(root, () => {
         capture({ committedAt: new Date().toISOString() });
         ctx.next();
@@ -422,11 +427,11 @@ const steps = [
   {
     id: 'proof', ch: 4, cta: 'Next',
     title: () => 'What it looks like in a program.',
+    sub: () => 'Illustrative, not actual customers yet.',
     body: () => `
       <!-- Launch placeholders — the founder swaps these for real customer quotes before release. -->
       ${testimonial({ quote: 'Spring ball, logging held at 84%. I stopped asking “did you eat” and started coaching.', name: 'Coach D.', role: 'HS football, 47 athletes', initials: 'CD', stat: '84%', statKey: 'team log rate' })}
-      ${testimonial({ quote: 'The board caught two guys drifting in week one — before the scale did. That used to take a month.', name: 'Coach R.', role: 'College track, 31 athletes', initials: 'CR', stat: 'wk 1', statKey: 'first catch' })}
-      <div style="font-size:11.5px;font-weight:700;color:var(--text-3);text-align:center;margin-top:8px">Illustrative examples — not actual customers yet</div>`,
+      ${testimonial({ quote: 'The board caught two guys drifting in week one, before the scale did. That used to take a month.', name: 'Coach R.', role: 'College track, 31 athletes', initials: 'CR', stat: 'wk 1', statKey: 'first catch' })}`,
   },
   {
     id: 'staff-or-create', ch: 4, cta: 'Next',
@@ -448,9 +453,9 @@ const steps = [
       ${mode === 'join' ? `
       <div class="eyebrow" style="margin:8px 2px 10px">Staff code</div>
       <input id="ok-staff-code" class="ob-input" maxlength="12" placeholder="Code from your head coach" autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" value="${esc(c.staffCode || '')}" />
-      <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">Your head coach hands out staff codes. It lands you on their team’s staff with the role and permissions they set — you won’t create a new team.</div>` : `
+      <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">Your head coach hands out staff codes. It lands you on their team’s staff with the role and permissions they set. You won’t create a new team.</div>` : `
       <input id="ok-team" class="ob-input" maxlength="60" placeholder="Team name (e.g. Varsity Football)" value="${esc(c.teamName || o.teamName || '')}" />
-      <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:10px 2px 0;line-height:1.45">Your join code mints with your account on the next steps — send it to the group chat and the board starts filling.</div>`}`;
+      <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:10px 2px 0;line-height:1.45">Your join code mints with your account on the next steps. Send it to the group chat and the board starts filling.</div>`}`;
     },
     mount(root, ctx) {
       const $ = (s) => root.querySelector(s);
@@ -550,14 +555,14 @@ const steps = [
           <div style="display:flex;justify-content:center;gap:8px;margin-top:10px">
             <button class="btn green sm" id="ob-code-save" style="width:auto;padding:0 22px">Save code</button>
           </div>
-          <div id="ob-code-status" style="font-size:12px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px;text-align:center">Make it yours — e.g. GATORS. The random code stops working once you save.</div>
+          <div id="ob-code-status" style="font-size:12px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px;text-align:center">Make it yours, e.g. GATORS. The random code stops working once you save.</div>
         </div>` :
         /* No code = create_team did not succeed. This used to promise the code "generates
            automatically on your next sign-in" and send the coach to Profile → Team code; neither
            was true, and the dashboard then claimed a mint was in progress forever. Say what
            actually happened and point at the button that actually fixes it. */
         `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
-          <div><div class="tt">We couldn’t create your team</div><div class="ts">Your account is set up — the team isn’t. Tap Continue and you’ll land on your dashboard with a <b>Create team</b> button waiting. It takes one tap.</div></div></div>`}
+          <div><div class="tt">We couldn’t create your team</div><div class="ts">Your account is set up. The team isn’t. Pick a plan, then your dashboard has a <b>Create team</b> button waiting.</div></div></div>`}
       </div>`;
     },
     mount(root) {
@@ -598,7 +603,7 @@ const steps = [
       <div class="ob2-covered">
         <div class="halo"><div class="core">${icon('check', 34)}</div></div>
         <div class="ob-title" style="margin-top:20px">Your seat is covered.</div>
-        <div class="ob-sub" style="padding:0 8px">Staff seats ride on the program’s plan — nothing to set up, nothing to pay.</div>
+        <div class="ob-sub" style="padding:0 8px">Staff seats ride on the program’s plan. Nothing to set up, nothing to pay.</div>
       </div>
       <div class="ob-foot" style="margin-top:auto">
         <button class="btn primary" data-go="coach-home">Open your dashboard</button>
@@ -610,14 +615,14 @@ const steps = [
     id: 'plans', ch: 4, noFoot: true, back: 'obk/code',
     when: (o) => !isStaffJoin(o),
     title: () => 'Pick your program plan.',
-    sub: () => 'Start free — decide when the team’s on the board.',
+    sub: () => 'Start free. Decide when the team’s on the board.',
     body: (o) => `
       <div class="ob2-plans" data-obkey="plan">
         ${PLANS.org.map((p) => planCard({ ...p, on: o.plan ? o.plan === p.id : p.id === 'org_starter' })).join('')}
       </div>
       <div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:12px;line-height:1.5">No card today. You’ll confirm before anything ever charges.</div>
       <div class="ob-foot" style="margin-top:auto">
-        <button class="btn primary" id="obk-start" data-go="coach-home">Start free — no card today</button>
+        <button class="btn primary" id="obk-start" data-go="coach-home">Start free, no card today</button>
         <div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:12px">Your rooms are next.</div>
       </div>`,
     mount(root) {

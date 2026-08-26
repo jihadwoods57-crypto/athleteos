@@ -85,18 +85,18 @@ export default {
 
     <section class="card pad">
       <div class="cs-h">Let your standards check themselves</div>
-      <div class="cs-p" style="padding-top:6px">Your coach set an activity standard. With Health connected, OnStandard reads your totals and marks it complete on its own — no screenshots, no logging.</div>
+      <div class="cs-p" style="padding-top:6px">Your coach set an activity standard. With Health connected, OnStandard reads your totals and marks it complete on its own. No screenshots, no logging.</div>
     </section>
 
     <section class="card hc-card" style="padding:6px 16px">
       ${bullet('bolt', 'What OnStandard reads',
-        'Step count, walking and running distance, and workout totals — only for the standards assigned to you.')}
+        'Step count, walking and running distance, and workout totals, only for the standards assigned to you.')}
       ${bullet('shield', 'What your coach sees',
         'How far you got toward the target they set, and whether it verified. Never your raw health data, your routes, or your history.')}
       ${bullet('clock', 'When it reads',
         'While a standard is open, and once more after its deadline. Nothing is read on a day you have no standard.')}
       ${bullet('check', 'Your control',
-        'Turn it off any time in Settings. A dead battery or a sync gap never counts against you — you can always log it by hand instead.')}
+        "Turn it off any time: come back to this screen and tap Disconnect. Your phone's Health app can also cut access at any time.")}
     </section>
 
     ${CONSENT === null ? `
@@ -104,7 +104,7 @@ export default {
     : needsGuardian ? `
       <section class="card pad hc-card warn">
         <div class="cs-h">A parent or guardian has to approve this</div>
-        <div class="cs-p" style="padding-top:6px">You’re under 18, so we ask your guardian before reading any health data — your own tap isn’t enough, and the server enforces that too.</div>
+        <div class="cs-p" style="padding-top:6px">You’re under 18, so we ask your guardian before reading any health data. Your own tap isn’t enough, and the server enforces that too.</div>
         <button class="btn hc-act" data-go="guardian">Ask my guardian</button>
       </section>`
     : CONNECTED ? (READING === false ? `
@@ -125,7 +125,7 @@ export default {
     : `
       <div style="padding:12px 20px 0">
         <button class="btn" id="hc-go">Continue to Apple Health</button>
-        <button class="btn ghost" data-go="connected-standards" style="margin-top:8px">Not now — I’ll log manually</button>
+        <button class="btn ghost" data-go="connected-standards" style="margin-top:8px">Not now, I’ll log manually</button>
       </div>`}
 
     <div class="cs-p muted" style="text-align:center;padding:14px 20px 24px">
@@ -157,13 +157,22 @@ export default {
         // consent row never lands, the server refuses every reading and the feature looks broken
         // for reasons no one can see.
         const { error } = await c.rpc('grant_health_consent', { p_athlete: uid, p_kind: 'self' });
-        if (error) { BUSY = false; go.disabled = false; go.textContent = 'Couldn’t save — try again'; return; }
+        if (error) { BUSY = false; go.disabled = false; go.textContent = 'Couldn’t save. Try again'; return; }
         const h = healthNative();
         const res = h && h.connectScoped
           ? await h.connectScoped(['activity']).catch(() => ({ connected: false }))
           : { connected: false };
         CONNECTED = !!(res && res.connected);
         CONSENT = true;
+        if (!CONNECTED) {
+          // The OS sheet was cancelled AFTER grant_health_consent was recorded: revoke so the
+          // stored consent matches reality. If the revoke itself fails, CONSENT stays true and
+          // the Disconnect path can still clear it later.
+          try {
+            const { error: revokeErr } = await c.rpc('revoke_health_consent', { p_athlete: uid });
+            if (!revokeErr) CONSENT = false;
+          } catch { /* consent row stays; Disconnect remains the recourse */ }
+        }
         // Earn the claim before making it: see READING above for why "connected" is not enough.
         if (CONNECTED) await probeReading();
         if (CONNECTED && h && h.observeActivity) await h.observeActivity().catch(() => false);

@@ -23,6 +23,7 @@
 import { RT, S, act, routeForRole } from './state.js';
 import { planTour, filterSteps, placeCard, TOUR_IDS, isNewAccount } from './tour-plan.js';
 import { buzz } from './motion.js';
+import { overlayOpen } from './overlay-guard.js';
 
 /** Let the entrance stagger, the score ring, AND Home's early re-render churn finish before we dim
     everything. The number the tour points at should already be at rest, and the element it rings
@@ -115,6 +116,7 @@ function paintStep() {
   active.count.textContent = active.steps.length > 1 ? `${active.i + 1} of ${active.steps.length}` : '';
   active.next.textContent = last ? 'Done' : 'Next';
   active.skip.style.visibility = last ? 'hidden' : 'visible';
+  active.back.style.visibility = active.i > 0 ? 'visible' : 'hidden';
 
   // Measure after the text lands, or the card is placed against the previous step's height.
   const c = active.card.getBoundingClientRect();
@@ -136,6 +138,13 @@ function advance() {
   if (!active) return;
   if (active.i >= active.steps.length - 1) { close(); return; }
   active.i += 1;
+  paintStep();
+}
+
+/* Step back one. Never an exit: on step 1 it is hidden (paintStep), and Skip/Done own leaving. */
+function retreat() {
+  if (!active || active.i === 0) return;
+  active.i -= 1;
   paintStep();
 }
 
@@ -176,6 +185,7 @@ function open(id, steps) {
       <div class="tour-t" id="tour-t"></div>
       <div class="tour-b"></div>
       <div class="tour-actions">
+        <button class="tour-back" type="button">Back</button>
         <button class="tour-skip" type="button">Skip</button>
         <button class="tour-next btn primary sm" type="button">Next</button>
       </div>
@@ -200,9 +210,11 @@ function open(id, steps) {
     count: el.querySelector('.tour-count'),
     next: el.querySelector('.tour-next'),
     skip: el.querySelector('.tour-skip'),
+    back: el.querySelector('.tour-back'),
     onKey: (e) => {
       if (e.key === 'Escape') { close(); return; }
       if (e.key === 'ArrowRight') advance();
+      if (e.key === 'ArrowLeft') retreat();
     },
     onResize: () => paintStep(),
     // Leaving the screen ends the tour — every anchor it knows about lives here. But only a real
@@ -214,8 +226,9 @@ function open(id, steps) {
 
   active.next.addEventListener('click', advance);
   active.skip.addEventListener('click', close);
-  // A tap on the dimmed area advances; a tap on the card itself must not.
-  el.addEventListener('click', (e) => { if (e.target.classList.contains('tour-panel')) advance(); });
+  active.back.addEventListener('click', retreat);
+  // A tap on the dimmed area is deliberately a NO-OP: it used to advance, so a stray tap while
+  // reading skipped a step with no way back. Next/Back move; Skip and Done are the exits.
   document.addEventListener('keydown', active.onKey);
   window.addEventListener('resize', active.onResize);
   window.addEventListener('hashchange', active.onHash);
@@ -265,7 +278,7 @@ export function maybeStartTour() {
     pending = false;
     if (active) return;
     // Nothing else may be on screen: a tour landing on top of the day-locked stamp is two modals.
-    if (document.querySelector('.lockstamp, .imgview, .memsheet, .sheet-scrim, .tapback')) return;
+    if (overlayOpen('.tour')) return;
     // Re-plan at fire time — 600ms is long enough for another device to have marked it, for the
     // athlete to have navigated away, or for the async slots to have filled in more anchors.
     const fresh = planTour(context(replay));
@@ -313,7 +326,7 @@ export function maybeShowTip(id, tip) {
   setTimeout(() => {
     pending = false;
     if (active || (RT.tourSeen || {})[id]) return;
-    if (document.querySelector('.lockstamp, .imgview, .memsheet, .sheet-scrim, .tapback')) return;
+    if (overlayOpen('.tour')) return;
     const steps = filterSteps([tip], (a) => {
       const el = anchorEl(a);
       return el ? el.getBoundingClientRect() : null;

@@ -16,7 +16,7 @@
 .ob2-prog .seg { flex: 1; height: 4px; border-radius: var(--r-micro); background: var(--surface-3); overflow: hidden; padding:0; border: 0; display: block; box-sizing: border-box; }
 /* scaleX, not width — the .seg track clips, so the fill carries no radius of its own. */
 .ob2-prog .seg > i { display: block; height: 100%; width: 100%; transform-origin: left; transform: scaleX(0);
-  background: linear-gradient(90deg, var(--blue-deep), var(--blue-bright));
+  background: linear-gradient(90deg, var(--blue-deep), var(--blue));
   transition: transform var(--dur-2) var(--ease-out); }
 .ob2-prog .seg.done > i { transform: scaleX(1); background: var(--blue); }
 .ob2-ch-label { font-size: 10.5px; font-weight: 800; letter-spacing: var(--track-eyebrow);
@@ -63,6 +63,13 @@
 .ob2-meter .mk { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: var(--track-key); color: var(--text-3); margin-top:2px; }
 .ob2-meter .arc-track { stroke: var(--ring-track); }
 .ob2-meter .arc-fill { transition: stroke-dashoffset 900ms var(--ease-out); }
+/* Jewel at the arc tip. Fills live here, not in render-time JS theme sniffing, so a theme
+   toggle restyles a meter that is already on screen. Light: white bezel with a blue ring
+   seating a blue core; dark: canvas-dark bezel seating a white core. */
+.ob2-meter .tip-bezel { fill: var(--bg); }
+.ob2-meter .tip-core { fill: var(--text-on-accent); }
+:root[data-theme="light"] .ob2-meter .tip-bezel { fill: var(--surface-1); stroke: var(--blue-border); stroke-width: 1.5; }
+:root[data-theme="light"] .ob2-meter .tip-core { fill: var(--blue); }
 
 /* The aha gap:two meters, the space between them is the message */
 .ob2-gap { display: flex; justify-content: center; gap:26px; padding:8px 0 4px; }
@@ -158,7 +165,7 @@
 .ob2-foods .fc.high { color: var(--green-bright); background: var(--green-surface); }
 .ob2-foods .fc.medium { color: var(--amber-bright); background: var(--amber-surface); }
 .ob2-foods .fc.low { color: var(--text-3); background: var(--surface-3); }
-.ob2-foods .fx { width: 40px; height: 40px; border-radius: var(--r-chip); display: grid; place-items: center;
+.ob2-foods .fx { width: 44px; height: 44px; border-radius: var(--r-chip); display: grid; place-items: center;
   color: var(--text-3); background: var(--surface-2); cursor: pointer; flex: none; }
 .ob2-macros { display: grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:12px; }
 .ob2-macros .mc { text-align: center; padding:12px 4px; border-radius: var(--r-tile);
@@ -295,6 +302,29 @@
 .ob2-btn-pair .btn { width: auto; padding: 0 22px; }
 .ob2-code-status { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); min-height: 16px;
   margin-top: 8px; text-align: center; }
+
+/* ----- obn/obt rows promoted from inline styles (ratchet: raw font-size count falls).
+   .ob2-feat = obn feature list row · .bini/.bsc.r extend the obd board anatomy for obn's
+   review queue · .ob2-trend = protein-consistency bars · .ob2-flagrow/.ob2-flagbtn = the
+   flag exercise (44px box: the flame is a tap target, was 38px) · .ob2-stance = obt's
+   labeled draft-reply bubbles. ----- */
+.ob2-feat { display: flex; align-items: center; gap: 11px; padding: 10px 0; border-bottom: 1px solid var(--hairline-soft); }
+.ob2-feat .fi { width: 32px; height: 32px; border-radius: 10px; flex: none; display: grid; place-items: center; background: var(--blue-surface); color: var(--blue-bright); }
+.ob2-feat .ft { font-size: var(--t-base); font-weight: 700; line-height: 1.4; }
+.ob2-board .bini { width: 34px; height: 34px; border-radius: var(--r-chip); flex: none; display: grid; place-items: center; background: var(--surface-3); font-size: var(--t-sm); font-weight: 800; color: var(--text-2); }
+.ob2-board .bsc.r { background: var(--red-surface); color: var(--red); }
+.ob2-trend { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--hairline-soft); }
+.ob2-trend .tn { flex: 1; min-width: 0; font-size: var(--t-base); font-weight: 700; }
+.ob2-trend .tb { display: flex; gap: 3px; height: 44px; align-items: flex-end; }
+.ob2-trend .tb i { display: block; width: 9px; border-radius: 2.5px; }
+.ob2-trend .tp { flex: none; width: 42px; text-align: right; font-size: var(--t-sm); font-weight: 800; font-variant-numeric: tabular-nums; }
+.ob2-flagrow { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--r-card-sm); border: 1px solid var(--hairline); background: var(--surface-1); margin-bottom: 9px; }
+.ob2-flagrow .fn { font-size: var(--t-base); font-weight: 700; }
+.ob2-flagrow .fs { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); margin-top: 2px; }
+.ob2-flagbtn { width: 44px; height: 44px; border-radius: 11px; flex: none; display: grid; place-items: center; background: var(--surface-2); color: var(--text-3); cursor: pointer; }
+.ob2-stance { margin-bottom: 12px; }
+.ob2-stance .sl { font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); margin: 0 2px 4px; }
+.ob2-stance .sb { padding: 11px 14px; border-radius: 16px; background: var(--surface-2); border: 1px solid var(--hairline-soft); font-size: var(--t-base); font-weight: 600; line-height: 1.5; }
 
 /* Reduced motion: kill the entrance beats (mirrors the app-wide rule) */
 @media (prefers-reduced-motion: reduce) {

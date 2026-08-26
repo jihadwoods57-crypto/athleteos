@@ -108,7 +108,7 @@ function styleBandRow() {
   <div class="ps-band" aria-label="Plan style history">
     ${bands.map(b => `<span class="seg s-${esc(b.style)}"><i></i>${esc(b.name)} · ${b.days}d · avg ${b.avg}</span>`).join('')}
   </div>
-  <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:6px;line-height:1.45">Your plan style changed during this stretch — each style measures your day differently, so compare within a band, not across.</div>`;
+  <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:6px;line-height:1.45">Your plan style changed during this stretch. Each style measures your day differently, so compare within a band, not across.</div>`;
 }
 
 export default {
@@ -147,7 +147,7 @@ export default {
       streakRow = `<div class="streak-ribbon ${strong ? 'strong' : 'mild'}" data-go="streak" style="margin-top:14px">
         <div class="sr-ic">${icon(strong ? 'flame' : 'shield', 18)}</div>
         <div class="sr-body"><div class="sr-t">${st.days}-day streak${strong ? ' · at risk' : ''}</div>
-        <div class="sr-s">${strong ? 'This week’s grace is used — reach 80 before the day closes to continue your streak.' : 'Today is still live. Reach 80 before the day closes to continue your streak.'}</div></div>
+        <div class="sr-s">${strong ? 'This week’s grace is used. Reach 80 before the day closes to continue your streak.' : 'Today is still live. Reach 80 before the day closes to continue your streak.'}</div></div>
         ${icon('chevron', 16, 'style="color:var(--text-3);flex:none"')}
       </div>`;
     }
@@ -158,7 +158,7 @@ export default {
     // The first bar scored under the new weights, only when the chart also shows an older bar
     // scored the old way — otherwise there's no visible step to explain.
     const cutIdx = cutoverIndex(P.weekDates);
-    const CUTOVER_LABEL = 'Scoring changed — days before this were scored a different way';
+    const CUTOVER_LABEL = 'Scoring changed. Days before this were scored a different way';
 
     const scoreTrendSection = `
     <div class="eyebrow" data-tour="trend">Score Trend</div>
@@ -229,7 +229,7 @@ export default {
     ${S.coach.hasCoach && S.coach.kind === 'coach' ? `
     <div class="sidebox" data-go="squad" style="cursor:pointer">
       <div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
-      <div><div class="tt">Squad</div><div class="ts">Your team's board — opt-in, score number only</div></div>
+      <div><div class="tt">Squad</div><div class="ts">Your team's board · opt-in, score number only</div></div>
       ${icon('chevron', 17, 'style="color:var(--text-3)"')}
     </div>` : ''}
     <div class="sidebox" data-go="history" style="cursor:pointer">

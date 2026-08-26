@@ -126,7 +126,7 @@ function placeInk(strip, on) {
 const HEAD_SUBTITLE = (who, hasTargets) => ({
   set: hasTargets ? `Targets set by your ${who}` : `Plan style set by your ${who}`,
   loading: 'Loading your targets…',
-  offline: 'Offline. Targets will show',
+  offline: 'Offline · targets return when you reconnect',
   unset: S.coach.hasCoach ? `Your ${who} can set targets` : 'Scored on the standard itself',
 });
 
@@ -351,8 +351,8 @@ function suggestionCard() {
       <div class="pls">${esc(g.name)} · ${g.protein}g protein · ${g.kcal} cal · eaten ${g.count}×</div>
     </div>
     <div class="pl-sug-a">
-      <button class="btn primary sm" data-fm-save-sug="${esc(g.signature)}" style="width:auto;padding:0 16px;height:34px">Save</button>
-      <button class="btn ghost sm" data-fm-dismiss-sug="${esc(g.signature)}" style="width:auto;padding:0 14px;height:34px">No thanks</button>
+      <button class="btn primary sm" data-fm-save-sug="${esc(g.signature)}" style="width:auto;padding:0 16px;height:44px">Save</button>
+      <button class="btn ghost sm" data-fm-dismiss-sug="${esc(g.signature)}" style="width:auto;padding:0 14px;height:44px">No thanks</button>
     </div>
   </div>`;
 }

@@ -14,12 +14,16 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc, composer } from '../components.js';
-import { threadMessages } from '../meal-intel.js';
+import { threadMessages, reactionGroups, REACTION_EMOJI } from '../meal-intel.js';
 import { stitchNutritionChat } from '../thread-stitch.js';
 import {
   layoutThread, authorName, initialsFor, participantList, participantSummary,
-  isAnalysisUpdate, quotedFor,
+  isAnalysisUpdate, quotedFor, isEscalated,
+  dayLabelOf,
 } from '../chat-view.js';
+import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos } from '../chat-attach.js';
+import { wireTapback } from '../tapback.js';
+import { openImageViewer } from '../image-viewer.js';
 import { openMembersSheet } from '../members-sheet.js';
 import { cachedMealPhoto, warmMealPhotos } from '../photo-store.js';
 import { scrollThreadToEnd } from '../keyboard.js';
@@ -118,7 +122,7 @@ export default {
     const paint = () => {
       if (!threadEl) return;
       if (STATE.error) {
-        threadEl.innerHTML = `<div class="msg-status">Couldn't load your conversation — your logs are safe either way. <span class="link" id="nc-retry" role="button">Try again</span></div>`;
+        threadEl.innerHTML = `<div class="msg-status">Couldn't load your conversation. Your logs are safe either way. <span class="link" id="nc-retry" role="button">Try again</span></div>`;
         return;
       }
       const msgs = threadMessages(STATE.comments);
@@ -126,7 +130,7 @@ export default {
         // Empty because there IS nothing, or empty because the meals fetch died? Opposite
         // messages — one invites a first log, the other must not pretend the logs are gone.
         threadEl.innerHTML = STATE.mealsError
-          ? `<div class="msg-status">Couldn't load your meals right now — your logs are safe. <span class="link" id="nc-retry" role="button">Try again</span></div>`
+          ? `<div class="msg-status">Couldn't load your meals right now. Your logs are safe. <span class="link" id="nc-retry" role="button">Try again</span></div>`
           : `<div class="msg-status">Nothing here yet. Log a meal and the AI Nutritionist starts the conversation.</div>`;
         return;
       }
@@ -152,27 +156,47 @@ export default {
       // reader back to today the instant the older page paints.
       scrollThreadToEnd(threadEl);
       paintHeader();
+      // Attached message photos resolve after paint (signed URLs are async), same as the meal
+      // thread. Safe on every repaint.
+      void hydrateThreadPhotos(threadEl, roles);
       // Fill in any meal photos that were not cached at paint time, then repaint once.
       warmMealPhotos(STATE.meals.map((m) => m.photo_path).filter(Boolean));
     };
 
-    const renderRun = (list, participants, allMsgs) => layoutThread(list, { fmtTime, fmtDay: dayKey }).map((item) => {
-      if (item.type === 'time') return `<div class="tsep">${esc(item.label)}</div>`;
-      const c = item.comment;
-      const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
-      const who = authorName(c, participants, RT.userId, S.coach.noun);
-      const update = isAnalysisUpdate(c);
-      const quoted = update ? quotedFor(c, allMsgs) : null;
-      return `
-      <div class="msg ${mine ? 'athlete' : c.role === 'ai' ? 'ai' : 'coach'}${item.firstOfRun ? '' : ' cont'}">
+    const renderRun = (list, participants, allMsgs) => {
+      const lastMsg = list.length ? list[list.length - 1] : null;
+      return layoutThread(list, { fmtTime, fmtDay: dayKey, fmtDayLabel: dayLabelOf }).map((item) => {
+        if (item.type === 'time') return `<div class="tsep">${esc(item.label)}</div>`;
+        const c = item.comment;
+        const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
+        const who = authorName(c, participants, RT.userId, S.coach.noun);
+        const update = isAnalysisUpdate(c);
+        const escalated = isEscalated(c);
+        const quoted = update ? quotedFor(c, allMsgs) : null;
+        // Reactions are meal-level rows (0049); as on the meal thread they sit on the run's
+        // LAST bubble, the one the eye lands on. STATE.comments still holds the reaction rows
+        // that threadMessages filters out of the display.
+        const rx = c === lastMsg && c.meal_id
+          ? reactionGroups((STATE.comments || []).filter((x) => x && x.meal_id === c.meal_id))
+          : [];
+        // Attached photo above the text; the stand-in caption is suppressed under its own image.
+        const photo = attachedPhoto(c);
+        const photoOnly = isPhotoOnly(c);
+        return `
+      <div class="msg ${mine ? 'athlete' : c.role === 'ai' ? 'ai' : 'coach'}${item.firstOfRun ? '' : ' cont'}${rx.length ? ' has-rx' : ''}"${c.meal_id ? ` data-meal-id="${esc(c.meal_id)}"` : ''}>
         ${!mine && item.firstOfRun ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : esc(initialsFor(who))}</div>` : '<div class="av-sp"></div>'}
         <div class="stack">
           ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
           ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
-          <div class="bubble">${update ? '<span class="upd">Updated analysis</span>' : ''}${esc(c.text)}</div>
+          ${''/* No "Updated analysis" badge (founder: robotic). The quote stem above already
+               shows what a correction reply answers. The escalation badge stays: "this reached
+               your coach" is a fact worth labeling, exactly as the meal thread labels it. */}
+          <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(c.text)}</div>
+          ${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}
         </div>
       </div>`;
-    }).join('');
+      }).join('');
+    };
 
     const load = async ({ older = false } = {}) => {
       if (busy) return;
@@ -219,6 +243,48 @@ export default {
 
     await load();
 
+    // Attached photos open in the shared full-screen viewer; delegated on the thread element
+    // because every paint replaces the <img> nodes.
+    threadEl.addEventListener('click', (ev) => {
+      const im = ev.target && ev.target.closest ? ev.target.closest('img.bimg') : null;
+      if (!im || !im.src) return;
+      openImageViewer(im.src, 'Photo attached to this message', im);
+    });
+
+    /* Tapback parity with the meal thread (press and hold a bubble). Reactions are meal-level
+       rows, and this thread spans many meals, so the target is the pressed bubble's own meal:
+       a capture-phase tracker records the data-meal-id under the finger before the long press
+       resolves, since the picker itself only hands back the emoji. */
+    let rxBusy = false;
+    let rxMealId = null;
+    const trackPress = (ev) => {
+      const msg = ev.target && ev.target.closest ? ev.target.closest('.msg[data-meal-id]') : null;
+      if (msg) rxMealId = msg.getAttribute('data-meal-id') || null;
+    };
+    threadEl.addEventListener('pointerdown', trackPress, true);
+    threadEl.addEventListener('contextmenu', trackPress, true);
+    wireTapback({
+      root,
+      scope: '#nc-thread',
+      emoji: REACTION_EMOJI,
+      mine: () => new Set((STATE.comments || [])
+        .filter((x) => x && x.kind === 'reaction' && x.author_id === RT.userId && (!rxMealId || x.meal_id === rxMealId))
+        .map((x) => String(x.text))),
+      onReact: async (emoji) => {
+        if (!emoji || !rxMealId || rxBusy) return;
+        rxBusy = true;
+        // TOGGLE, mirroring the meal thread: no uniqueness constraint backs reaction rows, so an
+        // un-toggled control would let one athlete write unbounded rows.
+        const existing = (STATE.comments || []).find((x) => x && x.kind === 'reaction'
+          && x.author_id === RT.userId && x.meal_id === rxMealId && String(x.text) === emoji);
+        const ok = existing
+          ? await roles.deleteMealComment(existing.id)
+          : await roles.postMealComment(rxMealId, RT.userId, RT.userId, 'athlete', emoji, 'reaction');
+        if (ok) await load(); else setNote("Couldn't save that reaction. Try again.");
+        rxBusy = false;
+      },
+    });
+
     // The composer posts to the athlete's most recent meal: every message row belongs to a meal,
     // so there is no such thing as a message about nothing. The placeholder says which one.
     const input = root.querySelector('#nc-msg');
@@ -231,14 +297,14 @@ export default {
         // Only claim "no meals" when we actually KNOW there are none.
         setNote(STATE.mealsError
           ? "Couldn't check your recent meals. Give it a moment and try again."
-          : 'Log a meal first — a message belongs to a plate.');
+          : 'Log a meal first. A message belongs to a plate.');
         return;
       }
       busy = true; setNote('');
       input.value = '';
       const posted = await roles.postMealComment(latest.id, RT.userId, RT.userId, 'athlete', text);
       busy = false;
-      if (!posted) { setNote("Couldn't send that — check your connection and try again."); input.value = text; return; }
+      if (!posted) { setNote("Couldn't send that. Check your connection and try again."); input.value = text; return; }
       await load();
       // Forced: they just sent it and are watching for it to land.
       scrollThreadToEnd(root, { force: true });

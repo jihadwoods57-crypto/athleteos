@@ -66,7 +66,7 @@ export function zoneOffsetMin(tz, iso) {
  *  team's zone, so a stamp must render in that zone too — otherwise an athlete on a road trip
  *  sees "Respond by 5:15 AM" (team wall clock, from respond_by_min) next to "Checked in at
  *  2:48 AM" (their phone), which reads like a bug even though both are technically true. */
-function offsetFor(row, nowISO, override) {
+export function offsetFor(row, nowISO, override) {
   if (typeof override === 'number') return override;
   const z = row && row.timezone ? zoneOffsetMin(row.timezone, nowISO || new Date().toISOString()) : null;
   return z == null ? localOffsetMin() : z;
@@ -129,9 +129,51 @@ export function signalsAsked(row) {
 const arrivedOnTime = (row) => row.arrived_at != null &&
   (!row.arrive_by_at || Date.parse(row.arrived_at) <= Date.parse(row.arrive_by_at));
 
+/* ---------------------------------------------------------------- presence (0208)
+
+   Arrival is a boundary CROSSING. Presence is whether the athlete was actually there for the
+   stay the coach asked for. Until 0208 the product conflated them: commitments.min_dwell_min
+   round-tripped through the coach's form and gated nothing, because nothing ever wrote
+   commitment_responses.departed_at.
+
+   The verdict is computed SERVER-side (commitment_presence, 0208) so the athlete read and the
+   coach read cannot disagree, and so the exit debounce survives the app being killed. This
+   client only reads it. */
+export const PRESENCE = {
+  NONE: 'none', PROVISIONAL: 'provisional', CONFIRMED: 'confirmed', LEFT_EARLY: 'left_early',
+};
+
+/** The server's verdict, with a deliberate degrade for payloads that predate 0208.
+ *
+ *  An older server sends no `presence` field at all. Reading that as anything other than
+ *  'confirmed' would retroactively downgrade every arrival already on the record, so a missing
+ *  verdict means exactly what it meant before this migration existed: they arrived, and there was
+ *  no stay requirement anyone could check. Never invent 'left_early' from absence. */
+export function presenceOf(row) {
+  const r = row || {};
+  if (r.arrived_at == null) return PRESENCE.NONE;
+  const p = r.presence;
+  return (p === PRESENCE.PROVISIONAL || p === PRESENCE.CONFIRMED || p === PRESENCE.LEFT_EARLY)
+    ? p : PRESENCE.CONFIRMED;
+}
+
+/** Whether the arrival signal is EARNED, for scoring.
+ *
+ *  Founder ruling 2026-08-23: a sustained departure before the coach's minimum is a VERIFIED
+ *  absence and it counts, which is what separates it from 'unverified' (a gap in evidence, always
+ *  dropped from the denominator instead).
+ *
+ *  'provisional' deliberately still counts. Mid-session the answer genuinely is not known yet, and
+ *  the alternative is a score that dips while an athlete is sitting in the room doing exactly what
+ *  was asked, then silently recovers. Progress must never run backwards on an unresolved fact; it
+ *  only moves when a real, sustained departure resolves it. */
+const arrivalCounts = (row) => arrivedOnTime(row) && presenceOf(row) !== PRESENCE.LEFT_EARLY;
+
 /* ---------------------------------------------------------------- stages */
 
-const STAGE_LABEL = { acknowledged: 'Acknowledged', arrived: 'Arrived', completed: 'Completed' };
+// 'Checked in', not 'Acknowledged': the athlete never sees coach vocabulary (header rule in
+// screens/roll-call.js), and the card's own confirm line already says "Checked in at 4:48 AM".
+const STAGE_LABEL = { acknowledged: 'Checked in', arrived: 'Arrived', completed: 'Completed' };
 
 /** One commitment's live view for the athlete. `nowISO` and `offMin` are arguments, never read
  *  from the environment.
@@ -161,6 +203,20 @@ export function deriveCommitment(row, nowISO, offMinOverride) {
   const stages = [];
   if (asks.ack) stages.push({ key: 'acknowledged', label: STAGE_LABEL.acknowledged, done: !!r.acknowledged_at, at: at(r.acknowledged_at) });
   if (asks.arrival) stages.push({ key: 'arrived', label: STAGE_LABEL.arrived, done: !!r.arrived_at, at: at(r.arrived_at) });
+  // The stay is its own stage whenever the coach asked for one (0208). Without this the strip
+  // showed "Arrived / Completed" and a 45-minute requirement the coach genuinely cared about was
+  // invisible to the athlete on the only screen they actually look at.
+  if (asks.arrival && r.min_dwell_min) {
+    const p = presenceOf(r);
+    stages.push({
+      key: 'stayed', label: `Stayed ${r.min_dwell_min}m`,
+      done: p === PRESENCE.CONFIRMED,
+      at: p === PRESENCE.LEFT_EARLY ? `left ${at(r.departed_at)}`
+        : (p === PRESENCE.PROVISIONAL && r.arrived_at)
+          ? `${Math.min(r.min_dwell_min, Math.max(0, Math.floor((nowT - Date.parse(r.arrived_at)) / 60000)))}/${r.min_dwell_min}m`
+          : '',
+    });
+  }
   if (asks.completion) stages.push({ key: 'completed', label: STAGE_LABEL.completed, done: !!r.completed_at, at: at(r.completed_at) });
 
   const base = {
@@ -168,6 +224,8 @@ export function deriveCommitment(row, nowISO, offMinOverride) {
     canAck: false, canArrive: false, canComplete: false, canDispute: false,
     collapsed: false, visible: true, confirmLine: '',
     statusColor: 'b',
+    // Normalised, so no screen has to know how a pre-0208 payload degrades.
+    presence: presenceOf(r),
   };
 
   // A cancelled instance disappears. It is not a miss — the coach called it off.
@@ -177,7 +235,7 @@ export function deriveCommitment(row, nowISO, offMinOverride) {
 
   if (r.status === 'excused') {
     return { ...base, stage: 'excused', collapsed: true, statusColor: 'b',
-      confirmLine: r.excused_reason ? `Excused — ${r.excused_reason}` : 'Excused' };
+      confirmLine: r.excused_reason ? `Excused: ${r.excused_reason}` : 'Excused' };
   }
 
   // Never 'missed'. A dead phone, a revoked permission or weak GPS is a gap in evidence,
@@ -185,17 +243,55 @@ export function deriveCommitment(row, nowISO, offMinOverride) {
   if (r.status === 'unverified') {
     return { ...base, stage: 'unverified', canDispute: true, statusColor: 'a',
       confirmLine: r.unverified_reason
-        ? `Couldn’t verify — ${r.unverified_reason}`
+        ? `Couldn’t verify: ${r.unverified_reason}`
         : 'Couldn’t verify' };
   }
 
   if (r.completed_at) {
+    // A completion does not erase a verified early departure (0208). The receipt keeps the
+    // verdict: completion earned, arrival forfeited, dispute still open. Without this branch,
+    // tapping "Mark complete" on an amber card upgraded it to a clean green receipt while
+    // accountability() still withheld the arrival weight — the card lied about the score.
+    if (presenceOf(r) === PRESENCE.LEFT_EARLY) {
+      const where = r.location_name || 'the facility';
+      const left = at(r.departed_at);
+      return { ...base, stage: 'completed', collapsed: true, statusColor: 'a', canDispute: true,
+        confirmLine: left
+          ? `Completed at ${at(r.completed_at)} · left ${where} at ${left}`
+          : `Completed at ${at(r.completed_at)} · left ${where} early` };
+    }
     return { ...base, stage: 'completed', collapsed: true, statusColor: 'g',
       confirmLine: `Completed at ${at(r.completed_at)}` };
   }
 
   if (r.arrived_at) {
     const where = r.location_name || 'the facility';
+
+    // The coach asked for a minimum stay and it has not been met yet. Blue, not green: a session
+    // still running is not a result. Painting it green and walking it back later is the one move
+    // an honest record cannot make, so the settled colour is withheld until it IS settled.
+    if (base.presence === PRESENCE.PROVISIONAL) {
+      // The one number that governs the athlete's next N minutes: how much of the stay is
+      // banked. Clamped both ways so clock skew can never print "48 of 45" or a negative.
+      const doneMin = Math.min(r.min_dwell_min || 0,
+        Math.max(0, Math.floor((nowT - Date.parse(r.arrived_at)) / 60000)));
+      return { ...base, stage: 'arrived', statusColor: 'b',
+        canComplete: asks.completion,
+        confirmLine: r.min_dwell_min
+          ? `At ${where} since ${at(r.arrived_at)} · ${doneMin} of ${r.min_dwell_min} min`
+          : `At ${where} since ${at(r.arrived_at)}` };
+    }
+
+    // A sustained departure before the minimum. Verified absence, which the founder ruled counts
+    // (2026-08-23) — and precisely because it counts, it is disputable. The grace in 0208 makes a
+    // GPS wobble unlikely to reach here; `canDispute` is what covers the case where one does.
+    if (base.presence === PRESENCE.LEFT_EARLY) {
+      const left = at(r.departed_at);
+      return { ...base, stage: 'left_early', statusColor: 'a',
+        canComplete: asks.completion, canDispute: true,
+        confirmLine: left ? `Left ${where} at ${left}` : `Left ${where} early` };
+    }
+
     return { ...base, stage: 'arrived', statusColor: 'g',
       canComplete: asks.completion,
       confirmLine: `Arrived at ${where} at ${at(r.arrived_at)}` };
@@ -215,7 +311,11 @@ export function deriveCommitment(row, nowISO, offMinOverride) {
   const deadlineT = Date.parse(deadlineISO || '');
   if (isFinite(deadlineT) && nowT > deadlineT) {
     return { ...base, stage: 'missed', canDispute: true, statusColor: 'a',
-      confirmLine: deadlineLine ? `No response — ${deadlineLine.toLowerCase()}` : 'No response' };
+      // "No response by 5:15 AM" keeps the meridiem exactly as every other stamp prints it —
+      // the old .toLowerCase() mangled the whole line into "respond by 5:15 am".
+      confirmLine: deadlineLine
+        ? `No response by ${deadlineLine.replace(/^(?:Respond|Arrive) by /, '')}`
+        : 'No response' };
   }
 
   const opens = opensMinFor(r);
@@ -239,6 +339,9 @@ export function boardCounts(rows) {
     awaiting: list.filter(r => r.status === 'pending').length,
     excused: list.filter(r => r.status === 'excused').length,
     unverified: list.filter(r => r.status === 'unverified').length,
+    // A verified early departure (0208). Counted separately so the coach's "9 of 11 in" line
+    // can say who arrived but did not stay — otherwise the board contradicts the athlete's card.
+    leftEarly: list.filter(r => r.arrived_at != null && presenceOf(r) === PRESENCE.LEFT_EARLY).length,
   };
 }
 
@@ -268,7 +371,7 @@ export function accountability(rows) {
     }
     if (asks.arrival && verified) {
       possible += WEIGHTS.arrival;
-      if (arrivedOnTime(r)) earned += WEIGHTS.arrival;
+      if (arrivalCounts(r)) earned += WEIGHTS.arrival;
     }
     if (asks.completion && verified) {
       possible += WEIGHTS.completion;
@@ -289,7 +392,7 @@ export function morningReadiness(rows) {
     const asks = signalsAsked(r);
     const verified = r.status !== 'unverified';
     if (asks.ack) { wake.total++; if (r.acknowledged_at) wake.done++; }
-    if (asks.arrival && verified) { arrival.total++; if (arrivedOnTime(r)) arrival.done++; }
+    if (asks.arrival && verified) { arrival.total++; if (arrivalCounts(r)) arrival.done++; }
     if (asks.completion && verified) { completion.total++; if (r.completed_at) completion.done++; }
   }
   return { wake, arrival, completion, ...accountability(list) };
@@ -302,7 +405,7 @@ function dayIsClean(dayRows) {
     const asks = signalsAsked(r);
     const verified = r.status !== 'unverified';
     if (asks.ack && !r.acknowledged_at) return false;
-    if (asks.arrival && verified && !arrivedOnTime(r)) return false;
+    if (asks.arrival && verified && !arrivalCounts(r)) return false;
     if (asks.completion && verified && !r.completed_at) return false;
   }
   return true;

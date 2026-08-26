@@ -20,8 +20,10 @@ let UI = { cadence: 'annual', planId: 'individual', busy: false, iapReady: null,
 function planCard(p) {
   const selected = p.id === UI.planId;
   const parts = cadencePriceParts(p, UI.cadence);
+  // Annual states each plan's REAL dollar saving (annualSavings), not just the headline chip:
+  // the number that closes the sale is the one specific to the card being read.
   const sub = UI.cadence === 'annual'
-    ? `${fmtPrice(effectiveMonthly(p))}/mo · billed yearly`
+    ? `${fmtPrice(effectiveMonthly(p))}/mo · billed yearly · save ${fmtPrice(annualSavings(p))}`
     : 'billed monthly';
   const seat = p.seatLimit ? `<span class="status-pill b" style="margin-left:6px">Up to ${p.seatLimit}</span>` : '';
   return `
@@ -38,6 +40,12 @@ function planCard(p) {
 function ctaState() {
   const p = planById(UI.planId);
   if (!p) return '';
+  // Post-purchase the live buy CTA must not render again: a member re-tapping "Start trial" is
+  // at best confusing and at worst a duplicate store sheet. One clear next step instead; the
+  // member confirmation itself renders in statusBanner() right below.
+  if (UI.status && UI.status.kind === 'ok') {
+    return `<button class="btn green" data-go="progress" style="width:100%">See your progress</button>`;
+  }
   if (UI.busy) return `<button class="btn green" style="width:100%" disabled>Opening the store…</button>`;
   if (UI.iapReady === false) {
     return `<button class="btn green" style="width:100%;opacity:.6" disabled>Memberships open at launch</button>
@@ -58,18 +66,27 @@ function statusBanner() {
   if (s.kind === 'error') {
     return `<div style="color:var(--red);font-size:13px;font-weight:600;margin-top:10px;text-align:center">${esc(s.message || "Something went wrong. You weren't charged.")}</div>`;
   }
+  // Neutral facts ("nothing to restore") are not failures, so they don't get failure red.
+  if (s.kind === 'info') {
+    return `<div style="color:var(--text-2);font-size:var(--t-sm);font-weight:600;margin-top:10px;text-align:center">${esc(s.message || '')}</div>`;
+  }
   return '';
 }
 
 export default {
   tab: 'progress',
   render() {
-    const saved = annualSavings(planById('individual'));
+    // The chip is DERIVED from the catalog (annual = monthly * 12 * 0.70 in pricing.js): if the
+    // discount ever moves, the label moves with it instead of advertising a stale 30.
+    const ind = planById('individual');
+    const savePct = ind ? Math.round((annualSavings(ind) / (ind.monthly * 12)) * 100) : 0;
     return `${backHead('Membership', 'Unlock the written coaching', 'progress')}
 
-    <div class="pw-toggle" role="tablist">
-      <button class="pw-seg${UI.cadence === 'annual' ? ' on' : ''}" data-pw-cadence="annual" role="tab" aria-selected="${UI.cadence === 'annual'}">Annual <span class="pw-save">Save 30%</span></button>
-      <button class="pw-seg${UI.cadence === 'monthly' ? ' on' : ''}" data-pw-cadence="monthly" role="tab" aria-selected="${UI.cadence === 'monthly'}">Monthly</button>
+    ${/* Plain toggle buttons with aria-pressed, not role=tablist/tab: there are no tab panels
+          here, and claiming the tab pattern promises arrow-key semantics nothing wires. */''}
+    <div class="pw-toggle">
+      <button class="pw-seg${UI.cadence === 'annual' ? ' on' : ''}" data-pw-cadence="annual" aria-pressed="${UI.cadence === 'annual'}">Annual <span class="pw-save">Save ${savePct}%</span></button>
+      <button class="pw-seg${UI.cadence === 'monthly' ? ' on' : ''}" data-pw-cadence="monthly" aria-pressed="${UI.cadence === 'monthly'}">Monthly</button>
     </div>
 
     <div class="pw-plans">
@@ -129,9 +146,16 @@ export default {
     const restore = root.querySelector('#pw-restore');
     if (restore) restore.addEventListener('click', async () => {
       restore.disabled = true; restore.textContent = 'Restoring…';
-      const res = await roles.restoreConsumerPurchases(RT.userId);
-      UI.status = (res && res.ok) ? { kind: 'ok' }
-        : { kind: 'error', message: res && res.reason === 'unavailable' ? 'Purchases restore once memberships are live.' : 'Nothing to restore on this account.' };
+      let res = null;
+      try { res = await roles.restoreConsumerPurchases(RT.userId); } catch { res = null; }
+      // Three different truths, three messages: restored (ok), the store explicitly answered
+      // "nothing on this account" (ok:false with a real reason), and the check itself FAILING
+      // (throw, undefined, bridge error). The last one must never claim "nothing to restore":
+      // that reads as a verdict about the account when nothing was actually checked.
+      if (res && res.ok) UI.status = { kind: 'ok' };
+      else if (res && res.reason === 'unavailable') UI.status = { kind: 'info', message: 'Purchases restore once memberships are live.' };
+      else if (res && res.ok === false && res.reason !== 'error') UI.status = { kind: 'info', message: 'Nothing to restore on this account.' };
+      else UI.status = { kind: 'error', message: "Couldn't check. Nothing changed. Try again." };
       if (window.__render) window.__render();
     });
   },

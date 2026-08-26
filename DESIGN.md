@@ -255,3 +255,37 @@ Never re-inline these numbers; call `tierFor(score)`, `scoreBand(score)`, `tierC
 - **One overlay at a time.** The tour, the lock stamp, the image viewer, the members sheet and
   tapback all guard on each other's DOM markers. A new overlay joins that guard list.
 - **No em dashes in new copy.** Commas, colons, semicolons, periods, parentheses.
+
+## Amendments · 2026-08-25 UX audit
+
+Corrections found by auditing the code against this file. Code wins; this section brings the
+file back in line with it.
+
+- **The component list above was aspirational.** The real exports of `js/components.js` are:
+  `esc`, `copyText`, `safeImg`, the four state primitives (`skeletonRows`, `emptyState`,
+  `errorState`, `permissionState`), `statusMsg`, `alertMsg`, `segBar`, `nonLiveBadge`,
+  `scoreRing`/`animateRing`/`animateFills`, `logoMark`, `sparkline`, `composer`,
+  `collapseSection`, `mealMedia`, `planStyleCard`, the heads (`appHead`, `backHead`,
+  `titleHead`, `avatarHead`), and `emailVerifyBanner`. `Txt`/`Card`/`Btn`/`Toggle` etc. are CSS
+  classes, not functions. `errorState` now carries `role="alert"` so failures announce.
+- **The ring sweep's sanctioned list has a sixth member:** the score-move confirm dial
+  (`js/score-move.js`), which draws the brand dial from the exported `DIAL_A0`/`DIAL_SWEEP`
+  geometry. It is a score surface; the reservation stands at exactly these six.
+- **`--ease-in-out` exists now** (tokens.css), for SYMMETRIC LOOPS ONLY: shimmer, breathe,
+  ping-pong scans. One-shot motion stays on `--ease-out`/`--ease-out-quart`. Do not use it on
+  entrances.
+- **One documented exception to the no-layout-animation ban:** `.device`'s `transition: height`
+  in app.css (the keyboard resize), argued in place. Everything else must composite.
+- **One documented exception to the no-emoji ban:** the tapback reaction set
+  (`REACTION_EMOJI` in js/meal-intel.js), an iMessage-style feature the picker sizes for.
+  Nothing else may use emoji; checkmark suffixes in button labels use `icon('check')`.
+- **Blur beyond the tab bar:** chips over photographs (`.cc-badges`, `.scorechip`, `.mq-badge`)
+  and full-screen scrims (`.lockstamp`, `.sheet-scrim`, `.mr-veil`) are chrome-class uses,
+  allowed because each sits on an opaque-enough ground that the no-support fallback holds.
+  Blur is still not a card treatment.
+- **`.chip` is now a real primitive** (app.css): the bare chip control at the 44px floor with a
+  `.on` selected state. It had no rule at all, so every `<button class="chip">` rendered
+  browser-default.
+- **Chat day separators:** `layoutThread` takes `fmtDay` (compare key) and `fmtDayLabel`
+  (printed label; `dayLabelOf` in chat-view.js is the shared human label). Passing only a
+  machine key prints that key on screen.

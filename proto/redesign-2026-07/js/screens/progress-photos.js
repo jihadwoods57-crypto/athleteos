@@ -13,8 +13,9 @@ import * as roles from '../roles.js';
    dropped connection told an athlete with a year of photos to start their timeline, and hid
    Compare — the one control that would have proved the photos were still there. */
 let CACHE = { photos: null, urls: {}, loading: false, resolving: false, failed: false };
-let STAGE = null;          // { dataUrl, base64, pose, weightLb, note, busy } while composing
+let STAGE = null;          // { dataUrl, base64, pose, weightLb, note, busy, error } while composing
 let PENDING_DELETE = null; // id awaiting a confirm tap
+let DELETE_ERROR = null;   // a failed delete, said out loud above the grid
 
 const POSES = ['Front', 'Side', 'Back'];
 
@@ -73,7 +74,7 @@ async function resolveUrls() {
 
 function composeView() {
   const s = STAGE;
-  return `${backHead('New progress photo', 'Same pose, same light — the trend does the talking', 'progress-photos')}
+  return `${backHead('New progress photo', 'Same pose, same light. The trend does the talking', 'progress-photos')}
   <section class="card pad">
     <img src="${safeImg(s.dataUrl)}" alt="Progress photo preview" style="width:100%;border-radius:var(--r-card-sm);display:block;max-height:340px;object-fit:cover" />
   </section>
@@ -92,6 +93,7 @@ function composeView() {
     <input class="ob-input" id="pp-note" maxlength="120" placeholder="Note (optional)" value="${s.note ? esc(s.note) : ''}" />
   </section>
   <div style="height:14px"></div>
+  ${s.error ? `<div role="alert" style="color:var(--red-bright);font-size:var(--t-sm);font-weight:600;text-align:center;margin-bottom:10px">${esc(s.error)}</div>` : ''}
   <button class="btn green" id="pp-save" style="width:100%" ${s.busy ? 'disabled' : ''}>${s.busy ? 'Saving…' : 'Save to my timeline'}</button>
   <div style="height:8px"></div>
   <button class="btn ghost" id="pp-cancel" style="width:100%" ${s.busy ? 'disabled' : ''}>Cancel</button>
@@ -125,6 +127,7 @@ function browseView() {
   </div>
   <input type="file" accept="image/*" capture="environment" id="pp-file" style="display:none" />
 
+  ${DELETE_ERROR ? `<div role="alert" style="color:var(--red-bright);font-size:var(--t-sm);font-weight:600;text-align:center;margin-top:12px">${esc(DELETE_ERROR)}</div>` : ''}
   ${CACHE.loading && !photos.length ? `
     ${skeletonRows(3, 'Loading your photos')}`
   : photos.length ? `
@@ -159,7 +162,7 @@ export default {
       const cancel = root.querySelector('#pp-cancel'); if (cancel) cancel.addEventListener('click', () => { STAGE = null; if (window.__render) window.__render(); });
       const save = root.querySelector('#pp-save'); if (save) save.addEventListener('click', async () => {
         if (!STAGE || STAGE.busy) return;
-        STAGE.busy = true; if (window.__render) window.__render();
+        STAGE.busy = true; STAGE.error = null; if (window.__render) window.__render();
         const row = await roles.uploadProgressPhoto(RT.userId, STAGE.base64, { pose: STAGE.pose, weightLb: STAGE.weightLb, note: STAGE.note });
         if (row) {
           if (CACHE.photos) CACHE.photos.unshift(row); else CACHE.photos = [row];
@@ -167,9 +170,12 @@ export default {
           if (window.__render) window.__render();
           resolveUrls();
         } else {
+          // Module state, painted by the NEXT render as a red line above Save. The old handler
+          // wrote into a node from the pre-render root, which was already detached: the message
+          // never reached the screen.
           STAGE.busy = false;
+          STAGE.error = "The photo didn't save. Check your connection and try again.";
           if (window.__render) window.__render();
-          const err = root.querySelector('#pp-save'); if (err) { err.textContent = 'Save failed — try again'; }
         }
       });
       return;
@@ -203,8 +209,12 @@ export default {
       const path = el.getAttribute('data-pp-path');
       if (PENDING_DELETE !== id) { PENDING_DELETE = id; if (window.__render) window.__render(); return; }
       PENDING_DELETE = null;
+      DELETE_ERROR = null;
       const ok = await roles.deleteProgressPhoto(id, path);
       if (ok && CACHE.photos) CACHE.photos = CACHE.photos.filter((p) => p.id !== id);
+      // A failed delete is SAID, in module state the next render paints above the grid; the old
+      // silent path left the photo in place with nothing explaining why.
+      if (!ok) DELETE_ERROR = "Couldn't delete that photo. Try again.";
       if (window.__render) window.__render();
     }));
   },

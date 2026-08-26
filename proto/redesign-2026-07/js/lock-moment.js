@@ -76,7 +76,10 @@ export function maybeShowLock(streakDays) {
 
   const el = document.createElement('div');
   el.className = `lockstamp${milestone ? ' milestone' : ''}`;
-  el.setAttribute('role', 'status');
+  // A blocking card with its own button is a dialog, not a status line: role="status" told AT
+  // nothing was expected while the visual sat over the whole screen waiting for a tap.
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-label', milestone ? `${streakDays} day milestone` : `Day ${streakDays} locked`);
   el.innerHTML = `
     <div class="ls-card">
       <div class="ls-mark">${icon('check', 26)}</div>
@@ -98,8 +101,25 @@ export function maybeShowLock(streakDays) {
      deciding (review-ask.js); this just hands it the state and reports what it chose, because an ask
      is otherwise invisible: no platform tells us whether a review was left. */
   const afterStamp = milestone ? () => askForReviewAfterMilestone(streakDays, score) : null;
-  el.querySelector('.ls-x').addEventListener('click', () => dismiss(el, afterStamp));
-  el.addEventListener('click', (e) => { if (e.target === el) dismiss(el, afterStamp); });
+  /* One exit, three doors (button, scrim, Escape), and it runs once. The router's app-wide Escape
+     floor deliberately stands down while .lockstamp is in the DOM (router.js), so the stamp must
+     own its own Escape or a keyboard user has no way out at all. */
+  const restoreTo = document.activeElement;
+  let done = false;
+  const doDismiss = () => {
+    if (done) return;
+    done = true;
+    document.removeEventListener('keydown', onKey);
+    dismiss(el, afterStamp);
+    try { if (restoreTo && restoreTo.isConnected && typeof restoreTo.focus === 'function') restoreTo.focus({ preventScroll: true }); }
+    catch { /* focus restoration is best-effort */ }
+  };
+  const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); doDismiss(); } };
+  document.addEventListener('keydown', onKey);
+  el.querySelector('.ls-x').addEventListener('click', doDismiss);
+  el.addEventListener('click', (e) => { if (e.target === el) doDismiss(); });
+  // Focus lands on the one control the dialog has, so Enter/Space dismiss without hunting.
+  try { el.querySelector('.ls-x').focus({ preventScroll: true }); } catch { /* focus is a nicety */ }
 
   // Mark it seen as soon as it is SHOWN, not when dismissed: an athlete who backgrounds the app mid
   // stamp has still had the moment, and re-showing it on the next open would make it feel like a bug.

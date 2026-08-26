@@ -9,7 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   participantMeta, initialsFor, participantList, participantSummary, authorName,
-  layoutThread, isAnalysisUpdate, isAnalysisOpener, quotedFor, GROUP_GAP_MS,
+  layoutThread, isAnalysisUpdate, isAnalysisOpener, quotedFor, GROUP_GAP_MS, dayLabelOf,
 } from './chat-view.js';
 
 const ATHLETE = 'aaa-athlete';
@@ -146,4 +146,24 @@ test('a trainer is called a trainer, not a coach', () => {
   assert.equal(authorName(unresolved, [], ATHLETE), 'Coach', 'no noun given falls back to Coach');
   // A resolved name always wins over any fallback.
   assert.equal(authorName(msg('coach', COACH, 1), [{ id: COACH, name: 'Dana Ruiz', kind: 'trainer' }], ATHLETE, 'trainer'), 'Dana Ruiz');
+});
+
+test('the day separator shows the human label, never the compare key', () => {
+  const day = (ms) => new Date(ms).toISOString().slice(0, 10);
+  const items = layoutThread([
+    { id: 'a', role: 'coach', author_id: COACH, text: 'x', created_at: '2026-07-27T23:58:00Z' },
+    { id: 'b', role: 'coach', author_id: COACH, text: 'y', created_at: '2026-07-28T00:01:00Z' },
+  ], { fmtTime: clock, fmtDay: day, fmtDayLabel: () => 'Tuesday, Jul 28' });
+  const seps = items.filter((i) => i.type === 'time');
+  assert.match(seps[1].label, /^Tuesday, Jul 28 · /);
+});
+
+test('dayLabelOf reads Today, Yesterday, then the date', () => {
+  // Local-time stamps (no Z) so the same-day math holds in any CI timezone.
+  const now = Date.parse('2026-07-28T15:00:00');
+  assert.equal(dayLabelOf(Date.parse('2026-07-28T10:00:00'), now), 'Today');
+  assert.equal(dayLabelOf(Date.parse('2026-07-27T10:00:00'), now), 'Yesterday');
+  const older = dayLabelOf(Date.parse('2026-07-20T10:00:00'), now);
+  assert.ok(older && older !== 'Today' && older !== 'Yesterday');
+  assert.equal(dayLabelOf(NaN, now), '');
 });

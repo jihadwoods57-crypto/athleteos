@@ -43,7 +43,7 @@ function chapterProgress(steps, idx) {
     if (c === cur) return `<div class="seg"${w}><i style="transform:scaleX(${(pct / 100).toFixed(3)})"></i></div>`;
     return `<div class="seg"${w}><i></i></div>`;
   }).join('');
-  return `<div class="ob2-prog" role="progressbar" aria-label="Step ${doneSteps} of ${total} — ${CHAPTERS[cur]}" aria-valuenow="${doneSteps}" aria-valuemin="0" aria-valuemax="${total}">${segs}</div><div class="ob2-ch-label">${CHAPTERS[cur]}</div>`;
+  return `<div class="ob2-prog" role="progressbar" aria-label="Step ${doneSteps} of ${total} · ${CHAPTERS[cur]}" aria-valuenow="${doneSteps}" aria-valuemin="0" aria-valuemax="${total}">${segs}</div><div class="ob2-ch-label">${CHAPTERS[cur]}</div>`;
 }
 
 /* ---------- step-view funnel ----------
@@ -130,6 +130,8 @@ export function wireChoices(root) {
     g.querySelectorAll('[data-val]').forEach((el) => el.addEventListener('click', () => {
       g.querySelectorAll('[data-val]').forEach((x) => x.classList.remove('on'));
       el.classList.add('on');
+      /* aria-pressed mirrors .on: the visual state moved while the accessible state froze. */
+      g.querySelectorAll('[data-val]').forEach((x) => x.setAttribute('aria-pressed', String(x.classList.contains('on'))));
       let v = el.getAttribute('data-val');
       if (/^-?\d+$/.test(v)) v = Number(v);
       capture({ [key]: v });
@@ -145,6 +147,7 @@ export function wireChoices(root) {
     const key = g.getAttribute('data-obkey-multi');
     g.querySelectorAll('[data-val]').forEach((el) => el.addEventListener('click', () => {
       el.classList.toggle('on');
+      g.querySelectorAll('[data-val]').forEach((x) => x.setAttribute('aria-pressed', String(x.classList.contains('on'))));
       const vals = [...g.querySelectorAll('[data-val].on')].map((x) => x.getAttribute('data-val'));
       capture({ [key]: vals });
       gateCta(root);
@@ -184,7 +187,7 @@ const STRUCTURE_OPTIONS = STRUCTURE_ANSWERS.map((a) => ({ v: a.id, t: a.label })
 const STRUCTURE_COPY = {
   self: {
     title: () => 'How much nutrition structure helps you succeed?',
-    sub: () => 'There is no wrong answer — you can change this any time.',
+    sub: () => 'There is no wrong answer. You can change this any time.',
   },
   propose: {
     title: () => 'How much nutrition structure helps you succeed?',
@@ -192,11 +195,11 @@ const STRUCTURE_COPY = {
   },
   child: {
     title: (o, who) => `How much structure does ${who ? who(o) : 'your athlete'} need?`,
-    sub: () => 'Answer as best you can for them — this is a starting point, not a lock.',
+    sub: () => 'Answer as best you can for them. This is a starting point, not a lock.',
   },
   assign: {
     title: (o, who) => `What's your default plan style for ${who ? who(o) : 'the people you support'}?`,
-    sub: () => "You set it per person from your roster — this just seeds where you start.",
+    sub: () => "You set it per person from your roster. This just seeds where you start.",
   },
 };
 export function structureStep({ mode = 'self', who } = {}) {
@@ -243,9 +246,9 @@ export function saveProgressStep(ch = 3) {
     title: () => 'Where should we save this?',
     sub: () => 'Add your email now and your account is one password away.',
     body: (o) => `
-      <input id="ob2-email" class="ob-input" type="email" inputmode="email" autocapitalize="none"
+      <input id="ob2-email" class="ob-input" type="email" inputmode="email" autocomplete="email" autocapitalize="none"
         autocorrect="off" spellcheck="false" placeholder="Email" aria-label="Email" value="${esc(o.email || '')}" />
-      <div class="ob2-scan-note" style="text-align:left">Skip it if you'd rather — nothing is lost. Your answers stay on this device either way.</div>`,
+      <div class="ob2-scan-note" style="text-align:left">Skip it if you'd rather. Nothing is lost. Your answers stay on this device either way.</div>`,
     mount(root) {
       const el = root.querySelector('#ob2-email');
       const btn = root.querySelector('#ob2-next');
@@ -287,16 +290,15 @@ export function meter(pct, { size = 168, value = '', label = '', uid = 'm', mute
   const d = `M ${pt(A0)} A ${r.toFixed(2)} ${r.toFixed(2)} 0 1 1 ${pt(A0 + SWEEP - 360)}`;
   // The seated jewel at the fill's tip (bezel 0.875×, core 0.5× of the band, like scoreRing).
   // Rendered at the FINAL position, hidden until animateMeters() lands the arc on it.
-  const light = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'light';
+  // Fills live in css/ob2.css (.tip-bezel / .tip-core, token-driven). The old render-time
+  // data-theme sniff froze whichever theme was active when the meter drew.
   const tipA = ((A0 + (p / 100) * SWEEP) * Math.PI) / 180;
   const tx = c + Math.cos(tipA) * r, ty = c + Math.sin(tipA) * r;
   const bezelR = (stroke * 0.875).toFixed(1), coreR = (stroke * 0.5).toFixed(1);
   const jewel = (!muted && p >= 6) ? `
-      <g class="arc-tip" opacity="0">${light
-        ? `<circle cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="${bezelR}" fill="#FFFFFF" stroke="#DBEAFE" stroke-width="1.5"/>
-           <circle cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="${coreR}" fill="#2563EB"/>`
-        : `<circle cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="${bezelR}" fill="#0F172A"/>
-           <circle cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="${coreR}" fill="#FFFFFF"/>`}
+      <g class="arc-tip" opacity="0">
+        <circle class="tip-bezel" cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="${bezelR}"/>
+        <circle class="tip-core" cx="${tx.toFixed(1)}" cy="${ty.toFixed(1)}" r="${coreR}"/>
       </g>` : '';
   return `
   <div class="ob2-meter" style="position:relative;width:${size}px">
@@ -328,6 +330,15 @@ export function animateMeters(root) {
     t.style.transition = 'opacity 400ms ease';
     setTimeout(() => { t.style.opacity = '1'; }, 850);
   });
+}
+
+/* ---------- post-commit Continue (shared) ----------
+   Seven flows rendered seven different post-ceremony controls (ghost buttons, text links,
+   hardcoded data-go jumps that skipped the save step). One control now, the nutrition-style
+   green button; each flow's mount wires #ob2-commit-next to ctx.next() so the flow's own
+   step order decides what follows the commit. */
+export function commitContinue() {
+  return `<button class="btn green" id="ob2-commit-next">${icon('check', 18)}&nbsp; Committed. Continue</button>`;
 }
 
 /* ---------- shared narrative components ---------- */
