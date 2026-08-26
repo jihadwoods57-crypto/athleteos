@@ -185,20 +185,18 @@ export async function loadBook(force, kind) {
   } finally {
     rosterLoading = false; // always clear so a retry can re-run
   }
-  // coach-athlete also depends on the roster (name + membership guard for a stale/dead link).
-  // coach-home/coach-roster/coach-create/coach-insights depend on it too. The trainer routes
-  // render from the same cache, so they repaint on the same arrival.
-  // ⚠ This runs on FAILURE too (we're past the catch), and screens rely on that: a screen whose
-  // hash is missing from this list never learns the load finished and hangs on its loading state
-  // forever on direct entry. coach-standards/-manage/-edit and coach-rooms fell through exactly
-  // that hole (audit 2026-08-23). If you add an operator screen, add its hash here.
-  const h = location.hash;
-  if (h === '#coach' || h === '#copilot' || h === '#coach-inbox'
-    || h.startsWith('#coach-athlete') || h.startsWith('#coach-assign') || h.startsWith('#coach-plan')
-    || h.startsWith('#trainer') // every trainer tab renders from this cache, not just #trainer
-    || h.startsWith('#coach-standards') // the board, its /sub routes, and -manage
-    || h === '#coach-standard-edit' || h === '#coach-rooms'
-    || h === '#coach-home' || h === '#coach-roster' || h === '#coach-create' || h === '#coach-insights') window.__render();
+  // The book just became ready (roster + extras) — or just FAILED. This deliberately runs on
+  // failure too (we're past the catch), and screens rely on that: the offline/retry states
+  // repaint on the same signal as the data.
+  // No hash list here any more. Every hash this used to enumerate belonged to a screen that
+  // declares an operator nav, and the list itself was the footgun: a screen whose hash was
+  // missing never learned the load finished and hung on its loading state forever on direct
+  // entry — coach-standards/-manage/-edit and coach-rooms all fell through it (audit
+  // 2026-08-23), then coach-commitments after them. So coach-data ANNOUNCES, and the router
+  // (the one module that knows which screen the hash resolves to) repaints iff the current
+  // screen declares nav 'coach'/'trainer'/'operator' — the same declaration that gives it
+  // operator chrome, so a new operator screen is covered the day it is written.
+  try { window.dispatchEvent(new Event('onstd:book-arrival')); } catch { /* non-DOM harness */ }
   // Operator data just became ready (roster + extras). Re-run the notification sync so this
   // operator's device now schedules the OPERATOR plan from live roster status — the boot-time sync
   // (hydrateDay) ran before this fetch, when entriesFor() was still null and posted nothing.

@@ -195,7 +195,7 @@ let BOARD_SIG = null;
    loads, and its own arrival hook (coach-data.js) repaints these hashes on success AND failure,
    so there is no repaint here to loop. Retrying past a cached failed load is the Retry button's
    job (bookRetry below), never the mount's — a mount that forces would refetch every repaint. */
-const ensureBook = () => {
+export const ensureBook = () => {
   if (bookId()) return true;
   loadBook(false, bookKindFor(RT.authRole));
   return false;
@@ -205,11 +205,11 @@ const ensureBook = () => {
    which defaults to 'team' until then — a lie to a trainer on the failure path, where no
    arrival ever corrects the paint. The signed-in role is known before any fetch; use it. */
 const bookWord = () => (bookKindFor(RT.authRole) === 'practice' ? 'practice' : 'team');
-const bookBack = () => (bookKindFor(RT.authRole) === 'practice' ? 'trainer' : 'coach-home');
+export const bookBack = () => (bookKindFor(RT.authRole) === 'practice' ? 'trainer' : 'coach-home');
 
 /* The book itself couldn't load (or this account has none). One honest screen for the three
    book-less ways to land here, instead of a spinner that never resolves. */
-const bookless = (title, back) => {
+export const bookless = (title, back) => {
   const offline = CD.roster && CD.roster.offline;
   return `${backHead(title, offline ? "Can't reach your " + bookWord() : 'Loading…', back)}
   ${offline ? `<div class="state-demo"><div class="sd-ic">${icon('wifiOff', 24)}</div>
@@ -224,7 +224,7 @@ const bookless = (title, back) => {
 
 /* Wire bookless()'s Try again. A forced load punches through the cached offline ROSTER (the
    plain kick would early-return on it); the arrival hook repaints, so no .then here. */
-const wireBookRetry = (root) => {
+export const wireBookRetry = (root) => {
   const rt = root.querySelector('#book-retry');
   if (rt) rt.addEventListener('click', () => { rt.disabled = true; loadBook(true, bookKindFor(RT.authRole)); });
 };

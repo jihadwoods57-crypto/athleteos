@@ -3012,6 +3012,10 @@ export const coachMeal = {
   },
   mount(root, { sub }) {
     if (MENU_MOUNTED_FOR !== sub) { MENU_MOUNTED_FOR = sub; MENU_FOR = null; }
+    // Direct entry (a relaunch restoring this thread's hash): Mark resolved reads the book's id
+    // in its click handler, and without this kick that read stays null forever — every tap
+    // answered "Couldn't resolve. Try again." with nothing actually wrong.
+    if (!CD.roster) loadBook(false, bookKindFor(RT.authRole));
     loadMeal(sub);
     loadMealComments(sub);
     act.markMealSeen(sub); // clears this meal's unseen dot in the team activity feed

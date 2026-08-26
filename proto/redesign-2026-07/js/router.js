@@ -702,6 +702,29 @@ window.__render = function () {
   });
 };
 
+/* The operator book (roster + extras) landed, or its load failed — either way the current screen
+   may be sitting on a skeleton or an offline state that this arrival resolves. coach-data.js
+   cannot import the screens table (state.js imports FROM it, and screens import state), so it
+   announces and the ROUTER decides: repaint iff the CURRENT screen declares an operator nav.
+   Every screen that renders from that cache is an operator screen by declaration — the same
+   field that gives it its chrome — so this replaces the hash whitelist coach-data used to keep,
+   the one coach-standards/-manage and coach-rooms fell through (audit 2026-08-23).
+   One guard: no repaint while the user is typing in a field. A rebuild would eat any text a
+   screen only captures on its own control taps (the commitment composer), and data arrival is a
+   courtesy paint — typing wins. The cost is real and accepted: a form screen whose fields render
+   before the book lands (the commitment composer, pass-grant) can have its one arrival repaint
+   swallowed if the user is already typing, leaving picker options or a name one tap late — the
+   screen's next interaction repaints from the now-warm cache. What the guard can NOT mask is the
+   hang class this listener exists for: a screen stuck on a skeleton or a bookless state has no
+   focusable field, so its arrival always paints. */
+window.addEventListener('onstd:book-arrival', () => {
+  const mod = screens[parse().route];
+  if (!mod || (mod.nav !== 'coach' && mod.nav !== 'trainer' && mod.nav !== 'operator')) return;
+  const el = document.activeElement;
+  if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) && el.closest && el.closest('#device')) return;
+  window.__render();
+});
+
 /* The SAME repaint, declared as something the user asked for.
  *
  * Two different events were sharing window.__render(). "Data arrived" is content resolving in place

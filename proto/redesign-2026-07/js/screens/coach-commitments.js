@@ -14,6 +14,10 @@ import { icon } from '../icons.js';
 import { track, EVENTS } from '../analytics.js';
 import { backHead, esc, errorState, skeletonRows, segBar } from '../components.js';
 import { CD, bookId } from '../coach-data.js';
+// The shared no-book trio (coach-connected.js): kick the book without forcing, the honest
+// "can't reach / no book yet / loading" screen for a book-less landing, and the Retry that
+// force-loads past a cached offline ROSTER (a plain kick early-returns on it).
+import { ensureBook, bookless, wireBookRetry, bookBack } from './coach-connected.js';
 import { allowedCreateKeys, isReadonly } from '../staff-access.js';
 import { boardCounts, missingFrom, TYPE_LABEL, presenceOf, PRESENCE } from '../commitments.js';
 import { fmtMin } from '../requirements.js';
@@ -151,6 +155,11 @@ export const coachCommitments = {
     const back = CD.kind === 'practice' ? 'trainer' : 'coach-home';
     const inst = (VC.board || []).find((b) => b.instance_id === sub) || (VC.board || [])[0];
     if (!inst) {
+      // No book means no board fetch ever started — that's a book problem, not a board one.
+      // Without this, a failed (or book-less) load left the skeleton below up forever with no
+      // way out: the mount's plain kick early-returns on the cached offline ROSTER, so only
+      // bookless()'s forced Retry can punch through it.
+      if (!bookId()) return bookless('Roll call', bookBack());
       // A failed load is NOT a count of zero, and a load still in flight is not one either.
       // Only a confirmed-empty board earns the "Nothing scheduled today" copy.
       if (VC.boardError) {
@@ -236,6 +245,14 @@ export const coachCommitments = {
      * pattern the rest of the app already uses for late-arriving data (cf. warmParticipants in
      * meal.js). Once the data is stable there is nothing new to paint, so it terminates. A coach
      * action still refreshes immediately — repaint() below force-loads after every mutation. */
+    /* Direct entry (a relaunch restoring this hash): nothing has loaded the book yet, so
+       bookId() is null, nothing below fires, BOARD_LOADED stays false, and the skeleton sat
+       forever — the exact hang class coach-standards fell into (audit 2026-08-23). ensureBook
+       kicks the load; its arrival repaints every operator screen (router's onstd:book-arrival
+       listener) and this mount re-runs with a real id. Until then the render above shows
+       bookless(), whose Retry is the one path past a cached FAILED load — wire it and stop,
+       because none of the board controls below exist on that screen. */
+    if (!ensureBook()) { wireBookRetry(root); return; }
     const id = bookId();
     if (id) {
       const before = JSON.stringify(VC.board);
@@ -388,7 +405,13 @@ export function editCommitment(row) {
 export const coachCommitManage = {
   nav: 'operator', tab: 'home',
   render() {
+    // No book, no commitments read — same book-first honesty as the board above.
+    if (!bookId()) return bookless('Commitments', bookBack());
     const back = CD.kind === 'practice' ? 'trainer' : 'coach-home';
+    // null = never loaded this session; [] = the server confirmed there is nothing. Folding the
+    // two together printed "Nothing scheduled yet" over a coach's real commitments for the whole
+    // first load on a direct entry — the same fabricated-emptiness lie the fetcher contract bans.
+    const loaded = Array.isArray(RT.vcCommitments);
     const rows = RT.vcCommitments || [];
     const live = rows.filter((r) => r.active !== false);
     const paused = rows.filter((r) => r.active === false);
@@ -410,6 +433,7 @@ export const coachCommitManage = {
     return `
     ${backHead('Commitments', 'Everything you have standing', back)}
     ${VC.commitmentsError && !rows.length ? errorState({ title: "Couldn't load your commitments", body: 'Nothing was deleted. Reconnect and your schedule loads right here.', retryId: 'vc-manage-retry' })
+    : !loaded ? skeletonRows(3, 'Loading your commitments')
     : !rows.length ? `
       <div class="sidebox">
         <div class="req-icon b" style="width:38px;height:38px">${icon('clock', 17)}</div>
@@ -427,6 +451,8 @@ export const coachCommitManage = {
   },
 
   mount(root) {
+    // Direct entry — see coachCommitments.mount: kick, wire bookless()'s Retry, and stop.
+    if (!ensureBook()) { wireBookRetry(root); return; }
     const id = bookId();
     const hadError = VC.commitmentsError;
     if (id) loadCommitments(id, CD.kind, true).then((rows) => {
@@ -606,6 +632,10 @@ export const coachCommitEdit = {
   },
 
   mount(root) {
+    // Direct entry: kick the book (no bookless screen here — a draft in progress must never be
+    // replaced by one). Without the book only the audience pickers (rooms/groups from CD.extras)
+    // and canSchedule()'s role read stay empty; they fill on the arrival repaint or next tap.
+    ensureBook();
     const id = bookId();
     if (id) {
       // Both repaint when they land: the place chips and the linked-event list are rendered from

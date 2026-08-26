@@ -6,7 +6,7 @@ import { S, RT } from '../state.js';
 import { backHead, esc } from '../components.js';
 import { icon } from '../icons.js';
 import * as roles from '../roles.js';
-import { CD } from '../coach-data.js';
+import { CD, loadBook, bookKindFor } from '../coach-data.js';
 
 function athleteName(athleteId) {
   const r = CD.roster && CD.roster.rows && CD.roster.rows.find((x) => x.athleteId === athleteId);
@@ -133,6 +133,12 @@ export default {
   mount(root, { sub }) {
     const athleteId = sub;
     if (!athleteId) return;
+
+    // Direct entry (a relaunch restoring this hash): athleteName() reads the roster, and without
+    // this kick the header calls a real person "this athlete" (and CD.kind guesses 'team') until
+    // something else happens to load the book. Arrival repaints via the router's
+    // onstd:book-arrival listener; every input here keeps its value in UI, so a repaint is safe.
+    if (!CD.roster) loadBook(false, bookKindFor(RT.authRole));
 
     root.querySelectorAll('[data-shape]').forEach((b) => b.addEventListener('click', () => {
       UI.shape = b.getAttribute('data-shape');
