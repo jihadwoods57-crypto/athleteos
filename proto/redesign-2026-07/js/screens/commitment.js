@@ -16,10 +16,10 @@ import { backHead, esc } from '../components.js';
         and shown to the coach — it is never scored. An honest "off day" costs nothing and
         keeps the record true — that honesty is the behavior being trained. */
 
-const VALUE_PROP = 'Your coach sees this. It doesn’t change your score — answer it straight.';
+const VALUE_PROP = 'Your coach sees this. It doesn’t change your score, so answer it straight.';
 
 const CHOICES = [
-  { v: 'yes', t: 'I executed my plan', s: 'Meals, recovery, the work — today matched the intent.', cls: 'g' },
+  { v: 'yes', t: 'I executed my plan', s: 'Meals, recovery, the work: today matched the intent.', cls: 'g' },
   { v: 'partial', t: 'Partially', s: 'Some of it happened. Honest counts more than perfect.', cls: 'a' },
   { v: 'no', t: 'Off day', s: 'It didn’t happen today. Logging it keeps your record real.', cls: 'r' },
 ];
@@ -35,7 +35,7 @@ export default {
 
     <section class="card" style="margin-top:4px">
       <div class="eyebrow" style="margin:0 0 10px">Today's commitment</div>
-      <input id="cmt-focus" class="input" maxlength="80" placeholder="One line — e.g. “No skipped meals, lights out by 10.”"
+      <input id="cmt-focus" class="input" maxlength="80" placeholder="One line, e.g. “No skipped meals, lights out by 10.”"
         value="${esc(focus)}" aria-label="Today's personal commitment" />
       <div class="ts" style="padding-top:8px">Optional, but it sharpens the reflection. Your coach sees what you committed to.</div>
     </section>
@@ -50,14 +50,14 @@ export default {
             <div class="s">${c.s}</div>
           </div>
         </div>`).join('')}
-      ${chosen ? `<div class="cmt-done">${icon('check', 15)} Reflection saved — your coach can see it. You can change it until midnight.</div>` : ''}
+      ${chosen ? `<div class="cmt-done">${icon('check', 15)} Reflection saved. Your coach can see it. You can change it until midnight.</div>` : ''}
     </section>
 
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('target', 19)}</div>
       <div>
         <div class="tt">Why this is worth answering honestly</div>
-        <div class="ts">Anyone can log a meal. Closing every day with an honest read on intent vs. execution is the habit coaches actually trust — even though it never touches your Daily Score.</div>
+        <div class="ts">Anyone can log a meal. Closing every day with an honest read on intent vs. execution is the habit coaches actually trust, even though it never touches your Daily Score.</div>
       </div>
     </div>
     <div style="height:8px"></div>`;

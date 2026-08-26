@@ -12,11 +12,11 @@ const lib = window.supabase; // the UMD library global (has createClient)
 
 function makeClient() {
   if (!lib || !lib.createClient) {
-    console.error('[supabase] library not loaded — vendor/supabase.js must load before the modules');
+    console.error('[supabase] library not loaded: vendor/supabase.js must load before the modules');
     return null;
   }
   if (!cfg.url || !cfg.anonKey) {
-    console.error('[supabase] missing config (window.__SUPABASE) — cannot create client');
+    console.error('[supabase] missing config (window.__SUPABASE): cannot create client');
     return null;
   }
   return lib.createClient(cfg.url, cfg.anonKey, {

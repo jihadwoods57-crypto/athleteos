@@ -470,7 +470,7 @@ export function styleLabel(style) {
         short: 'Focused on body signals',
         // Copy follows the surfaces that actually exist: the meal-time hunger/fullness prompt is
         // gone, so promising it would be a lie. Digestion and cravings live in the check-in.
-        how: 'No calorie or macro targets. Your score measures fueling enough and consistency, with digestion and cravings noticed in your check-in — never restriction.',
+        how: 'No calorie or macro targets. Your score measures fueling enough and consistency, with digestion and cravings noticed in your check-in, never restriction.',
       };
     case 'guided':
     default:
@@ -487,7 +487,7 @@ export function styleSourceLabel(res, proNoun) {
   const who = proNoun || 'coach';
   if (!res) return '';
   if (res.source === 'team' || res.source === 'pro') return res.lockedBy ? `Set by ${res.lockedBy}` : `Set by your ${who}`;
-  if (res.source === 'preference') return 'Your preference — pending confirmation';
+  if (res.source === 'preference') return 'Your preference, pending confirmation';
   if (res.source === 'legacy') return 'Your original plan style';
   if (res.source === 'self') return 'You chose this';
   return 'Recommended for you';

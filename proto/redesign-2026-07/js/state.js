@@ -367,17 +367,17 @@ export function roleNav() {
 function friendlyTeamCreate(err) {
   const m = String((err && err.message) || err || '').toLowerCase();
   if (err) { try { console.error('[createTeamNow]', err); } catch { /* no console */ } }
-  if (!m) return "Couldn't create your team — try again.";
+  if (!m) return "Couldn't create your team. Try again.";
   if (m.includes('permission denied') || m.includes('row-level security') || m.includes('policy')) {
-    return "This account isn't allowed to create a team. If you joined with a staff code you're already on one — contact your head coach.";
+    return "This account isn't allowed to create a team. If you joined with a staff code you're already on one. Contact your head coach.";
   }
   if (m.includes('duplicate') || m.includes('already exists') || m.includes('unique constraint')) {
     return 'You already have a team. Pull down to refresh, or reopen the app.';
   }
   if (m.includes('fetch') || m.includes('network') || m.includes('timeout') || m.includes('failed to send')) {
-    return "Couldn't reach the server — check your connection and try again.";
+    return "Couldn't reach the server. Check your connection and try again.";
   }
-  return "Couldn't create your team — try again.";
+  return "Couldn't create your team. Try again.";
 }
 export function roleProfileRoute() {
   return RT.authRole === 'coach' ? 'coach-profile'
@@ -391,10 +391,10 @@ export function roleProfileRoute() {
 function friendlyAuth(msg) {
   const m = String(msg || '').toLowerCase();
   if (m.includes('invalid login')) return 'That email or password is incorrect.';
-  if (m.includes('email not confirmed') || m.includes('not confirmed') || m.includes('confirm your email')) return 'Confirm your email first — check your inbox for the link, then sign in.';
+  if (m.includes('email not confirmed') || m.includes('not confirmed') || m.includes('confirm your email')) return 'Confirm your email first: check your inbox for the link, then sign in.';
   if (m.includes('disabled') || m.includes('banned') || m.includes('suspended')) return "This account isn't available right now. Contact your coach or support.";
   // Anti-enumeration on the sign-up path: never definitively confirm an address is registered.
-  if (m.includes('already registered') || m.includes('already been registered') || m.includes('user already')) return 'That email may already be registered — try signing in or resetting your password.';
+  if (m.includes('already registered') || m.includes('already been registered') || m.includes('user already')) return 'That email may already be registered. Try signing in or resetting your password.';
   if (m.includes('provider') || m.includes('identity') || m.includes('oauth')) return 'That account uses a different sign-in method. Try email and password.';
   if (m.includes('rate limit') || m.includes('too many')) return 'Too many attempts. Wait a minute and try again, or reset your password.';
   // GoTrue's email-frequency limit (prod smtp_max_frequency = 60s) phrases itself as
@@ -404,7 +404,7 @@ function friendlyAuth(msg) {
     const secs = (String(msg).match(/(\d+)\s*second/) || [])[1];
     return secs ? `Wait ${secs} seconds before trying that again.` : 'Wait a moment before trying that again.';
   }
-  if (m.includes('password')) return 'Use a longer password — at least 12 characters.';
+  if (m.includes('password')) return 'Use a longer password (at least 12 characters).';
   if (m.includes('valid email') || m.includes('email address')) return 'Enter a valid email address.';
   if (m.includes('network') || m.includes('fetch') || m.includes('failed to')) return "You're offline. Check your connection and try again.";
   // The guardian RPCs (0008, 0081) raise their own prose. Most of it is already written for a
@@ -3181,7 +3181,7 @@ export const act = {
     const sb = window.sb;
     const code = String(rawCode || '').trim().toUpperCase();
     if (!code) return { ok: false, error: 'Enter the code first.' };
-    if (!sb || !RT.userId) return { ok: false, error: 'You need a connection for this — try again when you’re online.' };
+    if (!sb || !RT.userId) return { ok: false, error: 'You need a connection for this. Try again when you’re online.' };
     let kind = null;
     try {
       const { error } = await sb.rpc('join_team', { code, athlete_position: (RT.profile && RT.profile.position) || null });
@@ -3274,15 +3274,15 @@ export const act = {
   },
   async createGuardianInvite(relationship) {
     const sb = window.sb;
-    if (!sb) return { ok: false, error: 'Not ready — try again in a moment.' };
+    if (!sb) return { ok: false, error: 'Not ready yet. Try again in a moment.' };
     try { const { data, error } = await sb.rpc('create_guardian_invite', { relationship: relationship || null }); return error ? { ok: false, error: friendlyAuth(error.message) } : { ok: true, token: data }; }
     catch { return { ok: false, error: 'Could not create an invite. Try again.' }; }
   },
   async acceptGuardianInvite(token, rel) {
     const sb = window.sb;
-    if (!sb) return { ok: false, error: 'Not ready — try again in a moment.' };
+    if (!sb) return { ok: false, error: 'Not ready yet. Try again in a moment.' };
     try { const { data, error } = await sb.rpc('accept_guardian_invite', { invite_token: (token || '').trim(), rel: rel || null }); return error ? { ok: false, error: friendlyAuth(error.message) } : { ok: true, athleteId: data }; }
-    catch { return { ok: false, error: 'Could not link — check the code and try again.' }; }
+    catch { return { ok: false, error: 'Could not link. Check the code and try again.' }; }
   },
   /* Apple 5.1.1(v): REAL in-app account deletion. Calls the delete_account RPC (server cascades
      the athlete's rows), signs out, and wipes local state. Best-effort on the RPC so a missing
@@ -3348,7 +3348,7 @@ export const act = {
       setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 2000);
       return { ok: true };
     } catch {
-      return { ok: false, error: 'Export failed — check your connection and try again.' };
+      return { ok: false, error: 'Export failed. Check your connection and try again.' };
     }
   },
   async saveAthleteProfile(fields) {
@@ -3535,7 +3535,7 @@ export const act = {
      Returns {ok} or {ok:false, error} so the caller can say what actually went wrong. */
   async createTeamNow(name) {
     const sb = window.sb;
-    if (!sb || !RT.userId) return { ok: false, error: "You're offline — reconnect and try again." };
+    if (!sb || !RT.userId) return { ok: false, error: "You're offline. Reconnect and try again." };
     const teamName = String(name || '').trim();
     if (!teamName) return { ok: false, error: 'Give your team a name first.' };
     const c = ((RT.ob || {}).coach) || {};
@@ -3693,7 +3693,7 @@ export const act = {
      the caller reads the returned {ok,error} and shows it inline. */
   async requestEmailVerification() {
     const sb = window.sb;
-    if (!sb) return { ok: false, error: "You're offline — reconnect and try again." };
+    if (!sb) return { ok: false, error: "You're offline. Reconnect and try again." };
     try {
       const { data, error } = await sb.functions.invoke('send-verify-email');
       if (error) {
@@ -3701,12 +3701,12 @@ export const act = {
         // body (our own "Wait N seconds…" text on a 429) lives on error.context.json() (same
         // idiom as roles.js's billing-checkout / meal-chat handling).
         const body = await (async () => { try { return await error.context?.json?.(); } catch { return null; } })();
-        return { ok: false, error: (body && body.error) || 'Could not send the verification email — try again.' };
+        return { ok: false, error: (body && body.error) || 'Could not send the verification email. Try again.' };
       }
-      if (data && data.ok === false) return { ok: false, error: data.error || 'Could not send the verification email — try again.' };
+      if (data && data.ok === false) return { ok: false, error: data.error || 'Could not send the verification email. Try again.' };
       return { ok: true, emailed: !!(data && data.emailed) };
     } catch {
-      return { ok: false, error: "Couldn't reach the server — check your connection." };
+      return { ok: false, error: "Couldn't reach the server. Check your connection." };
     }
   },
   async _loadTourSeenIntoRt(userId) {
@@ -4114,8 +4114,8 @@ export const S = {
       build: 'Calorie surplus with protein scaled to bodyweight.',
       maintain: 'Calories held near maintenance.',
       health: 'Calories held near maintenance.',
-      perform: 'Fuel for training load — performance formula, not a weight formula.',
-      performance: 'Fuel for training load — performance formula, not a weight formula.',
+      perform: 'Fuel for training load: a performance formula, not a weight formula.',
+      performance: 'Fuel for training load: a performance formula, not a weight formula.',
     };
     return {
       key,
@@ -4205,7 +4205,7 @@ export const S = {
           // label ("Due by 8:00 PM") would lie about a moved window.
           window: { ...(base ? base.window : {}), open: slotOpen(k), due: slotDeadline(k), label: null },
           required: true, impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium',
-          note: base ? base.note : 'Photo proof — part of your room standard.',
+          note: base ? base.note : 'Photo proof is part of your room standard.',
         };
       }),
       ...CATALOG.filter(r => !REQ_MEAL_SLOTS.includes(r.id)),
@@ -4290,7 +4290,7 @@ export const S = {
     }
     return minutesNow() <= WEIGHT_DUE
       ? { label: 'Morning Weight', state: 'open', note: `Weigh in by ${fmtClock(WEIGHT_DUE)} to keep your season trend current.` }
-      : { label: 'Morning Weight', state: 'missed', note: "Missed today. It doesn't affect your score — weight only tracks your season trend." };
+      : { label: 'Morning Weight', state: 'missed', note: "Missed today. It doesn't affect your score. Weight only tracks your season trend." };
   },
   get reachPlan() {
     const plan = [];
@@ -4335,7 +4335,7 @@ export const S = {
           sub = at != null ? `Logged ${fmtClock(at)}${d.late ? ' · late' : ''}` : 'Logged';
           subColor = d.late ? 'a' : 'g';
         } else if (dupFlagged) {
-          sub = "Logged, but this photo was already used — it doesn't count";
+          sub = "Logged, but this photo was already used, so it doesn't count";
           subColor = 'a';
         }
       } else if (d.id === 'weight') {
@@ -4360,7 +4360,7 @@ export const S = {
             freq: { type: 'daily' }, window: { ...(base ? base.window : {}), open: slotOpen(k), due: slotDeadline(k) },
             required: !(RT.stdMeals.optional && RT.stdMeals.optional.includes(k)), // snack slot = optional
             impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium',
-            note: base ? base.note : 'Photo proof — part of your room standard.',
+            note: base ? base.note : 'Photo proof is part of your room standard.',
           };
         }),
         ...CATALOG.filter(r => !REQ_MEAL_SLOTS.includes(r.id) && r.id !== 'weekly' && runsToday(r)),
@@ -4584,8 +4584,8 @@ export const S = {
         foods: r.detected.length ? r.detected : ['Your meal'],
         macros: { protein: r.protein, carbs: r.carbs, fat: r.fat, cals: r.kcal },
         planMatch: { verdict: r.quality >= 75 ? 'Strong meal' : 'Logged', detail: r.note || 'Analyzed from your photo.', level: r.quality >= 75 ? 'g' : 'b' },
-        ai: r.note || (MEAL.source === 'label' ? 'Exact numbers off the panel — no estimate needed.'
-          : MEAL.source === 'manual' ? 'Entered by you — the plate you actually built.'
+        ai: r.note || (MEAL.source === 'label' ? 'Exact numbers off the panel. No estimate needed.'
+          : MEAL.source === 'manual' ? 'Entered by you: the plate you actually built.'
           : 'Logged from your photo.'),
         analysis: r.analysis || '',            // the ONE detailed AI read (0062); note is the fallback
         styleApplied: r.styleApplied || null,  // 0142 — which plan style the server wrote it for
@@ -4613,7 +4613,7 @@ export const S = {
       name: cap(slot), due: dueLabel(slot), remaining: 'Take a photo to analyze',
       img: null, score: null, foods: [],
       macros: { protein: 0, carbs: 0, fat: 0, cals: 0 },
-      planMatch: { verdict: 'Not analyzed yet', detail: 'Capture your meal and the AI reads it — real macros from your photo, no guesses.', level: 'b' },
+      planMatch: { verdict: 'Not analyzed yet', detail: 'Capture your meal and the AI reads it: real macros from your photo, no guesses.', level: 'b' },
       ai: 'Take a photo of your meal and I’ll analyze it for real.',
       analysis: '', capturedAtMin: null,
       empty: true,
@@ -4825,7 +4825,7 @@ export const S = {
       if (worst && worst[1] >= 2) {
         const [slot, n] = worst;
         const name = slotTitle(slot).toLowerCase();
-        return `Late ${name} logs are costing you nutrition points — it happened ${n} times recently. Logging ${name} before ${fmtClock(slotDeadline(slot))} is your biggest easy win.`;
+        return `Late ${name} logs are costing you nutrition points. It happened ${n} times recently. Logging ${name} before ${fmtClock(slotDeadline(slot))} is your biggest easy win.`;
       }
     }
     const trends = this.categoryTrends;
@@ -4833,7 +4833,7 @@ export const S = {
       const falling = trends.filter(t => t.delta < 0).sort((a, b) => a.delta - b.delta)[0];
       if (falling) return `${falling.key} is trending down (${falling.delta} vs your earlier average). One consistent day resets the direction.`;
       const weakest = trends.slice().sort((a, b) => a.now - b.now)[0];
-      if (weakest && weakest.now < 70) return `${weakest.key} is your biggest opportunity — it's averaging ${weakest.now}%. Small daily wins there move your score fastest.`;
+      if (weakest && weakest.now < 70) return `${weakest.key} is your biggest opportunity. It's averaging ${weakest.now}%. Small daily wins there move your score fastest.`;
     }
     const p = this.progress;
     if (p.hasHistory && p.weekAvg != null && p.weekAvg < ON_STANDARD) {
@@ -4891,7 +4891,7 @@ export const S = {
       fresh.unshift(st.graceUsedRecently ? {
         level: 'high', icon: 'flame', when: 'now', route: stRoute,
         title: `Your ${st.days}-day streak ends tonight`,
-        body: `This week’s grace day is already used — hit 80 before midnight or the streak resets.`,
+        body: `This week’s grace day is already used. Hit 80 before midnight or the streak resets.`,
       } : {
         level: 'medium', icon: 'shield', when: 'now', route: stRoute,
         title: `Keep your ${st.days}-day run alive`,

@@ -682,7 +682,7 @@ function celebration(e) {
     <div style="font-size:var(--t-xl);font-weight:800;letter-spacing:-.02em;margin-top:2px">You're OnStandard.</div>
     <!-- One meta line, no echoes: the ring already says the score and (by color) the tier; the
          record list below already proves every requirement is in. Everything left that's UNIQUE
-         lives here — delta, streak day, and when it locks. -->
+         lives here: delta, streak day, and when it locks. -->
     <div style="display:flex;align-items:center;gap:7px;font-size:var(--t-sm);color:var(--text-2);margin-top:6px">
       ${/* deltaChip(), not a second inline copy of it. The copy that lived here rendered ONLY when
             today beat yesterday, so a day where you completed everything and still came in lower

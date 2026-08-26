@@ -429,7 +429,7 @@ const steps = [
     title: () => 'What it looks like in a program.',
     sub: () => 'Illustrative, not actual customers yet.',
     body: () => `
-      <!-- Launch placeholders — the founder swaps these for real customer quotes before release. -->
+      <!-- Launch placeholders: the founder swaps these for real customer quotes before release. -->
       ${testimonial({ quote: 'Spring ball, logging held at 84%. I stopped asking “did you eat” and started coaching.', name: 'Coach D.', role: 'HS football, 47 athletes', initials: 'CD', stat: '84%', statKey: 'team log rate' })}
       ${testimonial({ quote: 'The board caught two guys drifting in week one, before the scale did. That used to take a month.', name: 'Coach R.', role: 'College track, 31 athletes', initials: 'CR', stat: 'wk 1', statKey: 'first catch' })}`,
   },

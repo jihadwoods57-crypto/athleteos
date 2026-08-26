@@ -200,7 +200,7 @@ export function wireComposerAttach({ root, attachId, pendingId, safeImg, onNote 
       } catch {
         held = null;
         btn.classList.remove('on');
-        note("Couldn't read that image — try another.");
+        note("Couldn't read that image. Try another.");
       }
       file.value = '';   // let the same file be re-picked after a Remove
     });

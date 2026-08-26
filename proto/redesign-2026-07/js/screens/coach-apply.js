@@ -77,7 +77,7 @@ function editableForm(a) {
 
     <div class="eyebrow">The deal</div>
     <section class="card" style="padding:12px 16px;font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.7">
-      <div>${icon('check', 14, 'style="color:var(--green-bright)"')} You stay inside your approved scope — accountability is coaching, not treatment</div>
+      <div>${icon('check', 14, 'style="color:var(--green-bright)"')} You stay inside your approved scope: accountability is coaching, not treatment</div>
       <div>${icon('check', 14, 'style="color:var(--green-bright)"')} Clients, payments and communication stay on OnStandard</div>
       <div>${icon('check', 14, 'style="color:var(--green-bright)"')} You follow the safeguarding and communication policies</div>
       <div class="ls" style="margin-top:6px">Submitting is your agreement to all three.</div>
@@ -107,7 +107,7 @@ function statusView(a) {
       <div class="lrow" style="cursor:default">
         <div class="lic"${cr.status === 'verified' ? ' style="background:var(--green-surface);color:var(--green-bright)"' : ''}>${icon('shield', 16)}</div>
         <div class="lm"><div class="lt">${esc(cr.title || cr.category.toUpperCase())}</div>
-          <div class="ls">${cr.status === 'verified' ? 'Verified by OnStandard' : cr.status === 'rejected' ? 'Not accepted — contact support for why' : 'Awaiting review'}</div></div>
+          <div class="ls">${cr.status === 'verified' ? 'Verified by OnStandard' : cr.status === 'rejected' ? 'Not accepted. Contact support to find out why' : 'Awaiting review'}</div></div>
       </div>`).join('')}
     </section>` : ''}`;
 }

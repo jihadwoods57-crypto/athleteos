@@ -41,7 +41,7 @@ export default {
       ${!isTrainer && RT.myRoomLabel ? `
       <div class="lrow" style="cursor:default;margin-top:10px">
         <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('users', 17)}</div>
-        <div class="lm"><div class="lt">Your room</div><div class="ls">${esc(RT.myRoomLabel)} — your standard follows this room</div></div>
+        <div class="lm"><div class="lt">Your room</div><div class="ls">${esc(RT.myRoomLabel)} · your standard follows this room</div></div>
       </div>` : ''}
       <div style="height:10px"></div>
       `;
@@ -68,7 +68,7 @@ export default {
       <div id="cc-err" role="alert" aria-live="assertive" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;margin-top:12px;text-align:center"></div>
       <button class="btn primary" id="cc-confirm">${icon('check', 18)} Connect to ${esc(preview.name || 'this team')}</button>
       <div style="height:8px"></div>
-      <button class="btn ghost sm" id="cc-cancel">Not my team — re-enter code</button>
+      <button class="btn ghost sm" id="cc-cancel">Not my team? Re-enter the code</button>
       <div style="height:10px"></div>
       `;
     }
@@ -92,7 +92,7 @@ export default {
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 18)}</div>
       <div><div class="tt">Nothing is shared until you confirm</div>
-      <div class="ts">You'll see exactly which team the code belongs to — and what they can see — before you join.</div></div>
+      <div class="ts">You'll see exactly which team the code belongs to, and what they can see, before you join.</div></div>
     </div>
     <div style="height:10px"></div>
     `;
@@ -141,7 +141,7 @@ export default {
       if (!CODE_RE.test(code)) { err.textContent = 'Codes are 4–12 letters and numbers. Check it and try again.'; return; }
       // Definitive-offline preflight: joinByCode's RPC failure copy reads "code didn't match",
       // which is a lie when the real problem is the connection.
-      if (!navigator.onLine) { err.textContent = 'You need a connection for this — try again when you\'re online.'; return; }
+      if (!navigator.onLine) { err.textContent = 'You need a connection for this. Try again when you\'re online.'; return; }
       btn.disabled = true;
       const was = btn.textContent;
       btn.textContent = 'Checking…';

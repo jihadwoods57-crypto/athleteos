@@ -121,7 +121,7 @@ export default {
       ${shared.map((r, i) => boardRow(r, i + 1, today)).join('')}
     </section>` : ''}
     ${shared.length === 1 && shared[0].athlete_id === RT.userId ? `
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:6px 2px 0;line-height:1.45">You're first on the board. Teammates appear as they flip their own switch — nobody is shown without it.</div>` : ''}
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:6px 2px 0;line-height:1.45">You're first on the board. Teammates appear as they flip their own switch. Nobody is shown without it.</div>` : ''}
     ${privateN > 0 ? `
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0">${privateN} teammate${privateN > 1 ? 's keep' : ' keeps'} their number private.</div>` : ''}
     <div style="height:10px"></div>`;

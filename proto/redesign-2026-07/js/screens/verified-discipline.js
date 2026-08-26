@@ -57,7 +57,7 @@ export default {
       <div class="req-icon g" style="width:38px;height:38px">${icon('shield', 19)}</div>
       <div>
         <div class="tt">What is never shared</div>
-        <div class="ts">Recruiters see the four numbers above and nothing else. Not where you were, not which building, not your class schedule, not what time you did anything, not any single day. There is no way for them to ask for it — the record simply doesn't contain it.</div>
+        <div class="ts">Recruiters see the four numbers above and nothing else. Not where you were, not which building, not your class schedule, not what time you did anything, not any single day. There is no way for them to ask for it. The record simply doesn't contain it.</div>
       </div>
     </div>
 

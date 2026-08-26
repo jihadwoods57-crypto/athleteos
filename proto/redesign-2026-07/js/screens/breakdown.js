@@ -64,7 +64,7 @@ export default {
 
     <!-- The tier rides BELOW the ring here, not inside it. This ring is 200px (the home hero's is
          338), but the centre stack kept the hero's metrics: the chip is ~123px wide and sits ~71px
-         below centre, where the band's inner edge only clears ~18px of half-width — so its ends
+         below centre, where the band's inner edge only clears ~18px of half-width, so its ends
          crossed straight through the arc. Outside the ring it is simply legible, and it reads the
          same way home already states the tier under its own ring. -->
     <div class="bd-hero bd-hero-calm">

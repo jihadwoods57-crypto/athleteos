@@ -1101,7 +1101,7 @@ export const thread = {
       ${emptyRead ? '' : M.mealId ? `<div class="est-note">${fromPhoto ? 'Estimated from the photo · cooking oil or sauce may change these numbers. ' : ''}<span class="link" id="open-correct" role="button" tabindex="0">${fromPhoto ? 'Something off? Correct the analysis' : 'Correct the analysis'}</span> · <span class="link" id="qa-details" role="button" tabindex="0">Add meal details</span></div>` : ''}
 
       <!-- Correct analysis (upgrade 2026-07-16): fix what the photo can't show; every chip is a
-           deterministic, estimated adjustment with an audit trail — hidden until opened. -->
+           deterministic, estimated adjustment with an audit trail, hidden until opened. -->
       ${/* ONE DECISION AT A TIME (2026-08-14). This panel used to render all five dimensions
             expanded at once: nineteen chips plus a free-text field, on the app's most-used
             flow, for an athlete who arrived with exactly one thing to fix. Now the first

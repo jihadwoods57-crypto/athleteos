@@ -638,7 +638,7 @@ async function paintNutritionBoard(root) {
 function priorityCard(c, i, nudgedToday) {
   const tier = c.tier === 'critical' ? 'critical' : c.tier === 'below' ? 'below' : 'due';
   // needs_review also tiers as 'below', but "Below standard" would contradict its own reason
-  // line ("logged today — score pending"). Name it honestly when that's the actual status.
+  // line ("Logged today · score pending"). Name it honestly when that's the actual status.
   const tierLbl = c.statusKey === 'needs_review' ? 'Needs review' : { critical: 'Critical', below: 'Below standard', due: 'Due soon' }[tier];
   // Empty string, not --text-3, when there's no score: .co-pri supplies its own colour there.
   const scoreCol = c.score == null ? '' : scoreColor(c.score);

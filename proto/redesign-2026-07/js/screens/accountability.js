@@ -84,7 +84,7 @@ export default {
       <div class="req-icon b" style="width:38px;height:38px">${icon('target', 19)}</div>
       <div>
         <div class="tt">How this is weighted</div>
-        <div class="ts">Responding counts a little, arriving on time counts more, finishing the session counts most. Sleeping through a roll call doesn't wreck your day — if you're on the field on time, you keep almost all of it. Anything your phone couldn't verify is left out entirely rather than counted against you.</div>
+        <div class="ts">Responding counts a little, arriving on time counts more, finishing the session counts most. Sleeping through a roll call doesn't wreck your day. If you're on the field on time, you keep almost all of it. Anything your phone couldn't verify is left out entirely rather than counted against you.</div>
       </div>
     </div>
 

@@ -146,7 +146,7 @@ export const streak = {
             ${x.grace ? '<span class="g">Grace</span>' : ''}
           </div>`).join('')}
       </div>
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:14px">Your real day scores, Monday through Sunday. A day under 80 ends the run unless your weekly grace bridges it — grace applies only after the day closes.</div>
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:14px">Your real day scores, Monday through Sunday. A day under 80 ends the run unless your weekly grace bridges it. Grace applies only after the day closes.</div>
     </section>
 
     <div class="eyebrow">The rules</div>
@@ -157,7 +157,7 @@ export const streak = {
       </div>
       <div class="lrow" style="cursor:default">
         <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('shield', 17)}</div>
-        <div class="lm"><div class="lt">One grace per rolling 7 days</div><div class="ls">A single miss is bridged after the day closes — the chain survives, the day never counts. A second miss inside the week ends the run.</div></div>
+        <div class="lm"><div class="lt">One grace per rolling 7 days</div><div class="ls">A single miss is bridged after the day closes: the chain survives, the day never counts. A second miss inside the week ends the run.</div></div>
       </div>
       <div class="lrow" style="cursor:default">
         <div class="lic" style="background:var(--amber-surface);color:var(--amber-bright)">${icon('clock', 17)}</div>
@@ -416,7 +416,7 @@ function mountThread(root, mealId, meal) {
       const ok = existing
         ? await deleteMealComment(existing.id).catch(() => false)
         : await postMealComment(mealId, meal.athlete_id || RT.userId, RT.userId, 'athlete', emoji, 'reaction').catch(() => false);
-      if (ok) await refresh(); else if (note) note.textContent = "Couldn't save that reaction — try again.";
+      if (ok) await refresh(); else if (note) note.textContent = "Couldn't save that reaction. Try again.";
       rxBusy = false;
     },
   });
@@ -442,7 +442,7 @@ function mountThread(root, mealId, meal) {
     if (!res.ok) {
       busy = false;
       if (note) note.textContent = res.error === 'upload'
-        ? "Couldn't upload that photo — try again, or remove it and send."
+        ? "Couldn't upload that photo. Try again, or remove it and send."
         : "Couldn't send that. Try again when you're back online.";
       return;
     }

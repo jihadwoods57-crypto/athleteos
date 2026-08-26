@@ -184,7 +184,7 @@ export function explainCategories(day, { slots, denom, titles = {}, optional = [
       return { label: title(k), sub: `Logged ${at != null ? fmtClock(at) : ''}${late ? ` · ${lateBadge(slotLateCredit(k, std))}` : ' · on time'}`, value: `${g} g protein`, state: late ? 'late' : 'done' };
     }
     const dupped = day.meals && day.meals[k] && day.slotMacros && day.slotMacros[k] && day.slotMacros[k].flagged === 'dup';
-    if (dupped) return { label: title(k), sub: 'Duplicate photo — logged, not scored', value: '0 pts', state: 'flagged' };
+    if (dupped) return { label: title(k), sub: 'Duplicate photo: logged, not scored', value: '0 pts', state: 'flagged' };
     const opt = optional.includes(k);
     const pastDue = nowMin > due + slotGrace(k, std);
     const late = !opt && pastDue;
@@ -198,7 +198,7 @@ export function explainCategories(day, { slots, denom, titles = {}, optional = [
       sub: opt ? (credit >= 1 ? 'Optional · counts whenever you log it'
         : pastDue ? `Optional · past ${fmtClock(due)} · ${credit ? 'half credit now' : 'window closed'}`
           : `Optional · full credit by ${fmtClock(due)}`)
-        : late ? `Was due ${fmtClock(due)} — ${lateHint(credit)}` : `Due by ${fmtClock(due)}`,
+        : late ? `Was due ${fmtClock(due)} · ${lateHint(credit)}` : `Due by ${fmtClock(due)}`,
       value: `+${Math.round(w.nutrition * 35 / denom * (pastDue ? credit : 1))} on log`,
       state: late ? 'overdue' : 'open',
     };
@@ -260,7 +260,7 @@ export function explainCategories(day, { slots, denom, titles = {}, optional = [
       remaining: openSlots.length ? nutriRemaining : 0, remainingKind: 'upTo',
       remainingNote: nutriRemaining <= 0 ? 'Full nutrition points earned.'
         : openSlots.length ? `Up to ${nutriRemaining} points still available. On-time logs that reach your protein target earn it all.`
-          : `Settled for today. The ${nutriRemaining}-point gap came from late credit or plate quality on meals already logged — no action can re-earn it tonight. Tomorrow starts at the full ${nutriPossible}.`,
+          : `Settled for today. The ${nutriRemaining}-point gap came from late credit or plate quality on meals already logged. No action can re-earn it tonight. Tomorrow starts at the full ${nutriPossible}.`,
       rows: nutriRows,
     },
     {
@@ -268,7 +268,7 @@ export function explainCategories(day, { slots, denom, titles = {}, optional = [
       earned: recEarned, possible: recPossible,
       note: day.ciSubmitted
         ? `Checked in tonight · Recovery quality ${c.recovery}%`
-        : 'Not checked in yet — tonight’s check-in is the only way to earn this',
+        : 'Not checked in yet. Tonight’s check-in is the only way to earn this',
       remaining: day.ciSubmitted ? 0 : recPossible,
       remainingKind: day.ciSubmitted ? 'guaranteed' : 'upTo',
       remainingNote: day.ciSubmitted
@@ -283,7 +283,7 @@ export function explainCategories(day, { slots, denom, titles = {}, optional = [
         },
         {
           label: 'How you answered',
-          sub: day.ciSubmitted ? '' : 'Honest answers cost you almost nothing — a rough night is a few points',
+          sub: day.ciSubmitted ? '' : 'Honest answers cost you almost nothing. A rough night is a few points',
           value: day.ciSubmitted ? `${Math.round(w.recovery * c.recoveryContribution)} of ${ansPts} pts` : `up to +${ansPts}`,
           state: day.ciSubmitted ? 'done' : 'open',
         },

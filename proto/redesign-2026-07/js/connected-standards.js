@@ -170,7 +170,7 @@ export function metricLabel(metric, deliberateWorkout) {
 export function sourceRule(metric, deliberateWorkout, minDurationMin) {
   if (metric === 'distance') {
     return deliberateWorkout
-      ? 'Counts distance from a recorded workout — daily walking does not apply.'
+      ? 'Counts distance from a recorded workout. Daily walking does not apply.'
       : 'Counts all walking and running distance for the period.';
   }
   if (metric === 'steps') return 'Counts every step your phone or watch records.';

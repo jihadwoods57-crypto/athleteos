@@ -82,8 +82,8 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
     const impact = IMPACT_LABEL[req.impact.comp || req.impact.kind] || '';
     let sub;
     if (state === 'done' || state === 'done_late') sub = st.at ? `Logged at ${st.at}${st.late ? ' · late' : ''}` : (req.proof === 'form' ? 'Submitted' : 'In');
-    else if (state === 'not_required') sub = `Closed at ${fmtMin(req.window.due)} — you joined after, so it won’t count`;
-    else if (state === 'overdue') sub = `Was due ${fmtMin(req.window.due)} — still counts, log it late`;
+    else if (state === 'not_required') sub = `Closed at ${fmtMin(req.window.due)}. You joined after, so it won’t count`;
+    else if (state === 'overdue') sub = `Was due ${fmtMin(req.window.due)}. Log it late and it still counts`;
     else if (state === 'locked') sub = `Opens at ${fmtMin(req.window.open)}`;
     else sub = dueLabel;
     return {

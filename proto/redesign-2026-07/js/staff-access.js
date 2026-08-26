@@ -95,7 +95,7 @@ export function canViewWeight(role) {
 export const RESPONSIBILITIES = [
   { key: 'org',         title: 'Entire organization', sub: 'Every team under your school or club' },
   { key: 'team',        title: 'Entire team',         sub: 'The whole roster answers to you' },
-  { key: 'side',        title: 'A side of the ball',  sub: 'Offense, defense — a set of rooms' },
+  { key: 'side',        title: 'A side of the ball',  sub: 'Offense or defense: a set of rooms' },
   { key: 'room',        title: 'A position room',     sub: 'One room is yours' },
   { key: 'individuals', title: 'Individual athletes', sub: 'A hand-picked group you build' },
 ];

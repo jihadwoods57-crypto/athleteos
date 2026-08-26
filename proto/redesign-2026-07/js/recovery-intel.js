@@ -14,14 +14,14 @@ const chipOf = (raw) => Math.min(5, Math.max(1, Math.round((Number(raw) || 0) / 
    day.js CI_INVERSE. `fix` is the ONE coach-texting move for when that signal is the
    night's weakest — specific, doable tomorrow, never shaming. */
 const FIELDS = {
-  energy: { label: 'Energy', inverse: false, fix: 'Get a real breakfast in tomorrow and hit the first meal window — low energy usually traces straight back to fuel or sleep.' },
-  recovery: { label: 'Recovery', inverse: false, fix: 'Feeling beat up is information — keep tomorrow honest and let food and sleep do the repair work before you add more load.' },
+  energy: { label: 'Energy', inverse: false, fix: 'Get a real breakfast in tomorrow and hit the first meal window. Low energy usually traces straight back to fuel or sleep.' },
+  recovery: { label: 'Recovery', inverse: false, fix: 'Feeling beat up is information. Keep tomorrow honest and let food and sleep do the repair work before you add more load.' },
   sleep: { label: 'Sleep', inverse: false, fix: 'Tonight is the fix: screens down early, same lights-out, and tomorrow starts on a different footing.' },
-  confidence: { label: 'Confidence', inverse: false, fix: 'Confidence follows evidence — stack one clean, on-standard day tomorrow and let the score do the talking.' },
-  soreness: { label: 'Soreness', inverse: true, fix: 'That soreness is real load — ten minutes of easy movement and a protein-forward day tomorrow pays it down.' },
-  motivation: { label: 'Motivation', inverse: false, fix: "Flat days happen — make tomorrow's first move small and early, and momentum does the rest of the lifting." },
+  confidence: { label: 'Confidence', inverse: false, fix: 'Confidence follows evidence. Stack one clean, on-standard day tomorrow and let the score do the talking.' },
+  soreness: { label: 'Soreness', inverse: true, fix: 'That soreness is real load. Ten minutes of easy movement and a protein-forward day tomorrow pays it down.' },
+  motivation: { label: 'Motivation', inverse: false, fix: "Flat days happen. Make tomorrow's first move small and early, and momentum does the rest of the lifting." },
   digestion: { label: 'Digestion', inverse: false, fix: "Keep tomorrow's plates simpler and give your last meal more space before bed." },
-  cravings: { label: 'Cravings', inverse: true, fix: 'Front-load protein at your first two meals tomorrow — constant cravings usually mean protein or sleep ran short.' },
+  cravings: { label: 'Cravings', inverse: true, fix: 'Front-load protein at your first two meals tomorrow. Constant cravings usually mean protein or sleep ran short.' },
 };
 
 /** The night's signals, engine-honest: only fields the config enables and the athlete
@@ -55,18 +55,18 @@ export function recoveryCoachMessage({ ci, ciConfig, hasCoach, coachName } = {})
   if (worst.good >= 8) {
     // Everything strong: recognition, and the only move is repetition.
     const named = sig.slice(-2).map((s) => s.label.toLowerCase()).reverse();
-    parts.push(`Strong board tonight${named.length > 1 ? ` — ${named.join(' and ')} both read high` : ''}. This is what showing up ready looks like.`);
+    parts.push(`Strong board tonight${named.length > 1 ? ` (${named.join(' and ')} both read high)` : ''}. This is what showing up ready looks like.`);
     parts.push('No fix needed: protect the bedtime that produced it and bring the same tomorrow.');
   } else {
     // Real read: credit what held up, name the weakest with THEIR number, hand back one move.
     if (best.good >= 8 && best.key !== worst.key) {
-      parts.push(`${best.label} is holding up — good.`);
+      parts.push(`${best.label} is holding up well.`);
     }
     parts.push(`${worst.label} came in at ${worst.chip}/5 tonight, and that's the one to work on.`);
     parts.push(FIELDS[worst.key].fix);
   }
   if (hasCoach && clean(coachName)) {
-    parts.push(`${clean(coachName)} sees this before tomorrow's practice — honest answers like these are exactly what makes it useful.`);
+    parts.push(`${clean(coachName)} sees this before tomorrow's practice. Honest answers like these are exactly what makes it useful.`);
   } else {
     parts.push("Tomorrow's readiness starts with what you do tonight.");
   }

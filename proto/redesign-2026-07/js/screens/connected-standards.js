@@ -93,8 +93,8 @@ function standardRow(row, todayIso) {
   // The line under the number changes with what the athlete actually needs to know next.
   const sub = done
     ? esc(completedLabel(row))
-    : row.status === 'awaiting_sync' ? 'Your watch hasn’t reported yet — this won’t count against you'
-    : row.status === 'disconnected' ? 'Health access is off — reconnect or log it by hand'
+    : row.status === 'awaiting_sync' ? 'Your watch hasn’t reported yet. This won’t count against you'
+    : row.status === 'disconnected' ? 'Health access is off. Reconnect or log it by hand'
     : row.status === 'awaiting_review' ? 'Sent to your coach for review'
     : row.status === 'excused' ? esc(row.excused_reason || 'Excused by your coach')
     : pace ? `${esc(pace.label)}${pace.needLabel ? ` · ${esc(pace.needLabel)}` : ''}`
@@ -297,7 +297,7 @@ export default {
       <div class="cs-eyebrow" style="margin-bottom:8px">WATCH NOT SYNCING?</div>
       <div class="cs-p muted" style="margin-bottom:10px">Log it yourself. ${row.manual_requires_approval
         ? 'Your coach reviews manual entries before they count.'
-        : 'It’s recorded as reported rather than verified — nobody assumes you’re being dishonest.'}</div>
+        : 'It’s recorded as reported rather than verified. Nobody assumes you’re being dishonest.'}</div>
       <input class="input" id="cs-note" maxlength="200" placeholder="Anything your coach should know (optional)">
       <button class="btn" id="cs-manual" style="margin-top:10px">I did this</button>
       <div id="cs-manual-err" role="status" class="cs-p cs-err"></div>
@@ -309,7 +309,7 @@ export default {
     </section>` : ''}
 
     ${canDispute ? `<section class="card pad">
-      <div class="cs-p muted" style="margin-bottom:10px">If this is wrong, say so. Your coach sees your note — nothing changes automatically.</div>
+      <div class="cs-p muted" style="margin-bottom:10px">If this is wrong, say so. Your coach sees your note. Nothing changes automatically.</div>
       <input class="input" id="cs-dnote" maxlength="200" placeholder="What actually happened">
       <button class="btn ghost" id="cs-dispute" style="margin-top:10px">This isn’t right</button>
       <div id="cs-dispute-err" role="status" class="cs-p cs-err"></div>
@@ -328,7 +328,7 @@ export default {
     </section>` : ''}
 
     <div class="cs-p muted" style="text-align:center;margin:14px 20px 24px">
-      Separate from your daily score — this standard is tracked, not scored.
+      Separate from your daily score: this standard is tracked, not scored.
     </div>`;
   },
 
@@ -627,7 +627,7 @@ export const connectedStandardEdit = {
       <button class="btn" id="cs-save">${d.id ? 'Save changes' : 'Set this standard'}</button>
       ${d.id ? `<button class="btn ghost" id="cs-del" style="margin-top:8px">Turn this off</button>` : ''}
       <div class="cs-p muted" style="text-align:center;margin-top:12px">
-        Personal standards are yours alone — your coach doesn’t see them.
+        Personal standards are yours alone. Your coach doesn’t see them.
       </div>
     </div>
     <div style="height:24px"></div>`;
@@ -700,7 +700,7 @@ export const connectedStandardEdit = {
         location.hash = '#connected-standards';
       } else {
         save.disabled = false;
-        save.textContent = 'Couldn’t save — try again';
+        save.textContent = 'Couldn’t save. Try again';
       }
     });
 
@@ -712,7 +712,7 @@ export const connectedStandardEdit = {
       if (!res.ok) {
         del.disabled = false; del.textContent = 'Turn this off';
         const save = root.querySelector('#cs-save');
-        if (save) save.textContent = 'Couldn’t reach the server — try again';
+        if (save) save.textContent = 'Couldn’t reach the server. Try again';
         return;
       }
       DRAFT = null;

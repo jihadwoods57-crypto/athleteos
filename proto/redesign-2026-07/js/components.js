@@ -85,7 +85,7 @@ export function emptyState({ icon: ic = 'sparkle', title, body = '', action = nu
 }
 
 /** Honest error + retry. `retryId` is wired by the caller's mount(); omit for a non-retryable note. */
-export function errorState({ title = "Couldn't load this", body = 'Reconnect and it loads right here — nothing was lost.', retryId = null } = {}) {
+export function errorState({ title = "Couldn't load this", body = 'Reconnect and it loads right here. Nothing was lost.', retryId = null } = {}) {
   const a = retryId ? `<div class="sd-cta"><button class="btn ghost sm" id="${esc(retryId)}" style="width:auto;padding:0 18px">${icon('wifiOff', 15)} Try again</button></div>` : '';
   return `<section class="state-demo err-box" role="alert"><div class="sd-ic">${icon('wifiOff', 24)}</div>
     <div class="sd-t">${esc(title)}</div><div class="sd-s">${esc(body)}</div>${a}</section>`;
@@ -279,7 +279,7 @@ export function scoreRing({ score, size = 338, stroke = 20, showCenter = true, u
         </radialGradient>
       </defs>
       <!-- track: the mark's own glass track value (--ring-track, per theme); dotted "ready" style
-           below score 6 so an empty day reads as unstarted, not broken (no pathLength here — the
+           below score 6 so an empty day reads as unstarted, not broken (no pathLength here: the
            dot pattern needs user units) -->
       <path d="${dial(r)}" fill="none" stroke="var(--ring-track)" stroke-width="${stroke}" stroke-linecap="round"${score < 6 ? ' stroke-dasharray="1.4 5"' : ''}/>
       ${/* Track top highlight — dial-lit's centered gloss line (0.06 white at 7/12 of the band
@@ -287,7 +287,7 @@ export function scoreRing({ score, size = 338, stroke = 20, showCenter = true, u
       ${!light && score >= 6 ? `<path d="${dial(r)}" fill="none" stroke="rgba(255,255,255,0.06)"
         stroke-width="${(stroke * 0.58).toFixed(1)}" stroke-linecap="round"/>` : ''}
       <!-- ceiling: sits between the track and the main band so the band's round cap paints over
-           the seam. butt cap, not round — a round cap would bulge past the marker and read as
+           the seam. butt cap, not round: a round cap would bulge past the marker and read as
            a second competing band. animateRing() drives it like any other .ring-arc. -->
       ${ceil ? `<path class="ring-arc ring-ceil" d="${dial(r)}" fill="none" stroke="url(#g${uid})"
         stroke-width="${stroke}" stroke-linecap="butt"

@@ -153,7 +153,7 @@ test('walking three miles and running three miles are different requirements', (
   assert.equal(metricLabel('distance', false), 'Walking + running');
   assert.equal(metricLabel('distance', true), 'Workout distance');
   assert.match(sourceRule('distance', true), /recorded workout/);
-  assert.match(sourceRule('distance', true), /daily walking does not apply/);
+  assert.match(sourceRule('distance', true), /Daily walking does not apply/);
   assert.match(sourceRule('distance', false), /all walking and running/);
 });
 

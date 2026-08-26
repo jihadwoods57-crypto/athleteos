@@ -101,7 +101,7 @@ export function athleteStatus({ nowMin, nowMs = /** @type {number | null} */ (nu
   // needs_review is deliberately emitted from two precedence positions: the explicit
   // `needsReview` flag above (a flagged/reviewed log) and here (a log landed but the score
   // hasn't resolved yet) — both are honestly "needs a human", just different reasons why.
-  if (row.loggedToday && row.score == null) return mk('needs_review', 'Logged today — score pending');
+  if (row.loggedToday && row.score == null) return mk('needs_review', 'Logged today · score pending');
   if (row.loggedToday) return mk('on_standard', 'On standard today');
   return mk('no_activity', 'Nothing logged yet today');
 }

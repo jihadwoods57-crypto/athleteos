@@ -95,37 +95,37 @@ function hashStr(s) {
 const COPY = {
   meal: {
     open: [
-      (c) => ({ title: `${c.t} window is open`, body: `Anytime before ${c.due} works — earlier beats later.` }),
+      (c) => ({ title: `${c.t} window is open`, body: `Anytime before ${c.due} works. Earlier beats later.` }),
       (c) => ({ title: `${c.t} is open`, body: `Log it whenever it happens. Due by ${c.due}.` }),
     ],
     soon: [
-      (c) => ({ title: `${c.t} closes at ${c.due}`, body: `${cap(c.left)} left — one photo and it's in.` }),
+      (c) => ({ title: `${c.t} closes at ${c.due}`, body: `${cap(c.left)} left. One photo and it's in.` }),
       (c) => ({ title: `${c.t} by ${c.due}`, body: `Plate up. A quick photo keeps today on track.` }),
-      (c) => ({ title: `${c.t} closes at ${c.due}`, body: `Still open — log it and it counts toward today's score.` }),
+      (c) => ({ title: `${c.t} closes at ${c.due}`, body: `Still open. Log it and it counts toward today's score.` }),
     ],
     due: [
       (c) => ({ title: `Last call: ${c.low}`, body: `The window closes at ${c.due}. Log it now and it counts on time.` }),
-      (c) => ({ title: `${c.t} — last call`, body: `One photo before ${c.due} and the day stays whole.` }),
+      (c) => ({ title: `${c.t}: last call`, body: `One photo before ${c.due} and the day stays whole.` }),
     ],
   },
   weigh: {
     // One sharp reminder (the collapse rule usually leaves a single last-call). Trend-only.
     soon: [
-      (c) => ({ title: 'Morning weigh-in', body: `Ten seconds, same conditions as always — before ${c.due}.` }),
+      (c) => ({ title: 'Morning weigh-in', body: `Ten seconds, same conditions as always, before ${c.due}.` }),
       (c) => ({ title: 'Weigh-in this morning', body: `Step on before ${c.due}. We read the trend, never one morning.` }),
     ],
     due: [
-      (c) => ({ title: 'Morning weigh-in', body: `Ten seconds, same conditions as always — before ${c.due}.` }),
+      (c) => ({ title: 'Morning weigh-in', body: `Ten seconds, same conditions as always, before ${c.due}.` }),
       (c) => ({ title: 'Weigh-in before you head out', body: `Same time, same conditions. The trend does the talking.` }),
     ],
   },
   recovery: {
     soon: [
-      (c) => ({ title: 'Tonight’s check-in', body: `20 seconds before you sleep${c.coach ? ` — ${c.coach} reads it before practice` : ''}.` }),
+      (c) => ({ title: 'Tonight’s check-in', body: `20 seconds before you sleep${c.coach ? ` (${c.coach} reads it before practice)` : ''}.` }),
       (c) => ({ title: 'Close out the day', body: `Your check-in is still open. Done by ${c.due} keeps the day complete.` }),
     ],
     due: [
-      (c) => ({ title: 'Check-in closes tonight', body: `Last thing before bed — 20 seconds and the day counts in full.` }),
+      (c) => ({ title: 'Check-in closes tonight', body: `Last thing before bed. 20 seconds and the day counts in full.` }),
       (c) => ({ title: 'Before you sleep', body: `Tonight’s check-in is the last open item. 20 seconds closes the day.` }),
     ],
   },
@@ -134,12 +134,12 @@ const COPY = {
       (c) => ({ title: `${c.t} is open`, body: `On your list today. Due by ${c.due}.` }),
     ],
     soon: [
-      (c) => ({ title: `${c.t} — due by ${c.due}`, body: `Still open on your list. Knock it out and mark it done.` }),
+      (c) => ({ title: `${c.t}: due by ${c.due}`, body: `Still open on your list. Knock it out and mark it done.` }),
       (c) => ({ title: `${c.t} closes at ${c.due}`, body: `${cap(c.left)} left. Handle it and check it off.` }),
     ],
     due: [
       (c) => ({ title: `Last call: ${c.low}`, body: `Due by ${c.due}. Mark it done when it lands.` }),
-      (c) => ({ title: `${c.t} — last call`, body: `The deadline is ${c.due}. Close it out.` }),
+      (c) => ({ title: `${c.t}: last call`, body: `The deadline is ${c.due}. Close it out.` }),
     ],
   },
 };
@@ -149,7 +149,7 @@ function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 /* Streak-defense bodies, rotated by day like every other template here. Loss-aversion copy, so
    it states what is still open rather than what has been achieved — and never a score formula. */
 const STREAK_BODY = [
-  (n) => `${n} days in a row. Today is not closed yet — finish what is left and keep it alive.`,
+  (n) => `${n} days in a row. Today is not closed yet. Finish what is left and keep it alive.`,
   (n) => `You have kept this going ${n} days. There is still time to make it ${n + 1}.`,
   (n) => `Day ${n} of your streak is on the line. What is left is still doable tonight.`,
 ];
@@ -214,7 +214,7 @@ export function planNotifications({
     if (pressure === 'gentle') return [];
     return [{
       id: 'celebrate', fireAtMin: nowMin, dayOffset, immediate: true, stage: 'celebrate', route: 'home',
-      title: "You're OnStandard.", body: `Day locked at ${score} — day ${streak + 1} of your streak.`,
+      title: "You're OnStandard.", body: `Day locked at ${score}, day ${streak + 1} of your streak.`,
     }];
   }
 

@@ -43,7 +43,7 @@ function weightCard() {
     ${W.current != null ? `
     <div style="display:flex;justify-content:space-between;align-items:baseline">
       <!-- weight direction is goal-dependent (a gain can be good or bad depending on the athlete's
-           target) — the honest signal is the S.weight.pace pill, never color this by sign -->
+           target): the honest signal is the S.weight.pace pill, never color this by sign -->
       <div class="bigstat"><span class="n" style="font-size:var(--t-3xl)">${W.current}</span>${W.deltaMonth ? `<span class="d">${W.deltaMonth}</span>` : ''}</div>
       ${W.pace ? `<span class="status-pill ${W.pace === 'On pace' ? 'g' : 'a'}">${W.pace}</span>` : ''}
     </div>
