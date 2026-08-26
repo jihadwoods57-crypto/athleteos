@@ -27,6 +27,10 @@ user-facing commits: `ca92278`, `22b1cda`, `9a5b1bb`. `EXPO_TOKEN` exists but Ex
 rejects it (permanent 401, format ruled out) — founder must mint a fresh token. Once it
 works: gates are green, committed zip is current and byte-reproducible; just publish
 (`eas update --branch production --environment production`) and prove hashes.
+**Status 2026-08-26 (8 AM):** token still rejected ("the bearer token is invalid",
+re-proved against the GraphQL API). The overnight sentry's "OS? incident" email asking
+for fresh keys is in the founder's inbox; no reply yet. Users remain on Aug 20 code,
+now seven user-facing commits behind (`adff540` added today).
 
 ### 2 · security (live DB) · `base_age` is athlete-editable → bypasses minor gates  **[verify first]**  (impact 5, effort m)
 A minor who edits their own age flips both the minor-messaging gate and guardian-consent
@@ -57,17 +61,17 @@ predates that commit. Current count 413 across 72 files (baseline refreshed 2026
 (don't search-and-replace into comma splices). Fix eyebrow-h2 heading semantics while
 in there.
 
-### 8 · robustness · loadBook's arrival-repaint hash whitelist is a footgun  (impact 3, effort s)
-`coach-data.js` repaints on roster arrival only for a hard-coded list of hashes. Three
-screens had fallen through it (coach-standards, coach-standards-manage, coach-rooms):
-on direct entry (relaunch restoring the hash) nothing loaded the book and nothing
-repainted — infinite spinner, or worse, manage swearing "No activity standards yet"
-over a coach's real standards. The 1 PM audit 2026-08-23 fixed all three screen-side
-(ensureBook kick + honest bookless states; proven by qc-capture, which reproduced the
-hang before and a full board after). The whitelist itself remains: every new operator
-screen must remember to join it or kick the load in mount. Systemic fix: replace the
-hash list with an arrival subscription (subscribers register a repaint callback), then
-delete the list. Audit any other mount that reads bookId()/CD.roster without kicking.
+### ~~8 · robustness · loadBook's arrival-repaint hash whitelist is a footgun~~  DONE 2026-08-26 (`adff540`)
+Whitelist deleted. coach-data now dispatches `onstd:book-arrival`; the router repaints
+whichever screen is current iff it declares an operator nav — the same declaration that
+gives it operator chrome, so every future operator screen is covered automatically. The
+kick audit found and fixed four more victims of the old hole: the roll call board and
+manage list (permanent skeleton / "Nothing scheduled yet" over real commitments on
+direct entry — both now use coach-connected's exported ensureBook/bookless/wireBookRetry
+trio), pass-grant ("this athlete" instead of the real name), and coach-meal's Mark
+resolved (silently could never work cold). New gate `book-arrival.test.mjs` ratchets the
+class: a screen file that reads the book must be able to load it. Gates 12/12 green,
+proven by qc-capture (THIN before, clean after) and a stubbed failed-load repro.
 
 ### 7 · design · blue-bright ink cluster from the 2026-08-19 deep audit  (impact 2, effort s)
 A cluster of screens uses bright blue as text ink where it should be reserved for the
