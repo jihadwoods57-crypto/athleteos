@@ -14,6 +14,11 @@ see old #6 below). None of it has reached a phone — see #1.
 ## Ranked
 
 ### 1 · ship · prove the OTA actually carries this week's work  (impact 5, effort s)
+**DONE 2026-08-26 ~9 PM** — the roll-call deploy session published with a working token and
+proved it (md5+sha256 vs the live manifest, both platforms; see `9777b54` /
+`docs/go-live/ROLLCALL-LOCKSCREEN.md`). NOTE for later sessions: the `EXPO_TOKEN` in the
+cloud sandbox env is STILL the dead one (re-proved 2026-08-27 8 AM, same "bearer token is
+invalid") — whatever token that session used, it is not the one in this environment.
 Users are running Aug 20 code (`00e994e`), now EIGHT user-facing commits behind
 (`919cf8b` added tonight). Everything is ready: gates green, committed zip current and
 byte-reproducible. Blocked only on credentials: `EXPO_TOKEN` is dead — re-proved
@@ -26,12 +31,17 @@ If the token is still dead, say exactly that in one line and move on — do not 
 the email.
 
 ### 2 · security (live DB) · `base_age` is athlete-editable → bypasses minor gates  **[verify first]**  (impact 5, effort m)
-A minor who edits their own age flips both the minor-messaging gate and guardian-consent
-gate. COPPA-adjacent. Fix: make age server-authoritative (service-role-only write path).
-Found 2026-07-09 against `0001_schema.sql` / `0002_rls.sql` — confirm the write path is
-still open on live before migrating. Dump schema first per charter. Blocked on the
-missing Supabase credential (same email); if still missing, author the migration into
-`supabase/migrations/` ready to run and say so.
+**BUILT 2026-08-27 8 AM — awaiting live apply.** The [verify first] was done for real: a
+local Postgres 16 with all 209 migrations applied reproduced the hole (two self-UPDATEs
+flip a 15-year-old to adult on both gates). Migration `0210_age_server_authoritative.sql`
+closes it (column-wall on base_age/dob + a `set_my_dob` door whose ratchet refuses
+minor→adult flips) and the client OTA half shipped in the same commit (safe in either
+deploy order). Proven: new rls_authz "0210" section, 565/565 checks, all 7 SQL suites
+green. Sequence for the first credentialed session, in THIS order: (1) publish the OTA —
+the committed zip's client calls the door and falls back cleanly on a pre-0210 server, so
+it is safe to ship first; (2) `supabase db push` 0210 (schema dump first per charter);
+(3) re-run the suite. Applying 0210 BEFORE that OTA would break dob edits and onboarding's
+dob+standard phase-2 sync on every phone still running last night's update.
 
 ### 3 · security (live DB) · client-set `days.score` can fake ≥80 without a photo  **[verify first]**  (impact 3, effort m)
 Tampered client persists a high score with no photo evidence; trust-pass grants gate on
