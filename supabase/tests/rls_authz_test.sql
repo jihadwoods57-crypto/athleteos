@@ -2982,6 +2982,199 @@ select _ok((select count(*) from coach_agreements
              where stripe_checkout_session_id = 'cs_mkt_rls') = 0,
   'mkt: a coach cannot read their client''s agreement row');
 
+-- ================================================================ roll-call COACH actions (0209)
+-- The coach's lock-screen "Got it" / "Nudge them". These three functions are called by the
+-- roll-call-coach edge function with the SERVICE ROLE, which means auth.uid() is null inside them
+-- and the actor arrives as a plain uuid parameter. That is a genuinely different threat model from
+-- everything above: there is no RLS to fall back on, so authorization has to be proven here.
+--
+-- Reuses the cast from the 0138 section: commitment ccccdddd-...-c1 on team T1, coach_1 as active
+-- staff, coach_2 as a stranger, VC athlete ONE already acknowledged and VC athlete TWO still out.
+select _superuser();
+select set_config('request.jwt.claim.sub', '', false);
+
+-- ---- the grants themselves ----
+-- A missing revoke here would be the whole ballgame: rollcall_nudge_claim takes the coach id as an
+-- ARGUMENT, so an authenticated athlete who could execute it would simply pass their coach's uuid
+-- and push the entire roster. Prove `authenticated` cannot reach any of the three.
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+select _ok(_try($f$ select rollcall_coach_authorized(
+    (select id from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' limit 1),
+    '11111111-0000-0000-0000-000000000001') $f$) <> 'ok',
+  'rc-coach: an athlete cannot execute rollcall_coach_authorized');
+select _ok(_try($f$ select coach_digest_seen(
+    (select id from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' limit 1),
+    'eeee0000-0000-0000-0000-0000000000e2') $f$) <> 'ok',
+  'rc-coach: an athlete cannot execute coach_digest_seen');
+select _ok(_try($f$ select rollcall_nudge_claim(
+    (select id from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' limit 1),
+    '11111111-0000-0000-0000-000000000001') $f$) <> 'ok',
+  'rc-coach: an athlete cannot execute rollcall_nudge_claim (the impersonation path)');
+
+-- ---- who counts as this instance's coach ----
+select _superuser();
+select _ok(rollcall_coach_authorized(
+    (select id from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date),
+    '11111111-0000-0000-0000-000000000001'),
+  'rc-coach: active staff on the owning team IS authorized');
+select _ok(not rollcall_coach_authorized(
+    (select id from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date),
+    '22222222-0000-0000-0000-000000000002'),
+  'rc-coach: a coach from another team is NOT authorized');
+select _ok(not rollcall_coach_authorized(
+    (select id from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date),
+    'eeee0000-0000-0000-0000-0000000000e2'),
+  'rc-coach: an athlete in the roll call is NOT its coach');
+select _ok(not rollcall_coach_authorized(
+    '00000000-0000-0000-0000-0000000000ff',
+    '11111111-0000-0000-0000-000000000001'),
+  'rc-coach: an unknown instance authorizes nobody');
+
+-- ---- "Got it" clears only the pressing coach's own rows, for only that instance ----
+-- A second instance (yesterday) for the same coach, plus a copy of today's digest addressed to a
+-- different coach. Exactly one of the three rows may be cleared.
+insert into commitment_instances (id, commitment_id, occurs_on, starts_at, respond_by_at)
+values ('dddd1111-0000-0000-0000-0000000000d9','ccccdddd-0000-0000-0000-0000000000c1',
+        current_date - 1, now() - interval '1 day', now() - interval '1 day')
+on conflict (commitment_id, occurs_on) do nothing;
+
+insert into notifications (user_id, kind, title, body) values
+  ('11111111-0000-0000-0000-000000000001',
+   'commitment_escalation:' || (select id from commitment_instances
+      where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date)::text,
+   'Morning Roll Call', 'One is not up.'),
+  ('11111111-0000-0000-0000-000000000001',
+   'commitment_escalation:dddd1111-0000-0000-0000-0000000000d9', 'Yesterday', 'stale'),
+  ('22222222-0000-0000-0000-000000000002',
+   'commitment_escalation:' || (select id from commitment_instances
+      where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date)::text,
+   'Morning Roll Call', 'not yours');
+
+select _ok(coach_digest_seen(
+    (select id from commitment_instances
+      where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date),
+    '11111111-0000-0000-0000-000000000001') = 1,
+  'rc-coach: "Got it" clears exactly the one matching row');
+select _ok((select read_at is null from notifications
+             where user_id = '11111111-0000-0000-0000-000000000001'
+               and kind = 'commitment_escalation:dddd1111-0000-0000-0000-0000000000d9'),
+  'rc-coach: "Got it" does not clear the SAME coach''s other roll call');
+select _ok((select read_at is null from notifications
+             where user_id = '22222222-0000-0000-0000-000000000002'
+               and title = 'Morning Roll Call'),
+  'rc-coach: "Got it" does not clear ANOTHER coach''s copy of the same digest');
+select _ok(coach_digest_seen(
+    (select id from commitment_instances
+      where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date),
+    '11111111-0000-0000-0000-000000000001') = 0,
+  'rc-coach: pressing "Got it" twice is idempotent, not an error');
+
+-- ---- "Nudge them" ----
+-- Athlete ONE acknowledged earlier in this suite; athlete TWO never did. Mark TWO 'missed', the way
+-- the escalation ladder does at the deadline — the state the coach is actually looking at when the
+-- digest arrives, and the one a pending-only filter would silently miss.
+update commitment_responses set status = 'missed'
+ where athlete_id = 'eeee0000-0000-0000-0000-0000000000e2'
+   and instance_id = (select id from commitment_instances
+      where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date);
+
+select _ok((rollcall_nudge_claim(
+    (select id from commitment_instances
+      where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date),
+    '22222222-0000-0000-0000-000000000002') ->> 'reason') = 'not_authorized',
+  'rc-coach: a stranger coach cannot nudge another team''s roll call');
+
+select _ok((rollcall_nudge_claim(
+    (select id from commitment_instances
+      where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date),
+    'eeee0000-0000-0000-0000-0000000000e2') ->> 'reason') = 'not_authorized',
+  'rc-coach: an athlete passing their own id cannot nudge their team');
+
+-- the real thing: everyone still out, and NOBODY who answered.
+-- The expectations are DERIVED from the table rather than hardcoded: this suite seeds T1 from
+-- several sections and the roster it leaves behind is not this section's to assume. A literal
+-- count here would be testing the fixture, and would go red the day an unrelated section adds a
+-- teammate — the classic way a security suite starts getting ignored.
+create temp table _expected as
+  select count(*) n from commitment_responses r
+   where r.instance_id = (select id from commitment_instances
+          where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date)
+     and r.acknowledged_at is null;
+create temp table _before as
+  select count(*) n from notifications
+   where user_id = 'eeee0000-0000-0000-0000-0000000000e2' and kind = 'commitment_reminder';
+
+create temp table _nudge as select rollcall_nudge_claim(
+    (select id from commitment_instances
+      where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date),
+    '11111111-0000-0000-0000-000000000001') as j;
+select _ok((select (j ->> 'ok')::boolean from _nudge),
+  'rc-coach: the owning coach can nudge');
+select _ok((select jsonb_array_length(j -> 'athlete_ids') from _nudge) = (select n from _expected),
+  'rc-coach: a nudge targets EVERY athlete still not up, and no more');
+select _ok((select n from _expected) > 0,
+  'rc-coach: (sanity) the fixture really does leave somebody un-acknowledged to nudge');
+select _ok((select (j -> 'athlete_ids') ? 'eeee0000-0000-0000-0000-0000000000e2' from _nudge),
+  'rc-coach: the missing athlete IS targeted even though their status is already missed');
+select _ok((select not ((j -> 'athlete_ids') ? 'eeee0000-0000-0000-0000-0000000000e1') from _nudge),
+  'rc-coach: the athlete who already answered is NOT pinged again');
+select _ok((select count(*) from notifications
+             where user_id = 'eeee0000-0000-0000-0000-0000000000e2'
+               and kind = 'commitment_reminder') = (select n + 1 from _before),
+  'rc-coach: the nudge writes the durable bell row, not just a push');
+
+-- the cooldown: a second press inside the window sends nothing
+select _ok((rollcall_nudge_claim(
+    (select id from commitment_instances
+      where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date),
+    '11111111-0000-0000-0000-000000000001') ->> 'reason') = 'rate_limited',
+  'rc-coach: a second nudge inside the cooldown is refused');
+select _ok((select count(*) from notifications
+             where user_id = 'eeee0000-0000-0000-0000-0000000000e2'
+               and kind = 'commitment_reminder') = (select n + 1 from _before),
+  'rc-coach: the refused nudge wrote NO second bell row');
+
+-- ...and the cooldown is per INSTANCE, not per coach: a second staff member on the same team is
+-- held by it too, because the limit exists to protect the athlete's phone, not to throttle a person.
+insert into auth.users (id, email) values ('11111111-0000-0000-0000-0000000000a2','asst@x.io')
+on conflict (id) do nothing;
+insert into profiles (id, full_name, email, primary_role)
+values ('11111111-0000-0000-0000-0000000000a2','Assistant','asst@x.io','coach')
+on conflict (id) do nothing;
+insert into team_staff (team_id, staff_id, status)
+values ('77777777-1111-0000-0000-000000000001','11111111-0000-0000-0000-0000000000a2','active')
+on conflict (team_id, staff_id) do update set status = 'active';
+select _ok(rollcall_coach_authorized(
+    (select id from commitment_instances
+      where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date),
+    '11111111-0000-0000-0000-0000000000a2'),
+  'rc-coach: a second active staff member is authorized on the same instance');
+select _ok((rollcall_nudge_claim(
+    (select id from commitment_instances
+      where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date),
+    '11111111-0000-0000-0000-0000000000a2') ->> 'reason') = 'rate_limited',
+  'rc-coach: an ASSISTANT coach cannot re-send inside the same cooldown window');
+
+-- expiring the cooldown re-opens it (the limit is a wait, never a one-shot)
+update commitment_instances set last_nudge_at = now() - interval '30 minutes'
+ where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date;
+select _ok((rollcall_nudge_claim(
+    (select id from commitment_instances
+      where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date),
+    '11111111-0000-0000-0000-000000000001') ->> 'ok')::boolean,
+  'rc-coach: once the cooldown lapses the coach can nudge again');
+
+-- a cancelled roll call is a dead notification, and says so distinctly from "too soon"
+update commitment_instances set status = 'cancelled', last_nudge_at = null
+ where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date;
+select _ok((rollcall_nudge_claim(
+    (select id from commitment_instances
+      where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date),
+    '11111111-0000-0000-0000-000000000001') ->> 'reason') = 'no_instance',
+  'rc-coach: nudging a cancelled roll call reports no_instance, not rate_limited');
+update commitment_instances set status = 'scheduled'
+ where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date;
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$

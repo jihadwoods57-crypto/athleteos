@@ -12,7 +12,8 @@ import { BRIDGE_SHIM, handleBridgeMessage, type BridgeMessage } from './bridge';
 import { authenticateBiometric } from '../lib/auth/biometrics';
 import { parseInviteCode } from '../lib/inviteLink';
 import { registerGeofenceTask } from '../lib/location';
-import { postRollCallAck, queueAck, drainAckQueue, ensureRollCallCategories, rememberRollCallLabel } from '../lib/notify/rollcall';
+import { postRollCallAck, queueAck, drainAckQueue, ensureRollCallCategories, rememberRollCallLabel, registerCoachDigestCategory, runCoachAction, drainCoachQueue } from '../lib/notify/rollcall';
+import { coachActionFor } from '../core/rollcall';
 
 // The app canvas, exactly: --bg in the proto's tokens.css, and the splash backgroundColor in
 // app.json. All three have to be the SAME value or launch shows a hue step — this was #080B0A, a
@@ -166,7 +167,7 @@ export function ProtoApp() {
     // opening the app and MUST return before deliverRoute, so an ack never doubles as a deep link.
     const handleResponse = (resp: unknown): void => {
       const r = resp as
-        | { actionIdentifier?: string; notification?: { request?: { content?: { data?: { route?: unknown; code?: unknown; action_label?: unknown } } } } }
+        | { actionIdentifier?: string; notification?: { request?: { content?: { data?: { route?: unknown; code?: unknown; action_label?: unknown; coach_code?: unknown } } } } }
         | null
         | undefined;
       const data = r?.notification?.request?.content?.data;
@@ -180,6 +181,15 @@ export function ProtoApp() {
         // Best-effort: record now, queue for a foreground/reconnect retry if the network isn't there.
         postRollCallAck(code).then((ok) => { if (!ok) return queueAck(code); }).catch(() => {});
         return; // do not also route into the WebView
+      }
+      // The COACH half of the same idea: "Got it" / "Nudge them" on an escalation digest, answered
+      // without unlocking the phone. Same shape as ACK above and the same rule — an action must
+      // return before deliverRoute, or acting on the notification would ALSO open the app, which is
+      // the exact cost the button exists to avoid.
+      const coachAction = coachActionFor(r?.actionIdentifier);
+      if (coachAction && typeof data?.coach_code === 'string' && data.coach_code) {
+        void runCoachAction(data.coach_code, coachAction);
+        return;
       }
       deliverRoute(data?.route);
     };
@@ -199,6 +209,10 @@ export function ProtoApp() {
     if (Platform.OS !== 'web') {
       void drainAckQueue();
       void ensureRollCallCategories();
+      // The coach's digest category is static, so unlike the athlete's it needs no remembered
+      // labels — but it has the same prior-launch requirement, so it registers on every startup.
+      void registerCoachDigestCategory();
+      void drainCoachQueue();
     }
   }, []);
 

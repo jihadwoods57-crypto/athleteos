@@ -280,10 +280,22 @@ export const coachCommitments = {
     const remind = root.querySelector('#vc-remind');
     if (remind) remind.addEventListener('click', async () => {
       remind.disabled = true; remind.textContent = 'Sending…';
-      const n = await remindMissing(sub);
-      if (n) track(EVENTS.VC_REMINDED, { n });
-      remind.textContent = n ? `Reminded ${n}` : 'Couldn’t send. Try again';
-      if (!n) remind.disabled = false;
+      const { sent, reason } = await remindMissing(sub);
+      if (sent) track(EVENTS.VC_REMINDED, { n: sent });
+      /* Four different outcomes, four different sentences. This button used to print
+         "Couldn't send. Try again" over every non-success, including the two where trying again is
+         the wrong move: somebody already nudged this roll call (the server holds one nudge per ten
+         minutes so a roster is never double-buzzed), and everyone answered while the board was on
+         screen. Telling a coach to retry either one produces a second press that also does nothing,
+         which reads as a broken button rather than a working limit. */
+      remind.textContent = sent ? `Reminded ${sent}`
+        : reason === 'rate_limited' ? 'Just reminded. Give it a few minutes'
+        : reason === 'not_authorized' ? 'You can’t send reminders here'
+        : reason === 'ok' ? 'Everyone is in'
+        : 'Couldn’t send. Try again';
+      // Re-enable ONLY where pressing again could do something. A limit and a refusal are not
+      // retries, and a live button under them is an invitation to keep pressing.
+      if (!sent && reason === 'failed') remind.disabled = false;
     });
 
     const repaint = async () => {

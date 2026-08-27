@@ -17,6 +17,7 @@
 // Then: select schedule_commitment_reminders('<fn url>', '<the same key>');
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { signRollCallCode } from '../_shared/rollcall-code.ts';
+import { rollCallCategoryId } from '../_shared/rollcall-category.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -46,11 +47,6 @@ type Due = {
   action_label: string | null;
   respond_by_at: string | null; // ISO
 };
-
-// Slug an action label into a stable category id. MUST match rollCallCategoryId in
-// src/core/rollcall.ts (Task 5) — Deno can't import RN's src/, so the two are kept in sync by hand.
-const categoryIdFor = (label: string | null): string =>
-  'RC::' + (label ?? 'Im Up').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24);
 
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
@@ -122,7 +118,7 @@ Deno.serve(async (req: Request) => {
       data: { route: `roll-call/${d.instance_id}`, code, action_label: d.action_label },
       // Expo maps categoryId -> iOS notification category / Android action set. Only offer the
       // quick-action affordance when we actually minted a verifiable code.
-      categoryId: code ? categoryIdFor(d.action_label) : undefined,
+      categoryId: code ? rollCallCategoryId(d.action_label) : undefined,
       // A coach-scheduled commitment is a scheduled event, not a nudge: it is allowed to break
       // through at 4:45 AM. The phone's own Do Not Disturb still wins.
       priority: 'high',

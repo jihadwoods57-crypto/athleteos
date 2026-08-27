@@ -132,3 +132,104 @@ turns a rung on for that commitment.
 Doc only, no code in this task. See the migrations and edge functions above for the tests already
 covering the claim/ack/digest logic (`logic.test.ts` in each edge function directory, `test:rls`
 for the SQL functions).
+
+## The COACH half — "Got it" / "Nudge them" (2026-08-26, migration 0209)
+
+Until this shipped, a roll call cost the athlete one tap and the coach a phone unlock plus three
+screens. The L3 digest could be *read* from the lock screen but not *acted on*, which put the most
+work on the busiest person in the loop. Two actions now ride on the digest notification itself, and
+neither opens the app:
+
+- **"Got it"** → `coach_digest_seen`. Marks that coach's escalation rows for that instance read, so
+  the app is not still badging a roll call they have already handled. Idempotent — pressing twice
+  clears nothing the second time and is not an error.
+- **"Nudge them"** → `rollcall_nudge_claim` + a push to each athlete still out. **The nudge is
+  itself one-tap-answerable**: each push carries a freshly minted *athlete* code and the same
+  notification category the original reminder used, so the athlete answers it from their own lock
+  screen. A nudge that only said "open the app" would push the cost back onto the person asleep.
+
+### Who may act, and how it is proved
+
+`commitment-escalation` mints one **coach code** per recipient at digest time (`signCoachCode`,
+`_shared/rollcall-code.ts`) and puts it on the push as `data.coach_code`. The device posts it to the
+public `roll-call-coach` function, which verifies it and spends it.
+
+Coach codes and athlete codes share `ROLLCALL_ACK_SECRET` but are **different kinds**, and every
+verify names the kind it expects. This matters more than it looks: an athlete legitimately holds a
+valid code for the very instance their coach is running, so without the kind claim that athlete's
+own "I'm Up" code would be a working credential for "Nudge them" — the power to buzz every
+teammate's phone, handed to exactly the population the feature points at. A code with the wrong kind
+is `bad_kind` (401), never a silent pass.
+
+The code proves **who**, never **what they may do**. `rollcall_nudge_claim` re-derives staff
+membership from its `p_coach` argument at spend time, so a coach removed from the team between the
+5:02 digest and the 5:04 tap is refused.
+
+### The nudge rate limit
+
+One nudge per **instance** per 10 minutes, claimed atomically (`commitment_instances.last_nudge_at`).
+Per instance and not per coach on purpose: two assistant coaches nudging the same roll call is the
+same spam to the athlete, and the athlete is who the limit protects. It matters because the lock
+screen gives the coach **no feedback at all** — an `opensAppToForeground:false` action just dismisses
+the notification — so a coach who presses and sees nothing happen will press again.
+
+### Deploy order (this one bites)
+
+`commitment-escalation` starts stamping `categoryId` + `coach_code` on the digest the moment it is
+deployed. If `roll-call-coach` is not up yet, the buttons are drawn and do nothing when pressed —
+the device gets a 404, treats it as terminal, and drops it. So:
+
+1. `supabase db push` (or apply `0209_rollcall_coach_actions.sql`) — the RPCs must exist first.
+2. `supabase functions deploy roll-call-coach --use-api --no-verify-jwt`
+3. `supabase functions deploy commitment-escalation --use-api --no-verify-jwt` — **last**.
+
+`ROLLCALL_ACK_SECRET` is already set (the athlete ack uses it); no new secret is required. If it is
+somehow absent, the digest still sends — just without buttons, never without the digest.
+
+Ship the OTA (`assets/proto.zip`) too: the in-app "Remind N missing" button on the coach board now
+routes through `roll-call-coach`, and the escalation bell row's deep link changed (below).
+
+### Two bugs fixed on the way in
+
+- **The coach's digest deep-linked into a screen coaches cannot open.** Both the push and the bell
+  row pointed at `roll-call/<instance>`, which is the *athlete* detail screen. `router.js`'s mirror
+  guard bounces a known coach off any athlete-nav screen back to their dashboard, dropping the
+  instance id — so the one deep link this whole escalation existed to deliver landed a coach
+  nowhere. Both now point at `coach-commitments/<instance>`.
+- **"Remind N missing" never reached a sleeping athlete, and after the deadline reached nobody at
+  all.** `remind_missing` (0138) only ever INSERTed bell rows — it cannot push, and a bell read at
+  noon is not a reminder for a 5 AM roll call. It also filtered `status = 'pending'`, but the
+  escalation ladder marks everyone `missed` at the deadline, which is the same moment the coach
+  looks at the board — so from the deadline onward it matched zero rows, returned 0, and the UI
+  said "Couldn't send. Try again". The button now goes through `roll-call-coach` (which writes the
+  rows AND pushes), keeps the RPC as a deploy-order fallback, and the RPC's filter is repaired in
+  0209. The button also stops reporting a rate limit or a refusal as a failure.
+
+### Device QA checklist (cannot be exercised on Windows/jest)
+
+- [ ] Coach, phone locked: the digest arrives with **Got it** and **Nudge them** visible.
+- [ ] Press **Got it** — app is NOT opened; the escalation shows read in the bell next time the
+      coach opens the app.
+- [ ] Press **Nudge them** — app is NOT opened; only the athletes still out receive a push, and
+      anyone who already answered receives nothing.
+- [ ] The nudge push, on the athlete's lock screen, **itself carries the "I'm Up" button** and
+      acking from it records the response.
+- [ ] Press **Nudge them** twice inside 10 minutes — the second press sends nothing (verify from
+      the athlete's device, since the coach's phone shows nothing either way).
+- [ ] Press **Nudge them** with the coach offline — it lands after reconnect, or is dropped if the
+      code has expired. Never a duplicate push.
+- [ ] TAP the digest body (not a button) — lands on the coach's own board for that roll call, not
+      on the athlete screen and not bounced to the dashboard.
+- [ ] In-app: "Remind N missing" on the coach board sends a real push, and says "Just reminded.
+      Give it a few minutes" rather than "Couldn't send" when the cooldown is live.
+
+### Verification at time of writing
+
+12/12 `npm run verify` gates green. `deno check` clean on all four touched edge functions. Jest
+covers the code-kind domain separation (including a forged-kind attempt and the legacy no-`k`
+compatibility path), the server/device notification-category mirror, the coach action queue, and
+the endpoint's status mapping. `supabase/tests/rls_authz_test.sql` gained a `rc-coach:` section
+probing the grants, the staff check, per-instance "seen" isolation, nudge targeting, and the
+cooldown — **that SQL has NOT been executed**: this machine has neither Docker nor psql, so 0209
+and its probes are authored-not-applied and must be run with `npm run verify:full` against a local
+stack before deploy.

@@ -507,6 +507,14 @@ verify_jwt = false
 [functions.roll-call-ack]
 verify_jwt = false
 
+# roll-call-coach — the coach's "Got it" / "Nudge them" on a digest. Same reason as roll-call-ack:
+# the whole point is acting from the lock screen, so there is no session on that path. It accepts
+# EITHER an HMAC-signed coach code (lock screen) or a bearer token it validates itself via
+# auth.getUser() (the in-app board), and refuses anything else — so verify_jwt = true would break
+# only the half that cannot present a JWT, while buying nothing for the half that can.
+[functions.roll-call-coach]
+verify_jwt = false
+
 [functions.commitment-reminders]
 verify_jwt = false
 

@@ -52,7 +52,11 @@ const KIND_ROUTE = {
   meal_action: (s) => (SUFFIX_OK(s) ? `coach-meal/${s}` : null),
   ai_followup: (s) => (SUFFIX_OK(s) ? `meal-view/${s}` : null),         // athlete: answer the AI
   meal_flag: (s) => (SUFFIX_OK(s) ? `coach-meal/${s}` : null),          // coach: review the flagged meal
-  commitment_escalation: (s) => (SUFFIX_OK(s) ? `roll-call/${s}` : null), // coach: who's still out
+  // The COACH board, not `roll-call/` — that route is the ATHLETE detail screen, and router.js's
+  // mirror guard bounces a known coach off any athlete-nav screen back to their dashboard, losing
+  // the instance id on the way. This row is only ever written for coaches (0145), so it has always
+  // pointed at a door its only reader could not walk through.
+  commitment_escalation: (s) => (SUFFIX_OK(s) ? `coach-commitments/${s}` : null), // coach: who's still out
   join_approved: () => 'home',
   join_request: () => 'coach-inbox',                                     // coach: approve/decline lives there
   digest: () => 'coach-insights',                                        // coach: the full weekly read

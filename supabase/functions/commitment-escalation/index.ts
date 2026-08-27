@@ -14,10 +14,18 @@
 // confirms the default and the guardianship link (0008). This fn ships L2 + L3 only.
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { digestBody } from './logic.ts';
+import { signCoachCode } from '../_shared/rollcall-code.ts';
+import { COACH_DIGEST_CATEGORY } from '../_shared/rollcall-category.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const CRON_KEY = Deno.env.get('COMMITMENT_CRON_KEY') ?? '';
+// Same secret the athlete's ack uses, different code KIND (_shared/rollcall-code.ts). Absent
+// secret simply means the digest ships without its action buttons — never without the digest.
+const ACK_SECRET = Deno.env.get('ROLLCALL_ACK_SECRET') ?? '';
+// How long a coach's "Got it" / "Nudge them" stays spendable. Hours, not minutes: a coach may not
+// look at their phone until well after the 5 AM window, and an expired button is a silent no-op.
+const COACH_CODE_TTL_MS = 6 * 60 * 60 * 1000;
 
 const json = (o: unknown, s = 200) =>
   new Response(JSON.stringify(o), { status: s, headers: { 'Content-Type': 'application/json' } });
@@ -138,14 +146,35 @@ Deno.serve(async (req: Request) => {
     } catch { /* best-effort: a feed-row failure must never block the push */ }
     const { data: ctoks } = await svc
       .from('device_tokens').select('token,user_id').in('user_id', d.coach_ids);
-    await push(((ctoks ?? []) as Array<{ token: string; user_id: string }>).map((t) => ({
-      to: t.token,
-      title: d.title,
-      body: digestText,
-      data: { route: `roll-call/${instId}` },
-      priority: 'high',
-      sound: 'default',
-    })));
+    const coachMsgs: Array<Record<string, unknown>> = [];
+    for (const t of (ctoks ?? []) as Array<{ token: string; user_id: string }>) {
+      // One code per COACH, not one per instance: it names who is acting, and a shared code would
+      // let any recipient's device act as any other recipient. Minted here because this is the only
+      // moment the server knows both the instance and the exact staff list it is addressing.
+      const coachCode = ACK_SECRET
+        ? await signCoachCode(ACK_SECRET, {
+            instanceId: instId, coachId: t.user_id,
+            deadlineMs: Date.now() + COACH_CODE_TTL_MS, iatMs: Date.now(),
+          })
+        : '';
+      coachMsgs.push({
+        to: t.token,
+        title: d.title,
+        body: digestText,
+        // `coach-commitments/<id>`, NOT `roll-call/<id>`. The latter is the ATHLETE detail screen:
+        // proto router.js refuses it to a known coach and bounces them to their dashboard, dropping
+        // the instance id — so until now the one deep link this whole escalation existed to deliver
+        // landed a coach nowhere. `coach_code` rides alongside so the lock-screen actions can spend
+        // it without a session (roll-call-coach).
+        data: { route: `coach-commitments/${instId}`, coach_code: coachCode },
+        // Only offer the buttons when a code was actually minted — a category with no credential
+        // behind it would draw "Nudge them" and then do nothing when pressed.
+        categoryId: coachCode ? COACH_DIGEST_CATEGORY : undefined,
+        priority: 'high',
+        sound: 'default',
+      });
+    }
+    await push(coachMsgs);
     digests++;
   }
 

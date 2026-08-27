@@ -22,7 +22,10 @@ Deno.serve(async (req: Request) => {
   try { code = String(((await req.json()) as { code?: unknown }).code ?? ''); } catch { /* empty */ }
   if (!code) return json({ ok: false, error: 'missing code' }, 400);
 
-  const v = await verifyRollCallCode(SECRET, code, Date.now(), GRACE_MS);
+  // 'athlete' is passed explicitly, not left to the default: this endpoint acks ONE athlete for
+  // themselves, and a coach code (a strictly wider credential minted from the same secret) must be
+  // refused here even though it verifies. Naming the kind at the call site keeps that deliberate.
+  const v = await verifyRollCallCode(SECRET, code, Date.now(), GRACE_MS, 'athlete');
   if (!v.ok) return json({ ok: false, error: v.reason }, httpStatusFor(v.reason));
 
   const svc = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });

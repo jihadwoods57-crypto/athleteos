@@ -321,13 +321,43 @@ export async function setCommitmentActive(commitment, active) {
 }
 
 /** Reaches ONLY athletes who have not responded. Returns how many were notified. */
+/* "Remind N missing" on the coach board.
+   Goes through the roll-call-coach edge function rather than the remind_missing RPC, because the
+   RPC only ever INSERTED notification rows — it cannot push. A reminder that lands in a bell the
+   athlete will read at noon is not a reminder for a 5 AM roll call, so the button was, for its
+   whole life, a silent no-op to the one person it was aimed at. The function writes the same
+   durable rows AND pushes, and the push carries a fresh one-tap "I'm Up" of its own.
+
+   It also fixes who gets reminded: remind_missing filters status='pending', but the escalation
+   ladder marks everyone 'missed' at the deadline, so after 5:02 AM the RPC matched nobody. See
+   rollcall_nudge_claim (0209).
+
+   FALLBACK: on a transport failure or a 5xx we fall back to the old RPC, so the button keeps
+   working if this proto ships ahead of the function's deploy. A 4xx is a real refusal (not staff,
+   too soon) and must NOT be retried against a path with a weaker check.
+
+   Returns { sent, reason }. The reason matters because the server now rate-limits nudges (one per
+   instance per 10 minutes, so two assistant coaches cannot double-buzz a roster): a refused nudge
+   and a failed one are opposite facts, and rendering "Couldn't send" over a 429 would tell a coach
+   to press again at the one moment pressing again is exactly wrong. */
 export async function remindMissing(instanceId) {
-  const c = sb(); if (!c || !instanceId) return 0;
+  const c = sb(); if (!c || !instanceId) return { sent: 0, reason: 'failed' };
+  try {
+    const { data, error } = await c.functions.invoke('roll-call-coach', {
+      body: { instance: instanceId, action: 'nudge' },
+    });
+    if (!error && data && data.ok) return { sent: Number(data.targeted) || 0, reason: 'ok' };
+    // FunctionsHttpError exposes the status; anything 4xx is a decided answer, not a hiccup.
+    const status = error && error.context && error.context.status;
+    if (status === 429) return { sent: 0, reason: 'rate_limited' };
+    if (status === 403) return { sent: 0, reason: 'not_authorized' };
+    if (status && status < 500) return { sent: 0, reason: 'failed' };
+  } catch { /* fall through to the RPC */ }
   try {
     const { data, error } = await c.rpc('remind_missing', { p_instance: instanceId });
-    if (error) return 0;
-    return Number(data) || 0;
-  } catch { return 0; }
+    if (error) return { sent: 0, reason: 'failed' };
+    return { sent: Number(data) || 0, reason: 'ok' };
+  } catch { return { sent: 0, reason: 'failed' }; }
 }
 
 /* ---------------------------------------------------------------- rollups */
