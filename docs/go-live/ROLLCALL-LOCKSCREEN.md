@@ -223,13 +223,81 @@ routes through `roll-call-coach`, and the escalation bell row's deep link change
 - [ ] In-app: "Remind N missing" on the coach board sends a real push, and says "Just reminded.
       Give it a few minutes" rather than "Couldn't send" when the cooldown is live.
 
-### Verification at time of writing
+### Deployed 2026-08-26 — and what actually verified it
 
-12/12 `npm run verify` gates green. `deno check` clean on all four touched edge functions. Jest
-covers the code-kind domain separation (including a forged-kind attempt and the legacy no-`k`
-compatibility path), the server/device notification-category mirror, the coach action queue, and
-the endpoint's status mapping. `supabase/tests/rls_authz_test.sql` gained a `rc-coach:` section
-probing the grants, the staff check, per-instance "seen" isolation, nudge targeting, and the
-cooldown — **that SQL has NOT been executed**: this machine has neither Docker nor psql, so 0209
-and its probes are authored-not-applied and must be run with `npm run verify:full` against a local
-stack before deploy.
+**Everything below is DONE in production**, in the order above: 0209 applied (via
+`supabase db query --linked --file`, then `supabase migration repair --status applied 0209`),
+then `roll-call-coach`, `commitment-reminders`, `commitment-escalation` last. OTA published to the
+`production` branch (update group `eefeea2e-49c2-46cb-b2b6-2e0d3ad638e1`, runtime 1.0.0) and
+**proven**: the live manifest's zip asset matches the md5 AND sha256 of the exact `assets/proto.zip`
+bytes that were content-checked, on iOS and Android both.
+
+`ROLLCALL_ACK_SECRET` and `COMMITMENT_CRON_KEY` were already set in prod — no new secret.
+
+**No native build is required.** The category registration and the action handler live in the JS
+bundle (`src/proto/ProtoApp.tsx`, `src/lib/notify/rollcall.ts`), and
+`setNotificationCategoryAsync` is part of `expo-notifications`, already in the shipped binary. The
+OTA reaches build #26 and #27 alike.
+
+Prod was at **0 commitments and 0 commitment_instances** when this landed, so replacing
+`remind_missing` and adding `last_nudge_at` could not disturb anything in flight.
+
+#### How it was verified without Docker
+
+This machine has neither Docker nor psql, so a **disposable Supabase project** stood in for a local
+stack — the [[athleteos-test-project]] pattern. Recipe, because it is worth repeating:
+
+1. `supabase projects create` (nano, same region) → `supabase link` → `supabase db push --include-all`.
+   All 209 migrations applied clean, **0209 included** — that alone proves the SQL parses and every
+   object creates.
+2. Run SQL suites over a **session-mode** connection (`pg`, port **5432**, NOT the 6543 transaction
+   pooler, which serves a stale catalog for freshly-created functions). TLS verifies properly
+   against Supabase's published CA (`prod-ca-2021.crt`) — there is no need to disable certificate
+   checking, and you should not.
+3. Deploy the functions to that project and exercise them over real HTTP.
+4. Delete the project via the Management API (`DELETE /v1/projects/{ref}`; the CLI's own delete
+   wants a TTY) and **re-link prod**.
+
+#### What the verification actually covered
+
+- **`npm run verify`** — 12/12 gates. `deno check` clean on all four touched functions.
+- **`rls_authz_test.sql`** — **25/25** new `rc-coach:` checks green against a real Postgres: the
+  grants (an athlete cannot execute any of the three functions, which matters because
+  `rollcall_nudge_claim` takes the coach id as an *argument*), the staff check, per-instance and
+  per-coach isolation of "seen", nudge targeting, the cooldown, and the cancelled-instance case.
+- **End-to-end over HTTP against a deployed `roll-call-coach`** — 16/16, codes minted from the real
+  shared module rather than a hand-reimplementation. Proven live: an **athlete's own valid code is
+  refused with `bad_kind`**; a correctly-signed coach code for a non-staff user gets
+  `not_authorized`; a tampered signature and an expired code are refused; "Got it" clears exactly
+  one row and is idempotent; a nudge targets only the athlete still out and writes **nothing** for
+  the one who answered; the second nudge inside the cooldown is refused and writes no second row;
+  and acting on the digest marks it seen.
+- **Cron smoke** — 7/7. `commitment-escalation` still runs, claims the deadline-crossed response,
+  takes the L3 digest branch (the one that mints the coach code) and writes the coach's durable row;
+  `commitment-reminders` still runs after the shared-category refactor; both refuse a caller
+  without the cron key.
+- **Prod endpoint probes** after deploy, using only invalid credentials (rejected before any write):
+  405 / `bad_action` / `malformed` / `bad_sig` all correct, both cron functions 401 without the key,
+  and `roll-call-ack` — the athlete's pre-existing path — still alive and unregressed.
+
+One check went red on the first real run and it was the most important one: *"the athlete who
+already answered is NOT pinged again."* The product was right; the **test** was wrong. It inherited
+an ack performed 1,400 lines earlier that an intervening section resets. Fixed in `ae549b4` by
+having the section declare its own preconditions.
+
+#### ⚠ Still owed: device QA
+
+**The checklist above has NOT been run.** It cannot be automated from here — it needs a person
+holding an iPhone, receiving a real push, and pressing a button on the lock screen. Everything the
+server does is proven; what is unproven is purely the on-device presentation: that iOS draws the two
+buttons, that `opensAppToForeground:false` really keeps the app closed, and that the nudge's own
+"I'm Up" button renders on the athlete's lock screen.
+
+#### ⚠ Unrelated pre-existing failure found while running the suite
+
+`rls_authz_test.sql` is **red on master** with 4 failures in the 0103 weight/nutritionist section
+(`weight_series returns ZERO rows to the nutritionist`, the two nutritionist weight-target checks,
+and `athletic trainer reads base_weight and the weight target`). Confirmed pre-existing: the same
+four fail on `HEAD~1` with the roll-call section absent. Not investigated — different feature area.
+Per this runner's own history, a suite that is normally red is how coverage silently rots, so this
+is worth someone's attention.
