@@ -477,18 +477,40 @@ export const editProfile = {
         const d = new Date(dob + 'T12:00:00');
         const age = (Date.now() - d.getTime()) / (365.25 * 86400000);
         if (isNaN(d.getTime()) || age < 5 || age > 100) { err.textContent = 'Check your date of birth.'; return; }
+        // The server's 0210 age lock is one-way: once a birth date says "under 18" only a
+        // parent or support can raise it again. So an under-18 date from someone the app
+        // currently believes is an adult (or has no date for) takes a second, explicit Save —
+        // an adult who fat-fingers the year shouldn't lock themselves out of their own account.
+        const cur = (RT.profile && RT.profile.dob) || '';
+        const curMinor = cur ? (Date.now() - new Date(cur + 'T12:00:00').getTime()) / (365.25 * 86400000) < 18 : false;
+        if (age < 18 && !curMinor && editProfile._minorConfirm !== dob) {
+          editProfile._minorConfirm = dob;
+          err.textContent = 'This birth date says you’re under 18. That turns on the protections for minors, and only a parent or support can undo it. Tap Save again to confirm.';
+          return;
+        }
       }
       err.textContent = '';
       btn.disabled = true;
       const was = btn.textContent;
       btn.textContent = 'Saving…';
       const name = `${first} ${last}`.trim();
-      // Local first (instant), then the SERVER write the coach actually reads.
-      window.__act.saveProfile({ name, school: schoolV, sport, position, ...(dob ? { dob } : {}) });
+      // Local first (instant), then the SERVER write the coach actually reads. dob is the
+      // exception: the server can REFUSE it (0210 age lock), so it only lands locally after
+      // the server takes it — otherwise this screen would show a birth date the server rejected.
+      window.__act.saveProfile({ name, school: schoolV, sport, position });
       const ok = await window.__act.saveIdentity({ full_name: name, sport, position });
       let dobOk = true;
-      if (dob) dobOk = await window.__act.saveAthleteProfile({ dob });
-      if (ok === false || dobOk === false) { err.textContent = 'Saved on this phone, couldn’t reach the server. It’ll sync when you’re back online.'; btn.disabled = false; btn.textContent = was; return; }
+      if (dob) {
+        const r = await window.__act.setMyDob(dob);
+        if (r.reason === 'locked') { err.textContent = 'Your birth date is locked while you’re under 18. A parent or support can correct it.'; btn.disabled = false; btn.textContent = was; return; }
+        if (r.reason === 'floor') { err.textContent = 'OnStandard is for athletes 13 and up.'; btn.disabled = false; btn.textContent = was; return; }
+        dobOk = r.ok;
+        if (r.ok) window.__act.saveProfile({ dob });
+      }
+      // dob has no background retry and (unlike the rest) wasn't kept locally on failure, so
+      // "it'll sync" would be a lie for it — name that failure specifically.
+      if (dobOk === false && ok !== false) { err.textContent = 'Couldn’t save your birth date. Check your connection and try again.'; btn.disabled = false; btn.textContent = was; return; }
+      if (ok === false) { err.textContent = 'Saved on this phone, couldn’t reach the server. It’ll sync when you’re back online.'; btn.disabled = false; btn.textContent = was; return; }
       editProfile._dirty = false;
       btn.textContent = 'Saved';
       setTimeout(() => window.__back('profile'), 350);

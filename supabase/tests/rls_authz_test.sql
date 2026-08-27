@@ -1056,9 +1056,12 @@ select _ok(_try($$update profiles set tos_accepted_at = now(), tos_version = '20
            '0048: athlete records own ToS acceptance + commitment');
 -- (adult dob on purpose: a minor dob here would make A a provable minor and trip the 0050
 -- consent gates in any later probe that touches A's data — this probe only tests self-write)
-select _ok(_try($$update athlete_profiles set dob = '1990-01-15', standard = '{"mealsPerDay":3}'::jsonb
+-- Since 0210 dob goes through the set_my_dob door; the standard knob stays a direct write.
+select _ok(_try($$select set_my_dob('1990-01-15'::date)$$) = 'ok',
+           '0048/0210: athlete sets own dob through the door');
+select _ok(_try($$update athlete_profiles set standard = '{"mealsPerDay":3}'::jsonb
                  where athlete_id = 'aaaaaaaa-0000-0000-0000-000000000001'$$) = 'ok',
-           '0048: athlete writes own dob + standard knobs');
+           '0048: athlete writes own standard knobs');
 -- cross-writes: RLS silently matches zero rows — assert the value did not change
 select _try($$update profiles set tos_version = 'evil' where id = 'bbbbbbbb-0000-0000-0000-000000000002'$$);
 select _try($$update athlete_profiles set dob = '1990-01-01' where athlete_id = 'bbbbbbbb-0000-0000-0000-000000000002'$$);
@@ -1184,7 +1187,9 @@ select _ok((select count(*) from profiles where id='12000000-0000-0000-0000-0000
 
 -- ================================================================ 0103: per-field weight visibility
 -- Deny-by-default weight (founder decision 2026-07-21): only head_coach / athletic_trainer /
--- s_and_c team staff (+ trainers + self) may read body weight. The wall is the COLUMN-SPLIT
+-- s_and_c team staff (+ trainers + self) may read body weight — and, since 0204 (founder
+-- ruling 2026-08-18), the team nutritionist: weight trend is the underfueling/RED-S signal
+-- their work runs on. The wall is the COLUMN-SPLIT
 -- SELECT grant (nobody reads the raw columns directly — not even allowed roles; the RPCs are
 -- the only doors) + can_view_weight inside weight_series / athlete_plan_meta / coach_set_goals.
 -- Self-contained cast on a fresh team TW so earlier sections' membership flips can't interfere.
@@ -1246,27 +1251,32 @@ select _ok((select base_weight is null and not (targets ? 'weight') and (targets
             from athlete_plan_meta('a1030000-0000-0000-0000-0000000000a1')),
            '0103: plan meta for a position coach has no base_weight, no target weight, but keeps protein/calories');
 
-select _as('a1030000-0000-0000-0000-0000000000c4'); -- nutritionist (deliberately restricted)
-select _ok((select count(*) from weight_series('a1030000-0000-0000-0000-0000000000a1', 60)) = 0,
-           '0103: weight_series returns ZERO rows to the nutritionist');
-select _ok((select not (targets ? 'weight') and (targets->>'protein')::int = 180
+select _as('a1030000-0000-0000-0000-0000000000c4'); -- nutritionist (weight-visible since 0204)
+-- These four checks asserted the pre-0204 world (nutritionist restricted) long after 0204
+-- deliberately opened the nutritionist's weight lane; they sat red on master and nobody could
+-- tell a leak from rot. Now they pin the 0204 ruling instead.
+select _ok((select count(*) from weight_series('a1030000-0000-0000-0000-0000000000a1', 60)) = 1
+           and (select weight from weight_series('a1030000-0000-0000-0000-0000000000a1', 60)) = 201,
+           '0103/0204: nutritionist reads the real weight series through the RPC');
+select _ok((select base_weight = 199 and (targets->>'weight')::int = 190 and (targets->>'protein')::int = 180
             from athlete_plan_meta('a1030000-0000-0000-0000-0000000000a1')),
-           '0103: nutritionist keeps the protein target but never the weight target');
--- Write guard: the nutritionist's save goes through, but the stored target weight DOESN'T move.
+           '0103/0204: nutritionist plan meta carries base_weight and the weight target');
+-- Write lane: the nutritionist's save now moves the weight target too (can_view_weight is the
+-- single wall; coach_set_goals picks it up for free).
 select _ok(_try($q$select coach_set_goals('a1030000-0000-0000-0000-0000000000a1','{"protein":200,"calories":3300,"weight":150}'::jsonb, null)$q$) = 'ok',
            '0103: nutritionist coach_set_goals succeeds (their protein/cal lane is intact)');
 select _superuser();
-select _ok((select (targets->>'weight')::int = 190 and (targets->>'protein')::int = 200
+select _ok((select (targets->>'weight')::int = 150 and (targets->>'protein')::int = 200
             from athlete_profiles where athlete_id='a1030000-0000-0000-0000-0000000000a1'),
-           '0103: nutritionist save moved protein to 200 but the weight target stayed 190');
+           '0103/0204: nutritionist save moves both protein and the weight target');
 
 select _as('a1030000-0000-0000-0000-0000000000c2'); -- athletic trainer (allowed)
 select _ok((select count(*) from weight_series('a1030000-0000-0000-0000-0000000000a1', 60)) = 1
            and (select weight from weight_series('a1030000-0000-0000-0000-0000000000a1', 60)) = 201,
            '0103: athletic trainer reads the real weight series through the RPC');
-select _ok((select base_weight = 199 and (targets->>'weight')::int = 190
+select _ok((select base_weight = 199 and (targets->>'weight')::int = 150
             from athlete_plan_meta('a1030000-0000-0000-0000-0000000000a1')),
-           '0103: athletic trainer reads base_weight and the weight target');
+           '0103: athletic trainer reads base_weight and the weight target (150 = the nutritionist''s save above)');
 select _ok(_try($q$select coach_set_goals('a1030000-0000-0000-0000-0000000000a1','{"protein":200,"calories":3300,"weight":185}'::jsonb, null)$q$) = 'ok',
            '0103: athletic trainer coach_set_goals succeeds');
 select _superuser();
@@ -3186,6 +3196,66 @@ select _ok((rollcall_nudge_claim(
   'rc-coach: nudging a cancelled roll call reports no_instance, not rate_limited');
 update commitment_instances set status = 'scheduled'
  where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date;
+
+-- ================================================================ 0210: age is server-authoritative
+-- The two minor-gate inputs (base_age, dob) stop being athlete-writable. Direct writes die on
+-- the column wall; dob moves through set_my_dob(), whose ratchet refuses to flip a provable
+-- minor to adult. minor_m is seeded base_age 15 / dob null; ath_a is 20 / dob null.
+select _as('dddddddd-0000-0000-0000-000000000004'); -- minor_m
+select _ok(_try($q$update athlete_profiles set base_age = 25 where athlete_id = auth.uid()$q$) like 'denied(42501)%',
+           '0210: a minor cannot update their own base_age (column wall)');
+select _ok(_try($q$update athlete_profiles set dob = '1990-01-01' where athlete_id = auth.uid()$q$) like 'denied(42501)%',
+           '0210: a minor cannot update their own dob directly (column wall)');
+select _ok(_try($q$insert into athlete_profiles (athlete_id, dob) values (auth.uid(), '1990-01-01')
+                   on conflict (athlete_id) do update set dob = excluded.dob$q$) like 'denied(42501)%',
+           '0210: the old client''s direct dob upsert shape is refused');
+-- the columns the app legitimately writes still work, in both upsert shapes PostgREST emits
+select _ok(_try($q$insert into athlete_profiles (athlete_id, sport, "position", level, base_goal, season_goal, standard)
+                   values (auth.uid(), 'football', 'WR', 'hs', 'perform', '{"start":150}'::jsonb, '{"mealsPerDay":4}'::jsonb)
+                   on conflict (athlete_id) do update set sport = excluded.sport, "position" = excluded."position",
+                     level = excluded.level, base_goal = excluded.base_goal,
+                     season_goal = excluded.season_goal, standard = excluded.standard$q$) = 'ok',
+           '0210: the app''s own profile upsert (sport/position/level/goal/standard) still lands');
+select _ok(_try($q$insert into athlete_profiles (athlete_id, sport) values (auth.uid(), 'football')
+                   on conflict (athlete_id) do update set athlete_id = excluded.athlete_id, sport = excluded.sport$q$) = 'ok',
+           '0210: the upsert shape that repeats the key column in SET still lands');
+-- the door's ratchet
+select _ok(_try($q$select set_my_dob(('1990-01-01')::date)$q$) like 'denied(P0001)%age locked%',
+           '0210: a base_age-15 minor is refused an adult dob (ratchet on base_age)');
+select _ok(_try($q$select set_my_dob((current_date - interval '15 years')::date)$q$) = 'ok',
+           '0210: the same minor may attest a consistent minor dob');
+select _ok(_try($q$select set_my_dob(('1990-01-01')::date)$q$) like 'denied(P0001)%age locked%',
+           '0210: with the minor dob on file the adult flip is still refused (ratchet on dob)');
+select _superuser();
+select _ok(is_provable_minor('dddddddd-0000-0000-0000-000000000004'),
+           '0210: after every attack minor_m is still a provable minor');
+-- an adult's dob stays self-service
+select _as('aaaaaaaa-0000-0000-0000-000000000001'); -- ath_a, base_age 20
+select _ok(_try($q$select set_my_dob(('1999-06-01')::date)$q$) = 'ok',
+           '0210: an adult sets their dob through the door');
+select _ok(_try($q$select set_my_dob(('1999-07-01')::date)$q$) = 'ok',
+           '0210: an adult correcting their dob within adulthood is allowed');
+select _ok(_try($q$select set_my_dob((current_date - interval '16 years')::date)$q$) = 'ok',
+           '0210: a change that makes someone MORE protected (adult -> minor) is allowed');
+select _ok(_try($q$select set_my_dob(('1999-07-01')::date)$q$) like 'denied(P0001)%age locked%',
+           '0210: and from then on the ratchet holds them too');
+-- the door's floors
+select _ok(_try($q$select set_my_dob((current_date - interval '10 years')::date)$q$) like 'denied(P0001)%age floor%',
+           '0210: an under-13 dob is refused server-side (COPPA floor)');
+select _ok(_try($q$select set_my_dob((current_date + interval '1 day')::date)$q$) like 'denied(P0001)%out of range%',
+           '0210: a future dob is refused');
+select _ok(_try($q$select set_my_dob(null)$q$) like 'denied(P0001)%dob required%',
+           '0210: dob cannot be cleared through the door');
+-- role boundaries
+select _superuser();
+set role anon;
+select _ok(_try($q$select set_my_dob(('1999-01-01')::date)$q$) like 'denied(42501)%',
+           '0210: anon cannot execute set_my_dob');
+select _superuser();
+set role service_role;
+select _ok(_try($q$update athlete_profiles set base_age = 16 where athlete_id = 'dddddddd-0000-0000-0000-000000000004'$q$) = 'ok',
+           '0210: the service role (support corrections) still writes base_age');
+select _superuser();
 
 -- ================================================================ scoreboard
 select _superuser();

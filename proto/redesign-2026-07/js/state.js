@@ -3358,7 +3358,9 @@ export const act = {
     // removed its SELECT grant, and Postgres rejects an ON CONFLICT upsert that references an
     // ungranted column via `excluded.` — WITH base_weight in the row the whole save 42501'd,
     // which silently failed onboarding's profile sync (same root cause as the day-push bug).
-    const { base_weight, ...rest } = fields || {};
+    // dob rides the 0210 set_my_dob door for the same class of reason: its direct write is
+    // revoked so a minor can't edit themselves into an adult on the consent gates.
+    const { base_weight, dob, ...rest } = fields || {};
     try {
       let ok = true;
       if (Object.keys(rest).length) {
@@ -3369,8 +3371,32 @@ export const act = {
         const { error } = await sb.rpc('set_my_base_weight', { w: Math.round(Number(base_weight)) });
         ok = ok && !error;
       }
+      if (dob) {
+        const r = await this.setMyDob(dob);
+        ok = ok && r.ok;
+      }
       return ok;
     } catch { return false; }
+  },
+  /* dob writes go through the 0210 server door, which refuses to flip a provable minor to
+     adult ("age locked") and refuses under-13 dates ("age floor"). Returns { ok, reason }
+     with reason 'locked' | 'floor' | null so the UI can tell a refusal (say why) from a
+     network failure (offer retry) instead of blaming the connection for both. Falls back to
+     the legacy direct upsert ONLY when the server predates the door (PGRST202: no such
+     function) — on a post-0210 server that path is revoked, so the fallback can't reopen it. */
+  async setMyDob(dob) {
+    const sb = window.sb;
+    if (!sb || !RT.userId) return { ok: false, reason: null };
+    try {
+      const { error } = await sb.rpc('set_my_dob', { d: dob });
+      if (!error) return { ok: true, reason: null };
+      if (error.code === 'PGRST202') {
+        const { error: e2 } = await sb.from('athlete_profiles').upsert({ athlete_id: RT.userId, dob });
+        return { ok: !e2, reason: null };
+      }
+      const msg = String(error.message || '');
+      return { ok: false, reason: /age locked/.test(msg) ? 'locked' : (/age floor/.test(msg) ? 'floor' : null) };
+    } catch { return { ok: false, reason: null }; }
   },
   /* Persist edited identity to the SERVER rows the coach actually reads: full_name → profiles,
      sport/position → athlete_profiles. The old editProfile saved only to local RT, so a coach
