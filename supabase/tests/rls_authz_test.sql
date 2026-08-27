@@ -3070,10 +3070,22 @@ select _ok(coach_digest_seen(
   'rc-coach: pressing "Got it" twice is idempotent, not an error');
 
 -- ---- "Nudge them" ----
--- Athlete ONE acknowledged earlier in this suite; athlete TWO never did. Mark TWO 'missed', the way
--- the escalation ladder does at the deadline — the state the coach is actually looking at when the
--- digest arrives, and the one a pending-only filter would silently miss.
-update commitment_responses set status = 'missed'
+-- Establish this section's OWN answered/unanswered split, rather than leaning on the ack the 0138
+-- section performs 1,400 lines up. That ack does NOT survive to here: an intervening section resets
+-- every response on this commitment with
+--   `update commitment_responses set status='pending', acknowledged_at=null ...`
+-- so by this point nobody has answered. Depending on it made this suite assert something that was
+-- simply not true of the fixture, and the check that caught it is the most important one in the
+-- section (do not ping someone who already answered) — so it states its own preconditions.
+--
+-- ONE answered. TWO is 'missed', which is the state the escalation ladder actually leaves a
+-- non-responder in at the deadline — the state the coach is looking at when the digest arrives, and
+-- the one a pending-only filter silently skips.
+update commitment_responses set status = 'acknowledged', acknowledged_at = now()
+ where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'
+   and instance_id = (select id from commitment_instances
+      where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date);
+update commitment_responses set status = 'missed', acknowledged_at = null
  where athlete_id = 'eeee0000-0000-0000-0000-0000000000e2'
    and instance_id = (select id from commitment_instances
       where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date);
