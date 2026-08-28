@@ -20,6 +20,7 @@ import { hydrateAvatars } from '../avatar.js';
 import { wireTapback } from '../tapback.js';
 import { scrollThreadToEnd, focusComposer } from '../keyboard.js';
 import { recentRows, warmRecent as warmRecentShared } from '../recent-meals.js';
+import { wireReadMore } from '../thread-readmore.js';
 import {
   layoutThread, authorName, initialsFor, participantList, participantSummary, participantMeta,
   isAnalysisOpener, isAnalysisUpdate, isEscalated, quotedFor,
@@ -1621,39 +1622,10 @@ export const thread = {
       hydrateAvatars(threadEl);   // 0206: message monograms upgrade to real faces
       // READ MORE (founder 2026-08-05): a long AI message clamps to its first four lines with a
       // quiet expander — the core coaching stands alone; history/hedges are there for whoever
-      // wants them. Keyed on the text's own head so an expansion survives every repaint; photo
-      // bubbles and chip bubbles are never clamped (clipping a control would break it).
-      threadEl.querySelectorAll('.msg.ai .bubble').forEach((b) => {
-        if (b.closest('#ai-typing') || b.querySelector('.fq-chips, img, .chat-photo')) return;
-        const t = b.textContent || '';
-        if (t.length < 320) return;
-        const key = t.slice(0, 64);
-        // Clamp an inner wrapper, not the padded bubble itself — -webkit-line-clamp on a padded
-        // box lets a partial fifth line bleed into the padding.
-        const inner = document.createElement('div');
-        inner.className = 'bt-clamp';
-        while (b.firstChild) inner.appendChild(b.firstChild);
-        b.appendChild(inner);
-        const more = document.createElement('button');
-        more.className = 'read-more';
-        b.after(more);
-        // A TOGGLE, not a one-way door (founder, 2026-08-06). Expanding used to delete the control,
-        // so a five-paragraph read stayed open forever and pushed the rest of the conversation off
-        // the screen with no way back. The expanded/collapsed state still keys on the text's own
-        // head so it survives every repaint — it is now just a two-way flag rather than a
-        // write-once one.
-        const sync = () => {
-          const open = expandedBubbles.has(key);
-          inner.classList.toggle('bt-clamp', !open);
-          more.textContent = open ? 'Read less' : 'Read more';
-          more.setAttribute('aria-expanded', open ? 'true' : 'false');
-        };
-        more.addEventListener('click', () => {
-          if (expandedBubbles.has(key)) expandedBubbles.delete(key); else expandedBubbles.add(key);
-          sync();
-        });
-        sync();
-      });
+      // wants them. The implementation moved to thread-readmore.js so the Nutrition chat, the
+      // coach's view and the trust thread get the same control: they render the same opener,
+      // which is composed on the promise that a client clamps it.
+      wireReadMore(threadEl, expandedBubbles);
       // `.thread` is a flex column, not a scroller — this line used to set scrollTop on an element
       // that has never had any, so a repaint moved nothing. The screen's scroller is #viewport.
       // Unforced, so the 15s poll can only re-pin a reader who was already at the end of the

@@ -131,16 +131,16 @@ export function composeOpenerText(input: MealInput, ctx: OpenerContext = {}): st
   if (numbers && dayTotal !== null && target !== null && target > 0) {
     const gap = target - dayTotal;
     if (gap <= 0) {
-      parts.push(`That closes out your protein for the day — nothing left to chase there.`);
+      parts.push(`That closes out your protein for the day, nothing left to chase there.`);
     } else if (remaining !== null && remaining > 1) {
       // "~60g at each of your next two meals" — the decision, pre-computed. Rounded to 5g:
       // a coach says "around 60", never "58.5".
       const per = Math.max(5, Math.round(gap / remaining / 5) * 5);
       parts.push(`Land around ${per}g of protein at each of your last ${remaining} meals and you'll hit today's target without forcing the last one.`);
     } else if (remaining === 1) {
-      parts.push(`One meal left — bring it in around ${gap}g of protein and the day closes out.`);
+      parts.push(`One meal left. Bring it in around ${gap}g of protein and the day closes out.`);
     } else if (remaining === 0) {
-      parts.push(`Your required meals are in — about ${gap}g short on protein; a protein-forward snack tonight closes most of that.`);
+      parts.push(`Your required meals are in, about ${gap}g short on protein; a protein-forward snack tonight closes most of that.`);
     }
   }
 
@@ -158,7 +158,7 @@ export function composeOpenerText(input: MealInput, ctx: OpenerContext = {}): st
   }
 
   // 5. Timing — only when it needs saying. On-time praise lives in the score checklist now.
-  if (ctx.late === true) parts.push(`And logging ${opening} late still counts — hiding it wouldn't.`);
+  if (ctx.late === true) parts.push(`And logging ${opening} late still counts. Hiding it wouldn't.`);
 
   // 6. What the photo can't show, said the way a confident pro says it (founder 2026-08-11:
   // "some of my read is a guess... correct anything I've misread" read as an AI apologizing,
@@ -168,7 +168,11 @@ export function composeOpenerText(input: MealInput, ctx: OpenerContext = {}): st
     parts.push("If anything was cooked or portioned differently than it looks, tell me and I'll tighten the numbers.");
   }
 
-  const out = clip(parts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim());
+  // NO EM DASHES, and not by hand-discipline alone. Every model-written path in this product
+  // strips them (meal-chat does it on replies, acks, notes and drafts); this composed path carried
+  // four hardcoded ones, in the single most-read AI message the app produces. The rail lives here
+  // so a sentence added later cannot quietly reintroduce one.
+  const out = clip(parts.filter(Boolean).join(' ').replace(/—/g, ',').replace(/\s+/g, ' ').trim());
   if (out.length < 2) return '';
   // Final rail, matching meal-chat: nothing that breaches the athlete's plan-style language is
   // ever persisted, even assembled from the model's own already-railed prose.

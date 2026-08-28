@@ -80,7 +80,7 @@ describe('the forward day framing covers every arithmetic case', () => {
 
   it('one meal left names the exact number to bring in', () => {
     expect(at({ proteinIncludingThisMeal: 120, proteinTarget: 180, mealsRemaining: 1 }))
-      .toContain('One meal left — bring it in around 60g of protein');
+      .toContain('One meal left. Bring it in around 60g of protein');
   });
 
   it('a short day with no meals left points at a snack', () => {
@@ -92,6 +92,27 @@ describe('the forward day framing covers every arithmetic case', () => {
     const out = composeOpenerText(read(), { late: false, mealName: 'Dinner', day: null });
     expect(out).not.toContain('Land around');
     expect(out).not.toContain('closes out');
+  });
+
+  /* NO EM DASHES, on every branch (critique 2026-08-28). The ban is documented, every
+     model-written path strips the character, and this composer still carried four hardcoded ones
+     for weeks in the single most-read AI message the product writes. Asserting the copy of one
+     branch is not enough — the test that was here asserted the em dash. So: sweep every
+     arithmetic case, plus late, plus the low-confidence hedge, and check the character itself. */
+  it('never emits an em dash on any branch', () => {
+    const days = [
+      { proteinIncludingThisMeal: 185, proteinTarget: 180, mealsRemaining: 1 },
+      { proteinIncludingThisMeal: 120, proteinTarget: 180, mealsRemaining: 1 },
+      { proteinIncludingThisMeal: 120, proteinTarget: 180, mealsRemaining: 0 },
+      { proteinIncludingThisMeal: 90, proteinTarget: 180, mealsRemaining: 3 },
+      null,
+    ];
+    for (const day of days) {
+      for (const late of [true, false, null]) {
+        const out = composeOpenerText(read(), { planStyle: 'structured', late, mealName: 'Dinner', day });
+        expect(out).not.toContain('—');
+      }
+    }
   });
 });
 

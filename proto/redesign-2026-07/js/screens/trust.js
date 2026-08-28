@@ -30,6 +30,7 @@ const mvClock = (iso) => {
 const mvDay = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
 import { composer } from '../components.js';
 import { openImageViewer } from '../image-viewer.js';
+import { wireReadMore } from '../thread-readmore.js';
 
 /* ---------- Trust Pass detail: the earned camera-free reward, rules visible (0196) ----------
    Two active shapes (credits / window) plus a not-earned state with real progress. The old decay
@@ -292,6 +293,9 @@ export const history = {
    which can land long before the history cache is warm — without this the athlete taps a message
    about their dinner and gets "Couldn't open this meal". */
 let DIRECT = { id: null, row: null };
+// Long AI bubbles the athlete has expanded, keyed on each bubble's own text head. Module scope so
+// an expansion survives this screen's repaints (see thread-readmore.js).
+const EXPANDED_BUBBLES = new Set();
 async function fetchMealById(id) {
   if (!id || !window.sb || DIRECT.id === id) return;
   try {
@@ -353,6 +357,9 @@ function mountThread(root, mealId, meal) {
     // Resolve any attachments just painted. trust.js imports named roles functions rather than the
     // module, so the helper is handed the one function it needs.
     void hydrateThreadPhotos(threadEl, { signedMealPhotoUrl, signedMealPhotoUrls });
+    // The same Read more the meal thread has. This screen renders the identical AI opener, which
+    // meal-opener.ts composes assuming a client clamp exists.
+    wireReadMore(threadEl, EXPANDED_BUBBLES);
   };
 
   // Tap an attached photo to open it full-screen. Delegated: every repaint replaces the <img>.

@@ -530,8 +530,8 @@
    would otherwise strand a bottom-aligned avatar beside the control instead of the message. */
 .msg .av { width: 30px; height: 30px; border-radius: 50%; flex: none; display: grid; place-items: center; font-size: 11.5px; font-weight: 800; align-self: flex-start; margin-top: 15px; }
 .msg.cont .av { margin-top: 0; }
-.msg.coach .av { background: linear-gradient(150deg, var(--amber), var(--amber-deep)); color: var(--ink-on-accent); }
-.msg.ai .av { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); color: #fff; }
+.msg.coach .av { background: var(--surface-3); color: var(--text); border: 1px solid var(--hairline); }
+.msg.ai .av { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); color: var(--ink-on-accent); }
 /* ---- Bubbles (design upgrade 2026-08-06) ----
    Nothing added; chrome removed. Every bubble used to carry a visible border on top of its fill,
    which is what made a conversation read as a stack of boxes. Fills alone now carry the identity:
@@ -547,11 +547,11 @@
 .msg.athlete { align-self: flex-end; flex-direction: row-reverse; }
 /* --ink-on-accent, not #fff: --blue-bright is LIGHT in the dark theme, where white body copy
    on it measured ~2.5:1 (deep audit 2026-08-19). The token flips with the theme. */
-.msg.athlete .bubble { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); color: var(--ink-on-accent); border-top-right-radius: 6px; box-shadow: 0 2px 10px rgba(var(--blue-rgb),0.22); }
+.msg.athlete .bubble { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); color: var(--ink-on-accent); border-top-right-radius: 6px; box-shadow: var(--sh-thumb); }
 /* A run of messages from one person tapers: only the first bubble wears the tail. */
 .msg.cont.coach .bubble, .msg.cont.ai .bubble { border-top-left-radius: var(--r-card-sm); }
 .msg.cont.athlete .bubble { border-top-right-radius: var(--r-card-sm); }
-.msg .who { font-size:10.5px; font-weight:800; color: var(--text-3); margin-bottom:5px; margin-left:2px; letter-spacing:0.05em; text-transform:uppercase; }
+.msg .who { font-size:10.5px; font-weight:800; color: var(--text-3); margin-bottom:5px; margin-left:2px; letter-spacing:0; }
 
 /* ---- the thread as a conversation (2026-07-28) ----------------------------------------------
    The meal thread stopped being a two-party accountability note and became a group chat: the
@@ -571,11 +571,11 @@
 .facepile .fp { display: flex; flex: none; }
 .facepile .fpav {
   width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
-  font-size: 10.5px; font-weight: 800; color: #fff; border: 2px solid var(--bg);
+  font-size: 10.5px; font-weight: 800; color: var(--ink-on-accent); border: 2px solid var(--bg);
 }
 .facepile .fpav + .fpav { margin-left:-9px; }
 .facepile .fpav.self { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); }
-.facepile .fpav.other { background: linear-gradient(150deg, var(--amber), var(--amber-deep)); color: var(--ink-on-accent); }
+.facepile .fpav.other { background: var(--surface-3); color: var(--text); }
 .facepile .fpav.ai { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); }
 .facepile .names { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .facepile .names small {
@@ -2337,11 +2337,47 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    Each meal enters the conversation as a card. It is a divider and a log entry at once, which is
    what lets an athlete write "same plate as Thursday?" — Thursday is right there in the scroll. */
 .nc-thread { padding-bottom:6px; }
+/* A BUTTON since 2026-08-28, not a passive divider. The card is how the athlete aims the
+   composer at that plate, which is the gesture this screen's own header always described
+   ("same plate as Thursday?") and never offered — the reply used to land on whatever meal the
+   fetcher happened to return first, silently. */
 .nc-div {
-  display: flex; align-items: center; gap:12px; align-self: stretch;
+  display: flex; align-items: center; gap:12px; align-self: stretch; width: 100%;
   background: var(--surface-2); border: 1px solid var(--hairline);
   border-radius: var(--r-tile); padding:10px 12px; margin:6px 0 2px;
+  font-family: var(--font); color: var(--text); text-align: left; cursor: pointer;
+  -webkit-appearance: none; appearance: none;
 }
+.nc-div:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
+/* The plate the composer is currently aimed at. Blue is the spine and marks the CURRENT
+   selection, which is exactly the job the product register reserves it for. */
+.nc-div.sel { border-color: var(--blue-border, var(--hairline)); background: var(--blue-surface); }
+.nc-div.sel .nc-meta b { color: var(--blue-bright); }
+
+/* WHICH PLATE AM I ANSWERING. Always on when there is a meal to name, not only after the athlete
+   picks one: the default target is a fact about where the message lands, and an unstated default
+   is what sent Thursday's question to today's breakfast for the whole life of this screen. */
+.nc-target {
+  display: flex; align-items: center; gap:8px; flex-wrap: wrap;
+  margin:8px 0 0; padding:8px 10px;
+  background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-chip);
+}
+.nc-target .nct-label {
+  font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--text-3); flex: none;
+}
+.nc-target .nct-meal {
+  font-size: var(--t-sm); font-weight: 800; color: var(--text);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nc-target .nct-hint { font-size: var(--t-micro); font-weight: 600; color: var(--text-3); margin-left: auto; }
+.nc-target .nct-clear {
+  margin-left: auto; flex: none; min-height: 32px; padding:4px 10px;
+  border: 1px solid var(--hairline); border-radius: var(--r-pill); background: none;
+  font-family: var(--font); font-size: var(--t-micro); font-weight: 800; color: var(--blue-bright);
+  cursor: pointer; -webkit-appearance: none; appearance: none;
+}
+.nc-target .nct-clear:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
 .nc-div .nc-thumb {
   width: 40px; height: 40px; border-radius: var(--r-chip); flex: none; display: grid; place-items: center;
   background: var(--surface-1) center/cover no-repeat; color: var(--text-3);
@@ -2359,6 +2395,10 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
   justify-content: center; background: none; border: 0; border-top: 1px solid var(--hairline);
   border-radius: 0; padding:12px 0 4px; font-size: 10px; font-weight: 800;
   letter-spacing: 0.11em; text-transform: uppercase; color: var(--text-3);
+  /* Still a plain div: this seam names messages whose meal fell out of the window, so there is
+     nothing to aim the composer at. cursor:default matters — router.js promotes anything wearing
+     cursor:pointer to a focusable control, and a label that takes a tab stop is a dead key. */
+  cursor: default;
 }
 
 /* The in-thread seam to messages this screen truncated ("View N earlier messages" — #thread-more).

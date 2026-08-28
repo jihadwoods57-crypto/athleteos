@@ -31,6 +31,7 @@ import { reveal } from '../motion.js';
 import { initialsOf } from '../initials.js';
 import { hydrateAvatars } from '../avatar.js';
 import { verificationConsentFor, grantVerificationConsent } from '../commitment-data.js';
+import { wireReadMore } from '../thread-readmore.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -2715,6 +2716,10 @@ function mealById(mealId) {
    coach taps one to PREFILL the composer, edits, and sends manually — the AI never auto-sends.
    Module state keyed by mealId so switching meals never shows a stale draft for the wrong one. */
 let DRAFTS = { mealId: null, items: [], loading: false, error: null };
+// Which long AI bubbles the coach has expanded, keyed on each bubble's own text head. MODULE
+// scope on purpose: this screen repaints constantly, and a mount-scoped Set would re-collapse
+// every read the coach just opened.
+const EXPANDED_BUBBLES = new Set();
 const STANCE_LABEL = { supportive: 'Supportive', direct: 'Direct', context: 'Ask for context', followup: 'Set a follow-up' };
 /* Is the ⋯ menu open? Module state, not DOM state, because __render() rebuilds #view wholesale —
    and "Let AI draft a reply" re-renders TWICE (once to show "Drafting…", once with the chips)
@@ -3102,6 +3107,10 @@ export const coachMeal = {
     // exactly when a repaint has just wiped the resolved src attributes, so this belongs here.
     void hydrateThreadPhotos(root, roles);
     hydrateAvatars(root);   // message monograms upgrade to real faces (0206), same as meal.js
+    // Same clamp the athlete gets. The opener is composed on the promise that a client clamps it
+    // (meal-opener.ts), and a coach scanning a roster is the LAST person who should be handed a
+    // thousand characters of nutrition prose in one block.
+    wireReadMore(root, EXPANDED_BUBBLES);
     // Tap an attached photo to open it full-screen. Delegated because repaints replace the <img>.
     root.addEventListener('click', (ev) => {
       const im = ev.target && ev.target.closest ? ev.target.closest('img.bimg') : null;
