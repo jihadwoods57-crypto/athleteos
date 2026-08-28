@@ -63,8 +63,39 @@ describe('item state boundaries', () => {
     expect(strip).toHaveLength(0);
   });
   test('countdown formats', () => {
+    // Every magnitude carries its own unit. A bare 'h:mm' ('1:40') sat 8px from 'due 8:30 PM'
+    // in a larger, bolder, tabular face — two time-shaped numbers side by side, and the eye
+    // read the big one as the clock. Nothing here may render without a unit again.
     expect(fmtCountdown(47)).toBe('47 min');
-    expect(fmtCountdown(132)).toBe('2:12');
+    expect(fmtCountdown(132)).toBe('2h 12m');
+    expect(fmtCountdown(100)).toBe('1h 40m');
+    expect(fmtCountdown(120)).toBe('2h');       // '2h 0m' stutters
+    expect(fmtCountdown(60)).toBe('1h');
+    expect(fmtCountdown(59)).toBe('59 min');
+    expect(fmtCountdown(0)).toBe('0 min');
+    expect(fmtCountdown(null)).toBe('');
+    expect(fmtCountdown(-1)).toBe('');
+    expect(fmtCountdown(132)).not.toMatch(/:/);
+  });
+});
+
+describe('overdue reads as elapsed time while the day is savable', () => {
+  const get = (e: any, id: string) => e.items.find((i: any) => i.id === id);
+  test('live day: the sub counts how late it is', () => {
+    const e = at(570 + 12);                       // breakfast due 9:30, now 9:42
+    expect(e.decided).toBe(false);
+    expect(get(e, 'breakfast').sub).toBe('12 min late. Log it and it still counts');
+  });
+  test('hours late uses the same unit-bearing format', () => {
+    const e = at(570 + 100);                      // 11:10 AM, still a live day
+    expect(e.decided).toBe(false);
+    expect(get(e, 'breakfast').sub).toBe('1h 40m late. Log it and it still counts');
+  });
+  test('decided day drops the counter — a missed card does not tally the hours', () => {
+    const e = deriveExec({ nowMin: 23 * 60 + 45, dow: 2, status: FRESH });
+    expect(e.decided).toBe(true);
+    expect(get(e, 'breakfast').pill).toBe('Missed');
+    expect(get(e, 'breakfast').sub).toBe('Was due 9:30 AM. Log it late and it still counts');
   });
 });
 

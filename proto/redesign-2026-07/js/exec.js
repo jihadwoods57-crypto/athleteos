@@ -23,11 +23,18 @@ export function mapPressure(label) {
   return 'accountable';
 }
 
-/** 47 → '47 min' · 132 → '2:12'. Null/negative → ''. */
+/**
+ * 47 → '47 min' · 132 → '2h 12m' · 120 → '2h'. Null/negative → ''.
+ * Every magnitude carries its own unit. This used to drop to a bare 'h:mm' at the hour mark,
+ * which put an unlabelled '1:40' in the NOW card's 34px tabular face 8px from 'due 8:30 PM' —
+ * two time-shaped numbers side by side, the larger one a duration, the smaller one a clock.
+ * The eye read the big one as the clock. Never render a colon form here again.
+ */
 export function fmtCountdown(mins) {
   if (mins == null || mins < 0) return '';
   const h = Math.floor(mins / 60), m = mins % 60;
-  return h ? `${h}:${String(m).padStart(2, '0')}` : `${m} min`;
+  if (!h) return `${m} min`;
+  return m ? `${h}h ${m}m` : `${h}h`;
 }
 
 export function samePlan(a, b) { return JSON.stringify(a || []) === JSON.stringify(b || []); }
@@ -83,7 +90,11 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
     let sub;
     if (state === 'done' || state === 'done_late') sub = st.at ? `Logged at ${st.at}${st.late ? ' · late' : ''}` : (req.proof === 'form' ? 'Submitted' : 'In');
     else if (state === 'not_required') sub = `Closed at ${fmtMin(req.window.due)}. You joined after, so it won’t count`;
-    else if (state === 'overdue') sub = `Was due ${fmtMin(req.window.due)}. Log it late and it still counts`;
+    // While the day is still savable, elapsed time is the more useful fact than the closed
+    // deadline — "12 min late" is recoverable in a way "Was due 9:30 AM" doesn't convey. The
+    // decided-day loop below reverts this to the deadline form: a card already painted red
+    // "Missed" should not also tally the hours.
+    else if (state === 'overdue') sub = `${fmtCountdown(nowMin - req.window.due)} late. Log it and it still counts`;
     else if (state === 'locked') sub = `Opens at ${fmtMin(req.window.open)}`;
     else sub = dueLabel;
     return {
@@ -124,6 +135,9 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
     if (i.required && i.state === 'overdue') {
       i.color = decided ? 'red' : 'gold';
       i.pill = decided ? 'Missed' : 'Late';
+      // The late counter only runs while the day can still be saved. Once it's decided, the
+      // elapsed time is just a number that twists the knife, so the sub reverts to the deadline.
+      if (decided) i.sub = `Was due ${fmtMin(i.window.due)}. Log it late and it still counts`;
     }
   }
 

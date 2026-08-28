@@ -442,7 +442,7 @@ function nowCard(e) {
     </div>
     <div class="xcount">
       ${od ? `<span class="xdl lead">${esc(n.sub)}</span>`
-           : `<span class="xcd" data-cd>${esc(n.countdown)}</span><span class="xdl">${esc(n.dueLabel)}</span>`}
+           : `<span class="xcd" data-cd>${esc(n.countdown)}</span><span class="xdl">${n.countdown ? 'left · ' : ''}${esc(n.dueLabel)}</span>`}
     </div>
     <button class="xcta" data-go="${n.route}">${icon(ctaIcon, 18)} ${label}</button>
   </section>`;
