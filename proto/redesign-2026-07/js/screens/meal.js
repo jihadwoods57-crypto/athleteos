@@ -1946,6 +1946,10 @@ export const thread = {
             const c = data.correction;
             const applied = await act.correctMeal(M.slot, {
               kind: 'item', item: c.item, newName: c.newName || undefined,
+              // The corrected AMOUNT, when the athlete fixed how much rather than what. The
+              // client owns the rescale so this lands on exactly the numbers the breakdown's own
+              // quantity field would produce.
+              quantity: c.quantity || undefined,
               per: c.per || {}, add: c.add || undefined, minutesLate: M.minutesLate,
             }, { skipAiUpdate: true });
             // A CORRECTION THAT DID NOT LAND MUST SAY SO (2026-08-09). correctMeal returns null

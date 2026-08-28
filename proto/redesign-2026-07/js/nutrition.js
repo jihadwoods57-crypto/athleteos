@@ -154,22 +154,190 @@ const PREP_WORDS = new Set([
  *  never matched on. Undefined when nothing matches, which leaves the estimate unbounded rather
  *  than bounding it against the wrong food. */
 export function matchFood(name) {
+  return matchFoodDetailed(name).hit;
+}
+
+/**
+ * matchFood, plus HOW it matched: { hit, direct }.
+ *
+ * `direct` means the whole name (or an alias) found the entry. `direct:false` means only the
+ * name's most identifying WORD did, and that distinction is load-bearing for portion scaling,
+ * because the word fallback matches badly on compound dishes:
+ *
+ *     "Beef and broccoli stir fry"  ->  broccoli      (3g protein)
+ *     "Jollof rice with goat"       ->  rice-cakes    (1g protein)
+ *     "Dinner roll"                 ->  rolled oats   (the eval manifest's own note)
+ *
+ * A wide band made those survivable: the reference was wrong but it could only pull a number so
+ * far. A band anchored on the portion is tighter by design, so the same wrong reference would
+ * crush an honest 35g beef-and-broccoli read down to about 10g. Tightening is therefore allowed
+ * ONLY on a direct match, where the entry really does describe the food on the plate.
+ */
+export function matchFoodDetailed(name) {
   const q = String(name == null ? '' : name).trim();
-  if (!q) return undefined;
+  if (!q) return { hit: undefined, direct: false };
   const direct = searchFoods(q, 1)[0];
-  if (direct) return direct;
+  if (direct) return { hit: direct, direct: true };
   const words = q.toLowerCase().split(/[^a-z0-9]+/)
     .filter((w) => w.length >= 3 && !PREP_WORDS.has(w))
     .sort((a, b) => b.length - a.length);
   for (const w of words) {
     const hit = searchFoods(w, 1)[0];
-    if (hit) return hit;
+    if (hit) return { hit, direct: false };
   }
-  return undefined;
+  return { hit: undefined, direct: false };
+}
+
+/* ---------------------------------------------------------------------------------------------
+   PORTION: measured, not just described (2026-08-28).
+
+   The model has always returned a `quantity` per item in plain kitchen units ("6 eggs",
+   "1 cup rice", "10 oz"). Nothing ever converted it into an amount. It rode through meal-intel
+   capped at 40 characters, got printed next to the food, and was thrown away — while the ONLY
+   guard on the numbers was a plausibility band anchored to the curated table's ONE-serving
+   reference. Two consequences, both measured before this change:
+
+     - a genuinely large portion was crushed. Six eggs is 36g of protein; the ceiling was
+       6g × 3 + 8 = 26g, so the athlete was told 26 and the confidence quietly dropped. The band
+       was never wrong about eggs, it was wrong about how many.
+     - a wrong portion was invisible. Because the band is ±(0.3× … 3×) of one serving it is
+       nearly a no-op at normal sizes, so a read that says "1 cup rice" and prices three cups
+       passes every downstream check. The totals check only proves the items sum to the total;
+       the Atwater check only proves a macro set is internally consistent. Neither one has ever
+       looked at the portion.
+
+   So the band is now anchored on ref × servings, and servings is derived by comparing the
+   model's quantity to THAT FOOD'S OWN serving label. The comparison is unit-aware, which is the
+   whole reason parseServings below could never be used here: it reads "10 oz" as 10, and against
+   a "4 oz" serving the truth is 2.5. Wiring the old parser into this path would have made the
+   numbers worse, not better.
+
+   FAILING TO PARSE IS A FIRST-CLASS OUTCOME. When the quantity and the serving label cannot be
+   compared honestly ("a handful" against "1 oz", "1 plate" against "3 strips"), servingsFor
+   reports resolved:false and groundFood keeps the ORIGINAL wide band. Nothing that passes today
+   can start being clamped because a parser got clever.
+   --------------------------------------------------------------------------------------------- */
+
+/** Everything to the left of a unit: "1 1/2" → 1.5, "6-8" → 7 (a range means its midpoint),
+ *  "half" → 0.5. Returns null when there is no number to read. */
+function leadingAmount(s) {
+  // NO bare-article rule. "a"/"an" reads as one in English, and expanding it here made "a few"
+  // parse as one unit and tighten the band on a string that is not a quantity at all — the exact
+  // regression this function exists to prevent. "half an egg" still works: the half rule below
+  // consumes the article itself. An unexpanded "an egg" simply comes back unresolved, which costs
+  // nothing, because unresolved means "keep the behaviour that already shipped".
+  const t = String(s).toLowerCase().trim()
+    .replace(/^one\s+/, '1 ').replace(/^two\s+/, '2 ').replace(/^three\s+/, '3 ')
+    .replace(/^four\s+/, '4 ').replace(/^a?\s*half\s+(?:an?\s+)?/, '0.5 ')
+    .replace(/^(?:one|a)\s+and\s+a\s+half\s+/, '1.5 ');
+  // A range ("6-8 strips", "3–4 sticks") is an estimate of one thing, so take its midpoint.
+  // The dashes here are ESCAPED, not literal. An en or em dash in this position is a RANGE
+  // SEPARATOR the model may emit ("6\u20148 strips"), so the parser has to accept it; it is not
+  // banned copy. The em-dash ratchet reads source and cannot tell those two apart, and it is
+  // right to be strict, so the character is written as an escape and everything stays true.
+  const range = t.match(/^(\d+(?:\.\d+)?)\s*[-\u2013\u2014]\s*(\d+(?:\.\d+)?)/);
+  if (range) return { n: (Number(range[1]) + Number(range[2])) / 2, rest: t.slice(range[0].length) };
+  // Mixed number ("1 1/2 cups") before the bare fraction, or "1" swallows it and 1/2 is lost.
+  const mixed = t.match(/^(\d+)\s+(\d+)\s*\/\s*(\d+)/);
+  if (mixed) return { n: Number(mixed[1]) + Number(mixed[2]) / Number(mixed[3]), rest: t.slice(mixed[0].length) };
+  const frac = t.match(/^(\d+)\s*\/\s*(\d+)/);
+  if (frac) return { n: Number(frac[1]) / Number(frac[2]), rest: t.slice(frac[0].length) };
+  const plain = t.match(/^(\d+(?:\.\d+)?)/);
+  if (plain) return { n: Number(plain[1]), rest: t.slice(plain[0].length) };
+  return null;
+}
+
+/* Mass and volume in one base unit each, so "10 oz" and "4 oz" are the same currency. The
+   "fl oz" entries MUST be tested before the bare ounce or a fluid ounce is weighed. */
+const MASS_G = { g: 1, gram: 1, grams: 1, gm: 1, oz: 28.35, ounce: 28.35, ounces: 28.35, lb: 453.6, lbs: 453.6, pound: 453.6, pounds: 453.6 };
+const VOL_ML = {
+  ml: 1, milliliter: 1, milliliters: 1, l: 1000, liter: 1000, liters: 1000,
+  tsp: 4.93, teaspoon: 4.93, teaspoons: 4.93, tbsp: 14.79, tablespoon: 14.79, tablespoons: 14.79,
+  cup: 236.6, cups: 236.6, pint: 473.2, pints: 473.2, quart: 946.4, quarts: 946.4,
+};
+const FL_OZ_ML = 29.57;
+
+/** One measurement, normalised: { n, family, unit }. family is 'mass' | 'volume' | 'count'. */
+function readMeasure(text) {
+  const lead = leadingAmount(text);
+  if (!lead || !isFinite(lead.n) || lead.n <= 0) return null;
+  const rest = lead.rest.replace(/^[\s.]+/, '');
+  const word = (rest.match(/^([a-z]+(?:\s+oz)?)/) || [])[1] || '';
+  if (/^fl\s*oz/.test(rest) || /^fluid\s*ounce/.test(rest)) return { n: lead.n * FL_OZ_ML, family: 'volume', unit: 'fl oz' };
+  const first = word.split(/\s+/)[0];
+  if (MASS_G[first]) return { n: lead.n * MASS_G[first], family: 'mass', unit: first };
+  if (VOL_ML[first]) return { n: lead.n * VOL_ML[first], family: 'volume', unit: first };
+  return { n: lead.n, family: 'count', unit: first };
+}
+
+/** Every way a serving label can be read. "1 can (5 oz)" is BOTH one can and five ounces, and
+ *  which one is usable depends entirely on how the model phrased its quantity. */
+function readServingLabel(label) {
+  const s = String(label == null ? '' : label);
+  const out = [];
+  const primary = readMeasure(s.replace(/\s*\([^)]*\)/, ''));
+  if (primary) out.push(primary);
+  const paren = s.match(/\(([^)]+)\)/);
+  if (paren) { const m = readMeasure(paren[1]); if (m) out.push(m); }
+  return out;
+}
+
+/** "strips" and "strip" are the same unit; "large" and "eggs" are not. */
+const sameNoun = (a, b) => {
+  const norm = (x) => String(x || '').replace(/(?:es|s)$/, '');
+  const x = norm(a), y = norm(b);
+  if (!x || !y) return false;
+  return x === y || x.startsWith(y) || y.startsWith(x);
+};
+/** Serving labels whose noun describes a SIZE rather than a countable thing. "1 large" is the
+ *  unit of an egg, so "2 eggs" against it is plainly two. */
+const SIZE_WORD = new Set(['large', 'medium', 'small', 'piece', 'pieces', 'serving', 'servings', 'each']);
+
+/**
+ * How many DB servings the model's quantity describes.
+ *
+ * Returns { servings, resolved }. `resolved` false means the two strings could not be compared
+ * honestly and the caller must NOT tighten anything — see the block comment above.
+ *
+ * The count family is the one that needs care, because a bare count is only meaningful against a
+ * unit. "9 strips" against a "3 strips" serving is three servings. "1 plate" against the same
+ * serving is not a quantity at all, and guessing it is one third would be worse than admitting we
+ * do not know. So a count comparison is allowed only when the nouns agree, when the serving's
+ * noun is a size word, or when the serving is a single unit of the thing.
+ */
+export function servingsFor(quantity, servingLabel) {
+  const unresolved = { servings: 1, resolved: false };
+  const q = readMeasure(String(quantity == null ? '' : quantity).trim());
+  if (!q) return unresolved;
+  // "2 servings" says it outright and needs no reference at all.
+  if (q.family === 'count' && /^(serving|portion)/.test(q.unit)) {
+    return { servings: clampServings(q.n), resolved: true };
+  }
+  for (const ref of readServingLabel(servingLabel)) {
+    if (ref.family !== q.family || !(ref.n > 0)) continue;
+    if (q.family === 'count') {
+      const comparable = sameNoun(q.unit, ref.unit) || SIZE_WORD.has(ref.unit) || ref.n === 1;
+      if (!comparable) continue;
+    }
+    return { servings: clampServings(q.n / ref.n), resolved: true };
+  }
+  return unresolved;
+}
+
+/** A real plate, generously bounded. Ten servings of one food is a competitive eater; a fifth of
+ *  a serving is a taste. Beyond either end the string is likelier to be a parse artefact. */
+function clampServings(s) {
+  if (!isFinite(s) || s <= 0) return 1;
+  return Math.min(10, Math.max(0.2, s));
 }
 
 /** Servings implied by a kitchen-units quantity string ("2 eggs" → 2, "1/2 cup" → 0.5,
- *  "1.5 cups" → 1.5). Clamped 0.25–4 (a plate, not a platter); 1 when unparseable. */
+ *  "1.5 cups" → 1.5). Clamped 0.25–4 (a plate, not a platter); 1 when unparseable.
+ *
+ *  UNIT-BLIND BY DESIGN, and kept that way: it backs priceAddedFood, where the athlete picked the
+ *  food out of the table themselves and "2" means two of whatever the table says a serving is.
+ *  For grounding an AI read against a serving LABEL, use servingsFor — this one turns "10 oz"
+ *  into 10 (then 4), which against a "4 oz" serving is wrong by 60%. */
 export function parseServings(quantity) {
   const s = String(quantity == null ? '' : quantity).trim();
   const frac = s.match(/^(\d+)\s*\/\s*(\d+)/);
@@ -186,7 +354,9 @@ export function foodHasMacros(f) {
 }
 
 /** Ground ONE food's macro estimate against its DB reference: each macro clamped into
- *  [per·PORTION_MIN, per·PORTION_MAX + HEADROOM_G], kcal snapped to the food's own Atwater
+ *  a band around per × servings (servingsFor, from the model's own quantity string) — or around
+ *  per × 1 on the original wide band when the quantity cannot be compared to the serving label.
+ *  kcal snapped to the food's own Atwater
  *  value when it disagrees by >25%. Foods without a DB match keep their estimate (nothing to
  *  bound against). Returns { per: {protein,kcal,carbs,fat}, matched, adjusted }. */
 export function groundFood(food) {
@@ -206,17 +376,46 @@ export function groundFood(food) {
     if (atw > 0 && (kcal <= 0 || Math.abs(kcal - atw) / atw > 0.25)) kcal = atw;
     return { per: { protein: Math.round(p), kcal: Math.round(kcal), carbs: Math.round(c), fat: Math.round(f) }, matched: true, adjusted: false };
   }
-  const hit = matchFood(food && food.name);
+  const { hit, direct } = matchFoodDetailed(food && food.name);
   let adjusted = false;
   if (hit) {
-    const clamp = (val, ref) => {
-      if (ref <= 0) return Math.min(val, PORTION_MAX * HEADROOM_G); // ref says ~none of this macro
-      const lo = ref * PORTION_MIN, hi = ref * PORTION_MAX + HEADROOM_G;
+    // THE PORTION THE MODEL SAID IT SAW. When it can be compared to this food's own serving
+    // label, the reference becomes ref × servings and the band closes around the actual plate.
+    //
+    // TWO conditions, and both have to hold. `resolved` says the quantity and the serving label
+    // are genuinely comparable; `direct` says the table entry actually describes this food
+    // rather than one word of its name (see matchFoodDetailed). Either one false and every
+    // number below falls back to the original one-serving band, so no read that passes today
+    // can start being clamped tomorrow.
+    const q = servingsFor(food && food.quantity, hit.serving);
+    const servings = q.servings;
+    const resolved = q.resolved && direct;
+    // Widths, once the portion is known. They differ per macro because prep variance does:
+    // protein density is close to fixed for a given food (you cannot cook chicken into three
+    // times the protein), carbohydrate moves with sauce, breading and sugar, and fat is the
+    // wild card the prompt explicitly tells the model to allow for when it cannot see the oil.
+    const BAND = resolved
+      ? { protein: [0.6, 1.6, 5], carbs: [0.5, 2.2, 8], fat: [0.4, 3.0, 10] }
+      : { protein: [PORTION_MIN, PORTION_MAX, HEADROOM_G], carbs: [PORTION_MIN, PORTION_MAX, HEADROOM_G], fat: [PORTION_MIN, PORTION_MAX, HEADROOM_G] };
+    const scale = resolved ? servings : 1;
+    const clamp = (val, refPerServing, macro) => {
+      const ref = refPerServing * scale;
+      if (ref <= 0) {
+        // The reference says this food has essentially none of this macro (rice has no fat), so
+        // there is nothing to take a ratio of and the estimate gets a flat ceiling instead.
+        // PORTION_MAX × HEADROOM_G is a curious way to spell 24 grams, since it multiplies a
+        // unitless multiplier by a gram allowance, but it is the shipped number and changing it
+        // belongs to its own change. What DOES belong here is the portion: three cups of rice
+        // fried in oil can hold more fat than one cup, so the ceiling scales with the plate.
+        return Math.min(val, PORTION_MAX * HEADROOM_G * scale);
+      }
+      const [loMul, hiMul, head] = BAND[macro];
+      const lo = ref * loMul, hi = ref * hiMul + head;
       const out = Math.min(hi, Math.max(lo, val));
       if (Math.round(out) !== Math.round(val)) adjusted = true;
       return out;
     };
-    p = clamp(p, hit.per.protein); c = clamp(c, hit.per.carbs); f = clamp(f, hit.per.fat);
+    p = clamp(p, hit.per.protein, 'protein'); c = clamp(c, hit.per.carbs, 'carbs'); f = clamp(f, hit.per.fat, 'fat');
   }
   const atwater = 4 * p + 4 * c + 9 * f;
   if (atwater > 0 && (kcal <= 0 || Math.abs(kcal - atwater) / atwater > 0.25)) { kcal = atwater; adjusted = true; }

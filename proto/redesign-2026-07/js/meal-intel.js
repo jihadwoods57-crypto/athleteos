@@ -9,7 +9,7 @@
    the curated reference rather than taking a number out of the AI's prose, and it
    imports the pricer instead of accepting one, so a call site cannot silently lose
    pricing by forgetting to inject it. */
-import { priceAddedFood } from './nutrition.js';
+import { priceAddedFood, servingsFor } from './nutrition.js';
 
 const clean = (v) => String(v == null ? '' : v).replace(/[<>]/g, '').slice(0, 200);
 
@@ -32,6 +32,13 @@ export function normalizeDetected(detected) {
       out.per = { protein: num(src.protein), kcal: num(src.kcal), carbs: num(src.carbs), fat: num(src.fat) };
     }
     if (d && d.edited) out.edited = true;
+    // portionEdited is NOT edited, and the difference is the whole point. `edited` means the
+    // curated reference for this food's NAME no longer describes it (the athlete renamed it, or
+    // told us it also had egg and cheese), so grounding must stop clamping against that
+    // reference. Correcting the PORTION says nothing of the kind: it is the same food, there is
+    // just more or less of it, and the reference still describes it perfectly at the new
+    // amount. Conflating the two is what let a portion correction bypass grounding entirely.
+    if (d && d.portionEdited) out.portionEdited = true;
     if (d && d.userAdded) out.userAdded = true;
     // Provenance (Core Power fix 2026-08-06): where this ITEM's numbers came from, and which
     // exact product it is. 'label' = read off its packaging in the photo; 'database' = resolved
@@ -94,11 +101,41 @@ export function applyFoodEdit(result, op) {
       if (flatIdx !== -1) flat[flatIdx] = nn; else flat.push(nn);
       return true;
     }
+    /* THE ATHLETE IS THE BEST PORTION SENSOR IN THE LOOP, and until now this branch ignored
+       them. It wrote the new string, set `edited`, and stopped. `edited` makes groundFood skip
+       the plausibility band entirely, and nothing ever touched the item's macros, so typing
+       "2 cups" over the AI's "1 cup" moved a label and not one number. Worse, hasUserEdits
+       then went true and the breakdown printed "Macros and score recalculated from the foods
+       listed" over a recalculation that had not happened. The product's own rule, written into
+       the meal-chat prompt, is that the athlete holding the food outranks the log reading it.
+
+       So a portion correction now RESCALES the item. The ratio comes from comparing the new
+       quantity to the old one with servingsFor, which is unit-aware, so "8 oz" over "4 oz" is
+       two and not eight. When the two strings cannot be compared honestly ("a bit more" over
+       "1 cup") nothing is invented: the string updates, `edited` is set exactly as before, and
+       the old behaviour stands. */
     case 'quantity': {
       if (idx === -1) return false;
       const q = clean(op.quantity).slice(0, 40);
+      const prev = rich[idx].quantity;
+      const per = rich[idx].per;
+      const ratio = q && prev ? servingsFor(q, prev) : { servings: 1, resolved: false };
       if (q) rich[idx].quantity = q; else delete rich[idx].quantity;
-      rich[idx].edited = true;
+      if (ratio.resolved && per && ratio.servings !== 1) {
+        const s = ratio.servings;
+        rich[idx].per = {
+          protein: Math.max(0, Math.round((per.protein || 0) * s)),
+          kcal: Math.max(0, Math.round((per.kcal || 0) * s)),
+          carbs: Math.max(0, Math.round((per.carbs || 0) * s)),
+          fat: Math.max(0, Math.round((per.fat || 0) * s)),
+        };
+        // portionEdited, NOT edited: the athlete told us how MUCH, not WHAT, so the curated
+        // reference still describes this food and grounding should keep sanity-checking it
+        // against the corrected portion. The edit still shows in the UI (hasUserEdits).
+        rich[idx].portionEdited = true;
+      } else {
+        rich[idx].edited = true;
+      }
       return true;
     }
     case 'add': {
@@ -165,7 +202,7 @@ export function applyFoodRemoval(src, name, { by, minutesLate } = {}) {
  *  per-food recompute ran; "macros stay the AI's estimate" when it couldn't). */
 export function hasUserEdits(result) {
   return !!(result && (result.userRemoved || (Array.isArray(result.detectedRich)
-    && result.detectedRich.some((d) => d && (d.edited || d.userAdded)))));
+    && result.detectedRich.some((d) => d && (d.edited || d.portionEdited || d.userAdded)))));
 }
 
 /** Slot timing for the analyze-meal request (0062): pure clamped minutes, computed on the
@@ -1134,7 +1171,7 @@ const CORRECTION_RULES = {
   },
 };
 
-export function applyMealCorrection(meta, { kind, value, detail, item, newName, per, add, minutesLate } = {}) {
+export function applyMealCorrection(meta, { kind, value, detail, item, newName, quantity, per, add, minutesLate } = {}) {
   const src = meta || {};
   const rule = (CORRECTION_RULES[kind] || {})[String(value || '').toLowerCase()];
   if (!rule && kind !== 'other' && kind !== 'item') return null;
@@ -1225,8 +1262,39 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
     // supplies no new name is a no-op, and returning a cheerful "recalculated" summary for it is
     // how the thread ends up promising an update that never happened. Null says so plainly.
     const statedAny = per && typeof per === 'object' && ['protein', 'kcal', 'carbs', 'fat'].some((k) => per[k] != null);
-    if (!statedAny && !applied.length && !clean(newName).trim()) return null;
-    const oldPer = row.per && typeof row.per === 'object' ? row.per : { protein: 0, kcal: 0, carbs: 0, fat: 0 };
+
+    /* ── THE PORTION WAS WRONG, NOT THE FOOD (2026-08-28) ──────────────────────────────────
+       "That was two cups, not one." Until apply_correction carried a quantity field, the model
+       had no way to comply except to restate macros it had to invent, which is the exact thing
+       this whole path exists to prevent: numbers never come from prose. Now the amount arrives
+       as a string and the item is rescaled from ITS OWN logged numbers.
+
+       servingsFor compares the new amount to the one already on the item, unit-aware, so "8 oz"
+       over a logged "4 oz" doubles it instead of octupling it. It is the SAME function the
+       breakdown's own quantity field uses, deliberately: an athlete typing "2 cups" into the
+       row and an athlete saying "2 cups" to the AI must land on identical numbers.
+
+       When the two amounts cannot be compared honestly ("a bit more" against "1 cup"), nothing
+       is scaled and nothing is invented. The correction then only counts if it carried
+       something else, and a bare uncomparable amount returns null so the thread admits it. */
+    const qty = clean(quantity).trim().slice(0, 40);
+    const oldQty = row.quantity == null ? '' : clean(row.quantity).trim();
+    const portion = qty && oldQty ? servingsFor(qty, oldQty) : { servings: 1, resolved: false };
+    const scaled = portion.resolved && portion.servings !== 1;
+
+    if (!statedAny && !applied.length && !clean(newName).trim() && !scaled) return null;
+    const basePer = row.per && typeof row.per === 'object' ? row.per : { protein: 0, kcal: 0, carbs: 0, fat: 0 };
+    // The rescaled item is what every later step merges onto, so a portion correction that also
+    // states a macro ("two cups, and it was brown rice at 5g") applies the stated macro to the
+    // corrected amount rather than to the old one.
+    const oldPer = scaled
+      ? {
+        protein: Math.max(0, Math.round((Number(basePer.protein) || 0) * portion.servings)),
+        kcal: Math.max(0, Math.round((Number(basePer.kcal) || 0) * portion.servings)),
+        carbs: Math.max(0, Math.round((Number(basePer.carbs) || 0) * portion.servings)),
+        fat: Math.max(0, Math.round((Number(basePer.fat) || 0) * portion.servings)),
+      }
+      : basePer;
     const numOr = (v, fallback) => { const n = Math.round(Number(v)); return isFinite(n) && n >= 0 ? n : fallback; };
     const stated = per && typeof per === 'object' ? per : {};
     const merged = {
@@ -1253,7 +1321,18 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
     // the row from being clamped back into a generic reference band — see groundFood.
     row.basis = statedAny ? 'label' : anyEstimated ? 'estimate' : applied.length ? 'database' : row.basis;
     if (statedAny) row.confidence = 'high';
-    row.edited = true;
+    // The corrected amount rides on the row, so the breakdown shows what the athlete said and
+    // grounding bounds the item against that portion rather than the one the photo guessed.
+    if (qty) row.quantity = qty;
+    // edited vs portionEdited, the same distinction applyFoodEdit draws. `edited` means the
+    // curated reference for this food's NAME no longer describes it, which is true when they
+    // renamed it, stated a label macro, or added an ingredient, and grounding must stop clamping
+    // against that reference. A pure PORTION correction says none of that: it is the same food
+    // at a different amount, and the reference still describes it perfectly once scaled. Marking
+    // it `edited` would switch grounding off for no reason and throw away the sanity check the
+    // athlete's own correction has just made more accurate.
+    if (statedAny || applied.length || clean(newName).trim()) row.edited = true;
+    else row.portionEdited = true;
     next.detectedRich = rich;
     // Keep the flat names (persisted `foods`) in lockstep with the rename.
     if (nn2 && Array.isArray(src.foods)) {

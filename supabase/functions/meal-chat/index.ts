@@ -129,12 +129,19 @@ const REPLY_TOOL = {
  */
 const CORRECTION_TOOL = {
   name: 'apply_correction',
-  description: 'The athlete stated a factual correction about a specific item in THIS logged meal: a wrong product variant, a macro that contradicts what their packaging prints, a wrong portion, or an ingredient the photo could not see ("it had egg and cheese on both"). Call this INSTEAD of arguing, hedging, or telling them to update the log or tell their coach — the app applies the correction, recalculates every number and the meal score, and updates every surface automatically.',
+  description: 'The athlete stated a factual correction about a specific item in THIS logged meal: a wrong product variant, a macro that contradicts what their packaging prints, a wrong PORTION ("that was two cups, not one"), or an ingredient the photo could not see ("it had egg and cheese on both"). Call this INSTEAD of arguing, hedging, or telling them to update the log or tell their coach — the app applies the correction, recalculates every number and the meal score, and updates every surface automatically.',
   input_schema: {
     type: 'object',
     properties: {
       item: { type: 'string', description: 'The detected food being corrected — match its name in the context items as closely as possible.' },
       newName: { type: 'string', description: 'Corrected name / exact product variant, e.g. "Fairlife Core Power 42g chocolate". Omit when the name is unchanged.' },
+      /* PORTION IS A CORRECTION IN ITS OWN RIGHT (2026-08-28). Until this field existed, an
+         athlete saying "that was two cups, not one" left the model no way to comply except to
+         restate macros it had to invent, which is the one thing this tool is built to avoid:
+         numbers never come from prose. The app now rescales the item from ITS OWN logged
+         numbers by comparing this string to the quantity already on the item, unit-aware, so
+         "8 oz" over a logged "4 oz" doubles it rather than octupling it. */
+      quantity: { type: 'string', description: 'The corrected amount in plain kitchen units, e.g. "2 cups", "8 oz", "3 eggs". Use this WHENEVER the athlete corrects how MUCH of an item there was rather than what it was. Phrase it in the SAME kind of unit the item already carries so the app can compare them (if the item reads "1 cup", answer in cups). Do NOT also restate protein/kcal/carbs/fat for a pure portion correction: the app rescales the item from its own numbers, and your estimate would replace a measurement with a guess. Omit when the amount is unchanged.' },
       protein: { type: 'integer', description: 'Corrected grams of protein for THIS item, exactly as the athlete stated or their packaging prints. Omit when unchanged.' },
       kcal: { type: 'integer', description: 'Corrected calories for THIS item, only when the athlete stated them. Omit when unchanged.' },
       carbs: { type: 'integer', description: 'Corrected grams of carbohydrate for THIS item. Omit when unchanged.' },
@@ -155,7 +162,7 @@ const CORRECTION_TOOL = {
           required: ['name'],
         },
       },
-      ack: { type: 'string', description: 'One to two conversational sentences to the athlete: own the miss plainly and without defensiveness ("Good catch, that is the 42g bottle") and say their numbers and score are updating now. Never tell them to update anything themselves or to notify their coach. Do NOT state new meal totals; they are recomputed after this. No em dashes.' },
+      ack: { type: 'string', description: 'One to two conversational sentences to the athlete: own the miss plainly and without defensiveness ("Good catch, that is the 42g bottle"; "Two cups, got it") and say their numbers and score are updating now. Never tell them to update anything themselves or to notify their coach. Do NOT state new meal totals or new per-item macros; they are recomputed after this. No em dashes.' },
     },
     required: ['item', 'ack'],
   },
@@ -240,7 +247,13 @@ Rules that bind you:
    label, and never tell them to update the log or to notify their coach. If apply_correction is
    available, call it; if it is not, accept the correction plainly in your reply and answer their
    question using their stated value.
-10. AN INGREDIENT THEY NAME IS A CORRECTION, NOT SMALL TALK. "It had egg and cheese on both",
+10. AN AMOUNT THEY CORRECT IS A CORRECTION TOO. "That was two cups, not one", "it was the big
+   bowl", "closer to 8oz" are the athlete telling you the photo misjudged the PORTION, and that
+   belongs in apply_correction's quantity field. Do not answer it by restating macros: you would
+   be replacing their measurement with your guess, and the app can rescale the item exactly from
+   the numbers it already has. Never say a portion is updating unless you actually called the
+   tool.
+11. AN INGREDIENT THEY NAME IS A CORRECTION, NOT SMALL TALK. "It had egg and cheese on both",
    "there was avocado on it", "that was cooked in butter" are the athlete telling you the photo
    missed something real, and it belongs in apply_correction's add list, not in a paragraph
    agreeing with them. They will almost never state grams for these and they do not have to: the
@@ -574,6 +587,12 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
       };
       const item = String(tool.input?.item ?? '').replace(/[<>]/g, '').trim().slice(0, 80);
       const newName = String(tool.input?.newName ?? '').replace(/[<>]/g, '').trim().slice(0, 80);
+      // The corrected AMOUNT. Passed through as a string and never interpreted here: the client
+      // owns the comparison, because the item's existing quantity lives in the meal record the
+      // client holds and the rescale has to be the same deterministic one the breakdown's own
+      // quantity field uses. A model-side conversion would be a second implementation of the
+      // arithmetic, and the two would drift.
+      const quantity = String(tool.input?.quantity ?? '').replace(/[<>]/g, '').trim().slice(0, 40);
       const per = {
         protein: gnum(tool.input?.protein, 300), kcal: gnum(tool.input?.kcal, 2000),
         carbs: gnum(tool.input?.carbs, 500), fat: gnum(tool.input?.fat, 300),
@@ -601,7 +620,7 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
       let ack = String(tool.input?.ack ?? '').replace(/—/g, ',').trim().slice(0, 500);
       if (!ack) ack = 'Good catch. Updating your numbers and score now.';
       ack = styleSafe(ack);
-      const hasChange = !!item && (!!newName || add.length > 0 || Object.values(per).some((v) => v != null));
+      const hasChange = !!item && (!!newName || !!quantity || add.length > 0 || Object.values(per).some((v) => v != null));
 
       // NEVER PROMISE WHAT CANNOT HAPPEN (2026-08-09). This ack used to be written to the thread
       // unconditionally — including on the calls where the model conveyed nothing the app could
@@ -619,7 +638,7 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
 
       await recordAiCall({ fn: 'meal-chat', mode: 'reply', phase: 'correction_tool', userId: callerId, model: msg.model ?? MODEL, latencyMs: 0, ok: true, outcome: hasChange ? 'correction_returned' : 'ack_only' });
       return new Response(
-        JSON.stringify(hasChange ? { reply: text, correction: { item, newName: newName || null, per, add } } : { reply: text }),
+        JSON.stringify(hasChange ? { reply: text, correction: { item, newName: newName || null, quantity: quantity || null, per, add } } : { reply: text }),
         { headers: { ...cors, 'Content-Type': 'application/json' } },
       );
     }
