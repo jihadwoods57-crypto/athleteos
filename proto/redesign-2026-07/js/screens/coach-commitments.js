@@ -12,7 +12,7 @@
 import { RT } from '../state.js';
 import { icon } from '../icons.js';
 import { track, EVENTS } from '../analytics.js';
-import { backHead, esc, errorState, skeletonRows, segBar, collapseSection } from '../components.js';
+import { backHead, esc, errorState, skeletonRows, segBar } from '../components.js';
 import { CD, bookId } from '../coach-data.js';
 // The shared no-book trio (coach-connected.js): kick the book without forcing, the honest
 // "can't reach / no book yet / loading" screen for a book-less landing, and the Retry that
@@ -380,61 +380,13 @@ const blankDraft = () => ({
    target. `display:block` keeps the label sitting on its own line exactly as the div did. */
 const timeInput = (id, label, val) => `
   <div style="flex:1">
-    <label for="${id}" class="vc-fl" style="display:block">${esc(label)}</label>
+    <label for="${id}" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">${esc(label)}</label>
     <input class="ob-input" id="${id}" type="time" value="${esc(val == null ? '' : `${String(Math.floor(val / 60)).padStart(2, '0')}:${String(val % 60).padStart(2, '0')}`)}" />
   </div>`;
 
 /* ---------------------------------------------------------------- manage standing commitments */
 
 const DOW_FULL = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-/* "Mon to Fri", not "Mon, Tue, Wed, Thu, Fri". The summary is a sentence a coach reads once
-   before tapping, so a run of consecutive days collapses and the two common weeks get a name. */
-function daysPhrase(days) {
-  const ds = [...new Set(days)].sort((a, b) => a - b);
-  if (!ds.length) return 'no days yet';
-  if (ds.length === 7) return 'every day';
-  if (ds.join() === '1,2,3,4,5') return 'Mon to Fri';
-  if (ds.join() === '0,6') return 'weekends';
-  let run = 1;
-  for (let i = 1; i < ds.length; i++) if (ds[i] === ds[i - 1] + 1) run++; else { run = 0; break; }
-  if (run === ds.length && ds.length > 2) return `${DOW_FULL[ds[0]]} to ${DOW_FULL[ds[ds.length - 1]]}`;
-  return ds.map((i) => DOW_FULL[i]).join(', ');
-}
-
-/* Who it lands on, in the coach's own vocabulary rather than an id. */
-function audiencePhrase(d, rooms, groups) {
-  if (d.audience_kind === 'room') {
-    const r = rooms.find((x) => x.id === d.audience_value);
-    return r ? r.label : 'a room';
-  }
-  if (d.audience_kind === 'group') {
-    const g = groups.find((x) => x.id === d.audience_value);
-    return g ? g.name : 'a group';
-  }
-  return CD.kind === 'practice' ? 'all clients' : 'the entire team';
-}
-
-/* A confirmation, not a settings recap: one sentence naming what goes out, to whom, when, and by
-   when it has to be answered. Anything left at its default is not mentioned at all, so the common
-   case stays one line; only settings the coach actually switched on earn a second. */
-function summaryLines(d, rooms, groups) {
-  const title = (d.title || '').trim() || TYPE_LABEL[d.type];
-  const lead = `<b>${esc(title)}</b> goes out to <b>${esc(audiencePhrase(d, rooms, groups))}</b>, ${esc(daysPhrase(d.repeat_days))}.`;
-  const timing = d.respond_by_min != null
-    ? `It appears at <b>${esc(fmtMin(d.starts_min))}</b> and has to be answered by <b>${esc(fmtMin(d.respond_by_min))}</b>.`
-    : `It appears at <b>${esc(fmtMin(d.starts_min))}</b>.`;
-  const extras = [];
-  const esc0 = d.escalation || {};
-  if (esc0.breakthrough) extras.push('a louder second push after the deadline');
-  if (esc0.notify_coach_on_miss) extras.push('a message to you naming who missed');
-  if (d.location_id) {
-    const l = (VC.locations || []).find((x) => x.id === d.location_id);
-    extras.push(`arrival confirmed at ${l ? l.name : 'the place you picked'}`);
-  }
-  if (d.linked_commitment_id) extras.push('a linked event shown under your message');
-  return { lead, timing, extras };
-}
 const daysLabel = (days) => {
   const d = (days || []).map(Number).sort();
   if (!d.length) return 'Never';
@@ -576,126 +528,118 @@ export const coachCommitEdit = {
     const groups = (CD.extras && CD.extras.groups) || [];
     const starters = STARTERS[d.type] || [];
 
-    // Advanced holds the settings most commitments never touch. It opens by itself the moment it
-    // holds anything real, which matters because this same screen EDITS existing commitments
-    // (editCommitment): collapsing a live location or escalation out of sight would hide settings
-    // from the person who came here to change them.
-    const advOn = !!(d.action_label || d.location_id || d.linked_commitment_id
-      || (d.escalation && (d.escalation.breakthrough || d.escalation.notify_coach_on_miss)));
-    const sum = summaryLines(d, rooms, groups);
-
-    const advanced = `
-      <div class="vc-f">
-        <div class="vc-fl">Button label <span class="opt">· defaults to "${d.type === 'morning_roll_call' ? 'I’m Up' : 'I’m here'}"</span></div>
-        <input class="ob-input" id="vc-action" maxlength="24" value="${esc(d.action_label)}" placeholder="${d.type === 'morning_roll_call' ? 'I’m Up' : 'I’m here'}" />
-      </div>
-
-      <div class="vc-f">
-        <div class="vc-fl">If they miss it</div>
-        <div class="vc-esc" id="vc-esc" role="group" aria-label="If they miss it">
-          <button class="chip ${d.escalation && d.escalation.breakthrough ? 'on' : ''}" role="checkbox" aria-checked="${d.escalation && d.escalation.breakthrough ? 'true' : 'false'}" data-esc="breakthrough">Louder second push</button>
-          <button class="chip ${d.escalation && d.escalation.notify_coach_on_miss ? 'on' : ''}" role="checkbox" aria-checked="${d.escalation && d.escalation.notify_coach_on_miss ? 'true' : 'false'}" data-esc="notify_coach_on_miss">Tell me who missed</button>
-        </div>
-        <div class="vc-note">The push lands once, right after the deadline. The miss list is one message to you, not one per ${CD.noun}.</div>
-      </div>
-
-      <div class="vc-f">
-        <div class="vc-fl">Where <span class="opt">· confirms they got there</span></div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px" id="vc-place" role="radiogroup" aria-label="Location">
-          <button class="chip ${!d.location_id ? 'on' : ''}" role="radio" aria-checked="${!d.location_id ? 'true' : 'false'}" data-place="">No location</button>
-          ${(VC.locations || []).map((l) => `<button class="chip ${d.location_id === l.id ? 'on' : ''}" role="radio" aria-checked="${d.location_id === l.id ? 'true' : 'false'}" data-place="${esc(l.id)}">${esc(l.name)}</button>`).join('')}
-        </div>
-        <div style="height:10px"></div>
-        <button class="btn ghost sm" id="vc-newplace" style="width:100%">${icon('target', 16)} Add the place I'm standing in</button>
-        <div id="vc-placeform" hidden>
-          <div style="height:10px"></div>
-          <label for="vc-placename" class="vc-fl" style="display:block">Call it what your ${CD.nouns} call it</label>
-          <input class="ob-input" id="vc-placename" maxlength="60" placeholder="e.g. Football Facility" />
-          <div style="height:10px"></div>
-          <label for="vc-placeradius" class="vc-fl" style="display:block">How close counts <span class="opt">· metres</span></label>
-          <input class="ob-input" id="vc-placeradius" type="number" min="50" max="1000" step="10" value="120" />
-          <div class="vc-note">120m covers a field and its building. Below 50m a phone's own GPS error starts marking honest ${CD.nouns} absent.</div>
-          <div style="height:10px"></div>
-          <button class="btn green" id="vc-saveplace" style="width:100%">${icon('check', 17)} Use my current location</button>
-          <div id="vc-placemsg" class="vc-note"></div>
-        </div>
-        ${d.location_id ? `
-        <div style="height:12px"></div>
-        <div style="display:flex;gap:10px">
-          ${timeInput('vc-arrive', 'Arrive by', d.arrive_by_min)}
-          <div style="flex:1">
-            <label for="vc-dwell" class="vc-fl" style="display:block">Stay at least <span class="opt">· min</span></label>
-            <input class="ob-input" id="vc-dwell" type="number" min="0" max="480" step="5" value="${d.min_dwell_min == null ? '' : esc(String(d.min_dwell_min))}" placeholder="45" />
-          </div>
-        </div>
-        ${/* 0208. The stay minimum is real and enforced; the note says what is actually checked,
-              including the fallback, because a phone that cannot report leaving is common. */''}
-        <div class="vc-note">Arrival counts when their phone reaches the place inside the window. A minimum stay counts once their phone has been there that long without leaving; a phone that cannot report leaving falls back to arrival alone. Neither proves the work got done.</div>
-        ` : ''}
-      </div>
-
-      <div class="vc-f">
-        <label for="vc-link" class="vc-fl" style="display:block">Linked event <span class="opt">· shown under your message</span></label>
-        <select class="ob-input" id="vc-link">
-          <option value="">Nothing, it stands alone</option>
-          ${(RT.vcCommitments || []).filter((c) => c.type !== 'morning_roll_call')
-            .map((c) => `<option value="${esc(c.id)}" ${d.linked_commitment_id === c.id ? 'selected' : ''}>${esc(c.title)} · ${esc(fmtMin(c.starts_min))}</option>`).join('')}
-        </select>
-      </div>`;
-
     return `
-    ${backHead('Schedule a commitment', CD.kind === 'practice' ? 'Clients see it when it opens' : 'Athletes see it when it opens', back)}
+    ${backHead('Schedule a commitment', 'Type, who it’s for, when it repeats', back)}
 
-    <div class="eyebrow">Commitment</div>
-    <section class="card vc-sec">
+    <div class="eyebrow">What is it</div>
+    <section class="card pad">
       <div class="chips-wrap" id="vc-type" style="display:flex;flex-wrap:wrap;gap:6px" role="radiogroup" aria-label="Commitment type">
         ${TYPES.map((t) => `<button class="chip ${d.type === t ? 'on' : ''}" role="radio" aria-checked="${d.type === t ? 'true' : 'false'}" data-type="${t}">${esc(TYPE_LABEL[t])}</button>`).join('')}
       </div>
-      <div class="vc-f">
-        <label for="vc-title" class="vc-fl" style="display:block">Title</label>
-        <input class="ob-input" id="vc-title" maxlength="60" value="${esc(d.title)}" placeholder="${esc(TYPE_LABEL[d.type])}" />
+      <div style="height:14px"></div>
+      <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">What the ${CD.nouns} see as the title</div>
+      <input class="ob-input" id="vc-title" maxlength="60" value="${esc(d.title)}" placeholder="${esc(TYPE_LABEL[d.type])}" />
+      <div style="height:14px"></div>
+      <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Your message <span style="color:var(--text-3);font-weight:600">· optional, your words</span></div>
+      <textarea class="ob-input" id="vc-msg" maxlength="200" rows="2" style="min-height:60px;resize:vertical" placeholder="Say it how you'd say it in the room.">${esc(d.message)}</textarea>
+      ${starters.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
+        ${starters.map((s, i) => `<button class="chip" data-starter="${i}">${esc(s.length > 34 ? s.slice(0, 32) + '…' : s)}</button>`).join('')}
       </div>
-      <div class="vc-f">
-        <label for="vc-msg" class="vc-fl" style="display:block">Your message <span class="opt">· optional</span></label>
-        <textarea class="ob-input" id="vc-msg" maxlength="200" rows="2" style="min-height:58px;resize:vertical" placeholder="Say it how you'd say it in the room.">${esc(d.message)}</textarea>
-        ${starters.length ? `<div class="vc-starters">
-          ${starters.map((s, i) => `<button class="chip" data-starter="${i}">${esc(s.length > 34 ? s.slice(0, 32) + '…' : s)}</button>`).join('')}
-        </div>` : ''}
-      </div>
+      <div class="ts" style="padding-top:6px">Tap one to load it in and edit it, or ignore them and write your own.</div>` : ''}
+      <div style="height:14px"></div>
+      <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Button label</div>
+      <input class="ob-input" id="vc-action" maxlength="24" value="${esc(d.action_label)}" placeholder="${d.type === 'morning_roll_call' ? 'I’m Up' : 'I’m here'}" />
     </section>
 
-    <div class="eyebrow">Who &amp; when</div>
-    <section class="card vc-sec">
+    <div class="eyebrow">Who gets it</div>
+    <section class="card pad">
       <div style="display:flex;flex-wrap:wrap;gap:6px" id="vc-aud" role="radiogroup" aria-label="Who gets it">
         <button class="chip ${d.audience_kind === 'team' ? 'on' : ''}" role="radio" aria-checked="${d.audience_kind === 'team' ? 'true' : 'false'}" data-aud="team">${CD.kind === 'practice' ? 'All clients' : 'Entire team'}</button>
         ${rooms.map((r) => `<button class="chip ${d.audience_value === r.id ? 'on' : ''}" role="radio" aria-checked="${d.audience_value === r.id ? 'true' : 'false'}" data-aud="room:${esc(r.id)}">${esc(r.label)}</button>`).join('')}
         ${groups.map((g) => `<button class="chip ${d.audience_value === g.id ? 'on' : ''}" role="radio" aria-checked="${d.audience_value === g.id ? 'true' : 'false'}" data-aud="group:${esc(g.id)}">${esc(g.name)}</button>`).join('')}
       </div>
-      <div class="vc-f">
-        <div style="display:flex;gap:5px" id="vc-days" role="group" aria-label="Repeat on days">
-          ${DOW.map((n, i) => `<button class="chip vc-day ${d.repeat_days.includes(i) ? 'on' : ''}" role="checkbox" aria-checked="${d.repeat_days.includes(i) ? 'true' : 'false'}" aria-label="${DOW_FULL[i]}" data-day="${i}">${n}</button>`).join('')}
-        </div>
-      </div>
-      <div class="vc-f">
-        <div style="display:flex;gap:10px">
-          ${timeInput('vc-start', 'Appears at', d.starts_min)}
-          ${timeInput('vc-respond', 'Answer by', d.respond_by_min)}
-        </div>
-        <div class="vc-note">Reminders go out 15 and 5 minutes before, only to ${CD.nouns} who haven't answered.</div>
-      </div>
     </section>
 
-    ${collapseSection('vc-adv', 'Advanced', null, `<section class="card vc-sec vc-adv">${advanced}</section>`, advOn)}
+    <div class="eyebrow">When</div>
+    <section class="card pad">
+      <div style="display:flex;gap:6px" id="vc-days" role="group" aria-label="Repeat on days">
+        ${DOW.map((n, i) => `<button class="chip ${d.repeat_days.includes(i) ? 'on' : ''}" role="checkbox" aria-checked="${d.repeat_days.includes(i) ? 'true' : 'false'}" aria-label="${DOW_FULL[i]}" data-day="${i}" style="flex:1;padding:8px 0">${n}</button>`).join('')}
+      </div>
+      <div style="height:14px"></div>
+      <div style="display:flex;gap:10px">
+        ${timeInput('vc-start', 'Appears / starts', d.starts_min)}
+        ${timeInput('vc-respond', 'Respond by', d.respond_by_min)}
+      </div>
+      <div class="ts" style="padding-top:10px">A reminder goes out 15 and 5 minutes before the deadline, only to ${CD.nouns} who haven’t responded.</div>
+    </section>
 
-    ${/* The confirmation, immediately above the button it describes. */''}
-    <div class="vc-sum">
-      <div class="l">${sum.lead}</div>
-      <div class="l">${sum.timing}</div>
-      ${sum.extras.length ? `<div class="x">Plus ${esc(sum.extras.join(', '))}.</div>` : ''}
-    </div>
+    ${/* The escalation ladder (0145) ran server-side for a month with NO way to switch either
+          rung on — no UI ever wrote commitments.escalation, so the "louder" half of the ladder
+          could never fire for anyone. These two chips are that missing switch. */''}
+    <div class="eyebrow">If they miss it <span class="opt">· optional</span></div>
+    <section class="card pad">
+      <div class="vc-esc" id="vc-esc" role="group" aria-label="If they miss it">
+        <button class="chip ${d.escalation && d.escalation.breakthrough ? 'on' : ''}" role="checkbox" aria-checked="${d.escalation && d.escalation.breakthrough ? 'true' : 'false'}" data-esc="breakthrough">Send a second, louder push</button>
+        <button class="chip ${d.escalation && d.escalation.notify_coach_on_miss ? 'on' : ''}" role="checkbox" aria-checked="${d.escalation && d.escalation.notify_coach_on_miss ? 'true' : 'false'}" data-esc="notify_coach_on_miss">Tell me who missed</button>
+      </div>
+      <div class="ts mt">The louder push is time-sensitive and lands once, right after the deadline passes. "Tell me who missed" is one message to you naming everyone who never answered, not one per ${CD.noun}.</div>
+    </section>
 
+    <div class="eyebrow">Where <span class="opt">· optional</span></div>
+    <section class="card pad">
+      <div class="ts" style="padding-bottom:10px">Attach a place and OnStandard confirms ${CD.nouns} actually got there. Leave it off and this stays a check-in only.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px" id="vc-place" role="radiogroup" aria-label="Location">
+        <button class="chip ${!d.location_id ? 'on' : ''}" role="radio" aria-checked="${!d.location_id ? 'true' : 'false'}" data-place="">No location</button>
+        ${(VC.locations || []).map((l) => `<button class="chip ${d.location_id === l.id ? 'on' : ''}" role="radio" aria-checked="${d.location_id === l.id ? 'true' : 'false'}" data-place="${esc(l.id)}">${esc(l.name)}</button>`).join('')}
+      </div>
+      <div style="height:12px"></div>
+      <button class="btn ghost sm" id="vc-newplace" style="width:100%">${icon('target', 16)} Add the place I'm standing in</button>
+      <div id="vc-placeform" hidden>
+        <div style="height:12px"></div>
+        <label for="vc-placename" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Call it what your ${CD.nouns} call it</label>
+        <input class="ob-input" id="vc-placename" maxlength="60" placeholder="e.g. Football Facility" />
+        <div style="height:10px"></div>
+        <label for="vc-placeradius" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">How close counts <span style="color:var(--text-3);font-weight:600">· metres</span></label>
+        <input class="ob-input" id="vc-placeradius" type="number" min="50" max="1000" step="10" value="120" />
+        <div class="ts" style="padding-top:6px">120m covers a field and its building. Below 50m a phone's own GPS error starts marking honest ${CD.nouns} absent, so that's the floor.</div>
+        <div style="height:10px"></div>
+        <button class="btn green" id="vc-saveplace" style="width:100%">${icon('check', 17)} Use my current location</button>
+        <div id="vc-placemsg" class="ts" style="padding-top:8px"></div>
+      </div>
+      ${d.location_id ? `
+      <div style="height:14px"></div>
+      <div style="display:flex;gap:10px">
+        ${timeInput('vc-arrive', 'Arrive by', d.arrive_by_min)}
+        <div style="flex:1">
+          <label for="vc-dwell" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Stay at least <span style="color:var(--text-3);font-weight:600">· min</span></label>
+          <input class="ob-input" id="vc-dwell" type="number" min="0" max="480" step="5" value="${d.min_dwell_min == null ? '' : esc(String(d.min_dwell_min))}" placeholder="45" />
+        </div>
+      </div>
+      ${/* 0208. This line used to describe arrival only, while the "Stay at least" box beside it
+            wrote a number that enforced NOTHING: min_dwell_min round-tripped through this form
+            and no code anywhere ever read it, so a coach setting 45 got the same result as a
+            coach setting nothing, and a drive-by scored like a full session. It is real now, and
+            the copy says what it actually checks, including where it falls back. */''}
+      <div class="ts" style="padding-top:10px">Arriving counts when their phone reaches the place inside this window. A minimum stay counts only once their phone has been there that long without leaving, and a phone that cannot report leaving falls back to arrival alone. Neither proves the work got done; completing the session is a separate signal, and nothing in OnStandard claims otherwise.</div>
+      ` : ''}
+    </section>
+
+    <div class="eyebrow">Linked event <span class="opt">· optional</span></div>
+    <section class="card pad">
+      <label for="vc-link" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">What is this roll call for?</label>
+      <select class="ob-input" id="vc-link">
+        <option value="">Nothing, it stands alone</option>
+        ${(RT.vcCommitments || []).filter((c) => c.type !== 'morning_roll_call')
+          .map((c) => `<option value="${esc(c.id)}" ${d.linked_commitment_id === c.id ? 'selected' : ''}>${esc(c.title)} · ${esc(fmtMin(c.starts_min))}</option>`).join('')}
+      </select>
+      <div class="ts" style="padding-top:8px">Pick one and the ${CD.noun}'s card reads "Practice at 6:00 AM" underneath your message.</div>
+    </section>
+
+    <div style="height:14px"></div>
     <button class="btn green" id="vc-save" style="width:100%">${icon('check', 19)} Schedule it</button>
-    <div id="vc-save-err" class="vc-err"></div>
+    <div id="vc-save-err" class="ts" style="color:var(--red);text-align:center;min-height:16px"></div>
+    <div style="height:10px"></div>
+    <div class="ts" style="text-align:center">Athletes see this on Home when it opens. Responses land on your board live.</div>
     <div style="height:20px"></div>`;
   },
 
@@ -833,10 +777,7 @@ export const coachCommitEdit = {
     if (save) save.addEventListener('click', async () => {
       if (save.disabled) return;
       capture();
-      // The field's placeholder has been showing this the whole time, and blankDraft() pre-fills
-      // it; the only way to reach here is to CLEAR it, and refusing to save then made the coach
-      // retype a word the form was already displaying to them.
-      if (!d.title) d.title = TYPE_LABEL[d.type];
+      if (!d.title) { sayErr('Give it a title first.'); return; }
       if (!d.repeat_days.length) { sayErr('Pick at least one day.'); return; }
       const origLabel = save.innerHTML;
       save.disabled = true; save.textContent = 'Scheduling…';
