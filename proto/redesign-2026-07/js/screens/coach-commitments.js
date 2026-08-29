@@ -380,7 +380,7 @@ const blankDraft = () => ({
    target. `display:block` keeps the label sitting on its own line exactly as the div did. */
 const timeInput = (id, label, val) => `
   <div style="flex:1">
-    <label for="${id}" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">${esc(label)}</label>
+    <label for="${id}" class="vc-fl" style="display:block">${esc(label)}</label>
     <input class="ob-input" id="${id}" type="time" value="${esc(val == null ? '' : `${String(Math.floor(val / 60)).padStart(2, '0')}:${String(val % 60).padStart(2, '0')}`)}" />
   </div>`;
 
