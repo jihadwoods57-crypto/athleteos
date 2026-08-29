@@ -556,6 +556,29 @@ function deltaChip(score) {
   return `<span class="xh-delta ${up ? 'up' : 'down'}">${icon(up ? 'arrowUp' : 'arrowDown', 11)} ${up ? '+' : '−'}${Math.abs(score - y)} <span class="m">vs yesterday</span></span>`;
 }
 
+/* The status row under "You're OnStandard." on the day-complete hero: trajectory on the left,
+ * the streak's next moment on the right, split by a hairline.
+ *
+ * Takes its inputs instead of reading S — S.scoreYesterday and S.streakDays are derived getters
+ * (a history lookup and a streak walk), and this has four shapes that all have to hold: delta or
+ * no delta, times streak or no streak. A pure signature is what makes them testable.
+ *
+ * The delta column simply isn't emitted when there's nothing honest to compare against, and the
+ * divider is a border on the second column, so it leaves with it. "Starts tonight" belongs only
+ * to a streak of zero; anyone mid-streak gets their day number in that same slot, because
+ * telling someone on day 12 that their streak "starts tonight" is just false.
+ */
+export function scoreSummary({ score, yesterday, streakDays }) {
+  const live = streakDays > 0;
+  const delta = yesterday != null && score !== yesterday
+    ? (() => {
+        const up = score > yesterday;
+        return `<div class="xsum-c"><span class="xsum-k ${up ? 'up' : 'down'}">${icon(up ? 'arrowUp' : 'arrowDown', 12)} ${up ? '+' : '−'}${Math.abs(score - yesterday)}</span><span class="xsum-s">vs yesterday</span></div>`;
+      })()
+    : '';
+  return `<div class="xsum">${delta}<div class="xsum-c"><span class="xsum-k streak${live ? ' on' : ''}">${icon('flame', 12)} ${live ? `Day ${streakDays}` : 'Starts tonight'}</span><span class="xsum-s">locks at midnight</span></div></div>`;
+}
+
 /* The last score this Home render showed — lets the next render know a log just moved the
    number, so the hero can float an honest "+N". Module-level on purpose: survives route
    changes within the session, resets with a fresh page load (no stale cross-day pops). */
@@ -680,21 +703,16 @@ function celebration(e) {
       ${scoreRing({ score: e.score, tierName: S.tier.name, tierCls: S.tier.cls, vt: 'score' })}
     </section>
     <div style="font-size:var(--t-xl);font-weight:800;letter-spacing:-.02em;margin-top:2px">You're OnStandard.</div>
-    <!-- One meta line, no echoes: the ring already says the score and (by color) the tier; the
+    <!-- One meta row, no echoes: the ring already says the score and (by color) the tier; the
          record list below already proves every requirement is in. Everything left that's UNIQUE
-         lives here: delta, streak day, and when it locks. -->
-    <div style="display:flex;align-items:center;gap:7px;font-size:var(--t-sm);color:var(--text-2);margin-top:6px">
-      ${/* deltaChip(), not a second inline copy of it. The copy that lived here rendered ONLY when
-            today beat yesterday, so a day where you completed everything and still came in lower
-            showed no delta at all — the app quietly hiding the one number that says you slipped,
-            on the screen celebrating you. deltaChip already handles a down-day honestly (muted
-            amber, never a screaming red) and has since it was written ten lines above. */''}
-      ${(() => { const d = deltaChip(e.score); return d ? `${d}<span style="opacity:.45">·</span>` : ''; })()}
-      ${S.streakDays > 0
-        ? `<span style="display:inline-flex;align-items:center;gap:4px;font-weight:700;color:var(--amber-bright)">${icon('flame', 13)} Day ${S.streakDays}</span><span style="opacity:.45">·</span><span>locks at midnight</span>`
-        : `<span>your streak starts when today locks at midnight</span>`}
-    </div>
-    <div style="height:14px"></div>
+         lives here: delta, streak, and when it locks.
+         This was a single centered flex row of dot-joined spans that wrapped mid-phrase at phone
+         width, so "+55 vs yesterday" and "your streak starts when today locks at midnight" landed
+         as two unrelated fragments. scoreSummary stacks each fact over its own label and splits
+         them with a hairline; it owns all four shapes, including a down-day, which the old copy
+         here got right only because it delegated to deltaChip. Its own margins close the gap to
+         the eyebrow below, so the 14px spacer div that used to sit here is gone. -->
+    ${scoreSummary({ score: e.score, yesterday: S.scoreYesterday, streakDays: S.streakDays })}
     <div class="eyebrow" style="align-self:flex-start">Today's record</div>
     <div class="xrecord" style="width:100%;box-sizing:border-box">
       ${/* Each row opens the thing it logged, the same as its in-progress .xitem equivalent. They
