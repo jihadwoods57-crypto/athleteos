@@ -275,7 +275,14 @@
    the score a second time and the meals/recovery counts the open list restates.
    ============================================================ */
 .co-hero { display: flex; align-items: center; gap: var(--s4); padding: var(--s4); }
-.co-hero-ring { flex: none; }
+/* The basis is stated, not left to `auto`. `flex: none` means `flex-basis: auto`, so this box
+   sized itself from its content's max-content width; the ring-wrap inside carries
+   `width: min(96px, 100%)` (app.css) and that percentage resolves against the flex container, so
+   the box measured 300px around a 96px ring. Measured, not guessed: `.co-hero-ring` w=300 with
+   `.ring-wrap` w=96 inside it. The ring floated in dead space, the status column was squeezed to
+   148px and wrapped "Below standard" onto two lines, and the card overflowed a 402px screen at
+   498px wide. .xhero avoids the same trap by making .ring-wrap the flex item itself. */
+.co-hero-ring { flex: 0 0 96px; }
 /* Context sizing only (see .ring-center .score in app.css): the 96px ring's opening is ~50px,
    the same proportion the Home hero gives --t-hero inside its 128px ring. */
 .co-hero-ring .ring-center.num .score { --score-size: var(--t-3xl); }
@@ -283,19 +290,116 @@
 /* ============================================================
    Athlete profile — identity header + slim action bar
    ============================================================ */
-.co-actionbar { display: flex; gap: var(--s2); margin: var(--s2) 0 var(--s4); }
-.co-act {
-  flex: 1; min-width: 0; height: 58px; border-radius: var(--r-tile);
+/* ONE control, not four floating boxes. These were four separate 58px tiles, each with its own
+   border and radius, sitting under a header and above a second row of bordered chips: three
+   stacked bands of equal weight before the coach reached a single number. Now they are segments
+   of a single hairline-bounded bar, divided by inset rules rather than by gaps, so the row reads
+   as one object. The press state is a background wash: a scale transform inside `overflow:hidden`
+   pulls the pressed segment away from its own dividers. */
+.co-actionbar {
+  display: flex; margin: var(--s2) 0 var(--s4);
   background: var(--surface-1); border: 1px solid var(--hairline);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap:4px;
-  color: var(--text-2); cursor: pointer; font-family: var(--font);
-  transition: transform var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+  border-radius: var(--r-card-sm); overflow: hidden;
 }
-.co-act:active { transform: scale(0.95); }
+.co-act {
+  flex: 1; min-width: 0; height: 46px; border: 0; border-radius: 0; background: transparent;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap:3px;
+  color: var(--text-2); cursor: pointer; font-family: var(--font);
+  transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+.co-act + .co-act { box-shadow: inset 1px 0 0 var(--hairline); }
+.co-act:active { background: var(--surface-3); }
 .co-act:hover { color: var(--text); }
-.co-act .lbl { font-size: var(--t-xs); font-weight: 800; letter-spacing: 0.02em; }
-.co-act.hero { background: var(--blue-surface); border-color: var(--blue-border); color: var(--blue-bright); }
-.co-act:disabled { opacity: 0.5; }
+/* The label has to survive its longest real state, not its shortest: the same slot renders
+   "Nudge", "Nudged today", "On standard" and "End pass". */
+.co-act .lbl {
+  font-size: var(--t-xs); font-weight: 800; letter-spacing: 0.02em;
+  max-width: 100%; padding: 0 4px; box-sizing: border-box;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.co-act.hero { background: var(--blue-surface); color: var(--blue-bright); }
+.co-act:disabled { opacity: 0.5; cursor: default; }
+.co-act:disabled:active { background: transparent; }
+
+/* ============================================================
+   Section tabs — navigation, visually under the content
+   ============================================================
+   The profile's section switcher used the same .co-chip as the roster's FILTERS: 44px, filled,
+   bordered, rounded. Sitting directly under the action bar it read as a second row of buttons and
+   competed with it. An underline rail says "navigation" without drawing a single box. Scoped to
+   .co-tabs because .co-chip has three call sites and the other two are genuinely chips.
+   Rules stay after .co-scroll so the full-bleed rail and its edge fade survive. */
+.co-seg.co-tabs { gap: var(--s5); box-shadow: inset 0 -1px 0 var(--hairline); }
+.co-seg.co-tabs .co-chip {
+  position: relative; height: 40px; padding: 0; gap: 6px;
+  background: transparent; border: 0; border-radius: 0;
+  font-size: var(--t-base); font-weight: 700; color: var(--text-3);
+}
+.co-seg.co-tabs .co-chip.on { background: transparent; color: var(--text); box-shadow: none; }
+.co-seg.co-tabs .co-chip.on::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+  border-radius: var(--r-micro) var(--r-micro) 0 0; background: var(--blue-bright);
+}
+.co-seg.co-tabs .co-chip:active { transform: none; opacity: 0.65; }
+
+/* ============================================================
+   Today's proof — the photo is the evidence
+   ============================================================
+   Was: meal name stranded at the top, photo in the middle, and the score at the bottom under the
+   words "Meal score" repeated once per card. The label carried no information the eyebrow above
+   the rail had not already given, and it pushed the card to 212px. Now the photo fills the card,
+   the score rides on it as a chip (the .mq-badge treatment: dark scrim + blur over a photograph,
+   the sanctioned chip-over-image use), and the meal name sits underneath. */
+.co-proof {
+  flex: none; width: 146px; border-radius: var(--r-card-sm); overflow: hidden;
+  background: var(--surface-1); cursor: pointer; box-shadow: var(--sh-card);
+  transition: transform var(--dur-1) var(--ease-out);
+}
+.co-proof:active { transform: scale(0.97); }
+.co-proof .pm { position: relative; height: 116px; overflow: hidden; background: var(--surface-2); }
+.co-proof .pm img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.co-proof .pm.icon {
+  display: grid; place-items: center; color: var(--green-bright);
+  background: linear-gradient(150deg, rgba(var(--green-rgb), 0.20), rgba(var(--blue-rgb), 0.10));
+}
+.co-proof .sc {
+  position: absolute; top: 8px; right: 8px; height: 24px; padding: 0 9px;
+  display: inline-flex; align-items: center; border-radius: var(--r-pill);
+  background: rgba(7, 11, 20, 0.60); backdrop-filter: blur(8px);
+  font-size: var(--t-sm); font-weight: 800; font-variant-numeric: tabular-nums;
+  letter-spacing: var(--num-tight);
+}
+/* The dark scrim is correct ON A PHOTOGRAPH, which is dark enough in either theme; that is the
+   .mq-badge precedent. On the no-photo placeholder there is no photograph under it, so the
+   frozen dark value reads as a grey blob with low-contrast text on the light theme. There, the
+   chip sits on a real surface token instead. Caught by shooting light, not by reading the rule. */
+.co-proof .pm.icon .sc { background: var(--surface-1); backdrop-filter: none; }
+/* Meal scores stay green-or-blue, the same two the old .act-value carried. Amber is this
+   system's warning and a 51 on one plate is not a warning. */
+.co-proof .sc.g { color: var(--green-bright); border: 1px solid var(--green-border); }
+.co-proof .sc.b { color: var(--blue-bright); border: 1px solid var(--blue-border); }
+.co-proof .ft { padding: 9px 11px 11px; }
+.co-proof .nm {
+  font-size: var(--t-sm); font-weight: 700; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* An unscored plate says so in the footer rather than wearing an empty chip. */
+.co-proof .st { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); margin-top: 1px; }
+.co-proof-none { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); margin: -2px 2px var(--s3); }
+
+/* Still-open items keep a container: this is the list the coach acts on. */
+.co-open { padding: var(--s1) var(--s4); }
+.co-open .lrow { cursor: default; }
+.co-open .lic { color: var(--amber-bright); }
+
+/* A finished day is a resolved state, so it does not get a container. One line, no card. */
+.co-done { display: flex; align-items: center; gap: var(--s3); padding: 0 2px var(--s2); }
+.co-done .ic {
+  width: 30px; height: 30px; border-radius: var(--r-chip); flex: none; display: grid;
+  place-items: center; background: var(--green-surface); color: var(--green-bright);
+}
+.co-done .t { font-size: var(--t-base); font-weight: 700; color: var(--text); }
+.co-done .s { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); margin-top: 1px; }
 
 /* ============================================================
    7-day trend — a real, legible sparkline card

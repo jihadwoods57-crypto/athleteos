@@ -2119,28 +2119,47 @@ function todayBlock(P, athleteId) {
     <div><div class="tt">No logs today yet</div><div class="ts">Nothing to review. They haven't logged. Their day appears here as they log it.</div></div></div>`
     : `
     <div class="eyebrow">Today's proof${todayMeals.length ? '' : ' · none yet'}</div>
+    ${/* The photo IS the proof, so it carries the card and the score rides on it. The old tile
+          stranded the meal name at the top, put the photo in the middle, and printed the words
+          "Meal score" above the number on every card in the rail: a label the eyebrow above had
+          already given, three times over, for 42px of height each. Meal scores stay green or
+          blue, exactly the two the old .act-value carried; amber is this system's warning and one
+          51 plate is not a warning. */''}
     ${todayMeals.length ? `<div class="hscroll">
-      ${todayMeals.map(m => `
-        <div class="act-card" data-go="coach-meal/${esc(m.id)}" role="button" aria-label="Review and comment on ${esc(cap(m.type || 'Meal'))}">
-          <div class="act-time">${esc(cap(m.type || 'Meal'))}</div>
-          ${P.photos[m.id]
-            ? `<div class="act-media"><img src="${esc(P.photos[m.id])}" alt="Photo of this meal" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"/></div>`
-            : `<div class="act-media icon" style="background:linear-gradient(150deg, rgba(var(--green-rgb),0.2), rgba(var(--blue-rgb),0.1));color:var(--green-bright)">${icon('utensils', 26)}</div>`}
-          <div class="act-body"><div class="act-type">${m.quality != null ? 'Meal score' : 'Logged'}</div><div class="act-value ${m.quality != null && qualityAccent(m.quality) === 'g' ? 'g' : 'b'}">${m.quality != null ? m.quality : '·'}</div></div>
-        </div>`).join('')}
-    </div>` : `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:-2px 2px 10px">No meal photos logged today.</div>`}
+      ${todayMeals.map(m => {
+        const label = cap(m.type || 'Meal');
+        const scored = m.quality != null;
+        const acc = scored && qualityAccent(m.quality) === 'g' ? 'g' : 'b';
+        return `
+        <div class="co-proof" data-go="coach-meal/${esc(m.id)}" role="button" aria-label="${esc(label)}, ${scored ? `meal score ${m.quality}` : 'not scored yet'}. Review and comment">
+          <div class="pm${P.photos[m.id] ? '' : ' icon'}">
+            ${P.photos[m.id]
+              ? `<img src="${esc(P.photos[m.id])}" alt="Photo of this meal" loading="lazy" decoding="async"/>`
+              : icon('utensils', 26)}
+            ${scored ? `<span class="sc ${acc}">${m.quality}</span>` : ''}
+          </div>
+          <div class="ft"><div class="nm">${esc(label)}</div>${scored ? '' : '<div class="st">Not scored yet</div>'}</div>
+        </div>`;
+      }).join('')}
+    </div>` : `<div class="co-proof-none">No meal photos logged today.</div>`}
 
-    <div class="eyebrow">What's open · ${requiredIn} of ${denom} meals in</div>
-    <section class="card" style="padding:6px 16px">
-      ${openSlots.length || !ci.submitted ? `
+    ${/* A finished day is a resolved state and does not get a container, or an eyebrow that asks
+          what is open when the answer is nothing. Still-open items keep their card: that list is
+          the one the coach acts on. */''}
+    ${(() => {
+      const anyOpen = openSlots.length > 0 || !ci.submitted;
+      return `
+      <div class="eyebrow">${anyOpen ? 'What\'s open' : 'Day complete'} · ${requiredIn} of ${denom} meals in</div>
+      ${anyOpen ? `<section class="card co-open">
         ${openSlots.map(k => `
-          <div class="lrow" style="cursor:default"><div class="lic" style="color:var(--amber-bright)">${icon('bowl', 17)}</div>
+          <div class="lrow"><div class="lic">${icon('bowl', 17)}</div>
           <div class="lm"><div class="lt">${esc(slotTitle(k))}</div><div class="ls">Not logged yet</div></div><span class="status-pill a">Open</span></div>`).join('')}
-        ${!ci.submitted ? `<div class="lrow" style="cursor:default"><div class="lic" style="color:var(--amber-bright)">${icon('moon', 17)}</div>
-          <div class="lm"><div class="lt">Recovery check-in</div><div class="ls">Before bed</div></div><span class="status-pill a">Open</span></div>` : ''}`
-        : `<div class="lrow" style="cursor:default"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('check', 17)}</div>
-          <div class="lm"><div class="lt">Everything is in</div><div class="ls">Finished day</div></div></div>`}
-    </section>`}
+        ${!ci.submitted ? `<div class="lrow"><div class="lic">${icon('moon', 17)}</div>
+          <div class="lm"><div class="lt">Recovery check-in</div><div class="ls">Before bed</div></div><span class="status-pill a">Open</span></div>` : ''}
+      </section>`
+      : `<div class="co-done"><div class="ic">${icon('check', 16)}</div>
+        <div><div class="t">Everything is in</div><div class="s">Finished day</div></div></div>`}`;
+    })()}`}
     <div style="height:10px"></div>
   `;
 }
@@ -2478,7 +2497,7 @@ export const coachAthlete = {
     <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:0 0 4px">This exact message goes to them, from "${esc(S.operatorIdentity.handle)} is waiting".</div>` : ''}
     <div id="tp-status" style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);min-height:0"></div>
 
-    <div class="co-seg co-scroll" id="psec-row">
+    <div class="co-seg co-scroll co-tabs" id="psec-row">
       ${profileSections().map(([key, label]) => `<button class="co-chip ${PSECTION === key ? 'on' : ''}" data-psec="${key}">${esc(label)}</button>`).join('')}
     </div>
 
