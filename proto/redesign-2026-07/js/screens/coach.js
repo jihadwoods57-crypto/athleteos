@@ -2228,15 +2228,15 @@ function activitySection(P) {
   }
   items.sort((x, y) => y.ts - x.ts);
   if (!items.length) return `
-  ${TLOGS.error ? `<div class="co-note" style="color:var(--amber-bright)">Training logs couldn't load just now. Reopen the page to retry.</div>` : ''}
+  ${TLOGS.error ? `<div class="co-note warn">Training logs couldn't load just now. Reopen the page to retry.</div>` : ''}
   <div class="co-empty"><div class="ic">${icon('clock', 24)}</div>
   <div class="tt">No activity in the last 30 days</div>
   <div class="ts">Meal logs, weigh-ins, check-ins, and your own actions land here as they happen.</div></div>`;
   return `
   <div class="co-eyebrow">Last 30 days</div>
-  ${TLOGS.error ? `<div class="co-note" style="color:var(--amber-bright)">Training logs couldn't load just now, so they're missing from this list. Reopen the page to retry.</div>` : ''}
+  ${TLOGS.error ? `<div class="co-note warn">Training logs couldn't load just now, so they're missing from this list. Reopen the page to retry.</div>` : ''}
   <div class="co-tl">
-    ${items.map(i => `<div class="co-tl-item ${i.cls}"${i.go ? ` data-go="${esc(i.go)}" style="cursor:pointer"` : ''}><div class="co-tl-when">${esc(i.when)}</div><div class="co-tl-what">${i.what}</div></div>`).join('')}
+    ${items.map(i => `<div class="co-tl-item ${i.cls}${i.go ? ' go' : ''}"${i.go ? ` data-go="${esc(i.go)}"` : ''}><div class="co-tl-when">${esc(i.when)}</div><div class="co-tl-what">${i.what}</div></div>`).join('')}
   </div>`;
 }
 
@@ -2263,19 +2263,24 @@ function conversationSection(P) {
   <div style="height:10px"></div>`;
   return `
   <div class="eyebrow">Meal threads</div>
-  <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 8px">Tap any meal to open its full thread. The AI's read, your comments, and theirs.</div>
-  <section class="card" style="padding:2px 16px">
+  <div class="co-note">Tap any meal to open its full thread. The AI's read, your comments, and theirs.</div>
+  ${/* The trailing control was a "View thread" pseudo-button on EVERY row: a .btn wearing
+        pointer-events:none, so it looked like the thing you press and was not, thirty times down
+        one list, while the row itself was the target. The whole row already says "tap me" the way
+        every other .lrow in the app does, and the app already has one affordance for that: the
+        trailing chevron, which .lrow > .ic-chevron:last-child colors by rule. */''}
+  <section class="card co-list">
   ${meals.slice(0, 30).map(m => `
     <div class="lrow" data-go="coach-meal/${esc(m.id)}">
-      <div class="lic" style="overflow:hidden;padding:0">
-        ${P.photos[m.id] ? `<img src="${esc(P.photos[m.id])}" alt="Photo of this meal" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block"/>` : icon('message', 17)}
+      <div class="lic ph">
+        ${P.photos[m.id] ? `<img src="${esc(P.photos[m.id])}" alt="Photo of this meal" loading="lazy" decoding="async"/>` : icon('message', 17)}
       </div>
       <div class="lm"><div class="lt">${esc(cap(m.type || 'Meal'))}${m.quality != null ? ` · ${m.quality}` : ''}</div>
       <div class="ls">${esc(mealDateLabel(m))}</div></div>
-      <span class="btn ghost sm" style="width:auto;padding:0 12px;height:30px;pointer-events:none">View thread</span>
+      ${icon('chevron', 17)}
     </div>`).join('')}
   </section>
-  <div style="height:10px"></div>`;
+  <div class="co-gap"></div>`;
 }
 
 /* Human label for the requirement source, mirroring resolveRequirementSet's own precedence
@@ -2301,36 +2306,42 @@ function requirementsSection(P, athleteId) {
   const assignFailed = !!(P.failedSections && P.failedSections.assignments);
   return `
   <div class="eyebrow">Governing standard <span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0">· ${esc(source)}</span></div>
-  <section class="card" style="padding:2px 16px">
+  <section class="card co-list ro">
     ${reqs.length ? reqs.map(r => `
-    <div class="lrow" style="cursor:default"><div class="lic" style="color:${accentVar(r.accent)}">${icon(r.icon || 'clipboard', 17)}</div>
+    <div class="lrow"><div class="lic" style="color:${accentVar(r.accent)}">${icon(r.icon || 'clipboard', 17)}</div>
     <div class="lm"><div class="lt">${esc(r.title)}</div><div class="ls">${esc((PROOF[r.proof] && PROOF[r.proof].label) || 'Proof')} · ${esc(freqLabel(r.freq))}</div></div></div>`).join('')
-    : `<div class="lrow" style="cursor:default"><div class="lm"><div class="ls">No requirements set.</div></div></div>`}
+    : `<div class="lrow"><div class="lm"><div class="ls">No requirements set.</div></div></div>`}
   </section>
+  ${/* The chevron is colored by .lrow > .ic-chevron:last-child, which is exactly the rule that
+        exists so this does not get pasted on as an inline style row by row. */''}
   <div class="lrow" data-go="coach-plan/${esc(athleteId)}" style="margin:2px 2px 0">
     <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('edit', 17)}</div>
     <div class="lm"><div class="lt">Edit their standard</div><div class="ls">Open Plan · Schedule</div></div>
-    ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+    ${icon('chevron', 17)}
   </div>
 
-  <div class="eyebrow" style="margin-top:14px">Active exceptions${exceptions.length ? '' : ' · none'}</div>
+  ${/* The eyebrow already carries "· none". A sentence underneath saying the same thing in
+        different words is the second half of a fact nobody needed twice, and it put a line of
+        body copy where the eye expects either a list or nothing. */''}
+  <div class="eyebrow co-minor">Active exceptions${exceptions.length ? '' : ' · none'}</div>
   ${exceptions.length ? `
-  <section class="card" style="padding:6px 16px">
+  <section class="card co-list ro">
     ${exceptions.map(e => `
-    <div class="lrow" style="cursor:default"><div class="lic" style="color:var(--amber-bright)">${icon('bell', 17)}</div>
+    <div class="lrow"><div class="lic" style="color:var(--amber-bright)">${icon('bell', 17)}</div>
     <div class="lm"><div class="lt">${esc(e.reason || 'Excused')}</div><div class="ls">${esc(e.starts_on || '')}${e.ends_on ? ` – ${esc(e.ends_on)}` : ''}</div></div></div>`).join('')}
-  </section>` : `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px">No active exceptions.</div>`}
+  </section>` : ''}
 
-  <div class="eyebrow" style="margin-top:14px">Assignment history${assignments.length ? '' : (assignFailed ? '' : ' · none')}</div>
-  ${assignFailed && !assignments.length ? `<div style="font-size:var(--t-sm);font-weight:600;color:var(--amber-bright);margin:0 2px 8px">Couldn't load their assignment history. Nothing was changed; reopen to retry.</div>` : ''}
+  <div class="eyebrow co-minor">Assignment history${assignments.length ? '' : (assignFailed ? '' : ' · none')}</div>
+  ${/* A failed read is NOT "none" and never collapses to silence — it keeps its own line. */''}
+  ${assignFailed && !assignments.length ? `<div class="co-note warn">Couldn't load their assignment history. Nothing was changed; reopen to retry.</div>` : ''}
   ${assignments.length ? `
-  <section class="card" style="padding:2px 16px">
+  <section class="card co-list ro">
     ${assignments.map(a => `
-    <div class="lrow" style="cursor:default"><div class="lic">${icon('clipboard', 17)}</div>
+    <div class="lrow"><div class="lic">${icon('clipboard', 17)}</div>
     <div class="lm"><div class="lt">${esc(a.title || 'Requirement')}</div>
     <div class="ls">${esc((PROOF[a.proof] && PROOF[a.proof].label) || a.proof || 'Proof')} · ${esc(cap(a.status || 'open'))} · ${esc(relTime(a.due_at || a.created_at))}${a.note ? ` · ${esc(a.note)}` : ''}</div></div></div>`).join('')}
-  </section>` : `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px">No assignments yet.</div>`}
-  <div style="height:10px"></div>`;
+  </section>` : ''}
+  <div class="co-gap"></div>`;
 }
 
 /* ---------- Notes pane (Task 7): coach-only margin notes on the athlete — separate table from
@@ -2409,7 +2420,7 @@ function notesSection(P) {
       <button class="co-abtn" data-del-note="${esc(n.id)}" style="flex:none;width:36px;height:36px;padding:0" aria-label="Delete note">${icon('x', 15)}</button>`}
     </div>`).join('')}
   </section>` : notesFailed
-    ? `<div class="co-note" style="color:var(--amber-bright)">Couldn't load their notes. Any notes already written are safe; reopen to retry.</div>`
+    ? `<div class="co-note warn">Couldn't load their notes. Any notes already written are safe; reopen to retry.</div>`
     : `<div class="co-note">No notes on this athlete yet. Jot the first below.</div>`}
 
   <div class="co-eyebrow">Add a note</div>

@@ -392,6 +392,17 @@
 .co-open .lrow { cursor: default; }
 .co-open .lic { color: var(--amber-bright); }
 
+/* The .lrow lists the profile panes render inside a card. `.ro` marks a list that is a read-out
+   rather than a set of controls, so the rows do not claim a pointer they do nothing with. */
+.co-list { padding: 2px var(--s4); }
+.co-list.ro .lrow { cursor: default; }
+/* A photo standing in for the row's icon fills its 38px box. */
+.co-list .lic.ph { overflow: hidden; padding: 0; }
+.co-list .lic.ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.co-note.warn { color: var(--amber-bright); }
+.co-tl-item.go { cursor: pointer; }
+.co-gap { height: var(--s3); }
+
 /* A finished day is a resolved state, so it does not get a container. One line, no card. */
 .co-done { display: flex; align-items: center; gap: var(--s3); padding: 0 2px var(--s2); }
 .co-done .ic {
