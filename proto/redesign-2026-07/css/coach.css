@@ -336,8 +336,14 @@
   font-size: var(--t-base); font-weight: 700; color: var(--text-3);
 }
 .co-seg.co-tabs .co-chip.on { background: transparent; color: var(--text); box-shadow: none; }
-.co-seg.co-tabs .co-chip.on::after {
-  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+/* ::before, NOT ::after, and this is load-bearing. focus.css claims `.co-chip::after` for the
+   invisible 44x44 minimum touch target (`min-width/min-height: 44px`, centered with top/left 50%
+   and a translate). An element has exactly ONE ::after, so painting the underline there did not
+   replace that rule, it MERGED with it: `min-height: 44px` beats `height: 2px`, and the centering
+   survived, so the indicator rendered as a 44px blue block sitting over the tab's own label.
+   Absolutely positioned, so it is not a flex item and cannot shift the text it sits under. */
+.co-seg.co-tabs .co-chip.on::before {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; z-index: 1;
   border-radius: var(--r-micro) var(--r-micro) 0 0; background: var(--blue-bright);
 }
 .co-seg.co-tabs .co-chip:active { transform: none; opacity: 0.65; }
