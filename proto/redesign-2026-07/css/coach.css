@@ -284,6 +284,36 @@
 .ib-brief.tap { cursor: pointer; }
 .ib-empty-act { margin-top: var(--s3); }
 
+/* ============================================================
+   Schedule a commitment — three stages, not six settings cards
+   ============================================================
+   The form ran 2118px (2.5 viewports before a location is even picked) across six cards, each
+   with its own eyebrow and its own explanatory paragraph, and the button sat under all of it. The
+   two stages a normal commitment actually needs stay open; everything most commitments never touch
+   is behind Advanced. The field rhythm below is what replaces six hand-written
+   `<div style="height:14px">` spacers and six restated label styles. */
+.vc-sec { padding: var(--s4); }
+.vc-f { margin-top: var(--s4); }
+.vc-fl { font-size: var(--t-sm); font-weight: 700; color: var(--text-2); margin-bottom: 5px; }
+.vc-fl .opt { color: var(--text-3); font-weight: 600; text-transform: none; letter-spacing: 0; }
+/* Helper text is a footnote to the control above it, not a paragraph of its own. */
+.vc-note { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); line-height: 1.45; margin-top: 7px; }
+.vc-starters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--s2); }
+/* Seven day chips share one row, so they size to the row rather than to their labels. */
+.vc-day { flex: 1; min-width: 0; padding: 0; justify-content: center; }
+.vc-adv { margin-top: var(--s2); }
+
+/* The confirmation. It sits directly above the button it describes and reads as a sentence, so it
+   is deliberately NOT a second copy of the form: nothing left at its default appears here. */
+.vc-sum {
+  margin: var(--s5) 0 var(--s3); padding: var(--s3) var(--s4);
+  border-radius: var(--r-card-sm); background: var(--surface-2);
+}
+.vc-sum .l { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.5; }
+.vc-sum .l b { color: var(--text); font-weight: 800; }
+.vc-sum .x { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); margin-top: 5px; }
+.vc-err { font-size: var(--t-xs); font-weight: 700; color: var(--red); text-align: center; min-height: 16px; margin-top: 6px; }
+
 /* The thread list keeps its card. Only the rows tighten: 71px -> ~60px, which is a 34px icon and
    two text lines with room to breathe, not a row padded to fill space it did not need. */
 /* Sections need air between them or the two cards read as one blob: the thread list follows the

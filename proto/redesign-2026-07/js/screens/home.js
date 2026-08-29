@@ -573,10 +573,10 @@ export function scoreSummary({ score, yesterday, streakDays }) {
   const delta = yesterday != null && score !== yesterday
     ? (() => {
         const up = score > yesterday;
-        return `<div class="xsum-c"><span class="xsum-k ${up ? 'up' : 'down'}">${icon(up ? 'arrowUp' : 'arrowDown', 12)} ${up ? '+' : '−'}${Math.abs(score - yesterday)}</span><span class="xsum-s">vs yesterday</span></div>`;
+        return `<div class="xscore-c"><span class="xscore-k ${up ? 'up' : 'down'}">${icon(up ? 'arrowUp' : 'arrowDown', 12)} ${up ? '+' : '−'}${Math.abs(score - yesterday)}</span><span class="xscore-s">vs yesterday</span></div>`;
       })()
     : '';
-  return `<div class="xsum">${delta}<div class="xsum-c"><span class="xsum-k streak${live ? ' on' : ''}">${icon('flame', 12)} ${live ? `Day ${streakDays}` : 'Starts tonight'}</span><span class="xsum-s">locks at midnight</span></div></div>`;
+  return `<div class="xscore">${delta}<div class="xscore-c"><span class="xscore-k streak${live ? ' on' : ''}">${icon('flame', 12)} ${live ? `Day ${streakDays}` : 'Starts tonight'}</span><span class="xscore-s">locks at midnight</span></div></div>`;
 }
 
 /* The last score this Home render showed — lets the next render know a log just moved the
