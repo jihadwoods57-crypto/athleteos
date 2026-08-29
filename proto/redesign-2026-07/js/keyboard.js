@@ -33,14 +33,26 @@ let frame = 0;
 /* Fields that raise a keyboard. Buttons, checkboxes and the composer's own hidden file input are
    <input> too, and focusing them must not resize the app. */
 const TEXTY = /^(|text|search|email|url|tel|number|password)$/i;
+/* Controls that open a NATIVE PICKER instead of a keyboard: a wheel or a calendar that covers the
+   bottom of the screen exactly like the keys do, and that the shell therefore has to resize for in
+   exactly the same way. `time` was the miss that mattered: "Schedule a commitment" is built from
+   three of them plus a <select>, so on that screen focusin bailed out for every control on the
+   form and the only thing left updating --kb was a visualViewport event. --kb drives
+   `.device { height: calc(100dvh - var(--kb)) }`, so a --kb that sticks collapses the shell, and a
+   collapsed shell cannot be scrolled or tapped. */
+const PICKER = /^(time|date|datetime-local|month|week)$/i;
 
 function isField(el) {
   if (!el) return false;
   if (el.isContentEditable) return true;
   const tag = (el.tagName || '').toLowerCase();
   if (tag === 'textarea') return !el.disabled && !el.readOnly;
+  // A <select> raises a native picker over the page and owes the shell the same resize a keyboard
+  // does. It has no readOnly, only disabled.
+  if (tag === 'select') return !el.disabled;
   if (tag !== 'input') return false;
-  return !el.disabled && !el.readOnly && TEXTY.test(el.getAttribute('type') || '');
+  const type = el.getAttribute('type') || '';
+  return !el.disabled && !el.readOnly && (TEXTY.test(type) || PICKER.test(type));
 }
 
 /* How much of the layout viewport the keyboard is covering. Positive only where the keys are drawn
@@ -182,6 +194,13 @@ export function initKeyboard() {
     requestAnimationFrame(() => { pinShell(); if (openNow) reveal(); });
   });
   window.addEventListener('focusout', schedule);
+  /* The recovery path, and the reason it exists: --kb is only ever recomputed inside sync(), which
+     runs off visualViewport and focus events. If any one of those fails to arrive — a native picker
+     dismissed in a way that reports no resize, an interrupted animation — --kb keeps its last value
+     and the shell stays short with no way back. Returning to the app re-measures unconditionally,
+     so a stuck shell can always be recovered by leaving and coming back. */
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { restH = 0; schedule(); } });
+  window.addEventListener('pageshow', schedule);
   // Capture, because `scroll` does not bubble and the box being shoved is `.screen`, not the
   // window. Cheap: pinShell only writes to elements that have actually been moved.
   document.addEventListener('scroll', () => {
