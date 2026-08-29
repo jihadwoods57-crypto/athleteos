@@ -25,7 +25,9 @@ const STYLE_LETTER = { structured: 'S', guided: 'G', intuitive: 'I' };
 function stylePill(style) {
   if (!style) return '';
   const l = styleLabel(style);
-  return `<span class="status-pill b" style="margin-left:6px;padding:1px 7px;font-size:10.5px" title="${esc(l.name)} standard">${STYLE_LETTER[style] || '?'}</span>`;
+  // A bordered pill around ONE character, once per row, down the whole roster. The letter and its
+  // tooltip are the information; the container was not.
+  return `<span class="ros-style" title="${esc(l.name)} standard">${STYLE_LETTER[style] || '?'}</span>`;
 }
 
 /* nav:'operator'. Load whichever book the signed-in role owns (see coach-home.js). */
@@ -92,7 +94,11 @@ function rosterRow(e) {
   // not saturated body text — a roster full of red type reads as panic, not information.
   const scoreCol = scoreColor(r.score);
   const activity = esc(lastActivityLabel(r.lastMealAt));
-  const sub = REDUNDANT_STATUS.has(st.key)
+  // Status reaches the coach three ways at once: the band header this row sits under, the dot on
+  // the avatar, and this line. The third copy is the one that pushed "Active just now" into an
+  // ellipsis, so it goes whenever a band header is carrying the same word. REDUNDANT_STATUS still
+  // covers the ungrouped case, where the label is the only place the status appears.
+  const sub = (bandsApply() || REDUNDANT_STATUS.has(st.key))
     ? activity
     : `${esc(meta.label)} <span style="color:var(--text-3)">· ${activity}</span>`;
   /* data-vt-row is what makes a re-sort READABLE. Without it the fourteen rows snap into a new
@@ -353,7 +359,7 @@ export const coachRoster = {
     return `${head}
     <div class="rtools">
       <input class="ob-input rq" id="roster-q" placeholder="${esc(vocab().search)}" value="${esc(Q)}" />
-      <button class="btn ghost sm" data-sort>Sort: ${{ score: 'Score', status: 'Status', name: 'A–Z', activity: 'Recent' }[SORT]}</button>
+      <button class="btn ghost sm" data-sort aria-label="Sort by ${{ score: 'score', status: 'status', name: 'name', activity: 'recent activity' }[SORT]}. Tap to change">${{ score: 'Score', status: 'Status', name: 'A–Z', activity: 'Recent' }[SORT]}</button>
       <button class="btn ${SELECTING ? 'green' : 'ghost'} sm" data-selmode>${SELECTING ? 'Done' : 'Select'}</button>
     </div>
     <div class="co-seg co-scroll">

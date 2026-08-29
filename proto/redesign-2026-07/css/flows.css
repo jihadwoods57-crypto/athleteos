@@ -542,13 +542,22 @@
    which works down to ~390 and then quietly eats the search field — at 320 the placeholder was
    clipped to "Search a", the one control whose whole job is to say what it searches. Below 360 the
    field takes its own row instead of shrinking past legibility; the buttons keep theirs. */
-.rtools { display: flex; gap: var(--s2); margin-bottom: var(--s3); flex-wrap: wrap; }
-.rtools .rq { flex: 1 1 150px; height: 38px; }
-.rtools .btn { width: auto; padding: 0 12px; height: 38px; }
+/* The field is the primary control and the two buttons are secondary, so they stop competing for
+   width with it: 38px pills with 12px padding were taking half the row and clipping the search
+   placeholder they sit next to. */
+.rtools { display: flex; align-items: center; gap: var(--s2); margin-bottom: var(--s3); flex-wrap: wrap; }
+/* The field states the 44px it is actually going to be: focus.css puts a min-height floor on
+   .ob-input, and a text field cannot fake its tap area with a pseudo-element the way a button can
+   (the caret has to land where the finger does). The buttons sit at 40px, which reads as secondary
+   next to it instead of as an accident. */
+.rtools .rq { flex: 1 1 150px; height: 44px; }
+.rtools .btn { width: auto; padding: 0 11px; height: 40px; flex: none; font-size: var(--t-sm); }
 @media (max-width: 360px) {
   .rtools .rq { flex-basis: 100%; }
 }
-.roster-row { display: flex; align-items: center; gap:10px; padding:14px 14px; border-bottom: 1px solid var(--hairline-soft); cursor: pointer; }
+/* 65px -> 56px. The row carries a 34px avatar over two text lines, so 14px of vertical padding
+   was padding the taller of two things that were already tall enough. */
+.roster-row { display: flex; align-items: center; gap:11px; padding:10px 14px; border-bottom: 1px solid var(--hairline-soft); cursor: pointer; }
 .roster-row:last-child { border-bottom: none; }
 .roster-row .rn { flex: 1; min-width: 0; }
 .roster-row .rn .t { font-size: 15px; font-weight: 800; }
@@ -565,6 +574,9 @@
    numbers scannable as scores rather than as a table of figures. */
 .roster-row .rs { font-family: var(--font-display); font-size: 18px; font-weight: 900; letter-spacing: -0.01em; min-width: 2.8ch; flex: none; text-align: right; font-variant-numeric: tabular-nums; }
 .roster-row .rl { font-size: 11.5px; font-weight: 700; color: var(--text-3); width: 30px; text-align: right; }
+/* The plan-style letter was a bordered .status-pill around ONE character, repeated down the whole
+   roster. The letter is the information; the container was six rounded outlines of nothing. */
+.roster-row .ros-style { flex: none; width: 12px; text-align: center; font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.03em; color: var(--text-3); }
 
 /* honest delivery status line in threads */
 .msg-status {

@@ -1575,19 +1575,22 @@ function inboxRow(r) {
   // Right-aligned relative stamp per row (fmtWhen, the bell feed's own clock) so a coach can
   // tell an hour-old thread from last Tuesday's without opening either.
   const when = r.ts ? fmtWhen(new Date(r.ts).toISOString(), Date.now()) : '';
-  const stamp = when ? `<span style="flex:none;font-size:var(--t-xs);font-weight:600;color:var(--text-3)">${esc(when)}</span>` : '';
+  const stamp = when ? `<span class="ib-when">${esc(when)}</span>` : '';
+  // No attention mark here on purpose. Each category renders on its own, so a "needs response"
+  // dot would sit on 100% of the rows in that view and 0% everywhere else: it would restate the
+  // bucket rather than rank within it. The stamp above is the signal that actually orders them.
   if (r.kind === 'meal') {
     return `
     <div class="lrow" data-go="coach-meal/${esc(r.id)}">
       <div class="lic">${icon('utensils', 17)}</div>
       <div class="lm"><div class="lt">${esc(r.title)}</div><div class="ls">${esc(r.sub || '')}</div></div>
       ${stamp}
-      ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+      ${icon('chevron', 17)}
     </div>`;
   }
   if (r.kind === 'announcement') {
     return `
-    <div class="lrow" data-go="coach-announce" style="cursor:pointer">
+    <div class="lrow" data-go="coach-announce">
       <div class="lic">${icon('share', 17)}</div>
       <div class="lm"><div class="lt">${esc(r.title)}</div><div class="ls">${esc(r.sub || '')}</div></div>
       ${stamp}
@@ -1651,7 +1654,7 @@ function joinRow(q) {
         <button class="btn ghost sm" data-jr-arm="${esc(key)}">Decline</button>
         <button class="btn green sm" data-jr="approve" data-team="${esc(q.teamId)}" data-ath="${esc(q.athlete_id)}">Approve</button>`}
       </div>
-      <div class="jr-err" style="font-size:var(--t-xs);font-weight:600;color:var(--red);min-height:0"></div>
+      <div class="jr-err"></div>
     </div>`;
 }
 const INBOX_EMPTY = {
@@ -1697,15 +1700,18 @@ export const coachInbox = {
       const below = rows.filter(r => r.score != null && r.score < ON_STANDARD);
       const top = rows.filter(r => r.score != null && r.score >= ON_STANDARD).sort((a, b) => b.score - a.score)[0];
       const lines = [];
-      if (notLogged.length) lines.push(`<div style="display:flex;gap:8px;align-items:flex-start"><span style="width:7px;height:7px;border-radius:50%;background:var(--red);flex:none;margin-top:5px"></span><span><b>${notLogged.length} not logged yet</b>. ${esc(notLogged.slice(0, 3).map(r => r.name.split(' ')[0]).join(', '))}${notLogged.length > 3 ? '…' : ''}.</span></div>`);
-      if (below.length) lines.push(`<div style="display:flex;gap:8px;align-items:flex-start"><span style="width:7px;height:7px;border-radius:50%;background:var(--amber-bright);flex:none;margin-top:5px"></span><span><b>${below.length} below the bar</b> today (under 80).</span></div>`);
-      if (top) lines.push(`<div style="display:flex;gap:8px;align-items:flex-start"><span style="width:7px;height:7px;border-radius:50%;background:var(--green-bright);flex:none;margin-top:5px"></span><span><b>${esc(top.name)}</b> leads the day at ${top.score}.</span></div>`);
-      briefing = lines.join('<div style="height:7px"></div>') || 'Quiet so far. Logs land here as they come in.';
+      const bline = (color, html) => `<div class="l"><span class="dot" style="background:${color}"></span><span>${html}</span></div>`;
+      if (notLogged.length) lines.push(bline('var(--red)', `<b>${notLogged.length} not logged yet</b>. ${esc(notLogged.slice(0, 3).map(r => r.name.split(' ')[0]).join(', '))}${notLogged.length > 3 ? '…' : ''}.`));
+      if (below.length) lines.push(bline('var(--amber-bright)', `<b>${below.length} below the bar</b> today (under 80).`));
+      if (top) lines.push(bline('var(--green-bright)', `<b>${esc(top.name)}</b> leads the day at ${top.score}.`));
+      briefing = lines.join('') || `<div class="l"><span>Quiet so far. Logs land here as they come in.</span></div>`;
     }
 
-    // The briefing wears the book's hue: purple was reading as "recovery" on a nutrition book
-    // (a435eee's own semantic-hue ruling fixed the HQ and missed this card).
-    const bHue = isNutritionBook() ? 'green' : 'purple';
+    // The briefing used to wear the book's hue: purple, or green on a nutrition book. Purple has
+    // exactly ONE meaning in this system and it is recovery, which is the ruling a435eee applied to
+    // the HQ and missed here; and a hued gradient card made a summary READ look like an alert on
+    // the one screen where real alerts are the entire point. It is a plain surface now, and the
+    // red / amber / green dots inside it carry the semantics they always did.
 
     // Honest offline state: one clear message, not a segmented control full of zero-count
     // categories over data we can't actually see.
@@ -1713,11 +1719,8 @@ export const coachInbox = {
       return `
       ${titleHead('Inbox', "Can't reach your roster")}
       <div class="eyebrow">Daily briefing · from your real roster</div>
-      <section class="card pad" style="background:linear-gradient(180deg, rgba(var(--${bHue}-rgb),0.10), rgba(var(--${bHue}-rgb),0.03));border-color:rgba(var(--${bHue}-rgb),0.26)">
-        <div style="display:flex;align-items:center;gap:7px;font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--${bHue}-bright);margin-bottom:10px">${icon('sparkle', 13)} Today's read</div>
-        <div style="font-size:13.5px;font-weight:600;color:var(--text-2);line-height:1.55">${briefing}</div>
-      </section>
-      <div style="height:10px"></div>`;
+      <section class="card ib-brief">${briefing}</section>
+      <div class="co-gap"></div>`;
     }
 
     // A device that visited a coach's Staff/Announcements category (or a stale pre-Slice-B
@@ -1742,14 +1745,13 @@ export const coachInbox = {
 
     return `
     ${titleHead('Inbox', needsMe ? `${needsMe} need${needsMe === 1 ? 's' : ''} you` : (inboxFailed ? "Couldn't check" : 'All caught up'))}
-    ${inboxFailed ? `<div style="font-size:var(--t-sm);font-weight:600;color:var(--amber-bright);margin:0 2px 12px;line-height:1.5">Some of your inbox didn't load, so this may not be everything. Nothing was missed on the server; it retries when you reopen.</div>` : ''}
+    ${inboxFailed ? `<div class="co-note warn">Some of your inbox didn't load, so this may not be everything. Nothing was missed on the server; it retries when you reopen.</div>` : ''}
 
     ${isNeedsResponse ? `
     <div class="eyebrow">Daily briefing · from your real roster</div>
-    <section class="card pad" ${rows && !rows.length ? `data-go="${codeRoute()}" style="cursor:pointer;` : 'style="'}background:linear-gradient(180deg, rgba(var(--${bHue}-rgb),0.10), rgba(var(--${bHue}-rgb),0.03));border-color:rgba(var(--${bHue}-rgb),0.26)">
-      <div style="display:flex;align-items:center;gap:7px;font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--${bHue}-bright);margin-bottom:10px">${icon('sparkle', 13)} Today's read</div>
-      <div style="font-size:13.5px;font-weight:600;color:var(--text-2);line-height:1.55">${briefing}</div>
-      ${rows && !rows.length && RT.team && RT.team.code ? `<div style="margin-top:10px;display:flex;gap:8px;align-items:center"><button class="btn ghost sm" id="inbox-copy-code" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.team.code)}</button><button class="btn green sm" id="inbox-share-code" style="width:auto;padding:0 14px">Share code</button></div>` : ''}
+    <section class="card ib-brief${rows && !rows.length ? ' tap' : ''}"${rows && !rows.length ? ` data-go="${codeRoute()}"` : ''}>
+      ${briefing}
+      ${rows && !rows.length && RT.team && RT.team.code ? `<div class="acts"><button class="btn ghost sm" id="inbox-copy-code" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.team.code)}</button><button class="btn green sm" id="inbox-share-code" style="width:auto;padding:0 14px">Share code</button></div>` : ''}
     </section>` : ''}
 
     <div class="co-seg co-scroll" id="inbox-cat-row">
@@ -1758,21 +1760,21 @@ export const coachInbox = {
 
     ${isNeedsResponse && pending.length ? `
     <div class="eyebrow">Join requests · ${pending.length}</div>
-    <section class="card" style="padding:6px 16px">
+    <section class="card co-list">
       ${pending.map(joinRow).join('')}
     </section>` : ''}
 
     ${(genericRows.length || showAddAnnouncement) ? `
-    <section class="card" style="padding:6px 16px">
+    <section class="card ib-list">
       ${genericRows.map(inboxRow).join('')}
       ${showAddAnnouncement ? `
-      <div class="lrow" data-go="coach-announce" style="cursor:pointer">
+      <div class="lrow" data-go="coach-announce">
         <div class="lic">${icon('plus', 17)}</div>
         <div class="lm"><div class="lt">New announcement</div></div>
       </div>` : ''}
     </section>` : (isNeedsResponse && pending.length ? '' : `
     ${(() => {
-      if (inboxFailed) return `<div style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin:0 2px;line-height:1.5">This list couldn't be loaded, so it isn't empty as far as we know.</div>`;
+      if (inboxFailed) return `<div class="co-note">This list couldn't be loaded, so it isn't empty as far as we know.</div>`;
       const practice = CD.kind === 'practice';
       const emptyCopy = INBOX_CAT === 'athletes' && practice
         ? 'No client meal threads yet. Logs land here as they come in.' : INBOX_EMPTY[INBOX_CAT];
@@ -1782,7 +1784,7 @@ export const coachInbox = {
       // ALL_INBOX_CATEGORIES documents for staff/announcements and missed here).
       const action = a && INBOX_CAT === 'athletes' && practice
         ? { label: 'Share client code', go: codeRoute() } : a;
-      return `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px;line-height:1.5">${esc(emptyCopy)}</div>${action ? `<div style="margin-top:12px"><button class="btn ghost sm" data-go="${esc(action.go)}" style="width:auto;padding:0 16px">${esc(action.label)}</button></div>` : ''}`;
+      return `<div class="co-note">${esc(emptyCopy)}</div>${action ? `<div class="ib-empty-act"><button class="btn ghost sm" data-go="${esc(action.go)}" style="width:auto;padding:0 16px">${esc(action.label)}</button></div>` : ''}`;
     })()}`)}
 
     <div style="height:10px"></div>

@@ -114,8 +114,12 @@
   -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 30px), transparent 100%);
           mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 30px), transparent 100%);
 }
+/* 44px -> 34px. These are filters sitting above the content they filter, not primary actions, and
+   at 44px a row of them was a band of buttons as loud as the list. The 44px TOUCH target is
+   untouched: focus.css gives .co-chip an invisible ::after with min-width/min-height 44px, which
+   is exactly what lets the visual shrink without costing reach. Do not paint that ::after. */
 .co-seg .co-chip {
-  flex: none; height: 44px; padding:0 16px; border-radius: var(--r-chip);
+  flex: none; height: 34px; padding:0 13px; border-radius: var(--r-chip);
   background: var(--surface-1); border: 1px solid var(--hairline);
   color: var(--text-2); font-family: var(--font); font-size: var(--t-sm); font-weight: 700;
   letter-spacing: -0.005em; cursor: pointer; white-space: nowrap;
@@ -225,7 +229,7 @@
    keeps counting rows and only rows. */
 .ro-band {
   display: flex; align-items: baseline; justify-content: space-between; gap: var(--s3);
-  padding: var(--s5) var(--s4) var(--s2);
+  padding: var(--s4) var(--s4) var(--s2);
 }
 .ro-band:first-child { padding-top: var(--s3); }
 .ro-band .l {
@@ -240,15 +244,60 @@
    Identity and actions were one flex row: a 38px avatar, two fixed-width buttons and whatever
    was left for the name — about 110px at 402px wide, so "Riley Sutton · DB" wrapped to three
    lines and the row grew to 150px. Name on its own line, actions beneath, nothing to squeeze. */
-.jr { padding: var(--s3) 0 var(--s4); border-bottom: 1px solid var(--hairline-soft); }
+/* 116px -> ~58px. Identity and actions were stacked, so the two buttons went full-width and a
+   filled green Approve became the loudest object on a screen whose actual job is triage. They sit
+   inline now, sized to their labels. Wraps to two rows below ~330px rather than crushing the name,
+   and .jr-err takes its own line when a decline fails. */
+.jr { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s3); padding: var(--s3) 0; border-bottom: 1px solid var(--hairline-soft); }
 .jr:last-child { border-bottom: none; }
-.jr-top { display: flex; align-items: center; gap: var(--s3); }
-.jr-top .lic { width: 38px; height: 38px; border-radius: var(--r-chip); display: grid; place-items: center; flex: none; }
+.jr-top { display: flex; align-items: center; gap: var(--s3); flex: 1 1 120px; min-width: 0; }
+/* The name yields before the row wraps: a 180px basis pushed the two buttons onto their own
+   line at 402px, which is the stacked layout this was replacing. */
+.jr-who .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jr-top .lic { width: 34px; height: 34px; border-radius: var(--r-chip); display: grid; place-items: center; flex: none; }
 .jr-who { flex: 1; min-width: 0; }
-.jr-who .t { font-size: var(--t-md); font-weight: 700; }
-.jr-who .s { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); margin-top: 1px; }
-.jr-acts { display: flex; gap: var(--s2); margin-top: var(--s3); }
-.jr-acts .btn { flex: 1; width: auto; height: 38px; }
+.jr-who .t { font-size: var(--t-base); font-weight: 700; }
+.jr-who .s { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); margin-top: 1px; }
+.jr-acts { display: flex; gap: 6px; flex: none; margin: 0; }
+.jr-acts .btn { flex: none; width: auto; padding: 0 13px; height: 32px; font-size: var(--t-sm); }
+.jr-err { flex-basis: 100%; font-size: var(--t-xs); font-weight: 600; color: var(--red); }
+.jr-err:empty { display: none; }
+
+/* ============================================================
+   Inbox — a triage surface, so the things needing an answer come first
+   ============================================================
+   The daily briefing is a READ, not an alert, and it opened the screen as a 142px card with a
+   purple gradient and a purple border. Purple has exactly one meaning in this system (recovery),
+   which is a rule this file's own history has already tripped over once; and the card carried a
+   sparkle icon plus a "TODAY'S READ" label restating the eyebrow sitting directly above it. It
+   keeps its container, because the section needs structure, but the container is now a plain
+   surface: 142px -> ~88px, and the red/amber/green dots carry the semantics they always did. */
+.ib-brief { padding: var(--s3) var(--s4); margin-bottom: var(--s3); }
+.ib-brief .l {
+  display: flex; align-items: flex-start; gap: var(--s2);
+  font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.5;
+}
+.ib-brief .l + .l { margin-top: 7px; }
+.ib-brief .l .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; margin-top: 6px; }
+.ib-brief b { color: var(--text); font-weight: 800; }
+.ib-brief .acts { display: flex; gap: var(--s2); align-items: center; margin-top: var(--s3); }
+.ib-brief.tap { cursor: pointer; }
+.ib-empty-act { margin-top: var(--s3); }
+
+/* The thread list keeps its card. Only the rows tighten: 71px -> ~60px, which is a 34px icon and
+   two text lines with room to breathe, not a row padded to fill space it did not need. */
+/* Sections need air between them or the two cards read as one blob: the thread list follows the
+   join-requests card with no heading of its own, because the category chip above already names
+   the bucket and a second label would just echo it. The break does that job instead. */
+.ib-list { padding: var(--s1) var(--s4); margin-top: var(--s4); }
+.ib-list .lrow { padding: 12px 2px; gap: var(--s3); }
+.ib-list .lrow .lic { width: 34px; height: 34px; }
+.ib-list .lrow .lt { font-size: var(--t-base); }
+.ib-when { flex: none; font-size: var(--t-xs); font-weight: 600; color: var(--text-3); font-variant-numeric: tabular-nums; }
+/* There was an attention dot here, scoped to the needs-response bucket. It came out because each
+   category renders on its own, so within any one view the mark was on 100% of rows or none of
+   them: it restated the bucket instead of ranking inside it. The timestamp is the real ranking
+   signal, and it was already there. */
 
 /* ---------- a note INSIDE a card ----------
    .sidebox is a canvas primitive: a filled, bordered block that sits on the background and reads
