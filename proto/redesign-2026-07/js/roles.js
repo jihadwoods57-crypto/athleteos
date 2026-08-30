@@ -37,7 +37,13 @@ export async function fetchTeamRoster(teamId) {
  *  RLS-only, unscoped, .limit(2000) behavior for any caller that doesn't have a roster yet. */
 export async function fetchLinkedDaysSince(sinceISO, athleteIds) {
   const c = sb(); if (!c) return [];
-  const cols = 'athlete_id,date,score,grade,tasks';
+  // `meals` is here because `tasks` alone cannot be trusted to prove a meal was skipped: it is
+  // empty on a pre-writer row and numeric-id'd on a legacy RN one, and status.js turns "not in
+  // tasks" into "missed", which is what put three false "Owen missed <meal>" notifications on a
+  // coach's lock screen for a day with all three logged. days.meals is the same slot map scoring
+  // and the athlete-profile screen already read, and it is a small booleans object
+  // ({breakfast:false,...}), so it costs nothing next to score/grade/tasks.
+  const cols = 'athlete_id,date,score,grade,tasks,meals';
   try {
     if (!Array.isArray(athleteIds) || !athleteIds.length) {
       const { data, error } = await c.from('days').select(cols).gte('date', sinceISO).limit(2000);
@@ -1949,6 +1955,9 @@ export function buildRosterRow(member, dayRow, extras = {}) {
     // coach view + Needs-Assignment; null = the athlete resolves by raw position (parity).
     roomId: member.room_id || null,
     score, loggedToday: logged,
+    // The slot map behind meal done-ness (see status.js openItems). null when the caller's query
+    // did not fetch it, which is the signal to fall back to `tasks` rather than to guess.
+    meals: (dayRow && dayRow.meals && typeof dayRow.meals === 'object') ? dayRow.meals : null,
     flag: logged ? tierFlag(score) : 'r',
     logs: logged && tasks.length ? `${done}/${tasks.length}` : (logged ? 'Logged' : '—'),
     note: logged

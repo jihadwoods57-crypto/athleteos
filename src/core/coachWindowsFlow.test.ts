@@ -32,7 +32,11 @@ const KNOB = { key: 'team:', meals: 2, lifts: 0, weigh: 'off', hydration: false,
                mealWins: [{ open: 300, due: 420 }, { open: 1000, due: 1100 }] }; // 5-7a, 4:40-6:20p
 const reqs = catalogFromItems(itemsFromKnobs(KNOB));
 const row = (over: object = {}) => ({ athleteId: 'a1', name: 'Devin', score: 90, loggedToday: true,
-  tasks: [], lastMealAt: null, scoreHistory: [], ...over });
+  tasks: [], meals: {}, lastMealAt: null, scoreHistory: [], ...over });
+  // `meals` is the slot map days.meals carries and buildRosterRow now puts on every roster row.
+  // An empty map is the honest "logged something, no meal slots done" shape these window tests
+  // want: status.js will not call an item overdue on a LOGGED day it has no way to judge, so a
+  // row without this reads as unjudgeable rather than as a miss (see js/false-miss.test.mjs).
 
 test('custom window: due_soon inside 60min of the coach-set due, not the old defaults', () => {
   // 6:30am = 390 — inside [420-60, 420] of Early Fuel, far from default breakfast 570

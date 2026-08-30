@@ -41,13 +41,40 @@ export function runsOn(req, dow) {
 /** Open required items with their due state at `nowMin`. Done-ness comes from day.tasks.
  *  `nowDow` (0-6), when supplied, gates each item by its schedule first — an off-day
  *  requirement (e.g. Tue/Thu/Sat for an MWF weigh-in) never enters the list at all. */
+/** True when this row's `tasks` were written by a tasks-aware PROTO client, and therefore mean
+ *  something. Ported from insights.js protoTasksAware(), which has guarded its own miss counts
+ *  this way from the start: a legacy RN row carries NUMERIC task ids, and a pre-writer row carries
+ *  none. Neither can prove an item was skipped, and status.js used to treat both as proof. */
+function tasksTrustworthy(row) {
+  const tasks = Array.isArray(row && row.tasks) ? row.tasks : [];
+  return tasks.some((t) => t && t.id != null && !/^\d+$/.test(String(t.id)));
+}
+
+/** A photo-proof requirement is a meal slot, and days.meals is the map that actually records it. */
+const isMealSlot = (r) => r && r.proof === 'photo';
+
 function openItems(nowMin, row, reqs, nowDow) {
   const doneById = {};
   for (const t of (row.tasks || [])) if (t && t.done) doneById[t.id] = true;
+  // The same slot map scoring and the coach's own profile screen read. null when the caller did
+  // not fetch it (older callers), which means meals fall back to `tasks` like everything else.
+  const meals = (row && row.meals && typeof row.meals === 'object') ? row.meals : null;
+  const trusted = tasksTrustworthy(row);
   const out = [];
   for (const r of (reqs || [])) {
     if (!r || !r.required || doneById[r.id]) continue;
     if (nowDow != null && !runsOn(r, nowDow)) continue;
+    // Logged, per the map that records meals. This is the line that stops a fully-logged day from
+    // reading as three missed meals when days.tasks happens to be empty.
+    if (meals && meals[r.id]) continue;
+    // The guard is scoped to a row that SHOWS ACTIVITY, and the distinction is the whole point.
+    // loggedToday false means there is no day row at all: nothing was logged, every required
+    // window is honestly missed, and that alert is exactly what this feature is for. But once a
+    // day row exists we know the athlete logged something, and an empty or numeric-id'd `tasks`
+    // then proves nothing about WHICH items they skipped. Claiming specific ones is fabrication,
+    // and it is what put three false "missed" notifications on a coach's lock screen for a day
+    // with all three meals in.
+    if (row.loggedToday && !trusted && !(meals && isMealSlot(r))) continue;
     const due = r.window && typeof r.window.due === 'number' ? r.window.due : null;
     const open = r.window && typeof r.window.open === 'number' ? r.window.open : 0;
     // Grace mirrors the athlete's OWN day engine (day.js slotGrace): a meal logged within

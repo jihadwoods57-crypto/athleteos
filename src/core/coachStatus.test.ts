@@ -6,8 +6,12 @@ const req = (id: string, open: number, due: number) => ({ id, title: id, require
 const REQS = [req('breakfast', 420, 570), req('lunch', 720, 840), req('dinner', 1080, 1230)];
 const row = (over: object = {}) => ({
   athleteId: 'a1', name: 'Devin', score: null, loggedToday: false,
-  tasks: [], lastMealAt: null, scoreHistory: [], ...over,
+  tasks: [], meals: {}, lastMealAt: null, scoreHistory: [], ...over,
 });
+  // `meals` is the slot map days.meals carries and buildRosterRow now puts on every roster row.
+  // An empty map is the honest "logged something, no meal slots done" shape these window tests
+  // want: status.js will not call an item overdue on a LOGGED day it has no way to judge, so a
+  // row without this reads as unjudgeable rather than as a miss (see js/false-miss.test.mjs).
 
 test('excused wins over everything', () => {
   const s = athleteStatus({ nowMin: 900, row: row(), reqs: REQS, excused: true });
