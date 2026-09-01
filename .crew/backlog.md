@@ -15,16 +15,21 @@ byte-equal, 139-screen sweep clean on the morning pass). None has reached a phon
 
 ## Ranked
 
-### 1 · ship · publish the stacked OTA the moment a live token exists  (impact 5, effort s)
-Users run Aug 30 code. Stacked behind the dead cloud `EXPO_TOKEN` (re-proved 2026-09-01
-7 PM, same "bearer token is invalid"): the zero-state ring fix, the full heading-outline
-pass (8 AM + 7 PM halves), and whatever lands tomorrow. Everything is ready: gates green,
-committed zip current. First session with a working token: publish
-(`eas update --branch production --environment production`), fetch the live manifest,
-match md5 + sha256 against the committed zip, and report which commit users now run.
-NOTE: the roll-call deploy session of 2026-08-26 published with a token that is NOT the
-one in this environment. If the token is still dead, say exactly that in one line and
-move on — the founder already has the key email; do not re-send it.
+### 1 · ship · ~~publish the stacked OTA~~ **DONE 2026-09-01 (evening, from the founder's PC)**  (impact 5, effort s)
+**SHIPPED AND PROVEN.** Update group `7466798c-a801-41cf-8b24-42b4ca01f05e`, runtime
+1.0.0, both platforms. Local `assets/proto.zip` md5 `bca23f98…` + sha256 `xJ02xQs6…`
+(base64url) match the live manifest's zip asset `key`/`hash` on iOS AND Android, and the
+zip content-checked for the actual edits. Users now run `e5a92112` (master), which
+carries everything that was stacked: the zero-state ring fix, BOTH heading-outline halves
+(8 AM + 7 PM), and the 2026-09-01 seven-defect UI polish pass.
+
+**The finding that unblocks every future ship: the dead `EXPO_TOKEN` is a CLOUD-SANDBOX
+problem only.** `npx eas update` from the founder's Windows checkout authenticates as
+`jihadwoods` and publishes fine — it did tonight, and the a2b3dea6 group 14 hours earlier
+was the same. So an OTA is never truly blocked; it is blocked *from the cloud sessions*.
+A cloud session that finds the token dead should say so in one line and hand the publish
+to a PC session rather than parking the work. The key email stays owed (it would let the
+cloud sessions ship unattended); it is no longer a release blocker.
 
 ### 2 · security (live DB) · apply 0210: `base_age` server-authoritative  **[verify first — done]**  (impact 5, effort m)
 **BUILT 2026-08-27 8 AM — still awaiting live apply.** The hole is real (reproduced on a

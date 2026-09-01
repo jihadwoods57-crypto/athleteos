@@ -301,3 +301,33 @@ and `athletic trainer reads base_weight and the weight target`). Confirmed pre-e
 four fail on `HEAD~1` with the roll-call section absent. Not investigated — different feature area.
 Per this runner's own history, a suite that is normally red is how coverage silently rots, so this
 is worth someone's attention.
+
+---
+
+## OTA ship log · 2026-09-01 (evening)
+
+Update group `7466798c-a801-41cf-8b24-42b4ca01f05e`, branch `production`, runtime 1.0.0,
+android + ios. Commit `e5a92112` (master).
+
+Proven the same way as the 2026-08-26 group: the local `assets/proto.zip` hashes match the
+live manifest's single `application/zip` asset on BOTH platforms.
+
+| | |
+|---|---|
+| local md5 / manifest `key` | `bca23f980923b675e0624f56b9621aa2` |
+| local sha256 (base64url) / manifest `hash` | `xJ02xQs68TVErRi2wbh6V8cL8t9fUrdXsXL0iqTwxWc` |
+| iOS update id | `01a05f66-6ab1-7785-b042-fd5e01d6481f` |
+| Android update id | `01a05f66-6ab1-77a1-9db3-a0f9d5dea031` |
+
+The zip was also content-checked (13 assertions over the strings each change introduces or
+removes) before and after the merge rebuild, so the matching bytes are demonstrably the
+bytes carrying the edits.
+
+**Publishing works from the founder's Windows checkout.** The `EXPO_TOKEN` that reads as
+"bearer token is invalid" is the one in the CLOUD sandbox; `npx eas update` locally
+authenticates as `jihadwoods` and publishes. A cloud session finding the token dead should
+hand the publish to a PC session, not park the release.
+
+**Merge note for any proto change:** `assets/proto.zip` and `src/proto/protoVersion.ts` are
+generated, so they conflict on every merge that touches the proto. Resolve by re-running
+`node scripts/build-proto-zip.mjs` on the merged tree — never by taking one side.
