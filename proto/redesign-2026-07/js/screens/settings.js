@@ -281,10 +281,15 @@ export const privacy = {
     <section class="card" style="padding:6px 16px">
       ${rows.map((r, i) => `
         <details class="pv-row">
+          ${/* The pill states a FACT, so it wears the fact's color: green = they see your day,
+                blue = a limited slice, muted = nothing at all. "No access" in action-blue read
+                as a button asking to be granted. The chevron is the expand affordance — these
+                rows open, and nothing on the closed row said so. */''}
           <summary class="lrow">
             <div class="lic">${icon(r.ic, 17)}</div>
             <div class="lm"><div class="lt">${esc(r.t)}</div><div class="ls">${esc(r.s)}</div></div>
-            <span class="status-pill ${r.pill === 'View access' ? 'g' : 'b'}">${r.pill}</span>
+            <span class="status-pill ${r.pill === 'View access' ? 'g' : r.pill === 'No access' ? 'muted' : 'b'}">${r.pill}</span>
+            <span class="pv-chev" aria-hidden="true">${icon('chevron', 15)}</span>
           </summary>
           <div class="pv-detail">
             ${r.detail.map(([k, v]) => `<div class="pv-line"><b>${esc(k)}</b>${esc(v)}</div>`).join('')}

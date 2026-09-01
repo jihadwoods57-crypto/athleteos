@@ -78,7 +78,9 @@ export default {
         : 'Your phone compares itself to the place your coach picked and reports "arrived" or "couldn’t confirm". No coordinates leave your phone and none are stored.')}
       ${bullet('eye', 'Only your coaching staff can see it',
         'Your arrival time is visible to the staff responsible for you. There is no team list of who was late and no way for other athletes to see your record.')}
-      ${bullet('x', 'You can turn it off whenever you want',
+      ${/* A switch, not an X: the X-in-a-tile read as an error/close control, and this row is
+            the reassuring one. */''}
+      ${bullet('toggle', 'You can turn it off whenever you want',
         'Switch it off here or in your phone settings. You’ll check in by tapping a button instead, and nothing you already earned is deleted.')}
     </section>
 

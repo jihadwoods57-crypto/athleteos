@@ -338,6 +338,23 @@
   color: var(--text); font-family: var(--font); font-size: 17px; font-weight: 700; padding:0 18px; outline: none;
 }
 .ob-input:focus { border-color: var(--blue-bright); }
+/* iOS WebKit gives a date input its own UA chrome: the author width is ignored (the Edit
+   profile field ran off the right edge of the screen), the value is centered, and an empty
+   value paints literally nothing. Strip the appearance so it lays out like every other field;
+   the .ep-dob-hint overlay (profile.js) is the placeholder WebKit refuses to draw. */
+input.ob-input[type="date"] { -webkit-appearance: none; appearance: none; display: flex; align-items: center; width: 100%; min-width: 0; }
+input.ob-input[type="date"]::-webkit-date-and-time-value { text-align: left; margin: 0; }
+/* Engines that paint their own empty-date ghost ("mm/dd/yyyy": Chromium, Android WebView)
+   would double the hint; while the field is empty the ghost goes transparent and the hint is
+   the one placeholder everywhere. profile.js keeps the class in sync with the value. */
+input.ob-input[type="date"].is-empty::-webkit-datetime-edit { color: transparent; }
+/* Chromium parks its calendar glyph right after the (collapsed) edit part — mid-field, over
+   the hint. iOS draws no glyph at all, and on a phone tapping anywhere in the field opens the
+   native picker, so the glyph is an orphan: drop it everywhere. */
+input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; }
+.ep-dob-wrap { position: relative; }
+.ep-dob-hint { position: absolute; left: 19.5px; top: 50%; transform: translateY(-50%); pointer-events: none; font-size: var(--t-lg); font-weight: 700; color: var(--text-3); }
+.ep-dob-hint[hidden] { display: none; }
 .bignum-pair { display: flex; gap:12px; }
 .bignum { flex: 1; text-align: center; padding:20px 8px; border-radius: var(--r-card-sm); background: var(--surface-1); border: 1px solid transparent; box-shadow: var(--sh-card);}
 .bignum .bv { font-size: 34px; font-weight: 800; letter-spacing: -0.03em; }

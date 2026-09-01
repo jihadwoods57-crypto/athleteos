@@ -3,6 +3,7 @@ import { icon } from '../icons.js';
 import { backHead, esc, errorState } from '../components.js';
 import * as roles from '../roles.js';
 import * as CD from '../coach-data.js';
+import { tierColor } from '../score-band.js';
 
 /* ============================================================
    The 11 approved ideas, made walkable. Live where possible,
@@ -98,21 +99,26 @@ export const recruiting = {
         </div>
       </div>
       ${P.daysLogged > 0 ? `
+      ${/* Averages wear their TIER color (score-band.js), never a flat green: a 39 average
+            painted success-green on the one surface built to be shown to a recruiter is the
+            exact dishonesty PRODUCT.md forbids. Streaks keep the app's live-streak amber
+            (home.js flame row) only while one is alive; a 0d streak is an empty fact in
+            default ink, not a warning. */''}
       <div class="macro-row" style="margin-top:16px">
         <div class="macro"><div class="mv">${P.daysLogged}</div><div class="mk">Days tracked</div></div>
-        <div class="macro"><div class="mv" style="color:var(--green-bright)">${avgAll}</div><div class="mk">Avg score</div></div>
+        <div class="macro"><div class="mv" style="color:${tierColor(avgAll)}">${avgAll}</div><div class="mk">Avg score</div></div>
         ${onPct != null ? `<div class="macro"><div class="mv">${onPct}%</div><div class="mk">On standard</div></div>` : ''}
       </div>
       <div class="macro-row" style="margin-top:8px">
-        <div class="macro"><div class="mv" style="color:var(--amber-bright)">${P.bestStreak}d</div><div class="mk">Best streak</div></div>
-        <div class="macro"><div class="mv" style="color:var(--amber-bright)">${S.streakDays}d</div><div class="mk">Current streak</div></div>
-        ${P.weekAvg != null ? `<div class="macro"><div class="mv">${P.weekAvg}</div><div class="mk">Recent avg</div></div>` : ''}
+        <div class="macro"><div class="mv"${P.bestStreak > 0 ? ' style="color:var(--amber-bright)"' : ''}>${P.bestStreak}d</div><div class="mk">Best streak</div></div>
+        <div class="macro"><div class="mv"${S.streakDays > 0 ? ' style="color:var(--amber-bright)"' : ''}>${S.streakDays}d</div><div class="mk">Current streak</div></div>
+        ${P.weekAvg != null ? `<div class="macro"><div class="mv" style="color:${tierColor(P.weekAvg)}">${P.weekAvg}</div><div class="mk">Recent avg</div></div>` : ''}
       </div>` : `
       <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:14px">Your record builds as you log. A few days in, your real average, consistency, and streaks show up here.</div>`}
     </section>
 
     ${verified ? '' : `
-    <div class="sidebox" style="margin-top:12px">
+    <div class="sidebox mt">
       <div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
       <div><div class="tt">Not verified yet</div>
       <div class="ts">Connect a coach to begin building a verified record. Verification means a real coach watches the same numbers.</div>
@@ -126,8 +132,7 @@ export const recruiting = {
       <div class="ts">Verified daily execution is a signal no highlight reel carries: this athlete does the work when nobody claps.</div></div>
     </div>
 
-    <div style="height:16px"></div>
-    <div class="sidebox">
+    <div class="sidebox mt">
       <div class="req-icon g" style="width:38px;height:38px">${icon('lock', 17)}</div>
       <div><div class="tt">Private by default</div>
       <div class="ts">Nothing here is public and nothing is shared unless you explicitly share it. You control who ever sees this record.</div></div>

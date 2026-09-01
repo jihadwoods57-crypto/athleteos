@@ -215,10 +215,22 @@ export function scoreRing({ score, size = 338, stroke = 20, showCenter = true, u
   // windBack (motion.js) reads the first dasharray token to hide, animateRing drives data-off —
   // both work unchanged on paths.
   const off = (100 - score).toFixed(1);
+  // Below 6 the ring is "unstarted": beaded track, no band, no ceiling, no marker. The old
+  // cutoff applied only to the dot pattern, which left three artifacts at score 0: a
+  // zero-length band whose ROUND CAP still painted a full-width sweep-colored dot at the
+  // 100% mark (a dash boundary at offset 100 sits exactly on the path's endpoint), a ceiling
+  // arc that painted a solid dim band over the "unstarted" track and erased it, and dashes
+  // (1.4 on / 5 off) whose round caps at band width overlapped into a scalloped mush that
+  // read as grain. The beads below are the caps used ON PURPOSE: zero-length dashes at a
+  // spacing wider than the dot they paint.
+  const unstarted = score < 6;
+  const started = score > 0;
+  const arcLen = 2 * Math.PI * r * (DIAL_SWEEP / 360);
+  const beadGap = (arcLen / Math.max(10, Math.round(arcLen / (stroke * 1.8)))).toFixed(2);
   // Ceiling arc: the points STILL REACHABLE today, drawn as a dim continuation of the same band
   // from `score` to `possible` — the whole path rotated so its start sits at the progress tip.
   // Since possible ≤ 100 the dash segment never crosses the gap.
-  const ceil = (possible != null && possible > score) ? {
+  const ceil = (!unstarted && possible != null && possible > score) ? {
     span: (possible - score).toFixed(1),
     rot: ((score / 100) * DIAL_SWEEP).toFixed(2),
   } : null;
@@ -278,10 +290,13 @@ export function scoreRing({ score, size = 338, stroke = 20, showCenter = true, u
           <stop offset="100%" stop-color="#D8E4F5"/>
         </radialGradient>
       </defs>
-      <!-- track: the mark's own glass track value (--ring-track, per theme); dotted "ready" style
+      <!-- track: the mark's own glass track value (--ring-track, per theme); discrete beads
            below score 6 so an empty day reads as unstarted, not broken (no pathLength here: the
-           dot pattern needs user units) -->
-      <path d="${dial(r)}" fill="none" stroke="var(--ring-track)" stroke-width="${stroke}" stroke-linecap="round"${score < 6 ? ' stroke-dasharray="1.4 5"' : ''}/>
+           bead spacing needs user units, and the spacing divides the arc exactly so a bead seats
+           at both ends of the gauge) -->
+      ${unstarted
+        ? `<path d="${dial(r)}" fill="none" stroke="var(--ring-track)" stroke-width="${(stroke * 0.55).toFixed(1)}" stroke-linecap="round" stroke-dasharray="0.001 ${beadGap}"/>`
+        : `<path d="${dial(r)}" fill="none" stroke="var(--ring-track)" stroke-width="${stroke}" stroke-linecap="round"/>`}
       ${/* Track top highlight — dial-lit's centered gloss line (0.06 white at 7/12 of the band
             width). Dark only: the flat-light master's track is a solid fill with no gloss. */''}
       ${!light && score >= 6 ? `<path d="${dial(r)}" fill="none" stroke="rgba(255,255,255,0.06)"
@@ -294,16 +309,16 @@ export function scoreRing({ score, size = 338, stroke = 20, showCenter = true, u
         pathLength="100" stroke-dasharray="${ceil.span} ${(100 - ceil.span)}"
         stroke-dashoffset="0" data-off="0"
         transform="rotate(${ceil.rot} ${cx} ${cy})"/>` : ''}
-      <!-- main band -->
-      <path class="ring-arc" d="${dial(r)}" fill="none" stroke="url(#g${uid})"
+      <!-- main band (score > 0 only: at 0 its round cap painted a phantom dot at the 100% mark) -->
+      ${started ? `<path class="ring-arc" d="${dial(r)}" fill="none" stroke="url(#g${uid})"
         stroke-width="${stroke}" stroke-linecap="round"
-        pathLength="100" stroke-dasharray="100" stroke-dashoffset="${off}" data-off="${off}"/>
+        pathLength="100" stroke-dasharray="100" stroke-dashoffset="${off}" data-off="${off}"/>` : ''}
       <!-- sheen: dial-lit's centered band gloss (see specW above); rides the band's own radius -->
-      ${!light ? `<path class="ring-arc ring-spec" d="${dial(r)}" fill="none" stroke="#FFFFFF"
+      ${!light && started ? `<path class="ring-arc ring-spec" d="${dial(r)}" fill="none" stroke="#FFFFFF"
         stroke-width="${specW.toFixed(1)}" stroke-linecap="round" opacity="0.16"
         pathLength="100" stroke-dasharray="100" stroke-dashoffset="${off}" data-off="${off}"/>` : ''}
       <!-- inner echo ring: the app-only flourish the founder kept (see rEcho above) -->
-      ${rEcho > 0 ? `<path class="ring-arc ring-echo" d="${dial(rEcho)}" fill="none" stroke="url(#g${uid})"
+      ${rEcho > 0 && started ? `<path class="ring-arc ring-echo" d="${dial(rEcho)}" fill="none" stroke="url(#g${uid})"
         stroke-width="1.5" opacity="0.35"
         pathLength="100" stroke-dasharray="100" stroke-dashoffset="${off}" data-off="${off}"/>` : ''}
       ${marker}

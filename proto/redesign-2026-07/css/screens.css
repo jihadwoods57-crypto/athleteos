@@ -1998,6 +1998,10 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* ----- Privacy per-role expanders (spec §20.2) ----- */
 .pv-row summary{list-style:none}
 .pv-row summary::-webkit-details-marker{display:none}
+/* The row's expand affordance (the native marker above is hidden): rests pointing right,
+   turns down while the row is open. Composited rotate only. */
+.pv-chev{display:flex;color:var(--text-3);transition:transform var(--dur-1) var(--ease-out)}
+.pv-row[open] .pv-chev{transform:rotate(90deg)}
 .pv-detail{padding:2px 4px 12px 44px;border-bottom:1px solid var(--hairline-soft)}
 .pv-row:last-child .pv-detail{border-bottom:none}
 .pv-line{font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5;padding:4px 0}

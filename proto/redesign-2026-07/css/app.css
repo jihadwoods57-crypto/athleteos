@@ -87,6 +87,21 @@ body {
   .device { width: 100vw; height: calc(100dvh - var(--kb)); border-radius: 0; padding:0; box-shadow: none; background: none; }
   .screen { border-radius: 0; }
   .island { display: none; }
+  /* On device the OS draws its own clock over the top of the WebView, and .viewport's
+     padding-top scrolls WITH the content — so scrolled content ran legibly through the
+     status bar text (Edit profile's "Date of birth" label colliding with the clock).
+     This veil fades the safe-area strip back to the canvas so the OS chrome always sits
+     on quiet ground. color-mix keeps the fade in the SAME hue as --bg-grad-top (a
+     `transparent` endpoint greys mid-gradient); browsers without color-mix drop the
+     declaration and simply keep the old behavior. z-index 35 clears content but stays
+     under the in-screen chrome band (z 40). */
+  .screen::after {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: calc(env(safe-area-inset-top, 0px) + 12px);
+    z-index: 35; pointer-events: none;
+    background: linear-gradient(to bottom, var(--bg-grad-top) 45%, color-mix(in srgb, var(--bg-grad-top) 0%, transparent) 100%);
+  }
   /* .statusbar, .viewport and .tabbar are phone-native too, but their overrides CANNOT live in
      this block — see "PHONE-NATIVE OVERRIDES THAT MUST COME LAST" at the end of this file. */
 }

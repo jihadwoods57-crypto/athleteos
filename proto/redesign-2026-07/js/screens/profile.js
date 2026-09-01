@@ -369,7 +369,13 @@ export const editProfile = {
     </div>
 
     <div class="eyebrow">Date of birth</div>
-    <input class="ob-input ep-field" id="ep-dob" type="date" value="${esc(dob)}" max="${new Date().toISOString().slice(0, 10)}" aria-label="Date of birth" />
+    ${/* Wrapped because iOS WebKit paints an EMPTY date input as a blank box (it has no
+          placeholder support): the hint overlay is the placeholder it refuses to draw, and
+          mount() hides it the moment a date lands. */''}
+    <div class="ep-dob-wrap">
+      <input class="ob-input ep-field${dob ? '' : ' is-empty'}" id="ep-dob" type="date" value="${esc(dob)}" max="${new Date().toISOString().slice(0, 10)}" aria-label="Date of birth" />
+      ${dob ? '' : '<span class="ep-dob-hint" aria-hidden="true">Add your birth date</span>'}
+    </div>
 
     <div class="eyebrow">Sport</div>
     <div class="chip-row" id="ep-sport" data-toggle-group>
@@ -414,6 +420,22 @@ export const editProfile = {
     };
     editProfile._dirty = false;
     root.querySelectorAll('.ep-field').forEach((el) => el.addEventListener('input', markDirty));
+
+    // The native date picker reports through `change` (iOS does not reliably fire `input` for
+    // it), and the empty-state hint has to leave the moment a date exists.
+    const dobEl = root.querySelector('#ep-dob');
+    const dobHint = root.querySelector('.ep-dob-hint');
+    if (dobEl) {
+      const syncDob = () => {
+        markDirty();
+        if (dobHint) dobHint.hidden = !!dobEl.value;
+        // is-empty blanks the engine's own "mm/dd/yyyy" ghost (flows.css) so the hint above is
+        // the ONLY placeholder; it has to leave with the hint or the typed value goes invisible.
+        dobEl.classList.toggle('is-empty', !dobEl.value);
+      };
+      dobEl.addEventListener('change', syncDob);
+      dobEl.addEventListener('input', syncDob);
+    }
 
     // Sport chips re-render positions in place (spec §11.2): selecting a sport swaps the
     // position list; the previous selection only survives if it exists in the new sport.
@@ -491,7 +513,7 @@ export const editProfile = {
       }
       err.textContent = '';
       btn.disabled = true;
-      const was = btn.textContent;
+      const was = btn.innerHTML; // innerHTML, not textContent: the label carries the check icon SVG, and a failed save used to hand back a de-iconed button
       btn.textContent = 'Saving…';
       const name = `${first} ${last}`.trim();
       // Local first (instant), then the SERVER write the coach actually reads. dob is the
@@ -502,15 +524,15 @@ export const editProfile = {
       let dobOk = true;
       if (dob) {
         const r = await window.__act.setMyDob(dob);
-        if (r.reason === 'locked') { err.textContent = 'Your birth date is locked while you’re under 18. A parent or support can correct it.'; btn.disabled = false; btn.textContent = was; return; }
-        if (r.reason === 'floor') { err.textContent = 'OnStandard is for athletes 13 and up.'; btn.disabled = false; btn.textContent = was; return; }
+        if (r.reason === 'locked') { err.textContent = 'Your birth date is locked while you’re under 18. A parent or support can correct it.'; btn.disabled = false; btn.innerHTML = was; return; }
+        if (r.reason === 'floor') { err.textContent = 'OnStandard is for athletes 13 and up.'; btn.disabled = false; btn.innerHTML = was; return; }
         dobOk = r.ok;
         if (r.ok) window.__act.saveProfile({ dob });
       }
       // dob has no background retry and (unlike the rest) wasn't kept locally on failure, so
       // "it'll sync" would be a lie for it — name that failure specifically.
-      if (dobOk === false && ok !== false) { err.textContent = 'Couldn’t save your birth date. Check your connection and try again.'; btn.disabled = false; btn.textContent = was; return; }
-      if (ok === false) { err.textContent = 'Saved on this phone, couldn’t reach the server. It’ll sync when you’re back online.'; btn.disabled = false; btn.textContent = was; return; }
+      if (dobOk === false && ok !== false) { err.textContent = 'Couldn’t save your birth date. Check your connection and try again.'; btn.disabled = false; btn.innerHTML = was; return; }
+      if (ok === false) { err.textContent = 'Saved on this phone, couldn’t reach the server. It’ll sync when you’re back online.'; btn.disabled = false; btn.innerHTML = was; return; }
       editProfile._dirty = false;
       btn.textContent = 'Saved';
       setTimeout(() => window.__back('profile'), 350);
