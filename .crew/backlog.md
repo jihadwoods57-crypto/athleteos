@@ -57,9 +57,16 @@ Without DB credentials the RPC can be authored and parked in `supabase/migration
 but the proto can't switch to it until the RPC exists on live — sequence accordingly.
 
 ### 5 · copy/design · eyebrow-h2 heading semantics  (impact 2, effort s)
-The surviving half of the old copy item: eyebrow labels sit above h2s with the
-semantics backwards on several screens. Fix the heading structure while keeping the
-visual design. (The em-dash half is DONE — see below.)
+**DONE 2026-09-01 8 AM (`e6c9322` + `962a6c7`).** The item as written was stale — the app had
+NO h2s anywhere; screens had one h1 and then divs all the way down. All 309 section labels
+(.eyebrow, .co-eyebrow, ob2 .h-title) are now real h2s, same classes, pixel-identical (proven
+by before/after capture diff on 30 screens; 139-screen sweep clean). Adversarial review found
+one real break: the .notif entrance stagger keyed on :nth-of-type (counts sibling DIVS) and was
+already firing out of order — replaced with consecutive-sibling chains. RESIDUE for a judgment
+pass (not a sweep): .xgrp and .cs-eyebrow are still divs because their heading level depends on
+what sits above them per screen (log.js has xgrps with no h2 above; cs-eyebrow spans sit inline
+in flex heads). Also: the previous committed zip had CRLF copies of five files (built on the
+founder's Windows checkout) — rebuilt LF; watch for that churn on future PC-built zips.
 
 ### 6 · design · blue-bright ink cluster from the 2026-08-19 deep audit  (impact 2, effort s)
 A cluster of screens uses bright blue as text ink where it should be reserved for the
