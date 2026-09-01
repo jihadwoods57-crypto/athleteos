@@ -123,7 +123,7 @@ export function standardsCard(rows, todayIso) {
   if (!today.length) return '';
   return `<section class="card cs-card">
     <div class="cs-head">
-      <span class="cs-eyebrow">TODAY’S STANDARDS</span>
+      <h2 class="cs-eyebrow">TODAY’S STANDARDS</h2>
       <span class="note">Tracked · not scored</span>
     </div>
     ${today.map((r) => standardRow(r, todayIso || todayISO())).join('')}
@@ -175,7 +175,7 @@ function momentumCard(rows, current) {
   if (bars.length < 2) return '';
   const anyGap = bars.some((b) => b.cls === 'gap');
   return `<section class="card pad">
-    <div class="cs-eyebrow" style="margin-bottom:10px">LAST ${bars.length} ${current.period === 'week' ? 'WEEKS' : 'DAYS'}</div>
+    <h2 class="cs-eyebrow" style="margin-bottom:10px">LAST ${bars.length} ${current.period === 'week' ? 'WEEKS' : 'DAYS'}</h2>
     <div class="cs-mom">
       <span class="tline"></span>
       ${bars.map((b) => `<b class="${b.cls}" style="height:${Math.max(4, b.pct)}%"></b>`).join('')}
@@ -197,7 +197,7 @@ function ruleCard(row) {
 
   if (surprising) {
     return `<section class="card pad">
-      <div class="cs-eyebrow" style="margin-bottom:8px">HOW THIS IS COUNTED</div>
+      <h2 class="cs-eyebrow" style="margin-bottom:8px">HOW THIS IS COUNTED</h2>
       ${body}
     </section>`;
   }
@@ -275,7 +275,7 @@ export default {
 
     <section class="card pad" id="cs-hero">
       <div class="cs-head" style="margin-bottom:13px">
-        <span class="cs-eyebrow">${esc(row.period === 'week' ? 'THIS WEEK' : 'TODAY')}</span>
+        <h2 class="cs-eyebrow">${esc(row.period === 'week' ? 'THIS WEEK' : 'TODAY')}</h2>
         <span class="xpill ${pillFor(row.status)}">${esc(st.label)}</span>
       </div>
       <div class="cs-colrow">
@@ -294,7 +294,7 @@ export default {
     ${ruleCard(row)}
 
     ${canManual ? `<section class="card pad">
-      <div class="cs-eyebrow" style="margin-bottom:8px">WATCH NOT SYNCING?</div>
+      <h2 class="cs-eyebrow" style="margin-bottom:8px">WATCH NOT SYNCING?</h2>
       <div class="cs-p muted" style="margin-bottom:10px">Log it yourself. ${row.manual_requires_approval
         ? 'Your coach reviews manual entries before they count.'
         : 'It’s recorded as reported rather than verified. Nobody assumes you’re being dishonest.'}</div>
@@ -304,7 +304,7 @@ export default {
     </section>` : ''}
 
     ${row.manual_submitted_at ? `<section class="card pad">
-      <div class="cs-eyebrow" style="margin-bottom:6px">YOU REPORTED THIS</div>
+      <h2 class="cs-eyebrow" style="margin-bottom:6px">YOU REPORTED THIS</h2>
       <div class="cs-p">${esc(row.manual_note || 'Logged by hand.')}</div>
     </section>` : ''}
 
@@ -416,7 +416,7 @@ export const connectedStandardsList = {
     const rows = activeOn(CS.mine, today);
     const { assigned, personal } = groupForAthlete(rows);
     const section = (title, list, empty) => `
-      <div class="xgrp">${esc(title)}</div>
+      <h2 class="xgrp">${esc(title)}</h2>
       ${list.length
         ? `<section class="card" style="padding:2px 16px">${list.map((r) => standardRow(r, today)).join('')}</section>`
         : empty}`;
@@ -440,7 +440,7 @@ export const connectedStandardsList = {
       title: 'Nothing assigned right now',
       body: 'When your coach sets an activity standard, it shows up here and on your Home screen.',
     }))}
-    <div class="xgrp">Personal</div>
+    <h2 class="xgrp">Personal</h2>
     ${personal.length ? `<section class="card rows">${personal.map((r) => standardRow(r, today)).join('')}</section>` : ''}
     ${resting.length ? `<section class="card rows">${resting.map(defRow).join('')}</section>` : ''}
     ${!personal.length && !resting.length ? emptyState({

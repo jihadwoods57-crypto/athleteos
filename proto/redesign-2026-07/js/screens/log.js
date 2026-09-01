@@ -75,7 +75,7 @@ export default {
               opened a dead end on the one night the athlete had done everything right — while
               Plan was simultaneously promising "All meals are in. Anything extra still counts."
               A late snack had nowhere to go. Keep the doors open. */''}
-        <div class="xgrp" style="margin:14px 2px 7px">Still want to log something?</div>
+        <h2 class="xgrp" style="margin:14px 2px 7px">Still want to log something?</h2>
         <div class="sheet-row" data-go="camera">
           <div class="si" style="background:var(--green-surface);color:var(--green-bright)">${icon('camera', 20)}</div>
           <div class="st"><div class="t">Log an extra meal</div><div class="s">Beyond the standard. It still counts toward your quality.</div></div>
@@ -123,7 +123,7 @@ export default {
       <div class="grab"></div>
       ${head}${segs}${syncRow}
       ${hero}
-      <div class="xgrp" style="margin:0 2px 7px">Quick logs</div>
+      <h2 class="xgrp" style="margin:0 2px 7px">Quick logs</h2>
       ${weight && !(e.now && e.now.id === 'weight') ? `
       <div class="sheet-row" data-go="weight">
         <div class="si" style="background:${weight.state === 'done' ? 'var(--green-surface);color:var(--green-bright)' : 'var(--surface-2);color:var(--text-3)'}">${icon(weight.state === 'done' ? 'check' : 'scale', 20)}</div>
@@ -135,7 +135,7 @@ export default {
         <div class="st"><div class="t">Daily Commitment</div><div class="s">End-of-day reflection · doesn't change your score</div></div>
         <span class="xpill gray">Open</span>
       </div>` : ''}
-      <div class="xgrp" style="margin:4px 2px 7px">Forms &amp; check-ins</div>
+      <h2 class="xgrp" style="margin:4px 2px 7px">Forms &amp; check-ins</h2>
       ${recovery && !(e.now && e.now.id === 'recovery') ? `
       <div class="sheet-row" data-go="${recovery.route}">
         <div class="si" style="background:${recovery.state === 'done' ? 'var(--green-surface);color:var(--green-bright)' : 'rgba(var(--purple-rgb),0.22);color:var(--purple-bright)'}">${icon(recovery.state === 'done' ? 'check' : 'moon', 20)}</div>

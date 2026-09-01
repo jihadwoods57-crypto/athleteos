@@ -1412,7 +1412,10 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xnow.red .xcta{background:linear-gradient(150deg,var(--blue-bright),var(--blue-deep));color:#fff;box-shadow:var(--sh-blue)}
 .xgrp{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--text-3);margin:12px 4px 8px}
 /* WS6 collapse primitive: a <details> whose summary reuses the .xgrp header look. Native
-   toggle, no JS state; chevron rotates on open; body keeps the ladder's row rhythm. */
+   toggle, no JS state; chevron rotates on open; body keeps the ladder's row rhythm.
+   The summary deliberately stayed OUT of the 2026-09-01 heading pass: it has an implicit
+   button role, and a heading nested in a summary loses its heading role in real browsers —
+   it would look done and read as nothing. */
 .xcollapse{margin:0}
 .xcollapse .xsum{display:flex;align-items:center;gap:6px;list-style:none;cursor:pointer;min-height:34px;margin:2px 4px -2px;user-select:none}
 .xcollapse .xsum::-webkit-details-marker{display:none}

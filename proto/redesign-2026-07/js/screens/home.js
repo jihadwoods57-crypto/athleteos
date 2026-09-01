@@ -790,7 +790,7 @@ export default {
       const upcoming = [...(e.next ? [e.next] : []), ...e.later].filter((i) => i.state !== 'not_required');
       const excused = e.items.filter((i) => i.state === 'not_required');
       const grp = (label, rows, opts) => rows.length
-        ? `<div class="xgrp">${label}</div><div class="xgroup">${rows.map((i) => grow(i, opts || {})).join('')}</div>` : '';
+        ? `<h2 class="xgrp">${label}</h2><div class="xgroup">${rows.map((i) => grow(i, opts || {})).join('')}</div>` : '';
       return `
       ${appHead('Your standard is ready', trustShield())}
       ${emailVerifyBanner()}
@@ -827,8 +827,8 @@ export default {
         <div style="height:10px"></div>
         <button class="xcta" data-go="camera">${icon('camera', 18)} Log Breakfast</button>
       </section>
-      ${lateRows.length ? `<div class="xgrp">${e.decided ? 'Missed today' : 'Late · still counts'}</div>${lateRows.map((i) => row(i)).join('')}` : ''}
-      ${upcoming.length ? `<div class="xgrp">Upcoming</div>
+      ${lateRows.length ? `<h2 class="xgrp">${e.decided ? 'Missed today' : 'Late · still counts'}</h2>${lateRows.map((i) => row(i)).join('')}` : ''}
+      ${upcoming.length ? `<h2 class="xgrp">Upcoming</h2>
       <div class="xgroup">${upcoming.map((i) => grow(i, { hidePill: i.state === 'locked' })).join('')}</div>` : ''}
       <h2 class="eyebrow">Recent Results</h2>
       ${emptyState({
@@ -902,7 +902,7 @@ export default {
     <div id="cv-nudge">${cachedNudge(e)}</div>
     ${e.overdue.filter((o) => o.id !== (e.now && e.now.id) && o.id !== (e.next && e.next.id)).map((i) => row(i)).join('')}
     ${e.now ? nowCard(e) : ''}
-    ${nextRows.length ? `<div class="xgrp">${e.next.state === 'overdue' ? 'Also overdue' : 'Next'}</div>${nextRows.map(row).join('')}` : ''}
+    ${nextRows.length ? `<h2 class="xgrp">${e.next.state === 'overdue' ? 'Also overdue' : 'Next'}</h2>${nextRows.map(row).join('')}` : ''}
     ${laterHtml}
     ${doneHtml}
     ${demoted}
