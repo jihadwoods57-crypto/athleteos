@@ -32,7 +32,7 @@ export const foodSearch = {
 
     ${composer({ inputId: 'fs-input', placeholder: 'Search foods…', inputLabel: 'Search foods', decorativeSend: true, sendIcon: 'search', sendIconSize: 18, sendStyle: 'background:var(--surface-2);color:var(--text)', wrapStyle: 'margin-top:2px' })}
 
-    <div class="eyebrow">Results</div>
+    <h2 class="eyebrow">Results</h2>
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">Common foods. For anything not listed, a photo or the nutrition label reads best.</div>
     <section class="card" style="padding:2px 0" id="fs-results"></section>
 
@@ -48,7 +48,7 @@ export const foodSearch = {
       ${icon('chevron', 16, 'style="color:var(--text-3)"')}
     </div>
 
-    <div class="eyebrow">Your plate <span class="link" id="fs-clear">Clear</span></div>
+    <h2 class="eyebrow">Your plate <span class="link" id="fs-clear">Clear</span></h2>
     <section class="card pad" id="fs-plate">
       <div class="tiny" style="font-size:13px;font-weight:600" id="fs-empty">Tap results to build the plate.</div>
       <div id="fs-items"></div>
@@ -167,7 +167,7 @@ export const labelScan = {
     </div>
     <div style="height:14px"></div>` : ''}
 
-    <div class="eyebrow">Per serving, off the panel</div>
+    <h2 class="eyebrow">Per serving, off the panel</h2>
     <section class="card pad">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div><div class="bk" style="margin-bottom:6px">Calories</div><input id="ls-kcal" type="number" inputmode="numeric" placeholder="0" aria-label="Calories" style="${numField}" /></div>
@@ -177,7 +177,7 @@ export const labelScan = {
       </div>
     </section>
 
-    <div class="eyebrow">Servings you ate</div>
+    <h2 class="eyebrow">Servings you ate</h2>
     <div class="chip-row" id="serv" data-toggle-group>
       <span class="chp on" data-m="1">1</span>
       <span class="chp" data-m="1.5">1.5</span>
@@ -250,7 +250,7 @@ export const barcodeScan = {
     </section>
     <div style="height:12px"></div>` : ''}
 
-    <div class="eyebrow">${canLive ? 'Or type the numbers' : 'Type the numbers under the bars'}</div>
+    <h2 class="eyebrow">${canLive ? 'Or type the numbers' : 'Type the numbers under the bars'}</h2>
     <section class="card pad">
       <div style="display:flex;gap:10px">
         <input id="bc-digits" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 038000138416" aria-label="Barcode digits"
@@ -263,7 +263,7 @@ export const barcodeScan = {
     <div id="bc-status" style="font-size:13px;font-weight:600;color:var(--text-3);min-height:20px;margin:10px 2px"></div>
 
     <div id="bc-result" style="display:none">
-      <div class="eyebrow">Found</div>
+      <h2 class="eyebrow">Found</h2>
       <section class="card pad">
         <div class="tt" id="bc-name" style="font-size:15px"></div>
         <div class="ts" id="bc-serving" style="margin-top:2px"></div>
@@ -273,7 +273,7 @@ export const barcodeScan = {
           <div class="macro"><div class="mv" id="bc-f">0g</div><div class="mk">Fat</div></div>
           <div class="macro"><div class="mv" id="bc-k">0</div><div class="mk">Calories</div></div>
         </div>
-        <div class="eyebrow" style="margin-top:14px">How much did you eat?</div>
+        <h2 class="eyebrow" style="margin-top:14px">How much did you eat?</h2>
         <div class="chip-row" id="bc-grams" data-toggle-group>
           <span class="chp" data-g="50">50g</span>
           <span class="chp on" data-g="100">100g</span>

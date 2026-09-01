@@ -45,7 +45,7 @@ function editableForm(a) {
   const cats = (a && a.categories) || ['accountability'];
   const creds = (a && a.credentials) || [];
   return `
-    <div class="eyebrow">About you</div>
+    <h2 class="eyebrow">About you</h2>
     <section class="card" style="padding:16px">
       ${field('ca-legal', 'Legal name (never shown publicly)', a && a.legal_name, 'Your full legal name')}
       ${field('ca-name', 'Coaching name (what clients see)', a && a.display_name, 'How you want to appear in the directory')}
@@ -58,7 +58,7 @@ function editableForm(a) {
       <input id="ca-cap" class="ob-input" type="number" min="1" max="100" value="${esc(String((a && a.capacity) || 10))}">
     </section>
 
-    <div class="eyebrow">What you're applying as</div>
+    <h2 class="eyebrow">What you're applying as</h2>
     <section class="card" style="padding:6px 16px">
       ${CATS.map((c) => {
         const on = cats.includes(c.key);
@@ -75,7 +75,7 @@ function editableForm(a) {
       </div>`; }).join('')}
     </section>
 
-    <div class="eyebrow">The deal</div>
+    <h2 class="eyebrow">The deal</h2>
     <section class="card" style="padding:12px 16px;font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.7">
       <div>${icon('check', 14, 'style="color:var(--green-bright)"')} You stay inside your approved scope: accountability is coaching, not treatment</div>
       <div>${icon('check', 14, 'style="color:var(--green-bright)"')} Clients, payments and communication stay on OnStandard</div>
@@ -101,7 +101,7 @@ function statusView(a) {
     <div class="sd-t">${c.t}</div><div class="sd-s">${c.s}</div>
     ${approved ? `<div class="sd-cta"><button class="btn primary sm" data-go="coach-listing-editor" style="width:auto;padding:0 20px">Set up your listing</button></div>` : ''}</section>
     ${(a.credentials || []).length ? `
-    <div class="eyebrow">Your credentials</div>
+    <h2 class="eyebrow">Your credentials</h2>
     <section class="card" style="padding:6px 16px">
       ${(a.credentials).map((cr) => `
       <div class="lrow" style="cursor:default">

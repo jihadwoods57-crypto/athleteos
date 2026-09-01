@@ -73,7 +73,7 @@ export default {
       <button class="chip ${RANGE === 30 ? 'on' : ''}" data-range="30" style="flex:1">Last 30 days</button>
     </div>
 
-    <div class="eyebrow">The three signals</div>
+    <h2 class="eyebrow">The three signals</h2>
     <section class="card pad">
       ${bar('Wake responses', m.wake.done, m.wake.total)}
       ${bar('On-time arrivals', m.arrival.done, m.arrival.total)}

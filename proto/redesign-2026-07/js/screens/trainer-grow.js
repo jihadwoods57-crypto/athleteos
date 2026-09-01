@@ -157,7 +157,7 @@ export const trainerGrow = {
 
     return `${head}
 
-    <div class="eyebrow">Your public page</div>
+    <h2 class="eyebrow">Your public page</h2>
     <section class="card tg-page" style="padding:16px">
       <div class="lrow" style="cursor:default;padding:0 0 10px">
         <div class="lm"><div class="lt">Acquisition page</div>
@@ -186,7 +186,7 @@ export const trainerGrow = {
       </div>
     </section>
 
-    <div class="eyebrow">Get paid</div>
+    <h2 class="eyebrow">Get paid</h2>
     <section class="card" style="padding:16px">
       ${F.connect && !G.connect ? sectionErr('your Stripe status') : connectSection()}
     </section>
@@ -196,7 +196,7 @@ export const trainerGrow = {
           on row by row; an empty state is a sentence and an invitation, so it sits on the canvas
           and the page gets a change of texture where there is nothing to list yet. The card comes
           back the moment there is a first offer or a first application to put in it. */''}
-    <div class="eyebrow">Your offers</div>
+    <h2 class="eyebrow">Your offers</h2>
     ${(G.offers || []).length || UI.editing === 'new' || (F.offers && !(G.offers || []).length) ? `
     <section class="card" style="padding:6px 16px">
       ${F.offers && !(G.offers || []).length ? sectionErr('your offers') : ''}
@@ -211,7 +211,7 @@ export const trainerGrow = {
     <div class="ls" style="margin:0 2px;line-height:1.5">No offers yet. Add your first package: prospects apply to it from your page.</div>
     <button class="btn ghost sm" data-tg="add" style="width:auto;padding:0 14px;height:44px;margin-top:12px">${icon('plus', 15)} Add an offer</button>`}
 
-    <div class="eyebrow">Applications ${newApps() ? `<span class="status-pill" style="background:rgba(var(--blue-rgb),0.14);color:var(--blue-bright);margin-left:6px">${newApps()} new</span>` : ''}</div>
+    <h2 class="eyebrow">Applications ${newApps() ? `<span class="status-pill" style="background:rgba(var(--blue-rgb),0.14);color:var(--blue-bright);margin-left:6px">${newApps()} new</span>` : ''}</h2>
     ${!(G.apps || []).length && !F.apps ? `
     <div class="ls" style="margin:0 2px;line-height:1.5">No applications yet. Publish your page and share the link. Applications land here.</div>` : `
     <section class="card" style="padding:6px 16px">
@@ -235,10 +235,10 @@ export const trainerGrow = {
     </section>`}
 
     ${F.claims && !(G.claims || []).length ? `
-    <div class="eyebrow">Paid, waiting to join</div>
+    <h2 class="eyebrow">Paid, waiting to join</h2>
     <section class="card" style="padding:6px 16px">${sectionErr('pending buyers')}</section>` : ''}
     ${(G.claims || []).length ? `
-    <div class="eyebrow">Paid, waiting to join <span class="status-pill" style="background:rgba(var(--amber-rgb),0.16);color:var(--amber-bright);margin-left:6px">${(G.claims).length}</span></div>
+    <h2 class="eyebrow">Paid, waiting to join <span class="status-pill" style="background:rgba(var(--amber-rgb),0.16);color:var(--amber-bright);margin-left:6px">${(G.claims).length}</span></h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default;padding:6px 0 10px">
         <div class="lm"><div class="lt">They have paid you but haven't set up their app</div>
@@ -253,12 +253,12 @@ export const trainerGrow = {
     </section>` : ''}
 
     ${G.connect && G.connect.status === 'active' ? `
-    <div class="eyebrow">Covered clients</div>
+    <h2 class="eyebrow">Covered clients</h2>
     <section class="card" style="padding:6px 16px">
       ${F.funded && !(G.funded || []).length ? sectionErr('covered clients') : fundedSection()}
     </section>
 
-    <div class="eyebrow">Payments</div>
+    <h2 class="eyebrow">Payments</h2>
     <section class="card" style="padding:6px 16px">
       ${F.payments && !(G.payments || []).length ? sectionErr('payments') : ''}
       ${(G.payments || []).length ? (G.payments).map(p => `

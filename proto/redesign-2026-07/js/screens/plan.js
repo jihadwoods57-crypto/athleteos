@@ -221,7 +221,7 @@ function todaySection() {
   // The count rides the section label. It used to be its own grey sentence under the eyebrow,
   // which made a two-word fact take a third line and put body copy between a heading and its list.
   return `
-  <div class="eyebrow">Today · ${done} of ${rows.length} done <span class="link" data-go="plan/requirements">All rules</span></div>
+  <h2 class="eyebrow">Today · ${done} of ${rows.length} done <span class="link" data-go="plan/requirements">All rules</span></h2>
   <div class="pl-list">
     ${/* data-vt-row so opening the goal panel above pushes this list DOWN rather than teleporting
           it. Keyed on the requirement's route, which is what identifies a row here. */''}
@@ -245,8 +245,8 @@ function todaySection() {
    shown a number their plan does not set. */
 function nutritionSummary() {
   const state = S.planTargetsState;
-  if (state === 'loading') return `<div class="eyebrow">Nutrition today</div>${loadingCard()}`;
-  if (state === 'offline') return `<div class="eyebrow">Nutrition today</div>${offlineCard()}`;
+  if (state === 'loading') return `<h2 class="eyebrow">Nutrition today</h2>${loadingCard()}`;
+  if (state === 'offline') return `<h2 class="eyebrow">Nutrition today</h2>${offlineCard()}`;
   const PS = S.planStyle;
   const T = S.planTargets || {};
   const c = S.dayConsumed;
@@ -258,7 +258,7 @@ function nutritionSummary() {
   const cells = [];
   if (rem.kcal != null) cells.push([String(rem.kcal), 'Calories left']);
   if (rem.protein != null) cells.push([`${rem.protein}g`, 'Protein left']);
-  const eyebrow = `<div class="eyebrow">What's left <span class="link" data-go="plan/nutrition">Targets</span></div>`;
+  const eyebrow = `<h2 class="eyebrow">What's left <span class="link" data-go="plan/nutrition">Targets</span></h2>`;
   // A lone tile stretches to the full width and turns one number into the biggest object on the
   // tab. Below two, it is a sentence.
   if (cells.length < 2) {
@@ -364,7 +364,7 @@ function usualsSection() {
   if (items === null) return ''; // not loaded — show nothing rather than a false empty state
   const sug = suggestionCard();
   if (!items.length) {
-    return `<div class="eyebrow">Your usual meals</div>${sug}
+    return `<h2 class="eyebrow">Your usual meals</h2>${sug}
     ${sug ? '' : `<div class="pl-standard" style="margin-top:0">Log like normal. When a meal repeats, OnStandard offers to remember it, then it's one tap to log.
       <span class="link" data-go="memory-edit/new" style="cursor:pointer">Add one yourself</span></div>`}`;
   }
@@ -375,7 +375,7 @@ function usualsSection() {
   });
   const top = rankForRemaining(items, rem, 3).map((r) => r.item);
   return `
-  <div class="eyebrow">Your usual meals${items.length > top.length ? ` <span class="link" data-go="plan/memory">See all ${items.length}</span>` : ''}</div>
+  <h2 class="eyebrow">Your usual meals${items.length > top.length ? ` <span class="link" data-go="plan/memory">See all ${items.length}</span>` : ''}</h2>
   ${sug}
   <div class="pl-list">${top.map((it) => itemRow(it)).join('')}</div>`;
 }
@@ -529,7 +529,7 @@ function planStyleRow() {
       ? `${esc(st.short)} · ${esc(st.sourceLabel)}`
       : `${esc(st.short)} · ${esc(decider)} decides`;
   return `
-  <div class="eyebrow">Plan style</div>
+  <h2 class="eyebrow">Plan style</h2>
   <div class="pl-list">
     <div class="pl-row"${st.canChoose ? '' : ' data-go="plan-style"'}>
       <div class="req-icon b" style="width:38px;height:38px;flex:none">${icon('target', 17)}</div>
@@ -566,17 +566,17 @@ function nutritionRules() {
      them (proof, scored category, the coach's why), so this was the same three deadlines printed
      on two tabs. The tab that owns the rules keeps them. */
   if (!blocks.length) {
-    return `<div class="eyebrow">Food rules</div>
+    return `<h2 class="eyebrow">Food rules</h2>
     <div class="pl-standard" style="margin-top:0">${S.coach.hasCoach
       ? `No food rules set. Your ${esc(S.coach.noun)}'s guidance shows up here when they add it.`
       : 'No food rules yet. Allergies and preferences you add in your profile show up here.'}
     <span class="link" data-go="profile" style="cursor:pointer">Edit profile</span></div>`;
   }
-  return `<div class="eyebrow">Food rules</div><div class="pl-list">${blocks.join('')}</div>`;
+  return `<h2 class="eyebrow">Food rules</h2><div class="pl-list">${blocks.join('')}</div>`;
 }
 
 const nutrition = () => `
-  ${S.planStyle.showMacros || S.planStyle.showCalories ? `<div class="eyebrow">Your targets</div>` : `<div class="eyebrow">What your plan tracks</div>`}
+  ${S.planStyle.showMacros || S.planStyle.showCalories ? `<h2 class="eyebrow">Your targets</h2>` : `<h2 class="eyebrow">What your plan tracks</h2>`}
   ${targetsRow()}
   ${nutritionScoring()}
   ${planStyleRow()}
@@ -616,7 +616,7 @@ function weightsStrip() {
   // carry one of those two labels. The paragraph that used to explain the mechanism was longer
   // than the mechanism.
   return `
-  <div class="eyebrow">How your score is built</div>
+  <h2 class="eyebrow">How your score is built</h2>
   <div class="macro-row">
     ${rows.map((r) => `<div class="macro"><div class="mv" style="color:${accentVar(CAT_ACCENT[r.key] || 'b')}">${r.pct}%</div><div class="mk">${esc(CAT_SHORT[r.key] || r.key)}</div></div>`).join('')}
   </div>`;
@@ -734,7 +734,7 @@ function memoryTab() {
   const places = placesList();
   const facts = (FACTS.uid === RT.userId && Array.isArray(FACTS.rows) ? FACTS.rows : []).filter((f) => f && f.status === 'active');
   if (items === null) {
-    return `<div class="eyebrow">Food Memory</div>${loadingCard()}${askSection('memory')}`;
+    return `<h2 class="eyebrow">Food Memory</h2>${loadingCard()}${askSection('memory')}`;
   }
   const isOrder = (it) => it.kind === 'order' || !!it.place_id;
   const meals = items.filter((it) => !isOrder(it) && (it.kind === 'meal' || !it.kind));
@@ -766,7 +766,7 @@ function memoryTab() {
      row, do not need a sentence explaining that memory is built from logging and that rows are
      tappable. The one sentence that survives is the genuinely empty state. */
   return `
-  <div class="eyebrow">Food Memory <span class="link" data-go="memory-edit/new">+ Add</span></div>
+  <h2 class="eyebrow">Food Memory <span class="link" data-go="memory-edit/new">+ Add</span></h2>
   ${suggestionCard()}
   ${nothingAtAll ? `<div class="pl-standard" style="margin-top:0">Nothing learned yet. Log a meal three times and OnStandard offers to remember it, numbers and all, so logging it drops to one tap.</div>` : ''}
   ${/* RAW ampersand: memoryGroup runs esc() on the label, so a pre-escaped "&amp;" rendered as

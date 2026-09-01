@@ -89,7 +89,7 @@ function gateMark(root, okId, ok) {
 const hero = (eyebrow, title, body, note) => `
   <div class="ob2-hero">
     <div class="h-eyebrow">${eyebrow}</div>
-    <div class="h-title">${title}</div>
+    <h2 class="h-title">${title}</h2>
     <div class="h-body">${body}</div>
     ${note ? `<div class="h-note">${note}</div>` : ''}
   </div>`;
@@ -301,7 +301,7 @@ const steps = [
       ${simChip('Sample correction: nothing is saved')}
       ${phoneCard('Detected foods · tap × to remove a wrong line', foodsList(SAMPLE_MEAL.detectedRich, { removable: true, removed: CORRECT.removed }))}
       <div style="height:12px"></div>
-      <div class="eyebrow" style="margin:0 2px 10px">Portion check: the fries</div>
+      <h2 class="eyebrow" style="margin:0 2px 10px">Portion check: the fries</h2>
       ${chipRow('portionCheck', [
         { v: 'right', t: 'Looks right' }, { v: 'bigger', t: 'Bigger than that' }, { v: 'smaller', t: 'Smaller than that' },
       ], { req: false })}

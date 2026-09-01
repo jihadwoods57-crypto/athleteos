@@ -79,14 +79,14 @@ function composeView() {
     <img src="${safeImg(s.dataUrl)}" alt="Progress photo preview" style="width:100%;border-radius:var(--r-card-sm);display:block;max-height:340px;object-fit:cover" />
   </section>
   <div style="height:12px"></div>
-  <div class="eyebrow">Pose</div>
+  <h2 class="eyebrow">Pose</h2>
   <section class="card pad">
     <div class="pw-toggle" style="margin:0">
       ${POSES.map((p) => `<button class="pw-seg${s.pose === p ? ' on' : ''}" data-pp-pose="${esc(p)}">${esc(p)}</button>`).join('')}
     </div>
   </section>
   <div style="height:12px"></div>
-  <div class="eyebrow">Weight (optional)</div>
+  <h2 class="eyebrow">Weight (optional)</h2>
   <section class="card pad">
     <input class="ob-input" id="pp-weight" inputmode="decimal" placeholder="e.g. 182" value="${s.weightLb != null ? esc(String(s.weightLb)) : ''}" />
     <div style="height:10px"></div>

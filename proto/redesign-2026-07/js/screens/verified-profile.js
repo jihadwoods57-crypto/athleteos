@@ -74,7 +74,7 @@ function previewCard(st) {
   const acc = r.accountability;
   const stat = (k, v) => `<div style="flex:1;min-width:0"><div style="font-size:var(--t-2xl);font-weight:800;letter-spacing:-.02em">${v}</div><div class="ts">${esc(k)}</div></div>`;
   return `<section class="card" style="padding:16px">
-    <div class="eyebrow" style="margin-bottom:8px">What recruiters will see</div>
+    <h2 class="eyebrow" style="margin-bottom:8px">What recruiters will see</h2>
     <div class="tt">${esc(p.name || 'Your name')}</div>
     <div class="ts" style="margin-bottom:14px">${esc([p.sport, p.position].filter(Boolean).join(' · '))}${p.team ? `${p.sport || p.position ? ' · ' : ''}${esc(p.team.name)}` : ''}</div>
     <div style="display:flex;gap:14px;margin-bottom:12px">

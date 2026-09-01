@@ -85,7 +85,7 @@ export const coachAnnounce = {
 
     ${target ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px 8px">Sending to <b style="color:var(--text)">${esc(target.name)}</b> only.</div>` : ''}
 
-    <div class="eyebrow">Who</div>
+    <h2 class="eyebrow">Who</h2>
     <div class="chip-row" id="an-who" role="radiogroup" aria-label="Who">
       ${chip(ANN.scopeKind === 'team', `Whole team${rows.length ? ` · ${rows.length}` : ''}`, 'team')}
       ${positions.map((p) => {
@@ -95,10 +95,10 @@ export const coachAnnounce = {
       ${groups.map((g) => chip(ANN.scopeKind === 'group' && ANN.scopeValue === g.id, `${esc(g.name)} · ${(g.athlete_ids || []).length}`, 'group', g.id)).join('')}
     </div>
 
-    <div class="eyebrow">Title</div>
+    <h2 class="eyebrow">Title</h2>
     <input id="an-title" class="ob-input" maxlength="80" placeholder="e.g. Lift moved to 6am" value="${esc(ANN.title || '')}" />
 
-    <div class="eyebrow">Message</div>
+    <h2 class="eyebrow">Message</h2>
     <textarea id="an-body" class="ob-input" maxlength="500" rows="4" placeholder="What they need to know" style="height:auto;padding-top:10px;padding-bottom:10px">${esc(ANN.body || '')}</textarea>
 
     <div style="height:16px"></div>
@@ -111,7 +111,7 @@ export const coachAnnounce = {
     <button class="btn" id="an-send">${icon('share', 18)} ${sendLabel}</button>`}
     <div id="an-status" style="text-align:center;font-size:12.5px;font-weight:600;color:var(--text-3);min-height:18px;margin-top:8px"></div>
 
-    <div class="eyebrow" style="margin-top:18px">Recent announcements</div>
+    <h2 class="eyebrow" style="margin-top:18px">Recent announcements</h2>
     ${(HIST && HIST.teamId === teamId && HIST.offline) ? errorState({ title: "Couldn't load history", body: 'Your sent announcements are safe. Reconnect to see them.', retryId: 'an-hist-retry' }) : histRows === null ? skeletonRows(2, 'Loading announcements') : histRows.length ? `
     <section class="card" style="padding:6px 16px">
       ${histRows.map((a) => `

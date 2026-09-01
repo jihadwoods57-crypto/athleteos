@@ -225,7 +225,7 @@ export function chipRow(key, opts, { multi = false, req = true } = {}) {
    anchors or the numbers mean nothing. `label` names the scale when two share a screen. */
 export function scale10(key, { lo = 'Not close', hi = 'All the way', label = '' } = {}) {
   const cur = ob()[key];
-  return `${label ? `<div class="eyebrow" style="margin:0 2px 10px">${esc(label)}</div>` : ''}
+  return `${label ? `<h2 class="eyebrow" style="margin:0 2px 10px">${esc(label)}</h2>` : ''}
   <div class="ob2-scale" data-obkey="${key}" data-req role="group" aria-label="${esc(label || 'Rate from 1 to 10')}">${
     Array.from({ length: 10 }, (_, i) => `<div class="sc ${cur === i + 1 ? 'on' : ''}" data-val="${i + 1}" role="button" tabindex="0" aria-pressed="${cur === i + 1 ? 'true' : 'false'}" aria-label="${i + 1}">${i + 1}</div>`).join('')
   }</div><div class="ob2-scale-keys"><span>${esc(lo)}</span><span>${esc(hi)}</span></div>`;

@@ -89,7 +89,7 @@ const steps = [
     body: () => `
       <div class="ob2-hero">
         <div class="h-eyebrow">For trainers</div>
-        <div class="h-title">Your value shouldn’t stop <span class="accent">when the session ends.</span></div>
+        <h2 class="h-title">Your value shouldn’t stop <span class="accent">when the session ends.</span></h2>
         <div class="h-body">You coach for an hour. Their results are decided in the 167 hours you can’t see; right now, that time belongs to nobody.</div>
       </div>`,
   },
@@ -98,7 +98,7 @@ const steps = [
     body: () => `
       <div class="ob2-hero">
         <div class="h-eyebrow">The current way</div>
-        <div class="h-title">Chasing clients by text <span class="accent">is unpaid work.</span></div>
+        <h2 class="h-title">Chasing clients by text <span class="accent">is unpaid work.</span></h2>
         <div class="h-body">Check-in texts. “Did you log?” reminders. Silence you can’t read. The clients who quietly drift between sessions are the ones who leave; you find out at renewal.</div>
       </div>`,
   },
@@ -107,7 +107,7 @@ const steps = [
     body: () => `
       <div class="ob2-hero">
         <div class="h-eyebrow">OnStandard</div>
-        <div class="h-title">Your standard, <span class="accent">in their pocket.</span></div>
+        <h2 class="h-title">Your standard, <span class="accent">in their pocket.</span></h2>
         <div class="h-body">Every client carries your daily standard and one score you can read in five seconds. The AI handles the chasing; your name stays on the results.</div>
       </div>`,
   },
@@ -343,7 +343,7 @@ const steps = [
     body: () => `
       <div class="ob2-hero">
         <div class="h-eyebrow">Why it matters</div>
-        <div class="h-title">Clients who see progress <span class="accent">stay.</span></div>
+        <h2 class="h-title">Clients who see progress <span class="accent">stay.</span></h2>
         <div class="h-body">A client who logs daily, gets your feedback, and watches their score climb has a reason to renew that doesn’t depend on motivation. Visible progress (with your name attached) is the retention plan.</div>
       </div>`,
   },

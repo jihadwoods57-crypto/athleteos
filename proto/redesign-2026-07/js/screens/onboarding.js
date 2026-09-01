@@ -37,7 +37,7 @@ const steps = {
     <div style="height:12px"></div>
     <input id="ob-last" class="ob-input" maxlength="40" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" autocorrect="off" spellcheck="false" />
     <div style="height:16px"></div>
-    <div class="eyebrow" style="margin:8px 2px 10px">Date of birth</div>
+    <h2 class="eyebrow" style="margin:8px 2px 10px">Date of birth</h2>
     <div class="dob-row">
       <input id="ob-dob-m" class="ob-input" type="number" inputmode="numeric" placeholder="MM" aria-label="Birth month" />
       <input id="ob-dob-d" class="ob-input" type="number" inputmode="numeric" placeholder="DD" aria-label="Birth day" />
@@ -91,19 +91,19 @@ const steps = {
   },
 
   3: () => frame(3, 'Your sport', 'Position and level shape your plan.', `
-    <div class="eyebrow" style="margin:8px 2px 10px">Sport</div>
+    <h2 class="eyebrow" style="margin:8px 2px 10px">Sport</h2>
     <div class="chip-row" id="ob-sport">
       <span class="chp on">Football</span><span class="chp">Basketball</span><span class="chp">Baseball</span>
       <span class="chp">Soccer</span><span class="chp">Track</span><span class="chp">Other</span>
     </div>
     <div style="height:16px"></div>
-    <div class="eyebrow" style="margin:8px 2px 10px">Position</div>
+    <h2 class="eyebrow" style="margin:8px 2px 10px">Position</h2>
     <div class="chip-row" id="ob-pos">
       <span class="chp">QB</span><span class="chp">RB</span><span class="chp on">WR</span><span class="chp">TE</span>
       <span class="chp">OL</span><span class="chp">DL</span><span class="chp">LB</span><span class="chp">DB</span>
     </div>
     <div style="height:16px"></div>
-    <div class="eyebrow" style="margin:8px 2px 10px">Level</div>
+    <h2 class="eyebrow" style="margin:8px 2px 10px">Level</h2>
     <div class="chip-row" id="ob-level">
       <span class="chp">Youth</span><span class="chp on">High School</span><span class="chp">College</span><span class="chp">Pro</span>
     </div>`, 'Next', 'onboarding/4'),
@@ -127,7 +127,7 @@ const steps = {
     </div>
     <div id="ob-wt-hint" style="font-size:12.5px;font-weight:700;margin:10px 2px 0;min-height:17px;line-height:1.4"></div>
     <div style="height:8px"></div>
-    <div class="eyebrow" style="margin:8px 2px 10px">Allergies & dietary restrictions</div>
+    <h2 class="eyebrow" style="margin:8px 2px 10px">Allergies & dietary restrictions</h2>
     <div class="chip-row" data-multi>
       <span class="chp">Peanuts · severe</span><span class="chp">Tree nuts</span><span class="chp">Dairy</span>
       <span class="chp">Gluten</span><span class="chp">Shellfish</span><span class="chp">Vegetarian</span><span class="chp">Halal</span>
@@ -164,7 +164,7 @@ const steps = {
         </div>`;
     }).join('');
     const knobs = join ? '' : `
-      <div class="eyebrow" style="margin:14px 2px 10px">Meals per day</div>
+      <h2 class="eyebrow" style="margin:14px 2px 10px">Meals per day</h2>
       <div class="chip-row" id="ob-meals">${[2, 3, 4].map((m) => `<span class="chp ${m === std.meals ? 'on' : ''}">${m}</span>`).join('')}</div>`;
     return frame(6, title, sub, `
       <section class="card" style="padding:6px 16px">${rows}</section>
@@ -174,7 +174,7 @@ const steps = {
         <div><div class="tt">Your edge</div><div class="ts">${std.focus}</div></div>
       </div>
       ${knobs}
-      <div class="eyebrow" style="margin:14px 2px 10px">Accountability style</div>
+      <h2 class="eyebrow" style="margin:14px 2px 10px">Accountability style</h2>
       <div class="chip-row" id="ob-pressure" style="justify-content:center">
         <span class="chp ${ob.pressure === 'Remind me gently' ? 'on' : ''}">Remind me gently</span><span class="chp ${!ob.pressure || ob.pressure === 'Hold me accountable' ? 'on' : ''}">Hold me accountable</span><span class="chp ${ob.pressure === 'High accountability' || ob.pressure === 'Max pressure' ? 'on' : ''}">High accountability</span>
       </div>

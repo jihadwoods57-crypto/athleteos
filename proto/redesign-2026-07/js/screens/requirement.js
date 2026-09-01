@@ -131,7 +131,7 @@ export default {
       </div>` : ''}
     </section>
 
-    <div class="eyebrow">Why it's on your standard</div>
+    <h2 class="eyebrow">Why it's on your standard</h2>
     <div class="coachnote">
       ${(() => {
         // Real attribution only: an assigned task credits its real assigner; a catalog rule
@@ -145,7 +145,7 @@ export default {
     </div>
 
     ${isTraining && stdItem.desc ? `
-    <div class="eyebrow">The session</div>
+    <h2 class="eyebrow">The session</h2>
     <div class="coachnote"><p>${esc(stdItem.desc)}</p></div>` : ''}
 
     <div style="height:18px"></div>

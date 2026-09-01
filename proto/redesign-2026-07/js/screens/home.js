@@ -296,7 +296,7 @@ function outcomeBand() {
   const deltaLabel = Math.abs(delta) < 0.05 ? 'No change yet' : `${delta > 0 ? '+' : ''}${delta.toFixed(1)} lb since you started`;
   const days = S.streakDays;
   return `<section class="card pad" data-go="progress" style="cursor:pointer;margin-top:12px">
-    <div class="eyebrow" style="margin:0 0 8px">Your progress</div>
+    <h2 class="eyebrow" style="margin:0 0 8px">Your progress</h2>
     <div style="display:flex;justify-content:space-between;align-items:baseline">
       <div class="bigstat"><span class="n" style="font-size:var(--t-3xl)">${esc(W.current)}<small style="font-size:var(--t-sm);font-weight:700;color:var(--text-3)"> lb</small></span></div>
       ${W.pace ? `<span class="status-pill ${W.pace === 'On pace' ? 'g' : 'a'}">${W.pace}</span>` : ''}
@@ -382,7 +382,7 @@ const pastResults = () => {
         route: r.id ? `meal-view/${r.id}` : 'history',
       });
     }).join('');
-    return `<div class="eyebrow" style="margin-top:14px">${esc(label)}</div><div class="res-rail">${cards}</div>`;
+    return `<h2 class="eyebrow" style="margin-top:14px">${esc(label)}</h2><div class="res-rail">${cards}</div>`;
   }).join('');
 };
 
@@ -392,9 +392,9 @@ const recentResults = () => {
   if (!rows.length && !past) return '';
   return `
     ${rows.length ? `
-    <div class="eyebrow">Recent Results <span class="link" data-go="history">View all</span></div>
+    <h2 class="eyebrow">Recent Results <span class="link" data-go="history">View all</span></h2>
     <div class="res-rail">${rows.map(resCard).join('')}</div>` : `
-    <div class="eyebrow">Recent Results <span class="link" data-go="history">View all</span></div>`}
+    <h2 class="eyebrow">Recent Results <span class="link" data-go="history">View all</span></h2>`}
     ${past}`;
 };
 
@@ -713,7 +713,7 @@ function celebration(e) {
          here got right only because it delegated to deltaChip. Its own margins close the gap to
          the eyebrow below, so the 14px spacer div that used to sit here is gone. -->
     ${scoreSummary({ score: e.score, yesterday: S.scoreYesterday, streakDays: S.streakDays })}
-    <div class="eyebrow" style="align-self:flex-start">Today's record</div>
+    <h2 class="eyebrow" style="align-self:flex-start">Today's record</h2>
     <div class="xrecord" style="width:100%;box-sizing:border-box">
       ${/* Each row opens the thing it logged, the same as its in-progress .xitem equivalent. They
             were inert divs, so on a complete day tapping your own dinner did nothing. */''}
@@ -830,7 +830,7 @@ export default {
       ${lateRows.length ? `<div class="xgrp">${e.decided ? 'Missed today' : 'Late · still counts'}</div>${lateRows.map((i) => row(i)).join('')}` : ''}
       ${upcoming.length ? `<div class="xgrp">Upcoming</div>
       <div class="xgroup">${upcoming.map((i) => grow(i, { hidePill: i.state === 'locked' })).join('')}</div>` : ''}
-      <div class="eyebrow">Recent Results</div>
+      <h2 class="eyebrow">Recent Results</h2>
       ${emptyState({
     icon: 'camera',
     title: 'No logs yet',

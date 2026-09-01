@@ -324,7 +324,7 @@ export default {
       <div class="ts" style="padding-top:6px">From ${esc(row.coach_name || 'your coach')}</div></div>
       <div style="height:12px"></div>` : ''}
 
-    <div class="eyebrow">Today</div>
+    <h2 class="eyebrow">Today</h2>
     <section class="card pad">
       ${line('Checked in', clock(row.acknowledged_at), !!row.acknowledged_at)}
       ${asksArrival ? line(`Arrived at ${row.location_name || 'the facility'}`, clock(row.arrived_at), !!row.arrived_at) : ''}

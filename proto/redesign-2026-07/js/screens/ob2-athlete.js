@@ -52,7 +52,7 @@ async function goDestination() {
 const hero = (eyebrow, title, body, note = '') => `
   <div class="ob2-hero">
     <div class="h-eyebrow">${eyebrow}</div>
-    <div class="h-title">${title}</div>
+    <h2 class="h-title">${title}</h2>
     <div class="h-body">${body}</div>
     ${note ? `<div class="h-note">${note}</div>` : ''}
   </div>`;
@@ -198,15 +198,15 @@ const steps = [
     title: () => 'Your sport',
     sub: () => 'Position and level shape your plan.',
     body: (o) => `
-      <div class="eyebrow" style="margin:8px 2px 10px">Sport</div>
+      <h2 class="eyebrow" style="margin:8px 2px 10px">Sport</h2>
       ${chipRow('sport', ['Football', 'Basketball', 'Baseball', 'Soccer', 'Track', 'Other'])}
       <div id="pos-wrap" style="display:${o.sport === 'Football' ? 'block' : 'none'}">
         <div style="height:16px"></div>
-        <div class="eyebrow" style="margin:8px 2px 10px">Position</div>
+        <h2 class="eyebrow" style="margin:8px 2px 10px">Position</h2>
         ${chipRow('position', ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'DB'], { req: false })}
       </div>
       <div style="height:16px"></div>
-      <div class="eyebrow" style="margin:8px 2px 10px">Level</div>
+      <h2 class="eyebrow" style="margin:8px 2px 10px">Level</h2>
       ${chipRow('level', ['Youth', 'High School', 'College', 'Pro'])}`,
     mount(root) {
       /* Positions exist for football only (legacy option set); switching away clears it. */

@@ -29,7 +29,7 @@ export default {
     const rows = CACHE.rows || [];
     return `${backHead('Sponsor access', 'Fund premium seats for a group', 'profile')}
 
-    <div class="eyebrow">Buy seats</div>
+    <h2 class="eyebrow">Buy seats</h2>
     <section class="card pad">
       <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Number of seats</div>
       <input class="ob-input" id="sp-seats" type="number" min="1" step="1" inputmode="numeric" value="${esc(UI.seats)}" placeholder="10" />
@@ -53,7 +53,7 @@ export default {
     <div class="sidebox" style="margin-top:10px"><div class="req-icon b" style="width:34px;height:34px">${icon('lock', 15)}</div>
       <div><div class="tt">Secure checkout via Stripe</div><div class="ts">Opens in your browser. OnStandard never sees or stores your card details.</div></div></div>
 
-    <div class="eyebrow" style="margin-top:16px">Your sponsorships</div>
+    <h2 class="eyebrow" style="margin-top:16px">Your sponsorships</h2>
     ${!CACHE.loaded ? `
     <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bolt', 17)}</div><div><div class="tt">Loading…</div></div></div>`
     : CACHE.failed && !rows.length ? errorState({

@@ -29,7 +29,7 @@ export default {
     return `
     ${backHead(it ? 'Edit saved meal' : 'Save a usual meal', it ? 'Fix the name, place, or numbers' : 'Log it in one tap from Plan', 'plan')}
 
-    <div class="eyebrow">What is it?</div>
+    <h2 class="eyebrow">What is it?</h2>
     <section class="card pad">
       <div class="bk" style="margin-bottom:6px">Name</div>
       <input id="me-name" type="text" maxlength="120" placeholder="e.g. Usual Subway order" value="${it ? v(it.name) : ''}" style="${textField}" />
@@ -41,7 +41,7 @@ export default {
       <input id="me-place" type="text" maxlength="80" placeholder="e.g. Subway, campus dining, home" value="${place ? v(place.name) : ''}" style="${textField}" />
     </section>
 
-    <div class="eyebrow">The numbers</div>
+    <h2 class="eyebrow">The numbers</h2>
     <section class="card pad">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div><div class="bk" style="margin-bottom:6px">Calories</div><input id="me-kcal" type="number" inputmode="numeric" placeholder="0" value="${it ? v(it.kcal) : ''}" style="${numField}" /></div>

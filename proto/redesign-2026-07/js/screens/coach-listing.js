@@ -97,9 +97,9 @@ export default {
     </section>
 
     ${l.headline ? `<section class="card pad" style="font-size:14px;font-weight:700;line-height:1.5">${esc(l.headline)}</section>` : ''}
-    ${l.bio ? `<div class="eyebrow">About</div><section class="card pad" style="font-size:13px;color:var(--text-2);font-weight:600;line-height:1.6">${esc(l.bio)}</section>` : ''}
+    ${l.bio ? `<h2 class="eyebrow">About</h2><section class="card pad" style="font-size:13px;color:var(--text-2);font-weight:600;line-height:1.6">${esc(l.bio)}</section>` : ''}
 
-    <div class="eyebrow">What this coach does</div>
+    <h2 class="eyebrow">What this coach does</h2>
     <section class="card" style="padding:10px 16px;font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.7">
       <div>${icon('check', 14, 'style="color:var(--green-bright)"')} Reviews your Accountability Score, meals, weigh-ins and missed standards</div>
       <div>${icon('check', 14, 'style="color:var(--green-bright)"')} Messages you with course corrections. And celebrates when you deliver</div>
@@ -109,7 +109,7 @@ export default {
         : 'No workout or nutrition prescriptions. They hold you to a plan you already have'}</div>
     </section>
 
-    <div class="eyebrow">Plans</div>
+    <h2 class="eyebrow">Plans</h2>
     ${tiers.length ? `<section class="card" style="padding:6px 16px">
       ${tiers.map((t) => `
       <div class="lrow" data-mkt-tier="${esc(t.tier)}" style="align-items:flex-start${UI.tier === t.tier ? ';background:var(--surface-2);border-radius:12px' : ''}">

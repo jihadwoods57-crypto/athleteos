@@ -132,7 +132,7 @@ function lockedCard(payload, period) {
   ${baseStatsBlock(report)}
 
   <div style="height:16px"></div>
-  <div class="eyebrow">AI coach's read</div>
+  <h2 class="eyebrow">AI coach's read</h2>
   <section class="card pad mr-locked">
     <div class="mr-skel" aria-hidden="true">
       <div class="mr-skel-line" style="width:78%"></div>
@@ -147,7 +147,7 @@ function lockedCard(payload, period) {
   </section>
 
   <div style="height:16px"></div>
-  <div class="eyebrow">Unlock the full report</div>
+  <h2 class="eyebrow">Unlock the full report</h2>
   <section class="card pad">
     <button class="btn green" id="mr-trial" style="width:100%">Start free trial</button>
     <div style="text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:8px;line-height:1.4">${esc(trialLine)}</div>
@@ -178,7 +178,7 @@ function reportBody(report, period) {
 
   ${report.headline || report.narrative ? `
   <div style="height:16px"></div>
-  <div class="eyebrow">AI coach's read</div>
+  <h2 class="eyebrow">AI coach's read</h2>
   <section class="card pad">
     ${report.headline ? `<div style="font-size:16px;font-weight:800">${esc(report.headline)}</div>` : ''}
     ${report.narrative ? `<p style="font-size:13.5px;font-weight:600;color:var(--text-2);margin-top:8px;line-height:1.5">${esc(report.narrative)}</p>` : ''}
@@ -186,14 +186,14 @@ function reportBody(report, period) {
 
   ${wins.length ? `
   <div style="height:14px"></div>
-  <div class="eyebrow">Wins</div>
+  <h2 class="eyebrow">Wins</h2>
   <section class="card pad" style="padding-top:8px;padding-bottom:8px">
     ${wins.map(w => `<div class="lrow" style="cursor:default"><div class="lic">${icon('check', 16)}</div><div class="lm"><div class="ls">${esc(w)}</div></div></div>`).join('')}
   </section>` : ''}
 
   ${focus.length ? `
   <div style="height:14px"></div>
-  <div class="eyebrow">Focus for next month</div>
+  <h2 class="eyebrow">Focus for next month</h2>
   <section class="card pad" style="padding-top:8px;padding-bottom:8px">
     ${focus.map(f => `<div class="lrow" style="cursor:default"><div class="lic">${icon('target', 16)}</div><div class="lm"><div class="ls">${esc(f)}</div></div></div>`).join('')}
   </section>` : ''}

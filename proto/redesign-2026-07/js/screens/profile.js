@@ -54,7 +54,7 @@ export default {
       ${icon('chevron', 18, 'style="color:var(--text-3)"')}
     </div>` : ''}
 
-    <div class="eyebrow">${S.coach.kind === 'trainer' ? 'Trainer' : 'Coach'} Connection</div>
+    <h2 class="eyebrow">${S.coach.kind === 'trainer' ? 'Trainer' : 'Coach'} Connection</h2>
     ${S.coach.hasCoach ? `
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
@@ -84,7 +84,7 @@ export default {
       </div>
     </section>`}
 
-    <div class="eyebrow">Accountability</div>
+    <h2 class="eyebrow">Accountability</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="notif-settings">
         <div class="lic">${icon('bell', 18)}</div>
@@ -124,7 +124,7 @@ export default {
           work proves to outsiders, not the daily loop. Row count unchanged, like the split
           below. */''}
     ${S.audience === 'client' && S.coach.kind === 'trainer' ? `
-    <div class="eyebrow">Coaching</div>
+    <h2 class="eyebrow">Coaching</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="my-trainer-offers">
         <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div>
@@ -132,7 +132,7 @@ export default {
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
     </section>` : `
-    <div class="eyebrow">Proof &amp; recruiting</div>
+    <h2 class="eyebrow">Proof &amp; recruiting</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="recruiting">
         <div class="lic"${S.coach.hasCoach ? ' style="background:var(--green-surface);color:var(--green-bright)"' : ''}>${icon('shield', 17)}</div>
@@ -146,7 +146,7 @@ export default {
       </div>
     </section>`}
 
-    <div class="eyebrow">Health & safety</div>
+    <h2 class="eyebrow">Health & safety</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="restrictions">
         <div class="lic" style="background:var(--red-surface);color:var(--red)">${icon('bell', 17)}</div>
@@ -165,14 +165,14 @@ export default {
           audit and account deletion all reading as siblings. Three groups, each ≤4, each named
           for what its rows share; the destructive pair sits alone at the bottom where every
           platform convention puts it. Row count is unchanged — this is chunking, not burying. */''}
-    <div class="eyebrow">Membership</div>
+    <h2 class="eyebrow">Membership</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="billing"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Plan &amp; billing</div><div class="ls">Your membership &amp; premium features</div></div>${icon('chevron', 17)}</div>
       <div class="lrow" data-go="redeem-code"><div class="lic">${icon('key', 17)}</div><div class="lm"><div class="lt">Redeem a code</div><div class="ls">Unlock premium with a sponsor code</div></div>${icon('chevron', 17)}</div>
       <div class="lrow" data-go="sponsor"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Sponsor access</div><div class="ls">Fund premium for a group</div></div>${icon('chevron', 17)}</div>
     </section>
 
-    <div class="eyebrow">Privacy &amp; app</div>
+    <h2 class="eyebrow">Privacy &amp; app</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="invite-parent"><div class="lic">${icon('users', 17)}</div><div class="lm"><div class="lt">Invite a parent</div><div class="ls">Let a parent see your score &amp; streak</div></div>${icon('chevron', 17)}</div>
       <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Privacy & visibility</div><div class="ls">Who sees what · download your data</div></div>${icon('chevron', 17)}</div>
@@ -180,7 +180,7 @@ export default {
       <div class="lrow" data-go="terms"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Terms & privacy policy</div></div>${icon('chevron', 17)}</div>
     </section>
 
-    <div class="eyebrow">Account</div>
+    <h2 class="eyebrow">Account</h2>
     <section class="card" style="padding:6px 16px">
       ${/* Two-tap confirm, wired in mount(): a single unguarded tap signed the athlete out, and
             on a shared phone that is one brush of a thumb. Disarms after ~5 seconds. */''}
@@ -362,13 +362,13 @@ export const editProfile = {
     return `
     ${backHead('Edit profile', 'Only what your coach and score need', 'profile')}
 
-    <div class="eyebrow">Name</div>
+    <h2 class="eyebrow">Name</h2>
     <div style="display:flex;gap:10px">
       <input class="ob-input ep-field" id="ep-first" maxlength="40" value="${esc(a.first === 'Athlete' && !a.last ? '' : a.first)}" placeholder="First name" style="flex:1" />
       <input class="ob-input ep-field" id="ep-last" maxlength="40" value="${esc(a.last)}" placeholder="Last name" style="flex:1" />
     </div>
 
-    <div class="eyebrow">Date of birth</div>
+    <h2 class="eyebrow">Date of birth</h2>
     ${/* Wrapped because iOS WebKit paints an EMPTY date input as a blank box (it has no
           placeholder support): the hint overlay is the placeholder it refuses to draw, and
           mount() hides it the moment a date lands. */''}
@@ -377,20 +377,20 @@ export const editProfile = {
       ${dob ? '' : '<span class="ep-dob-hint" aria-hidden="true">Add your birth date</span>'}
     </div>
 
-    <div class="eyebrow">Sport</div>
+    <h2 class="eyebrow">Sport</h2>
     <div class="chip-row" id="ep-sport" data-toggle-group>
       ${Object.keys(SPORT_POSITIONS).map(s =>
         `<span class="chp ${sport === s ? 'on' : ''}">${s}</span>`).join('')}
     </div>
 
-    <div class="eyebrow">${sport === 'Track' ? 'Event group' : 'Position'}</div>
+    <h2 class="eyebrow">${sport === 'Track' ? 'Event group' : 'Position'}</h2>
     ${positions ? `
     <div class="chip-row" id="ep-pos" data-toggle-group>
       ${positions.map(p => `<span class="chp ${a.position === p ? 'on' : ''}">${p}</span>`).join('')}
     </div>` : `
     <div style="font-size:12.5px;font-weight:600;color:var(--text-3);padding:2px 2px 4px">Pick a sport first; positions follow the sport.</div>`}
 
-    <div class="eyebrow">School / organization</div>
+    <h2 class="eyebrow">School / organization</h2>
     <input class="ob-input ep-field" id="ep-school" maxlength="80" value="${esc(a.school)}" placeholder="Search your school or team" autocomplete="off" />
     <div id="ep-school-results" class="ep-results" hidden></div>
 

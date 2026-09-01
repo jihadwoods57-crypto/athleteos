@@ -110,7 +110,7 @@ export const coachRooms = {
     };
 
     const needsCard = needs.length && rooms.length ? `
-      <div class="eyebrow" style="color:var(--amber-bright)">Needs assignment · ${needs.length}</div>
+      <h2 class="eyebrow" style="color:var(--amber-bright)">Needs assignment · ${needs.length}</h2>
       <section class="card" style="padding:6px 16px;background:var(--amber-surface);border-color:var(--amber-border)">
         ${needs.map((m) => `
         <div class="lrow" style="cursor:default;display:block;padding:10px 4px">
@@ -132,7 +132,7 @@ export const coachRooms = {
         : emptyState({ icon: 'users', title: 'No rooms yet', body: 'Create a room for each position group. Athletes drop into their room as they join.', action: { label: 'Add a room', id: 'rooms-empty-add' } });
 
     const suggestChips = suggestions.length ? `
-      <div class="eyebrow">Suggested from your roster · tap to add</div>
+      <h2 class="eyebrow">Suggested from your roster · tap to add</h2>
       <div class="chip-row" id="room-suggest">
         ${suggestions.map((s) => `<span class="chp" role="button" tabindex="0" aria-label="Add a ${esc(s.label)} room" data-room-add="${esc(s.label)}">${icon('plus', 12)} ${esc(s.label)}</span>`).join('')}
       </div>` : '';
@@ -143,7 +143,7 @@ export const coachRooms = {
     ${needsCard}
     ${suggestChips}
 
-    <div class="eyebrow">Add a room</div>
+    <h2 class="eyebrow">Add a room</h2>
     <div style="display:flex;gap:8px;align-items:center">
       <input id="room-name" class="ob-input" maxlength="40" placeholder="e.g. Defensive Backs" value="${esc(ADD_VAL)}" style="flex:1" ${BUSY ? 'disabled' : ''} />
       <button class="btn sm" id="room-add" style="width:auto;padding:0 16px" ${BUSY ? 'disabled' : ''}>${BUSY ? 'Adding…' : 'Add'}</button>

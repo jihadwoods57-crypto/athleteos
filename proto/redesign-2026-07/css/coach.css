@@ -6,6 +6,8 @@
 /* ---------- shared rhythm ---------- */
 .co-scroll { overflow-x: auto; scrollbar-width: none; }
 .co-scroll::-webkit-scrollbar { display: none; }
+/* Rendered as <h2> (2026-09-01, same move as .eyebrow in app.css) — the class carries the look,
+   the * reset wipes the UA heading styles. */
 .co-eyebrow {
   font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-eyebrow); text-transform: uppercase;
   color: var(--text-3); margin: var(--s6) 2px var(--s3);

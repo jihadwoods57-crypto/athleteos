@@ -90,9 +90,9 @@ export default {
       ${panel(after, urls, 'After')}
     </div>
     ${delta}
-    <div class="eyebrow" style="margin-top:14px">Before</div>
+    <h2 class="eyebrow" style="margin-top:14px">Before</h2>
     ${strip(photos, urls, 'before', SEL.before)}
-    <div class="eyebrow" style="margin-top:12px">After</div>
+    <h2 class="eyebrow" style="margin-top:12px">After</h2>
     ${strip(photos, urls, 'after', SEL.after)}
     <div style="height:14px"></div>`;
   },

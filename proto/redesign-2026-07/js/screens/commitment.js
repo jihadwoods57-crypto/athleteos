@@ -34,13 +34,13 @@ export default {
     ${backHead('Daily Commitment', 'Intent in the morning. Truth at night.')}
 
     <section class="card" style="margin-top:4px">
-      <div class="eyebrow" style="margin:0 0 10px">Today's commitment</div>
+      <h2 class="eyebrow" style="margin:0 0 10px">Today's commitment</h2>
       <input id="cmt-focus" class="input" maxlength="80" placeholder="One line, e.g. “No skipped meals, lights out by 10.”"
         value="${esc(focus)}" aria-label="Today's personal commitment" />
       <div class="ts" style="padding-top:8px">Optional, but it sharpens the reflection. Your coach sees what you committed to.</div>
     </section>
 
-    <div class="eyebrow">End-of-day reflection</div>
+    <h2 class="eyebrow">End-of-day reflection</h2>
     <section class="card">
       <div class="ts" style="padding-bottom:10px">Did you execute today's plan? ${esc(VALUE_PROP)}</div>
       ${CHOICES.map(c => `

@@ -78,7 +78,7 @@ export const coachAssign = {
     return `
     ${backHead('Assign', 'Put something on someone’s plate', practice ? 'trainer' : 'coach-home')}
 
-    <div class="eyebrow">Who</div>
+    <h2 class="eyebrow">Who</h2>
     <div class="chip-row" id="as-who" role="radiogroup" aria-label="Who">
       ${chip(ASSIGN.scopeKind === 'team', `${everyone}${rows.length ? ` · ${rows.length}` : ''}`, 'team')}
       ${positions.map(p => {
@@ -94,20 +94,20 @@ export const coachAssign = {
     </div>` : `
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:2px 2px 0">${practice ? 'Clients loading… everyone works right away.' : 'Roster loading… team-wide works right away.'}</div>`}
 
-    <div class="eyebrow">What</div>
+    <h2 class="eyebrow">What</h2>
     <input id="as-title" class="ob-input" maxlength="80" placeholder="e.g. Extra shake after lift" value="${esc(ASSIGN.title || '')}" />
 
-    <div class="eyebrow">Proof</div>
+    <h2 class="eyebrow">Proof</h2>
     <div class="chip-row" id="as-proof" role="radiogroup" aria-label="Proof">
       ${PROOF_CHOICES.map(([id, ic, label]) => chip(ASSIGN.proof === id, `${icon(ic, 13)} ${label}`, 'proof', id)).join('')}
     </div>
 
-    <div class="eyebrow">Due</div>
+    <h2 class="eyebrow">Due</h2>
     <div class="chip-row" id="as-due" role="radiogroup" aria-label="Due">
       ${Object.entries(DUE_CHOICES).map(([id, d]) => chip(ASSIGN.due === id, d.label, 'due', id)).join('')}
     </div>
 
-    <div class="eyebrow">Note · optional</div>
+    <h2 class="eyebrow">Note · optional</h2>
     <input id="as-note" class="ob-input" maxlength="280" placeholder="Why it matters (they see this)" value="${esc(ASSIGN.note || '')}" />
 
     <div style="height:16px"></div>
@@ -361,7 +361,7 @@ export const coachPlan = {
       return `
       ${titleHead('Plan', 'Your standard, client by client')}
 
-      <div class="eyebrow">Standard · what every day asks</div>
+      <h2 class="eyebrow">Standard · what every day asks</h2>
       ${sets === null && rows === null ? skeletonRows(2, 'Loading your standard') : `
       <section class="card" style="padding:6px 16px">
         <div class="lrow" data-go="coach-plan-set/team">
@@ -373,7 +373,7 @@ export const coachPlan = {
         </div>
       </section>`}
 
-      <div class="eyebrow">Targets · per client</div>
+      <h2 class="eyebrow">Targets · per client</h2>
       ${rows === null ? skeletonRows(3, 'Loading your clients') : rows.length ? `
       <section class="card" style="padding:6px 16px">
         ${rows.slice(0, 12).map(r => `
@@ -389,7 +389,7 @@ export const coachPlan = {
       ${/* Program row (2026-08-11): the policy editor went nav:'operator', so the practice Plan
             page finally links the defaults its own grants read — the coach's Program row, this
             book's vocabulary. */''}
-      <div class="eyebrow">Program</div>
+      <h2 class="eyebrow">Program</h2>
       <section class="card" style="padding:6px 16px">
         <div class="lrow" data-go="trust-pass-policy">
           <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('shield', 17)}</div>
@@ -439,7 +439,7 @@ export const coachPlan = {
           ? `<div style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800;color:var(--green-bright)">${icon('check', 14)} Required setup complete</div>`
           : `<div style="font-size:12px;font-weight:800;color:var(--amber-bright)">${setup.requiredDone} of ${setup.requiredTotal} required steps done</div>`;
         return `
-        <div class="eyebrow">Readiness</div>
+        <h2 class="eyebrow">Readiness</h2>
         <section class="card" style="padding:${shown.length ? '11px 16px 6px' : '13px 16px'};${setup.ready ? '' : 'background:var(--amber-surface);border-color:var(--amber-border)'}">
           ${line}
           ${shown.length ? `<div style="height:8px"></div>${shown.join('')}` : (setup.ready ? `<div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:3px">Everything's set. Invite athletes and your command center fills in live.</div>` : '')}
@@ -472,7 +472,7 @@ export const coachPlan = {
 
       ${readinessCard()}
 
-      <div class="eyebrow">Standards · what every day asks</div>
+      <h2 class="eyebrow">Standards · what every day asks</h2>
       ${sets === null && rows === null ? skeletonRows(3, 'Loading your program') : `
       <section class="card" style="padding:6px 16px">
         <div class="lrow" data-go="coach-plan-set/team">
@@ -486,7 +486,7 @@ export const coachPlan = {
       </section>
       ${positions.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">Rooms appear as athletes with positions join. The team standard covers everyone until then.${rows && !rows.length ? ` <span data-go="coach-profile/code" style="color:var(--blue-bright);font-weight:800;cursor:pointer">Invite athletes</span>` : ''}</div>` : ''}`}
 
-      <div class="eyebrow">Upcoming changes</div>
+      <h2 class="eyebrow">Upcoming changes</h2>
       ${sets === null ? skeletonRows(1, 'Loading scheduled changes') : upcoming.length ? `
       <section class="card" style="padding:6px 16px">
         ${upcoming.map(s => `
@@ -499,7 +499,7 @@ export const coachPlan = {
       </section>` : `
       <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 2px;line-height:1.4">No scheduled changes. Publish a standard with a future date and it lists here. Today's scoring stays untouched.</div>`}
 
-      <div class="eyebrow">Targets · per athlete</div>
+      <h2 class="eyebrow">Targets · per athlete</h2>
       ${rows && rows.length ? `
       <section class="card" style="padding:6px 16px">
         ${rows.slice(0, 6).map(r => `
@@ -514,7 +514,7 @@ export const coachPlan = {
       <button class="btn ghost sm" data-go="coach-roster" style="width:auto;padding:0 16px;margin-top:6px">All ${rows.length} athletes</button>` : ''}` : `
       ${emptyState({ icon: 'target', title: 'No athletes yet', body: 'Per-athlete protein, calorie, and target-weight numbers open here the moment your team joins.', action: { label: 'Invite athletes', go: 'coach-profile/code' } })}`}
 
-      <div class="eyebrow">Trust passes · camera-free rewards</div>
+      <h2 class="eyebrow">Trust passes · camera-free rewards</h2>
       ${rows && rows.length ? `
       <section class="card" style="padding:6px 16px">
         ${rows.slice(0, 6).map(r => {
@@ -540,7 +540,7 @@ export const coachPlan = {
       <button class="btn ghost sm" data-go="coach-roster" style="width:auto;padding:0 16px;margin-top:6px">All ${rows.length} athletes</button>` : ''}` : `
       ${emptyState({ icon: 'shield', title: 'No trust passes yet', body: `A pass is earned after ${(RT.passPolicy || { eligibility_days: 7 }).eligibility_days} photo-logged days. Invite athletes to start the clock.`, action: { label: 'Invite athletes', go: 'coach-profile/code' } })}`}
 
-      <div class="eyebrow">Program</div>
+      <h2 class="eyebrow">Program</h2>
       <section class="card" style="padding:6px 16px">
         <div class="lrow" data-go="coach-voice">
           <div class="lic" style="background:rgba(var(--purple-rgb),0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div>
@@ -596,7 +596,7 @@ export const coachPlan = {
 
     ${planStyleCard}
 
-    <div class="eyebrow">Targets${unset ? ' · not set yet' : ''}</div>
+    <h2 class="eyebrow">Targets${unset ? ' · not set yet' : ''}</h2>
     ${unset ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">Starting points, not saved. Adjust and Save to set ${esc(who.name.split(' ')[0])}'s real targets.</div>` : ''}
     <section class="card" style="padding:6px 16px">
       ${/* Real buttons and a real number input. The old − / + were bare spans with no CSS
@@ -1718,7 +1718,7 @@ export const coachInbox = {
     if (CD.roster && CD.roster.offline) {
       return `
       ${titleHead('Inbox', "Can't reach your roster")}
-      <div class="eyebrow">Daily briefing · from your real roster</div>
+      <h2 class="eyebrow">Daily briefing · from your real roster</h2>
       <section class="card ib-brief">${briefing}</section>
       <div class="co-gap"></div>`;
     }
@@ -1748,7 +1748,7 @@ export const coachInbox = {
     ${inboxFailed ? `<div class="co-note warn">Some of your inbox didn't load, so this may not be everything. Nothing was missed on the server; it retries when you reopen.</div>` : ''}
 
     ${isNeedsResponse ? `
-    <div class="eyebrow">Daily briefing · from your real roster</div>
+    <h2 class="eyebrow">Daily briefing · from your real roster</h2>
     <section class="card ib-brief${rows && !rows.length ? ' tap' : ''}"${rows && !rows.length ? ` data-go="${codeRoute()}"` : ''}>
       ${briefing}
       ${rows && !rows.length && RT.team && RT.team.code ? `<div class="acts"><button class="btn ghost sm" id="inbox-copy-code" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.team.code)}</button><button class="btn green sm" id="inbox-share-code" style="width:auto;padding:0 14px">Share code</button></div>` : ''}
@@ -1759,7 +1759,7 @@ export const coachInbox = {
     </div>
 
     ${isNeedsResponse && pending.length ? `
-    <div class="eyebrow">Join requests · ${pending.length}</div>
+    <h2 class="eyebrow">Join requests · ${pending.length}</h2>
     <section class="card co-list">
       ${pending.map(joinRow).join('')}
     </section>` : ''}
@@ -1889,7 +1889,7 @@ export const copilot = {
     </div>
 
     ${belowBar.length ? `
-    <div class="eyebrow">The numbers behind it</div>
+    <h2 class="eyebrow">The numbers behind it</h2>
     <section class="card" style="padding:2px 0">
       ${belowBar.map(r => `
         <div class="roster-row" data-go="coach-athlete/${esc(r.athleteId)}" role="button" tabindex="0" aria-label="${esc(r.name)}${r.score != null ? `, score ${r.score}` : ''}. ${esc(r.note)}">
@@ -2018,7 +2018,7 @@ function breakdownBlock(P, athleteId) {
   });
   const first = ((P.row && P.row.name) || 'This athlete').split(' ')[0];
   return `
-  <div class="co-eyebrow" style="margin-top:14px">Why ${esc(first)}'s day scores this</div>
+  <h2 class="co-eyebrow" style="margin-top:14px">Why ${esc(first)}'s day scores this</h2>
   <section class="card bd-comp" style="padding:2px 16px">
     ${cats.map(coachCatCard).join('')}
   </section>
@@ -2083,10 +2083,10 @@ function overviewSection(P, athleteId) {
   ${todayBlock(P, athleteId)}
   ${breakdownBlock(P, athleteId)}
 
-  <div class="co-eyebrow">7-day trend</div>
+  <h2 class="co-eyebrow">7-day trend</h2>
   ${coTrend((P.row && P.row.scoreHistory) || [])}
 
-  ${alerts.length ? `<div class="co-eyebrow">Active alerts</div>
+  ${alerts.length ? `<h2 class="co-eyebrow">Active alerts</h2>
   <section class="card" style="padding:var(--s1) var(--s4)">
     ${alerts.map(a => `<div class="lrow" style="cursor:default"><div class="lic" style="color:var(--amber-bright)">${icon('bell', 17)}</div><div class="lm"><div class="lt">${esc(a)}</div></div></div>`).join('')}
   </section>` : ''}
@@ -2120,7 +2120,7 @@ function todayBlock(P, athleteId) {
     ${!day ? `<div class="sidebox" style="margin-top:14px"><div class="req-icon a" style="width:38px;height:38px">${icon('clock', 17)}</div>
     <div><div class="tt">No logs today yet</div><div class="ts">Nothing to review. They haven't logged. Their day appears here as they log it.</div></div></div>`
     : `
-    <div class="eyebrow">Today's proof${todayMeals.length ? '' : ' · none yet'}</div>
+    <h2 class="eyebrow">Today's proof${todayMeals.length ? '' : ' · none yet'}</h2>
     ${/* The photo IS the proof, so it carries the card and the score rides on it. The old tile
           stranded the meal name at the top, put the photo in the middle, and printed the words
           "Meal score" above the number on every card in the rail: a label the eyebrow above had
@@ -2151,7 +2151,7 @@ function todayBlock(P, athleteId) {
     ${(() => {
       const anyOpen = openSlots.length > 0 || !ci.submitted;
       return `
-      <div class="eyebrow">${anyOpen ? 'What\'s open' : 'Day complete'} · ${requiredIn} of ${denom} meals in</div>
+      <h2 class="eyebrow">${anyOpen ? 'What\'s open' : 'Day complete'} · ${requiredIn} of ${denom} meals in</h2>
       ${anyOpen ? `<section class="card co-open">
         ${openSlots.map(k => `
           <div class="lrow"><div class="lic">${icon('bowl', 17)}</div>
@@ -2235,7 +2235,7 @@ function activitySection(P) {
   <div class="tt">No activity in the last 30 days</div>
   <div class="ts">Meal logs, weigh-ins, check-ins, and your own actions land here as they happen.</div></div>`;
   return `
-  <div class="co-eyebrow">Last 30 days</div>
+  <h2 class="co-eyebrow">Last 30 days</h2>
   ${TLOGS.error ? `<div class="co-note warn">Training logs couldn't load just now, so they're missing from this list. Reopen the page to retry.</div>` : ''}
   <div class="co-tl">
     ${items.map(i => `<div class="co-tl-item ${i.cls}${i.go ? ' go' : ''}"${i.go ? ` data-go="${esc(i.go)}"` : ''}><div class="co-tl-when">${esc(i.when)}</div><div class="co-tl-what">${i.what}</div></div>`).join('')}
@@ -2264,7 +2264,7 @@ function conversationSection(P) {
   <div class="sd-s">Once they log a meal, you can react or comment on it here.</div></div>
   <div style="height:10px"></div>`;
   return `
-  <div class="eyebrow">Meal threads</div>
+  <h2 class="eyebrow">Meal threads</h2>
   <div class="co-note">Tap any meal to open its full thread. The AI's read, your comments, and theirs.</div>
   ${/* The trailing control was a "View thread" pseudo-button on EVERY row: a .btn wearing
         pointer-events:none, so it looked like the thing you press and was not, thirty times down
@@ -2307,7 +2307,7 @@ function requirementsSection(P, athleteId) {
   // A failed section read is not "none" — see coach-data.js loadProfile's failedSections.
   const assignFailed = !!(P.failedSections && P.failedSections.assignments);
   return `
-  <div class="eyebrow">Governing standard <span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0">· ${esc(source)}</span></div>
+  <h2 class="eyebrow">Governing standard <span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0">· ${esc(source)}</span></h2>
   <section class="card co-list ro">
     ${reqs.length ? reqs.map(r => `
     <div class="lrow"><div class="lic" style="color:${accentVar(r.accent)}">${icon(r.icon || 'clipboard', 17)}</div>
@@ -2325,7 +2325,7 @@ function requirementsSection(P, athleteId) {
   ${/* The eyebrow already carries "· none". A sentence underneath saying the same thing in
         different words is the second half of a fact nobody needed twice, and it put a line of
         body copy where the eye expects either a list or nothing. */''}
-  <div class="eyebrow co-minor">Active exceptions${exceptions.length ? '' : ' · none'}</div>
+  <h2 class="eyebrow co-minor">Active exceptions${exceptions.length ? '' : ' · none'}</h2>
   ${exceptions.length ? `
   <section class="card co-list ro">
     ${exceptions.map(e => `
@@ -2333,7 +2333,7 @@ function requirementsSection(P, athleteId) {
     <div class="lm"><div class="lt">${esc(e.reason || 'Excused')}</div><div class="ls">${esc(e.starts_on || '')}${e.ends_on ? ` – ${esc(e.ends_on)}` : ''}</div></div></div>`).join('')}
   </section>` : ''}
 
-  <div class="eyebrow co-minor">Assignment history${assignments.length ? '' : (assignFailed ? '' : ' · none')}</div>
+  <h2 class="eyebrow co-minor">Assignment history${assignments.length ? '' : (assignFailed ? '' : ' · none')}</h2>
   ${/* A failed read is NOT "none" and never collapses to silence — it keeps its own line. */''}
   ${assignFailed && !assignments.length ? `<div class="co-note warn">Couldn't load their assignment history. Nothing was changed; reopen to retry.</div>` : ''}
   ${assignments.length ? `
@@ -2380,7 +2380,7 @@ function foodMemSection(P, athleteId) {
   }
   const placeName = (pid) => { const p = FMEM.places.find((x) => x.id === pid); return p ? p.name : null; };
   return `
-  <div class="co-eyebrow">Their usual meals <span class="n">${items.length}</span></div>
+  <h2 class="co-eyebrow">Their usual meals <span class="n">${items.length}</span></h2>
   <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.5;margin:2px 2px 10px">Verify a meal you know is right. It gets a trusted badge on their Plan and future AI reads lean on it.</div>
   <section class="card" style="padding:4px 16px">
     ${items.map((it) => {
@@ -2405,7 +2405,7 @@ function notesSection(P) {
   return `
   <div class="co-notebanner"><span class="ic">${icon('lock', 16)}</span><span>Private to your staff. <b>the athlete never sees these.</b></span></div>
 
-  <div class="co-eyebrow">Notes${notes.length ? ` <span class="n">${notes.length}</span>` : ' · none yet'}</div>
+  <h2 class="co-eyebrow">Notes${notes.length ? ` <span class="n">${notes.length}</span>` : ' · none yet'}</h2>
   ${notes.length ? `
   <section class="card" style="padding:0 var(--s4)">
     ${notes.map(n => `
@@ -2425,7 +2425,7 @@ function notesSection(P) {
     ? `<div class="co-note warn">Couldn't load their notes. Any notes already written are safe; reopen to retry.</div>`
     : `<div class="co-note">No notes on this athlete yet. Jot the first below.</div>`}
 
-  <div class="co-eyebrow">Add a note</div>
+  <h2 class="co-eyebrow">Add a note</h2>
   <section class="card" style="padding:var(--s3) var(--s4)">
     <textarea id="cn-input" rows="3" maxlength="1000" placeholder="Something worth remembering about this athlete…"
       style="display:block;width:100%;box-sizing:border-box;border-radius:var(--r-chip);background:var(--surface-2);border:1.5px solid var(--hairline);color:var(--text);font-family:var(--font);font-size:14px;font-weight:600;line-height:1.5;padding:11px 13px;outline:none;resize:none"></textarea>
@@ -2868,7 +2868,7 @@ export const coachMeal = {
       const srcLabel = meal.source === 'label' ? 'exact, from the nutrition label'
         : meal.source === 'manual' ? 'entered by the athlete' : 'estimated from the photo';
       return `
-      <div class="eyebrow" style="display:flex;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">Estimated Nutrition</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></div>
+      <h2 class="eyebrow" style="display:flex;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">Estimated Nutrition</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></h2>
       <div class="macro-row four">
         <div class="macro"><div class="mv">${t}${meal.protein || 0}g</div><div class="mk">Protein</div></div>
         <div class="macro"><div class="mv">${t}${meal.carbs || 0}g</div><div class="mk">Carbs</div></div>
@@ -2887,7 +2887,7 @@ export const coachMeal = {
         const dis = FIX_BUSY ? ' disabled' : '';
         return `
       <section class="card pad" id="cm-fix" style="margin-top:8px;padding-top:12px"${FIX_BUSY ? ' aria-busy="true"' : ''}>
-        <div class="eyebrow" style="margin:0 0 8px">Detected foods</div>
+        <h2 class="eyebrow" style="margin:0 0 8px">Detected foods</h2>
         ${rich.length ? rich.map((d) => `
         <div class="food-row">
           <span class="conf-dot ${esc(d.confidence || 'high')}"></span>
@@ -2895,7 +2895,7 @@ export const coachMeal = {
           <span class="fr-qty">${d.quantity ? esc(d.quantity) : ''}</span>
           <button class="cm-rm" data-cm-rm="${esc(d.name)}" aria-label="Remove ${esc(d.name)} from this read"${dis}>${icon('x', 13)}</button>
         </div>`).join('') : `<div class="est-note">No itemized foods on this read, so there is nothing to remove. The portion check below still works.</div>`}
-        <div class="eyebrow" style="margin:12px 0 8px">Portion check · the whole plate</div>
+        <h2 class="eyebrow" style="margin:12px 0 8px">Portion check · the whole plate</h2>
         <div class="fx-chips">
           <button class="fx-chip" data-cm-portion="right"${dis}>Looks right</button>
           <button class="fx-chip" data-cm-portion="larger"${dis}>Bigger than that</button>
@@ -2907,9 +2907,9 @@ export const coachMeal = {
       })() : ''}`;
     })()}` : ''}
 
-    ${foods.length ? `<div class="eyebrow">Detected</div><div class="foodchips">${foods.map(f => `<span class="foodchip"><span class="dot"></span>${esc(typeof f === 'string' ? f : f.name)}</span>`).join('')}</div>` : ''}
+    ${foods.length ? `<h2 class="eyebrow">Detected</h2><div class="foodchips">${foods.map(f => `<span class="foodchip"><span class="dot"></span>${esc(typeof f === 'string' ? f : f.name)}</span>`).join('')}</div>` : ''}
 
-    <div class="eyebrow">Conversation</div>
+    <h2 class="eyebrow">Conversation</h2>
     ${MC.comments && MC.comments.error ? `
     <div style="text-align:center;padding:14px 12px;border-radius:var(--r-tile);background:var(--surface-1);border:1px solid var(--hairline)">
       <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.4">Couldn't load the discussion. Nothing was lost.</div>
@@ -3035,7 +3035,7 @@ export const coachMeal = {
       const notes = Array.isArray(MC.comments) ? privateNotes(MC.comments) : [];
       return `
       <div id="cm-notes-wrap"${notes.length ? '' : ' hidden'}>
-        <div class="eyebrow" style="margin-top:14px">Private notes <span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0">· only you and staff see these</span></div>
+        <h2 class="eyebrow" style="margin-top:14px">Private notes <span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0">· only you and staff see these</span></h2>
         <section class="card" style="padding:6px 16px" id="cm-notes">
           ${notes.map((n2) => `<div class="lrow" style="cursor:default"><div class="lic" style="background:var(--purple-surface);color:var(--purple-bright)">${icon('lock', 15)}</div><div class="lm"><div class="ls" style="white-space:normal;line-height:1.45;color:var(--text-2)">${esc(n2.text)}</div></div></div>`).join('')}
         </section>
@@ -3476,7 +3476,7 @@ export const parent = {
           to, their own data export, appearance, or account deletion — every one of those screens
           already admits 'parent' (roleNav), they just had no front door on this hub. Same
           grouping the athlete Profile uses: app stuff, then the destructive pair alone last. */''}
-    <div class="eyebrow">Privacy &amp; app</div>
+    <h2 class="eyebrow">Privacy &amp; app</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('mail', 17)}</div>
@@ -3487,7 +3487,7 @@ export const parent = {
       <div class="lrow" data-go="terms"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Terms &amp; privacy policy</div></div>${icon('chevron', 17)}</div>
     </section>
 
-    <div class="eyebrow">Account</div>
+    <h2 class="eyebrow">Account</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="welcome"><div class="lic">${icon('back', 17)}</div><div class="lm"><div class="lt">Sign out</div></div></div>
       <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('trash', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Delete account</div></div>${icon('chevron', 17)}</div>

@@ -43,7 +43,7 @@ export default {
     ${backHead('Verified Discipline', 'What a recruiter would see', 'settings')}
 
     <section class="card pad">
-      <div class="eyebrow" style="margin:0 0 12px">Your record · last 90 days</div>
+      <h2 class="eyebrow" style="margin:0 0 12px">Your record · last 90 days</h2>
       <div class="vc-stats">
         ${stat('On-time arrival', d.on_time_arrival_pct, '%')}
         ${stat('Morning response', d.morning_response_pct, '%')}

@@ -66,7 +66,7 @@ export function commitmentBoardCard() {
     const allIn = c.awaiting === 0;
     return `
     <section class="card pad vc-board" data-go="coach-commitments/${esc(inst.instance_id)}" style="cursor:pointer;margin-bottom:10px">
-      <div class="eyebrow" style="margin:0 0 6px">${esc(inst.title || TYPE_LABEL[inst.type] || 'Commitment')}</div>
+      <h2 class="eyebrow" style="margin:0 0 6px">${esc(inst.title || TYPE_LABEL[inst.type] || 'Commitment')}</h2>
       <div class="ts" style="padding-bottom:10px">${esc(ctx)}</div>
       ${segBar(c.responded, c.total, `${c.responded} of ${c.total} responded`)}
       <div style="display:flex;align-items:baseline;gap:10px;padding-top:8px">
@@ -207,7 +207,7 @@ export const coachCommitments = {
     </section>
 
     ${missing.length ? `
-    <div class="eyebrow">Still waiting on ${missing.length}</div>
+    <h2 class="eyebrow">Still waiting on ${missing.length}</h2>
     <section class="card" style="padding:2px 16px">${missing.map((r) => athleteRow(r, !!inst.asks_arrival, inst.min_dwell_min)).join('')}</section>
     <div style="height:10px"></div>
     <button class="btn" id="vc-remind" style="width:100%">${icon('bell', 18)} Remind ${missing.length} missing ${missing.length === 1 ? CD.noun : CD.nouns}</button>
@@ -220,7 +220,7 @@ export const coachCommitments = {
     </div>`}
 
     ${responded.length ? `
-    <div class="eyebrow">Responded</div>
+    <h2 class="eyebrow">Responded</h2>
     <section class="card" style="padding:2px 16px">${responded.map((r) => athleteRow(r, !!inst.asks_arrival, inst.min_dwell_min)).join('')}</section>` : ''}
 
     ${inst.asks_arrival ? `
@@ -452,9 +452,9 @@ export const coachCommitManage = {
         <div><div class="tt">Nothing scheduled yet</div>
         <div class="ts">Schedule a morning roll call, a lift, or a study hall and it'll live here: editable, pausable, and never silently deleted.</div></div>
       </div>` : ''}
-    ${live.length ? `<div class="eyebrow">Running</div>
+    ${live.length ? `<h2 class="eyebrow">Running</h2>
       <section class="card" style="padding:2px 16px">${live.map(card).join('')}</section>` : ''}
-    ${paused.length ? `<div class="eyebrow">Paused</div>
+    ${paused.length ? `<h2 class="eyebrow">Paused</h2>
       <section class="card" style="padding:2px 16px">${paused.map(card).join('')}</section>
       <div class="ts" style="padding-top:8px">Paused commitments stop appearing for ${CD.nouns} tomorrow. Everything already recorded against them stays exactly as it is.</div>` : ''}
     <div style="height:14px"></div>
@@ -531,7 +531,7 @@ export const coachCommitEdit = {
     return `
     ${backHead('Schedule a commitment', 'Type, who it’s for, when it repeats', back)}
 
-    <div class="eyebrow">What is it</div>
+    <h2 class="eyebrow">What is it</h2>
     <section class="card pad">
       <div class="chips-wrap" id="vc-type" style="display:flex;flex-wrap:wrap;gap:6px" role="radiogroup" aria-label="Commitment type">
         ${TYPES.map((t) => `<button class="chip ${d.type === t ? 'on' : ''}" role="radio" aria-checked="${d.type === t ? 'true' : 'false'}" data-type="${t}">${esc(TYPE_LABEL[t])}</button>`).join('')}
@@ -551,7 +551,7 @@ export const coachCommitEdit = {
       <input class="ob-input" id="vc-action" maxlength="24" value="${esc(d.action_label)}" placeholder="${d.type === 'morning_roll_call' ? 'I’m Up' : 'I’m here'}" />
     </section>
 
-    <div class="eyebrow">Who gets it</div>
+    <h2 class="eyebrow">Who gets it</h2>
     <section class="card pad">
       <div style="display:flex;flex-wrap:wrap;gap:6px" id="vc-aud" role="radiogroup" aria-label="Who gets it">
         <button class="chip ${d.audience_kind === 'team' ? 'on' : ''}" role="radio" aria-checked="${d.audience_kind === 'team' ? 'true' : 'false'}" data-aud="team">${CD.kind === 'practice' ? 'All clients' : 'Entire team'}</button>
@@ -560,7 +560,7 @@ export const coachCommitEdit = {
       </div>
     </section>
 
-    <div class="eyebrow">When</div>
+    <h2 class="eyebrow">When</h2>
     <section class="card pad">
       <div style="display:flex;gap:6px" id="vc-days" role="group" aria-label="Repeat on days">
         ${DOW.map((n, i) => `<button class="chip ${d.repeat_days.includes(i) ? 'on' : ''}" role="checkbox" aria-checked="${d.repeat_days.includes(i) ? 'true' : 'false'}" aria-label="${DOW_FULL[i]}" data-day="${i}" style="flex:1;padding:8px 0">${n}</button>`).join('')}
@@ -576,7 +576,7 @@ export const coachCommitEdit = {
     ${/* The escalation ladder (0145) ran server-side for a month with NO way to switch either
           rung on — no UI ever wrote commitments.escalation, so the "louder" half of the ladder
           could never fire for anyone. These two chips are that missing switch. */''}
-    <div class="eyebrow">If they miss it <span class="opt">· optional</span></div>
+    <h2 class="eyebrow">If they miss it <span class="opt">· optional</span></h2>
     <section class="card pad">
       <div class="vc-esc" id="vc-esc" role="group" aria-label="If they miss it">
         <button class="chip ${d.escalation && d.escalation.breakthrough ? 'on' : ''}" role="checkbox" aria-checked="${d.escalation && d.escalation.breakthrough ? 'true' : 'false'}" data-esc="breakthrough">Send a second, louder push</button>
@@ -585,7 +585,7 @@ export const coachCommitEdit = {
       <div class="ts mt">The louder push is time-sensitive and lands once, right after the deadline passes. "Tell me who missed" is one message to you naming everyone who never answered, not one per ${CD.noun}.</div>
     </section>
 
-    <div class="eyebrow">Where <span class="opt">· optional</span></div>
+    <h2 class="eyebrow">Where <span class="opt">· optional</span></h2>
     <section class="card pad">
       <div class="ts" style="padding-bottom:10px">Attach a place and OnStandard confirms ${CD.nouns} actually got there. Leave it off and this stays a check-in only.</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px" id="vc-place" role="radiogroup" aria-label="Location">
@@ -624,7 +624,7 @@ export const coachCommitEdit = {
       ` : ''}
     </section>
 
-    <div class="eyebrow">Linked event <span class="opt">· optional</span></div>
+    <h2 class="eyebrow">Linked event <span class="opt">· optional</span></h2>
     <section class="card pad">
       <label for="vc-link" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">What is this roll call for?</label>
       <select class="ob-input" id="vc-link">

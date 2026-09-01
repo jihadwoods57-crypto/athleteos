@@ -27,12 +27,12 @@ export default {
     return `
     ${backHead('Design states', 'Empty · loading · error · tiers, all specified', 'profile')}
 
-    <div class="eyebrow">Score tiers</div>
+    <h2 class="eyebrow">Score tiers</h2>
     <section class="card pad" style="display:flex;flex-wrap:wrap;gap:10px">
       ${TIERS.map((t, i) => `<span class="tier-chip ${t.cls}" style="margin:0">${t.name} · ${tierRange(i)}</span>`).reverse().join('')}
     </section>
 
-    <div class="eyebrow">Empty states</div>
+    <h2 class="eyebrow">Empty states</h2>
     <div class="state-demo">
       <div class="sd-ic">${icon('camera', 24)}</div>
       <div class="sd-t">No logs yet</div>
@@ -51,7 +51,7 @@ export default {
       <div class="sd-s">After your first few days, trends, streaks, and patterns show up here.</div>
     </div>
 
-    <div class="eyebrow">Loading states · branded, never a bare spinner</div>
+    <h2 class="eyebrow">Loading states · branded, never a bare spinner</h2>
     <section class="card pad">
       ${['Checking meal quality', 'Matching this meal to your plan', 'Updating your score', 'Syncing coach plan'].map(t => `
         <div style="display:flex;align-items:center;gap:12px;padding:9px 0">
@@ -60,7 +60,7 @@ export default {
         </div>`).join('')}
     </section>
 
-    <div class="eyebrow">Error states · what happened + what to do</div>
+    <h2 class="eyebrow">Error states · what happened + what to do</h2>
     <div class="state-demo err-box">
       <div class="sd-ic">${icon('camera', 22)}</div>
       <div class="sd-t">Your meal photo didn't upload</div>
@@ -78,7 +78,7 @@ export default {
       <div class="sd-s">Coach will see this when you're back online. Keep logging; nothing waits on the network.</div>
     </div>
 
-    <div class="eyebrow">Verification states · evidence vs the absence of it</div>
+    <h2 class="eyebrow">Verification states · evidence vs the absence of it</h2>
     ${vcDemo({ arrived_at: '2026-07-22T09:43:00Z', presence: 'provisional' })}
     ${vcDemo({ arrived_at: '2026-07-22T09:43:00Z', presence: 'left_early', departed_at: '2026-07-22T09:52:00Z' })}
     ${vcDemo({ arrived_at: '2026-07-22T09:43:00Z', presence: 'left_early', departed_at: '2026-07-22T09:52:00Z', completed_at: '2026-07-22T09:58:00Z', status: 'completed' })}

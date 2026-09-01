@@ -116,7 +116,7 @@ export default {
     ${backHead('Squad', `${esc(team.teamName || 'Your team')} · ${shared.length} on the board`, 'progress')}
     ${toggle}
 
-    <div class="eyebrow">Today's board</div>
+    <h2 class="eyebrow">Today's board</h2>
     ${shared.length ? `<section class="card" style="padding:6px 16px">
       ${shared.map((r, i) => boardRow(r, i + 1, today)).join('')}
     </section>` : ''}

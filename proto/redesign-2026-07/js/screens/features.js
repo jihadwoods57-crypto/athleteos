@@ -49,7 +49,7 @@ export const devices = {
     return `${head}
     <section class="card pad"><span class="status-pill g">Connected</span>
       <div style="height:10px"></div>
-      ${any ? `<div class="eyebrow" style="margin:2px 0 4px">Last night</div>
+      ${any ? `<h2 class="eyebrow" style="margin:2px 0 4px">Last night</h2>
       ${s.sleepHours != null ? readingRow('moon', 'Sleep', fmtSleep(s.sleepHours)) : ''}
       ${s.hrvMs != null ? readingRow('bolt', 'HRV', `${Math.round(s.hrvMs)} ms`) : ''}
       ${s.restingHr != null ? readingRow('bolt', 'Resting HR', `${Math.round(s.restingHr)} bpm`) : ''}`
@@ -125,7 +125,7 @@ export const recruiting = {
       <div style="margin-top:8px"><button class="btn ghost sm" data-go="connect" style="width:auto;padding:0 18px">Connect a coach</button></div></div>
     </div>`}
 
-    <div class="eyebrow">Why a recruiter cares</div>
+    <h2 class="eyebrow">Why a recruiter cares</h2>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('bars', 17)}</div>
       <div><div class="tt">Film shows talent. This shows habits.</div>
@@ -185,26 +185,26 @@ export const restrictions = {
     return `
     ${backHead('Food restrictions', 'Allergies, intolerances, and preferences, kept separate', 'profile')}
 
-    <div class="eyebrow">Allergies · medical, taken seriously</div>
+    <h2 class="eyebrow">Allergies · medical, taken seriously</h2>
     <div class="chip-row" id="rx-allergies">
       ${[...ALLERGY_OPTS, ...customs(R.allergies, ALLERGY_OPTS)].map((n) => chip(n, has(R.allergies, n))).join('')}
     </div>
     <div id="rx-severity"></div>
     <div class="rx-add"><input class="input" id="rx-add-allergy" maxlength="30" placeholder="Add another allergen…" /><button class="btn ghost sm rx-add-btn" data-add="allergy">Add</button></div>
 
-    <div class="eyebrow">Intolerances</div>
+    <h2 class="eyebrow">Intolerances</h2>
     <div class="chip-row" id="rx-intolerances">
       ${[...INTOLERANCE_OPTS, ...customs(R.intolerances, INTOLERANCE_OPTS)].map((n) => chip(n, R.intolerances.includes(n))).join('')}
     </div>
     <div class="rx-add"><input class="input" id="rx-add-intolerance" maxlength="30" placeholder="Add an intolerance…" /><button class="btn ghost sm rx-add-btn" data-add="intolerance">Add</button></div>
 
-    <div class="eyebrow">Dietary preferences</div>
+    <h2 class="eyebrow">Dietary preferences</h2>
     <div class="chip-row" id="rx-preferences">
       ${[...PREFERENCE_OPTS, ...customs(R.preferences, PREFERENCE_OPTS)].map((n) => chip(n, R.preferences.includes(n))).join('')}
     </div>
     <div class="rx-add"><input class="input" id="rx-add-preference" maxlength="30" placeholder="Add a preference…" /><button class="btn ghost sm rx-add-btn" data-add="preference">Add</button></div>
 
-    <div class="eyebrow">How checking works</div>
+    <h2 class="eyebrow">How checking works</h2>
     <section class="card" style="padding:6px 16px">
       ${[
         ['camera', 'Detected foods are compared', 'The app compares detected foods and label entries with your saved restrictions. Detection may miss ingredients, preparation methods, or cross-contact.'],
@@ -365,7 +365,7 @@ export const teamDiet = {
       <div style="height:10px"></div>`;
     }
     return `${head}
-    <div class="eyebrow">Declared · ${declared.length} of ${TD.entries.length}</div>
+    <h2 class="eyebrow">Declared · ${declared.length} of ${TD.entries.length}</h2>
     ${declared.map((e) => dietRow(e.row.name, TD.byId[e.row.athleteId])).join('')}
     ${undeclared ? `<div style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);margin:6px 0 4px">${undeclared} athlete${undeclared === 1 ? '' : 's'} ${undeclared === 1 ? 'has' : 'have'} not declared restrictions</div>` : ''}
     <div style="height:10px"></div>`;
@@ -392,7 +392,7 @@ export const injury = {
     ${backHead('Injury mode', on ? 'Your Standard adapts while you heal' : 'Report it. Your Standard adapts', 'home')}
 
     ${on ? `
-    <div class="eyebrow">What changed in your Standard</div>
+    <h2 class="eyebrow">What changed in your Standard</h2>
     <section class="card" style="padding:6px 16px">
       ${[
         ['bolt', 'Rehab replaces intensity', 'Band work 2×15 before practice, on your requirements list now.'],
@@ -414,7 +414,7 @@ export const injury = {
       <button class="btn primary sm" data-act="toggleInjury" data-then="injury" style="margin-top:12px;width:auto;padding:0 22px">${icon('bolt', 16)} Report an injury or pain</button>
     </section>`}
 
-    <div class="eyebrow">Who does what</div>
+    <h2 class="eyebrow">Who does what</h2>
     <section class="card" style="padding:6px 16px">
       ${[
         ['user', 'You report', 'Pain or an injury concern: that’s your part. Reporting is never punished.'],
@@ -467,20 +467,20 @@ export const coachVoice = {
     </section>
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">Shapes every AI Nutritionist surface: meal analyses, thread replies, answers to your questions, and nudges.</div>
 
-    <div class="eyebrow">Tone</div>
+    <h2 class="eyebrow">Tone</h2>
     <div class="chip-row" id="cv-tone">${chip(tone === 'calm', 'Calm', 'tone', 'calm')}${chip(tone === 'direct', 'Direct', 'tone', 'direct')}${chip(tone === 'fired', 'Fired up', 'tone', 'fired')}</div>
 
-    <div class="eyebrow">Accountability</div>
+    <h2 class="eyebrow">Accountability</h2>
     <div class="chip-row" id="cv-level">${chip(level === 'supportive', 'Supportive', 'level', 'supportive')}${chip(level === 'balanced', 'Balanced', 'level', 'balanced')}${chip(level === 'hard', 'Hard-nosed', 'level', 'hard')}</div>
 
-    <div class="eyebrow">Reply length · chat and questions</div>
+    <h2 class="eyebrow">Reply length · chat and questions</h2>
     <div class="chip-row" id="cv-length">${chip(length === 'brief', 'Brief', 'length', 'brief')}${chip(length === 'standard', 'Standard', 'length', 'standard')}${chip(length === 'detailed', 'Detailed', 'length', 'detailed')}</div>
 
-    <div class="eyebrow">Your instructions · optional</div>
+    <h2 class="eyebrow">Your instructions · optional</h2>
     <textarea id="cv-instructions" class="ob-input" maxlength="500" rows="3" style="min-height:76px;resize:vertical" placeholder="e.g. Always push vegetables. Keep advice tied to our 4-meal structure. Talk like a strength coach, not a dietitian.">${esc(cv.instructions || '')}</textarea>
     <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin:6px 2px 0;line-height:1.4">Style guidance only. It can never change numbers, add requirements, or unlock medical advice.</div>
 
-    <div class="eyebrow">Phrases the AI may echo · tap to approve</div>
+    <h2 class="eyebrow">Phrases the AI may echo · tap to approve</h2>
     <section class="card" style="padding:6px 16px" id="cv-approved">
       ${CV_PHRASES.map((p, i) => { const on = approved.includes(p); return `
         <div class="lrow" data-cvphrase="${i}" style="cursor:pointer">
@@ -489,7 +489,7 @@ export const coachVoice = {
         </div>`; }).join('')}
     </section>
 
-    <div class="eyebrow">Never say · comma-separated</div>
+    <h2 class="eyebrow">Never say · comma-separated</h2>
     <input id="cv-prohibited" class="ob-input" maxlength="200" placeholder="e.g. skinny, fat, lazy" value="${esc(cv.prohibited || '')}" />
 
     <div style="height:14px"></div>
@@ -543,7 +543,7 @@ export const trustPassPolicy = {
     const trainer = RT.authRole === 'trainer';
     const p = RT.passPolicy || { default_credits: 3, default_window_days: 2, eligibility_days: 7, max_credits: 5 };
     const stepper = (label, key, val, lo, hi, unit) => `
-    <div class="eyebrow">${label}</div>
+    <h2 class="eyebrow">${label}</h2>
     <section class="card" style="padding:10px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lm"><div class="lt">${val} ${unit}</div><div class="ls">Range ${lo}–${hi}</div></div>
@@ -640,7 +640,7 @@ export const safety = {
       </div>
     </section>
 
-    <div class="eyebrow">What it watches for</div>
+    <h2 class="eyebrow">What it watches for</h2>
     <section class="card" style="padding:6px 16px">
       ${[
         ['bars', 'Severe restriction patterns', 'Sustained intake far below any goal profile, or meals shrinking week over week.'],
@@ -653,7 +653,7 @@ export const safety = {
         </div>`).join('')}
     </section>
 
-    <div class="eyebrow">What happens on a flag</div>
+    <h2 class="eyebrow">What happens on a flag</h2>
     <div class="sidebox" style="border-color:var(--purple-border)">
       <div class="req-icon p" style="width:38px;height:38px">${icon('heart', 17)}</div>
       <div><div class="tt">A quiet conversation, not a penalty</div>

@@ -120,7 +120,7 @@ export const settings = {
     return `
     ${backHead('Units & appearance', '', roleProfileRoute())}
 
-    <div class="eyebrow">Units</div>
+    <h2 class="eyebrow">Units</h2>
     <section class="card" style="padding:6px 16px">
       ${/* ONE read-only fact, not two dead rows. The old pair wore row styling with nothing to
             tap, which is a fake affordance; a single non-interactive line states the fact and
@@ -131,7 +131,7 @@ export const settings = {
       </div>
     </section>
 
-    <div class="eyebrow">Appearance</div>
+    <h2 class="eyebrow">Appearance</h2>
     <div class="chip-row" id="set-theme" data-toggle-group>
       ${['dark', 'light', 'system'].map((m) => `<span class="chp ${(RT.theme || 'dark') === m ? 'on' : ''}" data-theme-pick="${m}">${m === 'dark' ? 'Dark' : m === 'light' ? 'Light' : 'System'}</span>`).join('')}
     </div>
@@ -141,7 +141,7 @@ export const settings = {
           button, locked athletes had no path at all (settings.js:1030's honesty contract was
           unreachable). Athletes only — an operator's plan style is per-athlete, on the roster. */''}
     ${RT.authRole === 'athlete' ? `
-    <div class="eyebrow">Plan</div>
+    <h2 class="eyebrow">Plan</h2>
     <section class="card rows">
       <div class="lrow" data-go="plan-style">
         <div class="lic">${icon('target', 17)}</div>
@@ -151,7 +151,7 @@ export const settings = {
     </section>` : ''}
 
     <div id="set-bio-wrap" style="display:none">
-      <div class="eyebrow">Security</div>
+      <h2 class="eyebrow">Security</h2>
       <section class="card" style="padding:6px 16px">
         <div class="lrow" id="set-bio">
           <div class="lic">${icon('lock', 17)}</div>
@@ -161,7 +161,7 @@ export const settings = {
       </section>
     </div>
 
-    <div class="eyebrow">Help</div>
+    <h2 class="eyebrow">Help</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" id="set-tour" role="button" tabindex="0" style="cursor:pointer">
         <div class="lic">${icon('sparkle', 17)}</div>
@@ -308,7 +308,7 @@ export const privacy = {
       <div class="ts">Nothing is public. Meal photos never leave your coach connection. You can download or delete everything, below.</div></div>
     </div>
 
-    <div class="eyebrow">Your data</div>
+    <h2 class="eyebrow">Your data</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" id="pv-export" role="button" tabindex="0">
         <div class="lic">${icon('download', 17)}</div>
@@ -586,12 +586,12 @@ export const notifSettings = {
           instead of live-looking controls that silently do nothing. */''}
     <div id="ns-off-note" role="status" style="font-size:var(--t-xs);font-weight:700;color:var(--text-3);margin:2px 2px 8px;${p.enabled ? 'display:none' : ''}">Off: nothing below fires until you turn it back on.</div>
     <div id="ns-deps"${p.enabled ? '' : ' aria-disabled="true" style="opacity:.45;pointer-events:none"'}>
-    <div class="eyebrow">Your tone · changes the wording, never the schedule</div>
+    <h2 class="eyebrow">Your tone · changes the wording, never the schedule</h2>
     <div class="chip-row" id="ns-pressure" data-toggle-group>
       <span class="chp">Supportive</span><span class="chp on">Direct</span><span class="chp">Intense</span>
     </div>
 
-    <div class="eyebrow">Quiet hours</div>
+    <h2 class="eyebrow">Quiet hours</h2>
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">Nothing pings between your cutoff and 7 AM. Deadline warnings can break through if you let them.</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
@@ -620,7 +620,7 @@ export const notifSettings = {
       for (const r of rest) rows.push([r.icon || 'clipboard', r.title, lvOf(r)]);
       if (!rows.length) return '';
       return `
-    <div class="eyebrow">Urgency per requirement${S.coach.hasCoach ? ` · set by ${esc(S.coach.nameMid)}` : ' · from your plan'}</div>
+    <h2 class="eyebrow">Urgency per requirement${S.coach.hasCoach ? ` · set by ${esc(S.coach.nameMid)}` : ' · from your plan'}</h2>
     <section class="card" style="padding:6px 16px">
       ${rows.map(([ic, t, lv]) => `
         <div class="lrow" style="cursor:default">
@@ -719,7 +719,7 @@ export const coachNotifSettings = {
     return `
     ${backHead('Notifications', 'When and how you get alerts about your team.', roleProfileRoute())}
 
-    <div class="eyebrow">Quick setup</div>
+    <h2 class="eyebrow">Quick setup</h2>
     <div class="chip-row" id="cns-preset" data-toggle-group>
       ${Object.keys(COACH_PRESETS).map((k) => `<span class="chp ${preset === k ? 'on' : ''}">${k}</span>`).join('')}
     </div>
@@ -733,7 +733,7 @@ export const coachNotifSettings = {
       </div>
     </section>
 
-    <div class="eyebrow">Morning briefing</div>
+    <h2 class="eyebrow">Morning briefing</h2>
     <div class="chip-row" id="cns-briefing" data-toggle-group>
       <span class="chp ${!p.briefing ? 'on' : ''}">Off</span>
       <span class="chp ${p.briefing && p.briefingAt === 7 * 60 ? 'on' : ''}">7:00</span>
@@ -741,7 +741,7 @@ export const coachNotifSettings = {
       <span class="chp ${p.briefing && p.briefingAt === 8 * 60 ? 'on' : ''}">8:00</span>
     </div>
 
-    <div class="eyebrow">Evening recap</div>
+    <h2 class="eyebrow">Evening recap</h2>
     <div class="chip-row" id="cns-recap" data-toggle-group>
       <span class="chp ${!p.recap ? 'on' : ''}">Off</span>
       <span class="chp ${p.recap && p.recapAt === 20 * 60 ? 'on' : ''}">8:00 PM</span>
@@ -766,7 +766,7 @@ export const coachNotifSettings = {
       </div>
     </section>
 
-    <div class="eyebrow">Quiet hours</div>
+    <h2 class="eyebrow">Quiet hours</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('moon', 17)}</div>
@@ -1028,7 +1028,7 @@ export const terms = {
             that is exactly when they most need to reach a human. */ ''}
       ${ext('mailto:support@onstandard.app', 'clipboard', 'Email us instead', 'support@onstandard.app')}
     </section>
-    <div class="eyebrow">The short version</div>
+    <h2 class="eyebrow">The short version</h2>
     <section class="card" style="padding:6px 16px">
       ${[
         ['Your photos are yours', 'Meal photos are private to your account and your coach connection. They are not public and not sold.'],
@@ -1114,7 +1114,7 @@ export const planStylePicker = {
 
     ${planStyleCard(PS, { compact: true })}
 
-    <div class="eyebrow">${choosing ? 'Choose your style' : 'Tell your ' + esc(S.coach.noun) + ' what you prefer'}</div>
+    <h2 class="eyebrow">${choosing ? 'Choose your style' : 'Tell your ' + esc(S.coach.noun) + ' what you prefer'}</h2>
     ${!choosing ? `<div class="ps-note lead">Your ${esc(S.coach.noun)} sets the plan you're scored on. What you pick here is shared with them; it doesn't change your scoring on its own.</div>` : ''}
 
     <section class="card" style="padding:6px 16px" id="ps-options">

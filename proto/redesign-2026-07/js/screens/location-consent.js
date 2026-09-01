@@ -69,7 +69,7 @@ export default {
       <div class="ts" style="padding-top:6px">Your coach schedules a practice at a place. OnStandard confirms your phone got there inside the window they set, so you never have to argue about whether you showed up.</div>
     </section>
 
-    <div class="eyebrow">What actually happens</div>
+    <h2 class="eyebrow">What actually happens</h2>
     <section class="card" style="padding:2px 16px">
       ${bullet('clock', 'Only around a scheduled commitment',
         'Your location is checked only in the window your coach set for that one event. Outside that window nothing is watched at all.')}

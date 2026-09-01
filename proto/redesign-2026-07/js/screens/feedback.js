@@ -168,7 +168,7 @@ export const feedback = {
         </div>`;
       return `<div id="fb-root">${backHead('Send feedback', 'We read all of it', exit)}
       <section class="card" style="padding:6px 16px;margin-top:14px">${KINDS.map(row).join('')}</section>
-      <div class="eyebrow" style="margin-top:18px">Urgent</div>
+      <h2 class="eyebrow" style="margin-top:18px">Urgent</h2>
       <section class="card" style="padding:6px 16px;border-color:var(--red-border)">
         <div class="lrow" data-fb-kind="safety" role="button" tabindex="0">
           <div class="lic" style="color:var(--red-bright)">${icon(SAFETY.ic, 16)}</div>

@@ -20,7 +20,7 @@ export default {
     const alreadyDone = !!(id && DAY.checkedTasks && DAY.checkedTasks[id]);
     return `
     ${backHead('Log training', coachTitle || (id ? 'Your session' : 'A workout you did'), id ? `requirement/${id}` : 'training-history')}
-    ${desc ? `<div class="eyebrow">The session</div><div class="coachnote"><p>${esc(desc)}</p></div><div style="height:12px"></div>` : ''}
+    ${desc ? `<h2 class="eyebrow">The session</h2><div class="coachnote"><p>${esc(desc)}</p></div><div style="height:12px"></div>` : ''}
     <section class="card pad">
       <div style="font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-bottom:4px">Session</div>
       <input class="ob-input" id="tl-title" maxlength="80" placeholder="e.g. Lower Body A" value="${esc(coachTitle)}" />

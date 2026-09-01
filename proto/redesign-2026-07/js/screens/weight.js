@@ -73,7 +73,7 @@ export default {
     </section>
 
     ${W.target != null ? `
-    <div class="eyebrow">Season goal</div>
+    <h2 class="eyebrow">Season goal</h2>
     <section class="card pad">
       <div style="display:flex;justify-content:space-between;align-items:baseline">
         <div style="font-size:var(--t-base);font-weight:700;color:var(--text-2)">Trend toward ${S.coach.hasCoach ? `your ${S.coach.noun}'s` : 'your'} target</div>
@@ -86,7 +86,7 @@ export default {
         <div style="text-align:right"><div class="tiny" style="font-size:var(--t-xs);font-weight:700">TARGET</div><div style="font-size:var(--t-lg);font-weight:800">${W.target} lb</div></div>
       </div>
     </section>` : `
-    <div class="eyebrow">Season goal</div>
+    <h2 class="eyebrow">Season goal</h2>
     <div class="sidebox">
       <div class="req-icon b" style="width:38px;height:38px">${icon('target', 18)}</div>
       <div><div class="tt">No season target set yet</div>

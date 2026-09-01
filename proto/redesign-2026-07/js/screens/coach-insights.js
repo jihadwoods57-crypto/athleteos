@@ -117,7 +117,7 @@ function scopeLabel(scope) {
 const dotLine = (text, cls) => `<div style="display:flex;gap:10px;align-items:flex-start;padding:5px 0;font-size:13.5px;font-weight:600;color:var(--text);line-height:1.5"><span class="dot ${cls}" style="width:7px;height:7px;border-radius:50%;margin-top:7px;flex:none"></span><span>${esc(text)}</span></div>`;
 
 const EMPTY_COPY = `
-    <div class="co-eyebrow">This week</div>
+    <h2 class="co-eyebrow">This week</h2>
     <div class="co-empty"><div class="ic">${icon('bars', 24)}</div>
     <div class="tt">Trends unlock as history builds</div>
     <div class="ts">Weekly change, most-missed requirements, and whether your nudges are working. This screen fills in from your team's real data. Every action you take is already recording toward it.</div></div>`;
@@ -131,12 +131,12 @@ function weekSection() {
   const data = INSIGHTS_DATA && INSIGHTS_DATA.teamId === teamId ? INSIGHTS_DATA : null;
   if (data && data.offline) {
     return `
-    <div class="co-eyebrow">This week</div>
+    <h2 class="co-eyebrow">This week</h2>
     ${errorState({ title: "Couldn't load the week", body: 'Your weekly trends are safe. Reconnect and they load right here.', retryId: 'insights-week-retry' })}`;
   }
   if (!data) {
     return `
-    <div class="co-eyebrow">This week</div>
+    <h2 class="co-eyebrow">This week</h2>
     ${skeletonRows(2, 'Reading the week')}`;
   }
 
@@ -166,7 +166,7 @@ function weekSection() {
   // ---- This week (weeklyBrief) ----
   if (brief.lines.length || brief.byRoom.length) {
     sections.push(`
-    <div class="co-eyebrow">This week · ${esc(scopeLabel(scope))}</div>
+    <h2 class="co-eyebrow">This week · ${esc(scopeLabel(scope))}</h2>
     <section class="card" style="padding:var(--s3) var(--s4)">
       ${brief.lines.map(l => dotLine(l.text, l.dir === 'up' ? 'g' : l.dir === 'down' ? 'r' : 'b')).join('')}
       ${brief.byRoom.map(r => dotLine(r.text, r.completionDelta > 0 ? 'g' : 'r')).join('')}
@@ -180,18 +180,18 @@ function weekSection() {
         <div class="lm"><div class="lt">${esc(a.name)}</div><div class="ls">${esc(sub)}</div></div>
       </div>`;
     sections.push(`
-    <div class="co-eyebrow">${CD.kind === 'practice' ? 'Clients' : 'Athletes'} to watch</div>
+    <h2 class="co-eyebrow">${CD.kind === 'practice' ? 'Clients' : 'Athletes'} to watch</h2>
     <section class="card" style="padding:6px 16px">
-      ${decliners.length ? `<div class="eyebrow" style="margin:10px 2px 0">Trending down</div>${decliners.map(d => athRow(d, d.text)).join('')}` : ''}
-      ${disengaging.length ? `<div class="eyebrow" style="margin:10px 2px 0">Going quiet</div>${disengaging.map(d => athRow(d, d.text)).join('')}` : ''}
-      ${recoverers.length ? `<div class="eyebrow" style="margin:10px 2px 0">Bouncing back</div>${recoverers.map(r => athRow(r, `${r.lift >= 0 ? '+' : ''}${r.lift} avg score lift after an intervention`)).join('')}` : ''}
+      ${decliners.length ? `<h2 class="eyebrow" style="margin:10px 2px 0">Trending down</h2>${decliners.map(d => athRow(d, d.text)).join('')}` : ''}
+      ${disengaging.length ? `<h2 class="eyebrow" style="margin:10px 2px 0">Going quiet</h2>${disengaging.map(d => athRow(d, d.text)).join('')}` : ''}
+      ${recoverers.length ? `<h2 class="eyebrow" style="margin:10px 2px 0">Bouncing back</h2>${recoverers.map(r => athRow(r, `${r.lift >= 0 ? '+' : ''}${r.lift} avg score lift after an intervention`)).join('')}` : ''}
     </section>`);
   }
 
   // ---- Most missed ----
   if (missed.length) {
     sections.push(`
-    <div class="co-eyebrow">Most missed</div>
+    <h2 class="co-eyebrow">Most missed</h2>
     <section class="card" style="padding:var(--s3) var(--s4)">
       ${missed.map(m => dotLine(m.text, 'a')).join('')}
     </section>`);
@@ -200,7 +200,7 @@ function weekSection() {
   // ---- Week vs month ----
   if (vsMonth.text) {
     sections.push(`
-    <div class="co-eyebrow">Week vs month</div>
+    <h2 class="co-eyebrow">Week vs month</h2>
     <section class="card" style="padding:var(--s3) var(--s4)">
       ${dotLine(vsMonth.text, vsMonth.weekAvg > vsMonth.monthAvg ? 'g' : vsMonth.weekAvg < vsMonth.monthAvg ? 'r' : 'b')}
     </section>`);
@@ -211,7 +211,7 @@ function weekSection() {
   // outcomes tracker stands, never nothing at all. ----
   const sinceLabel = new Date(`${outcomes.sinceISO}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   sections.push(`
-  <div class="co-eyebrow">Are interventions working?</div>
+  <h2 class="co-eyebrow">Are interventions working?</h2>
   <section class="card" style="padding:var(--s3) var(--s4)">
     ${outcomes.unlocked
       ? `${dotLine(outcomes.text, 'b')}${(outcomes.byKind || []).map(k => dotLine(`${humanizeKind(k.kind)} · ${k.n} use${k.n === 1 ? '' : 's'} · ${k.avgLift >= 0 ? '+' : ''}${k.avgLift} avg lift`, 'b')).join('')}`
@@ -267,7 +267,7 @@ export const coachInsights = {
        belong to each other. So the bar leads the read's card, a hairline separates it from the
        lines, and the screen loses a redundant heading and an empty frame. */
     return `${head}
-    <div class="co-eyebrow tight">Today's read · ${esc(scopeLabel(scope))}</div>
+    <h2 class="co-eyebrow tight">Today's read · ${esc(scopeLabel(scope))}</h2>
     <section class="card" style="padding:var(--s4)">
       ${entries.length ? `<div class="co-standing" style="margin-top:0">${seg('g', g)}${seg('a', a)}${seg('r', r)}${seg('d', d)}</div>
       <div class="co-legend" style="padding-bottom:var(--s4);border-bottom:1px solid var(--hairline-soft);margin-bottom:var(--s2)">${leg('g', g, 'on standard')}${leg('a', a, 'need attention')}${leg('r', r, 'overdue')}${leg('d', d, 'no activity')}</div>` : ''}

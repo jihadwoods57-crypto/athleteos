@@ -74,7 +74,7 @@ const steps = [
     body: () => `
       <div class="ob2-hero">
         <div class="h-eyebrow">The problem</div>
-        <div class="h-title">Your trainer sees <span class="accent">3 hours</span> a week.</div>
+        <h2 class="h-title">Your trainer sees <span class="accent">3 hours</span> a week.</h2>
         <div class="h-body">Sessions get coached. Meals, sleep, weekends: the rest of your week runs unwatched. That&rsquo;s where results are actually decided.</div>
       </div>` },
 
@@ -82,7 +82,7 @@ const steps = [
     body: () => `
       <div class="ob2-hero" style="padding-bottom:8px">
         <div class="h-eyebrow">Why the current way fails</div>
-        <div class="h-title">Your results are shaped by <span class="accent">the other 165.</span></div>
+        <h2 class="h-title">Your results are shaped by <span class="accent">the other 165.</span></h2>
       </div>
       ${countStat('3', 'hours a week with your trainer', '168 hours in your week − 3 coached = 165 on your own')}
       <div class="ob2-hero" style="flex:none;padding:0">
@@ -93,7 +93,7 @@ const steps = [
     body: () => `
       <div class="ob2-hero">
         <div class="h-eyebrow">OnStandard&rsquo;s answer</div>
-        <div class="h-title">One number. <span class="accent">All 168 hours.</span></div>
+        <h2 class="h-title">One number. <span class="accent">All 168 hours.</span></h2>
         <div class="h-body">Every meal you photograph becomes part of one Daily Score, built from what you actually do, visible to the person who holds you to it.</div>
         <div class="h-note">No food diary. No retelling. One photo per meal is the whole job.</div>
       </div>` },

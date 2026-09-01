@@ -95,7 +95,7 @@ export default {
       ${field('cle-cap', 'Client capacity', l.capacity || 10, '', false, true)}
     </section>
 
-    <div class="eyebrow">Your plans. Monthly pricing</div>
+    <h2 class="eyebrow">Your plans. Monthly pricing</h2>
     <section class="card" style="padding:16px">
       ${TIERS.map((t) => {
         const b = bounds(t.key);

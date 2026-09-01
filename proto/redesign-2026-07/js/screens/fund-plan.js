@@ -64,7 +64,7 @@ export default {
     const groups = groupByChild(CACHE.rows);
     return `${head}
     ${groups.length ? groups.map(g => `
-    <div class="eyebrow">${esc(g.child_name || 'Your child')}${g.trainer_name ? ` · ${esc(g.trainer_name)}` : ''}</div>
+    <h2 class="eyebrow">${esc(g.child_name || 'Your child')}${g.trainer_name ? ` · ${esc(g.trainer_name)}` : ''}</h2>
     <section class="card" style="padding:6px 16px">
       ${g.offers.map(o => `
       <div class="lrow" style="cursor:default;align-items:flex-start">

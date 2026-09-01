@@ -76,7 +76,7 @@ export default {
       ${cats.map(catCard).join('')}
     </section>
 
-    <div class="eyebrow">Not in today's score</div>
+    <h2 class="eyebrow">Not in today's score</h2>
     <div class="sidebox">
       <div class="req-icon muted" style="width:38px;height:38px">${icon('scale', 19)}</div>
       <div>
@@ -86,7 +86,7 @@ export default {
     </div>
 
     ${reach.rows.length ? `
-    <div class="eyebrow">How to reach ${anyVariable ? `up to ${upTotal}` : upTotal} today</div>
+    <h2 class="eyebrow">How to reach ${anyVariable ? `up to ${upTotal}` : upTotal} today</h2>
     <section class="card reach">
       ${reach.rows.map(r => `
         <div class="reach-row" data-go="${r.route}">
@@ -103,7 +103,7 @@ export default {
         <button class="btn ${reach.rows[0].accent === 'p' ? 'primary' : 'green'} sm" data-go="${reach.rows[0].route}">${icon(reach.rows[0].accent === 'p' ? 'moon' : reach.rows[0].accent === 'g' ? 'camera' : 'check', 19)} ${esc(reach.rows[0].label)} now</button>
       </div>
     </section>` : `
-    <div class="eyebrow">Day complete</div>
+    <h2 class="eyebrow">Day complete</h2>
     <div class="day-done">
       <div class="req-icon g" style="width:44px;height:44px">${icon('check', 21)}</div>
       <div><div class="tt">Every point that was on the table is in.</div>

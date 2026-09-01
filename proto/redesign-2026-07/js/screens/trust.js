@@ -68,7 +68,7 @@ export const trust = {
         </div>
       </section>
 
-      <div class="eyebrow">How it scores</div>
+      <h2 class="eyebrow">How it scores</h2>
       <section class="card" style="padding:6px 16px">
         <div class="lrow" style="cursor:default">
           <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('bars', 17)}</div>
@@ -76,7 +76,7 @@ export const trust = {
         </div>
       </section>
 
-      <div class="eyebrow">Change your mind</div>
+      <h2 class="eyebrow">Change your mind</h2>
       <section class="card" style="padding:6px 16px">
         <div class="lrow" style="cursor:default">
           <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('check', 17)}</div>
@@ -101,7 +101,7 @@ export const trust = {
       </div>
     </section>
 
-    <div class="eyebrow">How it scores</div>
+    <h2 class="eyebrow">How it scores</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('bars', 17)}</div>
@@ -137,7 +137,7 @@ export const streak = {
       <div style="font-size:12px;font-weight:700;color:var(--text-2);margin-top:8px">Weekly grace available: ${graceAvailable}${graceAvailable ? '' : ` · used ${S.streak.label.replace('grace used ', '')}`}</div>
     </section>
 
-    <div class="eyebrow">This week</div>
+    <h2 class="eyebrow">This week</h2>
     <section class="card pad">
       <div class="stk-week">
         ${cal.map(x => `
@@ -150,7 +150,7 @@ export const streak = {
       <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:14px">Your real day scores, Monday through Sunday. A day under 80 ends the run unless your weekly grace bridges it. Grace applies only after the day closes.</div>
     </section>
 
-    <div class="eyebrow">The rules</div>
+    <h2 class="eyebrow">The rules</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('target', 17)}</div>
@@ -210,10 +210,10 @@ export const history = {
   tab: 'progress',
   render() {
     const dayHead = (label, score, tierName) => `
-      <div class="eyebrow" style="display:flex;justify-content:space-between;align-items:baseline">
+      <h2 class="eyebrow" style="display:flex;justify-content:space-between;align-items:baseline">
         <span>${label}</span>
         ${score != null ? `<span style="text-transform:none;letter-spacing:0;font-size:13px;font-weight:800;color:${tierColor(score)}">${score}${tierName ? ` · ${tierName}` : ''}</span>` : ''}
-      </div>`;
+      </h2>`;
     const todayLabel = `Today · ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date().getDay()]}`;
     const rows = HIST.rows;
     let body;
@@ -501,9 +501,9 @@ export const mealView = {
       </div>
     </div>
     ${Array.isArray(m.detected) && m.detected.length ? `
-    <div class="eyebrow">Detected</div>
+    <h2 class="eyebrow">Detected</h2>
     <div class="foodchips">${m.detected.slice(0, 8).map((f) => `<span class="foodchip"><span class="dot"></span>${esc(String(f))}</span>`).join('')}</div>` : ''}
-    <div class="eyebrow">Nutrition</div>
+    <h2 class="eyebrow">Nutrition</h2>
     <div class="macro-row">
       <div class="macro"><div class="mv">${m.protein || 0}g</div><div class="mk">Protein</div></div>
       <div class="macro"><div class="mv">${m.carbs || 0}g</div><div class="mk">Carbs</div></div>
@@ -516,7 +516,7 @@ export const mealView = {
       <div class="av">${icon('sparkle', 18)}</div>
       <div><div class="who">AI Analysis</div><p>${esc(m.analysis || m.note)}</p></div>
     </div>` : ''}
-    <div class="eyebrow" style="margin-top:16px">Conversation</div>
+    <h2 class="eyebrow" style="margin-top:16px">Conversation</h2>
     ${/* Audience disclosure slot: mountThread paints the same facepile header the live thread
           wears (meal.js) once the participant fetch lands. */''}
     <div id="mv-members-slot"></div>

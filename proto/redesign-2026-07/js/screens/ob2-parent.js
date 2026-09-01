@@ -30,7 +30,7 @@ const nmEsc = (o) => esc(nm(o));
 const hero = (eyebrow, title, body, note = '') => `
   <div class="ob2-hero">
     <div class="h-eyebrow">${eyebrow}</div>
-    <div class="h-title">${title}</div>
+    <h2 class="h-title">${title}</h2>
     <div class="h-body">${body}</div>
     ${note ? `<div class="h-note">${note}</div>` : ''}
   </div>`;
@@ -128,7 +128,7 @@ const steps = [
     sub: () => 'A first name is all we need.',
     body: (o) => `
       <input id="obp-aname" class="ob-input" maxlength="40" placeholder="Their first name" aria-label="Athlete first name" autocapitalize="words" autocorrect="off" spellcheck="false" value="${esc(o.athleteName || '')}" />
-      <div class="eyebrow" style="margin:16px 2px 10px">How old are they?</div>
+      <h2 class="eyebrow" style="margin:16px 2px 10px">How old are they?</h2>
       ${chipRow('athleteAge', [
         { v: '13-15', t: '13–15' },
         { v: '16-18', t: '16–18' },

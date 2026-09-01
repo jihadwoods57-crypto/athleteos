@@ -99,7 +99,7 @@ const steps = [
     body: () => `
       <div class="ob2-hero">
         <div class="h-eyebrow">For coaches</div>
-        <div class="h-title">You set the standard. <span class="accent">Can you see who meets it?</span></div>
+        <h2 class="h-title">You set the standard. <span class="accent">Can you see who meets it?</span></h2>
         <div class="h-body">Practice shows you effort. The depth chart shows you outcomes. What happens between the two (meals, sleep, recovery) you mostly take on faith.</div>
       </div>`,
   },
@@ -108,7 +108,7 @@ const steps = [
     body: () => `
       <div class="ob2-hero">
         <div class="h-eyebrow">The monitoring math</div>
-        <div class="h-title">The standard you can’t see <span class="accent">slips first.</span></div>
+        <h2 class="h-title">The standard you can’t see <span class="accent">slips first.</span></h2>
         <div class="h-body">A roster of athletes, each with daily non-negotiables, seven days a week: that’s hundreds of individual actions no staff can check by hand. So nobody does, and you find out on the scale, in the film, in February.</div>
         <div class="h-note">In a minute we’ll run your program’s exact number.</div>
       </div>`,
@@ -118,7 +118,7 @@ const steps = [
     body: () => `
       <div class="ob2-hero">
         <div class="h-eyebrow">The OnStandard answer</div>
-        <div class="h-title">One score per athlete. <span class="accent">Readable in five seconds.</span></div>
+        <h2 class="h-title">One score per athlete. <span class="accent">Readable in five seconds.</span></h2>
         <div class="h-body">Your standard becomes daily requirements with proof: photos, check-ins, the scale. Every athlete carries one Daily Score built from what they actually did, and your board shows all of them at once.</div>
       </div>`,
   },
@@ -130,7 +130,7 @@ const steps = [
       <input id="co-first" class="ob-input" maxlength="40" placeholder="First name" aria-label="First name" autocomplete="given-name" autocapitalize="words" spellcheck="false" autocorrect="off" />
       <div style="height:12px"></div>
       <input id="co-last" class="ob-input" maxlength="40" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" spellcheck="false" autocorrect="off" />
-      <div class="eyebrow" style="margin:16px 2px 10px">What the room calls you</div>
+      <h2 class="eyebrow" style="margin:16px 2px 10px">What the room calls you</h2>
       <div class="chip-row" id="co-handle"></div>
       <input id="co-handle-custom" class="ob-input" maxlength="24" placeholder="Or type it, e.g. Coach B" style="margin-top:10px" />
       <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">This is the name athletes see everywhere: greetings, meal threads, your standard.</div>`,
@@ -451,7 +451,7 @@ const steps = [
         <button class="${mode === 'join' ? 'on' : ''}" data-mode="join">Join a staff</button>
       </div>
       ${mode === 'join' ? `
-      <div class="eyebrow" style="margin:8px 2px 10px">Staff code</div>
+      <h2 class="eyebrow" style="margin:8px 2px 10px">Staff code</h2>
       <input id="ok-staff-code" class="ob-input" maxlength="12" placeholder="Code from your head coach" autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" value="${esc(c.staffCode || '')}" />
       <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">Your head coach hands out staff codes. It lands you on their team’s staff with the role and permissions they set. You won’t create a new team.</div>` : `
       <input id="ok-team" class="ob-input" maxlength="60" placeholder="Team name (e.g. Varsity Football)" value="${esc(c.teamName || o.teamName || '')}" />

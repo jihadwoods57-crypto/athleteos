@@ -73,7 +73,7 @@ function gateMark(root, okId, okNow) {
 const hero = (eyebrow, title, body, note) => `
   <div class="ob2-hero">
     <div class="h-eyebrow">${eyebrow}</div>
-    <div class="h-title">${title}</div>
+    <h2 class="h-title">${title}</h2>
     <div class="h-body">${body}</div>
     ${note ? `<div class="h-note">${note}</div>` : ''}
   </div>`;

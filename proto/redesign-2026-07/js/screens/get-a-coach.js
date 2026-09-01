@@ -41,7 +41,7 @@ export default {
       <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:4px;line-height:1.5">Pick how you want to be held accountable. You can change this at any time.</div>
     </section>
 
-    <div class="eyebrow">Your options</div>
+    <h2 class="eyebrow">Your options</h2>
     <section class="card" style="padding:6px 16px">
       ${row('home', 'bolt', 'background:var(--green-surface);color:var(--green-bright)',
         'Self-guided with AI', 'Your score, your streak, and the AI nutritionist · you drive')}

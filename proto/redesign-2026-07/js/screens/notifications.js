@@ -85,9 +85,9 @@ export default {
         ? `<div class="nhead"><span class="nsummary"><span class="cnt">${newCount}</span> new</span></div>`
         : `<div class="nhead"><span class="nsummary allclear">${icon('checkCircle', 16)} All caught up</span></div>`) : ''}
 
-    ${N.new.length ? `<div class="eyebrow">${N.new.some(isNew) ? 'New' : 'Recent'}</div>${N.new.map(row).join('')}` : ''}
+    ${N.new.length ? `<h2 class="eyebrow">${N.new.some(isNew) ? 'New' : 'Recent'}</h2>${N.new.map(row).join('')}` : ''}
 
-    ${N.earlier.length ? `<div class="eyebrow">Earlier</div>${N.earlier.map(row).join('')}` : ''}
+    ${N.earlier.length ? `<h2 class="eyebrow">Earlier</h2>${N.earlier.map(row).join('')}` : ''}
 
     ${!hasRows && notifsFetchFailed ? `
     <div class="ne-empty">

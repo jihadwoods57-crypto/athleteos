@@ -79,7 +79,7 @@ export const planUpgrade = {
     // A returning coach reading an unconditional promise here would be billed on click.
     return `<div id="pu-root">${backHead('Choose a plan', 'First plan starts with a free 14-day trial', 'settings')}
     ${founding}
-    <div class="eyebrow" style="margin-top:16px">${picked && plans.some((p) => p.id === picked) ? 'Your pick from onboarding' : 'Plans'}</div>
+    <h2 class="eyebrow" style="margin-top:16px">${picked && plans.some((p) => p.id === picked) ? 'Your pick from onboarding' : 'Plans'}</h2>
     <div style="display:flex;flex-direction:column;gap:10px">
       ${plans.map((p) => {
         const card = planCard({ ...p, on: p.id === picked });

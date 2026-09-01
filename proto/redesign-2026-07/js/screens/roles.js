@@ -138,7 +138,7 @@ const coachSteps = {
     <input id="co-first" class="ob-input" maxlength="40" placeholder="First name" aria-label="First name" autocomplete="given-name" autocapitalize="words" />
     <div style="height:12px"></div>
     <input id="co-last" class="ob-input" maxlength="40" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" />
-    <div class="eyebrow" style="margin:16px 2px 10px">What the room calls you</div>
+    <h2 class="eyebrow" style="margin:16px 2px 10px">What the room calls you</h2>
     <div class="chip-row" id="co-handle"></div>
     <input id="co-handle-custom" class="ob-input" maxlength="24" placeholder="Or type it, e.g. Coach B" style="margin-top:10px" />
     <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">This is the name athletes see everywhere: greetings, meal threads, your standard.</div>`, 'Next', 'coach-ob/2', { back: 'role' }),
@@ -174,12 +174,12 @@ const coachSteps = {
     const createBody = `
     <input id="co-team" class="ob-input" maxlength="60" placeholder="Team name (e.g. Varsity Football)" />
     <div style="height:16px"></div>
-    <div class="eyebrow" style="margin:8px 2px 10px">Sport</div>
+    <h2 class="eyebrow" style="margin:8px 2px 10px">Sport</h2>
     <div class="chip-row" id="co-sport">
       <span class="chp on">Football</span><span class="chp">Basketball</span><span class="chp">Baseball</span><span class="chp">Track</span><span class="chp">Other</span>
     </div>
     <div style="height:16px"></div>
-    <div class="eyebrow" style="margin:8px 2px 10px">Level</div>
+    <h2 class="eyebrow" style="margin:8px 2px 10px">Level</h2>
     <div class="chip-row" id="co-level">
       <span class="chp">Youth</span><span class="chp on">High School</span><span class="chp">College</span><span class="chp">Pro</span>
     </div>
@@ -189,7 +189,7 @@ const coachSteps = {
       <div class="seg" style="width:104px" id="co-disc"><button class="on">On</button><button>Off</button></div>
     </div>`;
     const joinBody = `
-    <div class="eyebrow" style="margin:8px 2px 10px">Staff code</div>
+    <h2 class="eyebrow" style="margin:8px 2px 10px">Staff code</h2>
     ${/* maxlength 12, not 8: staff codes are 10 chars since 0169 and the old cap silently
           truncated every real code into a guaranteed "did not work" (found 2026-08-18). */''}
     <input id="co-staff-code" class="ob-input" maxlength="12" placeholder="Code from your head coach" autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" />
@@ -219,7 +219,7 @@ const coachSteps = {
       </div>`).join('')}
     </div>
     ${needRooms ? `
-    <div class="eyebrow" style="margin:16px 2px 8px">${choice === 'room' ? 'Which room?' : 'Which rooms?'}</div>
+    <h2 class="eyebrow" style="margin:16px 2px 8px">${choice === 'room' ? 'Which room?' : 'Which rooms?'}</h2>
     <input id="co-rooms" class="ob-input" placeholder="${choice === 'room' ? 'e.g. LB' : 'e.g. OL, TE, QB'}" autocapitalize="characters" autocorrect="off" spellcheck="false" />
     <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">Use the position names your athletes pick: that’s how the app knows who’s in your room. Leave it blank and you keep the whole team.</div>` : choice === 'individuals' ? `
     <div style="height:14px"></div>
@@ -806,12 +806,12 @@ const clientSteps = {
     <div style="height:12px"></div>
     <input id="cl-last" class="ob-input" maxlength="40" placeholder="Last name" autocapitalize="words" autocorrect="off" spellcheck="false" />
     <div style="height:16px"></div>
-    <div class="eyebrow" style="margin:8px 2px 10px">Life, honestly</div>
+    <h2 class="eyebrow" style="margin:8px 2px 10px">Life, honestly</h2>
     <div class="chip-row" id="cl-life">
       <span class="chp">Desk job</span><span class="chp on">On my feet</span><span class="chp">Shift work</span><span class="chp">Travel a lot</span>
     </div>
     <div style="height:16px"></div>
-    <div class="eyebrow" style="margin:8px 2px 10px">Training days per week</div>
+    <h2 class="eyebrow" style="margin:8px 2px 10px">Training days per week</h2>
     <div class="chip-row" id="cl-days">
       <span class="chp">2</span><span class="chp on">3</span><span class="chp">4</span><span class="chp">5+</span>
     </div>`, 'Next', 'client-ob/3', { back: 'client-ob/1' }),
@@ -822,7 +822,7 @@ const clientSteps = {
       <div class="bignum" style="border-color:var(--green-border)"><input id="cl-tgt" type="number" inputmode="decimal" placeholder="—" style="${numInputCl};color:var(--green-bright)" /><div class="bk">Target lb</div></div>
     </div>
     <div style="height:16px"></div>
-    <div class="eyebrow" style="margin:8px 2px 10px">Allergies & restrictions · checked on every scan</div>
+    <h2 class="eyebrow" style="margin:8px 2px 10px">Allergies & restrictions · checked on every scan</h2>
     <div class="chip-row" data-multi>
       <span class="chp">Peanuts</span><span class="chp">Tree nuts</span><span class="chp">Dairy</span>
       <span class="chp">Gluten</span><span class="chp">Shellfish</span><span class="chp">Vegetarian</span>
@@ -879,7 +879,7 @@ const clientSteps = {
           <div class="lm"><div class="lt">${t}</div><div class="ls">${s}</div></div>
         </div>`).join('');
     const knobs = join ? '' : `
-      <div class="eyebrow" style="margin:14px 2px 10px">Meals per day</div>
+      <h2 class="eyebrow" style="margin:14px 2px 10px">Meals per day</h2>
       <div class="chip-row" id="cl-meals">${[2, 3, 4].map((m) => `<span class="chp ${m === std.meals ? 'on' : ''}">${m}</span>`).join('')}</div>`;
     return frame(5, 6, title, sub, `
       <section class="card" style="padding:6px 16px">${rows}</section>
@@ -1133,7 +1133,7 @@ function cpHandleEditor() {
 function cpCodeBlock() {
   const { ci, code } = cpNames();
   return `
-    <div class="eyebrow" id="cp-code">Athlete code · share it</div>
+    <h2 class="eyebrow" id="cp-code">Athlete code · share it</h2>
     ${code ? `
     <section class="card pad" style="text-align:center">
       <div class="code-boxes fit" style="padding:0 0 4px">
@@ -1176,7 +1176,7 @@ function cpStaffBlock() {
   const me = staff && staff.find(s => s.staff_id === RT.userId);
   const iAmHead = !staff || !me || me.role === 'head_coach';
   return `
-    <div class="eyebrow" id="cp-staff">Staff &amp; collaborators</div>
+    <h2 class="eyebrow" id="cp-staff">Staff &amp; collaborators</h2>
     <section class="card" style="padding:6px 16px">
       ${staffFailed ? `
       <div class="lrow" style="cursor:default"><div class="lic" style="color:var(--amber-bright)">${icon('wifiOff', 17)}</div>
@@ -1223,7 +1223,7 @@ function cpStaffBlock() {
 }
 function cpProgramBlock() {
   return `
-    <div class="eyebrow">Program</div>
+    <h2 class="eyebrow">Program</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="coach-plan"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Standards</div><div class="ls">Targets, focus, publish updates</div></div>${icon('chevron', 17)}</div>
       <div class="lrow" data-go="coach-assign"><div class="lic">${icon('plus', 17)}</div><div class="lm"><div class="lt">Requirement templates</div><div class="ls">What you assign most</div></div>${icon('chevron', 17)}</div>
@@ -1233,14 +1233,14 @@ function cpProgramBlock() {
 }
 function cpAnalyticsBlock() {
   return `
-    <div class="eyebrow">Analytics</div>
+    <h2 class="eyebrow">Analytics</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="coach-insights"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('bars', 17)}</div><div class="lm"><div class="lt">Insights</div><div class="ls">Team trends, standard adherence</div></div>${icon('chevron', 17)}</div>
     </section>`;
 }
 function cpPrefsBlock() {
   return `
-    <div class="eyebrow">Preferences</div>
+    <h2 class="eyebrow">Preferences</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="coach-notif-settings"><div class="lic">${icon('bell', 17)}</div><div class="lm"><div class="lt">Notifications</div><div class="ls">Briefings, alerts, quiet hours</div></div>${icon('chevron', 17)}</div>
       ${/* Same name the athlete sees ("Units & appearance"), and no promised "reminders" — those
@@ -1263,7 +1263,7 @@ function cpSignOut() {
    standard reset email — the same neutral, anti-enumeration flow sign-in uses). */
 function operatorAccountSection() {
   return `
-    <div class="eyebrow">Account</div>
+    <h2 class="eyebrow">Account</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('mail', 17)}</div>
@@ -1328,7 +1328,7 @@ export const coachProfile = {
     return `
     ${titleHead('Coach Profile', 'You, your team, your code')}
     ${cpIdCard(false)}
-    <div class="eyebrow">Manage</div>
+    <h2 class="eyebrow">Manage</h2>
     <section class="card" style="padding:6px 16px">
       ${CP_SECTIONS.map(x => `<div class="lrow" data-go="${esc(x.go || `coach-profile/${x.sub}`)}"><div class="lic">${icon(x.icon, 17)}</div><div class="lm"><div class="lt">${esc(x.t)}</div><div class="ls">${esc(x.s)}</div></div>${icon('chevron', 17)}</div>`).join('')}
     </section>
@@ -1475,7 +1475,7 @@ export const coachProfile = {
    what shapes the CLIENTS' experience, then the trainer's own app. */
 function trainerSettingsSections() {
   return `
-    <div class="eyebrow">Your clients</div>
+    <h2 class="eyebrow">Your clients</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="coach-plan-set/team" style="cursor:pointer">
         <div class="lic">${icon('clipboard', 17)}</div>
@@ -1486,7 +1486,7 @@ function trainerSettingsSections() {
       <div class="lrow" data-go="trust-pass-policy"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('shield', 17)}</div><div class="lm"><div class="lt">Trust Pass defaults</div><div class="ls">${(RT.passPolicy || { default_credits: 3 }).default_credits}-credit default · earned after ${(RT.passPolicy || { eligibility_days: 7 }).eligibility_days} photo-logged days</div></div>${icon('chevron', 17)}</div>
     </section>
 
-    <div class="eyebrow">Your app</div>
+    <h2 class="eyebrow">Your app</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="coach-notif-settings"><div class="lic">${icon('bell', 17)}</div><div class="lm"><div class="lt">Notifications</div><div class="ls">Briefings, alerts, quiet hours</div></div>${icon('chevron', 17)}</div>
       <div class="lrow" data-go="settings"><div class="lic">${icon('moon', 17)}</div><div class="lm"><div class="lt">Units &amp; appearance</div><div class="ls">Light or dark, weight and time units</div></div>${icon('chevron', 17)}</div>
@@ -1552,7 +1552,7 @@ export const trainerProfile = {
           not by rule — practices_update RLS always allowed the owner to change it. Hidden until
           the Rename link above opens it. */''}
     <section class="card" id="pr-rename-card" style="display:none;padding:14px 16px;margin-top:8px">
-      <div class="eyebrow" style="margin:0 0 8px">Practice name</div>
+      <h2 class="eyebrow" style="margin:0 0 8px">Practice name</h2>
       <input id="pr-name-input" class="ob-input" maxlength="60" placeholder="Your practice's name" value="${esc(ti.practiceName === 'Your practice' ? '' : ti.practiceName)}"/>
       <div style="display:flex;gap:8px;margin-top:10px">
         <button class="btn ghost sm" id="pr-name-cancel" style="width:auto;padding:0 18px">Cancel</button>
@@ -1564,7 +1564,7 @@ export const trainerProfile = {
     let invite;
     if (loading) {
       invite = `
-      <div class="eyebrow">Invite a client</div>
+      <h2 class="eyebrow">Invite a client</h2>
       <section class="card" style="padding:18px">
         <div class="hq-invite-top">
           <div style="flex:1">
@@ -1576,7 +1576,7 @@ export const trainerProfile = {
       </section>`;
     } else if (minting) {
       invite = `
-      <div class="eyebrow">Invite a client</div>
+      <h2 class="eyebrow">Invite a client</h2>
       <div class="sidebox">
         <div class="req-icon ${hue === 'green' ? 'g' : 'p'}" style="width:38px;height:38px"><span class="hq-spin"></span></div>
         <div><div class="tt">Your client code is being created</div>
@@ -1586,7 +1586,7 @@ export const trainerProfile = {
       // Fetch failed (network/RLS) and nothing is cached yet — honestly offline, not minting.
       // No code exists to show, so there's no invite card to render here.
       invite = `
-      <div class="eyebrow">Invite a client</div>
+      <h2 class="eyebrow">Invite a client</h2>
       <div class="sidebox">
         <div class="req-icon a" style="width:38px;height:38px">${icon('wifiOff', 17)}</div>
         <div><div class="tt">Can't reach the server</div>
@@ -1596,11 +1596,11 @@ export const trainerProfile = {
       const link = inviteLink(ti.code);
       const svg = qrSvg(addQuietZone(encodeQR(link, 'M')), 96, '#0B0D12', `QR code to join ${esc(ti.practiceName)}`);
       invite = `
-      <div class="eyebrow">Invite a client</div>
+      <h2 class="eyebrow">Invite a client</h2>
       <section class="card" style="padding:18px">
         <div class="hq-invite-top">
           <div style="flex:1;min-width:0">
-            <div class="eyebrow" style="margin:0 0 8px">Client code</div>
+            <h2 class="eyebrow" style="margin:0 0 8px">Client code</h2>
             <div class="code-boxes fit" style="justify-content:flex-start;padding:0">
               ${ti.code.split('').map((ch) => `<div class="cb filled" style="border-color:var(--${hue}-border);background:rgba(var(--${hue}-rgb),0.08)">${esc(ch)}</div>`).join('')}
             </div>
@@ -1650,7 +1650,7 @@ export const trainerProfile = {
     ${/* Grow and Insights moved off the tab bar when You took the fifth slot, so they get a
           real home here — a route that leaves the bar without landing anywhere is just a
           feature deleted by nav change. */''}
-    <div class="eyebrow">Your practice</div>
+    <h2 class="eyebrow">Your practice</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="trainer-grow"><div class="lic" style="background:rgba(var(--${hue}-rgb),0.22);color:var(--${hue}-bright)">${icon('bars', 17)}</div><div class="lm"><div class="lt">Grow your practice</div><div class="ls">Offers, applications, and new clients</div></div>${icon('chevron', 17)}</div>
       <div class="lrow" data-go="coach-insights"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('bars', 17)}</div><div class="lm"><div class="lt">Insights</div><div class="ls">Client trends and standard adherence</div></div>${icon('chevron', 17)}</div>
@@ -1660,7 +1660,7 @@ export const trainerProfile = {
     ${/* Trust Pass defaults note (2026-08-11) lives on with its row inside trainer-profile/
           settings: a trainer could GRANT passes since 0196 but the policy screen was
           nav:'coach', so the defaults grant_pass reads were unreachable on this book. */''}
-    <div class="eyebrow">Manage</div>
+    <h2 class="eyebrow">Manage</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="trainer-profile/settings"><div class="lic">${icon('gear', 17)}</div><div class="lm"><div class="lt">Practice settings</div><div class="ls">Standard, AI voice, notifications, appearance</div></div>${icon('chevron', 17)}</div>
       <div class="lrow" data-go="trainer-profile/account"><div class="lic">${icon('key', 17)}</div><div class="lm"><div class="lt">Account</div><div class="ls">Email, password, billing, delete</div></div>${icon('chevron', 17)}</div>

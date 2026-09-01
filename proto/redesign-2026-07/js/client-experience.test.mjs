@@ -106,7 +106,7 @@ function resetDay() {
   // 2026-08-19 hierarchy pass: weight + photos merged into ONE "Body" group (the old "Weight
   // Trend" eyebrow is gone on purpose). The contract under test is unchanged: the client's
   // outcome section leads, the team athlete's score section leads.
-  const BODY_MARK = '<div class="eyebrow">Body</div>';
+  const BODY_MARK = '<h2 class="eyebrow">Body</h2>';
   const clientHtml = progress.render();
   const wIdx = clientHtml.indexOf(BODY_MARK);
   const sIdx = clientHtml.indexOf('Score Trend');

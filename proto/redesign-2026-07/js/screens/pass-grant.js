@@ -70,7 +70,7 @@ export default {
     return `
     ${backHead('Give a pass', `A reward for ${esc(name)}`, `coach-athlete/${esc(athleteId)}`)}
 
-    <div class="eyebrow">Shape</div>
+    <h2 class="eyebrow">Shape</h2>
     <section class="card pad">
       <div class="seg" style="width:100%">
         <button data-shape="credits" class="${!isWindow ? 'on' : ''}">Meals</button>
@@ -79,7 +79,7 @@ export default {
     </section>
 
     ${!isWindow ? `
-    <div class="eyebrow">Meal credits</div>
+    <h2 class="eyebrow">Meal credits</h2>
     <section class="card pad">
       <div class="lrow" style="cursor:default">
         <div class="lm"><div class="lt">${UI.credits || p.default_credits} camera-free meals</div><div class="ls">Max ${p.max_credits} per grant</div></div>
@@ -96,7 +96,7 @@ export default {
         </div>
       </div>
     </section>` : `
-    <div class="eyebrow">Window</div>
+    <h2 class="eyebrow">Window</h2>
     <section class="card pad">
       <div class="lrow" style="cursor:default">
         <div class="lm"><div class="lt">${esc(fmtDay(UI.from || wknd.from))} through ${esc(fmtDay(UI.until || wknd.until))}</div><div class="ls">Every meal in range is covered, nothing to spend</div></div>
@@ -107,7 +107,7 @@ export default {
       </div>
     </section>`}
 
-    <div class="eyebrow">Presets</div>
+    <h2 class="eyebrow">Presets</h2>
     <section class="card pad">
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn ghost xs" data-preset="weekend" style="width:auto">Weekend</button>
@@ -116,7 +116,7 @@ export default {
       </div>
     </section>
 
-    <div class="eyebrow">Note (optional)</div>
+    <h2 class="eyebrow">Note (optional)</h2>
     <section class="card pad">
       <input class="ob-input" id="pg-note" maxlength="140" value="${esc(UI.note)}" placeholder="e.g. Great week" />
       <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-top:4px">${esc(String(UI.note.length))}/140 · shows to ${esc(name)} with the grant</div>

@@ -296,7 +296,7 @@ export const coachStandards = {
     </section>` : ''}
 
     ${review.length ? `
-    <div class="eyebrow">Waiting on you · ${review.length}</div>
+    <h2 class="eyebrow">Waiting on you · ${review.length}</h2>
     <section class="card" style="padding:2px 16px">${review.map((r) => `
       ${athleteRow(r, inst)}
       <div style="display:flex;gap:8px;padding:0 0 12px">
@@ -306,7 +306,7 @@ export const coachStandards = {
     </section>` : ''}
 
     ${disputed.length ? `
-    <div class="eyebrow">Disputed · ${disputed.length}</div>
+    <h2 class="eyebrow">Disputed · ${disputed.length}</h2>
     <section class="card" style="padding:2px 16px">${disputed.map((r) => `
       ${athleteRow(r, inst)}
       ${r.dispute_note ? `<div class="cs-p" style="padding:0 0 10px">“${esc(r.dispute_note)}”</div>` : ''}`).join('')}
@@ -314,7 +314,7 @@ export const coachStandards = {
     <div class="cs-p" style="padding:8px 20px 0">Nothing changed on its own. The record still reads as it did. Correcting it is yours to do, and your name goes on it.</div>` : ''}
 
     ${gaps.length ? `
-    <div class="eyebrow">Couldn’t be verified · ${gaps.length}</div>
+    <h2 class="eyebrow">Couldn’t be verified · ${gaps.length}</h2>
     <section class="card" style="padding:2px 16px">${gaps.map((r) => athleteRow(r, inst)).join('')}</section>
     <div class="sidebox" style="margin-top:12px">
       <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 19)}</div>
@@ -323,7 +323,7 @@ export const coachStandards = {
     </div>` : ''}
 
     ${rest.length ? `
-    <div class="eyebrow">Roster</div>
+    <h2 class="eyebrow">Roster</h2>
     <section class="card" style="padding:2px 16px">${rest.map((r) => athleteRow(r, inst)).join('')}</section>` : ''}
 
     <div class="cs-p" style="text-align:center;padding:14px 20px 24px">
@@ -542,7 +542,7 @@ export const coachStandardEdit = {
       </div>
     </section>
 
-    <div class="eyebrow">Athletes will see</div>
+    <h2 class="eyebrow">Athletes will see</h2>
     <section class="card cs-card">
       <div class="cs-row" style="padding-top:0">
         <div class="cs-top">

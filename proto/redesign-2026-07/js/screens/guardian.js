@@ -41,7 +41,7 @@ export default {
         <div class="sd-s">We asked ${c.guardianEmail ? esc(c.guardianEmail) : 'your parent'} to approve. Until they do, everything you log stays on this phone. Nothing is lost, and it all syncs the moment they say yes.</div>
       </div>
       <div style="height:14px"></div>
-      <div class="eyebrow">Haven't heard back? Send a reminder, or fix the email.</div>
+      <h2 class="eyebrow">Haven't heard back? Send a reminder, or fix the email.</h2>
       <input id="gd-email" class="ob-input" type="email" inputmode="email" autocapitalize="none" value="${esc(c.guardianEmail || '')}" placeholder="Parent or guardian email" />
       ${alertMsg({ id: 'gd-err', style: 'color:var(--red);font-weight:600;min-height:18px;margin-top:10px;text-align:center' })}
       ${statusMsg({ id: 'gd-ok', style: 'display:block;color:var(--green-bright);font-weight:600;text-align:center' })}
@@ -59,7 +59,7 @@ export default {
       </div>
 
       <div style="height:16px"></div>
-      <div class="eyebrow">Send a new approval request</div>
+      <h2 class="eyebrow">Send a new approval request</h2>
       <input id="gd-email" class="ob-input" type="email" inputmode="email" autocapitalize="none" value="${esc(c.guardianEmail || '')}" placeholder="Parent or guardian email" />
       ${alertMsg({ id: 'gd-err', style: 'color:var(--red);font-weight:600;min-height:18px;margin-top:10px;text-align:center' })}
       ${statusMsg({ id: 'gd-ok', style: 'display:block;color:var(--green-bright);font-weight:600;text-align:center' })}
@@ -76,7 +76,7 @@ export default {
     </div>
 
     <div style="height:16px"></div>
-    <div class="eyebrow">Send the approval request</div>
+    <h2 class="eyebrow">Send the approval request</h2>
     <input id="gd-email" class="ob-input" type="email" inputmode="email" autocapitalize="none" placeholder="Parent or guardian email" />
     ${alertMsg({ id: 'gd-err', style: 'color:var(--red);font-weight:600;min-height:18px;margin-top:10px;text-align:center' })}
     ${statusMsg({ id: 'gd-ok', style: 'display:block;color:var(--green-bright);font-weight:600;text-align:center' })}

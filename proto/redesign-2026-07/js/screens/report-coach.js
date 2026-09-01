@@ -34,7 +34,7 @@ export default {
     }
     return `${backHead('Report this coach', 'Reviewed by the OnStandard team', 'coach-directory')}
 
-    <div class="eyebrow">What happened?</div>
+    <h2 class="eyebrow">What happened?</h2>
     <section class="card" style="padding:6px 16px">
       ${REASONS.map((r) => `
       <div class="lrow" data-rc-reason="${r.key}">
@@ -43,7 +43,7 @@ export default {
       </div>`).join('')}
     </section>
 
-    <div class="eyebrow">Details (optional)</div>
+    <h2 class="eyebrow">Details (optional)</h2>
     <section class="card pad">
       <textarea id="rc-detail" rows="4" maxlength="500" placeholder="What would help us understand?"
         style="width:100%;background:transparent;border:1px solid var(--hairline);border-radius:12px;padding:10px 12px;color:var(--text);font:inherit;font-size:13.5px;resize:vertical">${esc(UI.detail || '')}</textarea>

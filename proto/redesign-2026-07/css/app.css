@@ -187,11 +187,19 @@ body {
   animation: rowIn 420ms var(--ease-out) both;
 }
 @keyframes rowIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-.view .req-row:nth-of-type(2), .view .act-card:nth-of-type(2), .view .notif:nth-of-type(2), .view .roster-row:nth-of-type(2) { animation-delay: 45ms; }
-.view .req-row:nth-of-type(3), .view .act-card:nth-of-type(3), .view .notif:nth-of-type(3), .view .roster-row:nth-of-type(3) { animation-delay: 90ms; }
-.view .req-row:nth-of-type(4), .view .act-card:nth-of-type(4), .view .notif:nth-of-type(4), .view .roster-row:nth-of-type(4) { animation-delay: 135ms; }
+.view .req-row:nth-of-type(2), .view .act-card:nth-of-type(2), .view .roster-row:nth-of-type(2) { animation-delay: 45ms; }
+.view .req-row:nth-of-type(3), .view .act-card:nth-of-type(3), .view .roster-row:nth-of-type(3) { animation-delay: 90ms; }
+.view .req-row:nth-of-type(4), .view .act-card:nth-of-type(4), .view .roster-row:nth-of-type(4) { animation-delay: 135ms; }
 .view .req-row:nth-of-type(5), .view .act-card:nth-of-type(5), .view .roster-row:nth-of-type(5) { animation-delay: 180ms; }
 .view .req-row:nth-of-type(6), .view .roster-row:nth-of-type(6) { animation-delay: 225ms; }
+/* .notif can't use :nth-of-type: it counts sibling DIVS, and the notifications list is headed
+   by back-head + nhead divs and (since the eyebrows became h2s) section headings — the tag-based
+   index never matched the row number, which is why the old stagger ran out of order. Consecutive
+   siblings count the rows themselves; each section under an "Earlier" heading restarts its own
+   settle, and row 4+ holds at 135ms instead of popping in at 0. */
+.view .notif + .notif { animation-delay: 45ms; }
+.view .notif + .notif + .notif { animation-delay: 90ms; }
+.view .notif + .notif + .notif + .notif { animation-delay: 135ms; }
 @media (prefers-reduced-motion: reduce) {
   .view, .view *, .ring-arc, .tabbar, .tabbar *, .ring-wrap::after { animation: none !important; transition: none !important; }
   /* The shell must still resize with the keyboard — it just arrives at the new height instead of
@@ -254,7 +262,12 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
    badge) keep rendering over the photo. */
 [data-avatar-uid].has-photo [data-avatar-fallback] { visibility: hidden; }
 
-/* ===== Section label ===== */
+/* ===== Section label =====
+   Rendered as <h2> since 2026-09-01 — the section labels ARE the app's heading structure, and
+   they were divs, so a screen reader got one h1 and then nothing. The class carries every visual
+   property; the * reset above wipes the UA's h2 margin/padding, so headings look identical to
+   the divs they replaced. (.xgrp / .cs-eyebrow are still divs on purpose: their heading level
+   depends on what sits above them per screen — judge those individually, don't sweep.) */
 .eyebrow {
   font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-eyebrow); text-transform: uppercase;
   color: var(--text-3); margin:26px 2px 12px;

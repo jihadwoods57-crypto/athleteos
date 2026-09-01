@@ -648,7 +648,7 @@ export const analysis = {
       </div>
     </div>
 
-    <div class="eyebrow" style="flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">Breakdown</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span> <span class="link" id="edit-foods" style="margin-left:auto">${'Edit'}</span></div>
+    <h2 class="eyebrow" style="flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">Breakdown</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span> <span class="link" id="edit-foods" style="margin-left:auto">${'Edit'}</span></h2>
     <section class="card" style="padding:4px 16px" id="foods">
       ${rich.map((d) => `
         <div class="food-row" data-name="${esc(d.name)}">
@@ -665,7 +665,7 @@ export const analysis = {
       ${edited ? `<div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);padding:4px 0 8px">${MEAL.result && MEAL.result.recomputed ? 'Edited by you. Macros and score recalculated from the foods listed.' : 'Edited by you. Macros stay the AI’s estimate.'}</div>` : ''}
     </section>
 
-    <div class="eyebrow">${src === 'label' ? 'From the label' : src === 'manual' ? 'As entered' : 'Estimated'}</div>
+    <h2 class="eyebrow">${src === 'label' ? 'From the label' : src === 'manual' ? 'As entered' : 'Estimated'}</h2>
     ${macroRow(L.macros)}
 
     <div style="height:14px"></div>
@@ -1073,7 +1073,7 @@ export const thread = {
     // The AI keeps the words; the card shows what it IS — cells quietly filling in. The failure
     // line stays, because that is a fact about the card, not a second commentary on the wait.
     const breakdown = !settled ? `
-    <div class="eyebrow" style="margin-top:16px">Meal Breakdown</div>
+    <h2 class="eyebrow" style="margin-top:16px">Meal Breakdown</h2>
     <section class="card pad" style="margin-top:8px">
       <div class="macro-row five">
         ${['Protein', 'Carbs', 'Fat', 'Calories', 'Fiber'].map((k) => `
@@ -1081,7 +1081,7 @@ export const thread = {
       </div>
       ${M.analysisFailed ? `<div class="est-note" style="margin-top:10px">No numbers for this one. The photo is still your proof that the meal happened.</div>` : ''}
     </section>` : !showNums ? `
-    <div class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">What was on the plate</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></div>
+    <h2 class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">What was on the plate</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></h2>
     ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
     ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
     <div class="est-note" style="margin-top:8px">Your plan tracks how food leaves you feeling rather than calorie and macro counts. Your ${esc(S.coach.noun)} can still see the full numbers.</div>
@@ -1117,7 +1117,7 @@ export const thread = {
         const tab = (kind, label, answered) => `<button class="fx-axis${kind === active ? ' on' : ''}" data-axis="${kind}" role="tab" aria-selected="${kind === active}">${label}${answered ? icon('check', 12) : ''}</button>`;
         return `
       <div id="fix-panel" hidden>
-        <div class="eyebrow" style="margin-top:14px">Correct the analysis</div>
+        <h2 class="eyebrow" style="margin-top:14px">Correct the analysis</h2>
         <section class="card pad" style="padding-top:12px">
           <div class="fx-axes" role="tablist" aria-label="What to correct">
             ${axes.map((a) => tab(a.kind, a.label, a.answered)).join('')}
@@ -1157,10 +1157,10 @@ export const thread = {
     </button>`;
 
     const discussion = `
-    <div class="eyebrow" style="margin-top:18px;display:flex;align-items:baseline;gap:8px">
+    <h2 class="eyebrow" style="margin-top:18px;display:flex;align-items:baseline;gap:8px">
       <span>Team Discussion</span>
       ${M.mealId ? `<span class="link" id="open-full-chat" role="button" tabindex="0" style="margin-left:auto;text-transform:none;letter-spacing:0;font-size:12px">View full chat &rarr;</span>` : ''}
-    </div>
+    </h2>
     ${facepile}
     ${/* The `#rx-strip` that used to sit here is gone: paint() has cleared it on every repaint
           since reactions moved onto the bubble they belong to, so it was an element whose only

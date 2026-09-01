@@ -20,7 +20,7 @@ function baseline(P) {
   const dots = segBar(P.unlockHave, P.unlockNeed, `${P.unlockHave} of ${P.unlockNeed} days logged toward your first trend`, 'flex:1');
   return `
   <section class="card pad">
-    <div class="eyebrow" style="margin:0 0 10px">Progress starts today</div>
+    <h2 class="eyebrow" style="margin:0 0 10px">Progress starts today</h2>
     <div class="bigstat"><span class="n">${S.score}</span><span class="d">Today's score</span></div>
     <div class="unlock-row">
       ${dots}
@@ -74,7 +74,7 @@ function photoCard() {
    under one eyebrow instead of two peer sections announcing themselves separately. */
 function bodySection() {
   return `
-  <div class="eyebrow">Body</div>
+  <h2 class="eyebrow">Body</h2>
   ${weightCard()}
   ${photoCard()}`;
 }
@@ -83,7 +83,7 @@ function bodySection() {
    not scored — same as weight/photos. */
 function trainingCard() {
   return `
-  <div class="eyebrow">Training</div>
+  <h2 class="eyebrow">Training</h2>
   <section class="card" style="padding:6px 16px">
     <div class="lrow" data-go="training-history">
       <div class="lic">${icon('bolt', 17)}</div>
@@ -161,7 +161,7 @@ export default {
     const CUTOVER_LABEL = 'Scoring changed. Days before this were scored a different way';
 
     const scoreTrendSection = `
-    <div class="eyebrow" data-tour="trend">Score Trend</div>
+    <h2 class="eyebrow" data-tour="trend">Score Trend</h2>
     <section class="card pad">
       <div class="bigstat"><span class="n">${P.weekAvg}</span>${P.weekDelta ? `<span class="d${ddir}">${P.weekDelta} vs prior week</span>` : ''}</div>
       <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:2px">${P.onDays} days on standard (≥80) · best streak ${P.bestStreak}d</div>
@@ -190,7 +190,7 @@ export default {
       <div class="pg-stat${P.monthConsistency == null ? ' dim' : ''}"><div class="v">${P.monthConsistency != null ? `${P.monthConsistency}%` : '–'}</div><div class="k">Consistency</div></div>
     </div>
 
-    <div class="eyebrow">Category trends</div>
+    <h2 class="eyebrow">Category trends</h2>
     ${trends ? `
     <section class="card pad" style="padding-top:8px;padding-bottom:8px">
       ${trends.map(t => `
@@ -207,7 +207,7 @@ export default {
     // Squad and Monthly report, well below the fold on every phone. The most useful thing on the
     // screen was the least likely to be read. It sits directly under the trend that produced it.
     const insightSection = insight ? `
-    <div class="eyebrow">Your biggest opportunity</div>
+    <h2 class="eyebrow">Your biggest opportunity</h2>
     <div class="insight">
       <div class="req-icon g" style="width:38px;height:38px;flex:none">${icon('target', 18)}</div>
       <p>${esc(insight)}</p>
@@ -225,7 +225,7 @@ export default {
 
     <!-- Squad and Monthly report used to follow trainingCard() with no eyebrow of their own, so
          both sat visually inside the "TRAINING" group. Neither is training. Own heading. -->
-    <div class="eyebrow">More</div>
+    <h2 class="eyebrow">More</h2>
     ${S.coach.hasCoach && S.coach.kind === 'coach' ? `
     <div class="sidebox" data-go="squad" style="cursor:pointer">
       <div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>

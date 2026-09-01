@@ -82,7 +82,7 @@ function coachInviteCard(code, teamName) {
   const link = inviteLink(code);
   const svg = qrSvg(addQuietZone(encodeQR(link, 'M')), 96, '#0B0D12', `QR code to join ${esc(teamName)}`);
   return `<section class="card" style="padding:18px">
-    <div class="eyebrow" style="margin:0 0 10px">Invite code</div>
+    <h2 class="eyebrow" style="margin:0 0 10px">Invite code</h2>
     <div class="code-boxes invite-code" style="padding:0;margin-bottom:14px">
       ${code.split('').map((ch) => `<div class="cb filled">${esc(ch)}</div>`).join('')}
     </div>
@@ -228,7 +228,7 @@ function setupChecklistCard(st) {
     <section class="card" style="padding:6px 16px;${st.ready ? '' : 'background:var(--blue-surface);border-color:var(--blue-border)'}">
       ${required.map((i, n) => setupRow(i, true, n + 1)).join('')}
     </section>
-    <div class="eyebrow" style="margin-top:14px">Optional</div>
+    <h2 class="eyebrow" style="margin-top:14px">Optional</h2>
     <section class="card" style="padding:6px 16px">
       ${optional.map((i) => setupRow(i, false)).join('')}
     </section>`;
@@ -261,7 +261,7 @@ function codeStateBox() {
     // trainer onboarding on the server. The Practice HQ owns that state honestly; send them there
     // instead of a coach team-create form that would write a team row onto a trainer account.
     return `<section class="card" style="padding:18px">
-      <div class="eyebrow" style="margin:0 0 10px">Your client code</div>
+      <h2 class="eyebrow" style="margin:0 0 10px">Your client code</h2>
       <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.45;margin-bottom:12px">Your practice isn't fully set up on the server yet, so there's no client code to hand out. Your Practice HQ shows it the moment it exists.</div>
       <button class="btn sm" data-go="trainer-profile" style="width:100%;background:linear-gradient(150deg,var(--blue),var(--blue-deep));color:#fff">${icon('user', 16)} Open Practice HQ</button>
     </section>`;
@@ -269,7 +269,7 @@ function codeStateBox() {
   const ob = (RT.ob && RT.ob.coach) || {};
   const suggested = ob.teamName || (RT.profile && RT.profile.school) || '';
   return `<section class="card" style="padding:18px">
-    <div class="eyebrow" style="margin:0 0 10px">Create your team</div>
+    <h2 class="eyebrow" style="margin:0 0 10px">Create your team</h2>
     <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.45;margin-bottom:12px">Your team isn't set up yet, so there's no athlete code to hand out. Name it and we'll create it now.</div>
     <input id="coach-team-name" type="text" class="input" placeholder="e.g. Lincoln Varsity Football"
       value="${esc(suggested)}" autocomplete="organization" maxlength="60"
@@ -323,8 +323,8 @@ export function emptyTeamDashboard(code, teamName) {
     ${S.operatorIdentity.state === 'loading' ? ''
     : st.ready
       ? (setupIncompleteCount(st) ? collapseSection('coach-setup', vocab().setup, setupIncompleteCount(st), setupChecklistCard(st), false) : '')
-      : `<div class="eyebrow">${esc(vocab().setup)}</div>${setupChecklistCard(st)}`}
-    <div class="eyebrow">What fills in next</div>
+      : `<h2 class="eyebrow">${esc(vocab().setup)}</h2>${setupChecklistCard(st)}`}
+    <h2 class="eyebrow">What fills in next</h2>
     <section class="card" style="padding:13px 16px">
       <div style="font-size:12px;font-weight:600;color:var(--text-3);line-height:1.55">Once ${noun} join with your code, this screen becomes your command center: today's ${bookWord} score, who's on standard, who needs a nudge, and every meal as it's logged.</div>
     </section>
@@ -386,7 +386,7 @@ function scopeSheet() {
   const is = (k, v) => cur.kind === k && String(cur.value || '') === String(v || '');
   return `
   <section class="card" style="padding:13px 16px">
-    <div class="eyebrow" style="margin:0 0 8px">Who you're looking at</div>
+    <h2 class="eyebrow" style="margin:0 0 8px">Who you're looking at</h2>
     <div>${chip('team', '', (CD.extras && CD.extras.scope) ? vocab().mine : vocab().everyone, is('team', ''))}
     ${positions.map(p => chip('position', p, `${p} room`, is('position', p))).join('')}
     ${groups.map(g => chip('group', g.id, g.name, is('group', g.id))).join('')}</div>
@@ -448,7 +448,7 @@ async function paintNutritionBoard(root) {
     // flows promise "the meal queue and fueling board are live the moment you open your
     // dashboard" — a silently absent section read as that promise breaking.
     slot.innerHTML = `
-    <div class="eyebrow co-major">Meal review</div>
+    <h2 class="eyebrow co-major">Meal review</h2>
     ${emptyState({
       icon: 'bowl',
       title: 'Your review queue is ready for its first plate',
@@ -464,7 +464,7 @@ async function paintNutritionBoard(root) {
     // The four-states law: while the FIRST load is in flight the slot shows a skeleton shaped
     // like the queue it stands in for, never a blank gap the sections below jump into.
     if (NUT.key !== key || !NUT.rows) {
-      slot.innerHTML = `<div class="eyebrow co-major">Meal review</div>${skeletonRows(2, 'Loading meals')}`;
+      slot.innerHTML = `<h2 class="eyebrow co-major">Meal review</h2>${skeletonRows(2, 'Loading meals')}`;
     }
     // Meals + flags fetched together on the same cadence: the flame state (0199) rides
     // coach_interventions, latest row wins per 'flag:meal:<id>' — flagStateByMeal is the same
@@ -608,13 +608,13 @@ async function paintNutritionBoard(root) {
   // reading as notification-badge inflation ("114 NEW" in the render QC).
   const capN = (n) => (n > 99 ? '99+' : n);
   slot.innerHTML = `
-    <div class="eyebrow co-major" style="display:flex;justify-content:space-between;align-items:baseline"><span>Meal review</span>${flaggedCount ? `<span style="color:var(--amber-bright)">${capN(flaggedCount)} flagged</span>` : unopened ? `<span style="color:var(--blue-bright)">${capN(unopened)} to review</span>` : ''}</div>
+    <h2 class="eyebrow co-major" style="display:flex;justify-content:space-between;align-items:baseline"><span>Meal review</span>${flaggedCount ? `<span style="color:var(--amber-bright)">${capN(flaggedCount)} flagged</span>` : unopened ? `<span style="color:var(--blue-bright)">${capN(unopened)} to review</span>` : ''}</h2>
     ${queue.length ? `<section class="card" style="padding:6px 16px">${qRows}</section>
     <div class="nb-foot"><span class="link" data-go="${CD.kind === 'practice' ? 'trainer-inbox' : 'coach-inbox'}" role="button">The full queue lives in your Inbox</span></div>`
     : NUT.err ? `<div class="nb-foot">Couldn't reach the server for the queue. <span class="link" id="nut-retry" role="button" tabindex="0">Try again</span></div>`
     : `<div class="nb-foot">No ${fallbackNoun.toLowerCase()} meals in the last 7 days. Every logged meal lands here for review.</div>`}
     ${perClient.length ? `
-    <div class="eyebrow">${fallbackNoun} fueling · last 7 days</div>
+    <h2 class="eyebrow">${fallbackNoun} fueling · last 7 days</h2>
     <section class="card" style="padding:10px 16px 12px">${fRows}</section>
     <div class="nb-foot">${hasTargets
       ? 'Riskiest first: fewest logged days, furthest under their protein target. Averages count logged days only.'
@@ -622,7 +622,7 @@ async function paintNutritionBoard(root) {
         ? 'Targets couldn’t load just now, so this ranks by logged days alone. Nothing here is made up.'
         : 'Riskiest first: fewest logged days, lightest plates. Averages count logged days only; set protein targets to rank against them.'}</div>`
     : `
-    <div class="eyebrow">${fallbackNoun} fueling · last 7 days</div>
+    <h2 class="eyebrow">${fallbackNoun} fueling · last 7 days</h2>
     <div class="nb-foot">No logged days yet this week. Each ${fallbackNoun.toLowerCase()}'s protein pattern builds here as meals come in.</div>`}`;
   // A dead-end error line violates the house errorState contract (honest failure PLUS retry):
   // force the cache stale and repaint, right here, instead of "reopen the screen".
@@ -780,7 +780,7 @@ export const coachHome = {
       return left ? collapseSection('coach-setup', vocab().setup, left, setupChecklistCard(st), false) : '';
     })()}
 
-    <div class="eyebrow co-major" data-tour="priority">${esc(vocab().priorities)}</div>
+    <h2 class="eyebrow co-major" data-tour="priority">${esc(vocab().priorities)}</h2>
     ${entries === null ? `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bell', 17)}</div><div><div class="tt">Ranking the day…</div><div class="ts">Standards and exceptions are loading.</div></div></div>`
     : cards.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px;line-height:1.4">Nothing needs you right now. Anything you nudge, assign, or mark handled stays out of this queue until the reason changes.</div>`
     : cards.slice(0, 6).map((c, i) => priorityCard(c, i, (RT.coachNudged || {})[c.athleteId] === roles.todayISO())).join('')
@@ -791,7 +791,7 @@ export const coachHome = {
           Inbox link is the full-history door. Every other book keeps it. The unseen count caps
           at 99+: a three-digit badge stops informing and starts inflating. */''}
     ${isNutritionBook() ? '' : `
-    <div class="eyebrow" data-tour="activity" style="display:flex;justify-content:space-between;align-items:baseline"><span>Live activity</span>${unseen ? `<span style="color:var(--blue-bright)">${unseen > 99 ? '99+' : unseen} new</span>` : ''}</div>
+    <h2 class="eyebrow" data-tour="activity" style="display:flex;justify-content:space-between;align-items:baseline"><span>Live activity</span>${unseen ? `<span style="color:var(--blue-bright)">${unseen > 99 ? '99+' : unseen} new</span>` : ''}</h2>
     ${feed === null ? skeletonRows(2, 'Loading the activity feed')
     : feed.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px;line-height:1.4">No logs yet ${scope.kind === 'team' ? 'today' : 'in this group today'}. Every meal lands here the moment it's logged.</div>`
     : `<div style="display:flex;gap:9px;overflow-x:auto;padding-bottom:4px;margin:0 -2px">${feed.slice(0, 12).map(m => {
@@ -806,7 +806,7 @@ export const coachHome = {
         </div>`;
       }).join('')}</div>`}`}
 
-    <div class="eyebrow co-minor" data-tour="followups">Follow-ups</div>
+    <h2 class="eyebrow co-minor" data-tour="followups">Follow-ups</h2>
     ${followUps.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px">All caught up.</div>`
     : `<section class="card" style="padding:6px 16px">${followUps.map(f => `
       <div class="lrow" ${f.go ? `data-go="${f.go}" style="cursor:pointer"` : 'style="cursor:default"'}>

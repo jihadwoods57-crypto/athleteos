@@ -171,7 +171,7 @@ function listHtml(view) {
 function groupSheet(groups) {
   return `
   <section class="card" style="padding:13px 16px">
-    <div class="eyebrow" style="margin:0 0 8px">Custom groups</div>
+    <h2 class="eyebrow" style="margin:0 0 8px">Custom groups</h2>
     ${groups.map(g => GDEL === g.id ? `
     <div class="lrow" style="cursor:default">
       <div class="lm"><div class="lt">Delete ${esc(g.name)}?</div><div class="ls">Groups are filters; nobody leaves the roster.</div></div>
@@ -229,7 +229,7 @@ function wireGroupSheet(root, teamId) {
 function absenceSheet() {
   return `
   <section class="card" style="padding:13px 16px">
-    <div class="eyebrow" style="margin:0 0 8px">Excuse ${SEL.size} ${CD.noun}${SEL.size === 1 ? '' : 's'}</div>
+    <h2 class="eyebrow" style="margin:0 0 8px">Excuse ${SEL.size} ${CD.noun}${SEL.size === 1 ? '' : 's'}</h2>
     <div style="font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5;margin-bottom:8px">Excused ${CD.nouns} drop out of the priority queue and today's completion math. And nothing pings them while excused.</div>
     <input class="ob-input" id="abs-reason" maxlength="120" placeholder="Reason (travel, injury, family…)" style="height:36px" />
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px">
