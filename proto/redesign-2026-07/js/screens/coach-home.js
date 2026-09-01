@@ -699,7 +699,7 @@ export const coachHome = {
     // at each of its own four render branches.
     // The scope chip directly below owns the scope; repeating scopeLabel() here had the header
     // and the chip saying "Entire team" two lines apart (critique 2026-08-18).
-    const head = avatarHead(`${S.greeting}, ${me.handle}`, `${teamName} · today`, me.initials) + emailVerifyBanner();
+    const head = avatarHead(me.handle, `${teamName} · today`, me.initials, S.greeting) + emailVerifyBanner();
     if (CD.roster === null) return `${head}
       <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
       <div><div class="tt">${esc(vocab().loading)}</div><div class="ts">Pulling today's real numbers.</div></div></div>`;
@@ -752,7 +752,9 @@ export const coachHome = {
       <div class="req-icon p" style="width:38px;height:38px">${icon('shield', 17)}</div>
       <div style="flex:1"><div class="tt">${esc(worthy[0].row.name)} hit ${worthy[0].streak} straight days</div>
       <div class="ts">Reward it with camera-free meals.</div></div>
-      <button class="btn sm" data-go="pass-grant/${esc(worthy[0].row.athleteId)}" style="width:auto;padding:0 12px;height:30px;flex:none">Give a pass</button>
+      ${/* .ghost, not the bare .btn: the bare button's fill is --surface-2, which is also the
+            sidebox's fill, so "Give a pass" rendered as loose text with no edge in either theme. */''}
+      <button class="btn ghost sm" data-go="pass-grant/${esc(worthy[0].row.athleteId)}" style="width:auto;padding:0 12px;height:30px;flex:none">Give a pass</button>
     </div>` : '';
 
     return `${head}

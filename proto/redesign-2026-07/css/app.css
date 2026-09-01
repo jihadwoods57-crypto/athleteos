@@ -673,6 +673,9 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
    margin/size are neutralized here. */
 .back-head .ht { font-size: 20px; font-weight: 800; letter-spacing: var(--title-tight); margin: 0; }
 .back-head .hs { font-size: 12px; font-weight: 600; color: var(--text-2); margin-top:1px; }
+/* Greeting line above an operator h1: the same register as .apphead .greeting, one step down
+   because the operator head is a 20px title rather than the athlete's 24px name. */
+.back-head .hg { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); letter-spacing: 0.01em; margin-bottom: 1px; }
 /* min-width:0 so a long title truncates instead of shoving .bh-act off the right edge */
 .back-head .bh-t { min-width: 0; flex: 1; }
 .back-head .bh-act {

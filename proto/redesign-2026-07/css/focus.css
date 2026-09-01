@@ -119,18 +119,20 @@
    that is the ONLY route to fixing a wrong meal reading. */
 /* `.fr-ok` (34px add-ingredient confirm), `.iv-x` (40px image-viewer close, the only exit from a
    full-screen overlay) and the pending-attachment remove button (29px) joined 2026-08-18: all
-   three sit alone with no neighbour inside 44px, so the expanded area costs nothing. */
+   three sit alone with no neighbour inside 44px, so the expanded area costs nothing.
+   `.id-act` (the 24px "Remove photo" text action in the Profile identity card) joined
+   2026-09-01: its only neighbours are the identity lines above it, which are not targets. */
 :where(
   .co-chip, .btn.ghost, .btn.sm, .bk, .ai-full-toggle, .hd-avatar,
   .si-forgot, .si-link, .chip, .pw-seg, .mq-skip, .markread, .lnk, .tl-del, .mt-retry,
-  .tour-skip, .est-note .link, .fr-ok, .iv-x, .composer-attach-pending button
+  .tour-skip, .est-note .link, .fr-ok, .iv-x, .composer-attach-pending button, .id-act
 ) {
   position: relative;
 }
 :where(
   .co-chip, .btn.ghost, .btn.sm, .bk, .ai-full-toggle, .hd-avatar,
   .si-forgot, .si-link, .chip, .pw-seg, .mq-skip, .markread, .lnk, .tl-del, .mt-retry,
-  .tour-skip, .est-note .link, .fr-ok, .iv-x, .composer-attach-pending button
+  .tour-skip, .est-note .link, .fr-ok, .iv-x, .composer-attach-pending button, .id-act
 )::after {
   content: '';
   position: absolute;

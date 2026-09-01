@@ -531,14 +531,18 @@ export function titleHead(title, sub) {
    (b) a bare tinted circle of initials read as decoration — a monogram, not a door. Profile,
    preferences and SIGN OUT live behind it and nothing else in the app leads there, so it now
    carries a visible edge and a caret badge. Same 40px hit target, same position. */
-export function avatarHead(title, sub, initials) {
+export function avatarHead(title, sub, initials, greeting) {
   // The operator bell (2026-08-05): escalations, join requests and digests were landing in the
   // notifications table with nowhere to surface — the athlete header had a bell, the operator
   // header had none, so a coach who missed the push missed the message forever. Same affordance,
   // same badge math as appHead.
+  // `greeting` (optional) renders on its own small line ABOVE the h1, the way appHead stacks
+  // "Good evening," over the athlete's name. Folded into the title it made a two-line h1 on
+  // every 390px phone ("Good evening, Coach / Brooks"), with the bell and avatar floating
+  // beside the wrap.
   const n = S.unreadNotifs;
   return `<div class="back-head" style="align-items:center">
-    <div style="flex:1;min-width:0"><h1 class="ht">${esc(title)}</h1>${sub ? `<div class="hs">${esc(sub)}</div>` : ''}</div>
+    <div style="flex:1;min-width:0">${greeting ? `<div class="hg">${esc(greeting)},</div>` : ''}<h1 class="ht">${esc(title)}</h1>${sub ? `<div class="hs">${esc(sub)}</div>` : ''}</div>
     ${bellBtn(n, 'margin-right:10px')}
     <div class="hd-avatar" role="button" tabindex="0" aria-label="Your profile and settings" data-go="${roleProfileRoute()}"
       data-avatar-uid="${esc(RT.userId || '')}" data-avatar-ver="${esc(RT.avatarVer || '')}"

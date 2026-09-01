@@ -184,7 +184,11 @@
 .ob2-plan:active { transform: scale(0.985); }
 .ob2-plan.on { border-color: var(--blue-bright); background: rgba(var(--blue-rgb), 0.08);
   box-shadow: 0 0 22px rgba(var(--blue-rgb), 0.16); }
-.ob2-plan .pl-row { display: flex; align-items: baseline; justify-content: space-between; gap:10px; }
+/* padding/border/min-height reset on purpose: screens.css owns a DIFFERENT .pl-row (the Plan
+   tab list row: 13px vertical padding, a hairline border-top, a 56px floor), and the proto CSS
+   is one flat namespace, so every pricing card was drawing a stray rule under its tag and
+   sitting 20px taller than designed. */
+.ob2-plan .pl-row { display: flex; align-items: baseline; justify-content: space-between; gap:10px; padding: 0; border-top: 0; min-height: 0; }
 .ob2-plan .pl-t { font-size: 16px; font-weight: 800; }
 .ob2-plan .pl-p { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .ob2-plan .pl-p small { font-size: 11.5px; font-weight: 700; color: var(--text-3); }

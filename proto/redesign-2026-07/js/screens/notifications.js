@@ -81,11 +81,15 @@ export default {
     return `<div id="ntf-root">
     ${backHead('Notifications', 'Accountability moments, not spam')}
 
+    ${/* The count rides on the "New" heading ("New · 2", the same shape as Home's "Upcoming · 1")
+          instead of a separate "2 new" line two rows above a "NEW" label saying the same thing.
+          The summary row survives for the two states the heading cannot carry: all caught up,
+          and unread items that only exist in Earlier. */''}
     ${hasRows ? (newCount > 0
-        ? `<div class="nhead"><span class="nsummary"><span class="cnt">${newCount}</span> new</span></div>`
+        ? (N.new.some(isNew) ? '' : `<div class="nhead"><span class="nsummary"><span class="cnt">${newCount}</span> new</span></div>`)
         : `<div class="nhead"><span class="nsummary allclear">${icon('checkCircle', 16)} All caught up</span></div>`) : ''}
 
-    ${N.new.length ? `<h2 class="eyebrow">${N.new.some(isNew) ? 'New' : 'Recent'}</h2>${N.new.map(row).join('')}` : ''}
+    ${N.new.length ? `<h2 class="eyebrow">${N.new.some(isNew) ? `New · ${newCount}` : 'Recent'}</h2>${N.new.map(row).join('')}` : ''}
 
     ${N.earlier.length ? `<h2 class="eyebrow">Earlier</h2>${N.earlier.map(row).join('')}` : ''}
 

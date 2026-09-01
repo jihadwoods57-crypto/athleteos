@@ -258,11 +258,15 @@ export default {
     if (btn && file) {
       // Injected fresh on every mount, so it needs no data-go/data-act wiring — the
       // router only wires those at render time, but this element never touches render().
-      const idCard = root.querySelector('.id-card');
+      // Both the error line and "Remove photo" live INSIDE the identity card, under the name.
+      // They used to be injected after the card, which left a lone centred pill floating in
+      // the gap between the card and "Coach connection" with nothing to tie it to the photo
+      // it acts on (2026-09-01 polish capture).
+      const idTxt = root.querySelector('.id-card .id-txt');
       const err = document.createElement('div');
       err.id = 'avatar-err';
-      err.style.cssText = 'color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;text-align:center;margin-top:8px';
-      idCard?.insertAdjacentElement('afterend', err);
+      err.className = 'id-err';
+      idTxt?.insertAdjacentElement('beforeend', err);
 
       let busy = false;
       const setBusy = (on) => {
@@ -285,10 +289,10 @@ export default {
           if (!err.isConnected || document.getElementById('avatar-remove')) return;
           const rm = document.createElement('button');
           rm.id = 'avatar-remove';
-          rm.className = 'btn ghost sm';
-          rm.style.cssText = 'width:auto;padding:0 14px;height:30px;margin:2px auto 0;display:block';
+          rm.className = 'id-act';
+          rm.type = 'button';
           rm.textContent = 'Remove photo';
-          err.insertAdjacentElement('afterend', rm);
+          err.insertAdjacentElement('beforebegin', rm);
           rm.addEventListener('click', async () => {
             if (busy) return;
             setBusy(true);

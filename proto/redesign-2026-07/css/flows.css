@@ -656,6 +656,9 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 .state-demo .sd-t { font-size: var(--t-lg); font-weight: 800; letter-spacing: var(--title-tight); }
 .state-demo .sd-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:8px; line-height: 1.5; max-width: 34ch; margin-left:auto; margin-right:auto; }
 .state-demo .sd-cta { margin-top:16px; }
+/* A screen-level CTA directly above a state box (Training, Progress photos) needs air between
+   the two; without it the button sits flush on the card and reads as its header. */
+.btn + .state-demo { margin-top: 12px; }
 /* Arrival: the vessel settles, the halo blooms after it, the words follow — the same one-shot
    ceremony a populated list gets from rowIn, because "genuinely empty" is a loaded answer, not
    a missing one. Gated on .view.enter exactly like every other entrance (the router only stamps

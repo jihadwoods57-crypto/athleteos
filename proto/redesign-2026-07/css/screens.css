@@ -859,6 +859,13 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* Two lines each for sport and school: a 45-character school name turned the header into a
    six-line block that shoved the rest of Profile down the screen. */
 .id-card .meta { font-size: 13px; font-weight: 600; color: var(--text-2); margin-top:4px; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+/* The photo's own actions sit under the identity lines, in the card, same voice as .meta-add:
+   a text action, not a pill. Bare-text button at the 24px inline floor (the row is not the only
+   target: the 44px camera badge on the avatar is the primary control). */
+.id-card .id-act { appearance: none; background: none; border: 0; padding: 0; margin-top: 6px; min-height: 24px; display: inline-flex; align-items: center; font-family: var(--font); font-size: var(--t-sm); font-weight: 700; color: var(--blue-bright); cursor: pointer; }
+.id-card .id-act:disabled { opacity: .5; cursor: default; }
+.id-card .id-err { color: var(--red-bright); font-size: var(--t-sm); font-weight: 600; line-height: 1.35; }
+.id-card .id-err:not(:empty) { margin-top: 4px; }
 .lb-row { display: flex; align-items: center; gap:14px; padding:14px 16px; border-bottom: 1px solid var(--hairline-soft); }
 .lb-row:last-child { border-bottom: none; }
 .lb-row.you { background: rgba(var(--blue-rgb), 0.10); border-radius: var(--r-card-sm); border: 1px solid var(--blue-border); margin:4px 6px; }
@@ -1975,7 +1982,10 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .hist-card{display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--hairline-soft);cursor:pointer}
 .hist-card:last-child{border-bottom:none}
 .hist-thumb{width:52px;height:52px;border-radius:var(--r-card-sm);flex:none;background-size:cover;background-position:center;border:1px solid var(--hairline)}
-.hist-thumb.icon{display:grid;place-items:center;background:linear-gradient(150deg,rgba(var(--amber-rgb), 0.18),rgba(var(--amber-rgb), 0.06));color:var(--amber-bright);position:relative}
+/* A meal with no photo gets a NEUTRAL placeholder tile. It was amber, and amber means "warning"
+   everywhere else in the app (DESIGN.md: at risk, off pace, injury), so an on-time, on-standard
+   meal opened the history with an alert-coloured tile for the crime of having no thumbnail. */
+.hist-thumb.icon{display:grid;place-items:center;background:var(--surface-2);color:var(--text-2);position:relative}
 .ht-nophoto{position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);font-size:7px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);white-space:nowrap;display:none}
 .hist-main{flex:1;min-width:0}
 /* Two lines: a one-line clamp cut "Chicken, rice & edamame bowl" mid-word, and the meal name is

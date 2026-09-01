@@ -128,10 +128,12 @@ function browseView() {
   <input type="file" accept="image/*" capture="environment" id="pp-file" style="display:none" />
 
   ${DELETE_ERROR ? `<div role="alert" style="color:var(--red-bright);font-size:var(--t-sm);font-weight:600;text-align:center;margin-top:12px">${esc(DELETE_ERROR)}</div>` : ''}
+  ${/* The spacer used to live inside the photos branch only, so the empty, loading and failed
+        states all sat flush against the Add photo button. */''}
+  <div style="height:12px"></div>
   ${CACHE.loading && !photos.length ? `
     ${skeletonRows(3, 'Loading your photos')}`
   : photos.length ? `
-    <div style="height:12px"></div>
     <div class="pp-grid">${photos.map(cell).join('')}</div>`
   : CACHE.failed ? `
     ${errorState({
