@@ -477,7 +477,7 @@ export function appHead(sub, extra) {
   return `<header class="apphead">
     <div class="apphead-id">
       <div class="greeting">${S.greeting},</div>
-      <div class="name">${esc(S.athlete.first)}</div>
+      <h1 class="name">${esc(S.athlete.first)}</h1>
       ${sub ? `<div class="apphead-sub">${esc(sub)}</div>` : ''}
     </div>
     <div class="actions">

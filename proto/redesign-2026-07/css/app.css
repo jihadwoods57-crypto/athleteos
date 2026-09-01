@@ -266,8 +266,12 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
    Rendered as <h2> since 2026-09-01 — the section labels ARE the app's heading structure, and
    they were divs, so a screen reader got one h1 and then nothing. The class carries every visual
    property; the * reset above wipes the UA's h2 margin/padding, so headings look identical to
-   the divs they replaced. (.xgrp / .cs-eyebrow are still divs on purpose: their heading level
-   depends on what sits above them per screen — judge those individually, don't sweep.) */
+   the divs they replaced. (.xgrp / .cs-eyebrow got their per-screen judgment pass 2026-09-01
+   PM: all sit at section tier alongside the h2 eyebrows, so they are h2s too — flex parents
+   blockify the ex-spans, so nothing moved. The exceptions stay non-headings on purpose:
+   a <summary> is a disclosure BUTTON, and a label inside a data-go card is inside the
+   role="button" the router stamps — ARIA buttons flatten children, so a heading in either
+   would look done and read as nothing.) */
 .eyebrow {
   font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-eyebrow); text-transform: uppercase;
   color: var(--text-3); margin:26px 2px 12px;

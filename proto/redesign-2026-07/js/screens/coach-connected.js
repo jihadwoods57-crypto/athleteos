@@ -123,6 +123,9 @@ export function standardsBoardCard() {
     return `
     <section class="card pad cs-board" data-go="coach-standards/${esc(inst.instance_id)}">
       <div class="cs-board-head">
+        ${/* NOT an h2: the whole card is data-go, and the router promotes every data-go element
+              to role="button" — ARIA buttons flatten their children, so a heading in here would
+              look done and read as nothing (same trap as the xcollapse summary). */''}
         <span class="cs-eyebrow">${esc(inst.title || 'Activity standard')}</span>
         <span class="cs-ask">${esc(`${fmtValue(inst.target, inst.metric, inst.display_unit)} ${unitNoun(inst.metric, inst.display_unit, inst.target)}`)}</span>
       </div>
