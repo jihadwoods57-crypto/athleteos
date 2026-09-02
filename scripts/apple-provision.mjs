@@ -33,6 +33,7 @@ const APP_BUNDLE = 'com.onstandard.app';
 const WIDGET_BUNDLE = 'com.onstandard.app.RollCallWidget';
 const APP_GROUP = 'group.com.onstandard.app';
 const API = 'https://api.appstoreconnect.apple.com';
+const TEAM_ID_PREFIX = 'C44B6N2KC6.';
 
 // From eas.json's submit.production.ios block — the same key that uploads builds.
 const KEY_PATH = 'ios-certs/AuthKey_TNS4WL4GLR.p8';
@@ -74,8 +75,19 @@ async function api(method, path, body) {
 }
 
 // ---------------------------------------------------------------- helpers
-const findBundle = async (identifier) =>
-  (await api('GET', `/v1/bundleIds?filter[identifier]=${encodeURIComponent(identifier)}&include=bundleIdCapabilities&limit=200`));
+/**
+ * Find ONE bundle id, matching the identifier EXACTLY.
+ *
+ * `filter[identifier]` is not an exact match — it behaves as a contains/prefix search. Once
+ * `com.onstandard.app.RollCallWidget` existed, a lookup of `com.onstandard.app` returned BOTH and
+ * the widget came first, so taking `data[0]` silently handed back the wrong identifier. That
+ * minted the main app's App Store profile against the widget's bundle id and overwrote the file
+ * `npm run ship` signs with. Filter locally; never trust the server's ordering.
+ */
+async function findBundle(identifier) {
+  const r = await api('GET', `/v1/bundleIds?filter[identifier]=${encodeURIComponent(identifier)}&limit=200`);
+  return (r?.data ?? []).find((b) => b.attributes?.identifier === identifier) ?? null;
+}
 
 async function capabilities(bundleResourceId) {
   // No `limit` here: Apple rejects it on this relationship route with
@@ -84,7 +96,7 @@ async function capabilities(bundleResourceId) {
   return new Set((r?.data ?? []).map((c) => c.attributes?.capabilityType));
 }
 
-function writeProfile(file, base64) {
+function writeProfile(file, base64, expectIdentifier) {
   // Back up whatever is there first. `ios-certs/appstore.mobileprovision` is what `npm run ship`
   // signs with, and overwriting it with no way back would be a bad trade for a convenience script.
   if (existsSync(file)) {
@@ -102,7 +114,8 @@ function writeProfile(file, base64) {
   // has to be for the group's actual identifier, not for the entitlement key.
   const m = plist.match(/<key>com\.apple\.security\.application-groups<\/key>\s*<array>([\s\S]*?)<\/array>/);
   const groups = m ? [...m[1].matchAll(/<string>(.*?)<\/string>/g)].map((x) => x[1]) : [];
-  return { bytes: raw.length, groups, hasGroup: groups.includes(APP_GROUP) };
+  const appId = (plist.match(/<key>application-identifier<\/key>\s*<string>(.*?)<\/string>/) || [])[1] || '';
+  return { bytes: raw.length, groups, hasGroup: groups.includes(APP_GROUP), appId };
 }
 
 // ---------------------------------------------------------------- run
@@ -133,15 +146,14 @@ function writeProfile(file, base64) {
   console.log(`${G}✓${X} key authenticates and can read Provisioning\n`);
 
   // ---- the two bundle ids
-  const appRes = await findBundle(APP_BUNDLE);
-  const app = appRes?.data?.[0];
+  const app = await findBundle(APP_BUNDLE);
   if (!app) {
     console.error(`${R}Could not find ${APP_BUNDLE} on this team.${X} Is the key for the right team?`);
     process.exit(1);
   }
   console.log(`${G}✓${X} ${APP_BUNDLE} ${D}(${app.id})${X}`);
 
-  let widget = (await findBundle(WIDGET_BUNDLE))?.data?.[0];
+  let widget = await findBundle(WIDGET_BUNDLE);
   if (widget) {
     console.log(`${G}✓${X} ${WIDGET_BUNDLE} already exists ${D}(${widget.id})${X}`);
   } else if (!APPLY) {
@@ -226,13 +238,21 @@ but no group, and the build will still fail to sign.\n`);
       });
       const content = p?.data?.attributes?.profileContent;
       if (!content) { console.log(`${R}✗${X} ${w.name}: no profileContent in the response`); continue; }
-      const info = writeProfile(w.file, content);
+      // Assert the profile Apple returned is for the identifier we asked for. This is the check
+      // that would have caught the contains-match bug the moment it happened, instead of after it
+      // had overwritten the production profile.
+      const wantId = `${TEAM_ID_PREFIX}${w.label}`;
+      const info = writeProfile(w.file, content, w.label);
+      if (info.appId && !info.appId.endsWith(`.${w.label}`)) {
+        console.log(`${R}✗ ${w.file} is for ${info.appId}, not ${w.label}. NOT trusting it.${X}`);
+        continue;
+      }
       const groupNote = info.hasGroup
         ? `${G}carries ${APP_GROUP}${X}`
         : info.groups.length === 0
           ? `${Y}App Groups is ON but NO group is bound — do the portal step above, then re-run${X}`
           : `${Y}binds ${info.groups.join(', ')}, not ${APP_GROUP}${X}`;
-      console.log(`${G}✓${X} ${w.file} ${D}(${info.bytes} bytes)${X} ${groupNote}`);
+      console.log(`${G}✓${X} ${w.file} ${D}(${info.bytes} bytes, ${info.appId})${X} ${groupNote}`);
     } catch (e) {
       console.log(`${R}✗${X} ${w.name}: ${e.message}`);
       if (e.status === 403) {
