@@ -1,35 +1,30 @@
 # Founder Sessions Backlog
 
 Ranked queue for the daily cloud sessions (see `founder-sessions.md`). The 7 PM session
-rewrites the ranking each night. Reranked 2026-09-01 by the 7 PM POLISH session. Items
+rewrites the ranking each night. Reranked 2026-09-02 by the 7 PM POLISH session. Items
 marked **[verify first]** came from a July audit of the legacy `src/` engine — confirm
 they're still real against the live DB before building.
 
-Done 2026-09-01: the heading-outline pass is COMPLETE — all 309 section labels became
-real h2s at 8 AM (`e6c9322`), and the 7 PM session finished the parked judgment residue
-(15 .xgrp/.cs-eyebrow labels → h2, athlete Home's missing h1 fixed; three labels stay
-controls on purpose — the two <summary> collapse headers and the coach board card's
-data-go label, since a heading inside a button role reads as nothing; the adversarial
-review caught the third). All of it proven pixel-identical (18 before/after captures
-byte-equal, 139-screen sweep clean on the morning pass). None has reached a phone — #1.
+Done 2026-09-02: the dietitian queue's scaling cliff is gone client-side (8 AM,
+`4921d31` — one server RPC replaces chunked 60-id reads, fallback proven both
+directions, and the session built a local-Postgres rig so SQL is now provable
+in-sandbox); the 1 PM audit caught and fixed the decimal-splitting bug the morning's
+sentence work introduced (a "3.5 oz" would have reached athletes as "5 oz") in all
+three splitters, with pinning tests; the 7 PM session closed the blue-bright ink audit
+(old #5) — parent hub scores now speak scoreColor() band ink like the coach roster,
+the ob2-parent pitch demo matches, the invite token judged fine as a code accent.
+NONE of it has reached a phone — see #1.
 
 ## Ranked
 
-### 1 · ship · ~~publish the stacked OTA~~ **DONE 2026-09-01 (evening, from the founder's PC)**  (impact 5, effort s)
-**SHIPPED AND PROVEN.** Update group `7466798c-a801-41cf-8b24-42b4ca01f05e`, runtime
-1.0.0, both platforms. Local `assets/proto.zip` md5 `bca23f98…` + sha256 `xJ02xQs6…`
-(base64url) match the live manifest's zip asset `key`/`hash` on iOS AND Android, and the
-zip content-checked for the actual edits. Users now run `e5a92112` (master), which
-carries everything that was stacked: the zero-state ring fix, BOTH heading-outline halves
-(8 AM + 7 PM), and the 2026-09-01 seven-defect UI polish pass.
-
-**The finding that unblocks every future ship: the dead `EXPO_TOKEN` is a CLOUD-SANDBOX
-problem only.** `npx eas update` from the founder's Windows checkout authenticates as
-`jihadwoods` and publishes fine — it did tonight, and the a2b3dea6 group 14 hours earlier
-was the same. So an OTA is never truly blocked; it is blocked *from the cloud sessions*.
-A cloud session that finds the token dead should say so in one line and hand the publish
-to a PC session rather than parking the work. The key email stays owed (it would let the
-cloud sessions ship unattended); it is no longer a release blocker.
+### 1 · ship · publish the stacked OTA from the PC  (impact 5, effort s)
+The cloud token is still dead (re-proved 2026-09-02 7 PM: "bearer token is invalid";
+that makes four sessions in a row). The stack riding the next PC publish keeps growing:
+the meal-read "keep advice whole" upgrade + its decimal fix (WITHOUT which the upgrade
+actively garbles portion advice — do not publish the first half alone; master carries
+both), the dietitian-queue client (safe either side of 0214), and tonight's parent-hub
+score-ink polish. Also deploy the edge functions (meal-opener.ts) in the same sitting.
+Everything is committed on master; `npx eas update` from the PC as usual.
 
 ### 2 · security (live DB) · apply 0210: `base_age` server-authoritative  **[verify first — done]**  (impact 5, effort m)
 **BUILT 2026-08-27 8 AM — still awaiting live apply.** The hole is real (reproduced on a
@@ -45,48 +40,44 @@ phase-2 sync on every phone running current code.
 Tampered client persists a high score with no photo evidence; trust-pass grants gate on
 score ≥ 80. Fix: tighten the evidence-ceiling SQL to require real photo evidence.
 Re-verify against live schema first (score logic has been rebuilt since July). Same
-credential blocker as #2.
+credential blocker as #2 — but the 2026-09-02 local-Postgres rig means the FIX can now
+be built and proven in-sandbox before credentials ever show up. Good 8 AM pick.
 
-### 4 · scale · dietitian queue filters client-side → move to a server RPC
-**BUILT 2026-09-02 8 AM (`4921d31`) — client shipped in the zip, migration awaiting live
-apply.** `team_activity_batch` (0214) replaces the chunked 60-id meal reads with one
-set-based POST; fetchTeamActivity tries it first and falls back to chunking on any error,
-so deploy order is SAFE IN BOTH DIRECTIONS (unlike 0210 — no sequencing constraint).
-Proven on a local Postgres with all 214 migrations: 7/7 SQL suites green plus direct
-probes (coach sees only own athletes, rando zero, anon refused, dup-id fanout fixed after
-the adversarial review caught it). Apply 0214 whenever credentials exist; until then
-users silently keep the chunked path. NOTE for the next credentialed session: this
-session also built the local-DB rig itself (initdb + shim; see the 2026-09-02 report)
-so future SQL work can be proven in-sandbox before asking the founder to apply.
+### 4 · scale (live DB) · apply 0214: `team_activity_batch`  (impact 3, effort s)
+**BUILT AND PROVEN 2026-09-02 8 AM (`4921d31`)** — client shipped in the zip, deploy
+order safe in BOTH directions (fallback to chunked reads on any error). 7/7 SQL suites
+green on a local Postgres with all 214 migrations, plus direct attack probes. Apply
+whenever credentials exist; until then users silently keep the chunked path.
 
-### 5 · design · blue-bright TEXT ink audit  (impact 2, effort s)
-Scoped 2026-09-01 7 PM: most of the ~213 `--blue-bright` uses are legitimate (links,
-tabs, icon-chip tints, active states) — do NOT sweep. The judgment cases are big NUMBERS
-painted flat blue-bright where the taste rule says score surfaces carry the blue→teal
-signature: coach.js:3535 (30px roster score), coach.js:3597 (30px invite token — a code,
-not a score; maybe fine), ob2-parent.js:197/209 (34px "88" and "A−" in the parent
-pitch). Judge each against "blue→teal lives on score surfaces"; small diff, taste call.
+### 5 · scale follow-up · the coach inbox's roster-wide read still takes the slow path  (impact 2, effort m)
+Noted by the 8 AM session: the inbox's separate roster-wide read (20 newest meals, no
+athlete filter) still does the chunked client-side merge that #4 just fixed for the
+queue. Smaller harm (one page, capped at 20), same shape of fix — either widen
+`team_activity_batch` or add a sibling RPC. Provable on the local rig first.
 
 ### 6 · perf · 3MB eager boot graph in the proto  (impact 3, effort l)
 Everything loads at boot. Lazy-load heavy screens/modules so first paint is fast on a
 real phone. Careful: no build step — dynamic import() patterns must be click-time-safe.
 
 ### 7 · a11y follow-through · heading outline maintenance gate  (impact 2, effort s)
-The outline is now complete and worth protecting: a cheap verify gate (or qc-capture
-audit rule) that flags a screen rendering h2s with no h1, or a new uppercase section
-label class that isn't a heading. Prevents next month's new screen from silently
-regressing what two sessions just finished.
+The outline is complete and worth protecting: a cheap verify gate (or qc-capture audit
+rule) that flags a screen rendering h2s with no h1, or a new uppercase section label
+class that isn't a heading. Prevents next month's new screen from silently regressing
+what two sessions finished.
 
 ## Notes for tomorrow's sessions
-- 2026-09-02 1 PM audit: the heading judgment calls from 2026-09-01 7 PM were re-scrutinized
-  with fresh eyes and HOLD (summary/button role flattening is real browser behavior; Home's
-  h1 is right). The morning's sentence-regex bug (text silently deleted before decimals in
-  the AI read) was caught and fixed in all three splitters; the fixture "e.g." case splits
-  into extra sentences but never loses text — acceptable, documented in readCore's comment.
-- The 1 PM audit slot did not run 2026-09-01 (only build + sentries fired).
-- qc-capture 18-shot before/after on tonight's diff: byte-identical, sweep clean.
+- Fresh sandboxes need `npm install` before `npm run verify` — 4 gates (typecheck, test,
+  test:admin, bundle) fail on missing deps otherwise and it looks like real breakage.
+  Verify now prints **13 gates** (test:admin joined the count).
+- The 2026-09-01 clone landed on a detached HEAD after the remote's forced update;
+  check `git status -sb` before committing and `git checkout -B master origin/master`
+  if detached (tonight's session hit this).
+- `npm install` churns package-lock.json (12 deleted lines, platform-optional deps);
+  revert it rather than committing lockfile noise.
+- The blue-bright ink audit (old #5) is CLOSED — don't reopen it; the remaining ~210
+  uses were scoped legitimate 2026-09-01 and the score cases are fixed as of tonight.
 - Drive uploads of screenshots >~20KB through the connector are unreliable; keep proof
-  shots small. The connector still cannot edit an existing Doc (re-checked 2026-09-01).
+  shots small. The connector still cannot edit an existing Doc (re-checked 2026-09-02).
 
 ## Awaits founder ruling — recommend only, never ship
 - Locked In floor 75 → 80.
