@@ -4,8 +4,24 @@ Design canvas: https://claude.ai/code/artifact/645681dd-ba39-493c-9273-9c7096095
 (eight artboards: iOS Initial / Reminder / Late, Dynamic Island, Android Initial / Reminder /
 Late, and the plain-push fallback that ships without a native build).
 
-Status: **design, awaiting the founder's approval.** Nothing below is built. The plain-push copy
-change is OTA-reachable this week; everything else needs native build #28.
+Status: **APPROVED AND BUILT, 2026-09-02.** Commits `8c7a7d1a` (server) and `2ade02d3` (native).
+Two facts found during the build changed the design; both are marked **CORRECTED** below and the
+canvas has been updated to match. Runbook, deploy order and device QA:
+`docs/go-live/ROLLCALL-LIVE-ACTIVITY.md`.
+
+**CORRECTED — the Live Activity is not the answer path.** Apple: "On a locked device, buttons and
+toggles are inactive and the system doesn't perform actions unless a person authenticates and
+unlocks their device." So a button inside a Live Activity cannot be what answers a 6 AM roll call
+on a phone lying on a nightstand. The notification's action button, which has recorded taps since
+0144 and does work while locked, stays the answer. The Live Activity became the PRESENCE: the card
+that appears at 6:00, stays until close, and ticks its own countdown. Both are on the lock screen
+together, and each does what only it can.
+
+**CORRECTED — Android is system-drawn, not custom-drawn.** Android 12 flattens custom notification
+layouts into its own template, and Android 16 refuses to promote any notification carrying one to
+a Live Update. So the Android design gives up the bespoke card and takes the promotion instead: a
+countdown chronometer the OS ticks, the alarm category, the state colour, and on Android 16 a Live
+Update pinned open on the lock screen with its countdown in the status-bar chip.
 
 ## The moment
 
@@ -40,9 +56,12 @@ Rules that carry across:
 - **The coach is only present on INITIAL.** Their avatar, their name as the title, their words in
   quotes. REMINDER and LATE are OnStandard speaking, and say so in the eyebrow. Product copy is
   never attributed to the coach (the existing rule in `commitment-reminders/logic.ts`).
-- **The number is the hero.** Archivo Expanded 900, 46px, tabular, tinted in the state colour.
-  It is a deadline on INITIAL and a live timer afterwards. Text the device ticks itself, so no
-  push is needed to keep it honest.
+- **The number is the hero.** Heavy, large, tabular, tinted in the state colour. A deadline on
+  INITIAL and a live timer afterwards, ticked by the device so no push is needed to keep it honest.
+  **CORRECTED:** on iOS it is the SYSTEM rounded font with monospaced digits, not Archivo Expanded.
+  Bundling a font into a widget extension is a documented cause of `archiveTooLarge`, where the
+  Live Activity silently never starts and `Activity.request` still returns success. Giving up the
+  brand numerals buys a card that appears.
 - **Colour is status, and follows the app's own rules.** Blue-to-teal is the signature, so the
   calm state is blue, not green (green stays a status colour app-wide). Amber is the app's
   "still savable" hue. Red is reserved for the verdict. **The button on LATE stays blue**: the
@@ -71,16 +90,17 @@ acts without opening the app. So the roll call becomes one Live Activity per ins
 3. **LATE (deadline crossed).** A push update, `alert` with `interruption-level:
    time-sensitive`, state = `late`. Red frame, `Text(timerInterval: deadlineAt...closesAt,
    countsDown: false)` counts the minutes late. Button relabels **CHECK IN NOW**.
-4. **Tap.** The button is a SwiftUI `Button(intent:)` on a `LiveActivityIntent`. It runs in the
-   app's process without bringing it to the foreground, posts the signed code to `roll-call-ack`
-   exactly as the notification action does today (same `postRollCallAck`, same offline queue),
-   and flips the activity to a `checked_in` state locally (`Checked in 6:01 AM · On Standard`, or
-   `Late · 6 min`). The server's realtime update confirms it; the activity ends 5 minutes later.
+4. **Tap. CORRECTED.** The card's `Button(intent:)` on a `LiveActivityIntent` is a convenience,
+   not the answer path: Apple makes buttons in a Live Activity inactive on a locked device. It
+   records into the App Group and `drainLiveActivityTaps()` feeds it through the same ack queue on
+   the next launch. **The button that answers a locked phone is the notification's**, unchanged
+   since 0144. `roll-call-ack` then ends the activity, so the card confirms the check-in instead of
+   counting toward a deadline already met.
 5. **CLOSE.** A final update with `event: end`, state = `missed` if unanswered, dismissal at
    close + 5 min. Nothing lingers past the roll call.
 
-The existing category-button push still goes out alongside, for iPhones below 17.2 and for
-anyone who has turned Live Activities off for OnStandard. Its copy is the fallback below.
+The notification goes out alongside the card on every iPhone, not just old ones. It is not a
+fallback: it is the half that can be answered while the phone is locked.
 
 Constraints that shaped the layout:
 
@@ -91,8 +111,8 @@ Constraints that shaped the layout:
 - Live Activities cannot play a custom sound; `alert.sound` uses the system sound. The
   companion notification on the `rollcall` channel carries the alarm-class sound.
 - No Critical Alert entitlement. Do Not Disturb still wins, as today.
-- Custom fonts must ship in the widget extension target (Archivo Expanded 900 and Plus Jakarta
-  Sans TTFs; the proto only carries woff2, the `.worktrees/pass-rewards` tree has the TTFs).
+- **Do not bundle custom fonts into the extension.** See the number rule above: it is a known
+  cause of the activity silently failing to start.
 - Images in a Live Activity must be local or in the App Group; the coach avatar is fetched by the
   app and written to the App Group container on the first push, initials otherwise.
 
@@ -155,7 +175,15 @@ time (the escalation cron runs every minute, so it is at most a minute stale). T
 INITIAL keeps its neutral form (`Wake-Up Roll Call` / `Up by 6:05 AM.`), never invented words
 in the coach's name.
 
-## What it will take
+## Also shipped, unplanned
+
+**One notification, replaced in place.** All three pushes now carry `tag` and `collapseId` keyed on
+the roll-call instance, so 6:00, 6:03 and 6:05 are the same card saying a different thing rather
+than three stacking up. This was not in the original design and is most of what "understand the
+status in one second" actually means on a lock screen holding a day's worth of notifications. It
+needs no new binary.
+
+## What it took
 
 | Piece | Reaches users via | Size |
 |---|---|---|

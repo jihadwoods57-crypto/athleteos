@@ -1,4 +1,6 @@
 const { withInfoPlist, withEntitlementsPlist, withAndroidManifest } = require('@expo/config-plugins');
+const fs = require('node:fs');
+const path = require('node:path');
 
 /**
  * OnStandard — native configuration for the Wake-Up Roll Call lock screen.
@@ -53,26 +55,27 @@ module.exports = function withRollCallLiveActivity(config, props = {}) {
     });
   }
 
-  // ---------------------------------------------------------------- Android: assert, don't add
+  // ---------------------------------------------------------------- Android: assert the module
+  // The permission and the presentation receiver are contributed by modules/rollcall-live's OWN
+  // AndroidManifest, which Gradle's manifest merger folds in at BUILD time — long after this mod
+  // runs. So there is nothing to look for in the app manifest here, and an earlier version of this
+  // plugin that checked for it fired a false alarm on every prebuild.
+  //
+  // What IS knowable at prebuild is whether the module is still on disk. That is the failure worth
+  // catching: delete or rename the module and every roll call quietly becomes an ordinary
+  // notification with no countdown, on every Android phone, with nothing in any log to say so.
   config = withAndroidManifest(config, (cfg) => {
-    const manifest = cfg.modResults.manifest;
-    const permissions = manifest['uses-permission'] || [];
-    const has = permissions.some(
-      (p) => p.$ && p.$['android:name'] === 'android.permission.POST_PROMOTED_NOTIFICATIONS',
+    const manifestPath = path.join(
+      config.modRequest?.projectRoot ?? process.cwd(),
+      'modules', 'rollcall-live', 'android', 'src', 'main', 'AndroidManifest.xml',
     );
-    if (!has) {
-      // Contributed by modules/rollcall-live's own manifest via merging. Adding it a second time
-      // here would mask its absence, so add it only when the merge did not happen — which means
-      // the module is gone, and the presentation override is gone with it.
-      permissions.push({
-        $: { 'android:name': 'android.permission.POST_PROMOTED_NOTIFICATIONS' },
-      });
-      manifest['uses-permission'] = permissions;
-      // eslint-disable-next-line no-console
-      console.warn(
-        '[rollcall-live] modules/rollcall-live did not contribute its Android manifest. ' +
-          'The Live Update permission was added here, but the notification presentation override ' +
-          'is MISSING: roll calls will arrive as ordinary notifications with no countdown.',
+    if (!fs.existsSync(manifestPath)) {
+      throw new Error(
+        '[rollcall-live] modules/rollcall-live/android/src/main/AndroidManifest.xml is missing. ' +
+          'Without it the notification presentation override never registers and every Android ' +
+          'roll call arrives as an ordinary notification with no countdown, silently. ' +
+          'Restore the module, or remove ./plugins/withRollCallLiveActivity from app.json to ' +
+          'ship that state deliberately.',
       );
     }
     return cfg;
