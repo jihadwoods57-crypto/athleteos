@@ -167,6 +167,16 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
   const RPCS = {
     team_roster: () => ROSTER,
     practice_roster: () => ROSTER,
+    // 0214: the roster meals read tries this RPC before the chunked .in() reads. The catch-all
+    // "unknown rpc answers { data: [] }" below the RPCS table would read as a SUCCESSFUL empty
+    // feed and blank the nutrition board in every capture, so model the real server: same rows,
+    // same filter, newest first, limited.
+    team_activity_batch: (p) => MEALS
+      .filter(m => (p && Array.isArray(p.p_athletes) ? p.p_athletes.includes(m.athlete_id) : false)
+        && (!p || !p.p_since || m.day_date >= p.p_since))
+      .slice()
+      .sort((a, b) => String(b.logged_at).localeCompare(String(a.logged_at)))
+      .slice(0, Math.min((p && p.p_limit) || 400, 400)),
     pending_team_requests: () => [],
     pending_practice_requests: () => [],
     team_day_rollup: () => ATHLETES.flatMap(a => DAYS.filter(d => d.athlete_id === a.id).map(d => ({ day: d.date, athlete_id: a.id, score: d.score }))),

@@ -96,6 +96,10 @@ globalThis.window.sb = {
     if (fn === 'team_day_rollup') { assert.ok(args && args.p_team, 'team_day_rollup must be called with p_team'); return { data: ROLLUP, error: null }; }
     if (fn === 'practice_day_rollup') { assert.ok(args && args.p_practice, 'practice_day_rollup must be called with p_practice'); return { data: ROLLUP, error: null }; }
     if (fn === 'team_intervention_outcomes' || fn === 'practice_intervention_outcomes') return { data: [], error: null };
+    // 0214: the roster meals read is an RPC now (this stub is a post-0214 server). The catch-all
+    // `{ data: [] }` below would otherwise answer it as a SUCCESSFUL empty read and lastMealAt
+    // would silently vanish from every row — which is exactly what caught the 0214 wiring here.
+    if (fn === 'team_activity_batch') { assert.ok(args && Array.isArray(args.p_athletes) && args.p_athletes.length, 'team_activity_batch must be called with p_athletes'); return { data: MEALS, error: null }; }
     return { data: [], error: null };
   },
   auth: { getUser: async () => ({ data: { user: { id: 'u1' } } }) },

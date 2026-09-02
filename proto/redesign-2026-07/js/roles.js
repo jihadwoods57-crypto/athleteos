@@ -277,6 +277,9 @@ export async function renamePractice(practiceId, name) {
  *  fetchLinkedDaysSince above): without it, `day_date >= sinceISO` can't use the
  *  meals(athlete_id, day_date desc) index and the ORDER BY forces a full sort of every
  *  matching row in the table before the limit applies (capacity audit F6). */
+let taRpcAbsent = false; // 0214 not applied on this server — remembered so every board paint
+                         // does not re-pay a doomed round trip; a reload retries.
+export function __resetTeamActivityRpc() { taRpcAbsent = false; } // tests only
 export async function fetchTeamActivity(sinceISO, limit = 24, athleteIds) {
   const c = sb(); if (!c) return [];
   const cols = 'id,athlete_id,day_date,type,photo_path,name,protein,kcal,quality,logged_at';
@@ -286,6 +289,18 @@ export async function fetchTeamActivity(sinceISO, limit = 24, athleteIds) {
         .order('logged_at', { ascending: false }).limit(limit);
       if (error) return null; // null = FAILED (coach-home already branches on it)
       return data || [];
+    }
+    // Set-based RPC first (0214): POST carries the ids in the body, so no URL ceiling, one
+    // round trip instead of one per 60-id chunk, and the wire carries `limit` rows once
+    // instead of `limit` per chunk. The server clamps its limit at 400 -- every current
+    // caller asks for that or less. Any error falls through to the chunked path below, so
+    // deploy order against the migration is safe in both directions; only the specific
+    // "function not found" answer is remembered, anything transient retries next call.
+    if (!taRpcAbsent) {
+      const { data, error } = await c.rpc('team_activity_batch',
+        { p_athletes: athleteIds, p_since: sinceISO, p_limit: limit });
+      if (!error) return data || [];
+      if (error.code === 'PGRST202') taRpcAbsent = true; // pre-0214 server
     }
     // Chunked (scale pass 2026-08-18): each chunk asks for its own top-`limit` rows, so the
     // TRUE global top-`limit` (by logged_at) is provably a subset of the union — any row in
