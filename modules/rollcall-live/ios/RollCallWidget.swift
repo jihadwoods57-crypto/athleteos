@@ -3,6 +3,10 @@ import SwiftUI
 #if canImport(ActivityKit) && canImport(WidgetKit)
 import ActivityKit
 import WidgetKit
+// Required even though nothing here names an AppIntents type directly: the button's initializer is
+// constrained to `AppIntent`, and under Swift 6's MemberImportVisibility a transitive load is no
+// longer enough to satisfy that.
+import AppIntents
 
 /// OnStandard — the Wake-Up Roll Call card, as drawn on the lock screen and in the Dynamic Island.
 ///
@@ -122,16 +126,25 @@ struct RollCallLockScreenView: View {
   /// buttons inactive until the person authenticates, so the notification's action button is what
   /// works at 6 AM on a nightstand. This one is for the phone already in a hand, where Face ID has
   /// cleared the lock with a glance.
+  ///
+  /// iOS 17 gates BOTH halves of this: `Button(intent:)` and `LiveActivityIntent` itself. The card
+  /// as a whole still runs on 16.2, so the availability check is here rather than on the view —
+  /// a 16.x athlete gets the countdown card with no button, and answers from the notification,
+  /// which is the path that works while locked anyway. `@ViewBuilder` is what lets this return
+  /// nothing on 16.x while still satisfying `some View`.
+  @ViewBuilder
   private var checkInButton: some View {
-    Button(intent: RollCallCheckInIntent(instanceId: context.attributes.instanceId)) {
-      Text(phase == .late ? "CHECK IN" : "I'M UP")
-        .font(.system(size: 14, weight: .heavy))
-        .foregroundStyle(.white)
-        .padding(.horizontal, 16)
-        .frame(height: 40)
-        .background(Capsule().fill(palette.button))
+    if #available(iOS 17.0, *) {
+      Button(intent: RollCallCheckInIntent(instanceId: context.attributes.instanceId)) {
+        Text(phase == .late ? "CHECK IN" : "I'M UP")
+          .font(.system(size: 14, weight: .heavy))
+          .foregroundStyle(.white)
+          .padding(.horizontal, 16)
+          .frame(height: 40)
+          .background(Capsule().fill(palette.button))
+      }
+      .buttonStyle(.plain)
     }
-    .buttonStyle(.plain)
   }
 
   private var title: String {
@@ -207,9 +220,19 @@ struct RollCallClock: View {
         // countdown. A countdown from six minutes out reads as pressure the moment should not have.
         Text(state.deadline, style: .time)
       case .reminder:
-        Text(timerInterval: Date()...state.deadline, countsDown: true)
+        // `a...b` TRAPS when b < a, and the widget extension trapping means a blank card. This is
+        // not a hypothetical: the steady state after a dropped or delayed phase push is a deadline
+        // already in the past while the content state still says "reminder", and the system
+        // re-renders on its own timeline. Clamp rather than trust the wire.
+        let now = Date()
+        Text(timerInterval: now...max(state.deadline, now.addingTimeInterval(1)), countsDown: true)
       case .late:
-        Text(timerInterval: state.deadline...state.closes, countsDown: false)
+        // Same trap from the other side: a payload carrying only one of the two instants leaves
+        // the other at epoch zero.
+        Text(
+          timerInterval: state.deadline...max(state.closes, state.deadline.addingTimeInterval(1)),
+          countsDown: false
+        )
       }
     }
     .font(.system(size: size, weight: .heavy, design: .rounded))

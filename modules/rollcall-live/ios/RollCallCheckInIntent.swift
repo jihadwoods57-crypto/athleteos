@@ -5,11 +5,16 @@ import AppIntents
 
 /// OnStandard — the button inside the Live Activity.
 ///
-/// THIS TYPE MUST BE IN THE APP TARGET. Apple: "If you adopt the LiveActivityIntent ... protocol,
-/// the system runs the app intent in the app's process. Make sure to add your custom app intent to
-/// your app target." (A plain `AppIntent` would need to be in both; a `LiveActivityIntent` must not
-/// be duplicated into the extension, or the extension's copy is the one that runs and it cannot
-/// reach the app's keychain or network the same way.)
+/// TARGET MEMBERSHIP: BOTH the app and the widget extension. Two different requirements that are
+/// easy to conflate:
+///   - Apple requires it in the APP target, because that is the process the system runs
+///     `perform()` in: "the system runs the app intent in the app's process. Make sure to add your
+///     custom app intent to your app target."
+///   - The EXTENSION needs the type at COMPILE time, because RollCallWidget.swift constructs it to
+///     hand to `Button(intent:)`. Leave it out and the extension does not build ("Cannot find
+///     'RollCallCheckInIntent' in scope").
+/// Compiling it into both does not change where it runs: the `LiveActivityIntent` conformance is
+/// what routes execution to the app process, not which target holds the source.
 ///
 /// WHAT IT IS AND IS NOT. It is a convenience for a phone already in the athlete's hand. It is NOT
 /// the primary way a roll call gets answered: Apple makes buttons in a Live Activity inactive on a

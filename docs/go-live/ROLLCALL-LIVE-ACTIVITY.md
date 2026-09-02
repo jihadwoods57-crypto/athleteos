@@ -94,9 +94,15 @@ Two edits, in this order:
      compiles `RollCallWidget.swift` and `RollCallAttributes.swift`. Lower risk for a first pass,
      but it does not survive a clean prebuild.
 
-   Either way, `RollCallAttributes.swift` needs **target membership in both** the app and the
-   extension: the app starts and updates activities, the extension draws them, and ActivityKit
-   matches a push to a running activity by that type's name.
+   Either way, **two files need target membership in BOTH** the app and the extension:
+
+   - `RollCallAttributes.swift` — the app starts and updates activities, the extension draws them,
+     and ActivityKit matches a push to a running activity by that type's name.
+   - `RollCallCheckInIntent.swift` — the extension constructs it for `Button(intent:)` and so needs
+     the type at compile time; the app must hold it because that is the process the system runs
+     `perform()` in. Compiling it into both does not change where it runs.
+
+   `RollCallWidget.swift` goes in the **extension only**.
 
 **Do not skip the first compile.** Nothing in `modules/rollcall-live/ios/` has been through a Swift
 compiler. Build once to `preview` before anything goes near `npm run ship`: an app-extension target
