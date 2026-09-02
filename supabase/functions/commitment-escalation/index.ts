@@ -13,7 +13,9 @@
 // by default and no guardian rung is built here — a follow-up commit adds it once the founder
 // confirms the default and the guardianship link (0008). This fn ships L2 + L3 only.
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
-import { digestBody, breakthroughCopy, LATE_ACTION_LABEL } from './logic.ts';
+import { digestBody, breakthroughCopy, platformCopy, LATE_ACTION_LABEL } from './logic.ts';
+import { ApnsClient, apnsFromEnv } from '../_shared/apns.ts';
+import { pushLiveActivity, loadLiveCard } from '../_shared/rollcall-live-send.ts';
 import { signCoachCode, signRollCallCode } from '../_shared/rollcall-code.ts';
 import { COACH_DIGEST_CATEGORY, ROLLCALL_CHANNEL, rollCallCategoryId } from '../_shared/rollcall-category.ts';
 
@@ -122,18 +124,21 @@ Deno.serve(async (req: Request) => {
     // Durable row first (the reminder rule): a "You're late" the athlete reads at 7 is still the
     // record of what OnStandard told them at 6:05, whether or not the push landed.
     for (const [athleteId, r] of rowByAthlete) {
-      const c = breakthroughCopy(r.type, r.title);
+      // The bell row is written from the SAME composer as the push, with the same clock, so the
+      // record an athlete reads at 07:00 says exactly what their lock screen said at 06:08.
+      const c = breakthroughCopy(r.type, r.title, r.respond_by_at, now);
       try {
         await svc.rpc('record_commitment_reminder', { p_athlete: athleteId, p_title: c.title, p_body: c.body });
       } catch { /* best-effort */ }
     }
     const { data: toks } = await svc
-      .from('device_tokens').select('token,user_id').in('user_id', breakAthletes);
+      .from('device_tokens').select('token,user_id,platform').in('user_id', breakAthletes);
     const messages: Array<Record<string, unknown>> = [];
-    for (const t of (toks ?? []) as Array<{ token: string; user_id: string }>) {
+    for (const t of (toks ?? []) as Array<{ token: string; user_id: string; platform: string | null }>) {
       const r = rowByAthlete.get(t.user_id);
       if (!r) continue;
-      const c = breakthroughCopy(r.type, r.title);
+      const c = breakthroughCopy(r.type, r.title, r.respond_by_at, now);
+      const pc = platformCopy(c, t.platform);
       // The late push is answerable from the lock screen too (0211). A wake-up carries a fresh
       // code that lasts until the roll call closes, and a "Check in now" button rather than the
       // on-time label, so the athlete cannot mistake a late answer for an on-time one. The RPC
@@ -148,8 +153,9 @@ Deno.serve(async (req: Request) => {
         : '';
       messages.push({
         to: t.token,
-        title: c.title,
-        body: c.body,
+        title: pc.title,
+        ...(pc.subtitle ? { subtitle: pc.subtitle } : {}),
+        body: pc.body,
         data: { route: `roll-call/${r.instance_id}`, code, action_label: code ? LATE_ACTION_LABEL : null, from_coach: false },
         categoryId: code ? rollCallCategoryId(LATE_ACTION_LABEL) : undefined,
         channelId: ROLLCALL_CHANNEL,
@@ -160,6 +166,37 @@ Deno.serve(async (req: Request) => {
     }
     await push(messages);
     breakSent = messages.length;
+  }
+
+  // -------------------------------------------------------------- Live Activity: turn it red
+  // The card that has been on the athlete's lock screen since 6:00 becomes the LATE state, with an
+  // alert so the phone lights up again. Optional in every direction: no APNs key, no registered
+  // iPhone, or no activity ever started all end here quietly.
+  const live = { started: 0, updated: 0, ended: 0, revoked: 0, skipped: 0 };
+  const apnsCfg = apnsFromEnv((k) => Deno.env.get(k));
+  if (apnsCfg) {
+    const apns = new ApnsClient(apnsCfg); // ONE client: it caches the provider token Apple rate-limits.
+    const nowMs = Date.now();
+    const wake = rows.filter((r) => r.type === 'morning_roll_call');
+    const byInstance = new Map<string, Missed[]>();
+    for (const r of wake) {
+      const list = byInstance.get(r.instance_id) ?? [];
+      list.push(r);
+      byInstance.set(r.instance_id, list);
+    }
+    for (const [instanceId, missedRows] of byInstance) {
+      const card = await loadLiveCard(svc, instanceId);
+      if (!card) continue;
+      const c = breakthroughCopy('morning_roll_call', card.title, card.respond_by_at, nowMs);
+      const r = await pushLiveActivity({
+        svc, apns, card, phase: 'late',
+        athleteIds: [...new Set(missedRows.map((x) => x.athlete_id))],
+        alert: { title: c.title, body: c.body, sound: 'default' },
+        nowMs,
+      });
+      live.started += r.started; live.updated += r.updated; live.ended += r.ended;
+      live.revoked += r.revoked; live.skipped += r.skipped;
+    }
   }
 
   // -------------------------------------------------------------- L3 coach digest
@@ -217,5 +254,5 @@ Deno.serve(async (req: Request) => {
     digests++;
   }
 
-  return json({ missed: rows.length, breakthrough: breakSent, digests });
+  return json({ missed: rows.length, breakthrough: breakSent, digests, live });
 });

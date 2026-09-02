@@ -18,7 +18,9 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { signRollCallCode } from '../_shared/rollcall-code.ts';
 import { rollCallCategoryId, ROLLCALL_CHANNEL } from '../_shared/rollcall-category.ts';
-import { composeReminderPush, codeDeadlineMs, type ReminderRow } from './logic.ts';
+import { composeReminderPush, codeDeadlineMs, platformCopy, isInitialPush, type ReminderRow } from './logic.ts';
+import { ApnsClient, apnsFromEnv } from '../_shared/apns.ts';
+import { pushLiveActivity, loadLiveCard } from '../_shared/rollcall-live-send.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -102,17 +104,21 @@ Deno.serve(async (req: Request) => {
 
   // Then push, best-effort. One Expo request per batch of tokens.
   const athleteIds = [...new Set(due.map((d) => d.athlete_id))];
+  // `platform` (0028) decides which shape of the copy this device can render: iOS draws a real
+  // title/subtitle/body hierarchy, Android draws no subtitle at all. Sending the iOS shape to an
+  // Android phone silently throws away whichever half lived in the subtitle.
   const { data: toks } = await svc
-    .from('device_tokens').select('token,user_id').in('user_id', athleteIds);
+    .from('device_tokens').select('token,user_id,platform').in('user_id', athleteIds);
 
   const byAthlete = new Map<string, Due>();
   for (const d of due) if (!byAthlete.has(d.athlete_id)) byAthlete.set(d.athlete_id, d);
 
   const messages: Array<Record<string, unknown>> = [];
-  for (const t of (toks ?? []) as Array<{ token: string; user_id: string }>) {
+  for (const t of (toks ?? []) as Array<{ token: string; user_id: string; platform: string | null }>) {
     const d = byAthlete.get(t.user_id);
     if (!d) continue;
     const c = copy.get(d)!;
+    const pc = platformCopy(c, t.platform);
     // The signed code proves one athlete + one instance — minted fresh per push so a stale/replayed
     // notification can't ack a different roll call. It lasts the whole late window (0211): a tap
     // at 6:40 on the 6:00 notification records a LATE, not an "expired"; the RPC judges the time.
@@ -124,8 +130,10 @@ Deno.serve(async (req: Request) => {
       : '';
     messages.push({
       to: t.token,
-      title: c.title,
-      body: c.body,
+      title: pc.title,
+      // iOS only; Expo drops it on Android, which is why platformCopy already folded it away there.
+      ...(pc.subtitle ? { subtitle: pc.subtitle } : {}),
+      body: pc.body,
       // The tap lands on the commitment itself, not Home — the last inch of the loop. `code` lets
       // a lock-screen action button ack without opening the app; empty when the secret isn't set.
       data: { route: `roll-call/${d.instance_id}`, code, action_label: d.action_label, from_coach: c.fromCoach },
@@ -138,6 +146,41 @@ Deno.serve(async (req: Request) => {
       priority: 'high',
       sound: 'default',
     });
+  }
+
+  // ---------------------------------------------------------------- iOS Live Activity
+  // The notification above is what RECORDS the tap (its action button works while the phone is
+  // locked). This is what makes the roll call PRESENT: a card the athlete's iPhone draws and keeps
+  // on the lock screen, with a countdown it ticks itself. Entirely optional — no APNs key, no
+  // registered iPhone, or an un-migrated stack all end here as a quiet no-op.
+  const live = { started: 0, updated: 0, ended: 0, revoked: 0, skipped: 0 };
+  const apnsCfg = apnsFromEnv((k) => Deno.env.get(k));
+  if (apnsCfg) {
+    const apns = new ApnsClient(apnsCfg); // ONE client: it caches the provider token Apple rate-limits.
+    const byInstance = new Map<string, Due[]>();
+    for (const d of due) {
+      if (d.type !== 'morning_roll_call') continue;
+      const list = byInstance.get(d.instance_id) ?? [];
+      list.push(d);
+      byInstance.set(d.instance_id, list);
+    }
+    for (const [instanceId, rows] of byInstance) {
+      const card = await loadLiveCard(svc, instanceId);
+      if (!card) continue;
+      // The rung that fires AT the start time opens the activity; any later rung updates it.
+      const phase = isInitialPush(rows[0]) ? 'initial' : 'reminder';
+      const c = copy.get(rows[0])!;
+      const r = await pushLiveActivity({
+        svc, apns, card, phase,
+        athleteIds: [...new Set(rows.map((x) => x.athlete_id))],
+        // The card is already on screen at REMINDER, so the alert is what makes the phone light up
+        // a second time. Same words the notification carries, so the two surfaces never disagree.
+        alert: { title: c.title, body: c.subtitle ?? c.body, sound: 'default' },
+        nowMs: now,
+      });
+      live.started += r.started; live.updated += r.updated; live.ended += r.ended;
+      live.revoked += r.revoked; live.skipped += r.skipped;
+    }
   }
 
   let pushed = 0;
@@ -154,5 +197,5 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  return json({ sent: recorded, pushed, claimed: due.length, materialized });
+  return json({ sent: recorded, pushed, claimed: due.length, materialized, live });
 });

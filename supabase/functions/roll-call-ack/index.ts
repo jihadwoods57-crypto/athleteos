@@ -5,6 +5,8 @@ import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { verifyRollCallCode } from '../_shared/rollcall-code.ts';
 import { evaluateFlag, type FlagRow } from '../_shared/feature-flags.ts';
 import { httpStatusFor } from './logic.ts';
+import { ApnsClient, apnsFromEnv } from '../_shared/apns.ts';
+import { pushLiveActivity, loadLiveCard } from '../_shared/rollcall-live-send.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -61,5 +63,27 @@ Deno.serve(async (req: Request) => {
     const reason = /no commitment/i.test(msg) ? 'no_row' : 'db_error';
     return json({ ok: false, error: reason }, httpStatusFor(reason));
   }
+  // The Live Activity is still on the lock screen counting down. Close the loop on it immediately:
+  // the card becomes the answered state and ends, so the athlete's own screen confirms the tap
+  // rather than continuing to count toward a deadline they have already met. No alert — the
+  // athlete is holding the phone, and lighting it up to tell them what they just did is noise.
+  //
+  // Deliberately AFTER the ack is recorded and never able to fail it: a Live Activity that cannot
+  // be updated is a cosmetic problem, and the answer is already durable.
+  try {
+    const apnsCfg = apnsFromEnv((k) => Deno.env.get(k));
+    if (apnsCfg) {
+      const card = await loadLiveCard(svc, v.claims.instanceId);
+      if (card) {
+        const at = typeof data === 'string' ? data : new Date().toISOString();
+        await pushLiveActivity({
+          svc, apns: new ApnsClient(apnsCfg), card, phase: 'answered',
+          athleteIds: [v.claims.athleteId],
+          checkedInAt: new Map([[v.claims.athleteId, at]]),
+        });
+      }
+    }
+  } catch { /* never let the card cost us the ack */ }
+
   return json({ ok: true, acknowledged_at: data });
 });

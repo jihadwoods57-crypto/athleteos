@@ -1,4 +1,4 @@
-import { composeReminderPush, isInitialPush, minutesLeft, clockIn, codeDeadlineMs, pushBody, PUSH_BODY_MAX_BYTES, type ReminderRow } from './logic';
+import { composeReminderPush, isInitialPush, minutesLeft, clockIn, codeDeadlineMs, pushBody, platformCopy, PUSH_BODY_MAX_BYTES, type ReminderRow } from './logic';
 
 const base: ReminderRow = {
   athlete_id: 'a', instance_id: 'i', title: 'Wake-Up Roll Call',
@@ -23,43 +23,71 @@ describe('isInitialPush', () => {
 });
 
 describe('composeReminderPush: the three lock-screen states', () => {
-  it('INITIAL speaks as the coach, both names on the title line, the message verbatim', () => {
+  it('INITIAL puts the COACH NAME in the title and the roll call in the subtitle', () => {
     const p = composeReminderPush(base, Date.parse('2026-09-01T10:00:20Z'));
     expect(p.fromCoach).toBe(true);
-    expect(p.title).toBe("Coach D'Onofrio · Wake-Up Roll Call");
-    expect(p.body).toBe('Everyone up and ready to go?\n\nScout meet at 7 AM.');
+    expect(p.title).toBe("Coach D'Onofrio");
+    expect(p.subtitle).toBe('Wake-Up Roll Call · up by 6:05 AM');
+    expect(p.body).toBe(base.message);
     expect(p.truncated).toBe(false);
   });
-  it('INITIAL with no message never invents words in the coach name', () => {
+  it('INITIAL folds both names into one title for Android, which has no subtitle', () => {
+    const p = composeReminderPush(base, Date.parse('2026-09-01T10:00:20Z'));
+    expect(p.androidTitle).toBe("Coach D'Onofrio · Wake-Up Roll Call · up by 6:05 AM");
+    expect(platformCopy(p, 'android').subtitle).toBeNull();
+    expect(platformCopy(p, 'ios').subtitle).toBe('Wake-Up Roll Call · up by 6:05 AM');
+    // An unknown platform is treated as the one that cannot render a subtitle: never drop copy.
+    expect(platformCopy(p, null).title).toBe(p.androidTitle);
+  });
+  it('INITIAL with no message never invents words in the coach name, and adds no subtitle', () => {
     const p = composeReminderPush({ ...base, message: '  ' }, Date.parse('2026-09-01T10:00:20Z'));
     expect(p.fromCoach).toBe(false);
     expect(p.title).toBe('Wake-Up Roll Call');
+    expect(p.subtitle).toBeNull();
+    expect(p.androidTitle).toBe('Wake-Up Roll Call');
     expect(p.body).toBe('Check in by 6:05 AM.');
   });
-  it('REMINDER speaks as OnStandard with the minutes left', () => {
+  it('REMINDER leads with the TIME LEFT, the one fact that changed since the last push', () => {
     const p = composeReminderPush({ ...base, offset_min: 2, fires_at: '2026-09-01T10:03:00Z' },
       Date.parse('2026-09-01T10:03:10Z'));
     expect(p.fromCoach).toBe(false);
-    expect(p.title).toBe('Wake-Up Roll Call');
-    expect(p.body).toBe("You haven't checked in yet. 2 minutes remaining.");
+    expect(p.title).toBe('2 minutes left');
+    expect(p.subtitle).toBe('Wake-Up Roll Call');
+    expect(p.body).toBe('On Standard until 6:05 AM.');
     expect(p.title).not.toContain("D'Onofrio");
+    expect(p.androidTitle).toBe('2 minutes left · Wake-Up Roll Call');
   });
   it('singularises one minute and never says zero', () => {
     const one = composeReminderPush({ ...base, offset_min: 1, fires_at: '2026-09-01T10:04:00Z' },
       Date.parse('2026-09-01T10:04:05Z'));
-    expect(one.body).toBe("You haven't checked in yet. 1 minute remaining.");
+    expect(one.title).toBe('1 minute left');
     expect(minutesLeft(base, Date.parse('2026-09-01T10:04:59Z'))).toBe(1);
     expect(minutesLeft(base, Date.parse('2026-09-01T10:05:30Z'))).toBe(1);
   });
   it('uses the last-call line at offset zero', () => {
     const p = composeReminderPush({ ...base, offset_min: 0, fires_at: '2026-09-01T10:05:00Z' },
       Date.parse('2026-09-01T10:05:10Z'));
-    expect(p.body).toBe('Last call. Your coach is waiting.');
+    expect(p.title).toBe('Last call');
+    expect(p.body).toBe('Your coach is waiting.');
+  });
+  it('never writes the app name into our own copy (the OS draws it)', () => {
+    for (const row of [base,
+      { ...base, offset_min: 2, fires_at: '2026-09-01T10:03:00Z' },
+      { ...base, message: '' }]) {
+      const p = composeReminderPush(row, Date.parse('2026-09-01T10:03:10Z'));
+      expect(`${p.title} ${p.subtitle ?? ''} ${p.body}`).not.toContain('OnStandard');
+    }
   });
   it('leaves every other commitment type exactly as before', () => {
     const p = composeReminderPush({ ...base, type: 'practice', title: 'Practice', body: '15 minutes left to respond.' },
       Date.parse('2026-09-01T10:00:00Z'));
-    expect(p).toEqual({ title: 'Practice', body: '15 minutes left to respond.', fromCoach: false, truncated: false });
+    expect(p.title).toBe('Practice');
+    expect(p.subtitle).toBeNull();
+    expect(p.androidTitle).toBe('Practice');
+    expect(p.body).toBe('15 minutes left to respond.');
+    expect(p.androidBody).toBe('15 minutes left to respond.');
+    expect(p.fromCoach).toBe(false);
+    expect(p.truncated).toBe(false);
   });
 });
 
