@@ -2530,25 +2530,59 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* coach board (0211, re-based on the app's own type + spacing tokens 2026-09-02)
    Every size here is a --t-* step and every gap an --s* step. Muted copy is .co-note-sized
    (t-sm/600) because bare .ts is unstyled outside .sidebox and inherits the body size. */
-.wk-board .wk-count{display:flex;align-items:baseline;gap:6px}
-.wk-n{font-size:var(--t-3xl);font-weight:800;letter-spacing:var(--num-tight);line-height:1;font-variant-numeric:tabular-nums;color:var(--text)}
-.wk-n.g{color:var(--green-bright)}
-.wk-of{font-size:var(--t-lg);font-weight:800;color:var(--text-3);font-variant-numeric:tabular-nums}
-.wk-cl{font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-left:2px}
-.wk-board .xsegs{margin-top:var(--s3)}
-.wk-split{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.45;padding-top:var(--s2)}
-.wk-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2);padding-top:var(--s3)}
+/* The header: state on the left, one ring on the right, three columns under both. The ring is the
+   only progress read on this screen (the segmented bar and the "N / T accounted for" line said the
+   same thing beside it), so its tone token drives the whole card: g green, a amber, r red,
+   p purple (a review to rule on), b blue (not open yet). */
+.wk-hero{display:flex;align-items:flex-start;gap:var(--s4)}
+.wk-heroL{flex:1;min-width:0}
+.wk-phase{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--text-3)}
+.wk-heroT{font-size:var(--t-2xl);font-weight:800;letter-spacing:var(--num-tight);line-height:1.1;color:var(--text);margin-top:var(--s1)}
+.wk-ring{position:relative;flex:none;width:64px;height:64px}
+.wk-ring svg{display:block;transform:rotate(-90deg)}
+.wk-ring circle{fill:none;stroke-width:5;stroke-linecap:round}
+.wk-ring .wk-ring-t{stroke:var(--hairline)}
+.wk-ring .wk-ring-v{stroke:var(--text-3);transition:stroke-dasharray .3s cubic-bezier(.22,1,.36,1)}
+.wk-ring.g .wk-ring-v{stroke:var(--green-bright)} .wk-ring.a .wk-ring-v{stroke:var(--amber-bright)}
+.wk-ring.r .wk-ring-v{stroke:var(--red)} .wk-ring.p .wk-ring-v{stroke:var(--purple-bright)}
+.wk-ring.b .wk-ring-v{stroke:var(--blue-bright)}
+.wk-ring-n{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:var(--t-lg);font-weight:800;letter-spacing:var(--num-tight);font-variant-numeric:tabular-nums;color:var(--text)}
+.wk-ring-n span{font-size:var(--t-xs);font-weight:700;color:var(--text-3)}
+@media (prefers-reduced-motion:reduce){.wk-ring .wk-ring-v{transition:none}}
+.wk-split{font-size:var(--t-sm);font-weight:600;color:var(--text-3);line-height:1.45;padding-top:var(--s3)}
+.wk-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2);padding-top:var(--s4)}
 .wk-stat{padding-top:var(--s2);border-top:2px solid var(--hairline)}
 .wk-stat b{display:block;font-size:var(--t-2xl);font-weight:800;letter-spacing:var(--num-tight);font-variant-numeric:tabular-nums;line-height:1}
-.wk-stat span{display:block;font-size:var(--t-eyebrow);font-weight:800;letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--text-3);margin-top:3px}
+.wk-stat span{display:block;font-size:var(--t-eyebrow);font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3);margin-top:3px}
 .wk-stat.g{border-top-color:var(--green-bright)} .wk-stat.g b{color:var(--green-bright)}
 .wk-stat.a{border-top-color:var(--amber-bright)} .wk-stat.a b{color:var(--amber-bright)}
 .wk-stat.r{border-top-color:var(--red)} .wk-stat.r b{color:var(--red)}
-.wk-status{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.45;padding-top:var(--s3)}
-.wk-done{margin-top:var(--s3)}
-.wk-done .eyebrow{margin:0 0 var(--s2)}
-.wk-doneline{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.5}
-.wk-doneline b{color:var(--text);font-weight:800;font-variant-numeric:tabular-nums}
+.wk-status{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.45;padding-top:var(--s2)}
+
+/* A section heading with a trailing control or count: history's View all, the attention count. */
+.wk-secth{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);margin:var(--s5) 2px var(--s2)}
+/* .eyebrow is space-between app-wide; these two carry an icon next to their text, so the row
+   packs left and the trailing control lives in .wk-secth itself, not inside the heading. */
+.wk-secth .eyebrow,.wk-msgh .eyebrow{justify-content:flex-start;gap:7px}
+.wk-secth .eyebrow svg,.wk-msgh .eyebrow svg{flex:none}
+.wk-secth .eyebrow{display:flex;align-items:center;flex:1;min-width:0}
+.wk-secth .eyebrow.r{color:var(--red)}
+.wk-secth .eyebrow.a{color:var(--amber-bright)}
+.wk-secth .eyebrow.p{color:var(--purple-bright)}
+.wk-secth .btn{width:auto;flex:none;padding:0 14px}
+.wk-secth .xpill{flex:none}
+
+/* Everyone already settled, folded away by default: they need no decision, and three separate
+   card lists (Late, On Standard, Excused) were three headings saying what each row's pill says. */
+.wk-roster{margin-top:var(--s5)}
+.wk-roster>summary{display:flex;align-items:center;gap:6px;list-style:none;cursor:pointer;
+  padding:var(--s3) 2px;font-size:var(--t-eyebrow);font-weight:800;letter-spacing:var(--track-eyebrow);
+  text-transform:uppercase;color:var(--text-2)}
+.wk-roster>summary::-webkit-details-marker{display:none}
+.wk-roster>summary svg{flex:none;transition:transform .18s ease}
+.wk-roster[open]>summary svg{transform:rotate(90deg)}
+.wk-roster .card{margin-top:var(--s1)}
 /* the message card: compact in both states */
 .wk-msgcard{margin-top:var(--s3);padding:var(--s4) var(--s5)}
 .wk-msgh{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);margin-bottom:var(--s2)}
@@ -2562,7 +2596,6 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .wk-msgcard .btn-row.mt{margin-top:var(--s3)}
 #vc-remind{width:100%;margin-top:var(--s3)}
 .wk-pinghint{font-size:var(--t-sm);font-weight:600;color:var(--text-3);text-align:center;line-height:1.45;padding:var(--s2) var(--s2) 0}
-.wk-allin{margin-top:var(--s3)}
 /* athlete rows: name + pill on one line, the answer under it, actions in their own row */
 .wk-row{display:block;padding:var(--s3) 2px;cursor:default}
 .wk-rowtop{display:flex;align-items:center;justify-content:space-between;gap:var(--s3)}
@@ -2572,9 +2605,12 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .wk-rowacts{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s2)}
 .wk-rowacts .chip{height:40px;padding:0 var(--s3);font-size:var(--t-sm)}
 .wk-dispute{color:var(--amber-bright);font-weight:700}
-.wk-histline{font-size:var(--t-sm);font-weight:600;color:var(--text-2);padding:var(--s3) 0 var(--s1)}
-.wk-hist .lv{font-variant-numeric:tabular-nums}
 .wk-hist .ls{overflow-wrap:anywhere}
+/* The day's verdict, right-aligned: the one thing a coach scans down the column for. */
+.wk-histv{flex:none;font-size:var(--t-sm);font-weight:700;color:var(--text-3);text-align:right;
+  font-variant-numeric:tabular-nums;margin-left:var(--s3)}
+.wk-histv.g{color:var(--green-bright)} .wk-histv.a{color:var(--amber-bright)}
+.wk-histv.r{color:var(--red)} .wk-histv.p{color:var(--purple-bright)}
 
 /* coach Home card: the same 12px step every Home module keeps between itself and the next */
 .wk-homecard{cursor:pointer;margin:var(--s3) 0}

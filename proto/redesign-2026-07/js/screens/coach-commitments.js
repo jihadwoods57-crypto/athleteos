@@ -131,6 +131,9 @@ function wakeupHomeCard(inst) {
 /* The coach's 14-day read for the roll call on screen. Keyed by commitment id; null rows = the
    fetch failed (said so, never "no history"). */
 const SUMMARY = { forId: null, rows: null, failed: false };
+/* History shows five days; "View all" opens the fourteen. Reset with every new commitment fetch,
+   so an expanded list never carries over onto a different roll call. */
+let HIST_ALL = false;
 /* Which day a summary tap asked for, per instance id. Home-tapped instances are absent and load
    today, so opening a past day never leaks into the next visit to today's board. */
 const BOARD_DAY_FOR = new Map();
@@ -166,57 +169,98 @@ function wakeupRow(r, kind, inst, clock, phase) {
   const note = r.source === SOURCE.OVERRIDE && r.correction_note ? `<div class="ls wk-note-line">${esc(r.corrected_by_name || 'Coach')}: “${esc(r.correction_note)}”</div>`
     : r.source === SOURCE.ACCEPTED && r.reviewer_name ? `<div class="ls wk-note-line">Accepted by ${esc(r.reviewer_name)}${r.review_note ? `: “${esc(r.review_note)}”` : ''}</div>`
     : r.review_resolution && r.review_resolution !== 'accepted' ? `<div class="ls wk-note-line">Kept as ${esc(r.review_resolution)} by ${esc(r.reviewer_name || 'coach')}</div>` : '';
+  /* Only the buttons that can actually do something. The old markup emitted an action bar for
+     every row and relied on a condition that was true in every branch, so a settled row carried an
+     empty 40px strip under it. */
+  const acts = [
+    kind === 'review' ? `<button class="chip" data-wk-resolve="accepted" data-wk-resp="${esc(r.response_id)}">Accept tap time</button>
+      <button class="chip" data-wk-resolve="${phase === 'closed' ? 'missed' : 'late'}" data-wk-resp="${esc(r.response_id)}">Keep ${phase === 'closed' ? 'missed' : 'late'}</button>` : '',
+    canPing ? `<button class="chip" data-wk-ping="${esc(r.athlete_id)}" data-wk-inst="${esc(inst.instance_id)}">Ping</button>` : '',
+    // Excuse only where it changes something. It used to sit under every settled row, so an
+    // athlete who was already On Standard carried a button offering to excuse them from a morning
+    // they had answered.
+    kind === 'out' || kind === 'late' ? `<button class="chip" data-vc-excuse="${esc(r.athlete_id)}">Excuse</button>` : '',
+    kind === 'out' ? `<button class="chip" data-wk-override="${esc(r.response_id)}">Override</button>` : '',
+  ].filter(Boolean);
   return `
   <div class="lrow wk-row" data-wk-rowid="${esc(r.response_id)}">
     <div class="wk-rowtop"><div class="lt">${esc(r.name || 'Athlete')}</div>${pill}</div>
     <div class="ls">${esc(when)}</div>
     ${note}
     ${r.disputed_at ? `<div class="ls wk-dispute">Reported wrong by the ${CD.noun}${r.dispute_note ? esc(`: ${r.dispute_note}`) : ''}</div>` : ''}
-    ${(kind === 'review' || canPing || kind !== 'ex' || kind === 'out') ? `<div class="wk-rowacts">` : '<div class="wk-rowacts" hidden>'}
-        ${kind === 'review' ? `
-          <button class="chip" data-wk-resolve="accepted" data-wk-resp="${esc(r.response_id)}">Accept tap time</button>
-          <button class="chip" data-wk-resolve="${phase === 'closed' ? 'missed' : 'late'}" data-wk-resp="${esc(r.response_id)}">Keep ${phase === 'closed' ? 'missed' : 'late'}</button>` : ''}
-        ${canPing ? `<button class="chip" data-wk-ping="${esc(r.athlete_id)}" data-wk-inst="${esc(inst.instance_id)}">Ping</button>` : ''}
-        ${kind !== 'ex' && kind !== 'review' ? `<button class="chip" data-vc-excuse="${esc(r.athlete_id)}">Excuse</button>` : ''}
-        ${kind === 'out' ? `<button class="chip" data-wk-override="${esc(r.response_id)}">Override</button>` : ''}
-    </div>
+    ${acts.length ? `<div class="wk-rowacts">${acts.join('')}</div>` : ''}
   </div>`;
 }
 
+/** The 14-day record for this roll call. Five rows, then "View all" opens the rest: a coach reads
+ *  the last week at a glance and only asks for the tail deliberately. */
 function wakeupSummaryCard(inst) {
   if (SUMMARY.forId !== inst.commitment_id) return '';
   if (SUMMARY.failed) {
-    return `<h2 class="eyebrow">History</h2>
+    return `<h2 class="eyebrow">Recent history</h2>
     <div class="sidebox"><div class="req-icon b s38">${icon('clock', 17)}</div>
       <div><div class="tt">History didn’t load</div><div class="ts">This isn’t an empty record. It retries when you reopen this board.</div></div></div>`;
   }
   const rows = (SUMMARY.rows || []).filter((o) => o.instance_id !== inst.instance_id && o.instance_status !== 'cancelled');
   if (!rows.length) return '';
   const s = summarizeOccurrences(rows);
-  const line = s.occurrences
-    ? `Last ${s.occurrences} roll call${s.occurrences === 1 ? '' : 's'} · ${s.onStandard} On Standard${s.overrides ? ` (${s.overrides} by override)` : ''} · ${s.late} Late · ${s.missed} Missed${s.review ? ` · ${s.review} under review` : ''}`
-    : 'Earlier roll calls';
+  const shown = HIST_ALL ? rows.slice(0, 14) : rows.slice(0, 5);
   const day = (iso) => {
     const d = new Date(String(iso) + 'T12:00:00');
     return isNaN(d) ? String(iso) : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
   };
+  /* Each row carries its own verdict in the same words the header above uses. The aggregate line
+     that used to sit on top of this list said those numbers a second time; it now sits once, at
+     the foot, where it reads as the trend rather than as a duplicate of the rows. */
+  const tail = (o) => [
+    Number(o.pending) ? `${o.pending} pending` : '',
+    Number(o.missed) ? `${o.missed} missed` : '',
+    Number(o.late) ? `${o.late} late` : '',
+    Number(o.review) ? `${o.review} to review` : '',
+    Number(o.excused) ? `${o.excused} excused` : '',
+  ].filter(Boolean).join(' · ');
+  const tone = (o) => (Number(o.missed) || Number(o.pending) ? 'r' : Number(o.review) ? 'p' : Number(o.late) ? 'a' : 'g');
   return `
-  <h2 class="eyebrow">History</h2>
+  <div class="wk-secth">
+    <h2 class="eyebrow wk-inline">${icon('clock', 14)} Recent history</h2>
+    ${rows.length > 5 ? `<button class="btn ghost xs" id="wk-hist-all">${HIST_ALL ? 'Show less' : `View all ${rows.length}`}</button>` : ''}
+  </div>
   <section class="card rows">
-    <div class="wk-histline">${esc(line)}</div>
-    ${rows.slice(0, 14).map((o) => `
-    <div class="lrow wk-hist" data-wk-day="${esc(o.occurs_on)}" data-wk-inst="${esc(o.instance_id)}">
+    ${shown.map((o) => `
+    <div class="lrow wk-hist" data-wk-day="${esc(o.occurs_on)}" data-wk-inst="${esc(o.instance_id)}" role="button" tabindex="0">
       <div class="lm"><div class="lt">${esc(day(o.occurs_on))}</div>
-        <div class="ls">${Number(o.pending) > 0 ? `${o.pending} pending · ` : ''}${o.on_standard} On Standard${Number(o.overrides) ? ` (${o.overrides} override${Number(o.overrides) === 1 ? '' : 's'})` : ''} · ${o.late} Late · ${o.missed} Missed${Number(o.review) ? ` · ${o.review} review` : ''}${Number(o.excused) ? ` · ${o.excused} excused` : ''}</div></div>
-      <div class="lv">${Number(o.total) ? `${Number(o.on_standard) + Number(o.late)} of ${o.total}` : ''}</div>
+        <div class="ls">${Number(o.total) ? `${Number(o.on_standard) + Number(o.late)} of ${o.total} answered` : 'Nobody scheduled'}${Number(o.overrides) ? ` · ${o.overrides} override${Number(o.overrides) === 1 ? '' : 's'}` : ''}</div></div>
+      <div class="wk-histv ${tail(o) ? tone(o) : 'g'}">${tail(o) ? esc(tail(o)) : 'All in'}</div>
       ${icon('chevron', 14, 'class="ic-chevron"')}
     </div>`).join('')}
-  </section>`;
+  </section>
+  <div class="ts wk-hint">${esc(`Last ${s.occurrences} roll call${s.occurrences === 1 ? '' : 's'}: ${s.onStandard} On Standard, ${s.late} Late, ${s.missed} Missed.`)}</div>`;
 }
 
-/** The live roll-call board for a wake-up. Verdict groups in the order a coach reads them at
- *  6:05: what needs a decision, who is still out, who was late, who is up. The header counts
- *  ATHLETE check-ins; a coach override is printed beside them, never inside them. */
+/* The ring in the header. One arc, one number: how many of the roster have an answer. It replaces
+   the progress bar AND the "N / T accounted for" line that used to say the same thing twice. */
+const RING_C = 2 * Math.PI * 27;
+function wakeupRing(done, total, tone) {
+  const frac = total ? Math.max(0, Math.min(1, done / total)) : 0;
+  return `<div class="wk-ring ${tone}" role="img" aria-label="${done} of ${total} accounted for">
+    <svg viewBox="0 0 64 64" width="64" height="64" aria-hidden="true">
+      <circle class="wk-ring-t" cx="32" cy="32" r="27"></circle>
+      <circle class="wk-ring-v" cx="32" cy="32" r="27" stroke-dasharray="${(frac * RING_C).toFixed(2)} ${RING_C.toFixed(2)}"></circle>
+    </svg>
+    <div class="wk-ring-n">${done}<span>/${total}</span></div>
+  </div>`;
+}
+
+/** The live roll-call board for a wake-up.
+ *
+ *  ONE reading of the morning, then the work. This header used to state the same counts five ways
+ *  (a big "N / T accounted for", a progress bar, a prose split, three stat columns, and a separate
+ *  "Roll call complete" card once it closed), and then split the roster across five card lists.
+ *  Now: one header (state, ring, three columns), one Needs attention list with the actions inside
+ *  it, one collapsed roster for everyone already settled, one history. Nothing is stated twice.
+ *
+ *  The ring counts everyone whose morning HAS an answer; the columns split those answers by
+ *  verdict. A coach override is printed beside the check-ins, never inside them. */
 function wakeupBoard(inst, back) {
   const now = new Date().toISOString();
   const off = offsetFor(inst, now);
@@ -224,60 +268,92 @@ function wakeupBoard(inst, back) {
   const g = groupByVerdict(inst, now);
   const c = verdictCounts(inst, now);
   const phase = wakeupPhase(inst, now);
-  const grace = graceMinOf(inst);
   const dl = deadlineOf(inst);
   const close = closesAtOf(inst);
   const out = g.pending.length + g.still_out.length;
   const title = inst.title || 'Wake-Up Roll Call';
+
+  /* The subtitle is the schedule, stated once: who, and the window they are judged on. The grace
+     minutes used to ride here as a third clause and then get restated by the status line below. */
   const ctx = [
     inst.audience_label || (CD.kind === 'practice' ? 'All clients' : 'Entire team'),
-    inst.starts_min != null ? fmtMin(inst.starts_min) : '',
-    grace ? `${grace} min grace` : '',
+    inst.starts_min != null && dl ? `${fmtMin(inst.starts_min)} to ${clock(dl)}`
+      : (inst.starts_min != null ? fmtMin(inst.starts_min) : ''),
   ].filter(Boolean).join(' · ');
+
+  /* Which day is on screen. A tap in the history opens a past board, and nothing on it used to say
+     so: the header read exactly like this morning's. */
+  const dayEyebrow = !inst.occurs_on || inst.occurs_on === todayISO() ? 'Today' : (() => {
+    const d = new Date(String(inst.occurs_on) + 'T12:00:00');
+    return isNaN(d) ? String(inst.occurs_on) : d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+  })();
+
+  /* State, not a count. The numbers are the columns' job. */
+  const state = phase === 'before' ? 'Not open yet'
+    : phase === 'open' ? 'In progress'
+    : phase === 'late' ? 'Grace ended'
+    : (out || c.missed) ? 'Closed' : 'Complete';
   const statusLine = phase === 'before' ? `Opens ${clock(opensAtOf(inst))}. On Standard until ${clock(dl)}.`
     : phase === 'open' ? `On Standard until ${clock(dl)}. Closes ${clock(close)}.`
-    : phase === 'late' ? `Grace ended ${clock(dl)}. Late check-ins count until ${clock(close)}.`
-    : `Closed ${clock(close)}.`;
+    : phase === 'late' ? `Late check-ins still count until ${clock(close)}.`
+    : `Closed ${clock(close)}. Missed is final.`;
   const outLabel = phase === 'closed' ? 'Missed' : phase === 'late' ? 'Still out' : 'Pending';
+  /* One accent for the whole header: a decision to make beats a body missing beats clean. */
+  const tone = c.review ? 'p'
+    : (phase === 'closed' || phase === 'late') && (out || c.missed) ? 'r'
+    : phase === 'before' ? 'b'
+    : out ? 'a' : 'g';
+
+  /* Everything the three columns do NOT already say. "N checked in" is gone from here: it was the
+     On Standard column read back out in prose. */
   const split = [
-    `${c.checkedIn} checked in`,
-    c.overrides ? `${c.overrides} coach override${c.overrides === 1 ? '' : 's'}` : '',
+    c.overrides ? `${c.overrides} by coach override` : '',
     c.accepted ? `${c.accepted} tap time accepted` : '',
     c.excused ? `${c.excused} excused` : '',
-    c.review ? `${c.review} under review` : '',
   ].filter(Boolean).join(' · ');
-  const section = (label, list, kind) => list.length ? `
-    <h2 class="eyebrow">${esc(label)} <span class="opt">· ${list.length}</span></h2>
-    <section class="card rows">${list.map((r) => wakeupRow(r, kind, inst, clock, phase)).join('')}</section>` : '';
+
+  /* Who needs the coach: a sync conflict to rule on, and anyone with no answer. One list, because
+     they take the same thirty seconds and used to sit two headings apart. */
+  const attention = [...g.review, ...g.still_out, ...g.pending];
+  /* Inside the grace, an unanswered row is not an alert: they still have minutes. The heading only
+     turns red once the grace has run out, and says so in the verb. */
+  const attnLabel = g.review.length && !g.still_out.length && !g.pending.length ? 'Needs your call'
+    : phase === 'open' || phase === 'before' ? 'Waiting on'
+    : 'Needs attention';
+  const attnTone = g.review.length ? 'p' : phase === 'open' || phase === 'before' ? 'a' : 'r';
+  const settled = [...g.on_standard, ...g.late, ...g.excused];
+  const rowKind = (r) => (r.verdict === VERDICT.REVIEW ? 'review'
+    : r.verdict === VERDICT.ON_STANDARD ? 'on'
+    : r.verdict === VERDICT.LATE ? 'late'
+    : r.verdict === VERDICT.EXCUSED ? 'ex' : 'out');
 
   return `
-  ${backHead(title, ctx, back)}
+  ${backHead(title, ctx, back, canSchedule() ? { id: 'wk-edit', label: 'Edit this roll call', icon: 'gear' } : null)}
 
   <section class="card pad wk-board">
-    <div class="wk-count"><span class="wk-n ${out || c.review ? '' : 'g'}">${c.accountedFor}</span><span class="wk-of">/ ${c.total}</span><span class="wk-cl">accounted for</span></div>
-    ${segBar(c.accountedFor, c.total, `${c.accountedFor} of ${c.total} accounted for`)}
-    <div class="wk-split">${esc(split)}</div>
-    <div class="wk-stats">
-      <div class="wk-stat g"><b>${c.onStandard}</b><span>On Standard</span></div>
-      <div class="wk-stat ${outLabel !== 'Pending' && out ? 'r' : ''}"><b>${out}</b><span>${outLabel}</span></div>
-      <div class="wk-stat ${c.late ? 'a' : ''}"><b>${c.late}</b><span>Late</span></div>
+    <div class="wk-hero">
+      <div class="wk-heroL">
+        <div class="wk-phase">${esc(dayEyebrow)}</div>
+        <div class="wk-heroT">${esc(state)}</div>
+        <div class="wk-status" id="wk-status-line">${esc(statusLine)}</div>
+      </div>
+      ${wakeupRing(c.accountedFor, c.total, tone)}
     </div>
-    <div class="wk-status" id="wk-status-line">${esc(statusLine)}</div>
+    <div class="wk-stats">
+      <div class="wk-stat ${c.onStandard ? 'g' : ''}"><b>${c.onStandard}</b><span>On Standard</span></div>
+      <div class="wk-stat ${c.late ? 'a' : ''}"><b>${c.late}</b><span>Late</span></div>
+      <div class="wk-stat ${out && phase !== 'open' && phase !== 'before' ? 'r' : ''}"><b>${out}</b><span>${esc(outLabel)}</span></div>
+    </div>
+    ${split ? `<div class="wk-split">${esc(split)}</div>` : ''}
   </section>
 
-  ${phase === 'closed' ? `
-  <section class="card pad wk-done">
-    <h2 class="eyebrow">Roll call complete</h2>
-    <div class="wk-doneline"><b>${c.onStandard} / ${c.counted}</b> On Standard${c.overrides ? ` (${c.overrides} by override)` : ''} · <b>${c.late}</b> Late · <b>${c.missed}</b> Missed${c.review ? ` · <b>${c.review}</b> under review` : ''}${c.excused ? ` · ${c.excused} excused` : ''}</div>
-  </section>` : ''}
-
   <section class="card wk-msgcard">
-    <div class="wk-msgh"><h2 class="eyebrow wk-inline">Your message today</h2><button class="btn ghost xs" id="wk-msg-edit">${inst.message ? 'Change' : 'Add'}</button></div>
+    <div class="wk-msgh"><h2 class="eyebrow wk-inline">${icon('message', 14)} Message for ${esc(dayEyebrow.toLowerCase())}</h2><button class="btn ghost xs" id="wk-msg-edit">${inst.message ? 'Change' : 'Add'}</button></div>
     ${inst.message ? `<p class="wk-msgp">${esc(inst.message)}</p>` : `<div class="wk-hint wk-hint-flush">No message. The roll call goes out with the time only.</div>`}
-    ${inst.message_override ? `<div class="wk-hint">Today only. Tomorrow uses your standing message.</div>` : ''}
+    ${inst.message_override ? `<div class="wk-hint">This day only. The next one uses your standing message.</div>` : ''}
     <div id="wk-msg-form" hidden>
-      <textarea class="ob-input wk-msg" id="wk-msg-ta" maxlength="1000" rows="3" aria-label="Today’s message">${esc(inst.message_override || inst.standing_message || inst.message || '')}</textarea>
-      <div class="wk-hint">${phase === 'before' ? 'Goes out with today’s roll call, in your name, exactly as written.' : 'Shows in the app now. A push already sent keeps its words.'}</div>
+      <textarea class="ob-input wk-msg" id="wk-msg-ta" maxlength="1000" rows="3" aria-label="Message for this roll call">${esc(inst.message_override || inst.standing_message || inst.message || '')}</textarea>
+      <div class="wk-hint">${phase === 'before' ? 'Goes out with this roll call, in your name, exactly as written.' : 'Shows in the app now. A push already sent keeps its words.'}</div>
       <div class="btn-row mt">
         <button class="btn green sm" id="wk-msg-save">Save for today</button>
         ${inst.message_override ? `<button class="btn ghost sm" id="wk-msg-clear">Use standing message</button>` : ''}
@@ -286,20 +362,22 @@ function wakeupBoard(inst, back) {
     </div>
   </section>
 
+  ${attention.length ? `
+  <div class="wk-secth">
+    <h2 class="eyebrow wk-inline ${attnTone}">${icon(attnTone === 'a' ? 'clock' : 'alert', 14)} ${esc(attnLabel)}</h2>
+    <span class="xpill ${attnTone === 'r' ? 'red' : attnTone === 'p' ? 'purple' : 'gold'}">${attention.length}</span>
+  </div>
+  <section class="card rows">${attention.map((r) => wakeupRow(r, rowKind(r), inst, clock, phase)).join('')}</section>
   ${out && phase !== 'closed' && phase !== 'before' ? `
   <button class="btn" id="vc-remind" data-inst="${esc(inst.instance_id)}">${icon('bell', 18)} Ping ${out} ${outLabel === 'Pending' ? 'pending' : 'still out'}</button>
-  <div class="wk-pinghint" id="wk-ping-hint">Only who’s still out gets it, with their own I’M UP button. One ping every ten minutes.</div>` : ''}
-  ${!out && !c.review && phase !== 'before' ? `
-  <div class="sidebox wk-allin">
-    <div class="req-icon g s38">${icon('check', 19)}</div>
-    <div><div class="tt">Everyone is accounted for</div><div class="ts">Nobody to chase.</div></div>
-  </div>` : ''}
+  <div class="wk-pinghint" id="wk-ping-hint">Only who’s still out gets it, with their own I’M UP button. One ping every ten minutes.</div>` : ''}` : ''}
 
-  ${section('Needs review', g.review, 'review')}
-  ${section(outLabel, [...g.still_out, ...g.pending], 'out')}
-  ${section('Late', g.late, 'late')}
-  ${section('On Standard', g.on_standard, 'on')}
-  ${section('Excused', g.excused, 'ex')}
+  ${settled.length ? `
+  <details class="wk-roster"${attention.length ? '' : ' open'}>
+    <summary>${icon('chevron', 14)} <span class="wk-rostl">${attention.length ? 'Everyone else' : 'Roster'}</span> <span class="opt">· ${settled.length}</span></summary>
+    <section class="card rows">${settled.map((r) => wakeupRow(r, rowKind(r), inst, clock, phase)).join('')}</section>
+  </details>` : ''}
+
   ${wakeupSummaryCard(inst)}
   <div class="wk-foot"></div>`;
 }
@@ -533,7 +611,7 @@ export const coachCommitments = {
     const inst = (VC.board || []).find((b) => b.instance_id === sub) || (VC.board || [])[0];
     if (inst && inst.type === 'morning_roll_call' && SUMMARY.forId !== inst.commitment_id) {
       // One fetch per commitment per visit; a failure is shown, never rendered as "no history".
-      SUMMARY.forId = inst.commitment_id; SUMMARY.rows = null; SUMMARY.failed = false;
+      SUMMARY.forId = inst.commitment_id; SUMMARY.rows = null; SUMMARY.failed = false; HIST_ALL = false;
       loadRollcallSummary(inst.commitment_id, 14).then((rows) => {
         if (SUMMARY.forId !== inst.commitment_id) return;
         if (rows === null) SUMMARY.failed = true; else SUMMARY.rows = rows;
@@ -612,6 +690,26 @@ export const coachCommitments = {
       if (!done) { b.disabled = false; b.textContent = label; return; }
       await repaint();
     }));
+
+    // The header's gear: edit the roll call itself. The board holds the instance, not the
+    // commitment row the composer needs, so fetch the schedule if this session never has.
+    const wkEdit = root.querySelector('#wk-edit');
+    if (wkEdit && inst) wkEdit.addEventListener('click', async () => {
+      wkEdit.disabled = true;
+      const bid = bookId();
+      let rows = RT.vcCommitments;
+      if (!Array.isArray(rows) && bid) { rows = await loadCommitments(bid, CD.kind); RT.vcCommitments = rows; }
+      const row = (rows || []).find((r) => r.id === inst.commitment_id);
+      wkEdit.disabled = false;
+      // No row means the schedule didn't load. Land on the list rather than an empty composer,
+      // which would look like a brand-new roll call and quietly create a second one on save.
+      if (!row) { location.hash = '#coach-commit-manage'; return; }
+      editWakeup(row);
+      location.hash = '#coach-wakeup-edit';
+    });
+
+    const histAll = root.querySelector('#wk-hist-all');
+    if (histAll) histAll.addEventListener('click', () => { HIST_ALL = !HIST_ALL; window.__render && window.__render(); });
 
     const msgEdit = root.querySelector('#wk-msg-edit');
     const msgForm = root.querySelector('#wk-msg-form');
