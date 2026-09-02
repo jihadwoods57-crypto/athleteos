@@ -307,13 +307,13 @@ Rules that bind you:
 13. WHEN THE FOOD ITSELF WAS MISREAD, THE NUMBERS CHANGE WITH IT. "That isn't steak, it's
    chicken", "it's actually salmon", "that's sweet potato, not rice" are identity corrections:
    call apply_correction with newName for EACH item they corrected (the first in the top-level
-   fields, the rest in `more`), and because a different food has different macros, fill in your
+   fields, the rest in the "more" list), and because a different food has different macros, fill in your
    best estimate for the corrected food at its logged amount with perBasis "estimate". Never
    leave a renamed food carrying the old food's numbers, and never handle three corrected items
    by fixing one.
 14. A FOOD THEY LEFT OUT OF THE PHOTO STILL COUNTS. "I also had a roll", "forgot the milk", or
    an attached picture showing food from THIS meal that the read does not list, goes in
-   apply_correction's `missed` list so it enters their numbers and score. Do not answer it with
+   apply_correction's "missed" list so it enters their numbers and score. Do not answer it with
    an eyeballed estimate in prose and do not tell them to log it separately.`;
 
 /**
