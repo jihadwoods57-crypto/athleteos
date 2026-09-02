@@ -1470,14 +1470,19 @@ select _ok(_try($f$ select ensure_commitment_instances(
 -- idempotent: calling it again must not duplicate
 select _try($f$ select ensure_commitment_instances(
     '77777777-1111-0000-0000-000000000001', null, current_date, current_date) $f$);
+-- 0211's resync materializes TOMORROW (team zone) on every create/edit. The probes in this and the
+-- next sections count rows per athlete and select "the" instance, so keep only today's here; the
+-- 0211/0212 sections that need future occurrences materialize them explicitly.
+select _superuser();
+delete from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on <> current_date;
 
 select _superuser();
 select _ok((select count(*) from commitment_instances
-             where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1') = 1,
+             where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date) = 1,
   'vc: re-materializing the same window creates no duplicate instance');
 select _ok((select count(*) from commitment_responses r
               join commitment_instances i on i.id = r.instance_id
-             where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1')
+             where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and i.occurs_on = current_date)
            = (select count(*) from team_members
                where team_id = '77777777-1111-0000-0000-000000000001' and status = 'active'),
   'vc: one response row seeded per active team member');
@@ -1490,12 +1495,12 @@ update commitment_instances set starts_at = now() - interval '1 minute', respond
  where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date;
 select _as('eeee0000-0000-0000-0000-0000000000e1');
 select _ok(_try($f$ select ack_commitment((select id from commitment_instances
-             where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1')) $f$) = 'ok',
+             where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date)) $f$) = 'ok',
   'vc: an athlete can acknowledge their own commitment');
 select _superuser();
 select _ok((select abs(extract(epoch from (now() - r.acknowledged_at))) < 60
               from commitment_responses r join commitment_instances i on i.id = r.instance_id
-             where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'
+             where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and i.occurs_on = current_date
                and r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
   'vc: the response time comes from the server clock');
 
@@ -1507,7 +1512,7 @@ select _ok(_try($f$ update commitment_responses set acknowledged_at = now() - in
   'vc: an athlete cannot back-date their own response with a direct write');
 select _ok(_try($f$ insert into commitment_responses (instance_id, athlete_id)
     values ((select id from commitment_instances
-              where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'),
+              where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date),
             'eeee0000-0000-0000-0000-0000000000e1') $f$) <> 'ok',
   'vc: direct insert into commitment_responses is refused (writes are RPC-only)');
 select _ok(_try($f$ update commitments set title = 'hacked'
@@ -1634,6 +1639,8 @@ update commitment_instances
        arrive_by_at = now() - interval '15 minutes',
        ends_at      = now() + interval '110 minutes'
  where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2';
+-- 0211's resync also materialized tomorrow; these probes select "the" instance, so keep today's.
+delete from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2' and occurs_on <> current_date;
 
 -- the minor (base_age 15) is refused until consent exists
 select _as('eeee0000-0000-0000-0000-0000000000e3');
@@ -1696,7 +1703,7 @@ select _ok(_try($f$ select complete_commitment((select id from commitment_instan
 
 -- a roll call has nothing to "complete"
 select _ok(_try($f$ select complete_commitment((select id from commitment_instances
-    where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'), 'manual') $f$) <> 'ok',
+    where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date), 'manual') $f$) <> 'ok',
   'vc2: a roll call cannot be "completed" — responding is the whole commitment');
 
 -- the device is only ever told about events that are armed right now, and only the COACH's place
@@ -1759,7 +1766,7 @@ select _try($f$ select ensure_commitment_instances(
 select _superuser();
 select _ok(exists (select 1 from commitment_responses r
                      join commitment_instances i on i.id = r.instance_id
-                    where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'
+                    where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and i.occurs_on = current_date
                       and r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e5'),
   '0140: an athlete who joined after materialization is backfilled into the roll call');
 
@@ -1774,12 +1781,12 @@ select _try($f$ select ensure_commitment_instances(
 select _superuser();
 select _ok(not exists (select 1 from commitment_responses r
                          join commitment_instances i on i.id = r.instance_id
-                        where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'
+                        where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and i.occurs_on = current_date
                           and r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e5'),
   '0140: an untouched row for someone who left the roster is cleared');
 select _ok(exists (select 1 from commitment_responses r
                      join commitment_instances i on i.id = r.instance_id
-                    where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'
+                    where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and i.occurs_on = current_date
                       and r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'
                       and r.acknowledged_at is not null),
   '0140: a row carrying a real response is never cleared');
@@ -1806,7 +1813,7 @@ select _ok((select bool_and(r.status = 'excused') from commitment_responses r
 select _superuser();
 delete from commitment_responses r using commitment_instances i
  where r.instance_id = i.id
-   and i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'
+   and i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and i.occurs_on = current_date
    and r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
 select _as('11111111-0000-0000-0000-000000000001');
 select _try($f$ select ensure_commitment_instances(
@@ -1814,7 +1821,7 @@ select _try($f$ select ensure_commitment_instances(
 select _superuser();
 select _ok((select r.status = 'excused' from commitment_responses r
               join commitment_instances i on i.id = r.instance_id
-             where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'
+             where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and i.occurs_on = current_date
                and r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e2'),
   '0140: an existing exception marks a newly seeded row excused, not awaiting');
 
@@ -1838,7 +1845,7 @@ select _superuser();
 update commitment_responses set status = 'pending', acknowledged_at = null, reminded_offsets = '{}'
  where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'
    and instance_id = (select id from commitment_instances
-                       where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1');
+                       where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date);
 update commitment_instances set respond_by_at = now() + interval '5 minutes'
  where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1';
 update commitments set reminder_offsets_min = '{5}'
@@ -1855,7 +1862,7 @@ select _superuser();
 update commitment_responses set status = 'acknowledged', acknowledged_at = now(), reminded_offsets = '{}'
  where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'
    and instance_id = (select id from commitment_instances
-                       where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1');
+                       where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date);
 select _ok((select count(*) from claim_due_commitment_reminders(10)
              where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1') = 0,
   '0140: an athlete who already responded is never reminded');
@@ -1912,7 +1919,7 @@ select _superuser();
 update commitment_responses set status = 'acknowledged', acknowledged_at = now()
  where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'
    and instance_id = (select id from commitment_instances
-                       where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1');
+                       where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date);
 select _as('eeee0000-0000-0000-0000-0000000000e1');
 select _ok((athlete_accountability('eeee0000-0000-0000-0000-0000000000e1',
               current_date, current_date) ->> 'wake_done')::int >= 1,
@@ -3274,17 +3281,17 @@ select set_config('request.jwt.claim.sub', '', false);
 update public.feature_flags set kill_switch = false where name = 'verified_commitments';
 
 -- ---- the verdict, pure ----
-select _ok(rollcall_verdict('pending', null, now() + interval '5 minutes') = 'pending',
+select _ok(rollcall_verdict('pending', null, now() + interval '5 minutes', null) = 'pending',
   '0211: unanswered before the deadline is pending');
-select _ok(rollcall_verdict('pending', null, now() - interval '1 second') = 'missed',
+select _ok(rollcall_verdict('pending', null, now() - interval '1 second', null) = 'missed',
   '0211: unanswered after the deadline is missed');
-select _ok(rollcall_verdict('acknowledged', now() - interval '6 minutes', now() - interval '5 minutes') = 'on_standard',
+select _ok(rollcall_verdict('acknowledged', now() - interval '6 minutes', now() - interval '5 minutes', null) = 'on_standard',
   '0211: answered before the deadline is on standard');
-select _ok(rollcall_verdict('acknowledged', now() - interval '5 minutes', now() - interval '5 minutes') = 'on_standard',
+select _ok(rollcall_verdict('acknowledged', now() - interval '5 minutes', now() - interval '5 minutes', null) = 'on_standard',
   '0211: answered exactly at the deadline is on standard');
-select _ok(rollcall_verdict('missed', now() - interval '4 minutes', now() - interval '5 minutes') = 'late',
+select _ok(rollcall_verdict('missed', now() - interval '4 minutes', now() - interval '5 minutes', null) = 'late',
   '0211: answered after the deadline is late, whatever the status column says');
-select _ok(rollcall_verdict('excused', now() - interval '4 minutes', now() - interval '5 minutes') = 'excused',
+select _ok(rollcall_verdict('excused', now() - interval '4 minutes', now() - interval '5 minutes', null) = 'excused',
   '0211: excused wins over a late answer');
 select _ok(rollcall_late_min(now() - interval '4 minutes', now() - interval '5 minutes') = 1
        and rollcall_late_min(now() - interval '4 minutes' + interval '1 second', now() - interval '5 minutes') = 2
@@ -3296,8 +3303,8 @@ select _ok(commitment_opens_at('2026-09-01T10:00:00Z'::timestamptz, '2026-09-01T
   '0211: with no opens_min the roll call opens an hour before the deadline (the client rule)');
 select _ok(commitment_opens_at('2026-09-01T10:00:00Z'::timestamptz, '2026-09-01T10:05:00Z'::timestamptz, 360::smallint, 350::smallint) = '2026-09-01T09:50:00Z'::timestamptz,
   '0211: an explicit opens_min opens relative to the start');
-select _ok(rollcall_closes_at('morning_roll_call', '2026-09-01T10:05:00Z'::timestamptz, '2026-09-01T10:00:00Z'::timestamptz, null::timestamptz) = '2026-09-01T12:05:00Z'::timestamptz,
-  '0211: a wake-up with no ends_at closes two hours after its deadline');
+select _ok(rollcall_closes_at('morning_roll_call', '2026-09-01T10:05:00Z'::timestamptz, '2026-09-01T10:00:00Z'::timestamptz, null::timestamptz) = '2026-09-01T10:30:00Z'::timestamptz,
+  '0211/0212: a wake-up with no ends_at closes 30 minutes after the wake-up time');
 select _ok(rollcall_closes_at('morning_roll_call', '2026-09-01T10:05:00Z'::timestamptz, '2026-09-01T10:00:00Z'::timestamptz, '2026-09-01T10:35:00Z'::timestamptz) = '2026-09-01T10:35:00Z'::timestamptz,
   '0211: the coach''s ends_at wins as the close');
 select _ok(rollcall_closes_at('practice', '2026-09-01T10:05:00Z'::timestamptz, '2026-09-01T10:00:00Z'::timestamptz, null::timestamptz) is null,
@@ -3344,7 +3351,7 @@ select _ok(_try($f$ select ack_commitment((select id from commitment_instances
   '0211: an athlete CAN check in after the deadline while the roll call is still open');
 select _superuser();
 select _ok((select r.ack_source = 'app'
-              and rollcall_verdict(r.status, r.acknowledged_at, i.respond_by_at) = 'late'
+              and rollcall_verdict(r.status, r.acknowledged_at, i.respond_by_at, null) = 'late'
               and rollcall_late_min(r.acknowledged_at, i.respond_by_at) between 5 and 6
               from commitment_responses r join commitment_instances i on i.id = r.instance_id
              where r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e2'
@@ -3386,7 +3393,7 @@ select _ok(_try($f$ select ack_commitment_by_token((select id from commitment_in
              'eeee0000-0000-0000-0000-0000000000e1') $f$) = 'ok',
   '0211: the lock-screen path records inside the grace period');
 select _ok((select r.ack_source = 'lockscreen'
-              and rollcall_verdict(r.status, r.acknowledged_at, i.respond_by_at) = 'on_standard'
+              and rollcall_verdict(r.status, r.acknowledged_at, i.respond_by_at, null) = 'on_standard'
               from commitment_responses r join commitment_instances i on i.id = r.instance_id
              where r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'
                and i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and i.occurs_on = current_date),
@@ -3547,7 +3554,7 @@ select _ok(exists (select 1 from commitment_instances
                and occurs_on = (now() at time zone 'America/New_York')::date + 1),
   '0211: tomorrow''s occurrence (in the team''s zone) exists without anyone opening the app');
 select _ok((select count(*) = count(distinct occurs_on) from commitment_instances
-             where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1'),
+             where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date),
   '0211: materializing twice never duplicates an occurrence');
 -- The cron covers today + tomorrow in the TEAM'S zone; the suite's clock is UTC. Materialize two
 -- more days by hand so the resync probes below always have a not-yet-started occurrence to move.
@@ -3642,6 +3649,263 @@ select _as('eeee0000-0000-0000-0000-0000000000e2');
 select _ok(_try($f$ select * from claim_due_commitment_reminders(10, 1) $f$) <> 'ok',
   '0211: a client still cannot claim reminders');
 select _superuser();
+
+-- ================================================================ wake-up roll call, second pass (0212)
+-- The clock (open / grace / close), provenance (a coach cannot forge a tap), the delayed-sync
+-- review (suspended, audited, resolved three ways), and the realtime publication. Reuses the 0138
+-- cast: team T1, coach_1 (staff), coach_2 (stranger), athletes e1 / e2, commitment ccccdddd-...-c1.
+-- Every instant is hand-timed relative to now() so the suite is hour-agnostic.
+select _superuser();
+select set_config('request.jwt.claim.sub', '', false);
+update public.feature_flags set kill_switch = false where name = 'verified_commitments';
+
+-- ---- the clock, pure ----
+select _ok(rollcall_closes_at('morning_roll_call', '2026-09-01T10:05:00Z'::timestamptz, '2026-09-01T10:00:00Z'::timestamptz, null::timestamptz) = '2026-09-01T10:30:00Z'::timestamptz,
+  '0212: a wake-up with no ends_at closes 30 minutes after the WAKE-UP time');
+select _ok(rollcall_opens_at('morning_roll_call', '2026-09-01T10:00:00Z'::timestamptz, '2026-09-01T10:05:00Z'::timestamptz, 360::smallint, null::smallint) = '2026-09-01T10:00:00Z'::timestamptz,
+  '0212: a wake-up opens AT its time, not before');
+select _ok(rollcall_opens_at('practice', '2026-09-01T10:00:00Z'::timestamptz, '2026-09-01T10:05:00Z'::timestamptz, 360::smallint, null::smallint) = '2026-09-01T09:05:00Z'::timestamptz,
+  '0212: every other type keeps the hour-before rule');
+
+-- ---- the verdict, pure, at the founder's boundaries (6:00 open, 6:05 grace, 6:30 close) ----
+select _ok(rollcall_verdict('pending', null, now() + interval '5 minutes', now() + interval '30 minutes') = 'pending',
+  '0212 boundary: unanswered before the close is pending');
+select _ok(rollcall_verdict('pending', null, now() - interval '25 minutes', now()) = 'pending',
+  '0212 boundary: unanswered AT the close (6:30:00) is still pending');
+select _ok(rollcall_verdict('missed', null, now() - interval '25 minutes', now() - interval '1 second') = 'missed',
+  '0212 boundary: unanswered one second after the close is missed');
+select _ok(rollcall_verdict('acknowledged', now() - interval '5 minutes', now() - interval '5 minutes', now() + interval '20 minutes') = 'on_standard',
+  '0212 boundary: answered exactly at the grace (6:05:00) is on standard');
+select _ok(rollcall_verdict('acknowledged', now() - interval '5 minutes' + interval '1 second', now() - interval '5 minutes', now() + interval '20 minutes') = 'late',
+  '0212 boundary: answered one second after the grace (6:05:01) is late');
+select _ok(rollcall_late_min(now() - interval '5 minutes' + interval '1 second', now() - interval '5 minutes') = 1
+       and rollcall_late_min(now() + interval '1 minute', now() - interval '5 minutes') = 6,
+  '0212 boundary: 6:05:01 is 1 minute late, 6:11 is 6');
+select _ok(rollcall_verdict('acknowledged', now() + interval '25 minutes', now() - interval '5 minutes', now() + interval '25 minutes') = 'late',
+  '0212 boundary: answered at the close (6:30:00) is late, 25 minutes');
+select _ok(rollcall_verdict('acknowledged', now(), now() - interval '5 minutes', now() + interval '25 minutes', now(), 'override') = 'on_standard',
+  '0212: a coach override reads on standard by decision, whatever the clock says');
+select _ok(rollcall_verdict('acknowledged', now(), now() - interval '5 minutes', now() + interval '25 minutes', now(), 'lockscreen', true, null) = 'review',
+  '0212: an unresolved delayed-sync review is neither on standard nor late');
+select _ok(rollcall_verdict('acknowledged', now(), now() - interval '5 minutes', now() + interval '25 minutes', now(), 'review_accepted', true, 'accepted') = 'on_standard'
+       and rollcall_verdict('acknowledged', now(), now() - interval '5 minutes', now() + interval '25 minutes', now(), 'lockscreen', true, 'late') = 'late'
+       and rollcall_verdict('missed', now(), now() - interval '5 minutes', now() + interval '25 minutes', now(), 'lockscreen', true, 'missed') = 'missed',
+  '0212: a review resolves three ways and nothing else');
+
+-- ---- the ack windows on a 6:00 / 6:05 / 6:30 instance, hand-timed ----
+-- reset e2 unanswered; the instance is today's for c1
+update commitment_responses set status = 'pending', acknowledged_at = null, ack_source = null, device_tapped_at = null,
+       sync_review = false, review_resolution = null, review_resolved_by = null, review_resolved_at = null, review_note = null,
+       reminded_offsets = '{}', updated_at = now()
+ where athlete_id in ('eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2')
+   and instance_id = (select id from commitment_instances
+                       where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date);
+update commitments set opens_min = starts_min, ends_min = null where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+
+-- 5:59:59: opens in one second
+update commitment_instances set starts_at = now() + interval '1 second', respond_by_at = now() + interval '5 minutes 1 second', ends_at = null, status = 'scheduled'
+ where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date;
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+select _ok(_try($f$ select ack_commitment((select id from commitment_instances
+             where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date)) $f$) like 'denied(P0001)%not open yet%',
+  '0212 boundary: 5:59:59 is unavailable');
+select _superuser();
+
+-- 6:30:01: closed (started 30 min 1 s ago), no evidence: refused, and stays missed
+update commitment_instances set starts_at = now() - interval '30 minutes 1 second', respond_by_at = now() - interval '25 minutes 1 second'
+ where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date;
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+select _ok(_try($f$ select ack_commitment((select id from commitment_instances
+             where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date)) $f$) like 'denied(P0001)%closed%',
+  '0212 boundary: 6:30:01 with no evidence is refused, a Missed cannot become a Late');
+select _ok((select o->>'verdict' = 'missed' from jsonb_array_elements(my_commitments(current_date, current_date)) o
+             where o->>'instance_id' = (select id::text from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date)),
+  '0212 boundary: the athlete reads Missed after the close');
+select _superuser();
+
+-- 6:11: late window (started 11 min ago, grace 6 min ago, closes in 19)
+update commitment_instances set starts_at = now() - interval '11 minutes', respond_by_at = now() - interval '6 minutes'
+ where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date;
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+select _ok(_try($f$ select ack_commitment((select id from commitment_instances
+             where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date)) $f$) = 'ok',
+  '0212 boundary: 6:11 is accepted');
+select _ok((select o->>'verdict' = 'late' and (o->>'late_min')::int = 6 and o->>'ack_source' = 'app'
+              from jsonb_array_elements(my_commitments(current_date, current_date)) o
+             where o->>'instance_id' = (select id::text from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date)),
+  '0212 boundary: 6:11 reads Late · 6 min, from the app');
+select _superuser();
+
+-- ---- offline policy: the lock-screen path with device evidence ----
+-- e1: receipt lands after the grace, but the phone says it tapped inside it, and the code was
+-- minted before that tap. Neither trusted nor punished: REVIEW. Capture the score first so the
+-- probe below can show the review moved NOTHING (e1 has other commitments today).
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+create temp table _rc_acc_before as
+  select athlete_accountability('eeee0000-0000-0000-0000-0000000000e1', current_date, current_date) as acc;
+select _superuser();
+select _ok(_try($f$ select ack_commitment_by_token(
+    (select id from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date),
+    'eeee0000-0000-0000-0000-0000000000e1',
+    now() - interval '8 minutes',            -- tapped 6:03 on the device
+    now() - interval '11 minutes') $f$) = 'ok',
+  '0212 offline: a plausible tap inside the grace, received after it, is recorded');
+select _ok((select r.sync_review and r.review_resolution is null and r.device_tapped_at = now() - interval '8 minutes'
+              and rollcall_verdict(r.status, r.acknowledged_at, i.respond_by_at, rollcall_closes_at('morning_roll_call', i.respond_by_at, i.starts_at, i.ends_at), now(), r.ack_source, r.sync_review, r.review_resolution) = 'review'
+             from commitment_responses r join commitment_instances i on i.id = r.instance_id
+            where r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and i.occurs_on = current_date),
+  '0212 offline: it is a REVIEW carrying both the device time and the server receipt');
+select _ok((select count(distinct a.action) = 2 from commitment_response_audit a join commitment_responses r on r.id = a.response_id
+             where r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and a.action in ('ack','review_opened')
+               and a.at > now() - interval '5 seconds'),
+  '0212 offline: the ack and the review opening are both in the audit trail');
+-- a review counts as nothing
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+-- Before the tap the row was an unanswered obligation (in possible). Under review it is neither
+-- an obligation nor an answer: possible drops by the wake weight, earned does not move at all.
+select _ok((select (a->>'wake_review')::int = 1
+              and (a->>'possible')::int = (b.acc->>'possible')::int - 10
+              and (a->>'earned')::int = (b.acc->>'earned')::int
+              and (a->>'wake_total')::int = (b.acc->>'wake_total')::int - 1
+             from athlete_accountability('eeee0000-0000-0000-0000-0000000000e1', current_date, current_date) a, _rc_acc_before b),
+  '0212 offline: an unresolved review is suspended: out of possible, and earned does not move');
+drop table _rc_acc_before;
+select _superuser();
+
+-- implausible evidence: a device time BEFORE the code was minted is ignored (stored null), and
+-- since the receipt is late with no evidence, it is a plain late, not a review
+update commitment_responses set status = 'pending', acknowledged_at = null, ack_source = null, device_tapped_at = null, sync_review = false, updated_at = now()
+ where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'
+   and instance_id = (select id from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date);
+select _ok(_try($f$ select ack_commitment_by_token(
+    (select id from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date),
+    'eeee0000-0000-0000-0000-0000000000e1',
+    now() - interval '20 minutes',           -- claims 5:51, before the 6:00 mint
+    now() - interval '11 minutes') $f$) = 'ok',
+  '0212 offline: an implausible device time does not block the ack');
+select _ok((select r.device_tapped_at is null and not r.sync_review
+              and rollcall_verdict(r.status, r.acknowledged_at, i.respond_by_at, rollcall_closes_at('morning_roll_call', i.respond_by_at, i.starts_at, i.ends_at), now(), r.ack_source, r.sync_review, r.review_resolution) = 'late'
+             from commitment_responses r join commitment_instances i on i.id = r.instance_id
+            where r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and i.occurs_on = current_date),
+  '0212 offline: the implausible time is dropped and the receipt decides: late');
+
+-- after the close, plausible evidence from before the close still earns a review; none is refused
+update commitment_responses set status = 'pending', acknowledged_at = null, ack_source = null, device_tapped_at = null, sync_review = false, updated_at = now()
+ where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'
+   and instance_id = (select id from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date);
+update commitment_instances set starts_at = now() - interval '40 minutes', respond_by_at = now() - interval '35 minutes'
+ where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date;
+select _ok(_try($f$ select ack_commitment_by_token(
+    (select id from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date),
+    'eeee0000-0000-0000-0000-0000000000e1', null, null) $f$) like 'denied(P0001)%closed%',
+  '0212 offline: after the close, a replay with no evidence is refused');
+select _ok(_try($f$ select ack_commitment_by_token(
+    (select id from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date),
+    'eeee0000-0000-0000-0000-0000000000e1',
+    now() - interval '20 minutes',           -- tapped 6:20, before the 6:30 close
+    now() - interval '40 minutes') $f$) = 'ok',
+  '0212 offline: after the close, plausible evidence from before it opens a review');
+select _ok((select sync_review from commitment_responses where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'
+             and instance_id = (select id from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date)),
+  '0212 offline: (sanity) it is under review');
+
+-- ---- resolving: staff only, three outcomes, every stamp kept ----
+select _as('22222222-0000-0000-0000-000000000002');
+select _ok(_try($f$ select resolve_sync_review((select r.id from commitment_responses r join commitment_instances i on i.id = r.instance_id
+    where r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and i.occurs_on = current_date), 'accepted', 'x') $f$) <> 'ok',
+  '0212 review: a stranger coach cannot resolve');
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select resolve_sync_review((select r.id from commitment_responses r join commitment_instances i on i.id = r.instance_id
+    where r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and i.occurs_on = current_date), 'accepted', 'x') $f$) <> 'ok',
+  '0212 review: an athlete cannot resolve their own review');
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select resolve_sync_review((select r.id from commitment_responses r join commitment_instances i on i.id = r.instance_id
+    where r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and i.occurs_on = current_date), 'accepted', 'Screenshot of the tap at 6:20') $f$) = 'ok',
+  '0212 review: the owning coach accepts the tap time');
+select _superuser();
+select _ok((select r.review_resolution = 'accepted' and r.review_resolved_by = '11111111-0000-0000-0000-000000000001'
+              and r.review_resolved_at is not null and r.review_note = 'Screenshot of the tap at 6:20'
+              and r.device_tapped_at is not null and r.acknowledged_at is not null and r.ack_source = 'review_accepted'
+              and rollcall_verdict(r.status, r.acknowledged_at, i.respond_by_at, rollcall_closes_at('morning_roll_call', i.respond_by_at, i.starts_at, i.ends_at), now(), r.ack_source, r.sync_review, r.review_resolution) = 'on_standard'
+             from commitment_responses r join commitment_instances i on i.id = r.instance_id
+            where r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and i.occurs_on = current_date),
+  '0212 review: accepted reads on standard with reviewer, time, note, and both stamps preserved');
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select resolve_sync_review((select r.id from commitment_responses r join commitment_instances i on i.id = r.instance_id
+    where r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and i.occurs_on = current_date), 'missed', 'changed my mind') $f$) like 'denied(P0001)%already resolved%',
+  '0212 review: a resolution is never overwritten');
+select _superuser();
+select _ok((select count(*) >= 3 from commitment_response_audit a join commitment_responses r on r.id = a.response_id
+             where r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and a.action = 'review_resolved' or (r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and a.action in ('ack','review_opened'))),
+  '0212 review: the audit trail holds the opening and the resolution');
+select _ok((select (a->>'wake_on_standard')::int = 1 and (a->>'wake_review')::int = 0
+             from athlete_accountability('eeee0000-0000-0000-0000-0000000000e1', current_date, current_date) a),
+  '0212 review: once accepted, it counts as on standard');
+
+-- ---- provenance: a coach override needs a reason and is never an athlete tap ----
+-- Reset e2 unanswered, then coach_1 marks them in.
+update commitment_responses set status = 'pending', acknowledged_at = null, ack_source = null, correction_note = null, updated_at = now()
+ where athlete_id = 'eeee0000-0000-0000-0000-0000000000e2'
+   and instance_id = (select id from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date);
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select staff_set_response((select r.id from commitment_responses r join commitment_instances i on i.id = r.instance_id
+    where r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e2' and i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and i.occurs_on = current_date), 'acknowledged', '') $f$) like 'denied(P0001)%needs a reason%',
+  '0212 provenance: an override without a reason is refused');
+select _ok(_try($f$ select staff_set_response((select r.id from commitment_responses r join commitment_instances i on i.id = r.instance_id
+    where r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e2' and i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and i.occurs_on = current_date), 'acknowledged', 'Was in the training room, phone in locker') $f$) = 'ok',
+  '0212 provenance: an override with a reason is recorded');
+select _superuser();
+select _ok((select r.ack_source = 'override' and r.correction_note = 'Was in the training room, phone in locker'
+              and r.corrected_by = '11111111-0000-0000-0000-000000000001' and r.corrected_at is not null
+             from commitment_responses r join commitment_instances i on i.id = r.instance_id
+            where r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e2' and i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and i.occurs_on = current_date),
+  '0212 provenance: source is override, with who, when and why');
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok((
+  with e as (select jsonb_array_elements(commitment_board('77777777-1111-0000-0000-000000000001', null, current_date)) o),
+       r as (select jsonb_array_elements(e.o -> 'rows') ro from e where e.o->>'commitment_id' = 'ccccdddd-0000-0000-0000-0000000000c1')
+  select bool_and(case ro->>'athlete_id'
+                    when 'eeee0000-0000-0000-0000-0000000000e2' then ro->>'verdict' = 'on_standard' and ro->>'ack_source' = 'override' and ro->>'correction_note' is not null
+                    when 'eeee0000-0000-0000-0000-0000000000e1' then ro->>'verdict' = 'on_standard' and ro->>'ack_source' = 'review_accepted' and ro->>'reviewer_name' is not null
+                    else true end)
+    from r),
+  '0212 provenance: the board shows the override and the accepted review as what they are');
+select _ok((select (o->>'overrides')::int = 1 and (o->>'accepted')::int = 1 and (o->>'checked_in')::int = 0 and (o->>'on_standard')::int = 2
+             from jsonb_array_elements(rollcall_summary('ccccdddd-0000-0000-0000-0000000000c1', 14)) o
+            where o->>'instance_id' = (select id::text from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date)),
+  '0212 provenance: the summary never sums an override or an accepted review as an athlete check-in');
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+select _ok((select o->>'ack_source' = 'override' and o->>'correction_note' is not null and o->>'corrected_by_name' is not null
+              from jsonb_array_elements(my_commitments(current_date, current_date)) o
+             where o->>'instance_id' = (select id::text from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date)),
+  '0212 provenance: the athlete sees that a coach overrode it, by whom and why');
+select _ok((select count(*) >= 1 from commitment_response_audit a join commitment_responses r on r.id = a.response_id
+             where r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e2' and a.action = 'override'),
+  '0212 provenance: the athlete can read their own audit trail');
+select _as('22222222-0000-0000-0000-000000000002');
+select _ok((select count(*) = 0 from commitment_response_audit),
+  '0212 provenance: a stranger reads no audit rows at all');
+select _superuser();
+
+-- ---- escalation stops for whoever answered ----
+-- e2 (override) and e1 (accepted) both carry acknowledged_at now; neither is claimable.
+update commitment_instances set starts_at = now() - interval '2 minutes', respond_by_at = now() + interval '3 minutes'
+ where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date;
+select _ok((select count(*) = 0 from claim_due_commitment_reminders(10, 500) d
+             where d.instance_id = (select id from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date)
+               and d.athlete_id in ('eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2')),
+  '0212: nobody who answered is ever claimed for a reminder again');
+update commitment_instances set starts_at = now() - interval '6 minutes', respond_by_at = now() - interval '1 minute'
+ where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date;
+select _ok((select count(*) = 0 from claim_missed_commitments(10, null, 500) d
+             where d.instance_id = (select id from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date)
+               and d.athlete_id in ('eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2')),
+  '0212: nobody who answered is ever escalated');
+
+-- ---- realtime ----
+select _ok(exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'commitment_responses')
+           or not exists (select 1 from pg_publication where pubname = 'supabase_realtime'),
+  '0212: commitment_responses is in the realtime publication (or there is none to join)');
 
 -- ================================================================ scoreboard
 select _superuser();

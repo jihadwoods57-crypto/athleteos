@@ -12,11 +12,11 @@ describe('digestBody', () => {
   });
 });
 
-describe('breakthroughCopy', () => {
-  it('tells a late wake-up what happened, in OnStandard\'s voice', () => {
+describe('breakthroughCopy: the LATE lock-screen state', () => {
+  it('is exactly the founder copy, in OnStandard\'s voice', () => {
     expect(breakthroughCopy('morning_roll_call', 'Wake-Up Roll Call')).toEqual({
-      title: "You're late",
-      body: "You haven't answered Wake-Up Roll Call. Your coach can see your status.",
+      title: "You're Late",
+      body: 'Wake-Up Roll Call is still waiting on you.',
     });
   });
   it('keeps the pre-0211 line for every other type', () => {

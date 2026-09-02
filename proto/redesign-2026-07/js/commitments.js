@@ -112,20 +112,33 @@ export function opensMinFor(c) {
   return Math.max(0, anchor - 60);
 }
 
-/* ---------------------------------------------------------------- wake-up verdict (0211)
+/* ---------------------------------------------------------------- wake-up verdict (0211, 0212)
 
-   The mirror of rollcall_verdict() / rollcall_closes_at() / commitment_opens_at() in
-   supabase/migrations/0211_wakeup_rollcall.sql. Same inputs, same order of resolution, so the
-   athlete's card, the coach's board and the server's summary read one answer off one clock.
-   Never read the environment: `nowISO` is always an argument. */
+   The mirror of rollcall_verdict() / rollcall_closes_at() / rollcall_opens_at() in
+   supabase/migrations/0212_rollcall_clock_and_provenance.sql. Same inputs, same order of
+   resolution, so the athlete's card, the coach's board and the server's summary read one answer
+   off one clock. Never read the environment: `nowISO` is always an argument.
+
+   THE CLOCK. Three instants: OPEN (the wake-up time), GRACE (open + grace), CLOSE (open + 30 min
+   unless the coach set one). On Standard at or before grace, Late after it, Missed at close and
+   final: nothing after the close can turn a Missed into a Late.
+
+   PROVENANCE. An athlete's tap (lock screen or app), a coach override, and an accepted review are
+   three different events. All three read On Standard; none of them is ever summed as "checked in"
+   with the others. REVIEW is a fourth thing: a tap whose receipt crossed a boundary the device's
+   own evidence did not. It counts as nothing until a coach resolves it. */
 export const VERDICT = {
   ON_STANDARD: 'on_standard', LATE: 'late', PENDING: 'pending', MISSED: 'missed', EXCUSED: 'excused',
+  REVIEW: 'review',
 };
 export const VERDICT_LABEL = {
   on_standard: 'On Standard', late: 'Late', pending: 'Pending', missed: 'Missed', excused: 'Excused',
+  review: 'Under review',
 };
-/* A wake-up with no explicit close accepts a late answer for two hours after its deadline. */
-export const ROLLCALL_LATE_WINDOW_MIN = 120;
+/* A wake-up with no explicit close closes 30 minutes after the wake-up time. */
+export const ROLLCALL_CLOSE_AFTER_MIN = 30;
+/* The card appears this long before the roll call opens, as "Opens at 6:00", with no button. */
+export const ROLLCALL_PREVIEW_MIN = 15;
 
 const isoPlusMin = (iso, min) => {
   const t = Date.parse(iso || '');
@@ -138,22 +151,24 @@ export function deadlineOf(row) {
 }
 
 /** When the roll call stops accepting answers. Server value first; the same fallback rule the
- *  SQL applies when it is absent (a pre-0211 payload). Null = never closes (non-roll-call types). */
+ *  SQL applies when it is absent. Null = never closes (non-roll-call types). */
 export function closesAtOf(row) {
   const r = row || {};
   if (r.closes_at) return r.closes_at;
   if (r.ends_at) return r.ends_at;
-  if (r.type === 'morning_roll_call') return isoPlusMin(deadlineOf(r), ROLLCALL_LATE_WINDOW_MIN);
+  if (r.type === 'morning_roll_call') return isoPlusMin(r.starts_at, ROLLCALL_CLOSE_AFTER_MIN);
   return null;
 }
 
-/** When the roll call opens. Server value first; else the opensMinFor() rule. */
+/** When the roll call opens. Server value first; a wake-up opens AT its time; every other type an
+ *  hour before its deadline (the pre-0211 rule). */
 export function opensAtOf(row) {
   const r = row || {};
   if (r.opens_at) return r.opens_at;
   if (typeof r.opens_min === 'number' && typeof r.starts_min === 'number') {
     return isoPlusMin(r.starts_at, r.opens_min - r.starts_min);
   }
+  if (r.type === 'morning_roll_call') return r.starts_at || null;
   return isoPlusMin(deadlineOf(r), -60);
 }
 
@@ -165,17 +180,42 @@ export function graceMinOf(row) {
   return null;
 }
 
-/** excused | on_standard | late | pending | missed. `deadlineISO` lets a board row (which carries
- *  no instance times) be judged against its instance. */
-export function rollcallVerdict(row, nowISO, deadlineISO) {
+/* Provenance. */
+export const SOURCE = { LOCKSCREEN: 'lockscreen', APP: 'app', OVERRIDE: 'override', ACCEPTED: 'review_accepted' };
+export const SOURCE_LABEL = {
+  lockscreen: 'Lock screen check-in', app: 'In-app check-in',
+  override: 'Coach override', staff: 'Coach override', review_accepted: 'Tap time accepted by coach',
+};
+/** Normalised source: pre-0212 'staff' reads as 'override'. Null when nothing was recorded. */
+export function sourceOf(row) {
+  const s = row && row.ack_source;
+  if (s === 'staff') return SOURCE.OVERRIDE;
+  return s === 'lockscreen' || s === 'app' || s === 'override' || s === 'review_accepted' ? s : null;
+}
+export const isAthleteTap = (row) => { const s = sourceOf(row); return s === SOURCE.LOCKSCREEN || s === SOURCE.APP; };
+export const isOverride = (row) => sourceOf(row) === SOURCE.OVERRIDE;
+/** A delayed-sync review nobody has resolved yet. Needs no clock. */
+export const isUnderReview = (row) => !!(row && row.sync_review && !row.review_resolution);
+
+/** excused | review | on_standard | late | pending | missed. `deadlineISO` / `closesISO` let a board
+ *  row (which carries no instance times) be judged against its instance. */
+export function rollcallVerdict(row, nowISO, deadlineISO, closesISO) {
   const r = row || {};
   if (r.status === 'excused') return VERDICT.EXCUSED;
+  if (isUnderReview(r)) return VERDICT.REVIEW;
+  if (r.review_resolution === 'accepted') return VERDICT.ON_STANDARD;
+  if (r.review_resolution === 'late') return VERDICT.LATE;
+  if (r.review_resolution === 'missed') return VERDICT.MISSED;
   const dl = Date.parse(deadlineISO || deadlineOf(r) || '');
   if (r.acknowledged_at) {
+    if (isOverride(r) || sourceOf(r) === SOURCE.ACCEPTED) return VERDICT.ON_STANDARD;
     const at = Date.parse(r.acknowledged_at);
     return (!isFinite(dl) || at <= dl) ? VERDICT.ON_STANDARD : VERDICT.LATE;
   }
   const now = Date.parse(nowISO || '');
+  const close = Date.parse(closesISO || closesAtOf(r) || '');
+  // Inclusive at the close, exactly as the ack RPC is: 6:30:00 still answers, 6:30:01 is missed.
+  if (isFinite(close)) return (isFinite(now) && now <= close) ? VERDICT.PENDING : VERDICT.MISSED;
   if (!isFinite(dl) || !isFinite(now) || now < dl) return VERDICT.PENDING;
   return VERDICT.MISSED;
 }
@@ -198,14 +238,14 @@ export function wakeupPhase(row, nowISO) {
   const close = Date.parse(closesAtOf(r) || '');
   const open = Date.parse(opensAtOf(r) || '');
   if (isFinite(close) && now > close) return 'closed';
-  if (isFinite(dl) && now >= dl) return 'late';
+  if (isFinite(dl) && now > dl) return 'late';
   if (isFinite(open) && now < open) return 'before';
   return 'open';
 }
 
-/** "On Standard" · "Late · 6 min" · "Missed" for a receipt line. */
-export function verdictLine(row, nowISO, deadlineISO) {
-  const v = rollcallVerdict(row, nowISO, deadlineISO);
+/** "On Standard" · "Late · 6 min" · "Missed" · "Under review" for a receipt line. */
+export function verdictLine(row, nowISO, deadlineISO, closesISO) {
+  const v = rollcallVerdict(row, nowISO, deadlineISO, closesISO);
   if (v === VERDICT.LATE) {
     const m = lateMinutes(row, deadlineISO);
     return m ? `Late · ${m} min` : 'Late';
@@ -332,7 +372,9 @@ export function deriveCommitment(row, nowISO, offMinOverride) {
     verdict: rollcallVerdict(r, nowISO),
     lateMin: lateMinutes(r),
     closesAt: closesAtOf(r),
+    opensAt: opensAtOf(r),
     graceMin: graceMinOf(r),
+    source: sourceOf(r),
   };
 
   // A cancelled instance disappears. It is not a miss — the coach called it off.
@@ -405,11 +447,19 @@ export function deriveCommitment(row, nowISO, offMinOverride) {
   }
 
   if (r.acknowledged_at) {
-    // A late answer is a real answer and stays recorded, but the receipt says so: amber ink and
-    // "Late · 6 min" instead of a clean green "Checked in". The colour is the verdict.
+    // A delayed-sync tap the coach has not resolved (0212): suspended, not a verdict. Neutral ink,
+    // collapsed, disputable in the sense that the athlete can see it is waiting on a decision.
+    if (base.verdict === VERDICT.REVIEW) {
+      return { ...base, stage: 'review', collapsed: true, statusColor: 'b',
+        confirmLine: `Tapped ${at(r.device_tapped_at)} on your phone · reached us ${at(r.acknowledged_at)}` };
+    }
+    // The receipt leads with the VERDICT; the stamp supports it. A late answer is a real answer and
+    // stays recorded, but reads amber and says how late. A coach override reads On Standard and
+    // says so: it is never dressed as the athlete's own tap.
     const late = base.verdict === VERDICT.LATE;
-    const confirm = late
-      ? `Checked in at ${at(r.acknowledged_at)} · Late${base.lateMin ? ` · ${base.lateMin} min` : ''}`
+    const confirm = base.source === SOURCE.OVERRIDE ? `Coach override · marked at ${at(r.acknowledged_at)}`
+      : base.source === SOURCE.ACCEPTED ? `Tap time accepted · tapped ${at(r.device_tapped_at || r.acknowledged_at)}`
+      : late ? `Late${base.lateMin ? ` · ${base.lateMin} min` : ''} · checked in at ${at(r.acknowledged_at)}`
       : `Checked in at ${at(r.acknowledged_at)}`;
     if (asks.arrival) {
       return { ...base, stage: 'awaiting_arrival', canArrive: true, statusColor: 'b', confirmLine: confirm };
@@ -438,8 +488,18 @@ export function deriveCommitment(row, nowISO, offMinOverride) {
     return { ...base, stage: 'missed', canDispute: true, statusColor: 'a', confirmLine: noResponse };
   }
 
+  // Before it opens. A wake-up shows a button-less "Opens at 6:00" card for the last 15 minutes
+  // (0212) so nobody hunts for it at 5:58; anything earlier, and every other type, stays hidden.
+  const opensT = Date.parse(base.opensAt || '');
+  if (isFinite(opensT) && nowT < opensT) {
+    if (r.type === 'morning_roll_call' && nowT >= opensT - ROLLCALL_PREVIEW_MIN * 60000) {
+      return { ...base, stage: 'upcoming', statusColor: 'b',
+        confirmLine: `Opens at ${at(base.opensAt)}` };
+    }
+    return { ...base, stage: 'hidden', visible: false };
+  }
   const opens = opensMinFor(r);
-  if (nowMin != null && nowMin < opens) {
+  if (nowMin != null && nowMin < opens && r.type !== 'morning_roll_call') {
     return { ...base, stage: 'hidden', visible: false };
   }
 
@@ -474,41 +534,65 @@ export function missingFrom(rows) {
     .filter(r => !r.acknowledged_at && (r.status === 'pending' || r.status === 'missed'));
 }
 
-/** Board rows judged against their instance: each row gains `verdict` and `lateMin`. The board
- *  payload carries the deadline on the INSTANCE, not the row, which is why this takes both. */
+/** Board rows judged against their instance: each row gains `verdict`, `lateMin`, `source`,
+ *  `pastGrace`. The board payload carries the deadline and close on the INSTANCE, not the row. */
 export function boardVerdicts(inst, nowISO) {
   const i = inst || {};
   const dl = deadlineOf(i);
+  const close = closesAtOf(i);
+  const now = Date.parse(nowISO || '');
+  const dlT = Date.parse(dl || '');
   return (Array.isArray(i.rows) ? i.rows : []).map((r) => ({
-    ...r, verdict: rollcallVerdict(r, nowISO, dl), lateMin: lateMinutes(r, dl),
+    ...r,
+    verdict: rollcallVerdict(r, nowISO, dl, close),
+    lateMin: lateMinutes(r, dl),
+    source: sourceOf(r),
+    pastGrace: isFinite(dlT) && isFinite(now) && now > dlT,
   }));
 }
 
-/** The four groups the roll-call board draws, in the order the coach reads them. Rows that are
- *  neither (unverified) ride with the group their answer implies. */
+/** The groups the roll-call board draws, in the order the coach reads them at 6:05:
+ *  review (needs a decision) · still_out (past grace, unanswered, still open) · pending · late ·
+ *  on_standard · excused. */
 export function groupByVerdict(inst, nowISO) {
-  const g = { on_standard: [], late: [], pending: [], missed: [], excused: [] };
-  for (const r of boardVerdicts(inst, nowISO)) (g[r.verdict] || g.pending).push(r);
+  const g = { review: [], still_out: [], pending: [], late: [], on_standard: [], excused: [] };
+  for (const r of boardVerdicts(inst, nowISO)) {
+    if (r.verdict === VERDICT.PENDING && r.pastGrace) g.still_out.push(r);
+    else if (r.verdict === VERDICT.MISSED) g.still_out.push(r); // labelled Missed by the caller once closed
+    else (g[r.verdict] || g.pending).push(r);
+  }
   return g;
 }
 
-/** Counts for the board header. `responded` = on standard + late. */
+/** Counts for the board header. An athlete tap and a coach decision are never summed under one
+ *  word: `checkedIn` is athlete taps only; `accountedFor` is everyone whose morning has an answer
+ *  (taps + overrides + accepted reviews + excused); the remainder is out, missed, or under review. */
 export function verdictCounts(inst, nowISO) {
-  const g = groupByVerdict(inst, nowISO);
-  const total = (Array.isArray(inst && inst.rows) ? inst.rows : []).length;
+  const rows = boardVerdicts(inst, nowISO);
+  const by = (f) => rows.filter(f).length;
+  const total = rows.length;
+  const onStandard = by((r) => r.verdict === VERDICT.ON_STANDARD);
+  const late = by((r) => r.verdict === VERDICT.LATE);
+  const checkedIn = by((r) => (r.verdict === VERDICT.ON_STANDARD || r.verdict === VERDICT.LATE) && isAthleteTap(r));
+  const overrides = by((r) => r.source === SOURCE.OVERRIDE);
+  const accepted = by((r) => r.source === SOURCE.ACCEPTED);
+  const excused = by((r) => r.verdict === VERDICT.EXCUSED);
+  const review = by((r) => r.verdict === VERDICT.REVIEW);
+  const missed = by((r) => r.verdict === VERDICT.MISSED);
+  const pending = by((r) => r.verdict === VERDICT.PENDING && !r.pastGrace);
+  const stillOut = by((r) => r.verdict === VERDICT.PENDING && r.pastGrace);
   return {
-    total, onStandard: g.on_standard.length, late: g.late.length,
-    pending: g.pending.length, missed: g.missed.length, excused: g.excused.length,
-    responded: g.on_standard.length + g.late.length,
-    counted: total - g.excused.length,
+    total, onStandard, late, checkedIn, overrides, accepted, excused, review, missed, pending, stillOut,
+    responded: onStandard + late,
+    accountedFor: checkedIn + overrides + accepted + excused,
+    counted: total - excused,
   };
 }
 
 /* ---------------------------------------------------------------- wake-up history (0211) */
 
 /** The athlete's own wake-up record, newest first, one line per occurrence: the verdict, the
- *  stamp (in the team's clock) and how late. Pending ones are kept (today's, before its
- *  deadline) so the list never hides the one that is live. */
+ *  stamp (in the team's clock), how late, and where the answer came from. */
 export function wakeupHistory(rows, nowISO, offMinOverride) {
   return (Array.isArray(rows) ? rows : [])
     .filter((r) => r && r.type === 'morning_roll_call' && r.instance_status !== 'cancelled')
@@ -517,20 +601,23 @@ export function wakeupHistory(rows, nowISO, offMinOverride) {
       const off = offsetFor(r, nowISO, offMinOverride);
       return {
         instance_id: r.instance_id, occurs_on: r.occurs_on, title: r.title,
-        verdict: rollcallVerdict(r, nowISO), lateMin: lateMinutes(r),
+        verdict: rollcallVerdict(r, nowISO), lateMin: lateMinutes(r), source: sourceOf(r),
         at: r.acknowledged_at ? fmtAt(r.acknowledged_at, off) : '',
         due: deadlineOf(r) ? fmtAt(deadlineOf(r), off) : '',
+        close: closesAtOf(r) ? fmtAt(closesAtOf(r), off) : '',
       };
     });
 }
 
-/** Totals over a wake-up history, pending excluded (a live roll call is not a result yet). */
+/** Totals over a wake-up history. Pending and review are not results yet; overrides are listed
+ *  beside the On Standard they contribute to, never hidden inside it. */
 export function wakeupSummary(history) {
-  const s = { total: 0, onStandard: 0, late: 0, missed: 0 };
+  const s = { total: 0, onStandard: 0, late: 0, missed: 0, overrides: 0, review: 0 };
   for (const h of (Array.isArray(history) ? history : [])) {
+    if (h.verdict === VERDICT.REVIEW) { s.review++; continue; }
     if (h.verdict === VERDICT.PENDING || h.verdict === VERDICT.EXCUSED) continue;
     s.total++;
-    if (h.verdict === VERDICT.ON_STANDARD) s.onStandard++;
+    if (h.verdict === VERDICT.ON_STANDARD) { s.onStandard++; if (h.source === SOURCE.OVERRIDE) s.overrides++; }
     else if (h.verdict === VERDICT.LATE) s.late++;
     else if (h.verdict === VERDICT.MISSED) s.missed++;
   }
@@ -539,9 +626,10 @@ export function wakeupSummary(history) {
 
 /** Reduce the coach's rollcall_summary rows to one line: "Last 14 roll calls: 12 / 1 / 1". */
 export function summarizeOccurrences(occ) {
-  const s = { occurrences: 0, onStandard: 0, late: 0, missed: 0, total: 0 };
+  const s = { occurrences: 0, onStandard: 0, late: 0, missed: 0, total: 0, overrides: 0, review: 0 };
   for (const o of (Array.isArray(occ) ? occ : [])) {
     if (!o || o.instance_status === 'cancelled') continue;
+    s.review += Number(o.review) || 0;
     // A day still in progress (anyone pending) is not a result yet.
     if (Number(o.pending) > 0) continue;
     s.occurrences++;
@@ -549,6 +637,7 @@ export function summarizeOccurrences(occ) {
     s.late += Number(o.late) || 0;
     s.missed += Number(o.missed) || 0;
     s.total += Number(o.total) || 0;
+    s.overrides += Number(o.overrides) || 0;
   }
   return s;
 }
@@ -568,9 +657,10 @@ export function accountability(rows) {
     // 'unverified' removes only the signals it could not verify. A missed WAKE-UP never
     // cascades into arrival or completion: each signal is weighed on its own.
     const verified = r.status !== 'unverified';
-    if (asks.ack) {
+    // A delayed-sync review (0212) is suspended: it leaves both earned and possible until resolved.
+    if (asks.ack && !isUnderReview(r)) {
       possible += WEIGHTS.ack;
-      if (r.acknowledged_at) earned += WEIGHTS.ack;
+      if (r.acknowledged_at && r.review_resolution !== 'missed') earned += WEIGHTS.ack;
     }
     if (asks.arrival && verified) {
       possible += WEIGHTS.arrival;
@@ -594,7 +684,7 @@ export function morningReadiness(rows) {
     if (r.status === 'excused') continue;
     const asks = signalsAsked(r);
     const verified = r.status !== 'unverified';
-    if (asks.ack) { wake.total++; if (r.acknowledged_at) wake.done++; }
+    if (asks.ack && !isUnderReview(r)) { wake.total++; if (r.acknowledged_at && r.review_resolution !== 'missed') wake.done++; }
     if (asks.arrival && verified) { arrival.total++; if (arrivalCounts(r)) arrival.done++; }
     if (asks.completion && verified) { completion.total++; if (r.completed_at) completion.done++; }
   }
@@ -607,7 +697,7 @@ function dayIsClean(dayRows) {
     if (r.status === 'excused') continue;
     const asks = signalsAsked(r);
     const verified = r.status !== 'unverified';
-    if (asks.ack && !r.acknowledged_at) return false;
+    if (asks.ack && !isUnderReview(r) && (!r.acknowledged_at || r.review_resolution === 'missed')) return false;
     if (asks.arrival && verified && !arrivalCounts(r)) return false;
     if (asks.completion && verified && !r.completed_at) return false;
   }

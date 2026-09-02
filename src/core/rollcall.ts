@@ -34,6 +34,49 @@ export function ackOutcome(status: number | null, okFlag: boolean): AckOutcome {
   return 'dead';
 }
 
+/** The background task name expo-notifications runs for a custom action pressed while the app is
+ *  NOT in the foreground on Android (ExpoHandlingDelegate.handleNotificationResponse →
+ *  runTaskManagerTasks). Registered once at startup; without it a killed app's "I'M UP" waits for
+ *  the next launch. iOS background-launches the app for the action instead and replays the response
+ *  to the listener, so the same router below handles both. */
+export const ROLLCALL_BG_TASK = 'onstandard-rollcall-action';
+
+/** What a notification response asks the app to do. Pure, so the live listener, the cold-start
+ *  replay and the Android background task all route through one tested function.
+ *    ack    a lock-screen "I'M UP" / "CHECK IN NOW": record it, never open the app
+ *    coach  a coach digest action ("Got it" / "Nudge them"): act, never open the app
+ *    route  a tap on the notification body: open the app on that screen
+ *    null   nothing actionable */
+export type NotificationIntent =
+  | { kind: 'ack'; code: string; actionLabel: string | null }
+  | { kind: 'coach'; code: string; action: CoachAction }
+  | { kind: 'route'; route: string }
+  | null;
+
+export function routeNotificationResponse(resp: unknown): NotificationIntent {
+  const r = resp as
+    | { actionIdentifier?: string; notification?: { request?: { content?: { data?: Record<string, unknown> } } } }
+    | null | undefined;
+  const data = r?.notification?.request?.content?.data ?? {};
+  const code = typeof data.code === 'string' ? data.code : '';
+  const label = typeof data.action_label === 'string' ? data.action_label : null;
+  if (r?.actionIdentifier === 'ACK' && code) return { kind: 'ack', code, actionLabel: label };
+  const coach = coachActionFor(r?.actionIdentifier);
+  if (coach && typeof data.coach_code === 'string' && data.coach_code) return { kind: 'coach', code: data.coach_code, action: coach };
+  // Any other custom action must never fall through to a deep link: an action is not a tap.
+  if (r?.actionIdentifier && r.actionIdentifier !== 'expo.modules.notifications.actions.DEFAULT' && r.actionIdentifier !== 'ACK') {
+    return null;
+  }
+  const route = typeof data.route === 'string' && /^[a-z0-9/_-]{1,64}$/i.test(data.route) ? data.route : '';
+  return route ? { kind: 'route', route } : null;
+}
+
+/** Button titles are uppercased at registration so the lock screen reads I'M UP / CHECK IN NOW.
+ *  The category id is derived from the RAW label, so the server contract is unchanged. */
+export function buttonTitleFor(label: string | null): string {
+  return (label ?? "I'm Up").slice(0, 24).toUpperCase();
+}
+
 export type QueuedAck = { code: string; queuedAt: number };
 
 export function enqueueAck(q: QueuedAck[], code: string, now: number): QueuedAck[] {
@@ -65,6 +108,10 @@ export const COACH_ACTION_SEEN = 'DIGEST_SEEN';
 export const COACH_ACTION_NUDGE = 'DIGEST_NUDGE';
 
 export type CoachAction = 'seen' | 'nudge';
+
+/** Every action this app registers, with the one option that matters: none of them opens the app.
+ *  Asserted by the test so a future label cannot quietly regress into a foreground launch. */
+export const ACTION_OPTIONS = { opensAppToForeground: false } as const;
 
 /** Map an iOS action identifier to the verb roll-call-coach expects, or null when the response is
  *  a plain tap (which must route into the app instead). */

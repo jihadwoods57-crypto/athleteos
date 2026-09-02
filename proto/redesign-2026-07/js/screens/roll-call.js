@@ -14,10 +14,10 @@ import { icon } from '../icons.js';
 import { track, EVENTS } from '../analytics.js';
 import { backHead, esc } from '../components.js';
 import { fmtMin } from '../requirements.js';
-import { deriveCommitment, TYPE_LABEL, fmtAt, offsetFor, VERDICT, wakeupPhase, deadlineOf, closesAtOf, opensAtOf } from '../commitments.js';
-import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment, ackRefusal } from '../commitment-data.js';
+import { deriveCommitment, TYPE_LABEL, fmtAt, offsetFor, VERDICT, wakeupPhase, deadlineOf, closesAtOf, opensAtOf, graceMinOf, sourceOf, SOURCE } from '../commitments.js';
+import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment, ackRefusal, subscribeMine } from '../commitment-data.js';
 import { tapToVerify, armIfPermitted, armCapped } from './location-consent.js';
-import { pushTokenState } from '../state.js';
+import { pushTokenState, RT } from '../state.js';
 
 /* Per-instance notes, keyed by instance id. A single global here once meant commitment A's
    failure reason painted onto commitment B's card the moment two shared a morning.
@@ -77,6 +77,23 @@ export function commitmentCard(d) {
       <span class="xpill gold">Late${d.lateMin ? ` · ${d.lateMin} min` : ''}</span>
     </div>`;
     }
+    // A delayed-sync tap waiting on the coach (0212): neither green nor amber.
+    if (d.stage === 'review') {
+      return `<div class="xrow-item" data-go="roll-call/${id}">
+      <div class="xico sm muted">${icon('clock', 16)}</div>
+      <div class="xr"><div class="xa">${esc(d.title)}</div>
+      <div class="xb">${esc(d.confirmLine)} · Your coach will review it</div></div>
+      <span class="xpill purple">Under review</span>
+    </div>`;
+    }
+    if (d.stage === 'acknowledged' && d.source === SOURCE.OVERRIDE) {
+      return `<div class="xrow-item green" data-go="roll-call/${id}">
+      <div class="xico sm green">${icon('check', 16)}</div>
+      <div class="xr"><div class="xa">${esc(d.title)}</div>
+      <div class="xb">${esc(d.confirmLine)}</div></div>
+      <span class="xpill blue">Override</span>
+    </div>`;
+    }
     // Excused wears neutral, not the green "earned" treatment: it's a resolved absence, not a
     // completion, and green is reserved for things the athlete actually did.
     const excused = d.stage === 'excused';
@@ -87,6 +104,16 @@ export function commitmentCard(d) {
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)}</div></div>
       <span class="xpill ${excused ? 'gray' : 'green'}">${pill}</span>
+    </div>`;
+  }
+
+  // The last 15 minutes before the open (0212): the card is there, the button is not.
+  if (d.stage === 'upcoming') {
+    return `<div class="xrow-item" data-go="roll-call/${id}">
+      <div class="xico sm blue">${icon('sun', 16)}</div>
+      <div class="xr"><div class="xa">${esc(d.title)}</div>
+      <div class="xb">${esc(d.confirmLine)}${d.coach_name ? esc(` · ${d.coach_name}`) : ''}</div></div>
+      <span class="xpill blue">Soon</span>
     </div>`;
   }
 
@@ -286,12 +313,13 @@ export function mountCommitmentCard(root, rerender) {
   }));
 }
 
-/* ---------------------------------------------------------------- wake-up detail (0211)
+/* ---------------------------------------------------------------- wake-up detail (0211, 0212)
 
-   The in-app answer to "It's 6:00 AM. Who's up?" for one athlete. Direct and unambiguous:
-   the coach's words, the one button, and after it the receipt with the verdict. The screen
-   distinguishes what the coach wrote (the note, signed) from what OnStandard says (everything
-   else), and it says BEFORE 6 AM whether the lock-screen push can reach this phone at all. */
+   The in-app answer to "It's 6:00 AM. Who's up?" for one athlete. The lock screen is where the
+   roll call is answered; this screen is where the RESULT lives. So the verdict leads (ON STANDARD,
+   LATE · 6 MIN, MISSED), the stamp supports it, and the coach's words stay the coach's. Provenance
+   is always stated: a tap from the lock screen, a tap in the app, a coach override, an accepted
+   delayed sync. "How Roll Call works" is one collapsed line at the bottom, never a wall. */
 
 /** The device's push readiness, as a card. '' when there is nothing to warn about. */
 function pushWarning(phase) {
@@ -308,6 +336,20 @@ function pushWarning(phase) {
   </div>`;
 }
 
+/** The one explanation, collapsed. */
+function howItWorks(row, clock) {
+  const grace = graceMinOf(row);
+  return `
+  <details class="wk-how">
+    <summary>${icon('info', 14)} How Roll Call works</summary>
+    <div class="wk-how-body">
+      <p>Your coach set the time. At ${esc(clock(row.starts_at))} the roll call opens on your lock screen. Tap <b>I’M UP</b> there or here.</p>
+      <p>By ${esc(clock(deadlineOf(row)))} is <b>On Standard</b>${grace != null ? ` (${grace} minutes of grace)` : ''}. After that is <b>Late</b>, counted to the minute, until it closes at ${esc(clock(closesAtOf(row)))}. No answer by then is <b>Missed</b>, and stays missed.</p>
+      <p>OnStandard records the exact moment your tap reaches it, on its own clock. Nothing else: no location, no phone data. The first tap stands. If your phone was offline and the tap arrived late, your coach reviews it before it counts either way.</p>
+    </div>
+  </details>`;
+}
+
 function wakeupDetail(row, d) {
   const nowISO = new Date().toISOString();
   const off = offsetFor(row, nowISO);
@@ -317,61 +359,64 @@ function wakeupDetail(row, d) {
   const close = closesAtOf(row);
   const refusal = ackRefusal(row.instance_id);
   const failNote = SAVE_FAILED.get(row.instance_id);
+  const source = sourceOf(row);
 
-  const note = d.message ? `
+  const note = `
     <div class="coachnote wk-note">
       <div class="who"><div class="nm">${esc(row.coach_name || 'Your coach')}</div><div class="rl">${esc(d.title)}${row.starts_min != null ? ` · ${esc(fmtMin(row.starts_min))}` : ''}</div></div>
-      <p class="wk-msgp">${esc(d.message)}</p>
-    </div>` : `
-    <div class="coachnote wk-note">
-      <div class="who"><div class="nm">${esc(row.coach_name || 'Your coach')}</div><div class="rl">${esc(d.title)}${row.starts_min != null ? ` · ${esc(fmtMin(row.starts_min))}` : ''}</div></div>
-      <div class="ts">No message this morning. The roll call stands.</div>
+      ${d.message ? `<p class="wk-msgp">${esc(d.message)}</p>` : `<div class="ts">No message this morning. The roll call stands.</div>`}
     </div>`;
+
+  // The verdict card. Verdict first, stamp second, provenance third.
+  const card = (cls, verdict, stamp, sub, cta) => `
+    <section class="card pad wk-state ${cls}">
+      <div class="wk-verdict">${verdict}</div>
+      ${stamp ? `<div class="wk-stamp">${stamp}</div>` : ''}
+      ${sub ? `<div class="ts wk-statesub">${sub}</div>` : ''}
+      ${cta || ''}
+    </section>`;
 
   let state = '';
   if (d.verdict === VERDICT.EXCUSED) {
-    state = `<section class="card pad wk-state">
-      <div class="wk-eyebrow">Excused</div>
-      <div class="ts">${esc(row.excused_reason || 'Your coach excused you from this one.')} It doesn’t count either way.</div>
-    </section>`;
+    state = card('', 'Excused by coach', '', esc(row.excused_reason || 'Your coach excused you from this one.') + ' It doesn’t count either way.');
+  } else if (d.verdict === VERDICT.REVIEW) {
+    state = card('review', 'Under review',
+      `Tapped ${esc(clock(row.device_tapped_at))} on your phone`,
+      `It reached OnStandard at ${esc(clock(row.acknowledged_at))}, after the ${esc(clock(dl))} grace. Your phone was offline or slow. Your coach will review it before it counts either way.`);
   } else if (row.acknowledged_at) {
     const late = d.verdict === VERDICT.LATE;
-    state = `<section class="card pad wk-state ${late ? 'late' : 'on'}">
-      <div class="wk-eyebrow">${icon('check', 14)} Checked in</div>
-      <div class="wk-stamp">${esc(clock(row.acknowledged_at))}</div>
-      <div class="wk-verdict">${late ? `Late${d.lateMin ? ` · ${d.lateMin} min` : ''}` : 'On Standard'}</div>
-      <div class="ts">${late
-        ? `The grace period ended at ${esc(clock(dl))}. Your coach sees this as late.`
-        : `Answered inside the grace period. Your coach sees you as up.`}${row.ack_source === 'lockscreen' ? ' Recorded from your lock screen.' : ''}</div>
-    </section>`;
+    const prov = source === SOURCE.OVERRIDE
+      ? `Coach override${row.corrected_by_name ? ` by ${esc(row.corrected_by_name)}` : ''}${row.correction_note ? `: “${esc(row.correction_note)}”` : ''}. Not your tap; your coach marked you in.`
+      : source === SOURCE.ACCEPTED
+        ? `Tap time accepted${row.reviewer_name ? ` by ${esc(row.reviewer_name)}` : ''}. You tapped at ${esc(clock(row.device_tapped_at))}; it reached us at ${esc(clock(row.acknowledged_at))}.`
+        : row.review_resolution === 'late'
+          ? `Kept as late by your coach: the tap reached us at ${esc(clock(row.acknowledged_at))}.`
+          : source === SOURCE.LOCKSCREEN ? 'Recorded from your lock screen.'
+          : source === SOURCE.APP ? 'Recorded in the app.' : '';
+    if (source === SOURCE.OVERRIDE) {
+      state = card('on', `${icon('check', 16)} Coach override · On Standard`, `Marked at ${esc(clock(row.acknowledged_at))}`, prov);
+    } else if (late) {
+      state = card('late', `Late · ${d.lateMin || 1} min`, `Checked in at ${esc(clock(row.acknowledged_at))}`,
+        `The grace ended at ${esc(clock(dl))}. ${prov}`);
+    } else {
+      state = card('on', `${icon('check', 16)} On Standard`, `Checked in at ${esc(clock(source === SOURCE.ACCEPTED ? (row.device_tapped_at || row.acknowledged_at) : row.acknowledged_at))}`, prov);
+    }
   } else if (phase === 'before') {
-    state = `<section class="card pad wk-state">
-      <div class="wk-eyebrow">Not open yet</div>
-      <div class="ts">Opens at ${esc(clock(opensAtOf(row)))}. Answers by ${esc(clock(dl))} are On Standard. Nothing to do until then.</div>
-    </section>`;
+    state = card('', `Opens at ${esc(clock(opensAtOf(row)))}`, '', `On Standard until ${esc(clock(dl))}. Nothing to do until it opens.`);
   } else if (phase === 'open') {
-    state = `<section class="card pad wk-state live">
-      <div class="wk-eyebrow">Roll call is open</div>
-      <div class="ts">On Standard until ${esc(clock(dl))}.</div>
-      <button class="btn green wk-cta" data-vc-ack="${esc(row.instance_id)}">${icon('check', 20)} ${esc(d.actionLabel)}</button>
-    </section>`;
+    state = card('live', 'Roll call is open', '', `On Standard until ${esc(clock(dl))}.`,
+      `<button class="btn green wk-cta" data-vc-ack="${esc(row.instance_id)}">${icon('check', 20)} ${esc(d.actionLabel)}</button>`);
   } else if (phase === 'late') {
-    state = `<section class="card pad wk-state late">
-      <div class="wk-eyebrow">You’re late</div>
-      <div class="ts">You haven’t answered ${esc(d.title)}. The grace period ended at ${esc(clock(dl))} and your coach can see your status.${close ? ` A late check-in still counts until ${esc(clock(close))}.` : ''}</div>
-      <button class="btn wk-cta" data-vc-ack="${esc(row.instance_id)}">${icon('check', 20)} Check in now</button>
-    </section>`;
+    state = card('late', 'You’re late', '', `The grace ended at ${esc(clock(dl))}. A check-in still counts, as late, until ${esc(clock(close))}. Your coach can see your status.`,
+      `<button class="btn wk-cta" data-vc-ack="${esc(row.instance_id)}">${icon('check', 20)} Check in now</button>`);
   } else {
-    state = `<section class="card pad wk-state missed">
-      <div class="wk-eyebrow">Missed</div>
-      <div class="wk-stamp">${esc(clock(dl))}</div>
-      <div class="ts">No answer by the deadline, and the roll call closed at ${esc(clock(close))}. It is recorded as missed. If that’s wrong, tell your coach below and they can correct it.</div>
-    </section>`;
+    state = card('missed', 'Missed', '', `No response before the ${esc(clock(close))} close. This is recorded. If it’s wrong, tell your coach below.`);
   }
 
   const refusalLine = refusal === 'not_open' ? `Not open yet. It opens at ${clock(opensAtOf(row))}.`
     : refusal === 'closed' ? `This roll call closed at ${clock(close)}. It can’t be answered now.`
     : refusal === 'cancelled' ? 'Your coach cancelled this one.' : '';
+  const disputable = (d.verdict === VERDICT.MISSED) || (row.acknowledged_at && d.verdict === VERDICT.LATE && source !== SOURCE.OVERRIDE);
 
   return `
   ${backHead(d.title, row.coach_name ? `From ${row.coach_name}` : '', 'home')}
@@ -381,16 +426,12 @@ function wakeupDetail(row, d) {
   ${refusalLine ? `<div class="vc-ctx wk-refusal">${icon('alert', 13)} ${esc(refusalLine)}</div>` : ''}
   ${failNote && !refusalLine ? `<div class="vc-ctx wk-refusal">${icon('bolt', 13)} ${esc(failNote)}</div>` : ''}
   ${pushWarning(phase)}
-  ${(d.verdict === VERDICT.MISSED && phase === 'closed') || (row.acknowledged_at && d.verdict === VERDICT.LATE) ? (!row.disputed_at ? `
+  ${disputable ? (!row.disputed_at ? `
     <div class="wk-gap"></div>
     <input class="input" id="vc-dispute-note" maxlength="200" placeholder="What actually happened? (optional)" aria-label="What actually happened" autocomplete="off">
     <button class="btn ghost wk-dispute-btn" id="vc-dispute">Something wrong? Tell your coach</button>` : `
     <div class="wk-gap"></div><div class="ts wk-center">Reported. Your coach can see this and correct it.</div>`) : ''}
-  <div class="sidebox wk-proof">
-    <div class="req-icon b s38">${icon('shield', 19)}</div>
-    <div><div class="tt">What this records</div>
-    <div class="ts">The exact time you tapped, on OnStandard’s clock, compared with the time your coach set. Nothing else: no location, no phone data. The first tap stands; a second tap changes nothing.</div></div>
-  </div>
+  ${howItWorks(row, clock)}
   <div class="wk-foot"></div>`;
 }
 
@@ -407,6 +448,8 @@ function wakeupDetail(row, d) {
    anyway — so an athlete who taps the push again after regaining signal still gets a real try. */
 const RESOLVE = new Map();
 const RESOLVE_COOLDOWN_MS = 30_000;
+/* The live watcher for the open detail screen (0212). One at a time. */
+const LIVE_MINE = { stop: null, phase: null };
 
 /** True when mount() should go to the server for this id. Marks the attempt as in flight. */
 export function shouldResolve(sub, now = Date.now(), m = RESOLVE) {
@@ -564,6 +607,27 @@ export default {
     // that answer lands after this screen painted, repaint once so the warning is not a refresh
     // away. `{ once }` keeps a long-lived screen from stacking listeners across re-mounts.
     window.addEventListener('onstd:push-token', () => { if (root.isConnected) window.__render && window.__render(); }, { once: true });
+
+    // LIVE (0212): a lock-screen tap recorded while this screen is open paints its receipt here
+    // without a tap. Realtime on the athlete's own rows, a poll as the floor, stopped when the
+    // screen is gone. The foreground beat refetches too, for the app-was-closed case.
+    const row0 = VC.instance(sub);
+    if (row0 && row0.type === 'morning_roll_call' && RT.userId) {
+      if (LIVE_MINE.stop) { LIVE_MINE.stop(); LIVE_MINE.stop = null; }
+      let last = JSON.stringify(row0);
+      const w = subscribeMine(RT.userId, async () => {
+        if (!root.isConnected) return;
+        await loadMine(true);
+        const cur = JSON.stringify(VC.instance(sub) || null);
+        const phaseNow = wakeupPhase(VC.instance(sub) || row0, new Date().toISOString());
+        if (cur !== last || phaseNow !== LIVE_MINE.phase) { last = cur; LIVE_MINE.phase = phaseNow; if (root.isConnected) window.__render && window.__render(); }
+      }, () => wakeupPhase(VC.instance(sub) || row0, new Date().toISOString()) === 'closed');
+      LIVE_MINE.stop = () => w.stop();
+      LIVE_MINE.phase = wakeupPhase(row0, new Date().toISOString());
+      const dog = setInterval(() => { if (!root.isConnected) { clearInterval(dog); if (LIVE_MINE.stop) { LIVE_MINE.stop(); LIVE_MINE.stop = null; } } }, 5000);
+      const onFg = () => { if (root.isConnected) loadMine(true).then(() => { if (root.isConnected) window.__render && window.__render(); }); else window.removeEventListener('onstd:foreground', onFg); };
+      window.addEventListener('onstd:foreground', onFg);
+    }
 
     const dis = root.querySelector('#vc-dispute');
     if (dis) dis.addEventListener('click', async () => {

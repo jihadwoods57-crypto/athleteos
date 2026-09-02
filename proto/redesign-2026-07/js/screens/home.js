@@ -138,6 +138,12 @@ function paintCommitments(root) {
     if (retry) retry.addEventListener('click', () => { retry.disabled = true; paintCommitments(root); });
   };
   paint();                       // instant repaint from cache
+  // A lock-screen tap recorded while the app was away (0212): refetch on the foreground beat.
+  const onFg = () => {
+    if (!slot.isConnected) { window.removeEventListener('onstd:foreground', onFg); return; }
+    loadMine(true).then((rows) => { RT.vcRows = rows; paint(); });
+  };
+  window.addEventListener('onstd:foreground', onFg);
   loadMine().then((rows) => {    // then reconcile with the server
     // Hand the rows to RT so state.js's exec derivation can plan commitment reminders. This is the
     // one place they cross over: commitment-data.js deliberately never imports state.js (the same

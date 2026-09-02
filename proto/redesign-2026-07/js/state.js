@@ -3808,6 +3808,11 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     // greet you with "Good evening" over an afternoon canvas, which is exactly the disagreement
     // between copy and canvas this was built to remove.
     if (document.visibilityState === 'visible') applyDaypart();
+    // The foreground beat for screens that show server state written while the app was away
+    // (a lock-screen roll-call tap, 0212). Screens listen; nothing here knows which.
+    if (document.visibilityState === 'visible') {
+      try { window.dispatchEvent(new CustomEvent('onstd:foreground')); } catch { /* no-op */ }
+    }
   });
 }
 // Reconnect is the other beat. Both are best-effort and the drain is serialized, so overlapping

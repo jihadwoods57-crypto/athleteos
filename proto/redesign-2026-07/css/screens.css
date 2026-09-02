@@ -2596,3 +2596,27 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .vc-ctx.wk-savefail{color:var(--amber-bright)}
 .wk-dispute-btn{width:100%;margin-top:10px}
 .wk-center{text-align:center}
+
+/* Wake-Up Roll Call, second pass (0212): verdict-led athlete states, review, override, how-it-works */
+.wk-state .wk-verdict{display:inline-flex;align-items:center;gap:8px;font-size:var(--t-xl);font-weight:800;letter-spacing:.02em;text-transform:uppercase;margin:0;line-height:1.1}
+.wk-state.review{border-color:var(--purple-border)}
+.wk-state.review .wk-verdict{color:var(--purple-bright)}
+.wk-state.missed .wk-verdict{color:var(--red)}
+.wk-state .wk-stamp{font-size:var(--t-lg);font-weight:700;letter-spacing:0;line-height:1.2;margin-top:8px;color:var(--text)}
+.wk-state.on .wk-stamp,.wk-state.late .wk-stamp{color:var(--text-2)}
+.wk-statesub{padding-top:8px;line-height:1.5}
+.wk-how{margin-top:16px;border:1px solid var(--hairline-soft);border-radius:var(--r-tile);background:var(--surface-2)}
+.wk-how summary{display:flex;align-items:center;gap:8px;padding:12px 14px;font-size:var(--t-sm);font-weight:800;color:var(--text-2);cursor:pointer;list-style:none}
+.wk-how summary::-webkit-details-marker{display:none}
+.wk-how summary svg{color:var(--text-3)}
+.wk-how-body{padding:0 14px 12px;font-size:var(--t-sm);color:var(--text-2);line-height:1.5}
+.wk-how-body p{margin:0 0 8px}
+.wk-how-body b{color:var(--text)}
+.wk-split{padding-top:10px}
+.wk-note-line{color:var(--text-2);font-style:italic}
+.wk-override{display:flex;flex-direction:column;gap:6px;align-items:stretch;min-width:200px}
+.wk-override .input{height:40px;font-size:var(--t-sm)}
+.wk-override .chip{justify-content:center}
+.xico.sm.muted{background:var(--surface-2);color:var(--text-3)}
+.xico.sm.green{background:var(--green-surface);color:var(--green-bright)}
+.xico.sm.blue{background:var(--blue-surface);color:var(--blue-bright)}

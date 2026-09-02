@@ -5,9 +5,10 @@
    general composer (coach-commitments.js) writes, with type 'morning_roll_call', so the board,
    the ladder, the lock-screen button and the history all work without knowing this screen exists.
 
-   The grace period is stored as respond_by_min = starts_min + grace. The late window is
-   ends_min (null = the server's two-hour default). The card opens ten minutes before the time so
-   nobody checks in at midnight for a 6 AM roll call; the server enforces the same window.
+   THE CLOCK (0212). Three instants: OPEN = the wake-up time (opens_min = starts_min: no
+   answering at 5:59), GRACE = respond_by_min = starts_min + grace, CLOSE = ends_min =
+   starts_min + close_after (30 minutes after the wake-up unless the coach picks another under
+   More options). Missed is final at the close. The server enforces the same three windows.
 
    MESSAGE HONESTY: the presets are writing prompts. Tapping one loads it into the box to edit;
    nothing is saved unless the coach leaves it there. The message is never trimmed or rewritten,
@@ -25,7 +26,8 @@ import { loadCommitments, saveCommitment, loadBoard, todayISO } from '../commitm
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const DOW_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const GRACES = [0, 2, 5, 10, 15];
-const OPENS_BEFORE_MIN = 10;
+const CLOSE_CHOICES = [15, 30, 45, 60];
+const CLOSE_DEFAULT_MIN = 30;
 
 /* Writing prompts, NOT defaults. See the header. */
 export const PRESETS = [
@@ -46,7 +48,7 @@ let DRAFT = null;
 const blank = () => ({
   id: null, title: 'Wake-Up Roll Call', message: '', action_label: '',
   audience_kind: 'team', audience_value: null,
-  repeat_days: [1, 2, 3, 4, 5], starts_min: 360, grace_min: 5, late_window_min: null,
+  repeat_days: [1, 2, 3, 4, 5], starts_min: 360, grace_min: 5, close_after_min: CLOSE_DEFAULT_MIN,
   escalation: { breakthrough: true, notify_coach_on_miss: true },
   active: true, more: false,
 });
@@ -63,11 +65,12 @@ export function editWakeup(row) {
     repeat_days: Array.isArray(row.repeat_days) ? row.repeat_days.map(Number) : [],
     starts_min: typeof row.starts_min === 'number' ? row.starts_min : 360,
     grace_min: grace,
-    late_window_min: typeof row.ends_min === 'number' ? Math.max(0, row.ends_min - (row.starts_min + grace)) : null,
+    close_after_min: typeof row.ends_min === 'number' ? Math.max(grace, row.ends_min - row.starts_min) : CLOSE_DEFAULT_MIN,
     escalation: (row.escalation && typeof row.escalation === 'object') ? { ...row.escalation } : {},
     active: row.active !== false,
     // A saved row with anything off the defaults opens with the fold open, so nothing set is hidden.
-    more: !!(row.action_label || typeof row.ends_min === 'number'
+    more: !!(row.action_label
+      || (typeof row.ends_min === 'number' && row.ends_min - row.starts_min !== CLOSE_DEFAULT_MIN)
       || !(row.escalation && row.escalation.breakthrough && row.escalation.notify_coach_on_miss)),
     timezone: row.timezone || null,
   };
@@ -91,11 +94,12 @@ const daysLabel = (days) => {
 /** The one-line summary under the form: what the athlete will actually experience. */
 export function previewLine(d) {
   const dl = d.starts_min + d.grace_min;
+  const close = d.starts_min + Math.max(d.grace_min, d.close_after_min == null ? CLOSE_DEFAULT_MIN : d.close_after_min);
   const who = d.audience_label || (CD.kind === 'practice' ? 'all clients' : 'the whole team');
   return `${daysLabel(d.repeat_days)} at ${fmtMin(d.starts_min)} for ${who}. `
     + (d.grace_min > 0
-      ? `Answers by ${fmtMin(dl)} are On Standard, later is Late.`
-      : 'Any answer after the time is Late.');
+      ? `${fmtMin(d.starts_min)} to ${fmtMin(dl)} is On Standard. Late until ${fmtMin(close)}. Then it’s Missed.`
+      : `Only ${fmtMin(d.starts_min)} is On Standard. Late until ${fmtMin(close)}. Then it’s Missed.`);
 }
 
 /** Payload for upsert_commitment. Exported so the tests can pin the mapping. */
@@ -103,7 +107,8 @@ export function wakeupPayload(d, owner, kind, tz) {
   const grace = Math.max(0, Math.min(120, Number(d.grace_min) || 0));
   const starts = Math.max(0, Math.min(1439, Number(d.starts_min) || 0));
   const respond = Math.min(1439, starts + grace);
-  const lateWin = d.late_window_min == null ? null : Math.max(0, Math.min(720, Number(d.late_window_min) || 0));
+  // The close is never before the grace: a 15-minute close with a 15-minute grace closes at the grace.
+  const closeAfter = Math.max(grace, Math.min(720, Number(d.close_after_min) || CLOSE_DEFAULT_MIN));
   // Two follow-ups inside the grace: at the time itself (offset = grace) and roughly midway.
   // Zero grace = one push at the time, which is also the deadline.
   const mid = grace >= 2 ? Math.max(1, Math.round(grace * 0.4)) : null;
@@ -117,8 +122,8 @@ export function wakeupPayload(d, owner, kind, tz) {
     audience_kind: d.audience_kind, audience_value: d.audience_value || null,
     repeat_days: d.repeat_days,
     starts_min: starts, respond_by_min: respond,
-    opens_min: Math.max(0, starts - OPENS_BEFORE_MIN),
-    ends_min: lateWin == null ? null : Math.min(1439, respond + lateWin),
+    opens_min: starts,
+    ends_min: Math.min(1439, starts + closeAfter),
     location_id: null, arrive_by_min: null, min_dwell_min: null, linked_commitment_id: null,
     reminder_offsets_min: offsets,
     escalation: { ...(d.escalation || {}) },
@@ -210,11 +215,11 @@ export const coachWakeupEdit = {
       ${field('Button label',
         `<input class="ob-input" id="wk-action" maxlength="24" value="${esc(d.action_label)}" placeholder="I’m Up" />`,
         'The one thing they tap, on the lock screen and in the app.')}
-      ${field('Late answers accepted for',
-        `<div class="wk-chips" id="wk-late" role="radiogroup" aria-label="Late answers accepted for">
-          ${[[null, '2 hours'], [30, '30 min'], [60, '1 hour'], [240, '4 hours']].map(([v, l]) => `<button class="chip ${d.late_window_min === v ? 'on' : ''}" role="radio" aria-checked="${d.late_window_min === v ? 'true' : 'false'}" data-late="${v == null ? '' : v}">${l}</button>`).join('')}
+      ${field('Closes',
+        `<div class="wk-chips" id="wk-late" role="radiogroup" aria-label="Closes">
+          ${CLOSE_CHOICES.map((v) => `<button class="chip ${d.close_after_min === v ? 'on' : ''}" role="radio" aria-checked="${d.close_after_min === v ? 'true' : 'false'}" data-late="${v}">${v} min after</button>`).join('')}
         </div>`,
-        'After the grace period. Then the roll call closes and anyone who never answered is Missed.')}
+        `Late check-ins count until ${esc(fmtMin(d.starts_min + Math.max(d.grace_min, d.close_after_min)))}. Then the roll call closes and anyone who never answered is Missed, for good.`)}
       ${field('If they miss it',
         `<div class="wk-chips" id="wk-esc" role="group" aria-label="If they miss it">
           <button class="chip ${d.escalation.breakthrough ? 'on' : ''}" role="checkbox" aria-checked="${d.escalation.breakthrough ? 'true' : 'false'}" data-esc="breakthrough">Tell them they’re late</button>
@@ -274,8 +279,7 @@ export const coachWakeupEdit = {
     }));
     root.querySelectorAll('[data-late]').forEach((b) => b.addEventListener('click', () => {
       capture();
-      const v = b.getAttribute('data-late');
-      d.late_window_min = v === '' ? null : +v;
+      d.close_after_min = +b.getAttribute('data-late') || CLOSE_DEFAULT_MIN;
       window.__render && window.__render();
     }));
     root.querySelectorAll('[data-esc]').forEach((b) => b.addEventListener('click', () => {

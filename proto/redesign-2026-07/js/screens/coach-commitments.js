@@ -21,14 +21,14 @@ import { ensureBook, bookless, wireBookRetry, bookBack } from './coach-connected
 import { allowedCreateKeys, isReadonly } from '../staff-access.js';
 import {
   boardCounts, missingFrom, TYPE_LABEL, presenceOf, PRESENCE,
-  groupByVerdict, verdictCounts, deadlineOf, closesAtOf, graceMinOf, offsetFor, fmtAt,
-  summarizeOccurrences, wakeupPhase, VERDICT,
+  groupByVerdict, verdictCounts, deadlineOf, closesAtOf, opensAtOf, graceMinOf, offsetFor, fmtAt,
+  summarizeOccurrences, wakeupPhase, VERDICT, SOURCE,
 } from '../commitments.js';
 import { fmtMin } from '../requirements.js';
 import {
   VC, loadBoard, loadCommitments, loadLocations, saveCommitment, saveLocation,
   setResponse, remindMissing, excuseAthlete, setCommitmentActive, todayISO, shiftISO,
-  pingAthlete, setInstanceMessage, loadRollcallSummary,
+  pingAthlete, setInstanceMessage, loadRollcallSummary, resolveSyncReview, subscribeBoard,
 } from '../commitment-data.js';
 import { editWakeup } from './coach-wakeup.js';
 
@@ -102,8 +102,9 @@ function wakeupHomeCard(inst) {
     inst.audience_label || (CD.kind === 'practice' ? 'All clients' : 'Entire team'),
     inst.starts_min != null ? fmtMin(inst.starts_min) : '',
   ].filter(Boolean).join(' · ');
-  const out = c.pending + c.missed;
-  const pill = phase === 'closed'
+  const out = c.pending + c.stillOut + c.missed;
+  const pill = c.review ? `<span class="xpill purple">${c.review} to review</span>`
+    : phase === 'closed'
     ? (out ? `<span class="xpill red">${out} missed</span>` : '<span class="xpill green">All in</span>')
     : phase === 'late'
       ? (out ? `<span class="xpill red">${out} still out</span>` : '<span class="xpill green">All in</span>')
@@ -112,10 +113,10 @@ function wakeupHomeCard(inst) {
     <section class="card pad vc-board wk-homecard" data-go="coach-commitments/${esc(inst.instance_id)}">
       <h2 class="eyebrow wk-cardh">${esc(inst.title || 'Wake-Up Roll Call')}</h2>
       <div class="ts wk-ctx">${esc(ctx)}</div>
-      ${segBar(c.responded, c.counted, `${c.responded} of ${c.counted} checked in`)}
+      ${segBar(c.accountedFor, c.total, `${c.accountedFor} of ${c.total} accounted for`)}
       <div class="wk-homeline">
-        <div class="wk-homen ${out ? '' : 'g'}">${c.responded} of ${c.counted}</div>
-        <div class="wk-homel">up</div>
+        <div class="wk-homen ${out || c.review ? '' : 'g'}">${c.checkedIn} of ${c.total}</div>
+        <div class="wk-homel">checked in${c.overrides ? ` · ${c.overrides} override${c.overrides === 1 ? '' : 's'}` : ''}</div>
         <div class="wk-spacer"></div>
         ${pill}
       </div>
@@ -133,36 +134,55 @@ const SUMMARY = { forId: null, rows: null, failed: false };
 /* Which day a summary tap asked for, per instance id. Home-tapped instances are absent and load
    today, so opening a past day never leaks into the next visit to today's board. */
 const BOARD_DAY_FOR = new Map();
+/* The live watcher for the open board (0212). One at a time. */
+const LIVE = { stop: null, phase: null };
 
-const ACK_SRC = { lockscreen: 'from the lock screen', app: 'in the app', staff: 'set by staff' };
+const ACK_SRC = { lockscreen: 'from the lock screen', app: 'in the app' };
 
+/** One roster row. `kind`: on | late | out | review | ex. Provenance is always printed: a coach
+ *  override or an accepted review is tagged and never dressed as the athlete's tap. */
 function wakeupRow(r, kind, inst, clock, phase) {
   const dl = deadlineOf(inst);
-  const src = r.ack_source && ACK_SRC[r.ack_source] ? ` · ${ACK_SRC[r.ack_source]}` : '';
-  const when = kind === 'on' ? `${clock(r.acknowledged_at)}${src}`
-    : kind === 'late' ? `${clock(r.acknowledged_at)}${src}`
-    : kind === 'ex' ? (r.excused_reason || 'Excused')
-    : phase === 'open' || phase === 'before' ? 'No answer yet'
+  const src = r.source === SOURCE.OVERRIDE ? ' · coach override'
+    : r.source === SOURCE.ACCEPTED ? ' · tap time accepted'
+    : r.source && ACK_SRC[r.source] ? ` · ${ACK_SRC[r.source]}` : '';
+  const when = kind === 'on' || kind === 'late'
+    ? (r.source === SOURCE.OVERRIDE ? `Marked ${clock(r.acknowledged_at)}${src}`
+      : r.source === SOURCE.ACCEPTED ? `Tapped ${clock(r.device_tapped_at || r.acknowledged_at)}${src}`
+      : `${clock(r.acknowledged_at)}${src}`)
+    : kind === 'review' ? `Tapped ${clock(r.device_tapped_at)} on their phone · reached us ${clock(r.acknowledged_at)}`
+    : kind === 'ex' ? (r.excused_reason ? `Excused by coach: ${r.excused_reason}` : 'Excused by coach')
+    : !r.pastGrace ? 'No answer yet'
     : `No answer by ${clock(dl)}`;
-  const pill = kind === 'on' ? '<span class="xpill green">On Standard</span>'
+  const pill = kind === 'on'
+      ? (r.source === SOURCE.OVERRIDE ? '<span class="xpill blue">Override · On Standard</span>' : '<span class="xpill green">On Standard</span>')
     : kind === 'late' ? `<span class="xpill gold">Late${r.lateMin ? ` · +${r.lateMin} min` : ''}</span>`
+    : kind === 'review' ? '<span class="xpill purple">Needs review</span>'
     : kind === 'ex' ? '<span class="xpill gray">Excused</span>'
     : r.verdict === VERDICT.MISSED ? '<span class="xpill red">Missed</span>'
+    : r.pastGrace ? '<span class="xpill red">Still out</span>'
     : '<span class="xpill gray">Pending</span>';
   const canPing = kind === 'out' && phase !== 'closed' && phase !== 'before';
+  const note = r.source === SOURCE.OVERRIDE && r.correction_note ? `<div class="ls wk-note-line">${esc(r.corrected_by_name || 'Coach')}: “${esc(r.correction_note)}”</div>`
+    : r.source === SOURCE.ACCEPTED && r.reviewer_name ? `<div class="ls wk-note-line">Accepted by ${esc(r.reviewer_name)}${r.review_note ? `: “${esc(r.review_note)}”` : ''}</div>`
+    : r.review_resolution && r.review_resolution !== 'accepted' ? `<div class="ls wk-note-line">Kept as ${esc(r.review_resolution)} by ${esc(r.reviewer_name || 'coach')}</div>` : '';
   return `
-  <div class="lrow wk-row">
+  <div class="lrow wk-row" data-wk-rowid="${esc(r.response_id)}">
     <div class="lm">
       <div class="lt">${esc(r.name || 'Athlete')}</div>
-      <div class="ls">${esc(when)}${r.corrected_by_name ? esc(` · corrected by ${r.corrected_by_name}`) : ''}</div>
+      <div class="ls">${esc(when)}</div>
+      ${note}
       ${r.disputed_at ? `<div class="ls wk-dispute">Reported wrong by the ${CD.noun}${r.dispute_note ? esc(`: ${r.dispute_note}`) : ''}</div>` : ''}
     </div>
     <div class="wk-rowend">
       ${pill}
       <div class="wk-rowacts">
+        ${kind === 'review' ? `
+          <button class="chip" data-wk-resolve="accepted" data-wk-resp="${esc(r.response_id)}">Accept tap time</button>
+          <button class="chip" data-wk-resolve="${phase === 'closed' ? 'missed' : 'late'}" data-wk-resp="${esc(r.response_id)}">Keep ${phase === 'closed' ? 'missed' : 'late'}</button>` : ''}
         ${canPing ? `<button class="chip" data-wk-ping="${esc(r.athlete_id)}" data-wk-inst="${esc(inst.instance_id)}">Ping</button>` : ''}
-        ${kind !== 'ex' ? `<button class="chip" data-vc-excuse="${esc(r.athlete_id)}">Excuse</button>` : ''}
-        ${kind === 'out' ? `<button class="chip" data-vc-mark="${esc(r.response_id)}">Mark in</button>` : ''}
+        ${kind !== 'ex' && kind !== 'review' ? `<button class="chip" data-vc-excuse="${esc(r.athlete_id)}">Excuse</button>` : ''}
+        ${kind === 'out' ? `<button class="chip" data-wk-override="${esc(r.response_id)}">Override</button>` : ''}
       </div>
     </div>
   </div>`;
@@ -179,7 +199,7 @@ function wakeupSummaryCard(inst) {
   if (!rows.length) return '';
   const s = summarizeOccurrences(rows);
   const line = s.occurrences
-    ? `Last ${s.occurrences} roll call${s.occurrences === 1 ? '' : 's'} · ${s.onStandard} On Standard · ${s.late} Late · ${s.missed} Missed`
+    ? `Last ${s.occurrences} roll call${s.occurrences === 1 ? '' : 's'} · ${s.onStandard} On Standard${s.overrides ? ` (${s.overrides} by override)` : ''} · ${s.late} Late · ${s.missed} Missed${s.review ? ` · ${s.review} under review` : ''}`
     : 'Earlier roll calls';
   const day = (iso) => {
     const d = new Date(String(iso) + 'T12:00:00');
@@ -192,16 +212,16 @@ function wakeupSummaryCard(inst) {
     ${rows.slice(0, 14).map((o) => `
     <div class="lrow wk-hist" data-wk-day="${esc(o.occurs_on)}" data-wk-inst="${esc(o.instance_id)}">
       <div class="lm"><div class="lt">${esc(day(o.occurs_on))}</div>
-        <div class="ls">${Number(o.pending) > 0 ? `${o.pending} pending · ` : ''}${o.on_standard} On Standard · ${o.late} Late · ${o.missed} Missed${Number(o.excused) ? ` · ${o.excused} excused` : ''}</div></div>
+        <div class="ls">${Number(o.pending) > 0 ? `${o.pending} pending · ` : ''}${o.on_standard} On Standard${Number(o.overrides) ? ` (${o.overrides} override${Number(o.overrides) === 1 ? '' : 's'})` : ''} · ${o.late} Late · ${o.missed} Missed${Number(o.review) ? ` · ${o.review} review` : ''}${Number(o.excused) ? ` · ${o.excused} excused` : ''}</div></div>
       <div class="lv">${Number(o.total) ? `${Number(o.on_standard) + Number(o.late)} of ${o.total}` : ''}</div>
       ${icon('chevron', 14, 'class="ic-chevron"')}
     </div>`).join('')}
   </section>`;
 }
 
-/** The live roll-call board for a wake-up. Grouped by verdict, in the order a coach reads it at
- *  6:05: who is still out, who was late, who is up. The count at the top is the only number that
- *  matters; everything below it is names. */
+/** The live roll-call board for a wake-up. Verdict groups in the order a coach reads them at
+ *  6:05: what needs a decision, who is still out, who was late, who is up. The header counts
+ *  ATHLETE check-ins; a coach override is printed beside them, never inside them. */
 function wakeupBoard(inst, back) {
   const now = new Date().toISOString();
   const off = offsetFor(inst, now);
@@ -212,18 +232,25 @@ function wakeupBoard(inst, back) {
   const grace = graceMinOf(inst);
   const dl = deadlineOf(inst);
   const close = closesAtOf(inst);
-  const out = g.pending.length + g.missed.length;
+  const out = g.pending.length + g.still_out.length;
   const title = inst.title || 'Wake-Up Roll Call';
   const ctx = [
     inst.audience_label || (CD.kind === 'practice' ? 'All clients' : 'Entire team'),
     inst.starts_min != null ? fmtMin(inst.starts_min) : '',
     grace ? `${grace} min grace` : '',
   ].filter(Boolean).join(' · ');
-  const statusLine = phase === 'before' ? `Opens ${clock(inst.opens_at)}. Answers by ${clock(dl)} are On Standard.`
-    : phase === 'open' ? `On Standard until ${clock(dl)}.${close ? ` Late answers until ${clock(close)}.` : ''}`
-    : phase === 'late' ? `Grace period ended ${clock(dl)}.${close ? ` Late answers until ${clock(close)}.` : ''}`
+  const statusLine = phase === 'before' ? `Opens ${clock(opensAtOf(inst))}. On Standard until ${clock(dl)}.`
+    : phase === 'open' ? `On Standard until ${clock(dl)}. Closes ${clock(close)}.`
+    : phase === 'late' ? `Grace ended ${clock(dl)}. Late check-ins count until ${clock(close)}.`
     : `Closed ${clock(close)}.`;
-  const outLabel = phase === 'open' || phase === 'before' ? 'Pending' : 'Missed';
+  const outLabel = phase === 'closed' ? 'Missed' : phase === 'late' ? 'Still out' : 'Pending';
+  const split = [
+    `${c.checkedIn} checked in`,
+    c.overrides ? `${c.overrides} coach override${c.overrides === 1 ? '' : 's'}` : '',
+    c.accepted ? `${c.accepted} tap time accepted` : '',
+    c.excused ? `${c.excused} excused` : '',
+    c.review ? `${c.review} under review` : '',
+  ].filter(Boolean).join(' · ');
   const section = (label, list, kind) => list.length ? `
     <h2 class="eyebrow">${esc(label)} <span class="opt">· ${list.length}</span></h2>
     <section class="card rows">${list.map((r) => wakeupRow(r, kind, inst, clock, phase)).join('')}</section>` : '';
@@ -232,20 +259,21 @@ function wakeupBoard(inst, back) {
   ${backHead(title, ctx, back)}
 
   <section class="card pad wk-board">
-    <div class="wk-count"><span class="wk-n ${out ? '' : 'g'}">${c.responded}</span><span class="wk-of">/ ${c.counted}</span><span class="wk-cl">checked in</span></div>
-    ${segBar(c.responded, c.counted, `${c.responded} of ${c.counted} checked in`)}
+    <div class="wk-count"><span class="wk-n ${out || c.review ? '' : 'g'}">${c.accountedFor}</span><span class="wk-of">/ ${c.total}</span><span class="wk-cl">accounted for</span></div>
+    ${segBar(c.accountedFor, c.total, `${c.accountedFor} of ${c.total} accounted for`)}
+    <div class="ts wk-split">${esc(split)}</div>
     <div class="wk-stats">
       <div class="wk-stat g"><b>${c.onStandard}</b><span>On Standard</span></div>
-      <div class="wk-stat ${outLabel === 'Missed' && out ? 'r' : ''}"><b>${out}</b><span>${outLabel}</span></div>
+      <div class="wk-stat ${outLabel !== 'Pending' && out ? 'r' : ''}"><b>${out}</b><span>${outLabel}</span></div>
       <div class="wk-stat ${c.late ? 'a' : ''}"><b>${c.late}</b><span>Late</span></div>
     </div>
-    <div class="ts wk-status">${esc(statusLine)}</div>
+    <div class="ts wk-status" id="wk-status-line">${esc(statusLine)}</div>
   </section>
 
   ${phase === 'closed' ? `
   <section class="card pad wk-done">
     <h2 class="eyebrow">Wake-Up Roll Call complete</h2>
-    <div class="wk-doneline"><b>${c.onStandard} / ${c.counted}</b> On Standard · <b>${c.late}</b> Late · <b>${c.missed}</b> Missed${c.excused ? ` · ${c.excused} excused` : ''}</div>
+    <div class="wk-doneline"><b>${c.onStandard} / ${c.counted}</b> On Standard${c.overrides ? ` (${c.overrides} by override)` : ''} · <b>${c.late}</b> Late · <b>${c.missed}</b> Missed${c.review ? ` · <b>${c.review}</b> under review` : ''}${c.excused ? ` · ${c.excused} excused` : ''}</div>
   </section>` : ''}
 
   <section class="card pad">
@@ -265,14 +293,15 @@ function wakeupBoard(inst, back) {
 
   ${out && phase !== 'closed' && phase !== 'before' ? `
   <button class="btn" id="vc-remind" data-inst="${esc(inst.instance_id)}">${icon('bell', 18)} Ping ${out} ${outLabel === 'Pending' ? 'pending' : 'still out'}</button>
-  <div class="ts wk-pinghint">Only these ${out} get it, with their own I’m Up button. Nobody who answered is pinged. One ping per roll call every ten minutes.</div>` : ''}
-  ${!out && phase !== 'before' ? `
+  <div class="ts wk-pinghint" id="wk-ping-hint">Only these ${out} get it, with their own I’M UP button. Anyone who checks in first is skipped. One ping per roll call every ten minutes.</div>` : ''}
+  ${!out && !c.review && phase !== 'before' ? `
   <div class="sidebox wk-allin">
     <div class="req-icon g s38">${icon('check', 19)}</div>
-    <div><div class="tt">Everyone is in</div><div class="ts">Nobody to chase.</div></div>
+    <div><div class="tt">Everyone is accounted for</div><div class="ts">Nobody to chase.</div></div>
   </div>` : ''}
 
-  ${section(outLabel, [...g.pending, ...g.missed], 'out')}
+  ${section('Needs review', g.review, 'review')}
+  ${section(outLabel, [...g.still_out, ...g.pending], 'out')}
   ${section('Late', g.late, 'late')}
   ${section('On Standard', g.on_standard, 'on')}
   ${section('Excused', g.excused, 'ex')}
@@ -489,8 +518,8 @@ export const coachCommitments = {
          minutes so a roster is never double-buzzed), and everyone answered while the board was on
          screen. Telling a coach to retry either one produces a second press that also does nothing,
          which reads as a broken button rather than a working limit. */
-      remind.textContent = sent ? `Reminded ${sent}`
-        : reason === 'rate_limited' ? 'Just reminded. Give it a few minutes'
+      remind.textContent = sent ? `Ping sent to ${sent} ${sent === 1 ? CD.noun : CD.nouns}`
+        : reason === 'rate_limited' ? 'Just pinged. Try again in a few minutes'
         : reason === 'not_authorized' ? 'You can’t send reminders here'
         : reason === 'ok' ? 'Everyone is in'
         : 'Couldn’t send. Try again';
@@ -505,7 +534,7 @@ export const coachCommitments = {
       window.__render && window.__render();
     };
 
-    /* ---- wake-up board controls (0211). Every selector below exists only on that board. ---- */
+    /* ---- wake-up board controls (0211, 0212). Every selector below exists only on that board. ---- */
     const inst = (VC.board || []).find((b) => b.instance_id === sub) || (VC.board || [])[0];
     if (inst && inst.type === 'morning_roll_call' && SUMMARY.forId !== inst.commitment_id) {
       // One fetch per commitment per visit; a failure is shown, never rendered as "no history".
@@ -517,19 +546,76 @@ export const coachCommitments = {
       });
     }
 
+    // LIVE (0212): realtime on this instance's responses, a poll as the floor. One watcher per
+    // mount; the previous one is stopped first, and a watchdog stops it when the screen is gone.
+    if (inst && inst.type === 'morning_roll_call') {
+      if (LIVE.stop) { LIVE.stop(); LIVE.stop = null; }
+      const bid = bookId();
+      const before0 = () => JSON.stringify(VC.board);
+      let last = before0();
+      const w = subscribeBoard(inst.instance_id, async () => {
+        if (!root.isConnected) return;
+        if (bid) await loadBoard(bid, CD.kind, boardDay, true);
+        const nowJson = JSON.stringify(VC.board);
+        // Repaint on a row change OR on a phase change the clock alone can cause (grace, close).
+        const phaseNow = wakeupPhase((VC.board || []).find((b) => b.instance_id === inst.instance_id) || inst, new Date().toISOString());
+        if (nowJson !== last || phaseNow !== LIVE.phase) { last = nowJson; LIVE.phase = phaseNow; if (root.isConnected) window.__render && window.__render(); }
+      }, () => wakeupPhase(inst, new Date().toISOString()) === 'closed');
+      LIVE.stop = () => w.stop();
+      LIVE.phase = wakeupPhase(inst, new Date().toISOString());
+      const dog = setInterval(() => { if (!root.isConnected) { clearInterval(dog); if (LIVE.stop) { LIVE.stop(); LIVE.stop = null; } } }, 5000);
+    }
+
     root.querySelectorAll('[data-wk-ping]').forEach((b) => b.addEventListener('click', async () => {
       const instId = b.getAttribute('data-wk-inst');
       const athleteId = b.getAttribute('data-wk-ping');
       b.disabled = true; b.textContent = '…';
       const { sent, reason } = await pingAthlete(instId, athleteId);
       if (sent) track(EVENTS.VC_REMINDED, { n: 1, single: true });
-      // Same four-outcome honesty as the roster button: a limit and a refusal are not retries.
-      b.textContent = sent ? 'Pinged'
+      b.textContent = sent ? 'Ping sent'
         : reason === 'rate_limited' ? 'Just pinged'
         : reason === 'ok' ? 'Already in'
         : reason === 'not_authorized' ? 'Not allowed'
         : 'Couldn’t ping';
       if (!sent && reason === 'failed') b.disabled = false;
+    }));
+
+    // Override (0212): a reason is required, and the row says "coach override" for ever after.
+    root.querySelectorAll('[data-wk-override]').forEach((b) => b.addEventListener('click', () => {
+      const respId = b.getAttribute('data-wk-override');
+      const wrap = b.parentElement;
+      if (!wrap) return;
+      const box = document.createElement('div');
+      box.className = 'wk-override';
+      const input = document.createElement('input');
+      input.className = 'input'; input.maxLength = 120; input.placeholder = 'Why? (required, the athlete sees it)';
+      input.setAttribute('aria-label', 'Override reason');
+      const ok = document.createElement('button'); ok.className = 'chip on'; ok.textContent = 'Mark On Standard';
+      const cancel = document.createElement('button'); cancel.className = 'chip'; cancel.textContent = 'Cancel';
+      const err = document.createElement('div'); err.className = 'ts wk-err';
+      ok.addEventListener('click', async () => {
+        const why = input.value.trim();
+        if (!why) { err.textContent = 'Give a reason. It goes on the record.'; input.focus(); return; }
+        ok.disabled = true; ok.textContent = '…';
+        const done = await setResponse(respId, 'acknowledged', why);
+        if (!done) { ok.disabled = false; ok.textContent = 'Mark On Standard'; err.textContent = 'Couldn’t save. Try again.'; return; }
+        await repaint();
+      });
+      cancel.addEventListener('click', () => { window.__render && window.__render(); });
+      box.append(input, ok, cancel, err);
+      wrap.replaceChildren(box);
+      input.focus();
+    }));
+
+    // Review resolution (0212): three verbs, audited server-side, never overwritten.
+    root.querySelectorAll('[data-wk-resolve]').forEach((b) => b.addEventListener('click', async () => {
+      const respId = b.getAttribute('data-wk-resp');
+      const resolution = b.getAttribute('data-wk-resolve');
+      const label = b.textContent;
+      b.disabled = true; b.textContent = '…';
+      const done = await resolveSyncReview(respId, resolution, null);
+      if (!done) { b.disabled = false; b.textContent = label; return; }
+      await repaint();
     }));
 
     const msgEdit = root.querySelector('#wk-msg-edit');

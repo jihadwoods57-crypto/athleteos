@@ -159,3 +159,98 @@ in `proto js/commitments.js`), nowhere else. The daily 0–100 is untouched and 
 - [ ] After close, Check in now on an old push is refused and the app shows Missed.
 - [ ] Android: the push rides the "Roll call" channel with sound.
 - [ ] Notifications off: the athlete detail screen shows the warning before the time.
+
+## Second pass, 2026-09-02 (migration 0212): the clock, provenance, review, live board
+
+Founder review of the first pass. What changed and why, in the order that mattered.
+
+### The lock-screen action is the product
+
+- **Registration.** Every action this app registers (`I'M UP`, `CHECK IN NOW`, and the coach's
+  `Got it` / `Nudge them`) carries `opensAppToForeground: false` (`ACTION_OPTIONS` in
+  `src/core/rollcall.ts`, asserted by jest). Acknowledging never launches OnStandard visually.
+  Button titles are upper-cased at registration; category ids stay slug-derived, so nothing on
+  the server changed.
+- **One router.** `routeNotificationResponse()` (`src/core/rollcall.ts`, jest-tested) turns any
+  notification response into `ack` / `coach` / `route` / nothing. The live listener, the cold-start
+  replay and the Android background task all call it. An action returns before any deep link.
+- **iOS.** An action on a category registered on a prior launch is delivered by the system with
+  the app background-launched if needed; expo-notifications replays it to the listener on delegate
+  attach (`NotificationCenterManager.swift`), and `getLastNotificationResponseAsync` covers a cold
+  start. Works with the app backgrounded or killed. Not proven on a device from this machine.
+- **Android.** A custom action pressed outside the foreground runs the `expo-task-manager` task
+  registered with `Notifications.registerTaskAsync` (`ExpoHandlingDelegate.handleNotificationResponse`
+  → `runTaskManagerTasks`). This app now registers `onstandard-rollcall-action`
+  (`src/lib/notify/rollcall.ts`), so a killed app records the tap. Before 0212 the tap waited for
+  the next launch. `expo-task-manager` was already linked (the geofence task), so this reaches
+  builds #26/#27 over the air. Not proven on a device from this machine.
+- **Both platforms:** no Critical Alert entitlement; the phone's Do Not Disturb still wins. A
+  notification the user swipes away is gone; the app shows the same state at the same time.
+
+### The three lock-screen states (copy verbatim from `logic.ts`, jest-pinned)
+
+| When | Title | Body | Button |
+|---|---|---|---|
+| 6:00 INITIAL | `Coach D'Onofrio · Wake-Up Roll Call` | the morning message | I'M UP |
+| 6:03 REMINDER | `Wake-Up Roll Call` | `You haven't checked in yet. 2 minutes remaining.` | I'M UP |
+| 6:05 LATE | `You're Late` | `Wake-Up Roll Call is still waiting on you.` | CHECK IN NOW |
+
+The title carries both names on one line so Android (no subtitle) reads the same as iOS. The push
+BODY is capped at 1,200 UTF-8 bytes on a word boundary (`pushBody`, jest-tested with 1,000 emoji);
+the bell row and the app keep the whole 1,000-character message. Long-message rendering (iOS
+collapsed vs long-press, Android BigText) is device QA.
+
+### The clock
+
+| Instant | Column | Default |
+|---|---|---|
+| OPEN | `starts_at` (composer writes `opens_min = starts_min`) | 6:00. Refused before ("not open yet"); card shows "Opens at 6:00" for the last 15 minutes. |
+| GRACE | `respond_by_at` | 6:05. At or before = On Standard. After = Late, minutes rounded up. |
+| CLOSE | `ends_at` | 6:30 (`starts + 30`, More options: 15/30/45/60). Inclusive. After it: refused, Missed, final. |
+
+`rollcall_verdict(status, ack_at, deadline, closes_at, now, source, review, resolution)` →
+`excused | review | on_standard | late | pending | missed`, mirrored in `commitments.js`. Unanswered
+between grace and close is `pending` with the UI sub-state "Still out" (coach) / "You're late,
+check in now" (athlete). Boundary probes (SQL + node): 5:59:59 refused · 6:00 on standard · 6:05:00
+on standard · 6:05:01 late 1 min · 6:11 late 6 min · 6:30:00 accepted (late 25) · 6:30:01 refused,
+missed.
+
+### Provenance and the audit trail
+
+`commitment_responses.ack_source`: `lockscreen` · `app` · `override` (coach, needs a reason, stored
+in `correction_note` with `corrected_by/at`) · `review_accepted`. An override reads On Standard by
+decision and is labelled COACH OVERRIDE everywhere; the header counts athlete taps separately
+("4 / 7 accounted for · 2 checked in · 1 coach override · 1 excused"); `rollcall_summary` reports
+`checked_in`, `overrides`, `accepted`, `review`. `commitment_response_audit` is append-only
+(ack, override, excuse, review_opened, review_resolved, correction) and readable by the athlete and
+the owning staff.
+
+### Offline taps: review, not trust and not punishment
+
+The device sends `tapped_at` (the queue's `queuedAt`) with the code. The server stores it as
+`device_tapped_at` only if `code.iat <= tapped_at <= now()` and keeps `acknowledged_at` (receipt)
+as the verdict's input. If the receipt crossed grace or close but the plausible device time did
+not, the row is `sync_review = true`, verdict `review`: it counts as nothing (dropped from earned
+AND possible) until a coach resolves it with `resolve_sync_review`: **Accept tap time** (→ On
+Standard, `review_accepted`), **Keep late**, **Keep missed**. Reviewer, time, note, both stamps and
+the audit rows are kept; a resolution is never overwritten. After-close replays with no plausible
+evidence stay refused.
+
+### Live board
+
+`commitment_responses` joined the `supabase_realtime` publication (0172 pattern). The board
+subscribes per instance (`subscribeBoard`), the athlete detail per athlete (`subscribeMine`), with
+a poll floor (8 s open, 30 s with the socket up, 60 s closed) and a `visibilitychange` refetch.
+Proven on a disposable project: coach subscribed, service-role lock-screen ack, UPDATE event in
+752 ms. Escalation for an athlete stops by construction (claims key on `acknowledged_at`; probed).
+
+### Deploy (0212)
+
+```bash
+supabase db push                                         # 0212
+supabase functions deploy commitment-reminders --use-api --no-verify-jwt
+supabase functions deploy commitment-escalation --use-api --no-verify-jwt
+supabase functions deploy roll-call-ack --use-api --no-verify-jwt   # tapped_at + code iat
+supabase functions deploy roll-call-coach --use-api --no-verify-jwt
+# then the OTA, and prove the manifest on both platforms
+```

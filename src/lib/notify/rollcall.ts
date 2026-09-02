@@ -7,6 +7,7 @@ import {
   COACH_DIGEST_CATEGORY, COACH_ACTION_SEEN, COACH_ACTION_NUDGE,
   enqueueCoachAction, dropCoachAction, type CoachAction, type QueuedCoachAction,
   CHECK_IN_LABEL, ROLLCALL_CHANNEL, ackOutcome, type AckOutcome,
+  ROLLCALL_BG_TASK, ACTION_OPTIONS, buttonTitleFor, routeNotificationResponse,
 } from '@/core/rollcall';
 
 const supaUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
@@ -23,20 +24,26 @@ export async function registerRollCallCategory(label: string | null): Promise<st
   if (Platform.OS === 'web') return id;
   try {
     const Notifications = require('expo-notifications') as typeof import('expo-notifications');
+    // ACTION_OPTIONS: opensAppToForeground:false. Acknowledging roll call must never visually
+    // launch OnStandard; the tap is recorded from the lock screen and the notification dismisses.
     await Notifications.setNotificationCategoryAsync(id, [
-      { identifier: 'ACK', buttonTitle: (label ?? "I'm Up").slice(0, 24), options: { opensAppToForeground: false } },
+      { identifier: 'ACK', buttonTitle: buttonTitleFor(label), options: { ...ACTION_OPTIONS } },
     ]);
   } catch { /* best effort */ }
   return id;
 }
 
-/** POST the code to roll-call-ack. 'ok' only on a recorded ack; 'retry' when a later attempt could
- *  still land it (no network, 5xx); 'dead' for a decided refusal (expired, closed, flag off). */
-export async function postRollCallAck(code: string): Promise<AckOutcome> {
+/** POST the code to roll-call-ack with the moment of the tap on the device clock. The server keeps
+ *  its own receipt as the verdict's input; the device time is evidence for a delayed sync only.
+ *  'ok' on a recorded ack (review included); 'retry' when a later attempt could still land it (no
+ *  network, 5xx); 'dead' for a decided refusal (expired, closed with no evidence, flag off). */
+export async function postRollCallAck(code: string, tappedAtMs?: number): Promise<AckOutcome> {
   if (!ACK_ENDPOINT || !code) return 'dead';
   try {
+    const body: Record<string, unknown> = { code };
+    if (typeof tappedAtMs === 'number' && Number.isFinite(tappedAtMs)) body.tapped_at = new Date(tappedAtMs).toISOString();
     const res = await fetch(ACK_ENDPOINT, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     });
     const out = (await res.json().catch(() => ({}))) as { ok?: boolean };
     return ackOutcome(res.status, out.ok === true);
@@ -79,16 +86,51 @@ export async function queueAck(code: string): Promise<void> {
 export async function drainAckQueue(): Promise<void> {
   let q = await readQueue();
   for (const item of [...q]) {
-    if (await postRollCallAck(item.code) !== 'retry') q = dropAck(q, item.code);
+    // The queue entry's `queuedAt` IS the moment of the tap; the replay carries it as evidence.
+    if (await postRollCallAck(item.code, item.queuedAt) !== 'retry') q = dropAck(q, item.code);
   }
   await writeQueue(q);
 }
 
 /** Fire an ack now, queueing it only when a retry could still land it. The single entry point the
- *  notification handler uses, so the offline path can never be forgotten at a call site. */
-export async function runRollCallAck(code: string): Promise<void> {
-  const r = await postRollCallAck(code);
-  if (r === 'retry') await queueAck(code);
+ *  notification handler, the cold-start replay and the Android background task all use, so the
+ *  offline path can never be forgotten at a call site. `tappedAt` defaults to now: the tap moment. */
+export async function runRollCallAck(code: string, tappedAt: number = Date.now()): Promise<void> {
+  const r = await postRollCallAck(code, tappedAt);
+  if (r === 'retry') await writeQueue(enqueueAck(await readQueue(), code, tappedAt));
+}
+
+/* ---------------------------------------------------------------- Android background task
+   expo-notifications runs the registered task for a custom action pressed while the app is not in
+   the foreground (ExpoHandlingDelegate.handleNotificationResponse → runTaskManagerTasks), which
+   includes the app being killed. Without this, an Android "I'M UP" from a dead app sat as a pending
+   response until the next launch. Defined at module load (TaskManager requires that) and registered
+   once at startup. iOS does not use this path: it background-launches the app for the action and
+   the normal listener / cold-start replay in ProtoApp handles it. */
+let BG_DEFINED = false;
+export function defineRollCallBackgroundTask(): void {
+  if (Platform.OS === 'web' || BG_DEFINED) return;
+  BG_DEFINED = true;
+  try {
+    const TaskManager = require('expo-task-manager') as typeof import('expo-task-manager');
+    TaskManager.defineTask(ROLLCALL_BG_TASK, async ({ data, error }: { data?: unknown; error?: unknown }) => {
+      if (error || !data) return;
+      // The task receives the serialized NotificationResponse; route it exactly as a live one.
+      const intent = routeNotificationResponse(data);
+      if (intent?.kind === 'ack') await runRollCallAck(intent.code);
+      else if (intent?.kind === 'coach') await runCoachAction(intent.code, intent.action);
+      // A plain tap opens the app; nothing to do here.
+    });
+  } catch { /* best effort: no task-manager on this binary means the pending-response path */ }
+}
+defineRollCallBackgroundTask();
+
+export async function registerRollCallBackgroundTask(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  try {
+    const Notifications = require('expo-notifications') as typeof import('expo-notifications');
+    await Notifications.registerTaskAsync(ROLLCALL_BG_TASK);
+  } catch { /* best effort */ }
 }
 
 async function readLabels(): Promise<string[]> {
@@ -133,8 +175,8 @@ export async function registerCoachDigestCategory(): Promise<void> {
       // "Got it" first: it is the safe, reversible one. iOS renders the first action closest to the
       // thumb, and the destructive-adjacent action ("push 12 teenagers") should never be the one a
       // half-awake coach hits by muscle memory.
-      { identifier: COACH_ACTION_SEEN, buttonTitle: 'Got it', options: { opensAppToForeground: false } },
-      { identifier: COACH_ACTION_NUDGE, buttonTitle: 'Nudge them', options: { opensAppToForeground: false } },
+      { identifier: COACH_ACTION_SEEN, buttonTitle: 'Got it', options: { ...ACTION_OPTIONS } },
+      { identifier: COACH_ACTION_NUDGE, buttonTitle: 'Nudge them', options: { ...ACTION_OPTIONS } },
     ]);
   } catch { /* best effort */ }
 }

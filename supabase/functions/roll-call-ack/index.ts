@@ -19,7 +19,15 @@ Deno.serve(async (req: Request) => {
   if (!SUPABASE_URL || !SERVICE_ROLE || !SECRET) return json({ ok: false, error: 'not configured' }, 500);
 
   let code = '';
-  try { code = String(((await req.json()) as { code?: unknown }).code ?? ''); } catch { /* empty */ }
+  // The moment of the tap on the DEVICE clock, sent by the app (live or replayed from its offline
+  // queue). Evidence only: the server's own receipt is the verdict's input. Unparseable = absent.
+  let tappedAt: string | null = null;
+  try {
+    const body = (await req.json()) as { code?: unknown; tapped_at?: unknown };
+    code = String(body.code ?? '');
+    if (typeof body.tapped_at === 'string' && Number.isFinite(Date.parse(body.tapped_at))) tappedAt = new Date(Date.parse(body.tapped_at)).toISOString();
+    else if (typeof body.tapped_at === 'number' && Number.isFinite(body.tapped_at)) tappedAt = new Date(body.tapped_at).toISOString();
+  } catch { /* empty */ }
   if (!code) return json({ ok: false, error: 'missing code' }, 400);
 
   // 'athlete' is passed explicitly, not left to the default: this endpoint acks ONE athlete for
@@ -37,13 +45,20 @@ Deno.serve(async (req: Request) => {
     return json({ ok: false, error: 'flag_off' }, httpStatusFor('flag_off'));
   }
 
+  // The code's mint time bounds the device claim: a phone cannot have tapped a notification that
+  // did not exist yet. The RPC applies the bound, records both stamps, and opens a review when the
+  // receipt crossed a boundary the evidence did not (0212).
   const { data, error } = await svc.rpc('ack_commitment_by_token', {
     p_instance: v.claims.instanceId, p_athlete: v.claims.athleteId,
+    p_tapped_at: tappedAt, p_code_iat: new Date(v.claims.iatMs).toISOString(),
   });
   if (error) {
     // The RPC raises "no commitment for this athlete on this instance" when the row is gone / not
     // theirs (a 404). Any other error is a real DB failure and must surface as 500, not be masked.
-    const reason = /no commitment/i.test(error.message ?? '') ? 'no_row' : 'db_error';
+    const msg = error.message ?? '';
+    // Window refusals (0211/0212) are decided answers: 410 so the device drops the queued tap.
+    if (/closed|not open yet|cancelled/i.test(msg)) return json({ ok: false, error: 'closed' }, 410);
+    const reason = /no commitment/i.test(msg) ? 'no_row' : 'db_error';
     return json({ ok: false, error: reason }, httpStatusFor(reason));
   }
   return json({ ok: true, acknowledged_at: data });

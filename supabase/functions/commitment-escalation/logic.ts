@@ -12,15 +12,16 @@ export function digestBody(title: string, total: number, notUp: string[]): strin
   return `${title}: ${up}/${total} up. ${notUp.length} didn't answer: ${names}.`;
 }
 
-/** The athlete's post-deadline push (L2). Wake-Up Roll Call (0211) says what happened and who
- *  can see it, in OnStandard's voice; every other type keeps its pre-0211 line. */
+/** The athlete's post-grace push (L2). Wake-Up Roll Call, in OnStandard's voice, as the founder
+ *  specified it: "You're Late" / "Wake-Up Roll Call is still waiting on you." Every other type
+ *  keeps its pre-0211 line. */
 export function breakthroughCopy(type: string | null | undefined, title: string): { title: string; body: string } {
   if (type === 'morning_roll_call') {
-    return { title: "You're late", body: `You haven't answered ${title}. Your coach can see your status.` };
+    return { title: "You're Late", body: `${title} is still waiting on you.` };
   }
   return { title, body: 'The window is closing. Answer now.' };
 }
 
 /** The button on the late push. A roll call is still answerable until it closes, so it carries a
- *  "Check in now" rather than the on-time label; the device registers this label at launch. */
+ *  "CHECK IN NOW" rather than the on-time label; the device registers this label at launch. */
 export const LATE_ACTION_LABEL = 'Check in now';

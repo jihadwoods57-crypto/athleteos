@@ -418,6 +418,65 @@ export async function setInstanceMessage(instanceId, message) {
   } catch { return false; }
 }
 
+/** Resolve a delayed-sync review (0212): 'accepted' (the coach validates the device tap time),
+ *  'late' or 'missed' (judged on the server receipt). Audited server-side. */
+export async function resolveSyncReview(responseId, resolution, note) {
+  const c = sb(); if (!c || !responseId) return false;
+  try {
+    const { error } = await c.rpc('resolve_sync_review', {
+      p_response: responseId, p_resolution: resolution, p_note: (note || '').slice(0, 120) || null });
+    if (error) return false;
+    RTC.boardAt = 0;
+    return true;
+  } catch { return false; }
+}
+
+/* ---------------------------------------------------------------- live updates (0212)
+   The pattern from screens/meal.js and screens/nutrition-chat.js: Supabase Realtime is the fast
+   path, a self-rescheduling poll is the floor, and the socket status flips the poll cadence. The
+   caller owns the lifetime: it calls the returned stop() when its root leaves the DOM. Nothing is
+   assumed about the publication; if the channel never reaches SUBSCRIBED the poll carries it. */
+const LIVE_FAST_MS = 8_000;    // socket down, roll call open: poll often
+const LIVE_SLOW_MS = 30_000;   // socket up: the poll is only a safety net
+const LIVE_IDLE_MS = 60_000;   // roll call closed: nothing moves fast any more
+
+/** Watch one instance's responses. `onChange()` fires on every row event and every poll tick;
+ *  `isIdle()` lets the caller slow the floor once the roll call has closed. */
+export function subscribeBoard(instanceId, onChange, isIdle) {
+  return liveWatch(`rollcall_board:${instanceId}`, `instance_id=eq.${instanceId}`, onChange, isIdle);
+}
+/** Watch the signed-in athlete's own rows, so a lock-screen tap paints its receipt in the app. */
+export function subscribeMine(athleteId, onChange, isIdle) {
+  return liveWatch(`rollcall_mine:${athleteId}`, `athlete_id=eq.${athleteId}`, onChange, isIdle);
+}
+function liveWatch(name, filter, onChange, isIdle) {
+  const c = sb();
+  let live = false, stopped = false, timer = null, ch = null;
+  const tick = () => {
+    if (stopped) return;
+    try { onChange({ via: 'poll', live }); } catch { /* the caller's problem */ }
+    const ms = (isIdle && isIdle()) ? LIVE_IDLE_MS : live ? LIVE_SLOW_MS : LIVE_FAST_MS;
+    timer = setTimeout(tick, ms);
+  };
+  timer = setTimeout(tick, live ? LIVE_SLOW_MS : LIVE_FAST_MS);
+  if (c && typeof c.channel === 'function') {
+    try {
+      ch = c.channel(name)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'commitment_responses', filter },
+          () => { if (!stopped) { try { onChange({ via: 'realtime', live: true }); } catch { /* no-op */ } } })
+        .subscribe((status) => { live = status === 'SUBSCRIBED'; });
+    } catch { ch = null; }
+  }
+  return {
+    stop() {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      if (ch && c) { try { c.removeChannel(ch); } catch { /* no-op */ } }
+    },
+    get live() { return live; },
+  };
+}
+
 /** The coach's per-occurrence verdict counts for one standing roll call (0211).
  *  null = FAILED (fetcher contract), [] = genuinely nothing yet. */
 export async function loadRollcallSummary(commitmentId, days = 14) {

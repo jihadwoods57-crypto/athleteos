@@ -3,6 +3,7 @@ import {
   COACH_DIGEST_CATEGORY, COACH_ACTION_SEEN, COACH_ACTION_NUDGE,
   coachActionFor, enqueueCoachAction, dropCoachAction,
   CHECK_IN_LABEL, ROLLCALL_CHANNEL, ackOutcome,
+  routeNotificationResponse, ACTION_OPTIONS, buttonTitleFor, ROLLCALL_BG_TASK,
 } from './rollcall';
 import {
   rollCallCategoryId as serverCategoryId,
@@ -120,5 +121,48 @@ describe('coach action queue', () => {
   });
   it('ignores an empty code', () => {
     expect(enqueueCoachAction([], '', 'seen', 1)).toHaveLength(0);
+  });
+});
+
+describe('routeNotificationResponse (the lock-screen router, 0212)', () => {
+  const push = (actionIdentifier: string | undefined, data: Record<string, unknown>) =>
+    ({ actionIdentifier, notification: { request: { content: { data } } } });
+  it("an I'M UP action records and never routes into the app", () => {
+    expect(routeNotificationResponse(push('ACK', { code: 'c1', route: 'roll-call/i1', action_label: "I'm Up" })))
+      .toEqual({ kind: 'ack', code: 'c1', actionLabel: "I'm Up" });
+  });
+  it('a CHECK IN NOW action is the same ack with its own label', () => {
+    expect(routeNotificationResponse(push('ACK', { code: 'c2', action_label: 'Check in now' })))
+      .toEqual({ kind: 'ack', code: 'c2', actionLabel: 'Check in now' });
+  });
+  it('a coach digest action acts and never routes', () => {
+    expect(routeNotificationResponse(push(COACH_ACTION_NUDGE, { coach_code: 'k', route: 'coach-commitments/i1' })))
+      .toEqual({ kind: 'coach', code: 'k', action: 'nudge' });
+  });
+  it('a plain tap on the body opens the roll call, not Home', () => {
+    expect(routeNotificationResponse(push('expo.modules.notifications.actions.DEFAULT', { code: 'c1', route: 'roll-call/i1' })))
+      .toEqual({ kind: 'route', route: 'roll-call/i1' });
+    expect(routeNotificationResponse(push(undefined, { route: 'roll-call/i1' }))).toEqual({ kind: 'route', route: 'roll-call/i1' });
+  });
+  it('an ACK with no code, an unknown action, or junk does nothing', () => {
+    expect(routeNotificationResponse(push('ACK', { route: 'roll-call/i1' }))).toEqual({ kind: 'route', route: 'roll-call/i1' });
+    expect(routeNotificationResponse(push('SOMETHING_ELSE', { route: 'roll-call/i1' }))).toBeNull();
+    expect(routeNotificationResponse(push(undefined, { route: '../../etc' }))).toBeNull();
+    expect(routeNotificationResponse(null)).toBeNull();
+  });
+});
+
+describe('registration contract (0212)', () => {
+  it('no action ever opens the app', () => {
+    expect(ACTION_OPTIONS).toEqual({ opensAppToForeground: false });
+  });
+  it("button titles read I'M UP / CHECK IN NOW on the lock screen while the category id stays the same", () => {
+    expect(buttonTitleFor(null)).toBe("I'M UP");
+    expect(buttonTitleFor(CHECK_IN_LABEL)).toBe('CHECK IN NOW');
+    expect(buttonTitleFor("I'm Up")).toBe("I'M UP");
+    expect(rollCallCategoryId("I'm Up")).toBe(rollCallCategoryId("I'M UP"));
+  });
+  it('the background task has a stable name', () => {
+    expect(ROLLCALL_BG_TASK).toBe('onstandard-rollcall-action');
   });
 });

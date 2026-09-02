@@ -94,7 +94,8 @@ Deno.serve(async (req: Request) => {
   for (const d of due) {
     const c = copy.get(d)!;
     const { error: e } = await svc.rpc('record_commitment_reminder', {
-      p_athlete: d.athlete_id, p_title: c.title, p_body: c.subtitle ? `${c.subtitle}\n${c.body}` : c.body,
+      // The bell row keeps the WHOLE message even when the push body was capped.
+      p_athlete: d.athlete_id, p_title: c.title, p_body: c.fromCoach ? (d.message ?? c.body) : c.body,
     });
     if (!e) recorded++;
   }
@@ -124,7 +125,6 @@ Deno.serve(async (req: Request) => {
     messages.push({
       to: t.token,
       title: c.title,
-      subtitle: c.subtitle,
       body: c.body,
       // The tap lands on the commitment itself, not Home — the last inch of the loop. `code` lets
       // a lock-screen action button ack without opening the app; empty when the secret isn't set.

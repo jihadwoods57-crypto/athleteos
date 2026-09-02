@@ -12,8 +12,8 @@ import { BRIDGE_SHIM, handleBridgeMessage, type BridgeMessage } from './bridge';
 import { authenticateBiometric } from '../lib/auth/biometrics';
 import { parseInviteCode } from '../lib/inviteLink';
 import { registerGeofenceTask } from '../lib/location';
-import { runRollCallAck, drainAckQueue, ensureRollCallCategories, rememberRollCallLabel, registerCoachDigestCategory, runCoachAction, drainCoachQueue } from '../lib/notify/rollcall';
-import { coachActionFor } from '../core/rollcall';
+import { runRollCallAck, drainAckQueue, ensureRollCallCategories, rememberRollCallLabel, registerCoachDigestCategory, runCoachAction, drainCoachQueue, registerRollCallBackgroundTask } from '../lib/notify/rollcall';
+import { routeNotificationResponse } from '../core/rollcall';
 
 // The app canvas, exactly: --bg in the proto's tokens.css, and the splash backgroundColor in
 // app.json. All three have to be the SAME value or launch shows a hue step — this was #080B0A, a
@@ -166,34 +166,21 @@ export function ProtoApp() {
     // cold-start path and the live listener behave identically. ACK records the roll call without
     // opening the app and MUST return before deliverRoute, so an ack never doubles as a deep link.
     const handleResponse = (resp: unknown): void => {
-      const r = resp as
-        | { actionIdentifier?: string; notification?: { request?: { content?: { data?: { route?: unknown; code?: unknown; action_label?: unknown; coach_code?: unknown } } } } }
-        | null
-        | undefined;
+      const r = resp as { notification?: { request?: { content?: { data?: { code?: unknown; action_label?: unknown } } } } } | null | undefined;
       const data = r?.notification?.request?.content?.data;
-      // A roll-call push (tapped or ACK'd) carries a code — remember its label so the custom "I'm Up"
-      // button is registered for the next launch, even if the app is later killed. Best-effort.
+      // A roll-call push (tapped or ACK'd) carries a code: remember its label so the custom button
+      // is registered for the next launch, even if the app is later killed. Best-effort.
       if (typeof data?.code === 'string' && data.code) {
         void rememberRollCallLabel(typeof data?.action_label === 'string' ? data.action_label : null);
       }
-      if (r?.actionIdentifier === 'ACK' && typeof data?.code === 'string' && data.code) {
-        const code = data.code;
-        // Best-effort: record now, queue for a foreground/reconnect retry if the network isn't there.
-        // Queued ONLY when a retry could still land it (0211): an expired code or a closed roll
-        // call is dropped rather than replayed until the queue cap evicts a live one.
-        runRollCallAck(code).catch(() => {});
-        return; // do not also route into the WebView
-      }
-      // The COACH half of the same idea: "Got it" / "Nudge them" on an escalation digest, answered
-      // without unlocking the phone. Same shape as ACK above and the same rule — an action must
-      // return before deliverRoute, or acting on the notification would ALSO open the app, which is
-      // the exact cost the button exists to avoid.
-      const coachAction = coachActionFor(r?.actionIdentifier);
-      if (coachAction && typeof data?.coach_code === 'string' && data.coach_code) {
-        void runCoachAction(data.coach_code, coachAction);
-        return;
-      }
-      deliverRoute(data?.route);
+      // One pure router for the live listener, the cold-start replay and (on Android) the
+      // background task: an ACTION records and returns, a TAP routes. An action never opens the
+      // WebView; that is the whole point of the lock-screen button.
+      const intent = routeNotificationResponse(resp);
+      if (!intent) return;
+      if (intent.kind === 'ack') { runRollCallAck(intent.code).catch(() => {}); return; }
+      if (intent.kind === 'coach') { void runCoachAction(intent.code, intent.action); return; }
+      deliverRoute(intent.route);
     };
     Notifications.getLastNotificationResponseAsync()
       .then((resp) => handleResponse(resp))
@@ -215,6 +202,8 @@ export function ProtoApp() {
       // labels — but it has the same prior-launch requirement, so it registers on every startup.
       void registerCoachDigestCategory();
       void drainCoachQueue();
+      // Android: the action pressed on a killed app runs the background task, not this listener.
+      void registerRollCallBackgroundTask();
     }
   }, []);
 
