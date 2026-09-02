@@ -164,6 +164,13 @@ describe('openingMessage', () => {
     expect(m).toContain('Three.');
     expect(m).not.toContain('Four must not appear');
   });
+  test('a decimal mid-sentence never deletes the words before it (2026-09-02 audit)', () => {
+    /* The old pattern could not match a chunk with an interior terminator, so the whole prefix
+       vanished: "Aim for 3.5 oz more chicken" rendered as "5 oz more chicken". */
+    const decimal = 'Solid protein anchor here. Aim for 3.5 oz more chicken at dinner. That closes the gap.';
+    const m = openingMessage({ ...base, analysis: decimal });
+    expect(m).toContain('Aim for 3.5 oz more chicken');
+  });
   test('a highlight is trivia, not the move: it rides AFTER the day line', () => {
     const m = openingMessage({ ...base, highlights: ['Strong iron source'], day: { proteinSoFar: 81, proteinTarget: 180, mealsRemaining: 2 } });
     expect(m.indexOf('Strong iron source.')).toBeGreaterThan(m.indexOf('Land around'));

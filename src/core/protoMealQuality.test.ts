@@ -114,6 +114,12 @@ describe('stripFoodMentions — deleted food leaves the prose', () => {
     expect(stripFoodMentions('', 'Rice')).toBe('');
     expect(stripFoodMentions(text, '')).toBe(text);
   });
+  test('a decimal does not split the sentence, so no fragment survives (2026-09-02 audit)', () => {
+    /* The old split treated "3.5" as a boundary: removing chicken from "Aim for 3.5 oz chicken
+       next." left a dangling "Aim for 3." in the prose. */
+    const out = stripFoodMentions('Aim for 3.5 oz chicken next. The rice fuels you.', 'Chicken');
+    expect(out).toBe('The rice fuels you.');
+  });
 });
 
 describe('analysisAgreesWithBand — score and words from one evaluation', () => {

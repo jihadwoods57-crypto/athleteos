@@ -59,13 +59,17 @@ function lowConfidence(detected: unknown): boolean {
  * eval/responses runs 313 to 391 characters, and this used to clip at 260 on a sentence
  * boundary, so sentence one survived and the "what do I do next" sentence, the entire point of
  * the message, was dropped on every plate (2026-09-02). Sentence-aware: a boundary is a
- * terminator followed by whitespace, so "3.5 oz" and "Dr. Pepper" do not split.
+ * terminator followed by whitespace, so "3.5 oz" never splits. The lazy scan matters: the
+ * previous pattern excluded terminators from the sentence body, so a decimal made the whole
+ * prefix unmatchable and "Aim for 3.5 oz" reached the athlete as "5 oz" (caught 2026-09-02
+ * 1 PM audit). An abbreviation like "e.g." counts as its own sentence, but no text is ever
+ * dropped mid-read.
  */
 const READ_SENTENCES = 3;
 const READ_MAX = 520;
 function readCore(s: string): string {
   if (!s) return '';
-  const sentences = s.match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g) || [s];
+  const sentences = s.match(/[\s\S]*?[.!?]+(?=\s|$)|[\s\S]+$/g) || [s];
   const kept = sentences.map((x) => x.trim()).filter(Boolean).slice(0, READ_SENTENCES).join(' ');
   return clip(kept, READ_MAX);
 }

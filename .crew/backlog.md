@@ -78,9 +78,12 @@ label class that isn't a heading. Prevents next month's new screen from silently
 regressing what two sessions just finished.
 
 ## Notes for tomorrow's sessions
-- The 1 PM audit slot did not run 2026-09-01 (only build + sentries fired); the heading
-  judgment calls from tonight (h1 = athlete's first name on Home; summaries stay
-  controls) deserve fresh-eyes scrutiny.
+- 2026-09-02 1 PM audit: the heading judgment calls from 2026-09-01 7 PM were re-scrutinized
+  with fresh eyes and HOLD (summary/button role flattening is real browser behavior; Home's
+  h1 is right). The morning's sentence-regex bug (text silently deleted before decimals in
+  the AI read) was caught and fixed in all three splitters; the fixture "e.g." case splits
+  into extra sentences but never loses text — acceptable, documented in readCore's comment.
+- The 1 PM audit slot did not run 2026-09-01 (only build + sentries fired).
 - qc-capture 18-shot before/after on tonight's diff: byte-identical, sweep clean.
 - Drive uploads of screenshots >~20KB through the connector are unreliable; keep proof
   shots small. The connector still cannot edit an existing Doc (re-checked 2026-09-01).

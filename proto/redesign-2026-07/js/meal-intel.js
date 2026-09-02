@@ -358,8 +358,11 @@ export function openingMessage({
   // WHOLE. The hard 400-char slice that stood here could cut the adjustment mid-word, and the
   // adjustment is the whole point of the message (2026-09-02; same rule as meal-opener.ts's
   // readCore). A boundary is a terminator followed by whitespace, so "3.5 oz" never splits.
+  // The lazy scan matters: the previous pattern excluded terminators from the sentence body,
+  // so a decimal made the prefix unmatchable and "Aim for 3.5 oz" rendered as "5 oz" (caught
+  // 2026-09-02 1 PM audit). No text is ever dropped mid-read.
   const raw = String(analysis == null ? '' : analysis).replace(/[<>]/g, '');
-  const deep = (raw.match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g) || [raw])
+  const deep = (raw.match(/[\s\S]*?[.!?]+(?=\s|$)|[\s\S]+$/g) || [raw])
     .map((x) => x.trim()).filter(Boolean).slice(0, 3).join(' ').slice(0, 520);
   if (deep) {
     parts.push(deep);
@@ -965,7 +968,10 @@ export function stripFoodMentions(text, foodName) {
   if (!words.length) return t;
   const esc = (w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const re = new RegExp(`\\b(${words.map(esc).join('|')})s?\\b`, 'i');
-  const sentences = t.match(/[^.!?]+[.!?]*/g) || [t];
+  // Boundary = terminator followed by whitespace, same rule as openingMessage above: the old
+  // pattern split "3.5 oz" at the decimal, so removing "chicken" from "Aim for 3.5 oz chicken"
+  // left a dangling "Aim for 3." fragment in the prose (2026-09-02 1 PM audit).
+  const sentences = t.match(/[\s\S]*?[.!?]+(?=\s|$)|[\s\S]+$/g) || [t];
   const kept = sentences.filter((sent) => !re.test(sent));
   return kept.join('').trim();
 }

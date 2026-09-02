@@ -235,6 +235,15 @@ describe('the model\'s adjustment sentence reaches the athlete', () => {
     const out = composeOpenerText(read({ analysis: twoSentences, highlights: [] }), { late: false, mealName: 'Dinner' });
     expect(out.startsWith(twoSentences)).toBe(true);
   });
+
+  it('a decimal mid-sentence never deletes the words before it (2026-09-02 audit)', () => {
+    // The old sentence pattern could not match a chunk containing an interior terminator, so
+    // "Aim for 3.5 oz" reached the athlete as "5 oz" — the prefix silently vanished.
+    const decimal = 'Solid protein anchor here. Aim for 3.5 oz more chicken at dinner. That closes the gap.';
+    const out = composeOpenerText(read({ analysis: decimal, highlights: [] }), { late: false, mealName: 'Dinner' });
+    expect(out).toContain('Aim for 3.5 oz more chicken');
+    expect(out.startsWith(decimal)).toBe(true);
+  });
 });
 
 /* A HIGHLIGHT IS NOT THE MOVE. The schema defines highlights as micronutrient notes ("Collard
