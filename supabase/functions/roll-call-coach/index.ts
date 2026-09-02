@@ -32,7 +32,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { verifyRollCallCode, signRollCallCode } from '../_shared/rollcall-code.ts';
 import { rollCallCategoryId, ROLLCALL_CHANNEL } from '../_shared/rollcall-category.ts';
 import { evaluateFlag, type FlagRow } from '../_shared/feature-flags.ts';
-import { parseAction, parseAthlete, httpStatusForCoach, nudgeBody, type CoachFailure } from './logic.ts';
+import { parseAction, parseAthlete, httpStatusForCoach, nudgeBody, scheduleNoticeBody, type CoachFailure } from './logic.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -137,6 +137,47 @@ Deno.serve(async (req: Request) => {
     // `cleared: 0` is a success, not a miss: the coach pressed twice, or the offline queue replayed
     // the action after the app had already marked it read. Idempotent by design.
     return json({ ok: true, action: 'seen', cleared: Number(data) || 0 });
+  }
+
+  // ---------------------------------------------------------------- "Tell athletes" (0216)
+  // A day was moved or skipped from the board. In-app only: a lock-screen coach code names a
+  // roll call that is already running, and there is nothing to announce about that one.
+  if (action === 'schedule') {
+    if (code) return fail('bad_action');
+    const { data: sc, error: scErr } = await svc.rpc('rollcall_schedule_notice_claim', {
+      p_instance: instanceId, p_coach: coachId, p_cooldown_min: NUDGE_COOLDOWN_MIN,
+    });
+    if (scErr) return fail('db_error');
+    const s = (sc ?? {}) as {
+      ok?: boolean; reason?: CoachFailure; title?: string; coach_name?: string;
+      occurs_on?: string; today?: string; skipped?: boolean; starts_min?: number | null; athlete_ids?: string[];
+    };
+    if (!s.ok) return fail(s.reason ?? 'db_error');
+    const who = Array.isArray(s.athlete_ids) ? s.athlete_ids : [];
+    if (!who.length) return json({ ok: true, action: 'schedule', targeted: 0, pushed: 0 });
+    const { data: stoks } = await svc
+      .from('device_tokens').select('token,user_id').in('user_id', who);
+    const bodyText = scheduleNoticeBody({
+      title: s.title ?? 'Roll call', skipped: !!s.skipped,
+      startsMin: typeof s.starts_min === 'number' ? s.starts_min : null,
+      occursOn: String(s.occurs_on ?? ''), todayISO: String(s.today ?? ''),
+    });
+    const notices: Array<Record<string, unknown>> = [];
+    for (const t of (stoks ?? []) as Array<{ token: string; user_id: string }>) {
+      notices.push({
+        to: t.token,
+        // The coach's name, like the 6:00 push: this is their word about their roll call. No
+        // action button: there is nothing to answer yet.
+        title: s.coach_name || s.title || 'Roll call',
+        body: bodyText,
+        data: { route: `roll-call/${instanceId}`, from_coach: true },
+        channelId: ROLLCALL_CHANNEL,
+        priority: 'high',
+        sound: 'default',
+      });
+    }
+    const pushedNotices = await push(notices);
+    return json({ ok: true, action: 'schedule', targeted: who.length, pushed: pushedNotices });
   }
 
   // ---------------------------------------------------------------- "Nudge them"

@@ -813,3 +813,34 @@ export function nextRollcall(upcoming, nowISO) {
   }
   return null;
 }
+
+/* ================================================================================
+   REACH + TONIGHT'S PREVIEW (0216).
+   ================================================================================ */
+
+/** Who can actually receive the push, from the board's per-row `can_push`. null when the server
+ *  never said (a pre-0216 read), so nothing is claimed either way. Excused rows are outside the
+ *  denominator, as everywhere else. */
+export function reachCounts(rows) {
+  const list = (Array.isArray(rows) ? rows : []).filter((r) => r && r.status !== 'excused' && r.verdict !== VERDICT.EXCUSED);
+  if (!list.length || !list.some((r) => typeof r.can_push === 'boolean')) return null;
+  const reachable = list.filter((r) => r.can_push !== false).length;
+  return { total: list.length, reachable, unreachable: list.length - reachable };
+}
+
+/** Tomorrow's wake-up, for the athlete's evening (0216): the row my_commitments already returns
+ *  for tomorrow, read for the two facts that decide an alarm. null when there is none. */
+export function tomorrowRollcall(rows, todayISO) {
+  if (!todayISO) return null;
+  const tomorrow = addDays(todayISO, 1);
+  const r = (Array.isArray(rows) ? rows : []).find((x) => x && x.type === 'morning_roll_call' && x.occurs_on === tomorrow);
+  if (!r) return null;
+  const skipped = r.instance_status === 'cancelled';
+  const moved = !skipped && r.rule_starts_min != null && r.starts_min != null
+    && Number(r.starts_min) !== Number(r.rule_starts_min);
+  return {
+    instance_id: r.instance_id, title: r.title || TYPE_LABEL.morning_roll_call,
+    coach_name: r.coach_name || '', startsMin: r.starts_min != null ? Number(r.starts_min) : null,
+    skipped, moved, excused: r.status === 'excused',
+  };
+}

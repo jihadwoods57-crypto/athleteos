@@ -125,3 +125,66 @@ describe('Home: the next roll call', () => {
     expect(html).not.toContain('data-wk-skip=');
   });
 });
+
+/* Reach, delivery and the notice (0216). */
+const { tomorrowCard } = require('../../proto/redesign-2026-07/js/screens/roll-call.js');
+const { tomorrowRollcall } = require('../../proto/redesign-2026-07/js/commitments.js');
+
+describe('reach and delivery on the board (0216)', () => {
+  test('a day ahead says who cannot get a push, and marks them in the roster', () => {
+    const inst = occurrence({
+      reachable: 1,
+      rows: [
+        { response_id: 'r1', athlete_id: 'a1', name: 'Ava Brooks', status: 'pending', verdict: 'pending', acknowledged_at: null, can_push: true },
+        { response_id: 'r2', athlete_id: 'a2', name: 'Ben Cole', status: 'pending', verdict: 'pending', acknowledged_at: null, can_push: false },
+      ],
+    });
+    seedBoardForHarness([inst], tomorrow);
+    seedScheduleForHarness({ commitmentId: 'c1', upcoming: [inst] });
+    const html = coachCommitments.render({ sub: inst.instance_id });
+    expect(html).toContain('1 can’t get a push');
+    expect(html).toContain('No push');
+  });
+
+  test('a moved day that was never announced offers Tell athletes; an announced one says when', () => {
+    const moved = occurrence({ starts_override_min: 390, starts_min: 390, schedule_set_at: new Date().toISOString(), schedule_notified_at: null });
+    seedBoardForHarness([moved], tomorrow);
+    seedScheduleForHarness({ commitmentId: 'c1', upcoming: [moved] });
+    let html = coachCommitments.render({ sub: moved.instance_id });
+    expect(html).toContain('Athletes have not been told');
+    expect(html).toContain('id="wk-tell"');
+    const told = occurrence({ starts_override_min: 390, starts_min: 390, schedule_set_at: '2026-09-02T20:00:00Z', schedule_notified_at: '2026-09-02T20:01:00Z' });
+    seedBoardForHarness([told], tomorrow);
+    html = coachCommitments.render({ sub: told.instance_id });
+    expect(html).toContain('Athletes were told');
+    expect(html).not.toContain('id="wk-tell"');
+  });
+
+  test('Home next card states reach when some cannot be reached', () => {
+    seedBoardForHarness([], today);
+    seedScheduleForHarness({ commitmentId: 'c1', upcoming: [occurrence({ total: 24, reachable: 22 })] });
+    expect(commitmentBoardCard()).toContain('22 of 24 can get the push');
+  });
+});
+
+describe('the athlete sees tomorrow tonight (0216)', () => {
+  const row = (over: Record<string, unknown> = {}) => ({
+    type: 'morning_roll_call', instance_id: 'i2', occurs_on: tomorrow, title: 'Wake-Up Roll Call',
+    coach_name: 'Coach Reyes', starts_min: 360, rule_starts_min: 360, instance_status: 'scheduled', status: 'pending', ...over,
+  });
+  test('a plain tomorrow: the time and the coach', () => {
+    const html = tomorrowCard(tomorrowRollcall([row()], today));
+    expect(html).toContain('Tomorrow · Wake-Up Roll Call');
+    expect(html).toContain('6:00 AM · Coach Reyes');
+    expect(html).not.toContain('undefined');
+  });
+  test('a moved tomorrow is marked, a skipped one says off', () => {
+    expect(tomorrowCard(tomorrowRollcall([row({ starts_min: 390 })], today))).toContain('6:30 AM · moved for tomorrow');
+    const off = tomorrowCard(tomorrowRollcall([row({ instance_status: 'cancelled' })], today));
+    expect(off).toContain('called it off for tomorrow');
+    expect(off).toContain('>Off<');
+  });
+  test('nothing tomorrow renders nothing', () => {
+    expect(tomorrowCard(tomorrowRollcall([], today))).toBe('');
+  });
+});

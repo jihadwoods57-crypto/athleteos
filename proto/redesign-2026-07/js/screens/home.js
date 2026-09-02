@@ -8,9 +8,9 @@ import { DAY, MEAL_KEYS } from '../day.js';
 import { fetchMyDayReceipts, fetchRecentMeals, signedMealPhotoUrl, daysAgoISO, todayISO } from '../roles.js';
 import { warmMealPhotos, todayMealPhotoPath } from '../photo-store.js';
 import { shouldNudge, nudgeSignature, nudgeData } from '../coach-nudge.js';
-import { deriveCommitment, presenceOf, PRESENCE } from '../commitments.js';
+import { deriveCommitment, presenceOf, PRESENCE, tomorrowRollcall } from '../commitments.js';
 import { VC, loadMine, todayISO as vcToday } from '../commitment-data.js';
-import { commitmentCard, mountCommitmentCard, commitmentOfflineCard } from './roll-call.js';
+import { commitmentCard, mountCommitmentCard, commitmentOfflineCard, tomorrowCard } from './roll-call.js';
 import { armIfPermitted } from './location-consent.js';
 import { standardsCard, mountStandardsCard, standardsOfflineCard } from './connected-standards.js';
 import { CS, loadMine as loadStandards, todayISO as csToday } from '../connected-standard-data.js';
@@ -125,9 +125,15 @@ function paintCommitments(root) {
     if (!slot.isConnected) return;
     const now = new Date().toISOString();
     paintPresenceReceipt(root);
-    const html = VC.today(vcToday())
+    const today = vcToday();
+    // Tonight's preview (0216): from late afternoon, tomorrow's wake-up sits under today's cards,
+    // so a moved time or a skipped day is known BEFORE the alarm gets set. loadMine already
+    // fetches yesterday through tomorrow; this reads what is cached, nothing extra.
+    const evening = new Date().getHours() >= 16;
+    const html = VC.today(today)
       .map((r) => commitmentCard(deriveCommitment(r, now)))
-      .filter(Boolean).join('');
+      .filter(Boolean).join('')
+      + (evening ? tomorrowCard(tomorrowRollcall(VC.mine, today)) : '');
     // An outage must never render as "you have nothing scheduled". For an athlete whose coach is
     // counting on a 5:15 AM response, silence and a failed fetch look identical and mean opposite
     // things — so when the fetch failed and we have nothing cached, say so.

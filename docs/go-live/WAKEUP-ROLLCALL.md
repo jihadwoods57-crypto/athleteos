@@ -302,3 +302,49 @@ per-day control was today's message.
 - Move tomorrow to 6:30 from the board, confirm the athlete's card says 6:30 and the 6:30 push
   arrives with the 6:35 grace.
 - Skip tomorrow, confirm no push and no card; put it back, confirm it returns.
+
+## Fourth pass, 2026-09-02 (migration 0216): reach, delivery, and telling athletes
+
+Three gaps a real morning exposes once days can be moved or skipped.
+
+### Reach and delivery (coach)
+- The board header and the "next roll call" card say how many athletes **cannot get a push at
+  all** (no device token: notifications off, never granted, a fresh phone). The day-ahead roster
+  marks them **No push**.
+- A pending row after the open says **push sent 6:00 AM** or **no push reached them**, from
+  `commitment_responses.first_notified_at`. A coach chasing an athlete whose phone never got the
+  push is chasing the wrong thing.
+- Server: `commitment_board` rows carry `can_push` + `first_notified_at`; the occurrence carries
+  `reachable` and `schedule_notified_at`; `rollcall_upcoming` carries `reachable`. `_rc_can_push`
+  is security definer over `device_tokens` and returns a boolean only; no token ever leaves.
+
+### Telling athletes (coach → athlete)
+- Every schedule write from the board or the Home card (move, back to the rule, skip, put back)
+  sends the roster one push **in the coach's name**: "Wake-Up Roll Call is at 6:30 AM tomorrow."
+  or "No Wake-Up Roll Call tomorrow." plus a bell row. No action button; nothing to answer yet.
+- Server: `rollcall_schedule_notice_claim(instance, coach, cooldown)` (service role only)
+  re-derives authorization from the coach, refuses an occurrence that already started, holds a
+  10-minute cooldown per occurrence, writes the bell rows, returns the roster and the day's facts.
+  Edge: `roll-call-coach` action `'schedule'` (in-app path only; the lock-screen coach code cannot
+  use it). Copy: `scheduleNoticeBody` in `roll-call-coach/logic.ts`, jest-pinned.
+- The schedule card says **Athletes were told 8:14 PM**, or **Athletes have not been told** /
+  **told 8:14 PM, before this change** with a **Tell athletes** button, so the board never claims
+  a notice that did not go out.
+
+### Tonight's preview (athlete)
+- From 4 PM, the athlete's Home shows **Tomorrow · Wake-Up Roll Call · 6:30 AM · moved for
+  tomorrow · Coach Reyes**, or **Off** when the coach called it off. It reads the rows
+  `my_commitments` already returns for tomorrow; no extra fetch.
+
+### Deploy (0216)
+1. `supabase db push --linked` (probe: `select to_regprocedure('rollcall_schedule_notice_claim(uuid,uuid,int)')`).
+2. `supabase functions deploy roll-call-coach`.
+3. OTA the proto; prove md5 + sha256 on the live manifest for both platforms.
+4. RLS: 15 new `0216:` probes.
+
+### Device QA still owed
+- Move tomorrow from the board; confirm the roster gets "… is at 6:30 AM tomorrow." in the
+  coach's name within seconds, and a second move inside 10 minutes shows "told …, before this
+  change" with Tell athletes.
+- An athlete with notifications off shows **No push** on the day-ahead roster and "no push on
+  their phone" on the morning board.

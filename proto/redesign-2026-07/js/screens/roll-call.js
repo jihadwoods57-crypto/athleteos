@@ -257,6 +257,29 @@ export function commitmentOfflineCard() {
  *
  *  A failure ALSO re-renders rather than restoring saved markup — the card rebuilds from the
  *  cache, which is both simpler and keeps this file free of innerHTML assignment. */
+/** Tonight's preview of tomorrow's wake-up (0216): the time an athlete sets an alarm by, and the
+ *  two facts that change it, a move or a skip. `t` comes from tomorrowRollcall(). */
+export function tomorrowCard(t) {
+  if (!t || !t.instance_id) return '';
+  const id = esc(t.instance_id);
+  if (t.skipped) {
+    return `<div class="xrow-item" data-go="roll-call/${id}">
+      <div class="xico sm muted">${icon('sun', 16)}</div>
+      <div class="xr"><div class="xa">Tomorrow · ${esc(t.title)}</div>
+      <div class="xb">${esc(t.coach_name ? `${t.coach_name} called it off for tomorrow.` : 'Your coach called it off for tomorrow.')}</div></div>
+      <span class="xpill gray">Off</span>
+    </div>`;
+  }
+  const time = t.startsMin != null ? fmtMin(t.startsMin) : '';
+  const line = [time, t.moved ? 'moved for tomorrow' : '', t.coach_name].filter(Boolean).join(' · ');
+  return `<div class="xrow-item" data-go="roll-call/${id}">
+    <div class="xico sm blue">${icon('sun', 16)}</div>
+    <div class="xr"><div class="xa">Tomorrow · ${esc(t.title)}</div>
+    <div class="xb">${esc(line || 'Set your alarm.')}</div></div>
+    <span class="xpill ${t.moved ? 'gold' : 'blue'}">${esc(t.moved ? 'Moved' : time || 'Tomorrow')}</span>
+  </div>`;
+}
+
 export function mountCommitmentCard(root, rerender) {
   const go = (attr, fn) => root.querySelectorAll(`[${attr}]`).forEach((el) => {
     el.addEventListener('click', async (ev) => {

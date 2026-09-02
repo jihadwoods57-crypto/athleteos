@@ -762,3 +762,31 @@ test('nextRollcall is the first occurrence still ahead of now, skipped days incl
   assert.equal(nextRollcall(up, '2026-09-02T11:00:00Z').occurs_on, '2026-09-03');
   assert.equal(nextRollcall([], '2026-09-02T11:00:00Z'), null);
 });
+
+/* ---------------------------------------------------------------- reach + tonight (0216) */
+import { reachCounts, tomorrowRollcall } from './commitments.js';
+
+test('reachCounts: excused rows leave the denominator; a pre-0216 read claims nothing', () => {
+  assert.equal(reachCounts([{ status: 'pending' }, { status: 'pending' }]), null);
+  assert.deepEqual(reachCounts([
+    { status: 'pending', can_push: true }, { status: 'pending', can_push: false },
+    { status: 'excused', can_push: false }, { status: 'acknowledged', can_push: true },
+  ]), { total: 3, reachable: 2, unreachable: 1 });
+});
+
+test('tomorrowRollcall reads tomorrow from the athlete rows, moved and skipped included', () => {
+  const rows = [
+    { type: 'morning_roll_call', occurs_on: '2026-09-02', starts_min: 360, rule_starts_min: 360, instance_status: 'scheduled', instance_id: 'a' },
+    { type: 'morning_roll_call', occurs_on: '2026-09-03', starts_min: 390, rule_starts_min: 360, instance_status: 'scheduled', instance_id: 'b', title: 'Wake-Up Roll Call', coach_name: 'Coach Reyes', status: 'pending' },
+  ];
+  const t = tomorrowRollcall(rows, '2026-09-02');
+  assert.equal(t.instance_id, 'b');
+  assert.equal(t.startsMin, 390);
+  assert.equal(t.moved, true);
+  assert.equal(t.skipped, false);
+  assert.equal(tomorrowRollcall(rows, '2026-09-03'), null);
+  const off = tomorrowRollcall([{ ...rows[1], instance_status: 'cancelled' }], '2026-09-02');
+  assert.equal(off.skipped, true);
+  assert.equal(off.moved, false);
+  assert.equal(tomorrowRollcall([], '2026-09-02'), null);
+});

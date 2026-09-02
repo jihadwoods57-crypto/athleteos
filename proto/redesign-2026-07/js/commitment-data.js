@@ -484,6 +484,24 @@ export async function pingAthlete(instanceId, athleteId) {
   } catch { return { sent: 0, reason: 'failed' }; }
 }
 
+/** Tell the roster a day was moved or skipped (0216): one push in the coach's name, server-side
+ *  cooldown per occurrence. `rate_limited` is a success from the coach's side (they were told
+ *  minutes ago); the board reads `schedule_notified_at` to say when. */
+export async function notifyScheduleChange(instanceId) {
+  const c = sb(); if (!c || !instanceId) return { sent: 0, reason: 'failed' };
+  try {
+    const { data, error } = await c.functions.invoke('roll-call-coach', {
+      body: { instance: instanceId, action: 'schedule' },
+    });
+    if (!error && data && data.ok) { for (const b of RTC.boards.values()) b.at = 0; for (const u of RTC.upcoming.values()) u.at = 0; RTC.boardAt = 0; return { sent: Number(data.targeted) || 0, reason: 'ok' }; }
+    const status = error && error.context && error.context.status;
+    if (status === 429) return { sent: 0, reason: 'rate_limited' };
+    if (status === 403) return { sent: 0, reason: 'not_authorized' };
+    if (status === 404) return { sent: 0, reason: 'no_instance' };
+    return { sent: 0, reason: 'failed' };
+  } catch { return { sent: 0, reason: 'failed' }; }
+}
+
 /** "Change today's message" (0211): edits the OCCURRENCE, never the standing rule. An empty
  *  string clears the override so the standing message shows again. */
 export async function setInstanceMessage(instanceId, message) {

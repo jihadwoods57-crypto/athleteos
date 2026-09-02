@@ -1,9 +1,10 @@
-import { parseAction, httpStatusForCoach, isTerminal, nudgeBody, parseAthlete, type CoachFailure } from './logic';
+import { parseAction, httpStatusForCoach, isTerminal, nudgeBody, parseAthlete, scheduleNoticeBody, type CoachFailure } from './logic';
 
 describe('parseAction', () => {
-  it('accepts exactly the two verbs', () => {
+  it('accepts exactly the three verbs', () => {
     expect(parseAction('seen')).toBe('seen');
     expect(parseAction('nudge')).toBe('nudge');
+    expect(parseAction('schedule')).toBe('schedule');
   });
   it('refuses anything else rather than defaulting', () => {
     // Defaulting to 'nudge' would push a whole roster on a typo; defaulting to 'seen' would
@@ -84,5 +85,26 @@ describe('parseAthlete (0211)', () => {
     for (const junk of ['', 'me', 'eeee0000', null, undefined, 1, {}, ['eeee0000-0000-0000-0000-0000000000e2']]) {
       expect(parseAthlete(junk)).toBeNull();
     }
+  });
+});
+
+describe('scheduleNoticeBody (0216)', () => {
+  it('says tomorrow when it is tomorrow, with the moved time', () => {
+    expect(scheduleNoticeBody({ title: 'Wake-Up Roll Call', skipped: false, startsMin: 390, occursOn: '2026-09-03', todayISO: '2026-09-02' }))
+      .toBe('Wake-Up Roll Call is at 6:30 AM tomorrow.');
+  });
+  it('names the weekday further out, and today when it is today', () => {
+    expect(scheduleNoticeBody({ title: 'Roll call', skipped: false, startsMin: 285, occursOn: '2026-09-07', todayISO: '2026-09-02' }))
+      .toBe('Roll call is at 4:45 AM on Monday.');
+    expect(scheduleNoticeBody({ title: 'Roll call', skipped: false, startsMin: 0, occursOn: '2026-09-02', todayISO: '2026-09-02' }))
+      .toBe('Roll call is at 12:00 AM today.');
+  });
+  it('a skipped day is one sentence, no time', () => {
+    expect(scheduleNoticeBody({ title: 'Wake-Up Roll Call', skipped: true, startsMin: 360, occursOn: '2026-09-03', todayISO: '2026-09-02' }))
+      .toBe('No Wake-Up Roll Call tomorrow.');
+  });
+  it('never emits an em dash or an undefined', () => {
+    const out = scheduleNoticeBody({ title: '', skipped: false, startsMin: null, occursOn: 'x', todayISO: '2026-09-02' });
+    expect(out).not.toMatch(/undefined|—/);
   });
 });

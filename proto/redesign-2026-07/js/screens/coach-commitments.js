@@ -23,14 +23,14 @@ import {
   boardCounts, missingFrom, TYPE_LABEL, presenceOf, PRESENCE,
   groupByVerdict, verdictCounts, deadlineOf, closesAtOf, opensAtOf, graceMinOf, offsetFor, fmtAt,
   summarizeOccurrences, wakeupPhase, VERDICT, SOURCE,
-  dayLabel, scheduleState, nextRollcall,
+  dayLabel, scheduleState, nextRollcall, reachCounts,
 } from '../commitments.js';
 import { fmtMin } from '../requirements.js';
 import {
   VC, loadBoard, loadCommitments, loadLocations, saveCommitment, saveLocation,
   setResponse, remindMissing, excuseAthlete, setCommitmentActive, todayISO, shiftISO,
   pingAthlete, setInstanceMessage, loadRollcallSummary, resolveSyncReview, subscribeBoard,
-  loadUpcoming, setInstanceSchedule,
+  loadUpcoming, setInstanceSchedule, notifyScheduleChange,
 } from '../commitment-data.js';
 import { editWakeup } from './coach-wakeup.js';
 
@@ -185,6 +185,7 @@ function scheduleCard(inst, label) {
     ${st.line ? `<div class="wk-sched-line ${st.kind === 'skipped' ? 'skip' : 'moved'}">${esc(st.line)}</div>`
       : `<div class="wk-sched-line">On the standing schedule${rule != null ? `, ${esc(fmtMin(rule))}` : ''}. Change it for this day only below.</div>`}
     ${who ? `<div class="wk-sched-who">${esc(who)}</div>` : ''}
+    ${noticeLine(inst, st)}
     ${!skipped && canSchedule() ? `
     <div class="wk-field">
       <div class="wk-l">Wake-up time this day</div>
@@ -193,6 +194,20 @@ function scheduleCard(inst, label) {
     </div>` : ''}
     <div id="wk-sched-err" class="ts wk-err" aria-live="polite"></div>
   </section>`;
+}
+
+/** Whether the roster has heard about this day's schedule (0216), and the way to tell them. A
+ *  change after the last notice reopens it: the board never claims athletes were told something
+ *  they were not. */
+function noticeLine(inst, st) {
+  if (st.kind === 'standing' && !inst.schedule_notified_at) return '';
+  const told = inst.schedule_notified_at ? Date.parse(inst.schedule_notified_at) : NaN;
+  const changed = inst.schedule_set_at ? Date.parse(inst.schedule_set_at) : NaN;
+  const stale = !isFinite(told) || (isFinite(changed) && changed > told);
+  const toldAt = isFinite(told) ? new Date(told).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+  return `<div class="wk-sched-who" id="wk-notice">${stale
+    ? `${isFinite(told) ? `Athletes were told ${esc(toldAt)}, before this change. ` : 'Athletes have not been told. '}${canSchedule() ? '<button class="btn ghost xs" id="wk-tell">Tell athletes</button>' : ''}`
+    : `Athletes were told ${esc(toldAt)}.`}</div>`;
 }
 
 /** Home: the NEXT roll call the coach can still act on, once today's has closed or when there is
@@ -214,7 +229,7 @@ function nextRollcallCard() {
   return `
     <section class="card pad vc-board wk-homecard wk-nextcard">
       <h2 class="eyebrow wk-cardh">Next roll call · ${esc(label)}</h2>
-      <div class="wk-ctx">${st.kind === 'skipped' ? 'Skipped' : `${esc(fmtMin(Number(next.starts_min)))}${st.kind === 'moved' ? ' · moved for this day' : ''}`}${Number(next.total) ? ` · ${next.total} will get it` : ''}</div>
+      <div class="wk-ctx">${st.kind === 'skipped' ? 'Skipped' : `${esc(fmtMin(Number(next.starts_min)))}${st.kind === 'moved' ? ' · moved for this day' : ''}`}${Number(next.total) ? (next.reachable != null && Number(next.reachable) < Number(next.total) ? ` · ${next.reachable} of ${next.total} can get the push` : ` · ${next.total} will get it`) : ''}</div>
       ${next.message && st.kind !== 'skipped' ? `<div class="wk-nextmsg">“${esc(String(next.message).slice(0, 160))}${String(next.message).length > 160 ? '…' : ''}”</div>` : ''}
       <div class="wk-nextacts">
         <button class="chip on" data-wk-day="${esc(next.occurs_on)}" data-wk-inst="${esc(next.instance_id)}">${st.kind === 'skipped' ? 'Open' : 'Change'}</button>
@@ -267,8 +282,13 @@ function wakeupRow(r, kind, inst, clock, phase) {
       : `${clock(r.acknowledged_at)}${src}`)
     : kind === 'review' ? `Tapped ${clock(r.device_tapped_at)} on their phone · reached us ${clock(r.acknowledged_at)}`
     : kind === 'ex' ? (r.excused_reason ? `Excused by coach: ${r.excused_reason}` : 'Excused by coach')
-    : !r.pastGrace ? 'No answer yet'
-    : `No answer by ${clock(dl)}`;
+    : (!r.pastGrace ? 'No answer yet' : `No answer by ${clock(dl)}`)
+      // Delivery (0216): a pending row says whether the push could reach them at all, and whether
+      // this morning's did. A coach chasing an athlete whose phone never got it is chasing the
+      // wrong thing.
+      + (r.can_push === false ? ' · no push on their phone'
+        : r.first_notified_at ? ` · push sent ${clock(r.first_notified_at)}`
+        : phase !== 'before' ? ' · no push reached them' : '');
   const pill = kind === 'on'
       ? (r.source === SOURCE.OVERRIDE ? '<span class="xpill blue">Override · On Standard</span>' : '<span class="xpill green">On Standard</span>')
     : kind === 'late' ? `<span class="xpill gold">Late${r.lateMin ? ` · +${r.lateMin} min` : ''}</span>`
@@ -423,7 +443,9 @@ function wakeupBoard(inst, back) {
 
   /* Everything the three columns do NOT already say. "N checked in" is gone from here: it was the
      On Standard column read back out in prose. */
+  const reach = reachCounts(inst.rows || []);
   const split = [
+    reach && reach.unreachable ? `${reach.unreachable} can’t get a push` : '',
     c.overrides ? `${c.overrides} by coach override` : '',
     c.accepted ? `${c.accepted} tap time accepted` : '',
     c.excused ? `${c.excused} excused` : '',
@@ -461,7 +483,7 @@ function wakeupBoard(inst, back) {
       </div>
       ${setup ? '' : wakeupRing(c.accountedFor, c.total, tone)}
     </div>
-    ${setup ? `<div class="wk-split">${skipped ? 'Nobody is scheduled.' : `${c.total} will get it${inst.audience_label ? `, ${esc(inst.audience_label)}` : ''}.`}</div>` : `
+    ${setup ? `<div class="wk-split">${skipped ? 'Nobody is scheduled.' : `${c.total} will get it${inst.audience_label ? `, ${esc(inst.audience_label)}` : ''}.${reach && reach.unreachable ? ` ${reach.unreachable} can’t get a push.` : ''}`}</div>` : `
     <div class="wk-stats">
       <div class="wk-stat ${c.onStandard ? 'g' : ''}"><b>${c.onStandard}</b><span>On Standard</span></div>
       <div class="wk-stat ${c.late ? 'a' : ''}"><b>${c.late}</b><span>Late</span></div>
@@ -502,7 +524,7 @@ function wakeupBoard(inst, back) {
     <summary>${icon('chevron', 14)} <span class="wk-rostl">Who gets it</span> <span class="opt">· ${attention.length + settled.length}</span></summary>
     <section class="card rows">${[...attention, ...settled].map((r) => `
       <div class="lrow"><div class="lm"><div class="lt">${esc(r.name || 'Athlete')}</div>${r.verdict === VERDICT.EXCUSED ? `<div class="ls">${esc(r.excused_reason || 'Excused')}</div>` : ''}</div>
-        ${r.verdict === VERDICT.EXCUSED ? '<span class="xpill gray">Excused</span>' : ''}</div>`).join('')}</section>
+        ${r.verdict === VERDICT.EXCUSED ? '<span class="xpill gray">Excused</span>' : r.can_push === false ? '<span class="xpill gold">No push</span>' : ''}</div>`).join('')}</section>
   </details>` : ''}
 
   ${!setup && settled.length ? `
@@ -545,6 +567,7 @@ function wireNextCard(slot) {
     const ok = await setInstanceSchedule(instId, { skipped: true });
     SKIP_ARMED = null;
     if (!ok) { b.disabled = false; b.textContent = 'Couldn’t skip. Try again'; return; }
+    try { await notifyScheduleChange(instId); } catch { /* the board says */ }
     await ensureNext();
     rearm();
   }));
@@ -553,6 +576,7 @@ function wireNextCard(slot) {
     b.disabled = true; b.textContent = '…';
     const ok = await setInstanceSchedule(instId, { skipped: false });
     if (!ok) { b.disabled = false; b.textContent = 'Couldn’t. Try again'; return; }
+    try { await notifyScheduleChange(instId); } catch { /* the board says */ }
     await ensureNext();
     rearm();
   }));
@@ -798,6 +822,16 @@ export const coachCommitments = {
 
     // Schedule controls (0215): one day's time, back to the rule, skip / put back.
     const schedSay = (m) => { const el = root.querySelector('#wk-sched-err'); if (el) el.textContent = m; };
+    // Every schedule write tells the roster (0216), best-effort and rate-limited server-side; the
+    // repaint reads schedule_notified_at back so the card says whether it landed.
+    const tell = async () => { try { await notifyScheduleChange(inst.instance_id); } catch { /* the card says */ } };
+    const tellBtn = root.querySelector('#wk-tell');
+    if (tellBtn && inst) tellBtn.addEventListener('click', async () => {
+      tellBtn.disabled = true; tellBtn.textContent = 'Sending…';
+      const { reason } = await notifyScheduleChange(inst.instance_id);
+      if (reason === 'failed') { tellBtn.disabled = false; tellBtn.textContent = 'Tell athletes'; schedSay('Couldn’t reach the server. Try again.'); return; }
+      await repaint();
+    });
     const schedTime = root.querySelector('#wk-sched-time');
     if (schedTime && inst) schedTime.addEventListener('change', async () => {
       const m = /^(\d{1,2}):(\d{2})$/.exec(schedTime.value || '');
@@ -806,6 +840,7 @@ export const coachCommitments = {
       const ok = await setInstanceSchedule(inst.instance_id, { startsMin: Math.min(1439, +m[1] * 60 + +m[2]) });
       schedTime.disabled = false;
       if (!ok) { schedSay('Couldn’t change the time. It may have already started, or check your connection.'); return; }
+      await tell();
       await repaint();
     });
     const schedReset = root.querySelector('#wk-sched-reset');
@@ -813,6 +848,7 @@ export const coachCommitments = {
       schedReset.disabled = true; schedSay('');
       const ok = await setInstanceSchedule(inst.instance_id, { resetTime: true });
       if (!ok) { schedReset.disabled = false; schedSay('Couldn’t reset. Try again.'); return; }
+      await tell();
       await repaint();
     });
     const skipBtn = root.querySelector('#wk-skip');
@@ -825,6 +861,7 @@ export const coachCommitments = {
       skipBtn.disabled = true; skipBtn.textContent = '…'; schedSay('');
       const ok = await setInstanceSchedule(inst.instance_id, { skipped: !wasSkipped });
       if (!ok) { skipBtn.disabled = false; skipBtn.textContent = wasSkipped ? 'Put it back' : 'Skip this day'; schedSay('Couldn’t save. It may have already started, or check your connection.'); return; }
+      await tell();
       await repaint();
     });
 

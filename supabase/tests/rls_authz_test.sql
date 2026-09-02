@@ -4037,6 +4037,81 @@ select _ok(_try($f$ select set_instance_schedule((select id from commitment_inst
 select _superuser();
 drop table _rc_next;
 
+-- ================================================================ 0216: reach + schedule notice
+-- The coach can see who cannot receive a push, and telling athletes about a moved or skipped day
+-- is a claimed, rate-limited, coach-authorized action.
+select _superuser();
+create temp table _rc_n as
+  select id, occurs_on from commitment_instances
+   where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and starts_at > now()
+   order by occurs_on limit 1;
+grant select on _rc_n to authenticated, anon;
+-- e1 has a device; e2 has none
+insert into device_tokens (user_id, token, platform)
+  values ('eeee0000-0000-0000-0000-0000000000e1', 'ExponentPushToken[rc-0216-e1]', 'ios')
+  on conflict do nothing;
+delete from device_tokens where user_id = 'eeee0000-0000-0000-0000-0000000000e2';
+
+-- the board reports reach per row and per occurrence
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok((select bool_and(case when r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1' then (r->>'can_push')::boolean
+                                 when r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2' then not (r->>'can_push')::boolean
+                                 else true end)
+              from jsonb_array_elements(commitment_board('77777777-1111-0000-0000-000000000001', null, (select occurs_on from _rc_n))) o,
+                   jsonb_array_elements(o->'rows') r
+             where o->>'instance_id' = (select id::text from _rc_n)),
+  '0216: the board says per athlete whether a push can reach them');
+select _ok((select (o->>'reachable')::int < (select count(*) from commitment_responses r where r.instance_id = (select id from _rc_n) and r.status <> 'excused')
+              from jsonb_array_elements(commitment_board('77777777-1111-0000-0000-000000000001', null, (select occurs_on from _rc_n))) o
+             where o->>'instance_id' = (select id::text from _rc_n)),
+  '0216: reachable counts only athletes with a device');
+select _ok((select (o->>'reachable')::int >= 1
+              from jsonb_array_elements(rollcall_upcoming('ccccdddd-0000-0000-0000-0000000000c1', 7)) o
+             where o->>'instance_id' = (select id::text from _rc_n)),
+  '0216: the week ahead carries reachable too');
+-- the token itself never leaves device_tokens
+select _ok((select position('ExponentPushToken' in commitment_board('77777777-1111-0000-0000-000000000001', null, (select occurs_on from _rc_n))::text) = 0),
+  '0216: the board never carries a device token');
+
+-- the notice claim is service-role only
+select _ok(_try($f$ select rollcall_schedule_notice_claim((select id from _rc_n), '11111111-0000-0000-0000-000000000001') $f$) <> 'ok',
+  '0216: a coach cannot execute the notice claim directly (service role only)');
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select rollcall_schedule_notice_claim((select id from _rc_n), 'eeee0000-0000-0000-0000-0000000000e1') $f$) <> 'ok',
+  '0216: an athlete cannot execute the notice claim');
+select _ok(_try($f$ select _rc_can_push('eeee0000-0000-0000-0000-0000000000e2') $f$) <> 'ok',
+  '0216: an athlete cannot probe another user''s device state');
+
+-- as the service role: authorization is re-derived from the coach
+select _superuser();
+select _ok((rollcall_schedule_notice_claim((select id from _rc_n), '22222222-0000-0000-0000-000000000002')->>'reason') = 'not_authorized',
+  '0216: a stranger coach cannot announce another team''s change');
+select _ok((rollcall_schedule_notice_claim((select id from _rc_n), 'eeee0000-0000-0000-0000-0000000000e1')->>'reason') = 'not_authorized',
+  '0216: an athlete is not the coach, even through the service role');
+select _ok((select (j->>'ok')::boolean and jsonb_array_length(j->'athlete_ids') >= 2 and (j->>'skipped')::boolean = false
+              from rollcall_schedule_notice_claim((select id from _rc_n), '11111111-0000-0000-0000-000000000001') j),
+  '0216: the coach''s claim returns the roster and the day''s facts');
+select _ok((select schedule_notified_at is not null from commitment_instances where id = (select id from _rc_n)),
+  '0216: the claim stamps schedule_notified_at');
+select _ok((select count(*) >= 2 from notifications where kind = 'commitment_reminder'
+              and body like '%Morning Roll Call is at%'),
+  '0216: every athlete gets a bell row saying the new time');
+select _ok((rollcall_schedule_notice_claim((select id from _rc_n), '11111111-0000-0000-0000-000000000001')->>'reason') = 'rate_limited',
+  '0216: a second notice inside the cooldown is refused');
+-- a skipped day announces the skip
+update commitment_instances set schedule_notified_at = null, skipped = true, status = 'cancelled' where id = (select id from _rc_n);
+select _ok((select (j->>'ok')::boolean and (j->>'skipped')::boolean from rollcall_schedule_notice_claim((select id from _rc_n), '11111111-0000-0000-0000-000000000001') j),
+  '0216: a skipped day can still be announced');
+update commitment_instances set skipped = false, status = 'scheduled', schedule_notified_at = null where id = (select id from _rc_n);
+-- a morning that already started has nothing to announce
+select _ok((rollcall_schedule_notice_claim((select id from commitment_instances
+             where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and starts_at <= now() order by occurs_on desc limit 1),
+             '11111111-0000-0000-0000-000000000001')->>'reason') = 'no_instance'
+           or not exists (select 1 from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and starts_at <= now()),
+  '0216: an occurrence that has started cannot be announced');
+delete from device_tokens where token = 'ExponentPushToken[rc-0216-e1]';
+drop table _rc_n;
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$
