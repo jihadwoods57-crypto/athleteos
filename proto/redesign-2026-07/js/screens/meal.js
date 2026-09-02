@@ -8,7 +8,7 @@ import {
   openingMessage, openingSummary, qualityBand, scoreReasons, coachFocus, reactionGroups, threadMessages,
   contextForChat, applyFoodEdit, hasUserEdits, restrictionConflicts,
   estimateConfidence, estRange, mealPatterns, scoreRubric, coachThreadStatus,
-  correctionAxes, REACTION_EMOJI,
+  REACTION_EMOJI,
 } from '../meal-intel.js';
 import {
   attachedPhoto, isPhotoOnly, wireComposerAttach, postChatMessage,
@@ -473,8 +473,8 @@ function openingInputs(M) {
      2026-08-06). It was an unprompted interrogation in the middle of a conversation the athlete
      did not start: the AI's read had already landed, and the thread's next voice was the machine
      asking THEM for homework. Team Discussion is a conversation between people, not an intake
-     form. The capability is not lost — the exact same cooking/sauce/portion corrections live in
-     "Correct the analysis", where the athlete goes when they actually want to fix a number.
+     form. The capability is not lost — cooking/sauce/portion/food corrections are one sentence
+     to the AI in this same thread, and land on the name, numbers and score together (2026-09-02).
      `fq` stays in the returned shape (null) so openingBlockHtml's signature is untouched. */
   return { sum, fullText, fq: null };
 }
@@ -1055,7 +1055,7 @@ export const thread = {
           <span class="rn">${esc(r.note)}</span>
           <span class="rx-tag">${r.exact ? 'exact' : 'estimated'}</span>
         </div>`).join('')}
-        <div class="rub-fine">Exact items are facts (timing, what you submitted). Estimated items come from the photo read and move if you correct the analysis.</div>
+        <div class="rub-fine">Exact items are facts (timing, what you submitted). Estimated items come from the photo read and move when you correct it in the chat.</div>
       </div>
     </details>
     </section>` : nutInCard ? `<section class="meal-read">${nutInCard}</section>` : ''}`;
@@ -1098,7 +1098,7 @@ export const thread = {
     ${/* The Estimated Nutrition panel that opened this section lives inside the read card now
           (founder 2026-08-10) — what remains here is the detail drawer: foods, notes,
           corrections, and the correction panel itself. */''}
-    <details class="bd-wrap"${thread._bdOpen || thread._fixOpen ? ' open' : ''}>
+    <details class="bd-wrap"${thread._bdOpen ? ' open' : ''}>
       <summary>View detected foods ${icon('chevron', 13)}</summary>
       <div class="bd-body">
       ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
@@ -1108,42 +1108,14 @@ export const thread = {
       ${corrLog ? `<div class="est-note" style="margin-top:8px;color:var(--blue-bright)"><b style="color:var(--blue-bright)">Corrected by you</b>: ${corrLog} correction${corrLog === 1 ? '' : 's'} applied. The AI's original estimate is kept for reference${M.orig ? ` (was ~${M.orig.protein}g protein · ~${M.orig.kcal} cal)` : ''}.</div>` : ''}
       ${/* The two entry points into the correction panel live HERE, with the numbers they correct
             (founder, 2026-08-02). Both render for a manually logged meal too. */''}
-      ${emptyRead ? '' : M.mealId ? `<div class="est-note">${fromPhoto ? 'Estimated from the photo · cooking oil or sauce may change these numbers. ' : ''}<span class="link" id="open-correct" role="button" tabindex="0">${fromPhoto ? 'Something off? Correct the analysis' : 'Correct the analysis'}</span> · <span class="link" id="qa-details" role="button" tabindex="0">Add meal details</span></div>` : ''}
-
-      <!-- Correct analysis (upgrade 2026-07-16): fix what the photo can't show; every chip is a
-           deterministic, estimated adjustment with an audit trail, hidden until opened. -->
-      ${/* ONE DECISION AT A TIME (2026-08-14). This panel used to render all five dimensions
-            expanded at once: nineteen chips plus a free-text field, on the app's most-used
-            flow, for an athlete who arrived with exactly one thing to fix. Now the first
-            decision is "which dimension", and only that dimension's answers are on screen.
-            Every panel is in the DOM (so the chips keep their delegated handler and nothing
-            re-renders on a tab switch) but the inactive ones are `hidden`, which also takes
-            them out of the tab order. Order comes from correctionAxes(): real signals only. */''}
-      ${(() => {
-        const axes = correctionAxes(M);
-        const valid = new Set(axes.map((a) => a.kind).concat('other'));
-        const active = valid.has(thread._fixAxis) ? thread._fixAxis : axes[0].kind;
-        const tab = (kind, label, answered) => `<button class="fx-axis${kind === active ? ' on' : ''}" data-axis="${kind}" role="tab" aria-selected="${kind === active}">${label}${answered ? icon('check', 12) : ''}</button>`;
-        return `
-      <div id="fix-panel" hidden>
-        <h2 class="eyebrow" style="margin-top:14px">Correct the analysis</h2>
-        <section class="card pad" style="padding-top:12px">
-          <div class="fx-axes" role="tablist" aria-label="What to correct">
-            ${axes.map((a) => tab(a.kind, a.label, a.answered)).join('')}
-            ${tab('other', 'Something else', false)}
-          </div>
-          ${axes.map((a) => `
-          <div class="fx-vals" data-axis-panel="${a.kind}"${a.kind === active ? '' : ' hidden'}>
-            <div class="fx-chips">${a.opts.map(([l, v]) => `<button class="fx-chip" data-fix="${a.kind}" data-val="${esc(v)}">${l}</button>`).join('')}</div>
-          </div>`).join('')}
-          <div class="fx-vals" data-axis-panel="other"${active === 'other' ? '' : ' hidden'}>
-            <div class="fx-other"><input class="input" id="fx-other" maxlength="160" placeholder="Anything else the photo can't show…" style="height:40px"/><button class="btn ghost sm" id="fx-other-add" style="width:auto;flex:none;padding:0 14px;height:40px">Add</button></div>
-          </div>
-          <div id="fx-note" style="font-size:var(--t-sm);font-weight:700;color:var(--green-bright);min-height:16px;margin-top:6px"></div>
-          <div class="rub-fine">Corrections update the estimate with rule-based kitchen math, keep the AI's original for the record, and ${S.coach.hasCoach ? `your ${esc(S.coach.noun)} sees the corrected numbers` : 'the corrected numbers are what your log keeps'}.</div>
-        </section>
-      </div>`;
-      })()}
+      ${/* THE CHAT IS THE CORRECTION SURFACE (founder, 2026-09-02). The "Correct the analysis"
+            chip panel that lived here is gone: a second, form-shaped way to fix a read next to
+            a conversation that already does it was two systems for one job. Anything the chips
+            could do (oil, sauce, a drink, a side, a portion, a different food) is one sentence
+            to the AI Nutritionist, and every correction from the chat lands wholesale: the
+            food's name, the meal title, per-item macros, totals, the score, and the coach's
+            copy. This line only points at the composer. */''}
+      ${emptyRead ? '' : M.mealId ? `<div class="est-note">${fromPhoto ? 'Estimated from the photo. ' : ''}Something off or left out? <span class="link" id="tell-ai" role="button" tabindex="0">Tell the AI Nutritionist below</span> and the name, numbers and score update together.</div>` : ''}
       </div>
     </details>`;
 
@@ -1307,80 +1279,21 @@ export const thread = {
       }
     });
 
-    // ---- Correct analysis panel (upgrade 2026-07-16) ----
-    if (thread._fixSlot !== M.slot) { thread._fixOpen = false; thread._fixAxis = null; thread._fixSlot = M.slot; }
+    // ---- Corrections happen in the chat (founder, 2026-09-02) ----
+    // The chip panel is gone; the only control left is a pointer to the composer.
     // Breakdown expander state survives the exec-tick re-render; `toggle` fires only on user
     // changes, never on the initial `open` attribute.
     const bdWrap = root.querySelector('.bd-wrap');
     if (bdWrap) bdWrap.addEventListener('toggle', () => { thread._bdOpen = bdWrap.open; });
-    const fixPanel = root.querySelector('#fix-panel');
-    // Switching dimension only flips `hidden` on panels that are already in the DOM: no
-    // re-render, no lost scroll position, and the delegated chip handler below stays valid.
-    const showAxis = (kind) => {
-      if (!fixPanel) return;
-      thread._fixAxis = kind;
-      fixPanel.querySelectorAll('[data-axis-panel]').forEach((p) => {
-        p.hidden = p.getAttribute('data-axis-panel') !== kind;
-      });
-      fixPanel.querySelectorAll('[data-axis]').forEach((b) => {
-        const on = b.getAttribute('data-axis') === kind;
-        b.classList.toggle('on', on);
-        b.setAttribute('aria-selected', String(on));
-      });
+    /** Put the cursor in the thread composer: the one place a correction is made. */
+    const focusComposer = () => {
+      const input = root.querySelector('#meal-msg');
+      if (!input) return;
+      input.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      input.focus();
     };
-    const openFix = (focusOther) => {
-      if (!fixPanel) return;
-      thread._fixOpen = true;
-      if (bdWrap) bdWrap.open = true; // the panel lives inside the breakdown expander
-      fixPanel.hidden = false;
-      if (focusOther) showAxis('other');
-      fixPanel.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      if (focusOther) { const o = root.querySelector('#fx-other'); if (o) o.focus(); }
-    };
-    if (fixPanel && thread._fixOpen) fixPanel.hidden = false;
-    const openBtns = [['#open-correct', false], ['#qa-details', true]];
-    openBtns.forEach(([sel, focusOther]) => {
-      const b = root.querySelector(sel);
-      if (b) b.addEventListener('click', () => openFix(focusOther));
-    });
-    let fixBusy = false;
-    const runCorrection = async (correction) => {
-      if (fixBusy) return;
-      fixBusy = true;
-      const r = await act.correctMeal(M.slot, correction);
-      if (r) {
-        const note = root.querySelector('#fx-note');
-        if (note) note.textContent = r.summary;
-        // Repaint so macros, rubric, score chip, and daily progress all update together —
-        // the SAME estimate updated in place, never a second disconnected result.
-        setTimeout(() => window.__render && window.__render(), 450);
-      }
-      fixBusy = false;
-    };
-    // Delegated on the panel, not bound per chip: the dimension tabs show and hide chip groups,
-    // and a per-element listener would be the kind of thing that quietly stops working later.
-    if (fixPanel) fixPanel.addEventListener('click', (ev) => {
-      const axisBtn = ev.target.closest('[data-axis]');
-      if (axisBtn) { showAxis(axisBtn.getAttribute('data-axis')); return; }
-      const b = ev.target.closest('[data-fix]');
-      if (b) runCorrection({ kind: b.getAttribute('data-fix'), value: b.getAttribute('data-val') });
-    });
-    const otherAdd = root.querySelector('#fx-other-add');
-    if (otherAdd) otherAdd.addEventListener('click', () => {
-      const o = root.querySelector('#fx-other');
-      const detail = (o && o.value || '').trim();
-      if (detail) runCorrection({ kind: 'other', detail });
-    });
-    // Follow-up quick answers: 'other' opens the panel; a concrete answer applies in place.
-    // DELEGATED on the screen root (like the analysis expander): paint() re-injects the
-    // bubble as HTML on every comments refresh, which would drop per-element listeners.
-    viewEl.addEventListener('click', (ev) => {
-      const b = ev.target.closest('[data-fq]');
-      if (!b) return;
-      const v = b.getAttribute('data-val');
-      if (v === 'other') { openFix(true); return; }
-      runCorrection({ kind: b.getAttribute('data-fq'), value: v });
-    });
+    const tellAi = root.querySelector('#tell-ai');
+    if (tellAi) tellAi.addEventListener('click', focusComposer);
     // Photo: the in-session capture, else a signed Storage URL so it survives a reload. Resolved
     // through photo-store (NOT a raw one-shot signedMealPhotoUrl): the cache retries a missing
     // object after NEG_TTL, and the outbox calls invalidateMealPhoto + __render the moment a
@@ -1998,16 +1911,15 @@ export const thread = {
             // thread, the athlete was left reading a promise the app had quietly failed. Now the
             // thread admits it in the same breath and hands them the panel that always works.
             if (!applied) {
-              setNote("That didn't line up with anything in this meal's read, so your numbers haven't changed. Fix it here and it will stick.");
-              openFix(true);
+              setNote("That didn't line up with anything in this meal's read, so your numbers haven't changed. Tell me which food you mean, or what was on the plate, and I'll put it in.");
+              focusComposer();
               if (window.__render) window.__render();
               return;
             }
             // An ingredient we have no reference for is named out loud rather than rounded away:
             // the athlete is told exactly what is still missing and what would let us count it.
             if (applied.unpriced && applied.unpriced.length) {
-              setNote(`Added what I could price. There are no numbers on file for ${applied.unpriced.join(' or ')}, so it isn't counted yet. Add it here and it will be.`);
-              openFix(true);
+              setNote(`Added what I could price. There are no numbers on file for ${applied.unpriced.join(' or ')}, so it isn't counted yet. Tell me its protein and calories, or what it's closest to, and I'll count it.`);
             } else setNote('');
             // Full repaint: score ring, breakdown tiles, rubric, coach focus, day progress —
             // every surface on this screen re-derives from the corrected record.

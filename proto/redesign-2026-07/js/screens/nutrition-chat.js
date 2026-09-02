@@ -563,8 +563,8 @@ export default {
           const applied = await act.correctMeal(slot, parts, { skipAiUpdate: true });
           // A correction that did not land must say so: the AI's "updating now" is already in the
           // thread, and silence here would leave that promise standing over unchanged numbers.
-          if (!applied) setNote("That didn't line up with anything in this meal's read, so your numbers haven't changed. Open the meal to fix it there.");
-          else if (applied.unpriced && applied.unpriced.length) setNote(`Added what I could price. No numbers on file for ${applied.unpriced.join(' or ')}, so it isn't counted yet. Open the meal to add it.`);
+          if (!applied) setNote("That didn't line up with anything in this meal's read, so your numbers haven't changed. Tell me which food you mean, or what was on the plate, and I'll put it in.");
+          else if (applied.unpriced && applied.unpriced.length) setNote(`Added what I could price. No numbers on file for ${applied.unpriced.join(' or ')}, so it isn't counted yet. Tell me its protein and calories, or what it's closest to, and I'll count it.`);
         }
         await load();
         startBurst();
