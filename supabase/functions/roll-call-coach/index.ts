@@ -30,9 +30,9 @@
 // the durable notification rows are written inside the same RPC that claims the nudge.
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { verifyRollCallCode, signRollCallCode } from '../_shared/rollcall-code.ts';
-import { rollCallCategoryId } from '../_shared/rollcall-category.ts';
+import { rollCallCategoryId, ROLLCALL_CHANNEL } from '../_shared/rollcall-category.ts';
 import { evaluateFlag, type FlagRow } from '../_shared/feature-flags.ts';
-import { parseAction, httpStatusForCoach, nudgeBody, type CoachFailure } from './logic.ts';
+import { parseAction, parseAthlete, httpStatusForCoach, nudgeBody, type CoachFailure } from './logic.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -87,7 +87,7 @@ Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return json({ ok: false, error: 'method not allowed' }, 405);
   if (!SUPABASE_URL || !SERVICE_ROLE) return json({ ok: false, error: 'not configured' }, 500);
 
-  let body: { code?: unknown; instance?: unknown; action?: unknown } = {};
+  let body: { code?: unknown; instance?: unknown; action?: unknown; athlete?: unknown } = {};
   try { body = (await req.json()) as typeof body; } catch { /* empty */ }
 
   const action = parseAction(body.action);
@@ -96,6 +96,9 @@ Deno.serve(async (req: Request) => {
   // ---------------------------------------------------------------- who is asking
   let coachId = '';
   let instanceId = '';
+  // A single target (0211) exists only on the in-app path: the row's "Ping" button. The lock
+  // screen's coach code names an instance, never an athlete, so it is ignored there.
+  let athleteId: string | null = null;
   const code = typeof body.code === 'string' ? body.code : '';
   if (code) {
     if (!SECRET) return json({ ok: false, error: 'not configured' }, 500);
@@ -113,6 +116,7 @@ Deno.serve(async (req: Request) => {
     if (!uid) return fail('bad_sig');
     coachId = uid;
     instanceId = typeof body.instance === 'string' ? body.instance : '';
+    athleteId = parseAthlete(body.athlete);
   }
   if (!instanceId) return fail('malformed');
 
@@ -138,11 +142,13 @@ Deno.serve(async (req: Request) => {
   // ---------------------------------------------------------------- "Nudge them"
   const { data: claim, error: claimErr } = await svc.rpc('rollcall_nudge_claim', {
     p_instance: instanceId, p_coach: coachId, p_cooldown_min: NUDGE_COOLDOWN_MIN,
+    p_athlete: athleteId,
   });
   if (claimErr) return fail('db_error');
   const c = (claim ?? {}) as {
     ok?: boolean; reason?: CoachFailure; title?: string;
-    action_label?: string | null; respond_by_at?: string | null; athlete_ids?: string[];
+    action_label?: string | null; respond_by_at?: string | null; closes_at?: string | null;
+    athlete_ids?: string[];
   };
   if (!c.ok) return fail(c.reason ?? 'db_error');
 
@@ -162,10 +168,12 @@ Deno.serve(async (req: Request) => {
   const messages: Array<Record<string, unknown>> = [];
   for (const t of (toks ?? []) as Array<{ token: string; user_id: string }>) {
     // A fresh ATHLETE code per recipient, so the nudge is answerable from the lock screen the same
-    // way the original reminder was. Minted against the athlete's own deadline; when the coach
-    // nudges after it has passed, `now` is used so the code stays spendable for the ack grace —
-    // otherwise the button we just drew would be dead on arrival.
-    const codeDeadline = Number.isFinite(deadlineMs) && deadlineMs > now ? deadlineMs : now;
+    // way the original reminder was. It lasts until the roll call CLOSES (0211) so a late answer
+    // is recorded as late rather than refused; when there is no close (older types) it falls back
+    // to the deadline, then to `now` so the button we just drew is not dead on arrival.
+    const closeMs = Date.parse(c.closes_at ?? '');
+    const codeDeadline = Number.isFinite(closeMs) && closeMs > now ? closeMs
+      : Number.isFinite(deadlineMs) && deadlineMs > now ? deadlineMs : now;
     const athleteCode = SECRET
       ? await signRollCallCode(SECRET, {
           instanceId, athleteId: t.user_id, deadlineMs: codeDeadline, iatMs: now,
@@ -175,8 +183,9 @@ Deno.serve(async (req: Request) => {
       to: t.token,
       title,
       body: bodyText,
-      data: { route: `roll-call/${instanceId}`, code: athleteCode, action_label: c.action_label ?? null },
+      data: { route: `roll-call/${instanceId}`, code: athleteCode, action_label: c.action_label ?? null, from_coach: false },
       categoryId: athleteCode ? rollCallCategoryId(c.action_label ?? null) : undefined,
+      channelId: ROLLCALL_CHANNEL,
       // A nudge is the coach chasing a deadline they set — the same standing as the original
       // reminder, and time-sensitive because by definition the window is closing or closed. The
       // athlete's own Do Not Disturb still wins.

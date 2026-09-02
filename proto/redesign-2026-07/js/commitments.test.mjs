@@ -12,6 +12,9 @@ import {
   TYPE_LABEL, occursOn, opensMinFor, deriveCommitment, boardCounts, missingFrom,
   WEIGHTS, signalsAsked, accountability, morningReadiness, commitmentStreak,
   commitmentReminders, zoneOffsetMin, presenceOf, PRESENCE,
+  VERDICT, rollcallVerdict, lateMinutes, verdictLine, closesAtOf, opensAtOf, graceMinOf,
+  boardVerdicts, groupByVerdict, verdictCounts, wakeupHistory, wakeupSummary, summarizeOccurrences,
+  wakeupPhase,
 } from './commitments.js';
 
 /* America/New_York in July. Passed explicitly everywhere. */
@@ -87,8 +90,25 @@ test('an acknowledged roll call collapses to a confirmation with the exact time'
   assert.equal(d.confirmLine, 'Checked in at 4:48 AM');
 });
 
-test('past the deadline with no response reads missed, and the card stops asking', () => {
+test('past the deadline but before the close, the card still asks, relabelled as late (0211)', () => {
   const d = deriveCommitment(rollCall, '2026-07-22T09:30:00Z', EDT);
+  assert.equal(d.stage, 'late_open');
+  assert.equal(d.canAck, true);
+  assert.equal(d.actionLabel, 'Check in now');
+  assert.equal(d.verdict, 'missed');
+  assert.equal(d.confirmLine, 'No response by 5:15 AM');
+});
+
+test('past the close with no response reads missed, and the card stops asking', () => {
+  // Deadline 09:15Z, no explicit close: closes 120 minutes later at 11:15Z.
+  const d = deriveCommitment(rollCall, '2026-07-22T11:16:00Z', EDT);
+  assert.equal(d.stage, 'missed');
+  assert.equal(d.canAck, false);
+  assert.equal(d.closesAt, '2026-07-22T11:15:00.000Z');
+});
+
+test('a practice with a respond-by and no close goes straight to missed (pre-0211 behaviour kept)', () => {
+  const d = deriveCommitment({ ...rollCall, type: 'practice', title: 'Practice' }, '2026-07-22T09:30:00Z', EDT);
   assert.equal(d.stage, 'missed');
   assert.equal(d.canAck, false);
 });
@@ -461,4 +481,141 @@ test('a commitment with no stay requirement is untouched by presence', () => {
   assert.equal(d.stage, 'arrived');
   assert.equal(d.statusColor, 'g');
   assert.equal(d.confirmLine, 'Arrived at the facility at 5:43 AM');
+});
+
+/* ---------------------------------------------------------------- wake-up verdict (0211)
+   These mirror rollcall_verdict() in migration 0211. Same clock, same answer, on both sides. */
+
+test('verdict: answered at or before the deadline is On Standard, after it is Late', () => {
+  const dl = '2026-07-22T09:15:00Z';
+  assert.equal(rollcallVerdict({ ...rollCall, acknowledged_at: '2026-07-22T09:15:00Z' }, '2026-07-22T10:00:00Z'), VERDICT.ON_STANDARD);
+  assert.equal(rollcallVerdict({ ...rollCall, acknowledged_at: '2026-07-22T09:15:01Z' }, '2026-07-22T10:00:00Z'), VERDICT.LATE);
+  assert.equal(lateMinutes({ ...rollCall, acknowledged_at: '2026-07-22T09:15:01Z' }), 1);
+  assert.equal(lateMinutes({ ...rollCall, acknowledged_at: '2026-07-22T09:21:00Z' }), 6);
+  assert.equal(lateMinutes({ ...rollCall, acknowledged_at: '2026-07-22T09:10:00Z' }), null);
+  // A board row judged against its instance's deadline.
+  assert.equal(rollcallVerdict({ status: 'acknowledged', acknowledged_at: '2026-07-22T09:20:00Z' }, '2026-07-22T10:00:00Z', dl), VERDICT.LATE);
+});
+
+test('verdict: unanswered is Pending until the deadline and Missed after it', () => {
+  assert.equal(rollcallVerdict(rollCall, '2026-07-22T09:14:59Z'), VERDICT.PENDING);
+  assert.equal(rollcallVerdict(rollCall, '2026-07-22T09:15:00Z'), VERDICT.MISSED);
+  assert.equal(rollcallVerdict(rollCall, '2026-07-23T09:15:00Z'), VERDICT.MISSED);
+});
+
+test('verdict: excused wins over everything, and a late answer stays late forever', () => {
+  assert.equal(rollcallVerdict({ ...rollCall, status: 'excused', acknowledged_at: '2026-07-22T09:30:00Z' }, '2026-07-22T10:00:00Z'), VERDICT.EXCUSED);
+  assert.equal(verdictLine({ ...rollCall, acknowledged_at: '2026-07-22T09:21:00Z' }, '2026-07-30T00:00:00Z'), 'Late · 6 min');
+  assert.equal(verdictLine({ ...rollCall, acknowledged_at: '2026-07-22T09:01:00Z' }, '2026-07-30T00:00:00Z'), 'On Standard');
+  assert.equal(verdictLine(rollCall, '2026-07-30T00:00:00Z'), 'Missed');
+});
+
+test('verdict: the status column never overrides the timestamps', () => {
+  // The ladder marks a row 'missed' at the deadline; a late lock-screen tap then flips it to
+  // 'acknowledged'. Either way the verdict reads the answer, not the label.
+  assert.equal(rollcallVerdict({ ...rollCall, status: 'missed' }, '2026-07-22T09:20:00Z'), VERDICT.MISSED);
+  assert.equal(rollcallVerdict({ ...rollCall, status: 'missed', acknowledged_at: '2026-07-22T09:20:00Z' }, '2026-07-22T09:25:00Z'), VERDICT.LATE);
+  assert.equal(rollcallVerdict({ ...rollCall, status: 'pending', acknowledged_at: '2026-07-22T09:00:00Z' }, '2026-07-22T09:25:00Z'), VERDICT.ON_STANDARD);
+});
+
+test('windows: the server values win, then the same fallbacks the SQL applies', () => {
+  assert.equal(closesAtOf({ ...rollCall, closes_at: '2026-07-22T10:00:00Z' }), '2026-07-22T10:00:00Z');
+  assert.equal(closesAtOf({ ...rollCall, ends_at: '2026-07-22T10:30:00Z' }), '2026-07-22T10:30:00Z');
+  assert.equal(closesAtOf(rollCall), '2026-07-22T11:15:00.000Z');
+  assert.equal(closesAtOf({ ...rollCall, type: 'practice' }), null);
+  assert.equal(opensAtOf({ ...rollCall, opens_at: '2026-07-22T08:30:00Z' }), '2026-07-22T08:30:00Z');
+  assert.equal(opensAtOf({ ...rollCall, opens_min: 275 }), '2026-07-22T08:35:00.000Z');
+  assert.equal(opensAtOf(rollCall), '2026-07-22T08:15:00.000Z');
+  assert.equal(graceMinOf(rollCall), 30);
+  assert.equal(graceMinOf({ ...rollCall, grace_min: 5 }), 5);
+  assert.equal(graceMinOf({ ...rollCall, respond_by_min: null }), null);
+});
+
+test('a late answer collapses to an amber receipt that says how late', () => {
+  const d = deriveCommitment(
+    { ...rollCall, status: 'acknowledged', acknowledged_at: '2026-07-22T09:21:00Z' },
+    '2026-07-22T09:30:00Z', EDT);
+  assert.equal(d.stage, 'acknowledged');
+  assert.equal(d.collapsed, true);
+  assert.equal(d.verdict, 'late');
+  assert.equal(d.lateMin, 6);
+  assert.equal(d.statusColor, 'a');
+  assert.equal(d.confirmLine, 'Checked in at 5:21 AM · Late · 6 min');
+});
+
+test('the board groups rows by verdict against the INSTANCE deadline', () => {
+  const inst = {
+    starts_at: '2026-07-22T08:45:00Z', respond_by_at: '2026-07-22T09:15:00Z',
+    rows: [
+      { name: 'Marcus', status: 'acknowledged', acknowledged_at: '2026-07-22T09:01:00Z' },
+      { name: 'Devin', status: 'acknowledged', acknowledged_at: '2026-07-22T09:21:00Z' },
+      { name: 'Jordan', status: 'missed' },
+      { name: 'Ava', status: 'pending' },
+      { name: 'Sam', status: 'excused' },
+    ],
+  };
+  const g = groupByVerdict(inst, '2026-07-22T09:30:00Z');
+  assert.deepEqual(g.on_standard.map((r) => r.name), ['Marcus']);
+  assert.deepEqual(g.late.map((r) => r.name), ['Devin']);
+  assert.deepEqual(g.missed.map((r) => r.name), ['Jordan', 'Ava']);
+  assert.deepEqual(g.pending, []);
+  assert.equal(g.late[0].lateMin, 6);
+  assert.deepEqual(verdictCounts(inst, '2026-07-22T09:30:00Z'),
+    { total: 5, onStandard: 1, late: 1, pending: 0, missed: 2, excused: 1, responded: 2, counted: 4 });
+  // Before the deadline the same unanswered rows are pending, not missed.
+  const early = verdictCounts(inst, '2026-07-22T09:00:00Z');
+  assert.equal(early.pending, 2);
+  assert.equal(early.missed, 0);
+  assert.equal(boardVerdicts(inst, '2026-07-22T09:00:00Z').length, 5);
+});
+
+test('missingFrom keys on the answer, not the status, so the ladder marking everyone missed does not empty it', () => {
+  const rows = [
+    { status: 'missed', acknowledged_at: null },
+    { status: 'pending', acknowledged_at: null },
+    { status: 'missed', acknowledged_at: '2026-07-22T09:21:00Z' },   // answered late, then status caught up
+    { status: 'acknowledged', acknowledged_at: '2026-07-22T09:01:00Z' },
+    { status: 'excused' },
+  ];
+  assert.equal(missingFrom(rows).length, 2);
+});
+
+test('the athlete history lists wake-ups newest first with the verdict and the stamp in the team clock', () => {
+  const rows = [
+    { ...rollCall, occurs_on: '2026-07-20', starts_at: '2026-07-20T08:45:00Z', respond_by_at: '2026-07-20T09:15:00Z', acknowledged_at: '2026-07-20T08:58:00Z', status: 'acknowledged' },
+    { ...rollCall, occurs_on: '2026-07-21', starts_at: '2026-07-21T08:45:00Z', respond_by_at: '2026-07-21T09:15:00Z', acknowledged_at: '2026-07-21T09:24:00Z', status: 'acknowledged' },
+    { ...rollCall, occurs_on: '2026-07-22', status: 'pending' },
+    { ...rollCall, type: 'practice', occurs_on: '2026-07-22', acknowledged_at: '2026-07-22T09:00:00Z' },
+    { ...rollCall, occurs_on: '2026-07-19', instance_status: 'cancelled' },
+  ];
+  const h = wakeupHistory(rows, '2026-07-22T09:00:00Z', EDT);
+  assert.deepEqual(h.map((x) => [x.occurs_on, x.verdict, x.at, x.lateMin]), [
+    ['2026-07-22', 'pending', '', null],
+    ['2026-07-21', 'late', '5:24 AM', 9],
+    ['2026-07-20', 'on_standard', '4:58 AM', null],
+  ]);
+  assert.deepEqual(wakeupSummary(h), { total: 2, onStandard: 1, late: 1, missed: 0 });
+});
+
+test('the coach summary skips days still in progress and sums the rest', () => {
+  const s = summarizeOccurrences([
+    { occurs_on: '2026-07-22', total: 52, on_standard: 40, late: 0, missed: 0, pending: 12 },
+    { occurs_on: '2026-07-21', total: 52, on_standard: 48, late: 2, missed: 2, pending: 0 },
+    { occurs_on: '2026-07-20', total: 50, on_standard: 50, late: 0, missed: 0, pending: 0 },
+    { occurs_on: '2026-07-19', instance_status: 'cancelled', total: 0, pending: 0 },
+  ]);
+  assert.deepEqual(s, { occurrences: 2, onStandard: 98, late: 2, missed: 2, total: 102 });
+});
+
+test('the roll call moves before, open, late, closed on its own clock', () => {
+  // opens 08:15Z (deadline minus 60), deadline 09:15Z, closes 11:15Z
+  assert.equal(wakeupPhase(rollCall, '2026-07-22T08:00:00Z'), 'before');
+  assert.equal(wakeupPhase(rollCall, '2026-07-22T08:15:00Z'), 'open');
+  assert.equal(wakeupPhase(rollCall, '2026-07-22T09:14:59Z'), 'open');
+  assert.equal(wakeupPhase(rollCall, '2026-07-22T09:15:00Z'), 'late');
+  assert.equal(wakeupPhase(rollCall, '2026-07-22T11:15:00Z'), 'late');
+  assert.equal(wakeupPhase(rollCall, '2026-07-22T11:15:01Z'), 'closed');
+  // The server's own windows win when present.
+  assert.equal(wakeupPhase({ ...rollCall, opens_at: '2026-07-22T08:35:00Z' }, '2026-07-22T08:20:00Z'), 'before');
+  assert.equal(wakeupPhase({ ...rollCall, closes_at: '2026-07-22T09:45:00Z' }, '2026-07-22T09:50:00Z'), 'closed');
 });

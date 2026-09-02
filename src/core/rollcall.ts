@@ -12,6 +12,28 @@ export function rollCallCategoryId(label: string | null): string {
   return 'RC::' + slug;
 }
 
+/** The button on a LATE roll-call push (0211): a fixed product label the device registers every
+ *  launch, so rollCallCategoryId(CHECK_IN_LABEL) always has buttons when the "You're late" push
+ *  lands. MUST match CHECK_IN_LABEL in supabase/functions/_shared/rollcall-category.ts. */
+export const CHECK_IN_LABEL = 'Check in now';
+
+/** The Android channel every roll-call push names (high importance, sound, visible on the lock
+ *  screen). Created by the device at launch; the server stamps `channelId` on the push.
+ *  MUST match ROLLCALL_CHANNEL in supabase/functions/_shared/rollcall-category.ts. */
+export const ROLLCALL_CHANNEL = 'rollcall';
+
+/** What to do with a lock-screen ack after the POST: keep it, retry it later, or drop it.
+ *  null status = no network (retry). 5xx = the server's bad moment (retry). Any other non-2xx is a
+ *  decided answer (expired code, closed roll call, flag off) that no retry can change (dead), and
+ *  replaying it forever would keep a dead code in storage until the queue cap evicted a live one. */
+export type AckOutcome = 'ok' | 'retry' | 'dead';
+export function ackOutcome(status: number | null, okFlag: boolean): AckOutcome {
+  if (status == null) return 'retry';
+  if (status >= 200 && status < 300 && okFlag) return 'ok';
+  if (status >= 500) return 'retry';
+  return 'dead';
+}
+
 export type QueuedAck = { code: string; queuedAt: number };
 
 export function enqueueAck(q: QueuedAck[], code: string, now: number): QueuedAck[] {

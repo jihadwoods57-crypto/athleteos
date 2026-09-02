@@ -13,9 +13,9 @@
 // by default and no guardian rung is built here — a follow-up commit adds it once the founder
 // confirms the default and the guardianship link (0008). This fn ships L2 + L3 only.
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
-import { digestBody } from './logic.ts';
-import { signCoachCode } from '../_shared/rollcall-code.ts';
-import { COACH_DIGEST_CATEGORY } from '../_shared/rollcall-category.ts';
+import { digestBody, breakthroughCopy, LATE_ACTION_LABEL } from './logic.ts';
+import { signCoachCode, signRollCallCode } from '../_shared/rollcall-code.ts';
+import { COACH_DIGEST_CATEGORY, ROLLCALL_CHANNEL, rollCallCategoryId } from '../_shared/rollcall-category.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -41,7 +41,14 @@ function safeEqual(a: string, b: string): boolean {
   return d === 0;
 }
 
-type Missed = { instance_id: string; athlete_id: string; title: string; config: Record<string, boolean> };
+type Missed = {
+  instance_id: string; athlete_id: string; title: string; config: Record<string, boolean>;
+  // 0211
+  type?: string | null; action_label?: string | null; respond_by_at?: string | null; closes_at?: string | null;
+};
+// How long a late push's button stays spendable when the roll call has no close of its own
+// (older types). The RPC judges the window; this only bounds the credential.
+const LATE_CODE_FALLBACK_MS = 60 * 60 * 1000;
 type Digest = { title: string; total: number; not_up_names: string[]; coach_ids: string[] };
 
 // Best-effort Expo send, one request per batch of 100. The 'missed' claim is already durable in the
@@ -109,17 +116,48 @@ Deno.serve(async (req: Request) => {
   const breakAthletes = [...new Set(wantBreak.map((r) => r.athlete_id))];
   let breakSent = 0;
   if (breakAthletes.length) {
+    const now = Date.now();
+    const rowByAthlete = new Map<string, Missed>();
+    for (const r of wantBreak) if (!rowByAthlete.has(r.athlete_id)) rowByAthlete.set(r.athlete_id, r);
+    // Durable row first (the reminder rule): a "You're late" the athlete reads at 7 is still the
+    // record of what OnStandard told them at 6:05, whether or not the push landed.
+    for (const [athleteId, r] of rowByAthlete) {
+      const c = breakthroughCopy(r.type, r.title);
+      try {
+        await svc.rpc('record_commitment_reminder', { p_athlete: athleteId, p_title: c.title, p_body: c.body });
+      } catch { /* best-effort */ }
+    }
     const { data: toks } = await svc
       .from('device_tokens').select('token,user_id').in('user_id', breakAthletes);
-    const titleByAthlete = new Map(wantBreak.map((r) => [r.athlete_id, r.title]));
-    const messages = ((toks ?? []) as Array<{ token: string; user_id: string }>).map((t) => ({
-      to: t.token,
-      title: titleByAthlete.get(t.user_id) ?? 'Roll call',
-      body: 'The window is closing. Answer now.',
-      priority: 'high',
-      sound: 'default',
-      interruptionLevel: 'time-sensitive',
-    }));
+    const messages: Array<Record<string, unknown>> = [];
+    for (const t of (toks ?? []) as Array<{ token: string; user_id: string }>) {
+      const r = rowByAthlete.get(t.user_id);
+      if (!r) continue;
+      const c = breakthroughCopy(r.type, r.title);
+      // The late push is answerable from the lock screen too (0211). A wake-up carries a fresh
+      // code that lasts until the roll call closes, and a "Check in now" button rather than the
+      // on-time label, so the athlete cannot mistake a late answer for an on-time one. The RPC
+      // records the server time and the verdict is late by construction.
+      const isRollCall = r.type === 'morning_roll_call';
+      const closeMs = Date.parse(r.closes_at ?? '');
+      const codeDeadline = Number.isFinite(closeMs) ? closeMs : now + LATE_CODE_FALLBACK_MS;
+      const code = ACK_SECRET && isRollCall
+        ? await signRollCallCode(ACK_SECRET, {
+            instanceId: r.instance_id, athleteId: t.user_id, deadlineMs: codeDeadline, iatMs: now,
+          })
+        : '';
+      messages.push({
+        to: t.token,
+        title: c.title,
+        body: c.body,
+        data: { route: `roll-call/${r.instance_id}`, code, action_label: code ? LATE_ACTION_LABEL : null, from_coach: false },
+        categoryId: code ? rollCallCategoryId(LATE_ACTION_LABEL) : undefined,
+        channelId: ROLLCALL_CHANNEL,
+        priority: 'high',
+        sound: 'default',
+        interruptionLevel: 'time-sensitive',
+      });
+    }
     await push(messages);
     breakSent = messages.length;
   }
@@ -170,6 +208,7 @@ Deno.serve(async (req: Request) => {
         // Only offer the buttons when a code was actually minted — a category with no credential
         // behind it would draw "Nudge them" and then do nothing when pressed.
         categoryId: coachCode ? COACH_DIGEST_CATEGORY : undefined,
+        channelId: ROLLCALL_CHANNEL,
         priority: 'high',
         sound: 'default',
       });

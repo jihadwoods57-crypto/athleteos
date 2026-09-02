@@ -17,7 +17,8 @@
 // Then: select schedule_commitment_reminders('<fn url>', '<the same key>');
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { signRollCallCode } from '../_shared/rollcall-code.ts';
-import { rollCallCategoryId } from '../_shared/rollcall-category.ts';
+import { rollCallCategoryId, ROLLCALL_CHANNEL } from '../_shared/rollcall-category.ts';
+import { composeReminderPush, codeDeadlineMs, type ReminderRow } from './logic.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -38,15 +39,7 @@ function safeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-type Due = {
-  athlete_id: string;
-  instance_id: string;
-  title: string;
-  body: string;
-  offset_min: number;
-  action_label: string | null;
-  respond_by_at: string | null; // ISO
-};
+type Due = ReminderRow;
 
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
@@ -56,6 +49,16 @@ Deno.serve(async (req: Request) => {
   if (!SUPABASE_URL || !SERVICE_ROLE) return json({ error: 'not configured' }, 500);
 
   const svc = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
+
+  // Occurrences exist before anyone opens the app (0211). Materialization used to happen only on
+  // a Home or board load, so a team whose phones stayed in pockets all day had no instance for the
+  // cron to claim at 6 AM. Best-effort and idempotent: a failure here only means the next tick
+  // (or the next app open) does it, and today's already-materialized rows are claimed regardless.
+  let materialized = 0;
+  try {
+    const { data } = await svc.rpc('materialize_active_commitments');
+    materialized = Number(data) || 0;
+  } catch { /* best-effort */ }
 
   // Claim + mark in one call. Anything returned here is ours to deliver and will not be
   // returned to a concurrent run. `p_limit` (migration 0148, capacity audit F8) bounds each
@@ -77,14 +80,21 @@ Deno.serve(async (req: Request) => {
     due.push(...rows);
     if (rows.length < CLAIM_LIMIT) break;
   }
-  if (!due.length) return json({ sent: 0, pushed: 0 });
+  if (!due.length) return json({ sent: 0, pushed: 0, materialized });
+
+  // Who is speaking (0211): the coach on the first push of a roll call, OnStandard after that.
+  // Composed once per claimed row so the durable bell row and the push say the same thing.
+  const now = Date.now();
+  const copy = new Map<Due, ReturnType<typeof composeReminderPush>>();
+  for (const d of due) copy.set(d, composeReminderPush(d, now));
 
   // In-app notification rows first: they are the durable record. A push that fails (stale token,
   // Expo outage) must not mean the athlete has no idea their coach is waiting.
   let recorded = 0;
   for (const d of due) {
+    const c = copy.get(d)!;
     const { error: e } = await svc.rpc('record_commitment_reminder', {
-      p_athlete: d.athlete_id, p_title: d.title, p_body: d.body,
+      p_athlete: d.athlete_id, p_title: c.title, p_body: c.subtitle ? `${c.subtitle}\n${c.body}` : c.body,
     });
     if (!e) recorded++;
   }
@@ -101,24 +111,28 @@ Deno.serve(async (req: Request) => {
   for (const t of (toks ?? []) as Array<{ token: string; user_id: string }>) {
     const d = byAthlete.get(t.user_id);
     if (!d) continue;
-    // The signed code proves one athlete + one instance, only inside the response window — minted
-    // fresh per push so a stale/replayed notification can't ack a different roll call.
-    const deadlineMs = d.respond_by_at ? Date.parse(d.respond_by_at) : Date.now();
+    const c = copy.get(d)!;
+    // The signed code proves one athlete + one instance — minted fresh per push so a stale/replayed
+    // notification can't ack a different roll call. It lasts the whole late window (0211): a tap
+    // at 6:40 on the 6:00 notification records a LATE, not an "expired"; the RPC judges the time.
+    const deadlineMs = codeDeadlineMs(d, now);
     const code = ACK_SECRET
       ? await signRollCallCode(ACK_SECRET, {
-          instanceId: d.instance_id, athleteId: d.athlete_id, deadlineMs, iatMs: Date.now(),
+          instanceId: d.instance_id, athleteId: d.athlete_id, deadlineMs, iatMs: now,
         })
       : '';
     messages.push({
       to: t.token,
-      title: d.title,
-      body: d.body,
+      title: c.title,
+      subtitle: c.subtitle,
+      body: c.body,
       // The tap lands on the commitment itself, not Home — the last inch of the loop. `code` lets
       // a lock-screen action button ack without opening the app; empty when the secret isn't set.
-      data: { route: `roll-call/${d.instance_id}`, code, action_label: d.action_label },
+      data: { route: `roll-call/${d.instance_id}`, code, action_label: d.action_label, from_coach: c.fromCoach },
       // Expo maps categoryId -> iOS notification category / Android action set. Only offer the
       // quick-action affordance when we actually minted a verifiable code.
       categoryId: code ? rollCallCategoryId(d.action_label) : undefined,
+      channelId: ROLLCALL_CHANNEL,
       // A coach-scheduled commitment is a scheduled event, not a nudge: it is allowed to break
       // through at 4:45 AM. The phone's own Do Not Disturb still wins.
       priority: 'high',
@@ -140,5 +154,5 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  return json({ sent: recorded, pushed, claimed: due.length });
+  return json({ sent: recorded, pushed, claimed: due.length, materialized });
 });

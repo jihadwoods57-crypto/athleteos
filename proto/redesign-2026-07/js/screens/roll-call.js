@@ -13,9 +13,11 @@
 import { icon } from '../icons.js';
 import { track, EVENTS } from '../analytics.js';
 import { backHead, esc } from '../components.js';
-import { deriveCommitment, TYPE_LABEL, fmtAt, offsetFor } from '../commitments.js';
-import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment } from '../commitment-data.js';
+import { fmtMin } from '../requirements.js';
+import { deriveCommitment, TYPE_LABEL, fmtAt, offsetFor, VERDICT, wakeupPhase, deadlineOf, closesAtOf, opensAtOf } from '../commitments.js';
+import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment, ackRefusal } from '../commitment-data.js';
 import { tapToVerify, armIfPermitted, armCapped } from './location-consent.js';
+import { pushTokenState } from '../state.js';
 
 /* Per-instance notes, keyed by instance id. A single global here once meant commitment A's
    failure reason painted onto commitment B's card the moment two shared a morning.
@@ -65,16 +67,48 @@ export function commitmentCard(d) {
       <span class="xpill gold">Left early</span>
     </div>`;
     }
+    // A LATE wake-up answer (0211) keeps its receipt amber and says how late: it counts as an
+    // answer, and it is never dressed as an on-time one.
+    if (d.stage === 'acknowledged' && d.verdict === VERDICT.LATE) {
+      return `<div class="xrow-item warn" data-go="roll-call/${id}">
+      <div class="xico sm gold">${icon('clock', 16)}</div>
+      <div class="xr"><div class="xa">${esc(d.title)}</div>
+      <div class="xb">${esc(d.confirmLine)}</div></div>
+      <span class="xpill gold">Late${d.lateMin ? ` · ${d.lateMin} min` : ''}</span>
+    </div>`;
+    }
     // Excused wears neutral, not the green "earned" treatment: it's a resolved absence, not a
     // completion, and green is reserved for things the athlete actually did.
     const excused = d.stage === 'excused';
-    const pill = d.stage === 'completed' ? 'Completed' : excused ? 'Excused' : 'Checked in';
+    const pill = d.stage === 'completed' ? 'Completed' : excused ? 'Excused'
+      : d.type === 'morning_roll_call' ? 'On Standard' : 'Checked in';
     return `<div class="xrow-item ${excused ? '' : 'green'}" data-go="roll-call/${id}">
       <div class="xico sm" style="${excused ? 'background:var(--surface-2);color:var(--text-3)' : 'background:var(--green-surface);color:var(--green-bright)'}">${icon('check', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)}</div></div>
       <span class="xpill ${excused ? 'gray' : 'green'}">${pill}</span>
     </div>`;
+  }
+
+  // Past the grace period, still inside the late window (0211): the one card that is both a
+  // warning and a button. Red, because this is the state the coach is looking at right now.
+  if (d.stage === 'late_open') {
+    return `<section class="xnow vc-card red" data-vc-open="${id}">
+    <div class="xlab">
+      <span class="xl">YOU’RE LATE</span>
+      <span class="xpill red">Late</span>
+    </div>
+    <div class="xmain">
+      <div class="xico">${icon('bolt', 20)}</div>
+      <div>
+        <div class="xt">${esc(d.title)}</div>
+        <div class="xwhy">You haven’t answered. Your coach can see your status.</div>
+      </div>
+    </div>
+    <div class="vc-ctx">${icon('clock', 13)} ${esc(d.confirmLine)}${d.closesAt ? esc(` · Late check-in until ${fmtAt(d.closesAt, offsetFor(d, new Date().toISOString()))}`) : ''}</div>
+    <button class="xcta" data-vc-ack="${id}">${icon('check', 18)} ${esc(d.actionLabel)}</button>
+    ${SAVE_FAILED.get(d.instance_id) ? `<div class="vc-ctx wk-savefail">${icon('bolt', 13)} ${esc(SAVE_FAILED.get(d.instance_id))}</div>` : ''}
+  </section>`;
   }
 
   // A sustained departure before the coach's minimum stay (0208). Amber, because unlike
@@ -101,11 +135,14 @@ export function commitmentCard(d) {
     const reason = un ? VERIFY_REASON.get(d.instance_id) : null;
     const line = reason ? `Couldn’t verify: ${reason}` : d.confirmLine;
     const sub = un ? `${line} · Doesn’t count against you` : `${line} · Tap if this is wrong`;
-    return `<div class="xrow-item${un ? '' : ' warn'}" data-go="roll-call/${id}">
-      <div class="xico sm" style="${un ? 'background:var(--surface-2);color:var(--text-3)' : 'background:var(--amber-surface);color:var(--amber-bright)'}">${icon(un ? 'shield' : 'bolt', 16)}</div>
+    // A CLOSED wake-up with no answer is the one place the word "missed" is earned (0211): the
+    // deadline passed, the late window passed, and the record says so. Red, not amber.
+    const wakeMissed = !un && d.type === 'morning_roll_call';
+    return `<div class="xrow-item${un ? '' : wakeMissed ? ' red' : ' warn'}" data-go="roll-call/${id}">
+      <div class="xico sm" style="${un ? 'background:var(--surface-2);color:var(--text-3)' : wakeMissed ? 'background:var(--red-surface);color:var(--red)' : 'background:var(--amber-surface);color:var(--amber-bright)'}">${icon(un ? 'shield' : 'bolt', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(sub)}</div></div>
-      <span class="xpill ${un ? 'gray' : 'gold'}">${un ? 'Unverified' : 'No response'}</span>
+      <span class="xpill ${un ? 'gray' : wakeMissed ? 'red' : 'gold'}">${un ? 'Unverified' : wakeMissed ? 'Missed' : 'No response'}</span>
     </div>`;
   }
 
@@ -142,17 +179,22 @@ export function commitmentCard(d) {
      The hues already exist as .xnow.g / .xnow.b and cost nothing to switch on. Amber stays the
      default precisely because it still fits the one state that has NOT been answered yet. */
   const hue = d.statusColor === 'g' ? ' g' : d.statusColor === 'b' ? ' b' : '';
+  // A wake-up (0211) carries the coach's name above their words, so the athlete knows who is
+  // speaking. Product copy on this card is structural only; the message is the coach's, whole.
+  const wake = d.type === 'morning_roll_call';
 
   return `<section class="xnow vc-card${hue}" data-vc-open="${id}">
     <div class="xlab">
-      <span class="xl">${eyebrowEarnsItsPlace ? esc(eyebrow.toUpperCase()) : ''}</span>
+      <span class="xl">${wake ? esc(String(d.title).toUpperCase()) : eyebrowEarnsItsPlace ? esc(eyebrow.toUpperCase()) : ''}</span>
       ${deadline ? `<span class="xpill gold">${deadline}</span>` : ''}
     </div>
     <div class="xmain">
       <div class="xico">${icon(iconFor(d.type), 20)}</div>
       <div>
-        <div class="xt">${esc(d.title)}</div>
-        ${d.message ? `<div class="xwhy">${esc(d.message)}</div>` : ''}
+        ${/* The coach's name is the heading on a wake-up; the time already sits on the context
+              line and the deadline pill, so it is not repeated here (it wrapped the heading). */''}
+        ${wake ? `<div class="xt">${esc(d.coach_name || d.title)}</div>` : `<div class="xt">${esc(d.title)}</div>`}
+        ${d.message ? `<div class="xwhy vc-msg">${esc(d.message)}</div>` : ''}
       </div>
     </div>
     ${d.contextLine ? `<div class="vc-ctx">${icon('clock', 13)} ${esc(d.contextLine)}</div>` : ''}
@@ -244,6 +286,114 @@ export function mountCommitmentCard(root, rerender) {
   }));
 }
 
+/* ---------------------------------------------------------------- wake-up detail (0211)
+
+   The in-app answer to "It's 6:00 AM. Who's up?" for one athlete. Direct and unambiguous:
+   the coach's words, the one button, and after it the receipt with the verdict. The screen
+   distinguishes what the coach wrote (the note, signed) from what OnStandard says (everything
+   else), and it says BEFORE 6 AM whether the lock-screen push can reach this phone at all. */
+
+/** The device's push readiness, as a card. '' when there is nothing to warn about. */
+function pushWarning(phase) {
+  if (phase === 'closed') return '';
+  const s = pushTokenState();
+  if (s !== 'denied') return '';
+  return `
+  <div class="sidebox wk-warn">
+    <div class="req-icon a s38">${icon('bell', 19)}</div>
+    <div>
+      <div class="tt">Lock-screen check-in is off on this phone</div>
+      <div class="ts">Notifications are off for OnStandard, so the roll call won’t reach your lock screen. Turn them on in your phone’s Settings, or open the app at the time and check in here. Either counts the same.</div>
+    </div>
+  </div>`;
+}
+
+function wakeupDetail(row, d) {
+  const nowISO = new Date().toISOString();
+  const off = offsetFor(row, nowISO);
+  const clock = (iso) => fmtAt(iso, off);
+  const phase = wakeupPhase(row, nowISO);
+  const dl = deadlineOf(row);
+  const close = closesAtOf(row);
+  const refusal = ackRefusal(row.instance_id);
+  const failNote = SAVE_FAILED.get(row.instance_id);
+
+  const note = d.message ? `
+    <div class="coachnote wk-note">
+      <div class="who"><div class="nm">${esc(row.coach_name || 'Your coach')}</div><div class="rl">${esc(d.title)}${row.starts_min != null ? ` · ${esc(fmtMin(row.starts_min))}` : ''}</div></div>
+      <p class="wk-msgp">${esc(d.message)}</p>
+    </div>` : `
+    <div class="coachnote wk-note">
+      <div class="who"><div class="nm">${esc(row.coach_name || 'Your coach')}</div><div class="rl">${esc(d.title)}${row.starts_min != null ? ` · ${esc(fmtMin(row.starts_min))}` : ''}</div></div>
+      <div class="ts">No message this morning. The roll call stands.</div>
+    </div>`;
+
+  let state = '';
+  if (d.verdict === VERDICT.EXCUSED) {
+    state = `<section class="card pad wk-state">
+      <div class="wk-eyebrow">Excused</div>
+      <div class="ts">${esc(row.excused_reason || 'Your coach excused you from this one.')} It doesn’t count either way.</div>
+    </section>`;
+  } else if (row.acknowledged_at) {
+    const late = d.verdict === VERDICT.LATE;
+    state = `<section class="card pad wk-state ${late ? 'late' : 'on'}">
+      <div class="wk-eyebrow">${icon('check', 14)} Checked in</div>
+      <div class="wk-stamp">${esc(clock(row.acknowledged_at))}</div>
+      <div class="wk-verdict">${late ? `Late${d.lateMin ? ` · ${d.lateMin} min` : ''}` : 'On Standard'}</div>
+      <div class="ts">${late
+        ? `The grace period ended at ${esc(clock(dl))}. Your coach sees this as late.`
+        : `Answered inside the grace period. Your coach sees you as up.`}${row.ack_source === 'lockscreen' ? ' Recorded from your lock screen.' : ''}</div>
+    </section>`;
+  } else if (phase === 'before') {
+    state = `<section class="card pad wk-state">
+      <div class="wk-eyebrow">Not open yet</div>
+      <div class="ts">Opens at ${esc(clock(opensAtOf(row)))}. Answers by ${esc(clock(dl))} are On Standard. Nothing to do until then.</div>
+    </section>`;
+  } else if (phase === 'open') {
+    state = `<section class="card pad wk-state live">
+      <div class="wk-eyebrow">Roll call is open</div>
+      <div class="ts">On Standard until ${esc(clock(dl))}.</div>
+      <button class="btn green wk-cta" data-vc-ack="${esc(row.instance_id)}">${icon('check', 20)} ${esc(d.actionLabel)}</button>
+    </section>`;
+  } else if (phase === 'late') {
+    state = `<section class="card pad wk-state late">
+      <div class="wk-eyebrow">You’re late</div>
+      <div class="ts">You haven’t answered ${esc(d.title)}. The grace period ended at ${esc(clock(dl))} and your coach can see your status.${close ? ` A late check-in still counts until ${esc(clock(close))}.` : ''}</div>
+      <button class="btn wk-cta" data-vc-ack="${esc(row.instance_id)}">${icon('check', 20)} Check in now</button>
+    </section>`;
+  } else {
+    state = `<section class="card pad wk-state missed">
+      <div class="wk-eyebrow">Missed</div>
+      <div class="wk-stamp">${esc(clock(dl))}</div>
+      <div class="ts">No answer by the deadline, and the roll call closed at ${esc(clock(close))}. It is recorded as missed. If that’s wrong, tell your coach below and they can correct it.</div>
+    </section>`;
+  }
+
+  const refusalLine = refusal === 'not_open' ? `Not open yet. It opens at ${clock(opensAtOf(row))}.`
+    : refusal === 'closed' ? `This roll call closed at ${clock(close)}. It can’t be answered now.`
+    : refusal === 'cancelled' ? 'Your coach cancelled this one.' : '';
+
+  return `
+  ${backHead(d.title, row.coach_name ? `From ${row.coach_name}` : '', 'home')}
+  ${note}
+  <div class="wk-gap"></div>
+  ${state}
+  ${refusalLine ? `<div class="vc-ctx wk-refusal">${icon('alert', 13)} ${esc(refusalLine)}</div>` : ''}
+  ${failNote && !refusalLine ? `<div class="vc-ctx wk-refusal">${icon('bolt', 13)} ${esc(failNote)}</div>` : ''}
+  ${pushWarning(phase)}
+  ${(d.verdict === VERDICT.MISSED && phase === 'closed') || (row.acknowledged_at && d.verdict === VERDICT.LATE) ? (!row.disputed_at ? `
+    <div class="wk-gap"></div>
+    <input class="input" id="vc-dispute-note" maxlength="200" placeholder="What actually happened? (optional)" aria-label="What actually happened" autocomplete="off">
+    <button class="btn ghost wk-dispute-btn" id="vc-dispute">Something wrong? Tell your coach</button>` : `
+    <div class="wk-gap"></div><div class="ts wk-center">Reported. Your coach can see this and correct it.</div>`) : ''}
+  <div class="sidebox wk-proof">
+    <div class="req-icon b s38">${icon('shield', 19)}</div>
+    <div><div class="tt">What this records</div>
+    <div class="ts">The exact time you tapped, on OnStandard’s clock, compared with the time your coach set. Nothing else: no location, no phone data. The first tap stands; a second tap changes nothing.</div></div>
+  </div>
+  <div class="wk-foot"></div>`;
+}
+
 /* ---------------------------------------------------------------- detail screen */
 
 /* Resolving the instance behind a deep link, at most once per id.
@@ -301,6 +451,7 @@ export default {
       <section class="card pad"><div class="ts">Loading your check-in…</div></section>`;
     }
     const d = deriveCommitment(row, new Date().toISOString());
+    if (row.type === 'morning_roll_call') return wakeupDetail(row, d);
     const asksArrival = !!row.asks_arrival;
 
     // `offText` lets an unmet line say WHY instead of shrugging with a dash. "Left at 5:52 AM" and
@@ -408,6 +559,11 @@ export default {
       loadMine(true).then(settle, settle);
     }
     mountCommitmentCard(root, () => window.__render && window.__render());
+
+    // The push-readiness card (0211) can only be drawn once the native shell has answered; when
+    // that answer lands after this screen painted, repaint once so the warning is not a refresh
+    // away. `{ once }` keeps a long-lived screen from stacking listeners across re-mounts.
+    window.addEventListener('onstd:push-token', () => { if (root.isConnected) window.__render && window.__render(); }, { once: true });
 
     const dis = root.querySelector('#vc-dispute');
     if (dis) dis.addEventListener('click', async () => {

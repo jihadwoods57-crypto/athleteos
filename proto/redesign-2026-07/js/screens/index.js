@@ -68,6 +68,7 @@ import accountability from './accountability.js';
 import verifiedDiscipline from './verified-discipline.js';
 import verifiedProfile from './verified-profile.js';
 import { coachCommitments, coachCommitEdit, coachCommitManage } from './coach-commitments.js';
+import { coachWakeupEdit, coachWakeupNew } from './coach-wakeup.js';
 import squad from './squad.js';
 // Coach Marketplace (0183–0186) — client side + coach side
 import getACoach from './get-a-coach.js';
@@ -209,6 +210,9 @@ export const screens = {
   'coach-commitments': coachCommitments,
   'coach-commit-edit': coachCommitEdit,
   'coach-commit-manage': coachCommitManage,
+  // Wake-Up Roll Call (0211): the fast composer for a morning_roll_call commitment.
+  'coach-wakeup-edit': coachWakeupEdit,
+  'coach-wakeup-new': coachWakeupNew,
   // Connected Standards (0155). Athlete: the standard detail, the list, and the personal editor.
   // The Home card itself is injected into #cs-slot by home.js, not routed.
   'connected-standard': connectedStandard,

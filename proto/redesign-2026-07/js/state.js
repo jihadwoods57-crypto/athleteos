@@ -841,6 +841,18 @@ function dueAtMinToday(dueAtISO) {
 let PUSH_TOKEN_TRIED = false;
 let PUSH_TOKEN_VALUE = null;
 
+/** Whether THIS device can receive a lock-screen roll call (0211).
+ *    'ready'   a push token was registered this session
+ *    'denied'  the native shell asked and got no token (permission off, or no EAS project)
+ *    'unknown' not asked yet this session
+ *    'web'     no native shell at all (browser); pushes are simply not a thing here
+ *  Read by the athlete's roll-call card so "you will not get the 6 AM push" is said BEFORE 6 AM. */
+export function pushTokenState() {
+  if (typeof window === 'undefined' || !window.OnStandardNative || !window.OnStandardNative.push) return 'web';
+  if (PUSH_TOKEN_VALUE) return 'ready';
+  return PUSH_TOKEN_TRIED ? 'denied' : 'unknown';
+}
+
 /* Server-notification fetch throttle (in-memory: refetch at most every 15s, resets on
    reload) so the bell's mount → fetch → repaint cycle can never loop. */
 let NOTIF_FETCH_AT = 0;
@@ -2010,6 +2022,8 @@ export const act = {
     PUSH_TOKEN_TRIED = true;
     try {
       const r = await N.push.token();
+      // Whatever came back, the roll-call card can now say whether a push will reach this phone.
+      try { window.dispatchEvent(new CustomEvent('onstd:push-token', { detail: { ok: !!(r && r.token) } })); } catch { /* no-op */ }
       if (r && r.token) {
         PUSH_TOKEN_VALUE = r.token;
         await sb.rpc('register_device_token', { tok: r.token, plat: r.platform || null });

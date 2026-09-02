@@ -25,3 +25,12 @@ export function rollCallCategoryId(label: string | null): string {
  *  digest that ever arrives carries working buttons.
  *  MUST match coachDigestCategoryId in src/core/rollcall.ts. */
 export const COACH_DIGEST_CATEGORY = 'RCC::digest';
+
+/** The button on a LATE roll-call push (0211). Product copy, so a fixed label the device registers
+ *  every launch (rollCallCategoryId(CHECK_IN_LABEL) = 'RC::check-in-now').
+ *  MUST match CHECK_IN_LABEL in src/core/rollcall.ts. */
+export const CHECK_IN_LABEL = 'Check in now';
+
+/** The Android channel every roll-call push rides on (high importance, sound). Created by the
+ *  device at launch. MUST match ROLLCALL_CHANNEL in src/core/rollcall.ts. */
+export const ROLLCALL_CHANNEL = 'rollcall';

@@ -19,9 +19,12 @@ const OPTIONS = [
   { key: 'message_group',   cap: 'announcements',  icon: 'users',     title: 'Message a group',       sub: 'Announce to a custom group',        go: 'coach-announce' },
   { key: 'standards',       cap: 'standards',      icon: 'bars',      title: 'Standards & templates', sub: 'Meals, windows, check-ins by room', go: 'coach-plan' },
   { key: 'schedule',        cap: 'exceptions',     icon: 'clock',     title: 'Adjust a schedule',     sub: 'Mark travel or an excused stretch', go: 'coach-roster' },
+  // Wake-Up Roll Call (0211): the morning group text as a measurable roll call. Shares the
+  // 'commitments' capability because it IS a commitment (type morning_roll_call).
+  { key: 'commitments',     cap: null,             icon: 'sun',       title: 'Wake-Up Roll Call',     sub: 'A time, a grace period, your message. One tap answers it', go: 'coach-wakeup-new' },
   // Verified Commitments (0138). Distinct from 'schedule' above, which excuses an athlete for a
   // stretch of days; this SCHEDULES the thing they're accountable for in the first place.
-  { key: 'commitments',     cap: null,             icon: 'sun',       title: 'Schedule a commitment', sub: 'Roll call, lift, study hall. Verified', go: 'coach-commit-manage' },
+  { key: 'commitments',     cap: null,             icon: 'clock',     title: 'Schedule a commitment', sub: 'Practice, lift, study hall. Verified', go: 'coach-commit-manage' },
   // Connected Standards (0155). Distinct from 'commitments' above, which schedules a PLACE and a
   // time; this sets a measurable amount of activity the athlete's own device answers for.
   { key: 'activity',        cap: 'standards',      icon: 'bolt',      title: 'Set an activity standard', sub: 'Steps, distance or workouts. Verified by their watch', go: 'coach-standards-manage' },

@@ -17,6 +17,15 @@ export function parseAction(raw: unknown): CoachAction | null {
   return raw === 'seen' || raw === 'nudge' ? raw : null;
 }
 
+/** An optional single target for the in-app "Ping" on one athlete's row (0211). Only a uuid
+ *  passes; anything else is treated as "no target" rather than an error, because the roster-wide
+ *  nudge is the safe default and a malformed id must never widen into it silently either — the
+ *  caller sees `targeted` in the response and can tell one from fifty. */
+export function parseAthlete(raw: unknown): string | null {
+  return typeof raw === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw)
+    ? raw.toLowerCase() : null;
+}
+
 export function httpStatusForCoach(reason: CoachFailure): number {
   switch (reason) {
     case 'malformed':

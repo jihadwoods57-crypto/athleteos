@@ -19,12 +19,18 @@ import { CD, bookId } from '../coach-data.js';
 // force-loads past a cached offline ROSTER (a plain kick early-returns on it).
 import { ensureBook, bookless, wireBookRetry, bookBack } from './coach-connected.js';
 import { allowedCreateKeys, isReadonly } from '../staff-access.js';
-import { boardCounts, missingFrom, TYPE_LABEL, presenceOf, PRESENCE } from '../commitments.js';
+import {
+  boardCounts, missingFrom, TYPE_LABEL, presenceOf, PRESENCE,
+  groupByVerdict, verdictCounts, deadlineOf, closesAtOf, graceMinOf, offsetFor, fmtAt,
+  summarizeOccurrences, wakeupPhase, VERDICT,
+} from '../commitments.js';
 import { fmtMin } from '../requirements.js';
 import {
   VC, loadBoard, loadCommitments, loadLocations, saveCommitment, saveLocation,
   setResponse, remindMissing, excuseAthlete, setCommitmentActive, todayISO, shiftISO,
+  pingAthlete, setInstanceMessage, loadRollcallSummary,
 } from '../commitment-data.js';
+import { editWakeup } from './coach-wakeup.js';
 
 const hhmm = (iso) => {
   if (!iso) return '';
@@ -55,6 +61,8 @@ export function commitmentBoardCard() {
   }
   if (!rows || !rows.length) return '';
   return rows.map((inst) => {
+    // A wake-up roll call (0211) reads in verdicts: up / late / still out, on the instance clock.
+    if (inst.type === 'morning_roll_call') return wakeupHomeCard(inst);
     const c = boardCounts(inst.rows || []);
     if (!c.total) return '';
     const ctx = [
@@ -82,6 +90,194 @@ export function commitmentBoardCard() {
           .filter(Boolean).join(' · ')}</div>` : ''}
     </section>`;
   }).filter(Boolean).join('');
+}
+
+/** The operator-Home card for a wake-up roll call: the count that matters and the split. */
+function wakeupHomeCard(inst) {
+  const now = new Date().toISOString();
+  const c = verdictCounts(inst, now);
+  if (!c.total) return '';
+  const phase = wakeupPhase(inst, now);
+  const ctx = [
+    inst.audience_label || (CD.kind === 'practice' ? 'All clients' : 'Entire team'),
+    inst.starts_min != null ? fmtMin(inst.starts_min) : '',
+  ].filter(Boolean).join(' · ');
+  const out = c.pending + c.missed;
+  const pill = phase === 'closed'
+    ? (out ? `<span class="xpill red">${out} missed</span>` : '<span class="xpill green">All in</span>')
+    : phase === 'late'
+      ? (out ? `<span class="xpill red">${out} still out</span>` : '<span class="xpill green">All in</span>')
+      : (out ? `<span class="xpill gold">${out} pending</span>` : '<span class="xpill green">All in</span>');
+  return `
+    <section class="card pad vc-board wk-homecard" data-go="coach-commitments/${esc(inst.instance_id)}">
+      <h2 class="eyebrow wk-cardh">${esc(inst.title || 'Wake-Up Roll Call')}</h2>
+      <div class="ts wk-ctx">${esc(ctx)}</div>
+      ${segBar(c.responded, c.counted, `${c.responded} of ${c.counted} checked in`)}
+      <div class="wk-homeline">
+        <div class="wk-homen ${out ? '' : 'g'}">${c.responded} of ${c.counted}</div>
+        <div class="wk-homel">up</div>
+        <div class="wk-spacer"></div>
+        ${pill}
+      </div>
+      ${c.late || c.excused ? `<div class="ts wk-sub">${[
+        c.late ? `${c.late} late` : '', c.excused ? `${c.excused} excused` : '',
+      ].filter(Boolean).join(' · ')}</div>` : ''}
+    </section>`;
+}
+
+/* ---------------------------------------------------------------- wake-up board (0211) */
+
+/* The coach's 14-day read for the roll call on screen. Keyed by commitment id; null rows = the
+   fetch failed (said so, never "no history"). */
+const SUMMARY = { forId: null, rows: null, failed: false };
+/* Which day a summary tap asked for, per instance id. Home-tapped instances are absent and load
+   today, so opening a past day never leaks into the next visit to today's board. */
+const BOARD_DAY_FOR = new Map();
+
+const ACK_SRC = { lockscreen: 'from the lock screen', app: 'in the app', staff: 'set by staff' };
+
+function wakeupRow(r, kind, inst, clock, phase) {
+  const dl = deadlineOf(inst);
+  const src = r.ack_source && ACK_SRC[r.ack_source] ? ` · ${ACK_SRC[r.ack_source]}` : '';
+  const when = kind === 'on' ? `${clock(r.acknowledged_at)}${src}`
+    : kind === 'late' ? `${clock(r.acknowledged_at)}${src}`
+    : kind === 'ex' ? (r.excused_reason || 'Excused')
+    : phase === 'open' || phase === 'before' ? 'No answer yet'
+    : `No answer by ${clock(dl)}`;
+  const pill = kind === 'on' ? '<span class="xpill green">On Standard</span>'
+    : kind === 'late' ? `<span class="xpill gold">Late${r.lateMin ? ` · +${r.lateMin} min` : ''}</span>`
+    : kind === 'ex' ? '<span class="xpill gray">Excused</span>'
+    : r.verdict === VERDICT.MISSED ? '<span class="xpill red">Missed</span>'
+    : '<span class="xpill gray">Pending</span>';
+  const canPing = kind === 'out' && phase !== 'closed' && phase !== 'before';
+  return `
+  <div class="lrow wk-row">
+    <div class="lm">
+      <div class="lt">${esc(r.name || 'Athlete')}</div>
+      <div class="ls">${esc(when)}${r.corrected_by_name ? esc(` · corrected by ${r.corrected_by_name}`) : ''}</div>
+      ${r.disputed_at ? `<div class="ls wk-dispute">Reported wrong by the ${CD.noun}${r.dispute_note ? esc(`: ${r.dispute_note}`) : ''}</div>` : ''}
+    </div>
+    <div class="wk-rowend">
+      ${pill}
+      <div class="wk-rowacts">
+        ${canPing ? `<button class="chip" data-wk-ping="${esc(r.athlete_id)}" data-wk-inst="${esc(inst.instance_id)}">Ping</button>` : ''}
+        ${kind !== 'ex' ? `<button class="chip" data-vc-excuse="${esc(r.athlete_id)}">Excuse</button>` : ''}
+        ${kind === 'out' ? `<button class="chip" data-vc-mark="${esc(r.response_id)}">Mark in</button>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function wakeupSummaryCard(inst) {
+  if (SUMMARY.forId !== inst.commitment_id) return '';
+  if (SUMMARY.failed) {
+    return `<h2 class="eyebrow">History</h2>
+    <div class="sidebox"><div class="req-icon b s38">${icon('clock', 17)}</div>
+      <div><div class="tt">History didn’t load</div><div class="ts">This isn’t an empty record. It retries when you reopen this board.</div></div></div>`;
+  }
+  const rows = (SUMMARY.rows || []).filter((o) => o.instance_id !== inst.instance_id && o.instance_status !== 'cancelled');
+  if (!rows.length) return '';
+  const s = summarizeOccurrences(rows);
+  const line = s.occurrences
+    ? `Last ${s.occurrences} roll call${s.occurrences === 1 ? '' : 's'} · ${s.onStandard} On Standard · ${s.late} Late · ${s.missed} Missed`
+    : 'Earlier roll calls';
+  const day = (iso) => {
+    const d = new Date(String(iso) + 'T12:00:00');
+    return isNaN(d) ? String(iso) : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  };
+  return `
+  <h2 class="eyebrow">History</h2>
+  <section class="card rows">
+    <div class="ts wk-histline">${esc(line)}</div>
+    ${rows.slice(0, 14).map((o) => `
+    <div class="lrow wk-hist" data-wk-day="${esc(o.occurs_on)}" data-wk-inst="${esc(o.instance_id)}">
+      <div class="lm"><div class="lt">${esc(day(o.occurs_on))}</div>
+        <div class="ls">${Number(o.pending) > 0 ? `${o.pending} pending · ` : ''}${o.on_standard} On Standard · ${o.late} Late · ${o.missed} Missed${Number(o.excused) ? ` · ${o.excused} excused` : ''}</div></div>
+      <div class="lv">${Number(o.total) ? `${Number(o.on_standard) + Number(o.late)} of ${o.total}` : ''}</div>
+      ${icon('chevron', 14, 'class="ic-chevron"')}
+    </div>`).join('')}
+  </section>`;
+}
+
+/** The live roll-call board for a wake-up. Grouped by verdict, in the order a coach reads it at
+ *  6:05: who is still out, who was late, who is up. The count at the top is the only number that
+ *  matters; everything below it is names. */
+function wakeupBoard(inst, back) {
+  const now = new Date().toISOString();
+  const off = offsetFor(inst, now);
+  const clock = (iso) => fmtAt(iso, off);
+  const g = groupByVerdict(inst, now);
+  const c = verdictCounts(inst, now);
+  const phase = wakeupPhase(inst, now);
+  const grace = graceMinOf(inst);
+  const dl = deadlineOf(inst);
+  const close = closesAtOf(inst);
+  const out = g.pending.length + g.missed.length;
+  const title = inst.title || 'Wake-Up Roll Call';
+  const ctx = [
+    inst.audience_label || (CD.kind === 'practice' ? 'All clients' : 'Entire team'),
+    inst.starts_min != null ? fmtMin(inst.starts_min) : '',
+    grace ? `${grace} min grace` : '',
+  ].filter(Boolean).join(' · ');
+  const statusLine = phase === 'before' ? `Opens ${clock(inst.opens_at)}. Answers by ${clock(dl)} are On Standard.`
+    : phase === 'open' ? `On Standard until ${clock(dl)}.${close ? ` Late answers until ${clock(close)}.` : ''}`
+    : phase === 'late' ? `Grace period ended ${clock(dl)}.${close ? ` Late answers until ${clock(close)}.` : ''}`
+    : `Closed ${clock(close)}.`;
+  const outLabel = phase === 'open' || phase === 'before' ? 'Pending' : 'Missed';
+  const section = (label, list, kind) => list.length ? `
+    <h2 class="eyebrow">${esc(label)} <span class="opt">· ${list.length}</span></h2>
+    <section class="card rows">${list.map((r) => wakeupRow(r, kind, inst, clock, phase)).join('')}</section>` : '';
+
+  return `
+  ${backHead(title, ctx, back)}
+
+  <section class="card pad wk-board">
+    <div class="wk-count"><span class="wk-n ${out ? '' : 'g'}">${c.responded}</span><span class="wk-of">/ ${c.counted}</span><span class="wk-cl">checked in</span></div>
+    ${segBar(c.responded, c.counted, `${c.responded} of ${c.counted} checked in`)}
+    <div class="wk-stats">
+      <div class="wk-stat g"><b>${c.onStandard}</b><span>On Standard</span></div>
+      <div class="wk-stat ${outLabel === 'Missed' && out ? 'r' : ''}"><b>${out}</b><span>${outLabel}</span></div>
+      <div class="wk-stat ${c.late ? 'a' : ''}"><b>${c.late}</b><span>Late</span></div>
+    </div>
+    <div class="ts wk-status">${esc(statusLine)}</div>
+  </section>
+
+  ${phase === 'closed' ? `
+  <section class="card pad wk-done">
+    <h2 class="eyebrow">Wake-Up Roll Call complete</h2>
+    <div class="wk-doneline"><b>${c.onStandard} / ${c.counted}</b> On Standard · <b>${c.late}</b> Late · <b>${c.missed}</b> Missed${c.excused ? ` · ${c.excused} excused` : ''}</div>
+  </section>` : ''}
+
+  <section class="card pad">
+    <div class="wk-msgh"><h2 class="eyebrow wk-inline">Your message today</h2><button class="chip" id="wk-msg-edit">${inst.message ? 'Change' : 'Add'}</button></div>
+    ${inst.message ? `<p class="wk-msgp">${esc(inst.message)}</p>` : `<div class="ts">No message. The roll call goes out with the time only.</div>`}
+    ${inst.message_override ? `<div class="ts wk-hint">Today only. Tomorrow uses your standing message.</div>` : ''}
+    <div id="wk-msg-form" hidden>
+      <textarea class="ob-input wk-msg" id="wk-msg-ta" maxlength="1000" rows="4" aria-label="Today’s message">${esc(inst.message_override || inst.standing_message || inst.message || '')}</textarea>
+      <div class="ts wk-hint">${phase === 'before' ? 'Goes out with today’s roll call, in your name, exactly as written.' : 'Shows in the app now. A push already sent keeps its words.'}</div>
+      <div class="btn-row mt">
+        <button class="btn green sm" id="wk-msg-save">Save for today</button>
+        ${inst.message_override ? `<button class="btn ghost sm" id="wk-msg-clear">Use standing message</button>` : ''}
+      </div>
+      <div id="wk-msg-err" class="ts wk-err" aria-live="polite"></div>
+    </div>
+  </section>
+
+  ${out && phase !== 'closed' && phase !== 'before' ? `
+  <button class="btn" id="vc-remind" data-inst="${esc(inst.instance_id)}">${icon('bell', 18)} Ping ${out} ${outLabel === 'Pending' ? 'pending' : 'still out'}</button>
+  <div class="ts wk-pinghint">Only these ${out} get it, with their own I’m Up button. Nobody who answered is pinged. One ping per roll call every ten minutes.</div>` : ''}
+  ${!out && phase !== 'before' ? `
+  <div class="sidebox wk-allin">
+    <div class="req-icon g s38">${icon('check', 19)}</div>
+    <div><div class="tt">Everyone is in</div><div class="ts">Nobody to chase.</div></div>
+  </div>` : ''}
+
+  ${section(outLabel, [...g.pending, ...g.missed], 'out')}
+  ${section('Late', g.late, 'late')}
+  ${section('On Standard', g.on_standard, 'on')}
+  ${section('Excused', g.excused, 'ex')}
+  ${wakeupSummaryCard(inst)}
+  <div class="wk-foot"></div>`;
 }
 
 /** Paint the board card into a slot on operator Home. Same async-slot seam Home uses elsewhere. */
@@ -179,6 +375,9 @@ export const coachCommitments = {
       <button class="btn" data-go="coach-commit-edit" style="width:100%">${icon('plus', 18)} Schedule a commitment</button>` : ''}`;
     }
 
+    // A wake-up roll call (0211) has its own board: verdict groups, ping per row, today's message.
+    if (inst.type === 'morning_roll_call') return wakeupBoard(inst, back);
+
     const rows = inst.rows || [];
     const c = boardCounts(rows);
     const missing = missingFrom(rows);
@@ -254,9 +453,11 @@ export const coachCommitments = {
        because none of the board controls below exist on that screen. */
     if (!ensureBook()) { wireBookRetry(root); return; }
     const id = bookId();
+    // A summary tap asked for a past day (0211); anything else is today.
+    const boardDay = (sub && BOARD_DAY_FOR.get(sub)) || todayISO();
     if (id) {
       const before = JSON.stringify(VC.board);
-      loadBoard(id, CD.kind, todayISO()).then(() => {
+      loadBoard(id, CD.kind, boardDay).then(() => {
         // The first settled load must repaint even when the board is unchanged (an empty [] is
         // unchanged from the seed), or the skeleton above never resolves into a real state.
         const first = !BOARD_LOADED;
@@ -280,7 +481,7 @@ export const coachCommitments = {
     const remind = root.querySelector('#vc-remind');
     if (remind) remind.addEventListener('click', async () => {
       remind.disabled = true; remind.textContent = 'Sending…';
-      const { sent, reason } = await remindMissing(sub);
+      const { sent, reason } = await remindMissing(remind.getAttribute('data-inst') || sub);
       if (sent) track(EVENTS.VC_REMINDED, { n: sent });
       /* Four different outcomes, four different sentences. This button used to print
          "Couldn't send. Try again" over every non-success, including the two where trying again is
@@ -300,9 +501,70 @@ export const coachCommitments = {
 
     const repaint = async () => {
       const bid = bookId();
-      if (bid) await loadBoard(bid, CD.kind, todayISO(), true);
+      if (bid) await loadBoard(bid, CD.kind, boardDay, true);
       window.__render && window.__render();
     };
+
+    /* ---- wake-up board controls (0211). Every selector below exists only on that board. ---- */
+    const inst = (VC.board || []).find((b) => b.instance_id === sub) || (VC.board || [])[0];
+    if (inst && inst.type === 'morning_roll_call' && SUMMARY.forId !== inst.commitment_id) {
+      // One fetch per commitment per visit; a failure is shown, never rendered as "no history".
+      SUMMARY.forId = inst.commitment_id; SUMMARY.rows = null; SUMMARY.failed = false;
+      loadRollcallSummary(inst.commitment_id, 14).then((rows) => {
+        if (SUMMARY.forId !== inst.commitment_id) return;
+        if (rows === null) SUMMARY.failed = true; else SUMMARY.rows = rows;
+        if (root.isConnected) window.__render && window.__render();
+      });
+    }
+
+    root.querySelectorAll('[data-wk-ping]').forEach((b) => b.addEventListener('click', async () => {
+      const instId = b.getAttribute('data-wk-inst');
+      const athleteId = b.getAttribute('data-wk-ping');
+      b.disabled = true; b.textContent = '…';
+      const { sent, reason } = await pingAthlete(instId, athleteId);
+      if (sent) track(EVENTS.VC_REMINDED, { n: 1, single: true });
+      // Same four-outcome honesty as the roster button: a limit and a refusal are not retries.
+      b.textContent = sent ? 'Pinged'
+        : reason === 'rate_limited' ? 'Just pinged'
+        : reason === 'ok' ? 'Already in'
+        : reason === 'not_authorized' ? 'Not allowed'
+        : 'Couldn’t ping';
+      if (!sent && reason === 'failed') b.disabled = false;
+    }));
+
+    const msgEdit = root.querySelector('#wk-msg-edit');
+    const msgForm = root.querySelector('#wk-msg-form');
+    if (msgEdit && msgForm) msgEdit.addEventListener('click', () => {
+      msgForm.hidden = !msgForm.hidden;
+      msgEdit.setAttribute('aria-expanded', msgForm.hidden ? 'false' : 'true');
+      if (!msgForm.hidden) { const ta = root.querySelector('#wk-msg-ta'); if (ta) ta.focus(); }
+    });
+    const msgSay = (m) => { const el = root.querySelector('#wk-msg-err'); if (el) el.textContent = m; };
+    const msgSave = root.querySelector('#wk-msg-save');
+    if (msgSave && inst) msgSave.addEventListener('click', async () => {
+      const ta = root.querySelector('#wk-msg-ta');
+      msgSave.disabled = true; msgSave.textContent = 'Saving…';
+      const ok = await setInstanceMessage(inst.instance_id, ta ? ta.value : '');
+      if (!ok) { msgSave.disabled = false; msgSave.textContent = 'Save for today'; msgSay('Couldn’t save. Check your connection and try again.'); return; }
+      await repaint();
+    });
+    const msgClear = root.querySelector('#wk-msg-clear');
+    if (msgClear && inst) msgClear.addEventListener('click', async () => {
+      msgClear.disabled = true; msgClear.textContent = '…';
+      const ok = await setInstanceMessage(inst.instance_id, '');
+      if (!ok) { msgClear.disabled = false; msgClear.textContent = 'Use standing message'; msgSay('Couldn’t change it. Try again.'); return; }
+      await repaint();
+    });
+
+    root.querySelectorAll('[data-wk-day]').forEach((row) => row.addEventListener('click', async () => {
+      const day = row.getAttribute('data-wk-day');
+      const instId = row.getAttribute('data-wk-inst');
+      if (!day || !instId) return;
+      BOARD_DAY_FOR.set(instId, day);
+      const bid = bookId();
+      if (bid) await loadBoard(bid, CD.kind, day, true);
+      location.hash = `#coach-commitments/${instId}`;
+    }));
 
     root.querySelectorAll('[data-vc-mark]').forEach((b) => b.addEventListener('click', async () => {
       const label = b.textContent; // 'Mark arrived' or 'Mark in' — restore the SAME one on failure
@@ -430,10 +692,11 @@ export const coachCommitManage = {
 
     const card = (r) => `
       <div class="lrow" style="align-items:flex-start">
-        <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('clock', 17)}</div>
+        <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon(r.type === 'morning_roll_call' ? 'sun' : 'clock', 17)}</div>
         <div class="lm" style="flex:1">
           <div class="lt">${esc(r.title || TYPE_LABEL[r.type] || 'Commitment')}</div>
           <div class="ls">${esc(daysLabel(r.repeat_days))} · ${esc(fmtMin(r.starts_min))}${
+            r.type === 'morning_roll_call' && graceMinOf(r) != null ? ` · ${esc(String(graceMinOf(r)))} min grace` : ''}${
             r.location_id ? ' · location verified' : ''}</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
@@ -458,7 +721,9 @@ export const coachCommitManage = {
       <section class="card" style="padding:2px 16px">${paused.map(card).join('')}</section>
       <div class="ts" style="padding-top:8px">Paused commitments stop appearing for ${CD.nouns} tomorrow. Everything already recorded against them stays exactly as it is.</div>` : ''}
     <div style="height:14px"></div>
-    <button class="btn green" id="vc-new" style="width:100%">${icon('plus', 18)} Schedule a commitment</button>
+    <button class="btn green" data-go="coach-wakeup-new">${icon('sun', 18)} Wake-Up Roll Call</button>
+    <div class="wk-gap"></div>
+    <button class="btn ghost" id="vc-new" style="width:100%">${icon('plus', 18)} Schedule a commitment</button>
     <div style="height:20px"></div>`;
   },
 
@@ -490,6 +755,8 @@ export const coachCommitManage = {
     root.querySelectorAll('[data-vc-edit]').forEach((b) => b.addEventListener('click', () => {
       const row = (RT.vcCommitments || []).find((r) => r.id === b.getAttribute('data-vc-edit'));
       if (!row) return;
+      // A wake-up roll call edits in its own composer (0211); everything else in the general one.
+      if (row.type === 'morning_roll_call') { editWakeup(row); location.hash = '#coach-wakeup-edit'; return; }
       editCommitment(row);
       location.hash = '#coach-commit-edit';
     }));

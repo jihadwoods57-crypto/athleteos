@@ -2502,3 +2502,97 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .ts.center{text-align:center}
 .sidebox.mt{margin-top:14px}
 .req-icon.s38{width:38px;height:38px}
+
+/* ---------------------------------------------------------------- Wake-Up Roll Call (0211)
+   wk-* is this feature's namespace. Coach composer, coach board, athlete detail, history rows.
+   Surfaces, type scale and colour all come from tokens; nothing here mints a hue. */
+.wk-form .wk-field{padding:12px 0;border-bottom:1px solid var(--hairline-soft)}
+.wk-form .wk-field:first-child{padding-top:2px}
+.wk-form .wk-field:last-child{border-bottom:0;padding-bottom:2px}
+.wk-l{font-size:var(--t-sm);font-weight:800;color:var(--text-2);margin-bottom:8px;letter-spacing:.01em}
+.wk-hint{padding-top:8px;line-height:1.45}
+.wk-time{font-size:var(--t-xl);font-weight:800;letter-spacing:-.01em;font-variant-numeric:tabular-nums;height:52px}
+.wk-chips{display:flex;flex-wrap:wrap;gap:6px}
+.wk-days{display:flex;gap:6px}
+.wk-days .chip{flex:1;padding:10px 0;text-align:center;justify-content:center}
+.wk-msg{min-height:120px;resize:vertical;line-height:1.5}
+.wk-presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.wk-more{display:flex;align-items:center;gap:6px;width:100%;margin:14px 0 8px;padding:10px 2px;background:none;border:0;color:var(--blue-bright);font-size:var(--t-sm);font-weight:800;cursor:pointer}
+.wk-more svg{transition:transform .18s ease}
+.wk-more[aria-expanded="true"] svg{transform:rotate(90deg)}
+.wk-preview{display:flex;gap:8px;align-items:flex-start;margin:14px 2px;font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.45}
+.wk-preview svg{flex:none;margin-top:2px;color:var(--text-3)}
+.wk-err{color:var(--red);text-align:center;min-height:16px;padding-top:8px}
+.wk-foot{height:20px}
+#wk-save{width:100%}
+.wk-gap{height:12px}
+
+/* coach board */
+.wk-board .wk-count{display:flex;align-items:baseline;gap:6px;padding-bottom:10px}
+.wk-n{font-size:var(--t-hero);font-weight:800;letter-spacing:var(--num-tight);line-height:1;font-variant-numeric:tabular-nums;color:var(--text)}
+.wk-n.g{color:var(--green-bright)}
+.wk-of{font-size:var(--t-xl);font-weight:800;color:var(--text-3);font-variant-numeric:tabular-nums}
+.wk-cl{font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-left:4px}
+.wk-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding-top:14px}
+.wk-stat{padding:10px 0 8px;border-top:2px solid var(--hairline)}
+.wk-stat b{display:block;font-size:var(--t-2xl);font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.05}
+.wk-stat span{display:block;font-size:var(--t-micro);font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);margin-top:4px}
+.wk-stat.g{border-top-color:var(--green-bright)} .wk-stat.g b{color:var(--green-bright)}
+.wk-stat.a{border-top-color:var(--amber-bright)} .wk-stat.a b{color:var(--amber-bright)}
+.wk-stat.r{border-top-color:var(--red)} .wk-stat.r b{color:var(--red)}
+.wk-status{padding-top:12px}
+.wk-done{border-color:var(--hairline);margin-top:12px}
+.wk-doneline{font-size:var(--t-base);font-weight:600;color:var(--text-2);line-height:1.5}
+.wk-doneline b{color:var(--text);font-weight:800;font-variant-numeric:tabular-nums}
+.wk-msgh{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.wk-inline{margin:0}
+.wk-msgp{font-size:var(--t-base);line-height:1.5;color:var(--text);font-weight:500;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+#vc-remind{width:100%;margin-top:12px}
+.wk-pinghint{text-align:center;padding-top:8px}
+.wk-allin{margin-top:12px}
+.wk-row{align-items:flex-start;cursor:default}
+.wk-rowend{display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex:none}
+.wk-rowacts{display:flex;gap:6px}
+.wk-dispute{color:var(--amber-bright);font-weight:700}
+.wk-histline{padding:12px 0 4px}
+.wk-hist .lv{font-variant-numeric:tabular-nums}
+
+/* coach Home card */
+.wk-homeline{display:flex;align-items:baseline;gap:10px;padding-top:8px}
+.wk-homen{font-size:var(--t-2xl);font-weight:800;letter-spacing:-.02em;color:var(--text);font-variant-numeric:tabular-nums}
+.wk-homen.g{color:var(--green-bright)}
+.wk-homel{font-size:var(--t-sm);font-weight:700;color:var(--text-2)}
+.wk-spacer{flex:1}
+
+/* athlete card + detail */
+.vc-from{font-size:var(--t-micro);font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.vc-at{font-weight:700;color:var(--text-2)}
+.xnow .xwhy.vc-msg{white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden}
+.wk-note .who{margin-bottom:10px;display:block}
+.wk-note .who .nm{font-size:var(--t-base);font-weight:800}
+.wk-note .who .rl{font-size:var(--t-xs);font-weight:700;color:var(--text-3);margin-top:2px}
+.wk-state{text-align:center}
+.wk-state.on{border-color:var(--green-border)}
+.wk-state.late{border-color:var(--amber-border)}
+.wk-state.missed{border-color:var(--red-border)}
+.wk-state.live{border-color:var(--blue-border)}
+.wk-eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:var(--t-eyebrow);font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--text-2)}
+.wk-state.on .wk-eyebrow{color:var(--green-bright)}
+.wk-state.late .wk-eyebrow{color:var(--amber-bright)}
+.wk-state.missed .wk-eyebrow{color:var(--red)}
+.wk-state.live .wk-eyebrow{color:var(--blue-bright)}
+.wk-stamp{font-size:var(--t-hero);font-weight:800;letter-spacing:var(--num-tight);line-height:1.05;margin-top:8px;font-variant-numeric:tabular-nums}
+.wk-verdict{font-size:var(--t-lg);font-weight:800;letter-spacing:.02em;text-transform:uppercase;margin:6px 0 8px}
+.wk-state.on .wk-verdict{color:var(--green-bright)}
+.wk-state.late .wk-verdict{color:var(--amber-bright)}
+.wk-cta{width:100%;margin-top:14px;font-size:var(--t-lg);letter-spacing:.04em;text-transform:uppercase}
+.wk-refusal{color:var(--amber-bright);justify-content:center}
+.wk-warn{margin-top:12px}
+.wk-proof{margin-top:14px}
+.wk-homecard{cursor:pointer;margin-bottom:10px}
+.wk-cardh{margin:0 0 6px}
+.wk-ctx{padding-bottom:10px}
+.wk-sub{padding-top:8px}
+.vc-ctx.wk-savefail{color:var(--amber-bright)}
+.wk-dispute-btn{width:100%;margin-top:10px}
+.wk-center{text-align:center}

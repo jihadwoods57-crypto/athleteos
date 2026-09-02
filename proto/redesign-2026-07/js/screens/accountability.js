@@ -8,7 +8,7 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc, errorState } from '../components.js';
-import { morningReadiness, commitmentStreak } from '../commitments.js';
+import { morningReadiness, commitmentStreak, wakeupHistory, wakeupSummary, VERDICT } from '../commitments.js';
 import { loadMineRange, todayISO, shiftISO } from '../commitment-data.js';
 
 let RANGE = 30;               // 7 | 30
@@ -24,6 +24,44 @@ function bar(label, done, total) {
       <span class="vc-mr-n">${total ? `${done}/${total}` : '—'}</span></div>
     <div class="vc-mr-track"><div class="vc-mr-fill" style="width:${pct == null ? 0 : pct}%"></div></div>
   </div>`;
+}
+
+/* Wake-Up Standard (0211): one line per roll call, newest first, with the verdict. No calendar,
+   no chart. "Today · 6:01 AM · On Standard" is the whole record and it reads in seconds. */
+const VERDICT_PILL = {
+  on_standard: ['green', 'On Standard'], late: ['gold', 'Late'], missed: ['red', 'Missed'],
+  pending: ['gray', 'Pending'], excused: ['gray', 'Excused'],
+};
+function dayLabel(iso, today) {
+  if (iso === today) return 'Today';
+  if (iso === shiftISO(today, -1)) return 'Yesterday';
+  const d = new Date(String(iso) + 'T12:00:00');
+  return isNaN(d) ? String(iso) : d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+}
+function wakeupSection(rows, loading) {
+  if (loading) return '';
+  const h = wakeupHistory(rows, new Date().toISOString());
+  if (!h.length) return '';
+  const s = wakeupSummary(h);
+  const today = todayISO();
+  const line = s.total
+    ? `${s.onStandard} On Standard · ${s.late} Late · ${s.missed} Missed`
+    : 'Your first one is today';
+  return `
+    <h2 class="eyebrow">Wake-Up Standard <span class="opt">· ${esc(line)}</span></h2>
+    <section class="card rows">
+      ${h.slice(0, 30).map((x) => {
+        const [cls, label] = VERDICT_PILL[x.verdict] || ['gray', x.verdict];
+        const sub = x.verdict === VERDICT.PENDING ? `Answer by ${x.due}`
+          : x.at ? `${x.at}${x.verdict === VERDICT.LATE && x.lateMin ? ` · ${x.lateMin} min late` : ''}`
+          : x.verdict === VERDICT.MISSED ? `No answer by ${x.due}` : '';
+        return `
+        <div class="lrow wk-hist" data-go="roll-call/${esc(x.instance_id)}">
+          <div class="lm"><div class="lt">${esc(dayLabel(x.occurs_on, today))}</div><div class="ls">${esc(sub)}</div></div>
+          <span class="xpill ${cls}">${esc(label)}</span>
+        </div>`;
+      }).join('')}
+    </section>`;
 }
 
 export default {
@@ -72,6 +110,8 @@ export default {
       <button class="chip ${RANGE === 7 ? 'on' : ''}" data-range="7" style="flex:1">Last 7 days</button>
       <button class="chip ${RANGE === 30 ? 'on' : ''}" data-range="30" style="flex:1">Last 30 days</button>
     </div>
+
+    ${wakeupSection(rows, loading)}
 
     <h2 class="eyebrow">The three signals</h2>
     <section class="card pad">

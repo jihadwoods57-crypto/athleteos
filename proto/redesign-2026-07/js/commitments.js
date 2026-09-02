@@ -112,6 +112,107 @@ export function opensMinFor(c) {
   return Math.max(0, anchor - 60);
 }
 
+/* ---------------------------------------------------------------- wake-up verdict (0211)
+
+   The mirror of rollcall_verdict() / rollcall_closes_at() / commitment_opens_at() in
+   supabase/migrations/0211_wakeup_rollcall.sql. Same inputs, same order of resolution, so the
+   athlete's card, the coach's board and the server's summary read one answer off one clock.
+   Never read the environment: `nowISO` is always an argument. */
+export const VERDICT = {
+  ON_STANDARD: 'on_standard', LATE: 'late', PENDING: 'pending', MISSED: 'missed', EXCUSED: 'excused',
+};
+export const VERDICT_LABEL = {
+  on_standard: 'On Standard', late: 'Late', pending: 'Pending', missed: 'Missed', excused: 'Excused',
+};
+/* A wake-up with no explicit close accepts a late answer for two hours after its deadline. */
+export const ROLLCALL_LATE_WINDOW_MIN = 120;
+
+const isoPlusMin = (iso, min) => {
+  const t = Date.parse(iso || '');
+  return isFinite(t) ? new Date(t + min * 60000).toISOString() : null;
+};
+
+/** The instant an answer is judged against. respond_by_at, else the start. */
+export function deadlineOf(row) {
+  return (row && (row.respond_by_at || row.starts_at)) || null;
+}
+
+/** When the roll call stops accepting answers. Server value first; the same fallback rule the
+ *  SQL applies when it is absent (a pre-0211 payload). Null = never closes (non-roll-call types). */
+export function closesAtOf(row) {
+  const r = row || {};
+  if (r.closes_at) return r.closes_at;
+  if (r.ends_at) return r.ends_at;
+  if (r.type === 'morning_roll_call') return isoPlusMin(deadlineOf(r), ROLLCALL_LATE_WINDOW_MIN);
+  return null;
+}
+
+/** When the roll call opens. Server value first; else the opensMinFor() rule. */
+export function opensAtOf(row) {
+  const r = row || {};
+  if (r.opens_at) return r.opens_at;
+  if (typeof r.opens_min === 'number' && typeof r.starts_min === 'number') {
+    return isoPlusMin(r.starts_at, r.opens_min - r.starts_min);
+  }
+  return isoPlusMin(deadlineOf(r), -60);
+}
+
+/** The coach's grace period in minutes, or null when the roll call has no deadline. */
+export function graceMinOf(row) {
+  const r = row || {};
+  if (typeof r.grace_min === 'number') return r.grace_min;
+  if (typeof r.respond_by_min === 'number' && typeof r.starts_min === 'number') return r.respond_by_min - r.starts_min;
+  return null;
+}
+
+/** excused | on_standard | late | pending | missed. `deadlineISO` lets a board row (which carries
+ *  no instance times) be judged against its instance. */
+export function rollcallVerdict(row, nowISO, deadlineISO) {
+  const r = row || {};
+  if (r.status === 'excused') return VERDICT.EXCUSED;
+  const dl = Date.parse(deadlineISO || deadlineOf(r) || '');
+  if (r.acknowledged_at) {
+    const at = Date.parse(r.acknowledged_at);
+    return (!isFinite(dl) || at <= dl) ? VERDICT.ON_STANDARD : VERDICT.LATE;
+  }
+  const now = Date.parse(nowISO || '');
+  if (!isFinite(dl) || !isFinite(now) || now < dl) return VERDICT.PENDING;
+  return VERDICT.MISSED;
+}
+
+/** Whole minutes late, rounded up. Null unless the answer came after the deadline. */
+export function lateMinutes(row, deadlineISO) {
+  const r = row || {};
+  const at = Date.parse(r.acknowledged_at || '');
+  const dl = Date.parse(deadlineISO || deadlineOf(r) || '');
+  if (!isFinite(at) || !isFinite(dl) || at <= dl) return null;
+  return Math.ceil((at - dl) / 60000);
+}
+
+/** Where a wake-up roll call is on its own clock:
+ *  'before' (not open yet) · 'open' (grace running) · 'late' (grace over, still accepting) · 'closed'. */
+export function wakeupPhase(row, nowISO) {
+  const r = row || {};
+  const now = Date.parse(nowISO || '');
+  const dl = Date.parse(deadlineOf(r) || '');
+  const close = Date.parse(closesAtOf(r) || '');
+  const open = Date.parse(opensAtOf(r) || '');
+  if (isFinite(close) && now > close) return 'closed';
+  if (isFinite(dl) && now >= dl) return 'late';
+  if (isFinite(open) && now < open) return 'before';
+  return 'open';
+}
+
+/** "On Standard" · "Late · 6 min" · "Missed" for a receipt line. */
+export function verdictLine(row, nowISO, deadlineISO) {
+  const v = rollcallVerdict(row, nowISO, deadlineISO);
+  if (v === VERDICT.LATE) {
+    const m = lateMinutes(row, deadlineISO);
+    return m ? `Late · ${m} min` : 'Late';
+  }
+  return VERDICT_LABEL[v] || '';
+}
+
 /* ---------------------------------------------------------------- signals */
 
 /** Which of the three signals this commitment actually asks for.
@@ -226,6 +327,12 @@ export function deriveCommitment(row, nowISO, offMinOverride) {
     statusColor: 'b',
     // Normalised, so no screen has to know how a pre-0208 payload degrades.
     presence: presenceOf(r),
+    // The wake-up verdict (0211), judged on THIS clock rather than the server's read time, so a
+    // deadline that passed while the card sat open is reflected on the next paint.
+    verdict: rollcallVerdict(r, nowISO),
+    lateMin: lateMinutes(r),
+    closesAt: closesAtOf(r),
+    graceMin: graceMinOf(r),
   };
 
   // A cancelled instance disappears. It is not a miss — the coach called it off.
@@ -298,24 +405,37 @@ export function deriveCommitment(row, nowISO, offMinOverride) {
   }
 
   if (r.acknowledged_at) {
+    // A late answer is a real answer and stays recorded, but the receipt says so: amber ink and
+    // "Late · 6 min" instead of a clean green "Checked in". The colour is the verdict.
+    const late = base.verdict === VERDICT.LATE;
+    const confirm = late
+      ? `Checked in at ${at(r.acknowledged_at)} · Late${base.lateMin ? ` · ${base.lateMin} min` : ''}`
+      : `Checked in at ${at(r.acknowledged_at)}`;
     if (asks.arrival) {
-      return { ...base, stage: 'awaiting_arrival', canArrive: true, statusColor: 'b',
-        confirmLine: `Checked in at ${at(r.acknowledged_at)}` };
+      return { ...base, stage: 'awaiting_arrival', canArrive: true, statusColor: 'b', confirmLine: confirm };
     }
-    return { ...base, stage: 'acknowledged', collapsed: true, statusColor: 'g',
-      confirmLine: `Checked in at ${at(r.acknowledged_at)}` };
+    return { ...base, stage: 'acknowledged', collapsed: true, statusColor: late ? 'a' : 'g',
+      confirmLine: confirm };
   }
 
   // Nothing recorded yet — now the clock decides.
   const deadlineISO = r.respond_by_at || r.arrive_by_at || r.ends_at || r.starts_at;
   const deadlineT = Date.parse(deadlineISO || '');
   if (isFinite(deadlineT) && nowT > deadlineT) {
-    return { ...base, stage: 'missed', canDispute: true, statusColor: 'a',
+    const noResponse = deadlineLine
       // "No response by 5:15 AM" keeps the meridiem exactly as every other stamp prints it —
       // the old .toLowerCase() mangled the whole line into "respond by 5:15 am".
-      confirmLine: deadlineLine
-        ? `No response by ${deadlineLine.replace(/^(?:Respond|Arrive) by /, '')}`
-        : 'No response' };
+      ? `No response by ${deadlineLine.replace(/^(?:Respond|Arrive) by /, '')}`
+      : 'No response';
+    // Past the deadline but before the roll call CLOSES (0211): the athlete can still answer,
+    // and the answer will be recorded as late. The button stays, relabelled so nobody mistakes
+    // it for being on time. A roll call with no close (older types) goes straight to missed.
+    const closeT = Date.parse(base.closesAt || '');
+    if (asks.ack && isFinite(closeT) && nowT <= closeT) {
+      return { ...base, stage: 'late_open', canAck: true, canDispute: true, statusColor: 'a',
+        actionLabel: 'Check in now', confirmLine: noResponse };
+    }
+    return { ...base, stage: 'missed', canDispute: true, statusColor: 'a', confirmLine: noResponse };
   }
 
   const opens = opensMinFor(r);
@@ -345,9 +465,92 @@ export function boardCounts(rows) {
   };
 }
 
-/** The list the coach actually needs: who has not answered. Never rendered publicly. */
+/** The list the coach actually needs: who has not answered. Never rendered publicly.
+ *  Keyed on the ANSWER, not the status: the escalation ladder marks every non-responder 'missed'
+ *  at the deadline, which is precisely when the coach looks at this list. A status-only filter
+ *  returned nobody from that moment on (the 0209 remind_missing bug, now closed here too). */
 export function missingFrom(rows) {
-  return (Array.isArray(rows) ? rows : []).filter(r => r.status === 'pending');
+  return (Array.isArray(rows) ? rows : [])
+    .filter(r => !r.acknowledged_at && (r.status === 'pending' || r.status === 'missed'));
+}
+
+/** Board rows judged against their instance: each row gains `verdict` and `lateMin`. The board
+ *  payload carries the deadline on the INSTANCE, not the row, which is why this takes both. */
+export function boardVerdicts(inst, nowISO) {
+  const i = inst || {};
+  const dl = deadlineOf(i);
+  return (Array.isArray(i.rows) ? i.rows : []).map((r) => ({
+    ...r, verdict: rollcallVerdict(r, nowISO, dl), lateMin: lateMinutes(r, dl),
+  }));
+}
+
+/** The four groups the roll-call board draws, in the order the coach reads them. Rows that are
+ *  neither (unverified) ride with the group their answer implies. */
+export function groupByVerdict(inst, nowISO) {
+  const g = { on_standard: [], late: [], pending: [], missed: [], excused: [] };
+  for (const r of boardVerdicts(inst, nowISO)) (g[r.verdict] || g.pending).push(r);
+  return g;
+}
+
+/** Counts for the board header. `responded` = on standard + late. */
+export function verdictCounts(inst, nowISO) {
+  const g = groupByVerdict(inst, nowISO);
+  const total = (Array.isArray(inst && inst.rows) ? inst.rows : []).length;
+  return {
+    total, onStandard: g.on_standard.length, late: g.late.length,
+    pending: g.pending.length, missed: g.missed.length, excused: g.excused.length,
+    responded: g.on_standard.length + g.late.length,
+    counted: total - g.excused.length,
+  };
+}
+
+/* ---------------------------------------------------------------- wake-up history (0211) */
+
+/** The athlete's own wake-up record, newest first, one line per occurrence: the verdict, the
+ *  stamp (in the team's clock) and how late. Pending ones are kept (today's, before its
+ *  deadline) so the list never hides the one that is live. */
+export function wakeupHistory(rows, nowISO, offMinOverride) {
+  return (Array.isArray(rows) ? rows : [])
+    .filter((r) => r && r.type === 'morning_roll_call' && r.instance_status !== 'cancelled')
+    .sort((a, b) => (a.occurs_on < b.occurs_on ? 1 : a.occurs_on > b.occurs_on ? -1 : 0))
+    .map((r) => {
+      const off = offsetFor(r, nowISO, offMinOverride);
+      return {
+        instance_id: r.instance_id, occurs_on: r.occurs_on, title: r.title,
+        verdict: rollcallVerdict(r, nowISO), lateMin: lateMinutes(r),
+        at: r.acknowledged_at ? fmtAt(r.acknowledged_at, off) : '',
+        due: deadlineOf(r) ? fmtAt(deadlineOf(r), off) : '',
+      };
+    });
+}
+
+/** Totals over a wake-up history, pending excluded (a live roll call is not a result yet). */
+export function wakeupSummary(history) {
+  const s = { total: 0, onStandard: 0, late: 0, missed: 0 };
+  for (const h of (Array.isArray(history) ? history : [])) {
+    if (h.verdict === VERDICT.PENDING || h.verdict === VERDICT.EXCUSED) continue;
+    s.total++;
+    if (h.verdict === VERDICT.ON_STANDARD) s.onStandard++;
+    else if (h.verdict === VERDICT.LATE) s.late++;
+    else if (h.verdict === VERDICT.MISSED) s.missed++;
+  }
+  return s;
+}
+
+/** Reduce the coach's rollcall_summary rows to one line: "Last 14 roll calls: 12 / 1 / 1". */
+export function summarizeOccurrences(occ) {
+  const s = { occurrences: 0, onStandard: 0, late: 0, missed: 0, total: 0 };
+  for (const o of (Array.isArray(occ) ? occ : [])) {
+    if (!o || o.instance_status === 'cancelled') continue;
+    // A day still in progress (anyone pending) is not a result yet.
+    if (Number(o.pending) > 0) continue;
+    s.occurrences++;
+    s.onStandard += Number(o.on_standard) || 0;
+    s.late += Number(o.late) || 0;
+    s.missed += Number(o.missed) || 0;
+    s.total += Number(o.total) || 0;
+  }
+  return s;
 }
 
 /* ---------------------------------------------------------------- accountability

@@ -75,6 +75,17 @@ export const VC = {
 
 const FRESH_MS = 30_000;
 
+/** Harness seams (render harnesses only, never product code): seed the caches so a screen can be
+ *  rendered headlessly without a session. Same idea as the OB2 harness seeding RT by mutation. */
+export function seedMineForHarness(rows, dayISO) {
+  RTC.mine = Array.isArray(rows) ? rows : [];
+  RTC.mineDay = dayISO || todayISO(); RTC.mineAt = Date.now(); RTC.mineError = false;
+}
+export function seedBoardForHarness(rows, dayISO) {
+  RTC.board = Array.isArray(rows) ? rows : [];
+  RTC.boardDay = dayISO || todayISO(); RTC.boardAt = Date.now(); RTC.boardError = false;
+}
+
 /* ---------------------------------------------------------------- athlete reads */
 
 /** The athlete's own commitments across a window (default: yesterday → tomorrow, so a late-night
@@ -128,11 +139,28 @@ export async function ackCommitment(instanceId) {
   };
   try {
     const { data, error } = await c.rpc('ack_commitment', { p_instance: instanceId });
-    if (error) return vcRetryable(error.message, false) ? queueIt() : null;
+    if (error) {
+      // The server's window verdicts (0211) are decided answers, never queued: replaying "closed"
+      // at 9 AM would not make a 6 AM answer exist. The card names each one.
+      ACK_REFUSAL.set(instanceId, ackRefusalOf(error.message));
+      return vcRetryable(error.message, false) ? queueIt() : null;
+    }
+    ACK_REFUSAL.delete(instanceId);
     patchLocal(instanceId, { acknowledged_at: data, status: 'acknowledged' });
     return data || null;
   } catch { return queueIt(); }
 }
+
+/* Why the last ack was refused, per instance: 'not_open' | 'closed' | 'cancelled' | null. */
+const ACK_REFUSAL = new Map();
+function ackRefusalOf(msg) {
+  const m = String(msg || '');
+  if (/not open yet/i.test(m)) return 'not_open';
+  if (/closed/i.test(m)) return 'closed';
+  if (/cancelled/i.test(m)) return 'cancelled';
+  return null;
+}
+export function ackRefusal(instanceId) { return ACK_REFUSAL.get(instanceId) || null; }
 
 /** "Something wrong?" — the athlete's route to correct a bad verification. */
 export async function disputeResponse(instanceId, note) {
@@ -358,6 +386,47 @@ export async function remindMissing(instanceId) {
     if (error) return { sent: 0, reason: 'failed' };
     return { sent: Number(data) || 0, reason: 'ok' };
   } catch { return { sent: 0, reason: 'failed' }; }
+}
+
+/** Ping ONE athlete from their row on the board (0211). Same function, same authorization, its
+ *  own per-athlete cooldown on the server. Returns { sent, reason } exactly like remindMissing.
+ *  No RPC fallback: the single-athlete path only exists on the function. */
+export async function pingAthlete(instanceId, athleteId) {
+  const c = sb(); if (!c || !instanceId || !athleteId) return { sent: 0, reason: 'failed' };
+  try {
+    const { data, error } = await c.functions.invoke('roll-call-coach', {
+      body: { instance: instanceId, action: 'nudge', athlete: athleteId },
+    });
+    if (!error && data && data.ok) return { sent: Number(data.targeted) || 0, reason: 'ok' };
+    const status = error && error.context && error.context.status;
+    if (status === 429) return { sent: 0, reason: 'rate_limited' };
+    if (status === 403) return { sent: 0, reason: 'not_authorized' };
+    return { sent: 0, reason: 'failed' };
+  } catch { return { sent: 0, reason: 'failed' }; }
+}
+
+/** "Change today's message" (0211): edits the OCCURRENCE, never the standing rule. An empty
+ *  string clears the override so the standing message shows again. */
+export async function setInstanceMessage(instanceId, message) {
+  const c = sb(); if (!c || !instanceId) return false;
+  try {
+    const { error } = await c.rpc('set_instance_message', {
+      p_instance: instanceId, p_message: (message || '').slice(0, 1000) || null });
+    if (error) return false;
+    RTC.boardAt = 0;
+    return true;
+  } catch { return false; }
+}
+
+/** The coach's per-occurrence verdict counts for one standing roll call (0211).
+ *  null = FAILED (fetcher contract), [] = genuinely nothing yet. */
+export async function loadRollcallSummary(commitmentId, days = 14) {
+  const c = sb(); if (!c || !commitmentId) return null;
+  try {
+    const { data, error } = await c.rpc('rollcall_summary', { p_commitment: commitmentId, p_days: days });
+    if (error) return null;
+    return Array.isArray(data) ? data : [];
+  } catch { return null; }
 }
 
 /* ---------------------------------------------------------------- rollups */

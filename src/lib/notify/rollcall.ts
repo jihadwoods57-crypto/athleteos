@@ -6,6 +6,7 @@ import {
   rollCallCategoryId, enqueueAck, dropAck, mergeLabels, type QueuedAck,
   COACH_DIGEST_CATEGORY, COACH_ACTION_SEEN, COACH_ACTION_NUDGE,
   enqueueCoachAction, dropCoachAction, type CoachAction, type QueuedCoachAction,
+  CHECK_IN_LABEL, ROLLCALL_CHANNEL, ackOutcome, type AckOutcome,
 } from '@/core/rollcall';
 
 const supaUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
@@ -29,16 +30,36 @@ export async function registerRollCallCategory(label: string | null): Promise<st
   return id;
 }
 
-/** POST the code to roll-call-ack. Returns true only on a recorded ack. */
-export async function postRollCallAck(code: string): Promise<boolean> {
-  if (!ACK_ENDPOINT || !code) return false;
+/** POST the code to roll-call-ack. 'ok' only on a recorded ack; 'retry' when a later attempt could
+ *  still land it (no network, 5xx); 'dead' for a decided refusal (expired, closed, flag off). */
+export async function postRollCallAck(code: string): Promise<AckOutcome> {
+  if (!ACK_ENDPOINT || !code) return 'dead';
   try {
     const res = await fetch(ACK_ENDPOINT, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }),
     });
     const out = (await res.json().catch(() => ({}))) as { ok?: boolean };
-    return res.ok && out.ok === true;
-  } catch { return false; }
+    return ackOutcome(res.status, out.ok === true);
+  } catch { return 'retry'; }
+}
+
+/** The Android channel roll-call pushes name (0211). Without it a 6 AM push rides the default
+ *  channel at default importance: no heads-up, no sound on some launchers. Idempotent; Android only.
+ *  bypassDnd is deliberately NOT requested: OnStandard does not claim to override Do Not Disturb. */
+export async function ensureRollCallChannel(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  try {
+    const Notifications = require('expo-notifications') as typeof import('expo-notifications');
+    await Notifications.setNotificationChannelAsync(ROLLCALL_CHANNEL, {
+      name: 'Roll call',
+      description: 'Wake-up roll calls and check-ins your coach scheduled.',
+      importance: Notifications.AndroidImportance.MAX,
+      sound: 'default',
+      vibrationPattern: [0, 250, 250, 250],
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      bypassDnd: false,
+    });
+  } catch { /* best effort */ }
 }
 
 async function readQueue(): Promise<QueuedAck[]> {
@@ -53,13 +74,21 @@ export async function queueAck(code: string): Promise<void> {
   await writeQueue(enqueueAck(await readQueue(), code, Date.now()));
 }
 
-/** Try every queued code; drop the ones that land. Call on app foreground and on reconnect. */
+/** Try every queued code; drop the ones that land AND the ones that never will (an expired code
+ *  or a closed roll call cannot become valid again). Call on app foreground and on reconnect. */
 export async function drainAckQueue(): Promise<void> {
   let q = await readQueue();
   for (const item of [...q]) {
-    if (await postRollCallAck(item.code)) q = dropAck(q, item.code);
+    if (await postRollCallAck(item.code) !== 'retry') q = dropAck(q, item.code);
   }
   await writeQueue(q);
+}
+
+/** Fire an ack now, queueing it only when a retry could still land it. The single entry point the
+ *  notification handler uses, so the offline path can never be forgotten at a call site. */
+export async function runRollCallAck(code: string): Promise<void> {
+  const r = await postRollCallAck(code);
+  if (r === 'retry') await queueAck(code);
 }
 
 async function readLabels(): Promise<string[]> {
@@ -70,7 +99,11 @@ async function readLabels(): Promise<string[]> {
  *  "I'm Up" action even when the app is later killed. Call once at startup. Native only, best-effort. */
 export async function ensureRollCallCategories(): Promise<void> {
   if (Platform.OS === 'web') return;
+  await ensureRollCallChannel();
   await registerRollCallCategory(null); // the default RC::im-up
+  // The late push's button (0211). Product copy, so it is never "remembered" from a push; it has
+  // to be registered here or the "You're late" notification arrives with no way to answer it.
+  await registerRollCallCategory(CHECK_IN_LABEL);
   for (const label of await readLabels()) await registerRollCallCategory(label);
 }
 

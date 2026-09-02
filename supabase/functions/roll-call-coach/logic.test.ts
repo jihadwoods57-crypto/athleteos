@@ -1,4 +1,4 @@
-import { parseAction, httpStatusForCoach, isTerminal, nudgeBody, type CoachFailure } from './logic';
+import { parseAction, httpStatusForCoach, isTerminal, nudgeBody, parseAthlete, type CoachFailure } from './logic';
 
 describe('parseAction', () => {
   it('accepts exactly the two verbs', () => {
@@ -72,6 +72,17 @@ describe('nudgeBody', () => {
     // would leak their teammates' compliance to the whole roster.
     for (const now of [deadline - 1, deadline + 1]) {
       expect(nudgeBody(deadline, now)).not.toMatch(/\d/);
+    }
+  });
+});
+
+describe('parseAthlete (0211)', () => {
+  it('accepts exactly a uuid, lower-cased', () => {
+    expect(parseAthlete('EEEE0000-0000-0000-0000-0000000000E2')).toBe('eeee0000-0000-0000-0000-0000000000e2');
+  });
+  it('treats anything else as no single target', () => {
+    for (const junk of ['', 'me', 'eeee0000', null, undefined, 1, {}, ['eeee0000-0000-0000-0000-0000000000e2']]) {
+      expect(parseAthlete(junk)).toBeNull();
     }
   });
 });

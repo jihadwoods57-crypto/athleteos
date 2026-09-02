@@ -12,7 +12,7 @@ import { BRIDGE_SHIM, handleBridgeMessage, type BridgeMessage } from './bridge';
 import { authenticateBiometric } from '../lib/auth/biometrics';
 import { parseInviteCode } from '../lib/inviteLink';
 import { registerGeofenceTask } from '../lib/location';
-import { postRollCallAck, queueAck, drainAckQueue, ensureRollCallCategories, rememberRollCallLabel, registerCoachDigestCategory, runCoachAction, drainCoachQueue } from '../lib/notify/rollcall';
+import { runRollCallAck, drainAckQueue, ensureRollCallCategories, rememberRollCallLabel, registerCoachDigestCategory, runCoachAction, drainCoachQueue } from '../lib/notify/rollcall';
 import { coachActionFor } from '../core/rollcall';
 
 // The app canvas, exactly: --bg in the proto's tokens.css, and the splash backgroundColor in
@@ -179,7 +179,9 @@ export function ProtoApp() {
       if (r?.actionIdentifier === 'ACK' && typeof data?.code === 'string' && data.code) {
         const code = data.code;
         // Best-effort: record now, queue for a foreground/reconnect retry if the network isn't there.
-        postRollCallAck(code).then((ok) => { if (!ok) return queueAck(code); }).catch(() => {});
+        // Queued ONLY when a retry could still land it (0211): an expired code or a closed roll
+        // call is dropped rather than replayed until the queue cap evicts a live one.
+        runRollCallAck(code).catch(() => {});
         return; // do not also route into the WebView
       }
       // The COACH half of the same idea: "Got it" / "Nudge them" on an escalation digest, answered
