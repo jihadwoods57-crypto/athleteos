@@ -23,6 +23,20 @@ module.exports = {
   name: 'RollCallWidget',
   displayName: 'Roll Call',
 
+  // MUST be stated. Left to the default, the plugin derived `com.onstandard.app.widget` from the
+  // target TYPE rather than its name, and build #30 failed code-signing against the identifier
+  // actually registered with Apple:
+  //   Provisioning profile ... has app ID "com.onstandard.app.RollCallWidget",
+  //   which does not match the bundle ID "com.onstandard.app.widget".
+  // A leading dot means "append to the main app's bundle identifier".
+  bundleIdentifier: '.RollCallWidget',
+
+  // The plugin defaults an extension to iOS 18.0. The card needs 16.2, and the server can only
+  // START one on 17.2+ (push-to-start), so 18.0 would have silently cut off every athlete on iOS
+  // 17 for no reason. 16.4 matches the app's own floor on SDK 57; the Swift carries @available
+  // annotations for everything above it.
+  deploymentTarget: '16.4',
+
   // ActivityKit and WidgetKit draw the card; AppIntents is what the button is built on; SwiftUI is
   // the whole view layer. Listing them explicitly rather than relying on an implicit link, because
   // a missing framework here fails at link time with a message that names a symbol, not a cause.
