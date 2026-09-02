@@ -1,6 +1,13 @@
 # The Apple setup for the roll-call lock screen — exactly what to click
 
-> **Already done for you, 2026-09-02** (`node scripts/apple-provision.mjs --apply`):
+> # ✅ ALL DONE, 2026-09-02. Nothing on this page is outstanding.
+>
+> `node scripts/rollcall-ios-setup.mjs` reads **3 of 3**. The APNs key is set, the App Group is
+> bound to both identifiers, and both provisioning profiles carry it. The widget extension target
+> is wired at `targets/RollCallWidget/`. Keep this page as the runbook for redoing it on a new
+> team or a new machine.
+>
+> **Previously noted, 2026-09-02** (`node scripts/apple-provision.mjs --apply`):
 > the widget's identifier `com.onstandard.app.RollCallWidget` is registered, the App Groups
 > capability is enabled on both identifiers, and fresh distribution profiles for both are in
 > `ios-certs/` (the old one is backed up beside it). That covers all of step 3 and most of step 2.

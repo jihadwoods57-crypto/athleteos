@@ -29,9 +29,22 @@ the hand. But the button that has to work at 6 AM on a phone lying face-up on a 
 | Android countdown, alarm category, Live Update promotion | native build #28 | **Done**, not yet compiled |
 | APNs Live Activity plumbing (server) | function deploy + an APNs key | **Done**, dormant without the key |
 | Token bookkeeping (migration 0213) | `db push` | **Done**, not applied |
-| iOS Live Activity card | native build #28 **+ three Apple-portal actions** | Authored, **not wired into the build** |
+| iOS Live Activity card | native build #28 | **Wired.** Target at `targets/RollCallWidget/`, App Group live, both profiles carry it |
 
-## 🔴 The three Apple-portal actions only the founder can do
+## ✅ The Apple setup is DONE (2026-09-02)
+
+All three are complete and verified. `node scripts/rollcall-ios-setup.mjs` reads 3 of 3.
+
+| | |
+|---|---|
+| APNs Auth Key | `TF2VUP45VT`, checked against Apple's live gateway; `APNS_KEY_P8` / `APNS_KEY_ID` / `APNS_TEAM_ID` set on the linked project |
+| App Group | `group.com.onstandard.app`, bound to both identifiers |
+| Widget identity | `com.onstandard.app.RollCallWidget` (`A749TN84WA`) |
+| Profiles | both carry the group; `appstore.mobileprovision` keeps `aps-environment: production` |
+
+The section below is kept as the record of what was done and how to redo it on a new team.
+
+## The three Apple-portal actions (historical)
 
 **Click-by-click walkthrough, with the values already looked up: `APPLE-PORTAL-CHECKLIST.md`.**
 `node scripts/apns-check.mjs` proves an APNs key works against Apple's live servers before it goes
