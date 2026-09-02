@@ -189,8 +189,13 @@
    than the screen. `width: auto` + the two maxima let the image settle at whichever constraint
    binds first (screen width for a landscape plate, 56vh for a portrait one) with no letterbox
    inside the box at all, which is what lets the provenance stamps land ON the picture. */
-.cc-frame { position: relative; margin: 0 auto; width: max-content; max-width: 100%; }
-.cc-photo { display: block; width: auto; max-width: 100%; max-height: 56vh; }
+/* Redesign 2026-09-02 (founder reference): the photo is a rounded, inset card rather than an
+   edge-to-edge strip. It fills the screen width inside the 20px gutter, keeps its own aspect up
+   to 56vh, and only crops (cover) when a tall portrait would otherwise push the decision off
+   screen. The stage pads to the gutter so the frame, the check row and the deck share one edge. */
+.cam-confirm .cam-stage { padding: 0 var(--pad-screen); }
+.cc-frame { position: relative; margin: 0 auto; width: 100%; max-width: 100%; border-radius: var(--r-card); overflow: hidden; background: var(--surface-2); }
+.cc-photo { display: block; width: 100%; height: auto; max-height: 56vh; object-fit: cover; }
 /* Provenance stamps, ON the photo (founder call). Top-left, absolute, so they cost the image no
    height, and they wrap harmlessly on a narrow phone because nothing below them moves.
    Keeping them here is what lets the header stay two rows instead of three. */
@@ -268,14 +273,29 @@
    and fill, which is a container inside a container. It also made the least important thing in the
    deck the heaviest — squint at the old screen and the details tile read as loud as the buttons.
    A plain disclosure row instead, so when it opens the textarea is the only box present. */
-.cc-details { margin:20px 0 0; border: 0; border-radius: 0; background: none; }
+/* Redesign 2026-09-02 (founder reference): a card row again, deliberately. The bare disclosure
+   line read as an afterthought next to a photo card and a green button; the reference gives the
+   optional step a tile, a title, a one-line description, an Optional pill and a chevron, so it
+   reads as a real (skippable) step. The textarea opens INSIDE the same card. */
+.cc-details { margin:16px 0 0; border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); }
 .cc-details summary {
-  list-style: none; cursor: pointer; display: flex; align-items: center; gap:8px;
-  min-height: 44px; padding:2px 0;
+  list-style: none; cursor: pointer; display: flex; align-items: center; gap:12px;
+  min-height: 44px; padding:12px 14px;
   font-size: var(--t-sm); font-weight: 700; color: var(--text-2);
 }
 .cc-details summary::-webkit-details-marker { display: none; }
-.cc-details summary .opt { margin-left:auto; font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-key); text-transform: uppercase; color: var(--text-3); }
+.cc-details-ic { flex: none; width: 40px; height: 40px; border-radius: var(--r-chip); display: grid; place-items: center; background: var(--surface-2); color: var(--text-2); }
+.cc-details-txt { display: flex; flex-direction: column; gap:3px; min-width: 0; flex: 1; }
+.cc-details-txt b { font-size: var(--t-md); font-weight: 800; letter-spacing: var(--title-tight); color: var(--text); }
+.cc-details-txt span { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); line-height: 1.35; }
+.cc-details summary .opt {
+  flex: none; padding:4px 9px; border-radius: var(--r-pill);
+  font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: 0.02em;
+  color: var(--green-bright); background: var(--green-surface); border: 1px solid var(--green-border);
+}
+.cc-details-chev { flex: none; color: var(--text-3); display: grid; place-items: center; transition: transform var(--dur-fast, 160ms) var(--ease-out, ease); }
+.cc-details[open] .cc-details-chev { transform: rotate(90deg); }
+.cc-details-body { padding:0 14px 14px; }
 .cc-details textarea { display: block; width: 100%; margin:4px 0 0; box-sizing: border-box; border-radius: var(--r-chip); background: var(--surface-2); border: 1.5px solid var(--hairline); color: var(--text); font-family: var(--font); font-size: var(--t-base); font-weight: 600; padding:10px 12px; outline: none; resize: none; }
 .cc-details textarea:focus { border-color: var(--blue-bright); }
 .cc-details-hint { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); padding:6px 0 0; line-height: 1.4; }
@@ -286,23 +306,26 @@
 /* Caption ON the photo: tight to it (8px) so proximity groups them, and the quietest thing in the
    deck. The photo above it is the actual check; this only names what to look for. */
 .cc-check {
-  margin:8px 0 0; padding:0 var(--pad-screen); text-align: left;
-  font-size: var(--t-xs); font-weight: 600; color: var(--text-3);
+  margin:18px 0 0; padding:0 4px; text-align: left;
+  display: flex; align-items: center; gap:14px;
 }
+.cc-check-ic { flex: none; display: grid; place-items: center; color: var(--green-bright); }
+.cc-check-txt { display: flex; flex-direction: column; gap:3px; min-width: 0; }
+.cc-check-txt b { font-size: var(--t-lg); font-weight: 800; letter-spacing: var(--title-tight); color: var(--text); }
+.cc-check-txt span { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); line-height: 1.35; }
 /* Caption ON the buttons: tight to them, and a step warmer than .cc-check, because this is the
    line that removes hesitation from committing. */
-.cc-commit {
-  padding:8px 0 0; text-align: left;
-  font-size: var(--t-xs); font-weight: 600; color: var(--text-2); line-height: 1.45;
-}
-/* Equal columns: at flex 1 / 1.6 the ghost button was narrow enough that "Choose another" broke
-   across two lines against a single-line "Log it". */
-/* Deck rhythm on the review step, tight where things belong together and generous where a new
-   group starts, instead of the uniform 12px that made four bands read as one texture:
-   photo →8px→ its caption  →20px→  add-details  →14px→  the decision  →8px→  its caption. */
-.cc-actions { padding:14px 0 0; }
+/* Redesign 2026-09-02 (founder reference): one full-width primary action, and the alternative
+   as a quiet text button beneath it. Two equal buttons side by side made "Retake" and "Log it"
+   read as a coin flip; the reference makes the decision obvious and the escape hatch cheap. */
+.cc-actions { padding:18px 0 0; display: flex; flex-direction: column; align-items: stretch; gap:6px; }
 .cam-confirm .cam-deck { padding-top: 0; }
-.cc-actions .btn { flex: 1; white-space: nowrap; }
+.cc-actions .btn { width: 100%; white-space: nowrap; min-height: 54px; font-size: var(--t-md); }
+.cc-alt {
+  background: none; border: 0; min-height: 44px; cursor: pointer;
+  font-size: var(--t-base); font-weight: 700; color: var(--text-2);
+}
+.cc-alt:active { opacity: 0.7; }
 .cam-actions { display: flex; align-items: center; justify-content: space-between; padding:16px 24px 4px; }
 /* The two side controls are subordinate to the shutter and should look it. They were 50px
    bordered tiles, which is the app's "this is a button" chrome — three equal-weight controls in a

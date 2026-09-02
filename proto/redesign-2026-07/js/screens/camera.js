@@ -291,10 +291,13 @@ export const cameraConfirm = {
       <div class="cam-head">
         <button class="bk iconbtn" type="button" id="cc-back" aria-label="Back">${icon('back', 19)}</button>
         <div class="meta">
-          <div class="t">Use this photo?</div>
+          <div class="t">Review photo</div>
+          ${''/* Two facts, two pills (redesign 2026-09-02, founder reference): the meal slot and its
+               deadline sit side by side in the same vocabulary instead of a grey word next to a
+               pill. The due pill keeps its earned hue. */}
           <div class="s">
-            <span class="slot">${esc(slotName)}</span>
-            ${due ? `<span class="due-pill tone-${due.tone}">${esc(due.label)}</span>` : ''}
+            <span class="due-pill">${icon('utensils', 13)} ${esc(slotName)}</span>
+            ${due ? `<span class="due-pill tone-${due.tone}">${icon('clock', 13)} ${esc(due.label)}</span>` : ''}
           </div>
         </div>
       </div>
@@ -319,25 +322,42 @@ export const cameraConfirm = {
             ? `<span class="status-pill ${age.cls}">${icon('clock', 12)} ${esc(age.text)}</span>`
             : ''}</div>` : ''}
         </div>
-        <div class="cc-check">Everything you're having should be in the frame.</div>
+        ${''/* The completeness check reads as a checklist item (founder reference, 2026-09-02):
+             a green check mark, a question, and the one thing to look for. It is the only
+             instruction on the screen and it now looks like one. */}
+        <div class="cc-check">
+          <span class="cc-check-ic">${icon('checkCircle', 26)}</span>
+          <span class="cc-check-txt"><b>Everything included?</b><span>Make sure all food and drinks are visible.</span></span>
+        </div>
       </div>
       <div class="cam-deck">
         ${''/* The capture screen taught "everything in one frame" seconds ago; repeating the
              full two-line guide here was the clutter. The completeness reminder (§5.4) survives
-             as the one quiet line above, and only the conditional alerts may speak here. */}
+             as the check row above, and only the conditional alerts may speak here. */}
         ${pq && pq.state !== 'met' ? `<div class="cam-alert">${esc(pq.hint)}</div>` : ''}
         <div id="cc-note" class="cam-alert"></div>
-        <details class="cc-details">
-          <summary>${icon('edit', 15)} Add details AI may not know <span class="opt">Optional</span></summary>
-          <textarea id="cc-user-note" maxlength="240" rows="2"
-            placeholder="Sauce type, cooking method, oil used, portion changes, refills…">${esc(MEAL.userNote || '')}</textarea>
-          <div class="cc-details-hint">Notes improve the analysis, but everything consumed should still be shown in the photo.</div>
+        ${''/* A card row, not a bare disclosure line: icon tile, title, what to put in it,
+             an Optional pill, and a chevron that turns when open. The textarea lives inside the
+             same card so opening it never adds a second box. */}
+        <details class="cc-details"${MEAL.userNote ? ' open' : ''}>
+          <summary>
+            <span class="cc-details-ic">${icon('edit', 18)}</span>
+            <span class="cc-details-txt"><b>Add meal details</b><span>Sauces, portions, ingredients, restaurant, etc.</span></span>
+            <span class="opt">Optional</span>
+            <span class="cc-details-chev">${icon('chevron', 18)}</span>
+          </summary>
+          <div class="cc-details-body">
+            <textarea id="cc-user-note" maxlength="240" rows="2"
+              placeholder="Sauce type, cooking method, oil used, portion changes, refills…">${esc(MEAL.userNote || '')}</textarea>
+            <div class="cc-details-hint">Notes improve the analysis, but everything consumed should still be shown in the photo.</div>
+          </div>
         </details>
-        <div class="btn-row cc-actions">
-          <button class="btn ghost sm" type="button" id="cc-retake">${gallery ? 'Choose another' : 'Retake'}</button>
-          <button class="btn green sm" type="button" id="cc-analyze">${icon('check', 17)} Log it</button>
+        ${''/* One decision, full width, in the app's primary green; the alternative is a quiet
+             text action beneath it rather than a second button competing at equal weight. */}
+        <div class="cc-actions">
+          <button class="btn green" type="button" id="cc-analyze">${icon('camera', 20)} Use this photo</button>
+          <button class="cc-alt" type="button" id="cc-retake">${gallery ? 'Choose another' : 'Retake'}</button>
         </div>
-        <div class="cc-commit">It counts the moment you log it.</div>
       </div>
       <input type="file" accept="image/*" id="cc-repick" style="display:none" />
     </div>`;
