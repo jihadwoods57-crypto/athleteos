@@ -1,5 +1,18 @@
 # The Apple setup for the roll-call lock screen — exactly what to click
 
+> **Already done for you, 2026-09-02** (`node scripts/apple-provision.mjs --apply`):
+> the widget's identifier `com.onstandard.app.RollCallWidget` is registered, the App Groups
+> capability is enabled on both identifiers, and fresh distribution profiles for both are in
+> `ios-certs/` (the old one is backed up beside it). That covers all of step 3 and most of step 2.
+>
+> **Two things are left, and both are portal-only:**
+> 1. Create the APNs Auth Key (step 1 below).
+> 2. Create the App Group and bind it (step 2 below) — Apple has no API for this. Enabling the
+>    *capability* is not the same as choosing *which group*; right now the profiles carry the
+>    entitlement with an empty list.
+>
+> `node scripts/rollcall-ios-setup.mjs` always tells you where you are.
+
 Everything here is for the **iOS card only**. If you do none of it, build #28 still ships the
 Android countdown, the alarm category, the Android 16 lock-screen pin, the new copy, and the
 one-notification-replaced-in-place behaviour on both platforms. Only the iPhone card waits.
@@ -72,7 +85,7 @@ supabase secrets set APNS_TEAM_ID=C44B6N2KC6
 
 ---
 
-## Step 2 — the App Group (10 minutes)
+## Step 2 — the App Group (5 minutes; the capability is already on)
 
 The card lives in a separate process from the app. The App Group is the only place they can both
 read and write, and it is how a tap on the card's button reaches the app.
@@ -84,21 +97,18 @@ read and write, and it is how a tap on the card's button reaches the app.
    This string must be exact. It is hard-coded as `RollCallPendingStore.suiteName` in
    `modules/rollcall-live/ios/RollCallCheckInIntent.swift`.
 3. **Continue → Register.**
-4. Now attach it to the app. **Identifiers → App IDs → `com.onstandard.app`** → tick **App Groups**
-   → **Edit** → tick `group.com.onstandard.app` → **Save**.
-5. **Regenerate both provisioning profiles.** Editing an App ID does not update profiles already
-   issued, and yours do not carry the group (I checked). Go to
-   **[Profiles](https://developer.apple.com/account/resources/profiles/list)**, open
-   `OnStandard App Store`, **Edit → Save → Download**, and do the same for
-   `OnStandard AdHoc Push 1783110270651`.
-6. Replace the files in `ios-certs/`, keeping the names `appstore.mobileprovision` and
-   `profile.mobileprovision` (that is what `credentials.json` points at).
+4. Bind it to both identifiers. **Identifiers → App IDs**, and for EACH of
+   `com.onstandard.app` and `com.onstandard.app.RollCallWidget`: the **App Groups** row is already
+   ticked, so click **Edit** next to it, tick `group.com.onstandard.app`, and **Save**.
+5. Then run this — it regenerates both profiles with the group in them and writes them to
+   `ios-certs/` for you, so there is nothing to download by hand:
 
-Check it landed:
+   ```bash
+   node scripts/apple-provision.mjs --apply
+   ```
 
-```bash
-node -e "const r=require('fs').readFileSync('ios-certs/appstore.mobileprovision');const s=r.indexOf('<?xml'),e=r.indexOf('</plist>');console.log(r.slice(s,e).toString().includes('application-groups')?'App Group IS in the profile':'NOT in the profile yet')"
-```
+   It prints `carries group.com.onstandard.app` for each profile when it has worked, and says
+   plainly what is still missing when it has not.
 
 ---
 

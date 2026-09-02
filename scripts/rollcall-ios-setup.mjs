@@ -67,8 +67,21 @@ const hasApnsSecrets = secretNames
   ? ['APNS_KEY_P8', 'APNS_KEY_ID', 'APNS_TEAM_ID'].every((k) => secretNames.has(k))
   : null;
 
+/** The groups a profile actually BINDS. The entitlement key being present proves nothing: turning
+ *  the App Groups capability on through the App Store Connect API writes the key with an EMPTY
+ *  array, because the API can enable the capability but cannot say which group. Only the portal
+ *  binds one. Checking for the key rather than the value reports "done" for a profile that will
+ *  fail to sign — which is exactly the wrong way for this check to be wrong. */
+function boundGroups(plist) {
+  if (plist === null) return null;
+  const m = plist.match(/<key>com\.apple\.security\.application-groups<\/key>\s*<array>([\s\S]*?)<\/array>/);
+  return m ? [...m[1].matchAll(/<string>(.*?)<\/string>/g)].map((x) => x[1]) : [];
+}
+
 const appStore = profilePlist('ios-certs/appstore.mobileprovision');
-const hasAppGroup = appStore === null ? null : appStore.includes('application-groups');
+const appStoreGroups = boundGroups(appStore);
+const hasAppGroup = appStoreGroups === null ? null : appStoreGroups.includes(APP_GROUP);
+const capabilityOnly = appStoreGroups !== null && appStoreGroups.length === 0 && appStore.includes('application-groups');
 
 const widgetProfile = profilePlist('ios-certs/widget.mobileprovision');
 const hasWidgetProfile = widgetProfile !== null && widgetProfile.includes(WIDGET_BUNDLE_ID);
@@ -125,6 +138,7 @@ console.log(`${s1 ? tick : cross} 1. APNs Auth Key ${s1 ? '' : `${D}(the server 
 if (hasApnsSecrets === null) console.log(`     ${Y}could not read Supabase secrets — is the project linked?${X}`);
 console.log(`${s2 ? tick : cross} 2. App Group on the provisioning profile`);
 if (hasAppGroup === null) console.log(`     ${Y}ios-certs/appstore.mobileprovision not found${X}`);
+else if (capabilityOnly) console.log(`     ${D}capability is on, but no group is bound yet${X}`);
 console.log(`${s3 ? tick : cross} 3. Widget extension identity`);
 console.log('');
 
