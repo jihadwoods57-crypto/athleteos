@@ -103,6 +103,46 @@ Deno.serve(async (req: Request) => {
     if (!e) recorded++;
   }
 
+  // ---------------------------------------------------------------- iOS Live Activity, FIRST
+  // ONE roll call puts ONE thing on the lock screen. The card goes up before any notification is
+  // composed, and every athlete Apple accepted a card for is then SKIPPED below, so nobody ends up
+  // with a Live Activity and a notification stacked under it saying the same words.
+  //
+  // Order matters and is the whole safety argument: suppressing on the INTENT to send a card would
+  // leave an athlete whose card failed with nothing at all. Suppressing on the ACCEPTED push means
+  // the notification is still there for every phone that did not get a card, for whatever reason.
+  const live = { started: 0, updated: 0, ended: 0, revoked: 0, skipped: 0 };
+  const hasCard = new Set<string>();
+  const apnsCfg = apnsFromEnv((k) => Deno.env.get(k));
+  if (apnsCfg) {
+    const apns = new ApnsClient(apnsCfg); // ONE client: it caches the provider token Apple rate-limits.
+    const byInstance = new Map<string, Due[]>();
+    for (const d of due) {
+      if (d.type !== 'morning_roll_call') continue;
+      const list = byInstance.get(d.instance_id) ?? [];
+      list.push(d);
+      byInstance.set(d.instance_id, list);
+    }
+    for (const [instanceId, rows] of byInstance) {
+      const card = await loadLiveCard(svc, instanceId);
+      if (!card) continue;
+      // The rung that fires AT the start time opens the activity; any later rung updates it.
+      const phase = isInitialPush(rows[0]) ? 'initial' : 'reminder';
+      const c = copy.get(rows[0])!;
+      const r = await pushLiveActivity({
+        svc, apns, card, phase,
+        athleteIds: [...new Set(rows.map((x) => x.athlete_id))],
+        // The card IS the notification now, so its alert is what lights the phone up and plays the
+        // sound. Same words the suppressed notification would have carried.
+        alert: { title: c.title, body: c.subtitle ?? c.body, sound: 'default' },
+        nowMs: now,
+      });
+      live.started += r.started; live.updated += r.updated; live.ended += r.ended;
+      live.revoked += r.revoked; live.skipped += r.skipped;
+      for (const id of r.live) hasCard.add(id);
+    }
+  }
+
   // Then push, best-effort. One Expo request per batch of tokens.
   const athleteIds = [...new Set(due.map((d) => d.athlete_id))];
   // `platform` (0028) decides which shape of the copy this device can render: iOS draws a real
@@ -114,10 +154,27 @@ Deno.serve(async (req: Request) => {
   const byAthlete = new Map<string, Due>();
   for (const d of due) if (!byAthlete.has(d.athlete_id)) byAthlete.set(d.athlete_id, d);
 
+  // How many iPhones each athlete has registered. A card is started on ONE device (the newest
+  // push-to-start token), so on an athlete with two iPhones suppressing by athlete would leave the
+  // second phone silent. Below, the notification is only withheld when there is exactly one iOS
+  // device for it to be redundant with.
+  const iosTokenCount = new Map<string, number>();
+  for (const t of (toks ?? []) as Array<{ user_id: string; platform: string | null }>) {
+    if (t.platform === 'ios') iosTokenCount.set(t.user_id, (iosTokenCount.get(t.user_id) ?? 0) + 1);
+  }
+
   const messages: Array<Record<string, unknown>> = [];
+  let suppressed = 0;
   for (const t of (toks ?? []) as Array<{ token: string; user_id: string; platform: string | null }>) {
     const d = byAthlete.get(t.user_id);
     if (!d) continue;
+    // The card is already on this phone saying exactly this. Skipping is the whole point of doing
+    // the Live Activity first. Android never matches (it has no card) and neither does an athlete
+    // whose card Apple refused, so neither can be left with a silent morning.
+    if (t.platform === 'ios' && hasCard.has(t.user_id) && iosTokenCount.get(t.user_id) === 1) {
+      suppressed++;
+      continue;
+    }
     const c = copy.get(d)!;
     const pc = platformCopy(c, t.platform);
     // The signed code proves one athlete + one instance — minted fresh per push so a stale/replayed
@@ -164,41 +221,6 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // ---------------------------------------------------------------- iOS Live Activity
-  // The notification above is what RECORDS the tap (its action button works while the phone is
-  // locked). This is what makes the roll call PRESENT: a card the athlete's iPhone draws and keeps
-  // on the lock screen, with a countdown it ticks itself. Entirely optional — no APNs key, no
-  // registered iPhone, or an un-migrated stack all end here as a quiet no-op.
-  const live = { started: 0, updated: 0, ended: 0, revoked: 0, skipped: 0 };
-  const apnsCfg = apnsFromEnv((k) => Deno.env.get(k));
-  if (apnsCfg) {
-    const apns = new ApnsClient(apnsCfg); // ONE client: it caches the provider token Apple rate-limits.
-    const byInstance = new Map<string, Due[]>();
-    for (const d of due) {
-      if (d.type !== 'morning_roll_call') continue;
-      const list = byInstance.get(d.instance_id) ?? [];
-      list.push(d);
-      byInstance.set(d.instance_id, list);
-    }
-    for (const [instanceId, rows] of byInstance) {
-      const card = await loadLiveCard(svc, instanceId);
-      if (!card) continue;
-      // The rung that fires AT the start time opens the activity; any later rung updates it.
-      const phase = isInitialPush(rows[0]) ? 'initial' : 'reminder';
-      const c = copy.get(rows[0])!;
-      const r = await pushLiveActivity({
-        svc, apns, card, phase,
-        athleteIds: [...new Set(rows.map((x) => x.athlete_id))],
-        // The card is already on screen at REMINDER, so the alert is what makes the phone light up
-        // a second time. Same words the notification carries, so the two surfaces never disagree.
-        alert: { title: c.title, body: c.subtitle ?? c.body, sound: 'default' },
-        nowMs: now,
-      });
-      live.started += r.started; live.updated += r.updated; live.ended += r.ended;
-      live.revoked += r.revoked; live.skipped += r.skipped;
-    }
-  }
-
   let pushed = 0;
   for (let i = 0; i < messages.length; i += 100) {
     try {
@@ -213,5 +235,5 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  return json({ sent: recorded, pushed, claimed: due.length, materialized, live });
+  return json({ sent: recorded, pushed, claimed: due.length, materialized, live, suppressed });
 });

@@ -112,6 +112,39 @@ Deno.serve(async (req: Request) => {
   }
   if (!rows.length) return json({ missed: 0, breakthrough: 0, digests: 0 });
 
+  // -------------------------------------------------------------- Live Activity: turn it red
+  // Runs BEFORE the breakthrough push, for the same reason it does in commitment-reminders: the
+  // card that has been on the lock screen since 6:00 becomes the LATE state with an alert, and
+  // every athlete whose card Apple accepted is then skipped below. One roll call, one card.
+  const live = { started: 0, updated: 0, ended: 0, revoked: 0, skipped: 0 };
+  const hasCard = new Set<string>();
+  const apnsCfg = apnsFromEnv((k) => Deno.env.get(k));
+  if (apnsCfg) {
+    const apns = new ApnsClient(apnsCfg); // ONE client: it caches the provider token Apple rate-limits.
+    const nowMs = Date.now();
+    const wake = rows.filter((r) => r.type === 'morning_roll_call');
+    const byInstance = new Map<string, Missed[]>();
+    for (const r of wake) {
+      const list = byInstance.get(r.instance_id) ?? [];
+      list.push(r);
+      byInstance.set(r.instance_id, list);
+    }
+    for (const [instanceId, missedRows] of byInstance) {
+      const card = await loadLiveCard(svc, instanceId);
+      if (!card) continue;
+      const c = breakthroughCopy('morning_roll_call', card.title, card.respond_by_at, nowMs);
+      const r = await pushLiveActivity({
+        svc, apns, card, phase: 'late',
+        athleteIds: [...new Set(missedRows.map((x) => x.athlete_id))],
+        alert: { title: c.title, body: c.body, sound: 'default' },
+        nowMs,
+      });
+      live.started += r.started; live.updated += r.updated; live.ended += r.ended;
+      live.revoked += r.revoked; live.skipped += r.skipped;
+      for (const id of r.live) hasCard.add(id);
+    }
+  }
+
   // -------------------------------------------------------------- L2 breakthrough
   // One time-sensitive push per missed athlete whose commitment opted in. iOS 'time-sensitive' lets
   // it break a Focus/summary; the athlete's own Do Not Disturb still wins.
@@ -134,10 +167,18 @@ Deno.serve(async (req: Request) => {
     }
     const { data: toks } = await svc
       .from('device_tokens').select('token,user_id,platform').in('user_id', breakAthletes);
+    // See commitment-reminders: withhold the notification only where a card is genuinely up AND
+    // this is the athlete's only iPhone, so a second phone is never left silent.
+    const iosTokenCount = new Map<string, number>();
+    for (const t of (toks ?? []) as Array<{ user_id: string; platform: string | null }>) {
+      if (t.platform === 'ios') iosTokenCount.set(t.user_id, (iosTokenCount.get(t.user_id) ?? 0) + 1);
+    }
     const messages: Array<Record<string, unknown>> = [];
     for (const t of (toks ?? []) as Array<{ token: string; user_id: string; platform: string | null }>) {
       const r = rowByAthlete.get(t.user_id);
       if (!r) continue;
+      // The red card is already on this phone saying exactly this.
+      if (t.platform === 'ios' && hasCard.has(t.user_id) && iosTokenCount.get(t.user_id) === 1) continue;
       const c = breakthroughCopy(r.type, r.title, r.respond_by_at, now);
       const pc = platformCopy(c, t.platform);
       // The late push is answerable from the lock screen too (0211). A wake-up carries a fresh
@@ -177,37 +218,6 @@ Deno.serve(async (req: Request) => {
     }
     await push(messages);
     breakSent = messages.length;
-  }
-
-  // -------------------------------------------------------------- Live Activity: turn it red
-  // The card that has been on the athlete's lock screen since 6:00 becomes the LATE state, with an
-  // alert so the phone lights up again. Optional in every direction: no APNs key, no registered
-  // iPhone, or no activity ever started all end here quietly.
-  const live = { started: 0, updated: 0, ended: 0, revoked: 0, skipped: 0 };
-  const apnsCfg = apnsFromEnv((k) => Deno.env.get(k));
-  if (apnsCfg) {
-    const apns = new ApnsClient(apnsCfg); // ONE client: it caches the provider token Apple rate-limits.
-    const nowMs = Date.now();
-    const wake = rows.filter((r) => r.type === 'morning_roll_call');
-    const byInstance = new Map<string, Missed[]>();
-    for (const r of wake) {
-      const list = byInstance.get(r.instance_id) ?? [];
-      list.push(r);
-      byInstance.set(r.instance_id, list);
-    }
-    for (const [instanceId, missedRows] of byInstance) {
-      const card = await loadLiveCard(svc, instanceId);
-      if (!card) continue;
-      const c = breakthroughCopy('morning_roll_call', card.title, card.respond_by_at, nowMs);
-      const r = await pushLiveActivity({
-        svc, apns, card, phase: 'late',
-        athleteIds: [...new Set(missedRows.map((x) => x.athlete_id))],
-        alert: { title: c.title, body: c.body, sound: 'default' },
-        nowMs,
-      });
-      live.started += r.started; live.updated += r.updated; live.ended += r.ended;
-      live.revoked += r.revoked; live.skipped += r.skipped;
-    }
   }
 
   // -------------------------------------------------------------- L3 coach digest

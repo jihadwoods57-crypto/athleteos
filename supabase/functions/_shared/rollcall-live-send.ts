@@ -51,6 +51,22 @@ export function attributesFor(card: LiveCard): LiveAttributes {
  * activity is updated; 'answered' and 'missed' END it. Returns counts, never throws: a roll call
  * is not allowed to fail because Apple had a bad minute.
  */
+export type LivePushResult = {
+  started: number; updated: number; ended: number; revoked: number; skipped: number;
+  /**
+   * The athletes whose card is now genuinely on screen, because Apple accepted this push for them.
+   *
+   * THIS IS WHAT SUPPRESSES THE SECOND CARD. The founder's call (2026-09-02): one roll call should
+   * put ONE thing on the lock screen, not a Live Activity with a notification stacked under it
+   * saying the same words. So the caller sends the notification only to devices NOT in this set.
+   *
+   * It is deliberately the set of pushes Apple ACCEPTED, not the set of athletes who own an
+   * iPhone. Suppressing on intent rather than on outcome would mean an athlete whose card failed
+   * to start gets nothing at all, which is the one failure this feature cannot have.
+   */
+  live: Set<string>;
+};
+
 export async function pushLiveActivity(opts: {
   svc: SupabaseClient;
   apns: ApnsClient | null;
@@ -61,10 +77,10 @@ export async function pushLiveActivity(opts: {
   /** Per-athlete ack time, for the 'answered' phase. */
   checkedInAt?: Map<string, string>;
   nowMs?: number;
-}): Promise<{ started: number; updated: number; ended: number; revoked: number; skipped: number }> {
+}): Promise<LivePushResult> {
   const { svc, apns, card, athleteIds, phase, alert } = opts;
   const nowMs = opts.nowMs ?? Date.now();
-  const out = { started: 0, updated: 0, ended: 0, revoked: 0, skipped: 0 };
+  const out: LivePushResult = { started: 0, updated: 0, ended: 0, revoked: 0, skipped: 0, live: new Set<string>() };
   if (!apns || !athleteIds.length) return out;
 
   let targets: Target[] = [];
@@ -106,6 +122,9 @@ export async function pushLiveActivity(opts: {
       if (ending) out.ended++;
       else if (t.update_token) out.updated++;
       else out.started++;
+      // Only a card that is going UP suppresses the notification. An `end` push takes the card
+      // AWAY, so an athlete whose activity just ended must still be reachable by notification.
+      if (!ending) out.live.add(t.athlete_id);
     } else if (res.gone) {
       out.revoked++;
       try { await svc.rpc('revoke_live_activity_token', { p_token: token }); } catch { /* best effort */ }

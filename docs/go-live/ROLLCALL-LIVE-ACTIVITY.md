@@ -33,9 +33,13 @@ the hand. But the button that has to work at 6 AM on a phone lying face-up on a 
 
 ## 🔴 The three Apple-portal actions only the founder can do
 
+**Click-by-click walkthrough, with the values already looked up: `APPLE-PORTAL-CHECKLIST.md`.**
+`node scripts/apns-check.mjs` proves an APNs key works against Apple's live servers before it goes
+near a build. The summary below is the what; that file is the how.
+
 None of these can be done from this machine, and the iOS card cannot appear until all three exist.
 They are all in [developer.apple.com](https://developer.apple.com/account) under **Certificates,
-Identifiers & Profiles**.
+Identifiers & Profiles**. Team ID is `C44B6N2KC6`; push is already enabled on the App ID.
 
 ### 1. An APNs Auth Key
 
