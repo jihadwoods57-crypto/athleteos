@@ -207,3 +207,58 @@ describe('long reads are trimmed like prose, not like a buffer', () => {
     expect(out).toMatch(/[.!?…]$/);
   });
 });
+
+/* THE ADVICE SURVIVES (2026-09-02). The model writes 2 to 3 sentences: the takeaway, then the
+   one adjustment. Every real read in eval/responses runs 313 to 391 characters, and the composer
+   clipped the analysis at 260 on a sentence boundary, so sentence one survived and the "what do I
+   do next" sentence was dropped on every plate. The move is the whole point of the message. */
+describe('the model\'s adjustment sentence reaches the athlete', () => {
+  const twoSentences =
+    'For a lift day this plate is lighter on protein than its size suggests, and the fat is where most of the energy sits. ' +
+    'Swap one of the sausage links for a second egg or a cup of Greek yogurt next time and the protein catches up without adding much fat at all, which matters more on a lift day than the grits do.';
+
+  it('keeps a real two-sentence read whole', () => {
+    expect(twoSentences.length).toBeGreaterThan(260);
+    const out = composeOpenerText(read({ analysis: twoSentences, highlights: [] }), { late: false, mealName: 'Dinner' });
+    expect(out).toContain('Swap one of the sausage links');
+    expect(out).not.toContain('…');
+  });
+
+  it('caps the read at three sentences, on a sentence boundary', () => {
+    const five = 'One. Two is a bit longer than one. Three. Four must not appear. Five must not appear.';
+    const out = composeOpenerText(read({ analysis: five, highlights: [] }), { late: false, mealName: 'Dinner' });
+    expect(out).toContain('Three.');
+    expect(out).not.toContain('Four must not appear');
+  });
+
+  it('never cuts a sentence mid-way when a boundary exists', () => {
+    const out = composeOpenerText(read({ analysis: twoSentences, highlights: [] }), { late: false, mealName: 'Dinner' });
+    expect(out.startsWith(twoSentences)).toBe(true);
+  });
+});
+
+/* A HIGHLIGHT IS NOT THE MOVE. The schema defines highlights as micronutrient notes ("Collard
+   greens add iron and vitamin K"); the composer had been using highlights[0] as the "one specific
+   recommendation", so the athlete read narration, then a nutrition-label fact, then the day. The
+   move now comes only from the read itself or a real substitution; a highlight is read-more
+   territory, after the day line. */
+describe('the move is advice, a highlight is trivia', () => {
+  const day = { proteinIncludingThisMeal: 81, proteinTarget: 180, mealsRemaining: 2 };
+
+  it('a substitution suggestion follows the read directly', () => {
+    const out = composeOpenerText(
+      read({ highlights: ['Green beans add fiber and micronutrients'], substitution: { suggestion: 'Add a cup of chocolate milk and this slot hits its target.' } }),
+      { planStyle: 'structured', late: false, mealName: 'Dinner', day },
+    );
+    expect(out.indexOf('Add a cup of chocolate milk')).toBeLessThan(out.indexOf('Land around'));
+  });
+
+  it('a highlight rides AFTER the day line, never as the move', () => {
+    const out = composeOpenerText(
+      read({ highlights: ['Green beans add fiber and micronutrients'] }),
+      { planStyle: 'structured', late: false, mealName: 'Dinner', day },
+    );
+    expect(out).toContain('Green beans add fiber and micronutrients.');
+    expect(out.indexOf('Green beans add fiber')).toBeGreaterThan(out.indexOf('Land around'));
+  });
+});

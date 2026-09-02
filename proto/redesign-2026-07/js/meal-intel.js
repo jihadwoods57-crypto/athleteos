@@ -354,8 +354,13 @@ export function openingMessage({
   // (meal-opener.ts) so the fallback and the persisted opener speak with one voice.
   const parts = [];
   const who = clean(name) || 'this one';
-  // 1. The biggest takeaway first.
-  const deep = String(analysis == null ? '' : analysis).replace(/[<>]/g, '').slice(0, 400);
+  // 1. The read itself: takeaway, then the one adjustment, then at most one more sentence, kept
+  // WHOLE. The hard 400-char slice that stood here could cut the adjustment mid-word, and the
+  // adjustment is the whole point of the message (2026-09-02; same rule as meal-opener.ts's
+  // readCore). A boundary is a terminator followed by whitespace, so "3.5 oz" never splits.
+  const raw = String(analysis == null ? '' : analysis).replace(/[<>]/g, '');
+  const deep = (raw.match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g) || [raw])
+    .map((x) => x.trim()).filter(Boolean).slice(0, 3).join(' ').slice(0, 520);
   if (deep) {
     parts.push(deep);
   } else {
@@ -366,10 +371,11 @@ export function openingMessage({
       parts.push(quality >= 75 ? `A plate like this ${tie}.` : `Tightening this plate up ${tie}.`);
     }
   }
-  // 2. ONE specific move.
+  // 2. ONE specific move, when the read itself carries none. A highlight is NOT a move: the
+  // schema defines highlights as micronutrient notes ("Collard greens add iron and vitamin K"),
+  // and standing one here read as narration, then trivia, then the day. It rides in step 4b now.
   const hl = (Array.isArray(highlights) ? highlights : []).map((h) => clean(h)).filter(Boolean).slice(0, 1);
-  for (const h of hl) parts.push(/[.!?]$/.test(h) ? h : `${h}.`);
-  if (!deep && !hl.length && quality != null && quality < 75) {
+  if (!deep && quality != null && quality < 75) {
     parts.push('One upgrade next time: add a protein or a vegetable and this score jumps.');
   }
   // 3. The day, framed forward as the next decision — per-meal math, never a restatement.
@@ -389,6 +395,8 @@ export function openingMessage({
   }
   // 4. ONE real history line, when it exists — mealPatterns() returns [] until there's data.
   for (const p of (Array.isArray(patterns) ? patterns : []).slice(0, 1)) parts.push(clean(p));
+  // 4b. ONE micronutrient highlight, read-more territory, terminated like a sentence.
+  for (const h of hl) parts.push(/[.!?]$/.test(h) ? h : `${h}.`);
   // 5. Timing — only when it needs saying; on-time praise lives in the score chips now.
   if (late === true) {
     const mins = (typeof minutesLate === 'number' && isFinite(minutesLate) && minutesLate > 0)

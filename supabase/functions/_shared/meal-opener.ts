@@ -53,6 +53,23 @@ function lowConfidence(detected: unknown): boolean {
   });
 }
 
+/**
+ * The model's read, kept WHOLE up to three sentences. The model is asked for two to three:
+ * the takeaway, then the one adjustment, then (sometimes) the why. Every real read in
+ * eval/responses runs 313 to 391 characters, and this used to clip at 260 on a sentence
+ * boundary, so sentence one survived and the "what do I do next" sentence, the entire point of
+ * the message, was dropped on every plate (2026-09-02). Sentence-aware: a boundary is a
+ * terminator followed by whitespace, so "3.5 oz" and "Dr. Pepper" do not split.
+ */
+const READ_SENTENCES = 3;
+const READ_MAX = 520;
+function readCore(s: string): string {
+  if (!s) return '';
+  const sentences = s.match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g) || [s];
+  const kept = sentences.map((x) => x.trim()).filter(Boolean).slice(0, READ_SENTENCES).join(' ');
+  return clip(kept, READ_MAX);
+}
+
 /** Trim to `max` on a sentence boundary, falling back to a word boundary. */
 function clip(s: string, max = MAX): string {
   if (s.length <= max) return s;
@@ -110,18 +127,19 @@ export function composeOpenerText(input: MealInput, ctx: OpenerContext = {}): st
   // the athlete's next decision, not a report. The client clamps anything past the core with a
   // "Read more", but the core itself must stand alone: takeaway → one move → the day, forward.
 
-  // 1. The biggest takeaway first — the model's own read, clipped hard on a sentence boundary
-  // (two sentences of substance beat five of narration).
-  const analysis = clip(text(input.analysis), 260);
+  // 1. The read itself: takeaway, then the one adjustment, then at most one more sentence. The
+  // adjustment IS the message; see readCore for the clip that used to eat it.
+  const analysis = readCore(text(input.analysis));
   const note = text(input.note);
   if (analysis) parts.push(analysis);
   else if (note) parts.push(note);
 
-  // 2. ONE specific recommendation, in the model's own words when it offered one.
+  // 2. A plan-slot substitution, when the model offered one, is a second concrete move and
+  // belongs right after the read. NOT a highlight: those are micronutrient notes ("Collard
+  // greens add iron and vitamin K"), and standing one here dressed the message as narration,
+  // then trivia, then the day, with no move in it. Highlights ride in step 4b now.
   const sub = text((input.substitution as { suggestion?: unknown } | undefined)?.suggestion);
-  const highlight = Array.isArray(input.highlights) ? text(input.highlights[0]) : '';
-  const rec = sub || highlight;
-  if (rec) parts.push(rec);
+  if (sub) parts.push(sub);
 
   // 3. The day, framed FORWARD as the athlete's next decision — per-meal math, never a
   // restatement of the bars above. Real engine numbers or nothing; the total already includes
@@ -155,6 +173,15 @@ export function composeOpenerText(input: MealInput, ctx: OpenerContext = {}): st
     if (!line || violatesStyleLanguage(line, style)) continue;
     parts.push(/[.!?]$/.test(line) ? line : `${line}.`);
     break;
+  }
+
+  // 4b. ONE micronutrient highlight, terminated like a sentence (it arrives as a fragment, and
+  // an unterminated one ran straight into the next line: "...micronutrients Land around 50g").
+  // Style-railed like the pattern line: a numeric highlight must not cost an Intuitive athlete
+  // the message.
+  const highlight = Array.isArray(input.highlights) ? text(input.highlights[0]).slice(0, 160) : '';
+  if (highlight && !violatesStyleLanguage(highlight, style)) {
+    parts.push(/[.!?]$/.test(highlight) ? highlight : `${highlight}.`);
   }
 
   // 5. Timing — only when it needs saying. On-time praise lives in the score checklist now.

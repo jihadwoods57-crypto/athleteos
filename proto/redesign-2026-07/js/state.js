@@ -788,6 +788,26 @@ function applyGoalToDay() {
   setDayGoalConfig(cfg.scoringProfile, cfg.proteinTarget, cfg.calTarget);
 }
 
+/* Who is eating, for the meal read (2026-09-02). analyze-meal was asked to coach "THIS athlete"
+   while the request carried one word of goal; sport, position, level, bodyweight and today's
+   training/rest type all sit right here. Same bodyweight resolution as applyGoalToDay so the
+   model and the score agree on the number. Every field optional; the server sanitizes and an
+   older deploy ignores the block. */
+function athleteContextForAnalysis() {
+  const p = RT.profile || {};
+  const bw = (p.baseWeight != null ? +p.baseWeight : 0)
+    || (RT.ob && RT.ob.currentWeight ? +RT.ob.currentWeight : 0)
+    || (DAY.currentWeight != null ? +DAY.currentWeight : 0) || 0;
+  const dayType = dayTypeFor(RT.weekPattern, String(DAY.date));
+  const out = {};
+  if (p.sport) out.sport = String(p.sport).slice(0, 40);
+  if (p.position) out.position = String(p.position).slice(0, 40);
+  if (p.level) out.level = String(p.level).slice(0, 24);
+  if (bw > 0) out.bodyweightLb = Math.round(bw);
+  if (dayType === 'training' || dayType === 'rest') out.dayType = dayType;
+  return Object.keys(out).length ? { athlete: out } : {};
+}
+
 /* ---------------- Actions ---------------- */
 /* The exec engine's catalog for the current runtime: a governing coach standard swaps ITS meal
    slots (count/titles/windows) in for the classic meals; no standard → the classic CATALOG,
@@ -1247,6 +1267,7 @@ export const act = {
     return {
       mode: 'meal', mealType: job.mealType || cap(job.slot), goal: RT.primaryGoal || null,
       photoBase64: job.base64, ...(timing ? { timing } : {}),
+      ...athleteContextForAnalysis(),
       // The thread this read belongs to. The meals row is inserted before the analysis runs, so
       // by the time a job is drained it has one — that is what lets the finished read be posted
       // into the athlete's conversation instead of being derived and forgotten.
@@ -2106,6 +2127,7 @@ export const act = {
     return {
       mode: 'meal', mealType: MEAL.mealType || 'Dinner', goal: RT.primaryGoal || null,
       photoBase64: MEAL.photoBase64, ...(timing ? { timing } : {}),
+      ...athleteContextForAnalysis(),
       dayContext,
       ...(avoid.length ? { avoid } : {}),
       ...(memory.length ? { foodMemory: memory } : {}),

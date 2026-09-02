@@ -147,6 +147,27 @@ describe('openingMessage', () => {
     expect(m).not.toContain('Good fiber.');
     expect(m).not.toContain('Worth knowing:');
   });
+  /* THE ADVICE SURVIVES (2026-09-02) — same contract as the server composer (meal-opener.ts).
+     The model writes takeaway, then the one adjustment; a hard 400-char slice could cut the
+     adjustment mid-word. The read now keeps up to three whole sentences. */
+  test("keeps the model's adjustment sentence whole, never cut mid-word", () => {
+    const two = 'For a lift day this plate is lighter on protein than its size suggests, and the fat is where most of the energy sits, which is fine on a rest day but not today. '
+      + 'Swap one of the sausage links for a second egg or a cup of Greek yogurt next time and the protein catches up without adding much fat at all, which matters more on a lift day than the grits do. '
+      + 'Keep the grapes where they are, they cover more ground on a morning like this than they look like they do.';
+    expect(two.length).toBeGreaterThan(400);
+    const m = openingMessage({ ...base, analysis: two });
+    expect(m).toContain('than they look like they do.');
+  });
+  test('caps the read at three sentences', () => {
+    const five = 'One. Two is a bit longer than one. Three. Four must not appear. Five must not appear.';
+    const m = openingMessage({ ...base, analysis: five });
+    expect(m).toContain('Three.');
+    expect(m).not.toContain('Four must not appear');
+  });
+  test('a highlight is trivia, not the move: it rides AFTER the day line', () => {
+    const m = openingMessage({ ...base, highlights: ['Strong iron source'], day: { proteinSoFar: 81, proteinTarget: 180, mealsRemaining: 2 } });
+    expect(m.indexOf('Strong iron source.')).toBeGreaterThan(m.indexOf('Land around'));
+  });
   test('late: null omits the timing sentence entirely (timing unknown, not guessed)', () => {
     const m = openingMessage({ ...base, late: null });
     expect(m).not.toMatch(/on time/i);

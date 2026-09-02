@@ -41,6 +41,7 @@ import { validMealInput, rejectionOutcome } from '../_shared/meal-report.ts';
 import { repairMealReport, verifyCorrectionMessage } from '../_shared/meal-verify.ts';
 import { productCacheKey } from '../_shared/food-resolve.ts';
 import { composeOpenerText } from '../_shared/meal-opener.ts';
+import { athleteContextLine, type AthleteContextIn } from '../_shared/athlete-context.ts';
 import { buildVoiceDirective, violatesProhibited, type VoiceConfig } from '../_shared/coach-voice.ts';
 import { loadVoiceForAthlete as loadVoice } from '../_shared/coach-voice-load.ts';
 import { flagOn } from '../_shared/feature-flags.ts';
@@ -330,6 +331,11 @@ interface AnalyzeReq {
   mealId?: string;
   /** The athlete's review-step note: what the camera can't see (oil, sauce, refills). */
   athleteNote?: string;
+  /** Who is eating (2026-09-02): sport, position, level, bodyweight (lb), and today's
+   *  training/rest type from the team week pattern. CLIENT-sent from the hydrated profile,
+   *  sanitized in _shared/athlete-context.ts before one line of it reaches the prompt. Absent
+   *  (older builds) = prompt byte-identical to before. */
+  athlete?: AthleteContextIn;
   /** Food Memory (0192): the athlete's saved usual meals/orders, CLIENT-selected (bounded to 10)
    *  and re-sanitized here. Memory-first reading: a clear match to one of these beats a cold
    *  visual estimate, and a wrapped/closed meal from a known place gets "is this your usual?"
@@ -396,10 +402,10 @@ const MEAL_TOOL = {
       fiber: { type: 'integer', description: 'Estimated grams of dietary fiber. 0 when negligible.' },
       highlights: {
         type: 'array', items: { type: 'string' },
-        description: 'Up to 3 short micronutrient highlights ONLY when clearly present (e.g. "Strong iron source, supports oxygen delivery"). Empty when nothing stands out. Never fabricate.',
+        description: 'Up to 3 short micronutrient highlights ONLY when clearly present (e.g. "Strong iron source, supports oxygen delivery"). Empty when nothing stands out. Never fabricate. These are notes for the breakdown, not advice: the move belongs in analysis.',
       },
       note: { type: 'string', description: 'One coach-voiced sentence tying this meal to the athlete goal. No hype, no em dashes.' },
-      analysis: { type: 'string', description: 'The athlete-facing read: 2 to 3 sentences written the way a real nutrition coach texts an athlete they know. Sentence one is the single biggest takeaway about this plate; sentence two is the one doable adjustment that answers "what should I do next because of this". Vary your wording meal to meal: no signature idiom (never "doing the heavy lifting" or "doing the work"), no recycled openers — every meal reads like a fresh text from a coach, not a template. The app already shows the athlete the photo, the score, and every macro number, so NEVER list or restate macros or calories; mention a number only when it IS the advice (a portion to aim for). JUDGE THE PLATE BY ITS OWN SPLIT, never by day progress: the app scores each meal on its composition (protein under ~20% of the plate\'s calories reads LOW; fat over ~45% reads HIGH), and your words sit next to that verdict — so never praise a macro the plate\'s own split marks weak. A big plate can bank real protein toward the day and still be protein-light for its size: if you mention day progress, state it as the day\'s fact ("that banks 41g toward your 160g") and keep the plate\'s verdict the plate\'s ("on this plate the fat is the story"). Warm, direct, personal, zero hype, no headers or bullets, no em dashes.' },
+      analysis: { type: 'string', description: 'The athlete-facing read: 2 to 3 sentences written the way a real nutrition coach texts an athlete they know. Sentence 1, the VERDICT: what this plate means for this athlete today (their goal, sport, position and training/rest day when given), judged by the plate\'s own split. A judgment, never an inventory: never open by naming the foods or describing what the photo shows. Sentence 2, the MOVE: one concrete thing to do at their next real decision (next meal, a snack, the portion next time) with a food, a kitchen-unit amount, or a swap, specific enough to act on ("a second chicken thigh", "a cup of Greek yogurt with this tomorrow"), never "add more protein". Sentence 3, optional: the why in one clause, only when it changes what they do. The app already shows the photo, the score and every macro number, so NEVER list or restate macros or calories; a number appears only when it IS the advice. Never write day totals or day arithmetic: the app states the day itself right after your text. JUDGE THE PLATE BY ITS OWN SPLIT (protein under ~20% of the plate\'s calories reads LOW; fat over ~45% reads HIGH) and never praise a macro the split marks weak. Vary your wording meal to meal; banned: "doing the heavy lifting", "doing the work", "doing most of the work", "carrying the protein", "the star here", "protein anchor", "rounding out", "rounds it out", "keep an eye on", "nice touch", "solid" as the verdict, and opening with "Next time". Warm, direct, personal, zero hype, no headers or bullets, no em dashes.' },
       reconcile: { type: 'string', description: 'Only when the athlete note CONTRADICTS what is plainly visible (e.g. says grilled but it is clearly fried, or "no sauce" when it is drowning): one short, non-accusatory coach sentence saying what you are counting and why, leaving them an out. Omit entirely when the note agrees with or merely adds hidden food. No em dashes.' },
       descriptionSignal: { type: 'string', enum: ['match', 'photo_heavier', 'photo_lighter', 'no_photo'], description: 'Relationship of the athlete note to the photo. "match": the note agrees with the photo or only adds plausible hidden/off-frame food (trust it). "photo_heavier": the plate visibly holds MORE than the note claims (the note underrated it). "photo_lighter": the plate visibly holds LESS than the note claims. "no_photo": no photo was provided.' },
       substitution: {
@@ -531,26 +537,50 @@ unresolved. Fiber and highlights are estimates from what is visible; when nothin
 notable, return highlights as an empty array.
 
 The analysis field is the athlete's main read: 2 to 3 sentences, written the way a real nutrition
-coach texts an athlete they know — warm, direct, specific to THIS plate and THIS athlete's day.
-Sentence one: the single biggest takeaway about this plate. Sentence two: the ONE adjustment that
-answers the athlete's next decision. VARY YOUR LANGUAGE: real coaches do not have a catchphrase.
-Never write "doing the heavy lifting" or "doing the work"; never reuse the same sentence shape or
-opener from one meal to the next (these examples show RANGE, not lines to reuse: "that steak
-carries you into the afternoon", "solid balance, nothing to fix here", "light on protein for a
-lift day"). You are a coach, not an analyst — every sentence should help them decide what to do
-next, never prove what you noticed. Never shame, never moralize food.
+coach texts an athlete they know — warm, direct, specific to THIS plate and THIS athlete. It has
+a shape:
+- Sentence 1, the VERDICT: what this plate means for this athlete today, judged by the plate's
+  own split and by their goal, sport, position and training/rest day when those are given. It is
+  a judgment, never an inventory: never open by naming the foods, and never describe what the
+  photo plainly shows.
+- Sentence 2, the MOVE: ONE concrete thing to do at their next real decision (the next meal, a
+  snack, the portion next time), specific enough to act on: a food, an amount in kitchen units,
+  or a swap. Not "add more protein"; "add a second chicken thigh" or "a cup of Greek yogurt with
+  this tomorrow". When the plate is genuinely right, the move is what to repeat and when.
+- Sentence 3, optional: the why, in one clause, only when it changes what they do (recovery
+  after a training day, staying full through an afternoon practice). Omit it when the move is
+  obvious.
+You are a coach, not an analyst — every sentence should help them decide what to do next, never
+prove what you noticed. Never shame, never moralize food.
+
+THE ATHLETE. When an Athlete profile line is provided, coach for that sport, position, level and
+bodyweight, and for a training or rest day when the day type is given: a 225 lb linebacker on a
+training day and a 130 lb distance runner on a rest day do not get the same move from the same
+plate. Never invent a sport, position, session, weight or schedule you were not given; when the
+profile is absent, coach for the goal alone.
+
+THE DAY. When Day context numbers are provided, use them to CHOOSE the move (a day far behind on
+protein makes the move a protein move; a day already at target frees you to talk about carbs,
+produce or timing), but do NOT write day totals or arithmetic into the text. The app states the
+day itself, right after your read, from its own numbers; a second set from you will disagree
+with it.
+
+VARY YOUR LANGUAGE: real coaches do not have a catchphrase. Banned outright: "doing the heavy
+lifting", "doing the work", "doing most of the work", "carrying the protein", "the star here",
+"protein anchor", "rounding out", "rounds it out", "keep an eye on", "nice touch", "solid" as the
+verdict, and opening with "Next time". Never reuse the same sentence shape or opener from one meal
+to the next (these examples show RANGE, not lines to reuse: "that steak carries you into the
+afternoon", "nothing to fix here", "light on protein for a lift day").
 
 THE SCREEN ALREADY SAYS IT (hard requirement): the athlete is looking at the photo, the score,
 score-reason chips, and a full macro breakdown while they read you. Never enumerate or restate
 the macros, the calories, or the score; never list the foods back at them; never re-describe what
 the photo plainly shows. Say what the screen cannot: what it means and what to do next. A number
-belongs in your text only when it IS the advice (a portion to aim for, a gap to close). When Day
-context numbers are provided, frame them FORWARD ("about 60g to go across your last two meals")
-using ONLY those numbers; never restate progress the app already charts, and never invent totals,
+belongs in your text only when it IS the advice (a portion to aim for). Never invent totals,
 targets, schedules, or history you were not given. You do NOT know the athlete's training
-schedule — never reference a specific practice, game, or session time as if you did. Do not open
-with timing verdicts; the app states on-time/late itself. You may reference timing only inside
-advice (e.g. eating earlier tomorrow).
+schedule beyond a training/rest day type when one is provided — never reference a specific
+practice, game, or session time as if you did. Do not open with timing verdicts; the app states
+on-time/late itself. You may reference timing only inside advice (e.g. eating earlier tomorrow).
 
 Estimate language: your read comes from a photo and the analysis must sound like it when you do
 use a number ("a palm-size portion", "roughly a cup"). Never present an estimate as an exact fact.
@@ -687,6 +717,10 @@ function userContent(req: AnalyzeReq, photoMime: string): unknown[] {
     });
   }
   const goal = req.goal ? `Athlete goal: ${req.goal}.` : 'Athlete goal: general athletic development.';
+  // Who is eating (2026-09-02): sport, position, level, bodyweight, training/rest day. Rendered
+  // and sanitized in _shared/athlete-context.ts; '' when the client sent nothing, so an older
+  // build's prompt is byte-identical.
+  const athlete = athleteContextLine(req.athlete);
   // The free-text note is athlete-controlled: cap it (a "call" is metered but its tokens were
   // not — an uncapped note could carry ~100K tokens through one counted slot), collapse
   // newlines, and mark it as data so pasted text can't restyle the analysis.
@@ -752,7 +786,11 @@ function userContent(req: AnalyzeReq, photoMime: string): unknown[] {
       const rem = Number.isFinite(remaining) && remaining >= 0 && remaining <= 8
         ? (remaining === 0 ? ' after this meal the required meals are in' : ` with ${remaining} more meal${remaining === 1 ? '' : 's'} to come after this one`)
         : '';
-      day = ` Day context: before this meal the athlete had logged approximately ${soFar}g of a ${target}g daily protein target${rem}. In your analysis, connect this meal to that day total (their approximate new total after this plate) using ONLY these numbers plus your own estimate for this plate.`;
+      // The day steers the MOVE; it is never written into the text. The app appends its own
+      // grounded day sentence right after this read (meal-opener.ts), and a second set of totals
+      // from the model, built on the pre-meal number plus a raw estimate, disagreed with it often
+      // enough that the numeric rail threw the whole paragraph away.
+      day = ` Day context: before this meal the athlete had logged approximately ${soFar}g of a ${target}g daily protein target${rem}. Use this only to choose the right move for this athlete (a day far behind on protein makes the move a protein move); do NOT write day totals or arithmetic into the analysis, the app states the day itself right after your text.`;
     }
   }
   // The athlete's review-step note (what the camera can't see) — same sanitization as `description`.
@@ -784,7 +822,7 @@ function userContent(req: AnalyzeReq, photoMime: string): unknown[] {
   }
   blocks.push({
     type: 'text',
-    text: `${goal} Meal slot: ${req.mealType}.${desc}${an}${timing}${day} Analyze the meal${req.photoBase64 ? ' in the photo' : ' (no photo provided; infer a typical ' + req.mealType.toLowerCase() + ')'} and report it.${qa}${slot}${avoid}${memory}`,
+    text: `${goal}${athlete} Meal slot: ${req.mealType}.${desc}${an}${timing}${day} Analyze the meal${req.photoBase64 ? ' in the photo' : ' (no photo provided; infer a typical ' + req.mealType.toLowerCase() + ')'} and report it.${qa}${slot}${avoid}${memory}`,
   });
   return blocks;
 }
