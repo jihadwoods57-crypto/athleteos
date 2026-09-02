@@ -112,7 +112,7 @@ function wakeupHomeCard(inst) {
   return `
     <section class="card pad vc-board wk-homecard" data-go="coach-commitments/${esc(inst.instance_id)}">
       <h2 class="eyebrow wk-cardh">${esc(inst.title || 'Wake-Up Roll Call')}</h2>
-      <div class="ts wk-ctx">${esc(ctx)}</div>
+      <div class="wk-ctx">${esc(ctx)}</div>
       ${segBar(c.accountedFor, c.total, `${c.accountedFor} of ${c.total} accounted for`)}
       <div class="wk-homeline">
         <div class="wk-homen ${out || c.review ? '' : 'g'}">${c.checkedIn} of ${c.total}</div>
@@ -120,7 +120,7 @@ function wakeupHomeCard(inst) {
         <div class="wk-spacer"></div>
         ${pill}
       </div>
-      ${c.late || c.excused ? `<div class="ts wk-sub">${[
+      ${c.late || c.excused ? `<div class="wk-sub">${[
         c.late ? `${c.late} late` : '', c.excused ? `${c.excused} excused` : '',
       ].filter(Boolean).join(' · ')}</div>` : ''}
     </section>`;
@@ -168,22 +168,17 @@ function wakeupRow(r, kind, inst, clock, phase) {
     : r.review_resolution && r.review_resolution !== 'accepted' ? `<div class="ls wk-note-line">Kept as ${esc(r.review_resolution)} by ${esc(r.reviewer_name || 'coach')}</div>` : '';
   return `
   <div class="lrow wk-row" data-wk-rowid="${esc(r.response_id)}">
-    <div class="lm">
-      <div class="lt">${esc(r.name || 'Athlete')}</div>
-      <div class="ls">${esc(when)}</div>
-      ${note}
-      ${r.disputed_at ? `<div class="ls wk-dispute">Reported wrong by the ${CD.noun}${r.dispute_note ? esc(`: ${r.dispute_note}`) : ''}</div>` : ''}
-    </div>
-    <div class="wk-rowend">
-      ${pill}
-      <div class="wk-rowacts">
+    <div class="wk-rowtop"><div class="lt">${esc(r.name || 'Athlete')}</div>${pill}</div>
+    <div class="ls">${esc(when)}</div>
+    ${note}
+    ${r.disputed_at ? `<div class="ls wk-dispute">Reported wrong by the ${CD.noun}${r.dispute_note ? esc(`: ${r.dispute_note}`) : ''}</div>` : ''}
+    ${(kind === 'review' || canPing || kind !== 'ex' || kind === 'out') ? `<div class="wk-rowacts">` : '<div class="wk-rowacts" hidden>'}
         ${kind === 'review' ? `
           <button class="chip" data-wk-resolve="accepted" data-wk-resp="${esc(r.response_id)}">Accept tap time</button>
           <button class="chip" data-wk-resolve="${phase === 'closed' ? 'missed' : 'late'}" data-wk-resp="${esc(r.response_id)}">Keep ${phase === 'closed' ? 'missed' : 'late'}</button>` : ''}
         ${canPing ? `<button class="chip" data-wk-ping="${esc(r.athlete_id)}" data-wk-inst="${esc(inst.instance_id)}">Ping</button>` : ''}
         ${kind !== 'ex' && kind !== 'review' ? `<button class="chip" data-vc-excuse="${esc(r.athlete_id)}">Excuse</button>` : ''}
         ${kind === 'out' ? `<button class="chip" data-wk-override="${esc(r.response_id)}">Override</button>` : ''}
-      </div>
     </div>
   </div>`;
 }
@@ -208,7 +203,7 @@ function wakeupSummaryCard(inst) {
   return `
   <h2 class="eyebrow">History</h2>
   <section class="card rows">
-    <div class="ts wk-histline">${esc(line)}</div>
+    <div class="wk-histline">${esc(line)}</div>
     ${rows.slice(0, 14).map((o) => `
     <div class="lrow wk-hist" data-wk-day="${esc(o.occurs_on)}" data-wk-inst="${esc(o.instance_id)}">
       <div class="lm"><div class="lt">${esc(day(o.occurs_on))}</div>
@@ -261,28 +256,28 @@ function wakeupBoard(inst, back) {
   <section class="card pad wk-board">
     <div class="wk-count"><span class="wk-n ${out || c.review ? '' : 'g'}">${c.accountedFor}</span><span class="wk-of">/ ${c.total}</span><span class="wk-cl">accounted for</span></div>
     ${segBar(c.accountedFor, c.total, `${c.accountedFor} of ${c.total} accounted for`)}
-    <div class="ts wk-split">${esc(split)}</div>
+    <div class="wk-split">${esc(split)}</div>
     <div class="wk-stats">
       <div class="wk-stat g"><b>${c.onStandard}</b><span>On Standard</span></div>
       <div class="wk-stat ${outLabel !== 'Pending' && out ? 'r' : ''}"><b>${out}</b><span>${outLabel}</span></div>
       <div class="wk-stat ${c.late ? 'a' : ''}"><b>${c.late}</b><span>Late</span></div>
     </div>
-    <div class="ts wk-status" id="wk-status-line">${esc(statusLine)}</div>
+    <div class="wk-status" id="wk-status-line">${esc(statusLine)}</div>
   </section>
 
   ${phase === 'closed' ? `
   <section class="card pad wk-done">
-    <h2 class="eyebrow">Wake-Up Roll Call complete</h2>
+    <h2 class="eyebrow">Roll call complete</h2>
     <div class="wk-doneline"><b>${c.onStandard} / ${c.counted}</b> On Standard${c.overrides ? ` (${c.overrides} by override)` : ''} · <b>${c.late}</b> Late · <b>${c.missed}</b> Missed${c.review ? ` · <b>${c.review}</b> under review` : ''}${c.excused ? ` · ${c.excused} excused` : ''}</div>
   </section>` : ''}
 
-  <section class="card pad">
-    <div class="wk-msgh"><h2 class="eyebrow wk-inline">Your message today</h2><button class="chip" id="wk-msg-edit">${inst.message ? 'Change' : 'Add'}</button></div>
-    ${inst.message ? `<p class="wk-msgp">${esc(inst.message)}</p>` : `<div class="ts">No message. The roll call goes out with the time only.</div>`}
-    ${inst.message_override ? `<div class="ts wk-hint">Today only. Tomorrow uses your standing message.</div>` : ''}
+  <section class="card wk-msgcard">
+    <div class="wk-msgh"><h2 class="eyebrow wk-inline">Your message today</h2><button class="btn ghost xs" id="wk-msg-edit">${inst.message ? 'Change' : 'Add'}</button></div>
+    ${inst.message ? `<p class="wk-msgp">${esc(inst.message)}</p>` : `<div class="wk-hint wk-hint-flush">No message. The roll call goes out with the time only.</div>`}
+    ${inst.message_override ? `<div class="wk-hint">Today only. Tomorrow uses your standing message.</div>` : ''}
     <div id="wk-msg-form" hidden>
-      <textarea class="ob-input wk-msg" id="wk-msg-ta" maxlength="1000" rows="4" aria-label="Today’s message">${esc(inst.message_override || inst.standing_message || inst.message || '')}</textarea>
-      <div class="ts wk-hint">${phase === 'before' ? 'Goes out with today’s roll call, in your name, exactly as written.' : 'Shows in the app now. A push already sent keeps its words.'}</div>
+      <textarea class="ob-input wk-msg" id="wk-msg-ta" maxlength="1000" rows="3" aria-label="Today’s message">${esc(inst.message_override || inst.standing_message || inst.message || '')}</textarea>
+      <div class="wk-hint">${phase === 'before' ? 'Goes out with today’s roll call, in your name, exactly as written.' : 'Shows in the app now. A push already sent keeps its words.'}</div>
       <div class="btn-row mt">
         <button class="btn green sm" id="wk-msg-save">Save for today</button>
         ${inst.message_override ? `<button class="btn ghost sm" id="wk-msg-clear">Use standing message</button>` : ''}
@@ -293,7 +288,7 @@ function wakeupBoard(inst, back) {
 
   ${out && phase !== 'closed' && phase !== 'before' ? `
   <button class="btn" id="vc-remind" data-inst="${esc(inst.instance_id)}">${icon('bell', 18)} Ping ${out} ${outLabel === 'Pending' ? 'pending' : 'still out'}</button>
-  <div class="ts wk-pinghint" id="wk-ping-hint">Only these ${out} get it, with their own I’M UP button. Anyone who checks in first is skipped. One ping per roll call every ten minutes.</div>` : ''}
+  <div class="wk-pinghint" id="wk-ping-hint">Only who’s still out gets it, with their own I’M UP button. One ping every ten minutes.</div>` : ''}
   ${!out && !c.review && phase !== 'before' ? `
   <div class="sidebox wk-allin">
     <div class="req-icon g s38">${icon('check', 19)}</div>

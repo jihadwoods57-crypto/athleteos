@@ -2523,46 +2523,69 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .wk-preview{display:flex;gap:8px;align-items:flex-start;margin:14px 2px;font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.45}
 .wk-preview svg{flex:none;margin-top:2px;color:var(--text-3)}
 .wk-err{color:var(--red);text-align:center;min-height:16px;padding-top:8px}
-.wk-foot{height:20px}
+.wk-foot{height:0}
 #wk-save{width:100%}
 .wk-gap{height:12px}
 
-/* coach board */
-.wk-board .wk-count{display:flex;align-items:baseline;gap:6px;padding-bottom:10px}
-.wk-n{font-size:var(--t-hero);font-weight:800;letter-spacing:var(--num-tight);line-height:1;font-variant-numeric:tabular-nums;color:var(--text)}
+/* coach board (0211, re-based on the app's own type + spacing tokens 2026-09-02)
+   Every size here is a --t-* step and every gap an --s* step. Muted copy is .co-note-sized
+   (t-sm/600) because bare .ts is unstyled outside .sidebox and inherits the body size. */
+.wk-board .wk-count{display:flex;align-items:baseline;gap:6px}
+.wk-n{font-size:var(--t-3xl);font-weight:800;letter-spacing:var(--num-tight);line-height:1;font-variant-numeric:tabular-nums;color:var(--text)}
 .wk-n.g{color:var(--green-bright)}
-.wk-of{font-size:var(--t-xl);font-weight:800;color:var(--text-3);font-variant-numeric:tabular-nums}
-.wk-cl{font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-left:4px}
-.wk-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding-top:14px}
-.wk-stat{padding:10px 0 8px;border-top:2px solid var(--hairline)}
-.wk-stat b{display:block;font-size:var(--t-2xl);font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.05}
-.wk-stat span{display:block;font-size:var(--t-micro);font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);margin-top:4px}
+.wk-of{font-size:var(--t-lg);font-weight:800;color:var(--text-3);font-variant-numeric:tabular-nums}
+.wk-cl{font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-left:2px}
+.wk-board .xsegs{margin-top:var(--s3)}
+.wk-split{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.45;padding-top:var(--s2)}
+.wk-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2);padding-top:var(--s3)}
+.wk-stat{padding-top:var(--s2);border-top:2px solid var(--hairline)}
+.wk-stat b{display:block;font-size:var(--t-2xl);font-weight:800;letter-spacing:var(--num-tight);font-variant-numeric:tabular-nums;line-height:1}
+.wk-stat span{display:block;font-size:var(--t-eyebrow);font-weight:800;letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--text-3);margin-top:3px}
 .wk-stat.g{border-top-color:var(--green-bright)} .wk-stat.g b{color:var(--green-bright)}
 .wk-stat.a{border-top-color:var(--amber-bright)} .wk-stat.a b{color:var(--amber-bright)}
 .wk-stat.r{border-top-color:var(--red)} .wk-stat.r b{color:var(--red)}
-.wk-status{padding-top:12px}
-.wk-done{border-color:var(--hairline);margin-top:12px}
-.wk-doneline{font-size:var(--t-base);font-weight:600;color:var(--text-2);line-height:1.5}
+.wk-status{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.45;padding-top:var(--s3)}
+.wk-done{margin-top:var(--s3)}
+.wk-done .eyebrow{margin:0 0 var(--s2)}
+.wk-doneline{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.5}
 .wk-doneline b{color:var(--text);font-weight:800;font-variant-numeric:tabular-nums}
-.wk-msgh{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+/* the message card: compact in both states */
+.wk-msgcard{margin-top:var(--s3);padding:var(--s4) var(--s5)}
+.wk-msgh{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);margin-bottom:var(--s2)}
+.wk-msgh .eyebrow{flex:1;min-width:0;white-space:nowrap}
+.wk-msgh .btn{width:auto;flex:none;padding:0 14px}
 .wk-inline{margin:0}
 .wk-msgp{font-size:var(--t-base);line-height:1.5;color:var(--text);font-weight:500;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
-#vc-remind{width:100%;margin-top:12px}
-.wk-pinghint{text-align:center;padding-top:8px}
-.wk-allin{margin-top:12px}
-.wk-row{align-items:flex-start;cursor:default}
-.wk-rowend{display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex:none}
-.wk-rowacts{display:flex;gap:6px}
+.wk-msgcard .wk-msg{min-height:84px;margin-top:var(--s1)}
+.wk-hint{font-size:var(--t-sm);font-weight:600;color:var(--text-3);line-height:1.45;padding-top:var(--s2)}
+.wk-hint-flush{padding-top:0}
+.wk-msgcard .btn-row.mt{margin-top:var(--s3)}
+#vc-remind{width:100%;margin-top:var(--s3)}
+.wk-pinghint{font-size:var(--t-sm);font-weight:600;color:var(--text-3);text-align:center;line-height:1.45;padding:var(--s2) var(--s2) 0}
+.wk-allin{margin-top:var(--s3)}
+/* athlete rows: name + pill on one line, the answer under it, actions in their own row */
+.wk-row{display:block;padding:var(--s3) 2px;cursor:default}
+.wk-rowtop{display:flex;align-items:center;justify-content:space-between;gap:var(--s3)}
+.wk-rowtop .lt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wk-rowtop .xpill{flex:none}
+.wk-row .ls{margin-top:2px}
+.wk-rowacts{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s2)}
+.wk-rowacts .chip{height:40px;padding:0 var(--s3);font-size:var(--t-sm)}
 .wk-dispute{color:var(--amber-bright);font-weight:700}
-.wk-histline{padding:12px 0 4px}
+.wk-histline{font-size:var(--t-sm);font-weight:600;color:var(--text-2);padding:var(--s3) 0 var(--s1)}
 .wk-hist .lv{font-variant-numeric:tabular-nums}
+.wk-hist .ls{overflow-wrap:anywhere}
 
-/* coach Home card */
-.wk-homeline{display:flex;align-items:baseline;gap:10px;padding-top:8px}
-.wk-homen{font-size:var(--t-2xl);font-weight:800;letter-spacing:-.02em;color:var(--text);font-variant-numeric:tabular-nums}
+/* coach Home card: the same 12px step every Home module keeps between itself and the next */
+.wk-homecard{cursor:pointer;margin:var(--s3) 0}
+.wk-cardh{margin:0 0 var(--s1)}
+.wk-ctx{font-size:var(--t-sm);font-weight:600;color:var(--text-2);padding-bottom:var(--s3)}
+.wk-homeline{display:flex;align-items:baseline;gap:var(--s2);padding-top:var(--s2)}
+.wk-homen{font-size:var(--t-2xl);font-weight:800;letter-spacing:var(--num-tight);color:var(--text);font-variant-numeric:tabular-nums}
 .wk-homen.g{color:var(--green-bright)}
 .wk-homel{font-size:var(--t-sm);font-weight:700;color:var(--text-2)}
 .wk-spacer{flex:1}
+.wk-sub{font-size:var(--t-sm);font-weight:600;color:var(--text-3);padding-top:var(--s2)}
 
 /* athlete card + detail */
 .vc-from{font-size:var(--t-micro);font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
@@ -2589,10 +2612,6 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .wk-refusal{color:var(--amber-bright);justify-content:center}
 .wk-warn{margin-top:12px}
 .wk-proof{margin-top:14px}
-.wk-homecard{cursor:pointer;margin-bottom:10px}
-.wk-cardh{margin:0 0 6px}
-.wk-ctx{padding-bottom:10px}
-.wk-sub{padding-top:8px}
 .vc-ctx.wk-savefail{color:var(--amber-bright)}
 .wk-dispute-btn{width:100%;margin-top:10px}
 .wk-center{text-align:center}
@@ -2612,10 +2631,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .wk-how-body{padding:0 14px 12px;font-size:var(--t-sm);color:var(--text-2);line-height:1.5}
 .wk-how-body p{margin:0 0 8px}
 .wk-how-body b{color:var(--text)}
-.wk-split{padding-top:10px}
-.wk-note-line{color:var(--text-2);font-style:italic}
-.wk-override{display:flex;flex-direction:column;gap:6px;align-items:stretch;min-width:200px}
+.wk-override{display:flex;flex-direction:column;gap:var(--s2);align-items:stretch;width:100%}
 .wk-override .input{height:40px;font-size:var(--t-sm)}
+.wk-note-line{font-size:var(--t-sm);font-weight:600;color:var(--text-2);font-style:italic;margin-top:2px}
 .wk-override .chip{justify-content:center}
 .xico.sm.muted{background:var(--surface-2);color:var(--text-3)}
 .xico.sm.green{background:var(--green-surface);color:var(--green-bright)}
