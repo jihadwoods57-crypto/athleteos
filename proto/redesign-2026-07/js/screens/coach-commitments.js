@@ -141,7 +141,7 @@ let HIST_ALL = false;
 const BOARD_DAY_FOR = new Map();
 /* The live watcher for the open board (0212). One at a time. */
 const LIVE = { stop: null, phase: null };
-/* The week ahead for the roll call on screen (0214), keyed by commitment id; null rows = the
+/* The week ahead for the roll call on screen (0215), keyed by commitment id; null rows = the
    fetch failed. Drives the day strip on the board and the "next roll call" card on Home. */
 const UPCOMING = { forId: null, rows: null, failed: false };
 /* Home's "next roll call": which commitment it came from, so a book switch refetches. */
@@ -149,7 +149,7 @@ const NEXT = { forBook: null, commitmentId: null };
 /* A skip on the Home card is two taps, never one: the first arms it, the second sends it. */
 let SKIP_ARMED = null;
 
-/** The day strip across the top of the roll-call board (0214): today, tomorrow, the week. A dot
+/** The day strip across the top of the roll-call board (0215): today, tomorrow, the week. A dot
  *  marks a day the coach changed; a struck-through chip is a skipped day. */
 function dayStrip(inst) {
   const rows = UPCOMING.forId === inst.commitment_id ? (UPCOMING.rows || []) : [];
@@ -169,7 +169,7 @@ function dayStrip(inst) {
   </div>`;
 }
 
-/** The one card that edits a single day (0214). Only on a day that has not started. */
+/** The one card that edits a single day (0215). Only on a day that has not started. */
 function scheduleCard(inst, label) {
   const st = scheduleState(inst);
   const skipped = st.kind === 'skipped';
@@ -196,7 +196,7 @@ function scheduleCard(inst, label) {
 }
 
 /** Home: the NEXT roll call the coach can still act on, once today's has closed or when there is
- *  none today (0214). Skip is two taps. */
+ *  none today (0215). Skip is two taps. */
 function nextRollcallCard() {
   const rows = !NEXT.commitmentId ? null
     : UPCOMING.forId === NEXT.commitmentId ? UPCOMING.rows
@@ -397,7 +397,7 @@ function wakeupBoard(inst, back) {
      so: the header read exactly like this morning's. */
   const today = todayISO();
   const dayEyebrow = !inst.occurs_on ? 'Today' : dayLabel(inst.occurs_on, today) || String(inst.occurs_on);
-  /* A day ahead (0214): the coach is here to SET it, not to read a roster. */
+  /* A day ahead (0215): the coach is here to SET it, not to read a roster. */
   const ahead = !!inst.occurs_on && inst.occurs_on > today;
   const skipped = scheduleState(inst).kind === 'skipped';
 
@@ -522,11 +522,11 @@ export function paintBoard(root, slotId = '#vc-board-slot') {
   const paint = () => { if (slot.isConnected) { slot.innerHTML = commitmentBoardCard(); wireNextCard(slot); } };
   paint();
   const id = bookId();
-  // Today first (the live count), then the week ahead for the "next roll call" card (0214).
+  // Today first (the live count), then the week ahead for the "next roll call" card (0215).
   if (id) loadBoard(id, CD.kind).then(paint).then(ensureNext).then(paint);
 }
 
-/** The Home "next roll call" card's controls (0214): open that day's board, or skip it in two
+/** The Home "next roll call" card's controls (0215): open that day's board, or skip it in two
  *  taps. Lives here, not in the board mount, because the card is painted into Home's slot. */
 function wireNextCard(slot) {
   slot.querySelectorAll('[data-wk-day]').forEach((b) => b.addEventListener('click', async () => {
@@ -784,7 +784,7 @@ export const coachCommitments = {
         if (root.isConnected) window.__render && window.__render();
       });
     }
-    // The week ahead for the day strip (0214). Refetched whenever the cache is stale (a schedule
+    // The week ahead for the day strip (0215). Refetched whenever the cache is stale (a schedule
     // write zeroes it), repainted only when it changed.
     if (inst && inst.type === 'morning_roll_call') {
       const beforeUp = JSON.stringify(UPCOMING.forId === inst.commitment_id ? UPCOMING.rows : null);
@@ -796,7 +796,7 @@ export const coachCommitments = {
       });
     }
 
-    // Schedule controls (0214): one day's time, back to the rule, skip / put back.
+    // Schedule controls (0215): one day's time, back to the rule, skip / put back.
     const schedSay = (m) => { const el = root.querySelector('#wk-sched-err'); if (el) el.textContent = m; };
     const schedTime = root.querySelector('#wk-sched-time');
     if (schedTime && inst) schedTime.addEventListener('change', async () => {

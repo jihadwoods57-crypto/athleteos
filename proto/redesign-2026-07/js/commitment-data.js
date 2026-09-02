@@ -51,7 +51,7 @@ const RTC = {
   board: [], boardDay: null, boardAt: 0, boardError: false,
   locations: [], locationsAt: 0,
   commitments: [], commitmentsAt: 0, commitmentsError: false,
-  // Per-day boards (0214): Home holds today AND the next roll call at once, and the board screen
+  // Per-day boards (0215): Home holds today AND the next roll call at once, and the board screen
   // can open any day of the week ahead without the two evicting each other.
   boards: new Map(),          // dayISO -> { rows, at, error }
   upcoming: new Map(),        // commitmentId -> { rows, at }
@@ -81,14 +81,14 @@ export const VC = {
     }
     return null;
   },
-  /** The cached board for one day (0214), or null when that day was never loaded. */
+  /** The cached board for one day (0215), or null when that day was never loaded. */
   boardFor(dayISO) { const b = RTC.boards.get(dayISO); return b ? b.rows : null; },
   /** Which day an instance in any cached board belongs to, or null. */
   dayOf(instanceId) {
     for (const [day, b] of RTC.boards) if ((b.rows || []).some((r) => r.instance_id === instanceId)) return day;
     return null;
   },
-  /** The week ahead for one roll call (0214), or null when never loaded. */
+  /** The week ahead for one roll call (0215), or null when never loaded. */
   upcomingFor(commitmentId) { const u = RTC.upcoming.get(commitmentId); return u ? u.rows : null; },
 };
 
@@ -263,7 +263,7 @@ export async function loadBoard(ownerId, kind, dayISO = null, force = false) {
   } catch { RTC.boardError = true; return RTC.board; }
 }
 
-/** One day's board WITHOUT touching the today-board slot (0214). Home paints today from
+/** One day's board WITHOUT touching the today-board slot (0215). Home paints today from
  *  VC.board and the next roll call from here; loading tomorrow through loadBoard would have
  *  flipped the Home card to tomorrow's roster. */
 export async function loadBoardFor(ownerId, kind, dayISO, force = false) {
@@ -287,7 +287,7 @@ export async function loadBoardFor(ownerId, kind, dayISO, force = false) {
   } catch { return have ? have.rows : null; }
 }
 
-/** The week ahead for one roll call (0214): the next `days` occurrences, materialized on the
+/** The week ahead for one roll call (0215): the next `days` occurrences, materialized on the
  *  server on the way in. null = the fetch failed (never rendered as "nothing scheduled"). */
 export async function loadUpcoming(commitmentId, days = 7, force = false) {
   const c = sb(); if (!c || !commitmentId) return null;
@@ -302,7 +302,7 @@ export async function loadUpcoming(commitmentId, days = 7, force = false) {
   } catch { return have ? have.rows : null; }
 }
 
-/** Change ONE day's schedule (0214): a different wake-up time, back to the rule, skip it, or put
+/** Change ONE day's schedule (0215): a different wake-up time, back to the rule, skip it, or put
  *  it back. Refused server-side once that morning has started. Every board cache is stale after. */
 export async function setInstanceSchedule(instanceId, { startsMin = null, resetTime = false, skipped = null, note = null } = {}) {
   const c = sb(); if (!c || !instanceId) return false;

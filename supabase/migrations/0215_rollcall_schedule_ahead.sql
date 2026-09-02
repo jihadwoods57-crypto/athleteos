@@ -1,4 +1,4 @@
--- 0214 — Wake-Up Roll Call: manage the NEXT one, and the week ahead (founder, 2026-09-02).
+-- 0215 — Wake-Up Roll Call: manage the NEXT one, and the week ahead (founder, 2026-09-02).
 --
 -- "As a coach, I need to easily manage the next morning roll call or even have it scheduled out."
 --
@@ -257,7 +257,7 @@ returns jsonb language sql stable security definer set search_path = public as $
   ) s;
 $$;
 
--- my_commitments (0212 body) + effective minutes. Every pre-0214 key is preserved; the athlete's
+-- my_commitments (0212 body) + effective minutes. Every pre-0215 key is preserved; the athlete's
 -- "At 6:30 AM" line and their local reminder anchor read starts_min / respond_by_min, so those now
 -- carry the DAY's clock. Cancelled occurrences already vanish on the client (deriveCommitment).
 create or replace function my_commitments(p_from date, p_to date)

@@ -1,5 +1,5 @@
 /**
- * Schedule ahead (0214): the coach manages the NEXT roll call and the week.
+ * Schedule ahead (0215): the coach manages the NEXT roll call and the week.
  *
  * The proto has no build step, so a template that throws does so at tap time on a phone. These
  * render the three new states through the REAL screen module under jsdom, seeded through the
@@ -22,7 +22,7 @@ const { coachCommitments, commitmentBoardCard, seedScheduleForHarness } = requir
 const today = todayISO();
 const tomorrow = shiftISO(today, 1);
 
-/** One wake-up occurrence as commitment_board reports it after 0214. */
+/** One wake-up occurrence as commitment_board reports it after 0215. */
 const occurrence = (over: Record<string, unknown> = {}) => {
   const day = String(over.occurs_on || tomorrow);
   const base = Date.parse(`${day}T10:00:00Z`); // 6:00 AM New York in summer

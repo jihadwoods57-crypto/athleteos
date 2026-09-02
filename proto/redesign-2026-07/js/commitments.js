@@ -766,7 +766,7 @@ export function commitmentReminders(rows, todayISO) {
 }
 
 /* ================================================================================
-   SCHEDULE AHEAD (0214). The coach manages the NEXT roll call and the week: a day can
+   SCHEDULE AHEAD (0215). The coach manages the NEXT roll call and the week: a day can
    carry its own wake-up time or be skipped. These read what the server reports on an
    occurrence (`starts_min` is the DAY's effective minute, `rule_starts_min` the rule's,
    `skipped` the flag, `instance_status` 'cancelled' for a skipped day) and never guess.

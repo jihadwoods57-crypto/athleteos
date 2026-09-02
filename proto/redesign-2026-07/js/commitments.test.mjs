@@ -728,7 +728,7 @@ test('the close default is 30 minutes after the wake-up and the coach ends_at wi
   assert.equal(rollcallVerdict(wake, NY('10:16:00'), null, NY('10:15:00')), 'missed');
 });
 
-/* ---------------------------------------------------------------- schedule ahead (0214) */
+/* ---------------------------------------------------------------- schedule ahead (0215) */
 import { dayLabel, scheduleState, nextRollcall } from './commitments.js';
 
 test('dayLabel: Today, Tomorrow, then a fixed weekday + date, no locale', () => {

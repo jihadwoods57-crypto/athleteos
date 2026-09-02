@@ -255,7 +255,10 @@ supabase functions deploy roll-call-coach --use-api --no-verify-jwt
 # then the OTA, and prove the manifest on both platforms
 ```
 
-## Third pass, 2026-09-02 (migration 0214): manage the next one, schedule the week
+## Third pass, 2026-09-02 (migration 0215): manage the next one, schedule the week
+
+(Authored as 0214; renumbered to 0215 because a concurrent commit had already taken 0214 for
+team_activity_batch. Prod history carries it as 0215.)
 
 Founder: "as a coach I need to easily manage the next morning roll call, or even have it
 scheduled out." Before this the roll call was one standing rule and a board for today; the only
@@ -273,7 +276,7 @@ per-day control was today's message.
 - The standing rule is never touched by any of this, and editing the rule keeps the per-day
   changes (a skipped day stays skipped; a moved day keeps its time).
 
-### The server (0214)
+### The server (0215)
 - `commitment_instances` gains `starts_override_min`, `skipped`, `schedule_set_by`,
   `schedule_set_at`.
 - `set_instance_schedule(p_instance, p_starts_min, p_reset_time, p_skipped, p_note)` (staff of the
@@ -289,11 +292,11 @@ per-day control was today's message.
 - `resync_commitment_instances` keeps `skipped` days cancelled and re-times a moved day from its
   own minute.
 
-### Deploy (0214)
+### Deploy (0215)
 1. `supabase db push --linked` (probe: `select to_regprocedure('set_instance_schedule(uuid,smallint,boolean,boolean,text)')`).
 2. No edge function changes. OTA the proto (`assets/proto.zip`), prove md5 + sha256 on the live
    manifest for both platforms.
-3. RLS: 27 new `0214:` probes in `rls_authz_test.sql` (702/702 on a disposable project).
+3. RLS: 27 new `0215:` probes in `rls_authz_test.sql` (702/702 on a disposable project).
 
 ### Device QA still owed
 - Move tomorrow to 6:30 from the board, confirm the athlete's card says 6:30 and the 6:30 push

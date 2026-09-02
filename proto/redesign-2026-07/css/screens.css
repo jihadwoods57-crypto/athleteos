@@ -2674,7 +2674,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xico.sm.muted{background:var(--surface-2);color:var(--text-3)}
 .xico.sm.green{background:var(--green-surface);color:var(--green-bright)}
 .xico.sm.blue{background:var(--blue-surface);color:var(--blue-bright)}
-/* Schedule ahead (0214): the day strip across the top of the roll-call board, and the one card
+/* Schedule ahead (0215): the day strip across the top of the roll-call board, and the one card
    that edits a single day. Chips reuse .chip; a dot marks a day the coach changed. */
 .wk-strip{display:flex;gap:var(--s2);overflow-x:auto;padding:var(--s2) 0 var(--s3);scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .wk-strip::-webkit-scrollbar{display:none}
