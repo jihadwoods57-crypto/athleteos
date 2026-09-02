@@ -764,3 +764,52 @@ export function commitmentReminders(rows, todayISO) {
   }
   return out;
 }
+
+/* ================================================================================
+   SCHEDULE AHEAD (0214). The coach manages the NEXT roll call and the week: a day can
+   carry its own wake-up time or be skipped. These read what the server reports on an
+   occurrence (`starts_min` is the DAY's effective minute, `rule_starts_min` the rule's,
+   `skipped` the flag, `instance_status` 'cancelled' for a skipped day) and never guess.
+   ================================================================================ */
+const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MON_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** 'Today' · 'Tomorrow' · 'Wed, Sep 9'. Deterministic (no locale), so the strip and the header
+ *  say the same thing on every device. */
+export function dayLabel(occursOn, todayISO) {
+  const d = String(occursOn || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return '';
+  if (todayISO && d === todayISO) return 'Today';
+  if (todayISO && d === addDays(todayISO, 1)) return 'Tomorrow';
+  const t = new Date(d + 'T12:00:00');
+  if (isNaN(t)) return d;
+  return `${DOW_SHORT[t.getDay()]}, ${MON_SHORT[t.getMonth()]} ${t.getDate()}`;
+}
+
+/** What the coach did to this day, in one line. `kind`: 'skipped' | 'moved' | 'standing'. */
+export function scheduleState(o) {
+  const r = o || {};
+  if (r.skipped || r.instance_status === 'cancelled') {
+    return { kind: 'skipped', line: 'Skipped. Nobody gets a roll call this day.' };
+  }
+  const moved = r.starts_override_min != null && r.rule_starts_min != null
+    && Number(r.starts_override_min) !== Number(r.rule_starts_min);
+  if (moved) {
+    return { kind: 'moved', line: `Moved to ${fmtMin(Number(r.starts_override_min))} this day only. Usually ${fmtMin(Number(r.rule_starts_min))}.` };
+  }
+  return { kind: 'standing', line: '' };
+}
+
+/** The next roll call a coach can still act on: the first occurrence whose close is ahead of
+ *  now (a skipped day counts, so the coach can put it back), else null. */
+export function nextRollcall(upcoming, nowISO) {
+  const now = Date.parse(nowISO || '');
+  const rows = (Array.isArray(upcoming) ? upcoming : []).slice()
+    .sort((a, b) => String(a.occurs_on).localeCompare(String(b.occurs_on)));
+  for (const o of rows) {
+    const close = Date.parse(closesAtOf(o) || o.starts_at || '');
+    if (isFinite(close) && isFinite(now) && close <= now) continue;
+    return o;
+  }
+  return null;
+}

@@ -51,6 +51,10 @@ const RTC = {
   board: [], boardDay: null, boardAt: 0, boardError: false,
   locations: [], locationsAt: 0,
   commitments: [], commitmentsAt: 0, commitmentsError: false,
+  // Per-day boards (0214): Home holds today AND the next roll call at once, and the board screen
+  // can open any day of the week ahead without the two evicting each other.
+  boards: new Map(),          // dayISO -> { rows, at, error }
+  upcoming: new Map(),        // commitmentId -> { rows, at }
 };
 
 export const VC = {
@@ -67,10 +71,25 @@ export const VC = {
   },
   /** One instance out of whichever cache holds it. */
   instance(instanceId) {
-    return RTC.mine.find(r => r.instance_id === instanceId)
-        || RTC.board.find(r => r.instance_id === instanceId)
-        || null;
+    if (!instanceId) return null;
+    const hit = RTC.mine.find(r => r.instance_id === instanceId)
+        || RTC.board.find(r => r.instance_id === instanceId);
+    if (hit) return hit;
+    for (const b of RTC.boards.values()) {
+      const r = (b.rows || []).find((x) => x.instance_id === instanceId);
+      if (r) return r;
+    }
+    return null;
   },
+  /** The cached board for one day (0214), or null when that day was never loaded. */
+  boardFor(dayISO) { const b = RTC.boards.get(dayISO); return b ? b.rows : null; },
+  /** Which day an instance in any cached board belongs to, or null. */
+  dayOf(instanceId) {
+    for (const [day, b] of RTC.boards) if ((b.rows || []).some((r) => r.instance_id === instanceId)) return day;
+    return null;
+  },
+  /** The week ahead for one roll call (0214), or null when never loaded. */
+  upcomingFor(commitmentId) { const u = RTC.upcoming.get(commitmentId); return u ? u.rows : null; },
 };
 
 const FRESH_MS = 30_000;
@@ -239,8 +258,68 @@ export async function loadBoard(ownerId, kind, dayISO = null, force = false) {
     if (error) { RTC.boardError = true; return RTC.board; }
     RTC.board = Array.isArray(data) ? data : [];
     RTC.boardDay = day; RTC.boardAt = Date.now(); RTC.boardError = false;
+    RTC.boards.set(day, { rows: RTC.board, at: Date.now(), error: false });
     return RTC.board;
   } catch { RTC.boardError = true; return RTC.board; }
+}
+
+/** One day's board WITHOUT touching the today-board slot (0214). Home paints today from
+ *  VC.board and the next roll call from here; loading tomorrow through loadBoard would have
+ *  flipped the Home card to tomorrow's roster. */
+export async function loadBoardFor(ownerId, kind, dayISO, force = false) {
+  const day = dayISO || todayISO();
+  const have = RTC.boards.get(day);
+  if (!force && have && Date.now() - have.at < FRESH_MS) return have.rows;
+  const c = sb();
+  if (!c || !ownerId) return have ? have.rows : null;
+  const team = kind === 'practice' ? null : ownerId;
+  const practice = kind === 'practice' ? ownerId : null;
+  try {
+    try {
+      await c.rpc('ensure_commitment_instances', { p_team: team, p_practice: practice, p_from: day, p_to: day });
+    } catch { /* best-effort */ }
+    const { data, error } = await c.rpc('commitment_board', { p_team: team, p_practice: practice, p_on: day });
+    if (error) { RTC.boards.set(day, { rows: have ? have.rows : [], at: have ? have.at : 0, error: true }); return have ? have.rows : null; }
+    const rows = Array.isArray(data) ? data : [];
+    RTC.boards.set(day, { rows, at: Date.now(), error: false });
+    if (day === RTC.boardDay) { RTC.board = rows; RTC.boardAt = Date.now(); }
+    return rows;
+  } catch { return have ? have.rows : null; }
+}
+
+/** The week ahead for one roll call (0214): the next `days` occurrences, materialized on the
+ *  server on the way in. null = the fetch failed (never rendered as "nothing scheduled"). */
+export async function loadUpcoming(commitmentId, days = 7, force = false) {
+  const c = sb(); if (!c || !commitmentId) return null;
+  const have = RTC.upcoming.get(commitmentId);
+  if (!force && have && Date.now() - have.at < FRESH_MS) return have.rows;
+  try {
+    const { data, error } = await c.rpc('rollcall_upcoming', { p_commitment: commitmentId, p_days: days });
+    if (error) return have ? have.rows : null;
+    const rows = Array.isArray(data) ? data : [];
+    RTC.upcoming.set(commitmentId, { rows, at: Date.now() });
+    return rows;
+  } catch { return have ? have.rows : null; }
+}
+
+/** Change ONE day's schedule (0214): a different wake-up time, back to the rule, skip it, or put
+ *  it back. Refused server-side once that morning has started. Every board cache is stale after. */
+export async function setInstanceSchedule(instanceId, { startsMin = null, resetTime = false, skipped = null, note = null } = {}) {
+  const c = sb(); if (!c || !instanceId) return false;
+  try {
+    const { error } = await c.rpc('set_instance_schedule', {
+      p_instance: instanceId,
+      p_starts_min: startsMin == null ? null : Math.max(0, Math.min(1439, Math.round(Number(startsMin)))),
+      p_reset_time: !!resetTime,
+      p_skipped: skipped == null ? null : !!skipped,
+      p_note: note == null ? null : String(note).slice(0, 200),
+    });
+    if (error) return false;
+    RTC.boardAt = 0;
+    for (const b of RTC.boards.values()) b.at = 0;
+    for (const u of RTC.upcoming.values()) u.at = 0;
+    return true;
+  } catch { return false; }
 }
 
 /** Every standing commitment in this book — what the manage screen lists and the composer edits.

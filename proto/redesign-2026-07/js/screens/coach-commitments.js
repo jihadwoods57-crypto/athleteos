@@ -23,12 +23,14 @@ import {
   boardCounts, missingFrom, TYPE_LABEL, presenceOf, PRESENCE,
   groupByVerdict, verdictCounts, deadlineOf, closesAtOf, opensAtOf, graceMinOf, offsetFor, fmtAt,
   summarizeOccurrences, wakeupPhase, VERDICT, SOURCE,
+  dayLabel, scheduleState, nextRollcall,
 } from '../commitments.js';
 import { fmtMin } from '../requirements.js';
 import {
   VC, loadBoard, loadCommitments, loadLocations, saveCommitment, saveLocation,
   setResponse, remindMissing, excuseAthlete, setCommitmentActive, todayISO, shiftISO,
   pingAthlete, setInstanceMessage, loadRollcallSummary, resolveSyncReview, subscribeBoard,
+  loadUpcoming, setInstanceSchedule,
 } from '../commitment-data.js';
 import { editWakeup } from './coach-wakeup.js';
 
@@ -59,7 +61,7 @@ export function commitmentBoardCard() {
       <div class="ts" style="padding-top:4px">This isn’t a count of zero; we couldn’t reach the server. It retries the next time you open this screen.</div>
     </section>`;
   }
-  if (!rows || !rows.length) return '';
+  if (!rows || !rows.length) return nextRollcallCard();
   return rows.map((inst) => {
     // A wake-up roll call (0211) reads in verdicts: up / late / still out, on the instance clock.
     if (inst.type === 'morning_roll_call') return wakeupHomeCard(inst);
@@ -89,7 +91,7 @@ export function commitmentBoardCard() {
           c.leftEarly ? `${c.leftEarly} left early` : '']
           .filter(Boolean).join(' · ')}</div>` : ''}
     </section>`;
-  }).filter(Boolean).join('');
+  }).filter(Boolean).join('') + nextRollcallCard();
 }
 
 /** The operator-Home card for a wake-up roll call: the count that matters and the split. */
@@ -139,6 +141,116 @@ let HIST_ALL = false;
 const BOARD_DAY_FOR = new Map();
 /* The live watcher for the open board (0212). One at a time. */
 const LIVE = { stop: null, phase: null };
+/* The week ahead for the roll call on screen (0214), keyed by commitment id; null rows = the
+   fetch failed. Drives the day strip on the board and the "next roll call" card on Home. */
+const UPCOMING = { forId: null, rows: null, failed: false };
+/* Home's "next roll call": which commitment it came from, so a book switch refetches. */
+const NEXT = { forBook: null, commitmentId: null };
+/* A skip on the Home card is two taps, never one: the first arms it, the second sends it. */
+let SKIP_ARMED = null;
+
+/** The day strip across the top of the roll-call board (0214): today, tomorrow, the week. A dot
+ *  marks a day the coach changed; a struck-through chip is a skipped day. */
+function dayStrip(inst) {
+  const rows = UPCOMING.forId === inst.commitment_id ? (UPCOMING.rows || []) : [];
+  if (!rows.length) return '';
+  const today = todayISO();
+  return `<div class="wk-strip" role="tablist" aria-label="Which day">
+    ${rows.map((o) => {
+      const st = scheduleState(o);
+      const on = o.instance_id === inst.instance_id;
+      const label = dayLabel(o.occurs_on, today);
+      const short = label === 'Today' || label === 'Tomorrow' ? label : label.split(',')[0];
+      return `<button class="chip ${on ? 'on' : ''} ${st.kind === 'skipped' ? 'skip' : ''}" role="tab" aria-selected="${on ? 'true' : 'false'}"
+        data-wk-day="${esc(o.occurs_on)}" data-wk-inst="${esc(o.instance_id)}" aria-label="${esc(label)}${st.kind === 'skipped' ? ', skipped' : ''}">
+        ${esc(short)}<small>${st.kind === 'skipped' ? 'Skipped' : esc(fmtMin(Number(o.starts_min)))}</small>${st.kind === 'moved' ? '<span class="wk-dot" aria-hidden="true"></span>' : ''}
+      </button>`;
+    }).join('')}
+  </div>`;
+}
+
+/** The one card that edits a single day (0214). Only on a day that has not started. */
+function scheduleCard(inst, label) {
+  const st = scheduleState(inst);
+  const skipped = st.kind === 'skipped';
+  const rule = inst.rule_starts_min != null ? Number(inst.rule_starts_min) : null;
+  const eff = inst.starts_min != null ? Number(inst.starts_min) : rule;
+  const hhmmOf = (m) => (m == null ? '' : `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`);
+  const who = inst.schedule_set_by_name && inst.schedule_set_at
+    ? `${st.kind === 'skipped' ? 'Skipped' : st.kind === 'moved' ? 'Moved' : 'Set'} by ${inst.schedule_set_by_name}${inst.note ? ` · ${inst.note}` : ''}` : '';
+  return `
+  <section class="card wk-sched">
+    <div class="wk-msgh"><h2 class="eyebrow wk-inline">${icon('clock', 14)} ${esc(label)}’s schedule</h2>
+      ${canSchedule() ? `<button class="btn ghost xs ${skipped ? '' : 'danger'}" id="wk-skip" data-skipped="${skipped ? '1' : '0'}">${skipped ? 'Put it back' : 'Skip this day'}</button>` : ''}</div>
+    ${st.line ? `<div class="wk-sched-line ${st.kind === 'skipped' ? 'skip' : 'moved'}">${esc(st.line)}</div>`
+      : `<div class="wk-sched-line">On the standing schedule${rule != null ? `, ${esc(fmtMin(rule))}` : ''}. Change it for this day only below.</div>`}
+    ${who ? `<div class="wk-sched-who">${esc(who)}</div>` : ''}
+    ${!skipped && canSchedule() ? `
+    <div class="wk-field">
+      <div class="wk-l">Wake-up time this day</div>
+      <input class="ob-input wk-time" id="wk-sched-time" type="time" value="${esc(hhmmOf(eff))}" aria-label="Wake-up time for ${esc(label)}" />
+      <div class="ts wk-hint">Grace and close move with it. ${st.kind === 'moved' ? `<button class="btn ghost xs" id="wk-sched-reset">Back to ${esc(fmtMin(rule))}</button>` : 'The standing rule stays as it is.'}</div>
+    </div>` : ''}
+    <div id="wk-sched-err" class="ts wk-err" aria-live="polite"></div>
+  </section>`;
+}
+
+/** Home: the NEXT roll call the coach can still act on, once today's has closed or when there is
+ *  none today (0214). Skip is two taps. */
+function nextRollcallCard() {
+  const rows = !NEXT.commitmentId ? null
+    : UPCOMING.forId === NEXT.commitmentId ? UPCOMING.rows
+    : VC.upcomingFor(NEXT.commitmentId);
+  if (!rows) return '';
+  const now = new Date().toISOString();
+  const next = nextRollcall(rows, now);
+  if (!next) return '';
+  // Today's live card already owns today's roll call while it is running.
+  const today = todayISO();
+  if (next.occurs_on === today && wakeupPhase(next, now) !== 'closed') return '';
+  const st = scheduleState(next);
+  const label = dayLabel(next.occurs_on, today);
+  const armed = SKIP_ARMED === next.instance_id;
+  return `
+    <section class="card pad vc-board wk-homecard wk-nextcard">
+      <h2 class="eyebrow wk-cardh">Next roll call · ${esc(label)}</h2>
+      <div class="wk-ctx">${st.kind === 'skipped' ? 'Skipped' : `${esc(fmtMin(Number(next.starts_min)))}${st.kind === 'moved' ? ' · moved for this day' : ''}`}${Number(next.total) ? ` · ${next.total} will get it` : ''}</div>
+      ${next.message && st.kind !== 'skipped' ? `<div class="wk-nextmsg">“${esc(String(next.message).slice(0, 160))}${String(next.message).length > 160 ? '…' : ''}”</div>` : ''}
+      <div class="wk-nextacts">
+        <button class="chip on" data-wk-day="${esc(next.occurs_on)}" data-wk-inst="${esc(next.instance_id)}">${st.kind === 'skipped' ? 'Open' : 'Change'}</button>
+        ${canSchedule() ? (st.kind === 'skipped'
+          ? `<button class="chip" data-wk-unskip="${esc(next.instance_id)}">Put it back</button>`
+          : `<button class="chip ${armed ? 'on' : ''}" data-wk-skip="${esc(next.instance_id)}">${armed ? `Skip ${esc(label.toLowerCase())}, for sure` : 'Skip'}</button>`) : ''}
+      </div>
+    </section>`;
+}
+
+/** Harness seam (render tests only, never product code): seed the week ahead and which roll call
+ *  Home follows, the way seedBoardForHarness seeds the board. */
+export function seedScheduleForHarness({ commitmentId, upcoming } = {}) {
+  UPCOMING.forId = commitmentId || null; UPCOMING.rows = Array.isArray(upcoming) ? upcoming : null; UPCOMING.failed = false;
+  NEXT.forBook = 'harness'; NEXT.commitmentId = commitmentId || null;
+  SKIP_ARMED = null;
+}
+
+/** Resolve which roll call Home's "next" card follows, then load its week. Best-effort. */
+async function ensureNext() {
+  const bid = bookId(); if (!bid) return;
+  if (NEXT.forBook !== bid) { NEXT.forBook = bid; NEXT.commitmentId = null; }
+  if (!NEXT.commitmentId) {
+    const fromBoard = (VC.board || []).find((b) => b.type === 'morning_roll_call');
+    if (fromBoard) NEXT.commitmentId = fromBoard.commitment_id;
+    else {
+      const rows = await loadCommitments(bid, CD.kind);
+      const rule = (rows || []).find((r) => r.type === 'morning_roll_call' && r.active !== false);
+      if (rule) NEXT.commitmentId = rule.id;
+    }
+  }
+  if (NEXT.commitmentId) {
+    const rows = await loadUpcoming(NEXT.commitmentId, 7);
+    if (rows) { UPCOMING.forId = NEXT.commitmentId; UPCOMING.rows = rows; UPCOMING.failed = false; }
+  }
+}
 
 const ACK_SRC = { lockscreen: 'from the lock screen', app: 'in the app' };
 
@@ -283,25 +395,30 @@ function wakeupBoard(inst, back) {
 
   /* Which day is on screen. A tap in the history opens a past board, and nothing on it used to say
      so: the header read exactly like this morning's. */
-  const dayEyebrow = !inst.occurs_on || inst.occurs_on === todayISO() ? 'Today' : (() => {
-    const d = new Date(String(inst.occurs_on) + 'T12:00:00');
-    return isNaN(d) ? String(inst.occurs_on) : d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
-  })();
+  const today = todayISO();
+  const dayEyebrow = !inst.occurs_on ? 'Today' : dayLabel(inst.occurs_on, today) || String(inst.occurs_on);
+  /* A day ahead (0214): the coach is here to SET it, not to read a roster. */
+  const ahead = !!inst.occurs_on && inst.occurs_on > today;
+  const skipped = scheduleState(inst).kind === 'skipped';
 
   /* State, not a count. The numbers are the columns' job. */
-  const state = phase === 'before' ? 'Not open yet'
+  const state = skipped ? 'Skipped'
+    : ahead ? 'Scheduled'
+    : phase === 'before' ? 'Not open yet'
     : phase === 'open' ? 'In progress'
     : phase === 'late' ? 'Grace ended'
     : (out || c.missed) ? 'Closed' : 'Complete';
-  const statusLine = phase === 'before' ? `Opens ${clock(opensAtOf(inst))}. On Standard until ${clock(dl)}.`
+  const statusLine = skipped ? 'Nobody gets a roll call this day. Put it back below to send it.'
+    : ahead || phase === 'before' ? `Goes out ${clock(opensAtOf(inst))}. On Standard until ${clock(dl)}. Closes ${clock(close)}.`
     : phase === 'open' ? `On Standard until ${clock(dl)}. Closes ${clock(close)}.`
     : phase === 'late' ? `Late check-ins still count until ${clock(close)}.`
     : `Closed ${clock(close)}. Missed is final.`;
   const outLabel = phase === 'closed' ? 'Missed' : phase === 'late' ? 'Still out' : 'Pending';
   /* One accent for the whole header: a decision to make beats a body missing beats clean. */
   const tone = c.review ? 'p'
+    : skipped ? 'r'
     : (phase === 'closed' || phase === 'late') && (out || c.missed) ? 'r'
-    : phase === 'before' ? 'b'
+    : ahead || phase === 'before' ? 'b'
     : out ? 'a' : 'g';
 
   /* Everything the three columns do NOT already say. "N checked in" is gone from here: it was the
@@ -327,8 +444,13 @@ function wakeupBoard(inst, back) {
     : r.verdict === VERDICT.LATE ? 'late'
     : r.verdict === VERDICT.EXCUSED ? 'ex' : 'out');
 
+  /* A day ahead is set up, not read: no ring of zeros, no "Waiting on 24" alarm, just the
+     schedule, the message, and who will get it. */
+  const setup = ahead || skipped;
   return `
   ${backHead(title, ctx, back, canSchedule() ? { id: 'wk-edit', label: 'Edit this roll call', icon: 'gear' } : null)}
+
+  ${dayStrip(inst)}
 
   <section class="card pad wk-board">
     <div class="wk-hero">
@@ -337,32 +459,35 @@ function wakeupBoard(inst, back) {
         <div class="wk-heroT">${esc(state)}</div>
         <div class="wk-status" id="wk-status-line">${esc(statusLine)}</div>
       </div>
-      ${wakeupRing(c.accountedFor, c.total, tone)}
+      ${setup ? '' : wakeupRing(c.accountedFor, c.total, tone)}
     </div>
+    ${setup ? `<div class="wk-split">${skipped ? 'Nobody is scheduled.' : `${c.total} will get it${inst.audience_label ? `, ${esc(inst.audience_label)}` : ''}.`}</div>` : `
     <div class="wk-stats">
       <div class="wk-stat ${c.onStandard ? 'g' : ''}"><b>${c.onStandard}</b><span>On Standard</span></div>
       <div class="wk-stat ${c.late ? 'a' : ''}"><b>${c.late}</b><span>Late</span></div>
       <div class="wk-stat ${out && phase !== 'open' && phase !== 'before' ? 'r' : ''}"><b>${out}</b><span>${esc(outLabel)}</span></div>
     </div>
-    ${split ? `<div class="wk-split">${esc(split)}</div>` : ''}
+    ${split ? `<div class="wk-split">${esc(split)}</div>` : ''}`}
   </section>
 
-  <section class="card wk-msgcard">
+  ${(setup || phase === 'before') ? scheduleCard(inst, dayEyebrow) : ''}
+
+  ${skipped ? '' : `<section class="card wk-msgcard">
     <div class="wk-msgh"><h2 class="eyebrow wk-inline">${icon('message', 14)} Message for ${esc(dayEyebrow.toLowerCase())}</h2><button class="btn ghost xs" id="wk-msg-edit">${inst.message ? 'Change' : 'Add'}</button></div>
     ${inst.message ? `<p class="wk-msgp">${esc(inst.message)}</p>` : `<div class="wk-hint wk-hint-flush">No message. The roll call goes out with the time only.</div>`}
     ${inst.message_override ? `<div class="wk-hint">This day only. The next one uses your standing message.</div>` : ''}
     <div id="wk-msg-form" hidden>
       <textarea class="ob-input wk-msg" id="wk-msg-ta" maxlength="1000" rows="3" aria-label="Message for this roll call">${esc(inst.message_override || inst.standing_message || inst.message || '')}</textarea>
-      <div class="wk-hint">${phase === 'before' ? 'Goes out with this roll call, in your name, exactly as written.' : 'Shows in the app now. A push already sent keeps its words.'}</div>
+      <div class="wk-hint">${ahead || phase === 'before' ? 'Goes out with this roll call, in your name, exactly as written.' : 'Shows in the app now. A push already sent keeps its words.'}</div>
       <div class="btn-row mt">
-        <button class="btn green sm" id="wk-msg-save">Save for today</button>
+        <button class="btn green sm" id="wk-msg-save">${ahead ? 'Save for this day' : 'Save for today'}</button>
         ${inst.message_override ? `<button class="btn ghost sm" id="wk-msg-clear">Use standing message</button>` : ''}
       </div>
       <div id="wk-msg-err" class="ts wk-err" aria-live="polite"></div>
     </div>
-  </section>
+  </section>`}
 
-  ${attention.length ? `
+  ${!setup && attention.length ? `
   <div class="wk-secth">
     <h2 class="eyebrow wk-inline ${attnTone}">${icon(attnTone === 'a' ? 'clock' : 'alert', 14)} ${esc(attnLabel)}</h2>
     <span class="xpill ${attnTone === 'r' ? 'red' : attnTone === 'p' ? 'purple' : 'gold'}">${attention.length}</span>
@@ -372,13 +497,21 @@ function wakeupBoard(inst, back) {
   <button class="btn" id="vc-remind" data-inst="${esc(inst.instance_id)}">${icon('bell', 18)} Ping ${out} ${outLabel === 'Pending' ? 'pending' : 'still out'}</button>
   <div class="wk-pinghint" id="wk-ping-hint">Only who’s still out gets it, with their own I’M UP button. One ping every ten minutes.</div>` : ''}` : ''}
 
-  ${settled.length ? `
+  ${setup && !skipped && (attention.length + settled.length) ? `
+  <details class="wk-roster">
+    <summary>${icon('chevron', 14)} <span class="wk-rostl">Who gets it</span> <span class="opt">· ${attention.length + settled.length}</span></summary>
+    <section class="card rows">${[...attention, ...settled].map((r) => `
+      <div class="lrow"><div class="lm"><div class="lt">${esc(r.name || 'Athlete')}</div>${r.verdict === VERDICT.EXCUSED ? `<div class="ls">${esc(r.excused_reason || 'Excused')}</div>` : ''}</div>
+        ${r.verdict === VERDICT.EXCUSED ? '<span class="xpill gray">Excused</span>' : ''}</div>`).join('')}</section>
+  </details>` : ''}
+
+  ${!setup && settled.length ? `
   <details class="wk-roster"${attention.length ? '' : ' open'}>
     <summary>${icon('chevron', 14)} <span class="wk-rostl">${attention.length ? 'Everyone else' : 'Roster'}</span> <span class="opt">· ${settled.length}</span></summary>
     <section class="card rows">${settled.map((r) => wakeupRow(r, rowKind(r), inst, clock, phase)).join('')}</section>
   </details>` : ''}
 
-  ${wakeupSummaryCard(inst)}
+  ${setup ? '' : wakeupSummaryCard(inst)}
   <div class="wk-foot"></div>`;
 }
 
@@ -386,10 +519,43 @@ function wakeupBoard(inst, back) {
 export function paintBoard(root, slotId = '#vc-board-slot') {
   const slot = root.querySelector(slotId);
   if (!slot) return;
-  const paint = () => { if (slot.isConnected) slot.innerHTML = commitmentBoardCard(); };
+  const paint = () => { if (slot.isConnected) { slot.innerHTML = commitmentBoardCard(); wireNextCard(slot); } };
   paint();
   const id = bookId();
-  if (id) loadBoard(id, CD.kind).then(paint);
+  // Today first (the live count), then the week ahead for the "next roll call" card (0214).
+  if (id) loadBoard(id, CD.kind).then(paint).then(ensureNext).then(paint);
+}
+
+/** The Home "next roll call" card's controls (0214): open that day's board, or skip it in two
+ *  taps. Lives here, not in the board mount, because the card is painted into Home's slot. */
+function wireNextCard(slot) {
+  slot.querySelectorAll('[data-wk-day]').forEach((b) => b.addEventListener('click', async () => {
+    const day = b.getAttribute('data-wk-day'); const instId = b.getAttribute('data-wk-inst');
+    if (!day || !instId) return;
+    BOARD_DAY_FOR.set(instId, day);
+    const bid = bookId();
+    if (bid) await loadBoard(bid, CD.kind, day, true);
+    location.hash = `#coach-commitments/${instId}`;
+  }));
+  const rearm = () => { slot.innerHTML = commitmentBoardCard(); wireNextCard(slot); };
+  slot.querySelectorAll('[data-wk-skip]').forEach((b) => b.addEventListener('click', async () => {
+    const instId = b.getAttribute('data-wk-skip');
+    if (SKIP_ARMED !== instId) { SKIP_ARMED = instId; rearm(); return; }
+    b.disabled = true; b.textContent = '…';
+    const ok = await setInstanceSchedule(instId, { skipped: true });
+    SKIP_ARMED = null;
+    if (!ok) { b.disabled = false; b.textContent = 'Couldn’t skip. Try again'; return; }
+    await ensureNext();
+    rearm();
+  }));
+  slot.querySelectorAll('[data-wk-unskip]').forEach((b) => b.addEventListener('click', async () => {
+    const instId = b.getAttribute('data-wk-unskip');
+    b.disabled = true; b.textContent = '…';
+    const ok = await setInstanceSchedule(instId, { skipped: false });
+    if (!ok) { b.disabled = false; b.textContent = 'Couldn’t. Try again'; return; }
+    await ensureNext();
+    rearm();
+  }));
 }
 
 /* ---------------------------------------------------------------- roster breakdown */
@@ -618,6 +784,49 @@ export const coachCommitments = {
         if (root.isConnected) window.__render && window.__render();
       });
     }
+    // The week ahead for the day strip (0214). Refetched whenever the cache is stale (a schedule
+    // write zeroes it), repainted only when it changed.
+    if (inst && inst.type === 'morning_roll_call') {
+      const beforeUp = JSON.stringify(UPCOMING.forId === inst.commitment_id ? UPCOMING.rows : null);
+      loadUpcoming(inst.commitment_id, 7).then((rows) => {
+        UPCOMING.forId = inst.commitment_id;
+        if (rows === null) { UPCOMING.failed = true; return; }
+        UPCOMING.rows = rows; UPCOMING.failed = false;
+        if (root.isConnected && JSON.stringify(rows) !== beforeUp) window.__render && window.__render();
+      });
+    }
+
+    // Schedule controls (0214): one day's time, back to the rule, skip / put back.
+    const schedSay = (m) => { const el = root.querySelector('#wk-sched-err'); if (el) el.textContent = m; };
+    const schedTime = root.querySelector('#wk-sched-time');
+    if (schedTime && inst) schedTime.addEventListener('change', async () => {
+      const m = /^(\d{1,2}):(\d{2})$/.exec(schedTime.value || '');
+      if (!m) return;
+      schedTime.disabled = true; schedSay('');
+      const ok = await setInstanceSchedule(inst.instance_id, { startsMin: Math.min(1439, +m[1] * 60 + +m[2]) });
+      schedTime.disabled = false;
+      if (!ok) { schedSay('Couldn’t change the time. It may have already started, or check your connection.'); return; }
+      await repaint();
+    });
+    const schedReset = root.querySelector('#wk-sched-reset');
+    if (schedReset && inst) schedReset.addEventListener('click', async () => {
+      schedReset.disabled = true; schedSay('');
+      const ok = await setInstanceSchedule(inst.instance_id, { resetTime: true });
+      if (!ok) { schedReset.disabled = false; schedSay('Couldn’t reset. Try again.'); return; }
+      await repaint();
+    });
+    const skipBtn = root.querySelector('#wk-skip');
+    if (skipBtn && inst) skipBtn.addEventListener('click', async () => {
+      const wasSkipped = skipBtn.getAttribute('data-skipped') === '1';
+      // Skipping is two taps; putting it back is one.
+      if (!wasSkipped && skipBtn.getAttribute('data-armed') !== '1') {
+        skipBtn.setAttribute('data-armed', '1'); skipBtn.textContent = 'Skip it, for sure'; return;
+      }
+      skipBtn.disabled = true; skipBtn.textContent = '…'; schedSay('');
+      const ok = await setInstanceSchedule(inst.instance_id, { skipped: !wasSkipped });
+      if (!ok) { skipBtn.disabled = false; skipBtn.textContent = wasSkipped ? 'Put it back' : 'Skip this day'; schedSay('Couldn’t save. It may have already started, or check your connection.'); return; }
+      await repaint();
+    });
 
     // LIVE (0212): realtime on this instance's responses, a poll as the floor. One watcher per
     // mount; the previous one is stopped first, and a watchdog stops it when the screen is gone.

@@ -254,3 +254,48 @@ supabase functions deploy roll-call-ack --use-api --no-verify-jwt   # tapped_at 
 supabase functions deploy roll-call-coach --use-api --no-verify-jwt
 # then the OTA, and prove the manifest on both platforms
 ```
+
+## Third pass, 2026-09-02 (migration 0214): manage the next one, schedule the week
+
+Founder: "as a coach I need to easily manage the next morning roll call, or even have it
+scheduled out." Before this the roll call was one standing rule and a board for today; the only
+per-day control was today's message.
+
+### What a coach can now do
+- **Home** shows the **next roll call** once today's has closed (or when there is none today):
+  day, time, who gets it, the message, with **Change** (opens that day's board) and **Skip**
+  (two taps: the first arms it, the second sends it).
+- **The board has a day strip**: Today, Tomorrow, then the week. A struck-through chip is a
+  skipped day; a dot marks a day the coach moved.
+- **A day ahead is a setup screen, not a roster**: "Scheduled", the schedule card (a time picker
+  for that day only, Skip this day / Put it back, "Moved by Coach X · reason"), the message for
+  that day, and a collapsed "Who gets it".
+- The standing rule is never touched by any of this, and editing the rule keeps the per-day
+  changes (a skipped day stays skipped; a moved day keeps its time).
+
+### The server (0214)
+- `commitment_instances` gains `starts_override_min`, `skipped`, `schedule_set_by`,
+  `schedule_set_at`.
+- `set_instance_schedule(p_instance, p_starts_min, p_reset_time, p_skipped, p_note)` (staff of the
+  owning book; refused once the occurrence has started). Re-times the DAY keeping the rule's
+  grace and close deltas through `_rc_time_instance`, resets pending reminder offsets, and clears
+  Live Activity tokens on a skip. A skipped day is `status = 'cancelled'` + `skipped = true`, so
+  every cron, verdict and athlete card already treats it as called off.
+- `rollcall_upcoming(p_commitment, p_days)` materializes the next N days on the way in and returns
+  them with the day's effective minute, the rule's minute, the message, the note and who set it.
+- `commitment_board` and `my_commitments` now report `starts_min` / `respond_by_min` as the DAY's
+  effective minutes (plus `rule_starts_min`), so "At 6:30 AM" on the athlete card and the local
+  reminder anchor follow a moved day without a client change.
+- `resync_commitment_instances` keeps `skipped` days cancelled and re-times a moved day from its
+  own minute.
+
+### Deploy (0214)
+1. `supabase db push --linked` (probe: `select to_regprocedure('set_instance_schedule(uuid,smallint,boolean,boolean,text)')`).
+2. No edge function changes. OTA the proto (`assets/proto.zip`), prove md5 + sha256 on the live
+   manifest for both platforms.
+3. RLS: 27 new `0214:` probes in `rls_authz_test.sql` (702/702 on a disposable project).
+
+### Device QA still owed
+- Move tomorrow to 6:30 from the board, confirm the athlete's card says 6:30 and the 6:30 push
+  arrives with the 6:35 grace.
+- Skip tomorrow, confirm no push and no card; put it back, confirm it returns.

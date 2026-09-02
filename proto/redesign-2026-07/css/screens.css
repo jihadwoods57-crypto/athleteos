@@ -2674,3 +2674,21 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xico.sm.muted{background:var(--surface-2);color:var(--text-3)}
 .xico.sm.green{background:var(--green-surface);color:var(--green-bright)}
 .xico.sm.blue{background:var(--blue-surface);color:var(--blue-bright)}
+/* Schedule ahead (0214): the day strip across the top of the roll-call board, and the one card
+   that edits a single day. Chips reuse .chip; a dot marks a day the coach changed. */
+.wk-strip{display:flex;gap:var(--s2);overflow-x:auto;padding:var(--s2) 0 var(--s3);scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.wk-strip::-webkit-scrollbar{display:none}
+.wk-strip .chip{flex:none;flex-direction:column;align-items:center;gap:2px;min-width:62px;padding:8px 10px;line-height:1.15}
+.wk-strip .chip small{font-size:var(--t-xs);font-weight:700;color:var(--text-3)}
+.wk-strip .chip.on small{color:inherit;opacity:.85}
+.wk-strip .chip.skip{text-decoration:line-through;color:var(--text-3)}
+.wk-strip .chip .wk-dot{width:5px;height:5px;border-radius:50%;background:var(--amber-bright);margin-top:1px}
+.wk-sched{margin-top:var(--s3);padding:var(--s4) var(--s5)}
+.wk-sched .wk-field{margin-top:var(--s3)}
+.wk-sched-line{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.45}
+.wk-sched-line.skip{color:var(--red)}
+.wk-sched-line.moved{color:var(--amber-bright)}
+.wk-sched-who{font-size:var(--t-xs);color:var(--text-3);padding-top:4px}
+.wk-nextcard .wk-ctx{padding-bottom:var(--s2)}
+.wk-nextmsg{font-size:var(--t-sm);color:var(--text-2);line-height:1.45;padding:var(--s2) 0 var(--s3);overflow-wrap:anywhere}
+.wk-nextacts{display:flex;gap:var(--s2);flex-wrap:wrap}

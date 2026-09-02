@@ -727,3 +727,38 @@ test('the close default is 30 minutes after the wake-up and the coach ends_at wi
   assert.equal(closesAtOf({ ...wake, ends_at: NY('10:15:00') }), NY('10:15:00'));
   assert.equal(rollcallVerdict(wake, NY('10:16:00'), null, NY('10:15:00')), 'missed');
 });
+
+/* ---------------------------------------------------------------- schedule ahead (0214) */
+import { dayLabel, scheduleState, nextRollcall } from './commitments.js';
+
+test('dayLabel: Today, Tomorrow, then a fixed weekday + date, no locale', () => {
+  assert.equal(dayLabel('2026-09-02', '2026-09-02'), 'Today');
+  assert.equal(dayLabel('2026-09-03', '2026-09-02'), 'Tomorrow');
+  assert.equal(dayLabel('2026-09-09', '2026-09-02'), 'Wed, Sep 9');
+  assert.equal(dayLabel('garbage', '2026-09-02'), '');
+});
+
+test('scheduleState reads the server flags, never guesses', () => {
+  assert.equal(scheduleState({ skipped: true }).kind, 'skipped');
+  assert.equal(scheduleState({ instance_status: 'cancelled' }).kind, 'skipped');
+  const moved = scheduleState({ starts_override_min: 390, rule_starts_min: 360 });
+  assert.equal(moved.kind, 'moved');
+  assert.match(moved.line, /6:30 AM/);
+  assert.match(moved.line, /Usually 6:00 AM/);
+  // an override equal to the rule is not a move
+  assert.equal(scheduleState({ starts_override_min: 360, rule_starts_min: 360 }).kind, 'standing');
+  assert.equal(scheduleState({}).kind, 'standing');
+});
+
+test('nextRollcall is the first occurrence still ahead of now, skipped days included', () => {
+  const up = [
+    { occurs_on: '2026-09-03', starts_at: '2026-09-03T10:00:00Z', closes_at: '2026-09-03T10:30:00Z', skipped: true, instance_status: 'cancelled' },
+    { occurs_on: '2026-09-02', starts_at: '2026-09-02T10:00:00Z', closes_at: '2026-09-02T10:30:00Z' },
+    { occurs_on: '2026-09-04', starts_at: '2026-09-04T10:00:00Z', closes_at: '2026-09-04T10:30:00Z' },
+  ];
+  // 9:00 AM on the 2nd: today's is still ahead
+  assert.equal(nextRollcall(up, '2026-09-02T09:00:00Z').occurs_on, '2026-09-02');
+  // 11:00 AM on the 2nd: today's closed at 10:30, tomorrow (skipped) is next so the coach can put it back
+  assert.equal(nextRollcall(up, '2026-09-02T11:00:00Z').occurs_on, '2026-09-03');
+  assert.equal(nextRollcall([], '2026-09-02T11:00:00Z'), null);
+});

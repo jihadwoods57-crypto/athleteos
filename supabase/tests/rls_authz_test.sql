@@ -3907,6 +3907,136 @@ select _ok(exists (select 1 from pg_publication_tables where pubname = 'supabase
            or not exists (select 1 from pg_publication where pubname = 'supabase_realtime'),
   '0212: commitment_responses is in the realtime publication (or there is none to join)');
 
+-- ================================================================ 0214: schedule ahead
+-- The coach manages the NEXT roll call and the week: one day can carry its own wake-up time or
+-- be skipped, the standing rule untouched, and an edit to the rule keeps those overrides.
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select rollcall_upcoming('ccccdddd-0000-0000-0000-0000000000c1', 7) $f$) = 'ok',
+  '0214: staff can read the week ahead');
+select _ok((select jsonb_array_length(rollcall_upcoming('ccccdddd-0000-0000-0000-0000000000c1', 7)) >= 2),
+  '0214: the week ahead materializes future occurrences on the way in');
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select rollcall_upcoming('ccccdddd-0000-0000-0000-0000000000c1', 7) $f$) <> 'ok',
+  '0214: an athlete cannot read the coach''s week ahead');
+select _as('22222222-0000-0000-0000-000000000002');
+select _ok(_try($f$ select rollcall_upcoming('ccccdddd-0000-0000-0000-0000000000c1', 7) $f$) <> 'ok',
+  '0214: a stranger coach cannot read another team''s week ahead');
+
+-- the first FUTURE occurrence (starts_at > now()) is the one every probe below acts on
+select _superuser();
+create temp table _rc_next as
+  select id, occurs_on from commitment_instances
+   where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and starts_at > now()
+   order by occurs_on limit 1;
+grant select on _rc_next to authenticated, anon; -- the probes read it as every actor
+select _ok((select count(*) from _rc_next) = 1, '0214: (fixture) a future occurrence exists');
+
+-- move one day to 6:30: the DAY's timestamps move, the rule does not
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select set_instance_schedule((select id from _rc_next), 390::smallint, false, null, 'Late game') $f$) = 'ok',
+  '0214: staff can move one day''s wake-up time');
+select _superuser();
+select _ok((select starts_override_min = 390 and note = 'Late game' and schedule_set_by = '11111111-0000-0000-0000-000000000001'
+              from commitment_instances where id = (select id from _rc_next)),
+  '0214: the override, the note and who set it are recorded on the occurrence');
+select _ok((select _rc_min_of(i.starts_at, c.timezone) = 390
+              and _rc_min_of(i.respond_by_at, c.timezone) = 390 + (c.respond_by_min - c.starts_min)
+              from commitment_instances i join commitments c on c.id = i.commitment_id
+             where i.id = (select id from _rc_next)),
+  '0214: the day is re-timed keeping the rule''s grace delta');
+select _ok((select starts_min from commitments where id = 'ccccdddd-0000-0000-0000-0000000000c1') <> 390,
+  '0214: the standing rule''s time is untouched by a per-day move');
+-- the coach board and the athlete read both report the DAY's clock
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok((select (o->>'starts_min')::int = 390 and (o->>'rule_starts_min')::int <> 390
+              from jsonb_array_elements(commitment_board('77777777-1111-0000-0000-000000000001', null, (select occurs_on from _rc_next))) o
+             where o->>'instance_id' = (select id::text from _rc_next)),
+  '0214: the board reports the day''s effective minute and the rule''s minute');
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok((select (o->>'starts_min')::int = 390
+              from jsonb_array_elements(my_commitments((select occurs_on from _rc_next), (select occurs_on from _rc_next))) o
+             where o->>'instance_id' = (select id::text from _rc_next)),
+  '0214: the athlete''s card reads the moved time');
+-- the wrong people cannot touch a day
+select _ok(_try($f$ select set_instance_schedule((select id from _rc_next), 400::smallint) $f$) <> 'ok',
+  '0214: an athlete cannot move a roll call');
+select _as('22222222-0000-0000-0000-000000000002');
+select _ok(_try($f$ select set_instance_schedule((select id from _rc_next), 400::smallint) $f$) <> 'ok',
+  '0214: a stranger coach cannot move another team''s roll call');
+select _superuser();
+select _ok((select starts_override_min = 390 from commitment_instances where id = (select id from _rc_next)),
+  '0214: the refused writes left the coach''s move intact');
+
+-- editing the RULE keeps the per-day move
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select upsert_commitment(jsonb_build_object(
+    'id','ccccdddd-0000-0000-0000-0000000000c1',
+    'team_id','77777777-1111-0000-0000-000000000001',
+    'type','morning_roll_call','title','Morning Roll Call','message','Rule edited',
+    'audience_kind','team',
+    'repeat_days', jsonb_build_array(0,1,2,3,4,5,6),
+    'starts_min', 285, 'respond_by_min', 315)) $f$) = 'ok',
+  '0214: (fixture) the rule can still be edited');
+select _superuser();
+select _ok((select starts_override_min = 390 and _rc_min_of(i.starts_at, c.timezone) = 390
+              from commitment_instances i join commitments c on c.id = i.commitment_id
+             where i.id = (select id from _rc_next)),
+  '0214: a rule edit re-times the future but keeps a day''s own time');
+
+-- back to the rule
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select set_instance_schedule((select id from _rc_next), null, true) $f$) = 'ok',
+  '0214: staff can put a day back on the rule''s time');
+select _superuser();
+select _ok((select starts_override_min is null and _rc_min_of(i.starts_at, c.timezone) = c.starts_min
+              from commitment_instances i join commitments c on c.id = i.commitment_id
+             where i.id = (select id from _rc_next)),
+  '0214: the reset day is on the rule''s clock again');
+
+-- skip a day: cancelled for everyone, and a rule edit does NOT bring it back
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select set_instance_schedule((select id from _rc_next), null, false, true, 'Travel day') $f$) = 'ok',
+  '0214: staff can skip one day');
+select _superuser();
+select _ok((select skipped and status = 'cancelled' from commitment_instances where id = (select id from _rc_next)),
+  '0214: a skipped day is a cancelled occurrence with the flag set');
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok((select o->>'instance_status' = 'cancelled'
+              from jsonb_array_elements(my_commitments((select occurs_on from _rc_next), (select occurs_on from _rc_next))) o
+             where o->>'instance_id' = (select id::text from _rc_next)),
+  '0214: the athlete read carries the cancelled status the client hides');
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select upsert_commitment(jsonb_build_object(
+    'id','ccccdddd-0000-0000-0000-0000000000c1',
+    'team_id','77777777-1111-0000-0000-000000000001',
+    'type','morning_roll_call','title','Morning Roll Call','message','Everyone up?',
+    'audience_kind','team',
+    'repeat_days', jsonb_build_array(0,1,2,3,4,5,6),
+    'starts_min', 285, 'respond_by_min', 315)) $f$) = 'ok',
+  '0214: (fixture) the rule can be edited while a day is skipped');
+select _superuser();
+select _ok((select skipped and status = 'cancelled' from commitment_instances where id = (select id from _rc_next)),
+  '0214: a rule edit never un-skips a day the coach skipped');
+select _ok((select count(*) = 0 from claim_due_commitment_reminders(10, 500) d where d.instance_id = (select id from _rc_next)),
+  '0214: a skipped day never claims a reminder');
+-- put it back
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select set_instance_schedule((select id from _rc_next), null, false, false) $f$) = 'ok',
+  '0214: staff can put a skipped day back');
+select _superuser();
+select _ok((select not skipped and status = 'scheduled' from commitment_instances where id = (select id from _rc_next)),
+  '0214: a restored day is scheduled again');
+
+-- a morning already under way is history: no re-timing it
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select set_instance_schedule((select id from commitment_instances
+             where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date and starts_at <= now()), 400::smallint) $f$) <> 'ok'
+           or not exists (select 1 from commitment_instances
+             where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date and starts_at <= now()),
+  '0214: an occurrence that has started cannot be re-timed');
+select _superuser();
+drop table _rc_next;
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$
