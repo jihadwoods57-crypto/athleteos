@@ -113,3 +113,56 @@ export function avoidFromFacts(facts: MemoryFact[]): string[] {
   return [...out];
 }
 
+
+/* ================================================================================
+   LEARNING FROM CONVERSATION (2026-09-02).
+
+   Everything above READS memory. Until now the only WRITER was the correction loop on the
+   client: a fact reached this table when an athlete edited a plate, never when they simply
+   said something. "I'm lactose intolerant", "I hate salmon", "I lift at 6am" went into a
+   chat bubble and evaporated, and the same AI that had just been told asked again next week.
+
+   The `remember` tool in meal-chat closes that. The model proposes a fact; THIS is the gate
+   that decides whether the proposal is even well-formed. Same posture as the rest of this
+   file: athlete-adjacent text, so whitelist the kind, sanitize the value, cap it, and let the
+   caller write it as pending_confirmation so nothing the model heard binds until the athlete
+   taps yes.
+   ================================================================================ */
+
+/** The kinds a chat remark may produce. Deliberately NOT behavior_pattern (a calibration prior
+ *  is inferred from repeated corrections, never stated) and NOT anything medical. */
+export const CHAT_FACT_KINDS = ['allergy', 'dislike', 'favorite_food', 'favorite_restaurant', 'meal_timing'] as const;
+export type ChatFactKind = typeof CHAT_FACT_KINDS[number];
+
+export type ChatFactCandidate = { kind: ChatFactKind; value: string };
+
+/** A proposed fact from the model, validated: known kind, sanitized non-trivial value. null when
+ *  it should be dropped on the floor rather than written. */
+export function chatFactCandidate(kind: unknown, value: unknown): ChatFactCandidate | null {
+  const k = String(kind ?? '').trim().toLowerCase() as ChatFactKind;
+  if (!CHAT_FACT_KINDS.includes(k)) return null;
+  const v = clean(value);
+  // Two letters is the floor for a food or a time ("6am" passes, "" and "?" do not); a value
+  // that is only punctuation or digits is not a thing anyone eats.
+  if (v.length < 2 || !/[a-z]/i.test(v)) return null;
+  return { kind: k, value: v };
+}
+
+/** The identity of a fact for de-duplication: same kind, same value ignoring case and
+ *  surrounding whitespace. "Salmon" said twice accrues evidence on one row, not two rows. */
+export function factKey(kind: unknown, value: unknown): string {
+  return `${String(kind ?? '').trim().toLowerCase()}:${clean(value).toLowerCase()}`;
+}
+
+/** The sentence the thread shows under the AI's reply when it offers to remember something.
+ *  Written here, not in the prompt, so the athlete always sees the fact exactly as it will be
+ *  stored, never the model's paraphrase of it. */
+export function memoryOfferLine(f: ChatFactCandidate): string {
+  switch (f.kind) {
+    case 'allergy':             return `Remember that you're allergic to ${f.value}?`;
+    case 'dislike':             return `Remember that you don't eat ${f.value}?`;
+    case 'favorite_food':       return `Remember that ${f.value} is a go-to for you?`;
+    case 'favorite_restaurant': return `Remember that you often eat at ${f.value}?`;
+    case 'meal_timing':         return `Remember this about your timing: ${f.value}?`;
+  }
+}

@@ -24,6 +24,7 @@ import { wireReadMore } from '../thread-readmore.js';
 import {
   layoutThread, authorName, initialsFor, participantList, participantSummary, participantMeta,
   isAnalysisOpener, isAnalysisUpdate, isEscalated, quotedFor,
+  memoryOfferOf, memoryOfferChips,
   dayLabelOf,
 } from '../chat-view.js';
 
@@ -93,9 +94,14 @@ let _threadRtLive = false;      // survives remounts so a reused live socket sti
    until they say so. Cached with the same idiom as RECENT/RECEIPT; the thread renders at most one
    confirmation at a time, so a correction spree can't turn into an interrogation. */
 let PENDING_FACTS = { uid: null, rows: [], at: 0 };
-async function warmPendingFacts(uid) {
+/* Fact ids the AI has offered inside this thread (memory_offer rows), refreshed on every paint,
+   so the derived pending-fact row above the composer never asks about one of them twice. */
+const OFFERED_IN_THREAD = new Set();
+/* Offers the athlete answered this session: the chips go on the next paint, before any refetch. */
+const ANSWERED_FACTS = new Set();
+async function warmPendingFacts(uid, { force = false } = {}) {
   if (!uid) return;
-  if (PENDING_FACTS.uid === uid && Date.now() - PENDING_FACTS.at < 60000) return;
+  if (!force && PENDING_FACTS.uid === uid && Date.now() - PENDING_FACTS.at < 60000) return;
   const rows = await act.pendingMemoryFacts().catch(() => []);
   PENDING_FACTS = { uid, rows: rows || [], at: Date.now() };
   if (location.hash.startsWith('#meal-')) window.__render && window.__render();
@@ -544,8 +550,11 @@ export function openingBlockHtml(M, { sum, fullText, fq, hasPersistedRead = fals
   // dislike is weak evidence, so it is worth a single tap in context, never a queue of prompts.
   const plate = new Set((M && Array.isArray(M.detectedRich) ? M.detectedRich : [])
     .map((d) => String((d && d.name) || '').toLowerCase()).filter(Boolean));
-  const askFact = (PENDING_FACTS.rows || []).find((f) => f && f.kind === 'dislike' && plate.has(String(f.value).toLowerCase()))
-    || (PENDING_FACTS.rows || [])[0] || null;
+  // A fact the AI offered IN the thread (2026-09-02, meta memory_offer) already has its Yes / No
+  // under that bubble; asking it again here would be the interrogation this row exists to avoid.
+  const unoffered = (PENDING_FACTS.rows || []).filter((f) => f && !OFFERED_IN_THREAD.has(String(f.id)));
+  const askFact = unoffered.find((f) => f.kind === 'dislike' && plate.has(String(f.value).toLowerCase()))
+    || unoffered[0] || null;
   const confirmRow = askFact ? `
       <div class="msg ai" id="fact-confirm">
         <div class="av">${icon('sparkle', 15)}</div>
@@ -1491,9 +1500,23 @@ export const thread = {
           <div class="bubble tdots"><span></span><span></span><span></span></div></div>
         </div>`;
 
+    // The Yes / No under a remember-this reply (2026-09-02), while the fact is still pending.
+    // "Still pending" is what the pending-facts fetch says, once it has said anything for this
+    // athlete; before that, an offer row shows its chips rather than hiding a live question.
+    const offerChips = (c) => {
+      const offer = memoryOfferOf(c);
+      if (!offer) return '';
+      if (ANSWERED_FACTS.has(offer.id)) return '';
+      const known = PENDING_FACTS.uid === RT.userId;
+      if (known && !(PENDING_FACTS.rows || []).some((f) => f && String(f.id) === offer.id)) return '';
+      return memoryOfferChips(offer, esc);
+    };
+
     const paint = () => {
       if (!threadEl) return;
       const msgs = threadMessages(comments);
+      OFFERED_IN_THREAD.clear();
+      for (const c of msgs) { const o = memoryOfferOf(c); if (o) OFFERED_IN_THREAD.add(o.id); }
       // COACH ATTENTION, three DISTINCT facts that must never contradict each other on one
       // screen (founder spec 2026-08-06 — the header said "Reviewed by Coach" while the thread
       // tail said "Coach hasn't reviewed this meal yet."):
@@ -1565,7 +1588,7 @@ export const thread = {
                   reply is just the AI's next message, like a person texting back. The quote stem
                   above already shows WHAT it answers. The escalation badge stays: "this reached
                   your coach" is a fact worth labeling. */''}
-            <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(c.text)}</div>
+            <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(c.text)}${offerChips(c)}</div>
             ${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}
           </div>
         </div>`;
@@ -1838,6 +1861,7 @@ export const thread = {
       const fx = ev.target && ev.target.closest ? ev.target.closest('[data-fact]') : null;
       if (fx) {
         const id = fx.getAttribute('data-fact');
+        ANSWERED_FACTS.add(String(id));
         PENDING_FACTS = { uid: PENDING_FACTS.uid, rows: (PENDING_FACTS.rows || []).filter((f) => f.id !== id), at: Date.now() };
         void act.confirmMemoryFact(id, fx.getAttribute('data-keep') === '1');
         return;
@@ -1917,10 +1941,16 @@ export const thread = {
             // "I can apply a structured correction": unlocks the apply_correction tool
             // server-side. Only sent because the handler below actually applies it.
             canApplyCorrection: true,
+            // "I render the remember-this chips": unlocks the remember tool. Same contract.
+            canRemember: true,
             ...(photoPath ? { photoPath } : {}),
           },
         });
         setTyping(false);
+        // A fresh offer is pending by definition. Re-read the pending list past its cache so the
+        // chips under the new bubble are drawn from what the server holds, not from a minute-old
+        // snapshot that predates the fact.
+        if (data && data.memory && data.memory.id) void warmPendingFacts(RT.userId, { force: true });
         if (error || !data || data.error) {
           // The vendored supabase-js (js/vendor/supabase.js) throws FunctionsHttpError on any
           // non-2xx response, so `data` is always null and the function's JSON error body never

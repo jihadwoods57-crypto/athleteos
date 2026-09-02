@@ -1799,6 +1799,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .fx-axis:focus-visible{outline:2px solid var(--blue-bright);outline-offset:2px}
 .fx-vals{padding-top:12px}
 .fq-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.mo-ask{margin-top:10px;padding-top:9px;border-top:1px solid var(--hairline-soft);font-size:var(--t-sm);font-weight:700;color:var(--text-2)}
 
 /* ----- Score Breakdown v2 (spec §2): expandable categories, exact remainders ----- */
 .bd-hero-calm{padding-bottom:4px}

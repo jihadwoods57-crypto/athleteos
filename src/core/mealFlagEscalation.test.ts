@@ -40,9 +40,11 @@ describe('the tool contract', () => {
 
   it('the athlete path OFFERS the flag tool — a forced reply tool cannot decline', () => {
     // 2026-08-06: the athlete path also gained apply_correction (capability-gated), so the tool
-    // set is conditional now — but FLAG_TOOL must be present in BOTH branches, or the AI goes
+    // set is conditional now — but FLAG_TOOL must be present in EVERY branch, or the AI goes
     // back to confidently answering medical questions for exactly the clients that can correct.
-    expect(SRC).toMatch(/const athleteTools = \(canApplyCorrection\s*\?\s*\[REPLY_TOOL, CORRECTION_TOOL, FLAG_TOOL\]\s*:\s*\[REPLY_TOOL, FLAG_TOOL\]\)/);
+    // 2026-09-02: a third gated tool (remember) joined, so the set is built by spreading each
+    // optional tool in; FLAG_TOOL is the unconditional last entry whatever the client can do.
+    expect(SRC).toMatch(/const athleteTools = \[\s*REPLY_TOOL,\s*\.\.\.\(canApplyCorrection \? \[CORRECTION_TOOL\] : \[\]\),\s*\.\.\.\(canRemember \? \[REMEMBER_TOOL\] : \[\]\),\s*FLAG_TOOL,\s*\]/);
     // The escape hatch is offered on the athlete's QUESTION path and nowhere else. The condition
     // gained correctionUpdate (2026-07-28) and coachAsk (2026-08-06) for the same reason
     // coachSupport was there: those turns have nothing in them to escalate.

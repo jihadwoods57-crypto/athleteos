@@ -113,3 +113,24 @@ test('a chosen plate that scrolls out of the loaded window falls back to the lat
   // Otherwise the composer posts to a meal that is no longer anywhere on screen.
   assert.match(SRC, /if \(REPLY_TO && !mealById\(STATE\.meals, REPLY_TO\)\) REPLY_TO = null;/);
 });
+
+/* ---- 3. the room is as capable as the meal thread, and it remembers (2026-09-02) ---------- */
+
+test('the composer sends per-item foods, not totals only', () => {
+  // Without items the AI could neither discuss one food honestly nor aim a correction at one.
+  assert.match(SRC, /foods: foodsFor\(meal\)/, 'per-item provenance rides in the context, as the meal thread sends it');
+});
+
+test("a structured correction is offered for TODAY's plate and applied, never promised elsewhere", () => {
+  assert.match(SRC, /canApplyCorrection: true/, 'the capability flag unlocks apply_correction server-side');
+  assert.match(SRC, /todaySlotFor\(mealId\)/, 'and it is keyed on the plate being in today\'s record');
+  assert.match(SRC, /act\.correctMeal\(slot,/, 'a returned correction is applied deterministically, like the meal thread');
+  assert.match(SRC, /if \(!applied\) setNote\(/, 'a correction that did not land is admitted, not left as a standing promise');
+});
+
+test('the AI may remember what the athlete says, and only the athlete can make it bind', () => {
+  assert.match(SRC, /canRemember: true/, 'the capability flag unlocks the remember tool server-side');
+  assert.match(SRC, /memoryOfferChips\(offer, esc\)/, 'an offer row draws the shared Yes / No chips');
+  assert.match(SRC, /act\.confirmMemoryFact\(id, fx\.getAttribute\('data-keep'\) === '1'\)/, 'the tap is the confirmation, through the one shared path');
+  assert.match(SRC, /act\.pendingMemoryFacts\(\)/, 'answered offers stop asking: pending ids are fetched with the thread');
+});

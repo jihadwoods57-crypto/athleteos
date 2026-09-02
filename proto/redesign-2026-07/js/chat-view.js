@@ -162,6 +162,42 @@ export function isEscalated(comment) {
   return !!(comment && comment.role === 'ai' && comment.meta && comment.meta.t === 'escalated');
 }
 
+/* ---------------- Memory offers (2026-09-02) ----------------
+   The AI heard a lasting fact ("I'm lactose intolerant") and wrote it as a PENDING memory fact.
+   meal-chat marks the reply row meta { t: 'memory_offer', factId, kind, value, ask } so the two
+   athlete-facing renderers can draw a Yes / No under the bubble. The chips are built here, once,
+   because the last time a bubble affordance lived in one renderer only (read-more) it took six
+   weeks to notice the other three never had it. Only `role: 'ai'` rows count: clients can write
+   meta on their own rows, and an athlete must not be able to forge an offer about themselves. */
+export function isMemoryOffer(comment) {
+  return !!(comment && comment.role === 'ai' && comment.meta && comment.meta.t === 'memory_offer' && comment.meta.factId);
+}
+
+/** { id, kind, value, ask } for an offer row, or null. */
+export function memoryOfferOf(comment) {
+  if (!isMemoryOffer(comment)) return null;
+  const m = comment.meta;
+  const value = String(m.value || '').trim();
+  return {
+    id: String(m.factId),
+    kind: String(m.kind || ''),
+    value,
+    ask: String(m.ask || '').trim() || (value ? `Remember that: ${value}?` : 'Remember that?'),
+  };
+}
+
+/** The confirmation under an offer bubble. `esc` is passed in, as bubblePhotoHtml takes it, so
+ *  this module stays free of a components.js import. Tapping is delegated on `[data-fact]`,
+ *  the selector the meal thread has used for pending facts since 0019 landed. */
+export function memoryOfferChips(offer, esc) {
+  if (!offer || !offer.id) return '';
+  return `<div class="mo-ask">${esc(offer.ask)}</div>
+    <div class="fq-chips">
+      <button type="button" class="fx-chip" data-fact="${esc(offer.id)}" data-keep="1">Yes, remember</button>
+      <button type="button" class="fx-chip" data-fact="${esc(offer.id)}" data-keep="0">No, one-off</button>
+    </div>`;
+}
+
 /**
  * The message an update is answering — the athlete's correction just above it.
  *

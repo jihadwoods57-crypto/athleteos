@@ -28,7 +28,7 @@ import { clientIpFrom } from '../_shared/client-ip.ts';
 import { trackAuthedAiSpend } from '../_shared/ai-tier-budget.ts';
 import { checkSpend, EST_USD } from '../_shared/spend-gate.ts';
 import { loadMemoryForAthlete } from '../_shared/memory-load.ts';
-import { memoryBlock } from '../_shared/memory.ts';
+import { memoryBlock, chatFactCandidate, factKey, memoryOfferLine, CHAT_FACT_KINDS, type ChatFactKind } from '../_shared/memory.ts';
 import { flagOn } from '../_shared/feature-flags.ts';
 import { routeForCoachMeal } from '../_shared/followup.ts';
 import { chatVoiceDirective } from '../_shared/coach-voice.ts';
@@ -258,7 +258,17 @@ Rules that bind you:
    missed something real, and it belongs in apply_correction's add list, not in a paragraph
    agreeing with them. They will almost never state grams for these and they do not have to: the
    app prices what they name from its own food reference. Never answer a named ingredient with
-   prose alone, and NEVER say numbers or a score are updating unless you actually called the tool.`;
+   prose alone, and NEVER say numbers or a score are updating unless you actually called the tool.
+12. REMEMBER WHAT THEY TELL YOU ABOUT THEMSELVES. When the athlete states a LASTING fact about
+   how they eat, and the remember tool is available, call it instead of reply: an allergy or
+   intolerance ("I'm lactose intolerant", "peanuts send me to the ER"), a food they never eat
+   ("I hate salmon", "I don't eat pork"), a go-to they lean on ("I have Greek yogurt every
+   morning"), a place they eat at often, or a standing timing pattern ("I lift at 6am so I eat
+   after"). Your message still answers their question in full; the fact rides alongside it and
+   the app asks them to confirm before it is kept. One fact per message, the clearest one. Do
+   NOT call it for a one-off ("skipped breakfast today"), for something already listed under
+   what you know about them, or for anything medical (a diagnosis, a medication, a weight goal),
+   which is a flag_for_coach case. Never claim you will remember something unless you called it.`;
 
 /**
  * The escape hatch. An AI nutritionist that answers "should I cut 8lb this week" or "my knee hurts
@@ -276,6 +286,38 @@ const FLAG_TOOL = {
       note: { type: 'string', description: 'One sentence for the coach: what the athlete is asking.' },
     },
     required: ['reason', 'note'],
+  },
+} as const;
+
+/**
+ * THE MEMORY TOOL (2026-09-02). `athlete_memory_facts` has been READ by every AI surface since the
+ * 2026-08 memory carrier landed, but the only WRITER was the correction loop on the client. An
+ * athlete who typed "I'm lactose intolerant" into the thread was heard for exactly one reply; the
+ * next plate was read cold and the AI suggested a milk-based recovery shake again. That is the
+ * opposite of a nutritionist who knows you.
+ *
+ * The model calls this INSTEAD of reply when a lasting fact rides on the athlete's message: the
+ * reply still answers them, and the fact is written as `pending_confirmation` under the athlete's
+ * own row. It binds only when they tap "Yes, remember" under the bubble, the same gate the
+ * inferred-from-corrections facts already go through (memory.js SAFETY RULE; memory-load.ts reads
+ * `status = 'active'` only). Nothing the model heard becomes a rule until the person it is about
+ * says so.
+ *
+ * Capability-gated by `canRemember`, exactly like apply_correction: only a client that renders the
+ * confirmation chips gets the tool offered, so an older build never gets a reply row whose offer
+ * it cannot show.
+ */
+const REMEMBER_TOOL = {
+  name: 'remember',
+  description: 'The athlete stated a LASTING fact about how they eat: an allergy or intolerance, a food they never eat, a go-to food, a restaurant they eat at often, or a standing meal-timing pattern. Call this INSTEAD of reply: `message` still answers what they asked, and the app will ask them to confirm the fact before it is kept. Never for a one-off, never for anything medical.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      message: { type: 'string', description: 'Your full reply to the athlete, exactly as the reply tool would carry it: 90 words max, plain prose, no em dashes, numbers only from the context. Do not restate the fact as a question; the app asks for confirmation itself.' },
+      kind: { type: 'string', enum: [...CHAT_FACT_KINDS], description: 'allergy for an allergy or intolerance; dislike for a food they never eat; favorite_food for a go-to; favorite_restaurant for a place; meal_timing for a standing schedule pattern.' },
+      value: { type: 'string', description: 'The fact in the fewest plain words, as the athlete would say it back: "lactose", "salmon", "Greek yogurt", "Chipotle", "eats after a 6am lift". No sentences, no explanation, 60 characters max.' },
+    },
+    required: ['message', 'kind', 'value'],
   },
 } as const;
 
@@ -317,6 +359,10 @@ Deno.serve(async (req) => {
     // the tool offered — an older build keeps today's reply-only contract (with the never-argue
     // prompt rule as its floor).
     const canApplyCorrection = body?.canApplyCorrection === true;
+    // Capability flag (2026-09-02): "I render the remember-this confirmation under an AI bubble".
+    // Same contract as canApplyCorrection: the tool is offered only to a client that can close the
+    // loop it opens.
+    const canRemember = body?.canRemember === true;
     const question = String((coachSupport ? body?.coachText : body?.question) ?? '').trim().slice(0, 500);
     const context = body?.context;
     // A chat PHOTO ATTACHMENT, passed as a storage KEY and never as image bytes. The client cannot
@@ -510,9 +556,12 @@ Deno.serve(async (req) => {
     // The athlete path may also decline and escalate, and (capability-gated) apply a stated
     // factual correction. coachSupport is the coach's own message being reinforced — there is
     // nothing there to escalate or correct, so it keeps the single forced tool.
-    const athleteTools = (canApplyCorrection
-      ? [REPLY_TOOL, CORRECTION_TOOL, FLAG_TOOL]
-      : [REPLY_TOOL, FLAG_TOOL]) as unknown as Anthropic.Tool[];
+    const athleteTools = [
+      REPLY_TOOL,
+      ...(canApplyCorrection ? [CORRECTION_TOOL] : []),
+      ...(canRemember ? [REMEMBER_TOOL] : []),
+      FLAG_TOOL,
+    ] as unknown as Anthropic.Tool[];
     // The user turn, named once because the style-correction retry below has to replay it exactly.
     const userTurn = coachAsk
       ? `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nThe COACH reviewing this athlete's meal just asked you directly: "${question}"\n\nAnswer THE COACH in 100 words or less, using ONLY figures and foods already present in the context. Give a clear practical answer or recommendation; refer to the athlete in the third person. If the context cannot support a firm answer, say so and name the one thing you would check.`
@@ -569,9 +618,62 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
         message?: string; reason?: string; note?: string;
         item?: string; newName?: string; ack?: string;
         protein?: unknown; kcal?: unknown; carbs?: unknown; fat?: unknown;
-        add?: unknown;
+        add?: unknown; quantity?: unknown;
+        kind?: unknown; value?: unknown;
       };
     } | undefined;
+
+    // ── REMEMBER: the athlete told the AI something lasting about themselves. ──
+    // The reply is persisted like any other AI row, with meta `memory_offer` naming the pending
+    // fact, so the thread can draw the Yes / No chips under it. The fact itself lands under the
+    // MEAL OWNER (never the caller, though on this path they are the same person) as
+    // `pending_confirmation`: memory-load.ts only ever reads `active`, so until the athlete taps
+    // yes this row changes nothing about how they are read. Said twice, the same fact accrues
+    // evidence on its one row instead of producing a second offer.
+    if (tool?.name === 'remember') {
+      let message = String(tool.input?.message ?? '').replace(/—/g, ',').trim().slice(0, 1000);
+      const fact = chatFactCandidate(tool.input?.kind, tool.input?.value);
+      if (!message) return bad(502, 'unavailable', cors);
+      message = styleSafe(message);
+      let offer: { id: string; kind: string; value: string } | null = null;
+      if (fact) {
+        try {
+          const { data: existing } = await service.from('athlete_memory_facts')
+            .select('id,kind,value,status,evidence_n,confidence')
+            .eq('athlete_id', mealRow.athlete_id).eq('kind', fact.kind)
+            .in('status', ['active', 'pending_confirmation', 'rejected']).limit(60);
+          const want = factKey(fact.kind, fact.value);
+          const dup = ((existing ?? []) as Array<{ id: string; kind: string; value: unknown; status: string; evidence_n: number; confidence: number }>)
+            .find((r) => factKey(r.kind, r.value) === want);
+          if (dup && dup.status === 'rejected') {
+            // They already said no to exactly this. Do not ask again; the reply stands alone.
+          } else if (dup) {
+            await service.from('athlete_memory_facts').update({
+              evidence_n: (Number(dup.evidence_n) || 1) + 1,
+              confidence: Math.min(1, (Number(dup.confidence) || 0.3) + 0.15),
+              last_seen: new Date().toISOString(),
+            }).eq('id', dup.id);
+            // Still pending: offer it again, it is the same unanswered question. Active: nothing
+            // to confirm, the AI already knows.
+            if (dup.status === 'pending_confirmation') offer = { id: dup.id, kind: fact.kind, value: fact.value };
+          } else {
+            const { data: ins } = await service.from('athlete_memory_facts').insert({
+              athlete_id: mealRow.athlete_id, kind: fact.kind, value: fact.value,
+              confidence: 0.6, source: 'athlete_stated', evidence_n: 1, status: 'pending_confirmation',
+            }).select('id').maybeSingle();
+            if (ins?.id) offer = { id: String(ins.id), kind: fact.kind, value: fact.value };
+          }
+        } catch { /* memory is an enhancement: the reply still lands without the offer */ }
+      }
+      const row = { meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: callerId, role: 'ai', text: message };
+      const withOffer = offer
+        ? { ...row, kind: 'message', meta: { t: 'memory_offer', factId: offer.id, kind: offer.kind, value: offer.value, ask: memoryOfferLine({ kind: offer.kind as ChatFactKind, value: offer.value }) } }
+        : { ...row, kind: 'message' };
+      const { error: memErr } = await service.from('meal_comments').insert(withOffer);
+      if (memErr) await service.from('meal_comments').insert({ ...row, kind: 'message' });
+      await recordAiCall({ fn: 'meal-chat', mode: 'reply', phase: 'remember', userId: callerId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0r, ok: true, outcome: offer ? 'memory_offered' : fact ? 'memory_known' : 'memory_dropped' });
+      return new Response(JSON.stringify(offer ? { reply: message, memory: offer } : { reply: message }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
 
     // ── APPLY CORRECTION: the athlete corrected the record, so the record corrects itself. ──
     // The model contributes only the ack sentence and the structured field values the athlete

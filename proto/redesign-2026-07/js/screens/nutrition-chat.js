@@ -20,7 +20,8 @@
  * that gap being closed.
  */
 
-import { S, RT } from '../state.js';
+import { S, RT, act, mealDetail } from '../state.js';
+import { MEAL_KEYS } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc, composer } from '../components.js';
 import { threadMessages, reactionGroups, REACTION_EMOJI, contextForChat } from '../meal-intel.js';
@@ -28,6 +29,7 @@ import { stitchNutritionChat } from '../thread-stitch.js';
 import {
   layoutThread, authorName, initialsFor, participantList, participantSummary,
   isAnalysisUpdate, quotedFor, isEscalated,
+  memoryOfferOf, memoryOfferChips,
   dayLabelOf,
 } from '../chat-view.js';
 import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos } from '../chat-attach.js';
@@ -47,6 +49,42 @@ const PAGE = 200;
    none) — the two must never blur, because "log a meal first" said to an athlete with a year of
    logs is a fabrication, the exact lie the fetcher itself was cured of. */
 let STATE = { uid: null, comments: [], meals: [], participants: [], oldestISO: null, more: true, error: false, mealsError: false };
+
+/* MEMORY OFFERS (2026-09-02). Which pending facts still need the athlete's yes or no. `pending`
+   is null until the fetch lands (unknown, so an offer row shows its chips) and a Set of ids
+   after; `answered` is what they tapped THIS session, so the chips vanish on the very next paint
+   instead of waiting for a refetch. Module scope for the same reason EXPANDED_BUBBLES is. */
+let PENDING_IDS = null;
+const ANSWERED_FACTS = new Set();
+
+/** TODAY's slot for a meal id, or null when the plate is not on today's board. Only today's
+ *  meals live in the day record that correctMeal rewrites, so only they can take a structured
+ *  correction from this screen; an older plate keeps the reply-only contract, where the prompt's
+ *  rule 9 makes the AI accept a correction plainly in prose. */
+function todaySlotFor(mealId) {
+  if (!mealId) return null;
+  for (const k of MEAL_KEYS) {
+    const d = mealDetail(k);
+    if (d && d.mealId === mealId) return k;
+  }
+  return null;
+}
+
+/** Per-item detail for the AI, the same shape the meal thread sends: today's canonical record
+ *  when the plate is today's (it carries corrections), else what the meals row stored. Without
+ *  it this screen's AI could only discuss totals and apply_correction had nothing to aim at. */
+function foodsFor(meal) {
+  const slot = meal ? todaySlotFor(meal.id) : null;
+  const live = slot ? mealDetail(slot) : null;
+  const src = live && Array.isArray(live.detectedRich) && live.detectedRich.length
+    ? live.detectedRich
+    : (meal && Array.isArray(meal.detected) ? meal.detected : []);
+  return src.slice(0, 12).map((d) => {
+    if (!d) return null;
+    if (typeof d === 'string') return { name: d };
+    return { name: d.name, per: d.per, basis: d.basis, product: d.product, brand: d.brand, quantity: d.quantity };
+  }).filter((d) => d && d.name);
+}
 
 /* Long AI bubbles the athlete has opened, keyed on each bubble's own text head. MODULE scope, so
    an expansion survives every repaint — and this screen repaints on every poll tick. */
@@ -297,24 +335,37 @@ export default {
           ${''/* No "Updated analysis" badge (founder: robotic). The quote stem above already
                shows what a correction reply answers. The escalation badge stays: "this reached
                your coach" is a fact worth labeling, exactly as the meal thread labels it. */}
-          <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(c.text)}</div>
+          <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(c.text)}${offerChips(c)}</div>
           ${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}
         </div>
       </div>`;
       }).join('');
     };
 
+    // The Yes / No under a remember-this reply, while the fact is still pending. Once answered
+    // (this session, or on any earlier one the fetch knows about) the bubble is just a reply.
+    const offerChips = (c) => {
+      const offer = memoryOfferOf(c);
+      if (!offer) return '';
+      if (ANSWERED_FACTS.has(offer.id)) return '';
+      if (PENDING_IDS && !PENDING_IDS.has(offer.id)) return '';
+      return memoryOfferChips(offer, esc);
+    };
+
     const load = async ({ older = false } = {}) => {
       if (busy) return;
       busy = true;
       const beforeISO = older && STATE.comments.length ? STATE.comments[0].created_at : null;
-      const [fetched, meals, people] = await Promise.all([
+      const [fetched, meals, people, pending] = await Promise.all([
         roles.fetchMyMealThread(RT.userId, { beforeISO, limit: PAGE }),
         // null = the meals fetch FAILED (the fetcher's own contract); [] = truly no meals.
         older ? Promise.resolve(STATE.meals) : roles.fetchRecentMeals(RT.userId, roles.daysAgoISO(WINDOW_DAYS)).catch(() => null),
         roles.fetchThreadParticipants(RT.userId).catch(() => []),
+        // Which remember-this offers are still open. null on failure = unknown, so chips stay.
+        act.pendingMemoryFacts().then((rows) => new Set((rows || []).map((f) => String(f.id)))).catch(() => null),
       ]);
       busy = false;
+      if (pending) PENDING_IDS = pending;
       if (fetched && fetched.error) {
         // An older page that fails must not tear down the conversation already on screen —
         // losing a fortnight of scroll to one dropped request reads as the app eating the thread.
@@ -351,6 +402,18 @@ export default {
         REPLY_TO = (latest && id === latest.id) ? null : id;
         paint();
         focusComposer(root.querySelector('#nc-msg'));
+        return;
+      }
+      // A remember-this answer. The tap is the ONLY thing that lets a chat-heard fact bind; the
+      // chips go on the next paint and the confirmation itself is state.js's, shared with the
+      // meal thread's pending-fact row.
+      const fx = ev.target && ev.target.closest ? ev.target.closest('[data-fact]') : null;
+      if (fx) {
+        const id = fx.getAttribute('data-fact');
+        ANSWERED_FACTS.add(id);
+        if (PENDING_IDS) PENDING_IDS.delete(id);
+        void act.confirmMemoryFact(id, fx.getAttribute('data-keep') === '1');
+        paint();
         return;
       }
       const t = ev.target && ev.target.closest ? ev.target.closest('#nc-earlier, #nc-retry, #nc-members, #nc-target-clear, #nc-retry-ai') : null;
@@ -433,6 +496,10 @@ export default {
             // can ask about Thursday, so the AI is told WHEN the plate it is discussing was eaten
             // — without it, "how does this fit my day" would be answered against the wrong day.
             loggedAt: meal.logged_at, day: meal.day_date,
+            // Per-item provenance, as the meal thread sends it: which item carries which value
+            // and where it came from. This screen used to send totals only, so its AI could
+            // neither discuss a single item honestly nor aim a correction at one.
+            foods: foodsFor(meal),
           } : {},
           plan: { goal: RT.profile && RT.profile.baseGoal, targets: S.planTargets, allergies: RT.allergies },
           exec: { met: ex.met, total: ex.total, score: ex.score, possible: ex.possible, next: ex.now && ex.now.title },
@@ -443,7 +510,18 @@ export default {
         setTyping(true);
         const c = typeof window !== 'undefined' ? window.sb : null;
         if (!c || !c.functions) { setTyping(false); return; }
-        const { data, error } = await c.functions.invoke('meal-chat', { body: { mealId, question: text, context } });
+        // Structured corrections only for TODAY's plates: correctMeal rewrites the day record,
+        // and an older meal is not in it. The flag is the capability contract meal-chat keys the
+        // apply_correction tool on, so it is sent only when the handler below can actually act.
+        const slot = todaySlotFor(mealId);
+        const { data, error } = await c.functions.invoke('meal-chat', {
+          body: {
+            mealId, question: text, context,
+            ...(slot ? { canApplyCorrection: true } : {}),
+            // "I render the remember-this chips": unlocks the remember tool server-side.
+            canRemember: true,
+          },
+        });
         setTyping(false);
         if (error || !data || data.error) {
           // The vendored supabase-js throws FunctionsHttpError on any non-2xx, so `data` is null
@@ -458,6 +536,25 @@ export default {
           return;
         }
         setNote('');
+        // A fresh offer is pending by definition; mark it so the chips draw before the refetch
+        // of pending facts catches up.
+        if (data.memory && data.memory.id && PENDING_IDS) PENDING_IDS.add(String(data.memory.id));
+        // THE CORRECTION LOOP, as the meal thread closes it: the athlete stated a fact about their
+        // own food and the AI called apply_correction instead of arguing. Applied deterministically
+        // to today's record; the AI's acknowledgment row is already persisted server-side.
+        if (data.correction && data.correction.item && slot) {
+          const cr = data.correction;
+          const live = mealDetail(slot);
+          const applied = await act.correctMeal(slot, {
+            kind: 'item', item: cr.item, newName: cr.newName || undefined,
+            quantity: cr.quantity || undefined,
+            per: cr.per || {}, add: cr.add || undefined, minutesLate: live ? live.minutesLate : undefined,
+          }, { skipAiUpdate: true });
+          // A correction that did not land must say so: the AI's "updating now" is already in the
+          // thread, and silence here would leave that promise standing over unchanged numbers.
+          if (!applied) setNote("That didn't line up with anything in this meal's read, so your numbers haven't changed. Open the meal to fix it there.");
+          else if (applied.unpriced && applied.unpriced.length) setNote(`Added what I could price. No numbers on file for ${applied.unpriced.join(' or ')}, so it isn't counted yet. Open the meal to add it.`);
+        }
         await load();
         startBurst();
         scrollThreadToEnd(root, { force: true });
