@@ -12,6 +12,14 @@
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.onstandard.app",
       "buildNumber": "1",
+      "_appleTeamId_comment": "Read out of ios-certs/appstore.mobileprovision. @bacons/apple-targets needs it to sign the widget extension it generates.",
+      "appleTeamId": "C44B6N2KC6",
+      "_entitlements_comment": "The App Group the Live Activity card and the app share. Named HERE and only here: @bacons/apple-targets mirrors this array into every target that can use App Groups, so the widget extension inherits it without repeating the string. It must match RollCallPendingStore.suiteName in modules/rollcall-live/ios/RollCallCheckInIntent.swift, and a group that the provisioning profile does not carry fails code-signing.",
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.com.onstandard.app"
+        ]
+      },
       "config": {
         "usesNonExemptEncryption": false
       },
@@ -196,10 +204,12 @@
           "isAndroidForegroundServiceEnabled": false
         }
       ],
+      "@bacons/apple-targets",
       [
         "./plugins/withRollCallLiveActivity",
         {
-          "_comment": "Wake-Up Roll Call lock screen. WITHOUT an appGroup this only declares NSSupportsLiveActivities (a plain Info.plist boolean, no capability, no code-signing impact) and asserts that modules/rollcall-live contributed its Android manifest. Pass { \"appGroup\": \"group.com.onstandard.app\" } ONLY after the App Group exists on the App ID and the provisioning profile carries it, or code-signing fails. See docs/go-live/ROLLCALL-LIVE-ACTIVITY.md."
+          "_comment": "Wake-Up Roll Call lock screen. appGroup is set now that group.com.onstandard.app exists on both App IDs and both provisioning profiles carry it (verified 2026-09-02). It is idempotent with the ios.entitlements array above; both converge on the same list.",
+          "appGroup": "group.com.onstandard.app"
         }
       ],
       [

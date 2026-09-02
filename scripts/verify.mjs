@@ -40,6 +40,7 @@ const GATES = [
   { name: 'lint:inline', what: 'the inline-style count did not grow' },
   { name: 'lint:dash',  what: 'em dashes in copy did not grow (DESIGN.md ban)' },
   { name: 'lint:score', what: 'no hardcoded score percentages' },
+  { name: 'lint:widget', what: "the widget extension's copies of the shared Swift have not drifted" },
   { name: 'typecheck',  what: 'tsc --noEmit' },
   { name: 'test',       what: 'jest' },
   { name: 'test:proto', what: 'the proto node:test suites' },

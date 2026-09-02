@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@bacons/apple-targets": "^5.0.0",
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
     "@expo/metro-runtime": "~57.0.7",
     "@kingstinct/react-native-healthkit": "^14.0.2",
@@ -71,6 +72,7 @@
     "lint:inline": "node proto/redesign-2026-07/tools/inline-style-ratchet.mjs",
     "lint:dash": "node proto/redesign-2026-07/tools/em-dash-ratchet.mjs",
     "lint:score": "node proto/redesign-2026-07/tools/lint-score-pct.mjs",
+    "lint:widget": "node scripts/check-widget-mirror.mjs",
     "test:proto": "node scripts/node-test.mjs \"proto/redesign-2026-07/js/**/*.test.mjs\"",
     "test:admin": "node scripts/node-test.mjs \"web/admin/**/*.test.mjs\"",
     "test:fn": "node scripts/node-test.mjs \"supabase/functions/**/*.test.mjs\"",
