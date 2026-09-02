@@ -21,6 +21,7 @@ import { rollCallCategoryId, ROLLCALL_CHANNEL } from '../_shared/rollcall-catego
 import { composeReminderPush, codeDeadlineMs, platformCopy, isInitialPush, type ReminderRow } from './logic.ts';
 import { ApnsClient, apnsFromEnv } from '../_shared/apns.ts';
 import { pushLiveActivity, loadLiveCard } from '../_shared/rollcall-live-send.ts';
+import { rollCallPushData } from '../_shared/rollcall-live.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -136,11 +137,26 @@ Deno.serve(async (req: Request) => {
       body: pc.body,
       // The tap lands on the commitment itself, not Home — the last inch of the loop. `code` lets
       // a lock-screen action button ack without opening the app; empty when the secret isn't set.
-      data: { route: `roll-call/${d.instance_id}`, code, action_label: d.action_label, from_coach: c.fromCoach },
+      data: {
+        route: `roll-call/${d.instance_id}`, code, action_label: d.action_label, from_coach: c.fromCoach,
+        // Read on Android by RollCallPresentationDelegate (modules/rollcall-live) to turn this into
+        // an alarm-grade notification: a countdown the OS ticks to `rc_deadline`, the alarm
+        // category, the state colour, and an Android 16 Live Update promotion until `rc_closes`.
+        // iOS ignores them: there the same job is done properly by the Live Activity.
+        ...rollCallPushData(d, isInitialPush(d) ? 'initial' : 'reminder'),
+      },
       // Expo maps categoryId -> iOS notification category / Android action set. Only offer the
       // quick-action affordance when we actually minted a verifiable code.
       categoryId: code ? rollCallCategoryId(d.action_label) : undefined,
       channelId: ROLLCALL_CHANNEL,
+      // ONE roll call is ONE notification, replaced in place as its state changes — not three
+      // cards stacking up on the lock screen. `tag` is what actually replaces an already-displayed
+      // notification on Android; `collapseId` is the iOS/FCM equivalent. Both are keyed on the
+      // instance, so 6:00, 6:03 and the 6:05 late push are the same card saying a different thing.
+      // The coach's words survive the replacement in the bell row and in the app, which is where
+      // an athlete goes to re-read them; the lock screen's job is to say what is true NOW.
+      tag: `rollcall-${d.instance_id}`,
+      collapseId: `rollcall-${d.instance_id}`,
       // A coach-scheduled commitment is a scheduled event, not a nudge: it is allowed to break
       // through at 4:45 AM. The phone's own Do Not Disturb still wins.
       priority: 'high',

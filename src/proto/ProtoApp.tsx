@@ -12,7 +12,7 @@ import { BRIDGE_SHIM, handleBridgeMessage, type BridgeMessage } from './bridge';
 import { authenticateBiometric } from '../lib/auth/biometrics';
 import { parseInviteCode } from '../lib/inviteLink';
 import { registerGeofenceTask } from '../lib/location';
-import { runRollCallAck, drainAckQueue, ensureRollCallCategories, rememberRollCallLabel, registerCoachDigestCategory, runCoachAction, drainCoachQueue, registerRollCallBackgroundTask } from '../lib/notify/rollcall';
+import { runRollCallAck, drainAckQueue, ensureRollCallCategories, rememberRollCallLabel, registerCoachDigestCategory, runCoachAction, drainCoachQueue, registerRollCallBackgroundTask, ensureLiveActivityTokens, drainLiveActivityTaps } from '../lib/notify/rollcall';
 import { routeNotificationResponse } from '../core/rollcall';
 
 // The app canvas, exactly: --bg in the proto's tokens.css, and the splash backgroundColor in
@@ -204,6 +204,11 @@ export function ProtoApp() {
       void drainCoachQueue();
       // Android: the action pressed on a killed app runs the background task, not this listener.
       void registerRollCallBackgroundTask();
+      // iOS: start watching ActivityKit's token streams so the server can put the roll-call card
+      // on this phone's lock screen, and collect any tap made on that card while the app was not
+      // running. Both no-op on Android and in binaries built before the native module existed.
+      ensureLiveActivityTokens();
+      void drainLiveActivityTaps();
     }
   }, []);
 

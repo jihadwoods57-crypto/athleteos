@@ -1,0 +1,30 @@
+// OnStandard — rollcall-live, Android half.
+//
+// A local Expo module (autolinked from modules/) rather than a config plugin that writes Kotlin
+// into the generated android/ tree: prebuild regenerates that tree, so anything written into it is
+// one `expo prebuild --clean` away from silently disappearing. A module is source the build always
+// sees.
+apply plugin: 'com.android.library'
+apply plugin: 'expo-module-gradle-plugin'
+
+group = 'app.onstandard.rollcall'
+version = '1.0.0'
+
+android {
+  namespace 'app.onstandard.rollcall'
+  defaultConfig {
+    minSdkVersion safeExtGet('minSdkVersion', 24)
+  }
+}
+
+dependencies {
+  // The presentation seam we subclass lives here. Autolinking puts expo-notifications on the
+  // classpath as :expo-notifications; without this the delegate below will not resolve.
+  implementation project(':expo-notifications')
+  implementation 'androidx.core:core-ktx:1.17.0'
+  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
+}
+
+def safeExtGet(prop, fallback) {
+  rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
+}

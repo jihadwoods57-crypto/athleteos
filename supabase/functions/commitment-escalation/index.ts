@@ -16,6 +16,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { digestBody, breakthroughCopy, platformCopy, LATE_ACTION_LABEL } from './logic.ts';
 import { ApnsClient, apnsFromEnv } from '../_shared/apns.ts';
 import { pushLiveActivity, loadLiveCard } from '../_shared/rollcall-live-send.ts';
+import { rollCallPushData } from '../_shared/rollcall-live.ts';
 import { signCoachCode, signRollCallCode } from '../_shared/rollcall-code.ts';
 import { COACH_DIGEST_CATEGORY, ROLLCALL_CHANNEL, rollCallCategoryId } from '../_shared/rollcall-category.ts';
 
@@ -156,9 +157,19 @@ Deno.serve(async (req: Request) => {
         title: pc.title,
         ...(pc.subtitle ? { subtitle: pc.subtitle } : {}),
         body: pc.body,
-        data: { route: `roll-call/${r.instance_id}`, code, action_label: code ? LATE_ACTION_LABEL : null, from_coach: false },
+        data: {
+          route: `roll-call/${r.instance_id}`, code,
+          action_label: code ? LATE_ACTION_LABEL : null, from_coach: false,
+          // Android: turns the card red and switches its chronometer from counting down to
+          // counting up past the deadline. See modules/rollcall-live.
+          ...rollCallPushData(r, 'late'),
+        },
         categoryId: code ? rollCallCategoryId(LATE_ACTION_LABEL) : undefined,
         channelId: ROLLCALL_CHANNEL,
+        // Replaces the 6:00/6:03 card in place rather than stacking a third one under them
+        // (matching commitment-reminders): one roll call, one notification, current state.
+        tag: `rollcall-${r.instance_id}`,
+        collapseId: `rollcall-${r.instance_id}`,
         priority: 'high',
         sound: 'default',
         interruptionLevel: 'time-sensitive',

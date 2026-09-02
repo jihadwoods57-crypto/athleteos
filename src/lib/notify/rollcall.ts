@@ -230,3 +230,88 @@ export async function runCoachAction(code: string, action: CoachAction): Promise
   const r = await postCoachAction(code, action);
   if (r === 'retry') await queueCoachAction(code, action);
 }
+
+/* ---------------------------------------------------------------- Live Activity (2026-09-02)
+
+   The iOS card on the lock screen. This half does exactly one job: get the two ActivityKit tokens
+   off the device and into the database, so the server can start, update and end the card.
+
+   WHY THE DEVICE HAS TO REPORT THEM. A Live Activity cannot be addressed by the ordinary push
+   token. ActivityKit mints its own: one per DEVICE that authorises starting a new activity
+   (push-to-start, iOS 17.2+) and one per ACTIVITY that authorises updating and ending that one
+   card (iOS 16.1+). Neither is knowable server-side, and the second can rotate mid-morning, so the
+   device reports both whenever iOS hands them over.
+
+   EVERY LINE IS BEST-EFFORT AND OPTIONAL. The native module is absent on Android, on web, and in
+   builds #26 and #27 — which are in the field and receive this JS over the air. requireOptional-
+   NativeModule returns null there and every call below is a no-op. A roll call works exactly as it
+   did before, because the notification, not the card, is what records a check-in. */
+
+let liveWired = false;
+
+/** Report one token. The athlete is taken from the session server-side (auth.uid()), never sent. */
+async function reportLiveToken(token: string, kind: 'start' | 'update', instanceId?: string): Promise<void> {
+  try {
+    const { supabase } = require('@/lib/supabase/client') as {
+      supabase: { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ error: unknown }> } | null;
+    };
+    if (!supabase) return;
+    await supabase.rpc('register_live_activity_token', {
+      p_token: token, p_kind: kind, p_instance: instanceId ?? null,
+    });
+  } catch { /* best effort: a token we fail to report just means no card this morning */ }
+}
+
+/**
+ * Start watching ActivityKit's token streams and drain any taps made on the card's own button
+ * while the app was not running. Idempotent; call once at startup, after sign-in is possible.
+ */
+export function ensureLiveActivityTokens(): void {
+  if (Platform.OS !== 'ios' || liveWired) return;
+  liveWired = true;
+  try {
+    const live = require('../../../modules/rollcall-live') as typeof import('../../../modules/rollcall-live');
+    if (!live.isLiveActivitySupported()) return;
+    live.onPushToStartToken(({ token }) => { void reportLiveToken(token, 'start'); });
+    live.onActivityToken(({ token, instanceId }) => { void reportLiveToken(token, 'update', instanceId); });
+    live.startPushToStartObserver();
+  } catch { /* no native module in this binary */ }
+}
+
+/**
+ * Feed taps made on the Live Activity's button into the SAME ack path a notification tap uses.
+ *
+ * The button's intent cannot ack by itself: the signed code that authorises an ack is minted per
+ * push and held by the queue below, and that queue already owns the retry, offline and
+ * dead-code policy. So the intent records the instance and the moment, and this drains it.
+ *
+ * A tap with no code to spend cannot be posted, so it is queued as a plain in-app ack instead: the
+ * proto's own `ack_commitment` path runs on the next load with the athlete's session. That is the
+ * honest fallback — the tap is not lost, it just records through the authenticated route.
+ */
+export async function drainLiveActivityTaps(): Promise<number> {
+  if (Platform.OS !== 'ios') return 0;
+  try {
+    const live = require('../../../modules/rollcall-live') as typeof import('../../../modules/rollcall-live');
+    const taps = live.drainPendingTaps();
+    if (!taps.length) return 0;
+    const { supabase } = require('@/lib/supabase/client') as {
+      supabase: { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ error: unknown }> } | null;
+    };
+    if (!supabase) return 0;
+    let landed = 0;
+    for (const tap of taps) {
+      try {
+        // The server stamps its own receipt; `p_tapped_at` is the device's evidence, exactly as the
+        // lock-screen path sends it (0212).
+        const { error } = await supabase.rpc('ack_commitment', {
+          p_instance: tap.instanceId, p_tapped_at: new Date(tap.at).toISOString(),
+        });
+        if (!error) landed++;
+      } catch { /* one bad tap must not stop the rest */ }
+    }
+    return landed;
+  } catch {
+    return 0;
+  }
+}

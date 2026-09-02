@@ -1,0 +1,20 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Android 16 Live Updates. A normal (non-runtime) permission: it asks the system to consider
+       promoting an ongoing notification to the lock screen, it does not grant it. Without the
+       permission the promotion request in RollCallPresentationDelegate is simply ignored, and the
+       roll call is an ordinary heads-up notification. -->
+  <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+
+  <application>
+    <!-- Wins over expo-notifications' own receiver, which declares the same action at
+         android:priority="-1". See RollCallNotificationsService for why this is safe if it ever
+         stops winning. `exported="false"`: this is an internal broadcast from our own process. -->
+    <receiver
+      android:name="app.onstandard.rollcall.RollCallNotificationsService"
+      android:exported="false">
+      <intent-filter android:priority="1">
+        <action android:name="expo.modules.notifications.NOTIFICATION_EVENT" />
+      </intent-filter>
+    </receiver>
+  </application>
+</manifest>

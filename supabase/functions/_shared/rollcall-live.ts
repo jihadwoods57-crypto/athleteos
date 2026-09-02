@@ -93,6 +93,43 @@ export function liveContentState(row: {
  *  iOS drops the start silently. */
 export const LIVE_ATTRIBUTES_TYPE = 'RollCallAttributes';
 
+/* ---------------------------------------------------------------- the Android half
+   Android has no Live Activity. What it has is a notification the OS will tick a chronometer on,
+   tint, treat as an alarm, and (on Android 16) pin to the lock screen as a Live Update — none of
+   which expo-notifications exposes a push field for. So the facts ride in the push's own `data`
+   and RollCallPresentationDelegate (modules/rollcall-live) applies them natively.
+
+   These key names are a hand-kept contract with that Kotlin file, exactly like the notification
+   category ids in rollcall-category.ts. A drift here does not throw: the notification simply
+   arrives looking ordinary, which is indistinguishable from the feature not existing. */
+
+/** The colour each state paints, matching the proto's own tokens (css/tokens.css):
+ *  --blue-bright, --amber, --red. Blue is the calm state because green is status-only app-wide. */
+export const LIVE_PHASE_COLOR: Record<'initial' | 'reminder' | 'late', string> = {
+  initial: '#60A5FA',
+  reminder: '#F5A524',
+  late: '#F65757',
+};
+
+export function rollCallPushData(
+  row: { type?: string | null; respond_by_at?: string | null; closes_at?: string | null },
+  phase: 'initial' | 'reminder' | 'late',
+): Record<string, unknown> {
+  // Only a wake-up roll call gets this treatment. Every other commitment type keeps the plain
+  // notification it has always had.
+  if (row.type !== 'morning_roll_call') return {};
+  const deadline = Date.parse(row.respond_by_at ?? '');
+  const closes = Date.parse(row.closes_at ?? '');
+  return {
+    rc_phase: phase,
+    // MILLISECONDS here, unlike the Live Activity's seconds: this number is handed straight to
+    // Android's `Notification.when`, which is epoch millis.
+    ...(Number.isFinite(deadline) ? { rc_deadline: deadline } : {}),
+    ...(Number.isFinite(closes) ? { rc_closes: closes } : {}),
+    rc_color: LIVE_PHASE_COLOR[phase],
+  };
+}
+
 /** APNs headers for any Live Activity push. The topic suffix is Apple's, and the dot before
  *  `push-type` is required (Apple's own curl uses it; one table in their docs omits it). */
 export function liveActivityHeaders(bundleId: string, jwt: string): Record<string, string> {
