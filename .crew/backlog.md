@@ -47,11 +47,17 @@ score ≥ 80. Fix: tighten the evidence-ceiling SQL to require real photo eviden
 Re-verify against live schema first (score logic has been rebuilt since July). Same
 credential blocker as #2.
 
-### 4 · scale · dietitian queue filters client-side → move to a server RPC  (impact 4, effort m)
-The dietitian review queue fetches broadly and filters in the proto. Breaks at real
-roster sizes. Build a server-side RPC (remember: explicit grants to authenticated).
-Without DB credentials the RPC can be authored and parked in `supabase/migrations/`,
-but the proto can't switch to it until the RPC exists on live — sequence accordingly.
+### 4 · scale · dietitian queue filters client-side → move to a server RPC
+**BUILT 2026-09-02 8 AM (`4921d31`) — client shipped in the zip, migration awaiting live
+apply.** `team_activity_batch` (0214) replaces the chunked 60-id meal reads with one
+set-based POST; fetchTeamActivity tries it first and falls back to chunking on any error,
+so deploy order is SAFE IN BOTH DIRECTIONS (unlike 0210 — no sequencing constraint).
+Proven on a local Postgres with all 214 migrations: 7/7 SQL suites green plus direct
+probes (coach sees only own athletes, rando zero, anon refused, dup-id fanout fixed after
+the adversarial review caught it). Apply 0214 whenever credentials exist; until then
+users silently keep the chunked path. NOTE for the next credentialed session: this
+session also built the local-DB rig itself (initdb + shim; see the 2026-09-02 report)
+so future SQL work can be proven in-sandbox before asking the founder to apply.
 
 ### 5 · design · blue-bright TEXT ink audit  (impact 2, effort s)
 Scoped 2026-09-01 7 PM: most of the ~213 `--blue-bright` uses are legitimate (links,
