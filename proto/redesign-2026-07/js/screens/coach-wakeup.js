@@ -22,6 +22,7 @@ import { ensureBook } from './coach-connected.js';
 import { allowedCreateKeys, isReadonly } from '../staff-access.js';
 import { fmtMin } from '../requirements.js';
 import { loadCommitments, saveCommitment, loadBoard, todayISO } from '../commitment-data.js';
+import { ROLLCALL_OFF } from '../commitments.js';
 
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const DOW_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -138,9 +139,22 @@ export function wakeupPayload(d, owner, kind, tz) {
  *  clears the draft and replaces itself with the composer. */
 export const coachWakeupNew = {
   nav: 'operator', tab: 'home', transient: true,
-  render() { newWakeup(); return ''; },
-  mount() { location.replace('#coach-wakeup-edit'); },
+  render() { if (ROLLCALL_OFF) return ''; newWakeup(); return ''; },
+  // Switched off (see ROLLCALL_OFF): the menu entry that led here is gone, so the only way in is
+  // a restored hash or an old deep link. Send those home rather than into a composer whose save
+  // the server would refuse.
+  mount() { location.replace(ROLLCALL_OFF ? '#coach-home' : '#coach-wakeup-edit'); },
 };
+
+/** The whole composer, replaced by one honest screen while the feature is off. */
+function switchedOffScreen(back) {
+  return `${backHead('Wake-Up Roll Call', 'Switched off', back)}
+  <div class="sidebox">
+    <div class="req-icon b s38">${icon('sun', 17)}</div>
+    <div><div class="tt">The Wake-Up Roll Call is off right now</div>
+    <div class="ts">Nobody is being asked to check in, and no morning notifications are going out. Every roll call you already ran is kept exactly as it was recorded. This screen comes back when the roll call does.</div></div>
+  </div>`;
+}
 
 const field = (label, control, hint) => `
   <div class="wk-field">
@@ -153,6 +167,7 @@ export const coachWakeupEdit = {
   nav: 'operator', tab: 'home', transient: true,
   render() {
     const back = CD.kind === 'practice' ? 'trainer' : 'coach-home';
+    if (ROLLCALL_OFF) return switchedOffScreen(back);
     if (!canSchedule()) {
       return `${backHead('Wake-Up Roll Call', 'Not available for your role', back)}
       <div class="sidebox">
@@ -237,6 +252,8 @@ export const coachWakeupEdit = {
   },
 
   mount(root) {
+    // Nothing to wire on the switched-off screen, and no reason to fetch a book for it.
+    if (ROLLCALL_OFF) return;
     ensureBook();
     const id = bookId();
     if (id) {

@@ -4,6 +4,7 @@ import { esc, segBar } from '../components.js';
 import { scoreBand } from '../score-band.js';
 import { maybeShowTip } from '../tour.js';
 import { cutoverIndex } from '../score-cutover.js';
+import { ROLLCALL_OFF } from '../commitments.js';
 
 /* Progress (spec §8): day one is a real baseline, never an empty tab; populated stays
    athlete-friendly — one score trend, one consistency summary, one category breakdown,
@@ -90,11 +91,16 @@ function trainingCard() {
       <div class="lm"><div class="lt">Training log</div><div class="ls">Your sessions &amp; notes · tracked, not scored</div></div>
       ${icon('chevron', 17, 'style="color:var(--text-3)"')}
     </div>
+    ${/* Morning Readiness is the roll-call / commitments record. With the feature switched off
+          (ROLLCALL_OFF) the server returns no rows, so this link led to a permanently empty
+          screen. The row is hidden rather than the screen changed: the record itself is intact
+          and reappears with the feature. */''}
+    ${ROLLCALL_OFF ? '' : `
     <div class="lrow" data-go="accountability">
       <div class="lic">${icon('sun', 17)}</div>
       <div class="lm"><div class="lt">Morning Readiness</div><div class="ls">Wake-ups, arrivals &amp; sessions · a separate record from your score</div></div>
       ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-    </div>
+    </div>`}
   </section>`;
 }
 

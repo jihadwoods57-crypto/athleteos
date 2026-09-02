@@ -387,3 +387,62 @@ reason is shown to the athlete, the decision is attributed to the coach who made
 unanswered, a late, an on-standard and an excused athlete, and asserts no `Excuse` action in any
 state while Override and Ping survive and the Excused verdict still renders. Proven to fail when
 the chip is put back.
+
+## SWITCHED OFF, 2026-09-02 (founder): "remove the morning roll call completely for now"
+
+**The morning roll call is OFF in production.** Nothing was deleted — no migration reverted, no
+table dropped, no row removed, no screen file deleted. It is a switch, thrown in two places.
+
+### How it is off
+
+**1. Server — the authority.** The `verified_commitments` kill switch:
+```sql
+update feature_flags set kill_switch = true where name = 'verified_commitments';
+```
+With it thrown, `vc_enabled()` is false and: every read returns `[]` (`commitment_board`,
+`my_commitments`, `rollcall_upcoming`), the write trigger refuses, `materialize_active_commitments`
+returns 0, and **both push rungs claim nothing**.
+
+Migration **0217** exists because two paths did NOT honour it and would have kept a switched-off
+feature buzzing phones:
+- `claim_missed_commitments` — the 6:05 rung. It flips unanswered rows to `missed` and feeds the
+  time-sensitive "You're late" push *and* the coach's "who missed" digest. Now carries
+  `and vc_enabled(r.athlete_id)`, the same per-athlete guard the reminder claim already had.
+- `rollcall_upcoming` — feeds the coach Home "Next roll call" card and the board's day strip. Now
+  returns `[]` when the feature is off.
+
+**2. Client — the furniture.** Data-driven surfaces empty themselves once the server returns
+nothing (both Home cards, the board, Morning Readiness). What does not is the hardcoded furniture,
+so `ROLLCALL_OFF` in `js/commitments.js` hides exactly that and nothing else:
+- the create-menu rows (both, they share `key: 'commitments'`)
+- the composer (`coach-wakeup-new` redirects home; `coach-wakeup-edit` renders an honest
+  "switched off" screen with no form and no save)
+- the manage screen's two create buttons, replaced by a sentence saying why
+- Progress → Morning Readiness (it would open a permanently empty record)
+
+### How to bring it back
+```sql
+update feature_flags set kill_switch = false where name = 'verified_commitments';
+```
+then set `ROLLCALL_OFF = false` in `proto/redesign-2026-07/js/commitments.js`, rebuild
+`assets/proto.zip`, and ship an OTA. **Server first** — the client alone only hides doors.
+
+### Proven, not assumed
+On a disposable project with every migration applied, with a roll call whose deadline had just
+passed: switch ON, `claim_missed_commitments` returned 1 row; switch OFF, it returned 0, the
+response stayed `pending` rather than being marked missed, `claim_due_commitment_reminders`
+returned 0, and `rollcall_upcoming` / `commitment_board` / `my_commitments` all returned `[]`;
+switch back ON, `rollcall_upcoming` returned its 8 days again. RLS 717/717.
+
+On production after the flip: `due_claims_now` 0, `missed_claims_now` 0, the 2 pending responses
+still `pending` and untouched, the roll call row and all 4 recorded responses intact.
+
+### What is deliberately still true
+- **Every recorded morning is kept**, exactly as it was recorded. Turning the switch back on
+  restores the history along with the feature.
+- **A stale notification can still be answered.** `ack_commitment` is not flag-gated, so if an
+  athlete taps a push sent before the switch, their tap is recorded honestly rather than refused.
+  No new notification is ever sent.
+- The kill switch is `verified_commitments`, which covers **all** commitment types, not only
+  `morning_roll_call`. At the time of the flip production had **zero** other active commitments,
+  so this removes exactly the morning roll call and nothing a coach was using.

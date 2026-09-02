@@ -2,6 +2,7 @@ import { backHead, esc } from '../components.js';
 import { icon } from '../icons.js';
 import { CD, loadBook } from '../coach-data.js';
 import { allowedCreateKeys, isReadonly } from '../staff-access.js';
+import { ROLLCALL_OFF } from '../commitments.js';
 
 /* The + is a CREATE MENU now, not a single composer (Coach OS spec §3). Announcements, check-ins,
    and schedule adjustments landed in Slice C alongside this rebuild.
@@ -19,7 +20,10 @@ const OPTIONS = [
   { key: 'message_group',   cap: 'announcements',  icon: 'users',     title: 'Message a group',       sub: 'Announce to a custom group',        go: 'coach-announce' },
   { key: 'standards',       cap: 'standards',      icon: 'bars',      title: 'Standards & templates', sub: 'Meals, windows, check-ins by room', go: 'coach-plan' },
   { key: 'schedule',        cap: 'exceptions',     icon: 'clock',     title: 'Adjust a schedule',     sub: 'Mark travel or an excused stretch', go: 'coach-roster' },
-  // Wake-Up Roll Call (0211): the morning group text as a measurable roll call. Shares the
+  // WAKE-UP ROLL CALL AND THE COMMITMENT COMPOSER ARE OFF (founder, 2026-09-02) — see
+  // ROLLCALL_OFF in commitments.js. Both entries are filtered out below rather than deleted,
+  // so bringing the feature back is one constant, not an archaeology exercise.
+  // (0211): the morning group text as a measurable roll call. Shares the
   // 'commitments' capability because it IS a commitment (type morning_roll_call).
   { key: 'commitments',     cap: null,             icon: 'sun',       title: 'Wake-Up Roll Call',     sub: 'A time, a grace period, your message. One tap answers it', go: 'coach-wakeup-new' },
   // Verified Commitments (0138). Distinct from 'schedule' above, which excuses an athlete for a
@@ -62,7 +66,11 @@ export const coachCreate = {
       </div>`;
     }
     const allowed = practice ? OPTIONS.map(o => o.key) : allowedCreateKeys(myRole);
-    const opts = OPTIONS.filter((o) => allowed.includes(o.key) && (!o.cap || CD.caps[o.cap]));
+    // `commitments` is BOTH menu rows — the Wake-Up Roll Call and the general commitment
+    // composer — and with the feature switched off (ROLLCALL_OFF) neither may be offered: the
+    // server's write trigger would refuse whatever the coach filled in.
+    const opts = OPTIONS.filter((o) => allowed.includes(o.key) && (!o.cap || CD.caps[o.cap])
+      && !(ROLLCALL_OFF && o.key === 'commitments'));
     return `${backHead('Create', 'What do you want to put in motion?', back)}
     <section class="card" style="padding:6px 16px">
       ${opts.map(o => `

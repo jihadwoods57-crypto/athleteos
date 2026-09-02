@@ -23,7 +23,7 @@ import {
   boardCounts, missingFrom, TYPE_LABEL, presenceOf, PRESENCE,
   groupByVerdict, verdictCounts, deadlineOf, closesAtOf, opensAtOf, graceMinOf, offsetFor, fmtAt,
   summarizeOccurrences, wakeupPhase, VERDICT, SOURCE,
-  dayLabel, scheduleState, nextRollcall, reachCounts,
+  dayLabel, scheduleState, nextRollcall, reachCounts, ROLLCALL_OFF,
 } from '../commitments.js';
 import { fmtMin } from '../requirements.js';
 import {
@@ -1126,9 +1126,15 @@ export const coachCommitManage = {
       <section class="card" style="padding:2px 16px">${paused.map(card).join('')}</section>
       <div class="ts" style="padding-top:8px">Paused commitments stop appearing for ${CD.nouns} tomorrow. Everything already recorded against them stays exactly as it is.</div>` : ''}
     <div style="height:14px"></div>
+    ${ROLLCALL_OFF ? `
+    <div class="sidebox">
+      <div class="req-icon b s38">${icon('sun', 17)}</div>
+      <div><div class="tt">Scheduling is off right now</div>
+      <div class="ts">The Wake-Up Roll Call and commitment scheduling are switched off, so nothing new can be created and nothing is going out. Anything listed above is kept exactly as it was recorded.</div></div>
+    </div>` : `
     <button class="btn green" data-go="coach-wakeup-new">${icon('sun', 18)} Wake-Up Roll Call</button>
     <div class="wk-gap"></div>
-    <button class="btn ghost" id="vc-new" style="width:100%">${icon('plus', 18)} Schedule a commitment</button>
+    <button class="btn ghost" id="vc-new" style="width:100%">${icon('plus', 18)} Schedule a commitment</button>`}
     <div style="height:20px"></div>`;
   },
 
