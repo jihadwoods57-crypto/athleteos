@@ -12,6 +12,7 @@
 import { RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { esc, sparkline } from '../components.js';
+import { scoreColor } from '../score-band.js';
 import {
   defineFlow, saveProgressStep, ob, capture, gateCta, choiceGrid, chipRow,
   simChip, mirrorCard, notifCard, phoneCard, structureStep, commitContinue,
@@ -194,7 +195,7 @@ const steps = [
       ${phoneCard(`${nm(o)}'s week`, `
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
           <div><div class="ls" style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-3)">Daily Score</div>
-          <div style="font-size:34px;font-weight:800;letter-spacing:-0.03em;color:var(--blue-bright)">88</div></div>
+          <div style="font-size:34px;font-weight:800;letter-spacing:-0.03em;color:${scoreColor(88)}">88</div></div>
           <div style="text-align:right;flex:none">${sparkline(DEMO_HIST)}
           <div style="font-size:11px;font-weight:700;color:var(--green-bright);margin-top:2px">Trending up</div></div>
         </div>
@@ -206,7 +207,7 @@ const steps = [
         <div style="display:flex;align-items:center;gap:10px;padding-top:11px;border-top:1px solid var(--hairline-soft)">
           <div style="width:30px;height:30px;border-radius:var(--r-chip);display:grid;place-items:center;background:var(--blue-surface);color:var(--blue-bright);flex:none">${icon('check', 15)}</div>
           <div style="font-size:14px;font-weight:700;flex:1">Weekly grade</div>
-          <div style="font-size:16px;font-weight:800;color:var(--blue-bright)">A−</div>
+          <div style="font-size:16px;font-weight:800;color:var(--text)">A−</div>
         </div>`)}
       <div style="font-size:12.5px;font-weight:600;color:var(--text-3);text-align:center;line-height:1.5;margin-top:12px">No photos. No meals. Just the answer to "are they on track?"</div>`,
   },

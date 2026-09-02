@@ -3542,7 +3542,7 @@ export const parent = {
           <span class="ros-av"${kidUid ? ` data-avatar-uid="${esc(kidUid)}"` : ''} aria-hidden="true"><span data-avatar-fallback>${esc(initialsOf(k.name || 'A', 'A'))}</span></span>
           <div style="min-width:0;flex:1"><div class="lt" style="font-size:16px">${esc(k.name || 'Athlete')}</div>
           <div class="ls">Latest day: ${when}</div></div>
-          <div style="text-align:right;flex:none"><div style="font-size:30px;font-weight:800;letter-spacing:-0.03em;color:var(--blue-bright)">${score}</div>
+          <div style="text-align:right;flex:none"><div style="font-size:30px;font-weight:800;letter-spacing:-0.03em;color:${scoreColor(k.latest_score)}">${score}</div>
           <div class="ls">${grade}</div></div>
         </div>
         ${kidUid ? `<div class="vc-consent-slot" data-kid="${esc(kidUid)}"></div>` : ''}
