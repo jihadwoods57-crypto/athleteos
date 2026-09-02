@@ -61,7 +61,15 @@ function run(argv) {
 const secretsRaw = run(['supabase', 'secrets', 'list', '--output', 'json']);
 let secretNames = null; // null = could not read (not linked / offline), so do not claim anything
 if (secretsRaw) {
-  try { secretNames = new Set((JSON.parse(secretsRaw).secrets ?? []).map((s) => s.name)); } catch { /* leave null */ }
+  try {
+    // The CLI returns a BARE ARRAY under `--output json`, and `{ secrets: [...] }` without it.
+    // Reading only the wrapped shape yielded an EMPTY set rather than a parse error, so this
+    // reported "APNs key not set" for a project where all three secrets were present — a silent
+    // wrong answer, which is worse than failing to read at all.
+    const parsed = JSON.parse(secretsRaw);
+    const list = Array.isArray(parsed) ? parsed : parsed.secrets;
+    secretNames = Array.isArray(list) ? new Set(list.map((s) => s.name)) : null;
+  } catch { /* leave null: unreadable is reported as unknown, never as "not done" */ }
 }
 const hasApnsSecrets = secretNames
   ? ['APNS_KEY_P8', 'APNS_KEY_ID', 'APNS_TEAM_ID'].every((k) => secretNames.has(k))
@@ -111,16 +119,27 @@ if (args.get('set-secrets')) {
     process.exit(1);
   }
   console.log(`\n${B}Setting the three secrets...${X}`);
-  const p8Body = readFileSync(p8, 'utf8');
-  for (const [name, value] of [['APNS_KEY_P8', p8Body], ['APNS_KEY_ID', keyId], ['APNS_TEAM_ID', TEAM_ID]]) {
-    try {
-      execFileSync(bin('npx'), ['supabase', 'secrets', 'set', `${name}=${value}`],
-        { stdio: ['ignore', 'ignore', 'inherit'] });
-      console.log(`  ${tick} ${name}`);
-    } catch {
-      console.error(`  ${R}✗ ${name} — could not set. Is the project linked?${X}`);
-      process.exit(1);
-    }
+  // Through a FILE, not the command line. The key is a multi-line PEM, and a command line is
+  // exactly where those get mangled — by cmd.exe, by a shell, by argument splitting. `secrets set
+  // --env-file` takes all three at once and the value never has to survive quoting.
+  //
+  // The file is written into ios-certs/ (already gitignored), used once, and removed in a finally
+  // so a private key is never left lying in the working tree, even if the command throws.
+  const envPath = 'ios-certs/.apns-secrets.env';
+  const p8Body = readFileSync(p8, 'utf8').trim();
+  try {
+    writeFileSync(envPath, `APNS_KEY_P8="${p8Body}"\nAPNS_KEY_ID=${keyId}\nAPNS_TEAM_ID=${TEAM_ID}\n`, 'utf8');
+    npx(['supabase', 'secrets', 'set', '--env-file', envPath], { stdio: ['ignore', 'ignore', 'pipe'] });
+    for (const n of ['APNS_KEY_P8', 'APNS_KEY_ID', 'APNS_TEAM_ID']) console.log(`  ${tick} ${n}`);
+  } catch (e) {
+    console.error(`  ${R}Could not set the secrets.${X}`);
+    // Show what actually went wrong. A bare "is it linked?" sent this exact script chasing a
+    // Supabase problem when the real fault was a typo in this file.
+    const detail = (e.stderr?.toString() || e.message || '').trim();
+    if (detail) console.error(`  ${D}${detail.slice(0, 400)}${X}`);
+    process.exit(1);
+  } finally {
+    try { unlinkSync(envPath); } catch { /* nothing to clean up */ }
   }
   console.log(`\n${G}Step 1 is done.${X} Run this script again with no arguments to see what is next.`);
   process.exit(0);
@@ -166,16 +185,18 @@ if (!s1) {
      Click + , description "OnStandard Shared", identifier ${B}${APP_GROUP}${X}
      ${D}(that string is hard-coded in the app; it has to match exactly)${X}
   2. Open   ${B}https://developer.apple.com/account/resources/identifiers/list/bundleId${X}
-     Click ${BUNDLE_ID} -> tick "App Groups" -> Edit -> tick ${APP_GROUP} -> Save
-  3. Open   ${B}https://developer.apple.com/account/resources/profiles/list${X}
-     For BOTH "OnStandard App Store" and "OnStandard AdHoc Push ...":
-     open it -> Edit -> Save -> Download
-     ${D}(editing the App ID does not update profiles already issued)${X}
-  4. Put the downloaded files in ios-certs/ , keeping these names:
-       OnStandard App Store  ->  ios-certs/appstore.mobileprovision
-       OnStandard AdHoc      ->  ios-certs/profile.mobileprovision
+     For EACH of these two, the "App Groups" row is ALREADY ticked, so just click
+     ${B}Edit${X} beside it, tick ${B}${APP_GROUP}${X}, and Save:
+       ${BUNDLE_ID}
+       ${WIDGET_BUNDLE_ID}
 
-  Then run this script again. It reads the profile and will confirm the group is in it.`);
+  3. Then run:  ${B}node scripts/apple-provision.mjs --apply${X}
+
+     That reissues both profiles with the group bound and writes them into ios-certs/
+     for you, so there is nothing to download by hand. It has to be re-run because
+     editing an App ID does not update profiles already issued.
+
+  Then run this script again to confirm.`);
 } else if (!s3) {
   console.log(`${B}NEXT: the widget extension's identity.${X}  Two ways; A is less clicking.
 
