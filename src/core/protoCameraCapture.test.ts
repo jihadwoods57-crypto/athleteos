@@ -90,7 +90,9 @@ describe('camera-confirm render gate', () => {
   test('staged gallery photo renders the confirm UI with provenance badge', () => {
     act.captureMeal('YWJj', 'data:image/jpeg;base64,YWJj', 'lunch', false);
     const html = cameraConfirm.render({});
-    expect(html).toContain('Use this photo?');
+    expect(html).toContain('Review photo');
+    expect(html).toContain('Use this photo');
+    expect(html).toContain('Everything included?');
     // Neutral provenance badge (athlete-experience spec §5.7): gallery uploads score the
     // same, so the badge is informational — never a warning-styled 'FROM GALLERY'.
     expect(html).toContain('Gallery upload');
