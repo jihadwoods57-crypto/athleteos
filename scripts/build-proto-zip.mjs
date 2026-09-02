@@ -40,10 +40,32 @@ const files = walk(SRC).filter((p) => {
   const rel = relative(SRC, p).split('\\').join('/');
   return !/\.DS_Store$/.test(p) && !DEV_ONLY.test(rel);
 });
+// Text entries are normalised to LF before zipping, for the same reason the mtime below is
+// pinned: the zip must be byte-identical no matter who builds it. Git checks these files out
+// with CRLF on a Windows clone (core.autocrlf), so a bundle built on the founder's PC and one
+// built in a Linux cloud session were different files carrying identical code — a new
+// PROTO_VERSION, a pointless full re-extract on every phone, and two hashes that could never be
+// compared to each other. It has bitten at least twice (2026-08-31, 2026-09-01), each time
+// caught only by eye in a diff.
+//
+// Byte-safe by construction: the CR strip runs ONLY on the source extensions the proto is
+// written in. Fonts, images and every other binary are passed through untouched, and a lone CR
+// inside a JS string literal survives because the pattern requires the LF.
+const TEXT = /\.(?:js|mjs|css|html|json|svg|md|txt)$/i;
+const stripCR = (buf) => {
+  let w = 0;
+  const out = new Uint8Array(buf.length);
+  for (let i = 0; i < buf.length; i++) {
+    if (buf[i] === 0x0d && buf[i + 1] === 0x0a) continue; // CR immediately before LF
+    out[w++] = buf[i];
+  }
+  return w === buf.length ? out : out.subarray(0, w);
+};
 const entries = {};
 for (const p of files) {
   const rel = relative(SRC, p).split('\\').join('/'); // zip uses forward slashes
-  entries[rel] = new Uint8Array(readFileSync(p));
+  const raw = new Uint8Array(readFileSync(p));
+  entries[rel] = TEXT.test(rel) ? stripCR(raw) : raw;
 }
 
 // Pin a fixed mtime so the zip is byte-deterministic across runs (otherwise fflate stamps
