@@ -325,3 +325,93 @@ test('gapFoods skips label/database items — a read claim is not a gap to enric
   assert.equal(out.length, 1);
   assert.equal(out[0].name, 'Zebra mystery bowl');
 });
+
+/* ── A DIFFERENT FOOD IS DIFFERENT NUMBERS (2026-09-02) ───────────────────────────────────────
+   The screenshot: "It's actually well done salmon" renamed the row, the thread said "updating
+   your numbers and score now", and the title, the macros and the score all stayed chicken's. */
+import { retitleMeal } from './meal-intel.js';
+
+const platedMeta = () => ({
+  name: 'Steak, Rice & Cucumber Bowl',
+  protein: 60, carbs: 66, fat: 19, kcal: 620, fiber: 6, quality: 88,
+  foods: ['Grilled chicken', 'Mashed sweet potatoes', 'Broccoli'],
+  detectedRich: [
+    { name: 'Grilled chicken', confidence: 'medium', quantity: '5 oz', per: { protein: 44, kcal: 234, carbs: 0, fat: 5 } },
+    { name: 'Mashed sweet potatoes', confidence: 'high', quantity: '1 cup', per: { protein: 4, kcal: 250, carbs: 58, fat: 1 } },
+    { name: 'Broccoli', confidence: 'high', quantity: '1 cup', per: { protein: 3, kcal: 55, carbs: 11, fat: 1 } },
+  ],
+});
+
+test('a rename to a DIFFERENT food re-prices the row from the reference and moves the totals', () => {
+  const r = applyMealCorrection(platedMeta(), { kind: 'item', item: 'chicken', newName: 'well done salmon' });
+  assert.ok(r, 'must apply');
+  const row = r.meta.detectedRich[0];
+  assert.equal(row.name, 'well done salmon');
+  assert.equal(row.basis, 'database');
+  // Salmon at 5 oz against the reference's 4 oz serving: 25g × 1.25 ≈ 31g, not chicken's 44g.
+  assert.ok(row.per.protein < 40 && row.per.protein > 20, `salmon protein re-priced, got ${row.per.protein}`);
+  assert.ok(row.per.fat > 10, `salmon carries salmon's fat, got ${row.per.fat}`);
+  assert.notEqual(r.meta.protein, 60, 'meal totals must move with the re-price');
+  assert.equal(r.meta.protein, row.per.protein + 4 + 3);
+  assert.ok(r.moved, 'a re-price is a move');
+  assert.match(r.summary, /score recalculated/);
+  assert.equal(r.meta.quality, mealQualityScore({ macros: r.meta, fiber: r.meta.fiber, detected: r.meta.detectedRich }));
+});
+
+test('the meal TITLE follows the renamed food', () => {
+  const r = applyMealCorrection(platedMeta(), { kind: 'item', item: 'chicken', newName: 'well done salmon' });
+  // "Steak" is not "chicken", so the title is rebuilt from the plate rather than left naming steak.
+  assert.equal(r.meta.name, 'Salmon, Mashed sweet potatoes & Broccoli');
+  const r2 = applyMealCorrection({ ...platedMeta(), name: 'Chicken, Rice & Cucumber Bowl' }, { kind: 'item', item: 'chicken', newName: 'well done salmon' });
+  assert.equal(r2.meta.name, 'Salmon, Rice & Cucumber Bowl');
+});
+
+test('retitleMeal swaps the word when present and rebuilds when not', () => {
+  assert.equal(retitleMeal('Steak, Rice & Cucumber Bowl', 'White rice', 'Mashed sweet potatoes', []), 'Steak, Mashed sweet potatoes & Cucumber Bowl');
+  assert.equal(retitleMeal('', 'chicken', 'salmon', [{ name: 'Salmon' }]), 'Salmon');
+});
+
+test('a cosmetic rename of the SAME food (fuller product name) keeps its numbers', () => {
+  const r = applyMealCorrection(corePowerMeta(), { kind: 'item', item: 'Core Power shake', newName: 'Fairlife Core Power chocolate shake' });
+  assert.ok(r);
+  assert.equal(r.meta.detectedRich[1].per.protein, 14);
+  assert.equal(r.meta.name, corePowerMeta().name);
+  assert.equal(r.moved, false);
+});
+
+test('a rename the reference cannot price takes the model estimate, marked as one', () => {
+  const r = applyMealCorrection(platedMeta(), {
+    kind: 'item', item: 'chicken', newName: 'zorbleflax', per: { protein: 38, kcal: 200, carbs: 0, fat: 3 }, perBasis: 'estimate',
+  });
+  assert.ok(r);
+  assert.equal(r.meta.detectedRich[0].basis, 'estimate');
+  assert.equal(r.meta.detectedRich[0].per.protein, 38);
+  assert.notEqual(r.meta.detectedRich[0].basis, 'label', 'an estimate is never label evidence');
+  assert.match(r.summary, /estimated/);
+});
+
+test('a rename with neither reference nor estimate says the macros stayed', () => {
+  const r = applyMealCorrection(platedMeta(), { kind: 'item', item: 'chicken', newName: 'zorbleflax' });
+  assert.ok(r);
+  assert.equal(r.meta.detectedRich[0].per.protein, 44);
+  assert.equal(r.moved, false);
+  assert.match(r.summary, /unchanged/);
+});
+
+test('add-foods: a food left out of the photo joins the plate, priced, and re-scores', () => {
+  const r = applyMealCorrection(platedMeta(), { kind: 'add-foods', foods: [{ name: 'dinner roll', quantity: '1' }, { name: 'moon dust' }] });
+  assert.ok(r);
+  assert.equal(r.meta.detectedRich.length, 4);
+  const roll = r.meta.detectedRich[3];
+  assert.equal(roll.userAdded, true);
+  assert.ok(roll.per.kcal > 0);
+  assert.ok(r.meta.kcal > 620);
+  assert.ok(r.meta.foods.includes('dinner roll'));
+  assert.deepEqual(r.unpriced, ['moon dust']);
+  assert.match(r.summary, /moon dust/);
+  assert.equal(r.meta.corrections[0].kind, 'add-foods');
+});
+
+test('add-foods with nothing priceable is a null, never a silent no-op', () => {
+  assert.equal(applyMealCorrection(platedMeta(), { kind: 'add-foods', foods: [{ name: 'moon dust' }] }), null);
+});

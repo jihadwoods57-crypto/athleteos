@@ -306,8 +306,13 @@ export default {
       });
       file.addEventListener('change', () => {
         const f = file.files && file.files[0];
+        // Let the SAME photo be picked again after a failed upload: a file input never fires
+        // `change` for a value it already holds, so the second tap used to do nothing at all.
+        file.value = '';
         if (!f) return;
-        err.textContent = '';
+        // Uploading is a state the athlete should see, not infer from a dimmed button. The
+        // line clears on success (the repaint replaces it) and is overwritten on failure.
+        err.textContent = 'Uploading your photo…';
         setBusy(true);
         const reader = new FileReader();
         reader.onerror = () => {
@@ -318,7 +323,7 @@ export default {
           const img = new Image();
           img.onerror = () => {
             setBusy(false);
-            err.textContent = "Couldn't read that photo. Try a JPG or PNG.";
+            err.textContent = "Couldn't read that photo. Try a JPG or PNG from your library.";
           };
           img.onload = async () => {
             // 256px: 2x for the largest circle that renders it (the 62px id card on a 3x

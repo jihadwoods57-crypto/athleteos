@@ -434,6 +434,23 @@ export function priceAddedFood(name, quantity) {
   };
 }
 
+/** Price a food the athlete RENAMED at the portion already on its row ("5 oz" of what is now
+ *  salmon rather than chicken). Unit-AWARE, unlike priceAddedFood: the row's quantity came from
+ *  the photo read in real units, so "5 oz" against the reference's "4 oz" serving is 1.25
+ *  servings, not five. When the two cannot be compared, one serving is the honest read.
+ *  Null when the reference has no entry for the name, so the caller can say so instead of
+ *  keeping the old food's numbers under the new food's name. */
+export function priceFoodAtQuantity(name, quantity) {
+  const hit = matchFood(name);
+  if (!hit) return null;
+  const q = servingsFor(quantity, hit.serving);
+  const s = q.resolved ? q.servings : 1;
+  return {
+    protein: Math.round(hit.per.protein * s), kcal: Math.round(hit.per.kcal * s),
+    carbs: Math.round(hit.per.carbs * s), fat: Math.round(hit.per.fat * s),
+  };
+}
+
 /** Meal-level Atwater reconciliation (shared tail of both grounding paths). */
 function reconcileKcal(totals) {
   const atwater = 4 * totals.protein + 4 * totals.carbs + 9 * totals.fat;

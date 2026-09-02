@@ -33,6 +33,7 @@ import {
   dayLabelOf,
 } from '../chat-view.js';
 import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos } from '../chat-attach.js';
+import { hydrateAvatars } from '../avatar.js';
 import { wireTapback } from '../tapback.js';
 import { openImageViewer } from '../image-viewer.js';
 import { openMembersSheet } from '../members-sheet.js';
@@ -216,8 +217,11 @@ export default {
       const btn = root.querySelector('#nc-members');
       if (!btn) return;
       const people = participantList(STATE.participants, RT.userId);
+      // Real faces where they exist (meal.js's facepile pattern): the monogram stays as the
+      // fallback span and hydrateAvatars upgrades it after paint. Never on 'ai'.
       btn.querySelector('.fp').innerHTML = people.slice(0, 4).map((p) =>
-        `<span class="fpav ${esc(p.kind === 'ai' ? 'ai' : p.self ? 'self' : 'other')}">${p.kind === 'ai' ? icon('sparkle', 13) : esc(initialsFor(p.name))}</span>`).join('');
+        `<span class="fpav ${esc(p.kind === 'ai' ? 'ai' : p.self ? 'self' : 'other')}"${p.kind !== 'ai' && p.id ? ` data-avatar-uid="${esc(p.id)}"` : ''}>${p.kind === 'ai' ? icon('sparkle', 13) : `<span data-avatar-fallback>${esc(initialsFor(p.name))}</span>`}</span>`).join('');
+      hydrateAvatars(btn);
       btn.querySelector('.names').innerHTML = `${esc(participantSummary(people))}<small>${people.length} in this conversation</small>`;
       const sub = root.querySelector('.back-head .hs');
       if (sub) sub.textContent = participantSummary(people);
@@ -280,6 +284,7 @@ export default {
       flushRun();
       if (aiTyping) html.push(typingRow());
       threadEl.innerHTML = html.join('');
+      hydrateAvatars(threadEl);   // 0206: message monograms upgrade to real faces, as on the meal thread
       // `.thread` is a flex column and has never had a scrollTop — the screen's scroller is
       // #viewport, so the old line here moved nothing. Unforced: "Load earlier" must not fling the
       // reader back to today the instant the older page paints.
@@ -328,7 +333,7 @@ export default {
         const photoOnly = isPhotoOnly(c);
         return `
       <div class="msg ${mine ? 'athlete' : c.role === 'ai' ? 'ai' : 'coach'}${item.firstOfRun ? '' : ' cont'}${rx.length ? ' has-rx' : ''}"${c.meal_id ? ` data-meal-id="${esc(c.meal_id)}"` : ''}>
-        ${!mine && item.firstOfRun ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : esc(initialsFor(who))}</div>` : '<div class="av-sp"></div>'}
+        ${!mine && item.firstOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? icon('sparkle', 15) : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
         <div class="stack">
           ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
           ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
@@ -542,14 +547,20 @@ export default {
         // THE CORRECTION LOOP, as the meal thread closes it: the athlete stated a fact about their
         // own food and the AI called apply_correction instead of arguing. Applied deterministically
         // to today's record; the AI's acknowledgment row is already persisted server-side.
-        if (data.correction && data.correction.item && slot) {
+        if (data.correction && slot && (data.correction.item || (Array.isArray(data.correction.missed) && data.correction.missed.length))) {
           const cr = data.correction;
           const live = mealDetail(slot);
-          const applied = await act.correctMeal(slot, {
-            kind: 'item', item: cr.item, newName: cr.newName || undefined,
-            quantity: cr.quantity || undefined,
-            per: cr.per || {}, add: cr.add || undefined, minutesLate: live ? live.minutesLate : undefined,
-          }, { skipAiUpdate: true });
+          const late = live ? live.minutesLate : undefined;
+          // Every item the message corrected, plus whole foods the read never had (see meal.js).
+          const parts = [cr, ...(Array.isArray(cr.more) ? cr.more : [])]
+            .filter((p) => p && p.item)
+            .map((p) => ({
+              kind: 'item', item: p.item, newName: p.newName || undefined,
+              quantity: p.quantity || undefined,
+              per: p.per || {}, perBasis: p.perBasis || undefined, add: p.add || undefined, minutesLate: late,
+            }));
+          if (Array.isArray(cr.missed) && cr.missed.length) parts.push({ kind: 'add-foods', foods: cr.missed, minutesLate: late });
+          const applied = await act.correctMeal(slot, parts, { skipAiUpdate: true });
           // A correction that did not land must say so: the AI's "updating now" is already in the
           // thread, and silence here would leave that promise standing over unchanged numbers.
           if (!applied) setNote("That didn't line up with anything in this meal's read, so your numbers haven't changed. Open the meal to fix it there.");

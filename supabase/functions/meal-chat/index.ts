@@ -162,9 +162,44 @@ const CORRECTION_TOOL = {
           required: ['name'],
         },
       },
+      /* A DIFFERENT FOOD IS DIFFERENT NUMBERS (2026-09-02). "It's actually salmon" used to rename
+         the row and leave chicken's macros under it. The app now re-prices a renamed food from
+         its own reference; when the reference has no entry it needs SOME number, and the only
+         honest way to take one from the model is to label it an estimate so it is never treated
+         as a label the athlete read. */
+      perBasis: { type: 'string', enum: ['stated', 'estimate'], description: '"stated" (default) when the protein/kcal/carbs/fat fields are what the athlete said or their packaging prints. "estimate" when newName changes WHAT the food is (chicken to salmon, rice to sweet potato) and the athlete gave no numbers: then fill protein, kcal, carbs and fat with your best estimate for the corrected food at the quantity already logged, and mark them "estimate". The app prefers its own food reference and uses your estimate only when it has no entry.' },
+      more: {
+        type: 'array',
+        description: 'OTHER items corrected in the SAME message. "That isn\'t steak, it\'s chicken, sweet potatoes and broccoli" corrects up to three logged items at once: put the first in the top-level fields and each remaining one here, same fields. Never split one message into several tool calls.',
+        items: {
+          type: 'object',
+          properties: {
+            item: { type: 'string', description: 'The detected food being corrected, matched to the context items.' },
+            newName: { type: 'string' },
+            quantity: { type: 'string' },
+            protein: { type: 'integer' }, kcal: { type: 'integer' }, carbs: { type: 'integer' }, fat: { type: 'integer' },
+            perBasis: { type: 'string', enum: ['stated', 'estimate'] },
+          },
+          required: ['item'],
+        },
+      },
+      missed: {
+        type: 'array',
+        description: 'WHOLE FOODS eaten as part of THIS meal that the read does not contain at all: a side left out of the photo, a drink beside the plate, a second plate someone sent a picture of afterwards ("I also had a roll", "forgot the milk", a photo of the rice that was not in the first shot). One entry per food. The app prices each from its own reference and it counts toward the meal score. Use this, not `add`, for a separate food; use `add` only for an ingredient inside an existing item. Never for food from a different meal.',
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'The food in plain words, e.g. "dinner roll", "whole milk", "white rice".' },
+            quantity: { type: 'string', description: 'How much, in kitchen units ("1 cup", "2 rolls", "12 oz"). Omit when one serving is the honest read.' },
+            protein: { type: 'integer', description: 'Fallback estimate for this quantity; the app prefers its own reference.' },
+            kcal: { type: 'integer' }, carbs: { type: 'integer' }, fat: { type: 'integer' },
+          },
+          required: ['name'],
+        },
+      },
       ack: { type: 'string', description: 'One to two conversational sentences to the athlete: own the miss plainly and without defensiveness ("Good catch, that is the 42g bottle"; "Two cups, got it") and say their numbers and score are updating now. Never tell them to update anything themselves or to notify their coach. Do NOT state new meal totals or new per-item macros; they are recomputed after this. No em dashes.' },
     },
-    required: ['item', 'ack'],
+    required: ['ack'],
   },
 } as const;
 
@@ -268,7 +303,18 @@ Rules that bind you:
    the app asks them to confirm before it is kept. One fact per message, the clearest one. Do
    NOT call it for a one-off ("skipped breakfast today"), for something already listed under
    what you know about them, or for anything medical (a diagnosis, a medication, a weight goal),
-   which is a flag_for_coach case. Never claim you will remember something unless you called it.`;
+   which is a flag_for_coach case. Never claim you will remember something unless you called it.
+13. WHEN THE FOOD ITSELF WAS MISREAD, THE NUMBERS CHANGE WITH IT. "That isn't steak, it's
+   chicken", "it's actually salmon", "that's sweet potato, not rice" are identity corrections:
+   call apply_correction with newName for EACH item they corrected (the first in the top-level
+   fields, the rest in `more`), and because a different food has different macros, fill in your
+   best estimate for the corrected food at its logged amount with perBasis "estimate". Never
+   leave a renamed food carrying the old food's numbers, and never handle three corrected items
+   by fixing one.
+14. A FOOD THEY LEFT OUT OF THE PHOTO STILL COUNTS. "I also had a roll", "forgot the milk", or
+   an attached picture showing food from THIS meal that the read does not list, goes in
+   apply_correction's `missed` list so it enters their numbers and score. Do not answer it with
+   an eyeballed estimate in prose and do not tell them to log it separately.`;
 
 /**
  * The escape hatch. An AI nutritionist that answers "should I cut 8lb this week" or "my knee hurts
@@ -515,9 +561,14 @@ Deno.serve(async (req) => {
        than trusting the caller: a coach can read the athlete's folder through can_view(), but
        neither party can point this at somebody else's. */
     let photoB64: string | null = null;
-    if (photoPathRaw && !coachSupport && !coachAsk && !correctionUpdate && !draftMode) {
+    // The COACH may attach too (2026-09-02): "is this the portion you meant?" with a picture is
+    // the mirror of the athlete's "here's what I ate", and the AI answering the coach without
+    // seeing it was answering half the question. A coach's attachment lives under the COACH's
+    // own folder (storage RLS keys the path on the uploader), so the boundary is the caller's
+    // uid on that path, never the athlete's.
+    if (photoPathRaw && !coachSupport && !correctionUpdate && !draftMode) {
       const okShape = /^[0-9a-f-]{36}\/chat\/[A-Za-z0-9._-]{1,64}$/i.test(photoPathRaw)
-        && photoPathRaw.startsWith(`${mealRow.athlete_id}/`);
+        && photoPathRaw.startsWith(`${coachAsk ? callerId : mealRow.athlete_id}/`);
       if (okShape) {
         try {
           const dl = await service.storage.from('meal-photos').download(photoPathRaw);
@@ -564,7 +615,7 @@ Deno.serve(async (req) => {
     ] as unknown as Anthropic.Tool[];
     // The user turn, named once because the style-correction retry below has to replay it exactly.
     const userTurn = coachAsk
-      ? `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nThe COACH reviewing this athlete's meal just asked you directly: "${question}"\n\nAnswer THE COACH in 100 words or less, using ONLY figures and foods already present in the context. Give a clear practical answer or recommendation; refer to the athlete in the third person. If the context cannot support a firm answer, say so and name the one thing you would check.`
+      ? `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nThe COACH reviewing this athlete's meal just asked you directly: "${question}"\n\nAnswer THE COACH in 100 words or less, using ONLY figures and foods already present in the context. Give a clear practical answer or recommendation; refer to the athlete in the third person. If the context cannot support a firm answer, say so and name the one thing you would check.${photoB64 ? ' The coach ATTACHED THE IMAGE ABOVE to their question: read it and answer about it. It has not been analyzed and carries no macros, so any figure you give for it is an eyeballed estimate and must be said to be one. If it shows food from this meal that the logged read does not list, say so plainly so the athlete can confirm it in the thread and have it counted.' : ''}`
       : coachSupport
       ? `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nThe COACH just said this on the athlete's meal: "${question}"\n\nIn 60 words or less, speaking to the athlete, back the coach's point using ONLY figures already in the context. Do not add new requirements, do not soften the coach, do not contradict them. If the context has nothing relevant, one steady sentence reinforcing the coach is enough.`
       : correctionUpdate
@@ -574,12 +625,17 @@ Deno.serve(async (req) => {
         ? `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nThe athlete just corrected your read of this meal. The numbers above are the CORRECTED ones. In 50 words or less, reply like a coach texting back — open by thanking them for the correction in a short natural clause ("Thanks for correcting the oil, that changes things a bit."), then give the ONE thing the update means for their next meal. Two or three sentences, conversational, no headings, no lists. Do not apologise, do not explain the mistake, do not re-list the numbers.`
         : `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nAthlete's question: ${question}${photoB64 ? `
 
-The athlete ATTACHED THE IMAGE ABOVE to this message. It is a conversational attachment, NOT a
-logged meal: it has not been analyzed, it carries no macros, and nothing in the context above
-describes it. Read it yourself and answer what they actually asked about it. Do not report macro
-numbers for it as if they were computed or measured — say plainly that you are eyeballing the
-picture, and keep any figure you give it clearly an estimate. Every number about the LOGGED meal in
-the context stays exactly as given.` : ''}`;
+The athlete ATTACHED THE IMAGE ABOVE to this message. It has not been analyzed and nothing in the
+context above describes it. Read it yourself. FIRST decide what it is:
+- Food from THIS meal that the read does not list (a side, a drink, a second plate they forgot):
+  call apply_correction and put each such food in \`missed\` with a kitchen-units quantity, so it
+  counts toward their numbers and score. Do not describe its macros in prose instead.
+- Evidence that a LOGGED item is a different food or a different amount than the read says:
+  call apply_correction with newName (perBasis "estimate") or quantity for that item.
+- A nutrition label: call apply_correction with the printed macros for that item.
+- Anything else (a menu, a question about a food they have not eaten, a portion they are asking
+  about): answer what they asked. Say plainly that you are eyeballing the picture, keep any figure
+  clearly an estimate, and leave every number about the LOGGED meal exactly as given.` : ''}`;
 
     // An image rides as its own content block ahead of the text. Only ever populated on the
     // athlete question path (see the resolve step above).
@@ -687,18 +743,51 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
         const n = Math.round(Number(v));
         return Number.isFinite(n) && n >= 0 && n <= cap ? n : null;
       };
-      const item = String(tool.input?.item ?? '').replace(/[<>]/g, '').trim().slice(0, 80);
-      const newName = String(tool.input?.newName ?? '').replace(/[<>]/g, '').trim().slice(0, 80);
-      // The corrected AMOUNT. Passed through as a string and never interpreted here: the client
-      // owns the comparison, because the item's existing quantity lives in the meal record the
-      // client holds and the rescale has to be the same deterministic one the breakdown's own
-      // quantity field uses. A model-side conversion would be a second implementation of the
-      // arithmetic, and the two would drift.
-      const quantity = String(tool.input?.quantity ?? '').replace(/[<>]/g, '').trim().slice(0, 40);
-      const per = {
-        protein: gnum(tool.input?.protein, 300), kcal: gnum(tool.input?.kcal, 2000),
-        carbs: gnum(tool.input?.carbs, 500), fat: gnum(tool.input?.fat, 300),
-      };
+      const str = (v: unknown, cap: number) => String(v ?? '').replace(/[<>]/g, '').trim().slice(0, cap);
+      // One item's worth of fields, sanitized the same way whether it is the top-level item or
+      // one of `more`. The corrected AMOUNT is passed through as a string and never interpreted
+      // here: the client owns the comparison, because the item's existing quantity lives in the
+      // meal record the client holds and the rescale has to be the same deterministic one the
+      // breakdown's own quantity field uses. A model-side conversion would be a second
+      // implementation of the arithmetic, and the two would drift.
+      const itemFields = (raw: Record<string, unknown>) => ({
+        item: str(raw?.item, 80),
+        newName: str(raw?.newName, 80) || null,
+        quantity: str(raw?.quantity, 40) || null,
+        per: {
+          protein: gnum(raw?.protein, 300), kcal: gnum(raw?.kcal, 2000),
+          carbs: gnum(raw?.carbs, 500), fat: gnum(raw?.fat, 300),
+        },
+        perBasis: raw?.perBasis === 'estimate' ? 'estimate' : 'stated',
+      });
+      const top = itemFields((tool.input ?? {}) as Record<string, unknown>);
+      const item = top.item;
+      const newName = top.newName ?? '';
+      const quantity = top.quantity ?? '';
+      const per = top.per;
+      const changed = (f: ReturnType<typeof itemFields>) => !!f.item && (!!f.newName || !!f.quantity || Object.values(f.per).some((v) => v != null));
+      const more = (Array.isArray(tool.input?.more) ? tool.input.more : [])
+        .slice(0, 5)
+        .map((raw) => itemFields((raw ?? {}) as Record<string, unknown>))
+        .filter((f) => changed(f) && f.item.toLowerCase() !== item.toLowerCase());
+      // Whole foods the read never had. Priced client-side from the curated reference; the
+      // model's numbers ride along only as a fallback, exactly like `add`.
+      const missed = (Array.isArray(tool.input?.missed) ? tool.input.missed : [])
+        .slice(0, 6)
+        .map((raw) => {
+          const a = (raw ?? {}) as Record<string, unknown>;
+          const name = str(a.name, 60);
+          if (!name) return null;
+          return {
+            name,
+            quantity: str(a.quantity, 40) || null,
+            per: {
+              protein: gnum(a.protein, 300), kcal: gnum(a.kcal, 2000),
+              carbs: gnum(a.carbs, 500), fat: gnum(a.fat, 300),
+            },
+          };
+        })
+        .filter(Boolean);
       // Ingredients the athlete says were in the item. The model's macro numbers ride along ONLY
       // as a fallback for foods our reference does not carry — the client prefers priceAddedFood
       // every time, so a hallucinated 60g-protein egg loses to the curated entry.
@@ -722,7 +811,8 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
       let ack = String(tool.input?.ack ?? '').replace(/—/g, ',').trim().slice(0, 500);
       if (!ack) ack = 'Good catch. Updating your numbers and score now.';
       ack = styleSafe(ack);
-      const hasChange = !!item && (!!newName || !!quantity || add.length > 0 || Object.values(per).some((v) => v != null));
+      const hasChange = (!!item && (!!newName || !!quantity || add.length > 0 || Object.values(per).some((v) => v != null)))
+        || more.length > 0 || missed.length > 0;
 
       // NEVER PROMISE WHAT CANNOT HAPPEN (2026-08-09). This ack used to be written to the thread
       // unconditionally — including on the calls where the model conveyed nothing the app could
@@ -740,7 +830,9 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
 
       await recordAiCall({ fn: 'meal-chat', mode: 'reply', phase: 'correction_tool', userId: callerId, model: msg.model ?? MODEL, latencyMs: 0, ok: true, outcome: hasChange ? 'correction_returned' : 'ack_only' });
       return new Response(
-        JSON.stringify(hasChange ? { reply: text, correction: { item, newName: newName || null, quantity: quantity || null, per, add } } : { reply: text }),
+        JSON.stringify(hasChange
+          ? { reply: text, correction: { item, newName: newName || null, quantity: quantity || null, per, perBasis: top.perBasis, add, more, missed } }
+          : { reply: text }),
         { headers: { ...cors, 'Content-Type': 'application/json' } },
       );
     }

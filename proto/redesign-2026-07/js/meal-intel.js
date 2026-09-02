@@ -9,7 +9,7 @@
    the curated reference rather than taking a number out of the AI's prose, and it
    imports the pricer instead of accepting one, so a call site cannot silently lose
    pricing by forgetting to inject it. */
-import { priceAddedFood, servingsFor } from './nutrition.js';
+import { priceAddedFood, priceFoodAtQuantity, servingsFor } from './nutrition.js';
 
 const clean = (v) => String(v == null ? '' : v).replace(/[<>]/g, '').slice(0, 200);
 
@@ -1185,10 +1185,45 @@ const CORRECTION_RULES = {
   },
 };
 
-export function applyMealCorrection(meta, { kind, value, detail, item, newName, quantity, per, add, minutesLate } = {}) {
+/* ── THE TITLE FOLLOWS THE FOOD (2026-09-02) ──────────────────────────────────────────────────
+   The meal's display name is the analyzer's own dish title ("Steak, Rice & Cucumber Bowl"),
+   frozen at log time. A correction that renamed steak to salmon used to leave that title
+   standing over a plate that no longer had steak on it: the athlete read "updating now" and the
+   heading kept calling their dinner the wrong thing. When the old item's identifying word is in
+   the title it is swapped for the new food's; when it is not, the title is rebuilt from what is
+   actually on the plate, so the heading can never name a food the read no longer contains. */
+const TITLE_STOP = new Set(['grilled', 'roasted', 'baked', 'fried', 'seasoned', 'sauteed', 'steamed', 'boiled', 'smoked', 'broiled', 'seared', 'scrambled', 'toasted', 'glazed', 'cooked', 'well', 'done', 'medium', 'rare', 'with', 'and', 'the', 'fresh', 'plain', 'large', 'small', 'side', 'of']);
+const titleWords = (s) => clean(s).toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !TITLE_STOP.has(w));
+/** "Grilled salmon, well done" -> "Salmon". The part before the first comma, cooking words
+ *  dropped, first letter up: what a heading calls the food, not what a label does. */
+function headlineName(name) {
+  const base = clean(name).split(',')[0].trim();
+  const words = base.split(/\s+/).filter((w) => w && !TITLE_STOP.has(w.toLowerCase()));
+  const s = (words.length ? words : base.split(/\s+/)).join(' ').trim();
+  return s ? s[0].toUpperCase() + s.slice(1) : '';
+}
+export function retitleMeal(title, oldName, newName, rich) {
+  const t = clean(title).trim();
+  const fresh = headlineName(newName);
+  if (!fresh) return t || undefined;
+  const oldW = titleWords(oldName);
+  if (t) {
+    for (const w of oldW) {
+      // Whole-word, case-insensitive, plural-tolerant: "Steak" in "Steak, Rice & Cucumber Bowl".
+      const re = new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(s|es)?\\b`, 'i');
+      if (re.test(t)) return t.replace(re, fresh).slice(0, 80);
+    }
+  }
+  const names = (Array.isArray(rich) ? rich : []).map((d) => headlineName(d && d.name)).filter(Boolean).slice(0, 3);
+  if (!names.length) return t || fresh;
+  if (names.length === 1) return names[0].slice(0, 80);
+  return `${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}`.slice(0, 80);
+}
+
+export function applyMealCorrection(meta, { kind, value, detail, item, newName, quantity, per, perBasis, add, foods, minutesLate } = {}) {
   const src = meta || {};
   const rule = (CORRECTION_RULES[kind] || {})[String(value || '').toLowerCase()];
-  if (!rule && kind !== 'other' && kind !== 'item') return null;
+  if (!rule && kind !== 'other' && kind !== 'item' && kind !== 'add-foods') return null;
   // Freeze the ORIGINAL estimate exactly once — the audit trail's anchor.
   const orig = src.orig || {
     protein: src.protein || 0, carbs: src.carbs || 0, fat: src.fat || 0,
@@ -1275,7 +1310,11 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
     // A correction has to CHANGE something. One that states no macro, adds no priceable food and
     // supplies no new name is a no-op, and returning a cheerful "recalculated" summary for it is
     // how the thread ends up promising an update that never happened. Null says so plainly.
-    const statedAny = per && typeof per === 'object' && ['protein', 'kcal', 'carbs', 'fat'].some((k) => per[k] != null);
+    // A macro the model marks perBasis 'estimate' is its own guess for a food whose identity
+    // changed, never something the athlete read off a package: it can price a rename the
+    // reference cannot, but it is not label evidence and must not be treated as such.
+    const perGiven = per && typeof per === 'object' && ['protein', 'kcal', 'carbs', 'fat'].some((k) => per[k] != null);
+    const statedAny = perGiven && perBasis !== 'estimate';
 
     /* ── THE PORTION WAS WRONG, NOT THE FOOD (2026-08-28) ──────────────────────────────────
        "That was two cups, not one." Until apply_correction carried a quantity field, the model
@@ -1296,12 +1335,40 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
     const portion = qty && oldQty ? servingsFor(qty, oldQty) : { servings: 1, resolved: false };
     const scaled = portion.resolved && portion.servings !== 1;
 
-    if (!statedAny && !applied.length && !clean(newName).trim() && !scaled) return null;
+    const nn2 = clean(newName).slice(0, 80);
+    if (!statedAny && !applied.length && !nn2 && !scaled) return null;
     const basePer = row.per && typeof row.per === 'object' ? row.per : { protein: 0, kcal: 0, carbs: 0, fat: 0 };
+
+    /* ── A DIFFERENT FOOD IS DIFFERENT NUMBERS (2026-09-02) ───────────────────────────────────
+       "It's actually well done salmon." Until now a rename with no stated macro renamed the row
+       and left chicken's numbers under salmon's name, while the thread said "updating your
+       numbers and score now". A rename that changes the food's IDENTITY now re-prices the row
+       from the curated reference at the portion already on it (unit-aware, so 5 oz of salmon is
+       5 oz of salmon). When the reference has no entry, the model's own estimate for the new
+       food is accepted and marked as one; when there is neither, the summary says the macros
+       stayed instead of implying they moved. A cosmetic rename (same food, fuller product name)
+       is left alone: "Core Power shake" -> "Fairlife Core Power 42g" is not a new food. */
+    const renamed = !!nn2 && nn2.toLowerCase() !== clean(row.name).toLowerCase();
+    const sameFood = renamed && (() => {
+      const a = new Set(titleWords(row.name));
+      return titleWords(nn2).some((w) => a.has(w));
+    })();
+    let repriced = null;
+    let estimated = false;
+    if (renamed && !sameFood && !statedAny) {
+      repriced = priceFoodAtQuantity(nn2, qty || oldQty);
+      if (!repriced && perGiven) {
+        const g = (v) => { const n = Math.round(Number(v)); return isFinite(n) && n >= 0 ? Math.min(n, 2000) : 0; };
+        repriced = { protein: g(per.protein), carbs: g(per.carbs), fat: g(per.fat), kcal: g(per.kcal) };
+        if (!repriced.kcal) repriced.kcal = Math.round(4 * repriced.protein + 4 * repriced.carbs + 9 * repriced.fat);
+        estimated = true;
+      }
+    }
     // The rescaled item is what every later step merges onto, so a portion correction that also
     // states a macro ("two cups, and it was brown rice at 5g") applies the stated macro to the
-    // corrected amount rather than to the old one.
-    const oldPer = scaled
+    // corrected amount rather than to the old one. A re-priced food was priced AT the corrected
+    // amount already, so it is never scaled a second time.
+    const oldPer = repriced ? repriced : scaled
       ? {
         protein: Math.max(0, Math.round((Number(basePer.protein) || 0) * portion.servings)),
         kcal: Math.max(0, Math.round((Number(basePer.kcal) || 0) * portion.servings)),
@@ -1310,7 +1377,7 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
       }
       : basePer;
     const numOr = (v, fallback) => { const n = Math.round(Number(v)); return isFinite(n) && n >= 0 ? n : fallback; };
-    const stated = per && typeof per === 'object' ? per : {};
+    const stated = statedAny ? per : {};
     const merged = {
       protein: stated.protein != null ? numOr(stated.protein, oldPer.protein || 0) : (oldPer.protein || 0),
       kcal: stated.kcal != null ? numOr(stated.kcal, oldPer.kcal || 0) : (oldPer.kcal || 0),
@@ -1325,16 +1392,18 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
     // What the athlete added rides ON TOP of the item's own numbers — the sandwich still has its
     // sausage, it just also has the egg and cheese they told us about.
     for (const k of ['protein', 'carbs', 'fat', 'kcal']) merged[k] = Math.round(merged[k] + addTot[k]);
-    const nn2 = clean(newName).slice(0, 80);
     const oldName = row.name;
     row.per = merged;
     if (nn2) row.name = nn2;
-    // Provenance, honestly: a stated macro is a LABEL read (they looked at the package); an added
-    // ingredient priced from our curated reference is 'database'; one that fell back to the
+    // Provenance, honestly: a stated macro is a LABEL read (they looked at the package); a
+    // re-priced or added food from our curated reference is 'database'; one that fell back to the
     // model's own number is an 'estimate' and has to say so. `edited` is what actually protects
     // the row from being clamped back into a generic reference band — see groundFood.
-    row.basis = statedAny ? 'label' : anyEstimated ? 'estimate' : applied.length ? 'database' : row.basis;
+    row.basis = statedAny ? 'label'
+      : repriced ? (estimated ? 'estimate' : 'database')
+        : anyEstimated ? 'estimate' : applied.length ? 'database' : row.basis;
     if (statedAny) row.confidence = 'high';
+    else if (repriced) row.confidence = estimated ? 'medium' : 'high';
     // The corrected amount rides on the row, so the breakdown shows what the athlete said and
     // grounding bounds the item against that portion rather than the one the photo guessed.
     if (qty) row.quantity = qty;
@@ -1352,8 +1421,15 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
     if (nn2 && Array.isArray(src.foods)) {
       next.foods = src.foods.map((f) => (clean(f).toLowerCase() === clean(oldName).toLowerCase() ? nn2 : f));
     }
+    // The heading names the food. A rename that changed what is on the plate changes the title.
+    if (renamed && !sameFood) {
+      const t = retitleMeal(src.name, oldName, nn2, rich);
+      if (t) next.name = t;
+    }
     // Totals re-derive from the items when every item is priced; otherwise apply this item's
-    // delta to the stated totals (the honest partial recompute).
+    // delta to the stated totals (the honest partial recompute). The delta is measured from the
+    // row's numbers BEFORE this correction, not from an intermediate rescaled or re-priced
+    // value, or a re-price would contribute nothing to the meal it just changed.
     const priced = rich.every((d) => d && d.per && typeof d.per === 'object');
     if (priced) {
       let p = 0, c = 0, f2 = 0, k2 = 0;
@@ -1361,7 +1437,7 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
       next.protein = Math.round(p); next.carbs = Math.round(c); next.fat = Math.round(f2); next.kcal = Math.round(k2);
     } else {
       for (const k of ['protein', 'carbs', 'fat', 'kcal']) {
-        next[k] = Math.max(0, Math.round((Number(src[k]) || 0) + (merged[k] - (Number(oldPer[k]) || 0))));
+        next[k] = Math.max(0, Math.round((Number(src[k]) || 0) + (merged[k] - (Number(basePer[k]) || 0))));
       }
     }
     // The FULL deterministic re-score — same engine, same inputs, every surface agrees.
@@ -1376,18 +1452,90 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
     // rename moved no macros and must not say the score recalculated; an ingredient we could not
     // price has to be named out loud rather than quietly rounded away.
     const addedNames = applied.map((a) => a.name);
+    const moved = statedAny || applied.length > 0 || !!repriced || scaled;
     if (statedAny || applied.length) {
       summary = `Corrected: ${label}${addedNames.length ? `; added ${addedNames.join(' and ')}` : ' updated from your correction'} · macros and score recalculated`;
+    } else if (repriced) {
+      summary = `Corrected: ${label} · ${estimated ? 'macros estimated for the new food' : 'macros re-read from the food reference'}, score recalculated`;
+    } else if (scaled) {
+      summary = `Corrected: ${label} portion ${qty} · macros rescaled and score recalculated`;
+    } else if (renamed && !sameFood) {
+      summary = `Corrected: ${label} renamed · no reference numbers for ${nn2}, so its macros are unchanged`;
     } else {
       summary = `Corrected: ${label} renamed; macros unchanged`;
     }
     if (unpriced.length) summary += ` · I don't have numbers for ${unpriced.join(' or ')}, so that isn't counted yet`;
     log.push({
       kind: 'item', item: clean(oldName), newName: nn2 || undefined, per: merged,
+      repriced: repriced ? (estimated ? 'estimate' : 'database') : undefined,
       add: applied.length ? applied : undefined, unpriced: unpriced.length ? unpriced : undefined,
     });
     next.corrections = log.slice(0, 8);
-    return { meta: next, summary, kcalDelta, added: addedNames, unpriced, moved: statedAny || applied.length > 0 };
+    return { meta: next, summary, kcalDelta, added: addedNames, unpriced, moved };
+  }
+
+  /* ── kind 'add-foods' (2026-09-02): foods that were EATEN WITH this meal and missing from the
+     read entirely — the roll they left out of the photo, the drink beside the plate, the side
+     someone in the thread sent a picture of afterwards. Until now nothing in the chat could add
+     a separate food: apply_correction's `add` bolts an ingredient onto an existing item, and a
+     whole food had to be re-logged as another meal, which scores twice. Each food is priced
+     from the curated reference (unit-blind, like `add`: "2" means two of what the table calls a
+     serving), falls back to the model's estimate when the reference has no entry, and is
+     reported back unpriced when there is neither. Totals re-derive, the score recomputes
+     through the same engine, and every surface reads the plate as it was actually eaten. */
+  if (kind === 'add-foods') {
+    const list = (Array.isArray(foods) ? foods : []).filter((f) => f && clean(f.name).trim()).slice(0, 6);
+    if (!list.length) return null;
+    const rich = Array.isArray(src.detectedRich) ? src.detectedRich.map((d) => ({ ...d })) : [];
+    const hadItems = rich.length > 0 && rich.every((d) => d && d.per && typeof d.per === 'object');
+    const applied = [];
+    const unpriced = [];
+    const addTot = { protein: 0, carbs: 0, fat: 0, kcal: 0 };
+    const g = (v) => { const n = Math.round(Number(v)); return isFinite(n) && n >= 0 ? Math.min(n, 2000) : 0; };
+    for (const f of list) {
+      const nm = clean(f.name).trim().slice(0, 60);
+      const fq = f.quantity == null ? '' : clean(f.quantity).trim().slice(0, 40);
+      let pr = priceAddedFood(nm, fq);
+      let basis = 'database';
+      if (!pr && f.per && typeof f.per === 'object' && ['protein', 'kcal', 'carbs', 'fat'].some((k) => f.per[k] != null)) {
+        pr = { protein: g(f.per.protein), carbs: g(f.per.carbs), fat: g(f.per.fat), kcal: g(f.per.kcal) };
+        basis = 'estimate';
+      }
+      if (!pr) { unpriced.push(nm); continue; }
+      if (!pr.kcal) {
+        const atw = 4 * pr.protein + 4 * pr.carbs + 9 * pr.fat;
+        if (atw > 0) pr.kcal = Math.round(atw);
+      }
+      for (const k of ['protein', 'carbs', 'fat', 'kcal']) addTot[k] += Number(pr[k]) || 0;
+      const row = { name: nm, confidence: basis === 'estimate' ? 'medium' : 'high', per: pr, basis, userAdded: true, edited: true };
+      if (fq) row.quantity = fq;
+      rich.push(row);
+      applied.push({ name: nm, quantity: fq || undefined, per: pr, basis });
+    }
+    if (!applied.length) return null;
+    next.detectedRich = rich;
+    next.foods = [...(Array.isArray(src.foods) ? src.foods : []), ...applied.map((a) => a.name)].slice(0, 12);
+    if (hadItems) {
+      let p = 0, c = 0, f2 = 0, k2 = 0;
+      for (const d of rich) { p += Number(d.per.protein) || 0; c += Number(d.per.carbs) || 0; f2 += Number(d.per.fat) || 0; k2 += Number(d.per.kcal) || 0; }
+      next.protein = Math.round(p); next.carbs = Math.round(c); next.fat = Math.round(f2); next.kcal = Math.round(k2);
+    } else {
+      // No per-item detail to re-sum from (an older read, or one whose items were never
+      // priced): the new food rides on top of the stated totals rather than replacing them.
+      for (const k of ['protein', 'carbs', 'fat', 'kcal']) next[k] = Math.max(0, Math.round((Number(src[k]) || 0) + addTot[k]));
+    }
+    const q = mealQualityScore({
+      macros: next, fiber: next.fiber, detected: next.detectedRich,
+      minutesLate: typeof minutesLate === 'number' ? minutesLate : undefined,
+    });
+    if (q != null) { next.quality = q; delete next.qualityAdj; }
+    const names = applied.map((a) => a.name);
+    summary = `Added: ${names.join(' and ')} · macros and score recalculated`;
+    if (unpriced.length) summary += ` · I don't have numbers for ${unpriced.join(' or ')}, so that isn't counted yet`;
+    log.push({ kind: 'add-foods', foods: applied, unpriced: unpriced.length ? unpriced : undefined });
+    next.corrections = log.slice(0, 8);
+    const kcalDelta = Math.abs((next.kcal || 0) - (Number(src.kcal) || 0));
+    return { meta: next, summary, kcalDelta, added: names, unpriced, moved: true };
   }
 
   if (kind === 'other') {

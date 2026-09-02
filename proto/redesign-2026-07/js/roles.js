@@ -568,7 +568,11 @@ export async function uploadAvatar(userId, base64) {
     const bin = atob(base64);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const up = await c.storage.from('avatars').upload(`${userId}/avatar.jpg`, bytes, { contentType: 'image/jpeg', upsert: true });
+    // cacheControl 60, not the bucket's default hour (2026-09-02): the OWN device busts the URL
+    // with ?v=, but every OTHER device (coach roster, teammates' threads) paints the bare URL,
+    // and a replaced photo sat behind their browser cache for an hour. A minute is the honest
+    // ceiling for "your new picture shows up everywhere".
+    const up = await c.storage.from('avatars').upload(`${userId}/avatar.jpg`, bytes, { contentType: 'image/jpeg', upsert: true, cacheControl: '60' });
     return !up.error;
   } catch { return false; }
 }

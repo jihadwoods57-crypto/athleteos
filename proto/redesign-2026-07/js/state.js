@@ -2261,20 +2261,45 @@ export const act = {
   /** opts.skipAiUpdate: the chat correction path (apply_correction tool) — the AI's
    *  acknowledgment row is ALREADY persisted server-side, so posting the correctionUpdate
    *  message too would say the same thing twice in the thread. */
+  /** `correction` may be ONE correction or an ARRAY of them (2026-09-02): one chat message can
+   *  correct several items at once ("that isn't steak, it's chicken, sweet potatoes and
+   *  broccoli"), and applying them as one batch means one day push, one row mirror, one coach
+   *  ping. Each is applied in turn to the meta the previous one produced; the ones that cannot
+   *  land are skipped, and null comes back only when NONE landed. */
   async correctMeal(slot, correction, opts = {}) {
-    const meta = DAY.slotMacros[slot];
-    if (!meta || !DAY.meals[slot]) return null;
-    const r = applyMealCorrection(meta, correction);
-    if (!r) return null;
+    const meta0 = DAY.slotMacros[slot];
+    if (!meta0 || !DAY.meals[slot]) return null;
+    const list = (Array.isArray(correction) ? correction : [correction]).filter(Boolean);
+    let meta = meta0;
+    const parts = [];
+    for (const c of list) {
+      const one = applyMealCorrection(meta, c);
+      if (!one) continue;
+      meta = one.meta;
+      parts.push({ c, r: one });
+    }
+    if (!parts.length) return null;
+    const r = {
+      meta,
+      summary: parts.map((p) => p.r.summary).join(' · '),
+      kcalDelta: Math.abs((meta.kcal || 0) - (Number(meta0.kcal) || 0)),
+      added: parts.flatMap((p) => p.r.added || []),
+      unpriced: parts.flatMap((p) => p.r.unpriced || []),
+      moved: parts.some((p) => p.r.moved),
+      applied: parts.length,
+      skipped: list.length - parts.length,
+    };
     DAY.slotMacros[slot] = r.meta;
     pushDay(RT.userId);
-    // Quality metrics (item 8b): counts-only signal that a photo read needed a fix — no macro
-    // values, no free text. Feeds the correction-rate side of admin_meal_quality_metrics.
-    track(EVENTS.MEAL_CORRECTED, { kind: String((correction && correction.kind) || 'other').slice(0, 24) });
-    // TEACH THE MODEL. A correction is evidence about this athlete, not just about this plate:
-    // "portion was double" repeated is a calibration prior worth more than any single fix.
-    // Fire-and-forget — memory must never be able to break a correction.
-    void this._learnFromCorrection(correction);
+    for (const { c } of parts) {
+      // Quality metrics (item 8b): counts-only signal that a photo read needed a fix — no macro
+      // values, no free text. Feeds the correction-rate side of admin_meal_quality_metrics.
+      track(EVENTS.MEAL_CORRECTED, { kind: String((c && c.kind) || 'other').slice(0, 24) });
+      // TEACH THE MODEL. A correction is evidence about this athlete, not just about this plate:
+      // "portion was double" repeated is a calibration prior worth more than any single fix.
+      // Fire-and-forget — memory must never be able to break a correction.
+      void this._learnFromCorrection(c);
+    }
     // Mirror the corrected numbers onto the meals row the coach reads (athlete owns the row —
     // meals_update RLS). The original stays in the day meta's `orig`; the note carries the trail.
     // Skipped for a PRO-sourced correction (0199): the professional's device already wrote the
@@ -2289,6 +2314,11 @@ export const act = {
         protein: r.meta.protein || 0, carbs: r.meta.carbs || 0, fat: r.meta.fat || 0,
         kcal: r.meta.kcal || 0, quality: r.meta.quality != null ? r.meta.quality : null,
         note,
+        // The coach reads the food list and the dish title off the row too (2026-09-02). A
+        // rename or an added food that only moved the macros left the coach's copy calling
+        // the plate by its old name with its old items under it.
+        ...(Array.isArray(r.meta.detectedRich) && r.meta.detectedRich.length ? { detected: r.meta.detectedRich } : {}),
+        ...(typeof r.meta.name === 'string' && r.meta.name.trim() ? { name: r.meta.name.trim().slice(0, 120) } : {}),
       };
       // A lost mirror here was worse than elsewhere: the athlete corrected the numbers and the
       // coach kept reading the wrong ones, forever. Failure → the small-writes outbox.

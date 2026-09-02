@@ -343,7 +343,7 @@ function mountThread(root, mealId, meal) {
       const rx = c === lastMsg ? reactionGroups(rows) : [];
       return `
         <div class="msg ${mine ? 'athlete' : c.role === 'ai' ? 'ai' : 'coach'}${item.firstOfRun ? '' : ' cont'}${rx.length ? ' has-rx' : ''}">
-          ${!mine && item.firstOfRun ? `<div class="av">${c.role === 'ai' ? icon('sparkle', 15) : esc(initialsFor(who))}</div>` : '<div class="av-sp"></div>'}
+          ${!mine && item.firstOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? icon('sparkle', 15) : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
           <div class="stack">
             ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
             ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
@@ -357,6 +357,7 @@ function mountThread(root, mealId, meal) {
     // Resolve any attachments just painted. trust.js imports named roles functions rather than the
     // module, so the helper is handed the one function it needs.
     void hydrateThreadPhotos(threadEl, { signedMealPhotoUrl, signedMealPhotoUrls });
+    hydrateAvatars(threadEl);   // 0206: message monograms upgrade to real faces, as on the meal thread
     // The same Read more the meal thread has. This screen renders the identical AI opener, which
     // meal-opener.ts composes assuming a client clamp exists.
     wireReadMore(threadEl, EXPANDED_BUBBLES);

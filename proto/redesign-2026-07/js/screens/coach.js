@@ -3214,14 +3214,24 @@ export const coachMeal = {
       const athleteId0 = meal0 ? meal0.athlete_id : (MC && MC.comments[0] && MC.comments[0].athlete_id);
       if (!athleteId0) return;
       aiBtn.disabled = true;
-      note('Asking the AI Nutritionist…', true);
-      const res = await postChatMessage(roles, { mealId: sub, athleteId: athleteId0, authorId: RT.userId, role: 'coach', text });
-      if (!res.ok) { aiBtn.disabled = false; note("Couldn't send. Try again."); return; }
+      // A picture attached to the question goes with it (2026-09-02): it posts to the thread
+      // as the coach's message and meal-chat reads it from storage, so the AI answers about
+      // what the coach is actually pointing at.
+      const pendingPhoto = cmAttach.get();
+      note(pendingPhoto ? 'Uploading photo…' : 'Asking the AI Nutritionist…', true);
+      const res = await postChatMessage(roles, { mealId: sub, athleteId: athleteId0, authorId: RT.userId, role: 'coach', text, photo: pendingPhoto });
+      if (!res.ok) {
+        aiBtn.disabled = false;
+        note(res.error === 'upload' ? "Couldn't upload that photo. Try again, or remove it and send." : "Couldn't send. Try again.");
+        return;
+      }
       if (input) input.value = '';
+      cmAttach.clear();
+      note('Asking the AI Nutritionist…', true);
       let failMsg = '';
       try {
         const { data, error } = await window.sb.functions.invoke('meal-chat', {
-          body: { mealId: sub, coachAsk: true, question: text, context: coachAskContext(meal0) },
+          body: { mealId: sub, coachAsk: true, question: text, context: coachAskContext(meal0), ...(res.photoPath ? { photoPath: res.photoPath } : {}) },
         });
         if (error || !data || !data.reply) throw new Error('no-reply');
       } catch {

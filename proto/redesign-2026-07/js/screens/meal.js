@@ -1632,7 +1632,7 @@ export const thread = {
       const coachPin = lastCoach && !shown.includes(lastCoach) ? (() => {
         const who = authorName(lastCoach, participants, RT.userId, S.coach.noun);
         return `<div class="coach-pin">
-          <div class="cp-head"><span class="cp-av">${esc(initialsFor(who))}</span><span class="cp-who">${esc(who)}</span><span class="cp-tag">${icon('pin', 11)} Pinned</span></div>
+          <div class="cp-head"><span class="cp-av"${lastCoach.author_id ? ` data-avatar-uid="${esc(lastCoach.author_id)}"` : ''}><span data-avatar-fallback>${esc(initialsFor(who))}</span></span><span class="cp-who">${esc(who)}</span><span class="cp-tag">${icon('pin', 11)} Pinned</span></div>
           <div class="cp-text">${esc(String(lastCoach.text || ''))}</div>
         </div>`;
       })() : '';
@@ -1972,16 +1972,25 @@ export const thread = {
           // recompute from the one canonical record, and the meals row mirror keeps coach view,
           // daily score, and group chat reading the same finalized data. The AI's acknowledgment
           // row is already persisted server-side; refresh() below shows it.
-          if (data.correction && data.correction.item) {
+          if (data.correction && (data.correction.item || (Array.isArray(data.correction.missed) && data.correction.missed.length))) {
             const c = data.correction;
-            const applied = await act.correctMeal(M.slot, {
-              kind: 'item', item: c.item, newName: c.newName || undefined,
-              // The corrected AMOUNT, when the athlete fixed how much rather than what. The
-              // client owns the rescale so this lands on exactly the numbers the breakdown's own
-              // quantity field would produce.
-              quantity: c.quantity || undefined,
-              per: c.per || {}, add: c.add || undefined, minutesLate: M.minutesLate,
-            }, { skipAiUpdate: true });
+            // ONE message, EVERY item it corrected (2026-09-02). "That isn't steak, that's
+            // chicken, sweet potatoes and broccoli" is three corrections, and a tool that took
+            // one per call renamed the first and dropped the rest. `more` carries the others;
+            // `missed` carries whole foods the read never had (a side left out of the photo, a
+            // plate someone sent a picture of afterwards) so they count toward the grade too.
+            const parts = [c, ...(Array.isArray(c.more) ? c.more : [])]
+              .filter((p) => p && p.item)
+              .map((p) => ({
+                kind: 'item', item: p.item, newName: p.newName || undefined,
+                // The corrected AMOUNT, when the athlete fixed how much rather than what. The
+                // client owns the rescale so this lands on exactly the numbers the breakdown's
+                // own quantity field would produce.
+                quantity: p.quantity || undefined,
+                per: p.per || {}, perBasis: p.perBasis || undefined, add: p.add || undefined, minutesLate: M.minutesLate,
+              }));
+            if (Array.isArray(c.missed) && c.missed.length) parts.push({ kind: 'add-foods', foods: c.missed, minutesLate: M.minutesLate });
+            const applied = await act.correctMeal(M.slot, parts, { skipAiUpdate: true });
             // A CORRECTION THAT DID NOT LAND MUST SAY SO (2026-08-09). correctMeal returns null
             // whenever it cannot act — the named item matches nothing in the read, the meal has no
             // per-item detail, the day slot is gone. That null used to be discarded on the way
