@@ -348,3 +348,42 @@ Three gaps a real morning exposes once days can be moved or skipped.
   change" with Tell athletes.
 - An athlete with notifications off shows **No push** on the day-ahead roster and "no push on
   their phone" on the morning board.
+
+## Fifth pass, 2026-09-02: the Excuse action is removed (founder)
+
+**A coach can no longer excuse an athlete off a roll call from the board.**
+
+The board carried an `Excuse` chip on every unanswered and every late row. One tap opened
+Today / 3 days / A week, and the chosen range wrote `athlete_exceptions` and cleared the athlete
+off that morning and the next few. It recorded no reason, named nobody on the row, and the
+morning it erased left nothing behind to answer for.
+
+### What was removed
+- The `Excuse` chip on the wake-up board rows (`wakeupRow`) and on the general commitment board
+  rows (`athleteRow`) in `screens/coach-commitments.js`.
+- Its `[data-vc-excuse]` handler and the duration sheet.
+- `excuseAthlete()` in `commitment-data.js` — the client no longer holds any path to
+  `staff_excuse_athlete`.
+
+### What replaces it
+**Override**, which already existed and is the honest instrument: it *requires* a reason, the
+reason is shown to the athlete, the decision is attributed to the coach who made it in
+`commitment_response_audit` (0212), and the row reads `Override · On Standard` for ever after.
+`Ping` is unchanged on unanswered rows.
+
+### Deliberately unchanged
+- **Every already-excused row still renders as Excused**, with its reason. Nothing was rewritten.
+- **`staff_excuse_athlete` still exists server-side.** Builds already in the field call it, and
+  revoking it would break six RLS probes for no gain while the roster path below remains.
+- **The roster's absence tool still excuses.** Coach roster → multi-select → **Excuse** writes an
+  `athlete_exceptions` window (travel, injury), and `materialize_commitment` still marks any
+  roll-call response inside that window `excused`. **That path is still open**: an athlete can
+  still end up Excused on a morning, just never by a one-tap decision taken on the roll call
+  itself. Removing that too is a separate call, because it is the injury/travel system that also
+  drives the coach priority queue and notification suppression.
+
+### Regression cover
+`src/core/protoRollcallScheduleAhead.test.ts` renders a live board past the grace with an
+unanswered, a late, an on-standard and an excused athlete, and asserts no `Excuse` action in any
+state while Override and Ping survive and the Excused verdict still renders. Proven to fail when
+the chip is put back.

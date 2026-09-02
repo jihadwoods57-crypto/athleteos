@@ -1,7 +1,7 @@
 /* OnStandard — Verified Commitments, operator side (0138).
    Two screens plus the Home card:
      · commitmentBoardCard()  — the live count on coach/trainer Home ("9 of 11 Up")
-     · coachCommitments       — the roster breakdown: who's missing, exact times, remind/excuse/fix
+     · coachCommitments       — the roster breakdown: who's missing, exact times, remind/fix
      · coachCommitEdit        — the composer
 
    The coach never counts replies and never calls anyone out in a group chat: Remind Missing
@@ -28,7 +28,7 @@ import {
 import { fmtMin } from '../requirements.js';
 import {
   VC, loadBoard, loadCommitments, loadLocations, saveCommitment, saveLocation,
-  setResponse, remindMissing, excuseAthlete, setCommitmentActive, todayISO, shiftISO,
+  setResponse, remindMissing, setCommitmentActive, todayISO,
   pingAthlete, setInstanceMessage, loadRollcallSummary, resolveSyncReview, subscribeBoard,
   loadUpcoming, setInstanceSchedule, notifyScheduleChange,
 } from '../commitment-data.js';
@@ -308,10 +308,11 @@ function wakeupRow(r, kind, inst, clock, phase) {
     kind === 'review' ? `<button class="chip" data-wk-resolve="accepted" data-wk-resp="${esc(r.response_id)}">Accept tap time</button>
       <button class="chip" data-wk-resolve="${phase === 'closed' ? 'missed' : 'late'}" data-wk-resp="${esc(r.response_id)}">Keep ${phase === 'closed' ? 'missed' : 'late'}</button>` : '',
     canPing ? `<button class="chip" data-wk-ping="${esc(r.athlete_id)}" data-wk-inst="${esc(inst.instance_id)}">Ping</button>` : '',
-    // Excuse only where it changes something. It used to sit under every settled row, so an
-    // athlete who was already On Standard carried a button offering to excuse them from a morning
-    // they had answered.
-    kind === 'out' || kind === 'late' ? `<button class="chip" data-vc-excuse="${esc(r.athlete_id)}">Excuse</button>` : '',
+    // NO EXCUSE BUTTON (founder, 2026-09-02). A coach can no longer wave an athlete off the roll
+    // call from the board. Override still exists and is the honest instrument: it records WHO
+    // decided, WHEN, and a required reason the athlete sees, and the row says "coach override"
+    // for ever after. Excuse said nothing and left no trace on the morning it erased. An athlete
+    // excused through the roster's absence tool (travel, injury) still renders Excused below.
     kind === 'out' ? `<button class="chip" data-wk-override="${esc(r.response_id)}">Override</button>` : '',
   ].filter(Boolean);
   return `
@@ -624,7 +625,7 @@ function athleteRow(r, asksArrival, dwellMin) {
     <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
       <span class="xpill ${cls}">${esc(label)}</span>${presPill}
       <div style="display:flex;gap:6px">
-        ${r.status !== 'excused' ? `<button class="chip" data-vc-excuse="${esc(r.athlete_id)}">Excuse</button>` : ''}
+        ${/* No Excuse here either (founder, 2026-09-02) — see wakeupRow. */''}
         ${r.status === 'pending' || r.status === 'unverified' || r.status === 'missed'
           ? `<button class="chip" data-vc-mark="${esc(r.response_id)}">${asksArrival ? 'Mark arrived' : 'Mark in'}</button>` : ''}
       </div>
@@ -999,37 +1000,16 @@ export const coachCommitments = {
       await repaint();
     }));
 
-    // Excusing is almost never about ONE morning — it's travel, illness, a funeral. Tapping
-    // Excuse asks how long, and the range writes athlete_exceptions so every other coach surface
-    // agrees, instead of the coach clearing the same athlete again tomorrow.
-    root.querySelectorAll('[data-vc-excuse]').forEach((b) => b.addEventListener('click', () => {
-      const athleteId = b.getAttribute('data-vc-excuse');
-      const wrap = b.parentElement;
-      if (!wrap) return;
-      const opts = [['Today', 0], ['3 days', 2], ['A week', 6]];
-      const optEls = opts.map(([label, addDays]) => {
-        const el = document.createElement('button');
-        el.className = 'chip';
-        el.textContent = label;
-        el.addEventListener('click', async () => {
-          el.disabled = true; el.textContent = '…';
-          const today = todayISO();
-          const n = await excuseAthlete(
-            athleteId, today, shiftISO(today, addDays),
-            addDays ? `Excused ${label.toLowerCase()}` : 'Excused by staff',
-            bookId(), CD.kind);
-          if (!n) { el.disabled = false; el.textContent = label; return; }
-          await repaint();
-        });
-        return el;
-      });
-      // A way out: a mis-tap on Excuse must not leave the coach stuck choosing a duration.
-      const cancel = document.createElement('button');
-      cancel.className = 'chip';
-      cancel.textContent = 'Cancel';
-      cancel.addEventListener('click', () => { window.__render && window.__render(); });
-      wrap.replaceChildren(...optEls, cancel);
-    }));
+    /* THE EXCUSE ACTION IS GONE (founder, 2026-09-02).
+       There used to be a handler here that asked "Today / 3 days / A week" and wrote a range of
+       athlete_exceptions, clearing the athlete off this morning and the next few. It is removed,
+       not hidden: no button renders it and no client function reaches the RPC.
+       What replaces it is what was always the better instrument. Override records who decided,
+       when, and a required reason the athlete reads, and the row is tagged "coach override" for
+       ever after; Excuse erased the morning and left nothing behind to answer for.
+       Still true and deliberately unchanged: an athlete inside an absence window set on the
+       roster (travel, injury) is materialized Excused by the server, and those rows still render
+       as Excused here. That path is the roster's, not the roll call's. */
   },
 };
 

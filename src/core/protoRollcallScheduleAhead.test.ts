@@ -188,3 +188,75 @@ describe('the athlete sees tomorrow tonight (0216)', () => {
     expect(tomorrowCard(tomorrowRollcall([], today))).toBe('');
   });
 });
+
+/**
+ * THE COACH CANNOT EXCUSE AN ATHLETE OFF A ROLL CALL (founder, 2026-09-02).
+ *
+ * The board used to carry an "Excuse" chip on every unanswered and late row: one tap, a duration,
+ * and the morning was erased with no reason recorded and nobody named. It is gone. Override is
+ * what remains, and it is the honest instrument -- it demands a reason, attributes the decision,
+ * and the row reads "coach override" afterwards.
+ *
+ * These render a LIVE board past the grace, in every row state that used to offer Excuse, and
+ * assert the action is absent while the Excused *verdict* still renders for anyone already inside
+ * an absence window set on the roster.
+ */
+describe('the Excuse action is gone from the roll-call board', () => {
+  const liveBoard = () => {
+    const now = Date.now();
+    const iso = (ms: number) => new Date(ms).toISOString();
+    return occurrence({
+      occurs_on: today, instance_id: 'inst-live',
+      starts_at: iso(now - 20 * 60000), respond_by_at: iso(now - 15 * 60000),
+      opens_at: iso(now - 20 * 60000), closes_at: iso(now + 10 * 60000),
+      rows: [
+        // never answered, past the grace: the row that used to carry Ping + Excuse + Override
+        { response_id: 'r1', athlete_id: 'a1', name: 'Ava Brooks', status: 'pending', acknowledged_at: null },
+        // answered late: used to carry Excuse
+        { response_id: 'r2', athlete_id: 'a2', name: 'Ben Cole', status: 'acknowledged', acknowledged_at: iso(now - 10 * 60000), ack_source: 'app' },
+        // on standard
+        { response_id: 'r3', athlete_id: 'a3', name: 'Cam Diaz', status: 'acknowledged', acknowledged_at: iso(now - 18 * 60000), ack_source: 'lockscreen' },
+        // already excused by the roster's absence tool: the VERDICT must still render
+        { response_id: 'r4', athlete_id: 'a4', name: 'Dee Ellis', status: 'excused', acknowledged_at: null, excused_reason: 'Family travel' },
+      ],
+    });
+  };
+
+  test('no row offers Excuse, in any state', () => {
+    const inst = liveBoard();
+    seedBoardForHarness([inst], today);
+    seedScheduleForHarness({ commitmentId: 'c1', upcoming: [inst] });
+    const html = coachCommitments.render({ sub: inst.instance_id });
+    expect(html).not.toContain('data-vc-excuse');
+    expect(html).not.toContain('>Excuse<');
+    // the four athletes really are on screen, so this is not passing on an empty render
+    for (const name of ['Ava Brooks', 'Ben Cole', 'Cam Diaz', 'Dee Ellis']) expect(html).toContain(name);
+  });
+
+  test('Override and Ping survive on an unanswered row: the reasoned path replaces the silent one', () => {
+    const inst = liveBoard();
+    seedBoardForHarness([inst], today);
+    seedScheduleForHarness({ commitmentId: 'c1', upcoming: [inst] });
+    const html = coachCommitments.render({ sub: inst.instance_id });
+    expect(html).toContain('data-wk-override="r1"');
+    expect(html).toContain('data-wk-ping="a1"');
+  });
+
+  test('an athlete already excused still reads Excused, with the reason', () => {
+    const inst = liveBoard();
+    seedBoardForHarness([inst], today);
+    seedScheduleForHarness({ commitmentId: 'c1', upcoming: [inst] });
+    const html = coachCommitments.render({ sub: inst.instance_id });
+    expect(html).toContain('Excused');
+    expect(html).toContain('Family travel');
+  });
+
+  test('the day-ahead roster offers no Excuse either', () => {
+    const inst = occurrence();
+    seedBoardForHarness([inst], tomorrow);
+    seedScheduleForHarness({ commitmentId: 'c1', upcoming: [inst] });
+    const html = coachCommitments.render({ sub: inst.instance_id });
+    expect(html).not.toContain('data-vc-excuse');
+    expect(html).not.toContain('>Excuse<');
+  });
+});

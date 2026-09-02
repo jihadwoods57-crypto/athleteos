@@ -402,23 +402,15 @@ export async function setResponse(responseId, status, reason) {
   } catch { return false; }
 }
 
-/** Excuse an athlete across a DATE RANGE. Writes athlete_exceptions — the same primitive every
- *  other coach surface already understands as "excused" — and clears every commitment in the
- *  range in one call, so a week of family travel isn't eleven separate taps. */
-export async function excuseAthlete(athleteId, fromISO, toISO, reason, ownerId, kind) {
-  const c = sb(); if (!c || !athleteId) return 0;
-  try {
-    const { data, error } = await c.rpc('staff_excuse_athlete', {
-      p_athlete: athleteId, p_from: fromISO, p_to: toISO,
-      p_reason: reason || null,
-      p_team: kind === 'practice' ? null : ownerId,
-      p_practice: kind === 'practice' ? ownerId : null,
-    });
-    if (error) return 0;
-    RTC.boardAt = 0;
-    return Number(data) || 0;
-  } catch { return 0; }
-}
+/* excuseAthlete() USED TO LIVE HERE (removed 2026-09-02, founder).
+   It wrapped the staff_excuse_athlete RPC: one call excused an athlete across a date range and
+   cleared every commitment in it. The roll-call board's "Excuse" chip was its only caller, and
+   that chip is gone, so the client no longer holds a path to excuse anyone off a roll call.
+   Deliberately NOT touched: the RPC itself still exists server-side (older builds in the field
+   still call it, and it is what the roster's absence tool leans on for a range), and every
+   already-excused row still reads as Excused everywhere. The capability that was removed is the
+   coach's one-tap excuse ON a morning, which erased the morning and left no reason behind.
+   Override is the replacement: attributed, reasoned, and visible to the athlete. */
 
 /** Pause, resume, or retire a standing commitment. Retiring is `active = false`, never a delete:
  *  the instances and responses already recorded against it are history a coach acted on. */
