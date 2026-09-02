@@ -17,7 +17,7 @@ Everything here is for the **iOS card only**. If you do none of it, build #28 st
 Android countdown, the alarm category, the Android 16 lock-screen pin, the new copy, and the
 one-notification-replaced-in-place behaviour on both platforms. Only the iPhone card waits.
 
-There is no partial win on iOS: the card needs all three steps. Budget about 30 minutes.
+There is no partial win on iOS: the card needs all of it. What is left is about 15 minutes.
 
 ## Your values, already looked up
 
@@ -29,7 +29,9 @@ Read out of `ios-certs/appstore.mobileprovision`, so these are facts, not guesse
 | Team name | JIhad Woods |
 | Bundle identifier | `com.onstandard.app` |
 | Push on the App ID | **already enabled** (`aps-environment: production`) |
-| App Group on the profiles | **not present** — this is what step 2 fixes |
+| App Groups capability | **enabled** on both identifiers |
+| App Group bound to them | **not yet** — this is what step 2 fixes |
+| Widget identifier | `com.onstandard.app.RollCallWidget`, registered |
 | Profiles expire | 2027-07-03 |
 
 Push being enabled already is good news: step 1 is only about creating a *key*, not about changing
@@ -112,44 +114,27 @@ read and write, and it is how a tap on the card's button reaches the app.
 
 ---
 
-## Step 3 — the widget extension's identity (10 minutes)
+## Step 3 — the widget extension's identity — ✅ DONE
 
-The card is drawn by a second, tiny app bundled inside OnStandard. Apple treats it as its own app,
-so it needs its own identifier and its own profile.
+Done on 2026-09-02 by `node scripts/apple-provision.mjs --apply`, using the App Store Connect key
+already in `eas.json`. Nothing to do here.
 
-**Two ways. Pick one.**
+| | |
+|---|---|
+| Identifier | `com.onstandard.app.RollCallWidget` ( `A749TN84WA` ) |
+| App Groups capability | enabled |
+| Profile | `ios-certs/widget.mobileprovision` |
 
-### Option A — let EAS do it (recommended, less clicking)
+The main app's profile was regenerated at the same time, because enabling a capability on an App ID
+marks profiles already issued from it invalid. The one it replaced is backed up beside it as
+`appstore.mobileprovision.bak-*`.
 
-Switch the iOS half of the production build to EAS-managed credentials, and EAS creates the
-extension's App ID and profile for you using the App Store Connect key already in `eas.json`.
-
-In `eas.json`, under `build.production`, change:
-
-```jsonc
-"credentialsSource": "local"    →    "credentialsSource": "remote"
-```
-
-Then run `npx eas credentials -p ios` once and let it sync. EAS will ask before creating anything.
-
-**Trade-off:** EAS then also manages the distribution certificate, so `ios-certs/` stops being the
-source of truth for iOS. Nothing is deleted, and you can switch back.
-
-### Option B — do it by hand (keeps everything local)
-
-1. **Identifiers → App IDs → +** → **App IDs → App** → **Continue**.
-2. **Description:** `OnStandard Roll Call Widget`.
-   **Bundle ID:** explicit, `com.onstandard.app.RollCallWidget`.
-3. Tick **App Groups**, then **Edit** and tick `group.com.onstandard.app`. **Continue → Register.**
-4. **Profiles → +** → **App Store Connect** (distribution) → select
-   `com.onstandard.app.RollCallWidget` → your distribution certificate → name it
-   `OnStandard Widget App Store` → **Generate → Download**.
-5. Save it as `ios-certs/widget.mobileprovision` and add it to `credentials.json` beside the
-   existing one. Tell me when you have and I will wire the file up.
+Once you have done step 2, re-run `node scripts/apple-provision.mjs --apply` to reissue both
+profiles with the group actually bound.
 
 ---
 
-## When all three are done
+## When steps 1 and 2 are done
 
 Tell me, and I will:
 
