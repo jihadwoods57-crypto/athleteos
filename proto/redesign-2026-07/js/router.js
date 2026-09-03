@@ -326,6 +326,61 @@ window.__navigate = navigateTo; // Screens that patch subtrees (roster search) r
 
 let REPAINT_HELD = false;   // a same-route repaint is waiting out a transition (see below)
 
+/* ---------------- Layered push and pop (css/glass.css "A tap's push and pop") ----------------
+   A push keeps the OUTGOING screen in the DOM as `.screen.under` and slides the new one in over
+   it; a pop keeps it as `.screen.leaving` on top and slides it away to reveal the new one. Two real
+   elements, transform and opacity only, on the compositor — the same two layers the edge swipe
+   drags, now driven by the clock. The View Transitions path stays for tab, restate, overlay and
+   resolve, whose cross-fades it draws well; it was the push/pop sheet slide, two full-document
+   snapshots tweened as images, that the WebView could not keep smooth.
+   The retained screen is placed AFTER the new one in the DOM (z-index sorts them) so every
+   `querySelector` a mount() runs still finds the new screen first, and its ids are stripped so
+   `getElementById('viewport')` can only ever mean the live one. It is removed when the animation
+   ends. A same-route repaint arriving mid-flight would replace both layers and cut the motion, so
+   render() holds it exactly as it does for a view transition. */
+const NAV_MS = 340;
+let LAYER_TOKEN = 0;
+let LAYERING = false;
+const LAYER_SETTLED = [];
+function layering() { return LAYERING; }
+function afterLayer(fn) { if (!LAYERING) { fn(); return; } LAYER_SETTLED.push(fn); }
+function reducedMotion() {
+  try { return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  catch { return false; }
+}
+function layerNav(oldScreen, newScreen, dir) {
+  const mine = ++LAYER_TOKEN;
+  LAYERING = true;
+  const dim = document.createElement('div');
+  dim.className = 'gesture-dim';
+  if (dir === 'push') {
+    oldScreen.appendChild(dim);
+    oldScreen.classList.add('receding');
+    newScreen.classList.add('arriving');
+  } else {
+    newScreen.appendChild(dim);
+    newScreen.classList.add('revealing');
+  }
+  let finished = false;
+  const done = () => {
+    if (finished) return;
+    finished = true;
+    oldScreen.remove();
+    dim.remove();
+    newScreen.classList.remove('arriving', 'revealing');
+    if (mine !== LAYER_TOKEN) return;   // a newer navigation owns the flags now
+    LAYERING = false;
+    const held = LAYER_SETTLED.splice(0, LAYER_SETTLED.length);
+    for (const fn of held) { try { fn(); } catch { /* a deferred repaint must not break cleanup */ } }
+  };
+  newScreen.addEventListener('animationend', (e) => { if (e.target === newScreen) done(); });
+  // The stylesheet owns the duration (--nav-ms); this is the safety net for an animationend that
+  // never arrives (reduced motion, a torn-down node), so it has to agree with it.
+  let ms = NAV_MS;
+  try { ms = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-ms')) || NAV_MS; } catch { /* keep the default */ }
+  setTimeout(done, ms + 80);
+}
+
 /* Delegated navigation for ASYNC-PAINTED rows. The per-element [data-go] wiring inside render()
    runs once, at render time — anything a mount() injects later (the dietitian's meal queue and
    fueling board, the VC and CS operator boards) rendered a pointer cursor over a row that did
@@ -402,10 +457,11 @@ function render() {
      the screen is standing still. Only a SAME-ROUTE repaint waits. A real navigation is the
      athlete asking for something and goes through immediately, interrupting whatever is in
      flight — which is what a second tap should do. */
-  if (transitioning() && LAST_FULL !== null && LAST_FULL === currentFull()) {
+  if ((transitioning() || layering()) && LAST_FULL !== null && LAST_FULL === currentFull()) {
     if (!REPAINT_HELD) {
       REPAINT_HELD = true;
-      afterTransition(() => { REPAINT_HELD = false; render(); });
+      const resume = () => { REPAINT_HELD = false; render(); };
+      if (transitioning()) afterTransition(resume); else afterLayer(resume);
     }
     return;
   }
@@ -538,15 +594,21 @@ function render() {
      "only a real arrival transitions" test would refuse. It is the one repaint that has earned a
      transition, so it is admitted explicitly. */
   const restate = dir === 'restate';
-  const vtDir = (enter || restate) ? dir : null;
+  /* A push or pop with a screen to push over or pop off is LAYERED (layerNav above), never a view
+     transition: the outgoing screen is kept and the two slide on the compositor. Only a real
+     arrival qualifies; a boot deep-link has nothing to keep. */
+  const oldScreen = device.querySelector('.screen:not(.under):not(.leaving)');
+  const layered = !!(enter && (dir === 'push' || dir === 'pop') && oldScreen && !oldScreen.classList.contains('booting') && !reducedMotion());
+  const vtDir = layered ? null : ((enter || restate) ? dir : null);
   /* Asked BEFORE the markup is built, because the answer changes it: under a transition the
      transition IS the entrance, and leaving `.enter` on would run the screen's own fade-and-rise
      underneath a slide already moving it — two choreographies for one arrival, at different
      durations and curves. `.settle` is untouched; it belongs to a repaint, which never
      transitions. */
   const morph = canTransition(vtDir);
-  const enterCls = morph ? '' : enter;
-  const dirClsUsed = morph ? '' : dirCls;
+  // Under a layered slide the slide IS the entrance, exactly as it is under a view transition.
+  const enterCls = (morph || layered) ? '' : enter;
+  const dirClsUsed = (morph || layered) ? '' : dirCls;
   /* A restate must never carry `.settle` either: that fade belongs to a skeleton handing over to
      real content, and a user-driven re-order is not that. Both would run at once otherwise. */
   const settleCls = restate ? '' : settle;
@@ -555,7 +617,7 @@ function render() {
      callback so the "after" snapshot is the finished screen — markup, wiring, scroll AND mount.
      Splitting mount out would snapshot a screen its own code had not finished arranging yet. */
   const commit = () => {
-  device.innerHTML = `
+  const html = `
     <div class="island"></div>
     <div class="screen">
       ${statusbar()}
@@ -564,6 +626,20 @@ function render() {
       </div>
       ${mod.hideTabs ? '' : tabbar(activeTab, navRole)}
     </div>`;
+  if (layered) {
+    // Keep the outgoing screen for the slide: ids off (the new screen owns #viewport and #view),
+    // its role class on, and placed LAST so every lookup finds the new screen first.
+    oldScreen.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
+    oldScreen.classList.remove('gesturing', 'settling');
+    oldScreen.style.transform = '';
+    oldScreen.classList.add(dir === 'push' ? 'under' : 'leaving');
+    oldScreen.setAttribute('aria-hidden', 'true');
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    device.replaceChildren(...tmp.childNodes, oldScreen);
+  } else {
+    device.innerHTML = html;
+  }
   // A genuine tab switch pops the newly-active tab icon (CSS keys off .tabbar.switch). Gated so a
   // push/pop/repaint never replays it — the bar should only move when the BAR is what changed.
   if (enter && dir === 'tab') { const bar = device.querySelector('.tabbar'); if (bar) bar.classList.add('switch'); }
@@ -696,6 +772,10 @@ function render() {
   // Profile pictures (0206): upgrade every [data-avatar-uid] monogram this screen rendered.
   // Screens that inject rows asynchronously call hydrateAvatars on their own slot.
   hydrateAvatars(device);
+  if (layered) {
+    const fresh = device.querySelector('.screen:not(.under):not(.leaving)');
+    if (fresh) layerNav(oldScreen, fresh, dir); else oldScreen.remove();
+  }
   };
   // Runs `commit` immediately when there is no transition to run, and inside one when there is.
   // Either way it runs exactly once: a navigation is never the thing that gets dropped.
@@ -901,7 +981,7 @@ function shellFor(full) {
 
 initGestures({
   device: () => document.getElementById('device'),
-  busy: () => transitioning(),
+  busy: () => transitioning() || layering(),
   current: () => { const { route, sub } = parse(); return { route, sub, mod: screens[route] || screens.notfound }; },
   // What Back would show: the top of the active tab's stack, else the header chevron's own
   // fallback, else nothing (a tab root has no back, and gets no gesture).

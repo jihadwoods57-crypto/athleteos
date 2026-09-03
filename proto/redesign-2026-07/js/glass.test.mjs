@@ -44,6 +44,22 @@ test('the design doc records the Liquid Glass amendment, chrome only', () => {
   assert.ok(/Liquid Glass/.test(DESIGN), 'DESIGN.md must document the Liquid Glass chrome amendment');
 });
 
+test('a stuck header sticks at the top of the content box, not a safe-area below it', () => {
+  // A sticky offset is measured from inside the scroller's padding; anything but 0 here floats
+  // the title a safe-area height down the screen (founder screenshot, 2026-09-03).
+  assert.match(GLASS, /\.back-head\s*\{[^}]*position:\s*sticky;\s*top:\s*0;/);
+  assert.match(GLASS, /\.back-head\.stuck \.ht\s*\{[^}]*text-overflow:\s*ellipsis/);
+});
+
+test('a tapped push or pop is layered on the compositor, never a document snapshot', () => {
+  assert.ok(/function layerNav\(/.test(ROUTER), 'router.js must own layerNav');
+  assert.ok(/replaceChildren\(\.\.\.tmp\.childNodes, oldScreen\)/.test(ROUTER), 'the outgoing screen is kept LAST in the DOM');
+  assert.ok(/layering\(\)\)\s*&&\s*LAST_FULL/.test(ROUTER), 'same-route repaints must wait out a layered slide');
+  for (const k of ['navIn', 'navOut', 'navRecede', 'navReveal', 'navDimIn', 'navDimOut']) {
+    assert.ok(new RegExp(`@keyframes ${k}\\b`).test(GLASS), `glass.css must define @keyframes ${k}`);
+  }
+});
+
 test('glass never paints ::after (focus.css owns it as the 44px touch target)', () => {
   const rules = GLASS.replace(/\/\*[\s\S]*?\*\//g, '');   // comments may name it; rules may not
   assert.ok(!/::after/.test(rules), 'use ::before for the specular rim; focus.css owns ::after');

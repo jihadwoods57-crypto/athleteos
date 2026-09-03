@@ -127,18 +127,26 @@ body.kb-open .tabbar { transform: translateY(calc(100% + 60px)); }
 .back-head .bk:active { transform: scale(0.92); }
 
 /* ===== 3. The scroll edge: a header holds its place and turns to glass under content ===== */
-/* Sticky at exactly the offset it rests at (the viewport's own top padding), so nothing moves the
-   moment it engages. Full-bleed through negative margins so the glass reaches the screen's
-   edges; the padding puts the text back where it was. */
-.viewport { --vp-top: 4px; }
-@media (max-width: 520px) {
-  .viewport { --vp-top: max(14px, env(safe-area-inset-top)); }
-}
+/* Sticky at `top: 0`, and that zero is measured from INSIDE the scroller's padding: a sticky
+   offset counts from the scroll container's content edge, not its border. The first version set
+   `top` to the viewport's own padding-top on the theory that it had to clear it, and on a phone
+   that put the header a whole safe-area height (59px) too low, hovering in the middle of the meal
+   screen — the founder's screenshot on 2026-09-03. Measured headless: padding 59 + top 14 = 73.
+   Zero rests it exactly where it was laid out, which is the only offset that never moves anything
+   the moment it engages.
+   Full-bleed through negative margins so the glass reaches the screen's edges; the padding puts
+   the text back where it was. */
 .back-head {
-  position: sticky; top: var(--vp-top); z-index: 30;
+  position: sticky; top: 0; z-index: 30;
   margin: 0 calc(-1 * var(--pad-screen));
   padding: 6px var(--pad-screen) 12px;
 }
+/* Stuck, the header is a NAV BAR, not a page title: the phone collapses its large title to one
+   inline line the moment content passes under it, and so does this. The subtitle goes; a title
+   that ran to two lines ("Waffles, Hash Brown, Sausage & Fruit") ellipses to one. */
+.back-head.stuck .ht { font-size: var(--t-lg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.back-head.stuck .hs { display: none; }
+.back-head.stuck { padding-bottom: 8px; }
 .back-head::before {
   content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
   background: var(--glass-fill-strong);
@@ -179,6 +187,45 @@ body.kb-open .tabbar { transform: translateY(calc(100% + 60px)); }
 .screen.gesturing.settling,
 .screen.under.settling { transition: transform 260ms var(--ease-out-quart); }
 .screen.under.settling .gesture-dim { transition: opacity 260ms var(--ease-out-quart); }
+
+/* ===== A tap's push and pop, on the same two layers (router.js layerNav) ===== */
+/* The founder's read of the old navigation: "not smooth, like Instagram's is". Instagram's push is
+   the platform's: the new screen slides in over the old one, which yields a third of the distance
+   and darkens; back is the exact reverse, the top screen leaving to the right. Ours drew that with
+   the View Transitions API, which snapshots the whole document twice and tweens two IMAGES — fine
+   on a desktop, and in the WebView a dropped-frame slideshow on anything with a photograph in it.
+   These are the same picture, drawn on two real elements with nothing but transform and opacity,
+   which the compositor runs at the display's own rate. It is also, to the pixel, what the edge
+   swipe draws, so the finger and the tap now describe one motion.
+   340ms on the platform's own quartic ease-out: fast at the start, where the eye reads speed, and
+   long in the settle, where it reads weight. */
+:root { --nav-ms: 340ms; }
+.screen.arriving {
+  position: relative; z-index: 1;
+  will-change: transform;
+  box-shadow: -14px 0 40px rgba(0, 0, 0, 0.38);
+  animation: navIn var(--nav-ms) var(--ease-out-quart) both;
+}
+.screen.under.receding { animation: navRecede var(--nav-ms) var(--ease-out-quart) both; }
+.screen.under.receding .gesture-dim { animation: navDimIn var(--nav-ms) var(--ease-out-quart) both; }
+.screen.leaving {
+  position: absolute; inset: var(--frame-pad); z-index: 2;
+  pointer-events: none;
+  will-change: transform;
+  box-shadow: -14px 0 40px rgba(0, 0, 0, 0.38);
+  animation: navOut var(--nav-ms) var(--ease-out-quart) both;
+}
+.screen.revealing { animation: navReveal var(--nav-ms) var(--ease-out-quart) both; }
+.screen.revealing > .gesture-dim {
+  position: absolute; inset: 0; z-index: 90; pointer-events: none; background: #000;
+  animation: navDimOut var(--nav-ms) var(--ease-out-quart) both;
+}
+@keyframes navIn     { from { transform: translate3d(100%, 0, 0); } to { transform: none; } }
+@keyframes navOut    { from { transform: none; } to { transform: translate3d(100%, 0, 0); } }
+@keyframes navRecede { from { transform: none; } to { transform: translate3d(-32%, 0, 0); } }
+@keyframes navReveal { from { transform: translate3d(-32%, 0, 0); } to { transform: none; } }
+@keyframes navDimIn  { from { opacity: 0; } to { opacity: 0.45; } }
+@keyframes navDimOut { from { opacity: 0.45; } to { opacity: 0; } }
 /* Page: the strip's content moves; the neighbour's content is positioned beside it, aligned to
    the same offset inside the view so the two read as one row of pages. `.view.paging` becomes the
    containing block for the duration only — see the note above .meal-screen in screens.css for
@@ -205,6 +252,8 @@ body.kb-open .tabbar { transform: translateY(calc(100% + 60px)); }
    settles. The drags themselves stay — they are direct manipulation, not decoration. */
 @media (prefers-reduced-motion: reduce) {
   .tabbar.switch .tab-lens { animation: none; }
+  .screen.arriving, .screen.under.receding, .screen.under.receding .gesture-dim,
+  .screen.leaving, .screen.revealing, .screen.revealing > .gesture-dim { animation-duration: 1ms; }
   .screen.gesturing.settling,
   .screen.under.settling,
   .screen.under.settling .gesture-dim,
