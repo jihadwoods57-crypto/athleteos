@@ -1219,14 +1219,18 @@ export const thread = {
     // on time", so naming the slot up here too would state it twice on the screen whose own rule
     // is each fact exactly once. The coach could see a name for their athlete's plate and the
     // athlete could not; this is the read side of that fix.
-    return `<div class="meal-screen">${backHead(M.dish || M.name, dupFlagged ? 'Duplicate photo' : '', 'home')}${execTop}${next}${photoBlock}${breakdown}${discussion}
-    <div style="height:18px"></div>
-    ${/* A quiet exit, not a second green CTA (2026-08-06): the meal is already logged — the only
-          green verdict on this screen is the confirm card at the top. A full-width "Done" in the
-          log-action color, sitting directly under a send composer, was two primary buttons
-          competing for the same thumb. */''}
-    <button class="btn ghost" style="width:100%" data-go="home" aria-label="Back to home">Back to Home</button>
-    <div style="height:16px"></div></div>`;
+    // A quiet exit, not a second green CTA (2026-08-06): the meal is already logged — the only
+    // green verdict on this screen is the confirm card at the top. A full-width "Done" in the
+    // log-action color, sitting directly under a send composer, was two primary buttons
+    // competing for the same thumb.
+    // It sits ABOVE the conversation now (2026-09-03). Below it, it was the last thing on the
+    // screen, so when the keyboard came up and keyboard.js brought the end of the screen down
+    // onto the keys, what rested on the keyboard was this button — with the message box floating
+    // a button's height above it. Messages puts nothing under the box, and neither does this.
+    const backHome = `<div style="height:6px"></div>
+    <button class="btn ghost" style="width:100%" data-go="home" aria-label="Back to home">Back to Home</button>`;
+    return `<div class="meal-screen">${backHead(M.dish || M.name, dupFlagged ? 'Duplicate photo' : '', 'home')}${execTop}${next}${photoBlock}${breakdown}${backHome}${discussion}
+    <div style="height:10px"></div></div>`;
   },
 
   async mount(root, { sub }) {

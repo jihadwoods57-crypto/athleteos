@@ -94,12 +94,25 @@
    a tap in the gap may land on the wrong control. That is still better than a target no thumb can
    hit, but it means this list is deliberate — it is not applied to every small element on sight. */
 
+/* The message box is the one text field that draws NO ring (screens.css, "The message box"):
+   the pill's own border warms instead, via .field:focus-within. A text field matches
+   :focus-visible on a plain tap in WebKit, so the 2px outline above was the thick blue ring in
+   the founder's screenshot, every time the keyboard came up. Both element kinds, because a
+   conversation-ending composer is a textarea and a search box is still an input. */
+.composer input:focus-visible,
+.composer textarea:focus-visible {
+  outline: none;
+  border-color: transparent;
+  box-shadow: none;
+}
+
 /* --- 1. Form fields: grow for real --- */
+/* The composer's floor lives on its pill (.composer .field, 40px) rather than the field inside
+   it, which is 30px on purpose; it left this list on 2026-09-03. */
 .ob-input,
 .input,
 .mq-input,
-.hn-custom input,
-.composer input {
+.hn-custom input {
   min-height: 44px;
   box-sizing: border-box;
 }

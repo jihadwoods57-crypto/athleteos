@@ -307,6 +307,11 @@ export function ProtoApp() {
       allowsInlineMediaPlayback
       mediaPlaybackRequiresUserAction={false}
       mediaCapturePermissionGrantType="grant"
+      // iOS draws an up/down/Done accessory bar above the keyboard for every WKWebView text field.
+      // It sat between the message box and the keys in the founder's side-by-side with Messages
+      // (2026-09-03); Messages has no such bar, and neither does any composer here — Send is the
+      // return key (enterkeyhint) and the pill has its own button. iOS-only prop; Android has no bar.
+      hideKeyboardAccessoryView
       bounces={false}
       overScrollMode="never"
       // No pinch-zoom, no double-tap-zoom — the UI is an app, not a page you can scale. iOS is

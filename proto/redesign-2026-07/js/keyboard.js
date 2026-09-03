@@ -170,10 +170,68 @@ export function focusComposer(input) {
   requestAnimationFrame(() => { if (input.isConnected) reveal(); });
 }
 
+/* ===== The message box grows (2026-09-03) =====
+
+   A conversation-ending composer is a one-row <textarea> (components.js). The phone's own
+   Messages box wraps what you type and grows a line at a time, up to a ceiling, then scrolls
+   inside itself; this is that, for every composer at once, from one delegated listener.
+
+   Height comes off scrollHeight rather than a line count, so a wrapped long word and a real
+   newline both measure right. The ceiling is the stylesheet's max-height (screens.css), read back
+   rather than duplicated here. `.has-text` is what dims the send button while the box is empty,
+   and `.overflow` is the textarea being told it may scroll now. */
+function fitComposer(ta) {
+  if (!ta || ta.tagName !== 'TEXTAREA') return;
+  ta.style.height = 'auto';
+  const max = parseInt(getComputedStyle(ta).maxHeight, 10) || 130;
+  const want = ta.scrollHeight;
+  ta.style.height = `${Math.min(want, max)}px`;
+  ta.classList.toggle('overflow', want > max);
+  const bar = ta.closest('.composer');
+  if (bar) bar.classList.toggle('has-text', ta.value.trim().length > 0);
+  // A box that just grew by a line pushes the end of the conversation down; keep it resting on
+  // the keys. Unforced, so a reader who scrolled up to quote something is not yanked back.
+  if (openNow && bar && bar.classList.contains('at-end')) scrollThreadToEnd(bar);
+}
+
+/* Typing fires `input`, but clearing the box after a send (`input.value = ''`, in seven screens)
+   fires nothing — and a four-line box that stayed four lines tall after sending is exactly the
+   kind of thing the founder notices. Rather than teach seven screens a reset call, the box is
+   watched while it has focus: one cheap frame callback comparing the value it last fitted. It
+   stops itself on blur, after one last fit. */
+let fitFrame = 0;
+function watchComposer(ta) {
+  cancelAnimationFrame(fitFrame);
+  let last = ta.value;
+  fitComposer(ta);
+  const tick = () => {
+    if (!ta.isConnected) return;
+    if (document.activeElement !== ta) { fitComposer(ta); return; }
+    if (ta.value !== last) { last = ta.value; fitComposer(ta); }
+    fitFrame = requestAnimationFrame(tick);
+  };
+  fitFrame = requestAnimationFrame(tick);
+}
+
+const isComposerBox = (el) => !!(el && el.matches && el.matches('.composer textarea'));
+
 export function initKeyboard() {
   if (started || typeof window === 'undefined' || typeof document === 'undefined') return;
   started = true;
   restH = window.innerHeight;
+
+  document.addEventListener('input', (e) => { if (isComposerBox(e.target)) fitComposer(e.target); });
+  // Enter SENDS in a conversation (the return key reads Send, enterkeyhint), which is what every
+  // per-screen handler already does on keydown; in a textarea that same keystroke would also
+  // insert a newline first, so it is suppressed here. Shift+Enter is the newline, and it is
+  // stopped before it reaches the screen's handler so it never doubles as a send. An IME
+  // composition's Enter is choosing a character and is left alone on both counts.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing || !isComposerBox(e.target)) return;
+    if (!e.target.closest('.composer.at-end')) return;
+    if (e.shiftKey) { e.stopPropagation(); return; }
+    e.preventDefault();
+  }, true);
 
   const vv = window.visualViewport;
   if (vv) {
@@ -185,6 +243,7 @@ export function initKeyboard() {
   // maxed against a taller portrait value that no longer exists.
   window.addEventListener('orientationchange', () => { restH = 0; schedule(); });
   window.addEventListener('focusin', (e) => {
+    if (isComposerBox(e.target)) watchComposer(e.target);
     if (!isField(e.target)) return;
     // Synchronously, before this frame paints: the browser's reveal runs on focus, which is BEFORE
     // the visualViewport resize that tells us a keyboard exists. Waiting for that would let the

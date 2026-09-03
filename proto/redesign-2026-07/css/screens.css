@@ -737,24 +737,61 @@
   font-size: 11px; font-weight: 600; color: var(--text-3); line-height: 1.5;
 }
 
-.composer { display: flex; gap:10px; margin-top:16px; }
-.composer input {
+/* ===== The message box (reshaped to the phone's own, 2026-09-03) =====
+   The founder put our bar next to Messages. Ours: a 48px single-line input that scrolled the
+   sentence off its left edge, a thick blue focus ring, and send as a separate 48px circle
+   outside the box — three objects in a row. Messages: ONE pill, the text wrapping inside it and
+   the pill growing a line at a time, send a small circle tucked inside the pill's right edge,
+   and the only thing outside it the "+" on the left. This is that.
+
+   Anatomy: .composer > [.attach] + .field > (textarea | input) + [.ai-ask] + .send
+   align-items:flex-end everywhere, because a pill that has grown to four lines keeps its send
+   button and its attach button on the LAST line, where the cursor is — not floating mid-box. */
+.composer { display: flex; align-items: flex-end; gap:8px; margin-top:16px; }
+.composer .field {
   /* min-width:0 — a flex item's default min-width is its content size, so on a 375px frame the
      coach's 3-button composer pushed Send off-screen (deep audit 2026-08-19). */
-  flex: 1; min-width: 0; height: 48px; border-radius: var(--r-card-sm); border: 1px solid var(--hairline);
-  background: var(--surface-1); color: var(--text); padding:0 18px; font-family: var(--font); font-size: 14px; font-weight: 600; outline: none;
+  flex: 1; min-width: 0; display: flex; align-items: flex-end; gap:4px;
+  min-height: 40px; box-sizing: border-box; padding:4px 4px 4px 14px;
+  border-radius: 21px; border: 1px solid var(--hairline); background: var(--surface-1);
+  transition: border-color var(--dur-1) var(--ease-out);
 }
+/* Focus is a quieter border, not a ring. The 2px outline focus.css draws for every other text
+   field is right for a form and wrong here: Messages draws nothing at all, and the keyboard
+   being up already says where the focus is. focus.css carries the matching outline:none. */
+.composer .field:focus-within { border-color: var(--blue-border); }
+.composer .field > input,
+.composer .field > textarea {
+  flex: 1; min-width: 0; margin: 0; padding:5px 0; min-height: 30px; box-sizing: border-box;
+  background: transparent; border: 0; outline: none; color: var(--text);
+  /* 16px is the phone's own body size in a message box, and the size below which WebKit zooms
+     the page on focus. */
+  font-family: var(--font); font-size: 16px; font-weight: 600; line-height: 20px;
+  -webkit-appearance: none; appearance: none;
+}
+.composer .field > input { height: 30px; }
+/* Grows with its text (js/keyboard.js sets the height off scrollHeight), up to six lines, then
+   scrolls inside — the .overflow class is keyboard.js saying it hit the ceiling. */
+.composer textarea { display: block; resize: none; overflow-y: hidden; max-height: 130px; }
+.composer textarea.overflow { overflow-y: auto; }
 .composer .send {
-  width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep));
-  display:grid; place-items:center; color:#fff; cursor:pointer; flex:none; box-shadow: var(--sh-blue);
+  width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep));
+  display:grid; place-items:center; color:#fff; cursor:pointer; flex:none;
   border: 0; padding:0; margin:0; font-family: var(--font); -webkit-appearance: none; appearance: none;
+  transition: opacity var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
 }
+/* Messages hides send until there is something to send. Ours dims instead of vanishing, because
+   a photo alone is a complete message here (chat-attach.js) and the button has to stay tappable
+   for it. keyboard.js keeps .has-text current. */
+.composer.at-end:not(.has-text) .send { opacity: 0.38; }
+.composer .send:active { transform: scale(0.9); }
 .composer .send:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
-/* The attach control is a QUIET sibling of send: same 48px hit target so the bar stays balanced,
-   but surface-toned, because sending is the primary action and a second bright circle would
-   compete with it. Only rendered when a caller opts in via composer({attachId}). */
+/* The attach control is the one thing OUTSIDE the pill, where Messages keeps its "+": a quiet
+   surface-toned circle the height of the resting pill, because sending is the primary action
+   and a second bright circle would compete with it. Only rendered when a caller opts in via
+   composer({attachId}). */
 .composer .attach {
-  width: 48px; height: 48px; border-radius: 50%; background: var(--surface-2);
+  width: 40px; height: 40px; border-radius: 50%; background: var(--surface-2);
   display:grid; place-items:center; color: var(--text-2); cursor:pointer; flex:none;
   border: 1px solid var(--hairline); padding:0; margin:0; font-family: var(--font);
   -webkit-appearance: none; appearance: none; transition: color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
@@ -766,7 +803,7 @@
    AI's purple so it reads as "this goes to the AI Nutritionist", not a second send. Opt-in via
    composer({aiId}). */
 .composer .ai-ask {
-  width: 48px; height: 48px; border-radius: 50%; background: rgba(var(--purple-rgb), 0.12);
+  width: 30px; height: 30px; border-radius: 50%; background: rgba(var(--purple-rgb), 0.12);
   display:grid; place-items:center; color: var(--purple-bright); cursor:pointer; flex:none;
   border: 1px solid rgba(var(--purple-rgb), 0.35); padding:0; margin:0; font-family: var(--font);
   -webkit-appearance: none; appearance: none; transition: color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
@@ -783,6 +820,11 @@
   display: flex; align-items: center; gap:10px; margin-top:10px; padding:8px 10px;
   border: 1px solid var(--hairline); border-radius: var(--r-card-sm); background: var(--surface-1);
 }
+/* The class display above beats the UA's [hidden] rule, so without this the EMPTY strip — a
+   bordered 34px box with nothing in it — sat under the message box on every meal thread. It was
+   in the founder's screenshot (2026-09-03) and had been there since the strip landed. Same bug,
+   same fix as .cont-earlier and #ps-apply. */
+.composer-attach-pending[hidden] { display: none; }
 .composer-attach-pending img { width: 40px; height: 40px; border-radius: var(--r-chip); object-fit: cover; flex:none; }
 .composer-attach-pending .cap { flex:1; font-size: 12.5px; font-weight: 700; color: var(--text-2); }
 .composer-attach-pending button {

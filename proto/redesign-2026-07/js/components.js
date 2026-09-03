@@ -590,7 +590,7 @@ export function sparkline(hist) {
    an aria-hidden <span> instead of an inert, falsely-actionable button. */
 export function composer({
   inputId = '', sendId = '', placeholder = '', inputLabel = placeholder, sendLabel = 'Send',
-  sendIcon = 'arrowUp', sendIconSize = 19, sendStyle = '', wrapStyle = '',
+  sendIcon = 'arrowUp', sendIconSize = 17, sendStyle = '', wrapStyle = '',
   autocompleteOff = true, decorativeSend = false, attachId = '', attachLabel = 'Attach a photo',
   aiId = '', aiLabel = 'Ask the AI Nutritionist', atEnd = false,
 } = {}) {
@@ -614,15 +614,31 @@ export function composer({
   const aiEl = aiId
     ? `<button type="button" class="ai-ask" id="${aiId}" aria-label="${esc(aiLabel)}" title="${esc(aiLabel)}">${icon('sparkle', 18)}</button>`
     : '';
-  // atEnd = "this bar ends a conversation". Two consequences, both keyboard mechanics:
+  // atEnd = "this bar ends a conversation". Three consequences:
   // js/keyboard.js brings the newest message down onto the keys when it is focused (rather than
   // just lifting the input clear of them, which is right for the food SEARCH box and wrong here),
-  // and the return key reads Send instead of the generic Go.
+  // the return key reads Send instead of the generic Go, and the box is a TEXTAREA rather than an
+  // <input>. The founder's side-by-side with Messages (2026-09-03) showed why: a one-line input
+  // scrolled "What can i do better for tomorrow's breakfast?" off its own left edge, while the
+  // phone's box wraps it and grows a line at a time. keyboard.js owns the growing; rows="1" is
+  // the resting height. Shift+Enter is a newline, Enter is Send (keyboard.js), so the five
+  // per-screen Enter handlers keep working unchanged.
+  //
+  // The shape is the phone's, too: one pill, the text on the left, send tucked INSIDE its right
+  // edge (.field), with the attach button the only thing outside it. The old bar was three
+  // separate 48px objects in a row, which is a toolbar, not a message box.
+  const idAttr = inputId ? ` id="${inputId}"` : '';
+  const common = ` placeholder="${esc(placeholder)}" aria-label="${esc(inputLabel)}"${autocompleteOff ? ' autocomplete="off"' : ''}`;
+  const fieldEl = atEnd
+    ? `<textarea${idAttr} rows="1"${common} enterkeyhint="send" autocapitalize="sentences"></textarea>`
+    : `<input${idAttr}${common} />`;
   return `<div class="composer${atEnd ? ' at-end' : ''}"${wrapStyle ? ` style="${wrapStyle}"` : ''}>
     ${attachEl}
-    <input${inputId ? ` id="${inputId}"` : ''} placeholder="${esc(placeholder)}" aria-label="${esc(inputLabel)}"${autocompleteOff ? ' autocomplete="off"' : ''}${atEnd ? ' enterkeyhint="send"' : ''} />
-    ${aiEl}
-    ${sendEl}
+    <div class="field">
+      ${fieldEl}
+      ${aiEl}
+      ${sendEl}
+    </div>
   </div>`;
 }
 
