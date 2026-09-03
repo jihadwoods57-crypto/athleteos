@@ -3,18 +3,24 @@
    pressure, urgency, quiet hours, coach link, score/streak) into the day's reminder plan.
    exec.js delegates here; the native seam (execSync.ts) schedules exactly what this returns.
 
-   Design rules (docs/notifications/2026-07-16-notification-system-redesign.md):
+   Design rules (docs/notifications/2026-07-16-notification-system-redesign.md, voice and timing
+   revised in docs/notifications/2026-09-03-notification-voice-and-timing.md):
    - Stages: open (max only) · soon (the workhorse) · due (last call — coach urgency 'high'
      at accountable, everything at max) · celebrate (all requirements in).
    - Short-window collapse: soon+due < 60 min apart become ONE last-call (kills the old
      duplicate weigh-in pair).
-   - Coalescing: entries within 25 min merge into one combined notification.
-   - Daily cap per pressure (gentle 3 / accountable 6 / max 10), due > soon > open.
+   - Coalescing: entries within 30 min merge into one combined notification whose body names
+     each item's own deadline (a Mon/Wed/Fri morning is ONE brief, not a weigh-in ping followed
+     by a breakfast ping half an hour later).
+   - Daily cap per pressure (gentle 6 / accountable 6 / max 10), due > streak > soon > open.
    - Quiet hours: soon/open shift to the quiet-window end or drop; due survives only while
      the "deadline warnings" pref is on.
-   - Copy: type-aware templates (new requirement kinds get sane copy automatically), variants
-     rotated by a deterministic day seed so no sentence repeats within a day, no internal
-     scoring formulas ever ("keeps the 50%" is gone), weight stays trend-only. */
+   - Copy: THE THREE-LINE SHAPE. `title` names the thing, `subtitle` carries the one time fact
+     (iOS draws it as its own line; the native seam folds it into the title on Android), `body`
+     is the ask in one sentence. Never the app name (the OS header already says it), never an
+     exclamation mark, never a scoring formula ("keeps the 50%" is gone), never guilt. Variants
+     rotate on a deterministic day seed so no sentence repeats within a day; weight stays
+     trend-only. */
 import { fmtMin } from './requirements.js';
 
 export const DEFAULT_NOTIF_PREFS = {
@@ -49,7 +55,11 @@ export function inQuiet(t, prefs) {
 // must fit under every cap or required reminders silently vanish.
 const CAP = { gentle: 6, accountable: 6, max: 10 };
 const LEAD = { gentle: 30, accountable: 45, max: 45 };
-const COALESCE_MIN = 25; // entries this close merge into one combined notification
+// Entries this close merge into one combined notification. 30, not 25: the default catalog's
+// Mon/Wed/Fri morning puts the weigh-in last call at 8:15 and the breakfast heads-up at 8:45,
+// exactly 30 apart, and two pings half an hour apart about the same morning is the pattern
+// athletes call spam. One brief at 8:15 that names both deadlines is what a coach would send.
+const COALESCE_MIN = 30;
 const COLLAPSE_MIN = 60; // soon+due this close collapse into a single last-call
 // 'streak' sits between soon and due: a live run about to end outranks another heads-up about a
 // window, and is outranked by a deadline landing right now. Without an entry here it fell to 0 and
@@ -89,73 +99,101 @@ function hashStr(s) {
   return Math.abs(h);
 }
 
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+/** How a requirement reads mid-sentence ("dinner", "your weigh-in", "your check-in"). The
+ *  athlete's own things take "your"; a meal is just the meal. */
+function spoken(req) {
+  const kind = reqKind(req);
+  if (kind === 'weigh') return 'your weigh-in';
+  if (kind === 'recovery') return 'your check-in';
+  return String(req.title || '').toLowerCase();
+}
+
+/** The short name a title slot uses ("Weigh-in", "Check-in", "Breakfast"): the catalog's
+ *  "Morning Weight" / "Recovery Check-In" are settings labels, not what anyone says. */
+function shortName(req) {
+  const kind = reqKind(req);
+  if (kind === 'weigh') return 'Weigh-in';
+  if (kind === 'recovery') return 'Check-in';
+  return String(req.title || '');
+}
+
+/** "dinner" · "dinner and your check-in" · "lunch, dinner and your check-in". */
+function listOf(items) {
+  if (items.length <= 1) return items[0] || '';
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
 /* Copy templates: (kind, stage) → variants. Each variant is a function of the context
-   { t: title, low: lowercase title, due: clock string, left: lead label, coach: name|null }.
-   Tone escalates soon → due; no guilt, no internal percentages, weight is trend-only. */
+   { t: title, low: lowercase title, due: clock string, left: lead label, coach: name|null } and
+   returns the three-line shape { title, subtitle, body }. Tone escalates soon → due; no guilt,
+   no internal percentages, weight is trend-only. The subtitle is ALWAYS the time fact and
+   nothing else, so an athlete learns to read it as "when". */
 const COPY = {
   meal: {
     open: [
-      (c) => ({ title: `${c.t} window is open`, body: `Anytime before ${c.due} works. Earlier beats later.` }),
-      (c) => ({ title: `${c.t} is open`, body: `Log it whenever it happens. Due by ${c.due}.` }),
+      (c) => ({ title: c.t, subtitle: `Open until ${c.due}`, body: 'Log it when you eat. Earlier beats later.' }),
+      (c) => ({ title: `${c.t} is open`, subtitle: `Until ${c.due}`, body: 'One photo whenever it happens, and it counts.' }),
     ],
     soon: [
-      (c) => ({ title: `${c.t} closes at ${c.due}`, body: `${cap(c.left)} left. One photo and it's in.` }),
-      (c) => ({ title: `${c.t} by ${c.due}`, body: `Plate up. A quick photo keeps today on track.` }),
-      (c) => ({ title: `${c.t} closes at ${c.due}`, body: `Still open. Log it and it counts toward today's score.` }),
+      (c) => ({ title: c.t, subtitle: `Closes at ${c.due}`, body: `${cap(c.left)} left. One photo and it counts.` }),
+      (c) => ({ title: c.t, subtitle: `By ${c.due}`, body: 'Plate up, snap it, done. Today stays on track.' }),
+      (c) => ({ title: c.t, subtitle: `Closes at ${c.due}`, body: 'Still open. Log it and it counts toward today.' }),
     ],
     due: [
-      (c) => ({ title: `Last call: ${c.low}`, body: `The window closes at ${c.due}. Log it now and it counts on time.` }),
-      (c) => ({ title: `${c.t}: last call`, body: `One photo before ${c.due} and the day stays whole.` }),
+      (c) => ({ title: `Last call: ${c.low}`, subtitle: `Closes at ${c.due}`, body: 'Log it now and it counts on time.' }),
+      (c) => ({ title: `${c.t}: last call`, subtitle: `Closes at ${c.due}`, body: 'One photo before the window shuts keeps the day whole.' }),
     ],
   },
   weigh: {
     // One sharp reminder (the collapse rule usually leaves a single last-call). Trend-only.
     soon: [
-      (c) => ({ title: 'Morning weigh-in', body: `Ten seconds, same conditions as always, before ${c.due}.` }),
-      (c) => ({ title: 'Weigh-in this morning', body: `Step on before ${c.due}. We read the trend, never one morning.` }),
+      (c) => ({ title: 'Weigh-in', subtitle: `Before ${c.due}`, body: 'Ten seconds, same conditions as always.' }),
+      (c) => ({ title: 'Morning weigh-in', subtitle: `By ${c.due}`, body: 'Step on before you eat. We read the trend, never one morning.' }),
     ],
     due: [
-      (c) => ({ title: 'Morning weigh-in', body: `Ten seconds, same conditions as always, before ${c.due}.` }),
-      (c) => ({ title: 'Weigh-in before you head out', body: `Same time, same conditions. The trend does the talking.` }),
+      (c) => ({ title: 'Weigh-in', subtitle: `Before ${c.due}`, body: 'Ten seconds now, before the morning gets away.' }),
+      (c) => ({ title: 'Weigh-in before you head out', subtitle: `By ${c.due}`, body: 'Same time, same conditions. The trend does the talking.' }),
     ],
   },
   recovery: {
     soon: [
-      (c) => ({ title: 'Tonight’s check-in', body: `20 seconds before you sleep${c.coach ? ` (${c.coach} reads it before practice)` : ''}.` }),
-      (c) => ({ title: 'Close out the day', body: `Your check-in is still open. Done by ${c.due} keeps the day complete.` }),
+      (c) => ({ title: 'Tonight’s check-in', subtitle: `By ${c.due}`, body: c.coach ? `20 seconds before you sleep. ${c.coach} reads it before practice.` : '20 seconds before you sleep closes the day.' }),
+      (c) => ({ title: 'Close out the day', subtitle: `Check-in by ${c.due}`, body: 'Your check-in is still open. 20 seconds and the day is complete.' }),
     ],
     due: [
-      (c) => ({ title: 'Check-in closes tonight', body: `Last thing before bed. 20 seconds and the day counts in full.` }),
-      (c) => ({ title: 'Before you sleep', body: `Tonight’s check-in is the last open item. 20 seconds closes the day.` }),
+      (c) => ({ title: 'Last thing tonight', subtitle: `Check-in by ${c.due}`, body: '20 seconds and the day counts in full.' }),
+      (c) => ({ title: 'Before you sleep', subtitle: `Check-in by ${c.due}`, body: 'Tonight’s check-in is the last open item. 20 seconds closes the day.' }),
     ],
   },
   task: {
     open: [
-      (c) => ({ title: `${c.t} is open`, body: `On your list today. Due by ${c.due}.` }),
+      (c) => ({ title: c.t, subtitle: `Due by ${c.due}`, body: 'On your list today.' }),
     ],
     soon: [
-      (c) => ({ title: `${c.t}: due by ${c.due}`, body: `Still open on your list. Knock it out and mark it done.` }),
-      (c) => ({ title: `${c.t} closes at ${c.due}`, body: `${cap(c.left)} left. Handle it and check it off.` }),
+      (c) => ({ title: c.t, subtitle: `Due by ${c.due}`, body: 'Still open on your list. Knock it out and mark it done.' }),
+      (c) => ({ title: c.t, subtitle: `Closes at ${c.due}`, body: `${cap(c.left)} left. Handle it and check it off.` }),
     ],
     due: [
-      (c) => ({ title: `Last call: ${c.low}`, body: `Due by ${c.due}. Mark it done when it lands.` }),
-      (c) => ({ title: `${c.t}: last call`, body: `The deadline is ${c.due}. Close it out.` }),
+      (c) => ({ title: `Last call: ${c.low}`, subtitle: `Due by ${c.due}`, body: 'Mark it done when it lands.' }),
+      (c) => ({ title: `${c.t}: last call`, subtitle: `Due by ${c.due}`, body: 'Close it out before the deadline.' }),
     ],
   },
 };
 
-function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
-
 /* Streak-defense bodies, rotated by day like every other template here. Loss-aversion copy, so
-   it states what is still open rather than what has been achieved — and never a score formula. */
+   it states what is still open rather than what has been achieved — and never a score formula.
+   `open` is the spoken list of what is still outstanding ("dinner and your check-in"). */
 const STREAK_BODY = [
-  (n) => `${n} days in a row. Today is not closed yet. Finish what is left and keep it alive.`,
-  (n) => `You have kept this going ${n} days. There is still time to make it ${n + 1}.`,
-  (n) => `Day ${n} of your streak is on the line. What is left is still doable tonight.`,
+  (n, open) => `${cap(open)} still open. Keep the ${n} days alive: finish ${open.includes(' and ') ? 'them' : 'it'} tonight.`,
+  (n, open) => `${n} days in a row. Still open tonight: ${open}. There is time.`,
+  (n, open) => `Day ${n} is on the line. Still to do: ${open}. All doable before bed.`,
 ];
 
 /** Stage-aware, kind-aware copy with deterministic per-day variant rotation. `salt` offsets
- *  the variant so two same-kind items on one day never read identically. */
+ *  the variant so two same-kind items on one day never read identically. Returns the
+ *  three-line shape { title, subtitle, body }. */
 export function notifCopy(req, stage, { dateISO = '', fireAtMin = 0, coachName = null, salt = 0 } = {}) {
   const kind = reqKind(req);
   const variants = (COPY[kind] && (COPY[kind][stage] || COPY[kind].soon)) || COPY.task.soon;
@@ -173,28 +211,40 @@ export function notifCopy(req, stage, { dateISO = '', fireAtMin = 0, coachName =
   return variants[idx](c);
 }
 
-/** Merge a cluster of near-simultaneous entries into one combined notification. */
+/** Merge a cluster of near-simultaneous entries into one combined notification. The body names
+ *  each item's OWN deadline, in deadline order, because the old "Both land by 9:30" quietly
+ *  erased the one fact that differed between them (the weigh-in closed half an hour earlier). */
 function mergeGroup(g) {
-  const lastDue = Math.max(...g.map((e) => (typeof e.dueMin === 'number' ? e.dueMin : e.fireAtMin)));
-  const titles = g.map((e) => e.reqTitle || e.title);
+  const dueOf = (e) => (typeof e.dueMin === 'number' ? e.dueMin : e.fireAtMin);
+  const byDue = g.slice().sort((a, b) => dueOf(a) - dueOf(b));
+  const lastDue = Math.max(...byDue.map(dueOf));
+  const shorts = byDue.map((e) => e.reqShort || e.reqTitle || e.title);
   const stage = g.some((e) => e.stage === 'due') ? 'due' : g[0].stage;
+  const named = (e) => (e.reqSpoken || String(e.reqTitle || e.title).toLowerCase());
+  const list = byDue.length === 2
+    ? `${named(byDue[0])} by ${fmtMin(dueOf(byDue[0]))}, then ${named(byDue[1])} by ${fmtMin(dueOf(byDue[1]))}`
+    : byDue.map((e) => `${named(e)} ${fmtMin(dueOf(e))}`).join(', ');
+  // The pair's last call reads as a last call, so at max pressure the 8:15 heads-up and the
+  // 9:00 deadline for the same two items are two different sentences, not one sent twice.
+  const pair = byDue.length === 2 ? `${shorts[0]} and ${String(shorts[1]).toLowerCase()}` : `${shorts[0]} + ${byDue.length - 1} more`;
   return {
     id: g.map((e) => e.id).join('+'),
     fireAtMin: g[0].fireAtMin,
     dayOffset: g[0].dayOffset,
     immediate: false,
     stage,
-    route: g[0].route, // earliest-due item is the one to start with
-    title: g.length === 2 ? `${titles[0]} and ${String(titles[1]).toLowerCase()}` : `${titles[0]} + ${g.length - 1} more`,
-    body: `${g.length === 2 ? 'Both' : 'All'} land by ${fmtMin(lastDue)}. Start with ${String(titles[0]).toLowerCase()}.`,
+    route: byDue[0].route, // earliest-due item is the one to start with
+    title: stage === 'due' ? `Last call: ${pair.toLowerCase()}` : pair,
+    subtitle: `${byDue.length === 2 ? 'Both' : 'All'} by ${fmtMin(lastDue)}`,
+    body: stage === 'due' ? `Still open: ${list}. Log them now and they count on time.` : `${cap(list)}.`,
     dueMin: lastDue,
-    reqTitle: titles[0],
+    reqTitle: shorts[0],
   };
 }
 
 /**
  * The planner. All inputs are data; the return is the full ordered plan for ONE day:
- *   { id, fireAtMin, dayOffset, immediate, stage, route, title, body }[]
+ *   { id, fireAtMin, dayOffset, immediate, stage, route, title, subtitle, body }[]
  * - reqs: incomplete REQUIRED requirements running that day ({id,title,proof,reminder,impact,window,route?})
  * - assigned: coach-assigned tasks ({id,title,from,done,dueAtMin|null}) — dated ones get one 'soon'
  * - prefs: RT.notifPrefs (normalized here; null → defaults); enabled:false → empty plan
@@ -214,7 +264,8 @@ export function planNotifications({
     if (pressure === 'gentle') return [];
     return [{
       id: 'celebrate', fireAtMin: nowMin, dayOffset, immediate: true, stage: 'celebrate', route: 'home',
-      title: "You're OnStandard.", body: `Day locked at ${score}, day ${streak + 1} of your streak.`,
+      title: 'You’re on standard', subtitle: `Locked at ${score}`,
+      body: `Day ${streak + 1} of your streak, locked at ${score}. Nothing left to do tonight.`,
     }];
   }
 
@@ -264,7 +315,8 @@ export function planNotifications({
       seen[key] = (seen[key] || 0) + 1;
       entries.push({
         id: req.id, fireAtMin, dayOffset, immediate: false, stage, route: routeFor(req),
-        title: copy.title, body: copy.body, dueMin: due, reqTitle: req.title,
+        title: copy.title, subtitle: copy.subtitle || null, body: copy.body,
+        dueMin: due, reqTitle: req.title, reqSpoken: spoken(req), reqShort: shortName(req),
       });
     }
   }
@@ -280,8 +332,9 @@ export function planNotifications({
       id: String(a.id), fireAtMin, dayOffset, immediate: false, stage: 'soon',
       route: `requirement/${a.id}`,
       title: `From ${a.from || 'Coach'}: ${a.title}`,
-      body: `Due by ${fmtMin(a.dueAtMin)}. Mark it done when it lands.`,
-      dueMin: a.dueAtMin, reqTitle: a.title,
+      subtitle: `Due by ${fmtMin(a.dueAtMin)}`,
+      body: 'Mark it done when it lands.',
+      dueMin: a.dueAtMin, reqTitle: a.title, reqSpoken: String(a.title || '').toLowerCase(), reqShort: a.title,
     });
   }
 
@@ -312,6 +365,10 @@ export function planNotifications({
      run is alive, the day is not finished, and the window is closing. Nothing spoke there, so the
      run ended quietly and the athlete learned about it the next morning.
 
+     It NAMES what is still open. "Today is not closed yet" told the athlete there was a problem
+     and made them open the app to find out what; "dinner and your check-in still open" is the
+     whole to-do list in one line, which is what a coach texting at 9 PM would write.
+
      Placed BEFORE the daily cap, unlike a commitment. A commitment is exempt because a coach
      scheduled it for a specific event; this is a nudge the APP invented, and the cap is a promise
      about volume — appending it afterwards shipped cap+1 notifications on any day busy enough to
@@ -328,10 +385,17 @@ export function planNotifications({
     // streak warning at midnight only tells someone what they already lost.
     const at = prefs.quietFrom - 45;
     if (at > nowMin && !inQuiet(at, prefs)) {
+      // What will still be open when this fires: every incomplete requirement whose window is
+      // not already shut by then. The plan is rebuilt on every completion, so this list is live.
+      const open = reqs
+        .filter((r) => r && r.required && r.window && typeof r.window.due === 'number' && r.window.due > at)
+        .map(spoken);
+      const openList = listOf(open.length ? open : ['today']);
       merged.push({
         id: 'streak-defense', fireAtMin: at, dayOffset, immediate: false, stage: 'streak', route: 'home',
-        title: `Your ${streak}-day streak is still open.`,
-        body: STREAK_BODY[hashStr(`${dateISO}:streak`) % STREAK_BODY.length](streak),
+        title: `${streak}-day streak on the line`,
+        subtitle: 'Still open tonight',
+        body: STREAK_BODY[hashStr(`${dateISO}:streak`) % STREAK_BODY.length](streak, openList),
       });
       merged.sort((a, b) => a.fireAtMin - b.fireAtMin);
     }
@@ -371,11 +435,11 @@ export function planNotifications({
       id: `vc:${instanceId}:${c.at}`,
       fireAtMin: c.at, dayOffset, immediate: false, stage: 'commitment',
       route: `roll-call/${instanceId}`,
-      title: c.title, body: c.body,
+      title: c.title, subtitle: c.subtitle || null, body: c.body,
     });
   }
   out.sort((a, b) => a.fireAtMin - b.fireAtMin);
 
   // Strip planner internals; what remains is exactly what the native seam schedules.
-  return out.map(({ dueMin, reqTitle, ...keep }) => keep);
+  return out.map(({ dueMin, reqTitle, reqSpoken, reqShort, ...keep }) => ({ ...keep, subtitle: keep.subtitle || null }));
 }

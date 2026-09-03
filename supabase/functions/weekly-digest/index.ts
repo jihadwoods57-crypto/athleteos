@@ -56,6 +56,22 @@ const PAGE = 500;           // rows per paged read — safely under config.toml 
 const BOOK_CAP = 2000;      // books per invocation; a run that hits it logs what it dropped
 const ON_STANDARD = 80;     // the same bar every athlete surface uses
 
+// THE COACH'S OWN MONDAY MORNING (2026-09-03). The job fires every hour on Monday (migration 0218)
+// and each coach hears from it in the one hour that is LOCAL_HOUR where they live, read from
+// profiles.timezone (0088). One fixed 12:00 UTC send was 8 AM in New York and 5 AM in Los
+// Angeles, and drifted an hour at every DST change. A profile with no timezone yet falls back to
+// FALLBACK_TZ, which is what the old fixed hour assumed anyway. `?all=1` skips the hour gate for a
+// manual run; the 6-day dedupe still makes that safe.
+const LOCAL_HOUR = Number(Deno.env.get('DIGEST_LOCAL_HOUR') ?? '7');
+const FALLBACK_TZ = Deno.env.get('DEFAULT_TIMEZONE') ?? 'America/New_York';
+
+/** Hour of day (0-23) at `nowMs` in `tz`, falling back to FALLBACK_TZ for an unknown zone. */
+export function localHour(nowMs: number, tz: string | null | undefined): number {
+  const read = (zone: string) =>
+    Number(new Intl.DateTimeFormat('en-US', { timeZone: zone, hour: 'numeric', hour12: false }).format(new Date(nowMs))) % 24;
+  try { return read(tz || FALLBACK_TZ); } catch { return read(FALLBACK_TZ); }
+}
+
 interface DayLite { athlete_id: string; date: string; score: number | null }
 interface Roster { athletes: { id: string; name: string }[]; recipients: string[] }
 
@@ -64,7 +80,9 @@ const first = (name: string) => (name || '').split(' ')[0];
 /** Per-athlete week analysis over 14 days of rows (this week judges, last week gives streak
  *  context). Pure; factual; no em dash; never a fabricated number. */
 function digestBody(roster: Roster): { title: string; body: string } {
-  const title = 'Your OnStandard week';
+  // Never the app name in a title: the OS notification header already says it (the rule every
+  // push shares since the 2026-09-03 notification pass; see docs/notifications/).
+  const title = 'Your weekly read';
   if (roster.athletes.length === 0) {
     return { title, body: 'No athletes on your roster yet. Share your join code and your first weekly report starts building.' };
   }
@@ -148,6 +166,9 @@ Deno.serve(async (req) => {
   if (!SUPABASE_URL || !SERVICE_ROLE) return json({ error: 'server not configured' }, 500);
 
   const svc = createClient(SUPABASE_URL, SERVICE_ROLE);
+  const nowMs = Date.now();
+  const sendAll = new URL(req.url).searchParams.get('all') === '1';
+  let waiting = 0; // recipients whose local 7 AM is a later run today
   try {
     // 1) The books, paged. Teams deliver to every active staff member; practices to the owner.
     const teams = await allRows<{ id: string; created_by: string | null }>((f, t) =>
@@ -213,10 +234,17 @@ Deno.serve(async (req) => {
 
       // Per-recipient: opt-out gate, 6-day dedupe, durable row FIRST, then the push (winback's
       // rule: the notifications row is both the record and the dedupe key).
+      // One read for the whole recipient list: opt-out and timezone together.
+      const { data: profRows } = await svc.from('profiles').select('id, notifications_opt_out, timezone').in('id', recipients);
+      const profOf = new Map((profRows ?? []).map((p: { id: string; notifications_opt_out?: boolean | null; timezone?: string | null }) => [p.id, p]));
       for (const rid of recipients) {
+        const prof = profOf.get(rid);
+        if (prof?.notifications_opt_out === true) { seen.add(rid); optedOut++; continue; }
+        // Not their morning yet: leave them for a later run today. NOT marked seen, so a coach on
+        // two books is still handled by whichever run is their 7 AM; the 6-day dedupe below is
+        // what keeps a later run from doubling.
+        if (!sendAll && localHour(nowMs, prof?.timezone) !== LOCAL_HOUR) { waiting++; continue; }
         seen.add(rid);
-        const { data: prof } = await svc.from('profiles').select('notifications_opt_out').eq('id', rid).maybeSingle();
-        if (prof?.notifications_opt_out === true) { optedOut++; continue; }
         const { data: recent } = await svc.from('notifications')
           .select('id').eq('user_id', rid).eq('kind', 'digest').gte('created_at', dedupeSince).limit(1);
         if (recent && recent.length > 0) { deduped++; continue; }
@@ -239,7 +267,7 @@ Deno.serve(async (req) => {
         sent++;
       }
     }
-    return json({ ok: true, digests: sent, deduped, optedOut, books: work.length });
+    return json({ ok: true, digests: sent, deduped, optedOut, waiting, localHour: LOCAL_HOUR, books: work.length });
   } catch (e) {
     console.error('weekly-digest error:', e);
     return json({ error: 'digest failed' }, 500);

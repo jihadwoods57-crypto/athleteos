@@ -14,7 +14,7 @@ jest.mock('expo-notifications', () => ({
 }));
 jest.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
 
-import { syncExecNotifications } from './execSync';
+import { syncExecNotifications, contentFor } from './execSync';
 
 beforeEach(() => { mockScheduled.length = 0; mockCancelAll.mockClear(); });
 
@@ -62,4 +62,25 @@ test('one scheduling failure does not drop the remaining items', async () => {
   ]);
   expect(mockScheduled).toHaveLength(1);
   expect((mockScheduled[0] as { identifier: string }).identifier).toContain('exec-second');
+});
+
+describe('the three-line shape (2026-09-03)', () => {
+  const item = { id: 'lunch', atISO: null, title: 'Lunch', subtitle: 'Closes at 2:00 PM', body: 'Still open. Log it and it counts toward today.' };
+  test('iOS gets title / subtitle / body as authored', () => {
+    expect(contentFor(item, 'ios')).toEqual({ title: 'Lunch', subtitle: 'Closes at 2:00 PM', body: item.body });
+  });
+  test('Android has no subtitle line, so the time fact folds into the title', () => {
+    expect(contentFor(item, 'android')).toEqual({ title: 'Lunch · Closes at 2:00 PM', body: item.body });
+  });
+  test('no subtitle, no fold, on either platform', () => {
+    for (const os of ['ios', 'android']) {
+      expect(contentFor({ id: 'x', atISO: null, title: 'T', body: 'B' }, os)).toEqual({ title: 'T', body: 'B' });
+      expect(contentFor({ id: 'x', atISO: null, title: 'T', subtitle: '  ', body: 'B' }, os)).toEqual({ title: 'T', body: 'B' });
+    }
+  });
+  test('the scheduled content carries the subtitle on this (iOS-mocked) platform', async () => {
+    await syncExecNotifications([{ ...item, atISO: new Date(Date.now() + 3600e3).toISOString() }]);
+    expect(mockScheduled).toHaveLength(1);
+    expect((mockScheduled[0] as { content: { subtitle?: string } }).content.subtitle).toBe('Closes at 2:00 PM');
+  });
 });

@@ -7,7 +7,21 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { ensureNotifyPermission, isNotifyAvailable } from './index';
 
-export type ExecPlanItem = { id: string; atISO: string | null; title: string; body: string; route?: string | null };
+export type ExecPlanItem = {
+  id: string; atISO: string | null; title: string; body: string; route?: string | null;
+  /** The one time fact ("Closes at 2:00 PM"). iOS draws it as its own line under the title;
+   *  Android has no subtitle line, so it folds into the title (see `contentFor`). */
+  subtitle?: string | null;
+};
+
+/** The notification content for one plan item on one platform. iOS gets the three-line shape
+ *  the planner authored; every other platform gets `title · subtitle` folded into the title,
+ *  because a subtitle Android cannot draw is that half of the copy silently thrown away. Pure. */
+export function contentFor(p: ExecPlanItem, os: string): { title: string; subtitle?: string; body: string } {
+  const sub = typeof p.subtitle === 'string' && p.subtitle.trim() ? p.subtitle.trim() : null;
+  if (!sub) return { title: p.title, body: p.body };
+  return os === 'ios' ? { title: p.title, subtitle: sub, body: p.body } : { title: `${p.title} · ${sub}`, body: p.body };
+}
 
 export async function syncExecNotifications(plan: ExecPlanItem[]): Promise<void> {
   if (!isNotifyAvailable) return;
@@ -25,7 +39,7 @@ export async function syncExecNotifications(plan: ExecPlanItem[]): Promise<void>
           identifier: `exec-${p.id}-${p.atISO ?? 'now'}`,
           // route rides in data so the tap handler (ProtoApp) can land the WebView on the
           // exact screen the reminder is about — camera/dinner, recovery, weight.
-          content: { title: p.title, body: p.body, data: { route: p.route ?? null } },
+          content: { ...contentFor(p, Platform.OS), data: { route: p.route ?? null } },
           trigger: at
             ? { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at, channelId: Platform.OS === 'android' ? 'reminders' : undefined }
             : null,

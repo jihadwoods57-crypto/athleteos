@@ -35,6 +35,14 @@ const KIND_META = {
   commitment_escalation: { icon: 'bell', level: 'high' },
   commitment_reminder: { icon: 'clock', level: 'high' },
   cs_reminder: { icon: 'clock', level: 'medium' },
+  // A missed connected-standard day is a record, not a reminder: "Today's target wasn't met"
+  // under a clock pill labelled "reminder" read as a nag about something already over.
+  cs_missed: { icon: 'alert', level: 'medium', tag: 'missed' },
+  // Server kinds that fell to DEFAULT_META until 2026-09-03: the winback ("Still here when you
+  // are") wore an urgent-looking bell for a message whose whole point is no pressure, and the
+  // Verified Profile lapse (a billing deadline) rendered as a grey "reminder" with no tap target.
+  winback: { icon: 'heart', level: 'info', tag: 'welcome back' },
+  verified_profile: { icon: 'alert', level: 'high', tag: 'plan' },
 };
 const DEFAULT_META = { icon: 'bell', level: 'medium' };
 
@@ -60,6 +68,12 @@ const KIND_ROUTE = {
   join_approved: () => 'home',
   join_request: () => 'coach-inbox',                                     // coach: approve/decline lives there
   digest: () => 'coach-insights',                                        // coach: the full weekly read
+  // The standard itself. connected-standards-tick computed this route for the push and then
+  // dropped it before the bell row was written; the result id now rides the kind as a suffix.
+  cs_reminder: (s) => (SUFFIX_OK(s) ? `connected-standard/${s}` : null),
+  cs_missed: (s) => (SUFFIX_OK(s) ? `connected-standard/${s}` : null),
+  winback: () => 'home',                                                 // athlete: one plate, from Home
+  verified_profile: () => 'verified-profile',                            // athlete: renew from the profile screen
 };
 
 /** '2m ago' · '3h ago' · 'Mon' · '' for junk. Compact, feed-style. */

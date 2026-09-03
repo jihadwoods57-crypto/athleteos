@@ -7,7 +7,7 @@ import {
 // @ts-ignore
 } from '../../proto/redesign-2026-07/js/coach-notify-plan.js';
 
-const NATIVE_KEYS = ['id', 'fireAtMin', 'dayOffset', 'immediate', 'stage', 'route', 'title', 'body'].sort();
+const NATIVE_KEYS = ['id', 'fireAtMin', 'dayOffset', 'immediate', 'stage', 'route', 'title', 'subtitle', 'body'].sort();
 
 const openItem = (id: string, title: string, dueMin: number, state: string) => ({ id, title, dueMin, state });
 const entry = (athleteId: string, name: string, key: string, openItems: object[] = []) =>
@@ -89,7 +89,8 @@ describe('grouped window alerts', () => {
     const p = plan({ entries, prefs: { briefing: false, recap: false } });
     expect(p).toHaveLength(1);
     expect(p[0].title).toBe('Devin missed Lunch');
-    expect(p[0].body).toBe('Devin.');
+    expect(p[0].subtitle).toBe('Closed at 11:40 AM');
+    expect(p[0].body).toBe('No lunch log by the deadline. Tap to nudge or excuse.');
     expect(p[0].route).toBe('coach-inbox');
     expect(p[0].id).toBe('cn-due-overdue:lunch:1');
     expect(p[0].fireAtMin).toBe(Math.max(9 * 60 + 15, 700 + 30));
@@ -102,14 +103,15 @@ describe('grouped window alerts', () => {
     const p = plan({ entries, prefs: { briefing: false, recap: false, immediateCritical: false } });
     expect(p).toHaveLength(1);
     expect(p[0].title).toBe('2 athletes missed Lunch');
-    expect(p[0].body).toBe('Devin, Sam.');
+    expect(p[0].subtitle).toBe('Closed at 11:40 AM'); // the LATEST close in the group
+    expect(p[0].body).toBe('Devin and Sam. Tap to nudge them.');
     expect(p[0].fireAtMin).toBe(700 + 30); // latest dueMin + 30 beats nowMin+15
   });
   test('body caps at 3 first names + "and N more"', () => {
     const entries = ['Devin', 'Sam', 'Jess', 'Kim'].map((n, i) =>
       entry(`a${i}`, n, 'overdue', [openItem('lunch', 'Lunch', 700, 'overdue')]));
     const p = plan({ entries, prefs: { briefing: false, recap: false, immediateCritical: false } });
-    expect(p[0].body).toBe('Devin, Sam, Jess and 1 more.');
+    expect(p[0].body).toBe('Devin, Sam, Jess and 1 more. Tap to nudge them.');
   });
   test('distinct item ids group separately', () => {
     const entries = [
@@ -132,8 +134,13 @@ describe('morning briefing + evening recap', () => {
     const b = future.find((x: any) => x.id === 'cn-open-briefing');
     expect(b).toBeTruthy();
     expect(b!.title).toBe('Morning read');
-    expect(b!.body).toBe('1 overdue from yesterday · 1 due today. Open for the latest.');
+    expect(b!.subtitle).toBe('1 due today');
+    expect(b!.body).toBe('Still open from yesterday: Devin. Open for the latest.');
     expect(b!.route).toBe('coach-home');
+    // Nobody carrying anything over reads as good news, not as "0 overdue".
+    const clean = plan({ entries: [entry('a3', 'Jess', 'on_standard', [])], nowMin: 9 * 60, prefs: { briefingAt: 10 * 60, recap: false } })
+      .find((x: any) => x.id === 'cn-open-briefing');
+    expect(clean!.body).toBe('Nobody is carrying anything over from yesterday. Open for the latest.');
     expect(b!.stage).toBe('open');
 
     const past = plan({ entries, nowMin: 9 * 60, prefs: { briefingAt: 8 * 60, recap: false } });
@@ -150,7 +157,8 @@ describe('morning briefing + evening recap', () => {
     const r = future.find((x: any) => x.id === 'cn-open-recap');
     expect(r).toBeTruthy();
     expect(r!.title).toBe('Evening recap');
-    expect(r!.body).toBe('2 finished on standard · 1 still open.');
+    expect(r!.subtitle).toBe('2 on standard, 1 still open');
+    expect(r!.body).toBe('Still open: Jess.');
     expect(r!.route).toBe('coach-insights');
 
     const past = plan({ entries, nowMin: 9 * 60, prefs: { recapAt: 8 * 60, briefing: false } });

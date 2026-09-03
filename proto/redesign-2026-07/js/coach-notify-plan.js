@@ -4,7 +4,7 @@
    grouped overdue-window alerts, a morning briefing, an evening recap, an optional hourly
    overdue summary, and at most one immediate ping for a brand-new critical group. Task 5's
    caller hands the returned plan to the SAME native seam notify-plan.js's athlete plan uses —
-   the shape below is EXACT: {id, fireAtMin, dayOffset, immediate, stage, route, title, body}
+   the shape below is EXACT: {id, fireAtMin, dayOffset, immediate, stage, route, title, subtitle, body}
    (state.js:614-621 turns fireAtMin+dayOffset into an absolute ISO; immediate:true → atISO
    null, fire now).
 
@@ -25,9 +25,11 @@
      need to roll past midnight after a quiet-hour shift is dropped instead of wrapped to
      tomorrow — keeps "strictly future, today" simple and matches the "or drop" language in the
      quiet-hours rule below (native fireAtMin stays 0-1439 with no wraparound math needed).
-   - Copy: deterministic, no em dashes, never a scoring formula. Grouped-alert bodies list up
-     to 3 first names + "and N more"; n===1 groups use the athlete's own name in the title
-     instead of a count ("Devin missed Lunch").
+   - Copy: deterministic, no em dashes, never a scoring formula, never the app name. Grouped
+     alerts name up to 3 first names + "and N more" and end with the move ("Tap to nudge them");
+     n===1 groups use the athlete's own name in the title instead of a count ("Devin missed
+     Lunch") and the body says what happened and what the coach can do about it. The briefing
+     and the recap name who is still out, so the coach can decide without opening anything.
    - Quiet hours: REUSES (imports, never forks) notify-plan.js's inQuiet. Briefing/recap/hourly
      shift to the quiet window's end (quietTo) whenever their natural slot falls inside quiet;
      grouped window alerts only shift if quietTo is within 3 hours of the natural slot, else
@@ -86,12 +88,15 @@ function firstName(name) {
   return s.split(/\s+/)[0] || 'Athlete';
 }
 
-/** Up to 3 first names, then "and N more." — no em dash, fully deterministic. */
-function namesBody(fullNames) {
+/** Up to 3 first names, then "and N more" — no em dash, fully deterministic. No trailing
+ *  period: callers set it in a sentence. */
+function namesList(fullNames) {
   const firsts = fullNames.map(firstName);
   const shown = firsts.slice(0, 3);
   const restN = firsts.length - shown.length;
-  return restN > 0 ? `${shown.join(', ')} and ${restN} more.` : `${shown.join(', ')}.`;
+  if (restN > 0) return `${shown.join(', ')} and ${restN} more`;
+  if (shown.length <= 1) return shown[0] || '';
+  return `${shown.slice(0, -1).join(', ')} and ${shown[shown.length - 1]}`;
 }
 
 /** n===1 uses the athlete's FIRST name (matching the body's name style); otherwise
@@ -99,6 +104,25 @@ function namesBody(fullNames) {
  *  item so both read the same way. */
 function groupTitle(names, title, noun = 'athlete') {
   return names.length === 1 ? `${firstName(names[0])} missed ${title}` : `${names.length} ${noun}s missed ${title}`;
+}
+
+/** The body under a missed-window title. One athlete: what happened and what the coach can do
+ *  ("Devin." on its own told them nothing the title had not). A group: who, then the move. */
+function groupBody(names, title) {
+  if (names.length === 1) return `No ${String(title).toLowerCase()} log by the deadline. Tap to nudge or excuse.`;
+  return `${namesList(names)}. Tap to nudge them.`;
+}
+
+/** "Closed at 2:00 PM" for the subtitle line: the one time fact of a missed window. */
+function closedAt(dueMin) {
+  return typeof dueMin === 'number' && isFinite(dueMin) ? `Closed at ${fmt12(dueMin)}` : null;
+}
+
+function fmt12(m) {
+  const mm = Math.max(0, Math.min(1439, Math.round(m)));
+  const h24 = Math.floor(mm / 60);
+  const h = ((h24 + 11) % 12) + 1;
+  return `${h}:${String(mm % 60).padStart(2, '0')} ${h24 < 12 ? 'AM' : 'PM'}`;
 }
 
 /** Does this athlete already have a today-intervention matching their CURRENT status signature
@@ -183,37 +207,46 @@ export function planCoachNotifications({
     const fireAtMin = quietPlace(natural, prefs, nowMin, 180);
     if (fireAtMin == null || fireAtMin >= 1440) continue;
     const names = g.rows.map((r) => r.name);
+    // The subtitle wants the window's real close, not `latestDue` (which is floored at nowMin
+    // to keep the slot in the future and would read "Closed at" the current minute).
+    const realDue = g.rows.reduce((m, r) => (typeof r.dueMin === 'number' && r.dueMin > m ? r.dueMin : m), -1);
     out.push({
       id: `cn-due-overdue:${id}:${names.length}`, fireAtMin: clampMin(fireAtMin), dayOffset: 0,
       immediate: false, stage: 'due', route: 'coach-inbox',
-      title: groupTitle(names, g.title, noun), body: namesBody(names),
+      title: groupTitle(names, g.title, noun), subtitle: realDue >= 0 ? closedAt(realDue) : null, body: groupBody(names, g.title),
     });
   }
 
-  // Morning briefing — an honest snapshot ("Open for the latest" flags its own staleness).
+  // Morning briefing — who to look at first, by name, then the day's shape. "Open for the
+  // latest" flags its own staleness (the plan was built at the last app open, not at 7:30).
   if (prefs.briefing && prefs.briefingAt > nowMin) {
     const fireAtMin = quietPlace(prefs.briefingAt, prefs, nowMin, null);
     if (fireAtMin != null && fireAtMin < 1440) {
-      const overdueN = entries.filter((e) => e && e.status && e.status.key === 'overdue').length;
+      const overdue = entries.filter((e) => e && e.row && e.status && e.status.key === 'overdue').map((e) => e.row.name);
       const dueTodayN = entries.filter((e) => e && e.status && e.status.key === 'due_soon').length;
+      const lead = overdue.length === 0
+        ? 'Nobody is carrying anything over from yesterday.'
+        : `${overdue.length === 1 ? 'Still open from yesterday' : `${overdue.length} still open from yesterday`}: ${namesList(overdue)}.`;
       out.push({
         id: 'cn-open-briefing', fireAtMin: clampMin(fireAtMin), dayOffset: 0, immediate: false,
-        stage: 'open', route: 'coach-home', title: 'Morning read',
-        body: `${overdueN} overdue from yesterday · ${dueTodayN} due today. Open for the latest.`,
+        stage: 'open', route: 'coach-home', title: 'Morning read', subtitle: `${dueTodayN} due today`,
+        body: `${lead} Open for the latest.`,
       });
     }
   }
 
-  // Evening recap.
+  // Evening recap — the count, then who is still out, by name, so the coach can decide whether
+  // tonight needs a text without opening anything.
   if (prefs.recap && prefs.recapAt > nowMin) {
     const fireAtMin = quietPlace(prefs.recapAt, prefs, nowMin, null);
     if (fireAtMin != null && fireAtMin < 1440) {
       const onN = entries.filter((e) => e && e.status && e.status.key === 'on_standard').length;
-      const openN = entries.filter((e) => e && e.status && e.status.key !== 'on_standard' && e.status.key !== 'excused').length;
+      const open = entries.filter((e) => e && e.row && e.status && e.status.key !== 'on_standard' && e.status.key !== 'excused').map((e) => e.row.name);
       out.push({
         id: 'cn-open-recap', fireAtMin: clampMin(fireAtMin), dayOffset: 0, immediate: false,
         stage: 'open', route: 'coach-insights', title: 'Evening recap',
-        body: `${onN} finished on standard · ${openN} still open.`,
+        subtitle: `${onN} on standard, ${open.length} still open`,
+        body: open.length === 0 ? 'Everyone closed the day. Nothing to chase tonight.' : `Still open: ${namesList(open)}.`,
       });
     }
   }
@@ -221,7 +254,8 @@ export function planCoachNotifications({
   // Hourly overdue summary — next 3 hourly marks, only while something is actually overdue.
   if (prefs.hourly) {
     const totalOverdue = elig.reduce((sum, e) => sum + (e.status.openItems || []).filter((it) => it.state === 'overdue').length, 0);
-    const athleteN = elig.filter((e) => (e.status.openItems || []).some((it) => it.state === 'overdue')).length;
+    const behind = elig.filter((e) => (e.status.openItems || []).some((it) => it.state === 'overdue'));
+    const athleteN = behind.length;
     if (totalOverdue > 0) {
       let mark = (Math.floor(nowMin / 60) + 1) * 60;
       for (let i = 0; i < 3 && mark < 1440; i++, mark += 60) {
@@ -230,8 +264,9 @@ export function planCoachNotifications({
         out.push({
           id: `cn-soon-hourly:${mark}`, fireAtMin: clampMin(fireAtMin), dayOffset: 0, immediate: false,
           stage: 'soon', route: 'coach-inbox',
-          title: `${totalOverdue} requirement${totalOverdue === 1 ? '' : 's'} overdue across ${athleteN} athlete${athleteN === 1 ? '' : 's'}`,
-          body: 'Open the inbox to clear them.',
+          title: `${totalOverdue} requirement${totalOverdue === 1 ? '' : 's'} overdue across ${athleteN} ${noun}${athleteN === 1 ? '' : 's'}`,
+          subtitle: 'Overdue digest',
+          body: `${namesList(behind.map((e) => e.row.name))}. Open the inbox to clear them.`,
         });
       }
     }
@@ -258,9 +293,11 @@ export function planCoachNotifications({
         fireAtMin = prefs.quietTo;
         if (!(fireAtMin > nowMin) || fireAtMin >= 1440) break; // can't place it at all — drop
       }
+      const latestDue = g.rows.reduce((m, r) => (typeof r.dueMin === 'number' && r.dueMin > m ? r.dueMin : m), -1);
       out.push({
         id: `cn-due-immediate:${k}`, fireAtMin: clampMin(fireAtMin), dayOffset: 0, immediate,
-        stage: 'due', route: 'coach-inbox', title: groupTitle(names, g.title, noun), body: namesBody(names),
+        stage: 'due', route: 'coach-inbox', title: groupTitle(names, g.title, noun),
+        subtitle: latestDue >= 0 ? closedAt(latestDue) : null, body: groupBody(names, g.title),
       });
       break; // one immediate (or its quiet-demoted slot) max per plan
     }

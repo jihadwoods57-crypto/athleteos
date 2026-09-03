@@ -1837,7 +1837,7 @@ export const act = {
       N.notify.sync(plan.map((p) => ({
         id: p.id,
         atISO: p.immediate ? null : new Date(y, mo - 1, d + (p.dayOffset || 0), Math.floor(p.fireAtMin / 60), p.fireAtMin % 60).toISOString(),
-        title: p.title, body: p.body,
+        title: p.title, subtitle: p.subtitle || null, body: p.body,
         route: p.route || null, // tap lands on the exact screen (e.g. camera/dinner), not Home
       })));
       RT._lastPlan = { date: String(DAY.date), plan }; save(); // recorded only once the post was handed to native
@@ -1893,7 +1893,7 @@ export const act = {
       N.notify.sync(plan.map((p) => ({
         id: p.id,
         atISO: p.immediate ? null : new Date(y, mo - 1, d + (p.dayOffset || 0), Math.floor(p.fireAtMin / 60), p.fireAtMin % 60).toISOString(),
-        title: p.title, body: p.body,
+        title: p.title, subtitle: p.subtitle || null, body: p.body,
         route: p.route || null,
       })));
       RT._lastCoachAlertKeys = alertKeys(entries);

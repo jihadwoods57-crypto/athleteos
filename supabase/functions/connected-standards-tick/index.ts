@@ -113,16 +113,33 @@ Deno.serve(async (req: Request) => {
   const now = new Date().toISOString();
   const notes: Array<{ user_id: string; kind: string; title: string; body: string; route: string }> = [];
 
+  // The athlete's OWN timezone (profiles.timezone, 0088) for the "by 9:00 PM" clause. One global
+  // DEFAULT_TIMEZONE printed Eastern clock times to athletes in California; the default is now
+  // only the fallback for a profile that never reported a zone.
+  const tzById = new Map<string, string>();
+  {
+    const ids = [...new Set([...due.map((d) => d.athlete_id), ...missed.map((m) => m.athlete_id)])];
+    if (ids.length) {
+      const { data: profs } = await svc.from('profiles').select('id, timezone').in('id', ids);
+      for (const p of (profs ?? []) as Array<{ id: string; timezone: string | null }>) if (p?.timezone) tzById.set(p.id, p.timezone);
+    }
+  }
+
+  // The result id rides the kind as a suffix (`cs_reminder:<id>`, the meal_flag convention) so the
+  // BELL row can deep-link to the standard. The route below was computed for the push and then
+  // dropped before the row insert, so the tap worked from the lock screen and nowhere else.
   for (const d of due) {
-    const c = reminderCopy(d, now, DEFAULT_TZ);
+    const c = reminderCopy(d, now, tzById.get(d.athlete_id) ?? DEFAULT_TZ);
     notes.push({
-      user_id: d.athlete_id, kind: 'cs_reminder',
+      user_id: d.athlete_id, kind: `cs_reminder:${d.result_id}`,
       title: c.title, body: c.body, route: `connected-standard/${d.result_id}`,
     });
   }
   for (const m of missed) {
     notes.push({
-      user_id: m.athlete_id, kind: 'cs_reminder', title: m.title,
+      // Its own kind: a miss is a record of something already over, and the bell shows it that
+      // way instead of as one more "reminder".
+      user_id: m.athlete_id, kind: `cs_missed:${m.result_id}`, title: m.title,
       // Says what happened and what recourse exists. No scolding: the athlete may well have done
       // the work and had a phone in a locker.
       body: 'Today’s target wasn’t met. If that’s wrong, open it and tell your coach.',

@@ -160,27 +160,33 @@ describe('groups + progress + celebration', () => {
 });
 
 describe('notification plan (delegated to notify-plan.js — see notifyPlan.test.ts for the framework itself)', () => {
-  test('accountable: exactly ONE reminder per meal (soon), no at-due double', () => {
+  // On a weigh-in day the breakfast heads-up merges into the weigh-in's morning brief (one
+  // notification, both deadlines named); its id is then 'weight+breakfast'.
+  const carries = (p: any, id: string) => String(p.id).split('+').includes(id);
+  test('accountable: exactly ONE reminder per meal, no at-due double (breakfast rides the morning brief)', () => {
     const e = at(6 * 60);
-    const b = e.plan.filter((p: any) => p.id === 'breakfast');
-    expect(b.map((p: any) => [p.fireAtMin, p.stage])).toEqual([[525, 'soon']]);
+    const b = e.plan.filter((p: any) => carries(p, 'breakfast'));
+    expect(b.map((p: any) => [p.id, p.fireAtMin, p.stage])).toEqual([['weight+breakfast', 495, 'due']]);
+    expect(e.plan.filter((p: any) => carries(p, 'lunch')).map((p: any) => [p.fireAtMin, p.stage])).toEqual([[795, 'soon']]);
   });
   test('accountable: high-urgency weight collapses to a single last-call (no duplicate weigh-in pair)', () => {
-    const w = at(6 * 60).plan.filter((p: any) => p.id === 'weight');
+    const w = at(6 * 60).plan.filter((p: any) => carries(p, 'weight'));
     expect(w).toHaveLength(1);
     expect(w[0]!.stage).toBe('due');
     expect(w[0]!.fireAtMin).toBe(495); // due−45, with due-stage copy — one sharp reminder
   });
-  test('gentle: single nudge at due−30', () => {
+  test('gentle: single nudge at due−30 (merged with the weigh-in heads-up on a weigh day)', () => {
     const e = at(8 * 60, {}, { pressure: 'gentle' });
-    const b = e.plan.filter((p: any) => p.id === 'breakfast');
-    expect(b.map((p: any) => p.fireAtMin)).toEqual([540]);
-    expect(b[0]!.title).toContain('Breakfast');
+    const b = e.plan.filter((p: any) => carries(p, 'breakfast'));
+    expect(b.map((p: any) => p.fireAtMin)).toEqual([510]);
+    expect(b[0]!.title).toMatch(/breakfast/i);
+    expect(b[0]!.stage).toBe('soon');
   });
-  test('max keeps the full ladder: window-open + soon + due (soon may coalesce with the weigh-in)', () => {
+  test('max keeps the full ladder: window-open + soon + due (soon and due coalesce with the weigh-in pair)', () => {
     const e = at(6 * 60, {}, { pressure: 'max' });
-    const bf = e.plan.filter((p: any) => String(p.id).includes('breakfast'));
-    expect(bf.map((p: any) => p.fireAtMin)).toEqual([420, 525, 570]);
+    const bf = e.plan.filter((p: any) => carries(p, 'breakfast'));
+    expect(bf.map((p: any) => p.fireAtMin)).toEqual([420, 495, 540]);
+    expect(bf.map((p: any) => p.stage)).toEqual(['open', 'soon', 'due']);
   });
   test('done items produce no reminders (auto-cancel by omission)', () => {
     const e = at(8 * 60, { breakfast: { done: true } });
@@ -190,9 +196,10 @@ describe('notification plan (delegated to notify-plan.js — see notifyPlan.test
     expect(at(8 * 60).plan.filter((p: any) => p.id === 'hydration')).toEqual([]));
   test('every reminder carries its deep-link route — tap lands on the screen, not Home (WS7)', () => {
     const e = at(6 * 60);
-    const b = e.plan.find((p: any) => p.id === 'breakfast')!;
-    expect(b.route).toBe('camera/breakfast');
-    const w = e.plan.find((p: any) => p.id === 'weight')!;
+    const l = e.plan.find((p: any) => p.id === 'lunch')!;
+    expect(l.route).toBe('camera/lunch');
+    // The merged morning brief opens on the earliest-due item, the weigh-in.
+    const w = e.plan.find((p: any) => carries(p, 'weight'))!;
     expect(w.route).toBe('weight');
     const r = e.plan.find((p: any) => p.id === 'recovery');
     if (r) expect(r.route).toBe('recovery');
@@ -206,8 +213,8 @@ describe('notification plan (delegated to notify-plan.js — see notifyPlan.test
     }
   });
   test('weight copy never mentions the score', () => {
-    const w = at(6 * 60).plan.find((p: any) => p.id === 'weight')!;
-    expect(w.body).not.toMatch(/score|point/i);
+    const w = at(6 * 60).plan.find((p: any) => carries(p, 'weight'))!;
+    expect(`${w.title} ${w.subtitle} ${w.body}`).not.toMatch(/score|point/i);
   });
   test('celebration: immediate note with score+streak, skipped on gentle', () => {
     const ALL = { breakfast: { done: true }, lunch: { done: true }, dinner: { done: true }, weight: { done: true }, hydration: { oz: 0 }, recovery: { done: true } };

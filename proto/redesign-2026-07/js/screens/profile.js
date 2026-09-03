@@ -88,7 +88,7 @@ export default {
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="notif-settings">
         <div class="lic">${icon('bell', 18)}</div>
-        <div class="lm"><div class="lt">Notifications</div><div class="ls">Pressure level, quiet hours</div></div>
+        <div class="lm"><div class="lt">Notifications</div><div class="ls">Tone, quiet hours</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
       <div class="lrow" data-go="streak">

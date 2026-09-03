@@ -87,8 +87,8 @@ export function pickFollowUpMeal(rows: MealRow[]): MealRow | null {
 export function fallbackFollowUp(meal: MealRow, numbers = true): string {
   const slot = String(meal.type || 'dinner').toLowerCase();
   return numbers && typeof meal.quality === 'number'
-    ? `Last night's ${slot} came in at ${meal.quality}. Tonight's the rep that fixes it — what's the plan?`
-    : `Last night's ${slot} was on the light side. Tonight's the one that evens it out — what's the plan?`;
+    ? `Last night's ${slot} came in at ${meal.quality}. Tonight's the rep that fixes it. What's the plan?`
+    : `Last night's ${slot} was on the light side. Tonight's the one that evens it out. What's the plan?`;
 }
 
 /** Where the tap lands: the meal the message is ABOUT, which is where its context lives. */

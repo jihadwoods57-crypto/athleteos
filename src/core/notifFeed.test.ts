@@ -18,6 +18,16 @@ describe('feedRowFromServer', () => {
     expect(feedRowFromServer(at('2026-07-16T11:00:00Z', { kind: 'digest' }), NOW)).toMatchObject({ icon: 'clipboard' });
     expect(feedRowFromServer(at('2026-07-16T11:00:00Z', { kind: 'brand-new-kind' }), NOW)).toMatchObject({ icon: 'bell', level: 'medium' });
   });
+  test('2026-09-03: winback, verified_profile and the connected-standard kinds no longer fall to the default bell', () => {
+    const rid = '7f3a1b2c-9d8e-4f5a-b6c7-d8e9f0a1b2c3';
+    expect(feedRowFromServer(at('2026-07-16T11:00:00Z', { kind: 'winback:d3' }), NOW)).toMatchObject({ icon: 'heart', level: 'info', tag: 'welcome back', route: 'home' });
+    expect(feedRowFromServer(at('2026-07-16T11:00:00Z', { kind: 'verified_profile' }), NOW)).toMatchObject({ level: 'high', route: 'verified-profile' });
+    // The result id rides the kind as a suffix so the bell row can open the standard itself.
+    expect(feedRowFromServer(at('2026-07-16T11:00:00Z', { kind: `cs_reminder:${rid}` }), NOW)).toMatchObject({ icon: 'clock', route: `connected-standard/${rid}` });
+    expect(feedRowFromServer(at('2026-07-16T11:00:00Z', { kind: `cs_missed:${rid}` }), NOW)).toMatchObject({ tag: 'missed', route: `connected-standard/${rid}` });
+    // A bare (pre-suffix) row still renders, just without a link into nowhere.
+    expect(feedRowFromServer(at('2026-07-16T11:00:00Z', { kind: 'cs_reminder' }), NOW)).toMatchObject({ icon: 'clock', route: null });
+  });
   test('announcement kind renders with its own icon, not the default bell', () => {
     const r = feedRowFromServer({
       id: 'n1', kind: 'announcement', title: 'Lift moved to 6am',

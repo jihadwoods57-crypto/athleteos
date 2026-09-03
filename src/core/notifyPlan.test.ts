@@ -37,10 +37,31 @@ describe('prefs', () => {
 });
 
 describe('volume + duplicates (the core complaints)', () => {
+  // A merged entry's id is the joined ids ('weight+breakfast'); `carries` finds it either way.
+  const carries = (e: any, id: string) => String(e.id).split('+').includes(id);
   test('accountable: one reminder per meal, one per high-urgency item — no soon+due doubles', () => {
     const p = plan();
     for (const id of ['breakfast', 'lunch', 'dinner', 'weight']) {
-      expect(p.filter((e: any) => e.id === id)).toHaveLength(1);
+      expect(p.filter((e: any) => carries(e, id))).toHaveLength(1);
+    }
+  });
+  test('the Mon/Wed/Fri morning is ONE brief: weigh-in and breakfast merge and name both deadlines', () => {
+    const m = plan().find((e: any) => carries(e, 'weight'));
+    expect(m.id).toBe('weight+breakfast');
+    expect(m.fireAtMin).toBe(540 - 45); // the weigh-in's last call leads
+    expect(m.title).toBe('Last call: weigh-in and breakfast');
+    expect(m.subtitle).toBe('Both by 9:30 AM');
+    expect(m.body).toContain('9:00 AM');
+    expect(m.body).toContain('9:30 AM');
+    expect(m.route).toBe('weight');
+  });
+  test('every entry carries the three-line shape: title, subtitle (or null), body', () => {
+    for (const pressure of ['gentle', 'accountable', 'max']) {
+      for (const e of plan({ pressure, streak: 5 })) {
+        expect(typeof e.title).toBe('string');
+        expect(e.subtitle === null || typeof e.subtitle === 'string').toBe(true);
+        expect(typeof e.body).toBe('string');
+      }
     }
   });
   test('no two entries share title+body (the old identical weigh-in pair is impossible)', () => {
@@ -58,9 +79,12 @@ describe('volume + duplicates (the core complaints)', () => {
     expect(new Set(bodies).size).toBe(bodies.length);
   });
   test('short-window collapse: weight becomes a single last-call at due−45 with due-stage copy', () => {
-    const w = plan().find((e: any) => e.id === 'weight');
+    // Alone (no breakfast to merge with) the weigh-in is one sharp last call, never a pair.
+    const w = plan({ reqs: [WEIGHT, LUNCH] }).find((e: any) => e.id === 'weight');
     expect(w.stage).toBe('due');
     expect(w.fireAtMin).toBe(540 - 45);
+    expect(w.title).toMatch(/weigh-in/i);
+    expect(w.subtitle).toMatch(/9:00 AM/);
   });
   test('near-simultaneous entries coalesce into one combined notification', () => {
     // Two meals due 15 minutes apart → soon slots 15 minutes apart → one merged entry.
@@ -108,7 +132,7 @@ describe('stages by pressure + urgency', () => {
   test('accountable: medium urgency never gets a due stage; high does', () => {
     const p = plan();
     expect(p.find((e: any) => e.id === 'dinner').stage).toBe('soon');
-    expect(p.find((e: any) => e.id === 'weight').stage).toBe('due');
+    expect(p.find((e: any) => String(e.id).startsWith('weight')).stage).toBe('due');
   });
   test('max: window-open stage appears for windowed items', () => {
     const stages = plan({ pressure: 'max', reqs: [DINNER] }).map((e: any) => e.stage);
@@ -126,8 +150,22 @@ describe('copy honesty', () => {
     }
   });
   test('weight copy never mentions score or points', () => {
-    const w = plan().find((e: any) => e.id === 'weight');
-    expect(w.body).not.toMatch(/score|point/i);
+    const w = plan({ reqs: [WEIGHT, LUNCH] }).find((e: any) => e.id === 'weight');
+    expect(`${w.title} ${w.subtitle} ${w.body}`).not.toMatch(/score|point/i);
+  });
+  test('voice standard: no app name, no exclamation, no em dash, short titles, one-sentence bodies', () => {
+    for (const pressure of ['gentle', 'accountable', 'max']) {
+      for (const dateISO of ['2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05']) {
+        const p = plan({ pressure, dateISO, streak: 4, coachName: 'Coach Mark' });
+        expect(p.length).toBeGreaterThan(0);
+        for (const e of p) {
+          const all = `${e.title} ${e.subtitle ?? ''} ${e.body}`;
+          expect(all).not.toMatch(/OnStandard|!|—/);
+          expect(e.title.length).toBeLessThanOrEqual(40);
+          expect(e.body.length).toBeLessThanOrEqual(120);
+        }
+      }
+    }
   });
   test('coach name lands in recovery copy when linked (and only when the variant uses it)', () => {
     // The coach-presence variant is deterministic for a fixed date — a coach name must never

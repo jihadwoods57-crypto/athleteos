@@ -855,6 +855,11 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
         meta: { t: 'escalated' },
       });
 
+      // The coach reads a name, not "an athlete": on a roster of 40 the anonymous version was
+      // a push that had to be opened to find out who it was about.
+      const { data: who } = await service.from('profiles').select('full_name').eq('id', mealRow.athlete_id).maybeSingle();
+      const askerFirst = String(who?.full_name ?? '').trim().split(/\s+/)[0] || 'An athlete';
+      const flagTitle = `${askerFirst} asked something for you`;
       let notified = false;
       const notifiedStaffIds: string[] = [];
       if (withinFlagCap) {
@@ -868,7 +873,7 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
           for (const st of (staff ?? []) as Array<{ staff_id: string }>) {
             await service.from('notifications').insert({
               user_id: st.staff_id, kind: `meal_flag:${mealId}`,
-              title: 'An athlete asked something for you',
+              title: flagTitle,
               body: note || 'They asked a question the AI would not answer.',
             });
             notified = true;
@@ -885,7 +890,7 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
           const { data: toks } = await service.from('device_tokens').select('token').in('user_id', notifiedStaffIds);
           const messages = ((toks ?? []) as Array<{ token: string }>).map((t) => ({
             to: t.token,
-            title: 'An athlete asked something for you',
+            title: flagTitle,
             body: note || 'They asked a question the AI would not answer.',
             data: { route: routeForCoachMeal(mealId) },
             sound: 'default',

@@ -565,6 +565,7 @@ export const notifSettings = {
     const back = roleProfileRoute();
     const p = normalizePrefs(RT.notifPrefs);
     const qf = Math.round(p.quietFrom / 60); // 21 | 22 | 23
+    const qt = Math.round(p.quietTo / 60);   // 6 | 7 | 8
     return `
     ${backHead('Notifications', 'Your tone. Your quiet hours. Coach sets urgency.', back)}
 
@@ -586,18 +587,30 @@ export const notifSettings = {
           instead of live-looking controls that silently do nothing. */''}
     <div id="ns-off-note" role="status" style="font-size:var(--t-xs);font-weight:700;color:var(--text-3);margin:2px 2px 8px;${p.enabled ? 'display:none' : ''}">Off: nothing below fires until you turn it back on.</div>
     <div id="ns-deps"${p.enabled ? '' : ' aria-disabled="true" style="opacity:.45;pointer-events:none"'}>
-    <h2 class="eyebrow">Your tone · changes the wording, never the schedule</h2>
+    ${/* Honest about what the chips do. The old eyebrow said "changes the wording, never the
+          schedule", and the chips write the pressure knob that decides how MANY reminders fire
+          (one heads-up per item on Supportive; a last call on every item on Intense) and how
+          firmly they read. */''}
+    <h2 class="eyebrow">Your tone · how often and how firmly it reminds you</h2>
     <div class="chip-row" id="ns-pressure" data-toggle-group>
       <span class="chp">Supportive</span><span class="chp on">Direct</span><span class="chp">Intense</span>
     </div>
+    <div class="set-note">Supportive: one heads-up per item. Direct: a last call on the ones your plan marks high. Intense: a last call on everything.</div>
 
     <h2 class="eyebrow">Quiet hours</h2>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">Nothing pings between your cutoff and 7 AM. Deadline warnings can break through if you let them.</div>
+    <div class="set-note">Reminders pause between your cutoff and the hour you pick. Deadline warnings can break through if you let them. A message from your coach still comes through.</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('moon', 17)}</div>
         <div class="lm"><div class="lt">No pings after</div></div>
         <div class="seg" style="width:150px" id="ns-quiet"><button class="${qf === 21 ? 'on' : ''}">9 PM</button><button class="${qf === 22 ? 'on' : ''}">10 PM</button><button class="${qf === 23 ? 'on' : ''}">11 PM</button></div>
+      </div>
+      ${/* The resume hour was read by the planner and settable nowhere on the athlete side (the
+            coach screen has had it since Slice E); the prose above hard-coded "7 AM". */''}
+      <div class="lrow">
+        <div class="lic">${icon('bell', 17)}</div>
+        <div class="lm"><div class="lt">Back on at</div></div>
+        <div class="seg" style="width:150px" id="ns-quietto"><button class="${qt === 6 ? 'on' : ''}">6 AM</button><button class="${qt === 7 ? 'on' : ''}">7 AM</button><button class="${qt === 8 ? 'on' : ''}">8 AM</button></div>
       </div>
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('bell', 17)}</div>
@@ -630,7 +643,7 @@ export const notifSettings = {
         </div>`).join('')}
     </section>`;
     })()}
-    <div class="set-note">${icon('lock', 11)} Urgency drives escalation and deadline warnings, and belongs to ${S.coach.hasCoach ? 'your coach' : 'your plan'}; your tone above only changes how reminders are worded. Completed requirements never remind you; finishing one cancels its reminders immediately.</div>
+    <div class="set-note">${icon('lock', 11)} Urgency decides which items get a last call on Direct, and belongs to ${S.coach.hasCoach ? 'your coach' : 'your plan'}; your tone above sets how many reminders you get and how they read. Completed requirements never remind you; finishing one cancels its reminders immediately.</div>
     </div>
     ${typeof window !== 'undefined' && !window.OnStandardNative ? `
     <div class="set-note">${icon('info', 11)} Reminders are delivered by the phone app. In a browser these settings save, but nothing is scheduled on this device.</div>` : ''}
@@ -681,6 +694,7 @@ export const notifSettings = {
     });
     seg('#ns-deadline', (t) => ({ allowDeadline: t === 'On' }));
     seg('#ns-quiet', (t) => ({ quietFrom: (t === '9 PM' ? 21 : t === '11 PM' ? 23 : 22) * 60 }));
+    seg('#ns-quietto', (t) => ({ quietTo: (t === '6 AM' ? 6 : t === '8 AM' ? 8 : 7) * 60 }));
   },
 };
 
@@ -695,7 +709,10 @@ export const notifSettings = {
    __render() repaint needs the same logic to show what stuck. */
 const COACH_PRESETS = {
   Essential: { enabled: true, briefing: false, recap: false, hourly: false, immediateCritical: true, quietFrom: 21 * 60 },
-  Balanced: { enabled: true, briefing: true, briefingAt: 7 * 60 + 30, recap: true, recapAt: 20 * 60 + 30, hourly: true, immediateCritical: true, quietFrom: 22 * 60 },
+  // Balanced IS the default set (coach-notify-plan.js DEFAULT_COACH_NOTIF_PREFS), so a fresh
+  // coach sees it lit. It used to carry hourly:true while the default is false, which meant no
+  // chip ever matched a coach who had changed nothing, and the picker read as broken.
+  Balanced: { enabled: true, briefing: true, briefingAt: 7 * 60 + 30, recap: true, recapAt: 20 * 60 + 30, hourly: false, immediateCritical: true, quietFrom: 22 * 60 },
   'Hands-on': { enabled: true, briefing: true, briefingAt: 7 * 60, recap: true, recapAt: 20 * 60, hourly: true, immediateCritical: true, quietFrom: 23 * 60 },
 };
 function presetFor(p) {

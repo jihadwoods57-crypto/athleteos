@@ -73,7 +73,7 @@ describe('the nudge itself', () => {
       period_start: '2026-07-27', period_end: '2026-08-02',
       deadline_at: '2026-08-03T03:59:00Z',
     };
-    expect(reminderCopy(weekly, '2026-08-02T14:00:00Z').body).toBe('Last day — 2 mi to go.');
+    expect(reminderCopy(weekly, '2026-08-02T14:00:00Z').body).toBe('Last day: 2 mi to go.');
   });
 
   it('never emits a negative remainder even if a caller passes an over-target row', () => {

@@ -94,7 +94,7 @@ export function reminderCopy(row: DueRow, nowISO: string, timeZone = 'America/Ne
     return {
       title: row.title,
       body: daysLeft === 1
-        ? `Last day — ${left} to go.`
+        ? `Last day: ${left} to go.`
         : `${left} to go with ${daysLeft} days left. About ${per} a day gets you there.`,
     };
   }
