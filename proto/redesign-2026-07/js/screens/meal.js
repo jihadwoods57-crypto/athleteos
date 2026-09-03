@@ -1289,15 +1289,14 @@ export const thread = {
     // changes, never on the initial `open` attribute.
     const bdWrap = root.querySelector('.bd-wrap');
     if (bdWrap) bdWrap.addEventListener('toggle', () => { thread._bdOpen = bdWrap.open; });
-    /** Put the cursor in the thread composer: the one place a correction is made. */
-    const focusComposer = () => {
-      const input = root.querySelector('#meal-msg');
-      if (!input) return;
-      input.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      input.focus();
-    };
+    /** Put the cursor in the thread composer: the one place a correction is made. Through
+     *  keyboard.js's focusComposer, which brings the conversation down onto the keys — this
+     *  was a local `const focusComposer` doing scrollIntoView({block:'center'}), which SHADOWED
+     *  the import for the whole of mount(), so prefill() at the bottom of this file was calling
+     *  it while its own comment claimed the opposite (adversarial review, 2026-09-03). */
+    const focusMealComposer = () => focusComposer(root.querySelector('#meal-msg'));
     const tellAi = root.querySelector('#tell-ai');
-    if (tellAi) tellAi.addEventListener('click', focusComposer);
+    if (tellAi) tellAi.addEventListener('click', focusMealComposer);
     // Photo: the in-session capture, else a signed Storage URL so it survives a reload. Resolved
     // through photo-store (NOT a raw one-shot signedMealPhotoUrl): the cache retries a missing
     // object after NEG_TTL, and the outbox calls invalidateMealPhoto + __render the moment a
@@ -1916,7 +1915,7 @@ export const thread = {
             // thread admits it in the same breath and hands them the panel that always works.
             if (!applied) {
               setNote("That didn't line up with anything in this meal's read, so your numbers haven't changed. Tell me which food you mean, or what was on the plate, and I'll put it in.");
-              focusComposer();
+              focusMealComposer();
               if (window.__render) window.__render();
               return;
             }

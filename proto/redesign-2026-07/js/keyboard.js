@@ -266,6 +266,22 @@ export function initKeyboard() {
     if (openNow || isField(document.activeElement)) pinShell();
   }, { capture: true, passive: true });
 
+  // The whole pill is the message box, exactly as it is in Messages: a tap on the pill's own
+  // ground — the padding left of send, the empty run right of a short sentence, the search
+  // bar's decorative magnifier — focuses the field inside it. Without this those are dead
+  // zones INSIDE the thing that looks like a text box, and the field itself (30px tall in a
+  // 40px pill) is the only way in. Buttons inside the pill (send, the AI sparkle) keep their
+  // own taps.
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    if (!t || !t.closest) return;
+    if (t.closest('button, a, input, textarea, select, [contenteditable="true"]')) return;
+    const field = t.closest('.composer .field');
+    if (!field) return;
+    const box = field.querySelector('textarea, input');
+    if (box && !box.disabled) focusComposer(box);
+  });
+
   // Touching empty ground puts the keyboard away — the gap between two bubbles, or the scroller
   // itself. Deliberately only those two: a tap on a control is not a request to stop typing, and
   // matching on the container's own class (rather than "anything that isn't a button") means a

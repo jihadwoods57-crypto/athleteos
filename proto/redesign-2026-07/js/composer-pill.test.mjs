@@ -71,6 +71,32 @@ test('nothing renders below the meal composer', () => {
   assert.ok(!tpl.includes('Back to Home'), 'Back to Home must not follow the composer');
 });
 
+test('the pill\'s shrunken buttons keep the 44px hit-area floor', () => {
+  // The redesign took send and the AI sparkle from 48px circles to 30px, and attach to 40px.
+  // Visually right; but the finger still needs 44, so all three must sit in focus.css's
+  // expanded-hit-area list. button.send, not .send: the food search bar's send is a decorative
+  // aria-hidden <span> and must not grow a target it cannot honour.
+  const lists = FOCUS_CSS.match(/:where\(([\s\S]*?)\)(::after)?\s*\{/g) || [];
+  const carrying = lists.filter((l) => l.includes('.composer button.send'));
+  assert.equal(carrying.length, 2, 'both :where lists (position + ::after) carry .composer button.send');
+  for (const l of carrying) {
+    assert.match(l, /\.composer \.ai-ask/, 'the AI sparkle is in the same list');
+    assert.match(l, /\.composer \.attach/, 'attach is in the same list');
+    assert.ok(!/\.composer \.send[,)\s]/.test(l), 'bare .composer .send would catch the decorative span');
+  }
+});
+
+test('a tap anywhere on the pill focuses the box, as it does in Messages', () => {
+  // The field is 30px tall inside a 40px pill, so the pill's own ground — padding, the empty
+  // run beside a short sentence, the search bar's decorative magnifier — must be a way in,
+  // not a dead zone inside the thing that looks like a text box. Buttons keep their own taps.
+  const m = KEYBOARD.match(/addEventListener\('click',[\s\S]*?\n  \}\);/);
+  assert.ok(m, 'keyboard.js delegates a click handler for the pill');
+  assert.match(m[0], /closest\('\.composer \.field'\)/, 'the handler targets the pill');
+  assert.match(m[0], /closest\('button/, 'buttons inside the pill keep their own taps');
+  assert.match(m[0], /focusComposer/, 'focus goes through focusComposer so the reveal runs');
+});
+
 test('the native shell hides WebKit\'s keyboard accessory bar', () => {
   assert.ok(/hideKeyboardAccessoryView/.test(SHELL), 'ProtoApp.tsx must pass hideKeyboardAccessoryView to the WebView');
 });

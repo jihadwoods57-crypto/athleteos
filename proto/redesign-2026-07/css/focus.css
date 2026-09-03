@@ -134,18 +134,27 @@
    full-screen overlay) and the pending-attachment remove button (29px) joined 2026-08-18: all
    three sit alone with no neighbour inside 44px, so the expanded area costs nothing.
    `.id-act` (the 24px "Remove photo" text action in the Profile identity card) joined
-   2026-09-01: its only neighbours are the identity lines above it, which are not targets. */
+   2026-09-01: its only neighbours are the identity lines above it, which are not targets.
+   The composer's buttons joined 2026-09-03: the Messages-style pill shrank send and the AI
+   sparkle from 48px circles to 30px, and attach to 40px, without a word in this list — the
+   most-tapped button in every conversation quietly lost a third of its target. `button.send`,
+   not `.send`: the food search bar renders send as a decorative aria-hidden <span>, and a dead
+   element must not grow a hit area it cannot honour. Where send and the sparkle sit 4px apart
+   (the coach's bar) the expanded areas overlap by 10px — the stated trade-off above, taken
+   knowingly: the band favours send, which is the button a thumb aiming there wants. */
 :where(
   .co-chip, .btn.ghost, .btn.sm, .bk, .ai-full-toggle, .hd-avatar,
   .si-forgot, .si-link, .chip, .pw-seg, .mq-skip, .markread, .lnk, .tl-del, .mt-retry,
-  .tour-skip, .est-note .link, .fr-ok, .iv-x, .composer-attach-pending button, .id-act
+  .tour-skip, .est-note .link, .fr-ok, .iv-x, .composer-attach-pending button, .id-act,
+  .composer button.send, .composer .ai-ask, .composer .attach
 ) {
   position: relative;
 }
 :where(
   .co-chip, .btn.ghost, .btn.sm, .bk, .ai-full-toggle, .hd-avatar,
   .si-forgot, .si-link, .chip, .pw-seg, .mq-skip, .markread, .lnk, .tl-del, .mt-retry,
-  .tour-skip, .est-note .link, .fr-ok, .iv-x, .composer-attach-pending button, .id-act
+  .tour-skip, .est-note .link, .fr-ok, .iv-x, .composer-attach-pending button, .id-act,
+  .composer button.send, .composer .ai-ask, .composer .attach
 )::after {
   content: '';
   position: absolute;
