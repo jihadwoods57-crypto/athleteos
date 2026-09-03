@@ -812,7 +812,10 @@ export default {
     const body = t === 'nutrition' ? nutrition()
       : t === 'requirements' ? requirementsTab()
         : t === 'memory' ? memoryTab() : overview();
-    return `${head(t)}${tabs(t)}${body}`;
+    // .pane is what the sideways swipe moves (js/gestures.js): the strip's content, and only
+    // that. The head and the strip above it stand still while the pane drags, exactly as they
+    // do under the tap's own lat-* entrance.
+    return `${head(t)}${tabs(t)}<div class="pane">${body}</div>`;
   },
   async mount(root, { sub }) {
     // A bad sub renders Overview with its tab lit; rewrite the address so it agrees with the

@@ -1,0 +1,212 @@
+/* OnStandard — Liquid Glass chrome, and the layers the navigation gestures move (2026-09-03)
+ *
+ * The founder's brief: "just like with Apple, Liquid Glass". Apple's material is chrome that
+ * floats OVER content as a translucent, refracting capsule — it blurs and brightens what passes
+ * under it, carries a specular rim on the lit edge, and casts a soft shadow onto the page. It is
+ * never the page itself. DESIGN.md's rule survives intact: blur is platform chrome, not a card
+ * treatment. Three pieces of chrome wear it here, and nothing else does:
+ *
+ *   1. the tab bar, now a floating capsule inset from the edges, with a glass LENS that slides
+ *      behind the active tab instead of a flat colour change;
+ *   2. the back chip in a screen's header;
+ *   3. a screen header once content is scrolling under it (the "scroll edge"): at rest it is
+ *      plain text on the canvas, and it turns to glass only when there is something to see
+ *      through it. js/gestures.js stamps `.stuck`.
+ *
+ * Every blur is gated on @supports, with an opaque-enough fill as the fallback, and both
+ * prefers-reduced-transparency and prefers-reduced-motion are honoured below — the OS setting a
+ * person reached for is the one that wins.
+ *
+ * Linked after app.css so its rules win the equal-specificity ties over the bar's old ramp, and
+ * before focus.css, which must stay last. ::before is used for every decoration in this file:
+ * focus.css owns ::after on the tap targets as their 44px hit area.
+ */
+
+:root {
+  /* The frame's own inset, so a layer positioned under the screen lines up with it on the desktop
+     bezel (12px padding) and on a phone (none). */
+  --frame-pad: 12px;
+  --glass-fill:        rgba(16, 23, 38, 0.56);
+  --glass-fill-strong: rgba(16, 23, 38, 0.86);   /* what you get with no backdrop-filter */
+  --glass-rim:         rgba(255, 255, 255, 0.18);
+  --glass-rim-soft:    rgba(255, 255, 255, 0.07);
+  --glass-shadow:      0 12px 34px rgba(0, 0, 0, 0.45);
+  --glass-blur: 22px;
+  --glass-sat:  1.6;
+  --lens-fill:  rgba(255, 255, 255, 0.10);
+  --lens-rim:   rgba(255, 255, 255, 0.16);
+  --tabbar-inset: 12px;
+  --tabbar-h: 66px;
+}
+:root[data-theme="light"] {
+  --glass-fill:        rgba(255, 255, 255, 0.60);
+  --glass-fill-strong: rgba(255, 255, 255, 0.92);
+  --glass-rim:         rgba(255, 255, 255, 0.95);
+  --glass-rim-soft:    rgba(15, 23, 42, 0.09);
+  --glass-shadow:      0 12px 34px rgba(15, 23, 42, 0.16);
+  --lens-fill:  rgba(15, 23, 42, 0.07);
+  --lens-rim:   rgba(255, 255, 255, 0.80);
+}
+@media (max-width: 520px) {
+  :root { --frame-pad: 0px; }
+}
+
+/* ===== 1. The tab bar: a floating capsule ===== */
+.tabbar {
+  left: var(--tabbar-inset); right: var(--tabbar-inset);
+  bottom: max(10px, calc(env(safe-area-inset-bottom, 0px) - 8px));
+  height: var(--tabbar-h);
+  padding: 0 8px;
+  border-radius: calc(var(--tabbar-h) / 2);
+  background: var(--glass-fill-strong);
+  border: 1px solid var(--glass-rim-soft);
+  box-shadow: var(--glass-shadow);
+  overflow: visible;
+}
+@supports (backdrop-filter: blur(4px)) or (-webkit-backdrop-filter: blur(4px)) {
+  .tabbar {
+    background: var(--glass-fill);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  }
+}
+/* The specular rim: a 1px gradient border, lit at the top-left where the light is and fading out
+   along the bottom edge. A mask cuts the fill out of the middle so only the ring paints. */
+.tabbar::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px;
+  pointer-events: none; z-index: 0;
+  background: linear-gradient(135deg, var(--glass-rim) 0%, transparent 38%, transparent 62%, var(--glass-rim-soft) 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+/* The old bar's local fade under the FAB drew an opaque disc of canvas; on a floating capsule
+   that disc would sit outside the glass and read as a hole. The FAB is a solid green object
+   sitting on the capsule's rim, which needs no scrim. */
+.tabbar .fabslot::before { display: none; }
+.tabbar .fab { margin-top: -41px; }
+/* The lens: the active tab's ground, a softer capsule inside the capsule, that SLIDES to the tab
+   you chose. The router publishes --i (where it is), --n (how many columns) and --from (where it
+   was), and a genuine tab switch (.switch) plays the slide; a push, pop or repaint just places
+   it. The lens is absolutely positioned so it takes no grid track. */
+.tab-lens {
+  position: absolute; top: 7px; bottom: 7px; left: 8px;
+  width: calc((100% - 16px) / var(--n, 5));
+  border-radius: 999px;
+  background: var(--lens-fill);
+  box-shadow: inset 0 1px 0 var(--lens-rim), inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+  transform: translate3d(calc(var(--i, 0) * 100%), 0, 0);
+  pointer-events: none; z-index: 0;
+}
+/* The router says where with classes (at-N now, from-N a beat ago); every bar has five columns. */
+.tab-lens.at-0 { --i: 0; } .tab-lens.at-1 { --i: 1; } .tab-lens.at-2 { --i: 2; } .tab-lens.at-3 { --i: 3; } .tab-lens.at-4 { --i: 4; }
+.tab-lens.from-0 { --from: 0; } .tab-lens.from-1 { --from: 1; } .tab-lens.from-2 { --from: 2; } .tab-lens.from-3 { --from: 3; } .tab-lens.from-4 { --from: 4; }
+.tabbar.switch .tab-lens { animation: lensSlide 380ms var(--ease-out) both; }
+@keyframes lensSlide { from { transform: translate3d(calc(var(--from, 0) * 100%), 0, 0); } }
+.tabbar .tab { position: relative; z-index: 1; }
+/* The bar leaves for the keyboard by its whole height PLUS its float, or its top edge would still
+   show above the keys. */
+body.kb-open .tabbar { transform: translateY(calc(100% + 60px)); }
+
+/* ===== 2. The back chip ===== */
+.back-head .bk {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--glass-fill-strong);
+  border: 1px solid var(--glass-rim-soft);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22), inset 0 1px 0 var(--glass-rim);
+  transition: transform var(--dur-1) var(--ease-out);
+}
+@supports (backdrop-filter: blur(4px)) or (-webkit-backdrop-filter: blur(4px)) {
+  .back-head .bk {
+    background: var(--glass-fill);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    backdrop-filter: blur(16px) saturate(1.4);
+  }
+}
+.back-head .bk:active { transform: scale(0.92); }
+
+/* ===== 3. The scroll edge: a header holds its place and turns to glass under content ===== */
+/* Sticky at exactly the offset it rests at (the viewport's own top padding), so nothing moves the
+   moment it engages. Full-bleed through negative margins so the glass reaches the screen's
+   edges; the padding puts the text back where it was. */
+.viewport { --vp-top: 4px; }
+@media (max-width: 520px) {
+  .viewport { --vp-top: max(14px, env(safe-area-inset-top)); }
+}
+.back-head {
+  position: sticky; top: var(--vp-top); z-index: 30;
+  margin: 0 calc(-1 * var(--pad-screen));
+  padding: 6px var(--pad-screen) 12px;
+}
+.back-head::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: var(--glass-fill-strong);
+  border-bottom: 1px solid var(--glass-rim-soft);
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease-out);
+}
+@supports (backdrop-filter: blur(4px)) or (-webkit-backdrop-filter: blur(4px)) {
+  .back-head::before {
+    background: var(--glass-fill);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  }
+}
+.back-head.stuck::before { opacity: 1; }
+
+/* ===== The gesture layers (js/gestures.js) ===== */
+/* Back: the screen being uncovered sits UNDER the one the finger is holding, in the frame's own
+   inset, scrolled to where it was left. It paints first (earlier sibling), so no z-index games
+   against .screen's own stacking context are needed; the held screen only needs to be above the
+   page and to cast a shadow onto what it is uncovering. */
+.screen.under {
+  position: absolute; inset: var(--frame-pad); z-index: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+.screen.under .viewport { overflow: hidden; }
+.screen.under .gesture-dim {
+  position: absolute; inset: 0; z-index: 90; pointer-events: none;
+  background: #000; opacity: 0;
+}
+.screen.gesturing {
+  position: relative; z-index: 1;
+  will-change: transform;
+  box-shadow: -14px 0 40px rgba(0, 0, 0, 0.38);
+  transition: none;
+}
+.screen.gesturing.settling,
+.screen.under.settling { transition: transform 260ms var(--ease-out-quart); }
+.screen.under.settling .gesture-dim { transition: opacity 260ms var(--ease-out-quart); }
+/* Page: the strip's content moves; the neighbour's content is positioned beside it, aligned to
+   the same offset inside the view so the two read as one row of pages. `.view.paging` becomes the
+   containing block for the duration only — see the note above .meal-screen in screens.css for
+   why #view must not be positioned at rest. */
+.view.paging { position: relative; }
+.view.paging .pane { will-change: transform; }
+.view.paging .pane.peek { position: absolute; left: 0; right: 0; pointer-events: none; }
+.pane.settling { transition: transform 260ms var(--ease-out-quart); }
+
+/* ===== The ways out ===== */
+/* Less transparency: the OS setting says "I cannot read through glass". Everything that blurs
+   becomes an opaque surface instead. Same shapes, same positions, nothing to see through. */
+@media (prefers-reduced-transparency: reduce) {
+  :root .tabbar,
+  :root .back-head .bk,
+  :root .back-head::before {
+    background: var(--surface-1);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  :root .tab-lens { background: var(--surface-3); }
+}
+/* Less motion: the lens is placed rather than slid, and a released drag lands rather than
+   settles. The drags themselves stay — they are direct manipulation, not decoration. */
+@media (prefers-reduced-motion: reduce) {
+  .tabbar.switch .tab-lens { animation: none; }
+  .screen.gesturing.settling,
+  .screen.under.settling,
+  .screen.under.settling .gesture-dim,
+  .pane.settling { transition: none; }
+}

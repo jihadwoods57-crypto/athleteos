@@ -8,6 +8,7 @@ import { emptyNav, pushOrigin, popOrigin, peekOrigin, resetTab } from './nav-sta
 import { initKeyboard } from './keyboard.js';
 import { withTransition, canTransition, transitioning, afterTransition } from './view-transition.js';
 import { hydrateAvatars } from './avatar.js';
+import { initGestures } from './gestures.js';
 
 // Shell-level and route-independent: the keyboard has to behave the same on the composer, the food
 // search box and a profile field, and #device outlives every render() so this is wired once here
@@ -79,13 +80,27 @@ function statusbar() {
   return `<div class="statusbar" aria-hidden="true"></div>`;
 }
 
-function tabbar(activeTab, nav = 'athlete') {
+/* Where the glass lens (css/glass.css .tab-lens) last sat, so a genuine tab switch can slide it
+   from there. Column index in the bar, or null before the first paint. */
+let LAST_LENS = null;
+
+function tabbar(activeTab, nav = 'athlete', { remember = true } = {}) {
   // A nav with no tab set renders NO tab bar. Falling back to NAVS.athlete meant an unknown or
   // tab-less role (parent) silently inherited someone else's navigation — failing to nothing is
   // correct here, failing to another role's chrome is not.
   const tabs = NAVS[nav];
   if (!tabs) return '';
-  return `<nav class="tabbar" style="grid-template-columns: repeat(${tabs.length}, 1fr)">${tabs.map(t => {
+  // The lens is the active tab's ground and it MOVES: --i is its column now, --from the column
+  // it is sliding from (the same one unless the bar is what changed). Never on the FAB, which is
+  // never the active tab. `remember: false` is the gesture under-layer asking for a picture of
+  // a bar without disturbing where the real one thinks it is.
+  const idx = tabs.findIndex((t) => t.id === activeTab && !t.fab);
+  const from = LAST_LENS === null ? idx : LAST_LENS;
+  if (remember && idx >= 0) LAST_LENS = idx;
+  // Classes, not an inline style: at-N / from-N map to --i / --from in css/glass.css, which keeps
+  // the inline-style ratchet where it is and keeps the numbers where a stylesheet can read them.
+  const lens = idx >= 0 ? `<i class="tab-lens at-${idx} from-${from}" aria-hidden="true"></i>` : '';
+  return `<nav class="tabbar" style="grid-template-columns: repeat(${tabs.length}, 1fr)">${lens}${tabs.map(t => {
     if (t.fab) {
       // Athlete camera FAB carries the exec status dot (gold = actionable, red = overdue,
       // none = day complete). Other roles' FABs are plain. Glyph never changes.
@@ -255,7 +270,7 @@ export function lateralStep(curRoute, curSub, target) {
  *  the departing screen (unless it's a transient flow interstitial); a sibling tab REPLACES,
  *  so the strip never becomes a pile of back-targets. Transient screens are REPLACED in browser
  *  history so a hardware/edge swipe-back skips the flow, matching the header back button. */
-function navigateTo(target) {
+function navigateTo(target, opts = {}) {
   NAV_INTENT = true;
   const { route: cur, sub: curSub } = parse();
   const curMod = screens[cur];
@@ -265,7 +280,11 @@ function navigateTo(target) {
   if (lateral !== 0) {
     // Sideways: no stack entry, no history entry. Back from any tab of the strip leaves the
     // screen, which is the only reading of "back" that survives a four-tab strip.
-    NAV_DIR = lateral > 0 ? 'lat-next' : 'lat-prev';
+    // A swipe (js/gestures.js) already dragged the new content into place, so it arrives with no
+    // entrance of its own and keeps the scroll the finger was at rather than snapping to the top.
+    const swipe = opts.dir === 'swipe';
+    NAV_DIR = swipe ? 'swipe' : (lateral > 0 ? 'lat-next' : 'lat-prev');
+    if (swipe && opts.keepScroll) RESTORE = { r: target, s: currentScroll() };
     try { location.replace('#' + target); return; } catch { /* fall through to go() */ }
   } else if (targetRoot && !target.includes('/')) {
     NAV_DIR = 'tab';
@@ -286,9 +305,11 @@ function navigateTo(target) {
 
 /** Back: pop the active tab's stack and return there (with scroll), else land on `fallback`.
  *  Uses location.replace so browser history never grows from unwinding. */
-function goBack(fallback) {
+function goBack(fallback, opts = {}) {
   NAV_INTENT = true;
-  NAV_DIR = 'pop';
+  // 'swipe' is the edge gesture committing: the finger already ran the pop animation, so the
+  // destination must arrive with no second one.
+  NAV_DIR = opts.dir === 'swipe' ? 'swipe' : 'pop';
   const entry = popOrigin(NAV); navSave();
   if (entry) {
     RESTORE = entry;
@@ -474,7 +495,11 @@ function render() {
   // sliding around under the reader. LAST_FULL is still the PREVIOUS route here (it is assigned
   // further down, with the scroll restore that uses the same signal), so this is the same
   // definition of "same-route re-render" the scroll logic already trusts.
-  const enter = LAST_FULL === full ? '' : ' enter';
+  // A swipe (js/gestures.js) is the one navigation that has ALREADY been animated, by the finger:
+  // the screen slid off, or the pane slid in, before the route changed. Arriving with `.enter`
+  // would run a second entrance over a screen that is already standing exactly where it belongs,
+  // and (further down) a view transition would slide it a third time.
+  const enter = (LAST_FULL === full || NAV_DIR === 'swipe') ? '' : ' enter';
   // Direction modifier: the entrance matches the gesture that caused it. Consumed here whether or
   // not it renders (a same-route repaint must not inherit a stale direction from an old tap).
   const dir = NAV_DIR; NAV_DIR = null;
@@ -848,6 +873,50 @@ window.addEventListener('keydown', (e) => {
   if (!scrim) return;
   e.preventDefault();
   goBack(scrim.getAttribute('data-back') || undefined);
+});
+
+/* ---------------- Navigation gestures (js/gestures.js) ----------------
+   The gestures own the finger; the router owns what a screen IS. This is the seam: everything
+   the drag needs to know about routes, stacks and rendering, and the two ways it commits. Both
+   commits are ordinary navigations tagged 'swipe', which render() reads above as "already
+   animated". Wired once, like the keyboard: #device outlives every render. */
+
+/** The inner markup of a .screen for `full`, rendered from state with no mount and no wiring: a
+ *  PICTURE of where Back goes, for the finger to uncover. The real render replaces it the moment
+ *  the navigation commits. null when the module cannot render from cold state. */
+function shellFor(full) {
+  const [route, ...rest] = full.split('/');
+  const sub = rest.join('/');
+  const mod = screens[route] || screens.notfound;
+  let body = '';
+  try { body = mod.render({ sub, S }); } catch { return null; }
+  const navRole = navFor(mod, RT.authRole);
+  const tab = ROOT_TAB[route] || NAV.tab;
+  return `${statusbar()}
+    <div class="viewport ${mod.bleed ? 'bleed' : ''}${mod.hideTabs ? ' notabs' : ''}${mod.fill ? ' fill' : ''}">
+      <div class="view">${body}</div>
+    </div>
+    ${mod.hideTabs ? '' : tabbar(tab, navRole, { remember: false })}`;
+}
+
+initGestures({
+  device: () => document.getElementById('device'),
+  busy: () => transitioning(),
+  current: () => { const { route, sub } = parse(); return { route, sub, mod: screens[route] || screens.notfound }; },
+  // What Back would show: the top of the active tab's stack, else the header chevron's own
+  // fallback, else nothing (a tab root has no back, and gets no gesture).
+  backTarget: () => {
+    const top = peekOrigin(NAV);
+    if (top) return { route: top.r, scroll: top.s || 0 };
+    const bk = document.querySelector('#device .screen:not(.under) [data-back]');
+    if (!bk) return null;
+    const fb = bk.getAttribute('data-back') || (RT.userId ? routeForRole(RT.authRole || 'athlete') : 'welcome');
+    return { route: fb, scroll: 0, fallback: fb };
+  },
+  shell: shellFor,
+  back: (fallback) => goBack(fallback, { dir: 'swipe' }),
+  lateral: (target) => navigateTo(target, { dir: 'swipe', keepScroll: true }),
+  renderSub: (sub) => { const mod = screens[parse().route]; return mod ? mod.render({ sub, S }) : ''; },
 });
 
 window.addEventListener('hashchange', render);

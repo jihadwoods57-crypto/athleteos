@@ -289,3 +289,24 @@ file back in line with it.
 - **Chat day separators:** `layoutThread` takes `fmtDay` (compare key) and `fmtDayLabel`
   (printed label; `dayLabelOf` in chat-view.js is the shared human label). Passing only a
   machine key prints that key on screen.
+
+## Amendments · 2026-09-03 Liquid Glass chrome + navigation gestures
+
+Founder brief: "just like with Apple, Liquid Glass; swipe seamlessly to the next or previous
+page, not just tapping; it has to make sense." Lives in `css/glass.css` + `js/gestures.js`.
+
+- **Liquid Glass is chrome, still.** The no-glassmorphism rule stands; what changed is what
+  chrome looks like. Three pieces wear the material: the floating capsule tab bar (with a glass
+  lens that slides behind the active tab), the back chip, and a screen header once content is
+  scrolling under it (`.back-head.stuck`). Cards, rows, sheets and composers stay solid. Every
+  blur sits in `@supports` with an opaque fill fallback; `prefers-reduced-transparency` makes
+  all of it opaque and `prefers-reduced-motion` places the lens rather than sliding it.
+- **Two gestures, no more.** Edge-swipe back on any pushed screen (the screen you came from is
+  rendered underneath and uncovered, the pop transition handed to the thumb), and a sideways
+  swipe between siblings on a screen that declares `subs` (Plan). The bottom tab bar does not
+  page: iOS never has, and a horizontal drag on Home is a scroll through the meal rail.
+- **A swipe arrives with no second entrance.** The router's `'swipe'` direction means "the
+  finger already animated this": no `.view.enter`, no view transition.
+- **`.pane` is the pager's contract.** A `subs` screen wraps the strip's content in
+  `<div class="pane">`; the head and strip outside it stand still.
+- **`::before` for every glass decoration.** focus.css owns `::after` as the 44px hit area.

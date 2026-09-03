@@ -27,6 +27,9 @@
   <!-- The navigation transition layer. Every selector inside is a ::view-transition pseudo, so a
        browser without the API matches nothing and keeps today's rendering exactly. -->
   <link rel="stylesheet" href="./css/view-transition.css" />
+  <!-- Liquid Glass chrome + the layers the navigation gestures move. After app.css so it wins the
+       tab bar's equal-specificity ties; before focus.css, which must stay last. -->
+  <link rel="stylesheet" href="./css/glass.css" />
   <!-- Last on purpose: the focus layer must win over the 9 rules that set `outline: none`. -->
   <link rel="stylesheet" href="./css/focus.css" />
 </head>
