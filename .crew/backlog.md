@@ -36,12 +36,18 @@ on a pre-0210 server); (2) `supabase db push` 0210 (schema dump first per charte
 (3) re-run the suite. Applying 0210 BEFORE that OTA breaks dob edits and onboarding's
 phase-2 sync on every phone running current code.
 
-### 3 · security (live DB) · client-set `days.score` can fake ≥80 without a photo  **[verify first]**  (impact 3, effort m)
-Tampered client persists a high score with no photo evidence; trust-pass grants gate on
-score ≥ 80. Fix: tighten the evidence-ceiling SQL to require real photo evidence.
-Re-verify against live schema first (score logic has been rebuilt since July). Same
-credential blocker as #2 — but the 2026-09-02 local-Postgres rig means the FIX can now
-be built and proven in-sandbox before credentials ever show up. Good 8 AM pick.
+### ~~3 · security (live DB) · client-set `days.score` can fake ≥80 without a photo~~  **VERIFIED STALE — CLOSED 2026-09-03 8 AM**
+The claimed harm ("trust-pass grants gate on score ≥ 80") was closed in JULY: 0039 moved
+grant eligibility to distinct photo-logged days (`meals.photo_path is not null` — a real
+storage upload), and 0196's rebuilt `grant_pass` kept exactly that gate (its own comment:
+"NOT the client-written days.score"). Swept every other server-side consumer: nothing
+gates on a score threshold (roll call, squad board, pass spend/refund don't read
+days.score). What remains true: a tampered client can still DISPLAY a fake high score to
+a coach/parent — the documented, deliberate limit of the evidence ceiling (0193/0196:
+bounds, never validates). The real fix for that is the full server-side recompute, a
+LARGE deferred item 0029/0041/0193 each explicitly refused to do partially because a
+partial port drifts and mis-scores every athlete. Don't reopen this as a morning item;
+if it ever ranks, it ranks as the recompute project with persisted scoring inputs.
 
 ### 4 · scale (live DB) · apply 0214: `team_activity_batch`  (impact 3, effort s)
 **BUILT AND PROVEN 2026-09-02 8 AM (`4921d31`)** — client shipped in the zip, deploy
@@ -49,11 +55,16 @@ order safe in BOTH directions (fallback to chunked reads on any error). 7/7 SQL 
 green on a local Postgres with all 214 migrations, plus direct attack probes. Apply
 whenever credentials exist; until then users silently keep the chunked path.
 
-### 5 · scale follow-up · the coach inbox's roster-wide read still takes the slow path  (impact 2, effort m)
-Noted by the 8 AM session: the inbox's separate roster-wide read (20 newest meals, no
-athlete filter) still does the chunked client-side merge that #4 just fixed for the
-queue. Smaller harm (one page, capped at 20), same shape of fix — either widen
-`team_activity_batch` or add a sibling RPC. Provable on the local rig first.
+### ~~5 · scale follow-up · the coach inbox's roster-wide read still takes the slow path~~  **DONE 2026-09-03 8 AM — rides the next publish**
+Turned out to need NO new SQL: the slow path was `loadActivity` calling
+`fetchTeamActivity(daysAgoISO(1), 20)` with no athlete ids — the roster-less scan the
+capacity audit called F6 (can't use meals(athlete_id, day_date), sorts every recent row
+the caller can view). Both mounts already run it after the book loads, so it now passes
+the roster's ids and takes the 0214 RPC (or the index-friendly chunked fallback on the
+pre-0214 live server — order-safe both ways, same as #4). Pinned in
+operator-book.test.mjs on both books; the test proven to fail against the old code.
+That was the LAST ids-less fetchTeamActivity caller. (fetchTeamMealComments still chunks
+1000/chunk with no RPC — smaller page, noted here so it can rank on its own merits.)
 
 ### 6 · perf · 3MB eager boot graph in the proto  (impact 3, effort l)
 Everything loads at boot. Lazy-load heavy screens/modules so first paint is fast on a
