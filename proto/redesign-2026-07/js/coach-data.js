@@ -227,7 +227,17 @@ export async function loadActivity(force) {
   actLoading = true;
   let failed = false;
   try {
-    const rows = await roles.fetchTeamActivity(roles.daysAgoISO(1), 20);
+    // Scope the read to the roster's athlete ids whenever the book is already loaded — both
+    // mounts call loadActivity() from loadBook's .then, so it normally is (a second mount
+    // racing an in-flight loadBook can still get here first; the fallback covers it). With ids
+    // the fetch takes the 0214 RPC (or its index-friendly chunked fallback on a pre-0214
+    // server) instead of the roster-less scan that can't use meals(athlete_id, day_date) and
+    // sorts every recent meals row the caller can view (capacity audit F6 — this was the last
+    // fetchTeamActivity caller still on that path). No ids yet, or an offline/empty book,
+    // keeps today's unscoped read: same rows either way, RLS does the scoping.
+    const ids = (ROSTER && Array.isArray(ROSTER.rows))
+      ? ROSTER.rows.map((r) => r.athleteId).filter(Boolean) : [];
+    const rows = await roles.fetchTeamActivity(roles.daysAgoISO(1), 20, ids.length ? ids : undefined);
     // null = FAILED. Keep the last-known feed rather than laundering the failure into an empty
     // one that reads as a genuinely quiet team. Previously rows.slice() below threw on null and
     // the catch did exactly that laundering.

@@ -86,6 +86,9 @@ const ROLLUP = [
   { athlete_id: 'a2', day: YESTERDAY, position: null, score: 74, meals_logged: 1, tasks_done: [], checkin_done: false, weight_logged: false },
   { athlete_id: 'a2', day: EIGHT_DAYS_AGO, position: null, score: 65, meals_logged: 1, tasks_done: ['breakfast'], checkin_done: false, weight_logged: false },
 ];
+/* Every team_activity_batch call, in order — the WS4a feed assertions below need to tell the
+   feed's own call (limit 20) apart from the roster read's (limit 400). */
+const TA_CALLS = [];
 globalThis.window.sb = {
   from: table,
   async rpc(fn, args) {
@@ -99,7 +102,7 @@ globalThis.window.sb = {
     // 0214: the roster meals read is an RPC now (this stub is a post-0214 server). The catch-all
     // `{ data: [] }` below would otherwise answer it as a SUCCESSFUL empty read and lastMealAt
     // would silently vanish from every row — which is exactly what caught the 0214 wiring here.
-    if (fn === 'team_activity_batch') { assert.ok(args && Array.isArray(args.p_athletes) && args.p_athletes.length, 'team_activity_batch must be called with p_athletes'); return { data: MEALS, error: null }; }
+    if (fn === 'team_activity_batch') { TA_CALLS.push(args); assert.ok(args && Array.isArray(args.p_athletes) && args.p_athletes.length, 'team_activity_batch must be called with p_athletes'); return { data: MEALS, error: null }; }
     return { data: [], error: null };
   },
   auth: { getUser: async () => ({ data: { user: { id: 'u1' } } }) },
@@ -109,7 +112,7 @@ globalThis.window.sb = {
 
 const { screens } = await import('./screens/index.js');
 const { S, RT } = await import('./state.js');
-const { CD, loadBook, loadAthleteProfile, entriesFor, getScope } = await import('./coach-data.js');
+const { CD, loadBook, loadActivity, loadAthleteProfile, entriesFor, getScope } = await import('./coach-data.js');
 
 RT.userId = 'u1';
 
@@ -184,6 +187,18 @@ for (const kind of ['team', 'practice']) {
   // Which key wins is clock-dependent, so record it and compare the two books below — that
   // equality is the real invariant: the same data must score the same either way.
   snapshotStatus[kind] = Object.fromEntries(entries.map(e => [e.row.athleteId, e.status.key]));
+
+  /* ---- WS4a feed: loadActivity must ride the loaded roster's ids (2026-09-03). Without them
+     it takes the roster-less meals scan that can't use meals(athlete_id, day_date) — the last
+     fetchTeamActivity caller still on that path (capacity audit F6). ---- */
+  const taBefore = TA_CALLS.length;
+  await loadActivity(true);
+  assert.ok(TA_CALLS.length > taBefore, `${kind}: loadActivity must pass roster ids (the RPC/index path), not the unscoped scan`);
+  const taFeed = TA_CALLS[TA_CALLS.length - 1];
+  assert.deepStrictEqual([...taFeed.p_athletes].sort(), ['a1', 'a2'], `${kind}: the feed must ask for exactly the roster's athletes`);
+  assert.strictEqual(taFeed.p_limit, 20, `${kind}: the feed asks for its own 20, not the roster read's 400`);
+  assert.ok(CD.act && CD.act.failed === false, `${kind}: a good feed fetch must not read as failed`);
+  assert.deepStrictEqual(CD.act.rows.map(m => m.id), ['m1'], `${kind}: the feed must hold the fetched rows`);
 
   /* ---- every shared screen renders ---- */
   // The deep dive renders a skeleton until its profile lands, so load it for real first —
