@@ -2739,6 +2739,29 @@ select _as('ddd77777-0000-0000-0000-00000000a001');
 select _ok((select count(*) from meal_comments where kind = 'note') = 0,
   '0068: private coach notes stay invisible to the athlete after the caps rework');
 
+-- 0219: the batch RPC keeps 0069's note wall. SECURITY DEFINER bypasses RLS, so the base-table
+-- probe above proves NOTHING about the function — it must be attacked directly, as the athlete,
+-- with their own id in the array. This is the one property 0219 exists to protect; if a later
+-- "simplification" collapses its WHERE to can_view() (the exact 0068 mistake), this is the
+-- probe that goes red.
+select _as('ddd77777-0000-0000-0000-00000000a001');
+select _ok((select count(*) from team_meal_comments_batch(
+    array['ddd77777-0000-0000-0000-00000000a001']::uuid[], '2000-01-01'::timestamptz)
+  where kind = 'note') = 0,
+  '0219: the batch RPC never hands the athlete a private note about themselves');
+select _ok((select count(*) from team_meal_comments_batch(
+    array['ddd77777-0000-0000-0000-00000000a001']::uuid[], '2000-01-01'::timestamptz)) > 0,
+  '0219: the athlete still reads their own thread through the RPC - the wall is the note arm, not the door');
+select _as('ddd77777-0000-0000-0000-00000000c001');
+select _ok((select count(*) from team_meal_comments_batch(
+    array['ddd77777-0000-0000-0000-00000000a001']::uuid[], '2000-01-01'::timestamptz)
+  where kind = 'note') >= 1,
+  '0219: the linked coach reads the note through the RPC');
+select _as('ddd77777-0000-0000-0000-00000000e001');
+select _ok((select count(*) from team_meal_comments_batch(
+    array['ddd77777-0000-0000-0000-00000000a001']::uuid[], '2000-01-01'::timestamptz)) = 0,
+  '0219: a stranger gets nothing from the RPC - indistinguishable from an athlete with no comments');
+
 -- ================================================================ squad board (0180)
 -- The opt-in athlete board. The promise being probed: a teammate who has NOT flipped their own
 -- switch is a nameless count, and nothing but name + daily score ever crosses even when they have.

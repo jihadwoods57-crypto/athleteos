@@ -272,7 +272,8 @@ export async function renamePractice(practiceId, name) {
 }
 
 /* ---------------- coach: roster-wide activity feed (WS4) ---------------- */
-/** Recent meals across every linked athlete (RLS can_view scopes rows). Best-effort [].
+/** Recent meals across every linked athlete (RLS can_view scopes rows). null = FAILED,
+ *  [] = confirmed empty (coach-home branches on the difference).
  *  Pass `athleteIds` when the roster is already known (same reasoning as
  *  fetchLinkedDaysSince above): without it, `day_date >= sinceISO` can't use the
  *  meals(athlete_id, day_date desc) index and the ORDER BY forces a full sort of every
@@ -317,10 +318,33 @@ export async function fetchTeamActivity(sinceISO, limit = 24, athleteIds) {
 
 /* ---------------- coach: Inbox v2 (Slice D) — comment threads + intervention state ---------------- */
 /** Recent meal_comments across the given athletes (RLS scopes rows). Feeds inbox.js's
-    lastByMeal (who spoke last per meal thread). Best-effort []. */
+    lastByMeal (who spoke last per meal thread). null = FAILED, [] = confirmed empty — the
+    inbox's needsResponse count prints "All caught up" off this, so the two must never blur. */
+let tmcRpcAbsent = false; // 0219 not applied on this server — remembered so every inbox load
+                          // does not re-pay a doomed round trip; a reload retries.
+export function __resetTeamMealCommentsRpc() { tmcRpcAbsent = false; } // tests only
 export async function fetchTeamMealComments(athleteIds, sinceISO) {
   const c = sb(); if (!c || !athleteIds || !athleteIds.length) return [];
   try {
+    // Set-based RPC first (0219, the last roster read to get 0214's shape): POST carries the
+    // ids in the body, so no URL ceiling, one round trip instead of one per 60-id chunk, and
+    // the wire carries 1000 rows once instead of 1000 per chunk. The server clamps at 1000 —
+    // the same ceiling the merged chunked result has always been sliced to. Any error falls
+    // through to the chunked path below, so deploy order against the migration is safe in
+    // both directions; only the specific "no matching function" answer is remembered, anything
+    // transient retries next call. The `sinceISO` guard keeps two failure modes off the RPC
+    // path if a future caller ever passes nothing: a dropped-undefined key would draw PGRST202
+    // from a server that HAS the function (sticking the session to chunked), and a null
+    // p_since would answer confirmed-empty [] where the chunked path honestly FAILS.
+    if (!tmcRpcAbsent && sinceISO) {
+      const { data, error } = await c.rpc('team_meal_comments_batch',
+        { p_athletes: athleteIds, p_since: sinceISO, p_limit: 1000 });
+      if (!error) return data || [];
+      // PGRST202 = no function matched this call — on today's only caller that means a
+      // pre-0219 server (a stale PostgREST schema cache right after applying reads the same;
+      // it costs chunked reads until reload, never a wrong answer).
+      if (error.code === 'PGRST202') tmcRpcAbsent = true;
+    }
     // DESC per chunk, so each chunk's own 1000-row cap drops ITS oldest rows first — the same
     // reasoning as the single-query version (2026-08-17): lastByMeal picks by timestamp, so
     // merging is order-agnostic, and re-sorting + re-slicing the union to 1000 below preserves
