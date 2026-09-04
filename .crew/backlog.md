@@ -60,6 +60,70 @@ sessions' worth of finished outline work from next month's new screen.
 The last chunked roster read (noted 2026-09-02 when its sibling was fixed). Smaller
 page, lower harm; ranks on its own merits.
 
+## Market opportunities — 2026-09-04 Friday scout (ranked)
+
+Research pass over MacroFactor, MyFitnessPal (+ its new Cal AI), Hexis, Teamworks
+Nutrition (ex-Notemeal), Eat 2 Win, and what athletes/coaches/dietitians say in public.
+These are inputs for the 7 PM planner to weigh against the build queue, not orders.
+Sources live in `.crew/reports/2026-09-04.md`.
+
+### M1 · positioning · own "accountability without calorie-counting" — rivals are walking into an eating-disorder backlash  (impact 5, effort s)
+The sharpest thing I found all week: college athletes are publicly pushing back on
+mandatory meal tracking in Teamworks Nutrition — a wrestler told his school paper that
+"wrestling is already prone to eating disorders and I think tracking meals will only
+add to that," and students asked for the app to say what TO eat instead of counting
+what they ate. Every big rival is a calorie counter at heart. We already aren't: photos,
+scores, and a coach who sees you showed up. Say that out loud on the landing page and in
+App Store copy ("no calorie counts, no weigh-ins in your face — just show up and fuel"),
+and treat "never surface a raw calorie number to a teen athlete by default" as a design
+red line before some feature drifts into it. Cheap, honest, and nobody in team sports
+is claiming this ground.
+
+### M2 · pricing/packaging · the team middle market is empty  (impact 5, effort m)
+Teamworks (ex-Notemeal) sells enterprise contracts to college athletic departments;
+MacroFactor, MFP, Hexis and Cal AI sell to individuals. Nobody has a "one club coach,
+one roster, one card" plan a high-school or club coach can buy in two minutes. Meanwhile
+the individual apps are raising prices hard (MFP Premium up 60% in two years to $79.99/yr,
+Lose It doubled to the same, MacroFactor ~$12/mo with no free tier, Hexis ~£10–20/mo) —
+so "athlete rides free when a coach/team/parent funds them" reads as generous exactly when
+rivals look greedy. We already have funded plans and sponsor flows in the proto; the work
+is a priced team SKU and a landing-page story, not new engineering. Worth a founder
+sitting on price points before anything ships.
+
+### M3 · marketing ammo · photo-first just got validated — and the winners' weak spots are our strong spots  (impact 4, effort s)
+MyFitnessPal bought Cal AI (15M downloads, ~$30M ARR, built by two teenagers) in March —
+the giant paid real money to admit that photo logging is how the next generation logs.
+Cal AI's public complaints: accuracy claims that don't hold on mixed dishes, and a
+pattern of billing/cancellation grievances. MacroFactor still has no photo logging at
+all. Our angle isn't "our AI counts calories better" — it's that we never pretended a
+photo is a lab measurement: the photo is proof you fueled, the coach and score do the
+rest. That's the honest-states rule as a market position. Use it in copy; don't chase
+Cal AI into fake-precision territory.
+
+### M4 · product gap · under-fueling is the parent conversation, and no consumer app owns it  (impact 4, effort m)
+Everything written for sports parents right now is about RED-S and teens not eating
+ENOUGH (hospital systems, USA Cheer, pediatrics orgs all publishing guides), yet every
+big tracker is weight-loss-slanted. We already have the parent surface and meal-presence
+data. A calm "fueling consistency" view for parents/coaches — missed-meal streaks,
+"logged all 4 meals X days this week," never weights or calories — would make OnStandard
+the app a dietitian can recommend to a worried parent instead of warning them off
+trackers. Needs taste care (it must read as care, not surveillance), so spec before build.
+
+### M5 · product gap (their win, our lack) · training-aware fueling guidance  (impact 3, effort l)
+The one thing reviewers consistently PRAISE Hexis (~3.2★ otherwise) and Athlete's
+FoodCoach for: telling athletes when to eat MORE because of today's session — "fuel for
+the work required." We log training but meal advice doesn't breathe with it. A modest
+version (hard-session day → advice and coach feed expect bigger fueling; rest day →
+softer) gets us the praised behavior without their periodization machinery. Long-pole;
+park until the audit/security queue clears, but it's the realest feature gap this scout
+found.
+
+### M6 · watch, don't build · meal check-in/QR attendance is Teamworks' stickiest team feature  (impact 2, effort m)
+Their QR "meal check-in" for training tables is what athletic departments actually renew
+for. Our roll-call screen is the same muscle. If M2's team SKU happens, a "fueling
+check-in" for team meals is the natural sweetener; alone it's not worth a sitting. Noting
+it so we don't rediscover it in October.
+
 ## Notes for tomorrow's sessions
 - Fresh sandboxes need `npm install` before `npm run verify` — 4 gates fail on missing
   deps otherwise and it looks like real breakage. Verify prints **13 gates**.
