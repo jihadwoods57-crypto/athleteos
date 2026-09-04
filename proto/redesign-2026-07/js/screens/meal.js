@@ -876,12 +876,17 @@ export const thread = {
       ${(() => {
         if (justLogged || dupFlagged) return '';
         const gain = S.mealScoreImpact(M.slot) || 0;
-        // Tinted by where the day actually stands, like the move above it. Untinted, the pill fell
-        // through to the old flat green and told a 62 it was on standard.
+        // Neutral ('n') on purpose. Unlike the justLogged move above there is no day number in
+        // this row for a tier colour to belong to — tinted by the day, the tint landed on the
+        // credit itself, and a 2-of-4 day is under 60 by construction, so every on-time lunch's
+        // "+10" wore alarm red. Mid-day the day has no verdict (the .status-pill.inprog rule);
+        // on the celebration path it does, but the sealed-day dial and tier chip sit directly
+        // below, so the credit never has to carry the verdict on any path. The flat-green lie
+        // the tint once fixed stays fixed: neutral claims no standing either.
         return gain > 0 ? `
       <div class="score-line">
         <span class="k">Daily Score</span>
-        <span class="gain ${tier(S.score).cls}">+${gain} from this meal</span>
+        <span class="gain n">+${gain} from this meal</span>
       </div>` : '';
       })()}
       <div class="prog-line">

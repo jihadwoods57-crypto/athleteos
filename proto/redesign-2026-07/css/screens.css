@@ -1618,6 +1618,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .mt-confirm .score-line .gain.b{color:var(--blue-bright);background:var(--blue-surface);border:1px solid var(--blue-border)}
 .mt-confirm .score-line .gain.a{color:var(--amber-bright);background:var(--amber-surface);border:1px solid var(--amber-border)}
 .mt-confirm .score-line .gain.r{color:var(--red-bright);background:var(--red-surface);border:1px solid var(--red-border)}
+/* 'n' is the revisit credit on a live day: no verdict yet (see .status-pill.inprog), and no day
+   number in the row for a tier colour to belong to — quiet ink that claims no standing. */
+.mt-confirm .score-line .gain.n{color:var(--text-2);background:var(--surface-2);border:1px solid transparent}
 /* The promotion chip is the last thing on the row and the row is a flex line: without these it
    shrank to its longest word and broke "Locked In" across two lines mid-sweep. A tier name is two
    words at most and it never wraps. */

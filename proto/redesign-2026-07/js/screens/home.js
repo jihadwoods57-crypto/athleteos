@@ -279,7 +279,9 @@ function resCard(a) {
             nothing relating them: "Meal Quality 65/100" (the plate read) beside "Daily Score +14",
             where +14 is neither a score nor on the same scale — it is the points this meal banked.
             "credit" names the relationship in one word. */''}
-      ${a.impact > 0 ? `<div class="res-m"><span class="k">Score credit</span><span class="v g">+${a.impact}</span></div>` : ''}`
+      ${/* muted, not green: same rule as the meal screen's neutral credit pill — the credit is
+            a fact, not a verdict, and success-green told a mid-scored day it was on standard. */''}
+      ${a.impact > 0 ? `<div class="res-m"><span class="k">Score credit</span><span class="v muted">+${a.impact}</span></div>` : ''}`
     : `<div class="res-m"><span class="k">${RES_K[a.type] || 'Status'}</span><span class="v ${a.vClass}">${a.value}</span></div>`;
   return `<div class="res-card" ${a.route ? `data-go="${a.route}"` : ''}>
     ${media}
