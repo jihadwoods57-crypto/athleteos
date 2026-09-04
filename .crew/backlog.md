@@ -113,6 +113,12 @@ check-in" for team meals is the natural sweetener; alone it's not worth a sittin
 it so we don't rediscover it in October.
 
 ## Notes for tomorrow's sessions
+- Build `assets/proto.zip` LAST, after every review fix has landed, and commit
+  `src/proto/protoVersion.ts` with it. Two burns on 2026-09-04 alone: the 8 AM session
+  built before its final review edits (the committed zip missed its own fixes), and the
+  7 PM session committed the zip but forgot the version stamp, without which nothing
+  re-extracts. Proof-of-scope (entry-by-entry diff vs HEAD's zip) catches the first;
+  `git status` before pushing catches the second.
 - Fresh sandboxes need `npm install` before `npm run verify` — 4 gates fail on missing
   deps otherwise and it looks like real breakage. Verify prints **13 gates**.
 - `npm install` churns package-lock.json; revert it rather than committing the noise.
