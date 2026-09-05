@@ -184,6 +184,7 @@ export default {
       const send = e.target && e.target.closest && e.target.closest('#pa-send');
       if (send) ask(input && input.value);
     });
-    if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') ask(input.value); });
+    // !isComposing: Enter inside an IME composition is choosing a character, not sending.
+    if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) ask(input.value); });
   },
 };

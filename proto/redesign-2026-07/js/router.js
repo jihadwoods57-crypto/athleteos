@@ -8,7 +8,7 @@ import { emptyNav, pushOrigin, popOrigin, peekOrigin, resetTab } from './nav-sta
 import { initKeyboard } from './keyboard.js';
 import { withTransition, canTransition, transitioning, afterTransition } from './view-transition.js';
 import { hydrateAvatars } from './avatar.js';
-import { initGestures } from './gestures.js';
+import { initGestures, gestureActive, afterGesture } from './gestures.js';
 
 // Shell-level and route-independent: the keyboard has to behave the same on the composer, the food
 // search box and a profile field, and #device outlives every render() so this is wired once here
@@ -457,11 +457,14 @@ function render() {
      the screen is standing still. Only a SAME-ROUTE repaint waits. A real navigation is the
      athlete asking for something and goes through immediately, interrupting whatever is in
      flight — which is what a second tap should do. */
-  if ((transitioning() || layering()) && LAST_FULL !== null && LAST_FULL === currentFull()) {
+  if ((transitioning() || layering() || gestureActive()) && LAST_FULL !== null && LAST_FULL === currentFull()) {
     if (!REPAINT_HELD) {
       REPAINT_HELD = true;
       const resume = () => { REPAINT_HELD = false; render(); };
-      if (transitioning()) afterTransition(resume); else afterLayer(resume);
+      // gestureActive: a finger owns the screen (or its settle is landing). A same-route repaint
+      // here — the thread polls do this — replaces #device's children and detaches the layers
+      // mid-drag: the screen snaps to rest under a finger that is still dragging. Held instead.
+      if (transitioning()) afterTransition(resume); else if (layering()) afterLayer(resume); else afterGesture(resume);
     }
     return;
   }
@@ -630,7 +633,10 @@ function render() {
     // Keep the outgoing screen for the slide: ids off (the new screen owns #viewport and #view),
     // its role class on, and placed LAST so every lookup finds the new screen first.
     oldScreen.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
-    oldScreen.classList.remove('gesturing', 'settling');
+    // arriving/revealing too: at equal specificity they beat .under/.leaving (later in
+    // glass.css), so a retained screen still wearing one stays in flow (or keeps navReveal)
+    // and the slide plays over bare canvas until the earlier transition's timeout strips it.
+    oldScreen.classList.remove('gesturing', 'settling', 'arriving', 'revealing');
     oldScreen.style.transform = '';
     oldScreen.classList.add(dir === 'push' ? 'under' : 'leaving');
     oldScreen.setAttribute('aria-hidden', 'true');
@@ -982,7 +988,13 @@ function shellFor(full) {
 initGestures({
   device: () => document.getElementById('device'),
   busy: () => transitioning() || layering(),
-  current: () => { const { route, sub } = parse(); return { route, sub, mod: screens[route] || screens.notfound }; },
+  // resolveSub: a module with sub aliases (plan's notes/schedule/food) reports the CANONICAL sub,
+  // or the pager computes its index from the alias, lands on 0, and swipes to the wrong tab.
+  current: () => {
+    const { route, sub } = parse();
+    const mod = screens[route] || screens.notfound;
+    return { route, sub: mod.resolveSub ? mod.resolveSub(sub) : sub, mod };
+  },
   // What Back would show: the top of the active tab's stack, else the header chevron's own
   // fallback, else nothing (a tab root has no back, and gets no gesture).
   backTarget: () => {

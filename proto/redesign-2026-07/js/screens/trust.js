@@ -471,7 +471,8 @@ function mountThread(root, mealId, meal) {
     busy = false;
   };
   if (send) send.addEventListener('click', submit);
-  if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); void submit(); } });
+  // !isComposing: Enter inside an IME composition is choosing a character, not sending.
+  if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); void submit(); } });
 }
 
 export const mealView = {

@@ -598,7 +598,10 @@ export const notifSettings = {
     <div class="set-note">Supportive: one heads-up per item. Direct: a last call on the ones your plan marks high. Intense: a last call on everything.</div>
 
     <h2 class="eyebrow">Quiet hours</h2>
-    <div class="set-note">Reminders pause between your cutoff and the hour you pick. Deadline warnings can break through if you let them. A message from your coach still comes through.</div>
+    ${/* Scoped claim (2026-09-05 audit): only the LOCAL planner honors these hours. Team
+          standard reminders are pushed by the server, which has no quiet-hours data yet, so the
+          old blanket "Reminders pause" promised a pause they don't keep. Say what is true. */''}
+    <div class="set-note">Reminders from your own plan pause between your cutoff and the hour you pick. Deadline warnings can break through if you let them. Messages from your coach and reminders for team standards still come through.</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('moon', 17)}</div>

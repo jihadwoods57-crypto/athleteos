@@ -105,6 +105,22 @@ function afterSettle(el, fn) {
 
 let started = false;
 
+/* A drag or its settle in flight. The router needs this for two things the api can't tell it:
+   hold same-route repaints while a finger owns the screen (a thread poll that repaints mid-drag
+   detaches the layers under the finger), and refuse a new gesture during the 260ms commit settle
+   (the pop happens in afterSettle, so a second flick in that window re-armed against the same
+   not-yet-popped target and popped the stack twice). */
+let ACTIVE = false;
+let AFTER = [];
+function setActive(v) {
+  if (ACTIVE === v) return;
+  ACTIVE = v;
+  if (!v) { const q = AFTER; AFTER = []; for (const f of q) { try { f(); } catch { /* resume is best-effort */ } } }
+}
+export function gestureActive() { return ACTIVE; }
+/** Run once, the next time no gesture is active (immediately if none is). */
+export function afterGesture(fn) { if (!ACTIVE) { fn(); return; } AFTER.push(fn); }
+
 /**
  * Wire the two gestures onto #device. `api` is the router's view of the world:
  *   device()            the #device element
@@ -126,13 +142,17 @@ export function initGestures(api) {
   let g = null;   // the drag in progress, or null
 
   const blocked = () => {
+    if (ACTIVE) return true;   // a drag or its commit settle owns the screen; no re-arm mid-flight
     if (document.body.classList.contains('kb-open')) return true;
     if (document.querySelector('.tour, .imgview, .memsheet, .tapback, .lockstamp, .sheet-scrim')) return true;
     return !!api.busy();
   };
 
   device.addEventListener('touchstart', (e) => {
-    g = null;
+    // A live drag interrupted by ANY new touch (a second finger, a palm) is settled back to
+    // rest, not orphaned: `g = null` alone left the held screen translated and the under-layer
+    // in the DOM with pointer-events off — a dead strip until the next full repaint.
+    if (g) { const s = g; g = null; if (s.live) (s.kind === 'back' ? finishBack : finishPage)(s, 1e9, true); }
     if (e.touches.length !== 1 || blocked()) return;
     const t = e.touches[0];
     const target = e.target;
@@ -146,7 +166,10 @@ export function initGestures(api) {
     // The edge wins over a rail sitting at its own left edge, as it does on the phone; a rail that
     // has already been scrolled is the thing the finger is on.
     if (x <= EDGE && eligibleBack(cur.mod) && api.backTarget() && !(hs && hs.scrollLeft > 0)) kind = 'back';
-    else if (!hs && eligibleLateral(cur.mod) && target.closest('#view')) kind = 'page';
+    // .viewport, not #view: the header note above promises "a drag anywhere on a screen with a
+    // sibling strip", but on a short tab (Food Memory with two rows) most of the screen is
+    // viewport padding below #view, where the pager silently refused to arm.
+    else if (!hs && eligibleLateral(cur.mod) && target.closest('.viewport')) kind = 'page';
     if (!kind) return;
     g = { kind, x0: t.clientX, y0: t.clientY, t0: e.timeStamp || Date.now(), axis: null, width: rect.width, cur, dx: 0, live: false };
   }, { passive: true });
@@ -202,6 +225,7 @@ export function initGestures(api) {
     if (uvp) uvp.scrollTop = target.scroll || 0;
     screen.classList.add('gesturing');
     Object.assign(s, { screen, under, dim, target, live: true });
+    setActive(true);
     return true;
   }
   function paintBack(s, dx) {
@@ -220,12 +244,13 @@ export function initGestures(api) {
     afterSettle(s.screen, () => {
       if (commit) {
         // The router's render replaces #device's children, which takes the under-layer with it.
-        api.back(s.target.fallback);
+        try { api.back(s.target.fallback); } finally { setActive(false); }
         return;
       }
       s.under.remove();
       s.screen.classList.remove('gesturing', 'settling');
       s.screen.style.transform = '';
+      setActive(false);
     });
   }
 
@@ -250,6 +275,7 @@ export function initGestures(api) {
     view.appendChild(peek);
     const w = pane.offsetWidth || s.width;
     Object.assign(s, { view, pane, peek, target, dir, w, live: true });
+    setActive(true);
     paintPage(s, 0);
     return true;
   }
@@ -266,13 +292,14 @@ export function initGestures(api) {
     paintPage(s, commit ? s.dir * s.w : 0);
     afterSettle(s.pane, () => {
       if (commit) {
-        api.lateral(`${s.cur.route}/${s.target}`);
+        try { api.lateral(`${s.cur.route}/${s.target}`); } finally { setActive(false); }
         return;
       }
       s.peek.remove();
       s.view.classList.remove('paging');
       s.pane.classList.remove('settling');
       s.pane.style.transform = '';
+      setActive(false);
     });
   }
 
@@ -282,6 +309,9 @@ export function initGestures(api) {
     const vp = e.target;
     if (!vp || vp.id !== 'viewport') return;
     const head = vp.querySelector('.back-head');
-    if (head) head.classList.toggle('stuck', vp.scrollTop > 8);
+    // Hysteresis: the collapse changes the header's in-flow height, which moves scrollTop, which
+    // can re-cross a single threshold and flicker. Collapse late (24), expand early (4) — the
+    // 20px dead band is bigger than any height change the collapse itself causes.
+    if (head) head.classList.toggle('stuck', vp.scrollTop > (head.classList.contains('stuck') ? 4 : 24));
   }, { capture: true, passive: true });
 }

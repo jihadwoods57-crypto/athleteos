@@ -307,6 +307,9 @@ const placeName = (id) => {
   return p ? p.name : null;
 };
 const macroLine = (it) => {
+  // INTUITIVE (0142): saved-meal rows carry no macro or calorie figures — same presentation
+  // gate the targets above already honor. The numbers stay stored; re-logging sends them.
+  if (!S.planStyle.showMacros) return '';
   const bits = [];
   if (it.protein) bits.push(`${it.protein}g protein`);
   if (it.kcal) bits.push(`${it.kcal} cal`);
@@ -321,7 +324,11 @@ function itemRow(it, { manage = false } = {}) {
   const pl = it.place_id ? placeName(it.place_id) : null;
   const check = it.verified_at
     ? `<span style="color:var(--green-bright);flex:none;display:inline-flex" title="Verified by your ${esc(S.coach.noun)}">${icon('check', 13)}</span>` : '';
-  const meta = `${esc(macroLine(it))}${pl && !manage ? ` · ${esc(pl)}` : ''}${manage && it.times_logged > 1 ? ` · logged ${it.times_logged}×` : ''}`;
+  const meta = [
+    esc(macroLine(it)) || null,
+    pl && !manage ? esc(pl) : null,
+    manage && it.times_logged > 1 ? `logged ${it.times_logged}×` : null,
+  ].filter(Boolean).join(' · ');
   const ic = it.kind === 'supplement' ? 'bolt' : it.kind === 'food' ? 'grid' : it.kind === 'order' ? 'pin' : 'utensils';
   return `
   <div class="pl-row${manage ? ' tap' : ''}"${manage ? ` data-fm-edit="${esc(it.id)}"` : ''}>
@@ -768,7 +775,7 @@ function memoryTab() {
   return `
   <h2 class="eyebrow">Food Memory <span class="link" data-go="memory-edit/new">+ Add</span></h2>
   ${suggestionCard()}
-  ${nothingAtAll ? `<div class="pl-standard" style="margin-top:0">Nothing learned yet. Log a meal three times and OnStandard offers to remember it, numbers and all, so logging it drops to one tap.</div>` : ''}
+  ${nothingAtAll ? `<div class="pl-standard" style="margin-top:0">Nothing learned yet. Log a meal three times and OnStandard offers to remember it${S.planStyle.showMacros ? ', numbers and all,' : ''} so logging it drops to one tap.</div>` : ''}
   ${/* RAW ampersand: memoryGroup runs esc() on the label, so a pre-escaped "&amp;" rendered as
         "&AMP;" on screen. Escape at exactly one layer. */''}
   ${memoryGroup('Frequent meals', meals.map((it) => itemRow(it, { manage: true })))}
@@ -807,6 +814,9 @@ export default {
      across the strip a lateral replace. Order is the strip's own left-to-right order, because
      the router derives the travel direction from the index. */
   subs: PLAN_SUBS,
+  // The router's gesture pager asks for the canonical sub so an alias route (#plan/food) pages
+  // from the tab actually on screen, not from index 0.
+  resolveSub: planSub,
   render({ sub }) {
     const t = planSub(sub);
     const body = t === 'nutrition' ? nutrition()

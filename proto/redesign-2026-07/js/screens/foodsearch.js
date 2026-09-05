@@ -69,6 +69,11 @@ export const foodSearch = {
   },
   mount(root) {
     const SLOT = S.currentSlot;
+    // INTUITIVE (0142): no calorie or macro figure reaches the athlete — per-food numbers and
+    // the plate totals stay hidden; picking "eggs" doesn't need them. Everything is still
+    // computed and stored (captureManual sends the real sums); the gate is presentation only,
+    // same rule as the meal thread's showNums.
+    const showNums = S.planStyle.showMacros;
     const input = root.querySelector('#fs-input');
     const results = root.querySelector('#fs-results');
     const items = root.querySelector('#fs-items');
@@ -83,7 +88,7 @@ export const foodSearch = {
       root.querySelector('#t-c').textContent = Math.round(sum.c) + 'g';
       root.querySelector('#t-f').textContent = Math.round(sum.f) + 'g';
       root.querySelector('#t-k').textContent = Math.round(sum.kc);
-      totals.style.display = plate.length ? 'flex' : 'none';
+      totals.style.display = (plate.length && showNums) ? 'flex' : 'none';
       empty.style.display = plate.length ? 'none' : 'block';
       // The REAL disabled attribute, not an opacity/pointer-events costume: .btn:disabled owns
       // the treatment, screen readers hear the state, and focus can't land on a dead control.
@@ -110,7 +115,7 @@ export const foodSearch = {
       results.innerHTML = hits.length ? hits.map((x, i) => `
         <div class="lrow" data-add="${DB.indexOf(x)}" style="padding:12px 16px">
           <div class="lic">${icon('plus', 16)}</div>
-          <div class="lm"><div class="lt">${esc(x.n)}</div><div class="ls">${esc(x.unit)} · ${x.p}g protein · ${x.kc} cal</div></div>
+          <div class="lm"><div class="lt">${esc(x.n)}</div><div class="ls">${esc(x.unit)}${showNums ? ` · ${x.p}g protein · ${x.kc} cal` : ''}</div></div>
         </div>`).join('')
         : `<div style="padding:14px 16px;font-size:var(--t-sm);font-weight:600;color:var(--text-3);line-height:1.5">No match for that. Snap a photo instead. It reads anything.
             <button class="btn ghost sm" id="fs-to-cam" style="width:auto;padding:0 16px;margin-top:10px;display:flex;align-items:center;gap:6px">${icon('camera', 15)} Take a photo</button></div>`;
@@ -239,6 +244,9 @@ export const barcodeScan = {
   render() {
     const slot = S.currentSlot;
     const slotName = slot ? slotTitle(slot) : 'meal';
+    // INTUITIVE (0142): the found product's macro row stays hidden (elements stay in the DOM —
+    // paint() writes into them unconditionally); the maker's numbers are still logged exactly.
+    const showNums = S.planStyle.showMacros;
     const canLive = typeof window !== 'undefined' && 'BarcodeDetector' in window;
     return `
     ${backHead(`Scan a barcode · ${slotName}`, "Packaged food, exact from the maker's own data", 'food-search')}
@@ -267,7 +275,7 @@ export const barcodeScan = {
       <section class="card pad">
         <div class="tt" id="bc-name" style="font-size:15px"></div>
         <div class="ts" id="bc-serving" style="margin-top:2px"></div>
-        <div class="macro-row" style="margin-top:12px">
+        <div class="macro-row" style="margin-top:12px${showNums ? '' : ';display:none'}">
           <div class="macro"><div class="mv" id="bc-p">0g</div><div class="mk">Protein</div></div>
           <div class="macro"><div class="mv" id="bc-c">0g</div><div class="mk">Carbs</div></div>
           <div class="macro"><div class="mv" id="bc-f">0g</div><div class="mk">Fat</div></div>
@@ -307,9 +315,13 @@ export const barcodeScan = {
       const m = found.per100 || {};
       const x = grams / 100;
       root.querySelector('#bc-name').textContent = found.name;
-      root.querySelector('#bc-serving').textContent = found.serving
-        ? `Label serving: ${found.serving} · numbers below are for your ${grams}g`
-        : `Numbers below are for your ${grams}g`;
+      root.querySelector('#bc-serving').textContent = S.planStyle.showMacros
+        ? (found.serving
+          ? `Label serving: ${found.serving} · numbers below are for your ${grams}g`
+          : `Numbers below are for your ${grams}g`)
+        : (found.serving
+          ? `Label serving: ${found.serving} · logging your ${grams}g`
+          : `Logging your ${grams}g`);
       root.querySelector('#bc-p').textContent = Math.round((m.protein || 0) * x) + 'g';
       root.querySelector('#bc-c').textContent = Math.round((m.carbs || 0) * x) + 'g';
       root.querySelector('#bc-f').textContent = Math.round((m.fat || 0) * x) + 'g';

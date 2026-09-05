@@ -646,6 +646,13 @@ export const analysis = {
       : src === 'label' ? 'exact, from the nutrition label'
       : src === 'manual' ? 'entered by you'
       : 'estimated from photo';
+    // INTUITIVE (0142), same two rules the settled thread already lives by (see showNums and
+    // styleSafeProse above): no macro or calorie figure reaches the athlete, and long AI prose
+    // shows only when the style permits numbers or the server stamped it for this exact style.
+    // This screen predates the gate and was the named leak in PRODUCT.md's red line — the
+    // numbers are still computed, stored and sent; hiding is presentation only.
+    const showNums = S.planStyle.showMacros;
+    const styleSafeProse = showNums || L.styleApplied === S.planStyle.key;
     return `
     ${backHead(`${L.name} Analysis`, already ? 'Already logged' : 'Check it before it counts', 'camera')}
 
@@ -674,8 +681,8 @@ export const analysis = {
       ${edited ? `<div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);padding:4px 0 8px">${MEAL.result && MEAL.result.recomputed ? 'Edited by you. Macros and score recalculated from the foods listed.' : 'Edited by you. Macros stay the AI’s estimate.'}</div>` : ''}
     </section>
 
-    <h2 class="eyebrow">${src === 'label' ? 'From the label' : src === 'manual' ? 'As entered' : 'Estimated'}</h2>
-    ${macroRow(L.macros)}
+    ${showNums ? `<h2 class="eyebrow">${src === 'label' ? 'From the label' : src === 'manual' ? 'As entered' : 'Estimated'}</h2>
+    ${macroRow(L.macros)}` : ''}
 
     <div style="height:14px"></div>
     ${(() => {
@@ -706,7 +713,7 @@ export const analysis = {
     <div style="height:12px"></div>
     <div class="ai-note">
       <div class="av">${icon('sparkle', 18)}</div>
-      <div><div class="who">AI Analysis</div><p>${esc(L.analysis || L.ai)}</p></div>
+      <div><div class="who">AI Analysis</div><p>${esc((styleSafeProse ? L.analysis : '') || L.ai)}</p></div>
     </div>
 
     ${already ? '' : `<div class="score-change">${icon('arrowUp', 16)} Logging this counts toward Nutrition (${liveWeightPct('nutrition')}%) and closes 1 of ${S.remainingCount} remaining tonight.</div>`}
@@ -2013,7 +2020,9 @@ export const thread = {
       busy = false;
     };
     if (send) send.addEventListener('click', submit);
-    if (input) input.addEventListener('keydown', (e2) => { if (e2.key === 'Enter') submit(); });
+    // !isComposing: Enter inside an IME composition is choosing a character, not sending —
+    // same guard nutrition-chat has; without it a CJK keyboard ships half a word.
+    if (input) input.addEventListener('keydown', (e2) => { if (e2.key === 'Enter' && !e2.isComposing) submit(); });
 
     /* ---- reactions: press and hold a message ---- */
     // The permanent four-emoji row above the composer is gone (founder, 2026-08-02). Same posting

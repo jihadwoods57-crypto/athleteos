@@ -3198,7 +3198,8 @@ export const coachMeal = {
       await loadMealComments(sub, true);
     };
     if (send) send.addEventListener('click', submit);
-    if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    // !isComposing: Enter inside an IME composition is choosing a character, not sending.
+    if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) submit(); });
     // ASK THE AI NUTRITIONIST (founder, 2026-08-06): explicit, and it ALWAYS answers — unlike the
     // retired auto-support path there is no topic filter and no once-per-meal cap. The typed
     // question posts to the thread as the coach's own message first, then meal-chat's coachAsk

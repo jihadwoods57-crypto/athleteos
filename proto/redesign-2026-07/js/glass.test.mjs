@@ -54,7 +54,9 @@ test('a stuck header sticks at the top of the content box, not a safe-area below
 test('a tapped push or pop is layered on the compositor, never a document snapshot', () => {
   assert.ok(/function layerNav\(/.test(ROUTER), 'router.js must own layerNav');
   assert.ok(/replaceChildren\(\.\.\.tmp\.childNodes, oldScreen\)/.test(ROUTER), 'the outgoing screen is kept LAST in the DOM');
-  assert.ok(/layering\(\)\)\s*&&\s*LAST_FULL/.test(ROUTER), 'same-route repaints must wait out a layered slide');
+  // ... or a live finger: gestureActive() joined the hold on 2026-09-05 — a thread poll that
+  // repainted mid-drag detached the gesture layers under the finger.
+  assert.ok(/layering\(\) \|\| gestureActive\(\)\)\s*&&\s*LAST_FULL/.test(ROUTER), 'same-route repaints must wait out a layered slide or a live gesture');
   for (const k of ['navIn', 'navOut', 'navRecede', 'navReveal', 'navDimIn', 'navDimOut']) {
     assert.ok(new RegExp(`@keyframes ${k}\\b`).test(GLASS), `glass.css must define @keyframes ${k}`);
   }

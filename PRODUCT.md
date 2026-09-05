@@ -34,10 +34,12 @@ short and earns its place. Never cutesy, never corporate-SaaS, never fake-hype.
   only as a fallback (a transcribed label, a food searched), never as a daily ledger. Never
   build a surface that asks a teen athlete to count, tally, or budget calories; never
   moralize food; and Intuitive (calorie/macro readouts stripped from the meal read, scored on
-  fueling enough, never restriction) must always exist. Known gaps — shrink, never grow: the
-  pre-log analysis macro row and the food-search totals row are ungated by plan style (they
-  show calories even on Intuitive), and Guided's meal screen carries a calorie tile plus a
-  calories-vs-target day bar. This is also the market position — see
+  fueling enough, never restriction) must always exist. Known gaps — shrink, never grow (the pre-log
+  analysis macro row and the food-search/barcode number rows were closed 2026-09-05; every
+  number is still computed and stored, hiding is presentation only): the nutrition-label entry
+  screen and the Food Memory edit sheet still show the numbers the athlete is transcribing or
+  correcting (inherent to editing a record), and Guided's meal screen carries a calorie tile
+  plus a calories-vs-target day bar by that style's own design. This is also the market position — see
   `docs/marketing/aso-listing.md` ("accountability without calorie counting").
 - **Honest accountability over vanity.** The score reflects work actually done; incomplete
   days read as incomplete. Never decorate a bad week into looking good.

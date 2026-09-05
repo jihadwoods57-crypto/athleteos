@@ -4972,7 +4972,7 @@ export const S = {
     }));
     if (RT.injured) fresh.push({ level: 'medium', title: 'Your Standard adapted', body: 'Rehab is on your list; nutrition tilts anti-inflammatory while you heal.', when: 'now', icon: 'bolt', route: 'injury' });
     if (e.celebration) fresh.push({
-      level: 'positive', title: "You're OnStandard", body: `Every requirement is in at ${e.score}. Day ${this.streakDays} of your streak locks at midnight.`,
+      level: 'positive', title: "You're on standard", body: `Every requirement is in at ${e.score}. Day ${this.streakDays} of your streak locks at midnight.`,
       when: 'now', icon: 'check', route: 'home',
     });
     // Tiered streak-at-risk row: only while a 2+ day streak hasn't been counted today and the
