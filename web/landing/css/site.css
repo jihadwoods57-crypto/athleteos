@@ -558,6 +558,9 @@ h1 .dot { color: var(--accent); }
 /* ---------- why now ---------- */
 /* ---------- what is onstandard ---------- */
 .whatis { padding: var(--sect-y) 0; }
+/* Shared section shell used by index (#thread, #fuel) and every role page. role.css repeats
+   this for pages that load it; index loads only site.css, so the rule must live here too. */
+.rp-sect { padding: var(--sect-y) 0; }
 .whatis-in {
   display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
   gap: var(--gap-col); align-items: center;
