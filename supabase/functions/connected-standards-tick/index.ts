@@ -120,7 +120,10 @@ Deno.serve(async (req: Request) => {
   {
     const ids = [...new Set([...due.map((d) => d.athlete_id), ...missed.map((m) => m.athlete_id)])];
     if (ids.length) {
-      const { data: profs } = await svc.from('profiles').select('id, timezone').in('id', ids);
+      const { data: profs, error: profErr } = await svc.from('profiles').select('id, timezone').in('id', ids);
+      // Surfaced, not fatal: on a failed read every athlete falls to the default zone, which is
+      // only a wrong clock label in copy — but the failure itself must never be invisible.
+      if (profErr) console.error('connected-standards-tick: timezone read failed, using defaults', profErr.message);
       for (const p of (profs ?? []) as Array<{ id: string; timezone: string | null }>) if (p?.timezone) tzById.set(p.id, p.timezone);
     }
   }

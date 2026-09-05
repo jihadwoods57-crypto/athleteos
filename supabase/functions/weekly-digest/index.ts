@@ -235,7 +235,11 @@ Deno.serve(async (req) => {
       // Per-recipient: opt-out gate, 6-day dedupe, durable row FIRST, then the push (winback's
       // rule: the notifications row is both the record and the dedupe key).
       // One read for the whole recipient list: opt-out and timezone together.
-      const { data: profRows } = await svc.from('profiles').select('id, notifications_opt_out, timezone').in('id', recipients);
+      const { data: profRows, error: profErr } = await svc.from('profiles').select('id, notifications_opt_out, timezone').in('id', recipients);
+      // A failed read is NOT "nobody opted out": with profOf empty every opted-out coach gets
+      // pushed and every timezone falls to the default. Skip this roster; the next hourly run
+      // (or the 6-day dedupe) makes it up. Silence here is the fetcher-lies bug, server-side.
+      if (profErr) { console.error('weekly-digest: profiles read failed, skipping roster', profErr.message); continue; }
       const profOf = new Map((profRows ?? []).map((p: { id: string; notifications_opt_out?: boolean | null; timezone?: string | null }) => [p.id, p]));
       for (const rid of recipients) {
         const prof = profOf.get(rid);

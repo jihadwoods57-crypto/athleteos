@@ -11,7 +11,7 @@
 const COPY: Record<string, { title: string; body: string }> = {
   success: {
     title: 'You are in.',
-    body: 'Payment confirmed. Head back to the OnStandard app — your plan is active and your roster is unlocked.',
+    body: 'Payment confirmed. Head back to the OnStandard app. Your plan is active and your roster is unlocked.',
   },
   cancel: {
     title: 'No charge was made.',

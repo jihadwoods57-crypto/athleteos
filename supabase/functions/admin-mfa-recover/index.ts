@@ -84,7 +84,7 @@ Deno.serve(async (req: Request) => {
         headers: { 'content-type': 'application/json', 'x-alert-key': ALERT_KEY },
         body: JSON.stringify({
           kind: 'recovery_used', subject: 'Command Center recovery code used',
-          body: 'A recovery code was used to reset two-factor authentication on your admin account. Your authenticator app has been unlinked — set up a new one the next time you sign in.',
+          body: 'A recovery code was used to reset two-factor authentication on your admin account. Your authenticator app has been unlinked. Set up a new one the next time you sign in.',
           details: [{ label: 'Account', value: u.user.email ?? u.user.id }],
           actionUrl: 'https://admin.onstandard.app/',
         }),
