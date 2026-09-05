@@ -113,6 +113,18 @@ check-in" for team meals is the natural sweetener; alone it's not worth a sittin
 it so we don't rediscover it in October.
 
 ## Notes for tomorrow's sessions
+- Honest-states audit input from the 09-05 build's adversarial review (each verified against
+  code, not guessed): (a) index.html loop step 1 and the FAQ time answer claim "no typing, no
+  food database" — but `foodsearch.js` is a searchable food database reachable from the camera
+  screen ("Log without a photo"), and the meal AI can ask the athlete to type protein/calories;
+  (b) dietitians.html:294 claims Intuitive scores hydration, but `plan-style.js` force-disables
+  hydration app-wide ("no way to log water") and awareness credit is now unconditional once food
+  is logged; (c) the pre-log analysis macro row (`meal.js` ~line 678) and food-search totals are
+  NOT gated by plan style, so an Intuitive athlete still sees calories there — the new PRODUCT.md
+  red line names these as known gaps; (d) `.rp-sect` has no padding rule in site.css (only in
+  role.css), so #thread and the new #fuel section render with zero vertical section padding on
+  index — a polish item, not a break. The new #fuel copy avoids all of (a)/(b); the old lines
+  still carry them. Fold into #1's hand-walk or the 7 PM polish.
 - Build `assets/proto.zip` LAST, after every review fix has landed, and commit
   `src/proto/protoVersion.ts` with it. Two burns on 2026-09-04 alone: the 8 AM session
   built before its final review edits (the committed zip missed its own fixes), and the

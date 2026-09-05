@@ -117,6 +117,14 @@ a 94 means the same thing everywhere. No coach can invent an easy formula. No
 athlete can sweet-talk the math. On time counts full. Late counts half.
 Skipped reads as skipped. Honest credit, every day.
 
+NOT A CALORIE COUNTER
+
+The athlete never does the arithmetic. The daily habit is one photo per
+meal — the AI reads the plate, labels every estimate as an estimate, and
+the day is scored on execution. Show up and fuel. An athlete who shouldn't
+be looking at numbers can be placed by their coach or dietitian on a plan
+style that keeps calorie and macro numbers out of the meal read.
+
 THE AI READS. IT NEVER DECIDES.
 
 The AI reads your food and rates its own confidence. It never sets your targets,
@@ -191,6 +199,7 @@ Rationale:
 
 **Own (long-tail, low competition, high relevance — win these first):**
 - **"athlete accountability"** — our defining phrase; almost no one else targets it, and it's exactly what we are. Built from title `athlete` + keyword `accountability`.
+- **"accountability without calorie counting"** — the anti-tracker wedge (added 2026-09-05). The big trackers are absorbing an eating-disorder backlash over mandatory counting; we are structurally the alternative (the athlete never does the arithmetic; Intuitive keeps the numbers out of the meal read). Seed it in the description (done — "NOT A CALORIE COUNTER" block) and PR; it converts the exact parent/dietitian who is warned off MyFitnessPal-style apps. Note vs. the "too competitive" list below: "calorie counter" appears in our description only as a **negation** — deliberate. We are not chasing the head term; we are intercepting its most disillusioned searchers, same logic as holding `tracker` in the keyword field while never calling ourselves one.
 - **"the other 167"** — a brand phrase from our own voice. No competition because we coined the frame. Seed it in the description and PR so branded search grows into it.
 - **"coach verified nutrition," "photo verified meal log," "athlete check in app," "team nutrition app"** — specific multi-word intents where the self-report incumbents (Healthie, Practice Better, RXFood, TeamBuildr) are weak on the *verification* angle. Our wedge word `verified` is where we can't be matched.
 
