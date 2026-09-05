@@ -12,9 +12,28 @@ day) — it is now a neutral chip per the app's own "a live day has no verdict y
 pinned by score-credit.test.mjs. Gates 13/13, zip rebuilt, committed; NOT live (publish
 token dead, eighth session running). No 1 PM audit ran (Friday scout takes the slot).
 
+Done 2026-09-05 (1 PM audit): #1 ran in full — machine sweep (141 screens: 0 errors/overflow)
+plus a real hand-walk of the gestures via synthetic touch (commit, cancel, pager, rail-conflict,
+second-finger, double-flick, alias routes) and two adversarial subagent audits of all four
+commits. Two HIGH gesture bugs found and fixed (second finger mid-drag stranded a pointer-dead
+under-layer; two quick edge-flicks popped the stack twice), plus: thread-poll repaints yanking
+the screen mid-drag (render now held while a finger owns it), push-during-push class-soup
+(arriving/revealing now stripped on layered commit), sticky-header flicker (24/4 hysteresis),
+pager dead on alias routes and on short tabs' padding, IME Enter sending half-composed CJK text
+in 4 of 5 composers, weekly-digest silently bypassing notification opt-outs on a failed profiles
+read, quiet-hours settings copy claiming a pause team-standard pushes don't honor (copy scoped),
+feed/push voice drift ("You're OnStandard" vs "You're on standard"), two server em dashes. Also
+#5's follow-through: Intuitive calorie leaks closed (pre-log analysis, food search, barcode,
+Food Memory rows) per the new PRODUCT.md red line, and the old landing overclaims retired.
+Sweep threads: cs-coach-board CLEAN again — seed quirk, thread closed. sweep-parent-link is a
+REAL screen (parent invite-code entry, legitimately 52 chars) — the THIN flag is a false
+positive; polish session may add a "where to find the code" helper line or teach the sweep.
+
 ## Ranked
 
 ### 1 · audit · the founder's 2026-09-03 nav + composer work has STILL had no audit pass  (impact 4, effort m)
+**DONE 2026-09-05 1 PM — see the dated note above. Remaining hand-walk gap: real-device feel
+(gesture physics, safe-area) is cloud-unreachable by nature.**
 Two days live, zero human-style attack. The composer pill (`ea0c656`), Liquid Glass
 chrome + edge-swipe gestures (`9d03598`), two-layer push/pop (`2428f2d`), notification
 voice (`4ca1808`). Machine evidence so far is all green — tonight's full 282-shot sweep
@@ -111,6 +130,25 @@ Their QR "meal check-in" for training tables is what athletic departments actual
 for. Our roll-call screen is the same muscle. If M2's team SKU happens, a "fueling
 check-in" for team meals is the natural sweetener; alone it's not worth a sitting. Noting
 it so we don't rediscover it in October.
+
+### Parked by the 2026-09-05 1 PM audit (evidence in that session's report)
+- **Digest lands Tuesday east of UTC+7**: 0218 schedules `0 * * * 1` (UTC Monday only), so a
+  Singapore coach's local Monday-7AM run never fires and they get the "Monday" digest Tuesday.
+  Fix is a migration widening the cron to Sunday ~18:00 UTC onward; parked — no DB credentials.
+- **Team-standard pushes ignore quiet hours and opt-out**: connected-standards-tick checks
+  neither (quiet prefs only exist client-side). Needs a synced quiet-hours column + function
+  check. Settings copy was scoped to the truth in the meantime.
+- **Safe-area bleed above the stuck glass header on notched phones** (~25px of semi-legible
+  passing text above the header's top edge; veil gradient only ~45% opaque there). Needs a real
+  device to tune — do not fix blind from the cloud.
+- **Latent, low**: long-press tapback surviving into an edge-swipe (picker floats over the wrong
+  screen); gesture under-layer keeps duplicate DOM ids (inert today); IME Enter on non-composer
+  inputs (coach note/rename/code fields); `wireComposer` in settings.js is dead code that would
+  no-op against textarea composers; feed streak rows still name the 80 bar ("Hit 80 before
+  midnight") while the push voice bans internal numbers — founder taste call, recommend aligning.
+- **Server fixes await an edge-function deploy from the PC**: weekly-digest opt-out guard,
+  connected-standards-tick error surfacing, two em-dash copy fixes (admin-mfa-recover,
+  billing-return). Repo is fixed; live functions are not until deployed.
 
 ## Notes for tomorrow's sessions
 - Honest-states audit input from the 09-05 build's adversarial review (each verified against
