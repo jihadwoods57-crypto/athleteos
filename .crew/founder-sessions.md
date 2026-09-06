@@ -25,7 +25,10 @@ finishing and hardening real flows over inventing speculative ones.
   `.crew/reports/`. Pick the single highest-value improvement and build it end to end.
 - **~1 PM — AUDIT + FIX.** Fresh eyes. Walk the proto screens like a real athlete, then
   like a coach. Scrutinize whatever this morning's session shipped. Fix the worst things
-  you find. You are the check on the 8 AM session.
+  you find. You are the check on the 8 AM session. If yesterday had no audit (Friday's
+  scout takes the slot; sometimes a session simply doesn't fire), that debt is yours
+  first — unaudited live code ages badly (the founder's 09-03 nav work sat live two days
+  before anyone attacked it).
 - **~7 PM — POLISH + PLAN.** Design, copy, motion, and accessibility polish. Then
   rewrite `.crew/backlog.md` as a ranked list for tomorrow, make sure today's report
   section in the Google Doc is complete, and send the founder the daily digest email.
@@ -38,7 +41,12 @@ finishing and hardening real flows over inventing speculative ones.
 - **ERROR SENTRY (overnight, ~11:30 PM and ~5:30 AM).** Covers the hours no other
   session is awake. Check the live error/analytics events for a spike; if real users are
   hitting something, fixing it outranks everything — full discipline, ship it. If the
-  night is quiet, say so in one line and end cheaply.
+  night is quiet, say so in one line and end cheaply. End cheaply means CHEAP: if not
+  one commit has landed since the last sentry proved this exact tree green, do not
+  re-run gates or sweeps — "unchanged since <sha>, not re-proving" is the whole job
+  (early sentries this week re-ran 141-screen sweeps on byte-identical trees). A
+  known-dead credential gets one re-check and the streak count, never a fresh diagnosis.
+  If new commits DID land, re-prove those — that part is the job.
 
 One main thing done fully beats three things half-done. Stop early rather than sprawl.
 
@@ -78,7 +86,10 @@ If the Supabase credentials exist, open with a read-only pulse of yesterday: new
 signups, meals logged, active athletes, and anything alarming in the analytics/error
 events. Lead your report with a three-line pulse, and let what real users actually
 struggled with steer today's pick over the backlog's guess. If credentials are missing,
-note it in one line and move on.
+note it in one line and move on. When the same credential has been missing for days,
+the one line cites the streak from the backlog notes (and updates it) — no fresh
+probes, no re-diagnosis; a whole week of sessions re-proving the same dead token was
+waste.
 
 Two more pulse sources, each conditional on its credential:
 - **Money** (`STRIPE_RESTRICTED_KEY`, read-only): MRR, new subscriptions, failed
@@ -201,6 +212,23 @@ You may run migrations, create tables/RPCs, and flip feature flags (`SUPABASE_AC
   burns in the charter's first 24 hours: URL webhooks aren't mintable from outside
   (2026-08-22), and the Drive connector cannot edit an existing Doc's content
   (2026-08-23) — it only reads and creates files.
+- Build `assets/proto.zip` LAST, after every review fix has landed, and commit
+  `src/proto/protoVersion.ts` in the same change — without the stamp nothing
+  re-extracts. Two burns on 2026-09-04 alone: a zip built before its own review fixes
+  (a publish that day would have shipped the unreviewed code), and a zip committed
+  without the stamp. Proof-of-scope catches the first; `git status` before pushing
+  catches the second.
+- Any input that sends on Enter needs an `isComposing` guard, or Enter during
+  Japanese/Chinese composition sends the half-typed text. Burned 2026-09-05: four of
+  the five composers lacked it.
+- SECURITY DEFINER RPCs bypass RLS, so the ordinary suites prove nothing about them.
+  Every new one ships with its own attack probe in the SQL suite (call it as the
+  athlete, a stranger, and anon). Burned 2026-09-04: two roster RPCs had landed without
+  probes, and the obvious version of 0219 would have re-opened the July private-notes
+  leak (0069).
+- A session slot that doesn't fire leaves its duty on the floor silently. Whoever
+  notices a missed slot writes its work item into the backlog as #1, dated, so the debt
+  stays visible until paid (this is how the 09-03 audit gap was eventually caught).
 
 ## Reporting — the founder reads a Google Doc, not the repo
 
@@ -217,13 +245,18 @@ texting a sharp friend who doesn't code:
 - **Didn't do:** what you deliberately skipped or parked, and why.
 - **Recommend:** the one thing you'd do next.
 
-Known limitation (2026-08-23): the connected Drive tools READ and CREATE files but
-cannot edit an existing Doc's content, so no session can currently add its entry to the
-doc directly. Until the founder wires a Docs editor (or says otherwise), the standing
-path IS the fallback: write the entry to `.crew/reports/YYYY-MM-DD.md`, commit it, and
-say in the digest email that the day's entry lives in the repo. Never "catch the doc up"
-by creating a second doc or a copy — one doc, founder-owned, or the repo. If Drive tools
-change, test for an update-content tool before assuming this note is still true.
+Known limitation (2026-08-23, still true 2026-09-06): the connected Drive tools READ
+and CREATE files but cannot edit an existing Doc's content (`update_file`'s schema
+accepts only a new title/parent), so no session can add its entry to the doc directly.
+Until the founder wires a Docs editor (or says otherwise), the standing path IS the
+fallback: write the entry to `.crew/reports/YYYY-MM-DD.md`, commit it, and say in the
+digest email that the day's entry lives in the repo. Never "catch the doc up" by
+creating a second doc or a copy — one doc, founder-owned, or the repo. Division of
+labor, learned the expensive way: the 7 PM session (only) re-checks the tool's schema
+once a day — reading the schema is free and a live call proves nothing more. Every
+other session just follows the standing path with one line ("report of record per the
+standing path") and no re-test; last week every session re-tested and re-narrated this
+limitation in every entry, and the ritual cost more words than some reports' findings.
 
 ## On-demand sessions (GitHub issues)
 
