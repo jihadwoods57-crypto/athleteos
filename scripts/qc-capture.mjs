@@ -257,6 +257,8 @@ const AUDIT_JS = `(() => {
   // 4. text clipped by its container (truncation that loses meaning)
   for (const el of all) {
     if (!el.childNodes.length) continue;
+    // .sr-only is clipped ON PURPOSE (1px box for screen readers); it is not lost meaning.
+    if (el.classList.contains('sr-only')) continue;
     const hasText = Array.from(el.childNodes).some((n) => n.nodeType === 3 && n.textContent.trim());
     if (!hasText) continue;
     const r = vis(el);

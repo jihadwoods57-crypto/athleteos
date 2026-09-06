@@ -73,7 +73,10 @@ export function skeletonRows(n = 3, label = 'Loading') {
   const row = '<div class="sk-row"><div class="sk-dot"></div><div class="sk-lines"><div class="sk-line"></div><div class="sk-line sk-line-2"></div></div></div>';
   // role="status" so the handover is announced; aria-busy alone is silent on most readers. The
   // visible skeleton is shapes, so the label is repeated as screen-reader-only text.
-  return `<section class="card sk-card" role="status" aria-busy="true" aria-label="${esc(label)}" style="padding:6px 16px"><span class="sr-only">Loading ${esc(label)}</span>${row.repeat(Math.max(1, n | 0))}</section>`;
+  // A label that already says "Loading your plan" or "Building your report" is read as is;
+  // anything else gets the verb, so a reader never hears "Loading Loading".
+  const sr = /^(loading|building|fetching|checking)\b/i.test(label) ? label : `Loading ${label}`;
+  return `<section class="card sk-card" role="status" aria-busy="true" aria-label="${esc(label)}" style="padding:6px 16px"><span class="sr-only">${esc(sr)}</span>${row.repeat(Math.max(1, n | 0))}</section>`;
 }
 
 /** Empty state that teaches and offers a DIRECT action — never a dead pointer. `action` is
