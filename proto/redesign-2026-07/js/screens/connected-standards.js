@@ -21,6 +21,7 @@
    Rule 3 is why the "How this is counted" disclosure does not always collapse. A rule the athlete
    would not guess (recorded workouts only, a minimum session length) stays open on the screen. */
 import { icon } from '../icons.js';
+import { shortDate, DAYS_LONG } from '../fmt-date.js';
 import { RT } from '../state.js';
 import { track, EVENTS } from '../analytics.js';
 import { backHead, esc, emptyState } from '../components.js';
@@ -159,13 +160,12 @@ export function mountStandardsCard(root) {
 let DETAIL_TRIED = null;
 
 const DOW = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /** A daily period is a weekday; a weekly one is the week it started. Same strip, honest label. */
 function periodLabel(iso, period) {
   const d = new Date(String(iso) + 'T12:00:00');
   if (Number.isNaN(d.getTime())) return '';
-  return period === 'week' ? `${MON[d.getMonth()]} ${d.getDate()}` : DOW[d.getDay()];
+  return period === 'week' ? shortDate(d) : DOW[d.getDay()];
 }
 
 /** The last seven periods as bars. Below two periods there is no shape to read, so it stays away
@@ -298,7 +298,7 @@ export default {
       <div class="cs-p muted" style="margin-bottom:10px">Log it yourself. ${row.manual_requires_approval
         ? 'Your coach reviews manual entries before they count.'
         : 'It’s recorded as reported rather than verified. Nobody assumes you’re being dishonest.'}</div>
-      <input class="input" id="cs-note" maxlength="200" placeholder="Anything your coach should know (optional)">
+      <input class="input" id="cs-note" aria-label="Anything your coach should know" aria-describedby="cs-manual-err" maxlength="200" placeholder="Anything your coach should know (optional)">
       <button class="btn" id="cs-manual" style="margin-top:10px">I did this</button>
       <div id="cs-manual-err" role="status" class="cs-p cs-err"></div>
     </section>` : ''}
@@ -310,7 +310,7 @@ export default {
 
     ${canDispute ? `<section class="card pad">
       <div class="cs-p muted" style="margin-bottom:10px">If this is wrong, say so. Your coach sees your note. Nothing changes automatically.</div>
-      <input class="input" id="cs-dnote" maxlength="200" placeholder="What actually happened">
+      <input class="input" id="cs-dnote" aria-label="What actually happened" aria-describedby="cs-dispute-err" maxlength="200" placeholder="What actually happened">
       <button class="btn ghost" id="cs-dispute" style="margin-top:10px">This isn’t right</button>
       <div id="cs-dispute-err" role="status" class="cs-p cs-err"></div>
     </section>` : ''}
@@ -372,6 +372,7 @@ export default {
         manual.disabled = false; manual.textContent = 'I did this';
         const err = root.querySelector('#cs-manual-err');
         if (err) err.textContent = "That didn't save. Check your connection and try again.";
+        const note = root.querySelector('#cs-note'); if (note) note.setAttribute('aria-invalid', 'true');
       }
     });
 
@@ -389,6 +390,7 @@ export default {
         dispute.disabled = false; dispute.textContent = 'This isn’t right';
         const err = root.querySelector('#cs-dispute-err');
         if (err) err.textContent = "Your note didn't send. Check your connection and try again.";
+        const dnote = root.querySelector('#cs-dnote'); if (dnote) dnote.setAttribute('aria-invalid', 'true');
       }
     });
   },
@@ -508,7 +510,7 @@ const METRICS = [
   { key: 'active_minutes', label: 'Active minutes', unit: 'min', preset: 30 },
 ];
 const DOW_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-const DOW_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DOW_FULL = DAYS_LONG;
 
 /* Same fix, same reason as the coach-side editor (coach-connected.js): these chips were bare
    <span>s with a click listener, so every knob on this screen was unreachable without a mouse.

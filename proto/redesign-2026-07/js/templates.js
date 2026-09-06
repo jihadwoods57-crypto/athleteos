@@ -63,7 +63,7 @@ function weighItem(mode) {
 }
 
 function recoveryItem() {
-  return { id: 'recovery', title: 'Recovery Check-In', kind: 'recovery', proof: 'form', freq: { type: 'daily' }, window: { due: 1410, label: 'Before bed' } };
+  return { id: 'recovery', title: 'Recovery check-in', kind: 'recovery', proof: 'form', freq: { type: 'daily' }, window: { due: 1410, label: 'Before bed' } };
 }
 
 // v2: no checkinItem() — the weekly check-in ritual is deleted (Task 7) and recovery is never

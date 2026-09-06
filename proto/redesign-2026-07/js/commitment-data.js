@@ -12,6 +12,7 @@
 function sb() { return window.sb; }
 
 import * as SQ from './sync-queue.js';
+import { dateKey } from './fmt-date.js';
 
 /* Who to queue offline work FOR — registered by state.js (the setDayTaskProvider pattern; this
    module must not import state.js, see header). Unregistered → no queueing, behavior as before. */
@@ -35,7 +36,7 @@ function queueVcWrite(rpc, instanceId, args) {
 const vcRetryable = (errMsg, threw) =>
   SQ.retryable(errMsg, threw, typeof navigator !== 'undefined' && navigator.onLine === false);
 
-const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const iso = dateKey;
 export function todayISO() { return iso(new Date()); }
 export function shiftISO(dateISO, days) {
   const d = new Date(String(dateISO) + 'T12:00:00');

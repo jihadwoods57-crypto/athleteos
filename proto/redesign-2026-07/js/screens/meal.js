@@ -322,7 +322,7 @@ export const analyzing = {
       // no reconstruction, and the screen it came from is attached automatically.
       root.querySelector('.analyzing').insertAdjacentHTML('beforeend',
         `<div style="height:18px"></div>
-         <button class="btn green sm" id="an-retry" style="width:100%">${icon('camera', 18)} Retake photo</button>
+         <button class="btn primary sm" id="an-retry" style="width:100%">${icon('camera', 18)} Retake photo</button>
          <div style="height:10px"></div>
          <button class="btn ghost sm" id="an-report" style="width:100%">${icon('message', 17)} Tell us what happened</button>`);
       root.querySelector('#an-retry').addEventListener('click', () => { location.hash = '#camera'; });
@@ -372,7 +372,7 @@ export const mealQuestions = {
         </label>`).join('')}
     </div>
     <div class="mq-actions">
-      <button class="btn green" id="mq-go">${icon('check', 18)} Get my result</button>
+      <button class="btn primary" id="mq-go">${icon('check', 18)} Get my result</button>
       <button class="mq-skip" id="mq-skip">Skip, just estimate</button>
     </div>
     <div class="mq-note">${icon('lock', 12)} Your answers only sharpen this meal's numbers. Nothing else changes.</div>`;
@@ -764,8 +764,8 @@ export const analysis = {
         const nameEl = row.querySelector('.fr-name');
         const qtyEl = row.querySelector('.fr-qty');
         const item = MEAL.result && (MEAL.result.detectedRich || []).find((d) => d && d.name === name);
-        row.insertAdjacentHTML('beforeend', `<span class="rm" role="button" tabindex="0" aria-label="Remove ${esc(name)}" style="margin-left:8px;color:var(--red);font-weight:800;cursor:pointer;display:inline-flex;vertical-align:middle">${icon('x', 14)}</span>`);
-        row.querySelector('.rm').addEventListener('click', (e) => {
+        row.insertAdjacentHTML('beforeend', `<button type="button" class="cm-rm" aria-label="Remove ${esc(name)}">${icon('x', 14)}</button>`);
+        row.querySelector('.cm-rm').addEventListener('click', (e) => {
           e.stopPropagation();
           const op = { kind: 'remove', name };
           if (applyFoodEdit(MEAL.result, op)) { act.recomputeStagedMeal(op); analysis._editing = true; window.__render(); }
@@ -1098,7 +1098,7 @@ export const thread = {
     <section class="card pad" style="margin-top:8px">
       <div class="macro-row five">
         ${['Protein', 'Carbs', 'Fat', 'Calories', 'Fiber'].map((k) => `
-        <div class="macro"><div class="mv${M.analysisFailed ? '' : ' mv-wait'}" style="color:var(--text-3)">&mdash;</div><div class="mk">${k}</div></div>`).join('')}
+        <div class="macro"><div class="mv${M.analysisFailed ? '' : ' mv-wait'}" style="color:var(--text-3)">—</div><div class="mk">${k}</div></div>`).join('')}
       </div>
       ${M.analysisFailed ? `<div class="est-note" style="margin-top:10px">No numbers for this one. The photo is still your proof that the meal happened.</div>` : ''}
     </section>` : !showNums ? `
@@ -1117,7 +1117,7 @@ export const thread = {
       ${targetBars.length ? '' : `<div class="est-note">No coach targets set yet, so there's nothing to measure against. These are this meal's totals.</div>`}
       <div class="est-note" style="margin-top:8px">~${M.fiber}g fiber estimated. The full component read lives under "Why this meal reads ${M.score != null ? M.score : 'what it reads'}".</div>
       ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
-      ${corrLog ? `<div class="est-note" style="margin-top:8px;color:var(--blue-bright)"><b style="color:var(--blue-bright)">Corrected by you</b>: ${corrLog} correction${corrLog === 1 ? '' : 's'} applied. The AI's original estimate is kept for reference${M.orig ? ` (was ~${M.orig.protein}g protein · ~${M.orig.kcal} cal)` : ''}.</div>` : ''}
+      ${corrLog ? `<div class="est-note" style="margin-top:8px;color:var(--blue-bright)"><b style="color:var(--blue-bright)">Corrected by you</b>: ${corrLog} correction${corrLog === 1 ? '' : 's'} applied. The AI's original estimate is kept for reference${M.orig ? ` (was ~${M.orig.protein}g protein · ~${M.orig.kcal} kcal)` : ''}.</div>` : ''}
       ${/* The two entry points into the correction panel live HERE, with the numbers they correct
             (founder, 2026-08-02). Both render for a manually logged meal too. */''}
       ${/* THE CHAT IS THE CORRECTION SURFACE (founder, 2026-09-02). The "Correct the analysis"

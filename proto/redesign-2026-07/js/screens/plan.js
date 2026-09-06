@@ -41,6 +41,7 @@ import { esc, skeletonRows, errorState } from '../components.js';
 import { PROOF, freqLabel, fmtMin } from '../requirements.js';
 import { accentVar } from '../score-band.js';
 import { foodMemory } from '../food-memory-data.js';
+import { shortDateYear } from '../fmt-date.js';
 import { recentRows } from '../recent-meals.js';
 import { findRepeats, mealSignature, rankForRemaining, remainingToday } from '../food-memory.js';
 import { askSuggestions } from '../plan-ask.js';
@@ -130,11 +131,7 @@ const HEAD_SUBTITLE = (who, hasTargets) => ({
   unset: S.coach.hasCoach ? `Your ${who} can set targets` : 'Scored on the standard itself',
 });
 
-const fmtDate = (iso) => {
-  if (!iso) return null;
-  const d = new Date(String(iso).length <= 10 ? `${iso}T12:00:00` : iso);
-  return isNaN(d.getTime()) ? null : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-};
+const fmtDate = (iso) => shortDateYear(iso) || null;
 
 /* The goal, opened. Every row is real or absent — an athlete who never set a target weight sees
    no target-weight row rather than an em-dash pretending to be data. There is no stored target
@@ -153,7 +150,7 @@ function goalPanel() {
   if (g.startedOn) row('Tracking since', esc(fmtDate(g.startedOn) || g.startedOn));
   row('Set by', g.label ? 'You, at signup' : 'Nobody yet');
   if (g.targetsAreCoachSet) row('Targets', g.targetsSetBy ? `Set by ${esc(g.targetsSetBy)}` : `Set by your ${esc(S.coach.noun)}`);
-  else if (g.derivedProtein) row('Targets', `From your goal · ${g.derivedProtein}g protein, ${g.derivedCalories} cal`);
+  else if (g.derivedProtein) row('Targets', `From your goal · ${g.derivedProtein}g protein, ${g.derivedCalories} kcal`);
   const note = g.strategy
     ? `${esc(g.strategy)} Weight is tracked for the trend and never counts toward your daily score.`
     : 'Pick a goal in your profile and OnStandard shapes your targets and scoring around it.';
@@ -227,7 +224,7 @@ function todaySection() {
           it. Keyed on the requirement's route, which is what identifies a row here. */''}
     ${rows.map((r) => `
     <div class="pl-row tap" data-vt-row="req-${esc(r.route.replace(/[^A-Za-z0-9:_.-]/g, '_'))}" data-go="${esc(r.route)}">
-      <div class="req-icon ${r.done ? 'g' : r.color === 'red' ? 'a' : esc(r.accent === 'muted' ? 'muted' : r.accent)}" style="width:38px;height:38px;flex:none">${icon(r.icon, 18)}</div>
+      <div class="req-icon ${r.done ? 'g' : r.color === 'red' ? 'a' : esc(r.accent === 'muted' ? 'muted' : r.accent)}" s38">${icon(r.icon, 18)}</div>
       <div class="plb">
         <div class="plt"><span class="nm">${esc(r.title)}</span></div>
         <div class="pls">${esc(r.sub)}</div>
@@ -312,7 +309,7 @@ const macroLine = (it) => {
   if (!S.planStyle.showMacros) return '';
   const bits = [];
   if (it.protein) bits.push(`${it.protein}g protein`);
-  if (it.kcal) bits.push(`${it.kcal} cal`);
+  if (it.kcal) bits.push(`${it.kcal} kcal`);
   return bits.join(' · ') || '—';
 };
 
@@ -332,7 +329,7 @@ function itemRow(it, { manage = false } = {}) {
   const ic = it.kind === 'supplement' ? 'bolt' : it.kind === 'food' ? 'grid' : it.kind === 'order' ? 'pin' : 'utensils';
   return `
   <div class="pl-row${manage ? ' tap' : ''}"${manage ? ` data-fm-edit="${esc(it.id)}"` : ''}>
-    <div class="req-icon b" style="width:38px;height:38px;flex:none">${icon(ic, 17)}</div>
+    <div class="req-icon b" s38">${icon(ic, 17)}</div>
     <div class="plb">
       <div class="plt"><span class="nm">${esc(it.name)}</span>${check}</div>
       <div class="pls">${meta}</div>
@@ -355,7 +352,7 @@ function suggestionCard() {
   <div class="pl-sug">
     <div class="plb">
       <div class="plt"><span style="color:var(--blue-bright);display:inline-flex;flex:none">${icon('sparkle', 15)}</span><span class="nm">Save this as a usual?</span></div>
-      <div class="pls">${esc(g.name)} · ${g.protein}g protein · ${g.kcal} cal · eaten ${g.count}×</div>
+      <div class="pls">${esc(g.name)} · ${g.protein}g protein · ${g.kcal} kcal · eaten ${g.count}×</div>
     </div>
     <div class="pl-sug-a">
       <button class="btn primary sm" data-fm-save-sug="${esc(g.signature)}" style="width:auto;padding:0 16px;height:44px">Save</button>
@@ -539,7 +536,7 @@ function planStyleRow() {
   <h2 class="eyebrow">Plan style</h2>
   <div class="pl-list">
     <div class="pl-row"${st.canChoose ? '' : ' data-go="plan-style"'}>
-      <div class="req-icon b" style="width:38px;height:38px;flex:none">${icon('target', 17)}</div>
+      <div class="req-icon b" s38">${icon('target', 17)}</div>
       <div class="plb">
         <div class="plt"><span class="nm">${esc(st.name)}${st.customized ? ' (customized)' : ''}</span></div>
         <div class="pls">${sub}</div>
@@ -548,7 +545,7 @@ function planStyleRow() {
     </div>
     ${st.preferenceDiffers && st.preferenceName && !st.canChoose ? `
     <div class="pl-row">
-      <div class="req-icon muted" style="width:38px;height:38px;flex:none">${icon('message', 16)}</div>
+      <div class="req-icon muted" s38">${icon('message', 16)}</div>
       <div class="plb">
         <div class="plt"><span class="nm">You asked for ${esc(st.preferenceName)}</span></div>
         <div class="pls">Shared with ${esc(st.lockedBy || decider.replace(/^Your /, 'your '))}</div>
@@ -641,7 +638,7 @@ function reqRow(r, showFreq) {
   const sub = [freq, due, PROOF[r.proof] ? PROOF[r.proof].label : 'One-tap check'].filter(Boolean).join(' · ');
   return `
   <div class="pl-row tap" data-go="requirement/${esc(r.id)}">
-    <div class="req-icon ${esc(r.accent)}" style="width:38px;height:38px;flex:none">${icon(r.icon, 18)}</div>
+    <div class="req-icon ${esc(r.accent)}" s38">${icon(r.icon, 18)}</div>
     <div class="plb">
       <div class="plt"><span class="nm">${esc(r.title)}</span>${r.required === false ? '<small style="color:var(--text-3);font-weight:700">optional</small>' : ''}</div>
       <div class="pls">${esc(sub)}</div>
@@ -672,7 +669,7 @@ function requirementsTab() {
     <div class="pl-grp">From your ${esc(S.coach.noun)}</div>
     <div class="pl-list">${assigned.map((a) => `
       <div class="pl-row tap" data-go="requirement/${esc(a.id)}">
-        <div class="req-icon ${a.done ? 'g' : 'b'}" style="width:38px;height:38px;flex:none">${icon(a.icon || 'clipboard', 18)}</div>
+        <div class="req-icon ${a.done ? 'g' : 'b'}" s38">${icon(a.icon || 'clipboard', 18)}</div>
         <div class="plb">
           <div class="plt"><span class="nm">${esc(a.title)}</span></div>
           <div class="pls">One-time · ${esc(a.dueLabel || 'On your list')}</div>
@@ -687,7 +684,7 @@ function requirementsTab() {
   <div class="pl-grp">Who set this</div>
   <div class="pl-list">
     <div class="pl-row">
-      <div class="req-icon muted" style="width:38px;height:38px;flex:none">${icon('shield', 18)}</div>
+      <div class="req-icon muted" s38">${icon('shield', 18)}</div>
       <div class="plb">
         <div class="plt"><span class="nm">${gov
     ? `${esc(gov.scopeLabel)}${gov.setBy ? ` by ${esc(gov.setBy)}` : ''}`

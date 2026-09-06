@@ -1,5 +1,6 @@
 import { S, RT, act, slotHasPhoto, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
+import { weekdayLong } from '../fmt-date.js';
 import { appHead, scoreRing, esc, safeImg, collapseSection, emailVerifyBanner, wireEmailVerifyBanner, emptyState } from '../components.js';
 import { reveal } from '../motion.js';
 import { qualityAccent } from '../score-band.js';
@@ -146,10 +147,18 @@ function paintCommitments(root) {
   paint();                       // instant repaint from cache
   // A lock-screen tap recorded while the app was away (0212): refetch on the foreground beat.
   const onFg = () => {
-    if (!slot.isConnected) { window.removeEventListener('onstd:foreground', onFg); return; }
+    if (!slot.isConnected) return;
     loadMine(true).then((rows) => { RT.vcRows = rows; paint(); });
   };
   window.addEventListener('onstd:foreground', onFg);
+  // The router runs window.__screenCleanup before every re-render/route change and then nulls it
+  // (router.js), so the listener leaves with the screen instead of lingering until a later
+  // foreground beat happened to find the slot detached. Same hook camera.js uses for its stream.
+  const prevCleanup = window.__screenCleanup;
+  window.__screenCleanup = () => {
+    window.removeEventListener('onstd:foreground', onFg);
+    if (typeof prevCleanup === 'function') prevCleanup();
+  };
   loadMine().then((rows) => {    // then reconcile with the server
     // Hand the rows to RT so state.js's exec derivation can plan commitment reminders. This is the
     // one place they cross over: commitment-data.js deliberately never imports state.js (the same
@@ -246,7 +255,7 @@ const ACT_MEDIA = {
   utensils: MEAL_TINT, breakfast: MEAL_TINT, lunch: MEAL_TINT, dinner: MEAL_TINT, snack: MEAL_TINT,
 };
 // Micro-label above a non-quality result value — names what the number IS.
-const RES_K = { 'Morning Weight': 'This morning', 'Recovery Check-In': 'Status' };
+const RES_K = { 'Morning Weight': 'This morning', 'Recovery check-in': 'Status' };
 /* Recent RESULTS card (2-up grid): photo or icon media, then the outcome as labeled
    key/value lines. Meals show BOTH numbers — Meal Quality (the plate read, tiered color)
    and the honest computed Daily Score credit — because keeping those two ideas separate
@@ -316,7 +325,7 @@ function outcomeBand() {
       ${W.pace ? `<span class="status-pill ${W.pace === 'On pace' ? 'g' : 'a'}">${W.pace}</span>` : ''}
     </div>
     <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:2px">${esc(deltaLabel)}${W.target != null ? ` · goal ${W.target} lb` : ''}</div>
-    ${days > 0 ? `<div style="display:flex;align-items:center;gap:5px;font-size:var(--t-sm);font-weight:800;color:var(--amber-bright);margin-top:8px">${icon('flame', 14)}${days}-day streak</div>` : ''}
+    ${days > 0 ? `<div style="display:flex;align-items:center;gap:5px;font-size:var(--t-sm);font-weight:800;color:var(--text);margin-top:8px">${icon('flame', 14)}${days}-day streak</div>` : ''}
   </section>`;
 }
 
@@ -358,7 +367,7 @@ const pastDayLabel = (isoStr) => {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const diff = Math.round((today - d) / 86400000);
   return diff === 1 ? 'Yesterday'
-    : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getDay()];
+    : weekdayLong(d);
 };
 /* Yesterday + the day before, each its own labeled rail.
    Routing: a past card opens `meal-view/<id>` — the read-only past-meal screen (trust.js), which
@@ -543,7 +552,7 @@ function trustShield() {
 function headSub(e) {
   if (e.celebration) return 'Locked in for today';
   const d = new Date();
-  const day = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getDay()];
+  const day = weekdayLong(d);
   const team = RT.myCoach && RT.myCoach.teamName;
   return team ? `${day} · ${team}` : day;
 }
@@ -781,7 +790,7 @@ function firstActionCard(n) {
 function fairnessNote(activationMin) {
   const t = fmtClock(activationMin);
   return `<div class="sidebox" style="margin-top:12px">
-    <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
+    <div class="req-icon b s38">${icon('shield', 17)}</div>
     <div><div class="tt">You're set up${t ? ` · joined at ${t}` : ''}</div>
     <div class="ts">Anything scheduled before now won't count against you today. Your first full score starts fresh tomorrow.</div></div>
   </div>`;
@@ -812,7 +821,7 @@ export default {
       ${syncBanner()}
       ${first
           ? firstActionCard(first)
-          : `<div class="sidebox"><div class="req-icon g" style="width:38px;height:38px">${icon('check', 17)}</div><div><div class="tt">You're all set for today</div><div class="ts">Your first scored day begins tomorrow. Rest up.</div></div></div>`}
+          : `<div class="sidebox"><div class="req-icon g s38">${icon('check', 17)}</div><div><div class="tt">You're all set for today</div><div class="ts">Your first scored day begins tomorrow. Rest up.</div></div></div>`}
       ${grp('Logged today', done, { checkIcon: true, chev: true })}
       ${grp('Later today', upcoming, { hidePill: false })}
       ${grp('Not counted today', excused)}

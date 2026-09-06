@@ -15,6 +15,7 @@ import { foodMemory } from '../food-memory-data.js';
 import { PROOF, IMPACT_LABEL, freqLabel, fmtMin } from '../requirements.js';
 import { remainingToday } from '../food-memory.js';
 import { answerAsk, askSuggestions } from '../plan-ask.js';
+import { DAYS_LONG } from '../fmt-date.js';
 
 /* The transcript for this visit. Module-level, so tapping a suggestion chip on Plan lands here
    with the question already asked, and a repaint (the router re-renders on state changes) does
@@ -48,7 +49,7 @@ function planAskContext() {
   const places = fm ? (fm.places || []).filter((p) => p.status !== 'archived') : [];
   const placeById = new Map(places.map((p) => [p.id, p.name]));
   const items = fm ? fm.items.filter((i) => i.status !== 'archived') : [];
-  const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const DAY_NAMES = DAYS_LONG.map((d) => d.toLowerCase());
   const gov = S.governingStandard;
 
   const requirements = (S.scheduleCatalog || []).map((r) => {

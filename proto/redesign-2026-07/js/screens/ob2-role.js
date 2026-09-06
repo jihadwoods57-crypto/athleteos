@@ -63,6 +63,7 @@ export const ob2Role = {
       </div>`;
     return `
     <div class="ob">
+      <h1 class="sr-only">Choose your role</h1>
       <div style="width:52px;height:52px;margin:4px auto 14px">${logoMark(52, 'role2')}</div>
       <div class="ob-title" style="text-align:center">How will you use OnStandard?</div>
       <div class="ob-sub" style="text-align:center">Everything that follows is built around your answer.</div>

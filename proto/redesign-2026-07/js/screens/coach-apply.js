@@ -55,7 +55,7 @@ function editableForm(a) {
       ${field('ca-langs', 'Languages, comma-separated', (a && a.languages || []).join(', '), 'English, Spanish')}
       ${field('ca-tz', 'Time zone', a && a.timezone, 'America/New_York')}
       <label for="ca-cap" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin:14px 0 6px">Client capacity (how many you can genuinely serve)</label>
-      <input id="ca-cap" class="ob-input" type="number" min="1" max="100" value="${esc(String((a && a.capacity) || 10))}">
+      <input id="ca-cap" class="ob-input" type="number" inputmode="numeric" min="1" max="100" value="${esc(String((a && a.capacity) || 10))}">
     </section>
 
     <h2 class="eyebrow">What you're applying as</h2>

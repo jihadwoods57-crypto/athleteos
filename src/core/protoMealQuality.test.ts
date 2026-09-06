@@ -40,12 +40,14 @@ describe('mealQualityScore — deterministic and rubric-aligned', () => {
     const withProduce = mealQualityScore({ macros: balanced, fiber: 3, detected: [{ name: 'Broccoli' }], minutesLate: 0 })!;
     expect(withProduce).toBeGreaterThan(noProduce);
   });
-  test('BAND BOUNDARY: a plate scoring exactly 75 sits in Strong, not Needs work', () => {
+  test('BAND BOUNDARY: the Strong floor is 80, shared with the quality accent (score-band.js)', () => {
     // met protein (35) + partial carbs (9) + met fat (20) + miss fiber (5) + partial timing (6) = 75
     const q = mealQualityScore({ macros: { protein: 30, carbs: 75, fat: 3 }, fiber: 0, detected: [], minutesLate: 30 });
     expect(q).toBe(75);
-    expect(qualityBand(q)!.label).toBe('Strong');
-    expect(qualityBand(74)!.label).toBe('Needs work'); // one point under the edge flips the band
+    // Until 2026-09-05 this plate read "Strong" while the accent painted it amber: two ladders.
+    expect(qualityBand(q)!.label).toBe('Needs work');
+    expect(qualityBand(80)!.label).toBe('Strong');
+    expect(qualityBand(79)!.label).toBe('Needs work'); // one point under the edge flips the band
   });
   test('BAND BOUNDARY: a plate scoring exactly 50 sits in Needs work, not Weak plate', () => {
     // miss protein (8) + met carbs (15) + partial fat (12) + miss fiber (5) + met timing (10) = 50

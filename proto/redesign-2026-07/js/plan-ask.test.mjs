@@ -57,12 +57,12 @@ test('a place the athlete actually eats answers with their own saved order', () 
   assert.equal(a.title, 'Subway');
   const body = a.lines.join('\n');
   assert.match(body, /Usual Subway order/);
-  assert.match(body, /720 cal/);
+  assert.match(body, /720 kcal/);
   assert.match(body, /fits/);
 });
 
 test('a usual that busts what is left is reported as over, not silently endorsed', () => {
-  // 1010 cal against 400 left. The verdict is rankForRemaining's own `over` flag (which carries a
+  // 1010 kcal against 400 left. The verdict is rankForRemaining's own `over` flag (which carries a
   // 15% grace) so this surface and the What-to-eat card can never disagree about the same plate.
   const a = answerAsk('Can I eat Chipotle and stay on plan?', ctx({ remaining: { protein: 20, kcal: 400 } }));
   assert.match(a.lines.join('\n'), /runs over/);

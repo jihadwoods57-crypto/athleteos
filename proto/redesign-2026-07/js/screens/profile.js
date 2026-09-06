@@ -373,8 +373,8 @@ export const editProfile = {
 
     <h2 class="eyebrow">Name</h2>
     <div style="display:flex;gap:10px">
-      <input class="ob-input ep-field" id="ep-first" maxlength="40" value="${esc(a.first === 'Athlete' && !a.last ? '' : a.first)}" placeholder="First name" style="flex:1" />
-      <input class="ob-input ep-field" id="ep-last" maxlength="40" value="${esc(a.last)}" placeholder="Last name" style="flex:1" />
+      <input class="ob-input ep-field" id="ep-first" maxlength="40" value="${esc(a.first === 'Athlete' && !a.last ? '' : a.first)}" placeholder="First name" aria-label="First name" autocomplete="given-name" style="flex:1" />
+      <input class="ob-input ep-field" id="ep-last" maxlength="40" value="${esc(a.last)}" placeholder="Last name" aria-label="Last name" autocomplete="family-name" style="flex:1" />
     </div>
 
     <h2 class="eyebrow">Date of birth</h2>
@@ -400,12 +400,12 @@ export const editProfile = {
     <div style="font-size:12.5px;font-weight:600;color:var(--text-3);padding:2px 2px 4px">Pick a sport first; positions follow the sport.</div>`}
 
     <h2 class="eyebrow">School / organization</h2>
-    <input class="ob-input ep-field" id="ep-school" maxlength="80" value="${esc(a.school)}" placeholder="Search your school or team" autocomplete="off" />
+    <input class="ob-input ep-field" id="ep-school" maxlength="80" value="${esc(a.school)}" placeholder="Search your school or team" aria-label="School or organization" autocomplete="off" />
     <div id="ep-school-results" class="ep-results" hidden></div>
 
     <div style="height:14px"></div>
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
+      <div class="req-icon b s38">${icon('lock', 17)}</div>
       <div><div class="tt">That's all we ask for</div>
       <div class="ts">No bios, no socials, no feeds. Goals and weight live in your Standard; this is who your coach sees.</div></div>
     </div>

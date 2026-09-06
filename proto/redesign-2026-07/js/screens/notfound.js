@@ -18,6 +18,7 @@ export default {
     const home = routeForRole(RT.authRole || 'athlete');
     const hash = (location.hash || '').replace(/^#/, '') || '(empty)';
     return `
+    <h1 class="sr-only">Screen not found</h1>
     <div class="nf-wrap">
       ${emptyState({
     icon: 'search',

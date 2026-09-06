@@ -369,7 +369,7 @@ const steps = [
     title: () => 'What standard are you ready to hold yourself to?',
     sub: () => 'This sets how hard OnStandard pushes: reminder timing and intensity. You can change it any time.',
     body: () => choiceGrid('pressure', [
-      { v: 'all-in', t: 'All in', s: 'Every meal, every day. Full reminders', ic: 'flame', tint: 'rgba(var(--amber-rgb),0.18)', color: 'var(--amber-bright)' },
+      { v: 'all-in', t: 'All in', s: 'Every meal, every day. Full reminders', ic: 'flame' },
       { v: 'steady', t: 'Steady', s: 'Main meals, honest weeks. Balanced reminders', ic: 'shield' },
       { v: 'building', t: 'Building', s: 'Start with one meal a day. Light touch', ic: 'plus', tint: 'rgba(var(--green-rgb),0.18)', color: 'var(--green-bright)' },
     ]),
@@ -503,7 +503,7 @@ const steps = [
       ${accountBody({ terms: 'ob' })}
       <div style="height:18px"></div>
       <div class="ob-foot" style="margin-top:auto">
-        <button id="su-go" class="btn green" disabled>Create account &amp; Start</button>
+        <button id="su-go" class="btn primary" disabled>Create account &amp; Start</button>
       </div>`,
     mount(root, ctx) {
       wireAccount(root, {
@@ -544,7 +544,7 @@ const steps = [
           <div class="ob-sub" style="padding:0 8px">Your team code${code ? ` <b>${esc(code)}</b>` : ''} covers your access: no plans, no card, nothing to pay. Your coach's board is waiting for your first score.</div>
         </div>
         <div class="ob-foot" style="margin-top:auto">
-          <button id="ob-enter" class="btn green">Enter OnStandard</button>
+          <button id="ob-enter" class="btn primary">Enter OnStandard</button>
           <div class="ob2-scan-note">Today's standard is live. One photo starts it.</div>
         </div>`;
     },
@@ -579,7 +579,7 @@ const steps = [
       </div>
       <div style="height:16px"></div>
       <div class="ob-foot" style="margin-top:auto">
-        <button id="ob-start" class="btn green">Start free, no card today</button>
+        <button id="ob-start" class="btn primary">Start free, no card today</button>
         <div class="ob2-fine" id="ob-fine"></div>
         <div class="ob-textlink" style="padding-top:10px" data-go="${R}/connect">I have a code</div>
         <div class="ob2-scan-note">Today's standard is live. One photo starts it.</div>

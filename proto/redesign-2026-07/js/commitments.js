@@ -13,6 +13,7 @@
    ⚠ Nothing here feeds the daily 0–100 score. Verified Commitments produces its own
    Accountability score (accountability() below). day.js is not imported and must not be. */
 import { fmtMin } from './requirements.js';
+import { weekdayDate } from './fmt-date.js';
 
 /* ================================================================================
    THE MORNING ROLL CALL IS SWITCHED OFF (founder, 2026-09-02): "remove the morning
@@ -801,9 +802,6 @@ export function commitmentReminders(rows, todayISO) {
    occurrence (`starts_min` is the DAY's effective minute, `rule_starts_min` the rule's,
    `skipped` the flag, `instance_status` 'cancelled' for a skipped day) and never guess.
    ================================================================================ */
-const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MON_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
 /** 'Today' · 'Tomorrow' · 'Wed, Sep 9'. Deterministic (no locale), so the strip and the header
  *  say the same thing on every device. */
 export function dayLabel(occursOn, todayISO) {
@@ -811,9 +809,7 @@ export function dayLabel(occursOn, todayISO) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return '';
   if (todayISO && d === todayISO) return 'Today';
   if (todayISO && d === addDays(todayISO, 1)) return 'Tomorrow';
-  const t = new Date(d + 'T12:00:00');
-  if (isNaN(t)) return d;
-  return `${DOW_SHORT[t.getDay()]}, ${MON_SHORT[t.getMonth()]} ${t.getDate()}`;
+  return weekdayDate(d) || d;
 }
 
 /** What the coach did to this day, in one line. `kind`: 'skipped' | 'moved' | 'standing'. */

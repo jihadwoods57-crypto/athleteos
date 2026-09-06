@@ -171,9 +171,9 @@ const steps = [
       const mode = o.coachMode === 'join' ? 'join' : 'create';
       const c = (ob().coach) || {};
       return `
-      <div class="seg" id="obd-doormode">
-        <button class="${mode === 'create' ? 'on' : ''}" data-mode="create">Start my team</button>
-        <button class="${mode === 'join' ? 'on' : ''}" data-mode="join">Join a staff</button>
+      <div class="seg" id="obd-doormode" role="radiogroup" aria-label="Start my team or join a staff">
+        <button class="${mode === 'create' ? 'on' : ''}" data-mode="create" role="radio" aria-checked="${mode === 'create'}">Start my team</button>
+        <button class="${mode === 'join' ? 'on' : ''}" data-mode="join" role="radio" aria-checked="${mode === 'join'}">Join a staff</button>
       </div>
       <div class="ob2-vgap"></div>
       ${mode === 'join' ? `
@@ -419,7 +419,7 @@ const steps = [
     },
   },
   {
-    id: 'code', ch: 4, cta: 'Continue', green: true,
+    id: 'code', ch: 4, cta: 'Continue',
     /* Post-account: back can never return to the sign-up form. */
     back: 'coach-home',
     body: (o) => {
@@ -442,10 +442,10 @@ const steps = [
           <div class="ob-title">That staff code didn’t land.</div>
           <div class="ob-sub">Your account is set up; the staff seat isn’t. Staff codes are one use only, so check it or ask your head coach for a fresh one, then try again.</div>
         </div>
-        <input id="obd-retry-code" class="ob-input ob2-code-input" maxlength="12" placeholder="Staff code"
+        <input id="obd-retry-code" class="ob-input ob2-code-input" maxlength="12" placeholder="Staff code" aria-label="Staff code"
           autocapitalize="characters" autocorrect="off" spellcheck="false" value="${esc(((ob().coach) || {}).staffCode || '')}" />
         <div class="ob2-vgap"></div>
-        <div class="ob2-btn-pair"><button class="btn green sm" id="obd-join-retry">Join the staff</button></div>
+        <div class="ob2-btn-pair"><button class="btn primary sm" id="obd-join-retry">Join the staff</button></div>
         <div class="ob2-code-status" id="obd-join-status"></div>`;
       }
       const code = o.teamCode || '';
@@ -464,10 +464,10 @@ const steps = [
       </div>
       <div id="obd-editor" hidden>
         <div class="ob2-vgap"></div>
-        <input id="obd-code-input" class="ob-input ob2-code-input" maxlength="12" placeholder="YOUR CODE · 6-12 letters/numbers"
+        <input id="obd-code-input" class="ob-input ob2-code-input" maxlength="12" placeholder="YOUR CODE · 6-12 letters/numbers" aria-label="Custom join code"
           autocapitalize="characters" autocorrect="off" spellcheck="false" />
         <div class="ob2-vgap"></div>
-        <div class="ob2-btn-pair"><button class="btn green sm" id="obd-save">Save code</button></div>
+        <div class="ob2-btn-pair"><button class="btn primary sm" id="obd-save">Save code</button></div>
         <div class="ob2-code-status" id="obd-status">Make it yours, e.g. GATORSFUEL. The random code stops working once you save.</div>
       </div>` : `
       <div class="sidebox">

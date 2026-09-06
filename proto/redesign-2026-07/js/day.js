@@ -40,6 +40,15 @@ const CI_INVERSE = { soreness: true, cravings: true };
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+/* ---- change counter ----
+   Bumped by every path that changes the live day (a mutator's persist, a cache read, the reset,
+   the standard/goal/style setters, the server merge). state.js keys its derived-getter memo on
+   this together with its own save() counter, so a memoised score can never outlive the day it
+   was computed from. Read via dayRev(); nothing outside this module writes it. */
+let DAY_REV = 0;
+export function dayRev() { return DAY_REV; }
+function touch() { DAY_REV++; }
+
 function withinTrailingWeek(dateStr, todayStr) {
   if (!dateStr || !todayStr) return false;
   const a = new Date(dateStr + 'T00:00:00');
@@ -73,6 +82,7 @@ function seedStandardSlots() {
 export function setDayStandard(std) {
   STD = std && std.mealsRequired > 0 && Array.isArray(std.slots) && std.slots.length ? std : null;
   seedStandardSlots();
+  touch();
 }
 export function dayStandard() { return STD; }
 /** Apply the athlete's goal-derived scoring config to the live day: which profile grades them
@@ -84,6 +94,7 @@ export function setDayGoalConfig(profile, proteinTarget, calTarget) {
   DAY.scoringProfile = (profile === 'general' || profile === 'gain') ? profile : 'athlete';
   if (proteinTarget > 0) DAY.proteinTarget = Math.round(proteinTarget);
   if (calTarget > 0) DAY.calTarget = Math.round(calTarget);
+  touch();
 }
 /** A slot's deadline: the standard's window when set, else the classic map, else end of day. */
 export function slotDeadline(k, std = STD) {
@@ -187,6 +198,7 @@ export function setDayPlanStyle(style, knobs) {
   PKNOBS = PSTYLE ? (knobs || knobsFor(PSTYLE, null)) : null;
   DAY.planStyle = PSTYLE;
   DAY.planKnobs = PKNOBS;
+  touch();
 }
 export function dayPlanStyle() { return PSTYLE; }
 export function dayPlanKnobs() { return PKNOBS; }
@@ -640,8 +652,26 @@ export function streakDays(activationDate = /** @type {string | null} */ (null))
 
 /* ---- offline cache (per user) ---- */
 function cacheKey(userId) { return `onstd-day-${userId}-${DAY.date}`; }
-function saveCache(userId) { try { localStorage.setItem(cacheKey(userId), JSON.stringify(DAY)); } catch { /* quota */ } }
-function loadCache(userId) { try { const j = JSON.parse(localStorage.getItem(cacheKey(userId)) || 'null'); if (j && j.date === DAY.date) Object.assign(DAY, j); } catch { /* ignore */ } }
+function saveCache(userId) { touch(); try { localStorage.setItem(cacheKey(userId), JSON.stringify(DAY)); } catch { /* quota */ } }
+/** Restore today's cached day onto DAY. True when the cache held TODAY for this user. */
+function loadCache(userId) {
+  touch();
+  try {
+    const j = JSON.parse(localStorage.getItem(cacheKey(userId)) || 'null');
+    if (j && j.date === DAY.date) { Object.assign(DAY, j); return true; }
+  } catch { /* ignore */ }
+  return false;
+}
+/** The boot's first paint: reset to a fresh day and restore this user's cache for today, exactly
+ *  the two steps loadDay() opens with, so router.js can draw the cached day BEFORE hydrateDay()'s
+ *  network round trip. True when there was something to draw. loadDay() re-runs both steps and
+ *  layers the server row on top, so calling this first changes nothing about the merge. */
+export function primeDayFromCache(userId) {
+  if (!userId || typeof localStorage === 'undefined') return false;
+  dayResetLocal();
+  DAY.date = todayISO();
+  return loadCache(userId);
+}
 
 /* ---- Supabase read/write ---- */
 /* Merge the server row into DAY without ever ERASING same-day local progress. Within one
@@ -862,6 +892,7 @@ export async function loadDay(userId) {
     // would read "not logged" for a day that was honestly logged.
     if (localAhead) await pushDay(userId, true);
   } catch (e) { console.warn('[day] loadDay failed', e && e.message); }
+  finally { touch(); }
 }
 
 /** True when the in-memory day carries any real logged progress. */
@@ -983,6 +1014,7 @@ export function dayResetLocal() {
   // state.js re-applies them on hydrate anyway. Today's captured signals do not.
   DAY.signals = {}; DAY.signalWeekRate = null;
   DAY.photoDays = null; // lifetime count is per ACCOUNT — never leak it across users on a shared device
+  touch();
 }
 
 
@@ -1019,7 +1051,7 @@ export function dayLogMeal(userId, key, macros, meta) {
     // whitelist, and their absence broke the entire flow in a way that looked like two unrelated
     // bugs:
     //   1. applyAnalysisResult's first guard is `if (!cur.pending) return false`, so a finished
-    //      analysis could NEVER land — the meal sat at 0g protein / 0 cal permanently, which is
+    //      analysis could NEVER land — the meal sat at 0g protein / 0 kcal permanently, which is
     //      what "macros populating 0s when I clearly uploaded a meal" was.
     //   2. #analyzing watches `landed = !cur.pending`, which was true on the first tick, so the
     //      scan always bailed at its MIN_MS floor and read as "way too fast".

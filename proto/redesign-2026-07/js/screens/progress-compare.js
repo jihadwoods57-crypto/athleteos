@@ -4,15 +4,12 @@
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg, errorState } from '../components.js';
 import * as roles from '../roles.js';
+import { shortDateYear } from '../fmt-date.js';
 import { progressPhotoCache, ensureProgressPhotos } from './progress-photos.js';
 
 let SEL = { before: null, after: null };
 
-function fmtDate(d) {
-  if (!d) return '';
-  try { return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); }
-  catch { return String(d); }
-}
+const fmtDate = (d) => shortDateYear(d);
 function byId(photos, id) { return photos.find((p) => p.id === id) || null; }
 function daysBetween(a, b) {
   try { return Math.abs(Math.round((new Date(a + 'T00:00:00') - new Date(b + 'T00:00:00')) / 86400000)); } catch { return null; }

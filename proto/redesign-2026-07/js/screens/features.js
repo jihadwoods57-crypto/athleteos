@@ -3,7 +3,7 @@ import { icon } from '../icons.js';
 import { backHead, esc, errorState } from '../components.js';
 import * as roles from '../roles.js';
 import * as CD from '../coach-data.js';
-import { tierColor } from '../score-band.js';
+import { tierColor, ON_STANDARD } from '../score-band.js';
 
 /* ============================================================
    The 11 approved ideas, made walkable. Live where possible,
@@ -34,14 +34,14 @@ export const devices = {
   render() {
     const head = backHead('Connect a device', 'Apple Health & Health Connect', 'profile');
     if (!DEV.checked || !DEV.available) {
-      return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('moon', 17)}</div><div><div class="tt">Checking your device…</div></div></div>`;
+      return `${head}<div class="sidebox"><div class="req-icon b s38">${icon('moon', 17)}</div><div><div class="tt">Checking your device…</div></div></div>`;
     }
     if (!DEV.connected) {
       return `${head}
       <section class="card pad">
         <div style="font-size:15.5px;font-weight:800">Bring your recovery data in</div>
         <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:6px;line-height:1.5">Connect and your last-night <b>sleep</b>, <b>HRV</b>, and <b>resting heart rate</b> show up here as context for your recovery check-in. Read-only: it never changes your score.</div>
-        <button class="btn green" id="dev-connect" style="width:100%;margin-top:14px" ${DEV.busy ? 'disabled' : ''}>${DEV.busy ? 'Connecting…' : 'Connect Apple Health / Health Connect'}</button>
+        <button class="btn primary" id="dev-connect" style="width:100%;margin-top:14px" ${DEV.busy ? 'disabled' : ''}>${DEV.busy ? 'Connecting…' : 'Connect Apple Health / Health Connect'}</button>
       </section>`;
     }
     const s = DEV.sample || {};
@@ -83,7 +83,7 @@ export const recruiting = {
       ? Math.round((hist.reduce((a, h) => a + (h.score || 0), 0) + S.score) / (hist.length + 1))
       : S.score;
     const onPct = hist.length
-      ? Math.round(([...hist.map(h => h.score), S.score].filter(s => s >= 80).length / (hist.length + 1)) * 100)
+      ? Math.round(([...hist.map(h => h.score), S.score].filter(s => s >= ON_STANDARD).length / (hist.length + 1)) * 100)
       : null;
     const verified = S.coach.hasCoach;
     return `
@@ -101,17 +101,17 @@ export const recruiting = {
       ${P.daysLogged > 0 ? `
       ${/* Averages wear their TIER color (score-band.js), never a flat green: a 39 average
             painted success-green on the one surface built to be shown to a recruiter is the
-            exact dishonesty PRODUCT.md forbids. Streaks keep the app's live-streak amber
-            (home.js flame row) only while one is alive; a 0d streak is an empty fact in
-            default ink, not a warning. */''}
+            exact dishonesty PRODUCT.md forbids. Streaks stay in default ink: DESIGN.md gives
+            amber ONE meaning (warning: at risk, off pace) and a living streak is the opposite
+            of a warning, so the weight of the number carries it and no colour is spent. */''}
       <div class="macro-row" style="margin-top:16px">
         <div class="macro"><div class="mv">${P.daysLogged}</div><div class="mk">Days tracked</div></div>
         <div class="macro"><div class="mv" style="color:${tierColor(avgAll)}">${avgAll}</div><div class="mk">Avg score</div></div>
         ${onPct != null ? `<div class="macro"><div class="mv">${onPct}%</div><div class="mk">On standard</div></div>` : ''}
       </div>
       <div class="macro-row" style="margin-top:8px">
-        <div class="macro"><div class="mv"${P.bestStreak > 0 ? ' style="color:var(--amber-bright)"' : ''}>${P.bestStreak}d</div><div class="mk">Best streak</div></div>
-        <div class="macro"><div class="mv"${S.streakDays > 0 ? ' style="color:var(--amber-bright)"' : ''}>${S.streakDays}d</div><div class="mk">Current streak</div></div>
+        <div class="macro"><div class="mv">${P.bestStreak}d</div><div class="mk">Best streak</div></div>
+        <div class="macro"><div class="mv">${S.streakDays}d</div><div class="mk">Current streak</div></div>
         ${P.weekAvg != null ? `<div class="macro"><div class="mv" style="color:${tierColor(P.weekAvg)}">${P.weekAvg}</div><div class="mk">Recent avg</div></div>` : ''}
       </div>` : `
       <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:14px">Your record builds as you log. A few days in, your real average, consistency, and streaks show up here.</div>`}
@@ -119,7 +119,7 @@ export const recruiting = {
 
     ${verified ? '' : `
     <div class="sidebox mt">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
+      <div class="req-icon b s38">${icon('users', 17)}</div>
       <div><div class="tt">Not verified yet</div>
       <div class="ts">Connect a coach to begin building a verified record. Verification means a real coach watches the same numbers.</div>
       <div style="margin-top:8px"><button class="btn ghost sm" data-go="connect" style="width:auto;padding:0 18px">Connect a coach</button></div></div>
@@ -127,13 +127,13 @@ export const recruiting = {
 
     <h2 class="eyebrow">Why a recruiter cares</h2>
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('bars', 17)}</div>
+      <div class="req-icon b s38">${icon('bars', 17)}</div>
       <div><div class="tt">Film shows talent. This shows habits.</div>
       <div class="ts">Verified daily execution is a signal no highlight reel carries: this athlete does the work when nobody claps.</div></div>
     </div>
 
     <div class="sidebox mt">
-      <div class="req-icon g" style="width:38px;height:38px">${icon('lock', 17)}</div>
+      <div class="req-icon g s38">${icon('lock', 17)}</div>
       <div><div class="tt">Private by default</div>
       <div class="ts">Nothing here is public and nothing is shared unless you explicitly share it. You control who ever sees this record.</div></div>
     </div>
@@ -190,19 +190,19 @@ export const restrictions = {
       ${[...ALLERGY_OPTS, ...customs(R.allergies, ALLERGY_OPTS)].map((n) => chip(n, has(R.allergies, n))).join('')}
     </div>
     <div id="rx-severity"></div>
-    <div class="rx-add"><input class="input" id="rx-add-allergy" maxlength="30" placeholder="Add another allergen…" /><button class="btn ghost sm rx-add-btn" data-add="allergy">Add</button></div>
+    <div class="rx-add"><input class="input" id="rx-add-allergy" maxlength="30" placeholder="Add another allergen…" aria-label="Add another allergen" /><button class="btn ghost sm rx-add-btn" data-add="allergy">Add</button></div>
 
     <h2 class="eyebrow">Intolerances</h2>
     <div class="chip-row" id="rx-intolerances">
       ${[...INTOLERANCE_OPTS, ...customs(R.intolerances, INTOLERANCE_OPTS)].map((n) => chip(n, R.intolerances.includes(n))).join('')}
     </div>
-    <div class="rx-add"><input class="input" id="rx-add-intolerance" maxlength="30" placeholder="Add an intolerance…" /><button class="btn ghost sm rx-add-btn" data-add="intolerance">Add</button></div>
+    <div class="rx-add"><input class="input" id="rx-add-intolerance" maxlength="30" placeholder="Add an intolerance…" aria-label="Add an intolerance" /><button class="btn ghost sm rx-add-btn" data-add="intolerance">Add</button></div>
 
     <h2 class="eyebrow">Dietary preferences</h2>
     <div class="chip-row" id="rx-preferences">
       ${[...PREFERENCE_OPTS, ...customs(R.preferences, PREFERENCE_OPTS)].map((n) => chip(n, R.preferences.includes(n))).join('')}
     </div>
-    <div class="rx-add"><input class="input" id="rx-add-preference" maxlength="30" placeholder="Add a preference…" /><button class="btn ghost sm rx-add-btn" data-add="preference">Add</button></div>
+    <div class="rx-add"><input class="input" id="rx-add-preference" maxlength="30" placeholder="Add a preference…" aria-label="Add a dietary preference" /><button class="btn ghost sm rx-add-btn" data-add="preference">Add</button></div>
 
     <h2 class="eyebrow">How checking works</h2>
     <section class="card" style="padding:6px 16px">
@@ -233,16 +233,21 @@ export const restrictions = {
       sevPanel.innerHTML = on.length ? `<section class="card" style="padding:4px 14px;margin-top:8px">${on.map((n) => `
         <div class="lrow" style="cursor:default">
           <div class="lm"><div class="lt" style="font-size:13px">${esc(n)}</div></div>
-          <div class="seg" style="width:170px" data-sev="${esc(n)}">
-            <button class="${(severity[n] || 'severe') === 'severe' ? 'on' : ''}">Severe</button>
-            <button class="${(severity[n] || 'severe') === 'moderate' ? 'on' : ''}">Moderate</button>
+          <div class="seg" style="width:170px" data-sev="${esc(n)}" role="radiogroup" aria-label="${esc(n)} severity">
+            <button role="radio" aria-checked="${(severity[n] || 'severe') === 'severe'}" class="${(severity[n] || 'severe') === 'severe' ? 'on' : ''}">Severe</button>
+            <button role="radio" aria-checked="${(severity[n] || 'severe') === 'moderate'}" class="${(severity[n] || 'severe') === 'moderate' ? 'on' : ''}">Moderate</button>
           </div>
         </div>`).join('')}</section>` : '';
       sevPanel.querySelectorAll('[data-sev]').forEach((seg) => {
         const name = seg.getAttribute('data-sev');
         const [sv, md] = seg.querySelectorAll('button');
-        sv.addEventListener('click', () => { severity[name] = 'severe'; sv.classList.add('on'); md.classList.remove('on'); });
-        md.addEventListener('click', () => { severity[name] = 'moderate'; md.classList.add('on'); sv.classList.remove('on'); });
+        // `.on` and aria-checked flip together; a screen reader hears the same pick the eye sees.
+        const pick = (onBtn, offBtn) => {
+          onBtn.classList.add('on'); onBtn.setAttribute('aria-checked', 'true');
+          offBtn.classList.remove('on'); offBtn.setAttribute('aria-checked', 'false');
+        };
+        sv.addEventListener('click', () => { severity[name] = 'severe'; pick(sv, md); });
+        md.addEventListener('click', () => { severity[name] = 'moderate'; pick(md, sv); });
       });
     };
     const wireChip = (ch) => ch.addEventListener('click', () => {
@@ -344,7 +349,7 @@ export const teamDiet = {
   render() {
     const head = backHead('Team Dietary Sheet', 'Every restriction, one screen. Travel-ready.', 'coach-home');
     if (!TD.loaded) {
-      return `${head}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bell', 17)}</div><div><div class="tt">Loading declarations…</div></div></div>`;
+      return `${head}<div class="sidebox"><div class="req-icon b s38">${icon('bell', 17)}</div><div><div class="tt">Loading declarations…</div></div></div>`;
     }
     if (TD.failed) {
       return `${head}
@@ -429,7 +434,7 @@ export const injury = {
 
     <div style="height:12px"></div>
     <div class="sidebox">
-      <div class="req-icon p" style="width:38px;height:38px">${icon('lock', 17)}</div>
+      <div class="req-icon p s38">${icon('lock', 17)}</div>
       <div><div class="tt">Who can see injury details</div>
       <div class="ts">Your report goes to your athletic trainer and coach connection only. Teammates never see it. If something feels urgent (severe pain, a head injury, numbness), tell an adult and get care first; the app comes second.</div></div>
     </div>
@@ -462,7 +467,7 @@ export const coachVoice = {
       <div class="lrow" style="cursor:default">
         <div class="lic" style="background:rgba(var(--purple-rgb),0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div>
         <div class="lm"><div class="lt">Coach your AI</div><div class="ls">${enabled ? 'On: always labeled as AI, never signed as you' : 'Off: the AI uses its neutral default voice'}</div></div>
-        <div class="seg" style="width:104px" id="cv-enabled"><button class="${enabled ? 'on' : ''}">On</button><button class="${enabled ? '' : 'on'}">Off</button></div>
+        <div class="seg" style="width:104px" id="cv-enabled" role="radiogroup" aria-label="Coach your AI"><button role="radio" aria-checked="${enabled}" class="${enabled ? 'on' : ''}">On</button><button role="radio" aria-checked="${!enabled}" class="${enabled ? '' : 'on'}">Off</button></div>
       </div>
     </section>
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">Shapes every AI Nutritionist surface: meal analyses, thread replies, answers to your questions, and nudges.</div>
@@ -477,7 +482,7 @@ export const coachVoice = {
     <div class="chip-row" id="cv-length">${chip(length === 'brief', 'Brief', 'length', 'brief')}${chip(length === 'standard', 'Standard', 'length', 'standard')}${chip(length === 'detailed', 'Detailed', 'length', 'detailed')}</div>
 
     <h2 class="eyebrow">Your instructions · optional</h2>
-    <textarea id="cv-instructions" class="ob-input" maxlength="500" rows="3" style="min-height:76px;resize:vertical" placeholder="e.g. Always push vegetables. Keep advice tied to our 4-meal structure. Talk like a strength coach, not a dietitian.">${esc(cv.instructions || '')}</textarea>
+    <textarea id="cv-instructions" class="ob-input" maxlength="500" rows="3" style="min-height:76px;resize:vertical" aria-label="Your instructions for the AI Nutritionist" placeholder="e.g. Always push vegetables. Keep advice tied to our 4-meal structure. Talk like a strength coach, not a dietitian.">${esc(cv.instructions || '')}</textarea>
     <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin:6px 2px 0;line-height:1.4">Style guidance only. It can never change numbers, add requirements, or unlock medical advice.</div>
 
     <h2 class="eyebrow">Phrases the AI may echo · tap to approve</h2>
@@ -490,11 +495,11 @@ export const coachVoice = {
     </section>
 
     <h2 class="eyebrow">Never say · comma-separated</h2>
-    <input id="cv-prohibited" class="ob-input" maxlength="200" placeholder="e.g. skinny, fat, lazy" value="${esc(cv.prohibited || '')}" />
+    <input id="cv-prohibited" class="ob-input" maxlength="200" placeholder="e.g. skinny, fat, lazy" aria-label="Words the AI must never say, comma-separated" value="${esc(cv.prohibited || '')}" />
 
     <div style="height:14px"></div>
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
+      <div class="req-icon b s38">${icon('shield', 17)}</div>
       <div><div class="tt">Hard limits</div>
       <div class="ts">Every AI message is labeled as AI and never signed as you. It reinforces rulings you already made, in your tone. It never creates requirements, changes deadlines, alters scores, or gives medical advice. New coaching always comes from you.</div></div>
     </div>
@@ -505,7 +510,7 @@ export const coachVoice = {
   mount(root) {
     const saved = () => {
       const el = root.querySelector('#cv-status');
-      if (el) { el.textContent = 'Saved.'; setTimeout(() => { if (el.textContent === 'Saved.') el.textContent = ''; }, 1400); }
+      if (el) { el.textContent = 'Saved'; setTimeout(() => { if (el.textContent === 'Saved') el.textContent = ''; }, 1400); }
     };
     const seg = root.querySelector('#cv-enabled');
     if (seg) {
@@ -563,7 +568,7 @@ export const trustPassPolicy = {
 
     <div style="height:10px"></div>
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
+      <div class="req-icon b s38">${icon('shield', 17)}</div>
       <div><div class="tt">How a Trust Pass works</div>
       <div class="ts">A pass lets a proven ${trainer ? 'client' : 'athlete'} skip the photo for a meal, or a whole weekend, and credits their trailing nutrition median instead. You grant it by hand from ${trainer ? 'a client’s' : 'an athlete’s'} profile, and only after they've photo-logged a meal on <b>${p.eligibility_days}</b> separate days. The server checks that every time, so a pass can never be earned from nothing.</div></div>
     </div>
@@ -607,7 +612,7 @@ export const weekPattern = {
 
     <div style="height:10px"></div>
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('clock', 17)}</div>
+      <div class="req-icon b s38">${icon('clock', 17)}</div>
       <div><div class="tt">How this is used</div>
       <div class="ts">A requirement you tag as <b>training-only</b> or <b>rest-only</b> in the standards editor applies only on those days. On a rest day, training-only meals simply aren’t required; they don’t count against the athlete’s score. Leave every day “Training” for no change.</div></div>
     </div>
@@ -655,7 +660,7 @@ export const safety = {
 
     <h2 class="eyebrow">What happens on a flag</h2>
     <div class="sidebox" style="border-color:var(--purple-border)">
-      <div class="req-icon p" style="width:38px;height:38px">${icon('heart', 17)}</div>
+      <div class="req-icon p s38">${icon('heart', 17)}</div>
       <div><div class="tt">A quiet conversation, not a penalty</div>
       <div class="ts">Scoring pauses so the number can't feed the pattern. You and a parent get a private “worth a check-in” note with talking points. The athlete is never shamed, ranked, or flagged publicly.</div></div>
     </div>

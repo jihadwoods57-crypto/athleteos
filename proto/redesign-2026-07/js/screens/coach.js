@@ -1,7 +1,8 @@
 import { S, RT, act, fmtClock, nutritionConfigForGoal, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
 import { accentVar, scoreColor, ON_STANDARD, qualityAccent } from '../score-band.js';
-import { backHead, titleHead, esc, safeImg, composer, sparkline, emptyState, errorState, skeletonRows, emailVerifyBanner, wireEmailVerifyBanner, copyText, scoreRing } from '../components.js';
+import { backHead, titleHead, esc, safeImg, composer, sparkline, emptyState, errorState, skeletonRows, emailVerifyBanner, wireEmailVerifyBanner, copyText, scoreRing, sayStatus } from '../components.js';
+import { DAYS_SHORT } from '../fmt-date.js';
 import {
   attachedPhoto, isPhotoOnly, wireComposerAttach, postChatMessage,
   bubblePhotoHtml, hydrateThreadPhotos,
@@ -94,8 +95,8 @@ export const coachAssign = {
     </div>` : `
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:2px 2px 0">${practice ? 'Clients loading… everyone works right away.' : 'Roster loading… team-wide works right away.'}</div>`}
 
-    <h2 class="eyebrow">What</h2>
-    <input id="as-title" class="ob-input" maxlength="80" placeholder="e.g. Extra shake after lift" value="${esc(ASSIGN.title || '')}" />
+    <h2 class="eyebrow" id="as-title-l">What</h2>
+    <input id="as-title" class="ob-input" aria-labelledby="as-title-l" maxlength="80" placeholder="e.g. Extra shake after lift" value="${esc(ASSIGN.title || '')}" />
 
     <h2 class="eyebrow">Proof</h2>
     <div class="chip-row" id="as-proof" role="radiogroup" aria-label="Proof">
@@ -107,8 +108,8 @@ export const coachAssign = {
       ${Object.entries(DUE_CHOICES).map(([id, d]) => chip(ASSIGN.due === id, d.label, 'due', id)).join('')}
     </div>
 
-    <h2 class="eyebrow">Note · optional</h2>
-    <input id="as-note" class="ob-input" maxlength="280" placeholder="Why it matters (they see this)" value="${esc(ASSIGN.note || '')}" />
+    <h2 class="eyebrow" id="as-note-l">Note · optional</h2>
+    <input id="as-note" class="ob-input" aria-labelledby="as-note-l" maxlength="280" placeholder="Why it matters (they see this)" value="${esc(ASSIGN.note || '')}" />
 
     <div style="height:16px"></div>
     <button class="btn" id="as-send">${icon('plus', 18)} ${target ? `Send to ${esc(target.name)}` : ASSIGN.scopeKind === 'position' ? `Send to the ${esc(ASSIGN.scopeValue || '')} room` : 'Send to the whole team'}</button>
@@ -120,7 +121,7 @@ export const coachAssign = {
     loadBook(false, bookKindFor(RT.authRole));
     const say = (msg, isErr) => {
       const el = root.querySelector('#as-status');
-      if (el) { el.style.color = isErr ? 'var(--red)' : 'var(--text-3)'; el.textContent = msg; }
+      if (el) sayStatus(el, msg, { error: !!isErr });
     };
     const keep = () => {
       ASSIGN.title = (root.querySelector('#as-title') || {}).value || '';
@@ -321,8 +322,8 @@ function planStyleDetail(style, knobs) {
   const n = knobs.nutrition;
   const CAL_OPTS = [['exact', 'Exact'], ['range', 'Range'], ['adequacy', 'Adequacy']];
   const PRO_OPTS = [['exact', 'Exact'], ['range', 'Range'], ['off', 'Off']];
-  const seg = (key, opts, cur) => `<div class="seg" data-psk="${key}" style="width:auto">${opts.map(([v, t]) =>
-    `<button class="${cur === v ? 'on' : ''}" data-psv="${v}">${t}</button>`).join('')}</div>`;
+  const seg = (key, opts, cur) => `<div class="seg" data-psk="${key}" role="radiogroup" aria-label="${key === 'calorie' ? 'Calories' : 'Protein'}" style="width:auto">${opts.map(([v, t]) =>
+    `<button type="button" class="${cur === v ? 'on' : ''}" role="radio" aria-checked="${cur === v ? 'true' : 'false'}" data-psv="${v}">${t}</button>`).join('')}</div>`;
   return `
   <div style="border-top:1px solid var(--hairline-soft);padding-top:10px">
     <div class="lrow" style="cursor:default;padding:6px 0"><div class="lm"><div class="lt" style="font-size:12.5px">Calories</div></div>${seg('calorie', CAL_OPTS, n.calorie)}</div>
@@ -404,7 +405,7 @@ export const coachPlan = {
             2026-08-11 when the Trust Pass policy editor became reachable on this book —
             rooms are now the ONLY thing on this page a practice doesn't get. */''}
       <div class="sidebox">
-        <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
+        <div class="req-icon b s38">${icon('lock', 17)}</div>
         <div><div class="tt">Built for teams</div>
         <div class="ts">Position rooms are built around a team roster, and a practice is 1:1, so they don't apply here. Everything else on this page is yours.</div></div>
       </div>
@@ -530,7 +531,7 @@ export const coachPlan = {
           <div class="lm"><div class="lt">${esc(r.name)}</div>
           <div class="ls">${sub}</div></div>
           ${active
-            ? `<button class="btn ghost sm" data-tp="end:${esc(r.athleteId)}" style="width:auto;padding:0 12px;height:30px;font-size:11px;color:var(--red)">End</button>`
+            ? `<button class="btn ghost danger micro" data-tp="end:${esc(r.athleteId)}" style="width:auto">End</button>`
             : `<button class="btn ghost micro" data-go="pass-grant/${esc(r.athleteId)}" style="width:auto">Grant</button>`}
         </div>`;
         }).join('')}
@@ -623,21 +624,21 @@ export const coachPlan = {
         <div style="display:flex;align-items:baseline;gap:14px">
           <div><span id="sg-protein" style="font-size:19px;font-weight:800;font-variant-numeric:tabular-nums">—</span><span style="font-size:11px;font-weight:700;color:var(--text-3)"> g protein</span></div>
           <div><span id="sg-calories" style="font-size:19px;font-weight:800;font-variant-numeric:tabular-nums">—</span><span style="font-size:11px;font-weight:700;color:var(--text-3)"> kcal</span></div>
-          <button class="btn green sm" id="sg-use" style="width:auto;padding:0 16px;height:32px;margin-left:auto">Use these</button>
+          <button class="btn primary sm" id="sg-use" style="width:auto;padding:0 16px;height:32px;margin-left:auto">Use these</button>
         </div>
         <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-top:6px">Open math, not a black box. You approve, then Save writes it.</div>
       </div>
     </section>` : `
     <div style="height:12px"></div>
     <div class="sidebox">
-      <div class="req-icon" style="width:38px;height:38px">${icon('lock', 17)}</div>
+      <div class="req-icon s38">${icon('lock', 17)}</div>
       <div><div class="tt">Weight targets are managed by allowed roles</div>
       <div class="ts">Your role sets protein and calorie targets. Body-weight data and the weight target are visible to the head coach, athletic trainer, and S&amp;C coach.</div></div>
     </div>`}
 
     <div style="height:14px"></div>
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
+      <div class="req-icon b s38">${icon('shield', 17)}</div>
       <div><div class="tt">${cap(noun)} owns the numbers</div>
       <div class="ts">Saving writes these to their plan (athlete_profiles.targets) via the coach_set_goals RPC. Their nutrition scoring is unaffected. The score is always the four honest components.</div></div>
     </div>
@@ -667,7 +668,7 @@ export const coachPlan = {
     root.querySelectorAll('[data-tp]').forEach(b => b.addEventListener('click', async () => {
       const [, id] = b.getAttribute('data-tp').split(':');
       const status = root.querySelector('#tp-plan-status');
-      const say = (msg, isErr) => { if (status) { status.style.color = isErr ? 'var(--red)' : 'var(--text-3)'; status.textContent = msg; } };
+      const say = (msg, isErr) => { if (status) sayStatus(status, msg, { error: !!isErr }); };
       b.disabled = true; say('Ending…');
       const ok = await roles.endPass(id);
       if (!ok) { b.disabled = false; say('Could not end it. Try again.', true); return; }
@@ -760,7 +761,7 @@ export const coachPlan = {
       };
       const wireDetailToggles = () => {
         root.querySelectorAll('#ps-detail [data-psk] button').forEach((b) => b.addEventListener('click', () => {
-          b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+          b.parentElement.querySelectorAll('button').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b ? 'true' : 'false'); });
           arm();
         }));
       };
@@ -799,7 +800,7 @@ const MEAL_WINDOWS = [{ open: 420, due: 570 }, { open: 720, due: 840 }, { open: 
 let KNOB = null; // { key, meals, lifts, weigh } — v2: recovery is never a knob (see below)
 
 // Weekday short names by JS getDay() index (0 = Sunday) — the one label source for weigh cadence.
-const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DOW_SHORT = DAYS_SHORT;
 const DOW_1 = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 function weighLabel(days) {
   const d = (Array.isArray(days) ? days : []).filter((x) => x >= 0 && x <= 6).sort((a, b) => a - b);
@@ -918,7 +919,7 @@ export function itemsFromKnobs(k) {
   }
   // v2: recovery is part of the standard, not a coach-toggleable item — every standard carries
   // it. The weekly check-in ritual is gone; no item of that kind is ever written again.
-  items.push({ id: 'recovery', title: 'Recovery Check-In', kind: 'recovery', proof: 'form', freq: { type: 'daily' }, window: { due: 1410, label: 'Before bed' } });
+  items.push({ id: 'recovery', title: 'Recovery check-in', kind: 'recovery', proof: 'form', freq: { type: 'daily' }, window: { due: 1410, label: 'Before bed' } });
   return items;
 }
 
@@ -1012,7 +1013,7 @@ export const coachPlanSet = {
       return `
       ${backHead(scopeName, 'View only. Standards are set by the head coach', 'coach-plan')}
       <div class="sidebox">
-        <div class="req-icon b" style="width:38px;height:38px">${icon('eye', 17)}</div>
+        <div class="req-icon b s38">${icon('eye', 17)}</div>
         <div><div class="tt">The standard, as your athletes see it</div>
         <div class="ts">Editing standards is for the head coach, coordinators, and the nutritionist. Ask the head coach if your role should change.</div></div>
       </div>
@@ -1114,9 +1115,9 @@ export const coachPlanSet = {
         <div class="std-chips">${[0, 1, 2, 3, 4, 5, 6, 7].map(n => chip(KNOB.lifts === n, n === 0 ? 'Off' : String(n), 'lifts', n)).join('')}</div>
         ${KNOB.lifts > 0 ? `
         <div class="std-lbl mt">Session name <span style="color:var(--text-3);font-weight:600">· optional</span></div>
-        <input class="ob-input lift-title" maxlength="80" placeholder="e.g. Lower Body A" value="${esc(KNOB.liftTitle || '')}" />
+        <input class="ob-input lift-title" aria-label="Session name" maxlength="80" placeholder="e.g. Lower Body A" value="${esc(KNOB.liftTitle || '')}" />
         <div class="std-lbl mt">What to do <span style="color:var(--text-3);font-weight:600">· optional</span></div>
-        <textarea class="ob-input lift-desc" maxlength="400" rows="2" style="min-height:56px;resize:vertical" placeholder="Squat 3×5, RDL 3×8, lunges, core">${esc(KNOB.liftDesc || '')}</textarea>
+        <textarea class="ob-input lift-desc" aria-label="What to do" maxlength="400" rows="2" style="min-height:56px;resize:vertical" placeholder="Squat 3×5, RDL 3×8, lunges, core">${esc(KNOB.liftDesc || '')}</textarea>
         <div class="std-help">Your athletes see this on their training day and log a quick note against it. Tracked, not scored.</div>` : ''}
         <div class="std-lbl mt">Weigh-ins · season trend, tracked not scored</div>
         <div class="std-chips">${chip(KNOB.weigh === 'off', 'Off', 'weigh', 'off')}${chip(KNOB.weigh === 'daily', 'Daily', 'weigh', 'daily')}${chip(KNOB.weigh === 'custom', 'Specific days', 'weigh', 'custom')}</div>
@@ -1148,7 +1149,7 @@ export const coachPlanSet = {
           <div class="lrow" data-vt-row="tpl-${esc(t.id)}" style="cursor:default;padding-left:0">
             <div class="lm"><div class="lt">${esc(t.name)}</div><div class="ls">${esc(templateLabel(t.kind))}</div></div>
             <button class="btn ghost sm" data-tpl-rename="${esc(t.id)}" aria-label="Rename template" style="width:34px;padding:0;height:30px;flex:none" ${TPL_BUSY ? 'disabled' : ''}>${icon('edit', 15)}</button>
-            <button class="btn ghost sm" data-tpl-del="${esc(t.id)}" style="width:auto;padding:0 10px;height:30px;color:var(--red);margin-left:6px" ${TPL_BUSY ? 'disabled' : ''}>Delete</button>
+            <button class="btn ghost danger micro" data-tpl-del="${esc(t.id)}" style="width:auto;margin-left:6px" ${TPL_BUSY ? 'disabled' : ''}>Delete</button>
           </div>`).join('') || `<div class="ls" style="padding:6px 2px">No templates saved yet.</div>`}
         </div>
         <button class="btn ghost sm" data-knob="tplmanage:1" style="width:auto;padding:0 14px;margin-top:10px">Done managing</button>
@@ -1159,8 +1160,8 @@ export const coachPlanSet = {
         </div>
         ${SHOW_TPL_SAVE ? `
         <div style="display:flex;gap:8px;margin-top:12px">
-          <input class="std-name" id="tpl-name" maxlength="40" placeholder="Template name" style="flex:1" />
-          <button class="btn green sm" id="tpl-save-btn" style="width:auto;padding:0 16px">Save</button>
+          <input class="std-name" id="tpl-name" aria-label="Template name" maxlength="40" placeholder="Template name" style="flex:1" />
+          <button class="btn primary sm" id="tpl-save-btn" style="width:auto;padding:0 16px">Save</button>
         </div>` : ''}
         ${(TPL && TPL.rows && TPL.rows.length) ? `<button class="btn ghost sm" data-knob="tplmanage:1" style="width:auto;padding:0 14px;margin-top:10px">Manage templates</button>` : ''}
         `}
@@ -1246,7 +1247,7 @@ export const coachPlanSet = {
     const value = rawVal ? decodeURIComponent(rawVal).toUpperCase() : null;
     const say = (msg, isErr) => {
       const el = root.querySelector('#set-status');
-      if (el) { el.style.color = isErr ? 'var(--red)' : 'var(--text-3)'; el.textContent = msg; }
+      if (el) sayStatus(el, msg, { error: !!isErr });
     };
     const fromHM = s => { const [h, mm] = String(s || '').split(':').map(Number); return (Number.isFinite(h) && Number.isFinite(mm)) ? h * 60 + mm : null; };
     // Text/time inputs write straight into KNOB — NEVER window.__render() here, or a
@@ -1650,9 +1651,9 @@ function joinRow(q) {
       <div class="jr-acts">
         ${armed ? `
         <button class="btn ghost sm" data-jr-keep="${esc(key)}">Keep</button>
-        <button class="btn sm" data-jr="decline" data-team="${esc(q.teamId)}" data-ath="${esc(q.athlete_id)}" style="background:var(--danger-solid);color:#fff;border:none">Decline</button>` : `
+        <button class="btn danger sm" data-jr="decline" data-team="${esc(q.teamId)}" data-ath="${esc(q.athlete_id)}">Decline</button>` : `
         <button class="btn ghost sm" data-jr-arm="${esc(key)}">Decline</button>
-        <button class="btn green sm" data-jr="approve" data-team="${esc(q.teamId)}" data-ath="${esc(q.athlete_id)}">Approve</button>`}
+        <button class="btn primary sm" data-jr="approve" data-team="${esc(q.teamId)}" data-ath="${esc(q.athlete_id)}">Approve</button>`}
       </div>
       <div class="jr-err"></div>
     </div>`;
@@ -1751,11 +1752,11 @@ export const coachInbox = {
     <h2 class="eyebrow">Daily briefing · from your real roster</h2>
     <section class="card ib-brief${rows && !rows.length ? ' tap' : ''}"${rows && !rows.length ? ` data-go="${codeRoute()}"` : ''}>
       ${briefing}
-      ${rows && !rows.length && RT.team && RT.team.code ? `<div class="acts"><button class="btn ghost sm" id="inbox-copy-code" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.team.code)}</button><button class="btn green sm" id="inbox-share-code" style="width:auto;padding:0 14px">Share code</button></div>` : ''}
+      ${rows && !rows.length && RT.team && RT.team.code ? `<div class="acts"><button class="btn ghost sm" id="inbox-copy-code" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.team.code)}</button><button class="btn primary sm" id="inbox-share-code" style="width:auto;padding:0 14px">Share code</button></div>` : ''}
     </section>` : ''}
 
-    <div class="co-seg co-scroll" id="inbox-cat-row">
-      ${inboxCategories().map(([key, label]) => `<button class="co-chip ${INBOX_CAT === key ? 'on' : ''}" data-icat="${key}">${esc(key === 'athletes' && CD.kind === 'practice' ? 'Clients' : label)} <span class="cnt">${out.counts[key]}</span></button>`).join('')}
+    <div class="co-seg co-scroll" id="inbox-cat-row" role="radiogroup" aria-label="Inbox category">
+      ${inboxCategories().map(([key, label]) => `<button type="button" class="co-chip ${INBOX_CAT === key ? 'on' : ''}" role="radio" aria-checked="${INBOX_CAT === key ? 'true' : 'false'}" data-icat="${key}">${esc(key === 'athletes' && CD.kind === 'practice' ? 'Clients' : label)} <span class="cnt">${out.counts[key]}</span></button>`).join('')}
     </div>
 
     ${isNeedsResponse && pending.length ? `
@@ -1898,7 +1899,7 @@ export const copilot = {
           <span class="rs" style="color:${scoreColor(r.score)}">${r.score != null ? r.score : '—'}</span>
         </div>`).join('')}
     </section>` : `
-    <div class="sidebox"><div class="req-icon g" style="width:38px;height:38px">${icon('check', 17)}</div>
+    <div class="sidebox"><div class="req-icon g s38">${icon('check', 17)}</div>
     <div><div class="tt">Nobody below the bar</div><div class="ts">Every logged athlete is at 80+. Check back after tonight's logs.</div></div></div>`}
     <div style="height:10px"></div>
     `;
@@ -2003,7 +2004,7 @@ function breakdownBlock(P, athleteId) {
   const mapped = { date: row.date, meals: row.meals || {}, checkin: row.checkin || {}, quickAdded: row.quick_added || [], hydrationL: row.hydration_l || 0, weight: row.current_weight };
   const day = dayFromHistoryRow(mapped, cfg);
   if (!day) return `
-  <div class="sidebox" style="margin-top:4px"><div class="req-icon b" style="width:38px;height:38px">${icon('info', 17)}</div>
+  <div class="sidebox" style="margin-top:4px"><div class="req-icon b s38">${icon('info', 17)}</div>
   <div><div class="tt">Breakdown unavailable</div><div class="ts">This day was logged before detailed scoring data was captured, so it can't be broken down. Their score still stands.</div></div></div>`;
   const slots = std ? std.slots : MEAL_KEYS;
   // Judge "open/overdue/due" in the ATHLETE's local day (timezone), falling back to coach clock.
@@ -2117,7 +2118,7 @@ function todayBlock(P, athleteId) {
   // deep in numbers before the coach read anything.
   const requiredIn = Math.max(0, denom - openSlots.length);
   return `
-    ${!day ? `<div class="sidebox" style="margin-top:14px"><div class="req-icon a" style="width:38px;height:38px">${icon('clock', 17)}</div>
+    ${!day ? `<div class="sidebox" style="margin-top:14px"><div class="req-icon a s38">${icon('clock', 17)}</div>
     <div><div class="tt">No logs today yet</div><div class="ts">Nothing to review. They haven't logged. Their day appears here as they log it.</div></div></div>`
     : `
     <h2 class="eyebrow">Today's proof${todayMeals.length ? '' : ' · none yet'}</h2>
@@ -2231,9 +2232,7 @@ function activitySection(P) {
   items.sort((x, y) => y.ts - x.ts);
   if (!items.length) return `
   ${TLOGS.error ? `<div class="co-note warn">Training logs couldn't load just now. Reopen the page to retry.</div>` : ''}
-  <div class="co-empty"><div class="ic">${icon('clock', 24)}</div>
-  <div class="tt">No activity in the last 30 days</div>
-  <div class="ts">Meal logs, weigh-ins, check-ins, and your own actions land here as they happen.</div></div>`;
+  ${emptyState({ icon: 'clock', title: 'No activity in the last 30 days', body: 'Meal logs, weigh-ins, check-ins, and your own actions land here as they happen.' })}`;
   return `
   <h2 class="co-eyebrow">Last 30 days</h2>
   ${TLOGS.error ? `<div class="co-note warn">Training logs couldn't load just now, so they're missing from this list. Reopen the page to retry.</div>` : ''}
@@ -2359,7 +2358,7 @@ function requirementsSection(P, athleteId) {
 let FMEM = { id: null, items: null, places: [] };
 function foodMemSection(P, athleteId) {
   if (FMEM.id !== athleteId || (FMEM.items === null && !FMEM.error)) {
-    return `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('utensils', 17)}</div>
+    return `<div class="sidebox"><div class="req-icon b s38">${icon('utensils', 17)}</div>
     <div><div class="tt">Loading their saved meals…</div><div class="ts">What they eat repeatedly, learned from their logging.</div></div></div>`;
   }
   // A failed read is a failed read — this used to coerce {error} to [] and render the
@@ -2386,10 +2385,10 @@ function foodMemSection(P, athleteId) {
     ${items.map((it) => {
       const pl = it.place_id ? placeName(it.place_id) : null;
       return `<div class="bd-row" style="display:flex;align-items:center;gap:12px">
-      <div class="req-icon b" style="width:38px;height:38px;flex:none">${icon(it.kind === 'supplement' ? 'bolt' : 'utensils', 17)}</div>
+      <div class="req-icon b s38" style="flex:none">${icon(it.kind === 'supplement' ? 'bolt' : 'utensils', 17)}</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:14px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.name)}</div>
-        <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-top:2px">${it.protein || 0}g protein · ${it.kcal || 0} cal${pl ? ` · ${esc(pl)}` : ''}${it.times_logged > 1 ? ` · logged ${it.times_logged}×` : ''}</div>
+        <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-top:2px">${it.protein || 0}g protein · ${it.kcal || 0} kcal${pl ? ` · ${esc(pl)}` : ''}${it.times_logged > 1 ? ` · logged ${it.times_logged}×` : ''}</div>
       </div>
       ${it.verified_at
         ? `<span class="bd-weight" style="color:var(--green-bright);flex:none;display:inline-flex;align-items:center;gap:4px">${icon('check', 12)} Verified</span>`
@@ -2417,7 +2416,7 @@ function notesSection(P) {
       ${NOTE_DEL === n.id ? `
       <div style="display:flex;gap:6px;flex:none;align-items:center">
         <button class="btn ghost micro" data-del-note-cancel="1" style="width:auto">Keep</button>
-        <button class="btn sm" data-del-note-confirm="${esc(n.id)}" style="width:auto;padding:0 10px;height:30px;background:var(--danger-solid);color:#fff;border:none">Delete</button>
+        <button class="btn danger micro" data-del-note-confirm="${esc(n.id)}" style="width:auto">Delete</button>
       </div>` : `
       <button class="co-abtn" data-del-note="${esc(n.id)}" style="flex:none;width:36px;height:36px;padding:0" aria-label="Delete note">${icon('x', 15)}</button>`}
     </div>`).join('')}
@@ -2427,10 +2426,10 @@ function notesSection(P) {
 
   <h2 class="co-eyebrow">Add a note</h2>
   <section class="card" style="padding:var(--s3) var(--s4)">
-    <textarea id="cn-input" rows="3" maxlength="1000" placeholder="Something worth remembering about this athlete…"
+    <textarea id="cn-input" aria-label="New note" aria-describedby="cn-err" rows="3" maxlength="1000" placeholder="Something worth remembering about this athlete…"
       style="display:block;width:100%;box-sizing:border-box;border-radius:var(--r-chip);background:var(--surface-2);border:1.5px solid var(--hairline);color:var(--text);font-family:var(--font);font-size:14px;font-weight:600;line-height:1.5;padding:11px 13px;outline:none;resize:none"></textarea>
     <div id="cn-err" style="font-size:12px;font-weight:700;color:var(--amber-bright);min-height:0;margin:6px 0"></div>
-    <button class="btn green sm" id="cn-save">Save note</button>
+    <button class="btn primary sm" id="cn-save">Save note</button>
   </section>`;
 }
 
@@ -2449,7 +2448,7 @@ export const coachAthlete = {
     const P = CD.profile;
     if (!P || P.athleteId !== athleteId) {
       return `${backHead(who.name, (who.unit ? `${esc(who.unit)} · ` : '') + opView, opBack)}
-      <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('user', 17)}</div>
+      <div class="sidebox"><div class="req-icon b s38">${icon('user', 17)}</div>
       <div><div class="tt">Loading their profile…</div><div class="ts">Pulling today's real score and logged meals.</div></div></div>`;
     }
     const name = (P.row && P.row.name) || who.name;
@@ -2510,8 +2509,8 @@ export const coachAthlete = {
     <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:0 0 4px">This exact message goes to them, from "${esc(S.operatorIdentity.handle)} is waiting".</div>` : ''}
     <div id="tp-status" style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);min-height:0"></div>
 
-    <div class="co-seg co-scroll co-tabs" id="psec-row">
-      ${profileSections().map(([key, label]) => `<button class="co-chip ${PSECTION === key ? 'on' : ''}" data-psec="${key}">${esc(label)}</button>`).join('')}
+    <div class="co-seg co-scroll co-tabs" id="psec-row" role="radiogroup" aria-label="Profile section">
+      ${profileSections().map(([key, label]) => `<button type="button" class="co-chip ${PSECTION === key ? 'on' : ''}" role="radio" aria-checked="${PSECTION === key ? 'true' : 'false'}" data-psec="${key}">${esc(label)}</button>`).join('')}
     </div>
 
     ${body}
@@ -2635,13 +2634,15 @@ export const coachAthlete = {
     if (cnSave && cnInput) cnSave.addEventListener('click', async () => {
       const body = (cnInput.value || '').trim();
       if (cnErr) cnErr.textContent = '';
-      if (!body) { if (cnErr) cnErr.textContent = 'Write something first.'; return; }
+      cnInput.removeAttribute('aria-invalid');
+      const cnFail = (m) => { if (cnErr) cnErr.textContent = m; cnInput.setAttribute('aria-invalid', 'true'); };
+      if (!body) { cnFail('Write something first.'); return; }
       const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
-      if (!teamId) { if (cnErr) cnErr.textContent = "Couldn't save. No team found."; return; }
+      if (!teamId) { cnFail("Couldn't save. No team found."); return; }
       cnSave.disabled = true;
       const r = await roles.postCoachNote(teamId, athleteId, body, CD.kind);
       cnSave.disabled = false;
-      if (!r.ok) { if (cnErr) cnErr.textContent = r.error || "Couldn't save. Try again."; return; }
+      if (!r.ok) { cnFail(r.error || "Couldn't save. Try again."); return; }
       cnInput.value = '';
       loadAthleteProfile(athleteId, true);
     });
@@ -2803,7 +2804,7 @@ export const coachMeal = {
     // No ⋯ until the thread is up: every action behind it needs the loaded meal, and a control
     // that is visible before it can work is worse than one that arrives a beat later.
     if (!MC || MC.mealId !== mealId) {
-      return `${backHead(title, `Your comment lands on the ${CD.noun}’s log`, backTo)}<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('message', 17)}</div>
+      return `${backHead(title, `Your comment lands on the ${CD.noun}’s log`, backTo)}<div class="sidebox"><div class="req-icon b s38">${icon('message', 17)}</div>
       <div><div class="tt">Loading the thread…</div><div class="ts">Reading the athlete’s comments on this meal.</div></div></div>`;
     }
     const head = backHead(title, `Your comment lands on the ${CD.noun}’s log`, backTo,
@@ -2893,7 +2894,7 @@ export const coachMeal = {
           <span class="conf-dot ${esc(d.confidence || 'high')}"></span>
           <span class="fr-name">${esc(d.name)}</span>
           <span class="fr-qty">${d.quantity ? esc(d.quantity) : ''}</span>
-          <button class="cm-rm" data-cm-rm="${esc(d.name)}" aria-label="Remove ${esc(d.name)} from this read"${dis}>${icon('x', 13)}</button>
+          <button type="button" class="cm-rm" data-cm-rm="${esc(d.name)}" aria-label="Remove ${esc(d.name)} from this read"${dis}>${icon('x', 13)}</button>
         </div>`).join('') : `<div class="est-note">No itemized foods on this read, so there is nothing to remove. The portion check below still works.</div>`}
         <h2 class="eyebrow" style="margin:12px 0 8px">Portion check · the whole plate</h2>
         <div class="fx-chips">
@@ -3313,7 +3314,7 @@ export const coachMeal = {
       // athlete's device applies through its own correction engines.
       const text = confirmOnly
         ? `Reviewed the read: ${r.summary}.`
-        : `Corrected the read: ${r.summary}. Now ~${r.meta.protein}g protein · ~${r.meta.kcal} cal.`;
+        : `Corrected the read: ${r.summary}. Now ~${r.meta.protein}g protein · ~${r.meta.kcal} kcal.`;
       await roles.postMealComment(sub, row.athlete_id, RT.userId, 'coach', text, 'message', { t: 'pro_correction', c: payload });
       if (!confirmOnly) {
         MEAL.row = {
@@ -3463,7 +3464,7 @@ export const parent = {
 
     <div style="height:12px"></div>
     <div class="sidebox" data-tour="visibility">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
+      <div class="req-icon b s38">${icon('lock', 17)}</div>
       <div><div class="tt">What you can see</div>
       <div class="ts">Their daily score and grade, and the date of their latest logged day; that's the whole view. Meal photos, weight, and check-in answers stay between your athlete and their coach.</div></div>
     </div>
@@ -3585,7 +3586,7 @@ export const inviteParent = {
     return `
     ${backHead('Invite a parent', 'They see your score & streak')}
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
+      <div class="req-icon b s38">${icon('lock', 17)}</div>
       <div><div class="tt">What they'll see</div>
       <div class="ts">Your daily score, streak, and completion. Never your meal photos, weight, or check-in answers.</div></div>
     </div>
@@ -3648,7 +3649,7 @@ export const parentLink = {
     return `
     ${backHead('Link an athlete', 'Enter their invite code')}
     <div style="height:8px"></div>
-    <input id="pl-code" class="ob-input" type="text" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="Invite code" aria-label="Invite code" style="text-transform:uppercase;letter-spacing:0.12em">
+    <input id="pl-code" class="ob-input" type="text" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="Invite code" aria-label="Invite code" aria-describedby="pl-err" style="text-transform:uppercase;letter-spacing:0.12em">
     <div id="pl-err" class="si-err" style="min-height:18px;margin-top:12px"></div>
     <button id="pl-go" class="btn primary">Link athlete</button>
     <div style="height:10px"></div>`;
@@ -3660,12 +3661,13 @@ export const parentLink = {
     const submit = async () => {
       if (btn.disabled) return;
       err.textContent = '';
+      code.removeAttribute('aria-invalid');
       const token = (code.value || '').trim().toUpperCase();
-      if (!token) { err.textContent = 'Enter the invite code.'; return; }
+      if (!token) { err.textContent = 'Enter the invite code.'; code.setAttribute('aria-invalid', 'true'); return; }
       btn.disabled = true; btn.textContent = 'Linking…';
       const r = await act.acceptGuardianInvite(token, 'parent');
       if (r.ok) { window.__go('parent'); }
-      else { err.textContent = r.error || 'Could not link. Check the code.'; btn.disabled = false; btn.textContent = 'Link athlete'; }
+      else { err.textContent = r.error || 'Could not link. Check the code.'; code.setAttribute('aria-invalid', 'true'); btn.disabled = false; btn.textContent = 'Link athlete'; }
     };
     btn.addEventListener('click', submit);
     code.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });

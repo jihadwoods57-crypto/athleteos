@@ -4,7 +4,7 @@
    Everything derives from tokens.css (spacing --s*, semantic hues, blue->teal ring stops). */
 
 /* ---------- shared rhythm ---------- */
-.co-scroll { overflow-x: auto; scrollbar-width: none; }
+.co-scroll { overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
 .co-scroll::-webkit-scrollbar { display: none; }
 /* Rendered as <h2> (2026-09-01, same move as .eyebrow in app.css) — the class carries the look,
    the * reset wipes the UA heading styles. */
@@ -452,7 +452,9 @@
 .co-proof .sc {
   position: absolute; top: 8px; right: 8px; height: 24px; padding: 0 9px;
   display: inline-flex; align-items: center; border-radius: var(--r-pill);
-  background: rgba(7, 11, 20, 0.60); backdrop-filter: blur(8px);
+  /* No blur (2026-09-05): a 0.60 ground on a 116px photo thumbnail is opaque enough for 12.5px
+     numerals on its own, and blur is chrome, not a chip treatment. */
+  background: rgba(7, 11, 20, 0.60);
   font-size: var(--t-sm); font-weight: 800; font-variant-numeric: tabular-nums;
   letter-spacing: var(--num-tight);
 }
@@ -460,7 +462,7 @@
    .mq-badge precedent. On the no-photo placeholder there is no photograph under it, so the
    frozen dark value reads as a grey blob with low-contrast text on the light theme. There, the
    chip sits on a real surface token instead. Caught by shooting light, not by reading the rule. */
-.co-proof .pm.icon .sc { background: var(--surface-1); backdrop-filter: none; }
+.co-proof .pm.icon .sc { background: var(--surface-1); }
 /* Meal scores stay green-or-blue, the same two the old .act-value carried. Amber is this
    system's warning and a 51 on one plate is not a warning. */
 .co-proof .sc.g { color: var(--green-bright); border: 1px solid var(--green-border); }
@@ -523,17 +525,6 @@
 .co-tl-what { font-size: var(--t-base); font-weight: 700; color: var(--text); margin-top:1px; }
 .co-tl-what .sub { color: var(--text-2); font-weight: 600; }
 
-/* ============================================================
-   Intentional empty / honest-pending composition
-   ============================================================ */
-.co-empty { text-align: center; padding: var(--s7) var(--s5); }
-.co-empty .ic {
-  width: 56px; height: 56px; border-radius: var(--r-card-sm); margin: 0 auto var(--s4);
-  display: grid; place-items: center; color: var(--blue-bright);
-  background: var(--blue-surface); border: 1px solid var(--blue-border);
-}
-.co-empty .tt { font-size: var(--t-md); font-weight: 800; letter-spacing: -0.01em; }
-.co-empty .ts { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.55; margin-top:6px; max-width: 30ch; margin-left:auto; margin-right:auto; }
 
 /* ============================================================
    Notes — private, warm-tinted, clearly staff-only
@@ -599,7 +590,7 @@
 /* Chips — borderless filled pills; selection is a tint, not a ring-plus-glow. The transparent
    resting border keeps the on-state border from shifting layout by a pixel. */
 .std-chips { display:flex; flex-wrap:wrap; gap:8px; }
-.std-chip { min-width:44px; min-height:42px; padding:0 16px; display:inline-flex; align-items:center;
+.std-chip { min-width:44px; min-height:44px; padding:0 16px; display:inline-flex; align-items:center;
   justify-content:center; border-radius:var(--r-chip); background:var(--surface-2);
   border:1px solid transparent; color:var(--text-2); font-size:var(--t-base); font-weight:700;
   cursor:pointer; user-select:none;

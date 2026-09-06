@@ -10,8 +10,8 @@
 .bd-row:last-child { border-bottom: none; }
 .bd-top { display:flex; align-items:baseline; justify-content:space-between; }
 .bd-name { font-size: var(--t-md); font-weight: 800; display:flex; align-items:center; gap:8px; }
-.bd-weight { font-size: 11px; font-weight: 700; color: var(--text-3); background: var(--surface-2); padding:2px 8px; border-radius: var(--r-pill); }
-.bd-val { font-size: 15px; font-weight: 800; }
+.bd-weight { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); background: var(--surface-2); padding:2px 8px; border-radius: var(--r-pill); }
+.bd-val { font-size: var(--t-md); font-weight: 800; }
 .bd-val small { color: var(--text-3); font-weight: 700; }
 .bd-bar { height: 7px; border-radius: var(--r-micro); background: var(--surface-3); margin-top:10px; overflow: hidden; }
 /* scaleX, not width. Animating width lays out every frame; the track already clips with
@@ -24,13 +24,13 @@
 .bd-fill.b { background: linear-gradient(90deg, var(--blue-deep), var(--blue)); }
 .bd-fill.c { background: linear-gradient(90deg, var(--cyan-deep), var(--cyan)); }
 .bd-fill.a { background: linear-gradient(90deg, var(--amber-deep), var(--amber)); }
-.bd-note { font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-top:8px; }
+.bd-note { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:8px; }
 .reach { padding:16px; }
 .reach-row { display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom: 1px solid var(--hairline-soft); }
 .reach-row:last-child { border-bottom: none; }
 .reach-row .ic { width: 36px; height: 36px; border-radius: var(--r-chip); display:grid; place-items:center; flex:none; }
-.reach-row .t { flex: 1; font-size: 14.5px; font-weight: 700; }
-.reach-row .gain { font-size: 15px; font-weight: 800; color: var(--green-bright); }
+.reach-row .t { flex: 1; font-size: var(--t-base); font-weight: 700; }
+.reach-row .gain { font-size: var(--t-md); font-weight: 800; color: var(--green-bright); }
 .sidebox { padding:14px 16px; border-radius: var(--r-tile); background: var(--surface-2); border: 1px solid var(--hairline-soft); display:flex; gap:12px; align-items:flex-start; }
 .sidebox .tt { font-size: var(--t-base); font-weight: 800; }
 .sidebox .ts { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:4px; line-height: 1.45; }
@@ -195,7 +195,9 @@
    screen. The stage pads to the gutter so the frame, the check row and the deck share one edge. */
 .cam-confirm .cam-stage { padding: 0 var(--pad-screen); }
 .cc-frame { position: relative; margin: 0 auto; width: 100%; max-width: 100%; border-radius: var(--r-card); overflow: hidden; background: var(--surface-2); }
-.cc-photo { display: block; width: 100%; height: auto; max-height: 56vh; object-fit: cover; }
+/* aspect-ratio reserves the box before the image decodes, so the check row and the deck do not
+   jump down when the photo lands (2026-09-05). cover keeps a portrait plate from letterboxing. */
+.cc-photo { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; max-height: 56vh; object-fit: cover; }
 /* Provenance stamps, ON the photo (founder call). Top-left, absolute, so they cost the image no
    height, and they wrap harmlessly on a narrow phone because nothing below them moves.
    Keeping them here is what lets the header stay two rows instead of three. */
@@ -208,8 +210,10 @@
    white-on-white over exactly the bright plates that broke the transparent version. */
 .cc-badges .status-pill {
   background: rgba(7, 11, 20, 0.80);
-  backdrop-filter: blur(8px);
   color: var(--text);
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .cc-badges .status-pill { -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
 }
 .cc-badges .status-pill.a { color: var(--amber-bright); border-color: var(--amber-border); }
 .cc-badges .status-pill.r { color: var(--red-bright); border-color: var(--red-border); }
@@ -222,10 +226,10 @@
 /* Analysis breakdown rows (WS4): one editable list replaces chips + componentsRead. */
 .food-row { display: flex; align-items: center; gap:10px; padding:10px 0; border-bottom: 1px solid var(--hairline); }
 .food-row:last-of-type { border-bottom: none; }
-.food-row .fr-name { flex: 1; font-size: 14px; font-weight: 700; color: var(--text); }
-.food-row .fr-qty { font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+.food-row .fr-name { flex: 1; font-size: var(--t-base); font-weight: 700; color: var(--text); }
+.food-row .fr-qty { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); }
 .food-row .q { color: var(--amber-bright); font-weight: 800; margin-left:4px; }
-.fr-in { background: var(--surface-2); border: 1px solid var(--hairline); border-radius: var(--r-chip); color: var(--text); font-size: 13.5px; font-weight: 600; padding:8px 10px; min-width: 0; }
+.fr-in { background: var(--surface-2); border: 1px solid var(--hairline); border-radius: var(--r-chip); color: var(--text); font-size: var(--t-base); font-weight: 600; padding:8px 10px; min-width: 0; }
 .fr-in.name { flex: 1; width: 100%; }
 .fr-in.qty { width: 86px; }
 .food-row.fr-add { gap:8px; }
@@ -389,12 +393,12 @@
 .photo-hero.ph-nophoto .ph-grad { display: none; }
 .photo-hero .ph-wait {
   position: absolute; inset: 0 0 44px 0; display: flex; align-items: center; justify-content: center;
-  gap: 7px; font-size: 12.5px; font-weight: 600; color: var(--text-3); pointer-events: none;
+  gap: 7px; font-size: var(--t-sm); font-weight: 600; color: var(--text-3); pointer-events: none;
 }
 .photo-hero .ph-grad { position:absolute; inset:0; background: linear-gradient(180deg, transparent 40%, rgba(5,8,15,0.88)); }
 .photo-hero .ph-meta { position: absolute; left: 16px; bottom: 14px; right: 16px; display:flex; align-items:flex-end; justify-content:space-between; }
-.photo-hero .ph-t { font-size: 19px; font-weight: 800; }
-.photo-hero .ph-s { font-size: 12.5px; font-weight: 700; color: var(--green-bright); margin-top:2px; }
+.photo-hero .ph-t { font-size: var(--t-xl); font-weight: 800; }
+.photo-hero .ph-s { font-size: var(--t-sm); font-weight: 700; color: var(--green-bright); margin-top:2px; }
 /* Aspect-honest hero (coach meal review): the WHOLE plate, uncropped, letterboxed over a blurred
    fill of itself so the card stays composed at any aspect ratio. The fixed 210px cover-crop above
    stays for every other surface. */
@@ -405,30 +409,35 @@
 }
 .photo-hero.full img.ph-full {
   position: relative; display: block; width: 100%; height: auto; max-height: 420px;
-  object-fit: contain; margin: 0 auto;
+  /* A reserved 4:3 box (2026-09-05) so the review screen lays out at its final height before the
+     photo decodes; contain keeps the whole plate visible inside it. */
+  aspect-ratio: 4 / 3; object-fit: contain; margin: 0 auto;
 }
+/* The chip sits on card rows, not on a photograph, so it takes the card's own ground and lift
+   in both themes (2026-09-05). It used to be a frozen near-black disc with blur, which on the
+   light theme was the one black object on the screen. The sweep ring is the identity. */
 .scorechip {
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   width: 62px; height: 62px; border-radius: 50%; position: relative;
-  background: rgba(7,11,20,0.65); backdrop-filter: blur(8px); border: none;
-  box-shadow: 0 0 20px rgba(var(--green-rgb), 0.35);
+  background: var(--surface-1); border: none;
+  box-shadow: var(--sh-card);
 }
 /* The chip's arc is the brand dial (300° gauge, 60° gap at 6 o'clock) drawn with the signature
    --ring-a/b/c sweep — same silhouette as the day score ring and the mark. Status color lives
    on the NUMBER below, never the arc (blue→teal on score surfaces; green is status-only). */
 .scorechip .sc-ring { position: absolute; inset: 0; }
-.scorechip .v { font-family: var(--font-display); font-size: 21px; font-weight: 900; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--green-bright); line-height: 1; }
+.scorechip .v { font-family: var(--font-display); font-size: var(--t-xl); font-weight: 900; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--green-bright); line-height: 1; }
 .scorechip .k { font-size: 8.5px; font-weight: 800; letter-spacing: 0.08em; color: var(--text-2); text-transform: uppercase; margin-top:2px; }
 .foodchips { display: flex; flex-wrap: wrap; gap:8px; }
 .foodchip {
   display: inline-flex; align-items: center; gap:8px; padding:10px 14px; border-radius: var(--r-pill);
-  background: var(--surface-2); border: 1px solid var(--hairline); font-size: 13.5px; font-weight: 700;
+  background: var(--surface-2); border: 1px solid var(--hairline); font-size: var(--t-base); font-weight: 700;
 }
 .foodchip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green-bright); }
 .ai-note { display: flex; gap:12px; padding:16px 16px; border-radius: var(--r-card); background: linear-gradient(120deg, rgba(var(--blue-rgb), 0.10), rgba(var(--teal-rgb), 0.05)); border: 1px solid var(--blue-border); }
-.ai-note .av { width: 34px; height: 34px; border-radius: var(--r-chip); background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); display:grid; place-items:center; color:#fff; flex:none; }
-.ai-note .who { font-size: 11px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--blue-bright); }
-.ai-note p { font-size: 14px; font-weight: 600; line-height: 1.5; margin-top:4px; color: var(--text); }
+.ai-note .av { width: 34px; height: 34px; border-radius: var(--r-chip); background: linear-gradient(150deg, var(--blue), var(--blue-deep)); display:grid; place-items:center; color:var(--ink-on-accent); flex:none; }
+.ai-note .who { font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--blue-bright); }
+.ai-note p { font-size: var(--t-base); font-weight: 600; line-height: 1.5; margin-top:4px; color: var(--text); }
 
 /* ----- The Clarifying Moment (Honest Vision)
    docs/superpowers/specs/2026-07-15-honest-vision-clarifying-moment-design.md
@@ -436,24 +445,31 @@
 .mq-photo { position: relative; height: 128px; border-radius: var(--r-card-sm); overflow: hidden; background-size: cover; background-position: center; border: 1px solid var(--hairline); margin-bottom:14px; }
 .mq-photo .mq-grad { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 30%, rgba(5,8,15,0.82)); }
 .mq-badge { position: absolute; left: 12px; bottom: 11px; display: inline-flex; align-items: center; gap:6px;
-  font-size: 12px; font-weight: 800; color: var(--blue-bright); background: rgba(7,11,20,0.6); backdrop-filter: blur(8px);
+  font-size: var(--t-sm); font-weight: 800; color: var(--blue-bright); background: rgba(7,11,20,0.72);
   border: 1px solid var(--blue-border); border-radius: var(--r-pill); padding:6px 12px; }
-.mq-lead { font-size: 13.5px; font-weight: 600; line-height: 1.5; color: var(--text-2); margin-bottom:16px; }
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .mq-badge { background: rgba(7,11,20,0.6); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+}
+/* Same reason as the camera chips above: light theme's -bright is the deep 700 tuned for a
+   near-white page, and on this deliberately dark chip it went to #2563EB on near-black. The
+   badge keeps the dark theme's blue. The ground decides the ink, and this ground is always dark. */
+:root[data-theme="light"] .mq-badge { color: #60A5FA; }
+.mq-lead { font-size: var(--t-base); font-weight: 600; line-height: 1.5; color: var(--text-2); margin-bottom:16px; }
 .mq-list { display: flex; flex-direction: column; gap:14px; }
 .mq-item { display: block; }
-.mq-q { display: flex; align-items: flex-start; gap:10px; font-size: 15px; font-weight: 800; letter-spacing: -0.01em; color: var(--text); margin-bottom:8px; line-height: 1.35; }
+.mq-q { display: flex; align-items: flex-start; gap:10px; font-size: var(--t-md); font-weight: 800; letter-spacing: -0.01em; color: var(--text); margin-bottom:8px; line-height: 1.35; }
 .mq-n { flex: 0 0 auto; width: 21px; height: 21px; border-radius: 50%; display: grid; place-items: center; margin-top:1px;
-  font-size: 11px; font-weight: 800; color: var(--blue-bright); background: var(--blue-surface); border: 1px solid var(--blue-border); }
+  font-size: var(--t-xs); font-weight: 800; color: var(--blue-bright); background: var(--blue-surface); border: 1px solid var(--blue-border); }
 .mq-input { width: 100%; height: 52px; border-radius: var(--r-card-sm); background: var(--surface-1); border: 1.5px solid var(--hairline);
-  color: var(--text); font-family: var(--font); font-size: 16px; font-weight: 700; padding:0 16px; outline: none; box-sizing: border-box; }
+  color: var(--text); font-family: var(--font); font-size: var(--t-md); font-weight: 700; padding:0 16px; outline: none; box-sizing: border-box; }
 .mq-input:focus { border-color: var(--blue-bright); }
 .mq-input::placeholder { color: var(--text-3); font-weight: 600; }
 .mq-actions { display: flex; flex-direction: column; align-items: center; gap:12px; margin-top:22px; }
 .mq-actions .btn { width: 100%; }
-.mq-skip { background: none; border: none; color: var(--text-2); font-family: var(--font); font-size: 13.5px; font-weight: 700; cursor: pointer; min-height: 44px; }
+.mq-skip { background: none; border: none; color: var(--text-2); font-family: var(--font); font-size: var(--t-base); font-weight: 700; cursor: pointer; min-height: 44px; }
 .mq-err { display: flex; align-items: center; gap:8px; margin-top:12px; padding:12px 14px; border-radius: var(--r-card-sm);
-  background: var(--red-surface); border: 1px solid var(--red-border); color: var(--red-bright); font-size: 13px; font-weight: 700; }
-.mq-note { display: flex; align-items: center; gap:6px; justify-content: center; margin-top:16px; font-size: 11.5px; font-weight: 600; color: var(--text-3); }
+  background: var(--red-surface); border: 1px solid var(--red-border); color: var(--red-bright); font-size: var(--t-sm); font-weight: 700; }
+.mq-note { display: flex; align-items: center; gap:6px; justify-content: center; margin-top:16px; font-size: var(--t-xs); font-weight: 600; color: var(--text-3); }
 
 /* ----- Confirmation ----- */
 .confirm-wrap { display: flex; flex-direction: column; align-items: center; text-align: center; padding-top:26px; }
@@ -469,7 +485,7 @@
 }
 @keyframes popIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .confirm-title { font-size: 26px; font-weight: 800; letter-spacing: var(--title-tight); margin-top:18px; }
-.confirm-sub { font-size: 13.5px; font-weight: 600; color: var(--text-2); margin-top:6px; }
+.confirm-sub { font-size: var(--t-base); font-weight: 600; color: var(--text-2); margin-top:6px; }
 /* ===== The score move (js/score-move.js) =====
    Replaces `.score-move`, which printed the old and new numbers side by side in a hardcoded
    --green-bright at a hardcoded 56px. Two things were wrong with that beyond the raw sizes:
@@ -551,10 +567,10 @@
 .msg { display: flex; gap:10px; max-width: 88%; }
 /* Top-aligned, level with the name label — a tall bubble with a "Read less" control under it
    would otherwise strand a bottom-aligned avatar beside the control instead of the message. */
-.msg .av { width: 30px; height: 30px; border-radius: 50%; flex: none; display: grid; place-items: center; font-size: 11.5px; font-weight: 800; align-self: flex-start; margin-top: 15px; }
+.msg .av { width: 30px; height: 30px; border-radius: 50%; flex: none; display: grid; place-items: center; font-size: var(--t-xs); font-weight: 800; align-self: flex-start; margin-top: 15px; }
 .msg.cont .av { margin-top: 0; }
 .msg.coach .av { background: var(--surface-3); color: var(--text); border: 1px solid var(--hairline); }
-.msg.ai .av { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); color: var(--ink-on-accent); }
+.msg.ai .av { background: linear-gradient(150deg, var(--blue), var(--blue-deep)); color: var(--ink-on-accent); }
 /* ---- Bubbles (design upgrade 2026-08-06) ----
    Nothing added; chrome removed. Every bubble used to carry a visible border on top of its fill,
    which is what made a conversation read as a stack of boxes. Fills alone now carry the identity:
@@ -564,17 +580,17 @@
    between "chat bubble" and "rounded rectangle". (Radius later snapped to var(--r-card-sm).) ---- */
 /* overflow-wrap: one long unbroken token (a pasted URL, a 60-char food name) must break inside
    the bubble, not push it past the thread edge. Shared by all three thread renderers. */
-.msg .bubble { padding:11px 14px 12px; border-radius:var(--r-card-sm); font-size:14.5px; font-weight:600; line-height:1.47; letter-spacing:-0.005em; overflow-wrap:anywhere; }
+.msg .bubble { padding:11px 14px 12px; border-radius:var(--r-card-sm); font-size:var(--t-base); font-weight:600; line-height:1.47; letter-spacing:-0.005em; overflow-wrap:anywhere; }
 .msg.coach .bubble { background: var(--surface-2); border: 1px solid var(--hairline-soft); border-top-left-radius: 6px; }
 .msg.ai .bubble { background: rgba(var(--blue-rgb), 0.09); border: none; border-top-left-radius: 6px; }
 .msg.athlete { align-self: flex-end; flex-direction: row-reverse; }
 /* --ink-on-accent, not #fff: --blue-bright is LIGHT in the dark theme, where white body copy
    on it measured ~2.5:1 (deep audit 2026-08-19). The token flips with the theme. */
-.msg.athlete .bubble { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); color: var(--ink-on-accent); border-top-right-radius: 6px; box-shadow: var(--sh-thumb); }
+.msg.athlete .bubble { background: linear-gradient(150deg, var(--blue), var(--blue-deep)); color: var(--ink-on-accent); border-top-right-radius: 6px; box-shadow: var(--sh-thumb); }
 /* A run of messages from one person tapers: only the first bubble wears the tail. */
 .msg.cont.coach .bubble, .msg.cont.ai .bubble { border-top-left-radius: var(--r-card-sm); }
 .msg.cont.athlete .bubble { border-top-right-radius: var(--r-card-sm); }
-.msg .who { font-size:10.5px; font-weight:800; color: var(--text-3); margin-bottom:5px; margin-left:2px; letter-spacing:0; }
+.msg .who { font-size:var(--t-micro); font-weight:800; color: var(--text-3); margin-bottom:5px; margin-left:2px; letter-spacing:0; }
 
 /* ---- the thread as a conversation (2026-07-28) ----------------------------------------------
    The meal thread stopped being a two-party accountability note and became a group chat: the
@@ -594,15 +610,15 @@
 .facepile .fp { display: flex; flex: none; }
 .facepile .fpav {
   width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
-  font-size: 10.5px; font-weight: 800; color: var(--ink-on-accent); border: 2px solid var(--bg);
+  font-size: var(--t-micro); font-weight: 800; color: var(--ink-on-accent); border: 2px solid var(--bg);
 }
 .facepile .fpav + .fpav { margin-left:-9px; }
-.facepile .fpav.self { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); }
+.facepile .fpav.self { background: linear-gradient(150deg, var(--blue), var(--blue-deep)); }
 .facepile .fpav.other { background: var(--surface-3); color: var(--text); }
-.facepile .fpav.ai { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); }
-.facepile .names { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.facepile .fpav.ai { background: linear-gradient(150deg, var(--blue), var(--blue-deep)); }
+.facepile .names { flex: 1; min-width: 0; font-size: var(--t-sm); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .facepile .names small {
-  display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+  display: block; font-size: var(--t-micro); font-weight: 700; letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--text-3);
 }
 .facepile .chev { flex: none; color: var(--text-3); display: grid; place-items: center; }
@@ -616,7 +632,7 @@
 
 /* The clock, only where time actually passed. */
 .tsep {
-  align-self: center; font-size: 10px; font-weight: 800; letter-spacing: 0.11em;
+  align-self: center; font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.11em;
   text-transform: uppercase; color: var(--text-3); margin:2px 0;
 }
 
@@ -625,7 +641,7 @@
 .msg .rxo {
   position: absolute; right: -4px; bottom: -13px; background: var(--surface-2);
   border: 1px solid var(--hairline); border-radius: var(--r-pill); padding:2px 8px;
-  font-size: 10.5px; font-weight: 700; color: var(--text-2); white-space: nowrap;
+  font-size: var(--t-micro); font-weight: 700; color: var(--text-2); white-space: nowrap;
 }
 .msg.athlete .rxo { right: auto; left: -4px; }
 
@@ -637,7 +653,7 @@
   border-bottom: 2px solid var(--hairline); border-bottom-left-radius: 9px; margin-bottom:6px;
 }
 .msg .quote .qtext {
-  font-size: 10.5px; font-weight: 600; color: var(--text-3); background: var(--surface-2);
+  font-size: var(--t-micro); font-weight: 600; color: var(--text-3); background: var(--surface-2);
   border: 1px solid var(--hairline); border-radius: var(--r-chip); padding:4px 10px;
   max-width: min(240px, 62vw);
   /* Two lines, not one. A single nowrap line cut "That was a double portion of chicken, not
@@ -649,12 +665,12 @@
 }
 .msg .upd {
   /* Its own line: inline, it wedged itself into the first sentence and broke the paragraph. */
-  display: block; width: fit-content; font-size: 9.5px; font-weight: 800; letter-spacing: 0.07em;
+  display: block; width: fit-content; font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.07em;
   text-transform: uppercase; color: var(--blue-bright); background: var(--blue-surface);
   padding:2px 8px; border-radius: var(--r-pill); margin:0 0 6px;
 }
 .msg .esc {
-  display: block; width: fit-content; font-size: 9.5px; font-weight: 800; letter-spacing: 0.07em;
+  display: block; width: fit-content; font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.07em;
   text-transform: uppercase; color: var(--amber-bright); background: var(--amber-surface);
   padding:2px 8px; border-radius: var(--r-pill); margin:0 0 6px;
 }
@@ -672,7 +688,7 @@
 @media (prefers-reduced-motion: reduce) { .msg .tdots span { animation: none; opacity: 0.6; } }
 
 /* "Seen by Coach Brown" - a day receipt stated as one, never a per-message read we do not have. */
-.seen { align-self: flex-start; margin:-4px 0 0 42px; font-size: 10.5px; font-weight: 600; color: var(--text-3); }
+.seen { align-self: flex-start; margin:-4px 0 0 42px; font-size: var(--t-micro); font-weight: 600; color: var(--text-3); }
 
 /* Protein leads the breakdown: it is the number a coach actually sets. */
 .phero {
@@ -680,9 +696,9 @@
   border-radius: var(--r-tile); border: 1px solid var(--blue-border);
   background: linear-gradient(140deg, rgba(var(--blue-rgb), 0.13), var(--surface-1));
 }
-.phero .pv { font-size: 25px; font-weight: 850; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.phero .pk { font-size: 10px; font-weight: 800; letter-spacing: 0.11em; text-transform: uppercase; color: var(--text-3); }
-.phero .pc { margin-left:auto; font-size: 11px; font-weight: 700; color: var(--blue-bright); }
+.phero .pv { font-size: var(--t-2xl); font-weight: 850; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.phero .pk { font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.11em; text-transform: uppercase; color: var(--text-3); }
+.phero .pc { margin-left:auto; font-size: var(--t-xs); font-weight: 700; color: var(--blue-bright); }
 
 /* What is still coming today, striped so it never reads as banked. Without it, 81 of 180g at
    dinner looks like failing when it is squarely on pace. */
@@ -691,7 +707,7 @@
   position: absolute; top: 0; bottom: 0; border-radius: inherit; opacity: 0.5;
   background: repeating-linear-gradient(90deg, rgba(var(--blue-rgb), 0.55) 0 4px, transparent 4px 8px);
 }
-.pace { font-size: 10.5px; font-weight: 600; color: var(--text-3); margin-top:-2px; }
+.pace { font-size: var(--t-micro); font-weight: 600; color: var(--text-3); margin-top:-2px; }
 
 /* Who can read this conversation - disclosure, opened from the facepile. */
 .memsheet {
@@ -707,10 +723,10 @@
 }
 .memsheet.on .ms-card { transform: translateY(0); }
 .memsheet .ms-head { display: flex; align-items: center; gap:10px; margin-bottom:10px; }
-.memsheet .ms-title { font-size: 15px; font-weight: 800; flex: 1; }
+.memsheet .ms-title { font-size: var(--t-md); font-weight: 800; flex: 1; }
 .memsheet .ms-x {
   width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--hairline);
-  background: var(--surface-2); color: var(--text-2); font-size: 17px; line-height: 1;
+  background: var(--surface-2); color: var(--text-2); font-size: var(--t-lg); line-height: 1;
   cursor: pointer; font-family: var(--font); -webkit-appearance: none; appearance: none;
   position: relative;
 }
@@ -725,16 +741,16 @@
 .memsheet .ms-row { display: flex; align-items: center; gap:12px; }
 .memsheet .ms-av {
   width: 34px; height: 34px; border-radius: 50%; flex: none; display: grid; place-items: center;
-  font-size: 12px; font-weight: 800; color: #fff;
+  font-size: var(--t-sm); font-weight: 800; color: #fff;
 }
-.memsheet .ms-av.self, .memsheet .ms-av.ai { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); }
+.memsheet .ms-av.self, .memsheet .ms-av.ai { background: linear-gradient(150deg, var(--blue), var(--blue-deep)); color: var(--ink-on-accent); }
 .memsheet .ms-av.other { background: linear-gradient(150deg, var(--amber), var(--amber-deep)); color: var(--ink-on-accent); }
 .memsheet .ms-txt { display: flex; flex-direction: column; min-width: 0; }
-.memsheet .ms-name { font-size: 13.5px; font-weight: 800; }
-.memsheet .ms-kind { font-size: 11px; font-weight: 600; color: var(--text-3); }
+.memsheet .ms-name { font-size: var(--t-base); font-weight: 800; }
+.memsheet .ms-kind { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); }
 .memsheet .ms-foot {
   margin-top:14px; padding-top:12px; border-top: 1px solid var(--hairline);
-  font-size: 11px; font-weight: 600; color: var(--text-3); line-height: 1.5;
+  font-size: var(--t-xs); font-weight: 600; color: var(--text-3); line-height: 1.5;
 }
 
 /* ===== The message box (reshaped to the phone's own, 2026-09-03) =====
@@ -753,7 +769,9 @@
      coach's 3-button composer pushed Send off-screen (deep audit 2026-08-19). */
   flex: 1; min-width: 0; display: flex; align-items: flex-end; gap:4px;
   min-height: 40px; box-sizing: border-box; padding:4px 4px 4px 14px;
-  border-radius: 21px; border: 1px solid var(--hairline); background: var(--surface-1);
+  /* --r-card (22): at the pill's 40px rest height anything past 20 is already a full round, and
+     22 is the step a grown pill's first 44px keeps round too. Off-scale 21 did the same job. */
+  border-radius: var(--r-card); border: 1px solid var(--hairline); background: var(--surface-1);
   transition: border-color var(--dur-1) var(--ease-out);
 }
 /* Focus is a quieter border, not a ring. The 2px outline focus.css draws for every other text
@@ -766,17 +784,19 @@
   background: transparent; border: 0; outline: none; color: var(--text);
   /* 16px is the phone's own body size in a message box, and the size below which WebKit zooms
      the page on focus. */
-  font-family: var(--font); font-size: 16px; font-weight: 600; line-height: 20px;
+  font-family: var(--font); font-size: var(--t-md); font-weight: 600; line-height: 20px;
   -webkit-appearance: none; appearance: none;
 }
-.composer .field > input { height: 30px; }
+/* min-height, not height: Android's font scaling grows the 16px line past the 20px line box and a
+   fixed 30px clipped the descenders. The box grows with the text instead. */
+.composer .field > input { min-height: 30px; height: auto; line-height: 1.25; }
 /* Grows with its text (js/keyboard.js sets the height off scrollHeight), up to six lines, then
    scrolls inside — the .overflow class is keyboard.js saying it hit the ceiling. */
 .composer textarea { display: block; resize: none; overflow-y: hidden; max-height: 130px; }
 .composer textarea.overflow { overflow-y: auto; }
 .composer .send {
-  width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep));
-  display:grid; place-items:center; color:#fff; cursor:pointer; flex:none;
+  width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(150deg, var(--blue), var(--blue-deep));
+  display:grid; place-items:center; color:var(--ink-on-accent); cursor:pointer; flex:none;
   border: 0; padding:0; margin:0; font-family: var(--font); -webkit-appearance: none; appearance: none;
   transition: opacity var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
 }
@@ -826,10 +846,10 @@
    same fix as .cont-earlier and #ps-apply. */
 .composer-attach-pending[hidden] { display: none; }
 .composer-attach-pending img { width: 40px; height: 40px; border-radius: var(--r-chip); object-fit: cover; flex:none; }
-.composer-attach-pending .cap { flex:1; font-size: 12.5px; font-weight: 700; color: var(--text-2); }
+.composer-attach-pending .cap { flex:1; font-size: var(--t-sm); font-weight: 700; color: var(--text-2); }
 .composer-attach-pending button {
   border:0; background: var(--surface-2); color: var(--text-2); cursor:pointer; flex:none;
-  border-radius: var(--r-chip); padding:6px 12px; font-family: var(--font); font-size: 12px; font-weight: 800;
+  border-radius: var(--r-chip); padding:6px 12px; font-family: var(--font); font-size: var(--t-sm); font-weight: 800;
 }
 /* A photo inside a chat bubble. Capped so a portrait shot cannot push the whole thread offscreen. */
 .msg .bimg {
@@ -848,22 +868,22 @@ input.wv {
   width: 5.2ch; min-width: 0; font-variant-numeric: tabular-nums; caret-color: var(--blue-bright);
 }
 input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
-.weight-display .wu { font-size: 17px; font-weight: 700; color: var(--text-3); }
+.weight-display .wu { font-size: var(--t-lg); font-weight: 700; color: var(--text-3); }
 .stepper { display: flex; align-items: center; justify-content: center; gap:22px; margin-top:14px; }
-.stepper .sbtn { width: 52px; height: 52px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--hairline); display:grid; place-items:center; color: var(--text); font-size: 24px; font-weight: 700; cursor: pointer; }
+.stepper .sbtn { width: 52px; height: 52px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--hairline); display:grid; place-items:center; color: var(--text); font-size: var(--t-2xl); font-weight: 700; cursor: pointer; }
 .trendline { height: 74px; margin-top:8px; }
 
 /* ----- Recovery sliders ----- */
 .rec-field { padding:16px 0 14px; border-bottom: 1px solid var(--hairline-soft); }
 .rec-field:last-child { border-bottom: none; }
 .rec-top { display: flex; justify-content: space-between; align-items: baseline; }
-.rec-name { font-size: 15px; font-weight: 800; }
-.rec-ends { font-size: 11px; font-weight: 700; color: var(--text-3); }
+.rec-name { font-size: var(--t-md); font-weight: 800; }
+.rec-ends { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); }
 .chips5 { display: flex; gap:8px; margin-top:12px; }
 .chips5 .c5 {
   flex: 1; height: 44px; border-radius: var(--r-chip); display: grid; place-items: center;
   background: var(--surface-2); border: 1px solid var(--hairline-soft);
-  font-size: 14px; font-weight: 800; color: var(--text-3); cursor: pointer;
+  font-size: var(--t-base); font-weight: 800; color: var(--text-3); cursor: pointer;
   /* Enumerated, not `all`: `all` is how a later rule quietly starts tweening a layout property. */
   transition: background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out),
     color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
@@ -888,28 +908,28 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .wb .bar {
   position: absolute; left: 0; right: 0; bottom: 0; border-radius: var(--r-chip); min-height: 6px;
   transform-origin: bottom; animation: xf-grow-y var(--dur-ring) var(--ease-out);
-  background: linear-gradient(180deg, var(--blue-bright), var(--blue-deep)); opacity: 0.45;
+  background: linear-gradient(180deg, var(--blue), var(--blue-deep)); opacity: 0.45;
 }
 /* Three bands, and the bottom one is NOT red. A week of red bars reads as panic rather than
    information (the same rule the roster already follows); off-standard days stay calm blue. */
 .wb.b-close .bar { background: linear-gradient(180deg, var(--amber), var(--amber-deep)); opacity: 0.85; }
 .wb.b-on .bar { background: linear-gradient(180deg, var(--green), var(--green-deep)); opacity: 1; box-shadow: 0 0 14px rgba(var(--green-rgb), 0.28); }
 @keyframes xf-grow-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
-.wb .d { font-size: 10.5px; font-weight: 700; color: var(--text-3); text-align: center; }
+.wb .d { font-size: var(--t-micro); font-weight: 700; color: var(--text-3); text-align: center; }
 .consist { display: flex; flex-direction: column; gap:12px; }
 .cons-row { display: flex; align-items: center; gap:12px; }
-.cons-row .k { width: 86px; font-size: 13px; font-weight: 700; color: var(--text-2); flex: none; }
+.cons-row .k { width: 86px; font-size: var(--t-sm); font-weight: 700; color: var(--text-2); flex: none; }
 .cons-row .track { flex: 1; height: 8px; border-radius: var(--r-micro); background: var(--surface-3); overflow: hidden; }
 .cons-row .fillb { height: 100%; border-radius: var(--r-micro); }
-.cons-row .v { width: 42px; text-align: right; font-size: 13.5px; font-weight: 800; flex: none; }
+.cons-row .v { width: 42px; text-align: right; font-size: var(--t-base); font-weight: 800; flex: none; }
 .bigstat { display: flex; align-items: baseline; gap:10px; }
 .bigstat .n { font-size: 44px; font-weight: 800; letter-spacing: -0.04em; }
-.bigstat .d { font-size: 13.5px; font-weight: 700; color: var(--text-2); }
+.bigstat .d { font-size: var(--t-base); font-weight: 700; color: var(--text-2); }
 .bigstat .d.up { color: var(--green-bright); }
 .bigstat .d.down { color: var(--red); }
 .insight { display: flex; gap:12px; padding:16px 16px; border-radius: var(--r-card); background: linear-gradient(120deg, rgba(var(--green-rgb), 0.10), rgba(var(--teal-rgb), 0.04)); border: 1px solid var(--green-border); }
-.insight p { font-size: 14.5px; font-weight: 700; line-height: 1.5; }
-.losttable .lrow2 { display:flex; justify-content:space-between; padding:12px 2px; border-bottom: 1px solid var(--hairline-soft); font-size: 14px; font-weight: 700; }
+.insight p { font-size: var(--t-base); font-weight: 700; line-height: 1.5; }
+.losttable .lrow2 { display:flex; justify-content:space-between; padding:12px 2px; border-bottom: 1px solid var(--hairline-soft); font-size: var(--t-base); font-weight: 700; }
 .losttable .lrow2:last-child { border-bottom: none; }
 .losttable .amt { font-weight: 800; }
 
@@ -917,13 +937,13 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .id-card { display: flex; align-items: center; gap:16px; padding:18px; }
 /* flex:none on the avatar and the Edit button, min-width:0 on the text: without it an unbroken
    name pushed Edit 143px past the right edge, so the only way to fix a wrong name was gone. */
-.id-card .big-av { width: 62px; height: 62px; border-radius: 50%; background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); display:grid; place-items:center; font-size: 22px; font-weight: 800; color: #fff; box-shadow: var(--sh-blue); flex: none; }
+.id-card .big-av { width: 62px; height: 62px; border-radius: 50%; background: linear-gradient(150deg, var(--blue), var(--blue-deep)); display:grid; place-items:center; font-size: 22px; font-weight: 800; color: var(--ink-on-accent); box-shadow: var(--sh-blue); flex: none; }
 .id-card .id-txt { flex: 1; min-width: 0; }
 .id-card .btn { flex: none; }
-.id-card .nm { font-size: 19px; font-weight: 800; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.id-card .nm { font-size: var(--t-xl); font-weight: 800; letter-spacing: -0.01em; overflow-wrap: anywhere; }
 /* Two lines each for sport and school: a 45-character school name turned the header into a
    six-line block that shoved the rest of Profile down the screen. */
-.id-card .meta { font-size: 13px; font-weight: 600; color: var(--text-2); margin-top:4px; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.id-card .meta { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:4px; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 /* The photo's own actions sit under the identity lines, in the card, same voice as .meta-add:
    a text action, not a pill. Bare-text button at the 24px inline floor (the row is not the only
    target: the 44px camera badge on the avatar is the primary control). */
@@ -934,10 +954,10 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .lb-row { display: flex; align-items: center; gap:14px; padding:14px 16px; border-bottom: 1px solid var(--hairline-soft); }
 .lb-row:last-child { border-bottom: none; }
 .lb-row.you { background: rgba(var(--blue-rgb), 0.10); border-radius: var(--r-card-sm); border: 1px solid var(--blue-border); margin:4px 6px; }
-.lb-rank { width: 26px; font-size: 15px; font-weight: 800; color: var(--text-3); text-align: center; }
+.lb-rank { width: 26px; font-size: var(--t-md); font-weight: 800; color: var(--text-3); text-align: center; }
 .lb-row.you .lb-rank { color: var(--blue-bright); }
-.lb-name { flex: 1; font-size: 14.5px; font-weight: 700; }
-.lb-score { font-size: 16px; font-weight: 800; }
+.lb-name { flex: 1; font-size: var(--t-base); font-weight: 700; }
+.lb-score { font-size: var(--t-md); font-weight: 800; }
 
 /* ----- Connect ----- */
 .code-boxes { display: flex; gap:10px; justify-content: center; padding:8px 0; }
@@ -949,16 +969,16 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .code-boxes .cb.cursor { border-color: var(--blue-bright); box-shadow: 0 0 14px rgba(var(--blue-rgb), 0.25); }
 /* full-width invite code row (7 boxes): flex so they always fit the card, never crush to slivers */
 .code-boxes.invite-code { gap:6px; }
-.code-boxes.invite-code .cb { flex: 1 1 0; min-width: 0; max-width: 46px; height: 46px; font-size: 18px; }
+.code-boxes.invite-code .cb { flex: 1 1 0; min-width: 0; max-width: 46px; height: 46px; font-size: var(--t-lg); }
 /* Owner-side code DISPLAY (Practice HQ, coach code block): the server allows 6-12 chars, and a
    fixed 46px box next to a 104px QR crushed a 12-char code into overlapping slivers with the
    tail clipped. Boxes share the row down to a 28px floor, then wrap into even rows — a 12-char
    code reads as two chunked rows of six, never as broken glyphs. Join-side ENTRY boxes keep the
    fixed size: typing needs a stable target. */
 .code-boxes.fit { gap:6px; flex-wrap: wrap; }
-.code-boxes.fit .cb { flex: 1 1 28px; min-width: 0; max-width: 46px; height: 46px; font-size: 18px; }
+.code-boxes.fit .cb { flex: 1 1 28px; min-width: 0; max-width: 46px; height: 46px; font-size: var(--t-lg); }
 .team-preview { display: flex; align-items: center; gap:14px; padding:16px; }
-.team-preview .tp-av { width: 52px; height: 52px; border-radius: var(--r-card-sm); background: linear-gradient(150deg, var(--amber), var(--amber-deep)); display: grid; place-items: center; font-size: 19px; font-weight: 800; color: var(--ink-on-accent); }
+.team-preview .tp-av { width: 52px; height: 52px; border-radius: var(--r-card-sm); background: linear-gradient(150deg, var(--amber), var(--amber-deep)); display: grid; place-items: center; font-size: var(--t-xl); font-weight: 800; color: var(--ink-on-accent); }
 
 /* ----- Practice HQ (trainer identity + invite loop) ----- */
 .sk { background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%); background-size: 400% 100%; animation: sk-sheen 1.4s var(--ease-in-out) infinite; border-radius: var(--r-chip); }
@@ -969,7 +989,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    the shared card lift so it stops printing a hard black drop on the light theme. */
 .hq-qr { width: 104px; height: 104px; flex: none; background: #fff; border-radius: var(--r-card-sm); padding:8px; box-shadow: var(--sh-card); }
 .hq-qr svg { width: 100%; height: 100%; display: block; }
-.hq-qcap { font-size: 10px; font-weight: 700; text-align: center; color: var(--text-3); margin-top:6px; letter-spacing: 0.02em; }
+.hq-qcap { font-size: var(--t-micro); font-weight: 700; text-align: center; color: var(--text-3); margin-top:6px; letter-spacing: 0.02em; }
 /* currentColor: the spinner wears whatever hue its icon box wears (green on a nutrition HQ,
    purple on a training one) instead of the hardcoded purple that clashed inside the green box. */
 .hq-spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(148,176,224,0.18); border-top-color: currentColor; animation: hq-spin 0.8s linear infinite; }
@@ -978,12 +998,12 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 
 /* ----- Notifications ----- */
 .nhead { display: flex; align-items: center; justify-content: space-between; gap:12px; padding:16px 2px 10px; }
-.nsummary { font-size: 13px; font-weight: 700; color: var(--text-2); display: flex; align-items: center; gap:8px; }
+.nsummary { font-size: var(--t-sm); font-weight: 700; color: var(--text-2); display: flex; align-items: center; gap:8px; }
 .nsummary .cnt { color: var(--text); font-weight: 800; }
 .nsummary.allclear { color: var(--green-bright); display: inline-flex; align-items: center; gap:6px; }
 .markread {
   appearance: none; border: 0; background: transparent; color: var(--blue-bright); font-family: var(--font);
-  font-size: 13px; font-weight: 800; letter-spacing: 0.01em; cursor: pointer; min-height: 44px; padding:0 6px;
+  font-size: var(--t-sm); font-weight: 800; letter-spacing: 0.01em; cursor: pointer; min-height: 44px; padding:0 6px;
   border-radius: var(--r-chip); display: inline-flex; align-items: center;
   transition: color var(--dur-1) var(--ease-out), opacity var(--dur-1) var(--ease-out);
 }
@@ -998,10 +1018,10 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .notif.medium .nic { background: var(--blue-surface); color: var(--blue-bright); }
 .notif.positive .nic { background: var(--green-surface); color: var(--green-bright); }
 .notif.info .nic { background: var(--blue-surface); color: var(--blue-bright); }
-.notif .nt { font-size: 14.5px; font-weight: 800; }
-.notif .nb { font-size: 13px; font-weight: 600; color: var(--text-2); margin-top:4px; line-height: 1.4; }
-.notif .nw { font-size: 11.5px; font-weight: 700; color: var(--text-3); flex: none; }
-.level-tag { display:inline-block; font-size: 9.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; padding:4px 8px; border-radius: var(--r-pill); margin-bottom:6px; }
+.notif .nt { font-size: var(--t-base); font-weight: 800; }
+.notif .nb { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:4px; line-height: 1.4; }
+.notif .nw { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); flex: none; }
+.level-tag { display:inline-block; font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; padding:4px 8px; border-radius: var(--r-pill); margin-bottom:6px; }
 .level-tag.high { background: rgba(var(--amber-rgb), 0.16); color: var(--amber-bright); }
 .level-tag.critical { background: var(--red-surface); color: var(--red); }
 .level-tag.medium { background: var(--blue-surface); color: var(--blue-bright); }
@@ -1038,11 +1058,8 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 }
 .ne-ring { width: 74px; height: 74px; margin:0 auto 16px; border-radius: 50%; display: grid; place-items: center; background: var(--green-surface); color: var(--green-bright); position: relative; }
 .ne-ring::after { content: ""; position: absolute; inset: -7px; border-radius: 50%; border: 1px solid var(--green-border); opacity: 0.5; }
-.ne-t { font-size: 17px; font-weight: 800; letter-spacing: var(--title-tight); }
-.ne-s { font-size: 13px; font-weight: 600; color: var(--text-2); margin-top:8px; line-height: 1.5; max-width: 34ch; margin-left:auto; margin-right:auto; }
-.ne-list { margin:18px auto 2px; max-width: 250px; display: flex; flex-direction: column; gap:10px; text-align: left; }
-.ne-item { display: flex; align-items: center; gap:10px; font-size: 12.5px; font-weight: 700; color: var(--text-2); }
-.ne-d { width: 26px; height: 26px; border-radius: var(--r-chip); display: grid; place-items: center; flex: none; background: var(--surface-2); color: var(--text-3); }
+.ne-t { font-size: var(--t-lg); font-weight: 800; letter-spacing: var(--title-tight); }
+.ne-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:8px; line-height: 1.5; max-width: 34ch; margin-left:auto; margin-right:auto; }
 
 /* ----- Plan tabs (underline style) ----- */
 /* Four tabs at gap:22px overflow a 390px screen by ~6px, so "Memory" touched the right edge with
@@ -1064,8 +1081,11 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 
 /* An empty identity line ("Add your sport") is a control, not a caption — give it the tap
    affordance it was already promising. */
-.meta-add { color: var(--blue-bright); cursor: pointer; display: inline-flex; align-items: center; gap:4px; min-height: 24px; }
-.meta-add::after { content: '›'; font-weight: 800; opacity: .7; }
+/* 44px tall for the thumb, pulled back with negative margin so the identity block keeps its
+   24px line. The chevron rides ::before with order:1 (visually trailing) because focus.css owns
+   ::after as the 44px hit-area idiom and this element cannot use it. */
+.meta-add { color: var(--blue-bright); cursor: pointer; display: inline-flex; align-items: center; gap:4px; min-height: 44px; margin: -10px 0; }
+.meta-add::before { content: '›'; font-weight: 800; opacity: .7; order: 1; }
 .ptabs .pt { flex: none; scroll-snap-align: start; }
 /* Fluid, not a breakpoint. This was `@media (max-width: 380px)`, which misses 390px — the
    viewport of every iPhone from the 12 to the 15 — by ten pixels, so the strip still overflowed
@@ -1224,7 +1244,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .pw-meter i.on.s3{background:var(--green-bright)}
 .pw-row{position:relative}
 .pw-row .ob-input{padding-right:60px}  /* reserve room for the 44px Show toggle so the placeholder can't run under it */
-.pw-row .pw-eye{position:absolute;right:0;top:50%;transform:translateY(-50%);font-size:12px;font-weight:800;color:var(--text-3);cursor:pointer;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;padding-right:6px}
+.pw-row .pw-eye{position:absolute;right:0;top:50%;transform:translateY(-50%);font-size:var(--t-sm);font-weight:800;color:var(--text-3);cursor:pointer;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;padding-right:6px}
 .lnk{color:var(--blue-bright);font-weight:800;cursor:pointer}
 
 /* ---- execution loop: score strip, NOW card, groups ---- */
@@ -1301,9 +1321,10 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xscore-c + .xscore-c{border-left:1px solid var(--hairline)}
 .xscore-k{display:inline-flex;align-items:center;gap:5px;font-size:var(--t-sm);font-weight:800;line-height:1.25;font-variant-numeric:tabular-nums;color:var(--text)}
 .xscore-k.up{color:var(--green-bright)} .xscore-k.down{color:var(--amber-bright)}
-/* The flame is muted until a streak is actually live — amber on a streak of zero claims
-   something that hasn't happened yet. */
-.xscore-k.streak{color:var(--text-2)} .xscore-k.streak.on{color:var(--amber-bright)}
+/* The flame is muted until a streak is actually live, then it takes the full text colour, NOT
+   amber: amber is this system's warning (DESIGN.md, one meaning per hue) and a live streak is
+   the opposite of one. Weight and the step up from --text-2 carry it. */
+.xscore-k.streak{color:var(--text-2)} .xscore-k.streak.on{color:var(--text)}
 .xscore-s{font-size:var(--t-xs);font-weight:700;color:var(--text-3);line-height:1.2}
 .xscore svg{width:12px;height:12px;flex:none}
 /* honest "+N" when a log just moved the number — floats up off the ring, then retires */
@@ -1329,9 +1350,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .seen-receipt{display:flex;align-items:center;gap:10px;margin:12px 0 0;padding:10px 14px;border-radius:var(--r-card-sm);background:linear-gradient(100deg,var(--green-surface),transparent 80%),var(--surface-1);border:1px solid var(--green-border);animation:seen-in .45s var(--ease-out) backwards}
 @keyframes seen-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .seen-receipt .sic{display:flex;flex:none;color:var(--green-bright)}
-.seen-receipt .stx{font-size:12px;font-weight:700;color:var(--text-2)}
+.seen-receipt .stx{font-size:var(--t-sm);font-weight:700;color:var(--text-2)}
 .seen-receipt .stx b{color:var(--green-bright)}
-.seen-receipt .stm{margin-left:auto;font-size:11px;font-weight:700;color:var(--text-3);font-variant-numeric:tabular-nums;flex:none}
+.seen-receipt .stm{margin-left:auto;font-size:var(--t-xs);font-weight:700;color:var(--text-3);font-variant-numeric:tabular-nums;flex:none}
 /* 0208 — the confirmed-presence receipt. Shares .seen-receipt's row grammar on purpose: the two
    sit together under the score and have to read as one list of receipts, not two competing cards
    in two visual languages. What separates them is the icon and the direction of the wash. The
@@ -1366,14 +1387,14 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xa{font-size:var(--t-base);font-weight:700;letter-spacing:var(--title-tight)}
 .xb{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:2px}
 .xg-row .xr{flex:1;min-width:0}
-.xg-row .xa{font-size:14px;font-weight:700;letter-spacing:-.01em}
+.xg-row .xa{font-size:var(--t-base);font-weight:700;letter-spacing:-.01em}
 .xg-row .xb{font-size:var(--t-xs);color:var(--text-3);margin-top:1px}
 /* ---- ONE NOW system: any NOW card wears the same gold chrome and needs air below the hero. ---- */
 .xnow{margin-top:12px}
 /* ---- Recent Results: lateral snap rail of outcome cards (photo or type-tinted icon,
    labeled numbers). One card anatomy for every type; the next card peeks at the screen
    edge so the swipe is discoverable. ---- */
-.res-rail{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 calc(-1 * var(--pad-screen));padding:2px var(--pad-screen) 8px;scrollbar-width:none}
+.res-rail{display:flex;gap:12px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;margin:0 calc(-1 * var(--pad-screen));padding:2px var(--pad-screen) 8px;scrollbar-width:none}
 .res-rail::-webkit-scrollbar{display:none}
 .res-card{flex:0 0 158px;scroll-snap-align:start;display:flex;flex-direction:column;background:var(--surface-1);border: 1px solid transparent;border-radius:var(--r-card-sm);overflow:hidden;cursor:pointer;transition:transform var(--dur-1) var(--ease-out); box-shadow: var(--sh-card);}
 .res-card:active{transform:scale(0.97)}
@@ -1404,11 +1425,11 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xsegs{display:flex;gap:6px}
 .xsegs i{height:5px;flex:1;border-radius:var(--r-micro);background:var(--surface-3)}
 .xsegs i.on{background:linear-gradient(90deg,var(--green-deep),var(--green))}
-.seglabel{font-size:11.5px;font-weight:700;color:var(--text-2)}
+.seglabel{font-size:var(--t-xs);font-weight:700;color:var(--text-2)}
 .seglabel b{color:var(--text);font-variant-numeric:tabular-nums}
 /* Tiered streak pill (strip) — passive-🔥 stays for a counted/short streak; once a 2+ day
    streak is on the line for TODAY it flips to amber "at risk" or blue "covered". */
-.stk-pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;letter-spacing:.02em;padding:2px 8px;border-radius:var(--r-pill)}
+.stk-pill{display:inline-flex;align-items:center;gap:4px;font-size:var(--t-xs);font-weight:700;letter-spacing:.02em;padding:2px 8px;border-radius:var(--r-pill)}
 .stk-pill svg{width:11px;height:11px}
 .stk-pill.risk{background:var(--amber-surface);color:var(--amber-bright);border:1px solid var(--amber-border)}
 .stk-pill.safe{background:var(--blue-surface);color:var(--blue-bright);border:1px solid var(--blue-border)}
@@ -1419,8 +1440,8 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .streak-ribbon{display:flex;align-items:center;gap:12px;min-height:44px;background:var(--surface-1);border: 1px solid transparent;border-radius:var(--r-card-sm);padding:10px 12px;margin:12px 0 10px;cursor:pointer; box-shadow: var(--sh-card);}
 .streak-ribbon .sr-ic{width:36px;height:36px;border-radius:var(--r-chip);display:grid;place-items:center;flex:0 0 auto}
 .streak-ribbon .sr-body{flex:1;min-width:0}
-.streak-ribbon .sr-t{font-size:13.5px;font-weight:800;letter-spacing:-.01em}
-.streak-ribbon .sr-s{font-size:11.5px;color:var(--text-2);font-weight:600;line-height:1.4;margin-top:1px}
+.streak-ribbon .sr-t{font-size:var(--t-base);font-weight:800;letter-spacing:-.01em}
+.streak-ribbon .sr-s{font-size:var(--t-xs);color:var(--text-2);font-weight:600;line-height:1.4;margin-top:1px}
 .streak-ribbon.strong{background:linear-gradient(150deg,rgba(var(--amber-rgb), 0.14),rgba(var(--amber-rgb), 0.04) 60%),var(--surface-1);border-color:var(--amber-border)}
 .streak-ribbon.strong .sr-ic{background:var(--amber-surface);color:var(--amber-bright)}
 .streak-ribbon.mild{background:var(--surface-2);border-color:var(--hairline-soft)}
@@ -1430,10 +1451,10 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .apphead{position:relative}
 .iconbtn.tp-btn{background:var(--purple-surface);border-color:var(--purple-border);color:var(--purple-bright)}
 .tp-pop{position:absolute;top:calc(100% - 8px);right:0;z-index:60;width:min(300px,84vw);background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:14px 14px;box-shadow:0 18px 44px rgba(0,0,0,0.55);text-align:left;cursor:default}
-.tp-pop .tp-h{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:var(--purple-bright)}
+.tp-pop .tp-h{display:flex;align-items:center;gap:8px;font-size:var(--t-sm);font-weight:700;color:var(--purple-bright)}
 .tp-pop .tp-h b{color:var(--text);font-weight:800}
-.tp-pop .tp-n{font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5;margin-top:6px}
-.tp-pop .tp-link{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:10px;border-top:1px solid var(--hairline-soft);font-size:12.5px;font-weight:800;color:var(--blue-bright);cursor:pointer;min-height:24px}
+.tp-pop .tp-n{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.5;margin-top:6px}
+.tp-pop .tp-link{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:10px;border-top:1px solid var(--hairline-soft);font-size:var(--t-sm);font-weight:800;color:var(--blue-bright);cursor:pointer;min-height:24px}
 /* The NOW card's hue is driven per-item through --now-* custom properties. The card used to be
    amber unconditionally — wash, eyebrow, countdown, CTA — which gave the WARNING hue a daily
    second job as "next action" and desensitised it (see the accent note in home.js nowCard).
@@ -1460,7 +1481,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xnow .xt{font-size:var(--t-xl);font-weight:800;letter-spacing:var(--title-tight)}
 .xnow .xwhy{font-size:var(--t-sm);color:var(--text-2);line-height:1.45;margin-top:2px}
 .xcount{display:flex;align-items:baseline;gap:8px;margin:14px 0 12px}
-.xcount .xcd{font-size:34px;font-weight:800;letter-spacing:var(--num-tight);color:var(--now-ink);font-variant-numeric:tabular-nums}
+.xcount .xcd{font-size:var(--t-3xl);font-weight:800;letter-spacing:var(--num-tight);color:var(--now-ink);font-variant-numeric:tabular-nums}
 .xnow.red .xcd{color:var(--red)}
 .xcount .xdl{font-size:var(--t-sm);color:var(--text-2);font-weight:700}
 /* Overdue has no countdown to run, so it has no numeral: the sentence IS the content ("Was due
@@ -1474,7 +1495,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    Painted red it read as the punishment, which is the last thing you want on the one control a
    struggling athlete needs to press. (The amber card keeps its amber CTA: there, amber is the
    card's own identity, not a judgement about the athlete.) */
-.xnow.red .xcta{background:linear-gradient(150deg,var(--blue-bright),var(--blue-deep));color:#fff;box-shadow:var(--sh-blue)}
+.xnow.red .xcta{background:linear-gradient(150deg,var(--blue),var(--blue-deep));color:var(--ink-on-accent);box-shadow:var(--sh-blue)}
 .xgrp{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--text-3);margin:12px 4px 8px}
 /* WS6 collapse primitive: a <details> whose summary reuses the .xgrp header look. Native
    toggle, no JS state; chevron rotates on open; body keeps the ladder's row rhythm.
@@ -1495,9 +1516,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 @keyframes xcOpen{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion: reduce){ .xcollapse-body.opening{animation:none} }
 .xrow-item{display:flex;align-items:center;gap:12px;background:var(--surface-1);border:1px solid transparent;border-radius:var(--r-card-sm);padding:10px 12px;cursor:pointer;box-shadow:var(--sh-card)}
-.xrow-item .xr{flex:1}
-.xrow-item .xa{font-size:14px;font-weight:700;letter-spacing:-.01em}
-.xrow-item .xb{font-size:var(--t-xs);color:var(--text-3);margin-top:1px}
+.xrow-item .xr{flex:1;min-width:0}
+.xrow-item .xa{font-size:var(--t-base);font-weight:700;letter-spacing:-.01em}
+.xrow-item .xb{font-size:var(--t-xs);color:var(--text-3);margin-top:1px;overflow-wrap:anywhere}
 /* Done rows: green is an ACCENT (icon tile + soft border), not the row's identity — the
    old full green wash (bg gradient + green title + green pill) out-shouted the open NOW
    card. Completed work should read settled, not compete for attention. */
@@ -1509,7 +1530,12 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xpill.gold{background:var(--amber-surface);color:var(--amber-bright);border:1px solid var(--amber-border)}
 .xpill.gray{background:var(--surface-3);color:var(--text-3);border:1px solid var(--hairline)}
 .xpill.green{background:var(--green-surface);color:var(--green-bright);border:1px solid var(--green-border)}
-.xpill.red{background:var(--red-surface);color:var(--red);border:1px solid var(--red-border)}
+/* -bright (the text-weight variant): --red measured 4.2:1 on the light pill at 10px. */
+.xpill.red{background:var(--red-surface);color:var(--red-bright);border:1px solid var(--red-border)}
+/* Light's --green-bright (#15803D) only reaches 4.49:1 on the tinted pill ground and the token
+   family has no deeper step (--green-deep is the same value), so the pill alone takes green-800.
+   Theme-scoped, so it is a light value on a light ground, not a frozen dark one. */
+:root[data-theme="light"] .xpill.green{color:#166534}
 /* Connected Standards needs two more meanings than gold/gray/green/red can carry: "in progress"
    (live, nothing decided) and "needs review" (waiting on a human). Folding either onto amber
    would make a sync problem and a pending approval look like the same thing. */
@@ -1577,9 +1603,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .hub-hero.b{background:linear-gradient(140deg,rgba(var(--blue-rgb), 0.18),rgba(var(--blue-rgb), 0.05)),var(--surface-2);border-color:var(--blue-border)}
 .hub-hero.c{background:linear-gradient(140deg,rgba(var(--cyan-rgb), 0.18),rgba(var(--cyan-rgb), 0.05)),var(--surface-2);border-color:var(--cyan-border)}
 .hub-hero .ht{flex:1}
-.hub-hero .ht .a{font-size:16px;font-weight:800;letter-spacing:-.015em}
-.hub-hero .ht .b{font-size:11.5px;color:var(--text-2);margin-top:2px;font-variant-numeric:tabular-nums}
-.hub-fold{display:flex;align-items:center;gap:8px;justify-content:center;font-size:11.5px;font-weight:800;color:var(--green-bright);padding:10px 0 2px;cursor:pointer}
+.hub-hero .ht .a{font-size:var(--t-md);font-weight:800;letter-spacing:-.015em}
+.hub-hero .ht .b{font-size:var(--t-xs);color:var(--text-2);margin-top:2px;font-variant-numeric:tabular-nums}
+.hub-fold{display:flex;align-items:center;gap:8px;justify-content:center;font-size:var(--t-xs);font-weight:800;color:var(--green-bright);padding:10px 0 2px;cursor:pointer}
 .fab-dot{position:absolute;top:-3px;right:-3px;width:15px;height:15px;border-radius:50%;border:3px solid var(--bg)}
 .fab-dot.gold{background:var(--amber-bright)}
 .fab-dot.red{background:var(--red)}
@@ -1592,9 +1618,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .mt-confirm{background:linear-gradient(160deg,var(--green-surface),transparent 55%),var(--surface-1);border:1px solid var(--green-border);border-radius:var(--r-card);padding:14px 16px}
 .mt-confirm .row1{display:flex;align-items:center;gap:12px}
 .mt-confirm .ck{width:40px;height:40px;border-radius:var(--r-card-sm);background:linear-gradient(150deg,var(--green),var(--green-deep));color:var(--ink-on-accent);display:grid;place-items:center;flex:none}
-.mt-confirm .t{font-size:16.5px;font-weight:800;letter-spacing:var(--title-tight)}
-.mt-confirm .s{font-size:12px;font-weight:600;color:var(--text-2);margin-top:2px}
-.mt-confirm .dup-note{font-size:12px;font-weight:700;color:var(--amber-bright);margin-top:10px;line-height:1.4}
+.mt-confirm .t{font-size:var(--t-lg);font-weight:800;letter-spacing:var(--title-tight)}
+.mt-confirm .s{font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:2px}
+.mt-confirm .dup-note{font-size:var(--t-sm);font-weight:700;color:var(--amber-bright);margin-top:10px;line-height:1.4}
 /* The rule sits on whichever element is the section's direct child — the move strip when there is
    a move to show, the bare credit line when the move has already played. A margin on .score-line
    itself would collapse out through .sm-head and land nowhere. */
@@ -1630,7 +1656,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .mt-confirm .sm-first{font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-top:10px;line-height:1.45}
 .mt-confirm .prog-line{display:flex;align-items:center;gap:10px;margin-top:12px}
 .mt-confirm .prog-line .xsegs{flex:1}
-.mt-confirm .prog-line .pk{font-size:11px;font-weight:700;color:var(--text-2);white-space:nowrap}
+.mt-confirm .prog-line .pk{font-size:var(--t-xs);font-weight:700;color:var(--text-2);white-space:nowrap}
 /* Meal quality — its own concept and color on the NUMBER; a 58 is amber, never success green.
    The arc itself always wears the brand sweep. */
 .scorechip.mid{box-shadow:0 0 20px rgba(var(--amber-rgb), 0.3)}
@@ -1654,14 +1680,14 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    so status colors are correct here; the arc above stays sweep. ---- */
 .score-read{display:flex;align-items:center;gap:18px;margin-top:12px;padding:14px 16px;border-radius:var(--r-card-sm);background:var(--surface-1);border:1px solid transparent;box-shadow:var(--sh-card)}
 .score-read .sr-head{display:flex;flex-direction:column;align-items:center;gap:2px;flex:none;min-width:64px}
-.score-read .sr-n{font-family:var(--font-display);font-size:34px;font-weight:900;letter-spacing:-0.02em;line-height:1;font-variant-numeric:tabular-nums}
-.score-read .sr-n small{font-family:var(--font);font-size:11px;font-weight:700;color:var(--text-3)}
-.score-read .sr-band{font-size:10px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase}
+.score-read .sr-n{font-family:var(--font-display);font-size:var(--t-3xl);font-weight:900;letter-spacing:-0.02em;line-height:1;font-variant-numeric:tabular-nums}
+.score-read .sr-n small{font-family:var(--font);font-size:var(--t-xs);font-weight:700;color:var(--text-3)}
+.score-read .sr-band{font-size:var(--t-micro);font-weight:800;letter-spacing:0.08em;text-transform:uppercase}
 .score-read .sr-band.good{color:var(--green-bright)}
 .score-read .sr-band.mid{color:var(--amber-bright)}
 .score-read .sr-band.low{color:var(--red)}
 .score-read .sr-rows{display:flex;flex-direction:column;gap:6px;min-width:0;border-left:1px solid var(--hairline-soft);padding-left:16px}
-.score-read .sr-row{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;letter-spacing:-0.01em}
+.score-read .sr-row{display:flex;align-items:center;gap:8px;font-size:var(--t-sm);font-weight:700;letter-spacing:-0.01em}
 .score-read .sr-ic{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;flex:none}
 .score-read .sr-row.met .sr-ic{background:var(--green-surface);color:var(--green-bright)}
 .score-read .sr-row.partial .sr-ic{background:var(--amber-surface);color:var(--amber-bright)}
@@ -1670,8 +1696,8 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* ---- Coach's Focus (founder 2026-08-05): the one line to remember after every meal ---- */
 .coach-focus{display:flex;align-items:flex-start;gap:12px;margin-top:10px;padding:13px 16px;border-radius:var(--r-card-sm);background:linear-gradient(120deg, rgba(var(--blue-rgb),0.10), var(--surface-1) 72%);border:1px solid var(--blue-border)}
 .coach-focus .cf-ic{width:30px;height:30px;border-radius:50%;background:var(--blue-surface);color:var(--blue-bright);display:grid;place-items:center;flex:none;margin-top:1px}
-.coach-focus .cf-k{font-size:10px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--blue-bright)}
-.coach-focus .cf-t{font-size:14px;font-weight:800;letter-spacing:-0.01em;line-height:1.45;margin-top:3px}
+.coach-focus .cf-k{font-size:var(--t-micro);font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--blue-bright)}
+.coach-focus .cf-t{font-size:var(--t-base);font-weight:800;letter-spacing:-0.01em;line-height:1.45;margin-top:3px}
 /* ---- One read card (2026-08-06): verdict + reasons + Coach's Focus + rubric share one chrome.
    The three blocks keep their own classes (reveal()/tests reach them); inside .meal-read each
    sheds its individual card dressing and hairline seams do the separating. ---- */
@@ -1693,20 +1719,20 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .nut-values{display:flex;align-items:stretch}
 .nut-values .nv{flex:1;min-width:0;text-align:center;padding:15px 4px 13px;position:relative}
 .nut-values .nv + .nv::before{content:'';position:absolute;left:0;top:22%;bottom:22%;width:1px;background:var(--hairline-soft)}
-.nut-values .mv{font-size:21px;font-weight:800;letter-spacing:-0.03em;white-space:nowrap;font-variant-numeric:tabular-nums;line-height:1}
+.nut-values .mv{font-size:var(--t-xl);font-weight:800;letter-spacing:-0.03em;white-space:nowrap;font-variant-numeric:tabular-nums;line-height:1}
 /* the unit is a unit, not part of the number */
-.nut-values .mv i{font-style:normal;font-size:13px;font-weight:700;color:var(--text-3);margin-left:1px}
-.nut-values .mk{font-size:9.5px;font-weight:800;color:var(--text-3);margin-top:6px;text-transform:uppercase;letter-spacing:0.09em}
+.nut-values .mv i{font-style:normal;font-size:var(--t-sm);font-weight:700;color:var(--text-3);margin-left:1px}
+.nut-values .mk{font-size:var(--t-micro);font-weight:800;color:var(--text-3);margin-top:6px;text-transform:uppercase;letter-spacing:0.09em}
 /* Protein leads because it is the number a coach actually sets. It used to wear a background-clip
    brand sweep, argued as "a value treatment, not banned gradient-text on prose" — but the ban is
    on the technique, and a gradient number is exactly the tell it names. Emphasis now comes from
    the two things that always carried it anyway: one step up in size, and the accent colour. */
-.nut-values .nv.lead .mv{font-size:24px;color:var(--blue-bright)}
+.nut-values .nv.lead .mv{font-size:var(--t-2xl);color:var(--blue-bright)}
 .nut-values .nv.lead .mv i{color:var(--text-3)}
 .nut-panel .day-bars{margin-top:0;border-top:1px solid var(--hairline-soft);padding:13px 16px 14px}
 /* Day-target bars (also render standalone if the panel is ever absent) */
 .day-bars{margin-top:12px;display:flex;flex-direction:column;gap:10px;padding:0 2px}
-.day-bars .cons-row .k{font-size:12.5px}
+.day-bars .cons-row .k{font-size:var(--t-sm)}
 .day-bars .pace{margin-top:2px}
 /* ---- Dietitian board (0197 discipline lens) ----
    The queue leads with the PLATE: a photo thumb per row (a dietitian reviews food by eye), the
@@ -1740,33 +1766,33 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .bt-clamp{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
 /* A real two-way control: it now says "Read less" once open, so it needs a tap target rather than
    a 12px text link that disappeared after one use. */
-.read-more{border:none;background:none;padding:6px 2px 2px 14px;margin:0;align-self:flex-start;color:var(--blue-bright);font-family:var(--font);font-size:12px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.read-more{border:none;background:none;padding:6px 2px 2px 14px;margin:0;align-self:flex-start;color:var(--blue-bright);font-family:var(--font);font-size:var(--t-sm);font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .read-more:active{opacity:0.6}
 .bd-wrap{margin-top:8px}
-.bd-wrap > summary{display:flex;align-items:center;gap:6px;list-style:none;cursor:pointer;font-size:12.5px;font-weight:700;color:var(--text-2);padding:8px 2px;-webkit-tap-highlight-color:transparent}
+.bd-wrap > summary{display:flex;align-items:center;gap:6px;list-style:none;cursor:pointer;font-size:var(--t-sm);font-weight:700;color:var(--text-2);padding:8px 2px;-webkit-tap-highlight-color:transparent}
 .bd-wrap > summary::-webkit-details-marker{display:none}
 .bd-wrap > summary svg{transition:transform var(--dur-1) var(--ease-out)}
 .bd-wrap[open] > summary svg{transform:rotate(90deg)}
 /* ---- Coach pinned above the AI (founder 2026-08-04: coach leads, AI assists) ---- */
 .coach-pin{margin:2px 0 12px;padding:12px 14px;border-radius:var(--r-card-sm);background:var(--amber-surface);border:1px solid var(--amber-border)}
 .coach-pin .cp-head{display:flex;align-items:center;gap:8px}
-.coach-pin .cp-av{width:24px;height:24px;border-radius:50%;background:linear-gradient(150deg,var(--amber),var(--amber-deep));color:var(--ink-on-accent);display:grid;place-items:center;font-size:10px;font-weight:800;flex:none}
-.coach-pin .cp-who{font-size:12.5px;font-weight:800}
-.coach-pin .cp-tag{margin-left:auto;display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--amber-bright)}
-.coach-pin .cp-text{font-size:13.5px;font-weight:600;line-height:1.5;margin-top:6px}
+.coach-pin .cp-av{width:24px;height:24px;border-radius:50%;background:linear-gradient(150deg,var(--amber),var(--amber-deep));color:var(--ink-on-accent);display:grid;place-items:center;font-size:var(--t-micro);font-weight:800;flex:none}
+.coach-pin .cp-who{font-size:var(--t-sm);font-weight:800}
+.coach-pin .cp-tag{margin-left:auto;display:inline-flex;align-items:center;gap:4px;font-size:var(--t-micro);font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--amber-bright)}
+.coach-pin .cp-text{font-size:var(--t-base);font-weight:600;line-height:1.5;margin-top:6px}
 .qual-line{display:flex;align-items:center;gap:14px;margin-top:10px;padding:12px 14px;border-radius:var(--r-tile);background:var(--surface-1);border:1px solid var(--hairline)}
-.qual-line .qv{font-family:var(--font-display);font-size:24px;font-weight:900;letter-spacing:-0.01em;flex:none;font-variant-numeric:tabular-nums}
+.qual-line .qv{font-family:var(--font-display);font-size:var(--t-2xl);font-weight:900;letter-spacing:-0.01em;flex:none;font-variant-numeric:tabular-nums}
 /* the "/100" stays in the body face — it is a unit, not the score */
-.qual-line .qv small{font-family:var(--font);font-size:12px;font-weight:700;color:var(--text-3)}
-.qual-line .ql{font-size:10.5px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase}
-.qual-line .qr{font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:2px;line-height:1.4}
+.qual-line .qv small{font-family:var(--font);font-size:var(--t-sm);font-weight:700;color:var(--text-3)}
+.qual-line .ql{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:0.08em;text-transform:uppercase}
+.qual-line .qr{font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:2px;line-height:1.4}
 .qual-line.good .qv,.qual-line.good .ql{color:var(--green-bright)}
 .qual-line.mid{border-color:var(--amber-border)}
 .qual-line.mid .qv,.qual-line.mid .ql{color:var(--amber-bright)}
 .qual-line.low{border-color:var(--red-border)}
 .qual-line.low .qv,.qual-line.low .ql{color:var(--red)}
 /* honest estimate / no-targets note under the breakdown */
-.est-note{font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:8px;line-height:1.45}
+.est-note{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:8px;line-height:1.45}
 .est-note .link{color:var(--blue-bright);font-weight:700;cursor:pointer}
 /* A macro cell with no number in it yet. The card no longer SAYS it is waiting (the AI bubble is
    the only narrator now — see meal.js's breakdown block); it shows it, by breathing. */
@@ -1774,10 +1800,10 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 @keyframes mv-wait{0%,100%{opacity:0.35}50%{opacity:0.85}}
 @media (prefers-reduced-motion: reduce){ .mv-wait{animation:none;opacity:0.55} }
 /* chat mechanics: timestamps + quick actions */
-.msg .mtime{font-size:10px;font-weight:700;color:var(--text-3);margin-top:4px}
+.msg .mtime{font-size:var(--t-micro);font-weight:700;color:var(--text-3);margin-top:4px}
 .msg.athlete .mtime{text-align:right}
 .qa-row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
-.qa{height:44px;padding:0 16px;border-radius:var(--r-chip);background:var(--surface-2);border:1px solid var(--hairline);color:var(--text-2);font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;transition:transform var(--dur-1) var(--ease-out)}
+.qa{height:44px;padding:0 16px;border-radius:var(--r-chip);background:var(--surface-2);border:1px solid var(--hairline);color:var(--text-2);font-family:var(--font);font-size:var(--t-sm);font-weight:700;cursor:pointer;transition:transform var(--dur-1) var(--ease-out)}
 .qa:active{transform:scale(0.97)}
 /* PRE-EXISTING GAP, found 2026-07-30: coach.js has rendered `class="qa on"` + aria-pressed for an
    already-added reaction since the coach reaction bar shipped, but no `.qa.on` rule ever existed —
@@ -1787,11 +1813,11 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .conf-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:6px}
 .conf-dot.high{background:var(--green-bright)} .conf-dot.medium{background:var(--amber-bright)} .conf-dot.low{background:var(--text-3)}
 .foodchip .q{margin-left:6px;font-weight:800;color:var(--amber-bright);cursor:default}
-.hl-row{display:flex;align-items:flex-start;gap:10px;padding:8px 0;font-size:12.5px;color:var(--text-2);line-height:1.45}
+.hl-row{display:flex;align-items:flex-start;gap:10px;padding:8px 0;font-size:var(--t-sm);color:var(--text-2);line-height:1.45}
 .hl-row .ic{color:var(--green-bright);flex:0 0 auto;margin-top:1px}
 .rx-strip{display:flex;gap:8px;margin:2px 0 10px;flex-wrap:wrap}
-.rx{display:flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-pill);padding:4px 12px;font-size:13px;font-weight:700}
-.rx .n{font-size:11px;color:var(--text-3)}
+.rx{display:flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-pill);padding:4px 12px;font-size:var(--t-sm);font-weight:700}
+.rx .n{font-size:var(--t-xs);color:var(--text-3)}
 
 /* ----- Thread actions, out of the thread (founder, 2026-08-02) -----
    The meal conversation used to end in five stacked rows of controls — a reaction strip, two
@@ -1800,9 +1826,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    behind the header's ⋯ button, closed by default. ----- */
 .tmenu{margin:0 0 10px;padding:10px 12px;border-radius:var(--r-tile);background:var(--surface-1);border:1px solid var(--hairline);display:flex;flex-direction:column;gap:8px}
 .tmenu[hidden]{display:none}
-.tmenu .tm-k{font-size:10px;font-weight:800;letter-spacing:0.09em;text-transform:uppercase;color:var(--text-3)}
+.tmenu .tm-k{font-size:var(--t-micro);font-weight:800;letter-spacing:0.09em;text-transform:uppercase;color:var(--text-3)}
 .tmenu .tm-row{display:flex;gap:8px;flex-wrap:wrap}
-.tmenu .tm-note{font-size:12px;font-weight:600;color:var(--text-3)}
+.tmenu .tm-note{font-size:var(--t-sm);font-weight:600;color:var(--text-3)}
 
 /* iMessage tapback: press and hold a bubble, pick a reaction. Anchored to the message the finger
    is on, which is why it is positioned rather than laid out inline. */
@@ -1810,7 +1836,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
   background:var(--surface-3, var(--surface-2));border:1px solid var(--hairline);
   box-shadow:0 12px 32px rgba(0,0,0,0.45);transform-origin:50% 100%;
   animation:tapback-in var(--dur-1, 140ms) var(--ease-out, ease-out)}
-.tapback button{width:44px;height:44px;border:none;background:none;border-radius:50%;font-size:20px;line-height:1;cursor:pointer;
+.tapback button{width:44px;height:44px;border:none;background:none;border-radius:50%;font-size:var(--t-xl);line-height:1;cursor:pointer;
   display:grid;place-items:center;transition:transform var(--dur-1) var(--ease-out),background var(--dur-1) var(--ease-out)}
 .tapback button:active{transform:scale(0.88)}
 .tapback button.on{background:var(--blue-surface)}
@@ -1820,7 +1846,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* A long press must not also fire the OS text-selection / callout UI on the bubble underneath. */
 .thread .bubble{-webkit-touch-callout:none}
 .thread .bubble.pressing{transform:scale(0.97);transition:transform 120ms var(--ease-out)}
-.mt-retry{font-size:12px;font-weight:700;color:var(--amber-bright);cursor:pointer;padding:6px 2px}
+.mt-retry{font-size:var(--t-sm);font-weight:700;color:var(--amber-bright);cursor:pointer;padding:6px 2px}
 /* One-line warning inside an AI bubble (failed-read fetch hiccup) — inherits the bubble's size. */
 .mt-warnline{margin-top:4px;color:var(--amber-bright);font-weight:600}
 /* Settings footnote under a card — the lock/info explainer lines on notif-settings. */
@@ -1828,24 +1854,24 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 
 /* ----- Meal score rubric (conversation upgrade 2026-07-16) ----- */
 .rub{margin-top:8px;border:1px solid var(--hairline);border-radius:var(--r-tile);background:var(--surface-1)}
-.rub>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;padding:10px 14px;font-size:12.5px;font-weight:800;color:var(--text-2)}
+.rub>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;padding:10px 14px;font-size:var(--t-sm);font-weight:800;color:var(--text-2)}
 .rub>summary::-webkit-details-marker{display:none}
 .rub>summary .ic{transition:transform var(--dur-2) var(--ease-out);color:var(--text-3);margin-left:auto}
 .rub[open]>summary .ic{transform:rotate(90deg)}
 .rub-body{padding:2px 14px 12px}
 .rub-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--hairline-soft)}
 .rub-row:last-of-type{border-bottom:none}
-.rub-row .rk{flex:1;font-size:12.5px;font-weight:700}
-.rub-row .rn{font-size:11.5px;font-weight:600;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42%}
-.rub-row .rx-tag{font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);border:1px solid var(--hairline);border-radius:var(--r-pill);padding:2px 8px;flex:none}
-.rub-fine{font-size:11px;font-weight:600;color:var(--text-3);padding-top:8px;line-height:1.45}
+.rub-row .rk{flex:1;font-size:var(--t-sm);font-weight:700}
+.rub-row .rn{font-size:var(--t-xs);font-weight:600;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42%}
+.rub-row .rx-tag{font-size:var(--t-micro);font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);border:1px solid var(--hairline);border-radius:var(--r-pill);padding:2px 8px;flex:none}
+.rub-fine{font-size:var(--t-xs);font-weight:600;color:var(--text-3);padding-top:8px;line-height:1.45}
 
 /* ----- Correct-analysis panel + follow-up chips ----- */
 .fx-row{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--hairline-soft)}
 .fx-row:last-of-type{border-bottom:none}
-.fx-k{flex:none;width:86px;font-size:12px;font-weight:800;color:var(--text-2);padding-top:8px}
+.fx-k{flex:none;width:86px;font-size:var(--t-sm);font-weight:800;color:var(--text-2);padding-top:8px}
 .fx-chips{display:flex;flex-wrap:wrap;gap:8px;flex:1}
-.fx-chip{border:1px solid var(--hairline);background:var(--surface-2);color:var(--text);font-family:var(--font);font-size:12.5px;font-weight:700;border-radius:var(--r-chip);padding:8px 14px;cursor:pointer;transition:transform var(--dur-1) var(--ease-out)}
+.fx-chip{border:1px solid var(--hairline);background:var(--surface-2);color:var(--text);font-family:var(--font);font-size:var(--t-sm);font-weight:700;border-radius:var(--r-chip);padding:8px 14px;cursor:pointer;transition:transform var(--dur-1) var(--ease-out)}
 .fx-chip:disabled{opacity:0.45;cursor:default}
 /* Correct-the-read (0199): removing a line is a destructive row ACTION, not a selectable chip —
    it gets a real 30px target that stays quiet until touched and only turns red when pressed. */
@@ -1886,7 +1912,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .bd-cat .bd-row{padding:12px 24px 12px 2px}   /* §2.9: tighter vertical rhythm */
 .bd-chev{position:absolute;right:2px;top:15px;color:var(--text-3);transition:transform var(--dur-2) var(--ease-out)}
 .bd-cat[open] .bd-chev{transform:rotate(90deg)}
-.bd-remaining{font-size:11.5px;font-weight:700;color:var(--text-3);margin-top:6px}
+.bd-remaining{font-size:var(--t-xs);font-weight:700;color:var(--text-3);margin-top:6px}
 .bd-detail{padding:2px 2px 14px;border-bottom:1px solid var(--hairline-soft)}
 .bd-cat:last-child .bd-detail{border-bottom:none}
 .bd-req{display:flex;align-items:flex-start;gap:10px;padding:8px 0}
@@ -1897,40 +1923,38 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .bd-req-dot.r{background:var(--red)}
 .bd-req-dot.muted{background:var(--surface-3)}
 .bd-req-main{flex:1;min-width:0}
-.bd-req-main .t{font-size:13px;font-weight:700}
-.bd-req-main .s{font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:1px;line-height:1.4}
-.bd-req-val{font-size:12px;font-weight:800;color:var(--text-2);white-space:nowrap}
-.bd-remaining-note{font-size:12px;font-weight:600;color:var(--text-2);padding-top:8px;line-height:1.45}
+.bd-req-main .t{font-size:var(--t-base);font-weight:700}
+.bd-req-main .s{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:1px;line-height:1.4}
+.bd-req-val{font-size:var(--t-sm);font-weight:800;color:var(--text-2);white-space:nowrap}
+.bd-remaining-note{font-size:var(--t-sm);font-weight:600;color:var(--text-2);padding-top:8px;line-height:1.45}
 .reach-row .gain{white-space:nowrap}
 .reach-main{flex:1;min-width:0;display:flex;flex-direction:column}
-.reach-main .t{font-size:14.5px;font-weight:700}
-.reach-main .s{font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:1px}
-.reach-proj{font-size:13px;font-weight:800;padding-top:12px}
-.reach-fine{font-size:11px;font-weight:600;color:var(--text-3);padding-top:6px;line-height:1.45}
+.reach-main .t{font-size:var(--t-base);font-weight:700}
+.reach-main .s{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:1px}
+.reach-proj{font-size:var(--t-sm);font-weight:800;padding-top:12px}
+.reach-fine{font-size:var(--t-xs);font-weight:600;color:var(--text-3);padding-top:6px;line-height:1.45}
 
 /* ----- Daily Commitment (spec §2.5) ----- */
-.input{width:100%;box-sizing:border-box;height:48px;border-radius:var(--r-card-sm);background:var(--surface-2);border:1.5px solid var(--hairline);color:var(--text);font-family:var(--font);font-size:14.5px;font-weight:600;padding:0 14px;outline:none}
+.input{width:100%;box-sizing:border-box;height:48px;border-radius:var(--r-card-sm);background:var(--surface-2);border:1.5px solid var(--hairline);color:var(--text);font-family:var(--font);font-size:var(--t-base);font-weight:600;padding:0 14px;outline:none}
 .input:focus{border-color:var(--blue-bright)}
 .input::placeholder{color:var(--text-3);font-weight:600}
 .cmt-choice{display:flex;align-items:center;gap:12px;padding:14px 14px;border-radius:var(--r-tile);border:1px solid var(--hairline);margin-bottom:8px;cursor:pointer;background:var(--surface-2)}
-.cmt-choice .t{font-size:14px;font-weight:800}
-.cmt-choice .s{font-size:12px;font-weight:600;color:var(--text-2);margin-top:2px;line-height:1.4}
+.cmt-choice .t{font-size:var(--t-base);font-weight:800}
+.cmt-choice .s{font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:2px;line-height:1.4}
 .cmt-main{flex:1;min-width:0}
-.cmt-pts{font-size:13px;font-weight:800;white-space:nowrap;color:var(--text-3)}
+.cmt-pts{font-size:var(--t-base);font-weight:800;white-space:nowrap;color:var(--text-3)}
 .cmt-pts.g{color:var(--green-bright)}
 .cmt-pts.a{color:var(--amber-bright)}
 .cmt-choice.on.g{border-color:var(--green-border);background:var(--green-surface)}
 .cmt-choice.on.a{border-color:var(--amber-border);background:var(--amber-surface)}
 .cmt-choice.on.r{border-color:var(--red-border);background:var(--red-surface)}
-.cmt-done{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;font-weight:700;color:var(--green-bright);padding-top:6px;line-height:1.4}
+.cmt-done{display:flex;align-items:flex-start;gap:8px;font-size:var(--t-sm);font-weight:700;color:var(--green-bright);padding-top:6px;line-height:1.4}
 
 /* ----- Progress v2 (spec §8): baseline, unlock meter, category trends ----- */
 .unlock-row{display:flex;align-items:center;gap:12px;margin-top:14px}
-.unlock-k{font-size:12px;font-weight:800;color:var(--text-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.unlock-k{font-size:var(--t-sm);font-weight:800;color:var(--text-2);white-space:nowrap;font-variant-numeric:tabular-nums}
 .base-stats{display:flex;gap:10px;margin-top:14px}
-.base-stats>div{flex:1;background:var(--surface-2);border:1px solid var(--hairline-soft);border-radius:var(--r-card-sm);padding:10px 12px}
-.base-stats .k{font-size:10.5px;font-weight:800;letter-spacing:var(--track-key);text-transform:uppercase;color:var(--text-3)}
-.base-stats .v{font-size:17px;font-weight:800;letter-spacing:var(--num-tight);margin-top:2px;font-variant-numeric:tabular-nums}
+/* Sizes and edge from .stat (app.css, 2026-09-05); phase 2 puts the markup on .stat itself. */
 
 /* ----- Monthly report locked state: real stats stay visible, only the written "Coach's
    take" narrative is gated. Blur = gated content, not decoration (honesty-over-pressure).
@@ -1942,40 +1966,43 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .mr-skel-line{height:12px;border-radius:var(--r-chip);background:var(--surface-2)}
 .mr-veil{
   position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:8px;text-align:center;padding:16px;background:rgba(11,15,20,0.86);backdrop-filter:blur(6px);
+  gap:8px;text-align:center;padding:16px;background:rgba(11,15,20,0.86);
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .mr-veil{-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 }
 :root[data-theme="light"] .mr-veil{background:rgba(248,250,252,0.90)}
-.mr-veil-t{font-size:14px;font-weight:800;letter-spacing:-0.01em;max-width:240px}
-.mr-veil-s{font-size:12px;font-weight:600;color:var(--text-2);max-width:250px;line-height:1.4}
-.mr-or{text-align:center;font-size:11px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);margin:14px 0}
+.mr-veil-t{font-size:var(--t-base);font-weight:800;letter-spacing:-0.01em;max-width:240px}
+.mr-veil-s{font-size:var(--t-sm);font-weight:600;color:var(--text-2);max-width:250px;line-height:1.4}
+.mr-or{text-align:center;font-size:var(--t-eyebrow);font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);margin:14px 0}
 .mr-coderow{margin-top:2px}
 
 /* ---- Consumer paywall (#paywall) ---- */
 .pw-toggle{display:flex;gap:6px;background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:4px;margin:2px 0 14px}
-.pw-seg{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:40px;border:none;background:transparent;border-radius:var(--r-chip);font-size:13.5px;font-weight:800;color:var(--text-2);cursor:pointer}
+.pw-seg{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:40px;border:none;background:transparent;border-radius:var(--r-chip);font-size:var(--t-base);font-weight:800;color:var(--text-2);cursor:pointer}
 .pw-seg.on{background:var(--surface-1);color:var(--text);box-shadow:var(--sh-thumb)}
 /* Ink must flip with the theme: --green-bright is light in dark theme and DEEP in light theme,
    so a fixed near-black ink measured 3.77:1 on the light build. --ink-on-accent flips. */
-.pw-save{font-size:10px;font-weight:800;letter-spacing:0.02em;color:var(--ink-on-accent);background:var(--green-bright);border-radius:var(--r-pill);padding:2px 8px}
+.pw-save{font-size:var(--t-micro);font-weight:800;letter-spacing:0.02em;color:var(--ink-on-accent);background:var(--green-bright);border-radius:var(--r-pill);padding:2px 8px}
 .pw-plans{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
 .pw-plan{background:var(--surface-1);border:1.5px solid var(--hairline);border-radius:var(--r-card-sm);padding:14px;cursor:pointer;transition:border-color .12s,box-shadow .12s}
 .pw-plan.on{border-color:var(--green-bright);box-shadow:0 0 0 1px var(--green-bright), var(--sh-green)}
 .pw-plan-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
-.pw-plan-name{font-size:15.5px;font-weight:800;letter-spacing:-0.01em}
+.pw-plan-name{font-size:var(--t-md);font-weight:800;letter-spacing:-0.01em}
 .pw-plan-price{white-space:nowrap}
-.pw-plan-price .n{font-size:18px;font-weight:800}
-.pw-plan-price .per{font-size:12px;font-weight:700;color:var(--text-3);margin-left:2px}
-.pw-plan-sub{font-size:11.5px;font-weight:700;color:var(--text-3);margin-top:2px}
-.pw-plan-blurb{font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:8px;line-height:1.4}
-.pw-note{text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:10px;line-height:1.45}
+.pw-plan-price .n{font-size:var(--t-lg);font-weight:800}
+.pw-plan-price .per{font-size:var(--t-sm);font-weight:700;color:var(--text-3);margin-left:2px}
+.pw-plan-sub{font-size:var(--t-xs);font-weight:700;color:var(--text-3);margin-top:2px}
+.pw-plan-blurb{font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:8px;line-height:1.4}
+.pw-note{text-align:center;font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:10px;line-height:1.45}
 
 /* ---- Progress photos (#progress-photos) ---- */
 .pp-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
 .pp-cell{position:relative;border-radius:var(--r-card-sm);overflow:hidden;background:var(--surface-2);aspect-ratio:3/4}
 .pp-cell-img{width:100%;height:100%;object-fit:cover;display:block}
 .pp-cell-load{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-3)}
-.pp-cell-meta{position:absolute;left:0;right:0;bottom:0;padding:16px 10px 8px;font-size:11.5px;font-weight:700;color:#fff;background:linear-gradient(transparent, rgba(0,0,0,0.62))}
-.pp-del{position:absolute;top:6px;right:6px;height:24px;min-width:24px;padding:0 6px;border:none;border-radius:var(--r-chip);background:rgba(6,10,14,0.6);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.pp-cell-meta{position:absolute;left:0;right:0;bottom:0;padding:16px 10px 8px;font-size:var(--t-xs);font-weight:700;color:#fff;background:linear-gradient(transparent, rgba(0,0,0,0.62))}
+.pp-del{position:absolute;top:6px;right:6px;height:24px;min-width:24px;padding:0 6px;border:none;border-radius:var(--r-chip);background:rgba(6,10,14,0.6);color:#fff;font-size:var(--t-xs);font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .pp-del.arm{background:var(--danger-solid);color:#fff}   /* white ON the fill — see --danger-solid */
 /* 44px hit area without visual bloat: the visible chip stays 24px, the touch target doesn't. */
 .pp-del::after{content:'';position:absolute;inset:-12px}
@@ -1989,12 +2016,12 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* ---- Before/after compare (#progress-compare) ---- */
 .cmp-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .cmp-panel{background:var(--surface-1);border: 1px solid transparent;border-radius:var(--r-card-sm);overflow:hidden;display:flex;flex-direction:column; box-shadow: var(--sh-card);}
-.cmp-lab{font-size:11px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-3);padding:8px 10px 4px}
+.cmp-lab{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-3);padding:8px 10px 4px}
 .cmp-img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block}
 .cmp-empty{width:100%;aspect-ratio:3/4;display:flex;align-items:center;justify-content:center;color:var(--text-3);background:var(--surface-2)}
-.cmp-sub{font-size:11.5px;font-weight:700;color:var(--text-2);padding:6px 10px 10px;text-align:center}
-.cmp-delta{text-align:center;font-size:13px;font-weight:700;color:var(--text-2);margin-top:12px}
-.cmp-delta b{font-size:17px;font-weight:800;color:var(--text)}
+.cmp-sub{font-size:var(--t-xs);font-weight:700;color:var(--text-2);padding:6px 10px 10px;text-align:center}
+.cmp-delta{text-align:center;font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-top:12px}
+.cmp-delta b{font-size:var(--t-lg);font-weight:800;color:var(--text)}
 .cmp-strip{display:flex;gap:8px;overflow-x:auto;padding:8px 2px;-webkit-overflow-scrolling:touch}
 .cmp-thumb{flex:none;width:52px;height:68px;border-radius:var(--r-chip);overflow:hidden;border:2px solid transparent;background:var(--surface-2);padding:0;cursor:pointer}
 .cmp-thumb.on{border-color:var(--green-bright)}
@@ -2002,7 +2029,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .cmp-thumb-load{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-3)}
 .cat-trend{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--hairline-soft)}
 .cat-trend:last-child{border-bottom:none}
-.cat-trend .ct-k{width:118px;flex:none;font-size:12.5px;font-weight:700;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cat-trend .ct-k{width:118px;flex:none;font-size:var(--t-sm);font-weight:700;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cat-trend .track{flex:1;height:7px;border-radius:var(--r-micro);background:var(--surface-3);overflow:hidden}
 .cat-trend .fillb{height:100%;border-radius:var(--r-micro)}
 .cat-trend .fillb.g{background:linear-gradient(90deg,var(--green-deep),var(--green))}
@@ -2010,8 +2037,8 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .cat-trend .fillb.b{background:linear-gradient(90deg,var(--blue-deep),var(--blue))}
 .cat-trend .fillb.c{background:linear-gradient(90deg,var(--cyan-deep),var(--cyan))}
 .cat-trend .fillb.a{background:linear-gradient(90deg,var(--amber-deep),var(--amber))}
-.cat-trend .ct-v{width:38px;text-align:right;font-size:12.5px;font-weight:800;flex:none;font-variant-numeric:tabular-nums}
-.cat-trend .ct-d{width:36px;text-align:right;font-size:11px;font-weight:800;flex:none;color:var(--text-3);font-variant-numeric:tabular-nums}
+.cat-trend .ct-v{width:38px;text-align:right;font-size:var(--t-sm);font-weight:800;flex:none;font-variant-numeric:tabular-nums}
+.cat-trend .ct-d{width:36px;text-align:right;font-size:var(--t-xs);font-weight:800;flex:none;color:var(--text-3);font-variant-numeric:tabular-nums}
 .cat-trend .ct-d.up{color:var(--green-bright)}
 .cat-trend .ct-d.down{color:var(--amber-bright)}
 
@@ -2032,17 +2059,12 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    3-column grid whenever consistency was still null. Three numerals, always three columns;
    .dim marks a value that hasn't earned a number yet (an em-dash placeholder, on scale). ----- */
 .pg-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
-.pg-stat{background:var(--surface-1);border-radius:var(--r-card-sm);box-shadow:var(--sh-card);padding:13px 10px 11px;text-align:center}
-.pg-stat .v{font-size:var(--t-2xl);font-weight:800;letter-spacing:var(--num-tight);font-variant-numeric:tabular-nums}
-.pg-stat .k{font-size:var(--t-micro);font-weight:700;color:var(--text-3);letter-spacing:var(--track-key);text-transform:uppercase;margin-top:3px}
-.pg-stat.tap{cursor:pointer}
-.pg-stat.dim .v{color:var(--text-3)}
 
 /* ----- Streak week calendar (spec §14.3) ----- */
 .stk-week{display:flex;gap:8px;margin-top:4px}
 .stk-day{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0;border-radius:var(--r-card-sm);background:var(--surface-2);border:1px solid var(--hairline-soft)}
-.stk-day .d{font-size:10px;font-weight:800;color:var(--text-3);letter-spacing:.04em}
-.stk-day .s{font-size:14px;font-weight:800;font-variant-numeric:tabular-nums}
+.stk-day .d{font-size:var(--t-micro);font-weight:800;color:var(--text-3);letter-spacing:.04em}
+.stk-day .s{font-size:var(--t-base);font-weight:800;font-variant-numeric:tabular-nums}
 .stk-day.on{background:var(--green-surface);border-color:var(--green-border)}
 .stk-day.on .s{color:var(--green-bright)}
 .stk-day.miss .s{color:var(--text-3)}
@@ -2062,20 +2084,20 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .hist-main{flex:1;min-width:0}
 /* Two lines: a one-line clamp cut "Chicken, rice & edamame bowl" mid-word, and the meal name is
    the only thing distinguishing one row from the next in a list of them. */
-.hist-main .t{font-size:14px;font-weight:800;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
-.hist-main .s{font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:2px}
-.hist-score{font-size:15px;font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums}
-.hist-score small{font-size:10px;font-weight:700;color:var(--text-3)}
+.hist-main .t{font-size:var(--t-base);font-weight:800;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
+.hist-main .s{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:2px}
+.hist-score{font-size:var(--t-md);font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums}
+.hist-score small{font-size:var(--t-micro);font-weight:700;color:var(--text-3)}
 .hist-score.g{color:var(--green-bright)}
 .hist-score.a{color:var(--amber-bright)}
 .hist-score.r{color:var(--red)}
 
 /* ----- Edit Profile school-search suggestions (spec §11.3) ----- */
 .ep-results{margin-top:6px;border: 1px solid transparent;border-radius:var(--r-tile);background:var(--surface-1);overflow:hidden; box-shadow: var(--sh-card);}
-.ep-result{padding:12px 14px;font-size:13.5px;font-weight:700;border-bottom:1px solid var(--hairline-soft);cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.ep-result{padding:12px 14px;font-size:var(--t-base);font-weight:700;border-bottom:1px solid var(--hairline-soft);cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:baseline}
 .ep-result:last-child{border-bottom:none}
 .ep-result:active{background:var(--surface-2)}
-.ep-result span{font-size:11px;font-weight:600;color:var(--text-3);white-space:nowrap}
+.ep-result span{font-size:var(--t-xs);font-weight:600;color:var(--text-3);white-space:nowrap}
 
 /* ----- Privacy per-role expanders (spec §20.2) ----- */
 .pv-row summary{list-style:none}
@@ -2086,8 +2108,8 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .pv-row[open] .pv-chev{transform:rotate(90deg)}
 .pv-detail{padding:2px 4px 12px 44px;border-bottom:1px solid var(--hairline-soft)}
 .pv-row:last-child .pv-detail{border-bottom:none}
-.pv-line{font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5;padding:4px 0}
-.pv-line b{display:block;font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3)}
+.pv-line{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.5;padding:4px 0}
+.pv-line b{display:block;font-size:var(--t-micro);font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3)}
 
 /* ----- Restrictions custom-entry rows (spec §18.5) + unmistakable selected chips (§18.2) ----- */
 .rx-add{display:flex;gap:8px;margin-top:8px;align-items:center}
@@ -2127,21 +2149,18 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .vc-line:last-child{border-bottom:0}
 .vc-line .vc-dot{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--surface-3);color:var(--text-3);border:1px solid var(--hairline)}
 .vc-line.on .vc-dot{background:var(--green-bright);color:var(--bg);border-color:transparent}
-.vc-la{font-size:13.5px;font-weight:700}
-.vc-lb{font-size:12px;color:var(--text-3);margin-top:1px}
+.vc-la{font-size:var(--t-base);font-weight:700}
+.vc-lb{font-size:var(--t-sm);color:var(--text-3);margin-top:1px}
 .vc-line.on .vc-lb{color:var(--green-bright);font-weight:700}
 .vc-mr{padding:10px 0}
 .vc-mr-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
-.vc-mr-l{font-size:13px;font-weight:700}
-.vc-mr-n{font-size:12.5px;font-weight:800;color:var(--text-2)}
+.vc-mr-l{font-size:var(--t-sm);font-weight:700}
+.vc-mr-n{font-size:var(--t-sm);font-weight:800;color:var(--text-2)}
 .vc-mr-track{height:6px;border-radius:var(--r-micro);background:var(--surface-3);overflow:hidden}
 /* Progress geometry wears blue (the action accent), paired with its own -deep per the gradient
    law. The old green→blue crossed two semantic hues AND borrowed the score signature. */
 .vc-mr-fill{height:100%;border-radius:var(--r-micro);background:linear-gradient(90deg,var(--blue-deep),var(--blue))}
 .vc-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.vc-stat{background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:12px}
-.vc-sv{font-size:24px;font-weight:800;letter-spacing:-.02em;color:var(--green-bright)}
-.vc-sk{font-size:11px;font-weight:700;color:var(--text-3);margin-top:2px}
 
 /* ---------------- Plan style (0142) ---------------- */
 /* The athlete's stated preference, shown even when someone else owns the setting — a locked
@@ -2149,7 +2168,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .ps-pref{
   margin-top:10px;padding:10px 12px;border-radius:var(--r-chip);
   background:var(--surface-2);border:1px solid var(--hairline);
-  font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.5;
+  font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.5;
 }
 .ps-pref b{color:var(--text);font-weight:800}
 
@@ -2159,7 +2178,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .ps-band .seg{
   display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:var(--r-pill);
   background:var(--surface-2);border:1px solid var(--hairline);
-  font-size:11.5px;font-weight:700;color:var(--text-2);white-space:nowrap;
+  font-size:var(--t-xs);font-weight:700;color:var(--text-2);white-space:nowrap;
 }
 .ps-band .seg i{width:7px;height:7px;border-radius:50%;background:var(--cyan);display:inline-block}
 .ps-band .seg.s-structured i{background:var(--blue-bright)}
@@ -2309,7 +2328,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .cs-pace{font-size:var(--t-xs);font-weight:700;margin-top:9px;line-height:1.45;color:var(--text-3)}
 .cs-pace.on{color:var(--blue-bright)}
 .cs-pace.behind{color:var(--amber-bright)}
-.cs-pace.done{color:var(--green)}
+.cs-pace.done{color:var(--green-bright)} /* text-weight variant: --green was 3.15:1 at 11px on light */
 
 /* A footer inside the hero card: the streak, or the one action this state actually affords.
    Both replace cards that used to sit parked on the screen whether or not they applied. */
@@ -2350,7 +2369,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    The mini column is the hero shrunk, carrying the same state vocabulary. It replaces the generic
    bolt tile the list drew for every metric, and it is what makes a row and the screen it opens
    read as the same object rather than two components that happen to share a title. */
-.cscol.mini{width:9px;height:44px;border-radius:5px}
+.cscol.mini{width:9px;height:44px;border-radius:var(--r-micro)}
 .cscol.mini .fill::after{height:1.5px;box-shadow:0 0 7px rgba(255,255,255,.7)}
 .cscol.mini .qm{font-size:var(--t-eyebrow)}
 .cs-srow{display:flex;align-items:center;gap:12px;padding:12px 0;cursor:pointer}
@@ -2488,16 +2507,16 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
   border: 1px solid var(--hairline);
 }
 .nc-div .nc-meta { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-.nc-div .nc-meta b { font-size: 13px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nc-div .nc-meta small { font-size: 10.5px; font-weight: 600; color: var(--text-3); }
+.nc-div .nc-meta b { font-size: var(--t-sm); font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nc-div .nc-meta small { font-size: var(--t-micro); font-weight: 600; color: var(--text-3); }
 .nc-div .nc-score {
-  font-size: 14px; font-weight: 850; color: var(--green-bright);
+  font-size: var(--t-base); font-weight: 850; color: var(--green-bright);
   font-variant-numeric: tabular-nums; flex: none;
 }
 /* Messages whose meal is older than the loaded window still belong to this athlete. */
 .nc-div.earlier {
   justify-content: center; background: none; border: 0; border-top: 1px solid var(--hairline);
-  border-radius: 0; padding:12px 0 4px; font-size: 10px; font-weight: 800;
+  border-radius: 0; padding:12px 0 4px; font-size: var(--t-micro); font-weight: 800;
   letter-spacing: 0.11em; text-transform: uppercase; color: var(--text-3);
   /* Still a plain div: this seam names messages whose meal fell out of the window, so there is
      nothing to aim the composer at. cursor:default matters — router.js promotes anything wearing

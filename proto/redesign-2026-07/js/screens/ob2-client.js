@@ -290,7 +290,7 @@ const steps = [
       ? 'Ask your trainer for your client code. It links your daily score to their board from day one.'
       : 'If a trainer gave you a code, enter it here. No trainer? Skip. The AI holds the line, and you can connect one any time from Profile.'),
     body: (o) => `
-      <input id="cl-code" class="ob-input" placeholder="Client code" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="12" value="${esc((o.join && o.join.kind === 'practice' && o.join.code) || '')}" />
+      <input id="cl-code" class="ob-input" placeholder="Client code" aria-label="Client code" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="12" value="${esc((o.join && o.join.kind === 'practice' && o.join.code) || '')}" />
       <div id="cl-code-note" class="ob2-scan-note" style="text-align:left;min-height:18px"></div>`,
     mount(root, ctx) {
       const inp = root.querySelector('#cl-code');
@@ -442,7 +442,7 @@ const steps = [
     body: () => `
       ${accountBody({ terms: 'clob' })}
       <div class="ob-foot" style="margin-top:auto">
-        <button id="su-go" class="btn green" disabled>Create account &amp; Start</button>
+        <button id="su-go" class="btn primary" disabled>Create account &amp; Start</button>
       </div>`,
     mount(root, ctx) {
       /* Same sequence as legacy client-ob step 6: role 'athlete', persistOnboarding
@@ -482,7 +482,7 @@ const steps = [
         </div>
         <div class="ob2-scan-note">Questions about cost go to your trainer, not to us.</div>
         <div class="ob-foot" style="margin-top:auto">
-          <button class="btn green" id="ob2-finish">Start today’s plan</button>
+          <button class="btn primary" id="ob2-finish">Start today’s plan</button>
         </div>`;
     },
     mount(root) {
@@ -501,7 +501,7 @@ const steps = [
       </div>
       <div class="ob2-scan-note">Nothing is charged today. You’re starting on the free preview either way.</div>
       <div class="ob-foot" style="margin-top:auto">
-        <button class="btn green" id="ob2-finish">Start free, no card today</button>
+        <button class="btn primary" id="ob2-finish">Start free, no card today</button>
         <div class="ob-textlink" role="button" data-go="obf/connect">I have a code</div>
       </div>`,
     mount(root) {

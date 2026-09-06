@@ -8,6 +8,7 @@ import { S } from '../state.js';
 import * as roles from '../roles.js';
 import { buildMonthPayload } from '../monthly.js';
 import { track, EVENTS } from '../analytics.js';
+import { monthYear, shortDate } from '../fmt-date.js';
 import { shareScoreCard } from '../share-card.js';
 import { planById, effectiveMonthly, fmtPrice } from '../pricing.js';
 
@@ -31,15 +32,10 @@ function lastCompletedPeriod() {
 function monthLabel(period) {
   const [y, m] = String(period).split('-').map(Number);
   if (!y || !m) return period;
-  // Device locale (undefined), the app's date-formatting policy everywhere else.
-  return new Date(y, m - 1, 1).toLocaleString(undefined, { month: 'long', year: 'numeric' });
+  return monthYear(new Date(y, m - 1, 1));
 }
 
-function dayLabel(iso) {
-  if (!iso) return '';
-  const d = new Date(iso + 'T00:00:00');
-  return d.toLocaleString(undefined, { month: 'short', day: 'numeric' });
-}
+const dayLabel = (iso) => shortDate(iso);
 
 async function load(force) {
   if (CACHE.loaded && !force) return;
@@ -87,7 +83,7 @@ function shareReport(report, period) {
 }
 
 function statBlock(k, v) {
-  return `<div><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`;
+  return `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`;
 }
 
 /* Shared by the locked and unlocked bodies so the two can never drift. */
@@ -149,11 +145,11 @@ function lockedCard(payload, period) {
   <div style="height:16px"></div>
   <h2 class="eyebrow">Unlock the full report</h2>
   <section class="card pad">
-    <button class="btn green" id="mr-trial" style="width:100%">Start free trial</button>
+    <button class="btn primary" id="mr-trial" style="width:100%">Start free trial</button>
     <div style="text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:8px;line-height:1.4">${esc(trialLine)}</div>
     <div class="mr-or">or unlock now</div>
-    <div class="sidebox mr-coderow" data-go="redeem-code" role="button" aria-label="Redeem a sponsor code to unlock premium instantly">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('key', 17)}</div>
+    <div class="sidebox flat mr-coderow" data-go="redeem-code" role="button" aria-label="Redeem a sponsor code to unlock premium instantly">
+      <div class="req-icon b s38">${icon('key', 17)}</div>
       <div><div class="tt">Have a sponsor code?</div><div class="ts">Redeem it to unlock premium instantly</div></div>
     </div>
   </section>

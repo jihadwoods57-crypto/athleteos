@@ -1,6 +1,6 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
-import { esc, segBar } from '../components.js';
+import { esc, segBar, emptyState } from '../components.js';
 import { scoreBand } from '../score-band.js';
 import { maybeShowTip } from '../tour.js';
 import { cutoverIndex } from '../score-cutover.js';
@@ -29,9 +29,9 @@ function baseline(P) {
     </div>
     <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:6px;line-height:1.45">Log ${P.unlockNeed} days to unlock your first weekly trend. ${P.unlockNeed - P.unlockHave} more to go.</div>
     <div class="base-stats">
-      <div><div class="k">Current streak</div><div class="v">${S.streak.days} day${S.streak.days === 1 ? '' : 's'}</div></div>
-      <div><div class="k">Best score</div><div class="v">${P.bestScore}</div></div>
-      <div><div class="k">Days logged</div><div class="v">${P.daysLogged}</div></div>
+      <div class="stat"><div class="v">${S.streak.days} day${S.streak.days === 1 ? '' : 's'}</div><div class="k">Current streak</div></div>
+      <div class="stat"><div class="v">${P.bestScore}</div><div class="k">Best score</div></div>
+      <div class="stat"><div class="v">${P.daysLogged}</div><div class="k">Days logged</div></div>
     </div>
     <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:8px">Early baseline. These sharpen as days accumulate.</div>
   </section>`;
@@ -132,12 +132,7 @@ export default {
       <div style="height:10px"></div>
       ${baseline(P)}
       ${RT.day0 ? `
-      <div class="sidebox" style="margin-top:12px">
-        <div class="req-icon g" style="width:38px;height:38px">${icon('camera', 17)}</div>
-        <div><div class="tt">Today counts the moment you log</div>
-        <div class="ts">Your first meal photo starts the record.</div>
-        <div class="sd-cta" style="margin-top:8px"><button class="btn green sm" style="width:auto;padding:0 22px" data-go="camera">${icon('camera', 17)} Log a Meal</button></div></div>
-      </div>` : ''}
+      ${emptyState({ icon: 'camera', title: 'Today counts the moment you log', body: 'Your first meal photo starts the record.', action: { go: 'camera', label: 'Log a meal' }, compact: true })}` : ''}
       ${bodySection()}
       ${trainingCard()}
       <div style="height:10px"></div>`;
@@ -191,9 +186,9 @@ export default {
           borrowed the coach dashboard's .coach-stat, put an icon in a numeral slot, and left a
           visible hole in the grid whenever consistency was still null. */''}
     <div class="pg-stats">
-      <div class="pg-stat tap" data-go="streak" role="button" tabindex="0" aria-label="Current streak, ${st.days} days. Open streak details"><div class="v">${st.days}d</div><div class="k">Streak</div></div>
-      <div class="pg-stat"><div class="v">${P.bestStreak}d</div><div class="k">Best streak</div></div>
-      <div class="pg-stat${P.monthConsistency == null ? ' dim' : ''}"><div class="v">${P.monthConsistency != null ? `${P.monthConsistency}%` : '–'}</div><div class="k">Consistency</div></div>
+      <div class="stat center tap" data-go="streak" role="button" tabindex="0" aria-label="Current streak, ${st.days} days. Open streak details"><div class="v">${st.days}d</div><div class="k">Streak</div></div>
+      <div class="stat center"><div class="v">${P.bestStreak}d</div><div class="k">Best streak</div></div>
+      <div class="stat center${P.monthConsistency == null ? ' dim' : ''}"><div class="v">${P.monthConsistency != null ? `${P.monthConsistency}%` : '–'}</div><div class="k">Consistency</div></div>
     </div>
 
     <h2 class="eyebrow">Category trends</h2>
@@ -215,7 +210,7 @@ export default {
     const insightSection = insight ? `
     <h2 class="eyebrow">Your biggest opportunity</h2>
     <div class="insight">
-      <div class="req-icon g" style="width:38px;height:38px;flex:none">${icon('target', 18)}</div>
+      <div class="req-icon g s38">${icon('target', 18)}</div>
       <p>${esc(insight)}</p>
     </div>` : '';
 
@@ -234,17 +229,17 @@ export default {
     <h2 class="eyebrow">More</h2>
     ${S.coach.hasCoach && S.coach.kind === 'coach' ? `
     <div class="sidebox" data-go="squad" style="cursor:pointer">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
+      <div class="req-icon b s38">${icon('users', 17)}</div>
       <div><div class="tt">Squad</div><div class="ts">Your team's board · opt-in, score number only</div></div>
       ${icon('chevron', 17, 'style="color:var(--text-3)"')}
     </div>` : ''}
     <div class="sidebox" data-go="history" style="cursor:pointer">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+      <div class="req-icon b s38">${icon('clipboard', 17)}</div>
       <div><div class="tt">Score history</div><div class="ts">The proof trail, day by day</div></div>
       ${icon('chevron', 17, 'style="color:var(--text-3)"')}
     </div>
     <div class="sidebox" data-go="monthly-report" style="cursor:pointer">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+      <div class="req-icon b s38">${icon('clipboard', 17)}</div>
       <div><div class="tt" style="display:flex;align-items:center;gap:7px">Monthly report <span class="status-pill b">Premium</span></div><div class="ts">Your month in review</div></div>
     </div>
     <div style="height:10px"></div>

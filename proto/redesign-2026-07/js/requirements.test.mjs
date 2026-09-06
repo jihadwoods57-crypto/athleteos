@@ -103,7 +103,7 @@ test('review finding 1: a stored standard with no recovery item still surfaces o
 test('review finding 1: a stored standard that already has recovery is never duplicated', () => {
   const items = [
     { id: 'meal-1', title: 'Breakfast', kind: 'meal', proof: 'photo', freq: { type: 'daily' }, window: { due: 570 } },
-    { id: 'recovery', title: 'Recovery Check-In', kind: 'recovery', proof: 'form', freq: { type: 'daily' }, window: { due: 1410, label: 'Before bed' } },
+    { id: 'recovery', title: 'Recovery check-in', kind: 'recovery', proof: 'form', freq: { type: 'daily' }, window: { due: 1410, label: 'Before bed' } },
   ];
   const reqs = catalogFromItems(items);
   assert.equal(reqs.filter((r) => r.id === 'recovery').length, 1);
@@ -113,6 +113,6 @@ test('review finding 3: IMPACT_LABEL.recovery is the SUM, never the lone engine 
   // liveWeightPct('recovery') alone is 12 (the FALLBACK_WEIGHTS athlete row) — half the real
   // pillar. The athlete's actual Recovery card, and every other live surface, quotes
   // checkin + recovery (24). This label (screens/requirement.js's "what it touches" fact, on
-  // the real nightly Recovery Check-In requirement) must match.
+  // the real nightly Recovery check-in requirement) must match.
   assert.equal(IMPACT_LABEL.recovery, 'Recovery · 24% of score');
 });

@@ -7,6 +7,7 @@ export default {
   render() {
     return `
     <div class="ob">
+      <h1 class="sr-only">Lock it down</h1>
       <div class="standard-set" style="padding-top:40px">
         <div class="halo"><div class="core">${icon('lock', 34)}</div></div>
         <div class="ob-title" style="margin-top:22px">Lock it down.</div>
@@ -14,7 +15,7 @@ export default {
       </div>
       <div class="ob-foot" style="margin-top:auto">
         <div id="bio-err" role="alert" style="color:var(--red-bright);font-size:var(--t-sm);font-weight:600;min-height:18px;text-align:center;margin-bottom:8px"></div>
-        <button class="btn green" id="bio-on">Enable Face ID</button>
+        <button class="btn primary" id="bio-on">Enable Face ID</button>
         <div class="ob-textlink" style="padding-top:14px" data-go="home">Not now</div>
       </div>
     </div>`;

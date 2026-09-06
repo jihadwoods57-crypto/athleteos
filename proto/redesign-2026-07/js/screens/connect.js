@@ -61,7 +61,7 @@ export default {
         </div>
       </section>
       <div class="sidebox" style="margin-top:12px">
-        <div class="req-icon b" style="width:38px;height:38px">${icon('eye', 17)}</div>
+        <div class="req-icon b s38">${icon('eye', 17)}</div>
         <div><div class="tt">What they'll see</div>
         <div class="ts">${isTeam ? 'This coach will see your score, requirements, meal logs, and check-ins.' : 'This trainer will see your recovery, readiness, and nutrition consistency.'}</div></div>
       </div>
@@ -78,7 +78,7 @@ export default {
     ${backHead('Connect a coach or trainer', 'Enter the code they gave you', 'profile')}
 
     <div style="height:14px"></div>
-    <input id="cc-code" class="ob-input" placeholder="Team or trainer code" aria-label="Coach or trainer code"
+    <input id="cc-code" class="ob-input" placeholder="Team or trainer code" aria-label="Coach or trainer code" aria-describedby="cc-err"
       autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="go"
       value="${esc(subCode(sub))}"
       style="text-align:center;letter-spacing:0.2em;font-weight:800;text-transform:uppercase" />
@@ -90,7 +90,7 @@ export default {
 
     <div style="height:14px"></div>
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 18)}</div>
+      <div class="req-icon b s38">${icon('shield', 18)}</div>
       <div><div class="tt">Nothing is shared until you confirm</div>
       <div class="ts">You'll see exactly which team the code belongs to, and what they can see, before you join.</div></div>
     </div>
@@ -133,12 +133,14 @@ export default {
     input.addEventListener('input', normalize);
     input.addEventListener('paste', () => setTimeout(normalize, 0));
     normalize(); // a deep-linked code arrives prefilled — light the Continue button for it
+    const fail = (m) => { err.textContent = m; input.setAttribute('aria-invalid', 'true'); };
     const submit = async () => {
       if (btn.disabled) return;
       err.textContent = '';
+      input.removeAttribute('aria-invalid');
       const code = input.value.replace(/\s+/g, '').toUpperCase();
-      if (!code) { err.textContent = 'Enter the code first.'; return; }
-      if (!CODE_RE.test(code)) { err.textContent = 'Codes are 4–12 letters and numbers. Check it and try again.'; return; }
+      if (!code) { fail('Enter the code first.'); return; }
+      if (!CODE_RE.test(code)) { fail('Codes are 4–12 letters and numbers. Check it and try again.'); return; }
       // Definitive-offline preflight: joinByCode's RPC failure copy reads "code didn't match",
       // which is a lie when the real problem is the connection.
       if (!navigator.onLine) { err.textContent = 'You need a connection for this. Try again when you\'re online.'; return; }
@@ -160,7 +162,7 @@ export default {
           window.__render();
           return;
         }
-        err.textContent = 'That code didn\'t match a team or practice. Check it with your coach and try again.';
+        fail('That code didn\'t match a team or practice. Check it with your coach and try again.');
       } catch {
         // Directory unreachable — redeem directly; the join RPC re-validates the code anyway.
         const r = await act.joinByCode(code);

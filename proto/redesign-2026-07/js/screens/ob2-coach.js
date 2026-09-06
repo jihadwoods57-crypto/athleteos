@@ -132,7 +132,7 @@ const steps = [
       <input id="co-last" class="ob-input" maxlength="40" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" spellcheck="false" autocorrect="off" />
       <h2 class="eyebrow" style="margin:16px 2px 10px">What the room calls you</h2>
       <div class="chip-row" id="co-handle"></div>
-      <input id="co-handle-custom" class="ob-input" maxlength="24" placeholder="Or type it, e.g. Coach B" style="margin-top:10px" />
+      <input id="co-handle-custom" class="ob-input" maxlength="24" placeholder="Or type it, e.g. Coach B" aria-label="What the room calls you" style="margin-top:10px" />
       <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">This is the name athletes see everywhere: greetings, meal threads, your standard.</div>`,
     mount(root) {
       const $ = (s) => root.querySelector(s);
@@ -446,15 +446,15 @@ const steps = [
          chosen path's fields render, and switching clears the OTHER path's input so
          persistCoachOnboarding never routes on stale data. */
       return `
-      <div class="seg" style="width:100%;margin-bottom:18px" id="ok-joinmode">
-        <button class="${mode === 'create' ? 'on' : ''}" data-mode="create">Create a team</button>
-        <button class="${mode === 'join' ? 'on' : ''}" data-mode="join">Join a staff</button>
+      <div class="seg" style="width:100%;margin-bottom:18px" id="ok-joinmode" role="radiogroup" aria-label="Create a team or join a staff">
+        <button class="${mode === 'create' ? 'on' : ''}" data-mode="create" role="radio" aria-checked="${mode === 'create'}">Create a team</button>
+        <button class="${mode === 'join' ? 'on' : ''}" data-mode="join" role="radio" aria-checked="${mode === 'join'}">Join a staff</button>
       </div>
       ${mode === 'join' ? `
       <h2 class="eyebrow" style="margin:8px 2px 10px">Staff code</h2>
-      <input id="ok-staff-code" class="ob-input" maxlength="12" placeholder="Code from your head coach" autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" value="${esc(c.staffCode || '')}" />
+      <input id="ok-staff-code" class="ob-input" maxlength="12" placeholder="Code from your head coach" aria-label="Staff code" autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" value="${esc(c.staffCode || '')}" />
       <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">Your head coach hands out staff codes. It lands you on their team’s staff with the role and permissions they set. You won’t create a new team.</div>` : `
-      <input id="ok-team" class="ob-input" maxlength="60" placeholder="Team name (e.g. Varsity Football)" value="${esc(c.teamName || o.teamName || '')}" />
+      <input id="ok-team" class="ob-input" maxlength="60" placeholder="Team name (e.g. Varsity Football)" aria-label="Team name" value="${esc(c.teamName || o.teamName || '')}" />
       <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:10px 2px 0;line-height:1.45">Your join code mints with your account on the next steps. Send it to the group chat and the board starts filling.</div>`}`;
     },
     mount(root, ctx) {
@@ -522,7 +522,7 @@ const steps = [
     },
   },
   {
-    id: 'code', ch: 4, cta: 'Continue', green: true,
+    id: 'code', ch: 4, cta: 'Continue',
     /* Post-account: back can't return to the sign-up form — exit to the dashboard instead
        (legacy step 8 simply has no back; the OB2 shell always renders one). */
     back: 'coach-home',
@@ -550,10 +550,10 @@ const steps = [
           <button class="btn ghost sm" id="ob-code-edit" style="width:auto;padding:0 22px">Customize</button>
         </div>
         <div id="ob-code-editor" style="display:none;margin-top:14px">
-          <input id="ob-code-input" class="ob-input" placeholder="YOUR CODE · 6–12 letters/numbers" maxlength="12"
+          <input id="ob-code-input" class="ob-input" placeholder="YOUR CODE · 6–12 letters/numbers" aria-label="Custom join code" maxlength="12"
             autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" />
           <div style="display:flex;justify-content:center;gap:8px;margin-top:10px">
-            <button class="btn green sm" id="ob-code-save" style="width:auto;padding:0 22px">Save code</button>
+            <button class="btn primary sm" id="ob-code-save" style="width:auto;padding:0 22px">Save code</button>
           </div>
           <div id="ob-code-status" style="font-size:12px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px;text-align:center">Make it yours, e.g. GATORS. The random code stops working once you save.</div>
         </div>` :
@@ -561,7 +561,7 @@ const steps = [
            automatically on your next sign-in" and send the coach to Profile → Team code; neither
            was true, and the dashboard then claimed a mint was in progress forever. Say what
            actually happened and point at the button that actually fixes it. */
-        `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+        `<div class="sidebox"><div class="req-icon b s38">${icon('clipboard', 17)}</div>
           <div><div class="tt">We couldn’t create your team</div><div class="ts">Your account is set up. The team isn’t. Pick a plan, then your dashboard has a <b>Create team</b> button waiting.</div></div></div>`}
       </div>`;
     },

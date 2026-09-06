@@ -1,6 +1,6 @@
 import { S } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, esc } from '../components.js';
+import { backHead, esc, emptyState } from '../components.js';
 import { freqLabel, fmtMin } from '../requirements.js';
 
 /* The schedule this screen states must be the SAME row Plan → Schedule renders — the weigh-in
@@ -87,15 +87,11 @@ export default {
       </div>
     </section>` : `
     <h2 class="eyebrow">Season goal</h2>
-    <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('target', 18)}</div>
-      <div><div class="tt">No season target set yet</div>
-      <div class="ts">Your ${S.coach.noun} sets your weight goal. Until then, logging still builds your season trend.</div></div>
-    </div>`}
+    ${emptyState({ icon: 'target', title: 'No season target set yet', body: `Your ${S.coach.noun} sets your weight goal. Until then, logging still builds your season trend.`, compact: true })}`}
 
     <div style="height:14px"></div>
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 18)}</div>
+      <div class="req-icon b s38">${icon('shield', 18)}</div>
       <div><div class="tt">Doesn't touch today's score</div>
       <div class="ts">Weight tracks your season goal, not your daily execution. ${S.coach.hasCoach ? `Logging it gives ${esc(S.coach.nameMid)} the real trend.` : 'Logging it keeps your season trend honest.'}</div></div>
     </div>

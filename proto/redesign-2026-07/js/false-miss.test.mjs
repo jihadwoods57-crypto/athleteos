@@ -25,7 +25,7 @@ const REQS = [
   { id: 'breakfast', title: 'Breakfast', required: true, proof: 'photo', window: { open: T(5), due: T(9, 30) }, freq: { type: 'daily' } },
   { id: 'lunch', title: 'Lunch', required: true, proof: 'photo', window: { open: T(11), due: T(14) }, freq: { type: 'daily' } },
   { id: 'dinner', title: 'Dinner', required: true, proof: 'photo', window: { open: T(17), due: T(20, 30) }, freq: { type: 'daily' } },
-  { id: 'recovery', title: 'Recovery Check-In', required: true, proof: 'form', window: { due: T(23, 30) }, freq: { type: 'daily' } },
+  { id: 'recovery', title: 'Recovery check-in', required: true, proof: 'form', window: { due: T(23, 30) }, freq: { type: 'daily' } },
 ];
 
 const at = (row) => athleteStatus({ nowMin: T(22), nowMs: NOW_MS, row, reqs: REQS, excused: false, nowDow: FRI });
@@ -39,7 +39,7 @@ test('Owen: every meal logged, tasks empty — no meal reads as missed', () => {
     lastMealAt: '2026-08-28T19:42:00Z', scoreHistory: [],
   };
   const s = at(row);
-  assert.deepEqual(overdueTitles(s).filter((t) => t !== 'Recovery Check-In'), [],
+  assert.deepEqual(overdueTitles(s).filter((t) => t !== 'Recovery check-in'), [],
     'a logged meal must never be reported missed');
   assert.notStrictEqual(s.key, 'overdue');
 });

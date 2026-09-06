@@ -11,8 +11,9 @@
    nav:'operator' — one module renders for a coach's team AND a trainer's practice. */
 import { RT } from '../state.js';
 import { icon } from '../icons.js';
+import { DAYS_SHORT } from '../fmt-date.js';
 import { track, EVENTS } from '../analytics.js';
-import { backHead, esc, errorState, skeletonRows, segBar } from '../components.js';
+import { backHead, esc, errorState, skeletonRows, segBar, emptyState } from '../components.js';
 import { CD, bookId } from '../coach-data.js';
 // The shared no-book trio (coach-connected.js): kick the book without forcing, the honest
 // "can't reach / no book yet / loading" screen for a book-less landing, and the Retry that
@@ -110,10 +111,10 @@ function wakeupHomeCard(inst) {
     ? (out ? `<span class="xpill red">${out} missed</span>` : '<span class="xpill green">All in</span>')
     : phase === 'late'
       ? (out ? `<span class="xpill red">${out} still out</span>` : '<span class="xpill green">All in</span>')
-      : (out ? `<span class="xpill gold">${out} pending</span>` : '<span class="xpill green">All in</span>');
+      : (out ? `<span class="xpill gray">${out} pending</span>` : '<span class="xpill green">All in</span>');
   return `
     <section class="card pad vc-board wk-homecard" data-go="coach-commitments/${esc(inst.instance_id)}">
-      <h2 class="eyebrow wk-cardh">${esc(inst.title || 'Wake-Up Roll Call')}</h2>
+      <h2 class="eyebrow wk-cardh">${esc(inst.title || 'Roll call')}</h2>
       <div class="wk-ctx">${esc(ctx)}</div>
       ${segBar(c.accountedFor, c.total, `${c.accountedFor} of ${c.total} accounted for`)}
       <div class="wk-homeline">
@@ -189,7 +190,7 @@ function scheduleCard(inst, label) {
     ${!skipped && canSchedule() ? `
     <div class="wk-field">
       <div class="wk-l">Wake-up time this day</div>
-      <input class="ob-input wk-time" id="wk-sched-time" type="time" value="${esc(hhmmOf(eff))}" aria-label="Wake-up time for ${esc(label)}" />
+      <input class="ob-input wk-time" id="wk-sched-time" type="time" aria-describedby="wk-sched-err" value="${esc(hhmmOf(eff))}" aria-label="Wake-up time for ${esc(label)}" />
       <div class="ts wk-hint">Grace and close move with it. ${st.kind === 'moved' ? `<button class="btn ghost xs" id="wk-sched-reset">Back to ${esc(fmtMin(rule))}</button>` : 'The standing rule stays as it is.'}</div>
     </div>` : ''}
     <div id="wk-sched-err" class="ts wk-err" aria-live="polite"></div>
@@ -290,7 +291,7 @@ function wakeupRow(r, kind, inst, clock, phase) {
         : r.first_notified_at ? ` · push sent ${clock(r.first_notified_at)}`
         : phase !== 'before' ? ' · no push reached them' : '');
   const pill = kind === 'on'
-      ? (r.source === SOURCE.OVERRIDE ? '<span class="xpill blue">Override · On Standard</span>' : '<span class="xpill green">On Standard</span>')
+      ? (r.source === SOURCE.OVERRIDE ? '<span class="xpill blue">Override · On standard</span>' : '<span class="xpill green">On standard</span>')
     : kind === 'late' ? `<span class="xpill gold">Late${r.lateMin ? ` · +${r.lateMin} min` : ''}</span>`
     : kind === 'review' ? '<span class="xpill purple">Needs review</span>'
     : kind === 'ex' ? '<span class="xpill gray">Excused</span>'
@@ -367,7 +368,7 @@ function wakeupSummaryCard(inst) {
       ${icon('chevron', 14, 'class="ic-chevron"')}
     </div>`).join('')}
   </section>
-  <div class="ts wk-hint">${esc(`Last ${s.occurrences} roll call${s.occurrences === 1 ? '' : 's'}: ${s.onStandard} On Standard, ${s.late} Late, ${s.missed} Missed.`)}</div>`;
+  <div class="ts wk-hint">${esc(`Last ${s.occurrences} roll call${s.occurrences === 1 ? '' : 's'}: ${s.onStandard} On standard, ${s.late} Late, ${s.missed} Missed.`)}</div>`;
 }
 
 /* The ring in the header. One arc, one number: how many of the roster have an answer. It replaces
@@ -404,7 +405,7 @@ function wakeupBoard(inst, back) {
   const dl = deadlineOf(inst);
   const close = closesAtOf(inst);
   const out = g.pending.length + g.still_out.length;
-  const title = inst.title || 'Wake-Up Roll Call';
+  const title = inst.title || 'Roll call';
 
   /* The subtitle is the schedule, stated once: who, and the window they are judged on. The grace
      minutes used to ride here as a third clause and then get restated by the status line below. */
@@ -430,8 +431,8 @@ function wakeupBoard(inst, back) {
     : phase === 'late' ? 'Grace ended'
     : (out || c.missed) ? 'Closed' : 'Complete';
   const statusLine = skipped ? 'Nobody gets a roll call this day. Put it back below to send it.'
-    : ahead || phase === 'before' ? `Goes out ${clock(opensAtOf(inst))}. On Standard until ${clock(dl)}. Closes ${clock(close)}.`
-    : phase === 'open' ? `On Standard until ${clock(dl)}. Closes ${clock(close)}.`
+    : ahead || phase === 'before' ? `Goes out ${clock(opensAtOf(inst))}. On standard until ${clock(dl)}. Closes ${clock(close)}.`
+    : phase === 'open' ? `On standard until ${clock(dl)}. Closes ${clock(close)}.`
     : phase === 'late' ? `Late check-ins still count until ${clock(close)}.`
     : `Closed ${clock(close)}. Missed is final.`;
   const outLabel = phase === 'closed' ? 'Missed' : phase === 'late' ? 'Still out' : 'Pending';
@@ -443,7 +444,7 @@ function wakeupBoard(inst, back) {
     : out ? 'a' : 'g';
 
   /* Everything the three columns do NOT already say. "N checked in" is gone from here: it was the
-     On Standard column read back out in prose. */
+     On standard column read back out in prose. */
   const reach = reachCounts(inst.rows || []);
   const split = [
     reach && reach.unreachable ? `${reach.unreachable} can’t get a push` : '',
@@ -486,7 +487,7 @@ function wakeupBoard(inst, back) {
     </div>
     ${setup ? `<div class="wk-split">${skipped ? 'Nobody is scheduled.' : `${c.total} will get it${inst.audience_label ? `, ${esc(inst.audience_label)}` : ''}.${reach && reach.unreachable ? ` ${reach.unreachable} can’t get a push.` : ''}`}</div>` : `
     <div class="wk-stats">
-      <div class="wk-stat ${c.onStandard ? 'g' : ''}"><b>${c.onStandard}</b><span>On Standard</span></div>
+      <div class="wk-stat ${c.onStandard ? 'g' : ''}"><b>${c.onStandard}</b><span>On standard</span></div>
       <div class="wk-stat ${c.late ? 'a' : ''}"><b>${c.late}</b><span>Late</span></div>
       <div class="wk-stat ${out && phase !== 'open' && phase !== 'before' ? 'r' : ''}"><b>${out}</b><span>${esc(outLabel)}</span></div>
     </div>
@@ -503,7 +504,7 @@ function wakeupBoard(inst, back) {
       <textarea class="ob-input wk-msg" id="wk-msg-ta" maxlength="1000" rows="3" aria-label="Message for this roll call">${esc(inst.message_override || inst.standing_message || inst.message || '')}</textarea>
       <div class="wk-hint">${ahead || phase === 'before' ? 'Goes out with this roll call, in your name, exactly as written.' : 'Shows in the app now. A push already sent keeps its words.'}</div>
       <div class="btn-row mt">
-        <button class="btn green sm" id="wk-msg-save">${ahead ? 'Save for this day' : 'Save for today'}</button>
+        <button class="btn primary sm" id="wk-msg-save">${ahead ? 'Save for this day' : 'Save for today'}</button>
         ${inst.message_override ? `<button class="btn ghost sm" id="wk-msg-clear">Use standing message</button>` : ''}
       </div>
       <div id="wk-msg-err" class="ts wk-err" aria-live="polite"></div>
@@ -525,7 +526,7 @@ function wakeupBoard(inst, back) {
     <summary>${icon('chevron', 14)} <span class="wk-rostl">Who gets it</span> <span class="opt">· ${attention.length + settled.length}</span></summary>
     <section class="card rows">${[...attention, ...settled].map((r) => `
       <div class="lrow"><div class="lm"><div class="lt">${esc(r.name || 'Athlete')}</div>${r.verdict === VERDICT.EXCUSED ? `<div class="ls">${esc(r.excused_reason || 'Excused')}</div>` : ''}</div>
-        ${r.verdict === VERDICT.EXCUSED ? '<span class="xpill gray">Excused</span>' : r.can_push === false ? '<span class="xpill gold">No push</span>' : ''}</div>`).join('')}</section>
+        ${r.verdict === VERDICT.EXCUSED ? '<span class="xpill gray">Excused</span>' : r.can_push === false ? '<span class="xpill gray">No push</span>' : ''}</div>`).join('')}</section>
   </details>` : ''}
 
   ${!setup && settled.length ? `
@@ -660,7 +661,7 @@ export const coachCommitments = {
       }
       return `${backHead('Roll call', 'Nothing scheduled today', back)}
       <div class="sidebox">
-        <div class="req-icon b" style="width:38px;height:38px">${icon('clock', 17)}</div>
+        <div class="req-icon b s38">${icon('clock', 17)}</div>
         <div><div class="tt">No commitments today</div>
         <div class="ts">Schedule a morning roll call, a lift, or a study hall and you'll see live responses here, without counting replies in a group chat.</div></div>
       </div>
@@ -706,7 +707,7 @@ export const coachCommitments = {
     <div class="ts" style="text-align:center;padding-top:8px">Only these ${missing.length} get the reminder. Nobody who already responded is pinged.</div>
     ` : `
     <div class="sidebox" style="margin-top:12px">
-      <div class="req-icon g" style="width:38px;height:38px">${icon('check', 19)}</div>
+      <div class="req-icon g s38">${icon('check', 19)}</div>
       <div><div class="tt">Everyone is in</div>
       <div class="ts">No reminders to send and nobody to chase.</div></div>
     </div>`}
@@ -717,7 +718,7 @@ export const coachCommitments = {
 
     ${inst.asks_arrival ? `
     <div class="sidebox" style="margin-top:14px">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 19)}</div>
+      <div class="req-icon b s38">${icon('shield', 19)}</div>
       <div><div class="tt">What "Arrived" means</div>
       <div class="ts">The ${CD.noun}'s phone reached ${esc(inst.location_name || 'the location')} inside the scheduled window. It does not prove the session was completed; that's the separate Completed signal.</div></div>
     </div>` : ''}
@@ -910,7 +911,7 @@ export const coachCommitments = {
       const input = document.createElement('input');
       input.className = 'input'; input.maxLength = 120; input.placeholder = 'Why? (required, the athlete sees it)';
       input.setAttribute('aria-label', 'Override reason');
-      const ok = document.createElement('button'); ok.className = 'chip on'; ok.textContent = 'Mark On Standard';
+      const ok = document.createElement('button'); ok.className = 'chip on'; ok.textContent = 'Mark on standard';
       const cancel = document.createElement('button'); cancel.className = 'chip'; cancel.textContent = 'Cancel';
       const err = document.createElement('div'); err.className = 'ts wk-err';
       ok.addEventListener('click', async () => {
@@ -918,7 +919,7 @@ export const coachCommitments = {
         if (!why) { err.textContent = 'Give a reason. It goes on the record.'; input.focus(); return; }
         ok.disabled = true; ok.textContent = '…';
         const done = await setResponse(respId, 'acknowledged', why);
-        if (!done) { ok.disabled = false; ok.textContent = 'Mark On Standard'; err.textContent = 'Couldn’t save. Try again.'; return; }
+        if (!done) { ok.disabled = false; ok.textContent = 'Mark on standard'; err.textContent = 'Couldn’t save. Try again.'; return; }
         await repaint();
       });
       cancel.addEventListener('click', () => { window.__render && window.__render(); });
@@ -1053,7 +1054,7 @@ const timeInput = (id, label, val) => `
 
 /* ---------------------------------------------------------------- manage standing commitments */
 
-const DOW_FULL = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DOW_FULL = DAYS_SHORT;
 const daysLabel = (days) => {
   const d = (days || []).map(Number).sort();
   if (!d.length) return 'Never';
@@ -1114,12 +1115,7 @@ export const coachCommitManage = {
     ${backHead('Commitments', 'Everything you have standing', back)}
     ${VC.commitmentsError && !rows.length ? errorState({ title: "Couldn't load your commitments", body: 'Nothing was deleted. Reconnect and your schedule loads right here.', retryId: 'vc-manage-retry' })
     : !loaded ? skeletonRows(3, 'Loading your commitments')
-    : !rows.length ? `
-      <div class="sidebox">
-        <div class="req-icon b" style="width:38px;height:38px">${icon('clock', 17)}</div>
-        <div><div class="tt">Nothing scheduled yet</div>
-        <div class="ts">Schedule a morning roll call, a lift, or a study hall and it'll live here: editable, pausable, and never silently deleted.</div></div>
-      </div>` : ''}
+    : !rows.length ? emptyState({ icon: 'clock', title: 'Nothing scheduled yet', body: "Schedule a morning roll call, a lift, or a study hall and it'll live here: editable, pausable, and never silently deleted.", compact: true }) : ''}
     ${live.length ? `<h2 class="eyebrow">Running</h2>
       <section class="card" style="padding:2px 16px">${live.map(card).join('')}</section>` : ''}
     ${paused.length ? `<h2 class="eyebrow">Paused</h2>
@@ -1130,9 +1126,9 @@ export const coachCommitManage = {
     <div class="sidebox">
       <div class="req-icon b s38">${icon('sun', 17)}</div>
       <div><div class="tt">Scheduling is off right now</div>
-      <div class="ts">The Wake-Up Roll Call and commitment scheduling are switched off, so nothing new can be created and nothing is going out. Anything listed above is kept exactly as it was recorded.</div></div>
+      <div class="ts">The roll call and commitment scheduling are switched off, so nothing new can be created and nothing is going out. Anything listed above is kept exactly as it was recorded.</div></div>
     </div>` : `
-    <button class="btn green" data-go="coach-wakeup-new">${icon('sun', 18)} Wake-Up Roll Call</button>
+    <button class="btn primary" data-go="coach-wakeup-new">${icon('sun', 18)} Roll call</button>
     <div class="wk-gap"></div>
     <button class="btn ghost" id="vc-new" style="width:100%">${icon('plus', 18)} Schedule a commitment</button>`}
     <div style="height:20px"></div>`;
@@ -1196,7 +1192,7 @@ export const coachCommitEdit = {
     if (!canSchedule()) {
       return `${backHead('Schedule', 'Not available for your role', back)}
       <div class="sidebox">
-        <div class="req-icon b" style="width:38px;height:38px">${icon('eye', 17)}</div>
+        <div class="req-icon b s38">${icon('eye', 17)}</div>
         <div><div class="tt">Scheduling is for the coaching staff</div>
         <div class="ts">You can see the board and every response for your scope. Ask the head coach if you should be able to schedule too.</div></div>
       </div>`;
@@ -1215,17 +1211,17 @@ export const coachCommitEdit = {
         ${TYPES.map((t) => `<button class="chip ${d.type === t ? 'on' : ''}" role="radio" aria-checked="${d.type === t ? 'true' : 'false'}" data-type="${t}">${esc(TYPE_LABEL[t])}</button>`).join('')}
       </div>
       <div style="height:14px"></div>
-      <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">What the ${CD.nouns} see as the title</div>
+      <label for="vc-title" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">What the ${CD.nouns} see as the title</label>
       <input class="ob-input" id="vc-title" maxlength="60" value="${esc(d.title)}" placeholder="${esc(TYPE_LABEL[d.type])}" />
       <div style="height:14px"></div>
-      <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Your message <span style="color:var(--text-3);font-weight:600">· optional, your words</span></div>
+      <label for="vc-msg" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Your message <span style="color:var(--text-3);font-weight:600">· optional, your words</span></label>
       <textarea class="ob-input" id="vc-msg" maxlength="200" rows="2" style="min-height:60px;resize:vertical" placeholder="Say it how you'd say it in the room.">${esc(d.message)}</textarea>
       ${starters.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
         ${starters.map((s, i) => `<button class="chip" data-starter="${i}">${esc(s.length > 34 ? s.slice(0, 32) + '…' : s)}</button>`).join('')}
       </div>
       <div class="ts" style="padding-top:6px">Tap one to load it in and edit it, or ignore them and write your own.</div>` : ''}
       <div style="height:14px"></div>
-      <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Button label</div>
+      <label for="vc-action" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Button label</label>
       <input class="ob-input" id="vc-action" maxlength="24" value="${esc(d.action_label)}" placeholder="${d.type === 'morning_roll_call' ? 'I’m Up' : 'I’m here'}" />
     </section>
 
@@ -1278,10 +1274,10 @@ export const coachCommitEdit = {
         <input class="ob-input" id="vc-placename" maxlength="60" placeholder="e.g. Football Facility" />
         <div style="height:10px"></div>
         <label for="vc-placeradius" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">How close counts <span style="color:var(--text-3);font-weight:600">· metres</span></label>
-        <input class="ob-input" id="vc-placeradius" type="number" min="50" max="1000" step="10" value="120" />
+        <input class="ob-input" id="vc-placeradius" type="number" inputmode="numeric" min="50" max="1000" step="10" value="120" />
         <div class="ts" style="padding-top:6px">120m covers a field and its building. Below 50m a phone's own GPS error starts marking honest ${CD.nouns} absent, so that's the floor.</div>
         <div style="height:10px"></div>
-        <button class="btn green" id="vc-saveplace" style="width:100%">${icon('check', 17)} Use my current location</button>
+        <button class="btn primary" id="vc-saveplace" style="width:100%">${icon('check', 17)} Use my current location</button>
         <div id="vc-placemsg" class="ts" style="padding-top:8px"></div>
       </div>
       ${d.location_id ? `
@@ -1290,7 +1286,7 @@ export const coachCommitEdit = {
         ${timeInput('vc-arrive', 'Arrive by', d.arrive_by_min)}
         <div style="flex:1">
           <label for="vc-dwell" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Stay at least <span style="color:var(--text-3);font-weight:600">· min</span></label>
-          <input class="ob-input" id="vc-dwell" type="number" min="0" max="480" step="5" value="${d.min_dwell_min == null ? '' : esc(String(d.min_dwell_min))}" placeholder="45" />
+          <input class="ob-input" id="vc-dwell" type="number" inputmode="numeric" min="0" max="480" step="5" value="${d.min_dwell_min == null ? '' : esc(String(d.min_dwell_min))}" placeholder="45" />
         </div>
       </div>
       ${/* 0208. This line used to describe arrival only, while the "Stay at least" box beside it
@@ -1314,7 +1310,7 @@ export const coachCommitEdit = {
     </section>
 
     <div style="height:14px"></div>
-    <button class="btn green" id="vc-save" style="width:100%">${icon('check', 19)} Schedule it</button>
+    <button class="btn primary" id="vc-save" style="width:100%">${icon('check', 19)} Schedule it</button>
     <div id="vc-save-err" class="ts" style="color:var(--red);text-align:center;min-height:16px"></div>
     <div style="height:10px"></div>
     <div class="ts" style="text-align:center">Athletes see this on Home when it opens. Responses land on your board live.</div>

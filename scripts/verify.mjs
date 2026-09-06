@@ -39,6 +39,7 @@ const GATES = [
   { name: 'lint:type',  what: 'the raw font-size count did not grow' },
   { name: 'lint:inline', what: 'the inline-style count did not grow' },
   { name: 'lint:dash',  what: 'em dashes in copy did not grow (DESIGN.md ban)' },
+  { name: 'lint:space', what: 'the off-scale padding/margin/gap count did not grow' },
   { name: 'lint:score', what: 'no hardcoded score percentages' },
   { name: 'lint:widget', what: "the widget extension's copies of the shared Swift have not drifted" },
   { name: 'typecheck',  what: 'tsc --noEmit' },

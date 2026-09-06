@@ -72,8 +72,10 @@ export const MEAL_QUALITY_GOOD = 80;
 export const MEAL_QUALITY_OK = 50;
 
 /** The one-letter accent class ('g' | 'a' | 'r') a meal-quality score wears. Named
- *  qualityACCENT, not qualityBand: meal-intel.js already exports a qualityBand() with its own
- *  75/50 label ladder ({cls, label}), and state.js/coach.js import both. */
+ *  qualityACCENT, not qualityBand: meal-intel.js exports a qualityBand() that returns the
+ *  {cls, label} pair, and state.js/coach.js import both. Since the 2026-09-05 audit that label
+ *  ladder is built on MEAL_QUALITY_GOOD / MEAL_QUALITY_OK too (it used to sit at 75/50, so a 77
+ *  read "Strong" while this accent painted it amber). One floor, two shapes. */
 export function qualityAccent(quality) {
   return quality >= MEAL_QUALITY_GOOD ? 'g' : quality >= MEAL_QUALITY_OK ? 'a' : 'r';
 }

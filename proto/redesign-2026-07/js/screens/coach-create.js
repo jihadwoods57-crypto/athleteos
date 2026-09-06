@@ -25,7 +25,7 @@ const OPTIONS = [
   // so bringing the feature back is one constant, not an archaeology exercise.
   // (0211): the morning group text as a measurable roll call. Shares the
   // 'commitments' capability because it IS a commitment (type morning_roll_call).
-  { key: 'commitments',     cap: null,             icon: 'sun',       title: 'Wake-Up Roll Call',     sub: 'A time, a grace period, your message. One tap answers it', go: 'coach-wakeup-new' },
+  { key: 'commitments',     cap: null,             icon: 'sun',       title: 'Roll call',     sub: 'A time, a grace period, your message. One tap answers it', go: 'coach-wakeup-new' },
   // Verified Commitments (0138). Distinct from 'schedule' above, which excuses an athlete for a
   // stretch of days; this SCHEDULES the thing they're accountable for in the first place.
   { key: 'commitments',     cap: null,             icon: 'clock',     title: 'Schedule a commitment', sub: 'Practice, lift, study hall. Verified', go: 'coach-commit-manage' },
@@ -60,7 +60,7 @@ export const coachCreate = {
     if (!practice && CD.extras && isReadonly(myRole)) {
       return `${backHead('Create', 'What do you want to put in motion?', back)}
       <div class="sidebox">
-        <div class="req-icon b" style="width:38px;height:38px">${icon('eye', 17)}</div>
+        <div class="req-icon b s38">${icon('eye', 17)}</div>
         <div><div class="tt">You have view-only access</div>
         <div class="ts">You can see the roster, standards, and activity for your scope. Creating and assigning is for the coaching staff. Ask the head coach if that should change.</div></div>
       </div>`;
@@ -88,7 +88,7 @@ export const coachCreate = {
     ${practice ? `
     <div style="height:12px"></div>
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
+      <div class="req-icon b s38">${icon('lock', 17)}</div>
       <div><div class="tt">Built for teams</div>
       <div class="ts">Broadcast announcements and staff roles are team tools. A practice is 1:1, so everything on this menu works on your book right now.</div></div>
     </div>` : ''}`;

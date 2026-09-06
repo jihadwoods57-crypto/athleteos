@@ -7,6 +7,7 @@ import { backHead, esc } from '../components.js';
 import { icon } from '../icons.js';
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor } from '../coach-data.js';
+import { dateKey, weekdayDate } from '../fmt-date.js';
 
 function athleteName(athleteId) {
   const r = CD.roster && CD.roster.rows && CD.roster.rows.find((x) => x.athleteId === athleteId);
@@ -15,13 +16,10 @@ function athleteName(athleteId) {
 
 const policy = () => RT.passPolicy || { default_credits: 3, default_window_days: 2, eligibility_days: 7, max_credits: 5 };
 
-function isoDate(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+const isoDate = dateKey;
 /** "Sat, Aug 29", never raw ISO: this line is what a coach reads aloud to the athlete. Parsed at
  *  local midnight so a negative-offset timezone can't shift the weekday back a day. */
-function fmtDay(iso) {
-  try { return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); }
-  catch { return String(iso); }
-}
+function fmtDay(iso) { return weekdayDate(iso) || String(iso); }
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
 /** The coming Saturday (today if today IS Saturday) through the following Sunday. */
 function comingWeekend() {
@@ -72,9 +70,9 @@ export default {
 
     <h2 class="eyebrow">Shape</h2>
     <section class="card pad">
-      <div class="seg" style="width:100%">
-        <button data-shape="credits" class="${!isWindow ? 'on' : ''}">Meals</button>
-        <button data-shape="window" class="${isWindow ? 'on' : ''}">Window</button>
+      <div class="seg" style="width:100%" role="radiogroup" aria-label="Shape">
+        <button data-shape="credits" class="${!isWindow ? 'on' : ''}" role="radio" aria-checked="${!isWindow}">Meals</button>
+        <button data-shape="window" class="${isWindow ? 'on' : ''}" role="radio" aria-checked="${isWindow}">Window</button>
       </div>
     </section>
 
@@ -118,7 +116,7 @@ export default {
 
     <h2 class="eyebrow">Note (optional)</h2>
     <section class="card pad">
-      <input class="ob-input" id="pg-note" maxlength="140" value="${esc(UI.note)}" placeholder="e.g. Great week" />
+      <input class="ob-input" id="pg-note" maxlength="140" value="${esc(UI.note)}" placeholder="e.g. Great week" aria-label="Note (optional)" />
       <div style="font-size:11px;font-weight:600;color:var(--text-3);margin-top:4px">${esc(String(UI.note.length))}/140 · shows to ${esc(name)} with the grant</div>
     </section>
 

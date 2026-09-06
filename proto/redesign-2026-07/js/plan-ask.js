@@ -45,10 +45,10 @@ export function remainingPhrase(rem) {
   return parts.join(' and ');
 }
 
-/** One saved item, as a sentence fragment: "Usual Subway order · 720 cal · 42g protein". */
+/** One saved item, as a sentence fragment: "Usual Subway order · 720 kcal · 42g protein". */
 export function itemPhrase(it) {
   const bits = [];
-  if (it.kcal) bits.push(`${round(it.kcal)} cal`);
+  if (it.kcal) bits.push(`${round(it.kcal)} kcal`);
   if (it.protein) bits.push(`${round(it.protein)}g protein`);
   return bits.length ? `${it.name} · ${bits.join(' · ')}` : String(it.name);
 }

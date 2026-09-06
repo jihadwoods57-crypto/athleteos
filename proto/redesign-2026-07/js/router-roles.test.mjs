@@ -17,7 +17,10 @@ globalThis.sessionStorage = { getItem: () => null, setItem() {}, removeItem() {}
 globalThis.location = globalThis.window.location;   // node supplies `navigator` itself (getter-only)
 
 const { navFor, navAdmits, lateralStep } = await import('./router.js');
-const { screens } = await import('./screens/index.js');
+// The registry is lazy (2026-09-05): most entries are import() thunks until first use. The
+// matrix reads modules synchronously, so load the whole table first.
+const { loadAllScreens } = await import('./screens/index.js');
+const screens = await loadAllScreens();
 
 const ROLES = ['athlete', 'coach', 'trainer', 'parent'];
 const OPERATOR = { nav: 'operator' };

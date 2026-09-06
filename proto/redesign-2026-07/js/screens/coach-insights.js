@@ -1,6 +1,6 @@
 import { S, RT, roleProfileRoute } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, esc, errorState, skeletonRows } from '../components.js';
+import { backHead, esc, errorState, skeletonRows, emptyState } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, entriesFor, getScope, scopeFilter } from '../coach-data.js';
 
@@ -118,9 +118,7 @@ const dotLine = (text, cls) => `<div style="display:flex;gap:10px;align-items:fl
 
 const EMPTY_COPY = `
     <h2 class="co-eyebrow">This week</h2>
-    <div class="co-empty"><div class="ic">${icon('bars', 24)}</div>
-    <div class="tt">Trends unlock as history builds</div>
-    <div class="ts">Weekly change, most-missed requirements, and whether your nudges are working. This screen fills in from your team's real data. Every action you take is already recording toward it.</div></div>`;
+    ${emptyState({ icon: 'bars', title: 'Trends unlock as history builds', body: "Weekly change, most-missed requirements, and whether your nudges are working. This screen fills in from your team's real data. Every action you take is already recording toward it." })}`;
 
 /* Builds the whole "This week" lower half, or the honest placeholder when there isn't enough
    history yet. Kept as one function so render() below stays a straight read. */

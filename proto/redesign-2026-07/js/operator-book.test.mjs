@@ -110,7 +110,9 @@ globalThis.window.sb = {
   functions: { invoke: async () => ({ data: null, error: null }) },
 };
 
-const { screens } = await import('./screens/index.js');
+// The registry is lazy (2026-09-05): load every module before reading any synchronously.
+const { loadAllScreens } = await import('./screens/index.js');
+const screens = await loadAllScreens();
 const { S, RT } = await import('./state.js');
 const { CD, loadBook, loadActivity, loadAthleteProfile, entriesFor, getScope } = await import('./coach-data.js');
 

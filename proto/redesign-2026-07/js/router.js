@@ -1,8 +1,9 @@
 /* Hash router + chrome (status bar, tab bar). Screens register in js/screens/index.js */
-import { S, act, RT, routeForRole } from './state.js';
+import { S, act, RT, routeForRole, memoTick } from './state.js';
+import { primeDayFromCache } from './day.js';
 import { icon } from './icons.js';
-import { skeletonRows } from './components.js';
-import { screens } from './screens/index.js';
+import { skeletonRows, errorState } from './components.js';
+import { screens, isLazy, loadScreen, preloadScreens, OPERATOR_TAB_ROUTES } from './screens/index.js';
 import { initAnalytics, track, EVENTS } from './analytics.js';
 import { emptyNav, pushOrigin, popOrigin, peekOrigin, resetTab } from './nav-stack.js';
 import { initKeyboard } from './keyboard.js';
@@ -52,6 +53,65 @@ const NAVS = {
    application is no longer invisible until the trainer happens to open Grow. */
 const BADGE_ROLLUP = { 'trainer-profile': ['trainer-grow'] };
 
+/* ---------------- Lazy screens (js/screens/index.js) ----------------
+   Most registry entries are thunks until first use. modOf() is the one way the router reads a
+   module SYNCHRONOUSLY: it answers null for a route that has not loaded, so a thunk can never be
+   mistaken for a module (a thunk has no .transient, no .subs, no .render, and calling any of them
+   would throw at click time). render() itself goes through awaitScreen() below. */
+function modOf(route) {
+  const m = screens[route];
+  return m && !isLazy(m) ? m : null;
+}
+/* Tab badges read badge() off the module behind each tab. For a lazy tab module the count is
+   unknowable until it loads, so the first bar asks for the load and repaints once when the module
+   lands (only if it actually has a badge to show). One request per route per session. */
+const BADGE_ASKED = new Set();
+function wantBadge(route) {
+  if (BADGE_ASKED.has(route)) return;
+  BADGE_ASKED.add(route);
+  loadScreen(route).then((mod) => { if (mod && mod.badge && window.__render) window.__render(); }, () => { /* the screen renders its own error when opened */ });
+}
+/* Routes whose import failed, with the error. The registry keeps the thunk so Try again is a real
+   retry; this map is what makes render() paint an error instead of asking for the load forever. */
+const LOAD_FAILED = new Map();
+let LOADING = null;   // the route whose module is in flight for render()
+function awaitScreen(route) {
+  const device = document.getElementById('device');
+  // No blank flash: whatever is on screen stays (the previous screen, or the boot skeleton), marked
+  // busy. An empty device (a cold deep link with no persisted session) gets the skeleton.
+  if (device) {
+    if (!device.querySelector('.screen')) bootShell();
+    const vp = device.querySelector('#viewport');
+    if (vp) vp.setAttribute('aria-busy', 'true');
+  }
+  if (LOADING === route) return;
+  LOADING = route;
+  loadScreen(route).then(
+    () => { LOAD_FAILED.delete(route); },
+    (err) => { LOAD_FAILED.set(route, err); console.warn('[router] screen failed to load', route, err && err.message); },
+  ).then(() => {
+    if (LOADING === route) LOADING = null;
+    // Only the route still on the hash gets painted; a newer navigation already rendered itself.
+    if (parse().route === route) render();
+  });
+}
+/** What renders when a lazy module never arrived: errorState semantics, a way back, and a retry
+ *  that asks the network again. anyRole so the mirror guard never bounces an operator off it. */
+function failedScreen(route) {
+  return {
+    anyRole: true,
+    render: () => `<div class="load-fail">${errorState({
+      title: 'This screen did not load',
+      body: 'Check your connection and try again. Nothing was lost.',
+      retryId: 'lazy-retry',
+    })}<div class="sd-cta"><button class="btn ghost sm" data-back>Go back</button></div></div>`,
+    mount(device) {
+      const b = device.querySelector('#lazy-retry');
+      if (b) b.addEventListener('click', () => { LOAD_FAILED.delete(route); render(); });
+    },
+  };
+}
+
 /** Which tab bar a screen renders. `nav: 'operator'` means "whichever operator is signed in" —
  *  one screen module, two role shells. Anything else is a literal nav name.
  *  Exported for the router matrix test: both guards below `return` after setting location.hash,
@@ -100,7 +160,7 @@ function tabbar(activeTab, nav = 'athlete', { remember = true } = {}) {
   // Classes, not an inline style: at-N / from-N map to --i / --from in css/glass.css, which keeps
   // the inline-style ratchet where it is and keeps the numbers where a stylesheet can read them.
   const lens = idx >= 0 ? `<i class="tab-lens at-${idx} from-${from}" aria-hidden="true"></i>` : '';
-  return `<nav class="tabbar" style="grid-template-columns: repeat(${tabs.length}, 1fr)">${lens}${tabs.map(t => {
+  return `<nav class="tabbar" aria-label="Main" role="tablist" style="grid-template-columns: repeat(${tabs.length}, 1fr)">${lens}${tabs.map(t => {
     if (t.fab) {
       // Athlete camera FAB carries the exec status dot (gold = actionable, red = overdue,
       // none = day complete). Other roles' FABs are plain. Glyph never changes.
@@ -118,7 +178,7 @@ function tabbar(activeTab, nav = 'athlete', { remember = true } = {}) {
       // step; the operator FAB got its own "create" step in the v2 tour (2026-08-05).
       const fabTour = nav === 'athlete' ? ' data-tour="log"'
         : (nav === 'coach' || nav === 'trainer') ? ' data-tour="create"' : '';
-      return `<div class="tab fabslot"><div class="fab" role="button" tabindex="0" aria-label="${fabLabel}" data-go="${t.route}"${fabTour} style="position:relative">${icon(t.icon, 26)}${dot}</div></div>`;
+      return `<div class="tab fabslot" role="presentation"><div class="fab" role="button" tabindex="0" aria-label="${fabLabel}" data-go="${t.route}"${fabTour} style="position:relative">${icon(t.icon, 26)}${dot}</div></div>`;
     }
     const on = t.id === activeTab ? `active ${t.id === 'home' ? 'home' : ''}` : '';
     // Tab badge: any screen exposing badge() → live count, hidden at zero (Coach Inbox pending
@@ -126,12 +186,14 @@ function tabbar(activeTab, nav = 'athlete', { remember = true } = {}) {
     let badge = '';
     let badgeN = 0;
     try {
-      const scr = screens[t.route];
+      const scr = modOf(t.route);
+      if (!scr && screens[t.route]) wantBadge(t.route);
       let n = scr && scr.badge ? scr.badge() : 0;
       // Roll-ups: a screen that lost its tab slot but still counts things an operator must see
       // surfaces its badge() on the tab that now houses it (BADGE_ROLLUP below NAVS).
       for (const r of BADGE_ROLLUP[t.route] || []) {
-        const s = screens[r];
+        const s = modOf(r);
+        if (!s && screens[r]) wantBadge(r);
         if (s && s.badge) n += s.badge() || 0;
       }
       // aria-hidden: the raw "9+" read as part of the tab's name ("9+ Inbox", no unit). The count
@@ -148,7 +210,11 @@ function tabbar(activeTab, nav = 'athlete', { remember = true } = {}) {
       'coach-profile': 'tab-you', 'trainer-profile': 'tab-you',
     };
     const tabTour = TAB_TOUR[t.route] ? ` data-tour="${TAB_TOUR[t.route]}"` : '';
-    return `<div class="tab ${on}" ${on ? 'aria-current="page"' : ''}${badgeN ? ` aria-label="${t.label}, ${badgeN > 9 ? '9 or more' : badgeN} new"` : ''} data-go="${t.route}"${tabTour} style="position:relative">${badge}${icon(t.icon, 23)}<span>${t.label}</span></div>`;
+    // role="tab" + aria-selected: the bar is a tablist (the <nav> below), so a screen reader
+    // announces "Plan, tab, 2 of 5" instead of five unrelated buttons. aria-current stays for
+    // the CSS and for readers that key off it. The promote pass keeps an existing role, and the
+    // document-level Enter/Space net already accepts role="tab".
+    return `<div class="tab ${on}" role="tab" aria-selected="${on ? 'true' : 'false'}" ${on ? 'aria-current="page"' : ''}${badgeN ? ` aria-label="${t.label}, ${badgeN > 9 ? '9 or more' : badgeN} new"` : ''} data-go="${t.route}"${tabTour} style="position:relative">${badge}${icon(t.icon, 23)}<span>${t.label}</span></div>`;
   }).join('')}</nav>`;
 }
 
@@ -232,6 +298,8 @@ let VT_KEY = null;        // `data-vt` key of the element the user tapped, so th
                           // and rebuilt somewhere else. Consumed once per render, exactly like
                           // NAV_DIR — a stale key would pair a screen with whatever the athlete
                           // last touched two navigations ago. See js/view-transition.js.
+let OPENER = null;        // {from, key}: the screen and focused control a push departed from
+let RETURN_FOCUS = null;  // the OPENER a closing sheet should hand focus back to, consumed by render()
 let RESTORE = null;       // {r, s} — scroll position to restore once that route paints
 let LAST_FULL = null;     // the route (route/sub) the previous render painted — lets a same-route
                           // re-render (window.__render) PRESERVE scroll instead of snapping to top (T-08)
@@ -258,7 +326,7 @@ function currentScroll() { const vp = document.getElementById('viewport'); retur
 export function lateralStep(curRoute, curSub, target) {
   const [root, sub] = target.split('/');
   if (root !== curRoute || !sub) return 0;
-  const mod = screens[curRoute];
+  const mod = modOf(curRoute);
   const subs = mod && Array.isArray(mod.subs) ? mod.subs : null;
   if (!subs || !subs.includes(sub)) return 0;
   // No declared sub = resting on the first tab, which is what a bare `#plan` renders.
@@ -273,8 +341,12 @@ export function lateralStep(curRoute, curSub, target) {
 function navigateTo(target, opts = {}) {
   NAV_INTENT = true;
   const { route: cur, sub: curSub } = parse();
-  const curMod = screens[cur];
+  const curMod = modOf(cur);
   const transient = !!(curMod && curMod.transient);
+  // Who opened the next screen. If it turns out to be a sheet (a transient route), closing it
+  // hands focus back here, the way members-sheet.js returns to its opener. A selector, not the
+  // node: the origin screen is re-rendered on the way back, so the node itself does not survive.
+  if (!transient) OPENER = { from: currentFull(), key: focusKeyOf(document.activeElement) };
   const targetRoot = ROOT_TAB[target.split('/')[0]];
   const lateral = lateralStep(cur, curSub, target);
   if (lateral !== 0) {
@@ -310,6 +382,11 @@ function goBack(fallback, opts = {}) {
   // 'swipe' is the edge gesture committing: the finger already ran the pop animation, so the
   // destination must arrive with no second one.
   NAV_DIR = opts.dir === 'swipe' ? 'swipe' : 'pop';
+  // Closing a sheet returns focus to whatever opened it (render() consumes RETURN_FOCUS once the
+  // origin has painted). Only a sheet: a detail screen's Back lands where the scroll restore puts
+  // the reader, and stealing focus there would move a screen reader's cursor for no reason.
+  const leaving = modOf(parse().route);
+  RETURN_FOCUS = (leaving && leaving.transient && OPENER) ? OPENER : null;
   const entry = popOrigin(NAV); navSave();
   if (entry) {
     RESTORE = entry;
@@ -447,7 +524,10 @@ function wireDelegatedNav(device) {
   });
 }
 
-function render() {
+function render(opts) {
+  // hashchange hands render() its Event; only a real options object can ask for the pre-hydrate
+  // paint (boot(): the cached day drawn before the network answers, with no mount() side effects).
+  const prehydrate = !!(opts && opts.prehydrate === true);
   /* A repaint that lands mid-transition would replace the element the browser is animating, and
      the browser answers that by cutting the transition short — the screen stops travelling and
      simply appears. Screens fetch in mount() and repaint the moment the data arrives, so this is
@@ -478,6 +558,16 @@ function render() {
   if (window.__screenCleanup) { try { window.__screenCleanup(); } catch { /* best-effort */ } window.__screenCleanup = null; }
   const { route, sub } = parse();
   const full = sub ? `${route}/${sub}` : route;
+  // A lazy module: ask for it and come back when it lands (awaitScreen re-enters render(), with
+  // every consumable flag below still unconsumed, so the arrival reads exactly as this call would
+  // have). The auth gate runs first so a signed-out hash never fetches an app screen. A failed
+  // import renders a real error state with a retry, never a dead screen.
+  let resolved = screens[route] || screens.notfound;
+  if (isLazy(resolved)) {
+    if (!RT.userId && !AUTH_ROUTES.includes(route)) { location.hash = '#welcome'; return; }
+    if (!LOAD_FAILED.has(route)) { awaitScreen(route); return; }
+    resolved = failedScreen(route);
+  }
   // Browser/swipe back (no intent flag): if the new location matches the top of the active
   // stack, consume it as a pop so header-back and edge-swipe stay perfectly consistent.
   if (!NAV_INTENT) {
@@ -493,7 +583,7 @@ function render() {
   // An unknown route resolves to a REAL not-found screen, never to Home. Falling back to Home
   // painted a correct-looking dashboard under a bogus hash, so stale deep links and renamed
   // screens failed invisibly and were never reported. See screens/notfound.js.
-  let mod = screens[route] || screens.notfound;
+  let mod = resolved;
   // Role-route guard: a screen declaring an operator nav belongs to an operator's dashboard.
   // A signed-in user of another role must not render its chrome (RLS still scopes the data, but
   // the shell is wrong — a role-integrity leak). Only fires when the role is KNOWN (authRole
@@ -564,7 +654,10 @@ function render() {
   const dir = NAV_DIR; NAV_DIR = null;
   const DIR_CLS = { push: ' dir-push', pop: ' dir-pop', 'lat-next': ' dir-lat-next', 'lat-prev': ' dir-lat-prev' };
   const dirCls = enter ? (DIR_CLS[dir] || '') : '';
-  const body = mod.render({ sub, S });
+  // The markup pass is one memo tick for state.js's derived getters (see memoTick there): a
+  // screen that reads S.tier eight times pays for the score once. The memo is gone again before
+  // wiring and mount() run, so nothing they do can read a value from before their own writes.
+  const body = memoTick(() => mod.render({ sub, S }));
   /* The one state change the app makes constantly and never showed: a skeleton being replaced by
      the real thing. Async screens repaint via __render() on the SAME route, which `enter` above
      deliberately excludes — correct for the entrance choreography, but it left the most common
@@ -624,10 +717,10 @@ function render() {
     <div class="island"></div>
     <div class="screen">
       ${statusbar()}
-      <div class="viewport ${mod.bleed ? 'bleed' : ''}${mod.hideTabs ? ' notabs' : ''}${mod.fill ? ' fill' : ''}" id="viewport">
-        <div class="view${enterCls}${dirClsUsed}${settleCls}" id="view">${body}</div>
+      <div class="viewport ${mod.bleed ? 'bleed' : ''}${mod.hideTabs ? ' notabs' : ''}${mod.fill ? ' fill' : ''}" id="viewport"${prehydrate ? ' aria-busy="true"' : ''}>
+        <main class="view${enterCls}${dirClsUsed}${settleCls}" id="view">${body}</main>
       </div>
-      ${mod.hideTabs ? '' : tabbar(activeTab, navRole)}
+      ${mod.hideTabs ? '' : memoTick(() => tabbar(activeTab, navRole))}
     </div>`;
   if (layered) {
     // Keep the outgoing screen for the slide: ids off (the new screen owns #viewport and #view),
@@ -742,15 +835,17 @@ function render() {
      rows that reuse the class set `cursor:default` inline precisely because they are not
      clickable. So: styled like a control ⇒ reachable like one. An author-supplied role or
      tabindex still wins, exactly as above. */
-  device.querySelectorAll(
+  // Reads first, then writes. getComputedStyle forces style resolution, and promote() writes
+  // attributes; interleaving them per element made every read after the first pay for a fresh
+  // recalc of the subtree the previous write dirtied (N recalcs across a long roster instead of
+  // one). All the cursor reads happen against one clean tree, then all the writes land at once.
+  const candidates = Array.from(device.querySelectorAll(
     '.tap,.tab,.chip,.chp,.choice,.lrow,.sheet-row,.co-chip,.hchip,.tile,.seg > *,.cs-seg > *'
-  ).forEach((el) => {
-    if (el.hasAttribute('data-kb-wired')) return;
-    let cur = '';
-    try { cur = getComputedStyle(el).cursor; } catch { /* detached node */ }
-    if (cur !== 'pointer') return;
-    promote(el);
+  )).filter((el) => !el.hasAttribute('data-kb-wired'));
+  const isPointer = candidates.map((el) => {
+    try { return getComputedStyle(el).cursor === 'pointer'; } catch { return false; /* detached node */ }
   });
+  candidates.forEach((el, i) => { if (isPointer[i]) promote(el); });
   // Scroll: restore the exact origin position on a back-pop; fresh forward views start at top.
   // scrollTo with behavior:'instant' overrides the viewport's smooth scroll-behavior — a
   // restore must snap, never animate.
@@ -774,7 +869,31 @@ function render() {
       if (back && back !== document.activeElement) back.focus({ preventScroll: true });
     } catch { /* selector no longer resolves — the control genuinely went away */ }
   }
-  if (mod.mount) mod.mount(device, { sub, S });
+  // The pre-hydrate paint draws the cached day and stops: mount() starts fetches and timers, and
+  // the real render a moment later would start them all again.
+  if (mod.mount && !prehydrate) mod.mount(device, { sub, S });
+  // A sheet (transient route) takes focus on ARRIVAL: its title when aria-labelledby names one,
+  // else the sheet itself. Without this a keyboard or screen-reader user opening the log sheet
+  // stayed parked on the control behind the scrim, inside an aria-modal they could not perceive.
+  // Arrival only (`enter`): a repaint of an open sheet must not yank the cursor back to the title.
+  if (mod.transient && enter) {
+    const sheet = device.querySelector('.sheet');
+    if (sheet) {
+      let target = null;
+      const labelled = sheet.getAttribute('aria-labelledby');
+      if (labelled) { try { target = device.querySelector('#' + CSS.escape(labelled)); } catch { target = null; } }
+      if (!target) target = sheet;
+      if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+      try { target.focus({ preventScroll: true }); } catch { /* focus is a nicety */ }
+    }
+  }
+  // ... and hands it back when it closes: goBack() recorded the opener, and this is the origin
+  // screen painting again. Consumed whether or not the control still exists.
+  if (RETURN_FOCUS && RETURN_FOCUS.from === full) {
+    const key = RETURN_FOCUS.key;
+    RETURN_FOCUS = null;
+    if (key) { try { const back = device.querySelector(key); if (back) back.focus({ preventScroll: true }); } catch { /* the opener is gone */ } }
+  }
   // Profile pictures (0206): upgrade every [data-avatar-uid] monogram this screen rendered.
   // Screens that inject rows asynchronously call hydrateAvatars on their own slot.
   hydrateAvatars(device);
@@ -829,7 +948,7 @@ window.__render = function () {
    hang class this listener exists for: a screen stuck on a skeleton or a bookless state has no
    focusable field, so its arrival always paints. */
 window.addEventListener('onstd:book-arrival', () => {
-  const mod = screens[parse().route];
+  const mod = modOf(parse().route);
   if (!mod || (mod.nav !== 'coach' && mod.nav !== 'trainer' && mod.nav !== 'operator')) return;
   const el = document.activeElement;
   if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) && el.closest && el.closest('#device')) return;
@@ -876,19 +995,28 @@ function bootShell() {
   // than guessing athlete. `: null` on purpose — tabbar's default parameter only fires on
   // undefined, so null can never resurrect the athlete bar.
   const navRole = NAVS[RT.authRole] ? RT.authRole : null;
-  device.innerHTML = `
+  // Idempotent over the skeleton index.html ships inline. That markup is the same shape as the
+  // template below, minus the tab bar (HTML cannot know the role), and it paints from HTML + CSS
+  // before a single module has evaluated. When it is already on screen this only adds the bar;
+  // replacing it would repaint the identical skeleton and throw away the frame we already have.
+  const booting = device.querySelector('.screen.booting');
+  if (booting && !booting.querySelector('.tabbar')) {
+    booting.insertAdjacentHTML('beforeend', tabbar('home', navRole));
+  } else if (!booting) {
+    device.innerHTML = `
     <div class="island"></div>
     <div class="screen booting">
       ${statusbar()}
       <div class="viewport" id="viewport">
-        <div class="view" id="view" aria-busy="true" aria-label="Loading your day">
+        <main class="view" id="view" aria-busy="true" aria-label="Loading your day">
           <div class="sk-hero"><div class="sk-ring"></div><div class="sk-line sk-hero-l"></div></div>
           ${skeletonRows(3, 'Loading your day')}
           ${skeletonRows(2, '')}
-        </div>
+        </main>
       </div>
       ${tabbar('home', navRole)}
     </div>`;
+  }
   // pointer-events:none alone would still leave the inert tabs in the tab order, which is a
   // keyboard trap that looks like a working control. Take them out of both trees.
   const bar = device.querySelector('.tabbar');
@@ -902,12 +1030,26 @@ async function boot() {
   initAnalytics(); // wire crash capture + visibility-flush (inert until a sink is configured)
   track(EVENTS.APP_OPEN, { role: RT.authRole || 'anon' });
   if (RT.userId && !AUTH_ROUTES.includes(parse().route)) bootShell();
+  // An operator's tab set is lazy in the registry; ask for it now so the bar (and its badges) is
+  // whole by the time the day lands. Not awaited: render() copes with whatever has arrived.
+  if (RT.userId && (RT.authRole === 'coach' || RT.authRole === 'trainer')) void preloadScreens(OPERATOR_TAB_ROUTES);
   let authed = false;
   try {
     const sb = window.sb;
     if (sb) {
       const { data } = await sb.auth.getSession();
-      if (data && data.session) { authed = true; await act._syncSession(data.session.user); await act.hydrateDay(); }
+      if (data && data.session) {
+        authed = true;
+        await act._syncSession(data.session.user);
+        // The cached day, drawn before the network answers. Only once the session is CONFIRMED
+        // (the auth gate is unchanged: no session, no app screen), only when the cache holds
+        // today, and only for a module already in memory. hydrateDay() then repaints in place.
+        try {
+          const { route: r0 } = parse();
+          if (!AUTH_ROUTES.includes(r0) && modOf(r0) && primeDayFromCache(RT.userId)) render({ prehydrate: true });
+        } catch { /* the skeleton stands until the day lands */ }
+        await act.hydrateDay();
+      }
     }
   } catch { /* offline / no client → treat as signed out */ }
   // No live session on boot → drop any stale user-scoped state. A persisted RT.userId would
@@ -973,14 +1115,16 @@ window.addEventListener('keydown', (e) => {
 function shellFor(full) {
   const [route, ...rest] = full.split('/');
   const sub = rest.join('/');
-  const mod = screens[route] || screens.notfound;
+  // A module not yet loaded cannot be pictured; the gesture falls back to its plain slide.
+  const mod = modOf(route) || (screens[route] ? null : screens.notfound);
+  if (!mod) return null;
   let body = '';
-  try { body = mod.render({ sub, S }); } catch { return null; }
+  try { body = memoTick(() => mod.render({ sub, S })); } catch { return null; }
   const navRole = navFor(mod, RT.authRole);
   const tab = ROOT_TAB[route] || NAV.tab;
   return `${statusbar()}
     <div class="viewport ${mod.bleed ? 'bleed' : ''}${mod.hideTabs ? ' notabs' : ''}${mod.fill ? ' fill' : ''}">
-      <div class="view">${body}</div>
+      <main class="view">${body}</main>
     </div>
     ${mod.hideTabs ? '' : tabbar(tab, navRole, { remember: false })}`;
 }
@@ -992,7 +1136,8 @@ initGestures({
   // or the pager computes its index from the alias, lands on 0, and swipes to the wrong tab.
   current: () => {
     const { route, sub } = parse();
-    const mod = screens[route] || screens.notfound;
+    // A route still loading reads as notfound to the finger: no subs, no back picture, no drag.
+    const mod = modOf(route) || screens.notfound;
     return { route, sub: mod.resolveSub ? mod.resolveSub(sub) : sub, mod };
   },
   // What Back would show: the top of the active tab's stack, else the header chevron's own
@@ -1008,7 +1153,7 @@ initGestures({
   shell: shellFor,
   back: (fallback) => goBack(fallback, { dir: 'swipe' }),
   lateral: (target) => navigateTo(target, { dir: 'swipe', keepScroll: true }),
-  renderSub: (sub) => { const mod = screens[parse().route]; return mod ? mod.render({ sub, S }) : ''; },
+  renderSub: (sub) => { const mod = modOf(parse().route); return mod ? memoTick(() => mod.render({ sub, S })) : ''; },
 });
 
 window.addEventListener('hashchange', render);

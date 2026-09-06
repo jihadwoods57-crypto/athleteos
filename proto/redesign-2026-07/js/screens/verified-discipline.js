@@ -16,9 +16,9 @@ let FAILED = false;   // the read came back null; distinct from "no record yet"
 let SHARING = null;   // null = unknown until the profile row lands
 
 const stat = (label, value, suffix = '') => `
-  <div class="vc-stat">
-    <div class="vc-sv">${value == null ? '—' : esc(String(value)) + suffix}</div>
-    <div class="vc-sk">${esc(label)}</div>
+  <div class="stat">
+    <div class="v">${value == null ? '—' : esc(String(value)) + suffix}</div>
+    <div class="k">${esc(label)}</div>
   </div>`;
 
 export default {
@@ -54,7 +54,7 @@ export default {
     </section>
 
     <div class="sidebox" style="margin-top:14px">
-      <div class="req-icon g" style="width:38px;height:38px">${icon('shield', 19)}</div>
+      <div class="req-icon g s38">${icon('shield', 19)}</div>
       <div>
         <div class="tt">What is never shared</div>
         <div class="ts">Recruiters see the four numbers above and nothing else. Not where you were, not which building, not your class schedule, not what time you did anything, not any single day. There is no way for them to ask for it. The record simply doesn't contain it.</div>

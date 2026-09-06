@@ -111,7 +111,7 @@ function spoken(req) {
 }
 
 /** The short name a title slot uses ("Weigh-in", "Check-in", "Breakfast"): the catalog's
- *  "Morning Weight" / "Recovery Check-In" are settings labels, not what anyone says. */
+ *  "Morning Weight" / "Recovery check-in" are settings labels, not what anyone says. */
 function shortName(req) {
   const kind = reqKind(req);
   if (kind === 'weigh') return 'Weigh-in';

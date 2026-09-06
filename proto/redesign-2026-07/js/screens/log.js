@@ -43,7 +43,7 @@ export default {
     // "92 → up to 92" was rendered verbatim on a complete day: an arrow from the score to
     // itself, on the surface that exists to answer "what should I do next". When nothing can
     // move the number, say the honest thing instead of drawing a pointless trajectory.
-    const head = `<div class="hub-head"><span class="a">${e.met} of ${e.total} completed</span><span class="b">${e.possible > e.score ? `${e.score} → <em>up to ${e.possible}</em>` : `${e.score} · day complete`}</span></div>`;
+    const head = `<div class="hub-head"><span class="a" id="hub-head-a">${e.met} of ${e.total} completed</span><span class="b">${e.possible > e.score ? `${e.score} → <em>up to ${e.possible}</em>` : `${e.score} · day complete`}</span></div>`;
 
     // Mirrors Home's syncBanner honesty (home.js syncBanner): the sheet is the primary write
     // surface, so a sync-blocked minor or a failed push needs the same feedback here, not silence.
@@ -62,7 +62,7 @@ export default {
     if (e.celebration) {
       return `
       ${dayBackdrop()}<div class="sheet-scrim" data-back="home"></div>
-      <div class="sheet">
+      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="hub-head-a">
         <div class="grab"></div>
         ${head}${segs}${syncRow}
         <div class="hub-celeb">
@@ -119,7 +119,7 @@ export default {
 
     return `
     ${dayBackdrop()}<div class="sheet-scrim" data-back="home"></div>
-    <div class="sheet">
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="hub-head-a">
       <div class="grab"></div>
       ${head}${segs}${syncRow}
       ${hero}
@@ -139,7 +139,7 @@ export default {
       ${recovery && !(e.now && e.now.id === 'recovery') ? `
       <div class="sheet-row" data-go="${recovery.route}">
         <div class="si" style="background:${recovery.state === 'done' ? 'var(--green-surface);color:var(--green-bright)' : 'rgba(var(--purple-rgb),0.22);color:var(--purple-bright)'}">${icon(recovery.state === 'done' ? 'check' : 'moon', 20)}</div>
-        <div class="st"><div class="t">Recovery Check-In</div><div class="s">${recovery.state === 'done' ? 'Submitted tonight' : `Before bed · 20 seconds · Recovery ${liveWeightPct('checkin') + liveWeightPct('recovery')}%`}</div></div>
+        <div class="st"><div class="t">Recovery check-in</div><div class="s">${recovery.state === 'done' ? 'Submitted tonight' : `Before bed · 20 seconds · Recovery ${liveWeightPct('checkin') + liveWeightPct('recovery')}%`}</div></div>
         <span class="xpill ${recovery.color}">${recovery.pill}</span>
       </div>` : ''}
       ${e.doneItems.length ? `<div class="hub-fold" data-go="home">${icon('check', 13)} ${e.doneItems.length} completed today · view on Home</div>` : ''}

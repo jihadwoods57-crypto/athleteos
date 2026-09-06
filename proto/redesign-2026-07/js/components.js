@@ -71,17 +71,34 @@ export function safeImg(v) {
 /** The honest loading state: `n` shimmer rows shaped like the list they stand in for. */
 export function skeletonRows(n = 3, label = 'Loading') {
   const row = '<div class="sk-row"><div class="sk-dot"></div><div class="sk-lines"><div class="sk-line"></div><div class="sk-line sk-line-2"></div></div></div>';
-  return `<section class="card sk-card" aria-busy="true" aria-label="${esc(label)}" style="padding:6px 16px">${row.repeat(Math.max(1, n | 0))}</section>`;
+  // role="status" so the handover is announced; aria-busy alone is silent on most readers. The
+  // visible skeleton is shapes, so the label is repeated as screen-reader-only text.
+  return `<section class="card sk-card" role="status" aria-busy="true" aria-label="${esc(label)}" style="padding:6px 16px"><span class="sr-only">Loading ${esc(label)}</span>${row.repeat(Math.max(1, n | 0))}</section>`;
 }
 
 /** Empty state that teaches and offers a DIRECT action — never a dead pointer. `action` is
- *  { label, go } (a data-go route) or { label, id } (a button the caller's mount wires), or null. */
-export function emptyState({ icon: ic = 'sparkle', title, body = '', action = null } = {}) {
+ *  { label, go } (a data-go route) or { label, id } (a button the caller's mount wires), or null.
+ *  `compact` is the same empty sized for a sidebox or list section (40px vessel, --t-md title,
+ *  see .state-demo.compact in app.css) instead of a whole screen. */
+export function emptyState({ icon: ic = 'sparkle', title, body = '', action = null, compact = false } = {}) {
   const a = action
     ? `<div class="sd-cta"><button class="btn ghost sm" ${action.go ? `data-go="${esc(action.go)}"` : ''}${action.id ? ` id="${esc(action.id)}"` : ''} style="width:auto;padding:0 18px">${esc(action.label)}</button></div>`
     : '';
-  return `<section class="state-demo"><div class="sd-ic">${icon(ic, 24)}</div>
+  return `<section class="state-demo${compact ? ' compact' : ''}"><div class="sd-ic">${icon(ic, compact ? 18 : 24)}</div>
     <div class="sd-t">${esc(title)}</div>${body ? `<div class="sd-s">${esc(body)}</div>` : ''}${a}</section>`;
+}
+
+/** Writes a status or failure message into a live region the caller already rendered (statusMsg
+ *  / alertMsg, or any element). Sets the text, the role (status, or alert for a failure so it is
+ *  announced immediately), aria-live polite, and toggles .is-error (app.css: --red-bright vs
+ *  --text-3) instead of an inline colour, which is what a dozen mount()s were each hand-writing.
+ *  Null-safe: a screen that did not render the region can call it unconditionally. */
+export function sayStatus(el, msg, { error = false } = {}) {
+  if (!el) return;
+  el.textContent = msg == null ? '' : String(msg);
+  el.setAttribute('role', error ? 'alert' : 'status');
+  el.setAttribute('aria-live', 'polite');
+  el.classList.toggle('is-error', !!error);
 }
 
 /** Honest error + retry. `retryId` is wired by the caller's mount(); omit for a non-retryable note. */
@@ -261,9 +278,13 @@ export function scoreRing({ score, size = 338, stroke = 20, showCenter = true, u
              <circle cx="${(tipX - 0.3 * coreR).toFixed(1)}" cy="${(tipY - 0.3 * coreR).toFixed(1)}" r="${(coreR * 0.233).toFixed(2)}" fill="#FFFFFF" opacity="0.9"/>`}
       </g>` : '';
 
+  // The ring is one picture to a screen reader: the SVG is hidden and the wrap carries the number
+  // (and the tier when the caller has it) as a single label. --ring-size instead of an inline
+  // width so app.css's short-phone media query can still shrink the hero ring.
+  const label = `Score ${Math.round(score)} out of 100${tierName ? ', ' + tierName : ''}`;
   return `
-  <div class="ring-wrap"${vt ? ` data-vt="${vt}"` : ''} style="width:min(${size}px,100%);aspect-ratio:1/1">
-    <svg class="ring-svg" width="100%" height="100%" viewBox="0 0 ${size} ${size}">
+  <div class="ring-wrap" role="img" aria-label="${esc(label)}"${vt ? ` data-vt="${vt}"` : ''} style="--ring-size:${size}px;aspect-ratio:1/1">
+    <svg class="ring-svg" width="100%" height="100%" viewBox="0 0 ${size} ${size}" aria-hidden="true">
       <defs>
         ${/* The signature sweep — the SAME three stops as the brand masters, from the theme
               tokens (--ring-a/b/c flip on light), on the mark's own axis: bottom-left of the
@@ -658,7 +679,7 @@ export function collapseSection(id, title, count, inner, open) {
 export function mealMedia(hue = '20', h = 96) {
   return `<div class="act-media" style="height:${h}px;background:
     radial-gradient(60% 80% at 50% 40%, hsl(${hue} 45% 22%), hsl(${(+hue+30)} 40% 12%));">
-    <svg width="100%" height="100%" viewBox="0 0 156 ${h}" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0">
+    <svg width="100%" height="100%" viewBox="0 0 156 ${h}" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0">
       <ellipse cx="78" cy="${h/2+6}" rx="46" ry="30" fill="hsl(${hue} 20% 90% / .08)"/>
       <circle cx="62" cy="${h/2}" r="16" fill="hsl(${hue} 55% 55% / .55)"/>
       <circle cx="92" cy="${h/2-6}" r="12" fill="hsl(${(+hue+40)} 60% 60% / .5)"/>
@@ -735,7 +756,7 @@ export function emailVerifyBanner() {
       <div class="xb" id="ev-banner-msg">${esc(RT.email || 'Confirm your address')}</div>
     </div>
     <button class="btn ghost sm" id="ev-resend" style="width:auto;padding:0 12px;height:28px;font-size:var(--t-xs);flex:none">Resend</button>
-    <span role="button" tabindex="0" aria-label="Dismiss for now" id="ev-dismiss" style="cursor:pointer;color:var(--text-3);flex:none;padding:4px;display:grid;place-items:center">${icon('x', 14)}</span>
+    <button class="ev-x" type="button" aria-label="Dismiss" id="ev-dismiss">${icon('x', 14)}</button>
   </div>`;
 }
 /* Wires the banner's two controls. querySelector-null-guarded (self-guarding, like coach-home.js
@@ -759,8 +780,7 @@ export function wireEmailVerifyBanner(root) {
     say(r.emailed ? `Sent. Check ${esc(RT.email || 'your inbox')}.` : "Saved. Check your inbox shortly.");
   });
   const doDismiss = () => { EV_DISMISSED = true; if (window.__render) window.__render(); };
-  if (dismiss) {
-    dismiss.addEventListener('click', doDismiss);
-    dismiss.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); doDismiss(); } });
-  }
+  // A real <button> now (2026-09-05): Enter and Space come free, and focus.css grows its 44px
+  // hit area. The keydown shim the old role="button" span needed is gone with it.
+  if (dismiss) dismiss.addEventListener('click', doDismiss);
 }

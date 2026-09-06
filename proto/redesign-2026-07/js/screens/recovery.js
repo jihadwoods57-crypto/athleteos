@@ -16,7 +16,7 @@ import * as roles from '../roles.js';
  * move is the check-in's own. */
 function checkinMove() {
   const mv = RT.lastMove;
-  if (!mv || mv.what !== 'Recovery Check-In') return null;
+  if (!mv || String(mv.what || '').toLowerCase() !== 'recovery check-in') return null;
   return mv;
 }
 
@@ -41,8 +41,8 @@ export const recoveryConfirm = {
             gradient collapsed toward a single flat purple on exactly the theme where it needed
             the most separation. Pair --purple-bright with --purple-deep (never -bright with a
             literal), and compose the halo from --purple-rgb. */''}
-      <div class="big-check"><div class="core" style="background:linear-gradient(155deg, var(--purple-bright), var(--purple-deep)); color:#fff; box-shadow: 0 0 44px rgba(var(--purple-rgb),0.55), 0 10px 34px rgba(0,0,0,0.4)">${icon('moonStar', 32)}</div></div>
-      <div class="confirm-title">Check-In Submitted</div>
+      <div class="big-check"><div class="core" style="background:linear-gradient(155deg, var(--purple), var(--purple-deep)); color:var(--ink-on-accent); box-shadow: 0 0 44px rgba(var(--purple-rgb),0.55), 0 10px 34px rgba(0,0,0,0.4)">${icon('moonStar', 32)}</div></div>
+      <div class="confirm-title">Check-in submitted</div>
       <div class="confirm-sub">Recovery refreshed · ${S.coach.hasCoach ? `${esc(S.coach.nameMid)} can see your readiness` : 'counted toward tomorrow'}</div>
 
       ${/* The move, as the score's own dial: the points just filed sweep in from where the score
@@ -63,7 +63,7 @@ export const recoveryConfirm = {
         });
         return msg ? `
       <div class="sidebox" style="margin-top:18px; text-align:left; width:100%">
-        <div class="req-icon p" style="width:38px;height:38px">${icon('message', 17)}</div>
+        <div class="req-icon p s38">${icon('message', 17)}</div>
         <div><div class="tt">AI Nutritionist</div>
         <div class="ts">${esc(msg)}</div></div>
       </div>` : '';
@@ -106,7 +106,7 @@ export default {
   render() {
     if (RT.recoveryDone) {
       return `
-      ${backHead('Recovery Check-In', 'Done for tonight')}
+      ${backHead('Recovery check-in', 'Done for tonight')}
       <div class="state-demo" style="border-style:solid; border-color:var(--green-border)">
         <div class="sd-ic" style="background:var(--green-surface);color:var(--green-bright)">${icon('check', 24)}</div>
         <div class="sd-t">Submitted tonight</div>
@@ -117,7 +117,7 @@ export default {
     const P = checkinProjection();          // projected score with the answers currently selected
     const best = checkinBestProjection();   // ceiling — SAME CI_BEST math the Score Breakdown prints
     return `
-    ${backHead('Recovery Check-In', 'Before bed · Takes 20 seconds')}
+    ${backHead('Recovery check-in', 'Before bed · Takes 20 seconds')}
 
     ${/* The rationale paragraph that sat here is gone: the backHead already names the screen,
           and the projection sidebox below carries the score stakes with real numbers. */''}
@@ -137,7 +137,7 @@ export default {
 
     <div style="height:14px"></div>
     <div class="sidebox">
-      <div class="req-icon p" style="width:38px;height:38px">${icon('moonStar', 18)}</div>
+      <div class="req-icon p s38">${icon('moonStar', 18)}</div>
       ${/* No projected number until every question is answered. The projection merges the
             athlete's answers over DAY.ci, so projecting from an empty form was projecting from
             defaults nobody entered — the same fabrication the chips themselves used to carry.
@@ -160,7 +160,7 @@ export default {
          this build (probed in mount): device sleep/HRV is shown for CONTEXT on #devices and
          never changes the score. Keeps zero reachable "coming soon" until the module is wired. -->
     <div id="rec-connect" class="sidebox" data-go="devices" role="button" style="display:none;margin-top:14px;cursor:pointer">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('moonStar', 17)}</div>
+      <div class="req-icon b s38">${icon('moonStar', 17)}</div>
       <div><div class="tt">Connect Apple Health</div><div class="ts">Bring last night's sleep, HRV &amp; resting HR in for context</div></div>
     </div>
     <div style="height:8px"></div>

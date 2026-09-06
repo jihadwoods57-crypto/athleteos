@@ -85,7 +85,7 @@ export const CATALOG = [
     freq: { type: 'daily' }, window: { open: 18 * 60, due: 1230 }, required: true,
     impact: { kind: 'component', comp: 'nutrition' }, reminder: 'medium',
     note: 'Protein + slow carb + a vegetable. Close the day right.' },
-  { id: 'recovery', title: 'Recovery Check-In', icon: 'moonStar', accent: 'p', proof: 'form',
+  { id: 'recovery', title: 'Recovery check-in', icon: 'moonStar', accent: 'p', proof: 'form',
     freq: { type: 'daily' }, window: { due: 23 * 60 + 30, label: 'Before bed' }, required: true,
     impact: { kind: 'component', comp: 'recovery' }, reminder: 'high',
     note: '20 seconds. Coach reads readiness before tomorrow’s practice.' },
@@ -322,7 +322,7 @@ function catalogItemFrom(it) {
 
 // The exact recovery item itemsFromKnobs (coach.js) writes into every standard going forward —
 // reused here as the FORCED fallback below, so a synthesized entry is byte-identical to a real one.
-const RECOVERY_ITEM = { id: 'recovery', title: 'Recovery Check-In', kind: 'recovery', proof: 'form', freq: { type: 'daily' }, window: { due: 1410, label: 'Before bed' } };
+const RECOVERY_ITEM = { id: 'recovery', title: 'Recovery check-in', kind: 'recovery', proof: 'form', freq: { type: 'daily' }, window: { due: 1410, label: 'Before bed' } };
 
 /** Map a server set's items (validated jsonb) into CATALOG-shaped requirements. Pure.
     Unknown kinds fall back to 'custom'; a malformed item is dropped, never invented.

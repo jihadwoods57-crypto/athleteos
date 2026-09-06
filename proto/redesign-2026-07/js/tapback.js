@@ -117,14 +117,19 @@ export function wireTapback({ root, scope = '.thread', emoji, mine, onReact }) {
 
     // Anchor above the bubble, clamped into the viewport on both axes so a reaction on the first
     // or last message in a thread is never half off-screen.
+    // The clamp reads the VISUAL viewport: with the iOS keyboard open the layout viewport is
+    // still full height, so a picker clamped to window.innerHeight lands under the keys.
     const place = () => {
       const b = bubble.getBoundingClientRect();
       const p = el.getBoundingClientRect();
       const pad = 8;
+      const vv = window.visualViewport;
+      const vh = (vv && vv.height) || window.innerHeight;
+      const vw = (vv && vv.width) || window.innerWidth;
       let top = b.top - p.height - 6;
-      if (top < pad) top = Math.min(b.bottom + 6, window.innerHeight - p.height - pad);
+      if (top < pad) top = Math.min(b.bottom + 6, vh - p.height - pad);
       let left = b.left + (b.width - p.width) / 2;
-      left = Math.max(pad, Math.min(left, window.innerWidth - p.width - pad));
+      left = Math.max(pad, Math.min(left, vw - p.width - pad));
       el.style.top = `${Math.max(pad, top)}px`;
       el.style.left = `${left}px`;
     };

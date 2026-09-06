@@ -7,7 +7,7 @@
    cascade; excused and unverified leave the denominator instead of counting as failures. */
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, esc, errorState } from '../components.js';
+import { backHead, esc, errorState, emptyState } from '../components.js';
 import { morningReadiness, commitmentStreak, wakeupHistory, wakeupSummary, VERDICT } from '../commitments.js';
 import { loadMineRange, todayISO, shiftISO } from '../commitment-data.js';
 
@@ -27,9 +27,9 @@ function bar(label, done, total) {
 }
 
 /* Wake-Up Standard (0211): one line per roll call, newest first, with the verdict. No calendar,
-   no chart. "Today · 6:01 AM · On Standard" is the whole record and it reads in seconds. */
+   no chart. "Today · 6:01 AM · On standard" is the whole record and it reads in seconds. */
 const VERDICT_PILL = {
-  on_standard: ['green', 'On Standard'], late: ['gold', 'Late'], missed: ['red', 'Missed'],
+  on_standard: ['green', 'On standard'], late: ['gold', 'Late'], missed: ['red', 'Missed'],
   pending: ['gray', 'Pending'], excused: ['gray', 'Excused'],
 };
 function dayLabel(iso, today) {
@@ -45,7 +45,7 @@ function wakeupSection(rows, loading) {
   const s = wakeupSummary(h);
   const today = todayISO();
   const line = s.total
-    ? `${s.onStandard} On Standard · ${s.late} Late · ${s.missed} Missed`
+    ? `${s.onStandard} On standard · ${s.late} Late · ${s.missed} Missed`
     : 'Your first one is today';
   return `
     <h2 class="eyebrow">Wake-Up Standard <span class="opt">· ${esc(line)}</span></h2>
@@ -80,15 +80,15 @@ export default {
     if (!loading && !rows.length) {
       return `
       ${backHead('Morning Readiness', 'Verified commitments', 'progress')}
-      <div class="sidebox">
-        <div class="req-icon b" style="width:38px;height:38px">${icon('clock', 17)}</div>
-        <div><div class="tt">Nothing to show yet</div>
-        <div class="ts">${S.coach.hasCoach
-          ? `When your ${esc(S.coach.noun)} schedules a roll call, a lift, or a study hall`
-          : 'When a roll call, a lift, or a study hall is scheduled for you'}, your responses and arrivals build this record. It's separate from your daily score.</div></div>
-      </div>
-      ${S.coach.hasCoach ? '' : `<div style="height:12px"></div>
-      <button class="btn ghost" data-go="connect" style="width:100%">Connect a coach</button>`}`;
+      ${emptyState({
+        icon: 'clock',
+        title: 'Nothing to show yet',
+        body: `${S.coach.hasCoach
+          ? `When your ${S.coach.noun} schedules a roll call, a lift, or a study hall`
+          : 'When a roll call, a lift, or a study hall is scheduled for you'}, your responses and arrivals build this record. It's separate from your daily score.`,
+        action: S.coach.hasCoach ? null : { label: 'Connect a coach', go: 'connect' },
+        compact: true,
+      })}`;
     }
 
     return `
@@ -106,9 +106,9 @@ export default {
     </section>
 
     <div style="height:12px"></div>
-    <div style="display:flex;gap:6px">
-      <button class="chip ${RANGE === 7 ? 'on' : ''}" data-range="7" style="flex:1">Last 7 days</button>
-      <button class="chip ${RANGE === 30 ? 'on' : ''}" data-range="30" style="flex:1">Last 30 days</button>
+    <div style="display:flex;gap:6px" role="radiogroup" aria-label="Range">
+      <button class="chip ${RANGE === 7 ? 'on' : ''}" role="radio" aria-checked="${RANGE === 7 ? 'true' : 'false'}" data-range="7" style="flex:1">Last 7 days</button>
+      <button class="chip ${RANGE === 30 ? 'on' : ''}" role="radio" aria-checked="${RANGE === 30 ? 'true' : 'false'}" data-range="30" style="flex:1">Last 30 days</button>
     </div>
 
     ${wakeupSection(rows, loading)}
@@ -121,7 +121,7 @@ export default {
     </section>
 
     <div class="sidebox" style="margin-top:14px">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('target', 19)}</div>
+      <div class="req-icon b s38">${icon('target', 19)}</div>
       <div>
         <div class="tt">How this is weighted</div>
         <div class="ts">Responding counts a little, arriving on time counts more, finishing the session counts most. Sleeping through a roll call doesn't wreck your day. If you're on the field on time, you keep almost all of it. Anything your phone couldn't verify is left out entirely rather than counted against you.</div>
@@ -129,7 +129,7 @@ export default {
     </div>
 
     <div class="sidebox" style="margin-top:10px">
-      <div class="req-icon g" style="width:38px;height:38px">${icon('shield', 19)}</div>
+      <div class="req-icon g s38">${icon('shield', 19)}</div>
       <div>
         <div class="tt">This is not your daily score</div>
         <div class="ts">Your daily number is still nutrition and recovery. This is a separate record of showing up.</div>

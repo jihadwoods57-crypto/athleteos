@@ -5,7 +5,7 @@
    who (team / position room / custom group, or one athlete via the coach-announce/<id>
    deep-link) → what (title + body) → send. A short "Recent announcements" history reads the
    announcements table back (staff-read RLS) so the coach can see what already went out. */
-import { backHead, esc, errorState, skeletonRows } from '../components.js';
+import { backHead, esc, errorState, skeletonRows, sayStatus } from '../components.js';
 import { icon } from '../icons.js';
 import * as roles from '../roles.js';
 import { CD, loadCoachRoster } from '../coach-data.js';
@@ -95,11 +95,11 @@ export const coachAnnounce = {
       ${groups.map((g) => chip(ANN.scopeKind === 'group' && ANN.scopeValue === g.id, `${esc(g.name)} · ${(g.athlete_ids || []).length}`, 'group', g.id)).join('')}
     </div>
 
-    <h2 class="eyebrow">Title</h2>
-    <input id="an-title" class="ob-input" maxlength="80" placeholder="e.g. Lift moved to 6am" value="${esc(ANN.title || '')}" />
+    <h2 class="eyebrow" id="an-title-l">Title</h2>
+    <input id="an-title" class="ob-input" aria-labelledby="an-title-l" maxlength="80" placeholder="e.g. Lift moved to 6am" value="${esc(ANN.title || '')}" />
 
-    <h2 class="eyebrow">Message</h2>
-    <textarea id="an-body" class="ob-input" maxlength="500" rows="4" placeholder="What they need to know" style="height:auto;padding-top:10px;padding-bottom:10px">${esc(ANN.body || '')}</textarea>
+    <h2 class="eyebrow" id="an-body-l">Message</h2>
+    <textarea id="an-body" class="ob-input" aria-labelledby="an-body-l" maxlength="500" rows="4" placeholder="What they need to know" style="height:auto;padding-top:10px;padding-bottom:10px">${esc(ANN.body || '')}</textarea>
 
     <div style="height:16px"></div>
     ${ARM ? `
@@ -136,7 +136,7 @@ export const coachAnnounce = {
     });
     const say = (msg, isErr) => {
       const el = root.querySelector('#an-status');
-      if (el) { el.style.color = isErr ? 'var(--red)' : 'var(--text-3)'; el.textContent = msg; }
+      if (el) sayStatus(el, msg, { error: !!isErr });
     };
     const keep = () => {
       ANN.title = (root.querySelector('#an-title') || {}).value || '';

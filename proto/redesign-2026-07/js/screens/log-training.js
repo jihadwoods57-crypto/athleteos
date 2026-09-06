@@ -22,7 +22,7 @@ export default {
     ${backHead('Log training', coachTitle || (id ? 'Your session' : 'A workout you did'), id ? `requirement/${id}` : 'training-history')}
     ${desc ? `<h2 class="eyebrow">The session</h2><div class="coachnote"><p>${esc(desc)}</p></div><div style="height:12px"></div>` : ''}
     <section class="card pad">
-      <div style="font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-bottom:4px">Session</div>
+      <label for="tl-title" style="display:block;font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-bottom:4px">Session</label>
       <input class="ob-input" id="tl-title" maxlength="80" placeholder="e.g. Lower Body A" value="${esc(coachTitle)}" />
       <div style="height:14px"></div>
       <div style="font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-bottom:8px">How’d it go?</div>
@@ -31,7 +31,7 @@ export default {
       </div>
       <div style="font-size:var(--t-xs);font-weight:700;color:var(--text-3);display:flex;justify-content:space-between;margin-top:6px"><span>Rough</span><span>Great</span></div>
       <div style="height:14px"></div>
-      <div style="font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-bottom:4px">Notes <span style="color:var(--text-3);font-weight:600">· optional</span></div>
+      <label for="tl-note" style="display:block;font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-bottom:4px">Notes <span style="color:var(--text-3);font-weight:600">· optional</span></label>
       <textarea class="ob-input" id="tl-note" maxlength="1000" rows="3" style="min-height:72px;resize:vertical" placeholder="What you did, how you felt, anything to tell your coach"></textarea>
     </section>
     <div style="height:14px"></div>

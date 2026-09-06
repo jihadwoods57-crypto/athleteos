@@ -54,7 +54,7 @@ export default {
     </section>
 
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('target', 19)}</div>
+      <div class="req-icon b s38">${icon('target', 19)}</div>
       <div>
         <div class="tt">Why this is worth answering honestly</div>
         <div class="ts">Anyone can log a meal. Closing every day with an honest read on intent vs. execution is the habit coaches actually trust, even though it never touches your Daily Score.</div>

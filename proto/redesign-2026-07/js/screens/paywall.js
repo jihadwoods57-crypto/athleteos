@@ -44,15 +44,15 @@ function ctaState() {
   // at best confusing and at worst a duplicate store sheet. One clear next step instead; the
   // member confirmation itself renders in statusBanner() right below.
   if (UI.status && UI.status.kind === 'ok') {
-    return `<button class="btn green" data-go="progress" style="width:100%">See your progress</button>`;
+    return `<button class="btn primary" data-go="progress" style="width:100%">See your progress</button>`;
   }
-  if (UI.busy) return `<button class="btn green" style="width:100%" disabled>Opening the store…</button>`;
+  if (UI.busy) return `<button class="btn primary" style="width:100%" disabled>Opening the store…</button>`;
   if (UI.iapReady === false) {
-    return `<button class="btn green" style="width:100%;opacity:.6" disabled>Memberships open at launch</button>
+    return `<button class="btn primary" style="width:100%;opacity:.6" disabled>Memberships open at launch</button>
       <div class="pw-note">You'll be able to start the moment we launch. Have a sponsor code? Redeem it below to unlock premium today.</div>`;
   }
   const label = p.trialDays > 0 ? `Start ${p.trialDays}-day free trial` : `Start ${esc(p.name)}`;
-  return `<button class="btn green" id="pw-buy" style="width:100%">${label}</button>
+  return `<button class="btn primary" id="pw-buy" style="width:100%">${label}</button>
     <div class="pw-note">${esc(disclosure(p, UI.cadence))} No charge today.</div>`;
 }
 
@@ -60,7 +60,7 @@ function statusBanner() {
   const s = UI.status;
   if (!s) return '';
   if (s.kind === 'ok') {
-    return `<div class="sidebox" style="margin-top:10px"><div class="req-icon g" style="width:38px;height:38px">${icon('check', 18)}</div>
+    return `<div class="sidebox" style="margin-top:10px"><div class="req-icon g s38">${icon('check', 18)}</div>
       <div><div class="tt">You're a member</div><div class="ts">Premium is unlocked. Your report and Deep Dive are ready.</div></div></div>`;
   }
   if (s.kind === 'error') {
@@ -100,7 +100,7 @@ export default {
 
     <div class="mr-or">or</div>
     <div class="sidebox mr-coderow" data-go="redeem-code" role="button" aria-label="Redeem a sponsor code to unlock premium instantly">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('key', 17)}</div>
+      <div class="req-icon b s38">${icon('key', 17)}</div>
       <div><div class="tt">Have a sponsor code?</div><div class="ts">Redeem it to unlock premium instantly</div></div>
     </div>
 

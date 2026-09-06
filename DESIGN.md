@@ -310,3 +310,59 @@ page, not just tapping; it has to make sense." Lives in `css/glass.css` + `js/ge
 - **`.pane` is the pager's contract.** A `subs` screen wraps the strip's content in
   `<div class="pane">`; the head and strip outside it stand still.
 - **`::before` for every glass decoration.** focus.css owns `::after` as the 44px hit area.
+
+## Amendments · 2026-09-05 audit
+
+Primitives minted by the audit fix pass, and two rules the pass made explicit. Code wins; this
+records what the CSS now says.
+
+- **`.sr-only`** (app.css) is the screen-reader-only utility: the standard clip pattern. For a
+  label assistive tech needs and the eye already has from context (a skeleton's "Loading roster",
+  an icon button's verb). Never for text a sighted person also needs.
+- **`.btn.danger` and `.btn.ghost.danger`** (app.css). The solid form is a flat `--danger-solid`
+  fill under `--ink-on-danger` with `.btn.primary`'s geometry and no gradient: the destructive
+  control does not borrow the primary's finish. The ghost form keeps the transparent fill and says
+  danger with `--red-bright` text and a `--red-border` edge. Both sit above `:disabled` in the
+  cascade, so a disabled destructive button still loses its fill.
+- **`.stat`** (app.css) is the stat tile: `.v` value (`--t-2xl`, 800, `--num-tight`, tabular)
+  over `.k` key (`--t-eyebrow`, `--track-eyebrow`, uppercase, `--text-3`) on `--surface-2` with a
+  1px `--hairline` edge, `--r-card-sm`, no shadow. `.stat.lg` lifts the value to `--t-3xl`;
+  `.stat.center` centres it. The five legacy bodies (`.bigstat`, `.base-stats > div`,
+  `.pg-stat`, `.vc-stat`, `.coach-stat`) were restyled to its sizes and edge so they already read
+  as one family; phase 2 moves their markup onto `.stat` and deletes them.
+- **`--tab-clear`** (glass.css, beside `--tabbar-h`) is the bottom clearance content needs above
+  the floating capsule: the capsule's float from the edge, its height, the FAB's 41px overhang and
+  24px of air, worked out once. `.viewport`'s padding-bottom uses it, replacing the
+  `--nav-h + 62px` arithmetic that dated from the pre-capsule bar and had to be re-derived
+  wherever a sticky bar needed the same clearance. Anything that must clear the tab bar uses
+  the token; nothing re-derives it.
+- **`emptyState({ compact: true })`** renders the same empty at sidebox size (`.state-demo.compact`:
+  40px vessel, `--t-md` title, tighter air, no arrival choreography) for the inline empties that
+  used to be one-off `<div>`s.
+- **`sayStatus(el, msg, { error })`** (components.js) writes a status or failure into a live
+  region: text, `role` (`status`, or `alert` on a failure), `aria-live="polite"`, and toggles
+  `.is-error` (`--red-bright`, otherwise `--text-3`) instead of an inline colour.
+- **Pill ink takes the `-bright` variant.** A small coloured label on a tinted pill or chip
+  (`.xpill`, `.tier-chip`, `.cs-pace`) reads in `--hue-bright`, never bare `--hue`: in light
+  theme `-bright` is the text-weight 700 and is what clears AA on the tinted ground, and on dark
+  it is a shade lighter and passes too. Where a chip's ground is a deliberately dark photograph
+  scrim (`.cc-badges`, `.mq-badge`), the ink is pinned to the dark theme's value in a
+  light-theme override, because the ground decides the ink and that ground is always dark.
+- **Healthy streaks are neutral, not amber.** `.streak-pill .flame` and `.xscore-k.streak.on`
+  moved to `--text` under the one-meaning rule: amber means warning, and a live streak is the
+  opposite of one. `.streak-ribbon.strong`, the at-risk state, keeps amber. The coach hub's
+  amber wash (`.hub-hero`) is a separate open ruling and was left alone.
+- **Blur outside chrome is gated and static.** Every remaining `backdrop-filter` sits inside
+  `@supports` with an opaque-enough fallback fill, and the lock stamp's full-screen scrim no
+  longer fades: the card inside it does. `.streak-pill`, `.scorechip` and `.co-proof .sc` lost
+  blur entirely; their fills stood on their own.
+- **Spacing has a ratchet now.** `npm run lint:space` (`tools/spacing-ratchet.mjs`, inside
+  `npm run verify`) records every file's count of off-scale raw px values in padding, margin and
+  gap declarations (anything not 0, 1, 2 or one of `--s1..--s9`) and fails if a file's count ever
+  rises. The audit found a shadow scale nobody minted (6px 389 times, 10px 387, 14px 244); type
+  had a ratchet and shrank while spacing grew. Same rule as type: new files start at zero, and a
+  migration that lowers a count locks the lower ceiling with `--write`. `--list` prints the value
+  tally.
+- **Meal quality has one floor.** `qualityBand()` in meal-intel.js is built on
+  `MEAL_QUALITY_GOOD` / `MEAL_QUALITY_OK` from score-band.js; it used to sit at 75/50 while the
+  accent painted 79 amber, so a 77 read "Strong" in the warning colour. One number, two shapes.

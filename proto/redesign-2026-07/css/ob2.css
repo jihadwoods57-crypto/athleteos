@@ -19,7 +19,7 @@
   background: linear-gradient(90deg, var(--blue-deep), var(--blue));
   transition: transform var(--dur-2) var(--ease-out); }
 .ob2-prog .seg.done > i { transform: scaleX(1); background: var(--blue); }
-.ob2-ch-label { font-size: 10.5px; font-weight: 800; letter-spacing: var(--track-eyebrow);
+.ob2-ch-label { font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-eyebrow);
   text-transform: uppercase; color: var(--text-3); margin-left:10px; flex: none; }
 
 /* ----- Hero / problem screens: one idea, big type ----- */
@@ -42,16 +42,16 @@
 .ob-body:has(> .chip-row),
 .ob-body:has(> .ob2-scale) { display: flex; flex-direction: column; justify-content: center; }
 .ob2-hero { display: flex; flex-direction: column; justify-content: center; flex: 1; padding:8px 0 40px; }
-.ob2-hero .h-eyebrow { font-size: 11px; font-weight: 800; letter-spacing: var(--track-eyebrow);
+.ob2-hero .h-eyebrow { font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-eyebrow);
   text-transform: uppercase; color: var(--text-3); margin-bottom:14px; }
 /* .h-title is an <h2> (2026-09-01): it's the chapter's real heading; .h-eyebrow above it is a
    kicker, not a heading, and stays a div. */
-.ob2-hero .h-title { font-size: 33px; font-weight: 800; letter-spacing: -0.035em; line-height: 1.14; }
+.ob2-hero .h-title { font-size: var(--t-3xl); font-weight: 800; letter-spacing: -0.035em; line-height: 1.14; }
 /* Solid accent, not a sweep. See the note on .wel-head .accent in flows.css. */
 .ob2-hero .h-title .accent { color: var(--blue-bright); }
 :root[data-theme="light"] .ob2-hero .h-title .accent { color: var(--blue-deep); }
-.ob2-hero .h-body { font-size: 15.5px; font-weight: 600; color: var(--text-2); line-height: 1.6; margin-top:16px; text-wrap: balance; }
-.ob2-hero .h-note { font-size: 12.5px; font-weight: 600; color: var(--text-3); line-height: 1.5; margin-top:14px; }
+.ob2-hero .h-body { font-size: var(--t-md); font-weight: 600; color: var(--text-2); line-height: 1.6; margin-top:16px; text-wrap: balance; }
+.ob2-hero .h-note { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); line-height: 1.5; margin-top:14px; }
 
 /* Entrance beat: title rises, body follows. Global reduced-motion rule in app.css disables. */
 .ob2-hero .h-title { animation: ob2Rise 520ms var(--ease-out) both; }
@@ -62,7 +62,7 @@
 .ob2-meter { display: flex; flex-direction: column; align-items: center; }
 .ob2-meter svg { display: block; }
 .ob2-meter .mv { font-size: 44px; font-weight: 800; letter-spacing: var(--num-tight); }
-.ob2-meter .mk { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: var(--track-key); color: var(--text-3); margin-top:2px; }
+.ob2-meter .mk { font-size: var(--t-eyebrow); font-weight: 800; text-transform: uppercase; letter-spacing: var(--track-key); color: var(--text-3); margin-top:2px; }
 .ob2-meter .arc-track { stroke: var(--ring-track); }
 .ob2-meter .arc-fill { transition: stroke-dashoffset 900ms var(--ease-out); }
 /* Jewel at the arc tip. Fills live here, not in render-time JS theme sniffing, so a theme
@@ -75,11 +75,11 @@
 
 /* The aha gap:two meters, the space between them is the message */
 .ob2-gap { display: flex; justify-content: center; gap:26px; padding:8px 0 4px; }
-.ob2-gap .ob2-meter .mv { font-size: 34px; }
+.ob2-gap .ob2-meter .mv { font-size: var(--t-3xl); }
 .ob2-gap-verdict {
   margin-top:18px; padding:16px 18px; border-radius: var(--r-card);
   background: var(--blue-surface); border: 1px solid var(--blue-border);
-  font-size: 14.5px; font-weight: 700; line-height: 1.5;
+  font-size: var(--t-base); font-weight: 700; line-height: 1.5;
 }
 .ob2-gap-verdict b { color: var(--blue-bright); }
 
@@ -89,8 +89,8 @@
   font-variant-numeric: tabular-nums;
   color: var(--blue-bright); }
 :root[data-theme="light"] .ob2-count .cv { color: var(--blue-deep); }
-.ob2-count .ck { font-size: 13px; font-weight: 700; color: var(--text-2); margin-top:8px; line-height: 1.5; }
-.ob2-count .cmath { font-size: 12px; font-weight: 700; color: var(--text-3); margin-top:12px;
+.ob2-count .ck { font-size: var(--t-base); font-weight: 700; color: var(--text-2); margin-top:8px; line-height: 1.5; }
+.ob2-count .cmath { font-size: var(--t-sm); font-weight: 700; color: var(--text-3); margin-top:12px;
   font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
 
 /* ----- Mirror-back card ("you told us") ----- */
@@ -98,7 +98,7 @@
   background: var(--surface-1); border: 1px solid var(--hairline); margin-bottom:10px; }
 .ob2-mirror .mi { width: 36px; height: 36px; border-radius: var(--r-chip); display: grid; place-items: center; flex: none;
   background: var(--blue-surface); color: var(--blue-bright); }
-.ob2-mirror .mt { font-size: 13.5px; font-weight: 600; color: var(--text-2); line-height: 1.5; align-self: center; }
+.ob2-mirror .mt { font-size: var(--t-base); font-weight: 600; color: var(--text-2); line-height: 1.5; align-self: center; }
 .ob2-mirror .mt b { color: var(--text); font-weight: 800; }
 
 /* ----- Simulated-content marker (status pill stays read-only) ----- */
@@ -109,15 +109,15 @@
 .ob2-chat .cm { display: flex; gap:10px; max-width: 92%; animation: ob2Rise 420ms var(--ease-out) both; }
 .ob2-chat .cm.me { align-self: flex-end; flex-direction: row-reverse; }
 .ob2-chat .av { width: 30px; height: 30px; border-radius: 50%; flex: none; display: grid; place-items: center;
-  font-size: 11px; font-weight: 800; margin-top:16px; }
+  font-size: var(--t-xs); font-weight: 800; margin-top:16px; }
 .ob2-chat .av.ai { background: var(--blue-surface); color: var(--blue-bright); }
 .ob2-chat .av.coach { background: var(--amber-surface); color: var(--amber-bright); }
 .ob2-chat .av.me { background: var(--green-surface); color: var(--green-bright); }
 .ob2-chat .bw { min-width: 0; }
-.ob2-chat .who { font-size: 11px; font-weight: 800; color: var(--text-3); margin:0 4px 4px;
+.ob2-chat .who { font-size: var(--t-xs); font-weight: 800; color: var(--text-3); margin:0 4px 4px;
   display: flex; align-items: center; gap:6px; }
 .ob2-chat .cm.me .who { justify-content: flex-end; }
-.ob2-chat .bub { padding:12px 14px; border-radius: var(--r-card-sm); font-size: 14px; font-weight: 600;
+.ob2-chat .bub { padding:12px 14px; border-radius: var(--r-card-sm); font-size: var(--t-base); font-weight: 600;
   line-height: 1.55; background: var(--surface-2); border: 1px solid var(--hairline-soft); }
 .ob2-chat .cm.me .bub { background: var(--blue-surface); border-color: var(--blue-border); }
 .ob2-chat .cm.coach .bub { border-color: var(--amber-border); }
@@ -129,28 +129,28 @@
 .ob2-notif .ni { width: 38px; height: 38px; border-radius: var(--r-chip); flex: none; display: grid; place-items: center; }
 .ob2-notif .nb { flex: 1; min-width: 0; }
 .ob2-notif .nt { display: flex; align-items: baseline; justify-content: space-between; gap:8px; }
-.ob2-notif .nt .t { font-size: 13.5px; font-weight: 800; }
-.ob2-notif .nt .tm { font-size: 11px; font-weight: 700; color: var(--text-3); flex: none; }
-.ob2-notif .ns { font-size: 13px; font-weight: 600; color: var(--text-2); line-height: 1.45; margin-top:4px; }
+.ob2-notif .nt .t { font-size: var(--t-base); font-weight: 800; }
+.ob2-notif .nt .tm { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); flex: none; }
+.ob2-notif .ns { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.45; margin-top:4px; }
 
 /* ----- Inset "product moment" preview card ----- */
 .ob2-phone { border-radius: var(--r-card); background: var(--surface-1);
   border: 1px solid var(--hairline); box-shadow: var(--sh-card); padding:16px; }
 .ob2-phone + .ob2-phone { margin-top:10px; }
 .ob2-phone .ph-head { display: flex; align-items: center; justify-content: space-between; margin-bottom:10px; }
-.ob2-phone .ph-t { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: var(--track-key); color: var(--text-3); }
+.ob2-phone .ph-t { font-size: var(--t-eyebrow); font-weight: 800; text-transform: uppercase; letter-spacing: var(--track-key); color: var(--text-3); }
 
 /* ----- Demo option cards (Analyze My Meal vs Sample) ----- */
 .ob2-demo-choice { display: flex; flex-direction: column; gap:12px; }
 .ob2-demo-card { position: relative; display: flex; gap:14px; padding:18px 16px; border-radius: var(--r-card);
   background: var(--surface-1); border: 1.5px solid var(--hairline); cursor: pointer;
-  transition: all var(--dur-1) var(--ease-out); overflow: hidden; }
+  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out); overflow: hidden; }
 .ob2-demo-card:active { transform: scale(0.98); }
 .ob2-demo-card.rec { border-color: var(--blue-border); background: rgba(var(--blue-rgb), 0.07); }
 .ob2-demo-card .dc-ic { width: 46px; height: 46px; border-radius: var(--r-card-sm); display: grid; place-items: center; flex: none; }
-.ob2-demo-card .dc-t { font-size: 16px; font-weight: 800; }
-.ob2-demo-card .dc-s { font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-top:4px; line-height: 1.45; }
-.ob2-demo-card .dc-tag { position: absolute; top: 12px; right: 12px; font-size: 9.5px; font-weight: 800;
+.ob2-demo-card .dc-t { font-size: var(--t-md); font-weight: 800; }
+.ob2-demo-card .dc-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:4px; line-height: 1.45; }
+.ob2-demo-card .dc-tag { position: absolute; top: 12px; right: 12px; font-size: var(--t-micro); font-weight: 800;
   letter-spacing: 0.08em; text-transform: uppercase; color: var(--blue-bright);
   background: var(--blue-surface); border: 1px solid var(--blue-border);
   padding:4px 8px; border-radius: var(--r-pill); }
@@ -160,9 +160,9 @@
 .ob2-foods .fr { display: flex; align-items: center; gap:12px; padding:12px 2px;
   border-bottom: 1px solid var(--hairline-soft); }
 .ob2-foods .fr:last-child { border-bottom: none; }
-.ob2-foods .fn { flex: 1; font-size: 14.5px; font-weight: 700; min-width: 0; }
-.ob2-foods .fq { font-size: 12.5px; font-weight: 600; color: var(--text-2); flex: none; }
-.ob2-foods .fc { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;
+.ob2-foods .fn { flex: 1; font-size: var(--t-base); font-weight: 700; min-width: 0; }
+.ob2-foods .fq { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); flex: none; }
+.ob2-foods .fc { font-size: var(--t-micro); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;
   padding:4px 8px; border-radius: var(--r-pill); flex: none; }
 .ob2-foods .fc.high { color: var(--green-bright); background: var(--green-surface); }
 .ob2-foods .fc.medium { color: var(--amber-bright); background: var(--amber-surface); }
@@ -172,15 +172,16 @@
 .ob2-macros { display: grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:12px; }
 .ob2-macros .mc { text-align: center; padding:12px 4px; border-radius: var(--r-tile);
   background: var(--surface-2); border: 1px solid var(--hairline-soft); }
-.ob2-macros .mv { font-size: 19px; font-weight: 800; letter-spacing: var(--num-tight); font-variant-numeric: tabular-nums; }
-.ob2-macros .mk { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin-top:4px; }
+.ob2-macros .mv { font-size: var(--t-xl); font-weight: 800; letter-spacing: var(--num-tight); font-variant-numeric: tabular-nums; }
+.ob2-macros .mk { font-size: var(--t-micro); font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin-top:4px; }
 .ob2-meal-photo { width: 100%; aspect-ratio: 16/10; object-fit: cover; border-radius: var(--r-card-sm);
   border: 1px solid var(--hairline); display: block; }
 
 /* ----- Plan / paywall cards ----- */
 .ob2-plans { display: flex; flex-direction: column; gap:12px; }
 .ob2-plan { position: relative; padding:16px; border-radius: var(--r-card); background: var(--surface-1);
-  border: 1.5px solid var(--hairline); cursor: pointer; transition: all var(--dur-1) var(--ease-out); }
+  border: 1.5px solid var(--hairline); cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out); }
 .ob2-plan:active { transform: scale(0.985); }
 .ob2-plan.on { border-color: var(--blue-bright); background: rgba(var(--blue-rgb), 0.08);
   box-shadow: 0 0 22px rgba(var(--blue-rgb), 0.16); }
@@ -189,14 +190,14 @@
    is one flat namespace, so every pricing card was drawing a stray rule under its tag and
    sitting 20px taller than designed. */
 .ob2-plan .pl-row { display: flex; align-items: baseline; justify-content: space-between; gap:10px; padding: 0; border-top: 0; min-height: 0; }
-.ob2-plan .pl-t { font-size: 16px; font-weight: 800; }
-.ob2-plan .pl-p { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.ob2-plan .pl-p small { font-size: 11.5px; font-weight: 700; color: var(--text-3); }
-.ob2-plan .pl-s { font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-top:6px; line-height: 1.45; }
-.ob2-plan .pl-tag { position: absolute; top: -9px; left: 14px; font-size: 9.5px; font-weight: 800;
+.ob2-plan .pl-t { font-size: var(--t-md); font-weight: 800; }
+.ob2-plan .pl-p { font-size: var(--t-md); font-weight: 800; font-variant-numeric: tabular-nums; }
+.ob2-plan .pl-p small { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); }
+.ob2-plan .pl-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:6px; line-height: 1.45; }
+.ob2-plan .pl-tag { position: absolute; top: -9px; left: 14px; font-size: var(--t-micro); font-weight: 800;
   letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-on-accent);
   background: var(--blue); padding:4px 10px; border-radius: var(--r-pill); }
-.ob2-plan .pl-save { font-size: 12px; font-weight: 800; color: var(--green-bright); margin-top:8px;
+.ob2-plan .pl-save { font-size: var(--t-sm); font-weight: 800; color: var(--green-bright); margin-top:8px;
   font-variant-numeric: tabular-nums; }
 .ob2-plan .pl-check { display: none; }
 .ob2-plan.on .pl-check { display: block; position: absolute; right: 14px; bottom: 14px; color: var(--blue-bright); }
@@ -206,11 +207,11 @@
   border: 1px solid var(--hairline); margin-bottom:12px; }
 .ob2-cadence .cad { flex: 1; display: flex; flex-direction: column; align-items: center; gap:1px;
   padding:8px 8px; border: none; border-radius: var(--r-pill); background: transparent; cursor: pointer;
-  font-family: inherit; font-size: 13.5px; font-weight: 800; color: var(--text-2);
-  transition: all var(--dur-1) var(--ease-out); }
-.ob2-cadence .cad small { font-size: 10px; font-weight: 800; color: var(--green-bright); letter-spacing: 0.01em; }
+  font-family: inherit; font-size: var(--t-base); font-weight: 800; color: var(--text-2);
+  transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out); }
+.ob2-cadence .cad small { font-size: var(--t-micro); font-weight: 800; color: var(--green-bright); letter-spacing: 0.01em; }
 .ob2-cadence .cad.on { background: rgba(var(--blue-rgb), 0.12); color: var(--text); box-shadow: 0 1px 6px rgba(var(--blue-rgb), 0.14); }
-.ob2-fine { font-size: 11px; font-weight: 600; color: var(--text-3); line-height: 1.45; text-align: center; padding-top:10px; }
+.ob2-fine { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); line-height: 1.45; text-align: center; padding-top:10px; }
 
 /* Covered-by-team confirmation */
 .ob2-covered { text-align: center; padding:26px 0 8px; }
@@ -223,35 +224,35 @@
 /* ----- Testimonials / social proof ----- */
 .ob2-testi { padding:18px; border-radius: var(--r-card); background: var(--surface-1);
   border: 1px solid var(--hairline); box-shadow: var(--sh-card); margin-bottom:12px; }
-.ob2-testi .tq { font-size: 15px; font-weight: 700; line-height: 1.55; }
+.ob2-testi .tq { font-size: var(--t-md); font-weight: 700; line-height: 1.55; }
 .ob2-testi .tq::before { content: '\201C'; color: var(--blue-bright); font-weight: 800; }
 .ob2-testi .tq::after { content: '\201D'; color: var(--blue-bright); font-weight: 800; }
 .ob2-testi .tw { display: flex; align-items: center; gap:10px; margin-top:12px; }
 .ob2-testi .ta { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
-  font-size: 12px; font-weight: 800; background: var(--surface-3); color: var(--text-2); flex: none; }
-.ob2-testi .tn { font-size: 13px; font-weight: 800; }
-.ob2-testi .tr { font-size: 11.5px; font-weight: 600; color: var(--text-3); margin-top:1px; }
+  font-size: var(--t-sm); font-weight: 800; background: var(--surface-3); color: var(--text-2); flex: none; }
+.ob2-testi .tn { font-size: var(--t-sm); font-weight: 800; }
+.ob2-testi .tr { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); margin-top:1px; }
 .ob2-testi .ts { margin-left:auto; text-align: right; flex: none; }
-.ob2-testi .ts .v { font-size: 17px; font-weight: 800; color: var(--green-bright); font-variant-numeric: tabular-nums; }
-.ob2-testi .ts .k { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; }
+.ob2-testi .ts .v { font-size: var(--t-lg); font-weight: 800; color: var(--green-bright); font-variant-numeric: tabular-nums; }
+.ob2-testi .ts .k { font-size: var(--t-micro); font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; }
 
 /* ----- Price setter (trainer) ----- */
 .ob2-price { text-align: center; padding:6px 0; }
 .ob2-price .pv { font-size: 54px; font-weight: 800; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
-.ob2-price .pv small { font-size: 16px; font-weight: 700; color: var(--text-3); }
+.ob2-price .pv small { font-size: var(--t-md); font-weight: 700; color: var(--text-3); }
 .ob2-price input[type="range"] { width: 100%; margin-top:18px; accent-color: var(--blue); height: 44px; }
 .ob2-rev { display: grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:16px; }
 .ob2-rev .rv { padding:16px 8px; text-align: center; border-radius: var(--r-tile);
   background: var(--surface-1); border: 1px solid var(--hairline); }
-.ob2-rev .rv .v { font-size: 23px; font-weight: 800; letter-spacing: var(--num-tight); font-variant-numeric: tabular-nums; }
-.ob2-rev .rv .k { font-size: 10.5px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: var(--track-key); margin-top:4px; }
+.ob2-rev .rv .v { font-size: var(--t-2xl); font-weight: 800; letter-spacing: var(--num-tight); font-variant-numeric: tabular-nums; }
+.ob2-rev .rv .k { font-size: var(--t-eyebrow); font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: var(--track-key); margin-top:4px; }
 
 /* ----- Coach completion board ----- */
 .ob2-board { display: flex; flex-direction: column; }
 .ob2-board .br { display: flex; align-items: center; gap:12px; padding:12px 2px; border-bottom: 1px solid var(--hairline-soft); }
 .ob2-board .br:last-child { border-bottom: none; }
-.ob2-board .bn { flex: 1; font-size: 14px; font-weight: 700; min-width: 0; }
-.ob2-board .bp { font-size: 11px; font-weight: 700; color: var(--text-3); width: 34px; flex: none; }
+.ob2-board .bn { flex: 1; font-size: var(--t-base); font-weight: 700; min-width: 0; }
+.ob2-board .bp { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); width: 34px; flex: none; }
 .ob2-board .bd { display: flex; gap:6px; flex: none; }
 .ob2-board .bd i { width: 16px; height: 16px; border-radius: var(--r-micro); background: var(--surface-3); display: grid; place-items: center; }
 .ob2-board .bd i.ok { background: var(--green-surface); color: var(--green-bright); }
@@ -259,10 +260,10 @@
 
 /* ----- Habit anchor ----- */
 .ob2-habit { text-align: center; padding:18px 0 6px; }
-.ob2-habit .hb { font-size: 25px; font-weight: 800; letter-spacing: -0.025em; line-height: 1.3; }
+.ob2-habit .hb { font-size: var(--t-2xl); font-weight: 800; letter-spacing: -0.025em; line-height: 1.3; }
 .ob2-habit .hb .accent { color: var(--blue-bright); }
 :root[data-theme="light"] .ob2-habit .hb .accent { color: var(--blue-deep); }
-.ob2-habit .hs { font-size: 13.5px; font-weight: 600; color: var(--text-2); margin-top:12px; line-height: 1.55; }
+.ob2-habit .hs { font-size: var(--t-base); font-weight: 600; color: var(--text-2); margin-top:12px; line-height: 1.55; }
 
 /* ----- Boundary / privacy rows (parent) ----- */
 .ob2-bound { display: flex; align-items: center; gap:12px; padding:12px 2px; border-bottom: 1px solid var(--hairline-soft); }
@@ -270,23 +271,24 @@
 .ob2-bound .bi { width: 34px; height: 34px; border-radius: var(--r-chip); display: grid; place-items: center; flex: none; }
 .ob2-bound .bi.yes { background: var(--green-surface); color: var(--green-bright); }
 .ob2-bound .bi.no { background: var(--red-surface); color: var(--red); }
-.ob2-bound .bt { flex: 1; font-size: 14px; font-weight: 700; }
-.ob2-bound .bs { font-size: 11.5px; font-weight: 600; color: var(--text-3); margin-top:1px; }
+.ob2-bound .bt { flex: 1; font-size: var(--t-base); font-weight: 700; }
+.ob2-bound .bs { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); margin-top:1px; }
 
 /* Rating scale 1–10 */
 .ob2-scale { display: grid; grid-template-columns: repeat(5, 1fr); gap:8px; }
 .ob2-scale .sc { min-height: 52px; border-radius: var(--r-card-sm); display: grid; place-items: center;
   background: var(--surface-1); border: 1.5px solid var(--hairline);
-  font-size: 16px; font-weight: 800; cursor: pointer; transition: all var(--dur-1) var(--ease-out);
+  font-size: var(--t-md); font-weight: 800; cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
   font-variant-numeric: tabular-nums; }
 .ob2-scale .sc:active { transform: scale(0.95); }
 .ob2-scale .sc.on { border-color: var(--blue-bright); background: rgba(var(--blue-rgb), 0.12); color: var(--blue-bright);
   box-shadow: inset 0 0 0 1px var(--blue-border); }
-.ob2-scale-keys { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700;
+.ob2-scale-keys { display: flex; justify-content: space-between; font-size: var(--t-xs); font-weight: 700;
   color: var(--text-3); margin-top:8px; padding:0 2px; }
 
 /* Loading shimmer for the live analysis (skeleton, not spinner) */
-.ob2-scan-note { font-size: 12px; font-weight: 600; color: var(--text-3); text-align: center; margin-top:12px; line-height: 1.5; }
+.ob2-scan-note { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); text-align: center; margin-top:12px; line-height: 1.5; }
 
 /* ----- Team dietitian flow (obd) bits: class-only so the new file rides the ratchets clean.
    The demo board's thumb backgrounds are set from JS (.style assignment), never in markup. */
@@ -315,19 +317,19 @@
    flag exercise (44px box: the flame is a tap target, was 38px) · .ob2-stance = obt's
    labeled draft-reply bubbles. ----- */
 .ob2-feat { display: flex; align-items: center; gap: 11px; padding: 10px 0; border-bottom: 1px solid var(--hairline-soft); }
-.ob2-feat .fi { width: 32px; height: 32px; border-radius: 10px; flex: none; display: grid; place-items: center; background: var(--blue-surface); color: var(--blue-bright); }
+.ob2-feat .fi { width: 32px; height: 32px; border-radius: var(--r-chip); flex: none; display: grid; place-items: center; background: var(--blue-surface); color: var(--blue-bright); }
 .ob2-feat .ft { font-size: var(--t-base); font-weight: 700; line-height: 1.4; }
 .ob2-board .bini { width: 34px; height: 34px; border-radius: var(--r-chip); flex: none; display: grid; place-items: center; background: var(--surface-3); font-size: var(--t-sm); font-weight: 800; color: var(--text-2); }
 .ob2-board .bsc.r { background: var(--red-surface); color: var(--red); }
 .ob2-trend { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--hairline-soft); }
 .ob2-trend .tn { flex: 1; min-width: 0; font-size: var(--t-base); font-weight: 700; }
 .ob2-trend .tb { display: flex; gap: 3px; height: 44px; align-items: flex-end; }
-.ob2-trend .tb i { display: block; width: 9px; border-radius: 2.5px; }
+.ob2-trend .tb i { display: block; width: 9px; border-radius: var(--r-micro); } /* a mark, not a container: the micro step */
 .ob2-trend .tp { flex: none; width: 42px; text-align: right; font-size: var(--t-sm); font-weight: 800; font-variant-numeric: tabular-nums; }
 .ob2-flagrow { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--r-card-sm); border: 1px solid var(--hairline); background: var(--surface-1); margin-bottom: 9px; }
 .ob2-flagrow .fn { font-size: var(--t-base); font-weight: 700; }
 .ob2-flagrow .fs { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); margin-top: 2px; }
-.ob2-flagbtn { width: 44px; height: 44px; border-radius: 11px; flex: none; display: grid; place-items: center; background: var(--surface-2); color: var(--text-3); cursor: pointer; }
+.ob2-flagbtn { width: 44px; height: 44px; border-radius: var(--r-chip); flex: none; display: grid; place-items: center; background: var(--surface-2); color: var(--text-3); cursor: pointer; }
 .ob2-stance { margin-bottom: 12px; }
 .ob2-stance .sl { font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); margin: 0 2px 4px; }
 .ob2-stance .sb { padding: 11px 14px; border-radius: 16px; background: var(--surface-2); border: 1px solid var(--hairline-soft); font-size: var(--t-base); font-weight: 600; line-height: 1.5; }

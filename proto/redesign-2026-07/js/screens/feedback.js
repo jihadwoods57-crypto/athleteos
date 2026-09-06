@@ -185,7 +185,7 @@ export const feedback = {
     const bug = F.cat === 'bug';
     return `<div id="fb-root"><div class="back-head">
       <div class="bk" id="fb-back" role="button" tabindex="0" aria-label="Back">${icon('back', 20)}</div>
-      <div><div class="ht">${esc(LABEL[F.cat] || 'Send feedback')}</div>
+      <div class="bh-t"><h1 class="ht">${esc(LABEL[F.cat] || 'Send feedback')}</h1>
       <div class="hs">${esc(safety ? 'Straight to the top of the queue' : 'As much or as little as you like')}</div></div>
     </div>
     <section class="card" style="padding:16px;margin-top:14px${safety ? ';border-color:var(--red-border)' : ''}">
@@ -202,7 +202,7 @@ export const feedback = {
     </section>
     ${F.error ? `<div style="font-size:12.5px;font-weight:700;color:var(--red-bright);text-align:center;padding:12px 16px 0">${esc(F.error)}</div>` : ''}
     <div style="height:16px"></div>
-    <button class="btn ${safety ? 'primary' : 'green'}" id="fb-send" style="width:100%"${F.sending ? ' disabled' : ''}>
+    <button class="btn primary" id="fb-send" style="width:100%"${F.sending ? ' disabled' : ''}>
       ${F.sending ? 'Sending…' : `${icon('check', 18)} Send`}
     </button>
     <div style="height:10px"></div>

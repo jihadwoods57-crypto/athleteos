@@ -28,7 +28,7 @@ export default {
           <label class="si-label" for="si-email">Email</label>
           <div class="si-wrap">
             <span class="si-lead">${icon('mail', 20)}</span>
-            <input id="si-email" class="ob-input si-input" type="email" inputmode="email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="name@email.com" aria-label="Email">
+            <input id="si-email" class="ob-input si-input" type="email" inputmode="email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="name@email.com" aria-label="Email" aria-describedby="si-email-err" aria-invalid="false">
           </div>
           <div id="si-email-err" class="si-field-err" aria-live="polite"></div>
         </div>
@@ -36,7 +36,7 @@ export default {
           <div class="si-label-row"><label class="si-label" for="si-pass">Password</label><button type="button" class="si-forgot" data-go="reset">Forgot password?</button></div>
           <div class="si-wrap">
             <span class="si-lead">${icon('lock', 20)}</span>
-            <input id="si-pass" class="ob-input si-input" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password">
+            <input id="si-pass" class="ob-input si-input" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password" aria-describedby="si-err" aria-invalid="false">
             <button type="button" class="si-eye" id="si-eye" aria-label="Show password"><span class="eye-show">${icon('eye', 20)}</span><span class="eye-hide">${icon('eyeOff', 20)}</span></button>
           </div>
           <div id="si-caps" class="si-field-hint" style="display:none">Caps Lock is on</div>
@@ -86,12 +86,20 @@ export default {
     passEl.addEventListener('keyup', capsCheck);
     passEl.addEventListener('blur', () => { caps.style.display = 'none'; });
 
+    // The field says it is invalid whenever its error line has text, so a screen reader hears
+    // the message with the field and not only as a stray live-region announcement.
+    const setEmailErr = (msg) => { emailErr.textContent = msg; emailEl.setAttribute('aria-invalid', msg ? 'true' : 'false'); };
+    const setErr = (msg) => {
+      err.textContent = msg;
+      passEl.setAttribute('aria-invalid', msg ? 'true' : 'false');
+      if (msg && !(emailEl.value || '').trim()) emailEl.setAttribute('aria-invalid', 'true');
+    };
     // Validate email format when the user LEAVES the field — not on every keystroke.
     emailEl.addEventListener('blur', () => {
       const v = (emailEl.value || '').trim();
-      emailErr.textContent = (v && !EMAIL_RE.test(v)) ? 'Enter a valid email address.' : '';
+      setEmailErr((v && !EMAIL_RE.test(v)) ? 'Enter a valid email address.' : '');
     });
-    emailEl.addEventListener('focus', () => { emailErr.textContent = ''; });
+    emailEl.addEventListener('focus', () => { setEmailErr(''); });
 
     const setLoading = (on) => {
       btn.disabled = on;
@@ -101,18 +109,18 @@ export default {
 
     const submit = async () => {
       if (btn.disabled) return; // double-submit guard
-      err.textContent = '';
+      setErr('');
       const email = (emailEl.value || '').trim().toLowerCase();
       const password = passEl.value || '';
-      if (!email || !password) { err.textContent = 'Enter your email and password.'; return; }
-      if (!EMAIL_RE.test(email)) { emailErr.textContent = 'Enter a valid email address.'; return; }
+      if (!email || !password) { setErr('Enter your email and password.'); return; }
+      if (!EMAIL_RE.test(email)) { setEmailErr('Enter a valid email address.'); return; }
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-        err.textContent = "You're offline. Check your connection and try again."; return;
+        setErr("You're offline. Check your connection and try again."); return;
       }
       setLoading(true);
       const r = await act.signIn(email, password);
       if (r.ok) { go(routeForRole(r.role)); }
-      else { err.textContent = r.error || "That didn't go through. Try again in a moment."; setLoading(false); }
+      else { setErr(r.error || "That didn't go through. Try again in a moment."); setLoading(false); }
     };
     btn.addEventListener('click', submit);
     emailEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });

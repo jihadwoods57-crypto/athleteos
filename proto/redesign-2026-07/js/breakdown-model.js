@@ -56,7 +56,7 @@ function withMeal(day, slot, atMin, protein) {
 }
 
 /* The best possible check-in, per day.js polarity (soreness/cravings invert: 0 is best).
-   EXPORTED as the one shared ceiling constant — the Recovery Check-In screen's "earn up to"
+   EXPORTED as the one shared ceiling constant — the Recovery check-in screen's "earn up to"
    reads this same object, so it and the breakdown's reach plan can never quote different
    numbers. Includes the 0142 body signals so the ceiling stays honest for Guided/Intuitive
    athletes; disabled fields are ignored by the engine (ciConfig gates them), so athletes
@@ -129,7 +129,7 @@ export function reachPlan(day, { slots, titles = {}, optional = [], nowMin, fmtC
     next.ciSubmitted = true; next.ci = { ...next.ci, ...CI_BEST };
     const gain = dayScoreOf(next) - curScore;
     rows.push({
-      id: 'recovery', label: 'Do Recovery Check-In',
+      id: 'recovery', label: 'Do Recovery check-in',
       sub: 'Tonight, before bed. Submitting it is worth 12 on its own',
       gain, kind: 'upTo', route: 'recovery', accent: 'p', late: false,
     });

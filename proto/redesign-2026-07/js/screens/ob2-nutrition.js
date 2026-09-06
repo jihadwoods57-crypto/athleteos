@@ -20,6 +20,7 @@ import { accountBody, wireAccount } from './ob-account.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
 import { showConfirmPending } from '../ob-helpers.js';
 import { track, EVENTS } from '../analytics.js';
+import { scoreBand } from '../score-band.js';
 
 /* ---------- discovery bands / labels (single source for math + mirrors) ---------- */
 const CLIENT_BANDS = [
@@ -107,7 +108,9 @@ function queueRow({ name, meal, score, quiet, flagged, thumb }) {
   const av = thumb
     ? `<div class="bt" data-thumb="${esc(thumb)}"></div>`
     : `<div class="bini">${esc((name || '?')[0])}</div>`;
-  const tone = score >= 80 ? 'g' : score >= 60 ? 'a' : 'r';
+  /* Three tones (.bsc.g/.a/.r in ob2.css) off score-band's ladder, never a re-inlined 80/60. */
+  const band = scoreBand(score);
+  const tone = band === 'on' ? 'g' : band === 'close' ? 'a' : 'r';
   const badge = quiet
     ? `<span class="status-pill muted">${esc(quiet)}</span>`
     : `<div class="bsc ${tone}">${esc(String(score))}</div>`;
@@ -395,7 +398,7 @@ const steps = [
     },
   },
   {
-    id: 'collab', ch: 1, cta: 'That’s the loop', green: true,
+    id: 'collab', ch: 1, cta: 'That’s the loop',
     title: () => 'The whole circle, one thread.',
     sub: () => 'Athletes with a coach already live in a shared thread. Your read lands right inside it.',
     body: () => `
@@ -517,7 +520,7 @@ const steps = [
        since launch and the dietitian team flow (obd) does too; this flow ended on the seat
        picker, so the nutrition pro walked out of onboarding with nothing to give a client and
        had to discover Practice HQ unaided. */
-    id: 'code', ch: 4, cta: 'Continue', green: true,
+    id: 'code', ch: 4, cta: 'Continue',
     back: 'trainer', /* post-account: back can never return to the sign-up form */
     body: () => {
       const code = ob().practiceCode || '';

@@ -10,7 +10,7 @@
 import { CATALOG, SNACK_BONUS, runsToday, derive, deriveAssigned, assignedFromRow, resolveRequirementSet, stdFromItems, stdFromSolo, dayTypeFor, filterItemsByDayType, catalogFromItems, planStyleFromItems, setImpactWeightsProvider } from './requirements.js';
 import { resolvePlanStyle, SIGNAL_KEYS, CHECKIN_SIGNAL_KEYS, styleLabel, styleSourceLabel } from './plan-style.js';
 import { TOS_VERSION } from './ob-helpers.js';
-import { tierFor, ON_STANDARD, qualityAccent } from './score-band.js';
+import { tierFor, ON_STANDARD, qualityAccent, MEAL_QUALITY_GOOD } from './score-band.js';
 import { initialsOf } from './initials.js';
 import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor, dayFromHistoryRow,
@@ -19,8 +19,9 @@ import {
   dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayLogWeight, dayResetLocal, dayCheckTask,
   insertMeal, MEAL_KEYS, minutesNow, mealScored,
   setDayStandard, slotDeadline, slotGrace, slotLateCredit, slotOpen, setDayGoalConfig,
-  setDayPlanStyle, weightsForDay, DAY_SELECT_COLS, PROFILE_WEIGHTS,
+  setDayPlanStyle, weightsForDay, DAY_SELECT_COLS, PROFILE_WEIGHTS, dayRev,
 } from './day.js';
+import { MONTHS_SHORT, DAYS_SHORT, DAYS_LONG } from './fmt-date.js';
 import { creditsLeft } from './pass.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { activationInfo, parseActivation } from './activation.js';
@@ -99,6 +100,7 @@ export const MEAL = {
    in-session-only, never blocks capture (and stays safe in a non-browser test env). */
 const MEAL_KEY = 'onstd-proto-meal-v1';
 function saveMeal() {
+  bumpRev();
   if (typeof sessionStorage === 'undefined') return;
   try {
     if (!MEAL.photoBase64 && !MEAL.result && !MEAL.questions) { sessionStorage.removeItem(MEAL_KEY); return; }
@@ -312,7 +314,44 @@ function load() {
   catch { return { ...DEFAULT_RT }; }
 }
 export const RT = load();
-function save() { localStorage.setItem(KEY, JSON.stringify(RT)); }
+function save() { bumpRev(); localStorage.setItem(KEY, JSON.stringify(RT)); }
+
+/* ---------------- Derived-getter memo (per render tick) ----------------
+   S below exposes ~64 getters that recompute on every read, and one render reads several of them
+   many times (home.js reads S.tier eight times; tier -> score walks the whole day each time).
+   The pure ones are wrapped in memo(). The memo is ARMED ONLY inside memoTick(), which the router
+   wraps around a screen's render() and the tab bar: the first read in that pass computes, every
+   later read is served, and the memo is dropped before wiring and mount() run. Outside a tick
+   every getter is as live as it always was, which matters because RT is written directly in
+   ~120 places (RT.profile = ..., then S.audience read on the next line) and none of those go
+   through save(). Inside a tick, a version still guards the rare write-then-read: bumpRev()
+   runs in save() and saveMeal() here, memoTick() bumps it at the start of every render, and
+   day.js's own counter (dayRev) joins the key so a mutator's persist invalidates too.
+   Only getters whose inputs are DAY / RT / MEAL and that read no clock, no DOM and no other
+   store are wrapped; state-memo.test.mjs pins the list. Getters that read the time (exec,
+   pass, breakdown, components, currentSlot, ...) are not wrapped at all. */
+let REV = 0;
+export function bumpRev() { REV++; }
+const MEMO = new Map();
+let MEMO_KEY = '';
+let MEMO_ON = false;
+/** Run `fn` with the derived-getter memo armed. Reentrant: an inner tick shares the outer one. */
+export function memoTick(fn) {
+  if (MEMO_ON) return fn();
+  REV++;
+  MEMO_ON = true;
+  MEMO.clear();
+  try { return fn(); } finally { MEMO_ON = false; MEMO.clear(); }
+}
+function memo(name, compute) {
+  if (!MEMO_ON) return compute();
+  const key = REV + ':' + dayRev();
+  if (key !== MEMO_KEY) { MEMO.clear(); MEMO_KEY = key; }
+  if (MEMO.has(name)) return MEMO.get(name);
+  const v = compute();
+  MEMO.set(name, v);
+  return v;
+}
 
 /* ---------------- Theme (WS2b: light / dark / system) ---------------- */
 export function applyTheme() {
@@ -1714,7 +1753,7 @@ export const act = {
     RT.recoveryDone = true;
     daySubmitCheckin(RT.userId, ciValues);
     const to = computeScore(componentsNow());
-    RT.lastMove = { from, to, gain: to - from, what: 'Recovery Check-In' };
+    RT.lastMove = { from, to, gain: to - from, what: 'Recovery check-in' };
     save();
     track(EVENTS.RECOVERY_SUBMITTED);
     this.syncNotifications();
@@ -3145,6 +3184,10 @@ export const act = {
   setTheme(mode) {
     RT.theme = ['dark', 'light', 'system'].includes(mode) ? mode : 'dark';
     save(); applyTheme();
+    // The root attribute flips instantly, but the ring jewel (components.js), the logo mark and
+    // the meal mini-dial (screens/meal.js) read the theme at DRAW time, so they kept the old
+    // palette until something else repainted. The router's coalesced repaint redraws them now.
+    if (typeof window !== 'undefined' && typeof window.__render === 'function') window.__render();
   },
   setHaptics(on) { RT.haptics = !!on; save(); },
   /** Coach edits their handle from the profile card. */
@@ -3886,7 +3929,7 @@ export const S = {
   // Identity comes from the athlete's real profile (onboarding capture or the signed-in
   // profiles/athlete_profiles rows loaded into RT.profile). Never fabricate a real-sounding
   // name/school/sport — an unknown field is blank/neutral, not "Jihad Woods · Central Catholic".
-  get athlete() {
+  get athlete() { return memo('athlete', () => {
     const p = RT.profile || {};
     const name = (p.name || '').trim();
     const first = name ? name.split(' ')[0] : 'Athlete';
@@ -3898,7 +3941,7 @@ export const S = {
       school: p.school || '', level: p.level || '',
       avatar: p.avatar || null,
     };
-  },
+  }); },
   // The athlete's REAL linked coach — from their active team membership + the head coach's
   /* ---------- PLAN STYLE (0142) — the ONE surface every screen reads ----------
      Style, its knobs, who set it, whether it's locked, and the athlete's own stated preference.
@@ -3906,7 +3949,7 @@ export const S = {
      numbers are still COMPUTED and still visible to the professional (an under-fueling read is a
      safety signal), they are simply not shown to the athlete. Suppression is presentation, never
      data — no surface should ever skip computing a number because of a style. */
-  get planStyle() {
+  get planStyle() { return memo('planStyle', () => {
     const res = RT.planStyle || resolveMyPlanStyle();
     const label = styleLabel(res.style);
     return {
@@ -3930,11 +3973,11 @@ export const S = {
       showMacros: !!(res.knobs && res.knobs.surface.showMacros),
       tone: (res.knobs && res.knobs.surface.tone) || 'guidance',
     };
-  },
+  }); },
   /** The nutrition component's real share of this athlete's score, as a whole percent. Every
    *  surface that explains the score reads this instead of hardcoding 50 — the share moves with
    *  the style x goal profile, and a number the athlete can check has to be the true one. */
-  get nutritionWeightPct() { return Math.round(weightsForDay(DAY).nutrition * 100); },
+  get nutritionWeightPct() { return memo('nutritionWeightPct', () => Math.round(weightsForDay(DAY).nutrition * 100)); },
 
   /* WHAT the nutrition sub-score is actually made of, for the athlete who has no targets and
      asks "then what am I being graded on?". Two engine paths, and this reports whichever one is
@@ -3942,7 +3985,7 @@ export const S = {
      customized, or the shipped per-goal-profile formula for Structured. The numbers below are the
      engine's own — legacyNutritionScore's literals — so a change there that isn't mirrored here
      shows up as a contradiction on one screen rather than being invisible. */
-  get nutritionFormula() {
+  get nutritionFormula() { return memo('nutritionFormula', () => {
     const PART_LABEL = {
       protein: 'Protein', calorie: 'Calories', timing: 'Meals on time',
       hydration: 'Hydration', quality: 'Meal quality', awareness: 'Body signals',
@@ -3973,13 +4016,13 @@ export const S = {
       { key: 'protein', label: 'Protein', pct: 65 },
       { key: 'timing', label: 'Meals on time', pct: 35 },
     ] };
-  },
+  }); },
 
   /** The score timeline banded by the style that governed each stretch, newest last.
    *  [{ style, name, days, from, to, avg }] — Progress renders these so a trend break reads as
    *  "the plan changed here", never as an unexplained drop. Days with no stamp (pre-0142 history)
    *  are attributed to Structured, which is exactly how they were scored. Real rows only. */
-  get styleBands() {
+  get styleBands() { return memo('styleBands', () => {
     const hist = Array.isArray(DAY.scoreHistory) ? DAY.scoreHistory : [];
     const rows = [...hist.map(h => ({ date: h.date, score: h.score || 0, style: h.planStyle || 'structured' })),
       { date: DAY.date, score: this.score, style: DAY.planStyle || 'structured' }];
@@ -3990,17 +4033,17 @@ export const S = {
       else bands.push({ style: r.style, name: styleLabel(r.style).name, days: 1, from: r.date, to: r.date, _sum: r.score });
     }
     return bands.map(b => ({ ...b, avg: Math.round(b._sum / b.days) }));
-  },
+  }); },
 
   /** Plain-English names of the body signals this plan tracks (for the Plan/Progress copy). */
-  get trackedSignalLabels() {
+  get trackedSignalLabels() { return memo('trackedSignalLabels', () => {
     const knobs = this.planStyle.knobs;
     return SIGNAL_KEYS.filter(s => knobs && knobs.signals && knobs.signals[s.key]).map(s => s.label);
-  },
+  }); },
 
   // display name. NEVER a fabricated persona: with no link, hasCoach is false and every
   // coach-specific surface must gate on it; `name`/`nameMid` degrade to honest generic copy.
-  get coach() {
+  get coach() { return memo('coach', () => {
     // The athlete/client's mentor: their team coach (RT.myCoach) first, else — for a trainer's
     // client with no team — their linked trainer (RT.myTrainer). ONE surface, so every coach-gated
     // screen lights up for a client too, with the right NOUN (coach vs trainer) for copy. NEVER a
@@ -4022,11 +4065,11 @@ export const S = {
       role: name ? (kind === 'trainer' ? 'Trainer' : 'Head Coach') : '',
       team,                             // team name (coach) or practice name (trainer)
     };
-  },
+  }); },
 
   // The coach's OWN identity for their profile — server-confirmed name/team/join-code with
   // the same four honest states as trainerIdentity: loading | offline | minting | live.
-  get coachIdentity() {
+  get coachIdentity() { return memo('coachIdentity', () => {
     const realName = ((RT.profile && RT.profile.name) || '').trim();
     const realTeam = ((RT.team && RT.team.name) || '').trim();
     const code = (RT.team && RT.team.code) || '';
@@ -4045,12 +4088,12 @@ export const S = {
       hasIdentity: !!realName && !!realTeam,
       state,
     };
-  },
+  }); },
 
   // Trainer's real identity for Practice HQ: server-confirmed name/business/code, or an honest
   // neutral fallback — never a fabricated persona (no "Tracy Boone", no dead "No code yet").
   // `state` names the render mode roles.js drives off of: loading | offline | minting | live.
-  get trainerIdentity() {
+  get trainerIdentity() { return memo('trainerIdentity', () => {
     const realName = (RT.profile && RT.profile.name || '').trim();
     const realPractice = (RT.practice && RT.practice.name || '').trim();
     const code = (RT.practice && RT.practice.code) || '';
@@ -4071,20 +4114,20 @@ export const S = {
       hasIdentity: !!realName && !!realPractice,
       state,
     };
-  },
+  }); },
 
   /* The signed-in OPERATOR's own identity — coach or trainer, ONE shape, so a shared operator
      screen greets the right person with the right noun instead of calling a trainer "Coach".
      Mirrors S.coach, which is the ATHLETE's view of their operator; this is the operator's view
      of themselves. `bookName` is the team or the practice — whichever they run. */
-  get operatorIdentity() {
+  get operatorIdentity() { return memo('operatorIdentity', () => {
     if (RT.authRole === 'trainer') {
       const t = this.trainerIdentity;
       return { kind: 'practice', handle: t.name, initials: t.initials, bookName: t.practiceName, code: t.code, state: t.state, hasIdentity: t.hasIdentity };
     }
     const c = this.coachIdentity;
     return { kind: 'team', handle: c.handle, initials: c.initials, bookName: c.teamName, code: c.code, state: c.state, hasIdentity: c.hasIdentity };
-  },
+  }); },
 
   // Real on-device clock + greeting (the status bar renders S.now; on iOS this is the system
   // clock — here it's the browser's, never a frozen 7:12).
@@ -4098,7 +4141,7 @@ export const S = {
   },
 
   get components() { return { now: componentsNow(), done: componentsDone() }; },
-  get score() { return computeScore(componentsNow()); },
+  get score() { return memo('score', () => computeScore(componentsNow())); },
   /* ONE ceiling engine. This was `computeScore(componentsDone())` — a projection that marks every
      remaining meal logged but never gives it protein, so with protein ~65% of nutrition it could
      answer "up to 63" while the breakdown's reach plan (which spreads the remaining protein
@@ -4110,7 +4153,7 @@ export const S = {
      (projectedDay keeps componentsNow/components alive for the in-progress bars; it just no
      longer gets to define the ceiling.) */
   get possible() { try { return Math.max(this.score, this.maxPossible); } catch { return this.score; } },
-  get tier() { return tier(this.score); },
+  get tier() { return memo('tier', () => tier(this.score)); },
   // Yesterday's real score from history, or null if yesterday has no row (the ring then
   // hides the "vs yesterday" delta rather than comparing against a different day).
   get scoreYesterday() {
@@ -4123,14 +4166,14 @@ export const S = {
   // First-day activation state (no retroactive failure). notYetScored is true for the whole
   // activation day: the athlete may log (and the coach sees it), but the day shows "Not scored
   // yet" and doesn't grade/streak — full scoring resumes the next local day.
-  get activation() { return activationInfo(activationStamp(), String(DAY.date)); },
+  get activation() { return memo('activation', () => activationInfo(activationStamp(), String(DAY.date))); },
   get notYetScored() { return this.activation.notYetScored; },
   // A day is "decided" once no required window is still open on time — the point at which a
   // negative verdict (Off Standard / a red Missed pill) is honest. Derived from exec, no recompute.
   get dayDecided() { return this.exec.decided; },
   // Guardian-consent surface (athlete side of 0050). `needed` gates the Home banner + the
   // sync pill copy; a verified minor and every adult read as not-needed.
-  get consent() {
+  get consent() { return memo('consent', () => {
     const minor = act._isProvableMinor();
     const status = (RT.consent && RT.consent.status) || 'none';
     return {
@@ -4139,7 +4182,7 @@ export const S = {
       guardianEmail: (RT.consent && RT.consent.guardianEmail) || null,
       needed: minor && status !== 'verified',
     };
-  },
+  }); },
   // Honest sync surface for Home: 'blocked' (minor awaiting consent — on purpose),
   // 'error' (last push failed — offline/rejected), or null (fine / nothing attempted).
   get syncIssue() {
@@ -4164,30 +4207,30 @@ export const S = {
   // every meal is already logged. Drives the food-search / label-scan log buttons.
   get currentSlot() { return nextOpenSlot(); },
   // The athlete's REAL coach-set nutrition targets (athlete_profiles.targets), or null if none.
-  get planTargets() {
+  get planTargets() { return memo('planTargets', () => {
     const t = (RT.profile && RT.profile.targets) || null;
     if (!t) return null;
     const v = (x) => (x != null && x !== '' ? x : null);
     const out = { protein: v(t.protein), calories: v(t.calories), weight: v(t.weight) };
     return (out.protein || out.calories || out.weight) ? out : null;
-  },
+  }); },
   // Honest 4-state resolution for Plan surfaces: a coach-set target, a hydrate still in flight,
   // an offline/failed fetch with nothing cached, or a genuinely-unset coach. 'set' takes
   // precedence over everything — an offline athlete who already has cached real targets
   // (S.planTargets survives an errored refetch, see _loadProfileIntoRt) must never see the
   // offline card or the "not set" copy.
-  get planTargetsState() {
+  get planTargetsState() { return memo('planTargetsState', () => {
     if (this.planTargets) return 'set';
     if (RT.profileLoading) return 'loading';
     if (RT.profileOffline) return 'offline';
     return 'unset';
-  },
-  get planGoalLabel() {
+  }); },
+  get planGoalLabel() { return memo('planGoalLabel', () => {
     // Both base_goal spellings exist in real rows: the core writes 'performance'
     // (goalMapping/BASE_GOAL_CHIPS), older proto onboarding wrote 'perform'. Same label.
     const g = RT.profile && RT.profile.baseGoal;
     return g === 'gain' ? 'Gain weight' : g === 'lose' ? 'Lose fat' : g === 'maintain' ? 'Maintain' : (g === 'perform' || g === 'performance') ? 'Perform' : null;
-  },
+  }); },
   /* The goal, fully decoded — what the Plan header's goal pill opens into.
      Every field is REAL or null; nothing here is a placeholder. In particular there is no stored
      "target rate", so this does not invent one: it reports the actual measured movement and
@@ -4195,7 +4238,7 @@ export const S = {
      Provenance is split because the two halves genuinely have different owners: base_goal and
      season_goal are written by the athlete's own onboarding, while athlete_profiles.targets is
      written only by coach_set_goals — a coach or trainer. */
-  get planGoal() {
+  get planGoal() { return memo('planGoal', () => {
     const p = RT.profile || {};
     const key = p.baseGoal || null;
     const w = this.weight;
@@ -4234,12 +4277,12 @@ export const S = {
       targetsSetBy: coachSet && this.coach.hasCoach && this.coach.isNamed ? this.coach.name : null,
       startedOn: activationDateOnly(),
     };
-  },
+  }); },
 
   /* The requirement_set actually governing this athlete today — the provenance behind every row
      on Plan · Requirements. Null when no coach set governs (the OnStandard baseline), which is
      exactly the case where attributing rules to a named coach would be a lie. */
-  get governingStandard() {
+  get governingStandard() { return memo('governingStandard', () => {
     const sets = RT.reqSets || [];
     if (!sets.length) return null;
     const set = resolveRequirementSet(sets, RT.userId, RT.myRoomLabel || (RT.profile || {}).position, String(DAY.date));
@@ -4254,15 +4297,15 @@ export const S = {
       effectiveDate: set.effective_date || null,
       updatedAt: set.updated_at || null,
     };
-  },
+  }); },
 
   // Experience voice (mirrors roleVoice.experienceKind: general profile = lose/maintain →
   // the personal-client experience; athlete/gain keep the team frame). Gates recruiter/sport
   // copy that reads wrong aimed at an adult on a personal goal.
-  get experience() {
+  get experience() { return memo('experience', () => {
     const g = RT.profile && RT.profile.baseGoal;
     return (g === 'lose' || g === 'maintain') ? 'client' : 'athlete';
-  },
+  }); },
 
   /* Which SURFACES render — as opposed to `experience`, which only picks a tone. `experience`
      classifies on base_goal, a GOAL, to answer a RELATIONSHIP question, and gets it backwards in
@@ -4272,16 +4315,16 @@ export const S = {
      Unconnected (no coach, no trainer) falls back to the goal-derived voice — there's no link to
      be honest about yet. Coach-before-trainer mirrors S.coach's own precedence (state.js:2128):
      someone linked to both gets the higher-stakes team frame. */
-  get audience() {
+  get audience() { return memo('audience', () => {
     const kind = this.coach.kind;
     if (kind === 'trainer') return 'client';
     if (kind === 'coach') return 'athlete';
     return this.experience;
-  },
+  }); },
 
   // How many meals today's standard requires (coach standard 1–6, classic 3) — the one number
   // Plan copy should quote instead of a hardcoded "three" (WS7 audit fix).
-  get mealsRequiredCount() { return reqMealSlots().length; },
+  get mealsRequiredCount() { return memo('mealsRequiredCount', () => reqMealSlots().length); },
 
   /* The rulebook rows Plan's Schedule tab renders: the classic CATALOG, or — when a coach
      standard governs (WS3 slice 2) — ITS meal slots (count/titles/windows) plus the non-meal
@@ -4309,13 +4352,13 @@ export const S = {
     ];
   },
 
-  get remainingCount() {
+  get remainingCount() { return memo('remainingCount', () => {
     // Standard-aware even on day 0: a coach standard's meal count (1–6) drives the number,
     // never a hardcoded 3/4 (WS7 audit fix).
     if (RT.day0) return reqMealSlots().length + 1 - (RT.day0Breakfast ? 1 : 0);
     const openMeals = reqMealSlots().filter(k => !mealScored(DAY, k)).length;
     return openMeals + (DAY.ciSubmitted ? 0 : 1);
-  },
+  }); },
 
   /* Home's score-bar segments. THIS USED TO BE a second, independent four-category formula
      (its own weights, its own copy) that could drift from the Score Breakdown screen — exactly
@@ -4353,7 +4396,7 @@ export const S = {
   },
   /** Real day math for the AI conversation (upgrade 2026-07-16): protein so far (the same
    *  evidence rule the score uses), the athlete's real target, and required meals remaining. */
-  get mealDayProgress() {
+  get mealDayProgress() { return memo('mealDayProgress', () => {
     let soFar = 0;
     for (const k of Object.keys(DAY.meals)) {
       if (mealScored(DAY, k) && DAY.slotMacros[k]) soFar += DAY.slotMacros[k].protein || 0;
@@ -4364,10 +4407,10 @@ export const S = {
       proteinTarget: DAY.proteinTarget > 0 ? DAY.proteinTarget : 180,
       mealsRemaining: remaining,
     };
-  },
+  }); },
   /** Consumed-so-far for Plan's What-Should-I-Eat card — same evidence rule as the score
    *  (only scored slots count), kcal alongside protein. */
-  get dayConsumed() {
+  get dayConsumed() { return memo('dayConsumed', () => {
     let protein = 0, kcal = 0;
     for (const k of Object.keys(DAY.meals)) {
       if (mealScored(DAY, k) && DAY.slotMacros[k]) {
@@ -4376,7 +4419,7 @@ export const S = {
       }
     }
     return { protein: Math.round(protein), kcal: Math.round(kcal) };
-  },
+  }); },
   /** Engine-computed Daily Score credit for one logged slot (exposed for the AI opening). */
   mealScoreImpact(slot) {
     try { return mealImpact(slot); } catch { return 0; }
@@ -4389,12 +4432,12 @@ export const S = {
       ? { label: 'Morning Weight', state: 'open', note: `Weigh in by ${fmtClock(WEIGHT_DUE)} to keep your season trend current.` }
       : { label: 'Morning Weight', state: 'missed', note: "Missed today. It doesn't affect your score. Weight only tracks your season trend." };
   },
-  get reachPlan() {
+  get reachPlan() { return memo('reachPlan', () => {
     const plan = [];
     reqMealSlots().forEach(k => { if (!mealScored(DAY, k)) plan.push({ label: `Log ${cap(k)}`, gain: null, accent: 'g' }); });
     if (!DAY.ciSubmitted) { const g = checkinProjection().gain; plan.push({ label: 'Submit recovery check-in', gain: g || null, accent: 'p' }); }
     return plan;
-  },
+  }); },
 
   get requirements() {
     /* ---- ENGINE-DERIVED: today's list from the catalog + REAL runtime (DAY) ----
@@ -4468,16 +4511,16 @@ export const S = {
     const rest = assigned.filter(a => !a.fresh);
     return [...fresh, ...rows, ...rest];
   },
-  get metCount() {
+  get metCount() { return memo('metCount', () => {
     if (RT.day0) return RT.day0Breakfast ? 1 : 0;
     const meals = reqMealSlots().filter(k => mealScored(DAY, k)).length;
     return meals + (DAY.ciSubmitted ? 1 : 0) + RT.assigned.filter(a => a.done).length;
-  },
-  get reqTotal() { return reqMealSlots().length + 1 + RT.assigned.length; }, // required meals + recovery + coach-assigned
+  }); },
+  get reqTotal() { return memo('reqTotal', () => reqMealSlots().length + 1 + RT.assigned.length); }, // required meals + recovery + coach-assigned
 
   // Real proof trail: one card per actually-logged meal (real time + real meal score if the AI
   // saved one), plus hydration/weight/recovery from real state. No canned 8:14 AM / 95 / 183.8 lb.
-  get activity() {
+  get activity() { return memo('activity', () => {
     const a = [];
     for (const k of allMealSlots()) {
       if (!DAY.meals[k]) continue;
@@ -4509,10 +4552,10 @@ export const S = {
     }
     if (RT.weightLogged && DAY.currentWeight != null) a.push({ time: 'Today', type: 'Morning Weight', icon: 'scale', value: `${DAY.currentWeight} lb`, vClass: 'muted', img: null, route: 'weight' });
     a.push(DAY.ciSubmitted
-      ? { time: 'Today', type: 'Recovery Check-In', icon: 'moonStar', value: 'Submitted', vClass: 'g', img: null, route: 'recovery' }
-      : { time: 'Tonight', type: 'Recovery Check-In', icon: 'moonStar', value: 'Upcoming', vClass: 'muted', img: null, dim: true, route: 'recovery' });
+      ? { time: 'Today', type: 'Recovery check-in', icon: 'moonStar', value: 'Submitted', vClass: 'g', img: null, route: 'recovery' }
+      : { time: 'Tonight', type: 'Recovery check-in', icon: 'moonStar', value: 'Upcoming', vClass: 'muted', img: null, dim: true, route: 'recovery' });
     return a;
-  },
+  }); },
 
   get nextMove() {
     if (RT.day0) return RT.day0Breakfast
@@ -4522,7 +4565,7 @@ export const S = {
     const openSlot = openReq.find(k => minutesNow() <= slotDeadline(k)) || openReq[0];
     // Meal gain depends on the plate, unknown until analyzed → no fabricated "+6".
     if (openSlot) return { label: `Log ${slotTitle(openSlot)}`, gain: null, route: `camera/${openSlot}`, accent: 'g' };
-    if (!DAY.ciSubmitted) return { label: 'Do Recovery Check-In', gain: checkinProjection().gain || null, route: 'recovery', accent: 'p' };
+    if (!DAY.ciSubmitted) return { label: 'Do Recovery check-in', gain: checkinProjection().gain || null, route: 'recovery', accent: 'p' };
     return null; // day complete
   },
 
@@ -4533,7 +4576,7 @@ export const S = {
       met: `${this.metCount}/${this.reqTotal}`,
       nextMove: next ? next.label.replace('Do ', '') : 'Day complete',
       nextGain: next ? next.gain : null,
-      risk: DAY.ciSubmitted ? 'None left' : 'Recovery Check-In',
+      risk: DAY.ciSubmitted ? 'None left' : 'Recovery check-in',
       riskSub: DAY.ciSubmitted ? 'everything is in' : 'keeps your streak alive',
     };
   },
@@ -4548,7 +4591,7 @@ export const S = {
   // 'manual' | 'label'), the closest thing scoreHistory carries to "was there a photo".
   // Counts distinct DATES, since a day can log more than one photographed slot and the gate
   // counts days, not meals. */
-  get passEligibleDays() {
+  get passEligibleDays() { return memo('passEligibleDays', () => {
     if (typeof DAY.photoDays === 'number') return DAY.photoDays;
     const dates = new Set();
     for (const r of DAY.scoreHistory || []) {
@@ -4558,7 +4601,7 @@ export const S = {
       }
     }
     return dates.size;
-  },
+  }); },
 
   // The athlete's live pass (0196). Shape mirrors what the UI needs; no pass means honestly
   // inactive, never a fabricated "day 3 of 14".
@@ -4680,7 +4723,9 @@ export const S = {
         img: MEAL.photoDataUrl || null, score: r.quality,
         foods: r.detected.length ? r.detected : ['Your meal'],
         macros: { protein: r.protein, carbs: r.carbs, fat: r.fat, cals: r.kcal },
-        planMatch: { verdict: r.quality >= 75 ? 'Strong meal' : 'Logged', detail: r.note || 'Analyzed from your photo.', level: r.quality >= 75 ? 'g' : 'b' },
+        // One meal-quality floor, owned by score-band.js: a 77 must not read "Strong" here while the
+        // quality chip paints it amber (audit 2026-09-05, P0).
+        planMatch: { verdict: r.quality >= MEAL_QUALITY_GOOD ? 'Strong meal' : 'Logged', detail: r.note || 'Analyzed from your photo.', level: r.quality >= MEAL_QUALITY_GOOD ? 'g' : 'b' },
         ai: r.note || (MEAL.source === 'label' ? 'Exact numbers off the panel. No estimate needed.'
           : MEAL.source === 'manual' ? 'Entered by you: the plate you actually built.'
           : 'Logged from your photo.'),
@@ -4721,8 +4766,8 @@ export const S = {
   // Real per-day score + tier from scoreHistory. Per-meal thumbnails aren't stored historically,
   // so no fabricated plates — just the honest day scores, most recent first.
   get history() {
-    const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const MON = MONTHS_SHORT;
+    const DOW = DAYS_LONG;
     return (DAY.scoreHistory || []).slice().reverse().map(h => {
       const d = new Date(h.date + 'T00:00:00');
       return { iso: h.date, day: DOW[d.getDay()], date: `${MON[d.getMonth()]} ${d.getDate()}`, score: h.score || 0, weight: h.weight ?? null, tier: tier(h.score || 0).name, meals: [] };
@@ -4758,7 +4803,7 @@ export const S = {
 
   // Last 6 days incl. today, for the streak week strip — real scores, honest gaps.
   get streakWeek() {
-    const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const DOW = DAYS_SHORT;
     const past = (DAY.scoreHistory || []).slice(-5).map(h => {
       const d = new Date(h.date + 'T00:00:00');
       return { d: DOW[d.getDay()], s: h.score || 0, on: (h.score || 0) >= ON_STANDARD };
@@ -4772,7 +4817,7 @@ export const S = {
   // Nothing here is invented. current = today's log or the latest real historical value.
   // target/start come from the athlete's season_goal (athlete_profiles). deltaMonth/pace
   // stay null until there are ≥2 real data points / a real target — the UI hides them.
-  get weight() {
+  get weight() { return memo('weight', () => {
     const p = RT.profile || {};
     const sg = p.seasonGoal || {};
     const rows = (DAY.scoreHistory || []).filter(h => h.weight != null).map(h => Number(h.weight));
@@ -4797,10 +4842,10 @@ export const S = {
       unit: 'lb', target, start, history,
       deltaMonth, pace,
     };
-  },
+  }); },
 
   // ---------- RECOVERY (engine-driven: these questions ARE the scoring inputs) ----------
-  get recovery() {
+  get recovery() { return memo('recovery', () => {
     // Question set = the engine's check-in keys, filtered by the enabled config — identical to
     // the RN Recovery screen. Anchors keep REAL polarity (soreness: 5 chips = very sore; the
     // engine inverts it internally), so the stored value is always honest to what was answered.
@@ -4832,7 +4877,7 @@ export const S = {
         val: DAY.ciSubmitted ? Math.min(5, Math.max(1, Math.round((DAY.ci[a.key] ?? 6) / 2))) : null,
       }));
     return { fields };
-  },
+  }); },
 
   // ---------- PROGRESS (real: computed from DAY.scoreHistory + today's live score) ----------
   // Only the metrics we can actually compute from real day rows. Per-requirement consistency,
@@ -4874,7 +4919,7 @@ export const S = {
   /* Real per-category trends (spec §8.5): the SAME computeComponents that scores today, run
      over reconstructed history rows. Rows saved before the jsonb ride-along are skipped —
      trends appear as real data accumulates, never fabricated. */
-  get categoryTrends() {
+  get categoryTrends() { return memo('categoryTrends', () => {
     const rows = (DAY.scoreHistory || [])
       .map(r => ({ date: r.date, day: dayFromHistoryRow(r) }))
       .filter(r => r.day);
@@ -4900,7 +4945,7 @@ export const S = {
       mk('nutrition', 'Nutrition', 'g'),
       mk('recovery', 'Recovery', 'p'),
     ];
-  },
+  }); },
 
   /* ONE actionable insight (spec §8.5), computed from real data only. Priority:
      late-meal pattern → weakest trending category → consistency nudge. Null when there

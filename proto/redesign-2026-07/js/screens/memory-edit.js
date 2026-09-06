@@ -31,27 +31,27 @@ export default {
 
     <h2 class="eyebrow">What is it?</h2>
     <section class="card pad">
-      <div class="bk" style="margin-bottom:6px">Name</div>
+      <label class="bk" for="me-name" style="display:block;margin-bottom:6px">Name</label>
       <input id="me-name" type="text" maxlength="120" placeholder="e.g. Usual Subway order" value="${it ? v(it.name) : ''}" style="${textField}" />
-      <div class="bk" style="margin:12px 0 6px">Type</div>
-      <div class="chip-row" id="me-kind" data-toggle-group>
+      <div class="bk" id="me-kind-l" style="margin:12px 0 6px">Type</div>
+      <div class="chip-row" id="me-kind" data-toggle-group aria-labelledby="me-kind-l">
         ${KINDS.map(([k, l]) => `<span class="chp ${((it && it.kind) || 'meal') === k ? 'on' : ''}" data-k="${k}">${l}</span>`).join('')}
       </div>
-      <div class="bk" style="margin:12px 0 6px">Place (optional)</div>
+      <label class="bk" for="me-place" style="display:block;margin:12px 0 6px">Place (optional)</label>
       <input id="me-place" type="text" maxlength="80" placeholder="e.g. Subway, campus dining, home" value="${place ? v(place.name) : ''}" style="${textField}" />
     </section>
 
     <h2 class="eyebrow">The numbers</h2>
     <section class="card pad">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div><div class="bk" style="margin-bottom:6px">Calories</div><input id="me-kcal" type="number" inputmode="numeric" placeholder="0" value="${it ? v(it.kcal) : ''}" style="${numField}" /></div>
-        <div><div class="bk" style="margin-bottom:6px">Protein (g)</div><input id="me-p" type="number" inputmode="numeric" placeholder="0" value="${it ? v(it.protein) : ''}" style="${numField};color:var(--green-bright)" /></div>
-        <div><div class="bk" style="margin-bottom:6px">Carbs (g)</div><input id="me-c" type="number" inputmode="numeric" placeholder="0" value="${it ? v(it.carbs) : ''}" style="${numField}" /></div>
-        <div><div class="bk" style="margin-bottom:6px">Fat (g)</div><input id="me-f" type="number" inputmode="numeric" placeholder="0" value="${it ? v(it.fat) : ''}" style="${numField}" /></div>
+        <div><label class="bk" for="me-kcal" style="display:block;margin-bottom:6px">Calories</label><input id="me-kcal" type="number" inputmode="numeric" placeholder="0" value="${it ? v(it.kcal) : ''}" style="${numField}" /></div>
+        <div><label class="bk" for="me-p" style="display:block;margin-bottom:6px">Protein (g)</label><input id="me-p" type="number" inputmode="numeric" placeholder="0" value="${it ? v(it.protein) : ''}" style="${numField};color:var(--green-bright)" /></div>
+        <div><label class="bk" for="me-c" style="display:block;margin-bottom:6px">Carbs (g)</label><input id="me-c" type="number" inputmode="numeric" placeholder="0" value="${it ? v(it.carbs) : ''}" style="${numField}" /></div>
+        <div><label class="bk" for="me-f" style="display:block;margin-bottom:6px">Fat (g)</label><input id="me-f" type="number" inputmode="numeric" placeholder="0" value="${it ? v(it.fat) : ''}" style="${numField}" /></div>
       </div>
     </section>
 
-    <div id="me-err" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;margin-top:12px;text-align:center"></div>
+    <div id="me-err" role="alert" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;margin-top:12px;text-align:center"></div>
     <button class="btn primary" id="me-save">${icon('check', 19)} ${it ? 'Save changes' : 'Save to Food Memory'}</button>
     ${it ? `<div style="height:8px"></div>
     <button class="btn ghost" id="me-forget" style="color:var(--red-bright);border-color:var(--red-border)">Forget this meal</button>` : ''}

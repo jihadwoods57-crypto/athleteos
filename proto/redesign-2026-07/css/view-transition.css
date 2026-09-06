@@ -26,7 +26,9 @@
  */
 
 /* How far the sheet going behind darkens. Light needs a much smaller step: 0.62 on a near-white
-   canvas does not read as "behind", it reads as grey. */
+   canvas does not read as "behind", it reads as grey. Kept as the documented value; the keyframes
+   below no longer tween a filter (2026-09-05), so the dim is drawn by glass.css's .gesture-dim
+   layer on the two-element path instead. */
 :root { --vt-dim: 0.62; }
 :root[data-theme="light"] { --vt-dim: 0.82; }
 
@@ -97,9 +99,13 @@
    The receding sheet keeps opacity 1 too — it is occluded, not faded, so fading it would only
    show through the incoming one's own background and muddy it. */
 @keyframes vtInFromRight { from { transform: translateX(100%); } to { transform: none; } }
-@keyframes vtRecedeLeft  { from { transform: none; filter: brightness(1); } to { transform: translateX(-32%); filter: brightness(var(--vt-dim)); } }
+/* Transform only (2026-09-05): these tween a document SNAPSHOT, and a `filter: brightness()`
+   keyframe on it forces a repaint of the whole image every frame, which is exactly the
+   dropped-frame slideshow the two-layer router path (glass.css navRecede + navDimIn) replaced.
+   The dimming step now belongs to that path's .gesture-dim layer, composited as opacity. */
+@keyframes vtRecedeLeft  { from { transform: none; } to { transform: translateX(-32%); } }
 @keyframes vtOutToRight  { from { transform: none; } to { transform: translateX(100%); } }
-@keyframes vtRecedeIn    { from { transform: translateX(-32%); filter: brightness(var(--vt-dim)); } to { transform: none; filter: brightness(1); } }
+@keyframes vtRecedeIn    { from { transform: translateX(-32%); } to { transform: none; } }
 @keyframes vtTabIn       { from { opacity: 0; } to { opacity: 1; } }
 @keyframes vtTabOut      { from { transform: none; } to { transform: scale(1.012); } }
 

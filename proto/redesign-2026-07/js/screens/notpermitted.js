@@ -28,13 +28,13 @@ export default {
     // Say which door was closed. "Not your access" alone leaves the user guessing whether they
     // tapped the wrong thing or the app broke.
     const isOperator = role === 'coach' || role === 'trainer';
-    return permissionState({
+    return `<h1 class="sr-only">Not available on this account</h1>${permissionState({
       title: 'This screen is not on your account',
       body: isOperator
         ? 'That link belongs to a different kind of account. Nothing is wrong with yours, and nothing you were working on was lost.'
         : 'That link belongs to a coach or trainer account. Nothing is wrong with yours, and nothing you logged was lost.',
       action: { label: 'Go to my home', go: home },
-    });
+    })}`;
   },
   mount() {
     // Loud where developers look, quiet where the user does. A link that points at the wrong

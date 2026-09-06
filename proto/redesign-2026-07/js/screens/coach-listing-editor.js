@@ -46,7 +46,7 @@ function field(id, label, value, placeholder, textarea, numeric) {
   if (textarea) {
     return `${labelHtml}<textarea id="${id}" placeholder="${esc(placeholder || '')}" style="width:100%;min-height:84px;border-radius:var(--r-card-sm);background:var(--surface-1);border:1.5px solid var(--hairline);color:var(--text);font-family:var(--font);font-size:15px;padding:12px 14px;outline:none;resize:vertical">${esc(value || '')}</textarea>`;
   }
-  return `${labelHtml}<input id="${id}" class="ob-input" type="${numeric ? 'number' : 'text'}" ${numeric ? 'min="1" max="100"' : ''} value="${esc(value || '')}" placeholder="${esc(placeholder || '')}">`;
+  return `${labelHtml}<input id="${id}" class="ob-input" type="${numeric ? 'number' : 'text'}" ${numeric ? 'inputmode="numeric" min="1" max="100"' : ''} value="${esc(value || '')}" placeholder="${esc(placeholder || '')}">`;
 }
 
 function bounds(tier) {
@@ -105,7 +105,7 @@ export default {
         <div class="ls">${t.sub} · $${b.min}–$${b.max}/mo</div>
         <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
           <span style="font-weight:800;color:var(--text-2)">$</span>
-          <input id="cle-price-${t.key}" class="ob-input" type="number" min="${b.min}" max="${b.max}" step="1"
+          <input id="cle-price-${t.key}" class="ob-input" type="number" inputmode="decimal" aria-label="${t.name} price per month" min="${b.min}" max="${b.max}" step="1"
             value="${G.prices[t.key] != null ? esc(String(G.prices[t.key])) : ''}" placeholder="e.g. ${Math.round((b.min + b.max) / 2)}"
             style="width:110px;height:44px">
 
@@ -126,7 +126,7 @@ export default {
       </div>` : `
       <div style="display:flex;gap:10px">
         <button class="btn ghost sm" data-cle-save ${UI.saving ? 'disabled' : ''} style="width:auto;padding:0 18px">${UI.saving ? 'Saving…' : 'Save'}</button>
-        <button class="btn ${l.published ? 'ghost' : 'green'} sm" data-cle-pub ${UI.saving ? 'disabled' : ''} style="width:auto;padding:0 18px">${l.published ? 'Unpublish' : 'Save & publish'}</button>
+        <button class="btn ${l.published ? 'ghost' : 'primary'} sm" data-cle-pub ${UI.saving ? 'disabled' : ''} style="width:auto;padding:0 18px">${l.published ? 'Unpublish' : 'Save & publish'}</button>
       </div>`}
     </div>`;
   },

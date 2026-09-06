@@ -72,14 +72,14 @@ function previewCard(st) {
   const p = st.profile || {};
   const r = p.record || {};
   const acc = r.accountability;
-  const stat = (k, v) => `<div style="flex:1;min-width:0"><div style="font-size:var(--t-2xl);font-weight:800;letter-spacing:-.02em">${v}</div><div class="ts">${esc(k)}</div></div>`;
+  const stat = (k, v) => `<div class="stat" style="flex:1"><div class="v">${v}</div><div class="k">${esc(k)}</div></div>`;
   return `<section class="card" style="padding:16px">
     <h2 class="eyebrow" style="margin-bottom:8px">What recruiters will see</h2>
     <div class="tt">${esc(p.name || 'Your name')}</div>
     <div class="ts" style="margin-bottom:14px">${esc([p.sport, p.position].filter(Boolean).join(' · '))}${p.team ? `${p.sport || p.position ? ' · ' : ''}${esc(p.team.name)}` : ''}</div>
     <div style="display:flex;gap:14px;margin-bottom:12px">
       ${stat('Days on record', r.daysOnRecord != null ? esc(r.daysOnRecord) : '—')}
-      ${stat('At standard', r.onStandardPct != null ? esc(r.onStandardPct) + '%' : '—')}
+      ${stat('On standard', r.onStandardPct != null ? esc(r.onStandardPct) + '%' : '—')}
       ${stat('30-day avg', r.avg30 != null ? esc(r.avg30) : '—')}
     </div>
     <div class="ts">${acc && acc.possible > 0 ? 'Plus your verified commitments: arrivals, roll calls, completions.' : 'No verified commitments yet. When your coach schedules them, they join the page automatically.'}${p.team && p.team.coachName ? ` Roster-verified under ${esc(p.team.coachName)}.` : ''}</div>

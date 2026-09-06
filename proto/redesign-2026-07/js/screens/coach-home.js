@@ -244,13 +244,11 @@ function setupChecklistCard(st) {
 function codeStateBox() {
   const state = S.operatorIdentity.state;
   if (state === 'loading') {
-    return `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+    return `<div class="sidebox"><div class="req-icon b s38">${icon('clipboard', 17)}</div>
       <div><div class="tt">${esc(vocab().loading)}</div><div class="ts">Checking your ${isPractice() ? 'practice' : 'team'} and code.</div></div></div>`;
   }
   if (state === 'offline') {
-    return `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('wifiOff', 17)}</div>
-      <div style="flex:1"><div class="tt">Can't reach the server</div><div class="ts">Your code is safe. Reconnect and it shows right here.</div>
-      <button class="btn ghost sm" id="coach-team-retry" style="width:auto;padding:0 16px;margin-top:8px">${icon('wifiOff', 15)} Try again</button></div></div>`;
+    return errorState({ title: "Can't reach the server", body: 'Your code is safe. Reconnect and it shows right here.', retryId: 'coach-team-retry' });
   }
   /* state === 'minting': signed in as a coach with NO team row. This used to claim a code was
      being created and tell the coach to reopen the app — but nothing was minting and nothing
@@ -271,7 +269,7 @@ function codeStateBox() {
   return `<section class="card" style="padding:18px">
     <h2 class="eyebrow" style="margin:0 0 10px">Create your team</h2>
     <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.45;margin-bottom:12px">Your team isn't set up yet, so there's no athlete code to hand out. Name it and we'll create it now.</div>
-    <input id="coach-team-name" type="text" class="input" placeholder="e.g. Lincoln Varsity Football"
+    <input id="coach-team-name" type="text" class="input" aria-label="Team name" aria-describedby="coach-team-err" placeholder="e.g. Lincoln Varsity Football"
       value="${esc(suggested)}" autocomplete="organization" maxlength="60"
       style="width:100%;height:46px;margin-bottom:12px" />
     <button class="btn sm" id="coach-team-create" style="width:100%;background:linear-gradient(150deg,var(--blue),var(--blue-deep));color:#fff">${icon('users', 16)} Create team</button>
@@ -380,7 +378,7 @@ function scopeSheet() {
   const positions = [...new Set(rows.map(r => (r.position || '').toUpperCase()).filter(Boolean))].sort();
   const groups = (CD.extras && CD.extras.groups) || [];
   const chip = (kind, value, label, active) => `
-    <button class="btn ${active ? 'green' : 'ghost'} sm" data-scope="${esc(kind)}:${esc(value == null ? '' : value)}"
+    <button type="button" class="btn ${active ? 'primary' : 'ghost'} sm" aria-pressed="${active ? 'true' : 'false'}" data-scope="${esc(kind)}:${esc(value == null ? '' : value)}"
       style="width:auto;padding:0 13px;height:32px;margin:0 6px 6px 0">${esc(label)}</button>`;
   const cur = getScope();
   const is = (k, v) => cur.kind === k && String(cur.value || '') === String(v || '');
@@ -701,7 +699,7 @@ export const coachHome = {
     // and the chip saying "Entire team" two lines apart (critique 2026-08-18).
     const head = avatarHead(me.handle, `${teamName} · today`, me.initials, S.greeting) + emailVerifyBanner();
     if (CD.roster === null) return `${head}
-      <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
+      <div class="sidebox"><div class="req-icon b s38">${icon('users', 17)}</div>
       <div><div class="tt">${esc(vocab().loading)}</div><div class="ts">Pulling today's real numbers.</div></div></div>`;
     if (CD.roster.offline) return `${head}${errorState({
       title: "Can't reach your team",
@@ -749,7 +747,7 @@ export const coachHome = {
     const worthy = CD.caps.trustPass && TP_MAP ? passWorthy(rows, TP_MAP) : [];
     const milestone = worthy.length ? `
     <div class="sidebox" style="border-color:var(--purple-border)">
-      <div class="req-icon p" style="width:38px;height:38px">${icon('shield', 17)}</div>
+      <div class="req-icon p s38">${icon('shield', 17)}</div>
       <div style="flex:1"><div class="tt">${esc(worthy[0].row.name)} hit ${worthy[0].streak} straight days</div>
       <div class="ts">Reward it with camera-free meals.</div></div>
       ${/* .ghost, not the bare .btn: the bare button's fill is --surface-2, which is also the
@@ -783,8 +781,8 @@ export const coachHome = {
     })()}
 
     <h2 class="eyebrow co-major" data-tour="priority">${esc(vocab().priorities)}</h2>
-    ${entries === null ? `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bell', 17)}</div><div><div class="tt">Ranking the day…</div><div class="ts">Standards and exceptions are loading.</div></div></div>`
-    : cards.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px;line-height:1.4">Nothing needs you right now. Anything you nudge, assign, or mark handled stays out of this queue until the reason changes.</div>`
+    ${entries === null ? `<div class="sidebox"><div class="req-icon b s38">${icon('bell', 17)}</div><div><div class="tt">Ranking the day…</div><div class="ts">Standards and exceptions are loading.</div></div></div>`
+    : cards.length === 0 ? emptyState({ icon: 'check', title: 'Nothing needs you right now', body: 'Anything you nudge, assign, or mark handled stays out of this queue until the reason changes.', compact: true })
     : cards.slice(0, 6).map((c, i) => priorityCard(c, i, (RT.coachNudged || {})[c.athleteId] === roles.todayISO())).join('')
       + (cards.length > 6 ? `<button class="btn ghost sm" data-go="coach-roster" style="width:auto;padding:0 16px;margin-top:4px">${cards.length - 6} more need attention</button>` : '')}
 
@@ -795,7 +793,7 @@ export const coachHome = {
     ${isNutritionBook() ? '' : `
     <h2 class="eyebrow" data-tour="activity" style="display:flex;justify-content:space-between;align-items:baseline"><span>Live activity</span>${unseen ? `<span style="color:var(--blue-bright)">${unseen > 99 ? '99+' : unseen} new</span>` : ''}</h2>
     ${feed === null ? skeletonRows(2, 'Loading the activity feed')
-    : feed.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px;line-height:1.4">No logs yet ${scope.kind === 'team' ? 'today' : 'in this group today'}. Every meal lands here the moment it's logged.</div>`
+    : feed.length === 0 ? emptyState({ icon: 'utensils', title: `No logs yet ${scope.kind === 'team' ? 'today' : 'in this group today'}`, body: "Every meal lands here the moment it's logged.", compact: true })
     : `<div style="display:flex;gap:9px;overflow-x:auto;padding-bottom:4px;margin:0 -2px">${feed.slice(0, 12).map(m => {
         const who = rows.find(r => r.athleteId === m.athlete_id) || {};
         const photo = CD.act.photos[m.id];
@@ -866,6 +864,7 @@ export const coachHome = {
         if (createBtn.disabled) return;
         const name = (nameEl && nameEl.value) || '';
         errEl.textContent = '';
+        if (nameEl) nameEl.removeAttribute('aria-invalid');
         createBtn.disabled = true;
         createBtn.innerHTML = 'Creating…';
         const r = await act.createTeamNow(name);
@@ -873,6 +872,7 @@ export const coachHome = {
           createBtn.disabled = false;
           createBtn.innerHTML = `${icon('users', 16)} Create team`;
           errEl.textContent = r.error;
+          if (nameEl) nameEl.setAttribute('aria-invalid', 'true');
           return;
         }
         window.__render();   // RT.team is live now → the real code + QR replace this form

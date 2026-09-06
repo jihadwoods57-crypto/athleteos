@@ -34,7 +34,24 @@
   <link rel="stylesheet" href="./css/focus.css" />
 </head>
 <body>
-  <div class="device" id="device"></div>
+  <!-- The boot skeleton, inline, so the first frame paints from HTML + CSS alone. Until 2026-09-05
+       this div was empty until every module had evaluated: on a slow phone that was a blank
+       canvas for the whole parse. Same shape router.js bootShell() paints (it is idempotent over
+       this and only adds the role's tab bar); render() replaces the whole subtree once a screen
+       is ready, and the auth gate is untouched, so a signed-out user still lands on Welcome. -->
+  <div class="device" id="device">
+    <div class="island"></div>
+    <div class="screen booting">
+      <div class="statusbar" aria-hidden="true"></div>
+      <div class="viewport" id="viewport">
+        <main class="view" id="view" aria-busy="true" aria-label="Loading your day">
+          <div class="sk-hero"><div class="sk-ring"></div><div class="sk-line sk-hero-l"></div></div>
+          <section class="card sk-card" aria-busy="true" aria-label="Loading your day"><div class="sk-row"><div class="sk-dot"></div><div class="sk-lines"><div class="sk-line"></div><div class="sk-line sk-line-2"></div></div></div><div class="sk-row"><div class="sk-dot"></div><div class="sk-lines"><div class="sk-line"></div><div class="sk-line sk-line-2"></div></div></div><div class="sk-row"><div class="sk-dot"></div><div class="sk-lines"><div class="sk-line"></div><div class="sk-line sk-line-2"></div></div></div></section>
+          <section class="card sk-card" aria-busy="true" aria-label=""><div class="sk-row"><div class="sk-dot"></div><div class="sk-lines"><div class="sk-line"></div><div class="sk-line sk-line-2"></div></div></div><div class="sk-row"><div class="sk-dot"></div><div class="sk-lines"><div class="sk-line"></div><div class="sk-line sk-line-2"></div></div></div></section>
+        </main>
+      </div>
+    </div>
+  </div>
   <!-- Supabase config. The native shell injects window.__SUPABASE (document-start) before this
        runs; the fallback lets the proto work at :8124. The anon key is public (RLS is the real
        authorization), the same value the app already ships as EXPO_PUBLIC_SUPABASE_ANON_KEY. -->

@@ -15,6 +15,7 @@
 
    nav:'operator' — one module renders for a coach's team AND a trainer's practice. */
 import { icon } from '../icons.js';
+import { DAYS_LONG } from '../fmt-date.js';
 import { track, EVENTS } from '../analytics.js';
 import { backHead, esc, errorState } from '../components.js';
 import { initialsOf } from '../initials.js';
@@ -320,7 +321,7 @@ export const coachStandards = {
     <h2 class="eyebrow">Couldn’t be verified · ${gaps.length}</h2>
     <section class="card" style="padding:2px 16px">${gaps.map((r) => athleteRow(r, inst)).join('')}</section>
     <div class="sidebox" style="margin-top:12px">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 19)}</div>
+      <div class="req-icon b s38">${icon('shield', 19)}</div>
       <div><div class="cs-h">These are device problems, not misses</div>
       <div class="cs-p">A phone that never reported produces no evidence either way, so these leave the completion rate entirely rather than counting against the athlete. Mark one missed only if you know the work wasn’t done.</div></div>
     </div>` : ''}
@@ -408,7 +409,7 @@ const METRICS = [
   { key: 'active_minutes', label: 'Active minutes', unit: 'min', preset: 30 },
 ];
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-const DOW_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DOW_FULL = DAYS_LONG;
 const DEADLINES = [
   { min: null, label: 'End of day' }, { min: 1020, label: '5:00 PM' },
   { min: 1140, label: '7:00 PM' }, { min: 1260, label: '9:00 PM' },

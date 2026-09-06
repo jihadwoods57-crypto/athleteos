@@ -41,8 +41,8 @@ const monogram = (name) => initialsOf(name, '?');
 function agreementSheet(l, tier) {
   return `
   <div class="sheet-scrim" data-mkt-close></div>
-  <div class="sheet">
-    <div style="font-size:16px;font-weight:800;padding:4px 2px 10px">Coaching agreement</div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="mkt-agree-t">
+    <h2 id="mkt-agree-t" style="font-size:16px;font-weight:800;padding:4px 2px 10px;margin:0">Coaching agreement</h2>
     <div class="sheet-row" style="display:block;line-height:1.55;font-size:13px;color:var(--text-2)">
       <b style="color:var(--text)">${esc(l.display_name)} · ${esc(tier.name)} · ${money(tier.price_cents)}/mo</b><br>
       Your coach reviews your OnStandard activity, holds you to the standards you set, and responds inside this app.
@@ -120,8 +120,7 @@ export default {
         </div>
         <span class="lv" style="font-weight:800">${money(t.price_cents)}/mo</span>
       </div>`).join('')}
-    </section>` : `<div class="sidebox"><div class="req-icon b" style="width:34px;height:34px">${icon('bolt', 15)}</div>
-      <div><div class="tt">Plans coming soon</div><div class="ts">This coach hasn't finished setting up pricing yet.</div></div></div>`}
+    </section>` : emptyState({ icon: 'bolt', title: 'Plans coming soon', body: "This coach hasn't finished setting up pricing yet.", compact: true })}
 
     ${l.already_client ? `
     <div class="sidebox" style="margin-top:10px"><div class="req-icon b" style="width:34px;height:34px;background:var(--green-surface);color:var(--green-bright)">${icon('check', 15)}</div>

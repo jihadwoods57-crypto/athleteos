@@ -57,7 +57,7 @@ export default {
               button kept its data-pay and stayed tappable, so a second tap during the
               startOfferCheckout round trip opened a SECOND Stripe Checkout session for the same
               package. aria-label carries the offer name so the button is not a bare "Pay". */''}
-        ${o.price_cents != null ? `<button class="btn green sm" data-pay="${esc(o.offer_id)}"${UI.paying === o.offer_id ? ' disabled aria-busy="true"' : ''} aria-label="${OPENED[o.offer_id] ? `Reopen checkout for ${esc(o.name)}` : `Pay for ${esc(o.name)}, ${esc(priceLabel(o))}`}" style="width:auto;padding:0 14px;height:44px;flex:none">${UI.paying === o.offer_id ? '…' : OPENED[o.offer_id] ? 'Reopen checkout' : 'Pay'}</button>` : ''}
+        ${o.price_cents != null ? `<button class="btn primary sm" data-pay="${esc(o.offer_id)}"${UI.paying === o.offer_id ? ' disabled aria-busy="true"' : ''} aria-label="${OPENED[o.offer_id] ? `Reopen checkout for ${esc(o.name)}` : `Pay for ${esc(o.name)}, ${esc(priceLabel(o))}`}" style="width:auto;padding:0 14px;height:44px;flex:none">${UI.paying === o.offer_id ? '…' : OPENED[o.offer_id] ? 'Reopen checkout' : 'Pay'}</button>` : ''}
       </div>
       ${OPENED[o.offer_id] ? statusMsg({ text: 'Checkout opened in your browser. Finished paying? It shows here within a minute.', style: 'display:block;color:var(--text-2);padding:0 0 10px' }) : ''}`).join('')}
     </section>

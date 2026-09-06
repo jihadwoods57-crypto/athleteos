@@ -4,9 +4,10 @@
    repaint via window.__render(). Reuses the shared .card/.lrow/.btn/.state-demo/.status-pill system. */
 import { RT } from '../state.js';
 import { icon } from '../icons.js';
-import { esc, backHead, skeletonRows, errorState, emptyState, statusMsg, alertMsg, copyText } from '../components.js';
+import { esc, backHead, skeletonRows, errorState, emptyState, statusMsg, alertMsg, copyText, sayStatus } from '../components.js';
 import * as roles from '../roles.js';
 import { priceLabel } from '../funded.js';
+import { shortDate } from '../fmt-date.js';
 
 const SHARE_BASE = 'https://onstandard.app/t?t=';
 
@@ -54,7 +55,7 @@ function sectionErr(what) {
 
 const CONNECT_LABEL = {
   none: { pill: 'Not set up', color: 'var(--text-3)', cta: 'Connect Stripe to get paid', tone: 'green' },
-  pending: { pill: 'Setup in progress', color: 'var(--amber-bright)', cta: 'Continue setup', tone: 'ghost' },
+  pending: { pill: 'Setup in progress', color: 'var(--text-2)', cta: 'Continue setup', tone: 'ghost' },
   active: { pill: 'Connected', color: 'var(--green-bright)', cta: 'Manage on Stripe', tone: 'ghost' },
   restricted: { pill: 'Action needed', color: 'var(--red)', cta: 'Fix on Stripe', tone: 'green' },
 };
@@ -110,11 +111,6 @@ function fundedSection() {
         <div class="ls">${r.offer_name ? esc(r.offer_name) + ' · ' : ''}${r.is_active ? 'Renews ' + shortDate(r.expires_at) : 'Lapsed ' + shortDate(r.expires_at)}</div></div>
       <span class="status-pill" style="background:${r.is_active ? 'var(--green-surface)' : 'var(--surface-2)'};color:${r.is_active ? 'var(--green-bright)' : 'var(--red)'}">${r.is_active ? 'Covered' : 'Lapsed'}</span>
     </div>`).join('')}`;
-}
-
-function shortDate(d) {
-  if (!d) return '';
-  try { return new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); } catch { return ''; }
 }
 
 // priceLabel lives in ../funded.js now: three screens carried their own copy and all three
@@ -226,7 +222,7 @@ export const trainerGrow = {
         ${a.status === 'new' ? `
         <div style="display:flex;gap:6px;flex:none">
           <button class="btn ghost sm" data-tg="decline" data-id="${esc(a.id)}" style="width:auto;padding:0 10px;height:44px">Decline</button>
-          <button class="btn green sm" data-tg="accept" data-id="${esc(a.id)}" style="width:auto;padding:0 10px;height:44px">Accept</button>
+          <button class="btn primary sm" data-tg="accept" data-id="${esc(a.id)}" style="width:auto;padding:0 10px">Accept</button>
         </div>` : ''}
       </div>`).join('')}
       ${(G.apps || []).some(a => a.status === 'accepted') && RT.practice && RT.practice.code ? `
@@ -269,7 +265,7 @@ export const trainerGrow = {
         ${p.status === 'paid' ? (UI.confirmRefund === p.id ? `
         <div style="display:flex;gap:6px;flex:none">
           <button class="btn ghost sm" data-tg="refundkeep" style="width:auto;padding:0 10px;height:44px">Keep</button>
-          <button class="btn sm" data-tg="refundgo" data-id="${esc(p.id)}" style="width:auto;padding:0 12px;height:44px;background:var(--danger-solid);color:#fff;border:none">Confirm refund</button>
+          <button class="btn danger sm" data-tg="refundgo" data-id="${esc(p.id)}" style="width:auto;padding:0 12px">Confirm refund</button>
         </div>` : `<button class="btn ghost sm" data-tg="refund" data-id="${esc(p.id)}" style="width:auto;padding:0 12px;height:44px">Refund</button>`) : ''}
       </div>`).join('') : (F.payments ? '' : `<div class="ls" style="padding:10px 0">No payments yet.</div>`)}
       ${/* This node is INSERTED when the refund fails, and role=alert (baked into alertMsg)
@@ -284,7 +280,7 @@ export const trainerGrow = {
     loadGrow();
     const pid = practiceId();
     const $ = (id) => root.querySelector('#' + id);
-    const msg = (t, err) => { const m = $('tg-msg'); if (m) { m.textContent = t; m.style.color = err ? 'var(--red)' : 'var(--green-bright)'; } };
+    const msg = (t, err) => { const m = $('tg-msg'); if (m) sayStatus(m, t, { error: !!err }); };
 
     const connectBtn = $('tg-connect');
     if (connectBtn) connectBtn.addEventListener('click', async () => {
@@ -417,9 +413,9 @@ function offerForm(o) {
     <label class="tg-l" for="of-feat">What's included (one per line)</label><textarea id="of-feat" maxlength="600" placeholder="Weekly check-in&#10;Direct meal feedback">${esc((o.features || []).join('\n'))}</textarea>
     <label class="tg-l" style="display:flex;align-items:center;gap:8px;margin-top:12px"><input type="checkbox" id="of-active" ${o.active === false ? '' : 'checked'} style="width:auto"> Visible on your page</label>
     <div style="display:flex;gap:8px;margin-top:12px">
-      <button class="btn green sm" data-tg="osave" data-id="${esc(o.id || 'new')}" style="width:auto;padding:0 16px;height:44px">Save offer</button>
+      <button class="btn primary sm" data-tg="osave" data-id="${esc(o.id || 'new')}" style="width:auto;padding:0 16px">Save offer</button>
       <button class="btn ghost sm" data-tg="cancel" style="width:auto;padding:0 14px;height:44px">Cancel</button>
-      ${o.id ? `<button class="btn ghost sm" data-tg="del" data-id="${esc(o.id)}" style="width:auto;padding:0 12px;height:44px;color:var(--red);margin-left:auto">Delete</button>` : ''}
+      ${o.id ? `<button class="btn ghost danger sm" data-tg="del" data-id="${esc(o.id)}" style="width:auto;padding:0 12px;margin-left:auto">Delete</button>` : ''}
     </div>
   </div>`;
 }

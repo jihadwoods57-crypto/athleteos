@@ -1,6 +1,6 @@
 import { S, RT, roleNav, notifsFetchFailed } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, esc, skeletonRows } from '../components.js';
+import { backHead, esc, skeletonRows, emptyState } from '../components.js';
 
 const isOperator = () => RT.authRole === 'coach' || RT.authRole === 'trainer';
 
@@ -100,25 +100,18 @@ export default {
       <div class="ne-s">Nothing was cleared; this screen just couldn't reach the server. It retries on its own, so check back in a moment.</div>
     </div>` : ''}
     ${!hasRows && !notifsFetchFailed ? `
-    <div class="ne-empty">
-      <div class="ne-ring">${icon('checkCircle', 30)}</div>
-      <div class="ne-t">You're all caught up</div>
-      <div class="ne-s">No accountability moments waiting. When something needs you, it lands here first.</div>
-      <div class="ne-list">
-        ${isOperator() ? `
-        <div class="ne-item"><span class="ne-d">${icon('alert', 15)}</span> Meals the AI flags for your eyes</div>
-        <div class="ne-item"><span class="ne-d">${icon('users', 15)}</span> Join requests and roll-call escalations</div>
-        <div class="ne-item"><span class="ne-d">${icon('clipboard', 15)}</span> Your weekly team digest</div>` : `
-        <div class="ne-item"><span class="ne-d">${icon('utensils', 15)}</span> Meal and weigh-in nudges</div>
-        <div class="ne-item"><span class="ne-d">${icon('clipboard', 15)}</span> Requirements your coach adds</div>
-        <div class="ne-item"><span class="ne-d">${icon('flame', 15)}</span> Streak reminders before midnight</div>`}
-      </div>
-    </div>` : ''}
+    ${emptyState({
+      icon: 'checkCircle',
+      title: "You're all caught up",
+      body: `No accountability moments waiting. When something needs you, it lands here first: ${isOperator()
+        ? 'meals the AI flags for your eyes, join requests and roll-call escalations, and your weekly team digest.'
+        : 'meal and weigh-in nudges, requirements your coach adds, and streak reminders before midnight.'}`,
+    })}` : ''}
 
     <div style="height:6px"></div>
     ${isOperator() ? '' : `
     <div class="sidebox" data-go="notif-settings" style="cursor:pointer">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('gear', 17)}</div>
+      <div class="req-icon b s38">${icon('gear', 17)}</div>
       <div style="flex:1"><div class="tt">Notification settings</div>
       <div class="ts">${S.coach.hasCoach ? `${esc(S.coach.name)} sets urgency per requirement.` : 'Urgency comes with each requirement.'} You set the tone and quiet hours.</div></div>
       ${icon('chevron', 17, 'style="color:var(--text-3)"')}

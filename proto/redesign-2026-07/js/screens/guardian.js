@@ -42,7 +42,7 @@ export default {
       </div>
       <div style="height:14px"></div>
       <h2 class="eyebrow">Haven't heard back? Send a reminder, or fix the email.</h2>
-      <input id="gd-email" class="ob-input" type="email" inputmode="email" autocapitalize="none" value="${esc(c.guardianEmail || '')}" placeholder="Parent or guardian email" />
+      <input id="gd-email" class="ob-input" type="email" inputmode="email" autocomplete="email" aria-label="Parent or guardian email" aria-describedby="gd-err" autocapitalize="none" value="${esc(c.guardianEmail || '')}" placeholder="Parent or guardian email" />
       ${alertMsg({ id: 'gd-err', style: 'color:var(--red);font-weight:600;min-height:18px;margin-top:10px;text-align:center' })}
       ${statusMsg({ id: 'gd-ok', style: 'display:block;color:var(--green-bright);font-weight:600;text-align:center' })}
       <button class="btn ghost" id="gd-send">Send reminder</button>
@@ -53,14 +53,14 @@ export default {
       ${backHead('Parent approval', 'Approval was removed', 'home')}
 
       <div class="sidebox">
-        <div class="req-icon" style="width:38px;height:38px;background:rgba(var(--red-rgb),0.16);color:var(--red-bright)">${icon('lock', 17)}</div>
+        <div class="req-icon s38" style="background:rgba(var(--red-rgb),0.16);color:var(--red-bright)">${icon('lock', 17)}</div>
         <div><div class="tt">Your guardian removed approval</div>
         <div class="ts">${c.guardianEmail ? esc(c.guardianEmail) : 'Your parent or guardian'} revoked consent, so your day stopped syncing and your coach can no longer see it. Everything you log now stays on this phone. Nothing you've already logged is lost. Ask them to approve again to reconnect.</div></div>
       </div>
 
       <div style="height:16px"></div>
       <h2 class="eyebrow">Send a new approval request</h2>
-      <input id="gd-email" class="ob-input" type="email" inputmode="email" autocapitalize="none" value="${esc(c.guardianEmail || '')}" placeholder="Parent or guardian email" />
+      <input id="gd-email" class="ob-input" type="email" inputmode="email" autocomplete="email" aria-label="Parent or guardian email" aria-describedby="gd-err" autocapitalize="none" value="${esc(c.guardianEmail || '')}" placeholder="Parent or guardian email" />
       ${alertMsg({ id: 'gd-err', style: 'color:var(--red);font-weight:600;min-height:18px;margin-top:10px;text-align:center' })}
       ${statusMsg({ id: 'gd-ok', style: 'display:block;color:var(--green-bright);font-weight:600;text-align:center' })}
       <button class="btn" id="gd-send">Ask for approval again</button>
@@ -70,21 +70,21 @@ export default {
     ${backHead('Parent approval', 'One step before your day can sync', 'home')}
 
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
+      <div class="req-icon b s38">${icon('lock', 17)}</div>
       <div><div class="tt">Why this exists</div>
       <div class="ts">You're under 18, so the law says a parent or guardian approves before your data leaves this phone. Everything you log still counts here. It just stays private until they say yes.</div></div>
     </div>
 
     <div style="height:16px"></div>
     <h2 class="eyebrow">Send the approval request</h2>
-    <input id="gd-email" class="ob-input" type="email" inputmode="email" autocapitalize="none" placeholder="Parent or guardian email" />
+    <input id="gd-email" class="ob-input" type="email" inputmode="email" autocomplete="email" aria-label="Parent or guardian email" aria-describedby="gd-err" autocapitalize="none" placeholder="Parent or guardian email" />
     ${alertMsg({ id: 'gd-err', style: 'color:var(--red);font-weight:600;min-height:18px;margin-top:10px;text-align:center' })}
     ${statusMsg({ id: 'gd-ok', style: 'display:block;color:var(--green-bright);font-weight:600;text-align:center' })}
     <button class="btn" id="gd-send">Ask for approval</button>
 
     <div style="height:14px"></div>
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 17)}</div>
+      <div class="req-icon b s38">${icon('shield', 17)}</div>
       <div><div class="tt">What they see</div>
       <div class="ts">One email with one approve button. They never get your meals or photos. Approving just lets your score reach your coach.</div></div>
     </div>
@@ -102,6 +102,7 @@ export default {
     const submit = async () => {
       if (btn.disabled) return;
       if (err) err.textContent = '';
+      input.removeAttribute('aria-invalid');
       if (ok) ok.textContent = '';
       btn.disabled = true;
       const was = btn.textContent;
@@ -120,6 +121,7 @@ export default {
           // Recorded but no email actually left. The athlete still has to act (retry), so this
           // is an error in red, not an amber warning shade.
           if (err) err.textContent = 'Saved, but the email could not be sent yet. Try again in a bit, or reach support@onstandard.app.';
+          input.setAttribute('aria-invalid', 'true');
           btn.disabled = false; btn.textContent = was;
           return;
         }
@@ -132,6 +134,7 @@ export default {
         return;
       }
       if (err) err.textContent = r.error || 'Could not send. Try again.';
+      input.setAttribute('aria-invalid', 'true');
       btn.disabled = false;
       btn.textContent = was;
     };

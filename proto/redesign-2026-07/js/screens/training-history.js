@@ -4,6 +4,7 @@
 import { icon } from '../icons.js';
 import { backHead, esc, emptyState, errorState, skeletonRows } from '../components.js';
 import * as roles from '../roles.js';
+import { shortDateYear } from '../fmt-date.js';
 
 /* `logs: null` is "not loaded", `failed: true` is "we asked and could not find out". They were
    the same value until now, so an offline athlete was shown the empty state and told they had
@@ -13,11 +14,7 @@ let PENDING_DELETE = null;
 let FAILED_DELETE = null; // a delete the server refused: the button stays armed and says so
 const FEEL = ['', 'Rough', 'Tough', 'OK', 'Good', 'Great'];
 
-function fmtDate(d) {
-  if (!d) return '';
-  try { return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); }
-  catch { return String(d); }
-}
+const fmtDate = (d) => shortDateYear(d);
 
 async function load() {
   CACHE.loading = true;

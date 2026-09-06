@@ -78,7 +78,7 @@ export default {
 
     <h2 class="eyebrow">Not in today's score</h2>
     <div class="sidebox">
-      <div class="req-icon muted" style="width:38px;height:38px">${icon('scale', 19)}</div>
+      <div class="req-icon muted s38">${icon('scale', 19)}</div>
       <div>
         <div class="tt">Morning Weight${S.weightLine.state === 'missed' ? ' · missed today, not scored' : ''}</div>
         <div class="ts">${S.weightLine.state === 'open' ? esc(S.weightLine.note) + ' ' : ''}Morning weight tracks long-term progress and never lowers your daily score.</div>

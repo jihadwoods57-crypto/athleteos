@@ -92,13 +92,15 @@ function revealAt() {
   if (!vp) return;
   // A composer that ENDS a conversation wants the end of the conversation, not its own 48px box
   // centred in whatever room is left. Bring the newest message down onto the keyboard and the bar
-  // arrives with it. (scrollTop clamps itself, so scrollHeight is safe to assign.)
-  if (el.closest('.composer.at-end')) { vp.scrollTop = vp.scrollHeight; return; }
+  // arrives with it. (scrollTo clamps itself, so scrollHeight is safe to ask for.) `instant`,
+  // because .viewport has `scroll-behavior: smooth` and a smooth reveal on top of the shell's own
+  // 220ms height transition reads as two motions; router.js does the same.
+  if (el.closest('.composer.at-end')) { vp.scrollTo({ top: vp.scrollHeight, behavior: 'instant' }); return; }
   // Anything else — the food search box, a profile field — only ever gets LIFTED out from under
   // the keys. Never scrolled down: a search bar living at the top of its screen must stay there.
   const bar = el.closest('.composer') || el;
   const under = Math.round(bar.getBoundingClientRect().bottom + 10 - vp.getBoundingClientRect().bottom);
-  if (under > 2) vp.scrollTop += under;
+  if (under > 2) vp.scrollTo({ top: vp.scrollTop + under, behavior: 'instant' });
 }
 
 /* Twice, and the second one is the one that lands. The shell TRANSITIONS to its shorter height
@@ -157,7 +159,7 @@ export function scrollThreadToEnd(anchor, { force = false } = {}) {
   if (!vp) return;
   const end = vp.scrollHeight - vp.clientHeight;
   if (!force && end - vp.scrollTop > 120) return;
-  vp.scrollTop = end;
+  vp.scrollTo({ top: end, behavior: 'instant' });
 }
 
 /** Focus a composer and bring the conversation to it. Used by the quick actions and the
@@ -178,12 +180,20 @@ export function focusComposer(input) {
 
    Height comes off scrollHeight rather than a line count, so a wrapped long word and a real
    newline both measure right. The ceiling is the stylesheet's max-height (screens.css), read back
-   rather than duplicated here. `.has-text` is what dims the send button while the box is empty,
-   and `.overflow` is the textarea being told it may scroll now. */
+   rather than duplicated here, once per focus: getComputedStyle on every keystroke forces a
+   style flush, and the ceiling does not change while a box has focus. `.has-text` is what dims
+   the send button while the box is empty, and `.overflow` is the textarea being told it may
+   scroll now. */
+const MAX_H = new WeakMap();
+function maxHeightOf(ta) {
+  let max = MAX_H.get(ta);
+  if (max == null) { max = parseInt(getComputedStyle(ta).maxHeight, 10) || 130; MAX_H.set(ta, max); }
+  return max;
+}
 function fitComposer(ta) {
   if (!ta || ta.tagName !== 'TEXTAREA') return;
   ta.style.height = 'auto';
-  const max = parseInt(getComputedStyle(ta).maxHeight, 10) || 130;
+  const max = maxHeightOf(ta);
   const want = ta.scrollHeight;
   ta.style.height = `${Math.min(want, max)}px`;
   ta.classList.toggle('overflow', want > max);
@@ -202,6 +212,7 @@ function fitComposer(ta) {
 let fitFrame = 0;
 function watchComposer(ta) {
   cancelAnimationFrame(fitFrame);
+  MAX_H.delete(ta); // a fresh focus re-reads the ceiling (the stylesheet may have changed with the screen)
   let last = ta.value;
   fitComposer(ta);
   const tick = () => {

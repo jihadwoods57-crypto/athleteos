@@ -63,13 +63,14 @@ export default {
     if (!RT.camPrimed) {
       return `
       <div class="ob" style="padding-top:40px">
+        <h1 class="sr-only">Camera, for proof</h1>
         <div class="standard-set" style="padding-top:10px">
           <div class="halo"><div class="core" style="background:linear-gradient(155deg, var(--green), var(--green-deep))">${icon('camera', 34)}</div></div>
           <div class="ob-title" style="margin-top:22px">Camera, for proof.</div>
           <div class="ob-sub" style="padding:0 8px">OnStandard uses your camera to capture meal photos. They go to your coach connection only: never public, never sold, never used to train anything without asking.</div>
         </div>
         <div class="ob-foot" style="margin-top:auto">
-          <button class="btn green" data-act="primeCamera" data-then="camera">Allow camera</button>
+          <button class="btn primary" data-act="primeCamera" data-then="camera">Allow camera</button>
           <button class="cam-textlink" type="button" data-go="food-search">Log without a camera</button>
         </div>
       </div>`;
@@ -79,8 +80,9 @@ export default {
     // On any failure the prompt stays and the shutter opens the native camera exactly as before.
     return `
     <div class="cam">
+      <h1 class="sr-only">Log ${esc(slotName)}</h1>
       <div class="cam-head">
-        <button class="bk iconbtn" type="button" data-back="home" aria-label="Back">${icon('back', 19)}</button>
+        <button class="bk iconbtn" type="button" data-back="home" aria-label="Back">${icon('back', 20)}</button>
         <div class="meta">
           <div class="t">Log ${esc(slotName)}</div>
           <div class="s">
@@ -288,8 +290,9 @@ export const cameraConfirm = {
     const pq = photoQuality(MEAL.photoQ);
     return `
     <div class="cam cam-confirm">
+      <h1 class="sr-only">Review photo</h1>
       <div class="cam-head">
-        <button class="bk iconbtn" type="button" id="cc-back" aria-label="Back">${icon('back', 19)}</button>
+        <button class="bk iconbtn" type="button" id="cc-back" aria-label="Back">${icon('back', 20)}</button>
         <div class="meta">
           <div class="t">Review photo</div>
           ${''/* Two facts, two pills (redesign 2026-09-02, founder reference): the meal slot and its
@@ -347,15 +350,15 @@ export const cameraConfirm = {
             <span class="cc-details-chev">${icon('chevron', 18)}</span>
           </summary>
           <div class="cc-details-body">
-            <textarea id="cc-user-note" maxlength="240" rows="2"
+            <textarea id="cc-user-note" aria-label="Meal details" maxlength="240" rows="2"
               placeholder="Sauce type, cooking method, oil used, portion changes, refills…">${esc(MEAL.userNote || '')}</textarea>
             <div class="cc-details-hint">Notes improve the analysis, but everything consumed should still be shown in the photo.</div>
           </div>
         </details>
-        ${''/* One decision, full width, in the app's primary green; the alternative is a quiet
+        ${''/* One decision, full width, in the app's blue action accent; the alternative is a quiet
              text action beneath it rather than a second button competing at equal weight. */}
         <div class="cc-actions">
-          <button class="btn green" type="button" id="cc-analyze">${icon('camera', 20)} Use this photo</button>
+          <button class="btn primary" type="button" id="cc-analyze">${icon('camera', 20)} Use this photo</button>
           <button class="cc-alt" type="button" id="cc-retake">${gallery ? 'Choose another' : 'Retake'}</button>
         </div>
       </div>

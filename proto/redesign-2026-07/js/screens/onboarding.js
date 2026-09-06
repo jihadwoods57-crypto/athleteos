@@ -135,7 +135,7 @@ const steps = {
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">We use these to flag possible conflicts in meal feedback. It's a heads-up, not a guarantee. Always check ingredients yourself.</div>
     <div style="height:14px"></div>
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 18)}</div>
+      <div class="req-icon b s38">${icon('shield', 18)}</div>
       <div><div class="tt">How weight works in OnStandard</div>
       <div class="ts">You log it on your coach's schedule. It never moves your daily score, so one heavy morning can't wreck a perfect day.</div></div>
     </div>`, 'Next', 'onboarding/6'),
@@ -170,7 +170,7 @@ const steps = {
       <section class="card" style="padding:6px 16px">${rows}</section>
       <div style="height:10px"></div>
       <div class="sidebox">
-        <div class="req-icon b" style="width:38px;height:38px">${icon('bolt', 17)}</div>
+        <div class="req-icon b s38">${icon('bolt', 17)}</div>
         <div><div class="tt">Your edge</div><div class="ts">${std.focus}</div></div>
       </div>
       ${knobs}
@@ -194,7 +194,7 @@ const steps = {
     <div style="height:16px"></div>
     ${accountBody({ terms: 'ob' })}
     <div class="ob-foot" style="margin-top:auto">
-      <button id="su-go" class="btn green" disabled>Create account &amp; Start</button>
+      <button id="su-go" class="btn primary" disabled>Create account &amp; Start</button>
     </div>
   </div>`,
 };
@@ -285,9 +285,9 @@ export default {
       const codeEntry = (ctx) => {
         gen++; // repainting out — invalidate any in-flight search/teams/code responses
         out.innerHTML = `
-          ${ctx ? `<div class="sidebox" style="margin-bottom:12px"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
+          ${ctx ? `<div class="sidebox" style="margin-bottom:12px"><div class="req-icon b s38">${icon('users', 17)}</div>
             <div><div class="tt">${esc(ctx.title)}</div><div class="ts">${esc(ctx.sub)}</div></div></div>` : ''}
-          <input id="sc-code" class="ob-input" placeholder="Coach code" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="12" />
+          <input id="sc-code" class="ob-input" placeholder="Coach code" aria-label="Coach code" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="12" />
           <div id="sc-code-err" style="color:var(--amber-bright);font-size:13px;font-weight:700;min-height:18px;margin-top:10px"></div>`;
         const codeEl = out.querySelector('#sc-code'), codeErr = out.querySelector('#sc-code-err');
         codeEl.addEventListener('input', debounce(async () => {
@@ -343,7 +343,7 @@ export default {
           const { orgs } = await dir.search(q);
           if (myGen !== gen || scQ.value.trim() !== q) return; // stale: repainted or query changed since
           if (!orgs.length) {
-            out.innerHTML = `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
+            out.innerHTML = `<div class="sidebox"><div class="req-icon b s38">${icon('users', 17)}</div>
               <div><div class="tt">Not listed yet</div><div class="ts">No school by that name is on OnStandard yet. Enter your coach's code below, or skip; you can connect anytime from Profile.</div></div></div>`;
             return;
           }
@@ -356,7 +356,7 @@ export default {
           out.querySelectorAll('[data-org]').forEach((el) => el.addEventListener('click', () => showTeams(orgs[+el.getAttribute('data-org')])));
         } catch {
           if (myGen !== gen) return; // stale
-          out.innerHTML = `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
+          out.innerHTML = `<div class="sidebox"><div class="req-icon b s38">${icon('users', 17)}</div>
             <div><div class="tt">Can't reach the directory</div><div class="ts">Check your connection, enter a coach code directly, or skip for now.</div></div></div>`;
         }
       }, 300));

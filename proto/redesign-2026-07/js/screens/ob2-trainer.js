@@ -338,7 +338,7 @@ const steps = [
     },
   },
   {
-    id: 'retention', ch: 1, cta: 'Next', green: true,
+    id: 'retention', ch: 1, cta: 'Next',
     /* Qualitative framing only — no invented retention statistic. */
     body: () => `
       <div class="ob2-hero">
@@ -461,7 +461,7 @@ const steps = [
           <button class="btn ghost sm" id="share-code" style="width:auto;padding:0 22px">${icon('share', 16)} Share invite</button>
         </div>
         <div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:14px;line-height:1.5">Invite your first client: the moment they enter it, their days start landing in your queue.</div>` : `
-        <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+        <div class="sidebox"><div class="req-icon b s38">${icon('clipboard', 17)}</div>
           <div><div class="tt">We couldn't create your practice</div><div class="ts">Your account is set up. The practice isn't yet. Open your Trainer View and your dashboard will show how to finish setup. Your client code appears the moment it's done.</div></div></div>`;
     },
     mount(root, ctx) {

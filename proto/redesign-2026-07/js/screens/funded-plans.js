@@ -59,7 +59,7 @@ export default {
           ${p.cancelled ? `<div class="ls" style="margin-top:2px;white-space:normal">No future charges. Coverage runs to the end of the paid period.</div>` : ''}
           ${UI.confirmCancel === p.id && !p.cancelled ? `<div class="ls" style="color:var(--red);margin-top:2px;white-space:normal">Stops future charges. Coverage runs to the end of the paid period.</div>` : ''}
         </div>
-        ${(p.recurring && !p.cancelled) ? `<button class="btn ghost sm" data-cancel="${esc(p.id)}" style="width:auto;padding:0 14px;height:44px;flex:none${UI.confirmCancel === p.id ? ';color:var(--red)' : ''}">${UI.cancelling === p.id ? '…' : UI.confirmCancel === p.id ? 'Confirm cancel' : 'Cancel'}</button>` : ''}
+        ${(p.recurring && !p.cancelled) ? `<button class="btn ghost sm${UI.confirmCancel === p.id ? ' danger' : ''}" data-cancel="${esc(p.id)}" style="width:auto;padding:0 14px;height:44px;flex:none">${UI.cancelling === p.id ? '…' : UI.confirmCancel === p.id ? 'Confirm cancel' : 'Cancel'}</button>` : ''}
       </div>`).join('')}
     </section>` : `<div class="state-demo"><div class="sd-ic">${icon('bolt', 24)}</div>
       <div class="sd-t">No funded plans yet</div>

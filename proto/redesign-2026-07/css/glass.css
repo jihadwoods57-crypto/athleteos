@@ -37,6 +37,13 @@
   --lens-rim:   rgba(255, 255, 255, 0.16);
   --tabbar-inset: 12px;
   --tabbar-h: 66px;
+  /* How much room content needs above the capsule so the last row is never under it. Derived
+     from the three numbers below, in one place: the capsule floats at max(10px, inset - 8px)
+     from the bottom edge, stands --tabbar-h tall, the FAB overhangs its top by 41px
+     (.tabbar .fab margin-top), and 24px of air keeps the last row out of the FAB's shadow.
+     .viewport's padding-bottom (app.css) and any sticky bar that has to clear the tab bar use
+     this; nothing re-derives it. */
+  --tab-clear: calc(var(--tabbar-h) + 41px + 24px + max(10px, env(safe-area-inset-bottom, 0px) - 8px));
 }
 :root[data-theme="light"] {
   --glass-fill:        rgba(255, 255, 255, 0.60);
@@ -47,7 +54,9 @@
   --lens-fill:  rgba(15, 23, 42, 0.07);
   --lens-rim:   rgba(255, 255, 255, 0.80);
 }
-@media (max-width: 520px) {
+/* Same condition as app.css's phone-native block: a narrow viewport OR a coarse-pointer device
+   with no hover (an unfolded foldable is wider than 520 and still has no bezel). */
+@media (max-width: 520px), ((pointer: coarse) and (hover: none)) {
   :root { --frame-pad: 0px; }
 }
 

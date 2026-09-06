@@ -5,6 +5,8 @@
    what the server recorded — before this, a coach nudge pushed to the phone but never
    appeared in the app. state.js merges the result with the locally-derived rows. */
 
+import { weekdayShort, shortDate } from './fmt-date.js';
+
 /* kind → presentation. Unknown kinds (added by future migrations) fall back to a plain
    bell row instead of vanishing — the feed keeps working as the server grows. */
 /* `tag` overrides the level's generic pill label ("urgent"/"reminder") where the level is
@@ -84,8 +86,8 @@ export function fmtWhen(iso, nowMs) {
   if (mins < 2) return 'now';
   if (mins < 60) return `${mins}m ago`;
   if (mins < 24 * 60) return `${Math.round(mins / 60)}h ago`;
-  if (mins < 7 * 24 * 60) return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(t).getDay()];
-  return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  if (mins < 7 * 24 * 60) return weekdayShort(t);
+  return shortDate(t);
 }
 
 /** One server row → the bell feed row shape ({level,title,body,when,icon,route,read}).

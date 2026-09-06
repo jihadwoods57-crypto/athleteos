@@ -16,6 +16,7 @@
  */
 
 import { initialsOf } from './initials.js';
+import { weekdayLongDate } from './fmt-date.js';
 
 /** Messages closer together than this belong to the same moment — no clock between them. */
 export const GROUP_GAP_MS = 10 * 60 * 1000;
@@ -135,7 +136,7 @@ export function layoutThread(msgs, { fmtTime = () => '', fmtDay = null, fmtDayLa
 /** The one human day label every thread shares: "Today", "Yesterday", then "Monday, Aug 24".
  *  `now` is an explicit argument (tests pass it; screens take the default) — the one deliberate
  *  relaxation of this module's no-clock rule, contained to a default parameter. The weekday line
- *  uses the device locale on purpose: a separator is glanceable furniture, not record data. */
+ *  is fmt-date's, so every separator in the app spells a day the same way. */
 export function dayLabelOf(ms, now = Date.now()) {
   const d = new Date(ms);
   if (isNaN(d.getTime())) return '';
@@ -144,7 +145,7 @@ export function dayLabelOf(ms, now = Date.now()) {
   const yest = new Date(today.getTime() - 86400000);
   if (same(d, today)) return 'Today';
   if (same(d, yest)) return 'Yesterday';
-  return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+  return weekdayLongDate(d);
 }
 
 /** Is this the AI's re-read after a correction? (0157 `meta.t`.) */

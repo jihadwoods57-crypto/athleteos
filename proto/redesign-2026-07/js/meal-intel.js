@@ -10,6 +10,7 @@
    imports the pricer instead of accepting one, so a call site cannot silently lose
    pricing by forgetting to inject it. */
 import { priceAddedFood, priceFoodAtQuantity, servingsFor } from './nutrition.js';
+import { MEAL_QUALITY_GOOD, MEAL_QUALITY_OK } from './score-band.js';
 
 const clean = (v) => String(v == null ? '' : v).replace(/[<>]/g, '').slice(0, 200);
 
@@ -371,14 +372,14 @@ export function openingMessage({
     if (note) parts.push(clean(note));
     const tie = GOAL_TIE[goal];
     if (tie && quality != null) {
-      parts.push(quality >= 75 ? `A plate like this ${tie}.` : `Tightening this plate up ${tie}.`);
+      parts.push(quality >= MEAL_QUALITY_GOOD ? `A plate like this ${tie}.` : `Tightening this plate up ${tie}.`);
     }
   }
   // 2. ONE specific move, when the read itself carries none. A highlight is NOT a move: the
   // schema defines highlights as micronutrient notes ("Collard greens add iron and vitamin K"),
   // and standing one here read as narration, then trivia, then the day. It rides in step 4b now.
   const hl = (Array.isArray(highlights) ? highlights : []).map((h) => clean(h)).filter(Boolean).slice(0, 1);
-  if (!deep && quality != null && quality < 75) {
+  if (!deep && quality != null && quality < MEAL_QUALITY_GOOD) {
     parts.push('One upgrade next time: add a protein or a vegetable and this score jumps.');
   }
   // 3. The day, framed forward as the next decision — per-meal math, never a restatement.
@@ -423,15 +424,17 @@ export function openingMessage({
 /* ---------- Meal quality vs compliance (founder feedback 2026-07-16) ----------
    Two different concepts that used to share one green: GREEN means "you did the work"
    (logged, on time). Quality gets its own band and color so a 58 never wears success
-   green. Banded once here so every surface (chip, quality line, coach view) agrees. */
+   green. The floors are score-band.js's MEAL_QUALITY_GOOD (80) and MEAL_QUALITY_OK (50), the
+   same two qualityAccent() paints the chip with, so the label and the colour can never
+   disagree: this ladder sat at 75 for weeks and a 77 plate read "Strong" while wearing amber. */
 
 /** Quality band for a 0-100 meal score. Null when there's no honest score. */
 export function qualityBand(score) {
   if (score == null) return null; // Number(null) is 0 — don't band a missing score as "low"
   const s = Number(score);
   if (!isFinite(s)) return null;
-  if (s >= 75) return { cls: 'good', label: 'Strong' };
-  if (s >= 50) return { cls: 'mid', label: 'Needs work' };
+  if (s >= MEAL_QUALITY_GOOD) return { cls: 'good', label: 'Strong' };
+  if (s >= MEAL_QUALITY_OK) return { cls: 'mid', label: 'Needs work' };
   return { cls: 'low', label: 'Weak plate' };
 }
 
@@ -546,7 +549,7 @@ export function openingSummary({
   // Biggest opportunity: ONE thing, produce-consistency-guarded, uncertainty-aware.
   const reason = qualityReason(m, fiber, detected);
   const balanced = reason.indexOf('in balance') !== -1;
-  let opportunity = balanced && quality != null && quality >= 75
+  let opportunity = balanced && quality != null && quality >= MEAL_QUALITY_GOOD
     ? 'Not much. This plate works.'
     : reason;
   if (est && opportunity && !balanced && /fiber|fat ran/i.test(opportunity)) {

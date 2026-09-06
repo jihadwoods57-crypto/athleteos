@@ -13,6 +13,7 @@ import { backHead, esc, alertMsg } from '../components.js';
 import { icon } from '../icons.js';
 import * as roles from '../roles.js';
 import { track, EVENTS } from '../analytics.js';
+import { longDate } from '../fmt-date.js';
 
 let UI = { code: '', busy: false, result: null, kind: null }; // kind: 'trainer' | 'sponsor' | null
 // Leaving the screen clears the last result so a return visit starts fresh — otherwise a stale
@@ -36,12 +37,7 @@ function reasonMessage(r) {
   return "That code isn't valid.";
 }
 
-function formatDate(d) {
-  if (!d) return '';
-  try {
-    return new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-  } catch { return String(d); }
-}
+const formatDate = (d) => longDate(d) || (d ? String(d) : '');
 
 /* Try the code against the right RPC. A TR- prefix means trainer; SP- means sponsor; anything
    else (a code typed without its prefix, say) tries trainer first, then sponsor — a wasted RPC
@@ -83,7 +79,7 @@ export default {
     ${success ? '' : `
     <section class="card pad">
       <label for="rc-code" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Your code</label>
-      <input class="ob-input" id="rc-code" value="${esc(UI.code)}" placeholder="TR-XXXXX-XXXXX" aria-describedby="rc-hint" autocapitalize="characters" autocomplete="off" />
+      <input class="ob-input" id="rc-code" value="${esc(UI.code)}" placeholder="TR-XXXXX-XXXXX" aria-describedby="rc-hint rc-err" aria-invalid="${r && !success ? 'true' : 'false'}" autocapitalize="characters" autocomplete="off" />
       <div id="rc-hint" style="font-size:12px;color:var(--text-3);margin-top:6px">From your trainer after you paid, or from a sponsor.</div>
       <div style="height:14px"></div>
       ${alertMsg({ id: 'rc-err', text: r ? reasonMessage(r) : '', style: 'color:var(--red);font-size:13px;font-weight:600;min-height:18px' })}
@@ -91,7 +87,7 @@ export default {
     </section>`}
 
     ${success ? `
-    <div class="sidebox" role="status" style="margin-top:10px"><div class="req-icon g" style="width:38px;height:38px">${icon('check', 18)}</div>
+    <div class="sidebox" role="status" style="margin-top:10px"><div class="req-icon g s38">${icon('check', 18)}</div>
       <div><div class="tt">${viaTrainer ? 'You are connected' : 'Premium unlocked'}</div>
       <div class="ts">${[
         viaTrainer
@@ -100,7 +96,7 @@ export default {
         r.expires_at ? `${viaTrainer ? 'Covered through' : 'Until'} ${esc(formatDate(r.expires_at))}` : '',
       ].filter(Boolean).join(' · ')}</div></div>
     </div>
-    <button class="btn green" data-go="home" style="margin-top:12px">Start your day</button>` : ''}
+    <button class="btn primary" data-go="home" style="margin-top:12px">Start your day</button>` : ''}
     <div style="height:10px"></div>
     `;
   },
@@ -112,8 +108,9 @@ export default {
     if (btn) btn.addEventListener('click', async () => {
       const err = root.querySelector('#rc-err');
       const code = UI.code.trim();
-      if (!code) { if (err) err.textContent = 'Enter a code.'; return; }
+      if (!code) { if (err) err.textContent = 'Enter a code.'; codeEl && codeEl.setAttribute('aria-invalid', 'true'); return; }
       if (err) err.textContent = '';
+      if (codeEl) codeEl.setAttribute('aria-invalid', 'false');
       UI.busy = true; UI.result = null; UI.kind = null; if (window.__render) window.__render();
       const { kind, r } = await redeemEither(code);
       UI.busy = false;

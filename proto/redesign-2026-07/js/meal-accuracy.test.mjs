@@ -415,3 +415,23 @@ test('add-foods: a food left out of the photo joins the plate, priced, and re-sc
 test('add-foods with nothing priceable is a null, never a silent no-op', () => {
   assert.equal(applyMealCorrection(platedMeta(), { kind: 'add-foods', foods: [{ name: 'moon dust' }] }), null);
 });
+
+/* ---------------- quality label and quality colour share one floor ---------------- */
+import { qualityBand } from './meal-intel.js';
+import { qualityAccent, MEAL_QUALITY_GOOD, MEAL_QUALITY_OK } from './score-band.js';
+
+test('qualityBand reads its floors from score-band, so a 79 is never "Strong" while wearing amber', () => {
+  assert.equal(MEAL_QUALITY_GOOD, 80);
+  assert.equal(MEAL_QUALITY_OK, 50);
+  assert.equal(qualityBand(79).label, 'Needs work');
+  assert.equal(qualityBand(79).cls, 'mid');
+  assert.equal(qualityAccent(79), 'a');
+  assert.equal(qualityBand(80).label, 'Strong');
+  assert.equal(qualityBand(80).cls, 'good');
+  assert.equal(qualityAccent(80), 'g');
+  assert.equal(qualityBand(77).label, 'Needs work'); // the old 75 ladder called this Strong
+  assert.equal(qualityBand(50).label, 'Needs work');
+  assert.equal(qualityBand(49).label, 'Weak plate');
+  assert.equal(qualityAccent(49), 'r');
+  assert.equal(qualityBand(null), null);
+});

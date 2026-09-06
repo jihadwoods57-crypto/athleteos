@@ -1,4 +1,4 @@
-/* OnStandard — Wake-Up Roll Call composer (0211).
+/* OnStandard — Roll call composer (0211).
    The fast path for the one commitment every coach schedules: a wake-up time, a grace period,
    the days, who, and the morning message. Everything else (button label, when it closes, the
    escalation switches) sits under one "More" fold. It writes the SAME commitments row the
@@ -15,6 +15,7 @@
    on this screen or on the notification. */
 import { RT } from '../state.js';
 import { icon } from '../icons.js';
+import { DAYS_LONG } from '../fmt-date.js';
 import { track, EVENTS } from '../analytics.js';
 import { backHead, esc } from '../components.js';
 import { CD, bookId } from '../coach-data.js';
@@ -25,7 +26,7 @@ import { loadCommitments, saveCommitment, loadBoard, todayISO } from '../commitm
 import { ROLLCALL_OFF } from '../commitments.js';
 
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-const DOW_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DOW_FULL = DAYS_LONG;
 const GRACES = [0, 2, 5, 10, 15];
 const CLOSE_CHOICES = [15, 30, 45, 60];
 const CLOSE_DEFAULT_MIN = 30;
@@ -47,7 +48,7 @@ const canSchedule = () => {
 /* The draft. `null` = start clean. editWakeup() loads a saved row. */
 let DRAFT = null;
 const blank = () => ({
-  id: null, title: 'Wake-Up Roll Call', message: '', action_label: '',
+  id: null, title: 'Roll call', message: '', action_label: '',
   audience_kind: 'team', audience_value: null,
   repeat_days: [1, 2, 3, 4, 5], starts_min: 360, grace_min: 5, close_after_min: CLOSE_DEFAULT_MIN,
   escalation: { breakthrough: true, notify_coach_on_miss: true },
@@ -60,7 +61,7 @@ export function editWakeup(row) {
     ? Math.max(0, row.respond_by_min - row.starts_min) : 5;
   DRAFT = {
     ...blank(),
-    id: row.id, title: row.title || 'Wake-Up Roll Call', message: row.message || '',
+    id: row.id, title: row.title || 'Roll call', message: row.message || '',
     action_label: row.action_label || '',
     audience_kind: row.audience_kind || 'team', audience_value: row.audience_value || null,
     repeat_days: Array.isArray(row.repeat_days) ? row.repeat_days.map(Number) : [],
@@ -99,8 +100,8 @@ export function previewLine(d) {
   const who = d.audience_label || (CD.kind === 'practice' ? 'all clients' : 'the whole team');
   return `${daysLabel(d.repeat_days)} at ${fmtMin(d.starts_min)} for ${who}. `
     + (d.grace_min > 0
-      ? `${fmtMin(d.starts_min)} to ${fmtMin(dl)} is On Standard. Late until ${fmtMin(close)}. Then it’s Missed.`
-      : `Only ${fmtMin(d.starts_min)} is On Standard. Late until ${fmtMin(close)}. Then it’s Missed.`);
+      ? `${fmtMin(d.starts_min)} to ${fmtMin(dl)} is On standard. Late until ${fmtMin(close)}. Then it’s Missed.`
+      : `Only ${fmtMin(d.starts_min)} is On standard. Late until ${fmtMin(close)}. Then it’s Missed.`);
 }
 
 /** Payload for upsert_commitment. Exported so the tests can pin the mapping. */
@@ -117,7 +118,7 @@ export function wakeupPayload(d, owner, kind, tz) {
   return {
     id: d.id || undefined,
     type: 'morning_roll_call',
-    title: (d.title || '').trim() || 'Wake-Up Roll Call',
+    title: (d.title || '').trim() || 'Roll call',
     message: (d.message || '').trim() || null,
     action_label: (d.action_label || '').trim() || null,
     audience_kind: d.audience_kind, audience_value: d.audience_value || null,
@@ -148,10 +149,10 @@ export const coachWakeupNew = {
 
 /** The whole composer, replaced by one honest screen while the feature is off. */
 function switchedOffScreen(back) {
-  return `${backHead('Wake-Up Roll Call', 'Switched off', back)}
+  return `${backHead('Roll call', 'Switched off', back)}
   <div class="sidebox">
     <div class="req-icon b s38">${icon('sun', 17)}</div>
-    <div><div class="tt">The Wake-Up Roll Call is off right now</div>
+    <div><div class="tt">The Roll call is off right now</div>
     <div class="ts">Nobody is being asked to check in, and no morning notifications are going out. Every roll call you already ran is kept exactly as it was recorded. This screen comes back when the roll call does.</div></div>
   </div>`;
 }
@@ -169,7 +170,7 @@ export const coachWakeupEdit = {
     const back = CD.kind === 'practice' ? 'trainer' : 'coach-home';
     if (ROLLCALL_OFF) return switchedOffScreen(back);
     if (!canSchedule()) {
-      return `${backHead('Wake-Up Roll Call', 'Not available for your role', back)}
+      return `${backHead('Roll call', 'Not available for your role', back)}
       <div class="sidebox">
         <div class="req-icon b s38">${icon('eye', 17)}</div>
         <div><div class="tt">Scheduling is for the coaching staff</div>
@@ -185,7 +186,7 @@ export const coachWakeupEdit = {
     const editing = !!d.id;
 
     return `
-    ${backHead(editing ? 'Edit Wake-Up Roll Call' : 'Wake-Up Roll Call', 'It’s 6:00 AM. Who’s up?', back)}
+    ${backHead(editing ? 'Edit roll call' : 'Roll call', 'It’s 6:00 AM. Who’s up?', back)}
 
     <section class="card pad wk-form">
       ${field('Wake-up time',
@@ -196,8 +197,8 @@ export const coachWakeupEdit = {
           ${GRACES.map((g) => `<button class="chip ${d.grace_min === g ? 'on' : ''}" role="radio" aria-checked="${d.grace_min === g ? 'true' : 'false'}" data-grace="${g}">${g === 0 ? 'None' : `${g} min`}</button>`).join('')}
         </div>`,
         d.grace_min > 0
-          ? `${esc(fmtMin(d.starts_min))} to ${esc(fmtMin(d.starts_min + d.grace_min))} is On Standard. After that is Late.`
-          : `Only an answer at ${esc(fmtMin(d.starts_min))} is On Standard.`)}
+          ? `${esc(fmtMin(d.starts_min))} to ${esc(fmtMin(d.starts_min + d.grace_min))} is On standard. After that is Late.`
+          : `Only an answer at ${esc(fmtMin(d.starts_min))} is On standard.`)}
 
       ${field('Days',
         `<div class="wk-days" id="wk-days" role="group" aria-label="Days">
@@ -213,9 +214,9 @@ export const coachWakeupEdit = {
         CD.kind === 'practice' ? '' : 'Anyone who joins the team later gets the next one automatically.')}
     </section>
 
-    <h2 class="eyebrow">Morning message <span class="opt">· optional</span></h2>
+    <h2 class="eyebrow" id="wk-msg-l">Morning message <span class="opt">· optional</span></h2>
     <section class="card pad">
-      <textarea class="ob-input wk-msg" id="wk-msg" maxlength="1000" rows="5" placeholder="What you’d text the group this morning. It goes out as the roll call, in your name, exactly as written.">${esc(d.message)}</textarea>
+      <textarea class="ob-input wk-msg" id="wk-msg" aria-labelledby="wk-msg-l" maxlength="1000" rows="5" placeholder="What you’d text the group this morning. It goes out as the roll call, in your name, exactly as written.">${esc(d.message)}</textarea>
       <div class="wk-presets">
         ${PRESETS.map((s, i) => `<button class="chip" data-preset="${i}">${esc(s)}</button>`).join('')}
       </div>
@@ -225,10 +226,10 @@ export const coachWakeupEdit = {
     <button class="wk-more" id="wk-more" aria-expanded="${d.more ? 'true' : 'false'}">${icon('chevron', 14)} ${d.more ? 'Fewer options' : 'More options'}</button>
     <section class="card pad wk-form" id="wk-more-panel" ${d.more ? '' : 'hidden'}>
       ${field('Title',
-        `<input class="ob-input" id="wk-title" maxlength="60" value="${esc(d.title)}" placeholder="Wake-Up Roll Call" />`,
+        `<input class="ob-input" id="wk-title" aria-label="Title" maxlength="60" value="${esc(d.title)}" placeholder="Roll call" />`,
         `What ${esc(CD.nouns)} see as the heading. The time and your message sit under it.`)}
       ${field('Button label',
-        `<input class="ob-input" id="wk-action" maxlength="24" value="${esc(d.action_label)}" placeholder="I’m Up" />`,
+        `<input class="ob-input" id="wk-action" aria-label="Button label" maxlength="24" value="${esc(d.action_label)}" placeholder="I’m Up" />`,
         'The one thing they tap, on the lock screen and in the app.')}
       ${field('Closes',
         `<div class="wk-chips" id="wk-late" role="radiogroup" aria-label="Closes">
@@ -246,7 +247,7 @@ export const coachWakeupEdit = {
 
     <div class="wk-preview">${icon('clock', 14)} <span id="wk-preview">${esc(previewLine({ ...d, audience_label: audLabel }))}</span></div>
 
-    <button class="btn green" id="wk-save">${icon('check', 19)} ${editing ? 'Save changes' : 'Create Roll Call'}</button>
+    <button class="btn primary" id="wk-save">${icon('check', 19)} ${editing ? 'Save changes' : 'Create roll call'}</button>
     <div id="wk-err" class="ts wk-err" aria-live="polite"></div>
     <div class="ts wk-foot">${esc(CD.nouns.charAt(0).toUpperCase() + CD.nouns.slice(1))} get a lock-screen push at ${esc(fmtMin(d.starts_min))} with one button. You see who’s up live on the board.</div>`;
   },

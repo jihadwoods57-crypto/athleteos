@@ -1,6 +1,6 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, titleHead, logoMark, esc, copyText } from '../components.js';
+import { backHead, titleHead, logoMark, esc, copyText, sayStatus, emptyState } from '../components.js';
 import { initialsOf } from '../initials.js';
 import { accountBody, wireAccount } from './ob-account.js';
 import { standardForGoal, reqHeadTint, showConfirmPending } from '../ob-helpers.js';
@@ -109,7 +109,7 @@ export const role = {
         </div>
         <div style="height:14px"></div>
         <div class="sidebox">
-          <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
+          <div class="req-icon b s38">${icon('lock', 17)}</div>
           <div><div class="tt">Joining as a parent or guardian?</div>
           <div class="ts">Open the invite your athlete or coach sent you. Parents connect from there, and only ever see scores and streaks, never photos or weight.</div></div>
         </div>
@@ -140,7 +140,7 @@ const coachSteps = {
     <input id="co-last" class="ob-input" maxlength="40" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" />
     <h2 class="eyebrow" style="margin:16px 2px 10px">What the room calls you</h2>
     <div class="chip-row" id="co-handle"></div>
-    <input id="co-handle-custom" class="ob-input" maxlength="24" placeholder="Or type it, e.g. Coach B" style="margin-top:10px" />
+    <input id="co-handle-custom" class="ob-input" maxlength="24" placeholder="Or type it, e.g. Coach B" aria-label="What the room calls you" style="margin-top:10px" />
     <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">This is the name athletes see everywhere: greetings, meal threads, your standard.</div>`, 'Next', 'coach-ob/2', { back: 'role' }),
 
   2: () => {
@@ -154,7 +154,7 @@ const coachSteps = {
       </section>
       <div style="height:12px"></div>
       <div style="text-align:center;font-size:var(--t-sm);font-weight:700;color:var(--text-3);cursor:pointer" id="co-school-clear">Change school</div>` : `
-      <input id="co-q" class="ob-input" placeholder="Search your school" autocorrect="off" spellcheck="false" />
+      <input id="co-q" class="ob-input" placeholder="Search your school" aria-label="Search your school" autocorrect="off" spellcheck="false" />
       <div id="co-out" style="margin-top:14px"></div>
       <div style="height:10px"></div>
       <div id="co-add" style="text-align:center;font-size:var(--t-base);font-weight:700;color:var(--amber-bright);cursor:pointer">My school isn't listed, add it</div>`,
@@ -167,12 +167,12 @@ const coachSteps = {
   3: () => {
     const c = (RT.ob || {}).coach || {};
     const mode = c.joinMode === 'join' ? 'join' : 'create';
-    const seg = `<div class="seg" style="width:100%;margin-bottom:18px" id="co-joinmode">
+    const seg = `<div class="seg" style="width:100%;margin-bottom:18px" id="co-joinmode" aria-label="Create a team or join a staff">
       <button class="${mode === 'create' ? 'on' : ''}" data-mode="create">Create a team</button>
       <button class="${mode === 'join' ? 'on' : ''}" data-mode="join">Join a staff</button>
     </div>`;
     const createBody = `
-    <input id="co-team" class="ob-input" maxlength="60" placeholder="Team name (e.g. Varsity Football)" />
+    <input id="co-team" class="ob-input" maxlength="60" placeholder="Team name (e.g. Varsity Football)" aria-label="Team name" />
     <div style="height:16px"></div>
     <h2 class="eyebrow" style="margin:8px 2px 10px">Sport</h2>
     <div class="chip-row" id="co-sport">
@@ -192,7 +192,7 @@ const coachSteps = {
     <h2 class="eyebrow" style="margin:8px 2px 10px">Staff code</h2>
     ${/* maxlength 12, not 8: staff codes are 10 chars since 0169 and the old cap silently
           truncated every real code into a guaranteed "did not work" (found 2026-08-18). */''}
-    <input id="co-staff-code" class="ob-input" maxlength="12" placeholder="Code from your head coach" autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" />
+    <input id="co-staff-code" class="ob-input" maxlength="12" placeholder="Code from your head coach" aria-label="Staff code" autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" />
     <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">Your head coach hands out staff codes. It lands you on their team's staff with the role and permissions they set. You won't create a new team.</div>`;
     return frame(3, 7,
       mode === 'join' ? 'Join a staff.' : 'Build the team.',
@@ -220,11 +220,11 @@ const coachSteps = {
     </div>
     ${needRooms ? `
     <h2 class="eyebrow" style="margin:16px 2px 8px">${choice === 'room' ? 'Which room?' : 'Which rooms?'}</h2>
-    <input id="co-rooms" class="ob-input" placeholder="${choice === 'room' ? 'e.g. LB' : 'e.g. OL, TE, QB'}" autocapitalize="characters" autocorrect="off" spellcheck="false" />
+    <input id="co-rooms" class="ob-input" aria-label="Rooms you coach" placeholder="${choice === 'room' ? 'e.g. LB' : 'e.g. OL, TE, QB'}" autocapitalize="characters" autocorrect="off" spellcheck="false" />
     <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.4">Use the position names your athletes pick: that’s how the app knows who’s in your room. Leave it blank and you keep the whole team.</div>` : choice === 'individuals' ? `
     <div style="height:14px"></div>
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
+      <div class="req-icon b s38">${icon('users', 17)}</div>
       <div><div class="tt">You’ll pick them after</div><div class="ts">A private “My athletes” group is created for you. Add athletes to it from the Roster and your view follows it.</div></div>
     </div>` : ''}`,
     'Next', 'coach-ob/5', { back: 'coach-ob/3' });
@@ -238,7 +238,7 @@ const coachSteps = {
     if (c.joinMode === 'join') {
       return frame(5, 7, 'The standard is set.', 'Your head coach owns the team standard. You’ll see it (and everything your athletes log against it) the moment you’re on staff.', `
       <div class="sidebox">
-        <div class="req-icon g" style="width:38px;height:38px">${icon('check', 17)}</div>
+        <div class="req-icon g s38">${icon('check', 17)}</div>
         <div><div class="tt">Nothing to configure here</div><div class="ts">Meals, windows, recovery, and check-ins are already defined for this team. If your role includes standards, you can fine-tune them later in Standards.</div></div>
       </div>`, 'Next', 'coach-ob/6', { back: 'coach-ob/4' });
     }
@@ -297,7 +297,7 @@ const coachSteps = {
     </section>
     <div style="height:10px"></div>
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('bell', 17)}</div>
+      <div class="req-icon b s38">${icon('bell', 17)}</div>
       <div><div class="tt">Quiet hours are on</div><div class="ts">Nothing between 10 PM and 7 AM unless it’s critical and you’ve allowed that. Times and quiet hours are tunable in Profile → Notifications.</div></div>
     </div>`,
     'Next', 'coach-ob/7', { back: 'coach-ob/5' });
@@ -343,17 +343,17 @@ const coachSteps = {
         <button class="btn ghost sm" id="ob-code-edit" style="width:auto;padding:0 22px">Customize</button>
       </div>
       <div id="ob-code-editor" style="display:none;margin-top:14px">
-        <input id="ob-code-input" class="ob-input" placeholder="YOUR CODE · 6–12 letters/numbers" maxlength="12"
+        <input id="ob-code-input" class="ob-input" placeholder="YOUR CODE · 6–12 letters/numbers" aria-label="Custom join code" maxlength="12"
           autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" />
         <div style="display:flex;justify-content:center;gap:8px;margin-top:10px">
-          <button class="btn green sm" id="ob-code-save" style="width:auto;padding:0 22px">Save code</button>
+          <button class="btn primary sm" id="ob-code-save" style="width:auto;padding:0 22px">Save code</button>
         </div>
         <div id="ob-code-status" style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px;text-align:center">Make it yours, e.g. GATORS. The random code stops working once you save.</div>
       </div>` :
       /* No code = create_team did not succeed. This used to promise the code "generates
          automatically on your next sign-in" and point at Profile -> Team code; neither was
          true (see ob2-coach.js). Say what happened and point at the button that fixes it. */
-      `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+      `<div class="sidebox"><div class="req-icon b s38">${icon('clipboard', 17)}</div>
         <div><div class="tt">We couldn't create your team</div><div class="ts">Your account is set up. The team isn't yet. Open your dashboard below and use the <b>Create team</b> button waiting there. It takes one tap.</div></div></div>`}
     </div>
     <div class="ob-foot" style="margin-top:auto">
@@ -473,11 +473,11 @@ export const coachOb = {
       $('#co-add').addEventListener('click', () => {
         gen++; // repainting out — invalidate any in-flight search
         out.innerHTML = `
-          <input id="co-add-name" class="ob-input" maxlength="80" placeholder="School / organization name" />
+          <input id="co-add-name" class="ob-input" maxlength="80" placeholder="School / organization name" aria-label="School or organization name" />
           <div style="height:10px"></div>
           <div class="dob-row">
-            <input id="co-add-city" class="ob-input" maxlength="60" placeholder="City" style="flex:2" />
-            <input id="co-add-state" class="ob-input" placeholder="ST" maxlength="2" autocapitalize="characters" />
+            <input id="co-add-city" class="ob-input" maxlength="60" placeholder="City" aria-label="City" style="flex:2" />
+            <input id="co-add-state" class="ob-input" placeholder="ST" aria-label="State, two letters" maxlength="2" autocapitalize="characters" />
           </div>
           <div style="height:10px"></div>
           <button class="btn ghost sm" id="co-add-go" style="width:auto;padding:0 22px;margin:0 auto;display:block">Use this school</button>`;
@@ -668,7 +668,7 @@ const trainerSteps = {
     </section>
     <div style="height:12px"></div>
     <div class="sidebox">
-      <div class="req-icon p" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+      <div class="req-icon p s38">${icon('clipboard', 17)}</div>
       <div><div class="tt">Yours to change, per client too</div>
       <div class="ts">Meal count, windows, and weigh-in days live in Practice HQ under Default client standard. Any single client can be moved off the default without touching everyone else.</div></div>
     </div>`, 'Next', 'trainer-ob/3', { back: 'trainer-ob/1' });
@@ -699,7 +699,7 @@ const trainerSteps = {
       /* No code = create_practice did not succeed. Same false promise removed here as in the
          coach step above: nothing regenerates on its own, and Profile has no fix. The trainer
          dashboard owns the honest recovery path, so send them there. */
-      `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+      `<div class="sidebox"><div class="req-icon b s38">${icon('clipboard', 17)}</div>
         <div><div class="tt">We couldn't create your practice</div><div class="ts">Your account is set up. The practice isn't yet. Open your Trainer View below and your dashboard will show how to finish setup. Your client code appears the moment it's done.</div></div></div>`}
     </div>
     <div class="ob-foot" style="margin-top:auto">
@@ -796,15 +796,15 @@ const clientSteps = {
     </div>
     <div style="height:14px"></div>
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('bars', 17)}</div>
+      <div class="req-icon b s38">${icon('bars', 17)}</div>
       <div><div class="tt">How client scoring works</div>
       <div class="ts">Same two pillars as athletes: Nutrition and Recovery. Inside Nutrition, your goal changes the mix: for fat loss it's calorie window 45, protein 25, meals logged 30.</div></div>
     </div>`, 'Next', 'client-ob/2'),
 
   2: () => frame(2, 6, 'Start with the basics', 'This is how your trainer will recognize you.', `
-    <input id="cl-first" class="ob-input" maxlength="40" placeholder="First name" autocapitalize="words" autocorrect="off" spellcheck="false" />
+    <input id="cl-first" class="ob-input" maxlength="40" placeholder="First name" aria-label="First name" autocomplete="given-name" autocapitalize="words" autocorrect="off" spellcheck="false" />
     <div style="height:12px"></div>
-    <input id="cl-last" class="ob-input" maxlength="40" placeholder="Last name" autocapitalize="words" autocorrect="off" spellcheck="false" />
+    <input id="cl-last" class="ob-input" maxlength="40" placeholder="Last name" aria-label="Last name" autocomplete="family-name" autocapitalize="words" autocorrect="off" spellcheck="false" />
     <div style="height:16px"></div>
     <h2 class="eyebrow" style="margin:8px 2px 10px">Life, honestly</h2>
     <div class="chip-row" id="cl-life">
@@ -818,8 +818,8 @@ const clientSteps = {
 
   3: () => frame(3, 6, 'Where are you now?', 'Weight is a weekly trend here. One heavy morning proves nothing.', `
     <div class="bignum-pair">
-      <div class="bignum"><input id="cl-cur" type="number" inputmode="decimal" placeholder="—" style="${numInputCl}" /><div class="bk">Current lb</div></div>
-      <div class="bignum" style="border-color:var(--green-border)"><input id="cl-tgt" type="number" inputmode="decimal" placeholder="—" style="${numInputCl};color:var(--green-bright)" /><div class="bk">Target lb</div></div>
+      <div class="bignum"><input id="cl-cur" type="number" inputmode="decimal" placeholder="—" style="${numInputCl}" /><label class="bk" for="cl-cur">Current lb</label></div>
+      <div class="bignum" style="border-color:var(--green-border)"><input id="cl-tgt" type="number" inputmode="decimal" placeholder="—" style="${numInputCl};color:var(--green-bright)" /><label class="bk" for="cl-tgt">Target lb</label></div>
     </div>
     <div style="height:16px"></div>
     <h2 class="eyebrow" style="margin:8px 2px 10px">Allergies & restrictions · checked on every scan</h2>
@@ -829,7 +829,7 @@ const clientSteps = {
     </div>
     <div style="height:14px"></div>
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 18)}</div>
+      <div class="req-icon b s38">${icon('shield', 18)}</div>
       <div><div class="tt">No shame mechanics</div>
       <div class="ts">The daily score measures what you did today: meals, recovery, honesty. The scale is tracked weekly and never moves the daily number.</div></div>
     </div>`, 'Next', 'client-ob/4', { back: 'client-ob/2' }),
@@ -852,7 +852,7 @@ const clientSteps = {
       'Continue', 'client-ob/5', { back: 'client-ob/3' });
     }
     return frame(4, 6, 'Connect your trainer.', 'Accountability needs a witness. Search for them, then enter the code they gave you.', `
-      <input id="cl-q" class="ob-input" placeholder="Search your trainer" autocorrect="off" spellcheck="false" />
+      <input id="cl-q" class="ob-input" placeholder="Search your trainer" aria-label="Search your trainer" autocorrect="off" spellcheck="false" />
       <div id="cl-out" style="margin-top:14px"></div>
       <div style="height:10px"></div>
       <div id="cl-alt" style="text-align:center;font-size:var(--t-base);font-weight:700;color:var(--purple-bright);cursor:pointer">My gym isn't listed</div>`,
@@ -885,7 +885,7 @@ const clientSteps = {
       <section class="card" style="padding:6px 16px">${rows}</section>
       <div style="height:10px"></div>
       <div class="sidebox">
-        <div class="req-icon b" style="width:38px;height:38px">${icon('bolt', 17)}</div>
+        <div class="req-icon b s38">${icon('bolt', 17)}</div>
         <div><div class="tt">Your edge</div><div class="ts">${std.focus}</div></div>
       </div>
       ${knobs}
@@ -905,7 +905,7 @@ const clientSteps = {
     <div style="height:16px"></div>
     ${accountBody({ terms: 'clob' })}
     <div class="ob-foot" style="margin-top:auto">
-      <button id="su-go" class="btn green" disabled>Create account &amp; Start</button>
+      <button id="su-go" class="btn primary" disabled>Create account &amp; Start</button>
     </div>
   </div>`,
 };
@@ -980,9 +980,9 @@ export const clientOb = {
       const codeEntry = (ctx) => {
         gen++; // repainting out — invalidate any in-flight search/code responses
         out.innerHTML = `
-          ${ctx ? `<div class="sidebox" style="margin-bottom:12px"><div class="req-icon b" style="width:38px;height:38px">${icon('heart', 17)}</div>
+          ${ctx ? `<div class="sidebox" style="margin-bottom:12px"><div class="req-icon b s38">${icon('heart', 17)}</div>
             <div><div class="tt">${esc(ctx.title)}</div><div class="ts">${esc(ctx.sub)}</div></div></div>` : ''}
-          <input id="cl-code" class="ob-input" placeholder="Client code" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="12" />
+          <input id="cl-code" class="ob-input" placeholder="Client code" aria-label="Client code" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="12" />
           <div id="cl-code-err" style="color:var(--amber-bright);font-size:var(--t-sm);font-weight:700;min-height:18px;margin-top:10px"></div>`;
         const codeEl = out.querySelector('#cl-code'), codeErr = out.querySelector('#cl-code-err');
         codeEl.addEventListener('input', debounce(async () => {
@@ -1013,7 +1013,7 @@ export const clientOb = {
           const { practices } = await dir.practices(v);
           if (myGen !== gen || q.value.trim() !== v) return; // stale
           if (!practices.length) {
-            out.innerHTML = `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('heart', 17)}</div>
+            out.innerHTML = `<div class="sidebox"><div class="req-icon b s38">${icon('heart', 17)}</div>
               <div><div class="tt">Not listed yet</div><div class="ts">No trainer by that name is on OnStandard yet. Enter your client code below, or skip; you can connect anytime from Profile.</div></div></div>`;
             return;
           }
@@ -1029,7 +1029,7 @@ export const clientOb = {
           }));
         } catch {
           if (myGen !== gen) return; // stale
-          out.innerHTML = `<div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('heart', 17)}</div>
+          out.innerHTML = `<div class="sidebox"><div class="req-icon b s38">${icon('heart', 17)}</div>
             <div><div class="tt">Can't reach the directory</div><div class="ts">Check your connection, enter a client code directly, or skip for now.</div></div></div>`;
         }
       }, 300));
@@ -1122,10 +1122,10 @@ function cpHandleEditor() {
   const { ci } = cpNames();
   return `
     <div id="handle-editor" style="display:none;margin:6px 0 12px">
-      <input id="handle-input" class="ob-input" maxlength="40" placeholder="e.g. Coach JB" value="${esc(ci.handle)}" />
+      <input id="handle-input" class="ob-input" maxlength="40" placeholder="e.g. Coach JB" aria-label="What the room calls you" value="${esc(ci.handle)}" />
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="btn ghost sm" id="handle-cancel" style="width:auto;padding:0 18px">Cancel</button>
-        <button class="btn green sm" id="handle-save" style="width:auto;padding:0 22px">Save</button>
+        <button class="btn primary sm" id="handle-save" style="width:auto;padding:0 22px">Save</button>
       </div>
       <div id="handle-status" style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);min-height:16px;margin-top:6px">Athletes see this everywhere: greetings, meal threads, your standard.</div>
     </div>`;
@@ -1145,27 +1145,24 @@ function cpCodeBlock() {
         <button class="btn ghost sm" id="regen-code" style="width:auto;padding:0 18px">New code</button>
       </div>
       <div id="code-editor" style="display:none;margin-top:12px">
-        <input id="code-input" class="ob-input" placeholder="YOUR CODE · 6–12 letters/numbers" maxlength="12"
+        <input id="code-input" class="ob-input" placeholder="YOUR CODE · 6–12 letters/numbers" aria-label="Custom join code" maxlength="12"
           autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" />
         <div style="display:flex;justify-content:center;gap:8px;margin-top:10px">
           <button class="btn ghost sm" id="code-cancel" style="width:auto;padding:0 18px">Cancel</button>
-          <button class="btn green sm" id="code-save" style="width:auto;padding:0 22px">Save code</button>
+          <button class="btn primary sm" id="code-save" style="width:auto;padding:0 22px">Save code</button>
         </div>
       </div>
       <div id="code-status" style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px"></div>
     </section>` : ci.state === 'loading' ? `
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+      <div class="req-icon b s38">${icon('clipboard', 17)}</div>
       <div><div class="tt">Loading your team…</div><div class="ts">Checking your team and code.</div></div>
     </div>` : ci.state === 'offline' ? `
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+      <div class="req-icon b s38">${icon('clipboard', 17)}</div>
       <div><div class="tt">Can't reach the server</div><div class="ts">Your code is safe: reconnect and it shows right here.</div></div>
     </div>` : `
-    <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
-      <div><div class="tt">No code yet</div><div class="ts">It appears when your team is created, automatically on your next sign-in.</div></div>
-    </div>`}`;
+    ${emptyState({ icon: 'clipboard', title: 'No code yet', body: 'It appears when your team is created, automatically on your next sign-in.', compact: true })}`}`;
 }
 function cpStaffBlock() {
   const mine = STAFF && STAFF.teamId === (RT.team && RT.team.id) ? STAFF : null;
@@ -1189,14 +1186,14 @@ function cpStaffBlock() {
         <div class="lm"><div class="lt">${esc(s.name)}</div><div class="ls">${esc(roleLabel(normalizeRole(s.role)))}${s.role === 'head_coach' ? '' : ` · ${esc(scopeText(s.scope_kind ? { kind: s.scope_kind, value: s.scope_value } : null))}`}</div></div>
         ${iAmHead && s.role !== 'head_coach' && s.staff_id !== RT.userId ? `
         <button class="btn ghost sm" data-staff-scope="${esc(s.staff_id)}" style="width:auto;padding:0 10px;height:44px;font-size:var(--t-xs)">Scope</button>
-        <button class="btn ghost sm" data-staff-rm="${esc(s.staff_id)}" style="width:auto;padding:0 10px;height:44px;font-size:var(--t-xs);color:var(--red);margin-left:6px">Remove</button>` : ''}
+        <button class="btn ghost danger sm" data-staff-rm="${esc(s.staff_id)}" style="width:auto;padding:0 10px;font-size:var(--t-xs);margin-left:6px">Remove</button>` : ''}
       </div>
       ${iAmHead && s.role !== 'head_coach' ? `
       <div id="staff-scope-ed-${esc(s.staff_id)}" style="display:none;padding:2px 2px 12px">
-        <input class="ob-input" data-scope-input="${esc(s.staff_id)}" placeholder="Rooms, comma-separated, e.g. LB or OL, TE. Blank = whole team"
+        <input class="ob-input" data-scope-input="${esc(s.staff_id)}" aria-label="Rooms this staff member covers" placeholder="Rooms, comma-separated, e.g. LB or OL, TE. Blank = whole team"
           autocapitalize="characters" autocorrect="off" spellcheck="false" value="${s.scope_kind === 'position' ? esc(s.scope_value || '') : ''}" />
         <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="btn green sm" data-scope-save="${esc(s.staff_id)}" style="width:auto;padding:0 18px">Save scope</button>
+          <button class="btn primary sm" data-scope-save="${esc(s.staff_id)}" style="width:auto;padding:0 18px">Save scope</button>
         </div>
       </div>` : ''}`).join('')}
       ${iAmHead ? `
@@ -1305,8 +1302,9 @@ function wireOperatorAccount(root) {
     if (note) note.textContent = RT.email ? `Reset link sent to ${RT.email}. Check your inbox.` : 'Could not find your email. Sign in again first.';
     busy = false;
   };
+  // Enter/Space: the router's document-level floor activates any role="button" + tabindex
+  // element by calling click(), so no per-element key handler here.
   row.addEventListener('click', send);
-  row.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); send(); } });
 }
 
 export const coachProfile = {
@@ -1422,7 +1420,7 @@ export const coachProfile = {
     const editor = root.querySelector('#code-editor');
     const input = root.querySelector('#code-input');
     const status = root.querySelector('#code-status');
-    const say = (msg, isErr) => { if (status) { status.style.color = isErr ? 'var(--red)' : 'var(--text-3)'; status.textContent = msg; } };
+    const say = (msg, isErr) => { if (status) sayStatus(status, msg, { error: !!isErr }); };
     const applyCode = (newCode) => {
       if (RT.team) RT.team = { ...RT.team, code: newCode };
       window.__render();
@@ -1553,7 +1551,7 @@ export const trainerProfile = {
           the Rename link above opens it. */''}
     <section class="card" id="pr-rename-card" style="display:none;padding:14px 16px;margin-top:8px">
       <h2 class="eyebrow" style="margin:0 0 8px">Practice name</h2>
-      <input id="pr-name-input" class="ob-input" maxlength="60" placeholder="Your practice's name" value="${esc(ti.practiceName === 'Your practice' ? '' : ti.practiceName)}"/>
+      <input id="pr-name-input" class="ob-input" maxlength="60" placeholder="Your practice's name" aria-label="Practice name" value="${esc(ti.practiceName === 'Your practice' ? '' : ti.practiceName)}"/>
       <div style="display:flex;gap:8px;margin-top:10px">
         <button class="btn ghost sm" id="pr-name-cancel" style="width:auto;padding:0 18px">Cancel</button>
         <button class="btn sm" id="pr-name-save" style="width:auto;padding:0 22px;background:linear-gradient(150deg,var(--${hue}),var(--${hue}-deep));color:var(--ink-on-accent)">Save name</button>
@@ -1578,7 +1576,7 @@ export const trainerProfile = {
       invite = `
       <h2 class="eyebrow">Invite a client</h2>
       <div class="sidebox">
-        <div class="req-icon ${hue === 'green' ? 'g' : 'p'}" style="width:38px;height:38px"><span class="hq-spin"></span></div>
+        <div class="req-icon ${hue === 'green' ? 'g' : 'p'} s38"><span class="hq-spin"></span></div>
         <div><div class="tt">Your client code is being created</div>
         <div class="ts">It mints the moment your practice is set up on the server, usually a few seconds. Nothing shows until it's real, so a client never gets a dead code.</div></div>
       </div>`;
@@ -1588,7 +1586,7 @@ export const trainerProfile = {
       invite = `
       <h2 class="eyebrow">Invite a client</h2>
       <div class="sidebox">
-        <div class="req-icon a" style="width:38px;height:38px">${icon('wifiOff', 17)}</div>
+        <div class="req-icon a s38">${icon('wifiOff', 17)}</div>
         <div><div class="tt">Can't reach the server</div>
         <div class="ts">We couldn't load your client code. Check your connection: this picks back up on its own once you're back online.</div></div>
       </div>`;
@@ -1631,7 +1629,7 @@ export const trainerProfile = {
           <span class="link" id="pc-regen" role="button" tabindex="0" style="font-size:var(--t-xs);font-weight:700">New code</span>
         </div>
         <div id="pc-editor" style="display:none;margin-top:12px">
-          <input id="pc-input" class="ob-input" placeholder="YOUR CODE · 6–12 letters/numbers" maxlength="12"
+          <input id="pc-input" class="ob-input" placeholder="YOUR CODE · 6–12 letters/numbers" aria-label="Custom join code" maxlength="12"
             autocapitalize="characters" autocorrect="off" spellcheck="false" style="text-align:center;letter-spacing:0.12em;text-transform:uppercase" />
           <div style="display:flex;justify-content:center;gap:8px;margin-top:10px">
             <button class="btn ghost sm" id="pc-cancel" style="width:auto;padding:0 18px">Cancel</button>
@@ -1712,13 +1710,9 @@ export const trainerProfile = {
     };
     // Server value only, never optimistic — same rule as the coach's applyCode.
     const pcApply = (code) => { RT.practice = { ...(RT.practice || {}), code }; if (window.__render) window.__render(); };
-    // Customize / New code are links now (role="button" spans), so Enter/Space must activate
-    // them the way a real button would — same wiring the Rename link uses.
-    const linkWire = (el, fn) => {
-      if (!el) return;
-      el.addEventListener('click', fn);
-      el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); fn(); } });
-    };
+    // Customize / New code are links (role="button" spans). Enter/Space reach them through the
+    // router's document-level floor, which click()s any role="button" + tabindex element.
+    const linkWire = (el, fn) => { if (el) el.addEventListener('click', fn); };
     const pcEdit = root.querySelector('#pc-edit');
     const pcEditor = root.querySelector('#pc-editor');
     if (pcEdit && pcEditor) linkWire(pcEdit, () => {

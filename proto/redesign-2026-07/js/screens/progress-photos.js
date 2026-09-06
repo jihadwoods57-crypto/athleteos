@@ -8,6 +8,7 @@ import { RT } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg, emptyState, errorState, skeletonRows } from '../components.js';
 import * as roles from '../roles.js';
+import { shortDateYear } from '../fmt-date.js';
 
 /* `failed` separates "we asked and could not find out" from "there are none". Without it a
    dropped connection told an athlete with a year of photos to start their timeline, and hid
@@ -19,11 +20,7 @@ let DELETE_ERROR = null;   // a failed delete, said out loud above the grid
 
 const POSES = ['Front', 'Side', 'Back'];
 
-function fmtDate(d) {
-  if (!d) return '';
-  try { return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); }
-  catch { return String(d); }
-}
+const fmtDate = (d) => shortDateYear(d);
 
 /* One canvas pipeline (mirrors camera.js encodeToJpeg params) — downscale a picked file to a
    compact JPEG. No quality measurement here; progress shots aren't analyzed. */
@@ -81,20 +78,20 @@ function composeView() {
   <div style="height:12px"></div>
   <h2 class="eyebrow">Pose</h2>
   <section class="card pad">
-    <div class="pw-toggle" style="margin:0">
-      ${POSES.map((p) => `<button class="pw-seg${s.pose === p ? ' on' : ''}" data-pp-pose="${esc(p)}">${esc(p)}</button>`).join('')}
+    <div class="pw-toggle" style="margin:0" role="radiogroup" aria-label="Pose">
+      ${POSES.map((p) => `<button class="pw-seg${s.pose === p ? ' on' : ''}" data-pp-pose="${esc(p)}" role="radio" aria-checked="${s.pose === p}">${esc(p)}</button>`).join('')}
     </div>
   </section>
   <div style="height:12px"></div>
   <h2 class="eyebrow">Weight (optional)</h2>
   <section class="card pad">
-    <input class="ob-input" id="pp-weight" inputmode="decimal" placeholder="e.g. 182" value="${s.weightLb != null ? esc(String(s.weightLb)) : ''}" />
+    <input class="ob-input" id="pp-weight" inputmode="decimal" placeholder="e.g. 182" aria-label="Weight (optional)" value="${s.weightLb != null ? esc(String(s.weightLb)) : ''}" />
     <div style="height:10px"></div>
-    <input class="ob-input" id="pp-note" maxlength="120" placeholder="Note (optional)" value="${s.note ? esc(s.note) : ''}" />
+    <input class="ob-input" id="pp-note" maxlength="120" placeholder="Note (optional)" aria-label="Note (optional)" value="${s.note ? esc(s.note) : ''}" />
   </section>
   <div style="height:14px"></div>
   ${s.error ? `<div role="alert" style="color:var(--red-bright);font-size:var(--t-sm);font-weight:600;text-align:center;margin-bottom:10px">${esc(s.error)}</div>` : ''}
-  <button class="btn green" id="pp-save" style="width:100%" ${s.busy ? 'disabled' : ''}>${s.busy ? 'Saving…' : 'Save to my timeline'}</button>
+  <button class="btn primary" id="pp-save" style="width:100%" ${s.busy ? 'disabled' : ''}>${s.busy ? 'Saving…' : 'Save to my timeline'}</button>
   <div style="height:8px"></div>
   <button class="btn ghost" id="pp-cancel" style="width:100%" ${s.busy ? 'disabled' : ''}>Cancel</button>
   <div style="height:12px"></div>`;
@@ -122,7 +119,7 @@ function browseView() {
   return `${backHead('Progress photos', 'Your before & after · private to you and your coach', 'progress')}
 
   <div style="display:flex;gap:8px">
-    <button class="btn green sm" id="pp-add" style="flex:1">${icon('camera', 16)} Add photo</button>
+    <button class="btn primary sm" id="pp-add" style="flex:1">${icon('camera', 16)} Add photo</button>
     ${canCompare ? `<button class="btn ghost sm" data-go="progress-compare" style="flex:1">${icon('image', 16)} Compare</button>` : ''}
   </div>
   <input type="file" accept="image/*" capture="environment" id="pp-file" style="display:none" />

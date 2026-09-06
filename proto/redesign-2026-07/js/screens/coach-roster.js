@@ -176,16 +176,16 @@ function groupSheet(groups) {
     <div class="lrow" style="cursor:default">
       <div class="lm"><div class="lt">Delete ${esc(g.name)}?</div><div class="ls">Groups are filters; nobody leaves the roster.</div></div>
       <button class="btn ghost micro" data-gdel-cancel="1" style="width:auto">Keep</button>
-      <button class="btn sm" data-gdel-confirm="${esc(g.id)}" style="width:auto;padding:0 10px;height:30px;margin-left:6px;background:var(--danger-solid);color:#fff;border:none">Delete group</button>
+      <button class="btn danger micro" data-gdel-confirm="${esc(g.id)}" style="width:auto;margin-left:6px">Delete group</button>
     </div>` : `
     <div class="lrow" style="cursor:default">
       <div class="lm"><div class="lt">${esc(g.name)}</div><div class="ls">${(g.athlete_ids || []).length} ${CD.noun}${(g.athlete_ids || []).length === 1 ? '' : 's'}</div></div>
       ${SEL.size ? `<button class="btn ghost micro" data-gadd="${esc(g.id)}" style="width:auto">Add ${SEL.size}</button>` : ''}
-      <button class="btn ghost sm" data-gdel="${esc(g.id)}" style="width:auto;padding:0 10px;height:30px;margin-left:6px;color:var(--red)">Delete</button>
+      <button class="btn ghost danger micro" data-gdel="${esc(g.id)}" style="width:auto;margin-left:6px">Delete</button>
     </div>`).join('') || `<div style="font-size:12px;font-weight:600;color:var(--text-3)">No groups yet.</div>`}
     <div style="display:flex;gap:7px;margin-top:10px">
-      <input class="ob-input" id="group-name" maxlength="40" placeholder="New group name" style="flex:1;height:36px" />
-      <button class="btn green xs" data-gnew style="width:auto" ${SEL.size ? '' : 'disabled'}>Create with ${SEL.size || 0}</button>
+      <input class="ob-input" id="group-name" aria-label="New group name" maxlength="40" placeholder="New group name" style="flex:1;height:36px" />
+      <button class="btn primary xs" data-gnew style="width:auto" ${SEL.size ? '' : 'disabled'}>Create with ${SEL.size || 0}</button>
     </div>
     <div id="group-status" style="font-size:11.5px;font-weight:600;color:var(--text-3);min-height:14px;margin-top:5px"></div>
   </section>`;
@@ -231,7 +231,7 @@ function absenceSheet() {
   <section class="card" style="padding:13px 16px">
     <h2 class="eyebrow" style="margin:0 0 8px">Excuse ${SEL.size} ${CD.noun}${SEL.size === 1 ? '' : 's'}</h2>
     <div style="font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5;margin-bottom:8px">Excused ${CD.nouns} drop out of the priority queue and today's completion math. And nothing pings them while excused.</div>
-    <input class="ob-input" id="abs-reason" maxlength="120" placeholder="Reason (travel, injury, family…)" style="height:36px" />
+    <input class="ob-input" id="abs-reason" aria-label="Reason" maxlength="120" placeholder="Reason (travel, injury, family…)" style="height:36px" />
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px">
       <button class="btn sm" data-abs="0" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:12px">Just today</button>
       <button class="btn ghost sm" data-abs="6" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:12px">Through the week</button>
@@ -358,9 +358,9 @@ export const coachRoster = {
     };
     return `${head}
     <div class="rtools">
-      <input class="ob-input rq" id="roster-q" placeholder="${esc(vocab().search)}" value="${esc(Q)}" />
+      <input class="ob-input rq" id="roster-q" aria-label="${esc(vocab().search)}" placeholder="${esc(vocab().search)}" value="${esc(Q)}" />
       <button class="btn ghost sm" data-sort aria-label="Sort by ${{ score: 'score', status: 'status', name: 'name', activity: 'recent activity' }[SORT]}. Tap to change">${{ score: 'Score', status: 'Status', name: 'A–Z', activity: 'Recent' }[SORT]}</button>
-      <button class="btn ${SELECTING ? 'green' : 'ghost'} sm" data-selmode>${SELECTING ? 'Done' : 'Select'}</button>
+      <button class="btn ${SELECTING ? 'primary' : 'ghost'} sm" data-selmode>${SELECTING ? 'Done' : 'Select'}</button>
     </div>
     <div class="co-seg co-scroll">
       ${fchip('all', '', `All ${entries.length}`)}${liveStatuses.map(([k, n]) => fchip('status', k, `${STATUS_META[k].label} ${n}`, STATUS_META[k].color)).join('')}${positions.map(p => fchip('position', p, p)).join('')}${groups.map(g => fchip('group', g.id, g.name)).join('')}
@@ -370,7 +370,7 @@ export const coachRoster = {
     ${SHOW_ABSENCE ? absenceSheet() : ''}
     <section class="card" id="roster-list" style="padding:2px 0">${listHtml(list)}</section>
     ${SELECTING && SEL.size ? (BULK_NUDGE_ARM != null ? `
-    <div class="card" style="position:sticky;bottom:calc(var(--nav-h) + 19px + env(safe-area-inset-bottom, 0px) + 8px);padding:9px;z-index:20">
+    <div class="card" style="position:sticky;bottom:calc(var(--tab-clear) + 8px);padding:9px;z-index:20">
       <input id="bulk-nudge-body" class="ob-input" maxlength="120" value="${esc(BULK_NUDGE_ARM)}" aria-label="Nudge message" style="width:100%;height:36px;font-size:var(--t-sm)" />
       <div id="bulk-nudge-note" style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:6px 0">This exact message goes to all ${SEL.size}, from "${esc(S.operatorIdentity.handle)} is waiting".</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
@@ -378,7 +378,7 @@ export const coachRoster = {
         <button class="btn sm" data-bulk="nudgesend" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-xs)">Send to ${SEL.size}</button>
       </div>
     </div>` : `
-    <div class="card" style="position:sticky;bottom:calc(var(--nav-h) + 19px + env(safe-area-inset-bottom, 0px) + 8px);display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:9px;z-index:20">
+    <div class="card" style="position:sticky;bottom:calc(var(--tab-clear) + 8px);display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:9px;z-index:20">
       <button class="btn sm" data-bulk="nudge" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">Nudge ${SEL.size}</button>
       ${CD.caps.assignments ? `<button class="btn ghost sm" data-bulk="assign" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">Assign</button>` : ''}
       ${CD.caps.groups ? `<button class="btn ghost sm" data-bulk="group" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">→ Group</button>` : ''}

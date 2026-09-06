@@ -86,14 +86,14 @@ export default {
 
     ${AVAILABLE === false ? `
     <div class="sidebox" style="margin-top:14px">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('bolt', 19)}</div>
+      <div class="req-icon b s38">${icon('bolt', 19)}</div>
       <div>
         <div class="tt">Not available on this version</div>
         <div class="ts">Arrival check-in needs a newer build of the app. Until you update, you can check in by tapping the button on your commitment card. It counts exactly the same.</div>
       </div>
     </div>` : needsGuardian ? `
     <div class="sidebox" style="margin-top:14px">
-      <div class="req-icon a" style="width:38px;height:38px">${icon('user', 19)}</div>
+      <div class="req-icon a s38">${icon('user', 19)}</div>
       <div>
         <div class="tt">A parent or guardian has to approve this first</div>
         <div class="ts">You're under 18, so OnStandard won't check your location until a guardian says yes, or your school records that they already have your family's consent on file. Until then you can still check in by tapping.</div>
@@ -108,7 +108,7 @@ export default {
     <div class="ts center">Once they're linked, they approve arrival check-in from their own app. Nothing about your location is checked or stored until they do.</div>`}
     ` : CONSENT === null ? (CONSENT_ASKED ? `
     <div class="sidebox" style="margin-top:14px">
-      <div class="req-icon a" style="width:38px;height:38px">${icon('bolt', 19)}</div>
+      <div class="req-icon a s38">${icon('bolt', 19)}</div>
       <div>
         <div class="tt">Couldn’t confirm your account just now</div>
         <div class="ts">We couldn’t reach the server to check whether arrival check-in is set up for you, so nothing is switched on yet. You can still check in by tapping the button on your commitment card.</div>
@@ -123,14 +123,14 @@ export default {
     <div class="ts" style="text-align:center">One moment: confirming arrival check-in is available for you.</div>
     `) : denied ? `
     <div class="sidebox" style="margin-top:14px">
-      <div class="req-icon a" style="width:38px;height:38px">${icon('target', 19)}</div>
+      <div class="req-icon a s38">${icon('target', 19)}</div>
       <div>
         <div class="tt">Your phone is blocking location for OnStandard</div>
         <div class="ts">Location for this app is set to “Never” in your phone’s settings, so automatic check-in can’t run and asking again from here won’t bring the prompt back. To turn it on: open your phone’s Settings, find OnStandard, and set Location to “Always”. Until then, check in by tapping the button on your commitment card. It counts exactly the same.</div>
       </div>
     </div>` : `
     <div style="height:14px"></div>
-    <button class="btn ${on ? '' : 'green'}" id="lc-enable" style="width:100%" ${BUSY ? 'disabled' : ''}>
+    <button class="btn ${on ? '' : 'primary'}" id="lc-enable" style="width:100%" ${BUSY ? 'disabled' : ''}>
       ${icon(on ? 'check' : 'target', 18)} ${on ? 'Automatic check-in is on' : partial ? 'Allow it to work in the background' : 'Turn on arrival check-in'}
     </button>
     <div style="height:10px"></div>

@@ -76,7 +76,7 @@ export default {
         ${/* disabled, not just relabelled: the button stayed tappable while checkout opened, so a
               second tap started a SECOND Stripe Checkout for the same package. The label carries
               the child's name because a parent funding two kids sees two identical "Pay" buttons. */''}
-        ${o.price_cents != null ? `<button class="btn green sm" data-pay="${esc(o.offer_id)}" data-child="${esc(o.child_id)}"${UI.paying === o.offer_id ? ' disabled aria-busy="true"' : ''} aria-label="${OPENED[o.offer_id] ? `Reopen checkout for ${esc(o.name)}` : `Pay for ${esc(o.name)} for ${esc(g.child_name || 'your child')}, ${esc(priceLabel(o))}`}" style="width:auto;padding:0 14px;height:44px;flex:none">${UI.paying === o.offer_id ? '…' : OPENED[o.offer_id] ? 'Reopen checkout' : 'Pay'}</button>` : ''}
+        ${o.price_cents != null ? `<button class="btn primary sm" data-pay="${esc(o.offer_id)}" data-child="${esc(o.child_id)}"${UI.paying === o.offer_id ? ' disabled aria-busy="true"' : ''} aria-label="${OPENED[o.offer_id] ? `Reopen checkout for ${esc(o.name)}` : `Pay for ${esc(o.name)} for ${esc(g.child_name || 'your child')}, ${esc(priceLabel(o))}`}" style="width:auto;padding:0 14px;height:44px;flex:none">${UI.paying === o.offer_id ? '…' : OPENED[o.offer_id] ? 'Reopen checkout' : 'Pay'}</button>` : ''}
       </div>
       ${OPENED[o.offer_id] ? statusMsg({ text: 'Checkout opened in your browser. Finished paying? It shows here within a minute.', style: 'display:block;color:var(--text-2);padding:0 0 10px' }) : ''}`).join('')}
     </section>`).join('') + `

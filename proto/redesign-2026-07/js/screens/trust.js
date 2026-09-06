@@ -4,6 +4,7 @@ import { icon } from '../icons.js';
 import { backHead, esc, safeImg, emptyState, errorState, skeletonRows, segBar } from '../components.js';
 import { tierColor, ON_STANDARD, qualityAccent } from '../score-band.js';
 import { cachedMealPhoto, warmMealPhotos, resolveMealPhoto } from '../photo-store.js';
+import { shortDate, weekdayLong } from '../fmt-date.js';
 import { fetchRecentMeals, daysAgoISO, fetchMealComments, postMealComment, deleteMealComment, uploadChatPhoto, fetchThreadParticipants, signedMealPhotoUrl, signedMealPhotoUrls } from '../roles.js';
 import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos, wireComposerAttach, postChatMessage } from '../chat-attach.js';
 import { threadMessages, reactionGroups, REACTION_EMOJI } from '../meal-intel.js';
@@ -143,7 +144,7 @@ export const streak = {
         ${cal.map(x => `
           <div class="stk-day ${x.on ? 'on' : x.future ? 'future' : x.today ? '' : 'miss'}${x.today ? ' today' : ''}">
             <span class="d">${x.label}</span>
-            <span class="s">${x.score != null ? x.score : x.future ? '·' : '—'}</span>
+            <span class="s">${x.score != null ? x.score : '—'}</span>
             ${x.grace ? '<span class="g">Grace</span>' : ''}
           </div>`).join('')}
       </div>
@@ -214,7 +215,7 @@ export const history = {
         <span>${label}</span>
         ${score != null ? `<span style="text-transform:none;letter-spacing:0;font-size:13px;font-weight:800;color:${tierColor(score)}">${score}${tierName ? ` · ${tierName}` : ''}</span>` : ''}
       </h2>`;
-    const todayLabel = `Today · ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date().getDay()]}`;
+    const todayLabel = `Today · ${weekdayLong(new Date())}`;
     const rows = HIST.rows;
     let body;
     if (HIST.failed && rows === null) {
@@ -242,12 +243,9 @@ export const history = {
         const g = groups.find((x) => x.date === m.day_date);
         if (g) g.meals.push(m); else groups.push({ date: m.day_date, meals: [m] });
       }
-      const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       body = groups.map((g) => {
         const isToday = g.date === todayISO;
-        const d = new Date(g.date + 'T00:00:00');
-        const label = isToday ? todayLabel : `${DOW[d.getDay()]} · ${MON[d.getMonth()]} ${d.getDate()}`;
+        const label = isToday ? todayLabel : `${weekdayLong(g.date)} · ${shortDate(g.date)}`;
         const h = scoreBy[g.date];
         const score = isToday ? S.score : (h ? h.score : null);
         const tierName = isToday ? S.tier.name : (h ? h.tier : null);
@@ -481,15 +479,13 @@ export const mealView = {
     const m = histMealById(sub) || (DIRECT.id === sub ? DIRECT.row : null);
     if (!m) {
       return `${backHead('Meal', 'Not available', 'history')}
-      <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+      <div class="sidebox"><div class="req-icon b s38">${icon('clipboard', 17)}</div>
       <div><div class="tt">Couldn't open this meal</div><div class="ts">Open it from your Activity History.</div></div></div>`;
     }
     const late = typeof m.minutes_late === 'number' && m.minutes_late > 0;
     const name = m.name || (m.type ? m.type.charAt(0).toUpperCase() + m.type.slice(1) : 'Meal');
     const img = m.photo_path ? cachedMealPhoto(m.photo_path) : null;
-    const d = new Date(String(m.day_date) + 'T00:00:00');
-    const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const when = isNaN(d) ? '' : `${MON[d.getMonth()]} ${d.getDate()}`;
+    const when = shortDate(String(m.day_date));
     return `
     ${backHead(name, `${when}${fmtLoggedAt(m.logged_at) ? ` · ${fmtLoggedAt(m.logged_at)}` : ''} · ${late ? `${m.minutes_late} min late` : 'On time'}`, 'history')}
     <div class="photo-hero" id="mv-hero" data-vt="plate" style="${img && safeImg(img) ? `background-image:url('${safeImg(img)}')` : 'background:linear-gradient(150deg, rgba(var(--green-rgb),0.14), rgba(var(--blue-deep-rgb),0.06))'}">

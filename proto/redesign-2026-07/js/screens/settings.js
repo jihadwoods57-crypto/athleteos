@@ -64,7 +64,7 @@ export function wireComposer(root, replyWho = 'ai', replyName = 'OnStandard AI',
       if (replyWho === 'delivery') {
         thread.insertAdjacentHTML('beforeend', `<div class="msg-status">${replyText}</div>`);
       } else {
-        const av = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/></svg>`;
+        const av = icon('sparkle', 15);
         thread.insertAdjacentHTML('beforeend',
           `<div class="msg ai"><div class="av">${av}</div><div><div class="who">${replyName}</div><div class="bubble">${smartReply(text, replyText)}</div></div></div>`);
       }
@@ -156,7 +156,7 @@ export const settings = {
         <div class="lrow" id="set-bio">
           <div class="lic">${icon('lock', 17)}</div>
           <div class="lm"><div class="lt">Unlock with Face ID</div><div class="ls">Required on app open</div></div>
-          <div class="seg" style="width:104px" id="set-bio-seg"><button>On</button><button class="on">Off</button></div>
+          <div class="std-switch" id="set-bio-seg" role="switch" aria-checked="false" tabindex="0" aria-label="Unlock with Face ID"></div>
         </div>
       </section>
     </div>
@@ -198,12 +198,14 @@ export const settings = {
       const wrap = root.querySelector('#set-bio-wrap');
       wrap.style.display = '';
       const row = root.querySelector('#set-bio');
-      const seg = row.querySelector('#set-bio-seg');
-      const [onBtn, offBtn] = seg.querySelectorAll('button');
-      const paint = (on) => { onBtn.classList.toggle('on', on); offBtn.classList.toggle('on', !on); };
+      const sw = row.querySelector('#set-bio-seg');
+      const paint = (on) => { sw.classList.toggle('on', on); sw.setAttribute('aria-checked', on ? 'true' : 'false'); };
       try { paint((await N.secureStore.getItem('onstd-biolock')) === '1'); } catch { /* default Off */ }
-      onBtn.addEventListener('click', () => { N.secureStore.setItem('onstd-biolock', '1'); paint(true); });
-      offBtn.addEventListener('click', () => { N.secureStore.removeItem('onstd-biolock'); paint(false); });
+      sw.addEventListener('click', () => {
+        const on = !sw.classList.contains('on');
+        if (on) N.secureStore.setItem('onstd-biolock', '1'); else N.secureStore.removeItem('onstd-biolock');
+        paint(on);
+      });
     })();
   },
 };
@@ -303,7 +305,7 @@ export const privacy = {
 
     <div style="height:14px"></div>
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('lock', 17)}</div>
+      <div class="req-icon b s38">${icon('lock', 17)}</div>
       <div><div class="tt">Defaults that protect you</div>
       <div class="ts">Nothing is public. Meal photos never leave your coach connection. You can download or delete everything, below.</div></div>
     </div>
@@ -505,12 +507,12 @@ export const billing = {
       </div>`}
     </section>` : operator ? `
     <section class="card pad">
-      <button class="btn green" id="bill-upsell-pro" style="width:100%">See plans · free 14-day trial</button>
+      <button class="btn primary" id="bill-upsell-pro" style="width:100%">See plans · free 14-day trial</button>
       <div style="height:10px"></div>
       <div style="font-size:12px;font-weight:600;color:var(--text-3);line-height:1.5;text-align:center">Every plan counts <b>active</b> athletes only; idle seats are free.</div>
     </section>` : `
     <section class="card pad">
-      <button class="btn green" id="bill-upsell" style="width:100%">See membership plans</button>
+      <button class="btn primary" id="bill-upsell" style="width:100%">See membership plans</button>
       <div style="height:10px"></div>
       <div class="lrow" data-go="redeem-code" style="cursor:pointer"><div class="lic">${icon('key', 17)}</div><div class="lm"><div class="lt">Have a code?</div><div class="ls">From your trainer or a sponsor: redeem it to unlock premium</div></div>${icon('chevron', 17)}</div>
       <div class="lrow" id="bill-restore" role="button" tabindex="0" style="cursor:pointer"><div class="lic">${icon('rotate', 17)}</div><div class="lm"><div class="lt">Restore purchases</div><div class="ls">Already a member on another device?</div></div>${icon('chevron', 17)}</div>
@@ -573,12 +575,12 @@ export const notifSettings = {
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('bell', 17)}</div>
         <div class="lm"><div class="lt">Accountability notifications</div><div class="ls">${p.enabled ? 'On: reminders track what’s actually still open' : 'Off'}</div></div>
-        <div class="seg" style="width:104px" id="ns-enabled"><button class="${p.enabled ? 'on' : ''}">On</button><button class="${p.enabled ? '' : 'on'}">Off</button></div>
+        <div class="std-switch ${p.enabled ? 'on' : ''}" id="ns-enabled" role="switch" aria-checked="${p.enabled ? 'true' : 'false'}" tabindex="0" aria-label="Accountability notifications"></div>
       </div>
       <div class="lrow" id="ns-haptics" style="cursor:default">
         <div class="lic">${icon('vibrate', 17)}</div>
         <div class="lm"><div class="lt">Haptics</div><div class="ls">A light tick on taps and logs</div></div>
-        <div class="seg" style="width:104px" id="ns-haptics-seg"><button class="${RT.haptics !== false ? 'on' : ''}">On</button><button class="${RT.haptics === false ? 'on' : ''}">Off</button></div>
+        <div class="std-switch ${RT.haptics !== false ? 'on' : ''}" id="ns-haptics-seg" role="switch" aria-checked="${RT.haptics !== false ? 'true' : 'false'}" tabindex="0" aria-label="Haptics"></div>
       </div>
     </section>
 
@@ -618,7 +620,7 @@ export const notifSettings = {
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('bell', 17)}</div>
         <div class="lm"><div class="lt">Deadline warnings</div><div class="ls">The only ones that break quiet hours</div></div>
-        <div class="seg" style="width:104px" id="ns-deadline"><button class="${p.allowDeadline ? 'on' : ''}">On</button><button class="${p.allowDeadline ? '' : 'on'}">Off</button></div>
+        <div class="std-switch ${p.allowDeadline ? 'on' : ''}" id="ns-deadline" role="switch" aria-checked="${p.allowDeadline ? 'true' : 'false'}" tabindex="0" aria-label="Deadline warnings"></div>
       </div>
     </section>
 
@@ -657,16 +659,27 @@ export const notifSettings = {
     wireToggles(root);
     wireSegAria(root);
     wirePressure(root, '#ns-pressure');
-    // Haptics: a REAL device preference — router's buzz() honors it on every tap. Paint the
-    // buttons too: this seg saved the pref but never repainted, so tapping Off left On lit and
-    // the control read as broken (critique 2026-08-15).
-    const hseg = root.querySelector('#ns-haptics-seg');
-    if (hseg) {
-      const [onB, offB] = hseg.querySelectorAll('button');
-      const paint = (on) => { onB.classList.toggle('on', on); offB.classList.toggle('on', !on); };
-      onB.addEventListener('click', () => { act.setHaptics(true); paint(true); });
-      offB.addEventListener('click', () => { act.setHaptics(false); paint(false); });
-    }
+    // Haptics: a REAL device preference; router's buzz() honors it on every tap.
+    // A switch (role="switch", the coach standards editor's .std-switch) flips on click; the
+    // class and aria-checked move together so the control never says one thing and shows another.
+    const flip = (el) => {
+      const on = !el.classList.contains('on');
+      el.classList.toggle('on', on);
+      el.setAttribute('aria-checked', on ? 'true' : 'false');
+      return on;
+    };
+    const hsw = root.querySelector('#ns-haptics-seg');
+    if (hsw) hsw.addEventListener('click', () => { act.setHaptics(flip(hsw)); });
+    // On/Off switches persist one boolean straight into RT.notifPrefs.
+    const sw = (sel, patch, after) => {
+      const el = root.querySelector(sel);
+      if (!el) return;
+      el.addEventListener('click', () => {
+        const on = flip(el);
+        act.setNotifPrefs(patch(on));
+        if (after) after(on);
+      });
+    };
     // Segmented controls persist straight into RT.notifPrefs and resync the device schedule.
     const seg = (sel, value, after) => {
       const row = root.querySelector(sel);
@@ -681,8 +694,7 @@ export const notifSettings = {
     };
     // The master row's subtitle states the mode; it has to move with the toggle or the row
     // contradicts itself ("On: reminders track…" under a lit Off).
-    seg('#ns-enabled', (t) => ({ enabled: t === 'On' }), (t) => {
-      const on = t === 'On';
+    sw('#ns-enabled', (on) => ({ enabled: on }), (on) => {
       const ls = root.querySelector('#ns-enabled')?.closest('.lrow')?.querySelector('.ls');
       if (ls) ls.textContent = on ? 'On: reminders track what’s actually still open' : 'Off';
       // The dependent sections dim and go inert with the master, live, without a re-render.
@@ -695,7 +707,7 @@ export const notifSettings = {
       const note = root.querySelector('#ns-off-note');
       if (note) note.style.display = on ? 'none' : '';
     });
-    seg('#ns-deadline', (t) => ({ allowDeadline: t === 'On' }));
+    sw('#ns-deadline', (on) => ({ allowDeadline: on }));
     seg('#ns-quiet', (t) => ({ quietFrom: (t === '9 PM' ? 21 : t === '11 PM' ? 23 : 22) * 60 }));
     seg('#ns-quietto', (t) => ({ quietTo: (t === '6 AM' ? 6 : t === '8 AM' ? 8 : 7) * 60 }));
   },
@@ -749,7 +761,7 @@ export const coachNotifSettings = {
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('bell', 17)}</div>
         <div class="lm"><div class="lt">Coach notifications</div><div class="ls">${p.enabled ? 'On' : 'Off'}</div></div>
-        <div class="seg" style="width:104px" id="cns-enabled"><button class="${p.enabled ? 'on' : ''}">On</button><button class="${p.enabled ? '' : 'on'}">Off</button></div>
+        <div class="std-switch ${p.enabled ? 'on' : ''}" id="cns-enabled" role="switch" aria-checked="${p.enabled ? 'true' : 'false'}" tabindex="0" aria-label="Coach notifications"></div>
       </div>
     </section>
 
@@ -777,12 +789,12 @@ export const coachNotifSettings = {
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('clock', 17)}</div>
         <div class="lm"><div class="lt">Overdue digest</div><div class="ls">Only while something is overdue</div></div>
-        <div class="seg" style="width:104px" id="cns-hourly"><button class="${p.hourly ? 'on' : ''}">On</button><button class="${p.hourly ? '' : 'on'}">Off</button></div>
+        <div class="std-switch ${p.hourly ? 'on' : ''}" id="cns-hourly" role="switch" aria-checked="${p.hourly ? 'true' : 'false'}" tabindex="0" aria-label="Overdue digest"></div>
       </div>
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('bolt', 17)}</div>
         <div class="lm"><div class="lt">Immediate critical</div><div class="ls">One ping when a new group goes overdue</div></div>
-        <div class="seg" style="width:104px" id="cns-critical"><button class="${p.immediateCritical ? 'on' : ''}">On</button><button class="${p.immediateCritical ? '' : 'on'}">Off</button></div>
+        <div class="std-switch ${p.immediateCritical ? 'on' : ''}" id="cns-critical" role="switch" aria-checked="${p.immediateCritical ? 'true' : 'false'}" tabindex="0" aria-label="Immediate critical"></div>
       </div>
     </section>
 
@@ -801,7 +813,7 @@ export const coachNotifSettings = {
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('users', 17)}</div>
         <div class="lm"><div class="lt">My room only</div><div class="ls">Follow my scope instead of the whole team</div></div>
-        <div class="seg" style="width:104px" id="cns-myroom"><button class="${p.myRoomOnly ? 'on' : ''}">On</button><button class="${p.myRoomOnly ? '' : 'on'}">Off</button></div>
+        <div class="std-switch ${p.myRoomOnly ? 'on' : ''}" id="cns-myroom" role="switch" aria-checked="${p.myRoomOnly ? 'true' : 'false'}" tabindex="0" aria-label="My room only"></div>
       </div>
     </section>
     <div style="height:10px"></div>
@@ -818,17 +830,15 @@ export const coachNotifSettings = {
     // every seg on this screen read as broken (critique 2026-08-15; the athlete-side seg()
     // always painted).
     const seg2 = (sel, patch, after) => {
-      const row = root.querySelector(sel);
-      if (!row) return;
-      const [onBtn, offBtn] = row.querySelectorAll('button');
-      const pick = (on) => {
-        onBtn.classList.toggle('on', on);
-        offBtn.classList.toggle('on', !on);
+      const el = root.querySelector(sel);
+      if (!el) return;
+      el.addEventListener('click', () => {
+        const on = !el.classList.contains('on');
+        el.classList.toggle('on', on);
+        el.setAttribute('aria-checked', on ? 'true' : 'false');
         act.setCoachNotifPrefs(patch(on));
         if (after) after(on);
-      };
-      onBtn.addEventListener('click', () => pick(true));
-      offBtn.addEventListener('click', () => pick(false));
+      });
     };
     seg2('#cns-enabled', (on) => ({ enabled: on }), (on) => {
       // The master row's subtitle states the mode; it moves with the toggle or contradicts it.
@@ -921,12 +931,12 @@ export const deleteAccount = {
     </div>
     <div id="del-sub-note"></div>
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('clipboard', 17)}</div>
+      <div class="req-icon b s38">${icon('clipboard', 17)}</div>
       <div><div class="tt">Want your data first?</div>
       <div class="ts">Download everything before you delete: <span class="link" data-go="privacy" role="button" tabindex="0">open Privacy &amp; visibility</span>. Deletion completes within 30 days everywhere, immediately in the app.</div></div>
     </div>
     <div style="height:18px"></div>
-    <button id="del-acct" class="btn" style="background:var(--danger-solid);color:#fff;box-shadow:0 10px 30px rgba(var(--red-rgb),0.3)">${icon('trash', 18)} Delete my account</button>
+    <button id="del-acct" class="btn danger">${icon('trash', 18)} Delete my account</button>
     ${/* The armed state is a DISTINCT confirm row, not the same button rebadged: the old two-tap
           armed the same control forever, so a double-tap (or a tap that landed twice) deleted the
           account with no way out. This row disarms after 5 seconds and on any tap outside it. */''}
@@ -934,7 +944,7 @@ export const deleteAccount = {
       <div style="text-align:center;font-size:var(--t-sm);font-weight:700;color:var(--red-bright);margin-bottom:10px">Delete everything? This cannot be undone.</div>
       <div style="display:flex;gap:10px">
         <button id="del-cancel" class="btn ghost" style="flex:1">Cancel</button>
-        <button id="del-go" class="btn" style="flex:1;background:var(--danger-solid);color:#fff">Delete everything</button>
+        <button id="del-go" class="btn danger" style="flex:1">Delete everything</button>
       </div>
     </div>
     <div id="del-status" style="text-align:center;font-size:13px;font-weight:600;color:var(--text-3);min-height:18px;margin-top:10px"></div>
@@ -961,7 +971,7 @@ export const deleteAccount = {
         const manageLabel = team ? 'Open the billing portal' : `Manage it in the ${store}`;
         subNote.innerHTML = `
         <div class="sidebox">
-          <div class="req-icon a" style="width:38px;height:38px">${icon('creditCard', 17)}</div>
+          <div class="req-icon a s38">${icon('creditCard', 17)}</div>
           <div><div class="tt">${failed ? 'Paying for a membership?' : team ? 'Your Team plan keeps billing' : 'Your membership keeps billing'}</div>
           <div class="ts">Deleting your account does not cancel it. <span class="link" id="del-sub-manage" role="button" tabindex="0" style="font-weight:700">${manageLabel}</span> first.</div></div>
         </div>`;
@@ -1074,6 +1084,7 @@ export function wireToggles(root) {
     // Single-select group = a radiogroup. Expose the selection to screen readers (it was
     // conveyed by color/glow alone) so VoiceOver announces "selected".
     if (!g.hasAttribute('role')) g.setAttribute('role', 'radiogroup');
+    labelGroup(g);
     const syncAria = () => items.forEach(x => {
       if (!x.hasAttribute('role')) x.setAttribute('role', 'radio');
       x.setAttribute('aria-checked', x.classList.contains('on') ? 'true' : 'false');
@@ -1098,12 +1109,31 @@ export function wireToggles(root) {
   });
 }
 
-/* Segmented On/Off controls are two real <button>s, so they focus natively — but their state
-   was conveyed by the .on class alone. Mirror it into aria-pressed, initially and after any
-   seg tap (delegated: the individual paint sites are many and this survives all of them). */
+/* A group with no name of its own borrows the row title beside it (the .lt of its .lrow), so
+   VoiceOver reads "Haptics, radio group" and not just "radio group". Steppers (+/-) are not a
+   choice and are left alone. Explicit aria-label / aria-labelledby always win. */
+function labelGroup(g) {
+  if (g.hasAttribute('aria-label') || g.hasAttribute('aria-labelledby') || g.hasAttribute('data-stepper')) return;
+  const row = g.closest ? g.closest('.lrow') : null;
+  const lt = row && row.querySelector('.lt');
+  const t = lt && lt.textContent.trim();
+  if (t) g.setAttribute('aria-label', t);
+}
+
+/* Segmented exclusive controls (On/Off, 9 PM/10 PM/11 PM) are two or three real <button>s, so
+   they focus natively — but their state was conveyed by the .on class alone. Expose each seg as
+   a radiogroup whose buttons are radios, and mirror .on into aria-checked, initially and after
+   any seg tap (delegated: the individual paint sites are many and this survives all of them). */
 export function wireSegAria(root) {
-  const sync = () => root.querySelectorAll('.seg button').forEach((b) =>
-    b.setAttribute('aria-pressed', b.classList.contains('on') ? 'true' : 'false'));
+  const sync = () => root.querySelectorAll('.seg').forEach((g) => {
+    if (g.hasAttribute('data-stepper')) return;
+    if (!g.hasAttribute('role')) g.setAttribute('role', 'radiogroup');
+    labelGroup(g);
+    g.querySelectorAll('button').forEach((b) => {
+      if (!b.hasAttribute('role')) b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', b.classList.contains('on') ? 'true' : 'false');
+    });
+  });
   root.addEventListener('click', (e) => {
     if (e.target.closest && e.target.closest('.seg')) requestAnimationFrame(sync);
   });

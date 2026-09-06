@@ -242,7 +242,7 @@ export function athletesToWatch({ rollup = [], roster = [], todayISO }) {
  *  writer ever populates `days.tasks` with a requirement id — the proto's pushDay never writes
  *  `tasks` (column defaults '[]'), and the RN writer uses numeric ids, not req ids (see 0076's own
  *  jsonb-guard comment). That meant the fallback was permanently false, so every required-daily
- *  built-in like Recovery Check-In was reported "missed" on every single data-day, team-wide,
+ *  built-in like Recovery check-in was reported "missed" on every single data-day, team-wide,
  *  forever — a fabricated number dressed as a real one. We now only report a miss for requirement
  *  kinds that map onto a REAL rollup column that 0076 actually derives from source data:
  *   - kind 'meal'    -> positional vs meals_logged, per day (see completionFraction's comment

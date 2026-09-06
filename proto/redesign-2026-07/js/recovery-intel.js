@@ -1,4 +1,4 @@
-/* OnStandard — Recovery Check-In intelligence (pure; no DOM, no state, no imports).
+/* OnStandard — Recovery check-in intelligence (pure; no DOM, no state, no imports).
    The AI Nutritionist's post-submit coaching message, DERIVED from the answers the athlete
    just gave — same contract as the meal opener in meal-intel.js: composed from real data,
    never persisted, costs nothing, and can't be forged. The engine already scored the

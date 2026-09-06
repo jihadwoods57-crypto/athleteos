@@ -213,7 +213,7 @@ export function commitmentCard(d) {
   return `<section class="xnow vc-card${hue}" data-vc-open="${id}">
     <div class="xlab">
       <span class="xl">${wake ? esc(String(d.title).toUpperCase()) : eyebrowEarnsItsPlace ? esc(eyebrow.toUpperCase()) : ''}</span>
-      ${deadline ? `<span class="xpill gold">${deadline}</span>` : ''}
+      ${deadline ? `<span class="xpill gray">${deadline}</span>` : ''}
     </div>
     <div class="xmain">
       <div class="xico">${icon(iconFor(d.type), 20)}</div>
@@ -364,7 +364,7 @@ function howItWorks(row, clock) {
   const grace = graceMinOf(row);
   return `
   <details class="wk-how">
-    <summary>${icon('info', 14)} How Roll Call works</summary>
+    <summary>${icon('info', 14)} How roll call works</summary>
     <div class="wk-how-body">
       <p>Your coach set the time. At ${esc(clock(row.starts_at))} the roll call opens on your lock screen. Tap <b>I’M UP</b> there or here.</p>
       <p>By ${esc(clock(deadlineOf(row)))} is <b>On Standard</b>${grace != null ? ` (${grace} minutes of grace)` : ''}. After that is <b>Late</b>, counted to the minute, until it closes at ${esc(clock(closesAtOf(row)))}. No answer by then is <b>Missed</b>, and stays missed.</p>
@@ -587,7 +587,7 @@ export default {
       </div>
     </div>` : ''}
     <div class="sidebox" style="margin-top:14px">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 19)}</div>
+      <div class="req-icon b s38">${icon('shield', 19)}</div>
       <div>
         <div class="tt">What this actually proves</div>
         ${/* Tense follows the record. This box once asserted "your phone reached X and stayed
@@ -648,8 +648,13 @@ export default {
       LIVE_MINE.stop = () => w.stop();
       LIVE_MINE.phase = wakeupPhase(row0, new Date().toISOString());
       const dog = setInterval(() => { if (!root.isConnected) { clearInterval(dog); if (LIVE_MINE.stop) { LIVE_MINE.stop(); LIVE_MINE.stop = null; } } }, 5000);
-      const onFg = () => { if (root.isConnected) loadMine(true).then(() => { if (root.isConnected) window.__render && window.__render(); }); else window.removeEventListener('onstd:foreground', onFg); };
+      const onFg = () => { if (root.isConnected) loadMine(true).then(() => { if (root.isConnected) window.__render && window.__render(); }); };
       window.addEventListener('onstd:foreground', onFg);
+      // The router calls window.__screenCleanup before every re-render/route change (camera.js
+      // uses the same hook): the listener leaves with the screen instead of waiting to notice
+      // on its next fire that the root is gone.
+      const prevCleanup = window.__screenCleanup;
+      window.__screenCleanup = () => { window.removeEventListener('onstd:foreground', onFg); if (typeof prevCleanup === 'function') prevCleanup(); };
     }
 
     const dis = root.querySelector('#vc-dispute');

@@ -77,8 +77,11 @@ body {
   z-index: 60;
 }
 
-/* ===== Phone-native mode: on a real phone the frame IS the phone ===== */
-@media (max-width: 520px) {
+/* ===== Phone-native mode: on a real phone the frame IS the phone =====
+   Two ways in: a narrow viewport (every phone, and the desktop QC harness at 390px), OR a
+   coarse-pointer device with no hover, which is what an unfolded foldable or a tablet reports at
+   700px and up. Before the second clause those got the desktop bezel drawn around the app. */
+@media (max-width: 520px), ((pointer: coarse) and (hover: none)) {
   body { padding:0; display: block; }
   /* The page itself is never the scroller — .viewport is. Without this, WKWebView's keyboard
      content-inset gives the document somewhere to go, and iOS takes it: the whole app slides up
@@ -111,7 +114,7 @@ body {
   height: 52px; flex: none;
   display: flex; align-items: center; justify-content: space-between;
   padding:0 30px 0 30px;
-  font-size: 15px; font-weight: 700; color: var(--text);
+  font-size: var(--t-md); font-weight: 700; color: var(--text);
   letter-spacing: -0.01em; z-index: 40;
 }
 .statusbar .sb-right { display: flex; align-items: center; gap:8px; }
@@ -125,11 +128,11 @@ body {
   scrollbar-width: none;
   /* Bottom pad must clear the tabbar on EVERY screen; a big home-indicator inset
      grows the clearance instead of eating it (nav must never cover the last action). */
-  /* The FAB scrim (.tabbar .fabslot::before) is a 150px circle centred 14px above the slot's
-     middle, so it reaches ~89px above the bar. The old +32px left the LAST content in a screen
-     sitting inside that wash at max scroll — text that isn't disabled reading as disabled, on
-     Progress ("Consistency") and the score breakdown. Clear the scrim's reach instead. */
-  padding: 4px var(--pad-screen) calc(var(--nav-h) + 62px + max(0px, env(safe-area-inset-bottom, 0px) - 22px));
+  /* --tab-clear (glass.css) is the one place the floating capsule's reach is worked out: its
+     float above the bottom edge, its height, the FAB's overhang, and a breath of air. The old
+     `--nav-h + 62px` here was the pre-capsule bar's math and had to be re-derived by anyone who
+     needed the same clearance elsewhere (coach-roster's sticky bulk bar did, and disagreed). */
+  padding: 4px var(--pad-screen) var(--tab-clear);
   scroll-behavior: smooth;
 }
 .viewport::-webkit-scrollbar { display: none; }
@@ -180,18 +183,17 @@ body {
    these replaying on a repaint is what made a settled list slide around under the reader.
    NOT on a lateral switch: the strip is one screen, and re-staggering six rows every time the
    athlete taps across four tabs is the animation fatigue this whole gate exists to prevent. */
-.view.enter:not(.dir-lat-next):not(.dir-lat-prev) .req-row,
 .view.enter:not(.dir-lat-next):not(.dir-lat-prev) .act-card,
 .view.enter:not(.dir-lat-next):not(.dir-lat-prev) .notif,
 .view.enter:not(.dir-lat-next):not(.dir-lat-prev) .roster-row {
   animation: rowIn 420ms var(--ease-out) both;
 }
 @keyframes rowIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-.view .req-row:nth-of-type(2), .view .act-card:nth-of-type(2), .view .roster-row:nth-of-type(2) { animation-delay: 45ms; }
-.view .req-row:nth-of-type(3), .view .act-card:nth-of-type(3), .view .roster-row:nth-of-type(3) { animation-delay: 90ms; }
-.view .req-row:nth-of-type(4), .view .act-card:nth-of-type(4), .view .roster-row:nth-of-type(4) { animation-delay: 135ms; }
-.view .req-row:nth-of-type(5), .view .act-card:nth-of-type(5), .view .roster-row:nth-of-type(5) { animation-delay: 180ms; }
-.view .req-row:nth-of-type(6), .view .roster-row:nth-of-type(6) { animation-delay: 225ms; }
+.view .act-card:nth-of-type(2), .view .roster-row:nth-of-type(2) { animation-delay: 45ms; }
+.view .act-card:nth-of-type(3), .view .roster-row:nth-of-type(3) { animation-delay: 90ms; }
+.view .act-card:nth-of-type(4), .view .roster-row:nth-of-type(4) { animation-delay: 135ms; }
+.view .act-card:nth-of-type(5), .view .roster-row:nth-of-type(5) { animation-delay: 180ms; }
+.view .roster-row:nth-of-type(6) { animation-delay: 225ms; }
 /* .notif can't use :nth-of-type: it counts sibling DIVS, and the notifications list is headed
    by back-head + nhead divs and (since the eyebrows became h2s) section headings — the tag-based
    index never matched the row number, which is why the old stagger ran out of order. Consecutive
@@ -251,8 +253,10 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 }
 .avatar {
   width: 42px; height: 42px; border-radius: var(--r-pill);
-  background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep));
-  color: #fff; font-weight: 800; font-size: var(--t-md); display: grid; place-items: center;
+  /* --blue -> --blue-deep (DESIGN.md rule 2): -bright is the text-weight variant and inverts
+     the fill's direction on light. The ink flips with the theme like every other filled accent. */
+  background: linear-gradient(150deg, var(--blue), var(--blue-deep));
+  color: var(--ink-on-accent); font-weight: 800; font-size: var(--t-md); display: grid; place-items: center;
   box-shadow: var(--sh-blue); cursor: pointer; letter-spacing: -0.02em;
 }
 /* Header avatar holds the row's alignment against the now-44px bell and keeps the 44px floor. */
@@ -316,7 +320,14 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 /* min() + aspect-ratio, not a fixed square: 338px minus nothing overflowed the 335px content
    column of a 375px phone and clipped one-sided on anything smaller. The SVG inside scales with
    the wrap (width 100% against its viewBox). */
-.ring-wrap { position: relative; width: min(338px, 100%); aspect-ratio: 1 / 1; margin:0 auto; }
+/* scoreRing() hands its size over as --ring-size rather than an inline width, so a media query
+   can still have a say: an inline `width:` would beat every rule below it. */
+.ring-wrap { position: relative; width: min(var(--ring-size, 338px), 100%); aspect-ratio: 1 / 1; margin:0 auto; }
+/* A short phone (the SE is 667px tall) should show the first requirement row above the fold. The
+   hero ring gives up 58px; smaller rings (128, 96) are already under the cap and do not move. */
+@media (max-height: 700px) {
+  .ring-wrap { width: min(280px, var(--ring-size, 338px), 100%); }
+}
 /* A 22s rotating conic aurora and a 4.5s breathing cyan halo used to live here, both blurred,
    both behind the score. Removed 2026-08-08 with the ring's other decorative layers; see the note
    on scoreRing() in components.js. The band's own sweep is the signature. */
@@ -343,7 +354,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
   display: flex; flex-direction: column; align-items: center; justify-content: center;
 }
 .ring-center .label {
-  font-size: 12px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase;
+  font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase;
   color: var(--text-2);
 }
 /* Archivo Expanded is a WIDE face, so the tight tracking that suited Plus Jakarta Sans at this size
@@ -375,49 +386,24 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
   display: inline-flex; align-items: center; gap:8px;
   padding:8px 16px 8px 14px; border-radius: var(--r-pill);
   background: rgba(13,20,34,0.72); border: 1px solid rgba(148,176,224,0.16);
-  font-size: 13.5px; font-weight: 800; color: var(--text);
+  font-size: var(--t-base); font-weight: 800; color: var(--text);
   margin-top:12px;
 }
-/* Blur is gated (DESIGN.md: glass needs a documented fallback): without support the 0.72 ground
-   above still reads on its own; with it, the pill frosts the hero behind it. */
-@supports (backdrop-filter: blur(6px)) or (-webkit-backdrop-filter: blur(6px)) {
-  .streak-pill { -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
-}
-.streak-pill .flame { color: var(--amber-bright); filter: drop-shadow(0 0 6px rgba(var(--amber-rgb), 0.6)); }
+/* No blur here (2026-09-05 audit): the 0.72 ground is opaque enough on its own, and blur is
+   platform chrome, not a pill treatment. The flame is neutral, not amber: amber means WARNING in
+   this system (DESIGN.md, one meaning per hue) and a healthy streak is the opposite of one.
+   Weight carries it. */
+.streak-pill .flame { color: var(--text); }
 /* light theme: the hardcoded-dark pill would be a dark blob on the light hero — frost it */
 :root[data-theme="light"] .streak-pill { background: rgba(255,255,255,0.80); border-color: var(--hairline); }
 .hero-foot {
-  margin-top:14px; text-align: center; font-size: 15px; font-weight: 600; color: var(--text-2);
+  margin-top:14px; text-align: center; font-size: var(--t-md); font-weight: 600; color: var(--text-2);
 }
 .hero-foot b { color: var(--green-bright); font-weight: 800; }
 
-/* ===== Requirements — ONE unified card, hairline dividers, dual glyphs ===== */
-.reqcard {
-  background: rgba(14,20,33,0.85);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-card);
-  box-shadow: var(--sh-card);
-  overflow: hidden;
-}
-.reqcard .rc-title {
-  padding:16px 18px 12px;
-  font-size: 11px; font-weight: 800; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--text-2);
-}
-.req-row {
-  display: flex; align-items: center; gap:12px;
-  padding:14px 14px 14px 12px; margin:0 6px; border-radius: var(--r-card-sm);
-  cursor: pointer; position: relative;
-  transition: transform var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
-}
-.req-row:active { transform: scale(0.985); }
-.req-row + .req-row::before {
-  content:''; position:absolute; top:-1px; left: 66px; right: 12px; height:1px; background: var(--hairline-soft);
-}
-.req-row.done {
-  background: linear-gradient(90deg, rgba(var(--green-rgb), 0.16), rgba(var(--green-rgb), 0.03) 80%);
-  border: 1px solid var(--green-border); margin:6px; padding:14px 14px 14px 12px;
-}
-.req-row.done + .req-row::before { display: none; }
+/* ===== Requirements: icon tile and status badge =====
+   (.reqcard and the .req-row row rules had no caller left in js/ or index.html and were removed
+   2026-09-05.) */
 /* icon tile with status mini-badge overlapping its corner */
 .req-icon {
   width: 42px; height: 42px; flex: none; border-radius: var(--r-card-sm); display: grid; place-items: center;
@@ -449,8 +435,8 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
    at 18px stroke weight text-3 rendered as a barely-there outline. Still quiet, now legible. */
 .req-icon.muted { background: var(--surface-2); color: var(--text-2); }
 .req-main { flex: 1 1 auto; min-width: 0; }
-.req-title { font-size: 15.5px; font-weight: 800; letter-spacing: -0.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.req-sub { font-size: 12.5px; font-weight: 600; margin-top:2px; white-space: nowrap; }
+.req-title { font-size: var(--t-md); font-weight: 800; letter-spacing: -0.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.req-sub { font-size: var(--t-sm); font-weight: 600; margin-top:2px; white-space: nowrap; }
 .req-sub.g { color: var(--green-bright); } .req-sub.a { color: var(--amber-bright); }
 .req-sub.b { color: var(--blue-bright); }  .req-sub.p { color: var(--purple-bright); }
 .req-right { display: flex; flex-direction: column; align-items: flex-end; gap:6px; flex: none; margin-left:2px; }
@@ -476,16 +462,16 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 .imgview.on { opacity: 1; }
 .imgview .iv-stage { width: 100%; height: 100%; display: grid; place-items: center; overflow: hidden; }
 .imgview .iv-img { max-width: 100%; max-height: 100%; user-select: none; -webkit-user-drag: none; will-change: transform; }
-.imgview .iv-x { position: absolute; top: calc(14px + env(safe-area-inset-top, 0px)); right: 16px; z-index: 2; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.22); background: rgba(10,14,24,0.72); color: #fff; font-size: 24px; line-height: 1; cursor: pointer; display: grid; place-items: center; font-family: var(--font); }
-.req-meta { font-size: 13px; font-weight: 800; }
+.imgview .iv-x { position: absolute; top: calc(14px + env(safe-area-inset-top, 0px)); right: 16px; z-index: 2; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.22); background: rgba(10,14,24,0.72); color: #fff; font-size: var(--t-2xl); line-height: 1; cursor: pointer; display: grid; place-items: center; font-family: var(--font); }
+.req-meta { font-size: var(--t-base); font-weight: 800; }
 .req-meta.g { color: var(--green-bright); } .req-meta.a { color: var(--amber-bright); }
 .req-meta.b { color: var(--blue-bright); }  .req-meta.p { color: var(--purple-bright); }
-.req-meta.dim { color: var(--text-3); font-weight: 700; font-size: 12px; }
+.req-meta.dim { color: var(--text-3); font-weight: 700; font-size: var(--t-sm); }
 .req-chev { color: var(--text-3); flex: none; }
 
 /* ===== Recent activity (horizontal) ===== */
 .hscroll {
-  display: flex; gap:12px; overflow-x: auto; scrollbar-width: none;
+  display: flex; gap:12px; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain;
   margin: 0 calc(-1 * var(--pad-screen)); padding: 2px var(--pad-screen) 6px;
 }
 .hscroll::-webkit-scrollbar { display: none; }
@@ -494,7 +480,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
   background: var(--surface-1); border: 1px solid transparent; cursor: pointer;
   transition: transform var(--dur-1) var(--ease-out); box-shadow: var(--sh-card);}
 .act-card:active { transform: scale(0.97); }
-.act-time { padding:12px 14px 0; font-size: 11.5px; font-weight: 700; color: var(--text-3); letter-spacing: 0.01em; }
+.act-time { padding:12px 14px 0; font-size: var(--t-xs); font-weight: 700; color: var(--text-3); letter-spacing: 0.01em; }
 .act-media {
   height: 104px; margin:10px 10px 0; border-radius: var(--r-card-sm);
   background-size: cover; background-position: center; position: relative; overflow: hidden;
@@ -503,25 +489,25 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 .act-media.icon { display: grid; place-items: center; }
 .act-media .dim { position: absolute; inset: 0; background: rgba(7,11,20,0.52); display: grid; place-items: center; color: var(--purple-bright); }
 .act-body { padding:12px 14px 14px; }
-.act-type { font-size: 13px; font-weight: 700; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.act-value { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; margin-top:2px; }
-.act-value small { font-size: 9.5px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-3); margin-left:6px; vertical-align: 2px; }
+.act-type { font-size: var(--t-sm); font-weight: 700; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.act-value { font-size: var(--t-xl); font-weight: 800; letter-spacing: -0.02em; margin-top:2px; }
+.act-value small { font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-3); margin-left:6px; vertical-align: 2px; }
 .act-value.g { color: var(--green-bright); } .act-value.b { color: var(--blue-bright); }
-.act-value.muted { color: var(--text-3); font-size: 14px; }
+.act-value.muted { color: var(--text-3); font-size: var(--t-base); }
 
 /* ===== Finish Today — single horizontal strip of 5 metrics ===== */
 .finish { padding:16px 16px 18px; }
 .finish-head { display: flex; align-items: center; gap:10px; margin-bottom:14px; color: var(--text-2); }
-.finish-head .t { font-size: 11px; font-weight: 800; letter-spacing: var(--track-eyebrow); text-transform: uppercase; }
+.finish-head .t { font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-eyebrow); text-transform: uppercase; }
 .finish-strip { display: grid; grid-template-columns: 0.8fr 0.85fr 1fr 1.15fr 1.2fr; }
 .finish-cell { padding:0 10px; position: relative; }
 .finish-cell:first-child { padding-left:2px; }
 .finish-cell:last-child { padding-right:2px; }
 .finish-cell + .finish-cell::before { content:''; position:absolute; left:0; top:4px; bottom:4px; width:1px; background: var(--hairline-soft); }
-.finish-cell .k { font-size: 10px; font-weight: 700; color: var(--text-3); letter-spacing: 0.02em; line-height: 1.25; min-height: 25px; display: flex; align-items: flex-end; }
-.finish-cell .v { font-size: 24px; font-weight: 800; letter-spacing: -0.03em; margin-top:6px; }
-.finish-cell .v.txt { font-size: 13.5px; line-height: 1.25; margin-top:8px; letter-spacing: -0.01em; }
-.finish-cell .v small { font-size: 13px; color: var(--text-3); font-weight: 700; }
+.finish-cell .k { font-size: var(--t-micro); font-weight: 700; color: var(--text-3); letter-spacing: 0.02em; line-height: 1.25; min-height: 25px; display: flex; align-items: flex-end; }
+.finish-cell .v { font-size: var(--t-2xl); font-weight: 800; letter-spacing: -0.03em; margin-top:6px; }
+.finish-cell .v.txt { font-size: var(--t-base); line-height: 1.25; margin-top:8px; letter-spacing: -0.01em; }
+.finish-cell .v small { font-size: var(--t-sm); color: var(--text-3); font-weight: 700; }
 .finish-cell .v .accent { font-weight: 800; }
 .finish-cell .v.g, .finish-cell .v .g { color: var(--green-bright); }
 .finish-cell .v.b, .finish-cell .v .b { color: var(--blue-bright); }
@@ -535,8 +521,8 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
   border: 1px solid var(--purple-border);
 }
 .trust .ic { width: 40px; height: 40px; border-radius: var(--r-chip); background: var(--purple-surface); color: var(--purple-bright); display: grid; place-items: center; flex: none; }
-.trust .tt { font-size: 14px; font-weight: 800; }
-.trust .ts { font-size: 12px; font-weight: 600; color: var(--text-2); margin-top:2px; }
+.trust .tt { font-size: var(--t-base); font-weight: 800; }
+.trust .ts { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:2px; }
 
 /* ===== Bottom tab bar ===== */
 .tabbar {
@@ -620,7 +606,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 .btn {
   height: 56px; border-radius: var(--r-btn); border: none; cursor: pointer;
   background: var(--surface-2); color: var(--text);
-  font-family: var(--font); font-size: 16px; font-weight: 800; letter-spacing: -0.01em;
+  font-family: var(--font); font-size: var(--t-md); font-weight: 800; letter-spacing: -0.01em;
   display: inline-flex; align-items: center; justify-content: center; gap:10px; width: 100%;
   transition: transform var(--dur-1) var(--ease-out), filter var(--dur-1) var(--ease-out);
 }
@@ -642,6 +628,14 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
    it composes from tokens, inverts correctly on light, and loses its fill when disabled. */
 .btn.recovery { background: linear-gradient(150deg, var(--purple-bright), var(--purple)); color: var(--ink-on-accent); box-shadow: 0 10px 30px rgba(var(--purple-rgb), 0.35); }
 :root[data-theme="light"] .btn.recovery { background: linear-gradient(150deg, var(--purple-bright), var(--purple-deep)); }
+/* Destructive. A solid --danger-solid fill, no gradient: the one control that must never be
+   mistaken for the primary action does not borrow the primary's finish. Same geometry as
+   .btn.primary; white ink clears 4.8:1 on this fill in both themes (tokens.css). The ghost
+   form keeps the transparent fill and says "danger" with its text and border alone, in the
+   text-weight red so it reads on both canvases. Both sit above :disabled, which wins on order. */
+.btn.danger { background: var(--danger-solid); color: var(--ink-on-danger, #fff); box-shadow: none; }
+.btn.ghost.danger { background: transparent; color: var(--red-bright); border: 1px solid var(--red-border); box-shadow: none; }
+.btn.ghost.danger:active { background: var(--red-surface); }
 
 /* ----- Size scale -----
    Three steps below the 56px base, each one a REAL populated tier rather than a guess: an audit
@@ -675,8 +669,8 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 /* The screen title is a real <h1> now (SR heading navigation had nothing to land on: three
    headings existed in the whole app, all in auth). Same box as the old div — the UA's h1
    margin/size are neutralized here. */
-.back-head .ht { font-size: 20px; font-weight: 800; letter-spacing: var(--title-tight); margin: 0; }
-.back-head .hs { font-size: 12px; font-weight: 600; color: var(--text-2); margin-top:1px; }
+.back-head .ht { font-size: var(--t-xl); font-weight: 800; letter-spacing: var(--title-tight); margin: 0; }
+.back-head .hs { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:1px; }
 /* Greeting line above an operator h1: the same register as .apphead .greeting, one step down
    because the operator head is a 20px title rather than the athlete's 24px name. */
 .back-head .hg { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); letter-spacing: 0.01em; margin-bottom: 1px; }
@@ -733,31 +727,31 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 /* stat tiles (2x2 in plan summary) */
 .tiles2 { display: grid; grid-template-columns: 1fr 1fr; gap:12px; }
 .tile { padding:16px 16px; border-radius: var(--r-tile); background: var(--surface-2); border: 1px solid var(--hairline-soft); }
-.tile .k { font-size: 10.5px; font-weight: 700; color: var(--text-3); letter-spacing: var(--track-key); text-transform: uppercase; }
-.tile .v { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; margin-top:6px; }
+.tile .k { font-size: var(--t-eyebrow); font-weight: 700; color: var(--text-3); letter-spacing: var(--track-key); text-transform: uppercase; }
+.tile .v { font-size: var(--t-xl); font-weight: 800; letter-spacing: -0.02em; margin-top:6px; }
 /* An absent value should read as absent. The em-dash it replaces rendered at the same weight and
    contrast as a real number, so a blank tile looked like data. */
 .tile.unset { background: transparent; border-style: dashed; border-color: var(--hairline); }
-.tile.unset .v { font-size: 13.5px; font-weight: 700; color: var(--text-3); letter-spacing: 0; line-height: 1.35; }
+.tile.unset .v { font-size: var(--t-base); font-weight: 700; color: var(--text-3); letter-spacing: 0; line-height: 1.35; }
 
 /* macro chips */
 .macro-row { display: flex; gap:10px; }
 .macro { flex: 1; text-align: center; padding:14px 4px; border-radius: var(--r-tile); background: var(--surface-2); border: 1px solid var(--hairline-soft); min-width: 0; }
-.macro .mv { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; white-space: nowrap; }
-.macro .mk { font-size: 10.5px; font-weight: 700; color: var(--text-3); margin-top:4px; text-transform: uppercase; letter-spacing: var(--track-key); }
+.macro .mv { font-size: var(--t-xl); font-weight: 800; letter-spacing: -0.02em; white-space: nowrap; }
+.macro .mk { font-size: var(--t-eyebrow); font-weight: 700; color: var(--text-3); margin-top:4px; text-transform: uppercase; letter-spacing: var(--track-key); }
 /* 5-up macro row (thread meal breakdown) is denser than 3/4-up — ease the type so values don't touch edges */
-.macro-row.five .mv { font-size: 17px; }
+.macro-row.five .mv { font-size: var(--t-lg); }
 /* Four-up: protein moved out to its own hero tile, so the rest get a little more room. */
-.macro-row.four .mv { font-size: 18px; }
-.macro-row.four .mk { font-size: 10px; letter-spacing: 0.04em; }
-.macro-row.five .mk { font-size: 10px; letter-spacing: 0.04em; }
+.macro-row.four .mv { font-size: var(--t-lg); }
+.macro-row.four .mk { font-size: var(--t-micro); letter-spacing: 0.04em; }
+.macro-row.five .mk { font-size: var(--t-micro); letter-spacing: 0.04em; }
 
 /* coach note / callout */
 .coachnote { padding:18px; border-radius: var(--r-card); background: var(--surface-1); border: 1px solid transparent; box-shadow: var(--sh-card);}
 .coachnote .who { display: flex; align-items: center; gap:12px; margin-bottom:12px; }
-.coachnote .who .av { width: 36px; height: 36px; border-radius: var(--r-pill); background: linear-gradient(150deg, var(--amber), var(--amber-deep)); color: var(--ink-on-accent); display: grid; place-items: center; font-weight: 800; font-size: 14px; }
-.coachnote .who .nm { font-size: 14px; font-weight: 800; } .coachnote .who .rl { font-size: 11px; font-weight: 700; color: var(--text-3); }
-.coachnote p { font-size: 14.5px; line-height: 1.5; color: var(--text); font-weight: 500; }
+.coachnote .who .av { width: 36px; height: 36px; border-radius: var(--r-pill); background: linear-gradient(150deg, var(--amber), var(--amber-deep)); color: var(--ink-on-accent); display: grid; place-items: center; font-weight: 800; font-size: var(--t-base); }
+.coachnote .who .nm { font-size: var(--t-base); font-weight: 800; } .coachnote .who .rl { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); }
+.coachnote p { font-size: var(--t-base); line-height: 1.5; color: var(--text); font-weight: 500; }
 
 /* list rows (schedule / settings) */
 .list { display: flex; flex-direction: column; }
@@ -772,9 +766,9 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
    other people, so no screen can assume they are short. This is the same root cause as the
    402px join-row bug in 3a08ac9, fixed at the primitive this time instead of at one caller. */
 .lrow .lm { flex: 1; min-width: 0; }
-.lrow .lt { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
-.lrow .ls { font-size: 12px; font-weight: 600; color: var(--text-3); margin-top:1px; overflow-wrap: anywhere; }
-.lrow .lv { font-size: 13px; font-weight: 700; color: var(--text-2); flex: none; }
+.lrow .lt { font-size: var(--t-md); font-weight: 700; overflow-wrap: anywhere; }
+.lrow .ls { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); margin-top:1px; overflow-wrap: anywhere; }
+.lrow .lv { font-size: var(--t-base); font-weight: 700; color: var(--text-2); flex: none; }
 /* The trailing control (a Grant/End button, a status pill, the chevron) is the row's ACTION.
    It never shrinks and never scrolls away, whatever the name beside it turns out to be. */
 .lrow > .btn, .lrow > .status-pill, .lrow > svg, .lrow > .req-badge { flex: none; }
@@ -837,7 +831,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 
    Anything added here must override a base rule declared EARLIER. Anything that doesn't belongs
    in the block at the top of the file with the rest of phone-native mode. */
-@media (max-width: 520px) {
+@media (max-width: 520px), ((pointer: coarse) and (hover: none)) {
   .statusbar { display: none; }
   .viewport { padding-top: max(14px, env(safe-area-inset-top)); }
   .tabbar { padding-bottom: max(22px, env(safe-area-inset-bottom)); }
@@ -859,7 +853,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 .chip:active { transform: scale(0.96); }
 .chip.on { background: var(--surface-3); color: var(--text); border-color: var(--blue-border); }
 
-/* Tab badge (router.js tabbar). Was inline color:#fff + font-size:9px in the router — the one
+/* Tab badge (router.js tabbar). Was inline color:#fff + a raw 9px font-size in the router — the one
    piece of chrome that could not follow a theme or the type scale. */
 .tab-badge {
   position: absolute; top: -3px; right: 50%; margin-right: -16px;
@@ -869,3 +863,57 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
   font-size: var(--t-micro); font-weight: 800;
   display: grid; place-items: center;
 }
+
+/* ===== 2026-09-05 audit primitives ===== */
+/* Screen-reader-only text: the standard clip pattern. For a label the eye already has from
+   context (a loading skeleton's "Loading roster", an icon button's verb) but assistive tech does
+   not. Never for text a sighted person also needs. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* The stat tile. Five bodies carried one idea (.bigstat, .base-stats > div, .pg-stat, .vc-stat,
+   .coach-stat), each with its own numeral size, key size and border. This is the one they
+   converge on: value over key, an elevated-row surface with a hairline edge and no shadow, so a
+   grid of them reads as a set of readings rather than a card grid. .lg is the flagship numeral. */
+.stat {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--s1);
+  padding: var(--s3) var(--s4);
+  background: var(--surface-2); border: 1px solid var(--hairline); border-radius: var(--r-card-sm);
+  min-width: 0;
+}
+.stat .v { font-size: var(--t-2xl); font-weight: 800; letter-spacing: var(--num-tight); font-variant-numeric: tabular-nums; line-height: 1.05; color: var(--text); }
+.stat .k { font-size: var(--t-eyebrow); font-weight: 700; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--text-3); }
+.stat.lg .v { font-size: var(--t-3xl); }
+.stat.center { align-items: center; text-align: center; }
+.stat.tap { cursor: pointer; }
+.stat.dim .v { color: var(--text-3); }
+
+/* emptyState({ compact: true }): the same empty, sized for a sidebox or a list section rather
+   than a whole screen. Smaller vessel, one step smaller title, less air, and no arrival choreography
+   (the halo bloom is a screen-level moment and would replay in every section). */
+.state-demo.compact { padding: var(--s4) var(--s4) var(--s4); margin-bottom: var(--s3); }
+.state-demo.compact .sd-ic { width: 40px; height: 40px; margin-bottom: var(--s2); }
+.state-demo.compact .sd-ic::after { inset: -4px; }
+.state-demo.compact .sd-t { font-size: var(--t-md); }
+.state-demo.compact .sd-s { margin-top: var(--s1); }
+.state-demo.compact .sd-cta { margin-top: var(--s3); }
+.view.enter .state-demo.compact .sd-ic,
+.view.enter .state-demo.compact .sd-ic::after { animation: none; }
+
+/* sayStatus() (components.js) toggles this instead of writing an inline colour: a status region
+   is quiet meta text until it carries a failure, and then it is the text-weight red. */
+:where(.ls[role="status"]:not(.is-error)) { color: var(--text-3); }
+.is-error, .ls.is-error { color: var(--red-bright); }
+
+/* The email-verify banner's dismiss: a real <button> (was a role="button" span with inline
+   styles), so Enter/Space and the 44px hit area in focus.css come free. Visually a quiet 22px
+   glyph at the row's right edge. */
+.ev-x {
+  width: 22px; height: 22px; padding: 0; flex: none;
+  display: grid; place-items: center;
+  background: none; border: 0; border-radius: var(--r-pill);
+  color: var(--text-3); cursor: pointer; font-family: var(--font);
+}
+.ev-x:active { color: var(--text); }

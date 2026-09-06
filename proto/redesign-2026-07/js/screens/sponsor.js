@@ -31,10 +31,10 @@ export default {
 
     <h2 class="eyebrow">Buy seats</h2>
     <section class="card pad">
-      <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Number of seats</div>
+      <label for="sp-seats" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Number of seats</label>
       <input class="ob-input" id="sp-seats" type="number" min="1" step="1" inputmode="numeric" value="${esc(UI.seats)}" placeholder="10" />
       <div style="height:10px"></div>
-      <div style="font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Label (optional)</div>
+      <label for="sp-label" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Label (optional)</label>
       <input class="ob-input" id="sp-label" maxlength="60" value="${esc(UI.label)}" placeholder="e.g. Fall roster, Jones family" />
       <div style="height:14px"></div>
       ${/* This form asked for a seat COUNT and never said what a seat costs, so the first time
@@ -55,7 +55,7 @@ export default {
 
     <h2 class="eyebrow" style="margin-top:16px">Your sponsorships</h2>
     ${!CACHE.loaded ? `
-    <div class="sidebox"><div class="req-icon b" style="width:38px;height:38px">${icon('bolt', 17)}</div><div><div class="tt">Loading…</div></div></div>`
+    <div class="sidebox"><div class="req-icon b s38">${icon('bolt', 17)}</div><div><div class="tt">Loading…</div></div></div>`
     : CACHE.failed && !rows.length ? errorState({
       title: "Couldn't load your sponsorships",
       body: 'Any seats you bought are safe on the server. Reconnect and they list right here.',

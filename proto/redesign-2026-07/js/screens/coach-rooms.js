@@ -77,7 +77,7 @@ export const coachRooms = {
           <div class="lm"><div class="lt">Delete ${esc(rm.label)}?</div>
             <div class="ls">${members.length ? `Its ${members.length} athlete${members.length === 1 ? '' : 's'} stay on the roster, unassigned. ` : ''}A standard scoped to this position keeps running until you clear it in the standards editor.</div></div>
           <button class="btn ghost sm" data-room-del-cancel="1" style="width:auto;padding:0 12px;height:34px;flex:none">Keep</button>
-          <button class="btn sm" data-room-del-confirm="${esc(rm.id)}" style="width:auto;padding:0 12px;height:34px;flex:none;background:var(--danger-solid);color:#fff;border:none">Delete room</button>
+          <button class="btn danger xs" data-room-del-confirm="${esc(rm.id)}" style="width:auto;flex:none">Delete room</button>
         </div>` : RENAMING === rm.id ? `
         <div class="lrow" style="cursor:default;gap:8px">
           <input class="ob-input room-rename-input" data-room-rename-input="${esc(rm.id)}" maxlength="40" value="${esc(RENAMING === rm.id && RENAME_VAL != null ? RENAME_VAL : rm.label)}" style="flex:1" aria-label="Rename ${esc(rm.label)}" />
@@ -89,7 +89,7 @@ export const coachRooms = {
           <div class="lm"><div class="lt">${esc(rm.label)}</div><div class="ls">${members.length ? `${members.length} athlete${members.length === 1 ? '' : 's'}` : 'No one assigned yet'}</div></div>
           <button class="btn ghost sm" data-room-rename="${esc(rm.id)}" aria-label="Rename room" style="width:34px;padding:0;height:30px;flex:none">${icon('edit', 15)}</button>
           <button class="btn ghost micro" data-go="coach-plan-set/position/${esc(String(rm.label).trim().toUpperCase())}" style="width:auto">Standard</button>
-          <button class="btn ghost sm" data-room-del="${esc(rm.id)}" style="width:auto;padding:0 10px;height:30px;color:var(--red);margin-left:6px">Delete</button>
+          <button class="btn ghost danger micro" data-room-del="${esc(rm.id)}" style="width:auto;margin-left:6px">Delete</button>
         </div>`}
         <div class="lrow" data-owner-toggle="${esc(rm.id)}" style="cursor:pointer;padding-left:6px">
           <div class="xico sm gray" style="width:26px;height:26px">${icon('user', 15)}</div>
@@ -143,16 +143,16 @@ export const coachRooms = {
     ${needsCard}
     ${suggestChips}
 
-    <h2 class="eyebrow">Add a room</h2>
+    <h2 class="eyebrow" id="rooms-add-l">Add a room</h2>
     <div style="display:flex;gap:8px;align-items:center">
-      <input id="room-name" class="ob-input" maxlength="40" placeholder="e.g. Defensive Backs" value="${esc(ADD_VAL)}" style="flex:1" ${BUSY ? 'disabled' : ''} />
+      <input id="room-name" class="ob-input" aria-labelledby="rooms-add-l" maxlength="40" placeholder="e.g. Defensive Backs" value="${esc(ADD_VAL)}" style="flex:1" ${BUSY ? 'disabled' : ''} />
       <button class="btn sm" id="room-add" style="width:auto;padding:0 16px" ${BUSY ? 'disabled' : ''}>${BUSY ? 'Adding…' : 'Add'}</button>
     </div>
     <div id="rooms-status" style="font-size:var(--t-xs);font-weight:700;color:var(--red);min-height:16px;margin-top:6px">${esc(ERR)}</div>
 
     <div style="height:12px"></div>
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('users', 17)}</div>
+      <div class="req-icon b s38">${icon('users', 17)}</div>
       <div><div class="tt">Rooms vs groups</div>
       <div class="ts">A <b>room</b> is a permanent position unit an athlete belongs to. It can carry its own standard (set the position scope in the standards editor). A custom <b>group</b> on the roster is an ad-hoc filter you build any time. New athletes auto-join the room matching their position.</div></div>
     </div>

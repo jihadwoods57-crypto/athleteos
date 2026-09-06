@@ -115,7 +115,7 @@ export const foodSearch = {
       results.innerHTML = hits.length ? hits.map((x, i) => `
         <div class="lrow" data-add="${DB.indexOf(x)}" style="padding:12px 16px">
           <div class="lic">${icon('plus', 16)}</div>
-          <div class="lm"><div class="lt">${esc(x.n)}</div><div class="ls">${esc(x.unit)}${showNums ? ` · ${x.p}g protein · ${x.kc} cal` : ''}</div></div>
+          <div class="lm"><div class="lt">${esc(x.n)}</div><div class="ls">${esc(x.unit)}${showNums ? ` · ${x.p}g protein · ${x.kc} kcal` : ''}</div></div>
         </div>`).join('')
         : `<div style="padding:14px 16px;font-size:var(--t-sm);font-weight:600;color:var(--text-3);line-height:1.5">No match for that. Snap a photo instead. It reads anything.
             <button class="btn ghost sm" id="fs-to-cam" style="width:auto;padding:0 16px;margin-top:10px;display:flex;align-items:center;gap:6px">${icon('camera', 15)} Take a photo</button></div>`;
@@ -166,7 +166,7 @@ export const labelScan = {
 
     ${allergies.length ? `
     <div class="sidebox" style="border-color:var(--amber-border);background:rgba(var(--amber-rgb),0.08)">
-      <div class="req-icon a" style="width:38px;height:38px;color:var(--amber-bright)">${icon('bell', 17)}</div>
+      <div class="req-icon a s38" style="color:var(--amber-bright)">${icon('bell', 17)}</div>
       <div><div class="tt">Check it against your restrictions</div>
       <div class="ts">You flagged ${esc(allergies.join(', '))}. Read the ingredients before you log this.</div></div>
     </div>
@@ -175,8 +175,8 @@ export const labelScan = {
     <h2 class="eyebrow">Per serving, off the panel</h2>
     <section class="card pad">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div><div class="bk" style="margin-bottom:6px">Calories</div><input id="ls-kcal" type="number" inputmode="numeric" placeholder="0" aria-label="Calories" style="${numField}" /></div>
-        <div><div class="bk" style="margin-bottom:6px">Protein (g)</div><input id="ls-p" type="number" inputmode="numeric" placeholder="0" aria-label="Protein (g)" style="${numField};color:var(--green-bright)" /></div>
+        <div><div class="bk" style="margin-bottom:6px">Calories</div><input id="ls-kcal" type="number" inputmode="numeric" placeholder="0" aria-label="Calories" aria-describedby="ls-err" style="${numField}" /></div>
+        <div><div class="bk" style="margin-bottom:6px">Protein (g)</div><input id="ls-p" type="number" inputmode="numeric" placeholder="0" aria-label="Protein (g)" aria-describedby="ls-err" style="${numField};color:var(--green-bright)" /></div>
         <div><div class="bk" style="margin-bottom:6px">Carbs (g)</div><input id="ls-c" type="number" inputmode="numeric" placeholder="0" aria-label="Carbs (g)" style="${numField}" /></div>
         <div><div class="bk" style="margin-bottom:6px">Fat (g)</div><input id="ls-f" type="number" inputmode="numeric" placeholder="0" aria-label="Fat (g)" style="${numField}" /></div>
       </div>
@@ -192,7 +192,7 @@ export const labelScan = {
 
     <div style="height:14px"></div>
     <div class="sidebox">
-      <div class="req-icon b" style="width:38px;height:38px">${icon('shield', 18)}</div>
+      <div class="req-icon b s38">${icon('shield', 18)}</div>
       <div><div class="tt">Exact, because you read it</div>
       <div class="ts">You copy the numbers off the real panel; we just multiply by your servings. No guessing a packaged food, and no fake scan.</div></div>
     </div>
@@ -216,7 +216,12 @@ export const labelScan = {
       const val = (id) => Math.max(0, parseFloat(root.querySelector('#' + id).value) || 0);
       const p = val('ls-p'), c = val('ls-c'), f = val('ls-f'), kcalIn = val('ls-kcal');
       // At least protein or calories must be entered — logging an all-zero label is meaningless.
-      if (p <= 0 && kcalIn <= 0) { err.textContent = 'Enter at least the calories or protein from the label.'; return; }
+      ['ls-kcal', 'ls-p'].forEach((id) => { const el = root.querySelector('#' + id); if (el) el.removeAttribute('aria-invalid'); });
+      if (p <= 0 && kcalIn <= 0) {
+        err.textContent = 'Enter at least the calories or protein from the label.';
+        ['ls-kcal', 'ls-p'].forEach((id) => { const el = root.querySelector('#' + id); if (el) el.setAttribute('aria-invalid', 'true'); });
+        return;
+      }
       // If calories were left blank, derive them (Atwater) so the plate still carries energy.
       const kcal = kcalIn > 0 ? kcalIn : (4 * p + 4 * c + 9 * f);
       window.__act.captureManual(
@@ -263,7 +268,7 @@ export const barcodeScan = {
       <div style="display:flex;gap:10px">
         <input id="bc-digits" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 038000138416" aria-label="Barcode digits"
           style="flex:1;min-width:0;height:52px;border-radius:var(--r-card-sm);background:var(--surface-1);border:1.5px solid var(--hairline);color:var(--text);font-size:17px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:0.06em" />
-        <button class="btn green" id="bc-lookup" aria-label="Look up barcode" style="width:auto;padding:0 18px;height:52px;flex:none">${icon('search', 18)}</button>
+        <button class="btn primary" id="bc-lookup" aria-label="Look up barcode" style="width:auto;padding:0 18px;height:52px;flex:none">${icon('search', 18)}</button>
       </div>
       ${canLive ? '' : `<div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:8px;line-height:1.4">Live camera scanning isn't supported in this app's browser engine yet. The printed digits are the same code, so typing them is just as exact.</div>`}
     </section>

@@ -189,9 +189,10 @@ describe('openingMessage', () => {
 });
 
 describe('qualityBand (2026-07-16 — quality is a separate concept from compliance green)', () => {
-  test('bands: >=75 good, 50-74 mid, <50 low', () => {
+  test('bands: >=80 good, 50-79 mid, <50 low (one floor with score-band.js since 2026-09-05)', () => {
     expect(qualityBand(82)).toEqual({ cls: 'good', label: 'Strong' });
-    expect(qualityBand(75)).toEqual({ cls: 'good', label: 'Strong' });
+    expect(qualityBand(80)).toEqual({ cls: 'good', label: 'Strong' });
+    expect(qualityBand(79)).toEqual({ cls: 'mid', label: 'Needs work' }); // a 77 used to read Strong while wearing amber
     expect(qualityBand(58)).toEqual({ cls: 'mid', label: 'Needs work' });
     expect(qualityBand(50)).toEqual({ cls: 'mid', label: 'Needs work' });
     expect(qualityBand(31)).toEqual({ cls: 'low', label: 'Weak plate' });
