@@ -149,6 +149,9 @@ const SHOTS = [
   { g: 'styles', name: 'meal-view-intuitive', seed: 'styleIntuitive', route: 'meal-view/meal-seed-lunch', at: [21, 40] },
   { g: 'styles', name: 'memory-edit-structured', seed: 'memoryEditStructured', route: 'memory-edit/seed-fm', at: [21, 40] },
   { g: 'styles', name: 'memory-edit-intuitive', seed: 'memoryEditIntuitive', route: 'memory-edit/seed-fm', at: [21, 40] },
+  // A professional's calories-hidden-alone override: macros stay, every kcal figure goes.
+  { g: 'styles', name: 'meal-view-calories-off', seed: 'styleCaloriesOff', route: 'meal-view/meal-seed-lunch', at: [21, 40] },
+  { g: 'styles', name: 'memory-edit-calories-off', seed: 'memoryEditCaloriesOff', route: 'memory-edit/seed-fm', at: [21, 40] },
   { g: 'styles', name: 'plan-style-picker', seed: 'dayComplete', route: 'plan-style', at: [21, 41] },
 
   // coach

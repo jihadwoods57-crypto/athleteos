@@ -36,17 +36,17 @@ export async function probeHealth() {
   try {
     HK.available = h && h.available ? !!(await h.available()) : !!(await roles.healthAvailable());
   } catch { HK.available = false; }
+  let osGranted = false;
   if (HK.available) {
-    try { HK.connected = h && h.connected ? !!(await h.connected()) : !!(await roles.healthConnected()); }
-    catch { HK.connected = false; }
-  } else HK.connected = false;
-  if (HK.connected) {
-    if (h && h.readActivity) {
-      const to = new Date(); const from = new Date(to); from.setHours(0, 0, 0, 0);
-      HK.activity = await h.readActivity(from.toISOString(), to.toISOString()).catch(() => null);
-    }
-    HK.recovery = await roles.healthRead().catch(() => null);
-  } else { HK.activity = null; HK.recovery = null; }
+    try { osGranted = h && h.connected ? !!(await h.connected()) : !!(await roles.healthConnected()); }
+    catch { osGranted = false; }
+  }
+  // Consent BEFORE the reads: iOS keeps its grant after Disconnect revokes the server consent,
+  // so the phone alone would answer "connected" forever and the very next visit would flip this
+  // screen back to Connected and read again, the opposite of what Disconnect just promised.
+  // Connected means the OS grant AND not-revoked. A consent read that FAILS stays null and does
+  // not un-connect the display (never punish a dropped request); the server refuses ingestion
+  // without consent regardless (0155).
   const c = typeof window !== 'undefined' ? window.sb : null;
   if (c) {
     try {
@@ -61,6 +61,14 @@ export async function probeHealth() {
       }
     } catch { /* consent stays null: "checking", never a false yes */ }
   }
+  HK.connected = osGranted && HK.consent !== false;
+  if (HK.connected) {
+    if (h && h.readActivity) {
+      const to = new Date(); const from = new Date(to); from.setHours(0, 0, 0, 0);
+      HK.activity = await h.readActivity(from.toISOString(), to.toISOString()).catch(() => null);
+    }
+    HK.recovery = await roles.healthRead().catch(() => null);
+  } else { HK.activity = null; HK.recovery = null; }
   HK.probed = true;
 }
 

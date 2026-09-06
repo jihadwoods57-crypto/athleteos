@@ -64,7 +64,9 @@ function frame(n, total, title, sub, body, cta, next, opts = {}) {
   return `
   <div class="ob">
     <div class="ob-nav"><div class="ob-back" data-go="${opts.back || 'role'}" aria-label="Back">${icon('chevron', 18)}</div>${progressOf(n, total)}</div>
-    <div class="ob-title">${esc(title)}</div>
+    ${/* The screen's h1 (a11y outline, same move as the ob2 hero titles 2026-09-06): .ob-title
+          zeroes margin and owns the type, so no pixel moves. */''}
+    <h1 class="ob-title">${esc(title)}</h1>
     <div class="ob-sub">${esc(sub)}</div>
     <div class="ob-body">${body}</div>
     <div class="ob-foot">

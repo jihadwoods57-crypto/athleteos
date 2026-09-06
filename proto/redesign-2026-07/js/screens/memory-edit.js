@@ -23,11 +23,15 @@ export default {
     const it = itemFor(sub);
     // INTUITIVE (0142): opening a saved meal must not read its stored calories back to the
     // athlete — every other surface hides these numbers, and this pre-filled form was the last
-    // one that didn't. Editing without the section keeps the stored numbers exactly as they are
-    // (mount sends them through untouched). A NEW manual save still shows the fields on every
-    // style: those numbers come off a label or menu the athlete is holding — the one typed
-    // fallback the red line allows — and an item with no numbers at all can't score fueling.
-    const showNums = S.planStyle.showMacros || !it;
+    // one that didn't. Per FIELD: the macro inputs ride showMacros, the calorie input rides
+    // showCalories (a professional can hide calories alone). Editing without a field keeps
+    // that stored number exactly as it is (mount sends it through untouched). A NEW manual
+    // save still shows every field on every style: those numbers come off a label or menu the
+    // athlete is holding — the one typed fallback the red line allows — and an item with no
+    // numbers at all can't score fueling.
+    const showMacroFields = S.planStyle.showMacros || !it;
+    const showKcalField = S.planStyle.showCalories || !it;
+    const showNums = showMacroFields || showKcalField;
     const fm = foodMemory(RT.userId);
     const place = it && it.place_id && fm ? (fm.places || []).find((p) => p.id === it.place_id) : null;
     const numField = 'width:100%;height:52px;border-radius:var(--r-card-sm);background:var(--surface-1);border:1.5px solid var(--hairline);color:var(--text);font-size:17px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums';
@@ -51,10 +55,11 @@ export default {
     ${showNums ? `<h2 class="eyebrow">The numbers</h2>
     <section class="card pad">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div><label class="bk" for="me-kcal" style="display:block;margin-bottom:6px">Calories</label><input id="me-kcal" type="number" inputmode="numeric" placeholder="0" value="${it ? v(it.kcal) : ''}" style="${numField}" /></div>
+        ${showKcalField ? `<div><label class="bk" for="me-kcal" style="display:block;margin-bottom:6px">Calories</label><input id="me-kcal" type="number" inputmode="numeric" placeholder="0" value="${it ? v(it.kcal) : ''}" style="${numField}" /></div>` : ''}
+        ${showMacroFields ? `
         <div><label class="bk" for="me-p" style="display:block;margin-bottom:6px">Protein (g)</label><input id="me-p" type="number" inputmode="numeric" placeholder="0" value="${it ? v(it.protein) : ''}" style="${numField};color:var(--green-bright)" /></div>
         <div><label class="bk" for="me-c" style="display:block;margin-bottom:6px">Carbs (g)</label><input id="me-c" type="number" inputmode="numeric" placeholder="0" value="${it ? v(it.carbs) : ''}" style="${numField}" /></div>
-        <div><label class="bk" for="me-f" style="display:block;margin-bottom:6px">Fat (g)</label><input id="me-f" type="number" inputmode="numeric" placeholder="0" value="${it ? v(it.fat) : ''}" style="${numField}" /></div>
+        <div><label class="bk" for="me-f" style="display:block;margin-bottom:6px">Fat (g)</label><input id="me-f" type="number" inputmode="numeric" placeholder="0" value="${it ? v(it.fat) : ''}" style="${numField}" /></div>` : ''}
       </div>
     </section>` : ''}
 
@@ -84,26 +89,34 @@ export default {
       const val = (id) => root.querySelector('#' + id).value;
       const name = String(val('me-name') || '').trim();
       if (!name) { err.textContent = 'Give it a name you’ll recognize.'; return; }
-      // The numbers section may not be in the DOM (Intuitive, editing a saved item). Ask the
-      // DOM rather than the style so this click always matches what THIS render showed; with
-      // no fields the stored numbers pass through unchanged — hiding is presentation, never data.
-      const fieldsShown = !!root.querySelector('#me-kcal');
-      // No fields means render had a saved item to fall back on. If the cache was force-refreshed
-      // between render and this click and the item is gone (archived elsewhere), refusing beats
-      // inserting a nameless duplicate with four zeros — the exact row no fueling score survives.
-      if (!fieldsShown && !it) { err.textContent = 'This saved meal is gone. Go back to Plan and try again.'; return; }
+      // A number field may not be in the DOM (a style or professional override hides it —
+      // per field: macros and calories each ride their own flag when editing a saved item).
+      // Ask the DOM rather than the style so this click always matches what THIS render
+      // showed; a hidden field's stored number passes through unchanged — hiding is
+      // presentation, never data.
+      const kcalShown = !!root.querySelector('#me-kcal');
+      const macrosShown = !!root.querySelector('#me-p');
+      // A hidden field means render had a saved item to fall back on. If the cache was
+      // force-refreshed between render and this click and the item is gone (archived
+      // elsewhere), refusing beats inserting a nameless duplicate with zeros in the hidden
+      // columns — the exact row no fueling score survives.
+      if ((!kcalShown || !macrosShown) && !it) { err.textContent = 'This saved meal is gone. Go back to Plan and try again.'; return; }
       const stored = (k) => Math.max(0, Number(it && it[k]) || 0);
-      const p = fieldsShown ? Math.max(0, parseFloat(val('me-p')) || 0) : stored('protein');
-      const kcal = fieldsShown ? Math.max(0, parseFloat(val('me-kcal')) || 0) : stored('kcal');
-      if (fieldsShown && p <= 0 && kcal <= 0) { err.textContent = 'Enter at least the calories or protein.'; return; }
+      const p = macrosShown ? Math.max(0, parseFloat(val('me-p')) || 0) : stored('protein');
+      const kcal = kcalShown ? Math.max(0, parseFloat(val('me-kcal')) || 0) : stored('kcal');
+      if (p <= 0 && kcal <= 0 && (kcalShown || macrosShown)) {
+        err.textContent = kcalShown && macrosShown ? 'Enter at least the calories or protein.'
+          : kcalShown ? 'Enter the calories.' : 'Enter the protein.';
+        return;
+      }
       btn.disabled = true; err.textContent = '';
       const ok = await act.saveMemoryForm({
         ...(it ? { id: it.id } : {}),
         name, kind,
         placeName: String(val('me-place') || '').trim() || null,
         protein: p, kcal,
-        carbs: fieldsShown ? parseFloat(val('me-c')) || 0 : stored('carbs'),
-        fat: fieldsShown ? parseFloat(val('me-f')) || 0 : stored('fat'),
+        carbs: macrosShown ? parseFloat(val('me-c')) || 0 : stored('carbs'),
+        fat: macrosShown ? parseFloat(val('me-f')) || 0 : stored('fat'),
       });
       if (!ok) { btn.disabled = false; err.textContent = 'Couldn’t save right now. Check your connection and try again.'; return; }
       await refreshMemory();

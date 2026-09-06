@@ -134,12 +134,17 @@ async function warmParticipants(rolesMod, uid) {
 }
 
 function macroRow(m) {
-  return `<div class="macro-row">
-    <div class="macro"><div class="mv">${m.protein}g</div><div class="mk">Protein</div></div>
-    <div class="macro"><div class="mv">${m.carbs}g</div><div class="mk">Carbs</div></div>
-    <div class="macro"><div class="mv">${m.fat}g</div><div class="mk">Fat</div></div>
-    <div class="macro"><div class="mv">${m.cals}</div><div class="mk">Calories</div></div>
-  </div>`;
+  // Per figure (0142): protein/carbs/fat behind showMacros, the calorie figure behind
+  // showCalories — a professional can hide calories alone, and the prescription must hold
+  // on every cell, not just the row.
+  const cells = [];
+  if (S.planStyle.showMacros) cells.push(
+    `<div class="macro"><div class="mv">${m.protein}g</div><div class="mk">Protein</div></div>`,
+    `<div class="macro"><div class="mv">${m.carbs}g</div><div class="mk">Carbs</div></div>`,
+    `<div class="macro"><div class="mv">${m.fat}g</div><div class="mk">Fat</div></div>`,
+  );
+  if (S.planStyle.showCalories) cells.push(`<div class="macro"><div class="mv">${m.cals}</div><div class="mk">Calories</div></div>`);
+  return cells.length ? `<div class="macro-row">${cells.join('\n    ')}</div>` : '';
 }
 
 /* ---------- Analyzing interstitial (branded loading) ---------- */
@@ -461,7 +466,9 @@ function openingInputs(M) {
   // Anything else — an old deploy with no stamp, or a stamp from a style the athlete has since
   // left — is suppressed rather than regex-scrubbed: a half-redacted paragraph reads worse than
   // the honest short summary, and a stale stamp is not evidence about today's prose.
-  const styleSafeProse = S.planStyle.showMacros || M.styleApplied === S.planStyle.key;
+  // Both flags (or the stamp): a paragraph can quote any figure, so one hidden figure
+  // means only stamped prose — written for this exact style — may show.
+  const styleSafeProse = (S.planStyle.showMacros && S.planStyle.showCalories) || M.styleApplied === S.planStyle.key;
   const fullText = openingMessage({
     name: M.name, quality: M.score, note: M.note,
     analysis: styleSafeProse ? M.analysis : null,
@@ -650,9 +657,11 @@ export const analysis = {
     // styleSafeProse above): no macro or calorie figure reaches the athlete, and long AI prose
     // shows only when the style permits numbers or the server stamped it for this exact style.
     // This screen predates the gate and was the named leak in PRODUCT.md's red line — the
-    // numbers are still computed, stored and sent; hiding is presentation only.
-    const showNums = S.planStyle.showMacros;
-    const styleSafeProse = showNums || L.styleApplied === S.planStyle.key;
+    // numbers are still computed, stored and sent; hiding is presentation only. Per figure:
+    // the section renders when either flag is on; macroRow drops the cells the flags hide.
+    // Prose needs BOTH flags (or the stamp) — a paragraph can quote any figure.
+    const showNums = S.planStyle.showMacros || S.planStyle.showCalories;
+    const styleSafeProse = (S.planStyle.showMacros && S.planStyle.showCalories) || L.styleApplied === S.planStyle.key;
     return `
     ${backHead(`${L.name} Analysis`, already ? 'Already logged' : 'Check it before it counts', 'camera')}
 
@@ -958,11 +967,15 @@ export const thread = {
       const gap = Math.max(0, target - (Number(soFar) || 0));
       return gap ? Math.round(gap / Math.max(1, mealsLeft)) * mealsLeft : 0;
     };
+    // Per figure (0142): each bar rides its own surface flag — a professional can hide
+    // calories alone, and the calorie bar (value AND target) must go with them.
     const targetBars = [
-      ['Protein', M.macros.protein, T.protein, 'g', project(T.protein, dayProg.proteinSoFar)],
-      ['Calories', M.macros.cals, T.calories, '', null],
+      ...(S.planStyle.showMacros ? [['Protein', M.macros.protein, T.protein, 'g', project(T.protein, dayProg.proteinSoFar)]] : []),
+      ...(S.planStyle.showCalories ? [['Calories', M.macros.cals, T.calories, '', null]] : []),
     ].filter(([, , target]) => target);
-    const projectedTotal = T.protein ? (Number(dayProg.proteinSoFar) || 0) + (project(T.protein, dayProg.proteinSoFar) || 0) : null;
+    // paceNote quotes a protein figure, so it rides showMacros like the protein bar — the card
+    // can be visible for the calorie bar alone.
+    const projectedTotal = S.planStyle.showMacros && T.protein ? (Number(dayProg.proteinSoFar) || 0) + (project(T.protein, dayProg.proteinSoFar) || 0) : null;
     const paceNote = projectedTotal && mealsLeft
       ? `On pace for about ${projectedTotal}g if your ${mealsLeft === 1 ? 'last meal lands' : `last ${mealsLeft} meals land`} on plan`
       : '';
@@ -978,18 +991,20 @@ export const thread = {
     // was on it, and how it landed still do — the composition IS the feedback. Every number is
     // still computed and still stored (the professional needs them, and under-fueling is a
     // safety signal); this gate is presentation only. `showMacros` is the athlete's own
-    // opt-in-able switch, so someone who WANTS their numbers back can have them.
-    const showNums = S.planStyle.showMacros;
+    // opt-in-able switch, so someone who WANTS their numbers back can have them. Per figure:
+    // the card renders when either flag is on; each cell rides its own flag below.
+    const showNums = S.planStyle.showMacros || S.planStyle.showCalories;
     // The value strip + day bars, as one chrome-less block the read card hosts. Same numbers,
     // same honesty markers (~ for photo estimates); provenance rides a quiet in-card line.
     const nutInCard = settled && showNums ? `
     <div class="nut-src">Nutrition · ${esc(srcLabel)}</div>
     ${emptyRead ? `<div style="padding:0 16px 13px">${rereadNote}</div>` : `
     <div class="nut-values">
+      ${S.planStyle.showMacros ? `
       <div class="nv lead"><div class="mv">${tilde}${M.macros.protein}<i>g</i></div><div class="mk">Protein</div></div>
       <div class="nv"><div class="mv">${tilde}${M.macros.carbs}<i>g</i></div><div class="mk">Carbs</div></div>
-      <div class="nv"><div class="mv">${tilde}${M.macros.fat}<i>g</i></div><div class="mk">Fat</div></div>
-      <div class="nv"><div class="mv">${tilde}${M.macros.cals}</div><div class="mk">Calories</div></div>
+      <div class="nv"><div class="mv">${tilde}${M.macros.fat}<i>g</i></div><div class="mk">Fat</div></div>` : ''}
+      ${S.planStyle.showCalories ? `<div class="nv${S.planStyle.showMacros ? '' : ' lead'}"><div class="mv">${tilde}${M.macros.cals}</div><div class="mk">Calories</div></div>` : ''}
     </div>
     ${targetBars.length ? `<div class="day-bars">
         ${targetBars.map(([k, v, target, u, projected]) => {
@@ -1114,10 +1129,18 @@ export const thread = {
       <summary>View detected foods ${icon('chevron', 13)}</summary>
       <div class="bd-body">
       ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
-      ${targetBars.length ? '' : `<div class="est-note">No coach targets set yet, so there's nothing to measure against. These are this meal's totals.</div>`}
-      <div class="est-note" style="margin-top:8px">~${M.fiber}g fiber estimated. The full component read lives under "Why this meal reads ${M.score != null ? M.score : 'what it reads'}".</div>
+      ${/* "No targets" is claimed off the RAW targets, not the visible bars: a target a
+            professional chose to hide still exists, and this line must not say otherwise. */''}
+      ${targetBars.length || T.protein || T.calories ? '' : `<div class="est-note">No coach targets set yet, so there's nothing to measure against. These are this meal's totals.</div>`}
+      ${S.planStyle.showMacros ? `<div class="est-note" style="margin-top:8px">~${M.fiber}g fiber estimated. The full component read lives under "Why this meal reads ${M.score != null ? M.score : 'what it reads'}".</div>` : ''}
       ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
-      ${corrLog ? `<div class="est-note" style="margin-top:8px;color:var(--blue-bright)"><b style="color:var(--blue-bright)">Corrected by you</b>: ${corrLog} correction${corrLog === 1 ? '' : 's'} applied. The AI's original estimate is kept for reference${M.orig ? ` (was ~${M.orig.protein}g protein · ~${M.orig.kcal} kcal)` : ''}.</div>` : ''}
+      ${corrLog ? `<div class="est-note" style="margin-top:8px;color:var(--blue-bright)"><b style="color:var(--blue-bright)">Corrected by you</b>: ${corrLog} correction${corrLog === 1 ? '' : 's'} applied. The AI's original estimate is kept for reference${(() => {
+        if (!M.orig) return '';
+        const bits = [];
+        if (S.planStyle.showMacros) bits.push(`~${M.orig.protein}g protein`);
+        if (S.planStyle.showCalories) bits.push(`~${M.orig.kcal} kcal`);
+        return bits.length ? ` (was ${bits.join(' · ')})` : '';
+      })()}.</div>` : ''}
       ${/* The two entry points into the correction panel live HERE, with the numbers they correct
             (founder, 2026-08-02). Both render for a manually logged meal too. */''}
       ${/* THE CHAT IS THE CORRECTION SURFACE (founder, 2026-09-02). The "Correct the analysis"

@@ -52,11 +52,14 @@ export const foodSearch = {
     <section class="card pad" id="fs-plate">
       <div class="tiny" style="font-size:13px;font-weight:600" id="fs-empty">Tap results to build the plate.</div>
       <div id="fs-items"></div>
+      ${/* Per figure (0142): a hidden figure's cell stays in the DOM (renderTotals writes into
+            every cell unconditionally) and hides itself — macros ride showMacros, the calorie
+            cell rides showCalories. */''}
       <div class="macro-row" id="fs-totals" style="margin-top:12px;display:none">
-        <div class="macro"><div class="mv" id="t-p">0g</div><div class="mk">Protein</div></div>
-        <div class="macro"><div class="mv" id="t-c">0g</div><div class="mk">Carbs</div></div>
-        <div class="macro"><div class="mv" id="t-f">0g</div><div class="mk">Fat</div></div>
-        <div class="macro"><div class="mv" id="t-k">0</div><div class="mk">Calories</div></div>
+        <div class="macro"${S.planStyle.showMacros ? '' : ' hidden'}><div class="mv" id="t-p">0g</div><div class="mk">Protein</div></div>
+        <div class="macro"${S.planStyle.showMacros ? '' : ' hidden'}><div class="mv" id="t-c">0g</div><div class="mk">Carbs</div></div>
+        <div class="macro"${S.planStyle.showMacros ? '' : ' hidden'}><div class="mv" id="t-f">0g</div><div class="mk">Fat</div></div>
+        <div class="macro"${S.planStyle.showCalories ? '' : ' hidden'}><div class="mv" id="t-k">0</div><div class="mk">Calories</div></div>
       </div>
     </section>
 
@@ -72,8 +75,10 @@ export const foodSearch = {
     // INTUITIVE (0142): no calorie or macro figure reaches the athlete — per-food numbers and
     // the plate totals stay hidden; picking "eggs" doesn't need them. Everything is still
     // computed and stored (captureManual sends the real sums); the gate is presentation only,
-    // same rule as the meal thread's showNums.
-    const showNums = S.planStyle.showMacros;
+    // same rule as the meal thread's showNums. Per figure: the totals bar shows when either
+    // flag is on (its cells hide themselves in render), and each result-row figure rides its
+    // own flag below.
+    const showNums = S.planStyle.showMacros || S.planStyle.showCalories;
     const input = root.querySelector('#fs-input');
     const results = root.querySelector('#fs-results');
     const items = root.querySelector('#fs-items');
@@ -115,7 +120,7 @@ export const foodSearch = {
       results.innerHTML = hits.length ? hits.map((x, i) => `
         <div class="lrow" data-add="${DB.indexOf(x)}" style="padding:12px 16px">
           <div class="lic">${icon('plus', 16)}</div>
-          <div class="lm"><div class="lt">${esc(x.n)}</div><div class="ls">${esc(x.unit)}${showNums ? ` · ${x.p}g protein · ${x.kc} kcal` : ''}</div></div>
+          <div class="lm"><div class="lt">${esc(x.n)}</div><div class="ls">${esc(x.unit)}${S.planStyle.showMacros ? ` · ${x.p}g protein` : ''}${S.planStyle.showCalories ? ` · ${x.kc} kcal` : ''}</div></div>
         </div>`).join('')
         : `<div style="padding:14px 16px;font-size:var(--t-sm);font-weight:600;color:var(--text-3);line-height:1.5">No match for that. Snap a photo instead. It reads anything.
             <button class="btn ghost sm" id="fs-to-cam" style="width:auto;padding:0 16px;margin-top:10px;display:flex;align-items:center;gap:6px">${icon('camera', 15)} Take a photo</button></div>`;
@@ -251,7 +256,8 @@ export const barcodeScan = {
     const slotName = slot ? slotTitle(slot) : 'meal';
     // INTUITIVE (0142): the found product's macro row stays hidden (elements stay in the DOM —
     // paint() writes into them unconditionally); the maker's numbers are still logged exactly.
-    const showNums = S.planStyle.showMacros;
+    // Per figure: the row shows when either flag is on; each cell hides behind its own flag.
+    const showNums = S.planStyle.showMacros || S.planStyle.showCalories;
     const canLive = typeof window !== 'undefined' && 'BarcodeDetector' in window;
     return `
     ${backHead(`Scan a barcode · ${slotName}`, "Packaged food, exact from the maker's own data", 'food-search')}
@@ -281,10 +287,10 @@ export const barcodeScan = {
         <div class="tt" id="bc-name" style="font-size:15px"></div>
         <div class="ts" id="bc-serving" style="margin-top:2px"></div>
         <div class="macro-row" style="margin-top:12px${showNums ? '' : ';display:none'}">
-          <div class="macro"><div class="mv" id="bc-p">0g</div><div class="mk">Protein</div></div>
-          <div class="macro"><div class="mv" id="bc-c">0g</div><div class="mk">Carbs</div></div>
-          <div class="macro"><div class="mv" id="bc-f">0g</div><div class="mk">Fat</div></div>
-          <div class="macro"><div class="mv" id="bc-k">0</div><div class="mk">Calories</div></div>
+          <div class="macro"${S.planStyle.showMacros ? '' : ' hidden'}><div class="mv" id="bc-p">0g</div><div class="mk">Protein</div></div>
+          <div class="macro"${S.planStyle.showMacros ? '' : ' hidden'}><div class="mv" id="bc-c">0g</div><div class="mk">Carbs</div></div>
+          <div class="macro"${S.planStyle.showMacros ? '' : ' hidden'}><div class="mv" id="bc-f">0g</div><div class="mk">Fat</div></div>
+          <div class="macro"${S.planStyle.showCalories ? '' : ' hidden'}><div class="mv" id="bc-k">0</div><div class="mk">Calories</div></div>
         </div>
         <h2 class="eyebrow" style="margin-top:14px">How much did you eat?</h2>
         <div class="chip-row" id="bc-grams" data-toggle-group>
@@ -320,7 +326,7 @@ export const barcodeScan = {
       const m = found.per100 || {};
       const x = grams / 100;
       root.querySelector('#bc-name').textContent = found.name;
-      root.querySelector('#bc-serving').textContent = S.planStyle.showMacros
+      root.querySelector('#bc-serving').textContent = (S.planStyle.showMacros || S.planStyle.showCalories)
         ? (found.serving
           ? `Label serving: ${found.serving} · numbers below are for your ${grams}g`
           : `Numbers below are for your ${grams}g`)

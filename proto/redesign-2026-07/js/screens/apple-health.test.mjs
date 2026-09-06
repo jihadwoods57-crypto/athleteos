@@ -53,6 +53,17 @@ test('no inline styles, no em dashes, and the consent screen points here', () =>
   assert.match(consent, /data-go="apple-health"/);
 });
 
+test('Disconnect sticks: connected is the OS grant AND not-revoked consent', () => {
+  // iOS keeps its grant after Disconnect revokes the server consent, so the phone alone would
+  // answer "connected" forever and the next visit would flip the screen back to Connected and
+  // read again — the opposite of what Disconnect just promised (1 PM audit, 2026-09-06). A
+  // FAILED consent read stays null and does not un-connect the display.
+  assert.match(screen, /HK\.connected = osGranted && HK\.consent !== false/);
+  // And the consent fetch runs before that derivation, not after the reads.
+  assert.ok(screen.indexOf("rpc('has_health_consent'") < screen.indexOf('HK.connected = osGranted'),
+    'consent is fetched before connected is derived');
+});
+
 test('the Settings label follows the probe honestly', () => {
   // The module imports roles.js and through it state.js, which wants a browser at import time.
   // The label logic is three pure pieces of source, so evaluate those alone (the repo's own file,

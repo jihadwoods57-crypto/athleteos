@@ -744,6 +744,9 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); }
 /* macro chips */
 .macro-row { display: flex; gap:var(--s2h); }
 .macro { flex: 1; text-align: center; padding:var(--s3h) var(--s1); border-radius: var(--r-tile); background: var(--surface-2); border: 1px solid var(--hairline-soft); min-width: 0; }
+/* A per-figure-hidden cell (food search / barcode: the cell stays in the DOM because paint
+   writes into it). Explicit, so a future .macro display rule can't quietly beat the UA's. */
+.macro[hidden] { display: none; }
 .macro .mv { font-size: var(--t-xl); font-weight: 800; letter-spacing: -0.02em; white-space: nowrap; }
 .macro .mk { font-size: var(--t-eyebrow); font-weight: 700; color: var(--text-3); margin-top:var(--s1); text-transform: uppercase; letter-spacing: var(--track-key); }
 /* 5-up macro row (thread meal breakdown) is denser than 3/4-up — ease the type so values don't touch edges */

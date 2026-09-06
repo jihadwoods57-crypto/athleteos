@@ -503,17 +503,20 @@ export const mealView = {
     <div class="foodchips">${m.detected.slice(0, 8).map((f) => `<span class="foodchip"><span class="dot"></span>${esc(String(f))}</span>`).join('')}</div>` : ''}
     ${/* INTUITIVE (0142): this twin of the live meal screen was the last surface reading a
           stored meal's numbers back to the athlete — a meal whose macros were hidden on the day
-          it was logged must not reveal them from history. Same gates as meal.js: showMacros for
-          the macro row, styleApplied for the prose (older analyses were written in a numbers
-          tone). The numbers stay stored; coaches and dietitians read them in their own views. */''}
-    ${S.planStyle.showMacros ? `<h2 class="eyebrow">Nutrition</h2>
+          it was logged must not reveal them from history. Same gates as meal.js, per figure:
+          protein/carbs/fat behind showMacros, the calorie cell behind showCalories (a
+          professional can hide calories alone); prose needs both flags or the styleApplied
+          stamp (older analyses were written in a numbers tone). The numbers stay stored;
+          coaches and dietitians read them in their own views. */''}
+    ${S.planStyle.showMacros || S.planStyle.showCalories ? `<h2 class="eyebrow">Nutrition</h2>
     <div class="macro-row">
+      ${S.planStyle.showMacros ? `
       <div class="macro"><div class="mv">${m.protein || 0}g</div><div class="mk">Protein</div></div>
       <div class="macro"><div class="mv">${m.carbs || 0}g</div><div class="mk">Carbs</div></div>
-      <div class="macro"><div class="mv">${m.fat || 0}g</div><div class="mk">Fat</div></div>
-      <div class="macro"><div class="mv">${m.kcal || 0}</div><div class="mk">Calories</div></div>
+      <div class="macro"><div class="mv">${m.fat || 0}g</div><div class="mk">Fat</div></div>` : ''}
+      ${S.planStyle.showCalories ? `<div class="macro"><div class="mv">${m.kcal || 0}</div><div class="mk">Calories</div></div>` : ''}
     </div>` : ''}
-    ${(m.analysis || m.note) && (S.planStyle.showMacros || m.styleApplied === S.planStyle.key) ? `
+    ${(m.analysis || m.note) && ((S.planStyle.showMacros && S.planStyle.showCalories) || m.styleApplied === S.planStyle.key) ? `
     <div style="height:12px"></div>
     <div class="ai-note">
       <div class="av">${icon('sparkle', 18)}</div>

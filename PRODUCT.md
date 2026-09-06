@@ -40,7 +40,10 @@ short and earns its place. Never cutesy, never corporate-SaaS, never fake-hype.
   READBACKS — the Food Memory edit sheet's pre-filled numbers, the "save this as a usual?"
   suggestion line, the goal panel's derived-targets row, and the past-meal history view's macro
   row — were closed 2026-09-06, per-figure where a surface quotes both numbers, pinned by
-  intuitive-surface.test.mjs): what remains, deliberately, is TYPING where the athlete is
+  intuitive-surface.test.mjs; the same day's audit made per-figure hold on EVERY meal-family
+  surface — the live meal read, thread strip and day bars, the past-meal view, the edit
+  sheet's fields, and food-search/barcode cells — so a professional hiding calories alone
+  hides exactly calories, everywhere): what remains, deliberately, is TYPING where the athlete is
   transcribing a source they hold (the label-entry screen and a new manual Food Memory item —
   the one fallback this red line allows), and Guided's meal-screen calorie tile plus
   calories-vs-target day bar by that style's own design. This is also the market position — see

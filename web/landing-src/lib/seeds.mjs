@@ -218,8 +218,8 @@ export const dayFirst = `${COMMON}
    NOT off DAY.planStyle, which is only the per-day stamp. Seeding setDayPlanStyle alone made all
    three style screenshots identical. Set both: the assignment drives what the Plan screen shows,
    the stamp drives what the engine scores. */
-const styleSeed = (style) => `${COMMON}${ATHLETE_IDENTITY}
-  RT.profile.targets = { protein: 180, calories: 3200, weight: 195, style: '${style}', styleOverrides: null };
+const styleSeed = (style, overrides = null) => `${COMMON}${ATHLETE_IDENTITY}
+  RT.profile.targets = { protein: 180, calories: 3200, weight: 195, style: '${style}', styleOverrides: ${JSON.stringify(overrides)} };
   // S.planStyle prefers the CACHED RT.planStyle over live resolution (state.js:2248). Leaving a
   // stale cache made all three style screenshots render "Guided" despite resolveMyPlanStyle()
   // returning the right key. Clear it so the screen re-resolves from the assignment above.
@@ -236,18 +236,21 @@ const styleSeed = (style) => `${COMMON}${ATHLETE_IDENTITY}
   DAY.signals = { breakfast: { hunger: 3, fullness: 4, satisfaction: 4 }, lunch: { hunger: 4, fullness: 4, satisfaction: 5 }, dinner: { hunger: 3, fullness: 4, satisfaction: 4 } };
   DAY.signalWeekRate = 0.86;
   const ps = await import('/js/plan-style.js');
-  day.setDayPlanStyle('${style}', ps.knobsFor('${style}', null));
+  day.setDayPlanStyle('${style}', ps.knobsFor('${style}', ${JSON.stringify(overrides)}));
   window.__render();
 `;
 
 export const styleStructured = styleSeed('structured');
 export const styleGuided = styleSeed('guided');
 export const styleIntuitive = styleSeed('intuitive');
+/* A professional's per-key surface override (knobsFor merges it): calories hidden ALONE, macros
+   still shown — the state the per-figure gates exist for (1 PM audit 2026-09-06). */
+export const styleCaloriesOff = styleSeed('structured', { surface: { showCalories: false } });
 
 /* Food Memory edit sheet on a saved item — the cache is warmed directly, because the sb stub
    serves no memory rows. Structured pre-fills the stored numbers; Intuitive must not read them
    back (intuitive-surface.test.mjs pins the render; these shots are the human check). */
-const memoryEditSeed = (style) => `${styleSeed(style)}
+const memoryEditSeed = (style, overrides = null) => `${styleSeed(style, overrides)}
   const fmd = await import('/js/food-memory-data.js');
   await fmd.warmFoodMemory({ fetchFoodMemory: async () => ({
     items: [{ id: 'seed-fm', name: 'Usual Subway order', kind: 'order', place_id: 'seed-pl', kcal: 780, protein: 42, carbs: 80, fat: 28, times_logged: 4, basis: 'confirmed', source: 'manual' }],
@@ -257,6 +260,7 @@ const memoryEditSeed = (style) => `${styleSeed(style)}
 `;
 export const memoryEditStructured = memoryEditSeed('structured');
 export const memoryEditIntuitive = memoryEditSeed('intuitive');
+export const memoryEditCaloriesOff = memoryEditSeed('structured', { surface: { showCalories: false } });
 
 /* ------------------------------------------------------------------ operator (coach / trainer) */
 
@@ -290,6 +294,6 @@ export const parentIdentity = `${COMMON}
 export const SEEDS = {
   dayMorning, dayMidday, dayComplete, dayLate, dayFirst, dayLockStamp, stagedCapture, coachUpgrade, coachPickedPlan, rosterEnded,
   feedbackBug, feedbackSafety,
-  styleStructured, styleGuided, styleIntuitive, memoryEditStructured, memoryEditIntuitive,
+  styleStructured, styleGuided, styleIntuitive, styleCaloriesOff, memoryEditStructured, memoryEditIntuitive, memoryEditCaloriesOff,
   coachIdentity, trainerIdentity, parentIdentity,
 };
