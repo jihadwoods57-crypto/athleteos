@@ -93,11 +93,11 @@ alone it's not worth a sitting. Noted so October doesn't rediscover it.
 
 ## Notes for tomorrow's sessions
 - **Credential streak (update in place, don't re-diagnose):** EXPO_TOKEN invalid
-  ("bearer token is invalid") — 10 sessions through 09-05. No Supabase creds, no Stripe
+  ("bearer token is invalid") — 11 sessions through 09-06. No Supabase creds, no Stripe
   key, no Cloudflare token in the cloud env. One cheap check, cite this line, move on.
 - Fresh sandboxes need `npm install` before `npm run verify` — 4 gates fail on missing
-  deps otherwise and it looks like real breakage. Verify prints **13 gates** (trust its
-  summary). `npm install` churns package-lock.json; revert the noise, don't commit it.
+  deps otherwise and it looks like real breakage. Verify prints **14 gates** as of 09-06
+  (trust its summary). `npm install` churns package-lock.json; revert the noise, don't commit it.
 - The Drive connector cannot edit an existing Doc (schema-confirmed; 7 PM session
   re-checks the schema once daily, nobody else re-tests). Reports live in
   `.crew/reports/` — the charter's Reporting section has the full standing path.
