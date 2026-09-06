@@ -12,7 +12,19 @@
 //
 // Returned as a source string to inject via Page.addScriptToEvaluateOnNewDocument.
 
-export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity Football', practiceName = 'Ruiz Performance' }) {
+export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity Football', practiceName = 'Ruiz Performance', voice = 'numbers' }) {
+  // The AI rows on the signed-in athlete's own lunch thread. In production analyze-meal writes
+  // this prose PER PLAN STYLE, so an Intuitive athlete's thread never contains a stored figure —
+  // a numbers-voice fixture under an Intuitive seed shows QA a screen no real athlete can reach
+  // and trains the eye to accept what would be a server bug. `voice: 'signals'` is what the
+  // intuitive seeds pass; every other capture keeps the numbers voice a coach or Structured
+  // athlete really sees.
+  const lunchAnalysis = voice === 'signals'
+    ? "Good timing on lunch. I can see grilled chicken, brown rice, edamame and a soft-boiled egg. A solid plate with plenty to carry you into the afternoon. Fibre is the thin part of this one, so a piece of fruit alongside it would round it out."
+    : "Good timing on lunch. I can see grilled chicken, brown rice, edamame and a soft-boiled egg. I'd put it around 52g of protein and 780 calories, which puts you near 52 of 180g for the day with 2 meals left. Fibre is the thin part of this one, so a piece of fruit alongside it would round it out.";
+  const lunchUpdate = voice === 'signals'
+    ? "Got it. Double chicken makes this a genuinely big lunch, so you are well set. Dinner can be a normal plate rather than a catch-up one."
+    : "Got it - double chicken takes this to roughly 78g of protein and 980 calories. You're comfortably past halfway for the day now, so dinner can be a normal plate rather than a catch-up one.";
   return `(() => {
   const TODAY = ${JSON.stringify(todayISO)};
   const ATHLETES = ${JSON.stringify(athletes)};
@@ -125,7 +137,7 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
     {
       id: 'mc-1', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-athlete',
       role: 'ai', kind: 'message', meta: { t: 'analysis' }, created_at: tAt(13, 7),
-      text: "Good timing on lunch. I can see grilled chicken, brown rice, edamame and a soft-boiled egg. I'd put it around 52g of protein and 780 calories, which puts you near 52 of 180g for the day with 2 meals left. Fibre is the thin part of this one, so a piece of fruit alongside it would round it out.",
+      text: ${JSON.stringify(lunchAnalysis)},
     },
     {
       id: 'mc-2', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-coach',
@@ -140,7 +152,7 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
     {
       id: 'mc-4', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-athlete',
       role: 'ai', kind: 'message', meta: { t: 'analysis_update' }, created_at: tAt(13, 25),
-      text: "Got it - double chicken takes this to roughly 78g of protein and 980 calories. You're comfortably past halfway for the day now, so dinner can be a normal plate rather than a catch-up one.",
+      text: ${JSON.stringify(lunchUpdate)},
     },
     {
       id: 'mc-5', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-coach',

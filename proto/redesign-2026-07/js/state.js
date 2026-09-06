@@ -4258,22 +4258,42 @@ export const S = {
     const coachSet = !!this.planTargets;
     const bw = (p.baseWeight != null ? +p.baseWeight : 0) || (w.current != null ? +w.current : 0) || 0;
     // What the goal DOES: the scoring branch it selects and the numbers it derives when no
-    // professional has set their own. This is the honest answer to "what's the strategy".
+    // professional has set their own. This is the honest answer to "what's the strategy" —
+    // spoken per figure, like every row above it (INTUITIVE 0142): a mechanism whose number
+    // is hidden keeps its name but never a target the athlete can't see, and says the hiding
+    // is deliberate. The signals voice keys on the SCORING actually in force (one-sided
+    // fueling adequacy, protein off — knobsFor's intuitive preset), not on the overridable
+    // `tone` label: a pro can stamp tone:'signals' onto exact-target scoring, and "Never
+    // restriction" would be a lie there. Unknown or unset goals stay null, as they always
+    // have — plan.js renders its "pick a goal" prompt for null. Perform names no figure.
     const derived = key ? nutritionConfigForGoal(key, bw, null) : null;
-    const STRATEGY = {
-      lose: 'Calorie target below maintenance, protein held high.',
-      lose_fat: 'Calorie target below maintenance, protein held high.',
-      gain: 'Calorie surplus with protein scaled to bodyweight.',
-      build: 'Calorie surplus with protein scaled to bodyweight.',
-      maintain: 'Calories held near maintenance.',
-      health: 'Calories held near maintenance.',
-      perform: 'Fuel for training load: a performance formula, not a weight formula.',
-      performance: 'Fuel for training load: a performance formula, not a weight formula.',
-    };
+    const surf = this.planStyle;
+    const kn = (surf.knobs && surf.knobs.nutrition) || {};
+    const signalsScored = surf.tone === 'signals' && (kn.calorie === 'adequacy' || kn.calorie === 'off') && kn.protein === 'off';
+    const offscreen = (side) => `${side} is in your plan, kept off your screen on purpose.`;
+    const fam = key === 'lose_fat' ? 'lose' : key === 'build' ? 'gain' : key === 'health' ? 'maintain' : key === 'performance' ? 'perform' : key;
+    let strategy = null;
+    if (fam === 'perform') {
+      strategy = 'Fuel for training load: a performance formula, not a weight formula.';
+    } else if (fam === 'lose' || fam === 'gain' || fam === 'maintain') {
+      if (signalsScored) {
+        strategy = "Fueling enough for your training and staying consistent, with your body's signals leading. Never restriction.";
+      } else if (fam === 'maintain') {
+        strategy = surf.showCalories ? 'Calories held near maintenance.' : `Steady fueling. ${offscreen('The calorie side')}`;
+      } else {
+        const both = fam === 'lose' ? 'Calorie target below maintenance, protein held high.' : 'Calorie surplus with protein scaled to bodyweight.';
+        const calOnly = fam === 'lose' ? 'Calorie target below maintenance.' : 'Calorie surplus.';
+        const macOnly = fam === 'lose' ? 'Protein held high.' : 'Protein scaled to bodyweight.';
+        strategy = surf.showCalories && surf.showMacros ? both
+          : surf.showMacros ? `${macOnly} ${offscreen('The calorie side')}`
+            : surf.showCalories ? `${calOnly} ${offscreen('The protein side')}`
+              : 'Your targets are in your plan, kept off your screen on purpose.';
+      }
+    }
     return {
       key,
       label: this.planGoalLabel,
-      strategy: key ? (STRATEGY[key] || null) : null,
+      strategy,
       current: w.current != null ? Number(w.current) : null,
       target: w.target,
       start: w.start,

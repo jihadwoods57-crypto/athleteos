@@ -171,6 +171,98 @@ test('the past-meal analysis prose needs both figure flags or a style-matched an
   assert.match(TRUST_SRC, /\(S\.planStyle\.showMacros && S\.planStyle\.showCalories\) \|\| m\.styleApplied === S\.planStyle\.key/);
 });
 
+/* ---- the goal panel's strategy line (7 PM polish, 2026-09-06): the last sentence on Plan
+        still naming a hidden mechanism. Real renders through S.planGoal — the line is spoken
+        per figure like the rows above it, and the signals tone gets its own voice. ---- */
+
+test('the strategy line speaks signals to Intuitive, never calorie or protein mechanics', () => {
+  setStyle('intuitive');
+  RT.profile = { ...RT.profile, baseGoal: 'lose' };
+  const s = S.planGoal.strategy;
+  assert.match(s, /signals leading/i);
+  assert.match(s, /Never restriction/);
+  assert.doesNotMatch(s, /[Cc]alorie|protein|maintenance/);
+});
+
+test('the strategy line is unchanged where both figures show', () => {
+  setStyle('structured');
+  RT.profile = { ...RT.profile, baseGoal: 'lose' };
+  assert.equal(S.planGoal.strategy, 'Calorie target below maintenance, protein held high.');
+  RT.profile = { ...RT.profile, baseGoal: 'gain' };
+  assert.equal(S.planGoal.strategy, 'Calorie surplus with protein scaled to bodyweight.');
+});
+
+test('calories hidden alone: the strategy names the protein side only, and says the rest is deliberate', async () => {
+  const { knobsFor } = await import('./plan-style.js');
+  RT.profile = { ...RT.profile, baseGoal: 'lose' };
+  RT.planStyle = {
+    style: 'structured', knobs: knobsFor('structured', { surface: { showCalories: false } }),
+    source: 'coach', locked: false, canChoose: false, preference: null,
+  };
+  const s = S.planGoal.strategy;
+  assert.match(s, /Protein held high/);
+  assert.match(s, /off your screen on purpose/);
+  assert.doesNotMatch(s, /[Cc]alorie target|maintenance/);
+  RT.planStyle = null;
+});
+
+test('no goal means no strategy line, on the signals tone too (adversarial review, same evening)', () => {
+  setStyle('intuitive');
+  RT.profile = { ...RT.profile, baseGoal: null };
+  assert.equal(S.planGoal.strategy, null, 'null goal stays null — plan.js renders its pick-a-goal prompt');
+  RT.profile = { ...RT.profile, baseGoal: 'cut' };
+  assert.equal(S.planGoal.strategy, null, 'an unmapped goal key stays null, as on the old static table');
+  RT.profile = { ...RT.profile, baseGoal: 'lose' };
+});
+
+test("tone alone can't earn the signals voice: 'Never restriction' requires adequacy scoring to be true", async () => {
+  // A pro can stamp surface.tone:'signals' onto Structured, where calorie scoring stays
+  // 'exact' — an athlete scored on exact adherence must not be told "Never restriction".
+  const { knobsFor } = await import('./plan-style.js');
+  RT.profile = { ...RT.profile, baseGoal: 'lose' };
+  RT.planStyle = {
+    style: 'structured', knobs: knobsFor('structured', { surface: { tone: 'signals' } }),
+    source: 'coach', locked: false, canChoose: false, preference: null,
+  };
+  const s = S.planGoal.strategy;
+  assert.doesNotMatch(s, /Never restriction/);
+  assert.equal(s, 'Calorie target below maintenance, protein held high.');
+  RT.planStyle = null;
+});
+
+test('the perform goal names no figure, so its line holds on every style', () => {
+  setStyle('intuitive');
+  RT.profile = { ...RT.profile, baseGoal: 'perform' };
+  assert.match(S.planGoal.strategy, /performance formula, not a weight formula/);
+  assert.doesNotMatch(S.planGoal.strategy, /calorie|protein/i);
+  RT.profile = { ...RT.profile, baseGoal: 'lose' };
+});
+
+/* ---- the QC/marketing stub: an Intuitive seed's thread must read like a real Intuitive
+        thread. analyze-meal writes prose per style server-side, so the numbers-voice fixture
+        under an Intuitive seed showed QA a screen no real athlete can reach. ---- */
+
+test("the seed stub's signals voice carries no stored figure; the numbers voice is untouched", async () => {
+  const { sbStubSource } = await import('../../../web/landing-src/lib/sb-stub.mjs');
+  const base = { todayISO: '2026-09-06', athletes: [] };
+  const numbers = sbStubSource(base);
+  const signals = sbStubSource({ ...base, voice: 'signals' });
+  assert.match(numbers, /52g of protein and 780 calories/);
+  assert.match(numbers, /78g of protein and 980 calories/);
+  const thread = signalsThreadText(signals);
+  assert.ok(thread.length, 'the two AI rows are still found in the generated source');
+  for (const leak of ['52g', '780 calories', '78g', '980 calories', 'of 180g']) {
+    assert.ok(!thread.includes(leak), `signals voice leaks "${leak}"`);
+  }
+});
+
+// The stub is one generated source string; the two seeded AI rows are the only style-written
+// prose in it. Pull just their text lines so roster fixtures (which legitimately carry numbers
+// for coach shots) don't false-positive the leak check.
+function signalsThreadText(src) {
+  return src.split('\n').filter((l) => l.includes('Good timing on lunch') || l.includes('Double chicken') || l.includes('double chicken')).join('\n');
+}
+
 /* ---- the live meal family (meal.js, foodsearch.js): the same per-figure rule (1 PM audit,
         2026-09-06). The morning's commit claimed per-figure; these surfaces still gated the
         calorie figure behind showMacros, which leaks it to an athlete whose professional hid

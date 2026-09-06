@@ -163,6 +163,9 @@ try {
     await seedOnNewDocument(page, sbStubSource({
       todayISO: TODAY,
       athletes: s.book === 'practice' ? BOOK_CLIENTS : ROSTER_ATHLETES,
+      // Same rule as qc-capture: Intuitive seeds get the signals-voice thread prose the real
+      // server writes for that style; no stored figures in an Intuitive athlete's shots.
+      voice: /Intuitive/.test(s.seed || '') ? 'signals' : 'numbers',
     }));
     try {
       await withTimeout((async () => {

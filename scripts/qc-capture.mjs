@@ -410,6 +410,9 @@ try {
           await seedOnNewDocument(page, sbStubSource({
             todayISO: TODAY,
             athletes: s.book === 'practice' ? BOOK_CLIENTS : ROSTER_ATHLETES,
+            // Intuitive seeds get the thread prose a real Intuitive athlete's server writes —
+            // no stored figures. Everyone else keeps the numbers voice they really see.
+            voice: /Intuitive/.test(s.seed || '') ? 'signals' : 'numbers',
           }));
           await withTimeout((async () => {
             await goto(page, BASE, { settleMs: 1100 });
