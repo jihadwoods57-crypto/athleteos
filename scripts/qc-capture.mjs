@@ -146,6 +146,9 @@ const SHOTS = [
   { g: 'styles', name: 'style-structured', seed: 'styleStructured', route: 'plan', at: [21, 40] },
   { g: 'styles', name: 'style-guided', seed: 'styleGuided', route: 'plan', at: [21, 40] },
   { g: 'styles', name: 'style-intuitive', seed: 'styleIntuitive', route: 'plan', at: [21, 40] },
+  { g: 'styles', name: 'meal-view-intuitive', seed: 'styleIntuitive', route: 'meal-view/meal-seed-lunch', at: [21, 40] },
+  { g: 'styles', name: 'memory-edit-structured', seed: 'memoryEditStructured', route: 'memory-edit/seed-fm', at: [21, 40] },
+  { g: 'styles', name: 'memory-edit-intuitive', seed: 'memoryEditIntuitive', route: 'memory-edit/seed-fm', at: [21, 40] },
   { g: 'styles', name: 'plan-style-picker', seed: 'dayComplete', route: 'plan-style', at: [21, 41] },
 
   // coach

@@ -244,6 +244,20 @@ export const styleStructured = styleSeed('structured');
 export const styleGuided = styleSeed('guided');
 export const styleIntuitive = styleSeed('intuitive');
 
+/* Food Memory edit sheet on a saved item — the cache is warmed directly, because the sb stub
+   serves no memory rows. Structured pre-fills the stored numbers; Intuitive must not read them
+   back (intuitive-surface.test.mjs pins the render; these shots are the human check). */
+const memoryEditSeed = (style) => `${styleSeed(style)}
+  const fmd = await import('/js/food-memory-data.js');
+  await fmd.warmFoodMemory({ fetchFoodMemory: async () => ({
+    items: [{ id: 'seed-fm', name: 'Usual Subway order', kind: 'order', place_id: 'seed-pl', kcal: 780, protein: 42, carbs: 80, fat: 28, times_logged: 4, basis: 'confirmed', source: 'manual' }],
+    places: [{ id: 'seed-pl', name: 'Subway' }],
+  }) }, RT.userId, true);
+  window.__render();
+`;
+export const memoryEditStructured = memoryEditSeed('structured');
+export const memoryEditIntuitive = memoryEditSeed('intuitive');
+
 /* ------------------------------------------------------------------ operator (coach / trainer) */
 
 export const coachIdentity = `${COMMON}
@@ -276,6 +290,6 @@ export const parentIdentity = `${COMMON}
 export const SEEDS = {
   dayMorning, dayMidday, dayComplete, dayLate, dayFirst, dayLockStamp, stagedCapture, coachUpgrade, coachPickedPlan, rosterEnded,
   feedbackBug, feedbackSafety,
-  styleStructured, styleGuided, styleIntuitive,
+  styleStructured, styleGuided, styleIntuitive, memoryEditStructured, memoryEditIntuitive,
   coachIdentity, trainerIdentity, parentIdentity,
 };

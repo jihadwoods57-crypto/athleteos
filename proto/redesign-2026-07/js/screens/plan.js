@@ -150,7 +150,15 @@ function goalPanel() {
   if (g.startedOn) row('Tracking since', esc(fmtDate(g.startedOn) || g.startedOn));
   row('Set by', g.label ? 'You, at signup' : 'Nobody yet');
   if (g.targetsAreCoachSet) row('Targets', g.targetsSetBy ? `Set by ${esc(g.targetsSetBy)}` : `Set by your ${esc(S.coach.noun)}`);
-  else if (g.derivedProtein) row('Targets', `From your goal · ${g.derivedProtein}g protein, ${g.derivedCalories} kcal`);
+  // INTUITIVE (0142): each derived figure honors its own surface flag, per-figure like
+  // targetsRow below — off the row means absent, per this panel's own "real or absent" rule.
+  // The numbers are still computed; fueling adequacy scores against them.
+  else if (g.derivedProtein) {
+    const bits = [];
+    if (S.planStyle.showMacros) bits.push(`${g.derivedProtein}g protein`);
+    if (S.planStyle.showCalories && g.derivedCalories) bits.push(`${g.derivedCalories} kcal`);
+    if (bits.length) row('Targets', `From your goal · ${bits.join(', ')}`);
+  }
   const note = g.strategy
     ? `${esc(g.strategy)} Weight is tracked for the trend and never counts toward your daily score.`
     : 'Pick a goal in your profile and OnStandard shapes your targets and scoring around it.';
@@ -307,12 +315,13 @@ const placeName = (id) => {
   return p ? p.name : null;
 };
 const macroLine = (it) => {
-  // INTUITIVE (0142): saved-meal rows carry no macro or calorie figures — same presentation
-  // gate the targets above already honor. The numbers stay stored; re-logging sends them.
-  if (!S.planStyle.showMacros) return '';
+  // INTUITIVE (0142): saved-meal rows carry no macro or calorie figures — per-figure, each
+  // number behind its own surface flag (a pro can turn off calories alone). The numbers stay
+  // stored; re-logging sends them.
   const bits = [];
-  if (it.protein) bits.push(`${it.protein}g protein`);
-  if (it.kcal) bits.push(`${it.kcal} kcal`);
+  if (S.planStyle.showMacros && it.protein) bits.push(`${it.protein}g protein`);
+  if (S.planStyle.showCalories && it.kcal) bits.push(`${it.kcal} kcal`);
+  if (!S.planStyle.showMacros && !S.planStyle.showCalories) return '';
   return bits.join(' · ') || '—';
 };
 
@@ -351,11 +360,13 @@ function itemRow(it, { manage = false } = {}) {
 function suggestionCard() {
   const g = suggestions()[0];
   if (!g) return '';
+  // INTUITIVE (0142): the suggestion line quotes no macro or calorie figure — the same
+  // presentation gate macroLine honors. Saving still stores the real numbers.
   return `
   <div class="pl-sug">
     <div class="plb">
       <div class="plt"><span style="color:var(--blue-bright);display:inline-flex;flex:none">${icon('sparkle', 15)}</span><span class="nm">Save this as a usual?</span></div>
-      <div class="pls">${esc(g.name)} · ${g.protein}g protein · ${g.kcal} kcal · eaten ${g.count}×</div>
+      <div class="pls">${esc(g.name)} · ${S.planStyle.showMacros ? `${g.protein}g protein · ` : ''}${S.planStyle.showCalories ? `${g.kcal} kcal · ` : ''}eaten ${g.count}×</div>
     </div>
     <div class="pl-sug-a">
       <button class="btn primary sm" data-fm-save-sug="${esc(g.signature)}" style="width:auto;padding:0 16px;height:44px">Save</button>
