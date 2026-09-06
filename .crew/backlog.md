@@ -26,16 +26,16 @@ unanswered), or one PC sitting: publish the stacked OTA, deploy the edge functio
 deploy the site, apply 0210 + 0214 + 0219. Sessions: recommend in one line, cite the
 streak, never re-diagnose.
 
-### 2 · product · finish the Intuitive red line — DONE 09-06 (8 AM build)
-All stored-number readbacks closed, per-figure, pinned by intuitive-surface.test.mjs:
-the Food Memory edit sheet, Plan's suggestion card, the goal panel's derived row, and
-the past-meal view (trust.js — the audit's twin-screen gotcha struck again). Typed
-label entry and a NEW manual memory item keep their fields (transcription, the allowed
-fallback); Guided's tiles are that style's design. For the 1 PM audit: attack the four
-gates, the memory-edit save pass-through, and the vanished-item guard. For 7 PM polish:
-the goal panel's strategy line still says "calorie target below maintenance" to
-Intuitive athletes; the styleIntuitive QC seed writes its sample AI thread message in a
-numbers voice.
+### 2 · product · finish the Intuitive red line — DONE 09-06 (8 AM build + 1 PM audit)
+All stored-number readbacks closed, per-figure, pinned by intuitive-surface.test.mjs.
+The 1 PM audit attacked the gates and finished the per-figure claim: the 8 AM pass held
+only on plan.js — meal.js (macroRow, thread strip, day bars, paceNote, drawer notes),
+trust.js past-meal view, memory-edit's fields, and food-search/barcode cells now gate
+each figure behind its own flag in BOTH directions, with a real calories-off-alone
+render test + QC seeds (styleCaloriesOff / memoryEditCaloriesOff). Still open from this
+family, for 7 PM polish or later: the goal panel's strategy line still says "calorie
+target below maintenance" to Intuitive athletes; the styleIntuitive QC seed writes its
+sample AI thread message in a numbers voice.
 
 ### 3 · spec · M4 — the parent "fueling consistency" view, spec FIRST  (impact 4, effort m)
 The scout's realest product finding no rival owns: under-fueling is the parent
@@ -43,7 +43,15 @@ conversation. Write the spec (surfaces, copy, what is deliberately never shown �
 calories), taste-checked so it reads as care, not surveillance. The founder reads the
 spec before anyone builds. A good scout-day or quiet-morning deliverable.
 
-### 4 · a11y follow-through · heading outline maintenance gate  (impact 2, effort s)
+### 4 · a11y · settings switches are 30px tap targets  (impact 3, effort s — found 1 PM 09-06)
+The bare `.std-switch` divs (50×30, role=switch) on notif-settings (4 switches, incl. the
+new "Team standard reminders"), settings' Face ID row, coach notif prefs, and the trainer
+signup consent rows carry the tap target themselves. The 09-05 fix gave the coach
+standards editor row-level 44px targets (`.std-switch-row[role="switch"]`, coach.css:614)
+— copy that pattern: move role/tabindex/click to the row. Don't just inflate the pill.
+Sweep evidence: qc audit-0906 smallTargets on notif-settings + sweep-trainer-ob.
+
+### 4b · a11y follow-through · heading outline maintenance gate  (impact 2, effort s)
 A cheap verify gate (or qc audit rule) flagging a screen that renders h2s with no h1, or
 a new uppercase label class that isn't a heading. Protects finished outline work from
 next month's new screen.
@@ -85,10 +93,17 @@ If M2's team SKU happens, a "fueling check-in" for team meals is the natural swe
 alone it's not worth a sitting. Noted so October doesn't rediscover it.
 
 ## Parked with evidence (from the 2026-09-05 audit)
-- **Digest timing + quiet hours: the founder landed both from his PC 09-06 morning**
-  (c831c69, migrations 0220 + 0221). Unaudited founder code — the 1 PM session's first
-  duty; also confirm from the PC that the migrations were APPLIED to live, not just
-  committed.
+- **Digest timing + quiet hours (c831c69, 0220 + 0221): audited 09-06 1 PM** — client
+  mirror (serverPrefPatch) and edge-function logic read clean, suites cover them. Still
+  needs the PC: confirm the migrations were APPLIED to live, and note the ORDER for the
+  credentialed sitting — settings copy now promises what only 0221 delivers, so apply
+  migrations BEFORE (or with) the OTA publish.
+- **Server prose ignores per-figure overrides** (found 1 PM 09-06): analyze-meal/meal-chat
+  write prose per plan STYLE (styleApplied stamp), not per surface flags — a
+  calories-hidden-alone athlete can still meet "780 calories" inside an AI sentence, and
+  the stamp isn't persisted on meals rows (so past-meal prose is always hidden for
+  Intuitive — safe, but a stamped signals-voice analysis could legitimately show if
+  `style_applied` were a column). Server-side; blocked on credentials.
 - **Safe-area bleed above the stuck glass header on notched phones**: needs a real
   device to tune — do not fix blind from the cloud.
 - **Latent, low**: long-press tapback surviving into an edge-swipe; duplicate DOM ids in
@@ -98,8 +113,9 @@ alone it's not worth a sitting. Noted so October doesn't rediscover it.
 
 ## Notes for tomorrow's sessions
 - **Credential streak (update in place, don't re-diagnose):** EXPO_TOKEN invalid
-  ("bearer token is invalid") — 13 sessions through 09-06 (8 AM build). No Supabase creds, no Stripe
+  ("bearer token is invalid") — 14 sessions through 09-06 (1 PM audit). No Supabase creds, no Stripe
   key, no Cloudflare token in the cloud env. One cheap check, cite this line, move on.
+  (npx eas-cli is broken in the sandbox — curl api.expo.dev/graphql with the bearer instead.)
 - Fresh sandboxes need `npm install` before `npm run verify` — 4 gates fail on missing
   deps otherwise and it looks like real breakage. Verify prints **14 gates** as of 09-06
   (trust its summary). `npm install` churns package-lock.json; revert the noise, don't commit it.
