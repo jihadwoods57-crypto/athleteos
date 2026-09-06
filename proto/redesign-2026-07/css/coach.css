@@ -23,7 +23,7 @@
    scroll: a generous break where the screen changes job (the day's answer → the queue you act
    on), the default between peers, and a tight one for a tail that belongs to what precedes it. */
 .eyebrow.co-major { margin-top: var(--s8); }
-.eyebrow.co-minor { margin-top: 18px; }
+.eyebrow.co-minor { margin-top: var(--s4h); }
 
 /* ============================================================
    SIGNATURE — Team Pulse "Standing Bar"
@@ -58,7 +58,7 @@
   font-variant-numeric: tabular-nums;
   color: var(--text);
 }
-.co-pulse-score .delta { font-size: var(--t-sm); font-weight: 800; margin-top: var(--s2); display: inline-flex; align-items: center; gap:6px; }
+.co-pulse-score .delta { font-size: var(--t-sm); font-weight: 800; margin-top: var(--s2); display: inline-flex; align-items: center; gap:var(--s1h); }
 .co-pulse-score .delta.up { color: var(--green-bright); }
 .co-pulse-score .delta.down { color: var(--red-bright); }
 .co-pulse-score .delta.flat { color: var(--text-3); }
@@ -68,7 +68,7 @@
 
 /* the standing bar itself */
 .co-standing {
-  display: flex; gap:4px; height: 12px; margin-top: var(--s4);
+  display: flex; gap:var(--s1); height: 12px; margin-top: var(--s4);
   border-radius: var(--r-pill); overflow: hidden;
 }
 .co-standing .seg { height: 100%; border-radius: var(--r-micro); min-width: 4px; transform-origin: left; }
@@ -83,7 +83,7 @@
   @keyframes coSeg { from { transform: scaleX(0); opacity: 0.4; } to { transform: scaleX(1); opacity: 1; } }
 }
 .co-legend { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s4); margin-top: var(--s3); }
-.co-legend .it { display: inline-flex; align-items: center; gap:6px; font-size: var(--t-sm); font-weight: 700; color: var(--text-2); }
+.co-legend .it { display: inline-flex; align-items: center; gap:var(--s1h); font-size: var(--t-sm); font-weight: 700; color: var(--text-2); }
 .co-legend .it .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 .co-legend .it b { color: var(--text); font-variant-numeric: tabular-nums; }
 .dot.g { background: var(--green-bright); } .dot.a { background: var(--amber-bright); }
@@ -125,7 +125,7 @@
   background: var(--surface-1); border: 1px solid var(--hairline);
   color: var(--text-2); font-family: var(--font); font-size: var(--t-sm); font-weight: 700;
   letter-spacing: -0.005em; cursor: pointer; white-space: nowrap;
-  display: inline-flex; align-items: center; gap:8px;
+  display: inline-flex; align-items: center; gap:var(--s2);
   transition: color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
 }
 .co-seg .co-chip:active { transform: scale(0.96); }
@@ -157,33 +157,26 @@
 .co-pri-main { flex: 1; min-width: 0; }
 .co-pri-name { font-size: var(--t-md); font-weight: 800; letter-spacing: -0.015em; display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
 .co-pri-name .pos { font-size: var(--t-sm); font-weight: 700; color: var(--text-3); }
-.co-pri-reason { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:4px; line-height: 1.45; }
-.co-pri-action { font-size: var(--t-sm); font-weight: 800; color: var(--blue-bright); margin-top:6px; display: inline-flex; align-items: center; gap:6px; }
+.co-pri-reason { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:var(--s1); line-height: 1.45; }
+.co-pri-action { font-size: var(--t-sm); font-weight: 800; color: var(--blue-bright); margin-top:var(--s1h); display: inline-flex; align-items: center; gap:var(--s1h); }
 .co-pri-score { flex: none; font-size: 22px; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1; padding-top:1px; }
-.co-tier {
-  font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
-  padding:2px 8px; border-radius: var(--r-pill);
-}
-.co-tier.t-critical { color: var(--red-bright); background: var(--red-surface); }
-.co-tier.t-below { color: var(--amber-bright); background: var(--amber-surface); }
-.co-tier.t-due { color: var(--blue-bright); background: var(--blue-surface); }
 /* action row: one primary + subordinate ghosts */
 .co-pri-acts { display: flex; gap: var(--s2); margin-top: var(--s3); }
-.co-abtn {
-  flex: 1; height: 44px; border-radius: var(--r-chip); border: 1px solid var(--hairline);
-  background: var(--surface-2); color: var(--text); font-family: var(--font);
-  font-size: var(--t-sm); font-weight: 700; cursor: pointer; display: inline-flex;
-  align-items: center; justify-content: center; gap:6px;
-  transition: transform var(--dur-1) var(--ease-out), filter var(--dur-1) var(--ease-out);
+/* The same row built from .btn.sm (+ .primary / .danger), which is what the markup emits now. The
+   ROW owns the proportions, not the button: the primary action (and the destructive primary, which
+   used to be .primary.warn) takes 1.4 shares, everything else 1. Geometry stays the row's own
+   44px / small type / chip radius so the card does not grow when the class name changes. */
+.co-pri-acts > .btn {
+  flex: 1; width: auto; min-width: 0; height: 44px; padding: 0 var(--s2h); gap: var(--s1h);
+  font-size: var(--t-sm); font-weight: 700; border-radius: var(--r-chip);
 }
-.co-abtn:active { transform: scale(0.97); }
-/* Ink follows --ink-on-accent (tokens.css): dark accents are 400-level so the ink is near-black
-   (white on --blue-bright measured 2.5:1); light accents are 700-level so it flips to white. */
-.co-abtn.primary { flex: 1.4; background: linear-gradient(150deg, var(--blue-bright), var(--blue)); color: var(--ink-on-accent); border-color: transparent; box-shadow: 0 6px 18px rgba(var(--blue-deep-rgb), 0.30); }
-:root[data-theme="light"] .co-abtn.primary { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); }
-.co-abtn.primary.warn { background: linear-gradient(150deg, var(--red), var(--red-deep)); box-shadow: 0 6px 18px rgba(var(--red-rgb), 0.28); }
-.co-abtn:disabled { opacity: 0.5; }
-.co-pstatus { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); min-height: 0; margin-top:6px; }
+.co-pri-acts > .btn:not(.primary):not(.danger) { border: 1px solid var(--hairline); }
+.co-pri-acts > .btn.primary, .co-pri-acts > .btn.danger { flex: 1.4; }
+.co-pri-acts > .btn.primary { box-shadow: 0 6px 18px rgba(var(--blue-deep-rgb), 0.30); }
+.co-pri-acts > .btn.danger { box-shadow: 0 6px 18px rgba(var(--red-rgb), 0.28); }
+/* Last, so a disabled primary drops its halo along with its fill (.btn:disabled, app.css). */
+.co-pri-acts > .btn:disabled { box-shadow: none; opacity: 0.5; }
+.co-pstatus { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); min-height: 0; margin-top:var(--s1h); }
 
 /* ---------- rank hierarchy (2026-08-08) ----------
    The queue is RANKED and rendered six deep, but every card was byte-identical: same padding,
@@ -207,20 +200,19 @@
    Three steps of the same scale, so the page states its own order in numerals alone. */
 .co-pri.lead .co-pri-score { font-size: var(--t-3xl); }
 .co-pri.sub { padding: var(--s3) var(--s4) var(--s4); }
-.co-pri.sub .co-pri-acts { margin-top: var(--s3); gap: 6px; }
+.co-pri.sub .co-pri-acts { margin-top: var(--s3); gap: var(--s1h); }
 /* 36px was the compact read for a subordinate row, but these are the coach's actual actions on an
    athlete ("Nudge", "Open") and they sit side by side, so a hit expander would have neighbours to
    steal taps from. The floor wins; the row still reads subordinate through fill and colour, which
-   is what was carrying it anyway. */
-.co-pri.sub .co-abtn { height: 44px; }
-/* Subordinate primary: the same action, named in its own hue, with no fill and no halo. A tinted
-   fill was tried here first and read as a disabled control — five muddy red slabs down the
-   column. Colour on the label alone is the honest weight for "this, but not first". */
-.co-pri.sub .co-abtn.primary {
-  background: var(--surface-2); color: var(--blue-bright);
-  border-color: var(--hairline); box-shadow: none;
+   is what was carrying it anyway. Subordinate primary and danger: the same action, named in its
+   own hue, with no fill and no halo. A tinted fill was tried first and read as a disabled control,
+   five muddy slabs down the column. Colour on the label alone is the honest weight for "this, but
+   not first". */
+.co-pri.sub .co-pri-acts > .btn.primary, .co-pri.sub .co-pri-acts > .btn.danger {
+  background: var(--surface-2); border: 1px solid var(--hairline); box-shadow: none;
 }
-.co-pri.sub .co-abtn.primary.warn { color: var(--red-bright); }
+.co-pri.sub .co-pri-acts > .btn.primary { color: var(--blue-bright); }
+.co-pri.sub .co-pri-acts > .btn.danger { color: var(--red-bright); }
 
 /* ---------- roster standing bands ----------
    Fourteen rows at one uniform height in one uniform card is a column, not a roster: the coach
@@ -260,7 +252,7 @@
 .jr-who { flex: 1; min-width: 0; }
 .jr-who .t { font-size: var(--t-base); font-weight: 700; }
 .jr-who .s { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); margin-top: 1px; }
-.jr-acts { display: flex; gap: 6px; flex: none; margin: 0; }
+.jr-acts { display: flex; gap: var(--s1h); flex: none; margin: 0; }
 .jr-acts .btn { flex: none; width: auto; padding: 0 13px; height: 32px; font-size: var(--t-sm); }
 .jr-err { flex-basis: 100%; font-size: var(--t-xs); font-weight: 600; color: var(--red); }
 .jr-err:empty { display: none; }
@@ -280,7 +272,7 @@
   font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.5;
 }
 .ib-brief .l + .l { margin-top: 7px; }
-.ib-brief .l .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; margin-top: 6px; }
+.ib-brief .l .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; margin-top: var(--s1h); }
 .ib-brief b { color: var(--text); font-weight: 800; }
 .ib-brief .acts { display: flex; gap: var(--s2); align-items: center; margin-top: var(--s3); }
 .ib-brief.tap { cursor: pointer; }
@@ -300,7 +292,7 @@
 .vc-fl .opt { color: var(--text-3); font-weight: 600; text-transform: none; letter-spacing: 0; }
 /* Helper text is a footnote to the control above it, not a paragraph of its own. */
 .vc-note { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); line-height: 1.45; margin-top: 7px; }
-.vc-starters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--s2); }
+.vc-starters { display: flex; flex-wrap: wrap; gap: var(--s1h); margin-top: var(--s2); }
 /* Seven day chips share one row, so they size to the row rather than to their labels. */
 .vc-day { flex: 1; min-width: 0; padding: 0; justify-content: center; }
 .vc-adv { margin-top: var(--s2); }
@@ -314,7 +306,7 @@
 .vc-sum .l { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.5; }
 .vc-sum .l b { color: var(--text); font-weight: 800; }
 .vc-sum .x { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); margin-top: 5px; }
-.vc-err { font-size: var(--t-xs); font-weight: 700; color: var(--red); text-align: center; min-height: 16px; margin-top: 6px; }
+.vc-err { font-size: var(--t-xs); font-weight: 700; color: var(--red); text-align: center; min-height: 16px; margin-top: var(--s1h); }
 
 /* The thread list keeps its card. Only the rows tighten: 71px -> ~60px, which is a 34px icon and
    two text lines with room to breathe, not a row padded to fill space it did not need. */
@@ -322,7 +314,7 @@
    join-requests card with no heading of its own, because the category chip above already names
    the bucket and a second label would just echo it. The break does that job instead. */
 .ib-list { padding: var(--s1) var(--s4); margin-top: var(--s4); }
-.ib-list .lrow { padding: 12px 2px; gap: var(--s3); }
+.ib-list .lrow { padding: var(--s3) 2px; gap: var(--s3); }
 .ib-list .lrow .lic { width: 34px; height: 34px; }
 .ib-list .lrow .lt { font-size: var(--t-base); }
 .ib-when { flex: none; font-size: var(--t-xs); font-weight: 600; color: var(--text-3); font-variant-numeric: tabular-nums; }
@@ -345,7 +337,7 @@
 /* ============================================================
    Status line — dot + calm label (red demoted from big display color)
    ============================================================ */
-.co-status { display: inline-flex; align-items: center; gap:8px; font-size: var(--t-sm); font-weight: 700; }
+.co-status { display: inline-flex; align-items: center; gap:var(--s2); font-size: var(--t-sm); font-weight: 700; }
 .co-status .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .co-status .lbl { color: var(--text-2); }
 .co-status.crit .lbl { color: var(--red-bright); }   /* only genuine critical gets warm text, and small */
@@ -395,7 +387,7 @@
    "Nudge", "Nudged today", "On standard" and "End pass". */
 .co-act .lbl {
   font-size: var(--t-xs); font-weight: 800; letter-spacing: 0.02em;
-  max-width: 100%; padding: 0 4px; box-sizing: border-box;
+  max-width: 100%; padding: 0 var(--s1); box-sizing: border-box;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .co-act.hero { background: var(--blue-surface); color: var(--blue-bright); }
@@ -412,7 +404,7 @@
    Rules stay after .co-scroll so the full-bleed rail and its edge fade survive. */
 .co-seg.co-tabs { gap: var(--s5); box-shadow: inset 0 -1px 0 var(--hairline); }
 .co-seg.co-tabs .co-chip {
-  position: relative; height: 40px; padding: 0; gap: 6px;
+  position: relative; height: 40px; padding: 0; gap: var(--s1h);
   background: transparent; border: 0; border-radius: 0;
   font-size: var(--t-base); font-weight: 700; color: var(--text-3);
 }
@@ -509,7 +501,7 @@
 .co-trend-top .lbl { font-size: var(--t-sm); font-weight: 700; color: var(--text-2); }
 .co-trend-top .rng { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); font-variant-numeric: tabular-nums; }
 .co-trend svg { display: block; width: 100%; height: 60px; }
-.co-trend-x { display: flex; justify-content: space-between; margin-top:6px; font-size: var(--t-xs); font-weight: 700; color: var(--text-3); letter-spacing: 0.02em; }
+.co-trend-x { display: flex; justify-content: space-between; margin-top:var(--s1h); font-size: var(--t-xs); font-weight: 700; color: var(--text-3); letter-spacing: 0.02em; }
 
 /* ============================================================
    Timeline (Activity) — one calm vertical rail
@@ -540,7 +532,7 @@
 .co-note-row:last-child { border-bottom: none; }
 .co-note-row .who { font-size: var(--t-sm); font-weight: 800; color: var(--text-2); }
 .co-note-row .when { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); }
-.co-note-row .body { font-size: var(--t-base); font-weight: 500; color: var(--text); line-height: 1.5; margin-top:4px; }
+.co-note-row .body { font-size: var(--t-base); font-weight: 500; color: var(--text); line-height: 1.5; margin-top:var(--s1); }
 
 /* bottom breathing room so panes/composers clear the tab bar */
 .co-bottom { height: var(--s8); }
@@ -555,19 +547,19 @@
    the green "what the athlete sees" payoff, which earns it.
    Behavior, markup, and every knob are untouched; this is CSS.
    ============================================================ */
-.std-wrap { padding-bottom:24px; }
+.std-wrap { padding-bottom:var(--s6); }
 
 /* Live summary of the current standard, under the header */
-.std-summary { display:flex; flex-wrap:wrap; gap:6px; margin:2px 0 24px; }
-.std-sum { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 11px;
+.std-summary { display:flex; flex-wrap:wrap; gap:var(--s1h); margin:2px 0 var(--s6); }
+.std-sum { display:inline-flex; align-items:center; gap:var(--s1h); height:28px; padding:0 11px;
   border-radius:var(--r-pill); background:var(--surface-2);
   color:var(--text-2); font-size:var(--t-xs); font-weight:700; }
 .std-sum svg { opacity:.8; }
 .std-sum b { color:var(--text); font-weight:800; }
 
 /* Module: a flat section, not a card. Separation is space + the head, never a frame. */
-.std-mod { padding:0; margin-bottom:32px; }
-.std-mod-head { display:flex; align-items:center; gap:11px; margin-bottom:14px; }
+.std-mod { padding:0; margin-bottom:var(--s7); }
+.std-mod-head { display:flex; align-items:center; gap:11px; margin-bottom:var(--s3h); }
 .std-mod-ic { width:30px; height:30px; border-radius:var(--r-chip); display:grid; place-items:center; flex:0 0 auto; }
 .std-mod-ic svg { width:15px; height:15px; }
 .std-mod-tt { min-width:0; }
@@ -583,14 +575,14 @@
 .std-ic-c { background:var(--cyan-surface); color:var(--cyan); }
 
 .std-lbl { font-size:var(--t-eyebrow); font-weight:800; letter-spacing:var(--track-key); text-transform:uppercase;
-  color:var(--text-3); margin:0 2px 10px; }
-.std-lbl.mt { margin-top:18px; }
-.std-help { font-size:var(--t-xs); font-weight:600; color:var(--text-3); line-height:1.45; margin:10px 2px 0; }
+  color:var(--text-3); margin:0 2px var(--s2h); }
+.std-lbl.mt { margin-top:var(--s4h); }
+.std-help { font-size:var(--t-xs); font-weight:600; color:var(--text-3); line-height:1.45; margin:var(--s2h) 2px 0; }
 
 /* Chips — borderless filled pills; selection is a tint, not a ring-plus-glow. The transparent
    resting border keeps the on-state border from shifting layout by a pixel. */
-.std-chips { display:flex; flex-wrap:wrap; gap:8px; }
-.std-chip { min-width:44px; min-height:44px; padding:0 16px; display:inline-flex; align-items:center;
+.std-chips { display:flex; flex-wrap:wrap; gap:var(--s2); }
+.std-chip { min-width:44px; min-height:44px; padding:0 var(--s4); display:inline-flex; align-items:center;
   justify-content:center; border-radius:var(--r-chip); background:var(--surface-2);
   border:1px solid transparent; color:var(--text-2); font-size:var(--t-base); font-weight:700;
   cursor:pointer; user-select:none;
@@ -601,13 +593,13 @@
 .std-chip.dashed { border:1px dashed var(--hairline); color:var(--text-3); background:transparent; }
 
 /* Circular meal-count chips */
-.std-count { display:flex; gap:8px; justify-content:space-between; }
+.std-count { display:flex; gap:var(--s2); justify-content:space-between; }
 .std-count .std-chip { width:44px; height:44px; min-width:44px; padding:0; border-radius:50%;
   font-size:var(--t-md); font-weight:800; }
 
 /* Segmented multi-choice (late policy, effective-from) */
 /* unified with athlete .seg: pill track, 44px buttons (a11y floor), surface-3 on-state */
-.std-seg { display:flex; gap:4px; padding:4px; background:var(--surface-2);
+.std-seg { display:flex; gap:var(--s1); padding:var(--s1); background:var(--surface-2);
   border-radius:var(--r-pill); }
 .std-seg button { flex:1; min-height:44px; border:none; background:transparent; color:var(--text-2);
   font:700 var(--t-sm) var(--font); border-radius:var(--r-pill); cursor:pointer;
@@ -617,7 +609,7 @@
   box-shadow: 0 0 0 1px var(--blue-border) inset; }
 
 /* Toggle switch rows (on/off requirements) */
-.std-switch-row { display:flex; align-items:center; gap:12px; padding:12px 0; border-top:1px solid var(--hairline-soft); }
+.std-switch-row { display:flex; align-items:center; gap:var(--s3); padding:var(--s3) 0; border-top:1px solid var(--hairline-soft); }
 /* When the row itself is the switch (coach standards editor), it is a 44px+ control. */
 .std-switch-row[role="switch"] { cursor: pointer; min-height: 44px; }
 .std-switch-row[role="switch"]:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; border-radius: var(--r-card-sm); }
@@ -650,33 +642,33 @@
 .cs-sw-row:active .std-switch.on::after { transform: translateX(20px) scaleX(1.14); transform-origin: right center; }
 
 /* Meal name + window rows — per-meal card: name+proof line, times line, optional day-type line */
-.std-meal-card { display:flex; flex-direction:column; gap:8px; padding:12px 0; border-top:1px solid var(--hairline-soft); }
+.std-meal-card { display:flex; flex-direction:column; gap:var(--s2); padding:var(--s3) 0; border-top:1px solid var(--hairline-soft); }
 .std-meal-card:first-child { border-top:none; padding-top:2px; }
-.std-meal { display:flex; align-items:center; gap:8px; }
+.std-meal { display:flex; align-items:center; gap:var(--s2); }
 .std-name { flex:1; min-width:0; box-sizing:border-box; background:var(--surface-2); border:1px solid transparent;
-  border-radius:var(--r-chip); padding:10px 12px; color:var(--text); font:700 var(--t-base) var(--font); }
+  border-radius:var(--r-chip); padding:var(--s2h) var(--s3); color:var(--text); font:700 var(--t-base) var(--font); }
 .std-name:focus { outline:none; border-color:var(--blue-border); background:var(--surface-3); }
 /* Per-meal proof pill: photo (default, green) vs tap-to-check (neutral) */
-.std-proof-pill { flex:0 0 auto; display:inline-flex; align-items:center; gap:6px; min-height:40px; padding:0 12px;
+.std-proof-pill { flex:0 0 auto; display:inline-flex; align-items:center; gap:var(--s1h); min-height:40px; padding:0 var(--s3);
   border-radius:var(--r-chip); border:1px solid transparent; background:var(--green-surface); color:var(--green-bright);
   font:800 var(--t-sm) var(--font); cursor:pointer; white-space:nowrap; }
 .std-proof-pill.check { background:var(--surface-2); color:var(--text-2); }
 .std-proof-pill:active { transform:scale(.96); }
 .std-proof-pill svg { display:block; }
 /* Small chips shared by per-meal day-type and weigh weekdays */
-.std-daytype, .std-weighdays { display:flex; flex-wrap:wrap; gap:6px; }
-.std-weighdays { margin-top:8px; }
-.std-daychip { min-height:34px; padding:0 12px; display:inline-flex; align-items:center; justify-content:center;
+.std-daytype, .std-weighdays { display:flex; flex-wrap:wrap; gap:var(--s1h); }
+.std-weighdays { margin-top:var(--s2); }
+.std-daychip { min-height:34px; padding:0 var(--s3); display:inline-flex; align-items:center; justify-content:center;
   border-radius:var(--r-chip); border:1px solid transparent; background:var(--surface-2); color:var(--text-3);
   font:800 var(--t-sm) var(--font); cursor:pointer; user-select:none; }
 .std-daychip.on { background:var(--blue-surface); border-color:var(--blue-border); color:var(--blue-bright); }
 .std-daychip:active { transform:scale(.95); }
-.std-meal-times { display:flex; align-items:center; gap:8px; }
+.std-meal-times { display:flex; align-items:center; gap:var(--s2); }
 .std-tlabel { font-size:var(--t-eyebrow); font-weight:800; letter-spacing:.05em; text-transform:uppercase;
   color:var(--text-3); flex:0 0 auto; }
 .std-time { flex:1; min-width:0; box-sizing:border-box; background:var(--surface-2); border:1px solid transparent;
   border-radius:var(--r-chip); color:var(--text); font:700 var(--t-sm) var(--font); font-variant-numeric:tabular-nums;
-  padding:10px 10px; min-height:40px; }
+  padding:var(--s2h) var(--s2h); min-height:40px; }
 .std-time:focus { outline:none; border-color:var(--blue-border); }
 .std-time::-webkit-calendar-picker-indicator { opacity:.55; cursor:pointer; }
 .std-arrow { color:var(--text-3); font-size:var(--t-sm); flex:0 0 auto; }
@@ -684,30 +676,30 @@
 /* "What the athlete sees" — the signature payoff card */
 .std-preview { position:relative; overflow:hidden; background:
     linear-gradient(180deg, rgba(var(--green-rgb), 0.06), rgba(var(--blue-rgb), 0.05)), var(--surface-1);
-  border:1px solid var(--green-border); border-radius:var(--r-card); padding:16px; margin-bottom:14px;
+  border:1px solid var(--green-border); border-radius:var(--r-card); padding:var(--s4); margin-bottom:var(--s3h);
   box-shadow:var(--sh-card); }
 /* No side-stripe on the preview card — the green border + header already frame it (T-14). */
-.std-prev-h { display:flex; align-items:center; gap:8px; font-size:var(--t-eyebrow); font-weight:800;
-  letter-spacing:.06em; text-transform:uppercase; color:var(--green-bright); margin-bottom:12px; }
-.std-prev-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-top:1px solid var(--hairline-soft); }
+.std-prev-h { display:flex; align-items:center; gap:var(--s2); font-size:var(--t-eyebrow); font-weight:800;
+  letter-spacing:.06em; text-transform:uppercase; color:var(--green-bright); margin-bottom:var(--s3); }
+.std-prev-row { display:flex; align-items:center; gap:var(--s3); padding:var(--s2h) 0; border-top:1px solid var(--hairline-soft); }
 .std-prev-row:first-of-type { border-top:none; }
 .std-prev-ic { width:30px; height:30px; border-radius:var(--r-chip); background:var(--surface-2); color:var(--text-2);
   display:grid; place-items:center; flex:0 0 auto; }
 .std-prev-t { font-size:var(--t-base); font-weight:700; }
 .std-prev-s { font-size:var(--t-xs); font-weight:600; color:var(--text-3); margin-top:1px; }
-.std-prev-foot { font-size:var(--t-sm); font-weight:700; color:var(--text-2); margin-top:12px;
-  padding-top:12px; border-top:1px solid var(--hairline); }
+.std-prev-foot { font-size:var(--t-sm); font-weight:700; color:var(--text-2); margin-top:var(--s3);
+  padding-top:var(--s3); border-top:1px solid var(--hairline); }
 .std-prev-foot b { color:var(--green-bright); }
 
 /* Save affordance */
-.std-save { margin-top:4px; }
+.std-save { margin-top:var(--s1); }
 .std-save .btn { height:54px; font-size:var(--t-md); box-shadow:var(--sh-blue); }
 .std-status { text-align:center; font-size:var(--t-sm); font-weight:700; color:var(--text-3);
-  min-height:18px; margin-top:12px; }
+  min-height:18px; margin-top:var(--s3); }
 
 /* Plan-style editor's Apply (coach.js #ps-editor). Hidden until a chip or knob is touched;
    a class display on .btn would beat the UA's [hidden] rule, so state it explicitly. */
-#ps-apply { margin-top: 10px; }
+#ps-apply { margin-top: var(--s2h); }
 #ps-apply[hidden] { display: none; }
 
 /* Roster identity (0206): a 34px monogram circle that js/avatar.js upgrades to the athlete's
@@ -719,8 +711,8 @@
   border-radius: 50%; border: 2px solid var(--surface-1); }
 
 /* Composer escalation chips (coach-commitments.js #vc-esc) + the note under them. */
-.vc-esc { display: flex; flex-wrap: wrap; gap: 6px; }
-.ts.mt { margin-top: 10px; }
+.vc-esc { display: flex; flex-wrap: wrap; gap: var(--s1h); }
+.ts.mt { margin-top: var(--s2h); }
 
 /* "· optional" tail inside an eyebrow: lowercase, untracked — was the same style string
    hand-typed on three composer headings. */

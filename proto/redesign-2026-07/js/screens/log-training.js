@@ -27,7 +27,7 @@ export default {
       <div style="height:14px"></div>
       <div style="font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-bottom:8px">How’d it go?</div>
       <div class="chips5" id="tl-feel" role="radiogroup" aria-label="How'd it go, 1 to 5">
-        ${[1, 2, 3, 4, 5].map((n) => `<div class="c5" data-feel="${n}" role="radio" aria-checked="false" aria-label="${n} of 5">${n}</div>`).join('')}
+        ${[1, 2, 3, 4, 5].map((n) => `<div class="chip" data-feel="${n}" role="radio" aria-checked="false" aria-label="${n} of 5">${n}</div>`).join('')}
       </div>
       <div style="font-size:var(--t-xs);font-weight:700;color:var(--text-3);display:flex;justify-content:space-between;margin-top:6px"><span>Rough</span><span>Great</span></div>
       <div style="height:14px"></div>
@@ -42,8 +42,8 @@ export default {
     const id = sub || '';
     // Feel selection is DOM-local (no re-render) so the form never resets mid-entry.
     let feel = 0;
-    root.querySelectorAll('#tl-feel .c5').forEach((el) => el.addEventListener('click', () => {
-      root.querySelectorAll('#tl-feel .c5').forEach((x) => { x.classList.remove('on'); x.setAttribute('aria-checked', 'false'); });
+    root.querySelectorAll('#tl-feel .chip').forEach((el) => el.addEventListener('click', () => {
+      root.querySelectorAll('#tl-feel .chip').forEach((x) => { x.classList.remove('on'); x.setAttribute('aria-checked', 'false'); });
       el.classList.add('on'); el.setAttribute('aria-checked', 'true');
       feel = +el.getAttribute('data-feel');
     }));
@@ -61,7 +61,7 @@ export default {
         const n = root.querySelector('#tl-note');
         if (n && ex.note && !n.value) n.value = ex.note;
         if (ex.feel && !feel) {
-          const chip = root.querySelector(`#tl-feel .c5[data-feel="${ex.feel}"]`);
+          const chip = root.querySelector(`#tl-feel .chip[data-feel="${ex.feel}"]`);
           if (chip) chip.click();
         }
       });

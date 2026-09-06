@@ -425,6 +425,10 @@ const whyHtml = (why) => esc(why).replace(/\*\*(.+?)\*\*/, '<b>$1</b>');
 
 const VERB = { form: 'Complete', scale: 'Log', photo: 'Log', counter: 'Add' };
 const CTA_ICON = { form: 'moonStar', scale: 'scale', photo: 'camera', counter: 'droplet' };
+/* exec.js speaks in tile colours (gold, gray, green, red); .status-pill speaks in accent letters.
+   One map, shared with log.js, so a requirement can never read amber on Home and grey on Log. */
+export const PILL_TONE = { gold: 'a', gray: 'muted', green: 'g', red: 'r', blue: 'b', purple: 'p' };
+export const pillTone = (c) => PILL_TONE[c] || 'muted';
 
 function nowCard(e) {
   const n = e.now;
@@ -448,7 +452,7 @@ function nowCard(e) {
   // The eyebrow names the state and the sub explains it; the pill only ever restated one of them,
   // so it goes in both overdue cases. Closing-soon drops it too: "CLOSING SOON" + the hot countdown
   // says it all.
-  const pill = od || closing ? '' : `<span class="xpill ${n.color}">${n.pill}</span>`;
+  const pill = od || closing ? '' : `<span class="status-pill ${pillTone(n.color)}">${n.pill}</span>`;
   // The card wears the hue of the thing it is ASKING FOR — green meal, purple recovery, blue
   // commitment, cyan weekly — not a blanket amber. Amber is this system's warning ("at risk, off
   // pace"), and painting every next action with it meant the app shouted an alarm at 9am about a
@@ -477,7 +481,7 @@ function nowCard(e) {
 const row = (i, hidePill) => `<div class="xrow-item ${i.color === 'green' ? 'green' : i.color === 'red' ? 'red' : ''}" data-go="${i.route}">
     <div class="xico sm ${i.color}">${icon(i.icon, 17)}</div>
     <div class="xr"><div class="xa">${esc(i.title)}</div><div class="xb">${esc(i.sub)}</div></div>
-    ${hidePill ? '' : `<span class="xpill ${i.color}">${i.pill}</span>`}
+    ${hidePill ? '' : `<span class="status-pill ${pillTone(i.color)}">${i.pill}</span>`}
   </div>`;
 
 /* Honest sync/consent banner. A provable minor awaiting guardian approval sees a "stays on this
@@ -498,7 +502,7 @@ function keepRecordCard() {
     <div class="xico sm green">${icon('shield', 16)}</div>
     <div class="xr"><div class="xa">Your record stays yours</div>
     <div class="xb" style="white-space:normal;line-height:1.45">Your roster ended. Every day you proved is still here. See Individual Plus to keep it going.</div></div>
-    <span class="xpill green">See plans</span>
+    <span class="status-pill g">See plans</span>
   </div>`;
 }
 
@@ -706,7 +710,7 @@ const grow = (i, { hidePill, chev, checkIcon } = {}) => {
     <div class="xico sm ${i.color}">${icon(checkIcon ? 'checkCircle' : i.icon, 17)}</div>
     <div class="xr"><div class="xa">${esc(i.title)}</div><div class="xb">${esc(i.sub)}</div></div>
     ${spendable ? `<button class="btn ghost micro" data-spend="${esc(i.id)}" style="width:auto;height:44px">${icon('shield', 13)} Use a pass</button>` : ''}
-    ${hidePill ? '' : `<span class="xpill ${i.color}">${i.pill}</span>`}
+    ${hidePill ? '' : `<span class="status-pill ${pillTone(i.color)}">${i.pill}</span>`}
     ${chev ? icon('chevron', 16, 'style="color:var(--text-3)"') : ''}
   </div>`;
 };
@@ -897,7 +901,7 @@ export default {
     // Whatever lost the attention slot demotes to a quiet one-line row below the ladder.
     const demoted = [
       attention !== injuryCard && RT.injured
-        ? `<div class="xrow-item" data-go="injury"><div class="xico sm" style="background:rgba(var(--amber-rgb), 0.18);color:var(--amber-bright)">${icon('bolt', 16)}</div><div class="xr"><div class="xa">Injury mode active</div><div class="xb">Your Standard adapted while you heal</div></div><span class="xpill gold">On</span></div>` : '',
+        ? `<div class="xrow-item" data-go="injury"><div class="xico sm" style="background:rgba(var(--amber-rgb), 0.18);color:var(--amber-bright)">${icon('bolt', 16)}</div><div class="xr"><div class="xa">Injury mode active</div><div class="xb">Your Standard adapted while you heal</div></div><span class="status-pill a">On</span></div>` : '',
     ].filter(Boolean).join('');
 
     const upcoming = e.later;

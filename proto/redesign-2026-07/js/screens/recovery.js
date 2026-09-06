@@ -129,7 +129,7 @@ export default {
             <span class="rec-ends">${f.lo} → ${f.hi}</span>
           </div>
           <div class="chips5" data-toggle-group role="radiogroup" aria-label="${f.k}">
-            ${[1,2,3,4,5].map(n => `<div class="c5 ${n === f.val ? 'on' : ''}" data-n="${n}" role="radio" aria-checked="${n === f.val}" aria-label="${f.k}: ${n} of 5">${n}</div>`).join('')}
+            ${[1,2,3,4,5].map(n => `<div class="chip ${n === f.val ? 'on' : ''}" data-n="${n}" role="radio" aria-checked="${n === f.val}" aria-label="${f.k}: ${n} of 5">${n}</div>`).join('')}
           </div>
         </div>`).join('')}
     </section>
@@ -191,7 +191,7 @@ export default {
     };
     fields.forEach(field => {
       const key = field.getAttribute('data-ci-key');
-      const chips = field.querySelectorAll('.c5');
+      const chips = field.querySelectorAll('.chip');
       chips.forEach(ch => {
         const n = +ch.getAttribute('data-n');
         if (ch.classList.contains('on')) answers[key] = n * 2;

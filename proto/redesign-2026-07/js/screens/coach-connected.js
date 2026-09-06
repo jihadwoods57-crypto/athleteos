@@ -31,8 +31,8 @@ import {
   reviewManual, staffSetResult, todayISO,
 } from '../connected-standard-data.js';
 
-const PILL = { green: 'green', cyan: 'blue', blue: 'blue', purple: 'purple', amber: 'gold', red: 'red', slate: 'gray' };
-const pillFor = (s) => PILL[csStatus(s).tone] || 'gray';
+const PILL = { green: 'g', cyan: 'b', blue: 'b', purple: 'p', amber: 'a', red: 'r', slate: 'muted' };
+const pillFor = (s) => PILL[csStatus(s).tone] || 'muted';
 
 const hhmm = (iso) => {
   if (!iso) return '';
@@ -134,7 +134,7 @@ export function standardsBoardCard() {
         <span class="n">${c.complete}</span>
         <span class="u">of ${c.total} ${esc(inst.period === 'week' ? 'this week' : 'today')}</span>
         <span class="cs-grow"></span>
-        ${waiting ? `<span class="xpill purple">${waiting} waiting on you</span>` : ''}
+        ${waiting ? `<span class="status-pill p">${waiting} waiting on you</span>` : ''}
       </div>
       ${standingBar(c)}
     </section>`;
@@ -183,7 +183,7 @@ function athleteRow(r, inst) {
       ${why || r.disputed_at ? `<div class="ls">${why}${r.disputed_at ? `${why ? ' · ' : ''}disputed` : ''}</div>` : ''}
       ${showBar ? `<div class="cs-mini"><i style="width:${pct}%"></i></div>` : ''}
     </div>
-    <span class="xpill ${pillFor(r.status)}">${esc(st.label)}</span>
+    <span class="status-pill ${pillFor(r.status)}">${esc(st.label)}</span>
   </div>`;
 }
 
@@ -551,7 +551,7 @@ export const coachStandardEdit = {
       <div class="cs-row" style="padding-top:0">
         <div class="cs-top">
           <span class="cs-title">${esc((d.title || '').trim() || defaultTitle(d))}</span>
-          <span class="xpill blue">In progress</span>
+          <span class="status-pill b">In progress</span>
         </div>
         <div class="cs-bar"><i style="transform:scaleX(0)"></i></div>
         <div class="cs-nums"><span class="cs-prog">0 of ${esc(fmtValue(preview.target, d.metric, d.display_unit))} ${esc(unitNoun(d.metric, d.display_unit, preview.target))}</span></div>

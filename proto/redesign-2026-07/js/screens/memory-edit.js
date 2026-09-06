@@ -35,7 +35,7 @@ export default {
       <input id="me-name" type="text" maxlength="120" placeholder="e.g. Usual Subway order" value="${it ? v(it.name) : ''}" style="${textField}" />
       <div class="bk" id="me-kind-l" style="margin:12px 0 6px">Type</div>
       <div class="chip-row" id="me-kind" data-toggle-group aria-labelledby="me-kind-l">
-        ${KINDS.map(([k, l]) => `<span class="chp ${((it && it.kind) || 'meal') === k ? 'on' : ''}" data-k="${k}">${l}</span>`).join('')}
+        ${KINDS.map(([k, l]) => `<span class="chip ${((it && it.kind) || 'meal') === k ? 'on' : ''}" data-k="${k}">${l}</span>`).join('')}
       </div>
       <label class="bk" for="me-place" style="display:block;margin:12px 0 6px">Place (optional)</label>
       <input id="me-place" type="text" maxlength="80" placeholder="e.g. Subway, campus dining, home" value="${place ? v(place.name) : ''}" style="${textField}" />
@@ -62,7 +62,7 @@ export default {
     wireToggles(root);
     const it = itemFor(sub);
     let kind = (it && it.kind) || 'meal';
-    root.querySelectorAll('#me-kind .chp').forEach((ch) => ch.addEventListener('click', () => { kind = ch.dataset.k || 'meal'; }));
+    root.querySelectorAll('#me-kind .chip').forEach((ch) => ch.addEventListener('click', () => { kind = ch.dataset.k || 'meal'; }));
     const err = root.querySelector('#me-err');
     const btn = root.querySelector('#me-save');
     /* Force-refresh the shared cache BEFORE leaving: Plan repaints from the cache on arrival,

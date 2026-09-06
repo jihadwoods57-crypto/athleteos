@@ -102,9 +102,9 @@ function statusView(a) {
     ${approved ? `<div class="sd-cta"><button class="btn primary sm" data-go="coach-listing-editor" style="width:auto;padding:0 20px">Set up your listing</button></div>` : ''}</section>
     ${(a.credentials || []).length ? `
     <h2 class="eyebrow">Your credentials</h2>
-    <section class="card" style="padding:6px 16px">
+    <section class="card" role="list" style="padding:6px 16px">
       ${(a.credentials).map((cr) => `
-      <div class="lrow" style="cursor:default">
+      <div class="lrow" role="listitem" style="cursor:default">
         <div class="lic"${cr.status === 'verified' ? ' style="background:var(--green-surface);color:var(--green-bright)"' : ''}>${icon('shield', 16)}</div>
         <div class="lm"><div class="lt">${esc(cr.title || cr.category.toUpperCase())}</div>
           <div class="ls">${cr.status === 'verified' ? 'Verified by OnStandard' : cr.status === 'rejected' ? 'Not accepted. Contact support to find out why' : 'Awaiting review'}</div></div>

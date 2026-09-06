@@ -47,7 +47,7 @@ async function probeReading() {
 }
 
 const bullet = (ic, title, body) => `
-  <div class="lrow" style="align-items:flex-start;cursor:default">
+  <div class="lrow" role="listitem" style="align-items:flex-start;cursor:default">
     <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon(ic, 16)}</div>
     <div class="lm"><div class="lt">${esc(title)}</div><div class="ls">${esc(body)}</div></div>
   </div>`;
@@ -88,7 +88,7 @@ export default {
       <div class="cs-p" style="padding-top:6px">Your coach set an activity standard. With Health connected, OnStandard reads your totals and marks it complete on its own. No screenshots, no logging.</div>
     </section>
 
-    <section class="card hc-card" style="padding:6px 16px">
+    <section class="card hc-card" role="list" style="padding:6px 16px">
       ${bullet('bolt', 'What OnStandard reads',
         'Step count, walking and running distance, and workout totals, only for the standards assigned to you.')}
       ${bullet('shield', 'What your coach sees',

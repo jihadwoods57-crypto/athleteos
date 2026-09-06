@@ -18,7 +18,7 @@ function wirePressure(root, sel) {
   const row = root.querySelector(sel);
   if (!row) return;
   const saved = (RT.ob && RT.ob.standard && RT.ob.standard.pressure) || 'Hold me accountable';
-  const chips = [...row.querySelectorAll('.chp')];
+  const chips = [...row.querySelectorAll('.chip')];
   const match = chips.find((c) => mapPressure(c.textContent.trim()) === mapPressure(saved));
   if (match) { chips.forEach((c) => c.classList.remove('on')); match.classList.add('on'); }
   chips.forEach((c) => c.addEventListener('click', () => {
@@ -133,7 +133,7 @@ export const settings = {
 
     <h2 class="eyebrow">Appearance</h2>
     <div class="chip-row" id="set-theme" data-toggle-group>
-      ${['dark', 'light', 'system'].map((m) => `<span class="chp ${(RT.theme || 'dark') === m ? 'on' : ''}" data-theme-pick="${m}">${m === 'dark' ? 'Dark' : m === 'light' ? 'Light' : 'System'}</span>`).join('')}
+      ${['dark', 'light', 'system'].map((m) => `<span class="chip ${(RT.theme || 'dark') === m ? 'on' : ''}" data-theme-pick="${m}">${m === 'dark' ? 'Dark' : m === 'light' ? 'Light' : 'System'}</span>`).join('')}
     </div>
 
     ${/* The plan-style picker's only stable browsable home. Before this row existed the screen
@@ -595,7 +595,7 @@ export const notifSettings = {
           firmly they read. */''}
     <h2 class="eyebrow">Your tone · how often and how firmly it reminds you</h2>
     <div class="chip-row" id="ns-pressure" data-toggle-group>
-      <span class="chp">Supportive</span><span class="chp on">Direct</span><span class="chp">Intense</span>
+      <span class="chip">Supportive</span><span class="chip on">Direct</span><span class="chip">Intense</span>
     </div>
     <div class="set-note">Supportive: one heads-up per item. Direct: a last call on the ones your plan marks high. Intense: a last call on everything.</div>
 
@@ -639,9 +639,9 @@ export const notifSettings = {
       if (!rows.length) return '';
       return `
     <h2 class="eyebrow">Urgency per requirement${S.coach.hasCoach ? ` · set by ${esc(S.coach.nameMid)}` : ' · from your plan'}</h2>
-    <section class="card" style="padding:6px 16px">
+    <section class="card" style="padding:6px 16px" role="list">
       ${rows.map(([ic, t, lv]) => `
-        <div class="lrow" style="cursor:default">
+        <div class="lrow" role="listitem" style="cursor:default">
           <div class="lic">${icon(ic, 17)}</div>
           <div class="lm"><div class="lt">${esc(t)}</div></div>
           <span class="status-pill ${lv === 'High' ? 'a' : 'b'}" style="display:inline-flex;align-items:center;gap:5px">${icon('lock', 11)} ${lv}</span>
@@ -753,7 +753,7 @@ export const coachNotifSettings = {
 
     <h2 class="eyebrow">Quick setup</h2>
     <div class="chip-row" id="cns-preset" data-toggle-group>
-      ${Object.keys(COACH_PRESETS).map((k) => `<span class="chp ${preset === k ? 'on' : ''}">${k}</span>`).join('')}
+      ${Object.keys(COACH_PRESETS).map((k) => `<span class="chip ${preset === k ? 'on' : ''}">${k}</span>`).join('')}
     </div>
     <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin:0 2px 6px">Pick a starting point, then fine-tune below.</div>
 
@@ -767,18 +767,18 @@ export const coachNotifSettings = {
 
     <h2 class="eyebrow">Morning briefing</h2>
     <div class="chip-row" id="cns-briefing" data-toggle-group>
-      <span class="chp ${!p.briefing ? 'on' : ''}">Off</span>
-      <span class="chp ${p.briefing && p.briefingAt === 7 * 60 ? 'on' : ''}">7:00</span>
-      <span class="chp ${p.briefing && p.briefingAt === 7 * 60 + 30 ? 'on' : ''}">7:30</span>
-      <span class="chp ${p.briefing && p.briefingAt === 8 * 60 ? 'on' : ''}">8:00</span>
+      <span class="chip ${!p.briefing ? 'on' : ''}">Off</span>
+      <span class="chip ${p.briefing && p.briefingAt === 7 * 60 ? 'on' : ''}">7:00</span>
+      <span class="chip ${p.briefing && p.briefingAt === 7 * 60 + 30 ? 'on' : ''}">7:30</span>
+      <span class="chip ${p.briefing && p.briefingAt === 8 * 60 ? 'on' : ''}">8:00</span>
     </div>
 
     <h2 class="eyebrow">Evening recap</h2>
     <div class="chip-row" id="cns-recap" data-toggle-group>
-      <span class="chp ${!p.recap ? 'on' : ''}">Off</span>
-      <span class="chp ${p.recap && p.recapAt === 20 * 60 ? 'on' : ''}">8:00 PM</span>
-      <span class="chp ${p.recap && p.recapAt === 20 * 60 + 30 ? 'on' : ''}">8:30 PM</span>
-      <span class="chp ${p.recap && p.recapAt === 21 * 60 ? 'on' : ''}">9:00 PM</span>
+      <span class="chip ${!p.recap ? 'on' : ''}">Off</span>
+      <span class="chip ${p.recap && p.recapAt === 20 * 60 ? 'on' : ''}">8:00 PM</span>
+      <span class="chip ${p.recap && p.recapAt === 20 * 60 + 30 ? 'on' : ''}">8:30 PM</span>
+      <span class="chip ${p.recap && p.recapAt === 21 * 60 ? 'on' : ''}">9:00 PM</span>
     </div>
     ${/* Breathing room the other chip rows get from a following eyebrow: without it the card
           below sits flush against the chips, and when this row wraps to two lines at 390px the
@@ -878,7 +878,7 @@ export const coachNotifSettings = {
     // (render() lights the matching chip via presetFor, so the tap visibly sticks).
     const presetRow = root.querySelector('#cns-preset');
     if (presetRow) {
-      presetRow.querySelectorAll('.chp').forEach((c) => c.addEventListener('click', () => {
+      presetRow.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', () => {
         const b = COACH_PRESETS[c.textContent.trim()];
         if (b) { act.setCoachNotifPrefs(b); window.__render(); }
       }));
@@ -888,7 +888,7 @@ export const coachNotifSettings = {
     const chipTime = (sel, flag, atMap) => {
       const row = root.querySelector(sel);
       if (!row) return;
-      const chips = [...row.querySelectorAll('.chp')];
+      const chips = [...row.querySelectorAll('.chip')];
       chips.forEach((c) => c.addEventListener('click', () => {
         chips.forEach((x) => x.classList.remove('on'));
         c.classList.add('on');
@@ -1059,7 +1059,7 @@ export const terms = {
       ${ext('mailto:support@onstandard.app', 'clipboard', 'Email us instead', 'support@onstandard.app')}
     </section>
     <h2 class="eyebrow">The short version</h2>
-    <section class="card" style="padding:6px 16px">
+    <section class="card" style="padding:6px 16px" role="list">
       ${[
         ['Your photos are yours', 'Meal photos are private to your account and your coach connection. They are not public and not sold.'],
         ['Health & AI disclaimer', 'OnStandard gives execution feedback, not medical or dietary advice. AI meal reads are estimates; verify anything health-critical yourself.'],
@@ -1067,7 +1067,7 @@ export const terms = {
         ['No ad tracking', 'No ad trackers or third-party ad identifiers in the app.'],
         ['Delete anytime', 'Full in-app account deletion. Export first if you want your history.'],
       ].map(([t, s]) => `
-        <div class="lrow" style="cursor:default">
+        <div class="lrow" role="listitem" style="cursor:default">
           <div class="lic">${icon('check', 16)}</div>
           <div class="lm"><div class="lt">${t}</div><div class="ls" style="white-space:normal;line-height:1.4">${s}</div></div>
         </div>`).join('')}
@@ -1080,7 +1080,7 @@ export const terms = {
 /* shared: single-select toggle groups */
 export function wireToggles(root) {
   root.querySelectorAll('[data-toggle-group]').forEach(g => {
-    const items = g.querySelectorAll('button, .chp, .c5, .choice');
+    const items = g.querySelectorAll('button, .chip, .choice');
     // Single-select group = a radiogroup. Expose the selection to screen readers (it was
     // conveyed by color/glow alone) so VoiceOver announces "selected".
     if (!g.hasAttribute('role')) g.setAttribute('role', 'radiogroup');

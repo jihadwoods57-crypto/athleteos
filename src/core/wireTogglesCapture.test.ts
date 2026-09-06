@@ -29,12 +29,12 @@ function buildGroup(): { group: HTMLElement; chips: HTMLElement[] } {
   const root = dom.window.document.createElement('div');
   root.innerHTML = `
     <div class="chip-row" id="g" data-toggle-group>
-      <span class="chp on">A</span><span class="chp">B</span><span class="chp">C</span>
+      <span class="chip on">A</span><span class="chip">B</span><span class="chip">C</span>
     </div>`;
   dom.window.document.body.appendChild(root);
   wireToggles(root); // must run FIRST, exactly like every onboarding mount
   const group = root.querySelector('#g') as HTMLElement;
-  return { group, chips: [...group.querySelectorAll('.chp')] as HTMLElement[] };
+  return { group, chips: [...group.querySelectorAll('.chip')] as HTMLElement[] };
 }
 
 const click = (el: HTMLElement) => el.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));

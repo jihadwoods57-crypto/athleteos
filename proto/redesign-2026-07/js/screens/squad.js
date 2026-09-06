@@ -46,7 +46,7 @@ function boardRow(r, rank, today) {
     ? `<span class="status-pill" style="color:var(--text-3)">No log yet</span>`
     : `<div style="text-align:right"><div style="font-size:var(--t-lg);font-weight:800;color:${scoreColor(r.score)}">${r.score}</div>${fresh ? '' : `<div style="font-size:var(--t-micro);font-weight:700;color:var(--text-3)">yesterday</div>`}</div>`;
   return `
-    <div class="lrow" style="cursor:default${me ? ';background:var(--blue-surface);margin:0 -16px;padding-left:16px;padding-right:16px;border-radius:12px' : ''}">
+    <div class="lrow" role="listitem" style="cursor:default${me ? ';background:var(--blue-surface);margin:0 -16px;padding-left:16px;padding-right:16px;border-radius:12px' : ''}">
       <div class="lic" style="${me ? 'background:var(--blue-surface);color:var(--blue-bright)' : ''}"><b>${rank}</b></div>
       <div class="lm"><div class="lt">${esc(me ? `${first} · You` : first)}</div>
       <div class="ls">${esc(r.position || (me ? 'Your number is on the board' : ''))}</div></div>
@@ -117,7 +117,7 @@ export default {
     ${toggle}
 
     <h2 class="eyebrow">Today's board</h2>
-    ${shared.length ? `<section class="card" style="padding:6px 16px">
+    ${shared.length ? `<section class="card" style="padding:6px 16px" role="list">
       ${shared.map((r, i) => boardRow(r, i + 1, today)).join('')}
     </section>` : ''}
     ${shared.length === 1 && shared[0].athlete_id === RT.userId ? `

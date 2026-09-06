@@ -39,8 +39,8 @@ import {
 
 /* Tone → the pill class the rest of the app already uses. One mapping, so a status can never
    render green on Home and amber on the detail screen. */
-const PILL = { green: 'green', cyan: 'blue', blue: 'blue', purple: 'purple', amber: 'gold', red: 'red', slate: 'gray' };
-const pillFor = (status) => PILL[csStatus(status).tone] || 'gray';
+const PILL = { green: 'g', cyan: 'b', blue: 'b', purple: 'p', amber: 'a', red: 'r', slate: 'muted' };
+const pillFor = (status) => PILL[csStatus(status).tone] || 'muted';
 
 const METRIC_ICON = {
   steps: 'bolt', distance: 'bolt', workouts: 'bolt',
@@ -111,7 +111,7 @@ function standardRow(row, todayIso) {
       <div class="n">${progress} <em>/ ${esc(fmtValue(row.target, row.metric, row.display_unit))} ${esc(unitNoun(row.metric, row.display_unit, row.target))}</em></div>
       <div class="m${geo.state === 'partial' ? ' amber' : ''}">${sub}</div>
     </div>
-    <span class="xpill ${pillFor(row.status)}">${esc(st.label)}</span>
+    <span class="status-pill ${pillFor(row.status)}">${esc(st.label)}</span>
   </div>`;
 }
 
@@ -276,7 +276,7 @@ export default {
     <section class="card pad" id="cs-hero">
       <div class="cs-head" style="margin-bottom:13px">
         <h2 class="cs-eyebrow">${esc(row.period === 'week' ? 'THIS WEEK' : 'TODAY')}</h2>
-        <span class="xpill ${pillFor(row.status)}">${esc(st.label)}</span>
+        <span class="status-pill ${pillFor(row.status)}">${esc(st.label)}</span>
       </div>
       <div class="cs-colrow">
         ${column(geo)}

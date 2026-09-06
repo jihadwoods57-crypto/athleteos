@@ -217,7 +217,7 @@ export function chipRow(key, opts, { multi = false, req = true } = {}) {
   const on = (v) => (multi ? (Array.isArray(cur) && cur.map(String).includes(String(v))) : String(cur) === String(v));
   return `<div class="chip-row" ${multi ? 'data-obkey-multi' : 'data-obkey'}="${key}" ${req ? 'data-req' : ''}>${opts.map((o) => {
     const v = typeof o === 'string' ? o : o.v; const t = typeof o === 'string' ? o : o.t;
-    return `<div class="chp ${on(v) ? 'on' : ''}" data-val="${esc(v)}" role="button" tabindex="0" aria-pressed="${on(v) ? 'true' : 'false'}">${esc(t)}</div>`;
+    return `<div class="chip ${on(v) ? 'on' : ''}" data-val="${esc(v)}" role="button" tabindex="0" aria-pressed="${on(v) ? 'true' : 'false'}">${esc(t)}</div>`;
   }).join('')}</div>`;
 }
 /* `lo`/`hi` label the ends of the scale. They default to the original wording, but a scale

@@ -198,7 +198,10 @@ const SHOTS = [
  * reviewer can re-derive. Returns plain JSON. */
 const AUDIT_JS = `(() => {
   const vw = window.innerWidth;
-  const out = { vw, overflowX: 0, wideEls: [], smallTargets: [], clipped: [], lowContrast: [], textLen: 0, tapTotal: 0 };
+  const out = { vw, overflowX: 0, wideEls: [], smallTargets: [], clipped: [], lowContrast: [], textLen: 0, tapTotal: 0,
+    // Heading outline: a screen that renders h2s with no h1 has lost its title for a screen
+    // reader (crew backlog #7, audit 2026-09-05). Counted here so the sweep, not a reviewer, notices.
+    h1: document.querySelectorAll('h1').length, h2: document.querySelectorAll('h2').length };
 
   // 1. horizontal overflow of the page itself
   const de = document.documentElement;
@@ -405,6 +408,7 @@ try {
           // 90, not 120: #settings legitimately renders 118 chars. Tuned against verified screens
           // so THIN stays a real signal — it still catches #monthly-report's stuck loading state.
           rec.thin = audit.textLen < 90;
+          rec.noH1 = audit.h1 === 0 && audit.h2 > 0;
           if (!AUDIT_ONLY) {
             const buf = await screenshot(page, { format: 'png' });
             await writeFile(join(dir, s.name + '.png'), buf);
@@ -412,6 +416,7 @@ try {
           }
           const flags = [
             rec.thin && 'THIN',
+            rec.noH1 && 'NOH1',
             rec.overflowX > 0 && `OVERFLOW+${rec.overflowX}`,
             rec.errors.length && `ERR:${rec.errors.length}`,
             rec.smallTargets.length && `TAP:${rec.smallTargets.length}`,
@@ -467,6 +472,8 @@ const overflow = report.filter((r) => r.overflowX > 0);
 console.log(`\n${report.length} captures → ${OUT_DIR}`);
 console.log(`  failed:        ${failed.length}${failed.length ? '  ' + failed.map((r) => r.name).join(', ') : ''}`);
 console.log(`  thin/empty:    ${thin.length}${thin.length ? '  ' + thin.map((r) => r.name).join(', ') : ''}`);
+const noH1 = report.filter((r) => r.noH1);
+console.log(`  no h1:         ${noH1.length}${noH1.length ? '  ' + [...new Set(noH1.map((r) => r.name))].join(', ') : ''}`);
 console.log(`  h-overflow:    ${overflow.length}${overflow.length ? '  ' + overflow.map((r) => `${r.name}(+${r.overflowX})`).join(', ') : ''}`);
 console.log(`  js errors:     ${n('errors')}`);
 console.log(`  small taps:    ${n('smallTargets')}`);

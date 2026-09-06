@@ -97,8 +97,8 @@ export const coachRooms = {
           ${icon('chevron', 16, 'style="color:var(--text-3)"')}
         </div>
         ${OPEN_OWNER === rm.id ? `<div class="chip-row" role="radiogroup" aria-label="Room owner" style="margin:2px 0 8px 6px">
-          ${(STAFF || []).map((s) => `<span class="chp ${s.staff_id === rm.staff_owner_id ? 'on' : ''}" role="radio" aria-checked="${s.staff_id === rm.staff_owner_id ? 'true' : 'false'}" tabindex="0" data-set-owner="${esc(rm.id)}|${esc(s.staff_id)}">${esc(s.name)}</span>`).join('') || '<span class="ls">No staff yet. Invite staff first.</span>'}
-          ${rm.staff_owner_id ? `<span class="chp" role="button" tabindex="0" data-set-owner="${esc(rm.id)}|">Clear</span>` : ''}
+          ${(STAFF || []).map((s) => `<span class="chip ${s.staff_id === rm.staff_owner_id ? 'on' : ''}" role="radio" aria-checked="${s.staff_id === rm.staff_owner_id ? 'true' : 'false'}" tabindex="0" data-set-owner="${esc(rm.id)}|${esc(s.staff_id)}">${esc(s.name)}</span>`).join('') || '<span class="ls">No staff yet. Invite staff first.</span>'}
+          ${rm.staff_owner_id ? `<span class="chip" role="button" tabindex="0" data-set-owner="${esc(rm.id)}|">Clear</span>` : ''}
         </div>` : ''}
         ${members.map((m) => `
         <div class="lrow" style="cursor:default;padding-left:6px">
@@ -118,7 +118,7 @@ export const coachRooms = {
             <div class="xico sm gray" style="width:26px;height:26px;border-radius:50%"${m.athleteId ? ` data-avatar-uid="${esc(m.athleteId)}"` : ''}><span data-avatar-fallback>${esc(initialsOf(m.name, 'A', 1))}</span></div>
             <div class="lm"><div class="lt" style="font-size:14px">${esc(m.name)}</div>${m.position ? `<div class="ls">${esc(m.position)}</div>` : ''}</div>
           </div>
-          <div class="chip-row" style="margin:0">${rooms.map((rm) => `<span class="chp" role="button" tabindex="0" aria-label="Assign ${esc(m.name)} to ${esc(rm.label)}" data-assign="${esc(m.athleteId)}|${esc(rm.id)}">${esc(rm.label)}</span>`).join('')}</div>
+          <div class="chip-row" style="margin:0">${rooms.map((rm) => `<span class="chip" role="button" tabindex="0" aria-label="Assign ${esc(m.name)} to ${esc(rm.label)}" data-assign="${esc(m.athleteId)}|${esc(rm.id)}">${esc(rm.label)}</span>`).join('')}</div>
         </div>`).join('')}
       </section>` : '';
 
@@ -134,7 +134,7 @@ export const coachRooms = {
     const suggestChips = suggestions.length ? `
       <h2 class="eyebrow">Suggested from your roster · tap to add</h2>
       <div class="chip-row" id="room-suggest">
-        ${suggestions.map((s) => `<span class="chp" role="button" tabindex="0" aria-label="Add a ${esc(s.label)} room" data-room-add="${esc(s.label)}">${icon('plus', 12)} ${esc(s.label)}</span>`).join('')}
+        ${suggestions.map((s) => `<span class="chip" role="button" tabindex="0" aria-label="Add a ${esc(s.label)} room" data-room-add="${esc(s.label)}">${icon('plus', 12)} ${esc(s.label)}</span>`).join('')}
       </div>` : '';
 
     return `

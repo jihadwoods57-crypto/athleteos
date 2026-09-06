@@ -200,6 +200,9 @@ const offlineCard = () => errorState({
    Score v2 note: this used to append a separate "weekly check-in" row from the catalog. That
    component no longer exists — the nightly recovery check-in is the only check-in in the product,
    and it is an ordinary exec item like every other row here. See the score v2 spec. */
+/* exec.js still names item colours by hue (green / red / gold / gray); the one pill vocabulary
+   is .status-pill with accent letters, so the hue is mapped at the render site. */
+const PILL_ACCENT = { green: 'g', red: 'r', gold: 'a', gray: 'muted', blue: 'b', purple: 'p' };
 function todayRows() {
   let e;
   try { e = S.exec; } catch { return null; }
@@ -229,7 +232,7 @@ function todaySection() {
         <div class="plt"><span class="nm">${esc(r.title)}</span></div>
         <div class="pls">${esc(r.sub)}</div>
       </div>
-      <div class="plend"><span class="xpill ${esc(r.color)}">${esc(r.pill)}</span></div>
+      <div class="plend"><span class="status-pill ${PILL_ACCENT[r.color] || 'muted'}">${esc(r.pill)}</span></div>
     </div>`).join('')}
   </div>`;
 }

@@ -67,7 +67,7 @@ export const coachAnnounce = {
     // never drift. tabindex makes the chips reachable; the router's document-level Enter/Space
     // net presses them (router.js).
     const chip = (on, label, act, arg) =>
-      `<span class="chp ${on ? 'on' : ''}" role="radio" aria-checked="${on ? 'true' : 'false'}" tabindex="0" data-ann="${act}${arg != null ? ':' + esc(String(arg)) : ''}">${label}</span>`;
+      `<span class="chip ${on ? 'on' : ''}" role="radio" aria-checked="${on ? 'true' : 'false'}" tabindex="0" data-ann="${act}${arg != null ? ':' + esc(String(arg)) : ''}">${label}</span>`;
     const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
     const histRows = HIST && HIST.teamId === teamId ? HIST.rows : null;
     const sendLabel = ANN.scopeKind === 'athlete' ? `Send to ${esc(target ? target.name : 'this athlete')}`
@@ -113,9 +113,9 @@ export const coachAnnounce = {
 
     <h2 class="eyebrow" style="margin-top:18px">Recent announcements</h2>
     ${(HIST && HIST.teamId === teamId && HIST.offline) ? errorState({ title: "Couldn't load history", body: 'Your sent announcements are safe. Reconnect to see them.', retryId: 'an-hist-retry' }) : histRows === null ? skeletonRows(2, 'Loading announcements') : histRows.length ? `
-    <section class="card" style="padding:6px 16px">
+    <section class="card" role="list" style="padding:6px 16px">
       ${histRows.map((a) => `
-      <div class="lrow" style="cursor:default">
+      <div class="lrow" role="listitem" style="cursor:default">
         <div class="lic">${icon('share', 17)}</div>
         <div class="lm"><div class="lt">${esc(a.title)}</div><div class="ls">${esc(audienceLabel(a.scope_kind, a.scope_value, groups))} · ${esc(fmtWhen(a.created_at, Date.now()))}${a.sent_count != null ? ` · Reached ${a.sent_count}` : ''}</div></div>
       </div>`).join('')}

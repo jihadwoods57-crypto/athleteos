@@ -152,16 +152,16 @@ export const streak = {
     </section>
 
     <h2 class="eyebrow">The rules</h2>
-    <section class="card" style="padding:6px 16px">
-      <div class="lrow" style="cursor:default">
+    <section class="card" style="padding:6px 16px" role="list">
+      <div class="lrow" role="listitem" style="cursor:default">
         <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('target', 17)}</div>
         <div class="lm"><div class="lt">80 is the bar</div><div class="ls">On standard means 80+. Not close, not almost.</div></div>
       </div>
-      <div class="lrow" style="cursor:default">
+      <div class="lrow" role="listitem" style="cursor:default">
         <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('shield', 17)}</div>
         <div class="lm"><div class="lt">One grace per rolling 7 days</div><div class="ls">A single miss is bridged after the day closes: the chain survives, the day never counts. A second miss inside the week ends the run.</div></div>
       </div>
-      <div class="lrow" style="cursor:default">
+      <div class="lrow" role="listitem" style="cursor:default">
         <div class="lic" style="background:var(--amber-surface);color:var(--amber-bright)">${icon('clock', 17)}</div>
         <div class="lm"><div class="lt">Absent days count as misses</div><div class="ls">Not opening the app isn't a loophole. The calendar is the judge.</div></div>
       </div>

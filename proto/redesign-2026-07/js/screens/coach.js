@@ -75,7 +75,7 @@ export const coachAssign = {
     // on every selection, so the state can never drift. tabindex makes the chips reachable; the
     // router's document-level Enter/Space net presses them (router.js).
     const chip = (on, label, act, arg) =>
-      `<span class="chp ${on ? 'on' : ''}" role="radio" aria-checked="${on ? 'true' : 'false'}" tabindex="0" data-assign="${act}${arg != null ? ':' + esc(String(arg)) : ''}">${label}</span>`;
+      `<span class="chip ${on ? 'on' : ''}" role="radio" aria-checked="${on ? 'true' : 'false'}" tabindex="0" data-assign="${act}${arg != null ? ':' + esc(String(arg)) : ''}">${label}</span>`;
     return `
     ${backHead('Assign', 'Put something on someone’s plate', practice ? 'trainer' : 'coach-home')}
 
@@ -606,9 +606,9 @@ export const coachPlan = {
       ${rows.map(([k, id, v, u, step, lo, hi]) => `
         <div class="lrow" style="cursor:default">
           <div class="lm"><div class="lt">${k}${u ? ` <small style="color:var(--text-3);font-weight:700">${u}</small>` : ''}</div></div>
-          <button class="co-abtn" data-step="${id}" data-d="-1" data-s="${step}" style="flex:none;width:44px" aria-label="Decrease ${k.toLowerCase()}">−</button>
+          <button class="btn sm" data-step="${id}" data-d="-1" data-s="${step}" style="flex:none;width:44px" aria-label="Decrease ${k.toLowerCase()}">−</button>
           <input type="number" inputmode="numeric" class="input" id="${id}" min="${lo}" max="${hi}" step="${step}" value="${v}" style="width:90px;text-align:center" aria-label="${k}" />
-          <button class="co-abtn" data-step="${id}" data-d="1" data-s="${step}" style="flex:none;width:44px" aria-label="Increase ${k.toLowerCase()}">+</button>
+          <button class="btn sm" data-step="${id}" data-d="1" data-s="${step}" style="flex:none;width:44px" aria-label="Increase ${k.toLowerCase()}">+</button>
         </div>`).join('')}
     </section>
     ${seeWeight ? `
@@ -2088,8 +2088,8 @@ function overviewSection(P, athleteId) {
   ${coTrend((P.row && P.row.scoreHistory) || [])}
 
   ${alerts.length ? `<h2 class="co-eyebrow">Active alerts</h2>
-  <section class="card" style="padding:var(--s1) var(--s4)">
-    ${alerts.map(a => `<div class="lrow" style="cursor:default"><div class="lic" style="color:var(--amber-bright)">${icon('bell', 17)}</div><div class="lm"><div class="lt">${esc(a)}</div></div></div>`).join('')}
+  <section class="card" role="list" style="padding:var(--s1) var(--s4)">
+    ${alerts.map(a => `<div class="lrow" role="listitem" style="cursor:default"><div class="lic" style="color:var(--amber-bright)">${icon('bell', 17)}</div><div class="lm"><div class="lt">${esc(a)}</div></div></div>`).join('')}
   </section>` : ''}
   `;
 }
@@ -2153,11 +2153,11 @@ function todayBlock(P, athleteId) {
       const anyOpen = openSlots.length > 0 || !ci.submitted;
       return `
       <h2 class="eyebrow">${anyOpen ? 'What\'s open' : 'Day complete'} · ${requiredIn} of ${denom} meals in</h2>
-      ${anyOpen ? `<section class="card co-open">
+      ${anyOpen ? `<section class="card co-open" role="list">
         ${openSlots.map(k => `
-          <div class="lrow"><div class="lic">${icon('bowl', 17)}</div>
+          <div class="lrow" role="listitem"><div class="lic">${icon('bowl', 17)}</div>
           <div class="lm"><div class="lt">${esc(slotTitle(k))}</div><div class="ls">Not logged yet</div></div><span class="status-pill a">Open</span></div>`).join('')}
-        ${!ci.submitted ? `<div class="lrow"><div class="lic">${icon('moon', 17)}</div>
+        ${!ci.submitted ? `<div class="lrow" role="listitem"><div class="lic">${icon('moon', 17)}</div>
           <div class="lm"><div class="lt">Recovery check-in</div><div class="ls">Before bed</div></div><span class="status-pill a">Open</span></div>` : ''}
       </section>`
       : `<div class="co-done"><div class="ic">${icon('check', 16)}</div>
@@ -2307,11 +2307,11 @@ function requirementsSection(P, athleteId) {
   const assignFailed = !!(P.failedSections && P.failedSections.assignments);
   return `
   <h2 class="eyebrow">Governing standard <span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0">· ${esc(source)}</span></h2>
-  <section class="card co-list ro">
+  <section class="card co-list ro" role="list">
     ${reqs.length ? reqs.map(r => `
-    <div class="lrow"><div class="lic" style="color:${accentVar(r.accent)}">${icon(r.icon || 'clipboard', 17)}</div>
+    <div class="lrow" role="listitem"><div class="lic" style="color:${accentVar(r.accent)}">${icon(r.icon || 'clipboard', 17)}</div>
     <div class="lm"><div class="lt">${esc(r.title)}</div><div class="ls">${esc((PROOF[r.proof] && PROOF[r.proof].label) || 'Proof')} · ${esc(freqLabel(r.freq))}</div></div></div>`).join('')
-    : `<div class="lrow"><div class="lm"><div class="ls">No requirements set.</div></div></div>`}
+    : `<div class="lrow" role="listitem"><div class="lm"><div class="ls">No requirements set.</div></div></div>`}
   </section>
   ${/* The chevron is colored by .lrow > .ic-chevron:last-child, which is exactly the rule that
         exists so this does not get pasted on as an inline style row by row. */''}
@@ -2326,9 +2326,9 @@ function requirementsSection(P, athleteId) {
         body copy where the eye expects either a list or nothing. */''}
   <h2 class="eyebrow co-minor">Active exceptions${exceptions.length ? '' : ' · none'}</h2>
   ${exceptions.length ? `
-  <section class="card co-list ro">
+  <section class="card co-list ro" role="list">
     ${exceptions.map(e => `
-    <div class="lrow"><div class="lic" style="color:var(--amber-bright)">${icon('bell', 17)}</div>
+    <div class="lrow" role="listitem"><div class="lic" style="color:var(--amber-bright)">${icon('bell', 17)}</div>
     <div class="lm"><div class="lt">${esc(e.reason || 'Excused')}</div><div class="ls">${esc(e.starts_on || '')}${e.ends_on ? ` – ${esc(e.ends_on)}` : ''}</div></div></div>`).join('')}
   </section>` : ''}
 
@@ -2336,9 +2336,9 @@ function requirementsSection(P, athleteId) {
   ${/* A failed read is NOT "none" and never collapses to silence — it keeps its own line. */''}
   ${assignFailed && !assignments.length ? `<div class="co-note warn">Couldn't load their assignment history. Nothing was changed; reopen to retry.</div>` : ''}
   ${assignments.length ? `
-  <section class="card co-list ro">
+  <section class="card co-list ro" role="list">
     ${assignments.map(a => `
-    <div class="lrow"><div class="lic">${icon('clipboard', 17)}</div>
+    <div class="lrow" role="listitem"><div class="lic">${icon('clipboard', 17)}</div>
     <div class="lm"><div class="lt">${esc(a.title || 'Requirement')}</div>
     <div class="ls">${esc((PROOF[a.proof] && PROOF[a.proof].label) || a.proof || 'Proof')} · ${esc(cap(a.status || 'open'))} · ${esc(relTime(a.due_at || a.created_at))}${a.note ? ` · ${esc(a.note)}` : ''}</div></div></div>`).join('')}
   </section>` : ''}
@@ -2418,7 +2418,7 @@ function notesSection(P) {
         <button class="btn ghost micro" data-del-note-cancel="1" style="width:auto">Keep</button>
         <button class="btn danger micro" data-del-note-confirm="${esc(n.id)}" style="width:auto">Delete</button>
       </div>` : `
-      <button class="co-abtn" data-del-note="${esc(n.id)}" style="flex:none;width:36px;height:36px;padding:0" aria-label="Delete note">${icon('x', 15)}</button>`}
+      <button class="btn sm" data-del-note="${esc(n.id)}" style="flex:none;width:36px;height:36px;padding:0" aria-label="Delete note">${icon('x', 15)}</button>`}
     </div>`).join('')}
   </section>` : notesFailed
     ? `<div class="co-note warn">Couldn't load their notes. Any notes already written are safe; reopen to retry.</div>`
@@ -3037,8 +3037,8 @@ export const coachMeal = {
       return `
       <div id="cm-notes-wrap"${notes.length ? '' : ' hidden'}>
         <h2 class="eyebrow" style="margin-top:14px">Private notes <span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0">· only you and staff see these</span></h2>
-        <section class="card" style="padding:6px 16px" id="cm-notes">
-          ${notes.map((n2) => `<div class="lrow" style="cursor:default"><div class="lic" style="background:var(--purple-surface);color:var(--purple-bright)">${icon('lock', 15)}</div><div class="lm"><div class="ls" style="white-space:normal;line-height:1.45;color:var(--text-2)">${esc(n2.text)}</div></div></div>`).join('')}
+        <section class="card" role="list" style="padding:6px 16px" id="cm-notes">
+          ${notes.map((n2) => `<div class="lrow" role="listitem" style="cursor:default"><div class="lic" style="background:var(--purple-surface);color:var(--purple-bright)">${icon('lock', 15)}</div><div class="lm"><div class="ls" style="white-space:normal;line-height:1.45;color:var(--text-2)">${esc(n2.text)}</div></div></div>`).join('')}
         </section>
       </div>
       <div id="cm-note-box" hidden style="margin-top:8px">

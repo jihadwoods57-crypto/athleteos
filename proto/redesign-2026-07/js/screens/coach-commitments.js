@@ -85,7 +85,7 @@ export function commitmentBoardCard() {
           ${c.responded} of ${c.total}</div>
         <div style="font-size:var(--t-sm);font-weight:700;color:var(--text-2)">in</div>
         <div style="flex:1"></div>
-        <span class="xpill ${allIn ? 'green' : 'gold'}">${allIn ? 'All in' : `${c.awaiting} awaiting`}</span>
+        <span class="status-pill ${allIn ? 'g' : 'a'}">${allIn ? 'All in' : `${c.awaiting} awaiting`}</span>
       </div>
       ${c.excused || c.unverified || c.leftEarly ? `<div class="ts" style="padding-top:8px">${
         [c.excused ? `${c.excused} excused` : '', c.unverified ? `${c.unverified} unverified` : '',
@@ -106,12 +106,12 @@ function wakeupHomeCard(inst) {
     inst.starts_min != null ? fmtMin(inst.starts_min) : '',
   ].filter(Boolean).join(' · ');
   const out = c.pending + c.stillOut + c.missed;
-  const pill = c.review ? `<span class="xpill purple">${c.review} to review</span>`
+  const pill = c.review ? `<span class="status-pill p">${c.review} to review</span>`
     : phase === 'closed'
-    ? (out ? `<span class="xpill red">${out} missed</span>` : '<span class="xpill green">All in</span>')
+    ? (out ? `<span class="status-pill r">${out} missed</span>` : '<span class="status-pill g">All in</span>')
     : phase === 'late'
-      ? (out ? `<span class="xpill red">${out} still out</span>` : '<span class="xpill green">All in</span>')
-      : (out ? `<span class="xpill gray">${out} pending</span>` : '<span class="xpill green">All in</span>');
+      ? (out ? `<span class="status-pill r">${out} still out</span>` : '<span class="status-pill g">All in</span>')
+      : (out ? `<span class="status-pill muted">${out} pending</span>` : '<span class="status-pill g">All in</span>');
   return `
     <section class="card pad vc-board wk-homecard" data-go="coach-commitments/${esc(inst.instance_id)}">
       <h2 class="eyebrow wk-cardh">${esc(inst.title || 'Roll call')}</h2>
@@ -291,13 +291,13 @@ function wakeupRow(r, kind, inst, clock, phase) {
         : r.first_notified_at ? ` · push sent ${clock(r.first_notified_at)}`
         : phase !== 'before' ? ' · no push reached them' : '');
   const pill = kind === 'on'
-      ? (r.source === SOURCE.OVERRIDE ? '<span class="xpill blue">Override · On standard</span>' : '<span class="xpill green">On standard</span>')
-    : kind === 'late' ? `<span class="xpill gold">Late${r.lateMin ? ` · +${r.lateMin} min` : ''}</span>`
-    : kind === 'review' ? '<span class="xpill purple">Needs review</span>'
-    : kind === 'ex' ? '<span class="xpill gray">Excused</span>'
-    : r.verdict === VERDICT.MISSED ? '<span class="xpill red">Missed</span>'
-    : r.pastGrace ? '<span class="xpill red">Still out</span>'
-    : '<span class="xpill gray">Pending</span>';
+      ? (r.source === SOURCE.OVERRIDE ? '<span class="status-pill b">Override · On standard</span>' : '<span class="status-pill g">On standard</span>')
+    : kind === 'late' ? `<span class="status-pill a">Late${r.lateMin ? ` · +${r.lateMin} min` : ''}</span>`
+    : kind === 'review' ? '<span class="status-pill p">Needs review</span>'
+    : kind === 'ex' ? '<span class="status-pill muted">Excused</span>'
+    : r.verdict === VERDICT.MISSED ? '<span class="status-pill r">Missed</span>'
+    : r.pastGrace ? '<span class="status-pill r">Still out</span>'
+    : '<span class="status-pill muted">Pending</span>';
   const canPing = kind === 'out' && phase !== 'closed' && phase !== 'before';
   const note = r.source === SOURCE.OVERRIDE && r.correction_note ? `<div class="ls wk-note-line">${esc(r.corrected_by_name || 'Coach')}: “${esc(r.correction_note)}”</div>`
     : r.source === SOURCE.ACCEPTED && r.reviewer_name ? `<div class="ls wk-note-line">Accepted by ${esc(r.reviewer_name)}${r.review_note ? `: “${esc(r.review_note)}”` : ''}</div>`
@@ -514,7 +514,7 @@ function wakeupBoard(inst, back) {
   ${!setup && attention.length ? `
   <div class="wk-secth">
     <h2 class="eyebrow wk-inline ${attnTone}">${icon(attnTone === 'a' ? 'clock' : 'alert', 14)} ${esc(attnLabel)}</h2>
-    <span class="xpill ${attnTone === 'r' ? 'red' : attnTone === 'p' ? 'purple' : 'gold'}">${attention.length}</span>
+    <span class="status-pill ${attnTone === 'r' ? 'r' : attnTone === 'p' ? 'p' : 'a'}">${attention.length}</span>
   </div>
   <section class="card rows">${attention.map((r) => wakeupRow(r, rowKind(r), inst, clock, phase)).join('')}</section>
   ${out && phase !== 'closed' && phase !== 'before' ? `
@@ -524,9 +524,9 @@ function wakeupBoard(inst, back) {
   ${setup && !skipped && (attention.length + settled.length) ? `
   <details class="wk-roster">
     <summary>${icon('chevron', 14)} <span class="wk-rostl">Who gets it</span> <span class="opt">· ${attention.length + settled.length}</span></summary>
-    <section class="card rows">${[...attention, ...settled].map((r) => `
-      <div class="lrow"><div class="lm"><div class="lt">${esc(r.name || 'Athlete')}</div>${r.verdict === VERDICT.EXCUSED ? `<div class="ls">${esc(r.excused_reason || 'Excused')}</div>` : ''}</div>
-        ${r.verdict === VERDICT.EXCUSED ? '<span class="xpill gray">Excused</span>' : r.can_push === false ? '<span class="xpill gray">No push</span>' : ''}</div>`).join('')}</section>
+    <section class="card rows" role="list">${[...attention, ...settled].map((r) => `
+      <div class="lrow" role="listitem"><div class="lm"><div class="lt">${esc(r.name || 'Athlete')}</div>${r.verdict === VERDICT.EXCUSED ? `<div class="ls">${esc(r.excused_reason || 'Excused')}</div>` : ''}</div>
+        ${r.verdict === VERDICT.EXCUSED ? '<span class="status-pill muted">Excused</span>' : r.can_push === false ? '<span class="status-pill muted">No push</span>' : ''}</div>`).join('')}</section>
   </details>` : ''}
 
   ${!setup && settled.length ? `
@@ -590,13 +590,13 @@ function wireNextCard(slot) {
    evidence (the product's own ruling), so it reads blue, never gold. Gold stays reserved
    for a deadline that was genuinely missed (the Left early presence pill below). */
 const STATUS_PILL = {
-  pending: ['gray', 'Awaiting'], acknowledged: ['green', 'In'],
-  arrived: ['green', 'Arrived'], completed: ['green', 'Completed'],
-  excused: ['gray', 'Excused'], unverified: ['blue', 'Unverified'], missed: ['red', 'No response'],
+  pending: ['muted', 'Awaiting'], acknowledged: ['g', 'In'],
+  arrived: ['g', 'Arrived'], completed: ['g', 'Completed'],
+  excused: ['muted', 'Excused'], unverified: ['b', 'Unverified'], missed: ['r', 'No response'],
 };
 
 function athleteRow(r, asksArrival, dwellMin) {
-  const [cls, label] = STATUS_PILL[r.status] || ['gray', r.status];
+  const [cls, label] = STATUS_PILL[r.status] || ['muted', r.status];
   // Presence (0208): the server's verdict on whether they stayed. Left early is a verified
   // miss of the stay, so it earns gold; provisional is a session still running, blue.
   const pres = presenceOf(r);
@@ -611,20 +611,20 @@ function athleteRow(r, asksArrival, dwellMin) {
     : r.status === 'excused' ? (r.excused_reason || 'Excused')
     : r.status === 'unverified' ? (r.unverified_reason || 'Couldn’t verify')
     : 'No response yet';
-  const presPill = pres === PRESENCE.LEFT_EARLY ? '<span class="xpill gold">Left early</span>'
-    : pres === PRESENCE.PROVISIONAL && r.arrived_at ? '<span class="xpill blue">Still there</span>' : '';
+  const presPill = pres === PRESENCE.LEFT_EARLY ? '<span class="status-pill a">Left early</span>'
+    : pres === PRESENCE.PROVISIONAL && r.arrived_at ? '<span class="status-pill b">Still there</span>' : '';
   const src = r.arrival_source === 'staff' ? ' · set by staff'
     : r.arrival_source === 'geofence' ? ' · verified at the location'
     : r.arrival_source === 'manual' ? ' · self-reported' : '';
   return `
-  <div class="lrow" style="align-items:flex-start">
+  <div class="lrow" role="listitem" style="align-items:flex-start">
     <div class="lm" style="flex:1">
       <div class="lt">${esc(r.name || 'Athlete')}</div>
       <div class="ls">${esc(when)}${esc(src)}${r.corrected_by_name ? esc(` · corrected by ${r.corrected_by_name}`) : ''}</div>
       ${r.disputed_at ? `<div class="ls" style="color:var(--amber-bright);font-weight:700">Reported wrong by the ${CD.noun}${r.dispute_note ? esc(`: ${r.dispute_note}`) : ''}</div>` : ''}
     </div>
     <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
-      <span class="xpill ${cls}">${esc(label)}</span>${presPill}
+      <span class="status-pill ${cls}">${esc(label)}</span>${presPill}
       <div style="display:flex;gap:6px">
         ${/* No Excuse here either (founder, 2026-09-02) — see wakeupRow. */''}
         ${r.status === 'pending' || r.status === 'unverified' || r.status === 'missed'
@@ -691,7 +691,7 @@ export const coachCommitments = {
         <div style="font-size:var(--t-3xl);font-weight:800;letter-spacing:-.02em;color:${c.awaiting ? 'var(--text)' : 'var(--green-bright)'}">${c.responded} of ${c.total}</div>
         <div style="font-size:var(--t-base);font-weight:700;color:var(--text-2)">in</div>
         <div style="flex:1"></div>
-        <span class="xpill ${c.awaiting ? 'gold' : 'green'}">${c.awaiting ? `${c.awaiting} awaiting` : 'All in'}</span>
+        <span class="status-pill ${c.awaiting ? 'a' : 'g'}">${c.awaiting ? `${c.awaiting} awaiting` : 'All in'}</span>
       </div>
       ${inst.respond_by_at || c.leftEarly ? `<div class="ts" style="padding-top:8px">${[
         inst.respond_by_at ? `Responses due by ${esc(hhmm(inst.respond_by_at))}` : '',
@@ -701,7 +701,7 @@ export const coachCommitments = {
 
     ${missing.length ? `
     <h2 class="eyebrow">Still waiting on ${missing.length}</h2>
-    <section class="card" style="padding:2px 16px">${missing.map((r) => athleteRow(r, !!inst.asks_arrival, inst.min_dwell_min)).join('')}</section>
+    <section class="card" role="list" style="padding:2px 16px">${missing.map((r) => athleteRow(r, !!inst.asks_arrival, inst.min_dwell_min)).join('')}</section>
     <div style="height:10px"></div>
     <button class="btn" id="vc-remind" style="width:100%">${icon('bell', 18)} Remind ${missing.length} missing ${missing.length === 1 ? CD.noun : CD.nouns}</button>
     <div class="ts" style="text-align:center;padding-top:8px">Only these ${missing.length} get the reminder. Nobody who already responded is pinged.</div>
@@ -714,7 +714,7 @@ export const coachCommitments = {
 
     ${responded.length ? `
     <h2 class="eyebrow">Responded</h2>
-    <section class="card" style="padding:2px 16px">${responded.map((r) => athleteRow(r, !!inst.asks_arrival, inst.min_dwell_min)).join('')}</section>` : ''}
+    <section class="card" role="list" style="padding:2px 16px">${responded.map((r) => athleteRow(r, !!inst.asks_arrival, inst.min_dwell_min)).join('')}</section>` : ''}
 
     ${inst.asks_arrival ? `
     <div class="sidebox" style="margin-top:14px">
@@ -1097,7 +1097,7 @@ export const coachCommitManage = {
     const paused = rows.filter((r) => r.active === false);
 
     const card = (r) => `
-      <div class="lrow" style="align-items:flex-start">
+      <div class="lrow" role="listitem" style="align-items:flex-start">
         <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon(r.type === 'morning_roll_call' ? 'sun' : 'clock', 17)}</div>
         <div class="lm" style="flex:1">
           <div class="lt">${esc(r.title || TYPE_LABEL[r.type] || 'Commitment')}</div>
@@ -1117,9 +1117,9 @@ export const coachCommitManage = {
     : !loaded ? skeletonRows(3, 'Loading your commitments')
     : !rows.length ? emptyState({ icon: 'clock', title: 'Nothing scheduled yet', body: "Schedule a morning roll call, a lift, or a study hall and it'll live here: editable, pausable, and never silently deleted.", compact: true }) : ''}
     ${live.length ? `<h2 class="eyebrow">Running</h2>
-      <section class="card" style="padding:2px 16px">${live.map(card).join('')}</section>` : ''}
+      <section class="card" role="list" style="padding:2px 16px">${live.map(card).join('')}</section>` : ''}
     ${paused.length ? `<h2 class="eyebrow">Paused</h2>
-      <section class="card" style="padding:2px 16px">${paused.map(card).join('')}</section>
+      <section class="card" role="list" style="padding:2px 16px">${paused.map(card).join('')}</section>
       <div class="ts" style="padding-top:8px">Paused commitments stop appearing for ${CD.nouns} tomorrow. Everything already recorded against them stays exactly as it is.</div>` : ''}
     <div style="height:14px"></div>
     ${ROLLCALL_OFF ? `

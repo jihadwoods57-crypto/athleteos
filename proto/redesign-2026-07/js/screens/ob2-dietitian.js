@@ -286,9 +286,9 @@ const steps = [
       ${phoneCard(SAMPLE_MEAL.name, `
         <div id="obd-fix-macros">${fixMacros()}</div>
         <div class="chip-row" id="obd-fix-chips">
-          <div class="chp${FIX.pick === 'bigger' ? ' on' : ''}" data-fix="bigger" role="button">Portion looks bigger</div>
-          <div class="chp${FIX.pick === 'right' ? ' on' : ''}" data-fix="right" role="button">Looks right</div>
-          <div class="chp${FIX.pick === 'smaller' ? ' on' : ''}" data-fix="smaller" role="button">Smaller than it reads</div>
+          <div class="chip${FIX.pick === 'bigger' ? ' on' : ''}" data-fix="bigger" role="button">Portion looks bigger</div>
+          <div class="chip${FIX.pick === 'right' ? ' on' : ''}" data-fix="right" role="button">Looks right</div>
+          <div class="chip${FIX.pick === 'smaller' ? ' on' : ''}" data-fix="smaller" role="button">Smaller than it reads</div>
         </div>
         <div class="ob2-fine" id="obd-fix-note">${FIX.pick ? 'Correction logged under your name. The athlete’s numbers update instantly.' : 'The AI estimated this plate. Correct the portion and watch the numbers move.'}</div>`)}`,
     mount(root) {
@@ -301,7 +301,7 @@ const steps = [
         const chp = e.target.closest('[data-fix]');
         if (!chp) return;
         FIX.pick = chp.getAttribute('data-fix');
-        wrap.querySelectorAll('.chp').forEach((c) => c.classList.toggle('on', c === chp));
+        wrap.querySelectorAll('.chip').forEach((c) => c.classList.toggle('on', c === chp));
         const m = root.querySelector('#obd-fix-macros');
         if (m) m.innerHTML = fixMacros();
         const note = root.querySelector('#obd-fix-note');

@@ -26,7 +26,9 @@ const BASELINE = join(ROOT, 'spacing-baseline.json');
 const WRITE = process.argv.includes('--write');
 const LIST = process.argv.includes('--list');
 
-const SCALE = new Set([0, 1, 2, 4, 8, 12, 16, 20, 24, 32, 40, 56]);
+// 6, 10, 14 and 18 joined on 2026-09-06 as the --s1h..--s4h half steps (tokens.css), by the same
+// rule that minted --t-micro: they were real populated tiers, not wishes.
+const SCALE = new Set([0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 24, 32, 40, 56]);
 
 // A spacing declaration and its value, up to the terminator. Deliberately excludes
 // `scroll-padding`, `padding-inline-start` etc. only by not listing them; the plain shorthands and

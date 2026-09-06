@@ -180,7 +180,7 @@ export const restrictions = {
     const R = currentRestrictions();
     const has = (arr, n) => arr.some((x) => (x.name || x) === n);
     const sevOf = (n) => { const a = R.allergies.find((x) => x.name === n); return a ? a.severity : 'severe'; };
-    const chip = (n, on) => `<span class="chp rx-chip ${on ? 'on' : ''}" data-name="${esc(n)}">${on ? `${icon('check', 12)} ` : ''}${esc(n)}</span>`;
+    const chip = (n, on) => `<span class="chip rx-chip ${on ? 'on' : ''}" data-name="${esc(n)}">${on ? `${icon('check', 12)} ` : ''}${esc(n)}</span>`;
     const customs = (arr, opts) => arr.map((x) => x.name || x).filter((n) => !opts.includes(n));
     return `
     ${backHead('Food restrictions', 'Allergies, intolerances, and preferences, kept separate', 'profile')}
@@ -205,13 +205,13 @@ export const restrictions = {
     <div class="rx-add"><input class="input" id="rx-add-preference" maxlength="30" placeholder="Add a preference…" aria-label="Add a dietary preference" /><button class="btn ghost sm rx-add-btn" data-add="preference">Add</button></div>
 
     <h2 class="eyebrow">How checking works</h2>
-    <section class="card" style="padding:6px 16px">
+    <section class="card" role="list" style="padding:6px 16px">
       ${[
         ['camera', 'Detected foods are compared', 'The app compares detected foods and label entries with your saved restrictions. Detection may miss ingredients, preparation methods, or cross-contact.'],
         ['bell', 'Severe allergies warn loudest', 'A possible severe-allergen conflict warns you before you confirm the log. It names the allergen and tells you what it can’t be sure of.'],
         ['shield', 'Always verify severe allergens yourself', 'This never replaces reading labels, asking staff, or medical guidance. Treat every severe allergen as unverified until you check it.'],
       ].map(([ic, t, s]) => `
-        <div class="lrow" style="cursor:default">
+        <div class="lrow" role="listitem" style="cursor:default">
           <div class="lic">${icon(ic, 17)}</div>
           <div class="lm"><div class="lt">${t}</div><div class="ls" style="white-space:normal;line-height:1.4">${s}</div></div>
         </div>`).join('')}
@@ -229,9 +229,9 @@ export const restrictions = {
     R.allergies.forEach((a) => { severity[a.name] = a.severity || 'severe'; });
     const sevPanel = root.querySelector('#rx-severity');
     const paintSeverity = () => {
-      const on = [...root.querySelectorAll('#rx-allergies .chp.on')].map((c) => c.getAttribute('data-name'));
-      sevPanel.innerHTML = on.length ? `<section class="card" style="padding:4px 14px;margin-top:8px">${on.map((n) => `
-        <div class="lrow" style="cursor:default">
+      const on = [...root.querySelectorAll('#rx-allergies .chip.on')].map((c) => c.getAttribute('data-name'));
+      sevPanel.innerHTML = on.length ? `<section class="card" role="list" style="padding:4px 14px;margin-top:8px">${on.map((n) => `
+        <div class="lrow" role="listitem" style="cursor:default">
           <div class="lm"><div class="lt" style="font-size:13px">${esc(n)}</div></div>
           <div class="seg" style="width:170px" data-sev="${esc(n)}" role="radiogroup" aria-label="${esc(n)} severity">
             <button role="radio" aria-checked="${(severity[n] || 'severe') === 'severe'}" class="${(severity[n] || 'severe') === 'severe' ? 'on' : ''}">Severe</button>
@@ -266,13 +266,13 @@ export const restrictions = {
       if (!name) return;
       input.value = '';
       const wrap = root.querySelector(kind === 'allergy' ? '#rx-allergies' : kind === 'intolerance' ? '#rx-intolerances' : '#rx-preferences');
-      if ([...wrap.querySelectorAll('.chp')].some((c) => c.getAttribute('data-name').toLowerCase() === name.toLowerCase())) return;
-      wrap.insertAdjacentHTML('beforeend', `<span class="chp rx-chip on" data-name="${esc(name)}">${icon('check', 12)} ${esc(name)}</span>`);
+      if ([...wrap.querySelectorAll('.chip')].some((c) => c.getAttribute('data-name').toLowerCase() === name.toLowerCase())) return;
+      wrap.insertAdjacentHTML('beforeend', `<span class="chip rx-chip on" data-name="${esc(name)}">${icon('check', 12)} ${esc(name)}</span>`);
       wireChip(wrap.lastElementChild);
       if (kind === 'allergy') paintSeverity();
     }));
     root.querySelector('#save-allergies').addEventListener('click', () => {
-      const names = (sel) => [...root.querySelectorAll(`${sel} .chp.on`)].map((c) => c.getAttribute('data-name'));
+      const names = (sel) => [...root.querySelectorAll(`${sel} .chip.on`)].map((c) => c.getAttribute('data-name'));
       const structured = {
         allergies: names('#rx-allergies').map((n) => ({ name: n, severity: severity[n] || 'severe' })),
         intolerances: names('#rx-intolerances'),
@@ -398,13 +398,13 @@ export const injury = {
 
     ${on ? `
     <h2 class="eyebrow">What changed in your Standard</h2>
-    <section class="card" style="padding:6px 16px">
+    <section class="card" role="list" style="padding:6px 16px">
       ${[
         ['bolt', 'Rehab replaces intensity', 'Band work 2×15 before practice, on your requirements list now.'],
         ['utensils', 'Nutrition tilts anti-inflammatory', 'Protein stays on target; add color, cut the fried stuff while you heal.'],
         ['moon', 'Recovery counts double attention', `Sleep is when tissue heals. Recovery stays ${liveWeightPct('checkin') + liveWeightPct('recovery')}% of your score, with more eyes on it.`],
       ].map(([ic, t, s]) => `
-        <div class="lrow" style="cursor:default">
+        <div class="lrow" role="listitem" style="cursor:default">
           <div class="lic">${icon(ic, 17)}</div>
           <div class="lm"><div class="lt">${t}</div><div class="ls" style="white-space:normal;line-height:1.4">${s}</div></div>
         </div>`).join('')}
@@ -420,13 +420,13 @@ export const injury = {
     </section>`}
 
     <h2 class="eyebrow">Who does what</h2>
-    <section class="card" style="padding:6px 16px">
+    <section class="card" role="list" style="padding:6px 16px">
       ${[
         ['user', 'You report', 'Pain or an injury concern: that’s your part. Reporting is never punished.'],
         ['heart', 'Medical decides', 'An authorized athletic trainer or medical professional manages restrictions and clearance. Return-to-play is theirs, not an app setting.'],
         ['users', 'Coach sees participation', 'Your coach sees your participation status and adapted Standard, not a diagnosis, and they never medically clear you.'],
       ].map(([ic, t, s]) => `
-        <div class="lrow" style="cursor:default">
+        <div class="lrow" role="listitem" style="cursor:default">
           <div class="lic">${icon(ic, 17)}</div>
           <div class="lm"><div class="lt">${t}</div><div class="ls" style="white-space:normal;line-height:1.4">${s}</div></div>
         </div>`).join('')}
@@ -459,7 +459,7 @@ export const coachVoice = {
     const level = cv.level || 'balanced';
     const length = cv.length || 'standard';
     const approved = Array.isArray(cv.approved) ? cv.approved : CV_PHRASES;
-    const chip = (on, label, key, val) => `<span class="chp ${on ? 'on' : ''}" data-cv="${key}:${val}">${label}</span>`;
+    const chip = (on, label, key, val) => `<span class="chip ${on ? 'on' : ''}" data-cv="${key}:${val}">${label}</span>`;
     return `
     ${backHead('AI Nutritionist', 'Make it coach the way you coach.', roleProfileRoute())}
 
@@ -646,13 +646,13 @@ export const safety = {
     </section>
 
     <h2 class="eyebrow">What it watches for</h2>
-    <section class="card" style="padding:6px 16px">
+    <section class="card" role="list" style="padding:6px 16px">
       ${[
         ['bars', 'Severe restriction patterns', 'Sustained intake far below any goal profile, or meals shrinking week over week.'],
         ['clock', 'Compulsive logging', 'Obsessive re-logging, deleting, and re-photographing the same meals.'],
         ['scale', 'Weight fixation', 'Off-schedule weigh-ins spiking, especially on a cut.'],
       ].map(([ic, t, s]) => `
-        <div class="lrow" style="cursor:default">
+        <div class="lrow" role="listitem" style="cursor:default">
           <div class="lic">${icon(ic, 17)}</div>
           <div class="lm"><div class="lt">${t}</div><div class="ls" style="white-space:normal;line-height:1.4">${s}</div></div>
         </div>`).join('')}

@@ -161,9 +161,9 @@ const steps = [
           cap({ coachName: opts[0] });
         }
         const saved = (((RT.ob || {}).coach || {}).coachName || '').trim();
-        handleRow.innerHTML = opts.map((h) => `<span class="chp ${saved === h ? 'on' : ''}">${esc(h)}</span>`).join('')
+        handleRow.innerHTML = opts.map((h) => `<span class="chip ${saved === h ? 'on' : ''}">${esc(h)}</span>`).join('')
           || `<span style="font-size:12px;font-weight:600;color:var(--text-3)">Type your name above and options appear.</span>`;
-        handleRow.querySelectorAll('.chp').forEach((el) => el.addEventListener('click', () => {
+        handleRow.querySelectorAll('.chip').forEach((el) => el.addEventListener('click', () => {
           autoHandle = false;
           handleRow.querySelectorAll('.on').forEach((x) => x.classList.remove('on'));
           el.classList.add('on');

@@ -21,7 +21,7 @@
   a, button, summary,
   [role="button"], [role="tab"], [role="switch"], [role="link"],
   [tabindex]:not([tabindex="-1"]),
-  .tap, .tab, .chip, .chp, .choice, .lrow, .sheet-row, .co-chip, .hchip, .tile, .seg > *
+  .tap, .tab, .chip, .choice, .lrow, .sheet-row, .co-chip, .hchip, .tile, .seg > *
 ):focus-visible {
   outline: 2px solid var(--blue-bright);
   outline-offset: 2px;

@@ -29,8 +29,8 @@ function bar(label, done, total) {
 /* Wake-Up Standard (0211): one line per roll call, newest first, with the verdict. No calendar,
    no chart. "Today · 6:01 AM · On standard" is the whole record and it reads in seconds. */
 const VERDICT_PILL = {
-  on_standard: ['green', 'On standard'], late: ['gold', 'Late'], missed: ['red', 'Missed'],
-  pending: ['gray', 'Pending'], excused: ['gray', 'Excused'],
+  on_standard: ['g', 'On standard'], late: ['a', 'Late'], missed: ['r', 'Missed'],
+  pending: ['muted', 'Pending'], excused: ['muted', 'Excused'],
 };
 function dayLabel(iso, today) {
   if (iso === today) return 'Today';
@@ -51,14 +51,14 @@ function wakeupSection(rows, loading) {
     <h2 class="eyebrow">Wake-Up Standard <span class="opt">· ${esc(line)}</span></h2>
     <section class="card rows">
       ${h.slice(0, 30).map((x) => {
-        const [cls, label] = VERDICT_PILL[x.verdict] || ['gray', x.verdict];
+        const [cls, label] = VERDICT_PILL[x.verdict] || ['muted', x.verdict];
         const sub = x.verdict === VERDICT.PENDING ? `Answer by ${x.due}`
           : x.at ? `${x.at}${x.verdict === VERDICT.LATE && x.lateMin ? ` · ${x.lateMin} min late` : ''}`
           : x.verdict === VERDICT.MISSED ? `No answer by ${x.due}` : '';
         return `
         <div class="lrow wk-hist" data-go="roll-call/${esc(x.instance_id)}">
           <div class="lm"><div class="lt">${esc(dayLabel(x.occurs_on, today))}</div><div class="ls">${esc(sub)}</div></div>
-          <span class="xpill ${cls}">${esc(label)}</span>
+          <span class="status-pill ${cls}">${esc(label)}</span>
         </div>`;
       }).join('')}
     </section>`;
@@ -102,7 +102,7 @@ export default {
         ${loading ? '—' : (m.pct == null ? '—' : `${m.pct}%`)}</div>
       <div class="ts" style="padding-top:8px">Accountability across every commitment ${S.coach.hasCoach ? `your ${esc(S.coach.noun)} scheduled` : 'scheduled for you'}</div>
       ${streak ? `<div style="height:12px"></div>
-      <span class="xpill green">${streak} day${streak === 1 ? '' : 's'} clean</span>` : ''}
+      <span class="status-pill g">${streak} day${streak === 1 ? '' : 's'} clean</span>` : ''}
     </section>
 
     <div style="height:12px"></div>

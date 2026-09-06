@@ -4,16 +4,16 @@
    ============================================================ */
 
 /* ----- Score Breakdown ----- */
-.bd-hero { display:flex; flex-direction:column; align-items:center; padding:4px 0 10px; }
-.bd-comp { padding:4px 16px 8px; }
-.bd-row { padding:14px 2px; border-bottom: 1px solid var(--hairline-soft); }
+.bd-hero { display:flex; flex-direction:column; align-items:center; padding:var(--s1) 0 var(--s2h); }
+.bd-comp { padding:var(--s1) var(--s4) var(--s2); }
+.bd-row { padding:var(--s3h) 2px; border-bottom: 1px solid var(--hairline-soft); }
 .bd-row:last-child { border-bottom: none; }
 .bd-top { display:flex; align-items:baseline; justify-content:space-between; }
-.bd-name { font-size: var(--t-md); font-weight: 800; display:flex; align-items:center; gap:8px; }
-.bd-weight { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); background: var(--surface-2); padding:2px 8px; border-radius: var(--r-pill); }
+.bd-name { font-size: var(--t-md); font-weight: 800; display:flex; align-items:center; gap:var(--s2); }
+.bd-weight { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); background: var(--surface-2); padding:2px var(--s2); border-radius: var(--r-pill); }
 .bd-val { font-size: var(--t-md); font-weight: 800; }
 .bd-val small { color: var(--text-3); font-weight: 700; }
-.bd-bar { height: 7px; border-radius: var(--r-micro); background: var(--surface-3); margin-top:10px; overflow: hidden; }
+.bd-bar { height: 7px; border-radius: var(--r-micro); background: var(--surface-3); margin-top:var(--s2h); overflow: hidden; }
 /* scaleX, not width. Animating width lays out every frame; the track already clips with
    overflow:hidden + its own radius, so the fill needs neither a width nor a radius of its own.
    Callers set `transform:scaleX(<0..1>)`. */
@@ -24,24 +24,24 @@
 .bd-fill.b { background: linear-gradient(90deg, var(--blue-deep), var(--blue)); }
 .bd-fill.c { background: linear-gradient(90deg, var(--cyan-deep), var(--cyan)); }
 .bd-fill.a { background: linear-gradient(90deg, var(--amber-deep), var(--amber)); }
-.bd-note { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:8px; }
-.reach { padding:16px; }
-.reach-row { display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom: 1px solid var(--hairline-soft); }
+.bd-note { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:var(--s2); }
+.reach { padding:var(--s4); }
+.reach-row { display:flex; align-items:center; gap:var(--s3); padding:var(--s3) 0; border-bottom: 1px solid var(--hairline-soft); }
 .reach-row:last-child { border-bottom: none; }
 .reach-row .ic { width: 36px; height: 36px; border-radius: var(--r-chip); display:grid; place-items:center; flex:none; }
 .reach-row .t { flex: 1; font-size: var(--t-base); font-weight: 700; }
 .reach-row .gain { font-size: var(--t-md); font-weight: 800; color: var(--green-bright); }
-.sidebox { padding:14px 16px; border-radius: var(--r-tile); background: var(--surface-2); border: 1px solid var(--hairline-soft); display:flex; gap:12px; align-items:flex-start; }
+.sidebox { padding:var(--s3h) var(--s4); border-radius: var(--r-tile); background: var(--surface-2); border: 1px solid var(--hairline-soft); display:flex; gap:var(--s3); align-items:flex-start; }
 .sidebox .tt { font-size: var(--t-base); font-weight: 800; }
-.sidebox .ts { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:4px; line-height: 1.45; }
+.sidebox .ts { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:var(--s1); line-height: 1.45; }
 
 /* GS-2 loading skeleton (T-22) — the honest loading state, never a spinner-in-content. Shimmer
    rows shaped like the list items they stand in for, so the layout doesn't jump when data lands. */
 .sk-card { pointer-events: none; }
-.sk-row { display: flex; align-items: center; gap:12px; padding:10px 0; }
+.sk-row { display: flex; align-items: center; gap:var(--s3); padding:var(--s2h) 0; }
 .sk-row + .sk-row { border-top: 1px solid var(--hairline-soft); }
 .sk-dot { width: 34px; height: 34px; border-radius: var(--r-chip); flex: none; }
-.sk-lines { flex: 1; display: flex; flex-direction: column; gap:8px; }
+.sk-lines { flex: 1; display: flex; flex-direction: column; gap:var(--s2); }
 .sk-line { height: 10px; border-radius: var(--r-micro); width: 70%; }
 .sk-line.sk-line-2 { width: 45%; }
 .sk-dot, .sk-line { background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%); background-size: 400% 100%; animation: skShimmer 1.4s var(--ease-in-out) infinite; }
@@ -50,7 +50,7 @@
 
 /* Cold-boot skeleton (router.js bootShell). Stands in for the score hero so the first paint has
    the same silhouette as the screen that replaces it and nothing jumps when the day lands. */
-.sk-hero { display:flex; flex-direction:column; align-items:center; gap:16px; padding: 26px 20px 22px; }
+.sk-hero { display:flex; flex-direction:column; align-items:center; gap:var(--s4); padding: 26px var(--s5) 22px; }
 .sk-ring { width: 168px; height: 168px; border-radius: 50%; background: var(--surface-2);
   box-shadow: inset 0 0 0 14px var(--surface-1); animation: skShimmer 1.4s var(--ease-in-out) infinite;
   background-image: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%);
@@ -92,13 +92,13 @@
 .cam button { font-family: var(--font); padding: 0; -webkit-appearance: none; appearance: none; }
 
 .cam-head {
-  flex: none; display: flex; align-items: flex-start; gap:14px;
-  padding: calc(env(safe-area-inset-top, 0px) + 6px) var(--pad-screen) 14px;
+  flex: none; display: flex; align-items: flex-start; gap:var(--s3h);
+  padding: calc(env(safe-area-inset-top, 0px) + 6px) var(--pad-screen) var(--s3h);
 }
 .cam-head .meta { flex: 1; min-width: 0; padding-top:2px; }
 .cam-head .t { font-size: var(--t-xl); font-weight: 800; letter-spacing: var(--title-tight); }
 .cam-head .s {
-  display: flex; align-items: center; gap:8px; flex-wrap: wrap; margin-top:6px;
+  display: flex; align-items: center; gap:var(--s2); flex-wrap: wrap; margin-top:var(--s1h);
   font-size: var(--t-xs); font-weight: 600; color: var(--text-3);
 }
 .cam-head .s .slot { font-weight: 700; color: var(--text-2); }
@@ -111,7 +111,7 @@
    colour as one that has not. tone-* comes from mealDueState(), the single source. */
 .due-pill {
   display: inline-flex; align-items: center; gap:5px;
-  padding:4px 10px; border-radius: var(--r-pill);
+  padding:var(--s1) var(--s2h); border-radius: var(--r-pill);
   font-size: var(--t-xs); font-weight: 800;
   background: var(--surface-2); border: 1px solid var(--hairline); color: var(--text);
 }
@@ -129,7 +129,7 @@
 
 .cam-deck {
   flex: none; position: relative; z-index: 5;
-  padding: 14px var(--pad-screen) calc(env(safe-area-inset-bottom, 0px) + 10px);
+  padding: var(--s3h) var(--pad-screen) calc(env(safe-area-inset-bottom, 0px) + 10px);
 }
 /* One shared alert line for both steps: capture failure, measured photo-quality nudge, duplicate
    photo. Three different inline styles used to say the same thing three slightly different ways.
@@ -140,13 +140,13 @@
 /* Full-bleed and transparent, so the floor costs nothing visually — it was a 30px target sitting
    under the shutter, which is the one place on the camera screen a thumb is already hovering. */
 .cam-textlink {
-  display: block; width: 100%; margin-top: 8px; padding: 12px 0; min-height: 44px; box-sizing: border-box;
+  display: block; width: 100%; margin-top: var(--s2); padding: var(--s3) 0; min-height: 44px; box-sizing: border-box;
   background: none; border: 0; font-family: var(--font); cursor: pointer;
   text-align: center; font-size: var(--t-base); font-weight: 700; color: var(--text-3);
 }
 .cam-alert:empty { display: none; }
 .cam-alert {
-  margin:10px 0 0; text-align: center;
+  margin:var(--s2h) 0 0; text-align: center;
   font-size: var(--t-sm); font-weight: 700; color: var(--amber-bright);
 }
 /* Shutter flash: a white sheet that pops then fades — makes the frozen frame read as a capture. */
@@ -201,7 +201,7 @@
 /* Provenance stamps, ON the photo (founder call). Top-left, absolute, so they cost the image no
    height, and they wrap harmlessly on a narrow phone because nothing below them moves.
    Keeping them here is what lets the header stay two rows instead of three. */
-.cc-badges { position: absolute; top: 14px; left: 14px; right: 14px; z-index: 4; display: flex; gap:6px; flex-wrap: wrap; }
+.cc-badges { position: absolute; top: 14px; left: 14px; right: 14px; z-index: 4; display: flex; gap:var(--s1h); flex-wrap: wrap; }
 /* A photo is any brightness it wants to be, and the base .status-pill tints are near transparent
    because they normally sit on a known surface: the red staleness stamp, the one that matters
    most, disappeared against a white plate. An opaque ground, with the hue carried by the text and
@@ -224,15 +224,15 @@
 :root[data-theme="light"] .cc-badges .status-pill.a { color: #FBBF24; }
 :root[data-theme="light"] .cc-badges .status-pill.r { color: #F87171; }
 /* Analysis breakdown rows (WS4): one editable list replaces chips + componentsRead. */
-.food-row { display: flex; align-items: center; gap:10px; padding:10px 0; border-bottom: 1px solid var(--hairline); }
+.food-row { display: flex; align-items: center; gap:var(--s2h); padding:var(--s2h) 0; border-bottom: 1px solid var(--hairline); }
 .food-row:last-of-type { border-bottom: none; }
 .food-row .fr-name { flex: 1; font-size: var(--t-base); font-weight: 700; color: var(--text); }
 .food-row .fr-qty { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); }
-.food-row .q { color: var(--amber-bright); font-weight: 800; margin-left:4px; }
-.fr-in { background: var(--surface-2); border: 1px solid var(--hairline); border-radius: var(--r-chip); color: var(--text); font-size: var(--t-base); font-weight: 600; padding:8px 10px; min-width: 0; }
+.food-row .q { color: var(--amber-bright); font-weight: 800; margin-left:var(--s1); }
+.fr-in { background: var(--surface-2); border: 1px solid var(--hairline); border-radius: var(--r-chip); color: var(--text); font-size: var(--t-base); font-weight: 600; padding:var(--s2) var(--s2h); min-width: 0; }
 .fr-in.name { flex: 1; width: 100%; }
 .fr-in.qty { width: 86px; }
-.food-row.fr-add { gap:8px; }
+.food-row.fr-add { gap:var(--s2); }
 .fr-ok { width: 34px; height: 34px; border-radius: var(--r-chip); border: 1px solid var(--green-border); background: var(--green-surface); color: var(--green-bright); display: grid; place-items: center; cursor: pointer; }
 /* Two states in one box. The fallback copy ("Take a photo to analyze") used to be what EVERY
    athlete saw first, because it renders before getUserMedia has answered — the normal path
@@ -240,14 +240,14 @@
    promotes to the fallback once the camera has genuinely declined. */
 .vf-empty {
   position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap:8px; text-align: center; padding:0 28px;
+  align-items: center; justify-content: center; gap:var(--s2); text-align: center; padding:0 28px;
 }
 /* Generic mode matching: only the state whose data-when matches the lens's data-mode shows.
    The old pairwise hide rules stopped scaling the day a third state (permission denied) landed. */
 .vf-empty .vf-state { display: none; }
 .vf-empty[data-mode="starting"] .vf-state[data-when="starting"],
 .vf-empty[data-mode="offline"] .vf-state[data-when="offline"],
-.vf-empty[data-mode="denied"] .vf-state[data-when="denied"] { display: flex; flex-direction: column; gap:4px; }
+.vf-empty[data-mode="denied"] .vf-state[data-when="denied"] { display: flex; flex-direction: column; gap:var(--s1); }
 /* The viewfinder is a dark surface in BOTH themes: it stands in for a live camera feed, and a
    near-white box behind a video preview is not a thing. Its contents therefore carry the dark
    theme's ink explicitly rather than inheriting the page's. Inheriting painted --text #0F172A
@@ -255,7 +255,7 @@
    screen it exists to explain. The ground decides the ink; this ground is always dark. */
 .vf-empty .vf-lens {
   width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center;
-  background: rgba(7,11,20,0.45); border: 1px solid rgba(148,176,224,0.16); color: #7C8BA6; margin-bottom:4px;
+  background: rgba(7,11,20,0.45); border: 1px solid rgba(148,176,224,0.16); color: #7C8BA6; margin-bottom:var(--s1);
 }
 /* The only motion on this screen, and it conveys state: the camera is being opened. It stops the
    moment the frame arms, because the element is hidden outright. */
@@ -281,10 +281,10 @@
    line read as an afterthought next to a photo card and a green button; the reference gives the
    optional step a tile, a title, a one-line description, an Optional pill and a chevron, so it
    reads as a real (skippable) step. The textarea opens INSIDE the same card. */
-.cc-details { margin:16px 0 0; border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); }
+.cc-details { margin:var(--s4) 0 0; border: 1px solid var(--hairline); border-radius: var(--r-card); background: var(--surface); }
 .cc-details summary {
-  list-style: none; cursor: pointer; display: flex; align-items: center; gap:12px;
-  min-height: 44px; padding:12px 14px;
+  list-style: none; cursor: pointer; display: flex; align-items: center; gap:var(--s3);
+  min-height: 44px; padding:var(--s3) var(--s3h);
   font-size: var(--t-sm); font-weight: 700; color: var(--text-2);
 }
 .cc-details summary::-webkit-details-marker { display: none; }
@@ -293,16 +293,16 @@
 .cc-details-txt b { font-size: var(--t-md); font-weight: 800; letter-spacing: var(--title-tight); color: var(--text); }
 .cc-details-txt span { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); line-height: 1.35; }
 .cc-details summary .opt {
-  flex: none; padding:4px 9px; border-radius: var(--r-pill);
+  flex: none; padding:var(--s1) 9px; border-radius: var(--r-pill);
   font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: 0.02em;
   color: var(--green-bright); background: var(--green-surface); border: 1px solid var(--green-border);
 }
 .cc-details-chev { flex: none; color: var(--text-3); display: grid; place-items: center; transition: transform var(--dur-fast, 160ms) var(--ease-out, ease); }
 .cc-details[open] .cc-details-chev { transform: rotate(90deg); }
-.cc-details-body { padding:0 14px 14px; }
-.cc-details textarea { display: block; width: 100%; margin:4px 0 0; box-sizing: border-box; border-radius: var(--r-chip); background: var(--surface-2); border: 1.5px solid var(--hairline); color: var(--text); font-family: var(--font); font-size: var(--t-base); font-weight: 600; padding:10px 12px; outline: none; resize: none; }
+.cc-details-body { padding:0 var(--s3h) var(--s3h); }
+.cc-details textarea { display: block; width: 100%; margin:var(--s1) 0 0; box-sizing: border-box; border-radius: var(--r-chip); background: var(--surface-2); border: 1.5px solid var(--hairline); color: var(--text); font-family: var(--font); font-size: var(--t-base); font-weight: 600; padding:var(--s2h) var(--s3); outline: none; resize: none; }
 .cc-details textarea:focus { border-color: var(--blue-bright); }
-.cc-details-hint { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); padding:6px 0 0; line-height: 1.4; }
+.cc-details-hint { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); padding:var(--s1h) 0 0; line-height: 1.4; }
 /* The whole deck is LEFT aligned now, on the same 20px screen edge the back button starts from.
    It used to be a centered stack sitting under a left-aligned header, so the screen ran two
    competing alignments and every deck element was a full-width band of equal weight. The two
@@ -310,8 +310,8 @@
 /* Caption ON the photo: tight to it (8px) so proximity groups them, and the quietest thing in the
    deck. The photo above it is the actual check; this only names what to look for. */
 .cc-check {
-  margin:18px 0 0; padding:0 4px; text-align: left;
-  display: flex; align-items: center; gap:14px;
+  margin:var(--s4h) 0 0; padding:0 var(--s1); text-align: left;
+  display: flex; align-items: center; gap:var(--s3h);
 }
 .cc-check-ic { flex: none; display: grid; place-items: center; color: var(--green-bright); }
 .cc-check-txt { display: flex; flex-direction: column; gap:3px; min-width: 0; }
@@ -322,7 +322,7 @@
 /* Redesign 2026-09-02 (founder reference): one full-width primary action, and the alternative
    as a quiet text button beneath it. Two equal buttons side by side made "Retake" and "Log it"
    read as a coin flip; the reference makes the decision obvious and the escape hatch cheap. */
-.cc-actions { padding:18px 0 0; display: flex; flex-direction: column; align-items: stretch; gap:6px; }
+.cc-actions { padding:var(--s4h) 0 0; display: flex; flex-direction: column; align-items: stretch; gap:var(--s1h); }
 .cam-confirm .cam-deck { padding-top: 0; }
 .cc-actions .btn { width: 100%; white-space: nowrap; min-height: 54px; font-size: var(--t-md); }
 .cc-alt {
@@ -330,7 +330,7 @@
   font-size: var(--t-base); font-weight: 700; color: var(--text-2);
 }
 .cc-alt:active { opacity: 0.7; }
-.cam-actions { display: flex; align-items: center; justify-content: space-between; padding:16px 24px 4px; }
+.cam-actions { display: flex; align-items: center; justify-content: space-between; padding:var(--s4) var(--s6) var(--s1); }
 /* The two side controls are subordinate to the shutter and should look it. They were 50px
    bordered tiles, which is the app's "this is a button" chrome — three equal-weight controls in a
    row, distinguished only by the shutter being green. Now they are circles, echoing the shutter's
@@ -428,25 +428,25 @@
 .scorechip .sc-ring { position: absolute; inset: 0; }
 .scorechip .v { font-family: var(--font-display); font-size: var(--t-xl); font-weight: 900; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--green-bright); line-height: 1; }
 .scorechip .k { font-size: 8.5px; font-weight: 800; letter-spacing: 0.08em; color: var(--text-2); text-transform: uppercase; margin-top:2px; }
-.foodchips { display: flex; flex-wrap: wrap; gap:8px; }
+.foodchips { display: flex; flex-wrap: wrap; gap:var(--s2); }
 .foodchip {
-  display: inline-flex; align-items: center; gap:8px; padding:10px 14px; border-radius: var(--r-pill);
+  display: inline-flex; align-items: center; gap:var(--s2); padding:var(--s2h) var(--s3h); border-radius: var(--r-pill);
   background: var(--surface-2); border: 1px solid var(--hairline); font-size: var(--t-base); font-weight: 700;
 }
 .foodchip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green-bright); }
-.ai-note { display: flex; gap:12px; padding:16px 16px; border-radius: var(--r-card); background: linear-gradient(120deg, rgba(var(--blue-rgb), 0.10), rgba(var(--teal-rgb), 0.05)); border: 1px solid var(--blue-border); }
+.ai-note { display: flex; gap:var(--s3); padding:var(--s4) var(--s4); border-radius: var(--r-card); background: linear-gradient(120deg, rgba(var(--blue-rgb), 0.10), rgba(var(--teal-rgb), 0.05)); border: 1px solid var(--blue-border); }
 .ai-note .av { width: 34px; height: 34px; border-radius: var(--r-chip); background: linear-gradient(150deg, var(--blue), var(--blue-deep)); display:grid; place-items:center; color:var(--ink-on-accent); flex:none; }
 .ai-note .who { font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--blue-bright); }
-.ai-note p { font-size: var(--t-base); font-weight: 600; line-height: 1.5; margin-top:4px; color: var(--text); }
+.ai-note p { font-size: var(--t-base); font-weight: 600; line-height: 1.5; margin-top:var(--s1); color: var(--text); }
 
 /* ----- The Clarifying Moment (Honest Vision)
    docs/superpowers/specs/2026-07-15-honest-vision-clarifying-moment-design.md
    The AI asks what the photo can't show before committing a number. Built on system tokens. */
-.mq-photo { position: relative; height: 128px; border-radius: var(--r-card-sm); overflow: hidden; background-size: cover; background-position: center; border: 1px solid var(--hairline); margin-bottom:14px; }
+.mq-photo { position: relative; height: 128px; border-radius: var(--r-card-sm); overflow: hidden; background-size: cover; background-position: center; border: 1px solid var(--hairline); margin-bottom:var(--s3h); }
 .mq-photo .mq-grad { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 30%, rgba(5,8,15,0.82)); }
-.mq-badge { position: absolute; left: 12px; bottom: 11px; display: inline-flex; align-items: center; gap:6px;
+.mq-badge { position: absolute; left: 12px; bottom: 11px; display: inline-flex; align-items: center; gap:var(--s1h);
   font-size: var(--t-sm); font-weight: 800; color: var(--blue-bright); background: rgba(7,11,20,0.72);
-  border: 1px solid var(--blue-border); border-radius: var(--r-pill); padding:6px 12px; }
+  border: 1px solid var(--blue-border); border-radius: var(--r-pill); padding:var(--s1h) var(--s3); }
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .mq-badge { background: rgba(7,11,20,0.6); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
 }
@@ -454,22 +454,22 @@
    near-white page, and on this deliberately dark chip it went to #2563EB on near-black. The
    badge keeps the dark theme's blue. The ground decides the ink, and this ground is always dark. */
 :root[data-theme="light"] .mq-badge { color: #60A5FA; }
-.mq-lead { font-size: var(--t-base); font-weight: 600; line-height: 1.5; color: var(--text-2); margin-bottom:16px; }
-.mq-list { display: flex; flex-direction: column; gap:14px; }
+.mq-lead { font-size: var(--t-base); font-weight: 600; line-height: 1.5; color: var(--text-2); margin-bottom:var(--s4); }
+.mq-list { display: flex; flex-direction: column; gap:var(--s3h); }
 .mq-item { display: block; }
-.mq-q { display: flex; align-items: flex-start; gap:10px; font-size: var(--t-md); font-weight: 800; letter-spacing: -0.01em; color: var(--text); margin-bottom:8px; line-height: 1.35; }
+.mq-q { display: flex; align-items: flex-start; gap:var(--s2h); font-size: var(--t-md); font-weight: 800; letter-spacing: -0.01em; color: var(--text); margin-bottom:var(--s2); line-height: 1.35; }
 .mq-n { flex: 0 0 auto; width: 21px; height: 21px; border-radius: 50%; display: grid; place-items: center; margin-top:1px;
   font-size: var(--t-xs); font-weight: 800; color: var(--blue-bright); background: var(--blue-surface); border: 1px solid var(--blue-border); }
 .mq-input { width: 100%; height: 52px; border-radius: var(--r-card-sm); background: var(--surface-1); border: 1.5px solid var(--hairline);
-  color: var(--text); font-family: var(--font); font-size: var(--t-md); font-weight: 700; padding:0 16px; outline: none; box-sizing: border-box; }
+  color: var(--text); font-family: var(--font); font-size: var(--t-md); font-weight: 700; padding:0 var(--s4); outline: none; box-sizing: border-box; }
 .mq-input:focus { border-color: var(--blue-bright); }
 .mq-input::placeholder { color: var(--text-3); font-weight: 600; }
-.mq-actions { display: flex; flex-direction: column; align-items: center; gap:12px; margin-top:22px; }
+.mq-actions { display: flex; flex-direction: column; align-items: center; gap:var(--s3); margin-top:22px; }
 .mq-actions .btn { width: 100%; }
 .mq-skip { background: none; border: none; color: var(--text-2); font-family: var(--font); font-size: var(--t-base); font-weight: 700; cursor: pointer; min-height: 44px; }
-.mq-err { display: flex; align-items: center; gap:8px; margin-top:12px; padding:12px 14px; border-radius: var(--r-card-sm);
+.mq-err { display: flex; align-items: center; gap:var(--s2); margin-top:var(--s3); padding:var(--s3) var(--s3h); border-radius: var(--r-card-sm);
   background: var(--red-surface); border: 1px solid var(--red-border); color: var(--red-bright); font-size: var(--t-sm); font-weight: 700; }
-.mq-note { display: flex; align-items: center; gap:6px; justify-content: center; margin-top:16px; font-size: var(--t-xs); font-weight: 600; color: var(--text-3); }
+.mq-note { display: flex; align-items: center; gap:var(--s1h); justify-content: center; margin-top:var(--s4); font-size: var(--t-xs); font-weight: 600; color: var(--text-3); }
 
 /* ----- Confirmation ----- */
 .confirm-wrap { display: flex; flex-direction: column; align-items: center; text-align: center; padding-top:26px; }
@@ -484,8 +484,8 @@
   animation: popIn 600ms var(--ease-out) both;
 }
 @keyframes popIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-.confirm-title { font-size: 26px; font-weight: 800; letter-spacing: var(--title-tight); margin-top:18px; }
-.confirm-sub { font-size: var(--t-base); font-weight: 600; color: var(--text-2); margin-top:6px; }
+.confirm-title { font-size: 26px; font-weight: 800; letter-spacing: var(--title-tight); margin-top:var(--s4h); }
+.confirm-sub { font-size: var(--t-base); font-weight: 600; color: var(--text-2); margin-top:var(--s1h); }
 /* ===== The score move (js/score-move.js) =====
    Replaces `.score-move`, which printed the old and new numbers side by side in a hardcoded
    --green-bright at a hardcoded 56px. Two things were wrong with that beyond the raw sizes:
@@ -495,7 +495,7 @@
 .smove { position: relative; }
 /* The dial sizes itself from the svg's own width/height attributes; the wrapper only has to stop
    being full-width so `margin: auto` can centre it. */
-.smove-dial { margin: 20px auto 4px; display: table; }
+.smove-dial { margin: var(--s5) auto var(--s1); display: table; }
 .smove .sm-svg { position: relative; z-index: 1; display: block; }
 
 /* The tier light. Two stacked layers: the outgoing tier holds at full for the whole move and the
@@ -563,8 +563,8 @@
 /* ----- Chat (3-way) ----- */
 /* Breathing room between speakers, tight within a run — the rhythm is what makes it read as a
    conversation rather than a list. */
-.thread { display: flex; flex-direction: column; gap:14px; }
-.msg { display: flex; gap:10px; max-width: 88%; }
+.thread { display: flex; flex-direction: column; gap:var(--s3h); }
+.msg { display: flex; gap:var(--s2h); max-width: 88%; }
 /* Top-aligned, level with the name label — a tall bubble with a "Read less" control under it
    would otherwise strand a bottom-aligned avatar beside the control instead of the message. */
 .msg .av { width: 30px; height: 30px; border-radius: 50%; flex: none; display: grid; place-items: center; font-size: var(--t-xs); font-weight: 800; align-self: flex-start; margin-top: 15px; }
@@ -580,7 +580,7 @@
    between "chat bubble" and "rounded rectangle". (Radius later snapped to var(--r-card-sm).) ---- */
 /* overflow-wrap: one long unbroken token (a pasted URL, a 60-char food name) must break inside
    the bubble, not push it past the thread edge. Shared by all three thread renderers. */
-.msg .bubble { padding:11px 14px 12px; border-radius:var(--r-card-sm); font-size:var(--t-base); font-weight:600; line-height:1.47; letter-spacing:-0.005em; overflow-wrap:anywhere; }
+.msg .bubble { padding:11px var(--s3h) var(--s3); border-radius:var(--r-card-sm); font-size:var(--t-base); font-weight:600; line-height:1.47; letter-spacing:-0.005em; overflow-wrap:anywhere; }
 .msg.coach .bubble { background: var(--surface-2); border: 1px solid var(--hairline-soft); border-top-left-radius: 6px; }
 .msg.ai .bubble { background: rgba(var(--blue-rgb), 0.09); border: none; border-top-left-radius: 6px; }
 .msg.athlete { align-self: flex-end; flex-direction: row-reverse; }
@@ -601,9 +601,9 @@
 
 /* Who is in the room. Overlapping faces rather than a list of emoji, because these are people. */
 .facepile {
-  display: flex; align-items: center; gap:10px; width: 100%; margin:8px 0 2px;
+  display: flex; align-items: center; gap:var(--s2h); width: 100%; margin:var(--s2) 0 2px;
   background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-pill);
-  padding:8px 12px 8px 8px; font-family: var(--font); color: var(--text); text-align: left;
+  padding:var(--s2) var(--s3) var(--s2) var(--s2); font-family: var(--font); color: var(--text); text-align: left;
   cursor: pointer; -webkit-appearance: none; appearance: none;
 }
 .facepile:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
@@ -637,24 +637,24 @@
 }
 
 /* Reactions sit on the bubble they belong to, the way a person expects. */
-.msg.has-rx { margin-bottom:8px; }
+.msg.has-rx { margin-bottom:var(--s2); }
 .msg .rxo {
   position: absolute; right: -4px; bottom: -13px; background: var(--surface-2);
-  border: 1px solid var(--hairline); border-radius: var(--r-pill); padding:2px 8px;
+  border: 1px solid var(--hairline); border-radius: var(--r-pill); padding:2px var(--s2);
   font-size: var(--t-micro); font-weight: 700; color: var(--text-2); white-space: nowrap;
 }
 .msg.athlete .rxo { right: auto; left: -4px; }
 
 /* An updated read quotes the correction it answers, so the fix and the new numbers read as one
    exchange instead of two unrelated remarks. */
-.msg .quote { display: flex; gap:6px; align-items: flex-end; margin:0 0 4px 2px; }
+.msg .quote { display: flex; gap:var(--s1h); align-items: flex-end; margin:0 0 var(--s1) 2px; }
 .msg .quote .stem {
   width: 12px; height: 13px; border-left: 2px solid var(--hairline);
-  border-bottom: 2px solid var(--hairline); border-bottom-left-radius: 9px; margin-bottom:6px;
+  border-bottom: 2px solid var(--hairline); border-bottom-left-radius: 9px; margin-bottom:var(--s1h);
 }
 .msg .quote .qtext {
   font-size: var(--t-micro); font-weight: 600; color: var(--text-3); background: var(--surface-2);
-  border: 1px solid var(--hairline); border-radius: var(--r-chip); padding:4px 10px;
+  border: 1px solid var(--hairline); border-radius: var(--r-chip); padding:var(--s1) var(--s2h);
   max-width: min(240px, 62vw);
   /* Two lines, not one. A single nowrap line cut "That was a double portion of chicken, not
      one" down to the half that does not contain the correction — and this quote exists solely
@@ -667,17 +667,17 @@
   /* Its own line: inline, it wedged itself into the first sentence and broke the paragraph. */
   display: block; width: fit-content; font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.07em;
   text-transform: uppercase; color: var(--blue-bright); background: var(--blue-surface);
-  padding:2px 8px; border-radius: var(--r-pill); margin:0 0 6px;
+  padding:2px var(--s2); border-radius: var(--r-pill); margin:0 0 var(--s1h);
 }
 .msg .esc {
   display: block; width: fit-content; font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.07em;
   text-transform: uppercase; color: var(--amber-bright); background: var(--amber-surface);
-  padding:2px 8px; border-radius: var(--r-pill); margin:0 0 6px;
+  padding:2px var(--s2); border-radius: var(--r-pill); margin:0 0 var(--s1h);
 }
 
 /* The AI is composing. A live indicator, because that is what every other conversation this
    athlete has ever had looks like while someone types. */
-.msg .tdots { display: inline-flex; gap:4px; align-items: center; padding:14px 16px; }
+.msg .tdots { display: inline-flex; gap:var(--s1); align-items: center; padding:var(--s3h) var(--s4); }
 .msg .tdots span {
   width: 6px; height: 6px; border-radius: 50%; background: var(--text-3);
   animation: tdot 1.2s infinite;
@@ -692,7 +692,7 @@
 
 /* Protein leads the breakdown: it is the number a coach actually sets. */
 .phero {
-  display: flex; align-items: baseline; gap:10px; margin-top:10px; padding:12px 16px;
+  display: flex; align-items: baseline; gap:var(--s2h); margin-top:var(--s2h); padding:var(--s3) var(--s4);
   border-radius: var(--r-tile); border: 1px solid var(--blue-border);
   background: linear-gradient(140deg, rgba(var(--blue-rgb), 0.13), var(--surface-1));
 }
@@ -718,11 +718,13 @@
 .memsheet.on { opacity: 1; }
 .memsheet .ms-card {
   width: min(440px, calc(100% - 20px)); background: var(--surface-1);
-  border: 1px solid var(--hairline); border-radius: var(--r-card); padding:16px 16px 14px;
+  border: 1px solid var(--hairline); border-radius: var(--r-card); padding:var(--s4) var(--s4) var(--s3h);
   transform: translateY(10px); transition: transform var(--dur-1) var(--ease-out);
 }
 .memsheet.on .ms-card { transform: translateY(0); }
-.memsheet .ms-head { display: flex; align-items: center; gap:10px; margin-bottom:10px; }
+/* Body-level overlay, outside .view: keep the backdrop's opacity fade, drop the card's travel. */
+@media (prefers-reduced-motion: reduce) { .memsheet .ms-card { transition: none; transform: none; } }
+.memsheet .ms-head { display: flex; align-items: center; gap:var(--s2h); margin-bottom:var(--s2h); }
 .memsheet .ms-title { font-size: var(--t-md); font-weight: 800; flex: 1; }
 .memsheet .ms-x {
   width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--hairline);
@@ -737,8 +739,8 @@
   width: 100%; height: 100%; min-width: 44px; min-height: 44px; pointer-events: auto;
 }
 .memsheet .ms-x:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
-.memsheet .ms-list { display: flex; flex-direction: column; gap:10px; }
-.memsheet .ms-row { display: flex; align-items: center; gap:12px; }
+.memsheet .ms-list { display: flex; flex-direction: column; gap:var(--s2h); }
+.memsheet .ms-row { display: flex; align-items: center; gap:var(--s3); }
 .memsheet .ms-av {
   width: 34px; height: 34px; border-radius: 50%; flex: none; display: grid; place-items: center;
   font-size: var(--t-sm); font-weight: 800; color: #fff;
@@ -749,7 +751,7 @@
 .memsheet .ms-name { font-size: var(--t-base); font-weight: 800; }
 .memsheet .ms-kind { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); }
 .memsheet .ms-foot {
-  margin-top:14px; padding-top:12px; border-top: 1px solid var(--hairline);
+  margin-top:var(--s3h); padding-top:var(--s3); border-top: 1px solid var(--hairline);
   font-size: var(--t-xs); font-weight: 600; color: var(--text-3); line-height: 1.5;
 }
 
@@ -763,12 +765,12 @@
    Anatomy: .composer > [.attach] + .field > (textarea | input) + [.ai-ask] + .send
    align-items:flex-end everywhere, because a pill that has grown to four lines keeps its send
    button and its attach button on the LAST line, where the cursor is — not floating mid-box. */
-.composer { display: flex; align-items: flex-end; gap:8px; margin-top:16px; }
+.composer { display: flex; align-items: flex-end; gap:var(--s2); margin-top:var(--s4); }
 .composer .field {
   /* min-width:0 — a flex item's default min-width is its content size, so on a 375px frame the
      coach's 3-button composer pushed Send off-screen (deep audit 2026-08-19). */
-  flex: 1; min-width: 0; display: flex; align-items: flex-end; gap:4px;
-  min-height: 40px; box-sizing: border-box; padding:4px 4px 4px 14px;
+  flex: 1; min-width: 0; display: flex; align-items: flex-end; gap:var(--s1);
+  min-height: 40px; box-sizing: border-box; padding:var(--s1) var(--s1) var(--s1) var(--s3h);
   /* --r-card (22): at the pill's 40px rest height anything past 20 is already a full round, and
      22 is the step a grown pill's first 44px keeps round too. Off-scale 21 did the same job. */
   border-radius: var(--r-card); border: 1px solid var(--hairline); background: var(--surface-1);
@@ -837,7 +839,7 @@
 /* A pending attachment, shown above the bar so the athlete can see (and drop) what they picked
    BEFORE it is sent. Nothing uploads until they hit send. */
 .composer-attach-pending {
-  display: flex; align-items: center; gap:10px; margin-top:10px; padding:8px 10px;
+  display: flex; align-items: center; gap:var(--s2h); margin-top:var(--s2h); padding:var(--s2) var(--s2h);
   border: 1px solid var(--hairline); border-radius: var(--r-card-sm); background: var(--surface-1);
 }
 /* The class display above beats the UA's [hidden] rule, so without this the EMPTY strip — a
@@ -849,16 +851,16 @@
 .composer-attach-pending .cap { flex:1; font-size: var(--t-sm); font-weight: 700; color: var(--text-2); }
 .composer-attach-pending button {
   border:0; background: var(--surface-2); color: var(--text-2); cursor:pointer; flex:none;
-  border-radius: var(--r-chip); padding:6px 12px; font-family: var(--font); font-size: var(--t-sm); font-weight: 800;
+  border-radius: var(--r-chip); padding:var(--s1h) var(--s3); font-family: var(--font); font-size: var(--t-sm); font-weight: 800;
 }
 /* A photo inside a chat bubble. Capped so a portrait shot cannot push the whole thread offscreen. */
 .msg .bimg {
-  display:block; margin:0 0 6px; max-width: 100%; width: 190px; max-height: 240px;
+  display:block; margin:0 0 var(--s1h); max-width: 100%; width: 190px; max-height: 240px;
   object-fit: cover; border-radius: var(--r-chip); cursor: zoom-in; background: var(--surface-2);
 }
 
 /* ----- Weight ----- */
-.weight-display { text-align: center; padding:22px 0 8px; }
+.weight-display { text-align: center; padding:22px 0 var(--s2); }
 .weight-display .wv { font-size: 76px; font-weight: 800; letter-spacing: -0.05em; line-height: 1; }
 /* The value is a real decimal input (tap to type) styled as the display it replaced. Width in ch
    so five characters (183.4) fit without the input claiming the whole row. */
@@ -869,26 +871,27 @@ input.wv {
 }
 input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .weight-display .wu { font-size: var(--t-lg); font-weight: 700; color: var(--text-3); }
-.stepper { display: flex; align-items: center; justify-content: center; gap:22px; margin-top:14px; }
+.stepper { display: flex; align-items: center; justify-content: center; gap:22px; margin-top:var(--s3h); }
 .stepper .sbtn { width: 52px; height: 52px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--hairline); display:grid; place-items:center; color: var(--text); font-size: var(--t-2xl); font-weight: 700; cursor: pointer; }
-.trendline { height: 74px; margin-top:8px; }
+.trendline { height: 74px; margin-top:var(--s2); }
 
 /* ----- Recovery sliders ----- */
-.rec-field { padding:16px 0 14px; border-bottom: 1px solid var(--hairline-soft); }
+.rec-field { padding:var(--s4) 0 var(--s3h); border-bottom: 1px solid var(--hairline-soft); }
 .rec-field:last-child { border-bottom: none; }
 .rec-top { display: flex; justify-content: space-between; align-items: baseline; }
 .rec-name { font-size: var(--t-md); font-weight: 800; }
 .rec-ends { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); }
-.chips5 { display: flex; gap:8px; margin-top:12px; }
-.chips5 .c5 {
-  flex: 1; height: 44px; border-radius: var(--r-chip); display: grid; place-items: center;
-  background: var(--surface-2); border: 1px solid var(--hairline-soft);
-  font-size: var(--t-base); font-weight: 800; color: var(--text-3); cursor: pointer;
-  /* Enumerated, not `all`: `all` is how a later rule quietly starts tweening a layout property. */
+.chips5 { display: flex; gap:var(--s2); margin-top:var(--s3); }
+/* .chip form of the 1-to-5 scale: the canonical .chip (app.css) with the .c5 geometry and the
+   recovery hue on the selected state. Loaded after app.css, so this beats .chip.on on order and
+   .chips5 .chip.on takes it back. */
+.chips5 .chip {
+  flex: 1; height: 44px; padding: 0; background: var(--surface-2); border-color: var(--hairline-soft);
+  font-size: var(--t-base); font-weight: 800; color: var(--text-3); box-shadow: none;
   transition: background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out),
     color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
 }
-.chips5 .c5.on { background: rgba(var(--purple-rgb), 0.20); border-color: var(--purple-border); color: var(--purple-bright); box-shadow: 0 0 14px rgba(var(--purple-rgb), 0.2); }
+.chips5 .chip.on { background: rgba(var(--purple-rgb), 0.20); border-color: var(--purple-border); color: var(--purple-bright); box-shadow: 0 0 14px rgba(var(--purple-rgb), 0.2); }
 
 /* ----- Progress ----- */
 /* Week chart. Bars used to be sized in px inside a container too short to hold them, and .bar had
@@ -896,8 +899,8 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    collapsed to nothing. Sizing the bar as a % of a .track that absorbs whatever height is left
    makes that structurally impossible rather than patched. The empty part of the track is itself
    information: the headroom you didn't take. */
-.weekbars { display: flex; align-items: stretch; gap:10px; height: 118px; padding-top:8px; }
-.wb { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap:8px; }
+.weekbars { display: flex; align-items: stretch; gap:var(--s2h); height: 118px; padding-top:var(--s2); }
+.wb { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap:var(--s2); }
 .wb .track { flex: 1 1 auto; position: relative; border-radius: var(--r-chip); background: var(--surface-3); overflow: hidden; }
 /* The standard, drawn. Bar heights mean nothing without the threshold they're read against;
    top:20% is exactly 80/100 of the track, so it needs no magic pixel value. */
@@ -916,25 +919,25 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .wb.b-on .bar { background: linear-gradient(180deg, var(--green), var(--green-deep)); opacity: 1; box-shadow: 0 0 14px rgba(var(--green-rgb), 0.28); }
 @keyframes xf-grow-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
 .wb .d { font-size: var(--t-micro); font-weight: 700; color: var(--text-3); text-align: center; }
-.consist { display: flex; flex-direction: column; gap:12px; }
-.cons-row { display: flex; align-items: center; gap:12px; }
+.consist { display: flex; flex-direction: column; gap:var(--s3); }
+.cons-row { display: flex; align-items: center; gap:var(--s3); }
 .cons-row .k { width: 86px; font-size: var(--t-sm); font-weight: 700; color: var(--text-2); flex: none; }
 .cons-row .track { flex: 1; height: 8px; border-radius: var(--r-micro); background: var(--surface-3); overflow: hidden; }
 .cons-row .fillb { height: 100%; border-radius: var(--r-micro); }
 .cons-row .v { width: 42px; text-align: right; font-size: var(--t-base); font-weight: 800; flex: none; }
-.bigstat { display: flex; align-items: baseline; gap:10px; }
+.bigstat { display: flex; align-items: baseline; gap:var(--s2h); }
 .bigstat .n { font-size: 44px; font-weight: 800; letter-spacing: -0.04em; }
 .bigstat .d { font-size: var(--t-base); font-weight: 700; color: var(--text-2); }
 .bigstat .d.up { color: var(--green-bright); }
 .bigstat .d.down { color: var(--red); }
-.insight { display: flex; gap:12px; padding:16px 16px; border-radius: var(--r-card); background: linear-gradient(120deg, rgba(var(--green-rgb), 0.10), rgba(var(--teal-rgb), 0.04)); border: 1px solid var(--green-border); }
+.insight { display: flex; gap:var(--s3); padding:var(--s4) var(--s4); border-radius: var(--r-card); background: linear-gradient(120deg, rgba(var(--green-rgb), 0.10), rgba(var(--teal-rgb), 0.04)); border: 1px solid var(--green-border); }
 .insight p { font-size: var(--t-base); font-weight: 700; line-height: 1.5; }
-.losttable .lrow2 { display:flex; justify-content:space-between; padding:12px 2px; border-bottom: 1px solid var(--hairline-soft); font-size: var(--t-base); font-weight: 700; }
+.losttable .lrow2 { display:flex; justify-content:space-between; padding:var(--s3) 2px; border-bottom: 1px solid var(--hairline-soft); font-size: var(--t-base); font-weight: 700; }
 .losttable .lrow2:last-child { border-bottom: none; }
 .losttable .amt { font-weight: 800; }
 
 /* ----- Profile / leaderboard ----- */
-.id-card { display: flex; align-items: center; gap:16px; padding:18px; }
+.id-card { display: flex; align-items: center; gap:var(--s4); padding:var(--s4h); }
 /* flex:none on the avatar and the Edit button, min-width:0 on the text: without it an unbroken
    name pushed Edit 143px past the right edge, so the only way to fix a wrong name was gone. */
 .id-card .big-av { width: 62px; height: 62px; border-radius: 50%; background: linear-gradient(150deg, var(--blue), var(--blue-deep)); display:grid; place-items:center; font-size: 22px; font-weight: 800; color: var(--ink-on-accent); box-shadow: var(--sh-blue); flex: none; }
@@ -943,24 +946,24 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .id-card .nm { font-size: var(--t-xl); font-weight: 800; letter-spacing: -0.01em; overflow-wrap: anywhere; }
 /* Two lines each for sport and school: a 45-character school name turned the header into a
    six-line block that shoved the rest of Profile down the screen. */
-.id-card .meta { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:4px; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.id-card .meta { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:var(--s1); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 /* The photo's own actions sit under the identity lines, in the card, same voice as .meta-add:
    a text action, not a pill. Bare-text button at the 24px inline floor (the row is not the only
    target: the 44px camera badge on the avatar is the primary control). */
-.id-card .id-act { appearance: none; background: none; border: 0; padding: 0; margin-top: 6px; min-height: 24px; display: inline-flex; align-items: center; font-family: var(--font); font-size: var(--t-sm); font-weight: 700; color: var(--blue-bright); cursor: pointer; }
+.id-card .id-act { appearance: none; background: none; border: 0; padding: 0; margin-top: var(--s1h); min-height: 24px; display: inline-flex; align-items: center; font-family: var(--font); font-size: var(--t-sm); font-weight: 700; color: var(--blue-bright); cursor: pointer; }
 .id-card .id-act:disabled { opacity: .5; cursor: default; }
 .id-card .id-err { color: var(--red-bright); font-size: var(--t-sm); font-weight: 600; line-height: 1.35; }
-.id-card .id-err:not(:empty) { margin-top: 4px; }
-.lb-row { display: flex; align-items: center; gap:14px; padding:14px 16px; border-bottom: 1px solid var(--hairline-soft); }
+.id-card .id-err:not(:empty) { margin-top: var(--s1); }
+.lb-row { display: flex; align-items: center; gap:var(--s3h); padding:var(--s3h) var(--s4); border-bottom: 1px solid var(--hairline-soft); }
 .lb-row:last-child { border-bottom: none; }
-.lb-row.you { background: rgba(var(--blue-rgb), 0.10); border-radius: var(--r-card-sm); border: 1px solid var(--blue-border); margin:4px 6px; }
+.lb-row.you { background: rgba(var(--blue-rgb), 0.10); border-radius: var(--r-card-sm); border: 1px solid var(--blue-border); margin:var(--s1) var(--s1h); }
 .lb-rank { width: 26px; font-size: var(--t-md); font-weight: 800; color: var(--text-3); text-align: center; }
 .lb-row.you .lb-rank { color: var(--blue-bright); }
 .lb-name { flex: 1; font-size: var(--t-base); font-weight: 700; }
 .lb-score { font-size: var(--t-md); font-weight: 800; }
 
 /* ----- Connect ----- */
-.code-boxes { display: flex; gap:10px; justify-content: center; padding:8px 0; }
+.code-boxes { display: flex; gap:var(--s2h); justify-content: center; padding:var(--s2) 0; }
 .code-boxes .cb {
   width: 46px; height: 56px; border-radius: var(--r-card-sm); background: var(--surface-1); border: 1.5px solid var(--hairline);
   display: grid; place-items: center; font-size: 22px; font-weight: 800;
@@ -968,28 +971,28 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .code-boxes .cb.filled { border-color: var(--blue-border); background: rgba(var(--blue-rgb), 0.08); }
 .code-boxes .cb.cursor { border-color: var(--blue-bright); box-shadow: 0 0 14px rgba(var(--blue-rgb), 0.25); }
 /* full-width invite code row (7 boxes): flex so they always fit the card, never crush to slivers */
-.code-boxes.invite-code { gap:6px; }
+.code-boxes.invite-code { gap:var(--s1h); }
 .code-boxes.invite-code .cb { flex: 1 1 0; min-width: 0; max-width: 46px; height: 46px; font-size: var(--t-lg); }
 /* Owner-side code DISPLAY (Practice HQ, coach code block): the server allows 6-12 chars, and a
    fixed 46px box next to a 104px QR crushed a 12-char code into overlapping slivers with the
    tail clipped. Boxes share the row down to a 28px floor, then wrap into even rows — a 12-char
    code reads as two chunked rows of six, never as broken glyphs. Join-side ENTRY boxes keep the
    fixed size: typing needs a stable target. */
-.code-boxes.fit { gap:6px; flex-wrap: wrap; }
+.code-boxes.fit { gap:var(--s1h); flex-wrap: wrap; }
 .code-boxes.fit .cb { flex: 1 1 28px; min-width: 0; max-width: 46px; height: 46px; font-size: var(--t-lg); }
-.team-preview { display: flex; align-items: center; gap:14px; padding:16px; }
+.team-preview { display: flex; align-items: center; gap:var(--s3h); padding:var(--s4); }
 .team-preview .tp-av { width: 52px; height: 52px; border-radius: var(--r-card-sm); background: linear-gradient(150deg, var(--amber), var(--amber-deep)); display: grid; place-items: center; font-size: var(--t-xl); font-weight: 800; color: var(--ink-on-accent); }
 
 /* ----- Practice HQ (trainer identity + invite loop) ----- */
 .sk { background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%); background-size: 400% 100%; animation: sk-sheen 1.4s var(--ease-in-out) infinite; border-radius: var(--r-chip); }
 @keyframes sk-sheen { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
 @media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
-.hq-invite-top { display: flex; gap:16px; align-items: center; }
+.hq-invite-top { display: flex; gap:var(--s4); align-items: center; }
 /* The white ground is FUNCTIONAL (QR scan contrast), not a #fff ban violation; the shadow is
    the shared card lift so it stops printing a hard black drop on the light theme. */
-.hq-qr { width: 104px; height: 104px; flex: none; background: #fff; border-radius: var(--r-card-sm); padding:8px; box-shadow: var(--sh-card); }
+.hq-qr { width: 104px; height: 104px; flex: none; background: #fff; border-radius: var(--r-card-sm); padding:var(--s2); box-shadow: var(--sh-card); }
 .hq-qr svg { width: 100%; height: 100%; display: block; }
-.hq-qcap { font-size: var(--t-micro); font-weight: 700; text-align: center; color: var(--text-3); margin-top:6px; letter-spacing: 0.02em; }
+.hq-qcap { font-size: var(--t-micro); font-weight: 700; text-align: center; color: var(--text-3); margin-top:var(--s1h); letter-spacing: 0.02em; }
 /* currentColor: the spinner wears whatever hue its icon box wears (green on a nutrition HQ,
    purple on a training one) instead of the hardcoded purple that clashed inside the green box. */
 .hq-spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(148,176,224,0.18); border-top-color: currentColor; animation: hq-spin 0.8s linear infinite; }
@@ -997,20 +1000,20 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 @media (prefers-reduced-motion: reduce) { .hq-spin { animation: none; } }
 
 /* ----- Notifications ----- */
-.nhead { display: flex; align-items: center; justify-content: space-between; gap:12px; padding:16px 2px 10px; }
-.nsummary { font-size: var(--t-sm); font-weight: 700; color: var(--text-2); display: flex; align-items: center; gap:8px; }
+.nhead { display: flex; align-items: center; justify-content: space-between; gap:var(--s3); padding:var(--s4) 2px var(--s2h); }
+.nsummary { font-size: var(--t-sm); font-weight: 700; color: var(--text-2); display: flex; align-items: center; gap:var(--s2); }
 .nsummary .cnt { color: var(--text); font-weight: 800; }
-.nsummary.allclear { color: var(--green-bright); display: inline-flex; align-items: center; gap:6px; }
+.nsummary.allclear { color: var(--green-bright); display: inline-flex; align-items: center; gap:var(--s1h); }
 .markread {
   appearance: none; border: 0; background: transparent; color: var(--blue-bright); font-family: var(--font);
-  font-size: var(--t-sm); font-weight: 800; letter-spacing: 0.01em; cursor: pointer; min-height: 44px; padding:0 6px;
+  font-size: var(--t-sm); font-weight: 800; letter-spacing: 0.01em; cursor: pointer; min-height: 44px; padding:0 var(--s1h);
   border-radius: var(--r-chip); display: inline-flex; align-items: center;
   transition: color var(--dur-1) var(--ease-out), opacity var(--dur-1) var(--ease-out);
 }
 .markread:active { transform: scale(0.97); }
 .markread[disabled] { color: var(--text-3); opacity: 0.5; cursor: default; pointer-events: none; }
 
-.notif { display: flex; gap:14px; padding:16px 16px; border-radius: var(--r-card); background: var(--surface-1); border: 1px solid transparent; margin-bottom:10px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), var(--sh-card); }
+.notif { display: flex; gap:var(--s3h); padding:var(--s4) var(--s4); border-radius: var(--r-card); background: var(--surface-1); border: 1px solid transparent; margin-bottom:var(--s2h); box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), var(--sh-card); }
 .notif .nic { width: 42px; height: 42px; border-radius: var(--r-card-sm); display: grid; place-items: center; flex: none; }
 .notif.high .nic { background: rgba(var(--amber-rgb), 0.18); color: var(--amber-bright); }
 .notif.critical .nic { background: var(--red-surface); color: var(--red); }
@@ -1019,9 +1022,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .notif.positive .nic { background: var(--green-surface); color: var(--green-bright); }
 .notif.info .nic { background: var(--blue-surface); color: var(--blue-bright); }
 .notif .nt { font-size: var(--t-base); font-weight: 800; }
-.notif .nb { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:4px; line-height: 1.4; }
+.notif .nb { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:var(--s1); line-height: 1.4; }
 .notif .nw { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); flex: none; }
-.level-tag { display:inline-block; font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; padding:4px 8px; border-radius: var(--r-pill); margin-bottom:6px; }
+.level-tag { display:inline-block; font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; padding:var(--s1) var(--s2); border-radius: var(--r-pill); margin-bottom:var(--s1h); }
 .level-tag.high { background: rgba(var(--amber-rgb), 0.16); color: var(--amber-bright); }
 .level-tag.critical { background: var(--red-surface); color: var(--red); }
 .level-tag.medium { background: var(--blue-surface); color: var(--blue-bright); }
@@ -1029,7 +1032,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .level-tag.info { background: var(--blue-surface); color: var(--blue-bright); }
 
 /* meta column: timestamp + unread dot (read swaps the dot for a chevron in JS) */
-.nmeta { display: flex; flex-direction: column; align-items: flex-end; gap:8px; flex: none; padding-top:2px; }
+.nmeta { display: flex; flex-direction: column; align-items: flex-end; gap:var(--s2); flex: none; padding-top:2px; }
 .udot { width: 9px; height: 9px; border-radius: 50%; flex: none; box-shadow: 0 0 0 3px var(--surface-1); background: var(--text-3); }
 .notif.unread.high .udot { background: var(--amber-bright); }
 .notif.unread.medium .udot { background: var(--blue-bright); }
@@ -1052,20 +1055,20 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 
 /* empty state (upgraded; scoped to notifications — .state-demo stays the shared default elsewhere) */
 .ne-empty {
-  margin:26px 0 8px; padding:34px 22px; text-align: center; border-radius: var(--r-card);
+  margin:26px 0 var(--s2); padding:34px 22px; text-align: center; border-radius: var(--r-card);
   background: radial-gradient(120% 70% at 50% 0%, rgba(var(--green-rgb), 0.06), transparent 60%), var(--surface-1);
   border: 1px solid var(--hairline);
 }
-.ne-ring { width: 74px; height: 74px; margin:0 auto 16px; border-radius: 50%; display: grid; place-items: center; background: var(--green-surface); color: var(--green-bright); position: relative; }
+.ne-ring { width: 74px; height: 74px; margin:0 auto var(--s4); border-radius: 50%; display: grid; place-items: center; background: var(--green-surface); color: var(--green-bright); position: relative; }
 .ne-ring::after { content: ""; position: absolute; inset: -7px; border-radius: 50%; border: 1px solid var(--green-border); opacity: 0.5; }
 .ne-t { font-size: var(--t-lg); font-weight: 800; letter-spacing: var(--title-tight); }
-.ne-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:8px; line-height: 1.5; max-width: 34ch; margin-left:auto; margin-right:auto; }
+.ne-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:var(--s2); line-height: 1.5; max-width: 34ch; margin-left:auto; margin-right:auto; }
 
 /* ----- Plan tabs (underline style) ----- */
 /* Four tabs at gap:22px overflow a 390px screen by ~6px, so "Memory" touched the right edge with
    no padding and no signal there was more. Scroll it, mask the cut, and tighten the gap on the
    narrowest phones rather than letting the last label clip. */
-.ptabs { display: flex; gap:22px; border-bottom: 1px solid var(--hairline); padding:0 2px; margin-top:6px;
+.ptabs { display: flex; gap:22px; border-bottom: 1px solid var(--hairline); padding:0 2px; margin-top:var(--s1h);
   overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
   scroll-snap-type: x proximity;
   -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 18px), transparent 100%);
@@ -1084,7 +1087,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* 44px tall for the thumb, pulled back with negative margin so the identity block keeps its
    24px line. The chevron rides ::before with order:1 (visually trailing) because focus.css owns
    ::after as the 44px hit-area idiom and this element cannot use it. */
-.meta-add { color: var(--blue-bright); cursor: pointer; display: inline-flex; align-items: center; gap:4px; min-height: 44px; margin: -10px 0; }
+.meta-add { color: var(--blue-bright); cursor: pointer; display: inline-flex; align-items: center; gap:var(--s1); min-height: 44px; margin: -10px 0; }
 .meta-add::before { content: '›'; font-weight: 800; opacity: .7; order: 1; }
 .ptabs .pt { flex: none; scroll-snap-align: start; }
 /* Fluid, not a breakpoint. This was `@media (max-width: 380px)`, which misses 390px — the
@@ -1096,7 +1099,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    phones still scroll it, with the fade and the active-tab auto-scroll in plan.js. */
 .ptabs { gap: clamp(12px, 4vw, 22px); }
 .ptabs { position: relative; }
-.ptabs .pt { padding:14px 2px 16px; min-height: 44px; box-sizing: border-box; display: flex; align-items: center; font-size: var(--t-base); font-weight: 700; color: var(--text-3); cursor: pointer; position: relative; }
+.ptabs .pt { padding:var(--s3h) 2px var(--s4); min-height: 44px; box-sizing: border-box; display: flex; align-items: center; font-size: var(--t-base); font-weight: 700; color: var(--text-3); cursor: pointer; position: relative; }
 .ptabs .pt.on { color: var(--text); }
 /* One marker that travels, positioned by plan.js placeInk(). It used to be a ::after on whichever
    tab was lit, so it teleported: the strongest "you are here" signal on the screen, and the only
@@ -1118,11 +1121,11 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    definition of the standard rather than a folder of widgets. */
 
 /* The head's second line: state on the left, the interactive goal pill on the right. */
-.pl-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.pl-head { display:flex; align-items:center; justify-content:space-between; gap:var(--s2h); }
 .pl-sub  { font-size: var(--t-sm); font-weight:600; color: var(--text-2); min-width:0; }
 
 /* The goal pill is a control, not a caption — it carries a caret and a real press state. */
-.pl-goalpill { display:inline-flex; align-items:center; gap:6px; flex:none; cursor:pointer;
+.pl-goalpill { display:inline-flex; align-items:center; gap:var(--s1h); flex:none; cursor:pointer;
   border:1px solid var(--blue-border); color: var(--blue-bright); background:transparent;
   border-radius: var(--r-pill); padding:7px 11px; font-size: var(--t-xs); font-weight:800;
   letter-spacing:0.01em; min-height:32px; }
@@ -1132,16 +1135,16 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .pl-goalpill:active { transform: scale(0.97); }
 
 /* The goal panel: a well, not a card — it belongs to the pill above it. */
-.pl-goalpanel { margin:10px 0 2px; padding:14px 16px; border-radius: var(--r-tile);
+.pl-goalpanel { margin:var(--s2h) 0 2px; padding:var(--s3h) var(--s4); border-radius: var(--r-tile);
   background: var(--surface-2); border:1px solid var(--hairline-soft); }
-.pl-gp-row { display:flex; align-items:baseline; justify-content:space-between; gap:14px; padding:7px 0; }
+.pl-gp-row { display:flex; align-items:baseline; justify-content:space-between; gap:var(--s3h); padding:7px 0; }
 .pl-gp-row + .pl-gp-row { border-top:1px solid var(--hairline-soft); }
 .pl-gp-k { font-size: var(--t-eyebrow); font-weight:800; letter-spacing:var(--track-key); text-transform:uppercase; color: var(--text-3); flex:none; }
 .pl-gp-v { font-size: var(--t-base); font-weight:700; text-align:right; min-width:0; overflow-wrap:anywhere; }
-.pl-gp-note { font-size: var(--t-sm); font-weight:600; color: var(--text-2); line-height:1.5; margin-top:10px; }
+.pl-gp-note { font-size: var(--t-sm); font-weight:600; color: var(--text-2); line-height:1.5; margin-top:var(--s2h); }
 
 /* One compact sentence carrying the whole standard. Sits directly under the head. */
-.pl-standard { font-size: var(--t-base); font-weight:600; color: var(--text-2); line-height:1.55; margin:14px 2px 0; }
+.pl-standard { font-size: var(--t-base); font-weight:600; color: var(--text-2); line-height:1.55; margin:var(--s3h) 2px 0; }
 .pl-standard b { color: var(--text); font-weight:800; }
 /* `.link` is only styled under .eyebrow / .pl-grp / .est-note, so an inline action inside a
    sentence rendered as plain body text — a control that doesn't look like one. */
@@ -1152,20 +1155,20 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 
 /* Group header INSIDE a tab — quieter than .eyebrow so a tab can have one eyebrow and several
    groups without four competing uppercase labels down the page. */
-.pl-grp { display:flex; align-items:center; justify-content:space-between; gap:10px;
+.pl-grp { display:flex; align-items:center; justify-content:space-between; gap:var(--s2h);
   font-size: var(--t-eyebrow); font-weight:800; letter-spacing:var(--track-eyebrow); text-transform:uppercase;
-  color: var(--text-3); margin:20px 2px 4px; }
+  color: var(--text-3); margin:var(--s5) 2px var(--s1); }
 .pl-grp .link { text-transform:none; letter-spacing:0.02em; font-size: var(--t-sm); font-weight:700; color: var(--blue-bright); cursor:pointer; }
 
 /* Boxless list: rows separated by a hairline, aligned to the page gutter. */
 .pl-list { padding:0 2px; }
-.pl-row { display:flex; align-items:center; gap:12px; padding:13px 0;
+.pl-row { display:flex; align-items:center; gap:var(--s3); padding:13px 0;
   border-top:1px solid var(--hairline-soft); min-height:56px; }
 .pl-list > .pl-row:first-child { border-top:none; }
 .pl-row.tap { cursor:pointer; }
 .pl-row.tap:active { opacity:0.72; }
 .pl-row .plb { flex:1; min-width:0; }
-.pl-row .plt { font-size: var(--t-md); font-weight:800; display:flex; align-items:center; gap:6px; min-width:0; }
+.pl-row .plt { font-size: var(--t-md); font-weight:800; display:flex; align-items:center; gap:var(--s1h); min-width:0; }
 .pl-row .plt > span.nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 /* WRAPS, deliberately. A requirement's sub carries three facts — frequency, deadline, proof —
    and "Mon / Wed / Fri · by 9:00 AM · Scale entry" is longer than a phone row: with nowrap the
@@ -1173,7 +1176,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    that got ellipsised away. The row grows instead. */
 .pl-row .pls { font-size: var(--t-sm); font-weight:600; color: var(--text-2); margin-top:2px;
   line-height:1.4; overflow-wrap:anywhere; }
-.pl-row .plend { flex:none; display:flex; align-items:center; gap:8px; }
+.pl-row .plend { flex:none; display:flex; align-items:center; gap:var(--s2); }
 
 /* The category tag: which scored part a rule feeds, WITHOUT restating the percentage on every
    row (three meals each reading "Nutrition · 52% of score" made each meal look worth 52% — 156%
@@ -1189,16 +1192,16 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 
 /* The learn-a-usual prompt. Tinted and edged because it interrupts on purpose, but on the same
    row rhythm as the list it sits above, so it stops out-shouting the content. */
-.pl-sug { display:flex; flex-direction:column; gap:10px; margin:2px 2px 4px; padding:13px 14px;
+.pl-sug { display:flex; flex-direction:column; gap:var(--s2h); margin:2px 2px var(--s1); padding:13px var(--s3h);
   border-radius: var(--r-card-sm); background: var(--blue-surface); border:1px solid var(--blue-border); }
 .pl-sug .plt { font-size: var(--t-md); font-weight:800; display:flex; align-items:center; gap:7px; min-width:0; }
 .pl-sug .pls { font-size: var(--t-sm); font-weight:600; color: var(--text-2); margin-top:3px; line-height:1.45; }
-.pl-sug-a { display:flex; gap:8px; }
+.pl-sug-a { display:flex; gap:var(--s2); }
 
 /* Ask, at the foot of every Plan tab: one row, or two side by side when a coach exists. Both
    destinations get identical weight and identical shape, so the pair reads as one control rather
    than a card plus a button. */
-.pl-asks { display:grid; grid-template-columns:1fr; gap:10px; margin-top:22px; }
+.pl-asks { display:grid; grid-template-columns:1fr; gap:var(--s2h); margin-top:22px; }
 .pl-asks.two { grid-template-columns:1fr 1fr; }
 .pl-ask { display:flex; align-items:center; gap:9px; cursor:pointer; min-width:0;
   padding:0 13px; height:48px; border-radius: var(--r-card-sm);
@@ -1209,28 +1212,28 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 /* Suggested questions: real questions the engine can really answer, one tap each. The Plan tabs
    no longer render these (the ask screen opens with them); it keeps them for its own use. */
-.pl-qs { display:flex; gap:8px; flex-wrap:wrap; padding:0 2px; }
+.pl-qs { display:flex; gap:var(--s2); flex-wrap:wrap; padding:0 2px; }
 .pl-q { font-size: var(--t-sm); font-weight:700; color: var(--text-2); cursor:pointer;
   background: var(--surface-2); border:1px solid var(--hairline); border-radius: var(--r-pill);
-  padding:8px 13px; min-height:36px; display:inline-flex; align-items:center; }
+  padding:var(--s2) 13px; min-height:36px; display:inline-flex; align-items:center; }
 .pl-q:active { transform: scale(0.97); background: var(--surface-3); }
 
 /* Ask thread answer block (plan-ask screen). */
-.pa-ans { border-radius: var(--r-tile); background: var(--surface-1); box-shadow: var(--sh-card); padding:14px 16px; }
+.pa-ans { border-radius: var(--r-tile); background: var(--surface-1); box-shadow: var(--sh-card); padding:var(--s3h) var(--s4); }
 .pa-ans .pa-h { font-size: var(--t-md); font-weight:800; letter-spacing: var(--title-tight); }
 .pa-ans .pa-l { font-size: var(--t-base); font-weight:600; color: var(--text-2); line-height:1.55; margin-top:7px; }
 .pa-ans .pa-l.bullet { color: var(--text); font-weight:700; }
-.pa-ans .pa-chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+.pa-ans .pa-chips { display:flex; gap:var(--s2); flex-wrap:wrap; margin-top:var(--s3); }
 
 /* ---- onboarding v2: back nav + segmented progress (replaces dots) ---- */
-.ob-nav{display:flex;align-items:center;gap:12px;padding:2px 0 16px}
+.ob-nav{display:flex;align-items:center;gap:var(--s3);padding:2px 0 var(--s4)}
 .ob-back{width:44px;height:44px;min-width:44px;border-radius:var(--r-card-sm);background:var(--surface-2);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-2)}
 .ob-back svg{transform:rotate(180deg)}
-.ob-prog{flex:1;display:flex;gap:6px}
+.ob-prog{flex:1;display:flex;gap:var(--s1h)}
 .ob-prog i{flex:1;height:4px;border-radius:var(--r-micro);background:var(--surface-2)}
 .ob-prog i.on{background:var(--green-bright)}
-.dob-row{display:flex;gap:10px}
-.dob-row .ob-input{flex:1 1 0;min-width:0;padding:0 8px;text-align:center}
+.dob-row{display:flex;gap:var(--s2h)}
+.dob-row .ob-input{flex:1 1 0;min-width:0;padding:0 var(--s2);text-align:center}
 .dob-row #ob-dob-y{flex:1.5 1 0}
 /* hold-to-commit (used by Task 5) */
 .hold-btn{position:relative;overflow:hidden}
@@ -1238,17 +1241,17 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .hold-fill{position:absolute;inset:0;transform:scaleX(0);transform-origin:left;background:rgba(255,255,255,0.22);pointer-events:none}
 .hold-label{position:relative}
 /* password meter (used by Task 6) */
-.pw-meter{display:flex;gap:6px;margin:10px 2px 4px}
+.pw-meter{display:flex;gap:var(--s1h);margin:var(--s2h) 2px var(--s1)}
 .pw-meter i{flex:1;height:4px;border-radius:var(--r-micro);background:var(--surface-2)}
 .pw-meter i.on{background:var(--amber-bright)}
 .pw-meter i.on.s3{background:var(--green-bright)}
 .pw-row{position:relative}
 .pw-row .ob-input{padding-right:60px}  /* reserve room for the 44px Show toggle so the placeholder can't run under it */
-.pw-row .pw-eye{position:absolute;right:0;top:50%;transform:translateY(-50%);font-size:var(--t-sm);font-weight:800;color:var(--text-3);cursor:pointer;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;padding-right:6px}
+.pw-row .pw-eye{position:absolute;right:0;top:50%;transform:translateY(-50%);font-size:var(--t-sm);font-weight:800;color:var(--text-3);cursor:pointer;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;padding-right:var(--s1h)}
 .lnk{color:var(--blue-bright);font-weight:800;cursor:pointer}
 
 /* ---- execution loop: score strip, NOW card, groups ---- */
-.xstrip{display:flex;align-items:center;gap:14px;background:var(--surface-1);border:1px solid transparent;border-radius:var(--r-card);padding:14px 16px;cursor:pointer;transition:transform var(--dur-1) var(--ease-out);box-shadow:var(--sh-card)}
+.xstrip{display:flex;align-items:center;gap:var(--s3h);background:var(--surface-1);border:1px solid transparent;border-radius:var(--r-card);padding:var(--s3h) var(--s4);cursor:pointer;transition:transform var(--dur-1) var(--ease-out);box-shadow:var(--sh-card)}
 .xstrip:active{transform:scale(0.985)}
 .xstrip-chev{display:flex;flex:none;color:var(--text-3)}
 /* ---- Daily Score hero (2026-07-16 restructure + formula upgrade): the score owns the
@@ -1260,7 +1263,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    amber CTA — so the product's signature number was visually outranked by the button beneath it.
    Card chrome removed: hierarchy here comes from SIZE and SPACE, not from another box. The tap
    affordance survives as the chevron plus a press state, which is what carried it anyway. */
-.xhero{display:flex;flex-direction:column;background:none;border:none;border-radius:var(--r-card);padding:4px 2px 2px;cursor:pointer;box-shadow:none;transition:transform var(--dur-1) var(--ease-out);position:relative}
+.xhero{display:flex;flex-direction:column;background:none;border:none;border-radius:var(--r-card);padding:var(--s1) 2px 2px;cursor:pointer;box-shadow:none;transition:transform var(--dur-1) var(--ease-out);position:relative}
 /* The score-driven ambient wash that used to sit behind the ring is GONE (founder, 2026-08-02:
    "a weird translucent blurry square background behind it — remove that so it fits more
    seamlessly").
@@ -1274,7 +1277,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    reduced-motion transition guard, all of which existed only to serve this pseudo-element.
    home.js no longer emits data-band at all. */
 .xhero:active{transform:scale(0.985)}
-.xhero .xh-main{display:flex;align-items:center;gap:14px;position:relative}
+.xhero .xh-main{display:flex;align-items:center;gap:var(--s3h);position:relative}
 .xhero .ring-wrap{flex:0 0 auto}
 /* Depth layering for the press-tilt (tilt.js). Static translateZ is invisible while the surface
    is flat; the moment the tilt rotates the hero, the ring sits proud of the text block and the
@@ -1292,9 +1295,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* Sets only the BASE size — never font-size itself, or the .d3 three-digit fit stops applying here
    (see the note on .ring-center .score in app.css). */
 .xhero .ring-center.num .score{font-family:var(--font-display);--score-size:var(--t-hero);font-weight:900;letter-spacing:-0.02em;font-variant-numeric:tabular-nums;color:var(--text);text-shadow:none;line-height:1;margin-top:0}
-.xhero .xh-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.xhero .xh-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--s2)}
 .xhero .xh-k{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--text-3)}
-.xhero .xrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.xhero .xrow{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap}
 .xhero .xh-line{font-size:var(--t-sm);font-weight:600;color:var(--text-2);font-variant-numeric:tabular-nums;letter-spacing:-.005em;white-space:nowrap}
 .xhero .xh-line b{color:var(--text);font-weight:800}
 /* Prose companion line (in-progress / not-scored heroes): a full sentence, so it WRAPS —
@@ -1304,7 +1307,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* Neutral 'In progress' chip — a live day has no verdict yet, so it must not borrow a tier colour. */
 .status-pill.inprog{background:var(--surface-2);color:var(--text-2);border-color:transparent}
 .xhero .xh-line .sep{color:var(--text-3);margin:0 1px}
-.xh-delta{display:inline-flex;align-items:center;gap:4px;font-size:var(--t-xs);font-weight:800;font-variant-numeric:tabular-nums}
+.xh-delta{display:inline-flex;align-items:center;gap:var(--s1);font-size:var(--t-xs);font-weight:800;font-variant-numeric:tabular-nums}
 .xh-delta.up{color:var(--green-bright)} .xh-delta.down{color:var(--amber-bright)}
 .xh-delta .m{color:var(--text-3);font-weight:700}
 .xh-delta svg{width:11px;height:11px;flex:none}
@@ -1316,7 +1319,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    align-items:stretch + a border on the SECOND column is deliberate: the rule spans both text
    lines, and it cannot survive alone when the delta column isn't rendered (a tie with yesterday,
    or no yesterday row at all). No divider element to conditionally emit. */
-.xscore{display:flex;align-items:stretch;justify-content:center;margin:7px 0 18px}
+.xscore{display:flex;align-items:stretch;justify-content:center;margin:7px 0 var(--s4h)}
 .xscore-c{display:flex;flex-direction:column;align-items:center;gap:2px;padding:0 15px}
 .xscore-c + .xscore-c{border-left:1px solid var(--hairline)}
 .xscore-k{display:inline-flex;align-items:center;gap:5px;font-size:var(--t-sm);font-weight:800;line-height:1.25;font-variant-numeric:tabular-nums;color:var(--text)}
@@ -1332,8 +1335,8 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 @keyframes xh-float{0%{opacity:0;transform:translateY(9px)}18%{opacity:1;transform:translateY(0)}72%{opacity:1}100%{opacity:0;transform:translateY(-9px)}}
 /* formula: the same four parts the breakdown screen shows, as one stacked /100 bar.
    Segment growth runs on the ring's own clock so the score visibly assembles. */
-.xhero .xh-formula{margin-top:14px}
-.xf-bar{display:flex;gap:4px;height:8px;border-radius:var(--r-micro);background:var(--surface-3);overflow:hidden}
+.xhero .xh-formula{margin-top:var(--s3h)}
+.xf-bar{display:flex;gap:var(--s1);height:8px;border-radius:var(--r-micro);background:var(--surface-3);overflow:hidden}
 .xf-bar i{height:100%;border-radius:var(--r-micro);transform-origin:left;animation:xf-grow var(--dur-ring) var(--ease-out)}
 @keyframes xf-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 .xf-bar i.g{background:linear-gradient(90deg,var(--green-deep),var(--green))}
@@ -1343,11 +1346,11 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    again (S.breakdown is now literally S.explain: two entries, 'g' then 'p'). */
 .xf-bar i.b{background:linear-gradient(90deg,var(--blue-deep),var(--blue))}
 .xf-bar i.a{background:linear-gradient(90deg,var(--amber-deep),var(--amber))}
-.xhero .xh-next{display:flex;align-items:flex-start;gap:6px;font-size:var(--t-sm);font-weight:600;letter-spacing:-.01em;color:var(--text-2);margin-top:12px;padding-top:10px;border-top:1px solid var(--hairline-soft)}
+.xhero .xh-next{display:flex;align-items:flex-start;gap:var(--s1h);font-size:var(--t-sm);font-weight:600;letter-spacing:-.01em;color:var(--text-2);margin-top:var(--s3);padding-top:var(--s2h);border-top:1px solid var(--hairline-soft)}
 .xhero .xh-next svg{color:var(--blue-bright);flex:none}
 .xhero .xh-next b{color:var(--text);font-weight:800}
 /* coach-seen receipt — proof a real person opened the day; injected only when true */
-.seen-receipt{display:flex;align-items:center;gap:10px;margin:12px 0 0;padding:10px 14px;border-radius:var(--r-card-sm);background:linear-gradient(100deg,var(--green-surface),transparent 80%),var(--surface-1);border:1px solid var(--green-border);animation:seen-in .45s var(--ease-out) backwards}
+.seen-receipt{display:flex;align-items:center;gap:var(--s2h);margin:var(--s3) 0 0;padding:var(--s2h) var(--s3h);border-radius:var(--r-card-sm);background:linear-gradient(100deg,var(--green-surface),transparent 80%),var(--surface-1);border:1px solid var(--green-border);animation:seen-in .45s var(--ease-out) backwards}
 @keyframes seen-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .seen-receipt .sic{display:flex;flex:none;color:var(--green-bright)}
 .seen-receipt .stx{font-size:var(--t-sm);font-weight:700;color:var(--text-2)}
@@ -1361,7 +1364,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .seen-receipt.presence{background:linear-gradient(260deg,rgba(var(--green-rgb),.14),transparent 80%),var(--surface-1)}
 /* Grouped, not stacked: 8px reads as "two lines of one thing", 12px reads as two blocks. */
 #presence-row{width:100%}
-#presence-row:not(:empty) + #seen-row .seen-receipt{margin-top:8px}
+#presence-row:not(:empty) + #seen-row .seen-receipt{margin-top:var(--s2)}
 /* The left-early row (0208). A named class rather than the inline border the rows beside it still
    carry, because this one is NEW and the inline-style ratchet only ever ratchets down. */
 .xrow-item.warn{border-color:var(--amber-border)}
@@ -1370,7 +1373,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 @keyframes home-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 /* ---- grouped section card: sibling rows share one surface, split by hairlines ---- */
 .xgroup{background:var(--surface-1);border:1px solid transparent;border-radius:var(--r-card-sm);overflow:hidden;box-shadow:var(--sh-card)}
-.xg-row{display:flex;align-items:center;gap:12px;padding:12px 12px;min-height:44px;box-sizing:border-box;cursor:pointer}
+.xg-row{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) var(--s3);min-height:44px;box-sizing:border-box;cursor:pointer}
 .xg-row + .xg-row{border-top:1px solid var(--hairline-soft)}
 .xg-row:active{background:var(--surface-2)}
 /* ---- xr / xa / xb: the app's title-over-subtitle pair, wherever it lands ----
@@ -1390,11 +1393,11 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xg-row .xa{font-size:var(--t-base);font-weight:700;letter-spacing:-.01em}
 .xg-row .xb{font-size:var(--t-xs);color:var(--text-3);margin-top:1px}
 /* ---- ONE NOW system: any NOW card wears the same gold chrome and needs air below the hero. ---- */
-.xnow{margin-top:12px}
+.xnow{margin-top:var(--s3)}
 /* ---- Recent Results: lateral snap rail of outcome cards (photo or type-tinted icon,
    labeled numbers). One card anatomy for every type; the next card peeks at the screen
    edge so the swipe is discoverable. ---- */
-.res-rail{display:flex;gap:12px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;margin:0 calc(-1 * var(--pad-screen));padding:2px var(--pad-screen) 8px;scrollbar-width:none}
+.res-rail{display:flex;gap:var(--s3);overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;margin:0 calc(-1 * var(--pad-screen));padding:2px var(--pad-screen) var(--s2);scrollbar-width:none}
 .res-rail::-webkit-scrollbar{display:none}
 .res-card{flex:0 0 158px;scroll-snap-align:start;display:flex;flex-direction:column;background:var(--surface-1);border: 1px solid transparent;border-radius:var(--r-card-sm);overflow:hidden;cursor:pointer;transition:transform var(--dur-1) var(--ease-out); box-shadow: var(--sh-card);}
 .res-card:active{transform:scale(0.97)}
@@ -1408,28 +1411,28 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    so the one card in the rail that names the nightly check-in was the one card that ellipsised
    its own identity, by a single pixel. Trimming to 12 (still on the spacing scale) buys 4px and
    leaves the rail's card width, gap, snap and peek exactly where the rhythm was tuned. */
-.res-body{padding:12px 12px 14px}
+.res-body{padding:var(--s3) var(--s3) var(--s3h)}
 .res-t{font-size:var(--t-base);font-weight:800;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .res-time{font-size:var(--t-xs);font-weight:700;color:var(--text-3);margin-top:2px}
-.res-m{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--hairline-soft)}
+.res-m{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s2);margin-top:var(--s2);padding-top:var(--s2);border-top:1px solid var(--hairline-soft)}
 .res-m .k{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);white-space:nowrap}
 .res-m .v{font-size:var(--t-md);font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .res-m .v small{font-size:var(--t-eyebrow);font-weight:700;color:var(--text-3)}
 .res-m .v.g{color:var(--green-bright)} .res-m .v.a{color:var(--amber-bright)}
 .res-m .v.r{color:var(--red)} .res-m .v.b{color:var(--blue-bright)}
 .res-m .v.muted{color:var(--text-2)}
-.xstrip .xmid{flex:1;display:flex;flex-direction:column;gap:8px}
-.xstrip .xrow{display:flex;align-items:center;gap:8px}
+.xstrip .xmid{flex:1;display:flex;flex-direction:column;gap:var(--s2)}
+.xstrip .xrow{display:flex;align-items:center;gap:var(--s2)}
 /* score-in-ring: the 96px hero .score rule must not leak into the compact 64px strip dial */
 .xstrip .ring-center.num .score{font-size:var(--t-xl);letter-spacing:var(--num-tight);color:var(--text);text-shadow:none}
-.xsegs{display:flex;gap:6px}
+.xsegs{display:flex;gap:var(--s1h)}
 .xsegs i{height:5px;flex:1;border-radius:var(--r-micro);background:var(--surface-3)}
 .xsegs i.on{background:linear-gradient(90deg,var(--green-deep),var(--green))}
 .seglabel{font-size:var(--t-xs);font-weight:700;color:var(--text-2)}
 .seglabel b{color:var(--text);font-variant-numeric:tabular-nums}
 /* Tiered streak pill (strip) — passive-🔥 stays for a counted/short streak; once a 2+ day
    streak is on the line for TODAY it flips to amber "at risk" or blue "covered". */
-.stk-pill{display:inline-flex;align-items:center;gap:4px;font-size:var(--t-xs);font-weight:700;letter-spacing:.02em;padding:2px 8px;border-radius:var(--r-pill)}
+.stk-pill{display:inline-flex;align-items:center;gap:var(--s1);font-size:var(--t-xs);font-weight:700;letter-spacing:.02em;padding:2px var(--s2);border-radius:var(--r-pill)}
 .stk-pill svg{width:11px;height:11px}
 .stk-pill.risk{background:var(--amber-surface);color:var(--amber-bright);border:1px solid var(--amber-border)}
 .stk-pill.safe{background:var(--blue-surface);color:var(--blue-bright);border:1px solid var(--blue-border)}
@@ -1437,7 +1440,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* Streak-at-risk ribbon — sibling of .xstrip, own tap target (44px+), reuses the amber/blue
    pair the rest of the app already uses for urgency vs. mild-reminder framing. */
 /* Streak ribbon: removed from Home (founder call 2026-07-16) but Progress still renders it. */
-.streak-ribbon{display:flex;align-items:center;gap:12px;min-height:44px;background:var(--surface-1);border: 1px solid transparent;border-radius:var(--r-card-sm);padding:10px 12px;margin:12px 0 10px;cursor:pointer; box-shadow: var(--sh-card);}
+.streak-ribbon{display:flex;align-items:center;gap:var(--s3);min-height:44px;background:var(--surface-1);border: 1px solid transparent;border-radius:var(--r-card-sm);padding:var(--s2h) var(--s3);margin:var(--s3) 0 var(--s2h);cursor:pointer; box-shadow: var(--sh-card);}
 .streak-ribbon .sr-ic{width:36px;height:36px;border-radius:var(--r-chip);display:grid;place-items:center;flex:0 0 auto}
 .streak-ribbon .sr-body{flex:1;min-width:0}
 .streak-ribbon .sr-t{font-size:var(--t-base);font-weight:800;letter-spacing:-.01em}
@@ -1450,11 +1453,11 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    Home stays score + next action). Popup anchors to the header. */
 .apphead{position:relative}
 .iconbtn.tp-btn{background:var(--purple-surface);border-color:var(--purple-border);color:var(--purple-bright)}
-.tp-pop{position:absolute;top:calc(100% - 8px);right:0;z-index:60;width:min(300px,84vw);background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:14px 14px;box-shadow:0 18px 44px rgba(0,0,0,0.55);text-align:left;cursor:default}
-.tp-pop .tp-h{display:flex;align-items:center;gap:8px;font-size:var(--t-sm);font-weight:700;color:var(--purple-bright)}
+.tp-pop{position:absolute;top:calc(100% - 8px);right:0;z-index:60;width:min(300px,84vw);background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:var(--s3h) var(--s3h);box-shadow:0 18px 44px rgba(0,0,0,0.55);text-align:left;cursor:default}
+.tp-pop .tp-h{display:flex;align-items:center;gap:var(--s2);font-size:var(--t-sm);font-weight:700;color:var(--purple-bright)}
 .tp-pop .tp-h b{color:var(--text);font-weight:800}
-.tp-pop .tp-n{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.5;margin-top:6px}
-.tp-pop .tp-link{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:10px;border-top:1px solid var(--hairline-soft);font-size:var(--t-sm);font-weight:800;color:var(--blue-bright);cursor:pointer;min-height:24px}
+.tp-pop .tp-n{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.5;margin-top:var(--s1h)}
+.tp-pop .tp-link{display:flex;align-items:center;justify-content:space-between;margin-top:var(--s3);padding-top:var(--s2h);border-top:1px solid var(--hairline-soft);font-size:var(--t-sm);font-weight:800;color:var(--blue-bright);cursor:pointer;min-height:24px}
 /* The NOW card's hue is driven per-item through --now-* custom properties. The card used to be
    amber unconditionally — wash, eyebrow, countdown, CTA — which gave the WARNING hue a daily
    second job as "next action" and desensitised it (see the accent note in home.js nowCard).
@@ -1462,7 +1465,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    states emit no hue class. The g/p/b/c variants below just remap the three custom properties,
    so every dependent rule (eyebrow, countdown, CTA fill, CTA shadow) follows in one move. */
 .xnow{--now-rgb:var(--amber-rgb);--now-ink:var(--amber-bright);--now-a:var(--amber);--now-b:var(--amber-deep);
-  background:linear-gradient(160deg,rgba(var(--now-rgb), 0.16),rgba(var(--now-rgb), 0.05) 55%),var(--surface-1);border:1px solid rgba(var(--now-rgb), 0.32);border-radius:var(--r-card);padding:16px 16px 14px;box-shadow:var(--sh-card)}
+  background:linear-gradient(160deg,rgba(var(--now-rgb), 0.16),rgba(var(--now-rgb), 0.05) 55%),var(--surface-1);border:1px solid rgba(var(--now-rgb), 0.32);border-radius:var(--r-card);padding:var(--s4) var(--s4) var(--s3h);box-shadow:var(--sh-card)}
 .xnow.g{--now-rgb:var(--green-rgb);--now-ink:var(--green-bright);--now-a:var(--green);--now-b:var(--green-deep)}
 .xnow.p{--now-rgb:var(--purple-rgb);--now-ink:var(--purple-bright);--now-a:var(--purple);--now-b:var(--purple-deep)}
 .xnow.b{--now-rgb:var(--blue-rgb);--now-ink:var(--blue-bright);--now-a:var(--blue);--now-b:var(--blue-deep)}
@@ -1471,7 +1474,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xnow .xlab{display:flex;justify-content:space-between;align-items:center}
 .xnow .xl{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:.16em;color:var(--now-ink)}
 .xnow.red .xl{color:var(--red)}
-.xnow .xmain{display:flex;gap:12px;align-items:center;margin-top:12px}
+.xnow .xmain{display:flex;gap:var(--s3);align-items:center;margin-top:var(--s3)}
 /* A 46px tile beside a 20px title is the wrong ratio, and the glyph only repeats what the title
    already says, so it is the element that gives up the width. It also used to be hardcoded
    `.xico.gold` in the markup, which left an amber tile marooned on a blue or green card once the
@@ -1480,7 +1483,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xnow .xico{width:40px;height:40px;background:rgba(var(--now-rgb), 0.13);color:var(--now-ink);border:1px solid rgba(var(--now-rgb), 0.26)}
 .xnow .xt{font-size:var(--t-xl);font-weight:800;letter-spacing:var(--title-tight)}
 .xnow .xwhy{font-size:var(--t-sm);color:var(--text-2);line-height:1.45;margin-top:2px}
-.xcount{display:flex;align-items:baseline;gap:8px;margin:14px 0 12px}
+.xcount{display:flex;align-items:baseline;gap:var(--s2);margin:var(--s3h) 0 var(--s3)}
 .xcount .xcd{font-size:var(--t-3xl);font-weight:800;letter-spacing:var(--num-tight);color:var(--now-ink);font-variant-numeric:tabular-nums}
 .xnow.red .xcd{color:var(--red)}
 .xcount .xdl{font-size:var(--t-sm);color:var(--text-2);font-weight:700}
@@ -1488,7 +1491,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    2:00 PM — still counts, log it late"). It replaces the display-size "Late" that used to sit
    beside it saying less, and steps up to body size to carry the row on its own. */
 .xcount .xdl.lead{font-size:var(--t-base);color:var(--text);line-height:1.4}
-.xcta{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;box-sizing:border-box;padding:14px;border:none;border-radius:var(--r-btn);background:linear-gradient(150deg,var(--now-a),var(--now-b));color:var(--ink-on-accent);font-family:var(--font);font-size:var(--t-md);font-weight:800;box-shadow:0 12px 34px rgba(var(--now-rgb), 0.30);cursor:pointer}
+.xcta{display:flex;align-items:center;justify-content:center;gap:var(--s2h);width:100%;box-sizing:border-box;padding:var(--s3h);border:none;border-radius:var(--r-btn);background:linear-gradient(150deg,var(--now-a),var(--now-b));color:var(--ink-on-accent);font-family:var(--font);font-size:var(--t-md);font-weight:800;box-shadow:0 12px 34px rgba(var(--now-rgb), 0.30);cursor:pointer}
 /* The red card is now reserved for a MISSED day (one the athlete can no longer fix) — a window
    that is merely late stays amber, because it is still savable and should not wear the verdict.
    The BUTTON stays different from the card either way: it is the way out, not the verdict.
@@ -1496,18 +1499,18 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    struggling athlete needs to press. (The amber card keeps its amber CTA: there, amber is the
    card's own identity, not a judgement about the athlete.) */
 .xnow.red .xcta{background:linear-gradient(150deg,var(--blue),var(--blue-deep));color:var(--ink-on-accent);box-shadow:var(--sh-blue)}
-.xgrp{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--text-3);margin:12px 4px 8px}
+.xgrp{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--text-3);margin:var(--s3) var(--s1) var(--s2)}
 /* WS6 collapse primitive: a <details> whose summary reuses the .xgrp header look. Native
    toggle, no JS state; chevron rotates on open; body keeps the ladder's row rhythm.
    The summary deliberately stayed OUT of the 2026-09-01 heading pass: it has an implicit
    button role, and a heading nested in a summary loses its heading role in real browsers —
    it would look done and read as nothing. */
 .xcollapse{margin:0}
-.xcollapse .xsum{display:flex;align-items:center;gap:6px;list-style:none;cursor:pointer;min-height:34px;margin:2px 4px -2px;user-select:none}
+.xcollapse .xsum{display:flex;align-items:center;gap:var(--s1h);list-style:none;cursor:pointer;min-height:34px;margin:2px var(--s1) -2px;user-select:none}
 .xcollapse .xsum::-webkit-details-marker{display:none}
 .xcollapse .xchev{display:inline-flex;color:var(--text-3);transform:rotate(90deg);transition:transform var(--dur-1) var(--ease-out)}
 .xcollapse[open] .xchev{transform:rotate(270deg)}
-.xcollapse-body{display:grid;gap:8px;padding-top:6px}
+.xcollapse-body{display:grid;gap:var(--s2);padding-top:var(--s1h)}
 /* Opening settles the way the breakdown does (bd-open): the rows arrive, they don't pop. The
    .opening class is stamped by motion.js on the native toggle event and stripped on animationend —
    it is never present in fresh markup, so Home's constant repaints can't replay the settle on a
@@ -1515,7 +1518,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xcollapse-body.opening{animation:xcOpen var(--dur-2) var(--ease-out)}
 @keyframes xcOpen{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion: reduce){ .xcollapse-body.opening{animation:none} }
-.xrow-item{display:flex;align-items:center;gap:12px;background:var(--surface-1);border:1px solid transparent;border-radius:var(--r-card-sm);padding:10px 12px;cursor:pointer;box-shadow:var(--sh-card)}
+.xrow-item{display:flex;align-items:center;gap:var(--s3);background:var(--surface-1);border:1px solid transparent;border-radius:var(--r-card-sm);padding:var(--s2h) var(--s3);cursor:pointer;box-shadow:var(--sh-card)}
 .xrow-item .xr{flex:1;min-width:0}
 .xrow-item .xa{font-size:var(--t-base);font-weight:700;letter-spacing:-.01em}
 .xrow-item .xb{font-size:var(--t-xs);color:var(--text-3);margin-top:1px;overflow-wrap:anywhere}
@@ -1526,33 +1529,18 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xrow-item.green .xa{color:var(--text)}
 .xrow-item.green .xb{color:var(--text-3)}
 .xrow-item.red{background:linear-gradient(90deg,var(--red-surface),transparent 75%);border-color:var(--red-border)}
-.xpill{font-size:var(--t-micro);font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:var(--r-pill);white-space:nowrap}
-.xpill.gold{background:var(--amber-surface);color:var(--amber-bright);border:1px solid var(--amber-border)}
-.xpill.gray{background:var(--surface-3);color:var(--text-3);border:1px solid var(--hairline)}
-.xpill.green{background:var(--green-surface);color:var(--green-bright);border:1px solid var(--green-border)}
-/* -bright (the text-weight variant): --red measured 4.2:1 on the light pill at 10px. */
-.xpill.red{background:var(--red-surface);color:var(--red-bright);border:1px solid var(--red-border)}
-/* Light's --green-bright (#15803D) only reaches 4.49:1 on the tinted pill ground and the token
-   family has no deeper step (--green-deep is the same value), so the pill alone takes green-800.
-   Theme-scoped, so it is a light value on a light ground, not a frozen dark one. */
-:root[data-theme="light"] .xpill.green{color:#166534}
-/* Connected Standards needs two more meanings than gold/gray/green/red can carry: "in progress"
-   (live, nothing decided) and "needs review" (waiting on a human). Folding either onto amber
-   would make a sync problem and a pending approval look like the same thing. */
-.xpill.blue{background:var(--blue-surface);color:var(--blue-bright);border:1px solid var(--blue-border)}
-.xpill.purple{background:var(--purple-surface);color:var(--purple-bright);border:1px solid var(--purple-border)}
 .xico{width:46px;height:46px;border-radius:var(--r-card-sm);display:grid;place-items:center;flex:0 0 auto}
 .xico.gold{background:var(--amber-surface);color:var(--amber-bright);border:1px solid var(--amber-border)}
 .xico.green{background:var(--green-surface);color:var(--green-bright)}
 .xico.gray{background:var(--surface-2);color:var(--text-3);border:1px solid var(--hairline)}
 .xico.red{background:var(--red-surface);color:var(--red);border:1px solid var(--red-border)}
 .xico.sm{width:38px;height:38px;border-radius:var(--r-chip)}
-.xrecord{background:var(--surface-1);border:1px solid transparent;border-radius:var(--r-card);padding:6px 14px;text-align:left;box-shadow:var(--sh-card)}
+.xrecord{background:var(--surface-1);border:1px solid transparent;border-radius:var(--r-card);padding:var(--s1h) var(--s3h);text-align:left;box-shadow:var(--sh-card)}
 /* Each row carries a data-go to its own meal, and the router promotes every data-go to a real
    role="button" control — so these are 43px tap targets on the most-visited list in the app.
    min-height rather than more padding: the rows are hairline-separated and an extra pixel of
    padding on both sides would open the whole record card up by 8. */
-.xrec{display:flex;align-items:center;gap:10px;padding:10px 0;min-height:44px;box-sizing:border-box;border-bottom:1px solid var(--hairline-soft);font-size:var(--t-sm);font-weight:700}
+.xrec{display:flex;align-items:center;gap:var(--s2h);padding:var(--s2h) 0;min-height:44px;box-sizing:border-box;border-bottom:1px solid var(--hairline-soft);font-size:var(--t-sm);font-weight:700}
 .xrec:last-child{border-bottom:none}
 .xrec .xtk{width:22px;height:22px;border-radius:var(--r-chip);background:var(--green-surface);color:var(--green-bright);display:grid;place-items:center;flex:0 0 auto}
 .xrec .xtm{margin-left:auto;font-size:var(--t-xs);color:var(--text-3);font-weight:700;font-variant-numeric:tabular-nums}
@@ -1589,11 +1577,11 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 }
 
 /* ---- action hub ---- */
-.hub-head{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 8px}
+.hub-head{display:flex;align-items:center;justify-content:space-between;margin:2px 2px var(--s2)}
 .hub-head .a{font-size:var(--t-md);font-weight:800;letter-spacing:-.01em}
 .hub-head .b{font-size:var(--t-xs);font-weight:800;color:var(--text-2);font-variant-numeric:tabular-nums}
 .hub-head .b em{font-style:normal;color:var(--green-bright)}
-.hub-hero{display:flex;align-items:center;gap:12px;background:linear-gradient(140deg,rgba(var(--amber-rgb), 0.18),rgba(var(--amber-rgb), 0.05)),var(--surface-2);border:1px solid var(--amber-border);border-radius:var(--r-card-sm);padding:14px 14px;margin:12px 0;cursor:pointer}
+.hub-hero{display:flex;align-items:center;gap:var(--s3);background:linear-gradient(140deg,rgba(var(--amber-rgb), 0.18),rgba(var(--amber-rgb), 0.05)),var(--surface-2);border:1px solid var(--amber-border);border-radius:var(--r-card-sm);padding:var(--s3h) var(--s3h);margin:var(--s3) 0;cursor:pointer}
 .hub-hero.red{background:linear-gradient(140deg,rgba(var(--red-rgb), 0.18),rgba(var(--red-rgb), 0.05)),var(--surface-2);border-color:var(--red-border)}
 /* Semantic-hue variants (2026-08-25): the hub hero mirrors Home's nowCard rule — amber only when
    the window is genuinely closing or late, red once missed, otherwise the hue of the thing it
@@ -1605,27 +1593,27 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .hub-hero .ht{flex:1}
 .hub-hero .ht .a{font-size:var(--t-md);font-weight:800;letter-spacing:-.015em}
 .hub-hero .ht .b{font-size:var(--t-xs);color:var(--text-2);margin-top:2px;font-variant-numeric:tabular-nums}
-.hub-fold{display:flex;align-items:center;gap:8px;justify-content:center;font-size:var(--t-xs);font-weight:800;color:var(--green-bright);padding:10px 0 2px;cursor:pointer}
+.hub-fold{display:flex;align-items:center;gap:var(--s2);justify-content:center;font-size:var(--t-xs);font-weight:800;color:var(--green-bright);padding:var(--s2h) 0 2px;cursor:pointer}
 .fab-dot{position:absolute;top:-3px;right:-3px;width:15px;height:15px;border-radius:50%;border:3px solid var(--bg)}
 .fab-dot.gold{background:var(--amber-bright)}
 .fab-dot.red{background:var(--red)}
-.hub-celeb{text-align:center;padding:10px 6px 4px}
+.hub-celeb{text-align:center;padding:var(--s2h) var(--s1h) var(--s1)}
 .hub-celeb .n{font-size:var(--t-3xl);font-weight:800;letter-spacing:var(--num-tight)}
 
 /* ---- meal thread page ---- */
 /* Compact logged confirmation (2026-07-16): green = compliance only. Left-aligned,
    roughly half the old celebration's height; the score move is one tight line. */
-.mt-confirm{background:linear-gradient(160deg,var(--green-surface),transparent 55%),var(--surface-1);border:1px solid var(--green-border);border-radius:var(--r-card);padding:14px 16px}
-.mt-confirm .row1{display:flex;align-items:center;gap:12px}
+.mt-confirm{background:linear-gradient(160deg,var(--green-surface),transparent 55%),var(--surface-1);border:1px solid var(--green-border);border-radius:var(--r-card);padding:var(--s3h) var(--s4)}
+.mt-confirm .row1{display:flex;align-items:center;gap:var(--s3)}
 .mt-confirm .ck{width:40px;height:40px;border-radius:var(--r-card-sm);background:linear-gradient(150deg,var(--green),var(--green-deep));color:var(--ink-on-accent);display:grid;place-items:center;flex:none}
 .mt-confirm .t{font-size:var(--t-lg);font-weight:800;letter-spacing:var(--title-tight)}
 .mt-confirm .s{font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:2px}
-.mt-confirm .dup-note{font-size:var(--t-sm);font-weight:700;color:var(--amber-bright);margin-top:10px;line-height:1.4}
+.mt-confirm .dup-note{font-size:var(--t-sm);font-weight:700;color:var(--amber-bright);margin-top:var(--s2h);line-height:1.4}
 /* The rule sits on whichever element is the section's direct child — the move strip when there is
    a move to show, the bare credit line when the move has already played. A margin on .score-line
    itself would collapse out through .sm-head and land nowhere. */
-.mt-confirm .smove-bar,.mt-confirm > .score-line{margin-top:12px;padding-top:12px;border-top:1px solid var(--hairline-soft)}
-.mt-confirm .score-line{display:flex;align-items:baseline;gap:10px;font-variant-numeric:tabular-nums}
+.mt-confirm .smove-bar,.mt-confirm > .score-line{margin-top:var(--s3);padding-top:var(--s3);border-top:1px solid var(--hairline-soft)}
+.mt-confirm .score-line{display:flex;align-items:baseline;gap:var(--s2h);font-variant-numeric:tabular-nums}
 .mt-confirm .score-line .k{font-size:var(--t-micro);font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-3);margin-right:auto}
 .mt-confirm .score-line .from{font-size:var(--t-lg);font-weight:800;color:var(--text-3)}
 .mt-confirm .score-line .arr{color:var(--text-3);align-self:center;display:flex}
@@ -1639,7 +1627,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .mt-confirm .score-line .to.b{color:var(--blue-bright)}
 .mt-confirm .score-line .to.a{color:var(--amber-bright)}
 .mt-confirm .score-line .to.r{color:var(--red-bright)}
-.mt-confirm .score-line .gain{font-size:var(--t-xs);font-weight:800;border-radius:var(--r-pill);padding:2px 8px}
+.mt-confirm .score-line .gain{font-size:var(--t-xs);font-weight:800;border-radius:var(--r-pill);padding:2px var(--s2)}
 .mt-confirm .score-line .gain.g{color:var(--green-bright);background:var(--green-surface);border:1px solid var(--green-border)}
 .mt-confirm .score-line .gain.b{color:var(--blue-bright);background:var(--blue-surface);border:1px solid var(--blue-border)}
 .mt-confirm .score-line .gain.a{color:var(--amber-bright);background:var(--amber-surface);border:1px solid var(--amber-border)}
@@ -1653,8 +1641,8 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .mt-confirm .score-line .tier-chip{flex:none;white-space:nowrap}
 /* The first log an athlete ever files. Sits under the move, once, and says what changed about the
    product rather than congratulating them for pressing a button. */
-.mt-confirm .sm-first{font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-top:10px;line-height:1.45}
-.mt-confirm .prog-line{display:flex;align-items:center;gap:10px;margin-top:12px}
+.mt-confirm .sm-first{font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-top:var(--s2h);line-height:1.45}
+.mt-confirm .prog-line{display:flex;align-items:center;gap:var(--s2h);margin-top:var(--s3)}
 .mt-confirm .prog-line .xsegs{flex:1}
 .mt-confirm .prog-line .pk{font-size:var(--t-xs);font-weight:700;color:var(--text-2);white-space:nowrap}
 /* Meal quality — its own concept and color on the NUMBER; a 58 is amber, never success green.
@@ -1678,7 +1666,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* ---- The score, explained visually (founder 2026-08-05): number + band on the left, a ✓/✕
    checklist on the right — the checklist IS the explanation, no paragraph. met/miss are STATUS,
    so status colors are correct here; the arc above stays sweep. ---- */
-.score-read{display:flex;align-items:center;gap:18px;margin-top:12px;padding:14px 16px;border-radius:var(--r-card-sm);background:var(--surface-1);border:1px solid transparent;box-shadow:var(--sh-card)}
+.score-read{display:flex;align-items:center;gap:var(--s4h);margin-top:var(--s3);padding:var(--s3h) var(--s4);border-radius:var(--r-card-sm);background:var(--surface-1);border:1px solid transparent;box-shadow:var(--sh-card)}
 .score-read .sr-head{display:flex;flex-direction:column;align-items:center;gap:2px;flex:none;min-width:64px}
 .score-read .sr-n{font-family:var(--font-display);font-size:var(--t-3xl);font-weight:900;letter-spacing:-0.02em;line-height:1;font-variant-numeric:tabular-nums}
 .score-read .sr-n small{font-family:var(--font);font-size:var(--t-xs);font-weight:700;color:var(--text-3)}
@@ -1686,23 +1674,23 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .score-read .sr-band.good{color:var(--green-bright)}
 .score-read .sr-band.mid{color:var(--amber-bright)}
 .score-read .sr-band.low{color:var(--red)}
-.score-read .sr-rows{display:flex;flex-direction:column;gap:6px;min-width:0;border-left:1px solid var(--hairline-soft);padding-left:16px}
-.score-read .sr-row{display:flex;align-items:center;gap:8px;font-size:var(--t-sm);font-weight:700;letter-spacing:-0.01em}
+.score-read .sr-rows{display:flex;flex-direction:column;gap:var(--s1h);min-width:0;border-left:1px solid var(--hairline-soft);padding-left:var(--s4)}
+.score-read .sr-row{display:flex;align-items:center;gap:var(--s2);font-size:var(--t-sm);font-weight:700;letter-spacing:-0.01em}
 .score-read .sr-ic{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;flex:none}
 .score-read .sr-row.met .sr-ic{background:var(--green-surface);color:var(--green-bright)}
 .score-read .sr-row.partial .sr-ic{background:var(--amber-surface);color:var(--amber-bright)}
 .score-read .sr-row.miss .sr-ic{background:var(--red-surface);color:var(--red)}
 .score-read .sr-row.partial, .score-read .sr-row.miss{color:var(--text)}
 /* ---- Coach's Focus (founder 2026-08-05): the one line to remember after every meal ---- */
-.coach-focus{display:flex;align-items:flex-start;gap:12px;margin-top:10px;padding:13px 16px;border-radius:var(--r-card-sm);background:linear-gradient(120deg, rgba(var(--blue-rgb),0.10), var(--surface-1) 72%);border:1px solid var(--blue-border)}
+.coach-focus{display:flex;align-items:flex-start;gap:var(--s3);margin-top:var(--s2h);padding:13px var(--s4);border-radius:var(--r-card-sm);background:linear-gradient(120deg, rgba(var(--blue-rgb),0.10), var(--surface-1) 72%);border:1px solid var(--blue-border)}
 .coach-focus .cf-ic{width:30px;height:30px;border-radius:50%;background:var(--blue-surface);color:var(--blue-bright);display:grid;place-items:center;flex:none;margin-top:1px}
 .coach-focus .cf-k{font-size:var(--t-micro);font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--blue-bright)}
 .coach-focus .cf-t{font-size:var(--t-base);font-weight:800;letter-spacing:-0.01em;line-height:1.45;margin-top:3px}
 /* ---- One read card (2026-08-06): verdict + reasons + Coach's Focus + rubric share one chrome.
    The three blocks keep their own classes (reveal()/tests reach them); inside .meal-read each
    sheds its individual card dressing and hairline seams do the separating. ---- */
-.meal-read{margin-top:12px;border-radius:var(--r-card);background:var(--surface-1);border:1px solid var(--hairline-soft);box-shadow:var(--sh-card);overflow:hidden}
-.meal-read .score-read{margin-top:0;border:none;box-shadow:none;background:none;border-radius:0;padding:15px 16px 13px}
+.meal-read{margin-top:var(--s3);border-radius:var(--r-card);background:var(--surface-1);border:1px solid var(--hairline-soft);box-shadow:var(--sh-card);overflow:hidden}
+.meal-read .score-read{margin-top:0;border:none;box-shadow:none;background:none;border-radius:0;padding:15px var(--s4) 13px}
 .meal-read .coach-focus{margin-top:0;border:none;border-radius:0;border-top:1px solid var(--hairline-soft);background:linear-gradient(120deg, rgba(var(--blue-rgb),0.08), transparent 72%)}
 .meal-read .rub{margin-top:0;border:none;border-radius:0;border-top:1px solid var(--hairline-soft);background:none}
 /* ---- Estimated Nutrition (2026-08-06, folded into .meal-read 2026-08-10) ----
@@ -1711,27 +1699,27 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    point — so the value strip + day bars now live INSIDE .meal-read, under a quiet provenance
    line, hairline-separated like every other seam in the card. .nut-panel chrome kept for any
    standalone use. ---- */
-.nut-panel{margin-top:8px;border-radius:var(--r-card);background:var(--surface-1);border:1px solid var(--hairline-soft);box-shadow:var(--sh-card);overflow:hidden}
-.nut-src{border-top:1px solid var(--hairline-soft);padding:12px 16px 0;font-size:var(--t-eyebrow);font-weight:800;color:var(--text-3);text-transform:uppercase;letter-spacing:0.08em}
+.nut-panel{margin-top:var(--s2);border-radius:var(--r-card);background:var(--surface-1);border:1px solid var(--hairline-soft);box-shadow:var(--sh-card);overflow:hidden}
+.nut-src{border-top:1px solid var(--hairline-soft);padding:var(--s3) var(--s4) 0;font-size:var(--t-eyebrow);font-weight:800;color:var(--text-3);text-transform:uppercase;letter-spacing:0.08em}
 .meal-read .nut-src:first-child{border-top:none}
-.meal-read .day-bars{margin-top:0;padding:13px 16px 14px}
+.meal-read .day-bars{margin-top:0;padding:13px var(--s4) var(--s3h)}
 .meal-read .nut-values + .day-bars{border-top:1px solid var(--hairline-soft)}
 .nut-values{display:flex;align-items:stretch}
-.nut-values .nv{flex:1;min-width:0;text-align:center;padding:15px 4px 13px;position:relative}
+.nut-values .nv{flex:1;min-width:0;text-align:center;padding:15px var(--s1) 13px;position:relative}
 .nut-values .nv + .nv::before{content:'';position:absolute;left:0;top:22%;bottom:22%;width:1px;background:var(--hairline-soft)}
 .nut-values .mv{font-size:var(--t-xl);font-weight:800;letter-spacing:-0.03em;white-space:nowrap;font-variant-numeric:tabular-nums;line-height:1}
 /* the unit is a unit, not part of the number */
 .nut-values .mv i{font-style:normal;font-size:var(--t-sm);font-weight:700;color:var(--text-3);margin-left:1px}
-.nut-values .mk{font-size:var(--t-micro);font-weight:800;color:var(--text-3);margin-top:6px;text-transform:uppercase;letter-spacing:0.09em}
+.nut-values .mk{font-size:var(--t-micro);font-weight:800;color:var(--text-3);margin-top:var(--s1h);text-transform:uppercase;letter-spacing:0.09em}
 /* Protein leads because it is the number a coach actually sets. It used to wear a background-clip
    brand sweep, argued as "a value treatment, not banned gradient-text on prose" — but the ban is
    on the technique, and a gradient number is exactly the tell it names. Emphasis now comes from
    the two things that always carried it anyway: one step up in size, and the accent colour. */
 .nut-values .nv.lead .mv{font-size:var(--t-2xl);color:var(--blue-bright)}
 .nut-values .nv.lead .mv i{color:var(--text-3)}
-.nut-panel .day-bars{margin-top:0;border-top:1px solid var(--hairline-soft);padding:13px 16px 14px}
+.nut-panel .day-bars{margin-top:0;border-top:1px solid var(--hairline-soft);padding:13px var(--s4) var(--s3h)}
 /* Day-target bars (also render standalone if the panel is ever absent) */
-.day-bars{margin-top:12px;display:flex;flex-direction:column;gap:10px;padding:0 2px}
+.day-bars{margin-top:var(--s3);display:flex;flex-direction:column;gap:var(--s2h);padding:0 2px}
 .day-bars .cons-row .k{font-size:var(--t-sm)}
 .day-bars .pace{margin-top:2px}
 /* ---- Dietitian board (0197 discipline lens) ----
@@ -1744,10 +1732,10 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .nbq-ph.empty{display:grid;place-items:center;color:var(--text-3)}
 .nbq-dot{position:absolute;top:3px;right:3px;width:9px;height:9px;border-radius:var(--r-pill);background:var(--blue-bright);box-shadow:0 0 9px rgba(var(--blue-rgb),0.7);border:2px solid var(--surface-1)}
 .nbq-flame{color:var(--amber-bright);display:inline-flex;vertical-align:-1px}
-.nb-foot{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:6px 2px 4px;line-height:1.4}
+.nb-foot{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:var(--s1h) 2px var(--s1);line-height:1.4}
 /* minmax caps the name column so the a435eee twins fix ("Maya R.") stops truncating in the
    exact rows it disambiguates; 10px padding puts the whole nav row at the 44px tap floor. */
-.nb-row{display:grid;grid-template-columns:minmax(64px,96px) 1fr auto;align-items:center;gap:10px;padding:10px 0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.nb-row{display:grid;grid-template-columns:minmax(64px,96px) 1fr auto;align-items:center;gap:var(--s2h);padding:var(--s2h) 0;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .nb-row + .nb-row{border-top:1px solid var(--hairline-soft)}
 .nb-name{font-size:var(--t-sm);font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nb-bars{display:flex;align-items:flex-end;gap:3px;height:26px}
@@ -1766,21 +1754,21 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .bt-clamp{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
 /* A real two-way control: it now says "Read less" once open, so it needs a tap target rather than
    a 12px text link that disappeared after one use. */
-.read-more{border:none;background:none;padding:6px 2px 2px 14px;margin:0;align-self:flex-start;color:var(--blue-bright);font-family:var(--font);font-size:var(--t-sm);font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.read-more{border:none;background:none;padding:var(--s1h) 2px 2px var(--s3h);margin:0;align-self:flex-start;color:var(--blue-bright);font-family:var(--font);font-size:var(--t-sm);font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .read-more:active{opacity:0.6}
-.bd-wrap{margin-top:8px}
-.bd-wrap > summary{display:flex;align-items:center;gap:6px;list-style:none;cursor:pointer;font-size:var(--t-sm);font-weight:700;color:var(--text-2);padding:8px 2px;-webkit-tap-highlight-color:transparent}
+.bd-wrap{margin-top:var(--s2)}
+.bd-wrap > summary{display:flex;align-items:center;gap:var(--s1h);list-style:none;cursor:pointer;font-size:var(--t-sm);font-weight:700;color:var(--text-2);padding:var(--s2) 2px;-webkit-tap-highlight-color:transparent}
 .bd-wrap > summary::-webkit-details-marker{display:none}
 .bd-wrap > summary svg{transition:transform var(--dur-1) var(--ease-out)}
 .bd-wrap[open] > summary svg{transform:rotate(90deg)}
 /* ---- Coach pinned above the AI (founder 2026-08-04: coach leads, AI assists) ---- */
-.coach-pin{margin:2px 0 12px;padding:12px 14px;border-radius:var(--r-card-sm);background:var(--amber-surface);border:1px solid var(--amber-border)}
-.coach-pin .cp-head{display:flex;align-items:center;gap:8px}
+.coach-pin{margin:2px 0 var(--s3);padding:var(--s3) var(--s3h);border-radius:var(--r-card-sm);background:var(--amber-surface);border:1px solid var(--amber-border)}
+.coach-pin .cp-head{display:flex;align-items:center;gap:var(--s2)}
 .coach-pin .cp-av{width:24px;height:24px;border-radius:50%;background:linear-gradient(150deg,var(--amber),var(--amber-deep));color:var(--ink-on-accent);display:grid;place-items:center;font-size:var(--t-micro);font-weight:800;flex:none}
 .coach-pin .cp-who{font-size:var(--t-sm);font-weight:800}
-.coach-pin .cp-tag{margin-left:auto;display:inline-flex;align-items:center;gap:4px;font-size:var(--t-micro);font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--amber-bright)}
-.coach-pin .cp-text{font-size:var(--t-base);font-weight:600;line-height:1.5;margin-top:6px}
-.qual-line{display:flex;align-items:center;gap:14px;margin-top:10px;padding:12px 14px;border-radius:var(--r-tile);background:var(--surface-1);border:1px solid var(--hairline)}
+.coach-pin .cp-tag{margin-left:auto;display:inline-flex;align-items:center;gap:var(--s1);font-size:var(--t-micro);font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--amber-bright)}
+.coach-pin .cp-text{font-size:var(--t-base);font-weight:600;line-height:1.5;margin-top:var(--s1h)}
+.qual-line{display:flex;align-items:center;gap:var(--s3h);margin-top:var(--s2h);padding:var(--s3) var(--s3h);border-radius:var(--r-tile);background:var(--surface-1);border:1px solid var(--hairline)}
 .qual-line .qv{font-family:var(--font-display);font-size:var(--t-2xl);font-weight:900;letter-spacing:-0.01em;flex:none;font-variant-numeric:tabular-nums}
 /* the "/100" stays in the body face — it is a unit, not the score */
 .qual-line .qv small{font-family:var(--font);font-size:var(--t-sm);font-weight:700;color:var(--text-3)}
@@ -1792,7 +1780,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .qual-line.low{border-color:var(--red-border)}
 .qual-line.low .qv,.qual-line.low .ql{color:var(--red)}
 /* honest estimate / no-targets note under the breakdown */
-.est-note{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:8px;line-height:1.45}
+.est-note{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:var(--s2);line-height:1.45}
 .est-note .link{color:var(--blue-bright);font-weight:700;cursor:pointer}
 /* A macro cell with no number in it yet. The card no longer SAYS it is waiting (the AI bubble is
    the only narrator now — see meal.js's breakdown block); it shows it, by breathing. */
@@ -1800,23 +1788,23 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 @keyframes mv-wait{0%,100%{opacity:0.35}50%{opacity:0.85}}
 @media (prefers-reduced-motion: reduce){ .mv-wait{animation:none;opacity:0.55} }
 /* chat mechanics: timestamps + quick actions */
-.msg .mtime{font-size:var(--t-micro);font-weight:700;color:var(--text-3);margin-top:4px}
+.msg .mtime{font-size:var(--t-micro);font-weight:700;color:var(--text-3);margin-top:var(--s1)}
 .msg.athlete .mtime{text-align:right}
-.qa-row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
-.qa{height:44px;padding:0 16px;border-radius:var(--r-chip);background:var(--surface-2);border:1px solid var(--hairline);color:var(--text-2);font-family:var(--font);font-size:var(--t-sm);font-weight:700;cursor:pointer;transition:transform var(--dur-1) var(--ease-out)}
+.qa-row{display:flex;gap:var(--s2);margin-top:var(--s3h);flex-wrap:wrap}
+.qa{height:44px;padding:0 var(--s4);border-radius:var(--r-chip);background:var(--surface-2);border:1px solid var(--hairline);color:var(--text-2);font-family:var(--font);font-size:var(--t-sm);font-weight:700;cursor:pointer;transition:transform var(--dur-1) var(--ease-out)}
 .qa:active{transform:scale(0.97)}
 /* PRE-EXISTING GAP, found 2026-07-30: coach.js has rendered `class="qa on"` + aria-pressed for an
    already-added reaction since the coach reaction bar shipped, but no `.qa.on` rule ever existed —
    so the pressed state was announced to screen readers and invisible to everyone else. Now that
    athletes get the same bar, it needs to actually read as on. */
 .qa.on{background:var(--blue-surface);border-color:var(--blue-border, var(--blue-bright));color:var(--blue-bright)}
-.conf-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:6px}
+.conf-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:var(--s1h)}
 .conf-dot.high{background:var(--green-bright)} .conf-dot.medium{background:var(--amber-bright)} .conf-dot.low{background:var(--text-3)}
-.foodchip .q{margin-left:6px;font-weight:800;color:var(--amber-bright);cursor:default}
-.hl-row{display:flex;align-items:flex-start;gap:10px;padding:8px 0;font-size:var(--t-sm);color:var(--text-2);line-height:1.45}
+.foodchip .q{margin-left:var(--s1h);font-weight:800;color:var(--amber-bright);cursor:default}
+.hl-row{display:flex;align-items:flex-start;gap:var(--s2h);padding:var(--s2) 0;font-size:var(--t-sm);color:var(--text-2);line-height:1.45}
 .hl-row .ic{color:var(--green-bright);flex:0 0 auto;margin-top:1px}
-.rx-strip{display:flex;gap:8px;margin:2px 0 10px;flex-wrap:wrap}
-.rx{display:flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-pill);padding:4px 12px;font-size:var(--t-sm);font-weight:700}
+.rx-strip{display:flex;gap:var(--s2);margin:2px 0 var(--s2h);flex-wrap:wrap}
+.rx{display:flex;align-items:center;gap:var(--s1h);background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-pill);padding:var(--s1) var(--s3);font-size:var(--t-sm);font-weight:700}
 .rx .n{font-size:var(--t-xs);color:var(--text-3)}
 
 /* ----- Thread actions, out of the thread (founder, 2026-08-02) -----
@@ -1824,10 +1812,10 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    quick-action chips, a resolve button, an AI-draft chip, a second reaction row — and only then
    the composer. Everything below the last message that is not the composer now lives here,
    behind the header's ⋯ button, closed by default. ----- */
-.tmenu{margin:0 0 10px;padding:10px 12px;border-radius:var(--r-tile);background:var(--surface-1);border:1px solid var(--hairline);display:flex;flex-direction:column;gap:8px}
+.tmenu{margin:0 0 var(--s2h);padding:var(--s2h) var(--s3);border-radius:var(--r-tile);background:var(--surface-1);border:1px solid var(--hairline);display:flex;flex-direction:column;gap:var(--s2)}
 .tmenu[hidden]{display:none}
 .tmenu .tm-k{font-size:var(--t-micro);font-weight:800;letter-spacing:0.09em;text-transform:uppercase;color:var(--text-3)}
-.tmenu .tm-row{display:flex;gap:8px;flex-wrap:wrap}
+.tmenu .tm-row{display:flex;gap:var(--s2);flex-wrap:wrap}
 .tmenu .tm-note{font-size:var(--t-sm);font-weight:600;color:var(--text-3)}
 
 /* iMessage tapback: press and hold a bubble, pick a reaction. Anchored to the message the finger
@@ -1842,36 +1830,36 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .tapback button.on{background:var(--blue-surface)}
 .tapback button:focus-visible{outline:2px solid var(--blue-bright);outline-offset:-2px}
 @keyframes tapback-in{from{opacity:0;transform:scale(0.82) translateY(4px)}to{opacity:1;transform:none}}
-@media (prefers-reduced-motion: reduce){ .tapback{animation:none} }
+@media (prefers-reduced-motion: reduce){ .tapback{animation:none} .tapback button{transition:none} }
 /* A long press must not also fire the OS text-selection / callout UI on the bubble underneath. */
 .thread .bubble{-webkit-touch-callout:none}
 .thread .bubble.pressing{transform:scale(0.97);transition:transform 120ms var(--ease-out)}
-.mt-retry{font-size:var(--t-sm);font-weight:700;color:var(--amber-bright);cursor:pointer;padding:6px 2px}
+.mt-retry{font-size:var(--t-sm);font-weight:700;color:var(--amber-bright);cursor:pointer;padding:var(--s1h) 2px}
 /* One-line warning inside an AI bubble (failed-read fetch hiccup) — inherits the bubble's size. */
-.mt-warnline{margin-top:4px;color:var(--amber-bright);font-weight:600}
+.mt-warnline{margin-top:var(--s1);color:var(--amber-bright);font-weight:600}
 /* Settings footnote under a card — the lock/info explainer lines on notif-settings. */
-.set-note{font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin-top:10px;padding:0 2px;line-height:1.5}
+.set-note{font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin-top:var(--s2h);padding:0 2px;line-height:1.5}
 
 /* ----- Meal score rubric (conversation upgrade 2026-07-16) ----- */
-.rub{margin-top:8px;border:1px solid var(--hairline);border-radius:var(--r-tile);background:var(--surface-1)}
-.rub>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;padding:10px 14px;font-size:var(--t-sm);font-weight:800;color:var(--text-2)}
+.rub{margin-top:var(--s2);border:1px solid var(--hairline);border-radius:var(--r-tile);background:var(--surface-1)}
+.rub>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:var(--s1h);padding:var(--s2h) var(--s3h);font-size:var(--t-sm);font-weight:800;color:var(--text-2)}
 .rub>summary::-webkit-details-marker{display:none}
 .rub>summary .ic{transition:transform var(--dur-2) var(--ease-out);color:var(--text-3);margin-left:auto}
 .rub[open]>summary .ic{transform:rotate(90deg)}
-.rub-body{padding:2px 14px 12px}
-.rub-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--hairline-soft)}
+.rub-body{padding:2px var(--s3h) var(--s3)}
+.rub-row{display:flex;align-items:center;gap:var(--s2h);padding:var(--s1h) 0;border-bottom:1px solid var(--hairline-soft)}
 .rub-row:last-of-type{border-bottom:none}
 .rub-row .rk{flex:1;font-size:var(--t-sm);font-weight:700}
 .rub-row .rn{font-size:var(--t-xs);font-weight:600;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42%}
-.rub-row .rx-tag{font-size:var(--t-micro);font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);border:1px solid var(--hairline);border-radius:var(--r-pill);padding:2px 8px;flex:none}
-.rub-fine{font-size:var(--t-xs);font-weight:600;color:var(--text-3);padding-top:8px;line-height:1.45}
+.rub-row .rx-tag{font-size:var(--t-micro);font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);border:1px solid var(--hairline);border-radius:var(--r-pill);padding:2px var(--s2);flex:none}
+.rub-fine{font-size:var(--t-xs);font-weight:600;color:var(--text-3);padding-top:var(--s2);line-height:1.45}
 
 /* ----- Correct-analysis panel + follow-up chips ----- */
-.fx-row{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--hairline-soft)}
+.fx-row{display:flex;align-items:flex-start;gap:var(--s2h);padding:var(--s2) 0;border-bottom:1px solid var(--hairline-soft)}
 .fx-row:last-of-type{border-bottom:none}
-.fx-k{flex:none;width:86px;font-size:var(--t-sm);font-weight:800;color:var(--text-2);padding-top:8px}
-.fx-chips{display:flex;flex-wrap:wrap;gap:8px;flex:1}
-.fx-chip{border:1px solid var(--hairline);background:var(--surface-2);color:var(--text);font-family:var(--font);font-size:var(--t-sm);font-weight:700;border-radius:var(--r-chip);padding:8px 14px;cursor:pointer;transition:transform var(--dur-1) var(--ease-out)}
+.fx-k{flex:none;width:86px;font-size:var(--t-sm);font-weight:800;color:var(--text-2);padding-top:var(--s2)}
+.fx-chips{display:flex;flex-wrap:wrap;gap:var(--s2);flex:1}
+.fx-chip{border:1px solid var(--hairline);background:var(--surface-2);color:var(--text);font-family:var(--font);font-size:var(--t-sm);font-weight:700;border-radius:var(--r-chip);padding:var(--s2) var(--s3h);cursor:pointer;transition:transform var(--dur-1) var(--ease-out)}
 .fx-chip:disabled{opacity:0.45;cursor:default}
 /* Correct-the-read (0199): removing a line is a destructive row ACTION, not a selectable chip —
    it gets a real 30px target that stays quiet until touched and only turns red when pressed. */
@@ -1880,26 +1868,26 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .cm-rm:disabled{opacity:0.45;cursor:default}
 .cm-rm:focus-visible{outline:2px solid var(--blue-bright);outline-offset:2px}
 .fx-chip:active{transform:scale(0.95)}
-.fx-other{display:flex;gap:8px;flex:1}
+.fx-other{display:flex;gap:var(--s2);flex:1}
 .fx-other .input{flex:1}
 /* Dimension tabs (2026-08-14). The first decision in the panel is "which dimension", so the
    tabs read as a quieter tier than the answer chips underneath them: no fill until selected,
    and the selected one carries the action accent because it is the current selection. */
-.fx-axes{display:flex;flex-wrap:wrap;gap:6px;padding-bottom:12px;margin-bottom:2px;border-bottom:1px solid var(--hairline-soft)}
-.fx-axis{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--hairline);background:none;color:var(--text-2);font-family:var(--font);font-size:var(--t-sm);font-weight:700;border-radius:var(--r-pill);padding:7px 13px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:color var(--dur-1) var(--ease-out),border-color var(--dur-1) var(--ease-out),background var(--dur-1) var(--ease-out)}
+.fx-axes{display:flex;flex-wrap:wrap;gap:var(--s1h);padding-bottom:var(--s3);margin-bottom:2px;border-bottom:1px solid var(--hairline-soft)}
+.fx-axis{display:inline-flex;align-items:center;gap:var(--s1);border:1px solid var(--hairline);background:none;color:var(--text-2);font-family:var(--font);font-size:var(--t-sm);font-weight:700;border-radius:var(--r-pill);padding:7px 13px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:color var(--dur-1) var(--ease-out),border-color var(--dur-1) var(--ease-out),background var(--dur-1) var(--ease-out)}
 .fx-axis:active{transform:scale(0.96)}
 .fx-axis.on{color:var(--blue-bright);border-color:var(--blue-border);background:var(--blue-surface)}
 .fx-axis svg{color:var(--green-bright);opacity:.9}
 .fx-axis:focus-visible{outline:2px solid var(--blue-bright);outline-offset:2px}
-.fx-vals{padding-top:12px}
-.fq-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-.mo-ask{margin-top:10px;padding-top:9px;border-top:1px solid var(--hairline-soft);font-size:var(--t-sm);font-weight:700;color:var(--text-2)}
+.fx-vals{padding-top:var(--s3)}
+.fq-chips{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s2h)}
+.mo-ask{margin-top:var(--s2h);padding-top:9px;border-top:1px solid var(--hairline-soft);font-size:var(--t-sm);font-weight:700;color:var(--text-2)}
 
 /* ----- Score Breakdown v2 (spec §2): expandable categories, exact remainders ----- */
-.bd-hero-calm{padding-bottom:4px}
+.bd-hero-calm{padding-bottom:var(--s1)}
 /* The tier below the ring (see the note in breakdown.js). It is a real chip on the canvas now
    rather than a translucent one floating over the arc, so it carries its own weight. */
-.bd-hero .bd-tier{margin-top:14px}
+.bd-hero .bd-tier{margin-top:var(--s3h)}
 /* This ring is 200px, not the hero's 338, but the centre stack inherited the hero's 88px numeral —
    "92" measured ~107px wide across a band whose inner diameter is 146, leaving the digits'
    corners grazing the arc. Sized to its own ring, the number breathes and the ring reads as a
@@ -1909,14 +1897,14 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .bd-cat{position:relative;display:block}
 .bd-cat>summary{list-style:none;cursor:pointer;position:relative}
 .bd-cat>summary::-webkit-details-marker{display:none}
-.bd-cat .bd-row{padding:12px 24px 12px 2px}   /* §2.9: tighter vertical rhythm */
+.bd-cat .bd-row{padding:var(--s3) var(--s6) var(--s3) 2px}   /* §2.9: tighter vertical rhythm */
 .bd-chev{position:absolute;right:2px;top:15px;color:var(--text-3);transition:transform var(--dur-2) var(--ease-out)}
 .bd-cat[open] .bd-chev{transform:rotate(90deg)}
-.bd-remaining{font-size:var(--t-xs);font-weight:700;color:var(--text-3);margin-top:6px}
-.bd-detail{padding:2px 2px 14px;border-bottom:1px solid var(--hairline-soft)}
+.bd-remaining{font-size:var(--t-xs);font-weight:700;color:var(--text-3);margin-top:var(--s1h)}
+.bd-detail{padding:2px 2px var(--s3h);border-bottom:1px solid var(--hairline-soft)}
 .bd-cat:last-child .bd-detail{border-bottom:none}
-.bd-req{display:flex;align-items:flex-start;gap:10px;padding:8px 0}
-.bd-req-dot{width:8px;height:8px;border-radius:50%;margin-top:6px;flex:none;background:var(--text-3)}
+.bd-req{display:flex;align-items:flex-start;gap:var(--s2h);padding:var(--s2) 0}
+.bd-req-dot{width:8px;height:8px;border-radius:50%;margin-top:var(--s1h);flex:none;background:var(--text-3)}
 .bd-req-dot.g{background:var(--green-bright)}
 .bd-req-dot.a{background:var(--amber-bright)}
 .bd-req-dot.b{background:var(--blue-bright)}
@@ -1926,19 +1914,19 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .bd-req-main .t{font-size:var(--t-base);font-weight:700}
 .bd-req-main .s{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:1px;line-height:1.4}
 .bd-req-val{font-size:var(--t-sm);font-weight:800;color:var(--text-2);white-space:nowrap}
-.bd-remaining-note{font-size:var(--t-sm);font-weight:600;color:var(--text-2);padding-top:8px;line-height:1.45}
+.bd-remaining-note{font-size:var(--t-sm);font-weight:600;color:var(--text-2);padding-top:var(--s2);line-height:1.45}
 .reach-row .gain{white-space:nowrap}
 .reach-main{flex:1;min-width:0;display:flex;flex-direction:column}
 .reach-main .t{font-size:var(--t-base);font-weight:700}
 .reach-main .s{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:1px}
-.reach-proj{font-size:var(--t-sm);font-weight:800;padding-top:12px}
-.reach-fine{font-size:var(--t-xs);font-weight:600;color:var(--text-3);padding-top:6px;line-height:1.45}
+.reach-proj{font-size:var(--t-sm);font-weight:800;padding-top:var(--s3)}
+.reach-fine{font-size:var(--t-xs);font-weight:600;color:var(--text-3);padding-top:var(--s1h);line-height:1.45}
 
 /* ----- Daily Commitment (spec §2.5) ----- */
-.input{width:100%;box-sizing:border-box;height:48px;border-radius:var(--r-card-sm);background:var(--surface-2);border:1.5px solid var(--hairline);color:var(--text);font-family:var(--font);font-size:var(--t-base);font-weight:600;padding:0 14px;outline:none}
+.input{width:100%;box-sizing:border-box;height:48px;border-radius:var(--r-card-sm);background:var(--surface-2);border:1.5px solid var(--hairline);color:var(--text);font-family:var(--font);font-size:var(--t-base);font-weight:600;padding:0 var(--s3h);outline:none}
 .input:focus{border-color:var(--blue-bright)}
 .input::placeholder{color:var(--text-3);font-weight:600}
-.cmt-choice{display:flex;align-items:center;gap:12px;padding:14px 14px;border-radius:var(--r-tile);border:1px solid var(--hairline);margin-bottom:8px;cursor:pointer;background:var(--surface-2)}
+.cmt-choice{display:flex;align-items:center;gap:var(--s3);padding:var(--s3h) var(--s3h);border-radius:var(--r-tile);border:1px solid var(--hairline);margin-bottom:var(--s2);cursor:pointer;background:var(--surface-2)}
 .cmt-choice .t{font-size:var(--t-base);font-weight:800}
 .cmt-choice .s{font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:2px;line-height:1.4}
 .cmt-main{flex:1;min-width:0}
@@ -1948,12 +1936,12 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .cmt-choice.on.g{border-color:var(--green-border);background:var(--green-surface)}
 .cmt-choice.on.a{border-color:var(--amber-border);background:var(--amber-surface)}
 .cmt-choice.on.r{border-color:var(--red-border);background:var(--red-surface)}
-.cmt-done{display:flex;align-items:flex-start;gap:8px;font-size:var(--t-sm);font-weight:700;color:var(--green-bright);padding-top:6px;line-height:1.4}
+.cmt-done{display:flex;align-items:flex-start;gap:var(--s2);font-size:var(--t-sm);font-weight:700;color:var(--green-bright);padding-top:var(--s1h);line-height:1.4}
 
 /* ----- Progress v2 (spec §8): baseline, unlock meter, category trends ----- */
-.unlock-row{display:flex;align-items:center;gap:12px;margin-top:14px}
+.unlock-row{display:flex;align-items:center;gap:var(--s3);margin-top:var(--s3h)}
 .unlock-k{font-size:var(--t-sm);font-weight:800;color:var(--text-2);white-space:nowrap;font-variant-numeric:tabular-nums}
-.base-stats{display:flex;gap:10px;margin-top:14px}
+.base-stats{display:flex;gap:var(--s2h);margin-top:var(--s3h)}
 /* Sizes and edge from .stat (app.css, 2026-09-05); phase 2 puts the markup on .stat itself. */
 
 /* ----- Monthly report locked state: real stats stay visible, only the written "Coach's
@@ -1962,11 +1950,11 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    background is opaque enough on its own that unsupported backdrop-filter still fully hides
    the skeleton beneath — no motion here, so prefers-reduced-motion needs no override. */
 .mr-locked{position:relative;overflow:hidden;min-height:112px}
-.mr-skel{display:flex;flex-direction:column;gap:10px;padding:2px 2px 0}
+.mr-skel{display:flex;flex-direction:column;gap:var(--s2h);padding:2px 2px 0}
 .mr-skel-line{height:12px;border-radius:var(--r-chip);background:var(--surface-2)}
 .mr-veil{
   position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:8px;text-align:center;padding:16px;background:rgba(11,15,20,0.86);
+  gap:var(--s2);text-align:center;padding:var(--s4);background:rgba(11,15,20,0.86);
 }
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .mr-veil{-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
@@ -1974,35 +1962,35 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 :root[data-theme="light"] .mr-veil{background:rgba(248,250,252,0.90)}
 .mr-veil-t{font-size:var(--t-base);font-weight:800;letter-spacing:-0.01em;max-width:240px}
 .mr-veil-s{font-size:var(--t-sm);font-weight:600;color:var(--text-2);max-width:250px;line-height:1.4}
-.mr-or{text-align:center;font-size:var(--t-eyebrow);font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);margin:14px 0}
+.mr-or{text-align:center;font-size:var(--t-eyebrow);font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);margin:var(--s3h) 0}
 .mr-coderow{margin-top:2px}
 
 /* ---- Consumer paywall (#paywall) ---- */
-.pw-toggle{display:flex;gap:6px;background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:4px;margin:2px 0 14px}
-.pw-seg{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:40px;border:none;background:transparent;border-radius:var(--r-chip);font-size:var(--t-base);font-weight:800;color:var(--text-2);cursor:pointer}
+.pw-toggle{display:flex;gap:var(--s1h);background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:var(--s1);margin:2px 0 var(--s3h)}
+.pw-seg{flex:1;display:flex;align-items:center;justify-content:center;gap:var(--s1h);height:40px;border:none;background:transparent;border-radius:var(--r-chip);font-size:var(--t-base);font-weight:800;color:var(--text-2);cursor:pointer}
 .pw-seg.on{background:var(--surface-1);color:var(--text);box-shadow:var(--sh-thumb)}
 /* Ink must flip with the theme: --green-bright is light in dark theme and DEEP in light theme,
    so a fixed near-black ink measured 3.77:1 on the light build. --ink-on-accent flips. */
-.pw-save{font-size:var(--t-micro);font-weight:800;letter-spacing:0.02em;color:var(--ink-on-accent);background:var(--green-bright);border-radius:var(--r-pill);padding:2px 8px}
-.pw-plans{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
-.pw-plan{background:var(--surface-1);border:1.5px solid var(--hairline);border-radius:var(--r-card-sm);padding:14px;cursor:pointer;transition:border-color .12s,box-shadow .12s}
+.pw-save{font-size:var(--t-micro);font-weight:800;letter-spacing:0.02em;color:var(--ink-on-accent);background:var(--green-bright);border-radius:var(--r-pill);padding:2px var(--s2)}
+.pw-plans{display:flex;flex-direction:column;gap:var(--s2h);margin-bottom:var(--s3h)}
+.pw-plan{background:var(--surface-1);border:1.5px solid var(--hairline);border-radius:var(--r-card-sm);padding:var(--s3h);cursor:pointer;transition:border-color .12s,box-shadow .12s}
 .pw-plan.on{border-color:var(--green-bright);box-shadow:0 0 0 1px var(--green-bright), var(--sh-green)}
-.pw-plan-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.pw-plan-top{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s2h)}
 .pw-plan-name{font-size:var(--t-md);font-weight:800;letter-spacing:-0.01em}
 .pw-plan-price{white-space:nowrap}
 .pw-plan-price .n{font-size:var(--t-lg);font-weight:800}
 .pw-plan-price .per{font-size:var(--t-sm);font-weight:700;color:var(--text-3);margin-left:2px}
 .pw-plan-sub{font-size:var(--t-xs);font-weight:700;color:var(--text-3);margin-top:2px}
-.pw-plan-blurb{font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:8px;line-height:1.4}
-.pw-note{text-align:center;font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:10px;line-height:1.45}
+.pw-plan-blurb{font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:var(--s2);line-height:1.4}
+.pw-note{text-align:center;font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:var(--s2h);line-height:1.45}
 
 /* ---- Progress photos (#progress-photos) ---- */
-.pp-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.pp-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s2h)}
 .pp-cell{position:relative;border-radius:var(--r-card-sm);overflow:hidden;background:var(--surface-2);aspect-ratio:3/4}
 .pp-cell-img{width:100%;height:100%;object-fit:cover;display:block}
 .pp-cell-load{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-3)}
-.pp-cell-meta{position:absolute;left:0;right:0;bottom:0;padding:16px 10px 8px;font-size:var(--t-xs);font-weight:700;color:#fff;background:linear-gradient(transparent, rgba(0,0,0,0.62))}
-.pp-del{position:absolute;top:6px;right:6px;height:24px;min-width:24px;padding:0 6px;border:none;border-radius:var(--r-chip);background:rgba(6,10,14,0.6);color:#fff;font-size:var(--t-xs);font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.pp-cell-meta{position:absolute;left:0;right:0;bottom:0;padding:var(--s4) var(--s2h) var(--s2);font-size:var(--t-xs);font-weight:700;color:#fff;background:linear-gradient(transparent, rgba(0,0,0,0.62))}
+.pp-del{position:absolute;top:6px;right:6px;height:24px;min-width:24px;padding:0 var(--s1h);border:none;border-radius:var(--r-chip);background:rgba(6,10,14,0.6);color:#fff;font-size:var(--t-xs);font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .pp-del.arm{background:var(--danger-solid);color:#fff}   /* white ON the fill — see --danger-solid */
 /* 44px hit area without visual bloat: the visible chip stays 24px, the touch target doesn't. */
 .pp-del::after{content:'';position:absolute;inset:-12px}
@@ -2010,24 +1998,24 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* ---- Training log delete (#training-history) ---- */
 /* A destructive control at the 44px floor: 2px of padding on a delete button meant a post-practice
    thumb missed it, or worse, hit the row's navigation instead. */
-.tl-del{background:none;border:none;color:var(--text-3);font-size:var(--t-sm);font-weight:700;cursor:pointer;padding:12px 10px;min-height:44px}
+.tl-del{background:none;border:none;color:var(--text-3);font-size:var(--t-sm);font-weight:700;cursor:pointer;padding:var(--s3) var(--s2h);min-height:44px}
 .tl-del.arm{color:var(--red)}
 
 /* ---- Before/after compare (#progress-compare) ---- */
-.cmp-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cmp-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2h)}
 .cmp-panel{background:var(--surface-1);border: 1px solid transparent;border-radius:var(--r-card-sm);overflow:hidden;display:flex;flex-direction:column; box-shadow: var(--sh-card);}
-.cmp-lab{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-3);padding:8px 10px 4px}
+.cmp-lab{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-3);padding:var(--s2) var(--s2h) var(--s1)}
 .cmp-img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block}
 .cmp-empty{width:100%;aspect-ratio:3/4;display:flex;align-items:center;justify-content:center;color:var(--text-3);background:var(--surface-2)}
-.cmp-sub{font-size:var(--t-xs);font-weight:700;color:var(--text-2);padding:6px 10px 10px;text-align:center}
-.cmp-delta{text-align:center;font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-top:12px}
+.cmp-sub{font-size:var(--t-xs);font-weight:700;color:var(--text-2);padding:var(--s1h) var(--s2h) var(--s2h);text-align:center}
+.cmp-delta{text-align:center;font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-top:var(--s3)}
 .cmp-delta b{font-size:var(--t-lg);font-weight:800;color:var(--text)}
-.cmp-strip{display:flex;gap:8px;overflow-x:auto;padding:8px 2px;-webkit-overflow-scrolling:touch}
+.cmp-strip{display:flex;gap:var(--s2);overflow-x:auto;padding:var(--s2) 2px;-webkit-overflow-scrolling:touch}
 .cmp-thumb{flex:none;width:52px;height:68px;border-radius:var(--r-chip);overflow:hidden;border:2px solid transparent;background:var(--surface-2);padding:0;cursor:pointer}
 .cmp-thumb.on{border-color:var(--green-bright)}
 .cmp-thumb-img{width:100%;height:100%;object-fit:cover;display:block}
 .cmp-thumb-load{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-3)}
-.cat-trend{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--hairline-soft)}
+.cat-trend{display:flex;align-items:center;gap:var(--s2h);padding:var(--s2h) 0;border-bottom:1px solid var(--hairline-soft)}
 .cat-trend:last-child{border-bottom:none}
 .cat-trend .ct-k{width:118px;flex:none;font-size:var(--t-sm);font-weight:700;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cat-trend .track{flex:1;height:7px;border-radius:var(--r-micro);background:var(--surface-3);overflow:hidden}
@@ -2044,12 +2032,12 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 
 /* ----- Plan-style picker notes (settings.js) — one class instead of three hand-typed style
    strings; .err doubles as the picker's save-failure status line. ----- */
-.ps-note{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:12px;padding:0 2px;line-height:1.5}
-.ps-note.err{color:var(--red-bright);min-height:16px;margin-top:8px}
-.ps-note.lead{font-size:var(--t-sm);color:var(--text-2);margin:0 2px 10px}
+.ps-note{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:var(--s3);padding:0 2px;line-height:1.5}
+.ps-note.err{color:var(--red-bright);min-height:16px;margin-top:var(--s2)}
+.ps-note.lead{font-size:var(--t-sm);color:var(--text-2);margin:0 2px var(--s2h)}
 
 /* Inline failure line under a submit control (activity standards manual entry / dispute). */
-.cs-err{color:var(--red-bright);min-height:0;margin-top:8px}
+.cs-err{color:var(--red-bright);min-height:0;margin-top:var(--s2)}
 
 /* A .pl-row that navigates is a control; it doesn't need every call site to say so inline. */
 .pl-row[data-go]{cursor:pointer}
@@ -2058,11 +2046,11 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    .coach-stat, mixed an icon tile into a numeral grid, and left a visible hole in its fixed
    3-column grid whenever consistency was still null. Three numerals, always three columns;
    .dim marks a value that hasn't earned a number yet (an em-dash placeholder, on scale). ----- */
-.pg-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+.pg-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2h);margin-top:var(--s3h)}
 
 /* ----- Streak week calendar (spec §14.3) ----- */
-.stk-week{display:flex;gap:8px;margin-top:4px}
-.stk-day{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0;border-radius:var(--r-card-sm);background:var(--surface-2);border:1px solid var(--hairline-soft)}
+.stk-week{display:flex;gap:var(--s2);margin-top:var(--s1)}
+.stk-day{flex:1;display:flex;flex-direction:column;align-items:center;gap:var(--s1h);padding:var(--s2h) 0;border-radius:var(--r-card-sm);background:var(--surface-2);border:1px solid var(--hairline-soft)}
 .stk-day .d{font-size:var(--t-micro);font-weight:800;color:var(--text-3);letter-spacing:.04em}
 .stk-day .s{font-size:var(--t-base);font-weight:800;font-variant-numeric:tabular-nums}
 .stk-day.on{background:var(--green-surface);border-color:var(--green-border)}
@@ -2073,7 +2061,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .stk-day .g{font-size:8.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--amber-bright)}
 
 /* ----- Activity History cards (spec §15) ----- */
-.hist-card{display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--hairline-soft);cursor:pointer}
+.hist-card{display:flex;align-items:center;gap:var(--s3);padding:var(--s2h) var(--s1);border-bottom:1px solid var(--hairline-soft);cursor:pointer}
 .hist-card:last-child{border-bottom:none}
 .hist-thumb{width:52px;height:52px;border-radius:var(--r-card-sm);flex:none;background-size:cover;background-position:center;border:1px solid var(--hairline)}
 /* A meal with no photo gets a NEUTRAL placeholder tile. It was amber, and amber means "warning"
@@ -2093,8 +2081,8 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .hist-score.r{color:var(--red)}
 
 /* ----- Edit Profile school-search suggestions (spec §11.3) ----- */
-.ep-results{margin-top:6px;border: 1px solid transparent;border-radius:var(--r-tile);background:var(--surface-1);overflow:hidden; box-shadow: var(--sh-card);}
-.ep-result{padding:12px 14px;font-size:var(--t-base);font-weight:700;border-bottom:1px solid var(--hairline-soft);cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.ep-results{margin-top:var(--s1h);border: 1px solid transparent;border-radius:var(--r-tile);background:var(--surface-1);overflow:hidden; box-shadow: var(--sh-card);}
+.ep-result{padding:var(--s3) var(--s3h);font-size:var(--t-base);font-weight:700;border-bottom:1px solid var(--hairline-soft);cursor:pointer;display:flex;justify-content:space-between;gap:var(--s2h);align-items:baseline}
 .ep-result:last-child{border-bottom:none}
 .ep-result:active{background:var(--surface-2)}
 .ep-result span{font-size:var(--t-xs);font-weight:600;color:var(--text-3);white-space:nowrap}
@@ -2106,21 +2094,26 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    turns down while the row is open. Composited rotate only. */
 .pv-chev{display:flex;color:var(--text-3);transition:transform var(--dur-1) var(--ease-out)}
 .pv-row[open] .pv-chev{transform:rotate(90deg)}
-.pv-detail{padding:2px 4px 12px 44px;border-bottom:1px solid var(--hairline-soft)}
+.pv-detail{padding:2px var(--s1) var(--s3) 44px;border-bottom:1px solid var(--hairline-soft)}
 .pv-row:last-child .pv-detail{border-bottom:none}
-.pv-line{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.5;padding:4px 0}
+.pv-line{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.5;padding:var(--s1) 0}
 .pv-line b{display:block;font-size:var(--t-micro);font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3)}
 
 /* ----- Restrictions custom-entry rows (spec §18.5) + unmistakable selected chips (§18.2) ----- */
-.rx-add{display:flex;gap:8px;margin-top:8px;align-items:center}
+.rx-add{display:flex;gap:var(--s2);margin-top:var(--s2);align-items:center}
 .rx-add .input{flex:1;height:42px}
-.rx-add .rx-add-btn{width:auto;flex:none;padding:0 16px;height:42px}
-.chp.rx-chip.on{background:var(--green-surface);border-color:var(--green-border);color:var(--green-bright);font-weight:800}
+.rx-add .rx-add-btn{width:auto;flex:none;padding:0 var(--s4);height:42px}
+/* .chip form of the above. These chips live inside a .chip-row, whose blue .on rule (flows.css,
+   loaded later) ties the old .chp.rx-chip.on on specificity and won on order, so the green never
+   actually showed. One extra class here settles it. The check icon the markup already renders is
+   the non-color selected marker, so the row's blue dot is redundant on these. */
+.chip-row .chip.rx-chip.on,.chip.rx-chip.on{background:var(--green-surface);border-color:var(--green-border);color:var(--green-bright);font-weight:800;box-shadow:none}
+.chip-row .chip.rx-chip.on::before{display:none}
 
 /* ---- Verified Commitments (0138): roll-call card + stage strip ---------------------------
    The card reuses .xnow so a coach-scheduled commitment reads as the NOW action it is at
    4:45 AM, rather than introducing a second visual language on Home. */
-.vc-ctx{display:flex;align-items:center;gap:6px;font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-top:10px}
+.vc-ctx{display:flex;align-items:center;gap:var(--s1h);font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-top:var(--s2h)}
 .vc-ctx svg{flex:none;color:var(--text-3)}
 /* ---- the stage track ----------------------------------------------------------------
    Was three equal-width boxes, each with its own surface, 1px border and 16px radius: cards
@@ -2134,7 +2127,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    never draws one; it overhangs 6px into its neighbour so the segments meet at the dot centres.
    No layout property is animated and nothing here is a container, so `--r-micro` (a mark, not a
    surface) is the correct radius. */
-.vc-track{display:flex;list-style:none;margin:14px 0 0;padding:0}
+.vc-track{display:flex;list-style:none;margin:var(--s3h) 0 0;padding:0}
 .vc-step{flex:1;min-width:0;position:relative;padding-top:21px;display:flex;flex-direction:column;gap:2px}
 .vc-step:not(:last-child)::before{content:"";position:absolute;left:6px;right:-6px;top:5px;height:2px;border-radius:var(--r-micro);background:var(--surface-3)}
 .vc-step.on:not(:last-child)::before{background:rgba(var(--green-rgb), 0.40)}
@@ -2145,28 +2138,28 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .vc-sl{font-size:var(--t-micro);font-weight:800;letter-spacing:var(--track-key);text-transform:uppercase;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vc-step.on .vc-sl{color:var(--green-bright)}
 .vc-st{font-size:var(--t-xs);font-weight:700;color:var(--text-2);font-variant-numeric:tabular-nums;min-height:1em}
-.vc-line{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--hairline)}
+.vc-line{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) 0;border-bottom:1px solid var(--hairline)}
 .vc-line:last-child{border-bottom:0}
 .vc-line .vc-dot{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--surface-3);color:var(--text-3);border:1px solid var(--hairline)}
 .vc-line.on .vc-dot{background:var(--green-bright);color:var(--bg);border-color:transparent}
 .vc-la{font-size:var(--t-base);font-weight:700}
 .vc-lb{font-size:var(--t-sm);color:var(--text-3);margin-top:1px}
 .vc-line.on .vc-lb{color:var(--green-bright);font-weight:700}
-.vc-mr{padding:10px 0}
-.vc-mr-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.vc-mr{padding:var(--s2h) 0}
+.vc-mr-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:var(--s1h)}
 .vc-mr-l{font-size:var(--t-sm);font-weight:700}
 .vc-mr-n{font-size:var(--t-sm);font-weight:800;color:var(--text-2)}
 .vc-mr-track{height:6px;border-radius:var(--r-micro);background:var(--surface-3);overflow:hidden}
 /* Progress geometry wears blue (the action accent), paired with its own -deep per the gradient
    law. The old green→blue crossed two semantic hues AND borrowed the score signature. */
 .vc-mr-fill{height:100%;border-radius:var(--r-micro);background:linear-gradient(90deg,var(--blue-deep),var(--blue))}
-.vc-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.vc-stats{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2h)}
 
 /* ---------------- Plan style (0142) ---------------- */
 /* The athlete's stated preference, shown even when someone else owns the setting — a locked
    athlete must always be able to see that their answer was recorded and shared, not discarded. */
 .ps-pref{
-  margin-top:10px;padding:10px 12px;border-radius:var(--r-chip);
+  margin-top:var(--s2h);padding:var(--s2h) var(--s3);border-radius:var(--r-chip);
   background:var(--surface-2);border:1px solid var(--hairline);
   font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.5;
 }
@@ -2174,9 +2167,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 
 /* Progress: the style bands + change markers on the score timeline, so a trend break reads as
    "the plan changed here", never as an unexplained drop. */
-.ps-band{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px}
+.ps-band{display:flex;align-items:center;gap:var(--s1h);flex-wrap:wrap;margin-top:var(--s2)}
 .ps-band .seg{
-  display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:var(--r-pill);
+  display:inline-flex;align-items:center;gap:var(--s1h);padding:var(--s1) var(--s2h);border-radius:var(--r-pill);
   background:var(--surface-2);border:1px solid var(--hairline);
   font-size:var(--t-xs);font-weight:700;color:var(--text-2);white-space:nowrap;
 }
@@ -2204,22 +2197,22 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .cs-h{font-size:var(--t-md);font-weight:800;letter-spacing:var(--title-tight);color:var(--text)}
 .cs-p{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.55}
 .cs-p.muted{color:var(--text-3)}
-.cs-p + .cs-p{margin-top:6px}
+.cs-p + .cs-p{margin-top:var(--s1h)}
 /* #health-consent stacks explainer cards and then one state card whose border carries the tone.
    By class, not inline, so inline-style-ratchet.mjs keeps falling. `warn` is amber because a
    connection that yielded nothing is at risk, not broken; `good` is green because it verified. */
-.hc-card{margin-top:10px}
+.hc-card{margin-top:var(--s2h)}
 .hc-card.warn{border-color:var(--amber-border)}
 .hc-card.good{border-color:var(--green-border)}
-.hc-act{margin-top:12px}
-.hc-act.tight{margin-top:8px}
+.hc-act{margin-top:var(--s3)}
+.hc-act.tight{margin-top:var(--s2)}
 /* the app runs a tighter pair inside a sidebox; keep that rhythm, on-scale */
 .sidebox .cs-h{font-size:var(--t-base)}
 .sidebox .cs-p{font-size:var(--t-sm)}
 
 /* The one big number per surface. .sm is the Home-card variant so a card and its detail screen
    read as the same object at two zoom levels rather than two different components. */
-.cs-count{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.cs-count{display:flex;align-items:baseline;gap:var(--s2h);flex-wrap:wrap}
 .cs-count .n{font-size:var(--t-3xl);font-weight:800;letter-spacing:var(--num-tight);
   font-variant-numeric:tabular-nums;line-height:1.05;color:var(--text)}
 .cs-count .u{font-size:var(--t-base);font-weight:700;color:var(--text-2)}
@@ -2228,25 +2221,25 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .cs-count.sm .u{font-size:var(--t-sm)}
 
 /* ---- the Home card ---- */
-.cs-card{padding:16px}
+.cs-card{padding:var(--s4)}
 /* nowrap on the label: at 320px the pill would otherwise push "TODAY'S STANDARDS" onto a second
    line, and a wrapped eyebrow is the single clearest tell that a layout was not looked at. */
-.cs-head{display:flex;justify-content:space-between;align-items:center;gap:10px;
-  margin-bottom:4px;flex-wrap:wrap}
+.cs-head{display:flex;justify-content:space-between;align-items:center;gap:var(--s2h);
+  margin-bottom:var(--s1);flex-wrap:wrap}
 .cs-head .cs-eyebrow{white-space:nowrap}
 
-.cs-row{padding:14px 0 0;cursor:pointer}
-.cs-row + .cs-row{border-top:1px solid var(--hairline-soft);margin-top:14px}
-.cs-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.cs-row{padding:var(--s3h) 0 0;cursor:pointer}
+.cs-row + .cs-row{border-top:1px solid var(--hairline-soft);margin-top:var(--s3h)}
+.cs-top{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s2)}
 .cs-title{font-size:var(--t-md);font-weight:700;letter-spacing:var(--title-tight)}
-.cs-nums{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.cs-nums{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s2)}
 .cs-prog{font-size:var(--t-base);font-weight:800;font-variant-numeric:tabular-nums;
   letter-spacing:var(--num-tight)}
-.cs-meta{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:6px;line-height:1.5}
+.cs-meta{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:var(--s1h);line-height:1.5}
 
 /* The bar carries the state as well as the number, so the card reads at a glance without
    anyone having to parse "7,842 of 10,000". */
-.cs-bar{height:7px;border-radius:var(--r-pill);background:var(--surface-3);overflow:hidden;margin:10px 0 8px}
+.cs-bar{height:7px;border-radius:var(--r-pill);background:var(--surface-3);overflow:hidden;margin:var(--s2h) 0 var(--s2)}
 .cs-bar > i{display:block;height:100%;width:100%;transform-origin:left;transform:scaleX(0);background:linear-gradient(90deg,var(--blue-deep),var(--blue-bright))}
 .cs-bar.green > i{background:linear-gradient(90deg,var(--green-deep),var(--green))}
 .cs-bar.amber > i{background:linear-gradient(90deg,var(--amber-deep),var(--amber))}
@@ -2317,7 +2310,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 @media (prefers-reduced-motion: reduce){ .cscol.flare{animation:none} }
 
 /* ---- detail hero ---- */
-.cs-colrow{display:flex;gap:16px;align-items:stretch;height:146px}
+.cs-colrow{display:flex;gap:var(--s4);align-items:stretch;height:146px}
 .cs-colside{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center}
 .cs-val{font-size:var(--t-3xl);font-weight:800;letter-spacing:var(--num-tight);
   font-variant-numeric:tabular-nums;line-height:1.05;color:var(--text)}
@@ -2332,20 +2325,20 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 
 /* A footer inside the hero card: the streak, or the one action this state actually affords.
    Both replace cards that used to sit parked on the screen whether or not they applied. */
-.cs-foot{display:flex;align-items:flex-start;gap:9px;margin-top:12px;padding-top:11px;
+.cs-foot{display:flex;align-items:flex-start;gap:9px;margin-top:var(--s3);padding-top:11px;
   border-top:1px solid var(--hairline-soft)}
 .cs-foot .ic{width:26px;height:26px;border-radius:var(--r-chip);flex:none;display:grid;place-items:center;
   background:var(--blue-surface);color:var(--blue-bright)}
 .cs-foot.green .ic{background:var(--green-surface);color:var(--green)}
 .cs-foot.amber .ic{background:var(--amber-surface);color:var(--amber-bright)}
 .cs-foot.gray .ic{background:var(--surface-3);color:var(--text-3)}
-.cs-foot .tx{font-size:var(--t-xs);font-weight:650;color:var(--text-2);line-height:1.45;padding-top:4px}
+.cs-foot .tx{font-size:var(--t-xs);font-weight:650;color:var(--text-2);line-height:1.45;padding-top:var(--s1)}
 
 /* ---- momentum: the week as bars, not glyphs ----
    The old strip was ✓/✕/↻ in boxes — data, but nothing you could feel. Bars carry the same five
    verdicts AND how close each period came, which is the part that reads as momentum. The dashed
    line is the target, so a run of bars reaching it is legible without counting ticks. */
-.cs-mom{display:flex;align-items:flex-end;gap:6px;height:56px;position:relative}
+.cs-mom{display:flex;align-items:flex-end;gap:var(--s1h);height:56px;position:relative}
 /* var(--hairline), not a fixed pale-blue rgba: that constant was tuned on dark and vanished
    entirely on the light theme (deep audit 2026-08-19). */
 .cs-mom .tline{position:absolute;left:0;right:0;top:0;border-top:1px dashed var(--hairline)}
@@ -2361,7 +2354,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .cs-mom b.exc{background:var(--surface-3);opacity:.5}
 .cs-mom b.now{background:linear-gradient(180deg,var(--blue),var(--blue-deep));
   box-shadow:0 0 14px rgba(var(--blue-rgb),.5)}
-.cs-momlabs{display:flex;gap:6px;margin-top:6px}
+.cs-momlabs{display:flex;gap:var(--s1h);margin-top:var(--s1h)}
 .cs-momlabs span{flex:1 1 0;min-width:0;max-width:48px;text-align:center;font-size:var(--t-eyebrow);
   font-weight:800;letter-spacing:var(--track-key);color:var(--text-3)}
 
@@ -2372,7 +2365,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .cscol.mini{width:9px;height:44px;border-radius:var(--r-micro)}
 .cscol.mini .fill::after{height:1.5px;box-shadow:0 0 7px rgba(255,255,255,.7)}
 .cscol.mini .qm{font-size:var(--t-eyebrow)}
-.cs-srow{display:flex;align-items:center;gap:12px;padding:12px 0;cursor:pointer}
+.cs-srow{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) 0;cursor:pointer}
 .cs-srow + .cs-srow{border-top:1px solid var(--hairline-soft)}
 .cs-srow .mid{flex:1;min-width:0}
 .cs-srow .t{font-size:var(--t-base);font-weight:750;letter-spacing:var(--title-tight);color:var(--text)}
@@ -2387,7 +2380,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    and reading the commitment back as a sentence, is the difference between setting a value and
    making a decision. It shows what you already chose — it does not add a choice. */
 .cs-prev{display:flex;gap:15px;align-items:center;background:var(--surface-2);
-  border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:14px 15px}
+  border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:var(--s3h) 15px}
 .cs-prev .cscol{width:34px;height:78px}
 /* Ghosted, not disabled: it is a preview of a full column, so it has to still read AS a column.
    At .35 the gradient flattened into a grey slab and the lit lip disappeared entirely. */
@@ -2402,25 +2395,25 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
   letter-spacing:.02em}
 /* Roster-row progress: thin, because on the coach's board it is a glance-level cue next to the
    status pill, not the headline the athlete's own card makes it. */
-.cs-mini{height:4px;border-radius:var(--r-pill);background:var(--surface-3);overflow:hidden;margin-top:6px}
+.cs-mini{height:4px;border-radius:var(--r-pill);background:var(--surface-3);overflow:hidden;margin-top:var(--s1h)}
 .cs-mini > i{display:block;height:100%;border-radius:var(--r-pill);background:linear-gradient(90deg,var(--blue-deep),var(--blue-bright))}
-.cs-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.cs-chips{display:flex;flex-wrap:wrap;gap:var(--s1h);margin-top:var(--s2h)}
 
 /* ---- editor knobs ----
    Deliberately NOT `.seg` — that class is a pill track whose children are <button>, and reusing
    it for chips would inherit the track and style nothing. */
-.cs-knob{padding:14px 0;border-top:1px solid var(--hairline-soft)}
+.cs-knob{padding:var(--s3h) 0;border-top:1px solid var(--hairline-soft)}
 .cs-knob:first-child{border-top:0;padding-top:2px}
 /* display:block because the captions that head a real input are <label for> elements now, not
    divs — a label is inline by default and would drop margin-bottom and sit on the field's line. */
 .cs-knob-label{display:block;font-size:var(--t-eyebrow);letter-spacing:var(--track-eyebrow);text-transform:uppercase;
-  color:var(--text-3);font-weight:800;margin-bottom:8px}
-.cs-seg{display:flex;gap:6px;flex-wrap:wrap}
+  color:var(--text-3);font-weight:800;margin-bottom:var(--s2)}
+.cs-seg{display:flex;gap:var(--s1h);flex-wrap:wrap}
 /* min-width matches the min-height for the same reason: the WHICH DAYS chips are single letters,
    which QC measured at 37-43px wide against the 44px touch floor. Every other chip in this
    component is already wider than 44px, so a minimum only ever moves the day initials. */
 .cs-seg span{display:inline-flex;align-items:center;justify-content:center;
-  min-height:44px;min-width:44px;padding:6px 14px;
+  min-height:44px;min-width:44px;padding:var(--s1h) var(--s3h);
   border-radius:var(--r-chip);background:var(--surface-2);border:1px solid var(--hairline);
   color:var(--text-2);font-size:var(--t-sm);font-weight:700;cursor:pointer;
   transition:background var(--dur-1) var(--ease-out),border-color var(--dur-1) var(--ease-out)}
@@ -2441,33 +2434,33 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .co-standing .seg.p{background:linear-gradient(90deg,var(--purple-deep),var(--purple))}
 .co-legend .dot.p{background:var(--purple-bright)}
 
-.cs-board{cursor:pointer;margin-bottom:10px}
-.cs-board-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:10px}
+.cs-board{cursor:pointer;margin-bottom:var(--s2h)}
+.cs-board-head{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s2h);margin-bottom:var(--s2h)}
 /* the ask, stated once: a coach reading the card should not have to open it to remember what
    they set. Tabular so a column of these cards keeps its right edge. */
 .cs-ask{font-size:var(--t-sm);font-weight:700;color:var(--text-2);
   font-variant-numeric:tabular-nums;white-space:nowrap}
 .cs-grow{flex:1}
-.cs-count + .co-standing{margin-top:12px}
+.cs-count + .co-standing{margin-top:var(--s3)}
 
 /* "Nothing is waiting on you" is information, not an absence — without it a coach cannot tell a
    quiet board from one that failed to load. */
-.cs-clear{display:flex;align-items:center;gap:12px;margin-top:12px}
+.cs-clear{display:flex;align-items:center;gap:var(--s3);margin-top:var(--s3)}
 .cs-clear .ic{width:38px;height:38px;border-radius:var(--r-chip);flex:none;display:grid;place-items:center;
   background:var(--green-surface);color:var(--green-bright);border:1px solid var(--green-border)}
 
 /* ---- nutrition chat: the season in one stream ------------------------------------------------
    Each meal enters the conversation as a card. It is a divider and a log entry at once, which is
    what lets an athlete write "same plate as Thursday?" — Thursday is right there in the scroll. */
-.nc-thread { padding-bottom:6px; }
+.nc-thread { padding-bottom:var(--s1h); }
 /* A BUTTON since 2026-08-28, not a passive divider. The card is how the athlete aims the
    composer at that plate, which is the gesture this screen's own header always described
    ("same plate as Thursday?") and never offered — the reply used to land on whatever meal the
    fetcher happened to return first, silently. */
 .nc-div {
-  display: flex; align-items: center; gap:12px; align-self: stretch; width: 100%;
+  display: flex; align-items: center; gap:var(--s3); align-self: stretch; width: 100%;
   background: var(--surface-2); border: 1px solid var(--hairline);
-  border-radius: var(--r-tile); padding:10px 12px; margin:6px 0 2px;
+  border-radius: var(--r-tile); padding:var(--s2h) var(--s3); margin:var(--s1h) 0 2px;
   font-family: var(--font); color: var(--text); text-align: left; cursor: pointer;
   -webkit-appearance: none; appearance: none;
 }
@@ -2481,8 +2474,8 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    picks one: the default target is a fact about where the message lands, and an unstated default
    is what sent Thursday's question to today's breakfast for the whole life of this screen. */
 .nc-target {
-  display: flex; align-items: center; gap:8px; flex-wrap: wrap;
-  margin:8px 0 0; padding:8px 10px;
+  display: flex; align-items: center; gap:var(--s2); flex-wrap: wrap;
+  margin:var(--s2) 0 0; padding:var(--s2) var(--s2h);
   background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-chip);
 }
 .nc-target .nct-label {
@@ -2495,7 +2488,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 }
 .nc-target .nct-hint { font-size: var(--t-micro); font-weight: 600; color: var(--text-3); margin-left: auto; }
 .nc-target .nct-clear {
-  margin-left: auto; flex: none; min-height: 32px; padding:4px 10px;
+  margin-left: auto; flex: none; min-height: 32px; padding:var(--s1) var(--s2h);
   border: 1px solid var(--hairline); border-radius: var(--r-pill); background: none;
   font-family: var(--font); font-size: var(--t-micro); font-weight: 800; color: var(--blue-bright);
   cursor: pointer; -webkit-appearance: none; appearance: none;
@@ -2516,7 +2509,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* Messages whose meal is older than the loaded window still belong to this athlete. */
 .nc-div.earlier {
   justify-content: center; background: none; border: 0; border-top: 1px solid var(--hairline);
-  border-radius: 0; padding:12px 0 4px; font-size: var(--t-micro); font-weight: 800;
+  border-radius: 0; padding:var(--s3) 0 var(--s1); font-size: var(--t-micro); font-weight: 800;
   letter-spacing: 0.11em; text-transform: uppercase; color: var(--text-3);
   /* Still a plain div: this seam names messages whose meal fell out of the window, so there is
      nothing to aim the composer at. cursor:default matters — router.js promotes anything wearing
@@ -2528,8 +2521,8 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    The "Earlier · <last message>" teaser that shared this class is gone (founder 2026-08-11:
    it duplicated "View full chat"), so only the seam wears it now. */
 .cont-earlier {
-  display: flex; align-items: center; gap:10px; width: 100%; margin:2px 0 6px;
-  background: none; border: 0; border-bottom: 1px dashed var(--hairline); padding:12px 2px;
+  display: flex; align-items: center; gap:var(--s2h); width: 100%; margin:2px 0 var(--s1h);
+  background: none; border: 0; border-bottom: 1px dashed var(--hairline); padding:var(--s3) 2px;
   min-height: 44px;
   font-family: var(--font); text-align: left; cursor: pointer; color: var(--text-3);
   -webkit-appearance: none; appearance: none;
@@ -2557,7 +2550,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* The chips wrap, and a 44px expander over a 34px chip hangs 5px past each edge — at the old 8px
    gap two rows of expanders overlapped by 2px, which hands a tap on the boundary to whichever
    chip happens to paint last. 10px is exactly the clearance the expanders need. */
-.fx-chips { gap: 10px; }
+.fx-chips { gap: var(--s2h); }
 .cont-earlier:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
 
 /* ---- the pill means ONE thing ----
@@ -2577,39 +2570,39 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* ---- Trainer Grow (trainer-grow.js) form fields ----
    Moved out of a per-screen <style> block in the JS (the only screen that had one) so the rules
    live with every other screen's and the type ratchet can see them. Values are tokens. */
-.tg-l{display:block;font-size:var(--t-xs);color:var(--text-3);margin:12px 0 5px;letter-spacing:.02em}
-.tg-page input,.tg-page textarea,.tg-of input,.tg-of textarea,.tg-of select{width:100%;background:var(--surface-2);border:1.5px solid var(--hairline);color:var(--text);border-radius:var(--r-chip);padding:10px 12px;font-size:var(--t-base);font-weight:600;font-family:var(--font);outline:none}
+.tg-l{display:block;font-size:var(--t-xs);color:var(--text-3);margin:var(--s3) 0 5px;letter-spacing:.02em}
+.tg-page input,.tg-page textarea,.tg-of input,.tg-of textarea,.tg-of select{width:100%;background:var(--surface-2);border:1.5px solid var(--hairline);color:var(--text);border-radius:var(--r-chip);padding:var(--s2h) var(--s3);font-size:var(--t-base);font-weight:600;font-family:var(--font);outline:none}
 .tg-page input:focus,.tg-page textarea:focus,.tg-of input:focus,.tg-of textarea:focus,.tg-of select:focus{border-color:var(--blue-bright)}
 .tg-page textarea{min-height:84px;resize:vertical}
 .tg-page input::placeholder,.tg-page textarea::placeholder,.tg-of input::placeholder,.tg-of textarea::placeholder{color:var(--text-3);font-weight:600}
-.tg-of{padding:12px 0;border-top:1.5px solid var(--hairline)}
-.tg-of .row2{display:flex;gap:8px}
+.tg-of{padding:var(--s3) 0;border-top:1.5px solid var(--hairline)}
+.tg-of .row2{display:flex;gap:var(--s2)}
 
 /* Centered .ts note + a sidebox that needs the standard 14px gap above it (class, not inline). */
 .ts.center{text-align:center}
-.sidebox.mt{margin-top:14px}
+.sidebox.mt{margin-top:var(--s3h)}
 .req-icon.s38{width:38px;height:38px}
 
 /* ---------------------------------------------------------------- Wake-Up Roll Call (0211)
    wk-* is this feature's namespace. Coach composer, coach board, athlete detail, history rows.
    Surfaces, type scale and colour all come from tokens; nothing here mints a hue. */
-.wk-form .wk-field{padding:12px 0;border-bottom:1px solid var(--hairline-soft)}
+.wk-form .wk-field{padding:var(--s3) 0;border-bottom:1px solid var(--hairline-soft)}
 .wk-form .wk-field:first-child{padding-top:2px}
 .wk-form .wk-field:last-child{border-bottom:0;padding-bottom:2px}
-.wk-l{font-size:var(--t-sm);font-weight:800;color:var(--text-2);margin-bottom:8px;letter-spacing:.01em}
-.wk-hint{padding-top:8px;line-height:1.45}
+.wk-l{font-size:var(--t-sm);font-weight:800;color:var(--text-2);margin-bottom:var(--s2);letter-spacing:.01em}
+.wk-hint{padding-top:var(--s2);line-height:1.45}
 .wk-time{font-size:var(--t-xl);font-weight:800;letter-spacing:-.01em;font-variant-numeric:tabular-nums;height:52px}
-.wk-chips{display:flex;flex-wrap:wrap;gap:6px}
-.wk-days{display:flex;gap:6px}
-.wk-days .chip{flex:1;padding:10px 0;text-align:center;justify-content:center}
+.wk-chips{display:flex;flex-wrap:wrap;gap:var(--s1h)}
+.wk-days{display:flex;gap:var(--s1h)}
+.wk-days .chip{flex:1;padding:var(--s2h) 0;text-align:center;justify-content:center}
 .wk-msg{min-height:120px;resize:vertical;line-height:1.5}
-.wk-presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
-.wk-more{display:flex;align-items:center;gap:6px;width:100%;margin:14px 0 8px;padding:10px 2px;background:none;border:0;color:var(--blue-bright);font-size:var(--t-sm);font-weight:800;cursor:pointer}
+.wk-presets{display:flex;flex-wrap:wrap;gap:var(--s1h);margin-top:var(--s2h)}
+.wk-more{display:flex;align-items:center;gap:var(--s1h);width:100%;margin:var(--s3h) 0 var(--s2);padding:var(--s2h) 2px;background:none;border:0;color:var(--blue-bright);font-size:var(--t-sm);font-weight:800;cursor:pointer}
 .wk-more svg{transition:transform .18s ease}
 .wk-more[aria-expanded="true"] svg{transform:rotate(90deg)}
-.wk-preview{display:flex;gap:8px;align-items:flex-start;margin:14px 2px;font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.45}
+.wk-preview{display:flex;gap:var(--s2);align-items:flex-start;margin:var(--s3h) 2px;font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.45}
 .wk-preview svg{flex:none;margin-top:2px;color:var(--text-3)}
-.wk-err{color:var(--red);text-align:center;min-height:16px;padding-top:8px}
+.wk-err{color:var(--red);text-align:center;min-height:16px;padding-top:var(--s2)}
 .wk-foot{height:0}
 #wk-save{width:100%}
 .wk-gap{height:12px}
@@ -2657,13 +2650,13 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .wk-secth .eyebrow.r{color:var(--red)}
 .wk-secth .eyebrow.a{color:var(--amber-bright)}
 .wk-secth .eyebrow.p{color:var(--purple-bright)}
-.wk-secth .btn{width:auto;flex:none;padding:0 14px}
-.wk-secth .xpill{flex:none}
+.wk-secth .btn{width:auto;flex:none;padding:0 var(--s3h)}
+.wk-secth .status-pill{flex:none}
 
 /* Everyone already settled, folded away by default: they need no decision, and three separate
    card lists (Late, On Standard, Excused) were three headings saying what each row's pill says. */
 .wk-roster{margin-top:var(--s5)}
-.wk-roster>summary{display:flex;align-items:center;gap:6px;list-style:none;cursor:pointer;
+.wk-roster>summary{display:flex;align-items:center;gap:var(--s1h);list-style:none;cursor:pointer;
   padding:var(--s3) 2px;font-size:var(--t-eyebrow);font-weight:800;letter-spacing:var(--track-eyebrow);
   text-transform:uppercase;color:var(--text-2)}
 .wk-roster>summary::-webkit-details-marker{display:none}
@@ -2674,7 +2667,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .wk-msgcard{margin-top:var(--s3);padding:var(--s4) var(--s5)}
 .wk-msgh{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);margin-bottom:var(--s2)}
 .wk-msgh .eyebrow{flex:1;min-width:0;white-space:nowrap}
-.wk-msgh .btn{width:auto;flex:none;padding:0 14px}
+.wk-msgh .btn{width:auto;flex:none;padding:0 var(--s3h)}
 .wk-inline{margin:0}
 .wk-msgp{font-size:var(--t-base);line-height:1.5;color:var(--text);font-weight:500;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
 .wk-msgcard .wk-msg{min-height:84px;margin-top:var(--s1)}
@@ -2687,7 +2680,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .wk-row{display:block;padding:var(--s3) 2px;cursor:default}
 .wk-rowtop{display:flex;align-items:center;justify-content:space-between;gap:var(--s3)}
 .wk-rowtop .lt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.wk-rowtop .xpill{flex:none}
+.wk-rowtop .status-pill{flex:none}
 .wk-row .ls{margin-top:2px}
 .wk-rowacts{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s2)}
 .wk-rowacts .chip{height:40px;padding:0 var(--s3);font-size:var(--t-sm)}
@@ -2714,7 +2707,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .vc-from{font-size:var(--t-micro);font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
 .vc-at{font-weight:700;color:var(--text-2)}
 .xnow .xwhy.vc-msg{white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:6;-webkit-box-orient:vertical;overflow:hidden}
-.wk-note .who{margin-bottom:10px;display:block}
+.wk-note .who{margin-bottom:var(--s2h);display:block}
 .wk-note .who .nm{font-size:var(--t-base);font-weight:800}
 .wk-note .who .rl{font-size:var(--t-xs);font-weight:700;color:var(--text-3);margin-top:2px}
 .wk-state{text-align:center}
@@ -2722,37 +2715,37 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .wk-state.late{border-color:var(--amber-border)}
 .wk-state.missed{border-color:var(--red-border)}
 .wk-state.live{border-color:var(--blue-border)}
-.wk-eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:var(--t-eyebrow);font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--text-2)}
+.wk-eyebrow{display:inline-flex;align-items:center;gap:var(--s1h);font-size:var(--t-eyebrow);font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--text-2)}
 .wk-state.on .wk-eyebrow{color:var(--green-bright)}
 .wk-state.late .wk-eyebrow{color:var(--amber-bright)}
 .wk-state.missed .wk-eyebrow{color:var(--red)}
 .wk-state.live .wk-eyebrow{color:var(--blue-bright)}
-.wk-stamp{font-size:var(--t-hero);font-weight:800;letter-spacing:var(--num-tight);line-height:1.05;margin-top:8px;font-variant-numeric:tabular-nums}
-.wk-verdict{font-size:var(--t-lg);font-weight:800;letter-spacing:.02em;text-transform:uppercase;margin:6px 0 8px}
+.wk-stamp{font-size:var(--t-hero);font-weight:800;letter-spacing:var(--num-tight);line-height:1.05;margin-top:var(--s2);font-variant-numeric:tabular-nums}
+.wk-verdict{font-size:var(--t-lg);font-weight:800;letter-spacing:.02em;text-transform:uppercase;margin:var(--s1h) 0 var(--s2)}
 .wk-state.on .wk-verdict{color:var(--green-bright)}
 .wk-state.late .wk-verdict{color:var(--amber-bright)}
-.wk-cta{width:100%;margin-top:14px;font-size:var(--t-lg);letter-spacing:.04em;text-transform:uppercase}
+.wk-cta{width:100%;margin-top:var(--s3h);font-size:var(--t-lg);letter-spacing:.04em;text-transform:uppercase}
 .wk-refusal{color:var(--amber-bright);justify-content:center}
-.wk-warn{margin-top:12px}
-.wk-proof{margin-top:14px}
+.wk-warn{margin-top:var(--s3)}
+.wk-proof{margin-top:var(--s3h)}
 .vc-ctx.wk-savefail{color:var(--amber-bright)}
-.wk-dispute-btn{width:100%;margin-top:10px}
+.wk-dispute-btn{width:100%;margin-top:var(--s2h)}
 .wk-center{text-align:center}
 
 /* Wake-Up Roll Call, second pass (0212): verdict-led athlete states, review, override, how-it-works */
-.wk-state .wk-verdict{display:inline-flex;align-items:center;gap:8px;font-size:var(--t-xl);font-weight:800;letter-spacing:.02em;text-transform:uppercase;margin:0;line-height:1.1}
+.wk-state .wk-verdict{display:inline-flex;align-items:center;gap:var(--s2);font-size:var(--t-xl);font-weight:800;letter-spacing:.02em;text-transform:uppercase;margin:0;line-height:1.1}
 .wk-state.review{border-color:var(--purple-border)}
 .wk-state.review .wk-verdict{color:var(--purple-bright)}
 .wk-state.missed .wk-verdict{color:var(--red)}
-.wk-state .wk-stamp{font-size:var(--t-lg);font-weight:700;letter-spacing:0;line-height:1.2;margin-top:8px;color:var(--text)}
+.wk-state .wk-stamp{font-size:var(--t-lg);font-weight:700;letter-spacing:0;line-height:1.2;margin-top:var(--s2);color:var(--text)}
 .wk-state.on .wk-stamp,.wk-state.late .wk-stamp{color:var(--text-2)}
-.wk-statesub{padding-top:8px;line-height:1.5}
-.wk-how{margin-top:16px;border:1px solid var(--hairline-soft);border-radius:var(--r-tile);background:var(--surface-2)}
-.wk-how summary{display:flex;align-items:center;gap:8px;padding:12px 14px;font-size:var(--t-sm);font-weight:800;color:var(--text-2);cursor:pointer;list-style:none}
+.wk-statesub{padding-top:var(--s2);line-height:1.5}
+.wk-how{margin-top:var(--s4);border:1px solid var(--hairline-soft);border-radius:var(--r-tile);background:var(--surface-2)}
+.wk-how summary{display:flex;align-items:center;gap:var(--s2);padding:var(--s3) var(--s3h);font-size:var(--t-sm);font-weight:800;color:var(--text-2);cursor:pointer;list-style:none}
 .wk-how summary::-webkit-details-marker{display:none}
 .wk-how summary svg{color:var(--text-3)}
-.wk-how-body{padding:0 14px 12px;font-size:var(--t-sm);color:var(--text-2);line-height:1.5}
-.wk-how-body p{margin:0 0 8px}
+.wk-how-body{padding:0 var(--s3h) var(--s3);font-size:var(--t-sm);color:var(--text-2);line-height:1.5}
+.wk-how-body p{margin:0 0 var(--s2)}
 .wk-how-body b{color:var(--text)}
 .wk-override{display:flex;flex-direction:column;gap:var(--s2);align-items:stretch;width:100%}
 .wk-override .input{height:40px;font-size:var(--t-sm)}
@@ -2765,7 +2758,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    that edits a single day. Chips reuse .chip; a dot marks a day the coach changed. */
 .wk-strip{display:flex;gap:var(--s2);overflow-x:auto;padding:var(--s2) 0 var(--s3);scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .wk-strip::-webkit-scrollbar{display:none}
-.wk-strip .chip{flex:none;flex-direction:column;align-items:center;gap:2px;min-width:62px;padding:8px 10px;line-height:1.15}
+.wk-strip .chip{flex:none;flex-direction:column;align-items:center;gap:2px;min-width:62px;padding:var(--s2) var(--s2h);line-height:1.15}
 .wk-strip .chip small{font-size:var(--t-xs);font-weight:700;color:var(--text-3)}
 .wk-strip .chip.on small{color:inherit;opacity:.85}
 .wk-strip .chip.skip{text-decoration:line-through;color:var(--text-3)}
@@ -2775,7 +2768,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .wk-sched-line{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.45}
 .wk-sched-line.skip{color:var(--red)}
 .wk-sched-line.moved{color:var(--amber-bright)}
-.wk-sched-who{font-size:var(--t-xs);color:var(--text-3);padding-top:4px}
+.wk-sched-who{font-size:var(--t-xs);color:var(--text-3);padding-top:var(--s1)}
 .wk-nextcard .wk-ctx{padding-bottom:var(--s2)}
 .wk-nextmsg{font-size:var(--t-sm);color:var(--text-2);line-height:1.45;padding:var(--s2) 0 var(--s3);overflow-wrap:anywhere}
 .wk-nextacts{display:flex;gap:var(--s2);flex-wrap:wrap}

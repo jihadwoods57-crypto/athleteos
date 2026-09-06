@@ -192,6 +192,11 @@
   /* ---- Spacing scale (rhythm, not uniform) ---- */
   --s1: 4px;  --s2: 8px;  --s3: 12px;  --s4: 16px;  --s5: 20px;
   --s6: 24px; --s7: 32px; --s8: 40px;  --s9: 56px;
+  /* Half steps, minted 2026-09-06 by the same rule that minted --t-micro: a token is only ever
+     added for a REAL populated tier. The audit's spacing count found 6px used 384 times, 10px
+     379, 14px 238 and 18px 83, a shadow scale nobody had named. --sNh sits one half step above
+     --sN. Nothing between these is a level; the spacing ratchet counts anything else as off-scale. */
+  --s1h: 6px; --s2h: 10px; --s3h: 14px; --s4h: 18px;
 
   --pad-screen: 20px;
 

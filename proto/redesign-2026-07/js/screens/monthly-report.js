@@ -183,15 +183,15 @@ function reportBody(report, period) {
   ${wins.length ? `
   <div style="height:14px"></div>
   <h2 class="eyebrow">Wins</h2>
-  <section class="card pad" style="padding-top:8px;padding-bottom:8px">
-    ${wins.map(w => `<div class="lrow" style="cursor:default"><div class="lic">${icon('check', 16)}</div><div class="lm"><div class="ls">${esc(w)}</div></div></div>`).join('')}
+  <section class="card pad" style="padding-top:8px;padding-bottom:8px" role="list">
+    ${wins.map(w => `<div class="lrow" role="listitem" style="cursor:default"><div class="lic">${icon('check', 16)}</div><div class="lm"><div class="ls">${esc(w)}</div></div></div>`).join('')}
   </section>` : ''}
 
   ${focus.length ? `
   <div style="height:14px"></div>
   <h2 class="eyebrow">Focus for next month</h2>
-  <section class="card pad" style="padding-top:8px;padding-bottom:8px">
-    ${focus.map(f => `<div class="lrow" style="cursor:default"><div class="lic">${icon('target', 16)}</div><div class="lm"><div class="ls">${esc(f)}</div></div></div>`).join('')}
+  <section class="card pad" style="padding-top:8px;padding-bottom:8px" role="list">
+    ${focus.map(f => `<div class="lrow" role="listitem" style="cursor:default"><div class="lic">${icon('target', 16)}</div><div class="lm"><div class="ls">${esc(f)}</div></div></div>`).join('')}
   </section>` : ''}
 
   <div style="height:16px"></div>

@@ -2,7 +2,7 @@ import { S, liveWeightPct } from '../state.js';
 import { DAY } from '../day.js';
 import { icon } from '../icons.js';
 import { esc, segBar } from '../components.js';
-import home from './home.js';
+import home, { pillTone } from './home.js';
 
 /* The athlete's actual day, painted behind the sheet.
 
@@ -133,14 +133,14 @@ export default {
       <div class="sheet-row" data-go="commitment">
         <div class="si" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('target', 19)}</div>
         <div class="st"><div class="t">Daily Commitment</div><div class="s">End-of-day reflection · doesn't change your score</div></div>
-        <span class="xpill gray">Open</span>
+        <span class="status-pill muted">Open</span>
       </div>` : ''}
       <h2 class="xgrp" style="margin:4px 2px 7px">Forms &amp; check-ins</h2>
       ${recovery && !(e.now && e.now.id === 'recovery') ? `
       <div class="sheet-row" data-go="${recovery.route}">
         <div class="si" style="background:${recovery.state === 'done' ? 'var(--green-surface);color:var(--green-bright)' : 'rgba(var(--purple-rgb),0.22);color:var(--purple-bright)'}">${icon(recovery.state === 'done' ? 'check' : 'moon', 20)}</div>
         <div class="st"><div class="t">Recovery check-in</div><div class="s">${recovery.state === 'done' ? 'Submitted tonight' : `Before bed · 20 seconds · Recovery ${liveWeightPct('checkin') + liveWeightPct('recovery')}%`}</div></div>
-        <span class="xpill ${recovery.color}">${recovery.pill}</span>
+        <span class="status-pill ${pillTone(recovery.color)}">${recovery.pill}</span>
       </div>` : ''}
       ${e.doneItems.length ? `<div class="hub-fold" data-go="home">${icon('check', 13)} ${e.doneItems.length} completed today · view on Home</div>` : ''}
       <div class="cancel" data-back="home">Cancel</div>

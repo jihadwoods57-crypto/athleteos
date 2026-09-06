@@ -93,19 +93,19 @@ const steps = {
   3: () => frame(3, 'Your sport', 'Position and level shape your plan.', `
     <h2 class="eyebrow" style="margin:8px 2px 10px">Sport</h2>
     <div class="chip-row" id="ob-sport">
-      <span class="chp on">Football</span><span class="chp">Basketball</span><span class="chp">Baseball</span>
-      <span class="chp">Soccer</span><span class="chp">Track</span><span class="chp">Other</span>
+      <span class="chip on">Football</span><span class="chip">Basketball</span><span class="chip">Baseball</span>
+      <span class="chip">Soccer</span><span class="chip">Track</span><span class="chip">Other</span>
     </div>
     <div style="height:16px"></div>
     <h2 class="eyebrow" style="margin:8px 2px 10px">Position</h2>
     <div class="chip-row" id="ob-pos">
-      <span class="chp">QB</span><span class="chp">RB</span><span class="chp on">WR</span><span class="chp">TE</span>
-      <span class="chp">OL</span><span class="chp">DL</span><span class="chp">LB</span><span class="chp">DB</span>
+      <span class="chip">QB</span><span class="chip">RB</span><span class="chip on">WR</span><span class="chip">TE</span>
+      <span class="chip">OL</span><span class="chip">DL</span><span class="chip">LB</span><span class="chip">DB</span>
     </div>
     <div style="height:16px"></div>
     <h2 class="eyebrow" style="margin:8px 2px 10px">Level</h2>
     <div class="chip-row" id="ob-level">
-      <span class="chp">Youth</span><span class="chp on">High School</span><span class="chp">College</span><span class="chp">Pro</span>
+      <span class="chip">Youth</span><span class="chip on">High School</span><span class="chip">College</span><span class="chip">Pro</span>
     </div>`, 'Next', 'onboarding/4'),
 
   4: () => frame(4, 'What are we building?', 'This decides how your nutrition gets scored. Your coach can adjust it.', `
@@ -129,8 +129,8 @@ const steps = {
     <div style="height:8px"></div>
     <h2 class="eyebrow" style="margin:8px 2px 10px">Allergies & dietary restrictions</h2>
     <div class="chip-row" data-multi>
-      <span class="chp">Peanuts · severe</span><span class="chp">Tree nuts</span><span class="chp">Dairy</span>
-      <span class="chp">Gluten</span><span class="chp">Shellfish</span><span class="chp">Vegetarian</span><span class="chp">Halal</span>
+      <span class="chip">Peanuts · severe</span><span class="chip">Tree nuts</span><span class="chip">Dairy</span>
+      <span class="chip">Gluten</span><span class="chip">Shellfish</span><span class="chip">Vegetarian</span><span class="chip">Halal</span>
     </div>
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">We use these to flag possible conflicts in meal feedback. It's a heads-up, not a guarantee. Always check ingredients yourself.</div>
     <div style="height:14px"></div>
@@ -165,7 +165,7 @@ const steps = {
     }).join('');
     const knobs = join ? '' : `
       <h2 class="eyebrow" style="margin:14px 2px 10px">Meals per day</h2>
-      <div class="chip-row" id="ob-meals">${[2, 3, 4].map((m) => `<span class="chp ${m === std.meals ? 'on' : ''}">${m}</span>`).join('')}</div>`;
+      <div class="chip-row" id="ob-meals">${[2, 3, 4].map((m) => `<span class="chip ${m === std.meals ? 'on' : ''}">${m}</span>`).join('')}</div>`;
     return frame(6, title, sub, `
       <section class="card" style="padding:6px 16px">${rows}</section>
       <div style="height:10px"></div>
@@ -176,7 +176,7 @@ const steps = {
       ${knobs}
       <h2 class="eyebrow" style="margin:14px 2px 10px">Accountability style</h2>
       <div class="chip-row" id="ob-pressure" style="justify-content:center">
-        <span class="chp ${ob.pressure === 'Remind me gently' ? 'on' : ''}">Remind me gently</span><span class="chp ${!ob.pressure || ob.pressure === 'Hold me accountable' ? 'on' : ''}">Hold me accountable</span><span class="chp ${ob.pressure === 'High accountability' || ob.pressure === 'Max pressure' ? 'on' : ''}">High accountability</span>
+        <span class="chip ${ob.pressure === 'Remind me gently' ? 'on' : ''}">Remind me gently</span><span class="chip ${!ob.pressure || ob.pressure === 'Hold me accountable' ? 'on' : ''}">Hold me accountable</span><span class="chip ${ob.pressure === 'High accountability' || ob.pressure === 'Max pressure' ? 'on' : ''}">High accountability</span>
       </div>
       <div style="height:16px"></div>
       ${commitButton(committed)}`,
@@ -211,7 +211,7 @@ export default {
     // single-select groups everywhere EXCEPT [data-multi] (allergies toggle independently)
     root.querySelectorAll('.chip-row:not([data-multi]), .choice-grid').forEach(g => g.setAttribute('data-toggle-group', ''));
     wireToggles(root);
-    root.querySelectorAll('[data-multi] .chp').forEach(ch =>
+    root.querySelectorAll('[data-multi] .chip').forEach(ch =>
       ch.addEventListener('click', () => ch.classList.toggle('on')));
 
     const grab = (s) => root.querySelector(s);
@@ -224,7 +224,7 @@ export default {
       // reflects the athlete's real choice instead of re-capturing the template default.
       const saved = (RT.ob || {})[key];
       if (saved != null) {
-        const items = [...g.querySelectorAll('.chp, .choice')];
+        const items = [...g.querySelectorAll('.chip, .choice')];
         const match = items.find(el => (el.getAttribute('data-val') || el.textContent.trim()) === saved);
         if (match) { items.forEach(el => el.classList.remove('on')); match.classList.add('on'); }
       }
@@ -233,7 +233,7 @@ export default {
       // Bind per option, not on the group: wireToggles' per-chip handler stopPropagation()s,
       // so a group-level listener never sees the click. Same-element listeners run in attach
       // order — wireToggles ran first, so sync always reads the fresh .on state.
-      g.querySelectorAll('.chp, .choice, button').forEach(el => el.addEventListener('click', sync));
+      g.querySelectorAll('.chip, .choice, button').forEach(el => el.addEventListener('click', sync));
       sync();
     };
 
@@ -409,8 +409,8 @@ export default {
     const alg = grab('[data-multi]');
     if (alg) {
       const savedA = (RT.ob && RT.ob.allergies) || [];
-      if (savedA.length) [...alg.querySelectorAll('.chp')].forEach(c => c.classList.toggle('on', savedA.includes(c.textContent.trim())));
-      const readA = () => cap({ allergies: [...alg.querySelectorAll('.chp.on')].map(c => c.textContent.trim()) });
+      if (savedA.length) [...alg.querySelectorAll('.chip')].forEach(c => c.classList.toggle('on', savedA.includes(c.textContent.trim())));
+      const readA = () => cap({ allergies: [...alg.querySelectorAll('.chip.on')].map(c => c.textContent.trim()) });
       alg.addEventListener('click', readA);
       readA();
     }
@@ -422,7 +422,7 @@ export default {
     const mealsRow = grab('#ob-meals');
     // Per-chip binding (not a row-level delegate): #ob-meals is a data-toggle-group, and
     // wireToggles' chip handler stopPropagation()s — a row-level listener never fires.
-    if (mealsRow) mealsRow.querySelectorAll('.chp').forEach((chp) => chp.addEventListener('click', () => {
+    if (mealsRow) mealsRow.querySelectorAll('.chip').forEach((chp) => chp.addEventListener('click', () => {
       cap({ standard: { ...((RT.ob || {}).standard || {}), mealsPerDay: +chp.textContent.trim() } });
       window.__render();
     }));

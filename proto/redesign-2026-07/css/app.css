@@ -33,7 +33,7 @@ body {
      shortening and the keys arriving read as one motion rather than two events. */
   transition: height 220ms var(--ease-out);
   border-radius: var(--r-pill);
-  padding:12px;
+  padding:var(--s3);
   background: linear-gradient(160deg, #20293b, #0a0f1a 60%);
   box-shadow:
     0 0 0 2px rgba(255,255,255,0.04),
@@ -117,7 +117,7 @@ body {
   font-size: var(--t-md); font-weight: 700; color: var(--text);
   letter-spacing: -0.01em; z-index: 40;
 }
-.statusbar .sb-right { display: flex; align-items: center; gap:8px; }
+.statusbar .sb-right { display: flex; align-items: center; gap:var(--s2); }
 .statusbar svg { display: block; }
 
 /* ===== Scroll viewport ===== */
@@ -132,7 +132,7 @@ body {
      float above the bottom edge, its height, the FAB's overhang, and a breath of air. The old
      `--nav-h + 62px` here was the pre-capsule bar's math and had to be re-derived by anyone who
      needed the same clearance elsewhere (coach-roster's sticky bulk bar did, and disagreed). */
-  padding: 4px var(--pad-screen) var(--tab-clear);
+  padding: var(--s1) var(--pad-screen) var(--tab-clear);
   scroll-behavior: smooth;
 }
 .viewport::-webkit-scrollbar { display: none; }
@@ -207,6 +207,8 @@ body {
   /* The shell must still resize with the keyboard — it just arrives at the new height instead of
      travelling there. */
   .device { transition: none !important; }
+  /* Body-level overlay, outside .view: the full-screen image viewer arrives instead of fading in. */
+  .imgview, .imgview * { animation: none !important; transition: none !important; }
 }
 
 /* ===== Keyboard-open shell (js/keyboard.js sets body.kb-open) =====
@@ -216,12 +218,12 @@ body {
 body.kb-open .tabbar { transform: translateY(100%); opacity: 0; pointer-events: none; }
 /* …and the clearance the bar was owed leaves with it, so the end of a conversation can actually
    reach the top of the keyboard instead of resting 100px above it. */
-body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
+body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); }
 
 /* ===== App header ===== */
 .apphead {
   display: flex; align-items: flex-start; justify-content: space-between;
-  padding:10px 0 18px;
+  padding:var(--s2h) 0 var(--s4h);
 }
 /* min-width:0 is load-bearing, not tidiness. A flex item's default min-width is `auto`, so the
    text block refused to shrink below its widest line and pushed .actions clean off the right
@@ -233,8 +235,8 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 /* overflow-wrap:anywhere so a single unbroken 30-character name breaks rather than overflowing;
    there is no space for the browser to wrap at, and a name is exactly the field people paste. */
 .apphead .name { font-size: var(--t-2xl); font-weight: 800; letter-spacing: var(--title-tight); margin-top:2px; overflow-wrap: anywhere; }
-.apphead-sub { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.apphead .actions { display: flex; align-items: center; gap:10px; margin-top:4px; flex: none; }
+.apphead-sub { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:var(--s1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.apphead .actions { display: flex; align-items: center; gap:var(--s2h); margin-top:var(--s1); flex: none; }
 .iconbtn {
   width: 44px; height: 44px; border-radius: var(--r-pill);
   background: var(--surface-1); border: 1px solid var(--hairline);
@@ -243,7 +245,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 }
 .iconbtn:active { transform: scale(0.94); background: var(--surface-2); }
 .iconbtn .dot {
-  position: absolute; top: 6px; right: 7px; min-width: 18px; height: 18px; padding:0 4px;
+  position: absolute; top: 6px; right: 7px; min-width: 18px; height: 18px; padding:0 var(--s1);
   /* --danger-solid, not --red: this is 10.5px white text ON the fill, and --red is tuned to be
      read AS text on a dark surface (3.27:1 the other way round). Same reason as the delete
      button — the sweep only caught that one because no badge happened to be visible. */
@@ -278,7 +280,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
    would look done and read as nothing.) */
 .eyebrow {
   font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-eyebrow); text-transform: uppercase;
-  color: var(--text-3); margin:26px 2px 12px;
+  color: var(--text-3); margin:26px 2px var(--s3);
   display: flex; align-items: center; justify-content: space-between;
 }
 .eyebrow .link { color: var(--blue-bright); letter-spacing: 0.02em; text-transform: none; font-size: var(--t-sm); font-weight: 700; cursor: pointer; }
@@ -307,14 +309,14 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 .card.pad { padding: var(--s5); }
 /* A card of .lrow rows. The `style="padding:6px 16px"` string was hand-typed onto dozens of
    sections; the class is the primitive the inline-style ratchet exists to make people mint. */
-.card.rows { padding: 6px 16px; }
+.card.rows { padding: var(--s1h) var(--s4); }
 /* The trailing chevron's resting color, as a class for icon()'s attr slot. */
 .chev-dim { color: var(--text-3); }
 
 /* ===== Score hero — UNCONTAINED. The ring floats on the canvas and owns the top half. ===== */
 .hero {
   position: relative;
-  padding:6px 0 4px;
+  padding:var(--s1h) 0 var(--s1);
   cursor: pointer;
 }
 /* min() + aspect-ratio, not a fixed square: 338px minus nothing overflowed the 335px content
@@ -379,15 +381,15 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
    the band rather than spill over it. Measured against every ring size the app renders. */
 .ring-center .score.d3 { --score-fit: 0.74; }
 .ring-center .outof { font-size: var(--t-md); font-weight: 700; color: var(--text-2); margin-top:0; }
-.ring-center .delta { font-size: var(--t-base); font-weight: 700; display: inline-flex; align-items: center; gap:6px; margin-top:10px; }
-.ring-center .delta .up { color: var(--green-bright); display: inline-flex; align-items: center; gap:4px; }
+.ring-center .delta { font-size: var(--t-base); font-weight: 700; display: inline-flex; align-items: center; gap:var(--s1h); margin-top:var(--s2h); }
+.ring-center .delta .up { color: var(--green-bright); display: inline-flex; align-items: center; gap:var(--s1); }
 .ring-center .delta .muted { color: var(--text-2); font-weight: 600; }
 .streak-pill {
-  display: inline-flex; align-items: center; gap:8px;
-  padding:8px 16px 8px 14px; border-radius: var(--r-pill);
+  display: inline-flex; align-items: center; gap:var(--s2);
+  padding:var(--s2) var(--s4) var(--s2) var(--s3h); border-radius: var(--r-pill);
   background: rgba(13,20,34,0.72); border: 1px solid rgba(148,176,224,0.16);
   font-size: var(--t-base); font-weight: 800; color: var(--text);
-  margin-top:12px;
+  margin-top:var(--s3);
 }
 /* No blur here (2026-09-05 audit): the 0.72 ground is opaque enough on its own, and blur is
    platform chrome, not a pill treatment. The flame is neutral, not amber: amber means WARNING in
@@ -397,7 +399,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 /* light theme: the hardcoded-dark pill would be a dark blob on the light hero — frost it */
 :root[data-theme="light"] .streak-pill { background: rgba(255,255,255,0.80); border-color: var(--hairline); }
 .hero-foot {
-  margin-top:14px; text-align: center; font-size: var(--t-md); font-weight: 600; color: var(--text-2);
+  margin-top:var(--s3h); text-align: center; font-size: var(--t-md); font-weight: 600; color: var(--text-2);
 }
 .hero-foot b { color: var(--green-bright); font-weight: 800; }
 
@@ -439,12 +441,17 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 .req-sub { font-size: var(--t-sm); font-weight: 600; margin-top:2px; white-space: nowrap; }
 .req-sub.g { color: var(--green-bright); } .req-sub.a { color: var(--amber-bright); }
 .req-sub.b { color: var(--blue-bright); }  .req-sub.p { color: var(--purple-bright); }
-.req-right { display: flex; flex-direction: column; align-items: flex-end; gap:6px; flex: none; margin-left:2px; }
+.req-right { display: flex; flex-direction: column; align-items: flex-end; gap:var(--s1h); flex: none; margin-left:2px; }
 .status-pill {
-  font-size: var(--t-xs); font-weight: 800; letter-spacing: 0.02em; padding:4px 10px; border-radius: var(--r-pill);
+  font-size: var(--t-xs); font-weight: 800; letter-spacing: 0.02em; padding:var(--s1) var(--s2h); border-radius: var(--r-pill);
   border: 1.5px solid transparent;
+  /* Inline inside a row (the .xpill sites it replaces): never breaks, sits on the text's middle. */
+  white-space: nowrap; vertical-align: middle;
 }
 .status-pill.g { color: var(--green-bright); border-color: var(--green-border); background: rgba(var(--green-rgb), 0.10); }
+/* Light's --green-bright (#15803D) only reaches 4.49:1 on a green-tinted pill ground and the token
+   family has no deeper step, so the pill alone takes green-800 (the .xpill.green fix, carried over). */
+:root[data-theme="light"] .status-pill.g { color: #166534; }
 .status-pill.a { color: var(--amber-bright); border-color: var(--amber-border); background: transparent; }
 .status-pill.b { color: var(--blue-bright);  border-color: var(--blue-border);  background: transparent; }
 .status-pill.p { color: var(--purple-bright);border-color: var(--purple-border);background: transparent; }
@@ -471,8 +478,8 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 
 /* ===== Recent activity (horizontal) ===== */
 .hscroll {
-  display: flex; gap:12px; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain;
-  margin: 0 calc(-1 * var(--pad-screen)); padding: 2px var(--pad-screen) 6px;
+  display: flex; gap:var(--s3); overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain;
+  margin: 0 calc(-1 * var(--pad-screen)); padding: 2px var(--pad-screen) var(--s1h);
 }
 .hscroll::-webkit-scrollbar { display: none; }
 .act-card {
@@ -480,33 +487,33 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
   background: var(--surface-1); border: 1px solid transparent; cursor: pointer;
   transition: transform var(--dur-1) var(--ease-out); box-shadow: var(--sh-card);}
 .act-card:active { transform: scale(0.97); }
-.act-time { padding:12px 14px 0; font-size: var(--t-xs); font-weight: 700; color: var(--text-3); letter-spacing: 0.01em; }
+.act-time { padding:var(--s3) var(--s3h) 0; font-size: var(--t-xs); font-weight: 700; color: var(--text-3); letter-spacing: 0.01em; }
 .act-media {
-  height: 104px; margin:10px 10px 0; border-radius: var(--r-card-sm);
+  height: 104px; margin:var(--s2h) var(--s2h) 0; border-radius: var(--r-card-sm);
   background-size: cover; background-position: center; position: relative; overflow: hidden;
   box-shadow: 0 6px 18px rgba(0,0,0,0.4);
 }
 .act-media.icon { display: grid; place-items: center; }
 .act-media .dim { position: absolute; inset: 0; background: rgba(7,11,20,0.52); display: grid; place-items: center; color: var(--purple-bright); }
-.act-body { padding:12px 14px 14px; }
+.act-body { padding:var(--s3) var(--s3h) var(--s3h); }
 .act-type { font-size: var(--t-sm); font-weight: 700; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .act-value { font-size: var(--t-xl); font-weight: 800; letter-spacing: -0.02em; margin-top:2px; }
-.act-value small { font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-3); margin-left:6px; vertical-align: 2px; }
+.act-value small { font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-3); margin-left:var(--s1h); vertical-align: 2px; }
 .act-value.g { color: var(--green-bright); } .act-value.b { color: var(--blue-bright); }
 .act-value.muted { color: var(--text-3); font-size: var(--t-base); }
 
 /* ===== Finish Today — single horizontal strip of 5 metrics ===== */
-.finish { padding:16px 16px 18px; }
-.finish-head { display: flex; align-items: center; gap:10px; margin-bottom:14px; color: var(--text-2); }
+.finish { padding:var(--s4) var(--s4) var(--s4h); }
+.finish-head { display: flex; align-items: center; gap:var(--s2h); margin-bottom:var(--s3h); color: var(--text-2); }
 .finish-head .t { font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-eyebrow); text-transform: uppercase; }
 .finish-strip { display: grid; grid-template-columns: 0.8fr 0.85fr 1fr 1.15fr 1.2fr; }
-.finish-cell { padding:0 10px; position: relative; }
+.finish-cell { padding:0 var(--s2h); position: relative; }
 .finish-cell:first-child { padding-left:2px; }
 .finish-cell:last-child { padding-right:2px; }
 .finish-cell + .finish-cell::before { content:''; position:absolute; left:0; top:4px; bottom:4px; width:1px; background: var(--hairline-soft); }
 .finish-cell .k { font-size: var(--t-micro); font-weight: 700; color: var(--text-3); letter-spacing: 0.02em; line-height: 1.25; min-height: 25px; display: flex; align-items: flex-end; }
-.finish-cell .v { font-size: var(--t-2xl); font-weight: 800; letter-spacing: -0.03em; margin-top:6px; }
-.finish-cell .v.txt { font-size: var(--t-base); line-height: 1.25; margin-top:8px; letter-spacing: -0.01em; }
+.finish-cell .v { font-size: var(--t-2xl); font-weight: 800; letter-spacing: -0.03em; margin-top:var(--s1h); }
+.finish-cell .v.txt { font-size: var(--t-base); line-height: 1.25; margin-top:var(--s2); letter-spacing: -0.01em; }
 .finish-cell .v small { font-size: var(--t-sm); color: var(--text-3); font-weight: 700; }
 .finish-cell .v .accent { font-weight: 800; }
 .finish-cell .v.g, .finish-cell .v .g { color: var(--green-bright); }
@@ -516,7 +523,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 
 /* ===== Trust Pass banner ===== */
 .trust {
-  display: flex; align-items: center; gap:14px; padding:14px 16px; border-radius: var(--r-card-sm); margin-top:12px;
+  display: flex; align-items: center; gap:var(--s3h); padding:var(--s3h) var(--s4); border-radius: var(--r-card-sm); margin-top:var(--s3);
   background: linear-gradient(100deg, var(--purple-surface), rgba(var(--blue-rgb), 0.06));
   border: 1px solid var(--purple-border);
 }
@@ -531,7 +538,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
      media query below raises padding-bottom to the inset, which used to squeeze the icons and
      labels from 74px of room down to 62px on a notched device. */
   height: calc(var(--nav-h) + max(0px, env(safe-area-inset-bottom, 0px) - 22px));
-  padding:0 18px 22px;
+  padding:0 var(--s4h) 22px;
   display: grid; grid-template-columns: repeat(5, 1fr); align-items: center;
   /* Content scrolls UNDER the bar by design, but the old two-stop ramp stayed translucent most of
      the way down the bar, so a big numeral (the 187.4 on Progress) sat half-lit behind the tab
@@ -572,7 +579,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
     rgba(var(--bg-rgb), 0.72) 68%,
     rgba(var(--bg-rgb), 0)    100%);
 }
-.tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap:6px; min-height: 44px; color: var(--text-3); cursor: pointer; font-size: var(--t-eyebrow); font-weight: 700; letter-spacing: 0.01em; transition: color var(--dur-2) var(--ease-out); }
+.tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap:var(--s1h); min-height: 44px; color: var(--text-3); cursor: pointer; font-size: var(--t-eyebrow); font-weight: 700; letter-spacing: 0.01em; transition: color var(--dur-2) var(--ease-out); }
 /* The active tab is LIT, not just recolored: a soft cast of its own hue behind the glyph reads as
    a live indicator without adding a single pixel of chrome. drop-shadow (not box-shadow) hugs the
    icon's strokes, and the rgb triples keep the glow on-theme in light mode. */
@@ -607,7 +614,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
   height: 56px; border-radius: var(--r-btn); border: none; cursor: pointer;
   background: var(--surface-2); color: var(--text);
   font-family: var(--font); font-size: var(--t-md); font-weight: 800; letter-spacing: -0.01em;
-  display: inline-flex; align-items: center; justify-content: center; gap:10px; width: 100%;
+  display: inline-flex; align-items: center; justify-content: center; gap:var(--s2h); width: 100%;
   transition: transform var(--dur-1) var(--ease-out), filter var(--dur-1) var(--ease-out);
 }
 /* Press = scale down + a touch brighter: the surface compresses AND catches light, which is what a
@@ -646,7 +653,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
    `xs` and `micro` set their own font-size and padding because a 36px control with 16px/800 text
    has no room left for a label. */
 .btn.sm { height: 48px; font-size: var(--t-md); }
-.btn.xs { height: 36px; font-size: var(--t-sm); gap: 6px; padding: 0 14px; border-radius: var(--r-chip); }
+.btn.xs { height: 36px; font-size: var(--t-sm); gap: var(--s1h); padding: 0 var(--s3h); border-radius: var(--r-chip); }
 .btn.micro { height: 30px; font-size: var(--t-xs); gap: 5px; padding: 0 11px; border-radius: var(--r-chip); }
 /* Armed: a two-tap control that has been tapped once and is now asking for confirmation. The
    action accent is exactly right here — this is the live action awaiting its second tap — and
@@ -659,11 +666,11 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
    set their own background: a disabled control must never keep an inviting fill. */
 .btn:disabled { background: var(--surface-2); color: var(--text-2); cursor: not-allowed; box-shadow: none; }
 .btn:disabled:active { transform: none; filter: none; }
-.btn-row { display: flex; gap:12px; }
-.btn-row.mt { margin-top: 16px; } /* the standard gap under a card's content, by class not inline */
+.btn-row { display: flex; gap:var(--s3); }
+.btn-row.mt { margin-top: var(--s4); } /* the standard gap under a card's content, by class not inline */
 
 /* ===== Generic bits reused across screens ===== */
-.back-head { display: flex; align-items: center; gap:14px; padding:6px 0 14px; }
+.back-head { display: flex; align-items: center; gap:var(--s3h); padding:var(--s1h) 0 var(--s3h); }
 /* unified back control — matches .ob-back (44px rounded-square clears the a11y tap floor) */
 .back-head .bk { width: 44px; height: 44px; border-radius: var(--r-card-sm); background: var(--surface-2); display: grid; place-items: center; color: var(--text); cursor: pointer; }
 /* The screen title is a real <h1> now (SR heading navigation had nothing to land on: three
@@ -685,12 +692,12 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 .back-head .bh-act:active { transform: scale(0.94); }
 .back-head .bh-act[aria-expanded="true"] { background: var(--blue-surface); color: var(--blue-bright); }
 .back-head .bh-act:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
-.screen-title { font-size: 28px; font-weight: 800; letter-spacing: var(--title-tight); padding:8px 0 4px; }
+.screen-title { font-size: 28px; font-weight: 800; letter-spacing: var(--title-tight); padding:var(--s2) 0 var(--s1); }
 .muted { color: var(--text-2); }
 .tiny { color: var(--text-3); }
 
 /* segmented tabs (settings switches, notification windows, coach filters) */
-.seg { display: flex; gap:4px; padding:4px; background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-pill); }
+.seg { display: flex; gap:var(--s1); padding:var(--s1); background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-pill); }
 .seg button { flex: 1; height: 44px; border: none; background: transparent; color: var(--text-2); font-family: var(--font); font-weight: 700; font-size: var(--t-sm); border-radius: var(--r-pill); cursor: pointer; transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out); }
 .seg button.on { background: var(--surface-3); color: var(--text); box-shadow: var(--sh-thumb); }
 
@@ -725,20 +732,20 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 }
 
 /* stat tiles (2x2 in plan summary) */
-.tiles2 { display: grid; grid-template-columns: 1fr 1fr; gap:12px; }
-.tile { padding:16px 16px; border-radius: var(--r-tile); background: var(--surface-2); border: 1px solid var(--hairline-soft); }
+.tiles2 { display: grid; grid-template-columns: 1fr 1fr; gap:var(--s3); }
+.tile { padding:var(--s4) var(--s4); border-radius: var(--r-tile); background: var(--surface-2); border: 1px solid var(--hairline-soft); }
 .tile .k { font-size: var(--t-eyebrow); font-weight: 700; color: var(--text-3); letter-spacing: var(--track-key); text-transform: uppercase; }
-.tile .v { font-size: var(--t-xl); font-weight: 800; letter-spacing: -0.02em; margin-top:6px; }
+.tile .v { font-size: var(--t-xl); font-weight: 800; letter-spacing: -0.02em; margin-top:var(--s1h); }
 /* An absent value should read as absent. The em-dash it replaces rendered at the same weight and
    contrast as a real number, so a blank tile looked like data. */
 .tile.unset { background: transparent; border-style: dashed; border-color: var(--hairline); }
 .tile.unset .v { font-size: var(--t-base); font-weight: 700; color: var(--text-3); letter-spacing: 0; line-height: 1.35; }
 
 /* macro chips */
-.macro-row { display: flex; gap:10px; }
-.macro { flex: 1; text-align: center; padding:14px 4px; border-radius: var(--r-tile); background: var(--surface-2); border: 1px solid var(--hairline-soft); min-width: 0; }
+.macro-row { display: flex; gap:var(--s2h); }
+.macro { flex: 1; text-align: center; padding:var(--s3h) var(--s1); border-radius: var(--r-tile); background: var(--surface-2); border: 1px solid var(--hairline-soft); min-width: 0; }
 .macro .mv { font-size: var(--t-xl); font-weight: 800; letter-spacing: -0.02em; white-space: nowrap; }
-.macro .mk { font-size: var(--t-eyebrow); font-weight: 700; color: var(--text-3); margin-top:4px; text-transform: uppercase; letter-spacing: var(--track-key); }
+.macro .mk { font-size: var(--t-eyebrow); font-weight: 700; color: var(--text-3); margin-top:var(--s1); text-transform: uppercase; letter-spacing: var(--track-key); }
 /* 5-up macro row (thread meal breakdown) is denser than 3/4-up — ease the type so values don't touch edges */
 .macro-row.five .mv { font-size: var(--t-lg); }
 /* Four-up: protein moved out to its own hero tile, so the rest get a little more room. */
@@ -747,15 +754,15 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
 .macro-row.five .mk { font-size: var(--t-micro); letter-spacing: 0.04em; }
 
 /* coach note / callout */
-.coachnote { padding:18px; border-radius: var(--r-card); background: var(--surface-1); border: 1px solid transparent; box-shadow: var(--sh-card);}
-.coachnote .who { display: flex; align-items: center; gap:12px; margin-bottom:12px; }
+.coachnote { padding:var(--s4h); border-radius: var(--r-card); background: var(--surface-1); border: 1px solid transparent; box-shadow: var(--sh-card);}
+.coachnote .who { display: flex; align-items: center; gap:var(--s3); margin-bottom:var(--s3); }
 .coachnote .who .av { width: 36px; height: 36px; border-radius: var(--r-pill); background: linear-gradient(150deg, var(--amber), var(--amber-deep)); color: var(--ink-on-accent); display: grid; place-items: center; font-weight: 800; font-size: var(--t-base); }
 .coachnote .who .nm { font-size: var(--t-base); font-weight: 800; } .coachnote .who .rl { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); }
 .coachnote p { font-size: var(--t-base); line-height: 1.5; color: var(--text); font-weight: 500; }
 
 /* list rows (schedule / settings) */
 .list { display: flex; flex-direction: column; }
-.lrow { display: flex; align-items: center; gap:14px; padding:16px 2px; border-bottom: 1px solid var(--hairline-soft); cursor: pointer; }
+.lrow { display: flex; align-items: center; gap:var(--s3h); padding:var(--s4) 2px; border-bottom: 1px solid var(--hairline-soft); cursor: pointer; }
 .lrow:last-child { border-bottom: none; }
 .lrow .lic { width: 38px; height: 38px; border-radius: var(--r-chip); background: var(--surface-2); display: grid; place-items: center; color: var(--text-2); flex: none; }
 /* .lrow is the most-reused row in the app (180+ instances across coach, settings, profile,
@@ -843,11 +850,11 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: 12px; }
    browser-default button and a selected chip was indistinguishable from an unselected one.
    Mirrors .co-seg .co-chip (coach.css), at the 44px touch floor. */
 .chip {
-  height: 44px; padding: 0 16px; border-radius: var(--r-chip);
+  height: 44px; padding: 0 var(--s4); border-radius: var(--r-chip);
   background: var(--surface-1); border: 1px solid var(--hairline);
   color: var(--text-2); font-family: var(--font); font-size: var(--t-sm); font-weight: 700;
   letter-spacing: -0.005em; cursor: pointer; white-space: nowrap;
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s2);
   transition: color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
 }
 .chip:active { transform: scale(0.96); }

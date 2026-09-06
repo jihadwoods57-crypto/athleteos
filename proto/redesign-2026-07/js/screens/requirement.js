@@ -99,8 +99,8 @@ export default {
     return `
     ${backHead(req.title, assigned ? `Assigned by ${assigned.from}` : freqText, 'home')}
 
-    <section class="card" style="padding:6px 16px">
-      <div class="lrow" style="cursor:default">
+    <section class="card" style="padding:6px 16px" role="list">
+      <div class="lrow" role="listitem" style="cursor:default">
         <div class="lic">${icon('clock', 17)}</div>
         ${/* "Deadline set" was a label standing in for a deadline this screen already has: the
               catalog carries the minute, and derive() (which builds dueLabel) never runs on this
@@ -108,24 +108,24 @@ export default {
         <div class="lm"><div class="lt">${req.dueLabel || (req.window && req.window.due != null ? `Due by ${fmtMin(req.window.due)}` : 'No deadline')}</div>
         <div class="ls">${assigned ? 'One-time task' : freqText}</div></div>
       </div>
-      <div class="lrow" style="cursor:default">
+      <div class="lrow" role="listitem" style="cursor:default">
         <div class="lic">${icon('camera', 17)}</div>
         <div class="lm"><div class="lt">${proof.label}</div><div class="ls">How you prove it</div></div>
       </div>
-      <div class="lrow" style="cursor:default">
+      <div class="lrow" role="listitem" style="cursor:default">
         <div class="lic">${icon('target', 17)}</div>
         <div class="lm"><div class="lt">${impact}</div><div class="ls">What it touches. No black boxes</div></div>
       </div>
-      <div class="lrow" style="cursor:default">
+      <div class="lrow" role="listitem" style="cursor:default">
         <div class="lic">${icon('check', 17)}</div>
         <div class="lm"><div class="lt">${esc(doneRule.what)}</div><div class="ls">${esc(doneRule.late)}</div></div>
       </div>
-      <div class="lrow" style="cursor:default">
+      <div class="lrow" role="listitem" style="cursor:default">
         <div class="lic">${icon('bell', 17)}</div>
         <div class="lm"><div class="lt">Reminders: ${req.reminder || 'medium'}</div><div class="ls">Coach sets urgency; you set quiet hours</div></div>
       </div>
       ${provenance ? `
-      <div class="lrow" style="cursor:default">
+      <div class="lrow" role="listitem" style="cursor:default">
         <div class="lic">${icon('shield', 17)}</div>
         <div class="lm"><div class="lt">${esc(provenance.who)}</div><div class="ls">${esc(provenance.when)}</div></div>
       </div>` : ''}

@@ -210,7 +210,7 @@ function obPlanCard() {
     <div class="xico sm green">${icon('flame', 16)}</div>
     <div class="xr"><div class="xa">Your ${esc(plan.name)} plan is waiting</div>
     <div class="xb" style="white-space:normal;line-height:1.45">Free for 14 days. Nothing charges today.</div></div>
-    <span class="xpill green">Start trial</span>
+    <span class="status-pill g">Start trial</span>
   </div>`;
 }
 
@@ -633,6 +633,8 @@ async function paintNutritionBoard(root) {
 }
 
 /* Ranked priority. Calm hierarchy, one primary action by tier, the rest subordinate. */
+/* Tier to .status-pill accent: critical is red, below standard is amber, due soon is blue. */
+const TIER_PILL = { critical: 'r', below: 'a', due: 'b' };
 function priorityCard(c, i, nudgedToday) {
   const tier = c.tier === 'critical' ? 'critical' : c.tier === 'below' ? 'below' : 'due';
   // needs_review also tiers as 'below', but "Below standard" would contradict its own reason
@@ -641,7 +643,7 @@ function priorityCard(c, i, nudgedToday) {
   // Empty string, not --text-3, when there's no score: .co-pri supplies its own colour there.
   const scoreCol = c.score == null ? '' : scoreColor(c.score);
   const openPrimary = tier === 'below';  // below-standard → review the log; critical/due → send the nudge
-  const nudgeCls = !openPrimary ? (tier === 'critical' ? 'primary warn' : 'primary') : '';
+  const nudgeCls = !openPrimary ? (tier === 'critical' ? 'danger' : 'primary') : '';
   // Rank weight. #1 leads (raised, filled action); #2+ subordinate (tighter, tinted action).
   // See the "rank hierarchy" block in coach.css — every action survives, only weight changes.
   const rankCls = i === 0 ? 'lead' : 'sub';
@@ -655,27 +657,27 @@ function priorityCard(c, i, nudgedToday) {
     <div class="co-pri-head" data-go="coach-athlete/${esc(c.athleteId)}">
       <div class="co-pri-rank">${i + 1}</div>
       <div class="co-pri-main">
-        <div class="co-pri-name">${esc(c.name)}${c.unit ? `<span class="pos">${esc(c.unit)}</span>` : ''}<span class="co-tier t-${tier}">${tierLbl}</span></div>
+        <div class="co-pri-name">${esc(c.name)}${c.unit ? `<span class="pos">${esc(c.unit)}</span>` : ''}<span class="status-pill ${TIER_PILL[tier] || 'b'}">${tierLbl}</span></div>
         ${c.reasons.map(r => `<div class="co-pri-reason">${esc(r)}</div>`).join('')}
       </div>
       ${c.score != null ? `<div class="co-pri-score" style="color:${scoreCol}">${c.score}</div>` : ''}
     </div>
     <div class="co-pri-acts">
-      <button class="co-abtn ${openPrimary ? 'primary' : ''}" data-go="coach-athlete/${esc(c.athleteId)}">${openPrimary ? 'Review' : 'Open'}</button>
-      <button class="co-abtn ${nudgeCls}" data-pnudge="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}" ${nudgedToday ? 'disabled' : ''}>${nudgedToday ? `Nudged ${icon('check', 11)}` : 'Nudge'}</button>
+      <button class="btn sm ${openPrimary ? 'primary' : ''}" data-go="coach-athlete/${esc(c.athleteId)}">${openPrimary ? 'Review' : 'Open'}</button>
+      <button class="btn sm ${nudgeCls}" data-pnudge="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}" ${nudgedToday ? 'disabled' : ''}>${nudgedToday ? `Nudged ${icon('check', 11)}` : 'Nudge'}</button>
       ${/* Book caps say what the BOOK supports; the staff role says what THIS operator may do.
             Gating on caps alone rendered Assign for an invited nutritionist, whose role has no
             'assign' -- the server refuses it, violating staff-access.js's own contract ("a role
             never stares at buttons the server would bounce"). allowedCreateKeys fails open to
             the head-coach set on a null role, so the owner and a still-loading role keep it. */''}
-      ${CD.caps.assignments && allowedCreateKeys(CD.extras && CD.extras.myRole).includes('assign') ? `<button class="co-abtn" data-passign="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Assign</button>` : ''}
-      ${CD.caps.interventions ? `<button class="co-abtn" data-phandle="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Handled</button>` : ''}
+      ${CD.caps.assignments && allowedCreateKeys(CD.extras && CD.extras.myRole).includes('assign') ? `<button class="btn sm" data-passign="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Assign</button>` : ''}
+      ${CD.caps.interventions ? `<button class="btn sm" data-phandle="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Handled</button>` : ''}
     </div>
     ${PNUDGE_ARM && PNUDGE_ARM.athleteId === c.athleteId ? `
     <div style="display:flex;gap:6px;align-items:center;margin-top:8px">
       <input id="pnudge-body" class="ob-input" maxlength="120" value="${esc(PNUDGE_ARM.body)}" aria-label="Nudge message" style="flex:1;height:36px;font-size:var(--t-sm)" />
-      <button class="co-abtn" data-pnudge-cancel="1">Cancel</button>
-      <button class="co-abtn primary" data-pnudge-send="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Send</button>
+      <button class="btn sm" data-pnudge-cancel="1">Cancel</button>
+      <button class="btn sm primary" data-pnudge-send="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Send</button>
     </div>
     <div class="co-pri-reason" style="margin-top:4px">This exact message goes to them, from "${esc(S.operatorIdentity.handle)} is waiting".</div>` : ''}
     <div class="co-pstatus" id="pstatus-${esc(c.athleteId)}"></div>

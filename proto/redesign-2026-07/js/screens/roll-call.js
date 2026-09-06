@@ -64,7 +64,7 @@ export function commitmentCard(d) {
       <div class="xico sm gold">${icon('clock', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)}</div></div>
-      <span class="xpill gold">Left early</span>
+      <span class="status-pill a">Left early</span>
     </div>`;
     }
     // A LATE wake-up answer (0211) keeps its receipt amber and says how late: it counts as an
@@ -74,7 +74,7 @@ export function commitmentCard(d) {
       <div class="xico sm gold">${icon('clock', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)}</div></div>
-      <span class="xpill gold">Late${d.lateMin ? ` · ${d.lateMin} min` : ''}</span>
+      <span class="status-pill a">Late${d.lateMin ? ` · ${d.lateMin} min` : ''}</span>
     </div>`;
     }
     // A delayed-sync tap waiting on the coach (0212): neither green nor amber.
@@ -83,7 +83,7 @@ export function commitmentCard(d) {
       <div class="xico sm muted">${icon('clock', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)} · Your coach will review it</div></div>
-      <span class="xpill purple">Under review</span>
+      <span class="status-pill p">Under review</span>
     </div>`;
     }
     if (d.stage === 'acknowledged' && d.source === SOURCE.OVERRIDE) {
@@ -91,7 +91,7 @@ export function commitmentCard(d) {
       <div class="xico sm green">${icon('check', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)}</div></div>
-      <span class="xpill blue">Override</span>
+      <span class="status-pill b">Override</span>
     </div>`;
     }
     // Excused wears neutral, not the green "earned" treatment: it's a resolved absence, not a
@@ -103,7 +103,7 @@ export function commitmentCard(d) {
       <div class="xico sm" style="${excused ? 'background:var(--surface-2);color:var(--text-3)' : 'background:var(--green-surface);color:var(--green-bright)'}">${icon('check', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)}</div></div>
-      <span class="xpill ${excused ? 'gray' : 'green'}">${pill}</span>
+      <span class="status-pill ${excused ? 'muted' : 'g'}">${pill}</span>
     </div>`;
   }
 
@@ -113,7 +113,7 @@ export function commitmentCard(d) {
       <div class="xico sm blue">${icon('sun', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)}${d.coach_name ? esc(` · ${d.coach_name}`) : ''}</div></div>
-      <span class="xpill blue">Soon</span>
+      <span class="status-pill b">Soon</span>
     </div>`;
   }
 
@@ -123,7 +123,7 @@ export function commitmentCard(d) {
     return `<section class="xnow vc-card red" data-vc-open="${id}">
     <div class="xlab">
       <span class="xl">YOU’RE LATE</span>
-      <span class="xpill red">Late</span>
+      <span class="status-pill r">Late</span>
     </div>
     <div class="xmain">
       <div class="xico">${icon('bolt', 20)}</div>
@@ -148,7 +148,7 @@ export function commitmentCard(d) {
       <div class="xico sm gold">${icon('clock', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)} · Counts unless corrected</div></div>
-      <span class="xpill gold">Left early</span>
+      <span class="status-pill a">Left early</span>
     </div>`;
   }
 
@@ -169,7 +169,7 @@ export function commitmentCard(d) {
       <div class="xico sm" style="${un ? 'background:var(--surface-2);color:var(--text-3)' : wakeMissed ? 'background:var(--red-surface);color:var(--red)' : 'background:var(--amber-surface);color:var(--amber-bright)'}">${icon(un ? 'shield' : 'bolt', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(sub)}</div></div>
-      <span class="xpill ${un ? 'gray' : wakeMissed ? 'red' : 'gold'}">${un ? 'Unverified' : wakeMissed ? 'Missed' : 'No response'}</span>
+      <span class="status-pill ${un ? 'muted' : wakeMissed ? 'r' : 'a'}">${un ? 'Unverified' : wakeMissed ? 'Missed' : 'No response'}</span>
     </div>`;
   }
 
@@ -213,7 +213,7 @@ export function commitmentCard(d) {
   return `<section class="xnow vc-card${hue}" data-vc-open="${id}">
     <div class="xlab">
       <span class="xl">${wake ? esc(String(d.title).toUpperCase()) : eyebrowEarnsItsPlace ? esc(eyebrow.toUpperCase()) : ''}</span>
-      ${deadline ? `<span class="xpill gray">${deadline}</span>` : ''}
+      ${deadline ? `<span class="status-pill muted">${deadline}</span>` : ''}
     </div>
     <div class="xmain">
       <div class="xico">${icon(iconFor(d.type), 20)}</div>
@@ -267,7 +267,7 @@ export function tomorrowCard(t) {
       <div class="xico sm muted">${icon('sun', 16)}</div>
       <div class="xr"><div class="xa">Tomorrow · ${esc(t.title)}</div>
       <div class="xb">${esc(t.coach_name ? `${t.coach_name} called it off for tomorrow.` : 'Your coach called it off for tomorrow.')}</div></div>
-      <span class="xpill gray">Off</span>
+      <span class="status-pill muted">Off</span>
     </div>`;
   }
   const time = t.startsMin != null ? fmtMin(t.startsMin) : '';
@@ -276,7 +276,7 @@ export function tomorrowCard(t) {
     <div class="xico sm blue">${icon('sun', 16)}</div>
     <div class="xr"><div class="xa">Tomorrow · ${esc(t.title)}</div>
     <div class="xb">${esc(line || 'Set your alarm.')}</div></div>
-    <span class="xpill ${t.moved ? 'gold' : 'blue'}">${esc(t.moved ? 'Moved' : time || 'Tomorrow')}</span>
+    <span class="status-pill ${t.moved ? 'a' : 'b'}">${esc(t.moved ? 'Moved' : time || 'Tomorrow')}</span>
   </div>`;
 }
 

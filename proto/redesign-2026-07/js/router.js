@@ -840,7 +840,7 @@ function render(opts) {
   // recalc of the subtree the previous write dirtied (N recalcs across a long roster instead of
   // one). All the cursor reads happen against one clean tree, then all the writes land at once.
   const candidates = Array.from(device.querySelectorAll(
-    '.tap,.tab,.chip,.chp,.choice,.lrow,.sheet-row,.co-chip,.hchip,.tile,.seg > *,.cs-seg > *'
+    '.tap,.tab,.chip,.choice,.lrow,.sheet-row,.co-chip,.hchip,.tile,.seg > *,.cs-seg > *'
   )).filter((el) => !el.hasAttribute('data-kb-wired'));
   const isPointer = candidates.map((el) => {
     try { return getComputedStyle(el).cursor === 'pointer'; } catch { return false; /* detached node */ }

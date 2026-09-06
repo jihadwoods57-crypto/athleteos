@@ -46,9 +46,9 @@ export default {
     }
     const plans = groupFundedPlans(CACHE.rows);
     return `${head}
-    ${plans.length ? `<section class="card" style="padding:6px 16px">
+    ${plans.length ? `<section class="card" role="list" style="padding:6px 16px">
       ${plans.map(p => `
-      <div class="lrow" style="cursor:default;align-items:flex-start">
+      <div class="lrow" role="listitem" style="cursor:default;align-items:flex-start">
         <div class="lm">
           <div class="lt">${esc(p.offer_name)} ${p.cancelled ? '<span class="status-pill muted">Cancelled</span>' : ''}</div>
           <div class="ls">${esc(money(p.amount_cents))}${esc(per(p.cadence))}${p.child_name ? ' · for ' + esc(p.child_name) : ''}</div>

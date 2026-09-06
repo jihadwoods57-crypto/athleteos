@@ -98,11 +98,11 @@ export const foodSearch = {
       items.innerHTML = plate.map((x, i) => `
         <div class="chip-row" style="display:flex;flex-wrap:nowrap;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--hairline-soft)">
           <span style="flex:1;font-size:14px;font-weight:700">${esc(x.n)} <small style="color:var(--text-3)">· ${esc(x.unit)}</small></span>
-          <span class="chp" data-i="${i}" data-d="-1" role="button" tabindex="0" aria-label="One less ${esc(x.n)}">−</span>
+          <span class="chip" data-i="${i}" data-d="-1" role="button" tabindex="0" aria-label="One less ${esc(x.n)}">−</span>
           <span style="font-size:14px;font-weight:800;width:26px;text-align:center">${x.q}</span>
-          <span class="chp" data-i="${i}" data-d="1" role="button" tabindex="0" aria-label="One more ${esc(x.n)}">+</span>
+          <span class="chip" data-i="${i}" data-d="1" role="button" tabindex="0" aria-label="One more ${esc(x.n)}">+</span>
         </div>`).join('');
-      items.querySelectorAll('.chp').forEach(b => b.addEventListener('click', () => {
+      items.querySelectorAll('.chip').forEach(b => b.addEventListener('click', () => {
         const i = +b.dataset.i, d = +b.dataset.d;
         plate[i].q = Math.max(0, plate[i].q + d);
         if (plate[i].q === 0) plate.splice(i, 1);
@@ -184,10 +184,10 @@ export const labelScan = {
 
     <h2 class="eyebrow">Servings you ate</h2>
     <div class="chip-row" id="serv" data-toggle-group>
-      <span class="chp on" data-m="1">1</span>
-      <span class="chp" data-m="1.5">1.5</span>
-      <span class="chp" data-m="2">2</span>
-      <span class="chp" data-m="3">3</span>
+      <span class="chip on" data-m="1">1</span>
+      <span class="chip" data-m="1.5">1.5</span>
+      <span class="chip" data-m="2">2</span>
+      <span class="chip" data-m="3">3</span>
     </div>
 
     <div style="height:14px"></div>
@@ -208,7 +208,7 @@ export const labelScan = {
     const { wireToggles } = await import('./settings.js');
     wireToggles(root);
     let mult = 1;
-    root.querySelectorAll('#serv .chp').forEach(ch => ch.addEventListener('click', () => { mult = +ch.dataset.m || 1; }));
+    root.querySelectorAll('#serv .chip').forEach(ch => ch.addEventListener('click', () => { mult = +ch.dataset.m || 1; }));
     const lsBtn = root.querySelector('#ls-log');
     const err = root.querySelector('#ls-err');
     const SLOT = S.currentSlot;
@@ -288,10 +288,10 @@ export const barcodeScan = {
         </div>
         <h2 class="eyebrow" style="margin-top:14px">How much did you eat?</h2>
         <div class="chip-row" id="bc-grams" data-toggle-group>
-          <span class="chp" data-g="50">50g</span>
-          <span class="chp on" data-g="100">100g</span>
-          <span class="chp" data-g="150">150g</span>
-          <span class="chp" data-g="250">250g</span>
+          <span class="chip" data-g="50">50g</span>
+          <span class="chip on" data-g="100">100g</span>
+          <span class="chip" data-g="150">150g</span>
+          <span class="chip" data-g="250">250g</span>
         </div>
         <div id="bc-attr" style="font-size:10.5px;font-weight:600;color:var(--text-3);margin-top:12px"></div>
       </section>
@@ -360,8 +360,8 @@ export const barcodeScan = {
     });
     digits.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') root.querySelector('#bc-lookup').click(); });
 
-    root.querySelectorAll('#bc-grams .chp').forEach((ch) => ch.addEventListener('click', () => {
-      root.querySelectorAll('#bc-grams .chp').forEach((c) => c.classList.remove('on'));
+    root.querySelectorAll('#bc-grams .chip').forEach((ch) => ch.addEventListener('click', () => {
+      root.querySelectorAll('#bc-grams .chip').forEach((c) => c.classList.remove('on'));
       ch.classList.add('on');
       grams = +ch.dataset.g || 100;
       paint();

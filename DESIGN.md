@@ -105,7 +105,7 @@ with no token naming it (`--t-score` 2026-08-08, `--t-micro` 2026-08-12), never 
 
 | Token | Size | Use |
 |---|---|---|
-| `--t-micro` | 10px | tier badges, tags, pill text (`.co-tier`, `.xpill`) |
+| `--t-micro` | 10px | tier badges, tags, pill text (`.tier-chip`, the smallest `.status-pill` uses) |
 | `--t-eyebrow` | 11px | uppercase section labels, stat keys |
 | `--t-xs` | 11px | meta, timestamps, captions |
 | `--t-sm` | 12.5px | secondary body, list subtitles |
@@ -155,7 +155,8 @@ to change. They are not levels. Do not add a sixth.
 ## Spacing
 
 `--s1` 4 · `--s2` 8 · `--s3` 12 · `--s4` 16 · `--s5` 20 · `--s6` 24 · `--s7` 32 · `--s8` 40 ·
-`--s9` 56. Screen padding `--pad-screen` 20px. Tab bar `--nav-h` 96px (one token: it was written
+`--s9` 56, plus four half steps minted 2026-09-06 for tiers the code already populated:
+`--s1h` 6 · `--s2h` 10 · `--s3h` 14 · `--s4h` 18. Screen padding `--pad-screen` 20px. Tab bar `--nav-h` 96px (one token: it was written
 in three places and had three chances to disagree).
 
 Vary spacing for rhythm. Uniform padding everywhere is monotony.
@@ -366,3 +367,27 @@ records what the CSS now says.
 - **Meal quality has one floor.** `qualityBand()` in meal-intel.js is built on
   `MEAL_QUALITY_GOOD` / `MEAL_QUALITY_OK` from score-band.js; it used to sit at 75/50 while the
   accent painted 79 amber, so a 77 read "Strong" in the warning colour. One number, two shapes.
+
+## Amendments · 2026-09-06 one vocabulary
+
+- **One pill.** `.status-pill` with the accent letters (`g` done, `a` warning, `b` blue, `p`
+  recovery, `r` missed, `muted` a neutral fact) is the only pill. `.xpill` (gold/gray/green/red/
+  blue/purple, uppercase micro) and `.co-tier` are gone; their callers were mapped gold to `a`,
+  gray to `muted`, green to `g`, red to `r`, blue to `b`, purple to `p`. `.tier-chip` stays: it is
+  the score tier, a score surface with its own glow, not a status pill.
+- **One chip.** `.chip` with `.on` is the only chip. `.chp` (onboarding answer chips) and `.c5`
+  (the 1 to 5 scale) are gone; `.chip-row .chip.on` keeps the selected dot (on `::before`, since
+  focus.css owns `::after` as the hit area), `.chip.rx-chip.on` is green, `.chips5 .chip.on` is
+  purple because that scale is recovery.
+- **One small button.** `.co-abtn` is gone; the coach priority card's action row is `.btn.sm`
+  with `.primary` or `.danger`, and `.co-pri-acts` owns the 1.4 flex proportion and the 44px row
+  height.
+- **One boolean control.** Every On/Off pair in settings and the roles editor is a `std-switch`
+  (`role="switch" aria-checked`). Segments are for three or more options.
+- **Spacing rides the tokens.** 827 on-scale padding, margin and gap declarations were rewritten
+  onto `--s1..--s9` and the four half steps with zero visual change. What is left off-scale
+  (233 values, mostly 3, 5, 7, 9, 13 and 22px) is a visual decision per selector, held by the
+  ratchet.
+- **The sweep checks the outline.** `scripts/qc-capture.mjs` flags `NOH1` when a screen renders
+  h2s with no h1, and skips `.sr-only` in its clipped-text check because that clipping is the
+  point.

@@ -73,11 +73,24 @@ function frame(n, total, title, sub, body, cta, next, opts = {}) {
     </div>
   </div>`;
 }
+/* On/Off consent rows are std-switch controls (role="switch"), the same control settings.js
+   uses: the class and aria-checked always move together so the switch never says one thing and
+   shows another. Enter/Space is routed to click centrally by router.js; never wire it here. */
+function paintSwitch(el, on) {
+  if (!el) return;
+  el.classList.toggle('on', !!on);
+  el.setAttribute('aria-checked', on ? 'true' : 'false');
+}
+function flipSwitch(el) {
+  const on = !el.classList.contains('on');
+  paintSwitch(el, on);
+  return on;
+}
 async function toggles(root) {
   const { wireToggles } = await import('./settings.js');
   root.querySelectorAll('.chip-row:not([data-multi]), .choice-grid, .seg').forEach(g => g.setAttribute('data-toggle-group', ''));
   wireToggles(root);
-  root.querySelectorAll('[data-multi] .chp').forEach(ch =>
+  root.querySelectorAll('[data-multi] .chip').forEach(ch =>
     ch.addEventListener('click', () => ch.classList.toggle('on')));
 }
 
@@ -176,17 +189,17 @@ const coachSteps = {
     <div style="height:16px"></div>
     <h2 class="eyebrow" style="margin:8px 2px 10px">Sport</h2>
     <div class="chip-row" id="co-sport">
-      <span class="chp on">Football</span><span class="chp">Basketball</span><span class="chp">Baseball</span><span class="chp">Track</span><span class="chp">Other</span>
+      <span class="chip on">Football</span><span class="chip">Basketball</span><span class="chip">Baseball</span><span class="chip">Track</span><span class="chip">Other</span>
     </div>
     <div style="height:16px"></div>
     <h2 class="eyebrow" style="margin:8px 2px 10px">Level</h2>
     <div class="chip-row" id="co-level">
-      <span class="chp">Youth</span><span class="chp on">High School</span><span class="chp">College</span><span class="chp">Pro</span>
+      <span class="chip">Youth</span><span class="chip on">High School</span><span class="chip">College</span><span class="chip">Pro</span>
     </div>
     <div style="height:16px"></div>
     <div class="lrow" style="cursor:default;padding:0 2px">
       <div class="lm"><div class="lt">Listed in school search</div><div class="ls">Athletes at your school can find this team. The code is still required to join.</div></div>
-      <div class="seg" style="width:104px" id="co-disc"><button class="on">On</button><button>Off</button></div>
+      <div class="std-switch on" id="co-disc" role="switch" aria-checked="true" tabindex="0" aria-label="Listed in school search"></div>
     </div>`;
     const joinBody = `
     <h2 class="eyebrow" style="margin:8px 2px 10px">Staff code</h2>
@@ -261,15 +274,15 @@ const coachSteps = {
       ];
     return frame(5, 7, 'Set the team standard.', 'Start from a proven template. Fine-tune meals, windows, and rooms anytime in Standards.', `
     <div class="chip-row" id="co-tpl">
-      <span class="chp ${sel === 'default' ? 'on' : ''}" data-tpl="default">Standard day</span>
-      ${seeds.map((s) => `<span class="chp ${sel === s.kind ? 'on' : ''}" data-tpl="${s.kind}">${esc(templateLabel(s.kind))}</span>`).join('')}
+      <span class="chip ${sel === 'default' ? 'on' : ''}" data-tpl="default">Standard day</span>
+      ${seeds.map((s) => `<span class="chip ${sel === s.kind ? 'on' : ''}" data-tpl="${s.kind}">${esc(templateLabel(s.kind))}</span>`).join('')}
     </div>
     <div style="height:12px"></div>
-    <section class="card" style="padding:6px 16px">
+    <section class="card" style="padding:6px 16px" role="list">
       ${rows.map(([ic, t, s]) => {
         const [bg, fg] = reqHeadTint(ic);
         return `
-        <div class="lrow" style="cursor:default">
+        <div class="lrow" role="listitem" style="cursor:default">
           <div class="lic" style="background:${bg};color:${fg}">${icon(ic, 17)}</div>
           <div class="lm"><div class="lt">${esc(t)}</div><div class="ls">${esc(s)}</div></div>
         </div>`;
@@ -283,17 +296,17 @@ const coachSteps = {
   6: () => {
     const c = (RT.ob || {}).coach || {};
     const n = c.notif || {};
-    const segRow = (id, title, sub, on) => `
+    const switchRow = (id, title, sub, on) => `
       <div class="lrow" style="cursor:default">
         <div class="lm"><div class="lt">${title}</div><div class="ls">${sub}</div></div>
-        <div class="seg" style="width:104px" id="${id}"><button class="${on ? 'on' : ''}">On</button><button class="${on ? '' : 'on'}">Off</button></div>
+        <div class="std-switch ${on ? 'on' : ''}" id="${id}" role="switch" aria-checked="${on ? 'true' : 'false'}" tabindex="0" aria-label="${title}"></div>
       </div>`;
     return frame(6, 7, 'How you hear from us.', 'Planned on your phone from your latest roster view, never noise for its own sake.', `
     <section class="card" style="padding:6px 16px">
-      ${segRow('co-nf-brief', 'Morning briefing', '7:30 AM · who needs you today', n.briefing !== false)}
-      ${segRow('co-nf-recap', 'Evening recap', '8:30 PM · how the day closed', n.recap !== false)}
-      ${segRow('co-nf-crit', 'Critical alerts immediately', 'Overdue athletes, gone-quiet streaks', n.immediateCritical !== false)}
-      ${segRow('co-nf-hourly', 'Hourly summaries', 'Off by default: the briefing catches it', n.hourly === true)}
+      ${switchRow('co-nf-brief', 'Morning briefing', '7:30 AM · who needs you today', n.briefing !== false)}
+      ${switchRow('co-nf-recap', 'Evening recap', '8:30 PM · how the day closed', n.recap !== false)}
+      ${switchRow('co-nf-crit', 'Critical alerts immediately', 'Overdue athletes, gone-quiet streaks', n.immediateCritical !== false)}
+      ${switchRow('co-nf-hourly', 'Hourly summaries', 'Off by default: the briefing catches it', n.hourly === true)}
     </section>
     <div style="height:10px"></div>
     <div class="sidebox">
@@ -379,7 +392,7 @@ export const coachOb = {
     const restore = (sel, saved) => {
       const g = $(sel);
       if (!g || saved == null) return;
-      const items = [...g.querySelectorAll('.chp, button')];
+      const items = [...g.querySelectorAll('.chip, button')];
       const match = items.find((el) => el.textContent.trim() === String(saved));
       if (match) { items.forEach((el) => el.classList.remove('on')); match.classList.add('on'); }
     };
@@ -413,9 +426,9 @@ export const coachOb = {
           cap({ coachName: opts[0] });
         }
         const saved = (((RT.ob || {}).coach || {}).coachName || '').trim();
-        handleRow.innerHTML = opts.map((o) => `<span class="chp ${saved === o ? 'on' : ''}">${esc(o)}</span>`).join('')
+        handleRow.innerHTML = opts.map((o) => `<span class="chip ${saved === o ? 'on' : ''}">${esc(o)}</span>`).join('')
           || `<span style="font-size:var(--t-sm);font-weight:600;color:var(--text-3)">Type your name above and options appear.</span>`;
-        handleRow.querySelectorAll('.chp').forEach((el) => el.addEventListener('click', () => {
+        handleRow.querySelectorAll('.chip').forEach((el) => el.addEventListener('click', () => {
           autoHandle = false;
           handleRow.querySelectorAll('.on').forEach((x) => x.classList.remove('on'));
           el.classList.add('on');
@@ -509,18 +522,21 @@ export const coachOb = {
       if (c.teamName) team.value = c.teamName;
       restore('#co-sport', c.sport);
       restore('#co-level', c.level);
-      if (c.discoverable != null) restore('#co-disc', c.discoverable !== false ? 'On' : 'Off');
+      if (c.discoverable != null) paintSwitch($('#co-disc'), c.discoverable !== false);
       const sync = () => {
-        const sp = $('#co-sport .on'), lv = $('#co-level .on'), disc = $('#co-disc .on');
+        const sp = $('#co-sport .on'), lv = $('#co-level .on'), disc = $('#co-disc');
         cap({ teamName: team.value.trim(), sport: sp ? sp.textContent.trim() : null,
-              level: lv ? lv.textContent.trim() : null, discoverable: !disc || disc.textContent.trim() === 'On' });
+              level: lv ? lv.textContent.trim() : null, discoverable: !disc || disc.classList.contains('on') });
       };
       team.addEventListener('input', sync);
-      // Per-option binding (chips AND seg buttons stopPropagation via wireToggles).
-      ['#co-sport', '#co-level', '#co-disc'].forEach((sel) => {
+      // Per-option binding (chips stopPropagation via wireToggles).
+      ['#co-sport', '#co-level'].forEach((sel) => {
         const el = $(sel);
-        if (el) el.querySelectorAll('.chp, button').forEach((it) => it.addEventListener('click', sync));
+        if (el) el.querySelectorAll('.chip').forEach((it) => it.addEventListener('click', sync));
       });
+      // The listing consent is a switch: flip class + aria-checked together, then capture.
+      const disc = $('#co-disc');
+      if (disc) disc.addEventListener('click', () => { flipSwitch(disc); sync(); });
       sync();
     }
     // step 3 (join path): staff code (0061) — joining an existing staff skips team creation
@@ -556,23 +572,23 @@ export const coachOb = {
     // planner prefs immediately (same store the Slice E settings screen edits).
     const nfBrief = $('#co-nf-brief');
     if (nfBrief) {
-      const segs = [
+      const switches = [
         ['#co-nf-brief', 'briefing'], ['#co-nf-recap', 'recap'],
         ['#co-nf-crit', 'immediateCritical'], ['#co-nf-hourly', 'hourly'],
       ];
       const syncNf = () => {
         const patch = {};
-        for (const [sel, key] of segs) {
+        for (const [sel, key] of switches) {
           const g = $(sel);
-          if (g) patch[key] = (g.querySelector('.on') || {}).textContent === 'On';
+          if (g) patch[key] = g.classList.contains('on');
         }
         cap({ notif: patch });
         try { act.setCoachNotifPrefs(patch); } catch { /* prefs apply again on first sync */ }
       };
-      // Per-button binding (wireToggles stopPropagation, attach order guarantees fresh state).
-      segs.forEach(([sel]) => {
+      // Each row is a switch: flip class + aria-checked together, then persist the whole set.
+      switches.forEach(([sel]) => {
         const g = $(sel);
-        if (g) g.querySelectorAll('button').forEach((b) => b.addEventListener('click', syncNf));
+        if (g) g.addEventListener('click', () => { flipSwitch(g); syncNf(); });
       });
     }
     // step 7: shared account → mint org/team (+ scope/standard, state.js) → code screen
@@ -635,7 +651,7 @@ const trainerSteps = {
     <div style="height:18px"></div>
     <div class="lrow" style="cursor:default;padding:0 2px">
       <div class="lm"><div class="lt">Listed in client search</div><div class="ls">Clients looking for a trainer can find your practice by name. Your code is still required to join.</div></div>
-      <div class="seg" style="width:104px" id="tr-disc"><button class="${listed ? 'on' : ''}">On</button><button class="${listed ? '' : 'on'}">Off</button></div>
+      <div class="std-switch ${listed ? 'on' : ''}" id="tr-disc" role="switch" aria-checked="${listed ? 'true' : 'false'}" tabindex="0" aria-label="Listed in client search"></div>
     </div>`, 'Next', 'trainer-ob/2', { back: 'role' });
   },
 
@@ -652,7 +668,7 @@ const trainerSteps = {
     const w = weightsFor(DEFAULT_STYLE, 'general');
     const pct = (k) => Math.round(w[k] * 100);
     return frame(2, 4, 'What a client starts on.', 'Every new client lands on this. You tune it in Practice HQ once your practice is live.', `
-    <section class="card" style="padding:6px 16px">
+    <section class="card" style="padding:6px 16px" role="list">
       ${[
         ['utensils', 'Meals, with photo proof', `Nutrition · ${pct('nutrition')}% of the daily score`],
         ['moon', 'Recovery check-in, nightly', `Recovery · ${pct('checkin') + pct('recovery')}%`],
@@ -660,7 +676,7 @@ const trainerSteps = {
       ].map(([ic, t, s]) => {
         const [bg, fg] = reqHeadTint(ic);
         return `
-        <div class="lrow" style="cursor:default">
+        <div class="lrow" role="listitem" style="cursor:default">
           <div class="lic" style="background:${bg};color:${fg}">${icon(ic, 17)}</div>
           <div class="lm"><div class="lt">${t}</div><div class="ls">${s}</div></div>
         </div>`;
@@ -725,7 +741,7 @@ export const trainerOb = {
     const restore = (sel, saved) => {
       const g = $(sel);
       if (!g || saved == null) return;
-      const items = [...g.querySelectorAll('.chp, button')];
+      const items = [...g.querySelectorAll('.chip, button')];
       const match = items.find((el) => el.textContent.trim() === String(saved));
       if (match) { items.forEach((el) => el.classList.remove('on')); match.classList.add('on'); }
     };
@@ -739,22 +755,21 @@ export const trainerOb = {
       if (t.practiceName) practice.value = t.practiceName;
       // Restore the saved choice BEFORE the first sync, or re-entering the step would re-capture
       // the default and clobber a trainer who deliberately turned listing off.
-      if (t.discoverable != null) restore('#tr-disc', t.discoverable !== false ? 'On' : 'Off');
+      if (t.discoverable != null) paintSwitch($('#tr-disc'), t.discoverable !== false);
       const sync = () => {
         const name = `${f.value.trim()} ${l.value.trim()}`.trim();
-        const disc = $('#tr-disc .on');
+        const disc = $('#tr-disc');
         cap({
           practiceName: practice.value.trim(),
-          discoverable: !disc || disc.textContent.trim() === 'On',
+          discoverable: !disc || disc.classList.contains('on'),
         });
         act.captureOb({ name }); // account step + profiles.full_name read RT.ob.name
         nextBtn.disabled = !(f.value.trim() && l.value.trim());
       };
       [f, l, practice].forEach((el) => el.addEventListener('input', sync));
-      // Per-button binding: wireToggles' handler stopPropagation()s, so a group-level listener
-      // never fires. Attach order guarantees sync reads the fresh .on state.
-      const discSeg = $('#tr-disc');
-      if (discSeg) discSeg.querySelectorAll('button').forEach((el) => el.addEventListener('click', sync));
+      // The listing consent is a switch: flip class + aria-checked together, then capture.
+      const discSw = $('#tr-disc');
+      if (discSw) discSw.addEventListener('click', () => { flipSwitch(discSw); sync(); });
       sync();
     }
     // step 3: shared account → mint practice → code screen
@@ -808,12 +823,12 @@ const clientSteps = {
     <div style="height:16px"></div>
     <h2 class="eyebrow" style="margin:8px 2px 10px">Life, honestly</h2>
     <div class="chip-row" id="cl-life">
-      <span class="chp">Desk job</span><span class="chp on">On my feet</span><span class="chp">Shift work</span><span class="chp">Travel a lot</span>
+      <span class="chip">Desk job</span><span class="chip on">On my feet</span><span class="chip">Shift work</span><span class="chip">Travel a lot</span>
     </div>
     <div style="height:16px"></div>
     <h2 class="eyebrow" style="margin:8px 2px 10px">Training days per week</h2>
     <div class="chip-row" id="cl-days">
-      <span class="chp">2</span><span class="chp on">3</span><span class="chp">4</span><span class="chp">5+</span>
+      <span class="chip">2</span><span class="chip on">3</span><span class="chip">4</span><span class="chip">5+</span>
     </div>`, 'Next', 'client-ob/3', { back: 'client-ob/1' }),
 
   3: () => frame(3, 6, 'Where are you now?', 'Weight is a weekly trend here. One heavy morning proves nothing.', `
@@ -824,8 +839,8 @@ const clientSteps = {
     <div style="height:16px"></div>
     <h2 class="eyebrow" style="margin:8px 2px 10px">Allergies & restrictions · checked on every scan</h2>
     <div class="chip-row" data-multi>
-      <span class="chp">Peanuts</span><span class="chp">Tree nuts</span><span class="chp">Dairy</span>
-      <span class="chp">Gluten</span><span class="chp">Shellfish</span><span class="chp">Vegetarian</span>
+      <span class="chip">Peanuts</span><span class="chip">Tree nuts</span><span class="chip">Dairy</span>
+      <span class="chip">Gluten</span><span class="chip">Shellfish</span><span class="chip">Vegetarian</span>
     </div>
     <div style="height:14px"></div>
     <div class="sidebox">
@@ -874,15 +889,15 @@ const clientSteps = {
       ? `The deal with ${join.practiceName || 'your trainer'}. Your score is built on it: hold to commit.`
       : 'Built from your goal. When you connect a trainer, their standard takes over.';
     const rows = std.rows.map(([ic, t, s]) => `
-        <div class="lrow" style="cursor:default">
+        <div class="lrow" role="listitem" style="cursor:default">
           <div class="lic" style="background:var(--surface-2)">${icon(ic, 17)}</div>
           <div class="lm"><div class="lt">${t}</div><div class="ls">${s}</div></div>
         </div>`).join('');
     const knobs = join ? '' : `
       <h2 class="eyebrow" style="margin:14px 2px 10px">Meals per day</h2>
-      <div class="chip-row" id="cl-meals">${[2, 3, 4].map((m) => `<span class="chp ${m === std.meals ? 'on' : ''}">${m}</span>`).join('')}</div>`;
+      <div class="chip-row" id="cl-meals">${[2, 3, 4].map((m) => `<span class="chip ${m === std.meals ? 'on' : ''}">${m}</span>`).join('')}</div>`;
     return frame(5, 6, title, sub, `
-      <section class="card" style="padding:6px 16px">${rows}</section>
+      <section class="card" style="padding:6px 16px" role="list">${rows}</section>
       <div style="height:10px"></div>
       <div class="sidebox">
         <div class="req-icon b s38">${icon('bolt', 17)}</div>
@@ -925,13 +940,13 @@ export const clientOb = {
       const g = $(sel); if (!g) return;
       const saved = (RT.ob || {})[key];
       if (saved != null) {
-        const items = [...g.querySelectorAll('.chp, .choice')];
+        const items = [...g.querySelectorAll('.chip, .choice')];
         const match = items.find((el) => (el.getAttribute('data-val') || el.textContent.trim()) === saved);
         if (match) { items.forEach((el) => el.classList.remove('on')); match.classList.add('on'); }
       }
       const val = read || (() => { const on = g.querySelector('.on'); return on ? on.textContent.trim() : null; });
       const sync = () => { const v = val(); if (v != null) cap({ [key]: v }); };
-      g.querySelectorAll('.chp, .choice').forEach((el) => el.addEventListener('click', sync));
+      g.querySelectorAll('.chip, .choice').forEach((el) => el.addEventListener('click', sync));
       sync();
     };
 
@@ -965,8 +980,8 @@ export const clientOb = {
     const alg = $('[data-multi]');
     if (alg) {
       const savedA = (RT.ob && RT.ob.allergies) || [];
-      if (savedA.length) [...alg.querySelectorAll('.chp')].forEach((c) => c.classList.toggle('on', savedA.includes(c.textContent.trim())));
-      const readA = () => cap({ allergies: [...alg.querySelectorAll('.chp.on')].map((c) => c.textContent.trim()) });
+      if (savedA.length) [...alg.querySelectorAll('.chip')].forEach((c) => c.classList.toggle('on', savedA.includes(c.textContent.trim())));
+      const readA = () => cap({ allergies: [...alg.querySelectorAll('.chip.on')].map((c) => c.textContent.trim()) });
       alg.addEventListener('click', readA);
       readA();
     }
@@ -1038,7 +1053,7 @@ export const clientOb = {
 
     // ---- Step 5: meals/day knob re-renders the rows; hold-to-commit stamps the contract ----
     const mealsRow = $('#cl-meals');
-    if (mealsRow) mealsRow.querySelectorAll('.chp').forEach((chp) => chp.addEventListener('click', () => {
+    if (mealsRow) mealsRow.querySelectorAll('.chip').forEach((chp) => chp.addEventListener('click', () => {
       cap({ standard: { ...((RT.ob || {}).standard || {}), mealsPerDay: +chp.textContent.trim() } });
       window.__render();
     }));
@@ -1202,13 +1217,13 @@ function cpStaffBlock() {
         <div class="lm"><div class="lt">Invite to your staff</div><div class="ls">Single-use code · they enter it at coach sign-up</div></div>
       </div>
       <div class="chip-row" style="padding:0 2px 12px">
-        <span class="chp" data-staff-invite="coordinator">Coordinator</span>
-        <span class="chp" data-staff-invite="position_coach">Position coach</span>
-        <span class="chp" data-staff-invite="s_and_c">Strength &amp; Conditioning</span>
-        <span class="chp" data-staff-invite="athletic_trainer">Athletic Trainer</span>
-        <span class="chp" data-staff-invite="nutritionist">Dietitian</span>
-        <span class="chp" data-staff-invite="team_admin">Team Admin</span>
-        <span class="chp" data-staff-invite="readonly">View only</span>
+        <span class="chip" data-staff-invite="coordinator">Coordinator</span>
+        <span class="chip" data-staff-invite="position_coach">Position coach</span>
+        <span class="chip" data-staff-invite="s_and_c">Strength &amp; Conditioning</span>
+        <span class="chip" data-staff-invite="athletic_trainer">Athletic Trainer</span>
+        <span class="chip" data-staff-invite="nutritionist">Dietitian</span>
+        <span class="chip" data-staff-invite="team_admin">Team Admin</span>
+        <span class="chip" data-staff-invite="readonly">View only</span>
       </div>` : `
       <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);padding:2px 2px 10px">Staff invites and scopes are managed by the head coach.</div>`}`}
       <div id="staff-code-out" style="display:none;padding:4px 2px 10px">

@@ -43,7 +43,7 @@ const withTimeout = (p, ms) => new Promise((resolve, reject) => {
 });
 
 const bullet = (ic, title, body) => `
-  <div class="lrow" style="align-items:flex-start;cursor:default">
+  <div class="lrow" role="listitem" style="align-items:flex-start;cursor:default">
     <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon(ic, 16)}</div>
     <div class="lm"><div class="lt">${esc(title)}</div><div class="ls">${esc(body)}</div></div>
   </div>`;
@@ -70,7 +70,7 @@ export default {
     </section>
 
     <h2 class="eyebrow">What actually happens</h2>
-    <section class="card" style="padding:2px 16px">
+    <section class="card" role="list" style="padding:2px 16px">
       ${bullet('clock', 'Only around a scheduled commitment',
         'Your location is checked only in the window your coach set for that one event. Outside that window nothing is watched at all.')}
       ${bullet('shield', 'Only a yes or no is recorded', PRESENCE_CAP

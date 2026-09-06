@@ -65,7 +65,7 @@
   left: var(--tabbar-inset); right: var(--tabbar-inset);
   bottom: max(10px, calc(env(safe-area-inset-bottom, 0px) - 8px));
   height: var(--tabbar-h);
-  padding: 0 8px;
+  padding: 0 var(--s2);
   border-radius: calc(var(--tabbar-h) / 2);
   background: var(--glass-fill-strong);
   border: 1px solid var(--glass-rim-soft);
@@ -148,14 +148,14 @@ body.kb-open .tabbar { transform: translateY(calc(100% + 60px)); }
 .back-head {
   position: sticky; top: 0; z-index: 30;
   margin: 0 calc(-1 * var(--pad-screen));
-  padding: 6px var(--pad-screen) 12px;
+  padding: var(--s1h) var(--pad-screen) var(--s3);
 }
 /* Stuck, the header is a NAV BAR, not a page title: the phone collapses its large title to one
    inline line the moment content passes under it, and so does this. The subtitle goes; a title
    that ran to two lines ("Waffles, Hash Brown, Sausage & Fruit") ellipses to one. */
 .back-head.stuck .ht { font-size: var(--t-lg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .back-head.stuck .hs { display: none; }
-.back-head.stuck { padding-bottom: 8px; }
+.back-head.stuck { padding-bottom: var(--s2); }
 .back-head::before {
   content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
   background: var(--glass-fill-strong);

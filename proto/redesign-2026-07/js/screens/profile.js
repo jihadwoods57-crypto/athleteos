@@ -389,13 +389,13 @@ export const editProfile = {
     <h2 class="eyebrow">Sport</h2>
     <div class="chip-row" id="ep-sport" data-toggle-group>
       ${Object.keys(SPORT_POSITIONS).map(s =>
-        `<span class="chp ${sport === s ? 'on' : ''}">${s}</span>`).join('')}
+        `<span class="chip ${sport === s ? 'on' : ''}">${s}</span>`).join('')}
     </div>
 
     <h2 class="eyebrow">${sport === 'Track' ? 'Event group' : 'Position'}</h2>
     ${positions ? `
     <div class="chip-row" id="ep-pos" data-toggle-group>
-      ${positions.map(p => `<span class="chp ${a.position === p ? 'on' : ''}">${p}</span>`).join('')}
+      ${positions.map(p => `<span class="chip ${a.position === p ? 'on' : ''}">${p}</span>`).join('')}
     </div>` : `
     <div style="font-size:12.5px;font-weight:600;color:var(--text-3);padding:2px 2px 4px">Pick a sport first; positions follow the sport.</div>`}
 
@@ -448,8 +448,8 @@ export const editProfile = {
 
     // Sport chips re-render positions in place (spec §11.2): selecting a sport swaps the
     // position list; the previous selection only survives if it exists in the new sport.
-    root.querySelectorAll('#ep-sport .chp').forEach((ch) => ch.addEventListener('click', () => {
-      root.querySelectorAll('#ep-sport .chp').forEach((x) => x.classList.remove('on'));
+    root.querySelectorAll('#ep-sport .chip').forEach((ch) => ch.addEventListener('click', () => {
+      root.querySelectorAll('#ep-sport .chip').forEach((x) => x.classList.remove('on'));
       ch.classList.add('on');
       markDirty();
       const sport = ch.textContent;
@@ -457,13 +457,13 @@ export const editProfile = {
       const list = SPORT_POSITIONS[sport] || [];
       if (posWrap) {
         const prev = posWrap.querySelector('.on') ? posWrap.querySelector('.on').textContent : '';
-        posWrap.innerHTML = list.map((p) => `<span class="chp ${p === prev ? 'on' : ''}">${p}</span>`).join('');
+        posWrap.innerHTML = list.map((p) => `<span class="chip ${p === prev ? 'on' : ''}">${p}</span>`).join('');
         wirePos();
       }
     }));
     const wirePos = () => {
-      root.querySelectorAll('#ep-pos .chp').forEach((ch) => ch.addEventListener('click', () => {
-        root.querySelectorAll('#ep-pos .chp').forEach((x) => x.classList.remove('on'));
+      root.querySelectorAll('#ep-pos .chip').forEach((ch) => ch.addEventListener('click', () => {
+        root.querySelectorAll('#ep-pos .chip').forEach((x) => x.classList.remove('on'));
         ch.classList.add('on');
         markDirty();
       }));

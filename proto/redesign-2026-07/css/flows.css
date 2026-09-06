@@ -5,9 +5,9 @@
 
 /* ----- Tier chip (inside ring + anywhere) ----- */
 .tier-chip {
-  display: inline-block; margin-top:8px;
+  display: inline-block; margin-top:var(--s2);
   font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-eyebrow); text-transform: uppercase;
-  padding:6px 14px; border-radius: var(--r-pill); border: 1px solid transparent;
+  padding:var(--s1h) var(--s3h); border-radius: var(--r-pill); border: 1px solid transparent;
 }
 .tier-chip.g { color: var(--green-bright); background: rgba(var(--green-rgb), 0.12); border-color: var(--green-border); box-shadow: 0 0 18px rgba(var(--green-rgb), 0.25); }
 .tier-chip.b { color: var(--blue-bright); background: rgba(var(--blue-rgb), 0.12); border-color: var(--blue-border); }
@@ -17,12 +17,12 @@
 .tier-chip.r { color: var(--red-bright); background: var(--red-surface); border-color: var(--red-border); }
 
 /* ----- Next-action CTA under the hero ----- */
-.next-cta { margin-top:16px; }
+.next-cta { margin-top:var(--s4); }
 .next-cta .btn { height: 58px; font-size: var(--t-lg); }
 .next-cta .btn.p-accent { background: linear-gradient(150deg, var(--purple), var(--purple-deep)); color: #fff; box-shadow: 0 10px 30px rgba(var(--purple-rgb), 0.35); }
 .day-done {
-  display: flex; align-items: center; gap:14px; margin-top:16px;
-  padding:16px; border-radius: var(--r-card);
+  display: flex; align-items: center; gap:var(--s3h); margin-top:var(--s4);
+  padding:var(--s4); border-radius: var(--r-card);
   background: linear-gradient(100deg, rgba(var(--green-rgb), 0.16), rgba(var(--teal-rgb), 0.06));
   border: 1px solid var(--green-border);
 }
@@ -35,7 +35,7 @@
    status rows above it. Tappable into the score breakdown. */
 .day-sealed {
   position: relative;
-  display: flex; align-items: center; gap: 14px; margin-top: 16px; padding: 14px 16px;
+  display: flex; align-items: center; gap: var(--s3h); margin-top: var(--s4); padding: var(--s3h) var(--s4);
   border-radius: var(--r-card); border: 1px solid var(--blue-border);
   background: linear-gradient(115deg, rgba(var(--blue-rgb), 0.12), rgba(var(--teal-rgb), 0.05) 60%, transparent);
   box-shadow: 0 0 26px rgba(var(--blue-rgb), 0.10);
@@ -55,7 +55,7 @@
    own headline at 402px. Same tier tokens, quieter metal. */
 .day-sealed .tier-chip {
   position: absolute; top: 13px; right: 14px; margin: 0;
-  font-size: var(--t-micro); padding: 4px 9px; letter-spacing: 0.08em; box-shadow: none;
+  font-size: var(--t-micro); padding: var(--s1) 9px; letter-spacing: 0.08em; box-shadow: none;
 }
 
 /* ----- "Day N locked." stamp (lock-moment.js) -----
@@ -64,7 +64,7 @@
    Fixed to the whole window for the same reason: it has no layout relationship to the screen. */
 .lockstamp {
   position: fixed; inset: 0; z-index: 200;
-  display: grid; place-items: center; padding: 24px;
+  display: grid; place-items: center; padding: var(--s6);
   /* The scrim is STATIC (2026-09-05). It used to fade in, and tweening the opacity of a
      full-screen blurred layer re-runs the blur over the whole document every frame, which is the
      most expensive thing a WebView can be asked to do at the exact moment it is also stamping.
@@ -85,7 +85,7 @@
 .lockstamp .ls-card {
   width: 100%; max-width: 320px; text-align: center;
   background: var(--surface-1); border: 1px solid var(--hairline);
-  border-radius: var(--r-card); padding: 26px 22px 18px;
+  border-radius: var(--r-card); padding: 26px 22px var(--s4h);
   box-shadow: var(--sh-raised);
   opacity: 0; transform: scale(0.9);
   transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-3) var(--ease-out);
@@ -94,7 +94,7 @@
 /* The mark comes DOWN like a stamp rather than fading in — it is the one irreversible thing that
    happens in this app, and it should land. */
 .lockstamp .ls-mark {
-  width: 62px; height: 62px; margin: 0 auto 14px; border-radius: var(--r-pill);
+  width: 62px; height: 62px; margin: 0 auto var(--s3h); border-radius: var(--r-pill);
   display: grid; place-items: center; position: relative;
   background: linear-gradient(150deg, var(--green), var(--green-deep));
   color: var(--ink-on-accent);
@@ -116,9 +116,9 @@
 }
 /* Prose title, not a score: --font-display is reserved for score numerals (DESIGN.md). */
 .lockstamp .ls-t { font-family: var(--font); font-size: 26px; font-weight: 800; letter-spacing: -0.01em; }
-.lockstamp .ls-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.5; margin-top: 8px; }
+.lockstamp .ls-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.5; margin-top: var(--s2); }
 .lockstamp .ls-x {
-  margin-top: 18px; width: 100%; padding: 13px; border: none; cursor: pointer;
+  margin-top: var(--s4h); width: 100%; padding: 13px; border: none; cursor: pointer;
   border-radius: var(--r-btn); background: var(--surface-2); color: var(--text);
   font-family: var(--font); font-size: var(--t-base); font-weight: 800;
 }
@@ -161,18 +161,18 @@
 .tour-card {
   position: fixed; width: min(320px, calc(100vw - 24px));
   background: var(--surface-1); border: 1px solid var(--hairline);
-  border-radius: var(--r-card); padding: 15px 16px 13px;
+  border-radius: var(--r-card); padding: 15px var(--s4) 13px;
   box-shadow: var(--sh-raised);
 }
 .tour-count { font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
 .tour-t { font-family: var(--font); font-size: var(--t-lg); font-weight: 800; letter-spacing: -0.01em; margin-top: 3px; }
-.tour-b { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.5; margin-top: 6px; }
-.tour-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+.tour-b { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.5; margin-top: var(--s1h); }
+.tour-actions { display: flex; align-items: center; justify-content: space-between; gap: var(--s2h); margin-top: var(--s3h); }
 .tour-skip {
-  border: none; background: none; cursor: pointer; padding: 6px 2px;
+  border: none; background: none; cursor: pointer; padding: var(--s1h) 2px;
   font-family: var(--font); font-size: var(--t-sm); font-weight: 700; color: var(--text-3);
 }
-.tour-next { width: auto; min-width: 92px; padding: 0 18px; }
+.tour-next { width: auto; min-width: 92px; padding: 0 var(--s4h); }
 .tour-skip:focus-visible, .tour-next:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   .tour, .tour-ring, .tour-card { transition: none; }
@@ -214,18 +214,18 @@
      sat inside the iOS gesture zone and a tap there could fire the home gesture instead. */
   position: absolute; left: 10px; right: 10px; bottom: max(14px, env(safe-area-inset-bottom, 0px)); z-index: 6;
   background: #101827; border: 1px solid var(--hairline);
-  border-radius: var(--r-card); padding:18px 16px 14px;
+  border-radius: var(--r-card); padding:var(--s4h) var(--s4) var(--s3h);
   box-shadow: 0 -18px 60px rgba(0,0,0,0.6);
   animation: sheetUp 320ms var(--ease-out);
 }
 /* light theme: base sheet fill is hardcoded dark (#101827) — flip to a light surface + softer lift */
 :root[data-theme="light"] .sheet { background: var(--surface-1); box-shadow: 0 -18px 60px rgba(15,23,42,0.18); }
 @keyframes sheetUp { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
-.sheet .grab { width: 40px; height: 4px; border-radius: var(--r-micro); background: var(--surface-3); margin:0 auto 14px; }
-.sheet .sh-title { font-size: var(--t-lg); font-weight: 800; text-align: center; margin-bottom:4px; }
-.sheet .sh-sub { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); text-align: center; margin-bottom:14px; }
+.sheet .grab { width: 40px; height: 4px; border-radius: var(--r-micro); background: var(--surface-3); margin:0 auto var(--s3h); }
+.sheet .sh-title { font-size: var(--t-lg); font-weight: 800; text-align: center; margin-bottom:var(--s1); }
+.sheet .sh-sub { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); text-align: center; margin-bottom:var(--s3h); }
 .sheet-row {
-  display: flex; align-items: center; gap:14px; padding:14px 10px; border-radius: var(--r-card-sm); cursor: pointer;
+  display: flex; align-items: center; gap:var(--s3h); padding:var(--s3h) var(--s2h); border-radius: var(--r-card-sm); cursor: pointer;
   transition: background var(--dur-1) var(--ease-out);
 }
 .sheet-row:hover, .sheet-row:active { background: var(--surface-2); }
@@ -236,14 +236,14 @@
 .sheet-row .sv { font-size: var(--t-base); font-weight: 800; }
 /* The one way out of the quick-log sheet, and it measured 37px. Full-width and transparent, so
    the floor is free. */
-.sheet .cancel { text-align: center; padding:14px 0 8px; min-height: 44px; box-sizing: border-box; font-size: var(--t-md); font-weight: 700; color: var(--text-2); cursor: pointer; }
+.sheet .cancel { text-align: center; padding:var(--s3h) 0 var(--s2); min-height: 44px; box-sizing: border-box; font-size: var(--t-md); font-weight: 700; color: var(--text-2); cursor: pointer; }
 
 /* ----- Analyzing state ----- */
 /* Centred, not top-anchored: this is a one-beat full-screen moment with no tab bar, and pinned 40px
    from the top it left two thirds of a tall phone empty below the copy. */
 .analyzing {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  min-height: 68vh; padding: 24px 0; text-align: center;
+  min-height: 68vh; padding: var(--s6) 0; text-align: center;
 }
 .scanbox { position: relative; width: 230px; height: 230px; border-radius: var(--r-card); overflow: hidden; border: 1px solid var(--hairline); box-shadow: var(--sh-card); }
 .scanbox .img { position: absolute; inset: 0; background-size: cover; background-position: center; }
@@ -295,13 +295,13 @@
 }
 
 .analyzing .phase { margin-top:22px; font-size: var(--t-lg); font-weight: 800; }
-.analyzing .phase-sub { margin-top:6px; font-size: var(--t-sm); font-weight: 600; color: var(--text-3); }
+.analyzing .phase-sub { margin-top:var(--s1h); font-size: var(--t-sm); font-weight: 600; color: var(--text-3); }
 .dots::after { content: '…'; animation: dots 1.4s steps(3) infinite; }
 @keyframes dots { 0% { content: ''; } 33% { content: '.'; } 66% { content: '..'; } 100% { content: '…'; } }
 
 /* AI component read rows */
 .comp-read { display: flex; flex-direction: column; }
-.comp-read .cr { display: flex; align-items: center; gap:12px; padding:10px 0; border-bottom: 1px solid var(--hairline-soft); }
+.comp-read .cr { display: flex; align-items: center; gap:var(--s3); padding:var(--s2h) 0; border-bottom: 1px solid var(--hairline-soft); }
 .comp-read .cr:last-child { border-bottom: none; }
 .comp-read .ci { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; flex: none; }
 .comp-read .ci.ok { background: var(--green-surface); color: var(--green-bright); }
@@ -309,14 +309,14 @@
 .comp-read .ck { font-size: var(--t-eyebrow); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); width: 96px; flex: none; }
 .comp-read .cv { font-size: var(--t-base); font-weight: 700; flex: 1; }
 .score-change {
-  display: flex; align-items: center; gap:10px; margin-top:14px; padding:12px 16px;
+  display: flex; align-items: center; gap:var(--s2h); margin-top:var(--s3h); padding:var(--s3) var(--s4);
   border-radius: var(--r-tile); background: var(--green-surface); border: 1px solid var(--green-border);
   font-size: var(--t-base); font-weight: 800; color: var(--green-bright);
 }
 
 /* ----- Onboarding ----- */
-.ob { display: flex; flex-direction: column; min-height: 100%; padding-top:6px; }
-.ob-dots { display: flex; gap:8px; justify-content: center; padding:6px 0 20px; }
+.ob { display: flex; flex-direction: column; min-height: 100%; padding-top:var(--s1h); }
+.ob-dots { display: flex; gap:var(--s2); justify-content: center; padding:var(--s1h) 0 var(--s5); }
 /* Width SNAPS; only paint properties tween. `transition: all` here made every onboarding step
    advance re-lay-out the dot row on each frame of the tween — the banned layout animation, let
    in by `all`. The fill is blue paired with its own -deep: progress geometry wears the action
@@ -324,38 +324,40 @@
 .ob-dots .d { width: 7px; height: 7px; border-radius: 50%; background: var(--surface-3); transition: background var(--dur-2) var(--ease-out), border-radius var(--dur-2) var(--ease-out); }
 .ob-dots .d.on { width: 22px; border-radius: var(--r-micro); background: linear-gradient(90deg, var(--blue-deep), var(--blue)); }
 .ob-title { font-size: 27px; font-weight: 800; letter-spacing: var(--title-tight); line-height: 1.15; }
-.ob-sub { font-size: var(--t-base); font-weight: 600; color: var(--text-2); margin-top:8px; line-height: 1.5; text-wrap: balance; }
+.ob-sub { font-size: var(--t-base); font-weight: 600; color: var(--text-2); margin-top:var(--s2); line-height: 1.5; text-wrap: balance; }
 .ob-body { flex: 1; padding-top:22px; }
-.ob-foot { padding:18px 0 6px; }
+.ob-foot { padding:var(--s4h) 0 var(--s1h); }
 /* Text links in ob flows — same 44px tap floor pattern as .chp/.tab */
 .ob-textlink{display:flex;align-items:center;justify-content:center;min-height:44px;font-size:var(--t-base);font-weight:700;cursor:pointer;color:var(--text-3)}
 .ob-textlink.g{color:var(--green-bright)}
-.choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap:12px; }
+.choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap:var(--s3); }
 .choice {
-  padding:18px 16px; border-radius: var(--r-card-sm); background: var(--surface-1); border: 1px solid var(--hairline);
+  padding:var(--s4h) var(--s4); border-radius: var(--r-card-sm); background: var(--surface-1); border: 1px solid var(--hairline);
   cursor: pointer; transition: background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
 }
 .choice.on { border-color: var(--blue-bright); background: rgba(var(--blue-rgb), 0.10); box-shadow: 0 0 18px rgba(var(--blue-rgb), 0.18); }
-.choice .ct { font-size: var(--t-md); font-weight: 800; margin-top:10px; }
-.choice .cs { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); margin-top:4px; line-height: 1.35; }
+.choice .ct { font-size: var(--t-md); font-weight: 800; margin-top:var(--s2h); }
+.choice .cs { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); margin-top:var(--s1); line-height: 1.35; }
 .choice .cic { width: 38px; height: 38px; border-radius: var(--r-chip); display: grid; place-items: center; }
-.chip-row { display: flex; flex-wrap: wrap; gap:10px; }
-.chip-row .chp {
-  padding:12px 18px; border-radius: var(--r-chip); background: var(--surface-1); border: 1.5px solid var(--hairline);
-  font-size: var(--t-base); font-weight: 700; cursor: pointer;
-  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
-  /* 44px tap floor (a11y) — inline-flex keeps a soft chip shape while guaranteeing the height */
-  display: inline-flex; align-items: center; min-height: 44px;
-}
-.chip-row .chp.on { border-color: var(--blue-bright); background: rgba(var(--blue-rgb), 0.12); color: var(--blue-bright);
-  box-shadow: inset 0 0 0 1px var(--blue-border), 0 0 16px rgba(var(--blue-rgb), 0.22); }
-/* Non-color affordance (WCAG 1.4.1): a filled dot marks the selected chip, not color alone. */
-.chip-row .chp.on::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--blue-bright); margin-left:8px; flex: 0 0 auto; }
+.chip-row { display: flex; flex-wrap: wrap; gap:var(--s2h); }
 /* Press feedback on tappable chips/choices. */
-.chp:active, .choice:active { transform: scale(0.97); }
+.choice:active { transform: scale(0.97); }
+/* The canonical .chip (app.css) wearing the .chp geometry, so onboarding and settings markup can
+   move off .chp with no visual change. 44px is a floor, not a fixed height, and the label may wrap:
+   a long answer is a soft chip, not a clipped one. The base .chip gap (8px) is what separates the
+   label from the selected dot, so the dot itself carries no margin. */
+.chip-row .chip {
+  height: auto; min-height: 44px; padding: var(--s3) var(--s4h); border-width: 1.5px;
+  font-size: var(--t-base); color: var(--text); white-space: normal; text-align: left;
+}
+.chip-row .chip.on { border-color: var(--blue-bright); background: rgba(var(--blue-rgb), 0.12); color: var(--blue-bright);
+  box-shadow: inset 0 0 0 1px var(--blue-border), 0 0 16px rgba(var(--blue-rgb), 0.22); }
+/* Non-color affordance (WCAG 1.4.1): the same filled dot the .chp form carried. ::before, because
+   focus.css owns .chip's ::after as its hit-area; order:1 still seats the dot after the label. */
+.chip-row .chip.on::before { content: ""; order: 1; width: 6px; height: 6px; border-radius: 50%; background: var(--blue-bright); flex: 0 0 auto; }
 .ob-input {
   width: 100%; height: 56px; border-radius: var(--r-card-sm); background: var(--surface-1); border: 1.5px solid var(--hairline);
-  color: var(--text); font-family: var(--font); font-size: var(--t-lg); font-weight: 700; padding:0 18px; outline: none;
+  color: var(--text); font-family: var(--font); font-size: var(--t-lg); font-weight: 700; padding:0 var(--s4h); outline: none;
 }
 .ob-input:focus { border-color: var(--blue-bright); }
 /* iOS WebKit gives a date input its own UA chrome: the author width is ignored (the Edit
@@ -375,10 +377,10 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 .ep-dob-wrap { position: relative; }
 .ep-dob-hint { position: absolute; left: 19.5px; top: 50%; transform: translateY(-50%); pointer-events: none; font-size: var(--t-lg); font-weight: 700; color: var(--text-3); }
 .ep-dob-hint[hidden] { display: none; }
-.bignum-pair { display: flex; gap:12px; }
-.bignum { flex: 1; text-align: center; padding:20px 8px; border-radius: var(--r-card-sm); background: var(--surface-1); border: 1px solid transparent; box-shadow: var(--sh-card);}
+.bignum-pair { display: flex; gap:var(--s3); }
+.bignum { flex: 1; text-align: center; padding:var(--s5) var(--s2); border-radius: var(--r-card-sm); background: var(--surface-1); border: 1px solid transparent; box-shadow: var(--sh-card);}
 .bignum .bv { font-size: var(--t-3xl); font-weight: 800; letter-spacing: -0.03em; }
-.bignum .bk { font-size: var(--t-eyebrow); font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin-top:4px; }
+.bignum .bk { font-size: var(--t-eyebrow); font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin-top:var(--s1); }
 .standard-set { text-align: center; padding-top:30px; }
 .standard-set .halo {
   width: 130px; height: 130px; margin:0 auto; border-radius: 50%; display: grid; place-items: center; position: relative;
@@ -393,7 +395,7 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 /* ----- Auth / welcome ----- */
 .welcome { display: flex; flex-direction: column; min-height: 100%; text-align: center; padding-top:54px; }
 .logo-wrap {
-  width: 104px; height: 104px; margin:0 auto 24px;
+  width: 104px; height: 104px; margin:0 auto var(--s6);
   /* dual glow matches the arc's green→teal→blue sweep (founder-ratified in the mark) */
   filter: drop-shadow(0 0 34px rgba(var(--green-rgb), 0.28)) drop-shadow(0 0 60px rgba(var(--blue-rgb), 0.24));
   animation: logoIn 800ms var(--ease-out) both;
@@ -405,11 +407,11 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 .wordmark .on { color: var(--text); }
 .brandline {
   font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: 0.22em; text-transform: uppercase;
-  color: var(--text-3); margin-top:10px;
+  color: var(--text-3); margin-top:var(--s2h);
 }
-.tagline { font-size: var(--t-md); font-weight: 600; color: var(--text-2); margin-top:18px; line-height: 1.6; padding:0 12px; }
+.tagline { font-size: var(--t-md); font-weight: 600; color: var(--text-2); margin-top:var(--s4h); line-height: 1.6; padding:0 var(--s3); }
 .welcome .spacer { flex: 1; }
-.role-note { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); margin-top:14px; line-height: 1.5; }
+.role-note { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); margin-top:var(--s3h); line-height: 1.5; }
 
 /* ----- Welcome (v2) — self-contained under .wel so the sign-in / reset screens
    keep the shared .welcome/.logo-wrap/.wordmark rules above. The premium reshape:
@@ -430,13 +432,13 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 .wel {
   flex: 1 1 auto;
   display: flex; flex-direction: column; justify-content: center;
-  text-align: center; padding:28px 0 8px;
+  text-align: center; padding:28px 0 var(--s2);
 }
 .wel-hero { display: flex; flex-direction: column; align-items: center; }
 .wel-actions { margin-top:46px; }
 
 .wel-logo {
-  position: relative; width: 104px; height: 104px; margin:0 auto 16px;
+  position: relative; width: 104px; height: 104px; margin:0 auto var(--s4);
   /* subtle teal→blue ambient glow behind the mark; the rest stays near-black */
   filter: drop-shadow(0 0 24px rgba(var(--teal-rgb), 0.22)) drop-shadow(0 0 54px rgba(var(--blue-deep-rgb), 0.20));
 }
@@ -458,7 +460,7 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 .wel-mark .on { color: var(--text); }
 .wel-kicker {
   font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase;
-  color: var(--text-3); margin-top:12px;
+  color: var(--text-3); margin-top:var(--s3);
 }
 /* Headline = the three brand pillars, promoted from flat tagline to bold hero.
    The payoff line carries the score sweep — the one accent moment. */
@@ -485,7 +487,7 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 .wel .btn.primary:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 3px; }
 .wel-arrow { font-weight: 800; }
 .wel-signin {
-  margin-top:14px; width: 100%; min-height: 44px; padding:10px;
+  margin-top:var(--s3h); width: 100%; min-height: 44px; padding:var(--s2h);
   /* `gap` is load-bearing: flex discards the whitespace between the text node and <b>Sign in</b>,
      which rendered as "account?Sign in" on the very first screen of the app. */
   display: flex; align-items: center; justify-content: center; gap:0.32em;
@@ -497,8 +499,8 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 .wel-signin:active { opacity: 0.6; }
 .wel-signin:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; border-radius: var(--r-chip); }
 .wel-trust {
-  display: flex; align-items: center; justify-content: center; gap:6px;
-  margin-top:16px; font-size: var(--t-sm); font-weight: 600; color: var(--text-3);
+  display: flex; align-items: center; justify-content: center; gap:var(--s1h);
+  margin-top:var(--s4); font-size: var(--t-sm); font-weight: 600; color: var(--text-3);
 }
 .wel-trust svg { opacity: 0.85; }
 
@@ -510,10 +512,10 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 .view:has(> .si) { display: flex; flex-direction: column; min-height: 100%; }
 .si {
   flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center;
-  text-align: center; padding:40px 0;
+  text-align: center; padding:var(--s8) 0;
 }
 .si-logo {
-  position: relative; width: 60px; height: 60px; margin:0 auto 12px;
+  position: relative; width: 60px; height: 60px; margin:0 auto var(--s3);
   filter: drop-shadow(0 0 20px rgba(var(--teal-rgb), 0.22)) drop-shadow(0 0 44px rgba(var(--blue-deep-rgb), 0.20));
 }
 .si-logo::before {
@@ -522,15 +524,15 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 }
 .si-mark { font-size: 28px; font-weight: 800; letter-spacing: -0.045em; line-height: 1; color: var(--blue-bright); }
 .si-mark .on { color: var(--text); }
-.si-title { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin-top:20px; color: var(--text); }
-.si-sub { font-size: var(--t-base); font-weight: 600; color: var(--text-3); margin-top:8px; }
+.si-title { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; margin-top:var(--s5); color: var(--text); }
+.si-sub { font-size: var(--t-base); font-weight: 600; color: var(--text-3); margin-top:var(--s2); }
 
 .si-form { margin-top:28px; text-align: left; }
-.si-field + .si-field { margin-top:16px; }
-.si-label { display: block; font-size: var(--t-sm); font-weight: 700; color: var(--text-2); margin:0 0 8px 2px; }
-.si-label-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom:8px; padding:0 2px; }
+.si-field + .si-field { margin-top:var(--s4); }
+.si-label { display: block; font-size: var(--t-sm); font-weight: 700; color: var(--text-2); margin:0 0 var(--s2) 2px; }
+.si-label-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom:var(--s2); padding:0 2px; }
 .si-label-row .si-label { margin:0; }
-.si-forgot { background: none; border: none; padding:4px 2px; font-family: var(--font); font-size: var(--t-sm); font-weight: 700; color: var(--blue-bright); cursor: pointer; }
+.si-forgot { background: none; border: none; padding:var(--s1) 2px; font-family: var(--font); font-size: var(--t-sm); font-weight: 700; color: var(--blue-bright); cursor: pointer; }
 .si-wrap { position: relative; }
 .si-lead { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--text-3); pointer-events: none; display: flex; }
 .si .ob-input.si-input { padding-left:48px; }
@@ -538,9 +540,9 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 .si-eye .eye-hide { display: none; }
 .si-eye.on .eye-show { display: none; }
 .si-eye.on .eye-hide { display: flex; }
-.si-field-err { font-size: var(--t-sm); font-weight: 600; color: var(--red-bright); min-height: 15px; margin:6px 0 0 2px; }
-.si-field-hint { font-size: var(--t-sm); font-weight: 600; color: var(--amber-bright); margin:6px 0 0 2px; }
-.si-err { font-size: var(--t-sm); font-weight: 600; color: var(--red-bright); min-height: 18px; margin-top:12px; text-align: center; }
+.si-field-err { font-size: var(--t-sm); font-weight: 600; color: var(--red-bright); min-height: 15px; margin:var(--s1h) 0 0 2px; }
+.si-field-hint { font-size: var(--t-sm); font-weight: 600; color: var(--amber-bright); margin:var(--s1h) 0 0 2px; }
+.si-err { font-size: var(--t-sm); font-weight: 600; color: var(--red-bright); min-height: 18px; margin-top:var(--s3); text-align: center; }
 
 .si .btn.primary.si-cta {
   margin-top:22px;
@@ -552,12 +554,12 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 .si-cta.loading .si-arrow { display: none; }
 .si-arrow { font-weight: 800; }
 
-.si-or { display: flex; align-items: center; gap:14px; margin:18px 2px; color: var(--text-3); font-size: var(--t-sm); font-weight: 700; }
+.si-or { display: flex; align-items: center; gap:var(--s3h); margin:var(--s4h) 2px; color: var(--text-3); font-size: var(--t-sm); font-weight: 700; }
 .si-or span { flex: 1; height: 1px; background: var(--hairline); }
-.si-apple { gap:8px; }
+.si-apple { gap:var(--s2); }
 .si-apple-ic { display: flex; }
 .si-create { margin-top:30px; text-align: center; font-size: var(--t-base); font-weight: 600; color: var(--text-2); }
-.si-create .si-link { background: none; border: none; font-family: var(--font); font-size: var(--t-base); font-weight: 800; color: var(--blue-bright); cursor: pointer; padding:4px; }
+.si-create .si-link { background: none; border: none; font-family: var(--font); font-size: var(--t-base); font-weight: 800; color: var(--blue-bright); cursor: pointer; padding:var(--s1); }
 
 /* ----- Coach dashboard ----- */
 .flagdot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
@@ -583,7 +585,7 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 }
 /* 65px -> 56px. The row carries a 34px avatar over two text lines, so 14px of vertical padding
    was padding the taller of two things that were already tall enough. */
-.roster-row { display: flex; align-items: center; gap:11px; padding:10px 14px; border-bottom: 1px solid var(--hairline-soft); cursor: pointer; }
+.roster-row { display: flex; align-items: center; gap:11px; padding:var(--s2h) var(--s3h); border-bottom: 1px solid var(--hairline-soft); cursor: pointer; }
 .roster-row:last-child { border-bottom: none; }
 .roster-row .rn { flex: 1; min-width: 0; }
 .roster-row .rn .t { font-size: var(--t-md); font-weight: 800; }
@@ -594,7 +596,7 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 /* Fixed-width right cluster. The sparkline used to sit as a free flex child, so it stole width
    from .rn — which is why ONLY the rows that had a line ellipsised mid-word. Grouping the line,
    the score and the style pill means .rn deterministically gets the remainder. */
-.roster-row .rr { flex: none; display: flex; align-items: center; gap:6px; }
+.roster-row .rr { flex: none; display: flex; align-items: center; gap:var(--s1h); }
 /* min-width, not width: a 3-digit score overflowed a hard 34px box. */
 /* The roster is a wall of scores, so they get the score face too — it is what makes a column of
    numbers scannable as scores rather than as a table of figures. */
@@ -607,24 +609,24 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 /* honest delivery status line in threads */
 .msg-status {
   align-self: center; font-size: var(--t-xs); font-weight: 700; color: var(--text-3);
-  padding:6px 12px; border-radius: var(--r-pill); background: var(--surface-1);
+  padding:var(--s1h) var(--s3); border-radius: var(--r-pill); background: var(--surface-1);
   border: 1px solid var(--hairline-soft); margin-top:2px;
 }
 
 /* ----- Finish Today v2 ----- */
-.finish-segs { display: flex; gap:6px; margin:2px 0 14px; }
+.finish-segs { display: flex; gap:var(--s1h); margin:2px 0 var(--s3h); }
 .finish-segs .fseg { flex: 1; height: 6px; border-radius: var(--r-micro); background: var(--surface-3); }
 .finish-segs .fseg.on { background: linear-gradient(90deg, var(--green-deep), var(--green)); box-shadow: 0 0 10px rgba(var(--green-rgb), 0.3); }
-.finish-score-line { display: flex; align-items: center; gap:12px; }
+.finish-score-line { display: flex; align-items: center; gap:var(--s3); }
 .finish-score-line .fs-now { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; }
 .finish-score-line .fs-goal { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; color: var(--green-bright); }
 .fs-bridge { flex: 1; }
 .fs-track { height: 7px; border-radius: var(--r-micro); background: var(--surface-3); overflow: hidden; }
 .fs-fill { height: 100%; border-radius: var(--r-micro); background: linear-gradient(90deg, var(--blue), var(--green)); }
-.fs-note { display: block; text-align: center; font-size: var(--t-micro); font-weight: 700; color: var(--text-3); margin-top:6px; }
-.finish-moves { margin-top:14px; display: flex; flex-direction: column; gap:8px; }
+.fs-note { display: block; text-align: center; font-size: var(--t-micro); font-weight: 700; color: var(--text-3); margin-top:var(--s1h); }
+.finish-moves { margin-top:var(--s3h); display: flex; flex-direction: column; gap:var(--s2); }
 .fmove {
-  display: flex; align-items: center; gap:12px; padding:12px 12px; border-radius: var(--r-card-sm);
+  display: flex; align-items: center; gap:var(--s3); padding:var(--s3) var(--s3); border-radius: var(--r-card-sm);
   background: var(--surface-2); border: 1px solid var(--hairline-soft); cursor: pointer;
   transition: transform var(--dur-1) var(--ease-out);
 }
@@ -634,13 +636,13 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 .fmove .fm-v { font-size: var(--t-md); font-weight: 800; color: var(--green-bright); }
 
 /* ----- Trust Pass day dots ----- */
-.pass-days { display: flex; gap:6px; margin-top:4px; }
+.pass-days { display: flex; gap:var(--s1h); margin-top:var(--s1); }
 .pass-days .pd { flex: 1; height: 26px; border-radius: var(--r-chip); display: grid; place-items: center; font-size: var(--t-micro); font-weight: 800; background: var(--surface-3); color: var(--text-3); }
 .pass-days .pd.done { background: rgba(var(--purple-rgb), 0.25); color: var(--purple-bright); }
 .pass-days .pd.check { border: 1.5px dashed var(--amber-border); color: var(--amber-bright); background: rgba(var(--amber-rgb), 0.08); }
 
 /* ----- Plan phase progress ----- */
-.phase-bar { display: flex; gap:6px; margin-top:10px; }
+.phase-bar { display: flex; gap:var(--s1h); margin-top:var(--s2h); }
 .phase-bar .pb { flex: 1; height: 5px; border-radius: var(--r-micro); background: var(--surface-3); }
 .phase-bar .pb.on { background: linear-gradient(90deg, var(--green), var(--blue)); }
 
@@ -652,22 +654,22 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
    falling from the top, and the icon in a ringed circular vessel instead of a grey box. */
 .state-demo {
   border: 1px solid var(--hairline); border-radius: var(--r-card);
-  padding:32px 22px 26px; text-align: center; margin-bottom:14px;
+  padding:var(--s7) 22px 26px; text-align: center; margin-bottom:var(--s3h);
   background: radial-gradient(120% 70% at 50% 0%, rgba(var(--blue-rgb), 0.07), transparent 60%), var(--surface-1);
   box-shadow: var(--sh-card);
 }
 .state-demo .sd-ic {
-  width: 68px; height: 68px; border-radius: 50%; margin:0 auto 16px;
+  width: 68px; height: 68px; border-radius: 50%; margin:0 auto var(--s4);
   display: grid; place-items: center; position: relative;
   background: var(--blue-surface); color: var(--blue-bright);
 }
 .state-demo .sd-ic::after { content: ''; position: absolute; inset: -7px; border-radius: 50%; border: 1px solid var(--blue-border); opacity: 0.5; }
 .state-demo .sd-t { font-size: var(--t-lg); font-weight: 800; letter-spacing: var(--title-tight); }
-.state-demo .sd-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:8px; line-height: 1.5; max-width: 34ch; margin-left:auto; margin-right:auto; }
-.state-demo .sd-cta { margin-top:16px; }
+.state-demo .sd-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:var(--s2); line-height: 1.5; max-width: 34ch; margin-left:auto; margin-right:auto; }
+.state-demo .sd-cta { margin-top:var(--s4); }
 /* A screen-level CTA directly above a state box (Training, Progress photos) needs air between
    the two; without it the button sits flush on the card and reads as its header. */
-.btn + .state-demo { margin-top: 12px; }
+.btn + .state-demo { margin-top: var(--s3); }
 /* Arrival: the vessel settles, the halo blooms after it, the words follow — the same one-shot
    ceremony a populated list gets from rowIn, because "genuinely empty" is a loaded answer, not
    a missing one. Gated on .view.enter exactly like every other entrance (the router only stamps
@@ -687,9 +689,9 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 .err-box .sd-ic::after { border-color: var(--red-border); }
 
 /* ---------- Premium role picker (full-width rows, rich copy, tap affordance) ---------- */
-.role-list { display: flex; flex-direction: column; gap:12px; }
+.role-list { display: flex; flex-direction: column; gap:var(--s3); }
 .role-card {
-  display: flex; align-items: center; gap:14px; padding:16px 16px;
+  display: flex; align-items: center; gap:var(--s3h); padding:var(--s4) var(--s4);
   border-radius: var(--r-card); background: var(--surface-1); border: 1px solid var(--hairline);
   box-shadow: var(--sh-card); cursor: pointer; position: relative; overflow: hidden;
   transition: transform var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
@@ -704,13 +706,13 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 .role-ic { width: 46px; height: 46px; border-radius: var(--r-card-sm); display: grid; place-items: center; flex: 0 0 auto; }
 .role-tt { flex: 1; min-width: 0; }
 .role-t { font-size: var(--t-lg); font-weight: 800; letter-spacing: var(--title-tight); line-height: 1.1; }
-.role-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:4px; line-height: 1.4; }
+.role-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:var(--s1); line-height: 1.4; }
 .role-chev { color: var(--text-3); flex: 0 0 auto; display: grid; place-items: center; }
 
 /* Tour Back (tour.js): a fumbled tap used to burn a step forever; Back mirrors Skip's weight so
    the exits stay the loud controls. Next keeps the right edge. */
 .tour-back {
-  border: none; background: none; cursor: pointer; padding: 6px 2px;
+  border: none; background: none; cursor: pointer; padding: var(--s1h) 2px;
   font-family: var(--font); font-size: var(--t-sm); font-weight: 700; color: var(--text-3);
 }
 .tour-back:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
