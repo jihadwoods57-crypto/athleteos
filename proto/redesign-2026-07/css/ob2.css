@@ -46,7 +46,7 @@
   text-transform: uppercase; color: var(--text-3); margin-bottom:var(--s3h); }
 /* .h-title is an <h2> (2026-09-01): it's the chapter's real heading; .h-eyebrow above it is a
    kicker, not a heading, and stays a div. */
-.ob2-hero .h-title { font-size: var(--t-3xl); font-weight: 800; letter-spacing: -0.035em; line-height: 1.14; }
+.ob2-hero .h-title { margin: 0.83em 0; font-size: var(--t-3xl); font-weight: 800; letter-spacing: -0.035em; line-height: 1.14; }
 /* Solid accent, not a sweep. See the note on .wel-head .accent in flows.css. */
 .ob2-hero .h-title .accent { color: var(--blue-bright); }
 :root[data-theme="light"] .ob2-hero .h-title .accent { color: var(--blue-deep); }

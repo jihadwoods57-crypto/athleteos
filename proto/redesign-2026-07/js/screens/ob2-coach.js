@@ -99,7 +99,7 @@ const steps = [
     body: () => `
       <div class="ob2-hero">
         <div class="h-eyebrow">For coaches</div>
-        <h2 class="h-title">You set the standard. <span class="accent">Can you see who meets it?</span></h2>
+        <h1 class="h-title">You set the standard. <span class="accent">Can you see who meets it?</span></h1>
         <div class="h-body">Practice shows you effort. The depth chart shows you outcomes. What happens between the two (meals, sleep, recovery) you mostly take on faith.</div>
       </div>`,
   },
@@ -108,7 +108,7 @@ const steps = [
     body: () => `
       <div class="ob2-hero">
         <div class="h-eyebrow">The monitoring math</div>
-        <h2 class="h-title">The standard you can’t see <span class="accent">slips first.</span></h2>
+        <h1 class="h-title">The standard you can’t see <span class="accent">slips first.</span></h1>
         <div class="h-body">A roster of athletes, each with daily non-negotiables, seven days a week: that’s hundreds of individual actions no staff can check by hand. So nobody does, and you find out on the scale, in the film, in February.</div>
         <div class="h-note">In a minute we’ll run your program’s exact number.</div>
       </div>`,
@@ -118,7 +118,7 @@ const steps = [
     body: () => `
       <div class="ob2-hero">
         <div class="h-eyebrow">The OnStandard answer</div>
-        <h2 class="h-title">One score per athlete. <span class="accent">Readable in five seconds.</span></h2>
+        <h1 class="h-title">One score per athlete. <span class="accent">Readable in five seconds.</span></h1>
         <div class="h-body">Your standard becomes daily requirements with proof: photos, check-ins, the scale. Every athlete carries one Daily Score built from what they actually did, and your board shows all of them at once.</div>
       </div>`,
   },

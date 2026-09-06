@@ -31,7 +31,7 @@ const nmEsc = (o) => esc(nm(o));
 const hero = (eyebrow, title, body, note = '') => `
   <div class="ob2-hero">
     <div class="h-eyebrow">${eyebrow}</div>
-    <h2 class="h-title">${title}</h2>
+    <h1 class="h-title">${title}</h1>
     <div class="h-body">${body}</div>
     ${note ? `<div class="h-note">${note}</div>` : ''}
   </div>`;
