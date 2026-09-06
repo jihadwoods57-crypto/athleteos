@@ -26,10 +26,16 @@ unanswered), or one PC sitting: publish the stacked OTA, deploy the edge functio
 deploy the site, apply 0210 + 0214 + 0219. Sessions: recommend in one line, cite the
 streak, never re-diagnose.
 
-### 2 · product · finish the Intuitive red line  (impact 4, effort m)
-PRODUCT.md names the remaining calorie leaks after 09-05's closure: typed label entry,
-the Food Memory edit sheet, and Guided-by-design. Same discipline as 09-05: gate
-presentation only, numbers still computed/stored/sent, before/after proof both ways.
+### 2 · product · finish the Intuitive red line — DONE 09-06 (8 AM build)
+All stored-number readbacks closed, per-figure, pinned by intuitive-surface.test.mjs:
+the Food Memory edit sheet, Plan's suggestion card, the goal panel's derived row, and
+the past-meal view (trust.js — the audit's twin-screen gotcha struck again). Typed
+label entry and a NEW manual memory item keep their fields (transcription, the allowed
+fallback); Guided's tiles are that style's design. For the 1 PM audit: attack the four
+gates, the memory-edit save pass-through, and the vanished-item guard. For 7 PM polish:
+the goal panel's strategy line still says "calorie target below maintenance" to
+Intuitive athletes; the styleIntuitive QC seed writes its sample AI thread message in a
+numbers voice.
 
 ### 3 · spec · M4 — the parent "fueling consistency" view, spec FIRST  (impact 4, effort m)
 The scout's realest product finding no rival owns: under-fueling is the parent
@@ -79,11 +85,10 @@ If M2's team SKU happens, a "fueling check-in" for team meals is the natural swe
 alone it's not worth a sitting. Noted so October doesn't rediscover it.
 
 ## Parked with evidence (from the 2026-09-05 audit)
-- **Digest lands Tuesday east of UTC+7**: 0218 schedules `0 * * * 1` (UTC Monday only);
-  fix is a migration widening the cron — parked, no DB credentials.
-- **Team-standard pushes ignore quiet hours and opt-out**: connected-standards-tick
-  checks neither (quiet prefs are client-side only). Needs a synced quiet-hours column +
-  function check. Settings copy already scoped to the truth.
+- **Digest timing + quiet hours: the founder landed both from his PC 09-06 morning**
+  (c831c69, migrations 0220 + 0221). Unaudited founder code — the 1 PM session's first
+  duty; also confirm from the PC that the migrations were APPLIED to live, not just
+  committed.
 - **Safe-area bleed above the stuck glass header on notched phones**: needs a real
   device to tune — do not fix blind from the cloud.
 - **Latent, low**: long-press tapback surviving into an edge-swipe; duplicate DOM ids in
@@ -93,7 +98,7 @@ alone it's not worth a sitting. Noted so October doesn't rediscover it.
 
 ## Notes for tomorrow's sessions
 - **Credential streak (update in place, don't re-diagnose):** EXPO_TOKEN invalid
-  ("bearer token is invalid") — 12 sessions through 09-06 (second sentry). No Supabase creds, no Stripe
+  ("bearer token is invalid") — 13 sessions through 09-06 (8 AM build). No Supabase creds, no Stripe
   key, no Cloudflare token in the cloud env. One cheap check, cite this line, move on.
 - Fresh sandboxes need `npm install` before `npm run verify` — 4 gates fail on missing
   deps otherwise and it looks like real breakage. Verify prints **14 gates** as of 09-06
