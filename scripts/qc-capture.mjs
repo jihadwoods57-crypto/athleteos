@@ -163,6 +163,24 @@ const SHOTS = [
   { g: 'coach', name: 'coach-meal', seed: 'coachIdentity', route: 'coach-meal/meal-seed-lunch', at: [20, 10], book: 'team' },
   { g: 'coach', name: 'coach-insights', seed: 'coachIdentity', route: 'coach-insights', at: [20, 10], book: 'team' },
   { g: 'coach', name: 'coach-create', seed: 'coachIdentity', route: 'coach-create', at: [20, 10], book: 'team' },
+  { g: 'coach', name: 'coach-assign', seed: 'coachIdentity', route: 'coach-assign', at: [20, 10], book: 'team' },
+  // The audience picker open with two people ticked, a quick title tapped in, the preview live.
+  { g: 'coach', name: 'coach-assign-pick', seed: 'coachIdentity', route: 'coach-assign', at: [20, 10], book: 'team',
+    act: `const c = (q) => { const el = document.querySelector(q); if (el) el.click(); };
+      c('[data-aud="athletes"]'); await new Promise((r) => setTimeout(r, 150));
+      const rows = document.querySelectorAll('[data-aud-id]'); if (rows[0]) rows[0].click(); if (rows[2]) rows[2].click();
+      c('[data-sugg]');` },
+  // The sent state: two people picked, a quick title, Send tapped, the stub answers the fan-out.
+  { g: 'coach', name: 'coach-assign-sent', seed: 'coachIdentity', route: 'coach-assign', at: [20, 10], book: 'team',
+    act: `const c = (q) => { const el = document.querySelector(q); if (el) el.click(); };
+      c('[data-aud="athletes"]'); await new Promise((r) => setTimeout(r, 150));
+      const rows = document.querySelectorAll('[data-aud-id]'); if (rows[0]) rows[0].click(); if (rows[2]) rows[2].click();
+      c('[data-sugg]'); await new Promise((r) => setTimeout(r, 100)); c('#as-send');`, actMs: 1500 },
+  // Roster Select mode with two ticked: the bulk bar now reads Assign 2.
+  { g: 'coach', name: 'coach-roster-select', seed: 'coachIdentity', route: 'coach-roster', at: [20, 10], book: 'team',
+    act: `document.querySelector('[data-selmode]').click(); await new Promise((r) => setTimeout(r, 400));
+      const rows = document.querySelectorAll('[data-sel]'); if (rows[0]) rows[0].click(); await new Promise((r) => setTimeout(r, 300)); if (rows[3]) rows[3].click();` },
+  { g: 'trainer', name: 'trainer-assign', seed: 'trainerIdentity', route: 'coach-assign', at: [7, 30], book: 'practice' },
   { g: 'coach', name: 'coach-announce', seed: 'coachIdentity', route: 'coach-announce', at: [20, 10], book: 'team' },
   { g: 'coach', name: 'coach-rooms', seed: 'coachIdentity', route: 'coach-rooms', at: [20, 10], book: 'team' },
   { g: 'coach', name: 'coach-commitments', seed: 'coachIdentity', route: 'coach-commitments', at: [6, 5], book: 'team' },
@@ -399,6 +417,9 @@ try {
             await evalJs(page, setTheme(theme));
             await evalJs(page, `(() => { location.hash = '#${s.route}'; return 1; })()`);
             await sleep(/^(coach|trainer|parent|copilot)/.test(s.route) ? 2600 : 1400);
+            // `act` drives the screen after it settles: a JS snippet run in-page (tap a chip, open a
+            // picker, tick rows), so a state that only exists after interaction gets a still too.
+            if (s.act) { await evalJs(page, `(async () => { ${s.act} return 1; })()`); await sleep(s.actMs || 700); }
             // Shots start at the top unless asked otherwise. --scroll-to lets a run frame a
             // section that lives below the fold (the meal thread, a long settings list) without
             // hand-driving a browser — the audit still runs on the whole document either way.

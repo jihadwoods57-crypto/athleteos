@@ -167,6 +167,10 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
   const RPCS = {
     team_roster: () => ROSTER,
     practice_roster: () => ROSTER,
+    // assign_requirement returns the fan-out COUNT (an int, not rows). The catch-all [] below
+    // would read as zero matched and the composer would refuse to show its sent state.
+    assign_requirement: (p) => p && p.p_scope_kind === 'team' ? ROSTER.length : p && p.p_scope_kind === 'position' ? ROSTER.filter(r => String(r.position || '').toUpperCase() === String(p.p_scope_value || '').toUpperCase()).length : 1,
+    assign_practice_requirement: (p) => p && p.p_scope_kind === 'team' ? ROSTER.length : 1,
     // 0214: the roster meals read tries this RPC before the chunked .in() reads. The catch-all
     // "unknown rpc answers { data: [] }" below the RPCS table would read as a SUCCESSFUL empty
     // feed and blank the nutrition board in every capture, so model the real server: same rows,

@@ -301,6 +301,8 @@ function updateBulkCounts(root) {
   const n = SEL.size;
   const nudge = root.querySelector('[data-bulk="nudge"]');
   if (nudge) nudge.textContent = `Nudge ${n}`;
+  const assign = root.querySelector('[data-bulk="assign"]');
+  if (assign) assign.textContent = `Assign ${n}`;
   const send = root.querySelector('[data-bulk="nudgesend"]');
   if (send) send.textContent = `Send to ${n}`;
   const note = root.querySelector('#bulk-nudge-note');
@@ -380,7 +382,7 @@ export const coachRoster = {
     </div>` : `
     <div class="card" style="position:sticky;bottom:calc(var(--tab-clear) + 8px);display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:9px;z-index:20">
       <button class="btn sm" data-bulk="nudge" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">Nudge ${SEL.size}</button>
-      ${CD.caps.assignments ? `<button class="btn ghost sm" data-bulk="assign" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">Assign</button>` : ''}
+      ${CD.caps.assignments ? `<button class="btn ghost sm" data-bulk="assign" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">Assign ${SEL.size}</button>` : ''}
       ${CD.caps.groups ? `<button class="btn ghost sm" data-bulk="group" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">→ Group</button>` : ''}
       ${CD.caps.exceptions ? `<button class="btn ghost sm" data-bulk="absence" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">Excuse</button>` : ''}
     </div>`) : ''}
@@ -476,12 +478,11 @@ export const coachRoster = {
         if (!failedAll) { SEL.clear(); SELECTING = false; }
         window.__render();
       } else if (kind === 'assign') {
-        // The composer targets team/room scope or ONE athlete (coach-assign/<id>); per-athlete
-        // multi-target lands with Create (slice C). Until then the selection is never silently
-        // dropped: one selected deep-links to them, more than one says so honestly.
-        if (ids.length === 1) { window.__go('coach-assign/' + ids[0]); return; }
-        BULK_STATUS = `Assign targets one ${CD.noun} at a time for now. Keep one selected, or assign to everyone from Create.`;
-        window.__render();
+        // The composer's audience picker takes the whole selection now (js/audience.js): one
+        // person deep-links as before, and any number lands there with every name still ticked.
+        const { presetAssignAudience } = await import('./coach.js');
+        presetAssignAudience(ids);
+        window.__go(ids.length === 1 ? 'coach-assign/' + ids[0] : 'coach-assign');
       } else if (kind === 'group') {
         SHOW_GROUPS = true; window.__render();
       } else if (kind === 'absence') {

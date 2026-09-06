@@ -14,7 +14,7 @@ import { ROLLCALL_OFF } from '../commitments.js';
    actually works against it — never a button that would write a practice id into a team-owned
    table and fail silently. `cap: null` means "no book capability required". */
 const OPTIONS = [
-  { key: 'assign',          cap: 'assignments',    icon: 'clipboard', title: 'Assign a one-off task', sub: 'Team, room, group, or one athlete', go: 'coach-assign' },
+  { key: 'assign',          cap: 'assignments',    icon: 'clipboard', title: 'Assign a one-off task', sub: 'Team, room, group, or the people you pick', go: 'coach-assign' },
   { key: 'announce',        cap: 'announcements',  icon: 'share',     title: 'Send an announcement',  sub: 'Feed + push to the room you pick',  go: 'coach-announce' },
   { key: 'message_athlete', cap: null,             icon: 'message',   title: 'Message an athlete',    sub: 'Pick from the roster',              go: 'coach-roster' },
   { key: 'message_group',   cap: 'announcements',  icon: 'users',     title: 'Message a group',       sub: 'Announce to a custom group',        go: 'coach-announce' },
@@ -44,7 +44,7 @@ const TRAINER_GO = { message_athlete: 'trainer-roster', add_athlete: 'trainer-pr
 const TRAINER_SUB = {
   add_athlete: 'Share your practice code',
   message_athlete: 'Pick from your clients',
-  assign: 'All clients, or just one',
+  assign: 'All clients, or the ones you pick',
   standards: 'Meals, windows, and check-ins',
 };
 /* The option TITLES leaked "athlete" to a practice even with the sub-copy overridden. */

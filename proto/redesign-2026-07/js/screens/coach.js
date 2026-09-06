@@ -15,8 +15,9 @@ import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpen
 } from '../chat-view.js';
 import { openImageViewer } from '../image-viewer.js';
 import { wireTapback } from '../tapback.js';
-import { CD, loadBook, bookKindFor, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor, localClock, logBookIntervention, resolvePos } from '../coach-data.js';
+import { CD, loadBook, bookKindFor, bookId as currentBookId, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor, localClock, logBookIntervention, resolvePos } from '../coach-data.js';
 import { STATUS_META } from '../status.js';
+import { everyone, people, audienceIds, audienceLabel, planSends, namesSummary, audienceHtml, wireAudience } from '../audience.js';
 import { CATALOG, PROOF, resolveRequirementSet, catalogFromItems, freqLabel, stdFromItems, fmtMin, planStyleFromItems } from '../requirements.js';
 import { STYLE_KEYS, styleLabel, knobsFor, resolveStyleKey } from '../plan-style.js';
 import { dayFromHistoryRow, minutesNow, MEAL_KEYS } from '../day.js';
@@ -44,10 +45,13 @@ export { loadCoachRoster };
 // which is exactly the drift the one-ladder rule exists to prevent.
 
 /* ---------- Coach assign flow — the + button (0055 requirements engine) ----------
-   Who (team / position room / one athlete) → what (title) → proof → due → note → send.
-   The assign_requirement RPC fans out one row per athlete and notifies each; failures
-   (offline, migration not yet applied to live) surface the server's message honestly. */
-const ASSIGN = { scopeKind: 'team', scopeValue: null, proof: 'check', due: 'tonight' };
+   Who → what → proof → due → note → how it lands → send.
+   Who is the shared audience picker (js/audience.js): everyone, a room, a saved group, or the
+   people the coach picks by name — the roster's Select → Assign lands here with the selection
+   intact (presetAssignAudience). assign_requirement knows team / room / ONE athlete, so a group
+   or a hand-picked set fans out one call per person and the result is reported per person.
+   Every tap patches in place; nothing on this screen calls window.__render() on a selection. */
+const ASSIGN = { aud: everyone(), title: '', note: '', proof: 'check', due: 'tonight', done: null };
 const DUE_CHOICES = {
   tonight:  { label: 'Tonight · 9 PM',   at: () => { const d = new Date(); d.setHours(21, 0, 0, 0); return d; } },
   tomorrow: { label: 'Tomorrow · 9 PM',  at: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(21, 0, 0, 0); return d; } },
@@ -56,47 +60,93 @@ const DUE_CHOICES = {
 const PROOF_CHOICES = [
   ['photo', 'camera', 'Photo'], ['check', 'check', 'Check'], ['scale', 'scale', 'Scale'], ['form', 'clipboard', 'Form'],
 ];
+const PROOF_WORD = { photo: 'Photo proof', check: 'One tap to confirm', scale: 'Weigh-in', form: 'Short form' };
+/* Quick titles. A coach on the sideline should not have to compose; a dietitian's list is about
+   the plate. Each carries the proof that fits it, so one tap sets both. */
+const ASSIGN_SUGGEST = {
+  team: [
+    ['Extra shake after lift', 'photo'], ['Foam roll 10 min', 'check'], ['Hydrate: a gallon today', 'check'],
+    ['Stretch before bed', 'check'], ['Weigh in before practice', 'scale'],
+  ],
+  nutrition: [
+    ['Protein at every meal today', 'photo'], ['Log dinner before 8 PM', 'photo'], ['Hit your water goal', 'check'],
+    ['Weigh in tomorrow morning', 'scale'], ['Add a vegetable to lunch', 'photo'],
+  ],
+};
+
+/** Roster Select → Assign: carry the selection into the composer, then navigate. */
+export function presetAssignAudience(ids) {
+  ASSIGN.aud = people(ids);
+  ASSIGN.done = null;
+}
+
+function assignLabel(rows, groups) {
+  const practice = CD.kind === 'practice';
+  return audienceLabel(ASSIGN.aud, rows, groups, { noun: CD.noun, nouns: CD.nouns, everyoneWord: practice ? 'all clients' : 'the whole team' });
+}
+
+function assignPreviewHtml(rows, groups) {
+  const title = (ASSIGN.title || '').trim();
+  const due = DUE_CHOICES[ASSIGN.due] || DUE_CHOICES.none;
+  const proof = PROOF_CHOICES.find((p) => p[0] === ASSIGN.proof) || PROOF_CHOICES[1];
+  const note = (ASSIGN.note || '').trim();
+  const n = audienceIds(ASSIGN.aud, rows, groups).length;
+  return `<div class="lic">${icon(proof[1], 17)}</div>
+    <div class="lm">
+      <div class="pv-t ${title ? '' : 'empty'}">${title ? esc(title) : 'Your task shows up here'}</div>
+      <div class="pv-s">${ASSIGN.due === 'none' ? 'No deadline' : `Due ${esc(due.label.replace(' · ', ' '))}`} · ${PROOF_WORD[ASSIGN.proof] || 'One tap to confirm'}</div>
+      ${note ? `<div class="pv-n">${esc(note)}</div>` : ''}
+      <div class="pv-from">From ${esc(S.operatorIdentity.handle)} · on ${n === 1 ? 'their list' : `${n} lists`}, with a push each</div>
+    </div>`;
+}
 
 export const coachAssign = {
   nav: 'operator', tab: 'create',
   render({ sub } = {}) {
-    // deep-link: coach-assign/<athleteId> pre-targets one athlete (from the athlete screen)
     const rows = CD.roster ? CD.roster.rows : [];
+    const groups = (CD.extras && CD.extras.groups) || [];
     const practice = CD.kind === 'practice';
-    if (sub && ASSIGN.scopeKind !== 'athlete') { ASSIGN.scopeKind = 'athlete'; ASSIGN.scopeValue = sub; }
+    // deep-link: coach-assign/<athleteId> pre-targets one athlete (from the athlete screen)
+    if (sub && !(ASSIGN.aud.kind === 'athletes' && ASSIGN.aud.ids.length === 1 && ASSIGN.aud.ids[0] === sub)) { ASSIGN.aud = people([sub]); ASSIGN.done = null; }
     // A practice roster carries no position (practice_roster hardcodes it null) and
-    // assign_practice_requirement refuses position scope outright — so a stale 'position'
-    // selection carried over from a coach session must fall back to the whole book.
-    if (practice && ASSIGN.scopeKind === 'position') { ASSIGN.scopeKind = 'team'; ASSIGN.scopeValue = null; }
-    const positions = practice ? [] : [...new Set(rows.map(r => (r.unit || '').trim().toUpperCase()).filter(Boolean))];
-    const target = ASSIGN.scopeKind === 'athlete' ? rows.find(r => r.athleteId === ASSIGN.scopeValue) : null;
-    const everyone = practice ? 'All clients' : 'Whole team';
-    // role="radio" + aria-checked from the same `on` flag the paint uses: the screen re-renders
-    // on every selection, so the state can never drift. tabindex makes the chips reachable; the
-    // router's document-level Enter/Space net presses them (router.js).
+    // assign_practice_requirement refuses position scope outright — so a stale room selection
+    // carried over from a coach session must fall back to the whole book. Groups are a team
+    // feature too.
+    if (practice && (ASSIGN.aud.kind === 'position' || ASSIGN.aud.kind === 'group')) ASSIGN.aud = everyone();
+    const head = backHead('Assign', practice ? 'Put something on a client’s plate' : 'Put something on someone’s plate', practice ? 'trainer' : 'coach-home');
+
+    if (ASSIGN.done) {
+      const d = ASSIGN.done;
+      const who = d.names ? esc(d.names) : esc(d.label);
+      return `${head}
+      <section class="card as-done" role="status">
+        <div class="ic">${icon(d.failed ? 'alert' : 'check', 24)}</div>
+        <div class="t">${d.sent ? `Sent to ${d.sent}` : 'Nothing sent'}</div>
+        <div class="s">${d.sent ? `“${esc(d.title)}” is on ${d.sent === 1 ? 'their list' : 'their lists'} now, with a push each. ${who}.` : ''}</div>
+        ${d.failed ? `<div class="s warn">${d.sent ? `Couldn’t reach ${esc(d.failedNames || `${d.failed} ${d.failed === 1 ? CD.noun : CD.nouns}`)}. Nothing was sent to them.` : esc(d.error || 'Could not send. Try again.')}</div>` : ''}
+        <div class="acts">
+          <button class="btn primary sm" id="as-again">${d.failed && !d.sent ? 'Try again' : 'Assign another'}</button>
+          <button class="btn ghost sm" data-go="${practice ? 'trainer-roster' : 'coach-roster'}">Back to the ${practice ? 'clients' : 'roster'}</button>
+        </div>
+      </section>`;
+    }
+
     const chip = (on, label, act, arg) =>
       `<span class="chip ${on ? 'on' : ''}" role="radio" aria-checked="${on ? 'true' : 'false'}" tabindex="0" data-assign="${act}${arg != null ? ':' + esc(String(arg)) : ''}">${label}</span>`;
+    const suggestions = ASSIGN_SUGGEST[isNutritionBook() ? 'nutrition' : 'team'];
+    const n = audienceIds(ASSIGN.aud, rows, groups).length;
     return `
-    ${backHead('Assign', 'Put something on someone’s plate', practice ? 'trainer' : 'coach-home')}
+    ${head}
 
     <h2 class="eyebrow">Who</h2>
-    <div class="chip-row" id="as-who" role="radiogroup" aria-label="Who">
-      ${chip(ASSIGN.scopeKind === 'team', `${everyone}${rows.length ? ` · ${rows.length}` : ''}`, 'team')}
-      ${positions.map(p => {
-        const n = rows.filter(r => (r.unit || '').trim().toUpperCase() === p).length;
-        return chip(ASSIGN.scopeKind === 'position' && ASSIGN.scopeValue === p, `${esc(p)} room · ${n}`, 'position', p);
-      }).join('')}
-    </div>
-    ${rows.length ? `
-    <div class="chip-row" id="as-ath" role="radiogroup" aria-label="One athlete" style="margin-top:6px">
-      ${/* Every athlete, not the first 12: the chip row wraps (flows.css), and a truncated
-            picker silently made the back half of a roster unassignable from here. */''}
-      ${rows.map(r => chip(ASSIGN.scopeKind === 'athlete' && ASSIGN.scopeValue === r.athleteId, esc(r.name.split(' ')[0] || r.name), 'athlete', r.athleteId)).join('')}
-    </div>` : `
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:2px 2px 0">${practice ? 'Clients loading… everyone works right away.' : 'Roster loading… team-wide works right away.'}</div>`}
+    ${audienceHtml(ASSIGN.aud, { rows, groups, practice, nouns: CD.nouns })}
+    ${rows.length ? '' : `<div class="ts mt">${practice ? 'Clients loading… everyone works right away.' : 'Roster loading… team-wide works right away.'}</div>`}
 
     <h2 class="eyebrow" id="as-title-l">What</h2>
-    <input id="as-title" class="ob-input" aria-labelledby="as-title-l" maxlength="80" placeholder="e.g. Extra shake after lift" value="${esc(ASSIGN.title || '')}" />
+    <input id="as-title" class="ob-input" aria-labelledby="as-title-l" maxlength="80" placeholder="What are they doing?" value="${esc(ASSIGN.title || '')}" />
+    <div class="chip-row as-sugg" aria-label="Quick titles">
+      ${suggestions.map(([t, p]) => `<span class="chip ${(ASSIGN.title || '').trim() === t ? 'on' : ''}" role="button" tabindex="0" aria-pressed="${(ASSIGN.title || '').trim() === t ? 'true' : 'false'}" data-sugg="${esc(t)}" data-sugg-proof="${p}">${esc(t)}</span>`).join('')}
+    </div>
 
     <h2 class="eyebrow">Proof</h2>
     <div class="chip-row" id="as-proof" role="radiogroup" aria-label="Proof">
@@ -108,58 +158,109 @@ export const coachAssign = {
       ${Object.entries(DUE_CHOICES).map(([id, d]) => chip(ASSIGN.due === id, d.label, 'due', id)).join('')}
     </div>
 
-    <h2 class="eyebrow" id="as-note-l">Note · optional</h2>
+    <h2 class="eyebrow" id="as-note-l">Note <span class="opt">· optional</span></h2>
     <input id="as-note" class="ob-input" aria-labelledby="as-note-l" maxlength="280" placeholder="Why it matters (they see this)" value="${esc(ASSIGN.note || '')}" />
 
-    <div style="height:16px"></div>
-    <button class="btn" id="as-send">${icon('plus', 18)} ${target ? `Send to ${esc(target.name)}` : ASSIGN.scopeKind === 'position' ? `Send to the ${esc(ASSIGN.scopeValue || '')} room` : 'Send to the whole team'}</button>
-    <div id="as-status" style="text-align:center;font-size:12.5px;font-weight:600;color:var(--text-3);min-height:18px;margin-top:8px"></div>
+    <h2 class="eyebrow">How it lands</h2>
+    <section class="card as-preview" id="as-preview" aria-live="polite">${assignPreviewHtml(rows, groups)}</section>
+
+    <div class="as-send">
+      <button class="btn primary" id="as-send" ${n ? '' : 'disabled'}>${icon('plus', 18)} <span id="as-send-l">${n ? `Send to ${esc(assignLabel(rows, groups))}` : `Pick who gets it`}</span></button>
+      <div class="st" id="as-status"></div>
+    </div>
     <div style="height:10px"></div>
     `;
   },
   mount(root) {
     loadBook(false, bookKindFor(RT.authRole));
+    const rows = CD.roster ? CD.roster.rows : [];
+    const groups = (CD.extras && CD.extras.groups) || [];
     const say = (msg, isErr) => {
       const el = root.querySelector('#as-status');
       if (el) sayStatus(el, msg, { error: !!isErr });
     };
-    const keep = () => {
-      ASSIGN.title = (root.querySelector('#as-title') || {}).value || '';
-      ASSIGN.note = (root.querySelector('#as-note') || {}).value || '';
+    const again = root.querySelector('#as-again');
+    if (again) { again.addEventListener('click', () => { ASSIGN.done = null; window.__render(); }); return; }
+
+    const preview = () => { const el = root.querySelector('#as-preview'); if (el) el.innerHTML = assignPreviewHtml(rows, groups); };
+    const sendBtn = root.querySelector('#as-send');
+    const sendLabel = () => {
+      const n = audienceIds(ASSIGN.aud, rows, groups).length;
+      const l = root.querySelector('#as-send-l');
+      if (l) l.textContent = n ? `Send to ${assignLabel(rows, groups)}` : 'Pick who gets it';
+      if (sendBtn) sendBtn.disabled = !n;
+      preview();
     };
-    root.querySelectorAll('[data-assign]').forEach(el => el.addEventListener('click', () => {
-      keep();
-      const [act, arg] = el.getAttribute('data-assign').split(':');
-      if (act === 'team') { ASSIGN.scopeKind = 'team'; ASSIGN.scopeValue = null; }
-      if (act === 'position') { ASSIGN.scopeKind = 'position'; ASSIGN.scopeValue = arg; }
-      if (act === 'athlete') { ASSIGN.scopeKind = 'athlete'; ASSIGN.scopeValue = arg; }
-      if (act === 'proof') ASSIGN.proof = arg;
-      if (act === 'due') ASSIGN.due = arg;
-      window.__render();
+    wireAudience(root, ASSIGN.aud, { rows, groups, practice: CD.kind === 'practice', nouns: CD.nouns, onChange: sendLabel });
+
+    const titleEl = root.querySelector('#as-title');
+    const noteEl = root.querySelector('#as-note');
+    const syncSugg = () => root.querySelectorAll('[data-sugg]').forEach((c) => { const on = (ASSIGN.title || '').trim() === c.getAttribute('data-sugg'); c.classList.toggle('on', on); c.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+    if (titleEl) titleEl.addEventListener('input', () => { ASSIGN.title = titleEl.value; syncSugg(); preview(); });
+    if (noteEl) noteEl.addEventListener('input', () => { ASSIGN.note = noteEl.value; preview(); });
+    root.querySelectorAll('[data-sugg]').forEach((el) => el.addEventListener('click', () => {
+      ASSIGN.title = el.getAttribute('data-sugg') || '';
+      if (titleEl) titleEl.value = ASSIGN.title;
+      const p = el.getAttribute('data-sugg-proof');
+      if (p && PROOF_CHOICES.some((x) => x[0] === p)) { ASSIGN.proof = p; syncRadios('as-proof', 'proof', p); }
+      syncSugg(); preview();
     }));
-    const send = root.querySelector('#as-send');
-    if (send) send.addEventListener('click', async () => {
-      keep();
-      const title = ASSIGN.title.trim();
-      if (title.length < 2) { say('Give it a name first. What are they doing?', true); return; }
-      const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
+    /* Proof / Due: patch the radiogroup in place. */
+    const syncRadios = (groupId, act, value) => {
+      root.querySelectorAll(`#${groupId} [data-assign]`).forEach((c) => {
+        const on = c.getAttribute('data-assign') === `${act}:${value}`;
+        c.classList.toggle('on', on); c.setAttribute('aria-checked', on ? 'true' : 'false');
+      });
+    };
+    root.querySelectorAll('[data-assign]').forEach((el) => el.addEventListener('click', () => {
+      const [act, arg] = el.getAttribute('data-assign').split(':');
+      if (act === 'proof') { ASSIGN.proof = arg; syncRadios('as-proof', 'proof', arg); }
+      if (act === 'due') { ASSIGN.due = arg; syncRadios('as-due', 'due', arg); }
+      preview();
+    }));
+
+    if (sendBtn) sendBtn.addEventListener('click', async () => {
+      const title = (ASSIGN.title || '').trim();
+      if (title.length < 2) { say('Give it a name first. What are they doing?', true); if (titleEl) titleEl.focus(); return; }
+      const teamId = currentBookId();
       if (!teamId) { say('Your roster hasn’t loaded yet. Give it a second and try again.', true); return; }
+      const liveRows = CD.roster ? CD.roster.rows : rows;
+      const liveGroups = (CD.extras && CD.extras.groups) || groups;
+      const sends = planSends(ASSIGN.aud, liveRows, liveGroups);
+      if (!sends.length) { say(`Pick who gets it first.`, true); return; }
       const due = DUE_CHOICES[ASSIGN.due];
       const dueAt = due.at();
-      send.disabled = true; say('Sending…');
-      const r = await roles.assignRequirement({
-        teamId, scopeKind: ASSIGN.scopeKind, scopeValue: ASSIGN.scopeValue,
-        title, proof: ASSIGN.proof,
+      const base = {
+        teamId, title, proof: ASSIGN.proof,
         dueAt: dueAt ? dueAt.toISOString() : null,
         dueLabel: dueAt ? due.label.replace(' · ', ' ') : null,
-        note: ASSIGN.note.trim() || null,
+        note: (ASSIGN.note || '').trim() || null,
         kind: CD.kind,
-      });
-      send.disabled = false;
-      if (!r.ok) { say(r.error || 'Could not send. Try again.', true); return; }
-      if (!r.count) { say(`No ${CD.kind === 'practice' ? 'clients' : 'athletes'} matched. Check who you picked.`, true); return; }
+      };
+      sendBtn.disabled = true; say(sends.length > 1 ? `Sending to ${sends.length}…` : 'Sending…');
+      let sent = 0, failed = 0, error = null;
+      const failedIds = [];
+      // One call per scope, in order: a hand-picked set is one call per person, and the tally
+      // below is the truth of what landed, never the intent.
+      for (const s of sends) {
+        const r = await roles.assignRequirement({ ...base, scopeKind: s.scopeKind, scopeValue: s.scopeValue });
+        if (r.ok && r.count) sent += r.count;
+        else { failed += 1; if (s.scopeKind === 'athlete') failedIds.push(s.scopeValue); if (!error && r.error) error = r.error; }
+      }
+      sendBtn.disabled = false;
+      if (!sent && sends.length === 1) {
+        say(error || (sends[0].scopeKind === 'athlete' ? 'Could not send. Try again.' : `No ${CD.nouns} matched. Check who you picked.`), true);
+        return;
+      }
+      const ids = audienceIds(ASSIGN.aud, liveRows, liveGroups);
+      ASSIGN.done = {
+        sent, failed, error, title,
+        label: assignLabel(liveRows, liveGroups),
+        names: ASSIGN.aud.kind === 'athletes' || ASSIGN.aud.kind === 'group' ? namesSummary(ids.filter((id) => !failedIds.includes(id)), liveRows, 4) : '',
+        failedNames: failedIds.length ? namesSummary(failedIds, liveRows, 4) : '',
+      };
       ASSIGN.title = ''; ASSIGN.note = '';
-      say(r.count === 1 ? 'Sent. It’s on their list now.' : `Sent. It’s on ${r.count} lists now.`);
+      window.__render();
     });
   },
 };

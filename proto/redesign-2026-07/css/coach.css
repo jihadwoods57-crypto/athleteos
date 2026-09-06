@@ -717,3 +717,67 @@
 /* "· optional" tail inside an eyebrow: lowercase, untracked — was the same style string
    hand-typed on three composer headings. */
 .eyebrow .opt { text-transform: none; letter-spacing: 0; }
+
+/* ============================================================
+   Audience picker (js/audience.js) — the one "who gets this" control
+   ============================================================
+   Scope chips ride .chip-row. "Pick people" opens a searchable multi-select list of full names;
+   a row is a 44px checkbox with the roster avatar, never a first-name chip (two Marcuses made
+   the old chip row a coin toss). The picker repaints only itself, so it lives in one box. */
+.aud-pick {
+  margin-top: var(--s2h); border: 1px solid var(--hairline); border-radius: var(--r-card-sm);
+  background: var(--surface-1); overflow: hidden;
+}
+.aud-tools { display: flex; gap: var(--s2); align-items: center; padding: var(--s2) var(--s2) 0; }
+.aud-tools .ob-input { flex: 1; min-width: 0; height: 44px; }
+.aud-tools .btn { flex: none; width: auto; padding: 0 var(--s4); }
+.aud-list { max-height: 296px; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: var(--s1) 0; }
+.aud-row {
+  display: flex; align-items: center; gap: var(--s3); min-height: 48px; padding: var(--s1) var(--s3);
+  cursor: pointer; border-bottom: 1px solid var(--hairline-soft);
+}
+.aud-row:last-child { border-bottom: none; }
+.aud-row:active { background: var(--surface-2); }
+.aud-box {
+  width: 22px; height: 22px; border-radius: var(--r-micro); border: 2px solid var(--hairline);
+  display: grid; place-items: center; flex: none; color: var(--ink-on-accent);
+  transition: background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+}
+.aud-box svg { opacity: 0; }
+.aud-row[aria-checked="true"] .aud-box { background: var(--blue-bright); border-color: var(--blue-bright); }
+.aud-row[aria-checked="true"] .aud-box svg { opacity: 1; }
+.aud-row[aria-checked="true"] .aud-name { color: var(--text); }
+.aud-row .ros-av { width: 30px; height: 30px; }
+.aud-name { flex: 1; min-width: 0; font-size: var(--t-md); font-weight: 700; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aud-name small { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); margin-left: var(--s1h); }
+.aud-none { padding: var(--s4) var(--s3); font-size: var(--t-sm); font-weight: 600; color: var(--text-3); }
+.aud-sum { padding: var(--s2) var(--s3) var(--s2h); font-size: var(--t-sm); font-weight: 600; color: var(--text-3); border-top: 1px solid var(--hairline-soft); }
+.aud-sum b { color: var(--text); font-weight: 800; }
+
+/* ============================================================
+   Assign composer (coach.js coachAssign)
+   ============================================================ */
+/* Quick titles: a tap fills the What field. Quieter than the scope chips above — suggestions,
+   not a selection. */
+.as-sugg { margin-top: var(--s2); }
+.as-sugg .chip { min-height: 36px; font-size: var(--t-sm); color: var(--text-2); }
+/* "How it lands": the athlete-side row, painted from the same draft the send uses. */
+.as-preview { padding: var(--s3) var(--s4); display: flex; align-items: flex-start; gap: var(--s3); }
+.as-preview .lic { width: 38px; height: 38px; border-radius: var(--r-chip); background: var(--blue-surface); color: var(--blue-bright); display: grid; place-items: center; flex: none; }
+.as-preview .pv-t { font-size: var(--t-md); font-weight: 800; overflow-wrap: anywhere; }
+.as-preview .pv-t.empty { color: var(--text-3); font-weight: 600; }
+.as-preview .pv-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); margin-top: 2px; }
+.as-preview .pv-n { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top: var(--s1h); overflow-wrap: anywhere; }
+.as-preview .pv-from { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); margin-top: var(--s1h); }
+/* The send closes the form, right under the preview of what it sends. */
+.as-send { margin-top: var(--s4); }
+.as-send .btn { width: 100%; }
+.as-send .st { text-align: center; font-size: var(--t-sm); font-weight: 600; color: var(--text-3); min-height: 18px; margin-top: var(--s1h); }
+.as-send .st:empty { display: none; }
+/* Sent: the state the old status line only whispered. */
+.as-done { text-align: center; padding: var(--s6) var(--s4); }
+.as-done .ic { width: 56px; height: 56px; border-radius: 50%; margin: 0 auto var(--s3); display: grid; place-items: center; background: var(--green-surface); color: var(--green-bright); }
+.as-done .t { font-family: var(--font-display); font-size: var(--t-xl); font-weight: 800; letter-spacing: -0.01em; }
+.as-done .s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top: var(--s1h); }
+.as-done .s.warn { color: var(--amber-bright); }
+.as-done .acts { display: grid; gap: var(--s2); margin-top: var(--s4h); }
