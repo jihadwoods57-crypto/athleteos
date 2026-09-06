@@ -4135,6 +4135,37 @@ select _ok((rollcall_schedule_notice_claim((select id from commitment_instances
 delete from device_tokens where token = 'ExponentPushToken[rc-0216-e1]';
 drop table _rc_n;
 
+-- ================================================================ 0220/0221: synced quiet hours + digest marker
+-- 0221 adds quiet_from_min / quiet_to_min / team_standard_pushes_opt_out to profiles, 0220 adds
+-- digest_last_sent_at. They inherit profiles_self_write (0002): the owner writes their own, a
+-- stranger cannot, and the CHECK constraints keep a tampered client from writing a minute that is
+-- not in a day. The service role bypasses RLS and is what the functions read with.
+select _superuser();
+update profiles set quiet_from_min = null, quiet_to_min = null, team_standard_pushes_opt_out = false, digest_last_sent_at = null
+  where id = 'aaaaaaaa-0000-0000-0000-000000000001';
+
+select _as('aaaaaaaa-0000-0000-0000-000000000001');  -- ath_a
+select _ok(_try($q$update profiles set quiet_from_min = 1320, quiet_to_min = 420, team_standard_pushes_opt_out = true
+                  where id = 'aaaaaaaa-0000-0000-0000-000000000001'$q$) = 'ok',
+  '0221: the owner syncs their own quiet window and team-standard opt-out');
+select _ok((select quiet_from_min = 1320 and quiet_to_min = 420 and team_standard_pushes_opt_out
+              from profiles where id = 'aaaaaaaa-0000-0000-0000-000000000001'),
+  '0221: the owner reads the values back');
+select _ok(_try($q$update profiles set quiet_from_min = 1500 where id = 'aaaaaaaa-0000-0000-0000-000000000001'$q$) like 'denied(23514)%',
+  '0221: a minute outside the day is rejected by the check constraint');
+select _ok(_try($q$update profiles set quiet_to_min = -1 where id = 'aaaaaaaa-0000-0000-0000-000000000001'$q$) like 'denied(23514)%',
+  '0221: a negative minute is rejected by the check constraint');
+
+select _as('99999999-0000-0000-0000-000000000009');  -- rando
+select _try($q$update profiles set quiet_from_min = 0, quiet_to_min = 1439, team_standard_pushes_opt_out = false,
+               digest_last_sent_at = now() where id = 'aaaaaaaa-0000-0000-0000-000000000001'$q$);
+select _superuser();
+select _ok((select quiet_from_min = 1320 and quiet_to_min = 420 and team_standard_pushes_opt_out and digest_last_sent_at is null
+              from profiles where id = 'aaaaaaaa-0000-0000-0000-000000000001'),
+  '0221: a stranger''s update of another user''s quiet window and marker changes nothing');
+update profiles set quiet_from_min = null, quiet_to_min = null, team_standard_pushes_opt_out = false, digest_last_sent_at = null
+  where id = 'aaaaaaaa-0000-0000-0000-000000000001';
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$

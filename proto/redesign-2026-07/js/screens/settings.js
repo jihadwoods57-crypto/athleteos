@@ -603,7 +603,10 @@ export const notifSettings = {
     ${/* Scoped claim (2026-09-05 audit): only the LOCAL planner honors these hours. Team
           standard reminders are pushed by the server, which has no quiet-hours data yet, so the
           old blanket "Reminders pause" promised a pause they don't keep. Say what is true. */''}
-    <div class="set-note">Reminders from your own plan pause between your cutoff and the hour you pick. Deadline warnings can break through if you let them. Messages from your coach and reminders for team standards still come through.</div>
+    ${/* 0221 syncs the window to the server, so team-standard reminders honour it too once the
+          migration is applied; messages from a coach are conversations, not reminders, and never
+          pause. */''}
+    <div class="set-note">Reminders from your plan and from team standards pause between your cutoff and the hour you pick. Deadline warnings can break through if you let them. Messages from your coach still come through.</div>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('moon', 17)}</div>
@@ -621,6 +624,11 @@ export const notifSettings = {
         <div class="lic">${icon('bell', 17)}</div>
         <div class="lm"><div class="lt">Deadline warnings</div><div class="ls">The only ones that break quiet hours</div></div>
         <div class="std-switch ${p.allowDeadline ? 'on' : ''}" id="ns-deadline" role="switch" aria-checked="${p.allowDeadline ? 'true' : 'false'}" tabindex="0" aria-label="Deadline warnings"></div>
+      </div>
+      <div class="lrow" style="cursor:default">
+        <div class="lic">${icon('users', 17)}</div>
+        <div class="lm"><div class="lt">Team standard reminders</div><div class="ls">Pushed by the server when a team standard is due</div></div>
+        <div class="std-switch ${p.teamPushes !== false ? 'on' : ''}" id="ns-team" role="switch" aria-checked="${p.teamPushes !== false ? 'true' : 'false'}" tabindex="0" aria-label="Team standard reminders"></div>
       </div>
     </section>
 
@@ -708,6 +716,7 @@ export const notifSettings = {
       if (note) note.style.display = on ? 'none' : '';
     });
     sw('#ns-deadline', (on) => ({ allowDeadline: on }));
+    sw('#ns-team', (on) => ({ teamPushes: on }));
     seg('#ns-quiet', (t) => ({ quietFrom: (t === '9 PM' ? 21 : t === '11 PM' ? 23 : 22) * 60 }));
     seg('#ns-quietto', (t) => ({ quietTo: (t === '6 AM' ? 6 : t === '8 AM' ? 8 : 7) * 60 }));
   },

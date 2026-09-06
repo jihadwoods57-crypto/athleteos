@@ -28,6 +28,7 @@ export const DEFAULT_NOTIF_PREFS = {
   quietFrom: 22 * 60, // 10:00 PM
   quietTo: 7 * 60,    // 7:00 AM
   allowDeadline: true, // 'due' warnings are the only ones that break quiet hours
+  teamPushes: true,    // server-pushed team-standard reminders (0221 opt-out column); off = opted out
 };
 
 /** Merge a persisted (possibly partial/older/null) prefs object onto the defaults. Pure. */
@@ -40,6 +41,7 @@ export function normalizePrefs(p) {
     quietFrom: minOf(p.quietFrom, d.quietFrom),
     quietTo: minOf(p.quietTo, d.quietTo),
     allowDeadline: p.allowDeadline !== false,
+    teamPushes: p.teamPushes !== false,
   };
 }
 

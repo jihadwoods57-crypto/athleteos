@@ -26,6 +26,7 @@
 // Schedule via migration 0044's helper (see docs/go-live/WEEKLY-DIGEST.md). Monday morning
 // beats Sunday night: the read leads the week it can still change.
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
+import { digestWindowOpen, digestDecision, DEDUPE_MS } from './logic.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -56,21 +57,17 @@ const PAGE = 500;           // rows per paged read — safely under config.toml 
 const BOOK_CAP = 2000;      // books per invocation; a run that hits it logs what it dropped
 const ON_STANDARD = 80;     // the same bar every athlete surface uses
 
-// THE COACH'S OWN MONDAY MORNING (2026-09-03). The job fires every hour on Monday (migration 0218)
-// and each coach hears from it in the one hour that is LOCAL_HOUR where they live, read from
-// profiles.timezone (0088). One fixed 12:00 UTC send was 8 AM in New York and 5 AM in Los
+// THE COACH'S OWN MONDAY MORNING (2026-09-03, widened 2026-09-05). The job fires every hour of
+// every day (migration 0220; 0218's hourly-on-UTC-Monday cron never saw a Singapore coach's
+// Monday 7 AM, which is Sunday 23:00 UTC, so everyone east of UTC+7 got the read on Tuesday).
+// Each coach hears from it in the one hour that is local Monday LOCAL_HOUR where they live, read
+// from profiles.timezone (0088). One fixed 12:00 UTC send was 8 AM in New York and 5 AM in Los
 // Angeles, and drifted an hour at every DST change. A profile with no timezone yet falls back to
-// FALLBACK_TZ, which is what the old fixed hour assumed anyway. `?all=1` skips the hour gate for a
-// manual run; the 6-day dedupe still makes that safe.
+// FALLBACK_TZ, which is what the old fixed hour assumed anyway. `?all=1` skips the day-and-hour
+// gate for a manual run; the dedupe (profiles.digest_last_sent_at + the `digest` row) still holds.
+// The decisions live in logic.mjs so `npm run test:fn` pins them.
 const LOCAL_HOUR = Number(Deno.env.get('DIGEST_LOCAL_HOUR') ?? '7');
 const FALLBACK_TZ = Deno.env.get('DEFAULT_TIMEZONE') ?? 'America/New_York';
-
-/** Hour of day (0-23) at `nowMs` in `tz`, falling back to FALLBACK_TZ for an unknown zone. */
-export function localHour(nowMs: number, tz: string | null | undefined): number {
-  const read = (zone: string) =>
-    Number(new Intl.DateTimeFormat('en-US', { timeZone: zone, hour: 'numeric', hour12: false }).format(new Date(nowMs))) % 24;
-  try { return read(tz || FALLBACK_TZ); } catch { return read(FALLBACK_TZ); }
-}
 
 interface DayLite { athlete_id: string; date: string; score: number | null }
 interface Roster { athletes: { id: string; name: string }[]; recipients: string[] }
@@ -168,7 +165,12 @@ Deno.serve(async (req) => {
   const svc = createClient(SUPABASE_URL, SERVICE_ROLE);
   const nowMs = Date.now();
   const sendAll = new URL(req.url).searchParams.get('all') === '1';
-  let waiting = 0; // recipients whose local 7 AM is a later run today
+  // Local Monday LOCAL_HOUR exists somewhere on earth only from Sunday 17:00 UTC to Monday
+  // 19:00 UTC. Every other hourly run has nobody to send and does no reads at all.
+  if (!sendAll && !digestWindowOpen(nowMs, LOCAL_HOUR)) {
+    return json({ ok: true, digests: 0, deduped: 0, optedOut: 0, waiting: 0, localHour: LOCAL_HOUR, books: 0, window: 'closed' });
+  }
+  let waiting = 0; // recipients whose local Monday 7 AM is a later run this week
   try {
     // 1) The books, paged. Teams deliver to every active staff member; practices to the owner.
     const teams = await allRows<{ id: string; created_by: string | null }>((f, t) =>
@@ -183,21 +185,14 @@ Deno.serve(async (req) => {
     const work = books.slice(0, BOOK_CAP);
 
     // 2) Dedupe + opt-out state is read per-recipient as we go, but the 6-day window is fixed.
-    const dedupeSince = new Date(Date.now() - 6 * 86_400_000).toISOString();
+    const dedupeSince = new Date(nowMs - DEDUPE_MS).toISOString();
     const seen = new Set<string>();      // recipients already handled this run (a coach on two teams gets ONE digest, first book wins)
     let sent = 0, deduped = 0, optedOut = 0;
 
     for (const book of work) {
-      // Roster: filter IN the query, page the read — no whole-table scan at any size (fix 1).
-      const athletes = book.kind === 'team'
-        ? await allRows<{ athlete_id: string }>((f, t) =>
-          svc.from('team_members').select('athlete_id').eq('team_id', book.id).eq('status', 'active').order('athlete_id').range(f, t))
-          .then((rows) => rows.map((r) => r.athlete_id))
-        : await allRows<{ client_id: string }>((f, t) =>
-          svc.from('practice_clients').select('client_id').eq('practice_id', book.id).eq('status', 'active').order('client_id').range(f, t))
-          .then((rows) => rows.map((r) => r.client_id));
-
-      // Recipients: active staff for a team (fix 2), owner for a practice.
+      // Recipients first: active staff for a team (fix 2), owner for a practice. The roster and
+      // its 14 days of rows are read only once someone on this book is due right now, so the
+      // hourly cron does not haul every roster's week 30 times to send it once.
       let recipients: string[] = [];
       if (book.kind === 'team') {
         recipients = await allRows<{ staff_id: string }>((f, t) =>
@@ -209,6 +204,45 @@ Deno.serve(async (req) => {
       }
       recipients = recipients.filter((r) => !seen.has(r));
       if (recipients.length === 0) continue;
+
+      // One read for the whole recipient list: opt-out, timezone and the sent marker together.
+      // A failed read is NOT "nobody opted out": with profOf empty every opted-out coach gets
+      // pushed and every timezone falls to the default. Skip this roster; the next hourly run
+      // (or the dedupe) makes it up. Silence here is the fetcher-lies bug, server-side.
+      const { data: profRows, error: profErr } = await svc.from('profiles')
+        .select('id, notifications_opt_out, timezone, digest_last_sent_at').in('id', recipients);
+      if (profErr) { console.error('weekly-digest: profiles read failed, skipping roster', profErr.message); continue; }
+      type Prof = { id: string; notifications_opt_out?: boolean | null; timezone?: string | null; digest_last_sent_at?: string | null };
+      const profOf = new Map((profRows ?? []).map((p: Prof) => [p.id, p]));
+
+      // Per-recipient gate BEFORE the roster reads. 'waiting' is NOT marked seen, so a coach on two
+      // books is still handled by whichever run is their Monday 7 AM; the marker + row dedupe is
+      // what keeps a later run from doubling.
+      const due: string[] = [];
+      for (const rid of recipients) {
+        const prof = profOf.get(rid);
+        const verdict = digestDecision({ nowMs, prof, hour: LOCAL_HOUR, fallbackTz: FALLBACK_TZ, sendAll });
+        if (verdict === 'opted_out') { seen.add(rid); optedOut++; continue; }
+        if (verdict === 'waiting') { waiting++; continue; }
+        seen.add(rid);
+        if (verdict === 'deduped') { deduped++; continue; }
+        // Second belt: the `digest` notification row inside the window (the marker column is
+        // written after the row, so a crash between the two still cannot double anyone).
+        const { data: recent } = await svc.from('notifications')
+          .select('id').eq('user_id', rid).eq('kind', 'digest').gte('created_at', dedupeSince).limit(1);
+        if (recent && recent.length > 0) { deduped++; continue; }
+        due.push(rid);
+      }
+      if (due.length === 0) continue;
+
+      // Roster: filter IN the query, page the read; no whole-table scan at any size (fix 1).
+      const athletes = book.kind === 'team'
+        ? await allRows<{ athlete_id: string }>((f, t) =>
+          svc.from('team_members').select('athlete_id').eq('team_id', book.id).eq('status', 'active').order('athlete_id').range(f, t))
+          .then((rows) => rows.map((r) => r.athlete_id))
+        : await allRows<{ client_id: string }>((f, t) =>
+          svc.from('practice_clients').select('client_id').eq('practice_id', book.id).eq('status', 'active').order('client_id').range(f, t))
+          .then((rows) => rows.map((r) => r.client_id));
 
       // 14 days of day rows (this week judges; last week gives streak context) + names.
       let names = new Map<string, string>();
@@ -228,31 +262,18 @@ Deno.serve(async (req) => {
       }
       const roster: Roster = {
         athletes: athletes.map((id) => ({ id, name: names.get(id) ?? '' })),
-        recipients,
+        recipients: due,
       };
       const { title, body } = digestBody(roster);
 
-      // Per-recipient: opt-out gate, 6-day dedupe, durable row FIRST, then the push (winback's
-      // rule: the notifications row is both the record and the dedupe key).
-      // One read for the whole recipient list: opt-out and timezone together.
-      const { data: profRows, error: profErr } = await svc.from('profiles').select('id, notifications_opt_out, timezone').in('id', recipients);
-      // A failed read is NOT "nobody opted out": with profOf empty every opted-out coach gets
-      // pushed and every timezone falls to the default. Skip this roster; the next hourly run
-      // (or the 6-day dedupe) makes it up. Silence here is the fetcher-lies bug, server-side.
-      if (profErr) { console.error('weekly-digest: profiles read failed, skipping roster', profErr.message); continue; }
-      const profOf = new Map((profRows ?? []).map((p: { id: string; notifications_opt_out?: boolean | null; timezone?: string | null }) => [p.id, p]));
-      for (const rid of recipients) {
-        const prof = profOf.get(rid);
-        if (prof?.notifications_opt_out === true) { seen.add(rid); optedOut++; continue; }
-        // Not their morning yet: leave them for a later run today. NOT marked seen, so a coach on
-        // two books is still handled by whichever run is their 7 AM; the 6-day dedupe below is
-        // what keeps a later run from doubling.
-        if (!sendAll && localHour(nowMs, prof?.timezone) !== LOCAL_HOUR) { waiting++; continue; }
-        seen.add(rid);
-        const { data: recent } = await svc.from('notifications')
-          .select('id').eq('user_id', rid).eq('kind', 'digest').gte('created_at', dedupeSince).limit(1);
-        if (recent && recent.length > 0) { deduped++; continue; }
-        await svc.from('notifications').insert({ user_id: rid, kind: 'digest', title, body });
+      // Per-recipient: durable row FIRST, then the marker, then the push (winback's rule: the
+      // notifications row is both the record and a dedupe key). The marker column (0220) is the
+      // dedupe key the coach cannot delete: clearing the bell (notif_delete, 0027) used to erase
+      // the only proof they were sent, and the next hourly run doubled them.
+      for (const rid of due) {
+        const { error: rowErr } = await svc.from('notifications').insert({ user_id: rid, kind: 'digest', title, body });
+        if (rowErr) { console.error('weekly-digest: notification insert failed, not pushing', rid, rowErr.message); continue; }
+        await svc.from('profiles').update({ digest_last_sent_at: new Date(nowMs).toISOString() }).eq('id', rid);
         const { data: toks } = await svc.from('device_tokens').select('token').eq('user_id', rid);
         const tokens = (toks ?? []).map((t: { token: string }) => t.token).filter(Boolean);
         for (let i = 0; i < tokens.length; i += 100) {

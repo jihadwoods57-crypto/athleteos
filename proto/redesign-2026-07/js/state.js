@@ -26,6 +26,20 @@ import { creditsLeft } from './pass.js';
 import { deriveExec, mapPressure, samePlan } from './exec.js';
 import { activationInfo, parseActivation } from './activation.js';
 import { normalizePrefs } from './notify-plan.js';
+
+/* The server-side mirror of a notification-pref patch (profiles columns 0067 + 0221). Only the
+   keys the patch touched are written, so a quiet-hours tap never clobbers the master switch and
+   vice versa. Null when the patch carries nothing the server reads. Shared by the athlete and
+   coach setters: both write the same profiles row. */
+export function serverPrefPatch(patch, prefs) {
+  if (!patch) return null;
+  const out = {};
+  if ('enabled' in patch) out.notifications_opt_out = !prefs.enabled;
+  if ('quietFrom' in patch) out.quiet_from_min = Number.isFinite(prefs.quietFrom) ? Math.round(prefs.quietFrom) : null;
+  if ('quietTo' in patch) out.quiet_to_min = Number.isFinite(prefs.quietTo) ? Math.round(prefs.quietTo) : null;
+  if ('teamPushes' in patch) out.team_standard_pushes_opt_out = prefs.teamPushes === false;
+  return Object.keys(out).length ? out : null;
+}
 import { commitmentReminders } from './commitments.js';
 import { normalizeCoachPrefs, alertKeys, buildCoachSyncPlan } from './coach-notify-plan.js';
 import { entriesFor, getScope, CD } from './coach-data.js';
@@ -1890,12 +1904,13 @@ export const act = {
     RT.notifPrefs = { ...normalizePrefs(RT.notifPrefs), ...(patch || {}) };
     save();
     this.syncNotifications();
-    if (patch && 'enabled' in patch && window.sb && RT.userId) {
-      try {
-        void window.sb.from('profiles')
-          .update({ notifications_opt_out: !RT.notifPrefs.enabled })
-          .eq('id', RT.userId);
-      } catch { /* server pref is best-effort; local prefs already applied */ }
+    // Server-side mirror (best-effort, local prefs already applied). 0067 carried the master
+    // switch; 0221 adds the quiet window and the team-standard opt-out so the server's own pushes
+    // (connected-standards-tick) can honour them. Only the keys the patch touched are written.
+    const server = serverPrefPatch(patch, RT.notifPrefs);
+    if (server && window.sb && RT.userId) {
+      try { void window.sb.from('profiles').update(server).eq('id', RT.userId); }
+      catch { /* server pref is best-effort; local prefs already applied */ }
     }
   },
   /* Coach-device notification sync (Task 5). Reached only from syncNotifications() when
@@ -1947,12 +1962,10 @@ export const act = {
     RT.coachNotifPrefs = { ...normalizeCoachPrefs(RT.coachNotifPrefs), ...(patch || {}) };
     save();
     this.syncNotifications();
-    if (patch && 'enabled' in patch && window.sb && RT.userId) {
-      try {
-        void window.sb.from('profiles')
-          .update({ notifications_opt_out: !RT.coachNotifPrefs.enabled })
-          .eq('id', RT.userId);
-      } catch { /* server pref is best-effort; local prefs already applied */ }
+    const server = serverPrefPatch(patch, RT.coachNotifPrefs);
+    if (server && window.sb && RT.userId) {
+      try { void window.sb.from('profiles').update(server).eq('id', RT.userId); }
+      catch { /* server pref is best-effort; local prefs already applied */ }
     }
   },
   /* First-run coach checklist (coach Home). Mark a setup step genuinely complete the moment the

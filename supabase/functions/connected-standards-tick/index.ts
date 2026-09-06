@@ -26,6 +26,7 @@
 // Then: select schedule_connected_standards('<fn url>', '<the same key>');
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { reminderCopy, type DueRow } from '../_shared/activity-copy.ts';
+import { splitPushRecipients } from './logic.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -115,16 +116,31 @@ Deno.serve(async (req: Request) => {
 
   // The athlete's OWN timezone (profiles.timezone, 0088) for the "by 9:00 PM" clause. One global
   // DEFAULT_TIMEZONE printed Eastern clock times to athletes in California; the default is now
-  // only the fallback for a profile that never reported a zone.
+  // only the fallback for a profile that never reported a zone. The same read carries the two
+  // opt-outs (0067, 0221) and the synced quiet window (0221) that gate the device push below.
+  type Prof = {
+    id: string; timezone: string | null; notifications_opt_out: boolean | null;
+    team_standard_pushes_opt_out: boolean | null; quiet_from_min: number | null; quiet_to_min: number | null;
+  };
   const tzById = new Map<string, string>();
+  const profOf = new Map<string, Prof>();
+  let profErr: { message: string } | null = null;
   {
     const ids = [...new Set([...due.map((d) => d.athlete_id), ...missed.map((m) => m.athlete_id)])];
     if (ids.length) {
-      const { data: profs, error: profErr } = await svc.from('profiles').select('id, timezone').in('id', ids);
-      // Surfaced, not fatal: on a failed read every athlete falls to the default zone, which is
-      // only a wrong clock label in copy — but the failure itself must never be invisible.
-      if (profErr) console.error('connected-standards-tick: timezone read failed, using defaults', profErr.message);
-      for (const p of (profs ?? []) as Array<{ id: string; timezone: string | null }>) if (p?.timezone) tzById.set(p.id, p.timezone);
+      const { data: profs, error } = await svc.from('profiles')
+        .select('id, timezone, notifications_opt_out, team_standard_pushes_opt_out, quiet_from_min, quiet_to_min').in('id', ids);
+      profErr = error ?? null;
+      // Surfaced, not fatal for the bell rows: on a failed read every athlete falls to the default
+      // zone, which is only a wrong clock label in copy. It IS fatal for the device push: with no
+      // rows every opt-out and quiet window would read as "send" (the fetcher-lies bug), so the
+      // push gate below sends nobody this tick. The failure itself must never be invisible.
+      if (profErr) console.error('connected-standards-tick: profiles read failed; bell rows only, no pushes', profErr.message);
+      for (const p of (profs ?? []) as Prof[]) {
+        if (!p) continue;
+        profOf.set(p.id, p);
+        if (p.timezone) tzById.set(p.id, p.timezone);
+      }
     }
   }
 
@@ -165,12 +181,16 @@ Deno.serve(async (req: Request) => {
     if (!error) recorded += Math.min(200, notes.length - i);
   }
 
-  // Then push, best-effort, at most one per athlete per tick.
+  // Then push, best-effort, at most one per athlete per tick, and only to athletes who are not
+  // opted out and not inside their quiet window right now (2026-09-05; the row above is the
+  // record either way, so quiet never loses a miss, it only keeps the phone dark).
   const byAthlete = new Map<string, typeof notes[number]>();
   for (const n of notes) if (!byAthlete.has(n.user_id)) byAthlete.set(n.user_id, n);
+  const gate = splitPushRecipients([...byAthlete.keys()], profOf, Date.now(), DEFAULT_TZ, { profilesUnreadable: profErr !== null });
 
-  const { data: toks } = await svc
-    .from('device_tokens').select('token,user_id').in('user_id', [...byAthlete.keys()]);
+  const { data: toks } = gate.allowed.length
+    ? await svc.from('device_tokens').select('token,user_id').in('user_id', gate.allowed)
+    : { data: [] as Array<{ token: string; user_id: string }> };
 
   const messages: Array<Record<string, unknown>> = [];
   for (const t of (toks ?? []) as Array<{ token: string; user_id: string }>) {
@@ -203,5 +223,6 @@ Deno.serve(async (req: Request) => {
   return json({
     materialized, claimed: claimed.length, missed: missed.length,
     reminders: due.length, sent: recorded, pushed,
+    quiet: gate.quiet, optedOut: gate.optedOut, profilesUnreadable: gate.unreadable,
   });
 });
