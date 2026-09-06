@@ -15,7 +15,7 @@ export default {
   render() {
     const t = S.pass;
     return `
-    <div class="screen-title">Profile</div>
+    <h1 class="screen-title">Profile</h1>
 
     <section class="card id-card">
       <div style="position:relative" id="avatar-wrap">

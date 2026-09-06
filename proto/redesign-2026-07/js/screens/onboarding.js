@@ -20,7 +20,7 @@ function frame(n, title, sub, body, cta, next, opts = {}) {
   return `
   <div class="ob">
     <div class="ob-nav"><div class="ob-back" data-go="${back}" aria-label="Back">${icon('chevron', 18)}</div>${progress(n)}</div>
-    <div class="ob-title">${title}</div>
+    <h1 class="ob-title">${title}</h1>
     <div class="ob-sub">${sub}</div>
     <div class="ob-body">${body}</div>
     <div class="ob-foot">
@@ -52,7 +52,7 @@ const steps = {
     <div class="ob-nav"><div class="ob-back" data-go="onboarding/1" aria-label="Back">${icon('chevron', 18)}</div></div>
     <div class="standard-set" style="padding-bottom:6px">
       <div class="halo"><div class="core" style="background:var(--surface-2);color:var(--text-2)">${icon('lock', 32)}</div></div>
-      <div class="ob-title" style="margin-top:18px">Not yet, but soon.</div>
+      <h1 class="ob-title" style="margin-top:18px">Not yet, but soon.</h1>
       <div class="ob-sub" style="padding:0 8px">OnStandard is for athletes 13 and older. That's the law for apps like this, and we take it seriously. Come back on your 13th birthday. The Standard will be waiting.</div>
     </div>
     <div class="ob-foot" style="margin-top:auto">
@@ -188,7 +188,7 @@ const steps = {
     <div class="ob-nav"><div class="ob-back" data-go="onboarding/6" aria-label="Back">${icon('chevron', 18)}</div>${progress(7)}</div>
     <div class="standard-set" style="padding-bottom:6px">
       <div class="halo"><div class="core">${icon('check', 38)}</div></div>
-      <div class="ob-title" style="margin-top:18px">Your Standard is set.</div>
+      <h1 class="ob-title" style="margin-top:18px">Your Standard is set.</h1>
       <div class="ob-sub" style="padding:0 10px">Create your account to save it. Your score, meals, and coach connection sync across devices.</div>
     </div>
     <div style="height:16px"></div>

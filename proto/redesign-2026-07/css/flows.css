@@ -323,7 +323,7 @@
    accent, and the old green→blue crossed two semantic hues. */
 .ob-dots .d { width: 7px; height: 7px; border-radius: 50%; background: var(--surface-3); transition: background var(--dur-2) var(--ease-out), border-radius var(--dur-2) var(--ease-out); }
 .ob-dots .d.on { width: 22px; border-radius: var(--r-micro); background: linear-gradient(90deg, var(--blue-deep), var(--blue)); }
-.ob-title { font-size: 27px; font-weight: 800; letter-spacing: var(--title-tight); line-height: 1.15; }
+.ob-title { margin: 0; font-size: 27px; font-weight: 800; letter-spacing: var(--title-tight); line-height: 1.15; }
 .ob-sub { font-size: var(--t-base); font-weight: 600; color: var(--text-2); margin-top:var(--s2); line-height: 1.5; text-wrap: balance; }
 .ob-body { flex: 1; padding-top:22px; }
 .ob-foot { padding:var(--s4h) 0 var(--s1h); }

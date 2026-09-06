@@ -247,4 +247,5 @@ export const screens = {
   'coach-standard-edit': lazy(coachConnected, 'coachStandardEdit'),
   'coach-standards-manage': lazy(coachConnected, 'coachStandardsManage'),
   'health-consent': lazy(() => import('./health-consent.js')),
+  'apple-health': lazy(() => import('./apple-health.js')),
 };

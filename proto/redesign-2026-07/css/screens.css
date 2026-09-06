@@ -2772,3 +2772,35 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .wk-nextcard .wk-ctx{padding-bottom:var(--s2)}
 .wk-nextmsg{font-size:var(--t-sm);color:var(--text-2);line-height:1.45;padding:var(--s2) 0 var(--s3);overflow-wrap:anywhere}
 .wk-nextacts{display:flex;gap:var(--s2);flex-wrap:wrap}
+
+/* ===== Apple Health (Settings > Apple Health) =====
+   The phone-side steps wear the system's own tiles, the way Apple's Health app draws them, so the
+   athlete recognises what they are about to tap before they leave the app: the Health tile is
+   white with the red heart in BOTH themes (it is the Health app's icon, not ours, same rule as the
+   Google glyph on sign-in), the Settings and hand tiles are the system grey, and the last tile is
+   OnStandard's own mark. Theme-neutral by design, not by accident. */
+.hk-steps { display: flex; flex-direction: column; gap: var(--s1); list-style: none; margin: 0; padding: var(--s1) 0; }
+.hk-step { display: flex; align-items: center; gap: var(--s3h); padding: var(--s2h) 0; }
+.hk-step .hk-n { flex: 1; font-size: var(--t-md); font-weight: 600; line-height: 1.4; }
+.hk-step .hk-n b { font-weight: 800; }
+.hk-tile { width: 44px; height: 44px; border-radius: var(--r-chip); display: grid; place-items: center; flex: none; }
+.hk-tile.sys { background: #8E8E93; color: #FFFFFF; }
+.hk-tile.health { background: #FFFFFF; color: #FF2D55; box-shadow: 0 0 0 1px rgba(15,23,42,0.08); }
+.hk-tile.app { background: #070B14; box-shadow: 0 0 0 1px rgba(148,176,224,0.14); }
+/* Status card: the state line reads first, the pill second, the last real reading third. */
+.hk-status { display: flex; align-items: flex-start; gap: var(--s3); }
+.hk-status .hk-ic { margin-top: 2px; }
+.hk-status .hk-ic { width: 44px; height: 44px; border-radius: var(--r-chip); display: grid; place-items: center; flex: none; background: var(--surface-2); color: var(--text-2); }
+.hk-status.on .hk-ic { background: var(--green-surface); color: var(--green-bright); }
+.hk-status.warn .hk-ic { background: var(--amber-surface); color: var(--amber-bright); }
+.hk-status .hk-t { font-size: var(--t-lg); font-weight: 800; letter-spacing: var(--title-tight); }
+.hk-status .hk-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top: 2px; line-height: 1.45; }
+.hk-reads .lrow { cursor: default; }
+.hk-reads .lv { font-size: var(--t-sm); font-weight: 700; color: var(--text-3); }
+.hk-reads .lv.on { color: var(--green-bright); }
+.hk-lead { padding-bottom: var(--s1h); }
+.hk-fine { padding-top: var(--s2h); }
+.hk-foot { padding: var(--s1) var(--s5) 0; }
+.hk-center { text-align: center; padding: var(--s2h) 0 var(--s6); }
+.hk-center.tall { padding: var(--s3h) var(--s5) var(--s6); }
+.hk-note { text-align: center; padding: 0 var(--s5) var(--s5); }

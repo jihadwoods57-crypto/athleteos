@@ -692,7 +692,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); }
 .back-head .bh-act:active { transform: scale(0.94); }
 .back-head .bh-act[aria-expanded="true"] { background: var(--blue-surface); color: var(--blue-bright); }
 .back-head .bh-act:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
-.screen-title { font-size: 28px; font-weight: 800; letter-spacing: var(--title-tight); padding:var(--s2) 0 var(--s1); }
+.screen-title { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: var(--title-tight); padding:var(--s2) 0 var(--s1); }
 .muted { color: var(--text-2); }
 .tiny { color: var(--text-3); }
 

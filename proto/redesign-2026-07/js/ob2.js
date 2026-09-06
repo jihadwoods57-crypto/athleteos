@@ -92,7 +92,7 @@ export function defineFlow({ route, steps }) {
       return `
       <div class="ob">
         <div class="ob-nav"><div class="ob-back" data-go="${backRoute(vis, idx)}" aria-label="Back">${icon('chevron', 18)}</div>${chapterProgress(vis, idx)}</div>
-        ${s.title ? `<div class="ob-title">${s.title(o) || ''}</div>` : ''}
+        ${s.title ? `<h1 class="ob-title">${s.title(o) || ''}</h1>` : ''}
         ${s.sub ? `<div class="ob-sub">${s.sub(o) || ''}</div>` : ''}
         <div class="ob-body">${s.body ? s.body(o) : ''}</div>
         ${foot}

@@ -112,6 +112,7 @@ export default {
         <div class="cs-h">Connected, but nothing has come through</div>
         <div class="cs-p" style="padding-top:6px">Apple never tells an app which categories you allowed, so we checked instead: no activity has reached OnStandard yet. If you left anything unchecked on Apple's screen, open Health, then Sharing, then Apps, and switch OnStandard's categories on. Logging a standard by hand works either way.</div>
         <button class="btn ghost hc-act" id="hc-recheck">Check again</button>
+        <button class="btn ghost hc-act tight" data-go="apple-health">How to turn categories on</button>
         <button class="btn ghost hc-act tight" id="hc-off">Disconnect</button>
       </section>`
     : `

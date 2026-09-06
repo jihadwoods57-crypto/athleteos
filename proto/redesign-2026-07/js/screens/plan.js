@@ -175,7 +175,7 @@ function head(t) {
     ? `<button type="button" class="pl-goalpill" id="pl-goal" aria-expanded="${GOAL_OPEN ? 'true' : 'false'}" aria-controls="pl-goal-panel">Goal · ${esc(goal)}<span class="cv">${icon('chevron', 12)}</span></button>`
     : `<button type="button" class="pl-goalpill" data-go="profile">Set a goal<span class="cv">${icon('chevron', 12)}</span></button>`;
   return `
-  <div class="screen-title">Plan</div>
+  <h1 class="screen-title">Plan</h1>
   <div class="pl-head"><div class="pl-sub">${esc(sub)}</div>${pill}</div>
   ${goalPanel()}`;
 }

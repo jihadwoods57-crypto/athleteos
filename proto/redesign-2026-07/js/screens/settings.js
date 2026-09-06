@@ -9,6 +9,7 @@ import * as roles from '../roles.js';
 import { planById } from '../pricing.js';
 import { armReplay } from '../tour.js';
 import { normalizePressure } from '../ob-helpers.js';
+import { HK, probeHealth, hkLabel } from './apple-health.js';
 
 /* Reminder-pressure chips: restore the athlete's REAL saved pressure and persist taps into
    RT.ob.standard.pressure (the same field onboarding writes, which drives the exec engine's
@@ -148,6 +149,18 @@ export const settings = {
         <div class="lm"><div class="lt">Plan style</div><div class="ls">${esc(S.planStyle.name)} · ${S.planStyle.canChoose ? 'yours to change' : esc(S.planStyle.sourceLabel)}</div></div>
         ${icon('chevron', 17, 'class="chev-dim"')}
       </div>
+    </section>
+
+    ${/* Apple Health had two doors (health-consent, devices) and no row here, so an athlete who
+          wanted to change what Health shares, or switch it off, had nowhere to look. One row, one
+          screen; the state under it is the phone's live answer, not a stored flag. */''}
+    <h2 class="eyebrow">Health</h2>
+    <section class="card rows">
+      <div class="lrow" data-go="apple-health">
+        <div class="lic">${icon('heart', 17)}</div>
+        <div class="lm"><div class="lt">Apple Health</div><div class="ls" id="set-hk-state">${esc(hkLabel())}</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
+      </div>
     </section>` : ''}
 
     <div id="set-bio-wrap" style="display:none">
@@ -178,6 +191,14 @@ export const settings = {
   mount(root) {
     wireToggles(root);
     wireSegAria(root);
+    // Apple Health row: the phone's live answer, patched in place when it arrives so a slow probe
+    // never re-renders the whole screen under a finger.
+    if (!HK.probed) {
+      probeHealth().then(() => {
+        const el = root.querySelector('#set-hk-state');
+        if (el && root.isConnected) el.textContent = hkLabel();
+      }).catch(() => {});
+    }
     // Its own listener, not a delegate: wireToggles' chip handler stopPropagation()s, and a
     // row-level delegate here would never fire (see the note at the top of this file).
     // Click only: the router promotes this row centrally (cursor:pointer promotion), so a local

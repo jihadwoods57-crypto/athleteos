@@ -128,7 +128,7 @@ export default {
     // them the "Progress starts today" baseline right beside "Days logged: 30".
     if (P.daysLogged < P.unlockNeed) {
       return `
-      <div class="screen-title">Progress</div>
+      <h1 class="screen-title">Progress</h1>
       <div style="height:10px"></div>
       ${baseline(P)}
       ${RT.day0 ? `
@@ -220,7 +220,7 @@ export default {
     // accountability" and plan.md §C.
     const isClient = S.audience === 'client';
     return `
-    <div class="screen-title">Progress</div>
+    <h1 class="screen-title">Progress</h1>
     ${isClient ? bodySection() + scoreTrendSection + insightSection : scoreTrendSection + insightSection + bodySection()}
     ${trainingCard()}
 
