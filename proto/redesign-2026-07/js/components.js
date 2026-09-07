@@ -212,6 +212,30 @@ export function dialPath(cx, cy, rad) {
    view-transition-name aborts the whole transition, and rings are not rare: Progress and the coach
    roster put several on one screen. Only a screen that KNOWS it draws exactly one, and that has a
    counterpart on the other side of a real navigation, passes it. */
+/* Every `.edge-fade` scroller under `root`, told whether it currently has content off either
+   edge. The router runs this after each render (and screens that inject rows async can call it
+   on their own slot), so a horizontal scroller opts in with one class and nothing else.
+   Idempotent: the listener is registered once per element, marked on the node itself, because
+   Home repaints on every logged requirement and would otherwise stack a listener per paint. */
+export function mountEdgeFades(root) {
+  if (!root || !root.querySelectorAll) return;
+  for (const el of root.querySelectorAll('.edge-fade')) {
+    const sync = () => {
+      const over = el.scrollWidth - el.clientWidth;
+      // 3px, not 0: `scroll-snap-type: x proximity` parks scrollLeft at the strip's own padding
+      // with nothing actually clipped, and a `> 0` test read that as scrolled and faded the
+      // first label's opening letter.
+      el.classList.toggle('edge-l', over > 3 && el.scrollLeft > 3);
+      el.classList.toggle('edge-r', over > 3 && el.scrollLeft < over - 3);
+    };
+    if (!el.__edgeFade) {
+      el.__edgeFade = true;
+      el.addEventListener('scroll', sync, { passive: true });
+    }
+    sync();
+  }
+}
+
 export function scoreRing({ score, size = 338, stroke = 20, showCenter = true, uid = 'r', delta = null, streak = null, tierName = null, tierCls = 'b', centerNum = false, possible = null, vt = null, notStarted = false } = {}) {
   /* `score` used to default to 82. Every call site passes a real one, so the default never
      fired — which is exactly what made it dangerous: the day a call site forgot the argument,

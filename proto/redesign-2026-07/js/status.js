@@ -153,5 +153,12 @@ export function teamPulse(rows, statuses, dateISO) {
     dueSoon: count('due_soon'),
     overdue: count('overdue') + count('no_activity'),
     completionPct: total ? Math.round((done / total) * 100) : null,
+    // The counts behind that ratio. A percentage alone cannot be read honestly here: an athlete
+    // with no requirements at all contributes to NEITHER side, so a roster with one unactivated
+    // athlete and three finished ones reads "100% done today" directly above "1 overdue".
+    // The coach surface prints "N of M requirements in" instead, which cannot contradict the
+    // standing bar because it is counting a different, named thing.
+    tasksDone: done,
+    tasksTotal: total,
   };
 }

@@ -509,7 +509,9 @@ export const mealView = {
           stamp (older analyses were written in a numbers tone). The numbers stay stored;
           coaches and dietitians read them in their own views. */''}
     ${S.planStyle.showMacros || S.planStyle.showCalories ? `<h2 class="eyebrow">Nutrition</h2>
-    <div class="macro-row">
+    ${/* Four cells is 2x2, not four across — the density modifier the other four-up rows already
+          wear. See .macro-row.four in app.css. */''}
+    <div class="macro-row${S.planStyle.showMacros && S.planStyle.showCalories ? ' four' : ''}">
       ${S.planStyle.showMacros ? `
       <div class="macro"><div class="mv">${m.protein || 0}g</div><div class="mk">Protein</div></div>
       <div class="macro"><div class="mv">${m.carbs || 0}g</div><div class="mk">Carbs</div></div>

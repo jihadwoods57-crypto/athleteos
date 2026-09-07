@@ -636,66 +636,86 @@ let SEEN = { uid: null, date: null, rows: null, at: 0 };
    consuming it from a backdrop paint would silently eat the "+N" float on the NEXT real render:
    the athlete logs a meal, the score moves, and the one moment that rewards them never fires.
    Guarding it is what makes it safe for #log to render the real day behind its scrim. */
-function hero(e, backdrop = false) {
-  const next = nextLabel(e);
+function hero(e, backdrop = false) { return liveHero(e, { backdrop }); }
+
+/* The hero on a day that is still live but sub-passing: the score is climbing, not failing. Same
+   ring, but the tier verdict is held — a neutral "In progress" chip + what's left to do, never
+   "Off Standard", never a red down-delta. The real tier returns once the day is decided (home
+   render gates this) or once a passing tier is earned. */
+function inProgressHero(e) { return liveHero(e, { inProgress: true }); }
+
+/* ONE hero, one layout (2026-09-07 audit). Home used to draw two of these. While the day was
+   live the ring was a 128px puck shoved to the left of a label column; the moment the day
+   completed it became the full centred ring with the tier inside it. Same screen, two
+   hierarchies, and the WEAKER one was the state an athlete looks at all day.
+   The compact ring could not hold its own numeral either: `.xhero .ring-center.num .score` is
+   pinned to --t-hero (52px) while the inner circle of a 128px ring with an 11px stroke is 106px
+   wide, so a two-digit score sat ON the arc and the progress knob landed on top of the second
+   digit. Both problems have one fix — draw the same ring the complete day draws, and let its
+   centre size itself from the ring instead of from a fixed type step.
+   What survives from the compact layout is everything that was actually unique to a live day:
+   the ceiling arc (`possible`), the tier or "In progress" chip, the count, the formula bar and
+   the next move. They now stack UNDER the ring instead of competing with it for width. */
+/* The Home ring, at one size in every state. See liveHero. */
+const HERO_RING = 280, HERO_STROKE = 17;
+
+function liveHero(e, { inProgress = false, backdrop = false } = {}) {
+  const decided = !inProgress;
+  // Nothing logged yet is not a score of zero, and the ring must not imply one. See scoreRing's
+  // `notStarted`: the digit arrives with the first requirement, and the screen reader is told
+  // "not started yet" rather than a number that would read as a failing grade.
+  const notStarted = inProgress && e.met === 0;
+  const next = decided ? nextLabel(e) : '';
   // The formula bar is S.breakdown verbatim — the same values and accent colors as the
   // breakdown screen, so the two surfaces can never disagree. Segments sum to /100.
   // Deliberately UNLABELED (founder call 2026-07-16): the bar is a one-stroke teaser of
   // where the points sit; the tap-through breakdown owns names and numbers. No legend.
   const parts = S.breakdown;
-  const segs = parts.filter((b) => b.earned > 0)
-    .map((b) => `<i class="${b.accent}" style="width:${b.earned}%"></i>`).join('');
-  const gain = !backdrop && lastHomeScore != null && e.score > lastHomeScore ? e.score - lastHomeScore : 0;
-  if (!backdrop) lastHomeScore = e.score;
+  const segs = decided
+    ? parts.filter((b) => b.earned > 0).map((b) => `<i class="${b.accent}" style="width:${b.earned}%"></i>`).join('')
+    : '';
+  const gain = decided && !backdrop && lastHomeScore != null && e.score > lastHomeScore ? e.score - lastHomeScore : 0;
+  if (decided && !backdrop) lastHomeScore = e.score;
+  // ONE line, not two. The in-progress hero used to render "<b>N</b> of <b>M</b> done" and,
+  // beneath it, "N to go — your day is still open" — the same fact twice, under a header that
+  // had already said it a third time. The "In progress" chip carries the reassurance; this line
+  // carries the count and nothing else.
+  const line = decided
+    ? `<b>${e.met}</b> of <b>${e.total}</b> completed <span class="sep">·</span> max today <b>${e.possible}</b>`
+    : (e.met === 0 && e.total > 0
+      ? 'Log your first requirement to start your score'
+      : `<b>${e.met}</b> of <b>${e.total}</b> done today`);
+  const aria = decided
+    ? `Daily Score ${e.score}, ${S.tier.name}. ${e.met} of ${e.total} completed. Open score breakdown`
+    : `Daily Score ${notStarted ? 'not started yet' : e.score}, in progress. ${e.met} of ${e.total} completed. Open score breakdown`;
   // data-band is gone along with the ambient wash it drove (screens.css) — the ring's own arc
   // gradient already carries the band, so the attribute had no reader left.
-  return `<section class="xhero" data-tour="score" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, ${S.tier.name}. ${e.met} of ${e.total} completed. Open score breakdown">
-    <div class="xh-main">
-      ${scoreRing({ score: e.score, possible: e.possible, size: 128, stroke: 11, showCenter: false, centerNum: true, uid: 'hero', vt: 'score' })}
+  return `<section class="xhero" data-tour="score" data-go="score-breakdown" role="button" aria-label="${aria}">
+    <div class="xh-ring">
+      ${scoreRing({
+        score: e.score,
+        possible: e.possible,
+        size: HERO_RING, stroke: HERO_STROKE,
+        // The tier lives INSIDE the ring on a decided day, exactly as it does when the day
+        // completes. A live sub-passing day has no verdict to put there, so its neutral chip
+        // sits below with the count — the .tier-chip is a score surface and must not carry a
+        // status that isn't a tier.
+        tierName: decided ? S.tier.name : null,
+        tierCls: decided ? S.tier.cls : 'b',
+        uid: 'hero', vt: 'score', notStarted,
+      })}
       ${gain > 0 ? `<span class="xh-float" aria-hidden="true">+${gain}</span>` : ''}
-      <div class="xh-body">
-        <div class="xh-k">Daily Score</div>
-        <div class="xrow"><span class="status-pill ${S.tier.cls}">${S.tier.name}</span>${deltaChip(e.score)}</div>
-        <div class="xh-line"><b>${e.met}</b> of <b>${e.total}</b> completed <span class="sep">·</span> max today <b>${e.possible}</b></div>
-      </div>
-      <span class="xstrip-chev">${icon('chevron', 16)}</span>
     </div>
-    <div class="xh-formula">
+    <div class="xh-under">
+      ${decided
+        ? (deltaChip(e.score) ? `<div class="xrow">${deltaChip(e.score)}</div>` : '')
+        : '<div class="xrow"><span class="status-pill inprog">In progress</span></div>'}
+      <div class="${decided ? 'xh-line' : 'xh-flow'}">${line} <span class="xstrip-chev">${icon('chevron', 15)}</span></div>
+    </div>
+    ${decided ? `<div class="xh-formula">
       <div class="xf-bar" role="img" aria-label="Score parts: ${parts.map((b) => `${b.key} ${b.earned} of ${b.possible}`).join(', ')}">${segs}</div>
-    </div>
+    </div>` : ''}
     ${next ? `<div class="xh-next">${icon('arrowRight', 14)}<span>Next: <b>${esc(next)}</b></span></div>` : ''}
-  </section>`;
-}
-
-/* The hero on a day that is still live but sub-passing: the score is climbing, not failing. Same
-   signature ring, but the tier verdict is held — a neutral "In progress" chip + what's left to do,
-   never "Off Standard", never a red down-delta. The real tier returns once the day is decided
-   (home render gates this) or once a passing tier is earned. */
-function inProgressHero(e) {
-  const left = e.total - e.met;
-  // ONE line, not two. This used to render "<b>N</b> of <b>M</b> done" and, beneath it,
-  // "N to go — your day is still open" — the same fact twice, under a header that had already
-  // said it a third time. The reassurance ("still open") is the part worth keeping; the count
-  // carries it.
-  // The "In progress" chip above already carries the reassurance that the day is not lost, so
-  // this line is the count and nothing else. Home previously said it three ways above the fold.
-  const line = e.met === 0 && left > 0
-    ? 'Log your first requirement to start your score'
-    : `<b>${e.met}</b> of <b>${e.total}</b> done today`;
-  // Nothing logged yet is not a score of zero, and the ring must not imply one. See scoreRing's
-  // `notStarted`: the digit arrives with the first requirement, and the screen reader is told
-  // "not started yet" rather than a number that would read as a failing grade.
-  const notStarted = e.met === 0;
-  return `<section class="xhero" data-tour="score" data-go="score-breakdown" role="button" aria-label="Daily Score ${notStarted ? 'not started yet' : e.score}, in progress. ${e.met} of ${e.total} completed. Open score breakdown">
-    <div class="xh-main">
-      ${scoreRing({ score: e.score, possible: e.possible, size: 128, stroke: 11, showCenter: false, centerNum: true, uid: 'hero', vt: 'score', notStarted })}
-      <div class="xh-body">
-        <div class="xh-k">Daily Score</div>
-        <div class="xrow"><span class="status-pill inprog">In progress</span></div>
-        <div class="xh-flow">${line}</div>
-      </div>
-      <span class="xstrip-chev">${icon('chevron', 16)}</span>
-    </div>
   </section>`;
 }
 
@@ -731,7 +751,7 @@ function celebration(e) {
   return `<div class="xcelebwrap">
     <section class="hero" style="padding-bottom:8px" data-go="score-breakdown" role="button"
       aria-label="Daily Score ${e.score}, ${S.tier.name}. Every requirement complete. Open score breakdown">
-      ${scoreRing({ score: e.score, tierName: S.tier.name, tierCls: S.tier.cls, vt: 'score' })}
+      ${scoreRing({ score: e.score, tierName: S.tier.name, tierCls: S.tier.cls, vt: 'score', size: HERO_RING, stroke: HERO_STROKE })}
     </section>
     <div style="font-size:var(--t-xl);font-weight:800;letter-spacing:-.02em;margin-top:2px">You're OnStandard.</div>
     <!-- One meta row, no echoes: the ring already says the score and (by color) the tier; the
@@ -765,15 +785,15 @@ function fmtClock(m) {
    Off-Standard that would punish them for a day they just joined. Neutral ring (—), no tier,
    no "vs yesterday". Full scoring resumes the next local day. */
 function notScoredHero() {
+  // The same ring every other state draws, in its unstarted form: beaded track, no band, a dash
+  // where the digit goes. It used to be a hand-rolled 102px bordered circle in the compact
+  // layout, which is how the activation day ended up looking like a different product from the
+  // day after it.
   return `<section class="xhero" style="cursor:default">
-    <div class="xh-main">
-      <div style="width:102px;height:102px;border-radius:50%;border:10px solid var(--surface-3);display:flex;align-items:center;justify-content:center;flex:0 0 auto">
-        <span style="font-size:var(--t-3xl);font-weight:800;color:var(--text-3)">—</span></div>
-      <div class="xh-body">
-        <div class="xh-k">Daily Score</div>
-        <div class="xrow"><span class="status-pill" style="background:var(--surface-2);color:var(--text-2)">Not scored yet</span></div>
-        <div class="xh-flow">Ready to begin. Your score starts with your next action.</div>
-      </div>
+    <div class="xh-ring">${scoreRing({ score: 0, uid: 'notscored', notStarted: true, size: HERO_RING, stroke: HERO_STROKE })}</div>
+    <div class="xh-under">
+      <div class="xrow"><span class="status-pill muted">Not scored yet</span></div>
+      <div class="xh-flow">Ready to begin. Your score starts with your next action.</div>
     </div>
   </section>`;
 }

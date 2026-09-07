@@ -476,6 +476,30 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); }
 .req-meta.dim { color: var(--text-3); font-weight: 700; font-size: var(--t-sm); }
 .req-chev { color: var(--text-3); flex: none; }
 
+/* ===== One horizontal scroller (2026-09-07 audit) =====
+   A row that runs past the viewport with a hidden scrollbar and a hard cut at the edge does not
+   read as "there is more to the right" — it reads as a clipped layout. The capture sweep found
+   178 elements overhanging 390px across 32 screen/theme pairs, and the coach chip rows were the
+   ones with no signal at all: the last filter was sliced mid-word against the screen edge.
+   .ptabs had already solved this for the Plan strip with a mask; this is that treatment as a
+   class anything can wear, with the same 18px cut and 20px lead-in so the two match.
+   The fade is STATE-DRIVEN, not always-on: dimming the first chip when there is nothing to its
+   left dims a live control for no reason, and dimming the last one when the row already fits
+   would invent an overflow that isn't there. mountEdgeFades() (components.js) sets the classes;
+   the router calls it after every render, so a scroller only has to wear .edge-fade. */
+.edge-fade.edge-r {
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 18px), transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 18px), transparent 100%);
+}
+.edge-fade.edge-l {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 100%);
+}
+.edge-fade.edge-l.edge-r {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 18px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 18px), transparent 100%);
+}
+
 /* ===== Recent activity (horizontal) ===== */
 .hscroll {
   display: flex; gap:var(--s3); overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain;
@@ -599,7 +623,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); }
   width: 57px; height: 57px; border-radius: var(--r-pill); margin:0 auto; margin-top:-19px;
   background: linear-gradient(155deg, var(--green), var(--green-deep));
   color: var(--ink-on-accent); display: grid; place-items: center;
-  box-shadow: var(--sh-green), 0 0 0 5px rgba(var(--green-rgb), 0.10);
+  box-shadow: var(--sh-green);
   cursor: pointer; transition: transform var(--dur-1) var(--ease-out), filter var(--dur-1) var(--ease-out);
 }
 .fab:active { transform: scale(0.92); filter: brightness(1.07); }
@@ -751,9 +775,12 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); }
 .macro .mk { font-size: var(--t-eyebrow); font-weight: 700; color: var(--text-3); margin-top:var(--s1); text-transform: uppercase; letter-spacing: var(--track-key); }
 /* 5-up macro row (thread meal breakdown) is denser than 3/4-up — ease the type so values don't touch edges */
 .macro-row.five .mv { font-size: var(--t-lg); }
-/* Four-up: protein moved out to its own hero tile, so the rest get a little more room. */
-.macro-row.four .mv { font-size: var(--t-lg); }
-.macro-row.four .mk { font-size: var(--t-micro); letter-spacing: 0.04em; }
+/* Four-up is 2x2, not four across (2026-09-07 audit). Four boxed tiles on a 390px phone leaves
+   each one about 78px wide, so the row read as a spec sheet: the labels had to drop two type
+   steps to fit and the values shrank with them. Two rows of two gives every tile real width, so
+   both go back to the sizes the 2-up and 3-up rows use and the whole family reads the same.
+   Five-up (the thread breakdown) stays a single row: it is a denser, secondary readout. */
+.macro-row.four { display: grid; grid-template-columns: 1fr 1fr; }
 .macro-row.five .mk { font-size: var(--t-micro); letter-spacing: 0.04em; }
 
 /* coach note / callout */

@@ -73,6 +73,7 @@
     "lint:dash": "node proto/redesign-2026-07/tools/em-dash-ratchet.mjs",
     "lint:space": "node proto/redesign-2026-07/tools/spacing-ratchet.mjs",
     "lint:score": "node proto/redesign-2026-07/tools/lint-score-pct.mjs",
+    "lint:undef": "node proto/redesign-2026-07/tools/undef-lint.mjs",
     "lint:widget": "node scripts/check-widget-mirror.mjs",
     "test:proto": "node scripts/node-test.mjs \"proto/redesign-2026-07/js/**/*.test.mjs\"",
     "test:admin": "node scripts/node-test.mjs \"web/admin/**/*.test.mjs\"",

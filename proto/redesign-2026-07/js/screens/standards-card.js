@@ -56,7 +56,7 @@ export function column(geo, { mini = false } = {}) {
 /** The count-up hooks for one value. `dec` is read back off the formatted string rather than
  *  assumed per metric, so the last frame of the tween is byte-identical to fmtValue's output —
  *  a counter that lands on "3.00" where the card says "3" is a counter nobody trusts. */
-function countAttrs(value, metric, unit) {
+export function countAttrs(value, metric, unit) {
   const shown = fmtValue(value, metric, unit);
   const dec = (shown.split('.')[1] || '').length;
   return { shown, attrs: `data-cs-count="${toDisplay(value, metric, unit)}" data-cs-dec="${dec}"` };

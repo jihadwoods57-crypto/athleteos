@@ -364,7 +364,7 @@ export const coachRoster = {
       <button class="btn ghost sm" data-sort aria-label="Sort by ${{ score: 'score', status: 'status', name: 'name', activity: 'recent activity' }[SORT]}. Tap to change">${{ score: 'Score', status: 'Status', name: 'A–Z', activity: 'Recent' }[SORT]}</button>
       <button class="btn ${SELECTING ? 'primary' : 'ghost'} sm" data-selmode>${SELECTING ? 'Done' : 'Select'}</button>
     </div>
-    <div class="co-seg co-scroll">
+    <div class="co-seg co-scroll edge-fade">
       ${fchip('all', '', `All ${entries.length}`)}${liveStatuses.map(([k, n]) => fchip('status', k, `${STATUS_META[k].label} ${n}`, STATUS_META[k].color)).join('')}${positions.map(p => fchip('position', p, p)).join('')}${groups.map(g => fchip('group', g.id, g.name)).join('')}
       ${CD.caps.groups ? `<button class="co-chip" data-groups>${icon('plus', 12)} Group</button>` : ''}
     </div>

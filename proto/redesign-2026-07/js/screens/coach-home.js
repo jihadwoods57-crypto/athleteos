@@ -418,10 +418,12 @@ function pulseCard(rows, statuses) {
         <div class="num">${p.avg != null ? p.avg : '—'}</div>
         <div class="delta ${dCls}">${esc(dTxt)}</div>
       </div>
-      <div class="co-pulse-done"><div class="v">${p.completionPct != null ? p.completionPct + '%' : '—'}</div><div class="k">Done today</div></div>
     </div>
     <div class="co-standing">${seg('g', g)}${seg('a', a)}${seg('r', r)}${seg('d', d)}</div>
     <div class="co-legend">${leg('g', g, 'on standard')}${leg('a', a, 'need attention')}${leg('r', r, 'overdue')}${leg('d', d, 'no activity')}</div>
+    <div class="co-pulse-cap">${p.tasksTotal
+      ? `<b>${p.tasksDone}</b> of <b>${p.tasksTotal}</b> requirements in today`
+      : 'No requirements set for today'}</div>
     ${SHOW_PULSE ? `<div style="border-top:1px solid var(--hairline-soft);margin-top:var(--s3);padding-top:var(--s3);font-size:12px;font-weight:600;color:var(--text-2);line-height:1.6">The group score averages today's real ${CD.noun} scores (${scored} of ${rows.length} scored so far). The bar is your roster's live standing. Nothing is estimated; a ${CD.noun} with no log adds no score.</div>` : ''}
   </section>`;
 }
@@ -643,7 +645,16 @@ function priorityCard(c, i, nudgedToday) {
   // Empty string, not --text-3, when there's no score: .co-pri supplies its own colour there.
   const scoreCol = c.score == null ? '' : scoreColor(c.score);
   const openPrimary = tier === 'below';  // below-standard → review the log; critical/due → send the nudge
-  const nudgeCls = !openPrimary ? (tier === 'critical' ? 'danger' : 'primary') : '';
+  // ONE primary per card (2026-09-07 audit). This row rendered four equal-width buttons — Open,
+  // Nudge, Assign, Handled — with the critical tier painting Nudge RED. Two problems in one row:
+  // four peers at a decision point is one decision too many, and red is this system's
+  // destructive fill, so the control the coach most wants pressed wore the colour that says
+  // "careful". The tier is already stated twice on the card (the pill and the rank), so the
+  // button does not have to carry it: Nudge is the primary in blue on every tier that needs it.
+  const nudgeCls = openPrimary ? '' : 'primary';
+  // "Open" duplicated the card head, which is itself a data-go into the same athlete. It stays
+  // only where it IS the primary action (a below-standard day is read, not nudged).
+  const showOpen = openPrimary;
   // Rank weight. #1 leads (raised, filled action); #2+ subordinate (tighter, tinted action).
   // See the "rank hierarchy" block in coach.css — every action survives, only weight changes.
   const rankCls = i === 0 ? 'lead' : 'sub';
@@ -663,7 +674,7 @@ function priorityCard(c, i, nudgedToday) {
       ${c.score != null ? `<div class="co-pri-score" style="color:${scoreCol}">${c.score}</div>` : ''}
     </div>
     <div class="co-pri-acts">
-      <button class="btn sm ${openPrimary ? 'primary' : ''}" data-go="coach-athlete/${esc(c.athleteId)}">${openPrimary ? 'Review' : 'Open'}</button>
+      ${showOpen ? `<button class="btn sm primary" data-go="coach-athlete/${esc(c.athleteId)}">Review</button>` : ''}
       <button class="btn sm ${nudgeCls}" data-pnudge="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}" ${nudgedToday ? 'disabled' : ''}>${nudgedToday ? `Nudged ${icon('check', 11)}` : 'Nudge'}</button>
       ${/* Book caps say what the BOOK supports; the staff role says what THIS operator may do.
             Gating on caps alone rendered Assign for an invited nutritionist, whose role has no

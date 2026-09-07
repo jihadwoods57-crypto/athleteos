@@ -42,7 +42,7 @@ import {
 // callers imported them from here first.
 import {
   standardsCard, standardsOfflineCard, mountStandardsCard,
-  pillFor, column, standardRow, METRIC_ICON,
+  pillFor, column, standardRow, METRIC_ICON, countAttrs,
 } from './standards-card.js';
 export { standardsCard, standardsOfflineCard, mountStandardsCard };
 

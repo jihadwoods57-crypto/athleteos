@@ -1254,6 +1254,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xstrip{display:flex;align-items:center;gap:var(--s3h);background:var(--surface-1);border:1px solid transparent;border-radius:var(--r-card);padding:var(--s3h) var(--s4);cursor:pointer;transition:transform var(--dur-1) var(--ease-out);box-shadow:var(--sh-card)}
 .xstrip:active{transform:scale(0.985)}
 .xstrip-chev{display:flex;flex:none;color:var(--text-3)}
+.xhero .xh-line .xstrip-chev,.xhero .xh-flow .xstrip-chev{display:inline-flex;vertical-align:-2px}
 /* ---- Daily Score hero (2026-07-16 restructure + formula upgrade): the score owns the
    screen. Ring + labeled facts up top, the four-part formula bar spanning the card below
    (same numbers/accents as the breakdown screen), next move last; the whole card opens
@@ -1263,7 +1264,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    amber CTA — so the product's signature number was visually outranked by the button beneath it.
    Card chrome removed: hierarchy here comes from SIZE and SPACE, not from another box. The tap
    affordance survives as the chevron plus a press state, which is what carried it anyway. */
-.xhero{display:flex;flex-direction:column;background:none;border:none;border-radius:var(--r-card);padding:var(--s1) 2px 2px;cursor:pointer;box-shadow:none;transition:transform var(--dur-1) var(--ease-out);position:relative}
+.xhero{display:flex;flex-direction:column;align-items:center;background:none;border:none;border-radius:var(--r-card);padding:var(--s1) 2px var(--s2);cursor:pointer;box-shadow:none;transition:transform var(--dur-1) var(--ease-out);position:relative}
 /* The score-driven ambient wash that used to sit behind the ring is GONE (founder, 2026-08-02:
    "a weird translucent blurry square background behind it — remove that so it fits more
    seamlessly").
@@ -1277,28 +1278,32 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    reduced-motion transition guard, all of which existed only to serve this pseudo-element.
    home.js no longer emits data-band at all. */
 .xhero:active{transform:scale(0.985)}
-.xhero .xh-main{display:flex;align-items:center;gap:var(--s3h);position:relative}
+/* The ring is the whole top of the hero now (2026-09-07 audit): one ring, centred, at the
+   same size the completed day draws, in every live state. .xh-ring exists to give the "+N"
+   float a positioned box that is the RING's bounds rather than the whole section's. */
+.xhero .xh-ring{position:relative;width:100%;display:flex;justify-content:center}
 .xhero .ring-wrap{flex:0 0 auto}
 /* Depth layering for the press-tilt (tilt.js). Static translateZ is invisible while the surface
    is flat; the moment the tilt rotates the hero, the ring sits proud of the text block and the
    two shear apart slightly — a real object, not a rotated screenshot. preserve-3d must run the
    whole ancestor chain from the tilted element down to the offset layers. */
-.xhero,.xhero .xh-main{transform-style:preserve-3d}
+.xhero,.xhero .xh-ring{transform-style:preserve-3d}
 .xhero .ring-wrap{transform:translateZ(16px)}
-.xhero .xh-body{transform:translateZ(7px)}
+.xhero .xh-under{transform:translateZ(7px)}
 /* Breakdown's big ring tilts as its own object: band forward, numerals furthest forward. The
    aurora keeps its spin animation (an added translateZ would be overwritten by the keyframe's
    transform anyway) and so stays the deepest layer by default. */
 .bd-hero .ring-wrap{transform-style:preserve-3d}
 .bd-hero .ring-svg{transform:translateZ(12px)}
 .bd-hero .ring-center{transform:translateZ(26px)}
-/* Sets only the BASE size — never font-size itself, or the .d3 three-digit fit stops applying here
-   (see the note on .ring-center .score in app.css). */
-.xhero .ring-center.num .score{font-family:var(--font-display);--score-size:var(--t-hero);font-weight:900;letter-spacing:-0.02em;font-variant-numeric:tabular-nums;color:var(--text);text-shadow:none;line-height:1;margin-top:0}
-.xhero .xh-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--s2)}
+/* The compact centre numeral is gone with the compact hero. It carried
+   `--score-size: var(--t-hero)` (52px) inside a 128px ring whose inner circle is 106px, so at
+   two digits the glyph sat ON the arc and the progress knob landed on the second digit. The
+   centre now sizes itself from the ring (--t-score, app.css), which is why it fits. */
+.xhero .xh-under{display:flex;flex-direction:column;align-items:center;gap:var(--s2);text-align:center;max-width:100%}
 .xhero .xh-k{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--text-3)}
 .xhero .xrow{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap}
-.xhero .xh-line{font-size:var(--t-sm);font-weight:600;color:var(--text-2);font-variant-numeric:tabular-nums;letter-spacing:-.005em;white-space:nowrap}
+.xhero .xh-line{font-size:var(--t-sm);font-weight:600;color:var(--text-2);font-variant-numeric:tabular-nums;letter-spacing:-.005em}
 .xhero .xh-line b{color:var(--text);font-weight:800}
 /* Prose companion line (in-progress / not-scored heroes): a full sentence, so it WRAPS —
    never the tabular one-liner treatment that clipped "…your day is still open". */
@@ -1331,11 +1336,11 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xscore-s{font-size:var(--t-xs);font-weight:700;color:var(--text-3);line-height:1.2}
 .xscore svg{width:12px;height:12px;flex:none}
 /* honest "+N" when a log just moved the number — floats up off the ring, then retires */
-.xh-float{position:absolute;left:88px;top:4px;font-size:var(--t-md);font-weight:800;color:var(--green-bright);text-shadow:0 0 16px rgba(var(--green-rgb), 0.5);pointer-events:none;animation:xh-float 1.7s var(--ease-out) forwards}
+.xh-float{position:absolute;right:16%;top:6%;font-size:var(--t-md);font-weight:800;color:var(--green-bright);text-shadow:0 0 16px rgba(var(--green-rgb), 0.5);pointer-events:none;animation:xh-float 1.7s var(--ease-out) forwards}
 @keyframes xh-float{0%{opacity:0;transform:translateY(9px)}18%{opacity:1;transform:translateY(0)}72%{opacity:1}100%{opacity:0;transform:translateY(-9px)}}
 /* formula: the same four parts the breakdown screen shows, as one stacked /100 bar.
    Segment growth runs on the ring's own clock so the score visibly assembles. */
-.xhero .xh-formula{margin-top:var(--s3h)}
+.xhero .xh-formula{margin-top:var(--s3h);width:100%}
 .xf-bar{display:flex;gap:var(--s1);height:8px;border-radius:var(--r-micro);background:var(--surface-3);overflow:hidden}
 .xf-bar i{height:100%;border-radius:var(--r-micro);transform-origin:left;animation:xf-grow var(--dur-ring) var(--ease-out)}
 @keyframes xf-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
@@ -1346,7 +1351,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    again (S.breakdown is now literally S.explain: two entries, 'g' then 'p'). */
 .xf-bar i.b{background:linear-gradient(90deg,var(--blue-deep),var(--blue))}
 .xf-bar i.a{background:linear-gradient(90deg,var(--amber-deep),var(--amber))}
-.xhero .xh-next{display:flex;align-items:flex-start;gap:var(--s1h);font-size:var(--t-sm);font-weight:600;letter-spacing:-.01em;color:var(--text-2);margin-top:var(--s3);padding-top:var(--s2h);border-top:1px solid var(--hairline-soft)}
+.xhero .xh-next{width:100%;display:flex;align-items:flex-start;gap:var(--s1h);font-size:var(--t-sm);font-weight:600;letter-spacing:-.01em;color:var(--text-2);margin-top:var(--s3);padding-top:var(--s2h);border-top:1px solid var(--hairline-soft)}
 .xhero .xh-next svg{color:var(--blue-bright);flex:none}
 .xhero .xh-next b{color:var(--text);font-weight:800}
 /* coach-seen receipt — proof a real person opened the day; injected only when true */
@@ -1465,7 +1470,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    states emit no hue class. The g/p/b/c variants below just remap the three custom properties,
    so every dependent rule (eyebrow, countdown, CTA fill, CTA shadow) follows in one move. */
 .xnow{--now-rgb:var(--amber-rgb);--now-ink:var(--amber-bright);--now-a:var(--amber);--now-b:var(--amber-deep);
-  background:linear-gradient(160deg,rgba(var(--now-rgb), 0.16),rgba(var(--now-rgb), 0.05) 55%),var(--surface-1);border:1px solid rgba(var(--now-rgb), 0.32);border-radius:var(--r-card);padding:var(--s4) var(--s4) var(--s3h);box-shadow:var(--sh-card)}
+  background:var(--surface-1);border:1px solid var(--hairline);border-radius:var(--r-card);padding:var(--s4) var(--s4) var(--s3h);box-shadow:var(--sh-card)}
 .xnow.g{--now-rgb:var(--green-rgb);--now-ink:var(--green-bright);--now-a:var(--green);--now-b:var(--green-deep)}
 .xnow.p{--now-rgb:var(--purple-rgb);--now-ink:var(--purple-bright);--now-a:var(--purple);--now-b:var(--purple-deep)}
 .xnow.b{--now-rgb:var(--blue-rgb);--now-ink:var(--blue-bright);--now-a:var(--blue);--now-b:var(--blue-deep)}
@@ -1484,7 +1489,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xnow .xt{font-size:var(--t-xl);font-weight:800;letter-spacing:var(--title-tight)}
 .xnow .xwhy{font-size:var(--t-sm);color:var(--text-2);line-height:1.45;margin-top:2px}
 .xcount{display:flex;align-items:baseline;gap:var(--s2);margin:var(--s3h) 0 var(--s3)}
-.xcount .xcd{font-size:var(--t-3xl);font-weight:800;letter-spacing:var(--num-tight);color:var(--now-ink);font-variant-numeric:tabular-nums}
+.xcount .xcd{font-size:var(--t-xl);font-weight:800;letter-spacing:var(--num-tight);color:var(--now-ink);font-variant-numeric:tabular-nums}
 .xnow.red .xcd{color:var(--red)}
 .xcount .xdl{font-size:var(--t-sm);color:var(--text-2);font-weight:700}
 /* Overdue has no countdown to run, so it has no numeral: the sentence IS the content ("Was due
@@ -1707,6 +1712,16 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .nut-values{display:flex;align-items:stretch}
 .nut-values .nv{flex:1;min-width:0;text-align:center;padding:15px var(--s1) 13px;position:relative}
 .nut-values .nv + .nv::before{content:'';position:absolute;left:0;top:22%;bottom:22%;width:1px;background:var(--hairline-soft)}
+/* Four cells across a 390px phone gives each one a 78px column: the value keeps its size and the
+   label drops to --t-micro, which is how the meal read ended up looking like a spec sheet
+   (2026-09-07 audit). Four becomes 2x2 and every cell gets real width; three and fewer stay in
+   the single row the vertical divider below is drawn for. The second row's rule is an inset
+   shadow rather than a pseudo-element: focus.css owns ::after, and ::before is already the
+   vertical divider. */
+.nut-values.wrap2{display:grid;grid-template-columns:1fr 1fr}
+.nut-values.wrap2 .nv + .nv::before{content:none}
+.nut-values.wrap2 .nv:nth-child(2n)::before{content:'';position:absolute;left:0;top:22%;bottom:22%;width:1px;background:var(--hairline-soft)}
+.nut-values.wrap2 .nv:nth-child(n+3){box-shadow:inset 0 1px 0 var(--hairline-soft)}
 .nut-values .mv{font-size:var(--t-xl);font-weight:800;letter-spacing:-0.03em;white-space:nowrap;font-variant-numeric:tabular-nums;line-height:1}
 /* the unit is a unit, not part of the number */
 .nut-values .mv i{font-style:normal;font-size:var(--t-sm);font-weight:700;color:var(--text-3);margin-left:1px}

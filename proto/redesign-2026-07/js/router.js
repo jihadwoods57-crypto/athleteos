@@ -2,7 +2,7 @@
 import { S, act, RT, routeForRole, memoTick } from './state.js';
 import { primeDayFromCache } from './day.js';
 import { icon } from './icons.js';
-import { skeletonRows, errorState } from './components.js';
+import { skeletonRows, errorState, mountEdgeFades } from './components.js';
 import { screens, isLazy, loadScreen, preloadScreens, OPERATOR_TAB_ROUTES } from './screens/index.js';
 import { initAnalytics, track, EVENTS } from './analytics.js';
 import { emptyNav, pushOrigin, popOrigin, peekOrigin, resetTab } from './nav-stack.js';
@@ -897,6 +897,9 @@ function render(opts) {
   // Profile pictures (0206): upgrade every [data-avatar-uid] monogram this screen rendered.
   // Screens that inject rows asynchronously call hydrateAvatars on their own slot.
   hydrateAvatars(device);
+  // Horizontal scrollers (2026-09-07 audit): tell every .edge-fade row whether it has content
+  // off an edge, so an overflowing chip strip fades instead of being sliced by the screen edge.
+  mountEdgeFades(device);
   if (layered) {
     const fresh = device.querySelector('.screen:not(.under):not(.leaving)');
     if (fresh) layerNav(oldScreen, fresh, dir); else oldScreen.remove();

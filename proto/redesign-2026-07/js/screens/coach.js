@@ -1856,7 +1856,7 @@ export const coachInbox = {
       ${rows && !rows.length && RT.team && RT.team.code ? `<div class="acts"><button class="btn ghost sm" id="inbox-copy-code" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.team.code)}</button><button class="btn primary sm" id="inbox-share-code" style="width:auto;padding:0 14px">Share code</button></div>` : ''}
     </section>` : ''}
 
-    <div class="co-seg co-scroll" id="inbox-cat-row" role="radiogroup" aria-label="Inbox category">
+    <div class="co-seg co-scroll edge-fade" id="inbox-cat-row" role="radiogroup" aria-label="Inbox category">
       ${inboxCategories().map(([key, label]) => `<button type="button" class="co-chip ${INBOX_CAT === key ? 'on' : ''}" role="radio" aria-checked="${INBOX_CAT === key ? 'true' : 'false'}" data-icat="${key}">${esc(key === 'athletes' && CD.kind === 'practice' ? 'Clients' : label)} <span class="cnt">${out.counts[key]}</span></button>`).join('')}
     </div>
 
@@ -2610,7 +2610,7 @@ export const coachAthlete = {
     <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:0 0 4px">This exact message goes to them, from "${esc(S.operatorIdentity.handle)} is waiting".</div>` : ''}
     <div id="tp-status" style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);min-height:0"></div>
 
-    <div class="co-seg co-scroll co-tabs" id="psec-row" role="radiogroup" aria-label="Profile section">
+    <div class="co-seg co-scroll co-tabs edge-fade" id="psec-row" role="radiogroup" aria-label="Profile section">
       ${profileSections().map(([key, label]) => `<button type="button" class="co-chip ${PSECTION === key ? 'on' : ''}" role="radio" aria-checked="${PSECTION === key ? 'true' : 'false'}" data-psec="${key}">${esc(label)}</button>`).join('')}
     </div>
 

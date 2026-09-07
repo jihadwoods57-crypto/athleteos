@@ -415,7 +415,16 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
     channel: () => ({ on: function () { return this; }, subscribe: function () { return this; }, unsubscribe: () => {} }),
     removeChannel: () => {},
     functions: { invoke: () => Promise.resolve({ data: null, error: { message: 'offline fixture' } }) },
-    storage: { from: () => ({
+    // BUCKET-AWARE, and it has to be (2026-09-07). This used to take no bucket argument at all,
+    // so it ignored the bucket name and mapped EVERY storage path through mealAsset — including
+    // avatars/<uid>/avatar.jpg. avatar.js probes that URL and paints it as a cover background
+    // when it loads, so every avatar in every captured screenshot, for every role, rendered as a
+    // plate of food. Months of design review looked at a bowl of chicken and rice where each
+    // person's face goes, and the initials fallback (what most real users actually see, since a
+    // user with no photo 404s) was never exercised in a single shot.
+    // Only the photo buckets get an asset. Everything else resolves to a path that does not
+    // exist, which is exactly what production does for a user who has not uploaded one.
+    storage: { from: (bucket) => (['meal-photos', 'progress-photos'].includes(bucket) ? {
       // Map any meal-photo path to a REAL proto asset. Two shapes reach here: the meal-detail
       // path '<uid>/<date>/<slot>.jpg' and the activity-feed path 'meal-<slot>'. Both resolve to
       // the shipped proto plate (assets/meal-{breakfast,lunch,dinner}.jpg). Snack has no asset, so
@@ -425,6 +434,11 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
       createSignedUrls: (ps) => Promise.resolve({ data: ps.map(p => ({ path: p, signedUrl: mealAsset(p) })), error: null }),
       upload: () => Promise.resolve({ data: null, error: null }),
       getPublicUrl: (p) => ({ data: { publicUrl: mealAsset(p) } }),
+    } : {
+      createSignedUrl: () => Promise.resolve({ data: null, error: { message: 'not found' } }),
+      createSignedUrls: (ps) => Promise.resolve({ data: ps.map(p => ({ path: p, signedUrl: null })), error: null }),
+      upload: () => Promise.resolve({ data: null, error: null }),
+      getPublicUrl: (p) => ({ data: { publicUrl: '/assets/__absent__/' + String(p) } }),
     }) },
     auth: {
       getSession: () => Promise.resolve({ data: { session: SESSION }, error: null }),

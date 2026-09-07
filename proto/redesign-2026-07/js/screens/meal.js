@@ -145,7 +145,7 @@ function macroRow(m) {
     `<div class="macro"><div class="mv">${m.fat}g</div><div class="mk">Fat</div></div>`,
   );
   if (S.planStyle.showCalories) cells.push(`<div class="macro"><div class="mv">${m.cals}</div><div class="mk">Calories</div></div>`);
-  return cells.length ? `<div class="macro-row">${cells.join('\n    ')}</div>` : '';
+  return cells.length ? `<div class="macro-row${cells.length >= 4 ? ' four' : ''}">${cells.join('\n    ')}</div>` : '';
 }
 
 /* ---------- Analyzing interstitial (branded loading) ---------- */
@@ -1013,7 +1013,7 @@ export const thread = {
     const nutInCard = settled && showNums ? `
     <div class="nut-src">Nutrition · ${esc(srcLabel)}</div>
     ${emptyRead ? `<div style="padding:0 16px 13px">${rereadNote}</div>` : `
-    <div class="nut-values">
+    <div class="nut-values${S.planStyle.showMacros && S.planStyle.showCalories ? ' wrap2' : ''}">
       ${S.planStyle.showMacros ? `
       <div class="nv lead"><div class="mv">${tilde}${M.macros.protein}<i>g</i></div><div class="mk">Protein</div></div>
       <div class="nv"><div class="mv">${tilde}${M.macros.carbs}<i>g</i></div><div class="mk">Carbs</div></div>

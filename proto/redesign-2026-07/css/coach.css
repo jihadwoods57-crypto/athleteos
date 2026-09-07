@@ -4,6 +4,10 @@
    Everything derives from tokens.css (spacing --s*, semantic hues, blue->teal ring stops). */
 
 /* ---------- shared rhythm ---------- */
+/* No scroll-snap here, deliberately. Adding `scroll-snap-type: x proximity` with
+   `scroll-snap-align: start` on the children snapped the FIRST chip's start edge to the
+   scrollport, which ate .co-seg's own left gutter and left "All 6" flush against the screen
+   edge. The fade (.edge-fade, app.css) is what this row was missing; the snap was not. */
 .co-scroll { overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
 .co-scroll::-webkit-scrollbar { display: none; }
 /* Rendered as <h2> (2026-09-01, same move as .eyebrow in app.css) — the class carries the look,
@@ -62,9 +66,12 @@
 .co-pulse-score .delta.up { color: var(--green-bright); }
 .co-pulse-score .delta.down { color: var(--red-bright); }
 .co-pulse-score .delta.flat { color: var(--text-3); }
-.co-pulse-done { text-align: right; flex: none; }
-.co-pulse-done .v { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; color: var(--text); font-variant-numeric: tabular-nums; }
-.co-pulse-done .k { font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); margin-top:1px; }
+/* The "Done today" percentage used to sit here as a 30px numeral opposite the group score:
+   two display figures in one card, so neither was the headline, and the two could contradict
+   each other in plain sight ("100% DONE TODAY" above "2 overdue"). It is now a caption under
+   the standing bar, counting requirements rather than quoting a ratio. See teamPulse. */
+.co-pulse-cap { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); margin-top: var(--s2h); font-variant-numeric: tabular-nums; }
+.co-pulse-cap b { color: var(--text-2); font-weight: 800; }
 
 /* the standing bar itself */
 .co-standing {
@@ -173,7 +180,6 @@
 .co-pri-acts > .btn:not(.primary):not(.danger) { border: 1px solid var(--hairline); }
 .co-pri-acts > .btn.primary, .co-pri-acts > .btn.danger { flex: 1.4; }
 .co-pri-acts > .btn.primary { box-shadow: 0 6px 18px rgba(var(--blue-deep-rgb), 0.30); }
-.co-pri-acts > .btn.danger { box-shadow: 0 6px 18px rgba(var(--red-rgb), 0.28); }
 /* Last, so a disabled primary drops its halo along with its fill (.btn:disabled, app.css). */
 .co-pri-acts > .btn:disabled { box-shadow: none; opacity: 0.5; }
 .co-pstatus { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); min-height: 0; margin-top:var(--s1h); }

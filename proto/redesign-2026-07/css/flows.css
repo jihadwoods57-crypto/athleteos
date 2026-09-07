@@ -481,7 +481,7 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
    teal lives in the bloom, not under the label); reuses the .btn.primary base. */
 .wel .btn.primary {
   background: linear-gradient(133deg, var(--blue-deep), var(--teal-deep));
-  box-shadow: var(--sh-blue), 0 8px 36px rgba(var(--teal-rgb), 0.26);
+  box-shadow: var(--sh-blue);
   color: #fff; /* deep fill in BOTH themes, so the ink stays white (base .btn.primary ink flips) */
 }
 .wel .btn.primary:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 3px; }
@@ -547,7 +547,7 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 .si .btn.primary.si-cta {
   margin-top:22px;
   background: linear-gradient(133deg, var(--blue-deep), var(--teal-deep));
-  box-shadow: var(--sh-blue), 0 8px 36px rgba(var(--teal-rgb), 0.26);
+  box-shadow: var(--sh-blue);
   color: #fff; /* deep fill in BOTH themes, so the ink stays white (base .btn.primary ink flips) */
 }
 .si .btn.primary.si-cta:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 3px; }
