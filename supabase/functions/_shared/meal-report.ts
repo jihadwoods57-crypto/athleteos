@@ -17,8 +17,21 @@
 // cosmetic prose problem into a data-loss one, so an incomplete retry is simply not adopted.
 
 /** True when a meal report carries macros we can stand behind and at least one identified food. */
-export function validMealInput(o: unknown): o is Record<string, unknown> {
-  if (!o || typeof o !== 'object' || Array.isArray(o)) return false;
+/**
+ * WHY a report was rejected, as a short stable tag — or null when it is fine.
+ *
+ * The gate below used to answer only yes/no, so every rejection reached telemetry as the same
+ * four words, "incomplete meal report", and there was no way to tell a model that forgot the fat
+ * figure from one that returned an empty plate. Measured 2026-09-07: this path fires on roughly
+ * one meal in six, each one a call we PAID for and then threw away, and each one an athlete
+ * getting "analysis unavailable" and having to retry. Knowing which field is missing is the
+ * difference between fixing that and guessing at it.
+ *
+ * Tags are short and stable because they land in ai_calls.outcome, which is capped at 60 chars
+ * and is meant to be GROUP BY-able.
+ */
+export function mealInputRejection(o: unknown): string | null {
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return 'not_an_object';
   const r = o as Record<string, unknown>;
   let macroSum = 0;
   for (const k of ['protein', 'kcal', 'carbs', 'fat'] as const) {
@@ -27,17 +40,26 @@ export function validMealInput(o: unknown): o is Record<string, unknown> {
     // therefore invisible to the check below — so a half-written report would otherwise pass with
     // that macro silently stored as zero. The tool schema declares integers; a numeric string is
     // tolerated because a good read should never be thrown away over its JSON type.
-    if (raw === null || raw === undefined || raw === '' || typeof raw === 'boolean') return false;
+    if (raw === null || raw === undefined || raw === '' || typeof raw === 'boolean') return `missing:${k}`;
     const n = Number(raw);
-    if (!Number.isFinite(n) || n < 0) return false;
+    if (!Number.isFinite(n)) return `not_a_number:${k}`;
+    if (n < 0) return `negative:${k}`;
     macroSum += n;
   }
   // All four at zero is the empty read this guard is named for: the model saw a plate and
   // reported nothing on it.
-  if (macroSum <= 0) return false;
+  if (macroSum <= 0) return 'all_macros_zero';
   // Every real plate has at least one food on it. An empty `detected` means the model never got
   // to the per-food attribution, which also means the client's grounding has nothing to bound.
-  return Array.isArray(r.detected) && r.detected.length > 0;
+  if (!Array.isArray(r.detected)) return 'detected_not_an_array';
+  if (r.detected.length === 0) return 'detected_empty';
+  return null;
+}
+
+/** Is this report safe to show an athlete? Delegates to mealInputRejection so the yes/no answer
+ *  and the reason can never disagree about what counts as valid. */
+export function validMealInput(o: unknown): o is Record<string, unknown> {
+  return mealInputRejection(o) === null;
 }
 
 /** The telemetry outcome tag for a rejected report — `truncated` when the model hit the token

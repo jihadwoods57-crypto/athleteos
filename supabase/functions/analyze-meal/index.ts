@@ -37,7 +37,7 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@0.65.0';
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
-import { validMealInput, rejectionOutcome } from '../_shared/meal-report.ts';
+import { validMealInput, mealInputRejection, rejectionOutcome } from '../_shared/meal-report.ts';
 import { repairMealReport, verifyCorrectionMessage } from '../_shared/meal-verify.ts';
 import { productCacheKey } from '../_shared/food-resolve.ts';
 import { composeOpenerText } from '../_shared/meal-opener.ts';
@@ -1243,7 +1243,7 @@ Deno.serve(async (request) => {
       if (!used || used.type !== 'tool_use') throw new Error('no structured output');
       // A second look that came back truncated must not overwrite the first read (state.js only
       // checks that kcal is a number) — fail the verify instead and leave the original standing.
-      if (!validMealInput(used.input)) throw new Error(msg.stop_reason === 'max_tokens' ? 'truncated tool output' : 'incomplete meal report');
+      if (!validMealInput(used.input)) throw new Error(msg.stop_reason === 'max_tokens' ? 'truncated tool output' : `incomplete meal report (${mealInputRejection(used.input)})`);
       // The second look is held to the same deterministic bar as the first read.
       const grounded = groundMacros(repairMealReport(used.input as Record<string, unknown>, req.mealType).input) as Record<string, unknown>;
       const outcome = classifyVerifyOutcomeServer(req.firstResult || {}, grounded);
@@ -1356,7 +1356,7 @@ ${memBlock}`;
   let recorded = false;
   try {
     const client = new Anthropic({ apiKey: key });
-    const msg = await client.messages.create({
+    const callModel = () => client.messages.create({
       model: intendedModel,
       max_tokens: isMeal ? MEAL_MAX_TOKENS : 1024,
       system: [{ type: 'text' as const, text: system, cache_control: { type: 'ephemeral' as const } }],
@@ -1364,6 +1364,43 @@ ${memBlock}`;
       tool_choice: toolChoice,
       messages: [{ role: 'user', content }],
     });
+    let msg = await callModel();
+
+    /* THE EMPTY TOOL CALL, RETRIED ONCE (2026-09-07).
+       Measured on the live function: between one in ten and three in ten meal analyses came back
+       with a tool_use block carrying NO detected foods and no protein — `items=0:macros=0` — with
+       a stop_reason that was not max_tokens, so it was not truncation. Nothing downstream could
+       rescue that (there is nothing to sum), so it threw, and the athlete got "analysis
+       unavailable" on a plate they had just photographed.
+       It costs nothing extra to try again, because we were already paying twice: the 502 lands on
+       the client's fail() path, which retries the whole request anyway. Same spend, except the
+       athlete never sees the failure and does not wait for a round trip through their own outbox.
+       Bounded hard: ONE retry, only on the meal path, only when the response is provably unusable,
+       and only when the model has not simply run out of tokens (a truncated read retried
+       identically would truncate again). If the retry is no better we keep the first response and
+       the existing gate throws exactly as it did before. */
+    if (isMeal && msg.stop_reason !== 'max_tokens') {
+      const first = msg.content.find((b) => b.type === 'tool_use');
+      const unusable = !first
+        || (first.type === 'tool_use'
+            && first.name !== ASK_TOOL.name
+            && !validMealInput(repairMealReport(first.input as Record<string, unknown>, req.mealType).input));
+      if (unusable) {
+        const retried = await callModel();
+        const better = retried.content.find((b) => b.type === 'tool_use');
+        const usable = !!better && better.type === 'tool_use'
+          && (better.name === ASK_TOOL.name
+              || validMealInput(repairMealReport(better.input as Record<string, unknown>, req.mealType).input));
+        await recordAiCall({
+          fn: 'analyze-meal', mode: telemMode, phase: telemPhase, userId,
+          model: retried.model ?? intendedModel, ...usageFrom(retried.usage),
+          latencyMs: Date.now() - t0, ok: true,
+          outcome: usable ? 'empty_tool_retry:recovered' : 'empty_tool_retry:still_empty',
+        });
+        if (usable) msg = retried;
+      }
+    }
+
     await recordAiCall({
       fn: 'analyze-meal',
       mode: telemMode,
@@ -1432,15 +1469,51 @@ ${memBlock}`;
       // or empty tool_use rode straight through to the app, which wrote protein/carbs/fat/kcal as
       // 0 and marked the meal settled — a silent, unrecoverable ~0g meal. Throwing lands on the
       // 502 below, which is the client's fail() path: it retries, then offers "Read it again".
-      if (!validMealInput(used.input)) {
+      let candidate = used.input as Record<string, unknown>;
+      // REPAIR BEFORE REJECTING (2026-09-07). The gate below is right that an untrustworthy report
+      // must never be dressed up as a result — but it was rejecting reports the deterministic
+      // repair could already rebuild, because repair ran AFTER it. Measured: roughly one meal in
+      // seven failed here, always as `missing:protein` — the model omitting a schema-required TOTAL
+      // while still attributing every macro food by food. That is not an untrustworthy read, it is
+      // an arithmetic gap, and repairMealReport's "totals from items" step exists to close it. Each
+      // rejection cost a call we had already PAID for and handed the athlete "analysis unavailable".
+      //
+      // The salvage is bounded by the same gate: a report is only adopted if it VALIDATES after
+      // repair, and repair can only fill a total from per-food macros the model actually returned
+      // (the tool schema requires them to sum to the totals anyway). An empty plate, an empty
+      // detected list or a genuinely absent read still has nothing to sum and still throws.
+      // The client re-derives every macro against the food DB regardless, so this total is a
+      // bridge, not a new authority.
+      if (!validMealInput(candidate)) {
+        const salvaged = repairMealReport(candidate, req.mealType).input;
+        if (validMealInput(salvaged)) {
+          candidate = salvaged;
+          await recordAiCall({
+            fn: 'analyze-meal', mode: telemMode, phase: telemPhase, userId,
+            model: msg.model ?? intendedModel, latencyMs: 0, ok: true,
+            outcome: `salvaged:${mealInputRejection(used.input)}`.slice(0, 60),
+          });
+        }
+      }
+      if (!validMealInput(candidate)) {
+        // WHY the salvage could not save it. Knowing the reason ("missing:protein") without
+        // knowing whether there were any per-food macros to rebuild it FROM leaves you guessing
+        // at exactly the wrong step, which is where this investigation stalled once already.
+        const det = Array.isArray((candidate as { detected?: unknown }).detected)
+          ? (candidate as { detected: unknown[] }).detected : [];
+        const withMacros = det.filter((it) => {
+          if (!it || typeof it !== 'object') return false;
+          const r = it as Record<string, unknown>;
+          return ['protein', 'kcal', 'carbs', 'fat'].some((k) => Number(r[k]) > 0);
+        }).length;
         await recordAiCall({
           fn: 'analyze-meal', mode: telemMode, phase: telemPhase, userId,
           model: msg.model ?? intendedModel, latencyMs: Date.now() - t0, ok: true,
-          outcome: rejectionOutcome(msg.stop_reason),
+          outcome: `${rejectionOutcome(msg.stop_reason)}:${mealInputRejection(candidate)}:items=${det.length}:macros=${withMacros}`.slice(0, 60),
         });
-        throw new Error(msg.stop_reason === 'max_tokens' ? 'truncated tool output' : 'incomplete meal report');
+        throw new Error(msg.stop_reason === 'max_tokens' ? 'truncated tool output' : `incomplete meal report (${mealInputRejection(candidate)})`);
       }
-      let input = used.input as Record<string, unknown>;
+      let input = candidate;
 
       /* ── DETERMINISTIC VERIFICATION + REPAIR (the Core Power fix, 2026-08-06) ─────────────
          Before this read is returned, scored, or spoken, code checks it against itself:
@@ -1697,9 +1770,37 @@ ${memBlock}`;
     // Label facts + memory/order prose are returned as-is (the CLIENT bounds the numbers).
     return new Response(JSON.stringify(used.input), { headers: { ...cors, 'Content-Type': 'application/json' } });
   } catch (e) {
-    // A failed API call (network/429/5xx): record it once as a failed attempt (latency + error tag)
-    // so failures show up in the cost/latency views too. A post-response parse throw was already
-    // recorded ok above, so `recorded` guards against a duplicate row.
+    // EVERY FAILURE IS RECORDED. It did not used to be: `if (!recorded)` skipped the row whenever
+    // the model call had already succeeded, on the reasoning that a post-response throw "was
+    // already recorded ok above". That reasoning protected the COST view and destroyed the HEALTH
+    // view — the athlete got "analysis unavailable" while ai_calls said ok:true. Measured
+    // 2026-09-07: roughly six observed 502s in an afternoon against ONE recorded error, so the
+    // dashboard showed a healthy service the whole time.
+    //
+    // Both paths record now, and they are distinguishable, which is the diagnostic that was
+    // missing: `upstream_error` means the call to the model itself failed (network, 429, 5xx) and
+    // we paid nothing; `post_model_error` means the model answered, we PAID, and something after
+    // it threw. Those two want completely different fixes.
+    //
+    // The post-model row carries zero tokens and zero latency on purpose, so adding it cannot
+    // double-count spend in the cost views the first row already fed.
+    const errName = (e && typeof e === 'object' && 'name' in e ? String((e as { name?: unknown }).name) : '') || 'Error';
+    const errMsg = (e && typeof e === 'object' && 'message' in e ? String((e as { message?: unknown }).message) : '') || '';
+    // Bounded and stripped: this reaches a database column, and an upstream message is not ours.
+    const detail = `${errName}: ${errMsg}`.replace(/[\r\n]+/g, ' ').replace(/[^\x20-\x7E]/g, '').slice(0, 60);
+    if (recorded) {
+      await recordAiCall({
+        fn: 'analyze-meal',
+        mode: telemMode,
+        phase: telemPhase,
+        userId,
+        model: intendedModel,
+        latencyMs: 0,
+        ok: false,
+        errorCode: 'post_model_error',
+        outcome: detail,
+      });
+    }
     if (!recorded) {
       await recordAiCall({
         fn: 'analyze-meal',
@@ -1710,6 +1811,7 @@ ${memBlock}`;
         latencyMs: Date.now() - t0,
         ok: false,
         errorCode: 'upstream_error',
+        outcome: detail,
       });
     }
     // Log the detail server-side; return a generic message so no internal detail (upstream error
