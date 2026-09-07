@@ -23,7 +23,10 @@
     ],
     "hasSevereAllergen": false,
     "expectVerify": "none",
-    "notes": "Real plate: baked/blackened salmon, white rice, roasted asparagus, dinner roll — well-lit, single plate, foods clearly visible; verify must stay quiet. Ground truth uses the real asparagus and dinner-roll entries (added to foodDb 2026-08-06); the old green-beans / bread-whole-wheat proxies are gone. Note the missing dinner-roll entry also caused a WRONG match, not just a missing one: matchFood('Dinner roll') resolved to rolled oats, because 'rolled' starts with 'roll' — that inflated a detected id that was never on the plate and cost precision. Servings approximate the app's own prior real analysis of this exact meal (46g protein / 62g carbs / 22g fat / 620 kcal). SOURCE NOTE: this file is an app screenshot (status bar + confirm-screen UI chrome baked into the pixels), not a clean raw camera capture — replace with a real un-cropped device photo when the team adds one."
+    "notes": "Real plate: baked/blackened salmon, white rice, roasted asparagus, dinner roll — well-lit, single plate, foods clearly visible; verify must stay quiet. Ground truth uses the real asparagus and dinner-roll entries (added to foodDb 2026-08-06); the old green-beans / bread-whole-wheat proxies are gone. Note the missing dinner-roll entry also caused a WRONG match, not just a missing one: matchFood('Dinner roll') resolved to rolled oats, because 'rolled' starts with 'roll' — that inflated a detected id that was never on the plate and cost precision. Servings approximate the app's own prior real analysis of this exact meal (46g protein / 62g carbs / 22g fat / 620 kcal). SOURCE NOTE: this file is an app screenshot (status bar + confirm-screen UI chrome baked into the pixels), not a clean raw camera capture — replace with a real un-cropped device photo when the team adds one.",
+    "request": {
+      "goal": "general athletic development"
+    }
   },
   {
     "id": "meatball-tray",
@@ -57,7 +60,10 @@
     ],
     "hasSevereAllergen": false,
     "expectVerify": "none",
-    "notes": "Real photo: staff lunch tray, 4 meatballs in marinara over rice, mashed potato and sauteed pepper/onion sides. Well-lit, distinct compartments; verify must stay quiet. Ground truth uses the real meatballs / mashed-potato / onion / marinara entries (added to foodDb 2026-08-06) instead of the old ground-beef-90 / whole-potato / bell-pepper-only proxies, which counted no binder, no sauce, and no added fat. 4 meatballs = 1.33 of the 3-meatball serving."
+    "notes": "Real photo: staff lunch tray, 4 meatballs in marinara over rice, mashed potato and sauteed pepper/onion sides. Well-lit, distinct compartments; verify must stay quiet. Ground truth uses the real meatballs / mashed-potato / onion / marinara entries (added to foodDb 2026-08-06) instead of the old ground-beef-90 / whole-potato / bell-pepper-only proxies, which counted no binder, no sauce, and no added fat. 4 meatballs = 1.33 of the 3-meatball serving.",
+    "request": {
+      "goal": "general athletic development"
+    }
   },
   {
     "id": "steak-potatoes",
@@ -79,7 +85,30 @@
     ],
     "hasSevereAllergen": false,
     "expectVerify": "none",
-    "notes": "Real photo: to-go container, sliced braised/roasted beef in its own jus, roasted potato wedges, green beans. Well-lit, single well-separated compartment, foods clearly visible; verify must stay quiet. FOOD_DB has no braised-beef entry, so sirloin-steak stands in (closest protein; the real dish is fattier/moister with pan jus, so this proxy likely undercounts fat and total kcal a bit)."
+    "notes": "Real photo: to-go container, sliced braised/roasted beef in its own jus, roasted potato wedges, green beans. Well-lit, single well-separated compartment, foods clearly visible; verify must stay quiet. FOOD_DB has no braised-beef entry, so sirloin-steak stands in (closest protein; the real dish is fattier/moister with pan jus, so this proxy likely undercounts fat and total kcal a bit). EARLIER MEALS (2026-09-07): this plate is posted with the day that came before it, so the suite actually exercises the earlier-meals prompt line. Chosen to give a good read something real to notice — repetition, or a food group missing all day — rather than a neutral day that proves nothing.",
+    "request": {
+      "goal": "general athletic development",
+      "earlierMeals": [
+        {
+          "slot": "breakfast",
+          "foods": [
+            "Scrambled eggs",
+            "Bacon",
+            "Toast"
+          ],
+          "protein": 32
+        },
+        {
+          "slot": "lunch",
+          "foods": [
+            "Chicken sandwich",
+            "Fries"
+          ],
+          "protein": 38
+        }
+      ],
+      "mealType": "Dinner"
+    }
   },
   {
     "id": "chicken-beef-collards",
@@ -105,7 +134,29 @@
     ],
     "hasSevereAllergen": false,
     "expectVerify": "none",
-    "notes": "Real photo: plated dinner, saucy chicken chunks, sliced beef in gravy, cooked collard greens, white rice. Well-lit, foods distinct; verify must stay quiet. Ground truth uses the real collard-greens entry (added to foodDb 2026-08-06: 1 cup cooked at 70 kcal / 3g fat, reflecting greens simmered with fat rather than raw leaf). The old spinach proxy priced a whole cup of collards at 7 kcal, which is what made this case's kcal/fat ground truth a floor rather than a value."
+    "notes": "Real photo: plated dinner, saucy chicken chunks, sliced beef in gravy, cooked collard greens, white rice. Well-lit, foods distinct; verify must stay quiet. Ground truth uses the real collard-greens entry (added to foodDb 2026-08-06: 1 cup cooked at 70 kcal / 3g fat, reflecting greens simmered with fat rather than raw leaf). The old spinach proxy priced a whole cup of collards at 7 kcal, which is what made this case's kcal/fat ground truth a floor rather than a value. EARLIER MEALS (2026-09-07): this plate is posted with the day that came before it, so the suite actually exercises the earlier-meals prompt line. Chosen to give a good read something real to notice — repetition, or a food group missing all day — rather than a neutral day that proves nothing.",
+    "request": {
+      "goal": "general athletic development",
+      "earlierMeals": [
+        {
+          "slot": "breakfast",
+          "foods": [
+            "Oatmeal",
+            "Banana"
+          ],
+          "protein": 12
+        },
+        {
+          "slot": "lunch",
+          "foods": [
+            "Turkey wrap",
+            "Apple"
+          ],
+          "protein": 30
+        }
+      ],
+      "mealType": "Dinner"
+    }
   },
   {
     "id": "breakfast-plate",
@@ -154,7 +205,8 @@
         "level": "college",
         "bodyweightLb": 215,
         "dayType": "training"
-      }
+      },
+      "goal": "general athletic development"
     }
   },
   {
@@ -197,7 +249,27 @@
     ],
     "hasSevereAllergen": false,
     "expectVerify": "none",
-    "notes": "Real photo: 2 open-face loaded soft tacos (restaurant/prepared-meal style) — shredded beef, chicken chunks, rice, shredded lettuce, shredded cheddar, sour cream, pico, on flour tortillas. Well-lit, busy but legible; verify must stay quiet. Ground truth now counts the sour cream and pico (sour-cream + salsa entries added to foodDb 2026-08-06); both were previously uncounted. mixed-greens (alias 'lettuce') still proxies the shredded lettuce. First 'restaurant' caseType in the set."
+    "notes": "Real photo: 2 open-face loaded soft tacos (restaurant/prepared-meal style) — shredded beef, chicken chunks, rice, shredded lettuce, shredded cheddar, sour cream, pico, on flour tortillas. Well-lit, busy but legible; verify must stay quiet. Ground truth now counts the sour cream and pico (sour-cream + salsa entries added to foodDb 2026-08-06); both were previously uncounted. mixed-greens (alias 'lettuce') still proxies the shredded lettuce. First 'restaurant' caseType in the set. EARLIER MEALS (2026-09-07): this plate is posted with the day that came before it, so the suite actually exercises the earlier-meals prompt line. Chosen to give a good read something real to notice — repetition, or a food group missing all day — rather than a neutral day that proves nothing.",
+    "request": {
+      "goal": "general athletic development",
+      "earlierMeals": [
+        {
+          "slot": "breakfast",
+          "foods": [
+            "Protein shake"
+          ],
+          "protein": 30
+        },
+        {
+          "slot": "lunch",
+          "foods": [
+            "Pepperoni pizza"
+          ],
+          "protein": 34
+        }
+      ],
+      "mealType": "Dinner"
+    }
   },
   {
     "id": "poor-image-01",
@@ -239,7 +311,10 @@
     ],
     "hasSevereAllergen": false,
     "expectVerify": "accuracy",
-    "notes": "DERIVED (2026-09-07) from tacos.jpeg with ffmpeg: 40% scale, boxblur 6, brightness -0.26, contrast 0.75, q14 — a dim, blurry, heavily compressed phone snap, which is what a real bad capture looks like. Ground truth is the SAME PLATE as tacos, deliberately: the food did not change, only the photograph, so any macro error here over the tacos baseline is the cost of a bad capture and nothing else. Exists because shouldVerify only fires when the model returns a low-confidence food, so a suite of well-lit plates can NEVER exercise the accuracy verifier — the trigger needs weightedConfidence low AND quality under 50. If this case stops firing, either the degradation is too mild or the model has started reading bad photos overconfidently, and the second one is a real defect."
+    "notes": "DERIVED (2026-09-07) from tacos.jpeg with ffmpeg: 40% scale, boxblur 6, brightness -0.26, contrast 0.75, q14 — a dim, blurry, heavily compressed phone snap, which is what a real bad capture looks like. Ground truth is the SAME PLATE as tacos, deliberately: the food did not change, only the photograph, so any macro error here over the tacos baseline is the cost of a bad capture and nothing else. Exists because shouldVerify only fires when the model returns a low-confidence food, so a suite of well-lit plates can NEVER exercise the accuracy verifier — the trigger needs weightedConfidence low AND quality under 50. If this case stops firing, either the degradation is too mild or the model has started reading bad photos overconfidently, and the second one is a real defect.",
+    "request": {
+      "goal": "general athletic development"
+    }
   },
   {
     "id": "allergen-01",
@@ -277,7 +352,8 @@
       "mealType": "Breakfast",
       "avoid": [
         "eggs"
-      ]
+      ],
+      "goal": "general athletic development"
     },
     "notes": "DERIVED (2026-09-07) from breakfast-plate.jpeg with ffmpeg: 55% scale, boxblur 4, brightness -0.20, contrast 0.82, q12. Scenario: an athlete with a CONFIRMED severe egg allergy photographs a plate where scrambled egg is unmistakably present. Eggs are a top-9 allergen, so this is a real scenario and not a contrived one. Degraded on purpose: the allergen verifier fires only on hasSevere AND a low-confidence food, so a pin-sharp photo cannot test it. Ground truth is the same plate as breakfast-plate. CURRENTLY RED — and it is red because it found something (2026-09-07, first run). analyze-meal returns 502 {\"error\":\"analysis unavailable\"} for this request. Isolated by probe: allergen-01 + avoid[eggs] failed 2 of 3 attempts; allergen-01 + avoid[shellfish] (an allergen NOT on the plate) succeeded; allergen-01 with no avoid succeeded; the pin-sharp breakfast-plate.jpeg + avoid[eggs] ALSO failed. So the trigger looks like a declared severe restriction that is unmistakably PRESENT on the plate, not the degraded image and not the avoid field on its own. That is the exact moment an athlete most needs an answer, and they get \"analysis unavailable\". LATENT, not active: ai_calls shows 1 upstream_error in all of history (2026-09-07, from this probing) against 228 successful analyze-meal calls since 2026-07-22, so no real athlete has hit it yet. n=3 — the pattern is strong but not proven; the mechanism is still unidentified (the 502 is the generic catch-all at index.ts, detail only in server logs, and this CLI version has no functions logs subcommand)."
   }

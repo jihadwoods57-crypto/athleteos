@@ -5,7 +5,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { scoreMeal, type ManifestEntry, type MealResponse } from '../src/core/evalScore';
+import { scoreMeal, openerVariety, type ManifestEntry, type MealResponse } from '../src/core/evalScore';
 
 const DIR = dirname(fileURLToPath(import.meta.url));
 const arg = (k: string, d?: string) => { const a = process.argv.find((x) => x.startsWith(`--${k}=`)); return a ? a.split('=')[1] : (process.argv.includes(`--${k}`) ? '' : d); };
@@ -42,6 +42,8 @@ async function getResponse(e: ManifestEntry): Promise<{ resp: MealResponse | nul
       ...(ctx.dayContext ? { dayContext: ctx.dayContext } : {}),
       ...(ctx.athlete ? { athlete: ctx.athlete } : {}),
       ...(ctx.avoid && ctx.avoid.length ? { avoid: ctx.avoid } : {}),
+      ...(ctx.goal ? { goal: ctx.goal } : {}),
+      ...(ctx.earlierMeals && ctx.earlierMeals.length ? { earlierMeals: ctx.earlierMeals } : {}),
     }),
   });
   const ms = Date.now() - t0;
@@ -66,6 +68,16 @@ function aggregate(scored: ReturnType<typeof scoreMeal>[]) {
     // as an insult to their morning ("Zero on the board", over their breakfast).
     day_leak_rate: +mean((s) => (s.dayLeak.leaked ? 1 : 0)).toFixed(3),
     empty_day_rate: +mean((s) => (s.dayLeak.emptyDay ? 1 : 0)).toFixed(3),
+    // Is the writing any good? All four were measured at damning levels on 2026-09-07 and none
+    // of them were visible to this harness before: 11 of 13 reads opened with the same template,
+    // 8 of 13 hedged the verdict, 4 of 13 parroted the goal back, 12 of 13 deferred every action
+    // to a future meal. Higher is worse on all four; opener_variety is the exception (1.0 = every
+    // read opens differently), which is why it is named for the good direction.
+    opener_template_rate: +mean((s) => (s.prose.openerTemplate ? 1 : 0)).toFixed(3),
+    hedged_verdict_rate: +mean((s) => (s.prose.hedgedVerdict ? 1 : 0)).toFixed(3),
+    goal_parrot_rate: +mean((s) => (s.prose.goalParrot ? 1 : 0)).toFixed(3),
+    future_only_rate: +mean((s) => (s.prose.futureOnly ? 1 : 0)).toFixed(3),
+    opener_variety: +openerVariety(scored.map((s) => s.analysis)).toFixed(3),
     verify_trigger_accuracy: +mean((s) => (s.verify.correct ? 1 : 0)).toFixed(3),
   };
 }
@@ -98,6 +110,13 @@ const NOISE: Record<string, number> = {
   contradiction_rate: 0.02,
   day_leak_rate: 0.001,
   empty_day_rate: 0.001,
+  // Prose gauges. Looser than the leak rates: these are style pressure, not correctness, and one
+  // plate out of eight flipping is 0.125, so a floor below that would fire on a single read.
+  opener_template_rate: 0.20,
+  hedged_verdict_rate: 0.20,
+  goal_parrot_rate: 0.15,
+  future_only_rate: 0.25,
+  opener_variety: 0.20,
 };
 const DEFAULT_NOISE = 0.02;
 
@@ -194,7 +213,7 @@ sampled each photo ${REPEAT}x — aggregate is a mean over ${scored.length} read
       const d = (agg as any)[k] - (prev[k] ?? 0);
       // Metrics where UP is worse. `leak` must be listed here or a run that started narrating the
       // athlete's day back at them would score as an improvement.
-      const upIsWorse = /err_pct|contradiction|leak|empty_day/.test(k);
+      const upIsWorse = /err_pct|contradiction|leak|empty_day|_template_rate|hedged_|parrot_|future_only/.test(k);
       const t = NOISE[k] ?? DEFAULT_NOISE;
       const worse = upIsWorse ? d > t : d < -t;
       if (Math.abs(d) >= 0.001) console.log(`  ${worse ? '⚠ ' : '  '}${k}: ${prev[k]} → ${(agg as any)[k]} (${d > 0 ? '+' : ''}${d.toFixed(3)}, noise floor ${t})`);

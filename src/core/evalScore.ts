@@ -6,6 +6,8 @@ import { matchFood } from '../../proto/redesign-2026-07/js/nutrition.js';
 import { mealQualityScore, qualityBand, analysisAgreesWithBand, shouldVerify } from '../../proto/redesign-2026-07/js/meal-intel.js';
 import { FOOD_DB } from './foodDb';
 import { detectDayLeak } from '../../supabase/functions/_shared/day-leak';
+import { scoreProse, openerVariety } from '../../supabase/functions/_shared/prose-quality';
+export { openerVariety };
 
 export interface ExpectedFood { foodDbId: string; servings: number }
 /**
@@ -19,10 +21,17 @@ export interface ExpectedFood { foodDbId: string; servings: number }
  */
 export interface EvalRequestContext {
   mealType?: string;
+  /** The athlete goal string sent with the request, so scoreProse can tell an echoed goal from
+   *  ordinary vocabulary. */
+  goal?: string;
   /** Confirmed severe restrictions the athlete has declared, exactly as the client sends them.
    *  Required for an allergen case: the allergen verifier only fires when a severe restriction is
    *  on file AND the read carries a low-confidence food, so a case without this can never test it. */
   avoid?: string[];
+  /** What the athlete ate earlier today. Without at least one plate carrying this, the suite
+   *  would never put the earlier-meals line in a prompt — which is precisely how the Day context
+   *  line went unexercised for months and shipped "Zero on the board". */
+  earlierMeals?: { slot: string; foods: string[]; protein?: number }[];
   dayContext?: { proteinSoFar?: number; proteinTarget?: number; mealsRemaining?: number; mealsLoggedSoFar?: number };
   athlete?: { sport?: string; position?: string; level?: string; bodyweightLb?: number; dayType?: string };
 }
@@ -96,6 +105,13 @@ export function scoreDayLeak(resp: MealResponse) {
   return detectDayLeak(resp.analysis);
 }
 
+/* Is the WRITING any good? Deterministic pressure gauges on the house style — see
+   supabase/functions/_shared/prose-quality.ts for what each one caught and why a banned-phrase
+   list alone could never catch it. */
+export function scoreProseQuality(resp: MealResponse, entry: ManifestEntry) {
+  return scoreProse(resp.analysis, { goal: entry.request?.goal ?? null });
+}
+
 export function scoreVerifyTrigger(resp: MealResponse, entry: ManifestEntry) {
   const expected = entry.expectVerify || 'none';
   const severe = (entry.expectVerify === 'allergen' || entry.hasSevereAllergen) ? ['sim'] : [];
@@ -112,6 +128,8 @@ export function scoreMeal(resp: MealResponse, entry: ManifestEntry) {
     macroError: scoreMacroError(resp, truth),
     contradiction: scoreContradiction(resp),
     dayLeak: scoreDayLeak(resp),
+    prose: scoreProseQuality(resp, entry),
+    analysis: String(resp.analysis || ''),
     verify: scoreVerifyTrigger(resp, entry),
   };
 }

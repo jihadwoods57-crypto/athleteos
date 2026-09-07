@@ -846,6 +846,30 @@ function applyGoalToDay() {
    training/rest type all sit right here. Same bodyweight resolution as applyGoalToDay so the
    model and the score agree on the number. Every field optional; the server sanitizes and an
    older deploy ignores the block. */
+/* WHAT THE ATHLETE ALREADY ATE TODAY, as foods rather than a lone protein total.
+   The analysis prompt has only ever had `proteinSoFar` — one number for the whole day — so the
+   read judged each photo in isolation and could never say the thing a nutritionist actually says
+   across a day ("eggs again", "still nothing green since breakfast"). The food names have been
+   sitting in DAY.slotMacros[slot].foods since the meal detail screen was built.
+   Only SCORED slots count, the same evidence rule the score and mealDayProgress use, and the slot
+   being analyzed is excluded — it is still pending, and telling the model about the plate it is
+   looking at as though it were history would be its own kind of nonsense. Bounded and stringified
+   here; the server re-sanitizes in _shared/day-meals.ts. */
+function earlierMealsForAnalysis(currentSlot) {
+  const out = [];
+  for (const k of MEAL_KEYS) {
+    if (k === currentSlot) continue;
+    if (!mealScored(DAY, k)) continue;
+    const meta = DAY.slotMacros[k] || {};
+    const foods = (Array.isArray(meta.foods) ? meta.foods : [])
+      .map((f) => String(f == null ? '' : f).trim()).filter(Boolean).slice(0, 6);
+    if (!foods.length) continue;
+    const protein = Math.round(Number(meta.protein) || 0);
+    out.push({ slot: k, foods, ...(protein > 0 && protein <= 300 ? { protein } : {}) });
+  }
+  return out.length ? { earlierMeals: out.slice(0, 4) } : {};
+}
+
 function athleteContextForAnalysis() {
   const p = RT.profile || {};
   const bw = (p.baseWeight != null ? +p.baseWeight : 0)
@@ -1321,6 +1345,7 @@ export const act = {
       mode: 'meal', mealType: job.mealType || cap(job.slot), goal: RT.primaryGoal || null,
       photoBase64: job.base64, ...(timing ? { timing } : {}),
       ...athleteContextForAnalysis(),
+      ...earlierMealsForAnalysis(job.slot),
       // The thread this read belongs to. The meals row is inserted before the analysis runs, so
       // by the time a job is drained it has one — that is what lets the finished read be posted
       // into the athlete's conversation instead of being derived and forgotten.
@@ -2186,6 +2211,7 @@ export const act = {
       mode: 'meal', mealType: MEAL.mealType || 'Dinner', goal: RT.primaryGoal || null,
       photoBase64: MEAL.photoBase64, ...(timing ? { timing } : {}),
       ...athleteContextForAnalysis(),
+      ...earlierMealsForAnalysis(MEAL.key || 'dinner'),
       dayContext,
       ...(avoid.length ? { avoid } : {}),
       ...(memory.length ? { foodMemory: memory } : {}),
