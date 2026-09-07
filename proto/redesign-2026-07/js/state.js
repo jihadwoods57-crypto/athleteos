@@ -5156,7 +5156,21 @@ setDayTaskProvider(() => {
   const csRows = (CS_DATA.mine && CS_DATA.mine.length) ? CS_DATA.mine
     : (Array.isArray(RT.csRows) ? RT.csRows : []);
   return [
-    ...S.exec.items.map((i) => ({ id: i.id, done: i.state === 'done' || i.state === 'done_late' })),
+    ...S.exec.items.map((i) => ({
+      id: i.id,
+      done: i.state === 'done' || i.state === 'done_late',
+      // WHEN it was due, as a UTC instant, so a server can tell a missed requirement from a
+      // pending one WITHOUT deriving timing itself. The whole codebase holds one line on this:
+      // "the athlete's local clock is the only honest source, the server never derives timing"
+      // (analyze-meal, coach.js, state.js:1011). A second deadline engine on the server would be
+      // the two-authorities bug that made the meal thread say 23g under a card reading 29g.
+      // `window.due` is a local minute-of-day; anchoring it off minutesNow() converts it on the
+      // athlete's own clock, and works the same whether the deadline is ahead or already behind
+      // (i.minsLeft is null once it passes, which is why it cannot be used here).
+      ...(i.required && i.window && Number.isFinite(i.window.due)
+        ? { dueAt: new Date(Date.now() + (i.window.due - minutesNow()) * 60000).toISOString() }
+        : {}),
+    })),
     ...csRows
       .filter((r) => r && r.period === 'day' && r.period_start === DAY.date)
       .map((r) => ({

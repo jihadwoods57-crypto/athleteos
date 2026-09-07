@@ -935,8 +935,15 @@ function currentTasks() {
   try {
     const t = taskProvider();
     if (!Array.isArray(t)) return null;
-    // Only well-formed { id, done } entries — never a fabricated or malformed row.
-    return t.filter((x) => x && x.id != null).map((x) => ({ id: String(x.id), done: !!x.done }));
+    // Only well-formed { id, done } entries — never a fabricated or malformed row. `dueAt` rides
+    // along when the provider knows it (an ISO instant from the athlete's own clock): it is what
+    // lets a server escalate an ABSENCE without owning a deadline engine of its own. Absent or
+    // malformed, the entry is exactly the shape it has always been.
+    return t.filter((x) => x && x.id != null).map((x) => {
+      const row = { id: String(x.id), done: !!x.done };
+      if (typeof x.dueAt === 'string' && !Number.isNaN(Date.parse(x.dueAt))) row.dueAt = x.dueAt;
+      return row;
+    });
   } catch { return null; }
 }
 /* Honest sync surface: the result of the LAST attempted day push — 'ok' | 'error' | null (none
