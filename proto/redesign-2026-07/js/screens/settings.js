@@ -166,10 +166,10 @@ export const settings = {
     <div id="set-bio-wrap" style="display:none">
       <h2 class="eyebrow">Security</h2>
       <section class="card" style="padding:6px 16px">
-        <div class="lrow" id="set-bio">
+        <div class="lrow" id="set-bio" role="switch" tabindex="0" aria-checked="false" aria-label="Unlock with Face ID" aria-describedby="set-bio-sub">
           <div class="lic">${icon('lock', 17)}</div>
-          <div class="lm"><div class="lt">Unlock with Face ID</div><div class="ls">Required on app open</div></div>
-          <div class="std-switch" id="set-bio-seg" role="switch" aria-checked="false" tabindex="0" aria-label="Unlock with Face ID"></div>
+          <div class="lm"><div class="lt">Unlock with Face ID</div><div class="ls" id="set-bio-sub">Required on app open</div></div>
+          <div class="std-switch" aria-hidden="true"></div>
         </div>
       </section>
     </div>
@@ -219,10 +219,10 @@ export const settings = {
       const wrap = root.querySelector('#set-bio-wrap');
       wrap.style.display = '';
       const row = root.querySelector('#set-bio');
-      const sw = row.querySelector('#set-bio-seg');
-      const paint = (on) => { sw.classList.toggle('on', on); sw.setAttribute('aria-checked', on ? 'true' : 'false'); };
+      const sw = row.querySelector('.std-switch');
+      const paint = (on) => { sw.classList.toggle('on', on); row.setAttribute('aria-checked', on ? 'true' : 'false'); };
       try { paint((await N.secureStore.getItem('onstd-biolock')) === '1'); } catch { /* default Off */ }
-      sw.addEventListener('click', () => {
+      row.addEventListener('click', () => {
         const on = !sw.classList.contains('on');
         if (on) N.secureStore.setItem('onstd-biolock', '1'); else N.secureStore.removeItem('onstd-biolock');
         paint(on);
@@ -593,15 +593,17 @@ export const notifSettings = {
     ${backHead('Notifications', 'Your tone. Your quiet hours. Coach sets urgency.', back)}
 
     <section class="card" style="padding:6px 16px">
-      <div class="lrow" style="cursor:default">
+      ${/* role="switch" presents the row's children as presentational; aria-describedby keeps
+            each subtitle audible to screen readers (adversarial review 2026-09-07). */''}
+      <div class="lrow" id="ns-enabled" role="switch" tabindex="0" aria-checked="${p.enabled ? 'true' : 'false'}" aria-label="Accountability notifications" aria-describedby="ns-enabled-sub">
         <div class="lic">${icon('bell', 17)}</div>
-        <div class="lm"><div class="lt">Accountability notifications</div><div class="ls">${p.enabled ? 'On: reminders track what’s actually still open' : 'Off'}</div></div>
-        <div class="std-switch ${p.enabled ? 'on' : ''}" id="ns-enabled" role="switch" aria-checked="${p.enabled ? 'true' : 'false'}" tabindex="0" aria-label="Accountability notifications"></div>
+        <div class="lm"><div class="lt">Accountability notifications</div><div class="ls" id="ns-enabled-sub">${p.enabled ? 'On: reminders track what’s actually still open' : 'Off'}</div></div>
+        <div class="std-switch ${p.enabled ? 'on' : ''}" aria-hidden="true"></div>
       </div>
-      <div class="lrow" id="ns-haptics" style="cursor:default">
+      <div class="lrow" id="ns-haptics" role="switch" tabindex="0" aria-checked="${RT.haptics !== false ? 'true' : 'false'}" aria-label="Haptics" aria-describedby="ns-haptics-sub">
         <div class="lic">${icon('vibrate', 17)}</div>
-        <div class="lm"><div class="lt">Haptics</div><div class="ls">A light tick on taps and logs</div></div>
-        <div class="std-switch ${RT.haptics !== false ? 'on' : ''}" id="ns-haptics-seg" role="switch" aria-checked="${RT.haptics !== false ? 'true' : 'false'}" tabindex="0" aria-label="Haptics"></div>
+        <div class="lm"><div class="lt">Haptics</div><div class="ls" id="ns-haptics-sub">A light tick on taps and logs</div></div>
+        <div class="std-switch ${RT.haptics !== false ? 'on' : ''}" aria-hidden="true"></div>
       </div>
     </section>
 
@@ -641,15 +643,15 @@ export const notifSettings = {
         <div class="lm"><div class="lt">Back on at</div></div>
         <div class="seg" style="width:150px" id="ns-quietto"><button class="${qt === 6 ? 'on' : ''}">6 AM</button><button class="${qt === 7 ? 'on' : ''}">7 AM</button><button class="${qt === 8 ? 'on' : ''}">8 AM</button></div>
       </div>
-      <div class="lrow" style="cursor:default">
+      <div class="lrow" id="ns-deadline" role="switch" tabindex="0" aria-checked="${p.allowDeadline ? 'true' : 'false'}" aria-label="Deadline warnings" aria-describedby="ns-deadline-sub">
         <div class="lic">${icon('bell', 17)}</div>
-        <div class="lm"><div class="lt">Deadline warnings</div><div class="ls">The only ones that break quiet hours</div></div>
-        <div class="std-switch ${p.allowDeadline ? 'on' : ''}" id="ns-deadline" role="switch" aria-checked="${p.allowDeadline ? 'true' : 'false'}" tabindex="0" aria-label="Deadline warnings"></div>
+        <div class="lm"><div class="lt">Deadline warnings</div><div class="ls" id="ns-deadline-sub">The only ones that break quiet hours</div></div>
+        <div class="std-switch ${p.allowDeadline ? 'on' : ''}" aria-hidden="true"></div>
       </div>
-      <div class="lrow" style="cursor:default">
+      <div class="lrow" id="ns-team" role="switch" tabindex="0" aria-checked="${p.teamPushes !== false ? 'true' : 'false'}" aria-label="Team standard reminders" aria-describedby="ns-team-sub">
         <div class="lic">${icon('users', 17)}</div>
-        <div class="lm"><div class="lt">Team standard reminders</div><div class="ls">Pushed by the server when a team standard is due</div></div>
-        <div class="std-switch ${p.teamPushes !== false ? 'on' : ''}" id="ns-team" role="switch" aria-checked="${p.teamPushes !== false ? 'true' : 'false'}" tabindex="0" aria-label="Team standard reminders"></div>
+        <div class="lm"><div class="lt">Team standard reminders</div><div class="ls" id="ns-team-sub">Pushed by the server when a team standard is due</div></div>
+        <div class="std-switch ${p.teamPushes !== false ? 'on' : ''}" aria-hidden="true"></div>
       </div>
     </section>
 
@@ -689,15 +691,17 @@ export const notifSettings = {
     wireSegAria(root);
     wirePressure(root, '#ns-pressure');
     // Haptics: a REAL device preference; router's buzz() honors it on every tap.
-    // A switch (role="switch", the coach standards editor's .std-switch) flips on click; the
-    // class and aria-checked move together so the control never says one thing and shows another.
+    // The ROW is the switch (the coach standards editor pattern): role, focus and the click
+    // target live on the 44px+ row, the pill inside is paint. The pill's class and the row's
+    // aria-checked move together so the control never says one thing and shows another.
     const flip = (el) => {
-      const on = !el.classList.contains('on');
-      el.classList.toggle('on', on);
+      const pill = el.querySelector('.std-switch') || el;
+      const on = !pill.classList.contains('on');
+      pill.classList.toggle('on', on);
       el.setAttribute('aria-checked', on ? 'true' : 'false');
       return on;
     };
-    const hsw = root.querySelector('#ns-haptics-seg');
+    const hsw = root.querySelector('#ns-haptics');
     if (hsw) hsw.addEventListener('click', () => { act.setHaptics(flip(hsw)); });
     // On/Off switches persist one boolean straight into RT.notifPrefs.
     const sw = (sel, patch, after) => {
@@ -724,7 +728,7 @@ export const notifSettings = {
     // The master row's subtitle states the mode; it has to move with the toggle or the row
     // contradicts itself ("On: reminders track…" under a lit Off).
     sw('#ns-enabled', (on) => ({ enabled: on }), (on) => {
-      const ls = root.querySelector('#ns-enabled')?.closest('.lrow')?.querySelector('.ls');
+      const ls = root.querySelector('#ns-enabled')?.querySelector('.ls');
       if (ls) ls.textContent = on ? 'On: reminders track what’s actually still open' : 'Off';
       // The dependent sections dim and go inert with the master, live, without a re-render.
       const deps = root.querySelector('#ns-deps');
@@ -788,10 +792,10 @@ export const coachNotifSettings = {
     <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin:0 2px 6px">Pick a starting point, then fine-tune below.</div>
 
     <section class="card" style="padding:6px 16px">
-      <div class="lrow" style="cursor:default">
+      <div class="lrow" id="cns-enabled" role="switch" tabindex="0" aria-checked="${p.enabled ? 'true' : 'false'}" aria-label="Coach notifications" aria-describedby="cns-enabled-sub">
         <div class="lic">${icon('bell', 17)}</div>
-        <div class="lm"><div class="lt">Coach notifications</div><div class="ls">${p.enabled ? 'On' : 'Off'}</div></div>
-        <div class="std-switch ${p.enabled ? 'on' : ''}" id="cns-enabled" role="switch" aria-checked="${p.enabled ? 'true' : 'false'}" tabindex="0" aria-label="Coach notifications"></div>
+        <div class="lm"><div class="lt">Coach notifications</div><div class="ls" id="cns-enabled-sub">${p.enabled ? 'On' : 'Off'}</div></div>
+        <div class="std-switch ${p.enabled ? 'on' : ''}" aria-hidden="true"></div>
       </div>
     </section>
 
@@ -816,15 +820,15 @@ export const coachNotifSettings = {
     <div style="height:12px"></div>
 
     <section class="card" style="padding:6px 16px">
-      <div class="lrow" style="cursor:default">
+      <div class="lrow" id="cns-hourly" role="switch" tabindex="0" aria-checked="${p.hourly ? 'true' : 'false'}" aria-label="Overdue digest" aria-describedby="cns-hourly-sub">
         <div class="lic">${icon('clock', 17)}</div>
-        <div class="lm"><div class="lt">Overdue digest</div><div class="ls">Only while something is overdue</div></div>
-        <div class="std-switch ${p.hourly ? 'on' : ''}" id="cns-hourly" role="switch" aria-checked="${p.hourly ? 'true' : 'false'}" tabindex="0" aria-label="Overdue digest"></div>
+        <div class="lm"><div class="lt">Overdue digest</div><div class="ls" id="cns-hourly-sub">Only while something is overdue</div></div>
+        <div class="std-switch ${p.hourly ? 'on' : ''}" aria-hidden="true"></div>
       </div>
-      <div class="lrow" style="cursor:default">
+      <div class="lrow" id="cns-critical" role="switch" tabindex="0" aria-checked="${p.immediateCritical ? 'true' : 'false'}" aria-label="Immediate critical" aria-describedby="cns-critical-sub">
         <div class="lic">${icon('bolt', 17)}</div>
-        <div class="lm"><div class="lt">Immediate critical</div><div class="ls">One ping when a new group goes overdue</div></div>
-        <div class="std-switch ${p.immediateCritical ? 'on' : ''}" id="cns-critical" role="switch" aria-checked="${p.immediateCritical ? 'true' : 'false'}" tabindex="0" aria-label="Immediate critical"></div>
+        <div class="lm"><div class="lt">Immediate critical</div><div class="ls" id="cns-critical-sub">One ping when a new group goes overdue</div></div>
+        <div class="std-switch ${p.immediateCritical ? 'on' : ''}" aria-hidden="true"></div>
       </div>
     </section>
 
@@ -840,10 +844,10 @@ export const coachNotifSettings = {
         <div class="lm"><div class="lt">Back on at</div></div>
         <div class="seg" style="width:150px" id="cns-quietto"><button class="${qt === 6 ? 'on' : ''}">6 AM</button><button class="${qt === 7 ? 'on' : ''}">7 AM</button><button class="${qt === 8 ? 'on' : ''}">8 AM</button></div>
       </div>
-      <div class="lrow" style="cursor:default">
+      <div class="lrow" id="cns-myroom" role="switch" tabindex="0" aria-checked="${p.myRoomOnly ? 'true' : 'false'}" aria-label="My room only" aria-describedby="cns-myroom-sub">
         <div class="lic">${icon('users', 17)}</div>
-        <div class="lm"><div class="lt">My room only</div><div class="ls">Follow my scope instead of the whole team</div></div>
-        <div class="std-switch ${p.myRoomOnly ? 'on' : ''}" id="cns-myroom" role="switch" aria-checked="${p.myRoomOnly ? 'true' : 'false'}" tabindex="0" aria-label="My room only"></div>
+        <div class="lm"><div class="lt">My room only</div><div class="ls" id="cns-myroom-sub">Follow my scope instead of the whole team</div></div>
+        <div class="std-switch ${p.myRoomOnly ? 'on' : ''}" aria-hidden="true"></div>
       </div>
     </section>
     <div style="height:10px"></div>
@@ -863,8 +867,10 @@ export const coachNotifSettings = {
       const el = root.querySelector(sel);
       if (!el) return;
       el.addEventListener('click', () => {
-        const on = !el.classList.contains('on');
-        el.classList.toggle('on', on);
+        // The ROW is the switch; the pill inside is paint (see notifSettings' flip above).
+        const pill = el.querySelector('.std-switch') || el;
+        const on = !pill.classList.contains('on');
+        pill.classList.toggle('on', on);
         el.setAttribute('aria-checked', on ? 'true' : 'false');
         act.setCoachNotifPrefs(patch(on));
         if (after) after(on);
@@ -872,7 +878,7 @@ export const coachNotifSettings = {
     };
     seg2('#cns-enabled', (on) => ({ enabled: on }), (on) => {
       // The master row's subtitle states the mode; it moves with the toggle or contradicts it.
-      const ls = root.querySelector('#cns-enabled')?.closest('.lrow')?.querySelector('.ls');
+      const ls = root.querySelector('#cns-enabled')?.querySelector('.ls');
       if (ls) ls.textContent = on ? 'On' : 'Off';
     });
     seg2('#cns-hourly', (on) => ({ hourly: on }));

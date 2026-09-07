@@ -627,11 +627,14 @@
   background:var(--text-3); transition: transform var(--dur-2) var(--ease-out), background var(--dur-1) var(--ease-out); }
 .std-switch.on { background:var(--green-surface); border-color:var(--green-border); }
 .std-switch.on::after { transform: translateX(20px); background:var(--green-bright); }
-/* Settings and Squad put role="switch" on the 50x30 control itself (the coach editor puts it on the
-   44px row). The knob is ::after, so focus.css's ::after hit-area idiom cannot apply here; ::before
-   grows the target to the 44px floor instead (audit 2026-09-05: the machine sweep measured 30px). */
-.std-switch[role="switch"] { position: relative; }
-.std-switch[role="switch"]::before { content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, 44px); height: 44px; transform: translate(-50%, -50%); }
+/* Every switch row in the app now follows the coach-editor pattern above: role="switch",
+   tabindex and the click land on the ROW, and the pill is aria-hidden paint (2026-09-07; the
+   09-05 ::before hit-area band-aid on bare pills left with the last bare pill —
+   switch-rows.test.mjs pins that none come back). Settings, signup consent and the squad
+   share rows are .lrow rows, so the row-as-switch affordances land there too. */
+.lrow[role="switch"] { cursor: pointer; min-height: 44px; }
+.lrow[role="switch"]:active .std-switch::after { transform: scaleX(1.14); transform-origin: left center; }
+.lrow[role="switch"]:active .std-switch.on::after { transform: translateX(20px) scaleX(1.14); transform-origin: right center; }
 /* Held down, the knob stretches toward where it's going; release snaps it over. The origin flips
    with state so the stretch always points at the destination — the platform-switch feel, done
    with the transition the knob already carries. (This pill is also settings' sw() rows and

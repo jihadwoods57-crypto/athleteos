@@ -75,16 +75,24 @@ function frame(n, total, title, sub, body, cta, next, opts = {}) {
     </div>
   </div>`;
 }
-/* On/Off consent rows are std-switch controls (role="switch"), the same control settings.js
-   uses: the class and aria-checked always move together so the switch never says one thing and
-   shows another. Enter/Space is routed to click centrally by router.js; never wire it here. */
+/* On/Off consent rows are switch ROWS (role="switch" on the row, the coach standards editor
+   pattern settings.js also uses): the whole 44px+ row is the target, the .std-switch pill
+   inside is paint. The pill's class and the row's aria-checked always move together so the
+   switch never says one thing and shows another. Enter/Space is routed to click centrally by
+   router.js; never wire it here. The helpers tolerate a bare pill so a straggler still works. */
+function pillOf(el) {
+  return el.classList.contains('std-switch') ? el : (el.querySelector('.std-switch') || el);
+}
+function switchOn(el) {
+  return !!el && pillOf(el).classList.contains('on');
+}
 function paintSwitch(el, on) {
   if (!el) return;
-  el.classList.toggle('on', !!on);
+  pillOf(el).classList.toggle('on', !!on);
   el.setAttribute('aria-checked', on ? 'true' : 'false');
 }
 function flipSwitch(el) {
-  const on = !el.classList.contains('on');
+  const on = !switchOn(el);
   paintSwitch(el, on);
   return on;
 }
@@ -199,9 +207,11 @@ const coachSteps = {
       <span class="chip">Youth</span><span class="chip on">High School</span><span class="chip">College</span><span class="chip">Pro</span>
     </div>
     <div style="height:16px"></div>
-    <div class="lrow" style="cursor:default;padding:0 2px">
-      <div class="lm"><div class="lt">Listed in school search</div><div class="ls">Athletes at your school can find this team. The code is still required to join.</div></div>
-      <div class="std-switch on" id="co-disc" role="switch" aria-checked="true" tabindex="0" aria-label="Listed in school search"></div>
+    ${/* aria-describedby: role="switch" makes the row's children presentational, and this
+          consent copy is exactly what a screen-reader user needs before flipping it. */''}
+    <div class="lrow" id="co-disc" role="switch" tabindex="0" aria-checked="true" aria-label="Listed in school search" aria-describedby="co-disc-sub" style="padding:0 2px">
+      <div class="lm"><div class="lt">Listed in school search</div><div class="ls" id="co-disc-sub">Athletes at your school can find this team. The code is still required to join.</div></div>
+      <div class="std-switch on" aria-hidden="true"></div>
     </div>`;
     const joinBody = `
     <h2 class="eyebrow" style="margin:8px 2px 10px">Staff code</h2>
@@ -299,9 +309,9 @@ const coachSteps = {
     const c = (RT.ob || {}).coach || {};
     const n = c.notif || {};
     const switchRow = (id, title, sub, on) => `
-      <div class="lrow" style="cursor:default">
-        <div class="lm"><div class="lt">${title}</div><div class="ls">${sub}</div></div>
-        <div class="std-switch ${on ? 'on' : ''}" id="${id}" role="switch" aria-checked="${on ? 'true' : 'false'}" tabindex="0" aria-label="${title}"></div>
+      <div class="lrow" id="${id}" role="switch" tabindex="0" aria-checked="${on ? 'true' : 'false'}" aria-label="${title}" aria-describedby="${id}-sub">
+        <div class="lm"><div class="lt">${title}</div><div class="ls" id="${id}-sub">${sub}</div></div>
+        <div class="std-switch ${on ? 'on' : ''}" aria-hidden="true"></div>
       </div>`;
     return frame(6, 7, 'How you hear from us.', 'Planned on your phone from your latest roster view, never noise for its own sake.', `
     <section class="card" style="padding:6px 16px">
@@ -528,7 +538,7 @@ export const coachOb = {
       const sync = () => {
         const sp = $('#co-sport .on'), lv = $('#co-level .on'), disc = $('#co-disc');
         cap({ teamName: team.value.trim(), sport: sp ? sp.textContent.trim() : null,
-              level: lv ? lv.textContent.trim() : null, discoverable: !disc || disc.classList.contains('on') });
+              level: lv ? lv.textContent.trim() : null, discoverable: !disc || switchOn(disc) });
       };
       team.addEventListener('input', sync);
       // Per-option binding (chips stopPropagation via wireToggles).
@@ -582,7 +592,7 @@ export const coachOb = {
         const patch = {};
         for (const [sel, key] of switches) {
           const g = $(sel);
-          if (g) patch[key] = g.classList.contains('on');
+          if (g) patch[key] = switchOn(g);
         }
         cap({ notif: patch });
         try { act.setCoachNotifPrefs(patch); } catch { /* prefs apply again on first sync */ }
@@ -651,9 +661,9 @@ const trainerSteps = {
     <div style="height:16px"></div>
     <input id="tr-practice" class="ob-input" maxlength="60" placeholder="Practice name (e.g. Boone Performance)" aria-label="Practice name" autocapitalize="words" />
     <div style="height:18px"></div>
-    <div class="lrow" style="cursor:default;padding:0 2px">
-      <div class="lm"><div class="lt">Listed in client search</div><div class="ls">Clients looking for a trainer can find your practice by name. Your code is still required to join.</div></div>
-      <div class="std-switch ${listed ? 'on' : ''}" id="tr-disc" role="switch" aria-checked="${listed ? 'true' : 'false'}" tabindex="0" aria-label="Listed in client search"></div>
+    <div class="lrow" id="tr-disc" role="switch" tabindex="0" aria-checked="${listed ? 'true' : 'false'}" aria-label="Listed in client search" aria-describedby="tr-disc-sub" style="padding:0 2px">
+      <div class="lm"><div class="lt">Listed in client search</div><div class="ls" id="tr-disc-sub">Clients looking for a trainer can find your practice by name. Your code is still required to join.</div></div>
+      <div class="std-switch ${listed ? 'on' : ''}" aria-hidden="true"></div>
     </div>`, 'Next', 'trainer-ob/2', { back: 'role' });
   },
 
@@ -763,7 +773,7 @@ export const trainerOb = {
         const disc = $('#tr-disc');
         cap({
           practiceName: practice.value.trim(),
-          discoverable: !disc || disc.classList.contains('on'),
+          discoverable: !disc || switchOn(disc),
         });
         act.captureOb({ name }); // account step + profiles.full_name read RT.ob.name
         nextBtn.disabled = !(f.value.trim() && l.value.trim());

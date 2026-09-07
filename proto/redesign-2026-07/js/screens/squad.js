@@ -88,10 +88,12 @@ export default {
     const sharing = RT.shareSquadScore === true;
     const toggle = `
     <section class="card" style="padding:6px 16px">
-      <div class="std-switch-row">
+      ${/* role="switch" makes the row's children presentational, which would silence the privacy
+            explanation below for screen readers; aria-describedby reaches through and keeps it. */''}
+      <div class="std-switch-row" id="squad-share" role="switch" tabindex="0" aria-checked="${sharing}" aria-label="Show my number to the squad" aria-describedby="squad-share-sub">
         <div class="std-sw-m"><div class="std-sw-t">Show my number to the squad</div>
-        <div class="std-sw-s">${sharing ? 'Your name and daily score are on the board. Nothing else ever is.' : 'Off. Teammates see you only as a private count. Flip it and they see your name and daily score. Never meals, photos, or check-ins.'}</div></div>
-        <div class="std-switch ${sharing ? 'on' : ''}" id="squad-share" role="switch" aria-checked="${sharing}" tabindex="0" aria-label="Show my number to the squad"></div>
+        <div class="std-sw-s" id="squad-share-sub">${sharing ? 'Your name and daily score are on the board. Nothing else ever is.' : 'Off. Teammates see you only as a private count. Flip it and they see your name and daily score. Never meals, photos, or check-ins.'}</div></div>
+        <div class="std-switch ${sharing ? 'on' : ''}" aria-hidden="true"></div>
       </div>
     </section>`;
 
