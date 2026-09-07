@@ -174,7 +174,11 @@ test('scoreRing shows a dash, not a zero, before the day has started', () => {
 test('the not-started dash is decoration, never something a screen reader reads as a score', () => {
   const html = C.scoreRing({ score: 0, uid: 'ns3', showCenter: false, centerNum: true, notStarted: true });
   assert.match(html, /aria-hidden="true"[^>]*>&#8211;|&#8211;/, 'dash present');
-  assert.match(html, /<span class="score" aria-hidden="true">/, 'the glyph is hidden from AT');
+  // The class list is not the contract; being hidden from AT is. The dash carries `.none` as
+  // well now (it is sized as a mark, not as a score — see .ring-center .score.none in app.css),
+  // and pinning the exact attribute string made a purely visual change fail a semantic test.
+  assert.match(html, /<span class="score[^"]*" aria-hidden="true">/, 'the glyph is hidden from AT');
+  assert.match(html, /class="score none"/, 'and is marked as the no-number state, so it is not set at score size');
 });
 
 test('notStarted changes only the centre: a real score still renders normally', () => {
