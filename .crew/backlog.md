@@ -119,7 +119,7 @@ alone it's not worth a sitting. Noted so October doesn't rediscover it.
 
 ## Notes for tomorrow's sessions
 - **Credential streak (update in place, don't re-diagnose):** EXPO_TOKEN invalid
-  ("bearer token is invalid") — 16 sessions through 09-07 (overnight sentry). No Supabase
+  ("bearer token is invalid") — 17 sessions through 09-07 (error-response sentry). No Supabase
   creds, no Stripe key, no Cloudflare token in the cloud env. One cheap check, cite this
   line, move on. (npx eas-cli is broken in the sandbox — curl api.expo.dev/graphql with
   the bearer instead.)
