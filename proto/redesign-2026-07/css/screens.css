@@ -2811,3 +2811,63 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .hk-center { text-align: center; padding: var(--s2h) 0 var(--s6); }
 .hk-center.tall { padding: var(--s3h) var(--s5) var(--s6); }
 .hk-note { text-align: center; padding: 0 var(--s5) var(--s5); }
+
+/* ===== The clarifying sheet (js/meal-questions-sheet.js) =====
+   The one overlay in this app that holds text inputs, so it is the one that has to ride the
+   keyboard: --kb (keyboard.js) is added to the bottom padding, and the card scrolls inside its own
+   max-height rather than pushing the sheet off screen. Everything else here is the .memsheet
+   idiom: scrim fades, card travels a few pixels, reduced motion keeps the fade and drops the
+   travel. */
+.mqsheet {
+  position: fixed; inset: 0; z-index: 62; display: grid; place-items: end center;
+  background: rgba(4, 7, 14, 0.66); opacity: 0; transition: opacity var(--dur-1) var(--ease-out);
+  padding: 0 0 calc(max(14px, env(safe-area-inset-bottom, 0px)) + var(--kb, 0px));
+}
+.mqsheet.on { opacity: 1; }
+.mqsheet .mqs-card {
+  width: min(460px, calc(100% - 16px)); max-height: min(88vh, 720px); overflow-y: auto;
+  background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-card);
+  padding: var(--s2) var(--s4) var(--s4); box-shadow: var(--sh-raised);
+  transform: translateY(12px); transition: transform var(--dur-2) var(--ease-out);
+}
+.mqsheet.on .mqs-card { transform: translateY(0); }
+.mqsheet .mqs-card:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .mqsheet .mqs-card { transition: none; transform: none; } }
+/* The grab bar says "this came up over your meal and it goes away again", which is the one thing
+   a sheet has to say that a screen does not. */
+.mqsheet .mqs-grab { width: 36px; height: 4px; border-radius: var(--r-micro); background: var(--hairline); margin: var(--s1) auto var(--s3h); }
+.mqsheet .mqs-head { display: flex; align-items: flex-start; gap: var(--s3); }
+.mqsheet .mqs-thumb {
+  flex: 0 0 auto; width: 52px; height: 52px; border-radius: var(--r-card-sm); background-size: cover;
+  background-position: center; background-color: var(--surface-2);
+}
+.mqsheet .mqs-thumb.ph { display: grid; place-items: center; color: var(--blue-bright); background: var(--blue-surface); }
+.mqsheet .mqs-htxt { flex: 1; min-width: 0; }
+.mqsheet .mqs-title { font-size: var(--t-lg); font-weight: 800; letter-spacing: var(--title-tight); line-height: 1.25; margin: 0; }
+.mqsheet .mqs-sub { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.45; margin-top: var(--s1); }
+.mqsheet .mqs-x {
+  flex: 0 0 auto; width: 32px; height: 32px; border-radius: var(--r-pill); border: 1px solid var(--hairline);
+  background: var(--surface-2); color: var(--text-2); font-size: var(--t-lg); line-height: 1; cursor: pointer;
+  display: grid; place-items: center; position: relative;
+}
+/* focus.css owns ::after as the 44px hit area; this button is 32px painted. */
+.mqsheet .mqs-x::after { content: ''; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%); }
+.mqsheet .mqs-x:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
+.mqsheet .mqs-body { margin-top: var(--s4); }
+.mqsheet .mqs-foot { display: flex; flex-direction: column; align-items: center; gap: var(--s3); margin-top: var(--s5); }
+.mqsheet .mqs-foot .btn { width: 100%; }
+.mqsheet .mqs-skip {
+  background: none; border: none; color: var(--text-2); font-family: var(--font); font-size: var(--t-base);
+  font-weight: 700; cursor: pointer; padding: var(--s2) var(--s3); border-radius: var(--r-card-sm); position: relative;
+}
+.mqsheet .mqs-skip::after { content: ''; position: absolute; left: 50%; top: 50%; width: 100%; height: 44px; transform: translate(-50%, -50%); }
+.mqsheet .mqs-skip:disabled { opacity: 0.5; }
+.mqsheet .mqs-skip:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
+
+/* The breakdown's own way in, when the five dashes are waiting on the athlete rather than on the
+   read. Without it the tiles state a fact and offer no way to change it. */
+.mq-blocked { display: flex; align-items: center; gap: var(--s3); margin-top: var(--s3h); }
+.mq-blocked .mqb-t { flex: 1; min-width: 0; font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.45; }
+/* .btn is width:100% by default, which inside this flex row squeezed the sentence to one word
+   per line and then covered it. The button takes its own width here; the text keeps the rest. */
+.mq-blocked .btn { flex: 0 0 auto; width: auto; padding: 0 var(--s4); }

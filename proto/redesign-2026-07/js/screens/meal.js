@@ -16,6 +16,7 @@ import {
 } from '../chat-attach.js';
 import { openImageViewer } from '../image-viewer.js';
 import { openMembersSheet } from '../members-sheet.js';
+import { openMealQuestions, autoShownFor, markAutoShown } from '../meal-questions-sheet.js';
 import { hydrateAvatars } from '../avatar.js';
 import { wireTapback } from '../tapback.js';
 import { scrollThreadToEnd, focusComposer } from '../keyboard.js';
@@ -345,6 +346,22 @@ export const analyzing = {
   },
 };
 
+/* Open the clarifying sheet for a meal that is waiting on the athlete. One entry point for the
+   thread bubble, the breakdown button and the automatic open, so the three cannot drift. */
+function askPendingQuestions(M) {
+  if (!M || !Array.isArray(M.pendingQuestions) || !M.pendingQuestions.length) return false;
+  return openMealQuestions({
+    questions: M.pendingQuestions,
+    // The plate when the detail already has it, the sparkle tile when it does not. The thumbnail
+    // is context, never a reason to hold the ask back, and photo-store is a dynamic import here so
+    // reaching for its cache would be a click-time ReferenceError in a bundler-free app.
+    photo: M.img || M.photoDataUrl || null,
+    slot: String(M.name || M.slot || 'meal').toLowerCase(),
+    onAnswer: (answers) => act.answerPendingQuestions(M.slot, answers),
+    onSkip: () => act.skipPendingQuestions(M.slot),
+  });
+}
+
 /* ---------- The Clarifying Moment (Honest Vision) ----------
    The model was genuinely unsure about something that moves the macros (hidden protein,
    portion, prep), so instead of fabricating a number it asks the athlete. They answer what the
@@ -530,19 +547,16 @@ export function openingBlockHtml(M, { sum, fullText, fq, hasPersistedRead = fals
     const qs = M.pendingQuestions.slice(0, 3);
     // Count its own questions: this bubble promised "Two" over one question as easily as three.
     const qHead = qs.length === 1 ? 'One quick thing' : qs.length === 2 ? 'Two quick things' : `${qs.length} quick things`;
+    /* The bubble states the ask and hands it to the sheet; it does not re-draw the form. It used
+       to carry a full copy of the inputs, which put a blocking question in a chat bubble below a
+       "Back to Home" button, at the same visual weight as a message. Two forms for one answer also
+       meant two places to keep in sync. The sheet (js/meal-questions-sheet.js) is the form now,
+       and it comes up on its own when this meal is opened. */
     return wrap(aiRow(`
           <div style="font-weight:700">${qHead} and your numbers are exact.</div>
-          <div style="margin-top:3px;color:var(--text-2)">A photo can't show what's under or off the plate.</div>
-          <div class="mq-list" style="margin-top:10px">
-            ${qs.map((q, i) => `
-            <label class="mq-item">
-              <div class="mq-q"><span class="mq-n">${i + 1}</span><span>${esc(q)}</span></div>
-              <input class="mq-input" data-qi="${i}" type="text" autocomplete="off"
-                enterkeyhint="${i === qs.length - 1 ? 'done' : 'next'}" placeholder="Your answer" aria-label="${esc(q)}" />
-            </label>`).join('')}
-          </div>
+          <div style="margin-top:3px;color:var(--text-2)">${qs.length === 1 ? 'A photo can’t show what’s under or off the plate.' : 'A photo can’t show what’s under or off the plate. It takes a moment.'}</div>
           <div class="fq-chips">
-            <button class="fx-chip" id="mq-thread-go">${icon('check', 13)} Get my result</button>
+            <button class="fx-chip" id="mq-thread-go">${icon('sparkle', 13)} ${qs.length === 1 ? 'Answer it' : 'Answer them'}</button>
             <button class="fx-chip" id="mq-thread-skip">Skip, just estimate</button>
           </div>`, 'mq-bubble'), '');
   }
@@ -1108,13 +1122,22 @@ export const thread = {
     // one wait is exactly what made the breakdown and the nutritionist read as separate systems.
     // The AI keeps the words; the card shows what it IS — cells quietly filling in. The failure
     // line stays, because that is a fact about the card, not a second commentary on the wait.
+    /* Five dashes and no reason was the whole problem. The tiles look identical whether the read
+       is still running or the model asked a question three scrolls down, and only one of those is
+       something the athlete can do anything about. The waiting shimmer now belongs to the actual
+       wait, and a blocked breakdown says who it is waiting on and opens the sheet. */
+    const needsAnswer = Array.isArray(M.pendingQuestions) && M.pendingQuestions.length > 0;
     const breakdown = !settled ? `
     <h2 class="eyebrow" style="margin-top:16px">Meal Breakdown</h2>
     <section class="card pad" style="margin-top:8px">
       <div class="macro-row five">
         ${['Protein', 'Carbs', 'Fat', 'Calories', 'Fiber'].map((k) => `
-        <div class="macro"><div class="mv${M.analysisFailed ? '' : ' mv-wait'}" style="color:var(--text-3)">—</div><div class="mk">${k}</div></div>`).join('')}
+        <div class="macro"><div class="mv${M.pending && !needsAnswer ? ' mv-wait' : ''}" style="color:var(--text-3)">—</div><div class="mk">${k}</div></div>`).join('')}
       </div>
+      ${needsAnswer ? `<div class="mq-blocked">
+        <div class="mqb-t">${M.pendingQuestions.length === 1 ? 'One answer from you and these are exact.' : `${M.pendingQuestions.length} answers and these are exact.`}</div>
+        <button class="btn primary sm" id="mq-open-breakdown" type="button">${icon('sparkle', 15)} Answer</button>
+      </div>` : ''}
       ${M.analysisFailed ? `<div class="est-note" style="margin-top:10px">No numbers for this one. The photo is still your proof that the meal happened.</div>` : ''}
     </section>` : !showNums ? `
     <h2 class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">What was on the plate</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></h2>
@@ -1287,6 +1310,23 @@ export const thread = {
       });
     }
     if (!M.logged) return;
+    /* The ask comes to the athlete, once. A meal whose numbers are waiting on an answer opens its
+       sheet the first time that meal is opened this session, after the screen's own entrance has
+       finished so the two are not animating over each other. Every later visit leaves it to the
+       bubble's chip and the breakdown's button, because a sheet that reappears on every visit is
+       the app arguing with someone who already chose to read their thread first. */
+    if (Array.isArray(M.pendingQuestions) && M.pendingQuestions.length) {
+      const key = `${slot}:${DAY.date}`;
+      if (!autoShownFor(key)) {
+        markAutoShown(key);
+        setTimeout(() => {
+          // Still the same screen, still unanswered: a drain can land while the timer waits.
+          const now = mealDetail(slot);
+          if (!root.isConnected || !now || !Array.isArray(now.pendingQuestions) || !now.pendingQuestions.length) return;
+          askPendingQuestions(now);
+        }, 420);
+      }
+    }
 
     // The score arrives. This chip is the moment the product is built around, and it sat there as
     // static text. The choreography (wait until it is actually looked at, wind the arc back, draw,
@@ -1817,7 +1857,7 @@ export const thread = {
         void act.confirmMemoryFact(id, fx.getAttribute('data-keep') === '1');
         return;
       }
-      const t = ev.target && ev.target.closest ? ev.target.closest('#mq-thread-go, #mq-thread-skip, #mt-retry-analysis, #mt-reread, #open-full-chat, #thread-more') : null;
+      const t = ev.target && ev.target.closest ? ev.target.closest('#mq-thread-go, #mq-thread-skip, #mq-open-breakdown, #mt-retry-analysis, #mt-reread, #open-full-chat, #thread-more') : null;
       if (!t) return;
       if (t.id === 'mt-retry-analysis') {
         // Always answer the tap: in-flight label now, and retryAnalysis itself re-renders with
@@ -1841,9 +1881,8 @@ export const thread = {
       // A meal that settled at zero: put it back in the queue for another read.
       if (t.id === 'mt-reread') { t.textContent = 'Reading the plate…'; void act.rereadMeal(M.slot); return; }
       if (t.id === 'mq-thread-skip') { act.skipPendingQuestions(M.slot); return; }
-      const answers = [];
-      root.querySelectorAll('#mq-bubble .mq-input').forEach((el) => { answers[+el.dataset.qi] = el.value; });
-      act.answerPendingQuestions(M.slot, answers);
+      // Both remaining ids (the bubble's chip and the breakdown's button) open the same sheet.
+      askPendingQuestions(M);
     });
     // (the old "flag it for Coach" free-text path is replaced by the structured correction panel)
     const setNote = (t, retry) => { if (note) note.innerHTML = t ? `<div class="mt-retry" ${retry ? 'id="chat-retry"' : ''}>${esc(t)}</div>` : ''; };
