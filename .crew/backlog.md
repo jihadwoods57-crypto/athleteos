@@ -38,6 +38,11 @@ deploy the edge functions, deploy the site, apply 0210 + 0214 + 0219 and confirm
 line, cite the streak, never re-diagnose.
 
 ### 2 · a11y · settings switches are 30px tap targets  (impact 3, effort s — found 1 PM 09-06)
+**DONE 09-07 8 AM** — all eleven bare pills converted to row-level switches (row carries
+role/tabindex/aria-checked + aria-describedby for the subtitle; pill is aria-hidden paint),
+pinned by switch-rows.test.mjs; zip rebuilt + stamped; stacked behind the dead token with the
+rest. Residual for polish: the coach editor's own rows aria-label over their subtitles (same
+AT silencing, pre-existing). Original brief kept below for the audit's context:
 The bare `.std-switch` divs (50×30, role=switch) on notif-settings (4 switches, incl. the
 new "Team standard reminders"), settings' Face ID row, coach notif prefs, and the trainer
 signup consent rows carry the tap target themselves. The 09-05 fix gave the coach
@@ -119,7 +124,7 @@ alone it's not worth a sitting. Noted so October doesn't rediscover it.
 
 ## Notes for tomorrow's sessions
 - **Credential streak (update in place, don't re-diagnose):** EXPO_TOKEN invalid
-  ("bearer token is invalid") — 17 sessions through 09-07 (error-response sentry). No Supabase
+  ("bearer token is invalid") — 18 sessions through 09-07 (8 AM build). No Supabase
   creds, no Stripe key, no Cloudflare token in the cloud env. One cheap check, cite this
   line, move on. (npx eas-cli is broken in the sandbox — curl api.expo.dev/graphql with
   the bearer instead.)
