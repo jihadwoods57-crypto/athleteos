@@ -22,8 +22,34 @@
   <link rel="stylesheet" href="./css/app.css" />
   <link rel="stylesheet" href="./css/screens.css" />
   <link rel="stylesheet" href="./css/flows.css" />
-  <link rel="stylesheet" href="./css/coach.css" />
-  <link rel="stylesheet" href="./css/ob2.css" />
+  <!-- OFF THE CRITICAL PATH, WITHOUT MOVING IN THE CASCADE (2026-09-07).
+       These two are 80 KB of the 475 KB of CSS that used to block first paint, and an athlete
+       opens neither: coach.css is the operator surface, ob2.css runs once ever, at onboarding.
+       `media="print"` is the whole trick. The browser still fetches the sheet, but a non-matching
+       media query makes it NON-RENDER-BLOCKING — and because cascade order is decided by position
+       in the document rather than by load time, flipping media to "all" later applies every rule
+       exactly where it always applied. Deferring these with a moved <link> or an injected one
+       would land them AFTER focus.css, whose own comment two lines down is that it must stay last
+       to beat the nine `outline: none` rules. That would have traded a slow paint for a broken
+       focus ring.
+       The flip is immediate when the boot route actually needs them (a coach opening the app must
+       not see a frame of unstyled roster), and otherwise waits for the first paint. -->
+  <link rel="stylesheet" href="./css/coach.css" media="print" data-defer-css />
+  <link rel="stylesheet" href="./css/ob2.css" media="print" data-defer-css />
+  <script>
+    (function () {
+      var flip = function () {
+        var sheets = document.querySelectorAll('link[data-defer-css]');
+        for (var i = 0; i < sheets.length; i++) sheets[i].media = 'all';
+      };
+      // A coach or an athlete mid-onboarding lands directly on a screen these sheets style.
+      // Cheap prefix test on the boot hash; anything else can wait two frames.
+      var h = (location.hash || '').toLowerCase();
+      if (/coach|trainer|dietitian|ob2|onboard/.test(h)) { flip(); return; }
+      // Two frames: the first paints, the second is safely after it.
+      requestAnimationFrame(function () { requestAnimationFrame(flip); });
+    })();
+  </script>
   <!-- The navigation transition layer. Every selector inside is a ::view-transition pseudo, so a
        browser without the API matches nothing and keeps today's rendering exactly. -->
   <link rel="stylesheet" href="./css/view-transition.css" />

@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { join, relative, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { zipSync } from 'fflate';
+import { transformSync } from 'esbuild';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SRC = join(ROOT, 'proto/redesign-2026-07');
@@ -61,11 +62,62 @@ const stripCR = (buf) => {
   }
   return w === buf.length ? out : out.subarray(0, w);
 };
+/* MINIFIED ON THE WAY IN, NEVER IN THE WORKING TREE.
+ *
+ * The proto has no build step by design, and that stays true: you edit plain ES modules and what
+ * you read on disk is what runs at :8124. This touches only the SHIPPED artifact.
+ *
+ * Why it is worth it, measured 2026-09-07: the WebView parses 4,129 KB of raw JS+CSS, of which
+ * 1,577 KB across 67 modules is the eager closure that must be parsed before first paint. The zip
+ * being 1,815 KB is DEFLATE, which helps the download and does nothing for parse time.
+ *
+ * WHITESPACE ONLY, deliberately. Measured on that eager closure:
+ *     whitespace only        1577 KB -> 724 KB  (-54%)
+ *     whitespace + syntax    1577 KB -> 700 KB  (-56%)
+ *     full (renames locals)  1577 KB -> 614 KB  (-61%)
+ * Full minification buys another 7 points and renames every local, so a stack trace off a real
+ * device stops naming anything you could search for. This codebase gets debugged in the field and
+ * that trade is not worth 7%. Function and variable NAMES survive here. Be aware that LINE numbers
+ * do not: statements collapse onto shared lines, so a trace pins the function, not the line.
+ *
+ * DETERMINISM: this zip must be byte-identical across machines (see the CRLF note above, which has
+ * bitten twice). esbuild's output is deterministic for a given input AND VERSION, so esbuild is
+ * pinned to an exact version in devDependencies. Bumping it changes PROTO_VERSION and re-extracts
+ * on every phone; that is expected, but this is why.
+ *
+ * Failure is NEVER fatal: a file esbuild cannot parse ships as its original bytes. A performance
+ * pass must not be able to break a ship.
+ */
+const MINIFY = /\.(?:js|css)$/i;
+const dec = new TextDecoder();
+const enc = new TextEncoder();
+let minifiedFrom = 0, minifiedTo = 0, minifySkipped = 0;
+
+function minify(rel, bytes) {
+  if (!MINIFY.test(rel)) return bytes;
+  try {
+    const out = transformSync(dec.decode(bytes), {
+      loader: rel.endsWith('.css') ? 'css' : 'js',
+      minifyWhitespace: true,
+      // Syntax and identifier minification stay OFF on purpose — see the note above.
+      minifySyntax: false,
+      minifyIdentifiers: false,
+    });
+    const buf = enc.encode(out.code);
+    minifiedFrom += bytes.length;
+    minifiedTo += buf.length;
+    return buf;
+  } catch {
+    minifySkipped++;
+    return bytes;
+  }
+}
+
 const entries = {};
 for (const p of files) {
   const rel = relative(SRC, p).split('\\').join('/'); // zip uses forward slashes
   const raw = new Uint8Array(readFileSync(p));
-  entries[rel] = TEXT.test(rel) ? stripCR(raw) : raw;
+  entries[rel] = TEXT.test(rel) ? minify(rel, stripCR(raw)) : raw;
 }
 
 // Pin a fixed mtime so the zip is byte-deterministic across runs (otherwise fflate stamps
@@ -83,4 +135,9 @@ writeFileSync(
     `export const PROTO_VERSION = '${hash}';\n`
 );
 
-console.log(`proto.zip: ${files.length} files, ${(zipped.length / 1024).toFixed(0)} KB, version ${hash}`);
+const saved = minifiedFrom ? (100 - (minifiedTo / minifiedFrom) * 100).toFixed(0) : '0';
+console.log(
+  `proto.zip: ${files.length} files, ${(zipped.length / 1024).toFixed(0)} KB, version ${hash}` +
+  ` | minified ${(minifiedFrom / 1024).toFixed(0)}->${(minifiedTo / 1024).toFixed(0)} KB (-${saved}%)` +
+  (minifySkipped ? ` | ${minifySkipped} passed through unminified` : '')
+);

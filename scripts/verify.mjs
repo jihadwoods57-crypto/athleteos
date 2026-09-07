@@ -52,6 +52,7 @@ const GATES = [
   // alert renderer, the auth-burst classifier and the MFA-recovery body parser were running only
   // when someone pasted the command out of the comment at the top of the file.
   { name: 'test:fn',    what: 'the edge-function logic suites' },
+  { name: 'verify:zip', what: 'the SHIPPED proto.zip parses and its imports all resolve' },
   { name: 'bundle',     what: 'expo export actually builds' },
 ];
 // Opt-in (`--with-rls`): needs a running local Supabase stack, so it cannot be a default gate.

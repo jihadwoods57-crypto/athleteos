@@ -13,7 +13,7 @@ import { deriveCommitment, presenceOf, PRESENCE, tomorrowRollcall } from '../com
 import { VC, loadMine, todayISO as vcToday } from '../commitment-data.js';
 import { commitmentCard, mountCommitmentCard, commitmentOfflineCard, tomorrowCard } from './roll-call.js';
 import { armIfPermitted } from './location-consent.js';
-import { standardsCard, mountStandardsCard, standardsOfflineCard } from './connected-standards.js';
+import { standardsCard, mountStandardsCard, standardsOfflineCard } from './standards-card.js';
 import { CS, loadMine as loadStandards, todayISO as csToday } from '../connected-standard-data.js';
 import { maybeStartTour } from '../tour.js';
 import { pressTilt } from '../tilt.js';

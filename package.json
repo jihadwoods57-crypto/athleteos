@@ -82,7 +82,8 @@
     "verify:full": "node scripts/verify.mjs --with-rls",
     "preflight": "node scripts/preflight.mjs",
     "ship": "node scripts/preflight.mjs && eas build --platform ios --profile production --non-interactive && eas submit --platform ios --profile production --latest --non-interactive",
-    "test:rls": "bash supabase/tests/run.sh"
+    "test:rls": "bash supabase/tests/run.sh",
+    "verify:zip": "node scripts/verify-proto-zip.mjs"
   },
   "private": true,
   "expo": {
