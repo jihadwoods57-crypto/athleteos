@@ -1281,14 +1281,16 @@ export const thread = {
     // green verdict on this screen is the confirm card at the top. A full-width "Done" in the
     // log-action color, sitting directly under a send composer, was two primary buttons
     // competing for the same thumb.
-    // It sits ABOVE the conversation now (2026-09-03). Below it, it was the last thing on the
-    // screen, so when the keyboard came up and keyboard.js brought the end of the screen down
-    // onto the keys, what rested on the keyboard was this button — with the message box floating
-    // a button's height above it. Messages puts nothing under the box, and neither does this.
-    const backHome = `<div style="height:6px"></div>
-    <button class="btn ghost" style="width:100%" data-go="home" aria-label="Back to home">Back to Home</button>`;
-    return `<div class="meal-screen">${backHead(M.dish || M.name, dupFlagged ? 'Duplicate photo' : '', 'home')}${execTop}${next}${photoBlock}${breakdown}${backHome}${discussion}
-    <div style="height:10px"></div></div>`;
+    // It is LAST again (2026-09-07, founder). It sat above the conversation from 2026-09-03,
+    // because at the bottom the keyboard brought it down onto the keys with the message box
+    // floating a button's height above it. That was the right fix in the wrong place: an exit
+    // belongs at the end, and the keyboard case is handled at its source instead. body.kb-open
+    // (keyboard.js) takes the whole foot away while typing, so what rests on the keys is the
+    // message box and nothing else, which is what Messages does.
+    const backHome = `<div class="meal-foot">
+      <button class="btn ghost meal-back" data-go="home" aria-label="Back to home">${icon('back', 16)} Back to Home</button>
+    </div>`;
+    return `<div class="meal-screen">${backHead(M.dish || M.name, dupFlagged ? 'Duplicate photo' : '', 'home')}${execTop}${next}${photoBlock}${breakdown}${discussion}${backHome}</div>`;
   },
 
   async mount(root, { sub }) {

@@ -2871,3 +2871,15 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* .btn is width:100% by default, which inside this flex row squeezed the sentence to one word
    per line and then covered it. The button takes its own width here; the text keeps the rest. */
 .mq-blocked .btn { flex: 0 0 auto; width: auto; padding: 0 var(--s4); }
+
+/* ===== The meal screen's foot =====
+   "Back to Home" is the last thing on the screen again (founder, 2026-09-07). It spent four days
+   above the conversation because at the bottom the keyboard used to bring it down onto the keys,
+   with the message box floating a button's height above it. The exit belongs at the end; the
+   keyboard case is handled at its source, by taking the foot away while typing.
+   Not full width and not a slab: the composer's pill sits directly above it, and two full-width
+   controls stacked on top of each other read as a choice between equals. This one is an exit. */
+.meal-foot { display: flex; justify-content: center; padding: var(--s6) 0 var(--s5); }
+.meal-foot .btn.meal-back { width: auto; min-width: 210px; color: var(--text-2); }
+.meal-foot .btn.meal-back:active { color: var(--text); }
+body.kb-open .meal-foot { display: none; }
