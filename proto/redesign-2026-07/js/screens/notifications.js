@@ -14,7 +14,12 @@ function notif(n, read) {
       <div class="nt">${esc(n.title)}</div>
       <div class="nb">${esc(n.body)}</div>
     </div>
-    <span class="nmeta"><span class="nw">${n.when}</span>${read ? (n.route ? icon('chevron', 15, 'style="color:var(--text-3)"') : '') : '<span class="udot" aria-hidden="true"></span>'}</span>
+    ${/* The chevron follows the ROUTE, not the read state (2026-09-07 audit). It used to render
+          only on read rows, so the newest and most actionable notifications — the unread ones,
+          which is the whole point of the screen — were the ones with no affordance at all,
+          while the inert "Notification settings" link below them had a chevron. Unread now
+          shows its dot AND the chevron; a row with nowhere to go still shows neither. */''}
+    <span class="nmeta"><span class="nw">${n.when}</span>${read ? '' : '<span class="udot" aria-hidden="true"></span>'}${n.route ? icon('chevron', 15, 'style="color:var(--text-3)"') : ''}</span>
   </div>`;
 }
 

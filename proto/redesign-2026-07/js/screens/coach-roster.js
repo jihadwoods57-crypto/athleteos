@@ -372,7 +372,7 @@ export const coachRoster = {
     ${SHOW_ABSENCE ? absenceSheet() : ''}
     <section class="card" id="roster-list" style="padding:2px 0">${listHtml(list)}</section>
     ${SELECTING && SEL.size ? (BULK_NUDGE_ARM != null ? `
-    <div class="card" style="position:sticky;bottom:calc(var(--tab-clear) + 8px);padding:9px;z-index:20">
+    <div class="action-bar">
       <input id="bulk-nudge-body" class="ob-input" maxlength="120" value="${esc(BULK_NUDGE_ARM)}" aria-label="Nudge message" style="width:100%;height:36px;font-size:var(--t-sm)" />
       <div id="bulk-nudge-note" style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:6px 0">This exact message goes to all ${SEL.size}, from "${esc(S.operatorIdentity.handle)} is waiting".</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
@@ -380,7 +380,7 @@ export const coachRoster = {
         <button class="btn sm" data-bulk="nudgesend" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-xs)">Send to ${SEL.size}</button>
       </div>
     </div>` : `
-    <div class="card" style="position:sticky;bottom:calc(var(--tab-clear) + 8px);display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:9px;z-index:20">
+    <div class="action-bar" style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s1h)">
       <button class="btn sm" data-bulk="nudge" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">Nudge ${SEL.size}</button>
       ${CD.caps.assignments ? `<button class="btn ghost sm" data-bulk="assign" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">Assign ${SEL.size}</button>` : ''}
       ${CD.caps.groups ? `<button class="btn ghost sm" data-bulk="group" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">→ Group</button>` : ''}

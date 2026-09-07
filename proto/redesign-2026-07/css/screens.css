@@ -142,7 +142,10 @@
 .cam-textlink {
   display: block; width: 100%; margin-top: var(--s2); padding: var(--s3) 0; min-height: 44px; box-sizing: border-box;
   background: none; border: 0; font-family: var(--font); cursor: pointer;
-  text-align: center; font-size: var(--t-base); font-weight: 700; color: var(--text-3);
+  /* A control, not a caption. At --text-3 this read as fine print under a full-width primary,
+     and for an athlete whose phone or school will not grant the camera it is the only way into
+     the product. */
+  text-align: center; font-size: var(--t-base); font-weight: 700; color: var(--blue-bright);
 }
 .cam-alert:empty { display: none; }
 .cam-alert {

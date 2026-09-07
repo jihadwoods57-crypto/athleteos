@@ -43,6 +43,22 @@ export default {
         <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('users', 17)}</div>
         <div class="lm"><div class="lt">Your room</div><div class="ls">${esc(RT.myRoomLabel)} · your standard follows this room</div></div>
       </div>` : ''}
+      ${/* A success state that names no next step is a dead end (2026-09-07 audit). This screen
+            was a green check, one sentence, and then the rest of the phone: no way to start
+            using what was just connected, no way to see what the coach set, and no way back out
+            of a code typed by mistake. The moment right after connecting is when an athlete is
+            most willing to do the next thing, so the screen names it. */''}
+      <h2 class="eyebrow">Next</h2>
+      <div class="lrow" data-go="plan">
+        <div class="req-icon g s38">${icon('clipboard', 17)}</div>
+        <div class="lm"><div class="lt">See what ${c.isNamed ? esc(c.name) : (isTrainer ? 'your trainer' : 'your coach')} set for you</div><div class="ls">Your requirements, targets, and when each one is due</div></div>
+        ${icon('chevron', 16, 'class="req-chev"')}
+      </div>
+      <div class="lrow" data-go="home">
+        <div class="req-icon b s38">${icon('camera', 17)}</div>
+        <div class="lm"><div class="lt">Log your first requirement</div><div class="ls">Your score starts moving with the first one</div></div>
+        ${icon('chevron', 16, 'class="req-chev"')}
+      </div>
       <div style="height:10px"></div>
       `;
     }

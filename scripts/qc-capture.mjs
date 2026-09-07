@@ -113,7 +113,9 @@ const SHOTS = [
   { g: 'athlete2', name: 'weight', seed: 'dayMorning', route: 'weight', at: [7, 10] },
   { g: 'athlete2', name: 'recovery', seed: 'dayMidday', route: 'recovery', at: [21, 30] },
   { g: 'athlete2', name: 'commitment', seed: 'dayMidday', route: 'commitment', at: [21, 40] },
-  { g: 'athlete2', name: 'checkin', seed: 'dayMidday', route: 'checkin', at: [21, 35] },
+  // 'checkin' was removed 2026-09-07: the Weekly Check-In ritual was deleted in v2 and its route
+  // went with it, so this shot rendered the 404 screen and the sweep counted it clean. Nothing in
+  // the app links to 'checkin'; the nightly ritual that survived is 'recovery', captured above.
   { g: 'athlete2', name: 'log-training', seed: 'dayComplete', route: 'log-training', at: [20, 5] },
   // The quick-log SHEET. Uncovered until now, which is how a stray position:relative on #view could
   // throw it off the top of the screen without the harness noticing: .sheet/.sheet-scrim are

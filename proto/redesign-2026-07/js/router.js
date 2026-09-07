@@ -2,7 +2,7 @@
 import { S, act, RT, routeForRole, memoTick } from './state.js';
 import { primeDayFromCache } from './day.js';
 import { icon } from './icons.js';
-import { skeletonRows, errorState, mountEdgeFades } from './components.js';
+import { skeletonRows, errorState, mountEdgeFades, esc } from './components.js';
 import { screens, isLazy, loadScreen, preloadScreens, OPERATOR_TAB_ROUTES } from './screens/index.js';
 import { initAnalytics, track, EVENTS } from './analytics.js';
 import { emptyNav, pushOrigin, popOrigin, peekOrigin, resetTab } from './nav-stack.js';
@@ -171,14 +171,32 @@ function tabbar(activeTab, nav = 'athlete', { remember = true } = {}) {
           dot = e.celebration ? '' : `<span class="fab-dot ${e.overdue.length ? 'red' : 'gold'}"></span>`;
         } catch { /* pre-auth render — no dot */ }
       }
-      const fabLabel = nav === 'athlete' ? 'Log a meal' : 'Create';
+      // WHERE THE ATHLETE FAB GOES (2026-09-07 audit). It wears a camera and is labelled "Log a
+      // meal", and it went to #log — a sheet listing every loggable thing, of which the meal is
+      // one row. The sheet is the right answer when there IS a choice; when exactly one photo
+      // requirement is open right now, the promise the button makes is the camera, so it opens
+      // the camera. Anything else (nothing open, several open, a non-photo requirement) still
+      // goes to the sheet, which is also where quick logs and forms live.
+      let fabRoute = t.route;
+      let fabLabel = nav === 'athlete' ? 'Log a meal' : 'Create';
+      if (nav === 'athlete') {
+        try {
+          const open = (S.exec.items || []).filter((i) => i.proof === 'photo'
+            && i.state !== 'done' && i.state !== 'done_late' && i.state !== 'not_required'
+            && i.state !== 'upcoming');
+          if (open.length === 1 && open[0].route) {
+            fabRoute = open[0].route;
+            fabLabel = `Log ${esc(open[0].title)}`;   // a coach writes these titles
+          }
+        } catch { /* pre-auth render — the sheet is the safe default */ }
+      }
       // .fabslot carries the scrim that keeps scrolling content from colliding with the FAB's
       // hard edge — see .tabbar .fabslot::before in app.css.
       // data-tour marks the first-run tour's anchor (tour-plan.js). The athlete FAB is the "log"
       // step; the operator FAB got its own "create" step in the v2 tour (2026-08-05).
       const fabTour = nav === 'athlete' ? ' data-tour="log"'
         : (nav === 'coach' || nav === 'trainer') ? ' data-tour="create"' : '';
-      return `<div class="tab fabslot" role="presentation"><div class="fab" role="button" tabindex="0" aria-label="${fabLabel}" data-go="${t.route}"${fabTour} style="position:relative">${icon(t.icon, 26)}${dot}</div></div>`;
+      return `<div class="tab fabslot" role="presentation"><div class="fab" role="button" tabindex="0" aria-label="${fabLabel}" data-go="${fabRoute}"${fabTour} style="position:relative">${icon(t.icon, 26)}${dot}</div></div>`;
     }
     const on = t.id === activeTab ? `active ${t.id === 'home' ? 'home' : ''}` : '';
     // Tab badge: any screen exposing badge() → live count, hidden at zero (Coach Inbox pending

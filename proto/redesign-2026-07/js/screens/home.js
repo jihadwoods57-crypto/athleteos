@@ -801,12 +801,13 @@ function notScoredHero() {
 /* The first real action on the activation day — points at the next actionable requirement
    (never a pre-activation window, which exec.js already excused), framed as a start, not a miss. */
 function firstActionCard(n) {
+  const hue = ({ g: 'g', p: 'p', b: 'b', c: 'c', muted: 'b' }[n.accent] || 'b');
   const isCheck = !n.proof || n.proof === 'check';
   const label = isCheck ? `Mark ${esc(n.title)} done` : `${VERB[n.proof]} ${esc(n.title)}`;
   const ctaIcon = isCheck ? 'check' : CTA_ICON[n.proof];
-  return `<section class="xnow">
+  return `<section class="xnow ${hue}">
     <div class="xlab"><span class="xl">NOW</span><span class="note">Start here</span></div>
-    <div class="xmain"><div class="xico ${n.proof === 'photo' ? 'green' : 'gold'}">${icon(n.icon, 21)}</div>
+    <div class="xmain"><div class="xico">${icon(n.icon, 21)}</div>
       <div><div class="xt">${esc(n.title)}</div><div class="xwhy">Your score starts moving with your first log. ${whyHtml(n.why)}</div></div></div>
     <div style="height:10px"></div>
     <button class="xcta" data-go="${n.route}">${icon(ctaIcon, 18)} ${label}</button>
@@ -871,9 +872,9 @@ export default {
       ${emailVerifyBanner()}
       ${(!S.dayDecided && S.tier.cls === 'r') ? inProgressHero(e) : hero(e, backdrop)}
       ${syncBanner()}
-      <section class="xnow">
+      <section class="xnow g">
         <div class="xlab"><span class="xl">NOW</span><span class="note">Start here</span></div>
-        <div class="xmain"><div class="xico green">${icon('camera', 21)}</div>
+        <div class="xmain"><div class="xico">${icon('camera', 21)}</div>
         <div><div class="xt">Breakfast</div><div class="xwhy">Your score starts moving with your first log. <b>Nutrition · ${liveWeightPct('nutrition')}% of score.</b></div></div></div>
         <div style="height:10px"></div>
         <button class="xcta" data-go="camera">${icon('camera', 18)} Log Breakfast</button>

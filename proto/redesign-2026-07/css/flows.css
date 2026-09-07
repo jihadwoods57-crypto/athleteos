@@ -382,6 +382,12 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 .bignum .bv { font-size: var(--t-3xl); font-weight: 800; letter-spacing: -0.03em; }
 .bignum .bk { font-size: var(--t-eyebrow); font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin-top:var(--s1); }
 .standard-set { text-align: center; padding-top:30px; }
+/* The camera permission screen used to pin its explanation to the top of the frame and its two
+   controls to the bottom, leaving roughly 700px of nothing in between (2026-09-07 audit): the
+   athlete reads three lines, then has to travel the length of the phone to act on them. Both
+   halves take an auto margin so the free space splits above and below the copy and the block
+   sits where the eye already is. .ob-foot keeps the controls at the bottom edge. */
+.ob .standard-set.prime-body { margin-top: auto; padding-top: var(--s2h); }
 .standard-set .halo {
   width: 130px; height: 130px; margin:0 auto; border-radius: 50%; display: grid; place-items: center; position: relative;
   background: radial-gradient(closest-side, rgba(var(--green-rgb), 0.22), transparent 75%);

@@ -133,6 +133,7 @@ body {
      `--nav-h + 62px` here was the pre-capsule bar's math and had to be re-derived by anyone who
      needed the same clearance elsewhere (coach-roster's sticky bulk bar did, and disagreed). */
   padding: var(--s1) var(--pad-screen) var(--tab-clear);
+  --bar-lift: calc(var(--tab-clear) + var(--s2));
   scroll-behavior: smooth;
 }
 .viewport::-webkit-scrollbar { display: none; }
@@ -141,7 +142,7 @@ body {
 /* A screen that renders no tab bar has nothing to clear. These carried the full nav clearance
    anyway — ~104px of dead scroll under the last button on the meal result, settings, recovery
    and 12 other screens. */
-.viewport.notabs { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+.viewport.notabs { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); --bar-lift: calc(24px + env(safe-area-inset-bottom, 0px) + var(--s2)); }
 /* `fill: true` on a screen module: this screen owns its whole vertical rhythm and wants the real
    height handed to it. #view is otherwise a plain block sized to its content, so a `margin-top:
    auto` inside a screen has no free space to distribute and a bottom-anchored control just floats
@@ -218,7 +219,7 @@ body {
 body.kb-open .tabbar { transform: translateY(100%); opacity: 0; pointer-events: none; }
 /* …and the clearance the bar was owed leaves with it, so the end of a conversation can actually
    reach the top of the keyboard instead of resting 100px above it. */
-body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); }
+body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); --bar-lift: var(--s3); }
 
 /* ===== App header ===== */
 .apphead {
@@ -483,6 +484,29 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); }
 .req-meta.dim { color: var(--text-3); font-weight: 700; font-size: var(--t-sm); }
 .req-chev { color: var(--text-3); flex: none; }
 
+/* ===== The sticky action bar (2026-09-07 audit) =====
+   The control a form screen exists to reach, kept on screen while the form is being filled.
+   The recovery check-in is why: its header promises "Takes 20 seconds", then asks four
+   questions, and the submit sat in normal flow below an explainer card — off screen for the
+   whole time an athlete is answering. Worse, that button IS the progress meter (its label reads
+   "0 of 4 answered" until the last question lands), so the one element telling you how far
+   along you are was the one element you could not see.
+   Geometry: --bar-lift (set per .viewport variant above) because a sticky offset is measured
+   from the scrollport's padding box, so bottom:0 would sit under the floating capsule. This
+   rule is the named version of an inline style that lived in two copies in coach-roster.js. */
+.action-bar {
+  position: sticky; bottom: var(--bar-lift, var(--s2)); z-index: 20;
+  margin-top: var(--s4); padding: var(--s2h);
+  border-radius: var(--r-card);
+  /* --surface-2, not --surface-1: the bar floats over cards that are themselves --surface-1,
+     and at the same fill the two read as one translucent sheet rather than as a control sitting
+     above the form. */
+  background: var(--surface-2); border: 1px solid var(--hairline);
+  box-shadow: var(--sh-raised);
+}
+/* A bar holding one full-width control needs no inner chrome around it. */
+.action-bar > .btn { margin: 0; }
+
 /* ===== One horizontal scroller (2026-09-07 audit) =====
    A row that runs past the viewport with a hidden scrollbar and a hard cut at the edge does not
    read as "there is more to the right" — it reads as a clipped layout. The capture sweep found
@@ -657,7 +681,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); }
    fill ends at --blue rather than --blue-deep so one ink clears both stops. Light keeps its
    original bright->deep fill below. */
 .btn.primary { background: linear-gradient(150deg, var(--blue-bright), var(--blue)); color: var(--ink-on-accent); box-shadow: var(--sh-blue); }
-:root[data-theme="light"] .btn.primary { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); }
+:root[data-theme="light"] .btn.primary:not(:disabled) { background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep)); }
 .btn.green { background: linear-gradient(150deg, var(--green), var(--green-deep)); color: var(--ink-on-accent); box-shadow: var(--sh-green); }
 .btn.ghost { background: var(--surface-2); color: var(--text); border: 1px solid var(--hairline); box-shadow: none; }
 /* Recovery is the one flow with its own hue (purple = recovery, DESIGN.md's semantic table), and
@@ -665,7 +689,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); }
    here: an inline background beats :disabled, so the gated button still looked live. As a variant
    it composes from tokens, inverts correctly on light, and loses its fill when disabled. */
 .btn.recovery { background: linear-gradient(150deg, var(--purple-bright), var(--purple)); color: var(--ink-on-accent); box-shadow: 0 10px 30px rgba(var(--purple-rgb), 0.35); }
-:root[data-theme="light"] .btn.recovery { background: linear-gradient(150deg, var(--purple-bright), var(--purple-deep)); }
+:root[data-theme="light"] .btn.recovery:not(:disabled) { background: linear-gradient(150deg, var(--purple-bright), var(--purple-deep)); }
 /* Destructive. A solid --danger-solid fill, no gradient: the one control that must never be
    mistaken for the primary action does not borrow the primary's finish. Same geometry as
    .btn.primary; white ink clears 4.8:1 on this fill in both themes (tokens.css). The ghost
@@ -696,6 +720,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); }
    Listed after the variants so it wins on order against .primary/.green/.recovery, which all
    set their own background: a disabled control must never keep an inviting fill. */
 .btn:disabled { background: var(--surface-2); color: var(--text-2); cursor: not-allowed; box-shadow: none; }
+:root[data-theme="light"] .btn:disabled { background: var(--surface-2); color: var(--text-2); box-shadow: none; }
 .btn:disabled:active { transform: none; filter: none; }
 .btn-row { display: flex; gap:var(--s3); }
 .btn-row.mt { margin-top: var(--s4); } /* the standard gap under a card's content, by class not inline */

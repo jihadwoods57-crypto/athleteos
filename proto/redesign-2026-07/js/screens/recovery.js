@@ -148,13 +148,6 @@ export default {
       <div class="ts">Same math as your Score Breakdown: your answers set the exact number. ${S.coach.hasCoach ? `${esc(S.coach.name)} sees your readiness before tomorrow's practice.` : 'Honest answers are the whole point.'}</div></div>
     </div>
 
-    <div style="height:18px"></div>
-    ${/* Gated until every question is answered. An unanswered question used to submit a
-          flattering default (see S.recovery in state.js), so the gate is what makes the
-          check-in the athlete's own words rather than the app's guess about them. */''}
-    <button class="btn recovery" id="rec-submit" disabled>
-      ${icon('check', 19)} <span id="rec-submit-label">Answer all ${R.fields.length} to submit</span>
-    </button>
 
     <!-- Wearable connect: hidden unless Apple Health / Health Connect is actually available on
          this build (probed in mount): device sleep/HRV is shown for CONTEXT on #apple-health and
@@ -163,7 +156,17 @@ export default {
       <div class="req-icon b s38">${icon('moonStar', 17)}</div>
       <div><div class="tt">Connect Apple Health</div><div class="ts">Bring last night's sleep, HRV &amp; resting HR in for context</div></div>
     </div>
-    <div style="height:8px"></div>
+    ${/* Gated until every question is answered. An unanswered question used to submit a
+          flattering default (see S.recovery in state.js), so the gate is what makes the
+          check-in the athlete's own words rather than the app's guess about them.
+          STICKY (2026-09-07 audit): the button doubles as the progress meter, and both were
+          off screen for the whole 20 seconds this screen claims to take. .action-bar keeps
+          the count and the control in view while the questions are answered. */''}
+    <div class="action-bar">
+      <button class="btn recovery" id="rec-submit" disabled>
+        ${icon('check', 19)} <span id="rec-submit-label">Answer all ${R.fields.length} to submit</span>
+      </button>
+    </div>
     `;
   },
   mount(root) {
