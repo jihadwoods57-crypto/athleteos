@@ -96,8 +96,8 @@ const SHOTS = [
     use: 'The athlete sees the coach\'s own title and one button — never the word "commitment"' },
   { name: 'vc-2-accountability', seed: 'dayComplete', route: 'accountability', at: [20, 20], vc: 'earned',
     use: 'Accountability — its own number, weighted ack 10 / arrive 30 / complete 60' },
-  { name: 'vc-3-record', seed: 'dayComplete', route: 'verified-discipline', at: [20, 22], vc: 'earned',
-    use: 'The record an athlete can choose to show' },
+  { name: 'vc-3-record', seed: 'dayComplete', route: 'verified-profile', at: [20, 22], vc: 'earned',
+    use: 'The record an athlete can choose to show: the public page and, under it, the discipline record with its own switch' },
 
   // ---------- operator: trainer ----------
   { name: 'trainer-1-book', seed: 'trainerIdentity', route: 'coach-roster', at: [7, 30], book: 'practice',

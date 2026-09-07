@@ -295,7 +295,7 @@ const DEFAULT_RT = {
   allergies: [],         // FLAT summary list (guardian check + profile row). Derived from restrictions when structured.
   restrictions: null,    // structured (spec §18.1): {allergies:[{name,severity}], intolerances:[], preferences:[]}
   injured: false,        // injury mode: the Standard adapts (rehab replaces recovery emphasis)
-  wearable: false,       // reserved; #devices gates on the live native health probe, not this flag
+  wearable: false,       // reserved; #apple-health gates on the live native health probe, not this flag
   // --- real auth (Supabase session drives these; null until signed in) ---
   userId: null,
   email: null,

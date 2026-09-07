@@ -157,9 +157,9 @@ export default {
     </button>
 
     <!-- Wearable connect: hidden unless Apple Health / Health Connect is actually available on
-         this build (probed in mount): device sleep/HRV is shown for CONTEXT on #devices and
+         this build (probed in mount): device sleep/HRV is shown for CONTEXT on #apple-health and
          never changes the score. Keeps zero reachable "coming soon" until the module is wired. -->
-    <div id="rec-connect" class="sidebox" data-go="devices" role="button" style="display:none;margin-top:14px;cursor:pointer">
+    <div id="rec-connect" class="sidebox" data-go="apple-health" role="button" style="display:none;margin-top:14px;cursor:pointer">
       <div class="req-icon b s38">${icon('moonStar', 17)}</div>
       <div><div class="tt">Connect Apple Health</div><div class="ts">Bring last night's sleep, HRV &amp; resting HR in for context</div></div>
     </div>

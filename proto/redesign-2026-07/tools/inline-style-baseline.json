@@ -57,7 +57,6 @@
   "js/screens/plan-upgrade.js": 13,
   "js/screens/plan.js": 38,
   "js/screens/profile.js": 60,
-  "js/screens/progress-compare.js": 4,
   "js/screens/progress-photos.js": 18,
   "js/screens/progress.js": 36,
   "js/screens/recovery.js": 16,
@@ -74,7 +73,6 @@
   "js/screens/trainer-grow.js": 66,
   "js/screens/training-history.js": 10,
   "js/screens/trust.js": 57,
-  "js/screens/verified-discipline.js": 7,
   "js/screens/verified-profile.js": 41,
   "js/screens/weight.js": 17
 }

@@ -1985,6 +1985,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .pw-note{text-align:center;font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:var(--s2h);line-height:1.45}
 
 /* ---- Progress photos (#progress-photos) ---- */
+/* The Timeline / Compare switch. The .seg pill itself is app.css; this only spaces it off the
+   header, so a mode switch never has to hand-write a margin at the call site. */
+.pp-modes{margin:var(--s3) 0}
 .pp-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s2h)}
 .pp-cell{position:relative;border-radius:var(--r-card-sm);overflow:hidden;background:var(--surface-2);aspect-ratio:3/4}
 .pp-cell-img{width:100%;height:100%;object-fit:cover;display:block}
@@ -2001,7 +2004,11 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .tl-del{background:none;border:none;color:var(--text-3);font-size:var(--t-sm);font-weight:700;cursor:pointer;padding:var(--s3) var(--s2h);min-height:44px}
 .tl-del.arm{color:var(--red)}
 
-/* ---- Before/after compare (#progress-compare) ---- */
+/* ---- Before/after compare (#progress-photos, compare mode) ----
+   Was its own route until the two views were folded together; the markup moved into
+   progress-photos.js unchanged, so these rules did too. .cmp-pick replaces the two hand-written
+   margin-top styles the picker headings used to carry inline. */
+.cmp-pick{margin-top:var(--s3h)}
 .cmp-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2h)}
 .cmp-panel{background:var(--surface-1);border: 1px solid transparent;border-radius:var(--r-card-sm);overflow:hidden;display:flex;flex-direction:column; box-shadow: var(--sh-card);}
 .cmp-lab{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-3);padding:var(--s2) var(--s2h) var(--s1)}

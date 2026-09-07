@@ -463,7 +463,7 @@ export const connectedStandardsList = {
 
     // The connect affordance is SELF-GATING: it only exists once the native health module reports
     // available. Until then there is nothing to connect to, and offering the row would promise a
-    // capability this build does not have. Same discipline as the #devices row on Recovery.
+    // capability this build does not have. Same discipline as the Apple Health row on Recovery.
     (async () => {
       const slot = root.querySelector('#cs-connect-slot');
       if (!slot) return;

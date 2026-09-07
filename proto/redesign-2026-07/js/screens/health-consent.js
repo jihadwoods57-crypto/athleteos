@@ -138,7 +138,7 @@ export default {
     if (AVAILABLE === null || CONSENT === null) {
       await probe();
       // ⚠ NO REACHABLE "COMING SOON". Until the native module is wired, isHealthAvailable is
-      // false and this screen has nothing to offer, so it hands the athlete back the way #devices
+      // false and this screen has nothing to offer, so it hands the athlete back the way the old #devices screen
       // does rather than showing a dead end that promises a button nobody can press. The
       // manual path on the standard itself still works, which is what makes that acceptable.
       if (AVAILABLE === false) { location.hash = '#connected-standards'; return; }

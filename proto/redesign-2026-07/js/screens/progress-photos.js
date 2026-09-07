@@ -3,7 +3,8 @@
    progress-photos bucket (0133). Coach-visible via the same link model as meal photos. Reached
    from Progress. No AI, no analysis — just the athlete's own record of the work showing up.
 
-   States: browse (grid + Add/Compare) and compose (staged shot + pose/weight/note → Save). */
+   States: browse (timeline OR compare, plus Add) and compose (staged shot + pose/weight/note
+   → Save). */
 import { RT } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg, emptyState, errorState, skeletonRows } from '../components.js';
@@ -17,6 +18,20 @@ let CACHE = { photos: null, urls: {}, loading: false, resolving: false, failed: 
 let STAGE = null;          // { dataUrl, base64, pose, weightLb, note, busy, error } while composing
 let PENDING_DELETE = null; // id awaiting a confirm tap
 let DELETE_ERROR = null;   // a failed delete, said out loud above the grid
+
+/* Compare was its own route (#progress-compare) for a while, and it was never a destination: its
+   only door was a button on this screen, it read THIS module's photo list and THIS module's
+   signed-URL map, and its back chip came straight back here. So it is a mode of the timeline
+   instead. Switching modes is a repaint, not a navigation — nothing refetches, nothing is
+   re-signed, and the picked pair survives because it lives here, next to the cache.
+
+   MODE deliberately survives leaving and re-entering the screen, the same way STAGE already
+   does. There is no trap in that: the segmented control is on screen in BOTH modes, so the
+   timeline is always one tap away, and the back chip always points at Progress — the one place
+   this screen is entered from. (The router has no unmount hook to reset it in anyway; a reset
+   would have to be faked from a route diff, which is state this screen has no business owning.) */
+let MODE = 'timeline';                   // 'timeline' | 'compare'
+let SEL = { before: null, after: null }; // the picked pair, kept across repaints
 
 const POSES = ['Front', 'Side', 'Back'];
 
@@ -60,6 +75,8 @@ async function resolveUrls() {
   CACHE.resolving = true;
   // One batch signing call for the whole timeline; per-photo requests made a 20-photo
   // gallery wait through 20 sequential round trips before the last cell could start loading.
+  // Only paths with no entry yet are asked for, which is why changing mode costs nothing: the
+  // compare panels read the very same map the grid already filled.
   const want = CACHE.photos.filter((p) => CACHE.urls[p.photo_path] === undefined).map((p) => p.photo_path);
   if (want.length) {
     const urls = await roles.signedProgressPhotoUrls(want);
@@ -113,22 +130,90 @@ function cell(p) {
   </div>`;
 }
 
-function browseView() {
-  const photos = CACHE.photos || [];
-  const canCompare = photos.length >= 2;
-  return `${backHead('Progress photos', 'Your before & after · private to you and your coach', 'progress')}
+/* ---------------- compare mode ---------------- */
 
-  <div style="display:flex;gap:8px">
-    <button class="btn primary sm" id="pp-add" style="flex:1">${icon('camera', 16)} Add photo</button>
-    ${canCompare ? `<button class="btn ghost sm" data-go="progress-compare" style="flex:1">${icon('image', 16)} Compare</button>` : ''}
-  </div>
+function byId(photos, id) { return photos.find((p) => p.id === id) || null; }
+function daysBetween(a, b) {
+  try { return Math.abs(Math.round((new Date(a + 'T00:00:00') - new Date(b + 'T00:00:00')) / 86400000)); } catch { return null; }
+}
+
+function panel(p, urls, label) {
+  if (!p) return `<div class="cmp-panel"><div class="cmp-lab">${label}</div><div class="cmp-empty">${icon('image', 20)}</div></div>`;
+  const url = urls[p.photo_path];
+  const src = url ? safeImg(url) : '';
+  const img = url === undefined ? `<div class="cmp-empty">${icon('bolt', 18)}</div>`
+    : (src ? `<img class="cmp-img" src="${src}" alt="${esc(label)} photo" decoding="async" />` : `<div class="cmp-empty">${icon('image', 18)}</div>`);
+  const sub = [fmtDate(p.taken_on), p.weight_lb ? `${p.weight_lb} lb` : ''].filter(Boolean).join(' · ');
+  return `<div class="cmp-panel"><div class="cmp-lab">${label}</div>${img}<div class="cmp-sub">${esc(sub)}</div></div>`;
+}
+
+function strip(photos, urls, side, selId) {
+  return `<div class="cmp-strip">${photos.map((p) => {
+    const url = urls[p.photo_path];
+    const src = url ? safeImg(url) : '';
+    const on = p.id === selId;
+    const inner = src ? `<img class="cmp-thumb-img" src="${src}" alt="" loading="lazy" decoding="async" />` : `<div class="cmp-thumb-load">${icon('image', 12)}</div>`;
+    return `<button class="cmp-thumb${on ? ' on' : ''}" data-cmp-side="${side}" data-cmp-id="${p.id}" aria-pressed="${on}">${inner}</button>`;
+  }).join('')}</div>`;
+}
+
+function compareBody(photos, firstLoad) {
+  if (firstLoad) return skeletonRows(2, 'Loading your photos');
+  // The load FAILED vs there ARE too few: opposite messages. Without this branch a dropped
+  // connection told an athlete with a year of photos to go add two.
+  if (CACHE.failed && photos.length < 2) {
+    return errorState({
+      title: "Couldn't load your photos",
+      body: 'Nothing was deleted. Reconnect and they load right here.',
+      retryId: 'pp-retry',
+    });
+  }
+  if (photos.length < 2) {
+    return emptyState({
+      icon: 'image',
+      title: 'Two photos needed',
+      body: 'Add at least two progress photos and you can line up any before against any after.',
+    });
+  }
+  // Defaults: before = oldest (list is newest-first), after = newest. Re-validated every paint,
+  // so a deleted photo drops the selection back to a real one instead of a blank panel.
+  if (!SEL.before || !byId(photos, SEL.before)) SEL.before = photos[photos.length - 1].id;
+  if (!SEL.after || !byId(photos, SEL.after)) SEL.after = photos[0].id;
+  const before = byId(photos, SEL.before), after = byId(photos, SEL.after);
+  const urls = CACHE.urls;
+
+  let delta = '';
+  if (before && after && before.weight_lb && after.weight_lb) {
+    const d = after.weight_lb - before.weight_lb;
+    const days = daysBetween(after.taken_on, before.taken_on);
+    delta = `<div class="cmp-delta"><b>${d > 0 ? '+' : ''}${d} lb</b>${days != null ? ` over ${days} day${days === 1 ? '' : 's'}` : ''}</div>`;
+  } else {
+    const days = before && after ? daysBetween(after.taken_on, before.taken_on) : null;
+    if (days != null) delta = `<div class="cmp-delta">${days} day${days === 1 ? '' : 's'} apart</div>`;
+  }
+
+  return `<div class="cmp-row">
+      ${panel(before, urls, 'Before')}
+      ${panel(after, urls, 'After')}
+    </div>
+    ${delta}
+    <h2 class="eyebrow cmp-pick">Before</h2>
+    ${strip(photos, urls, 'before', SEL.before)}
+    <h2 class="eyebrow cmp-pick">After</h2>
+    ${strip(photos, urls, 'after', SEL.after)}`;
+}
+
+/* ---------------- timeline mode ---------------- */
+
+function timelineBody(photos, firstLoad) {
+  return `<button class="btn primary sm" id="pp-add" style="width:100%">${icon('camera', 16)} Add photo</button>
   <input type="file" accept="image/*" capture="environment" id="pp-file" style="display:none" />
 
   ${DELETE_ERROR ? `<div role="alert" style="color:var(--red-bright);font-size:var(--t-sm);font-weight:600;text-align:center;margin-top:12px">${esc(DELETE_ERROR)}</div>` : ''}
   ${/* The spacer used to live inside the photos branch only, so the empty, loading and failed
         states all sat flush against the Add photo button. */''}
   <div style="height:12px"></div>
-  ${CACHE.loading && !photos.length ? `
+  ${firstLoad ? `
     ${skeletonRows(3, 'Loading your photos')}`
   : photos.length ? `
     <div class="pp-grid">${photos.map(cell).join('')}</div>`
@@ -144,7 +229,25 @@ function browseView() {
     title: 'Start your timeline',
     body: "Take a progress photo today. Same pose, same light, once a week, and in a month you'll see the work. Only you and a coach you're linked to can see these.",
     action: { label: 'Take the first one', id: 'pp-empty-shoot' },
-  })}`}
+  })}`}`;
+}
+
+/* The shared two-way view switch: a .seg radiogroup, the same control coach-home, the plan-style
+   picker and the feature flags use. It renders in BOTH modes and in every state, including a
+   failed load — hiding the way into Compare on failure is the exact bug the CACHE.failed comment
+   above was written for, and hiding the way OUT of Compare would be the same bug reversed. */
+function modeSeg() {
+  const on = (m) => MODE === m;
+  const btn = (m, label) => `<button data-pp-mode="${m}" role="radio" aria-checked="${on(m)}" class="${on(m) ? 'on' : ''}">${label}</button>`;
+  return `<div class="seg pp-modes" role="radiogroup" aria-label="Photo view">${btn('timeline', 'Timeline')}${btn('compare', 'Compare')}</div>`;
+}
+
+function browseView() {
+  const photos = CACHE.photos || [];
+  const firstLoad = CACHE.loading && !photos.length;
+  return `${backHead('Progress photos', 'Your before & after · private to you and your coach', 'progress')}
+  ${modeSeg()}
+  ${MODE === 'compare' ? compareBody(photos, firstLoad) : timelineBody(photos, firstLoad)}
   <div style="height:14px"></div>`;
 }
 
@@ -180,11 +283,27 @@ export default {
       return;
     }
 
-    // browse
+    // browse (timeline or compare)
+    // The mode switch is a repaint and nothing more: no fetch, no re-sign, no reset of the
+    // picked pair. Both modes read the one CACHE below.
+    root.querySelectorAll('[data-pp-mode]').forEach((el) => el.addEventListener('click', () => {
+      const m = el.getAttribute('data-pp-mode');
+      if (!m || m === MODE) return;
+      MODE = m;
+      if (window.__render) window.__render();
+    }));
+
     if (CACHE.photos === null && !CACHE.loading && !CACHE.failed) loadPhotos();
     else resolveUrls();
+    // One retry id for both modes: only one of the two failure states is ever on screen.
     const ppRetry = root.querySelector('#pp-retry');
     if (ppRetry) ppRetry.addEventListener('click', () => { if (!CACHE.loading) { ppRetry.disabled = true; loadPhotos(); } });
+
+    root.querySelectorAll('[data-cmp-id]').forEach((el) => el.addEventListener('click', () => {
+      const side = el.getAttribute('data-cmp-side'); const id = el.getAttribute('data-cmp-id');
+      if (side === 'before') SEL.before = id; else SEL.after = id;
+      if (window.__render) window.__render();
+    }));
 
     const file = root.querySelector('#pp-file');
     const add = root.querySelector('#pp-add');
@@ -219,6 +338,6 @@ export default {
   },
 };
 
-/** For the compare screen + the Progress card: the cached list + a URL resolver. */
+/** The one photo list and its signed-URL map. Both modes of this screen read it, and the test
+ *  suite seeds it — a fixture door that does not require a network stub. */
 export function progressPhotoCache() { return CACHE; }
-export async function ensureProgressPhotos() { if (CACHE.photos === null && !CACHE.loading) await loadPhotos(); return CACHE.photos || []; }

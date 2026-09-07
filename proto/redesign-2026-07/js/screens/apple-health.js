@@ -22,7 +22,7 @@ const healthN = () => { const n = native(); return n && n.health ? n.health : nu
 
 /** Module-scoped so Settings can read the same answer without re-probing. */
 export const HK = {
-  probed: false, available: null, connected: false, consent: null, isMinor: null,
+  probed: false, available: null, connected: false, osGranted: false, consent: null, isMinor: null,
   activity: null,   // today's { steps, distanceMeters, activeMinutes, workouts } or null
   recovery: null,   // last night's { sleepHours, hrvMs, restingHr } or null
   busy: false, note: '',
@@ -61,14 +61,20 @@ export async function probeHealth() {
       }
     } catch { /* consent stays null: "checking", never a false yes */ }
   }
+  // The two halves are not gated the same way, and folding #devices in here is what made that
+  // visible. ACTIVITY leaves the phone: the server ingests it to verify a standard, so it needs
+  // the consent row (0155) and a revoked consent means not connected however the OS answers.
+  // RECOVERY never leaves the phone; it is drawn on the check-in for context and the score
+  // ignores it. #devices asked for it with no consent row at all, so gating it on consent would
+  // have switched sleep and HRV off for every athlete who came through that door.
+  HK.osGranted = osGranted;
   HK.connected = osGranted && HK.consent !== false;
-  if (HK.connected) {
-    if (h && h.readActivity) {
-      const to = new Date(); const from = new Date(to); from.setHours(0, 0, 0, 0);
-      HK.activity = await h.readActivity(from.toISOString(), to.toISOString()).catch(() => null);
-    }
-    HK.recovery = await roles.healthRead().catch(() => null);
-  } else { HK.activity = null; HK.recovery = null; }
+  if (HK.connected && h && h.readActivity) {
+    const to = new Date(); const from = new Date(to); from.setHours(0, 0, 0, 0);
+    HK.activity = await h.readActivity(from.toISOString(), to.toISOString()).catch(() => null);
+  } else HK.activity = null;
+  if (osGranted) HK.recovery = await roles.healthRead().catch(() => null);
+  else HK.recovery = null;
   HK.probed = true;
 }
 
@@ -76,7 +82,7 @@ export async function probeHealth() {
 export function hkLabel() {
   if (!HK.probed) return 'Checking…';
   if (HK.available === false) return 'iPhone only';
-  if (!HK.connected) return 'Not connected';
+  if (!HK.connected) return HK.osGranted && hasRecovery(HK.recovery) ? 'Recovery only' : 'Not connected';
   return (hasActivity(HK.activity) || hasRecovery(HK.recovery)) ? 'Connected' : 'Connected, nothing shared yet';
 }
 
@@ -101,12 +107,18 @@ function statusCard() {
         <div class="hk-s">Apple Health lives on iPhone. Here your standards verify by logging, and Recovery uses your nightly check-in.</div></div>
       </div>
     </section>`;
+  // Recovery on, activity off: the state every athlete who came through the old #devices door is
+  // in. Saying "Not connected" to someone whose sleep is visibly coming through would be the
+  // screen calling itself a liar, so it names both halves.
+  const recOnly = !HK.connected && HK.osGranted && hasRecovery(HK.recovery);
   if (!HK.connected) return `
     <section class="card pad hk-card">
       <div class="hk-status">
-        <div class="hk-ic">${icon('heart', 20)}</div>
-        <div><div class="hk-t">Not connected</div>
-        <div class="hk-s">Connect once and your activity standards check themselves. Last night's sleep shows up on Recovery for context.</div></div>
+        <div class="hk-ic">${icon(recOnly ? 'moon' : 'heart', 20)}</div>
+        <div><div class="hk-t">${recOnly ? 'Recovery only' : 'Not connected'}</div>
+        <div class="hk-s">${recOnly
+          ? `Last night: ${esc(recoveryLine())}. Your activity standards are still verifying by hand; connect to let them check themselves.`
+          : "Connect once and your activity standards check themselves. Last night's sleep shows up on Recovery for context."}</div></div>
       </div>
       <button class="btn primary hk-act" data-go="health-consent">${HK.isMinor === true && HK.consent !== true ? 'Connect, with a guardian' : 'Connect Apple Health'}</button>
     </section>`;
@@ -132,15 +144,36 @@ function readRow(ic, title, sub, val, isOn) {
   </div>`;
 }
 
+/** Last night's numbers as a sentence, when they are actually there. This is what the old
+ *  #devices screen existed to show; it lives here now, under the thing it describes. */
+function recoveryLine() {
+  const r = HK.recovery || {};
+  const bits = [];
+  if (r.sleepHours != null) bits.push(`${fmtSleep(r.sleepHours)} sleep`);
+  if (r.hrvMs != null) bits.push(`${Math.round(r.hrvMs)} ms HRV`);
+  if (r.restingHr != null) bits.push(`${Math.round(r.restingHr)} bpm resting`);
+  return bits.join(' · ');
+}
+
 function readsCard() {
   const con = HK.connected;
-  const actVal = !con ? '' : hasActivity(HK.activity) ? 'Reading' : 'No data yet';
-  const recVal = !con ? '' : hasRecovery(HK.recovery) ? 'Reading' : 'No data yet';
+  const os = HK.osGranted;
+  const act = hasActivity(HK.activity);
+  const rec = hasRecovery(HK.recovery);
+  const actVal = !con ? '' : act ? 'Reading' : 'No data yet';
+  const recVal = !os ? '' : rec ? 'Reading' : 'No data yet';
+  // Two grants, not one. Apple asks for activity and recovery separately (the bridge sends
+  // HEALTH_CONNECT_SCOPED with the scope), so an athlete who allowed one still has to allow the
+  // other. Before 2026-09-06 the second ask lived on its own screen (#devices) that only the
+  // Recovery check-in linked to, which is why so many athletes had activity and no sleep.
+  const recSub = rec ? `Last night: ${recoveryLine()}. Shown for context; your score is still yours to earn.`
+    : 'Last night’s sleep, HRV and resting heart rate. Shown on Recovery for context; the score is still yours to earn.';
   return `
     <h2 class="eyebrow">What OnStandard reads</h2>
     <section class="card rows hk-reads" role="list">
-      ${readRow('bolt', 'Activity', 'Steps, walking and running distance, workouts. Verifies the standards your coach set.', actVal, hasActivity(HK.activity))}
-      ${readRow('moon', 'Recovery', 'Last night’s sleep, HRV and resting heart rate. Shown on Recovery for context; the score is still yours to earn.', recVal, hasRecovery(HK.recovery))}
+      ${readRow('bolt', 'Activity', 'Steps, walking and running distance, workouts. Verifies the standards your coach set.', actVal, act)}
+      ${readRow('moon', 'Recovery', recSub, recVal, rec)}
+      ${os && !rec ? `<div class="hk-foot"><button class="btn ghost" id="hk-rec" ${HK.busy ? 'disabled' : ''}>${HK.busy ? 'Asking…' : 'Turn on recovery data'}</button></div>` : ''}
       ${readRow('shield', 'Never written', 'OnStandard reads only. Nothing is ever written to Health, and your coach never sees raw health data.', '', false)}
     </section>`;
 }
@@ -170,7 +203,7 @@ export default {
     return `${head}
     ${statusCard()}
     ${ios ? readsCard() : ''}
-    ${ios && HK.connected ? stepsCard() : ''}
+    ${ios && (HK.connected || HK.osGranted) ? stepsCard() : ''}
     ${ios && HK.connected ? `
     <div class="hk-foot">
       <button class="btn ghost danger" id="hk-off" ${HK.busy ? 'disabled' : ''}>${HK.busy ? 'Disconnecting…' : 'Disconnect Apple Health'}</button>
@@ -197,6 +230,27 @@ export default {
       recheck.disabled = true; recheck.textContent = 'Checking…';
       HK.probed = false;
       await probeHealth();
+      if (window.__render) window.__render();
+    });
+    // The second grant. Apple asks per scope, so an athlete reading activity still has to allow
+    // sleep, HRV and resting heart rate. A minor goes to the guardian ask first, the same rule
+    // activity follows: #devices used to request this with no gate at all, which is the hole this
+    // closes. Recovery is display-only and never leaves the phone, so there is no consent row to
+    // write; the guardian gate is about reading a minor's data at all.
+    const recBtn = root.querySelector('#hk-rec');
+    if (recBtn) recBtn.addEventListener('click', async () => {
+      if (HK.busy) return;
+      if (HK.isMinor === true && HK.consent !== true) { location.hash = '#guardian'; return; }
+      HK.busy = true; if (window.__render) window.__render();
+      try {
+        const h = healthN();
+        if (h && h.connectScoped) await h.connectScoped(['recovery']).catch(() => null);
+        else await roles.healthConnect().catch(() => null);
+        HK.recovery = await roles.healthRead().catch(() => null);
+        if (!hasRecovery(HK.recovery)) HK.note = 'Nothing came through yet. Check Sleep, Heart Rate Variability and Resting Heart Rate are on for OnStandard in the Health app.';
+        else HK.note = '';
+      } catch { HK.note = 'Could not ask for recovery data. Try again.'; }
+      HK.busy = false;
       if (window.__render) window.__render();
     });
     const off = root.querySelector('#hk-off');

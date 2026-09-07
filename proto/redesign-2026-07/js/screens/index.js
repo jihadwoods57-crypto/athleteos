@@ -205,7 +205,6 @@ export const screens = {
   'coach-notif-settings': lazy(settings, 'coachNotifSettings'),
   'delete-account': lazy(settings, 'deleteAccount'),
   terms: lazy(settings, 'terms'),
-  devices: lazy(features, 'devices'),
   recruiting: lazy(features, 'recruiting'),
   restrictions: lazy(features, 'restrictions'),
   'team-diet': lazy(features, 'teamDiet'),
@@ -220,7 +219,6 @@ export const screens = {
   'pass-grant': lazy(() => import('./pass-grant.js')),
   paywall: lazy(() => import('./paywall.js')),
   'progress-photos': lazy(() => import('./progress-photos.js')),
-  'progress-compare': lazy(() => import('./progress-compare.js')),
   'log-training': lazy(() => import('./log-training.js')),
   'training-history': lazy(() => import('./training-history.js')),
   // Verified Commitments (0138). Athlete: the roll-call detail + the Accountability rollup +
@@ -228,7 +226,6 @@ export const screens = {
   'roll-call': lazy(() => import('./roll-call.js')),
   'location-consent': lazy(() => import('./location-consent.js')),
   accountability: lazy(() => import('./accountability.js')),
-  'verified-discipline': lazy(() => import('./verified-discipline.js')),
   'verified-profile': lazy(() => import('./verified-profile.js')),
   'coach-commitments': lazy(coachCommitments, 'coachCommitments'),
   'coach-commit-edit': lazy(coachCommitments, 'coachCommitEdit'),

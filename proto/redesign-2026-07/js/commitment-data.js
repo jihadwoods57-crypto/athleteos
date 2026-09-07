@@ -653,6 +653,24 @@ export async function verificationConsentFor(athleteId) {
 }
 
 /** The athlete's own share switch. Only the athlete can move it. */
+/* The server's answer for "is my discipline record shared", so the switch states a fact instead
+   of a memory. It was write-only until 2026-09-06: nothing read the column back, so a fresh
+   install or a new phone rendered "Private" for an athlete whose record recruiters could still
+   ask for. A sharing control that understates what is shared is the worst direction to be wrong
+   in. Returns null when the read fails, which the caller renders as "checking", never as off. */
+export async function loadShareDiscipline() {
+  const c = sb(); if (!c) return null;
+  try {
+    const { data: u } = await c.auth.getUser();
+    const uid = u && u.user && u.user.id;
+    if (!uid) return null;
+    const { data, error } = await c.from('profiles')
+      .select('share_verified_discipline').eq('id', uid).maybeSingle();
+    if (error || !data) return null;
+    return !!data.share_verified_discipline;
+  } catch { return null; }
+}
+
 export async function setShareDiscipline(on) {
   const c = sb(); if (!c) return false;
   try {

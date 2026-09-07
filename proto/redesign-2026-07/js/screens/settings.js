@@ -151,7 +151,7 @@ export const settings = {
       </div>
     </section>
 
-    ${/* Apple Health had two doors (health-consent, devices) and no row here, so an athlete who
+    ${/* Apple Health had two doors (health-consent, the old devices screen) and no row here, so an athlete who
           wanted to change what Health shares, or switch it off, had nowhere to look. One row, one
           screen; the state under it is the phone's live answer, not a stored flag. */''}
     <h2 class="eyebrow">Health</h2>
@@ -1081,7 +1081,11 @@ export const terms = {
       ${ext('https://onstandard.app/terms', 'clipboard', 'Terms of Service', 'The full agreement')}
       ${ext('https://onstandard.app/privacy', 'lock', 'Privacy Policy', 'What we collect and why')}
       <div class="lrow" data-go="privacy"><div class="lic">${icon('download', 16)}</div><div class="lm"><div class="lt">Data export</div><div class="ls">Download everything you own, in-app</div></div>${icon('chevron', 16)}</div>
-      <div class="lrow" data-go="verified-discipline"><div class="lic">${icon('shield', 16)}</div><div class="lm"><div class="lt">Verified Discipline profile</div><div class="ls">See exactly what a recruiter would, off until you say so</div></div>${icon('chevron', 16)}</div>
+      ${/* Was #verified-discipline, its own screen with its own switch that never mentioned the
+            public page. Both now live on #verified-profile as two separately labelled sections,
+            so the row keeps its place here (an athlete looks for a sharing control under Terms &
+            Privacy) but the label names what they actually land on. */ ''}
+      <div class="lrow" data-go="verified-profile"><div class="lic">${icon('shield', 16)}</div><div class="lm"><div class="lt">What recruiters can see</div><div class="ls">Your public page and your discipline record, each with its own switch</div></div>${icon('chevron', 16)}</div>
       <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('trash', 16)}</div><div class="lm"><div class="lt">Account deletion</div><div class="ls">Permanent, in-app</div></div>${icon('chevron', 16)}</div>
       <div class="lrow" data-go="feedback"><div class="lic">${icon('message', 16)}</div><div class="lm"><div class="lt">Send feedback</div><div class="ls">Report a bug, ask something, or tell us an idea</div></div>${icon('chevron', 16)}</div>
       ${/* The email stays. Someone locked out of their account cannot file an in-app ticket, and

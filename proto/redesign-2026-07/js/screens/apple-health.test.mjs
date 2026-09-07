@@ -64,6 +64,24 @@ test('Disconnect sticks: connected is the OS grant AND not-revoked consent', () 
     'consent is fetched before connected is derived');
 });
 
+test('the old #devices screen folded in here, and both grants are offered', () => {
+  // Apple asks for activity and recovery as separate scopes (bridge: HEALTH_CONNECT_SCOPED), so
+  // folding #devices in without its own ask would have silently ended sleep/HRV for everyone.
+  const registry = read('index.js');
+  const features = read('features.js');
+  const recovery = read('recovery.js');
+  assert.ok(!/^\s*devices:/m.test(registry), 'the devices route is gone');
+  assert.ok(!/export const devices/.test(features), 'the devices screen is gone');
+  assert.match(recovery, /data-go="apple-health"/);
+  assert.match(screen, /connectScoped\(\['recovery'\]\)/);
+  assert.match(screen, /id="hk-rec"/);
+  // A minor reaches the guardian ask first, the rule activity already followed and #devices never did.
+  assert.match(screen, /HK\.isMinor === true && HK\.consent !== true.*guardian/s);
+  // The numbers #devices existed to show live here now.
+  assert.match(screen, /ms HRV/);
+  assert.match(screen, /bpm resting/);
+});
+
 test('the Settings label follows the probe honestly', () => {
   // The module imports roles.js and through it state.js, which wants a browser at import time.
   // The label logic is three pure pieces of source, so evaluate those alone (the repo's own file,
