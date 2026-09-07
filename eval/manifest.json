@@ -139,7 +139,23 @@
     ],
     "hasSevereAllergen": false,
     "expectVerify": "none",
-    "notes": "Real photo: scrambled eggs, 3 bacon strips, 2 breakfast-sausage links, cheddar grits, side of grapes. Well-lit, foods clearly visible; verify must stay quiet. Ground truth now COUNTS the bacon and sausage (entries added to foodDb 2026-08-06). Previously both were excluded entirely — roughly half the plate's calories had no ground-truth representation, so a model that reported them honestly scored WORSE on macro error than one that under-reported. Grits has its own entry now instead of the oats proxy. Caveat that remains: matchFood maps one detected item to one food id, so a single 'cheddar grits' detection resolves to cheddar and grits recall depends on the model naming the two separately."
+    "notes": "Real photo: scrambled eggs, 3 bacon strips, 2 breakfast-sausage links, cheddar grits, side of grapes. Well-lit, foods clearly visible; verify must stay quiet. Ground truth now COUNTS the bacon and sausage (entries added to foodDb 2026-08-06). Previously both were excluded entirely — roughly half the plate's calories had no ground-truth representation, so a model that reported them honestly scored WORSE on macro error than one that under-reported. Grits has its own entry now instead of the oats proxy. Caveat that remains: matchFood maps one detected item to one food id, so a single 'cheddar grits' detection resolves to cheddar and grits recall depends on the model naming the two separately. REQUEST CONTEXT (2026-09-07): this plate is posted as the athlete's FIRST meal of the day — the exact shape that produced the founder's report, an opener reading 'Zero on the board for protein until now' over a logged breakfast. It is the suite's only entry carrying a Day context line, and the day_leak_rate / empty_day_rate metrics exist to hold it: a read must judge the plate in front of the athlete, never narrate a board they have not had a chance to fill.",
+    "request": {
+      "mealType": "Breakfast",
+      "dayContext": {
+        "proteinSoFar": 0,
+        "proteinTarget": 180,
+        "mealsRemaining": 2,
+        "mealsLoggedSoFar": 0
+      },
+      "athlete": {
+        "sport": "football",
+        "position": "quarterback",
+        "level": "college",
+        "bodyweightLb": 215,
+        "dayType": "training"
+      }
+    }
   },
   {
     "id": "tacos",

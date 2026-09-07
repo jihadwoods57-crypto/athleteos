@@ -1338,6 +1338,9 @@ export const act = {
         proteinSoFar: Math.max(0, Math.min(500, dp.proteinSoFar)),
         proteinTarget: Math.max(0, Math.min(500, dp.proteinTarget)),
         mealsRemaining: Math.max(0, Math.min(8, dp.mealsRemaining)),
+        // Where in the day this plate sits. 0 = the athlete's first meal, and the prompt then
+        // withholds the zero total instead of inviting the read to narrate an empty board.
+        mealsLoggedSoFar: Math.max(0, Math.min(8, dp.mealsLogged)),
       },
       ...(avoid.length ? { avoid } : {}),
       ...(job.userNote ? { athleteNote: job.userNote } : {}),
@@ -2168,6 +2171,9 @@ export const act = {
       proteinSoFar: Math.max(0, Math.min(500, dp.proteinSoFar)),
       proteinTarget: Math.max(0, Math.min(500, dp.proteinTarget)),
       mealsRemaining: Math.max(0, Math.min(8, dp.mealsRemaining)),
+      // Where in the day this plate sits (see mealDayProgress): 0 means it is the first meal,
+      // and an empty board is expected rather than something to remark on.
+      mealsLoggedSoFar: Math.max(0, Math.min(8, dp.mealsLogged)),
     };
     // Confirmed avoid-list (restriction names only — the model must not identify these
     // unless unmistakable, and never suggest them).
@@ -4428,17 +4434,27 @@ export const S = {
     try { return mealMaxGain(DAY, slot, this._explainOpts); } catch { return 0; }
   },
   /** Real day math for the AI conversation (upgrade 2026-07-16): protein so far (the same
-   *  evidence rule the score uses), the athlete's real target, and required meals remaining. */
+   *  evidence rule the score uses), the athlete's real target, and required meals remaining.
+   *
+   *  `mealsLogged` counts EVERY scored slot, snack included — it answers "how many meals are
+   *  already on the board today", which is what tells the AI read whether this is the athlete's
+   *  first plate. Protein alone cannot answer it: a logged black coffee is a meal on the board
+   *  with zero protein banked, and the read must not greet that athlete as if their day were
+   *  just starting. Feeding a bare 0 to the prompt is what made a breakfast read open with
+   *  "Zero on the board for protein until now" (founder 2026-09-07). */
   get mealDayProgress() { return memo('mealDayProgress', () => {
-    let soFar = 0;
+    let soFar = 0, logged = 0;
     for (const k of Object.keys(DAY.meals)) {
-      if (mealScored(DAY, k) && DAY.slotMacros[k]) soFar += DAY.slotMacros[k].protein || 0;
+      if (!mealScored(DAY, k)) continue;
+      logged += 1;
+      if (DAY.slotMacros[k]) soFar += DAY.slotMacros[k].protein || 0;
     }
     const remaining = reqMealSlots().filter(k => !mealScored(DAY, k)).length;
     return {
       proteinSoFar: Math.round(soFar),
       proteinTarget: DAY.proteinTarget > 0 ? DAY.proteinTarget : 180,
       mealsRemaining: remaining,
+      mealsLogged: logged,
     };
   }); },
   /** Consumed-so-far for Plan's What-Should-I-Eat card — same evidence rule as the score
