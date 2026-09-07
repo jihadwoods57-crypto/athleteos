@@ -380,6 +380,13 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); }
 /* A perfect 100 is three digits in an EXPANDED face, ~50% wider than "92", and it has to fit inside
    the band rather than spill over it. Measured against every ring size the app renders. */
 .ring-center .score.d3 { --score-fit: 0.74; }
+/* The "nothing yet" dash is NOT a score, so it must not be set like one. At --t-score in
+   Archivo Expanded 900 an en dash renders as an 88px white slab, which on the athlete's first
+   day read as a placeholder box or a half-loaded image rather than "no number yet" — a
+   regression the moment the hero ring grew from 128 to 280 (2026-09-07). It takes the stat step
+   and the meta colour: present, clearly not a verdict. */
+.ring-center .score.none { --score-size: var(--t-3xl); color: var(--text-3); text-shadow: none; }
+
 .ring-center .outof { font-size: var(--t-md); font-weight: 700; color: var(--text-2); margin-top:0; }
 .ring-center .delta { font-size: var(--t-base); font-weight: 700; display: inline-flex; align-items: center; gap:var(--s1h); margin-top:var(--s2h); }
 .ring-center .delta .up { color: var(--green-bright); display: inline-flex; align-items: center; gap:var(--s1); }

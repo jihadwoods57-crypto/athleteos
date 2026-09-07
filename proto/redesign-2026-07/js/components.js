@@ -375,7 +375,7 @@ export function scoreRing({ score, size = 338, stroke = 20, showCenter = true, u
       ${notStarted
         /* Same rule as the compact centre below: a score of 0 before the day has started is not a
            verdict, and "0 / 100" all morning is the ambiguity in its loudest form. */
-        ? `<span class="score" aria-hidden="true">&#8211;</span>`
+        ? `<span class="score none" aria-hidden="true">&#8211;</span>`
         : `<span class="score${score >= 100 ? ' d3' : ''}" data-count="${score}">${score}</span>
       <span class="outof">/100</span>`}
       ${tierName ? `<span class="tier-chip ${tierCls}">${tierName}</span>` : ''}
@@ -392,7 +392,7 @@ export function scoreRing({ score, size = 338, stroke = 20, showCenter = true, u
          engine still computes 0.
          The dash is an ENTITY on purpose: lint:dash reads this file as source and cannot tell a
          typographic dash from a banned one. */
-      ? `<div class="ring-center num"><span class="score" aria-hidden="true">&#8211;</span></div>`
+      ? `<div class="ring-center num"><span class="score none" aria-hidden="true">&#8211;</span></div>`
       : `<div class="ring-center num"><span class="score${score >= 100 ? ' d3' : ''}" data-count="${score}">${score}</span></div>`) : ''}
   </div>`;
 }
