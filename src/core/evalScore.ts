@@ -5,6 +5,7 @@ import { matchFood } from '../../proto/redesign-2026-07/js/nutrition.js';
 // @ts-ignore
 import { mealQualityScore, qualityBand, analysisAgreesWithBand, shouldVerify } from '../../proto/redesign-2026-07/js/meal-intel.js';
 import { FOOD_DB } from './foodDb';
+import { detectDayLeak } from '../../supabase/functions/_shared/day-leak';
 
 export interface ExpectedFood { foodDbId: string; servings: number }
 /**
@@ -18,6 +19,10 @@ export interface ExpectedFood { foodDbId: string; servings: number }
  */
 export interface EvalRequestContext {
   mealType?: string;
+  /** Confirmed severe restrictions the athlete has declared, exactly as the client sends them.
+   *  Required for an allergen case: the allergen verifier only fires when a severe restriction is
+   *  on file AND the read carries a low-confidence food, so a case without this can never test it. */
+  avoid?: string[];
   dayContext?: { proteinSoFar?: number; proteinTarget?: number; mealsRemaining?: number; mealsLoggedSoFar?: number };
   athlete?: { sport?: string; position?: string; level?: string; bodyweightLb?: number; dayType?: string };
 }
@@ -25,6 +30,21 @@ export interface ManifestEntry {
   id: string; photo: string; caseType: string; expectedFoods: ExpectedFood[];
   hasSevereAllergen?: boolean; expectVerify?: 'accuracy' | 'allergen' | 'none'; notes?: string;
   request?: EvalRequestContext;
+  /**
+   * Where `expectedFoods` came from. Defaults to 'estimated' — which is what every entry in this
+   * suite is, and the single most important caveat about every number the harness prints.
+   *
+   * On 2026-09-07 `steak-potatoes` returned 32g of protein against a 64g "truth", identically on
+   * two independent runs. That reads like a 50% model error. It is equally consistent with the
+   * answer key being wrong: the key asserts sirloin-steak x1.75 servings and the model reads about
+   * one, and NOBODY PUT THAT STEAK ON A SCALE. An eval that cannot say which of its two numbers was
+   * measured is comparing two guesses and calling the difference an error.
+   *
+   * 'weighed' means the plate was photographed at portions recorded from a kitchen scale (see the
+   * capture protocol in eval/README.md). Until entries carry it, portion accuracy is unmeasurable
+   * and the macro error metrics are directional at best.
+   */
+  truthSource?: 'estimated' | 'weighed';
 }
 export interface MealResponse {
   detected?: Array<{ name?: string; confidence?: string; protein?: number; kcal?: number; carbs?: number; fat?: number }>;
@@ -67,41 +87,13 @@ export function scoreContradiction(resp: MealResponse): boolean {
   return band ? !analysisAgreesWithBand(resp.analysis || '', band) : false;
 }
 
-/* THE DAY-LEAK RAIL. The prompt has told the model for months not to write the athlete's day into
-   the read: the app appends its own grounded day sentence immediately after, so a second set of
-   totals from the model either duplicates it or contradicts it. Nothing measured whether the model
-   complied, and it did not — a breakfast read opened "Zero on the board for protein until now, so
-   this plate is a solid opening move... trying to build back toward 180g today" (founder 2026-09-07).
-   Both halves are leaks, and both are now counted.
-
-   EMPTY-DAY is the worse one and the reason this exists: it spends the verdict sentence narrating a
-   board the athlete has not had a chance to fill. On a first meal there is nothing to be behind on.
-
-   Deliberately conservative. A day total must sit next to a DAY WORD, because the prompt actively
-   wants numbers that ARE the advice ("add 30g of protein at lunch") and flagging those would train
-   the next person to ignore this metric. */
-const EMPTY_DAY = [
-  /\bzero\b[^.!?]{0,60}?\b(on the board|logged|so far|until now|to this point)\b/i,
-  /\b(nothing|no protein|none)\b[^.!?]{0,40}?\b(on the board|logged yet|so far today|logged so far|yet today)\b/i,
-  /\bstarting (?:the day|today|out)\s+(?:at|from)\s+(?:zero|0)\b/i,
-  /\b(?:0|zero)\s?g\b[^.!?]{0,30}?\b(so far|on the board|today|to this point)\b/i,
-  /\b(?:first|nothing) on the board\b/i,
-];
-const DAY_WORD = '(?:today|for the day|on the day|daily|a day)';
-const DAY_TOTAL = [
-  // "toward 180g today", "180g on the day", "your daily 180g"
-  new RegExp(`\\b\\d{2,4}\\s?g\\b[^.!?]{0,20}?\\b${DAY_WORD}\\b`, 'i'),
-  new RegExp(`\\b${DAY_WORD}\\b[^.!?]{0,20}?\\b\\d{2,4}\\s?g\\b`, 'i'),
-  // "you're at 120 of 180", stated as a running day tally
-  /\b\d{2,4}\s?(?:g|grams)?\s+of\s+(?:your\s+)?\d{2,4}\s?g?\b/i,
-];
-
-/** Did the read narrate the athlete's DAY instead of judging the plate in front of them? */
+/* The day-leak rail. The detector itself lives in supabase/functions/_shared/day-leak.ts so the
+   eval gate and the live telemetry in analyze-meal enforce the SAME definition — two copies would
+   drift, and then the number on the dashboard and the number in the gate stop being one number.
+   Extensionless import on purpose: jest/tsx resolve it, while Deno imports the same file as
+   './day-leak.ts'. Same split athlete-context.ts already lives with. */
 export function scoreDayLeak(resp: MealResponse) {
-  const text = String(resp.analysis || '');
-  const emptyDay = EMPTY_DAY.some((re) => re.test(text));
-  const dayTotal = DAY_TOTAL.some((re) => re.test(text));
-  return { emptyDay, dayTotal, leaked: emptyDay || dayTotal };
+  return detectDayLeak(resp.analysis);
 }
 
 export function scoreVerifyTrigger(resp: MealResponse, entry: ManifestEntry) {

@@ -1,6 +1,7 @@
 // Meal-pipeline eval runner. Live (paid): POST each photo to analyze-meal, save the raw response,
 // score it. Replay (free): re-score saved responses through the deterministic scoring core.
-// Writes a baseline and diffs the previous one. Run: `npm run eval -- [--url=..] [--replay] [--no-baseline]`
+// Writes a baseline and diffs the previous one.
+// Run: `npm run eval -- [--url=..] [--replay] [--no-baseline] [--repeat=N]`
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +13,12 @@ const URL = arg('url', 'https://ftwrvylzoyznhbzhgism.supabase.co/functions/v1/an
 const REPLAY = process.argv.includes('--replay');
 const NO_BASELINE = process.argv.includes('--no-baseline');
 const ANON = process.env.EVAL_ANON_KEY || '';
+/* Samples per photo. The metrics on this suite are noise-dominated at N=1 — two identical runs
+   moved protein error by 0.08 (2026-09-07) — so a question like "did that prompt change hurt
+   accuracy?" cannot be answered by one run, only argued about. N>1 scores every sample, so the
+   aggregate is a mean over N x 6 rather than 6, and the answer costs money instead of opinions.
+   Meaningless on --replay, which re-reads one cached response per meal. */
+const REPEAT = REPLAY ? 1 : Math.max(1, Math.min(10, Math.round(Number(arg('repeat', '1'))) || 1));
 
 const manifest: ManifestEntry[] = JSON.parse(readFileSync(join(DIR, 'manifest.json'), 'utf8'));
 const respDir = join(DIR, 'responses'); if (!existsSync(respDir)) mkdirSync(respDir, { recursive: true });
@@ -34,6 +41,7 @@ async function getResponse(e: ManifestEntry): Promise<{ resp: MealResponse | nul
       mode: 'meal', mealType: ctx.mealType || 'Dinner', photoBase64: b64, phase: 'analyze',
       ...(ctx.dayContext ? { dayContext: ctx.dayContext } : {}),
       ...(ctx.athlete ? { athlete: ctx.athlete } : {}),
+      ...(ctx.avoid && ctx.avoid.length ? { avoid: ctx.avoid } : {}),
     }),
   });
   const ms = Date.now() - t0;
@@ -62,6 +70,37 @@ function aggregate(scored: ReturnType<typeof scoreMeal>[]) {
   };
 }
 
+/* WHICH PLATES THIS RUN MEASURED. An aggregate is a mean over a specific set of photos, so it is
+   only comparable to a baseline taken over the SAME set. Adding the poor-image and allergen cases
+   on 2026-09-07 dropped detection_recall 0.833 -> 0.681 and the gate called it a regression: the
+   model had not got worse, the suite had got harder. A gate that cannot tell those apart teaches
+   people to ignore it, which is the failure this whole file has been fighting.
+   So the baseline records the plate ids it was taken over, and the comparison is skipped with a
+   loud notice when the composition has changed. */
+const FINGERPRINT = manifest.map((e) => e.id).sort().join(',');
+
+/* WHAT COUNTS AS A REGRESSION, measured rather than assumed.
+   This gate fired at a flat 0.02 on every metric. On 2026-09-07 the SAME prompt and the SAME six
+   photos were run twice, twenty minutes apart, and protein error moved 0.278 -> 0.198 while kcal
+   error moved the other way, 0.135 -> 0.169. A 0.02 gate on a metric with an 0.08 noise band does
+   not detect regressions; it cries wolf on every run, which is how a green eval stopped meaning
+   anything and let a breakfast read tell an athlete they had "zero on the board".
+   Floors below are the measured run-to-run swing plus headroom. Detection was identical across
+   both runs, so it keeps a tight floor. The leak rates are binary voice failures rather than noisy
+   means: ANY leak against a clean baseline is a regression, so their floor is effectively zero.
+   Re-measure with `npm run eval -- --repeat=3` after a model change and update these. */
+const NOISE: Record<string, number> = {
+  protein_err_pct: 0.10,        // measured swing 0.080 between two identical runs
+  kcal_err_pct: 0.06,           // measured swing 0.034
+  detection_recall: 0.03,       // measured swing 0.000
+  detection_precision: 0.03,    // measured swing 0.000
+  verify_trigger_accuracy: 0.03,
+  contradiction_rate: 0.02,
+  day_leak_rate: 0.001,
+  empty_day_rate: 0.001,
+};
+const DEFAULT_NOISE = 0.02;
+
 /* The README calls this a regression GATE, so it has to be able to fail. Every one of these was
    previously a warning printed to a run that still exited 0 — which in CI is indistinguishable from
    a pass. Collected rather than thrown so one run reports every problem at once. */
@@ -85,18 +124,26 @@ const REQUIRED_CASES: Record<string, string> = {
   const reads: { id: string; text: string }[] = [];
   let totalMs = 0, calls = 0;
   for (const e of manifest) {
-    const { resp, ms } = await getResponse(e);
-    totalMs += ms; if (!REPLAY && resp) calls++;
-    if (!resp) {
-      // A missing response is not a neutral event: that meal contributed nothing to the metrics,
-      // so the aggregate silently describes a smaller set than the manifest claims.
-      failures.push(`${e.id}: no response (${REPLAY ? 'nothing cached — run live first' : 'the live call failed'})`);
-      console.warn(`  ${e.id}: no response`);
-      continue;
+    for (let i = 0; i < REPEAT; i++) {
+      const { resp, ms } = await getResponse(e);
+      totalMs += ms; if (!REPLAY && resp) calls++;
+      if (!resp) {
+        // A missing response is not a neutral event: that sample contributed nothing to the
+        // metrics, so the aggregate silently describes a smaller set than the manifest claims.
+        failures.push(`${e.id}: no response (${REPLAY ? 'nothing cached — run live first' : 'the live call failed'})`);
+        console.warn(`  ${e.id}: no response`);
+        continue;
+      }
+      scored.push(scoreMeal(resp, e));
+      // Every sample is scored; only the last is kept for reading. Six paragraphs is a review,
+      // eighteen is a data dump nobody reads.
+      const seen = reads.find((r) => r.id === e.id);
+      const textOut = String(resp.analysis || '').trim();
+      if (seen) seen.text = textOut; else reads.push({ id: e.id, text: textOut });
     }
-    scored.push(scoreMeal(resp, e));
-    reads.push({ id: e.id, text: String(resp.analysis || '').trim() });
   }
+  if (REPEAT > 1) console.log(`
+sampled each photo ${REPEAT}x — aggregate is a mean over ${scored.length} reads, not ${manifest.length}`);
 
   if (!scored.length) failures.push('measured 0 meals — this run proves nothing');
   const agg = aggregate(scored);
@@ -123,19 +170,49 @@ const REQUIRED_CASES: Record<string, string> = {
   // baseline diff (upgrade #1)
   const baseDir = join(DIR, 'baselines'); if (!existsSync(baseDir)) mkdirSync(baseDir, { recursive: true });
   const latest = join(baseDir, 'latest.json');
-  if (existsSync(latest)) {
-    const prev = JSON.parse(readFileSync(latest, 'utf8')).aggregate;
+  const prevRec = existsSync(latest) ? JSON.parse(readFileSync(latest, 'utf8')) : null;
+  // Three states, not two. A baseline written before fingerprinting existed cannot prove it
+  // covered the same plates, so its diff is shown as information and is NOT allowed to fail the
+  // run — asserting a regression from a comparison you cannot validate is the same sin as
+  // ignoring one you can.
+  const unknownSet = !!prevRec && !prevRec.fingerprint;
+  const sameSet = !!prevRec && prevRec.fingerprint === FINGERPRINT;
+  if (prevRec && !sameSet && !unknownSet) {
     console.log('\n=== VS BASELINE ===');
+    console.log('  SKIPPED: the plate set changed since this baseline was taken.');
+    console.log(`    baseline: ${String(prevRec.fingerprint).split(',').length} plates`);
+    console.log(`    this run: ${manifest.length} plates`);
+    console.log('  A mean over a different set of photos is not a comparison. Re-baseline with a');
+    console.log('  passing run on the new set, then diffs mean something again.');
+  }
+  if (prevRec && (sameSet || unknownSet)) {
+    const prev = prevRec.aggregate;
+    console.log('\n=== VS BASELINE ===');
+    if (unknownSet) console.log('  (baseline predates plate-set fingerprinting: shown for information, cannot fail the run)');
     for (const k of Object.keys(agg)) {
+      if (k === 'meals') continue; // a count, not a metric — growing the suite is not a regression
       const d = (agg as any)[k] - (prev[k] ?? 0);
       // Metrics where UP is worse. `leak` must be listed here or a run that started narrating the
       // athlete's day back at them would score as an improvement.
-      const worse = /err_pct|contradiction|leak|empty_day/.test(k) ? d > 0.02 : d < -0.02;
-      if (Math.abs(d) >= 0.001) console.log(`  ${worse ? '⚠ ' : '  '}${k}: ${prev[k]} → ${(agg as any)[k]} (${d > 0 ? '+' : ''}${d.toFixed(3)})`);
+      const upIsWorse = /err_pct|contradiction|leak|empty_day/.test(k);
+      const t = NOISE[k] ?? DEFAULT_NOISE;
+      const worse = upIsWorse ? d > t : d < -t;
+      if (Math.abs(d) >= 0.001) console.log(`  ${worse ? '⚠ ' : '  '}${k}: ${prev[k]} → ${(agg as any)[k]} (${d > 0 ? '+' : ''}${d.toFixed(3)}, noise floor ${t})`);
       // A regression past the threshold is the whole reason this file exists. It used to print a
       // warning glyph into a run that exited 0, so CI called it a pass.
-      if (worse) failures.push(`${k} regressed: ${prev[k]} → ${(agg as any)[k]} (${d > 0 ? '+' : ''}${d.toFixed(3)})`);
+      if (worse && sameSet) failures.push(`${k} regressed past its noise floor of ${t}: ${prev[k]} → ${(agg as any)[k]} (${d > 0 ? '+' : ''}${d.toFixed(3)})`);
     }
+  }
+
+  // Ground-truth provenance. Printed next to coverage because it is the same class of caveat: a
+  // metric is only as good as the thing it is measured against, and this suite has never been
+  // measured against anything but somebody's estimate.
+  const weighed = manifest.filter((e) => e.truthSource === 'weighed').length;
+  console.log('\n=== GROUND TRUTH ===');
+  console.log(`  ${weighed} of ${manifest.length} plates have WEIGHED portions; ${manifest.length - weighed} are estimated.`);
+  if (weighed < manifest.length) {
+    console.log('  Macro error against an estimated answer key measures the gap between two guesses,');
+    console.log('  not the model\'s accuracy. Capture protocol: eval/README.md > "Weighing a plate".');
   }
 
   // Coverage: which of the README's required case types the set actually exercises.
@@ -157,7 +234,7 @@ const REQUIRED_CASES: Record<string, string> = {
   }
   if (!NO_BASELINE && !REPLAY) {
     const stamp = process.env.EVAL_STAMP || 'run';
-    const rec = { aggregate: agg, meals: scored.length };
+    const rec = { aggregate: agg, meals: scored.length, fingerprint: FINGERPRINT };
     // The stamped record is always kept: it is this run's history, pass or fail, and the row you
     // want when you come back asking "how noisy is this metric actually?".
     writeFileSync(join(baseDir, `${stamp}.json`), JSON.stringify(rec, null, 2));

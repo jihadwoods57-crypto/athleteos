@@ -397,6 +397,11 @@ export function openingMessage({
   } else if (coachTargets && coachTargets.protein) {
     parts.push(`Coach's bar is ${coachTargets.protein}g protein on the day, and every meal moves it.`);
   }
+  // ---- The rest of the breakdown. LENGTH IS DELIBERATE (founder 2026-09-07): the point of it is
+  // to feel like a real nutritionist giving a breakdown and feedback on the meal, not an app
+  // firing back three lines. The bar is that every sentence says something the athlete cannot
+  // already see on the screen — cut hollow sentences, never substance to hit a word count. Same
+  // contract as the server composer (meal-opener.ts), so the two speak with one voice. ----
   // 4. ONE real history line, when it exists — mealPatterns() returns [] until there's data.
   for (const p of (Array.isArray(patterns) ? patterns : []).slice(0, 1)) parts.push(clean(p));
   // 4b. ONE micronutrient highlight, read-more territory, terminated like a sentence.

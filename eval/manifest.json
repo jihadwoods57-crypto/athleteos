@@ -110,7 +110,7 @@
   {
     "id": "breakfast-plate",
     "photo": "breakfast-plate.jpeg",
-    "caseType": "mixed",
+    "caseType": "known-failure",
     "expectedFoods": [
       {
         "foodDbId": "egg",
@@ -139,7 +139,7 @@
     ],
     "hasSevereAllergen": false,
     "expectVerify": "none",
-    "notes": "Real photo: scrambled eggs, 3 bacon strips, 2 breakfast-sausage links, cheddar grits, side of grapes. Well-lit, foods clearly visible; verify must stay quiet. Ground truth now COUNTS the bacon and sausage (entries added to foodDb 2026-08-06). Previously both were excluded entirely — roughly half the plate's calories had no ground-truth representation, so a model that reported them honestly scored WORSE on macro error than one that under-reported. Grits has its own entry now instead of the oats proxy. Caveat that remains: matchFood maps one detected item to one food id, so a single 'cheddar grits' detection resolves to cheddar and grits recall depends on the model naming the two separately. REQUEST CONTEXT (2026-09-07): this plate is posted as the athlete's FIRST meal of the day — the exact shape that produced the founder's report, an opener reading 'Zero on the board for protein until now' over a logged breakfast. It is the suite's only entry carrying a Day context line, and the day_leak_rate / empty_day_rate metrics exist to hold it: a read must judge the plate in front of the athlete, never narrate a board they have not had a chance to fill.",
+    "notes": "Real photo: scrambled eggs, 3 bacon strips, 2 breakfast-sausage links, cheddar grits, side of grapes. Well-lit, foods clearly visible; verify must stay quiet. Ground truth now COUNTS the bacon and sausage (entries added to foodDb 2026-08-06). Previously both were excluded entirely — roughly half the plate's calories had no ground-truth representation, so a model that reported them honestly scored WORSE on macro error than one that under-reported. Grits has its own entry now instead of the oats proxy. Caveat that remains: matchFood maps one detected item to one food id, so a single 'cheddar grits' detection resolves to cheddar and grits recall depends on the model naming the two separately. REQUEST CONTEXT (2026-09-07): this plate is posted as the athlete's FIRST meal of the day — the exact shape that produced the founder's report, an opener reading 'Zero on the board for protein until now' over a logged breakfast. It is the suite's only entry carrying a Day context line, and the day_leak_rate / empty_day_rate metrics exist to hold it: a read must judge the plate in front of the athlete, never narrate a board they have not had a chance to fill. CASE TYPE (2026-09-07): reclassified mixed -> known-failure. This is the plate the model was demonstrably wrong about — it opened the read with \"Zero on the board for protein until now\" over a logged breakfast — and the request context above plus day_leak_rate/empty_day_rate are what guard the fix. A known-failure case is supposed to be exactly this: a plate that broke, kept so it cannot break again.",
     "request": {
       "mealType": "Breakfast",
       "dayContext": {
@@ -198,5 +198,87 @@
     "hasSevereAllergen": false,
     "expectVerify": "none",
     "notes": "Real photo: 2 open-face loaded soft tacos (restaurant/prepared-meal style) — shredded beef, chicken chunks, rice, shredded lettuce, shredded cheddar, sour cream, pico, on flour tortillas. Well-lit, busy but legible; verify must stay quiet. Ground truth now counts the sour cream and pico (sour-cream + salsa entries added to foodDb 2026-08-06); both were previously uncounted. mixed-greens (alias 'lettuce') still proxies the shredded lettuce. First 'restaurant' caseType in the set."
+  },
+  {
+    "id": "poor-image-01",
+    "photo": "poor-image-01.jpeg",
+    "caseType": "poor-image",
+    "expectedFoods": [
+      {
+        "foodDbId": "sirloin-steak",
+        "servings": 0.75
+      },
+      {
+        "foodDbId": "chicken-breast",
+        "servings": 0.5
+      },
+      {
+        "foodDbId": "mixed-greens",
+        "servings": 0.5
+      },
+      {
+        "foodDbId": "white-rice",
+        "servings": 1
+      },
+      {
+        "foodDbId": "cheddar",
+        "servings": 0.75
+      },
+      {
+        "foodDbId": "tortilla",
+        "servings": 2
+      },
+      {
+        "foodDbId": "sour-cream",
+        "servings": 1
+      },
+      {
+        "foodDbId": "salsa",
+        "servings": 1
+      }
+    ],
+    "hasSevereAllergen": false,
+    "expectVerify": "accuracy",
+    "notes": "DERIVED (2026-09-07) from tacos.jpeg with ffmpeg: 40% scale, boxblur 6, brightness -0.26, contrast 0.75, q14 — a dim, blurry, heavily compressed phone snap, which is what a real bad capture looks like. Ground truth is the SAME PLATE as tacos, deliberately: the food did not change, only the photograph, so any macro error here over the tacos baseline is the cost of a bad capture and nothing else. Exists because shouldVerify only fires when the model returns a low-confidence food, so a suite of well-lit plates can NEVER exercise the accuracy verifier — the trigger needs weightedConfidence low AND quality under 50. If this case stops firing, either the degradation is too mild or the model has started reading bad photos overconfidently, and the second one is a real defect."
+  },
+  {
+    "id": "allergen-01",
+    "photo": "allergen-01.jpeg",
+    "caseType": "allergen",
+    "expectedFoods": [
+      {
+        "foodDbId": "egg",
+        "servings": 3
+      },
+      {
+        "foodDbId": "bacon",
+        "servings": 1
+      },
+      {
+        "foodDbId": "breakfast-sausage",
+        "servings": 1
+      },
+      {
+        "foodDbId": "grits",
+        "servings": 1
+      },
+      {
+        "foodDbId": "cheddar",
+        "servings": 0.5
+      },
+      {
+        "foodDbId": "grapes",
+        "servings": 1
+      }
+    ],
+    "hasSevereAllergen": true,
+    "expectVerify": "allergen",
+    "request": {
+      "mealType": "Breakfast",
+      "avoid": [
+        "eggs"
+      ]
+    },
+    "notes": "DERIVED (2026-09-07) from breakfast-plate.jpeg with ffmpeg: 55% scale, boxblur 4, brightness -0.20, contrast 0.82, q12. Scenario: an athlete with a CONFIRMED severe egg allergy photographs a plate where scrambled egg is unmistakably present. Eggs are a top-9 allergen, so this is a real scenario and not a contrived one. Degraded on purpose: the allergen verifier fires only on hasSevere AND a low-confidence food, so a pin-sharp photo cannot test it. Ground truth is the same plate as breakfast-plate. CURRENTLY RED — and it is red because it found something (2026-09-07, first run). analyze-meal returns 502 {\"error\":\"analysis unavailable\"} for this request. Isolated by probe: allergen-01 + avoid[eggs] failed 2 of 3 attempts; allergen-01 + avoid[shellfish] (an allergen NOT on the plate) succeeded; allergen-01 with no avoid succeeded; the pin-sharp breakfast-plate.jpeg + avoid[eggs] ALSO failed. So the trigger looks like a declared severe restriction that is unmistakably PRESENT on the plate, not the degraded image and not the avoid field on its own. That is the exact moment an athlete most needs an answer, and they get \"analysis unavailable\". LATENT, not active: ai_calls shows 1 upstream_error in all of history (2026-09-07, from this probing) against 228 successful analyze-meal calls since 2026-07-22, so no real athlete has hit it yet. n=3 — the pattern is strong but not proven; the mechanism is still unidentified (the 502 is the generic catch-all at index.ts, detail only in server logs, and this CLI version has no functions logs subcommand)."
   }
 ]

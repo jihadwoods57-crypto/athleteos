@@ -98,6 +98,54 @@ photos:
 - Keep several confident `clear` cases with `"expectVerify": "none"` — proves the verifier stays
   quiet (and cheap) on meals that don't need it.
 
+## Weighing a plate
+
+Every `expectedFoods` entry in this manifest is an **estimate somebody typed in**. That is the
+biggest caveat on every number this harness prints, and it is now printed on every run
+(`=== GROUND TRUTH ===`).
+
+Why it matters, concretely. On 2026-09-07 `steak-potatoes` returned 32g of protein against a 64g
+answer key, identically on two independent live runs. Read one way that is a 50% model error. Read
+the other way the answer key is wrong: it asserts `sirloin-steak x1.75` servings and the model reads
+about one serving. **Nobody put that steak on a scale, so neither reading can be ruled out** — the
+macro-error metric is measuring the gap between two guesses.
+
+Fixing this does not need code. It needs an afternoon, a kitchen scale, and this protocol:
+
+1. **Weigh each component raw or as-served, in grams, before it goes on the plate.** Write the
+   number down as you go; do not reconstruct it afterwards from memory.
+2. **Photograph the assembled plate the way an athlete actually would** — phone camera, held above
+   the plate, ordinary kitchen or restaurant light. Do not stage it. A pin-sharp overhead studio
+   shot tests a photograph nobody takes.
+3. **Convert each weight to `foodDbId` + `servings`** using the `per` serving size in
+   `src/core/foodDb.ts` (`servings = grams / grams-per-serving`). Keep one decimal.
+4. **Add the entry with `"truthSource": "weighed"`** and put the raw gram weights in `notes`, so a
+   later disagreement can be re-derived instead of re-argued.
+5. Re-run `npm run eval` and read the macro error again. On weighed plates it now means what it
+   says.
+
+Fifteen to twenty plates would do it, and they should span the case types below — including at
+least one deliberately bad photograph, since a well-lit plate can never exercise either verify
+trigger (both require the model to return a low-confidence food).
+
+Until then: treat `protein_err_pct` and `kcal_err_pct` as directional, not as accuracy.
+
+### The metrics are noisy — size your conclusions accordingly
+
+Two identical live runs on 2026-09-07 (same prompt, same photos, twenty minutes apart) moved
+`protein_err_pct` from 0.278 to 0.198 while `kcal_err_pct` moved the other way. One sample per photo
+cannot resolve a change smaller than that swing. The regression gate now uses measured per-metric
+noise floors (see `NOISE` in `run-eval.ts`) instead of a flat 0.02 that fired on randomness.
+
+To actually settle an accuracy question, sample more than once:
+
+```
+npm run eval -- --repeat=3
+```
+
+The aggregate then averages N x plates rather than plates, and costs N times as much. Re-measure the
+noise floors after any model change and update the `NOISE` table with what you observed.
+
 ## What's explicitly out of scope here
 
 - **Real de-identified athlete meals** — a separate, compliance-gated future project (consent

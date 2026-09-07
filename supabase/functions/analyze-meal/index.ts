@@ -43,6 +43,7 @@ import { productCacheKey } from '../_shared/food-resolve.ts';
 import { composeOpenerText } from '../_shared/meal-opener.ts';
 import { athleteContextLine, type AthleteContextIn } from '../_shared/athlete-context.ts';
 import { dayContextLine } from '../_shared/day-context.ts';
+import { detectDayLeak, dayLeakOutcome } from '../_shared/day-leak.ts';
 import { buildVoiceDirective, violatesProhibited, type VoiceConfig } from '../_shared/coach-voice.ts';
 import { loadVoiceForAthlete as loadVoice } from '../_shared/coach-voice-load.ts';
 import { flagOn } from '../_shared/feature-flags.ts';
@@ -1621,6 +1622,23 @@ ${memBlock}`;
       // The voice/style rails above can adopt a whole regenerated report; one more free
       // deterministic pass re-pins claims/totals/slot-words no matter which report won.
       input = repairMealReport(input, req.mealType).input;
+
+      // MEASURE THE VOICE IN PRODUCTION, do not rewrite it. The eval can only tell us what the
+      // model does to six photos on the days someone pays for a run; this tells us what it is
+      // doing to real athletes, continuously, for free. Recorded as a zero-token marker row (same
+      // shape as 'style_safe_copy' above) so it is one query away:
+      //   select count(*) from ai_calls where outcome like 'day_leak%'
+      // Deliberately NOT a rail that edits the text. This is the single most-read AI message in
+      // the product and regex surgery on prose is how good sentences get eaten; a leak is a prompt
+      // problem to fix at the prompt, and this is how we find out it came back.
+      const leak = detectDayLeak((input as Record<string, unknown>).analysis);
+      if (leak.leaked) {
+        await recordAiCall({
+          fn: 'analyze-meal', mode: telemMode, phase: telemPhase, userId,
+          model: intendedModel, latencyMs: 0, ok: true, outcome: dayLeakOutcome(leak),
+        });
+      }
+
       const grounded = groundMacros(input) as Record<string, unknown>;
 
       // THE THREAD BUBBLE IS NO LONGER POSTED HERE — for any client new enough to post it itself.

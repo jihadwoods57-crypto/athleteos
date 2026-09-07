@@ -67,6 +67,21 @@ function lowConfidence(detected: unknown): boolean {
  */
 const READ_SENTENCES = 3;
 const READ_MAX = 520;
+
+/**
+ * LENGTH IS DELIBERATE. DO NOT TRIM THIS MESSAGE (founder, 2026-09-07).
+ *
+ * The comments in this file used to say "a coach texts FOUR sentences, not ten", and on 2026-09-07
+ * that stale note talked me into capping the whole message at five sentences. It was wrong, and the
+ * founder's correction is the standing direction now: **the point of the length is to make it feel
+ * real — a real nutritionist giving a breakdown and feedback on the meal.** A terse three-line
+ * reply does not read like someone on your staff who looked at your food; it reads like an app.
+ *
+ * So the bar is NOT word count. The bar is that every sentence says something the athlete does not
+ * already know from the screen in front of them. "Zero on the board for protein until now" was not
+ * bad because the message was long, it was bad because it was EMPTY — it narrated a fact the
+ * athlete created ten seconds earlier. Cut hollow sentences; never cut substance to hit a number.
+ */
 function readCore(s: string): string {
   if (!s) return '';
   const sentences = s.match(/[\s\S]*?[.!?]+(?=\s|$)|[\s\S]+$/g) || [s];
@@ -166,8 +181,9 @@ export function composeOpenerText(input: MealInput, ctx: OpenerContext = {}): st
     }
   }
 
-  // ---- Everything below is "Read more" territory on the client — still worth having, never
-  // allowed to crowd the core. ----
+  // ---- The rest of the breakdown. Each of these earns its place by saying something the screen
+  // does not: what the athlete's own history shows, what the photo could not resolve, whether they
+  // held the standard. None of it is filler, and none of it gets cut to hit a length. ----
 
   // 4. History — ONE real pattern line the client computed from this athlete's own meals,
   // individually style-railed so a numeric line can't cost an Intuitive athlete the message.
