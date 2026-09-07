@@ -155,3 +155,50 @@ test('.ev-x, .cm-rm and .std-chip sit in the 44px hit-area list, and the banner 
   assert.match(src, /<button class="ev-x" type="button" aria-label="Dismiss" id="ev-dismiss">/);
   assert.doesNotMatch(src, /<span role="button"[^>]*id="ev-dismiss"/);
 });
+
+/* NOTHING YET IS NOT ZERO (founder question 2026-09-07). A daily score of 0 says two opposite
+ * things with one number: "you have not started today" and "you did everything wrong". At 7 AM it
+ * is always the first and it reads as the second. The engine still computes 0 — founder decision
+ * D3 keeps verdict timing at the presentation layer — so the fix is that the DIGIT waits for
+ * something to report. */
+test('scoreRing shows a dash, not a zero, before the day has started', () => {
+  const started = C.scoreRing({ score: 0, uid: 'ns1', showCenter: false, centerNum: true });
+  assert.match(started, /data-count="0"/, 'a plain score of 0 still renders the number');
+
+  const notStarted = C.scoreRing({ score: 0, uid: 'ns2', showCenter: false, centerNum: true, notStarted: true });
+  assert.ok(!/data-count/.test(notStarted), 'nothing to count up to, so no count animation');
+  assert.ok(!/>0</.test(notStarted), 'the athlete must not be shown a zero they did not earn');
+  assert.match(notStarted, /&#8211;/, 'the centre holds a dash until there is a number');
+});
+
+test('the not-started dash is decoration, never something a screen reader reads as a score', () => {
+  const html = C.scoreRing({ score: 0, uid: 'ns3', showCenter: false, centerNum: true, notStarted: true });
+  assert.match(html, /aria-hidden="true"[^>]*>&#8211;|&#8211;/, 'dash present');
+  assert.match(html, /<span class="score" aria-hidden="true">/, 'the glyph is hidden from AT');
+});
+
+test('notStarted changes only the centre: a real score still renders normally', () => {
+  const real = C.scoreRing({ score: 74, uid: 'ns4', showCenter: false, centerNum: true });
+  assert.match(real, /data-count="74"/);
+  assert.match(real, />74</);
+});
+
+/* The dash is written as an ENTITY because lint:dash reads this file's source and cannot tell a
+ * typographic dash from a banned em dash. If someone "tidies" it into a literal character the
+ * em-dash ratchet starts failing on a file that never had prose in it. */
+test('the dash stays an HTML entity so the em-dash ratchet is not tripped', () => {
+  const src = read('components.js');
+  assert.ok(src.includes('notStarted'), 'the notStarted branch is still in scoreRing');
+  assert.equal((src.match(/&#8211;/g) || []).length, 2, 'both centres use the entity');
+  assert.ok(!/<span class="score"[^>]*>[–—]</.test(src), 'no literal dash glyph in the centre');
+});
+
+test('the score screen centre obeys notStarted, so "0 / 100" never greets the morning', () => {
+  const morning = C.scoreRing({ score: 0, uid: 'ns5', notStarted: true });
+  assert.ok(!/\/100/.test(morning), 'no out-of-100 denominator before the day has started');
+  assert.ok(!/data-count/.test(morning), 'nothing to count up to yet');
+
+  const afternoon = C.scoreRing({ score: 61, uid: 'ns6' });
+  assert.match(afternoon, /data-count="61"/);
+  assert.match(afternoon, /\/100/, 'a real score still shows the denominator');
+});

@@ -1,4 +1,23 @@
 // OnStandard — Starting Point Score (pure TS, no RN imports).
+//
+// ┌─ NOT REACHABLE FROM THE SHIPPED APP (verified 2026-09-07) ────────────────────────────────┐
+// │ Nothing an athlete uses calls this. Its only consumer is src/store/useStore.ts            │
+// │ (commitStartingScore), and `src/` is the legacy React Native engine that mostly renders   │
+// │ nothing — the shipped UI is proto/redesign-2026-07. Three of the six inputs this file     │
+// │ needs (nutritionConfidence, waterL, proteinFreq) appear ZERO times anywhere in proto/, so │
+// │ the baseline assessment it scores is not a flow the athlete is ever put through.          │
+// │                                                                                           │
+// │ It is also contradicted by what the app now promises. The shipped athlete onboarding says,│
+// │ on screen: "Example score: yours starts fresh and is earned" (ob2-athlete.js), and twice  │
+// │ more that the score "simply reports whether you kept it". Seeding a day-0 number from      │
+// │ self-report would break a commitment made in the athlete's first five minutes.            │
+// │                                                                                           │
+// │ Kept rather than deleted because it is considered design, not debris — the weights and the │
+// │ day-0 reconcile were thought through. Reviving it is a PRODUCT decision (does the athlete  │
+// │ get a self-reported starting number at all?), not a wiring job. Founder question that      │
+// │ surfaced it: "would it make more sense to start the daily score not at 0?" — answered no,  │
+// │ at the presentation layer instead (scoreRing `notStarted`).                                │
+// └───────────────────────────────────────────────────────────────────────────────────────────┘
 // The onboarding baseline assessment turns six self-reported habit answers into an
 // honest *starting* score (0-100). It is explicitly an estimate from self-report —
 // it seeds day-0 and is replaced by measured behavior as the athlete logs real days.

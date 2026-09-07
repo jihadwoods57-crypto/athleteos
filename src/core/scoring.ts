@@ -368,6 +368,15 @@ export function computeDerived(s: AppState): Derived {
   // A real new athlete carries exactly the provisional anchor commitStartingScore wrote for TODAY
   // (and no prior day). The seeded demo has EMPTY history (it never ran activation) and keeps its
   // showcase trend — so require a non-empty, all-today history, which excludes the demo.
+  //
+  // STALE PRECONDITION (verified 2026-09-07): commitStartingScore never runs in the shipped app —
+  // see the banner on src/core/startingScore.ts. A real new athlete therefore has EMPTY history,
+  // which is indistinguishable from the seeded demo here, so `isDay0` is false for them and the
+  // day-0 guard below does NOT fire. That would put the fabricated "trending down on the day you
+  // signed up" back in front of a new athlete — the exact thing this guard exists to prevent.
+  // It is dormant, not live: this whole module is the legacy engine, consumed only by other
+  // src/core/* files, and the shipped proto computes its own week delta in js/insights.js.
+  // Anyone reviving src/ inherits this bug on day one. Fix the precondition, not the symptom.
   const hist = s.scoreHistory ?? [];
   const isDay0 = hist.length > 0 && hist.every((h) => h.date === s.dateStamp);
   // Baseline for the "this week" delta:

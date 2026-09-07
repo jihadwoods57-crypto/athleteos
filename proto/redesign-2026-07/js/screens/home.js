@@ -682,9 +682,13 @@ function inProgressHero(e) {
   const line = e.met === 0 && left > 0
     ? 'Log your first requirement to start your score'
     : `<b>${e.met}</b> of <b>${e.total}</b> done today`;
-  return `<section class="xhero" data-tour="score" data-go="score-breakdown" role="button" aria-label="Daily Score ${e.score}, in progress. ${e.met} of ${e.total} completed. Open score breakdown">
+  // Nothing logged yet is not a score of zero, and the ring must not imply one. See scoreRing's
+  // `notStarted`: the digit arrives with the first requirement, and the screen reader is told
+  // "not started yet" rather than a number that would read as a failing grade.
+  const notStarted = e.met === 0;
+  return `<section class="xhero" data-tour="score" data-go="score-breakdown" role="button" aria-label="Daily Score ${notStarted ? 'not started yet' : e.score}, in progress. ${e.met} of ${e.total} completed. Open score breakdown">
     <div class="xh-main">
-      ${scoreRing({ score: e.score, possible: e.possible, size: 128, stroke: 11, showCenter: false, centerNum: true, uid: 'hero', vt: 'score' })}
+      ${scoreRing({ score: e.score, possible: e.possible, size: 128, stroke: 11, showCenter: false, centerNum: true, uid: 'hero', vt: 'score', notStarted })}
       <div class="xh-body">
         <div class="xh-k">Daily Score</div>
         <div class="xrow"><span class="status-pill inprog">In progress</span></div>

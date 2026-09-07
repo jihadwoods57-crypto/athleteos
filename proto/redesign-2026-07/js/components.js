@@ -212,7 +212,7 @@ export function dialPath(cx, cy, rad) {
    view-transition-name aborts the whole transition, and rings are not rare: Progress and the coach
    roster put several on one screen. Only a screen that KNOWS it draws exactly one, and that has a
    counterpart on the other side of a real navigation, passes it. */
-export function scoreRing({ score, size = 338, stroke = 20, showCenter = true, uid = 'r', delta = null, streak = null, tierName = null, tierCls = 'b', centerNum = false, possible = null, vt = null } = {}) {
+export function scoreRing({ score, size = 338, stroke = 20, showCenter = true, uid = 'r', delta = null, streak = null, tierName = null, tierCls = 'b', centerNum = false, possible = null, vt = null, notStarted = false } = {}) {
   /* `score` used to default to 82. Every call site passes a real one, so the default never
      fired — which is exactly what made it dangerous: the day a call site forgot the argument,
      the app's most trusted surface would have drawn a confident "Locked In" 82 for a number
@@ -348,11 +348,28 @@ export function scoreRing({ score, size = 338, stroke = 20, showCenter = true, u
       ${marker}
     </svg>
     ${showCenter ? `<div class="ring-center">
-      <span class="score${score >= 100 ? ' d3' : ''}" data-count="${score}">${score}</span>
-      <span class="outof">/100</span>
+      ${notStarted
+        /* Same rule as the compact centre below: a score of 0 before the day has started is not a
+           verdict, and "0 / 100" all morning is the ambiguity in its loudest form. */
+        ? `<span class="score" aria-hidden="true">&#8211;</span>`
+        : `<span class="score${score >= 100 ? ' d3' : ''}" data-count="${score}">${score}</span>
+      <span class="outof">/100</span>`}
       ${tierName ? `<span class="tier-chip ${tierCls}">${tierName}</span>` : ''}
     </div>` : ''}
-    ${centerNum ? `<div class="ring-center num"><span class="score${score >= 100 ? ' d3' : ''}" data-count="${score}">${score}</span></div>` : ''}
+    ${centerNum ? (notStarted
+      /* NOTHING YET, NOT ZERO (founder question 2026-09-07). A daily score of 0 says two opposite
+         things with one number: "you have not started" and "you did everything wrong". At 7 AM it
+         is always the first and it reads as the second. The ring below already draws an unstarted
+         beaded track at this score; the digit was the only part still claiming a verdict.
+         So the number appears when there is a number to show, and until then the centre holds a
+         dash. No seeded score, no starting-at-100 decay: the athlete was told in onboarding that
+         "yours starts fresh and is earned", and inventing points would break that promise. This is
+         presentation only, exactly where founder decision D3 says verdict timing belongs, and the
+         engine still computes 0.
+         The dash is an ENTITY on purpose: lint:dash reads this file as source and cannot tell a
+         typographic dash from a banned one. */
+      ? `<div class="ring-center num"><span class="score" aria-hidden="true">&#8211;</span></div>`
+      : `<div class="ring-center num"><span class="score${score >= 100 ? ' d3' : ''}" data-count="${score}">${score}</span></div>`) : ''}
   </div>`;
 }
 
