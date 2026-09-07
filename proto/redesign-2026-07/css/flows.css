@@ -118,7 +118,7 @@
 .lockstamp .ls-t { font-family: var(--font); font-size: 26px; font-weight: 800; letter-spacing: -0.01em; }
 .lockstamp .ls-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.5; margin-top: var(--s2); }
 .lockstamp .ls-x {
-  margin-top: var(--s4h); width: 100%; padding: 13px; border: none; cursor: pointer;
+  margin-top: var(--s4h); width: 100%; padding: 13px; min-height: 44px; border: none; cursor: pointer;
   border-radius: var(--r-btn); background: var(--surface-2); color: var(--text);
   font-family: var(--font); font-size: var(--t-base); font-weight: 800;
 }

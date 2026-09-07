@@ -270,14 +270,30 @@ const AUDIT_JS = `(() => {
   const TAP = 'a,button,[role=button],input,select,textarea,[tabindex]:not([tabindex="-1"]),.tap,.tab,.chip';
   const hitBox = (el, r) => {
     let w = r.width, h = r.height;
-    const a = getComputedStyle(el, '::after');
-    if (a && a.content && a.content !== 'none' && a.position === 'absolute') {
-      const mw = parseFloat(a.minWidth) || 0;
-      const mh = parseFloat(a.minHeight) || 0;
-      // An absolutely-positioned ::after carrying an explicit min-width/min-height is a hit
-      // expander; a decorative dot has neither. Do NOT test left === '50%' — getComputedStyle
-      // resolves percentage offsets to pixels, so that check silently never matches.
-      if (mw > 0 || mh > 0) { w = Math.max(w, mw); h = Math.max(h, mh); }
+    // The composer's text box is 30px inside a 40px pill, and the PILL is the target: keyboard.js
+    // carries a document-level click handler that focuses the box from anywhere in the field that
+    // is not itself a button. Measuring the input alone reported every thread screen as a failure
+    // that no CSS change could fix. If that handler ever goes, this line is wrong and the flag
+    // should come back, so it names the file that makes it true.
+    const pill = el.closest && el.closest('.composer .field');
+    if (pill && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+      const pr = pill.getBoundingClientRect();
+      w = Math.max(w, pr.width); h = Math.max(h, pr.height);
+    }
+    // BOTH pseudo-elements, and width/height as well as the min-* pair. focus.css owns ::after for
+    // most controls, but where ::after is already spent on something visible (the switch knob, a
+    // chevron) the expander moves to ::before, and those rules size it outright rather than with a
+    // minimum. Reading only ::after/min-* reported the settings switches as 30px tall forever,
+    // which is how a metric teaches people to ignore it.
+    for (const pseudo of ['::before', '::after']) {
+      const a = getComputedStyle(el, pseudo);
+      if (!a || !a.content || a.content === 'none' || a.position !== 'absolute') continue;
+      // An absolutely-positioned pseudo sized explicitly is a hit expander; a decorative dot is
+      // not absolutely positioned. Do NOT test left === '50%' — getComputedStyle resolves
+      // percentage offsets to pixels, so that check silently never matches.
+      const pw = Math.max(parseFloat(a.minWidth) || 0, parseFloat(a.width) || 0);
+      const ph = Math.max(parseFloat(a.minHeight) || 0, parseFloat(a.height) || 0);
+      if (pw > 0 || ph > 0) { w = Math.max(w, pw); h = Math.max(h, ph); }
     }
     return { w, h };
   };
