@@ -1138,11 +1138,12 @@ export const coachPlanSet = {
     // target, 14px under the touch floor, and it can't use the focus.css ::after idiom because
     // its ::after IS the knob. The row carries role/tabindex/data-knob; the pill is decorative.
     // Space/Enter activation comes from the router's document-level net (role="switch" is in its
-    // selector), and the row's title text becomes part of the accessible name via aria-label.
+    // selector). aria-label is the name; role="switch" makes the row's children presentational,
+    // so the subtitle needs aria-describedby to reach a screen reader (the settings rows' shape).
     const sw = (on) => `<div class="std-switch ${on ? 'on' : ''}" aria-hidden="true"></div>`;
     const swRow = (title, subLabel, act, on) => `
-      <div class="std-switch-row" role="switch" tabindex="0" aria-checked="${on ? 'true' : 'false'}" aria-label="${title}" data-knob="${act}:toggle">
-        <div class="std-sw-m"><div class="std-sw-t">${title}</div><div class="std-sw-s">${subLabel}</div></div>
+      <div class="std-switch-row" role="switch" tabindex="0" aria-checked="${on ? 'true' : 'false'}" aria-label="${title}" aria-describedby="std-sw-${act}-sub" data-knob="${act}:toggle">
+        <div class="std-sw-m"><div class="std-sw-t">${title}</div><div class="std-sw-s" id="std-sw-${act}-sub">${subLabel}</div></div>
         ${sw(on)}
       </div>`;
     const modHead = (ic, cls, title, subLabel, val) => `
@@ -1191,8 +1192,8 @@ export const coachPlanSet = {
             ${['any', 'training', 'rest'].map(dt => `<span class="std-daychip ${dayTypes[i] === dt ? 'on' : ''}" data-mealday="${i}:${dt}">${dt === 'any' ? 'Every day' : dt === 'training' ? 'Training only' : 'Rest only'}</span>`).join('')}
           </div>` : ''}
         </div>`).join('')}
-        <div class="std-switch-row" style="margin-top:8px" role="switch" tabindex="0" aria-checked="${proofs.every(p => p === 'photo') ? 'true' : 'false'}" aria-label="Photo proof on every meal" data-knob="photo:toggle">
-          <div class="std-sw-m"><div class="std-sw-t">Photo proof on every meal</div><div class="std-sw-s">Sets all meals at once. Tweak any one above. Off = tap-to-check.</div></div>
+        <div class="std-switch-row" style="margin-top:8px" role="switch" tabindex="0" aria-checked="${proofs.every(p => p === 'photo') ? 'true' : 'false'}" aria-label="Photo proof on every meal" aria-describedby="std-sw-photo-sub" data-knob="photo:toggle">
+          <div class="std-sw-m"><div class="std-sw-t">Photo proof on every meal</div><div class="std-sw-s" id="std-sw-photo-sub">Sets all meals at once. Tweak any one above. Off = tap-to-check.</div></div>
           ${sw(proofs.every(p => p === 'photo'))}
         </div>
         ${hasRestPattern ? '' : `<div class="std-help" style="margin-top:6px">${icon('info', 12)} Want meals that only apply on training or rest days? <span class="link" data-go="week-pattern">Set your training week</span> first.</div>`}

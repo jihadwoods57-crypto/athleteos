@@ -88,6 +88,18 @@ test('nothing paints the ::after that focus.css uses as a touch target', () => {
     'so the decoration renders 44px tall and centred over the label. Use ::before.');
 });
 
+test('the paywall Terms/Privacy links keep their 44px expander and their affordance', () => {
+  // Guideline 3.1.2 puts these two links on the subscription screen; at --t-xs they measure
+  // ~14px tall, so they ride screens.css's grouped hit expander (the same centred min-44 shape
+  // focus.css uses). Losing the group membership silently returns a 14px tap target on the one
+  // screen App Review reads closest.
+  const screens = FILES.find((f) => f.path.endsWith('screens.css')).src;
+  const expander = [...screens.matchAll(/([^{}]+)\{([^}]*min-height:\s*44px[^}]*)\}/g)]
+    .find((m) => /\.pw-note \.link::after/.test(m[1]));
+  assert.ok(expander, 'screens.css no longer gives .pw-note .link the grouped 44px hit-area ::after');
+  assert.match(screens, /\.pw-note \.link\{[^}]*cursor:\s*pointer/, 'the paywall legal links must read as tappable (.pw-note .link with cursor:pointer)');
+});
+
 test('the coach tab underline specifically is on ::before and stays thin', () => {
   const coach = FILES.find((f) => f.path.endsWith('coach.css')).src;
   const m = coach.match(/\.co-seg\.co-tabs\s+\.co-chip\.on::before\s*\{([^}]*)\}/);

@@ -90,6 +90,22 @@ test('every role="switch" is a row-level control with keyboard reach and a state
   assert.deepStrictEqual(bad, [], `switch rows carry the full contract:\n${bad.join('\n')}`);
 });
 
+test('a labeled switch row also voices its subtitle (aria-label needs aria-describedby)', () => {
+  // role="switch" makes the row's children presentational and aria-label replaces name-from-
+  // content, so a row that names itself with aria-label silences its own subtitle unless it
+  // points at it with aria-describedby (the settings rows' shape). Rows that take their name
+  // from content (coach-connected's sw()) are exempt: their subtitle is read as part of the name.
+  const bad = [];
+  for (const { path, src } of FILES) {
+    for (const t of tags(src)) {
+      if (!/role="switch"/.test(t)) continue;
+      if (!/aria-label=/.test(t)) continue;
+      if (!/aria-describedby=/.test(t)) bad.push(`${path}: ${t.slice(0, 120)}`);
+    }
+  }
+  assert.deepStrictEqual(bad, [], `an aria-label'd switch row must aria-describedby its subtitle:\n${bad.join('\n')}`);
+});
+
 test('coach.css guarantees the 44px floor on .lrow switch rows', () => {
   const css = readFileSync(join(ROOT, 'css', 'coach.css'), 'utf8');
   const m = css.match(/\.lrow\[role="switch"\]\s*\{([^}]*)\}/);
