@@ -159,8 +159,11 @@ test('saved-meal rows (macroLine) gate protein and kcal independently', () => {
 const TRUST_SRC = read('screens', 'trust.js');
 
 test('the past-meal nutrition section is per figure: macro cells behind showMacros, the kcal cell behind showCalories', () => {
-  assert.match(TRUST_SRC, /S\.planStyle\.showMacros \|\| S\.planStyle\.showCalories \? `<h2 class="eyebrow">Nutrition<\/h2>/);
-  const kcalCell = TRUST_SRC.split('\n').find((l) => l.includes('${m.kcal || 0}'));
+  assert.match(TRUST_SRC, /S\.planStyle\.showMacros \|\| S\.planStyle\.showCalories \? \(\(\) => \{/);
+  // The heading must live INSIDE the gated IIFE's return — a bare "Nutrition" h2 shown to a
+  // fully-hidden athlete would still be a leak even with every cell gated.
+  assert.match(TRUST_SRC, /return `<h2 class="eyebrow">Nutrition<\/h2>/);
+  const kcalCell = TRUST_SRC.split('\n').find((l) => l.includes('${mg(m.kcal,'));
   assert.ok(kcalCell, 'the kcal cell still exists');
   assert.match(kcalCell, /S\.planStyle\.showCalories/);
 });

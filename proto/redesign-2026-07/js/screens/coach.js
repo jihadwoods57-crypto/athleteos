@@ -3423,9 +3423,17 @@ export const coachMeal = {
       const row = MEAL.id === sub && MEAL.row ? MEAL.row : null;
       if (!row) { FIX_NOTE = 'Still loading this meal. Try again in a second.'; window.__render(); return; }
       FIX_BUSY = true; window.__render();
+      /* A macro the read never returned stays ABSENT through a correction. metaFromRow coerces
+         null to 0 so the deterministic engines can do arithmetic, but neither removing a food nor
+         scaling a portion can conjure a number for a macro that was never read — there is no
+         "state a macro" path in this panel. Writing the engine's 0 back would persist a
+         fabricated zero into the meals row itself, poisoning every renderer (2026-09-08 review:
+         the exact null-vs-zero lie the same day's render fixes cured). Null in, null out. */
+      const keep = (src, val) => (src == null ? null : val);
       const fields = confirmOnly ? {} : {
-        protein: r.meta.protein, carbs: r.meta.carbs, fat: r.meta.fat, kcal: r.meta.kcal,
-        fiber: r.meta.fiber || 0, quality: r.meta.quality != null ? r.meta.quality : null,
+        protein: keep(row.protein, r.meta.protein), carbs: keep(row.carbs, r.meta.carbs),
+        fat: keep(row.fat, r.meta.fat), kcal: keep(row.kcal, r.meta.kcal),
+        fiber: keep(row.fiber, r.meta.fiber || 0), quality: r.meta.quality != null ? r.meta.quality : null,
         detected: r.meta.detectedRich,
       };
       const res = await roles.proCorrectMeal(sub, fields, r.summary);
@@ -3433,14 +3441,21 @@ export const coachMeal = {
       // The thread bubble carries BOTH the human sentence (rendered under the operator's own
       // name, per the demo's "logged under your name") and the machine payload (meta.c) the
       // athlete's device applies through its own correction engines.
+      // The sentence only quotes numbers that exist: "~0g protein" over a never-read macro is
+      // the same fabricated zero, spoken into a thread the athlete reads.
+      const spoken = [
+        ...(row.protein != null ? [`~${r.meta.protein}g protein`] : []),
+        ...(row.kcal != null ? [`~${r.meta.kcal} kcal`] : []),
+      ];
       const text = confirmOnly
         ? `Reviewed the read: ${r.summary}.`
-        : `Corrected the read: ${r.summary}. Now ~${r.meta.protein}g protein · ~${r.meta.kcal} kcal.`;
+        : `Corrected the read: ${r.summary}.${spoken.length ? ` Now ${spoken.join(' · ')}.` : ''}`;
       await roles.postMealComment(sub, row.athlete_id, RT.userId, 'coach', text, 'message', { t: 'pro_correction', c: payload });
       if (!confirmOnly) {
         MEAL.row = {
-          ...row, protein: r.meta.protein, carbs: r.meta.carbs, fat: r.meta.fat, kcal: r.meta.kcal,
-          fiber: r.meta.fiber || 0, quality: r.meta.quality != null ? r.meta.quality : row.quality,
+          ...row, protein: keep(row.protein, r.meta.protein), carbs: keep(row.carbs, r.meta.carbs),
+          fat: keep(row.fat, r.meta.fat), kcal: keep(row.kcal, r.meta.kcal),
+          fiber: keep(row.fiber, r.meta.fiber || 0), quality: r.meta.quality != null ? r.meta.quality : row.quality,
           detected: r.meta.detectedRich,
         };
       }

@@ -508,16 +508,32 @@ export const mealView = {
           professional can hide calories alone); prose needs both flags or the styleApplied
           stamp (older analyses were written in a numbers tone). The numbers stay stored;
           coaches and dietitians read them in their own views. */''}
-    ${S.planStyle.showMacros || S.planStyle.showCalories ? `<h2 class="eyebrow">Nutrition</h2>
+    ${S.planStyle.showMacros || S.planStyle.showCalories ? (() => {
+      /* A macro the read never returned is ABSENT, not zero. `|| 0` printed "0g carbs · 0g fat"
+         beside 52g protein and 780 calories on this athlete's own record — the exact plate the
+         2026-09-08 fix cured on the professional's twin of this screen (coach.js coachMeal), and
+         this is the third renderer the gotcha list warns about. Same rule, same glyph: null and 0
+         are different facts; a real measured zero still prints 0. These rows come straight off
+         the meals table (fetchRecentMeals / fetchMealById select raw columns), so null survives
+         to here and the fix is render-side only. */
+      const mg = (v, unit) => (v == null ? '—' : `${v}${unit}`);
+      const shown = [
+        ...(S.planStyle.showMacros ? [m.protein, m.carbs, m.fat] : []),
+        ...(S.planStyle.showCalories ? [m.kcal] : []),
+      ];
+      const someMissing = shown.some((v) => v == null);
+      return `<h2 class="eyebrow">Nutrition</h2>
     ${/* Four cells is 2x2, not four across — the density modifier the other four-up rows already
           wear. See .macro-row.four in app.css. */''}
     <div class="macro-row${S.planStyle.showMacros && S.planStyle.showCalories ? ' four' : ''}">
       ${S.planStyle.showMacros ? `
-      <div class="macro"><div class="mv">${m.protein || 0}g</div><div class="mk">Protein</div></div>
-      <div class="macro"><div class="mv">${m.carbs || 0}g</div><div class="mk">Carbs</div></div>
-      <div class="macro"><div class="mv">${m.fat || 0}g</div><div class="mk">Fat</div></div>` : ''}
-      ${S.planStyle.showCalories ? `<div class="macro"><div class="mv">${m.kcal || 0}</div><div class="mk">Calories</div></div>` : ''}
-    </div>` : ''}
+      <div class="macro"><div class="mv">${mg(m.protein, 'g')}</div><div class="mk">Protein</div></div>
+      <div class="macro"><div class="mv">${mg(m.carbs, 'g')}</div><div class="mk">Carbs</div></div>
+      <div class="macro"><div class="mv">${mg(m.fat, 'g')}</div><div class="mk">Fat</div></div>` : ''}
+      ${S.planStyle.showCalories ? `<div class="macro"><div class="mv">${mg(m.kcal, '')}</div><div class="mk">Calories</div></div>` : ''}
+    </div>
+    ${someMissing ? `<div class="est-note">A dash means we do not have that number for this meal. It is not a zero.</div>` : ''}`;
+    })() : ''}
     ${(m.analysis || m.note) && ((S.planStyle.showMacros && S.planStyle.showCalories) || m.styleApplied === S.planStyle.key) ? `
     <div style="height:12px"></div>
     <div class="ai-note">
