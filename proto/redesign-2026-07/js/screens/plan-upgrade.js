@@ -16,7 +16,7 @@
  */
 import { RT, act, roleNav } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, alertMsg, statusMsg } from '../components.js';
+import { backHead, alertMsg, statusMsg, esc } from '../components.js';
 import { PLANS, planCard } from '../ob2.js';
 import { track, EVENTS } from '../analytics.js';
 
@@ -77,7 +77,15 @@ export const planUpgrade = {
     // decides to pay: billing-checkout sends trial_period_days only when there is no existing
     // Stripe customer, because a second free fortnight on every re-subscribe is a churn incentive.
     // A returning coach reading an unconditional promise here would be billed on click.
+    // A coach who was sent here by the write-route guard (router.js, 0223) is told why in one
+    // line, and the line is cleared once read so it never haunts a later, voluntary visit.
+    const wall = RT.planWall ? `<div class="sidebox pw-pre warn">
+      <div class="req-icon a s38">${icon('lock', 17)}</div>
+      <div><div class="tt">That needs a plan</div><div class="ts">Your free preview has ended. Your roster is still yours to read; ${esc(RT.planWall)} needs one of the plans below.</div></div>
+    </div>` : '';
+    RT.planWall = null;
     return `<div id="pu-root">${backHead('Choose a plan', 'First plan starts with a free 14-day trial', 'settings')}
+    ${wall}
     ${founding}
     <h2 class="eyebrow" style="margin-top:16px">${picked && plans.some((p) => p.id === picked) ? 'Your pick from onboarding' : 'Plans'}</h2>
     <div style="display:flex;flex-direction:column;gap:10px">

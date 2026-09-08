@@ -1,5 +1,6 @@
 /* Hash router + chrome (status bar, tab bar). Screens register in js/screens/index.js */
 import { S, act, RT, routeForRole, memoTick } from './state.js';
+import { CD } from './coach-data.js';
 import { primeDayFromCache } from './day.js';
 import { icon } from './icons.js';
 import { skeletonRows, errorState, mountEdgeFades, esc } from './components.js';
@@ -179,6 +180,8 @@ function tabbar(activeTab, nav = 'athlete', { remember = true } = {}) {
       // goes to the sheet, which is also where quick logs and forms live.
       let fabRoute = t.route;
       let fabLabel = nav === 'athlete' ? 'Log a meal' : 'Create';
+      // An operator whose book has lapsed (0223) gets the plans from the plus, not a bounce.
+      if (nav !== 'athlete' && CD.expired) { fabRoute = 'plan-upgrade'; fabLabel = 'Choose a plan'; }
       if (nav === 'athlete') {
         try {
           const open = (S.exec.items || []).filter((i) => i.proof === 'photo'
@@ -269,6 +272,18 @@ window.__go = go;
    from; the highlighted bottom tab is the ORIGIN tab, not a per-screen guess. Persisted in
    sessionStorage so an in-session WebView reload keeps its place; a fresh launch starts clean. */
 const NAV_KEY = 'onstd-nav-v1';
+/* Operator screens that exist to WRITE to athletes, and the noun plan-upgrade uses to say so.
+   Reading screens (roster, activity, inbox, profiles, insights) are deliberately absent: an
+   expired book is read-only, not locked. See the write-route guard in render(). */
+const WRITE_ROUTES = {
+  'coach-create': 'creating', 'trainer-create': 'creating',
+  'coach-assign': 'assigning a task', 'trainer-assign': 'assigning a task',
+  'coach-announce': 'sending an announcement',
+  'coach-plan-set': 'changing the standard', 'coach-standards-manage': 'setting an activity standard',
+  'coach-commit-edit': 'scheduling a commitment', 'coach-commit-manage': 'scheduling a commitment',
+  'coach-wakeup-new': 'a roll call', 'coach-wakeup-edit': 'a roll call',
+  'pass-grant': 'granting a pass', 'team-diet': 'the team diet tools',
+};
 // Every role's tab-root routes → their tab id (role guards elsewhere keep roles apart).
 const ROOT_TAB = {
   home: 'home', plan: 'plan', progress: 'progress', profile: 'profile',
@@ -620,6 +635,16 @@ function render(opts) {
     && !navAdmits(mod, RT.authRole)) {
     mod = screens.notpermitted;
     denied = true;
+  }
+  // THE WRITE-ROUTE GUARD (0223, 2026-09-08). An operator whose book the server has said is
+  // EXPIRED keeps every reading screen and is walked to the plans instead of any screen whose
+  // whole purpose is putting something on an athlete's plate. Only fires on a positive
+  // `entitled: false`: an unanswered or failed access read gates nothing (coach-data.js). The
+  // reason is handed to plan-upgrade so the coach is told why they are there, once.
+  if (RT.userId && (RT.authRole === 'coach' || RT.authRole === 'trainer') && CD.expired && WRITE_ROUTES[route]) {
+    RT.planWall = WRITE_ROUTES[route];
+    location.hash = '#plan-upgrade';
+    return;
   }
   // The mirror guard (role walkthrough 2026-07-15): a KNOWN coach/trainer must not render
   // ATHLETE-nav screens either — e.g. a stale #home hash surviving a reload used to leave a

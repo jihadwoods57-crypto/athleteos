@@ -2067,6 +2067,12 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    catalog as a preview. Spacing lives here rather than as three inline styles at the call site. */
 .pw-pre{margin-bottom:var(--s3)}
 .pw-pre.last{margin-bottom:var(--s4)}
+/* The operator plan card (0223): preview (quiet), last three days (amber edge), ended (red edge). */
+.pw-pre.warn{border-color:var(--amber-border)}
+.pw-pre.ended{border-color:var(--red-border)}
+.pw-pre .pw-cta{width:auto;margin-top:var(--s2h)}
+.pw-pre.tap{cursor:pointer}
+.pw-pre .pw-body{flex:1}
 /* The invite-code hint and its error line share one rhythm under the field. */
 .pl-hint{margin-top:var(--s2);min-height:18px}
 .pw-note{text-align:center;font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:var(--s2h);line-height:1.45}

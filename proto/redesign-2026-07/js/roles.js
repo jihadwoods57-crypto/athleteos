@@ -1860,6 +1860,15 @@ export async function myPremiumSource() {
   try { const { data, error } = await c.rpc('my_premium_source'); if (error) return null; return data || 'none'; }
   catch { return null; }
 }
+/** Operator: does this book have access — paid, in its 14-day preview, or expired? (0223)
+    Returns { entitled, reason:'paid'|'preview'|'expired'|'unknown', preview_ends_at? }, or null
+    when the read FAILED. null is not "expired": the caller fails OPEN on it, because a network
+    blip must never read as a lapsed plan and lock a coach out of their own roster. */
+export async function bookAccess(kind, bookId) {
+  const c = sb(); if (!c || !bookId) return null;
+  try { const { data, error } = await c.rpc('book_access', { p_kind: kind, p_book: bookId }); if (error) return null; return data || null; }
+  catch { return null; }
+}
 /** Operator: the funded roster for a practice — who's covered, when they renew, who lapsed. */
 export async function fetchFundedClients(practiceId) {
   const c = sb(); if (!c || !practiceId) return [];

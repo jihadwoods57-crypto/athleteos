@@ -122,6 +122,24 @@ const CAPS = {
 };
 const EMPTY_EXTRAS = { sets: [], groups: [], exceptions: [], interventions: [], rooms: [], scope: null, myRole: null };
 
+/* ENTITLEMENT (0223, 2026-09-08). Until this landed every coach capability above was 1 forever:
+   the org and pro tiers — the anchor of the business model — were billed by Stripe and required
+   by nothing. `book_access` answers paid / preview / expired for the loaded book; an expired book
+   keeps every READ capability and loses the WRITES. The reads stay because the roster is still
+   the coach's to look at; what stops is putting new things on athletes' plates without a plan.
+   null = not yet asked, or the read failed. Both fail OPEN: caps are only reduced when the
+   server has positively said `entitled: false`. A network blip is not a lapsed plan. */
+let ACCESS = null;
+const WRITE_CAPS = ['interventions', 'notes', 'exceptions', 'groups', 'standards', 'assignments',
+  'templates', 'rooms', 'staffRoles', 'weekPattern', 'announcements', 'recruiting', 'trustPass',
+  'offers', 'payments', 'packages'];
+function gatedCaps(base) {
+  if (!ACCESS || ACCESS.entitled !== false) return base;
+  const out = { ...base };
+  for (const k of WRITE_CAPS) out[k] = 0;
+  return out;
+}
+
 /* Operator book cache: null = not loaded (show loading), else { book, teams, rows, kind } from real
    data. Fetched once on mount, repainted via window.__render; the athletes' scores are their own
    real numbers (days.score), and a member with no day row today is honestly "No logs today". */
@@ -177,6 +195,11 @@ export async function loadBook(force, kind) {
     if (r.book.length) {
       try { await loadExtras(r.book[0].id); }
       catch { CD.extras = { ...EMPTY_EXTRAS }; }
+      // The plan question, asked of the server once per book load. Tolerates a roles stub that
+      // predates it (the operator-book test) and a failed read the same way: no answer, no gate.
+      try {
+        ACCESS = typeof roles.bookAccess === 'function' ? await roles.bookAccess(k, r.book[0].id) : null;
+      } catch { ACCESS = null; }
     }
   } catch {
     // A fetch that actually threw (vs the lower layers' swallow-to-[]) must NOT leave the screen
@@ -278,9 +301,13 @@ export const CD = {
   get noun() { return KIND === 'practice' ? 'client' : 'athlete'; },
   get nouns() { return KIND === 'practice' ? 'clients' : 'athletes'; },
   get bookWord() { return KIND === 'practice' ? 'practice' : 'team'; },
-  /** What this operator can do with it. Coach caps are all 1, so no shipped coach screen
-      needs to consult this; only new operator-shared surfaces do. */
-  get caps() { return CAPS[KIND] || CAPS.team; },
+  /** What this operator can do with it. The base table is per book kind; on a book the server
+      has said is EXPIRED (0223) every write capability reads 0 and the reads stay 1. */
+  get caps() { return gatedCaps(CAPS[KIND] || CAPS.team); },
+  /** { entitled, reason, preview_ends_at } from book_access, or null when unknown. */
+  get access() { return ACCESS; },
+  /** True only when the server has positively said this book's plan has lapsed. */
+  get expired() { return !!(ACCESS && ACCESS.entitled === false); },
   extras: null,
 };
 

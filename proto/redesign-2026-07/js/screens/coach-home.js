@@ -771,6 +771,7 @@ export const coachHome = {
     return `${head}
     <button class="btn ghost sm" data-scopes data-tour="roster" style="width:auto;padding:0 13px;height:30px;margin-bottom:10px">${icon('users', 13)} ${esc(scopeLabel(scope))} ${icon('chevron', 12, 'style="transform:rotate(90deg)"')}</button>
     ${SHOW_SCOPES ? scopeSheet() : ''}
+    ${planCard()}
     ${pending.length ? `<div class="card" data-go="coach-inbox" style="padding:10px 15px;cursor:pointer;display:flex;align-items:center;gap:10px"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 15)}</div><div style="flex:1;font-size:12.5px;font-weight:700">${pending.length} join request${pending.length > 1 ? 's' : ''} waiting</div>${icon('chevron', 14, 'style="color:var(--text-3)"')}</div>` : ''}
     ${milestone}
     ${/* The dietitian's board (0197/0202 discipline lens): a meal review queue + per-athlete
@@ -1004,3 +1005,34 @@ export const coachHome = {
     maybeStartTour();
   },
 };
+
+/* THE PLAN CARD (0223, 2026-09-08). The one place the coach is told where their book stands.
+   Three shapes, in the order a coach meets them: nothing while the server has not answered or
+   the book is paid (a paying coach does not need a card telling them they paid); a quiet line
+   while the 14-day preview runs, louder in the last three days; and at expiry a card that says
+   what stopped and what did not, the roster is still theirs to read, with one door to a plan.
+   It sits at the TOP of the ladder because a lapsed book changes what every button below it
+   does, and the coach should learn that before tapping one, not from a bounce.
+   A hoisted declaration, so it can live here at the foot of the module. */
+function planCard() {
+  const a = CD.access;
+  if (!a || a.reason === 'paid' || a.reason === 'unknown') return '';
+  const endsMs = a.preview_ends_at ? Date.parse(a.preview_ends_at) : NaN;
+  const daysLeft = Number.isFinite(endsMs) ? Math.max(0, Math.ceil((endsMs - Date.now()) / 86400000)) : null;
+  if (a.entitled) {
+    const soon = daysLeft != null && daysLeft <= 3;
+    const when = daysLeft == null ? 'soon' : daysLeft === 0 ? 'today' : daysLeft === 1 ? 'tomorrow' : `in ${daysLeft} days`;
+    return `<div class="sidebox pw-pre tap${soon ? ' warn' : ''}" data-go="plan-upgrade" role="button">
+      <div class="req-icon ${soon ? 'a' : 'b'} s38">${icon('clock', 17)}</div>
+      <div class="pw-body"><div class="tt">Your free preview ends ${when}</div>
+      <div class="ts">Pick a plan before then and nothing changes. The first plan starts with a 14-day free trial.</div></div>
+      ${icon('chevron', 16, 'class="req-chev"')}
+    </div>`;
+  }
+  return `<div class="sidebox pw-pre ended">
+    <div class="req-icon a s38">${icon('lock', 17)}</div>
+    <div class="pw-body"><div class="tt">Your free preview has ended</div>
+    <div class="ts">Your roster, activity and inbox are all still here to read. Assigning, nudging, announcing and setting standards need a plan.</div>
+    <button class="btn primary sm pw-cta" data-go="plan-upgrade">Choose a plan</button></div>
+  </div>`;
+}
