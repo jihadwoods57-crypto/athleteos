@@ -213,23 +213,8 @@ export default {
       return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
     }
 
-    // --- pretty trainer acquisition link: /t/<slug> ---
-    // Serves the SPA (t.html) rather than duplicating any rendering here: t.html's own slug
-    // reader already recognizes a /t/<slug> path segment (in addition to ?t=/#), so the SAME
-    // already-verified client code renders the trainer's page and posts applications. This adds
-    // no new Supabase calls, secrets, or HTML-building logic to the Worker.
-    //
-    // Fetch the EXTENSIONLESS clean URL (/t), matching how /privacy and /terms already resolve —
-    // NOT /t.html: static-asset clean-URL handling 307s a .html request to its extensionless
-    // form, and building a fresh Request for that redirect target drops the original /t/<slug>
-    // path (the slug lives only in THIS request's URL, never in the one we hand to ASSETS).
-    const tMatch = url.pathname.match(/^\/t\/[a-f0-9]{8,64}\/?$/);
-    if (tMatch) {
-      return env.ASSETS.fetch(new Request(new URL('/t', url), request));
-    }
-
     // --- Verified Profile: /v/<slug> ---
-    // Same clean-URL serve as /t/<slug>, plus one thing t.html never needed: the __VP_SLUG__
+    // Clean-URL serve, plus the __VP_SLUG__
     // placeholders in v.html's og:image / og:url meta tags are rewritten to the request's slug,
     // because Twitter's unfurler executes no JavaScript — the per-athlete card URL must be in
     // the HTML bytes it fetches. The card PNG itself lives in the public verified-cards bucket,

@@ -29,13 +29,6 @@
   Cache-Control: no-store
   Content-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src https://ftwrvylzoyznhbzhgism.supabase.co; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
 
-# The public trainer page: takes payment through public-offer-checkout, so it needs the Supabase
-# REST + Functions origins in connect-src and nothing else. Framable nowhere.
-/t*
-  X-Frame-Options: DENY
-  Content-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src https://ftwrvylzoyznhbzhgism.supabase.co https://ftwrvylzoyznhbzhgism.functions.supabase.co; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
-  Referrer-Policy: no-referrer
-
 # The Verified Profile page (/v/<slug>, v.html): an athlete's public accountability record,
 # read by recruiters holding a shared link. No session, no payment, one fetch to the
 # verified-profile function — so connect-src is the Supabase origin only. noindex on purpose:
