@@ -422,7 +422,7 @@ export const PLANS = {
       sub: 'Daily Score, AI meal analysis, streaks, one connected supporter.' },
     { id: 'individual_plus', name: 'Individual Plus', monthly: '$24.99', annual: '$210', annualPer: '$17.50', save: 'Save $90',
       sub: 'Everything in Individual plus full history, trends, and unlimited supporters.' },
-    { id: 'family', name: 'Family', monthly: '$39.99', annual: '$336', annualPer: '$28', save: 'Save $144',
+    { id: 'family', name: 'Family', monthly: '$26.99', annual: '$228', annualPer: '$19', save: 'Save $96',
       sub: 'One household, up to 4 athletes, one bill. Parents see every dashboard.' },
   ],
   /* Names are CANONICAL (pricing.ts .name), never audience flavours. "Pro Solo" / "Nutrition Pro" /

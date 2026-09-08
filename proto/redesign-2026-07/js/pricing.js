@@ -13,7 +13,7 @@ export const CONSUMER_PLANS = [
     blurb: 'Your daily score, AI meal analysis, and streaks, with one connected supporter.' },
   { id: 'individual_plus', name: 'Individual Plus', monthly: 24.99, annual: 210, trialDays: 7, seatLimit: 0,
     blurb: 'Everything in Individual, plus full history, trends, unlimited supporters, and a shareable verified record.' },
-  { id: 'family', name: 'Family', monthly: 39.99, annual: 336, trialDays: 7, seatLimit: 4,
+  { id: 'family', name: 'Family', monthly: 26.99, annual: 228, trialDays: 7, seatLimit: 4,
     blurb: 'One household, up to 4 athletes, one bill. Parents see every dashboard.' },
 ];
 

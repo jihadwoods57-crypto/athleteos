@@ -19,7 +19,14 @@ export interface PricedPlan {
   monthly: number;
   /** USD per year (≈ 2 months free). */
   annual: number;
-  /** Free-trial length in days. */
+  /** Free-trial length in days.
+   *
+   *  THE TWO RAILS DIFFER ON PURPOSE. Consumer (IAP) is 7; professional and org (Stripe) are 14,
+   *  which is also what `billing-checkout` sends as `trial_period_days` (STRIPE_TRIAL_DAYS).
+   *  The 14-day figure is the one the founder ratified on 2026-07-30, and it applies to the rail
+   *  that decision was about. Anyone reading only one of those two numbers will think the other
+   *  is a bug, and `planTerms()` — the FTC-disclosure function — reads this field, so the
+   *  distinction is worth stating rather than inferring. */
   trialDays: number;
   /** ACTIVE clients/participants included (undefined = unlimited/custom). "Active" is the billing
    *  metric, not roster size: an athlete who logged >= ACTIVE_DAYS_THRESHOLD days that month
@@ -47,10 +54,20 @@ export const PLAN_CATALOG: PricedPlan[] = [
     blurb: 'Keep your history, score, AI coach, and daily game plan — on your own.' },
   { id: 'individual_plus', name: 'Individual Plus', audience: 'individual', rail: 'iap', monthly: 24.99, annual: 210, trialDays: 7,
     blurb: 'Adds your full portable record across every team + a shareable recruiting card.' },
-  // Family plan (add-on build 2026-07-04): a parent with 2-4 athlete kids pays one bill at
-  // ~33% under 4x Individual. Families churn slower than solo teens, and the parent digest
-  // gives the payer their own value. IAP rail (consumer), same as Individual — 30% annual too.
-  { id: 'family', name: 'Family', audience: 'individual', rail: 'iap', monthly: 39.99, annual: 336, trialDays: 7, seatLimit: 4,
+  // Family plan (add-on build 2026-07-04): a parent with 2-4 athlete kids pays one bill.
+  // Families churn slower than solo teens, and the parent digest gives the payer their own
+  // value. IAP rail (consumer), same as Individual — 30% annual too.
+  //
+  // REPRICED 2026-09-07, before any store product existed. It was $39.99/$336, which made the
+  // plan a TRAP at the modal family size: two athletes on Individual cost $252/yr, so the
+  // household that picked the obviously-family option paid $84 MORE for it. A plan whose name
+  // says "family" and whose price punishes the commonest family is a packaging bug, not a
+  // premium. At $228 it wins at two ($24), three ($150) and four ($276), and it still holds the
+  // catalog's own rule that annual = monthly * 12 * 0.70 rounded to a clean effective /mo
+  // ($19.00). The cost is margin on 3-4 athlete households; the gain is that 2-athlete
+  // households stop having a rational reason to refuse the plan. Consumer is a free byproduct
+  // in this model (BUSINESS_MODEL.md §3), so capture beats ARPU here.
+  { id: 'family', name: 'Family', audience: 'individual', rail: 'iap', monthly: 26.99, annual: 228, trialDays: 7, seatLimit: 4,
     blurb: 'One household, up to 4 athletes, one bill. Parents see every dashboard.' },
   // Cost sweep 2026-07-04: Solo/Professional were repriced up (69->99, 124.99->179) and the extra-seat
   // add-on 3->10. The old numbers sat at/below the per-seat AI-cost floor once a trainer's roster was

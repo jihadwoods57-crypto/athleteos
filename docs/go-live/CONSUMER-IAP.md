@@ -13,7 +13,12 @@ Create auto-renewable subscription products with ids matching
 - `onstandard_family_monthly` / `onstandard_family_annual`
 
 Prices (from `src/core/pricing.ts`): Individual $14.99 / $126·yr; Individual Plus $24.99 / $210·yr;
-Family $39.99 / $336·yr. 7-day free trials. (Family = up to 4 seats — enforced app-side.)
+Family $26.99 / $228·yr. 7-day free trials. (Family = up to 4 seats — enforced app-side.)
+
+> **Family was repriced 2026-09-07, before any store product existed.** At $336 a two-athlete
+> household — the modal family — paid $84 MORE than two Individuals at $126, so the obvious
+> family choice was the expensive one. $228 wins at two ($24) and at three and four. If these
+> products already exist in a console when you read this, the price there is the one that binds.
 
 ## 2. RevenueCat dashboard
 - Add the iOS + Android apps; create one **Offering** containing the six products above.

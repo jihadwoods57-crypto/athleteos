@@ -17,7 +17,7 @@ describe('catalog shape', () => {
     expect(planById('pro_solo')).toMatchObject({ monthly: 99, seatLimit: 25 });
     expect(planById('professional')).toMatchObject({ monthly: 179, seatLimit: 50, extraSeatMonthly: 10 });
     expect(planById('org_performance')).toMatchObject({ monthly: 799, seatLimit: 150 });
-    expect(planById('family')).toMatchObject({ monthly: 39.99, seatLimit: 4, rail: 'iap' });
+    expect(planById('family')).toMatchObject({ monthly: 26.99, seatLimit: 4, rail: 'iap' });
     expect(planById('enterprise')?.custom).toBe(true);
   });
   it('every priced plan gives a real annual discount', () => {
