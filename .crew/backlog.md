@@ -30,7 +30,15 @@ Where things stand tonight (as of 09-06, see update above):
 
 ## Ranked
 
-### 0 · missed-slot debt · 09-07's 1 PM AUDIT and 7 PM POLISH never fired — the founder's 15-commit day is LIVE unaudited  (dated 09-08, overnight sentry)
+### 0 · missed-slot debt · PAID 09-08 1 PM — the human walk ran (see .crew/reports/2026-09-08.md)
+The 1 PM audit walked the 09-07 stack and the morning's ships: meal correction receipt renders
+honestly, accountability surfaces clean, the deferred-CSS coach boot loads with 0 JS errors
+across the sweep, audience picker + assign fan-out attacked (per-name failure reporting reads
+correct, armed two-step confirm holds). What it FOUND and fixed: the null-vs-zero lie survived
+the morning fix in the athlete's own past-meal view AND in the coach correction write-back
+(2897a3e). Item 0b folds in: paid. Residual findings parked below under "Parked with evidence".
+
+### 0-old · (history) 09-07's 1 PM AUDIT and 7 PM POLISH never fired — the founder's 15-commit day went LIVE unaudited  (dated 09-08, overnight sentry)
 No report entries, no reranked backlog, no digest email for 09-07 after the 8 AM
 session; every afternoon/evening commit is from the founder's PC. He then published at
 ~9 PM, so a full day of his work (meal-read rewrite with correction receipt, the
@@ -126,6 +134,25 @@ If M2's team SKU happens, a "fueling check-in" for team meals is the natural swe
 alone it's not worth a sitting. Noted so October doesn't rediscover it.
 
 ## Parked with evidence
+- **Food-memory rows read "0g protein · 0 kcal" for saved items without numbers**
+  (coach.js:2494, foodMemSection; found by the 09-08 1 PM adversarial review). Different table
+  (food_memory, not meals), same `|| 0` readout pattern. Small fix, but food-memory items are
+  validated at save so a numberless row may be impossible today — check the save path before
+  "fixing" a state that can't occur.
+- **"STRONG · 84/100" sits directly above "the balance is not judged"** on a partial-read meal
+  (diet-meal, 09-08 shots). The 84 is the STORED server score — rendering it is honest per the
+  proxy gotcha, but the server awarded balance points on a plate it only partly read. The right
+  fix is server-side in analyze-meal's scoring (don't score balance with <3 macros); blocked on
+  credentials, and worth a look before the dietitian pilot leans on meal scores.
+- **QC seed carries a stale scoring stamp**: meal-detail's rubric shows "No fiber showing" beside
+  a visibly-produce-heavy plate. Live code guards this (meal-intel produce guard, both compute
+  paths); the fixture's stored stamp predates it. Refresh the seed so shots stop showing a state
+  real reads can't produce (7 PM polish sized).
+- **Drive screenshot upload path is broken from the cloud**: create_file either converts images
+  to a Google Doc (without disableConversionToGoogleType) or rejects/truncates large inline
+  base64 payloads (two attempts, 09-08 1 PM). Shots now committed to .crew/reports/<date>-shots/
+  per the 09-06/09-07 precedent. Don't re-diagnose; if the founder wants Drive shots, that needs
+  a real upload path.
 - **Digest timing + quiet hours (c831c69, 0220 + 0221): audited 09-06 1 PM** — client
   mirror (serverPrefPatch) and edge-function logic read clean, suites cover them. Still
   needs the PC: confirm the migrations were APPLIED to live, and note the ORDER for the
@@ -146,7 +173,7 @@ alone it's not worth a sitting. Noted so October doesn't rediscover it.
 
 ## Notes for tomorrow's sessions
 - **Credential streak (update in place, don't re-diagnose):** EXPO_TOKEN invalid
-  ("bearer token is invalid") — 20 sessions through 09-08 (error-response, ~9:40 AM). No Supabase
+  ("bearer token is invalid") — 21 sessions through 09-08 (1 PM audit). No Supabase
   creds, no Stripe key, no Cloudflare token in the cloud env. One cheap check, cite this
   line, move on. (npx eas-cli is broken in the sandbox — curl api.expo.dev/graphql with
   the bearer instead.) BUT: `node scripts/verify-ota.mjs` needs NO token — update
