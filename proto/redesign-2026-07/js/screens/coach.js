@@ -3749,9 +3749,20 @@ export const parentLink = {
   render() {
     return `
     ${backHead('Link an athlete', 'Enter their invite code')}
-    <div style="height:8px"></div>
-    <input id="pl-code" class="ob-input" type="text" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="Invite code" aria-label="Invite code" aria-describedby="pl-err" style="text-transform:uppercase;letter-spacing:0.12em">
-    <div id="pl-err" class="si-err" style="min-height:18px;margin-top:12px"></div>
+    ${/* WHERE THE CODE COMES FROM (2026-09-07 audit). This screen was a title, an empty field and
+          a button: nothing told the parent that the ATHLETE generates the code, where they find
+          it, that it works once, or that it expires. The app already writes all three of those
+          facts down — on the athlete's side of the handoff, in the invite sheet — so the person
+          who needs them was the only one not being told. A parent is usually the least technical
+          user in this product and this is the first screen they are ever asked to act on. */''}
+    <div class="sidebox pw-pre">
+      <div class="req-icon b s38">${icon('users', 17)}</div>
+      <div><div class="tt">Ask your athlete for the code</div>
+      <div class="ts">In their app: <b>Profile &rsaquo; Invite a parent</b>. They can text it to you straight from there. Each code works once and expires after 14 days.</div></div>
+    </div>
+    <input id="pl-code" class="ob-input" type="text" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="Invite code" aria-label="Invite code" aria-describedby="pl-hint pl-err" style="text-transform:uppercase;letter-spacing:0.12em">
+    <div id="pl-hint" class="ts pl-hint">Letters and numbers, no spaces.</div>
+    <div id="pl-err" class="si-err pl-hint"></div>
     <button id="pl-go" class="btn primary">Link athlete</button>
     <div style="height:10px"></div>`;
   },

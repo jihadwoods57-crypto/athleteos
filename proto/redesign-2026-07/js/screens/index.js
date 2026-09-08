@@ -218,7 +218,6 @@ export const screens = {
   'redeem-code': lazy(() => import('./redeem-code.js')),
   'pass-grant': lazy(() => import('./pass-grant.js')),
   paywall: lazy(() => import('./paywall.js')),
-  'progress-photos': lazy(() => import('./progress-photos.js')),
   'log-training': lazy(() => import('./log-training.js')),
   'training-history': lazy(() => import('./training-history.js')),
   // Verified Commitments (0138). Athlete: the roll-call detail + the Accountability rollup +

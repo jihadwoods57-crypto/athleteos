@@ -610,69 +610,10 @@ export async function removeAvatar(userId) {
   } catch { return false; }
 }
 
-/* ---------------- progress photos (before/after body-composition timeline, 0133) ---------------- */
-/** Upload a progress photo (raw base64 jpeg) to the private progress-photos bucket and record a
-    row. Path MUST start with the athlete's id (storage RLS). Best-effort — returns the new row or null. */
-export async function uploadProgressPhoto(userId, base64, meta) {
-  const c = sb(); if (!c || !userId || !base64) return null;
-  const m = meta || {};
-  const path = `${userId}/${Date.now()}.jpg`;
-  try {
-    const bin = atob(base64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const up = await c.storage.from('progress-photos').upload(path, bytes, { contentType: 'image/jpeg', upsert: false });
-    if (up.error) return null;
-    const row = {
-      athlete_id: userId, photo_path: path,
-      weight_lb: (m.weightLb != null && m.weightLb !== '') ? Math.round(+m.weightLb) : null,
-      pose: m.pose || null, note: m.note || null,
-    };
-    if (m.takenOn) row.taken_on = m.takenOn;
-    const { data, error } = await c.from('progress_photos').insert(row).select().maybeSingle();
-    if (error) return null;
-    return data || null;
-  } catch { return null; }
-}
-
-/** An athlete's progress photos, newest first (self by default; a coach passes an athleteId they
-    can_view). Returns [{ id, photo_path, taken_on, weight_lb, pose, note }]. */
-/** The athlete's photo timeline. Same contract as listTrainingLogs: `[]` = none, `null` = the
- *  fetch failed. A failed fetch used to read "Start your timeline" to someone with twelve
- *  photos already saved, and hid the Compare button that proves they are there. */
-export async function listProgressPhotos(athleteId) {
-  const c = sb(); if (!c) return null;
-  try {
-    let uid = athleteId;
-    if (!uid) { const { data: u } = await c.auth.getUser(); uid = u && u.user && u.user.id; }
-    if (!uid) return null;
-    const { data, error } = await c.from('progress_photos')
-      .select('id,photo_path,taken_on,weight_lb,pose,note')
-      .eq('athlete_id', uid)
-      .order('taken_on', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(60);
-    if (error) return null;
-    return data || [];
-  } catch { return null; }
-}
-
-/** Delete a progress photo (owner-RLS); best-effort object cleanup after the row goes. */
-export async function deleteProgressPhoto(id, path) {
-  const c = sb(); if (!c || !id) return false;
-  try {
-    const { error } = await c.from('progress_photos').delete().eq('id', id);
-    if (error) return false;
-    if (path) { try { await c.storage.from('progress-photos').remove([path]); } catch { /* orphan cleanup best-effort */ } }
-    return true;
-  } catch { return false; }
-}
-
-export async function signedProgressPhotoUrl(path) {
-  const c = sb(); if (!c || !path) return null;
-  try { const { data } = await c.storage.from('progress-photos').createSignedUrl(path, 3600); return (data && data.signedUrl) || null; } catch { return null; }
-}
-export const signedProgressPhotoUrls = (paths) => signedUrlMap('progress-photos', paths);
+/* Progress photos (0133) lived here — upload / list / delete / signed URLs against the private
+   progress-photos bucket. The feature was removed 2026-09-07 (founder call) and the client API
+   went with it. The bucket, the progress_photos table and migration 0133 are untouched: they hold
+   real athlete photos, and dropping them is a data decision, not a UI one. */
 
 /* ---------------- health / wearables (Apple Health, Health Connect) — DISPLAY-only in v1 ----------------
    All false/null in a browser/preview or until the founder wires the native health module

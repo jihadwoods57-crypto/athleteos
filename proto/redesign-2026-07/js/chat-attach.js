@@ -32,7 +32,7 @@ export function attachedPhoto(comment) {
 }
 
 /* Downscale + JPEG-encode a picked file. Same 1000px / 0.82 parameters camera.js and
-   progress-photos.js already use, so an attachment costs the same bytes as a logged plate.
+   the meal capture path already uses, so an attachment costs the same bytes as a logged plate.
    This is the THIRD copy of this canvas pipeline in the codebase — it lives here, shared, rather
    than becoming a fourth. */
 export function encodeImageFile(file, maxDim = 1000, quality = 0.82) {

@@ -2063,60 +2063,16 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .pw-plan-price .per{font-size:var(--t-sm);font-weight:700;color:var(--text-3);margin-left:2px}
 .pw-plan-sub{font-size:var(--t-xs);font-weight:700;color:var(--text-3);margin-top:2px}
 .pw-plan-blurb{font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:var(--s2);line-height:1.4}
+/* The pre-launch banner stack: the state, then the one thing that does work today, then the
+   catalog as a preview. Spacing lives here rather than as three inline styles at the call site. */
+.pw-pre{margin-bottom:var(--s3)}
+.pw-pre.last{margin-bottom:var(--s4)}
+/* The invite-code hint and its error line share one rhythm under the field. */
+.pl-hint{margin-top:var(--s2);min-height:18px}
 .pw-note{text-align:center;font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:var(--s2h);line-height:1.45}
 
-/* ---- Progress photos (#progress-photos) ---- */
-/* The Timeline / Compare switch. The .seg pill itself is app.css; this only spaces it off the
-   header, so a mode switch never has to hand-write a margin at the call site. */
-.pp-modes{margin:var(--s3) 0}
-.pp-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s2h)}
-.pp-cell{position:relative;border-radius:var(--r-card-sm);overflow:hidden;background:var(--surface-2);aspect-ratio:3/4}
-.pp-cell-img{width:100%;height:100%;object-fit:cover;display:block}
-.pp-cell-load{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-3)}
-.pp-cell-meta{position:absolute;left:0;right:0;bottom:0;padding:var(--s4) var(--s2h) var(--s2);font-size:var(--t-xs);font-weight:700;color:#fff;background:linear-gradient(transparent, rgba(0,0,0,0.62))}
-.pp-del{position:absolute;top:6px;right:6px;height:24px;min-width:24px;padding:0 var(--s1h);border:none;border-radius:var(--r-chip);background:rgba(6,10,14,0.6);color:#fff;font-size:var(--t-xs);font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer}
-.pp-del.arm{background:var(--danger-solid);color:#fff}   /* white ON the fill — see --danger-solid */
-/* 44px hit area without visual bloat: the visible chip stays 24px, the touch target doesn't. */
-.pp-del::after{content:'';position:absolute;inset:-12px}
-
-/* ---- Training log delete (#training-history) ---- */
-/* A destructive control at the 44px floor: 2px of padding on a delete button meant a post-practice
-   thumb missed it, or worse, hit the row's navigation instead. */
-.tl-del{background:none;border:none;color:var(--text-3);font-size:var(--t-sm);font-weight:700;cursor:pointer;padding:var(--s3) var(--s2h);min-height:44px}
-.tl-del.arm{color:var(--red)}
-
-/* ---- Before/after compare (#progress-photos, compare mode) ----
-   Was its own route until the two views were folded together; the markup moved into
-   progress-photos.js unchanged, so these rules did too. .cmp-pick replaces the two hand-written
-   margin-top styles the picker headings used to carry inline. */
-.cmp-pick{margin-top:var(--s3h)}
-.cmp-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2h)}
-.cmp-panel{background:var(--surface-1);border: 1px solid transparent;border-radius:var(--r-card-sm);overflow:hidden;display:flex;flex-direction:column; box-shadow: var(--sh-card);}
-.cmp-lab{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-3);padding:var(--s2) var(--s2h) var(--s1)}
-.cmp-img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block}
-.cmp-empty{width:100%;aspect-ratio:3/4;display:flex;align-items:center;justify-content:center;color:var(--text-3);background:var(--surface-2)}
-.cmp-sub{font-size:var(--t-xs);font-weight:700;color:var(--text-2);padding:var(--s1h) var(--s2h) var(--s2h);text-align:center}
-.cmp-delta{text-align:center;font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-top:var(--s3)}
-.cmp-delta b{font-size:var(--t-lg);font-weight:800;color:var(--text)}
-.cmp-strip{display:flex;gap:var(--s2);overflow-x:auto;padding:var(--s2) 2px;-webkit-overflow-scrolling:touch}
-.cmp-thumb{flex:none;width:52px;height:68px;border-radius:var(--r-chip);overflow:hidden;border:2px solid transparent;background:var(--surface-2);padding:0;cursor:pointer}
-.cmp-thumb.on{border-color:var(--green-bright)}
-.cmp-thumb-img{width:100%;height:100%;object-fit:cover;display:block}
-.cmp-thumb-load{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-3)}
-.cat-trend{display:flex;align-items:center;gap:var(--s2h);padding:var(--s2h) 0;border-bottom:1px solid var(--hairline-soft)}
-.cat-trend:last-child{border-bottom:none}
-.cat-trend .ct-k{width:118px;flex:none;font-size:var(--t-sm);font-weight:700;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cat-trend .track{flex:1;height:7px;border-radius:var(--r-micro);background:var(--surface-3);overflow:hidden}
-.cat-trend .fillb{height:100%;border-radius:var(--r-micro)}
-.cat-trend .fillb.g{background:linear-gradient(90deg,var(--green-deep),var(--green))}
-.cat-trend .fillb.p{background:linear-gradient(90deg,var(--purple-deep),var(--purple))}
-.cat-trend .fillb.b{background:linear-gradient(90deg,var(--blue-deep),var(--blue))}
-.cat-trend .fillb.c{background:linear-gradient(90deg,var(--cyan-deep),var(--cyan))}
-.cat-trend .fillb.a{background:linear-gradient(90deg,var(--amber-deep),var(--amber))}
-.cat-trend .ct-v{width:38px;text-align:right;font-size:var(--t-sm);font-weight:800;flex:none;font-variant-numeric:tabular-nums}
-.cat-trend .ct-d{width:36px;text-align:right;font-size:var(--t-xs);font-weight:800;flex:none;color:var(--text-3);font-variant-numeric:tabular-nums}
-.cat-trend .ct-d.up{color:var(--green-bright)}
-.cat-trend .ct-d.down{color:var(--amber-bright)}
+/* Progress photos and the before/after compare lived here (0133). The feature was removed
+   2026-09-07 (founder call) and its rules went with it: .pp-*, .tl-*, .cmp-*. */
 
 /* ----- Plan-style picker notes (settings.js) — one class instead of three hand-typed style
    strings; .err doubles as the picker's save-failure status line. ----- */

@@ -57,31 +57,17 @@ function weightCard() {
   </section>`;
 }
 
-/* Entry to the progress-photo timeline (0133). A quiet link-out card — the real grid/compare live
-   in #progress-photos. Photos are private to the athlete and any linked coach; they never touch
-   the daily score, same as weight. */
-function photoCard() {
-  return `
-  <section class="card" style="padding:6px 16px;margin-top:10px">
-    <div class="lrow" data-go="progress-photos">
-      <div class="lic">${icon('camera', 17)}</div>
-      <div class="lm"><div class="lt">Progress photos</div><div class="ls">Your before &amp; after · private to you &amp; your ${esc(S.coach.noun)}</div></div>
-      ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-    </div>
-  </section>`;
-}
-
-/* Weight + photos are the same story (the body the work is building), so they share ONE group
-   under one eyebrow instead of two peer sections announcing themselves separately. */
+/* The body the work is building. Progress photos were removed 2026-09-07 (founder call), so this
+   group is weight alone; the eyebrow stays because weight is still its own story, separate from
+   the score it never touches. */
 function bodySection() {
   return `
   <h2 class="eyebrow">Body</h2>
-  ${weightCard()}
-  ${photoCard()}`;
+  ${weightCard()}`;
 }
 
 /* Entry to the training log (0135). Quiet link-out; sessions live in #training-history. Tracked,
-   not scored — same as weight/photos. */
+   not scored — same as weight. */
 function trainingCard() {
   return `
   <h2 class="eyebrow">Training</h2>

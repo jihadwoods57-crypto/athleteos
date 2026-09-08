@@ -123,15 +123,10 @@ const SHOTS = [
   // becomes their containing block.
   { g: 'athlete2', name: 'log-sheet', seed: 'dayMidday', route: 'log', at: [15, 30] },
   { g: 'athlete2', name: 'training-history', seed: 'dayComplete', route: 'training-history', at: [20, 6] },
-  { g: 'athlete2', name: 'progress-photos', seed: 'dayComplete', route: 'progress-photos', at: [20, 7] },
-  // Compare stopped being its own route (#progress-compare) and became a MODE of the timeline,
-  // so it is reached the way an athlete reaches it: tap the Compare half of the .seg. Driving it
-  // through `act` rather than a route is also what keeps this shot honest: if the mode control
-  // ever loses its data-pp-mode hook the sweep captures the timeline and the diff is visible,
-  // where a dead route would have quietly captured #notfound. The Supabase stub serves no
-  // progress_photos rows, so what lands here is compare's two-photos-needed state.
-  { g: 'athlete2', name: 'progress-compare', seed: 'dayComplete', route: 'progress-photos', at: [20, 8],
-    act: `const el = document.querySelector('[data-pp-mode="compare"]'); if (el) el.click();` },
+  // The progress-photo timeline and its compare mode were removed with the feature 2026-09-07
+  // (founder call). Both shots came out of the shot list with it — a route that no longer exists
+  // renders #notfound and the sweep counts it clean, which is exactly how 'checkin' hid for a
+  // release cycle.
   { g: 'athlete2', name: 'monthly-report', seed: 'dayComplete', route: 'monthly-report', at: [21, 59] },
   { g: 'athlete2', name: 'accountability', seed: 'dayComplete', route: 'accountability', at: [20, 20], vc: 'earned' },
   { g: 'athlete2', name: 'streak', seed: 'dayComplete', route: 'streak', at: [21, 45] },

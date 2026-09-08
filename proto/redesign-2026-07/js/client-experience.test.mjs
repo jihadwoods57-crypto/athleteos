@@ -112,14 +112,17 @@ function resetDay() {
   const sIdx = clientHtml.indexOf('Score Trend');
   assert.ok(wIdx >= 0 && sIdx >= 0, 'both sections must render');
   assert.ok(wIdx < sIdx, 'a client sees the Body group BEFORE Score Trend — the outcome leads');
-  assert.ok(clientHtml.includes(`private to you &amp; your trainer`), 'the photo card names the real link (trainer), not a hardcoded "coach"');
+  // The progress-photo card carried the only noun-parity assertion here and was removed with the
+  // feature (2026-09-07). The contract this block actually tests is the ORDER, above: a client
+  // sees the Body group before Score Trend. Noun parity is still covered where a noun still
+  // renders — see the S.coach.noun assertions elsewhere in this file.
 
   RT.myCoach = { teamId: 't1', teamName: 'Northside Prep', name: 'Coach J' }; RT.myTrainer = null;
   const teamHtml = progress.render();
   const wIdx2 = teamHtml.indexOf(BODY_MARK);
   const sIdx2 = teamHtml.indexOf('Score Trend');
   assert.ok(sIdx2 < wIdx2, 'a team athlete keeps Score Trend FIRST — unchanged order');
-  assert.ok(teamHtml.includes('private to you &amp; your coach'), 'a team athlete still sees "your coach"');
+  // Its coach-side twin went with the same card; the order assertion above is the live contract.
 }
 
 /* ================================================================ profile.js: ID card + Packages */

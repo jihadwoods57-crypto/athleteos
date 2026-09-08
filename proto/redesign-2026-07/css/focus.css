@@ -146,7 +146,7 @@
    `.std-chip` (44 tall but as narrow as its label) joined 2026-09-05. */
 :where(
   .co-chip, .btn.ghost, .btn.sm, .bk, .ai-full-toggle, .hd-avatar,
-  .si-forgot, .si-link, .chip, .pw-seg, .mq-skip, .markread, .lnk, .tl-del, .mt-retry,
+  .si-forgot, .si-link, .chip, .pw-seg, .mq-skip, .markread, .lnk, .mt-retry,
   .tour-skip, .est-note .link, .fr-ok, .iv-x, .composer-attach-pending button, .id-act,
   .composer button.send, .composer .ai-ask, .composer .attach,
   .ev-x, .cm-rm, .std-chip
@@ -155,7 +155,7 @@
 }
 :where(
   .co-chip, .btn.ghost, .btn.sm, .bk, .ai-full-toggle, .hd-avatar,
-  .si-forgot, .si-link, .chip, .pw-seg, .mq-skip, .markread, .lnk, .tl-del, .mt-retry,
+  .si-forgot, .si-link, .chip, .pw-seg, .mq-skip, .markread, .lnk, .mt-retry,
   .tour-skip, .est-note .link, .fr-ok, .iv-x, .composer-attach-pending button, .id-act,
   .composer button.send, .composer .ai-ask, .composer .attach,
   .ev-x, .cm-rm, .std-chip

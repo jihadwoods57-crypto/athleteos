@@ -14,27 +14,27 @@ import { ROLLCALL_OFF } from '../commitments.js';
    actually works against it — never a button that would write a practice id into a team-owned
    table and fail silently. `cap: null` means "no book capability required". */
 const OPTIONS = [
-  { key: 'assign',          cap: 'assignments',    icon: 'clipboard', title: 'Assign a one-off task', sub: 'Team, room, group, or the people you pick', go: 'coach-assign' },
-  { key: 'announce',        cap: 'announcements',  icon: 'share',     title: 'Send an announcement',  sub: 'Feed + push to the room you pick',  go: 'coach-announce' },
-  { key: 'message_athlete', cap: null,             icon: 'message',   title: 'Message an athlete',    sub: 'Pick from the roster',              go: 'coach-roster' },
-  { key: 'message_group',   cap: 'announcements',  icon: 'users',     title: 'Message a group',       sub: 'Announce to a custom group',        go: 'coach-announce' },
-  { key: 'standards',       cap: 'standards',      icon: 'bars',      title: 'Standards & templates', sub: 'Meals, windows, check-ins by room', go: 'coach-plan' },
-  { key: 'schedule',        cap: 'exceptions',     icon: 'clock',     title: 'Adjust a schedule',     sub: 'Mark travel or an excused stretch', go: 'coach-roster' },
+  { grp: 'standard', key: 'assign',          cap: 'assignments',    icon: 'clipboard', title: 'Assign a one-off task', sub: 'Team, room, group, or the people you pick', go: 'coach-assign' },
+  { grp: 'tell', key: 'announce',        cap: 'announcements',  icon: 'share',     title: 'Send an announcement',  sub: 'Feed + push to the room you pick',  go: 'coach-announce' },
+  { grp: 'tell', key: 'message_athlete', cap: null,             icon: 'message',   title: 'Message an athlete',    sub: 'Pick from the roster',              go: 'coach-roster' },
+  { grp: 'tell', key: 'message_group',   cap: 'announcements',  icon: 'users',     title: 'Message a group',       sub: 'Announce to a custom group',        go: 'coach-announce' },
+  { grp: 'standard', key: 'standards',       cap: 'standards',      icon: 'bars',      title: 'Standards & templates', sub: 'Meals, windows, check-ins by room', go: 'coach-plan' },
+  { grp: 'standard', key: 'schedule',        cap: 'exceptions',     icon: 'clock',     title: 'Adjust a schedule',     sub: 'Mark travel or an excused stretch', go: 'coach-roster' },
   // WAKE-UP ROLL CALL AND THE COMMITMENT COMPOSER ARE OFF (founder, 2026-09-02) — see
   // ROLLCALL_OFF in commitments.js. Both entries are filtered out below rather than deleted,
   // so bringing the feature back is one constant, not an archaeology exercise.
   // (0211): the morning group text as a measurable roll call. Shares the
   // 'commitments' capability because it IS a commitment (type morning_roll_call).
-  { key: 'commitments',     cap: null,             icon: 'sun',       title: 'Roll call',     sub: 'A time, a grace period, your message. One tap answers it', go: 'coach-wakeup-new' },
+  { grp: 'standard', key: 'commitments',     cap: null,             icon: 'sun',       title: 'Roll call',     sub: 'A time, a grace period, your message. One tap answers it', go: 'coach-wakeup-new' },
   // Verified Commitments (0138). Distinct from 'schedule' above, which excuses an athlete for a
   // stretch of days; this SCHEDULES the thing they're accountable for in the first place.
-  { key: 'commitments',     cap: null,             icon: 'clock',     title: 'Schedule a commitment', sub: 'Practice, lift, study hall. Verified', go: 'coach-commit-manage' },
+  { grp: 'standard', key: 'commitments',     cap: null,             icon: 'clock',     title: 'Schedule a commitment', sub: 'Practice, lift, study hall. Verified', go: 'coach-commit-manage' },
   // Connected Standards (0155). Distinct from 'commitments' above, which schedules a PLACE and a
   // time; this sets a measurable amount of activity the athlete's own device answers for.
-  { key: 'activity',        cap: 'standards',      icon: 'bolt',      title: 'Set an activity standard', sub: 'Steps, distance or workouts. Verified by their watch', go: 'coach-standards-manage' },
-  { key: 'add_athlete',     cap: null,             icon: 'user',      title: 'Add an athlete',        sub: 'Share your team code',              go: 'coach-profile/code' },
-  { key: 'invite_staff',    cap: 'staffRoles',     icon: 'users',     title: 'Invite staff',          sub: 'Coordinator, room, or view-only',   go: 'coach-profile/staff' },
-  { key: 'team_diet',       cap: 'recruiting',     icon: 'heart',     title: 'Team diet',             sub: 'Meal-plan tools',                   go: 'team-diet' },
+  { grp: 'standard', key: 'activity',        cap: 'standards',      icon: 'bolt',      title: 'Set an activity standard', sub: 'Steps, distance or workouts. Verified by their watch', go: 'coach-standards-manage' },
+  { grp: 'roster', key: 'add_athlete',     cap: null,             icon: 'user',      title: 'Add an athlete',        sub: 'Share your team code',              go: 'coach-profile/code' },
+  { grp: 'roster', key: 'invite_staff',    cap: 'staffRoles',     icon: 'users',     title: 'Invite staff',          sub: 'Coordinator, room, or view-only',   go: 'coach-profile/staff' },
+  { grp: 'standard', key: 'team_diet',       cap: 'recruiting',     icon: 'heart',     title: 'Team diet',             sub: 'Meal-plan tools',                   go: 'team-diet' },
 ];
 
 /* A trainer's create menu points at their own routes for the two options that survive. */
@@ -71,15 +71,29 @@ export const coachCreate = {
     // server's write trigger would refuse whatever the coach filled in.
     const opts = OPTIONS.filter((o) => allowed.includes(o.key) && (!o.cap || CD.caps[o.cap])
       && !(ROLLCALL_OFF && o.key === 'commitments'));
-    return `${backHead('Create', 'What do you want to put in motion?', back)}
-    <section class="card" style="padding:6px 16px">
-      ${opts.map(o => `
+    /* GROUPED, NOT A FLAT TWELVE (2026-09-07 audit). Every option rendered as an identical row in
+       one card, so a coach who wanted to say something to one athlete read past standards,
+       schedules and staff invitations to find it — twelve equal-weight choices at a single
+       decision point, every time. The three groups are the three reasons a coach opens this
+       screen at all, and each is a heading a scan can stop on. Order is deliberate: telling
+       someone something is the most frequent, growing the roster the least. A group with nothing
+       in it (caps, staff role, ROLLCALL_OFF) prints nothing at all, heading included. */
+    const row = (o) => `
       <div class="lrow" data-go="${(practice && TRAINER_GO[o.key]) || o.go}" style="cursor:pointer">
         <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon(o.icon, 17)}</div>
         <div class="lm"><div class="lt">${esc((practice && TRAINER_TITLE[o.key]) || o.title)}</div><div class="ls">${esc((practice && TRAINER_SUB[o.key]) || o.sub)}</div></div>
         ${icon('chevron', 14, 'style="color:var(--text-3)"')}
-      </div>`).join('')}
-    </section>
+      </div>`;
+    const group = (grp, heading) => {
+      const rows = opts.filter((o) => o.grp === grp);
+      if (!rows.length) return '';
+      return `<h2 class="co-eyebrow">${heading}</h2>
+      <section class="card" style="padding:6px 16px">${rows.map(row).join('')}</section>`;
+    };
+    return `${backHead('Create', 'What do you want to put in motion?', back)}
+    ${group('tell', 'Tell someone something')}
+    ${group('standard', 'Set the standard')}
+    ${group('roster', practice ? 'Grow your book' : 'Grow the roster')}
     ${/* This box claimed "standards, requirements and announcements are team tools" — stale
           since 0136: the menu directly above it offers standards AND assignments to a practice.
           It now names only what is genuinely team-shaped (broadcast announcements, staff roles),

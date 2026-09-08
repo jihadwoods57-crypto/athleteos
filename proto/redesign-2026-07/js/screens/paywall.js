@@ -48,8 +48,9 @@ function ctaState() {
   }
   if (UI.busy) return `<button class="btn primary" style="width:100%" disabled>Opening the store…</button>`;
   if (UI.iapReady === false) {
-    return `<button class="btn primary" style="width:100%;opacity:.6" disabled>Memberships open at launch</button>
-      <div class="pw-note">You'll be able to start the moment we launch. Have a sponsor code? Redeem it below to unlock premium today.</div>`;
+    // The banner at the top of the screen already says this, and says it before the athlete has
+    // spent a choice on it. All that is left here is the disabled control itself.
+    return `<button class="btn primary" style="width:100%;opacity:.6" disabled>Opens at launch</button>`;
   }
   const label = p.trialDays > 0 ? `Start ${p.trialDays}-day free trial` : `Start ${esc(p.name)}`;
   return `<button class="btn primary" id="pw-buy" style="width:100%">${label}</button>
@@ -82,6 +83,27 @@ export default {
     const savePct = ind ? Math.round((annualSavings(ind) / (ind.monthly * 12)) * 100) : 0;
     return `${backHead('Membership', 'Unlock the written coaching', 'progress')}
 
+    ${/* THE STATE LEADS (2026-09-07 audit). When the store rail is not wired, this screen used to
+          open with a live cadence switch and three selectable plan cards, and only told you that
+          none of it could be bought in a note UNDER the disabled button, three cards down. So the
+          athlete made a choice and then learned the choice does nothing. The one thing that DOES
+          unlock premium today — a sponsor code — was the smallest row on the screen, below the
+          fold. Both of those are now the first thing here, and the plans below read as what is
+          coming rather than as a checkout. Nothing is hidden: the prices are still the catalog's,
+          and the picker still works, so an athlete can see exactly what they will be choosing. */''}
+    ${UI.iapReady === false ? `
+    <div class="sidebox pw-pre">
+      <div class="req-icon b s38">${icon('clock', 17)}</div>
+      <div><div class="tt">Memberships open at launch</div>
+      <div class="ts">You can see what is coming below. Nothing here can be bought yet, and nothing you do on this screen charges you.</div></div>
+    </div>
+    <div class="sidebox mr-coderow pw-pre last" data-go="redeem-code" role="button" aria-label="Redeem a sponsor code to unlock premium instantly">
+      <div class="req-icon g s38">${icon('key', 17)}</div>
+      <div><div class="tt">Have a sponsor code?</div><div class="ts">That is the one way to unlock premium today. Redeem it and it is on instantly.</div></div>
+      ${icon('chevron', 16, 'class="req-chev"')}
+    </div>
+    <h2 class="eyebrow">What is coming</h2>` : ''}
+
     ${/* Plain toggle buttons with aria-pressed, not role=tablist/tab: there are no tab panels
           here, and claiming the tab pattern promises arrow-key semantics nothing wires. */''}
     <div class="pw-toggle">
@@ -98,11 +120,12 @@ export default {
     </section>
     ${statusBanner()}
 
+    ${UI.iapReady === false ? '' : `
     <div class="mr-or">or</div>
     <div class="sidebox mr-coderow" data-go="redeem-code" role="button" aria-label="Redeem a sponsor code to unlock premium instantly">
       <div class="req-icon b s38">${icon('key', 17)}</div>
       <div><div class="tt">Have a sponsor code?</div><div class="ts">Redeem it to unlock premium instantly</div></div>
-    </div>
+    </div>`}
 
     <div style="text-align:center;margin-top:14px">
       <button class="btn ghost sm" id="pw-restore" style="width:auto;padding:0 18px">Restore purchases</button>
