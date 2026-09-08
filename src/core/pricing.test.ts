@@ -12,12 +12,12 @@ describe('formatPrice', () => {
 
 describe('catalog shape', () => {
   it('has the recommended consumer + pro + org plans', () => {
-    expect(planById('individual')?.monthly).toBe(14.99);
-    expect(planById('individual_plus')?.monthly).toBe(24.99);
+    expect(planById('individual')?.monthly).toBe(9.99);
+    expect(planById('individual_plus')?.monthly).toBe(14.99);
     expect(planById('pro_solo')).toMatchObject({ monthly: 99, seatLimit: 25 });
     expect(planById('professional')).toMatchObject({ monthly: 179, seatLimit: 50, extraSeatMonthly: 10 });
     expect(planById('org_performance')).toMatchObject({ monthly: 799, seatLimit: 150 });
-    expect(planById('family')).toMatchObject({ monthly: 26.99, seatLimit: 4, rail: 'iap' });
+    expect(planById('family')).toMatchObject({ monthly: 18.99, seatLimit: 4, rail: 'iap' });
     expect(planById('enterprise')?.custom).toBe(true);
   });
   it('every priced plan gives a real annual discount', () => {
@@ -57,9 +57,9 @@ describe('plansForFlow', () => {
 describe('planTerms (compliant disclosure)', () => {
   it('states price, auto-renewal, trial, and easy cancellation up front', () => {
     const t = planTerms(planById('individual')!);
-    expect(t.price).toBe('$14.99 / month');
+    expect(t.price).toBe('$9.99 / month');
     expect(t.renewal.toLowerCase()).toContain('auto-renews');
-    expect(t.trial).toContain('7-day free trial');
+    expect(t.trial).toContain('14-day free trial');
     expect(t.cancellation.toLowerCase()).toContain('cancel anytime');
     expect(t.cancellation.toLowerCase()).toContain('no phone call');
     expect(t.annual).toContain('/year');

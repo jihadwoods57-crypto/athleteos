@@ -418,11 +418,11 @@ export function paywallVariant(role) {
    locks every price below to the catalog so it can't drift again. */
 export const PLANS = {
   individual: [
-    { id: 'individual', name: 'Individual', monthly: '$14.99', annual: '$126', annualPer: '$10.50', save: 'Save $54', tag: '7-day free trial',
+    { id: 'individual', name: 'Individual', monthly: '$9.99', annual: '$84', annualPer: '$7', save: 'Save $36', tag: '14-day free trial',
       sub: 'Daily Score, AI meal analysis, streaks, one connected supporter.' },
-    { id: 'individual_plus', name: 'Individual Plus', monthly: '$24.99', annual: '$210', annualPer: '$17.50', save: 'Save $90',
-      sub: 'Everything in Individual plus full history, trends, and unlimited supporters.' },
-    { id: 'family', name: 'Family', monthly: '$26.99', annual: '$228', annualPer: '$19', save: 'Save $96',
+    { id: 'individual_plus', name: 'Individual Plus', monthly: '$14.99', annual: '$126', annualPer: '$10.50', save: 'Save $54',
+      sub: 'The recruiting card a coach can open, plus your record across every team.' },
+    { id: 'family', name: 'Family', monthly: '$18.99', annual: '$156', annualPer: '$13', save: 'Save $72',
       sub: 'One household, up to 4 athletes, one bill. Parents see every dashboard.' },
   ],
   /* Names are CANONICAL (pricing.ts .name), never audience flavours. "Pro Solo" / "Nutrition Pro" /

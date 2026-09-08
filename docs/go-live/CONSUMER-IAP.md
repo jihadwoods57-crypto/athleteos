@@ -12,8 +12,8 @@ Create auto-renewable subscription products with ids matching
 - `onstandard_individual_plus_monthly` / `onstandard_individual_plus_annual`
 - `onstandard_family_monthly` / `onstandard_family_annual`
 
-Prices (from `src/core/pricing.ts`): Individual $14.99 / $126·yr; Individual Plus $24.99 / $210·yr;
-Family $26.99 / $228·yr. 7-day free trials. (Family = up to 4 seats — enforced app-side.)
+Prices (from `src/core/pricing.ts`): Individual $9.99 / $84·yr; Individual Plus $14.99 / $126·yr;
+Family $18.99 / $156·yr. 14-day free trials. (Family = up to 4 seats — enforced app-side.)
 
 > **Family was repriced 2026-09-07, before any store product existed.** At $336 a two-athlete
 > household — the modal family — paid $84 MORE than two Individuals at $126, so the obvious

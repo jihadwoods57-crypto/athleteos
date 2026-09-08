@@ -9,11 +9,11 @@
    paywall describe one plan each, and two descriptions of one plan is how a member buys a thing
    the other screen never promised. Keep the two in step. */
 export const CONSUMER_PLANS = [
-  { id: 'individual', name: 'Individual', monthly: 14.99, annual: 126, trialDays: 7, seatLimit: 0,
+  { id: 'individual', name: 'Individual', monthly: 9.99, annual: 84, trialDays: 14, seatLimit: 0,
     blurb: 'Your daily score, AI meal analysis, and streaks, with one connected supporter.' },
-  { id: 'individual_plus', name: 'Individual Plus', monthly: 24.99, annual: 210, trialDays: 7, seatLimit: 0,
+  { id: 'individual_plus', name: 'Individual Plus', monthly: 14.99, annual: 126, trialDays: 14, seatLimit: 0,
     blurb: 'Everything in Individual, plus full history, trends, unlimited supporters, and a shareable verified record.' },
-  { id: 'family', name: 'Family', monthly: 26.99, annual: 228, trialDays: 7, seatLimit: 4,
+  { id: 'family', name: 'Family', monthly: 18.99, annual: 156, trialDays: 14, seatLimit: 4,
     blurb: 'One household, up to 4 athletes, one bill. Parents see every dashboard.' },
 ];
 

@@ -22,9 +22,9 @@ when a roster ends.
 
 | Plan | Monthly | Annual | Effective /mo | Who it's for |
 |---|---|---|---|---|
-| Individual | $14.99 | $126 | $10.50 | History, score, AI coach, one supporter |
-| Individual Plus | $24.99 | $210 | $17.50 | Portable record + recruiting card |
-| Family | $26.99 | $228 | $19.00 | Up to 4 athletes, one bill, parent dashboards |
+| Individual | $9.99 | $84 | $7.00 | History, score, AI coach, one supporter |
+| Individual Plus | $14.99 | $126 | $10.50 | Recruiting card + portable record |
+| Family | $18.99 | $156 | $13.00 | Up to 4 athletes, one bill, parent dashboards |
 
 ## Professional & organization (Stripe · 14-day trial · annual = 2 months free · $10/mo overage on Solo/Professional, $15/mo on organization tiers)
 
