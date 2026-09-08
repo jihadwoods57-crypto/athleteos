@@ -259,18 +259,16 @@ export function scoreRing({ score, size = 338, stroke = 20, showCenter = true, u
   // windBack (motion.js) reads the first dasharray token to hide, animateRing drives data-off —
   // both work unchanged on paths.
   const off = (100 - score).toFixed(1);
-  // Below 6 the ring is "unstarted": beaded track, no band, no ceiling, no marker. The old
-  // cutoff applied only to the dot pattern, which left three artifacts at score 0: a
-  // zero-length band whose ROUND CAP still painted a full-width sweep-colored dot at the
-  // 100% mark (a dash boundary at offset 100 sits exactly on the path's endpoint), a ceiling
-  // arc that painted a solid dim band over the "unstarted" track and erased it, and dashes
-  // (1.4 on / 5 off) whose round caps at band width overlapped into a scalloped mush that
-  // read as grain. The beads below are the caps used ON PURPOSE: zero-length dashes at a
-  // spacing wider than the dot they paint.
+  // Below 6 the ring is "unstarted": no band, no ceiling, no marker. What it DOES draw is the
+  // same ring as every other state, empty — the full glass track at full width, and the inner
+  // echo line in the track's own colour rather than the sweep's. That is a founder ruling
+  // (2026-09-08): the beaded track that stood here read as "a dotted circle", a different and
+  // cheaper object than the ring an athlete sees an hour later, and the whole point of the
+  // unstarted state is that it is the SAME ring with nothing in it yet. The 6-point cutoff keeps
+  // the artifacts that motivated the beads out of the picture: a zero-length band's round cap
+  // still paints a sweep-coloured dot at the 100% mark, and a ceiling arc at 0 erases the track.
   const unstarted = score < 6;
   const started = score > 0;
-  const arcLen = 2 * Math.PI * r * (DIAL_SWEEP / 360);
-  const beadGap = (arcLen / Math.max(10, Math.round(arcLen / (stroke * 1.8)))).toFixed(2);
   // Ceiling arc: the points STILL REACHABLE today, drawn as a dim continuation of the same band
   // from `score` to `possible` — the whole path rotated so its start sits at the progress tip.
   // Since possible ≤ 100 the dash segment never crosses the gap.
@@ -342,9 +340,11 @@ export function scoreRing({ score, size = 338, stroke = 20, showCenter = true, u
            below score 6 so an empty day reads as unstarted, not broken (no pathLength here: the
            bead spacing needs user units, and the spacing divides the arc exactly so a bead seats
            at both ends of the gauge) -->
-      ${unstarted
-        ? `<path d="${dial(r)}" fill="none" stroke="var(--ring-track)" stroke-width="${(stroke * 0.55).toFixed(1)}" stroke-linecap="round" stroke-dasharray="0.001 ${beadGap}"/>`
-        : `<path d="${dial(r)}" fill="none" stroke="var(--ring-track)" stroke-width="${stroke}" stroke-linecap="round"/>`}
+      <path d="${dial(r)}" fill="none" stroke="var(--ring-track)" stroke-width="${stroke}" stroke-linecap="round"/>
+      ${/* The empty ring keeps the echo line so it has the live ring's two-line structure, but
+            in the track's colour: structure, not credit. It is drawn once, here, because the
+            live echo below is gated on `started` and rides the sweep gradient. */''}
+      ${unstarted && rEcho > 0 ? `<path d="${dial(rEcho)}" fill="none" stroke="var(--ring-track)" stroke-width="1.5" opacity="0.6"/>` : ''}
       ${/* Track top highlight — dial-lit's centered gloss line (0.06 white at 7/12 of the band
             width). Dark only: the flat-light master's track is a solid fill with no gloss. */''}
       ${!light && score >= 6 ? `<path d="${dial(r)}" fill="none" stroke="rgba(255,255,255,0.06)"
