@@ -148,9 +148,9 @@ function lockedCard(payload, period) {
     <button class="btn primary" id="mr-trial" style="width:100%">Start free trial</button>
     <div style="text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:8px;line-height:1.4">${esc(trialLine)}</div>
     <div class="mr-or">or unlock now</div>
-    <div class="sidebox flat mr-coderow" data-go="redeem-code" role="button" aria-label="Redeem a sponsor code to unlock premium instantly">
+    <div class="sidebox flat mr-coderow" data-go="redeem-code" role="button" aria-label="Redeem a code to unlock premium instantly">
       <div class="req-icon b s38">${icon('key', 17)}</div>
-      <div><div class="tt">Have a sponsor code?</div><div class="ts">Redeem it to unlock premium instantly</div></div>
+      <div><div class="tt">Have a code?</div><div class="ts">Redeem it to unlock premium instantly</div></div>
     </div>
   </section>
 

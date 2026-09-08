@@ -102,9 +102,9 @@ export default {
       <div><div class="tt">Memberships open at launch</div>
       <div class="ts">You can see what is coming below. Nothing here can be bought yet, and nothing you do on this screen charges you.</div></div>
     </div>`}
-    <div class="sidebox mr-coderow pw-pre last" data-go="redeem-code" role="button" aria-label="Redeem a sponsor code to unlock premium instantly">
+    <div class="sidebox mr-coderow pw-pre last" data-go="redeem-code" role="button" aria-label="Redeem a code to unlock premium instantly">
       <div class="req-icon g s38">${icon('key', 17)}</div>
-      <div><div class="tt">Have a sponsor code?</div><div class="ts">That is the one way to unlock premium today. Redeem it and it is on instantly.</div></div>
+      <div><div class="tt">Have a code?</div><div class="ts">That is the one way to unlock premium today. Redeem it and it is on instantly.</div></div>
       ${icon('chevron', 16, 'class="req-chev"')}
     </div>
     ${isIOSApp() ? '' : '<h2 class="eyebrow">What is coming</h2>'}` : ''}
@@ -130,9 +130,9 @@ export default {
 
     ${UI.iapReady === false ? '' : `
     <div class="mr-or">or</div>
-    <div class="sidebox mr-coderow" data-go="redeem-code" role="button" aria-label="Redeem a sponsor code to unlock premium instantly">
+    <div class="sidebox mr-coderow" data-go="redeem-code" role="button" aria-label="Redeem a code to unlock premium instantly">
       <div class="req-icon b s38">${icon('key', 17)}</div>
-      <div><div class="tt">Have a sponsor code?</div><div class="ts">Redeem it to unlock premium instantly</div></div>
+      <div><div class="tt">Have a code?</div><div class="ts">Redeem it to unlock premium instantly</div></div>
     </div>`}
 
     <div style="text-align:center;margin-top:14px">

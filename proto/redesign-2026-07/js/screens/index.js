@@ -214,7 +214,6 @@ export const screens = {
   'week-pattern': lazy(features, 'weekPattern'),
   safety: lazy(features, 'safety'),
   'bio-optin': lazy(() => import('./bio-optin.js')),
-  sponsor: lazy(() => import('./sponsor.js')),
   'redeem-code': lazy(() => import('./redeem-code.js')),
   'pass-grant': lazy(() => import('./pass-grant.js')),
   paywall: lazy(() => import('./paywall.js')),
