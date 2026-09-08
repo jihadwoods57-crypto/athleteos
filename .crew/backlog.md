@@ -4,7 +4,15 @@ Ranked queue for the daily cloud sessions (see `founder-sessions.md`). The 7 PM 
 rewrites the ranking each night. Reranked 2026-09-06 by the 7 PM POLISH session
 (day's full record: `.crew/reports/2026-09-06.md`).
 
-Where things stand tonight:
+**Update 2026-09-08 (overnight sentry):** the block below is stale in one big way — the
+founder published from his PC on 09-07 ~9 PM. The whole "ready but NOT live" pile below,
+plus his fifteen 09-07 daytime commits, is **LIVE now** (proven: both platforms' update
+manifests match `assets/proto.zip` md5 `e0e1615287…`, the 8bb4abd zip). Still NOT live:
+his two post-publish commits `fa42a61` (progress-photos removal) and `cc59162` (Family
+plan pricing) — committed without a zip rebuild; the next publish's preflight carries
+them automatically. Master was also force-pushed on 09-07 evening (7e89f61 → cc59162).
+
+Where things stand tonight (as of 09-06, see update above):
 - **Live** (founder's 09-03 PC publish, plus his 09-06 morning commits' code on any fresh
   install): meal-advice fix + decimal guard, dietitian queue RPC client, coach feed RPC
   client, parent score colors, a11y heading outline, composer pill / Liquid Glass nav /
@@ -22,7 +30,21 @@ Where things stand tonight:
 
 ## Ranked
 
-### 0 · audit debt · the founder's 16:44 audience-picker commit (7c00061) is unaudited  (dated 09-06, 7 PM)
+### 0 · missed-slot debt · 09-07's 1 PM AUDIT and 7 PM POLISH never fired — the founder's 15-commit day is LIVE unaudited  (dated 09-08, overnight sentry)
+No report entries, no reranked backlog, no digest email for 09-07 after the 8 AM
+session; every afternoon/evening commit is from the founder's PC. He then published at
+~9 PM, so a full day of his work (meal-read rewrite with correction receipt, the
+accountability "noticed what you didn't do" feature, score-dash fixes, the 54%
+parse-time diet, control placement, Family pricing) went live with no session ever
+attacking it. The overnight sentry paid the mechanical part: 16/16 gates green on the
+new tree, full `--audit-only` defect sweep run (see `.crew/reports/2026-09-08.md` for
+results), deleted-screen references grepped clean, live OTA proven byte-exact. Still
+owed: the human walk — 1 PM should attack the meal correction receipt flow, the
+accountability surfaces, and the deferred-CSS boot trick (coach.css/ob2.css flip) on a
+coach boot route. The 09-06 item below (audience picker) folds into this same walk.
+Also owed: 09-07 has no digest email; tonight's 7 PM says so in one line in today's.
+
+### 0b · audit debt · the founder's 16:44 audience-picker commit (7c00061) is unaudited  (dated 09-06, 7 PM)
 It landed AFTER today's 1 PM audit, so nobody has attacked it yet: the shared audience
 picker (js/audience.js), the assign fan-out with per-name failure reporting, roster
 Select → Assign. Tomorrow's 1 PM session walks it first (fan-out partial failures, the
@@ -124,12 +146,13 @@ alone it's not worth a sitting. Noted so October doesn't rediscover it.
 
 ## Notes for tomorrow's sessions
 - **Credential streak (update in place, don't re-diagnose):** EXPO_TOKEN invalid
-  ("bearer token is invalid") — 18 sessions through 09-07 (8 AM build). No Supabase
+  ("bearer token is invalid") — 19 sessions through 09-08 (overnight sentry). No Supabase
   creds, no Stripe key, no Cloudflare token in the cloud env. One cheap check, cite this
   line, move on. (npx eas-cli is broken in the sandbox — curl api.expo.dev/graphql with
-  the bearer instead.)
+  the bearer instead.) BUT: `node scripts/verify-ota.mjs` needs NO token — update
+  manifests are public — so any session can prove what's live even while blind.
 - Fresh sandboxes need `npm install` before `npm run verify` — 4 gates fail on missing
-  deps otherwise and it looks like real breakage. Verify prints **14 gates** as of 09-06
+  deps otherwise and it looks like real breakage. Verify prints **16 gates** as of 09-08
   (trust its summary). `npm install` churns package-lock.json; revert the noise, don't
   commit it.
 - The Drive connector cannot edit an existing Doc (schema re-checked 09-06 7 PM:
