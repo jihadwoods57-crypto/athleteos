@@ -96,7 +96,7 @@ const coachWakeup = () => import('./coach-wakeup.js');
 // a persisted operator session so the bar renders with its counts on the first paint.
 export const OPERATOR_TAB_ROUTES = [
   'coach-home', 'coach-roster', 'coach-create', 'coach-inbox', 'coach-profile',
-  'trainer', 'trainer-roster', 'trainer-create', 'trainer-inbox', 'trainer-profile', 'trainer-grow',
+  'trainer', 'trainer-roster', 'trainer-create', 'trainer-inbox', 'trainer-profile',
 ];
 
 export const screens = {
@@ -150,17 +150,7 @@ export const screens = {
   'trainer-roster': lazy(coachRoster, 'coachRoster'),
   'trainer-create': lazy(coachCreate, 'coachCreate'),
   'trainer-inbox': lazy(coach, 'coachInbox'),
-  'trainer-grow': lazy(() => import('./trainer-grow.js'), 'trainerGrow'),
-  'my-trainer-offers': lazy(() => import('./my-trainer-offers.js')),
   // Coach Marketplace (0183 to 0186): client side + coach side
-  'get-a-coach': lazy(() => import('./get-a-coach.js')),
-  'coach-directory': lazy(() => import('./coach-directory.js')),
-  'coach-listing': lazy(() => import('./coach-listing.js')),
-  'report-coach': lazy(() => import('./report-coach.js')),
-  'coach-apply': lazy(() => import('./coach-apply.js')),
-  'coach-listing-editor': lazy(() => import('./coach-listing-editor.js')),
-  'fund-plan': lazy(() => import('./fund-plan.js')),
-  'funded-plans': lazy(() => import('./funded-plans.js')),
   parent: lazy(coach, 'parent'),
   'invite-parent': lazy(coach, 'inviteParent'),
   'parent-link': lazy(coach, 'parentLink'),
@@ -214,7 +204,6 @@ export const screens = {
   'week-pattern': lazy(features, 'weekPattern'),
   safety: lazy(features, 'safety'),
   'bio-optin': lazy(() => import('./bio-optin.js')),
-  'redeem-code': lazy(() => import('./redeem-code.js')),
   'pass-grant': lazy(() => import('./pass-grant.js')),
   paywall: lazy(() => import('./paywall.js')),
   'log-training': lazy(() => import('./log-training.js')),

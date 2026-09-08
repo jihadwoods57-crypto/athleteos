@@ -91,8 +91,8 @@ export default {
           open with a live cadence switch and three selectable plan cards, and only told you that
           none of it could be bought in a note UNDER the disabled button, three cards down. So the
           athlete made a choice and then learned the choice does nothing. The one thing that DOES
-          unlock premium today — a sponsor code — was the smallest row on the screen, below the
-          fold. Both of those are now the first thing here, and the plans below read as what is
+          unlock premium today was the smallest row on the screen, below the fold. The state is now
+          the first thing here, and the plans below read as what is
           coming rather than as a checkout. Nothing is hidden: the prices are still the catalog's,
           and the picker still works, so an athlete can see exactly what they will be choosing. */''}
     ${UI.iapReady === false ? `
@@ -102,17 +102,11 @@ export default {
       <div><div class="tt">Memberships open at launch</div>
       <div class="ts">You can see what is coming below. Nothing here can be bought yet, and nothing you do on this screen charges you.</div></div>
     </div>`}
-    <div class="sidebox mr-coderow pw-pre last" data-go="redeem-code" role="button" aria-label="Redeem a code to unlock premium instantly">
-      <div class="req-icon g s38">${icon('key', 17)}</div>
-      <div><div class="tt">Have a code?</div><div class="ts">That is the one way to unlock premium today. Redeem it and it is on instantly.</div></div>
-      ${icon('chevron', 16, 'class="req-chev"')}
-    </div>
     ${isIOSApp() ? '' : '<h2 class="eyebrow">What is coming</h2>'}` : ''}
 
     ${/* Plain toggle buttons with aria-pressed, not role=tablist/tab: there are no tab panels
-          here, and claiming the tab pattern promises arrow-key semantics nothing wires. */''}
-    ${/* The iOS build with no live store rail shows no prices and no disabled buy button
-          (store-policy.js: Guidelines 3.1.1 and 2.1). What it can honestly offer is below. */''}
+          here, and claiming the tab pattern promises arrow-key semantics nothing wires. The iOS
+          build with no live store rail shows none of this (store-policy.js: 3.1.1 and 2.1). */''}
     ${isIOSApp() && UI.iapReady === false ? '' : `
     <div class="pw-toggle">
       <button class="pw-seg${UI.cadence === 'annual' ? ' on' : ''}" data-pw-cadence="annual" aria-pressed="${UI.cadence === 'annual'}">Annual <span class="pw-save">Save ${savePct}%</span></button>
@@ -127,13 +121,6 @@ export default {
       ${ctaState()}
     </section>`}
     ${statusBanner()}
-
-    ${UI.iapReady === false ? '' : `
-    <div class="mr-or">or</div>
-    <div class="sidebox mr-coderow" data-go="redeem-code" role="button" aria-label="Redeem a code to unlock premium instantly">
-      <div class="req-icon b s38">${icon('key', 17)}</div>
-      <div><div class="tt">Have a code?</div><div class="ts">Redeem it to unlock premium instantly</div></div>
-    </div>`}
 
     <div style="text-align:center;margin-top:14px">
       <button class="btn ghost sm" id="pw-restore" style="width:auto;padding:0 18px">Restore purchases</button>

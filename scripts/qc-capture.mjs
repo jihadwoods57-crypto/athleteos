@@ -196,7 +196,6 @@ const SHOTS = [
   // trainer
   { g: 'trainer', name: 'trainer-home', seed: 'trainerIdentity', route: 'coach-home', at: [7, 30], book: 'practice' },
   { g: 'trainer', name: 'trainer-book', seed: 'trainerIdentity', route: 'coach-roster', at: [7, 30], book: 'practice' },
-  { g: 'trainer', name: 'trainer-grow', seed: 'trainerIdentity', route: 'trainer-grow', at: [7, 30], book: 'practice' },
   { g: 'trainer', name: 'trainer-inbox', seed: 'trainerIdentity', route: 'trainer-inbox', at: [7, 30], book: 'practice' },
   // A trainer reading a client's meal. Same screen as the coach (nav:'operator'), different
   // identity and vocabulary — the half that would call a client's trainer 'Coach'.
@@ -216,7 +215,6 @@ const SHOTS = [
 
   // parent
   { g: 'parent', name: 'parent-home', seed: 'parentIdentity', route: 'parent', at: [19, 15], book: 'team' },
-  { g: 'parent', name: 'parent-fund', seed: 'parentIdentity', route: 'fund-plan', at: [19, 16], book: 'team' },
 
   // account / money / settings
   { g: 'account', name: 'settings', seed: 'dayComplete', route: 'settings', at: [21, 57] },

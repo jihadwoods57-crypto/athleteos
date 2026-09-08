@@ -52,7 +52,7 @@ const NAVS = {
 /* Tab-badge roll-ups. trainer-grow (new client applications) lost its tab slot when You took the
    fifth trainer tab; its badge() count now surfaces on the You tab it lives under, so a new
    application is no longer invisible until the trainer happens to open Grow. */
-const BADGE_ROLLUP = { 'trainer-profile': ['trainer-grow'] };
+const BADGE_ROLLUP = {};
 
 /* ---------------- Lazy screens (js/screens/index.js) ----------------
    Most registry entries are thunks until first use. modOf() is the one way the router reads a

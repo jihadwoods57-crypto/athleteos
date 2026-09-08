@@ -51,17 +51,9 @@ assert.strictEqual(navFor(ATHLETE, 'athlete'), 'athlete');
 assert.strictEqual(navFor(BARE, 'athlete'), 'athlete');
 assert.strictEqual(navFor(null, 'coach'), 'athlete', 'a missing module must not throw');
 
-/* A PARENT must never inherit the athlete shell. `fund-plan`, `funded-plans` and
-   `my-trainer-offers` declare no nav, and the old `mod.nav || 'athlete'` default handed a parent
-   the athlete tab bar — Home/Plan/Camera/Progress/Profile, five tabs to places a parent has no
-   account for — rendered under a parent screen. Neither role guard covers parents (both only
-   bounce coach/trainer), so nothing caught it. */
+/* A PARENT must never inherit the athlete shell: a shared screen with no nav renders in the parent shell. */
 assert.strictEqual(navFor(BARE, 'parent'), 'parent',
   'a shared screen must render in the parent shell for a parent, never the athlete one');
-for (const route of ['fund-plan', 'funded-plans', 'my-trainer-offers']) {
-  assert.strictEqual(navFor(screens[route], 'parent'), 'parent',
-    `${route} must not paint the athlete tab bar for a parent`);
-}
 // Pre-hydrate: authRole is null before the profile lands. An operator screen must fall back to
 // the coach shell rather than crashing or painting the athlete bar.
 assert.strictEqual(navFor(OPERATOR, null), 'coach');
@@ -89,7 +81,7 @@ assert.strictEqual(navFor(OPERATOR, undefined), 'coach');
 /* ---------------- the trainer dashboard is actually wired ---------------- */
 {
   // Each trainer tab route must exist, admit a trainer, and paint the trainer shell.
-  for (const route of ['trainer', 'trainer-roster', 'trainer-create', 'trainer-inbox', 'trainer-grow']) {
+  for (const route of ['trainer', 'trainer-roster', 'trainer-create', 'trainer-inbox']) {
     const mod = screens[route];
     assert.ok(mod, `trainer tab route '${route}' is not registered`);
     assert.ok(navAdmits(mod, 'trainer'), `'${route}' must admit a trainer`);

@@ -536,7 +536,6 @@ export const billing = {
     <section class="card pad">
       <button class="btn primary" id="bill-upsell" style="width:100%">See membership plans</button>
       <div style="height:10px"></div>
-      <div class="lrow" data-go="redeem-code" style="cursor:pointer"><div class="lic">${icon('key', 17)}</div><div class="lm"><div class="lt">Have a code?</div><div class="ls">From your trainer: redeem it to unlock premium</div></div>${icon('chevron', 17)}</div>
       <div class="lrow" id="bill-restore" role="button" tabindex="0" style="cursor:pointer"><div class="lic">${icon('rotate', 17)}</div><div class="lm"><div class="lt">Restore purchases</div><div class="ls">Already a member on another device?</div></div>${icon('chevron', 17)}</div>
     </section>`}
 

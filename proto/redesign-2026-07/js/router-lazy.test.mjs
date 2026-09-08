@@ -72,7 +72,7 @@ test('every thunk resolves to a module with render(), and aliases share the load
 
 test('the tab-bar badge modules are in the operator preload set', async () => {
   await loadAllScreens();
-  for (const r of ['coach-inbox', 'trainer-profile', 'trainer-grow']) {
+  for (const r of ['coach-inbox']) {
     assert.equal(typeof screens[r].badge, 'function', `${r} lost its badge()`);
     assert.ok(OPERATOR_TAB_ROUTES.includes(r), `${r} has a badge the tab bar reads; it must be preloaded`);
   }

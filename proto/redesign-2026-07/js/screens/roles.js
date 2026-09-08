@@ -11,7 +11,6 @@ import { setMyTeamCode, regenerateMyTeamCode, setMyPracticeCode, regenerateMyPra
 import { roleLabel, scopeText, normalizeRole, RESPONSIBILITIES } from '../staff-access.js';
 import { seedTemplates, templateLabel } from '../templates.js';
 import { weightsFor, styleForStructureAnswer, DEFAULT_STYLE } from '../plan-style.js';
-import { newApps } from './trainer-grow.js';
 
 /* Staff & collaborators (0061): cached per profile visit. */
 let STAFF = null;
@@ -1521,10 +1520,6 @@ function trainerSettingsSections() {
 
 export const trainerProfile = {
   nav: 'trainer', tab: 'profile',
-  /* New client applications badge. It lived on trainerGrow.badge(), but the router only reads
-     badge() from routes ON the tab bar and Grow left the bar — so applications produced no
-     badge anywhere. This tab is Grow's home now, so the count rides here. */
-  badge() { try { return newApps(); } catch { return 0; } },
   render({ sub } = {}) {
     // T-19's sibling (critique 2026-08-15): a scannable root (identity + the invite loop, the
     // trainer's daily job) plus one routed section per concern — never the wall of settings.
@@ -1677,9 +1672,7 @@ export const trainerProfile = {
           feature deleted by nav change. */''}
     <h2 class="eyebrow">Your practice</h2>
     <section class="card" style="padding:6px 16px">
-      <div class="lrow" data-go="trainer-grow"><div class="lic" style="background:rgba(var(--${hue}-rgb),0.22);color:var(--${hue}-bright)">${icon('bars', 17)}</div><div class="lm"><div class="lt">Grow your practice</div><div class="ls">Offers, applications, and new clients</div></div>${icon('chevron', 17)}</div>
       <div class="lrow" data-go="coach-insights"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('bars', 17)}</div><div class="lm"><div class="lt">Insights</div><div class="ls">Client trends and standard adherence</div></div>${icon('chevron', 17)}</div>
-      <div class="lrow" data-go="coach-apply"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('users', 17)}</div><div class="lm"><div class="lt">${ti.discipline === 'nutrition' ? 'Marketplace' : 'Coach marketplace'}</div><div class="ls">Apply to be listed: clients find and hire you here</div></div>${icon('chevron', 17)}</div>
     </section>
 
     ${/* Trust Pass defaults note (2026-08-11) lives on with its row inside trainer-profile/

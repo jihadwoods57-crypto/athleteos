@@ -80,7 +80,6 @@ export default {
       <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:4px;line-height:1.5">Share your execution, receive requirements, and communicate directly.</div>
       <div style="display:flex;gap:10px;margin-top:12px">
         <button class="btn primary sm" data-go="connect" style="width:auto;padding:0 22px">${icon('key', 16)} Connect</button>
-        <button class="btn ghost sm" data-go="get-a-coach" style="width:auto;padding:0 18px">${icon('users', 16)} Get a coach</button>
       </div>
     </section>`}
 
@@ -123,15 +122,8 @@ export default {
           chunk the groups below already keep, and these rows share a different job — what the
           work proves to outsiders, not the daily loop. Row count unchanged, like the split
           below. */''}
-    ${S.audience === 'client' && S.coach.kind === 'trainer' ? `
-    <h2 class="eyebrow">Coaching</h2>
-    <section class="card" style="padding:6px 16px">
-      <div class="lrow" data-go="my-trainer-offers">
-        <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div>
-        <div class="lm"><div class="lt">Packages</div><div class="ls">${S.coach.isNamed ? `What ${esc(S.coach.nameMid)} offers` : 'Plans your trainer offers'}</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
-    </section>` : `
+    ${/* A trainer's adult client is not being recruited; the discipline record is a team athlete's surface. */''}
+    ${S.audience === 'client' && S.coach.kind === 'trainer' ? '' : `
     <h2 class="eyebrow">Proof &amp; recruiting</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="recruiting">
@@ -168,7 +160,6 @@ export default {
     <h2 class="eyebrow">Membership</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="billing"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Plan &amp; billing</div><div class="ls">Your membership &amp; premium features</div></div>${icon('chevron', 17)}</div>
-      <div class="lrow" data-go="redeem-code"><div class="lic">${icon('key', 17)}</div><div class="lm"><div class="lt">Redeem a code</div><div class="ls">Unlock premium with a code from your trainer</div></div>${icon('chevron', 17)}</div>
     </section>
 
     <h2 class="eyebrow">Privacy &amp; app</h2>
