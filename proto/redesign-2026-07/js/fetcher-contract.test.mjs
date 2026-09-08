@@ -174,3 +174,60 @@ test('the same reads still answer empty when the server really is empty', async 
     globalThis.window.sb = prev;
   }
 });
+
+test('a successful team read returns the coach link, not { error: true }', async () => {
+  // Regression (2026-09-08): fetchMyCoach declared `let coachId` inside the inner try block while
+  // the return statement read it from the scope outside, and the ReferenceError was swallowed by
+  // the outer catch into { error: true } — every athlete with a real team link read as a failed
+  // fetch. The two tests above cannot catch that class: they only ever exercise reads whose
+  // server half FAILS, so the broken success path never runs. This one drives the read all the
+  // way through a healthy server and pins the full shape of the answer.
+  const okQuery = (value) => {
+    const p = new Proxy(function () {}, {
+      get(_t, prop) {
+        if (prop === 'then') return (resolve, reject) => Promise.resolve({ data: value, error: null }).then(resolve, reject);
+        if (prop === 'catch' || prop === 'finally') return () => p;
+        return () => p;
+      },
+      apply() { return p; },
+    });
+    return p;
+  };
+  globalThis.window = globalThis.window || {};
+  const prev = globalThis.window.sb;
+  globalThis.window.sb = {
+    from: () => okQuery({ id: 'team-1', name: 'Tigers' }),
+    rpc: (fn) => okQuery(fn === 'team_head_coach_id' ? 'coach-uid-1' : 'Coach Dana'),
+    storage: { from: () => okQuery(null) },
+    auth: {
+      getUser: async () => ({ data: { user: { id: 'u-1' } }, error: null }),
+      getSession: async () => ({ data: { session: { access_token: 't' } }, error: null }),
+    },
+  };
+  try {
+    const out = await roles.fetchMyCoach();
+    assert.deepStrictEqual(out,
+      { teamId: 'team-1', teamName: 'Tigers', name: 'Coach Dana', coachId: 'coach-uid-1' },
+      'a healthy team + head-coach read must come back as the link, with the coach uid on it');
+  } finally {
+    globalThis.window.sb = prev;
+  }
+});
+
+test('a failed team read answers { error: true }, never "confirmed no team"', async () => {
+  // The other half of the fetchMyCoach contract (found by the 2026-09-08 adversarial review):
+  // supabase-js resolves network failures instead of throwing, so a read that only checks
+  // `!team` turned a hiccup into null — the confirmed-empty sentinel — and _loadCoachIntoRt
+  // then wiped a real coach link and could fire the roster-ended card. fetchMyCoach is not in
+  // READS above because null is its honest empty; this pins the failure shape explicitly.
+  globalThis.window = globalThis.window || {};
+  const prev = globalThis.window.sb;
+  globalThis.window.sb = failingClient();
+  try {
+    const out = await roles.fetchMyCoach();
+    assert.deepStrictEqual(out, { error: true },
+      'a team read the server never answered must read as a FAILURE, not as "no team link"');
+  } finally {
+    globalThis.window.sb = prev;
+  }
+});

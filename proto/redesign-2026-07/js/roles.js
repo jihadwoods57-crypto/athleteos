@@ -158,14 +158,22 @@ export async function fetchMyTeamIdentity() {
 export async function fetchMyCoach() {
   const c = sb(); if (!c) return null;
   try {
-    const { data: team } = await c.from('teams').select('id,name').limit(1).maybeSingle();
+    // supabase-js RESOLVES failures (error on the result, no throw), so a bare `!team` read a
+    // network hiccup as "confirmed no team" — state then wiped the real coach link and could
+    // fire the roster-ended card off a dead spot in the athlete's Wi-Fi. Same contract as
+    // fetchMyTeamIdentity: failure is { error: true }, only a real empty read is null.
+    const { data: team, error: terr } = await c.from('teams').select('id,name').limit(1).maybeSingle();
+    if (terr) return { error: true };
     if (!team) return null;
     let coachName = '';
+    // The head coach's uid (0225), so the athlete's surfaces can paint their coach's face the
+    // way the coach's surfaces paint theirs. Best-effort: a null here is initials, not an error.
+    // Declared HERE, in the scope the return below reads from: as a `let` inside the try it was
+    // unbound at the return, and the ReferenceError turned every successful team read into
+    // { error: true } — athletes kept a stale coach (or, on a fresh session, none at all).
+    let coachId = null;
     try {
       const { data: n } = await c.rpc('team_head_coach_name', { team: team.id });
-      // The head coach's uid (0225), so the athlete's surfaces can paint their coach's face the
-      // way the coach's surfaces paint theirs. Best-effort: a null here is initials, not an error.
-      let coachId = null;
       try { const { data: cid } = await c.rpc('team_head_coach_id', { team: team.id }); coachId = cid || null; } catch { coachId = null; }
       coachName = (typeof n === 'string' && n) || '';
     } catch { /* name is optional — the team link alone is real */ }
