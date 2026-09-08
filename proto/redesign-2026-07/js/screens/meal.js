@@ -2,7 +2,7 @@ import { S, RT, tier, act, MEAL, mealDetail, fmtClock, liveWeightPct } from '../
 import { DAY, slotDeadline } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg, nonLiveBadge, composer, segBar, skeletonRows } from '../components.js';
-import { reveal } from '../motion.js';
+import { reveal, buzz } from '../motion.js';
 import { scoreMoveBar, playScoreMove } from '../score-move.js';
 import {
   openingMessage, openingSummary, qualityBand, scoreReasons, coachFocus, reactionGroups, threadMessages,
@@ -1493,6 +1493,96 @@ export const thread = {
           <div class="bubble tdots"><span></span><span></span><span></span></div></div>
         </div>`;
 
+    /* THE RECOMPUTE RECEIPT (2026-09-07).
+       A chat correction rewrote protein, calories and the meal score in a card that is almost
+       always scrolled off the top of the thread, immediately after the AI had said "updating
+       your numbers and score now". The app kept the promise and showed no evidence of it, so
+       from the athlete's seat a correction and a correction that silently failed looked
+       identical. This is the evidence: what each figure was, what it is, counted from one to
+       the other so the change is something you watch happen rather than something you are told.
+       It obeys the plan style like every other numeric surface — a professional who hid
+       calories hides them here too — and the meal score is always shown, because it is a score
+       and not calorie math. */
+    let corrFx = null;
+    const corrReceipt = () => {
+      if (!corrFx || !corrFx.rows.length) return '';
+      return `
+        <div class="msg ai" id="corr-fx">
+          <div class="av">${icon('sparkle', 15)}</div>
+          <div class="corr-card" role="status">
+            <div class="corr-head">${corrFx.done ? icon('check', 14) : '<span class="corr-spin" aria-hidden="true"></span>'}<span>${corrFx.done ? 'Updated' : 'Recomputing'}</span></div>
+            ${corrFx.rows.map((r) => `
+              <div class="corr-row">
+                <span class="ck">${esc(r.label)}</span>
+                ${/* While it is working the destination is a placeholder, not the old value
+                      repeated: "24g -> 24g" is the shape of a change that did not happen, which
+                      is the exact thing this card exists to disprove. */''}
+                <span class="cv"><i class="was">${esc(r.fromText)}</i>${icon('arrowRight', 12)}${corrFx.done
+                  ? `<b data-fx-from="${r.from}" data-fx-to="${r.to}" data-fx-unit="${esc(r.unit || '')}">${esc(r.fromText)}</b>`
+                  : '<b class="pend" aria-hidden="true"></b>'}</span>
+              </div>`).join('')}
+          </div>
+        </div>`;
+    };
+    /* Count each figure from its old value to its new one. Text only, so nothing here animates a
+       layout property; the card's own entrance is a transform. prefers-reduced-motion lands every
+       value immediately, which is the whole point of the receipt anyway. */
+    const playCorrReceipt = (root) => {
+      const card = root.querySelector('#corr-fx');
+      // The guard lives on corrFx, not on the node: paint() rebuilds threadEl.innerHTML on every
+      // repaint (the 15s poll, a reaction, a coach message landing), so a DOM-local flag would
+      // let a finished receipt replay its count-up minutes later under the athlete's thumb.
+      if (!card || !corrFx || corrFx.played) return;
+      const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const nums = [...card.querySelectorAll('[data-fx-to]')];
+      const settle = (n) => { n.textContent = n.dataset.fxTo + (n.dataset.fxUnit || ''); };
+      if (reduce) { corrFx.played = true; corrFx.done = true; nums.forEach(settle); buzz('reveal'); return; }
+      card.classList.add('in');
+      // A beat on "Recomputing" before the numbers move. The deterministic kitchen math is
+      // effectively instant, so without it the figures would jump the moment the card appeared
+      // and the work would read as a glitch rather than as work. 420ms is long enough to see and
+      // short enough that nobody waits on it.
+      if (!corrFx.done) {
+        corrFx.played = true;
+        setTimeout(() => { if (!corrFx) return; corrFx.done = true; corrFx.played = false; paint(); }, 420);
+        return;
+      }
+      corrFx.played = true;
+      const dur = 900, t0 = performance.now();
+      const step = (t) => {
+        const p = Math.min(1, (t - t0) / dur);
+        const e = 1 - Math.pow(1 - p, 3);           // ease-out cubic, same curve as the ring
+        for (const n of nums) {
+          const a = +n.dataset.fxFrom, b = +n.dataset.fxTo;
+          n.textContent = String(Math.round(a + (b - a) * e)) + (n.dataset.fxUnit || '');
+        }
+        if (p < 1) requestAnimationFrame(step);
+        else { nums.forEach(settle); card.classList.add('landed'); buzz('reveal'); }
+      };
+      requestAnimationFrame(step);
+    };
+    /* Build the receipt from what the reducer actually moved. A figure that did not change is
+       left out: a receipt that lists four unchanged numbers is noise, and one that lists a
+       number as "24 → 24" reads as a bug. */
+    const setCorrFx = (before, after) => {
+      const P = S.planStyle;
+      const cand = [];
+      if (P.showMacros) {
+        cand.push(['Protein', before.protein, after.protein, 'g']);
+        cand.push(['Carbs', before.carbs, after.carbs, 'g']);
+        cand.push(['Fat', before.fat, after.fat, 'g']);
+      }
+      if (P.showCalories) cand.push(['Calories', before.kcal, after.kcal, '']);
+      cand.push(['Meal score', before.quality, after.quality, '']);
+      const rows = cand
+        .filter(([, a, b]) => a != null && b != null && Math.round(+a) !== Math.round(+b))
+        .map(([label, a, b, unit]) => ({
+          label, unit, from: Math.round(+a), to: Math.round(+b),
+          fromText: Math.round(+a) + (unit || ''),
+        }));
+      corrFx = rows.length ? { rows } : null;
+    };
+
     // The Yes / No under a remember-this reply (2026-09-02), while the fact is still pending.
     // "Still pending" is what the pending-facts fetch says, once it has said anything for this
     // athlete; before that, an offer row shows its chips rather than hiding a live question.
@@ -1632,7 +1722,7 @@ export const thread = {
       const earlierBtn = hiddenCount > 0
         ? `<button class="cont-earlier" id="thread-more">View ${hiddenCount} earlier message${hiddenCount === 1 ? '' : 's'} &rarr;</button>`
         : '';
-      threadEl.innerHTML = coachPin + openingLead + earlierBtn + rows + openingTail + (aiTyping ? typingRow() : '')
+      threadEl.innerHTML = coachPin + openingLead + earlierBtn + rows + openingTail + (aiTyping ? typingRow() : '') + corrReceipt()
         + (seen ? `<div class="seen">${seen}</div>` : '')
         + (tail.length ? `<div class="msg-status">${tail.join(' ')}</div>` : '');
       hydrateAvatars(threadEl);   // 0206: message monograms upgrade to real faces
@@ -1648,6 +1738,7 @@ export const thread = {
       // conversation; someone scrolled up reading the breakdown stays where they put themselves.
       scrollThreadToEnd(threadEl);
       void hydrateThreadPhotos(threadEl, roles);
+      playCorrReceipt(threadEl);
     };
 
     const setTyping = (on) => { aiTyping = !!on; paint(); };
@@ -2000,6 +2091,10 @@ export const thread = {
             if (applied.unpriced && applied.unpriced.length) {
               setNote(`Added what I could price. There are no numbers on file for ${applied.unpriced.join(' or ')}, so it isn't counted yet. Tell me its protein and calories, or what it's closest to, and I'll count it.`);
             } else setNote('');
+            // The receipt. `before` rides the reducer's return because meta0 is gone by the time
+            // it lands anywhere else; `applied.meta` is the corrected record. Set BEFORE the
+            // repaint so the thread paints it in the same frame the numbers change.
+            if (applied.before && applied.meta) setCorrFx(applied.before, applied.meta);
             // Full repaint: score ring, breakdown tiles, rubric, coach focus, day progress —
             // every surface on this screen re-derives from the corrected record.
             if (window.__render) window.__render();

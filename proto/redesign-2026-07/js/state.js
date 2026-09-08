@@ -2365,6 +2365,17 @@ export const act = {
     if (!parts.length) return null;
     const r = {
       meta,
+      /* What the numbers WERE, so a caller can show the athlete the move rather than just the
+         destination (2026-09-07). The chat correction used to rewrite protein, calories and the
+         meal score silently, in a card that is usually scrolled off screen, right after the AI
+         had said "updating your numbers and score now" — so the app made a promise and then
+         showed no evidence it had kept it. meta0 is the pre-correction record; it is captured
+         here because it is gone everywhere else by the time the reducer returns. */
+      before: {
+        protein: Number(meta0.protein) || 0, carbs: Number(meta0.carbs) || 0,
+        fat: Number(meta0.fat) || 0, kcal: Number(meta0.kcal) || 0,
+        quality: meta0.quality != null ? Number(meta0.quality) : null,
+      },
       summary: parts.map((p) => p.r.summary).join(' · '),
       kcalDelta: Math.abs((meta.kcal || 0) - (Number(meta0.kcal) || 0)),
       added: parts.flatMap((p) => p.r.added || []),

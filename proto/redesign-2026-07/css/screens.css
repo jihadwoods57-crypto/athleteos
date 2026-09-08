@@ -680,6 +680,69 @@
 
 /* The AI is composing. A live indicator, because that is what every other conversation this
    athlete has ever had looks like while someone types. */
+/* ===== The recompute receipt (2026-09-07) =====
+   Lands in the meal thread the moment a chat correction is applied, and shows the athlete the
+   move: each changed figure counting from what it was to what it is. The card is the evidence
+   for a promise the AI has already made in the bubble above it ("updating your numbers and
+   score now"), which until now the app kept silently, in a card scrolled off the top.
+   Motion is opacity + transform only, one-shot, ease-out; the count itself is text. */
+.corr-card{
+  background:var(--surface-2); border:1px solid var(--green-border); border-radius:var(--r-card);
+  padding:var(--s3) var(--s3h) var(--s2h); min-width:0; flex:1;
+  opacity:0; transform:translateY(6px);
+}
+.corr-card.in{ transition:opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out); opacity:1; transform:none; }
+.corr-head{
+  display:flex; align-items:center; gap:var(--s1h); color:var(--green-bright);
+  font-size:var(--t-eyebrow); font-weight:800; letter-spacing:var(--track-eyebrow);
+  text-transform:uppercase; margin-bottom:var(--s2h);
+}
+.corr-head svg{flex:none}
+/* The working beat: a ring that draws itself once rather than a spinner that loops forever.
+   The recompute is deterministic and fast, so this is a beat, not a wait — it exists so the
+   numbers are seen to change rather than seen to have changed. --ease-in-out is sanctioned for
+   symmetric loops (DESIGN.md amendment 2026-08-25) and this is exactly one. */
+.corr-spin{
+  width:13px; height:13px; flex:none; border-radius:var(--r-pill);
+  border:2px solid rgba(var(--green-rgb), 0.25); border-top-color:var(--green-bright);
+  animation:corr-spin 620ms linear infinite;
+}
+@keyframes corr-spin{to{transform:rotate(360deg)}}
+/* While it is working the card is neutral: the green edge is the verdict, and the verdict has
+   not arrived yet. */
+.corr-card:not(.landed){border-color:var(--hairline)}
+.corr-row{
+  display:flex; align-items:baseline; justify-content:space-between; gap:var(--s3);
+  padding:var(--s1h) 0; border-top:1px solid var(--hairline-soft);
+}
+.corr-row:first-of-type{border-top:none}
+.corr-row .ck{font-size:var(--t-sm); font-weight:700; color:var(--text-2)}
+.corr-row .cv{display:inline-flex; align-items:center; gap:var(--s1h); font-variant-numeric:tabular-nums}
+/* The old value stays legible but clearly spent: this is a record of a change, and striking it
+   out entirely would read as "wrong" rather than as "was". */
+.corr-row .cv .was{font-style:normal; font-size:var(--t-sm); font-weight:700; color:var(--text-3)}
+.corr-row .cv svg{color:var(--text-3); flex:none}
+.corr-row .cv b{font-size:var(--t-md); font-weight:800; color:var(--text); letter-spacing:var(--num-tight)}
+/* The destination before it has a value: a bar the width a number will occupy, breathing on the
+   symmetric-loop easing --ease-in-out is sanctioned for. It gives the eye somewhere to be
+   waiting, which is what makes the arrival read as an arrival. */
+.corr-row .cv b.pend{
+  width:34px; height:13px; border-radius:var(--r-micro); background:var(--surface-3);
+  display:inline-block; animation:corr-pend 1.1s var(--ease-in-out) infinite;
+}
+@keyframes corr-pend{0%,100%{opacity:.45}50%{opacity:.9}}
+/* One exhale as the last value lands. No loop: the number has finished changing. */
+.corr-card.landed{box-shadow:0 0 0 1px var(--green-border), 0 10px 26px rgba(var(--green-rgb), 0.16)}
+.corr-card.landed .corr-head svg{animation:corr-pop var(--dur-2) var(--ease-out)}
+@keyframes corr-pop{from{transform:scale(0.6);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion: reduce){
+  .corr-card{opacity:1;transform:none}
+  .corr-card.in{transition:none}
+  .corr-card.landed .corr-head svg{animation:none}
+  .corr-spin{animation:none}
+  .corr-row .cv b.pend{animation:none}
+}
+
 .msg .tdots { display: inline-flex; gap:var(--s1); align-items: center; padding:var(--s3h) var(--s4); }
 .msg .tdots span {
   width: 6px; height: 6px; border-radius: 50%; background: var(--text-3);
