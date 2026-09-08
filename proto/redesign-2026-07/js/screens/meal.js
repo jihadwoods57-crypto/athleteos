@@ -1642,7 +1642,7 @@ export const thread = {
       const shown = msgs.slice(-PREVIEW_MSGS);
       const hiddenCount = msgs.length - shown.length;
       const lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
-      const rows = layoutThread(shown, { fmtTime: fmtMsgTime, fmtDay: dayKey, fmtDayLabel: dayLabelOf }).map((item) => {
+      const rows = layoutThread(shown, { muted: RT.mutedUsers, fmtTime: fmtMsgTime, fmtDay: dayKey, fmtDayLabel: dayLabelOf }).map((item) => {
         if (item.type === 'time') return `<div class="tsep">${esc(item.label)}</div>`;
         const c = item.comment;
         const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);

@@ -3065,7 +3065,7 @@ export const coachMeal = {
           <div><div class="who">AI Nutritionist · what the ${CD.noun} was told</div>
           <div class="bubble">${esc(opening)}</div></div>
         </div>` : ''}
-        ${layoutThread(msgs, { fmtTime: msgClock, fmtDay: msgDay, fmtDayLabel: dayLabelOf }).map((item) => {
+        ${layoutThread(msgs, { muted: RT.mutedUsers, fmtTime: msgClock, fmtDay: msgDay, fmtDayLabel: dayLabelOf }).map((item) => {
           if (item.type === 'time') return `<div class="tsep">${esc(item.label)}</div>`;
           const c = item.comment;
           // "athlete" styling is reserved for the OTHER side of the conversation; on the coach's

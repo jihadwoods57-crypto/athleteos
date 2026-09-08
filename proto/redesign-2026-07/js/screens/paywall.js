@@ -7,6 +7,7 @@
    founder wires react-native-purchases + store products). When it isn't, the CTA reads
    "Available at launch" — never a dead button — and the always-working sponsor-code path is
    right there. The numbers a member unlocks are the written coaching, never the athlete's stats. */
+import { isIOSApp, storeNotice } from '../store-policy.js';
 import { backHead, esc } from '../components.js';
 import { icon } from '../icons.js';
 import { RT } from '../state.js';
@@ -54,7 +55,10 @@ function ctaState() {
   }
   const label = p.trialDays > 0 ? `Start ${p.trialDays}-day free trial` : `Start ${esc(p.name)}`;
   return `<button class="btn primary" id="pw-buy" style="width:100%">${label}</button>
-    <div class="pw-note">${esc(disclosure(p, UI.cadence))} No charge today.</div>`;
+    <div class="pw-note">${esc(disclosure(p, UI.cadence))} No charge today.</div>
+    ${/* Guideline 3.1.2: an auto-renewing subscription screen links its Terms of Use and Privacy
+          Policy in the binary, not only in the store listing. */''}
+    <div class="pw-note"><span class="link" data-go="terms" role="button" tabindex="0">Terms of Use</span> · <span class="link" data-go="privacy" role="button" tabindex="0">Privacy Policy</span></div>`;
 }
 
 function statusBanner() {
@@ -92,20 +96,24 @@ export default {
           coming rather than as a checkout. Nothing is hidden: the prices are still the catalog's,
           and the picker still works, so an athlete can see exactly what they will be choosing. */''}
     ${UI.iapReady === false ? `
+    ${isIOSApp() ? storeNotice('Membership is not bought in the app yet.', 'Your stats are always yours; membership only adds the written coaching.') : `
     <div class="sidebox pw-pre">
       <div class="req-icon b s38">${icon('clock', 17)}</div>
       <div><div class="tt">Memberships open at launch</div>
       <div class="ts">You can see what is coming below. Nothing here can be bought yet, and nothing you do on this screen charges you.</div></div>
-    </div>
+    </div>`}
     <div class="sidebox mr-coderow pw-pre last" data-go="redeem-code" role="button" aria-label="Redeem a sponsor code to unlock premium instantly">
       <div class="req-icon g s38">${icon('key', 17)}</div>
       <div><div class="tt">Have a sponsor code?</div><div class="ts">That is the one way to unlock premium today. Redeem it and it is on instantly.</div></div>
       ${icon('chevron', 16, 'class="req-chev"')}
     </div>
-    <h2 class="eyebrow">What is coming</h2>` : ''}
+    ${isIOSApp() ? '' : '<h2 class="eyebrow">What is coming</h2>'}` : ''}
 
     ${/* Plain toggle buttons with aria-pressed, not role=tablist/tab: there are no tab panels
           here, and claiming the tab pattern promises arrow-key semantics nothing wires. */''}
+    ${/* The iOS build with no live store rail shows no prices and no disabled buy button
+          (store-policy.js: Guidelines 3.1.1 and 2.1). What it can honestly offer is below. */''}
+    ${isIOSApp() && UI.iapReady === false ? '' : `
     <div class="pw-toggle">
       <button class="pw-seg${UI.cadence === 'annual' ? ' on' : ''}" data-pw-cadence="annual" aria-pressed="${UI.cadence === 'annual'}">Annual <span class="pw-save">Save ${savePct}%</span></button>
       <button class="pw-seg${UI.cadence === 'monthly' ? ' on' : ''}" data-pw-cadence="monthly" aria-pressed="${UI.cadence === 'monthly'}">Monthly</button>
@@ -117,7 +125,7 @@ export default {
 
     <section class="card pad" style="margin-top:4px">
       ${ctaState()}
-    </section>
+    </section>`}
     ${statusBanner()}
 
     ${UI.iapReady === false ? '' : `

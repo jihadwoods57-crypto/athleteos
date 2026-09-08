@@ -108,8 +108,14 @@ export function authorName(comment, participants, selfId, fallbackNoun) {
  * thread crossing midnight printed "2026-7-24 · 11:58 PM" (zero-indexed month and all) as a
  * separator. When fmtDayLabel is absent, fmtDay still labels, which keeps old callers working.
  */
-export function layoutThread(msgs, { fmtTime = () => '', fmtDay = null, fmtDayLabel = null } = {}) {
-  const list = (Array.isArray(msgs) ? msgs : []).filter(Boolean);
+export function layoutThread(msgs, { fmtTime = () => '', fmtDay = null, fmtDayLabel = null, muted = null } = {}) {
+  /* `muted`: author ids this reader has blocked (RT.mutedUsers). Dropped HERE, in the one pure
+     layout every thread renderer shares, so a block holds in all four and cannot be forgotten by
+     the next one. Grouping and day separators are computed on what remains, so a muted run never
+     leaves a headless "3 hours later" gap behind. */
+  const hide = muted && (muted instanceof Set ? muted : new Set(Array.isArray(muted) ? muted.map(String) : []));
+  const list = (Array.isArray(msgs) ? msgs : []).filter(Boolean)
+    .filter((c) => !(hide && hide.size && c.author_id && hide.has(String(c.author_id))));
   const out = [];
   let prev = null;
   for (let i = 0; i < list.length; i++) {

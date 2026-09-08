@@ -2,6 +2,7 @@
    Reached from Profile's Settings section. Buy flow opens Stripe Checkout in the system browser
    (same pattern as my-trainer-offers.js); below the buy form, a list of the sponsor's own
    sponsorships with the code prominent so it's easy to read out or copy. */
+import { canOpenExternalCheckout, storeNotice } from '../store-policy.js';
 import { backHead, esc, errorState, copyText, statusMsg } from '../components.js';
 import { icon } from '../icons.js';
 import * as roles from '../roles.js';
@@ -29,7 +30,9 @@ export default {
     const rows = CACHE.rows || [];
     return `${backHead('Sponsor access', 'Fund premium seats for a group', 'profile')}
 
-    <h2 class="eyebrow">Buy seats</h2>
+    ${/* The iOS build has no buy form at all (store-policy.js): a seat count and "Stripe shows
+          the total" with nowhere to go is the placeholder Guideline 2.1 rejects. */''}
+    ${canOpenExternalCheckout() ? `<h2 class="eyebrow">Buy seats</h2>
     <section class="card pad">
       <label for="sp-seats" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Number of seats</label>
       <input class="ob-input" id="sp-seats" type="number" min="1" step="1" inputmode="numeric" value="${esc(UI.seats)}" placeholder="10" />
@@ -49,9 +52,10 @@ export default {
       <div id="sp-err" style="color:var(--red);font-size:13px;font-weight:600;min-height:18px"></div>
       <button class="btn primary" id="sp-buy" ${UI.buying ? 'disabled style="opacity:.6"' : ''}>${icon('bolt', 18)} ${UI.buying ? 'Starting checkout…' : UI.openedCheckout ? 'Reopen checkout' : 'Buy seats'}</button>
       ${UI.openedCheckout ? statusMsg({ text: 'Checkout opened in your browser. Finished paying? It shows here within a minute.', style: 'display:block;color:var(--text-2);margin-top:8px' }) : ''}
-    </section>
-    <div class="sidebox" style="margin-top:10px"><div class="req-icon b" style="width:34px;height:34px">${icon('lock', 15)}</div>
-      <div><div class="tt">Secure checkout via Stripe</div><div class="ts">Opens in your browser. OnStandard never sees or stores your card details.</div></div></div>
+    </section>` : ''}
+    ${canOpenExternalCheckout() ? `<div class="sidebox" style="margin-top:10px"><div class="req-icon b" style="width:34px;height:34px">${icon('lock', 15)}</div>
+      <div><div class="tt">Secure checkout via Stripe</div><div class="ts">Opens in your browser. OnStandard never sees or stores your card details.</div></div></div>`
+    : storeNotice('Sponsor seats are bought from your account on the web, not inside the app.', 'Seats you already hold show below.')}
 
     <h2 class="eyebrow" style="margin-top:16px">Your sponsorships</h2>
     ${!CACHE.loaded ? `
@@ -75,7 +79,7 @@ export default {
     : `
     <div class="state-demo"><div class="sd-ic">${icon('bolt', 24)}</div>
     <div class="sd-t">No sponsorships yet</div>
-    <div class="sd-s">Buy a batch of seats above and you'll get a code to share.</div></div>`}
+    <div class="sd-s">${canOpenExternalCheckout() ? "Buy a batch of seats above and you'll get a code to share." : 'Seats bought from your account on the web show here with their code.'}</div></div>`}
     <div style="height:10px"></div>
     `;
   },

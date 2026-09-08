@@ -2343,3 +2343,20 @@ export async function submitCoachReport(practiceId, reason, detail) {
 }
 
 export { cap };
+
+/* ---------------- Report a person's messages (0227, App Store Guideline 1.2) ----------------
+   The intake behind the members sheet's Report button. Same shape as reportCoach: the row is the
+   reader's own (insert-own RLS), a person on the OnStandard team reads it. Returns { ok } or
+   { ok:false, error }; never throws into a UI that has already told the reader it sent. */
+export async function reportContent({ subjectId = null, mealId = null, teamId = null, commentId = null, reason = 'other', detail = '' } = {}) {
+  const c = sb(); if (!c) return { ok: false, error: 'offline' };
+  try {
+    const { data: { user } = {} } = await c.auth.getUser();
+    if (!user) return { ok: false, error: 'signed out' };
+    const { error } = await c.from('content_reports').insert({
+      reporter_id: user.id, subject_id: subjectId || null, meal_id: mealId || null, team_id: teamId || null,
+      comment_id: commentId || null, reason, detail: String(detail || '').slice(0, 2000),
+    });
+    return error ? { ok: false, error: error.message } : { ok: true };
+  } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+}

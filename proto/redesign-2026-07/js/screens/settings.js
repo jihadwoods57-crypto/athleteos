@@ -1,4 +1,5 @@
 import { S, RT, act, roleNav, roleProfileRoute, liveWeightPct } from '../state.js';
+import { canOpenExternalCheckout } from '../store-policy.js';
 import { icon } from '../icons.js';
 import { mapPressure } from '../exec.js';
 import { normalizePrefs } from '../notify-plan.js';
@@ -555,6 +556,8 @@ export const billing = {
     if (manage) manage.addEventListener('click', async () => {
       // A Stripe-rail plan manages in the Stripe portal; IAP manages in the store. Same row.
       if (BILL.sub && BILL.sub.tier === 'team') {
+        // The iOS build does not open the Stripe portal (store-policy.js, Guideline 3.1.3(b)).
+        if (!canOpenExternalCheckout()) { if (msg) msg.textContent = 'Your Team plan is managed from your account on the web, not inside the app.'; return; }
         if (msg) msg.textContent = 'Opening your billing portal…';
         const p = await roles.openBillingPortal();
         if (p.ok) { if (window.OnStandardNative?.openUrl) window.OnStandardNative.openUrl(p.url); else location.href = p.url; if (msg) msg.textContent = ''; }
@@ -1014,6 +1017,7 @@ export const deleteAccount = {
         const manage = subNote.querySelector('#del-sub-manage');
         const go = async () => {
           if (team) {
+            if (!canOpenExternalCheckout()) { if (status) status.textContent = 'Your Team plan is managed from your account on the web, not inside the app.'; return; }
             const p = await roles.openBillingPortal();
             if (p.ok) { if (window.OnStandardNative?.openUrl) window.OnStandardNative.openUrl(p.url); else location.href = p.url; }
             else if (status) { status.textContent = p.error || 'Could not open the billing portal.'; }

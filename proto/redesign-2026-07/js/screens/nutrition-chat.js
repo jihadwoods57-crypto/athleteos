@@ -314,7 +314,7 @@ export default {
 
     const renderRun = (list, participants, allMsgs) => {
       const lastMsg = list.length ? list[list.length - 1] : null;
-      return layoutThread(list, { fmtTime, fmtDay: dayKey, fmtDayLabel: dayLabelOf }).map((item) => {
+      return layoutThread(list, { muted: RT.mutedUsers, fmtTime, fmtDay: dayKey, fmtDayLabel: dayLabelOf }).map((item) => {
         if (item.type === 'time') return `<div class="tsep">${esc(item.label)}</div>`;
         const c = item.comment;
         const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);

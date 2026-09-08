@@ -14,6 +14,7 @@
  * the trial (server sends trial_period_days), the duplicate-subscription guard (server 409s and
  * this screen routes to the portal). The client states intent and renders answers.
  */
+import { canOpenExternalCheckout, storeNotice } from '../store-policy.js';
 import { RT, act, roleNav } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, alertMsg, statusMsg, esc } from '../components.js';
@@ -84,9 +85,15 @@ export const planUpgrade = {
       <div><div class="tt">That needs a plan</div><div class="ts">Your free preview has ended. Your roster is still yours to read; ${esc(RT.planWall)} needs one of the plans below.</div></div>
     </div>` : '';
     RT.planWall = null;
-    return `<div id="pu-root">${backHead('Choose a plan', 'First plan starts with a free 14-day trial', 'settings')}
+    return `<div id="pu-root">${canOpenExternalCheckout()
+      ? backHead('Choose a plan', 'First plan starts with a free 14-day trial', 'settings')
+      : backHead('Your plan', 'Managed from your account on the web', 'settings')}
     ${wall}
     ${founding}
+    ${/* The iOS build sells nothing through Stripe (store-policy.js, Guideline 3.1.1): no cards
+          to tap, no prices for a purchase that cannot be made here, no "billed by Stripe" copy.
+          The wall above still tells an expired coach what needs a plan; this tells them where. */''}
+    ${!canOpenExternalCheckout() ? storeNotice('Team and practice plans are set up from your account on the web, not inside the app.', 'Your roster, activity and inbox stay readable here either way.') : `
     <h2 class="eyebrow" style="margin-top:16px">${picked && plans.some((p) => p.id === picked) ? 'Your pick from onboarding' : 'Plans'}</h2>
     <div style="display:flex;flex-direction:column;gap:10px">
       ${plans.map((p) => {
@@ -105,7 +112,7 @@ export const planUpgrade = {
       Billed by Stripe in your browser. The app never sees your card. Included seats count
       <b>active</b> athletes only: someone who stops logging stops counting, and $${overageRate}/mo covers each
       active athlete beyond your plan. Cancel anytime in your account settings.
-    </div>
+    </div>`}
     ${/* Failures and info notes shared one amber div, so "checkout failed" and "opening your
           portal" wore the same clothes. A failure is red and announced (alertMsg, role=alert);
           an informational note is quiet grey (statusMsg, role=status). */''}

@@ -292,6 +292,7 @@ const DEFAULT_RT = {
   tourSeen: {},          // first-run tour + contextual tips: id ('tour:athlete' | 'tip:progress') -> ISO shown-at (tour.js). Wiped per-account with the rest of DEFAULT_RT.
   profile: null,         // athlete identity: {name, sport, position, school, level, avatar(dataURL)} — from onboarding / signed-in profile, never fabricated
   ob: null,              // onboarding scratch — the athlete's real selections, captured as they build their Standard
+  mutedUsers: [],        // profile ids whose messages this reader hides (Guideline 1.2 block). Device-local, never sent.
   allergies: [],         // FLAT summary list (guardian check + profile row). Derived from restrictions when structured.
   restrictions: null,    // structured (spec §18.1): {allergies:[{name,severity}], intolerances:[], preferences:[]}
   injured: false,        // injury mode: the Standard adapts (rehab replaces recovery emphasis)
@@ -2761,6 +2762,12 @@ export const act = {
   /* Onboarding scratch: the athlete's real selections captured step-by-step (DOM is wiped
      between routes, so each interaction persists here rather than being read at the end). */
   captureOb(patch) { RT.ob = { ...(RT.ob || {}), ...patch }; save(); },
+  /* Block a person (App Store Guideline 1.2): their messages disappear from every thread on this
+     device, immediately, and stay gone across reloads. The list is the reader's own and never
+     leaves the phone. Muting is not reporting; report_content in roles.js is the intake. */
+  muteUser(id) { const k = String(id || ''); if (!k) return; const s = new Set(RT.mutedUsers || []); s.add(k); RT.mutedUsers = [...s]; save(); },
+  unmuteUser(id) { const k = String(id || ''); RT.mutedUsers = (RT.mutedUsers || []).filter((x) => x !== k); save(); },
+  isMuted(id) { return (RT.mutedUsers || []).includes(String(id || '')); },
   clearJoin() { if (RT.ob) { delete RT.ob.join; save(); } },
   saveAllergies(list) { RT.allergies = list.slice(0, 8); save(); },
   /* Structured restrictions (spec §18.1): allergies carry per-allergen severity;

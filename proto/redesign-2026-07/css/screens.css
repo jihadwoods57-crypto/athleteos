@@ -2926,3 +2926,11 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .meal-foot .btn.meal-back { width: auto; min-width: 210px; color: var(--text-2); }
 .meal-foot .btn.meal-back:active { color: var(--text); }
 body.kb-open .meal-foot { display: none; }
+
+/* Members sheet: Report and Mute on a person's row (0227, Guideline 1.2). The row keeps its
+   avatar and text; the actions sit under them on their own line so a long name never squeezes a
+   44px control. Reason chips replace the actions in place. */
+.memsheet .ms-row{flex-wrap:wrap}
+.memsheet .ms-acts{display:flex;gap:var(--s2);flex-basis:100%;padding-left:var(--s8);margin-top:var(--s1h)}
+.memsheet .ms-acts .btn.sm{width:auto;padding:0 var(--s3h)}
+.memsheet .ms-acts .chip{min-height:36px}
