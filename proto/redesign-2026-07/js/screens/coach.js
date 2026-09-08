@@ -1743,7 +1743,9 @@ function joinRow(q) {
   return `
     <div class="jr">
       <div class="jr-top">
-        <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 17)}</div>
+        ${/* Who is asking, as a face (0206): a coach approving a join request is deciding about a
+              person, and the roster row they are about to become already shows one. */''}
+        <span class="ros-av jr-av"${q.athlete_id ? ` data-avatar-uid="${esc(q.athlete_id)}"` : ''} aria-hidden="true"><span data-avatar-fallback>${esc(initialsOf(q.athlete_name || 'A', 'A'))}</span></span>
         <div class="jr-who">
           <div class="t">${armed ? `Decline ${esc(q.athlete_name || 'this athlete')}?` : `${esc(q.athlete_name || 'Athlete')}${q.position ? ` <small style="color:var(--text-3);font-weight:700">· ${esc(q.position)}</small>` : ''}`}</div>
           <div class="s">${armed ? 'They can request again with your code.' : 'Wants to join'}</div>

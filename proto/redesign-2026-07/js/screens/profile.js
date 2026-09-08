@@ -338,8 +338,20 @@ export default {
             // coach, parent or teammate ever saw it.
             const ok = await window.__act.setAvatar(c.toDataURL('image/jpeg', 0.82));
             setBusy(false);
-            if (ok) { window.__render(); }
-            else { err.textContent = "The photo didn't upload. Check your connection and try again."; }
+            if (ok) { window.__render(); return; }
+            // Say what happened, in the athlete's terms. "Check your connection" was the ONLY
+            // message this line ever showed, including for the months the server refused every
+            // upload outright (0224) — a lie that sent people to their Wi-Fi settings.
+            const why = String(RT.avatarError || '');
+            err.textContent = /403|policy|unauthori[sz]ed|row-level/i.test(why)
+              ? "The server wouldn't accept the photo. That's on us, not your connection; it's been reported."
+              : /413|too large|size/i.test(why)
+                ? 'That photo is too large even after resizing. Try a different one.'
+                : /415|mime|type/i.test(why)
+                  ? 'That file type is not supported. Try a JPG or PNG.'
+                  : /network|fetch|timeout|threw/i.test(why)
+                    ? "The photo didn't upload. Check your connection and try again."
+                    : "The photo didn't upload. Try again in a moment; if it keeps failing, it's on our side.";
           };
           img.src = reader.result;
         };

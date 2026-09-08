@@ -139,7 +139,10 @@ export default {
         const who = assigned ? (assigned.from || '') : (S.coach.hasCoach && S.coach.isNamed ? S.coach.name : '');
         if (!who) return '';
         const init = who.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
-        return `<div class="who"><div class="av">${esc(init)}</div><div><div class="nm">${esc(who)}</div><div class="rl">${assigned ? 'On this task' : 'On this requirement'}</div></div></div>`;
+        // The coach's face (0206/0225) when the attribution is the linked head coach; an assigned
+        // task credits a name only, so it stays initials.
+        const uid = !assigned && S.coach.id ? S.coach.id : '';
+        return `<div class="who"><div class="av"${uid ? ` data-avatar-uid="${esc(uid)}"` : ''}><span data-avatar-fallback>${esc(init)}</span></div><div><div class="nm">${esc(who)}</div><div class="rl">${assigned ? 'On this task' : 'On this requirement'}</div></div></div>`;
       })()}
       ${req.note ? `<p>“${esc(req.note)}”</p>` : ''}
     </div>

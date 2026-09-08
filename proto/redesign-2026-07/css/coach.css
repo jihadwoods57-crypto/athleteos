@@ -757,6 +757,9 @@
 .aud-row[aria-checked="true"] .aud-box svg { opacity: 1; }
 .aud-row[aria-checked="true"] .aud-name { color: var(--text); }
 .aud-row .ros-av { width: 30px; height: 30px; }
+/* Faces where a coach acts on one person (2026-09-08): the priority card and the join request. */
+.co-pri-av { flex: none; margin-right: var(--s2); }
+.jr-top .ros-av { flex: none; }
 .aud-name { flex: 1; min-width: 0; font-size: var(--t-md); font-weight: 700; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .aud-name small { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); margin-left: var(--s1h); }
 .aud-none { padding: var(--s4) var(--s3); font-size: var(--t-sm); font-weight: 600; color: var(--text-3); }

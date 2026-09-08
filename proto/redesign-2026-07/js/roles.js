@@ -163,9 +163,13 @@ export async function fetchMyCoach() {
     let coachName = '';
     try {
       const { data: n } = await c.rpc('team_head_coach_name', { team: team.id });
+      // The head coach's uid (0225), so the athlete's surfaces can paint their coach's face the
+      // way the coach's surfaces paint theirs. Best-effort: a null here is initials, not an error.
+      let coachId = null;
+      try { const { data: cid } = await c.rpc('team_head_coach_id', { team: team.id }); coachId = cid || null; } catch { coachId = null; }
       coachName = (typeof n === 'string' && n) || '';
     } catch { /* name is optional — the team link alone is real */ }
-    return { teamId: team.id, teamName: team.name || '', name: coachName };
+    return { teamId: team.id, teamName: team.name || '', name: coachName, coachId };
   } catch { return { error: true }; }
 }
 
@@ -587,7 +591,7 @@ export async function uploadChatPhoto(userId, base64) {
     deterministic path — avatars/<uid>/avatar.jpg, upsert — so every connected surface can paint
     it from the uid alone (js/avatar.js). Best-effort boolean. */
 export async function uploadAvatar(userId, base64) {
-  const c = sb(); if (!c || !userId || !base64) return false;
+  const c = sb(); if (!c || !userId || !base64) return { ok: false, error: 'no-client' };
   try {
     const bin = atob(base64);
     const bytes = new Uint8Array(bin.length);
@@ -597,8 +601,13 @@ export async function uploadAvatar(userId, base64) {
     // and a replaced photo sat behind their browser cache for an hour. A minute is the honest
     // ceiling for "your new picture shows up everywhere".
     const up = await c.storage.from('avatars').upload(`${userId}/avatar.jpg`, bytes, { contentType: 'image/jpeg', upsert: true, cacheControl: '60' });
-    return !up.error;
-  } catch { return false; }
+    // THE REASON RIDES BACK (2026-09-08). This returned a bare boolean, and the screen turned every
+    // false into "check your connection". The avatars bucket had refused every upload since it
+    // shipped — a missing SELECT policy under the upsert (0224) — and the message blamed Wi-Fi.
+    // The caller decides what the athlete reads; the console gets the truth either way.
+    if (up.error) { try { console.warn('[avatar] upload refused:', up.error.message || up.error); } catch { /* noop */ } return { ok: false, error: String(up.error.message || up.error.statusCode || 'upload') }; }
+    return { ok: true };
+  } catch (e) { try { console.warn('[avatar] upload threw:', e); } catch { /* noop */ } return { ok: false, error: 'threw' }; }
 }
 
 /** Remove the profile picture. Best-effort boolean. */

@@ -2733,8 +2733,12 @@ export const act = {
     const uid = RT.userId;
     const b64 = String(dataUrl || '').split(',')[1] || '';
     if (!uid || !b64) return false;
-    const ok = await rpcUploadAvatar(uid, b64);
-    if (!ok) return false;
+    const r = await rpcUploadAvatar(uid, b64);
+    // A string reason on failure, so the screen can say what actually happened. Callers that
+    // only ever tested truthiness keep working: an object with ok:true is truthy, a string is not
+    // returned on success.
+    if (!r || !r.ok) { RT.avatarError = (r && r.error) || 'upload'; return false; }
+    RT.avatarError = null;
     const p = RT.profile || (RT.profile = {});
     p.avatar = dataUrl;
     RT.avatarVer = String(Date.now());   // busts the session probe cache AND the CDN cache
@@ -4111,6 +4115,7 @@ export const S = {
     const name = ((src && src.name) || '').trim();
     const team = c ? ((c.teamName || '').trim()) : ((tr && tr.practiceName) || '').trim();
     return {
+      id: (c && c.coachId) || null,     // the head coach's uid (0225): the key every face is painted from
       hasCoach: !!src,                  // a real coach (team) OR trainer (practice) link exists
       kind,                             // 'coach' | 'trainer' | null — lets copy pick the noun
       noun: kind === 'trainer' ? 'trainer' : 'coach',

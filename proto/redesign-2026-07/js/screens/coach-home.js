@@ -1,5 +1,6 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
+import { initialsOf } from '../initials.js';
 import { avatarHead, esc, safeImg, collapseSection, skeletonRows, errorState, emptyState, emailVerifyBanner, wireEmailVerifyBanner, copyText } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope, logBookIntervention, passWorthy, bookId } from '../coach-data.js';
@@ -667,6 +668,9 @@ function priorityCard(c, i, nudgedToday) {
   <div class="co-pri ${rankCls} t-${tier}" data-vt-row="pri-${esc(c.athleteId)}">
     <div class="co-pri-head" data-go="coach-athlete/${esc(c.athleteId)}">
       <div class="co-pri-rank">${i + 1}</div>
+      ${/* The athlete's face (0206), where a coach is about to act on a specific athlete. Same
+            [data-avatar-uid] hook as the roster row: initials until the photo resolves. */''}
+      <span class="ros-av co-pri-av" data-avatar-uid="${esc(c.athleteId)}" aria-hidden="true"><span data-avatar-fallback>${esc(initialsOf(c.name, '?'))}</span></span>
       <div class="co-pri-main">
         <div class="co-pri-name">${esc(c.name)}${c.unit ? `<span class="pos">${esc(c.unit)}</span>` : ''}<span class="status-pill ${TIER_PILL[tier] || 'b'}">${tierLbl}</span></div>
         ${c.reasons.map(r => `<div class="co-pri-reason">${esc(r)}</div>`).join('')}

@@ -177,7 +177,7 @@ function athleteRow(r, inst) {
   const showBar = r.status === 'in_progress' || r.status === 'missed';
 
   return `<div class="lrow" data-cs-row="${esc(r.result_id)}">
-    <div class="lic cs-ini">${esc(initials(r.name))}</div>
+    <div class="lic cs-ini"${r.athlete_id ? ` data-avatar-uid="${esc(r.athlete_id)}"` : ''}><span data-avatar-fallback>${esc(initials(r.name))}</span></div>
     <div class="lm">
       <div class="lt">${esc(r.name || 'Athlete')}</div>
       ${why || r.disputed_at ? `<div class="ls">${why}${r.disputed_at ? `${why ? ' · ' : ''}disputed` : ''}</div>` : ''}

@@ -548,9 +548,12 @@ export function appHead(sub, extra) {
     <div class="actions">
       ${extra || ''}
       ${bellBtn(n)}
-      ${S.athlete.avatar && safeImg(S.athlete.avatar)
-        ? `<div class="avatar" data-go="profile" aria-label="Your profile" style="background-image:url('${safeImg(S.athlete.avatar)}');background-size:cover;background-position:center"></div>`
-        : `<div class="avatar" data-go="profile" aria-label="Your profile" data-avatar-uid="${esc(RT.userId || '')}" data-avatar-ver="${esc(RT.avatarVer || '')}"><span data-avatar-fallback>${esc(S.athlete.initials)}</span></div>`}
+      ${/* ONE source of truth for the face: the server object, through the same [data-avatar-uid]
+            hook every other surface uses. The branch that painted a locally cached data URL
+            first is gone (2026-09-08): it showed a photo the server had never accepted, so the
+            athlete saw their face in the header while every coach, parent and teammate saw
+            initials — and the upload failure that caused it stayed invisible for months. */''}
+      <div class="avatar" data-go="profile" aria-label="Your profile" data-avatar-uid="${esc(RT.userId || '')}" data-avatar-ver="${esc(RT.avatarVer || '')}"><span data-avatar-fallback>${esc(S.athlete.initials)}</span></div>
     </div>
   </header>`;
 }
