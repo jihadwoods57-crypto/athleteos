@@ -202,6 +202,18 @@ const SHOTS = [
   // identity and vocabulary — the half that would call a client's trainer 'Coach'.
   { g: 'trainer', name: 'trainer-meal', seed: 'trainerIdentity', route: 'coach-meal/meal-seed-lunch', at: [7, 30], book: 'practice' },
 
+  // dietitian (the team nutrition lens: the meal review queue leads the board)
+  { g: 'dietitian', name: 'diet-home', seed: 'dietitianIdentity', route: 'coach-home', at: [20, 10], book: 'team' },
+  { g: 'dietitian', name: 'diet-roster', seed: 'dietitianIdentity', route: 'coach-roster', at: [20, 10], book: 'team' },
+  { g: 'dietitian', name: 'diet-meal', seed: 'dietitianIdentity', route: 'coach-meal/meal-seed-lunch', at: [20, 10], book: 'team' },
+  // The retry tap: a deep link into an athlete while the book is still loading lands in the
+  // offline state (coach-data.js loadAthleteProfile races loadBook); Try again recovers it.
+  { g: 'dietitian', name: 'diet-athlete', seed: 'dietitianIdentity', route: 'coach-athlete/ath-4', at: [20, 10], book: 'team',
+    act: `const b = document.getElementById('coach-ath-retry'); if (b) b.click();`, actMs: 2500 },
+  { g: 'dietitian', name: 'diet-inbox', seed: 'dietitianIdentity', route: 'coach-inbox', at: [20, 10], book: 'team' },
+  { g: 'coach', name: 'coach-athlete', seed: 'coachIdentity', route: 'coach-athlete/ath-4', at: [20, 10], book: 'team',
+    act: `const b = document.getElementById('coach-ath-retry'); if (b) b.click();`, actMs: 2500 },
+
   // parent
   { g: 'parent', name: 'parent-home', seed: 'parentIdentity', route: 'parent', at: [19, 15], book: 'team' },
   { g: 'parent', name: 'parent-fund', seed: 'parentIdentity', route: 'fund-plan', at: [19, 16], book: 'team' },

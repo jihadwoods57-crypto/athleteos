@@ -203,6 +203,10 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
     guardian_child_days: () => DAYS.filter(d => d.athlete_id === ATHLETES[0].id).map(d => ({ day: d.date, score: d.score, grade: d.grade })),
     my_funded_plans: () => [],
     has_premium_access: () => true,
+    // 0223: the operator entitlement. Unanswered, the catch-all [] below reads as "no access
+    // row" and every operator capture led with the "Your free preview has ended" paywall card,
+    // pushing the actual board below the fold in every screenshot since the plan shipped.
+    book_access: () => (window.__BOOK_ACCESS || { entitled: true, reason: 'paid' }),
 
     // Who is in the meal conversation (0158). Real names and real roles — the whole point of the
     // participants header is that "Coach" becomes "Coach Brown", so a stub that returned nothing
@@ -379,6 +383,9 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
       instance_id: 'b-' + i, athlete_id: a.id, athlete_name: a.name, occurs_on: TODAY,
       type: 'morning_roll_call', title: '5 AM Club', respond_by_min: 315,
       timezone: 'America/New_York',
+      // Without starts_at the board's status line printed "On standard until . Closes ." in
+      // every capture: deadlineOf/closesAtOf derive from it.
+      starts_at: TODAY + 'T09:15:00Z', respond_by_at: TODAY + 'T09:15:00Z',
       // A real spread: most up, one excused, one that genuinely could not be verified.
       status: i < 3 ? 'acknowledged' : i === 3 ? 'excused' : i === 4 ? 'unverified' : 'pending',
       acknowledged_at: i < 3 ? TODAY + 'T09:0' + (i + 1) + ':00Z' : null,

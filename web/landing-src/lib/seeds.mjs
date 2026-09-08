@@ -284,6 +284,17 @@ export const trainerIdentity = `${COMMON}
 
 /* ------------------------------------------------------------------ parent */
 
+/* The TEAM dietitian lens (0202 teams.discipline): a nutrition professional running a roster
+   of athletes. Same book as the coach, the fueling vocabulary and the meal review queue. */
+export const dietitianIdentity = `${COMMON}
+  RT.authRole = 'coach';
+  RT.userId = 'seed-dietitian';
+  RT.profile = { name: 'Priya Natarajan', sport: 'Football', school: 'Lincoln High' };
+  RT.team = { id: 'seed-team', name: 'Lincoln Varsity Football', code: 'LVF24', discipline: 'nutrition' };
+  RT.activationDate = iso(120);
+  window.__render();
+`;
+
 export const parentIdentity = `${COMMON}
   RT.authRole = 'parent';
   RT.userId = 'seed-parent';
@@ -295,5 +306,5 @@ export const SEEDS = {
   dayMorning, dayMidday, dayComplete, dayLate, dayFirst, dayLockStamp, stagedCapture, coachUpgrade, coachPickedPlan, rosterEnded,
   feedbackBug, feedbackSafety,
   styleStructured, styleGuided, styleIntuitive, styleCaloriesOff, memoryEditStructured, memoryEditIntuitive, memoryEditCaloriesOff,
-  coachIdentity, trainerIdentity, parentIdentity,
+  coachIdentity, trainerIdentity, dietitianIdentity, parentIdentity,
 };
