@@ -338,6 +338,21 @@ let LAST_FULL = null;     // the route (route/sub) the previous render painted �
                           // re-render (window.__render) PRESERVE scroll instead of snapping to top (T-08)
 
 function currentFull() { const { route, sub } = parse(); return sub ? `${route}/${sub}` : route; }
+
+/* An invite link carries its code through sign-up (2026-09-08). onstandard.app/join?code=X opens
+   the app at #connect/X, which is a signed-in screen: for the person the link was actually sent
+   to, a brand-new athlete with no account yet, the auth gate bounced them to Welcome and the
+   code was gone. They then met "Got a team code?" near the END of a twenty-step onboarding with
+   an empty box and a text message to scroll back through. The whole point of a link over a code
+   is that nobody retypes it. Stash it in the onboarding scratch (RT.ob.join is exactly what the
+   connect step pre-fills from and what persistOnboarding redeems), and the gate redirects as
+   before. Sanitised to the code alphabet; the preview and join RPCs re-validate regardless. */
+function stashInviteCode(route, sub) {
+  if (route !== 'connect') return;
+  const code = String(sub || '').toUpperCase();
+  if (!/^[A-Z0-9]{4,12}$/.test(code)) return;
+  try { act.captureOb({ join: { kind: 'team', code } }); } catch { /* scratch is best-effort */ }
+}
 function currentScroll() { const vp = document.getElementById('viewport'); return vp ? vp.scrollTop : 0; }
 
 /* A move ACROSS a screen's own sibling tabs, not deeper into it.
@@ -597,7 +612,7 @@ function render(opts) {
   // import renders a real error state with a retry, never a dead screen.
   let resolved = screens[route] || screens.notfound;
   if (isLazy(resolved)) {
-    if (!RT.userId && !AUTH_ROUTES.includes(route)) { location.hash = '#welcome'; return; }
+    if (!RT.userId && !AUTH_ROUTES.includes(route)) { stashInviteCode(route, sub); location.hash = '#welcome'; return; }
     if (!LOAD_FAILED.has(route)) { awaitScreen(route); return; }
     resolved = failedScreen(route);
   }
@@ -610,7 +625,7 @@ function render(opts) {
   NAV_INTENT = false;
   // Auth gate on EVERY render, not just boot: a signed-out runtime (expired/cleared session)
   // must never keep rendering app screens on a hash change.
-  if (!RT.userId && !AUTH_ROUTES.includes(route)) { location.hash = '#welcome'; return; }
+  if (!RT.userId && !AUTH_ROUTES.includes(route)) { stashInviteCode(route, sub); location.hash = '#welcome'; return; }
   // Landing on Welcome (sign-out, fresh boot) drops every stack — the next account starts clean.
   if (route === 'welcome' && (NAV.tab !== 'home' || Object.keys(NAV.stacks).length)) { NAV = emptyNav(); navSave(); }
   // An unknown route resolves to a REAL not-found screen, never to Home. Falling back to Home
@@ -1102,8 +1117,8 @@ async function boot() {
   // otherwise let the render gate paint an authed shell against cached data until the next data
   // call. Same cleanup SIGNED_OUT uses; keeps pending-onboarding scratch. (stress-test R1)
   if (!authed && RT.userId) { try { act._wipeUserScopedState({ keepPendingOb: true }); } catch { /* never block boot */ } }
-  const { route } = parse();
-  if (!authed && !AUTH_ROUTES.includes(route)) { location.hash = '#welcome'; return; } // hashchange → render
+  const { route, sub } = parse();
+  if (!authed && !AUTH_ROUTES.includes(route)) { stashInviteCode(route, sub); location.hash = '#welcome'; return; } // hashchange → render
   if (authed && (route === 'welcome' || !location.hash)) { location.hash = '#' + routeForRole(RT.authRole || 'athlete'); return; }
   render();
 }
