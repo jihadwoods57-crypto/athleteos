@@ -1023,9 +1023,22 @@ function planCard() {
   if (!a || a.reason === 'paid' || a.reason === 'unknown') return '';
   const endsMs = a.preview_ends_at ? Date.parse(a.preview_ends_at) : NaN;
   const daysLeft = Number.isFinite(endsMs) ? Math.max(0, Math.ceil((endsMs - Date.now()) / 86400000)) : null;
+  const when = daysLeft == null ? 'soon' : daysLeft === 0 ? 'today' : daysLeft === 1 ? 'tomorrow' : `in ${daysLeft} days`;
+  /* A comped pilot (0226) is not a self-serve trial and must not be sold to mid-flight: no plan
+     link, no "pick a plan before then", because there is nothing for this room to buy today and
+     a checkout push would be the wrong thing to hand a partner we invited. It still counts down
+     honestly, and it still goes amber in the last three days, because a pilot ending quietly is
+     the failure this whole window exists to prevent. */
+  if (a.reason === 'pilot' && a.entitled) {
+    const soon = daysLeft != null && daysLeft <= 3;
+    return `<div class="sidebox pw-pre${soon ? ' warn' : ''}">
+      <div class="req-icon ${soon ? 'a' : 'b'} s38">${icon('clock', 17)}</div>
+      <div class="pw-body"><div class="tt">Your pilot ends ${when}</div>
+      <div class="ts">Everything is switched on until then, and nothing is charged. We will talk before it runs out.</div></div>
+    </div>`;
+  }
   if (a.entitled) {
     const soon = daysLeft != null && daysLeft <= 3;
-    const when = daysLeft == null ? 'soon' : daysLeft === 0 ? 'today' : daysLeft === 1 ? 'tomorrow' : `in ${daysLeft} days`;
     return `<div class="sidebox pw-pre tap${soon ? ' warn' : ''}" data-go="plan-upgrade" role="button">
       <div class="req-icon ${soon ? 'a' : 'b'} s38">${icon('clock', 17)}</div>
       <div class="pw-body"><div class="tt">Your free preview ends ${when}</div>

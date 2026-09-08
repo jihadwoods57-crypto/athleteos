@@ -2545,7 +2545,11 @@ export const coachAthlete = {
     // Overview rather than rendering a permanently empty panel.
     if (!profileSections().some(([k]) => k === PSECTION)) PSECTION = 'overview';
     const who = rosterName(athleteId);
-    const opView = CD.kind === 'practice' ? 'trainer view' : 'coach view';
+    /* The lens names itself honestly: a nutrition book is read by a dietitian, and stamping
+       "coach view" under an athlete's name told the one professional this board was built for
+       that they were looking at somebody else's screen. isNutritionBook() covers all three doors
+       (nutrition practice, dietitian-owned team, invited team nutritionist). */
+    const opView = isNutritionBook() ? 'dietitian view' : CD.kind === 'practice' ? 'trainer view' : 'coach view';
     const opBack = CD.kind === 'practice' ? 'trainer-roster' : 'coach-roster';
     if (!athleteId) return `${backHead(CD.kind === 'practice' ? 'Client' : 'Athlete', opView, opBack)}<div class="state-demo"><div class="sd-t">No ${CD.kind === 'practice' ? 'client' : 'athlete'} selected</div></div>`;
     const P = CD.profile;
@@ -2971,21 +2975,35 @@ export const coachMeal = {
       const t = fromPhoto ? '~' : '';
       const srcLabel = meal.source === 'label' ? 'exact, from the nutrition label'
         : meal.source === 'manual' ? 'entered by the athlete' : 'estimated from the photo';
+      /* A macro the read never returned is ABSENT, not zero. `|| 0` printed "~0g carbs" and
+         "~0g fat" beside "~780 calories" under a quality line reading "in balance" — a plate
+         that cannot exist, asserted with full confidence, on the screen a dietitian judges this
+         product by. null and 0 are different facts and now render differently; a real measured
+         zero still prints 0. Same rule the ~ prefix already follows: say exactly what is known. */
+      const mg = (v, unit) => (v == null ? '—' : `${t}${v}${unit}`);
+      /* Two of the three macros missing while the calories are substantial is a partial read,
+         not a plate with no carbs and no fat. Name it, and put the correction under the thumb
+         instead of behind a 12px text link — correcting a read is the dietitian's whole job. */
+      const partial = [meal.protein, meal.carbs, meal.fat].filter((v) => v == null).length >= 2
+        && (meal.kcal || 0) > 300;
       return `
       <h2 class="eyebrow" style="display:flex;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">Estimated Nutrition</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></h2>
       <div class="macro-row four">
-        <div class="macro"><div class="mv">${t}${meal.protein || 0}g</div><div class="mk">Protein</div></div>
-        <div class="macro"><div class="mv">${t}${meal.carbs || 0}g</div><div class="mk">Carbs</div></div>
-        <div class="macro"><div class="mv">${t}${meal.fat || 0}g</div><div class="mk">Fat</div></div>
-        <div class="macro"><div class="mv">${t}${meal.kcal || 0}</div><div class="mk">Calories</div></div>
+        <div class="macro"><div class="mv">${mg(meal.protein, 'g')}</div><div class="mk">Protein</div></div>
+        <div class="macro"><div class="mv">${mg(meal.carbs, 'g')}</div><div class="mk">Carbs</div></div>
+        <div class="macro"><div class="mv">${mg(meal.fat, 'g')}</div><div class="mk">Fat</div></div>
+        <div class="macro"><div class="mv">${mg(meal.kcal, '')}</div><div class="mk">Calories</div></div>
       </div>
+      ${partial ? `<div class="est-note">The read only returned part of this plate. A dash means the photo did not give us that number, not a zero.</div>` : ''}
       ${meal.fiber != null ? `<div class="est-note" style="margin-top:6px">~${meal.fiber}g fiber estimated.</div>` : ''}
       ${/* Correct the read (0199): the professional lane ob2-nutrition promised. The numbers are
             computed on THIS device by the same deterministic machinery the athlete's own
             corrections use (applyFoodRemoval / applyMealCorrection); pro_correct_meal only
             authorizes, clamps and persists; the athlete's day score follows through the thread
             payload when they next open the meal. */''}
-      <div class="est-note" style="margin-top:6px"><span class="link" id="cm-correct" role="button">${FIX_FOR === mealId ? 'Close the correction panel' : 'Correct the read'}</span></div>
+      <div class="est-note" style="margin-top:6px">${partial && FIX_FOR !== mealId
+        ? `<button class="btn sm primary" id="cm-correct">Correct the read</button>`
+        : `<span class="link" id="cm-correct" role="button">${FIX_FOR === mealId ? 'Close the correction panel' : 'Correct the read'}</span>`}</div>
       ${FIX_FOR === mealId ? (() => {
         const rich = normalizeDetected(meal.detected);
         const dis = FIX_BUSY ? ' disabled' : '';

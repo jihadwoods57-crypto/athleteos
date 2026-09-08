@@ -36,6 +36,23 @@ const LIST = process.argv.includes('--list');
 
 const DASH = /\u2014|&mdash;/g;
 
+/* THE NULL GLYPH IS NOT PUNCTUATION (2026-09-08). DESIGN.md bans the em dash in COPY: the
+   punctuation mark inside a sentence, where a comma or a colon belongs. A lone em dash standing
+   as an entire value \u2014 `<div class="mv">\u2014</div>` in a macro tile with no number, `'\u2014'` returned
+   for a score that does not exist yet \u2014 is not punctuation at all. It is this app's established
+   glyph for "there is no value here", and it is what the athlete's own meal screen already
+   renders for an unread macro (js/screens/meal.js, the pending macro row).
+
+   Before this exemption the gate counted those, which made it fire on the one change that was
+   ADOPTING the convention correctly, and left only two ways out: write a higher ceiling (which
+   the ratchet exists to forbid) or invent a second placeholder glyph and split the vocabulary in
+   two. A 2026-09-08 audit of the coach screens found every one of the ten counted em dashes in
+   that scope was this glyph and not one was inside a sentence.
+
+   Deliberately narrow: the dash must be the WHOLE text node or the WHOLE string literal. Prose
+   punctuation always sits inside a longer run of text, so no real violation can hide here. */
+const NULL_GLYPH = /(?:>\s*(?:\u2014|&mdash;)\s*<)|(?:(['"`])\s*(?:\u2014|&mdash;)\s*\1)/g;
+
 /* Identical to copy-lint's stripper: block and line comments out, line numbering preserved,
    and a `//` inside a URL left alone.
 
@@ -61,7 +78,9 @@ function walk(dir, acc = []) {
 const counts = {};
 const hits = [];
 for (const p of walk(SRC)) {
-  const stripped = stripComments(readFileSync(p, 'utf8'));
+  // Comments out first (the ban is about copy, not about how the code explains itself), then the
+  // standalone null glyph out, and what is left is punctuation inside real sentences.
+  const stripped = stripComments(readFileSync(p, 'utf8')).replace(NULL_GLYPH, '');
   const n = (stripped.match(DASH) || []).length;
   if (n > 0) {
     const rel = relative(join(ROOT, '..'), p).split('\\').join('/');

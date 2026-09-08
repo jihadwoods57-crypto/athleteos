@@ -453,6 +453,15 @@ export function qualityBand(score) {
  *  suggests" and a 0 reading with produce visible is skipped entirely. */
 export function qualityReason(macros, fiber, detected) {
   const m = macros || {};
+  /* A macro the read never returned is ABSENT, not zero. `Number(null) || 0` made a plate whose
+     carbs and fat were never read look like a plate that contained none, and every test below
+     then passed on protein alone: the meal screen printed "Protein, carbs, and fat are in
+     balance on this plate" beside two dashes and 780 calories. Balance is a claim about three
+     numbers. With fewer than three there is no claim to make, and with none there is nothing to
+     say at all — which is what the empty string has always meant to the callers. */
+  const known = [m.protein, m.carbs, m.fat].filter((v) => v != null).length;
+  if (!known) return '';
+  if (known < 3) return 'Only part of this plate was read, so the balance is not judged.';
   const p = Math.max(0, Number(m.protein) || 0);
   const c = Math.max(0, Number(m.carbs) || 0);
   const f = Math.max(0, Number(m.fat) || 0);

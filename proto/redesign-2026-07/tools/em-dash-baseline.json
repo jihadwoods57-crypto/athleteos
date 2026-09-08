@@ -1,20 +1,3 @@
 {
-  "js/meal-intel.js": 1,
-  "js/roles.js": 1,
-  "js/screens/accountability.js": 3,
-  "js/screens/coach-home.js": 2,
-  "js/screens/coach-roster.js": 1,
-  "js/screens/coach.js": 6,
-  "js/screens/connected-standards.js": 1,
-  "js/screens/home.js": 1,
-  "js/screens/meal.js": 1,
-  "js/screens/monthly-report.js": 9,
-  "js/screens/plan.js": 2,
-  "js/screens/roles.js": 5,
-  "js/screens/roll-call.js": 2,
-  "js/screens/standards-card.js": 1,
-  "js/screens/trust.js": 1,
-  "js/screens/verified-profile.js": 1,
-  "js/screens/weight.js": 1,
-  "js/share-card.js": 5
+  "js/meal-intel.js": 1
 }

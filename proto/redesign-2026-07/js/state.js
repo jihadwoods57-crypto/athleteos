@@ -4134,14 +4134,24 @@ export const S = {
     const realName = ((RT.profile && RT.profile.name) || '').trim();
     const realTeam = ((RT.team && RT.team.name) || '').trim();
     const code = (RT.team && RT.team.code) || '';
-    const initials = initialsOf(realName, 'C');
+    /* 0202: a TEAM can be run by a nutrition professional (teams.discipline='nutrition', what the
+       obd sign-up creates). trainerIdentity learned this for practices in 0197 and this getter
+       never did, so a head dietitian running a roster was addressed as "Coach <surname>" on every
+       screen — and the handle is not decoration: it rides every nudge push the athlete opens
+       ("<handle> is waiting") and the day-viewed receipt. It is how this person is named in front
+       of the room. A dietitian gets their own name, never a borrowed honorific, and never an
+       invented credential (no "RD" we were not told about). */
+    const nutrition = (RT.team && RT.team.discipline) === 'nutrition';
+    const initials = initialsOf(realName, nutrition ? 'D' : 'C');
     const state = RT.teamLoading ? 'loading' : RT.teamOffline ? 'offline' : !code ? 'minting' : 'live';
     // The handle the room uses ("Coach JB") — 0056 server value first, then a last-name
     // derivation, never a bare fabricated persona.
     const handle = ((RT.profile && RT.profile.coachName) || '').trim()
-      || (realName ? `Coach ${realName.split(/\s+/).pop()}` : 'Coach');
+      || (realName
+        ? (nutrition ? realName : `Coach ${realName.split(/\s+/).pop()}`)
+        : (nutrition ? 'Dietitian' : 'Coach'));
     return {
-      name: realName || 'Coach',
+      name: realName || (nutrition ? 'Dietitian' : 'Coach'),
       initials,
       handle,
       teamName: realTeam || 'Your team',
