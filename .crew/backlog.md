@@ -21,7 +21,15 @@ Where things stand tonight (2026-09-08, 7 PM):
 
 ## Ranked
 
-### 1 · audit debt · the founder's post-1PM stack went live unaudited — attack it as Apple will  (dated 09-08 7 PM; impact 5, effort m)
+### ~~1 · audit debt · the founder's post-1PM stack went live unaudited — attack it as Apple will~~  PAID 09-09 1 PM
+The human walk ran (09-09 1 PM audit): iOS paywall + plan-upgrade render honest with zero
+external links and no dead buy CTA; all seven stale routes (#sponsor, #get-a-coach, #fund-plan,
+#redeem-code, #progress-photos, #injury, #location-consent) land on the honest not-found screen;
+pre-cut `asks_arrival` rows render recorded facts only (no dead arrival stage, no arrival weight
+in the score); Report/Mute counted FOUR layoutThread callers — and the fourth (trust.js
+past-meal thread) was NOT passing `muted`, so a blocked person resurfaced on the screen a
+follow-up notification lands on. Fixed and proven in-browser same day. Transient noted below
+under "Parked". Original scope, for the record:
 **Grew 09-09 morning:** two more founder commits landed before 8 AM and are unaudited — 8e7506b
 (cut arrival check-in + location permissions + injury mode; app.json lost expo-location and
 UIBackgroundModes) and 36bc686 (home metric-row clipping fix). The 8 AM session swept the cut for
@@ -79,7 +87,7 @@ afternoon of import() rewiring only if the numbers still say so.
 
 ### Founder-blocked (recommend in one line, cite the streak, never re-diagnose)
 Fresh cloud credentials (the 08-26 `OS?` email, still unanswered): EXPO_TOKEN invalid —
-**24 sessions through 09-09 8 AM build**. No Supabase, Stripe, or Cloudflare creds in the env.
+**25 sessions through 09-09 1 PM audit**. No Supabase, Stripe, or Cloudflare creds in the env.
 The founder published tonight from his PC, so nothing user-facing is stuck — but every
 sentry stays blind to errors/analytics, sessions can't publish their own proven fixes
 (tonight's polish waits on him again), and migration state can't be confirmed from here.
@@ -119,6 +127,11 @@ If M2's team SKU happens, a "fueling check-in" for team meals is the natural swe
 alone it's not worth a sitting. Noted so October doesn't rediscover it.
 
 ## Parked with evidence
+- **Coach board: a pre-cut row with server status `arrived` shows the green "Arrived" pill next
+  to "No response yet"** (coach-commitments.js athleteRow: the pill still knows the status, the
+  detail line no longer reads arrived_at). True facts, mildly contradictory, and only possible on
+  rows scheduled before the 09-09 cut — they expire with their day. Not worth code; noted 09-09
+  1 PM in case a support question cites it.
 - **"STRONG · 84/100" sits directly above "the balance is not judged"** on a partial-read meal
   (diet-meal, 09-08 shots). The 84 is the STORED server score — rendering it is honest per the
   proxy gotcha, but the server awarded balance points on a plate it only partly read. The right
@@ -148,14 +161,19 @@ alone it's not worth a sitting. Noted so October doesn't rediscover it.
   Server-side; blocked on credentials.
 - **Safe-area bleed above the stuck glass header on notched phones**: needs a real
   device to tune — do not fix blind from the cloud.
-- **Latent, low**: long-press tapback surviving into an edge-swipe; duplicate DOM ids in
+- **Latent, low**: a thread where EVERY author is muted paints blank on the live meal, coach and
+  nutrition-chat renderers (trust.js says "Messages from people you muted are hidden." since
+  09-09 1 PM; the other three share the pre-filter empty-state shape — parity is a small copy
+  lift). Also from the same review: meal.js computes its reaction anchor pre-filter, so meal
+  reactions silently vanish when the LAST message's author is muted (trust.js anchors
+  post-filter and is fine); long-press tapback surviving into an edge-swipe; duplicate DOM ids in
   the gesture under-layer (inert today); IME Enter on non-composer inputs; dead
   `wireComposer` in settings.js; feed streak rows naming the 80 bar while the push voice
   bans internal numbers (founder taste call — recommend aligning).
 
 ## Notes for tomorrow's sessions
 - **Credential streak (update in place, don't re-diagnose):** EXPO_TOKEN invalid
-  ("bearer token is invalid") — 24 sessions through 09-09 (8 AM build). No Supabase creds, no
+  ("bearer token is invalid") — 25 sessions through 09-09 (1 PM audit). No Supabase creds, no
   Stripe key, no Cloudflare token in the cloud env. One cheap check, cite this
   line, move on. (npx eas-cli is broken in the sandbox — curl api.expo.dev/graphql with
   the bearer instead.) BUT: `node scripts/verify-ota.mjs` needs NO token — update
