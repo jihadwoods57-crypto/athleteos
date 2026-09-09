@@ -16,10 +16,10 @@
  * without a link, that purchasing is not done in the app. The platform comes from the native
  * shell (ProtoApp.tsx injects window.__PLATFORM); a plain browser has none and keeps Stripe.
  *
- * The marketplace (a client paying a human trainer through Stripe Connect) is deliberately NOT
- * gated: that is a person-to-person service delivered by a person, the category 3.1.3(e) and
- * 3.1.5 carve out, and it is named as such in the App Review notes. If Apple disagrees, the one
- * import below is the switch.
+ * The marketplace (a client paying a human trainer through Stripe Connect) was cut from the app
+ * on 2026-09-08 with the rest of the trainer commerce surfaces, so nothing here gates it any
+ * more. For the record if it returns: a person-to-person service delivered by a person is the
+ * category 3.1.3(e) and 3.1.5 carve out, and it shipped un-gated on that basis.
  */
 import { icon } from './icons.js';
 import { esc } from './components.js';

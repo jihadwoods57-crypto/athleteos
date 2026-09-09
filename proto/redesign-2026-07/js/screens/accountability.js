@@ -85,7 +85,7 @@ export default {
         title: 'Nothing to show yet',
         body: `${S.coach.hasCoach
           ? `When your ${S.coach.noun} schedules a roll call, a lift, or a study hall`
-          : 'When a roll call, a lift, or a study hall is scheduled for you'}, your responses and arrivals build this record. It's separate from your daily score.`,
+          : 'When a roll call, a lift, or a study hall is scheduled for you'}, your responses and finished sessions build this record. It's separate from your daily score.`,
         action: S.coach.hasCoach ? null : { label: 'Connect a coach', go: 'connect' },
         compact: true,
       })}`;
@@ -113,10 +113,12 @@ export default {
 
     ${wakeupSection(rows, loading)}
 
-    <h2 class="eyebrow">The three signals</h2>
+    ${/* Arrival was removed from the product 2026-09-09 (signalsAsked never asks it now), so its
+          bar could only ever read "—" again. Two signals remain; claiming a third would be the
+          kind of dead row this screen exists to never show. */''}
+    <h2 class="eyebrow">The two signals</h2>
     <section class="card pad">
       ${bar('Wake responses', m.wake.done, m.wake.total)}
-      ${bar('On-time arrivals', m.arrival.done, m.arrival.total)}
       ${bar('Completed sessions', m.completion.done, m.completion.total)}
     </section>
 
@@ -124,7 +126,7 @@ export default {
       <div class="req-icon b s38">${icon('target', 19)}</div>
       <div>
         <div class="tt">How this is weighted</div>
-        <div class="ts">Responding counts a little, arriving on time counts more, finishing the session counts most. Sleeping through a roll call doesn't wreck your day. If you're on the field on time, you keep almost all of it. Anything your phone couldn't verify is left out entirely rather than counted against you.</div>
+        <div class="ts">Responding counts a little, finishing the session counts most. Sleeping through a roll call doesn't wreck your day; finishing the work is what keeps your number up. Anything that couldn't be verified is left out entirely rather than counted against you.</div>
       </div>
     </div>
 

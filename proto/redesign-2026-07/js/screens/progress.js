@@ -84,7 +84,7 @@ function trainingCard() {
     ${ROLLCALL_OFF ? '' : `
     <div class="lrow" data-go="accountability">
       <div class="lic">${icon('sun', 17)}</div>
-      <div class="lm"><div class="lt">Morning Readiness</div><div class="ls">Wake-ups, arrivals &amp; sessions · a separate record from your score</div></div>
+      <div class="lm"><div class="lt">Morning Readiness</div><div class="ls">Wake-ups &amp; sessions · a separate record from your score</div></div>
       ${icon('chevron', 17, 'style="color:var(--text-3)"')}
     </div>`}
   </section>`;

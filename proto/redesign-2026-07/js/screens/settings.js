@@ -957,7 +957,7 @@ export const deleteAccount = {
     const WHAT = {
       coach: "Your account, your sign-in, and everything only you own. Your team's standards, templates, and history stay with the team, with your name removed from them. Your athletes keep their own logs and scores. This cannot be undone.",
       trainer: 'Your account, your practice, and its client code. Your clients keep their own logs and scores, but they lose their connection to you, and any premium access funded through your packages ends immediately. This cannot be undone.',
-      parent: 'Your account, your sign-in, and your links to your athletes. Your athletes keep their accounts and everything in them; they just lose your view. Any plan you fund is billed separately and does not cancel itself: cancel it under Funded plans first. This cannot be undone.',
+      parent: 'Your account, your sign-in, and your links to your athletes. Your athletes keep their accounts and everything in them; they just lose your view. Any plan you fund is billed separately and does not cancel itself: ask us to cancel it first, from Send feedback in Settings. This cannot be undone.',
     };
     const what = WHAT[RT.authRole] || "Your account, every meal photo, every log, every score, your coach connection, and your spot on your team's Squad board. Your coach keeps nothing of yours. This cannot be undone.";
     return `

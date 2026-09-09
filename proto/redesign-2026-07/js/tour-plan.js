@@ -188,11 +188,6 @@ const PARENT_STEPS = [
     title: "What you can see, and what you can't",
     body: 'Their daily score, their grade, and the date of their latest logged day. Meal photos, weight, and check-in answers stay between your athlete and their coach. That line is deliberate.',
   },
-  {
-    key: 'funding', anchor: 'funding',
-    title: 'You can cover their plan',
-    body: "Fund an athlete's plan from here and they keep full access; nothing about their day changes. Everything you're paying for stays listed under Funded plans.",
-  },
 ];
 
 const STEPS_BY_ROLE = Object.freeze({

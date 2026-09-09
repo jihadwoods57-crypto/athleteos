@@ -115,7 +115,7 @@ function previewCard(st) {
       ${stat('On standard', r.onStandardPct != null ? r.onStandardPct : null, '%')}
       ${stat('30-day avg', r.avg30 != null ? r.avg30 : null)}
     </div>
-    <div class="ts">${acc && acc.possible > 0 ? 'Plus your verified commitments: arrivals, roll calls, completions.' : 'No verified commitments yet. When your coach schedules them, they join the page automatically.'}${p.team && p.team.coachName ? ` Roster-verified under ${esc(p.team.coachName)}.` : ''}</div>
+    <div class="ts">${acc && acc.possible > 0 ? 'Plus your verified commitments: roll calls and completed sessions.' : 'No verified commitments yet. When your coach schedules them, they join the page automatically.'}${p.team && p.team.coachName ? ` Roster-verified under ${esc(p.team.coachName)}.` : ''}</div>
   </section>`;
 }
 
@@ -139,7 +139,7 @@ function pageSection() {
   if (!st.enabled) {
     return `<section class="card pad">
       <div class="tt" style="margin-bottom:var(--s1h)">One link that proves you show up</div>
-      <div class="ts">A public page recruiters can open from your Twitter: days on record, your rate at standard, verified arrivals and roll calls. Computed by OnStandard, so it reads as proof, not a claim.</div>
+      <div class="ts">A public page recruiters can open from your Twitter: days on record, your rate at standard, verified roll calls and completed sessions. Computed by OnStandard, so it reads as proof, not a claim.</div>
     </section>
     ${contractCard()}
     <button class="btn primary" id="vp-enable" style="width:100%">Start my record</button>`;

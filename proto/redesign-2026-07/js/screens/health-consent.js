@@ -7,9 +7,9 @@
    request instead. The server enforces the same rule (has_health_consent, 0155), so a client bug
    cannot open the gate.
 
-   ⚠ THIS IS A SEPARATE ASK FROM ARRIVAL VERIFICATION. An athlete may well want their coach to
-   confirm they showed up to practice and still not want their resting activity read all day.
-   health_share_consent is its own record and revoking it does not touch the other. */
+   ⚠ health_share_consent is its OWN record: consenting here consents to nothing else, and
+   revoking it touches nothing else. (It once sat beside arrival verification's separate consent;
+   arrival was removed from the product 2026-09-09.) */
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
 
@@ -130,7 +130,7 @@ export default {
       </div>`}
 
     <div class="cs-p muted" style="text-align:center;padding:14px 20px 24px">
-      Connecting Health is separate from arrival check-ins. Turning one on doesn’t turn on the other.
+      Connecting Health is only about your standards. It doesn’t share anything else.
     </div>`;
   },
 

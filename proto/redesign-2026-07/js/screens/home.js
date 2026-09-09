@@ -165,10 +165,6 @@ function paintCommitments(root) {
     // WebView), so the screen that owns the fetch is what publishes the result.
     RT.vcRows = rows;
     paint();
-    // Keep the OS watching only what is inside its window right now. No-op without background
-    // permission (and on any build without expo-location), and it registers nothing for an
-    // athlete with no located commitments today.
-    if (rows.some((r) => r.asks_arrival)) armIfPermitted();
   });
 }
 

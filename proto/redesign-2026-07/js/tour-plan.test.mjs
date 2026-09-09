@@ -47,7 +47,7 @@ test('each optional step drops on its own', () => {
 test('coach and parent lists', () => {
   assert.deepEqual(keys(planTour(coach())),
     ['invite', 'roster', 'priority', 'activity', 'followups', 'create', 'tab-roster', 'tab-inbox', 'tab-you']);
-  assert.deepEqual(keys(planTour(parent())), ['children', 'link', 'visibility', 'funding']);
+  assert.deepEqual(keys(planTour(parent())), ['children', 'link', 'visibility']);
 });
 
 test('the empty-board operator still has a tour once the DOM filter runs', () => {

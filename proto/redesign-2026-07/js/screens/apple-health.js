@@ -209,7 +209,7 @@ export default {
       <button class="btn ghost danger" id="hk-off" ${HK.busy ? 'disabled' : ''}>${HK.busy ? 'Disconnecting…' : 'Disconnect Apple Health'}</button>
       <div class="cs-p muted hk-center">Disconnecting stops OnStandard reading. To cut access at the phone level too, turn the categories off in the Health app.</div>
     </div>` : `
-    <div class="cs-p muted hk-center tall">${ios ? 'Connecting Health is separate from arrival check-ins. One does not switch on the other.' : 'Nothing to set up here on Android.'}</div>`}
+    <div class="cs-p muted hk-center tall">${ios ? 'Connecting Health is only about your standards. It does not share anything else.' : 'Nothing to set up here on Android.'}</div>`}
     ${HK.note ? `<div class="cs-p muted hk-note" role="status">${esc(HK.note)}</div>` : ''}`;
   },
 

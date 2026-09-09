@@ -48,10 +48,12 @@ function ctaState() {
     return `<button class="btn primary" data-go="progress" style="width:100%">See your progress</button>`;
   }
   if (UI.busy) return `<button class="btn primary" style="width:100%" disabled>Opening the store…</button>`;
-  if (UI.iapReady === false) {
-    // The banner at the top of the screen already says this, and says it before the athlete has
-    // spent a choice on it. All that is left here is the disabled control itself.
-    return `<button class="btn primary" style="width:100%;opacity:.6" disabled>Opens at launch</button>`;
+  // One disabled control for both not-buyable states. Before the store probe answers (null),
+  // claim nothing either way: not the live CTA (a purchase promise the build may not keep),
+  // not "Opens at launch" (a verdict nobody has yet). Once the probe says no, the banner at
+  // the top of the screen already explains; all that is left here is the control itself.
+  if (UI.iapReady !== true) {
+    return `<button class="btn primary" style="width:100%;opacity:.6" disabled>${UI.iapReady === null ? 'Checking the store…' : 'Opens at launch'}</button>`;
   }
   const label = p.trialDays > 0 ? `Start ${p.trialDays}-day free trial` : `Start ${esc(p.name)}`;
   return `<button class="btn primary" id="pw-buy" style="width:100%">${label}</button>
@@ -107,7 +109,12 @@ export default {
     ${/* Plain toggle buttons with aria-pressed, not role=tablist/tab: there are no tab panels
           here, and claiming the tab pattern promises arrow-key semantics nothing wires. The iOS
           build with no live store rail shows none of this (store-policy.js: 3.1.1 and 2.1). */''}
-    ${isIOSApp() && UI.iapReady === false ? '' : `
+    ${/* Nothing sellable renders before the store probe answers (iapReady === null). The old
+          order painted the live CTA and its legal links for the beat before iapAvailable()
+          resolved, then swapped to "Opens at launch" — a flash of a purchase promise the build
+          can't keep, on the screen App Review reads closest. One quiet beat instead. */''}
+    ${UI.iapReady === null ? `
+    <section class="card pad">${ctaState()}</section>` : isIOSApp() && UI.iapReady === false ? '' : `
     <div class="pw-toggle">
       <button class="pw-seg${UI.cadence === 'annual' ? ' on' : ''}" data-pw-cadence="annual" aria-pressed="${UI.cadence === 'annual'}">Annual <span class="pw-save">Save ${savePct}%</span></button>
       <button class="pw-seg${UI.cadence === 'monthly' ? ' on' : ''}" data-pw-cadence="monthly" aria-pressed="${UI.cadence === 'monthly'}">Monthly</button>
@@ -143,24 +150,8 @@ export default {
       if (planById(id)) { UI.planId = id; if (window.__render) window.__render(); }
     }));
 
-    // Probe the native store once so the CTA reads honestly (real button vs "at launch").
-    if (UI.iapReady === null) {
-      UI.iapReady = await roles.iapAvailable();
-      if (window.__render) window.__render();
-    }
-    const buy = root.querySelector('#pw-buy');
-    if (buy) buy.addEventListener('click', async () => {
-      const p = planById(UI.planId); if (!p) return;
-      UI.busy = true; UI.status = null; if (window.__render) window.__render();
-      track(EVENTS.TRIAL_STARTED, { plan: UI.planId, cadence: UI.cadence });
-      const res = await roles.purchaseConsumerPlan(productId(UI.planId, UI.cadence), RT.userId);
-      UI.busy = false;
-      if (res && res.ok) UI.status = { kind: 'ok' };
-      else if (res && res.reason === 'cancelled') UI.status = null;         // user backed out — silent
-      else if (res && res.reason === 'unavailable') UI.iapReady = false;    // store not live — degrade honestly
-      else UI.status = { kind: 'error', message: res && res.message };
-      if (window.__render) window.__render();
-    });
+    // Restore is wired BEFORE the store probe below: during the "Checking the store…" beat it
+    // is the only enabled control on the screen, and a button that does nothing is a lie.
     const restore = root.querySelector('#pw-restore');
     if (restore) restore.addEventListener('click', async () => {
       restore.disabled = true; restore.textContent = 'Restoring…';
@@ -174,6 +165,34 @@ export default {
       else if (res && res.reason === 'unavailable') UI.status = { kind: 'info', message: 'Purchases restore once memberships are live.' };
       else if (res && res.ok === false && res.reason !== 'error') UI.status = { kind: 'info', message: 'Nothing to restore on this account.' };
       else UI.status = { kind: 'error', message: "Couldn't check. Nothing changed. Try again." };
+      if (window.__render) window.__render();
+    });
+
+    // Probe the native store once so the CTA reads honestly (real button vs "at launch").
+    // A bridge that never answers must not hold the money screen at "Checking the store…"
+    // forever: after 4s degrade to the honest not-buyable state, and if the store answers
+    // late, upgrade to whatever it actually said.
+    if (UI.iapReady === null) {
+      const probe = roles.iapAvailable();
+      UI.iapReady = await Promise.race([probe,
+        new Promise((resolve) => setTimeout(() => resolve(false), 4000))]);
+      if (window.__render) window.__render();
+      probe.then((ok) => {
+        if (ok !== UI.iapReady) { UI.iapReady = ok; if (window.__render) window.__render(); }
+      }, () => {});
+      return;   // __render() above re-runs mount on the fresh DOM; wiring twice double-fires.
+    }
+    const buy = root.querySelector('#pw-buy');
+    if (buy) buy.addEventListener('click', async () => {
+      const p = planById(UI.planId); if (!p) return;
+      UI.busy = true; UI.status = null; if (window.__render) window.__render();
+      track(EVENTS.TRIAL_STARTED, { plan: UI.planId, cadence: UI.cadence });
+      const res = await roles.purchaseConsumerPlan(productId(UI.planId, UI.cadence), RT.userId);
+      UI.busy = false;
+      if (res && res.ok) UI.status = { kind: 'ok' };
+      else if (res && res.reason === 'cancelled') UI.status = null;         // user backed out — silent
+      else if (res && res.reason === 'unavailable') UI.iapReady = false;    // store not live — degrade honestly
+      else UI.status = { kind: 'error', message: res && res.message };
       if (window.__render) window.__render();
     });
   },

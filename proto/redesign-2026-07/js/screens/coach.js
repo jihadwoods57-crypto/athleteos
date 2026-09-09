@@ -32,7 +32,6 @@ import { maybeStartTour } from '../tour.js';
 import { reveal } from '../motion.js';
 import { initialsOf } from '../initials.js';
 import { hydrateAvatars } from '../avatar.js';
-import { verificationConsentFor, grantVerificationConsent } from '../commitment-data.js';
 import { wireReadMore } from '../thread-readmore.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
@@ -3674,35 +3673,12 @@ export const parent = {
           <div style="text-align:right;flex:none"><div style="font-size:30px;font-weight:800;letter-spacing:-0.03em;color:${scoreColor(k.latest_score)}">${score}</div>
           <div class="ls">${grade}</div></div>
         </div>
-        ${kidUid ? `<div class="vc-consent-slot" data-kid="${esc(kidUid)}"></div>` : ''}
       </section>`;
     }).join('');
     hydrateAvatars(list);
-
-    // Guardian approval for arrival check-in (0139). grant_verification_consent shipped a month
-    // ago with NO caller anywhere in the product, so a minor's "ask a parent to approve" wall
-    // could never come down — the parent approved the nutrition-data consent and the location
-    // gate stayed shut forever. The parent's own hub is where the approval belongs. Adults
-    // (has_verification_consent true without a row) never see this.
-    kids.forEach(async (k) => {
-      const kidUid = k.athlete_id || k.id;
-      if (!kidUid) return;
-      const slot = list.querySelector(`.vc-consent-slot[data-kid="${kidUid}"]`);
-      if (!slot) return;
-      const has = await verificationConsentFor(kidUid);
-      if (has !== false || !slot.isConnected) return;
-      const first = esc((k.name || 'your athlete').split(' ')[0]);
-      slot.innerHTML = `
-        <div class="ls">Arrival check-in needs your approval before ${first}'s coach can verify they showed up. Location is checked only around scheduled events, and only a yes or no is recorded.</div>
-        <div class="btn-row mt"><button class="btn ghost sm">Approve arrival check-in</button></div>`;
-      const b = slot.querySelector('button');
-      b.addEventListener('click', async () => {
-        b.disabled = true; b.textContent = 'Approving…';
-        const ok = await grantVerificationConsent(kidUid);
-        if (ok) { slot.innerHTML = `<div class="ls">Approved. ${first} can switch arrival check-in on now.</div>`; }
-        else { b.disabled = false; b.textContent = 'Approve arrival check-in'; }
-      });
-    });
+    // The guardian approval card for arrival check-in (0139) lived here until 2026-09-09,
+    // when arrival was removed from the product: soliciting a parent's consent for a feature
+    // nothing can switch on any more would be a promise with nothing behind it.
   },
 };
 

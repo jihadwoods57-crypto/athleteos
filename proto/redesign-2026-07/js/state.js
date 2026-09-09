@@ -3381,8 +3381,8 @@ export const act = {
     this._wipeUserScopedState({ keepPendingOb: true });
   },
 
-  /* Arrival check-in opt-out (0139 hardening 2026-08-19). The flag armIfPermitted() honors:
-     without it, "Turn it off" survived exactly until the next Home load re-armed the regions. */
+  /* Arrival check-in opt-out (0139 hardening 2026-08-19). Arrival was removed from the
+     product 2026-09-09; the setter stays because old snapshots may still carry the flag. */
   setLocationOptOut(on) { RT.locationOptOut = !!on; save(); },
 
   /* Which confirmed-presence receipts have already been shown on Home (0208).
