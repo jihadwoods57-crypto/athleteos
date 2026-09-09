@@ -43,6 +43,12 @@ const ATHLETE_IDENTITY = `
   RT.userId = 'seed-athlete';
   RT.profile = { name: 'Marcus Reed', sport: 'Football', position: 'WR', school: 'Lincoln High', level: 'Varsity' };
   RT.myCoach = { name: 'James Brooks', teamName: 'Lincoln Varsity Football' };
+  // This myCoach has no teamId (the boot flow's confirmed link does), and boot may already have
+  // set the one-way RT.hadRoster — so Home's keep-your-record card rendered "Your roster ended"
+  // on every athlete shot, over a header naming the roster. A rostered athlete can never see
+  // that pair; keepRecordSeen gates the card out here, and rosterEnded resets it to capture the
+  // card on purpose.
+  RT.keepRecordSeen = true;
   RT.activationDate = iso(41);
   RT.day0 = false;
   // Yesterday's lock stamp is already acknowledged, so it cannot appear over whichever athlete
@@ -206,6 +212,7 @@ export const dayFirst = `${COMMON}
   RT.authRole = 'athlete'; RT.userId = 'seed-athlete';
   RT.profile = { name: 'Marcus Reed', sport: 'Football', position: 'WR', school: 'Lincoln High', level: 'Varsity' };
   RT.myCoach = { name: 'James Brooks', teamName: 'Lincoln Varsity Football' };
+  RT.keepRecordSeen = true;   // same teamId-less myCoach as ATHLETE_IDENTITY — see the note there
   RT.activationDate = DAY.date;
   DAY.scoreHistory = [];
   DAY.proteinTarget = 180; DAY.calTarget = 3200; DAY.scoringProfile = 'athlete';

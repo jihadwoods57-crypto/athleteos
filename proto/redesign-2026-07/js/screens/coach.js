@@ -2,7 +2,7 @@ import { S, RT, act, fmtClock, nutritionConfigForGoal, liveWeightPct } from '../
 import { icon } from '../icons.js';
 import { accentVar, scoreColor, ON_STANDARD, qualityAccent } from '../score-band.js';
 import { backHead, titleHead, esc, safeImg, composer, sparkline, emptyState, errorState, skeletonRows, emailVerifyBanner, wireEmailVerifyBanner, copyText, scoreRing, sayStatus } from '../components.js';
-import { DAYS_SHORT } from '../fmt-date.js';
+import { DAYS_SHORT, shortDate } from '../fmt-date.js';
 import {
   attachedPhoto, isPhotoOnly, wireComposerAttach, postChatMessage,
   bubblePhotoHtml, hydrateThreadPhotos,
@@ -3662,7 +3662,9 @@ export const parent = {
     list.innerHTML = kids.map((k) => {
       const score = (k.latest_score == null) ? '—' : String(k.latest_score);
       const grade = k.latest_grade ? esc(String(k.latest_grade)) : '';
-      const when = k.latest_day ? esc(String(k.latest_day)) : 'No days logged yet';
+      // A parent reads "Jul 23", not the server's "2026-07-23". Fall back to the raw string
+      // only if the value isn't a date at all — never to an empty line.
+      const when = k.latest_day ? esc(shortDate(k.latest_day) || String(k.latest_day)) : 'No days logged yet';
       const kidUid = k.athlete_id || k.id || '';
       return `
       <section class="card" style="padding:16px;margin-bottom:10px">

@@ -323,7 +323,13 @@ function mountThread(root, mealId, meal) {
   const paint = () => {
     const msgs = threadMessages(rows);
     if (!msgs.length) { threadEl.innerHTML = '<div class="msg-status">No messages on this meal yet.</div>'; return; }
-    const items = layoutThread(msgs, { fmtTime: mvClock, fmtDay: mvDay, fmtDayLabel: dayLabelOf });
+    // `muted` here too: this is the fourth layoutThread caller, and it renders the SAME
+    // meal_comments rows as the live thread — a mute that held there and lapsed here would
+    // resurface the blocked person on the screen a follow-up notification lands on (1.2).
+    const items = layoutThread(msgs, { muted: RT.mutedUsers, fmtTime: mvClock, fmtDay: mvDay, fmtDayLabel: dayLabelOf });
+    // Everyone who wrote here is muted: say that, plainly. "No messages yet" would be a lie,
+    // and a silent blank region reads as a broken screen.
+    if (!items.length) { threadEl.innerHTML = '<div class="msg-status">Messages from people you muted are hidden.</div>'; return; }
     // Reactions are keyed to the MEAL, not a message (0049) — same rule as the live thread:
     // they sit once, on the last bubble, where the eye lands.
     const msgItems = items.filter((i) => i.type !== 'time');
