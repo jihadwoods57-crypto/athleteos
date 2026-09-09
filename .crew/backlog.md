@@ -73,7 +73,7 @@ afternoon of import() rewiring only if the numbers still say so.
 
 ### Founder-blocked (recommend in one line, cite the streak, never re-diagnose)
 Fresh cloud credentials (the 08-26 `OS?` email, still unanswered): EXPO_TOKEN invalid —
-**22 sessions through 09-08 7 PM**. No Supabase, Stripe, or Cloudflare creds in the env.
+**23 sessions through 09-09 error response (~5:30 AM)**. No Supabase, Stripe, or Cloudflare creds in the env.
 The founder published tonight from his PC, so nothing user-facing is stuck — but every
 sentry stays blind to errors/analytics, sessions can't publish their own proven fixes
 (tonight's polish waits on him again), and migration state can't be confirmed from here.
@@ -149,7 +149,7 @@ alone it's not worth a sitting. Noted so October doesn't rediscover it.
 
 ## Notes for tomorrow's sessions
 - **Credential streak (update in place, don't re-diagnose):** EXPO_TOKEN invalid
-  ("bearer token is invalid") — 22 sessions through 09-08 (7 PM). No Supabase creds, no
+  ("bearer token is invalid") — 23 sessions through 09-09 (error response). No Supabase creds, no
   Stripe key, no Cloudflare token in the cloud env. One cheap check, cite this
   line, move on. (npx eas-cli is broken in the sandbox — curl api.expo.dev/graphql with
   the bearer instead.) BUT: `node scripts/verify-ota.mjs` needs NO token — update
