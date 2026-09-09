@@ -295,7 +295,6 @@ const DEFAULT_RT = {
   mutedUsers: [],        // profile ids whose messages this reader hides (Guideline 1.2 block). Device-local, never sent.
   allergies: [],         // FLAT summary list (guardian check + profile row). Derived from restrictions when structured.
   restrictions: null,    // structured (spec §18.1): {allergies:[{name,severity}], intolerances:[], preferences:[]}
-  injured: false,        // injury mode: the Standard adapts (rehab replaces recovery emphasis)
   wearable: false,       // reserved; #apple-health gates on the live native health probe, not this flag
   // --- real auth (Supabase session drives these; null until signed in) ---
   userId: null,
@@ -2790,19 +2789,6 @@ export const act = {
     save();
   },
   setAuthRole(role) { RT.authRole = role; save(); },
-  toggleInjury() {
-    RT.injured = !RT.injured;
-    const rehabIdx = RT.assigned.findIndex(a => a.id === 'rehab');
-    if (RT.injured && rehabIdx === -1) {
-      RT.assigned.push({ id: 'rehab', title: 'Rehab · band work 2×15', icon: 'bolt',
-        note: 'Rehab replaces intensity while you heal. Completion counts like any requirement.',
-        from: 'Injury Mode', dueLabel: 'Before practice', done: false, seen: false });
-      RT.notifsRead = false;
-    } else if (!RT.injured && rehabIdx !== -1) {
-      RT.assigned.splice(rehabIdx, 1);
-    }
-    save();
-  },
 
   /* ---------------- Real auth (Supabase, in the WebView) ---------------- */
   async signUp(email, password, name, role) {
@@ -5123,7 +5109,6 @@ export const S = {
       level: 'medium', title: `${a.from || 'Coach'} added: ${a.title}`,
       body: `${a.note} Due: ${(a.dueLabel || '').toLowerCase()}.`, when: 'now', icon: 'clipboard', route: `requirement/${a.id}`,
     }));
-    if (RT.injured) fresh.push({ level: 'medium', title: 'Your Standard adapted', body: 'Rehab is on your list; nutrition tilts anti-inflammatory while you heal.', when: 'now', icon: 'bolt', route: 'injury' });
     if (e.celebration) fresh.push({
       level: 'positive', title: "You're on standard", body: `Every requirement is in at ${e.score}. Day ${this.streakDays} of your streak locks at midnight.`,
       when: 'now', icon: 'check', route: 'home',

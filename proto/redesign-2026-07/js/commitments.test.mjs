@@ -153,36 +153,12 @@ test('an excused response is never rendered as missed', () => {
   assert.equal(d.canAck, false);
 });
 
-test('a commitment with a location walks acknowledged → arrived → completed', () => {
-  const base = { ...rollCall, type: 'strength', title: 'Lift', asks_arrival: true,
-                 arrive_by_at: '2026-07-22T09:50:00Z', min_dwell_min: 45 };
-  const ack = deriveCommitment(
-    { ...base, status: 'acknowledged', acknowledged_at: '2026-07-22T08:48:00Z' },
-    '2026-07-22T09:20:00Z', EDT);
-  assert.equal(ack.stage, 'awaiting_arrival');
-  assert.equal(ack.canArrive, true);
-
-  const arrived = deriveCommitment(
-    { ...base, status: 'arrived', acknowledged_at: '2026-07-22T08:48:00Z',
-      arrived_at: '2026-07-22T09:43:00Z', arrival_source: 'geofence' },
-    '2026-07-22T10:00:00Z', EDT);
-  assert.equal(arrived.stage, 'arrived');
-  assert.equal(arrived.canComplete, true);
-  assert.equal(arrived.confirmLine, 'Arrived at the facility at 5:43 AM');
-
-  const done = deriveCommitment(
-    { ...base, status: 'completed', acknowledged_at: '2026-07-22T08:48:00Z',
-      arrived_at: '2026-07-22T09:43:00Z', completed_at: '2026-07-22T11:05:00Z' },
-    '2026-07-22T11:30:00Z', EDT);
-  assert.equal(done.stage, 'completed');
-  assert.equal(done.canComplete, false);
-  assert.equal(done.confirmLine, 'Completed at 7:05 AM');
-});
-
-test('the stage strip reports the three stages a commitment actually asks for', () => {
+test('the stage strip reports the stages a commitment actually asks for', () => {
+  // asks_arrival may still be true on rows scheduled before arrival was removed; the strip must
+  // never offer a stage the product can no longer satisfy.
   const d = deriveCommitment({ ...rollCall, asks_arrival: true, type: 'practice' },
     '2026-07-22T08:50:00Z', EDT);
-  assert.deepEqual(d.stages.map(s => s.key), ['acknowledged', 'arrived', 'completed']);
+  assert.deepEqual(d.stages.map(s => s.key), ['acknowledged', 'completed']);
   const rc = deriveCommitment(rollCall, '2026-07-22T08:50:00Z', EDT);
   assert.deepEqual(rc.stages.map(s => s.key), ['acknowledged']);
 });
@@ -282,26 +258,18 @@ test('a perfect commitment scores 100 percent', () => {
   const r = accountability([inst({
     acknowledged_at: '2026-07-22T08:48:00Z', arrived_at: '2026-07-22T09:43:00Z',
     completed_at: '2026-07-22T11:05:00Z', status: 'completed' })]);
-  assert.equal(r.earned, 100);
-  assert.equal(r.possible, 100);
+  assert.equal(r.earned, 70);      // ack 10 + completion 60; arrival is no longer asked
+  assert.equal(r.possible, 70);
   assert.equal(r.pct, 100);
 });
 
-test('a missed wake-up does not cascade — arriving and finishing keeps 90', () => {
+test('a missed wake-up does not cascade — finishing still earns the completion weight', () => {
   const r = accountability([inst({
     acknowledged_at: null, arrived_at: '2026-07-22T09:43:00Z',
     completed_at: '2026-07-22T11:05:00Z', status: 'completed' })]);
-  assert.equal(r.earned, 90);
-  assert.equal(r.possible, 100);
-  assert.equal(r.pct, 90);
-});
-
-test('arriving after the arrival deadline earns nothing for arrival', () => {
-  const r = accountability([inst({
-    acknowledged_at: '2026-07-22T08:48:00Z',
-    arrived_at: '2026-07-22T10:30:00Z', status: 'arrived' })]);
-  assert.equal(r.earned, 10);
-  assert.equal(r.possible, 100);
+  assert.equal(r.earned, 60);      // completion only
+  assert.equal(r.possible, 70);
+  assert.equal(r.pct, 86);
 });
 
 test('excused leaves the denominator entirely', () => {
@@ -310,7 +278,7 @@ test('excused leaves the denominator entirely', () => {
     inst({ acknowledged_at: '2026-07-22T08:48:00Z', arrived_at: '2026-07-22T09:43:00Z',
            completed_at: '2026-07-22T11:05:00Z', status: 'completed' }),
   ]);
-  assert.equal(r.possible, 100);
+  assert.equal(r.possible, 70);
   assert.equal(r.pct, 100);
 });
 
@@ -327,7 +295,7 @@ test('an empty range reports null rather than a fake zero', () => {
   assert.equal(accountability(null).pct, null);
 });
 
-test('morning readiness reports the three lines the coach reads', () => {
+test('morning readiness reports the lines the coach reads', () => {
   const rows = [
     inst({ acknowledged_at: '2026-07-22T08:48:00Z', arrived_at: '2026-07-22T09:43:00Z',
            completed_at: '2026-07-22T11:05:00Z', status: 'completed' }),
@@ -336,9 +304,9 @@ test('morning readiness reports the three lines the coach reads', () => {
   ];
   const m = morningReadiness(rows);
   assert.deepEqual(m.wake, { done: 1, total: 2 });
-  assert.deepEqual(m.arrival, { done: 2, total: 2 });
+  assert.deepEqual(m.arrival, { done: 0, total: 0 });   // arrival is no longer asked for
   assert.deepEqual(m.completion, { done: 2, total: 2 });
-  assert.equal(m.pct, 95); // 190 earned / 200 possible
+  assert.equal(m.pct, 93); // 130 earned / 140 possible
 });
 
 test('the streak counts clean days, skips empty days, and breaks on a real miss', () => {
@@ -447,15 +415,6 @@ test('leaving early is never converted into missed or unverified', () => {
   assert.notEqual(d.stage, 'unverified');
 });
 
-test('a sustained early departure forfeits the arrival weight', () => {
-  const onTime = accountability([{ ...lift, presence: 'confirmed' }]);
-  const left   = accountability([{ ...lift, presence: 'left_early',
-                                   departed_at: '2026-07-22T09:52:00Z' }]);
-  // Same denominator: they were asked for the same thing either way.
-  assert.equal(onTime.possible, left.possible);
-  assert.equal(onTime.earned - left.earned, WEIGHTS.arrival);
-});
-
 test('an unresolved stay still counts, so a score never runs backwards mid-session', () => {
   // The athlete is sitting in the room doing exactly what was asked. Docking them now and
   // silently restoring it later is the failure mode this rule exists to prevent.
@@ -463,24 +422,6 @@ test('an unresolved stay still counts, so a score never runs backwards mid-sessi
   const done = accountability([{ ...lift, presence: 'confirmed' }]);
   assert.equal(mid.earned, done.earned);
   assert.equal(mid.pct, done.pct);
-});
-
-test('morning readiness counts an early departure as an arrival not made', () => {
-  const m = morningReadiness([{ ...lift, presence: 'left_early',
-                                departed_at: '2026-07-22T09:52:00Z' }]);
-  assert.equal(m.arrival.total, 1);
-  assert.equal(m.arrival.done, 0);
-});
-
-test('leaving early breaks a clean-day streak; staying does not', () => {
-  const day = (presence, extra) => ({
-    ...lift, occurs_on: '2026-07-22', completed_at: '2026-07-22T11:00:00Z',
-    presence, ...extra,
-  });
-  assert.equal(commitmentStreak([day('confirmed')], '2026-07-22'), 1);
-  assert.equal(
-    commitmentStreak([day('left_early', { departed_at: '2026-07-22T09:52:00Z' })], '2026-07-22'),
-    0);
 });
 
 test('completing after an early departure keeps the verdict on the receipt', () => {

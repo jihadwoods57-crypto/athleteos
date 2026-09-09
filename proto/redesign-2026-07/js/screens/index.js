@@ -198,7 +198,6 @@ export const screens = {
   recruiting: lazy(features, 'recruiting'),
   restrictions: lazy(features, 'restrictions'),
   'team-diet': lazy(features, 'teamDiet'),
-  injury: lazy(features, 'injury'),
   'coach-voice': lazy(features, 'coachVoice'),
   'trust-pass-policy': lazy(features, 'trustPassPolicy'),
   'week-pattern': lazy(features, 'weekPattern'),
@@ -211,7 +210,6 @@ export const screens = {
   // Verified Commitments (0138). Athlete: the roll-call detail + the Accountability rollup +
   // the athlete-controlled recruit profile. Operator: the live board + the composer.
   'roll-call': lazy(() => import('./roll-call.js')),
-  'location-consent': lazy(() => import('./location-consent.js')),
   accountability: lazy(() => import('./accountability.js')),
   'verified-profile': lazy(() => import('./verified-profile.js')),
   'coach-commitments': lazy(coachCommitments, 'coachCommitments'),

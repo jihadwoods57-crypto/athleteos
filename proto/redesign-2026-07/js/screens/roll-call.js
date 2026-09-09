@@ -16,7 +16,6 @@ import { backHead, esc } from '../components.js';
 import { fmtMin } from '../requirements.js';
 import { deriveCommitment, TYPE_LABEL, fmtAt, offsetFor, VERDICT, wakeupPhase, deadlineOf, closesAtOf, opensAtOf, graceMinOf, sourceOf, SOURCE } from '../commitments.js';
 import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment, ackRefusal, subscribeMine } from '../commitment-data.js';
-import { tapToVerify, armIfPermitted, armCapped } from './location-consent.js';
 import { pushTokenState, RT } from '../state.js';
 
 /* Per-instance notes, keyed by instance id. A single global here once meant commitment A's
@@ -315,18 +314,6 @@ export function mountCommitmentCard(root, rerender) {
     });
   });
   go('data-vc-complete', (id) => completeCommitment(id, 'manual').then(Boolean));
-  // "I'm here": one fix, compared on device, verdict written server-side. A NEGATIVE verdict is
-  // recorded too — as 'unverified' with a reason, never as 'missed' — so the coach sees an honest
-  // "couldn't confirm" instead of silence, and the athlete gets a dispute button.
-  go('data-vc-arrive', (id) => tapToVerify(id).then((r) => loadMine(true).then(() => {
-    // `recorded` is the server's word (tapToVerify writes through this client now). Success is
-    // claimed ONLY when the write really happened — a consent refusal or a dropped connection
-    // used to paint "arrived" here and silently revert on the next fetch.
-    if (r && r.within && r.recorded) { VERIFY_REASON.delete(id); track(EVENTS.VC_ARRIVED, { source: 'manual' }); return true; }
-    VERIFY_REASON.set(id, (r && r.reason) || 'Couldn’t confirm your location');
-    track(EVENTS.VC_UNVERIFIED, { reason: r && r.recorded === false ? 'not_recorded' : 'unknown' });
-    return true;
-  })));
   root.querySelectorAll('[data-vc-open]').forEach((el) => el.addEventListener('click', (ev) => {
     if (ev.target.closest('button')) return;
     // No leading slash: router.js:86 parses the hash with `raw.split('/')`, so `#/roll-call/<id>`
@@ -566,42 +553,6 @@ export default {
           died was the one reader who never saw it (the file's own cardinal sin, line 24). */''}
     ${SAVE_FAILED.get(row.instance_id) ? `<div class="vc-ctx" style="color:var(--amber-bright);margin-top:10px">${icon('bolt', 13)} ${esc(SAVE_FAILED.get(row.instance_id))}</div>` : ''}
 
-    ${asksArrival ? `
-    ${armCapped() && !row.arrived_at ? `
-    <div class="sidebox mt">
-      <div class="req-icon a s38">${icon('alert', 19)}</div>
-      <div>
-        <div class="tt">Your phone is watching its limit of places</div>
-        <div class="ts">You have more located events than your phone can watch at once, so this one may not check itself in. Tap the arrival button when you get there. It counts exactly the same.</div>
-      </div>
-    </div>` : ''}
-    ${/* Verified absence (0208). Said plainly, with the time, and immediately next to the way to
-          contest it. Because this one COUNTS (founder ruling), the athlete is owed both the
-          mechanism that produced it and the door out of it. */''}
-    ${d.stage === 'left_early' ? `
-    <div class="sidebox mt">
-      <div class="req-icon a s38">${icon('clock', 19)}</div>
-      <div>
-        <div class="tt">You left before the time your coach asked for</div>
-        <div class="ts">Your coach asked for ${esc(String(row.min_dwell_min))} minutes at ${esc(row.location_name || 'the facility')}. Your phone left at ${esc(clock(row.departed_at))} and did not come back, so this one did not count. If your phone got that wrong, say so below and your coach can correct it.</div>
-      </div>
-    </div>` : ''}
-    <div class="sidebox" style="margin-top:14px">
-      <div class="req-icon b s38">${icon('shield', 19)}</div>
-      <div>
-        <div class="tt">What this actually proves</div>
-        ${/* Tense follows the record. This box once asserted "your phone reached X and stayed
-              the 45 minutes" as fact on a commitment where nothing had been recorded yet, and on
-              one where the athlete verifiably left early. */''}
-        <div class="ts">${!row.arrived_at
-          ? `When you arrive, this records that your phone reached ${esc(row.location_name || 'the facility')} inside the scheduled window${row.min_dwell_min ? ` and stayed the ${esc(String(row.min_dwell_min))} minutes your coach asked for` : ''}. That is all it will mean.`
-          : (row.min_dwell_min && d.presence === 'confirmed')
-            ? `Your phone reached ${esc(row.location_name || 'the facility')} inside the scheduled window and stayed the ${esc(String(row.min_dwell_min))} minutes your coach asked for. That is all it means.`
-            : `Your phone reached ${esc(row.location_name || 'the facility')} inside the scheduled window. That is all it means.`} It does not mean the work got done, and nobody is claiming it does. Your location is checked only around this event and never stored.</div>
-      </div>
-    </div>
-    <div style="height:10px"></div>
-    <button class="btn ghost" data-go="location-consent" style="width:100%">${icon('target', 17)} How arrival check-in works</button>` : ''}
 
     ${(d.stage === 'unverified' || d.stage === 'missed' || row.arrived_at) && !row.disputed_at ? `
       <div style="height:14px"></div>

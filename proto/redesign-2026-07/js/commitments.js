@@ -286,14 +286,19 @@ export function verdictLine(row, nowISO, deadlineISO, closesISO) {
 
 /* ---------------------------------------------------------------- signals */
 
-/** Which of the three signals this commitment actually asks for.
+/** Which signals this commitment actually asks for.
  *  A roll call IS the wake-up: pressing the button is the whole commitment, so it never asks for
- *  "completion". It asks for arrival only when the coach attached a location. */
+ *  "completion".
+ *
+ *  ARRIVAL IS GONE (2026-09-09, founder). Location-verified arrival was removed from the product
+ *  along with the "Always" location permission it required. `asks_arrival` may still be true on
+ *  old server rows, so this returns false unconditionally rather than reading the column: a
+ *  commitment scheduled before the removal must not render a stage nothing can satisfy. */
 export function signalsAsked(row) {
   if (!row) return { ack: false, arrival: false, completion: false };
   return {
     ack: row.respond_by_min != null || row.type === 'morning_roll_call',
-    arrival: !!row.asks_arrival,
+    arrival: false,
     completion: row.type !== 'morning_roll_call',
   };
 }

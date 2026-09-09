@@ -12,7 +12,6 @@ import { shouldNudge, nudgeSignature, nudgeData } from '../coach-nudge.js';
 import { deriveCommitment, presenceOf, PRESENCE, tomorrowRollcall } from '../commitments.js';
 import { VC, loadMine, todayISO as vcToday } from '../commitment-data.js';
 import { commitmentCard, mountCommitmentCard, commitmentOfflineCard, tomorrowCard } from './roll-call.js';
-import { armIfPermitted } from './location-consent.js';
 import { standardsCard, mountStandardsCard, standardsOfflineCard } from './standards-card.js';
 import { CS, loadMine as loadStandards, todayISO as csToday } from '../connected-standard-data.js';
 import { maybeStartTour } from '../tour.js';
@@ -913,21 +912,10 @@ export default {
 
     // Attention slot — exactly one card. syncBanner returns '' when sync is fine.
     const sync = syncBanner();
-    const injuryCard = RT.injured ? `
-    <div class="trust" data-go="injury" style="cursor:pointer;margin:12px 0 10px;background:linear-gradient(100deg, rgba(var(--amber-rgb), 0.14), rgba(var(--blue-rgb), 0.05));border-color:var(--amber-border)">
-      <div class="ic" style="background:rgba(var(--amber-rgb), 0.2);color:var(--amber-bright)">${icon('bolt', 20)}</div>
-      <div style="flex:1"><div class="tt">Injury mode · active</div>
-      <div class="ts">Your Standard adapted. Rehab is on the list while you heal.</div></div>
-      ${icon('chevron', 18, 'style="color:var(--text-3)"')}
-    </div>` : '';
-    // Keep-record joins the priority ladder LAST: a sync problem or an injury outranks a
-    // conversion moment — pitching a membership over a broken sync would read as tone-deaf.
-    const attention = sync || injuryCard || keepRecordCard();
-    // Whatever lost the attention slot demotes to a quiet one-line row below the ladder.
-    const demoted = [
-      attention !== injuryCard && RT.injured
-        ? `<div class="xrow-item" data-go="injury"><div class="xico sm" style="background:rgba(var(--amber-rgb), 0.18);color:var(--amber-bright)">${icon('bolt', 16)}</div><div class="xr"><div class="xa">Injury mode active</div><div class="xb">Your Standard adapted while you heal</div></div><span class="status-pill a">On</span></div>` : '',
-    ].filter(Boolean).join('');
+    // Keep-record joins the priority ladder LAST: a sync problem outranks a conversion
+    // moment — pitching a membership over a broken sync would read as tone-deaf.
+    const attention = sync || keepRecordCard();
+    const demoted = '';
 
     const upcoming = e.later;
 

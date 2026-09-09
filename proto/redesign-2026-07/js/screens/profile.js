@@ -107,15 +107,6 @@ export default {
         <div class="lm"><div class="lt">Activity standards</div><div class="ls">Steps, distance and workouts · verified from your device</div></div>
         ${icon('chevron', 17, 'class="chev-dim"')}
       </div>
-      <div class="lrow" data-go="location-consent">
-        <div class="lic">${icon('target', 17)}</div>
-        ${/* "on/off lives here" was the only way to learn the state without opening the screen.
-              The pill says it now, so the subtitle stops repeating it and stops wrapping to a
-              second line at 390px next to the pill. */''}
-        <div class="lm"><div class="lt">Arrival check-in</div><div class="ls">How showing up is confirmed</div></div>
-        <span id="pf-arrival-state"></span>
-        ${icon('chevron', 17, 'class="chev-dim"')}
-      </div>
     </section>
 
     ${/* Split out of Accountability (critique 2026-08-15): that group ran 6 rows, over the ≤4
@@ -143,11 +134,6 @@ export default {
       <div class="lrow" data-go="restrictions">
         <div class="lic" style="background:var(--red-surface);color:var(--red)">${icon('bell', 17)}</div>
         <div class="lm"><div class="lt">Food restrictions & allergies</div><div class="ls">${RT.allergies.length ? esc(RT.allergies.join(' · ')) : 'None declared'}</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
-      <div class="lrow" data-go="injury">
-        <div class="lic" style="background:rgba(var(--amber-rgb),0.16);color:var(--amber-bright)">${icon('bolt', 17)}</div>
-        <div class="lm"><div class="lt">Injury mode</div><div class="ls">${RT.injured ? 'Active · your Standard is adapted' : 'The Standard adapts when you’re hurt'}</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
     </section>

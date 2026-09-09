@@ -11,7 +11,6 @@ import { PROTO_VERSION } from './protoVersion';
 import { BRIDGE_SHIM, handleBridgeMessage, type BridgeMessage } from './bridge';
 import { authenticateBiometric } from '../lib/auth/biometrics';
 import { parseInviteCode } from '../lib/inviteLink';
-import { registerGeofenceTask } from '../lib/location';
 import { runRollCallAck, drainAckQueue, ensureRollCallCategories, rememberRollCallLabel, registerCoachDigestCategory, runCoachAction, drainCoachQueue, registerRollCallBackgroundTask, ensureLiveActivityTokens, drainLiveActivityTaps } from '../lib/notify/rollcall';
 import { routeNotificationResponse } from '../core/rollcall';
 
@@ -139,9 +138,6 @@ export function ProtoApp() {
   // Verified Commitments (0139): define the geofence task at startup so a region crossing can wake
   // the app and record the arrival even when the WebView isn't alive — which is the whole point,
   // since the athlete this feature serves is the one who hasn't opened the app at 5:43 AM.
-  // No-ops on a binary without expo-location, and registers nothing with the OS by itself:
-  // regions are only armed once the athlete grants background permission (LOCATION_ARM).
-  React.useEffect(() => { registerGeofenceTask(); }, []);
 
   // Reminder deep links: an exec reminder ("Dinner closes in 45") carries its in-app route in
   // notification data — tapping it must land the WebView on that exact screen, not Home. The

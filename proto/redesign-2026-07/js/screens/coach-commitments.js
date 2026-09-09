@@ -595,27 +595,18 @@ const STATUS_PILL = {
   excused: ['muted', 'Excused'], unverified: ['b', 'Unverified'], missed: ['r', 'No response'],
 };
 
-function athleteRow(r, asksArrival, dwellMin) {
+/* Arrival was removed from the product (2026-09-09), so this row no longer reports where a
+   phone was or how long it stayed. Rows scheduled before the removal may still carry
+   arrived_at/departed_at; they are simply not read. */
+function athleteRow(r) {
   const [cls, label] = STATUS_PILL[r.status] || ['muted', r.status];
-  // Presence (0208): the server's verdict on whether they stayed. Left early is a verified
-  // miss of the stay, so it earns gold; provisional is a session still running, blue.
-  const pres = presenceOf(r);
-  const needed = r.min_dwell_min != null ? r.min_dwell_min : dwellMin;
-  const when = pres === PRESENCE.LEFT_EARLY
-    ? `Left ${hhmm(r.departed_at) || 'early'}${needed ? ` · needed ${needed}m` : ''}`
-    : pres === PRESENCE.PROVISIONAL && r.arrived_at
-    ? `At the location since ${hhmm(r.arrived_at)}`
-    : r.completed_at ? `Completed ${hhmm(r.completed_at)}`
-    : r.arrived_at ? `Arrived ${hhmm(r.arrived_at)}`
+  const when = r.completed_at ? `Completed ${hhmm(r.completed_at)}`
     : r.acknowledged_at ? `Responded ${hhmm(r.acknowledged_at)}`
     : r.status === 'excused' ? (r.excused_reason || 'Excused')
     : r.status === 'unverified' ? (r.unverified_reason || 'Couldn’t verify')
     : 'No response yet';
-  const presPill = pres === PRESENCE.LEFT_EARLY ? '<span class="status-pill a">Left early</span>'
-    : pres === PRESENCE.PROVISIONAL && r.arrived_at ? '<span class="status-pill b">Still there</span>' : '';
-  const src = r.arrival_source === 'staff' ? ' · set by staff'
-    : r.arrival_source === 'geofence' ? ' · verified at the location'
-    : r.arrival_source === 'manual' ? ' · self-reported' : '';
+  const presPill = '';
+  const src = '';
   return `
   <div class="lrow" role="listitem" style="align-items:flex-start">
     <div class="lm" style="flex:1">
@@ -701,7 +692,7 @@ export const coachCommitments = {
 
     ${missing.length ? `
     <h2 class="eyebrow">Still waiting on ${missing.length}</h2>
-    <section class="card" role="list" style="padding:2px 16px">${missing.map((r) => athleteRow(r, !!inst.asks_arrival, inst.min_dwell_min)).join('')}</section>
+    <section class="card" role="list" style="padding:2px 16px">${missing.map((r) => athleteRow(r)).join('')}</section>
     <div style="height:10px"></div>
     <button class="btn" id="vc-remind" style="width:100%">${icon('bell', 18)} Remind ${missing.length} missing ${missing.length === 1 ? CD.noun : CD.nouns}</button>
     <div class="ts" style="text-align:center;padding-top:8px">Only these ${missing.length} get the reminder. Nobody who already responded is pinged.</div>
@@ -714,14 +705,7 @@ export const coachCommitments = {
 
     ${responded.length ? `
     <h2 class="eyebrow">Responded</h2>
-    <section class="card" role="list" style="padding:2px 16px">${responded.map((r) => athleteRow(r, !!inst.asks_arrival, inst.min_dwell_min)).join('')}</section>` : ''}
-
-    ${inst.asks_arrival ? `
-    <div class="sidebox" style="margin-top:14px">
-      <div class="req-icon b s38">${icon('shield', 19)}</div>
-      <div><div class="tt">What "Arrived" means</div>
-      <div class="ts">The ${CD.noun}'s phone reached ${esc(inst.location_name || 'the location')} inside the scheduled window. It does not prove the session was completed; that's the separate Completed signal.</div></div>
-    </div>` : ''}
+    <section class="card" role="list" style="padding:2px 16px">${responded.map((r) => athleteRow(r)).join('')}</section>` : ''}
     <div style="height:20px"></div>`;
   },
 
@@ -1257,45 +1241,6 @@ export const coachCommitEdit = {
         <button class="chip ${d.escalation && d.escalation.notify_coach_on_miss ? 'on' : ''}" role="checkbox" aria-checked="${d.escalation && d.escalation.notify_coach_on_miss ? 'true' : 'false'}" data-esc="notify_coach_on_miss">Tell me who missed</button>
       </div>
       <div class="ts mt">The louder push is time-sensitive and lands once, right after the deadline passes. "Tell me who missed" is one message to you naming everyone who never answered, not one per ${CD.noun}.</div>
-    </section>
-
-    <h2 class="eyebrow">Where <span class="opt">· optional</span></h2>
-    <section class="card pad">
-      <div class="ts" style="padding-bottom:10px">Attach a place and OnStandard confirms ${CD.nouns} actually got there. Leave it off and this stays a check-in only.</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px" id="vc-place" role="radiogroup" aria-label="Location">
-        <button class="chip ${!d.location_id ? 'on' : ''}" role="radio" aria-checked="${!d.location_id ? 'true' : 'false'}" data-place="">No location</button>
-        ${(VC.locations || []).map((l) => `<button class="chip ${d.location_id === l.id ? 'on' : ''}" role="radio" aria-checked="${d.location_id === l.id ? 'true' : 'false'}" data-place="${esc(l.id)}">${esc(l.name)}</button>`).join('')}
-      </div>
-      <div style="height:12px"></div>
-      <button class="btn ghost sm" id="vc-newplace" style="width:100%">${icon('target', 16)} Add the place I'm standing in</button>
-      <div id="vc-placeform" hidden>
-        <div style="height:12px"></div>
-        <label for="vc-placename" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Call it what your ${CD.nouns} call it</label>
-        <input class="ob-input" id="vc-placename" maxlength="60" placeholder="e.g. Football Facility" />
-        <div style="height:10px"></div>
-        <label for="vc-placeradius" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">How close counts <span style="color:var(--text-3);font-weight:600">· metres</span></label>
-        <input class="ob-input" id="vc-placeradius" type="number" inputmode="numeric" min="50" max="1000" step="10" value="120" />
-        <div class="ts" style="padding-top:6px">120m covers a field and its building. Below 50m a phone's own GPS error starts marking honest ${CD.nouns} absent, so that's the floor.</div>
-        <div style="height:10px"></div>
-        <button class="btn primary" id="vc-saveplace" style="width:100%">${icon('check', 17)} Use my current location</button>
-        <div id="vc-placemsg" class="ts" style="padding-top:8px"></div>
-      </div>
-      ${d.location_id ? `
-      <div style="height:14px"></div>
-      <div style="display:flex;gap:10px">
-        ${timeInput('vc-arrive', 'Arrive by', d.arrive_by_min)}
-        <div style="flex:1">
-          <label for="vc-dwell" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Stay at least <span style="color:var(--text-3);font-weight:600">· min</span></label>
-          <input class="ob-input" id="vc-dwell" type="number" inputmode="numeric" min="0" max="480" step="5" value="${d.min_dwell_min == null ? '' : esc(String(d.min_dwell_min))}" placeholder="45" />
-        </div>
-      </div>
-      ${/* 0208. This line used to describe arrival only, while the "Stay at least" box beside it
-            wrote a number that enforced NOTHING: min_dwell_min round-tripped through this form
-            and no code anywhere ever read it, so a coach setting 45 got the same result as a
-            coach setting nothing, and a drive-by scored like a full session. It is real now, and
-            the copy says what it actually checks, including where it falls back. */''}
-      <div class="ts" style="padding-top:10px">Arriving counts when their phone reaches the place inside this window. A minimum stay counts only once their phone has been there that long without leaving, and a phone that cannot report leaving falls back to arrival alone. Neither proves the work got done; completing the session is a separate signal, and nothing in OnStandard claims otherwise.</div>
-      ` : ''}
     </section>
 
     <h2 class="eyebrow">Linked event <span class="opt">· optional</span></h2>

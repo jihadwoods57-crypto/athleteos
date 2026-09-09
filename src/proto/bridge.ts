@@ -23,11 +23,6 @@ import {
   isHealthAvailable, healthConnected, connectHealth, readRecoverySample,
   readActivity, observeActivity, type HealthScope,
 } from '../lib/health';
-import {
-  isLocationAvailable, getPermissionState, requestPermission,
-  refreshGeofences, disarmAll, checkArrival, reportArrival, capturePlace,
-  REPORTS_PRESENCE,
-} from '../lib/location';
 import { syncExecNotifications } from '../lib/notify/execSync';
 import { getPushToken } from '../lib/notify';
 import { getFlag } from '../store/flagsStore';
@@ -66,18 +61,10 @@ export type BridgeMessage =
   | { type: 'HEALTH_READ_ACTIVITY'; id: number; from?: string; to?: string }
   | { type: 'HEALTH_OBSERVE_ACTIVITY'; id: number }
   // Verified Commitments (0139). Note what is absent: no message carries a coordinate in either
-  // direction. LOCATION_CHECK returns a boolean — the comparison to the coach's circle happens in
-  // src/lib/location and the position is discarded there.
-  | { type: 'LOCATION_AVAILABLE'; id: number }
-  | { type: 'LOCATION_PERMISSION'; id: number; background?: boolean }
-  | { type: 'LOCATION_ARM'; id: number }
-  | { type: 'LOCATION_DISARM'; id: number }
-  | { type: 'LOCATION_CHECK'; id: number; instanceId?: string; report?: boolean }
   // The ONE place a coordinate legitimately crosses this bridge: a COACH standing at their own
   // facility, deliberately capturing it as a scheduled place. That is the coach recording a
   // location they chose, not the app observing where a person goes — the opposite of what the
   // athlete-side messages above are careful never to do.
-  | { type: 'LOCATION_PLACE'; id: number }
   | { __log: { level: string; msg: string } };
 
 /** Serialize a value for safe injection into `window.__onNativeResult(id, <here>)`. */
@@ -312,71 +299,6 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
         resolve(ref, msg.id, false, String((e as Error)?.message ?? e));
       }
       return true;
-    case 'LOCATION_AVAILABLE':
-      // False on any binary built before slice 2 shipped — an OTA update can land on such a build,
-      // and the arrival affordance simply stays hidden rather than throwing.
-      try {
-        // `presence` (0208) is ABSENT on every binary built before region exits were reported,
-        // which is exactly what makes it usable as a capability probe: the proto reads a missing
-        // field as false and stops claiming a minimum-stay is enforced. Never widen this to a
-        // truthy default.
-        resolve(ref, msg.id, {
-          available: isLocationAvailable(),
-          state: await getPermissionState(),
-          presence: REPORTS_PRESENCE,
-        });
-      } catch (e) {
-        resolve(ref, msg.id, { available: false, state: 'unavailable', presence: false }, String((e as Error)?.message ?? e));
-      }
-      return true;
-    case 'LOCATION_PERMISSION':
-      // Foreground first, background only when the athlete has seen the explainer and asked for it.
-      try {
-        resolve(ref, msg.id, await requestPermission(!!msg.background));
-      } catch (e) {
-        resolve(ref, msg.id, 'unavailable', String((e as Error)?.message ?? e));
-      }
-      return true;
-    case 'LOCATION_ARM':
-      // Register geofences for whatever is inside its window right now. `capped` is surfaced so
-      // the UI can tell the athlete which commitments need a tap instead of leaving them
-      // silently unverified (iOS caps an app at 20 monitored regions).
-      try {
-        resolve(ref, msg.id, await refreshGeofences());
-      } catch (e) {
-        resolve(ref, msg.id, { armed: 0, capped: 0, state: 'unavailable' }, String((e as Error)?.message ?? e));
-      }
-      return true;
-    case 'LOCATION_DISARM':
-      try {
-        await disarmAll();
-        resolve(ref, msg.id, true);
-      } catch (e) {
-        resolve(ref, msg.id, false, String((e as Error)?.message ?? e));
-      }
-      return true;
-    case 'LOCATION_CHECK':
-      // The "I'm here" tap: one fix, compared natively, boolean out. When `report` is set the
-      // verdict is written straight to verify_arrival — including a NEGATIVE verdict, which the
-      // RPC records as 'unverified' with a reason and never as 'missed'.
-      try {
-        const id = String(msg.instanceId || '');
-        const out = await checkArrival(id);
-        if (msg.report !== false && id) await reportArrival(id, 'manual', out.within, out.reason);
-        resolve(ref, msg.id, out);
-      } catch (e) {
-        resolve(ref, msg.id, { within: false, reason: 'Something went wrong' }, String((e as Error)?.message ?? e));
-      }
-      return true;
-    case 'LOCATION_PLACE':
-      // "Use where I'm standing" in the coach's composer. Foreground permission only — capturing
-      // a facility is a one-shot action the coach initiated, and needs nothing in the background.
-      try {
-        resolve(ref, msg.id, await capturePlace());
-      } catch (e) {
-        resolve(ref, msg.id, null, String((e as Error)?.message ?? e));
-      }
-      return true;
     case 'REVIEW_REQUEST': {
       /* Ask the OS to show its rating prompt. Resolves TRUE only when we actually asked.
        *
@@ -476,17 +398,6 @@ export const BRIDGE_SHIM = `
       connectScoped: function(scopes){ return call('HEALTH_CONNECT_SCOPED', { scopes: Array.isArray(scopes) ? scopes : [] }); },
       readActivity: function(from, to){ return call('HEALTH_READ_ACTIVITY', { from: String(from||''), to: String(to||'') }); },
       observeActivity: function(){ return call('HEALTH_OBSERVE_ACTIVITY', {}); }
-    },
-    // Verified Commitments. check() returns { within, reason } — a boolean and a sentence.
-    // No coordinate crosses this boundary in either direction, by construction.
-    location: {
-      available: function(){ return call('LOCATION_AVAILABLE', {}); },
-      request: function(background){ return call('LOCATION_PERMISSION', { background: !!background }); },
-      arm: function(){ return call('LOCATION_ARM', {}); },
-      disarm: function(){ return call('LOCATION_DISARM', {}); },
-      check: function(instanceId, report){ return call('LOCATION_CHECK', { instanceId: String(instanceId||''), report: report !== false }); },
-      // Coach-only: capture the facility they're standing in as a scheduled place.
-      place: function(){ return call('LOCATION_PLACE', {}); }
     },
   };
 

@@ -27,71 +27,84 @@
         "NSCameraUsageDescription": "OnStandard uses the camera so you can photograph a meal and get instant nutrition feedback. Photos are analyzed for your log only.",
         "NSPhotoLibraryUsageDescription": "OnStandard needs photo library access so you can pick an existing meal photo to log and analyze.",
         "NSPhotoLibraryAddUsageDescription": "OnStandard can save a meal photo back to your library after you log it.",
-        "ITSAppUsesNonExemptEncryption": false,
-        "NSLocationWhenInUseUsageDescription": "OnStandard confirms you arrived at practices, workouts and other commitments your coach scheduled. It checks your location only during a scheduled event window, records only whether you arrived and when, and never stores where you go.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "OnStandard can confirm you arrived at a scheduled commitment without you opening the app. It watches only the specific place your coach scheduled, only during that event window, and stores only whether you arrived and when — never a history of where you go.",
-        "UIBackgroundModes": [
-          "location"
-        ]
+        "ITSAppUsesNonExemptEncryption": false
       },
       "privacyManifests": {
         "NSPrivacyTracking": false,
         "NSPrivacyTrackingDomains": [],
-        "_NSPrivacyCollectedDataTypes_comment": "Was an empty array, which declares 'this app collects nothing' — false, and a known rejection/removal trigger. Each entry below was traced to a real column or table, not assumed. Tracking is false throughout: there are no ad, attribution or third-party analytics SDKs, so there is no ATT prompt. NOT declared, deliberately: LOCATION. The geofence is evaluated on device and only arrived_at + a status cross the wire — commitment_responses has no lat/lng, and the coach's venue in commitment_locations is the coach's own data, not the athlete's whereabouts. Apple's question is about transmission, so 'no' is the accurate answer and should not be 'corrected' later. PURCHASES will need adding the day Stripe or IAP starts charging. FOUNDER: this is a legal attestation — confirm it against docs/go-live/APP-STORE-SETUP.md before you submit.",
+        "_NSPrivacyCollectedDataTypes_comment": "Was an empty array, which declares 'this app collects nothing' \u2014 false, and a known rejection/removal trigger. Each entry below was traced to a real column or table, not assumed. Tracking is false throughout: there are no ad, attribution or third-party analytics SDKs, so there is no ATT prompt. NOT declared, deliberately: LOCATION. The geofence is evaluated on device and only arrived_at + a status cross the wire \u2014 commitment_responses has no lat/lng, and the coach's venue in commitment_locations is the coach's own data, not the athlete's whereabouts. Apple's question is about transmission, so 'no' is the accurate answer and should not be 'corrected' later. PURCHASES will need adding the day Stripe or IAP starts charging. FOUNDER: this is a legal attestation \u2014 confirm it against docs/go-live/APP-STORE-SETUP.md before you submit.",
         "NSPrivacyCollectedDataTypes": [
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeName",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeEmailAddress",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeHealth",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeFitness",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypePhotosorVideos",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeOtherUserContent",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeUserID",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeDeviceID",
             "NSPrivacyCollectedDataTypeLinked": true,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
           },
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeProductInteraction",
             "NSPrivacyCollectedDataTypeLinked": false,
             "NSPrivacyCollectedDataTypeTracking": false,
-            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAnalytics"]
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAnalytics"
+            ]
           }
         ],
         "NSPrivacyAccessedAPITypes": [
@@ -194,16 +207,6 @@
           "backgroundColor": "#070B14"
         }
       ],
-      [
-        "expo-location",
-        {
-          "locationWhenInUsePermission": "OnStandard confirms you arrived at practices, workouts and other commitments your coach scheduled. It checks your location only during a scheduled event window, records only whether you arrived and when, and never stores where you go.",
-          "locationAlwaysAndWhenInUsePermission": "OnStandard can confirm you arrived at a scheduled commitment without you opening the app. It watches only the specific place your coach scheduled, only during that event window, and stores only whether you arrived and when — never a history of where you go.",
-          "isIosBackgroundLocationEnabled": true,
-          "isAndroidBackgroundLocationEnabled": true,
-          "isAndroidForegroundServiceEnabled": false
-        }
-      ],
       "@bacons/apple-targets",
       [
         "./plugins/withRollCallLiveActivity",
@@ -215,7 +218,7 @@
       [
         "@kingstinct/react-native-healthkit",
         {
-          "_comment": "READ ONLY, and deliberately minimal. The plugin turns background-delivery ON by default and writes an UPDATE usage string by default. background:false still stands. The UPDATE string was `false` until 2026-09-02, on the principle that declaring a permission the app never uses is dishonest and an App Review flag. App Store Connect now REJECTS THE UPLOAD without it: 'EAS_UPLOAD_TO_ASC_MISSING_PURPOSE_STRING ... Missing keys reported by App Store Connect: NSHealthUpdateUsageDescription'. That is what had kept TestFlight on build 26 since 2026-08-20 — build #27 was the first with HealthKit and was never submitted, so nobody found out. The string now says plainly that the app never writes, which keeps the honesty and satisfies the validator. OnStandard never writes to Health and never reads in the background, so declaring either would be asking for a permission the app does not use, which is both dishonest and an App Review flag. background:false also keeps com.apple.developer.healthkit.background-delivery out of the entitlements, so the provisioning profile only has to carry com.apple.developer.healthkit.",
+          "_comment": "READ ONLY, and deliberately minimal. The plugin turns background-delivery ON by default and writes an UPDATE usage string by default. background:false still stands. The UPDATE string was `false` until 2026-09-02, on the principle that declaring a permission the app never uses is dishonest and an App Review flag. App Store Connect now REJECTS THE UPLOAD without it: 'EAS_UPLOAD_TO_ASC_MISSING_PURPOSE_STRING ... Missing keys reported by App Store Connect: NSHealthUpdateUsageDescription'. That is what had kept TestFlight on build 26 since 2026-08-20 \u2014 build #27 was the first with HealthKit and was never submitted, so nobody found out. The string now says plainly that the app never writes, which keeps the honesty and satisfies the validator. OnStandard never writes to Health and never reads in the background, so declaring either would be asking for a permission the app does not use, which is both dishonest and an App Review flag. background:false also keeps com.apple.developer.healthkit.background-delivery out of the entitlements, so the provisioning profile only has to carry com.apple.developer.healthkit.",
           "NSHealthShareUsageDescription": "OnStandard reads last night's sleep, heart rate variability and resting heart rate so your recovery check-in has real context next to what you reported. It is read-only, it never changes your score, and nothing is ever written back to Health.",
           "NSHealthUpdateUsageDescription": "OnStandard never writes to Apple Health. It only reads sleep and heart data, with your permission, so your recovery check-in has real context.",
           "background": false

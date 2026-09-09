@@ -63,7 +63,6 @@ function seedUserA() {
   RT.profile = { name: 'Alice Athlete', sport: 'Soccer', school: 'Eastside' };
   RT.allergies = ['Peanuts'];
   RT.assigned = [{ id: 'rehab', title: 'Rehab', done: false, seen: false }];
-  RT.injured = true;
   RT.camPrimed = true;
   (RT as any)._lastPlan = { date: '2026-07-10', plan: [] }; // dynamic key, not in DEFAULT_RT
   DAY.meals.breakfast = true;
@@ -87,7 +86,6 @@ test('signOut wipes DAY, RT identity, and dynamic keys; keeps device-level camPr
   expect(RT.profile).toBeNull();
   expect(RT.allergies).toEqual([]);
   expect(RT.assigned).toEqual([]);
-  expect(RT.injured).toBe(false);
   expect((RT as any)._lastPlan).toBeUndefined();
   expect(RT.camPrimed).toBe(true);
   expect(DAY.meals).toEqual({ breakfast: false, lunch: false, snack: false, dinner: false });
