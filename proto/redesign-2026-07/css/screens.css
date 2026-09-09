@@ -2073,6 +2073,18 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .pw-plan-price .per{font-size:var(--t-sm);font-weight:700;color:var(--text-3);margin-left:2px}
 .pw-plan-sub{font-size:var(--t-xs);font-weight:700;color:var(--text-3);margin-top:2px}
 .pw-plan-blurb{font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:var(--s2);line-height:1.4}
+/* Checking-the-store beat (GS-2): shapes mirroring .pw-toggle and .pw-plan above, so the probe's
+   answer settles rather than reflows. Heights are measured against the settled screen at 390w
+   (toggle 50, one-line-blurb card 111 — the min-height pins the card total because line-box
+   arithmetic drifts). Shimmer and reduced-motion come with .sk-line; hairline-soft and no
+   pointer cursor because these cards are decoration, not the controls they resemble. */
+.pw-skel{pointer-events:none}
+.pw-skel .pw-sk-toggle{height:50px;width:100%;border-radius:var(--r-card-sm);margin:2px 0 var(--s3h)}
+.pw-skel .pw-plan{border-color:var(--hairline-soft);cursor:default;min-height:111px}
+.pw-skel .pw-sk-name{width:34%;height:16px}
+.pw-skel .pw-sk-price{width:20%;height:16px}
+.pw-skel .pw-sk-sub{width:55%;height:11px;margin-top:var(--s1)}
+.pw-skel .pw-sk-blurb{width:82%;height:13px;margin-top:var(--s2h)}
 /* The pre-launch banner stack: the state, then the one thing that does work today, then the
    catalog as a preview. Spacing lives here rather than as three inline styles at the call site. */
 .pw-pre{margin-bottom:var(--s3)}

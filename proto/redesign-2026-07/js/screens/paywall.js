@@ -16,7 +16,7 @@ import { track, EVENTS } from '../analytics.js';
 import { CONSUMER_PLANS, planById, productId, cadencePriceParts, effectiveMonthly, annualSavings, fmtPrice, disclosure } from '../pricing.js';
 
 // iapReady: null = not checked yet, true/false = native store can transact.
-let UI = { cadence: 'annual', planId: 'individual', busy: false, iapReady: null, status: null };
+let UI = { cadence: 'annual', planId: 'individual', busy: false, iapReady: null, probing: false, status: null };
 
 function planCard(p) {
   const selected = p.id === UI.planId;
@@ -61,6 +61,27 @@ function ctaState() {
     ${/* Guideline 3.1.2: an auto-renewing subscription screen links its Terms of Use and Privacy
           Policy in the binary, not only in the store listing. */''}
     <div class="pw-note"><span class="link" data-go="terms" role="button" tabindex="0">Terms of Use</span> · <span class="link" data-go="privacy" role="button" tabindex="0">Privacy Policy</span></div>`;
+}
+
+// The checking beat used to render the disabled "Checking the store…" button alone — header,
+// one button, Restore — for up to the probe's 4s cap. GS-2's answer: shimmer shapes that mirror
+// the toggle and plan cards above the button, so the beat reads as a screen arriving. Shapes
+// only, no prices or names, and NOT on the iOS build: there a `false` verdict deletes the
+// toggle and every plan card by store policy, so purchase-card shapes would be exactly the
+// flash of a purchase promise the 2026-09-07/08 passes removed from this screen — iOS keeps
+// the quiet beat on purpose. Off iOS both verdicts render the cards, so the shapes promise
+// nothing the answer can delete. aria-hidden because the disabled CTA right below already
+// tells a reader exactly what is happening.
+function checkingSkeleton() {
+  const card = `<div class="pw-plan sk-card">
+      <div class="pw-plan-top"><div class="sk-line pw-sk-name"></div><div class="sk-line pw-sk-price"></div></div>
+      <div class="sk-line pw-sk-sub"></div>
+      <div class="sk-line pw-sk-blurb"></div>
+    </div>`;
+  return `<div class="pw-skel" aria-hidden="true">
+    <div class="sk-line pw-sk-toggle"></div>
+    <div class="pw-plans">${card.repeat(CONSUMER_PLANS.length)}</div>
+  </div>`;
 }
 
 function statusBanner() {
@@ -114,6 +135,7 @@ export default {
           resolved, then swapped to "Opens at launch" — a flash of a purchase promise the build
           can't keep, on the screen App Review reads closest. One quiet beat instead. */''}
     ${UI.iapReady === null ? `
+    ${isIOSApp() ? '' : checkingSkeleton()}
     <section class="card pad">${ctaState()}</section>` : isIOSApp() && UI.iapReady === false ? '' : `
     <div class="pw-toggle">
       <button class="pw-seg${UI.cadence === 'annual' ? ' on' : ''}" data-pw-cadence="annual" aria-pressed="${UI.cadence === 'annual'}">Annual <span class="pw-save">Save ${savePct}%</span></button>
@@ -171,8 +193,12 @@ export default {
     // Probe the native store once so the CTA reads honestly (real button vs "at launch").
     // A bridge that never answers must not hold the money screen at "Checking the store…"
     // forever: after 4s degrade to the honest not-buyable state, and if the store answers
-    // late, upgrade to whatever it actually said.
+    // late, upgrade to whatever it actually said. ONCE means once even across repaints:
+    // Restore tapped mid-beat re-renders and re-mounts while iapReady is still null, and
+    // without the guard that started a second probe and a second 4s timer.
     if (UI.iapReady === null) {
+      if (UI.probing) return;
+      UI.probing = true;
       const probe = roles.iapAvailable();
       UI.iapReady = await Promise.race([probe,
         new Promise((resolve) => setTimeout(() => resolve(false), 4000))]);
