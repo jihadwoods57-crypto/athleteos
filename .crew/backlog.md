@@ -22,6 +22,14 @@ Where things stand tonight (2026-09-08, 7 PM):
 ## Ranked
 
 ### 1 · audit debt · the founder's post-1PM stack went live unaudited — attack it as Apple will  (dated 09-08 7 PM; impact 5, effort m)
+**Grew 09-09 morning:** two more founder commits landed before 8 AM and are unaudited — 8e7506b
+(cut arrival check-in + location permissions + injury mode; app.json lost expo-location and
+UIBackgroundModes) and 36bc686 (home metric-row clipping fix). The 8 AM session swept the cut for
+leftovers and fixed what it found (dead `armIfPermitted()` call on Home — the founder's own cut
+missed it — plus stale arrival copy on accountability/progress/health-consent), but that was a
+grep-and-read sweep, not the human walk. Add to the walk: #injury and #location-consent as stale
+routes, and the commitments board/roll-call cards as an athlete with a PRE-CUT row still carrying
+`asks_arrival:true` and a recorded arrival (historical stages must render honestly).
 Four commits landed after today's audit and are LIVE: the app-review pass (store gating +
 Report/Mute), the sponsor cut, the marketplace/funding/redeem cut, the /t/ page removal.
 The 7 PM session paid the mechanical part: 16/16 gates green on the final tree, full
@@ -38,20 +46,18 @@ Review reader:
   and confirm the router lands somewhere honest, not a blank or a throw.
 - The audience picker / assign fan-out attack from 09-06 (item 0b) is PAID (09-08 1 PM).
 
-### 2 · pre-submission honesty · the paywall's pre-probe flash  (impact 2, effort s — found 7 PM 09-08)
-paywall.js renders the LIVE buy CTA (+ Terms/Privacy links) for the beat between first
-paint and the `iapAvailable()` probe resolving false, then swaps to "Opens at launch". A
-flash of a purchase promise the build can't keep. Fix shape: render the CTA area empty (or
-the honest banner) while `iapReady === null`, not the live branch. Small, but it's the
-money screen and it's the class of thing App Review screenshots.
+### ~~2 · pre-submission honesty · the paywall's pre-probe flash~~  PAID 09-09 8 AM
+The paywall's sellable block (toggle, plans, CTA, legal links) now waits for the store probe:
+nothing renders while `iapReady === null`, so the live buy CTA never flashes before "Opens at
+launch". Same commit as the scope-cut sweep below.
 
-### 3 · scope-cut hygiene · the parent tour still plans a step for the deleted funding feature  (impact 2, effort s)
-tour-plan.js PARENT_STEPS keeps the `funding` step ("Fund an athlete's plan from here…")
-and tour-plan.test.mjs pins it. Invisible at runtime today only because the anchor died
-with the screen and filterSteps drops it — dead copy for a cut feature, one anchor-revival
-away from showing. Delete the step, trim the test. Same sitting: store-policy.js's header
-comment still says the marketplace is "deliberately NOT gated" — the marketplace is gone;
-fix the lie in the comment.
+### ~~3 · scope-cut hygiene~~  PAID 09-09 8 AM, and extended to the fresh 09-09 cut
+Funding tour step + test pin deleted; store-policy.js marketplace comment fixed. Extended to
+the arrival/injury cut: dead `armIfPermitted()` call removed from home.js (a live
+ReferenceError for any athlete with a pre-cut `asks_arrival` row), accountability's "three
+signals" card is two (the arrival bar could only ever read "—" again), its weighting copy no
+longer describes arrival weight, progress.js's row no longer promises "arrivals", and
+health-consent.js no longer disambiguates against a consent that doesn't exist.
 
 ### 4 · spec · M4 — the parent "fueling consistency" view, spec FIRST  (impact 4, effort m)
 The scout's realest product finding no rival owns: under-fueling is the parent
@@ -73,7 +79,7 @@ afternoon of import() rewiring only if the numbers still say so.
 
 ### Founder-blocked (recommend in one line, cite the streak, never re-diagnose)
 Fresh cloud credentials (the 08-26 `OS?` email, still unanswered): EXPO_TOKEN invalid —
-**23 sessions through 09-09 error response (~5:30 AM)**. No Supabase, Stripe, or Cloudflare creds in the env.
+**24 sessions through 09-09 8 AM build**. No Supabase, Stripe, or Cloudflare creds in the env.
 The founder published tonight from his PC, so nothing user-facing is stuck — but every
 sentry stays blind to errors/analytics, sessions can't publish their own proven fixes
 (tonight's polish waits on him again), and migration state can't be confirmed from here.
@@ -149,7 +155,7 @@ alone it's not worth a sitting. Noted so October doesn't rediscover it.
 
 ## Notes for tomorrow's sessions
 - **Credential streak (update in place, don't re-diagnose):** EXPO_TOKEN invalid
-  ("bearer token is invalid") — 23 sessions through 09-09 (error response). No Supabase creds, no
+  ("bearer token is invalid") — 24 sessions through 09-09 (8 AM build). No Supabase creds, no
   Stripe key, no Cloudflare token in the cloud env. One cheap check, cite this
   line, move on. (npx eas-cli is broken in the sandbox — curl api.expo.dev/graphql with
   the bearer instead.) BUT: `node scripts/verify-ota.mjs` needs NO token — update
