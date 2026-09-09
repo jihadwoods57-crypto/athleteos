@@ -21,6 +21,8 @@ and everything persists in localStorage until you reset. One `computeScore()` in
    Profile). The brief's "Team" tab lives inside Profile for athletes; coaches get
    the dedicated Coach view (`#coach`).
 3. No confetti anywhere; the reward language is glow, score movement, tier chips.
+   ONE exception, founder-ruled 2026-09-09: a meal that reads 100 gets a burst on its
+   score chip (`motion.js perfectBurst`), in the app's own sweep colours, once per meal.
 
 ## The 28-point checklist → where each item stands
 

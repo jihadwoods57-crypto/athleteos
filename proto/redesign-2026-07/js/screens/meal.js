@@ -2,7 +2,7 @@ import { S, RT, tier, act, MEAL, mealDetail, fmtClock, liveWeightPct } from '../
 import { DAY, slotDeadline } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg, nonLiveBadge, composer, segBar, skeletonRows } from '../components.js';
-import { reveal, buzz } from '../motion.js';
+import { reveal, buzz, perfectBurst } from '../motion.js';
 import { scoreMoveBar, playScoreMove } from '../score-move.js';
 import {
   openingMessage, openingSummary, qualityBand, scoreReasons, coachFocus, reactionGroups, threadMessages,
@@ -1337,7 +1337,11 @@ export const thread = {
     // key stable while mealId is still null on a locally-logged, not-yet-synced meal.
     // whenSeen: the chip sits ~1100px down a 390x844 thread, so playing it on mount would spend the
     // moment off-screen. It observes the CHIP, which is small enough for the ratio to be reachable.
-    reveal(root.querySelector('#meal-scorechip'), { key: `meal:${M.slot}:${M.mealId || ''}`, whenSeen: true });
+    reveal(root.querySelector('#meal-scorechip'), {
+      key: `meal:${M.slot}:${M.mealId || ''}`, whenSeen: true,
+      // A 100 gets the one celebration in the app (motion.js perfectBurst), timed to the landing.
+      onPlay: (chip) => { if (Number(M.score) >= 100) perfectBurst(chip); },
+    });
 
     const roles = await import('../roles.js');
     // Delegation target for render-injected content (the fq bubble, the tapback picker):

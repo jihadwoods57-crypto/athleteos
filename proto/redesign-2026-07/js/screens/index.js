@@ -102,6 +102,7 @@ export const OPERATOR_TAB_ROUTES = [
 export const screens = {
   home,
   'score-breakdown': lazy(() => import('./breakdown.js')),
+  'score-explained': lazy(() => import('./score-explained.js')),
   plan,
   'memory-edit': lazy(() => import('./memory-edit.js')),
   'plan-ask': lazy(() => import('./plan-ask.js')),

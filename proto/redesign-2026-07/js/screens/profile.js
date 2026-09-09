@@ -10,6 +10,17 @@ function avatarEl(size = 62) {
     : `<div class="big-av" style="width:${size}px;height:${size}px" data-avatar-uid="${esc(RT.userId || '')}" data-avatar-ver="${esc(RT.avatarVer || '')}"><span data-avatar-fallback>${esc(a.initials)}</span></div>`;
 }
 
+/* An external row: same .lrow shape as everything else in the group, but an <a> so the WebView
+   hands the link to the system (mail app, Safari). Mirrors settings.js terms' ext(). */
+function ext(href, ic, t, sub) {
+  return `
+      <a class="lrow" href="${href}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">
+        <div class="lic">${icon(ic, 16)}</div>
+        <div class="lm"><div class="lt">${t}</div><div class="ls">${sub}</div></div>
+        ${icon('external', 15, 'class="chev-dim"')}
+      </a>`;
+}
+
 export default {
   tab: 'profile',
   render() {
@@ -56,7 +67,7 @@ export default {
 
     <h2 class="eyebrow">${S.coach.kind === 'trainer' ? 'Trainer' : 'Coach'} Connection</h2>
     ${S.coach.hasCoach ? `
-    <section class="card" style="padding:6px 16px">
+    <section class="card rows">
       <div class="lrow" style="cursor:default">
         ${/* Identity, not a warning: the person you answer to was painted in hardcoded amber — the
       hue this system reserves for "at risk / off pace" — so the coach read as a hazard tile on
@@ -83,24 +94,73 @@ export default {
       </div>
     </section>`}
 
-    <h2 class="eyebrow">Accountability</h2>
-    <section class="card" style="padding:6px 16px">
+    ${/* Regrouped 2026-09-09 (founder, after Cal AI's profile: "nice and easy to use. I like
+          account actions and support and legal"). The same rows, sorted by the question the
+          athlete arrives with: who am I here (Account), what am I tracking (Goals & tracking),
+          the daily loop (Accountability), what the work proves (Proof), safety, help and the
+          documents (Support & legal), where to find us, and last the two destructive rows
+          (Account actions) where every platform puts them. */''}
+    <h2 class="eyebrow">Account</h2>
+    <section class="card rows">
+      <div class="lrow" data-go="edit-profile">
+        <div class="lic">${icon('user', 17)}</div>
+        <div class="lm"><div class="lt">Personal details</div><div class="ls">Name, sport, position, school</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
+      </div>
+      <div class="lrow" data-go="settings">
+        <div class="lic">${icon('gear', 18)}</div>
+        <div class="lm"><div class="lt">Preferences</div><div class="ls">Units, appearance, Face ID, app tour</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
+      </div>
+      <div class="lrow" data-go="billing">
+        <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div>
+        <div class="lm"><div class="lt">Plan &amp; billing</div><div class="ls">Your membership &amp; premium features</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
+      </div>
+      <div class="lrow" data-go="invite-parent">
+        <div class="lic">${icon('users', 17)}</div>
+        <div class="lm"><div class="lt">Invite a parent</div><div class="ls">Let a parent see your score &amp; streak</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
+      </div>
+    </section>
+
+    <h2 class="eyebrow">Goals &amp; tracking</h2>
+    <section class="card rows">
+      <div class="lrow" data-go="plan-style">
+        <div class="lic">${icon('target', 17)}</div>
+        <div class="lm"><div class="lt">Plan style</div><div class="ls">${esc(S.planStyle.name)} · ${S.planStyle.canChoose ? 'yours to change' : esc(S.planStyle.sourceLabel)}</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
+      </div>
+      <div class="lrow" data-go="apple-health">
+        <div class="lic">${icon('heart', 17)}</div>
+        <div class="lm"><div class="lt">Apple Health</div><div class="ls">Steps, workouts and sleep, from your phone</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
+      </div>
       <div class="lrow" data-go="notif-settings">
         <div class="lic">${icon('bell', 18)}</div>
-        <div class="lm"><div class="lt">Notifications</div><div class="ls">Tone, quiet hours</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        <div class="lm"><div class="lt">Tracking reminders</div><div class="ls">Tone, quiet hours</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
       </div>
+      <div class="lrow" data-go="score-explained">
+        <div class="lic" style="color:var(--blue-bright)">${icon('info', 17)}</div>
+        <div class="lm"><div class="lt">Score colors explained</div><div class="ls">What every tier and meal band means</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
+      </div>
+    </section>
+
+    <h2 class="eyebrow">Accountability</h2>
+    <section class="card rows">
       <div class="lrow" data-go="streak">
         ${/* Default .lic treatment: amber is the warning hue, and a healthy streak is not a
               warning. The flame reads fine in the neutral icon well. */''}
         <div class="lic">${icon('flame', 18)}</div>
         <div class="lm"><div class="lt">Streak</div><div class="ls">Days on standard · 1 grace per rolling week</div></div>
-        <span class="lv">${S.streakDays}d</span>${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        <span class="lv">${S.streakDays}d</span>${icon('chevron', 17, 'class="chev-dim"')}
       </div>
       <div class="lrow" data-go="history">
         <div class="lic">${icon('clipboard', 17)}</div>
         <div class="lm"><div class="lt">Activity history</div><div class="ls">The proof trail, day by day</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        ${icon('chevron', 17, 'class="chev-dim"')}
       </div>
       <div class="lrow" data-go="connected-standards">
         <div class="lic" style="color:var(--blue-bright)">${icon('bolt', 17)}</div>
@@ -109,59 +169,62 @@ export default {
       </div>
     </section>
 
-    ${/* Split out of Accountability (critique 2026-08-15): that group ran 6 rows, over the ≤4
-          chunk the groups below already keep, and these rows share a different job — what the
-          work proves to outsiders, not the daily loop. Row count unchanged, like the split
-          below. */''}
     ${/* A trainer's adult client is not being recruited; the discipline record is a team athlete's surface. */''}
     ${S.audience === 'client' && S.coach.kind === 'trainer' ? '' : `
     <h2 class="eyebrow">Proof &amp; recruiting</h2>
-    <section class="card" style="padding:6px 16px">
+    <section class="card rows">
       <div class="lrow" data-go="recruiting">
         <div class="lic"${S.coach.hasCoach ? ' style="background:var(--green-surface);color:var(--green-bright)"' : ''}>${icon('shield', 17)}</div>
         <div class="lm"><div class="lt">Discipline record</div><div class="ls">${S.coach.hasCoach ? 'Coach-verified · proof of the work' : 'Not verified yet · connect a coach to verify'}</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        ${icon('chevron', 17, 'class="chev-dim"')}
       </div>
       <div class="lrow" data-go="verified-profile">
         <div class="lic" style="color:var(--blue-bright)">${icon('share', 17)}</div>
         <div class="lm"><div class="lt">Verified Profile</div><div class="ls">A public page recruiters can check</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        ${icon('chevron', 17, 'class="chev-dim"')}
       </div>
     </section>`}
 
-    <h2 class="eyebrow">Health & safety</h2>
-    <section class="card" style="padding:6px 16px">
+    <h2 class="eyebrow">Health &amp; safety</h2>
+    <section class="card rows">
       <div class="lrow" data-go="restrictions">
         <div class="lic" style="background:var(--red-surface);color:var(--red)">${icon('bell', 17)}</div>
-        <div class="lm"><div class="lt">Food restrictions & allergies</div><div class="ls">${RT.allergies.length ? esc(RT.allergies.join(' · ')) : 'None declared'}</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        <div class="lm"><div class="lt">Food restrictions &amp; allergies</div><div class="ls">${RT.allergies.length ? esc(RT.allergies.join(' · ')) : 'None declared'}</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
       </div>
     </section>
 
-    ${/* Was ONE "Settings" group of nine consecutive rows, Plan & billing straight through to
-          Sign out — more than double the ≤4 chunk working memory holds, with billing, a privacy
-          audit and account deletion all reading as siblings. Three groups, each ≤4, each named
-          for what its rows share; the destructive pair sits alone at the bottom where every
-          platform convention puts it. Row count is unchanged — this is chunking, not burying. */''}
-    <h2 class="eyebrow">Membership</h2>
-    <section class="card" style="padding:6px 16px">
-      <div class="lrow" data-go="billing"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Plan &amp; billing</div><div class="ls">Your membership &amp; premium features</div></div>${icon('chevron', 17)}</div>
+    <h2 class="eyebrow">Support &amp; legal</h2>
+    <section class="card rows">
+      <div class="lrow" data-go="feedback">
+        <div class="lic">${icon('message', 17)}</div>
+        <div class="lm"><div class="lt">Request a feature</div><div class="ls">Or report a bug, or ask us anything</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
+      </div>
+      ${/* The email stays beside the in-app form: someone locked out cannot file a ticket, and
+            that is exactly when they most need a human. */''}
+      ${ext('mailto:support@onstandard.app', 'mail', 'Support email', 'support@onstandard.app')}
+      ${ext('https://onstandard.app/terms', 'clipboard', 'Terms and conditions', 'The full agreement')}
+      ${ext('https://onstandard.app/privacy', 'lock', 'Privacy policy', 'What we collect and why')}
+      <div class="lrow" data-go="privacy">
+        <div class="lic">${icon('eye', 17)}</div>
+        <div class="lm"><div class="lt">Privacy &amp; visibility</div><div class="ls">Who sees what · download your data</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
+      </div>
     </section>
 
-    <h2 class="eyebrow">Privacy &amp; app</h2>
-    <section class="card" style="padding:6px 16px">
-      <div class="lrow" data-go="invite-parent"><div class="lic">${icon('users', 17)}</div><div class="lm"><div class="lt">Invite a parent</div><div class="ls">Let a parent see your score &amp; streak</div></div>${icon('chevron', 17)}</div>
-      <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Privacy & visibility</div><div class="ls">Who sees what · download your data</div></div>${icon('chevron', 17)}</div>
-      <div class="lrow" data-go="settings"><div class="lic">${icon('gear', 18)}</div><div class="lm"><div class="lt">Units & appearance</div></div>${icon('chevron', 17)}</div>
-      <div class="lrow" data-go="terms"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Terms & privacy policy</div></div>${icon('chevron', 17)}</div>
+    <h2 class="eyebrow">Follow us</h2>
+    <section class="card rows">
+      ${ext('https://instagram.com/onstandard', 'camera', 'Instagram', '@onstandard')}
+      ${ext('https://x.com/onstandard', 'external', 'X', '@onstandard')}
     </section>
 
-    <h2 class="eyebrow">Account</h2>
-    <section class="card" style="padding:6px 16px">
+    <h2 class="eyebrow">Account actions</h2>
+    <section class="card rows">
       ${/* Two-tap confirm, wired in mount(): a single unguarded tap signed the athlete out, and
             on a shared phone that is one brush of a thumb. Disarms after ~5 seconds. */''}
       <div class="lrow" id="pf-signout" role="button" tabindex="0"><div class="lic">${icon('back', 17)}</div><div class="lm"><div class="lt">Sign out</div><div class="ls" id="pf-signout-sub" style="display:none">You'll need your password to get back in.</div></div></div>
-      <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('trash', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Delete account</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('trash', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Delete account</div></div>${icon('chevron', 17, 'class="chev-dim"')}</div>
     </section>
 
     <div style="height:10px"></div>

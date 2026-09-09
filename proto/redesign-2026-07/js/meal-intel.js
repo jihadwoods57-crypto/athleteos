@@ -438,6 +438,9 @@ export function qualityBand(score) {
   if (score == null) return null; // Number(null) is 0 — don't band a missing score as "low"
   const s = Number(score);
   if (!isFinite(s)) return null;
+  // A 100 is not merely Strong: every point on the plate landed. Same green (status), its own
+  // word — and the chip's perfect burst keys off this score, not off the label.
+  if (s >= 100) return { cls: 'good', label: 'Perfect plate', perfect: true };
   if (s >= MEAL_QUALITY_GOOD) return { cls: 'good', label: 'Strong' };
   if (s >= MEAL_QUALITY_OK) return { cls: 'mid', label: 'Needs work' };
   return { cls: 'low', label: 'Weak plate' };

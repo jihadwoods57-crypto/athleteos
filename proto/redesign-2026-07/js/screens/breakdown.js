@@ -76,6 +76,18 @@ export default {
       ${cats.map(catCard).join('')}
     </section>
 
+    ${/* The legend (founder 2026-09-09, after Cal AI's "Ring colors explained"): what each tier
+          colour and each meal band means, on one static page. Sits under the maths, not above
+          it, because this screen's job is today's number; the legend is for the athlete who
+          wants the rules once. */''}
+    <section class="card rows bd-legend">
+      <div class="lrow" data-go="score-explained">
+        <div class="lic">${icon('info', 17)}</div>
+        <div class="lm"><div class="lt">Score colors explained</div><div class="ls">What every tier and meal band means</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
+      </div>
+    </section>
+
     <h2 class="eyebrow">Not in today's score</h2>
     <div class="sidebox">
       <div class="req-icon muted s38">${icon('scale', 19)}</div>

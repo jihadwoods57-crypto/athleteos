@@ -35,6 +35,7 @@ export const HAPTIC = {
   milestone: 'success',   // a streak crossed a threshold worth naming
   warn: 'warning',        // a window is closing / something needs attention
   error: 'error',         // an action failed
+  celebrate: 'heavy',     // a perfect plate landed (founder 2026-09-09) — the one moment that gets weight AND a burst
 };
 
 /** Fire one semantic haptic. Honors the athlete's preference and no-ops without the native shim. */
@@ -161,7 +162,7 @@ function windBack(root) {
  *                               Default false: most rings are above the fold on arrival.
  * @returns {boolean} whether this call took ownership of the reveal.
  */
-export function reveal(el, { key, haptic = 'reveal', whenSeen = false, threshold = 0.6 } = {}) {
+export function reveal(el, { key, haptic = 'reveal', whenSeen = false, threshold = 0.6, onPlay = null } = {}) {
   if (!el) return false;
   if (key) {
     if (DONE.has(key)) return false;
@@ -178,6 +179,10 @@ export function reveal(el, { key, haptic = 'reveal', whenSeen = false, threshold
     // browser coalesces away. Called directly where there are no frames to wait for (node suites).
     if (typeof requestAnimationFrame === 'function') requestAnimationFrame(draw); else draw();
     if (haptic) buzz(haptic);
+    // Runs once, at the moment THIS reveal actually plays (after the seen-gate and the pause
+    // queue), never on the repaint calls the key guard swallows. The perfect-plate burst hangs
+    // off it so the celebration and the reveal share one identity.
+    if (typeof onPlay === 'function') { try { onPlay(el); } catch { /* a celebration never breaks the reveal */ } }
   };
   /* The one gate between claiming a reveal and drawing it. Held reveals keep their key, so the
      once-only guard above still holds while they wait. */
@@ -200,5 +205,53 @@ export function reveal(el, { key, haptic = 'reveal', whenSeen = false, threshold
     start();
   }, { threshold: [0, t] });
   io.observe(el);
+  return true;
+}
+
+/* The perfect plate (founder, 2026-09-09: "when a person gets 100 meal score there should be some
+   type of celebration"). BUILD-NOTES had "no confetti anywhere" and the rule still mostly holds:
+   this is the ONE surface that bursts, it fires only for a 100, and it wears the app's own sweep
+   (ring-a/b/c) rather than party colours. Timed to the ring's landing (animateRing adds .flare at
+   1250ms) so the number becomes final and THEN the chip celebrates it; a burst that starts while
+   the arc is still drawing reads as noise over a number nobody has read yet.
+
+   Body of the effect is CSS (.scorechip.perfect + .pf-burst in screens.css); this only stamps the
+   class, drops the particles, and fires the heavy haptic. Under reduced motion the class still
+   lands (the label change is information) but the particles are not appended at all.
+   @param {Element|null} chip the .scorechip that just revealed a 100
+   @param {number} delay ms to wait for the ring to land; 0 in tests */
+export const PERFECT_PARTICLES = 12;
+export function perfectBurst(chip, delay = 1250) {
+  if (!chip || !chip.classList) return false;
+  const go = () => {
+    /* The thread repaints after mount (participants, receipts, warm caches land), and each paint
+       replaces the chip node. Over a 1250ms wait that is the common case, not the edge: the node
+       the reveal played on is detached by the time the ring lands. Re-find the live chip by id
+       so the celebration lands on what is actually on screen. */
+    const live = chip.isConnected ? chip
+      : (chip.id && typeof document !== 'undefined' && document.getElementById) ? document.getElementById(chip.id) : null;
+    if (!live || !live.classList) return;
+    chip = live;
+    chip.classList.add('perfect');
+    const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!reduce && !chip.querySelector('.pf-burst') && typeof document !== 'undefined') {
+      const b = document.createElement('span');
+      b.className = 'pf-burst';
+      b.setAttribute('aria-hidden', 'true');
+      const cols = ['var(--ring-a)', 'var(--ring-b)', 'var(--ring-c)'];
+      for (let i = 0; i < PERFECT_PARTICLES; i++) {
+        const p = document.createElement('i');
+        p.style.setProperty('--a', `${Math.round((360 / PERFECT_PARTICLES) * i + (i % 2 ? 9 : -6))}deg`);
+        p.style.setProperty('--d', `${38 + (i % 3) * 8}px`);
+        p.style.setProperty('--c', cols[i % 3]);
+        p.style.setProperty('animation-delay', `${(i % 4) * 28}ms`);
+        b.appendChild(p);
+      }
+      chip.appendChild(b);
+      setTimeout(() => { try { b.remove(); } catch { /* gone with a repaint */ } }, 1500);
+    }
+    buzz('celebrate');
+  };
+  if (delay > 0 && typeof setTimeout === 'function') setTimeout(go, delay); else go();
   return true;
 }

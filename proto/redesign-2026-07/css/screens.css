@@ -431,6 +431,56 @@
 .scorechip .sc-ring { position: absolute; inset: 0; }
 .scorechip .v { font-family: var(--font-display); font-size: var(--t-xl); font-weight: 900; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--green-bright); line-height: 1; }
 .scorechip .k { font-size: 8.5px; font-weight: 800; letter-spacing: 0.08em; color: var(--text-2); text-transform: uppercase; margin-top:2px; }
+/* The perfect plate (motion.js perfectBurst, founder 2026-09-09). The one burst in the app: fires
+   only on a 100, once per meal, timed to the ring's landing. The chip pops, a teal halo exhales
+   past the band, and twelve particles in the sweep's own three colours fly out and fade. All
+   transform/opacity, nothing that re-runs layout; the hero clips the lowest particles at its
+   edge, which is fine for something that lives 900ms. ::before is used here because focus.css
+   owns ::after on interactive rows and the ring flare already spends ::after on .ring-wrap. */
+.scorechip.perfect { animation: pf-pop 520ms var(--ease-out); }
+@keyframes pf-pop { 0% { transform: scale(1); } 45% { transform: scale(1.16); } 100% { transform: scale(1); } }
+.scorechip.perfect::before {
+  content: ''; position: absolute; inset: -5px; border-radius: 50%; pointer-events: none; z-index: 0;
+  border: 2px solid rgba(var(--teal-rgb), 0.7); opacity: 0;
+  animation: pf-halo 900ms var(--ease-out) forwards;
+}
+@keyframes pf-halo { from { opacity: 0.9; transform: scale(0.88); } to { opacity: 0; transform: scale(1.75); } }
+.scorechip .pf-burst { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.scorechip .pf-burst i {
+  position: absolute; left: 50%; top: 50%; width: 8px; height: 8px;
+  border-radius: 50%; background: var(--c); opacity: 0;
+  box-shadow: 0 0 10px var(--c), 0 0 2px #fff inset;
+  transform: translate(-50%, -50%) rotate(var(--a)) translateX(12px);
+  animation: pf-fly 880ms var(--ease-out) forwards;
+}
+@keyframes pf-fly {
+  0%   { opacity: 1; transform: translate(-50%, -50%) rotate(var(--a)) translateX(12px) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--a)) translateX(var(--d)) scale(0.35); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scorechip.perfect { animation: none; }
+  .scorechip.perfect::before { animation: none; }   /* base opacity 0: no static ghost */
+  .scorechip .pf-burst { display: none; }
+}
+
+/* #score-explained (screens/score-explained.js): the legend swatches are rings, not dots, so the
+   page speaks the product's own shape. --c is the tier/band token, set inline per row. */
+.sx-meal-lead { display: flex; align-items: center; gap: var(--s3h); margin-bottom: var(--s3); }
+.sx-meal-lead .scorechip { flex: none; }
+.sx-meal-lead .sx-lead { margin: 0; }
+.sx-lead { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.5; margin: 0 0 var(--s3); }
+.sx-row { cursor: default; }
+.sx-ring { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--text-3); box-sizing: border-box; }
+.sx-ring[data-tone="g"] { border-color: var(--green-bright); }
+.sx-ring[data-tone="b"] { border-color: var(--blue-bright); }
+.sx-ring[data-tone="a"] { border-color: var(--amber-bright); }
+.sx-ring[data-tone="r"] { border-color: var(--red-bright); }
+.sx-ring.dashed { border-style: dashed; border-width: 2px; }
+.sx-lic-g { color: var(--green-bright); }
+.sx-lic-p { color: var(--purple-bright); }
+.sx-gap { height: var(--s2h); }
+.bd-legend { margin-top: var(--s2h); }
+.sx-range { font-size: var(--t-sm); font-weight: 700; color: var(--text-3); margin-left: var(--s1); font-variant-numeric: tabular-nums; }
 .foodchips { display: flex; flex-wrap: wrap; gap:var(--s2); }
 .foodchip {
   display: inline-flex; align-items: center; gap:var(--s2); padding:var(--s2h) var(--s3h); border-radius: var(--r-pill);
