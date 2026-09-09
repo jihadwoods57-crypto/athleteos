@@ -1485,9 +1485,19 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .res-body{padding:var(--s3) var(--s3) var(--s3h)}
 .res-t{font-size:var(--t-base);font-weight:800;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .res-time{font-size:var(--t-xs);font-weight:700;color:var(--text-3);margin-top:2px}
-.res-m{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s2);margin-top:var(--s2);padding-top:var(--s2);border-top:1px solid var(--hairline-soft)}
-.res-m .k{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);white-space:nowrap}
-.res-m .v{font-size:var(--t-md);font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+/* The metric row is 132px wide inside a 158px card, and BOTH children used to be freely
+   shrinkable with the label set to nowrap — so when the pair overran, the browser cut whichever
+   one lost, and the card's overflow:hidden ate the tail. Measured at 390w: "MEAL QUALITY" is
+   90px and "100/100" is 51px, which needs 141 of the 124 available between the gaps. A perfect
+   plate therefore rendered "100/10" for every athlete who earned one (founder, 2026-09-09), and
+   the weight card wrapped its "lb" onto a second line by the same arithmetic.
+   The rule now is a priority, not a hope: the NUMBER is the information, so it never shrinks and
+   never wraps; the label is an eyebrow and yields first, truncating with an ellipsis. The labels
+   below were also shortened (home.js) so nothing has to truncate in practice — at 6px of gap the
+   worst real pair, STATUS + "Submitted", lands at 130 of 132. */
+.res-m{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s1h);margin-top:var(--s2);padding-top:var(--s2);border-top:1px solid var(--hairline-soft)}
+.res-m .k{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.res-m .v{font-size:var(--t-md);font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;flex:none;white-space:nowrap}
 .res-m .v small{font-size:var(--t-eyebrow);font-weight:700;color:var(--text-3)}
 .res-m .v.g{color:var(--green-bright)} .res-m .v.a{color:var(--amber-bright)}
 .res-m .v.r{color:var(--red)} .res-m .v.b{color:var(--blue-bright)}

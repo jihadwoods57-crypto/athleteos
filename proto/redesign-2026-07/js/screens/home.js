@@ -254,9 +254,13 @@ const ACT_MEDIA = {
   utensils: MEAL_TINT, breakfast: MEAL_TINT, lunch: MEAL_TINT, dinner: MEAL_TINT, snack: MEAL_TINT,
 };
 // Micro-label above a non-quality result value — names what the number IS.
-const RES_K = { 'Morning Weight': 'This morning', 'Recovery check-in': 'Status' };
+/* Short by measurement, not by taste: this label shares a 132px row with its value and the
+   value may not be cut (see .res-m in screens.css). "This morning" is 91px and left a wrapped
+   "lb" under the weight; the card is already titled "Morning Weight" above the word "Today", so
+   the when was said twice and the shorter key loses nothing. */
+const RES_K = { 'Morning Weight': 'Weight', 'Recovery check-in': 'Status' };
 /* Recent RESULTS card (2-up grid): photo or icon media, then the outcome as labeled
-   key/value lines. Meals show BOTH numbers — Meal Quality (the plate read, tiered color)
+   key/value lines. Meals show BOTH numbers — Quality (the plate read, tiered color)
    and the honest computed Daily Score credit — because keeping those two ideas separate
    is the core of how the product grades. */
 function resCard(a) {
@@ -282,7 +286,7 @@ function resCard(a) {
     ? `<div class="res-media"${carries} style="background-image:url('${safeImg(a.img)}')"></div>`
     : `<div class="res-media icon"${carries} style="background:linear-gradient(150deg, ${c1}, ${c2});color:${fg}">${icon(a.icon || 'droplet', 30)}${a.noPhoto ? '<span class="res-nophoto">No photo submitted</span>' : ''}</div>`;
   const metrics = a.qualityLabel
-    ? `<div class="res-m"><span class="k">Meal Quality</span><span class="v ${a.vClass}">${a.value}<small>${a.unit}</small></span></div>
+    ? `<div class="res-m"><span class="k">Quality</span><span class="v ${a.vClass}">${a.value}<small>${a.unit}</small></span></div>
       ${/* "Score credit", not "Daily Score". Two 0–100-ish numbers were sharing this card with
             nothing relating them: "Meal Quality 65/100" (the plate read) beside "Daily Score +14",
             where +14 is neither a score nor on the same scale — it is the points this meal banked.
