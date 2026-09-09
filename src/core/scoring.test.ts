@@ -29,10 +29,11 @@ describe('computeDerived — default state', () => {
     expect(d.proteinGap).toBe(38);
   });
 
-  it('nutrition sub-score = round(142/180*65 + 3/4*35) = 78 (no floor, D-B)', () => {
-    // 51.278 + 26.25 = 77.528 -> 78. The old `57 +` floor is gone (founder D-B):
-    // protein is the dominant lever (65) over slot count (35), full day ~100, empty ~0.
-    expect(d.nutritionScore).toBe(78);
+  it('nutrition sub-score = round(142/180*55 + 3/4*30 + fuel*15) = 72 (v3: fueling floor)', () => {
+    // 43.39 + 22.5 + 0.41*15 = 72.0 -> 72. The seed day eats ~1500 kcal against a 3200 target
+    // (47%), so the soft fueling floor (0 at 35%, 1 at 65%) credits 0.41 of its 15. Under
+    // 65/35 this read 78 with nothing asking whether the athlete had eaten.
+    expect(d.nutritionScore).toBe(72);
   });
 
   it('recovery defaults to 86 before check-in', () => {
@@ -45,7 +46,7 @@ describe('computeDerived — default state', () => {
     // "check-in not submitted"). So the score is the blend with recovery contributing 0.
     // v2: commitment carries weight 0, so it drops out of the blend entirely.
     expect(d.recoveryScoreIsReal).toBe(false);
-    const expected = Math.round(0.76 * d.nutritionScore + 0.12 * d.checkinScore);
+    const expected = Math.round(0.82 * d.nutritionScore + 0.09 * d.checkinScore);
     expect(d.athleteScore).toBe(expected);
   });
 
@@ -501,30 +502,28 @@ describe('computeDerived — reactivity', () => {
 describe('computeDerived — recovery sub-score from ciConfig', () => {
   const allOff = { energy: false, recovery: false, sleep: false, confidence: false, soreness: false, motivation: false };
 
-  it('default config (energy+recovery+sleep+confidence) includes confidence — differs from old /30 trio', () => {
+  it('v3: every enabled question answered = 100, whatever the answers say (seed 8/7/8/9)', () => {
     const s = createInitialState();
     const d = computeDerived({ ...s, ciSubmitted: true } as AppState);
-    // seed 8/7/8/9 over 4 questions: round(((8+7+8+9)/40)*100) = round(80) = 80
-    expect(d.recoveryScore).toBe(Math.round(((s.ciEnergy + s.ciRecovery + s.ciSleep + s.ciConfidence) / 40) * 100));
-    expect(d.recoveryScore).toBe(80);
-    // old /30 trio (8+7+8) would have been round(76.67) = 77 — confidence is now counted
-    expect(d.recoveryScore).not.toBe(77);
+    expect(d.recoveryScore).toBe(100);
   });
-
-  it('sleep-only enabled = round((ciSleep/10)*100)', () => {
+  it('v3: an honest low answer costs nothing: energy 2 scores the same as energy 10', () => {
+    const s = createInitialState();
+    const low = computeDerived({ ...s, ciSubmitted: true, ciEnergy: 2 } as AppState);
+    const high = computeDerived({ ...s, ciSubmitted: true, ciEnergy: 10 } as AppState);
+    expect(low.recoveryScore).toBe(100);
+    expect(low.athleteScore).toBe(high.athleteScore);
+  });
+  it('sleep-only enabled and answered = 100', () => {
     const s = createInitialState();
     const d = computeDerived({ ...s, ciSubmitted: true, ciConfig: { ...allOff, sleep: true } } as AppState);
-    expect(d.recoveryScore).toBe(Math.round((s.ciSleep / 10) * 100)); // 8 -> 80
-    expect(d.recoveryScore).toBe(80);
+    expect(d.recoveryScore).toBe(100);
   });
-
-  it('soreness-only enabled contributes (10 - ciSoreness) — inverse polarity', () => {
+  it('soreness 8 (very sore) still scores full: the coach reads the soreness, the number does not grade it', () => {
     const s = createInitialState();
-    const d = computeDerived({ ...s, ciSubmitted: true, ciSoreness: 4, ciConfig: { ...allOff, soreness: true } } as AppState);
-    // round(((10-4)/10)*100) = 60
-    expect(d.recoveryScore).toBe(60);
+    const d = computeDerived({ ...s, ciSubmitted: true, ciSoreness: 8, ciConfig: { ...allOff, soreness: true } } as AppState);
+    expect(d.recoveryScore).toBe(100);
   });
-
   it('zero enabled questions with ciSubmitted=true falls back to 86', () => {
     const s = createInitialState();
     const d = computeDerived({ ...s, ciSubmitted: true, ciConfig: { ...allOff } } as AppState);
@@ -540,13 +539,12 @@ describe('computeDerived — recovery sub-score from ciConfig', () => {
 
   it('a single undefined answer (corrupt blob, ciSubmitted) does not poison the score with NaN', () => {
     const s = createInitialState();
-    // ciEnergy is enabled by default but missing in the blob — must be skipped,
-    // not averaged in as NaN. Recovery falls back to the other three enabled
-    // answers (recovery 7 + sleep 8 + confidence 9 = 24 over 3) = 80.
+    // ciEnergy is enabled by default but missing in the blob: it is simply unanswered,
+    // so 3 of the 4 enabled questions are answered = 75.
     const d = computeDerived({ ...s, ciSubmitted: true, ciEnergy: undefined } as unknown as AppState);
     expect(Number.isFinite(d.recoveryScore)).toBe(true);
     expect(Number.isNaN(d.recoveryScore)).toBe(false);
-    expect(d.recoveryScore).toBe(80); // (7 + 8 + 9) / 30 * 100
+    expect(d.recoveryScore).toBe(75); // 3 answered of 4 enabled
     expect(Number.isFinite(d.athleteScore)).toBe(true);
     expect(Number.isInteger(d.athleteScore)).toBe(true);
   });
@@ -709,11 +707,11 @@ describe('SCORE_WEIGHTS', () => {
   });
 
   it('matches the coefficients computeDerived actually applies (no invented weights)', () => {
-    // Mirror of athleteScore: 0.76 nutrition + 0.12 recovery + 0.12 checkin (v2).
+    // Mirror of athleteScore: 0.82 nutrition + 0.09 recovery + 0.09 checkin (v3).
     const expected: Record<string, number> = {
-      nutrition: 76,
-      recovery: 12,
-      checkin: 12,
+      nutrition: 82,
+      recovery: 9,
+      checkin: 9,
     };
     for (const w of SCORE_WEIGHTS) {
       expect(w.pct).toBe(expected[w.key]);

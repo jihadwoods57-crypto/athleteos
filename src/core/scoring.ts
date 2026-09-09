@@ -23,7 +23,10 @@ import { tierFor } from './tiers';
 import type { AppState, CiConfig, Derived, Grade, MealKey } from './types';
 
 /** A meal logged after its window deadline counts half toward the score's "meals" share. */
-const LATE_MEAL_WEIGHT = 0.5;
+/** v3 (2026-09-09): late credit fades from full at the deadline to this floor over
+ *  LATE_DECAY_MIN minutes, then holds. Mirrors proto day.js lateCredit (default policy). */
+const LATE_MEAL_FLOOR = 0.5;
+const LATE_DECAY_MIN = 120;
 
 /**
  * Logged meals weighted by punctuality — the Accountability Engine's execution signal in
@@ -42,7 +45,8 @@ export function effectiveMealsLogged(s: Pick<AppState, 'meals' | 'mealLoggedAt'>
     const at = s.mealLoggedAt?.[k];
     const deadline = DEFAULT_PLAN.windows.find((w) => w.key === k)?.deadlineMin ?? 1440;
     const onTime = at == null || at <= deadline;
-    return sum + (onTime ? 1 : LATE_MEAL_WEIGHT);
+    const t = onTime ? 0 : Math.min(at - deadline, LATE_DECAY_MIN) / LATE_DECAY_MIN;
+    return sum + (1 - (1 - LATE_MEAL_FLOOR) * t);
   }, 0);
 }
 
@@ -156,7 +160,7 @@ export interface ScoreWeight {
  * Plain-language breakdown of the score, DERIVED from PROFILE_WEIGHTS so it can never drift from
  * the formula it describes. Zero-weight components are omitted — the athlete must not be shown a
  * category worth nothing. Descriptions are honest about which inputs are self-reported.
- *   0.76*nutrition + 0.12*recovery + 0.12*checkin.
+ *   0.82*nutrition + 0.09*recovery + 0.09*checkin.
  */
 const SCORE_WEIGHT_COPY: Record<ScoreWeight['key'], { label: string; desc: string }> = {
   nutrition: { label: 'Nutrition', desc: 'Protein and the meals you log each day' },
@@ -285,28 +289,26 @@ export function computeDerived(s: AppState): Derived {
     soreness: 'ciSoreness',
     motivation: 'ciMotivation',
   };
+  // v3 (2026-09-09): recovery is COMPLETENESS — the share of enabled questions answered — never
+  // the answers' values. Averaging values meant an honest low answer cost points, so truth scored
+  // under a row of tapped 9s. Mirrors proto day.js recoveryParts.
   let recoveryScore = 86; // fallback: unsubmitted OR no enabled questions
   let recoveryScoreIsReal = false; // true only once a real check-in actually backs the number
   if (s.ciSubmitted) {
-    let recoverySum = 0;
     let enabledCount = 0;
+    let answeredCount = 0;
     (Object.keys(s.ciConfig) as (keyof CiConfig)[]).forEach((key) => {
       if (s.ciConfig[key] !== true) return;
-      const raw = s[CI_FIELDS[key]] as number;
-      // A corrupt/legacy persisted blob can carry ciSubmitted:true while an enabled
-      // answer is undefined/NaN (written before that question existed, or hand-edited).
-      // Averaging that in makes recoverySum -> NaN, poisoning recoveryScore AND the
-      // whole athleteScore. Skip any non-finite answer so it never counts (and never
-      // inflates the divisor); if EVERY enabled answer is missing, enabledCount stays
-      // 0 and we fall back to 86, exactly as if no questions were enabled.
-      if (typeof raw !== 'number' || !Number.isFinite(raw)) return;
-      // Soreness has inverse polarity: high soreness = worse recovery, so it
-      // contributes (10 - ciSoreness). All other questions contribute raw value.
-      recoverySum += key === 'soreness' ? 10 - raw : raw;
       enabledCount += 1;
+      const raw = s[CI_FIELDS[key]] as number;
+      // A corrupt/legacy persisted blob can carry ciSubmitted:true while an enabled answer is
+      // undefined/NaN. A non-finite answer is simply unanswered; if EVERY enabled answer is
+      // missing we fall back to 86, exactly as if no questions were enabled.
+      if (typeof raw !== 'number' || !Number.isFinite(raw)) return;
+      answeredCount += 1;
     });
-    if (enabledCount > 0) {
-      recoveryScore = Math.min(100, Math.max(0, Math.round((recoverySum / (enabledCount * 10)) * 100)));
+    if (answeredCount > 0) {
+      recoveryScore = Math.min(100, Math.max(0, Math.round((answeredCount / enabledCount) * 100)));
       recoveryScoreIsReal = true;
     }
   }

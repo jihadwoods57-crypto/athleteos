@@ -33,9 +33,10 @@ export interface ProfileWeights {
 /** Headline mix per profile — score v2. MUST equal proto plan-style.js PROFILE_WEIGHTS;
  *  scoreParity.test.ts proves the two engines agree. */
 export const PROFILE_WEIGHTS: Record<ScoringProfile, ProfileWeights> = {
-  athlete: { nutrition: 0.76, recovery: 0.12, commitment: 0, checkin: 0.12 },
-  general: { nutrition: 0.78, recovery: 0.10, commitment: 0, checkin: 0.12 },
-  gain: { nutrition: 0.76, recovery: 0.12, commitment: 0, checkin: 0.12 },
+  // v3 (2026-09-09): food 82, check-in submitted 9, check-in complete 9. Mirrors proto plan-style.js.
+  athlete: { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 },
+  general: { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 },
+  gain: { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 },
 };
 
 /** Map a user's GOAL to the platform-owned scoring profile. A solo client never gets a coach to
@@ -115,8 +116,19 @@ export function profileNutritionScore(profile: ScoringProfile, n: NutritionInput
       Math.round(calorieFloorAdherence(n.kcalToday, n.calTarget) * 40 + proteinFrac * 35 + mealsFrac * 25),
     );
   }
-  // athlete (default) — identical to the shipped nutrition formula in scoring.ts
-  return Math.min(100, Math.round(proteinFrac * 65 + mealsFrac * 35));
+  // athlete (default), v3: protein 55 + on-time meals 30 + fueling floor 15. Mirrors proto
+  // day.js legacyNutritionScore. No calorie target: nothing to judge, full floor.
+  const fuel = n.calTarget > 0 ? fuelingFloor(n.kcalToday, n.calTarget) : 1;
+  return Math.min(100, Math.round(proteinFrac * 55 + mealsFrac * 30 + fuel * 15));
+}
+
+/** Soft under-fueling floor: 0 at <= 35% of the calorie target, 1 at >= 65%, linear between.
+ *  Soft on purpose — plate calories are photo estimates; this catches the shake-only day, it
+ *  does not grade the estimate. Mirrors proto day.js fuelingFloor. */
+export function fuelingFloor(kcal: number, target: number): number {
+  if (!(target > 0)) return 1;
+  const frac = Math.max(0, kcal) / target;
+  return Math.max(0, Math.min(1, (frac - 0.35) / 0.30));
 }
 
 /** Resolve a possibly-absent profile to the default ('athlete'). */

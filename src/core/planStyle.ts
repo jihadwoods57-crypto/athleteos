@@ -78,7 +78,7 @@ export interface StyleWeights {
 }
 
 /** Per-component ceiling. NOTHING may exceed these. Mirrors proto plan-style.js WEIGHT_CAPS. */
-export const WEIGHT_CAPS: StyleWeights = { nutrition: 0.78, recovery: 0.12, commitment: 0, checkin: 0.12 };
+export const WEIGHT_CAPS: StyleWeights = { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 };
 
 /** Headline mix per goal profile — v2. Plan style no longer re-weights the score — it shapes HOW
  *  nutrition is computed (knobsFor). Re-exported straight from scoringProfiles.ts (the RN engine's
@@ -163,9 +163,10 @@ export interface NutritionParts {
  * day. A professional who customizes Structured opts INTO this composition. See knobsFor().
  */
 export const NUTRITION_PARTS: Record<PlanStyle, NutritionParts> = {
-  structured: { protein: 40, calorie: 25, timing: 25, hydration: 10, quality: 0, awareness: 0 },
-  guided: { protein: 20, calorie: 30, timing: 25, hydration: 10, quality: 15, awareness: 0 },
-  intuitive: { protein: 0, calorie: 40, timing: 0, hydration: 25, quality: 0, awareness: 35 },
+  // v3 (2026-09-09): hydration/awareness 0 everywhere — see proto plan-style.js for why.
+  structured: { protein: 45, calorie: 28, timing: 27, hydration: 0, quality: 0, awareness: 0 },
+  guided: { protein: 22, calorie: 33, timing: 27, hydration: 0, quality: 18, awareness: 0 },
+  intuitive: { protein: 0, calorie: 65, timing: 35, hydration: 0, quality: 0, awareness: 0 },
 };
 
 /** Which engine path scores the nutrition sub-score:
@@ -222,7 +223,7 @@ export const PRESETS: Record<PlanStyle, StyleKnobs> = {
       formula: 'parts',
       calorie: 'adequacy', calorieBand: 0,
       protein: 'off', proteinBand: 0,
-      timingScored: false, hydrationScored: false, qualityScored: false, awarenessScored: true,
+      timingScored: true, hydrationScored: false, qualityScored: false, awarenessScored: false,
     },
     parts: NUTRITION_PARTS.intuitive,
     // Digestion and cravings still ride the check-in; the three meal-time ones are gone.

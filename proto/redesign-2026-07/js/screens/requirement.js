@@ -59,7 +59,7 @@ export default {
     const grace = typeof req.grace === 'number' && req.grace > 0 ? req.grace : 0;
     const scored = req.impact.kind === 'component';
     const DONE_RULE = {
-      photo: { what: 'A photo of the plate', late: `Logged inside the window scores in full${grace ? `, plus ${grace} min grace` : ''}. Late still counts, at half credit.` },
+      photo: { what: 'A photo of the plate', late: `Logged inside the window scores in full${grace ? `, plus ${grace} min grace` : ''}. Late still counts; the credit fades to half over two hours.` },
       form:  { what: 'The form submitted', late: 'Submitted any time tonight counts in full.' },
       scale: { what: 'A weight entered', late: 'It feeds your season trend, so a late entry costs nothing.' },
       counter: { what: 'The count reached', late: 'Add to it any time before the deadline.' },

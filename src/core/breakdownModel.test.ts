@@ -48,7 +48,7 @@ describe('reachPlan (spec §2.6: mathematically exact, sums to the ceiling)', ()
     const done = freshDay({
       meals: { breakfast: true, lunch: true, snack: true, dinner: true },
       mealLoggedAt: { breakfast: 500, lunch: 780, snack: 1000, dinner: 1200 },
-      slotMacros: { breakfast: { protein: 45 }, lunch: { protein: 45 }, snack: { protein: 45 }, dinner: { protein: 45 } },
+      slotMacros: { breakfast: { protein: 45, kcal: 800 }, lunch: { protein: 45, kcal: 800 }, snack: { protein: 45, kcal: 800 }, dinner: { protein: 45, kcal: 800 } },
       ciSubmitted: true, dailyCommitment: 'yes',
     });
     expect(reachPlan(done, OPTS).rows).toEqual([]);
@@ -86,7 +86,7 @@ describe('mealMaxGain (camera "earn up to +N" — spec §4.4)', () => {
   test('is a true single-meal ceiling: > 0 on an open slot, 0 on a logged one', () => {
     const day = freshDay();
     expect(mealMaxGain(day, 'lunch', OPTS)).toBeGreaterThan(0);
-    const logged = freshDay({ meals: { ...day.meals, lunch: true }, mealLoggedAt: { lunch: 700 }, slotMacros: { lunch: { protein: 40 } } });
+    const logged = freshDay({ meals: { ...day.meals, lunch: true }, mealLoggedAt: { lunch: 700 }, slotMacros: { lunch: { protein: 40, kcal: 700 } } });
     expect(mealMaxGain(logged, 'lunch', OPTS)).toBe(0);
   });
 });
@@ -124,7 +124,7 @@ describe('explainCategories (spec §2.2/§2.3)', () => {
   });
 
   test('protein remaining feeds the nutrition explanation', () => {
-    const day = freshDay({ meals: { breakfast: true, lunch: false, snack: false, dinner: false }, mealLoggedAt: { breakfast: 500 }, slotMacros: { breakfast: { protein: 40 } } });
+    const day = freshDay({ meals: { breakfast: true, lunch: false, snack: false, dinner: false }, mealLoggedAt: { breakfast: 500 }, slotMacros: { breakfast: { protein: 40, kcal: 700 } } });
     expect(proteinRemaining(day, OPTS.slots)).toBe(140);
     const nut = explainCategories(day, OPTS).find((c: any) => c.id === 'nutrition')!;
     expect(nut.note).toMatch(/1 of 4 meals completed/);
@@ -137,11 +137,11 @@ describe('score v2 breakdown', () => {
     expect(cats.map((c: any) => c.id)).toEqual(['nutrition', 'recovery']);
   });
 
-  it('the recovery card is worth 24 and names the guaranteed part', () => {
+  it('the recovery card is worth 18 and names the guaranteed part', () => {
     const rec = explainCategories(freshDay(), OPTS).find((c: any) => c.id === 'recovery')!;
-    expect(rec.possible).toBe(24);
+    expect(rec.possible).toBe(18);
     expect(rec.rows[0].label).toBe('Checked in tonight');
-    expect(rec.rows[0].value).toBe('+12 on check-in');
+    expect(rec.rows[0].value).toBe('+9 on check-in');
   });
 
   it('reach plan has no commitment row', () => {

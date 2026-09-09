@@ -14,7 +14,7 @@ describe('PROFILE_WEIGHTS', () => {
     }
   });
   it('athlete carries the score v2 mix', () => {
-    expect(PROFILE_WEIGHTS.athlete).toEqual({ nutrition: 0.76, recovery: 0.12, commitment: 0, checkin: 0.12 });
+    expect(PROFILE_WEIGHTS.athlete).toEqual({ nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 });
   });
 });
 
@@ -36,9 +36,15 @@ describe('calorieAdherence — two-sided band', () => {
 });
 
 describe('profileNutritionScore', () => {
-  it('athlete reproduces protein 65 + meals 35', () => {
+  it('athlete = protein 55 + meals 30 + fueling floor 15 (no calorie target: floor is full)', () => {
     expect(profileNutritionScore('athlete', { proteinToday: 180, proteinTarget: 180, kcalToday: 0, calTarget: 0, effectiveMeals: 4 })).toBe(100);
-    expect(profileNutritionScore('athlete', { proteinToday: 90, proteinTarget: 180, kcalToday: 0, calTarget: 0, effectiveMeals: 2 })).toBe(50);
+    expect(profileNutritionScore('athlete', { proteinToday: 90, proteinTarget: 180, kcalToday: 0, calTarget: 0, effectiveMeals: 2 })).toBe(58);
+  });
+  it('athlete: four protein shakes and no food no longer read 100 — the fueling floor asks whether they ATE', () => {
+    // protein met, 4 on-time slots, 800 kcal against a 3200 target = 25% -> floor 0 -> 85
+    expect(profileNutritionScore('athlete', { proteinToday: 180, proteinTarget: 180, kcalToday: 800, calTarget: 3200, effectiveMeals: 4 })).toBe(85);
+    // two-thirds of target is a full floor: photo estimates run low and the floor is soft
+    expect(profileNutritionScore('athlete', { proteinToday: 180, proteinTarget: 180, kcalToday: 2150, calTarget: 3200, effectiveMeals: 4 })).toBe(100);
   });
   it('general = calorie 45 + protein 25 + consistency 30', () => {
     // perfect general day
@@ -117,9 +123,9 @@ describe('computeDerived honors the profile', () => {
 
 describe('score v2 weights', () => {
   it('matches the proto engine exactly', () => {
-    expect(PROFILE_WEIGHTS.athlete).toEqual({ nutrition: 0.76, recovery: 0.12, commitment: 0, checkin: 0.12 });
-    expect(PROFILE_WEIGHTS.general).toEqual({ nutrition: 0.78, recovery: 0.10, commitment: 0, checkin: 0.12 });
-    expect(PROFILE_WEIGHTS.gain).toEqual({ nutrition: 0.76, recovery: 0.12, commitment: 0, checkin: 0.12 });
+    expect(PROFILE_WEIGHTS.athlete).toEqual({ nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 });
+    expect(PROFILE_WEIGHTS.general).toEqual({ nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 });
+    expect(PROFILE_WEIGHTS.gain).toEqual({ nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 });
   });
 
   it('every profile sums to 1', () => {

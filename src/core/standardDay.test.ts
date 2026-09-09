@@ -16,14 +16,14 @@ describe('src/core profileNutritionScore — mealsRequired denominator', () => {
   test('absent mealsRequired keeps the classic /4 (shipped formula unchanged)', () => {
     expect(profileNutritionScore('athlete', { ...N, effectiveMeals: 4 })).toBe(100);
     expect(profileNutritionScore('athlete', { ...N, effectiveMeals: 3 }))
-      .toBe(Math.round(65 + (3 / 4) * 35));
+      .toBe(Math.round(55 + (3 / 4) * 30 + 15)); // v3: no calorie target -> full fueling floor
   });
   test('a 2-meal standard: both meals on time = full meal credit', () => {
     expect(profileNutritionScore('athlete', { ...N, effectiveMeals: 2, mealsRequired: 2 })).toBe(100);
   });
   test('a 6-meal standard: 3 meals is half the meal credit', () => {
     expect(profileNutritionScore('athlete', { ...N, effectiveMeals: 3, mealsRequired: 6 }))
-      .toBe(Math.round(65 + 0.5 * 35));
+      .toBe(Math.round(55 + 0.5 * 30 + 15)); // v3
   });
   test('mealsFrac never exceeds 1 (overeating slots cannot inflate)', () => {
     expect(profileNutritionScore('athlete', { ...N, effectiveMeals: 5, mealsRequired: 2 })).toBe(100);
@@ -38,14 +38,14 @@ describe('proto day engine — setDayStandard governs slots, deadlines, denomina
   };
   const logOnTime = (k: string, protein = 45) => {
     DAY.meals[k] = true; DAY.mealLoggedAt[k] = 60; // 1:00 AM — before any deadline
-    DAY.slotMacros[k] = { protein };
+    DAY.slotMacros[k] = { protein, kcal: 1600 }; // v3: a real plate always carries kcal (fueling floor: 2 plates clear a 3200 target)
   };
   afterEach(() => { setDayStandard(null); freshDay(); });
 
   test('no standard: classic 4-slot denominator (3 on-time meals = 3/4 credit)', () => {
     freshDay();
     logOnTime('breakfast', 60); logOnTime('lunch', 60); logOnTime('dinner', 60);
-    expect(computeComponents(DAY).nutrition).toBe(Math.round(65 + (3 / 4) * 35));
+    expect(computeComponents(DAY).nutrition).toBe(Math.round(55 + (3 / 4) * 30 + 15)); // v3: 93
     expect(dayStandard()).toBeNull();
   });
 
@@ -72,19 +72,20 @@ describe('proto day engine — setDayStandard governs slots, deadlines, denomina
     expect(computeComponents(DAY).nutrition).toBe(100);
   });
 
-  test('late meal under a standard earns half against the standard deadline', () => {
+  test('late meal under a standard: credit fades against the STANDARD deadline (70 min late = 71%)', () => {
     freshDay();
     setDayStandard({ mealsRequired: 1, slots: ['dinner'], deadlines: { dinner: 1230 }, titles: {} });
-    DAY.meals.dinner = true; DAY.mealLoggedAt.dinner = 1300; // past 8:30 PM window
-    DAY.slotMacros.dinner = { protein: 180 };
-    expect(computeComponents(DAY).nutrition).toBe(Math.round(65 + 0.5 * 35));
+    DAY.meals.dinner = true; DAY.mealLoggedAt.dinner = 1300; // past 8:30 PM window by 70 min
+    DAY.slotMacros.dinner = { protein: 180, kcal: 2400 };
+    // v3: 1 - 0.5 * 70/120 = 0.708 of the 30 meal points; protein 55; fueling 15 -> round(91.25)
+    expect(computeComponents(DAY).nutrition).toBe(Math.round(55 + 30 * (1 - 0.5 * 70 / 120) + 15));
   });
 
   test('grace period: a meal logged within grace still earns FULL credit', () => {
     freshDay();
     setDayStandard({ mealsRequired: 1, slots: ['dinner'], deadlines: { dinner: 1230 }, titles: {}, grace: { dinner: 90 } });
     DAY.meals.dinner = true; DAY.mealLoggedAt.dinner = 1300; // 70 min late — inside the 90-min grace
-    DAY.slotMacros.dinner = { protein: 180 };
+    DAY.slotMacros.dinner = { protein: 180, kcal: 2400 };
     expect(computeComponents(DAY).nutrition).toBe(100);
   });
 
@@ -92,7 +93,7 @@ describe('proto day engine — setDayStandard governs slots, deadlines, denomina
     freshDay();
     setDayStandard({ mealsRequired: 1, slots: ['dinner'], deadlines: { dinner: 1230 }, titles: {}, latePolicy: { dinner: 'full' } });
     DAY.meals.dinner = true; DAY.mealLoggedAt.dinner = 1300;
-    DAY.slotMacros.dinner = { protein: 180 };
+    DAY.slotMacros.dinner = { protein: 180, kcal: 2400 };
     expect(computeComponents(DAY).nutrition).toBe(100);
   });
 
@@ -100,7 +101,7 @@ describe('proto day engine — setDayStandard governs slots, deadlines, denomina
     freshDay();
     setDayStandard({ mealsRequired: 1, slots: ['dinner'], deadlines: { dinner: 1230 }, titles: {}, latePolicy: { dinner: 'none' } });
     DAY.meals.dinner = true; DAY.mealLoggedAt.dinner = 1300;
-    DAY.slotMacros.dinner = { protein: 180 };
-    expect(computeComponents(DAY).nutrition).toBe(65); // 65 protein + 0 meal credit
+    DAY.slotMacros.dinner = { protein: 180, kcal: 2400 };
+    expect(computeComponents(DAY).nutrition).toBe(70); // v3: 55 protein + 15 fueling + 0 meal credit
   });
 });

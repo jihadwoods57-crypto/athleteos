@@ -26,6 +26,11 @@ import { withinTrailingWeek } from './clock';
  * Must equal `v_cutover` in migration 0193.
  */
 export const SCORING_V2_CUTOVER = '2026-08-16';
+/**
+ * The date score v3 takes effect (food 82, check-in 9 + 9). Rows dated in the v2 era keep v2's
+ * 24-point check-in slot — they were earned under it. Must equal `v_cutover3` in migration 0228.
+ */
+export const SCORING_V3_CUTOVER = '2026-09-09';
 
 /** v1 ceiling slots, frozen. Deliberately NOT derived from PROFILE_WEIGHTS — they describe a
  *  formula that no longer exists and must not move when the live weights do. */
@@ -43,11 +48,21 @@ export const MAX_SUBSCORE_WEIGHT = ((): { nutrition: number; recovery: number; c
   return { nutrition: maxOf('nutrition'), recovery: maxOf('recovery'), commitment: maxOf('commitment'), checkin: maxOf('checkin') };
 })();
 
-/** v2 ceiling slots, in points, derived from the live weights. */
-const V2_CEILING = {
+/** v2 ceiling slots, frozen (78 / 24 / 0). Literal for the same reason V1 is: they describe a
+ *  formula that no longer runs and must not move when the live weights do. */
+const V2_CEILING = { nutrition: 78, checkinAndRecovery: 24, commitment: 0 } as const;
+/** v3 ceiling slots, in points, derived from the LIVE weights. */
+const V3_CEILING = {
   nutrition: Math.round(MAX_SUBSCORE_WEIGHT.nutrition * 100),
   checkinAndRecovery: Math.round((MAX_SUBSCORE_WEIGHT.recovery + MAX_SUBSCORE_WEIGHT.checkin) * 100),
   commitment: Math.round(MAX_SUBSCORE_WEIGHT.commitment * 100),
+} as const;
+/** A row dated in the v2 era can still be written by the v3 engine (offline backlog, a re-push),
+ *  so its ceiling is the v2/v3 union — the same loose-direction argument as PRE_CUTOVER_CEILING. */
+const V2_ERA_CEILING = {
+  nutrition: Math.max(V2_CEILING.nutrition, V3_CEILING.nutrition),
+  checkinAndRecovery: Math.max(V2_CEILING.checkinAndRecovery, V3_CEILING.checkinAndRecovery),
+  commitment: Math.max(V2_CEILING.commitment, V3_CEILING.commitment),
 } as const;
 
 /**
@@ -70,20 +85,20 @@ const V2_CEILING = {
  * combination, so any row that did not move under v1 cannot move under it.
  */
 const PRE_CUTOVER_CEILING = {
-  nutrition: Math.max(V1_CEILING.nutrition, V2_CEILING.nutrition),
-  checkinAndRecovery: Math.max(V1_CEILING.checkinAndRecovery, V2_CEILING.checkinAndRecovery),
-  commitment: Math.max(V1_CEILING.commitment, V2_CEILING.commitment),
+  nutrition: Math.max(V1_CEILING.nutrition, V2_ERA_CEILING.nutrition),
+  checkinAndRecovery: Math.max(V1_CEILING.checkinAndRecovery, V2_ERA_CEILING.checkinAndRecovery),
+  commitment: Math.max(V1_CEILING.commitment, V2_ERA_CEILING.commitment),
 } as const;
 
 /** The evidence gates a `days` row carries, each unlocking one weighted slot of the ceiling. */
 export interface ScoreEvidence {
   /** Food evidence: a meal slot was logged, a real plate rode in on `checkin.slotMacros`, a
    *  quick-add was tapped, OR an active trust pass credits nutrition camera-free. Unlocks the
-   *  nutrition slot (v2: 78, v1: 55). */
+   *  nutrition slot (v3: 82, v2: 78, v1: 55). */
   nutritionPossible: boolean;
   /** A real check-in backs the row. v2: submitted THAT day — nothing carries. v1: submitted, or
    *  carried from a submission in the trailing 6 days. Unlocks the recovery + check-in slots
-   *  (v2: 12 + 12 = 24, v1: 25 + 10 = 35). */
+   *  (v3: 9 + 9 = 18, v2: 12 + 12 = 24, v1: 25 + 10 = 35). */
   checkinPossible: boolean;
   /** A plan-commitment answer is on the row. v2: unlocks NOTHING (weight 0). v1: 15. */
   commitmentPresent: boolean;
@@ -96,7 +111,7 @@ export interface ScoreEvidence {
  * a written score down to it.
  */
 export function evidenceScoreCeiling(ev: ScoreEvidence, rowDate: string): number {
-  const c = rowDate < SCORING_V2_CUTOVER ? PRE_CUTOVER_CEILING : V2_CEILING;
+  const c = rowDate < SCORING_V2_CUTOVER ? PRE_CUTOVER_CEILING : rowDate < SCORING_V3_CUTOVER ? V2_ERA_CEILING : V3_CEILING;
   return Math.min(100,
     (ev.nutritionPossible ? c.nutrition : 0) +
     (ev.checkinPossible ? c.checkinAndRecovery : 0) +

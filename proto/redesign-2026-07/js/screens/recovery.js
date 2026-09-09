@@ -133,7 +133,7 @@ export default {
           </div>
         </div>`).join('')}
     </section>
-    <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin-top:8px;padding:0 2px;line-height:1.5">Answers are self-reported. What you enter here becomes your Recovery score, so keep it honest.</div>
+    <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin-top:8px;padding:0 2px;line-height:1.5">Answers are self-reported. Your Recovery points come from answering every question, never from how high the answers are, so keep it honest.</div>
 
     <div style="height:14px"></div>
     <div class="sidebox">

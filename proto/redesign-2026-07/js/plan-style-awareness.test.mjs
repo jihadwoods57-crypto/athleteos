@@ -82,25 +82,26 @@ test('a day the athlete never touched still floors at zero', () => {
   assert.equal(untouched, 0);
 });
 
-test('a redistribution of the 35 points WOULD have dropped people — this is why it was not done', () => {
-  // Kept as a live counter-example. Proportionally re-weighting fueling and hydration to absorb
-  // awareness looks tidy and costs a real athlete real points.
-  const parts = knobsFor('intuitive').parts;
-  const total = parts.calorie + parts.hydration;
-  const redistributed = { protein: 0, calorie: (parts.calorie / total) * 100, timing: 0, hydration: (parts.hydration / total) * 100, quality: 0, awareness: 0 };
-  const credit = { protein: 0, calorie: 0.5, timing: 0, hydration: 1, quality: 0 };
-  const before = nutrition(parts, { ...credit, awareness: 1 });
-  const after = nutrition(redistributed, { ...credit, awareness: 0 });
-  assert.ok(after < before, 'expected the redistribution to be a drop');
-});
-
-test('the published weights did not move', () => {
-  // Decision 2 authorized neutralizing the awareness credit and nothing else in scoring.
+test('v3: Intuitive is scored on fueling and timing only — every point is earnable', () => {
+  // 2026-09-09: awareness (a constant 1 since the meal-time prompt went away) and hydration (no
+  // logger in the app) both carried weight an athlete could not earn or could not lose. Both are
+  // 0 now, and the preset re-sums to 100 on what the engine actually measures.
   assert.deepEqual(PRESETS.intuitive.parts, NUTRITION_PARTS.intuitive);
-  assert.equal(NUTRITION_PARTS.intuitive.awareness, 35);
+  assert.equal(NUTRITION_PARTS.intuitive.awareness, 0);
+  assert.equal(NUTRITION_PARTS.intuitive.hydration, 0);
+  assert.equal(NUTRITION_PARTS.intuitive.calorie + NUTRITION_PARTS.intuitive.timing, 100);
   assert.equal(NUTRITION_PARTS.guided.awareness, 0);
   assert.equal(NUTRITION_PARTS.structured.awareness, 0);
-  assert.equal(PRESETS.intuitive.nutrition.awarenessScored, true);
+  assert.equal(PRESETS.intuitive.nutrition.awarenessScored, false);
+  assert.equal(PRESETS.intuitive.nutrition.timingScored, true);
+});
+
+test('v3: a fully fueled, on-time Intuitive day reaches 100 with no free points', () => {
+  const parts = knobsFor('intuitive').parts;
+  const full = nutrition(parts, { protein: 0, calorie: 1, timing: 1, hydration: 0, quality: 0, awareness: 0 });
+  assert.equal(full, 1); // the helper returns the 0..1 fraction day.js scales to 100
+  const noFood = nutrition(parts, { protein: 0, calorie: 0, timing: 0, hydration: 1, quality: 0, awareness: 1 });
+  assert.equal(noFood, 0, 'hydration and awareness credit buy nothing');
 });
 
 test('Guided and Structured were never scored on awareness, and still are not', () => {

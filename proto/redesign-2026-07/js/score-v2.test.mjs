@@ -20,7 +20,7 @@ function day(over = {}) {
 function fed(p) {
   const keys = ['breakfast', 'lunch', 'snack', 'dinner'];
   const meals = {}, at = { breakfast: 500, lunch: 800, snack: 1000, dinner: 1200 }, sm = {};
-  for (const k of keys) { meals[k] = true; sm[k] = { protein: p / 4 }; }
+  for (const k of keys) { meals[k] = true; sm[k] = { protein: p / 4, kcal: 800 }; } // v3: real plates carry kcal
   return { meals, mealLoggedAt: at, slotMacros: sm };
 }
 const GOOD_CI = {
@@ -30,9 +30,9 @@ const GOOD_CI = {
 };
 
 test('weights are the v2 mix and commitment carries none of it', () => {
-  assert.deepEqual(PROFILE_WEIGHTS.athlete, { nutrition: 0.76, recovery: 0.12, commitment: 0, checkin: 0.12 });
-  assert.deepEqual(PROFILE_WEIGHTS.general, { nutrition: 0.78, recovery: 0.10, commitment: 0, checkin: 0.12 });
-  assert.deepEqual(PROFILE_WEIGHTS.gain, { nutrition: 0.76, recovery: 0.12, commitment: 0, checkin: 0.12 });
+  assert.deepEqual(PROFILE_WEIGHTS.athlete, { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 });
+  assert.deepEqual(PROFILE_WEIGHTS.general, { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 });
+  assert.deepEqual(PROFILE_WEIGHTS.gain, { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 });
 });
 
 test('a day with nothing logged and no check-in scores exactly 0', () => {
@@ -56,8 +56,8 @@ test('a check-in from earlier in the week no longer counts today', () => {
   assert.equal(c.recoveryContribution, 0, 'recovery must not carry either');
 });
 
-test('perfect food with no check-in caps at 76, not 100', () => {
-  assert.equal(scoreFor(day({ ...fed(180) })), 76);
+test('v3: perfect food with no check-in reads 82 — on standard on its own, not 100', () => {
+  assert.equal(scoreFor(day({ ...fed(180) })), 82);
 });
 
 test('effort outranks attendance: full food beats half food plus a check-in', () => {

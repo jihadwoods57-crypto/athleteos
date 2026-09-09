@@ -62,21 +62,21 @@ describe('standardForGoal', () => {
   // it, same as log.js/features.js/recovery.js/requirements.js. There is no Commitment row (the
   // component scores 0) and no Check-in row (the weekly check-in was deleted; the nightly
   // recovery check-in's credit lives inside the Recovery row).
-  test('general profile on Structured relabels the weights (v2: 78/22)', () => {
+  test('general profile on Structured shows the v3 weights (82/18)', () => {
     const rows = standardForGoal('lose', 3, 'general', 'structured').rows;
     expect(rows).toHaveLength(3); // nutrition, recovery, weight-trend
-    expect(rows[0][2]).toContain('78%');
-    expect(rows[1][2]).toContain('22%');
+    expect(rows[0][2]).toContain('82%');
+    expect(rows[1][2]).toContain('18%');
   });
   test('general profile on Guided (the default style) matches the Structured row — style never re-weights', () => {
     const rows = standardForGoal('lose', 3, 'general').rows;
-    expect(rows[0][2]).toContain('78%');
-    expect(rows[1][2]).toContain('22%');
+    expect(rows[0][2]).toContain('82%');
+    expect(rows[1][2]).toContain('18%');
   });
-  test('athlete profile keeps v2 76/24', () => {
+  test('athlete profile shows the v3 82/18', () => {
     const rows = standardForGoal('gain').rows;
-    expect(rows[0][2]).toContain('76%');
-    expect(rows[1][2]).toContain('24%');
+    expect(rows[0][2]).toContain('82%');
+    expect(rows[1][2]).toContain('18%');
   });
 });
 

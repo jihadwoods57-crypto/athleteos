@@ -47,7 +47,7 @@ const preCutoverCeilingPct = () => ({
 const CONTRADICTIONS = [
   ['A new user marked overdue immediately', 'Guarded — activation.js: pre-activation required windows read "Not required", drop out of the denominator, never break streak (activation anchors to profiles.created_at).'],
   ['A negative verdict before the day is decided', 'Guarded — dayverdict.js dayDecided(): "Missed/Off Standard" only shows once no required time-windowed item is still open.'],
-  ['A perfect score despite missed requirements', `Guarded — the server evidence ceiling (0193) clamps score DOWN to what evidence supports (nutrition ${wpct(WEIGHT_CAPS.nutrition)} / a real check-in ${recoveryPillarPct(WEIGHT_CAPS)}). Rows before 2026-08-16 keep the pre-cutover union (${preCutoverCeilingPct().nutrition} / ${preCutoverCeilingPct().checkinAndRecovery} / ${preCutoverCeilingPct().commitment}) so frozen history is never re-clamped.`],
+  ['A perfect score despite missed requirements', `Guarded — the server evidence ceiling (0193) clamps score DOWN to what evidence supports (nutrition ${wpct(WEIGHT_CAPS.nutrition)} / a real check-in ${recoveryPillarPct(WEIGHT_CAPS)}). Rows before 2026-08-16 keep the pre-cutover union (${preCutoverCeilingPct().nutrition} / ${preCutoverCeilingPct().checkinAndRecovery} / ${preCutoverCeilingPct().commitment}); rows from 2026-08-16 to 2026-09-08 keep the v2 check-in slot (24) — frozen history is never re-clamped.`],
   ['A deleted meal still affecting analysis', 'Guarded — deleted-food isolation (per-meal DB grounding); a removed meal leaves the denominator.'],
   ['One meal included in another meal’s AI analysis', 'Guarded — session contamination fix; each analyze-meal call is scoped to its own meal.'],
   ['A duplicate photo scoring twice', 'Guarded — 0062 photo-hash unique index; a duplicate-flagged slot scores 0 (dup).'],
@@ -65,12 +65,15 @@ function weightsCard(profile, w) {
   // Nutrition either sits at its own cap (general) or at the shared floor forced by recovery
   // sitting at ITS cap (athlete/gain) — computed, not asserted, so this can't drift from the bars.
   const atNutritionCap = w.nutrition >= WEIGHT_CAPS.nutrition - 1e-9;
+  const atRecoveryCap = w.recovery >= WEIGHT_CAPS.recovery - 1e-9;
   return card(`Profile · ${profile}`, [
     bar('Nutrition', w.nutrition), bar('Checked in tonight', w.checkin), bar('Answers', w.recovery),
     h('p', { class: 'cap', text: `The athlete sees ONE Recovery pillar (${recoveryPillarPct(w)}) — split into "Checked in tonight" and "Answers" above only for engine inspection.` }),
-    h('p', { class: 'cap', text: `Commitment is 0 — the reflection is captured and shown to the coach, it just no longer scores. ${atNutritionCap
-      ? `${profile} spends the freed-up slack pushing nutrition to its ${wpct(WEIGHT_CAPS.nutrition)} cap.`
-      : `${profile} sits at the ${wpct(w.nutrition)} nutrition floor / ${wpct(w.recovery)} recovery cap — no headroom, do not change.`}` }),
+    h('p', { class: 'cap', text: `Commitment is 0 — the reflection is captured and shown to the coach, it just no longer scores. ${atNutritionCap && atRecoveryCap
+      ? `${profile} sits at the ${wpct(WEIGHT_CAPS.nutrition)} nutrition cap with recovery at its ${wpct(WEIGHT_CAPS.recovery)} cap — no headroom, do not change.`
+      : atNutritionCap
+        ? `${profile} spends the freed-up slack pushing nutrition to its ${wpct(WEIGHT_CAPS.nutrition)} cap.`
+        : `${profile} sits at the ${wpct(w.nutrition)} nutrition floor / ${wpct(w.recovery)} recovery cap — no headroom, do not change.`}` }),
   ]);
 }
 
@@ -88,7 +91,7 @@ function mount(view) {
     row('Nutrition (max)', wpct(WEIGHT_CAPS.nutrition)),
     row('Real check-in (max)', `${recoveryPillarPct(WEIGHT_CAPS)} — checkin (${wpct(WEIGHT_CAPS.checkin)}) + recovery (${wpct(WEIGHT_CAPS.recovery)}) combined`),
     row('Commitment (max)', WEIGHT_CAPS.commitment > 0 ? wpct(WEIGHT_CAPS.commitment) : '0 — no longer scored'),
-    h('p', { class: 'cap', text: `A monotone BEFORE-insert trigger caps a fabricated over-report. The only server-side scoring logic — it caps, never recomputes. Date-guarded at 2026-08-16: rows on/after that date get this ceiling; rows before it keep the pre-cutover union (nutrition ${preCutoverCeilingPct().nutrition} / checkin+recovery ${preCutoverCeilingPct().checkinAndRecovery} / commitment ${preCutoverCeilingPct().commitment}) so no historical row can move.` }),
+    h('p', { class: 'cap', text: `A monotone BEFORE-insert trigger caps a fabricated over-report. The only server-side scoring logic — it caps, never recomputes. Date-guarded twice (0193 at 2026-08-16, 0228 at 2026-09-09): rows on/after 2026-09-09 get this ceiling; rows in the v2 era keep their 24-point check-in slot; rows before 2026-08-16 keep the pre-cutover union (nutrition ${preCutoverCeilingPct().nutrition} / checkin+recovery ${preCutoverCeilingPct().checkinAndRecovery} / commitment ${preCutoverCeilingPct().commitment}) so no historical row can move.` }),
   ]));
   grid.appendChild(card('Rules', [
     row('Daily reflection', 'Captured and shown to the coach · worth 0 points — an honest "no" costs nothing'),

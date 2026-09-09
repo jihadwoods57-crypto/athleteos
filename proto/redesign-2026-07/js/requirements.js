@@ -32,7 +32,7 @@ export function setImpactWeightsProvider(fn) { weightsProvider = typeof fn === '
 /* Import-free by design (see the exec.test catalog seam), so this is the ONE legal copy of the
    weights outside plan-style.js. weight-sources.test.mjs pins it to the engine's athlete row and
    fails the build if either side moves. */
-export const FALLBACK_WEIGHTS = { nutrition: 0.76, recovery: 0.12, commitment: 0, checkin: 0.12 };
+export const FALLBACK_WEIGHTS = { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 };
 function impactWeights() {
   let w = null;
   try { w = weightsProvider ? weightsProvider() : null; } catch (_) { w = null; }
@@ -45,7 +45,7 @@ export const IMPACT_LABEL = {
   get nutrition() { return `Nutrition · ${weightPct('nutrition')}% of score`; },
   // v2: the Recovery pillar the athlete actually sees is the SUM of the engine's two internal
   // slots (checkin + recovery) — see breakdown-model.js's "ONE Recovery card" comment. A lone
-  // weightPct('recovery') understates it by half (12% instead of 24%); this is the same
+  // weightPct('recovery') understates it by half (9% instead of 18%); this is the same
   // liveWeightPct('checkin') + liveWeightPct('recovery') pattern already established in
   // log.js/features.js/settings.js/ob2-meal.js/roles.js and screens/coach.js's standard editor.
   get recovery()  { return `Recovery · ${weightPct('checkin') + weightPct('recovery')}% of score`; },

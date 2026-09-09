@@ -67,8 +67,9 @@ describe('an unstamped day is the shipped classic scoring, untouched', () => {
       slotMacros: { breakfast: { protein: 45, kcal: 800 } },
       mealLoggedAt: { breakfast: 0 },
     });
-    // proteinFrac = 45/180 = .25 -> 16.25 ; mealsFrac = 1/4 = .25 -> 8.75 ; round(25) = 25
-    expect(computeComponents(d).nutrition).toBe(25);
+    // v3: proteinFrac = 45/180 = .25 -> 13.75 ; mealsFrac = 1/4 = .25 -> 7.5 ;
+    // fueling floor: 800/3200 = 25% of target, under the 35% foot of the ramp -> 0 ; round(21.25) = 21
+    expect(computeComponents(d).nutrition).toBe(21);
   });
 
   test('the general and gain profiles are equally untouched', () => {
@@ -196,12 +197,12 @@ describe('Intuitive — awareness and adequate fueling, never restriction', () =
     expect(a).toBe(b);
   });
 
-  test('meal TIMING is not scored on Intuitive', () => {
+  test('v3: meal TIMING is scored on Intuitive — eating regularly is execution, not restriction', () => {
     const late: any = {};
     for (const k of MEAL_KEYS as string[]) late[k] = 1439;   // every meal logged at 11:59pm
     const onTime = computeComponents(styled('intuitive', { signals: allSignals, ...withCi })).nutrition;
     const veryLate = computeComponents(styled('intuitive', { mealLoggedAt: late, signals: allSignals, ...withCi })).nutrition;
-    expect(veryLate).toBe(onTime);
+    expect(veryLate).toBeLessThan(onTime);
   });
 
   // The meal-time prompt was removed (2026-07-28), so signals no longer move the score at all.
@@ -299,25 +300,26 @@ describe('the new check-in signals never move an existing athlete', () => {
     expect(computeComponents(withValues).recovery).toBe(computeComponents(without).recovery);
   });
 
-  test('turning them on brings them into the recovery average', () => {
+  test('v3: turning them on adds them to the enabled set — leaving them unanswered costs completeness', () => {
     const on = { ...classicCfg, digestion: true, cravings: true };
-    const good = fullDay({ ciConfig: on, ci: { energy: 8, recovery: 6, sleep: 8, confidence: 8, digestion: 10, cravings: 0 } });
-    const rough = fullDay({ ciConfig: on, ci: { energy: 8, recovery: 6, sleep: 8, confidence: 8, digestion: 1, cravings: 10 } });
-    expect(computeComponents(good).recovery).toBeGreaterThan(computeComponents(rough).recovery);
+    const answered = fullDay({ ciConfig: on, ci: { energy: 8, recovery: 6, sleep: 8, confidence: 8, digestion: 1, cravings: 10 } });
+    const skipped = fullDay({ ciConfig: on, ci: { energy: 8, recovery: 6, sleep: 8, confidence: 8 } });
+    expect(computeComponents(answered).recovery).toBe(100);
+    expect(computeComponents(skipped).recovery).toBe(67); // 4 of 6
   });
 
-  test('cravings scores in the RIGHT direction — high cravings is the negative pole', () => {
+  test('v3: cravings VALUES never move the score — polarity is for the coach read (recovery-intel), not the number', () => {
     const on = { ...classicCfg, cravings: true };
     const noCravings = fullDay({ ciConfig: on, ci: { energy: 8, recovery: 8, sleep: 8, confidence: 8, cravings: 0 } });
     const constant = fullDay({ ciConfig: on, ci: { energy: 8, recovery: 8, sleep: 8, confidence: 8, cravings: 10 } });
-    expect(computeComponents(noCravings).recovery).toBeGreaterThan(computeComponents(constant).recovery);
+    expect(computeComponents(noCravings).recovery).toBe(computeComponents(constant).recovery);
   });
 
-  test('soreness still inverts exactly as it always did', () => {
+  test('v3: an honest "beat up" soreness answer costs nothing', () => {
     const on = { ...classicCfg, soreness: true };
     const fresh = fullDay({ ciConfig: on, ci: { energy: 8, recovery: 8, sleep: 8, confidence: 8, soreness: 0 } });
     const beatUp = fullDay({ ciConfig: on, ci: { energy: 8, recovery: 8, sleep: 8, confidence: 8, soreness: 10 } });
-    expect(computeComponents(fresh).recovery).toBeGreaterThan(computeComponents(beatUp).recovery);
+    expect(computeComponents(beatUp).recovery).toBe(computeComponents(fresh).recovery);
   });
 });
 

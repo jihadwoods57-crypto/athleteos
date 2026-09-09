@@ -226,10 +226,11 @@ describe('recordDayNutrition — logs the prior day nutrition sub-score before r
 });
 
 describe('ciConfig persistence — archived score uses the answered questions, not defaults', () => {
-  // Prior-day snapshot with a COACH-CUSTOMIZED ciConfig: only energy + sleep enabled.
-  // The enabled-only set {energy, sleep} differs from the default enabled set
-  // {energy, recovery, sleep, confidence}, so the recovery sub-score (and thus the
-  // archived athleteScore) differs depending on which ciConfig is in effect.
+  // Prior-day snapshot with a COACH-CUSTOMIZED ciConfig: only energy + sleep enabled, and
+  // sleep left unanswered. v3 scores recovery as COMPLETENESS (answered / enabled), so the
+  // enabled set {energy, sleep} (1 of 2 answered = 50) and the default set {energy, recovery,
+  // sleep, confidence} (3 of 4 = 75) archive different athleteScores depending on which
+  // ciConfig is in effect.
   function customConfigPreRoll(): AppState {
     return {
       ...createInitialState(),
@@ -238,7 +239,7 @@ describe('ciConfig persistence — archived score uses the answered questions, n
       ciSubmitted: true,
       ciEnergy: 2,
       ciRecovery: 3,
-      ciSleep: 1,
+      ciSleep: NaN, // unanswered: no finite value
       ciConfidence: 2,
       ciSoreness: 9,
       ciMotivation: 1,

@@ -50,9 +50,11 @@ test('every printed percentage on the page is COMPUTED from the imported weights
     assert.ok(text.includes(`ONE Recovery pillar (${recoveryPillarPct(w)})`), `${profile} pillar caption`);
   }
 
-  // General is nutrition-capped; athlete/gain sit at the shared floor with recovery at its cap.
-  assert.ok(text.includes(`pushing nutrition to its ${pct(ENGINE_CAPS.nutrition)} cap`));
-  assert.ok(text.includes(`${pct(ENGINE_WEIGHTS.athlete.nutrition)} nutrition floor / ${pct(ENGINE_WEIGHTS.athlete.recovery)} recovery cap`));
+  // v3: every profile sits at BOTH caps (nutrition 82, recovery 9), so the page must say so
+  // from the imported numbers rather than print a floor/cap split that no longer exists.
+  for (const profile of ['athlete', 'general', 'gain']) {
+    assert.ok(text.includes(`${profile} sits at the ${pct(ENGINE_CAPS.nutrition)} nutrition cap with recovery at its ${pct(ENGINE_CAPS.recovery)} cap`), `${profile} cap caption`);
+  }
 
   // The evidence-ceiling card.
   assert.ok(text.includes(`Nutrition (max)${pct(ENGINE_CAPS.nutrition)}`));

@@ -8,6 +8,7 @@ import { createInitialState } from './defaultState';
 import {
   MAX_SUBSCORE_WEIGHT,
   SCORING_V2_CUTOVER,
+  SCORING_V3_CUTOVER,
   evidenceScoreCeiling,
   clampScoreToEvidence,
   evidenceFromDerived,
@@ -17,60 +18,62 @@ import type { AppState, MealKey } from './types';
 
 /** A date on the v2 side of the cutover — the era the live engine now computes in. */
 const V2 = '2026-08-20';
+/** A date on the v3 side — the era the live engine now computes in. */
+const V3 = '2026-09-10';
 /** A date on the v1 side — frozen history. */
 const V1 = '2026-08-01';
 
 describe('MAX_SUBSCORE_WEIGHT', () => {
   it('is the max weight each subscore carries across every scoring profile', () => {
-    // v2: athlete .76/.12/0/.12, general .78/.10/0/.12, gain .76/.12/0/.12
-    expect(MAX_SUBSCORE_WEIGHT.nutrition).toBeCloseTo(0.78);
-    expect(MAX_SUBSCORE_WEIGHT.recovery).toBeCloseTo(0.12);
+    // v3: every profile .82/.09/0/.09
+    expect(MAX_SUBSCORE_WEIGHT.nutrition).toBeCloseTo(0.82);
+    expect(MAX_SUBSCORE_WEIGHT.recovery).toBeCloseTo(0.09);
     expect(MAX_SUBSCORE_WEIGHT.commitment).toBeCloseTo(0);
-    expect(MAX_SUBSCORE_WEIGHT.checkin).toBeCloseTo(0.12);
+    expect(MAX_SUBSCORE_WEIGHT.checkin).toBeCloseTo(0.09);
   });
 });
 
 describe('evidenceScoreCeiling', () => {
   it('is 0 when the row carries no evidence at all', () => {
-    expect(evidenceScoreCeiling({ nutritionPossible: false, checkinPossible: false, commitmentPresent: false }, V2)).toBe(0);
+    expect(evidenceScoreCeiling({ nutritionPossible: false, checkinPossible: false, commitmentPresent: false }, V3)).toBe(0);
   });
 
   it('caps a no-logging day below on-standard (photo logging is the only road to 80)', () => {
-    // v2: nutrition gated off -> at most recovery+checkin+commitment = 24 + 0 = 24 < 80.
-    // (commitment carries weight 0 in v2, so a commitment answer alone adds nothing.)
-    const ceil = evidenceScoreCeiling({ nutritionPossible: false, checkinPossible: true, commitmentPresent: true }, V2);
-    expect(ceil).toBe(24);
+    // v3: nutrition gated off -> at most recovery+checkin+commitment = 18 + 0 = 18 < 80.
+    // (commitment carries weight 0, so a commitment answer alone adds nothing.)
+    const ceil = evidenceScoreCeiling({ nutritionPossible: false, checkinPossible: true, commitmentPresent: true }, V3);
+    expect(ceil).toBe(18);
     expect(ceil).toBeLessThan(80);
   });
 
-  it('allows only the nutrition slot (78) when a meal is logged but nothing else', () => {
-    expect(evidenceScoreCeiling({ nutritionPossible: true, checkinPossible: false, commitmentPresent: false }, V2)).toBe(78);
+  it('allows only the nutrition slot (82) when a meal is logged but nothing else', () => {
+    expect(evidenceScoreCeiling({ nutritionPossible: true, checkinPossible: false, commitmentPresent: false }, V3)).toBe(82);
   });
 
-  it('allows recovery + check-in (24) for a submitted check-in alone', () => {
-    expect(evidenceScoreCeiling({ nutritionPossible: false, checkinPossible: true, commitmentPresent: false }, V2)).toBe(24);
+  it('allows recovery + check-in (18) for a submitted check-in alone', () => {
+    expect(evidenceScoreCeiling({ nutritionPossible: false, checkinPossible: true, commitmentPresent: false }, V3)).toBe(18);
   });
 
   it('v2: a plan-commitment answer alone unlocks nothing (commitment no longer scores)', () => {
-    expect(evidenceScoreCeiling({ nutritionPossible: false, checkinPossible: false, commitmentPresent: true }, V2)).toBe(0);
+    expect(evidenceScoreCeiling({ nutritionPossible: false, checkinPossible: false, commitmentPresent: true }, V3)).toBe(0);
   });
 
   it('reaches a full 100 only with all three evidence gates present', () => {
-    expect(evidenceScoreCeiling({ nutritionPossible: true, checkinPossible: true, commitmentPresent: true }, V2)).toBe(100);
+    expect(evidenceScoreCeiling({ nutritionPossible: true, checkinPossible: true, commitmentPresent: true }, V3)).toBe(100);
   });
 });
 
 describe('clampScoreToEvidence', () => {
   it('cuts a fabricated flat 100 with no evidence down to 0', () => {
-    expect(clampScoreToEvidence(100, { nutritionPossible: false, checkinPossible: false, commitmentPresent: false }, V2)).toBe(0);
+    expect(clampScoreToEvidence(100, { nutritionPossible: false, checkinPossible: false, commitmentPresent: false }, V3)).toBe(0);
   });
 
   it('leaves a legit score at or below its ceiling untouched', () => {
-    expect(clampScoreToEvidence(40, { nutritionPossible: true, checkinPossible: false, commitmentPresent: false }, V2)).toBe(40);
+    expect(clampScoreToEvidence(40, { nutritionPossible: true, checkinPossible: false, commitmentPresent: false }, V3)).toBe(40);
   });
 
-  it('clamps a claimed 95 with only a logged meal down to the 78 nutrition ceiling', () => {
-    expect(clampScoreToEvidence(95, { nutritionPossible: true, checkinPossible: false, commitmentPresent: false }, V2)).toBe(78);
+  it('clamps a claimed 95 with only a logged meal down to the 82 nutrition ceiling', () => {
+    expect(clampScoreToEvidence(95, { nutritionPossible: true, checkinPossible: false, commitmentPresent: false }, V3)).toBe(82);
   });
 });
 
@@ -78,10 +81,18 @@ describe('clampScoreToEvidence', () => {
 describe('score v2 evidence ceiling — the cutover date guard', () => {
   const nothing = { nutritionPossible: false, checkinPossible: false, commitmentPresent: false };
 
-  it('after cutover: nutrition evidence unlocks 78, a check-in unlocks 24', () => {
-    expect(evidenceScoreCeiling({ ...nothing, nutritionPossible: true }, V2)).toBe(78);
+  it('v3: nutrition evidence unlocks 82, a check-in unlocks 18', () => {
+    expect(evidenceScoreCeiling({ ...nothing, nutritionPossible: true }, V3)).toBe(82);
+    expect(evidenceScoreCeiling({ ...nothing, checkinPossible: true }, V3)).toBe(18);
+    expect(evidenceScoreCeiling({ nutritionPossible: true, checkinPossible: true, commitmentPresent: false }, V3)).toBe(100);
+  });
+  it('v2-era rows keep their 24-point check-in slot, and take the v3 nutrition slot (the union)', () => {
+    expect(evidenceScoreCeiling({ ...nothing, nutritionPossible: true }, V2)).toBe(82);
     expect(evidenceScoreCeiling({ ...nothing, checkinPossible: true }, V2)).toBe(24);
-    expect(evidenceScoreCeiling({ nutritionPossible: true, checkinPossible: true, commitmentPresent: false }, V2)).toBe(100);
+    expect(evidenceScoreCeiling({ ...nothing, commitmentPresent: true }, V2)).toBe(0);
+  });
+  it('the v3 cutover date itself is scored under v3', () => {
+    expect(evidenceScoreCeiling({ ...nothing, checkinPossible: true }, SCORING_V3_CUTOVER)).toBe(18);
   });
 
   it('after cutover: a commitment answer alone justifies nothing', () => {
@@ -96,7 +107,7 @@ describe('score v2 evidence ceiling — the cutover date guard', () => {
     expect(evidenceScoreCeiling({ ...nothing, checkinPossible: true }, V1)).toBe(35);
   });
 
-  it('BEFORE cutover nutrition unlocks 78, not 55 — the pre-cutover ceiling is the UNION of both eras', () => {
+  it('BEFORE cutover nutrition unlocks 82, not 55 — the pre-cutover ceiling is the UNION of every era', () => {
     // Deliberate widening of the brief's literal v1 number, and the ONE slot where the two eras
     // disagree upward (v1 55 -> v2 78). It is required for correctness, not a nicety:
     //
@@ -110,7 +121,7 @@ describe('score v2 evidence ceiling — the cutover date guard', () => {
     // Widening is the safe direction (a looser ceiling clamps less and never touches an honest
     // score), it preserves every grant v1 made, and it cannot move an existing row: the union is
     // >= the v1 ceiling everywhere, so any row that did not move under v1 cannot move under it.
-    expect(evidenceScoreCeiling({ ...nothing, nutritionPossible: true }, V1)).toBe(78);
+    expect(evidenceScoreCeiling({ ...nothing, nutritionPossible: true }, V1)).toBe(82);
   });
 
   it('the cutover date itself is scored under v2', () => {

@@ -36,7 +36,7 @@ const CAL_TARGET = 3200;
 const CI_KEYS = ['energy', 'recovery', 'sleep', 'confidence', 'soreness', 'motivation', 'digestion', 'cravings'];
 /* Keys whose HIGH value is the negative pole — the engine inverts them so the stored answer
    always stays honest to what was actually asked (5 chips of cravings = constant cravings). */
-const CI_INVERSE = { soreness: true, cravings: true };
+export const CI_INVERSE = { soreness: true, cravings: true }; // polarity for READERS (recovery-intel); the score no longer grades values // polarity for READERS (recovery-intel); the score no longer grades values // polarity for READERS (recovery-intel); the score no longer grades values // polarity for READERS (recovery-intel); the score no longer grades values
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -115,12 +115,24 @@ export function slotOpen(k, std = STD) {
 export function slotGrace(k, std = STD) {
   return (std && std.grace && typeof std.grace[k] === 'number') ? std.grace[k] : 0;
 }
-/** Credit a slot earns when logged past deadline+grace: half (shipped default), full (the coach
- *  forgives lateness), or none (a hard window). Exported so the score breakdown explains lateness
- *  with the SAME credit the score applies (T-01), never a hardcoded half. */
+/** The FLOOR a late slot's credit fades to: half (shipped default), full (the coach forgives
+ *  lateness), or none (a hard window). Exported so the score breakdown explains lateness with the
+ *  SAME credit the score applies (T-01), never a hardcoded half. */
 export function slotLateCredit(k, std = STD) {
   const p = std && std.latePolicy && std.latePolicy[k];
   return p === 'full' ? 1 : p === 'none' ? 0 : 0.5;
+}
+/** v3 (2026-09-09): lateness is a slope, not a cliff. Under the default policy a slot logged one
+ *  minute past its window used to lose exactly as much as one logged at midnight — half — which
+ *  made the deadline a cliff and told a 6:02 dinner it may as well have been 11:00. Credit now
+ *  fades linearly from full at the deadline to the policy floor at LATE_DECAY_MIN past it, and
+ *  holds there. `full` and `none` policies have nothing to fade between and stay as they were. */
+export const LATE_DECAY_MIN = 120;
+export function lateCredit(minutesLate, k, std = STD) {
+  const floor = slotLateCredit(k, std);
+  if (floor >= 1 || floor <= 0) return floor;
+  const t = Math.min(Math.max(minutesLate, 0), LATE_DECAY_MIN) / LATE_DECAY_MIN;
+  return 1 - (1 - floor) * t;
 }
 const scoredSlotKeys = (std = STD) => (std && std.slots ? std.slots : MEAL_KEYS);
 
@@ -129,8 +141,9 @@ function effectiveMeals(day, std = STD) {
   for (const k of scoredSlotKeys(std)) {
     if (!mealScored(day, k)) continue;
     const at = day.mealLoggedAt && day.mealLoggedAt[k];
-    const onTime = at == null || at <= slotDeadline(k, std) + slotGrace(k, std);
-    n += onTime ? 1 : slotLateCredit(k, std); // late → the standard's late policy (default: half)
+    const due = slotDeadline(k, std) + slotGrace(k, std);
+    const onTime = at == null || at <= due;
+    n += onTime ? 1 : lateCredit(at - due, k, std); // late → fades to the standard's floor (default: half)
   }
   return n;
 }
@@ -241,7 +254,7 @@ function qualityFrac(day, std, mealsFrac) {
 
 /** The shipped per-goal-profile nutrition formula — a byte-for-byte port of
  *  profileNutritionScore, UNCHANGED:
- *   - athlete: protein 65 + on-time meals 35 (the shipped formula).
+ *   - athlete: protein 55 + on-time meals 30 + fueling floor 15 (v3; was 65 + 35).
  *   - general: calorie adherence 45 + protein 25 + meal consistency 30 (a lose/maintain client).
  *   - gain:    calorie floor 40 + protein 35 + meal consistency 25 (surplus + protein led).
  *  The platform owns these weights; the coach/trainer owns the targets (Scoring Contract).
@@ -257,7 +270,19 @@ function legacyNutritionScore(day, std, proteinFrac, mealsFrac) {
     const ct = day.calTarget > 0 ? day.calTarget : CAL_TARGET;
     return Math.min(100, Math.round(calorieFloorAdherence(kcalToday(day, std), ct) * 40 + proteinFrac * 35 + mealsFrac * 25));
   }
-  return Math.min(100, Math.round(proteinFrac * 65 + mealsFrac * 35));
+  // v3 (2026-09-09): protein 55 + on-time meals 30 + fueling floor 15. Under 65/35 four
+  // protein shakes and no food read 100: nothing asked whether the athlete actually ATE. The
+  // floor is deliberately soft — full at two-thirds of the calorie target, empty at a third —
+  // because plate calories are photo estimates and the floor exists to catch the shake-only
+  // day, not to grade the estimate. No calorie target on the day: nothing to judge, full floor.
+  const fuel = day.calTarget > 0 ? fuelingFloor(kcalToday(day, std), day.calTarget) : 1;
+  return Math.min(100, Math.round(proteinFrac * 55 + mealsFrac * 30 + fuel * 15));
+}
+/** 0 at <= 35% of target, 1 at >= 65%, linear between. Mirrors scoringProfiles.ts fuelingFloor. */
+export function fuelingFloor(kcal, target) {
+  if (!(target > 0)) return 1;
+  const frac = Math.max(0, kcal) / target;
+  return Math.max(0, Math.min(1, (frac - 0.35) / 0.30));
 }
 
 /** Whether this day carries ANY nutrition evidence — a slot that actually SCORES (mealScored:
@@ -353,20 +378,24 @@ function nutritionScore(day, std = STD) {
   return partsNutritionScore(day, std, knobs, proteinFrac, mealsFrac);
 }
 
-/* v2: no weekly carry. Recovery reflects TONIGHT's answers or it contributes nothing — the score
+/* v2: no weekly carry. Recovery reflects TONIGHT's check-in or it contributes nothing — the score
    is what you did today. The old `ciLast` branch handed Monday's number back all week, which is
-   how a day with zero logging still banked ~21 points. */
+   how a day with zero logging still banked ~21 points.
+   v3 (2026-09-09): recovery is COMPLETENESS — the share of enabled questions answered — never
+   the answers' values. Averaging the values meant an honest "energy 4, sore 8" cost real points,
+   so the athlete who told the truth scored under the one who tapped 9s; the coach got the lie and
+   the score rewarded it. Answering every question is the work. What the answers SAY is for the
+   coach to read (recovery-intel.js still reads polarity), not for the number to grade. */
 function recoveryParts(day) {
   if (!day.ciSubmitted) return { score: 86, isReal: false }; // display fallback; contributes 0
-  let sum = 0, count = 0;
+  let enabled = 0, answered = 0;
   for (const key of CI_KEYS) {
     if (!(day.ciConfig && day.ciConfig[key])) continue;
+    enabled++;
     const raw = day.ci ? day.ci[key] : undefined;
-    if (typeof raw !== 'number' || !isFinite(raw)) continue;
-    sum += CI_INVERSE[key] ? 10 - raw : raw; // soreness / cravings have inverse polarity
-    count++;
+    if (typeof raw === 'number' && isFinite(raw)) answered++;
   }
-  if (count > 0) return { score: clamp(Math.round((sum / (count * 10)) * 100), 0, 100), isReal: true };
+  if (answered > 0) return { score: clamp(Math.round((answered / enabled) * 100), 0, 100), isReal: true };
   return { score: 86, isReal: false };
 }
 
@@ -440,9 +469,9 @@ export { gradeFor };
 
 /* ---------------- evidence ceiling (mirror of the server trigger) ---------------- */
 // Keep the client score honest so the server clamp never has to silently lower it.
-/** Mirror of the 0193 server ceiling: the most the evidence on a row can justify. Nutrition
- *  evidence unlocks 78 (the max across profiles); a real check-in unlocks recovery 12 + check-in
- *  12. A commitment answer unlocks nothing — it no longer scores. `hasNutritionEvidence` is the
+/** Mirror of the 0228 server ceiling (v3): the most the evidence on a row can justify. Nutrition
+ *  evidence unlocks 82 (the max across profiles); a real check-in unlocks recovery 9 + check-in
+ *  9. A commitment answer unlocks nothing — it no longer scores. `hasNutritionEvidence` is the
  *  SAME check partsNutritionScore's awareness gate uses — see its comment for why that matters:
  *  a quick-add-only day must count here, or a real logged day gets clamped to a lower stored score
  *  than the one the athlete's own screen just showed them. `std` defaults to the module STD, same
@@ -454,7 +483,7 @@ export function evidenceCeiling(day, std = STD) {
   // sees no logged meal, and returns 0. clampedScore would then show the athlete a zero for the
   // day their reward was supposed to protect. Mirrors gate (d) of 0196's server ceiling.
   const v = scoringView(day, std);
-  return (hasNutritionEvidence(v.day, v.std) ? 78 : 0) + (checkinReal(v.day) ? 24 : 0);
+  return (hasNutritionEvidence(v.day, v.std) ? 82 : 0) + (checkinReal(v.day) ? 18 : 0);
 }
 export function clampedScore(day) { return Math.min(scoreFor(day), evidenceCeiling(day)); }
 

@@ -13,8 +13,8 @@ import {
 } from './day.js';
 
 /* Lateness copy that matches the coach's real late policy (T-01) — never a hardcoded "half". */
-function lateBadge(credit) { return credit >= 1 ? 'late (full credit)' : credit <= 0 ? 'late (no credit)' : 'late (half credit)'; }
-function lateHint(credit) { return credit >= 1 ? 'log late, still full credit' : credit <= 0 ? 'logging late earns no credit now' : 'log late for half credit'; }
+function lateBadge(credit) { return credit >= 1 ? 'late (full credit)' : credit <= 0 ? 'late (no credit)' : 'late (credit fades to half)'; }
+function lateHint(credit) { return credit >= 1 ? 'log late, still full credit' : credit <= 0 ? 'logging late earns no credit now' : 'log late, credit fades to half over two hours'; }
 
 const clone = (day) => JSON.parse(JSON.stringify(day));
 /* The headline mix is profile aware — weightsForDay(day) is the same lookup the engine scores
@@ -45,13 +45,19 @@ export function proteinRemaining(day, slots) {
   return Math.max(0, target - logged);
 }
 
-/** The day with one extra meal logged: `atMin` stamps timing (on-time vs late half-credit),
- *  `protein` the plate's grams. The engine judges it exactly like a real log. */
+/** The day with one extra meal logged: `atMin` stamps timing (on-time vs fading late credit),
+ *  `protein` the plate's grams. The engine judges it exactly like a real log.
+ *  v3: the simulated plate also carries its share of the day's calorie target (a real plate
+ *  always carries kcal), or the fueling floor would read every projected day as under-fueled
+ *  and the reach plan would swear a perfect day tops out at 88. */
 function withMeal(day, slot, atMin, protein) {
   const d = clone(day);
   d.meals[slot] = true;
   d.mealLoggedAt = { ...(d.mealLoggedAt || {}), [slot]: atMin };
-  d.slotMacros = { ...(d.slotMacros || {}), [slot]: { ...((d.slotMacros || {})[slot] || {}), protein } };
+  const prior = (d.slotMacros || {})[slot] || {};
+  const slotCount = Math.max(1, Object.keys(d.meals || {}).length);
+  const kcal = prior.kcal > 0 ? prior.kcal : Math.round((d.calTarget > 0 ? d.calTarget : 3200) / slotCount);
+  d.slotMacros = { ...(d.slotMacros || {}), [slot]: { ...prior, protein, kcal } };
   return d;
 }
 
@@ -117,9 +123,9 @@ export function reachPlan(day, { slots, titles = {}, optional = [], nowMin, fmtC
     rows.push({
       id: k, label: `Log ${titles[k] || k.charAt(0).toUpperCase() + k.slice(1)}`,
       sub: opt ? (credit >= 1 ? 'Optional · counts whenever you log it'
-        : pastDue ? `Optional · past ${fmtClock(due)} · ${credit ? 'counts for half' : 'window closed'}`
+        : pastDue ? `Optional · past ${fmtClock(due)} · ${credit ? 'late credit fading' : 'window closed'}`
           : `Optional · full credit by ${fmtClock(due)}`)
-        : late ? `Past ${fmtClock(due)} · late still counts for half` : `Due by ${fmtClock(due)}`,
+        : late ? `Past ${fmtClock(due)} · late still counts, fading to half over two hours` : `Due by ${fmtClock(due)}`,
       gain, kind: 'upTo', route: `camera/${k}`, accent: 'g', late,
     });
     cur = next; curScore += gain;
@@ -130,7 +136,7 @@ export function reachPlan(day, { slots, titles = {}, optional = [], nowMin, fmtC
     const gain = dayScoreOf(next) - curScore;
     rows.push({
       id: 'recovery', label: 'Do Recovery check-in',
-      sub: 'Tonight, before bed. Submitting it is worth 12 on its own',
+      sub: 'Tonight, before bed. Submitting it earns points on its own; answering every question earns the rest',
       gain, kind: 'upTo', route: 'recovery', accent: 'p', late: false,
     });
     cur = next; curScore += gain;
@@ -196,7 +202,7 @@ export function explainCategories(day, { slots, denom, titles = {}, optional = [
     return {
       label: title(k),
       sub: opt ? (credit >= 1 ? 'Optional · counts whenever you log it'
-        : pastDue ? `Optional · past ${fmtClock(due)} · ${credit ? 'half credit now' : 'window closed'}`
+        : pastDue ? `Optional · past ${fmtClock(due)} · ${credit ? 'credit fading now' : 'window closed'}`
           : `Optional · full credit by ${fmtClock(due)}`)
         : late ? `Was due ${fmtClock(due)} · ${lateHint(credit)}` : `Due by ${fmtClock(due)}`,
       value: `+${Math.round(w.nutrition * 35 / denom * (pastDue ? credit : 1))} on log`,
@@ -215,7 +221,7 @@ export function explainCategories(day, { slots, denom, titles = {}, optional = [
   else {
     const nextOpen = requiredOpen.find((k) => nowMin <= slotDeadline(k, std)) || requiredOpen[0];
     const parts = [`${loggedSlots.length} of ${denom} meals completed`];
-    if (lateCount) parts.push(`${lateCount} late (half credit)`);
+    if (lateCount) parts.push(`${lateCount} late (credit faded)`);
     if (nextOpen) parts.push(nowMin > slotDeadline(nextOpen, std) ? `${title(nextOpen)} overdue` : `${title(nextOpen)} due ${fmtClock(slotDeadline(nextOpen, std))}`);
     else if (openSlots.length) parts.push(`${title(openSlots[0])} still available`);
     nutriNote = parts.join(' · ');
@@ -231,8 +237,8 @@ export function explainCategories(day, { slots, denom, titles = {}, optional = [
   if (day.ciSubmitted) {
     Object.keys(CI_LABELS).forEach((k) => {
       if (day.ciConfig && day.ciConfig[k] && typeof day.ci[k] === 'number') {
-        const v = k === 'soreness' ? 10 - day.ci[k] : day.ci[k];
-        recRows.push({ label: CI_LABELS[k], sub: k === 'soreness' ? 'Lower soreness scores higher' : '', value: `${v}/10`, state: v >= 8 ? 'done' : 'open' });
+        // v3: an answered question is a done question. The value is shown, never graded.
+        recRows.push({ label: CI_LABELS[k], sub: '', value: `${day.ci[k]}/10`, state: 'done' });
       }
     });
   }

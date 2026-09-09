@@ -30,7 +30,7 @@ const freshDay = () => {
 };
 // 90 g each → two meals meet the 180 g protein target, so protein credit is full and the ONLY
 // thing that moves nutrition between the two standards is the meal denominator (the isolation point).
-const logOnTime = (k: string, protein = 90) => { DAY.meals[k] = true; DAY.mealLoggedAt[k] = 60; DAY.slotMacros[k] = { protein }; };
+const logOnTime = (k: string, protein = 90) => { DAY.meals[k] = true; DAY.mealLoggedAt[k] = 60; DAY.slotMacros[k] = { protein, kcal: 1600 }; };
 
 afterEach(() => { setDayStandard(null); freshDay(); });
 
@@ -58,7 +58,7 @@ describe('computeComponents / scoreFor — coach isolation', () => {
     logOnTime('breakfast'); logOnTime('dinner'); // the viewed athlete logged their 2 meals
     // No-arg (the bug): graded against the coach's 6-meal denominator → 2/6 meal credit.
     const viaGlobal = computeComponents(DAY).nutrition;
-    expect(viaGlobal).toBe(Math.round(65 + (2 / 6) * 35));
+    expect(viaGlobal).toBe(Math.round(55 + (2 / 6) * 30 + 15)); // v3: 80
     // Explicit athlete std (the fix): graded against their own 2-meal denominator → full.
     const viaAthlete = computeComponents(DAY, athleteStd()).nutrition;
     expect(viaAthlete).toBe(100);
@@ -77,7 +77,7 @@ describe('default preservation — no std arg is byte-identical to today', () =>
     setDayStandard(null);
     freshDay();
     logOnTime('breakfast'); logOnTime('lunch'); logOnTime('dinner');
-    const classic = Math.round(65 + (3 / 4) * 35);
+    const classic = Math.round(55 + (3 / 4) * 30 + 15); // v3: 93
     expect(computeComponents(DAY).nutrition).toBe(classic);
     expect(computeComponents(DAY, null).nutrition).toBe(classic); // explicit null === arg-less default
     expect(computeComponents(DAY, undefined).nutrition).toBe(classic);

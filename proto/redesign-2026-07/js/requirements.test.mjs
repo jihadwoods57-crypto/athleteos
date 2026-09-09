@@ -110,9 +110,9 @@ test('review finding 1: a stored standard that already has recovery is never dup
 });
 
 test('review finding 3: IMPACT_LABEL.recovery is the SUM, never the lone engine slot', () => {
-  // liveWeightPct('recovery') alone is 12 (the FALLBACK_WEIGHTS athlete row) — half the real
+  // liveWeightPct('recovery') alone is 9 (the FALLBACK_WEIGHTS athlete row) — half the real
   // pillar. The athlete's actual Recovery card, and every other live surface, quotes
-  // checkin + recovery (24). This label (screens/requirement.js's "what it touches" fact, on
+  // checkin + recovery (18). This label (screens/requirement.js's "what it touches" fact, on
   // the real nightly Recovery check-in requirement) must match.
-  assert.equal(IMPACT_LABEL.recovery, 'Recovery · 24% of score');
+  assert.equal(IMPACT_LABEL.recovery, 'Recovery · 18% of score');
 });

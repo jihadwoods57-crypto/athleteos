@@ -21,8 +21,8 @@
  * checkin 12). src/core/scoreIntegrity.ts derives the same bound from PROFILE_WEIGHTS. Neither
  * knows about styles, and neither should have to: NO style may push a component above its cap.
  *
- * Because the four weights must also sum to 1, the caps pin nutrition into [0.76, 0.78]:
- *   min nutrition = 1 - 0.12 - 0 - 0.12 = 0.76      max nutrition = 0.78 (its own cap)
+ * v3 (2026-09-09): the caps pin nutrition at exactly 0.82:
+ *   min nutrition = 1 - 0.09 - 0 - 0.09 = 0.82      max nutrition = 0.82 (its own cap)
  * The `athlete` and `gain` profiles sit at that 0.76 floor with recovery at its 0.12 cap, so they
  * have NO headroom — every style scores them on the same headline mix. That is fine and by
  * design: the real differentiation between styles lives in what the NUTRITION SUB-SCORE MEASURES
@@ -64,7 +64,7 @@ export function resolveStyleKey(x) {
 /* ---------------------------------------------------------------- weights */
 
 /** Per-component ceiling, mirroring the 0193 evidence-ceiling slots. NOTHING may exceed these. */
-export const WEIGHT_CAPS = { nutrition: 0.78, recovery: 0.12, commitment: 0, checkin: 0.12 };
+export const WEIGHT_CAPS = { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 };
 
 /**
  * Headline mix per goal profile — v2. Two pillars the athlete sees, three slots the engine uses:
@@ -75,9 +75,13 @@ export const WEIGHT_CAPS = { nutrition: 0.78, recovery: 0.12, commitment: 0, che
  * just no longer scores, so an honest "no" costs nothing and the coach's data gets truthful.
  */
 export const PROFILE_WEIGHTS = {
-  athlete: { nutrition: 0.76, recovery: 0.12, commitment: 0, checkin: 0.12 },
-  general: { nutrition: 0.78, recovery: 0.10, commitment: 0, checkin: 0.12 },
-  gain: { nutrition: 0.76, recovery: 0.12, commitment: 0, checkin: 0.12 },
+  /* v3 (2026-09-09, founder): food is 82 of the 100. A perfect food day clears the 80
+     on-standard line on its own; the nightly check-in adds 18, split between submitting it (9)
+     and answering every question (9). It used to be 76 + 24, which put a flawless day of eating
+     at "Building" until a button was pressed. */
+  athlete: { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 },
+  general: { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 },
+  gain: { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 },
 };
 
 /** The headline mix for a (style, profile). `style` is accepted and ignored — the signature is
@@ -144,9 +148,14 @@ export const CHECKIN_SIGNAL_KEYS = SIGNAL_KEYS.filter((s) => s.where === 'checki
  * row above is where they start from. See knobsFor().
  */
 export const NUTRITION_PARTS = {
-  structured: { protein: 40, calorie: 25, timing: 25, hydration: 10, quality: 0, awareness: 0 },
-  guided: { protein: 20, calorie: 30, timing: 25, hydration: 10, quality: 15, awareness: 0 },
-  intuitive: { protein: 0, calorie: 40, timing: 0, hydration: 25, quality: 0, awareness: 35 },
+  /* v3 (2026-09-09): hydration and awareness are 0 everywhere. Hydration had no logger in the
+     app, so its points could never be earned (Guided capped at 90, Intuitive at 75). Awareness
+     scored meal-time prompts that were removed on 2026-07-28, and returned FULL credit when no
+     prompt was enabled: 35 free points for logging anything. Both rows are kept in the shape so
+     stored overrides still parse; they are simply worth nothing until a real input exists. */
+  structured: { protein: 45, calorie: 28, timing: 27, hydration: 0, quality: 0, awareness: 0 },
+  guided: { protein: 22, calorie: 33, timing: 27, hydration: 0, quality: 18, awareness: 0 },
+  intuitive: { protein: 0, calorie: 65, timing: 35, hydration: 0, quality: 0, awareness: 0 },
 };
 
 /** Which engine path scores the nutrition sub-score:
@@ -185,7 +194,9 @@ export const PRESETS = {
       formula: 'parts',
       calorie: 'adequacy', calorieBand: 0,
       protein: 'off', proteinBand: 0,
-      timingScored: false, hydrationScored: false, qualityScored: false, awarenessScored: true,
+      // Timing is eating regularly, not restriction: it is the one execution signal an
+      // Intuitive athlete has once numbers are off the screen. Awareness is off (see NUTRITION_PARTS).
+      timingScored: true, hydrationScored: false, qualityScored: false, awarenessScored: false,
     },
     parts: NUTRITION_PARTS.intuitive,
     // Digestion and cravings still ride the check-in; the three meal-time ones are gone.
