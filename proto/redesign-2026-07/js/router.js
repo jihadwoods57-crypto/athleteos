@@ -1157,7 +1157,7 @@ window.addEventListener('keydown', (e) => {
   // Never steal Escape from a field the user is mid-edit in, or from an overlay that owns it.
   const t = document.activeElement;
   if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
-  if (document.querySelector('.tour, .imgview, .memsheet, .tapback, .lockstamp')) return;
+  if (document.querySelector('.tour, .imgview, .memsheet, .tapback, .lockstamp, .pmoment')) return;
   const scrim = document.querySelector('.sheet-scrim[data-back]');
   if (!scrim) return;
   e.preventDefault();

@@ -144,7 +144,7 @@ export function initGestures(api) {
   const blocked = () => {
     if (ACTIVE) return true;   // a drag or its commit settle owns the screen; no re-arm mid-flight
     if (document.body.classList.contains('kb-open')) return true;
-    if (document.querySelector('.tour, .imgview, .memsheet, .tapback, .lockstamp, .sheet-scrim')) return true;
+    if (document.querySelector('.tour, .imgview, .memsheet, .tapback, .lockstamp, .pmoment, .sheet-scrim')) return true;
     return !!api.busy();
   };
 

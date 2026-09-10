@@ -2,7 +2,8 @@ import { S, RT, tier, act, MEAL, mealDetail, fmtClock, liveWeightPct } from '../
 import { DAY, slotDeadline } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg, nonLiveBadge, composer, segBar, skeletonRows } from '../components.js';
-import { reveal, buzz, perfectBurst } from '../motion.js';
+import { reveal, buzz } from '../motion.js';
+import { playPerfectMoment } from '../perfect-moment.js';
 import { scoreMoveBar, playScoreMove } from '../score-move.js';
 import {
   openingMessage, openingSummary, qualityBand, scoreReasons, coachFocus, reactionGroups, threadMessages,
@@ -1342,8 +1343,10 @@ export const thread = {
     // moment off-screen. It observes the CHIP, which is small enough for the ratio to be reachable.
     reveal(root.querySelector('#meal-scorechip'), {
       key: `meal:${M.slot}:${M.mealId || ''}`, whenSeen: true,
-      // A 100 gets the one celebration in the app (motion.js perfectBurst), timed to the landing.
-      onPlay: (chip) => { if (Number(M.score) >= 100) perfectBurst(chip); },
+      // A 100 takes the whole screen for three seconds (perfect-moment.js). It hangs off the
+      // reveal rather than off mount so the celebration fires when the athlete is actually
+      // LOOKING at the number, and inherits the reveal's once-per-meal key for free.
+      onPlay: () => { if (Number(M.score) >= 100) playPerfectMoment({ slotLabel: M.name, dish: M.dish, score: M.score }); },
     });
 
     const roles = await import('../roles.js');

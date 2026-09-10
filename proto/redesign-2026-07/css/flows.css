@@ -136,6 +136,110 @@
   .lockstamp.on .ls-mark::after { animation: none; }   /* base opacity is 0 — no static ghost */
 }
 
+/* ----- "Perfect plate" full-screen moment (perfect-moment.js) -----
+   Founder 2026-09-10: the 100 celebration was a bloom on the 62px score chip; it is now three
+   seconds of the whole screen. Body-level and fixed for the same reason the stamp above is.
+
+   The scrim is STATIC, by the same ruling: tweening the opacity of a full-screen blurred layer
+   re-runs the blur over the whole document every frame, and this is the one moment that is also
+   drawing an arc, counting a numeral and throwing twenty particles. Everything inside carries
+   the entrance instead. */
+.pmoment {
+  position: fixed; inset: 0; z-index: 210;
+  display: grid; place-items: center; padding: var(--s6);
+  overflow: hidden; cursor: pointer;
+  background: radial-gradient(120% 80% at 50% 42%, rgba(var(--teal-rgb), 0.16), transparent 62%), rgba(4,6,12,0.88);
+  transition: opacity var(--dur-3) var(--ease-out);
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .pmoment {
+    background: radial-gradient(120% 80% at 50% 42%, rgba(var(--teal-rgb), 0.16), transparent 62%), rgba(4,6,12,0.72);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  }
+}
+/* Same ruling as .lockstamp: the near-black wash dims a light canvas twice as hard as every
+   sheet, so light gets the established lighter ink scrim. */
+:root[data-theme="light"] .pmoment {
+  /* NOT the lock stamp's ink scrim. That one dims a canvas so a white CARD can sit on it; this
+     moment has no card, so its content sits directly on the wash, and an ink scrim left the
+     blurred thread showing through as grey noise behind dark ink. Light gets a bright room. */
+  background: radial-gradient(120% 80% at 50% 42%, rgba(var(--teal-rgb), 0.22), transparent 60%), rgba(248,250,252,0.90);
+}
+.pmoment.out { opacity: 0; }
+.pmoment.out.fast { transition-duration: var(--dur-1); }
+
+/* Light thrown from behind the dial. This was a conic "rays" gradient for about an hour: every
+   transparent stop in a conic gradient is a HARD edge, so it rendered one bright wedge with a
+   crisp diagonal boundary, plus a pinwheel where the stops converge — directly under the numeral.
+   In a screenshot it read as a rendering fault rather than as light. A radial bloom has no edges
+   to betray it, costs one composited transform, and is the same glow the ring flare already uses. */
+.pm-glow {
+  position: absolute; width: 128vmax; height: 128vmax; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(var(--teal-rgb), 0.30), rgba(var(--teal-rgb), 0.10) 46%, transparent 72%);
+  opacity: 0;
+  animation: pm-glow 3000ms var(--ease-out) both;
+}
+@keyframes pm-glow {
+  0%   { opacity: 0;    transform: scale(0.55); }
+  22%  { opacity: 1;    transform: scale(0.92); }
+  72%  { opacity: 0.72; transform: scale(1.06); }
+  100% { opacity: 0;    transform: scale(1.12); }
+}
+
+.pm-stage { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: var(--s4); text-align: center; }
+.pm-core { position: relative; display: grid; place-items: center; animation: pm-core 560ms var(--ease-out) both; }
+@keyframes pm-core { from { opacity: 0; transform: scale(0.72); } to { opacity: 1; transform: none; } }
+.pm-dial { display: block; filter: drop-shadow(0 0 18px rgba(var(--teal-rgb), 0.45)); }
+/* The read sits in the dial's middle. --font-display is the score face (DESIGN.md) and this is
+   the largest score the app can print, so it gets the display face at its largest. The numeral
+   is plain ink: the sweep lives in the arc, never in text. */
+.pm-read { position: absolute; display: flex; align-items: baseline; }
+.pm-num {
+  font-family: var(--font-display); font-weight: 900; letter-spacing: -0.03em; line-height: 1;
+  font-variant-numeric: tabular-nums; color: var(--text);
+  font-size: clamp(calc(var(--t-hero) * 1.15), 22vw, calc(var(--t-hero) * 1.72));
+}
+/* Prose, not a score: the display face is reserved for numerals. */
+.pm-word {
+  font-family: var(--font); font-weight: 800; letter-spacing: -0.01em; color: var(--text);
+  font-size: calc(var(--t-hero) * 0.62);
+  animation: pm-word 620ms var(--ease-out) 1500ms both;
+}
+@keyframes pm-word { from { opacity: 0; transform: translateY(14px) scale(0.94); } to { opacity: 1; transform: none; } }
+.pm-sub {
+  font-size: var(--t-base); font-weight: 700; color: var(--text-2); line-height: 1.45; max-width: 300px;
+  margin-top: calc(var(--s3) * -1);
+  animation: pm-sub 520ms var(--ease-out) 1750ms both;
+}
+@keyframes pm-sub { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; } }
+
+/* The burst. Particles ride --a (angle), --d (distance), --c (one of the three sweep stops) and
+   --z (scale), all set per-particle in JS so this stays one rule. */
+.pm-burst { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.pm-burst i {
+  position: absolute; left: 50%; top: 46%; width: 10px; height: 10px;
+  border-radius: 50%; background: var(--c); opacity: 0;
+  box-shadow: 0 0 14px var(--c);
+  transform: translate(-50%, -50%) rotate(var(--a)) translateX(24px) scale(var(--z));
+  animation: pm-fly 1500ms var(--ease-out) both;
+}
+@keyframes pm-fly {
+  0%   { opacity: 0; transform: translate(-50%, -50%) rotate(var(--a)) translateX(24px) scale(0.4); }
+  16%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--a)) translateX(var(--d)) scale(calc(var(--z) * 0.5)); }
+}
+
+/* Reduced motion: the moment still HAPPENS, it just stops moving. animateRing already snaps the
+   arc and the numeral to their finished values; the particles are never appended at all
+   (perfect-moment.js), and what is left fades rather than travels. */
+@media (prefers-reduced-motion: reduce) {
+  .pm-glow { animation: none; opacity: 0.55; }
+  .pm-core { animation: pm-fade 200ms var(--ease-out) both; }
+  .pm-word { animation: pm-fade 200ms var(--ease-out) 400ms both; }
+  .pm-sub  { animation: pm-fade 200ms var(--ease-out) 600ms both; }
+  @keyframes pm-fade { from { opacity: 0; } to { opacity: 1; } }
+}
+
 /* ----- First-run tour (tour.js) -----
    Body-level for the same reason the stamp is: the router rebuilds device.innerHTML on every
    render, and a tour inside a screen would be destroyed by an async repaint mid-step.

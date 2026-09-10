@@ -200,10 +200,10 @@ test('resetReveals clears a pause left behind by a torn-down transition', () => 
   assert.equal(globalThis.__drawn.length, 1, 'a stale pause would silently stop every reveal in the suite after it');
 });
 
-/* onPlay is the hook the perfect-plate burst hangs off. It must fire exactly when the reveal
-   PLAYS — once per key, never on the repaint calls the guard swallows — and a throwing hook must
-   not stop the draw. perfectBurst itself: stamps the class, appends the particles, honours
-   reduced motion, and refuses a detached chip. */
+/* onPlay is the hook the perfect-plate moment hangs off (perfect-moment.js owns the moment
+   itself, and its own suite covers it). It must fire exactly when the reveal PLAYS — once per
+   key, never on the repaint calls the guard swallows — and a throwing hook must not stop the
+   draw, because a celebration that throws must never cost the athlete their number. */
 test('onPlay fires once, with the element, on the call that owns the reveal', () => {
   resetReveals();
   const el = fakeRing();
@@ -221,40 +221,4 @@ test('a throwing onPlay never breaks the reveal', () => {
   globalThis.__drawn = [];
   assert.equal(reveal(el, { key: 'meal:lunch:boom', haptic: null, onPlay: () => { throw new Error('x'); } }), true);
   assert.equal(globalThis.__drawn.includes(el), true, 'the ring still drew');
-});
-
-test('perfectBurst stamps .perfect, drops PERFECT_PARTICLES particles, and skips a detached chip', async () => {
-  const { perfectBurst, PERFECT_PARTICLES } = await import(new URL('./motion.js', import.meta.url).href);
-  const classes = new Set();
-  let appended = null;
-  const chip = {
-    isConnected: true,
-    classList: { add: (c) => classes.add(c), remove: (c) => classes.delete(c), contains: (c) => classes.has(c) },
-    querySelector: () => null,
-    appendChild: (n) => { appended = n; },
-  };
-  const prevDoc = globalThis.document;
-  globalThis.document = { createElement: (tag) => ({ tag, kids: [], vars: {}, style: { setProperty(k, v) { this.vars = this.vars || {}; this.vars[k] = v; } }, appendChild(n) { this.kids.push(n); }, setAttribute() {}, remove() {} }) };
-  try {
-    assert.equal(perfectBurst(chip, 0), true);
-    assert.ok(classes.has('perfect'));
-    assert.ok(appended, 'particles appended');
-    assert.equal(appended.kids.length, PERFECT_PARTICLES);
-    assert.ok(appended.kids.every((k) => /^var\(--ring-[abc]\)$/.test(k.style.vars['--c'])), 'particles wear the sweep colours');
-    assert.ok(appended.kids.every((k) => /deg$/.test(k.style.vars['--a']) && /px$/.test(k.style.vars['--d'])), 'angle + distance set');
-    const gone = { ...chip, isConnected: false, classList: { add: () => { throw new Error('must not stamp'); } } };
-    assert.equal(perfectBurst(gone, 0), true, 'returns true (scheduled) but does nothing on a detached chip');
-    // A detached chip WITH an id re-finds the live node the repaint put in its place.
-    const liveClasses = new Set();
-    let liveAppended = null;
-    const liveChip = { isConnected: true, classList: { add: (c) => liveClasses.add(c) }, querySelector: () => null, appendChild: (n) => { liveAppended = n; } };
-    globalThis.document.getElementById = (id) => (id === 'meal-scorechip' ? liveChip : null);
-    const stale = { ...gone, id: 'meal-scorechip' };
-    assert.equal(perfectBurst(stale, 0), true);
-    assert.ok(liveClasses.has('perfect'), 'the live chip got the class');
-    assert.equal(liveAppended.kids.length, PERFECT_PARTICLES, 'and the particles');
-    assert.equal(perfectBurst(null), false);
-  } finally {
-    globalThis.document = prevDoc;
-  }
 });

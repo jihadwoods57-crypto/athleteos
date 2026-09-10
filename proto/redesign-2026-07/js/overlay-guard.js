@@ -10,7 +10,7 @@
  */
 
 /** Every class an overlay mounts under. Adding an overlay to the app means adding it here. */
-export const OVERLAY_MARKERS = ['.tour', '.lockstamp', '.memsheet', '.imgview', '.tapback', '.sheet-scrim', '.mqsheet'];
+export const OVERLAY_MARKERS = ['.tour', '.lockstamp', '.pmoment', '.memsheet', '.imgview', '.tapback', '.sheet-scrim', '.mqsheet'];
 
 /**
  * True when any overlay marker is present in the DOM.
