@@ -26,13 +26,20 @@ import { identityLine } from './identity-line.js';
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (p) => readFileSync(join(here, p), 'utf8');
 
-test('a team wins: it is the coach-verified fact, and it is more specific than a school', () => {
-  assert.equal(identityLine('Wednesday', 'Lincoln Varsity Football', 'Lincoln High'), 'Wednesday · Lincoln Varsity Football');
+/* Founder ruling 2026-09-10, reversing my first version: the school WINS. It is the field the
+   athlete can edit, so it is the one they expect to change when they edit it. Shipping it
+   team-first meant setting the school to University of Central Florida and watching Home keep
+   saying "Northgate Varsity", which reads as broken however good the data behind it is. */
+test('the school wins, because it is the field the athlete can actually edit', () => {
+  assert.equal(identityLine('Wednesday', 'Northgate Varsity', 'University of Central Florida'),
+    'Wednesday · University of Central Florida');
 });
 
-test('no team falls back to the school the athlete typed, which is why they typed it', () => {
-  assert.equal(identityLine('Wednesday', null, 'Lincoln High'), 'Wednesday · Lincoln High');
-  assert.equal(identityLine('Wednesday', '', 'Lincoln High'), 'Wednesday · Lincoln High');
+test('no school falls back to the coach-verified team', () => {
+  assert.equal(identityLine('Wednesday', 'Northgate Varsity', null), 'Wednesday · Northgate Varsity');
+  assert.equal(identityLine('Wednesday', 'Northgate Varsity', ''), 'Wednesday · Northgate Varsity');
+  assert.equal(identityLine('Wednesday', 'Northgate Varsity', '   '), 'Wednesday · Northgate Varsity',
+    'and whitespace is not a school, so it does not silently blank the team');
 });
 
 test('neither one leaves the weekday alone rather than inventing a separator', () => {
@@ -44,6 +51,7 @@ test('neither one leaves the weekday alone rather than inventing a separator', (
 test('whitespace is not an organisation', () => {
   assert.equal(identityLine('Wednesday', '   ', '  '), 'Wednesday');
   assert.equal(identityLine('Wednesday', null, '  Lincoln High  '), 'Wednesday · Lincoln High');
+  assert.equal(identityLine('Wednesday', '  Northgate  ', null), 'Wednesday · Northgate');
 });
 
 /* ---- the three places the school has to be written, read and sent ---- */
