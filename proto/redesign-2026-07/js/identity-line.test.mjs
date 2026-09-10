@@ -55,11 +55,13 @@ test('saveIdentity sends the school to the server, not just the name and sport',
   assert.match(fn, /ap\.school\s*=\s*school/, 'and it is put on the athlete_profiles payload');
 });
 
-test('the hydrate SELECTS school, or the server copy could never come back', () => {
+test('the hydrate ASKS for school, or the server copy could never come back', () => {
   const state = read('state.js');
-  assert.match(state, /from\('athlete_profiles'\)\s*\.select\('[^']*school[^']*'\)/,
-    'the profile hydrate asks for the school column');
-  assert.match(state, /patch\.school\s*=\s*ap\.school/, 'and applies it to RT.profile');
+  // The select is assembled from CORE_COLS + EXTRA_COLS now (see the resilience test below), so
+  // what matters is that school is in the asked-for set and lands on RT.profile.
+  assert.match(state, /EXTRA_COLS = 'school'/, 'school is in the asked-for set');
+  assert.match(state, /select\(`\$\{CORE_COLS\},\$\{EXTRA_COLS\}`\)/, 'and both halves are requested together first');
+  assert.match(state, /patch\.school\s*=\s*ap\.school/, 'and it is applied to RT.profile');
 });
 
 test('the edit screen hands the school to the server write as well as the local one', () => {
@@ -74,6 +76,32 @@ test('Home builds its line from the shared helper rather than a second copy of t
   assert.match(home, /identityLine\(/);
   assert.ok(!/const team = RT\.myCoach && RT\.myCoach\.teamName;\s*\n\s*return team \?/.test(home),
     'the old team-only line is gone, not merely bypassed');
+});
+
+/* 2026-09-10, the hour after: athlete_profiles is fenced by COLUMN-level grants (0103 select,
+   0210 insert/update), so 0230's new column was granted to nobody. Table privileges sit in front
+   of RLS, so the whole select failed with 42501 and took the entire profile hydrate down —
+   targets, standard, plan style — for every athlete on the build. These two pin both halves of
+   the answer: the grant exists, and the client can survive the next one that doesn't. */
+
+test('the school column is inside all three grant walls, or the client can neither read nor write it', () => {
+  const sql = read('../../../supabase/migrations/0231_athlete_school_grants.sql');
+  assert.match(sql, /grant select \(school\) on table athlete_profiles to authenticated/i);
+  assert.match(sql, /grant insert \(school\) on table athlete_profiles to authenticated/i);
+  assert.match(sql, /grant update \(school\) on table athlete_profiles to authenticated/i);
+});
+
+test('one ungranted column can no longer cost the athlete their whole profile', () => {
+  const state = read('state.js');
+  assert.match(state, /const CORE_COLS = 'sport,position,level,base_goal,season_goal,dob,standard'/,
+    'the columns that must never be lost are named apart from the newer ones');
+  assert.match(state, /const EXTRA_COLS = 'school'/);
+  assert.match(state, /if \(apErr\) \{[\s\S]{0,400}?select\(CORE_COLS\)/,
+    'a failed read retries with the core alone');
+  assert.match(state, /if \(!retry\.error\) \{/,
+    'and only adopts the narrower read when it actually succeeded, so an outage still reads as one');
+  const analytics = read('analytics.js');
+  assert.match(analytics, /SYNC_DEGRADED: 'sync_degraded'/, 'the drop is reported, not swallowed');
 });
 
 test('the migration that gives the school somewhere to live exists', () => {

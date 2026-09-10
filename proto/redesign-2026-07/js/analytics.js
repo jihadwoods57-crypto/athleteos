@@ -22,6 +22,11 @@
 /* The whole allowed event vocabulary. Adding a signal = adding it here (keeps the surface auditable). */
 export const EVENTS = Object.freeze({
   APP_OPEN: 'app_open',
+  /* A server read succeeded only after dropping a newer, optional column (state.js). It means the
+     client is asking for something this database has not granted yet — the 2026-09-10 shape,
+     where one ungranted column denied the whole profile hydrate. Silent to the athlete by
+     design; loud here, because the alternative is a degraded sync nobody ever learns about. */
+  SYNC_DEGRADED: 'sync_degraded',              // {table, dropped}
   ONBOARDING_STARTED: 'onboarding_started',   // Get Started tapped
   ONBOARDING_ROLE: 'onboarding_role',         // a role was picked  {role}
   // Step-level funnel (2026-07-23). ONBOARDING_ROLE → ONBOARDING_COMPLETED left ~26 screens

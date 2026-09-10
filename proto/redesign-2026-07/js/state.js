@@ -2899,7 +2899,29 @@ export const act = {
       // Weight visibility (0103): base_weight + targets left the direct SELECT grant — they come
       // through the athlete_plan_meta RPC (is_self always passes, so the athlete gets both in
       // full). Pre-apply fallback below keeps this client shippable AHEAD of the migration.
-      const { data: ap, error: apErr } = await sb.from('athlete_profiles').select('sport,position,level,base_goal,season_goal,dob,standard,school').eq('athlete_id', userId).maybeSingle();
+      /* CORE is what this client has always been able to read; EXTRA is every column added since,
+         and the split exists because of what happened on 2026-09-10. athlete_profiles is fenced by
+         COLUMN-level grants (0103 for select, 0210 for insert/update), so a column added without
+         being written into those walls is granted to nobody — and because table privileges sit in
+         front of RLS, ONE ungranted column made the whole select fail with 42501 and took the
+         entire profile hydrate down with it: targets, standard, plan style, dob, all of it, for
+         every athlete on the build. 0231 granted the column and fixed it, but the shape of that
+         failure is the problem: the newest, least important field must never be able to cost the
+         athlete the oldest, most important ones. So the extras are asked for once, and a failure
+         retries with the core alone. */
+      const CORE_COLS = 'sport,position,level,base_goal,season_goal,dob,standard';
+      const EXTRA_COLS = 'school';
+      let { data: ap, error: apErr } = await sb.from('athlete_profiles').select(`${CORE_COLS},${EXTRA_COLS}`).eq('athlete_id', userId).maybeSingle();
+      if (apErr) {
+        const retry = await sb.from('athlete_profiles').select(CORE_COLS).eq('athlete_id', userId).maybeSingle();
+        // Only adopt the narrower read when it actually succeeded: a genuine outage must still
+        // read as an outage, or `profileOffline` would go quiet exactly when it matters.
+        if (!retry.error) {
+          ap = retry.data; apErr = null;
+          try { track(EVENTS.SYNC_DEGRADED, { table: 'athlete_profiles', dropped: EXTRA_COLS }); }
+          catch { /* telemetry is never worth the hydrate */ }
+        }
+      }
       let meta = null;
       try {
         const { data: pm, error: pmErr } = await sb.rpc('athlete_plan_meta', { athlete: userId });

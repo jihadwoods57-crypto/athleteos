@@ -30,6 +30,10 @@ const json = (b: unknown, s = 200) =>
 // The server-side event vocabulary — MUST stay in sync with proto analytics.js EVENTS.
 const ALLOWED = new Set([
   "app_open", "onboarding_started", "onboarding_role", "goal_selected", "age_blocked",
+  // A server read that only succeeded after dropping a newer, optional column (2026-09-10). It
+  // means a client is asking for something this database has not granted yet — the shape where
+  // one ungranted column denied the whole profile hydrate. Silent to the athlete; loud here.
+  "sync_degraded",
   "onboarding_completed", "meal_logged", "meal_analysis_failed", "meal_analysis_applied", "memory_fact_confirmed", "commitment_set",
   "recovery_submitted", "checkin_submitted", "weight_logged", "coach_connected",
   "code_join_failed", "app_error",
