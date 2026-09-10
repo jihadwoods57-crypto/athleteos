@@ -580,7 +580,7 @@ export const editProfile = {
       // exception: the server can REFUSE it (0210 age lock), so it only lands locally after
       // the server takes it — otherwise this screen would show a birth date the server rejected.
       window.__act.saveProfile({ name, school: schoolV, sport, position });
-      const ok = await window.__act.saveIdentity({ full_name: name, sport, position });
+      const ok = await window.__act.saveIdentity({ full_name: name, sport, position, school: schoolV });
       let dobOk = true;
       if (dob) {
         const r = await window.__act.setMyDob(dob);

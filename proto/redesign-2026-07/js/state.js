@@ -2899,7 +2899,7 @@ export const act = {
       // Weight visibility (0103): base_weight + targets left the direct SELECT grant — they come
       // through the athlete_plan_meta RPC (is_self always passes, so the athlete gets both in
       // full). Pre-apply fallback below keeps this client shippable AHEAD of the migration.
-      const { data: ap, error: apErr } = await sb.from('athlete_profiles').select('sport,position,level,base_goal,season_goal,dob,standard').eq('athlete_id', userId).maybeSingle();
+      const { data: ap, error: apErr } = await sb.from('athlete_profiles').select('sport,position,level,base_goal,season_goal,dob,standard,school').eq('athlete_id', userId).maybeSingle();
       let meta = null;
       try {
         const { data: pm, error: pmErr } = await sb.rpc('athlete_plan_meta', { athlete: userId });
@@ -2918,6 +2918,10 @@ export const act = {
       if (prof && prof.created_at) patch.createdAt = prof.created_at; // server birthday: the activation anchor
       if (ap) {
         if (ap.sport) patch.sport = ap.sport; if (ap.position) patch.position = ap.position; if (ap.level) patch.level = ap.level;
+        /* != null, not truthy: a school cleared on another device arrives as '' and has to be
+           able to clear this one too. `undefined` (a pre-0230 row) still leaves the local value
+           alone, which is what keeps an edit made before the migration from vanishing. */
+        if (ap.school != null) patch.school = ap.school;
         if (ap.base_goal) patch.baseGoal = ap.base_goal;
         if (ap.season_goal && typeof ap.season_goal === 'object') patch.seasonGoal = ap.season_goal;
         if (ap.dob) patch.dob = ap.dob; // drives the client-side minor gate (mirrors 0050's is_provable_minor)
@@ -3588,7 +3592,7 @@ export const act = {
      sport/position → athlete_profiles. The old editProfile saved only to local RT, so a coach
      never saw a post-onboarding name/sport change. Returns false if either write fails so the
      UI can say "saved on this phone, not synced." */
-  async saveIdentity({ full_name, sport, position }) {
+  async saveIdentity({ full_name, sport, position, school }) {
     const sb = window.sb;
     if (!sb || !RT.userId) return false;
     let ok = true;
@@ -3598,6 +3602,10 @@ export const act = {
     const ap = {};
     if (sport) ap.sport = sport;
     if (position) ap.position = position;
+    /* school is written whenever the caller passed a string, INCLUDING '' — unlike sport and
+       position above, an athlete who clears their school means it, and a truthy test would make
+       the field one-way (0230). */
+    if (typeof school === 'string') ap.school = school;
     if (Object.keys(ap).length) { if (!(await this.saveAthleteProfile(ap))) ok = false; }
     return ok;
   },

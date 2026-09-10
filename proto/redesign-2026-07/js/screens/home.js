@@ -1,6 +1,7 @@
 import { S, RT, act, slotHasPhoto, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
 import { weekdayLong } from '../fmt-date.js';
+import { identityLine } from '../identity-line.js';
 import { appHead, scoreRing, esc, safeImg, collapseSection, emailVerifyBanner, wireEmailVerifyBanner, emptyState } from '../components.js';
 import { reveal } from '../motion.js';
 import { qualityAccent } from '../score-band.js';
@@ -637,9 +638,9 @@ function trustShield() {
 function headSub(e) {
   if (e.celebration) return 'Locked in for today';
   const d = new Date();
-  const day = weekdayLong(d);
-  const team = RT.myCoach && RT.myCoach.teamName;
-  return team ? `${day} · ${team}` : day;
+  /* The team when there is one, the athlete's own school when there isn't. The precedence and
+     the reason for it live in identity-line.js, which is where this line can be tested. */
+  return identityLine(weekdayLong(d), RT.myCoach && RT.myCoach.teamName, S.athlete.school);
 }
 
 /* The single next move, named inside the score card. It deliberately repeats what the NOW
