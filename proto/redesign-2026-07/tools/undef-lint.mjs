@@ -142,7 +142,20 @@ for (const [file, { bound, used }] of info) {
   for (const [name, line] of used) {
     if (bound.has(name)) continue;
     const homes = (definedIn.get(name) || []).filter((f) => f !== file);
-    if (!homes.length) continue;
+    if (!homes.length) {
+      // Second rule (2026-09-10): a SCREAMING_SNAKE name bound nowhere is a deleted const, not a
+      // missing import — CV_PHRASES shipped exactly this way when a scope-cut swept its
+      // definition but left four uses. Rule (c) above is blind to it: the name no longer exists
+      // "next door" anywhere. The underscore requirement is what keeps this at zero noise — no
+      // browser global has that shape (URL, JSON, CSS all lack one).
+      if (/^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/.test(name)) {
+        failures.push(
+          `${relative(ROOT, file)}:${line}  ${name} is used here but bound nowhere in the proto — ` +
+          'a constant this shape was probably deleted out from under its uses',
+        );
+      }
+      continue;
+    }
     failures.push(
       `${relative(ROOT, file)}:${line}  ${name} is used here but never imported or declared — ` +
       `it is defined in ${homes.map((f) => relative(ROOT, f)).join(', ')}`,

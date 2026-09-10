@@ -328,6 +328,13 @@ export const teamDiet = {
   },
 };
 
+/* ---------- #coach-voice · the AI Nutritionist page (founder, 2026-08-06) ----------
+   The one place a coach or trainer tunes how the AI Nutritionist talks — tone, accountability,
+   reply length, approved phrases, banned words, and free-text instructions. Served to a TEAM's
+   config (0094, coach_voice_config) or a PRACTICE's (0187, practice_voice_config) by
+   act.setCoachVoice; consumed server-side by meal-chat (thread replies, coach questions, drafts),
+   analyze-meal (the plate read), and coach-voice-nudge. */
+const CV_PHRASES = ['That’s the standard.', 'Don’t chase the scale, we’re building.', 'Protein first is the standard this week.', 'Keep this structure.'];
 export const coachVoice = {
   get nav() { return roleNav(); }, tab: 'profile',
   render() {
