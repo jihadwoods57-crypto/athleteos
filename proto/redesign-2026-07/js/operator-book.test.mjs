@@ -198,7 +198,11 @@ for (const kind of ['team', 'practice']) {
   assert.ok(TA_CALLS.length > taBefore, `${kind}: loadActivity must pass roster ids (the RPC/index path), not the unscoped scan`);
   const taFeed = TA_CALLS[TA_CALLS.length - 1];
   assert.deepStrictEqual([...taFeed.p_athletes].sort(), ['a1', 'a2'], `${kind}: the feed must ask for exactly the roster's athletes`);
-  assert.strictEqual(taFeed.p_limit, 20, `${kind}: the feed asks for its own 20, not the roster read's 400`);
+  // Item 6 (2026-09-10): the inbox's only meals input used to be a top-20; it now asks for two
+  // days at the server clamp and pages client-side (inbox-paging.test.mjs covers the paging).
+  assert.strictEqual(taFeed.p_limit, 400, `${kind}: the feed asks for the server clamp (400), not a top-20`);
+  assert.strictEqual(typeof CD.act.capped, 'boolean', `${kind}: the feed says whether it hit the clamp`);
+  assert.ok(CD.act.views instanceof Set, `${kind}: the feed carries the server's staff views as a Set`);
   assert.ok(CD.act && CD.act.failed === false, `${kind}: a good feed fetch must not read as failed`);
   assert.deepStrictEqual(CD.act.rows.map(m => m.id), ['m1'], `${kind}: the feed must hold the fetched rows`);
 

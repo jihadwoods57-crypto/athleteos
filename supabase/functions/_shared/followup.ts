@@ -106,3 +106,146 @@ export function notificationKind(mealId: string): string {
 export function routeForCoachMeal(mealId: string): string {
   return `coach-meal/${mealId}`;
 }
+
+/* ================================================================================
+   THE DAY-GAP NUDGE (2026-09-10). The follow-up above looks BACK at yesterday's weak dinner.
+   Nothing ever looked FORWARD at today: an athlete 40g short with dinner still open heard
+   nothing until the day was already scored. The client computes this math on every meal screen
+   (mealDayProgress); the cron only ever had the low-quality meal rows. This selector reads the
+   athlete's own `days` row instead, which the client writes on every change:
+     days.meals           { slot: true }           which slots are logged
+     days.checkin.slotMacros[slot].protein         what each logged slot carried
+     days.tasks           [{ id, done, dueAt }]    the required items and their local deadlines
+   and the coach-set protein target from athlete_profiles.targets. The server derives NO timing:
+   a slot is "still open" only because the client stamped a dueAt in the future (the same rule
+   meal-miss-escalation holds to). Same discipline as the follow-up: one per athlete per day, a
+   real gap only, never on a day the follow-up already spoke.
+   ================================================================================ */
+
+/** Under this many grams short, the evening does not need a message. */
+export const DAY_GAP_MIN_G = 25;
+
+/** The local hour band the nudge may land in: late enough that lunch is history, early enough
+ *  that dinner is still a decision. */
+export const DAY_GAP_WINDOW: [number, number] = [19, 20];
+
+/** Which task ids are MEAL slots. Other required items (recovery, weight, cs:*) are not food. */
+export const MEAL_SLOT_RE = /^(breakfast|lunch|dinner|snack|meal-\d+)$/;
+
+export type DayRowForGap = {
+  athlete_id: string;
+  date: string;
+  meals?: unknown;
+  checkin?: unknown;
+  tasks?: unknown;
+};
+
+export type DayGapNudge = {
+  gap: number;
+  target: number;
+  soFar: number;
+  /** The open meal slot due soonest: where the tap lands. */
+  slot: string;
+  openSlots: string[];
+};
+
+/** Meal slots still open: required (they carry a dueAt), not done, and due AFTER now. Soonest
+ *  first. No dueAt means the client never said when it was due, so it is not "open", it is
+ *  unknown, and unknown never earns a push. */
+export function openMealSlots(tasks: unknown, nowMs: number): string[] {
+  if (!Array.isArray(tasks)) return [];
+  const out: Array<{ id: string; due: number }> = [];
+  for (const raw of tasks) {
+    if (!raw || typeof raw !== 'object') continue;
+    const t = raw as { id?: unknown; done?: unknown; dueAt?: unknown };
+    const id = typeof t.id === 'string' ? t.id.trim() : '';
+    if (!id || !MEAL_SLOT_RE.test(id) || t.done === true) continue;
+    if (typeof t.dueAt !== 'string') continue;
+    const due = Date.parse(t.dueAt);
+    if (!Number.isFinite(due) || due <= nowMs) continue;
+    out.push({ id, due });
+  }
+  return out.sort((a, b) => a.due - b.due).map((o) => o.id);
+}
+
+/** Protein already logged today, from the slots the day row marks logged and the macros the
+ *  client stamped for them. Mirrors the client's dayConsumed (scored slots only). */
+export function proteinLoggedFromDay(day: DayRowForGap | null | undefined): number {
+  if (!day) return 0;
+  const meals = day.meals && typeof day.meals === 'object' ? day.meals as Record<string, unknown> : {};
+  const checkin = day.checkin && typeof day.checkin === 'object' ? day.checkin as { slotMacros?: unknown } : {};
+  const macros = checkin.slotMacros && typeof checkin.slotMacros === 'object'
+    ? checkin.slotMacros as Record<string, { protein?: unknown }> : {};
+  let total = 0;
+  for (const slot of Object.keys(macros)) {
+    if (!meals[slot]) continue;
+    const p = Number(macros[slot]?.protein);
+    if (Number.isFinite(p) && p > 0 && p <= 500) total += p;
+  }
+  return Math.round(total);
+}
+
+/**
+ * Should THIS athlete hear about today's gap? The one decision, pure.
+ *
+ * Fires only when: a real coach-set target exists, the shortfall is past DAY_GAP_MIN_G, and at
+ * least one meal slot is still open on the client's own clock. Everything else (window, once a
+ * day, opt-out, the follow-up already having spoken) is the caller's, because it needs I/O.
+ */
+export function pickDayGapNudge(
+  day: DayRowForGap | null | undefined,
+  proteinTarget: unknown,
+  nowMs: number,
+  minGap = DAY_GAP_MIN_G,
+): DayGapNudge | null {
+  if (!day) return null;
+  const target = Math.round(Number(proteinTarget));
+  if (!Number.isFinite(target) || target <= 0 || target > 500) return null;
+  const openSlots = openMealSlots(day.tasks, nowMs);
+  if (!openSlots.length) return null;
+  const soFar = proteinLoggedFromDay(day);
+  const gap = target - soFar;
+  if (gap <= minGap) return null;
+  return { gap, target, soFar, slot: openSlots[0], openSlots };
+}
+
+/** "dinner" reads as itself; a coach slot id reads as "your next meal". */
+export function slotNoun(slot: string): string {
+  const s = String(slot || '').toLowerCase();
+  return /^(breakfast|lunch|dinner|snack)$/.test(s) ? s : 'your next meal';
+}
+
+/** Keep at most `max` sentences. A nudge is two lines on a lock screen, not a paragraph. */
+export function clampSentences(text: string, max = 2): string {
+  const parts = String(text || '').trim().match(/[^.!?]+[.!?]+["')\]]?|[^.!?]+$/g) || [];
+  return parts.slice(0, max).map((s) => s.trim()).filter(Boolean).join(' ');
+}
+
+/** The deterministic message: exact numbers, two sentences, and good enough to ship alone. */
+export function dayGapFallback(n: DayGapNudge): string {
+  const noun = slotNoun(n.slot);
+  const still = n.openSlots.length > 1 ? `${noun} and ${n.openSlots.length - 1} more` : noun;
+  return `You're ${n.gap}g of protein short of today's ${n.target}g with ${still} still open. Bring ${noun} in around ${n.gap}g and the day closes out.`;
+}
+
+/** Does a model-written nudge keep the contract? The exact gap, no invented figure, at most two
+ *  sentences, no em dash. Anything else falls back to the deterministic line. */
+export function dayGapMessageOk(text: string, n: DayGapNudge): boolean {
+  const t = String(text || '').trim();
+  if (!t || t.includes('—')) return false;
+  if (!new RegExp(`\\b${n.gap}\\s?g\\b`).test(t)) return false;
+  const allowed = new Set([n.gap, n.target, n.soFar].map(String));
+  for (const num of t.match(/\d+/g) || []) if (!allowed.has(num)) return false;
+  return clampSentences(t, 2) === clampSentences(t, 99);
+}
+
+/** Where the tap lands: the camera for the slot that closes the gap. Same shape as the missed
+ *  meal push (`camera/<slot>`), so the native deep-link validator already accepts it. */
+export function routeForSlot(slot: string): string {
+  return `camera/${slot}`;
+}
+
+/** Notification kind, carrying the slot so the bell can route without a schema change. */
+export function dayGapKind(slot: string): string {
+  return `ai_daygap:${slot}`;
+}

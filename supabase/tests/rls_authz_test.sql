@@ -4166,6 +4166,76 @@ select _ok((select quiet_from_min = 1320 and quiet_to_min = 420 and team_standar
 update profiles set quiet_from_min = null, quiet_to_min = null, team_standard_pushes_opt_out = false, digest_last_sent_at = null
   where id = 'aaaaaaaa-0000-0000-0000-000000000001';
 
+-- ================================================================ 0229: meal_views (per-thread receipts)
+-- A viewer writes only their OWN row, only on a meal they can see (self or can_view). Reads are
+-- own rows plus every row on a viewable meal: staff on the same athlete share one "opened" set,
+-- the athlete sees who opened their plate, and a stranger sees nothing.
+select _superuser();
+delete from meal_views;
+
+-- coach_1 (active staff on T1) opens athlete A's breakfast: their own row lands.
+select _as('11111111-0000-0000-0000-000000000001');  -- coach_1
+select _ok(_try($q$insert into meal_views (meal_id, viewer_id) values
+  ('e0000000-0000-0000-0000-00000000000a','11111111-0000-0000-0000-000000000001')$q$) = 'ok',
+  '0229: staff stamps their own view on a meal they can see');
+-- Re-opening refreshes the stamp through the same upsert the client uses.
+select _ok(_try($q$insert into meal_views (meal_id, viewer_id, seen_at) values
+  ('e0000000-0000-0000-0000-00000000000a','11111111-0000-0000-0000-000000000001', now())
+  on conflict (meal_id, viewer_id) do update set seen_at = excluded.seen_at$q$) = 'ok',
+  '0229: re-opening a thread upserts the same row');
+select _ok((select count(*) from meal_views where meal_id = 'e0000000-0000-0000-0000-00000000000a') = 1,
+  '0229: one row per (meal, viewer), not one per open');
+-- A stranger's meal (B, on T2) is not viewable: no stamp.
+select _ok(_try($q$insert into meal_views (meal_id, viewer_id) values
+  ('e0000000-0000-0000-0000-00000000000b','11111111-0000-0000-0000-000000000001')$q$) <> 'ok',
+  '0229: staff cannot stamp a view on a meal outside their book');
+-- Nobody writes a row in another viewer's name.
+select _ok(_try($q$insert into meal_views (meal_id, viewer_id) values
+  ('e0000000-0000-0000-0000-00000000000a','22222222-0000-0000-0000-000000000002')$q$) <> 'ok',
+  '0229: a view row cannot be planted under another viewer''s id');
+select _ok(_try($q$insert into meal_views (meal_id, viewer_id) values
+  ('e0000000-0000-0000-0000-00000000000a','aaaaaaaa-0000-0000-0000-000000000001')$q$) <> 'ok',
+  '0229: staff cannot forge the athlete''s own "opened" stamp');
+
+-- The athlete opens their own thread: their own row lands, and they can see who else opened it.
+select _as('aaaaaaaa-0000-0000-0000-000000000001');  -- ath_a
+select _ok(_try($q$insert into meal_views (meal_id, viewer_id) values
+  ('e0000000-0000-0000-0000-00000000000a','aaaaaaaa-0000-0000-0000-000000000001')$q$) = 'ok',
+  '0229: the athlete stamps their own view on their own meal');
+select _ok((select count(*) from meal_views where viewer_id = '11111111-0000-0000-0000-000000000001') = 1,
+  '0229: the athlete sees the coach''s view on their plate');
+select _ok(_try($q$insert into meal_views (meal_id, viewer_id) values
+  ('e0000000-0000-0000-0000-00000000000b','aaaaaaaa-0000-0000-0000-000000000001')$q$) <> 'ok',
+  '0229: the athlete cannot stamp a stranger''s meal');
+-- The athlete cannot move the coach's stamp (update policy is own-row only): zero rows touched.
+select _try($q$update meal_views set seen_at = '2000-01-01' where viewer_id = '11111111-0000-0000-0000-000000000001'$q$);
+select _superuser();
+select _ok((select seen_at > '2020-01-01' from meal_views
+             where viewer_id = '11111111-0000-0000-0000-000000000001' and meal_id = 'e0000000-0000-0000-0000-00000000000a'),
+  '0229: the athlete''s update of the coach''s row changes nothing');
+
+-- Shared queue depth: trainer_t can view A (active practice client), so they read coach_1's stamp.
+select _as('44444444-0000-0000-0000-000000000004');  -- trainer_t
+select _ok((select count(*) from meal_views where meal_id = 'e0000000-0000-0000-0000-00000000000a') = 2,
+  '0229: another staff member who can view the athlete reads every view on the plate');
+
+-- Strangers read nothing: coach_2 (T2), athlete B, rando.
+select _as('22222222-0000-0000-0000-000000000002');  -- coach_2
+select _ok((select count(*) from meal_views) = 0, '0229: staff on another team sees no view rows');
+select _as('bbbbbbbb-0000-0000-0000-000000000002');  -- ath_b
+select _ok((select count(*) from meal_views) = 0, '0229: a stranger athlete sees no view rows');
+select _as('99999999-0000-0000-0000-000000000009');  -- rando
+select _ok((select count(*) from meal_views) = 0, '0229: an unlinked user sees no view rows');
+select _ok(_try($q$insert into meal_views (meal_id, viewer_id) values
+  ('e0000000-0000-0000-0000-00000000000a','99999999-0000-0000-0000-000000000009')$q$) <> 'ok',
+  '0229: an unlinked user cannot stamp a view');
+select _ok(_try($q$delete from meal_views$q$) <> 'ok' or (select count(*) from meal_views) = 0,
+  '0229: no delete grant for authenticated');
+
+select _superuser();
+select _ok((select count(*) from meal_views) = 2, '0229: exactly the two legitimate rows exist');
+delete from meal_views;
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$

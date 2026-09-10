@@ -70,6 +70,7 @@ import {
   fetchFoodMemory, insertFoodMemoryItem, updateFoodMemoryItem, archiveFoodMemoryItem,
   bumpFoodMemoryItem, upsertFoodMemoryPlace,
   uploadAvatar as rpcUploadAvatar, removeAvatar as rpcRemoveAvatar,
+  markMealViewed,
   todayISO,
 } from './roles.js';
 import { bustAvatar } from './avatar.js';
@@ -272,7 +273,8 @@ const DEFAULT_RT = {
   assigned: [],          // coach-assigned requirements: {id,title,icon,note,from,dueLabel,done,seen,real?}
   reqSets: null,         // team's standing requirement_sets (0055) — cached for resolution surfaces
   stdMeals: null,        // resolved governing standard {mealsRequired, slots, deadlines, titles} — drives the scored day
-  coachSeenMealIds: [],  // coach device: meal ids opened in the activity feed (drives unseen dots)
+  coachSeenMealIds: [],  // coach device: meal ids opened in the activity feed (drives unseen dots). The optimistic layer over 0229 meal_views, which is the shared truth
+  mealViewedAt: {},      // athlete device: mealId -> ISO of the last time THIS athlete opened that thread (0229). Decides "coach replied" on Home together with the server's stamp
   coachNudged: {},       // coach device: athleteId -> ISO date of last nudge (one per athlete per day)
   coachSetup: {},        // coach first-run checklist: real per-step completion flags (sharedCode/standard/staff/group) marked when the coach actually does each step; reset per-account by _wipeUserScopedState
   coachVoice: null,      // coach's AI-voice config {enabled,tone,level,approved:[],prohibited}; null → defaults. Consumed live by the coach-voice-nudge edge fn (home.js)
@@ -3216,7 +3218,10 @@ export const act = {
     RT.reviewAskedAt = t;
     save();
   },
-  /* Coach activity feed: per-device seen marks (which meals the coach has opened). */
+  /* Coach activity feed: which meals this coach has opened. The device list is the optimistic
+     layer and the offline fallback; the server row (0229 meal_views) is the shared truth every
+     staff member's inbox reads, so two coaches on one team, or one coach on two phones, see one
+     queue. Fire-and-forget: a dropped write costs nothing here and the next open retries it. */
   markMealSeen(id) {
     if (!id) return;
     if (!Array.isArray(RT.coachSeenMealIds)) RT.coachSeenMealIds = [];
@@ -3225,6 +3230,25 @@ export const act = {
       if (RT.coachSeenMealIds.length > 300) RT.coachSeenMealIds = RT.coachSeenMealIds.slice(-300);
       save();
     }
+    if (RT.userId) markMealViewed(id, RT.userId).catch(() => {});
+  },
+  /* Athlete side of the same table: "I opened this thread now". Clears the "Your coach replied"
+     row on Home for every coach message older than this stamp. Local stamp first (Home repaints
+     off it immediately, offline included), server row second, best-effort. Bounded map: the
+     newest 200 threads, which is a season of meals. */
+  markThreadViewed(id) {
+    if (!id) return;
+    const now = new Date().toISOString();
+    const prev = (RT.mealViewedAt && typeof RT.mealViewedAt === 'object') ? RT.mealViewedAt : {};
+    const next = { ...prev, [id]: now };
+    const keys = Object.keys(next);
+    if (keys.length > 200) {
+      keys.sort((a, b) => String(next[a]).localeCompare(String(next[b])));
+      for (const k of keys.slice(0, keys.length - 200)) delete next[k];
+    }
+    RT.mealViewedAt = next;
+    save();
+    if (RT.userId) markMealViewed(id, RT.userId).catch(() => {});
   },
   markNudged(athleteId) {
     // Local date, not UTC — toISOString flips the "day" at ~5-8pm for US coaches, which cleared

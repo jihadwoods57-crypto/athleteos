@@ -3,7 +3,7 @@ import { icon } from '../icons.js';
 import { initialsOf } from '../initials.js';
 import { avatarHead, esc, safeImg, collapseSection, skeletonRows, errorState, emptyState, emailVerifyBanner, wireEmailVerifyBanner, copyText } from '../components.js';
 import * as roles from '../roles.js';
-import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope, logBookIntervention, passWorthy, bookId } from '../coach-data.js';
+import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope, logBookIntervention, passWorthy, bookId, seenMealSet } from '../coach-data.js';
 import { buildPriorities } from '../priority.js';
 import { nudgePreset, nudgeResultCopy } from '../nudge-presets.js';
 import { PLANS } from '../ob2.js';
@@ -506,7 +506,7 @@ async function paintNutritionBoard(root) {
     const parts = (nameOf[id] || fallbackNoun).split(' ');
     return firstCount[parts[0]] > 1 && parts[1] ? `${parts[0]} ${parts[1][0]}.` : parts[0];
   };
-  const seen = new Set(RT.coachSeenMealIds || []);
+  const seen = seenMealSet(RT.coachSeenMealIds || []); // device list + every staff view (0229)
   const isFlagged = (id) => !!(NUT.flags[id] && NUT.flags[id].kind === 'flag');
 
   // Queue: flags lead (the demo's "your Monday starts with the flags"), then unopened, then
@@ -739,7 +739,7 @@ export const coachHome = {
     const nowMs = now.getTime();
     const cards = entries ? buildPriorities({ nowMin, nowMs, entries, interventions: (CD.extras && CD.extras.interventions) || [] }) : [];
     const pending = CD.roster.pending || [];
-    const seen = new Set(RT.coachSeenMealIds || []);
+    const seen = seenMealSet(RT.coachSeenMealIds || []); // device list + every staff view (0229)
     const feed = CD.act && CD.act.rows ? CD.act.rows.filter(m => rows.some(r => r.athleteId === m.athlete_id)) : null;
     const unseen = feed ? feed.filter(m => !seen.has(m.id)).length : 0;
     const unreadAlerts = S.unreadNotifs;

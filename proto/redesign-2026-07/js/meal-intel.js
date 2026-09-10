@@ -641,7 +641,7 @@ export function buildClarifications(questions, answers) {
   return out;
 }
 
-export function contextForChat({ meal, plan, exec, day, recentMeals, thread } = {}) {
+export function contextForChat({ meal, plan, exec, day, recentMeals, thread, usualMeals } = {}) {
   const ctx = {
     meal: meal || {},
     plan: plan || {},
@@ -654,11 +654,33 @@ export function contextForChat({ meal, plan, exec, day, recentMeals, thread } = 
     day: day || {},
     recentMeals: Array.isArray(recentMeals) ? recentMeals.slice() : [],
     thread: Array.isArray(thread) ? thread.slice(-20) : [],
+    // The athlete's saved usual meals (Food Memory), names and numbers only, so the AI can name
+    // what THEY actually eat when they ask what to eat (the suggest_meal tool, 2026-09-10). Only
+    // present when a caller hands it a list: every other caller's context stays byte-identical.
+    ...(Array.isArray(usualMeals) ? { usualMeals: usualMealsForChat(usualMeals) } : {}),
   };
   const size = () => JSON.stringify(ctx).length;
   while (size() > CONTEXT_MAX && ctx.recentMeals.length) ctx.recentMeals.shift();
+  while (size() > CONTEXT_MAX && ctx.usualMeals && ctx.usualMeals.length) ctx.usualMeals.pop();
   while (size() > CONTEXT_MAX && ctx.thread.length > 1) ctx.thread.shift();
   return ctx;
+}
+
+/** Saved meals, bounded for the prompt: most-logged and verified first, at most `max`, names
+ *  stripped of anything that could read as markup, numbers clamped. Pure. */
+export function usualMealsForChat(items, max = 8) {
+  const clampN = (v, hi) => Math.max(0, Math.min(hi, Math.round(Number(v) || 0)));
+  return (Array.isArray(items) ? items : [])
+    .filter((it) => it && it.status !== 'archived' && it.name)
+    .slice()
+    .sort((a, b) => (b.verified_at ? 1 : 0) - (a.verified_at ? 1 : 0)
+      || (Number(b.times_logged) || 0) - (Number(a.times_logged) || 0))
+    .slice(0, max)
+    .map((it) => ({
+      name: String(it.name).replace(/[<>{}[\]]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60),
+      protein: clampN(it.protein, 500), kcal: clampN(it.kcal, 5000),
+    }))
+    .filter((c) => c.name && (c.protein > 0 || c.kcal > 0));
 }
 
 /* ---------------- Restriction comparison (spec §18.3/§18.4) ----------------

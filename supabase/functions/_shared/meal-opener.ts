@@ -53,6 +53,78 @@ function lowConfidence(detected: unknown): boolean {
   });
 }
 
+/** What the read is unsure about on one item. 'portion' = the food is known and only the amount
+ *  is a guess; 'product' = a packaged item whose exact product could not be resolved;
+ *  'identity' = the food itself is a guess. */
+export type UncertainAspect = 'portion' | 'product' | 'identity';
+export interface UncertainItem { name: string; aspect: UncertainAspect }
+
+/**
+ * THE item the read is least sure about, named, and what about it (2026-09-10). The old hedge
+ * ("If anything was cooked or portioned differently than it looks...") knew which item was the
+ * guess and said nothing about it, so the athlete had to work out for themselves which of five
+ * foods the AI meant, while the correction loop could already act on a named item. Lowest
+ * confidence wins; among equals, the item that carries the most calories, because that is the
+ * guess that moves the number. Null when nothing is uncertain or the uncertain item has no name.
+ *
+ * The read does not label WHY it was unsure, so the aspect is inferred from what it did resolve:
+ * a packaged item with no exact product named is a product question; an item the model gave a
+ * quantity for is a portion question; anything else is an identity question.
+ */
+export function uncertainItem(detected: unknown): UncertainItem | null {
+  if (!Array.isArray(detected)) return null;
+  const rank = (c: string) => (c === 'low' ? 2 : c === 'medium' ? 1 : 0);
+  let best: { name: string; aspect: UncertainAspect; r: number; kcal: number } | null = null;
+  for (const raw of detected) {
+    if (!raw || typeof raw !== 'object') continue;
+    const d = raw as Record<string, unknown>;
+    const r = rank(text(d.confidence));
+    if (r === 0) continue;
+    const name = text(d.name).slice(0, 60);
+    if (!name) continue;
+    const per = d.per && typeof d.per === 'object' ? (d.per as Record<string, unknown>) : d;
+    const kcal = Number(per.kcal) || 0;
+    if (best && (r < best.r || (r === best.r && kcal <= best.kcal))) continue;
+    const packaged = d.kind === 'packaged' || d.kind === 'beverage';
+    const hasProduct = text(d.product).length > 0 || d.basis === 'label' || d.basis === 'database';
+    const aspect: UncertainAspect = packaged && !hasProduct ? 'product'
+      : text(d.quantity) ? 'portion' : 'identity';
+    best = { name, aspect, r, kcal };
+  }
+  return best ? { name: best.name, aspect: best.aspect } : null;
+}
+
+/** "Grilled chicken" reads as "the grilled chicken" mid-sentence; a brand keeps its capitals. */
+function spoken(name: string): string {
+  const words = name.split(/\s+/);
+  const capitalised = words.filter((w) => /^[A-Z]/.test(w)).length;
+  if (capitalised > 1) return name;        // "Core Power", "Greek Yogurt Bar": a name, keep it
+  return name.charAt(0).toLowerCase() + name.slice(1);
+}
+
+/**
+ * The uncertainty sentence: one plain question naming the item, or, when the clarify budget is
+ * already spent for the day, an honest note that this one is an estimate and which item it is.
+ * The generic line survives ONLY as the fallback when no item can be named.
+ */
+export function uncertaintyLine(detected: unknown, clarifyBudgetSpent: boolean | null | undefined): string {
+  const item = uncertainItem(detected);
+  if (!item) {
+    return lowConfidence(detected)
+      ? "If anything was cooked or portioned differently than it looks, tell me and I'll tighten the numbers."
+      : '';
+  }
+  const n = spoken(item.name);
+  if (clarifyBudgetSpent === true) {
+    if (item.aspect === 'portion') return `I'm estimating the ${n} portion on this one, so tell me the amount if it's off.`;
+    if (item.aspect === 'product') return `I'm estimating the ${n} on this one, so tell me the exact product if you have it.`;
+    return `I'm estimating the ${n} on this one, so tell me what it actually was if I've misread it.`;
+  }
+  if (item.aspect === 'portion') return `I'm least sure on the ${n} portion, so tell me how much and I'll tighten the numbers.`;
+  if (item.aspect === 'product') return `I'm least sure which product the ${n} is, so tell me the exact one and I'll tighten the numbers.`;
+  return `I'm least sure what the ${n} actually is, so tell me and I'll tighten the numbers.`;
+}
+
 /**
  * The model's read, kept WHOLE up to three sentences. The model is asked for two to three:
  * the takeaway, then the one adjustment, then (sometimes) the why. Every real read in
@@ -124,6 +196,10 @@ export type OpenerContext = {
    */
   day?: { proteinIncludingThisMeal?: unknown; proteinTarget?: unknown; mealsRemaining?: unknown } | null;
   goal?: string | null;
+  /** True when the athlete's daily clarify budget was spent when this plate was read, so the model
+   *  could not ask its question. The uncertainty line then says it is estimating and names the
+   *  item, instead of the silence the forced report used to leave. null/undefined = unknown. */
+  clarifyBudgetSpent?: boolean | null;
 };
 
 /**
@@ -211,9 +287,11 @@ export function composeOpenerText(input: MealInput, ctx: OpenerContext = {}): st
   // "some of my read is a guess... correct anything I've misread" read as an AI apologizing,
   // not a nutritionist offering precision). The honesty stays — this only renders on a read
   // with real uncertainty in it — but the voice is an expert inviting a detail, never a hedge.
-  if (lowConfidence(input.detected)) {
-    parts.push("If anything was cooked or portioned differently than it looks, tell me and I'll tighten the numbers.");
-  }
+  // TARGETED (2026-09-10): it names the item it is least sure about and what about it, so the
+  // athlete can answer in one line and the correction loop can act on that named item. When the
+  // clarify budget is spent it says so, naming the item, instead of going quiet.
+  const unsure = uncertaintyLine(input.detected, ctx.clarifyBudgetSpent);
+  if (unsure) parts.push(unsure);
 
   // NO EM DASHES, and not by hand-discipline alone. Every model-written path in this product
   // strips them (meal-chat does it on replies, acks, notes and drafts); this composed path carried

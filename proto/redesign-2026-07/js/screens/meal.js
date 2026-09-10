@@ -21,11 +21,14 @@ import { hydrateAvatars } from '../avatar.js';
 import { wireTapback } from '../tapback.js';
 import { scrollThreadToEnd, focusComposer } from '../keyboard.js';
 import { recentRows, warmRecent as warmRecentShared } from '../recent-meals.js';
+import { foodMemory, warmFoodMemory } from '../food-memory-data.js';
+import { remainingToday } from '../food-memory.js';
 import { wireReadMore } from '../thread-readmore.js';
 import {
   layoutThread, authorName, initialsFor, participantList, participantSummary, participantMeta,
   isAnalysisOpener, isAnalysisUpdate, isEscalated, quotedFor,
   memoryOfferOf, memoryOfferChips,
+  mealSuggestOf, fillMealSuggestion, mealSuggestHtml,
   dayLabelOf,
 } from '../chat-view.js';
 
@@ -1599,6 +1602,23 @@ export const thread = {
       return memoryOfferChips(offer, esc);
     };
 
+    // What should I eat (2026-09-10): the AI framed it, Food Memory fills it. Ranked at paint
+    // time against the LIVE day (the same remaining math Plan > Ask uses), so a meal logged since
+    // the reply still moves the picks, and a tap on one stages it exactly as Plan does.
+    const suggestRemaining = () => {
+      const PS = S.planStyle || {}, T = S.planTargets || {}, c = S.dayConsumed || {};
+      return remainingToday({
+        proteinSoFar: c.protein, kcalSoFar: c.kcal,
+        proteinTarget: PS.showMacros ? T.protein : null, kcalTarget: PS.showCalories ? T.calories : null,
+      });
+    };
+    const suggestItems = () => { const fm = foodMemory(RT.userId); return fm ? fm.items : []; };
+    const bubbleText = (c) => {
+      const sug = mealSuggestOf(c);
+      if (!sug) return esc(c.text);
+      return mealSuggestHtml(sug, fillMealSuggestion(sug, suggestItems(), suggestRemaining()), esc);
+    };
+
     const paint = () => {
       if (!threadEl) return;
       const msgs = threadMessages(comments);
@@ -1675,7 +1695,7 @@ export const thread = {
                   reply is just the AI's next message, like a person texting back. The quote stem
                   above already shows WHAT it answers. The escalation badge stays: "this reached
                   your coach" is a fact worth labeling. */''}
-            <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(c.text)}${offerChips(c)}</div>
+            <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : bubbleText(c)}${offerChips(c)}</div>
             ${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}
           </div>
         </div>`;
@@ -1945,6 +1965,13 @@ export const thread = {
     // Pending-read controls. Delegated on the root because openingBlockHtml re-renders these rows
     // on every repaint — a direct listener would be lost the first time the thread refreshed.
     root.addEventListener('click', (ev) => {
+      // A suggested usual meal: stage it through the same confirm gate Plan's one-tap re-log
+      // uses (plan.js data-fm-log), so it is reviewed before it counts.
+      const fm = ev.target && ev.target.closest ? ev.target.closest('[data-fm-log]') : null;
+      if (fm) {
+        if (act.stageSavedMeal(fm.getAttribute('data-fm-log'))) location.hash = '#meal-analysis';
+        return;
+      }
       // Memory confirmation: the athlete's tap is the ONLY thing that lets an inferred fact bind.
       const fx = ev.target && ev.target.closest ? ev.target.closest('[data-fact]') : null;
       if (fx) {
@@ -1992,6 +2019,9 @@ export const thread = {
     const askAI = async (text, photoPath = null) => {
       try {
         const recent = await roles.fetchRecentMeals(RT.userId, roles.daysAgoISO(7)).catch(() => []);
+        // Saved usual meals, so the AI can name what THEY eat and the suggest_meal bubble has
+        // something to fill from. Cached a minute; a cold miss just means an empty list.
+        await warmFoodMemory(roles, RT.userId).catch(() => null);
         const ex = S.exec;
         // roles.fetchRecentMeals returns newest-first (day_date descending); contextForChat's
         // 8KB clamp drops from the FRONT of recentMeals, so the caller must hand it oldest→newest
@@ -2016,6 +2046,7 @@ export const thread = {
           day: (() => { const dp = S.mealDayProgress || {}; return { proteinSoFar: dp.proteinSoFar, proteinTarget: dp.proteinTarget, mealsRemaining: dp.mealsRemaining }; })(),
           recentMeals: recentAscending.map((m) => ({ type: m.type, protein: m.protein, kcal: m.kcal, quality: m.quality, date: m.day_date })),
           thread: threadMessages(comments).slice(-20).map((c) => ({ role: c.role, text: String(c.text).slice(0, 300) })),
+          usualMeals: suggestItems(),
         });
         setTyping(true);
         const { data, error } = await window.sb.functions.invoke('meal-chat', {
@@ -2030,6 +2061,9 @@ export const thread = {
             canApplyCorrection: true,
             // "I render the remember-this chips": unlocks the remember tool. Same contract.
             canRemember: true,
+            // "I fill a suggest_meal bubble from Food Memory and stage a tapped meal": unlocks
+            // the suggest_meal tool. Same contract; bubbleText + the data-fm-log tap close it.
+            canSuggestMeal: true,
             ...(photoPath ? { photoPath } : {}),
           },
         });

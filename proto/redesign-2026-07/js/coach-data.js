@@ -18,6 +18,7 @@ import { athleteStatus } from './status.js';
 import { ON_STANDARD } from './score-band.js';
 import { dateKey } from './fmt-date.js';
 import { effectiveRoomLabel } from './rooms.js';
+import { unionSeen } from './inbox.js';
 
 /** The plan style a TEAM STANDARD governs for one roster row, or null when none does (0142).
  *  Reuses the SAME resolveRequirementSet() call every status computation already makes — CD.extras.sets
@@ -242,8 +243,18 @@ export const bookKindFor = (role) => (role === 'trainer' ? 'practice' : 'team');
 
 /* Roster-wide activity feed (WS4a): recent meals across the team, newest first, with
    per-device unseen dots. Photos are real signed URLs (cached), never stock plates. */
-let ACT = null;            // null = loading; { rows, photos: {mealId: url} }
+let ACT = null;            // null = loading; { rows, photos: {mealId: url}, views: Set<mealId>, capped }
 let actLoading = false;
+/** The activity window: two days, at the server's clamp (0214 team_activity_batch limits at
+ *  400). Exported so the inbox can say "hit the clamp" with the same number this asked for. */
+export const ACTIVITY_LIMIT = 400;
+export const ACTIVITY_DAYS = 2;
+/** "Opened" for the loaded feed: this device's list (the optimistic layer and the fallback)
+ *  unioned with every staff view the server returned. Callers pass RT.coachSeenMealIds in,
+ *  since this module must not import state.js (see the cycle note at the top). */
+export function seenMealSet(localIds) {
+  return unionSeen(localIds, ACT && ACT.views instanceof Set ? ACT.views : null);
+}
 let actFetchedAt = 0;      // freshness window: a tab visit refetches, a repaint doesn't loop
 export async function loadActivity(force) {
   if (actLoading) return;
@@ -261,21 +272,37 @@ export async function loadActivity(force) {
     // keeps today's unscoped read: same rows either way, RLS does the scoping.
     const ids = (ROSTER && Array.isArray(ROSTER.rows))
       ? ROSTER.rows.map((r) => r.athleteId).filter(Boolean) : [];
-    const rows = await roles.fetchTeamActivity(roles.daysAgoISO(1), 20, ids.length ? ids : undefined);
+    // Two days at the server clamp (inbox audit item 6). This one read is the SOLE `meals` input
+    // to the whole coach Inbox, and it asked for the top 20 by logged_at: 40 athletes x 3 plates
+    // is ~120 a day, so the coach saw a sixth of the day and the header said "All caught up".
+    // The dietitian board already asks for 400 over a week; the inbox lists page client-side.
+    const rows = await roles.fetchTeamActivity(roles.daysAgoISO(ACTIVITY_DAYS), ACTIVITY_LIMIT, ids.length ? ids : undefined);
     // null = FAILED. Keep the last-known feed rather than laundering the failure into an empty
     // one that reads as a genuinely quiet team. Previously rows.slice() below threw on null and
     // the catch did exactly that laundering.
     if (rows === null) {
       failed = true;
-      ACT = ACT ? { ...ACT, failed: true } : { rows: [], photos: {}, failed: true };
+      ACT = ACT ? { ...ACT, failed: true } : { rows: [], photos: {}, views: new Set(), viewsFailed: true, capped: false, failed: true };
     } else {
       const withPhotos = rows.slice(0, 10).filter(m => m.photo_path);
-      const urls = await roles.signedMealPhotoUrls(withPhotos.map(m => m.photo_path));
+      // Who on staff has opened which of these plates (0229 meal_views), fetched alongside the
+      // photos so the queue and the feed paint from one arrival. null = the read failed or the
+      // server predates 0229: keep the last-known server set (never an empty one, which would
+      // flip every plate back to unopened) and let the device's own list carry the answer.
+      const [urls, viewRows] = await Promise.all([
+        roles.signedMealPhotoUrls(withPhotos.map(m => m.photo_path)),
+        typeof roles.fetchMealViews === 'function' ? roles.fetchMealViews(rows.map(m => m.id)) : null,
+      ]);
       const photos = {};
       for (const m of withPhotos) { if (urls[m.photo_path]) photos[m.id] = urls[m.photo_path]; }
-      ACT = { rows, photos, failed: false };
+      const views = viewRows === null
+        ? ((ACT && ACT.views instanceof Set) ? ACT.views : new Set())
+        : new Set(viewRows.map(v => v && v.meal_id).filter(Boolean));
+      // `capped`: the window hit the clamp, so every count cut from it is a floor. The inbox
+      // chips print "N+" off this flag instead of an exact number the server never promised.
+      ACT = { rows, photos, views, viewsFailed: viewRows === null, capped: rows.length >= ACTIVITY_LIMIT, failed: false };
     }
-  } catch { failed = true; ACT = ACT ? { ...ACT, failed: true } : { rows: [], photos: {}, failed: true }; }
+  } catch { failed = true; ACT = ACT ? { ...ACT, failed: true } : { rows: [], photos: {}, views: new Set(), viewsFailed: true, capped: false, failed: true }; }
   // A failure leaves the freshness stamp at 0 so the next visit retries immediately instead of
   // sitting on a known-bad cache for the full 30s window.
   finally { actLoading = false; actFetchedAt = failed ? 0 : Date.now(); }

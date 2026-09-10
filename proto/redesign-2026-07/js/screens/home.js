@@ -6,7 +6,8 @@ import { reveal } from '../motion.js';
 import { qualityAccent } from '../score-band.js';
 import { maybeShowLock } from '../lock-moment.js';
 import { DAY, MEAL_KEYS } from '../day.js';
-import { fetchMyDayReceipts, fetchRecentMeals, signedMealPhotoUrl, daysAgoISO, todayISO } from '../roles.js';
+import { fetchMyDayReceipts, fetchRecentMeals, signedMealPhotoUrl, daysAgoISO, todayISO, fetchMyReplyInputs } from '../roles.js';
+import { unreadCoachReplies, replyRow } from '../coach-replies.js';
 import { warmMealPhotos, todayMealPhotoPath } from '../photo-store.js';
 import { shouldNudge, nudgeSignature, nudgeData } from '../coach-nudge.js';
 import { deriveCommitment, presenceOf, PRESENCE, tomorrowRollcall } from '../commitments.js';
@@ -116,6 +117,87 @@ function paintPresenceReceipt(root) {
       io.observe(card);
     } else markSeen();
   }
+}
+
+/* "Your coach replied" (0229, inbox audit item 6). The coach inbox printed "you replied" as if
+   the loop had closed, and the only place the athlete could learn a reply existed was inside
+   that one meal screen. This is the third receipt under the score: the staff messages on my
+   threads that I have not opened since, phrased as one tappable row (coach-replies.js decides;
+   this only fetches, paints, and marks).
+   Cache is per user with a one-minute freshness window, same as the seen receipt above it; a
+   failed read keeps the last-known answer rather than clearing a real row. */
+let REPLY = { uid: null, at: 0, inputs: null, loading: false };
+const REPLY_DAYS = 7;
+function unreadReplies() {
+  if (!REPLY.inputs || REPLY.uid !== RT.userId) return [];
+  return unreadCoachReplies({ ...REPLY.inputs, localViewedAt: RT.mealViewedAt });
+}
+function paintCoachReply(root) {
+  const slot = root.querySelector('#reply-row');
+  if (!slot || !RT.userId) return;
+  const draw = () => {
+    if (!slot.isConnected) return;
+    const row = replyRow(unreadReplies(), { todayISO: String(DAY.date), mealKeys: MEAL_KEYS, noun: (S.coach && S.coach.noun) || 'coach' });
+    if (!row) { slot.replaceChildren(); return; }
+    // Nodes, not markup: the sub-line can quote nothing the coach typed, but the rule that made
+    // the presence receipt safe by construction is worth keeping for the row beside it.
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'seen-receipt reply';
+    btn.setAttribute('aria-label', `${row.title}. ${row.sub}`);
+    const ic = document.createElement('span');
+    ic.className = 'sic';
+    ic.innerHTML = icon('message', 15);      // our own module's SVG, not user data
+    const tx = document.createElement('span');
+    tx.className = 'stx';
+    const b = document.createElement('b');
+    b.textContent = row.title;
+    const sm = document.createElement('small');
+    sm.textContent = row.sub;
+    tx.append(b, sm);
+    const tm = document.createElement('span');
+    tm.className = 'stm';
+    tm.textContent = row.ts ? tsClock(new Date(row.ts).toISOString()) : '';
+    btn.append(ic, tx, tm);
+    btn.addEventListener('click', () => {
+      // Opened = read: stamp the thread locally (the row clears at once, offline included) and
+      // on the server, then go. The hashchange hook below covers every other way in.
+      act.markThreadViewed(row.mealId);
+      slot.replaceChildren();
+      if (window.__go) window.__go(row.route); else location.hash = `#${row.route}`;
+    });
+    slot.replaceChildren(btn);
+  };
+  draw();
+  const fresh = REPLY.uid === RT.userId && REPLY.inputs && Date.now() - REPLY.at < 60000;
+  if (fresh || REPLY.loading) return;
+  REPLY.loading = true;
+  const since = new Date(Date.now() - REPLY_DAYS * 864e5).toISOString();
+  fetchMyReplyInputs(RT.userId, since).then((inputs) => {
+    REPLY.loading = false;
+    if (inputs === null) return; // failed: last-known stands, never a cleared row
+    REPLY = { uid: RT.userId, at: Date.now(), inputs, loading: false };
+    draw();
+  }).catch(() => { REPLY.loading = false; });
+}
+/* Any way into an unread thread counts as opening it: the past-meal read (meal-view/<id>) and
+   today's live slot (meal-detail/<slot>) both stamp the view, so a reply read from the bell, a
+   push, or a result card clears the Home row too. The meal screens themselves are untouched. */
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('hashchange', () => {
+    const unread = unreadReplies();
+    if (!unread.length) return;
+    const h = String(location.hash || '');
+    let id = null;
+    const past = /^#meal-view\/([A-Za-z0-9-]+)/.exec(h);
+    if (past) id = past[1];
+    else {
+      const live = /^#meal-detail\/([a-z]+)/.exec(h);
+      const u = live && unread.find((x) => x.type === live[1] && x.dayDate === String(DAY.date));
+      if (u) id = u.mealId;
+    }
+    if (id && unread.some((x) => x.mealId === id)) act.markThreadViewed(id);
+  });
 }
 
 function paintCommitments(root) {
@@ -899,6 +981,7 @@ export default {
       ${outcomeBand()}
       <div id="presence-row"></div>
       <div id="seen-row" style="width:100%"></div>
+      <div id="reply-row"></div>
       ${recentResults()}
       <div style="height:20px"></div>`;
     }
@@ -936,6 +1019,9 @@ export default {
           injection, sharing one row grammar so they read as a list and not as two cards. */''}
     <div id="presence-row"></div>
     <div id="seen-row" data-tour="coach-seen"></div>
+    ${/* "Your coach replied" (0229): the third receipt, injected async like the two above, and
+          the only one that is a door. Empty when nothing is unread, so Home is byte-identical. */''}
+    <div id="reply-row"></div>
     <div id="vc-slot"></div>
     <div id="cs-slot" data-tour="standards"></div>
     ${attention}
@@ -980,6 +1066,8 @@ export default {
     // is everyone until a coach sets one or the feature is switched on — has an empty slot and
     // Home is byte-identical to before.
     paintStandards(root);
+    // "Your coach replied" (0229): same async seam, third receipt slot. Nothing unread, no row.
+    paintCoachReply(root);
     // Coach Voice nudge: best-effort, fire-and-forget over today's deterministic exec state.
     maybeCoachNudge(S.exec);
     // Resolve today's stored meal photos (signed URLs) so Recent Results shows the real

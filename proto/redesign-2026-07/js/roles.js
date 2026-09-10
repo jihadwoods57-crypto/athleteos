@@ -767,6 +767,65 @@ export async function markDayViewed(athleteId, date, viewerId, viewerName) {
   try { await c.from('coach_views').upsert({ athlete_id: athleteId, viewer_id: viewerId, date, viewer_name: viewerName || null, seen_at: new Date().toISOString() }, { onConflict: 'athlete_id,viewer_id,date' }); } catch { /* best-effort receipt */ }
 }
 
+/* ---------------- meal_views (0229): the per-THREAD receipt, both directions ---------------- */
+/** Stamp "I opened this thread" for the signed-in user. A coach opening a plate and an athlete
+ *  opening their own thread both land here; RLS (meal_views_insert_own) is the fence. Best-effort
+ *  and never awaited by a render: the local caches (RT.coachSeenMealIds / RT.mealViewedAt) are
+ *  the optimistic layer, so a dropped write costs nothing on this device and self-heals on the
+ *  next open. Returns true only when the server confirmed the row. */
+export async function markMealViewed(mealId, viewerId) {
+  const c = sb(); if (!c || !mealId || !viewerId) return false;
+  try {
+    const { error } = await c.from('meal_views')
+      .upsert({ meal_id: mealId, viewer_id: viewerId, seen_at: new Date().toISOString() }, { onConflict: 'meal_id,viewer_id' });
+    return !error;
+  } catch { return false; }
+}
+/** Every view row on these meals the caller may read: their own, plus every staff member's on a
+ *  meal they can view (0229 meal_views_read), which is what makes the inbox's "unopened" a TEAM
+ *  answer instead of a device answer. Chunked like every other id-keyed select (id-chunk.js), so
+ *  the 400-row activity window never lands 400 uuids in one URL. null = FAILED (a pre-0229 server
+ *  answers 404 here and lands in the same branch): the caller keeps its local list, never an
+ *  empty set that would mark every plate unopened again. */
+export async function fetchMealViews(mealIds) {
+  const c = sb(); if (!c) return null;
+  const ids = Array.isArray(mealIds) ? mealIds.filter(Boolean) : [];
+  if (!ids.length) return [];
+  try {
+    const results = await Promise.all(chunkIds(ids).map((chunk) =>
+      c.from('meal_views').select('meal_id,viewer_id,seen_at').in('meal_id', chunk)));
+    if (results.some((r) => r.error)) return null;
+    return results.flatMap((r) => r.data || []);
+  } catch { return null; }
+}
+/** The ATHLETE side of the reply loop: everything needed to decide which coach replies they have
+ *  not opened yet. Three reads, all self-scoped by RLS: the human messages on my meals since
+ *  `sinceISO`, the meals those messages sit on (type + day, for "on your lunch" and the route),
+ *  and MY OWN view stamps on those meals. Pure math happens in coach-replies.js. null = FAILED,
+ *  and a failed read shows nothing rather than a stale claim. */
+export async function fetchMyReplyInputs(athleteId, sinceISO) {
+  const c = sb(); if (!c || !athleteId) return null;
+  try {
+    const { data: comments, error } = await c.from('meal_comments')
+      .select('id,meal_id,author_id,role,kind,text,created_at')
+      .eq('athlete_id', athleteId).gte('created_at', sinceISO)
+      .order('created_at', { ascending: false }).limit(300);
+    if (error) return null;
+    const ids = [...new Set((comments || []).map((r) => r.meal_id).filter(Boolean))];
+    if (!ids.length) return { comments: [], meals: [], views: [] };
+    const [mealRes, viewRes] = await Promise.all([
+      Promise.all(chunkIds(ids).map((chunk) => c.from('meals').select('id,type,day_date').in('id', chunk))),
+      Promise.all(chunkIds(ids).map((chunk) => c.from('meal_views').select('meal_id,seen_at')
+        .eq('viewer_id', athleteId).in('meal_id', chunk))),
+    ]);
+    if (mealRes.some((r) => r.error)) return null;
+    // A pre-0229 server has no meal_views: the athlete's local stamps still decide, so a failed
+    // view read degrades to "no server stamps" rather than failing the whole row.
+    const views = viewRes.some((r) => r.error) ? [] : viewRes.flatMap((r) => r.data || []);
+    return { comments: comments || [], meals: mealRes.flatMap((r) => r.data || []), views };
+  } catch { return null; }
+}
+
 /* ---------------- meal comments (the real coach↔athlete thread) ---------------- */
 /** Returns the meal's comment thread, oldest→newest — or the {error:true} sentinel (same
     pattern as fetchMyTeams) on a supabase {error} or thrown fetch, so an outage is never

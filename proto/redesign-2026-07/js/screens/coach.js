@@ -15,7 +15,7 @@ import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpen
 } from '../chat-view.js';
 import { openImageViewer } from '../image-viewer.js';
 import { wireTapback } from '../tapback.js';
-import { CD, loadBook, bookKindFor, bookId as currentBookId, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor, localClock, logBookIntervention, resolvePos } from '../coach-data.js';
+import { CD, loadBook, bookKindFor, bookId as currentBookId, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor, localClock, logBookIntervention, resolvePos, seenMealSet } from '../coach-data.js';
 import { STATUS_META } from '../status.js';
 import { everyone, people, audienceIds, audienceLabel, planSends, namesSummary, audienceHtml, wireAudience } from '../audience.js';
 import { CATALOG, PROOF, resolveRequirementSet, catalogFromItems, freqLabel, stdFromItems, fmtMin, planStyleFromItems } from '../requirements.js';
@@ -24,7 +24,7 @@ import { dayFromHistoryRow, minutesNow, MEAL_KEYS } from '../day.js';
 import { explainCategories } from '../breakdown-model.js';
 import { seedTemplates, templateLabel } from '../templates.js';
 import { canEditStandards, canViewWeight } from '../staff-access.js';
-import { categorizeInbox, inboxAlerts } from '../inbox.js';
+import { categorizeInbox, inboxAlerts, countLabel, pageRows } from '../inbox.js';
 import { fmtWhen } from '../notif-feed.js';
 import { presetForStatus, tierForStatus, nudgeResultCopy, nudgedTodayFromInterventions } from '../nudge-presets.js';
 import { reasonKey } from '../priority.js';
@@ -1627,6 +1627,10 @@ const ALL_INBOX_CATEGORIES = [
 const inboxCategories = () => ALL_INBOX_CATEGORIES.filter(([key]) =>
   (key !== 'staff' || CD.caps.staffRoles) && (key !== 'announcements' || CD.caps.announcements));
 let INBOX_CAT = 'needsResponse';
+/* Client-side paging (item 6): rows shown per category so far; 0 = the first page. Reset when
+   the coach switches category, so "Show more" never carries over into a different list. */
+const INBOX_PAGE = 20;
+let INBOX_SHOWN = {};
 try {
   const savedCat = localStorage.getItem(INBOX_CAT_KEY);
   if (savedCat && ALL_INBOX_CATEGORIES.some(([key]) => key === savedCat)) INBOX_CAT = savedCat;
@@ -1659,7 +1663,9 @@ function inboxOut() {
     staff: staffRowsFor(data ? data.staff : []),
     staffInvites: data ? data.staffInvites : [],
     announcements: annRows,
-    seenIds: RT.coachSeenMealIds || [],
+    // Opened = this device's list plus every staff view the server returned (0229), so two
+    // coaches on one team read one queue depth. The local list alone is the offline answer.
+    seenIds: seenMealSet(RT.coachSeenMealIds || []),
     nowMs,
   });
   const entries = entriesFor({ kind: 'team', value: null });
@@ -1761,6 +1767,15 @@ function joinRow(q) {
       <div class="jr-err"></div>
     </div>`;
 }
+/* The push + bell title for a staff reply on a plate: "<first name> replied on your lunch".
+   S.athlete reads the signed-in profile, which on an operator device is the operator's own
+   name; the first word is what the athlete calls them. Shared by the composer send and the
+   dietitian correction so the two never phrase the same event two ways. */
+function replyTitle(meal) {
+  const first = String(((RT.profile && RT.profile.name) || '').trim().split(' ')[0] || (S.operatorIdentity && S.operatorIdentity.handle) || 'Your coach').trim() || 'Your coach';
+  const slot = meal && meal.type ? String(meal.type).toLowerCase() : 'meal';
+  return `${first} replied on your ${slot}`;
+}
 const INBOX_EMPTY = {
   needsResponse: 'No threads need you right now.',
   flagged: 'Nothing flagged. Flame a meal from its thread and it waits for you here.',
@@ -1846,9 +1861,14 @@ export const coachInbox = {
     // teamId/athleteId by the time they're categorized) — rendered from the raw pending list
     // instead (below), so drop the categorized 'join' rows here to avoid showing them twice.
     const genericRows = isNeedsResponse ? catRows.filter(r => r.kind !== 'join') : catRows;
+    // Paged client-side (item 6): the list holds every loaded row so the counts above stay
+    // truthful, and the DOM carries one page at a time with a "Show more" row under it.
+    const page = pageRows(genericRows, INBOX_SHOWN[INBOX_CAT] || 0, INBOX_PAGE);
+    // The activity window hit the server clamp: every meal-cut count is a floor and prints "N+".
+    const capped = !!(CD.act && CD.act.capped);
 
     return `
-    ${titleHead('Inbox', needsMe ? `${needsMe} need${needsMe === 1 ? 's' : ''} you` : (inboxFailed ? "Couldn't check" : 'All caught up'))}
+    ${titleHead('Inbox', needsMe ? `${countLabel(needsMe, capped, 'needsResponse')} need${needsMe === 1 && !capped ? 's' : ''} you` : (inboxFailed ? "Couldn't check" : 'All caught up'))}
     ${inboxFailed ? `<div class="co-note warn">Some of your inbox didn't load, so this may not be everything. Nothing was missed on the server; it retries when you reopen.</div>` : ''}
 
     ${isNeedsResponse ? `
@@ -1859,7 +1879,7 @@ export const coachInbox = {
     </section>` : ''}
 
     <div class="co-seg co-scroll edge-fade" id="inbox-cat-row" role="radiogroup" aria-label="Inbox category">
-      ${inboxCategories().map(([key, label]) => `<button type="button" class="co-chip ${INBOX_CAT === key ? 'on' : ''}" role="radio" aria-checked="${INBOX_CAT === key ? 'true' : 'false'}" data-icat="${key}">${esc(key === 'athletes' && CD.kind === 'practice' ? 'Clients' : label)} <span class="cnt">${out.counts[key]}</span></button>`).join('')}
+      ${inboxCategories().map(([key, label]) => `<button type="button" class="co-chip ${INBOX_CAT === key ? 'on' : ''}" role="radio" aria-checked="${INBOX_CAT === key ? 'true' : 'false'}" data-icat="${key}">${esc(key === 'athletes' && CD.kind === 'practice' ? 'Clients' : label)} <span class="cnt">${esc(countLabel(out.counts[key], capped, key))}</span></button>`).join('')}
     </div>
 
     ${isNeedsResponse && pending.length ? `
@@ -1870,7 +1890,12 @@ export const coachInbox = {
 
     ${(genericRows.length || showAddAnnouncement) ? `
     <section class="card ib-list">
-      ${genericRows.map(inboxRow).join('')}
+      ${page.rows.map(inboxRow).join('')}
+      ${page.more ? `
+      <button type="button" class="lrow ib-more" data-ib-more="${esc(INBOX_CAT)}">
+        <div class="lic">${icon('chevron', 17)}</div>
+        <div class="lm"><div class="lt">Show ${Math.min(INBOX_PAGE, page.remaining)} more</div><div class="ls">${page.remaining} more in this list</div></div>
+      </button>` : ''}
       ${showAddAnnouncement ? `
       <div class="lrow" data-go="coach-announce">
         <div class="lic">${icon('plus', 17)}</div>
@@ -1938,8 +1963,16 @@ export const coachInbox = {
     }));
     root.querySelectorAll('[data-icat]').forEach(el => el.addEventListener('click', () => {
       INBOX_CAT = el.getAttribute('data-icat');
+      INBOX_SHOWN = {};
       try { localStorage.setItem(INBOX_CAT_KEY, INBOX_CAT); } catch { /* in-memory only */ }
       window.__render();
+    }));
+    // "Show more": one more page of the same in-memory list. __restate keeps the rows above in
+    // place; the page grows under the coach's thumb instead of the list jumping.
+    root.querySelectorAll('[data-ib-more]').forEach(el => el.addEventListener('click', () => {
+      const cat = el.getAttribute('data-ib-more');
+      INBOX_SHOWN = { ...INBOX_SHOWN, [cat]: pageRows([], INBOX_SHOWN[cat] || 0, INBOX_PAGE).next };
+      window.__restate ? window.__restate() : window.__render();
     }));
     // Briefing-card code chip + Share — these looked interactive but had no handlers, so a tap
     // only "worked" by bubbling to the card's navigation. stopPropagation keeps the card put.
@@ -3308,7 +3341,11 @@ export const coachMeal = {
       // kind 'coach_comment' (not 'nudge'): the nudge dedupe used to eat the second comment
       // inside two minutes, and the athlete's bell tagged a comment "urgent". ref deep-links
       // the bell row and the push to this meal's thread.
-      roles.nudgePush(athleteId, `${S.athlete.name} commented on your ${meal ? cap(meal.type) : 'meal'}`, text || 'Sent a photo', { kind: 'coach_comment', ref: sub });
+      // Title says who and which slot, in the athlete's own words ("Marcus replied on your
+      // lunch"): the bell row and the lock screen both read it as one sentence. The same
+      // mechanism every nudge and reaction uses (send-push writes the notifications row, honors
+      // notifications_opt_out, pushes with route meal-view/<ref>); nothing new to deploy.
+      roles.nudgePush(athleteId, replyTitle(meal), text || 'Sent a photo', { kind: 'coach_comment', ref: sub });
       // The auto-support AI invoke that used to live here is GONE (founder, 2026-08-06): a coach
       // sending a message got a second, unrequested AI message under it. The AI now speaks for a
       // coach only when explicitly asked — the sparkle button (coachAsk) below.
@@ -3450,7 +3487,10 @@ export const coachMeal = {
       const text = confirmOnly
         ? `Reviewed the read: ${r.summary}.`
         : `Corrected the read: ${r.summary}.${spoken.length ? ` Now ${spoken.join(' · ')}.` : ''}`;
-      await roles.postMealComment(sub, row.athlete_id, RT.userId, 'coach', text, 'message', { t: 'pro_correction', c: payload });
+      const posted = await roles.postMealComment(sub, row.athlete_id, RT.userId, 'coach', text, 'message', { t: 'pro_correction', c: payload });
+      // A correction is a reply the athlete needs to see; it rode the thread with no bell row
+      // and no push until item 6. Same pipe as the composer send, fire-and-forget.
+      if (posted) roles.nudgePush(row.athlete_id, replyTitle(row), text, { kind: 'coach_comment', ref: sub });
       if (!confirmOnly) {
         MEAL.row = {
           ...row, protein: keep(row.protein, r.meta.protein), carbs: keep(row.carbs, r.meta.carbs),

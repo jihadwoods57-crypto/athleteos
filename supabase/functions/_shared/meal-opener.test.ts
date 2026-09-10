@@ -2,7 +2,7 @@
 // thread. The bar (founder 2026-08-04): it must sound like a nutrition coach texting an athlete
 // they know, and it must NEVER repeat what the screen already shows — the photo, the score, the
 // macros, the foods. Takeaway first, one or two concrete moves, day framed forward, real history.
-import { composeOpenerText } from './meal-opener';
+import { composeOpenerText, uncertaintyLine } from './meal-opener';
 
 const read = (over: Record<string, unknown> = {}) => ({
   name: 'Steak, sweet potato fries, green beans',
@@ -163,6 +163,70 @@ describe('uncertainty is stated when it is real, and only then', () => {
 
   it('does not hedge a confident read — a hedge on every meal is noise', () => {
     expect(composeOpenerText(read(), {})).not.toContain("tighten the numbers");
+    expect(composeOpenerText(read(), {})).not.toContain("least sure");
+  });
+
+  /* TARGETED UNCERTAINTY (2026-09-10). The read always knew WHICH item was the guess and the
+     old line never said so; the athlete had to work out which of five foods the AI meant. */
+  it('NAMES the item it is least sure about and asks about the portion when it gave a quantity', () => {
+    const out = composeOpenerText(read({ detected: [
+      { name: 'Grilled chicken', confidence: 'low', quantity: '6 oz', kcal: 280 },
+      { name: 'White rice', confidence: 'high', quantity: '1 cup', kcal: 200 },
+    ] }), {});
+    expect(out).toContain("I'm least sure on the grilled chicken portion, so tell me how much and I'll tighten the numbers.");
+    expect(out).not.toContain('cooked or portioned differently');
+  });
+
+  it('asks WHAT the food is when the model could not even give a quantity', () => {
+    const out = composeOpenerText(read({ detected: [{ name: 'some kind of stew', confidence: 'low' }] }), {});
+    expect(out).toContain("I'm least sure what the some kind of stew actually is, so tell me");
+  });
+
+  it('asks WHICH product for an unresolved packaged item, keeping a brand\'s capitals', () => {
+    const out = composeOpenerText(read({ detected: [
+      { name: 'Core Power shake', kind: 'packaged', confidence: 'low', quantity: '1 bottle', kcal: 230 },
+    ] }), {});
+    expect(out).toContain("I'm least sure which product the Core Power shake is, so tell me the exact one");
+  });
+
+  it('picks the LOWEST confidence item, then the one carrying the most calories', () => {
+    const out = composeOpenerText(read({ detected: [
+      { name: 'Salad', confidence: 'medium', quantity: '2 cups', kcal: 90 },
+      { name: 'Fried rice', confidence: 'low', quantity: '1 cup', kcal: 300 },
+      { name: 'Pork', confidence: 'low', quantity: '4 oz', kcal: 320 },
+    ] }), {});
+    expect(out).toContain('the pork portion');
+    expect(out).not.toContain('fried rice portion');
+    expect(out).not.toContain('salad portion');
+  });
+
+  it('says it is ESTIMATING the named item when the clarify budget is spent, instead of silence', () => {
+    const out = composeOpenerText(read({ detected: [
+      { name: 'Grilled chicken', confidence: 'low', quantity: '6 oz', kcal: 280 },
+    ] }), { clarifyBudgetSpent: true });
+    expect(out).toContain("I'm estimating the grilled chicken portion on this one, so tell me the amount if it's off.");
+    expect(out).not.toContain('least sure');
+  });
+
+  it('keeps the generic line ONLY when the uncertain item has no name', () => {
+    const out = composeOpenerText(read({ detected: [{ name: '', confidence: 'low' }] }), {});
+    expect(out).toContain('cooked or portioned differently than it looks');
+  });
+
+  it('the uncertainty line is one sentence with no em dash on every branch', () => {
+    const cases = [
+      [{ name: 'Grilled chicken', confidence: 'low', quantity: '6 oz' }],
+      [{ name: 'some kind of stew', confidence: 'low' }],
+      [{ name: 'Protein bar', kind: 'packaged', confidence: 'medium' }],
+    ];
+    for (const detected of cases) {
+      for (const spent of [true, false, null]) {
+        const line = uncertaintyLine(detected, spent);
+        expect(line).not.toContain('—');
+        expect(line.match(/[.!?]/g)?.length).toBe(1);
+        expect(line.length).toBeLessThan(140);
+      }
+    }
   });
 });
 

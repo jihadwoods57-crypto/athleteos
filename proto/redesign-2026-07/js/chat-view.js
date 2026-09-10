@@ -17,6 +17,7 @@
 
 import { initialsOf } from './initials.js';
 import { weekdayLongDate } from './fmt-date.js';
+import { rankForRemaining } from './food-memory.js';
 
 /** Messages closer together than this belong to the same moment — no clock between them. */
 export const GROUP_GAP_MS = 10 * 60 * 1000;
@@ -203,6 +204,74 @@ export function memoryOfferChips(offer, esc) {
       <button type="button" class="fx-chip" data-fact="${esc(offer.id)}" data-keep="1">Yes, remember</button>
       <button type="button" class="fx-chip" data-fact="${esc(offer.id)}" data-keep="0">No, one-off</button>
     </div>`;
+}
+
+/* ---------------- Meal suggestions (2026-09-10) ----------------
+   The athlete asked what to eat and the AI called suggest_meal. meal-chat persists the reply as
+   plain text (framing + fallback, complete on its own) with meta { t: 'meal_suggest', proteinGap,
+   kcalGap, framing, fallback }. The two athlete-facing renderers draw the framing line and then
+   up to three of the athlete's OWN saved meals, ranked by the same rule Plan > Ask uses, each one
+   tap from being staged. The other renderers (coach.js, trust.js) show the text and lose nothing.
+   Only `role: 'ai'` rows count, as for memory offers: a client can write meta on its own rows. */
+export function isMealSuggest(comment) {
+  return !!(comment && comment.role === 'ai' && comment.meta && comment.meta.t === 'meal_suggest');
+}
+
+/** { proteinGap, kcalGap, framing, fallback } for a suggestion row, or null. */
+export function mealSuggestOf(comment) {
+  if (!isMealSuggest(comment)) return null;
+  const m = comment.meta;
+  const n = (v) => { const x = Math.round(Number(v)); return Number.isFinite(x) && x >= 0 ? x : null; };
+  const framing = String(m.framing || '').trim();
+  const fallback = String(m.fallback || '').trim();
+  return {
+    proteinGap: n(m.proteinGap) || 0,
+    kcalGap: n(m.kcalGap),
+    framing: framing || fallback || String(comment.text || '').trim(),
+    fallback: fallback || framing || String(comment.text || '').trim(),
+  };
+}
+
+/**
+ * The deterministic fill: the athlete's saved meals that FIT what is left of the day, at most
+ * `max`. `remaining` is the client's own remainingToday() (a null target stays null); when the
+ * client has no target the model's stated gap stands in, so a suggestion is still ranked against
+ * the number the athlete was just told. A meal that runs past what is left does not fit.
+ */
+export function fillMealSuggestion(sug, items, remaining, max = 3) {
+  const r = remaining || {};
+  const rem = {
+    protein: r.protein != null ? r.protein : (sug && sug.proteinGap > 0 ? sug.proteinGap : null),
+    kcal: r.kcal != null ? r.kcal : (sug && sug.kcalGap != null ? sug.kcalGap : null),
+  };
+  // A protein gap is closed by protein: a saved black coffee ranks (it has calories) but it is
+  // not an answer to "how do I hit my protein", so it is dropped whenever protein is the ask.
+  return rankForRemaining(items || [], rem, Math.max(max, 6))
+    .filter((s) => !s.over && s.item && s.item.id && (rem.protein == null || (Number(s.item.protein) || 0) > 0))
+    .slice(0, max)
+    .map(({ item }) => ({
+      id: String(item.id), name: String(item.name || 'Saved meal'),
+      protein: Math.round(Number(item.protein) || 0), kcal: Math.round(Number(item.kcal) || 0),
+    }));
+}
+
+/** "Chicken and rice · 42g protein · 620 kcal": the same fragment Plan > Ask prints. */
+export function pickLabel(p) {
+  const bits = [];
+  if (p.protein) bits.push(`${p.protein}g protein`);
+  if (p.kcal) bits.push(`${p.kcal} kcal`);
+  return bits.length ? `${p.name} · ${bits.join(' · ')}` : p.name;
+}
+
+/** The bubble body. Picks render as tap targets on `[data-fm-log]`, the selector Plan already
+ *  delegates to act.stageSavedMeal; with no fitting pick the fallback sentence stands in, so the
+ *  bubble is never a framing line over nothing. `esc` is passed in like memoryOfferChips takes it. */
+export function mealSuggestHtml(sug, picks, esc) {
+  if (!sug) return '';
+  const list = Array.isArray(picks) ? picks : [];
+  if (!list.length) return esc(sug.framing === sug.fallback ? sug.framing : `${sug.framing} ${sug.fallback}`);
+  return `${esc(sug.framing)}<div class="fq-chips">${list.map((p) =>
+    `<button type="button" class="fx-chip" data-fm-log="${esc(p.id)}">${esc(pickLabel(p))}</button>`).join('')}</div>`;
 }
 
 /**

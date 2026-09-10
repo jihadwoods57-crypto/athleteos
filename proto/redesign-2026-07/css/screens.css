@@ -3010,3 +3010,16 @@ body.kb-open .meal-foot { display: none; }
 .memsheet .ms-acts{display:flex;gap:var(--s2);flex-basis:100%;padding-left:var(--s8);margin-top:var(--s1h)}
 .memsheet .ms-acts .btn.sm{width:auto;padding:0 var(--s3h)}
 .memsheet .ms-acts .chip{min-height:36px}
+/* 0229: the "Your coach replied" row. Shares .seen-receipt's row grammar (it sits in the same
+   receipts list under the score) and takes the BLUE wash: a reply is a message to act on, not a
+   green "someone looked" receipt. It is tappable, so it is a button and reads as one. */
+.seen-receipt.reply{width:100%;text-align:left;font:inherit;cursor:pointer;background:linear-gradient(100deg,var(--blue-surface),transparent 80%),var(--surface-1);border-color:var(--blue-border)}
+.seen-receipt.reply .sic,.seen-receipt.reply .stx b{color:var(--blue-bright)}
+.seen-receipt.reply .stx{display:flex;flex-direction:column;gap:2px;min-width:0}
+.seen-receipt.reply .stx small{font-size:var(--t-xs);font-weight:600;color:var(--text-3)}
+.seen-receipt.reply .stm{color:var(--blue-bright)}
+#reply-row{width:100%}
+#reply-row:not(:empty) + #vc-slot:not(:empty){margin-top:var(--s2)}
+/* Inbox "Show more" row (item 6): a button wearing the list row it extends. */
+.ib-more{width:100%;text-align:left;font:inherit;background:none;border:0;color:inherit}
+.ib-more .lt{color:var(--blue-bright)}

@@ -40,6 +40,8 @@ import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 import { validMealInput, mealInputRejection, rejectionOutcome } from '../_shared/meal-report.ts';
 import { repairMealReport, verifyCorrectionMessage } from '../_shared/meal-verify.ts';
 import { productCacheKey } from '../_shared/food-resolve.ts';
+import { resolvePackagedProduct } from '../_shared/packaged-resolve.ts';
+import { groundPackagedItems, MAX_LOOKUPS as PACKAGED_MAX_LOOKUPS } from '../_shared/packaged-grounding.ts';
 import { composeOpenerText } from '../_shared/meal-opener.ts';
 import { athleteContextLine, type AthleteContextIn } from '../_shared/athlete-context.ts';
 import { dayContextLine } from '../_shared/day-context.ts';
@@ -136,6 +138,10 @@ const CLARIFY_BUDGET = posIntCap('CLARIFY_DAILY_BUDGET', 8);
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+// Same free key food-lookup and enrich-meal use; DEMO_KEY works, rate-limited. Grounds a NAMED
+// packaged product before the read is scored (see the PACKAGED GROUNDING block in the meal path).
+const USDA_API_KEY = Deno.env.get('USDA_API_KEY') ?? 'DEMO_KEY';
+const PACKAGED_LOOKUP_TIMEOUT_MS = 2500;
 
 // Resolve the signed-in athlete from the caller's bearer token, or null. Null means an
 // anonymous/preview call (the shared anon key, or backend not wired) — those skip the
@@ -949,6 +955,10 @@ async function postOpener(
   planStyle: PlanStyle | null,
   req: AnalyzeReq,
   authHeader: string,
+  /** True when the athlete's daily clarify budget was already spent when this plate was read, so
+   *  the model was forced to report instead of asking. The opener then SAYS it is estimating the
+   *  uncertain item and names it, instead of leaving the athlete with silence. null = unknown. */
+  clarifyBudgetSpent: boolean | null = null,
 ): Promise<void> {
   try {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) return;
@@ -979,6 +989,7 @@ async function postOpener(
       day: req.dayAfter ?? null,
       patterns: req.patterns ?? null,
       goal: req.goal ?? null,
+      clarifyBudgetSpent,
     });
     if (!text) return;   // nothing honest to say — an empty bubble is worse than no bubble
 
@@ -1099,6 +1110,19 @@ Deno.serve(async (request) => {
     let openerStyle: PlanStyle | null = null;
     const sbOpener = svcClient();
     if (sbOpener) openerStyle = (await loadPlanStyleForAthlete(sbOpener, userId))?.style ?? null;
+    // Was the clarify budget already spent when this plate was read? The meal path decides
+    // `askable` from the same counter (claim_ai_usage's running count vs CLARIFY_BUDGET); this is a
+    // plain read of that counter, no slot claimed, so a free composition never costs the athlete
+    // a paid call. The client cannot carry the flag: it sends the grounded read through a fixed
+    // field whitelist. Fail-soft to "unknown", which the composer treats as a normal question.
+    let clarifySpent: boolean | null = null;
+    if (sbOpener) {
+      try {
+        const { data: usage } = await sbOpener.from('ai_usage_daily').select('count')
+          .eq('user_id', userId).eq('day', new Date().toISOString().slice(0, 10)).maybeSingle();
+        if (usage && Number.isFinite(Number(usage.count))) clarifySpent = Number(usage.count) > CLARIFY_BUDGET;
+      } catch { /* counter unreachable: unknown */ }
+    }
     // Awaited rather than fire-and-forget: there is nothing else in flight in this request, and the
     // client repaints the thread when the response lands. postOpener still swallows its own errors
     // and is idempotent, so a retry cannot double-post.
@@ -1109,6 +1133,7 @@ Deno.serve(async (request) => {
       openerStyle,
       req,
       request.headers.get('authorization') ?? '',
+      clarifySpent,
     );
     return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
   }
@@ -1720,6 +1745,38 @@ ${memBlock}`;
       // deterministic pass re-pins claims/totals/slot-words no matter which report won.
       input = repairMealReport(input, req.mealType).input;
 
+      /* ── PACKAGED GROUNDING (2026-09-10): exact data BEFORE the score, not after it ─────────
+         A packaged item the model could only ESTIMATE but did NAME ("Core Power 42g chocolate,
+         14 fl oz") used to carry that guess straight into the score. enrich-meal runs after the
+         log and is forbidden from touching the logged meal, so the guess was never corrected,
+         even though the exact product was one free USDA/Open Food Facts call away. This resolves
+         each such item through the shared resolver (no HTTP hop to food-lookup), replaces its
+         macros with per-serving data scaled by the read's serving count, marks it
+         basis 'database' (or 'label' when OFF carried the label's own serving values), and
+         re-derives the totals so the sum-to-totals invariant holds. Bounded: at most
+         PACKAGED_MAX_LOOKUPS network calls per read, PACKAGED_LOOKUP_TIMEOUT_MS each, and any
+         failure leaves the item exactly as the model read it. Never fails the read. */
+      {
+        const t0p = Date.now();
+        try {
+          const rep = await groundPackagedItems(input, (brand, product, o) =>
+            resolvePackagedProduct(brand, product, USDA_API_KEY, { timeoutMs: PACKAGED_LOOKUP_TIMEOUT_MS, maxFetches: o.maxFetches }),
+            { maxLookups: PACKAGED_MAX_LOOKUPS });
+          if (rep.lookups > 0 || rep.grounded.length || rep.missed.length) {
+            if (rep.grounded.length) input = repairMealReport(rep.input, req.mealType).input;
+            if (rep.missed.length) console.log(JSON.stringify({ evt: 'packaged_ground_miss', items: rep.missed.slice(0, 3), lookups: rep.lookups }));
+            await recordAiCall({
+              fn: 'analyze-meal', mode: telemMode, phase: telemPhase, userId,
+              model: intendedModel, latencyMs: Date.now() - t0p, ok: true,
+              outcome: `packaged_grounded:${rep.grounded.length}:miss:${rep.missed.length}:lookups:${rep.lookups}`.slice(0, 60),
+            });
+          }
+        } catch (e) {
+          // The model's read is still a usable answer; grounding is a bonus, never a gate.
+          console.error('analyze-meal packaged grounding error:', e);
+        }
+      }
+
       // MEASURE THE VOICE IN PRODUCTION, do not rewrite it. The eval can only tell us what the
       // model does to six photos on the days someone pays for a run; this tells us what it is
       // doing to real athletes, continuously, for free. Recorded as a zero-token marker row (same
@@ -1755,7 +1812,8 @@ ${memBlock}`;
       // builds age out.
       const openerMealId = typeof req.mealId === 'string' ? req.mealId.trim() : '';
       if (openerMealId && userId && req.deferOpener !== true) {
-        void postOpener(openerMealId, userId, grounded, styleApplied ?? planStyle, req, request.headers.get('authorization') ?? '');
+        void postOpener(openerMealId, userId, grounded, styleApplied ?? planStyle, req, request.headers.get('authorization') ?? '',
+          isFinalize ? false : (signedIn ? dailyUsed > CLARIFY_BUDGET : null));
       }
 
       // Stamp the style this prose was actually written for. The client trusts its own resolved

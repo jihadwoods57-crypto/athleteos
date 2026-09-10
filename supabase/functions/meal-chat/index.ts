@@ -33,6 +33,7 @@ import { flagOn } from '../_shared/feature-flags.ts';
 import { routeForCoachMeal } from '../_shared/followup.ts';
 import { chatVoiceDirective } from '../_shared/coach-voice.ts';
 import { loadVoiceForAthlete } from '../_shared/coach-voice-load.ts';
+import { SUGGEST_MEAL_TOOL, parseSuggestMeal, suggestRowText, suggestRowMeta } from './suggest.mjs';
 
 // Per-surface override first: one shared ANTHROPIC_MODEL meant chat could not move tiers
 // without dragging vision with it. Unset -> unchanged.
@@ -314,7 +315,16 @@ Rules that bind you:
 14. A FOOD THEY LEFT OUT OF THE PHOTO STILL COUNTS. "I also had a roll", "forgot the milk", or
    an attached picture showing food from THIS meal that the read does not list, goes in
    apply_correction's "missed" list so it enters their numbers and score. Do not answer it with
-   an eyeballed estimate in prose and do not tell them to log it separately.`;
+   an eyeballed estimate in prose and do not tell them to log it separately.
+15. WHAT SHOULD I EAT IS A SUGGESTION, NOT A PARAGRAPH. When the athlete asks what to eat next,
+   what to eat for a slot, or how to hit or close a protein or calorie target, and the
+   suggest_meal tool is available, call it INSTEAD of reply. The app fills the bubble with up to
+   three of their OWN saved usual meals (the "usualMeals" list in the context is what it draws
+   from) that fit what is left of the day, each one tap from being logged. You write the framing
+   line and a fallback sentence only; you never pick the meals yourself and never invent a food.
+   Use it ONLY when they ask what to eat or how to hit a target, never unprompted, never as an
+   aside to a different question, and never when the question is really a correction, a medical
+   matter, or a food fact.`;
 
 /**
  * The escape hatch. An AI nutritionist that answers "should I cut 8lb this week" or "my knee hurts
@@ -409,6 +419,9 @@ Deno.serve(async (req) => {
     // Same contract as canApplyCorrection: the tool is offered only to a client that can close the
     // loop it opens.
     const canRemember = body?.canRemember === true;
+    // Capability flag (2026-09-10): "I fill a suggest_meal bubble from Food Memory and stage a
+    // tapped meal". Same contract again: offered only to a client that renders the picks.
+    const canSuggestMeal = body?.canSuggestMeal === true;
     const question = String((coachSupport ? body?.coachText : body?.question) ?? '').trim().slice(0, 500);
     const context = body?.context;
     // A chat PHOTO ATTACHMENT, passed as a storage KEY and never as image bytes. The client cannot
@@ -611,6 +624,7 @@ Deno.serve(async (req) => {
       REPLY_TOOL,
       ...(canApplyCorrection ? [CORRECTION_TOOL] : []),
       ...(canRemember ? [REMEMBER_TOOL] : []),
+      ...(canSuggestMeal ? [SUGGEST_MEAL_TOOL] : []),
       FLAG_TOOL,
     ] as unknown as Anthropic.Tool[];
     // The user turn, named once because the style-correction retry below has to replay it exactly.
@@ -676,8 +690,27 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
         protein?: unknown; kcal?: unknown; carbs?: unknown; fat?: unknown;
         add?: unknown; quantity?: unknown;
         kind?: unknown; value?: unknown;
+        more?: unknown; missed?: unknown;
+        protein_gap_g?: unknown; kcal_gap?: unknown; framing?: unknown; fallback?: unknown;
       };
     } | undefined;
+
+    // ── SUGGEST MEAL: the athlete asked what to eat. The model frames; the client picks. ──
+    // The row carries framing + fallback as plain text (complete for any renderer) and the meta
+    // the athlete-facing threads key on to draw the picks from Food Memory instead. Nothing here
+    // names a food: the suggestions are the athlete's own saved meals, ranked client-side by the
+    // same rule Plan > Ask uses, so the numbers are ones the app already holds.
+    if (tool?.name === 'suggest_meal') {
+      const parsed = parseSuggestMeal(tool.input);
+      if (!parsed) return bad(502, 'unavailable', cors);
+      const sug = { ...parsed, framing: styleSafe(parsed.framing), fallback: styleSafe(parsed.fallback) };
+      const text = suggestRowText(sug);
+      const row = { meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: callerId, role: 'ai', text };
+      const { error: sugErr } = await service.from('meal_comments').insert({ ...row, kind: 'message', meta: suggestRowMeta(sug) });
+      if (sugErr) await service.from('meal_comments').insert({ ...row, kind: 'message' });
+      await recordAiCall({ fn: 'meal-chat', mode: 'reply', phase: 'suggest_meal', userId: callerId, model: msg.model ?? MODEL, latencyMs: 0, ok: true, outcome: 'suggest_returned' });
+      return new Response(JSON.stringify({ reply: text, suggest: sug }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
 
     // ── REMEMBER: the athlete told the AI something lasting about themselves. ──
     // The reply is persisted like any other AI row, with meta `memory_offer` naming the pending

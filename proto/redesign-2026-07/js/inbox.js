@@ -230,3 +230,39 @@ export function categorizeInbox({ meals, comments, interventions, roster, pendin
     counts,
   };
 }
+
+/* ---------------- feed window honesty + paging (inbox audit item 6, 2026-09-10) ---------------- */
+/** The categories whose rows are cut from the activity feed. When that feed hit the server's
+ *  clamp, every one of these counts is a FLOOR (the true number is at least this), and the chip
+ *  must say so; staff / announcements / flagged come from their own reads and stay exact. */
+export const MEAL_CATEGORIES = ['needsResponse', 'athletes', 'mealReviews', 'resolved'];
+
+/** The chip label for a count. `capped` is "the activity window hit the server clamp", so an
+ *  exact number would be a lie: "137+" says at least this many. A category not cut from the
+ *  feed (or an uncapped feed) prints the exact number it always did. */
+export function countLabel(n, capped, category) {
+  const v = Number.isFinite(n) ? n : 0;
+  return capped && (!category || MEAL_CATEGORIES.includes(category)) ? `${v}+` : String(v);
+}
+
+/** One client-side page of a category list. `shown` is how many rows the coach has asked to
+ *  see so far (0 = the first page); the list itself is never truncated in memory, so counts
+ *  keep coming from the full loaded set while the DOM carries one page at a time. */
+export function pageRows(rows, shown, page = 20) {
+  const all = Array.isArray(rows) ? rows : [];
+  const size = Math.max(1, page | 0);
+  const limit = Math.max(size, shown | 0);
+  const out = all.slice(0, limit);
+  return { rows: out, more: all.length > out.length, remaining: all.length - out.length, next: limit + size };
+}
+
+/** "Opened" is the union of this device's list (the optimistic layer, kept as the fallback when
+ *  the server read fails) and every staff view the server returned (0229 meal_views). Either
+ *  input may be missing; the result is always a Set. */
+export function unionSeen(localIds, serverIds) {
+  const out = new Set();
+  for (const id of (Array.isArray(localIds) ? localIds : [])) if (id) out.add(id);
+  const srv = serverIds instanceof Set ? serverIds : (Array.isArray(serverIds) ? serverIds : []);
+  for (const id of srv) if (id) out.add(id);
+  return out;
+}

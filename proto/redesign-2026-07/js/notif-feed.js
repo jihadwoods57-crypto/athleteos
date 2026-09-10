@@ -30,6 +30,9 @@ const KIND_META = {
   // The AI's own daily follow-up. Unlike the rows above it, this one IS a task: it opens a
   // conversation and expects a reply, so it deep-links to the meal it is about.
   ai_followup: { icon: 'sparkle', level: 'medium' },
+  // The AI's evening nudge about today's protein gap (ai-followup pass 2, 2026-09-10). Also a
+  // task: it points at the open slot, so it deep-links to the camera for it.
+  ai_daygap: { icon: 'sparkle', level: 'medium' },
   // Coach-bound kinds. These existed in the table since their functions shipped but fell to
   // DEFAULT_META because no coach screen ever rendered the feed — the bell is operator-visible
   // now, so each one carries its real urgency and, where the row IS a task, its destination.
@@ -61,6 +64,9 @@ const KIND_ROUTE = {
   meal_review: (s) => (SUFFIX_OK(s) ? `coach-meal/${s}` : null),
   meal_action: (s) => (SUFFIX_OK(s) ? `coach-meal/${s}` : null),
   ai_followup: (s) => (SUFFIX_OK(s) ? `meal-view/${s}` : null),         // athlete: answer the AI
+  // A slot id ("dinner", "meal-5") is shorter than SUFFIX_OK's floor, so it gets its own shape;
+  // an unusable suffix still lands on the camera rather than nowhere.
+  ai_daygap: (s) => (s && /^[a-z0-9-]{1,32}$/i.test(s) ? `camera/${s}` : 'camera'),
   meal_flag: (s) => (SUFFIX_OK(s) ? `coach-meal/${s}` : null),          // coach: review the flagged meal
   // The COACH board, not `roll-call/` — that route is the ATHLETE detail screen, and router.js's
   // mirror guard bounces a known coach off any athlete-nav screen back to their dashboard, losing
