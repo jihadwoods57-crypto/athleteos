@@ -51,8 +51,10 @@ import ActivityKit
 /// point release, the whole feature asks for 26.1 and a 26.0 phone keeps the roll-call
 /// notification it has today.
 public enum RollCallAlarm {
-  /// Mirrors the JS `WAKEUP_TYPE`. Only ever one alarm per roll-call instance.
-  public static let secondaryButtonLabel = "Attack the day"
+  /// The fallback when a coach named no button. Mirrors commitments.js DEFAULT_ACTION for
+  /// `morning_roll_call`, so the alarm, the lock-screen card and the in-app row say ONE word
+  /// rather than the alarm inventing a second vocabulary. The coach's own action_label wins.
+  public static let secondaryButtonLabel = "I’m Up"
 
   /// True when this build and this device can actually schedule one.
   public static var isSupported: Bool {
@@ -156,7 +158,15 @@ public enum RollCallAlarmScheduler {
     let label = buttonLabel.trimmingCharacters(in: .whitespacesAndNewlines)
     let button = AlarmButton(
       text: LocalizedStringResource(stringLiteral: label.isEmpty ? RollCallAlarm.secondaryButtonLabel : label),
-      textColor: tint,
+      // WHITE, NOT THE TINT. AlarmKit FILLS this button with `tintColor`; `textColor` is the ink
+      // drawn ON that fill. Build 37 passed the tint for both, which painted blue text and a blue
+      // SF Symbol onto a blue pill: the button shipped completely BLANK on a real phone.
+      //
+      // Nothing was missing - both were invisible. The proof is that the ICON vanished too; an
+      // empty label would still have drawn the sunrise. A photo of the founder's lock screen is
+      // the only reason this was found, because iOS draws this button outside the app and no gate
+      // in the build can see it.
+      textColor: .white,
       systemImageName: "sunrise.fill"
     )
 

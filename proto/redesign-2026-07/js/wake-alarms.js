@@ -89,8 +89,10 @@ export function alarmButtonLabel(row) {
   return (t || DEFAULT_BUTTON).slice(0, 24);
 }
 
-/** Used when the coach did not name the button. The founder's word for the morning. */
-export const DEFAULT_BUTTON = 'Attack the day';
+/** Used when the coach did not name the button. MIRRORS commitments.js DEFAULT_ACTION for
+ *  `morning_roll_call`, so the alarm button, the lock-screen button and the in-app row all say
+ *  the same word instead of the alarm inventing a second vocabulary. */
+export const DEFAULT_BUTTON = 'I’m Up';
 
 /** What the alarm says when it takes over the screen. The coach's own words if they wrote any. */
 export function alarmTitle(row) {

@@ -36,7 +36,7 @@ import android.widget.TextView
  *      Do Not Disturb and from the ringer being silenced.
  *   3. It loops until answered. An alarm that plays once and gives up is a notification.
  *
- * The two buttons mirror iOS: "Attack the day" records the answer and opens the app, snooze puts
+ * The two buttons mirror iOS: "I’m Up" records the answer and opens the app, snooze puts
  * it back for nine minutes. Both stop the noise.
  */
 class RollCallAlarmActivity : Activity() {
@@ -44,13 +44,13 @@ class RollCallAlarmActivity : Activity() {
   private var vibrator: Vibrator? = null
   private var instanceId: String = ""
   private var title: String = "Wake up"
-  private var button: String = "Attack the day"
+  private var button: String = "I’m Up"
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     instanceId = intent.getStringExtra(RollCallAlarmScheduler.EXTRA_INSTANCE_ID).orEmpty()
     title = intent.getStringExtra(RollCallAlarmScheduler.EXTRA_TITLE) ?: "Wake up"
-    button = (intent.getStringExtra(RollCallAlarmScheduler.EXTRA_BUTTON) ?: "").ifBlank { "Attack the day" }
+    button = (intent.getStringExtra(RollCallAlarmScheduler.EXTRA_BUTTON) ?: "").ifBlank { "I’m Up" }
 
     showOverLockScreen()
     setContentView(buildView())
@@ -183,9 +183,16 @@ class RollCallAlarmActivity : Activity() {
   }
 
   /**
-   * Nine minutes, the interval every alarm clock has used since mechanical ones. The roll call
-   * itself has no concept of a snooze - the server knows on time, late and never answered - so
-   * this buys the athlete time against the LATE deadline rather than pausing it.
+   * Nine minutes, the interval every alarm clock has used since mechanical ones.
+   *
+   * SNOOZING RECORDS NOTHING, AND THAT IS THE POINT. The founder's rule: you do not get the
+   * morning's 8 points for snoozing. So this deliberately does NOT call
+   * [RollCallPendingTaps.record] - the roll call stays unanswered, the clock keeps running, and
+   * an athlete who snoozes past the grace period earns 4 (late) or 0 (missed) exactly as if they
+   * had ignored it. The only way to bank the full 8 is the button above.
+   *
+   * It also cannot pause the deadline: the server owns on time / late / missed and has no concept
+   * of a snooze, so this buys time AGAINST the deadline rather than moving it.
    */
   private fun snooze() {
     stopRinging()

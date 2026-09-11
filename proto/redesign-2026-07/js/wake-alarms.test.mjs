@@ -124,11 +124,13 @@ test('the alarm button says what the coach typed', () => {
   assert.equal(a.buttonLabel, 'Let’s go');
 });
 
-test('a coach who named no button gets the default', () => {
+test('a coach who named no button gets the app own roll-call word', () => {
   assert.equal(alarmButtonLabel({}), DEFAULT_BUTTON);
   assert.equal(alarmButtonLabel({ action_label: '   ' }), DEFAULT_BUTTON);
   assert.equal(alarmButtonLabel(null), DEFAULT_BUTTON);
-  assert.equal(DEFAULT_BUTTON, 'Attack the day');
+  // Pinned to commitments.js DEFAULT_ACTION.morning_roll_call. The alarm, the lock-screen card
+  // and the in-app row must say ONE word; the alarm used to invent its own.
+  assert.equal(DEFAULT_BUTTON, 'I’m Up');
 });
 
 test('the button label is bounded, because iOS truncates it without saying so', () => {

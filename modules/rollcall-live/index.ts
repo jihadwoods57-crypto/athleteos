@@ -135,7 +135,7 @@ export async function scheduleWakeAlarm(a: WakeAlarm): Promise<string> {
   try {
     return (await native()?.scheduleWakeAlarm?.(
       a.instanceId, a.hour, a.minute, a.weekdays ?? [], a.title || 'Wake up',
-      a.buttonLabel || 'Attack the day',
+      a.buttonLabel || 'I’m Up',
     )) ?? '';
   } catch { return ''; }
 }

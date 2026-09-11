@@ -31,7 +31,7 @@ class RollCallAlarmReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
     val instanceId = intent.getStringExtra(RollCallAlarmScheduler.EXTRA_INSTANCE_ID) ?: return
     val title = intent.getStringExtra(RollCallAlarmScheduler.EXTRA_TITLE) ?: "Wake up"
-    val button = intent.getStringExtra(RollCallAlarmScheduler.EXTRA_BUTTON) ?: "Attack the day"
+    val button = intent.getStringExtra(RollCallAlarmScheduler.EXTRA_BUTTON) ?: "I’m Up"
     val hour = intent.getIntExtra(RollCallAlarmScheduler.EXTRA_HOUR, -1)
     val minute = intent.getIntExtra(RollCallAlarmScheduler.EXTRA_MINUTE, -1)
     val weekdays = intent.getIntArrayExtra(RollCallAlarmScheduler.EXTRA_WEEKDAYS)?.toList().orEmpty()

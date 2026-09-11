@@ -22,7 +22,8 @@ export type WakeAlarmRequest = {
   minute: number;
   weekdays?: number[];
   title?: string;
-  /** The action button's text. The coach's own `action_label`, or "Attack the day". */
+  /** The action button's text: the coach's own `action_label`, else the app's roll-call
+   *  default. The proto supplies it; this layer only bounds it. */
   buttonLabel?: string;
 };
 
@@ -101,7 +102,7 @@ export async function syncWakeAlarms(alarms: WakeAlarmRequest[]): Promise<number
         title: (a.title || 'Wake up').slice(0, 80),
         // 24 is the coach composer's own cap. AlarmKit gives this button one short line and iOS
         // truncates silently, so a longer string would just disappear off the end.
-        buttonLabel: (a.buttonLabel || 'Attack the day').slice(0, 24),
+        buttonLabel: (a.buttonLabel || 'I’m Up').slice(0, 24),
       });
       // An empty id means the device refused it (permission revoked, or no AlarmKit). Recording it
       // anyway would make the next sync think it needs cancelling, which is harmless but noisy;

@@ -67,7 +67,7 @@ object RollCallAlarmScheduler {
     minute: Int,
     weekdays: List<Int>,
     title: String,
-    buttonLabel: String = "Attack the day",
+    buttonLabel: String = "I’m Up",
   ): Long {
     if (instanceId.isEmpty()) return 0L
     if (!canScheduleExact(context)) return 0L
