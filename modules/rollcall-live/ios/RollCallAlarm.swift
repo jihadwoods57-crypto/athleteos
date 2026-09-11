@@ -42,6 +42,14 @@ import ActivityKit
 /// supports a countdown presentation. Otherwise, the system may unexpectedly dismiss alarms and
 /// fail to alert." A wake-up has no countdown - it is a fixed time - so this schedules an
 /// alert-only presentation and never risks that failure mode.
+///
+/// WHY iOS 26.1 AND NOT 26.0. AlarmKit itself arrived in 26.0, but the only Alert initialiser
+/// that does NOT take the dead `stopButton` argument is 26.1+ (build 35 failed on exactly that:
+/// "'init(title:secondaryButton:secondaryButtonBehavior:)' is only available in iOS 26.1 or
+/// newer"). On 26.0 the sole way to construct an alert is the initialiser Apple has already said
+/// will be ignored. Rather than carry a second code path built on a deprecated call for one
+/// point release, the whole feature asks for 26.1 and a 26.0 phone keeps the roll-call
+/// notification it has today.
 public enum RollCallAlarm {
   /// Mirrors the JS `WAKEUP_TYPE`. Only ever one alarm per roll-call instance.
   public static let secondaryButtonLabel = "Attack the day"
@@ -49,7 +57,7 @@ public enum RollCallAlarm {
   /// True when this build and this device can actually schedule one.
   public static var isSupported: Bool {
     #if canImport(AlarmKit)
-    if #available(iOS 26.0, *) { return true }
+    if #available(iOS 26.1, *) { return true }
     #endif
     return false
   }
@@ -60,7 +68,7 @@ public enum RollCallAlarm {
 /// The payload AlarmKit hands back to the widget extension with the alarm. Kept to the two strings
 /// a lock-screen or StandBy presentation would want; nothing here is a secret, because the same
 /// value is readable by the extension process.
-@available(iOS 26.0, *)
+@available(iOS 26.1, *)
 public struct WakeUpMetadata: AlarmMetadata {
   /// The commitment instance this wake-up answers. The ONE id that ties the alarm, the intent, the
   /// pending-tap store and the server's roll call together.
@@ -76,9 +84,9 @@ public struct WakeUpMetadata: AlarmMetadata {
 
 /// Schedules, cancels and lists the wake-up alarms this device owns.
 ///
-/// Every function is `@available(iOS 26.0, *)`; the module's JS surface guards each call so a
+/// Every function is `@available(iOS 26.1, *)`; the module's JS surface guards each call so a
 /// caller never has to.
-@available(iOS 26.0, *)
+@available(iOS 26.1, *)
 public enum RollCallAlarmScheduler {
   /// The app's blue. AlarmKit takes exactly ONE colour for the whole alert, so the brand's
   /// blue-to-teal sweep cannot go here - a gradient is not expressible. Blue is the anchor end of

@@ -96,7 +96,7 @@ public class RollCallLiveModule: Module {
     /// "authorized" | "denied" | "notDetermined" | "unsupported". Never prompts.
     Function("alarmAuthorizationState") { () -> String in
       #if canImport(AlarmKit)
-      if #available(iOS 26.0, *) { return RollCallAlarmScheduler.authorizationState() }
+      if #available(iOS 26.1, *) { return RollCallAlarmScheduler.authorizationState() }
       #endif
       return "unsupported"
     }
@@ -104,7 +104,7 @@ public class RollCallLiveModule: Module {
     /// Ask for permission. Resolves to the same strings as above.
     AsyncFunction("requestAlarmAuthorization") { () -> String in
       #if canImport(AlarmKit)
-      if #available(iOS 26.0, *) { return await RollCallAlarmScheduler.requestAuthorization() }
+      if #available(iOS 26.1, *) { return await RollCallAlarmScheduler.requestAuthorization() }
       #endif
       return "unsupported"
     }
@@ -115,7 +115,7 @@ public class RollCallLiveModule: Module {
     /// a caller on iOS 18 has done nothing wrong.
     AsyncFunction("scheduleWakeAlarm") { (instanceId: String, hour: Int, minute: Int, weekdays: [Int], title: String) -> String in
       #if canImport(AlarmKit)
-      if #available(iOS 26.0, *) {
+      if #available(iOS 26.1, *) {
         return (try? await RollCallAlarmScheduler.schedule(
           instanceId: instanceId, hour: hour, minute: minute, weekdays: weekdays, title: title
         )) ?? ""
@@ -127,7 +127,7 @@ public class RollCallLiveModule: Module {
     /// Cancel the wake-up for one instance. Safe for an instance that never had one.
     Function("cancelWakeAlarm") { (instanceId: String) -> Void in
       #if canImport(AlarmKit)
-      if #available(iOS 26.0, *) { RollCallAlarmScheduler.cancel(instanceId: instanceId) }
+      if #available(iOS 26.1, *) { RollCallAlarmScheduler.cancel(instanceId: instanceId) }
       #endif
     }
 
@@ -135,7 +135,7 @@ public class RollCallLiveModule: Module {
     /// "no alarm fired" and "no alarm was ever scheduled" are otherwise indistinguishable.
     Function("scheduledWakeAlarms") { () -> [[String: Any]] in
       #if canImport(AlarmKit)
-      if #available(iOS 26.0, *) { return RollCallAlarmScheduler.scheduled() }
+      if #available(iOS 26.1, *) { return RollCallAlarmScheduler.scheduled() }
       #endif
       return []
     }
