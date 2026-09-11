@@ -413,11 +413,19 @@ export function checkinReal(day) { return !!day.ciSubmitted; }
 export function wakeupParts(day) {
   const w = day && day.wakeup;
   if (!w || !w.assigned) return { score: 0, assigned: false };
-  const v = String(w.verdict || '');
-  if (v === 'excused') return { score: 0, assigned: false };
-  if (v === 'on_standard') return { score: 100, assigned: true };
-  if (v === 'late') return { score: 50, assigned: true }; // on time counts full, late counts half
-  return { score: 0, assigned: true }; // never answered
+  switch (String(w.verdict || '')) {
+    case 'on_standard': return { score: 100, assigned: true };
+    // On time counts full, late counts half. The same rule a late meal already follows.
+    case 'late': return { score: 50, assigned: true };
+    case 'missed': return { score: 0, assigned: true };
+    // Everything else leaves the denominator rather than scoring zero, and each for its own
+    // reason. EXCUSED: the coach told them to skip it. PENDING: the roll call is still OPEN, and
+    // docking an athlete at 6:05 for a morning that closes at 6:30 would be a lie the clock
+    // corrects later. REVIEW: a tap whose receipt crossed a boundary the device could not prove,
+    // which commitments.js already rules counts as nothing until a coach resolves it.
+    // An unknown verdict lands here too, which is the safe direction: it cannot cost points.
+    default: return { score: 0, assigned: false };
+  }
 }
 
 /* ---- Trust Pass credit (0196) ----------------------------------------------------------------
@@ -547,6 +555,11 @@ export const DAY = {
   ciConfig: { ...DEFAULT_CICFG },
   ciSubmitted: false,
   ciLast: null,          // { date, recovery }
+  /* The coach-assigned morning for TODAY, as the server judged it: { assigned, verdict, lateMin }.
+     Null until the athlete's commitment rows are read (home.js publishes them). It rides the
+     checkin jsonb so the SERVER's evidence ceiling can see the morning too - without it a day
+     that earned food 82 plus a morning 8 would compute 90 and be clamped straight back to 82. */
+  wakeup: null,
   proteinTarget: 180,
   calTarget: 3200,
   scoringProfile: 'athlete',
@@ -598,6 +611,8 @@ export function dayFromHistoryRow(r, cfg) {
     ciConfig: { ...DEFAULT_CICFG },
     ciSubmitted: !!ck.submitted,
     ciLast: ck.ciLast && ck.ciLast.date ? ck.ciLast : null,
+    // A past day is scored on the morning IT carried, never today's. Same rule plan_style follows.
+    wakeup: ck.wakeup && ck.wakeup.assigned ? ck.wakeup : null,
     proteinTarget: c.proteinTarget != null ? c.proteinTarget : DAY.proteinTarget,
     calTarget: c.calTarget != null ? c.calTarget : DAY.calTarget,
     scoringProfile: c.scoringProfile != null ? c.scoringProfile : DAY.scoringProfile,
@@ -798,6 +813,10 @@ function projectRowToDay(row) {
   if (DAY.dailyCommitment && ck.commitment == null) localAhead = true;
   DAY.dailyCommitment = DAY.dailyCommitment ?? ck.commitment ?? null;
   DAY.commitmentFocus = DAY.commitmentFocus ?? ck.focus ?? null;
+  // The morning. The commitment rows are the authority and overwrite this the moment they land
+  // (daySetWakeup); the stored copy is what keeps a score honest between a cold boot and that
+  // fetch, and what the server's own ceiling reads.
+  if (!DAY.wakeup && ck.wakeup && ck.wakeup.assigned) DAY.wakeup = ck.wakeup;
   // Logged-at times ride the same jsonb (they power on-time history + category trends).
   DAY.mealLoggedAt = { ...(ck.mealLoggedAt || {}), ...DAY.mealLoggedAt };
   // Plate meta merges per-slot: local slots win (they carry the freshest AI meta), server
@@ -1030,6 +1049,29 @@ function armPushRetry(userId) {
   }, delay);
 }
 
+/**
+ * Record the server's verdict for today's coach-assigned wake-up.
+ *
+ * Takes the shape myWakeupForDay (wakeup-morning.js) produces and NEVER a verdict this client
+ * derived. Pushes only when something actually changed, because the commitment rows are refetched
+ * on every foreground beat and an unconditional push would write the same row all day.
+ *
+ * @param {{assigned:boolean, verdict:string|null, lateMin:number}|null} w
+ * @param {string|null} userId the signed-in athlete, for the push
+ */
+export function daySetWakeup(w, userId) {
+  const next = w && w.assigned
+    ? { assigned: true, verdict: w.verdict == null ? null : String(w.verdict), lateMin: Number(w.lateMin) || 0 }
+    : null;
+  const before = DAY.wakeup;
+  const same = (!before && !next)
+    || (before && next && before.verdict === next.verdict && before.lateMin === next.lateMin);
+  if (same) return false;
+  DAY.wakeup = next;
+  if (userId) pushDay(userId);
+  return true;
+}
+
 export function pushDay(userId, immediate) {
   saveCache(userId);
   if (pushTimer) { clearTimeout(pushTimer); pushTimer = null; }
@@ -1050,7 +1092,7 @@ export function pushDay(userId, immediate) {
       // `excluded.` — with it in the row, the ENTIRE upsert 42501s and nothing ever syncs
       // (the 2026-08-05 "Waiting to sync" bug). Weight goes through the log_my_weight door
       // (dayLogWeight below), the write mirror of the weight_series read door.
-      checkin: { ...DAY.ci, submitted: DAY.ciSubmitted, ciLast: DAY.ciLast, commitment: DAY.dailyCommitment, focus: DAY.commitmentFocus, mealLoggedAt: DAY.mealLoggedAt, slotMacros: DAY.slotMacros },
+      checkin: { ...DAY.ci, submitted: DAY.ciSubmitted, ciLast: DAY.ciLast, commitment: DAY.dailyCommitment, focus: DAY.commitmentFocus, mealLoggedAt: DAY.mealLoggedAt, slotMacros: DAY.slotMacros, wakeup: DAY.wakeup || null },
       score: s, grade: gradeFor(s),
       // The per-day STAMP: which style graded this day. Written every push so a style change
       // takes effect going forward and never rewrites a settled day. Null until a style resolves
@@ -1080,6 +1122,7 @@ export function dayResetLocal() {
   DAY.mealLoggedAt = {}; DAY.slotMacros = {}; DAY.quickAdded = [false, false, false]; DAY.checkedTasks = {};
   DAY.hydrationL = 0; DAY.dailyCommitment = null; DAY.commitmentFocus = null; DAY.ci = { ...DEFAULT_CI }; DAY.ciConfig = { ...DEFAULT_CICFG };
   DAY.ciSubmitted = false; DAY.ciLast = null; DAY.currentWeight = null; DAY.scoreHistory = []; DAY.passes = []; DAY.passSpends = [];
+  DAY.wakeup = null;
   // The resolved style/knobs SURVIVE a local reset (they describe the athlete, not the day) —
   // state.js re-applies them on hydrate anyway. Today's captured signals do not.
   DAY.signals = {}; DAY.signalWeekRate = null;

@@ -6,10 +6,11 @@ import { appHead, scoreRing, esc, safeImg, collapseSection, emailVerifyBanner, w
 import { reveal } from '../motion.js';
 import { qualityAccent } from '../score-band.js';
 import { maybeShowLock } from '../lock-moment.js';
-import { DAY, MEAL_KEYS } from '../day.js';
+import { DAY, MEAL_KEYS, daySetWakeup } from '../day.js';
 import { fetchMyDayReceipts, fetchRecentMeals, signedMealPhotoUrl, daysAgoISO, todayISO, fetchMyReplyInputs } from '../roles.js';
 import { unreadCoachReplies, replyRow } from '../coach-replies.js';
 import { wakeupReceipt, receiptHtml } from '../wakeup-handoff.js';
+import { myWakeupForDay } from '../wakeup-morning.js';
 import { WAKEUP_TYPE } from '../wakeup-morning.js';
 import { warmMealPhotos, todayMealPhotoPath } from '../photo-store.js';
 import { shouldNudge, nudgeSignature, nudgeData } from '../coach-nudge.js';
@@ -232,7 +233,7 @@ function paintCommitments(root) {
   // A lock-screen tap recorded while the app was away (0212): refetch on the foreground beat.
   const onFg = () => {
     if (!slot.isConnected) return;
-    loadMine(true).then((rows) => { RT.vcRows = rows; paint(); });
+    loadMine(true).then((rows) => { RT.vcRows = rows; publishWakeup(rows); paint(); });
   };
   window.addEventListener('onstd:foreground', onFg);
   // The router runs window.__screenCleanup before every re-render/route change and then nulls it
@@ -249,8 +250,18 @@ function paintCommitments(root) {
     // module cycle coach-data.js documents, which makes RT undefined at eval time in an ESM
     // WebView), so the screen that owns the fetch is what publishes the result.
     RT.vcRows = rows;
+    publishWakeup(rows);
     paint();
   });
+}
+
+/* The morning is a scoring component on a day a coach assigned one, so the verdict the roll call
+   already fetched has to reach the day engine. This is the SAME crossing point RT.vcRows uses and
+   for the same reason: commitment-data.js never imports day.js, so the screen that owns the fetch
+   is what publishes the result. daySetWakeup is a no-op when nothing changed, which matters
+   because these rows are refetched on every foreground beat. */
+function publishWakeup(rows) {
+  try { daySetWakeup(myWakeupForDay(rows, DAY.date), RT.userId || null); } catch (_) { /* never block the paint */ }
 }
 
 /* Connected Standards on Home (0155). Same shape as the commitments slot above: paint instantly

@@ -217,7 +217,7 @@ describe('property: computeDerived score never exceeds its evidence ceiling', ()
 describe('evidenceFromDayRow (mirrors the 0193 trigger gates)', () => {
   const D = '2026-07-03'; // pre-cutover, so the v1 carry gate is live
   it('grants nothing for an empty row', () => {
-    expect(evidenceFromDayRow({ date: D, meals: {}, checkin: {} })).toEqual({ nutritionPossible: false, checkinPossible: false, commitmentPresent: false });
+    expect(evidenceFromDayRow({ date: D, meals: {}, checkin: {} })).toEqual({ nutritionPossible: false, checkinPossible: false, commitmentPresent: false, wakeupAssigned: false, wakeupEarned: false });
   });
   it('unlocks nutrition when any meal is logged', () => {
     expect(evidenceFromDayRow({ date: D, meals: { breakfast: true }, checkin: {} }).nutritionPossible).toBe(true);
@@ -371,5 +371,64 @@ describe('property (SERVER gates): a real score never exceeds the ceiling from i
     const ceil = evidenceScoreCeiling(evidenceFromDayRow(rowFromState(s), { priorSubmittedInWeek: false }), s.dateStamp!);
     expect(d.athleteScore).toBeLessThanOrEqual(ceil);
     expect(clampScoreToEvidence(d.athleteScore, evidenceFromDayRow(rowFromState(s)), s.dateStamp!)).toBe(d.athleteScore);
+  });
+});
+
+describe('the coach-assigned morning as a ceiling slot (0232)', () => {
+  // The proto is the engine that scores the morning; this file is the tested spec the SQL trigger
+  // mirrors. What has to hold is that the ceiling and the engine agree on every verdict, because
+  // a ceiling that is one point tight silently rewrites an honest score and tells nobody.
+  const D = '2026-09-11'; // v3 era
+  const row = (verdict: string | null, extra: Record<string, unknown> = {}) => ({
+    date: D,
+    meals: { breakfast: true, lunch: true, snack: true, dinner: true },
+    checkin: { submitted: true, ...(verdict ? { wakeup: { assigned: true, verdict } } : {}), ...extra },
+  });
+
+  it('leaves a row with no morning on exactly the ceiling it had before', () => {
+    expect(evidenceScoreCeiling(evidenceFromDayRow(row(null)), D)).toBe(100);
+  });
+
+  it('an answered morning keeps the day at 100', () => {
+    for (const v of ['on_standard', 'late']) {
+      expect(evidenceScoreCeiling(evidenceFromDayRow(row(v)), D)).toBe(100);
+    }
+  });
+
+  it('a missed morning bounds the day at 92, never lower', () => {
+    // 82 food + 10 check-in. The engine computes exactly 92 for this row, so 92 is the only
+    // number that neither clamps an honest score nor lets a fabricated one through.
+    expect(evidenceScoreCeiling(evidenceFromDayRow(row('missed')), D)).toBe(92);
+  });
+
+  it('an undecided morning is bounded as an ordinary day', () => {
+    for (const v of ['pending', 'review', 'excused', 'a_verdict_from_the_future']) {
+      expect(evidenceScoreCeiling(evidenceFromDayRow(row(v)), D)).toBe(100);
+    }
+  });
+
+  it('a morning answered with nothing else logged still justifies its own 8', () => {
+    const bare = { date: D, meals: {}, checkin: { wakeup: { assigned: true, verdict: 'on_standard' } } };
+    expect(evidenceScoreCeiling(evidenceFromDayRow(bare), D)).toBe(8);
+  });
+
+  it('an assigned flag alone buys nothing, and a fabricated verdict buys nothing', () => {
+    const noFlag = { date: D, meals: {}, checkin: { wakeup: { verdict: 'on_standard' } } };
+    expect(evidenceScoreCeiling(evidenceFromDayRow(noFlag), D)).toBe(0);
+    const junk = { date: D, meals: {}, checkin: { wakeup: 'on_standard' } };
+    expect(evidenceScoreCeiling(evidenceFromDayRow(junk), D)).toBe(0);
+  });
+
+  it('rows from before the morning existed are untouched in every era', () => {
+    // The whole argument for having no new cutover date: a row with no wakeup key cannot enter
+    // the wake-up shape, so every historical row keeps the ceiling it has always had.
+    for (const date of ['2026-07-03', '2026-08-20', '2026-09-10', D]) {
+      const before = evidenceScoreCeiling(
+        { nutritionPossible: true, checkinPossible: true, commitmentPresent: true }, date);
+      const after = evidenceScoreCeiling(evidenceFromDayRow({
+        date, meals: { breakfast: true }, checkin: { submitted: true, commitment: 'yes' },
+      }), date);
+      expect(after).toBe(before);
+    }
   });
 });

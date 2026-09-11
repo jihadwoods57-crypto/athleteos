@@ -298,5 +298,38 @@ export function explainCategories(day, { slots, denom, titles = {}, optional = [
       ],
       action: day.ciSubmitted ? null : { label: 'Do check-in', route: 'recovery' },
     },
+    /* The morning, and ONLY on a day a coach assigned one. An athlete with no wake-up must never
+       see a category worth zero that they had no way to earn - that is the "fake number" rule the
+       recovery fallback already answers to. c.wakeupAssigned is the same gate weightsForDay uses
+       to pick the mix, so the card exists exactly when the points do. */
+    ...(c.wakeupAssigned ? [wakeupCategory(day, w, c)] : []),
   ];
+}
+
+/** The Morning card. Split out because it is the one category that is conditional. */
+function wakeupCategory(day, w, c) {
+  const possible = Math.round(w.wakeup * 100);
+  const earned = Math.round(w.wakeup * c.wakeup);
+  const verdict = (day.wakeup && day.wakeup.verdict) || '';
+  const lateMin = (day.wakeup && day.wakeup.lateMin) || 0;
+  const settled = verdict === 'on_standard' || verdict === 'late' || verdict === 'missed';
+  const note = verdict === 'on_standard' ? 'Up on time. Full points.'
+    : verdict === 'late' ? `Answered ${lateMin} min late. Late counts half, the same as a late meal.`
+      : 'The roll call closed with no answer.';
+  return {
+    id: 'wakeup', key: 'Morning', accent: 'b', weightPct: possible,
+    earned, possible, note,
+    // Nothing can re-earn a closed roll call, so this is never dangled as available.
+    remaining: 0, remainingKind: 'guaranteed',
+    remainingNote: verdict === 'missed'
+      ? `Settled for today. Tomorrow's roll call starts at the full ${possible}.`
+      : 'Settled for today.',
+    rows: [{
+      label: 'Answered the roll call',
+      sub: verdict === 'on_standard' ? 'On time' : verdict === 'late' ? `${lateMin} min late` : 'No answer before it closed',
+      value: `${earned} of ${possible} pts`,
+      state: settled && earned > 0 ? 'done' : 'open',
+    }],
+    action: null,
+  };
 }

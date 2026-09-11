@@ -97,3 +97,38 @@ export function wakeClock(min) {
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}:${String(m).padStart(2, '0')}`;
 }
+
+/* ------------------------------------------------------------------ the day's own morning */
+
+/**
+ * The athlete's OWN wake-up for one day, in the shape the scoring engine reads
+ * (`day.wakeup` -> day.js wakeupParts).
+ *
+ * `rows` is what commitment-data.js loadMine() returns: the athlete's commitments across a
+ * window. This picks the wake-up dated `dayISO` and reports the server's verdict verbatim. It
+ * never derives a verdict from a clock, and it never invents an assignment: a day with no wake-up
+ * comes back `{ assigned: false }`, which is what every day looks like for every athlete whose
+ * coach has not set one.
+ *
+ * More than one wake-up on a single day is not a shape the product creates, but the read has to
+ * survive it. The DECIDED one wins over a still-open one, so a second row can never hide a
+ * verdict the athlete has already earned.
+ *
+ * @param {Array|null} rows loadMine() output
+ * @param {string} dayISO the day to score, 'YYYY-MM-DD'
+ * @returns {{assigned:boolean, verdict:string|null, lateMin:number}}
+ */
+export function myWakeupForDay(rows, dayISO) {
+  const none = { assigned: false, verdict: null, lateMin: 0 };
+  if (!Array.isArray(rows) || !dayISO) return none;
+  const mine = rows.filter((r) => r && r.type === WAKEUP_TYPE && String(r.occurs_on || '') === dayISO);
+  if (!mine.length) return none;
+  const DECIDED = [UP, LATE, 'missed', 'excused'];
+  const pick = mine.find((r) => DECIDED.includes(String(r.verdict || ''))) || mine[0];
+  const lateMin = Number(pick.late_min);
+  return {
+    assigned: true,
+    verdict: pick.verdict == null ? null : String(pick.verdict),
+    lateMin: Number.isFinite(lateMin) && lateMin > 0 ? lateMin : 0,
+  };
+}

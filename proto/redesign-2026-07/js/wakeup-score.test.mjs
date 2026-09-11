@@ -48,25 +48,57 @@ test('the morning is wired into every weight table', () => {
   assert.equal(typeof WEIGHT_CAPS.wakeup, 'number', 'the caps table has no wakeup ceiling');
 });
 
-test('at WAKEUP_SHIFT 0 an assigned morning moves the score by nothing', () => {
-  // Every verdict, against the same day with no morning at all. If any of these diverge, the
-  // slot is live and this file is no longer describing the shipped engine.
-  if (WAKEUP_SHIFT !== 0) return; // the block below owns the turned-on case
-  for (const base of [day({ ...fed(180), ...CHECKED_IN }), day({ ...fed(90) }), day()]) {
-    const none = scoreFor(base);
-    for (const v of ['on_standard', 'late', 'missed', 'excused']) {
-      assert.equal(scoreFor({ ...base, ...woke(v) }), none, `verdict ${v} moved a score`);
-    }
+test('a day with NO wake-up scores exactly what it always did', () => {
+  // The population this has to hold for is everybody: every athlete whose coach has not set a
+  // wake-up, on every day, forever. Their mix is untouched and their ceiling is untouched.
+  assert.deepEqual(weightsForDay(day()), PROFILE_WEIGHTS.athlete);
+  assert.equal(scoreFor(day({ ...fed(180), ...CHECKED_IN })), 100);
+  assert.equal(scoreFor(day({ ...fed(180) })), 82, 'perfect food alone is still 82');
+  assert.equal(evidenceCeiling(day({ ...fed(180), ...CHECKED_IN })), 100);
+  assert.equal(evidenceCeiling(day({ ...fed(180) })), 82);
+  assert.equal(evidenceCeiling(day({ ...CHECKED_IN })), 18);
+});
+
+test('an undecided morning costs nothing, because the clock has not finished with it', () => {
+  // Pending, under review and excused all leave the denominator. An athlete looking at their
+  // score at 6:05 for a roll call that closes at 6:30 must not see it already docked.
+  const base = day({ ...fed(180), ...CHECKED_IN });
+  for (const v of ['pending', 'review', 'excused', 'something_new_the_server_added']) {
+    assert.equal(scoreFor({ ...base, ...woke(v) }), 100, `verdict ${v} must not cost a point yet`);
+    assert.deepEqual(weightsForDay({ ...base, ...woke(v) }), PROFILE_WEIGHTS.athlete);
   }
 });
 
-test('at WAKEUP_SHIFT 0 the evidence ceiling is unchanged, so nothing gets clamped', () => {
-  if (WAKEUP_SHIFT !== 0) return;
-  const base = day({ ...fed(180), ...CHECKED_IN });
-  assert.equal(evidenceCeiling(base), 100);
-  assert.equal(evidenceCeiling(day({ ...fed(180) })), 82, 'food alone still justifies exactly 82');
-  assert.equal(evidenceCeiling(day({ ...CHECKED_IN })), 18, 'a check-in alone still justifies 18');
-  assert.equal(clampedScore({ ...base, ...woke('on_standard') }), clampedScore(base));
+test('the morning is worth 8, and it comes out of the nightly check-in, never out of food', () => {
+  const perfect = day({ ...fed(180), ...CHECKED_IN });
+  assert.equal(scoreFor(perfect), 100, 'the day with no morning is the baseline');
+  assert.equal(scoreFor({ ...perfect, ...woke('on_standard') }), 100, 'answered on time is still 100');
+  assert.equal(scoreFor({ ...perfect, ...woke('late', 24) }), 96, 'late counts half: 4 of the 8');
+  assert.equal(scoreFor({ ...perfect, ...woke('missed') }), 92, 'a missed morning costs the full 8');
+  // Food is untouched in every one of those cases.
+  const foodOnly = day(fed(180));
+  for (const v of ['on_standard', 'late', 'missed']) {
+    const c = computeComponents({ ...foodOnly, ...woke(v) });
+    assert.equal(c.nutrition, computeComponents(foodOnly).nutrition);
+  }
+});
+
+test('the morning alone can carry a day, and the ceiling lets it', () => {
+  // An athlete who answered the roll call and logged nothing else has earned 8 points of
+  // evidence. A ceiling that could not see the morning would clamp them straight back to 0.
+  const only = day(woke('on_standard'));
+  assert.equal(scoreFor(only), 8);
+  assert.equal(evidenceCeiling(only), 8);
+  assert.equal(clampedScore(only), 8, 'the ceiling must never erase a morning that was answered');
+});
+
+test('a missed morning is bounded at 92, the same number the engine computes for it', () => {
+  // The ceiling asymmetry: being ASSIGNED shrinks the check-in slot; only being ANSWERED grants
+  // the morning its 8. If those two ever come apart, an honest score gets clamped.
+  const missed = { ...day({ ...fed(180), ...CHECKED_IN }), ...woke('missed') };
+  assert.equal(scoreFor(missed), 92);
+  assert.equal(evidenceCeiling(missed), 92);
+  assert.equal(clampedScore(missed), 92);
 });
 
 /* ------------------------------------------------------------------ the verdict reader */

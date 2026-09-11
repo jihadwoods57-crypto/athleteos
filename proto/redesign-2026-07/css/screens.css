@@ -449,6 +449,7 @@
 .sx-ring.dashed { border-style: dashed; border-width: 2px; }
 .sx-lic-g { color: var(--green-bright); }
 .sx-lic-p { color: var(--purple-bright); }
+.sx-lic-b { color: var(--blue-bright); }
 .sx-gap { height: var(--s2h); }
 .bd-legend { margin-top: var(--s2h); }
 .sx-range { font-size: var(--t-sm); font-weight: 700; color: var(--text-3); margin-left: var(--s1); font-variant-numeric: tabular-nums; }

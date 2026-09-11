@@ -33,6 +33,11 @@ export default {
     const food = liveWeightPct('nutrition');
     const sent = liveWeightPct('checkin');
     const answered = liveWeightPct('recovery');
+    // Only on a day a coach assigned a wake-up. On every other day it is 0 and the row is absent,
+    // because a page whose whole job is explaining the number must never list points nobody on
+    // this account could earn. Reading the live mix is also what keeps the rows summing to 100:
+    // on a wake-up day the two check-in rows are 5 and 5, not 9 and 9.
+    const morning = liveWeightPct('wakeup');
     const score = S.score != null ? S.score : 0;
     return `
     ${backHead('Score colors explained', 'What the rings and numbers mean', 'profile')}
@@ -58,6 +63,12 @@ export default {
         <div class="lm"><div class="lt">Food</div><div class="ls">Every meal in your standard, logged on time and read well.</div></div>
         <span class="lv">${food} pts</span>
       </div>
+      ${morning ? `
+      <div class="lrow sx-row" role="listitem">
+        <div class="lic sx-lic-b">${icon('sun', 17)}</div>
+        <div class="lm"><div class="lt">Morning roll call</div><div class="ls">Your coach set a wake-up. Answer it on time for the full points; late counts half.</div></div>
+        <span class="lv">${morning} pts</span>
+      </div>` : ''}
       <div class="lrow sx-row" role="listitem">
         <div class="lic sx-lic-p">${icon('moon', 17)}</div>
         <div class="lm"><div class="lt">Check-in submitted</div><div class="ls">Tonight, before the day closes.</div></div>

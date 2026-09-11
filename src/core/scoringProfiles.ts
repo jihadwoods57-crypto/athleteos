@@ -50,7 +50,7 @@ export const PROFILE_WEIGHTS: Record<ScoringProfile, ProfileWeights> = {
  * one, so the rows above stay the mix for a day with no wake-up assigned, which is every day for
  * every athlete whose coach has not set one.
  */
-export const WAKEUP_SHIFT = 0;
+export const WAKEUP_SHIFT = 0.08;
 
 /** The mix for a day that HAS an assigned wake-up. Taken evenly from the two check-in slots, so
  *  the day still sums to 1 and nutrition's 82 never moves. Always a fresh object. */

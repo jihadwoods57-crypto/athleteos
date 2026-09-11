@@ -73,7 +73,7 @@ export function resolveStyleKey(x) {
  * This is the ONE number that turns the morning on. At 0 the wake-up slot exists everywhere, is
  * carried through every sum and every test, and changes nobody's score by a single point.
  */
-export const WAKEUP_SHIFT = 0;
+export const WAKEUP_SHIFT = 0.08;
 
 /** Per-component ceiling, mirroring the 0193 evidence-ceiling slots. NOTHING may exceed these. */
 export const WEIGHT_CAPS = { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: WAKEUP_SHIFT };

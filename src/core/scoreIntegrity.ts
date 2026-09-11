@@ -61,6 +61,16 @@ const V3_CEILING = {
   checkinAndRecovery: Math.round((MAX_SUBSCORE_WEIGHT.recovery + MAX_SUBSCORE_WEIGHT.checkin) * 100),
   commitment: Math.round(MAX_SUBSCORE_WEIGHT.commitment * 100),
 } as const;
+/**
+ * A day the coach assigned a wake-up to. The morning is paid for out of the nightly check-in's
+ * 18, so that slot shrinks by exactly the shift and the morning gets what it gave up. Nutrition
+ * is untouched. At WAKEUP_SHIFT 0 these are 18 and 0, which is V3_CEILING unchanged — the whole
+ * point of deriving them instead of writing 10 and 8 down.
+ */
+const V3_WAKEUP_CEILING = {
+  checkinAndRecovery: Math.round((MAX_SUBSCORE_WEIGHT.recovery + MAX_SUBSCORE_WEIGHT.checkin - WAKEUP_SHIFT) * 100),
+  wakeup: Math.round(WAKEUP_SHIFT * 100),
+} as const;
 /** A row dated in the v2 era can still be written by the v3 engine (offline backlog, a re-push),
  *  so its ceiling is the v2/v3 union — the same loose-direction argument as PRE_CUTOVER_CEILING. */
 const V2_ERA_CEILING = {
@@ -106,6 +116,14 @@ export interface ScoreEvidence {
   checkinPossible: boolean;
   /** A plan-commitment answer is on the row. v2: unlocks NOTHING (weight 0). v1: 15. */
   commitmentPresent: boolean;
+  /** The coach assigned a wake-up for this day AND it has been decided (answered, answered late,
+   *  or missed). It SHRINKS the check-in slot to pay for the morning, so it is the one gate here
+   *  that can lower a ceiling — which is exactly why it must be read from the row rather than
+   *  assumed. A pending, excused or under-review morning is not decided and never sets this. */
+  wakeupAssigned?: boolean;
+  /** The morning was actually answered (on time or late), so its slot is justified. A missed
+   *  morning is `wakeupAssigned` without this: the slot exists and earns nothing. */
+  wakeupEarned?: boolean;
 }
 
 /**
@@ -116,9 +134,15 @@ export interface ScoreEvidence {
  */
 export function evidenceScoreCeiling(ev: ScoreEvidence, rowDate: string): number {
   const c = rowDate < SCORING_V2_CUTOVER ? PRE_CUTOVER_CEILING : rowDate < SCORING_V3_CUTOVER ? V2_ERA_CEILING : V3_CEILING;
+  // The morning needs no dated cutover of its own, and that is not an oversight. Only an engine
+  // that scores it writes `checkin.wakeup` at all, so every row ever written before this shipped
+  // has no gate set and lands on exactly the ceiling it has always had. The eras above stay
+  // untouched; a row can only enter the wake-up shape by carrying the evidence for it.
+  const checkinSlot = ev.wakeupAssigned ? Math.min(c.checkinAndRecovery, V3_WAKEUP_CEILING.checkinAndRecovery) : c.checkinAndRecovery;
   return Math.min(100,
     (ev.nutritionPossible ? c.nutrition : 0) +
-    (ev.checkinPossible ? c.checkinAndRecovery : 0) +
+    (ev.checkinPossible ? checkinSlot : 0) +
+    (ev.wakeupEarned ? V3_WAKEUP_CEILING.wakeup : 0) +
     (ev.commitmentPresent ? c.commitment : 0));
 }
 
@@ -138,6 +162,9 @@ export function evidenceFromDerived(d: Derived): ScoreEvidence {
     nutritionPossible: d.nutritionScore > 0,
     checkinPossible: d.recoveryScoreIsReal || d.checkinScore > 0,
     commitmentPresent: d.commitmentScore > 0,
+    // No wake-up gates, deliberately. This engine scores every day on PROFILE_WEIGHTS, whose
+    // `wakeup` is 0 in every row, so a score it produced can never contain a morning. Setting the
+    // gate here would SHRINK its own check-in slot and clamp an honest 100 down to 92.
   };
 }
 
@@ -185,9 +212,17 @@ export function evidenceFromDayRow(
   // for a v2 row can never clamp an honest score — and it closes the tamper path where a
   // fabricated `ciLast` bought 24 points with no check-in behind it.
   const carryCounts = row.date < SCORING_V2_CUTOVER;
+  // The morning rides the same jsonb (proto day.js pushDay). Only a DECIDED verdict counts, which
+  // mirrors day.js wakeupParts exactly: pending is still open, excused left the denominator, and
+  // under-review counts as nothing until a coach resolves it.
+  const wake = ci.wakeup as { assigned?: unknown; verdict?: unknown } | null | undefined;
+  const verdict = wake && wake.assigned === true ? String(wake.verdict ?? '') : '';
+  const wakeupEarned = verdict === 'on_standard' || verdict === 'late';
   return {
     nutritionPossible: anyMealLogged || hasSlotMacros || anyQuickAdd || !!ctx.activeTrustPass,
     checkinPossible: submitted || (carryCounts && (carryInWindow || !!ctx.priorSubmittedInWeek)),
     commitmentPresent: commitment === 'yes' || commitment === 'partial' || commitment === 'no',
+    wakeupAssigned: wakeupEarned || verdict === 'missed',
+    wakeupEarned,
   };
 }
