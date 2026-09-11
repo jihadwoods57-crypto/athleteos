@@ -12,6 +12,7 @@ import { unreadCoachReplies, replyRow } from '../coach-replies.js';
 import { wakeupReceipt, receiptHtml } from '../wakeup-handoff.js';
 import { myWakeupForDay } from '../wakeup-morning.js';
 import { syncWakeAlarms } from '../wake-alarms.js';
+import { canClear, isCleared, clearReceipts } from '../receipts.js';
 import { WAKEUP_TYPE } from '../wakeup-morning.js';
 import { warmMealPhotos, todayMealPhotoPath } from '../photo-store.js';
 import { shouldNudge, nudgeSignature, nudgeData } from '../coach-nudge.js';
@@ -205,6 +206,55 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
   });
 }
 
+/* What is clearable on screen right now. Two async painters feed it - the coach-view receipt and
+   the commitments slot - so it is module state rather than a return value, and each repaints the
+   Clear control after updating its own half. */
+const RECEIPTS = { seen: null, ids: [] };
+
+/**
+ * The one control that clears the receipts region.
+ *
+ * Hidden entirely when there is nothing settled to clear, so it never sits on Home as a dead
+ * affordance. It says how many it will take, because "Clear" alone on a screen with an open roll
+ * call would be alarming.
+ */
+function paintClearReceipts(root) {
+  const slot = root && root.querySelector('#rcpt-clear');
+  if (!slot) return;
+  const n = (RECEIPTS.seen ? 1 : 0) + RECEIPTS.ids.length;
+  if (!n) { slot.innerHTML = ''; return; }
+  slot.innerHTML = `<button class="rcpt-clear" type="button" aria-label="Clear ${n} receipt${n === 1 ? '' : 's'} from today">
+    ${icon('check', 14)} Clear ${n === 1 ? 'receipt' : `${n} receipts`}
+  </button>`;
+  const btn = slot.firstElementChild;
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const day = vcToday();
+    const ids = RECEIPTS.ids.slice();
+    if (RECEIPTS.seen) ids.push(RECEIPTS.seen);
+    clearReceipts(RT.userId, day, ids);
+    RECEIPTS.seen = null; RECEIPTS.ids = [];
+    // No haptic: motion.js is explicit that a light tap is already wired globally and a second
+    // one lands as a mushier buzz. These fire for things the APP did, not things the finger did.
+    // Repaint both halves from the store rather than hiding nodes by hand, so a later async
+    // injection cannot resurrect a row the athlete just cleared.
+    const seen = root.querySelector('#seen-row');
+    if (seen) seen.innerHTML = '';
+    paintCommitments(root);
+  });
+}
+
+/**
+ * The coach-view receipt's id, stamped with WHEN they looked.
+ *
+ * Not a flat 'seen', and the difference matters twice. A receipt that lands a moment AFTER the
+ * athlete taps Clear carries the same stamp, so it stays cleared instead of popping back. And a
+ * coach who opens the day again at 3 PM carries a NEW stamp, so that receipt appears - clearing
+ * at noon must never silently suppress the rest of the day. Proof that someone who matters looked
+ * is the thing this product is for; it is not something to tidy away by accident.
+ */
+const seenReceiptId = (seenAt) => `seen:${seenAt || ''}`;
+
 function paintCommitments(root) {
   const slot = root.querySelector('#vc-slot');
   if (!slot) return;
@@ -217,8 +267,18 @@ function paintCommitments(root) {
     // so a moved time or a skipped day is known BEFORE the alarm gets set. loadMine already
     // fetches yesterday through tomorrow; this reads what is cached, nothing extra.
     const evening = new Date().getHours() >= 16;
-    const html = VC.today(today)
-      .map((r) => commitmentCard(deriveCommitment(r, now)))
+    /* A settled receipt the athlete already cleared leaves the screen, and STAYS gone: at 11:59
+       an 8:30 check-in is proof of something finished, not a thing to act on. Only positive,
+       settled receipts are clearable - receipts.js canClear is the one place that line is drawn,
+       and a miss is never on the clearable side of it. */
+    const derived = VC.today(today).map((r) => deriveCommitment(r, now));
+    const clearable = derived.filter((d) => d && d.visible && canClear(d) && d.instance_id);
+    const shown = derived.filter((d) => !(canClear(d) && isCleared(RT.userId, today, d.instance_id)));
+    RECEIPTS.ids = clearable
+      .filter((d) => !isCleared(RT.userId, today, d.instance_id))
+      .map((d) => String(d.instance_id));
+    const html = shown
+      .map((d) => commitmentCard(d))
       .filter(Boolean).join('')
       + (evening ? tomorrowCard(tomorrowRollcall(VC.mine, today)) : '');
     // An outage must never render as "you have nothing scheduled". For an athlete whose coach is
@@ -226,6 +286,7 @@ function paintCommitments(root) {
     // things — so when the fetch failed and we have nothing cached, say so.
     slot.innerHTML = html || (VC.mineError ? commitmentOfflineCard() : '');
     if (html) mountCommitmentCard(slot, () => paintCommitments(root));
+    paintClearReceipts(root);
     // The offline card's Retry re-runs THIS fetch — recovery on the card, not a dead notice.
     const retry = slot.querySelector('[data-vc-retry]');
     if (retry) retry.addEventListener('click', () => { retry.disabled = true; paintCommitments(root); });
@@ -1044,6 +1105,10 @@ export default {
     ${receiptHtml(wakeupReceipt((VC.board || []).find((i) => i.type === WAKEUP_TYPE) || null, RT.userId), esc)}
       <div id="reply-row"></div>
     <div id="vc-slot"></div>
+    ${/* One Clear for the whole receipts region above. Not an x on each row: those rows already
+          carry a status pill on the right, and a second control there crowds the one thing the
+          athlete is meant to read. Empty until there is something settled to clear. */''}
+    <div id="rcpt-clear"></div>
     <div id="cs-slot" data-tour="standards"></div>
     ${attention}
     <div id="cv-nudge">${cachedNudge(e)}</div>
@@ -1190,6 +1255,14 @@ export default {
         // receipt is proof someone looked, so silence is honest), but reading .length off null
         // threw a TypeError that the catch below swallowed.
         if (!rows || !rows.length || !seenRow.isConnected) return;
+        // Already cleared today: stay gone. This runs on every mount and on every foreground
+        // beat, so without it the row would come straight back the next time Home repainted.
+        if (isCleared(RT.userId, seenDay, seenReceiptId(rows[0] && rows[0].seen_at))) {
+          seenRow.innerHTML = '';
+          RECEIPTS.seen = null;
+          paintClearReceipts(root);
+          return;
+        }
         const fmt = (iso) => {
           const d = new Date(iso);
           let h = d.getHours() % 12; if (h === 0) h = 12;
@@ -1213,6 +1286,8 @@ export default {
           const card = seenRow.firstElementChild;
           if (card) card.style.animation = 'none';
         }
+        RECEIPTS.seen = seenReceiptId(first.seen_at);
+        paintClearReceipts(root);
       };
       const seenFresh = SEEN.uid === RT.userId && SEEN.date === seenDay && SEEN.rows && Date.now() - SEEN.at < 60000;
       if (seenFresh) {

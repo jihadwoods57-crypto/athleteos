@@ -455,6 +455,21 @@
 .wk-alarm .lic { color: var(--muted); }
 .wk-alarm.on .lic { color: var(--blue-bright); }
 .wk-alarm.off .lic { color: var(--amber); }
+
+/* The one control that clears today's receipts. Quiet on purpose: it is housekeeping, not an
+   action worth competing with the score. Right-aligned under the rows it clears, 44px tall so it
+   is a real touch target even though it reads as a text link. */
+.rcpt-clear {
+  display: inline-flex; align-items: center; gap: var(--s2);
+  margin: var(--s2) 0 var(--s3) auto;
+  min-height: 44px; padding: 0 var(--s3);
+  background: none; border: 0; border-radius: var(--r-btn);
+  color: var(--text-3); font-size: var(--t-sm); font-weight: 600;
+  cursor: pointer;
+}
+.rcpt-clear:hover { color: var(--text); }
+.rcpt-clear:active { opacity: 0.6; }
+#rcpt-clear { display: flex; }
 .sx-gap { height: var(--s2h); }
 .bd-legend { margin-top: var(--s2h); }
 .sx-range { font-size: var(--t-sm); font-weight: 700; color: var(--text-3); margin-left: var(--s1); font-variant-numeric: tabular-nums; }
