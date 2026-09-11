@@ -28,6 +28,7 @@ object RollCallAlarmScheduler {
   const val EXTRA_WEEKDAYS = "app.onstandard.rollcall.WEEKDAYS"
   const val EXTRA_HOUR = "app.onstandard.rollcall.HOUR"
   const val EXTRA_MINUTE = "app.onstandard.rollcall.MINUTE"
+  const val EXTRA_BUTTON = "app.onstandard.rollcall.BUTTON"
 
   /** Where the scheduled set lives, so [scheduled] can answer and a reboot can re-arm. */
   private const val PREFS = "rollcall.alarms"
@@ -66,6 +67,7 @@ object RollCallAlarmScheduler {
     minute: Int,
     weekdays: List<Int>,
     title: String,
+    buttonLabel: String = "Attack the day",
   ): Long {
     if (instanceId.isEmpty()) return 0L
     if (!canScheduleExact(context)) return 0L
@@ -78,6 +80,7 @@ object RollCallAlarmScheduler {
       action = "app.onstandard.rollcall.FIRE.$instanceId"
       putExtra(EXTRA_INSTANCE_ID, instanceId)
       putExtra(EXTRA_TITLE, title)
+      putExtra(EXTRA_BUTTON, buttonLabel)
       putExtra(EXTRA_HOUR, hour)
       putExtra(EXTRA_MINUTE, minute)
       putExtra(EXTRA_WEEKDAYS, weekdays.toIntArray())
@@ -116,12 +119,12 @@ object RollCallAlarmScheduler {
    * re-armed itself in [RollCallAlarmReceiver]; this is an extra ring today, and giving it the
    * recurrence too would quietly add a second weekly alarm nine minutes after the first.
    */
-  fun scheduleIn(context: Context, instanceId: String, minutes: Int, title: String): Long {
+  fun scheduleIn(context: Context, instanceId: String, minutes: Int, title: String, buttonLabel: String): Long {
     val c = Calendar.getInstance().apply { add(Calendar.MINUTE, minutes) }
     return schedule(
       context, instanceId,
       c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE),
-      emptyList(), title,
+      emptyList(), title, buttonLabel,
     )
   }
 

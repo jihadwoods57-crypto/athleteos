@@ -9,7 +9,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { alarmsFor, alarmTitle, MAX_ALARMS, HORIZON_DAYS } from './wake-alarms.js';
+import { alarmsFor, alarmTitle, alarmButtonLabel, MAX_ALARMS, HORIZON_DAYS, DEFAULT_BUTTON } from './wake-alarms.js';
 
 const NOW = Date.parse('2026-09-11T12:00:00Z');
 const inHours = (h) => new Date(NOW + h * 3600000).toISOString();
@@ -98,6 +98,40 @@ test('the title is the coach own words, or an honest default', () => {
 
 test('the payload carries only what native needs', () => {
   const [a] = alarmsFor([row()], NOW);
-  assert.deepEqual(Object.keys(a).sort(), ['hour', 'instanceId', 'minute', 'title', 'weekdays']);
+  assert.deepEqual(Object.keys(a).sort(),
+    ['buttonLabel', 'hour', 'instanceId', 'minute', 'title', 'weekdays']);
   assert.ok(!('at' in a), 'the sort key must not leak across the bridge');
+});
+
+/* ------------------------------------------------------ the coach configures it in the app */
+
+test('a coach who turned the alarm off gets no alarm', () => {
+  assert.deepEqual(alarmsFor([row({ alarm: false })], NOW), [],
+    'taking over a phone at 5:45 is the coach decision, and they said no');
+});
+
+test('a wake-up from before the switch existed still rings', () => {
+  // 0234 resolves a missing flag to true server-side. If the client disagreed, turning the
+  // feature on would silently do nothing for every roll call that already exists.
+  assert.equal(alarmsFor([row({ alarm: undefined })], NOW).length, 1);
+  assert.equal(alarmsFor([row({ alarm: true })], NOW).length, 1);
+  const { alarm, ...noFlag } = row();
+  assert.equal(alarmsFor([noFlag], NOW).length, 1, 'an absent key is not an off switch');
+});
+
+test('the alarm button says what the coach typed', () => {
+  const [a] = alarmsFor([row({ action_label: 'Let’s go' })], NOW);
+  assert.equal(a.buttonLabel, 'Let’s go');
+});
+
+test('a coach who named no button gets the default', () => {
+  assert.equal(alarmButtonLabel({}), DEFAULT_BUTTON);
+  assert.equal(alarmButtonLabel({ action_label: '   ' }), DEFAULT_BUTTON);
+  assert.equal(alarmButtonLabel(null), DEFAULT_BUTTON);
+  assert.equal(DEFAULT_BUTTON, 'Attack the day');
+});
+
+test('the button label is bounded, because iOS truncates it without saying so', () => {
+  // 24 is the coach composer own maxlength; this is the backstop for anything that gets past it.
+  assert.equal(alarmButtonLabel({ action_label: 'y'.repeat(200) }).length, 24);
 });

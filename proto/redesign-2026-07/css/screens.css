@@ -450,6 +450,11 @@
 .sx-lic-g { color: var(--green-bright); }
 .sx-lic-p { color: var(--purple-bright); }
 .sx-lic-b { color: var(--blue-bright); }
+/* The athlete's alarm row. Blue when it will ring, amber when the phone has alarms switched off
+   for OnStandard: amber is the app's "needs you" ink, and green stays status-only. */
+.wk-alarm .lic { color: var(--muted); }
+.wk-alarm.on .lic { color: var(--blue-bright); }
+.wk-alarm.off .lic { color: var(--amber); }
 .sx-gap { height: var(--s2h); }
 .bd-legend { margin-top: var(--s2h); }
 .sx-range { font-size: var(--t-sm); font-weight: 700; color: var(--text-3); margin-left: var(--s1); font-variant-numeric: tabular-nums; }

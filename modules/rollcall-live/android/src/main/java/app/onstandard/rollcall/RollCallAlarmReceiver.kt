@@ -31,12 +31,13 @@ class RollCallAlarmReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
     val instanceId = intent.getStringExtra(RollCallAlarmScheduler.EXTRA_INSTANCE_ID) ?: return
     val title = intent.getStringExtra(RollCallAlarmScheduler.EXTRA_TITLE) ?: "Wake up"
+    val button = intent.getStringExtra(RollCallAlarmScheduler.EXTRA_BUTTON) ?: "Attack the day"
     val hour = intent.getIntExtra(RollCallAlarmScheduler.EXTRA_HOUR, -1)
     val minute = intent.getIntExtra(RollCallAlarmScheduler.EXTRA_MINUTE, -1)
     val weekdays = intent.getIntArrayExtra(RollCallAlarmScheduler.EXTRA_WEEKDAYS)?.toList().orEmpty()
 
     try {
-      ring(context, instanceId, title)
+      ring(context, instanceId, title, button)
     } catch (_: Throwable) {
       // A failure to present must never also cost the athlete next week's alarm, so re-arming
       // happens below regardless.
@@ -45,11 +46,11 @@ class RollCallAlarmReceiver : BroadcastReceiver() {
     // Re-arm BEFORE anything can go wrong with the UI. A repeating wake-up that silently stops
     // after its first morning is worse than one that never worked, because nobody looks again.
     if (weekdays.isNotEmpty() && hour in 0..23 && minute in 0..59) {
-      RollCallAlarmScheduler.schedule(context, instanceId, hour, minute, weekdays, title)
+      RollCallAlarmScheduler.schedule(context, instanceId, hour, minute, weekdays, title, button)
     }
   }
 
-  private fun ring(context: Context, instanceId: String, title: String) {
+  private fun ring(context: Context, instanceId: String, title: String, button: String) {
     val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     ensureChannel(nm)
 
@@ -57,6 +58,7 @@ class RollCallAlarmReceiver : BroadcastReceiver() {
       addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
       putExtra(RollCallAlarmScheduler.EXTRA_INSTANCE_ID, instanceId)
       putExtra(RollCallAlarmScheduler.EXTRA_TITLE, title)
+      putExtra(RollCallAlarmScheduler.EXTRA_BUTTON, button)
     }
     val fullPending = PendingIntent.getActivity(
       context, instanceId.hashCode(), full,

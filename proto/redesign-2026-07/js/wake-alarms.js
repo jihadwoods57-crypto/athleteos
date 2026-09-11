@@ -25,6 +25,9 @@ export const HORIZON_DAYS = 7;
  *
  * The rules, each of which exists because its absence would ring a phone wrongly:
  *   - wake-ups ONLY (`morning_roll_call`). No other commitment type takes over a screen.
+ *   - the COACH must have asked for an alarm. `alarm` is resolved server-side (0234) and is true
+ *     for every wake-up that predates the switch; a coach who turns it off leaves the athlete the
+ *     ordinary notification. Taking over somebody's phone at 5:45 is the coach's call to make.
  *   - the morning must still be AHEAD. An alarm for a roll call that already closed would ring for
  *     something the athlete can no longer answer.
  *   - never one already decided. An athlete who answered last night's early wake-up from the app
@@ -44,6 +47,7 @@ export function alarmsFor(rows, nowMs = Date.now()) {
 
   for (const r of rows) {
     if (!r || r.type !== WAKEUP_TYPE) continue;
+    if (r.alarm === false) continue; // the coach turned the alarm off for this wake-up
     const id = r.instance_id == null ? '' : String(r.instance_id);
     if (!id || seen.has(id)) continue;
 
@@ -65,6 +69,9 @@ export function alarmsFor(rows, nowMs = Date.now()) {
       // occurrence arrives as its own instance; a weekly recurrence here would double-arm.
       weekdays: [],
       title: alarmTitle(r),
+      // The coach's OWN button text, the same string the in-app card and the lock screen use.
+      // What they typed is what the athlete reads at 5:45.
+      buttonLabel: alarmButtonLabel(r),
       at,
     });
     seen.add(id);
@@ -73,6 +80,17 @@ export function alarmsFor(rows, nowMs = Date.now()) {
   out.sort((a, b) => a.at - b.at);
   return out.slice(0, MAX_ALARMS).map(({ at, ...rest }) => rest);
 }
+
+/** The alarm's action button. The coach's `action_label` if they set one, else the founder's
+ *  default. Bounded hard: AlarmKit gives this button one short line and iOS truncates without
+ *  telling anyone, and the coach composer already caps the field at 24. */
+export function alarmButtonLabel(row) {
+  const t = String((row && row.action_label) || '').trim();
+  return (t || DEFAULT_BUTTON).slice(0, 24);
+}
+
+/** Used when the coach did not name the button. The founder's word for the morning. */
+export const DEFAULT_BUTTON = 'Attack the day';
 
 /** What the alarm says when it takes over the screen. The coach's own words if they wrote any. */
 export function alarmTitle(row) {

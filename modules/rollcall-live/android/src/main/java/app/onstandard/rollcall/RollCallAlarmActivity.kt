@@ -44,11 +44,13 @@ class RollCallAlarmActivity : Activity() {
   private var vibrator: Vibrator? = null
   private var instanceId: String = ""
   private var title: String = "Wake up"
+  private var button: String = "Attack the day"
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     instanceId = intent.getStringExtra(RollCallAlarmScheduler.EXTRA_INSTANCE_ID).orEmpty()
     title = intent.getStringExtra(RollCallAlarmScheduler.EXTRA_TITLE) ?: "Wake up"
+    button = (intent.getStringExtra(RollCallAlarmScheduler.EXTRA_BUTTON) ?: "").ifBlank { "Attack the day" }
 
     showOverLockScreen()
     setContentView(buildView())
@@ -128,7 +130,8 @@ class RollCallAlarmActivity : Activity() {
 
   /** Blue into teal, the app's signature sweep, on the button that means "I am up". */
   private fun primaryButton(): Button = Button(this).apply {
-    text = "Attack the day"
+    // The COACH'S words. They typed it in the composer; this is where the athlete reads it.
+    text = button
     setTextColor(Color.WHITE)
     setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
     isAllCaps = false
@@ -187,7 +190,7 @@ class RollCallAlarmActivity : Activity() {
   private fun snooze() {
     stopRinging()
     clearNotification()
-    RollCallAlarmScheduler.scheduleIn(this, instanceId, SNOOZE_MINUTES, title)
+    RollCallAlarmScheduler.scheduleIn(this, instanceId, SNOOZE_MINUTES, title, button)
     finish()
   }
 

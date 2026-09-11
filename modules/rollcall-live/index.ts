@@ -19,6 +19,7 @@ export type WakeAlarm = {
   minute: number;
   weekdays?: number[];
   title?: string;
+  buttonLabel?: string;
 };
 
 type NativeModule = {
@@ -26,7 +27,7 @@ type NativeModule = {
   isAlarmSupported?: () => boolean;
   alarmAuthorizationState?: () => AlarmAuthorization;
   requestAlarmAuthorization?: () => Promise<AlarmAuthorization>;
-  scheduleWakeAlarm?: (instanceId: string, hour: number, minute: number, weekdays: number[], title: string) => Promise<string>;
+  scheduleWakeAlarm?: (instanceId: string, hour: number, minute: number, weekdays: number[], title: string, buttonLabel: string) => Promise<string>;
   cancelWakeAlarm?: (instanceId: string) => void;
   scheduledWakeAlarms?: () => Array<Record<string, unknown>>;
   startPushToStartObserver: () => void;
@@ -134,6 +135,7 @@ export async function scheduleWakeAlarm(a: WakeAlarm): Promise<string> {
   try {
     return (await native()?.scheduleWakeAlarm?.(
       a.instanceId, a.hour, a.minute, a.weekdays ?? [], a.title || 'Wake up',
+      a.buttonLabel || 'Attack the day',
     )) ?? '';
   } catch { return ''; }
 }

@@ -51,7 +51,7 @@ const blank = () => ({
   id: null, title: 'Roll call', message: '', action_label: '',
   audience_kind: 'team', audience_value: null,
   repeat_days: [1, 2, 3, 4, 5], starts_min: 360, grace_min: 5, close_after_min: CLOSE_DEFAULT_MIN,
-  escalation: { breakthrough: true, notify_coach_on_miss: true },
+  escalation: { breakthrough: true, notify_coach_on_miss: true, alarm: true },
   active: true, more: false,
 });
 
@@ -68,7 +68,13 @@ export function editWakeup(row) {
     starts_min: typeof row.starts_min === 'number' ? row.starts_min : 360,
     grace_min: grace,
     close_after_min: typeof row.ends_min === 'number' ? Math.max(grace, row.ends_min - row.starts_min) : CLOSE_DEFAULT_MIN,
-    escalation: (row.escalation && typeof row.escalation === 'object') ? { ...row.escalation } : {},
+    // `alarm` absent means the wake-up predates the switch, and 0234 resolves that to TRUE
+    // server-side. Reading it as anything else here would show a coach an OFF switch for an alarm
+    // that is in fact ringing.
+    escalation: {
+      ...((row.escalation && typeof row.escalation === 'object') ? row.escalation : {}),
+      alarm: !(row.escalation && row.escalation.alarm === false),
+    },
     active: row.active !== false,
     // A saved row with anything off the defaults opens with the fold open, so nothing set is hidden.
     more: !!(row.action_label
@@ -205,6 +211,14 @@ export const coachWakeupEdit = {
           ${DOW.map((n, i) => `<button class="chip ${d.repeat_days.includes(i) ? 'on' : ''}" role="checkbox" aria-checked="${d.repeat_days.includes(i) ? 'true' : 'false'}" aria-label="${DOW_FULL[i]}" data-day="${i}">${n}</button>`).join('')}
         </div>`)}
 
+      ${field('How it arrives',
+        `<div class="wk-chips" id="wk-alarm" role="group" aria-label="How it arrives">
+          <button class="chip ${d.escalation.alarm ? 'on' : ''}" role="checkbox" aria-checked="${d.escalation.alarm ? 'true' : 'false'}" data-esc="alarm">${icon('sun', 14)} Ring as an alarm</button>
+        </div>`,
+        d.escalation.alarm
+          ? `An alarm goes off on their phone, through Do Not Disturb, a Sleep Focus and silent mode. The button says "${esc((d.action_label || '').trim() || 'Attack the day')}" and answering it counts the morning. Needs iPhone 26.1 or an Android phone; anyone else gets the notification.`
+          : 'A notification only. Quiet if their phone is on silent or in a Sleep Focus, which is most phones at 5 AM.')}
+
       ${field('Who',
         `<div class="wk-chips" id="wk-aud" role="radiogroup" aria-label="Who">
           <button class="chip ${d.audience_kind === 'team' ? 'on' : ''}" role="radio" aria-checked="${d.audience_kind === 'team' ? 'true' : 'false'}" data-aud="team">${CD.kind === 'practice' ? 'All clients' : 'Entire team'}</button>
@@ -230,7 +244,7 @@ export const coachWakeupEdit = {
         `What ${esc(CD.nouns)} see as the heading. The time and your message sit under it.`)}
       ${field('Button label',
         `<input class="ob-input" id="wk-action" aria-label="Button label" maxlength="24" value="${esc(d.action_label)}" placeholder="I’m Up" />`,
-        'The one thing they tap, on the lock screen and in the app.')}
+        'The one thing they tap: on the alarm, on the lock screen and in the app.')}
       ${field('Closes',
         `<div class="wk-chips" id="wk-late" role="radiogroup" aria-label="Closes">
           ${CLOSE_CHOICES.map((v) => `<button class="chip ${d.close_after_min === v ? 'on' : ''}" role="radio" aria-checked="${d.close_after_min === v ? 'true' : 'false'}" data-late="${v}">${v} min after</button>`).join('')}
@@ -249,7 +263,12 @@ export const coachWakeupEdit = {
 
     <button class="btn primary" id="wk-save">${icon('check', 19)} ${editing ? 'Save changes' : 'Create roll call'}</button>
     <div id="wk-err" class="ts wk-err" aria-live="polite"></div>
-    <div class="ts wk-foot">${esc(CD.nouns.charAt(0).toUpperCase() + CD.nouns.slice(1))} get a lock-screen push at ${esc(fmtMin(d.starts_min))} with one button. You see who’s up live on the board.</div>`;
+    ${/* Says what actually happens, which now depends on the switch above. It used to promise a
+          lock-screen push unconditionally, which stopped being the whole truth the moment a
+          wake-up could ring as an alarm. */''}
+    <div class="ts wk-foot">${esc(CD.nouns.charAt(0).toUpperCase() + CD.nouns.slice(1))} ${d.escalation.alarm
+      ? `get a real alarm at ${esc(fmtMin(d.starts_min))} that rings through silent mode, with one button on it`
+      : `get a lock-screen push at ${esc(fmtMin(d.starts_min))} with one button`}. You see who’s up live on the board.</div>`;
   },
 
   mount(root) {
@@ -306,6 +325,9 @@ export const coachWakeupEdit = {
       d.escalation[k] = !d.escalation[k];
       b.classList.toggle('on', !!d.escalation[k]);
       b.setAttribute('aria-checked', d.escalation[k] ? 'true' : 'false');
+      // The alarm's help text says two different things depending on the switch, and one of them
+      // quotes the button label. Re-render rather than leave the copy contradicting the chip.
+      if (k === 'alarm' && window.__render) window.__render();
     }));
     const more = root.querySelector('#wk-more');
     if (more) more.addEventListener('click', () => { capture(); d.more = !d.more; window.__render && window.__render(); });

@@ -93,9 +93,9 @@ class RollCallLiveModule : Module() {
 
     /** Schedule (or replace) one wake-up. `weekdays` is 1 = Sunday .. 7 = Saturday; EMPTY is a
      *  one-off. Resolves to the alarm id, or "" when it could not be armed. */
-    AsyncFunction("scheduleWakeAlarm") { instanceId: String, hour: Int, minute: Int, weekdays: List<Int>, title: String ->
+    AsyncFunction("scheduleWakeAlarm") { instanceId: String, hour: Int, minute: Int, weekdays: List<Int>, title: String, buttonLabel: String ->
       val context = appContext.reactContext ?: return@AsyncFunction ""
-      val at = RollCallAlarmScheduler.schedule(context, instanceId, hour, minute, weekdays, title)
+      val at = RollCallAlarmScheduler.schedule(context, instanceId, hour, minute, weekdays, title, buttonLabel)
       if (at > 0L) instanceId else ""
     }
 

@@ -141,7 +141,8 @@ public enum RollCallAlarmScheduler {
     hour: Int,
     minute: Int,
     weekdays: [Int],
-    title: String
+    title: String,
+    buttonLabel: String
   ) async throws -> String {
     let id = alarmID(for: instanceId)
 
@@ -150,8 +151,11 @@ public enum RollCallAlarmScheduler {
     // first also clears an alarm left over from a schedule the server has since deleted.
     try? AlarmManager.shared.cancel(id: id)
 
+    // The COACH'S words, not ours. `secondaryButtonLabel` is only the fallback for a coach who
+    // never named the button.
+    let label = buttonLabel.trimmingCharacters(in: .whitespacesAndNewlines)
     let button = AlarmButton(
-      text: LocalizedStringResource(stringLiteral: RollCallAlarm.secondaryButtonLabel),
+      text: LocalizedStringResource(stringLiteral: label.isEmpty ? RollCallAlarm.secondaryButtonLabel : label),
       textColor: tint,
       systemImageName: "sunrise.fill"
     )

@@ -3,6 +3,7 @@ import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
 import { morningSummary, morningStreak, wakeClock, WAKEUP_TYPE } from '../wakeup-morning.js';
 import { VC, loadMyMornings } from '../commitment-data.js';
+import { wakeAlarmState, alarmButtonLabel } from '../wake-alarms.js';
 
 /* Who is up.
  *
@@ -50,10 +51,16 @@ export default {
     ${rows ? `<h2 class="eyebrow">In order</h2>
     <section class="card rows">${rows}</section>` : ''}
     ${left > 0 ? `<div class="wk-cap wk-left">${left} still to answer.</div>` : ''}
+
+    ${/* The alarm, and whether this phone will actually ring. Painted async in mount(): asking
+          native is a round trip, and the answer is different on every device. An empty slot is
+          the honest outcome when there is no bridge at all (a browser, an older build). */''}
+    <div id="wk-alarm-slot"></div>
     <div class="wk-gap"></div>
     `;
   },
   async mount(root) {
+    void paintAlarm(root);
     const slot = root.querySelector('#wk-streak-slot');
     if (!slot) return;
     /* Painted async into a slot rather than rendered inline: the range read is a second round
@@ -64,3 +71,35 @@ export default {
     slot.innerHTML = `<div class="wk-streak">${n} straight ${n === 1 ? 'morning' : 'mornings'}</div>`;
   },
 };
+
+/* What this phone will actually do at the wake-up time, and the one action that can change it.
+ *
+ * Deliberately says nothing on a device with no alarm support: an athlete on an older iPhone
+ * cannot act on "your phone cannot do this", and a row that only ever reports a limitation is
+ * noise on the screen they check to see who is up. */
+async function paintAlarm(root) {
+  const slot = root && root.querySelector('#wk-alarm-slot');
+  if (!slot) return;
+  const st = await wakeAlarmState();
+  if (!st || !st.supported || !slot.isConnected) return;
+
+  const inst = VC.mine && VC.mine.find((r) => r && r.type === WAKEUP_TYPE);
+  const label = alarmButtonLabel(inst);
+  const denied = st.authorization === 'denied';
+  const armed = Number(st.armed) || 0;
+
+  const body = denied
+    ? `<div class="lt">Alarms are turned off</div><div class="ls">Your coach's wake-up will only show as a notification, which a Sleep Focus can silence. Turn alarms on for OnStandard in Settings.</div>`
+    : armed > 0
+      ? `<div class="lt">${armed} ${armed === 1 ? 'morning' : 'mornings'} set to ring</div><div class="ls">It goes off through Do Not Disturb and silent mode. Tap "${esc(label)}" and the morning counts.</div>`
+      : `<div class="lt">Nothing set to ring</div><div class="ls">Your coach has not put an alarm on the next wake-up. It will arrive as a notification.</div>`;
+
+  slot.innerHTML = `
+    <h2 class="eyebrow">Your alarm</h2>
+    <section class="card rows">
+      <div class="lrow wk-alarm ${denied ? 'off' : armed > 0 ? 'on' : ''}" role="listitem">
+        <div class="lic">${icon(denied ? 'alert' : 'sun', 17)}</div>
+        <div class="lm">${body}</div>
+      </div>
+    </section>`;
+}

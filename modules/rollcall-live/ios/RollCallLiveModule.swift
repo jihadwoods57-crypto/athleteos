@@ -113,11 +113,12 @@ public class RollCallLiveModule: Module {
     /// 7 = Saturday; EMPTY schedules a one-off, which is what a single dated roll call is.
     /// Resolves to the alarm's id, or "" where alarms are unsupported - never a rejection, because
     /// a caller on iOS 18 has done nothing wrong.
-    AsyncFunction("scheduleWakeAlarm") { (instanceId: String, hour: Int, minute: Int, weekdays: [Int], title: String) -> String in
+    AsyncFunction("scheduleWakeAlarm") { (instanceId: String, hour: Int, minute: Int, weekdays: [Int], title: String, buttonLabel: String) -> String in
       #if canImport(AlarmKit)
       if #available(iOS 26.1, *) {
         return (try? await RollCallAlarmScheduler.schedule(
-          instanceId: instanceId, hour: hour, minute: minute, weekdays: weekdays, title: title
+          instanceId: instanceId, hour: hour, minute: minute, weekdays: weekdays,
+          title: title, buttonLabel: buttonLabel
         )) ?? ""
       }
       #endif
