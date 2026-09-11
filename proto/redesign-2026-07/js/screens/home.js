@@ -9,6 +9,8 @@ import { maybeShowLock } from '../lock-moment.js';
 import { DAY, MEAL_KEYS } from '../day.js';
 import { fetchMyDayReceipts, fetchRecentMeals, signedMealPhotoUrl, daysAgoISO, todayISO, fetchMyReplyInputs } from '../roles.js';
 import { unreadCoachReplies, replyRow } from '../coach-replies.js';
+import { wakeupReceipt, receiptHtml } from '../wakeup-handoff.js';
+import { WAKEUP_TYPE } from '../wakeup-morning.js';
 import { warmMealPhotos, todayMealPhotoPath } from '../photo-store.js';
 import { shouldNudge, nudgeSignature, nudgeData } from '../coach-nudge.js';
 import { deriveCommitment, presenceOf, PRESENCE, tomorrowRollcall } from '../commitments.js';
@@ -982,6 +984,7 @@ export default {
       ${outcomeBand()}
       <div id="presence-row"></div>
       <div id="seen-row" style="width:100%"></div>
+      ${receiptHtml(wakeupReceipt((VC.board || []).find((i) => i.type === WAKEUP_TYPE) || null, RT.userId), esc)}
       <div id="reply-row"></div>
       ${recentResults()}
       <div style="height:20px"></div>`;
@@ -1022,7 +1025,8 @@ export default {
     <div id="seen-row" data-tour="coach-seen"></div>
     ${/* "Your coach replied" (0229): the third receipt, injected async like the two above, and
           the only one that is a door. Empty when nothing is unread, so Home is byte-identical. */''}
-    <div id="reply-row"></div>
+    ${receiptHtml(wakeupReceipt((VC.board || []).find((i) => i.type === WAKEUP_TYPE) || null, RT.userId), esc)}
+      <div id="reply-row"></div>
     <div id="vc-slot"></div>
     <div id="cs-slot" data-tour="standards"></div>
     ${attention}

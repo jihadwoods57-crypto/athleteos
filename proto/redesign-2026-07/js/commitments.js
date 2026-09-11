@@ -43,7 +43,7 @@ import { weekdayDate } from './fmt-date.js';
    product inert; this one alone would only hide the doors. Turning it back on wants
    both, and the server first.
    ================================================================================ */
-export const ROLLCALL_OFF = true;
+export const ROLLCALL_OFF = false;
 
 export const TYPE_LABEL = {
   morning_roll_call: 'Morning Roll Call',

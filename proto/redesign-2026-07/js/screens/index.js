@@ -103,6 +103,8 @@ export const screens = {
   home,
   'score-breakdown': lazy(() => import('./breakdown.js')),
   'score-explained': lazy(() => import('./score-explained.js')),
+  'wakeup-morning': lazy(() => import('./wakeup-morning.js')),
+  'wakeup-squad': lazy(() => import('./wakeup-squad.js')),
   plan,
   'memory-edit': lazy(() => import('./memory-edit.js')),
   'plan-ask': lazy(() => import('./plan-ask.js')),

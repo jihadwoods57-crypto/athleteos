@@ -290,6 +290,17 @@ export async function loadBoardFor(ownerId, kind, dayISO, force = false) {
 
 /** The week ahead for one roll call (0215): the next `days` occurrences, materialized on the
  *  server on the way in. null = the fetch failed (never rendered as "nothing scheduled"). */
+export async function loadMyMornings(days = 30) {
+  const to = todayISO();
+  const from = shiftISO(to, -Math.max(1, days));
+  const rows = await loadMineRange(from, to);
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .filter((r) => r.type === 'morning_roll_call' && r.verdict !== 'excused')
+    .sort((a, b) => String(b.occurs_on).localeCompare(String(a.occurs_on)))
+    .map((r) => r.verdict === 'on_standard');
+}
+
 export async function loadUpcoming(commitmentId, days = 7, force = false) {
   const c = sb(); if (!c || !commitmentId) return null;
   const have = RTC.upcoming.get(commitmentId);
