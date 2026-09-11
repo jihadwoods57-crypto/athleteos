@@ -91,11 +91,28 @@ lands on snooze rather than on stop, which is backwards, and the answer is to ma
 button our own affirmative action through a custom App Intent and let Apple's plain stop sit
 underneath it. Settle this on the first device build; it is a small change either way.
 
-**Do not write "full-screen takeover" anywhere.** The words full-screen, fullscreen, banner, modal
-and sheet appear nowhere in session 230 or in any AlarmKit documentation page, and the reference
-docs carry no screenshots. What Apple says is that it is "a prominent alert" that "breaks through
-the silent mode and the current focus" and shows the custom title plus the app's name. That is all
-we can claim.
+**It IS a full-screen takeover on a locked phone. Confirmed 2026-09-11, founder was right.** An
+earlier draft of this spec told the reader not to claim this, because Apple's own documentation
+only ever says "a prominent alert" and carries no screenshots. That hedge was wrong. Evidence:
+
+- a published screenshot of a working third-party AlarmKit build alerting on a lock screen, showing
+  the full-bleed Clock-alarm treatment, giant time numerals, app name and a large pill button
+  (nilcoalescing.com, 2025-07-03);
+- an Apple Developer Forums bug report from a developer running it on an iPhone 14 Pro Max on iOS
+  26.0, whose own words are "fullscreen alarm interface", and which confirms an alarm carries both
+  **Stop and Snooze** (thread 803735);
+- Apple's own launch framing, that third-party apps get the same feature set as the built-in alarm
+  "including full-screen snooze and stop display options".
+
+**Locked and unlocked are different presentations, and the system picks.** Locked gets the
+full-screen takeover. Unlocked gets a compact Dynamic Island style banner. There is no API to
+choose; nothing in `AlarmPresentation.Alert` or `AlarmPresentationState` exposes a size. The two
+sizes are observed behaviour, not a documented distinction.
+
+**iOS 26.1 turned Stop into a slide gesture** rather than a tap, reported for the Clock app and
+probably applying to the same system-rendered view. Two consequences: never write "tap Stop" in
+copy, and note that a slide is meaningfully harder to perform half-asleep than a tap. That
+partially covers the hole left by cutting the step check, though it does not close it.
 
 Requirements: iOS 26 minimum, `NSAlarmKitUsageDescription` in the Info.plist, a runtime
 authorization prompt, and a widget extension. The extension is not optional: Apple's docs warn
