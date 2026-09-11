@@ -30,5 +30,10 @@ Pod::Spec.new do |s|
   # RollCallAttributes.swift and RollCallCheckInIntent.swift are compiled into the APP here, and
   # BOTH also need target membership in the extension: the extension draws the card and constructs
   # the intent, so it needs both types at compile time. See ROLLCALL-LIVE-ACTIVITY.md.
-  s.source_files = 'RollCallAttributes.swift', 'RollCallLiveModule.swift', 'RollCallCheckInIntent.swift'
+  #
+  # RollCallAlarm.swift holds the AlarmKit scheduler and the "Attack the day" intent. It is an
+  # EXPLICIT list, not a glob, so a new file is invisible to the build until it is named here -
+  # and the failure is a compile error in RollCallLiveModule.swift ("cannot find
+  # 'RollCallAlarmScheduler' in scope"), which reads like a typo rather than a missing file.
+  s.source_files = 'RollCallAttributes.swift', 'RollCallLiveModule.swift', 'RollCallCheckInIntent.swift', 'RollCallAlarm.swift'
 end
