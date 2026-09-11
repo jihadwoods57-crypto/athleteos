@@ -30,9 +30,9 @@ const GOOD_CI = {
 };
 
 test('weights are the v2 mix and commitment carries none of it', () => {
-  assert.deepEqual(PROFILE_WEIGHTS.athlete, { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 });
-  assert.deepEqual(PROFILE_WEIGHTS.general, { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 });
-  assert.deepEqual(PROFILE_WEIGHTS.gain, { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 });
+  assert.deepEqual(PROFILE_WEIGHTS.athlete, { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: 0 });
+  assert.deepEqual(PROFILE_WEIGHTS.general, { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: 0 });
+  assert.deepEqual(PROFILE_WEIGHTS.gain, { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: 0 });
 });
 
 test('a day with nothing logged and no check-in scores exactly 0', () => {

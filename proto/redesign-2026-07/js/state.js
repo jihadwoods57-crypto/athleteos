@@ -234,7 +234,8 @@ export function computeScore(c) {
     w.nutrition * c.nutrition +
     w.recovery  * c.recovery +
     w.commitment* c.commitment +
-    w.checkin   * c.checkin
+    w.checkin   * c.checkin +
+    (w.wakeup || 0) * (c.wakeup || 0)
   );
 }
 

@@ -63,8 +63,24 @@ export function resolveStyleKey(x) {
 
 /* ---------------------------------------------------------------- weights */
 
+/* ------------------------------------------------- the morning's share, when there is one */
+
+/**
+ * How much of the nightly check-in's 18 points moves to the MORNING on a day the coach assigned
+ * a wake-up. Taken evenly from the two check-in slots, so the day still sums to exactly 1 and
+ * nutrition's 82 never moves - food stays the only road to the 80 line on its own.
+ *
+ * This is the ONE number that turns the morning on. At 0 the wake-up slot exists everywhere, is
+ * carried through every sum and every test, and changes nobody's score by a single point.
+ */
+export const WAKEUP_SHIFT = 0;
+
 /** Per-component ceiling, mirroring the 0193 evidence-ceiling slots. NOTHING may exceed these. */
-export const WEIGHT_CAPS = { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 };
+export const WEIGHT_CAPS = { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: WAKEUP_SHIFT };
+/* The wake-up cap is WAKEUP_SHIFT itself, never a literal. scoreIntegrity.ts derives the server's
+   ceiling from the live weights and planStyleCaps.test.ts asserts the two are equal, so a cap
+   written as an aspiration (0.08 while the shift is still 0) would make the server clamp every
+   wake-up day back down the moment the morning was turned on. One number, two places, derived. */
 
 /**
  * Headline mix per goal profile — v2. Two pillars the athlete sees, three slots the engine uses:
@@ -73,16 +89,26 @@ export const WEIGHT_CAPS = { nutrition: 0.82, recovery: 0.09, commitment: 0, che
  *   recovery  — how those answers scored
  * `commitment` is 0: the end-of-day reflection is still captured and still shown to the coach, it
  * just no longer scores, so an honest "no" costs nothing and the coach's data gets truthful.
+ *
+ * `wakeup` is 0 in every row here and that is deliberate. It is the coach-assigned morning roll
+ * call, and it only carries weight on a day a wake-up was actually ASSIGNED — so its weight is
+ * decided per day by weightsForDay (day.js), not per profile. These rows are the no-wake-up
+ * mix, which is every day for every athlete whose coach has not set one. See WAKEUP_SHIFT.
  */
-export const PROFILE_WEIGHTS = {
+export const PROFILE_WEIGHTS = Object.freeze({
   /* v3 (2026-09-09, founder): food is 82 of the 100. A perfect food day clears the 80
      on-standard line on its own; the nightly check-in adds 18, split between submitting it (9)
      and answering every question (9). It used to be 76 + 24, which put a flawless day of eating
      at "Building" until a button was pressed. */
-  athlete: { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 },
-  general: { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 },
-  gain: { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 },
-};
+  athlete: { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: 0 },
+  general: { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: 0 },
+  gain: { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: 0 },
+});
+/* Frozen, rows and all. weightsFor returns one of these rows BY IDENTITY to every caller in the
+   app, so a single careless `w.nutrition = x` anywhere would re-weight every day on screen and
+   every day scored after it. Freezing turns that into a throw at the call site instead of a
+   silent, season-wide scoring change. wakeup-score.test.mjs found this the hard way. */
+for (const row of Object.values(PROFILE_WEIGHTS)) Object.freeze(row);
 
 /** The headline mix for a (style, profile). `style` is accepted and ignored — the signature is
  *  kept so no call site changes. An unknown profile falls back to athlete, so a bad value can
@@ -92,11 +118,20 @@ export function weightsFor(style, profile) {
   return PROFILE_WEIGHTS[p];
 }
 
+/** The mix for a day that HAS an assigned wake-up. Always a fresh object: PROFILE_WEIGHTS rows
+ *  are shared across every day on screen, so returning a mutated one would re-weight the season. */
+export function weightsForWakeupDay(profile) {
+  const base = weightsFor(null, profile);
+  if (!WAKEUP_SHIFT) return { ...base };
+  const half = WAKEUP_SHIFT / 2;
+  return { ...base, recovery: base.recovery - half, checkin: base.checkin - half, wakeup: WAKEUP_SHIFT };
+}
+
 /** True when every component is within its cap AND the mix sums to 1 (within float slop).
  *  Exported so the caps test can sweep every preset and every override permutation. */
 export function weightsWithinCaps(w) {
   if (!w) return false;
-  const keys = ['nutrition', 'recovery', 'commitment', 'checkin'];
+  const keys = ['nutrition', 'recovery', 'commitment', 'checkin', 'wakeup'];
   let sum = 0;
   for (const k of keys) {
     const v = w[k];

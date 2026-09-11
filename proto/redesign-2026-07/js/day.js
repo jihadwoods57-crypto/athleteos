@@ -7,7 +7,7 @@
 // functions guarded for a non-browser environment.
 
 import {
-  LEGACY_STYLE, knobsFor, weightsFor, resolveStyleKey,
+  LEGACY_STYLE, knobsFor, weightsFor, weightsForWakeupDay, resolveStyleKey,
   rangeAdherence, fuelingAdequacy, awarenessScore, answeredSignals,
 } from './plan-style.js';
 // score-band.js is dependency-free on purpose, so the parity test can still import this module
@@ -404,6 +404,22 @@ function commitmentScore(ans) { return ans === 'yes' ? 100 : ans === 'partial' ?
    seven-day annuity — one check-in on Monday paid every day through Sunday. */
 export function checkinReal(day) { return !!day.ciSubmitted; }
 
+/* ---- the coach-assigned morning (wake-up roll call) ----------------------------------------
+   The verdict is ALWAYS the server's (rollcall_verdict, 0212) — this never re-derives one from a
+   timestamp, the same rule wakeup-morning.js follows. A day with no assigned wake-up, or an
+   EXCUSED one, is `assigned: false`: it leaves the denominator entirely rather than scoring zero,
+   so an athlete the coach excused is not punished for a morning they were told to skip. */
+/** @returns {{score:number, assigned:boolean}} score is 0-100; 0 when nothing was assigned. */
+export function wakeupParts(day) {
+  const w = day && day.wakeup;
+  if (!w || !w.assigned) return { score: 0, assigned: false };
+  const v = String(w.verdict || '');
+  if (v === 'excused') return { score: 0, assigned: false };
+  if (v === 'on_standard') return { score: 100, assigned: true };
+  if (v === 'late') return { score: 50, assigned: true }; // on time counts full, late counts half
+  return { score: 0, assigned: true }; // never answered
+}
+
 /* ---- Trust Pass credit (0196) ----------------------------------------------------------------
    A pass-covered slot has no logged meal, so the honest thing to score is the athlete's own
    trailing median for that slot. pass.js synthesizes it into a CLONE and this is the single seam
@@ -435,18 +451,22 @@ function scoringView(day, std = STD) {
   return withPassCredit(day, std, coverage, medians);
 }
 
-/** The four sub-scores. `recoveryContribution` is what the total uses (0 unless a real check-in
- *  backs it). Only nutrition depends on the standard (meal slots/windows/denominator); recovery,
- *  commitment, and check-in are standard-independent, so `std` only reaches nutritionScore. */
+/** The sub-scores. `recoveryContribution` is what the total uses (0 unless a real check-in backs
+ *  it). Only nutrition depends on the standard (meal slots/windows/denominator); recovery,
+ *  commitment, check-in and the morning are standard-independent, so `std` only reaches
+ *  nutritionScore. `wakeupAssigned` is what decides the day's MIX, not the sub-score itself. */
 export function computeComponents(day, std = STD) {
   const v = scoringView(day, std);
   const rec = recoveryParts(v.day);
+  const wake = wakeupParts(v.day);
   return {
     nutrition: nutritionScore(v.day, v.std),
     recovery: rec.score,
     recoveryContribution: rec.isReal ? rec.score : 0,
     commitment: commitmentScore(v.day.dailyCommitment),
     checkin: checkinReal(v.day) ? 100 : 0,
+    wakeup: wake.score,
+    wakeupAssigned: wake.assigned,
   };
 }
 
@@ -454,13 +474,16 @@ export function computeComponents(day, std = STD) {
  *  capped so the 0041 evidence ceiling still bounds the result (planStyleCaps.test.ts), and the
  *  `structured` row IS PROFILE_WEIGHTS — so a classic day weighs exactly what it always did. */
 export function weightsForDay(day) {
+  // The morning only takes a share on a day it was actually assigned. Every other day is the
+  // plain profile row, unchanged, which is why turning this on moves nobody else's number.
+  if (wakeupParts(day).assigned) return weightsForWakeupDay(day.scoringProfile);
   return weightsFor(styleOf(day), day.scoringProfile);
 }
 
 export function scoreFor(day, std = STD) {
   const w = weightsForDay(day);
   const c = computeComponents(day, std);
-  return clamp(Math.round(w.nutrition * c.nutrition + w.recovery * c.recoveryContribution + w.commitment * c.commitment + w.checkin * c.checkin), 0, 100);
+  return clamp(Math.round(w.nutrition * c.nutrition + w.recovery * c.recoveryContribution + w.commitment * c.commitment + w.checkin * c.checkin + (w.wakeup || 0) * c.wakeup), 0, 100);
 }
 
 // gradeFor moved to score-band.js (the letter ladder shares the tier floors plus its own 70 step);
@@ -483,7 +506,18 @@ export function evidenceCeiling(day, std = STD) {
   // sees no logged meal, and returns 0. clampedScore would then show the athlete a zero for the
   // day their reward was supposed to protect. Mirrors gate (d) of 0196's server ceiling.
   const v = scoringView(day, std);
-  return (hasNutritionEvidence(v.day, v.std) ? 82 : 0) + (checkinReal(v.day) ? 18 : 0);
+  // Derived from the day's OWN mix rather than the literals 82 and 18. Those two numbers were a
+  // third hand-written copy of the weights, and they silently stopped matching the day the
+  // morning takes a share of the check-in's 18. Reading the mix cannot drift from it.
+  const w = weightsForDay(day);
+  const wake = wakeupParts(v.day);
+  return Math.round(
+    (hasNutritionEvidence(v.day, v.std) ? w.nutrition * 100 : 0)
+    + (checkinReal(v.day) ? (w.recovery + w.checkin) * 100 : 0)
+    // An assigned morning justifies its share only once it was actually ANSWERED. A missed one
+    // scores 0 anyway, so this never binds; it exists so the ceiling stays honest evidence.
+    + (wake.assigned && wake.score > 0 ? (w.wakeup || 0) * 100 : 0),
+  );
 }
 export function clampedScore(day) { return Math.min(scoreFor(day), evidenceCeiling(day)); }
 

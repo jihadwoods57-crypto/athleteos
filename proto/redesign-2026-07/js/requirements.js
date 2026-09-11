@@ -32,7 +32,7 @@ export function setImpactWeightsProvider(fn) { weightsProvider = typeof fn === '
 /* Import-free by design (see the exec.test catalog seam), so this is the ONE legal copy of the
    weights outside plan-style.js. weight-sources.test.mjs pins it to the engine's athlete row and
    fails the build if either side moves. */
-export const FALLBACK_WEIGHTS = { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 };
+export const FALLBACK_WEIGHTS = { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: 0 };
 function impactWeights() {
   let w = null;
   try { w = weightsProvider ? weightsProvider() : null; } catch (_) { w = null; }

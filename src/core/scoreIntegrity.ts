@@ -15,7 +15,7 @@
 // (a tampered client bypasses everything in this file); this TS copy is the tested spec that
 // mirror and the honest client self-limit both share.
 import type { Derived } from './types';
-import { PROFILE_WEIGHTS } from './scoringProfiles';
+import { PROFILE_WEIGHTS, WAKEUP_SHIFT } from './scoringProfiles';
 import { withinTrailingWeek } from './clock';
 
 /**
@@ -42,10 +42,14 @@ const V1_CEILING = { nutrition: 55, checkinAndRecovery: 35, commitment: 15 } as 
  * athlete is on, so neither the trigger nor the row has to know the profile. Derived from
  * PROFILE_WEIGHTS so it can never silently drift from the engine.
  */
-export const MAX_SUBSCORE_WEIGHT = ((): { nutrition: number; recovery: number; commitment: number; checkin: number } => {
+export const MAX_SUBSCORE_WEIGHT = ((): { nutrition: number; recovery: number; commitment: number; checkin: number; wakeup: number } => {
   const ws = Object.values(PROFILE_WEIGHTS);
   const maxOf = (k: 'nutrition' | 'recovery' | 'commitment' | 'checkin') => Math.max(...ws.map((w) => w[k]));
-  return { nutrition: maxOf('nutrition'), recovery: maxOf('recovery'), commitment: maxOf('commitment'), checkin: maxOf('checkin') };
+  // The morning's max is WAKEUP_SHIFT, not a PROFILE_WEIGHTS column: it is a per-DAY weight, so
+  // the rows all read 0 and the true maximum lives in the shift. recovery and checkin keep their
+  // full 0.09 because a day with no wake-up still pays them in full, and a ceiling is only ever
+  // safe in the loose direction.
+  return { nutrition: maxOf('nutrition'), recovery: maxOf('recovery'), commitment: maxOf('commitment'), checkin: maxOf('checkin'), wakeup: WAKEUP_SHIFT };
 })();
 
 /** v2 ceiling slots, frozen (78 / 24 / 0). Literal for the same reason V1 is: they describe a

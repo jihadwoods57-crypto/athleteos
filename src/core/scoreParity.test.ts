@@ -11,7 +11,8 @@ import type { AppState } from './types';
 import { computeComponents, scoreFor } from '../../proto/redesign-2026-07/js/day.js';
 // @ts-ignore — the proto's own knobsFor, so a stamped test day carries the SAME knobs the live
 // app would resolve for that style, never a hand-rolled substitute (allowJs).
-import { knobsFor } from '../../proto/redesign-2026-07/js/plan-style.js';
+import { knobsFor, WAKEUP_SHIFT as PROTO_WAKEUP_SHIFT, weightsForWakeupDay as protoWakeupMix } from '../../proto/redesign-2026-07/js/plan-style.js';
+import { WAKEUP_SHIFT as ENGINE_WAKEUP_SHIFT, weightsForWakeupDay as engineWakeupMix } from './scoringProfiles';
 
 const MEAL_KEYS = ['breakfast', 'lunch', 'snack', 'dinner'] as const;
 
@@ -210,4 +211,19 @@ describe('proto day.js ↔ RN engine score parity (guided / intuitive style, all
         parity(`${style}-${profile}-empty`, emptyDay(profile), style));
     }
   }
+});
+
+describe('the coach-assigned morning is the same weight in both engines', () => {
+  // WAKEUP_SHIFT is the one number that turns the morning on. It is written twice - once in the
+  // proto, once in the RN engine - and a build where those disagree scores the same day two
+  // different ways depending on which engine last touched the row.
+  it('both engines carry the same shift', () => {
+    expect(PROTO_WAKEUP_SHIFT).toBe(ENGINE_WAKEUP_SHIFT);
+  });
+
+  it('both engines build the same wake-up-day mix', () => {
+    for (const p of ['athlete', 'general', 'gain'] as const) {
+      expect(protoWakeupMix(p)).toEqual(engineWakeupMix(p));
+    }
+  });
 });

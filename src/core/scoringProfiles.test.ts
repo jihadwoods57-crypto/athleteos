@@ -10,11 +10,11 @@ describe('PROFILE_WEIGHTS', () => {
   it('every profile mix sums to 1', () => {
     for (const p of ['athlete', 'general', 'gain'] as const) {
       const w = PROFILE_WEIGHTS[p];
-      expect(w.nutrition + w.recovery + w.commitment + w.checkin).toBeCloseTo(1, 5);
+      expect(w.nutrition + w.recovery + w.commitment + w.checkin + w.wakeup).toBeCloseTo(1, 5);
     }
   });
   it('athlete carries the score v2 mix', () => {
-    expect(PROFILE_WEIGHTS.athlete).toEqual({ nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 });
+    expect(PROFILE_WEIGHTS.athlete).toEqual({ nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: 0 });
   });
 });
 
@@ -123,9 +123,9 @@ describe('computeDerived honors the profile', () => {
 
 describe('score v2 weights', () => {
   it('matches the proto engine exactly', () => {
-    expect(PROFILE_WEIGHTS.athlete).toEqual({ nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 });
-    expect(PROFILE_WEIGHTS.general).toEqual({ nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 });
-    expect(PROFILE_WEIGHTS.gain).toEqual({ nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 });
+    expect(PROFILE_WEIGHTS.athlete).toEqual({ nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: 0 });
+    expect(PROFILE_WEIGHTS.general).toEqual({ nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: 0 });
+    expect(PROFILE_WEIGHTS.gain).toEqual({ nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: 0 });
   });
 
   it('every profile sums to 1', () => {

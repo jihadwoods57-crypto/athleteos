@@ -28,16 +28,38 @@ export interface ProfileWeights {
   commitment: number;
   /** v2: a check-in was submitted TONIGHT — binary, guaranteed. */
   checkin: number;
+  /** The coach-assigned morning roll call. 0 in every profile row: it only carries weight on a
+   *  day a wake-up was ASSIGNED, which is a per-day decision, not a per-profile one. */
+  wakeup: number;
 }
 
 /** Headline mix per profile — score v2. MUST equal proto plan-style.js PROFILE_WEIGHTS;
  *  scoreParity.test.ts proves the two engines agree. */
 export const PROFILE_WEIGHTS: Record<ScoringProfile, ProfileWeights> = {
   // v3 (2026-09-09): food 82, check-in submitted 9, check-in complete 9. Mirrors proto plan-style.js.
-  athlete: { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 },
-  general: { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 },
-  gain: { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 },
+  athlete: { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: 0 },
+  general: { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: 0 },
+  gain: { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: 0 },
 };
+
+/**
+ * How much of the nightly check-in's 18 points moves to the MORNING on a day the coach assigned
+ * a wake-up roll call. MUST equal proto plan-style.js WAKEUP_SHIFT; scoreParity.test.ts pins it.
+ *
+ * It lives outside PROFILE_WEIGHTS on purpose: the morning is a PER-DAY weight, not a per-profile
+ * one, so the rows above stay the mix for a day with no wake-up assigned, which is every day for
+ * every athlete whose coach has not set one.
+ */
+export const WAKEUP_SHIFT = 0;
+
+/** The mix for a day that HAS an assigned wake-up. Taken evenly from the two check-in slots, so
+ *  the day still sums to 1 and nutrition's 82 never moves. Always a fresh object. */
+export function weightsForWakeupDay(profile: ScoringProfile): ProfileWeights {
+  const base = PROFILE_WEIGHTS[profile] ?? PROFILE_WEIGHTS.athlete;
+  if (!WAKEUP_SHIFT) return { ...base };
+  const half = WAKEUP_SHIFT / 2;
+  return { ...base, recovery: base.recovery - half, checkin: base.checkin - half, wakeup: WAKEUP_SHIFT };
+}
 
 /** Map a user's GOAL to the platform-owned scoring profile. A solo client never gets a coach to
  *  pick this, so signup auto-assigns it (and the UI discloses it). Performance is the default so

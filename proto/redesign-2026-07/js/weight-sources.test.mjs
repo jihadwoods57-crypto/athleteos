@@ -18,9 +18,9 @@ test('requirements.js FALLBACK_WEIGHTS equals the athlete row', () => {
 
 test('every profile sums to 1 and sits within the caps', () => {
   for (const [name, w] of Object.entries(PROFILE_WEIGHTS)) {
-    const sum = w.nutrition + w.recovery + w.commitment + w.checkin;
+    const sum = w.nutrition + w.recovery + w.commitment + w.checkin + w.wakeup;
     assert.ok(Math.abs(sum - 1) < 1e-9, `${name} sums to ${sum}, not 1`);
-    for (const k of ['nutrition', 'recovery', 'commitment', 'checkin']) {
+    for (const k of ['nutrition', 'recovery', 'commitment', 'checkin', 'wakeup']) {
       assert.ok(w[k] <= WEIGHT_CAPS[k] + 1e-9, `${name}.${k} = ${w[k]} exceeds cap ${WEIGHT_CAPS[k]}`);
     }
   }

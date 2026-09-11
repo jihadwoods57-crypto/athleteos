@@ -26,7 +26,8 @@ export function dayScoreOf(day) {
   const c = computeComponents(day);
   const w = weightsFor(day);
   return Math.max(0, Math.min(100, Math.round(
-    w.nutrition * c.nutrition + w.recovery * c.recoveryContribution + w.commitment * c.commitment + w.checkin * c.checkin,
+    w.nutrition * c.nutrition + w.recovery * c.recoveryContribution + w.commitment * c.commitment + w.checkin * c.checkin
+    + (w.wakeup || 0) * (c.wakeup || 0),
   )));
 }
 

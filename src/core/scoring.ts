@@ -350,8 +350,21 @@ export function computeDerived(s: AppState): Derived {
   // Nutrition (0.76) is 0 without a logged meal, so photo logging stays the only road to 80.
   // See docs/council/2026-07-02-trust-pass.md.
   const commitmentSubScore = commitmentScore(s.dailyCommitment);
+  // The coach-assigned morning. Mirrors proto day.js wakeupParts: the server's verdict is the
+  // only authority, on time counts full and late counts half, and an EXCUSED morning leaves the
+  // denominator rather than scoring zero. `w.wakeup` is 0 in every profile row, so this term is
+  // inert until a day carries its own wake-up mix (proto plan-style.js WAKEUP_SHIFT).
+  const wake = (s as { wakeup?: { assigned?: boolean; verdict?: string } }).wakeup;
+  const wakeupScore =
+    !wake || !wake.assigned || wake.verdict === 'excused'
+      ? 0
+      : wake.verdict === 'on_standard'
+        ? 100
+        : wake.verdict === 'late'
+          ? 50
+          : 0;
   const athleteScore = clamp(
-    Math.round(w.nutrition * nutritionScore + w.recovery * recoveryContribution + w.commitment * commitmentSubScore + w.checkin * checkinScore),
+    Math.round(w.nutrition * nutritionScore + w.recovery * recoveryContribution + w.commitment * commitmentSubScore + w.checkin * checkinScore + (w.wakeup ?? 0) * wakeupScore),
     0,
     100,
   );

@@ -36,7 +36,7 @@
 //
 // MIRRORED BY proto/redesign-2026-07/js/plan-style.js — planStyleParity.test.ts locks the two together.
 import type { ScoringProfile } from './types';
-import { PROFILE_WEIGHTS as ENGINE_PROFILE_WEIGHTS } from './scoringProfiles';
+import { PROFILE_WEIGHTS as ENGINE_PROFILE_WEIGHTS, WAKEUP_SHIFT } from './scoringProfiles';
 
 export type PlanStyle = 'structured' | 'guided' | 'intuitive';
 export type StyleSource = 'team' | 'pro' | 'preference' | 'self' | 'legacy' | 'default';
@@ -75,10 +75,11 @@ export interface StyleWeights {
   recovery: number;
   commitment: number;
   checkin: number;
+  wakeup: number;
 }
 
 /** Per-component ceiling. NOTHING may exceed these. Mirrors proto plan-style.js WEIGHT_CAPS. */
-export const WEIGHT_CAPS: StyleWeights = { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09 };
+export const WEIGHT_CAPS: StyleWeights = { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: WAKEUP_SHIFT };
 
 /** Headline mix per goal profile — v2. Plan style no longer re-weights the score — it shapes HOW
  *  nutrition is computed (knobsFor). Re-exported straight from scoringProfiles.ts (the RN engine's
