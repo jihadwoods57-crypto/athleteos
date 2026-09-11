@@ -45,7 +45,7 @@ Considered and rejected:
 
 **iOS Subtitle (30 char): `Coach-verified team nutrition`  → 29 char**
 
-Why: three high-intent, non-repeated search tokens in one honest phrase — `coach` (the buyer), `team` (roster/program search), `nutrition` (the 76%-weighted score component and the biggest search category we honestly touch). `verified` is the wedge word — the one thing no competitor can say. Reads as plain truth, not hype. <!-- lint-score-ok: reviewed static-copy literal -->
+Why: three high-intent, non-repeated search tokens in one honest phrase — `coach` (the buyer), `team` (roster/program search), `nutrition` (the 82%-weighted score component and the biggest search category we honestly touch). `verified` is the wedge word — the one thing no competitor can say. Reads as plain truth, not hype. <!-- lint-score-ok: reviewed static-copy literal -->
 
 **Google Play Short Description (80 char): → 76 char**
 
@@ -79,7 +79,7 @@ Who searches, and what they type:
 
 **Athletes / clients (the users — mostly directed, but some self-search):**
 - `macros`, `food`, `meal`, `log`, `photo` → the literal words behind "macro tracker," "meal photo log," "food log." These are the free-side habit searches.
-- `recovery` → the 24%-weighted score component; combines with `sleep`-adjacent recovery searches. <!-- lint-score-ok: reviewed static-copy literal -->
+- `recovery` → the 18%-weighted score component; combines with `sleep`-adjacent recovery searches. <!-- lint-score-ok: reviewed static-copy literal -->
 - `tracker` → **intercept keyword only.** Positioning forbids calling ourselves a tracker in *visible* copy, but people searching "macro tracker" / "nutrition tracker" are exactly our misrouted audience. We catch the search without ever using the word where a human reads our brand.
 
 Deliberately left out (space is finite): `compliance`, `client`, `performance`, `discipline`, `gym`, `RD`, `habit`. `client`/`compliance` are covered semantically by `checkin`+`roster`; `performance`/`discipline` are brand-voice words but weak as search tokens. Rotate these in via A/B once install data shows which head terms actually convert.
@@ -90,7 +90,7 @@ Deliberately left out (space is finite): `compliance`, `client`, `performance`, 
 
 > First 3 lines are the only lines most people read before "more." They front-load the hook and the wedge. (Reusable near-verbatim as the iOS description, which is conversion-only and not indexed.)
 
-<!-- lint-score-ok: block-scoped — this fence is LITERAL App Store/Play copy-paste text; the "Nutrition 76%, Recovery 24%..." line inside is the canonical published claim (Task 10), reviewed static-copy literal. Marker lives here, never inside the fence, so it can never be copied into the live listing. -->
+<!-- lint-score-ok: block-scoped — this fence is LITERAL App Store/Play copy-paste text; the "Nutrition 82%, Recovery 18%..." line inside is the canonical published claim (Task 10), reviewed static-copy literal. Marker lives here, never inside the fence, so it can never be copied into the live listing. -->
 ```
 Talk is cheap. OnStandard makes the daily work impossible to fake.
 
@@ -111,7 +111,7 @@ item, and shows a "?" instead of guessing. Then fixed math scores the day.
 ONE SCORE THAT MEANS SOMETHING
 
 Every day becomes a single OnStandard Score, 0-100, on one published formula:
-Nutrition 76%, Recovery 24% (12 for closing the day out, 12 for how you
+Nutrition 82%, Recovery 18% (9 for closing the day out, 9 for how you
 answered). The weights are fixed and the same on every roster in the country —
 a 94 means the same thing everywhere. No coach can invent an easy formula. No
 athlete can sweet-talk the math. On time counts full. Late counts half.

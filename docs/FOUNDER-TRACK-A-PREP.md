@@ -77,7 +77,7 @@ Hand this to the dietitian. These are the only numbers that need sign-off; all a
 no rebuild).
 
 <!-- lint-score-ok: this whole section IS the reviewed sign-off sheet; these are the numbers the dietitian is signing off on -->
-**Execution Score weights:** Nutrition 76% · Recovery 24% (12 for closing the day out, 12 for how you answered). Daily commitment is captured and shown to the coach but weighted 0 — it does not score.
+**Execution Score weights:** Nutrition 82% · Recovery 18% (9 for closing the day out, 9 for how you answered). Daily commitment is captured and shown to the coach but weighted 0 — it does not score.
 
 **Nutrition sub-score, by goal profile:**
 <!-- lint-score-ok: reviewed static-copy literal, part of the RD sign-off sheet -->
