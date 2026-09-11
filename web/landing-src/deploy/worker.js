@@ -97,6 +97,16 @@ export default {
 
     // --- capture an early-access signup ---
     if (url.pathname === '/api/waitlist' && request.method === 'POST') {
+      // EARLY ACCESS IS CLOSED (2026-09-11, founder). Refused here as well as hidden on the page,
+      // because the form is not the only way in: the endpoint is public and a bot that has seen it
+      // once will keep posting. Closed is the DEFAULT - reopening takes an explicit
+      // SIGNUPS_OPEN: "true" in wrangler.jsonc, so a var lost in a future config edit fails shut
+      // rather than quietly reopening the list.
+      //
+      // 403 and not 410: the endpoint is not gone, it is switched off, and this comes back.
+      if (String(env.SIGNUPS_OPEN || '') !== 'true') {
+        return json({ ok: false, error: 'Early access is closed. Email support@onstandard.app.' }, 403);
+      }
       try {
         const ct = request.headers.get('content-type') || '';
         const body = ct.includes('application/json')

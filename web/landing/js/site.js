@@ -475,8 +475,36 @@
     },
   };
 
+  /* EARLY ACCESS IS CLOSED (2026-09-11, founder).
+     Flip to true to reopen, and set SIGNUPS_OPEN back to "true" in the worker's wrangler.jsonc -
+     BOTH, or the form comes back and every submission is refused by the server.
+     The 43 CTAs across the site are deliberately left alone: they still open this dialog, which
+     now says the room is closed and gives people somewhere to write. Stripping the CTAs would
+     gut every page's call to action for what is meant to be a temporary state. */
+  const SIGNUPS_OPEN = false;
+
   const dlg = document.getElementById('wl');
-  if (dlg && typeof dlg.showModal === 'function') {
+  if (dlg && typeof dlg.showModal === 'function' && !SIGNUPS_OPEN) {
+    const closedPanel = () => {
+      const panel = dlg.querySelector('.wl-panel');
+      if (!panel) return;
+      panel.innerHTML = '<button type="button" class="wl-close" id="wl-closed-x" aria-label="Close">'
+        + '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>'
+        + '<div class="wl-done"><h3>Early access is closed</h3>'
+        + '<p>We have stopped taking new requests while we work with the people already in. '
+        + 'If you need to reach us, email <a href="mailto:support@onstandard.app">support@onstandard.app</a>.</p></div>';
+      const x = document.getElementById('wl-closed-x');
+      if (x) x.addEventListener('click', () => dlg.close());
+    };
+    document.querySelectorAll('.js-wl').forEach((a) => {
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        closedPanel();
+        dlg.showModal();
+      });
+    });
+    dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+  } else if (dlg && typeof dlg.showModal === 'function') {
     const form = document.getElementById('wl-form');
     const emailEl = document.getElementById('wl-email');
     const roleEl = document.getElementById('wl-role');
