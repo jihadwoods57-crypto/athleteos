@@ -65,5 +65,56 @@ class RollCallLiveModule : Module() {
     Function("startPushToStartObserver") { /* iOS only */ }
 
     AsyncFunction("endLiveActivity") { _: String -> /* iOS only */ }
+
+    // ---------------------------------------------------------------- the wake-up alarm
+    // setAlarmClock is the one scheduling call Android treats as a user-facing alarm: exempt from
+    // Doze and app standby, visible in the status bar, and the API the platform Clock app uses.
+    // See RollCallAlarmScheduler for why nothing weaker is good enough at 5:45.
+
+    /** Whether this phone will let us arm an exact alarm at all (Android 12+ can revoke it). */
+    Function("isAlarmSupported") {
+      val context = appContext.reactContext ?: return@Function false
+      RollCallAlarmScheduler.canScheduleExact(context)
+    }
+
+    /** Android grants this by manifest (USE_EXACT_ALARM) rather than by prompt, so the state is
+     *  simply whether the system currently allows it. Same vocabulary as the iOS half. */
+    Function("alarmAuthorizationState") {
+      val context = appContext.reactContext ?: return@Function "unsupported"
+      if (RollCallAlarmScheduler.canScheduleExact(context)) "authorized" else "denied"
+    }
+
+    AsyncFunction("requestAlarmAuthorization") {
+      val context = appContext.reactContext ?: return@AsyncFunction "unsupported"
+      // Nothing to prompt for: the permission is granted at install or it is not. Reporting the
+      // live state keeps the promise honest rather than claiming a request happened.
+      if (RollCallAlarmScheduler.canScheduleExact(context)) "authorized" else "denied"
+    }
+
+    /** Schedule (or replace) one wake-up. `weekdays` is 1 = Sunday .. 7 = Saturday; EMPTY is a
+     *  one-off. Resolves to the alarm id, or "" when it could not be armed. */
+    AsyncFunction("scheduleWakeAlarm") { instanceId: String, hour: Int, minute: Int, weekdays: List<Int>, title: String ->
+      val context = appContext.reactContext ?: return@AsyncFunction ""
+      val at = RollCallAlarmScheduler.schedule(context, instanceId, hour, minute, weekdays, title)
+      if (at > 0L) instanceId else ""
+    }
+
+    Function("cancelWakeAlarm") { instanceId: String ->
+      appContext.reactContext?.let { RollCallAlarmScheduler.cancel(it, instanceId) }
+    }
+
+    /** Everything armed right now. Device QA only: the morning after, "no alarm fired" and "no
+     *  alarm was ever scheduled" are otherwise indistinguishable. */
+    Function("scheduledWakeAlarms") {
+      val context = appContext.reactContext ?: return@Function emptyList<Map<String, Any>>()
+      RollCallAlarmScheduler.scheduled(context)
+    }
+
+    /** Taps recorded by the alarm screen while JS was not running. Mirrors the iOS payload. */
+    Function("drainPendingTaps") {
+      val context = appContext.reactContext ?: return@Function emptyList<Map<String, Any>>()
+      RollCallPendingTaps.drain(context)
+    }
+
   }
 }

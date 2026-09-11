@@ -81,6 +81,64 @@ public class RollCallLiveModule: Module {
       #endif
       return []
     }
+
+    // ------------------------------------------------------------------ the wake-up alarm
+    // A Live Activity is a card. This is the thing that actually wakes somebody up: an AlarmKit
+    // alarm overrides Focus and silent mode, which no notification this app can post will ever do.
+    // iOS 26 and up; every function below answers honestly and harmlessly below that. See
+    // RollCallAlarm.swift for what Apple lets us control and what it does not.
+
+    /// True when this build and this device can schedule a real alarm at all.
+    Function("isAlarmSupported") { () -> Bool in
+      RollCallAlarm.isSupported
+    }
+
+    /// "authorized" | "denied" | "notDetermined" | "unsupported". Never prompts.
+    Function("alarmAuthorizationState") { () -> String in
+      #if canImport(AlarmKit)
+      if #available(iOS 26.0, *) { return RollCallAlarmScheduler.authorizationState() }
+      #endif
+      return "unsupported"
+    }
+
+    /// Ask for permission. Resolves to the same strings as above.
+    AsyncFunction("requestAlarmAuthorization") { () -> String in
+      #if canImport(AlarmKit)
+      if #available(iOS 26.0, *) { return await RollCallAlarmScheduler.requestAuthorization() }
+      #endif
+      return "unsupported"
+    }
+
+    /// Schedule (or replace) the wake-up for one roll-call instance. `weekdays` is 1 = Sunday ...
+    /// 7 = Saturday; EMPTY schedules a one-off, which is what a single dated roll call is.
+    /// Resolves to the alarm's id, or "" where alarms are unsupported - never a rejection, because
+    /// a caller on iOS 18 has done nothing wrong.
+    AsyncFunction("scheduleWakeAlarm") { (instanceId: String, hour: Int, minute: Int, weekdays: [Int], title: String) -> String in
+      #if canImport(AlarmKit)
+      if #available(iOS 26.0, *) {
+        return (try? await RollCallAlarmScheduler.schedule(
+          instanceId: instanceId, hour: hour, minute: minute, weekdays: weekdays, title: title
+        )) ?? ""
+      }
+      #endif
+      return ""
+    }
+
+    /// Cancel the wake-up for one instance. Safe for an instance that never had one.
+    Function("cancelWakeAlarm") { (instanceId: String) -> Void in
+      #if canImport(AlarmKit)
+      if #available(iOS 26.0, *) { RollCallAlarmScheduler.cancel(instanceId: instanceId) }
+      #endif
+    }
+
+    /// Every alarm this app owns right now, as `{ id, state }`. Device QA only: the morning after,
+    /// "no alarm fired" and "no alarm was ever scheduled" are otherwise indistinguishable.
+    Function("scheduledWakeAlarms") { () -> [[String: Any]] in
+      #if canImport(AlarmKit)
+      if #available(iOS 26.0, *) { return RollCallAlarmScheduler.scheduled() }
+      #endif
+      return []
+    }
   }
 
   private func startObserving() {

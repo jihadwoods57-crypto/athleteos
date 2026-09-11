@@ -11,8 +11,24 @@ export type PushToStartTokenEvent = { token: string };
 export type ActivityTokenEvent = { token: string; instanceId: string };
 export type PendingTap = { instanceId: string; at: number };
 
+export type AlarmAuthorization = 'authorized' | 'denied' | 'notDetermined' | 'unsupported';
+/** A wake-up to arm. `weekdays` is 1 = Sunday .. 7 = Saturday; EMPTY means fire once. */
+export type WakeAlarm = {
+  instanceId: string;
+  hour: number;
+  minute: number;
+  weekdays?: number[];
+  title?: string;
+};
+
 type NativeModule = {
   isLiveActivitySupported: () => boolean;
+  isAlarmSupported?: () => boolean;
+  alarmAuthorizationState?: () => AlarmAuthorization;
+  requestAlarmAuthorization?: () => Promise<AlarmAuthorization>;
+  scheduleWakeAlarm?: (instanceId: string, hour: number, minute: number, weekdays: number[], title: string) => Promise<string>;
+  cancelWakeAlarm?: (instanceId: string) => void;
+  scheduledWakeAlarms?: () => Array<Record<string, unknown>>;
   startPushToStartObserver: () => void;
   endLiveActivity: (instanceId: string) => Promise<void>;
   activeInstanceIds?: () => string[];
@@ -89,4 +105,45 @@ export function isPresentationOverrideActive(): boolean {
 /** Android 16: will this phone honour a Live Update promotion? */
 export function canPostPromotedNotifications(): boolean {
   try { return native()?.canPostPromotedNotifications?.() ?? false; } catch { return false; }
+}
+
+/* ------------------------------------------------------------------ the wake-up alarm */
+/* A Live Activity is a card on the lock screen. THIS is the thing that wakes somebody up: it
+   overrides Focus and silent mode, which nothing else in this app can do. iOS 26 and up via
+   AlarmKit; Android via setAlarmClock. Everything degrades to nothing everywhere else, exactly
+   like the Live Activity half above. */
+
+/** Whether this build and this device can arm a real alarm at all. */
+export function isAlarmSupported(): boolean {
+  try { return native()?.isAlarmSupported?.() ?? false; } catch { return false; }
+}
+
+/** The current permission, without prompting. */
+export function alarmAuthorizationState(): AlarmAuthorization {
+  try { return native()?.alarmAuthorizationState?.() ?? 'unsupported'; } catch { return 'unsupported'; }
+}
+
+/** Ask for permission. iOS prompts; Android reports what the manifest already granted. */
+export async function requestAlarmAuthorization(): Promise<AlarmAuthorization> {
+  try { return (await native()?.requestAlarmAuthorization?.()) ?? 'unsupported'; } catch { return 'unsupported'; }
+}
+
+/** Arm (or replace) the wake-up for one roll-call instance. Resolves to '' when it could not be
+ *  armed, which is not an error: an athlete on iOS 18 has done nothing wrong. */
+export async function scheduleWakeAlarm(a: WakeAlarm): Promise<string> {
+  try {
+    return (await native()?.scheduleWakeAlarm?.(
+      a.instanceId, a.hour, a.minute, a.weekdays ?? [], a.title || 'Wake up',
+    )) ?? '';
+  } catch { return ''; }
+}
+
+/** Cancel one. Safe for an instance that never had an alarm. */
+export function cancelWakeAlarm(instanceId: string): void {
+  try { native()?.cancelWakeAlarm?.(instanceId); } catch { /* best effort */ }
+}
+
+/** Everything armed right now. Device QA only. */
+export function scheduledWakeAlarms(): Array<Record<string, unknown>> {
+  try { return native()?.scheduledWakeAlarms?.() ?? []; } catch { return []; }
 }

@@ -5,7 +5,37 @@
        roll call is an ordinary heads-up notification. -->
   <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
 
+  <!-- The coach-assigned wake-up. USE_EXACT_ALARM is granted at INSTALL and is the one Google
+       permits for apps whose core function is an alarm; SCHEDULE_EXACT_ALARM is the revocable
+       fallback for Android 12 and 13. Without one of them setAlarmClock throws SecurityException
+       and the athlete finds out at 5:45 the next morning. -->
+  <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+  <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+  <!-- Lets the system launch the alarm screen over the lock screen instead of only posting a
+       notification. Without it the full-screen intent silently degrades to a heads-up. -->
+  <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+  <uses-permission android:name="android.permission.VIBRATE" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+
   <application>
+    <!-- Fires when the wake-up comes due. exported="false": the only sender is our own alarm. -->
+    <receiver
+      android:name="app.onstandard.rollcall.RollCallAlarmReceiver"
+      android:exported="false" />
+
+    <!-- The screen the alarm takes over with. showOnLockScreen + turnScreenOn are set in code as
+         well; declaring them here is what lets the SYSTEM place it over the keyguard.
+         excludeFromRecents: an alarm is not something to swipe back to in the task switcher. -->
+    <activity
+      android:name="app.onstandard.rollcall.RollCallAlarmActivity"
+      android:exported="false"
+      android:launchMode="singleTask"
+      android:excludeFromRecents="true"
+      android:showOnLockScreen="true"
+      android:turnScreenOn="true"
+      android:showWhenLocked="true"
+      android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+
     <!-- Wins over expo-notifications' own receiver, which declares the same action at
          android:priority="-1". See RollCallNotificationsService for why this is safe if it ever
          stops winning. `exported="false"`: this is an internal broadcast from our own process. -->

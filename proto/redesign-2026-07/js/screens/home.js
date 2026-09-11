@@ -11,6 +11,7 @@ import { fetchMyDayReceipts, fetchRecentMeals, signedMealPhotoUrl, daysAgoISO, t
 import { unreadCoachReplies, replyRow } from '../coach-replies.js';
 import { wakeupReceipt, receiptHtml } from '../wakeup-handoff.js';
 import { myWakeupForDay } from '../wakeup-morning.js';
+import { syncWakeAlarms } from '../wake-alarms.js';
 import { WAKEUP_TYPE } from '../wakeup-morning.js';
 import { warmMealPhotos, todayMealPhotoPath } from '../photo-store.js';
 import { shouldNudge, nudgeSignature, nudgeData } from '../coach-nudge.js';
@@ -262,6 +263,10 @@ function paintCommitments(root) {
    because these rows are refetched on every foreground beat. */
 function publishWakeup(rows) {
   try { daySetWakeup(myWakeupForDay(rows, DAY.date), RT.userId || null); } catch (_) { /* never block the paint */ }
+  // And arm the mornings still ahead as real alarms. The native side reconciles the whole set, so
+  // calling this on every foreground beat is correct rather than wasteful, and outside the app
+  // shell there is no bridge and it does nothing.
+  try { void syncWakeAlarms(rows); } catch (_) { /* never block the paint */ }
 }
 
 /* Connected Standards on Home (0155). Same shape as the commitments slot above: paint instantly

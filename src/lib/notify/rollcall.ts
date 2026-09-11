@@ -290,7 +290,9 @@ export function ensureLiveActivityTokens(): void {
  * honest fallback — the tap is not lost, it just records through the authenticated route.
  */
 export async function drainLiveActivityTaps(): Promise<number> {
-  if (Platform.OS !== 'ios') return 0;
+  // Android too, since the alarm screen records taps the same way (RollCallPendingTaps). It used
+  // to be iOS-only because the Live Activity button was the only thing that could record one.
+  if (Platform.OS === 'web') return 0;
   try {
     const live = require('../../../modules/rollcall-live') as typeof import('../../../modules/rollcall-live');
     const taps = live.drainPendingTaps();

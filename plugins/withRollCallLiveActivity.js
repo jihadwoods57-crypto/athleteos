@@ -34,6 +34,12 @@ module.exports = function withRollCallLiveActivity(config, props = {}) {
   // error, nothing in the logs.
   config = withInfoPlist(config, (cfg) => {
     cfg.modResults.NSSupportsLiveActivities = true;
+    // AlarmKit (iOS 26) reads this when it asks the athlete to allow alarms. Apple is blunt about
+    // what happens without it: "If the NSAlarmKitUsageDescription key is missing or its value is
+    // an empty string, apps can't schedule alarms with AlarmKit." No error, no prompt, no alarm.
+    cfg.modResults.NSAlarmKitUsageDescription =
+      "OnStandard sets the wake-up alarm your coach assigns you, so a morning roll call rings "
+      + "through Do Not Disturb and silent mode.";
     // NSSupportsLiveActivitiesFrequentUpdates is deliberately NOT set. A roll call updates three
     // times in half an hour, which is nowhere near frequent enough to need it, and asking for it
     // adds a switch in Settings whose only effect here would be to let an athlete turn the feature

@@ -24,6 +24,7 @@ import {
   readActivity, observeActivity, type HealthScope,
 } from '../lib/health';
 import { syncExecNotifications } from '../lib/notify/execSync';
+import { syncWakeAlarms, wakeAlarmState } from '../lib/notify/wakeAlarms';
 import { getPushToken } from '../lib/notify';
 import { getFlag } from '../store/flagsStore';
 
@@ -42,6 +43,11 @@ export type BridgeMessage =
   | { type: 'GOOGLE_SIGNIN'; id: number }
   | { type: 'BIO_AVAILABLE'; id: number }
   | { type: 'NOTIFY_SYNC'; plan: import('../lib/notify/execSync').ExecPlanItem[] }
+  // The coach-assigned wake-up, as a REAL alarm (AlarmKit on iOS 26, setAlarmClock on Android).
+  // The proto owns the roll-call rows, so it is what says which mornings are armed; the whole set
+  // is sent every time and the native side reconciles, which makes a dropped message harmless.
+  | { type: 'WAKE_ALARMS'; id: number; alarms?: import('../lib/notify/wakeAlarms').WakeAlarmRequest[] }
+  | { type: 'WAKE_ALARM_STATE'; id: number }
   // The native star prompt. REQUEST returns whether a prompt was actually asked for — never
   // whether anyone rated, which no platform reports. See the handler for why the flag is checked
   // here rather than in the proto.
@@ -154,6 +160,22 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
       }
       return true;
     }
+    case 'WAKE_ALARMS':
+      // Fire-and-reconcile: resolves with how many are actually armed, which is what the Profile
+      // row needs to say "3 mornings set" rather than guessing.
+      try {
+        resolve(ref, msg.id, await syncWakeAlarms(msg.alarms ?? []));
+      } catch (e) {
+        resolve(ref, msg.id, null, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'WAKE_ALARM_STATE':
+      try {
+        resolve(ref, msg.id, await wakeAlarmState());
+      } catch (e) {
+        resolve(ref, msg.id, null, String((e as Error)?.message ?? e));
+      }
+      return true;
     case 'SECURE_GET':
       if (!secureKeyAllowed(msg.key)) return denySecureKey(ref, msg.id);
       try {
@@ -364,6 +386,12 @@ export const BRIDGE_SHIM = `
     haptic: function(style){ post({ type:'HAPTIC', style: style || 'light' }); },
     share: function(payload){ post({ type:'SHARE', payload: payload || {} }); },
     shareImage: function(dataUrl, caption){ post({ type:'SHARE_IMAGE', dataUrl: String(dataUrl||''), caption: caption||'' }); },
+    // The coach's wake-up alarm. The argument is the WHOLE set that should be armed; anything the
+    // device has that is not in the list is cancelled, so one call is always enough.
+    wakeAlarms: {
+      sync: function(alarms){ return call('WAKE_ALARMS', { alarms: alarms || [] }); },
+      state: function(){ return call('WAKE_ALARM_STATE', {}); }
+    },
     secureStore: {
       getItem: function(key){ return call('SECURE_GET', { key: key }); },
       setItem: function(key, value){ return call('SECURE_SET', { key: key, value: String(value) }); },
