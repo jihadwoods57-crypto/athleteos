@@ -503,8 +503,11 @@ function openingInputs(M) {
      asking THEM for homework. Team Discussion is a conversation between people, not an intake
      form. The capability is not lost — cooking/sauce/portion/food corrections are one sentence
      to the AI in this same thread, and land on the name, numbers and score together (2026-09-02).
-     `fq` stays in the returned shape (null) so openingBlockHtml's signature is untouched. */
-  return { sum, fullText, fq: null };
+     The RENDER PATH went with it on 2026-09-14: `fq` was hardcoded null here and openingBlockHtml
+     still carried an fqRow() that drew chips no handler had ever read, so anything that set `fq`
+     again would have shipped buttons that do nothing. Dead code that only misleads is worse than
+     no code; the capability lives in followUpQuestion() (meal-intel.js) with its own tests. */
+  return { sum, fullText };
 }
 
 /**
@@ -518,7 +521,7 @@ function openingInputs(M) {
  *   failed    — the read did not land. The meal stays logged as photo proof; retry is offered.
  *   result    — the normal case: summary, optional full analysis, and one follow-up question.
  */
-export function openingBlockHtml(M, { sum, fullText, fq, hasPersistedRead = false, part = 'all' } = {}) {
+export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, part = 'all' } = {}) {
   /* `part` exists because these rows live at two different points in time. The lead (the read
      itself, or its pending/failed/questions state) is the OLDEST thing in the thread and paints
      above the messages; the tail (the follow-up question, the memory confirmation) is the AI
@@ -595,24 +598,12 @@ export function openingBlockHtml(M, { sum, fullText, fq, hasPersistedRead = fals
         </div></div>
       </div>` : '';
 
-  // The one follow-up question, offered as chips. Derived (it depends on what the read found,
-  // not on what was said), so it renders alongside the persisted read as well as instead of it.
-  const fqRow = (f) => `
-      <div class="msg ai" id="fq-bubble">
-        <div class="av">${icon('sparkle', 15)}</div>
-        <div><div class="who">AI Nutritionist</div>
-        <div class="bubble">
-          ${esc(f.q)}
-          <div class="fq-chips">${f.chips.map(c => `<button class="fx-chip" data-fq="${esc(f.kind)}" data-val="${esc(c.value)}">${esc(c.label)}</button>`).join('')}</div>
-        </div></div>
-      </div>`;
-
   // THE READ ITSELF IS NOW A REAL MESSAGE (2026-07-28). analyze-meal composes it and persists it
   // as an `ai` row, so it lives in the thread the athlete can reply to, reference tomorrow, and
   // scroll back through with their coach. This derived block only fills in when that row is not
   // there: meals logged before the change, and the rare case where the thread write did not land.
   // Without the fallback those meals would show a breakdown with nothing said about it.
-  if (hasPersistedRead) return wrap('', (fq ? fqRow(fq) : '') + confirmRow);
+  if (hasPersistedRead) return wrap('', confirmRow);
 
   // ONE VOICE (founder, 2026-08-02). This is the bubble the athlete sees the instant the read
   // lands locally, before the persisted `ai` row comes back from the server a beat later. It used
@@ -625,14 +616,14 @@ export function openingBlockHtml(M, { sum, fullText, fq, hasPersistedRead = fals
   const body = fullText
     ? esc(fullText)
     : [sum && sum.wentWell, sum && sum.opportunity, sum && sum.next].filter(Boolean).map(esc).join(' ');
-  if (!body) return wrap('', (fq ? fqRow(fq) : '') + confirmRow);
+  if (!body) return wrap('', confirmRow);
 
   return wrap(`
       <div class="msg ai">
         <div class="av">${icon('sparkle', 15)}</div>
         <div><div class="who">AI Nutritionist</div>
         <div class="bubble">${body}</div></div>
-      </div>`, (fq ? fqRow(fq) : '') + confirmRow);
+      </div>`, confirmRow);
 }
 
 /* ---------- Meal Analysis (AI, pre-log) ----------
@@ -1185,7 +1176,7 @@ export const thread = {
     // used to be a wall of text nobody reads. Now it's the 5-second structured summary
     // (derived, never stored) with the full openingMessage paragraph behind an expander.
     // Quick actions make it feel like a chat, not a report. ----
-    const { sum, fullText, fq } = openingInputs(M);
+    const { sum, fullText } = openingInputs(M);
 
     // WHO IS IN THE ROOM. A messaging surface that hides its own audience is a privacy problem
     // wearing a UI problem's clothes — an athlete typing "I skipped breakfast" deserves to know
@@ -1214,7 +1205,7 @@ export const thread = {
           The in-thread "View N earlier messages" seam (#thread-more) stays: that one carries
           information this screen truncated. */''}
     <div class="thread" id="meal-thread" role="log" aria-label="Meal conversation">
-      ${openingBlockHtml(M, { sum, fullText, fq })}
+      ${openingBlockHtml(M, { sum, fullText })}
       ${/* Loading is a skeleton shaped like the messages it stands in for, and only when there
             is no cached thread to paint instantly. The id stays: the mount removes it on load
             and rewrites it in place on failure. */''}
@@ -1350,7 +1341,7 @@ export const thread = {
     });
 
     const roles = await import('../roles.js');
-    // Delegation target for render-injected content (the fq bubble, the tapback picker):
+    // Delegation target for render-injected content (the memory chips, the tapback picker):
     // #view is REPLACED on every render, so listeners attached here die with the paint —
     // never the persistent device root, which would stack one listener per mount.
     const viewEl = root.querySelector('#view') || root;

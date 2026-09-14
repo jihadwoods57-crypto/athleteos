@@ -77,6 +77,20 @@ export default {
       <div class="ts">${pct}% of the roster was up inside the window.</div></div>
     </div>`}
 
+    ${/* The live board is where overrides, excuses and recent mornings live. Before 2026-09-14
+          the operator-Home card opened that board in every phase and this screen had no door at
+          all; now the closed phase opens here instead, so the board has to stay one tap away or
+          the swap would have taken something away. */''}
+    <div class="wk-gap"></div>
+    <section class="card rows">
+      <div class="lrow" data-go="coach-commitments/${esc(inst.instance_id)}" role="button" tabindex="0">
+        <div class="lic">${icon('clock', 15)}</div>
+        <div class="lm"><div class="lt">Open the full roll call</div>
+          <div class="ls">Overrides, excuses, and recent mornings</div></div>
+        ${icon('chevron', 14, 'class="ic-chevron"')}
+      </div>
+    </section>
+
     <div class="wk-gap"></div>
     `;
   },
