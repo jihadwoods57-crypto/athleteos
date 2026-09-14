@@ -189,6 +189,14 @@ const SHOTS = [
   { g: 'coach', name: 'coach-announce', seed: 'coachIdentity', route: 'coach-announce', at: [20, 10], book: 'team' },
   { g: 'coach', name: 'coach-rooms', seed: 'coachIdentity', route: 'coach-rooms', at: [20, 10], book: 'team' },
   { g: 'coach', name: 'coach-commitments', seed: 'coachIdentity', route: 'coach-commitments', at: [6, 5], book: 'team' },
+  // The roll-call surfaces had NO shot between them (founder audit 2026-09-14), which is part of
+  // why they drifted: the composer's footer sentence sat in a height:0 box and nothing looked.
+  // 6:05 is inside the window (the board is live); 7:10 is after it closes, which is the only
+  // clock that renders the morning summary with real counts.
+  { g: 'coach', name: 'coach-wakeup-edit', seed: 'coachIdentity', route: 'coach-wakeup-edit', at: [20, 10], book: 'team' },
+  { g: 'coach', name: 'coach-wakeup-more', seed: 'coachIdentity', route: 'coach-wakeup-edit', at: [20, 10], book: 'team',
+    act: `const m = document.querySelector('#wk-more'); if (m) m.click(); await new Promise((r) => setTimeout(r, 300));` },
+  { g: 'coach', name: 'wakeup-morning', seed: 'coachIdentity', route: 'wakeup-morning', at: [7, 10], book: 'team' },
   { g: 'coach', name: 'coach-plan', seed: 'coachIdentity', route: 'coach-plan', at: [20, 10], book: 'team' },
   { g: 'coach', name: 'coach-profile', seed: 'coachIdentity', route: 'coach-profile', at: [20, 10], book: 'team' },
   { g: 'coach', name: 'copilot', seed: 'coachIdentity', route: 'copilot', at: [20, 10], book: 'team' },

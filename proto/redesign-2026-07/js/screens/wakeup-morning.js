@@ -56,7 +56,7 @@ export default {
     <section class="wk-pulse">
       <div class="wk-k">Up on time</div>
       <div class="wk-num"><span class="wk-big">${s.onTime}</span><span class="wk-of">/${s.total}</span></div>
-      <div class="wk-bar" role="img" aria-label="${s.onTime} up on time, ${s.late} late, ${s.missed} never answered">
+      <div class="wk-bar" role="img" aria-label="${s.total ? `${s.onTime} up on time, ${s.late} late, ${s.missed} never answered` : 'Nobody was scheduled'}">
         ${/* The proportions are set in mount() with style.setProperty, not as an inline style
               attribute: a new proto file has an inline-style ceiling of zero, and a flex weight
               that varies per roster cannot be a class. Same seam the perfect-plate particles use. */''}
@@ -67,7 +67,18 @@ export default {
       ${s.firstUp ? `<div class="wk-cap">${esc(s.firstUp.name)} was first up at ${esc(wakeClock(s.firstUp.atMin))}.</div>` : ''}
     </section>
 
-    ${s.needsYou.length ? `
+    ${/* NOBODY SCHEDULED IS NOT EVERYONE ANSWERING (founder audit 2026-09-14). With a total of 0
+          this congratulated the coach with "Everyone answered" and then, one line down, "0% of the
+          roster was up inside the window" - a success claim and its own contradiction, stacked.
+          An empty roster reports empty, the same way commitments.js and connected-standards.js
+          report null rather than a fake zero. */''}
+    ${!s.total ? `
+    <div class="wk-gap"></div>
+    <div class="sidebox">
+      <div class="req-icon muted s38">${icon('clock', 17)}</div>
+      <div><div class="tt">Nobody was on this roll call</div>
+      <div class="ts">No one was scheduled for this morning, so there is nothing to report. Check who it goes to on the full roll call.</div></div>
+    </div>` : s.needsYou.length ? `
     <h2 class="eyebrow">Needs you</h2>
     <section class="card rows">${s.needsYou.map(needRow).join('')}</section>` : `
     <div class="wk-gap"></div>

@@ -2715,15 +2715,61 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .wk-days .chip{flex:1;padding:var(--s2h) 0;text-align:center;justify-content:center}
 .wk-msg{min-height:120px;resize:vertical;line-height:1.5}
 .wk-presets{display:flex;flex-wrap:wrap;gap:var(--s1h);margin-top:var(--s2h)}
-.wk-more{display:flex;align-items:center;gap:var(--s1h);width:100%;margin:var(--s3h) 0 var(--s2);padding:var(--s2h) 2px;background:none;border:0;color:var(--blue-bright);font-size:var(--t-sm);font-weight:800;cursor:pointer}
+.wk-more{display:flex;align-items:center;justify-content:center;gap:var(--s1h);width:100%;min-height:44px;margin:var(--s3h) 0 var(--s2);padding:var(--s2h) 2px;background:none;border:0;color:var(--blue-bright);font-size:var(--t-sm);font-weight:800;cursor:pointer}
 .wk-more svg{transition:transform .18s ease}
 .wk-more[aria-expanded="true"] svg{transform:rotate(90deg)}
 .wk-preview{display:flex;gap:var(--s2);align-items:flex-start;margin:var(--s3h) 2px;font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.45}
 .wk-preview svg{flex:none;margin-top:2px;color:var(--text-3)}
 .wk-err{color:var(--red);text-align:center;min-height:16px;padding-top:var(--s2)}
-.wk-foot{height:0}
+/* Written for the two EMPTY spacer divs (coach-commitments, roll-call). coach-wakeup put a
+   real sentence in the same class and it collapsed to nothing: the one line that said whether
+   athletes get an alarm or a push was invisible on a shipped screen (founder audit 2026-09-14).
+   :empty scopes it to the spacer; the composer no longer needs the sentence at all, because the
+   phone preview above shows what it was describing. */
+.wk-foot:empty{height:0}
 #wk-save{width:100%}
 .wk-gap{height:12px}
+
+/* ---- roll-call composer: what lands, and the window (2026-09-14) ----
+   Every size is a --t-* step and every gap an --s* step, per the type and spacing ratchets.
+   Hues come from the semantic tokens, never a frozen rgba: this has to hold in light too. */
+.wk-lands .std-switch-row:first-child{border-top:none}
+.wk-chips-fit{display:flex;flex-wrap:nowrap;gap:var(--s1h)}
+.wk-chips-fit .chip{flex:1;min-width:0;justify-content:center;text-align:center;padding-left:0;padding-right:0}
+.wk-field-flush{border-bottom:0}
+
+/* The face the athlete wakes up to. A quiet mock, not a device frame: it reads as a preview of
+   the message, and the alarm state is what lifts it. */
+.wk-phone{margin-top:var(--s3);padding:var(--s4);border-radius:var(--r-card);background:var(--surface-2);
+  border:1px solid var(--hairline-soft);text-align:center}
+.wk-phone.is-alarm{background:rgba(var(--blue-rgb),.08);border-color:var(--blue-border)}
+.wk-ph-k{font-size:var(--t-eyebrow);letter-spacing:var(--track-eyebrow);text-transform:uppercase;
+  font-weight:800;color:var(--text-3)}
+.wk-phone.is-alarm .wk-ph-k{color:var(--blue-bright)}
+.wk-ph-clock{font-size:var(--t-3xl);font-weight:800;letter-spacing:var(--num-tight);
+  font-variant-numeric:tabular-nums;color:var(--text);padding-top:var(--s1)}
+.wk-ph-t{font-size:var(--t-md);font-weight:700;color:var(--text);padding-top:var(--s1)}
+.wk-ph-m{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.45;
+  padding:var(--s2) 0 var(--s3);overflow-wrap:anywhere}
+.wk-ph-b{display:inline-block;max-width:100%;padding:var(--s2h) var(--s5);border-radius:var(--r-pill);
+  background:var(--surface-3);color:var(--text);font-size:var(--t-base);font-weight:800;
+  overflow-wrap:anywhere}
+/* Same ink the primary button uses on the same fill. The last alarm-button bug (705123ca) was
+   text the same colour as its own fill, so this one names a token that flips with the theme. */
+.wk-phone.is-alarm .wk-ph-b{background:linear-gradient(150deg,var(--blue-bright),var(--blue));color:var(--ink-on-accent)}
+
+/* The three instants, drawn once instead of narrated under two fields. */
+.wk-win{display:flex;gap:var(--s1h);margin:var(--s2) 0 var(--s3)}
+.wk-win-c{flex:1;min-width:0;padding:var(--s2h) var(--s2);border-radius:var(--r-card-sm);
+  background:var(--surface-2);border:1px solid var(--hairline-soft);text-align:center}
+.wk-win-c b{display:block;font-size:var(--t-sm);font-weight:800;letter-spacing:var(--num-tight);
+  font-variant-numeric:tabular-nums}
+.wk-win-c span{display:block;font-size:var(--t-xs);font-weight:700;color:var(--text-3);padding-top:1px}
+.wk-win-c.g b{color:var(--green-bright)}
+.wk-win-c.a b{color:var(--amber-bright)}
+.wk-win-c.r b{color:var(--red-bright)}
+.wk-l-group{padding-top:var(--s3)}
+
 
 /* coach board (0211, re-based on the app's own type + spacing tokens 2026-09-02)
    Every size here is a --t-* step and every gap an --s* step. Muted copy is .co-note-sized

@@ -99,15 +99,33 @@ const daysLabel = (days) => {
   return d.map((n) => DOW_FULL[n].slice(0, 3)).join(', ');
 };
 
-/** The one-line summary under the form: what the athlete will actually experience. */
-export function previewLine(d) {
-  const dl = d.starts_min + d.grace_min;
-  const close = d.starts_min + Math.max(d.grace_min, d.close_after_min == null ? CLOSE_DEFAULT_MIN : d.close_after_min);
+/* The recurrence, and only the recurrence. This replaces previewLine(), which said the recurrence
+   AND the whole window in one sentence. As a header subtitle that was three lines of prose
+   restating the window strip a thumb below it, which moves the repetition rather than removing it
+   (founder audit 2026-09-14). The window is drawn now; the header says when it repeats. */
+export function scheduleLine(d) {
   const who = d.audience_label || (CD.kind === 'practice' ? 'all clients' : 'the whole team');
-  return `${daysLabel(d.repeat_days)} at ${fmtMin(d.starts_min)} for ${who}. `
-    + (d.grace_min > 0
-      ? `${fmtMin(d.starts_min)} to ${fmtMin(dl)} is On standard. Late until ${fmtMin(close)}. Then it’s Missed.`
-      : `Only ${fmtMin(d.starts_min)} is On standard. Late until ${fmtMin(close)}. Then it’s Missed.`);
+  return `${daysLabel(d.repeat_days)} at ${fmtMin(d.starts_min)}, ${who}.`;
+}
+
+/* THE WINDOW, AS THREE BEATS, drawn once instead of narrated under two separate fields and then
+   again in the header. Same clock arithmetic the server enforces: starts / starts+grace /
+   starts+max(grace, close_after). */
+export function windowCells(d) {
+  const grace = Math.max(0, Number(d.grace_min) || 0);
+  const closeAfter = d.close_after_min == null ? CLOSE_DEFAULT_MIN : d.close_after_min;
+  const close = d.starts_min + Math.max(grace, closeAfter);
+  return [
+    { at: fmtMin(d.starts_min), label: 'On standard', tone: 'g' },
+    { at: fmtMin(d.starts_min + grace), label: grace ? 'Late from' : 'Late after', tone: 'a' },
+    { at: fmtMin(close), label: 'Missed at', tone: 'r' },
+  ];
+}
+
+/** The same three beats as one sentence, for the strip's screen-reader name. */
+export function windowLabel(d) {
+  const c = windowCells(d);
+  return `On standard at ${c[0].at}, late from ${c[1].at}, missed at ${c[2].at}.`;
 }
 
 /** Payload for upsert_commitment. Exported so the tests can pin the mapping. */
@@ -192,32 +210,80 @@ export const coachWakeupEdit = {
     const editing = !!d.id;
 
     return `
-    ${backHead(editing ? 'Edit roll call' : 'Roll call', 'It’s 6:00 AM. Who’s up?', back)}
+    ${backHead(editing ? 'Edit roll call' : 'Roll call', scheduleLine({ ...d, audience_label: audLabel }), back)}
 
+    ${/* WHAT LANDS ON THEIR PHONE, FIRST (founder audit 2026-09-14).
+          This screen used to open on a time picker and describe the alarm in a five line
+          paragraph two thirds of the way down, next to a single chip that looked exactly like
+          "5 min". The alarm is the loudest thing this product does: it rings through a Sleep
+          Focus at 5 AM. It leads now, it is a real switch (the one boolean control in
+          DESIGN.md, not a group of one chip), and the paragraph is replaced by the thing it was
+          describing. The button words live here too, beside the button they label, instead of
+          under a fold that the old help text quoted without being able to reach. */''}
+    <h2 class="eyebrow" id="wk-lands-l">How it lands</h2>
+    <section class="card pad wk-lands">
+      <div class="std-switch-row" role="switch" tabindex="0" aria-checked="${d.escalation.alarm ? 'true' : 'false'}" aria-label="Ring as an alarm" aria-describedby="wk-alarm-sub" data-esc="alarm">
+        <div class="std-sw-m">
+          <div class="std-sw-t">Ring as an alarm</div>
+          <div class="std-sw-s" id="wk-alarm-sub">${d.escalation.alarm
+            ? `Rings through silent mode, Do Not Disturb and a Sleep Focus. Needs iPhone 26.1 or an Android phone; anyone else gets the notification.`
+            : 'A notification only, so it stays quiet on silent or in a Sleep Focus, which is most phones at 5 AM.'}</div>
+        </div>
+        <div class="std-switch ${d.escalation.alarm ? 'on' : ''}" aria-hidden="true"></div>
+      </div>
+
+      ${/* The preview is live: the three inputs below write straight into it on `input`, with no
+            re-render, so the coach watches their own words land on the face they will land on. */''}
+      <div class="wk-phone ${d.escalation.alarm ? 'is-alarm' : ''}" aria-hidden="true">
+        <div class="wk-ph-k">${d.escalation.alarm ? 'Alarm' : 'Notification'}</div>
+        <div class="wk-ph-clock">${esc(fmtMin(d.starts_min))}</div>
+        <div class="wk-ph-t" id="wk-ph-t">${esc((d.title || '').trim() || 'Roll call')}</div>
+        <div class="wk-ph-m" id="wk-ph-m">${esc((d.message || '').trim() || 'No message yet. It goes out with the time only.')}</div>
+        <div class="wk-ph-b" id="wk-ph-b">${esc((d.action_label || '').trim() || 'I’m Up')}</div>
+      </div>
+
+      <div class="wk-field wk-field-flush">
+        <div class="wk-l">Button words</div>
+        <input class="ob-input" id="wk-action" aria-label="Button words" maxlength="24" value="${esc(d.action_label)}" placeholder="I’m Up" />
+        <div class="ts wk-hint">The one thing they tap: on the alarm, on the lock screen and in the app.</div>
+      </div>
+    </section>
+
+    ${/* THE WINDOW IS SHOWN, NOT NARRATED. Grace was a field up here and Closes was under the
+          fold, and each one's hint quoted the other's number while the summary line said both
+          again. Three prose statements of one timeline. Now it is drawn once and the two controls
+          that move it sit under it. */''}
+    <h2 class="eyebrow">The window</h2>
     <section class="card pad wk-form">
       ${field('Wake-up time',
         `<input class="ob-input wk-time" id="wk-time" type="time" value="${hhmm(d.starts_min)}" aria-label="Wake-up time" />`)}
 
-      ${field('Grace period',
-        `<div class="wk-chips" id="wk-grace" role="radiogroup" aria-label="Grace period">
-          ${GRACES.map((g) => `<button class="chip ${d.grace_min === g ? 'on' : ''}" role="radio" aria-checked="${d.grace_min === g ? 'true' : 'false'}" data-grace="${g}">${g === 0 ? 'None' : `${g} min`}</button>`).join('')}
-        </div>`,
-        d.grace_min > 0
-          ? `${esc(fmtMin(d.starts_min))} to ${esc(fmtMin(d.starts_min + d.grace_min))} is On standard. After that is Late.`
-          : `Only an answer at ${esc(fmtMin(d.starts_min))} is On standard.`)}
+      <div class="wk-win" role="img" aria-label="${esc(windowLabel(d))}">
+        ${windowCells(d).map((c) => `
+        <div class="wk-win-c ${c.tone}">
+          <b>${esc(c.at)}</b>
+          <span>${esc(c.label)}</span>
+        </div>`).join('')}
+      </div>
 
+      ${field('Grace period',
+        `<div class="wk-chips wk-chips-fit" id="wk-grace" role="radiogroup" aria-label="Grace period">
+          ${GRACES.map((g) => `<button class="chip ${d.grace_min === g ? 'on' : ''}" role="radio" aria-checked="${d.grace_min === g ? 'true' : 'false'}" data-grace="${g}">${g === 0 ? 'None' : `${g}m`}</button>`).join('')}
+        </div>`)}
+
+      ${field('Closes',
+        `<div class="wk-chips wk-chips-fit" id="wk-late" role="radiogroup" aria-label="Closes">
+          ${CLOSE_CHOICES.map((v) => `<button class="chip ${d.close_after_min === v ? 'on' : ''}" role="radio" aria-checked="${d.close_after_min === v ? 'true' : 'false'}" data-late="${v}">${v}m</button>`).join('')}
+        </div>`,
+        'After this, anyone who never answered is Missed, for good.')}
+    </section>
+
+    <h2 class="eyebrow">Who and when</h2>
+    <section class="card pad wk-form">
       ${field('Days',
         `<div class="wk-days" id="wk-days" role="group" aria-label="Days">
           ${DOW.map((n, i) => `<button class="chip ${d.repeat_days.includes(i) ? 'on' : ''}" role="checkbox" aria-checked="${d.repeat_days.includes(i) ? 'true' : 'false'}" aria-label="${DOW_FULL[i]}" data-day="${i}">${n}</button>`).join('')}
         </div>`)}
-
-      ${field('How it arrives',
-        `<div class="wk-chips" id="wk-alarm" role="group" aria-label="How it arrives">
-          <button class="chip ${d.escalation.alarm ? 'on' : ''}" role="checkbox" aria-checked="${d.escalation.alarm ? 'true' : 'false'}" data-esc="alarm">${icon('sun', 14)} Ring as an alarm</button>
-        </div>`,
-        d.escalation.alarm
-          ? `An alarm goes off on their phone, through Do Not Disturb, a Sleep Focus and silent mode. The button says "${esc((d.action_label || '').trim() || 'Attack the day')}" and answering it counts the morning. Needs iPhone 26.1 or an Android phone; anyone else gets the notification.`
-          : 'A notification only. Quiet if their phone is on silent or in a Sleep Focus, which is most phones at 5 AM.')}
 
       ${field('Who',
         `<div class="wk-chips" id="wk-aud" role="radiogroup" aria-label="Who">
@@ -242,33 +308,29 @@ export const coachWakeupEdit = {
       ${field('Title',
         `<input class="ob-input" id="wk-title" aria-label="Title" maxlength="60" value="${esc(d.title)}" placeholder="Roll call" />`,
         `What ${esc(CD.nouns)} see as the heading. The time and your message sit under it.`)}
-      ${field('Button label',
-        `<input class="ob-input" id="wk-action" aria-label="Button label" maxlength="24" value="${esc(d.action_label)}" placeholder="I’m Up" />`,
-        'The one thing they tap: on the alarm, on the lock screen and in the app.')}
-      ${field('Closes',
-        `<div class="wk-chips" id="wk-late" role="radiogroup" aria-label="Closes">
-          ${CLOSE_CHOICES.map((v) => `<button class="chip ${d.close_after_min === v ? 'on' : ''}" role="radio" aria-checked="${d.close_after_min === v ? 'true' : 'false'}" data-late="${v}">${v} min after</button>`).join('')}
-        </div>`,
-        `Late check-ins count until ${esc(fmtMin(d.starts_min + Math.max(d.grace_min, d.close_after_min)))}. Then the roll call closes and anyone who never answered is Missed, for good.`)}
-      ${field('If they miss it',
-        `<div class="wk-chips" id="wk-esc" role="group" aria-label="If they miss it">
-          <button class="chip ${d.escalation.breakthrough ? 'on' : ''}" role="checkbox" aria-checked="${d.escalation.breakthrough ? 'true' : 'false'}" data-esc="breakthrough">Tell them they’re late</button>
-          <button class="chip ${d.escalation.notify_coach_on_miss ? 'on' : ''}" role="checkbox" aria-checked="${d.escalation.notify_coach_on_miss ? 'true' : 'false'}" data-esc="notify_coach_on_miss">Tell me who missed</button>
-        </div>`,
-        `The late push is time-sensitive and comes from OnStandard, not from you. "Tell me who missed" is one message to you when the grace period ends, with Nudge and Got it on it.`)}
+      ${/* Two booleans, so two switches. They were chips, which DESIGN.md reserves for a choice
+            among several; a chip that is really an on/off reads as an unmade selection. */''}
+      <div class="wk-l wk-l-group">If they miss it</div>
+      <div class="std-switch-row" role="switch" tabindex="0" aria-checked="${d.escalation.breakthrough ? 'true' : 'false'}" aria-label="Tell them they’re late" aria-describedby="wk-bt-sub" data-esc="breakthrough">
+        <div class="std-sw-m">
+          <div class="std-sw-t">Tell them they’re late</div>
+          <div class="std-sw-s" id="wk-bt-sub">A time-sensitive push when the grace period ends. It comes from OnStandard, not from you.</div>
+        </div>
+        <div class="std-switch ${d.escalation.breakthrough ? 'on' : ''}" aria-hidden="true"></div>
+      </div>
+      <div class="std-switch-row" role="switch" tabindex="0" aria-checked="${d.escalation.notify_coach_on_miss ? 'true' : 'false'}" aria-label="Tell me who missed" aria-describedby="wk-nm-sub" data-esc="notify_coach_on_miss">
+        <div class="std-sw-m">
+          <div class="std-sw-t">Tell me who missed</div>
+          <div class="std-sw-s" id="wk-nm-sub">One message to you when the grace period ends, with Nudge and Got it on it.</div>
+        </div>
+        <div class="std-switch ${d.escalation.notify_coach_on_miss ? 'on' : ''}" aria-hidden="true"></div>
+      </div>
       <div class="ts wk-hint">Times are in ${esc(tz)}. Everyone on the roll call is judged on that clock, wherever their phone is.</div>
     </section>
 
-    <div class="wk-preview">${icon('clock', 14)} <span id="wk-preview">${esc(previewLine({ ...d, audience_label: audLabel }))}</span></div>
-
     <button class="btn primary" id="wk-save">${icon('check', 19)} ${editing ? 'Save changes' : 'Create roll call'}</button>
     <div id="wk-err" class="ts wk-err" aria-live="polite"></div>
-    ${/* Says what actually happens, which now depends on the switch above. It used to promise a
-          lock-screen push unconditionally, which stopped being the whole truth the moment a
-          wake-up could ring as an alarm. */''}
-    <div class="ts wk-foot">${esc(CD.nouns.charAt(0).toUpperCase() + CD.nouns.slice(1))} ${d.escalation.alarm
-      ? `get a real alarm at ${esc(fmtMin(d.starts_min))} that rings through silent mode, with one button on it`
-      : `get a lock-screen push at ${esc(fmtMin(d.starts_min))} with one button`}. You see who’s up live on the board.</div>`;
+    <div class="wk-gap"></div>`;
   },
 
   mount(root) {
@@ -320,15 +382,33 @@ export const coachWakeupEdit = {
       window.__render && window.__render();
     }));
     root.querySelectorAll('[data-esc]').forEach((b) => b.addEventListener('click', () => {
+      // CAPTURE BEFORE TOGGLING (founder audit 2026-09-14). The alarm branch below re-renders,
+      // and render reads d.message. Without this, a coach who typed a morning message and then
+      // flipped the alarm watched their message disappear: the textarea was repainted from a
+      // draft that had never been read back.
+      capture();
       const k = b.getAttribute('data-esc');
       d.escalation = { ...(d.escalation || {}) };
       d.escalation[k] = !d.escalation[k];
-      b.classList.toggle('on', !!d.escalation[k]);
       b.setAttribute('aria-checked', d.escalation[k] ? 'true' : 'false');
-      // The alarm's help text says two different things depending on the switch, and one of them
-      // quotes the button label. Re-render rather than leave the copy contradicting the chip.
-      if (k === 'alarm' && window.__render) window.__render();
+      // The pill is aria-hidden paint INSIDE the row, so toggling a class on the row would leave
+      // it showing the old position. Every one of these also changes copy that quotes its state,
+      // so a repaint is the honest answer for all three, not just the alarm.
+      if (window.__render) window.__render();
     }));
+    /* THE PREVIEW IS LIVE. Title, message and button words write straight into the phone face on
+       `input`, with no re-render: a repaint here would steal focus mid-word, and the whole point
+       of the preview is watching your own sentence land while you type it. */
+    const live = (sel, target, fallback) => {
+      const el = root.querySelector(sel);
+      const out = root.querySelector(target);
+      if (!el || !out) return;
+      el.addEventListener('input', () => { out.textContent = el.value.trim() || fallback; });
+    };
+    live('#wk-title', '#wk-ph-t', 'Roll call');
+    live('#wk-msg', '#wk-ph-m', 'No message yet. It goes out with the time only.');
+    live('#wk-action', '#wk-ph-b', 'I’m Up');
+
     const more = root.querySelector('#wk-more');
     if (more) more.addEventListener('click', () => { capture(); d.more = !d.more; window.__render && window.__render(); });
 
