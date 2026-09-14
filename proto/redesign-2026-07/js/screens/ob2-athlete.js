@@ -25,6 +25,7 @@ import { dobFromParts, ageOn, normalizePressure, showConfirmPending } from '../o
 import { commitButton, wireCommit } from '../ob-commit.js';
 import { accountBody, wireAccount } from './ob-account.js';
 import { track, EVENTS } from '../analytics.js';
+import { planById as consumerPlan } from '../pricing.js';
 import {
   defineFlow, saveProgressStep, choiceGrid, chipRow, scale10, meter, mirrorCard, simChip, countStat,
   phoneCard, testimonial, planCard, paywallVariant, PLANS, capture, structureStep, commitContinue,
@@ -589,9 +590,21 @@ const steps = [
       const o = () => (RT.ob || {});
       const cad = () => o().cadence || 'annual';
       const plan = () => o().plan || PLANS.individual[0].id;
-      const fineFor = (c) => c === 'annual'
-        ? 'Free for 7 days, then the yearly price. Cancel anytime in Settings before it ends.'
-        : 'Free for 7 days, then the monthly price. Cancel anytime in Settings before it ends.';
+      /* THE TRIAL DISCLOSURE IS READ FROM THE CATALOG, NEVER TYPED (founder audit 2026-09-14).
+         This said "Free for 7 days" while the plan card directly above it said "14-day free
+         trial" and pricing.js has carried trialDays: 14 since the rails were unified on
+         2026-09-08. One screen, two trial lengths, on the purchase step, in the sentence that
+         exists to satisfy FTC auto-renewal disclosure.
+         It also promised cancellation "in Settings", which this app deliberately cannot do:
+         consumer plans are store-managed IAP, and settings.js says so out loud ("we never
+         render a cancel button we can't honor") and deep-links to the store instead. */
+      const storeName = /android/i.test(navigator.userAgent || '') ? 'Play Store' : 'App Store';
+      const fineFor = (c) => {
+        const cat = consumerPlan(plan());
+        const days = cat && cat.trialDays > 0 ? cat.trialDays : 0;
+        const free = days ? `Free for ${days} days, then the ${c === 'annual' ? 'yearly' : 'monthly'} price. ` : `The ${c === 'annual' ? 'yearly' : 'monthly'} price. `;
+        return `${free}Cancel anytime in the ${storeName} before it renews.`;
+      };
       const render = () => {
         const list = root.querySelector('#ob-plans');
         list.innerHTML = PLANS.individual.map((p) => planCard({ ...p, cadence: cad(), on: plan() === p.id })).join('');

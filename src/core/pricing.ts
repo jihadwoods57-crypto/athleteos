@@ -17,7 +17,8 @@ export interface PricedPlan {
   rail: BillingRail;
   /** USD per month (0 for custom/enterprise). */
   monthly: number;
-  /** USD per year (≈ 2 months free). */
+  /** USD per year. 30% off twelve months, i.e. about three and a half months free — NOT the
+   *  conventional "two months free", which understates it by more than a month. */
   annual: number;
   /** Free-trial length in days.
    *
@@ -152,7 +153,7 @@ export interface PlanTerms {
   price: string;
   /** "Billed monthly, auto-renews until canceled." */
   renewal: string;
-  /** "7-day free trial" or "" when none. */
+  /** "14-day free trial, then $9.99/month." or "" when none. Rendered from trialDays, never typed. */
   trial: string;
   /** "Cancel anytime in your account settings — no phone call, no runaround." */
   cancellation: string;

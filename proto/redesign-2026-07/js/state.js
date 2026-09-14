@@ -4634,7 +4634,11 @@ export const S = {
       } else if (d.id === 'weight') {
         meta = d.done ? 'Trend only' : 'Not scored'; route = 'weight';
       } else if (d.id === 'recovery') {
-        meta = d.done ? 'Recovery in' : `Recovery · ${liveWeightPct('recovery')}%`; route = d.done ? 'recovery-confirm' : 'recovery';
+        // BOTH halves, like every other surface. The Recovery pillar an athlete sees is
+        // checkin + recovery; a lone liveWeightPct('recovery') is 9 where the rest of the app
+        // says 18, and requirements.js:48 documents that exact trap. This row was the last one
+        // reading it (founder audit 2026-09-14).
+        meta = d.done ? 'Recovery in' : `Recovery · ${liveWeightPct('checkin') + liveWeightPct('recovery')}%`; route = d.done ? 'recovery-confirm' : 'recovery';
       } else { meta = ''; route = 'home'; }
       return { ...d, meta, route, sub, subColor };
     };

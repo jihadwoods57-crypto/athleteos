@@ -430,10 +430,19 @@ export const PLANS = {
      trainer picked in onboarding rendered under another name on the Plan & billing screen in the
      same session. The SUBTITLE is where audience tailoring lives — same plan, same name, different
      sentence. Parity with the catalog (ids, prices, names, seats, trials, overage) is locked by
-     src/core/obPlanPricingParity.test.ts. */
+     src/core/obPlanPricingParity.test.ts.
+
+     A DIFFERENT SENTENCE IS NOT A DIFFERENT ENTITLEMENT (founder audit 2026-09-14). Professional
+     used to read "Priority support." to a trainer and "plus team collaboration seats." to a
+     dietitian — two different things sold at one price, neither of them real. Nothing in this
+     repo mentions a support tier, and staff seats are a TEAM feature the program carries for
+     free (see the org rows below, and ob2-coach/ob2-dietitian: "Staff seats ride on the
+     program's plan. Nothing to set up, nothing to pay."). Solo and Professional differ by
+     ONE thing — included seats — and nothing in the codebase gates a feature on either id.
+     Tailor the wording to the reader; never name a capability the other audience is not sold. */
   pro: [
     { id: 'pro_solo', name: 'Solo', price: '$99', sub: '25 active clients included, then $10/mo each. Client codes, AI reviews, your daily queue.', tag: '14-day free trial' },
-    { id: 'professional', name: 'Professional', price: '$179', sub: '50 active clients included, then $10/mo each. Priority support.' },
+    { id: 'professional', name: 'Professional', price: '$179', sub: '50 active clients included, then $10/mo each. Everything in Solo, for a full book.' },
   ],
   org: [
     { id: 'org_starter', name: 'Starter', price: '$249', sub: '30 active athletes included, then $15/mo each. Rooms, standards, alerts, staff seats.', tag: '14-day free trial' },
@@ -443,6 +452,6 @@ export const PLANS = {
   ],
   seat: [
     { id: 'pro_solo', name: 'Solo', price: '$99', sub: '25 active clients included, then $10/mo each. Review queue, corrections, trends, flags.', tag: '14-day free trial' },
-    { id: 'professional', name: 'Professional', price: '$179', sub: '50 active clients included, then $10/mo each, plus team collaboration seats.' },
+    { id: 'professional', name: 'Professional', price: '$179', sub: '50 active clients included, then $10/mo each. Everything in Solo, for a full review load.' },
   ],
 };
