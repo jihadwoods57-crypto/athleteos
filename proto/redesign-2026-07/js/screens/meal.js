@@ -1,4 +1,4 @@
-import { S, RT, tier, act, MEAL, mealDetail, fmtClock, liveWeightPct } from '../state.js';
+import { S, RT, tier, act, MEAL, mealDetail, fmtClock, liveWeightPct, athleteContextForAnalysis } from '../state.js';
 import { DAY, slotDeadline } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg, nonLiveBadge, composer, segBar, skeletonRows } from '../components.js';
@@ -2059,6 +2059,11 @@ export const thread = {
             // rather than left empty so the prompt reads as a real ask, not a blank turn.
             question: text || 'I sent a photo. What do you make of it?',
             context,
+            // WHO IS EATING (founder 2026-09-13): sport, position, level, bodyweight, training or
+            // rest day. The read has carried this since 2026-09-02 and the thread carried none of
+            // it, so a linebacker asking a follow-up got answered as a generic athlete. Same
+            // builder as the read, so the two can never describe different people.
+            ...athleteContextForAnalysis(),
             // "I can apply a structured correction": unlocks the apply_correction tool
             // server-side. Only sent because the handler below actually applies it.
             canApplyCorrection: true,

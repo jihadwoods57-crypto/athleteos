@@ -20,7 +20,7 @@
  * that gap being closed.
  */
 
-import { S, RT, act, mealDetail } from '../state.js';
+import { S, RT, act, mealDetail, athleteContextForAnalysis } from '../state.js';
 import { MEAL_KEYS } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc, composer } from '../components.js';
@@ -553,6 +553,10 @@ export default {
         const { data, error } = await c.functions.invoke('meal-chat', {
           body: {
             mealId, question: text, context,
+            // WHO IS EATING (founder 2026-09-13). Same builder the meal read uses, so this
+            // screen and the thread describe the same athlete: sport, position spelled out,
+            // level, bodyweight, training or rest day.
+            ...athleteContextForAnalysis(),
             ...(slot ? { canApplyCorrection: true } : {}),
             // "I render the remember-this chips": unlocks the remember tool server-side.
             canRemember: true,

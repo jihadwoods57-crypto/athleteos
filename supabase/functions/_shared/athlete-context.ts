@@ -33,14 +33,58 @@ const LEVELS: Record<string, string> = {
   club: 'club', youth: 'youth', pro: 'pro', professional: 'pro', adult: 'adult',
 };
 
+// THE POSITION IS STORED AS AN ABBREVIATION (founder 2026-09-13). Every football position the
+// app can save is a code — SPORT_POSITIONS is ['QB','RB','WR','TE','OL','DL','LB','DB',…] — and
+// this line lowercased it, so a linebacker reached the prompt as "lb", sitting one comma away
+// from "about 250 lb". The model could not tell the position from the unit, fell back to the
+// bodyweight, and called a linebacker a lineman in the athlete's own thread.
+//
+// So the codes are spelled out before they are shown. Only football is a code table: every other
+// sport's picker already stores whole words ('Point Guard', 'Goalkeeper'), and those pass through
+// untouched. Coach-typed roster labels are covered too, because a coach writes "MLB" or "FS", not
+// "middle linebacker".
+const FOOTBALL_POSITIONS: Record<string, string> = {
+  qb: 'quarterback', rb: 'running back', hb: 'running back', fb: 'fullback',
+  wr: 'wide receiver', te: 'tight end', ath: 'athlete',
+  ol: 'offensive lineman', ot: 'offensive tackle', og: 'offensive guard',
+  c: 'center', dl: 'defensive lineman', de: 'defensive end', dt: 'defensive tackle',
+  nt: 'nose tackle', edge: 'edge rusher',
+  lb: 'linebacker', ilb: 'inside linebacker', olb: 'outside linebacker',
+  mlb: 'middle linebacker', mike: 'middle linebacker', will: 'weakside linebacker',
+  sam: 'strongside linebacker',
+  db: 'defensive back', cb: 'cornerback', s: 'safety', fs: 'free safety',
+  ss: 'strong safety', ni: 'nickelback', nb: 'nickelback',
+  k: 'kicker', p: 'punter', ls: 'long snapper', kr: 'return specialist', pr: 'return specialist',
+};
+
+/** A position an athlete or coach saved, in words the model can coach with.
+ *
+ *  Football codes are expanded; anything already spelled out is returned as-is. A code we do not
+ *  know is UPPERCASED rather than left lowercase — "DE" is at worst an unfamiliar abbreviation to
+ *  the model, while "de" is noise, and "lb" is actively wrong. Exported so plan-generate and any
+ *  other prompt that names the position speaks the same vocabulary. */
+export function positionWords(sport: unknown, position: unknown): string {
+  const raw = word(position);
+  if (!raw) return '';
+  const s = word(sport);
+  // Codes are one token, no spaces. A phrase is already words; leave it alone.
+  if (raw.includes(' ')) return raw;
+  // Single letters (C, S, K, P) collide across sports — a soccer striker is not a center — so
+  // they expand only when we KNOW the sport is football. Multi-letter codes are football-specific
+  // enough to expand on their own, which also covers a roster row that carries no sport.
+  const full = FOOTBALL_POSITIONS[raw];
+  if (full && (raw.length > 1 || s.includes('football'))) return full;
+  return raw.length <= 4 ? raw.toUpperCase() : raw;
+}
+
 /** Render the athlete line, or '' when there is nothing honest to say. */
 export function athleteContextLine(a: AthleteContextIn | null | undefined): string {
   if (!a || typeof a !== 'object') return '';
   const bits: string[] = [];
   const sport = word(a.sport);
-  const position = word(a.position);
+  const position = positionWords(a.sport, a.position);
   if (sport) bits.push(sport);
-  if (position && position !== sport) bits.push(position);
+  if (position && position.toLowerCase() !== sport) bits.push(position);
   const lvlRaw = word(a.level, 24);
   const level = LEVELS[lvlRaw] ?? (lvlRaw ? lvlRaw : '');
   if (level) bits.push(`${level} level`);

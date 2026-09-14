@@ -32,6 +32,7 @@ import { memoryBlock, chatFactCandidate, factKey, memoryOfferLine, CHAT_FACT_KIN
 import { flagOn } from '../_shared/feature-flags.ts';
 import { routeForCoachMeal } from '../_shared/followup.ts';
 import { chatVoiceDirective } from '../_shared/coach-voice.ts';
+import { athleteContextLine } from '../_shared/athlete-context.ts';
 import { loadVoiceForAthlete } from '../_shared/coach-voice-load.ts';
 import { SUGGEST_MEAL_TOOL, parseSuggestMeal, suggestRowText, suggestRowMeta } from './suggest.mjs';
 
@@ -251,9 +252,10 @@ const COACH_ASK_SYSTEM = `You are the OnStandard AI Nutritionist. A COACH or TRA
 Rules that bind you:
 1. Use ONLY the provided context (this meal, targets, the thread). Never invent, recompute, or adjust any number; you may repeat numbers exactly as given.
 2. Answer the coach directly and practically, like a staff nutritionist they trust. The athlete can read this thread too — refer to the athlete in the third person and stay respectful about them.
-3. When asked for a recommendation, give a clear one grounded in what is actually in the context. If the context cannot support a firm answer, say so plainly and name the one thing you would check.
-4. 100 words maximum. No em dashes. No markdown headers.
-5. Never give medical, injury, weight-cutting, or disordered-eating guidance — those belong with qualified humans.`;
+3. When the context names the athlete's sport, position, level, bodyweight or day type, coach for it, and name their position with the EXACT word you were given. A neighbouring position is a wrong position; never infer one from bodyweight or from the plate.
+4. When asked for a recommendation, give a clear one grounded in what is actually in the context. If the context cannot support a firm answer, say so plainly and name the one thing you would check.
+5. 100 words maximum. No em dashes. No markdown headers.
+6. Never give medical, injury, weight-cutting, or disordered-eating guidance — those belong with qualified humans.`;
 
 const SYSTEM = `You are the OnStandard AI Nutritionist inside an athlete's meal thread.
 Rules that bind you:
@@ -271,6 +273,13 @@ Rules that bind you:
    a fresh text, not a template.
 5. When coach guidance appears in the context, defer to it explicitly.
 6. Answer the athlete's question for THEIR goal and plan, not generic nutrition advice.
+6b. COACH THE ATHLETE IN FRONT OF YOU. When the context names their sport, position, level,
+   bodyweight or whether today is a training or rest day, let it shape the answer: a linebacker
+   on a training day and a distance runner on a rest day do not get the same portion or the same
+   timing. If you name their position, use the EXACT word you were given and no other. A
+   neighbouring position is a wrong position, so a linebacker is never a lineman, a safety is
+   never a corner, a tight end is never a receiver. Never infer a position, a weight, or a
+   session from anything else, and when none was given, do not name one.
 7. 90 words maximum — a capable staff nutritionist texts short. No em dashes. No markdown headers.
 8. STAY IN YOUR LANE. If the question is medical, an injury, weight cutting or making weight, or
    shows a troubled relationship with food, do NOT advise and do NOT reassure: call flag_for_coach.
@@ -432,6 +441,14 @@ Deno.serve(async (req) => {
     if (!mealId || !context || (!draftMode && !correctionUpdate && !question)) return bad(400, 'bad_request', cors);
     if (JSON.stringify(context).length > CONTEXT_MAX) return bad(400, 'bad_request', cors);
 
+    // WHO IS EATING (founder 2026-09-13). The meal READ has known the athlete's sport, position,
+    // level, bodyweight and day type since 2026-09-02; the thread that follows it knew none of
+    // that, so every follow-up answer was coached for a generic athlete. Same shape, same shared
+    // renderer, same sanitization as analyze-meal — and '' when the client sends nothing, which
+    // is what makes this safe to deploy ahead of the client that fills it in.
+    const whoLine = athleteContextLine(body?.athlete);
+    const ctxBlock = `Context (deterministic, computed by the app):\n${JSON.stringify(context)}${whoLine ? `\n\nThe athlete this thread belongs to:${whoLine}` : ''}`;
+
     // ---- authorization (RLS does the work) ----
     // Athlete mode: the caller must OWN the meal. Coach mode: the RLS-scoped select succeeding
     // for a non-owner proves can_view (linked coach/staff); the athlete row id comes from the DB.
@@ -509,7 +526,7 @@ Deno.serve(async (req) => {
         tool_choice: { type: 'tool', name: 'draft_replies' },
         messages: [{
           role: 'user',
-          content: `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nDraft four replies the COACH could send to the athlete about this meal, one per stance (supportive, direct, context, followup), using ONLY figures already in the context. Speak as the coach to the athlete. Each draft is 60 words or less.`,
+          content: `${ctxBlock}\n\nDraft four replies the COACH could send to the athlete about this meal, one per stance (supportive, direct, context, followup), using ONLY figures already in the context. Speak as the coach to the athlete. Each draft is 60 words or less.`,
         }],
       });
       await recordAiCall({ fn: 'meal-chat', mode: 'draft', userId: callerId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0d, ok: true });
@@ -629,15 +646,15 @@ Deno.serve(async (req) => {
     ] as unknown as Anthropic.Tool[];
     // The user turn, named once because the style-correction retry below has to replay it exactly.
     const userTurn = coachAsk
-      ? `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nThe COACH reviewing this athlete's meal just asked you directly: "${question}"\n\nAnswer THE COACH in 100 words or less, using ONLY figures and foods already present in the context. Give a clear practical answer or recommendation; refer to the athlete in the third person. If the context cannot support a firm answer, say so and name the one thing you would check.${photoB64 ? ' The coach ATTACHED THE IMAGE ABOVE to their question: read it and answer about it. It has not been analyzed and carries no macros, so any figure you give for it is an eyeballed estimate and must be said to be one. If it shows food from this meal that the logged read does not list, say so plainly so the athlete can confirm it in the thread and have it counted.' : ''}`
+      ? `${ctxBlock}\n\nThe COACH reviewing this athlete's meal just asked you directly: "${question}"\n\nAnswer THE COACH in 100 words or less, using ONLY figures and foods already present in the context. Give a clear practical answer or recommendation; refer to the athlete in the third person. If the context cannot support a firm answer, say so and name the one thing you would check.${photoB64 ? ' The coach ATTACHED THE IMAGE ABOVE to their question: read it and answer about it. It has not been analyzed and carries no macros, so any figure you give for it is an eyeballed estimate and must be said to be one. If it shows food from this meal that the logged read does not list, say so plainly so the athlete can confirm it in the thread and have it counted.' : ''}`
       : coachSupport
-      ? `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nThe COACH just said this on the athlete's meal: "${question}"\n\nIn 60 words or less, speaking to the athlete, back the coach's point using ONLY figures already in the context. Do not add new requirements, do not soften the coach, do not contradict them. If the context has nothing relevant, one steady sentence reinforcing the coach is enough.`
+      ? `${ctxBlock}\n\nThe COACH just said this on the athlete's meal: "${question}"\n\nIn 60 words or less, speaking to the athlete, back the coach's point using ONLY figures already in the context. Do not add new requirements, do not soften the coach, do not contradict them. If the context has nothing relevant, one steady sentence reinforcing the coach is enough.`
       : correctionUpdate
         // The correction is already applied and the numbers in the context are the CORRECTED ones.
         // The job is to acknowledge the fix and re-read the plate with it, conversationally — not
         // to apologise, and not to re-litigate what the photo showed.
-        ? `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nThe athlete just corrected your read of this meal. The numbers above are the CORRECTED ones. In 50 words or less, reply like a coach texting back — open by thanking them for the correction in a short natural clause ("Thanks for correcting the oil, that changes things a bit."), then give the ONE thing the update means for their next meal. Two or three sentences, conversational, no headings, no lists. Do not apologise, do not explain the mistake, do not re-list the numbers.`
-        : `Context (deterministic, computed by the app):\n${JSON.stringify(context)}\n\nAthlete's question: ${question}${photoB64 ? `
+        ? `${ctxBlock}\n\nThe athlete just corrected your read of this meal. The numbers above are the CORRECTED ones. In 50 words or less, reply like a coach texting back — open by thanking them for the correction in a short natural clause ("Thanks for correcting the oil, that changes things a bit."), then give the ONE thing the update means for their next meal. Two or three sentences, conversational, no headings, no lists. Do not apologise, do not explain the mistake, do not re-list the numbers.`
+        : `${ctxBlock}\n\nAthlete's question: ${question}${photoB64 ? `
 
 The athlete ATTACHED THE IMAGE ABOVE to this message. It has not been analyzed and nothing in the
 context above describes it. Read it yourself. FIRST decide what it is:

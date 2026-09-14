@@ -1010,10 +1010,13 @@ export async function setAthletePlanStyle(athleteId, style, overrides, reason) {
 // and sends manually. Same vendored-supabase-js error-parse idiom as screens/meal.js (~818):
 // on a non-2xx the client throws FunctionsHttpError, so data is null and the structured error
 // body must be read off error.context.json(). Never throws into the UI.
-export async function draftMealReplies(mealId, context) {
+export async function draftMealReplies(mealId, context, athlete) {
   const c = sb(); if (!c || !mealId) return { ok: false, error: 'offline' };
   try {
-    const { data, error } = await c.functions.invoke('meal-chat', { body: { mealId, draftReplies: true, context: context || {} } });
+    // `athlete` is the roster row's position (2026-09-13), so a draft coaches the athlete the
+    // coach is actually looking at. Omitted when the roster has no position: the edge function
+    // then renders nothing and the prompt is what it has always been.
+    const { data, error } = await c.functions.invoke('meal-chat', { body: { mealId, draftReplies: true, context: context || {}, ...(athlete ? { athlete } : {}) } });
     if (error || !data || data.error) {
       let parsed = data && data.error ? data : null;
       if (!parsed && error && error.context && typeof error.context.json === 'function') parsed = await error.context.json().catch(() => null);

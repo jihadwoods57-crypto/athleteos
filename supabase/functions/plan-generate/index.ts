@@ -11,6 +11,7 @@ import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 import { checkSpend, spendMessage, EST_USD } from '../_shared/spend-gate.ts';
+import { positionWords } from '../_shared/athlete-context.ts';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 
@@ -158,6 +159,9 @@ interface PlanProtocolIn {
   protein?: number;
   mealsPerDay?: number;
   position?: string;
+  /** Only ever read to disambiguate a one-letter position code (a football C is a center, a
+   *  soccer S is not). Absent from every shipped client; multi-letter codes expand without it. */
+  sport?: string;
   deadline?: string;
 }
 
@@ -235,7 +239,12 @@ function buildPrompt(req: PlanReq): string {
   if (typeof p.calories === 'number') protocolBits.push(`${p.calories} cal/day target`);
   if (typeof p.protein === 'number') protocolBits.push(`${p.protein} g protein/day target`);
   if (typeof p.mealsPerDay === 'number') protocolBits.push(`${p.mealsPerDay} meals/day`);
-  if (typeof p.position === 'string' && p.position) protocolBits.push(`position: ${p.position}`);
+  // Spelled out, never the raw code: the profile stores 'LB', and "position: lb" next to a
+  // weight in lb is what taught a meal read to call a linebacker a lineman (founder 2026-09-13).
+  if (typeof p.position === 'string' && p.position) {
+    const pos = positionWords(p.sport, p.position);
+    if (pos) protocolBits.push(`position: ${pos}`);
+  }
   if (typeof p.deadline === 'string' && p.deadline) protocolBits.push(`deadline: ${p.deadline}`);
   if (protocolBits.length > 0) lines.push(`Protocol: ${protocolBits.join(', ')}.`);
   const windowList = req.windows.map((w) => `${w.key} (${w.label})${w.required ? ', required' : ''}`).join('; ');

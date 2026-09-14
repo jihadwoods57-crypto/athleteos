@@ -2905,6 +2905,18 @@ let MENU_MOUNTED_FOR = null;
    from the already-fetched meals row + the loaded thread + any loaded coach targets. Mirrors the
    athlete side's discipline: numbers are carried, never computed here. Kept comfortably under
    meal-chat's 8KB context clamp. */
+/* WHO THE MEAL BELONGS TO, for the coach-side AI calls (founder 2026-09-13). Read off the ROSTER
+   row, never off RT.profile: on this screen RT.profile is the COACH, and sending it would have
+   the AI describe the wrong person entirely. Position only, because that is all a roster row
+   carries; the edge function renders '' when there is nothing to say. */
+function athleteContextForMeal(meal) {
+  const id = meal && meal.athlete_id;
+  if (!id) return {};
+  const row = ((CD.roster && CD.roster.rows) || []).find((r) => r.athleteId === id);
+  const pos = row ? resolvePos(row) : '';
+  return pos ? { athlete: { position: String(pos).slice(0, 40) } } : {};
+}
+
 function coachAskContext(meal) {
   const ctx = { meal: {} };
   if (meal) {
@@ -3391,7 +3403,7 @@ export const coachMeal = {
       let failMsg = '';
       try {
         const { data, error } = await window.sb.functions.invoke('meal-chat', {
-          body: { mealId: sub, coachAsk: true, question: text, context: coachAskContext(meal0), ...(res.photoPath ? { photoPath: res.photoPath } : {}) },
+          body: { mealId: sub, coachAsk: true, question: text, context: coachAskContext(meal0), ...athleteContextForMeal(meal0), ...(res.photoPath ? { photoPath: res.photoPath } : {}) },
         });
         if (error || !data || !data.reply) throw new Error('no-reply');
       } catch {
@@ -3585,7 +3597,7 @@ export const coachMeal = {
         meal: meal0 ? { type: meal0.type, protein: meal0.protein, kcal: meal0.kcal, quality: meal0.quality } : {},
         thread: threadMessages(MC && MC.comments).slice(-6).map((c) => ({ role: c.role, text: String(c.text).slice(0, 300) })),
       };
-      const r = await roles.draftMealReplies(sub, context);
+      const r = await roles.draftMealReplies(sub, context, athleteContextForMeal(meal0).athlete);
       if (DRAFTS.mealId !== sub) return; // stale — coach navigated away/on before this resolved
       DRAFTS.loading = false;
       DRAFTS.items = r.ok ? r.drafts : [];

@@ -873,7 +873,11 @@ function earlierMealsForAnalysis(currentSlot) {
   return out.length ? { earlierMeals: out.slice(0, 4) } : {};
 }
 
-function athleteContextForAnalysis() {
+/* WHO IS EATING, for any prompt that coaches this athlete: the meal read, and (2026-09-13) the
+   meal thread that follows it. The thread used to know nothing about them, so its answers were
+   coached for a generic athlete. One builder means the read and the reply can never describe two
+   different people. Exported for screens/meal.js. */
+export function athleteContextForAnalysis() {
   const p = RT.profile || {};
   const bw = (p.baseWeight != null ? +p.baseWeight : 0)
     || (RT.ob && RT.ob.currentWeight ? +RT.ob.currentWeight : 0)
@@ -2514,7 +2518,7 @@ export const act = {
         plan: { style: S.planStyle.key, proteinTarget: dp.proteinTarget },
         exec: { proteinSoFar: dp.proteinSoFar, mealsRemaining: dp.mealsRemaining },
       });
-      await sb.functions.invoke('meal-chat', { body: { mealId, correctionUpdate: true, context } });
+      await sb.functions.invoke('meal-chat', { body: { mealId, correctionUpdate: true, context, ...athleteContextForAnalysis() } });
       // The thread screen refetches on its own tick; nudge a repaint so it lands promptly.
       window.__render && window.__render();
     } catch { /* a quieter thread, not a broken correction */ }
