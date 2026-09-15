@@ -9,7 +9,7 @@ import { fetchRecentMeals, daysAgoISO, fetchMealComments, postMealComment, delet
 import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos, wireComposerAttach, postChatMessage } from '../chat-attach.js';
 import { threadMessages, reactionGroups, REACTION_EMOJI, normalizeDetected } from '../meal-intel.js';
 import { wireTapback } from '../tapback.js';
-import { mealReadHtml } from './meal.js';
+import { mealReadHtml, wireReadControls } from './meal.js';
 import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isEscalated, quotedFor,
   dayLabelOf, participantList, participantSummary, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
 } from '../chat-view.js';
@@ -572,6 +572,7 @@ export const mealView = {
     return `<div class="meal-screen">${backHead(M.dish || M.name, '', 'history')}${execTop}${photoBlock}${breakdown}${discussion}${foot}</div>`;
   },
   mount(root, { sub }) {
+    wireReadControls(root, mealView); // the read's See details / info / confidence controls
     const m = histMealById(sub) || (DIRECT.id === sub ? DIRECT.row : null);
     if (!m) { void fetchMealById(sub); return; }
     mountThread(root, sub, m);

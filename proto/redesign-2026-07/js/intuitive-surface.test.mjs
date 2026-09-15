@@ -168,8 +168,8 @@ test('the past-meal screen renders through the same per-figure read card as toda
   assert.doesNotMatch(TRUST_SRC, /class="macro-row/);
   const MEAL = read('screens', 'meal.js');
   assert.match(MEAL, /const showNums = PS\.showMacros \|\| PS\.showCalories;/);
-  const kcalCell = MEAL.split('\n').find((l) => l.includes("mg(raw.cals, '')"));
-  assert.ok(kcalCell, 'the kcal cell still exists');
+  const kcalCell = MEAL.split('\n').find((l) => l.includes("tile('cals', raw.cals"));
+  assert.ok(kcalCell, 'the kcal tile still exists (2026-09-15: the strip became four tiles, each behind its own flag)');
   assert.match(kcalCell, /PS\.showCalories/);
 });
 
@@ -285,13 +285,13 @@ test('meal.js: every calorie figure rides showCalories, every macro cell rides s
   assert.match(MEAL_SRC, /if \(S\.planStyle\.showCalories\) cells\.push\(`<div class="macro"><div class="mv">\$\{m\.cals\}/);
   // The thread's value strip: kcal cell behind showCalories, the three macro cells behind showMacros.
   // (Cells read through mg(raw.*) since 2026-09-14: null prints a dash, the gates are unchanged.)
-  const kcalCell = MEAL_SRC.split('\n').find((l) => l.includes("mg(raw.cals, '')"));
-  assert.ok(kcalCell, 'the thread kcal cell still exists');
+  const kcalCell = MEAL_SRC.split('\n').find((l) => l.includes("tile('cals', raw.cals"));
+  assert.ok(kcalCell, 'the thread kcal tile still exists');
   // Inside mealReadHtml the style is `PS`: the signed-in user's own S.planStyle unless a caller
   // (the coach's screen) overrides it. Same gates, one indirection.
   assert.match(MEAL_SRC, /const PS = planStyle \|\| S\.planStyle \|\| \{\};/);
   assert.match(kcalCell, /PS\.showCalories/);
-  assert.match(MEAL_SRC, /\$\{PS\.showMacros \? `\n\s*<div class="nv lead"><div class="mv">\$\{mg\(raw\.protein/);
+  assert.match(MEAL_SRC, /\.\.\.\(PS\.showMacros \? \[tile\('protein', raw\.protein/);
   // The day bars: the calorie bar (value and target) behind showCalories, protein behind showMacros.
   assert.match(MEAL_SRC, /PS\.showCalories \? \[\['Calories', raw\.cals, T\.calories/);
   assert.match(MEAL_SRC, /PS\.showMacros \? \[\['Protein', raw\.protein, T\.protein/);

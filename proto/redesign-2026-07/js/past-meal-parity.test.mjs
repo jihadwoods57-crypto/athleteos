@@ -27,7 +27,7 @@ test('the read card + breakdown is one exported function, and today\'s thread ca
 
 test('the past-meal screen renders the same four blocks through the same function', () => {
   const trust = src('screens/trust.js');
-  assert.match(trust, /import \{ mealReadHtml \} from '\.\/meal\.js';/);
+  assert.match(trust, /import \{ mealReadHtml, wireReadControls \} from '\.\/meal\.js';/);
   assert.match(trust, /export function pastMealDetail\(m\)/, 'a meals row is mapped to the mealDetail() shape');
   assert.match(trust, /mealReadHtml\(M, \{ exec: null, past: true \}\)/);
   assert.match(trust, /<section class="mt-confirm">/, 'the logged confirmation card');

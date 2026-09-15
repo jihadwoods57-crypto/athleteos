@@ -10,7 +10,7 @@ import {
 import { coachSetupState, coachSetupSteps, isNutritionBook } from './coach-home.js';
 import * as roles from '../roles.js';
 import { openingMessage, qualityBand, qualityReason, scoreRubric, reactionGroups, threadMessages, privateNotes, REACTION_EMOJI, applyMealCorrection, applyFoodRemoval, normalizeDetected } from '../meal-intel.js';
-import { mealReadHtml } from './meal.js';
+import { mealReadHtml, wireReadControls } from './meal.js';
 import { pastMealDetail } from './trust.js';
 import { revealDisc } from '../disc-reveal.js';
 import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpener, isEscalated, quotedFor,
@@ -3912,6 +3912,7 @@ export const parent = {
     `;
   },
   async mount(root) {
+    wireReadControls(root, coachMeal); // the read's See details / info / confidence controls
     // Before the early returns below: every anchor a parent's tour points at comes from render(),
     // so it runs whether or not an athlete is linked yet. Safe on every repaint (see tour.js).
     maybeStartTour();

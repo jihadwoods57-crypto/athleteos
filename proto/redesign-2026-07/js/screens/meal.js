@@ -1,5 +1,5 @@
 import { S, RT, tier, act, MEAL, mealDetail, fmtClock, liveWeightPct, athleteContextForAnalysis } from '../state.js';
-import { DAY, slotDeadline } from '../day.js';
+import { DAY, slotDeadline, dayStandard } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg, nonLiveBadge, composer, segBar, skeletonRows } from '../components.js';
 import { reveal, buzz } from '../motion.js';
@@ -852,6 +852,32 @@ analysis._editing = false;
    the mealDetail() shape (trust.js builds it from a meals row: see pastMealDetail); `exec` is the
    day's execution summary (null for a past plate); `past` turns off the day projection and the
    re-read link, which only make sense while the day is live. Returns the two blocks as strings. */
+/** The read's small controls: "See details", the info mark on the score chip, the confidence line.
+ *  Each opens the "Why did this meal score N?" row and brings it into view. `holder` remembers the
+ *  open state across the repaints this screen does constantly (comments, participants landing).
+ *  Shared by the athlete thread, the coach's meal screen and the past-meal page, which all render
+ *  the same read. Idempotent per node. */
+export function wireReadControls(root, holder = null) {
+  if (!root) return;
+  const rub = root.querySelector('.rub');
+  if (rub && holder && !rub.dataset.lmWired) {
+    rub.dataset.lmWired = '1';
+    rub.addEventListener('toggle', () => { holder._rubOpen = rub.open; });
+  }
+  root.querySelectorAll('[data-open="rub"]').forEach((b) => {
+    if (b.dataset.lmWired) return;
+    b.dataset.lmWired = '1';
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const d = root.querySelector('.rub');
+      if (!d) return;
+      d.open = true;
+      if (holder) holder._rubOpen = true;
+      try { d.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch { /* older engines */ }
+    });
+  });
+}
+
 export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete', targets = null, planStyle = null } = {}) {
   // `viewer`: 'athlete' (the default, second person) or 'coach' (the professional reading an
   // athlete's plate: full figures, the athlete named in the third person, no self-service links).
@@ -954,99 +980,141 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
     // opt-in-able switch, so someone who WANTS their numbers back can have them. Per figure:
     // the card renders when either flag is on; each cell rides its own flag below.
     const showNums = PS.showMacros || PS.showCalories;
-    // The value strip + day bars, as one chrome-less block the read card hosts. Same numbers,
-    // same honesty markers (~ for photo estimates); provenance rides a quiet in-card line.
-    const nutInCard = settled && showNums ? `
-    <div class="nut-src">Nutrition · ${esc(srcLabel)}</div>
-    ${emptyRead ? `<div style="padding:0 16px 13px">${rereadNote}</div>` : `
-    <div class="nut-values${PS.showMacros && PS.showCalories ? ' wrap2' : ''}">
-      ${PS.showMacros ? `
-      <div class="nv lead"><div class="mv">${mg(raw.protein, '<i>g</i>')}</div><div class="mk">Protein</div></div>
-      <div class="nv"><div class="mv">${mg(raw.carbs, '<i>g</i>')}</div><div class="mk">Carbs</div></div>
-      <div class="nv"><div class="mv">${mg(raw.fat, '<i>g</i>')}</div><div class="mk">Fat</div></div>` : ''}
-      ${PS.showCalories ? `<div class="nv${PS.showMacros ? '' : ' lead'}"><div class="mv">${mg(raw.cals, '')}</div><div class="mk">Calories</div></div>` : ''}
-    </div>
-    ${someMissing ? `<div class="nut-note"><div class="est-note">A dash means we do not have that number for this meal. It is not a zero.</div></div>` : ''}
-    ${targetBars.length ? `<div class="day-bars">
-        ${targetBars.map(([k, v, target, u, projected]) => {
-          const now = Math.min(100, Math.round((v / target) * 100));
-          const ahead = projected != null ? Math.max(0, Math.min(100 - now, Math.round((projected / target) * 100))) : 0;
+    /* THE READ, RESTRUCTURED (founder 2026-09-15). "Fewer containers, heavier typography, larger
+       visual moments, and less information competing at the same level. The food photo and the
+       meal score should be what your eye lands on within half a second."
+       So: the photo is the hero and the score rides on it, with its word. What follows is stacked
+       sections separated by space and a heading each, never nested bordered cards: What stood out,
+       Nutrition, Today after this meal, then two plain rows (why the score, the detected foods).
+       Provenance is said ONCE, in sentence case, inside the Nutrition heading, so the figures carry
+       no tilde and no uppercase strip announces it a second time. The day score is a footnote of
+       the Today section, not a second hero. Inner class names the tests and reveal() reach
+       (#meal-scorechip, .sr-row, .rub, .bd-wrap, #mt-reread) are unchanged. */
+    const cap = (t) => (t ? String(t).charAt(0).toUpperCase() + String(t).slice(1) : '');
+    const fmtN = (n) => (n == null ? '—' : Number(n).toLocaleString('en-US'));
+    const stdNow = typeof dayStandard === 'function' ? dayStandard() : null;
+    const mealsReq = stdNow && stdNow.mealsRequired > 0 ? stdNow.mealsRequired : 4;
+    const perMeal = T.protein > 0 ? Math.round(T.protein / mealsReq) : null;
+    // The second line under each verdict row: what to do about it, in one clause. Derived from
+    // the same component judgment as the label, and figure-free unless the plan shows figures.
+    const hintFor = (r) => {
+      const l = r.label || '';
+      if (/^Protein solid/.test(l)) return 'Carries the plate';
+      if (/^Protein/.test(l)) return perMeal && PS.showMacros ? `Try to get about ${perMeal}g next time` : 'Lead the next plate with protein';
+      if (/^Carbs balanced/.test(l)) return 'Good fuel for the work';
+      if (/^Carb-heavy/.test(l)) return 'Trade some for protein next time';
+      if (/^Fat in range/.test(l)) return 'Good balance for your goals';
+      if (/^Fat/.test(l)) return 'Go lighter on oils and cheese';
+      if (/^Good fiber/.test(l)) return 'Produce is showing';
+      if (/^Fiber light/.test(l)) return 'Add fruit, veggies or higher fiber carbs';
+      if (/^No fiber/.test(l)) return 'Nothing green on the plate';
+      if (/^Good timing/.test(l)) return 'Landed in the window';
+      if (/^Logged/.test(l)) return M.minutesLate > 0 ? `${M.minutesLate} min past the window` : 'Past the window';
+      return '';
+    };
+    const stoodOut = band && reasons.length ? `
+    <section class="lm-sec lm-stood">
+      <div class="lm-h"><h2>What stood out</h2>${rub.rows.length ? `<button type="button" class="lm-more" data-open="rub">See details ${icon('chevron', 14)}</button>` : ''}</div>
+      <div class="sr-rows">
+        ${[...reasons].sort((a, b) => (a.state === 'met' ? -1 : 1) - (b.state === 'met' ? -1 : 1)).map((r) => {
+          const hint = hintFor(r);
           return `
-          <div class="cons-row">
-            <span class="k" style="width:64px">${k}</span>
-            ${/* There is no --teal token — only --teal-rgb and --teal-deep — so this fill's old
-                  `var(--teal, #39c6d6)` ALWAYS fell through to a hardcoded hue, in both themes,
-                  which is the one thing tokens exist to prevent. It also wore the green→teal
-                  sweep, and that is reserved for surfaces that display a score; a macro-against-
-                  target bar is progress geometry, and progress geometry wears blue. Same
-                  deep→base ramp `.cat-trend .fillb.b` already uses. */''}
-            <div class="track"><div class="fillb" style="width:${now}%;background:linear-gradient(90deg,var(--blue-deep),var(--blue))"></div>${ahead ? `<div class="ghostb" style="left:${now}%;width:${ahead}%"></div>` : ''}</div>
-            <span class="v" style="width:110px;white-space:nowrap">${tilde}${v}${u} <small style="color:var(--text-3)">of ${esc(String(target))}${u}</small></span>
-          </div>`;
+        <div class="sr-row ${r.state}"><span class="sr-ic">${icon(r.state === 'met' ? 'check' : r.state === 'partial' ? 'arrowUp' : 'x', 14)}</span><div class="sr-b"><div class="sr-t">${esc(r.label)}</div>${hint ? `<div class="sr-s">${esc(hint)}</div>` : ''}</div></div>`;
         }).join('')}
-        ${paceNote ? `<div class="pace">${esc(paceNote)}</div>` : ''}
-    </div>` : ''}
-    ${/* No correction chips on the read card (founder, 2026-08-17). "Correct this read" and
-          "Add a detail" sat directly under the numbers and made every settled meal look like it
-          was asking to be argued with. The correction panel is unchanged and still one tap away
-          from where the foods actually are — the two links inside "View detected foods". */''}`}` : '';
+      </div>
+    </section>` : '';
+    // Provenance, once, in the heading's own sentence case.
+    // One muted line, right of the heading (the founder's own wording): "Estimated from photo ·
+    // Medium confidence". An exact label or a typed entry has no confidence to state.
+    const provShort = M.source === 'label' ? 'Exact, from the label'
+      : M.source === 'manual' ? (you ? 'Entered by you' : 'Entered by the athlete')
+      : `Estimated from photo · ${cap(conf)} confidence`;
+    const NUT_ICON = { protein: 'biceps', carbs: 'bars', fat: 'droplet', cals: 'flame' };
+    const plain = (v, unit) => (v == null ? '—' : `${fmtN(v)}${unit}`);
+    const tile = (k, v, unit, label) => `<div class="nt${k === 'protein' ? ' lead' : ''}"><span class="nt-ic ${k}">${icon(NUT_ICON[k], 16)}</span><div class="nt-v">${plain(v, unit)}</div><div class="nt-k">${label}</div></div>`;
+    const tiles = [
+      ...(PS.showMacros ? [tile('protein', raw.protein, '<i>g</i>', 'Protein'), tile('carbs', raw.carbs, '<i>g</i>', 'Carbs'), tile('fat', raw.fat, '<i>g</i>', 'Fat')] : []),
+      ...(PS.showCalories ? [tile('cals', raw.cals, '', 'Calories')] : []),
+    ];
+    const nutrition = settled && showNums ? `
+    <section class="lm-sec lm-nut">
+      <div class="lm-h"><h2>Nutrition</h2>${fromPhoto && rub.rows.length ? `<button type="button" class="lm-conf" data-open="rub" aria-label="How this estimate was made and how confident it is">${esc(provShort)} ${icon('info', 14)}</button>` : `<span class="lm-conf">${esc(provShort)}</span>`}</div>
+      ${emptyRead ? rereadNote : `
+      <div class="nut-tiles${tiles.length === 3 ? ' three' : tiles.length <= 2 ? ' two' : ''}">${tiles.join('')}</div>
+      ${someMissing ? `<div class="est-note">A dash means we do not have that number for this meal. It is not a zero.</div>` : ''}`}
+    </section>` : '';
+    // THE DAY, as a footnote of the Today section and never a second hero (founder 2026-09-15:
+    // "the daily score can be a subtle contextual indicator rather than another giant metric").
+    // Athlete's own live day only: a coach reading a plate, or a past plate, has no day credit.
+    const move = you && !past && RT.lastMove && (RT.lastMove.what || '').toLowerCase() === M.slot ? RT.lastMove : null;
+    const justLogged = !!move && !move._played;
+    const dupFlagged = M.flagged === 'dup';
+    const toTier = justLogged ? tier(move.to) : null;
+    const firstEver = justLogged && !(DAY.scoreHistory || []).some((h) => h && h.date && h.date < String(DAY.date));
+    const dayFoot = you && !past && exec ? `
+      <div class="lm-day">
+      ${justLogged && !dupFlagged ? scoreMoveBar({
+        from: move.from, to: move.to, uid: 'mt',
+        head: `<div class="score-line">
+        <span class="k">Daily score</span>
+        <span class="from">${move.from}</span>
+        <span class="arr">${icon('arrowRight', 14)}</span>
+        <span class="to ${toTier.cls}" data-sm-count="${move.to}">${move.to}</span>
+        <span class="gain ${toTier.cls}">+${move.gain}</span>
+        ${toTier.name !== tier(move.from).name ? `<span class="tier-chip ${toTier.cls}" data-sm-tier="▲ " data-sm-base="tier-chip">▲ ${esc(toTier.name)}</span>` : ''}
+      </div>`,
+      }) + (firstEver ? '<div class="sm-first">First one in. From here the number is live: every meal, every check-in, every day.</div>' : '') : ''}
+      ${(() => {
+        if (justLogged || dupFlagged) return '';
+        const gain = S.mealScoreImpact(M.slot) || 0;
+        // Neutral ('n') on purpose: no day number sits in this row for a tier colour to belong
+        // to, and a 2-of-4 day is under 60 by construction (see .status-pill.inprog).
+        return gain > 0 ? `
+      <div class="score-line">
+        <span class="k">Daily score</span>
+        <span class="gain n">+${gain} from this meal</span>
+      </div>` : '';
+      })()}
+      <div class="prog-line">
+        ${segBar(exec.met, exec.total, `${exec.met} of ${exec.total} completed today`)}
+        <span class="pk">${exec.met} of ${exec.total} in today${S.streakDays > 0 ? ` · ${S.streakDays} day streak` : ''}</span>
+      </div>
+      </div>` : '';
+    const todayRows = targetBars.map(([k, v, target, u, projected]) => {
+      const now = Math.min(100, Math.round((v / target) * 100));
+      const ahead = projected != null ? Math.max(0, Math.min(100 - now, Math.round((projected / target) * 100))) : 0;
+      const left = Math.max(0, target - v);
+      return `
+      <div class="tb-row">
+        <span class="tb-k">${k}</span>
+        <div class="tb-track"><div class="tb-fill" style="width:${now}%"></div>${ahead ? `<div class="ghostb" style="left:${now}%;width:${ahead}%"></div>` : ''}</div>
+        <span class="tb-v"><span><b>${fmtN(v)}</b> / ${fmtN(target)}${u}</span><small>${left ? `${fmtN(left)}${u} left` : 'Target met'}</small></span>
+      </div>`;
+    }).join('');
+    const today = settled && showNums && (targetBars.length || dayFoot) ? `
+    <section class="lm-sec lm-today">
+      ${targetBars.length ? `<div class="lm-h"><h2>${past ? 'That day after this meal' : 'Today after this meal'}</h2>${you && !past ? `<button type="button" class="lm-more" data-go="plan">View daily targets ${icon('chevron', 14)}</button>` : ''}</div>
+      ${todayRows}
+      ${paceNote ? `<div class="tb-pace">${esc(paceNote)}</div>` : ''}` : ''}
+      ${dayFoot}
+    </section>` : '';
+    const bandWord = band ? (band.label === 'Strong' ? 'Strong meal' : band.label) : '';
     const photoBlock = `
-    <!-- The plate, blurred, as the screen's own backdrop. The meal thread is the one screen with a
-         real photograph on it, and it sat on the same flat canvas as everything else; letting the
-         food tint the room is what makes the screen feel like it is ABOUT that meal. Same <img>
-         src as the hero below (assigned once in mount), so this costs no second fetch. Decorative
-         and behind everything: aria-hidden, no pointer events. -->
+    <!-- The plate, blurred, as the screen's own backdrop. Same <img> src as the hero (assigned once
+         in mount), so this costs no second fetch. Decorative and behind everything. -->
     <div class="meal-backdrop" aria-hidden="true"><img id="meal-backdrop-img" alt="" decoding="async"/></div>
-    <div class="photo-hero" id="meal-hero" data-vt="plate" style="margin-top:14px;background:linear-gradient(150deg, rgba(var(--green-rgb),0.14), rgba(var(--blue-deep-rgb),0.06))">
-      <img id="meal-photo" alt="Photo of this meal" decoding="async" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;display:none"/>
+    <div class="photo-hero lm-hero" id="meal-hero" data-vt="plate">
+      <img id="meal-photo" alt="Photo of this meal" decoding="async"/>
       <div class="ph-grad"></div>
-      <div class="ph-meta"><div>${M.live === false ? `<div>${nonLiveBadge()}</div>` : '<div></div>'}</div>
-      ${M.score != null ? `<div class="scorechip ${band ? band.cls : ''}" id="meal-scorechip">
+      ${M.live === false ? `<div class="lm-prov">${nonLiveBadge()}</div>` : ''}
+      <div class="lm-view" aria-hidden="true">${icon('image', 15)} View photo</div>
+      ${M.score != null ? `<div class="scorechip big ${band ? band.cls : ''}" id="meal-scorechip" aria-label="Meal score ${M.score}${bandWord ? `, ${bandWord}` : ''}">
         ${miniDial(M.score)}
-        <span class="v" data-count="${M.score}">${M.score}</span><span class="k">Meal</span>
-      </div>` : ''}</div>
-    </div>
-    ${/* ONE score presentation (founder spec 2026-08-06): the ring chip on the photo IS the
-          number — repeating "71/100" in a second big panel directly beneath it made the score
-          read as two systems. The band verdict + the ✓/✕ reasons stay: they are the
-          explanation, not a restatement. */''}
-    ${/* ONE read, one card (2026-08-06): the verdict, the ✓/✕ reasons, the coach's one line, and
-          the rubric expander used to be four separately-chromed boxes in a row — four answers to
-          the same question ("how good was this meal?") each wearing its own border. They are one
-          unit now: verdict+reasons up top, the focus line as its footer, the rubric as the quiet
-          seam at the bottom. Inner class names stay so reveal()/tests keep working. */''}
-    ${band ? `<section class="meal-read">
-    <div class="score-read">
-      <div class="sr-head">
-        <span class="sr-band ${band.cls}">${band.label}</span>
-      </div>
-      ${reasons.length ? `<div class="sr-rows">
-        ${[...reasons].sort((a, b) => (a.state === 'met' ? -1 : 1) - (b.state === 'met' ? -1 : 1)).map((r) => `
-        <div class="sr-row ${r.state}"><span class="sr-ic">${icon(r.state === 'met' ? 'check' : 'x', 12)}</span>${esc(r.label)}</div>`).join('')}
+        <span class="v" data-count="${M.score}">${M.score}</span><span class="k">${esc(bandWord)}</span>
       </div>` : ''}
+      ${M.score != null && rub.rows.length ? `<button type="button" class="lm-why" data-open="rub" aria-label="Why did this meal score ${M.score}">${icon('info', 14)}</button>` : ''}
     </div>
-    ${/* "Coach's Focus" removed (founder, 2026-08-06). The ✓/✕ reasons above already say what
-          landed and what didn't, and the AI's own message in the thread says what to do next —
-          a third restatement of the same judgment, in a box wearing the coach's name for a line
-          the coach never wrote, was the most redundant thing on the screen. */''}
-    ${/* The nutrition strip lives INSIDE this card now (founder 2026-08-10: the read card and
-          the Estimated Nutrition panel were two boxes making one point — the verdict and the
-          numbers behind it). Hairline seams, not borders, do the separating. */''}
-    ${nutInCard}
-    <details class="rub">
-      <summary>${esc(rub.headline)} ${icon('chevron', 13)}</summary>
-      <div class="rub-body">
-        ${rub.rows.map(r => `
-        <div class="rub-row">
-          <span class="bd-req-dot ${RUB_DOT[r.state] || 'muted'}"></span>
-          <span class="rk">${esc(r.k)}</span>
-          <span class="rn">${esc(r.note)}</span>
-          <span class="rx-tag">${r.exact ? 'exact' : 'estimated'}</span>
-        </div>`).join('')}
-        <div class="rub-fine">Exact items are facts (timing, what you submitted). Estimated items come from the photo read and move when you correct it in the chat.</div>
-      </div>
-    </details>
-    </section>` : nutInCard ? `<section class="meal-read">${nutInCard}</section>` : ''}`;
+    ${stoodOut}${nutrition}${today}`;
 
     // ---- 3. DETECTED FOODS + CORRECTIONS (feedback 2026-07-16; the value strip and day bars
     // moved into the read card above, founder 2026-08-10). Detected foods are rows with
@@ -1095,14 +1163,28 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
     ${/* The Estimated Nutrition panel that opened this section lives inside the read card now
           (founder 2026-08-10) — what remains here is the detail drawer: foods, notes,
           corrections, and the correction panel itself. */''}
+    <section class="lm-rows">
+    ${band && M.score != null && rub.rows.length ? `<details class="rub"${thread._rubOpen ? ' open' : ''}>
+      <summary><span class="lm-ric">${icon('sparkle', 16)}</span><span class="lm-rt">Why did this meal score ${M.score}?</span>${icon('chevron', 16)}</summary>
+      <div class="rub-body">
+        ${rub.rows.map(r => `
+        <div class="rub-row">
+          <span class="bd-req-dot ${RUB_DOT[r.state] || 'muted'}"></span>
+          <span class="rk">${esc(r.k)}</span>
+          <span class="rn">${esc(r.note)}</span>
+          <span class="rx-tag">${r.exact ? 'exact' : 'estimated'}</span>
+        </div>`).join('')}
+        <div class="rub-fine">Exact items are facts (timing, what you submitted). Estimated items come from the photo read and move when you correct it in the chat.</div>
+      </div>
+    </details>` : ''}
     <details class="bd-wrap"${thread._bdOpen ? ' open' : ''}>
-      <summary>View detected foods ${icon('chevron', 13)}</summary>
+      <summary><span class="lm-ric">${icon('clipboard', 16)}</span><span class="lm-rt">Detected foods<small>${M.detectedRich.length} item${M.detectedRich.length === 1 ? '' : 's'}</small></span>${icon('chevron', 16)}</summary>
       <div class="bd-body">
       ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
       ${/* "No targets" is claimed off the RAW targets, not the visible bars: a target a
             professional chose to hide still exists, and this line must not say otherwise. */''}
       ${targetBars.length || T.protein || T.calories ? '' : `<div class="est-note">${you ? "No coach targets set yet, so there's nothing to measure against. These are this meal's totals." : 'No targets set for this athlete yet, so there is nothing to measure against. These are this meal\'s totals.'}</div>`}
-      ${PS.showMacros ? `<div class="est-note" style="margin-top:8px">~${M.fiber}g fiber estimated. The full component read lives under "Why this meal reads ${M.score != null ? M.score : 'what it reads'}".</div>` : ''}
+      ${PS.showMacros ? `<div class="est-note" style="margin-top:8px">~${M.fiber}g fiber estimated. The full component read is under "Why did this meal score ${M.score != null ? M.score : 'this'}?".</div>` : ''}
       ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">${you ? 'Your note' : 'Their note'}:</b> ${esc(M.userNote)}</div>` : ''}
       ${corrLog ? `<div class="est-note" style="margin-top:8px;color:var(--blue-bright)"><b style="color:var(--blue-bright)">${you ? 'Corrected by you' : 'Corrected by the athlete'}</b>: ${corrLog} correction${corrLog === 1 ? '' : 's'} applied. The AI's original estimate is kept for reference${(() => {
         if (!M.orig) return '';
@@ -1122,7 +1204,8 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
             copy. This line only points at the composer. */''}
       ${emptyRead || !you ? '' : M.mealId ? `<div class="est-note">${fromPhoto ? 'Estimated from the photo. ' : ''}Something off or left out? <span class="link" id="tell-ai" role="button" tabindex="0">Tell the AI Nutritionist below</span> and the name, numbers and score update together.</div>` : ''}
       </div>
-    </details>`;
+    </details>
+    </section>`;
     return { photoBlock, breakdown };
 }
 
@@ -1149,78 +1232,28 @@ export const thread = {
       <div style="height:10px"></div>`;
     }
 
-    // ---- 1. LOGGED CONFIRMATION — compact (founder feedback 2026-07-16: the old celebration
-    // ate half the screen and mixed compliance with meal quality). Three facts only: logged
-    // (green = accountability), the score move, progress on the day. Timing appears here ONCE.
-    /* `_played` is now retired by the MOVE ITSELF, when the sweep finishes (see the mount below),
-       rather than the instant mount ran. It used to be set on the first mount, which meant the very
-       next repaint — participants and comments land about a second into a thread — dropped this
-       whole line while its count-up was still running. The app's payoff was racing a network
-       response for the right to finish, and on a fast connection it lost. */
+    // ---- 1. THE STATUS LINE (founder 2026-09-15). The logged confirmation used to be a bordered
+    // green card carrying the timing, the day score's move, and the day's progress, all above the
+    // photo it was competing with. It is one slim row under the title now: check, slot, time,
+    // verdict, and the coach's receipt. The day score and the day's progress moved under "Today
+    // after this meal" (mealReadHtml), where they are context for the bars, not a second hero.
     const move = RT.lastMove && (RT.lastMove.what || '').toLowerCase() === M.slot ? RT.lastMove : null;
     const justLogged = !!move && !move._played;
     const dupFlagged = M.flagged === 'dup';
-    const timing = M.loggedAt
-      ? `Logged ${M.loggedAt} · ${M.minutesLate > 0 ? `${M.minutesLate} min late` : 'on time'}`
-      : (M.late ? 'Logged late · still counts' : 'Logged on time');
-    const toTier = justLogged ? tier(move.to) : null;
-    // The athlete's very first log ever: no day before today has ever been scored. Derived, so
-    // there is no flag that can drift out of step with what actually happened.
-    const firstEver = justLogged && !(DAY.scoreHistory || []).some((h) => h && h.date && h.date < String(DAY.date));
-    // Coach attention, from REAL signals only (comments load async; the mount updates this
-    // line in place once they land): Sent to Coach → Reviewed by Coach → Coach replied.
     const cStatus = coachThreadStatus({
       mealId: M.mealId, hasCoach: S.coach.hasCoach, comments: [], noun: S.coach.noun,
       dayReviewed: RECEIPT.uid === RT.userId && RECEIPT.date === String(DAY.date) && RECEIPT.reviewed,
     });
+    const lateLabel = M.minutesLate > 0 ? `${M.minutesLate} min late` : M.late ? 'Late, still counts' : 'On time';
     const execTop = `
-    <section class="mt-confirm">
-      <div class="row1">
-        <div class="ck${justLogged ? ' pop' : ''}">${icon('check', 20)}</div>
-        <div><div class="t">${esc(M.name)} logged</div>
-        <div class="s">${timing}${cStatus.label ? ` · <span id="coach-status">${esc(cStatus.label)}</span>` : ''}</div></div>
-      </div>
-      ${dupFlagged ? `<div class="dup-note">Duplicate photo · recorded, but it doesn't count. Coach can see the flag.</div>` : ''}
-      ${/* The same move the recovery confirm draws as a dial, as a strip — this sits inside a card
-            under a green confirmation, and a second hero here would be two celebrations arguing.
-            What the strip adds over the old bare numerals is the LADDER: ticks at 60 / 80 / 90, so
-            "+6" is read as a distance to the next line rather than as six of nothing. */''}
-      ${justLogged && !dupFlagged ? scoreMoveBar({
-        from: move.from, to: move.to, uid: 'mt',
-        head: `<div class="score-line">
-        <span class="k">Daily Score</span>
-        <span class="from">${move.from}</span>
-        <span class="arr">${icon('arrowRight', 14)}</span>
-        <span class="to ${toTier.cls}" data-sm-count="${move.to}">${move.to}</span>
-        <span class="gain ${toTier.cls}">+${move.gain}</span>
-        ${toTier.name !== tier(move.from).name ? `<span class="tier-chip ${toTier.cls}" data-sm-tier="▲ " data-sm-base="tier-chip">▲ ${esc(toTier.name)}</span>` : ''}
-      </div>`,
-      }) + (firstEver ? '<div class="sm-first">First one in. From here the number is live: every meal, every check-in, every day.</div>' : '') : ''}
-      ${/* The credit is a fact about the day, not a one-time animation — it used to render only
-            on the justLogged paint, so the first background repaint (participants landing ~1s in)
-            erased the most rewarding line on the page, and a revisit never showed it at all.
-            The engine's own number (mealScoreImpact), so it can never disagree with the score. */''}
-      ${(() => {
-        if (justLogged || dupFlagged) return '';
-        const gain = S.mealScoreImpact(M.slot) || 0;
-        // Neutral ('n') on purpose. Unlike the justLogged move above there is no day number in
-        // this row for a tier colour to belong to — tinted by the day, the tint landed on the
-        // credit itself, and a 2-of-4 day is under 60 by construction, so every on-time lunch's
-        // "+10" wore alarm red. Mid-day the day has no verdict (the .status-pill.inprog rule);
-        // on the celebration path it does, but the sealed-day dial and tier chip sit directly
-        // below, so the credit never has to carry the verdict on any path. The flat-green lie
-        // the tint once fixed stays fixed: neutral claims no standing either.
-        return gain > 0 ? `
-      <div class="score-line">
-        <span class="k">Daily Score</span>
-        <span class="gain n">+${gain} from this meal</span>
-      </div>` : '';
-      })()}
-      <div class="prog-line">
-        ${segBar(e.met, e.total, `${e.met} of ${e.total} completed today`)}
-        <span class="pk">${e.met} of ${e.total} in today${S.streakDays > 0 ? ` · ${S.streakDays} day streak` : ''}</span>
-      </div>
-    </section>`;
+    <div class="lm-status">
+      <span class="lm-ck${justLogged ? ' pop' : ''}">${icon('check', 12)}</span>
+      <span class="lm-slot">${esc(M.name)}</span>
+      ${M.loggedAt ? `<span class="lm-dot">·</span><span>${esc(M.loggedAt)}</span>` : ''}
+      <span class="lm-dot">·</span><span class="${M.minutesLate > 0 || M.late ? 'late' : 'ontime'}">${esc(lateLabel)}</span>
+      ${cStatus.label ? `<span class="lm-dot">·</span><span id="coach-status">${esc(cStatus.label)}</span>` : ''}
+    </div>
+    ${dupFlagged ? `<div class="lm-dup">Duplicate photo · recorded, but it doesn't count. Coach can see the flag.</div>` : ''}`;
 
     const { photoBlock, breakdown } = mealReadHtml(M, { exec: e });
 
@@ -1431,6 +1464,7 @@ export const thread = {
     // changes, never on the initial `open` attribute.
     const bdWrap = root.querySelector('.bd-wrap');
     if (bdWrap) bdWrap.addEventListener('toggle', () => { thread._bdOpen = bdWrap.open; });
+    wireReadControls(root, thread);
     /** Put the cursor in the thread composer: the one place a correction is made. Through
      *  keyboard.js's focusComposer, which brings the conversation down onto the keys — this
      *  was a local `const focusComposer` doing scrollIntoView({block:'center'}), which SHADOWED

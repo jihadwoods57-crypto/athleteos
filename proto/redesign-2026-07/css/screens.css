@@ -1889,39 +1889,39 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* The rule sits on whichever element is the section's direct child — the move strip when there is
    a move to show, the bare credit line when the move has already played. A margin on .score-line
    itself would collapse out through .sm-head and land nowhere. */
-.mt-confirm .smove-bar,.mt-confirm > .score-line{margin-top:var(--s3);padding-top:var(--s3);border-top:1px solid var(--hairline-soft)}
-.mt-confirm .score-line{display:flex;align-items:baseline;gap:var(--s2h);font-variant-numeric:tabular-nums}
-.mt-confirm .score-line .k{font-size:var(--t-micro);font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-3);margin-right:auto}
-.mt-confirm .score-line .from{font-size:var(--t-lg);font-weight:800;color:var(--text-3)}
-.mt-confirm .score-line .arr{color:var(--text-3);align-self:center;display:flex}
+.lm-day .smove-bar,.lm-day > .score-line,.mt-confirm .smove-bar,.mt-confirm > .score-line{margin-top:var(--s3);padding-top:var(--s3);border-top:1px solid var(--hairline-soft)}
+.lm-day .score-line,.mt-confirm .score-line{display:flex;align-items:baseline;gap:var(--s2h);font-variant-numeric:tabular-nums}
+.lm-day .score-line .k,.mt-confirm .score-line .k{font-size:var(--t-micro);font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-3);margin-right:auto}
+.lm-day .score-line .from,.mt-confirm .score-line .from{font-size:var(--t-lg);font-weight:800;color:var(--text-3)}
+.lm-day .score-line .arr,.mt-confirm .score-line .arr{color:var(--text-3);align-self:center;display:flex}
 /* The new number and the points that got it wear the TIER they landed in, never a fixed green.
    These two were hardcoded --green-bright, which meant logging your way to a 62 printed the
    "on standard" colour on a day that is Building — the score staying honest while the label
    around it did not. The letters are the ladder's own (score-band.js), so a tier added there
    only ever needs a colour here, never a threshold. */
-.mt-confirm .score-line .to{font-size:var(--t-2xl);font-weight:800;letter-spacing:var(--num-tight)}
-.mt-confirm .score-line .to.g{color:var(--green-bright)}
-.mt-confirm .score-line .to.b{color:var(--blue-bright)}
-.mt-confirm .score-line .to.a{color:var(--amber-bright)}
-.mt-confirm .score-line .to.r{color:var(--red-bright)}
-.mt-confirm .score-line .gain{font-size:var(--t-xs);font-weight:800;border-radius:var(--r-pill);padding:2px var(--s2)}
-.mt-confirm .score-line .gain.g{color:var(--green-bright);background:var(--green-surface);border:1px solid var(--green-border)}
-.mt-confirm .score-line .gain.b{color:var(--blue-bright);background:var(--blue-surface);border:1px solid var(--blue-border)}
-.mt-confirm .score-line .gain.a{color:var(--amber-bright);background:var(--amber-surface);border:1px solid var(--amber-border)}
-.mt-confirm .score-line .gain.r{color:var(--red-bright);background:var(--red-surface);border:1px solid var(--red-border)}
+.lm-day .score-line .to,.mt-confirm .score-line .to{font-size:var(--t-2xl);font-weight:800;letter-spacing:var(--num-tight)}
+.lm-day .score-line .to.g,.mt-confirm .score-line .to.g{color:var(--green-bright)}
+.lm-day .score-line .to.b,.mt-confirm .score-line .to.b{color:var(--blue-bright)}
+.lm-day .score-line .to.a,.mt-confirm .score-line .to.a{color:var(--amber-bright)}
+.lm-day .score-line .to.r,.mt-confirm .score-line .to.r{color:var(--red-bright)}
+.lm-day .score-line .gain,.mt-confirm .score-line .gain{font-size:var(--t-xs);font-weight:800;border-radius:var(--r-pill);padding:2px var(--s2)}
+.lm-day .score-line .gain.g,.mt-confirm .score-line .gain.g{color:var(--green-bright);background:var(--green-surface);border:1px solid var(--green-border)}
+.lm-day .score-line .gain.b,.mt-confirm .score-line .gain.b{color:var(--blue-bright);background:var(--blue-surface);border:1px solid var(--blue-border)}
+.lm-day .score-line .gain.a,.mt-confirm .score-line .gain.a{color:var(--amber-bright);background:var(--amber-surface);border:1px solid var(--amber-border)}
+.lm-day .score-line .gain.r,.mt-confirm .score-line .gain.r{color:var(--red-bright);background:var(--red-surface);border:1px solid var(--red-border)}
 /* 'n' is the revisit credit on a live day: no verdict yet (see .status-pill.inprog), and no day
    number in the row for a tier colour to belong to — quiet ink that claims no standing. */
-.mt-confirm .score-line .gain.n{color:var(--text-2);background:var(--surface-2);border:1px solid transparent}
+.lm-day .score-line .gain.n,.mt-confirm .score-line .gain.n{color:var(--text-2);background:var(--surface-2);border:1px solid transparent}
 /* The promotion chip is the last thing on the row and the row is a flex line: without these it
    shrank to its longest word and broke "Locked In" across two lines mid-sweep. A tier name is two
    words at most and it never wraps. */
-.mt-confirm .score-line .tier-chip{flex:none;white-space:nowrap}
+.lm-day .score-line .tier-chip,.mt-confirm .score-line .tier-chip{flex:none;white-space:nowrap}
 /* The first log an athlete ever files. Sits under the move, once, and says what changed about the
    product rather than congratulating them for pressing a button. */
-.mt-confirm .sm-first{font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-top:var(--s2h);line-height:1.45}
-.mt-confirm .prog-line{display:flex;align-items:center;gap:var(--s2h);margin-top:var(--s3)}
-.mt-confirm .prog-line .xsegs{flex:1}
-.mt-confirm .prog-line .pk{font-size:var(--t-xs);font-weight:700;color:var(--text-2);white-space:nowrap}
+.lm-day .sm-first,.mt-confirm .sm-first{font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-top:var(--s2h);line-height:1.45}
+.lm-day .prog-line,.mt-confirm .prog-line{display:flex;align-items:center;gap:var(--s2h);margin-top:var(--s3)}
+.lm-day .prog-line .xsegs,.mt-confirm .prog-line .xsegs{flex:1}
+.lm-day .prog-line .pk,.mt-confirm .prog-line .pk{font-size:var(--t-xs);font-weight:700;color:var(--text-2);white-space:nowrap}
 /* Meal quality — its own concept and color on the NUMBER; a 58 is amber, never success green.
    The arc itself always wears the brand sweep. */
 .scorechip.mid{box-shadow:0 0 20px rgba(var(--amber-rgb), 0.3)}
@@ -3480,3 +3480,99 @@ body.kb-open .meal-foot { display: none; }
 .wk-receipt .wk-rc-t { font-size: var(--t-base); font-weight: 800; color: var(--green-bright); }
 .wk-receipt.late .wk-rc-t { color: var(--amber-bright); }
 .wk-receipt .wk-rc-s { font-size: var(--t-sm); font-weight: 700; color: var(--text-3); margin-left: auto; }
+
+/* ===== The logged meal, restructured (founder 2026-09-15) =====
+   "Fewer containers, heavier typography, larger visual moments, and less information competing at
+   the same level." The photo is the hero and the score rides on it; the sections under it are
+   separated by space and a heading, not by nested borders. Every size is a token, every gap on
+   the scale. The .mt-confirm rules above stay for the past-meal and coach screens that still use
+   the card. */
+.meal-screen .back-head{align-items:flex-start;padding-bottom:var(--s2)}
+.meal-screen .back-head .bk{margin-top:2px}
+/* The status line: check, slot, time, verdict, receipt. One row, muted, under the title. */
+.lm-status{display:flex;align-items:center;flex-wrap:wrap;gap:var(--s1h) var(--s2);padding:0 0 var(--s3) 2px;font-size:var(--t-sm);font-weight:700;color:var(--text-2)}
+.lm-status .lm-ck{width:20px;height:20px;border-radius:50%;background:var(--green);color:var(--ink-on-accent);display:grid;place-items:center;flex:none}
+.lm-status .lm-slot{color:var(--green-bright);font-weight:800}
+.lm-status .lm-dot{color:var(--text-3)}
+.lm-status .late{color:var(--amber-bright)}
+.lm-status .lm-ck.pop{animation:popIn 600ms var(--ease-out) both}
+@media (prefers-reduced-motion: reduce){.lm-status .lm-ck.pop{animation:none}}
+.lm-dup{font-size:var(--t-sm);font-weight:700;color:var(--amber-bright);margin:0 0 var(--s3);line-height:1.4}
+/* The hero: taller, no border, the score in the corner with its word. */
+.meal-screen .photo-hero.lm-hero{height:300px;border:none;margin-top:0;background:linear-gradient(150deg,rgba(var(--green-rgb),0.14),rgba(var(--blue-deep-rgb),0.06))}
+.meal-screen .photo-hero.lm-hero.ph-nophoto{height:128px}
+.lm-hero #meal-photo{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;display:none}
+.lm-hero .ph-grad{background:linear-gradient(180deg,transparent 46%,rgba(5,8,15,0.74))}
+.lm-hero .lm-prov{position:absolute;left:var(--s3h);top:var(--s3h)}
+/* Over a photograph on either theme, so the provenance pill keeps the dark scrim the View pill wears. */
+.lm-hero .lm-prov .status-pill{background:rgba(5,8,15,0.55);color:#fff;border-color:transparent}
+.lm-hero .lm-view{position:absolute;left:var(--s3h);bottom:var(--s3h);display:inline-flex;align-items:center;gap:var(--s1h);padding:var(--s2) var(--s3);border-radius:var(--r-pill);background:rgba(5,8,15,0.55);color:#fff;font-size:var(--t-sm);font-weight:700;pointer-events:none}
+.lm-hero.ph-nophoto .lm-view,.lm-hero.ph-nophoto .ph-grad{display:none}
+.lm-hero .scorechip.big{position:absolute;right:var(--s3h);bottom:var(--s3h);width:96px;height:96px}
+.lm-hero .scorechip.big .sc-ring{width:100%;height:100%}
+.lm-hero .scorechip.big .v{font-size:var(--t-3xl)}
+.lm-hero .scorechip.big .k{font-size:var(--t-xs);text-transform:none;letter-spacing:0;font-weight:700;color:var(--text-2);margin-top:1px}
+/* The info mark: a small round button tucked at the chip's corner; opens the "why" row. */
+.lm-hero .lm-why{position:absolute;right:var(--s2);bottom:var(--s2);width:28px;height:28px;border-radius:50%;border:1px solid var(--hairline);background:var(--surface-1);color:var(--text-2);display:grid;place-items:center;cursor:pointer;padding:0;box-shadow:var(--sh-card);-webkit-tap-highlight-color:transparent}
+.lm-hero .lm-why:active{transform:scale(0.92)}
+/* Sections: a heading, then content. Space does the separating. */
+.lm-sec{margin-top:var(--s6)}
+.lm-h{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s3);margin-bottom:var(--s3)}
+.lm-h h2{font-size:var(--t-lg);font-weight:800;letter-spacing:var(--title-tight);margin:0;min-width:0}
+.lm-h .lm-hs{font-size:var(--t-sm);font-weight:600;color:var(--text-3);letter-spacing:0;margin-left:var(--s1)}
+.lm-more,.lm-conf{display:inline-flex;align-items:center;gap:var(--s1);border:none;background:none;padding:0;margin:0;color:var(--text-2);font-family:var(--font);font-size:var(--t-sm);font-weight:700;cursor:pointer;white-space:nowrap;flex:none;-webkit-tap-highlight-color:transparent}
+.lm-more:active,.lm-conf:active{opacity:0.6}
+.lm-conf{color:var(--text-3);font-weight:600;white-space:normal;text-align:right}
+/* What stood out: three rows, a filled status disc each, title heavy, the hint under it. */
+.lm-stood .sr-rows{display:flex;flex-direction:column;gap:var(--s3h)}
+.lm-stood .sr-row{display:flex;align-items:flex-start;gap:var(--s3);font-size:var(--t-md);font-weight:800;letter-spacing:-0.01em;color:var(--text)}
+.lm-stood .sr-ic{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;flex:none;margin-top:1px}
+.lm-stood .sr-row.met .sr-ic{background:var(--green);color:var(--ink-on-accent)}
+.lm-stood .sr-row.partial .sr-ic{background:var(--amber);color:var(--ink-on-accent)}
+.lm-stood .sr-row.miss .sr-ic{background:var(--red);color:var(--ink-on-accent)}
+.lm-stood .sr-b{min-width:0}
+.lm-stood .sr-s{font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:2px;line-height:1.4}
+/* Nutrition: four compact tiles, number heavy, label under it, one icon each. */
+.nut-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s2)}
+.nut-tiles.three{grid-template-columns:repeat(3,1fr)}
+.nut-tiles.two{grid-template-columns:repeat(2,1fr)}
+.nut-tiles .nt{display:flex;flex-direction:column;align-items:center;gap:var(--s1);padding:var(--s3) var(--s1) var(--s2h);border-radius:var(--r-card-sm);background:var(--surface-1);box-shadow:var(--sh-card);min-width:0}
+.nut-tiles .nt-ic{width:24px;height:24px;display:grid;place-items:center;color:var(--text-3)}
+.nut-tiles .nt-ic.protein{color:var(--blue-bright)}
+.nut-tiles .nt-ic.carbs{color:var(--amber-bright)}
+.nut-tiles .nt-ic.fat{color:var(--purple-bright)}
+.nut-tiles .nt-ic.cals{color:var(--red-bright)}
+.nut-tiles .nt-v{font-size:var(--t-xl);font-weight:800;letter-spacing:-0.03em;font-variant-numeric:tabular-nums;line-height:1;white-space:nowrap}
+.nut-tiles .nt-v i{font-style:normal;font-size:var(--t-sm);font-weight:700;color:var(--text-3)}
+.nut-tiles .nt-k{font-size:var(--t-xs);font-weight:600;color:var(--text-2)}
+.lm-nut .est-note{margin-top:var(--s2h)}
+/* Today after this meal: label, a thick track, the figures right, the remainder under them. */
+.tb-row{display:grid;grid-template-columns:72px 1fr auto;align-items:center;gap:var(--s3);padding:var(--s2h) 0}
+.tb-row + .tb-row{border-top:1px solid var(--hairline-soft)}
+.tb-k{font-size:var(--t-base);font-weight:700;color:var(--text)}
+.tb-track{position:relative;height:10px;border-radius:var(--r-pill);background:var(--surface-3);overflow:hidden}
+.tb-fill{height:100%;border-radius:var(--r-pill);background:linear-gradient(90deg,var(--blue-deep),var(--blue))}
+.tb-track .ghostb{position:absolute;top:0;bottom:0;border-radius:inherit;opacity:0.5;background:repeating-linear-gradient(90deg,rgba(var(--blue-rgb),0.55) 0 4px,transparent 4px 8px)}
+.tb-v{text-align:right;font-variant-numeric:tabular-nums;font-size:var(--t-sm);font-weight:700;color:var(--text-2);white-space:nowrap;display:flex;flex-direction:column;align-items:flex-end;line-height:1.25}
+.tb-v b{font-size:var(--t-md);font-weight:800;color:var(--text)}
+.tb-v small{font-size:var(--t-xs);font-weight:600;color:var(--text-3)}
+.tb-pace{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:var(--s2);line-height:1.45}
+.lm-day{margin-top:var(--s3);padding-top:var(--s3);border-top:1px solid var(--hairline-soft)}
+.lm-day .smove-bar,.lm-day > .score-line{margin-top:0;padding-top:0;border-top:none}
+.lm-day .prog-line{margin-top:var(--s2h)}
+/* Sentence case here: the footnote's label used the confirm card's uppercase eyebrow, and the
+   brief's whole point was less shouting microcopy. */
+.lm-day .score-line .k{text-transform:none;letter-spacing:0;font-size:var(--t-sm);font-weight:700;color:var(--text-2)}
+/* The two rows: why the score, the detected foods. One quiet surface, a hairline between. */
+.lm-rows{margin-top:var(--s6);border-radius:var(--r-card);background:var(--surface-1);box-shadow:var(--sh-card);overflow:hidden}
+.lm-rows details{margin:0;border:none;border-radius:0;background:none}
+.lm-rows details + details{border-top:1px solid var(--hairline-soft)}
+.lm-rows > details > summary{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) var(--s4);font-size:var(--t-md);font-weight:800;color:var(--text);list-style:none;cursor:pointer;min-height:56px;-webkit-tap-highlight-color:transparent}
+.lm-rows > details > summary::-webkit-details-marker{display:none}
+.lm-rows > details > summary > svg:last-child{margin-left:auto;color:var(--text-3);transition:transform var(--dur-1) var(--ease-out);flex:none}
+.lm-rows > details[open] > summary > svg:last-child{transform:rotate(90deg)}
+.lm-ric{width:36px;height:36px;border-radius:var(--r-chip);background:var(--surface-2);color:var(--text-2);display:grid;place-items:center;flex:none}
+.lm-rt{display:flex;align-items:baseline;gap:var(--s2);min-width:0;flex:1}
+.lm-rt small{font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin-left:auto;white-space:nowrap}
+.lm-rows .rub-body,.lm-rows .bd-body{padding:0 var(--s4) var(--s3h)}
+.lm-rows .bd-body > .card{margin-top:0}
