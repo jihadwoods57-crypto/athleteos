@@ -101,3 +101,49 @@ test('a day row with no meals map falls back rather than guessing', () => {
   assert.strictEqual(row.meals, null, 'absent means absent, never an empty map that reads as "none logged"');
   assert.deepEqual(overdueTitles(at(row)), [], 'a logged day with nothing to judge by stays silent');
 });
+
+/* 2026-09-15, on the founder's own coach home at 2:45 PM: "Jihad Woods · Critical · Breakfast and
+ * Lunch overdue", score 34, directly above a Live Activity card showing Jihad's breakfast photo
+ * logged at 5:44 AM. Lunch was genuinely still open (it landed at 2:48). Breakfast was not.
+ *
+ * Every number below is copied off production, not invented: the team's requirement_sets row
+ * (scope team, effective 2026-08-28) names its meals meal-1 / meal-2 / meal-3, while the athlete's
+ * day row records them under breakfast / lunch / dinner in BOTH days.meals and days.tasks. The
+ * status engine looked up meals['meal-1'], found nothing, and called a logged meal overdue.
+ */
+import { catalogFromItems } from './requirements.js';
+
+const NAIR_SET_ITEMS = [
+  { id: 'meal-1', freq: { type: 'daily' }, kind: 'meal', proof: 'photo', title: 'Breakfast', window: { due: 570, open: 420 } },
+  { id: 'meal-2', freq: { type: 'daily' }, kind: 'meal', proof: 'photo', title: 'Lunch', window: { due: 840, open: 720 } },
+  { id: 'meal-3', freq: { type: 'daily' }, kind: 'meal', proof: 'photo', title: 'Dinner', window: { due: 1230, open: 1080 } },
+  { id: 'weight', freq: { days: [1, 3, 5], type: 'days', label: 'Mon / Wed / Fri' }, kind: 'weigh', proof: 'scale', title: 'Morning Weight', window: { due: 540 } },
+  { id: 'recovery', freq: { type: 'daily' }, kind: 'recovery', proof: 'form', title: 'Recovery Check-In', window: { due: 1410, label: 'Before bed' } },
+];
+
+test('Jihad 2026-09-15 14:45: a standard that names its meals meal-N still sees a logged breakfast', () => {
+  const TUE = 2;
+  // days row as it stood at 2:45 PM: breakfast in (5:44 AM), lunch not yet (2:48 PM).
+  const row = buildRosterRow(
+    { athlete_id: '4c580c5e', athlete_name: 'Jihad Woods', position: 'LB' },
+    { score: 34, meals: { lunch: false, snack: false, dinner: false, breakfast: true },
+      tasks: [{ id: 'breakfast', done: true }, { id: 'lunch', done: false }, { id: 'dinner', done: false }, { id: 'recovery', done: false }] },
+    { lastMealAt: '2026-09-15T09:44:27Z' },
+  );
+  const s = athleteStatus({ nowMin: T(14, 45), nowMs: Date.parse('2026-09-15T18:45:00Z'), row, reqs: catalogFromItems(NAIR_SET_ITEMS), excused: false, nowDow: TUE });
+  assert.deepEqual(overdueTitles(s), ['Lunch'], 'breakfast was logged at 5:44; only lunch is honestly overdue at 2:45');
+  assert.strictEqual(s.detail, 'Lunch overdue');
+});
+
+test('Jihad 2026-09-15 14:50: once lunch lands, the same standard reads clean', () => {
+  const TUE = 2;
+  const row = buildRosterRow(
+    { athlete_id: '4c580c5e', athlete_name: 'Jihad Woods', position: 'LB' },
+    { score: 61, meals: { lunch: true, snack: false, dinner: false, breakfast: true },
+      tasks: [{ id: 'breakfast', done: true }, { id: 'lunch', done: true }, { id: 'dinner', done: false }, { id: 'recovery', done: true }] },
+    { lastMealAt: '2026-09-15T18:48:13Z' },
+  );
+  const s = athleteStatus({ nowMin: T(14, 50), nowMs: Date.parse('2026-09-15T18:50:00Z'), row, reqs: catalogFromItems(NAIR_SET_ITEMS), excused: false, nowDow: TUE });
+  assert.deepEqual(overdueTitles(s), [], 'nothing is overdue: dinner opens at 18:00 and recovery is due at 23:30');
+  assert.notStrictEqual(s.key, 'overdue');
+});

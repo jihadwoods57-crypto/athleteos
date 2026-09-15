@@ -84,7 +84,10 @@ function buildReqsByAthlete(roster, extras) {
         // reads it as 'custom', same silent disposition as a lift/custom item.
         kindById[String(it.id)] = it.kind === 'checkin' ? undefined : it.kind;
       }
-      out[r.athleteId] = catalogFromItems(set.items).map(req => ({ ...req, kind: kindById[req.id] || 'custom' }));
+      // catalogFromItems now carries `kind` itself, and a meal item's id is its DAY SLOT (breakfast,
+      // not meal-1) — so the by-id lookup must go through the stored id it also keeps (itemId),
+      // or every meal would fall to 'custom' and mostMissed would count them off tasks_done.
+      out[r.athleteId] = catalogFromItems(set.items).map(req => ({ ...req, kind: kindById[req.itemId != null ? req.itemId : req.id] || 'custom' }));
     } else {
       out[r.athleteId] = CATALOG.map(c => ({ ...c, kind: CATALOG_KIND[c.id] }));
     }

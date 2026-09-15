@@ -116,3 +116,39 @@ test('review finding 3: IMPACT_LABEL.recovery is the SUM, never the lone engine 
   // the real nightly Recovery check-in requirement) must match.
   assert.equal(IMPACT_LABEL.recovery, 'Recovery · 18% of score');
 });
+
+/* 2026-09-15: the coach's status engine looked a logged breakfast up as meals['meal-1'] and called
+ * it overdue. The athlete's day maps a standard's meal items to slot keys BY POSITION (stdFromItems
+ * → STD_SLOT_MAP), writes days.meals and days.tasks under those keys, and every coach-side reader
+ * of a stored set routes through catalogFromItems — so this is the one place the two sides can be
+ * made to agree. A meal item's id IS its day slot. The original id and the kind ride along. */
+import { STD_SLOT_MAP, stdFromItems } from './requirements.js';
+
+test('a meal item is identified by the day slot stdFromItems gives it, not by its stored id', () => {
+  const three = [
+    { id: 'meal-1', title: 'Breakfast', kind: 'meal', proof: 'photo', window: { due: 570, open: 420 } },
+    { id: 'meal-2', title: 'Lunch', kind: 'meal', proof: 'photo', window: { due: 840, open: 720 } },
+    { id: 'meal-3', title: 'Dinner', kind: 'meal', proof: 'photo', window: { due: 1230, open: 1080 } },
+    { id: 'weight', title: 'Morning Weight', kind: 'weigh', proof: 'scale' },
+  ];
+  const reqs = catalogFromItems(three);
+  assert.deepEqual(reqs.filter((r) => r.kind === 'meal').map((r) => r.id), stdFromItems(three).slots);
+  assert.deepEqual(reqs.filter((r) => r.kind === 'meal').map((r) => r.id), ['breakfast', 'lunch', 'dinner']);
+  assert.deepEqual(reqs.filter((r) => r.kind === 'meal').map((r) => r.itemId), ['meal-1', 'meal-2', 'meal-3'], 'the stored id is kept');
+  assert.equal(reqs.find((r) => r.id === 'lunch').window.due, 840, 'the window rides with the item, not the slot');
+  assert.equal(reqs.find((r) => r.id === 'weight').id, 'weight', 'non-meal ids are untouched');
+  assert.equal(reqs.find((r) => r.id === 'weight').kind, 'weigh', 'kind rides through for every item');
+});
+
+test('four meals put the third in the snack slot, exactly as the athlete day does', () => {
+  const four = ['Pre-lift', 'Lunch', 'Afternoon', 'Dinner'].map((t, i) => ({ id: `meal-${i + 1}`, title: t, kind: 'meal', proof: 'photo' }));
+  assert.deepEqual(catalogFromItems(four).filter((r) => r.kind === 'meal').map((r) => r.id), STD_SLOT_MAP[4]);
+  assert.deepEqual(STD_SLOT_MAP[4], ['breakfast', 'lunch', 'snack', 'dinner']);
+});
+
+test('a meal item beyond the six slots the day can hold keeps its own id rather than inventing a slot', () => {
+  const seven = Array.from({ length: 7 }, (_x, i) => ({ id: `meal-${i + 1}`, title: `Meal ${i + 1}`, kind: 'meal', proof: 'photo' }));
+  const ids = catalogFromItems(seven).filter((r) => r.kind === 'meal').map((r) => r.id);
+  assert.deepEqual(ids.slice(0, 6), STD_SLOT_MAP[6]);
+  assert.equal(ids[6], 'meal-7');
+});

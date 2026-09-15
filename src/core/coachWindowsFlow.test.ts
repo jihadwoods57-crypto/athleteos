@@ -60,12 +60,15 @@ test('before a custom open the item is upcoming, never due_soon', () => {
   // overall status key (which stays 'on_standard' at both probes and pins nothing on its own).
   const before = athleteStatus({ nowMin: 250, row: row(), reqs, excused: false });
   expect(before.key).toBe('on_standard');
-  const mealBefore = before.openItems.find((i: any) => i.id === 'meal-1');
+  // A meal item's id is its DAY SLOT (2026-09-15): a two-meal standard's first item is
+  // 'breakfast' (STD_SLOT_MAP[2]), never the editor's stored 'meal-1' — that mismatch is what let
+  // a logged breakfast read overdue on the coach home. itemId still carries the stored id.
+  const mealBefore = before.openItems.find((i: any) => i.id === 'breakfast');
   expect(mealBefore.state).toBe('upcoming');
 
   const after = athleteStatus({ nowMin: 350, row: row(), reqs, excused: false });
   expect(after.key).toBe('on_standard');
-  const mealAfter = after.openItems.find((i: any) => i.id === 'meal-1');
+  const mealAfter = after.openItems.find((i: any) => i.id === 'breakfast');
   expect(mealAfter.state).toBe('ready');
 });
 
@@ -74,9 +77,10 @@ test('reminders fire off the coach-set due (soon = due - lead), with custom titl
     assigned: [], pressure: 'accountable', prefs: DEFAULT_NOTIF_PREFS,
     celebration: null, score: null, streak: 0, coachName: 'Coach' });
   // notify-plan.js pushes each entry as { id: req.id, ... } (no suffix) — req.id for the first
-  // meal item is 'meal-1' (itemsFromKnobs), so the id itself (not a composed '-soon' suffix)
-  // identifies the requirement; `stage` distinguishes soon/due/open.
-  const soon = plan.find((p: any) => p.id === 'meal-1' && p.stage === 'soon');
+  // meal item is its day slot 'breakfast' (catalogFromItems, 2026-09-15; the editor stores it as
+  // meal-1), so the id itself (not a composed '-soon' suffix) identifies the requirement; `stage`
+  // distinguishes soon/due/open.
+  const soon = plan.find((p: any) => p.id === 'breakfast' && p.stage === 'soon');
   expect(soon).toBeTruthy();
   // Raw lead math is due - LEAD.accountable = 420 - 45 = 375 (6:15am), but that falls inside
   // DEFAULT_NOTIF_PREFS' quiet window (10pm-7am) — notify-plan.js's documented quiet-hours rule

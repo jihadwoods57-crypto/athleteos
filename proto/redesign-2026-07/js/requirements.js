@@ -297,14 +297,16 @@ const KIND_DEFAULTS = {
   custom:    { icon: 'clipboard', accent: 'b', proof: 'check', required: true, impact: { kind: 'plan' }, reminder: 'medium', freq: { type: 'daily' } },
 };
 
-function catalogItemFrom(it) {
+function catalogItemFrom(it, slot = null) {
   if (!it || typeof it !== 'object' || !it.id || !it.title) return null;
   // Hydration is off the app entirely — coach sets authored before the removal may still
   // carry the item; it must not fall through to the 'custom' default and become a task.
   if (it.kind === 'hydration') return null;
   const d = KIND_DEFAULTS[it.kind] || KIND_DEFAULTS.custom;
   return {
-    id: String(it.id), title: String(it.title),
+    // A meal item's id IS its day slot (see catalogFromItems). itemId keeps the stored id, and kind
+    // rides along so no consumer has to re-derive either from the raw set.
+    id: slot || String(it.id), itemId: String(it.id), kind: it.kind || 'custom', title: String(it.title),
     icon: it.icon || d.icon, accent: d.accent,
     proof: PROOF[it.proof] ? it.proof : d.proof,
     freq: it.freq && it.freq.type ? it.freq : d.freq,
@@ -340,7 +342,25 @@ const RECOVERY_ITEM = { id: 'recovery', title: 'Recovery check-in', kind: 'recov
     CATALOG, never from a coach's stored items). */
 export function catalogFromItems(items) {
   const list = Array.isArray(items) ? items : [];
-  const mapped = list.map(catalogItemFrom).filter(Boolean);
+  /* A MEAL ITEM IS IDENTIFIED BY ITS DAY SLOT, NOT BY ITS STORED ID (2026-09-15).
+     The coach's editor mints meal ids as meal-1, meal-2, meal-3. The athlete's day never sees
+     those: stdFromItems maps the standard's meal items to slot keys BY POSITION (STD_SLOT_MAP:
+     three meals are breakfast / lunch / dinner, four put the third in snack), and days.meals and
+     days.tasks are written under THOSE keys. status.js openItems then asked meals['meal-1'] and
+     found nothing, so on the founder's coach home a breakfast logged at 5:44 AM read "Breakfast
+     and Lunch overdue" at 2:45 PM, above the very photo that proved it in. Every coach-side reader
+     of a stored set (roster status, priorities, inbox, lock-screen alerts, the athlete detail's
+     Requirements tab) routes through here, so this is the one seam where both sides can be made
+     to agree: the same positional map, over the same list, for the same input. Items past the
+     six slots a day can hold keep their own id; the day cannot record them either way. */
+  const mealItems = list.filter((it) => it && typeof it === 'object' && it.kind === 'meal');
+  const slots = mealItems.length ? (STD_SLOT_MAP[Math.min(6, Math.max(1, mealItems.length))] || []) : [];
+  let mi = 0;
+  const mapped = list.map((it) => {
+    const isMeal = it && typeof it === 'object' && it.kind === 'meal';
+    const slot = isMeal ? (slots[mi++] || null) : null;
+    return catalogItemFrom(it, slot);
+  }).filter(Boolean);
   if (!mapped.some((r) => r.id === 'recovery')) {
     const forced = catalogItemFrom(RECOVERY_ITEM);
     if (forced) mapped.push(forced);
