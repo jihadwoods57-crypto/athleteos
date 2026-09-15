@@ -478,6 +478,13 @@ verify_jwt = false
 [functions.weekly-digest]
 verify_jwt = false
 
+# athlete-summary has two doors: the coach's (its own JWT, checked inside with auth.getUser + the
+# can_view RPC) and the hourly cron's (x-summary-key, no JWT at all, the 0222 shape). The gateway
+# check would 401 the cron before the key is ever read, so it is off here and the function is the
+# authority, exactly like meal-miss-escalation.
+[functions.athlete-summary]
+verify_jwt = false
+
 # admin-mfa-recover authenticates the caller via their own aal1 Supabase JWT (proves the password before
 # a recovery code resets MFA), so it KEEPS verify_jwt on. Pinned so a redeploy can't drop the check.
 [functions.admin-mfa-recover]
