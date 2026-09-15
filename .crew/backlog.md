@@ -4,6 +4,13 @@ Ranked queue for the daily cloud sessions (see `founder-sessions.md`). The 7 PM 
 rewrites the ranking each night. Reranked 2026-09-09 by the 7 PM POLISH session
 (day's full record: `.crew/reports/2026-09-09.md`).
 
+> **2026-09-15 — THE 1 PM AUDIT SESSION IS RETIRED** by founder instruction. Nothing in
+> this file is owed to an audit session, and no session should file "audit debt" or pick
+> up unaudited-code work on its behalf: its absence is intended, not a missed slot. Dated
+> references below like "found 09-08 1 PM" are historical provenance for a finding, not
+> live work. Practical consequence for the 8 AM session: nobody checks your ship a few
+> hours later any more, so prove it yourself or park it.
+
 Where things stand tonight (2026-09-09, 7 PM):
 - **Live = score v3.** The founder committed 7e07f2e at 6:46 PM (score v3: nutrition 82 +
   check-in 18, hydration zeroed until an input exists, recovery scores completeness not
@@ -30,7 +37,7 @@ the cloud, still open for a credentialed eye: whether 0228 is APPLIED to live (a
 server ceiling would clamp v3 clients wrong — nothing looked clamped in the sweeps, but
 that is absence of evidence). The 7 PM session should drop this entry when it reranks.
 
-### (was 1) · audit debt · score v3 is live and unaudited — attack it (dated 09-09, PAID 09-15, kept for the map)
+### CLOSED · (was 1) score v3 audit — PAID 09-15, kept only as the attack map for future scoring changes. Not live work.
 The founder's 7e07f2e rewrote what the daily score MEANS and published it the same hour.
 Nobody has attacked it. The commit message itself is the attack map:
 - **Frozen rows must not move.** Three dated eras now (0228 cutover 2026-09-09; v2-era rows

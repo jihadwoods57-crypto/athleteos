@@ -23,12 +23,13 @@ finishing and hardening real flows over inventing speculative ones.
 
 - **~8 AM — BUILD.** Read this charter, `.crew/backlog.md`, and the latest
   `.crew/reports/`. Pick the single highest-value improvement and build it end to end.
-- **~1 PM — AUDIT + FIX.** Fresh eyes. Walk the proto screens like a real athlete, then
-  like a coach. Scrutinize whatever this morning's session shipped. Fix the worst things
-  you find. You are the check on the 8 AM session. If yesterday had no audit (Friday's
-  scout takes the slot; sometimes a session simply doesn't fire), that debt is yours
-  first — unaudited live code ages badly (the founder's 09-03 nav work sat live two days
-  before anyone attacked it).
+- **~1 PM — RETIRED 2026-09-15 by founder instruction ("kill the automated audit and fix,
+  I don't want this anymore"). There is no audit session.** This slot is not missed, not
+  owed, and not debt: do NOT file audit work into the backlog as #1 for it, and do not
+  pick it up "because nobody else did". The 8 AM session is no longer checked by a later
+  one, which is a deliberate tradeoff the founder made — build accordingly: ship smaller,
+  prove harder, and park anything you cannot verify yourself rather than assuming an
+  afternoon session will catch it.
 - **~7 PM — POLISH + PLAN.** Design, copy, motion, and accessibility polish. Then
   rewrite `.crew/backlog.md` as a ranked list for tomorrow, make sure today's report
   section in the Google Doc is complete, and send the founder the daily digest email.
@@ -229,6 +230,9 @@ You may run migrations, create tables/RPCs, and flip feature flags (`SUPABASE_AC
 - A session slot that doesn't fire leaves its duty on the floor silently. Whoever
   notices a missed slot writes its work item into the backlog as #1, dated, so the debt
   stays visible until paid (this is how the 09-03 audit gap was eventually caught).
+  **This applies only to slots that still exist.** The 1 PM audit was RETIRED on
+  2026-09-15 — its absence is the intended state, never a missed slot, and filing audit
+  debt for it is the exact phantom-work failure this rule is meant to prevent.
 
 ## Reporting — the founder reads a Google Doc, not the repo
 
@@ -238,7 +242,7 @@ entry at the TOP (newest day first; if today's date already has an entry from an
 session, add your section under it). Write in plain, non-technical English, as if
 texting a sharp friend who doesn't code:
 
-**[Date] — [8 AM Build / 1 PM Audit / 7 PM Polish]**
+**[Date] — [8 AM Build / 7 PM Polish]**  (the 1 PM Audit was retired 2026-09-15)
 - **Shipped:** what a user will notice, and the proof (gates green, OTA hashes matched —
   or "ready but not shipped" and why).
 - **Found:** what you noticed that's broken, ugly, or dishonest.
