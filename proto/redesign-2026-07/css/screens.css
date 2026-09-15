@@ -633,16 +633,21 @@
    between "chat bubble" and "rounded rectangle". (Radius later snapped to var(--r-card-sm).) ---- */
 /* overflow-wrap: one long unbroken token (a pasted URL, a 60-char food name) must break inside
    the bubble, not push it past the thread edge. Shared by all three thread renderers. */
-/* 18px radius on ~16px text is the phone's own proportion; the pad is 8 x 14. Weight 500, not
-   the app's 600: a conversation is read, not scanned, and semi-bold body copy is what made these
-   read as cards. Flat fills, no border, no shadow: chrome was the difference between "bubble"
-   and "box". `position:relative` is for the tail pseudo below. */
-.msg .bubble { position: relative; padding:var(--s2) var(--s3h); border-radius:calc(var(--r-card-sm) + 2px); font-size:var(--t-lg); font-weight:400; line-height:1.3; letter-spacing:0; overflow-wrap:anywhere; }
+/* 18px radius on ~16px text is the phone's own proportion; the pad is 8 x 14. Flat fills, no
+   border, no shadow: chrome was the difference between "bubble" and "box". `position:relative`
+   is for the tail pseudo below.
+   WEIGHT 600 (founder 2026-09-15, from a Snapchat reference: "more bold and thicker"). The
+   thread ran at 400 on the argument that a conversation is read, not scanned; the founder read
+   it on a phone and wanted the heavier face. Every bubble in the thread wears it, yours and the
+   AI's alike, so the exchange stays one weight; the reply-quote chip and the name label stay
+   lighter so they still read as chrome around the message, not the message. */
+.msg .bubble { position: relative; padding:var(--s2) var(--s3h); border-radius:calc(var(--r-card-sm) + 2px); font-size:var(--t-lg); font-weight:600; line-height:1.3; letter-spacing:0; overflow-wrap:anywhere; }
 /* THE AI, WITH EMPHASIS (founder 2026-09-14: "under things that feel important, different color
    fonts, bold"). The server writes light markup into the AI's rows (**bold** for the figure or
    instruction that matters, __underline__ for a point to hold onto, ==colour== for the one line
    that IS the advice); chat-view.js richText draws it. Nobody else's bubble is parsed. */
-.msg.ai .bubble b { font-weight: 700; }
+/* 800, not 700: the body now sits at 600, and one step is not enough contrast to read as a mark. */
+.msg.ai .bubble b { font-weight: 800; }
 .msg.ai .bubble u { text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
 .msg.ai .bubble .hl { font-style: normal; font-weight: 600; color: var(--blue-bright); }
 /* ONE gray for everyone who is not you. The AI used to sit on a blue tint and the coach on a
