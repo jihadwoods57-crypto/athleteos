@@ -1450,8 +1450,8 @@ export const coachPlanSet = {
     };
     root.querySelectorAll('[data-tpl-rename-save]').forEach(el => el.addEventListener('click', () => submitTplRename(el.getAttribute('data-tpl-rename-save'))));
     root.querySelectorAll('[data-tpl-rename-input]').forEach(el => el.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') submitTplRename(el.getAttribute('data-tpl-rename-input'));
-      else if (e.key === 'Escape') { TPL_RENAMING = null; window.__restate(); }
+      if (e.key === 'Enter' && !e.isComposing) submitTplRename(el.getAttribute('data-tpl-rename-input'));
+      else if (e.key === 'Escape' && !e.isComposing) { TPL_RENAMING = null; window.__restate(); }
     }));
     root.querySelectorAll('[data-tpl-del]').forEach(el => el.addEventListener('click', async () => {
       if (TPL_BUSY) return;
@@ -3521,7 +3521,7 @@ export const coachMeal = {
       noteBusy = false;
     };
     if (noteSend) noteSend.addEventListener('click', saveNote);
-    if (noteInput) noteInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveNote(); });
+    if (noteInput) noteInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) saveNote(); });
     const input = root.querySelector('#cm-input');
     const send = root.querySelector('#cm-send');
     const cmNote = root.querySelector('#cm-note');
@@ -4064,6 +4064,6 @@ export const parentLink = {
       else { err.textContent = r.error || 'Could not link. Check the code.'; code.setAttribute('aria-invalid', 'true'); btn.disabled = false; btn.textContent = 'Link athlete'; }
     };
     btn.addEventListener('click', submit);
-    code.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    code.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) submit(); });
   },
 };

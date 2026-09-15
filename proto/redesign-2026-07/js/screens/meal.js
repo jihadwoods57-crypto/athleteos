@@ -464,7 +464,7 @@ export const mealQuestions = {
     skipBtn.addEventListener('click', () => finish([]));
     // Enter on the last field submits; Enter elsewhere advances to the next field.
     inputs().forEach((el, i, arr) => el.addEventListener('keydown', (e) => {
-      if (e.key !== 'Enter') return;
+      if (e.key !== 'Enter' || e.isComposing) return;
       e.preventDefault();
       if (i < arr.length - 1) arr[i + 1].focus(); else finish(answers());
     }));

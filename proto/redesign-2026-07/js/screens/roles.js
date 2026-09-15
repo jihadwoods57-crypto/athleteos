@@ -1176,7 +1176,7 @@ function wireNameEditor(root) {
     window.__render();
   };
   root.querySelector('#cp-name-save').addEventListener('click', save);
-  if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+  if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) save(); });
 }
 function cpHandleEditor() {
   const { ci } = cpNames();

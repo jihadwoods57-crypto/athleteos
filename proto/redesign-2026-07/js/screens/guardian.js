@@ -139,6 +139,6 @@ export default {
       btn.textContent = was;
     };
     btn.addEventListener('click', submit);
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) submit(); });
   },
 };

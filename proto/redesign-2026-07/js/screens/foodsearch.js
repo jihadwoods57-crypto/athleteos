@@ -364,7 +364,7 @@ export const barcodeScan = {
       if (code.length < 8) { status.textContent = 'A barcode is at least 8 digits.'; return; }
       lookup(code);
     });
-    digits.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') root.querySelector('#bc-lookup').click(); });
+    digits.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && !ev.isComposing) root.querySelector('#bc-lookup').click(); });
 
     root.querySelectorAll('#bc-grams .chip').forEach((ch) => ch.addEventListener('click', () => {
       root.querySelectorAll('#bc-grams .chip').forEach((c) => c.classList.remove('on'));

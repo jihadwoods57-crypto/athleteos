@@ -895,7 +895,7 @@ export const coachHome = {
         window.__render();   // RT.team is live now → the real code + QR replace this form
       };
       createBtn.addEventListener('click', submit);
-      if (nameEl) nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+      if (nameEl) nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) submit(); });
     }
     // Offline code-card retry (T-13): re-pull the team identity, then repaint honestly.
     const teamRetry = root.querySelector('#coach-team-retry');

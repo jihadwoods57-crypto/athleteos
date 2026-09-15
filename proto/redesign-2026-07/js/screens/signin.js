@@ -123,8 +123,8 @@ export default {
       else { setErr(r.error || "That didn't go through. Try again in a moment."); setLoading(false); }
     };
     btn.addEventListener('click', submit);
-    emailEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
-    passEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    emailEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) submit(); });
+    passEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) submit(); });
 
     // Social sign-in — each provider's button shows only when the native shell offers it,
     // then runs the real signInWithIdToken flow (mirrors ob-account.js). Inert in the web proto.

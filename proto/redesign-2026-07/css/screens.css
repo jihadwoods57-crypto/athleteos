@@ -649,7 +649,10 @@
 /* 800, not 700: the body now sits at 600, and one step is not enough contrast to read as a mark. */
 .msg.ai .bubble b { font-weight: 800; }
 .msg.ai .bubble u { text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
-.msg.ai .bubble .hl { font-style: normal; font-weight: 600; color: var(--blue-bright); }
+/* 800 since the body moved to 600 (same arithmetic as `b` above): the highlight is "the one
+   line that IS the advice", and at 600-on-600 its weight half vanished — colour alone carried
+   it. Found by the 09-15 audit, the day after the body weight moved. */
+.msg.ai .bubble .hl { font-style: normal; font-weight: 800; color: var(--blue-bright); }
 /* ONE gray for everyone who is not you. The AI used to sit on a blue tint and the coach on a
    bordered surface; Messages gives every other person the same gray and lets the name say who. */
 .msg.coach .bubble, .msg.ai .bubble { background: var(--surface-3); border: none; color: var(--text); }
@@ -701,9 +704,14 @@
 .facepile .fpav.other { background: var(--surface-3); color: var(--text); }
 .facepile .fpav.ai { background: linear-gradient(150deg, var(--blue), var(--blue-deep)); }
 .facepile .names { flex: 1; min-width: 0; font-size: var(--t-sm); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* overflow+ellipsis of its own: as a block child it sits outside the parent .names' inline
+   content, so the parent's text-overflow never reaches it — long participant lists ("You,
+   James Brooks, AI Nutritionist") were CLIPPED mid-letter with no ellipsis on every meal
+   thread header (09-15 audit, flagged on five screens by the qc sweep). */
 .facepile .names small {
   display: block; font-size: var(--t-micro); font-weight: 700; letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--text-3);
+  overflow: hidden; text-overflow: ellipsis;
 }
 .facepile .chev { flex: none; color: var(--text-3); display: grid; place-items: center; }
 /* The chat screen's header: the faces stacked and centred under the nav row with the names

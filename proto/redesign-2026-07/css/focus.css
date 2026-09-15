@@ -143,13 +143,14 @@
    (the coach's bar) the expanded areas overlap by 10px — the stated trade-off above, taken
    knowingly: the band favours send, which is the button a thumb aiming there wants.
    `.ev-x` (the email-verify banner's 22px dismiss), `.cm-rm` (the 30px commitment remove) and
-   `.std-chip` (44 tall but as narrow as its label) joined 2026-09-05. */
+   `.std-chip` (44 tall but as narrow as its label) joined 2026-09-05. `.cp-name` (the coach
+   profile's 26px tap-to-rename name row) joined 2026-09-15. */
 :where(
   .co-chip, .btn.ghost, .btn.sm, .bk, .ai-full-toggle, .hd-avatar,
   .si-forgot, .si-link, .chip, .pw-seg, .mq-skip, .markread, .lnk, .mt-retry,
   .tour-skip, .est-note .link, .fr-ok, .iv-x, .composer-attach-pending button, .id-act,
   .composer button.send, .composer .ai-ask, .composer .attach,
-  .ev-x, .cm-rm, .std-chip
+  .ev-x, .cm-rm, .std-chip, .cp-name
 ) {
   position: relative;
 }
@@ -158,7 +159,7 @@
   .si-forgot, .si-link, .chip, .pw-seg, .mq-skip, .markread, .lnk, .mt-retry,
   .tour-skip, .est-note .link, .fr-ok, .iv-x, .composer-attach-pending button, .id-act,
   .composer button.send, .composer .ai-ask, .composer .attach,
-  .ev-x, .cm-rm, .std-chip
+  .ev-x, .cm-rm, .std-chip, .cp-name
 )::after {
   content: '';
   position: absolute;

@@ -181,7 +181,7 @@ export const coachRooms = {
     const add = root.querySelector('#room-add');
     const submit = () => { const v = (input && input.value || '').trim(); if (v) createRoom(v); };
     if (add) add.addEventListener('click', submit);
-    if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) submit(); });
     root.querySelectorAll('[data-room-add]').forEach((el) => el.addEventListener('click', () => createRoom(el.getAttribute('data-room-add'))));
     // Delete is two-tap: the first tap arms the row (it states what actually happens), the
     // explicit "Delete room" executes. Arming clears any other open inline editor.
@@ -210,8 +210,8 @@ export const coachRooms = {
     };
     root.querySelectorAll('[data-room-rename-save]').forEach((el) => el.addEventListener('click', () => submitRename(el.getAttribute('data-room-rename-save'))));
     root.querySelectorAll('[data-room-rename-input]').forEach((el) => el.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') submitRename(el.getAttribute('data-room-rename-input'));
-      else if (e.key === 'Escape') { RENAMING = null; window.__render(); }
+      if (e.key === 'Enter' && !e.isComposing) submitRename(el.getAttribute('data-room-rename-input'));
+      else if (e.key === 'Escape' && !e.isComposing) { RENAMING = null; window.__render(); }
     }));
     root.querySelectorAll('[data-room-unassign]').forEach((el) => el.addEventListener('click', () => assign(el.getAttribute('data-room-unassign'), null)));
     root.querySelectorAll('[data-assign]').forEach((el) => el.addEventListener('click', () => {

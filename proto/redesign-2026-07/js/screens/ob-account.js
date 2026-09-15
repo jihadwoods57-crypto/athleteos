@@ -62,7 +62,7 @@ export function wireAccount(root, { role, onSession }) {
     btn.textContent = was;
   };
   btn.addEventListener('click', submit);
-  p2.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !btn.disabled) submit(); });
+  p2.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing && !btn.disabled) submit(); });
 
   // Sign in with Apple / Google — each button renders only when the native seam reports it
   // available (go-live). A fresh social identity (no primary_role) adopts THIS onboarding's

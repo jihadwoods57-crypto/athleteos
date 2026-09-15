@@ -168,7 +168,7 @@ export function openMealQuestions({ questions, photo, slot, onAnswer, onSkip } =
   // Enter on the last field submits; Enter on an earlier one moves along, which is what the
   // enterkeyhint above already promised the keyboard.
   inputs().forEach((inp, i) => inp.addEventListener('keydown', (ev) => {
-    if (ev.key !== 'Enter') return;
+    if (ev.key !== 'Enter' || ev.isComposing) return;
     ev.preventDefault();
     const next = inputs()[i + 1];
     if (next) next.focus(); else el.querySelector('#mqs-go').click();

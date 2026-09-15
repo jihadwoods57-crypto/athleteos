@@ -57,6 +57,6 @@ export default {
       btn.textContent = 'Send again';
     };
     btn.addEventListener('click', submit);
-    emailEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    emailEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) submit(); });
   },
 };

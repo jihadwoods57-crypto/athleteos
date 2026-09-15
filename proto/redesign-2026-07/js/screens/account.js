@@ -113,7 +113,7 @@ export const account = {
       say(passNote, 'Password updated. Use the new one next time you sign in.', 'ok');
     };
     if (passBtn) passBtn.addEventListener('click', changePassword);
-    for (const el of [cur, nw, nw2]) if (el) el.addEventListener('keydown', (e) => { if (e.key === 'Enter') changePassword(); });
+    for (const el of [cur, nw, nw2]) if (el) el.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) changePassword(); });
     // Live strength read on the new password, sign-up's own helper, so the bar is one bar.
     if (nw) nw.addEventListener('input', () => {
       const v = nw.value;
@@ -144,6 +144,6 @@ export const account = {
       say(emailNote, `Confirmation sent to ${RT.email || 'your current address'} and ${next}. Tap the link in both and the change completes.`, 'ok');
     };
     if (emailBtn) emailBtn.addEventListener('click', changeEmail);
-    if (emailIn) emailIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') changeEmail(); });
+    if (emailIn) emailIn.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) changeEmail(); });
   },
 };

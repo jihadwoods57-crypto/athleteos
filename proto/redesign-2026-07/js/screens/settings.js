@@ -75,7 +75,7 @@ export function wireComposer(root, replyWho = 'ai', replyName = 'OnStandard AI',
     thread.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
   };
   send.addEventListener('click', submit);
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) submit(); });
 }
 
 /* ---------- Messages: athlete <-> coach thread ----------
