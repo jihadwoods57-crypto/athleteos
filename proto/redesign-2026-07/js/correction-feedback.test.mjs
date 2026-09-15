@@ -95,3 +95,36 @@ test('every beat is switched off under prefers-reduced-motion', () => {
     assert.ok(block.includes(sel), `${sel} must be neutralised for reduced motion`);
   }
 });
+
+/* ---- the three bugs that only an end-to-end run could find --------------------------------- */
+/* Driving the shipped app (seeded meal, real composer, meal-chat stubbed to answer with an
+   apply_correction) showed the numbers moving correctly and the receipt never appearing. Three
+   separate causes, all of them "state that does not survive the repaint that reveals it". None
+   was reachable from a unit test, and all three were shipped. */
+
+test('the receipt state outlives the render that paints it', () => {
+  // router.js calls mod.mount() on EVERY render, and the correction handler's own __render() is
+  // what paints the card. A `let corrFx` inside mount was therefore reset to null before the
+  // paint that would have drawn it, every single time.
+  assert.match(MEAL, /^let CORR_FX = null;$/m, 'the receipt cannot live in the mount closure');
+  const mountAt = MEAL.indexOf('mount(root');
+  assert.ok(MEAL.indexOf('let CORR_FX') < mountAt, 'and it has to be declared above mount');
+  assert.match(MEAL, /CORR_FX = rows\.length \? \{ key: corrKey/, 'keyed to its meal');
+  assert.match(MEAL, /CORR_FX_TTL_MS/, 'and stamped, so it cannot replay an hour later');
+});
+
+test('the note outlives it too, and is restored on the next paint', () => {
+  assert.match(MEAL, /^let CHAT_NOTE = null;$/m);
+  assert.match(MEAL, /CHAT_NOTE = t \? \{ key: corrKey/, 'setNote records as well as writes');
+  assert.match(MEAL, /writeNote\(CHAT_NOTE\.text, CHAT_NOTE\.retry\)/,
+    'every branch that sets a note also calls __render() a line later, which erases it');
+});
+
+test('the animation classes land on the card, not on its message row', () => {
+  // #corr-fx is the .msg wrapper; the stylesheet targets .corr-card.in / .corr-card.landed, and
+  // .corr-card starts at opacity:0. Selecting the wrapper meant the receipt painted invisible.
+  assert.match(MEAL, /root\.querySelector\('#corr-fx \.corr-card'\)/,
+    'classList.add on the wrapper leaves .corr-card at opacity 0 forever');
+  assert.match(CSS, /\.corr-card\{[^}]*opacity:0/, 'which is only safe because .in turns it on');
+  assert.match(CSS, /#corr-fx\{perspective:900px\}/, 'the wrapper keeps only the perspective');
+});

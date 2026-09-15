@@ -126,6 +126,25 @@ async function warmReceipt(rolesMod, uid, dateISO) {
 /* Who is in the conversation (0158). Same session-cache idiom: membership does not change
    between two paints, and every mount would otherwise re-ask. */
 let PARTICIPANTS = { uid: null, rows: [], at: 0 };
+/* THE CORRECTION RECEIPT SURVIVES THE REPAINT THAT REVEALS IT (founder 2026-09-14).
+ *
+ * This lived as `let corrFx = null` inside mount(). The router calls mod.mount() on EVERY render
+ * (router.js ~932), and the correction handler's own `window.__render()` is what paints the
+ * receipt, so the sequence was: set corrFx -> re-render -> fresh mount -> corrFx = null ->
+ * paint -> corrReceipt() returns ''. The card could not appear on the only path that sets it,
+ * which is why a correction still looked like nothing happening after the 2026-09-07 fix.
+ *
+ * Module scope, keyed to the meal it belongs to and stamped, so a receipt cannot bleed onto a
+ * different plate or replay itself when the athlete comes back to this thread an hour later. */
+let CORR_FX = null;
+const CORR_FX_TTL_MS = 120000;
+/* AND SO DOES THE NOTE. setNote() writes into #chat-note, and every caller that needs to say
+   something about a correction also calls window.__render() a line later, which rebuilds the
+   screen and takes the note with it. So "that didn't line up with anything in this meal's read"
+   has never actually been readable either: written, then erased in the same tick. Same shape of
+   fix as CORR_FX above, same key, same TTL. */
+let CHAT_NOTE = null;
+const corrFxFor = (key) => (CORR_FX && CORR_FX.key === key && (Date.now() - CORR_FX.at) < CORR_FX_TTL_MS ? CORR_FX : null);
 /** Returns true only when this call actually FETCHED something new — the caller repaints on that
  *  and nothing else. A warm that repaints unconditionally is a render loop: every mount asks,
  *  the cache answers instantly, the repaint remounts, and the screen never settles. It also
@@ -1504,8 +1523,9 @@ export const thread = {
        It obeys the plan style like every other numeric surface — a professional who hid
        calories hides them here too — and the meal score is always shown, because it is a score
        and not calorie math. */
-    let corrFx = null;
+    const corrKey = String(M.mealId || M.slot || '');
     const corrReceipt = () => {
+      const corrFx = corrFxFor(corrKey);
       if (!corrFx || !corrFx.rows.length) return '';
       return `
         <div class="msg ai" id="corr-fx">
@@ -1529,7 +1549,14 @@ export const thread = {
        layout property; the card's own entrance is a transform. prefers-reduced-motion lands every
        value immediately, which is the whole point of the receipt anyway. */
     const playCorrReceipt = (root) => {
-      const card = root.querySelector('#corr-fx');
+      const corrFx = corrFxFor(corrKey);
+      /* THE CARD, NOT ITS MESSAGE ROW (founder 2026-09-14). This selected #corr-fx, which is the
+         .msg wrapper; every class then landed on the wrapper while the stylesheet targets
+         .corr-card.in and .corr-card.landed. .corr-card starts at opacity:0 and only .in turns it
+         on, so the receipt has been rendering INVISIBLE since it shipped: correct markup, correct
+         numbers, painted at zero opacity behind a wrapper wearing the classes. The perspective
+         stays on #corr-fx (a parent has to own it); everything else belongs to the card. */
+      const card = root.querySelector('#corr-fx .corr-card');
       // The guard lives on corrFx, not on the node: paint() rebuilds threadEl.innerHTML on every
       // repaint (the 15s poll, a reaction, a coach message landing), so a DOM-local flag would
       // let a finished receipt replay its count-up minutes later under the athlete's thumb.
@@ -1545,7 +1572,7 @@ export const thread = {
       // short enough that nobody waits on it.
       if (!corrFx.done) {
         corrFx.played = true;
-        setTimeout(() => { if (!corrFx) return; corrFx.done = true; corrFx.played = false; paint(); }, 420);
+        setTimeout(() => { const c = corrFxFor(corrKey); if (!c) return; c.done = true; c.played = false; paint(); }, 420);
         return;
       }
       corrFx.played = true;
@@ -1599,7 +1626,7 @@ export const thread = {
       // Score last: the macros are the cause, the score is the consequence, and the consequence
       // is what the turn at the end of the sequence should be about.
       rows.sort((x, y) => (x.score ? 1 : 0) - (y.score ? 1 : 0));
-      corrFx = rows.length ? { rows } : null;
+      CORR_FX = rows.length ? { key: corrKey, rows, at: Date.now() } : null;
     };
 
     // The Yes / No under a remember-this reply (2026-09-02), while the fact is still pending.
@@ -2021,7 +2048,15 @@ export const thread = {
       askPendingQuestions(M);
     });
     // (the old "flag it for Coach" free-text path is replaced by the structured correction panel)
-    const setNote = (t, retry) => { if (note) note.innerHTML = t ? `<div class="mt-retry" ${retry ? 'id="chat-retry"' : ''}>${esc(t)}</div>` : ''; };
+    const writeNote = (t, retry) => { if (note) note.innerHTML = t ? `<div class="mt-retry" ${retry ? 'id="chat-retry"' : ''}>${esc(t)}</div>` : ''; };
+    const setNote = (t, retry) => {
+      CHAT_NOTE = t ? { key: corrKey, text: t, retry: !!retry, at: Date.now() } : null;
+      writeNote(t, retry);
+    };
+    // Repaint restore: the note outlives the render that would otherwise erase it.
+    if (CHAT_NOTE && CHAT_NOTE.key === corrKey && (Date.now() - CHAT_NOTE.at) < CORR_FX_TTL_MS) {
+      writeNote(CHAT_NOTE.text, CHAT_NOTE.retry);
+    } else if (CHAT_NOTE && CHAT_NOTE.key === corrKey) { CHAT_NOTE = null; }
     let busy = false;
     // Reaches the AI for an ALREADY-POSTED question. Retry re-runs only this — the athlete's
     // comment lands in meal_comments exactly once per question, never duplicated by a retry.
