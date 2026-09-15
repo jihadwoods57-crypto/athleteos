@@ -152,8 +152,11 @@ alone it's not worth a sitting. Noted so October doesn't rediscover it.
 
 ## Notes for tomorrow's sessions
 - **Credential streak (update in place, don't re-diagnose):** EXPO_TOKEN invalid
-  ("bearer token is invalid") — 28 sessions through 09-10 (5:30 AM sentry). No Supabase creds, no
-  Stripe key, no Cloudflare token in the cloud env. One cheap check, cite this
+  ("bearer token is invalid") — 28 sessions tallied through 09-10; re-checked once 09-15
+  (error-response session), still dead. No Supabase creds, no
+  Stripe key, no Cloudflare token in the cloud env (also still true 09-15). Note the founder
+  IS publishing from his PC — live OTA matched master's tip on 09-15 — so the dead token
+  costs latency, not delivery. One cheap check, cite this
   line, move on. (npx eas-cli is broken in the sandbox — curl api.expo.dev/graphql with
   the bearer instead.) BUT: `node scripts/verify-ota.mjs` needs NO token — update
   manifests are public — so any session can prove what's live even while blind.
