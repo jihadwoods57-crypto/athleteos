@@ -222,3 +222,27 @@ test('a throwing onPlay never breaks the reveal', () => {
   assert.equal(reveal(el, { key: 'meal:lunch:boom', haptic: null, onPlay: () => { throw new Error('x'); } }), true);
   assert.equal(globalThis.__drawn.includes(el), true, 'the ring still drew');
 });
+
+test('a reveal cut by a repaint carries on to the replacement node instead of leaving it static', () => {
+  // Measured on the meal thread with 600ms of latency: the count ran 6 ... 71 and the data-landed
+  // repaint swapped in a fresh chip reading a static 83 at 728ms. The once-only guard must still
+  // hold (no third play), but the moment has to land on the node that is actually on screen.
+  resetReveals();
+  const rich = (connected) => {
+    const arc = { getAttribute: () => '100', style: {}, dataset: { off: '17' } };
+    const num = { textContent: '0', dataset: { count: '83' } };
+    return { isConnected: connected, offsetWidth: 1, getBoundingClientRect: () => ({ height: 96 }),
+      querySelectorAll(sel) { return sel.includes('data-count') ? [num] : [arc]; }, _arc: arc, _num: num };
+  };
+  const first = rich(true);
+  assert.equal(reveal(first, { key: 'meal:lunch:cut', haptic: null }), true, 'plays on the first node');
+  first.isConnected = false;                                  // the repaint threw that node away mid-count
+  const second = rich(true);
+  assert.equal(reveal(second, { key: 'meal:lunch:cut', haptic: null }), true, 'takes over on the live node');
+  // No requestAnimationFrame in node: the resume lands the final state at once rather than looping.
+  assert.equal(second._num.textContent, '83');
+  assert.equal(second._arc.style.strokeDashoffset, '17');
+  assert.equal(reveal(second, { key: 'meal:lunch:cut', haptic: null }), false, 'the node on screen is not replayed');
+  assert.equal(revealed('meal:lunch:cut'), true, 'once-only still holds');
+});
+

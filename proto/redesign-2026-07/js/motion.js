@@ -82,6 +82,69 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
  * corpse". */
 const DONE = new Set();
 const PENDING = new Map();
+/* Reveals that are PLAYING right now, key -> { el, at }.
+ *
+ * The screens that carry a ring repaint constantly, and a repaint REPLACES the node the reveal is
+ * drawing on: the meal thread's participants land about a second in, the roster's photos a beat
+ * after the rows. Measured on the logged-meal page with 600ms of latency: the numeral counted
+ * 6, 13, 22 ... 71 and at 728ms the data-landed repaint swapped in a fresh chip reading a static 83.
+ * The once-only guard then (correctly) refused to replay, so the app's one moment of ceremony was
+ * cut off two thirds of the way through, on every phone, every time. With an instant network it
+ * never got past 0. resumeIfCut() carries the moment across to the replacement node: the number
+ * picks up where the old one's count was, the arc at the same fraction of its sweep, and both land
+ * over what is left of the original duration. Past RESUME_MS the moment has already landed and the
+ * fresh node's final state is the right picture. */
+const LIVE = new Map();
+const COUNT_MS = 1200;          // animateRing's count-up (components.js)
+const RESUME_MS = COUNT_MS + 250;
+const nowMs = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
+function resumeIfCut(key, el) {
+  const live = LIVE.get(key);
+  if (!live || live.el === el || live.el.isConnected) return false;
+  const elapsed = nowMs() - live.at;
+  if (elapsed >= RESUME_MS) { LIVE.delete(key); return false; }
+  const p = Math.max(0, Math.min(1, elapsed / COUNT_MS));
+  const e = 1 - Math.pow(1 - p, 3);            // the same ease-out cubic the count-up itself runs
+  const remaining = Math.max(120, COUNT_MS - elapsed);
+  const hasRaf = typeof requestAnimationFrame === 'function';
+  const arcs = Array.from(el.querySelectorAll('.ring-arc, .sc-arc')).map((arc) => {
+    const dash = parseFloat(String(arc.getAttribute('stroke-dasharray') || '').split(/[\s,]+/)[0]);
+    const target = parseFloat(arc.dataset ? arc.dataset.off : NaN);
+    return Number.isFinite(dash) && Number.isFinite(target) ? { arc, dash, target } : null;
+  }).filter(Boolean);
+  const nums = Array.from(el.querySelectorAll('[data-count]')).map((n) => {
+    const target = parseFloat(n.dataset ? n.dataset.count : NaN);
+    return Number.isFinite(target) ? { n, target } : null;
+  }).filter(Boolean);
+  if (!hasRaf) {
+    // No frames to animate across (the node suites): land the final state at once.
+    arcs.forEach(({ arc, target }) => { arc.style.strokeDashoffset = String(target); });
+    nums.forEach(({ n, target }) => { n.textContent = String(Math.round(target)); });
+    LIVE.set(key, { el, at: live.at });
+    return true;
+  }
+  // Place the fresh node exactly where the old one was, with no transition, and commit it.
+  arcs.forEach(({ arc, dash, target }) => { arc.style.transition = 'none'; arc.style.strokeDashoffset = String(dash - (dash - target) * e); });
+  nums.forEach(({ n, target }) => { n.textContent = String(Math.round(target * e)); });
+  void el.offsetWidth;
+  // Then finish the sweep over the time that was left.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    arcs.forEach(({ arc, target }) => { arc.style.transition = `stroke-dashoffset ${Math.round(remaining)}ms var(--ease-out)`; arc.style.strokeDashoffset = String(target); });
+  }));
+  const t0 = nowMs();
+  nums.forEach(({ n, target }) => {
+    const from = Math.round(target * e);
+    const step = (t) => {
+      const q = Math.max(0, Math.min(1, (t - t0) / remaining));
+      const k = 1 - Math.pow(1 - q, 3);
+      n.textContent = String(Math.round(from + (target - from) * k));
+      if (q < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+  LIVE.set(key, { el, at: live.at });
+  return true;
+}
 
 /* Reveals held while the screen itself is in motion (js/view-transition.js).
  *
@@ -114,7 +177,7 @@ export function resumeReveals({ drop = false } = {}) {
 }
 
 /** Test seam — drop all reveal state so a suite can assert the once-only guard both ways. */
-export function resetReveals() { DONE.clear(); PENDING.clear(); QUEUE.length = 0; PAUSED = false; }
+export function resetReveals() { DONE.clear(); PENDING.clear(); LIVE.clear(); QUEUE.length = 0; PAUSED = false; }
 
 /** True when `key` has already been revealed this session. */
 export function revealed(key) { return DONE.has(key); }
@@ -165,13 +228,13 @@ function windBack(root) {
 export function reveal(el, { key, haptic = 'reveal', whenSeen = false, threshold = 0.6, onPlay = null } = {}) {
   if (!el) return false;
   if (key) {
-    if (DONE.has(key)) return false;
+    if (DONE.has(key)) return resumeIfCut(key, el);
     const waiting = PENDING.get(key);
     if (waiting && waiting.isConnected) return false;
     PENDING.set(key, el);
   }
   const play = () => {
-    if (key) { PENDING.delete(key); DONE.add(key); }
+    if (key) { PENDING.delete(key); DONE.add(key); LIVE.set(key, { el, at: nowMs() }); }
     windBack(el);
     void el.offsetWidth;            // commit the wound-back state before animateRing re-adds the transition
     const draw = () => { animateRing(el); animateFills(el); };

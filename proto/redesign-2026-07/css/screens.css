@@ -3557,9 +3557,14 @@ body.kb-open .meal-foot { display: none; }
 .tb-v b{font-size:var(--t-md);font-weight:800;color:var(--text)}
 .tb-v small{font-size:var(--t-xs);font-weight:600;color:var(--text-3)}
 .tb-pace{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:var(--s2);line-height:1.45}
-.lm-day{margin-top:var(--s3);padding-top:var(--s3);border-top:1px solid var(--hairline-soft)}
+/* The day footnote on ONE line: "Daily score +24 from this meal · [segments] 2 of 4 in today".
+   The score-move strip, when there is one, takes the full width above it. */
+.lm-day{margin-top:var(--s3);padding-top:var(--s3);border-top:1px solid var(--hairline-soft);display:flex;flex-wrap:wrap;align-items:center;gap:var(--s2h) var(--s3h)}
+.lm-day .smove-bar,.lm-day .sm-first{flex:1 1 100%}
+.lm-day > .score-line{flex:none;gap:var(--s2)}
+.lm-day .score-line .k{margin-right:0}
+.lm-day .prog-line{flex:1 1 150px;margin-top:0}
 .lm-day .smove-bar,.lm-day > .score-line{margin-top:0;padding-top:0;border-top:none}
-.lm-day .prog-line{margin-top:var(--s2h)}
 /* Sentence case here: the footnote's label used the confirm card's uppercase eyebrow, and the
    brief's whole point was less shouting microcopy. */
 .lm-day .score-line .k{text-transform:none;letter-spacing:0;font-size:var(--t-sm);font-weight:700;color:var(--text-2)}

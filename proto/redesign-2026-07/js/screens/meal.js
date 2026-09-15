@@ -1014,7 +1014,7 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
     };
     const stoodOut = band && reasons.length ? `
     <section class="lm-sec lm-stood">
-      <div class="lm-h"><h2>What stood out</h2>${rub.rows.length ? `<button type="button" class="lm-more" data-open="rub">See details ${icon('chevron', 14)}</button>` : ''}</div>
+      <div class="lm-h"><h2>What stood out</h2></div>
       <div class="sr-rows">
         ${[...reasons].sort((a, b) => (a.state === 'met' ? -1 : 1) - (b.state === 'met' ? -1 : 1)).map((r) => {
           const hint = hintFor(r);
@@ -1038,7 +1038,7 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
     ];
     const nutrition = settled && showNums ? `
     <section class="lm-sec lm-nut">
-      <div class="lm-h"><h2>Nutrition</h2>${fromPhoto && rub.rows.length ? `<button type="button" class="lm-conf" data-open="rub" aria-label="How this estimate was made and how confident it is">${esc(provShort)} ${icon('info', 14)}</button>` : `<span class="lm-conf">${esc(provShort)}</span>`}</div>
+      <div class="lm-h"><h2>Nutrition</h2><span class="lm-conf">${esc(provShort)}</span></div>
       ${emptyRead ? rereadNote : `
       <div class="nut-tiles${tiles.length === 3 ? ' three' : tiles.length <= 2 ? ' two' : ''}">${tiles.join('')}</div>
       ${someMissing ? `<div class="est-note">A dash means we do not have that number for this meal. It is not a zero.</div>` : ''}`}
@@ -1086,7 +1086,7 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
       const left = Math.max(0, target - v);
       return `
       <div class="tb-row">
-        <span class="tb-k">${k}</span>
+        <span class="tb-k"${k === 'Protein' && paceNote ? ` title="${esc(paceNote)}"` : ''}>${k}</span>
         <div class="tb-track"><div class="tb-fill" style="width:${now}%"></div>${ahead ? `<div class="ghostb" style="left:${now}%;width:${ahead}%"></div>` : ''}</div>
         <span class="tb-v"><span><b>${fmtN(v)}</b> / ${fmtN(target)}${u}</span><small>${left ? `${fmtN(left)}${u} left` : 'Target met'}</small></span>
       </div>`;
@@ -1094,8 +1094,7 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
     const today = settled && showNums && (targetBars.length || dayFoot) ? `
     <section class="lm-sec lm-today">
       ${targetBars.length ? `<div class="lm-h"><h2>${past ? 'That day after this meal' : 'Today after this meal'}</h2>${you && !past ? `<button type="button" class="lm-more" data-go="plan">View daily targets ${icon('chevron', 14)}</button>` : ''}</div>
-      ${todayRows}
-      ${paceNote ? `<div class="tb-pace">${esc(paceNote)}</div>` : ''}` : ''}
+      ${todayRows}` : ''}
       ${dayFoot}
     </section>` : '';
     const bandWord = band ? (band.label === 'Strong' ? 'Strong meal' : band.label) : '';
