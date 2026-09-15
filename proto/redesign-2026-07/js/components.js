@@ -673,7 +673,7 @@ export function composer({
   // permission surface — accept="image/*" with no `capture` attribute lets the OS offer BOTH
   // camera and library, which is what a chat attachment wants.
   const attachEl = attachId
-    ? `<button type="button" class="attach" id="${attachId}" aria-label="${esc(attachLabel)}">${icon('camera', 18)}</button>
+    ? `<button type="button" class="attach" id="${attachId}" aria-label="${esc(attachLabel)}">${icon('plus', 20)}</button>
     <input type="file" accept="image/*" id="${attachId}-file" hidden aria-hidden="true" tabindex="-1" />`
     : '';
   // Same opt-in rule as attachId: only a caller that passes aiId gets the sparkle. It's a sibling

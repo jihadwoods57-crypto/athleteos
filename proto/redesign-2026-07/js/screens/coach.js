@@ -11,7 +11,7 @@ import { coachSetupState, coachSetupSteps, isNutritionBook } from './coach-home.
 import * as roles from '../roles.js';
 import { openingMessage, qualityBand, qualityReason, scoreRubric, reactionGroups, threadMessages, privateNotes, REACTION_EMOJI, applyMealCorrection, applyFoodRemoval, normalizeDetected } from '../meal-intel.js';
 import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpener, isEscalated, quotedFor,
-  dayLabelOf,
+  dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml,
 } from '../chat-view.js';
 import { openImageViewer } from '../image-viewer.js';
 import { wireTapback } from '../tapback.js';
@@ -3111,7 +3111,7 @@ export const coachMeal = {
           <div class="bubble">${esc(opening)}</div></div>
         </div>` : ''}
         ${layoutThread(msgs, { muted: RT.mutedUsers, fmtTime: msgClock, fmtDay: msgDay, fmtDayLabel: dayLabelOf }).map((item) => {
-          if (item.type === 'time') return `<div class="tsep">${esc(item.label)}</div>`;
+          if (item.type === 'time') return timeSepHtml(item, esc);
           const c = item.comment;
           // "athlete" styling is reserved for the OTHER side of the conversation; on the coach's
           // screen the coach's own words are the ones that should sit on the right. An 'ai' row is
@@ -3126,19 +3126,22 @@ export const coachMeal = {
           const photo = attachedPhoto(c);
           const photoOnly = isPhotoOnly(c);
           const bubbleRx = c === lastMsg ? rx : [];
+          // The face rides the LAST bubble of a run, the name the first (chat-view.js
+          // msgRowClass; `last` carries the tail).
           return `
-          <div class="msg ${mine ? 'athlete' : c.role === 'ai' ? 'ai' : 'coach'}${item.firstOfRun ? '' : ' cont'}${bubbleRx.length ? ' has-rx' : ''}">
+          <div class="${msgRowClass({ mine, role: c.role, firstOfRun: item.firstOfRun, lastOfRun: item.lastOfRun, hasRx: bubbleRx.length > 0, photoOnly })}">
             ${/* Real faces where they exist (meal.js's own pattern): the monogram stays as the
                   fallback span, and hydrateAvatars upgrades it after paint. Never on 'ai'. */''}
-            ${!mine && item.firstOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? icon('sparkle', 15) : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
+            ${!mine && item.lastOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? icon('sparkle', 15) : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
             <div class="stack">
               ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
               ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
               ${/* The "Updated analysis" badge is gone (founder ruling: robotic; the athlete
                     thread already dropped it). The quote above still marks what changed. */''}
-              <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(c.text)}</div>
-              ${bubbleRx.length ? `<span class="rxo">${bubbleRx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}
+              <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(c.text)}${bubbleRx.length ? `<span class="rxo">${bubbleRx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
+              ${deliveredHtml({ mine, isLast: c === lastMsg })}
             </div>
+            ${msgTimeHtml(c, msgClock, esc)}
           </div>`;
         }).join('')}
         ${!msgs.length ? `

@@ -608,12 +608,20 @@
 /* ----- Chat (3-way) ----- */
 /* Breathing room between speakers, tight within a run — the rhythm is what makes it read as a
    conversation rather than a list. */
-.thread { display: flex; flex-direction: column; gap:var(--s3h); }
-.msg { display: flex; gap:var(--s2h); max-width: 88%; }
-/* Top-aligned, level with the name label — a tall bubble with a "Read less" control under it
-   would otherwise strand a bottom-aligned avatar beside the control instead of the message. */
-.msg .av { width: 30px; height: 30px; border-radius: 50%; flex: none; display: grid; place-items: center; font-size: var(--t-xs); font-weight: 800; align-self: flex-start; margin-top: 15px; }
-.msg.cont .av { margin-top: 0; }
+.thread { display: flex; flex-direction: column; gap:var(--s2h); }
+/* ===== The thread as Messages draws it (2026-09-14) =====
+   The founder asked for the group chat to feel exactly like the phone's own. What that is, in
+   rules: flat fills with no borders (blue for you, one gray for everyone else, identity carried by
+   the name and the face, not by a tint per person); a curved tail on the LAST bubble of a run and
+   the sender's face beside that same bubble, bottom-aligned; 2px inside a run, a real gap between
+   runs; the clock centred with the day in the heavier weight; "Delivered" under your newest
+   message; per-message times revealed by dragging the thread left. Row classes come from
+   chat-view.js msgRowClass so all four renderers agree on what `last` and `photo` mean.
+   Every row is full width (not max-width 88%) so a row's right edge IS the thread's right edge:
+   that is where the dragged-in clock lives. The bubble's own width cap moved to .stack. */
+.msg { display: flex; gap:var(--s2); width: 100%; position: relative; align-items: flex-end; }
+/* The face sits beside the last bubble of the run, bottom-aligned, as Messages places it. */
+.msg .av { width: 28px; height: 28px; border-radius: 50%; flex: none; display: grid; place-items: center; font-size: var(--t-xs); font-weight: 800; align-self: flex-end; margin-bottom: 2px; }
 .msg.coach .av { background: var(--surface-3); color: var(--text); border: 1px solid var(--hairline); }
 .msg.ai .av { background: linear-gradient(150deg, var(--blue), var(--blue-deep)); color: var(--ink-on-accent); }
 /* ---- Bubbles (design upgrade 2026-08-06) ----
@@ -625,17 +633,36 @@
    between "chat bubble" and "rounded rectangle". (Radius later snapped to var(--r-card-sm).) ---- */
 /* overflow-wrap: one long unbroken token (a pasted URL, a 60-char food name) must break inside
    the bubble, not push it past the thread edge. Shared by all three thread renderers. */
-.msg .bubble { padding:11px var(--s3h) var(--s3); border-radius:var(--r-card-sm); font-size:var(--t-base); font-weight:600; line-height:1.47; letter-spacing:-0.005em; overflow-wrap:anywhere; }
-.msg.coach .bubble { background: var(--surface-2); border: 1px solid var(--hairline-soft); border-top-left-radius: 6px; }
-.msg.ai .bubble { background: rgba(var(--blue-rgb), 0.09); border: none; border-top-left-radius: 6px; }
-.msg.athlete { align-self: flex-end; flex-direction: row-reverse; }
-/* --ink-on-accent, not #fff: --blue-bright is LIGHT in the dark theme, where white body copy
-   on it measured ~2.5:1 (deep audit 2026-08-19). The token flips with the theme. */
-.msg.athlete .bubble { background: linear-gradient(150deg, var(--blue), var(--blue-deep)); color: var(--ink-on-accent); border-top-right-radius: 6px; box-shadow: var(--sh-thumb); }
-/* A run of messages from one person tapers: only the first bubble wears the tail. */
-.msg.cont.coach .bubble, .msg.cont.ai .bubble { border-top-left-radius: var(--r-card-sm); }
-.msg.cont.athlete .bubble { border-top-right-radius: var(--r-card-sm); }
-.msg .who { font-size:var(--t-micro); font-weight:800; color: var(--text-3); margin-bottom:5px; margin-left:2px; letter-spacing:0; }
+/* 18px radius on ~16px text is the phone's own proportion; the pad is 8 x 14. Weight 500, not
+   the app's 600: a conversation is read, not scanned, and semi-bold body copy is what made these
+   read as cards. Flat fills, no border, no shadow: chrome was the difference between "bubble"
+   and "box". `position:relative` is for the tail pseudo below. */
+.msg .bubble { position: relative; padding:var(--s2) var(--s3h); border-radius:calc(var(--r-card-sm) + 2px); font-size:var(--t-md); font-weight:500; line-height:1.35; letter-spacing:-0.005em; overflow-wrap:anywhere; }
+/* ONE gray for everyone who is not you. The AI used to sit on a blue tint and the coach on a
+   bordered surface; Messages gives every other person the same gray and lets the name say who. */
+.msg.coach .bubble, .msg.ai .bubble { background: var(--surface-3); border: none; color: var(--text); }
+.msg.athlete { justify-content: flex-end; }
+/* --blue-deep with --text-on-accent (white in both themes): white on --blue-deep clears AA in
+   dark (#2563EB, 5.2:1) and light (#1D4ED8, 6.3:1). The old gradient could not carry a tail,
+   since a pseudo inheriting a gradient restarts it; a flat fill continues into the tail exactly. */
+.msg.athlete .bubble { background: var(--blue-deep); color: var(--text-on-accent); }
+/* THE TAIL. One pseudo (::before; focus.css owns ::after), a 20px box hung off the bubble's
+   bottom outer corner, filled with the bubble's own color and cut to a tail by an SVG mask: a
+   concave curve from the bubble edge down to the tip. It also squares off the bubble's rounded
+   corner behind it, which is what lets the tail flow out of the bubble instead of sitting next
+   to it. Only the LAST bubble in a run wears it; a photo never does (Messages sends photos
+   tail-less). */
+.msg.last .bubble::before {
+  content: ''; position: absolute; bottom: 0; width: 20px; height: 20px; background: inherit;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M10 0H20V20H2.5C7.5 20 10 17.5 10 11.5Z'/%3E%3C/svg%3E") no-repeat 0 0 / 100% 100%;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M10 0H20V20H2.5C7.5 20 10 17.5 10 11.5Z'/%3E%3C/svg%3E") no-repeat 0 0 / 100% 100%;
+  pointer-events: none;
+}
+.msg.last.coach .bubble::before, .msg.last.ai .bubble::before { left: -10px; }
+.msg.last.athlete .bubble::before { right: -10px; transform: scaleX(-1); }
+.msg.photo .bubble::before, .msg.typing .bubble::before { display: none; }
+/* The sender's name: small, quiet, inset to the bubble's text edge, above the first bubble. */
+.msg .who { font-size:var(--t-xs); font-weight:600; color: var(--text-3); margin:0 0 var(--s1) var(--s3); letter-spacing:0; }
 
 /* ---- the thread as a conversation (2026-07-28) ----------------------------------------------
    The meal thread stopped being a two-party accountability note and became a group chat: the
@@ -667,28 +694,70 @@
   text-transform: uppercase; color: var(--text-3);
 }
 .facepile .chev { flex: none; color: var(--text-3); display: grid; place-items: center; }
+/* The chat screen's header: the faces stacked and centred under the nav row with the names
+   beneath, which is where the phone puts a group's identity. Same button, same members sheet. */
+.nc-head { align-items: flex-start; }
+.nc-head .bk { flex: none; }
+.facepile.fp-hero {
+  flex-direction: column; gap: var(--s1h); margin: 0 44px 0 0; padding: 0 0 var(--s2);
+  background: none; border: 0; border-radius: var(--r-card-sm); text-align: center;
+}
+.facepile.fp-hero .fpav { width: 44px; height: 44px; font-size: var(--t-sm); }
+.facepile.fp-hero .fpav + .fpav { margin-left: calc(-1 * var(--s3)); }
+.facepile.fp-hero .names { white-space: normal; font-size: var(--t-sm); line-height: 1.3; }
+.facepile.fp-hero .names small { display: inline-flex; align-items: center; gap: 2px; text-transform: none; letter-spacing: 0; font-size: var(--t-xs); margin-left: var(--s1); }
+.facepile.fp-hero .names small svg { width: 11px; height: 11px; }
+.facepile.fp-hero .chev { display: none; }
 
 /* A run of messages from one person is one block: no repeated name, no repeated face. */
-.msg .stack { display: flex; flex-direction: column; min-width: 0; position: relative; }
-.msg .av-sp { width: 30px; flex: none; }
+.msg .stack { display: flex; flex-direction: column; min-width: 0; max-width: 82%; position: relative; }
+.msg .av-sp { width: 28px; flex: none; }
+/* 2px inside a run (the thread gap is 10, so -8 lands on 2), the phone's own rhythm. */
 .msg.cont { margin-top:-8px; }
 .msg.athlete .av-sp { display: none; }
 .msg.athlete .stack { align-items: flex-end; }
+/* An image alone is the bubble: no pad, no tail, the photo's own corners. */
+.msg.photo .bubble { padding: 0; background: none; }
+.msg.photo .bubble .bimg { margin: 0; width: 220px; max-height: 280px; border-radius: calc(var(--r-card-sm) + 2px); }
 
-/* The clock, only where time actually passed. */
+/* The clock, only where time actually passed: "Today 9:07 AM", the day in the heavier weight. */
 .tsep {
-  align-self: center; font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.11em;
-  text-transform: uppercase; color: var(--text-3); margin:2px 0;
+  align-self: center; font-size: var(--t-xs); font-weight: 500; letter-spacing: 0;
+  text-transform: none; color: var(--text-3); margin:var(--s1) 0;
 }
+.tsep b { font-weight: 700; }
+/* "Delivered", under the newest bubble when it is yours. The one receipt this app can state as a
+   fact (the row came back from the database); nothing here claims it was read. */
+.dlv { align-self: flex-end; font-size: var(--t-xs); font-weight: 600; color: var(--text-3); margin: calc(-1 * var(--s1h)) var(--s1) 0 0; }
+/* The per-message clock the drag reveals (chat-times.js). Parked just past the thread's right
+   edge, where the viewport clips it, and slid into view together with the thread. */
+.msg .mt {
+  position: absolute; right: -64px; top: 50%; transform: translateY(-50%); width: 56px;
+  text-align: right; font-size: var(--t-xs); font-weight: 600; color: var(--text-3);
+  opacity: var(--rv-a, 0); pointer-events: none; white-space: nowrap;
+}
+.thread { transform: translateX(var(--rv, 0px)); }
+.thread.rv-settle { transition: transform var(--dur-2) var(--ease-out); }
+.thread.rv-settle .mt { transition: opacity var(--dur-2) var(--ease-out); }
+/* A just-sent bubble rises out of the composer, as the phone's does. Added by the screen to the
+   one row it just posted; never on a repaint. */
+.msg.in .stack { animation: msg-in var(--dur-2) var(--ease-out) both; }
+@keyframes msg-in { from { opacity: 0; transform: translateY(14px) scale(0.96); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .msg.in .stack { animation: none; } .thread.rv-settle, .thread.rv-settle .mt { transition: none; } }
 
-/* Reactions sit on the bubble they belong to, the way a person expects. */
-.msg.has-rx { margin-bottom:var(--s2); }
+/* Reactions ride the bubble's top outer corner, overlapping it, where a tapback lives on the
+   phone: the top-right of a received bubble, the top-left of a sent one. The row grows a little
+   headroom so the pill never collides with the name label or the run above. */
+.msg.has-rx { margin-top:var(--s2); }
+/* INSIDE the bubble (all four renderers), so the pill anchors to the bubble's own corner and not
+   to the stack's, where a name label or a quoted line above the bubble put it in the wrong place. */
 .msg .rxo {
-  position: absolute; right: -4px; bottom: -13px; background: var(--surface-2);
-  border: 1px solid var(--hairline); border-radius: var(--r-pill); padding:2px var(--s2);
-  font-size: var(--t-micro); font-weight: 700; color: var(--text-2); white-space: nowrap;
+  position: absolute; right: calc(-1 * var(--s2)); top: calc(-1 * var(--s3)); z-index: 1;
+  background: var(--surface-2); border: 2px solid var(--bg); border-radius: var(--r-pill);
+  padding:var(--s1) var(--s2); font-size: var(--t-sm); font-weight: 700; color: var(--text-2);
+  white-space: nowrap; box-shadow: var(--sh-thumb);
 }
-.msg.athlete .rxo { right: auto; left: -4px; }
+.msg.athlete .rxo { right: auto; left: calc(-1 * var(--s2)); }
 
 /* An updated read quotes the correction it answers, so the fix and the new numbers read as one
    exchange instead of two unrelated remarks. */
@@ -815,15 +884,20 @@
   .corr-row .cv b.pend{animation:none}
 }
 
-.msg .tdots { display: inline-flex; gap:var(--s1); align-items: center; padding:var(--s3h) var(--s4); }
+/* The typing bubble: a gray bubble of three dots beside the sender's face, popping in the way
+   the phone's does. No visible "is typing" label; the face says who, and the label stays for
+   screen readers only. The dots swell rather than bounce. */
+.msg .tdots { display: inline-flex; gap:var(--s1h); align-items: center; padding:var(--s3) var(--s3h); }
+.msg.typing .stack, .msg.typing > div:not(.av) { animation: msg-in var(--dur-2) var(--ease-out) both; }
+.msg.typing .who { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .msg .tdots span {
-  width: 6px; height: 6px; border-radius: 50%; background: var(--text-3);
-  animation: tdot 1.2s infinite;
+  width: 8px; height: 8px; border-radius: 50%; background: var(--text-3);
+  animation: tdot 1.3s var(--ease-in-out) infinite;
 }
-.msg .tdots span:nth-child(2) { animation-delay: 0.15s; }
-.msg .tdots span:nth-child(3) { animation-delay: 0.3s; }
-@keyframes tdot { 0%, 60%, 100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
-@media (prefers-reduced-motion: reduce) { .msg .tdots span { animation: none; opacity: 0.6; } }
+.msg .tdots span:nth-child(2) { animation-delay: 0.18s; }
+.msg .tdots span:nth-child(3) { animation-delay: 0.36s; }
+@keyframes tdot { 0%, 60%, 100% { opacity: 0.35; transform: scale(0.8); } 30% { opacity: 1; transform: scale(1.08); } }
+@media (prefers-reduced-motion: reduce) { .msg .tdots span { animation: none; opacity: 0.6; } .msg.typing .stack, .msg.typing > div:not(.av) { animation: none; } }
 
 /* "Seen by Coach Brown" - a day receipt stated as one, never a per-message read we do not have. */
 .seen { align-self: flex-start; margin:-4px 0 0 42px; font-size: var(--t-micro); font-weight: 600; color: var(--text-3); }
@@ -904,6 +978,33 @@
    align-items:flex-end everywhere, because a pill that has grown to four lines keeps its send
    button and its attach button on the LAST line, where the cursor is — not floating mid-box. */
 .composer { display: flex; align-items: flex-end; gap:var(--s2); margin-top:var(--s4); }
+/* THE DOCK (2026-09-14). On the chat screen the message box is pinned to the bottom of the
+   scroller on frosted glass, with the conversation passing under it, the way the phone's is.
+   Sticky inside the viewport (not fixed) so keyboard.js's scroll-to-end and --bar-lift keep
+   working unchanged: the dock is still the last thing in the flow. Bleeds to the screen edges
+   through the viewport's own side padding. */
+/* bottom:0, not --bar-lift: a sticky inset is measured from the scrollport's CONTENT box in
+   every engine, and the viewport's padding-bottom already clears the tab capsule. Measured in
+   the harness 2026-09-14: with --bar-lift the dock parked 141px too high, mid-screen. */
+.chat-dock {
+  position: sticky; bottom: 0; z-index: 20;
+  margin: var(--s3) calc(-1 * var(--pad-screen, 16px)) 0; padding: var(--s2) var(--pad-screen, 16px) var(--s2h);
+  background: var(--glass-fill, var(--surface-1)); border-top: 1px solid var(--hairline);
+  -webkit-backdrop-filter: blur(var(--glass-blur, 22px)) saturate(var(--glass-sat, 1.6));
+          backdrop-filter: blur(var(--glass-blur, 22px)) saturate(var(--glass-sat, 1.6));
+}
+.chat-dock .composer { margin-top: 0; }
+/* The "replying about" strip is one quiet line in the dock, not a card: label, plate, and the
+   way out. The tap-a-meal hint goes; the cards above are visibly buttons. */
+.chat-dock .nc-target { margin: 0 0 var(--s2); padding: var(--s1) var(--s2h); flex-wrap: nowrap; background: none; border: 0; border-radius: 0; }
+.chat-dock .nc-target .nct-hint { display: none; }
+.chat-dock .nc-target .nct-label { letter-spacing: 0.04em; }
+.chat-dock .nc-target .nct-meal { font-weight: 700; flex: 1; }
+.chat-dock .nc-target .nct-clear { min-height: 28px; padding: 2px var(--s2); }
+/* Messages hides send until there is something to send; a dock with no attach control has no
+   photo-only case, so send can vanish honestly here. It keeps its space so the pill never jumps. */
+.chat-dock .composer.at-end:not(.has-text) .send { opacity: 0; transform: scale(0.6); pointer-events: none; }
+.chat-dock .composer .send { transition: opacity var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out); }
 .composer .field {
   /* min-width:0 — a flex item's default min-width is its content size, so on a 375px frame the
      coach's 3-button composer pushed Send off-screen (deep audit 2026-08-19). */
@@ -1982,13 +2083,38 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .tmenu .tm-note{font-size:var(--t-sm);font-weight:600;color:var(--text-3)}
 
 /* iMessage tapback: press and hold a bubble, pick a reaction. Anchored to the message the finger
-   is on, which is why it is positioned rather than laid out inline. */
-.tapback{position:fixed;z-index:60;display:flex;gap:2px;padding:5px;border-radius:var(--r-pill);
-  background:var(--surface-3, var(--surface-2));border:1px solid var(--hairline);
-  box-shadow:0 12px 32px rgba(0,0,0,0.45);transform-origin:50% 100%;
-  animation:tapback-in var(--dur-1, 140ms) var(--ease-out, ease-out)}
+   is on, which is why it is positioned rather than laid out inline.
+   THE LIFT (2026-09-14): the whole screen goes to frosted glass, the pressed bubble is re-drawn
+   on top of it at its own position (a clone: the real one sits under the veil in whatever
+   stacking context its screen gave it), the reaction pill rides above and a small menu below.
+   That is the phone's gesture, and it is why the veil, the lift and the pill are three nodes. */
+.tb-veil{position:fixed;inset:0;z-index:59;background:rgba(var(--bg-rgb),0.45);
+  -webkit-backdrop-filter:blur(18px) saturate(1.2);backdrop-filter:blur(18px) saturate(1.2);
+  animation:tb-veil-in var(--dur-1) var(--ease-out)}
+@keyframes tb-veil-in{from{opacity:0}to{opacity:1}}
+.tb-lift{position:fixed;z-index:60;pointer-events:none;transform-origin:50% 100%;animation:tb-lift-in var(--dur-2) var(--ease-out) both}
+.tb-lift .stack{max-width:none}
+@keyframes tb-lift-in{from{transform:scale(1)}to{transform:scale(1.03)}}
+.tapback{position:fixed;z-index:61;display:flex;gap:2px;padding:var(--s1);border-radius:var(--r-pill);
+  background:var(--surface-2);border:1px solid var(--hairline);
+  box-shadow:var(--sh-raised);transform-origin:50% 100%;
+  animation:tapback-in var(--dur-2, 280ms) var(--ease-out, ease-out)}
 .tapback button{width:44px;height:44px;border:none;background:none;border-radius:50%;font-size:var(--t-xl);line-height:1;cursor:pointer;
   display:grid;place-items:center;transition:transform var(--dur-1) var(--ease-out),background var(--dur-1) var(--ease-out)}
+.tapback button:hover{transform:scale(1.15)}
+/* The menu under the lifted bubble: one honest action today (Copy). Reply, edit and unsend need
+   columns the table does not have. */
+.tb-menu{position:fixed;z-index:61;min-width:180px;background:var(--surface-2);border:1px solid var(--hairline);
+  border-radius:var(--r-card-sm);box-shadow:var(--sh-raised);overflow:hidden;
+  animation:tapback-in var(--dur-2, 280ms) var(--ease-out, ease-out);transform-origin:50% 0}
+.tb-menu button{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);width:100%;min-height:44px;
+  padding:var(--s2h) var(--s3h);border:0;background:none;color:var(--text);font-family:var(--font);
+  font-size:var(--t-md);font-weight:600;text-align:left;cursor:pointer;-webkit-appearance:none;appearance:none}
+.tb-menu button+button{border-top:1px solid var(--hairline)}
+.tb-menu button:active{background:var(--surface-3)}
+.tb-menu button:focus-visible{outline:2px solid var(--blue-bright);outline-offset:-2px}
+.tb-menu button svg{color:var(--text-2);flex:none}
+@media (prefers-reduced-motion: reduce){ .tb-veil,.tb-lift,.tb-menu{animation:none} .tb-lift{transform:none} }
 .tapback button:active{transform:scale(0.88)}
 .tapback button.on{background:var(--blue-surface)}
 .tapback button:focus-visible{outline:2px solid var(--blue-bright);outline-offset:-2px}
@@ -2700,6 +2826,42 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    chip happens to paint last. 10px is exactly the clearance the expanders need. */
 .fx-chips { gap: var(--s2h); }
 .cont-earlier:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
+
+/* ===== The Team discussion on a meal page, as a conversation (2026-09-14) =====
+   One header row in the phone's shape (faces, title, who is in it, Open), a centred "earlier"
+   seam, a neutral pinned coach line, and the message box docked to the screen's bottom for as
+   long as the discussion is on screen. `position: relative` on the section is what scopes the
+   sticky dock to it: sticky cannot leave its container, so the dock appears when the section
+   arrives and leaves with it. */
+.disc { position: relative; margin-top: var(--s4); }
+.disc-head { display: flex; align-items: center; gap: var(--s2); margin: 0 0 var(--s2h); }
+.facepile.disc-fp, .disc-fp {
+  flex: 1; min-width: 0; margin: 0; padding: var(--s1) 0; background: none; border: 0; border-radius: var(--r-card-sm);
+  display: flex; align-items: center; gap: var(--s2h);
+}
+.disc-fp .fpav { width: 32px; height: 32px; }
+.disc-fp .names { display: flex; flex-direction: column; min-width: 0; font-size: var(--t-md); font-weight: 800; white-space: normal; line-height: 1.2; }
+.disc-fp .names small { display: block; font-size: var(--t-xs); font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+.disc-open {
+  flex: none; display: inline-flex; align-items: center; gap: 2px; min-height: 32px; padding: var(--s1) var(--s2) var(--s1) var(--s3);
+  border-radius: var(--r-pill); border: 1px solid var(--hairline); background: var(--surface-2); color: var(--blue-bright);
+  font-family: var(--font); font-size: var(--t-sm); font-weight: 700; cursor: pointer; -webkit-appearance: none; appearance: none;
+  position: relative;
+}
+.disc-open::after { content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 100%; height: 100%; min-width: 44px; min-height: 44px; }
+.disc-open:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
+.disc .cont-earlier {
+  justify-content: center; width: auto; align-self: center; border: 0; margin: 0 0 var(--s1);
+  padding: var(--s2) var(--s3); border-radius: var(--r-pill); background: var(--surface-2);
+  font-size: var(--t-xs); font-weight: 700; color: var(--text-2); gap: var(--s1);
+}
+.disc .coach-pin { background: var(--surface-2); border-color: var(--hairline); }
+.disc .coach-pin .cp-av { background: var(--surface-3); color: var(--text); }
+.disc .coach-pin .cp-tag { color: var(--text-3); }
+.disc .seen { margin-left: 36px; }
+.disc .chat-dock { margin-top: var(--s3); }
+/* The pending-photo strip and the note sit inside the dock, under the pill. */
+.disc .chat-dock .composer-attach-pending { margin-top: var(--s2); }
 
 /* ---- the pill means ONE thing ----
    .xpill was carrying eight different jobs: status, toggle state, an instruction ("Start here"),

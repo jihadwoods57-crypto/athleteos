@@ -11,7 +11,7 @@ import { threadMessages, reactionGroups, REACTION_EMOJI } from '../meal-intel.js
 import { wireTapback } from '../tapback.js';
 import { miniDial } from './meal.js';
 import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isEscalated, quotedFor,
-  dayLabelOf, participantList, participantSummary,
+  dayLabelOf, participantList, participantSummary, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml,
 } from '../chat-view.js';
 import { openMembersSheet } from '../members-sheet.js';
 import { hydrateAvatars } from '../avatar.js';
@@ -335,7 +335,7 @@ function mountThread(root, mealId, meal) {
     const msgItems = items.filter((i) => i.type !== 'time');
     const lastMsg = msgItems.length ? msgItems[msgItems.length - 1].comment : null;
     threadEl.innerHTML = items.map((item) => {
-      if (item.type === 'time') return `<div class="tsep">${esc(item.label)}</div>`;
+      if (item.type === 'time') return timeSepHtml(item, esc);
       const c = item.comment;
       const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
       const who = authorName(c, participants, RT.userId, S.coach.noun);
@@ -345,17 +345,20 @@ function mountThread(root, mealId, meal) {
       const photo = attachedPhoto(c);
       const photoOnly = isPhotoOnly(c);
       const rx = c === lastMsg ? reactionGroups(rows) : [];
+      // The face rides the LAST bubble of a run, the name the first (chat-view.js msgRowClass;
+      // `last` carries the tail).
       return `
-        <div class="msg ${mine ? 'athlete' : c.role === 'ai' ? 'ai' : 'coach'}${item.firstOfRun ? '' : ' cont'}${rx.length ? ' has-rx' : ''}">
-          ${!mine && item.firstOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? icon('sparkle', 15) : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
+        <div class="${msgRowClass({ mine, role: c.role, firstOfRun: item.firstOfRun, lastOfRun: item.lastOfRun, hasRx: rx.length > 0, photoOnly })}">
+          ${!mine && item.lastOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? icon('sparkle', 15) : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
           <div class="stack">
             ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
             ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
             ${/* No "Updated analysis" badge on correction replies (founder: robotic; the live
                   thread already dropped it) — the quote stem above says what it answers. */''}
-            <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(String(c.text || ''))}</div>
-            ${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}
+            <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(String(c.text || ''))}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
+            ${deliveredHtml({ mine, isLast: c === lastMsg })}
           </div>
+          ${msgTimeHtml(c, mvClock, esc)}
         </div>`;
     }).join('');
     // Resolve any attachments just painted. trust.js imports named roles functions rather than the

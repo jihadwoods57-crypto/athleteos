@@ -127,7 +127,13 @@ export function layoutThread(msgs, { fmtTime = () => '', fmtDay = null, fmtDayLa
     const newDay = fmtDay && prev && isFinite(at) && isFinite(prevAt) && fmtDay(at) !== fmtDay(prevAt);
     if ((gap || newDay) && isFinite(at)) {
       const label = newDay && fmtDay ? `${(fmtDayLabel || fmtDay)(at)} · ${fmtTime(c.created_at)}` : fmtTime(c.created_at);
-      if (label) out.push({ type: 'time', label, at });
+      // `day` / `time` are the two halves Messages sets in two weights ("Today" bold, the clock
+      // regular). The day is named on a day change AND on the first separator of the thread,
+      // where it was always missing: a thread opening on a bare "9:07 AM" never said which day.
+      // `label` keeps its old shape for the callers and tests that print it whole.
+      const sayDay = fmtDay && (newDay || !prev);
+      const day = sayDay ? String((fmtDayLabel || fmtDay)(at) || '') : '';
+      if (label) out.push({ type: 'time', label, at, day, time: String(fmtTime(c.created_at) || '') });
     }
     const sameSpeaker = prev && prev.author_id === c.author_id && prev.role === c.role && !gap && !newDay;
     const next = list[i + 1];
@@ -290,4 +296,48 @@ export function quotedFor(comment, msgs) {
     if (list[j] && list[j].role === 'athlete' && list[j].text) return list[j];
   }
   return null;
+}
+
+/* ---------------- The row, as Messages draws it (2026-09-14) ----------------
+   Four renderers paint the same bubble, and every courtesy that lived in one of them alone took
+   weeks to reach the others (read-more, memory chips). These helpers are the shared shape of a
+   row: its classes, its separator, and its receipt. Markup is the renderer's; the RULES are here. */
+
+/** The class list for a message row.
+ *  - `athlete` sits on the right; `coach` and `ai` on the left
+ *  - `cont` is a repeat inside a run (no name, tighter gap); `last` closes the run and carries the
+ *    tail and the sender's face, the way Messages puts the face on the LAST bubble, not the first
+ *  - `photo` is an image alone, drawn edge to edge with no bubble padding and no tail */
+export function msgRowClass({ mine, role, firstOfRun = true, lastOfRun = true, hasRx = false, photoOnly = false } = {}) {
+  const side = mine ? 'athlete' : role === 'ai' ? 'ai' : 'coach';
+  const cls = ['msg', side];
+  if (!firstOfRun) cls.push('cont');
+  if (lastOfRun) cls.push('last');
+  if (hasRx) cls.push('has-rx');
+  if (photoOnly) cls.push('photo');
+  return cls.join(' ');
+}
+
+/** "<b>Today</b> 9:07 AM": the day in the heavier weight, the clock in the lighter. Falls back to
+ *  the whole label when a caller's layout has no day halves (an older shape, or a test). */
+export function timeSepHtml(item, esc) {
+  if (!item) return '';
+  const day = String(item.day || '');
+  const time = String(item.time || '');
+  if (!day && !time) return `<div class="tsep">${esc(String(item.label || ''))}</div>`;
+  return `<div class="tsep">${day ? `<b>${esc(day)}</b>` : ''}${day && time ? ' ' : ''}${esc(time)}</div>`;
+}
+
+/** The one receipt this app can state truthfully under a sent bubble. A row that came back from
+ *  the database was DELIVERED; nothing here knows it was read, so nothing here says so. Only the
+ *  newest message in the thread wears it, and only when it is the reader's own. */
+export function deliveredHtml({ mine, isLast } = {}) {
+  return mine && isLast ? '<div class="dlv">Delivered</div>' : '';
+}
+
+/** The per-message clock revealed by dragging the thread left (chat-times.js). Present on every
+ *  row and invisible until the drag, exactly as Messages keeps it. */
+export function msgTimeHtml(comment, fmtTime, esc) {
+  const t = comment && fmtTime ? String(fmtTime(comment.created_at) || '') : '';
+  return t ? `<span class="mt" aria-hidden="true">${esc(t)}</span>` : '';
 }

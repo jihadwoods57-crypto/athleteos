@@ -30,8 +30,9 @@ import {
   isAnalysisOpener, isAnalysisUpdate, isEscalated, quotedFor,
   memoryOfferOf, memoryOfferChips,
   mealSuggestOf, fillMealSuggestion, mealSuggestHtml,
-  dayLabelOf,
+  dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml,
 } from '../chat-view.js';
+import { wireChatTimes } from '../chat-times.js';
 
 /* The meal score chip's ring, drawn as the brand dial (docs/brand/LOGO.md): a 300° gauge with
    a 60° gap at 6 o'clock and the signature --ring-a/b/c sweep — the same silhouette as the day
@@ -549,9 +550,9 @@ export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, p
      the render()-time call (no messages yet) working unchanged. */
   const wrap = (lead, tail) => (part === 'lead' ? lead : part === 'tail' ? tail : lead + tail);
   const aiRow = (inner, id) => `
-      <div class="msg ai"${id ? ` id="${id}"` : ''}>
+      <div class="msg ai last"${id ? ` id="${id}"` : ''}>
         <div class="av">${icon('sparkle', 15)}</div>
-        <div><div class="who">AI Nutritionist</div>
+        <div class="stack"><div class="who">AI Nutritionist</div>
         <div class="bubble">${inner}</div></div>
       </div>`;
 
@@ -603,9 +604,9 @@ export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, p
   const askFact = unoffered.find((f) => f.kind === 'dislike' && plate.has(String(f.value).toLowerCase()))
     || unoffered[0] || null;
   const confirmRow = askFact ? `
-      <div class="msg ai" id="fact-confirm">
+      <div class="msg ai last" id="fact-confirm">
         <div class="av">${icon('sparkle', 15)}</div>
-        <div><div class="who">AI Nutritionist</div>
+        <div class="stack"><div class="who">AI Nutritionist</div>
         <div class="bubble">
           ${esc(askFact.kind === 'dislike'
             ? `Noted. You took ${askFact.value} off a plate. Skip it in future reads?`
@@ -638,9 +639,9 @@ export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, p
   if (!body) return wrap('', confirmRow);
 
   return wrap(`
-      <div class="msg ai">
+      <div class="msg ai last">
         <div class="av">${icon('sparkle', 15)}</div>
-        <div><div class="who">AI Nutritionist</div>
+        <div class="stack"><div class="who">AI Nutritionist</div>
         <div class="bubble">${body}</div></div>
       </div>`, confirmRow);
 }
@@ -1202,19 +1203,24 @@ export const thread = {
     // their coach and their mother can both read it before they hit send. Overlapping faces
     // rather than emoji, because these are people.
     const people = participantList(PARTICIPANTS.uid === RT.userId ? PARTICIPANTS.rows : [], RT.userId);
+    // THE CONVERSATION'S OWN HEADER (2026-09-14). One row, the way the phone names a group at
+    // the top of a thread: the faces, the title, who is in it, and the way to the whole
+    // conversation. The faces are the members button; "Open" carries this plate into the full
+    // chat, aimed at it (nutrition-chat/<mealId>). It replaces an uppercase eyebrow, an inline
+    // text link and a separate pill that together said the same thing three ways.
     const facepile = !M.mealId ? '' : `
-    <button class="facepile" id="meal-members" aria-label="Who can see this conversation">
+    <button class="facepile disc-fp" id="meal-members" aria-label="Who can see this conversation">
       <span class="fp">${people.slice(0, 4).map((p) => `<span class="fpav ${esc(p.kind === 'ai' ? 'ai' : p.self ? 'self' : 'other')}"${p.kind !== 'ai' && p.id ? ` data-avatar-uid="${esc(p.id)}"` : ''}>${p.kind === 'ai' ? icon('sparkle', 13) : `<span data-avatar-fallback>${esc(initialsFor(p.name))}</span>`}</span>`).join('')}</span>
-      <span class="names">${esc(participantSummary(people))}<small>${people.length} in this conversation</small></span>
-      <span class="chev">${icon('chevron', 15)}</span>
+      <span class="names"><b>Team discussion</b><small>${esc(participantSummary(people))}</small></span>
     </button>`;
 
     const discussion = `
-    <h2 class="eyebrow" style="margin-top:18px;display:flex;align-items:baseline;gap:8px">
-      <span>Team Discussion</span>
-      ${M.mealId ? `<span class="link" id="open-full-chat" role="button" tabindex="0" style="margin-left:auto;text-transform:none;letter-spacing:0;font-size:12px">View full chat &rarr;</span>` : ''}
-    </h2>
-    ${facepile}
+    <section class="disc" id="meal-disc" aria-labelledby="disc-title">
+    <h2 class="sr-only" id="disc-title">Team discussion</h2>
+    <div class="disc-head">
+      ${facepile || `<div class="disc-fp"><span class="names"><b>Team discussion</b></span></div>`}
+      ${M.mealId ? `<button type="button" class="disc-open" id="open-full-chat" aria-label="Open the full conversation at this meal">Open ${icon('chevron', 14)}</button>` : ''}
+    </div>
     ${/* The `#rx-strip` that used to sit here is gone: paint() has cleared it on every repaint
           since reactions moved onto the bubble they belong to, so it was an element whose only
           job was to be emptied. */''}
@@ -1241,9 +1247,15 @@ export const thread = {
           puts them behind a press-and-hold on the message being reacted to, and so does this one
           now (tapback.js, wired in mount). What is left between the last message and the box you
           type in is: nothing. */''}
+    ${/* THE DOCK, scoped to this section (screens.css .disc .chat-dock): sticky to the bottom of
+          the screen only while the discussion is on screen, so it rides up to meet you the moment
+          the conversation scrolls into view and never covers the plate or the breakdown above. */''}
+    <div class="chat-dock disc-dock">
     ${composer({ inputId: 'meal-msg', sendId: 'meal-send', placeholder: 'Ask about this meal…', sendLabel: 'Send', attachId: 'meal-attach', atEnd: true })}
     <div class="composer-attach-pending" id="meal-attach-pending" hidden></div>
-    <div id="chat-note" style="min-height:18px"></div>` : ''}`;
+    <div id="chat-note" style="min-height:18px"></div>
+    </div>` : ''}
+    </section>`;
 
     // ---- 4. DAY COMPLETE ----
     // The Next Action row is GONE from this screen (founder, 2026-08-17). It rendered between
@@ -1506,10 +1518,15 @@ export const thread = {
     // A live indicator instead of a static "thinking" card, because that is what every other
     // conversation this athlete has ever had looks like while someone types.
     let aiTyping = false;
+    // The message the athlete JUST sent, by id, for the beat its bubble rises out of the composer
+    // (screens.css .msg.in). On a timer, not a paint: the typing row repaints the thread within
+    // that beat, and a class that lived one paint cut the motion short every time.
+    let JUST_SENT = null;
+    let JUST_SENT_T = null;
     const typingRow = () => `
         <div class="msg ai typing" id="ai-typing">
           <div class="av">${icon('sparkle', 15)}</div>
-          <div><div class="who">AI Nutritionist is typing<span class="sr-only">, a reply is on its way</span></div>
+          <div class="stack"><div class="who">AI Nutritionist is typing<span class="sr-only">, a reply is on its way</span></div>
           <div class="bubble tdots"><span></span><span></span><span></span></div></div>
         </div>`;
 
@@ -1706,7 +1723,7 @@ export const thread = {
       const hiddenCount = msgs.length - shown.length;
       const lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
       const rows = layoutThread(shown, { muted: RT.mutedUsers, fmtTime: fmtMsgTime, fmtDay: dayKey, fmtDayLabel: dayLabelOf }).map((item) => {
-        if (item.type === 'time') return `<div class="tsep">${esc(item.label)}</div>`;
+        if (item.type === 'time') return timeSepHtml(item, esc);
         const c = item.comment;
         const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
         const who = authorName(c, participants, RT.userId, S.coach.noun);
@@ -1724,9 +1741,13 @@ export const thread = {
         // is a sized placeholder, so the thread does not reflow when images land.
         const photo = attachedPhoto(c);
         const photoOnly = isPhotoOnly(c);
+        // The face rides the LAST bubble of a run, the name the first (chat-view.js msgRowClass;
+        // `last` carries the tail). `in` is the one row the athlete just sent, rising from the box.
+        const cls = msgRowClass({ mine, role: c.role, firstOfRun: item.firstOfRun, lastOfRun: item.lastOfRun, hasRx: rx.length > 0, photoOnly })
+          + (JUST_SENT && c.id === JUST_SENT ? ' in' : '');
         return `
-        <div class="msg ${mine ? 'athlete' : c.role === 'ai' ? 'ai' : 'coach'}${item.firstOfRun ? '' : ' cont'}${rx.length ? ' has-rx' : ''}">
-          ${!mine && item.firstOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? icon('sparkle', 15) : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
+        <div class="${cls}">
+          ${!mine && item.lastOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? icon('sparkle', 15) : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
           <div class="stack">
             ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
             ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
@@ -1734,9 +1755,10 @@ export const thread = {
                   reply is just the AI's next message, like a person texting back. The quote stem
                   above already shows WHAT it answers. The escalation badge stays: "this reached
                   your coach" is a fact worth labeling. */''}
-            <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : bubbleText(c)}${offerChips(c)}</div>
-            ${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}
+            <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : bubbleText(c)}${offerChips(c)}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
+            ${deliveredHtml({ mine, isLast: c === lastMsg })}
           </div>
+          ${msgTimeHtml(c, fmtMsgTime, esc)}
         </div>`;
       }).join('');
 
@@ -1783,7 +1805,7 @@ export const thread = {
         </div>`;
       })() : '';
       const earlierBtn = hiddenCount > 0
-        ? `<button class="cont-earlier" id="thread-more">View ${hiddenCount} earlier message${hiddenCount === 1 ? '' : 's'} &rarr;</button>`
+        ? `<button class="cont-earlier" id="thread-more">${hiddenCount} earlier message${hiddenCount === 1 ? '' : 's'} ${icon('chevron', 13)}</button>`
         : '';
       threadEl.innerHTML = coachPin + openingLead + earlierBtn + rows + openingTail + (aiTyping ? typingRow() : '') + corrReceipt()
         + (seen ? `<div class="seen">${seen}</div>` : '')
@@ -2038,7 +2060,11 @@ export const thread = {
       // back button fell through to its 'home' fallback instead of returning to the meal the
       // athlete opened it from.
       if (t.id === 'open-full-chat' || t.id === 'thread-more') {
-        if (window.__navigate) window.__navigate('nutrition-chat'); else location.hash = '#nutrition-chat';
+        // Aimed at THIS plate: the full chat opens with this meal's card selected and in view,
+        // so "the rest of this conversation" is where the athlete lands, not the bottom of a
+        // season (nutrition-chat.js reads the sub-route).
+        const dest = M.mealId ? `nutrition-chat/${M.mealId}` : 'nutrition-chat';
+        if (window.__navigate) window.__navigate(dest); else location.hash = `#${dest}`;
         return;
       }
       // A meal that settled at zero: put it back in the queue for another read.
@@ -2272,6 +2298,17 @@ export const thread = {
         });
       }
       await refresh();
+      // The row that just landed rises out of the box, as the phone's does.
+      {
+        const own = threadMessages(comments).filter((c) => c && c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId));
+        const sent = own.length ? own[own.length - 1] : null;
+        if (sent && sent.id) {
+          JUST_SENT = sent.id;
+          clearTimeout(JUST_SENT_T);
+          JUST_SENT_T = setTimeout(() => { JUST_SENT = null; }, 700);
+          paint();
+        }
+      }
       // Forced: the athlete just sent this and is watching for it to land. Every other repaint
       // leaves a reader where they are; this one always shows them their own message.
       scrollThreadToEnd(root, { force: true });
@@ -2292,6 +2329,8 @@ export const thread = {
     // `root` — the node the router never replaces — because #view and everything in it is rebuilt
     // on each render; wireTapback is re-entrant, so this re-mount swaps the callbacks rather than
     // stacking listeners. The picker itself lives on <body>, out of the render's way.
+    // Drag the conversation left to see when each message was sent.
+    wireChatTimes({ root, scope: '#meal-thread' });
     if (M.mealId) wireTapback({
       root,
       scope: '#meal-thread',

@@ -33,8 +33,9 @@ import {
   isAnalysisUpdate, quotedFor, isEscalated,
   memoryOfferOf, memoryOfferChips,
   mealSuggestOf, fillMealSuggestion, mealSuggestHtml,
-  dayLabelOf,
+  dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml,
 } from '../chat-view.js';
+import { wireChatTimes } from '../chat-times.js';
 import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos } from '../chat-attach.js';
 import { hydrateAvatars } from '../avatar.js';
 import { wireTapback } from '../tapback.js';
@@ -109,6 +110,13 @@ const EXPANDED_BUBBLES = new Set();
  * genuinely-latest one. Null means "the latest plate", resolved by logged_at, not by list order.
  */
 let REPLY_TO = null;
+
+/* The message the athlete JUST sent, by id, for the one beat its bubble rises out of the
+   composer (screens.css .msg.in). Cleared on a timer rather than on the next paint: paint()
+   runs again the instant the typing row lands, and a class that lived only one paint cut the
+   motion short every time. */
+let JUST_SENT = null;
+let JUST_SENT_T = null;
 
 const fmtTime = (iso) => {
   if (!iso) return '';
@@ -189,22 +197,37 @@ export default {
     // empty list, which appends the AI and nothing else — so the first frame of a thread with a
     // coach in it read "AI Nutritionist · 1 in this conversation". A room stated wrong for a beat
     // is still a room stated wrong; say nothing until it is known.
-    return `${backHead('Nutrition chat', '', 'home')}
-    <button class="facepile" id="nc-members" aria-label="Who can see this conversation">
-      <span class="fp"></span>
-      <span class="names">Loading the room<small>Who can read this</small></span>
-      <span class="chev">${icon('chevron', 15)}</span>
-    </button>
+    // The header is the room, as the phone draws a group: the back chevron at the left and the
+    // faces stacked in the centre with the names beneath. The faces are the one button, and it
+    // opens the members sheet exactly as the old pill did. (backHead is not used because its
+    // title would sit where the faces belong; the `.bk` markup is the router's own.)
+    return `<div class="back-head nc-head">
+      <div class="bk" data-back="home" role="button" aria-label="Back">${icon('back', 20)}</div>
+      <h1 class="sr-only">Nutrition chat</h1>
+      <button class="facepile fp-hero" id="nc-members" aria-label="Who can see this conversation">
+        <span class="fp"></span>
+        <span class="names">Loading the room</span>
+      </button>
+    </div>
     <div class="thread nc-thread" id="nc-thread" role="log" aria-label="Nutrition chat">
       <div class="msg-status" id="nc-status">Loading your conversation…</div>
     </div>
-    <div class="nc-target" id="nc-target" hidden></div>
-    ${composer({ inputId: 'nc-msg', sendId: 'nc-send', placeholder: 'Ask about this meal…', sendLabel: 'Send', atEnd: true })}
-    <div id="nc-note" style="min-height:18px"></div>`;
+    <div class="chat-dock">
+      <div class="nc-target" id="nc-target" hidden></div>
+      ${composer({ inputId: 'nc-msg', sendId: 'nc-send', placeholder: 'Ask about this meal…', sendLabel: 'Send', atEnd: true })}
+      <div id="nc-note" style="min-height:18px"></div>
+    </div>`;
   },
 
-  async mount(root) {
+  async mount(root, { sub } = {}) {
     const roles = await import('../roles.js');
+    // ARRIVING FROM A PLATE (2026-09-14). The meal page's "Open" and "N earlier messages" carry
+    // the meal id as the sub-route, and this screen opens WITH that plate selected and its card
+    // scrolled into view, rather than dumping the athlete at the bottom of a fortnight. The jump
+    // happens once, on the first paint that has the card; after that the thread behaves as it
+    // always has. A plate outside the loaded window simply falls back to the latest.
+    let JUMP_TO = sub ? String(sub) : null;
+    if (JUMP_TO) REPLY_TO = JUMP_TO;
     const threadEl = root.querySelector('#nc-thread');
     const noteEl = root.querySelector('#nc-note');
     let busy = false;
@@ -225,9 +248,9 @@ export default {
       btn.querySelector('.fp').innerHTML = people.slice(0, 4).map((p) =>
         `<span class="fpav ${esc(p.kind === 'ai' ? 'ai' : p.self ? 'self' : 'other')}"${p.kind !== 'ai' && p.id ? ` data-avatar-uid="${esc(p.id)}"` : ''}>${p.kind === 'ai' ? icon('sparkle', 13) : `<span data-avatar-fallback>${esc(initialsFor(p.name))}</span>`}</span>`).join('');
       hydrateAvatars(btn);
-      btn.querySelector('.names').innerHTML = `${esc(participantSummary(people))}<small>${people.length} in this conversation</small>`;
-      const sub = root.querySelector('.back-head .hs');
-      if (sub) sub.textContent = participantSummary(people);
+      // "You, Coach Brown, AI Nutritionist" with the count and a small chevron on the same
+      // line, which is how the phone says "this is a group, tap for the members".
+      btn.querySelector('.names').innerHTML = `${esc(participantSummary(people))}<small>${people.length}${icon('chevron', 11)}</small>`;
     };
 
     /* THE PLATE THE COMPOSER IS AIMED AT, said out loud. Always rendered when there is a meal to
@@ -291,7 +314,16 @@ export default {
       // `.thread` is a flex column and has never had a scrollTop — the screen's scroller is
       // #viewport, so the old line here moved nothing. Unforced: "Load earlier" must not fling the
       // reader back to today the instant the older page paints.
-      scrollThreadToEnd(threadEl);
+      const jump = JUMP_TO ? threadEl.querySelector(`.nc-div[data-meal-id="${CSS.escape(JUMP_TO)}"]`) : null;
+      if (jump) {
+        JUMP_TO = null;
+        jump.scrollIntoView({ block: 'start', behavior: 'instant' });
+        // The header is glass over the scroller; without this the card lands under it.
+        const vp = threadEl.closest('.viewport');
+        const head = root.querySelector('.nc-head');
+        if (vp && head) vp.scrollTop -= head.getBoundingClientRect().height + 8;
+      }
+      else scrollThreadToEnd(threadEl);
       paintHeader();
       paintTarget();
       // A long opener clamps to four lines with a Read more, exactly as it does on the meal
@@ -317,8 +349,9 @@ export default {
 
     const renderRun = (list, participants, allMsgs) => {
       const lastMsg = list.length ? list[list.length - 1] : null;
+      const newest = allMsgs && allMsgs.length ? allMsgs[allMsgs.length - 1] : null;
       return layoutThread(list, { muted: RT.mutedUsers, fmtTime, fmtDay: dayKey, fmtDayLabel: dayLabelOf }).map((item) => {
-        if (item.type === 'time') return `<div class="tsep">${esc(item.label)}</div>`;
+        if (item.type === 'time') return timeSepHtml(item, esc);
         const c = item.comment;
         const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
         const who = authorName(c, participants, RT.userId, S.coach.noun);
@@ -334,18 +367,23 @@ export default {
         // Attached photo above the text; the stand-in caption is suppressed under its own image.
         const photo = attachedPhoto(c);
         const photoOnly = isPhotoOnly(c);
+        // The face rides the LAST bubble of a run, the name the first: the phone's layout, and
+        // chat-view.js msgRowClass's contract (`last` carries the tail).
+        const cls = msgRowClass({ mine, role: c.role, firstOfRun: item.firstOfRun, lastOfRun: item.lastOfRun, hasRx: rx.length > 0, photoOnly })
+          + (JUST_SENT && c.id === JUST_SENT ? ' in' : '');
         return `
-      <div class="msg ${mine ? 'athlete' : c.role === 'ai' ? 'ai' : 'coach'}${item.firstOfRun ? '' : ' cont'}${rx.length ? ' has-rx' : ''}"${c.meal_id ? ` data-meal-id="${esc(c.meal_id)}"` : ''}>
-        ${!mine && item.firstOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? icon('sparkle', 15) : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
+      <div class="${cls}"${c.meal_id ? ` data-meal-id="${esc(c.meal_id)}"` : ''}>
+        ${!mine && item.lastOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? icon('sparkle', 15) : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
         <div class="stack">
           ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
           ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
           ${''/* No "Updated analysis" badge (founder: robotic). The quote stem above already
                shows what a correction reply answers. The escalation badge stays: "this reached
                your coach" is a fact worth labeling, exactly as the meal thread labels it. */}
-          <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : bubbleText(c)}${offerChips(c)}</div>
-          ${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}
+          <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : bubbleText(c)}${offerChips(c)}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
+          ${deliveredHtml({ mine, isLast: c === newest })}
         </div>
+        ${msgTimeHtml(c, fmtTime, esc)}
       </div>`;
       }).join('');
     };
@@ -480,6 +518,8 @@ export default {
     };
     threadEl.addEventListener('pointerdown', trackPress, true);
     threadEl.addEventListener('contextmenu', trackPress, true);
+    // Drag the conversation left to see when each message was sent.
+    wireChatTimes({ root, scope: '#nc-thread' });
     wireTapback({
       root,
       scope: '#nc-thread',
@@ -689,6 +729,15 @@ export default {
       busy = false;
       if (!posted) { setNote("Couldn't send that. Check your connection and try again."); input.value = text; return; }
       await load();
+      // The row that just landed rises out of the box, as the phone's does.
+      const ownRows = threadMessages(STATE.comments).filter((c) => c && c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId));
+      const sent = ownRows.length ? ownRows[ownRows.length - 1] : null;
+      if (sent && sent.id) {
+        JUST_SENT = sent.id;
+        clearTimeout(JUST_SENT_T);
+        JUST_SENT_T = setTimeout(() => { JUST_SENT = null; }, 700);
+        paint();
+      }
       // Forced: they just sent it and are watching for it to land.
       scrollThreadToEnd(root, { force: true });
       // And now the room answers. Without this the athlete was typing into a conversation whose

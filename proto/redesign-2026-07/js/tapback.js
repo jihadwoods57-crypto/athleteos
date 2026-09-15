@@ -18,6 +18,8 @@
  */
 
 import { overlayOpen } from './overlay-guard.js';
+import { copyText } from './components.js';
+import { icon } from './icons.js';
 
 const LONG_PRESS_MS = 420;
 /* Past this the finger is scrolling the thread, not holding a message. */
@@ -28,10 +30,45 @@ let openPicker = null;
 /** Tear down whatever picker is up. Safe to call when there isn't one. */
 export function closeTapback() {
   if (!openPicker) return;
-  const { el, cleanup } = openPicker;
+  const { el, cleanup, extras } = openPicker;
   openPicker = null;
   try { cleanup(); } catch { /* listeners already gone with the node */ }
+  for (const x of (extras || [])) { if (x && x.parentNode) x.parentNode.removeChild(x); }
   if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+
+/* THE LIFT (2026-09-14). On the phone, holding a message does three things at once: the rest of
+   the screen goes to frosted glass, the message itself rises above it, and the reactions and a
+   menu appear around it. The bubble cannot simply be raised in place: it sits inside whatever
+   stacking context its screen gave it (view transitions, the sticky dock), so a z-index on it
+   is not guaranteed to clear a body-level veil. It is redrawn instead: a clone of the bubble,
+   wrapped in a `.msg.<side>.last` so the thread's own rules (fill, tail) paint it, positioned
+   fixed at the exact rect the real one occupies. The clone is display only. */
+function liftBubble(bubble) {
+  const row = bubble.closest('.msg');
+  const side = row && row.classList.contains('athlete') ? 'athlete' : row && row.classList.contains('ai') ? 'ai' : 'coach';
+  const b = bubble.getBoundingClientRect();
+  const wrap = document.createElement('div');
+  wrap.className = `msg ${side} last tb-lift`;
+  wrap.setAttribute('aria-hidden', 'true');
+  const stack = document.createElement('div');
+  stack.className = 'stack';
+  const clone = bubble.cloneNode(true);
+  clone.classList.remove('pressing');
+  clone.style.width = `${Math.round(b.width)}px`;
+  stack.appendChild(clone);
+  wrap.appendChild(stack);
+  wrap.style.top = `${Math.round(b.top)}px`;
+  wrap.style.left = `${Math.round(b.left)}px`;
+  wrap.style.width = `${Math.round(b.width)}px`;
+  return wrap;
+}
+
+/** The text a bubble would put on the clipboard: its words, not its chrome (badges, chips). */
+function bubbleText(bubble) {
+  const c = bubble.cloneNode(true);
+  for (const n of c.querySelectorAll('.esc, .upd, .fq-chips, .mo-ask, .rm-btn, .rxo, img, .sr-only')) n.remove();
+  return String(c.textContent || '').replace(/\s+/g, ' ').trim();
 }
 
 /* One entry per persistent root: the live config, so a re-mount swaps callbacks instead of
@@ -113,7 +150,29 @@ export function wireTapback({ root, scope = '.thread', emoji, mine, onReact }) {
       btn.textContent = e;
       el.appendChild(btn);
     }
+    // The veil first, then the lifted copy, then the pill and the menu on top of both.
+    const veil = document.createElement('div');
+    veil.className = 'tb-veil';
+    veil.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(veil);
+    const lift = liftBubble(bubble);
+    document.body.appendChild(lift);
     document.body.appendChild(el);
+    // The menu: Copy, when there are words to copy. A photo-only bubble gets no menu.
+    const words = bubbleText(bubble);
+    let menu = null;
+    if (words) {
+      menu = document.createElement('div');
+      menu.className = 'tb-menu';
+      menu.setAttribute('role', 'menu');
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.setAttribute('role', 'menuitem');
+      copy.setAttribute('data-tb-copy', '1');
+      copy.innerHTML = `<span>Copy</span>${icon('clipboard', 17)}`;
+      menu.appendChild(copy);
+      document.body.appendChild(menu);
+    }
 
     // Anchor above the bubble, clamped into the viewport on both axes so a reaction on the first
     // or last message in a thread is never half off-screen.
@@ -126,12 +185,34 @@ export function wireTapback({ root, scope = '.thread', emoji, mine, onReact }) {
       const vv = window.visualViewport;
       const vh = (vv && vv.height) || window.innerHeight;
       const vw = (vv && vv.width) || window.innerWidth;
-      let top = b.top - p.height - 6;
-      if (top < pad) top = Math.min(b.bottom + 6, vh - p.height - pad);
-      let left = b.left + (b.width - p.width) / 2;
+      // The pill hangs off the bubble's OUTER top corner (a sent bubble's left, a received one's
+      // right), which is where the reaction will land once picked.
+      const sent = !!(bubble.closest('.msg') && bubble.closest('.msg').classList.contains('athlete'));
+      const m = menu ? menu.getBoundingClientRect() : { height: 0, width: 0 };
+      // THE MESSAGE MOVES TO MAKE ROOM, as it does on the phone: a bubble near the top or the
+      // bottom of the screen is lifted to where the pill above it and the menu below it both
+      // fit, rather than the pill flipping under it or the menu covering its text. The clone is
+      // what moves; the real bubble stays where the thread put it.
+      const need = p.height + 6 + b.height + (menu ? m.height + 8 : 0);
+      let liftTop = b.top;
+      const minTop = pad + p.height + 6;
+      const maxTop = vh - pad - (menu ? m.height + 8 : 0) - b.height;
+      if (need <= vh - pad * 2) liftTop = Math.max(minTop, Math.min(liftTop, maxTop));
+      else liftTop = minTop;
+      const top = liftTop - p.height - 6;
+      let left = sent ? b.right - p.width : b.left;
       left = Math.max(pad, Math.min(left, vw - p.width - pad));
       el.style.top = `${Math.max(pad, top)}px`;
       el.style.left = `${left}px`;
+      lift.style.top = `${Math.round(liftTop)}px`;
+      lift.style.left = `${Math.round(b.left)}px`;
+      if (menu) {
+        const mtop = liftTop + b.height + 8;
+        let mleft = sent ? b.right - m.width : b.left;
+        mleft = Math.max(pad, Math.min(mleft, vw - m.width - pad));
+        menu.style.top = `${mtop}px`;
+        menu.style.left = `${mleft}px`;
+      }
     };
     place();
 
@@ -144,7 +225,15 @@ export function wireTapback({ root, scope = '.thread', emoji, mine, onReact }) {
       closeTapback();
       if (reactNow) await reactNow(pick);
     };
-    const onAway = (ev) => { if (!el.contains(ev.target)) closeTapback(); };
+    const onMenu = async (ev) => {
+      const btn = ev.target && ev.target.closest ? ev.target.closest('[data-tb-copy]') : null;
+      if (!btn) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      closeTapback();
+      try { await copyText(words); } catch { /* the clipboard is best-effort */ }
+    };
+    const onAway = (ev) => { if (!el.contains(ev.target) && !(menu && menu.contains(ev.target))) closeTapback(); };
     // Focus management (deep audit 2026-08-19): the picker's items are real <button>s, but focus
     // never moved into the menu, so a keyboard or switch-control user who got it open was still
     // tabbing the thread underneath it. Arrow keys walk the set (role="menu" semantics); focus
@@ -183,6 +272,7 @@ export function wireTapback({ root, scope = '.thread', emoji, mine, onReact }) {
     };
 
     el.addEventListener('click', onPick);
+    if (menu) menu.addEventListener('click', onMenu);
     // Into the menu, not just onto the screen — focusing a button opens no software keyboard,
     // so this is safe for the touch path too.
     const first = el.querySelector('[data-tb]');
@@ -197,9 +287,11 @@ export function wireTapback({ root, scope = '.thread', emoji, mine, onReact }) {
 
     openPicker = {
       el,
+      extras: [veil, lift, menu].filter(Boolean),
       cleanup() {
         cancelAnimationFrame(raf);
         el.removeEventListener('click', onPick);
+        if (menu) menu.removeEventListener('click', onMenu);
         if (armed) document.removeEventListener('pointerdown', onAway, true);
         document.removeEventListener('keydown', onKey);
         window.removeEventListener('scroll', onScroll, true);
