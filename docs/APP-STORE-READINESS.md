@@ -142,9 +142,15 @@
     `true` and the app has a real iPad layout (`proto/redesign-2026-07/css/wide.css`:
     a navigation rail and a centered column from 700px, master/detail panes for
     the coach's roster and inbox from 1000px; every orientation and Split View).
-    Owed for submission: iPad screenshots (13" and 12.9") alongside the phone
-    set, and a NEW native build (an OTA cannot change `supportsTablet`). Spec:
-    `docs/superpowers/specs/2026-09-15-ipad-layout-design.md`.
+    **Build 39 (2026-09-15) is the first binary carrying it** and is VALID on
+    App Store Connect / TestFlight. **iPad screenshots are RENDERED**: run
+    `npm run shots:appstore` for the set at Apple's exact sizes (2064x2752 for
+    13", 2048x2732 for 12.9", portrait, 5 screens each) into `.tmp/appstore-shots/`.
+    They still have to be UPLOADED to App Store Connect by hand, and the phone
+    set is separate and still owed. Layout QA: `npm run qa:ipad` (22 checks, all
+    green) covers every multitasking width, rotation and a live divider drag;
+    real-device QA of the keyboard, Stage Manager and the native surfaces is
+    still owed. Spec: `docs/superpowers/specs/2026-09-15-ipad-layout-design.md`.
 
 ### D. The big one — OnStandard targets MINORS with health + body-weight data
 This drives the heaviest App Review scrutiny. None of it is a code bug; it is
