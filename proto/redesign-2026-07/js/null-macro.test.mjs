@@ -56,7 +56,9 @@ const COACH_SRC = read('screens', 'coach.js');
 const MEAL_SRC = read('screens', 'meal.js');
 // trust.js mealView renders through meal.js mealReadHtml since 2026-09-14 (a past meal wears
 // today's design), so the tile rule is pinned there; trust.js is pinned to hand the nulls over.
-for (const [name, src] of [['meal.js mealReadHtml', MEAL_SRC], ['coach.js coachMeal', COACH_SRC]]) {
+// coach.js coachMeal renders through the same mealReadHtml since 2026-09-14 (the coach's meal
+// screen is the athlete's); it is pinned below to hand the row over, not to draw tiles itself.
+for (const [name, src] of [['meal.js mealReadHtml', MEAL_SRC]]) {
   test(`${name}: the mg helper renders null as the glyph and keeps a measured zero`, () => {
     // v == null (not falsy!): 0 must fall through to print as 0.
     assert.match(src, /const mg = \(v, unit\) => \(v == null \? '—'/);
@@ -83,8 +85,11 @@ test('trust.js pastMealDetail keeps a null figure null for the tiles', () => {
   assert.match(TRUST_SRC, /mealReadHtml\(M, \{ exec: null, past: true \}\)/);
 });
 
-test('coach.js coachMeal names the dash on a partial read', () => {
-  assert.match(COACH_SRC, /A dash means the photo did not give us that number, not a zero\./);
+test('coach.js coachMeal draws the plate through the shared read card, with every figure shown', () => {
+  assert.match(COACH_SRC, /const M = meal \? pastMealDetail\(meal\) : null;/, 'the row is mapped like a past plate (nulls kept in macrosRaw)');
+  assert.match(COACH_SRC, /viewer: 'coach'/);
+  assert.match(COACH_SRC, /planStyle: \{ showMacros: true, showCalories: true/, 'a professional sees every figure whatever their own style');
+  assert.doesNotMatch(COACH_SRC, /class="macro-row/, 'no tiles of its own any more');
 });
 
 /* ---- the correction path: a null macro stays null THROUGH a pro correction ---- */

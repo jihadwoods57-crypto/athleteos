@@ -31,7 +31,8 @@ const EXTRA_FILES = [
 // (fetched-row fields). A bare identifier like `${body}` is rendered markup, not raw user text.
 const USER_DATA = /\.(name|note|text|msg|message|title|body|desc|description|comment|reason|question|answer|bio|username|handle|email|label|caption|content)\b/i;
 // Safe wrappers/helpers: esc() escapes; icon()/scoreRing()/smartReply() emit trusted markup only.
-const SAFE_CALL = /\besc\s*\(|\bescAttr\s*\(|\bicon\s*\(|\bscoreRing\s*\(|\bsparkline\s*\(|\bsmartReply\s*\(/;
+// richText() (chat-view.js) escapes FIRST and only then draws its three marks on the escaped text.
+const SAFE_CALL = /\besc\s*\(|\bescAttr\s*\(|\bicon\s*\(|\bscoreRing\s*\(|\bsparkline\s*\(|\bsmartReply\s*\(|\brichText\s*\(/;
 
 /** Extract every innerHTML/insertAdjacentHTML template-literal body from source. */
 function templates(src) {

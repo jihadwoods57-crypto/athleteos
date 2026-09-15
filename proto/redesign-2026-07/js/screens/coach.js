@@ -2,7 +2,7 @@ import { S, RT, act, fmtClock, nutritionConfigForGoal, liveWeightPct } from '../
 import { icon } from '../icons.js';
 import { accentVar, scoreColor, ON_STANDARD, qualityAccent } from '../score-band.js';
 import { backHead, titleHead, esc, safeImg, composer, sparkline, emptyState, errorState, skeletonRows, emailVerifyBanner, wireEmailVerifyBanner, copyText, scoreRing, sayStatus } from '../components.js';
-import { DAYS_SHORT, shortDate } from '../fmt-date.js';
+import { DAYS_SHORT, shortDate, weekdayLong } from '../fmt-date.js';
 import {
   attachedPhoto, isPhotoOnly, wireComposerAttach, postChatMessage,
   bubblePhotoHtml, hydrateThreadPhotos,
@@ -10,8 +10,10 @@ import {
 import { coachSetupState, coachSetupSteps, isNutritionBook } from './coach-home.js';
 import * as roles from '../roles.js';
 import { openingMessage, qualityBand, qualityReason, scoreRubric, reactionGroups, threadMessages, privateNotes, REACTION_EMOJI, applyMealCorrection, applyFoodRemoval, normalizeDetected } from '../meal-intel.js';
+import { mealReadHtml } from './meal.js';
+import { pastMealDetail } from './trust.js';
 import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpener, isEscalated, quotedFor,
-  dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml,
+  dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
 } from '../chat-view.js';
 import { openImageViewer } from '../image-viewer.js';
 import { wireTapback } from '../tapback.js';
@@ -2942,6 +2944,8 @@ function coachAskContext(meal) {
 }
 export const coachMeal = {
   nav: 'operator', tab: 'roster',
+  // As on the athlete's meal page: no tab bar over a logged meal, the docked box is the foot.
+  hideTabs: true,
   render({ sub }) {
     const mealId = sub;
     const meal = mealById(mealId);
@@ -2961,94 +2965,44 @@ export const coachMeal = {
     }
     const head = backHead(title, `Your comment lands on the ${CD.noun}’s log`, backTo,
       { id: 'cm-more', label: 'Meal actions', icon: 'more' });
-    const foods = meal && Array.isArray(meal.detected) ? meal.detected : [];
-    return `
-    ${head}
-
-    ${meal ? `
-    ${/* Aspect-honest hero (founder, 2026-08-06): the WHOLE plate, uncropped, letterboxed over a
-          blurred fill of itself — the coach shouldn't have to open the zoom viewer just to see the
-          edges of the photo. The fixed 210px cover-crop stays for every other surface. */''}
-    <div class="photo-hero${meal._url ? ' full' : ''}" id="cm-hero" ${meal._url ? 'style="cursor:zoom-in"' : 'style="background:linear-gradient(150deg, rgba(var(--green-rgb),0.14), rgba(var(--blue-rgb),0.06))"'}>
-      ${meal._url ? `<div class="ph-bg" style="background-image:url('${esc(meal._url)}')" aria-hidden="true"></div><img class="ph-full" src="${esc(meal._url)}" alt="Photo of this meal" decoding="async"/>` : ''}
-      <div class="ph-grad"></div>
-      <div class="ph-meta"><div><div class="ph-t">${esc(title)}</div><div class="ph-s">${dishName ? `${esc(slotName)}` : 'Logged'}${(() => { const c = msgClock(meal.logged_at); return c ? ` · ${c}` : ''; })()}${meal.source === 'gallery' ? ' · from gallery' : ''}${meal.source === 'manual' || meal.source === 'label' ? ' · no photo' : ''}</div></div>
-      ${meal.quality != null ? `<div class="scorechip ${(qualityBand(meal.quality) || {}).cls || ''}"><span class="v">${meal.quality}</span><span class="k">Meal</span></div>` : ''}</div>
-    </div>
-    ${(() => {
-      // Scoring explainability (Tier 2, coach side): the SAME rubric the athlete sees on their
-      // own log — pure function of this meal's own macros/fiber/timing, no scoring math added
-      // or changed here. Null quality (manual/legacy rows) shows nothing, same as athlete side.
-      if (meal.quality == null) return '';
-      const band = qualityBand(meal.quality);
-      const macros = { protein: meal.protein, carbs: meal.carbs, fat: meal.fat };
-      const reason = qualityReason(macros, meal.fiber, meal.detected);
-      const rub = scoreRubric({
-        // userNote isn't a persisted column (the athlete's review-step note only rides the
-        // analysis text) — null here, never a guess; the rubric's "photo submitted" fallback
-        // still reads correctly.
-        quality: meal.quality, minutesLate: meal.minutes_late, macros, fiber: meal.fiber,
-        detected: meal.detected, source: meal.source, userNote: null, photoQ: null,
-      });
-      const RUB_DOT = { met: 'g', partial: 'a', miss: 'r' };
-      return `
-      ${band ? `<div class="qual-line ${band.cls}">
-        <span class="qv">${meal.quality}<small>/100</small></span>
-        <div><div class="ql">Meal quality · ${band.label}</div>${reason ? `<div class="qr">${esc(reason)}</div>` : ''}</div>
-      </div>` : ''}
-      <details class="rub">
-        <summary>${esc(rub.headline)} ${icon('chevron', 13)}</summary>
-        <div class="rub-body">
-          ${rub.rows.map(r => `
-          <div class="rub-row">
-            <span class="bd-req-dot ${RUB_DOT[r.state] || 'muted'}"></span>
-            <span class="rk">${esc(r.k)}</span>
-            <span class="rn">${esc(r.note)}</span>
-            <span class="rx-tag">${r.exact ? 'exact' : 'estimated'}</span>
-          </div>`).join('')}
-          <div class="rub-fine">Exact items are facts (timing, what the athlete submitted). Estimated items come from the photo read.</div>
-        </div>
-      </details>`;
-    })()}
-    ${(() => {
-      // The visual macro breakdown (founder, 2026-08-06) — the same "Estimated Nutrition" tiles
-      // the athlete's own screen leads with, from the SAME persisted meals row. Numbers are
-      // rendered, never recomputed; a photo read keeps the honest ~ prefix, label/manual stay
-      // exact — the identical rule meal.js applies.
-      if ([meal.protein, meal.carbs, meal.fat, meal.kcal].every((v) => v == null)) return '';
-      const fromPhoto = meal.source !== 'label' && meal.source !== 'manual';
-      const t = fromPhoto ? '~' : '';
-      const srcLabel = meal.source === 'label' ? 'exact, from the nutrition label'
-        : meal.source === 'manual' ? 'entered by the athlete' : 'estimated from the photo';
-      /* A macro the read never returned is ABSENT, not zero. `|| 0` printed "~0g carbs" and
-         "~0g fat" beside "~780 calories" under a quality line reading "in balance" — a plate
-         that cannot exist, asserted with full confidence, on the screen a dietitian judges this
-         product by. null and 0 are different facts and now render differently; a real measured
-         zero still prints 0. Same rule the ~ prefix already follows: say exactly what is known. */
-      const mg = (v, unit) => (v == null ? '—' : `${t}${v}${unit}`);
-      /* Two of the three macros missing while the calories are substantial is a partial read,
-         not a plate with no carbs and no fat. Name it, and put the correction under the thumb
-         instead of behind a 12px text link — correcting a read is the dietitian's whole job. */
-      const partial = [meal.protein, meal.carbs, meal.fat].filter((v) => v == null).length >= 2
-        && (meal.kcal || 0) > 300;
-      return `
-      <h2 class="eyebrow" style="display:flex;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">Estimated Nutrition</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></h2>
-      <div class="macro-row four">
-        <div class="macro"><div class="mv">${mg(meal.protein, 'g')}</div><div class="mk">Protein</div></div>
-        <div class="macro"><div class="mv">${mg(meal.carbs, 'g')}</div><div class="mk">Carbs</div></div>
-        <div class="macro"><div class="mv">${mg(meal.fat, 'g')}</div><div class="mk">Fat</div></div>
-        <div class="macro"><div class="mv">${mg(meal.kcal, '')}</div><div class="mk">Calories</div></div>
+    // THE SAME SCREEN THE ATHLETE SEES (founder 2026-09-14: "it should look identical to the
+    // player's"). The read card and the breakdown are meal.js's own (mealReadHtml), the row is
+    // mapped exactly as a past plate is (trust.js pastMealDetail), the confirmation card leads,
+    // and the conversation is the Team discussion section with its docked box. What stays the
+    // coach's: the ⋯ actions, the AI-ask sparkle, private notes, and the correction panel, which
+    // opens from the same spot the athlete's own correction link sits.
+    const M = meal ? pastMealDetail(meal) : null;
+    if (M && meal) {
+      // The coach's row carries the source; the athlete's mapping guesses it from the photo.
+      if (meal.source) M.source = meal.source;
+      M.dish = dishName || '';
+      M.img = meal._url || null;
+    }
+    const athleteTargets = (TGT && meal && TGT.athleteId === meal.athlete_id && TGT.targets) ? TGT.targets : null;
+    const read = M ? mealReadHtml(M, {
+      exec: null, past: true, viewer: 'coach', targets: athleteTargets,
+      planStyle: { showMacros: true, showCalories: true, key: 'structured' },
+    }) : { photoBlock: '', breakdown: '' };
+    const mlateTop = meal && typeof meal.minutes_late === 'number' ? meal.minutes_late : null;
+    const execTop = meal ? `
+    <section class="mt-confirm">
+      <div class="row1">
+        <div class="ck">${icon('check', 20)}</div>
+        <div><div class="t">${esc(slotName)} logged</div>
+        <div class="s">${meal.day_date ? `${esc(weekdayLong(String(meal.day_date)))} · ${esc(shortDate(String(meal.day_date)))}` : ''}${(() => { const c = msgClock(meal.logged_at); return c ? ` · Logged ${c}` : ''; })()}${mlateTop == null ? '' : mlateTop > 0 ? ` · ${mlateTop} min late` : ' · on time'}${meal.source === 'gallery' ? ' · from gallery' : ''}</div></div>
       </div>
-      ${partial ? `<div class="est-note">The read only returned part of this plate. A dash means the photo did not give us that number, not a zero.</div>` : ''}
-      ${meal.fiber != null ? `<div class="est-note" style="margin-top:6px">~${meal.fiber}g fiber estimated.</div>` : ''}
-      ${/* Correct the read (0199): the professional lane ob2-nutrition promised. The numbers are
-            computed on THIS device by the same deterministic machinery the athlete's own
-            corrections use (applyFoodRemoval / applyMealCorrection); pro_correct_meal only
-            authorizes, clamps and persists; the athlete's day score follows through the thread
-            payload when they next open the meal. */''}
-      <div class="est-note" style="margin-top:6px">${partial && FIX_FOR !== mealId
-        ? `<button class="btn sm primary" id="cm-correct">Correct the read</button>`
-        : `<span class="link" id="cm-correct" role="button">${FIX_FOR === mealId ? 'Close the correction panel' : 'Correct the read'}</span>`}</div>
+    </section>` : '';
+    // The correction panel (0199): the professional's own capability, kept whole. It opens from a
+    // link under the drawer, in the place the athlete's "tell the AI" line occupies on their side.
+    const fixPanel = meal ? (() => {
+      const partial = [meal.protein, meal.carbs, meal.fat].filter((v) => v == null).length >= 2
+        && (meal.source !== 'manual' && meal.source !== 'label');
+      return `
+      ${/* One quiet link, in the athlete's own spot: their side reads "Tell the AI Nutritionist
+            below"; the professional's reads "Correct the read". A partial read used to promote
+            this to a full-width primary button, which put a giant blue bar between the plate and
+            the conversation on the exact screen that is meant to look like the athlete's. */''}
+      <div class="est-note" style="margin-top:6px">${partial && FIX_FOR !== mealId ? 'The read only returned part of this plate. ' : ''}<span class="link" id="cm-correct" role="button" tabindex="0">${FIX_FOR === mealId ? 'Close the correction panel' : 'Correct the read'}</span></div>
       ${FIX_FOR === mealId ? (() => {
         const rich = normalizeDetected(meal.detected);
         const dis = FIX_BUSY ? ' disabled' : '';
@@ -3072,11 +3026,28 @@ export const coachMeal = {
         <div class="rub-fine">Removing a line subtracts that item's own numbers; a portion mark re-estimates the whole plate. The AI's original read stays on record either way.</div>
       </section>`;
       })() : ''}`;
-    })()}` : ''}
-
-    ${foods.length ? `<h2 class="eyebrow">Detected</h2><div class="foodchips">${foods.map(f => `<span class="foodchip"><span class="dot"></span>${esc(typeof f === 'string' ? f : f.name)}</span>`).join('')}</div>` : ''}
-
-    <h2 class="eyebrow">Conversation</h2>
+    })() : '';
+    return `<div class="meal-screen">
+    ${head}
+    ${execTop}
+    ${read.photoBlock}
+    ${read.breakdown}
+    ${fixPanel}
+    <section class="disc" id="meal-disc" aria-labelledby="disc-title">
+    <h2 class="sr-only" id="disc-title">Team discussion</h2>
+    <div class="disc-head">
+      ${(() => {
+        // The same header row the athlete sees: the faces (real ones where they exist, hydrated
+        // by uid), the title, and everyone in the room. The athlete is named first: this is their
+        // thread, read by staff.
+        const rows = (MC.participants || []).filter((p) => p && p.id);
+        const faces = rows.slice(0, 3).map((p) => `<span class="fpav other" data-avatar-uid="${esc(p.id)}"><span data-avatar-fallback>${esc(initialsFor(p.name || '?'))}</span></span>`).join('')
+          + `<span class="fpav ai">${icon('sparkle', 13)}</span>`;
+        const names = rows.map((p) => p.name).filter(Boolean);
+        const line = [...names, 'AI Nutritionist'].join(', ');
+        return `<div class="facepile disc-fp" id="cm-members-slot"><span class="fp">${faces}</span><span class="names"><b>Team discussion</b>${line ? `<small>${esc(line)}</small>` : ''}</span></div>`;
+      })()}
+    </div>
     ${MC.comments && MC.comments.error ? `
     <div style="text-align:center;padding:14px 12px;border-radius:var(--r-tile);background:var(--surface-1);border:1px solid var(--hairline)">
       <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.4">Couldn't load the discussion. Nothing was lost.</div>
@@ -3105,9 +3076,9 @@ export const coachMeal = {
             over there would post a reaction to whichever meal was last open. */''}
       <div class="thread" id="cm-thread" role="log" aria-label="Meal review conversation">
         ${opening && !msgs.some(isAnalysisOpener) ? `
-        <div class="msg">
+        <div class="msg ai last">
           <div class="av">${icon('sparkle', 15)}</div>
-          <div><div class="who">AI Nutritionist · what the ${CD.noun} was told</div>
+          <div class="stack"><div class="who">AI Nutritionist · what the ${CD.noun} was told</div>
           <div class="bubble">${esc(opening)}</div></div>
         </div>` : ''}
         ${layoutThread(msgs, { muted: RT.mutedUsers, fmtTime: msgClock, fmtDay: msgDay, fmtDayLabel: dayLabelOf }).map((item) => {
@@ -3138,7 +3109,7 @@ export const coachMeal = {
               ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
               ${/* The "Updated analysis" badge is gone (founder ruling: robotic; the athlete
                     thread already dropped it). The quote above still marks what changed. */''}
-              <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(c.text)}${bubbleRx.length ? `<span class="rxo">${bubbleRx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
+              <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : c.role === 'ai' ? richText(c.text, esc) : esc(c.text)}${bubbleRx.length ? `<span class="rxo">${bubbleRx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
               ${deliveredHtml({ mine, isLast: c === lastMsg })}
             </div>
             ${msgTimeHtml(c, msgClock, esc)}
@@ -3195,10 +3166,12 @@ export const coachMeal = {
       <div class="tm-note" id="rx-note">Press and hold any message to react to it.</div>
     </div>`;
     })()}
+    <div class="chat-dock disc-dock">
     ${composer({ inputId: 'cm-input', sendId: 'cm-send', placeholder: 'Comment on this meal…', sendLabel: 'Send comment', attachId: 'cm-attach', aiId: 'cm-ai', atEnd: true })}
-    <div style="font-size:11px;font-weight:600;color:var(--text-3);margin:5px 2px 0">${icon('sparkle', 11)} asks the AI Nutritionist. It always answers you, in the thread.</div>
     <div class="composer-attach-pending" id="cm-attach-pending" hidden></div>
     <div id="cm-note" style="font-size:12.5px;font-weight:600;color:var(--red-bright);margin:6px 2px 0;min-height:16px"></div>
+    </div>
+    </section>
 
     ${(() => {
       // Private notes (0068): coach-only margin notes the athlete NEVER sees (RLS-enforced).
@@ -3215,7 +3188,7 @@ export const coachMeal = {
       </div>`;
     })()}
     <div style="height:10px"></div>
-    `;
+    </div>`;
   },
   mount(root, { sub }) {
     if (MENU_MOUNTED_FOR !== sub) { MENU_MOUNTED_FOR = sub; MENU_FOR = null; }
@@ -3258,13 +3231,21 @@ export const coachMeal = {
     }
     // Full-screen zoom on the meal photo (same viewer as the athlete side). role + tabindex make
     // it keyboard-openable via the router's Enter/Space net; the viewer restores focus here on close.
-    const hero = root.querySelector('#cm-hero');
-    const heroImg = hero && hero.querySelector('img');
-    if (hero && heroImg && heroImg.src) {
+    const hero = root.querySelector('#meal-hero');
+    const heroImg = root.querySelector('#meal-photo');
+    const rowNow = mealById(sub);
+    if (hero && heroImg && rowNow && rowNow._url) {
+      heroImg.src = rowNow._url; heroImg.style.display = 'block';
+      const back = root.querySelector('#meal-backdrop-img');
+      if (back) back.src = rowNow._url;
+      hero.style.cursor = 'zoom-in';
       hero.setAttribute('tabindex', '0');
       hero.setAttribute('role', 'button');
       hero.setAttribute('aria-label', 'View photo full screen');
-      hero.addEventListener('click', () => openImageViewer(heroImg.src, 'Meal photo', heroImg));
+      hero.addEventListener('click', () => openImageViewer(rowNow._url, 'Meal photo', heroImg));
+    } else if (hero && heroImg) {
+      heroImg.style.display = 'none';
+      hero.classList.add('ph-nophoto');
     }
     // Request another photo: a templated coach message (counts as one of the 2) + push.
     const askPhoto = root.querySelector('#cm-ask-photo');

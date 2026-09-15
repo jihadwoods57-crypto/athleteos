@@ -33,7 +33,7 @@ import {
   isAnalysisUpdate, quotedFor, isEscalated,
   memoryOfferOf, memoryOfferChips,
   mealSuggestOf, fillMealSuggestion, mealSuggestHtml,
-  dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml,
+  dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
 } from '../chat-view.js';
 import { wireChatTimes } from '../chat-times.js';
 import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos } from '../chat-attach.js';
@@ -411,7 +411,7 @@ export default {
     const suggestItems = () => { const fm = foodMemory(RT.userId); return fm ? fm.items : []; };
     const bubbleText = (c) => {
       const sug = mealSuggestOf(c);
-      if (!sug) return esc(c.text);
+      if (!sug) return c.role === 'ai' ? richText(c.text, esc) : esc(c.text);
       return mealSuggestHtml(sug, fillMealSuggestion(sug, suggestItems(), suggestRemaining()), esc);
     };
 

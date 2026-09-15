@@ -21,6 +21,11 @@
  */
 import { JSDOM } from 'jsdom';
 
+/* The composer writes light emphasis marks since 2026-09-14 (**bold**, __underline__, ==colour==,
+   drawn by the client); the wording is asserted with the marks stripped. */
+const plain = (s: string) => String(s).replace(/\*\*|__|==/g, '');
+
+
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost' });
 (globalThis as any).window = dom.window;
 (globalThis as any).document = dom.window.document;
@@ -133,7 +138,7 @@ describe('the thread bubble never re-states the breakdown card — and never re-
     const bubble = bubbleFor(grounded);
     const gap = 155 - grounded.protein;
     const per = Math.max(5, Math.round(gap / 2 / 5) * 5);
-    expect(bubble).toContain(`Land around ${per}g of protein at each of your last 2 meals`);
+    expect(plain(bubble)).toContain(`Land around ${per}g of protein at each of your last 2 meals`);
     expect(bubble).not.toContain('That puts you near');
     expect(bubble).not.toContain('near 0 of 155g');
   });

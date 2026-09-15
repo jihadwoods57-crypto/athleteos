@@ -30,7 +30,7 @@ import {
   isAnalysisOpener, isAnalysisUpdate, isEscalated, quotedFor,
   memoryOfferOf, memoryOfferChips,
   mealSuggestOf, fillMealSuggestion, mealSuggestHtml,
-  dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml,
+  dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
 } from '../chat-view.js';
 import { wireChatTimes } from '../chat-times.js';
 
@@ -634,7 +634,7 @@ export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, p
   // nutritionist talking. Both ends now say the same thing the same way, so the swap is invisible.
   // `sum` stays as the floor for the rare read with no prose in it at all.
   const body = fullText
-    ? esc(fullText)
+    ? richText(fullText, esc)
     : [sum && sum.wentWell, sum && sum.opportunity, sum && sum.next].filter(Boolean).map(esc).join(' ');
   if (!body) return wrap('', confirmRow);
 
@@ -851,7 +851,13 @@ analysis._editing = false;
    the mealDetail() shape (trust.js builds it from a meals row: see pastMealDetail); `exec` is the
    day's execution summary (null for a past plate); `past` turns off the day projection and the
    re-read link, which only make sense while the day is live. Returns the two blocks as strings. */
-export function mealReadHtml(M, { exec = null, past = false } = {}) {
+export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete', targets = null, planStyle = null } = {}) {
+  // `viewer`: 'athlete' (the default, second person) or 'coach' (the professional reading an
+  // athlete's plate: full figures, the athlete named in the third person, no self-service links).
+  // `targets` / `planStyle` override the signed-in user's own (S.planTargets / PS) so a
+  // coach sees the ATHLETE's targets and every figure, whatever their own account's style is.
+  const you = viewer !== 'coach';
+  const PS = planStyle || S.planStyle || {};
     // ---- 2. PHOTO + MEAL QUALITY (feedback 2026-07-16: quality is a separate concept from
     // compliance — banded color, its own label, and a one-line WHY so 58 never reads as green
     // success or an arbitrary number). Provenance badges live here; name/timing not repeated.
@@ -867,7 +873,7 @@ export function mealReadHtml(M, { exec = null, past = false } = {}) {
       nextMealName: nextMealCF,
       dayGap: (Number(dayProgCF.proteinTarget) || 0) - (Number(dayProgCF.proteinSoFar) || 0),
       mealsRemaining: Number(dayProgCF.mealsRemaining) || 0,
-      numbers: S.planStyle.showMacros,
+      numbers: PS.showMacros,
     });
     // Expandable score rubric (upgrade 2026-07-16): the observable components behind the
     // number, each marked exact or estimated — same math as the feedback, so they agree.
@@ -882,7 +888,7 @@ export function mealReadHtml(M, { exec = null, past = false } = {}) {
     // A read still in flight (or one that failed) has no numbers to correct — the correction
     // affordances only appear once the analysis has settled.
     const settled = !M.pending && !M.analysisFailed && !(Array.isArray(M.pendingQuestions) && M.pendingQuestions.length);
-    const T = S.planTargets || {};
+    const T = targets || S.planTargets || {};
     const fromPhoto = M.source !== 'label' && M.source !== 'manual';
     const conf = estimateConfidence(M.source, M.detectedRich);
     /* The heading this feeds used to read "Estimated Nutrition · estimated from photo · high
@@ -903,8 +909,8 @@ export function mealReadHtml(M, { exec = null, past = false } = {}) {
     const raw = M.macrosRaw || M.macros;
     const mg = (v, unit) => (v == null ? '—' : `${tilde}${v}${unit}`);
     const shownFigures = [
-      ...(S.planStyle.showMacros ? [raw.protein, raw.carbs, raw.fat] : []),
-      ...(S.planStyle.showCalories ? [raw.cals] : []),
+      ...(PS.showMacros ? [raw.protein, raw.carbs, raw.fat] : []),
+      ...(PS.showCalories ? [raw.cals] : []),
     ];
     const someMissing = shownFigures.some((v) => v == null);
     // THE PROJECTION. A bar that only shows what is banked answers "how much of the day is done",
@@ -923,12 +929,12 @@ export function mealReadHtml(M, { exec = null, past = false } = {}) {
     // Per figure (0142): each bar rides its own surface flag — a professional can hide
     // calories alone, and the calorie bar (value AND target) must go with them.
     const targetBars = [
-      ...(S.planStyle.showMacros ? [['Protein', raw.protein, T.protein, 'g', project(T.protein, dayProg.proteinSoFar)]] : []),
-      ...(S.planStyle.showCalories ? [['Calories', raw.cals, T.calories, '', null]] : []),
+      ...(PS.showMacros ? [['Protein', raw.protein, T.protein, 'g', project(T.protein, dayProg.proteinSoFar)]] : []),
+      ...(PS.showCalories ? [['Calories', raw.cals, T.calories, '', null]] : []),
     ].filter(([, v, target]) => target && v != null);
     // paceNote quotes a protein figure, so it rides showMacros like the protein bar — the card
     // can be visible for the calorie bar alone.
-    const projectedTotal = S.planStyle.showMacros && T.protein ? (Number(dayProg.proteinSoFar) || 0) + (project(T.protein, dayProg.proteinSoFar) || 0) : null;
+    const projectedTotal = PS.showMacros && T.protein ? (Number(dayProg.proteinSoFar) || 0) + (project(T.protein, dayProg.proteinSoFar) || 0) : null;
     const paceNote = projectedTotal && mealsLeft
       ? `On pace for about ${projectedTotal}g if your ${mealsLeft === 1 ? 'last meal lands' : `last ${mealsLeft} meals land`} on plan`
       : '';
@@ -946,18 +952,18 @@ export function mealReadHtml(M, { exec = null, past = false } = {}) {
     // safety signal); this gate is presentation only. `showMacros` is the athlete's own
     // opt-in-able switch, so someone who WANTS their numbers back can have them. Per figure:
     // the card renders when either flag is on; each cell rides its own flag below.
-    const showNums = S.planStyle.showMacros || S.planStyle.showCalories;
+    const showNums = PS.showMacros || PS.showCalories;
     // The value strip + day bars, as one chrome-less block the read card hosts. Same numbers,
     // same honesty markers (~ for photo estimates); provenance rides a quiet in-card line.
     const nutInCard = settled && showNums ? `
     <div class="nut-src">Nutrition · ${esc(srcLabel)}</div>
     ${emptyRead ? `<div style="padding:0 16px 13px">${rereadNote}</div>` : `
-    <div class="nut-values${S.planStyle.showMacros && S.planStyle.showCalories ? ' wrap2' : ''}">
-      ${S.planStyle.showMacros ? `
+    <div class="nut-values${PS.showMacros && PS.showCalories ? ' wrap2' : ''}">
+      ${PS.showMacros ? `
       <div class="nv lead"><div class="mv">${mg(raw.protein, '<i>g</i>')}</div><div class="mk">Protein</div></div>
       <div class="nv"><div class="mv">${mg(raw.carbs, '<i>g</i>')}</div><div class="mk">Carbs</div></div>
       <div class="nv"><div class="mv">${mg(raw.fat, '<i>g</i>')}</div><div class="mk">Fat</div></div>` : ''}
-      ${S.planStyle.showCalories ? `<div class="nv${S.planStyle.showMacros ? '' : ' lead'}"><div class="mv">${mg(raw.cals, '')}</div><div class="mk">Calories</div></div>` : ''}
+      ${PS.showCalories ? `<div class="nv${PS.showMacros ? '' : ' lead'}"><div class="mv">${mg(raw.cals, '')}</div><div class="mk">Calories</div></div>` : ''}
     </div>
     ${someMissing ? `<div class="nut-note"><div class="est-note">A dash means we do not have that number for this meal. It is not a zero.</div></div>` : ''}
     ${targetBars.length ? `<div class="day-bars">
@@ -1082,8 +1088,8 @@ export function mealReadHtml(M, { exec = null, past = false } = {}) {
     </section>` : !showNums ? `
     <h2 class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">What was on the plate</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></h2>
     ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
-    ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
-    <div class="est-note" style="margin-top:8px">Your plan tracks how food leaves you feeling rather than calorie and macro counts. Your ${esc(S.coach.noun)} can still see the full numbers.</div>
+    ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">${you ? 'Your note' : 'Their note'}:</b> ${esc(M.userNote)}</div>` : ''}
+    <div class="est-note" style="margin-top:8px">${you ? `Your plan tracks how food leaves you feeling rather than calorie and macro counts. Your ${esc(S.coach.noun)} can still see the full numbers.` : 'This plan tracks how food leaves the athlete feeling rather than counts. You see the full numbers.'}</div>
     ${emptyRead ? rereadNote : ''}` : `
     ${/* The Estimated Nutrition panel that opened this section lives inside the read card now
           (founder 2026-08-10) — what remains here is the detail drawer: foods, notes,
@@ -1094,14 +1100,14 @@ export function mealReadHtml(M, { exec = null, past = false } = {}) {
       ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
       ${/* "No targets" is claimed off the RAW targets, not the visible bars: a target a
             professional chose to hide still exists, and this line must not say otherwise. */''}
-      ${targetBars.length || T.protein || T.calories ? '' : `<div class="est-note">No coach targets set yet, so there's nothing to measure against. These are this meal's totals.</div>`}
-      ${S.planStyle.showMacros ? `<div class="est-note" style="margin-top:8px">~${M.fiber}g fiber estimated. The full component read lives under "Why this meal reads ${M.score != null ? M.score : 'what it reads'}".</div>` : ''}
-      ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">Your note:</b> ${esc(M.userNote)}</div>` : ''}
-      ${corrLog ? `<div class="est-note" style="margin-top:8px;color:var(--blue-bright)"><b style="color:var(--blue-bright)">Corrected by you</b>: ${corrLog} correction${corrLog === 1 ? '' : 's'} applied. The AI's original estimate is kept for reference${(() => {
+      ${targetBars.length || T.protein || T.calories ? '' : `<div class="est-note">${you ? "No coach targets set yet, so there's nothing to measure against. These are this meal's totals." : 'No targets set for this athlete yet, so there is nothing to measure against. These are this meal\'s totals.'}</div>`}
+      ${PS.showMacros ? `<div class="est-note" style="margin-top:8px">~${M.fiber}g fiber estimated. The full component read lives under "Why this meal reads ${M.score != null ? M.score : 'what it reads'}".</div>` : ''}
+      ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">${you ? 'Your note' : 'Their note'}:</b> ${esc(M.userNote)}</div>` : ''}
+      ${corrLog ? `<div class="est-note" style="margin-top:8px;color:var(--blue-bright)"><b style="color:var(--blue-bright)">${you ? 'Corrected by you' : 'Corrected by the athlete'}</b>: ${corrLog} correction${corrLog === 1 ? '' : 's'} applied. The AI's original estimate is kept for reference${(() => {
         if (!M.orig) return '';
         const bits = [];
-        if (S.planStyle.showMacros) bits.push(`~${M.orig.protein}g protein`);
-        if (S.planStyle.showCalories) bits.push(`~${M.orig.kcal} kcal`);
+        if (PS.showMacros) bits.push(`~${M.orig.protein}g protein`);
+        if (PS.showCalories) bits.push(`~${M.orig.kcal} kcal`);
         return bits.length ? ` (was ${bits.join(' · ')})` : '';
       })()}.</div>` : ''}
       ${/* The two entry points into the correction panel live HERE, with the numbers they correct
@@ -1113,7 +1119,7 @@ export function mealReadHtml(M, { exec = null, past = false } = {}) {
             to the AI Nutritionist, and every correction from the chat lands wholesale: the
             food's name, the meal title, per-item macros, totals, the score, and the coach's
             copy. This line only points at the composer. */''}
-      ${emptyRead ? '' : M.mealId ? `<div class="est-note">${fromPhoto ? 'Estimated from the photo. ' : ''}Something off or left out? <span class="link" id="tell-ai" role="button" tabindex="0">Tell the AI Nutritionist below</span> and the name, numbers and score update together.</div>` : ''}
+      ${emptyRead || !you ? '' : M.mealId ? `<div class="est-note">${fromPhoto ? 'Estimated from the photo. ' : ''}Something off or left out? <span class="link" id="tell-ai" role="button" tabindex="0">Tell the AI Nutritionist below</span> and the name, numbers and score update together.</div>` : ''}
       </div>
     </details>`;
     return { photoBlock, breakdown };
@@ -1697,7 +1703,7 @@ export const thread = {
     const suggestItems = () => { const fm = foodMemory(RT.userId); return fm ? fm.items : []; };
     const bubbleText = (c) => {
       const sug = mealSuggestOf(c);
-      if (!sug) return esc(c.text);
+      if (!sug) return c.role === 'ai' ? richText(c.text, esc) : esc(c.text);
       return mealSuggestHtml(sug, fillMealSuggestion(sug, suggestItems(), suggestRemaining()), esc);
     };
 

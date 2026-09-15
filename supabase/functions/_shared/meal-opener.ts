@@ -154,6 +154,16 @@ const READ_MAX = 520;
  * bad because the message was long, it was bad because it was EMPTY — it narrated a fact the
  * athlete created ten seconds earlier. Cut hollow sentences; never cut substance to hit a number.
  */
+/* THE EMPHASIS (founder 2026-09-14: the AI's opener should make what matters stand out). The
+   read's own figures are set in bold: "around 52g of protein" and "780 calories" are the two
+   numbers an athlete scans for. Marks are the light set the client draws (chat-view.js richText):
+   **bold**, __underline__, ==colour==. Nothing else in the read is touched, so the model's prose
+   stays the model's. Idempotent: a figure already inside a mark is left alone. */
+function emphasizeFigures(s: string): string {
+  if (!s) return '';
+  return s.replace(/(?<![*\w])(~?\d{1,4}(?:\.\d)?\s?(?:g|kcal|cal|calories)\b(?: of protein| protein| of carbs| carbs| of fat| fat)?)(?![*\w])/gi, '**$1**');
+}
+
 function readCore(s: string): string {
   if (!s) return '';
   const sentences = s.match(/[\s\S]*?[.!?]+(?=\s|$)|[\s\S]+$/g) || [s];
@@ -224,7 +234,7 @@ export function composeOpenerText(input: MealInput, ctx: OpenerContext = {}): st
 
   // 1. The read itself: takeaway, then the one adjustment, then at most one more sentence. The
   // adjustment IS the message; see readCore for the clip that used to eat it.
-  const analysis = readCore(text(input.analysis));
+  const analysis = emphasizeFigures(readCore(text(input.analysis)));
   const note = text(input.note);
   if (analysis) parts.push(analysis);
   else if (note) parts.push(note);
@@ -244,16 +254,16 @@ export function composeOpenerText(input: MealInput, ctx: OpenerContext = {}): st
   if (numbers && dayTotal !== null && target !== null && target > 0) {
     const gap = target - dayTotal;
     if (gap <= 0) {
-      parts.push(`That closes out your protein for the day, nothing left to chase there.`);
+      parts.push(`==That closes out your protein for the day==, nothing left to chase there.`);
     } else if (remaining !== null && remaining > 1) {
       // "~60g at each of your next two meals" — the decision, pre-computed. Rounded to 5g:
       // a coach says "around 60", never "58.5".
       const per = Math.max(5, Math.round(gap / remaining / 5) * 5);
-      parts.push(`Land around ${per}g of protein at each of your last ${remaining} meals and you'll hit today's target without forcing the last one.`);
+      parts.push(`==Land around **${per}g of protein** at each of your last ${remaining} meals== and you'll hit today's target without forcing the last one.`);
     } else if (remaining === 1) {
-      parts.push(`One meal left. Bring it in around ${gap}g of protein and the day closes out.`);
+      parts.push(`One meal left. ==Bring it in around **${gap}g of protein**== and the day closes out.`);
     } else if (remaining === 0) {
-      parts.push(`Your required meals are in, about ${gap}g short on protein; a protein-forward snack tonight closes most of that.`);
+      parts.push(`Your required meals are in, about **${gap}g short on protein**; ==a protein-forward snack tonight closes most of that==.`);
     }
   }
 
@@ -281,7 +291,7 @@ export function composeOpenerText(input: MealInput, ctx: OpenerContext = {}): st
   }
 
   // 5. Timing — only when it needs saying. On-time praise lives in the score checklist now.
-  if (ctx.late === true) parts.push(`And logging ${opening} late still counts. Hiding it wouldn't.`);
+  if (ctx.late === true) parts.push(`And logging ${opening} late __still counts__. Hiding it wouldn't.`);
 
   // 6. What the photo can't show, said the way a confident pro says it (founder 2026-08-11:
   // "some of my read is a guess... correct anything I've misread" read as an AI apologizing,

@@ -11,7 +11,7 @@ import { threadMessages, reactionGroups, REACTION_EMOJI, normalizeDetected } fro
 import { wireTapback } from '../tapback.js';
 import { mealReadHtml } from './meal.js';
 import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isEscalated, quotedFor,
-  dayLabelOf, participantList, participantSummary, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml,
+  dayLabelOf, participantList, participantSummary, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
 } from '../chat-view.js';
 import { openMembersSheet } from '../members-sheet.js';
 import { hydrateAvatars } from '../avatar.js';
@@ -356,7 +356,7 @@ function mountThread(root, mealId, meal) {
             ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
             ${/* No "Updated analysis" badge on correction replies (founder: robotic; the live
                   thread already dropped it) — the quote stem above says what it answers. */''}
-            <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : esc(String(c.text || ''))}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
+            <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : c.role === 'ai' ? richText(c.text, esc) : esc(String(c.text || ''))}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
             ${deliveredHtml({ mine, isLast: c === lastMsg })}
           </div>
           ${msgTimeHtml(c, mvClock, esc)}

@@ -4,6 +4,11 @@
 // macros, the foods. Takeaway first, one or two concrete moves, day framed forward, real history.
 import { composeOpenerText, uncertaintyLine } from './meal-opener';
 
+/* The composer writes light emphasis marks since 2026-09-14 (**bold**, __underline__, ==colour==,
+   drawn by the client); the wording is asserted with the marks stripped. */
+const plain = (s: string) => String(s).replace(/\*\*|__|==/g, '');
+
+
 const read = (over: Record<string, unknown> = {}) => ({
   name: 'Steak, sweet potato fries, green beans',
   quality: 84, protein: 81, kcal: 985, carbs: 75, fat: 37, fiber: 10,
@@ -46,7 +51,7 @@ describe('it coaches instead of narrating the screen', () => {
   it('frames the day FORWARD as the next decision — per-meal math, not a progress restatement', () => {
     // gap 99 across 2 meals → "around 50g each": the decision, pre-computed, rounded like a
     // coach rounds ("around 50", never "49.5").
-    expect(out).toContain('Land around 50g of protein at each of your last 2 meals');
+    expect(plain(out)).toContain('Land around 50g of protein at each of your last 2 meals');
     expect(out).toContain('without forcing the last one');
     expect(out).not.toContain('That puts you near');
     expect(out).not.toContain('still to go');
@@ -74,12 +79,12 @@ describe('the forward day framing covers every arithmetic case', () => {
 
   it('a closed target is celebrated, not recomputed', () => {
     const out = at({ proteinIncludingThisMeal: 185, proteinTarget: 180, mealsRemaining: 1 });
-    expect(out).toContain('closes out your protein for the day');
+    expect(plain(out)).toContain('closes out your protein for the day');
     expect(out).not.toContain('still to go');
   });
 
   it('one meal left names the exact number to bring in', () => {
-    expect(at({ proteinIncludingThisMeal: 120, proteinTarget: 180, mealsRemaining: 1 }))
+    expect(plain(at({ proteinIncludingThisMeal: 120, proteinTarget: 180, mealsRemaining: 1 })))
       .toContain('One meal left. Bring it in around 60g of protein');
   });
 
@@ -142,7 +147,7 @@ describe('real history is woven in — the thread remembers', () => {
 describe('timing speaks only when late', () => {
   it('holds the standard on a late log — and credits the log', () => {
     const out = composeOpenerText(read(), { late: true, mealName: 'Dinner' });
-    expect(out).toContain('late still counts');
+    expect(plain(out)).toContain('late still counts');
   });
 
   it('says nothing about timing when on time or unknown', () => {

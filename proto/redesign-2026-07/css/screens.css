@@ -608,7 +608,7 @@
 /* ----- Chat (3-way) ----- */
 /* Breathing room between speakers, tight within a run — the rhythm is what makes it read as a
    conversation rather than a list. */
-.thread { display: flex; flex-direction: column; gap:var(--s2h); }
+.thread { display: flex; flex-direction: column; gap:var(--s2h); font-family: var(--font-chat); }
 /* ===== The thread as Messages draws it (2026-09-14) =====
    The founder asked for the group chat to feel exactly like the phone's own. What that is, in
    rules: flat fills with no borders (blue for you, one gray for everyone else, identity carried by
@@ -637,7 +637,14 @@
    the app's 600: a conversation is read, not scanned, and semi-bold body copy is what made these
    read as cards. Flat fills, no border, no shadow: chrome was the difference between "bubble"
    and "box". `position:relative` is for the tail pseudo below. */
-.msg .bubble { position: relative; padding:var(--s2) var(--s3h); border-radius:calc(var(--r-card-sm) + 2px); font-size:var(--t-md); font-weight:500; line-height:1.35; letter-spacing:-0.005em; overflow-wrap:anywhere; }
+.msg .bubble { position: relative; padding:var(--s2) var(--s3h); border-radius:calc(var(--r-card-sm) + 2px); font-size:var(--t-lg); font-weight:400; line-height:1.3; letter-spacing:0; overflow-wrap:anywhere; }
+/* THE AI, WITH EMPHASIS (founder 2026-09-14: "under things that feel important, different color
+   fonts, bold"). The server writes light markup into the AI's rows (**bold** for the figure or
+   instruction that matters, __underline__ for a point to hold onto, ==colour== for the one line
+   that IS the advice); chat-view.js richText draws it. Nobody else's bubble is parsed. */
+.msg.ai .bubble b { font-weight: 700; }
+.msg.ai .bubble u { text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+.msg.ai .bubble .hl { font-style: normal; font-weight: 600; color: var(--blue-bright); }
 /* ONE gray for everyone who is not you. The AI used to sit on a blue tint and the coach on a
    bordered surface; Messages gives every other person the same gray and lets the name say who. */
 .msg.coach .bubble, .msg.ai .bubble { background: var(--surface-3); border: none; color: var(--text); }
@@ -662,7 +669,7 @@
 .msg.last.athlete .bubble::before { right: -10px; transform: scaleX(-1); }
 .msg.photo .bubble::before, .msg.typing .bubble::before { display: none; }
 /* The sender's name: small, quiet, inset to the bubble's text edge, above the first bubble. */
-.msg .who { font-size:var(--t-xs); font-weight:600; color: var(--text-3); margin:0 0 var(--s1) var(--s3); letter-spacing:0; }
+.msg .who { font-size:var(--t-sm); font-weight:500; color: var(--text-3); margin:0 0 var(--s1) var(--s3); letter-spacing:0; }
 
 /* ---- the thread as a conversation (2026-07-28) ----------------------------------------------
    The meal thread stopped being a two-party accountability note and became a group chat: the
@@ -704,7 +711,7 @@
 }
 .facepile.fp-hero .fpav { width: 44px; height: 44px; font-size: var(--t-sm); }
 .facepile.fp-hero .fpav + .fpav { margin-left: calc(-1 * var(--s3)); }
-.facepile.fp-hero .names { white-space: normal; font-size: var(--t-sm); line-height: 1.3; }
+.facepile.fp-hero .names { white-space: normal; font-size: var(--t-sm); line-height: 1.3; font-family: var(--font-chat); font-weight: 600; }
 .facepile.fp-hero .names small { display: inline-flex; align-items: center; gap: 2px; text-transform: none; letter-spacing: 0; font-size: var(--t-xs); margin-left: var(--s1); }
 .facepile.fp-hero .names small svg { width: 11px; height: 11px; }
 .facepile.fp-hero .chev { display: none; }
@@ -722,18 +729,18 @@
 
 /* The clock, only where time actually passed: "Today 9:07 AM", the day in the heavier weight. */
 .tsep {
-  align-self: center; font-size: var(--t-xs); font-weight: 500; letter-spacing: 0;
+  align-self: center; font-size: var(--t-sm); font-weight: 400; letter-spacing: 0;
   text-transform: none; color: var(--text-3); margin:var(--s1) 0;
 }
 .tsep b { font-weight: 700; }
 /* "Delivered", under the newest bubble when it is yours. The one receipt this app can state as a
    fact (the row came back from the database); nothing here claims it was read. */
-.dlv { align-self: flex-end; font-size: var(--t-xs); font-weight: 600; color: var(--text-3); margin: calc(-1 * var(--s1h)) var(--s1) 0 0; }
+.dlv { align-self: flex-end; font-size: var(--t-xs); font-weight: 500; color: var(--text-3); margin: calc(-1 * var(--s1h)) var(--s1) 0 0; }
 /* The per-message clock the drag reveals (chat-times.js). Parked just past the thread's right
    edge, where the viewport clips it, and slid into view together with the thread. */
 .msg .mt {
   position: absolute; right: -64px; top: 50%; transform: translateY(-50%); width: 56px;
-  text-align: right; font-size: var(--t-xs); font-weight: 600; color: var(--text-3);
+  text-align: right; font-size: var(--t-xs); font-weight: 500; color: var(--text-3);
   opacity: var(--rv-a, 0); pointer-events: none; white-space: nowrap;
 }
 .thread { transform: translateX(var(--rv, 0px)); }
@@ -767,7 +774,7 @@
   border-bottom: 2px solid var(--hairline); border-bottom-left-radius: 9px; margin-bottom:var(--s1h);
 }
 .msg .quote .qtext {
-  font-size: var(--t-micro); font-weight: 600; color: var(--text-3); background: var(--surface-2);
+  font-size: var(--t-xs); font-weight: 400; color: var(--text-3); background: var(--surface-2);
   border: 1px solid var(--hairline); border-radius: var(--r-chip); padding:var(--s1) var(--s2h);
   max-width: min(240px, 62vw);
   /* Two lines, not one. A single nowrap line cut "That was a double portion of chicken, not
@@ -1025,12 +1032,15 @@
   background: transparent; border: 0; outline: none; color: var(--text);
   /* 16px is the phone's own body size in a message box, and the size below which WebKit zooms
      the page on focus. */
-  font-family: var(--font); font-size: var(--t-md); font-weight: 600; line-height: 20px;
+  font-family: var(--font-chat); font-size: var(--t-lg); font-weight: 400; line-height: 22px;
   -webkit-appearance: none; appearance: none;
 }
 /* min-height, not height: Android's font scaling grows the 16px line past the 20px line box and a
    fixed 30px clipped the descenders. The box grows with the text instead. */
 .composer .field > input { min-height: 30px; height: auto; line-height: 1.25; }
+/* The search boxes that share this pill (food search, private note) keep the brand face and size:
+   they are forms, not conversations. */
+.composer:not(.at-end) .field > input { font-family: var(--font); font-size: var(--t-md); font-weight: 600; }
 /* Grows with its text (js/keyboard.js sets the height off scrollHeight), up to six lines, then
    scrolls inside — the .overflow class is keyboard.js saying it hit the ceiling. */
 .composer textarea { display: block; resize: none; overflow-y: hidden; max-height: 130px; }
@@ -2108,7 +2118,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
   border-radius:var(--r-card-sm);box-shadow:var(--sh-raised);overflow:hidden;
   animation:tapback-in var(--dur-2, 280ms) var(--ease-out, ease-out);transform-origin:50% 0}
 .tb-menu button{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);width:100%;min-height:44px;
-  padding:var(--s2h) var(--s3h);border:0;background:none;color:var(--text);font-family:var(--font);
+  padding:var(--s2h) var(--s3h);border:0;background:none;color:var(--text);font-family:var(--font-chat);
   font-size:var(--t-md);font-weight:600;text-align:left;cursor:pointer;-webkit-appearance:none;appearance:none}
 .tb-menu button+button{border-top:1px solid var(--hairline)}
 .tb-menu button:active{background:var(--surface-3)}

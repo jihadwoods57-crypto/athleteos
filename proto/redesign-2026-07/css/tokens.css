@@ -128,6 +128,12 @@
        --t-3xl      stat numerals
        --t-hero     the score */
   --font: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* THE CONVERSATION'S FACE (founder 2026-09-14: the chat typography "doesn't feel high
+     quality"). A message thread is the one surface where the phone's own type is the quality
+     bar, because Messages is on the same phone: San Francisco on iOS, Roboto on Android, Segoe
+     on the harness. The bubbles, names, clocks and the box you type in use this; the rest of
+     the app keeps its brand face. */
+  --font-chat: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, system-ui, sans-serif;
   /* The SCORE face. The score is the product — "log → number → coach → streak" — and it was set in
      the same family as body copy at a larger size, so the one thing that should be recognisable in a
      screenshot from across a room looked like big text. Archivo Expanded 900 is already the display

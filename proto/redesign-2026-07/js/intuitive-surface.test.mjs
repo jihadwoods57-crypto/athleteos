@@ -167,10 +167,10 @@ test('the past-meal screen renders through the same per-figure read card as toda
   assert.doesNotMatch(TRUST_SRC, /<h2 class="eyebrow">Nutrition<\/h2>/);
   assert.doesNotMatch(TRUST_SRC, /class="macro-row/);
   const MEAL = read('screens', 'meal.js');
-  assert.match(MEAL, /const showNums = S\.planStyle\.showMacros \|\| S\.planStyle\.showCalories;/);
+  assert.match(MEAL, /const showNums = PS\.showMacros \|\| PS\.showCalories;/);
   const kcalCell = MEAL.split('\n').find((l) => l.includes("mg(raw.cals, '')"));
   assert.ok(kcalCell, 'the kcal cell still exists');
-  assert.match(kcalCell, /S\.planStyle\.showCalories/);
+  assert.match(kcalCell, /PS\.showCalories/);
 });
 
 test('the past-meal screen prints no stored analysis prose of its own', () => {
@@ -287,18 +287,21 @@ test('meal.js: every calorie figure rides showCalories, every macro cell rides s
   // (Cells read through mg(raw.*) since 2026-09-14: null prints a dash, the gates are unchanged.)
   const kcalCell = MEAL_SRC.split('\n').find((l) => l.includes("mg(raw.cals, '')"));
   assert.ok(kcalCell, 'the thread kcal cell still exists');
-  assert.match(kcalCell, /S\.planStyle\.showCalories/);
-  assert.match(MEAL_SRC, /\$\{S\.planStyle\.showMacros \? `\n\s*<div class="nv lead"><div class="mv">\$\{mg\(raw\.protein/);
+  // Inside mealReadHtml the style is `PS`: the signed-in user's own S.planStyle unless a caller
+  // (the coach's screen) overrides it. Same gates, one indirection.
+  assert.match(MEAL_SRC, /const PS = planStyle \|\| S\.planStyle \|\| \{\};/);
+  assert.match(kcalCell, /PS\.showCalories/);
+  assert.match(MEAL_SRC, /\$\{PS\.showMacros \? `\n\s*<div class="nv lead"><div class="mv">\$\{mg\(raw\.protein/);
   // The day bars: the calorie bar (value and target) behind showCalories, protein behind showMacros.
-  assert.match(MEAL_SRC, /S\.planStyle\.showCalories \? \[\['Calories', raw\.cals, T\.calories/);
-  assert.match(MEAL_SRC, /S\.planStyle\.showMacros \? \[\['Protein', raw\.protein, T\.protein/);
+  assert.match(MEAL_SRC, /PS\.showCalories \? \[\['Calories', raw\.cals, T\.calories/);
+  assert.match(MEAL_SRC, /PS\.showMacros \? \[\['Protein', raw\.protein, T\.protein/);
   // paceNote quotes a protein figure, so its input rides showMacros too — the card can be
   // visible for the calorie bar alone.
-  assert.match(MEAL_SRC, /const projectedTotal = S\.planStyle\.showMacros && T\.protein/);
+  assert.match(MEAL_SRC, /const projectedTotal = PS\.showMacros && T\.protein/);
   // So do the drawer's fiber note and the correction reference's two figures.
-  assert.match(MEAL_SRC, /S\.planStyle\.showMacros \? `<div class="est-note"[^`]*fiber estimated/);
-  assert.match(MEAL_SRC, /if \(S\.planStyle\.showMacros\) bits\.push\(`~\$\{M\.orig\.protein\}g protein`\)/);
-  assert.match(MEAL_SRC, /if \(S\.planStyle\.showCalories\) bits\.push\(`~\$\{M\.orig\.kcal\} kcal`\)/);
+  assert.match(MEAL_SRC, /PS\.showMacros \? `<div class="est-note"[^`]*fiber estimated/);
+  assert.match(MEAL_SRC, /if \(PS\.showMacros\) bits\.push\(`~\$\{M\.orig\.protein\}g protein`\)/);
+  assert.match(MEAL_SRC, /if \(PS\.showCalories\) bits\.push\(`~\$\{M\.orig\.kcal\} kcal`\)/);
   // "No coach targets set yet" is claimed off the RAW targets — a hidden target still exists.
   assert.match(MEAL_SRC, /targetBars\.length \|\| T\.protein \|\| T\.calories \? '' :/);
   // Prose on both meal surfaces needs both flags or the stamp.

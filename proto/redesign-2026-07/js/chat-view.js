@@ -341,3 +341,23 @@ export function msgTimeHtml(comment, fmtTime, esc) {
   const t = comment && fmtTime ? String(fmtTime(comment.created_at) || '') : '';
   return t ? `<span class="mt" aria-hidden="true">${esc(t)}</span>` : '';
 }
+
+/* ---------------- The AI, with emphasis (2026-09-14) ----------------
+   The AI's rows may carry three marks, written server-side (meal-opener.ts, meal-chat): **bold**
+   for the figure or instruction that matters most, __underline__ for a point to hold onto, and
+   ==colour== for the one line that IS the advice. This is the ONLY place they are drawn, and it
+   escapes FIRST: the marks are matched on already-escaped text, so nothing a row carries can open
+   a tag. Newlines become line breaks, as Messages keeps them. Only `role: 'ai'` rows go through
+   here; a person's bubble prints their asterisks as asterisks. */
+export function richText(text, esc) {
+  let s = esc(String(text == null ? '' : text));
+  s = s.replace(/\*\*([^*\n]+?)\*\*/g, '<b>$1</b>');
+  s = s.replace(/__([^_\n]+?)__/g, '<u>$1</u>');
+  s = s.replace(/==([^=\n]+?)==/g, '<em class="hl">$1</em>');
+  return s.replace(/\r?\n/g, '<br>');
+}
+
+/** The text of an AI row with its marks stripped: for previews, notifications, clipboard. */
+export function plainText(text) {
+  return String(text == null ? '' : text).replace(/\*\*([^*\n]+?)\*\*/g, '$1').replace(/__([^_\n]+?)__/g, '$1').replace(/==([^=\n]+?)==/g, '$1');
+}
