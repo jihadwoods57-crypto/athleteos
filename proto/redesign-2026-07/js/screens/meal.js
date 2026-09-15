@@ -844,102 +844,14 @@ analysis._editing = false;
    breakdown + team discussion + next action). Post-log data is immutable: this page
    only renders; food editing stays in the pre-log analysis screen. Numbers come from
    S.exec / RT.lastMove / mealDetail — nothing here recomputes score math. ---------- */
-export const thread = {
-  tab: 'home',
-  // Founder feedback 2026-07-16: the tab bar + camera FAB covered the composer, and "take
-  // another photo" is the wrong primary action on a meal that's already logged. Nav hides
-  // here; the back head and Back Home carry the exits.
-  hideTabs: true,
-  render({ sub }) {
-    const slot = sub || MEAL.key || 'dinner';
-    const M = mealDetail(slot);
-    const e = S.exec;
-
-    if (!M.logged) {
-      return `
-      ${backHead(M.name, 'Not logged yet', 'home')}
-      <div class="state-demo">
-        <div class="sd-ic">${icon('camera', 24)}</div>
-        <div class="sd-t">${esc(M.name)} isn't logged yet</div>
-        <div class="sd-s">Log it with a photo and its full breakdown (foods, macros, your team's take) lives here.</div>
-      </div>
-      <button class="btn green" data-go="camera/${M.slot}">${icon('camera', 18)} Log ${esc(M.name)}</button>
-      <div style="height:10px"></div>`;
-    }
-
-    // ---- 1. LOGGED CONFIRMATION — compact (founder feedback 2026-07-16: the old celebration
-    // ate half the screen and mixed compliance with meal quality). Three facts only: logged
-    // (green = accountability), the score move, progress on the day. Timing appears here ONCE.
-    /* `_played` is now retired by the MOVE ITSELF, when the sweep finishes (see the mount below),
-       rather than the instant mount ran. It used to be set on the first mount, which meant the very
-       next repaint — participants and comments land about a second into a thread — dropped this
-       whole line while its count-up was still running. The app's payoff was racing a network
-       response for the right to finish, and on a fast connection it lost. */
-    const move = RT.lastMove && (RT.lastMove.what || '').toLowerCase() === M.slot ? RT.lastMove : null;
-    const justLogged = !!move && !move._played;
-    const dupFlagged = M.flagged === 'dup';
-    const timing = M.loggedAt
-      ? `Logged ${M.loggedAt} · ${M.minutesLate > 0 ? `${M.minutesLate} min late` : 'on time'}`
-      : (M.late ? 'Logged late · still counts' : 'Logged on time');
-    const toTier = justLogged ? tier(move.to) : null;
-    // The athlete's very first log ever: no day before today has ever been scored. Derived, so
-    // there is no flag that can drift out of step with what actually happened.
-    const firstEver = justLogged && !(DAY.scoreHistory || []).some((h) => h && h.date && h.date < String(DAY.date));
-    // Coach attention, from REAL signals only (comments load async; the mount updates this
-    // line in place once they land): Sent to Coach → Reviewed by Coach → Coach replied.
-    const cStatus = coachThreadStatus({
-      mealId: M.mealId, hasCoach: S.coach.hasCoach, comments: [], noun: S.coach.noun,
-      dayReviewed: RECEIPT.uid === RT.userId && RECEIPT.date === String(DAY.date) && RECEIPT.reviewed,
-    });
-    const execTop = `
-    <section class="mt-confirm">
-      <div class="row1">
-        <div class="ck${justLogged ? ' pop' : ''}">${icon('check', 20)}</div>
-        <div><div class="t">${esc(M.name)} logged</div>
-        <div class="s">${timing}${cStatus.label ? ` · <span id="coach-status">${esc(cStatus.label)}</span>` : ''}</div></div>
-      </div>
-      ${dupFlagged ? `<div class="dup-note">Duplicate photo · recorded, but it doesn't count. Coach can see the flag.</div>` : ''}
-      ${/* The same move the recovery confirm draws as a dial, as a strip — this sits inside a card
-            under a green confirmation, and a second hero here would be two celebrations arguing.
-            What the strip adds over the old bare numerals is the LADDER: ticks at 60 / 80 / 90, so
-            "+6" is read as a distance to the next line rather than as six of nothing. */''}
-      ${justLogged && !dupFlagged ? scoreMoveBar({
-        from: move.from, to: move.to, uid: 'mt',
-        head: `<div class="score-line">
-        <span class="k">Daily Score</span>
-        <span class="from">${move.from}</span>
-        <span class="arr">${icon('arrowRight', 14)}</span>
-        <span class="to ${toTier.cls}" data-sm-count="${move.to}">${move.to}</span>
-        <span class="gain ${toTier.cls}">+${move.gain}</span>
-        ${toTier.name !== tier(move.from).name ? `<span class="tier-chip ${toTier.cls}" data-sm-tier="▲ " data-sm-base="tier-chip">▲ ${esc(toTier.name)}</span>` : ''}
-      </div>`,
-      }) + (firstEver ? '<div class="sm-first">First one in. From here the number is live: every meal, every check-in, every day.</div>' : '') : ''}
-      ${/* The credit is a fact about the day, not a one-time animation — it used to render only
-            on the justLogged paint, so the first background repaint (participants landing ~1s in)
-            erased the most rewarding line on the page, and a revisit never showed it at all.
-            The engine's own number (mealScoreImpact), so it can never disagree with the score. */''}
-      ${(() => {
-        if (justLogged || dupFlagged) return '';
-        const gain = S.mealScoreImpact(M.slot) || 0;
-        // Neutral ('n') on purpose. Unlike the justLogged move above there is no day number in
-        // this row for a tier colour to belong to — tinted by the day, the tint landed on the
-        // credit itself, and a 2-of-4 day is under 60 by construction, so every on-time lunch's
-        // "+10" wore alarm red. Mid-day the day has no verdict (the .status-pill.inprog rule);
-        // on the celebration path it does, but the sealed-day dial and tier chip sit directly
-        // below, so the credit never has to carry the verdict on any path. The flat-green lie
-        // the tint once fixed stays fixed: neutral claims no standing either.
-        return gain > 0 ? `
-      <div class="score-line">
-        <span class="k">Daily Score</span>
-        <span class="gain n">+${gain} from this meal</span>
-      </div>` : '';
-      })()}
-      <div class="prog-line">
-        ${segBar(e.met, e.total, `${e.met} of ${e.total} completed today`)}
-        <span class="pk">${e.met} of ${e.total} in today${S.streakDays > 0 ? ` · ${S.streakDays} day streak` : ''}</span>
-      </div>
-    </section>`;
-
+/* ---------- The read card + the breakdown, shared by TODAY's meal and a PAST one (2026-09-14) ----------
+   The founder opened an older logged meal and it wore a different design from today's: the past-meal
+   screen (trust.js mealView) was a simpler twin written separately. Sections 2 and 3 of the meal
+   thread now live here, as one function both screens call, so the two cannot drift again. `M` is
+   the mealDetail() shape (trust.js builds it from a meals row: see pastMealDetail); `exec` is the
+   day's execution summary (null for a past plate); `past` turns off the day projection and the
+   re-read link, which only make sense while the day is live. Returns the two blocks as strings. */
+export function mealReadHtml(M, { exec = null, past = false } = {}) {
     // ---- 2. PHOTO + MEAL QUALITY (feedback 2026-07-16: quality is a separate concept from
     // compliance — banded color, its own label, and a one-line WHY so 58 never reads as green
     // success or an arbitrary number). Provenance badges live here; name/timing not repeated.
@@ -949,7 +861,7 @@ export const thread = {
     const reasons = scoreReasons({ macros: M.macros, fiber: M.fiber, detected: M.detectedRich, minutesLate: M.minutesLate });
     // Coach's Focus (founder 2026-08-05): the one line to remember, from the same judgments.
     const dayProgCF = S.mealDayProgress || {};
-    const nextMealCF = e.now && e.now.proof === 'photo' ? e.now.title : null;
+    const nextMealCF = exec && exec.now && exec.now.proof === 'photo' ? exec.now.title : null;
     const focus = coachFocus({
       macros: M.macros, fiber: M.fiber, detected: M.detectedRich, minutesLate: M.minutesLate,
       nextMealName: nextMealCF,
@@ -984,13 +896,25 @@ export const thread = {
     // Photo estimates present as estimates (~ prefix on tiles; the full range lives in the
     // rubric). Label/manual values stay exact — no false hedging on real numbers.
     const tilde = fromPhoto ? '~' : '';
+    // null and 0 are different facts (the 2026-09-08 rule, now inside the one read card): a figure
+    // the read never returned prints as a dash, a measured zero prints 0. Today's mealDetail()
+    // coerces to 0 upstream (the live read always returns all four); a stored past row keeps its
+    // nulls in `macrosRaw` (trust.js pastMealDetail), and that is what the tiles read.
+    const raw = M.macrosRaw || M.macros;
+    const mg = (v, unit) => (v == null ? '—' : `${tilde}${v}${unit}`);
+    const shownFigures = [
+      ...(S.planStyle.showMacros ? [raw.protein, raw.carbs, raw.fat] : []),
+      ...(S.planStyle.showCalories ? [raw.cals] : []),
+    ];
+    const someMissing = shownFigures.some((v) => v == null);
     // THE PROJECTION. A bar that only shows what is banked answers "how much of the day is done",
     // but the athlete reads it as a verdict — 81 of 180g at dinner looks like failing when it is
     // squarely on pace. So each bar also carries what is still COMING: the meals left today at
     // the share this athlete's plan expects. Real engine numbers or nothing; never a flattering
     // guess. `dayProg` is the same source the AI's day sentence uses, so the two always agree.
     const dayProg = S.mealDayProgress || {};
-    const mealsLeft = Math.max(0, Number(dayProg.mealsRemaining) || 0);
+    // A PAST plate projects nothing: its day is over, so the bars show what was banked and no ghost.
+    const mealsLeft = past ? 0 : Math.max(0, Number(dayProg.mealsRemaining) || 0);
     const project = (target, soFar) => {
       if (!target || !mealsLeft) return null;
       const gap = Math.max(0, target - (Number(soFar) || 0));
@@ -999,9 +923,9 @@ export const thread = {
     // Per figure (0142): each bar rides its own surface flag — a professional can hide
     // calories alone, and the calorie bar (value AND target) must go with them.
     const targetBars = [
-      ...(S.planStyle.showMacros ? [['Protein', M.macros.protein, T.protein, 'g', project(T.protein, dayProg.proteinSoFar)]] : []),
-      ...(S.planStyle.showCalories ? [['Calories', M.macros.cals, T.calories, '', null]] : []),
-    ].filter(([, , target]) => target);
+      ...(S.planStyle.showMacros ? [['Protein', raw.protein, T.protein, 'g', project(T.protein, dayProg.proteinSoFar)]] : []),
+      ...(S.planStyle.showCalories ? [['Calories', raw.cals, T.calories, '', null]] : []),
+    ].filter(([, v, target]) => target && v != null);
     // paceNote quotes a protein figure, so it rides showMacros like the protein bar — the card
     // can be visible for the calorie bar alone.
     const projectedTotal = S.planStyle.showMacros && T.protein ? (Number(dayProg.proteinSoFar) || 0) + (project(T.protein, dayProg.proteinSoFar) || 0) : null;
@@ -1015,7 +939,7 @@ export const thread = {
     // move is to offer the read again.
     const emptyRead = settled && fromPhoto
       && !M.macros.protein && !M.macros.carbs && !M.macros.fat && !M.macros.cals;
-    const rereadNote = `<div class="est-note" style="margin-top:8px">These numbers didn't land. The read came back empty, so nothing was measured.${M.mealId ? ` <span class="link" id="mt-reread" role="button" tabindex="0">Re-read this meal</span>` : ''}${M.rereadError ? ` <b style="color:var(--text-2)">Couldn't fetch the photo just now. Try again in a moment.</b>` : ''}</div>`;
+    const rereadNote = `<div class="est-note" style="margin-top:8px">These numbers didn't land. The read came back empty, so nothing was measured.${!past && M.mealId ? ` <span class="link" id="mt-reread" role="button" tabindex="0">Re-read this meal</span>` : ''}${M.rereadError ? ` <b style="color:var(--text-2)">Couldn't fetch the photo just now. Try again in a moment.</b>` : ''}</div>`;
     // INTUITIVE (0142): no macro or calorie figure reaches the athlete. The plate itself, what
     // was on it, and how it landed still do — the composition IS the feedback. Every number is
     // still computed and still stored (the professional needs them, and under-fueling is a
@@ -1030,11 +954,12 @@ export const thread = {
     ${emptyRead ? `<div style="padding:0 16px 13px">${rereadNote}</div>` : `
     <div class="nut-values${S.planStyle.showMacros && S.planStyle.showCalories ? ' wrap2' : ''}">
       ${S.planStyle.showMacros ? `
-      <div class="nv lead"><div class="mv">${tilde}${M.macros.protein}<i>g</i></div><div class="mk">Protein</div></div>
-      <div class="nv"><div class="mv">${tilde}${M.macros.carbs}<i>g</i></div><div class="mk">Carbs</div></div>
-      <div class="nv"><div class="mv">${tilde}${M.macros.fat}<i>g</i></div><div class="mk">Fat</div></div>` : ''}
-      ${S.planStyle.showCalories ? `<div class="nv${S.planStyle.showMacros ? '' : ' lead'}"><div class="mv">${tilde}${M.macros.cals}</div><div class="mk">Calories</div></div>` : ''}
+      <div class="nv lead"><div class="mv">${mg(raw.protein, '<i>g</i>')}</div><div class="mk">Protein</div></div>
+      <div class="nv"><div class="mv">${mg(raw.carbs, '<i>g</i>')}</div><div class="mk">Carbs</div></div>
+      <div class="nv"><div class="mv">${mg(raw.fat, '<i>g</i>')}</div><div class="mk">Fat</div></div>` : ''}
+      ${S.planStyle.showCalories ? `<div class="nv${S.planStyle.showMacros ? '' : ' lead'}"><div class="mv">${mg(raw.cals, '')}</div><div class="mk">Calories</div></div>` : ''}
     </div>
+    ${someMissing ? `<div class="nut-note"><div class="est-note">A dash means we do not have that number for this meal. It is not a zero.</div></div>` : ''}
     ${targetBars.length ? `<div class="day-bars">
         ${targetBars.map(([k, v, target, u, projected]) => {
           const now = Math.min(100, Math.round((v / target) * 100));
@@ -1191,6 +1116,107 @@ export const thread = {
       ${emptyRead ? '' : M.mealId ? `<div class="est-note">${fromPhoto ? 'Estimated from the photo. ' : ''}Something off or left out? <span class="link" id="tell-ai" role="button" tabindex="0">Tell the AI Nutritionist below</span> and the name, numbers and score update together.</div>` : ''}
       </div>
     </details>`;
+    return { photoBlock, breakdown };
+}
+
+export const thread = {
+  tab: 'home',
+  // Founder feedback 2026-07-16: the tab bar + camera FAB covered the composer, and "take
+  // another photo" is the wrong primary action on a meal that's already logged. Nav hides
+  // here; the back head and Back Home carry the exits.
+  hideTabs: true,
+  render({ sub }) {
+    const slot = sub || MEAL.key || 'dinner';
+    const M = mealDetail(slot);
+    const e = S.exec;
+
+    if (!M.logged) {
+      return `
+      ${backHead(M.name, 'Not logged yet', 'home')}
+      <div class="state-demo">
+        <div class="sd-ic">${icon('camera', 24)}</div>
+        <div class="sd-t">${esc(M.name)} isn't logged yet</div>
+        <div class="sd-s">Log it with a photo and its full breakdown (foods, macros, your team's take) lives here.</div>
+      </div>
+      <button class="btn green" data-go="camera/${M.slot}">${icon('camera', 18)} Log ${esc(M.name)}</button>
+      <div style="height:10px"></div>`;
+    }
+
+    // ---- 1. LOGGED CONFIRMATION — compact (founder feedback 2026-07-16: the old celebration
+    // ate half the screen and mixed compliance with meal quality). Three facts only: logged
+    // (green = accountability), the score move, progress on the day. Timing appears here ONCE.
+    /* `_played` is now retired by the MOVE ITSELF, when the sweep finishes (see the mount below),
+       rather than the instant mount ran. It used to be set on the first mount, which meant the very
+       next repaint — participants and comments land about a second into a thread — dropped this
+       whole line while its count-up was still running. The app's payoff was racing a network
+       response for the right to finish, and on a fast connection it lost. */
+    const move = RT.lastMove && (RT.lastMove.what || '').toLowerCase() === M.slot ? RT.lastMove : null;
+    const justLogged = !!move && !move._played;
+    const dupFlagged = M.flagged === 'dup';
+    const timing = M.loggedAt
+      ? `Logged ${M.loggedAt} · ${M.minutesLate > 0 ? `${M.minutesLate} min late` : 'on time'}`
+      : (M.late ? 'Logged late · still counts' : 'Logged on time');
+    const toTier = justLogged ? tier(move.to) : null;
+    // The athlete's very first log ever: no day before today has ever been scored. Derived, so
+    // there is no flag that can drift out of step with what actually happened.
+    const firstEver = justLogged && !(DAY.scoreHistory || []).some((h) => h && h.date && h.date < String(DAY.date));
+    // Coach attention, from REAL signals only (comments load async; the mount updates this
+    // line in place once they land): Sent to Coach → Reviewed by Coach → Coach replied.
+    const cStatus = coachThreadStatus({
+      mealId: M.mealId, hasCoach: S.coach.hasCoach, comments: [], noun: S.coach.noun,
+      dayReviewed: RECEIPT.uid === RT.userId && RECEIPT.date === String(DAY.date) && RECEIPT.reviewed,
+    });
+    const execTop = `
+    <section class="mt-confirm">
+      <div class="row1">
+        <div class="ck${justLogged ? ' pop' : ''}">${icon('check', 20)}</div>
+        <div><div class="t">${esc(M.name)} logged</div>
+        <div class="s">${timing}${cStatus.label ? ` · <span id="coach-status">${esc(cStatus.label)}</span>` : ''}</div></div>
+      </div>
+      ${dupFlagged ? `<div class="dup-note">Duplicate photo · recorded, but it doesn't count. Coach can see the flag.</div>` : ''}
+      ${/* The same move the recovery confirm draws as a dial, as a strip — this sits inside a card
+            under a green confirmation, and a second hero here would be two celebrations arguing.
+            What the strip adds over the old bare numerals is the LADDER: ticks at 60 / 80 / 90, so
+            "+6" is read as a distance to the next line rather than as six of nothing. */''}
+      ${justLogged && !dupFlagged ? scoreMoveBar({
+        from: move.from, to: move.to, uid: 'mt',
+        head: `<div class="score-line">
+        <span class="k">Daily Score</span>
+        <span class="from">${move.from}</span>
+        <span class="arr">${icon('arrowRight', 14)}</span>
+        <span class="to ${toTier.cls}" data-sm-count="${move.to}">${move.to}</span>
+        <span class="gain ${toTier.cls}">+${move.gain}</span>
+        ${toTier.name !== tier(move.from).name ? `<span class="tier-chip ${toTier.cls}" data-sm-tier="▲ " data-sm-base="tier-chip">▲ ${esc(toTier.name)}</span>` : ''}
+      </div>`,
+      }) + (firstEver ? '<div class="sm-first">First one in. From here the number is live: every meal, every check-in, every day.</div>' : '') : ''}
+      ${/* The credit is a fact about the day, not a one-time animation — it used to render only
+            on the justLogged paint, so the first background repaint (participants landing ~1s in)
+            erased the most rewarding line on the page, and a revisit never showed it at all.
+            The engine's own number (mealScoreImpact), so it can never disagree with the score. */''}
+      ${(() => {
+        if (justLogged || dupFlagged) return '';
+        const gain = S.mealScoreImpact(M.slot) || 0;
+        // Neutral ('n') on purpose. Unlike the justLogged move above there is no day number in
+        // this row for a tier colour to belong to — tinted by the day, the tint landed on the
+        // credit itself, and a 2-of-4 day is under 60 by construction, so every on-time lunch's
+        // "+10" wore alarm red. Mid-day the day has no verdict (the .status-pill.inprog rule);
+        // on the celebration path it does, but the sealed-day dial and tier chip sit directly
+        // below, so the credit never has to carry the verdict on any path. The flat-green lie
+        // the tint once fixed stays fixed: neutral claims no standing either.
+        return gain > 0 ? `
+      <div class="score-line">
+        <span class="k">Daily Score</span>
+        <span class="gain n">+${gain} from this meal</span>
+      </div>` : '';
+      })()}
+      <div class="prog-line">
+        ${segBar(e.met, e.total, `${e.met} of ${e.total} completed today`)}
+        <span class="pk">${e.met} of ${e.total} in today${S.streakDays > 0 ? ` · ${S.streakDays} day streak` : ''}</span>
+      </div>
+    </section>`;
+
+    const { photoBlock, breakdown } = mealReadHtml(M, { exec: e });
+
 
     // ---- 4. GROUPCHAT — the SINGLE AI-insight surface. Feedback 2026-07-16: the opening
     // used to be a wall of text nobody reads. Now it's the 5-second structured summary

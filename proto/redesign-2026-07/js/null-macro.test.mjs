@@ -53,7 +53,10 @@ test('no macros at all: nothing to say, which is the empty string the callers ex
 const TRUST_SRC = read('screens', 'trust.js');
 const COACH_SRC = read('screens', 'coach.js');
 
-for (const [name, src] of [['trust.js mealView', TRUST_SRC], ['coach.js coachMeal', COACH_SRC]]) {
+const MEAL_SRC = read('screens', 'meal.js');
+// trust.js mealView renders through meal.js mealReadHtml since 2026-09-14 (a past meal wears
+// today's design), so the tile rule is pinned there; trust.js is pinned to hand the nulls over.
+for (const [name, src] of [['meal.js mealReadHtml', MEAL_SRC], ['coach.js coachMeal', COACH_SRC]]) {
   test(`${name}: the mg helper renders null as the glyph and keeps a measured zero`, () => {
     // v == null (not falsy!): 0 must fall through to print as 0.
     assert.match(src, /const mg = \(v, unit\) => \(v == null \? '—'/);
@@ -66,10 +69,18 @@ for (const [name, src] of [['trust.js mealView', TRUST_SRC], ['coach.js coachMea
   });
 }
 
-test('trust.js mealView names the dash when a shown figure is absent', () => {
-  assert.match(TRUST_SRC, /A dash means we do not have that number for this meal\. It is not a zero\./);
+test('the shared read card names the dash when a shown figure is absent', () => {
+  assert.match(MEAL_SRC, /A dash means we do not have that number for this meal\. It is not a zero\./);
   // The note rides the same per-figure gates as the cells: only figures actually shown count.
-  assert.match(TRUST_SRC, /const someMissing = shown\.some\(\(v\) => v == null\);/);
+  assert.match(MEAL_SRC, /const someMissing = shownFigures\.some\(\(v\) => v == null\);/);
+  // And the tiles read the raw figures, never the coerced ones.
+  assert.match(MEAL_SRC, /const raw = M\.macrosRaw \|\| M\.macros;/);
+});
+
+test('trust.js pastMealDetail keeps a null figure null for the tiles', () => {
+  assert.match(TRUST_SRC, /const nz = \(v\) => \(v == null \? null : v\);/);
+  assert.match(TRUST_SRC, /macrosRaw: \{ protein: nz\(m\.protein\), carbs: nz\(m\.carbs\), fat: nz\(m\.fat\), cals: nz\(m\.kcal\) \}/);
+  assert.match(TRUST_SRC, /mealReadHtml\(M, \{ exec: null, past: true \}\)/);
 });
 
 test('coach.js coachMeal names the dash on a partial read', () => {

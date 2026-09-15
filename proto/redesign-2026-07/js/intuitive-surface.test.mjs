@@ -158,20 +158,27 @@ test('saved-meal rows (macroLine) gate protein and kcal independently', () => {
 /* ---- the past-meal view (trust.js), meal.js's history twin ---- */
 const TRUST_SRC = read('screens', 'trust.js');
 
-test('the past-meal nutrition section is per figure: macro cells behind showMacros, the kcal cell behind showCalories', () => {
-  assert.match(TRUST_SRC, /S\.planStyle\.showMacros \|\| S\.planStyle\.showCalories \? \(\(\) => \{/);
-  // The heading must live INSIDE the gated IIFE's return — a bare "Nutrition" h2 shown to a
-  // fully-hidden athlete would still be a leak even with every cell gated.
-  assert.match(TRUST_SRC, /return `<h2 class="eyebrow">Nutrition<\/h2>/);
-  const kcalCell = TRUST_SRC.split('\n').find((l) => l.includes('${mg(m.kcal,'));
+test('the past-meal screen renders through the same per-figure read card as today\'s meal', () => {
+  // Since 2026-09-14 a past meal wears today's design: trust.js calls meal.js mealReadHtml, whose
+  // nutrition strip is gated per figure (the card behind showMacros || showCalories, the macro
+  // cells behind showMacros, the calorie cell behind showCalories). Pinned at the source of the
+  // rule, and pinned that trust.js has no nutrition markup of its own any more.
+  assert.match(TRUST_SRC, /mealReadHtml\(M, \{ exec: null, past: true \}\)/);
+  assert.doesNotMatch(TRUST_SRC, /<h2 class="eyebrow">Nutrition<\/h2>/);
+  assert.doesNotMatch(TRUST_SRC, /class="macro-row/);
+  const MEAL = read('screens', 'meal.js');
+  assert.match(MEAL, /const showNums = S\.planStyle\.showMacros \|\| S\.planStyle\.showCalories;/);
+  const kcalCell = MEAL.split('\n').find((l) => l.includes("mg(raw.cals, '')"));
   assert.ok(kcalCell, 'the kcal cell still exists');
   assert.match(kcalCell, /S\.planStyle\.showCalories/);
 });
 
-test('the past-meal analysis prose needs both figure flags or a style-matched analysis', () => {
-  // A paragraph can quote any figure, so one hidden figure means only stamped prose — written
-  // for this exact style — may show. Older analyses were written in a numbers tone.
-  assert.match(TRUST_SRC, /\(S\.planStyle\.showMacros && S\.planStyle\.showCalories\) \|\| m\.styleApplied === S\.planStyle\.key/);
+test('the past-meal screen prints no stored analysis prose of its own', () => {
+  // The old twin gated a paragraph behind both figure flags. The AI's words now reach a past meal
+  // only through the thread rows, which meal-chat wrote per plan style server-side. No prose, no
+  // leak: pinned that the screen does not read m.analysis into markup at all.
+  assert.doesNotMatch(TRUST_SRC, /class="ai-note"/);
+  assert.doesNotMatch(TRUST_SRC, /esc\(m\.analysis/);
 });
 
 /* ---- the goal panel's strategy line (7 PM polish, 2026-09-06): the last sentence on Plan
@@ -277,13 +284,14 @@ test('meal.js: every calorie figure rides showCalories, every macro cell rides s
   // The analysis screen's macroRow builds its cells per figure.
   assert.match(MEAL_SRC, /if \(S\.planStyle\.showCalories\) cells\.push\(`<div class="macro"><div class="mv">\$\{m\.cals\}/);
   // The thread's value strip: kcal cell behind showCalories, the three macro cells behind showMacros.
-  const kcalCell = MEAL_SRC.split('\n').find((l) => l.includes('${tilde}${M.macros.cals}'));
+  // (Cells read through mg(raw.*) since 2026-09-14: null prints a dash, the gates are unchanged.)
+  const kcalCell = MEAL_SRC.split('\n').find((l) => l.includes("mg(raw.cals, '')"));
   assert.ok(kcalCell, 'the thread kcal cell still exists');
   assert.match(kcalCell, /S\.planStyle\.showCalories/);
-  assert.match(MEAL_SRC, /\$\{S\.planStyle\.showMacros \? `\n\s*<div class="nv lead"><div class="mv">\$\{tilde\}\$\{M\.macros\.protein\}/);
+  assert.match(MEAL_SRC, /\$\{S\.planStyle\.showMacros \? `\n\s*<div class="nv lead"><div class="mv">\$\{mg\(raw\.protein/);
   // The day bars: the calorie bar (value and target) behind showCalories, protein behind showMacros.
-  assert.match(MEAL_SRC, /S\.planStyle\.showCalories \? \[\['Calories', M\.macros\.cals, T\.calories/);
-  assert.match(MEAL_SRC, /S\.planStyle\.showMacros \? \[\['Protein', M\.macros\.protein, T\.protein/);
+  assert.match(MEAL_SRC, /S\.planStyle\.showCalories \? \[\['Calories', raw\.cals, T\.calories/);
+  assert.match(MEAL_SRC, /S\.planStyle\.showMacros \? \[\['Protein', raw\.protein, T\.protein/);
   // paceNote quotes a protein figure, so its input rides showMacros too — the card can be
   // visible for the calorie bar alone.
   assert.match(MEAL_SRC, /const projectedTotal = S\.planStyle\.showMacros && T\.protein/);

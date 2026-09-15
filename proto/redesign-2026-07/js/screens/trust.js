@@ -1,4 +1,4 @@
-import { S, RT } from '../state.js';
+import { S, RT, tier } from '../state.js';
 import { DAY, MEAL_KEYS } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg, emptyState, errorState, skeletonRows, segBar } from '../components.js';
@@ -7,9 +7,9 @@ import { cachedMealPhoto, warmMealPhotos, resolveMealPhoto } from '../photo-stor
 import { shortDate, weekdayLong } from '../fmt-date.js';
 import { fetchRecentMeals, daysAgoISO, fetchMealComments, postMealComment, deleteMealComment, uploadChatPhoto, fetchThreadParticipants, signedMealPhotoUrl, signedMealPhotoUrls } from '../roles.js';
 import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos, wireComposerAttach, postChatMessage } from '../chat-attach.js';
-import { threadMessages, reactionGroups, REACTION_EMOJI } from '../meal-intel.js';
+import { threadMessages, reactionGroups, REACTION_EMOJI, normalizeDetected } from '../meal-intel.js';
 import { wireTapback } from '../tapback.js';
-import { miniDial } from './meal.js';
+import { mealReadHtml } from './meal.js';
 import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isEscalated, quotedFor,
   dayLabelOf, participantList, participantSummary, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml,
 } from '../chat-view.js';
@@ -32,6 +32,7 @@ const mvDay = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${d.g
 import { composer } from '../components.js';
 import { openImageViewer } from '../image-viewer.js';
 import { wireReadMore } from '../thread-readmore.js';
+import { focusComposer } from '../keyboard.js';
 
 /* ---------- Trust Pass detail: the earned camera-free reward, rules visible (0196) ----------
    Two active shapes (credits / window) plus a not-earned state with real progress. The old decay
@@ -389,11 +390,11 @@ function mountThread(root, mealId, meal) {
     const people = participantList(participants, RT.userId);
     if (people.length === membersPainted) return;
     membersPainted = people.length;
+    // The same one-row header the meal page's Team discussion wears: faces, title, who is in it.
     membersSlot.innerHTML = `
-      <button class="facepile" id="mv-members" aria-label="Who can see this conversation">
+      <button class="facepile disc-fp" id="mv-members" aria-label="Who can see this conversation">
         <span class="fp">${people.slice(0, 4).map((p) => `<span class="fpav ${esc(p.kind === 'ai' ? 'ai' : p.self ? 'self' : 'other')}"${p.kind !== 'ai' && p.id ? ` data-avatar-uid="${esc(p.id)}"` : ''}>${p.kind === 'ai' ? icon('sparkle', 13) : `<span data-avatar-fallback>${esc(initialsFor(p.name))}</span>`}</span>`).join('')}</span>
-        <span class="names">${esc(participantSummary(people))}<small>${people.length} in this conversation</small></span>
-        <span class="chev">${icon('chevron', 15)}</span>
+        <span class="names"><b>Team discussion</b><small>${esc(participantSummary(people))}</small></span>
       </button>`;
     const btn = membersSlot.querySelector('#mv-members');
     if (btn) btn.addEventListener('click', () => openMembersSheet(participantList(participants, RT.userId)));
@@ -482,8 +483,37 @@ function mountThread(root, mealId, meal) {
   if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); void submit(); } });
 }
 
+/* A meals row in the mealDetail() shape, so a past plate renders through the SAME read card and
+   breakdown as today's (meal.js mealReadHtml). Nothing is recomputed: the stored row is the read. */
+export function pastMealDetail(m) {
+  const cap = (x) => (x ? x.charAt(0).toUpperCase() + x.slice(1) : 'Meal');
+  const nz = (v) => (v == null ? null : v);
+  const late = typeof m.minutes_late === 'number' ? Math.max(0, m.minutes_late) : 0;
+  const rich = normalizeDetected(m.detected);
+  return {
+    slot: m.type || 'meal', name: cap(m.type), dish: m.name || '', logged: true, mealId: m.id,
+    loggedAt: fmtLoggedAt(m.logged_at) || null, minutesLate: late, late: late > 0,
+    score: m.quality != null ? m.quality : null,
+    // Two views of the same four numbers. `macros` is coerced for the scoring helpers (reasons,
+    // rubric), which do arithmetic; `macrosRaw` keeps null so the tiles can print a dash for a
+    // figure this row never had. null and 0 are different facts.
+    macros: { protein: m.protein || 0, carbs: m.carbs || 0, fat: m.fat || 0, cals: m.kcal || 0 },
+    macrosRaw: { protein: nz(m.protein), carbs: nz(m.carbs), fat: nz(m.fat), cals: nz(m.kcal) },
+    fiber: m.fiber || 0, detectedRich: rich, foods: rich.map((d) => d.name),
+    // A stored plate with a photo was read from it; without one it was entered by hand. The row
+    // does not keep the source, so this is the honest reading of what it does keep.
+    source: m.photo_path ? null : 'manual',
+    hasPhoto: !!m.photo_path, img: null, live: true, flagged: null,
+    note: m.note || '', userNote: '', analysis: m.analysis || '', styleApplied: m.styleApplied || null,
+    photoQ: null, pending: false, pendingQuestions: null, analysisFailed: null, rereadError: null,
+    corrections: [], orig: null,
+  };
+}
+
 export const mealView = {
   tab: 'progress',
+  // Same as the meal thread: the tab bar and the camera FAB have no business over a logged meal.
+  hideTabs: true,
   render({ sub }) {
     const m = histMealById(sub) || (DIRECT.id === sub ? DIRECT.row : null);
     if (!m) {
@@ -491,87 +521,86 @@ export const mealView = {
       <div class="sidebox"><div class="req-icon b s38">${icon('clipboard', 17)}</div>
       <div><div class="tt">Couldn't open this meal</div><div class="ts">Open it from your Activity History.</div></div></div>`;
     }
-    const late = typeof m.minutes_late === 'number' && m.minutes_late > 0;
-    const name = m.name || (m.type ? m.type.charAt(0).toUpperCase() + m.type.slice(1) : 'Meal');
-    const img = m.photo_path ? cachedMealPhoto(m.photo_path) : null;
-    const when = shortDate(String(m.day_date));
-    return `
-    ${backHead(name, `${when}${fmtLoggedAt(m.logged_at) ? ` · ${fmtLoggedAt(m.logged_at)}` : ''} · ${late ? `${m.minutes_late} min late` : 'On time'}`, 'history')}
-    <div class="photo-hero" id="mv-hero" data-vt="plate" style="${img && safeImg(img) ? `background-image:url('${safeImg(img)}')` : 'background:linear-gradient(150deg, rgba(var(--green-rgb),0.14), rgba(var(--blue-deep-rgb),0.06))'}">
-      <div class="ph-grad"></div>
-      <div class="ph-meta">
-        <div>${m.photo_path ? '' : `<span class="status-pill muted">No photo submitted</span>`}</div>
-        ${/* Same brand dial as the live meal screen's chip — this twin wore a bare number while
-              every other score surface wears the mark (founder 2026-08-10: the working rings
-              ARE the logo). */''}
-        ${m.quality != null ? `<div class="scorechip ${({ g: '', a: 'mid', r: 'low' })[qualityAccent(m.quality)]}">${miniDial(m.quality)}<span class="v">${m.quality}</span><span class="k">Meal</span></div>` : ''}
+    // THE SAME DESIGN AS TODAY'S MEAL (founder 2026-09-14): this screen was a simpler twin of the
+    // meal thread and the difference showed the moment an athlete opened yesterday's plate. It now
+    // stacks the same four blocks: the logged confirmation, the read card (photo, dial, verdict,
+    // nutrition, rubric), the detected-foods drawer, and the Team discussion. Sections 2 and 3 are
+    // meal.js's own code (mealReadHtml); the confirmation carries that DAY's score instead of the
+    // live move, and the discussion mounts through this screen's thread, which already speaks to
+    // the same rows and the same AI.
+    const M = pastMealDetail(m);
+    const when = String(m.day_date);
+    const dayRow = (S.history || []).find((h) => h && h.iso === when) || null;
+    const dayScore = dayRow && dayRow.score != null ? dayRow.score : null;
+    const dayTier = dayScore != null ? tier(dayScore) : null;
+    const timing = M.loggedAt ? `Logged ${M.loggedAt} · ${M.minutesLate > 0 ? `${M.minutesLate} min late` : 'on time'}` : 'Logged';
+    const execTop = `
+    <section class="mt-confirm">
+      <div class="row1">
+        <div class="ck">${icon('check', 20)}</div>
+        <div><div class="t">${esc(M.name)} logged</div>
+        <div class="s">${esc(weekdayLong(when))} · ${esc(shortDate(when))} · ${esc(timing)}</div></div>
       </div>
+      ${dayScore != null ? `
+      <div class="score-line">
+        <span class="k">Daily Score</span>
+        <span class="to ${dayTier.cls}">${dayScore}</span>
+        <span class="tier-chip ${dayTier.cls}">${esc(dayTier.name)}</span>
+      </div>` : ''}
+    </section>`;
+    const { photoBlock, breakdown } = mealReadHtml(M, { exec: null, past: true });
+    const discussion = `
+    <section class="disc" id="meal-disc" aria-labelledby="disc-title">
+    <h2 class="sr-only" id="disc-title">Team discussion</h2>
+    <div class="disc-head">
+      <div id="mv-members-slot" style="flex:1;min-width:0"><div class="disc-fp"><span class="names"><b>Team discussion</b></span></div></div>
+      <button type="button" class="disc-open" id="open-full-chat" aria-label="Open the full conversation at this meal">Open ${icon('chevron', 14)}</button>
     </div>
-    ${Array.isArray(m.detected) && m.detected.length ? `
-    <h2 class="eyebrow">Detected</h2>
-    <div class="foodchips">${m.detected.slice(0, 8).map((f) => `<span class="foodchip"><span class="dot"></span>${esc(String(f))}</span>`).join('')}</div>` : ''}
-    ${/* INTUITIVE (0142): this twin of the live meal screen was the last surface reading a
-          stored meal's numbers back to the athlete — a meal whose macros were hidden on the day
-          it was logged must not reveal them from history. Same gates as meal.js, per figure:
-          protein/carbs/fat behind showMacros, the calorie cell behind showCalories (a
-          professional can hide calories alone); prose needs both flags or the styleApplied
-          stamp (older analyses were written in a numbers tone). The numbers stay stored;
-          coaches and dietitians read them in their own views. */''}
-    ${S.planStyle.showMacros || S.planStyle.showCalories ? (() => {
-      /* A macro the read never returned is ABSENT, not zero. `|| 0` printed "0g carbs · 0g fat"
-         beside 52g protein and 780 calories on this athlete's own record — the exact plate the
-         2026-09-08 fix cured on the professional's twin of this screen (coach.js coachMeal), and
-         this is the third renderer the gotcha list warns about. Same rule, same glyph: null and 0
-         are different facts; a real measured zero still prints 0. These rows come straight off
-         the meals table (fetchRecentMeals / fetchMealById select raw columns), so null survives
-         to here and the fix is render-side only. */
-      const mg = (v, unit) => (v == null ? '—' : `${v}${unit}`);
-      const shown = [
-        ...(S.planStyle.showMacros ? [m.protein, m.carbs, m.fat] : []),
-        ...(S.planStyle.showCalories ? [m.kcal] : []),
-      ];
-      const someMissing = shown.some((v) => v == null);
-      return `<h2 class="eyebrow">Nutrition</h2>
-    ${/* Four cells is 2x2, not four across — the density modifier the other four-up rows already
-          wear. See .macro-row.four in app.css. */''}
-    <div class="macro-row${S.planStyle.showMacros && S.planStyle.showCalories ? ' four' : ''}">
-      ${S.planStyle.showMacros ? `
-      <div class="macro"><div class="mv">${mg(m.protein, 'g')}</div><div class="mk">Protein</div></div>
-      <div class="macro"><div class="mv">${mg(m.carbs, 'g')}</div><div class="mk">Carbs</div></div>
-      <div class="macro"><div class="mv">${mg(m.fat, 'g')}</div><div class="mk">Fat</div></div>` : ''}
-      ${S.planStyle.showCalories ? `<div class="macro"><div class="mv">${mg(m.kcal, '')}</div><div class="mk">Calories</div></div>` : ''}
-    </div>
-    ${someMissing ? `<div class="est-note">A dash means we do not have that number for this meal. It is not a zero.</div>` : ''}`;
-    })() : ''}
-    ${(m.analysis || m.note) && ((S.planStyle.showMacros && S.planStyle.showCalories) || m.styleApplied === S.planStyle.key) ? `
-    <div style="height:12px"></div>
-    <div class="ai-note">
-      <div class="av">${icon('sparkle', 18)}</div>
-      <div><div class="who">AI Analysis</div><p>${esc(m.analysis || m.note)}</p></div>
-    </div>` : ''}
-    <h2 class="eyebrow" style="margin-top:16px">Conversation</h2>
-    ${/* Audience disclosure slot: mountThread paints the same facepile header the live thread
-          wears (meal.js) once the participant fetch lands. */''}
-    <div id="mv-members-slot"></div>
-    <div class="thread" id="mv-thread">
+    <div class="thread" id="mv-thread" role="log" aria-label="Meal conversation">
       <div class="msg-status">Loading…</div>
     </div>
-    ${composer({ inputId: 'mv-msg', sendId: 'mv-send', placeholder: 'Reply about this meal…', sendLabel: 'Send', attachId: 'mv-attach', atEnd: true })}
+    <div class="chat-dock disc-dock">
+    ${composer({ inputId: 'mv-msg', sendId: 'mv-send', placeholder: 'Ask about this meal…', sendLabel: 'Send', attachId: 'mv-attach', atEnd: true })}
     <div class="composer-attach-pending" id="mv-attach-pending" hidden></div>
     <div id="mv-note" style="min-height:18px"></div>
-    <div style="height:10px"></div>`;
+    </div>
+    </section>`;
+    const foot = `<div class="meal-foot">
+      <button class="btn ghost meal-back" data-go="history" aria-label="Back to history">${icon('back', 16)} Back to History</button>
+    </div>`;
+    return `<div class="meal-screen">${backHead(M.dish || M.name, '', 'history')}${execTop}${photoBlock}${breakdown}${discussion}${foot}</div>`;
   },
   mount(root, { sub }) {
     const m = histMealById(sub) || (DIRECT.id === sub ? DIRECT.row : null);
     if (!m) { void fetchMealById(sub); return; }
     mountThread(root, sub, m);
-    if (!m.photo_path) return;
+    // The two doors the read card and the header offer, wired to THIS screen's composer and to
+    // the full chat aimed at this plate (nutrition-chat.js reads the sub-route).
+    const tell = root.querySelector('#tell-ai');
+    if (tell) tell.addEventListener('click', () => focusComposer(root.querySelector('#mv-msg')));
+    const open = root.querySelector('#open-full-chat');
+    if (open) open.addEventListener('click', () => {
+      const dest = `nutrition-chat/${m.id}`;
+      if (window.__navigate) window.__navigate(dest); else location.hash = `#${dest}`;
+    });
+    // The photo, into the hero AND the blurred backdrop, exactly as the meal thread does it.
+    const photo = root.querySelector('#meal-photo');
+    const hero = root.querySelector('#meal-hero');
+    if (!m.photo_path) {
+      if (hero && photo) { photo.style.display = 'none'; hero.classList.add('ph-nophoto'); }
+      return;
+    }
     resolveMealPhoto(m.photo_path).then((url) => {
-      if (!url || !root.isConnected) return;
-      const hero = root.querySelector('#mv-hero');
+      if (!url || !root.isConnected || !photo) return;
+      photo.onerror = () => { photo.style.display = 'none'; if (hero) hero.classList.add('ph-nophoto'); };
+      photo.src = url; photo.style.display = 'block';
+      const back = root.querySelector('#meal-backdrop-img');
+      if (back) back.src = url;
       if (hero) {
-        hero.style.backgroundImage = `url('${url.replace(/'/g, '')}')`;
         hero.style.cursor = 'zoom-in';
+        hero.setAttribute('tabindex', '0');
+        hero.setAttribute('role', 'button');
+        hero.setAttribute('aria-label', 'View photo full screen');
         hero.addEventListener('click', () => openImageViewer(url, 'Meal photo', hero));
       }
     });

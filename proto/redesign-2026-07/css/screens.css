@@ -2863,6 +2863,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* The pending-photo strip and the note sit inside the dock, under the pill. */
 .disc .chat-dock .composer-attach-pending { margin-top: var(--s2); }
 
+/* The read card's "a dash is not a zero" line, inside the card under the tiles. */
+.meal-read .nut-note { padding: 0 var(--s4) var(--s2h); }
+
 /* ---- the pill means ONE thing ----
    .xpill was carrying eight different jobs: status, toggle state, an instruction ("Start here"),
    a property ("Optional"), a disclaimer ("Tracked · not scored"), a deadline, an alert count and
