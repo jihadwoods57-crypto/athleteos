@@ -3517,10 +3517,15 @@ body.kb-open .meal-foot { display: none; }
 .lm-hero .lm-why:active{transform:scale(0.92)}
 /* Sections: a heading, then content. Space does the separating. */
 .lm-sec{margin-top:var(--s6)}
-.lm-h{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s3);margin-bottom:var(--s3)}
-.lm-h h2{font-size:var(--t-lg);font-weight:800;letter-spacing:var(--title-tight);margin:0;min-width:0}
+/* The heading never shrinks and the right-hand control wraps under it when the line is tight
+   (flex:none + wrap): at 390px "Nutrition" + "Estimated from photo · Medium confidence" is wider
+   than the row, and a crushed h2 box let its own text run into the confidence line with no gap.
+   margin-left:auto on the control keeps it right-aligned on its own wrapped line, where
+   space-between no longer can. */
+.lm-h{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:var(--s1) var(--s3);margin-bottom:var(--s3)}
+.lm-h h2{font-size:var(--t-lg);font-weight:800;letter-spacing:var(--title-tight);margin:0;flex:none}
 .lm-h .lm-hs{font-size:var(--t-sm);font-weight:600;color:var(--text-3);letter-spacing:0;margin-left:var(--s1)}
-.lm-more,.lm-conf{display:inline-flex;align-items:center;gap:var(--s1);border:none;background:none;padding:0;margin:0;color:var(--text-2);font-family:var(--font);font-size:var(--t-sm);font-weight:700;cursor:pointer;white-space:nowrap;flex:none;-webkit-tap-highlight-color:transparent}
+.lm-more,.lm-conf{display:inline-flex;align-items:center;gap:var(--s1);border:none;background:none;padding:0;margin:0 0 0 auto;color:var(--text-2);font-family:var(--font);font-size:var(--t-sm);font-weight:700;cursor:pointer;white-space:nowrap;flex:none;-webkit-tap-highlight-color:transparent}
 .lm-more:active,.lm-conf:active{opacity:0.6}
 .lm-conf{color:var(--text-3);font-weight:600;white-space:normal;text-align:right}
 /* What stood out: three rows, a filled status disc each, title heavy, the hint under it. */
