@@ -412,8 +412,35 @@ test('add-foods: a food left out of the photo joins the plate, priced, and re-sc
   assert.equal(r.meta.corrections[0].kind, 'add-foods');
 });
 
-test('add-foods with nothing priceable is a null, never a silent no-op', () => {
-  assert.equal(applyMealCorrection(platedMeta(), { kind: 'add-foods', foods: [{ name: 'moon dust' }] }), null);
+/* Was: "is a null, never a silent no-op". The intent was right and the null was the wrong way to
+   get it (founder 2026-09-14). Returning null threw the unpriced NAMES away too, so the caller
+   could only offer "that didn't line up with anything in this meal's read" about a food the
+   athlete had named perfectly well and we simply had no numbers for - while the AI's "your
+   numbers and score are updating now" sat above it in the thread. The no-op is now explicit and
+   it carries what it could not price, which is the only thing that makes the thread able to ask
+   the one useful question. */
+test('add-foods with nothing priceable reports the no-op instead of vanishing', () => {
+  const before = platedMeta();
+  const r = applyMealCorrection(before, { kind: 'add-foods', foods: [{ name: 'moon dust' }] });
+  assert.ok(r, 'a named food we cannot price is information, not nothing');
+  assert.equal(r.nothingPriced, true);
+  assert.deepEqual(r.unpriced, ['moon dust']);
+  assert.deepEqual(r.added, []);
+  assert.equal(r.moved, false);
+  assert.equal(r.kcalDelta, 0);
+  // The meal must come back untouched: no orig freeze, no corrections entry, no macro drift.
+  assert.equal(r.meta.protein, before.protein);
+  assert.equal(r.meta.kcal, before.kcal);
+  assert.equal(r.meta.quality, before.quality);
+  assert.equal(r.meta.orig, before.orig, 'a no-op must not start an audit trail');
+  assert.equal(r.meta, before, 'the SAME record, not a copy that merely matches');
+});
+
+test('a food we do have numbers for still prices, and still counts', () => {
+  const r = applyMealCorrection(platedMeta(), { kind: 'add-foods', foods: [{ name: 'Core Power' }] });
+  assert.ok(r && !r.nothingPriced, 'Core Power is a staple in this product and must be priceable');
+  assert.deepEqual(r.unpriced, []);
+  assert.ok(r.meta.protein > platedMeta().protein, 'a protein shake moves protein');
 });
 
 /* ---------------- quality label and quality colour share one floor ---------------- */

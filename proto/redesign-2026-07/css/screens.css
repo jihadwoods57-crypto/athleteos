@@ -734,6 +734,13 @@
   opacity:0; transform:translateY(6px);
 }
 .corr-card.in{ transition:opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out); opacity:1; transform:none; }
+/* DEPTH, BECAUSE THE CARD IS AN ANSWER ARRIVING (founder 2026-09-14: "a quick, high quality 3D
+   animation, letting me know it's updating and that it updated"). The card hinges in from the
+   top edge rather than sliding up flat: perspective on the row, rotateX on the card, one shot,
+   ease-out. Transforms only, so nothing here touches a layout property. */
+#corr-fx{perspective:900px}
+.corr-card{transform-origin:top center}
+.corr-card:not(.in){transform:translateY(6px) rotateX(-14deg)}
 .corr-head{
   display:flex; align-items:center; gap:var(--s1h); color:var(--green-bright);
   font-size:var(--t-eyebrow); font-weight:800; letter-spacing:var(--track-eyebrow);
@@ -746,13 +753,16 @@
    symmetric loops (DESIGN.md amendment 2026-08-25) and this is exactly one. */
 .corr-spin{
   width:13px; height:13px; flex:none; border-radius:var(--r-pill);
-  border:2px solid rgba(var(--green-rgb), 0.25); border-top-color:var(--green-bright);
+  border:2px solid rgba(var(--blue-rgb), 0.25); border-top-color:var(--blue-bright);
   animation:corr-spin 620ms linear infinite;
 }
 @keyframes corr-spin{to{transform:rotate(360deg)}}
 /* While it is working the card is neutral: the green edge is the verdict, and the verdict has
-   not arrived yet. */
+   not arrived yet. The HEADING was green throughout regardless (2026-09-14), which announced the
+   result during the wait and left "Updated" with nothing to change into. */
 .corr-card:not(.landed){border-color:var(--hairline)}
+.corr-card:not(.landed) .corr-head{color:var(--text-3)}
+.corr-card.landed .corr-head{transition:color var(--dur-2) var(--ease-out)}
 .corr-row{
   display:flex; align-items:baseline; justify-content:space-between; gap:var(--s3);
   padding:var(--s1h) 0; border-top:1px solid var(--hairline-soft);
@@ -773,12 +783,32 @@
   display:inline-block; animation:corr-pend 1.1s var(--ease-in-out) infinite;
 }
 @keyframes corr-pend{0%,100%{opacity:.45}50%{opacity:.9}}
+/* THE SCORE ROW IS THE ANSWER. The macros are the cause; "did it actually update the score" is
+   the question the athlete asked, so that row is heavier and it is the one that turns. */
+.corr-row.corr-score{border-top:1px solid var(--hairline); margin-top:var(--s1h); padding-top:var(--s2h)}
+/* flex:none, not white-space alone: the label is a flex item and it was being SHRUNK below its
+   content width by the bigger score value beside it, so it wrapped to two lines. */
+.corr-row.corr-score .ck{color:var(--text); white-space:nowrap; flex:none}
+.corr-row.corr-score .cv b{font-size:var(--t-xl)}
+.corr-row.corr-score .cv b.good{color:var(--green-bright)}
+.corr-row.corr-score .cv b.mid{color:var(--amber-bright)}
+.corr-row.corr-score .cv b.low{color:var(--red-bright)}
+/* The turn: the value rotates on X to its new face as it lands. 360ms is long enough to read as
+   a physical flip and short enough that nobody is waiting on it. Backface stays visible because
+   the glyph is the same element throughout; this is a turn, not a two-sided card. */
+.corr-row.corr-score .cv b.turn{animation:corr-turn 360ms var(--ease-out-quart) both}
+@keyframes corr-turn{
+  from{transform:perspective(420px) rotateX(-88deg); opacity:.25}
+  to{transform:perspective(420px) rotateX(0); opacity:1}
+}
 /* One exhale as the last value lands. No loop: the number has finished changing. */
 .corr-card.landed{box-shadow:0 0 0 1px var(--green-border), 0 10px 26px rgba(var(--green-rgb), 0.16)}
 .corr-card.landed .corr-head svg{animation:corr-pop var(--dur-2) var(--ease-out)}
 @keyframes corr-pop{from{transform:scale(0.6);opacity:0}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion: reduce){
   .corr-card{opacity:1;transform:none}
+  .corr-card:not(.in){transform:none}
+  .corr-row.corr-score .cv b.turn{animation:none}
   .corr-card.in{transition:none}
   .corr-card.landed .corr-head svg{animation:none}
   .corr-spin{animation:none}

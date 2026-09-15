@@ -1513,13 +1513,13 @@ export const thread = {
           <div class="corr-card" role="status">
             <div class="corr-head">${corrFx.done ? icon('check', 14) : '<span class="corr-spin" aria-hidden="true"></span>'}<span>${corrFx.done ? 'Updated' : 'Recomputing'}</span></div>
             ${corrFx.rows.map((r) => `
-              <div class="corr-row">
+              <div class="corr-row${r.score ? ' corr-score' : ''}">
                 <span class="ck">${esc(r.label)}</span>
                 ${/* While it is working the destination is a placeholder, not the old value
                       repeated: "24g -> 24g" is the shape of a change that did not happen, which
                       is the exact thing this card exists to disprove. */''}
                 <span class="cv"><i class="was">${esc(r.fromText)}</i>${icon('arrowRight', 12)}${corrFx.done
-                  ? `<b data-fx-from="${r.from}" data-fx-to="${r.to}" data-fx-unit="${esc(r.unit || '')}">${esc(r.fromText)}</b>`
+                  ? `<b class="${esc(r.band)}" data-fx-from="${r.from}" data-fx-to="${r.to}" data-fx-unit="${esc(r.unit || '')}">${esc(r.fromText)}</b>`
                   : '<b class="pend" aria-hidden="true"></b>'}</span>
               </div>`).join('')}
           </div>
@@ -1558,7 +1558,17 @@ export const thread = {
           n.textContent = String(Math.round(a + (b - a) * e)) + (n.dataset.fxUnit || '');
         }
         if (p < 1) requestAnimationFrame(step);
-        else { nums.forEach(settle); card.classList.add('landed'); buzz('reveal'); }
+        else {
+          nums.forEach(settle);
+          card.classList.add('landed');
+          /* THE SCORE TURNS OVER. The macros counted; the score is the answer, so it gets a
+             physical beat of its own: the value rotates on X to its new face and arrives in its
+             new band colour. One 360ms turn, after the counting, so the eye has somewhere to
+             finish rather than four numbers all stopping at once. */
+          const sc = card.querySelector('.corr-score b');
+          if (sc) sc.classList.add('turn');
+          buzz('reveal');
+        }
       };
       requestAnimationFrame(step);
     };
@@ -1580,7 +1590,15 @@ export const thread = {
         .map(([label, a, b, unit]) => ({
           label, unit, from: Math.round(+a), to: Math.round(+b),
           fromText: Math.round(+a) + (unit || ''),
+          /* The score is the row the athlete actually asked about ("did it update the score?"),
+             so it is the one that gets the weight and the turn. It also carries its band, so the
+             number lands in the colour it now belongs to rather than in plain ink. */
+          score: label === 'Meal score',
+          band: label === 'Meal score' ? ((qualityBand(Math.round(+b)) || {}).cls || '') : '',
         }));
+      // Score last: the macros are the cause, the score is the consequence, and the consequence
+      // is what the turn at the end of the sequence should be about.
+      rows.sort((x, y) => (x.score ? 1 : 0) - (y.score ? 1 : 0));
       corrFx = rows.length ? { rows } : null;
     };
 
@@ -2119,6 +2137,19 @@ export const thread = {
             // thread admits it in the same breath and hands them the panel that always works.
             if (!applied) {
               setNote("That didn't line up with anything in this meal's read, so your numbers haven't changed. Tell me which food you mean, or what was on the plate, and I'll put it in.");
+              focusMealComposer();
+              if (window.__render) window.__render();
+              return;
+            }
+            /* NOTHING COUNTED IS ITS OWN ANSWER (2026-09-14). The AI has already said "your
+               numbers and score are updating now" by the time this runs, so the one thing the
+               thread must never do is go quiet on a correction that changed nothing. Two shapes:
+               some foods priced and some did not, or none did at all. The second used to be
+               indistinguishable from "I could not find that food in your read", because the
+               reducer returned null and the unpriced names died with it. */
+            if (applied.nothingPriced) {
+              const names = (applied.unpriced || []).join(' or ');
+              setNote(`Your numbers have not changed: I have nothing on file for ${names}. Tell me the protein and calories on the label, or what it is closest to, and I will count it properly.`);
               focusMealComposer();
               if (window.__render) window.__render();
               return;

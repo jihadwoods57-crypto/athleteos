@@ -1554,7 +1554,18 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
       rich.push(row);
       applied.push({ name: nm, quantity: fq || undefined, per: pr, basis });
     }
-    if (!applied.length) return null;
+    /* NOTHING PRICED IS NOT NOTHING HAPPENED (founder 2026-09-14). Returning null here threw the
+       `unpriced` list away with it, so the caller could only say "that didn't line up with
+       anything in this meal's read" about a food the athlete had named correctly and we simply
+       had no numbers for. Meanwhile the AI had already said "your numbers and score are updating
+       now". The meal is returned UNTOUCHED (src, not next: no orig freeze, no log entry for a
+       no-op) and the names ride out, so the thread can name exactly what it could not count and
+       ask for the one thing that would fix it. */
+    if (!applied.length) {
+      return unpriced.length
+        ? { meta: src, summary: '', kcalDelta: 0, added: [], unpriced, moved: false, nothingPriced: true }
+        : null;
+    }
     next.detectedRich = rich;
     next.foods = [...(Array.isArray(src.foods) ? src.foods : []), ...applied.map((a) => a.name)].slice(0, 12);
     if (hadItems) {

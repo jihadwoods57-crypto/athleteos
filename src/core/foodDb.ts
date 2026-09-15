@@ -67,6 +67,12 @@ export const FOOD_DB: readonly FoodItem[] = [
   { id: 'black-beans', name: 'Black beans', serving: '1/2 cup', category: 'protein', per: m(8, 114, 20, 0), aliases: ['legumes'] },
   { id: 'lentils', name: 'Lentils', serving: '1/2 cup', category: 'protein', per: m(9, 115, 20, 0), aliases: ['legumes', 'dal'] },
   { id: 'whey-protein', name: 'Whey protein (1 scoop)', serving: '1 scoop', category: 'protein', per: m(24, 120, 3, 1), aliases: ['protein powder', 'shake'] },
+  /* Core Power (founder 2026-09-14). "I had core power with this" priced at nothing, so the whole
+     correction was refused and the athlete's score never moved while the AI said it was updating.
+     Two bottles, because guessing the big one overstates protein on an accountability product:
+     a bare "Core Power" is the 14 oz, "Elite" is the 26 oz 42g. */
+  { id: 'core-power-elite', name: 'Core Power Elite (26 oz)', serving: '1 bottle', category: 'protein', per: m(42, 230, 9, 4), aliases: ['core power', 'corepower', 'core power elite', 'elite 42'] },
+  { id: 'core-power', name: 'Core Power (14 oz)', serving: '1 bottle', category: 'protein', per: m(26, 170, 8, 5), aliases: ['core power 26', 'core power original'] },
   { id: 'bacon', name: 'Bacon', serving: '3 strips', category: 'protein', per: m(9, 129, 0, 10) },
   { id: 'breakfast-sausage', name: 'Breakfast sausage', serving: '2 links', category: 'protein', per: m(8, 170, 1, 15), aliases: ['sausage', 'sausage links'] },
   { id: 'meatballs', name: 'Meatballs', serving: '3 meatballs', category: 'protein', per: m(20, 240, 8, 17), aliases: ['meatball'] },

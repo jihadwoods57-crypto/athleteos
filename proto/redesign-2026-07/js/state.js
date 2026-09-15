@@ -2391,6 +2391,15 @@ export const act = {
       applied: parts.length,
       skipped: list.length - parts.length,
     };
+    /* A CORRECTION THAT PRICED NOTHING MOVED NOTHING (2026-09-14). applyMealCorrection now
+       returns the named-but-unpriceable foods instead of swallowing them with a null, so the
+       thread can say what it could not count. That result carries the meal UNCHANGED, so it must
+       not write a day, mirror a row, count toward the correction-rate metric, or teach the model:
+       nothing happened except that we learned we are missing a food. The caller still gets `r`,
+       and `r.unpriced` is what it speaks from. */
+    if (parts.every(({ r: one }) => one && one.nothingPriced)) {
+      return { ...r, meta: meta0, before: r.before, applied: 0, nothingPriced: true };
+    }
     DAY.slotMacros[slot] = r.meta;
     pushDay(RT.userId);
     for (const { c } of parts) {
