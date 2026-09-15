@@ -48,7 +48,7 @@ function wakeupSection(rows, loading) {
     ? `${s.onStandard} On standard · ${s.late} Late · ${s.missed} Missed`
     : 'Your first one is today';
   return `
-    <h2 class="eyebrow">Wake-Up Standard <span class="opt">· ${esc(line)}</span></h2>
+    <h2 class="eyebrow">Roll call <span class="opt">· ${esc(line)}</span></h2>
     <section class="card rows">
       ${h.slice(0, 30).map((x) => {
         const [cls, label] = VERDICT_PILL[x.verdict] || ['muted', x.verdict];
@@ -69,7 +69,7 @@ export default {
   render() {
     if (FAILED === `${RANGE}:${todayISO()}`) {
       return `
-      ${backHead('Morning Readiness', 'Verified commitments', 'progress')}
+      ${backHead('Roll call record', 'Verified commitments', 'progress')}
       ${errorState({ title: "Couldn't load your record", body: 'Nothing was lost. Reconnect and it loads right here.', retryId: 'mr-retry' })}`;
     }
     const rows = ROWS || [];
@@ -79,7 +79,7 @@ export default {
 
     if (!loading && !rows.length) {
       return `
-      ${backHead('Morning Readiness', 'Verified commitments', 'progress')}
+      ${backHead('Roll call record', 'Verified commitments', 'progress')}
       ${emptyState({
         icon: 'clock',
         title: 'Nothing to show yet',
@@ -92,7 +92,7 @@ export default {
     }
 
     return `
-    ${backHead('Morning Readiness', `Last ${RANGE} days`, 'progress')}
+    ${backHead('Roll call record', `Last ${RANGE} days`, 'progress')}
 
     <section class="card pad" style="text-align:center">
       ${/* Neutral ink, not green: green means "done / on standard" and a 38% painted in the

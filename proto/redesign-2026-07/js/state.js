@@ -3469,6 +3469,42 @@ export const act = {
   /* Send a password-reset email. Neutral by design — we never reveal whether an account exists,
      so the same confirmation shows regardless (anti account-enumeration). The link lands on the
      configured recovery target; completing the reset (setting the new password) is handled there. */
+  /* Change the signed-in password IN the app (2026-09-15). The current password is proved
+     first with signInWithPassword on the signed-in address, which refreshes the same session
+     rather than signing anyone out; only then does updateUser set the new one. A wrong current
+     password is the one error worth naming; everything else is the server's own message. */
+  async changePassword({ current, next } = {}) {
+    const sb = window.sb;
+    if (!sb) return { ok: false, error: 'Not connected. Try again in a moment.' };
+    const email = String(RT.email || '').trim();
+    if (!email) return { ok: false, error: 'Sign in again first.' };
+    if (!current || !next) return { ok: false, error: 'Enter your current and new password.' };
+    try {
+      const { error: authErr } = await sb.auth.signInWithPassword({ email, password: current });
+      if (authErr) return { ok: false, error: /invalid|credential/i.test(String(authErr.message || '')) ? "That current password isn't right." : friendlyAuth(authErr.message) };
+      const { error } = await sb.auth.updateUser({ password: next });
+      if (error) return { ok: false, error: friendlyAuth(error.message) };
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: friendlyAuth(e && e.message) };
+    }
+  },
+  /* Start an email change (2026-09-15). GoTrue (double_confirm_changes on in prod) mails both
+     addresses; the session's email flips only once both confirm, so nothing here writes RT.email:
+     the next boot reads it from the session, exactly as sign-in does. */
+  async changeEmail(nextEmail) {
+    const sb = window.sb;
+    if (!sb) return { ok: false, error: 'Not connected. Try again in a moment.' };
+    const addr = String(nextEmail || '').trim().toLowerCase();
+    if (!addr) return { ok: false, error: 'Enter the new email.' };
+    try {
+      const { error } = await sb.auth.updateUser({ email: addr });
+      if (error) return { ok: false, error: friendlyAuth(error.message) };
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: friendlyAuth(e && e.message) };
+    }
+  },
   async requestPasswordReset(email) {
     const sb = window.sb;
     const addr = (email || '').trim();

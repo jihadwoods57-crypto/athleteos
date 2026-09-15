@@ -1,3 +1,4 @@
+import { RT } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc } from '../components.js';
 import { morningSummary, wakeClock, WAKEUP_TYPE } from '../wakeup-morning.js';
@@ -35,12 +36,20 @@ function needRow(r) {
   </div>`;
 }
 
+/* The book's own home: a trainer's practice lands on #trainer, a coach's team on #coach-home.
+   Written here rather than imported from coach-connected.js (bookBack) so this screen has no
+   import from the connected-standards module. */
+const homeOf = () => (RT.authRole === 'trainer' ? 'trainer' : 'coach-home');
+
 export default {
-  nav: 'coach', tab: 'home',
+  // 'operator', not 'coach': the router admits coach AND trainer under 'operator', and the Home
+  // card hands every operator here once the window shuts. Under 'coach' a trainer got the
+  // not-permitted screen for their own roll call's summary.
+  nav: 'operator', tab: 'home',
   render() {
     const inst = instanceOf();
     if (!inst) {
-      return `${backHead('This morning', '', 'coach-home')}
+      return `${backHead('This morning', '', homeOf())}
       <div class="sidebox">
         <div class="req-icon muted s38">${icon('clock', 17)}</div>
         <div><div class="tt">No wake-up was set</div>
@@ -51,7 +60,7 @@ export default {
     const s = morningSummary(inst);
     const pct = s.total ? Math.round((s.onTime / s.total) * 100) : 0;
     return `
-    ${backHead('This morning', `${esc(inst.title || 'Team wake-up')} · ${esc(inst.audience_label || 'Everyone')}`, 'coach-home')}
+    ${backHead('This morning', `${esc(inst.title || 'Roll call')} · ${esc(inst.audience_label || 'Everyone')}`, homeOf())}
 
     <section class="wk-pulse">
       <div class="wk-k">Up on time</div>

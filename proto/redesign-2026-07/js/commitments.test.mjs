@@ -90,7 +90,7 @@ test('the coach action label and title win over the product defaults', () => {
 
 test('a commitment with no title falls back to its type label, never to an empty header', () => {
   const d = deriveCommitment({ ...rollCall, title: '' }, '2026-07-22T08:50:00Z', EDT);
-  assert.equal(d.title, 'Morning Roll Call');
+  assert.equal(d.title, 'Roll call');
 });
 
 test('an acknowledged roll call collapses to a confirmation with the exact time', () => {

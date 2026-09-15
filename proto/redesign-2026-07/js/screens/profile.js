@@ -1,14 +1,8 @@
 import { S, RT } from '../state.js';
+import { avatarControlHtml, wireAvatarUpload } from '../avatar-upload.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg } from '../components.js';
 import { dir, debounce } from '../ob-directory.js';
-
-function avatarEl(size = 62) {
-  const a = S.athlete;
-  return a.avatar && safeImg(a.avatar)
-    ? `<div class="big-av" style="width:${size}px;height:${size}px;background-image:url('${safeImg(a.avatar)}');background-size:cover;background-position:center"></div>`
-    : `<div class="big-av" style="width:${size}px;height:${size}px" data-avatar-uid="${esc(RT.userId || '')}" data-avatar-ver="${esc(RT.avatarVer || '')}"><span data-avatar-fallback>${esc(a.initials)}</span></div>`;
-}
 
 /* An external row: same .lrow shape as everything else in the group, but an <a> so the WebView
    hands the link to the system (mail app, Safari). Mirrors settings.js terms' ext(). */
@@ -25,196 +19,124 @@ export default {
   tab: 'profile',
   render() {
     const t = S.pass;
-    return `
-    <h1 class="screen-title">Profile</h1>
-
-    <section class="card id-card">
-      <div style="position:relative" id="avatar-wrap">
-        ${avatarEl()}
-        <!-- Pushed clear of the glyphs and given a canvas ring: at -6px the 28px badge overlapped
-             the initials, so "MR" read as "MP". The 44px hit area is unchanged. -->
-        <div id="avatar-btn" style="position:absolute;bottom:-10px;right:-10px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer" title="Upload photo" aria-label="Upload photo"><span class="req-badge b" style="position:static;width:26px;height:26px;place-items:center;border:2px solid var(--bg);box-shadow:0 2px 6px rgba(0,0,0,0.4)">${icon('camera', 13)}</span></div>
-        <input type="file" id="avatar-file" accept="image/*" style="display:none" />
+    const a = S.athlete;
+    const e = S.exec || {};
+    // THE HERO (founder 2026-09-15: "improve the player profile design but not complicate it.
+    // Include their profile picture"). The person leads: a large photo with the camera badge
+    // on it, the name, the one line that places them, and three facts they earned. Everything
+    // below is the same rows, in six groups instead of eleven, with the doors that went to the
+    // same place folded into one.
+    const place = S.audience === 'client'
+      ? [S.planGoalLabel || 'Personal plan', S.coach.kind === 'trainer' ? S.coach.team : ''].filter(Boolean).join(' · ')
+      : [a.sport, a.position, a.school].filter(Boolean).join(' · ');
+    const placeLine = place
+      ? `<div class="pf-meta">${esc(place)}</div>`
+      : `<div class="pf-meta meta-add" data-go="edit-profile" role="button" tabindex="0">Add your sport and school</div>`;
+    const hero = `
+    <section class="pf-hero">
+      ${avatarControlHtml({ uid: RT.userId, initials: a.initials, size: 88, editable: true })}
+      <div class="pf-id">
+        <div class="pf-name">${esc(a.name)}</div>
+        ${placeLine}
       </div>
-      <div class="id-txt">
-        <div class="nm">${esc(S.athlete.name)}</div>
-        ${S.audience === 'client' ? `
-        <div class="meta">${esc(S.planGoalLabel || 'Personal plan')}</div>
-        ${S.coach.kind === 'trainer' && S.coach.team ? `<div class="meta" style="margin-top:1px">${esc(S.coach.team)}</div>` : ''}` : `
-        <!-- When these are empty they read "Add your sport" / "Add your school": an instruction
-             with nowhere to go, since only the Edit button was tappable. An empty prompt is a
-             control; give it the affordance it was already claiming. -->
-        ${[S.athlete.sport, S.athlete.position].filter(Boolean).length
-    ? `<div class="meta">${esc([S.athlete.sport, S.athlete.position].filter(Boolean).join(' · '))}</div>`
-    : `<div class="meta meta-add" data-go="edit-profile" role="button" tabindex="0">Add your sport</div>`}
-        ${S.athlete.school
-    ? `<div class="meta" style="margin-top:1px">${esc(S.athlete.school)}</div>`
-    : `<div class="meta meta-add" data-go="edit-profile" role="button" tabindex="0" style="margin-top:1px">Add your school</div>`}`}
+      <div class="pf-stats">
+        <button type="button" class="pf-stat" data-go="streak"><b>${S.streakDays}</b><small>day streak</small></button>
+        <button type="button" class="pf-stat" data-go="score-breakdown"><b>${e.score != null ? e.score : '–'}</b><small>today</small></button>
+        <button type="button" class="pf-stat" data-go="score-explained"><b class="${esc(S.tier.cls || '')}">${esc(S.tier.name || '–')}</b><small>standing</small></button>
       </div>
-      <button class="btn ghost sm" style="width:auto;padding:0 16px;height:44px" data-go="edit-profile">Edit</button>
-    </section>
+      <button class="btn ghost sm pf-edit" data-go="edit-profile">Edit profile</button>
+    </section>`;
 
-    ${t.active ? `
-    <div style="height:12px"></div>
-    <div class="trust" data-go="trust" style="cursor:pointer">
-      <div class="ic">${icon('shield', 20)}</div>
-      <div style="flex:1">
-        <div class="tt">${t.kind === 'credits' ? `Trust Pass active · ${t.left} left` : `Trust Pass active · day ${t.day} of ${t.length}`}</div>
-        <div class="ts">Earned with ${(RT.passPolicy || { eligibility_days: 7 }).eligibility_days} photo-logged days. Tap for the rules.</div>
-      </div>
-      ${icon('chevron', 18, 'style="color:var(--text-3)"')}
-    </div>` : ''}
-
-    <h2 class="eyebrow">${S.coach.kind === 'trainer' ? 'Trainer' : 'Coach'} Connection</h2>
-    ${S.coach.hasCoach ? `
+    const coachNoun = S.coach.kind === 'trainer' ? 'Trainer' : 'Coach';
+    const coach = S.coach.hasCoach ? `
+    <h2 class="eyebrow">${coachNoun} Connection</h2>
     <section class="card rows">
-      <div class="lrow" style="cursor:default">
-        ${/* Identity, not a warning: the person you answer to was painted in hardcoded amber — the
-      hue this system reserves for "at risk / off pace" — so the coach read as a hazard tile on
-      the athlete's own profile. Identity wears the brand spine. */''}
-        <div class="lic" style="background:linear-gradient(150deg,var(--blue),var(--blue-deep));color:#fff;font-weight:800;font-size:var(--t-base)">${esc(S.coach.initials)}</div>
-        <div class="lm"><div class="lt">${esc(S.coach.name)}</div><div class="ls">${esc([S.coach.role, S.coach.team].filter(Boolean).join(' · '))}</div></div>
+      ${/* The person you answer to, with their real face (hydrated by uid like every thread
+            avatar), and the row IS the door to what they can see. It used to be a dead row with
+            a separate "View connection" beneath it: two rows, one fact. */''}
+      <div class="lrow" data-go="privacy">
+        <div class="lic pf-coach-av"${S.coach.id ? ` data-avatar-uid="${esc(S.coach.id)}"` : ''}><span data-avatar-fallback>${esc(S.coach.initials)}</span></div>
+        <div class="lm"><div class="lt">${esc(S.coach.name)}</div><div class="ls">${esc([S.coach.role, S.coach.team].filter(Boolean).join(' · '))} · what they can see</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
       </div>
       <div class="lrow" data-go="messages">
         <div class="lic">${icon('message', 17)}</div>
         <div class="lm"><div class="lt">Messages</div><div class="ls">${esc(S.coach.name)}'s comments land on your meals</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
-      <div class="lrow" data-go="privacy">
-        <div class="lic">${icon('eye', 17)}</div>
-        <div class="lm"><div class="lt">View connection</div><div class="ls">Exactly what ${esc(S.coach.nameMid)} can see</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        ${icon('chevron', 17, 'class="chev-dim"')}
       </div>
     </section>` : `
-    <section class="card pad">
-      <div style="font-size:15.5px;font-weight:800">Connect your coach or trainer</div>
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:4px;line-height:1.5">Share your execution, receive requirements, and communicate directly.</div>
-      <div style="display:flex;gap:10px;margin-top:12px">
-        <button class="btn primary sm" data-go="connect" style="width:auto;padding:0 22px">${icon('key', 16)} Connect</button>
-      </div>
-    </section>`}
+    <h2 class="eyebrow">${coachNoun} Connection</h2>
+    <section class="card pad pf-connect">
+      <div class="pf-connect-t">Connect your coach or trainer</div>
+      <div class="pf-connect-s">Share your execution, receive requirements, and communicate directly.</div>
+      <button class="btn primary sm pf-connect-b" data-go="connect">${icon('key', 16)} Connect</button>
+    </section>`;
 
-    ${/* Regrouped 2026-09-09 (founder, after Cal AI's profile: "nice and easy to use. I like
-          account actions and support and legal"). The same rows, sorted by the question the
-          athlete arrives with: who am I here (Account), what am I tracking (Goals & tracking),
-          the daily loop (Accountability), what the work proves (Proof), safety, help and the
-          documents (Support & legal), where to find us, and last the two destructive rows
-          (Account actions) where every platform puts them. */''}
+    const trust = t.active ? `
+    <div class="trust pf-trust" data-go="trust" role="button" tabindex="0">
+      <div class="ic">${icon('shield', 20)}</div>
+      <div class="pf-trust-t">
+        <div class="tt">${t.kind === 'credits' ? `Trust Pass active · ${t.left} left` : `Trust Pass active · day ${t.day} of ${t.length}`}</div>
+        <div class="ts">Earned with ${(RT.passPolicy || { eligibility_days: 7 }).eligibility_days} photo-logged days. Tap for the rules.</div>
+      </div>
+      ${icon('chevron', 18, 'class="chev-dim"')}
+    </div>` : '';
+
+    const row = (go, ic, title, sub, extra = '') => `
+      <div class="lrow" data-go="${go}">
+        <div class="lic${extra}">${icon(ic, 17)}</div>
+        <div class="lm"><div class="lt">${title}</div><div class="ls">${sub}</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
+      </div>`;
+
+    return `
+    <h1 class="sr-only">Profile</h1>
+    ${hero}
+    ${trust}
+    ${coach}
+
     <h2 class="eyebrow">Account</h2>
     <section class="card rows">
-      <div class="lrow" data-go="edit-profile">
-        <div class="lic">${icon('user', 17)}</div>
-        <div class="lm"><div class="lt">Personal details</div><div class="ls">Name, sport, position, school</div></div>
+      ${row('edit-profile', 'user', 'Personal details', 'Name, sport, position, school')}
+      <div class="lrow" data-go="account">
+        <div class="lic">${icon('lock', 17)}</div>
+        <div class="lm"><div class="lt">Sign-in &amp; email</div><div class="ls">${esc(RT.email || 'Password, email address')}</div></div>
         ${icon('chevron', 17, 'class="chev-dim"')}
       </div>
-      <div class="lrow" data-go="settings">
-        <div class="lic">${icon('gear', 18)}</div>
-        <div class="lm"><div class="lt">Preferences</div><div class="ls">Units, appearance, Face ID, app tour</div></div>
-        ${icon('chevron', 17, 'class="chev-dim"')}
-      </div>
-      <div class="lrow" data-go="billing">
-        <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('bolt', 17)}</div>
-        <div class="lm"><div class="lt">Plan &amp; billing</div><div class="ls">Your membership &amp; premium features</div></div>
-        ${icon('chevron', 17, 'class="chev-dim"')}
-      </div>
-      <div class="lrow" data-go="invite-parent">
-        <div class="lic">${icon('users', 17)}</div>
-        <div class="lm"><div class="lt">Invite a parent</div><div class="ls">Let a parent see your score &amp; streak</div></div>
-        ${icon('chevron', 17, 'class="chev-dim"')}
-      </div>
+      ${row('settings', 'gear', 'Preferences', 'Units, appearance, Face ID, app tour')}
+      ${row('billing', 'bolt', 'Plan &amp; billing', 'Your membership &amp; premium features', ' pf-lic-green')}
+      ${row('invite-parent', 'users', 'Invite a parent', 'Let a parent see your score &amp; streak')}
     </section>
 
-    <h2 class="eyebrow">Goals &amp; tracking</h2>
+    <h2 class="eyebrow">Tracking</h2>
     <section class="card rows">
-      <div class="lrow" data-go="plan-style">
-        <div class="lic">${icon('target', 17)}</div>
-        <div class="lm"><div class="lt">Plan style</div><div class="ls">${esc(S.planStyle.name)} · ${S.planStyle.canChoose ? 'yours to change' : esc(S.planStyle.sourceLabel)}</div></div>
-        ${icon('chevron', 17, 'class="chev-dim"')}
-      </div>
-      <div class="lrow" data-go="apple-health">
-        <div class="lic">${icon('heart', 17)}</div>
-        <div class="lm"><div class="lt">Apple Health</div><div class="ls">Steps, workouts and sleep, from your phone</div></div>
-        ${icon('chevron', 17, 'class="chev-dim"')}
-      </div>
-      <div class="lrow" data-go="notif-settings">
-        <div class="lic">${icon('bell', 18)}</div>
-        <div class="lm"><div class="lt">Tracking reminders</div><div class="ls">Tone, quiet hours</div></div>
-        ${icon('chevron', 17, 'class="chev-dim"')}
-      </div>
-      <div class="lrow" data-go="score-explained">
-        <div class="lic" style="color:var(--blue-bright)">${icon('info', 17)}</div>
-        <div class="lm"><div class="lt">Score colors explained</div><div class="ls">What every tier and meal band means</div></div>
-        ${icon('chevron', 17, 'class="chev-dim"')}
-      </div>
+      ${row('plan-style', 'target', 'Plan style', `${esc(S.planStyle.name)} · ${S.planStyle.canChoose ? 'yours to change' : esc(S.planStyle.sourceLabel)}`)}
+      ${row('apple-health', 'heart', 'Apple Health', 'Steps, workouts and sleep, from your phone')}
+      ${row('notif-settings', 'bell', 'Reminders', 'Tone, quiet hours')}
+      ${row('restrictions', 'bell', 'Food restrictions &amp; allergies', RT.allergies.length ? esc(RT.allergies.join(' · ')) : 'None declared', ' pf-lic-red')}
     </section>
 
-    <h2 class="eyebrow">Accountability</h2>
+    <h2 class="eyebrow">Your record</h2>
     <section class="card rows">
-      <div class="lrow" data-go="streak">
-        ${/* Default .lic treatment: amber is the warning hue, and a healthy streak is not a
-              warning. The flame reads fine in the neutral icon well. */''}
-        <div class="lic">${icon('flame', 18)}</div>
-        <div class="lm"><div class="lt">Streak</div><div class="ls">Days on standard · 1 grace per rolling week</div></div>
-        <span class="lv">${S.streakDays}d</span>${icon('chevron', 17, 'class="chev-dim"')}
-      </div>
-      <div class="lrow" data-go="history">
-        <div class="lic">${icon('clipboard', 17)}</div>
-        <div class="lm"><div class="lt">Activity history</div><div class="ls">The proof trail, day by day</div></div>
-        ${icon('chevron', 17, 'class="chev-dim"')}
-      </div>
-      <div class="lrow" data-go="connected-standards">
-        <div class="lic" style="color:var(--blue-bright)">${icon('bolt', 17)}</div>
-        <div class="lm"><div class="lt">Activity standards</div><div class="ls">Steps, distance and workouts · verified from your device</div></div>
-        ${icon('chevron', 17, 'class="chev-dim"')}
-      </div>
-    </section>
-
-    ${/* A trainer's adult client is not being recruited; the discipline record is a team athlete's surface. */''}
-    ${S.audience === 'client' && S.coach.kind === 'trainer' ? '' : `
-    <h2 class="eyebrow">Proof &amp; recruiting</h2>
-    <section class="card rows">
-      <div class="lrow" data-go="recruiting">
-        <div class="lic"${S.coach.hasCoach ? ' style="background:var(--green-surface);color:var(--green-bright)"' : ''}>${icon('shield', 17)}</div>
-        <div class="lm"><div class="lt">Discipline record</div><div class="ls">${S.coach.hasCoach ? 'Coach-verified · proof of the work' : 'Not verified yet · connect a coach to verify'}</div></div>
-        ${icon('chevron', 17, 'class="chev-dim"')}
-      </div>
+      ${row('history', 'clipboard', 'Activity history', 'The proof trail, day by day')}
+      ${row('connected-standards', 'bolt', 'Activity standards', 'Steps, distance and workouts · verified from your device', ' pf-lic-blue')}
+      ${S.audience === 'client' && S.coach.kind === 'trainer' ? '' : `
+      ${row('recruiting', 'shield', 'Discipline record', S.coach.hasCoach ? 'Coach-verified · proof of the work' : 'Not verified yet · connect a coach to verify', S.coach.hasCoach ? ' pf-lic-green' : '')}
       <div class="lrow" data-go="verified-profile">
-        <div class="lic" style="color:var(--blue-bright)">${icon('share', 17)}</div>
+        <div class="lic pf-lic-blue">${icon('share', 17)}</div>
         <div class="lm"><div class="lt">Verified Profile</div><div class="ls">A public page recruiters can check</div></div>
         ${icon('chevron', 17, 'class="chev-dim"')}
-      </div>
-    </section>`}
-
-    <h2 class="eyebrow">Health &amp; safety</h2>
-    <section class="card rows">
-      <div class="lrow" data-go="restrictions">
-        <div class="lic" style="background:var(--red-surface);color:var(--red)">${icon('bell', 17)}</div>
-        <div class="lm"><div class="lt">Food restrictions &amp; allergies</div><div class="ls">${RT.allergies.length ? esc(RT.allergies.join(' · ')) : 'None declared'}</div></div>
-        ${icon('chevron', 17, 'class="chev-dim"')}
-      </div>
+      </div>`}
+      ${row('score-explained', 'info', 'Score colors explained', 'What every tier and meal band means', ' pf-lic-blue')}
     </section>
 
     <h2 class="eyebrow">Support &amp; legal</h2>
     <section class="card rows">
-      <div class="lrow" data-go="feedback">
-        <div class="lic">${icon('message', 17)}</div>
-        <div class="lm"><div class="lt">Request a feature</div><div class="ls">Or report a bug, or ask us anything</div></div>
-        ${icon('chevron', 17, 'class="chev-dim"')}
-      </div>
-      ${/* The email stays beside the in-app form: someone locked out cannot file a ticket, and
-            that is exactly when they most need a human. */''}
+      ${row('feedback', 'message', 'Request a feature', 'Or report a bug, or ask us anything')}
       ${ext('mailto:support@onstandard.app', 'mail', 'Support email', 'support@onstandard.app')}
+      ${row('privacy', 'eye', 'Privacy &amp; your data', 'Who sees what · download your data')}
       ${ext('https://onstandard.app/terms', 'clipboard', 'Terms and conditions', 'The full agreement')}
       ${ext('https://onstandard.app/privacy', 'lock', 'Privacy policy', 'What we collect and why')}
-      <div class="lrow" data-go="privacy">
-        <div class="lic">${icon('eye', 17)}</div>
-        <div class="lm"><div class="lt">Privacy &amp; visibility</div><div class="ls">Who sees what · download your data</div></div>
-        ${icon('chevron', 17, 'class="chev-dim"')}
-      </div>
-    </section>
-
-    <h2 class="eyebrow">Follow us</h2>
-    <section class="card rows">
       ${ext('https://instagram.com/onstandard', 'camera', 'Instagram', '@onstandard')}
       ${ext('https://x.com/onstandard', 'external', 'X', '@onstandard')}
     </section>
@@ -223,54 +145,14 @@ export default {
     <section class="card rows">
       ${/* Two-tap confirm, wired in mount(): a single unguarded tap signed the athlete out, and
             on a shared phone that is one brush of a thumb. Disarms after ~5 seconds. */''}
-      <div class="lrow" id="pf-signout" role="button" tabindex="0"><div class="lic">${icon('back', 17)}</div><div class="lm"><div class="lt">Sign out</div><div class="ls" id="pf-signout-sub" style="display:none">You'll need your password to get back in.</div></div></div>
-      <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('trash', 17)}</div><div class="lm"><div class="lt" style="color:var(--red)">Delete account</div></div>${icon('chevron', 17, 'class="chev-dim"')}</div>
+      <div class="lrow" id="pf-signout" role="button" tabindex="0"><div class="lic">${icon('back', 17)}</div><div class="lm"><div class="lt">Sign out</div><div class="ls pf-hidden" id="pf-signout-sub">You'll need your password to get back in.</div></div></div>
+      <div class="lrow" data-go="delete-account"><div class="lic pf-lic-red-ink">${icon('trash', 17)}</div><div class="lm"><div class="lt pf-red">Delete account</div></div>${icon('chevron', 17, 'class="chev-dim"')}</div>
     </section>
 
-    <div style="height:10px"></div>
+    <div class="ac-tail"></div>
     `;
   },
   mount(root) {
-    /* Arrival check-in wears its own state, so "is this actually on" is readable from Profile
-       without opening the screen (PRODUCT.md: glanceable truth in under 3 seconds). Before this
-       the row read the same sentence whether the athlete had it armed, had never granted the
-       permission, or had it blocked in iOS Settings, so the only way to learn the answer was to
-       go looking for it.
-
-       Probed live on every mount rather than cached: the athlete may have changed the grant in
-       the Settings app since the last paint, and a row reporting last week's answer is worse
-       than a row reporting nothing. The row renders stateless and only ever GAINS a pill, so a
-       missing bridge, a refused probe, or an older build degrades to exactly today's appearance
-       instead of an empty box or a wrong claim.
-
-       Written straight into the slot instead of through __render(): mount() re-runs on every
-       render, so re-rendering from here is the infinite loop connected-standards.js documents. */
-    (async () => {
-      const slot = root.querySelector('#pf-arrival-state');
-      if (!slot) return;
-      // Built with textContent, never an HTML sink. The labels below are literals today, but a
-      // status pill is exactly the kind of thing someone later feeds a server string, and this
-      // shape makes that safe by construction instead of by remembering.
-      const paint = (cls, label) => {
-        const el = document.createElement('span');
-        el.className = `status-pill ${cls}`;
-        el.textContent = label;
-        slot.replaceWith(el);
-      };
-      // The athlete's own opt-out outranks the OS grant, exactly as it does on the screen itself:
-      // "off" they chose has to READ as off even while iOS still says 'always'.
-      if (RT.locationOptOut) { paint('muted', 'Off'); return; }
-      const loc = (typeof window !== 'undefined' && window.OnStandardNative)
-        ? window.OnStandardNative.location : null;
-      if (!loc) return;
-      let r = null;
-      try { r = await loc.available(); } catch { return; }
-      if (!slot.isConnected || !r || !r.available) return;
-      if (r.state === 'always') paint('g', 'On');
-      else if (r.state === 'when_in_use') paint('a', 'App open only');
-      else if (r.state === 'denied') paint('a', 'Blocked');
-    })();
-
     // Sign out arms on the first tap and executes on a second tap within 5 seconds; leaving it
     // alone (or tapping elsewhere and coming back) disarms. Keyboard activation comes from the
     // router's central promotion: no local keydown handler, it would double-fire.
@@ -282,121 +164,18 @@ export default {
       const disarm = () => {
         if (armTimer) { clearTimeout(armTimer); armTimer = null; }
         if (lt) lt.textContent = 'Sign out';
-        if (sub) sub.style.display = 'none';
+        if (sub) sub.classList.add('pf-hidden');
       };
       signout.addEventListener('click', () => {
         if (armTimer) { disarm(); window.__go('welcome'); return; }
         if (lt) lt.textContent = 'Tap again to sign out';
-        if (sub) sub.style.display = '';
+        if (sub) sub.classList.remove('pf-hidden');
         armTimer = setTimeout(disarm, 5000);
       });
     }
-
-    const btn = root.querySelector('#avatar-btn');
-    const file = root.querySelector('#avatar-file');
-    if (btn && file) {
-      // Injected fresh on every mount, so it needs no data-go/data-act wiring — the
-      // router only wires those at render time, but this element never touches render().
-      // Both the error line and "Remove photo" live INSIDE the identity card, under the name.
-      // They used to be injected after the card, which left a lone centred pill floating in
-      // the gap between the card and "Coach connection" with nothing to tie it to the photo
-      // it acts on (2026-09-01 polish capture).
-      const idTxt = root.querySelector('.id-card .id-txt');
-      const err = document.createElement('div');
-      err.id = 'avatar-err';
-      err.className = 'id-err';
-      idTxt?.insertAdjacentElement('beforeend', err);
-
-      let busy = false;
-      const setBusy = (on) => {
-        busy = on;
-        btn.style.opacity = on ? '0.5' : '';
-        btn.title = on ? 'Uploading photo…' : 'Upload photo';
-      };
-
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (busy) return;
-        file.click();
-      });
-      // "Remove photo" appears only once a photo exists (locally or on the server): a control for
-      // undoing something that hasn't happened is noise.
-      import('../avatar.js').then(({ avatarReady }) => {
-        if (S.athlete.avatar) return renderRemove();
-        avatarReady(RT.userId, RT.avatarVer || '').then((url) => { if (url) renderRemove(); });
-        function renderRemove() {
-          if (!err.isConnected || document.getElementById('avatar-remove')) return;
-          const rm = document.createElement('button');
-          rm.id = 'avatar-remove';
-          rm.className = 'id-act';
-          rm.type = 'button';
-          rm.textContent = 'Remove photo';
-          err.insertAdjacentElement('beforebegin', rm);
-          rm.addEventListener('click', async () => {
-            if (busy) return;
-            setBusy(true);
-            rm.disabled = true;
-            const ok = await window.__act.removeAvatar();
-            setBusy(false);
-            if (ok) { window.__render(); }
-            else { rm.disabled = false; err.textContent = "Couldn't remove it. Check your connection and try again."; }
-          });
-        }
-      });
-      file.addEventListener('change', () => {
-        const f = file.files && file.files[0];
-        // Let the SAME photo be picked again after a failed upload: a file input never fires
-        // `change` for a value it already holds, so the second tap used to do nothing at all.
-        file.value = '';
-        if (!f) return;
-        // Uploading is a state the athlete should see, not infer from a dimmed button. The
-        // line clears on success (the repaint replaces it) and is overwritten on failure.
-        err.textContent = 'Uploading your photo…';
-        setBusy(true);
-        const reader = new FileReader();
-        reader.onerror = () => {
-          setBusy(false);
-          err.textContent = "Couldn't read that photo. Try a JPG or PNG.";
-        };
-        reader.onload = () => {
-          const img = new Image();
-          img.onerror = () => {
-            setBusy(false);
-            err.textContent = "Couldn't read that photo. Try a JPG or PNG from your library.";
-          };
-          img.onload = async () => {
-            // 256px: 2x for the largest circle that renders it (the 62px id card on a 3x
-            // display), and still ~15KB as JPEG. The canvas centre-crop is unchanged.
-            const c = document.createElement('canvas');
-            const s = Math.min(img.width, img.height);
-            c.width = 256; c.height = 256;
-            const ctx = c.getContext('2d');
-            ctx.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 256, 256);
-            // The server object is the real save — it is what every connected surface paints
-            // from. The old path wrote localStorage only, so the photo died on sign-out and no
-            // coach, parent or teammate ever saw it.
-            const ok = await window.__act.setAvatar(c.toDataURL('image/jpeg', 0.82));
-            setBusy(false);
-            if (ok) { window.__render(); return; }
-            // Say what happened, in the athlete's terms. "Check your connection" was the ONLY
-            // message this line ever showed, including for the months the server refused every
-            // upload outright (0224) — a lie that sent people to their Wi-Fi settings.
-            const why = String(RT.avatarError || '');
-            err.textContent = /403|policy|unauthori[sz]ed|row-level/i.test(why)
-              ? "The server wouldn't accept the photo. That's on us, not your connection; it's been reported."
-              : /413|too large|size/i.test(why)
-                ? 'That photo is too large even after resizing. Try a different one.'
-                : /415|mime|type/i.test(why)
-                  ? 'That file type is not supported. Try a JPG or PNG.'
-                  : /network|fetch|timeout|threw/i.test(why)
-                    ? "The photo didn't upload. Check your connection and try again."
-                    : "The photo didn't upload. Try again in a moment; if it keeps failing, it's on our side.";
-          };
-          img.src = reader.result;
-        };
-        reader.readAsDataURL(f);
-      });
-    }
+    // The photo control is the shared one (avatar-upload.js); the status line and Remove sit
+    // under the name, inside the hero.
+    wireAvatarUpload(root, { errHost: '.pf-hero .pf-id', hasLocalPhoto: !!S.athlete.avatar });
   },
 };
 

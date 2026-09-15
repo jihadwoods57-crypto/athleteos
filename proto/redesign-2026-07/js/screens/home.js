@@ -1,5 +1,6 @@
 import { S, RT, act, slotHasPhoto, liveWeightPct } from '../state.js';
 import { icon } from '../icons.js';
+import { initialsOf } from '../initials.js';
 import { weekdayLong } from '../fmt-date.js';
 import { identityLine } from '../identity-line.js';
 import { appHead, scoreRing, esc, safeImg, collapseSection, emailVerifyBanner, wireEmailVerifyBanner, emptyState } from '../components.js';
@@ -1273,9 +1274,11 @@ export default {
         const extra = rows.length > 1 ? ` + ${rows.length - 1} more` : '';
         // Elevated 2026-07-16: a tinted card right under the score, not a whisper of a
         // text row — proof someone who matters opened the day is the core differentiator.
+        // The viewer's face where we know who it is (the linked coach), the eye where we don't.
+        const viewerUid = S.coach.id && (!first.viewer_name || first.viewer_name.trim() === String(S.coach.name || '').trim()) ? S.coach.id : '';
         seenRow.innerHTML = `
           <div class="seen-receipt">
-            <span class="sic">${icon('eye', 15)}</span>
+            <span class="sic${viewerUid ? ' sic-face' : ''}"${viewerUid ? ` data-avatar-uid="${esc(viewerUid)}"` : ''}>${viewerUid ? `<span data-avatar-fallback>${esc(initialsOf(who, 'C'))}</span>` : icon('eye', 15)}</span>
             <span class="stx"><b>${esc(who)}</b> saw your day${esc(extra)}</span>
             <span class="stm">${fmt(first.seen_at)}</span>
           </div>`;

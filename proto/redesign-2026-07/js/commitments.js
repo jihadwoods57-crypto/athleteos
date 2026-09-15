@@ -46,7 +46,7 @@ import { weekdayDate } from './fmt-date.js';
 export const ROLLCALL_OFF = false;
 
 export const TYPE_LABEL = {
-  morning_roll_call: 'Morning Roll Call',
+  morning_roll_call: 'Roll call',
   practice:          'Practice',
   strength:          'Strength Workout',
   speed:             'Speed Session',

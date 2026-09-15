@@ -1,5 +1,6 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
+import { avatarControlHtml, wireAvatarUpload } from '../avatar-upload.js';
 import { backHead, titleHead, logoMark, esc, copyText, sayStatus, emptyState } from '../components.js';
 import { initialsOf } from '../initials.js';
 import { accountBody, wireAccount } from './ob-account.js';
@@ -1136,7 +1137,10 @@ function cpIdCard(withHandle) {
       ${/* Identity, not a warning: amber is reserved for "at risk / off pace" (DESIGN.md), and
             the athlete-side view of a coach was already moved off it for exactly that reason
             (profile.js). Identity wears the brand spine. */''}
-      <div class="big-av" style="background:linear-gradient(150deg,var(--blue),var(--blue-deep));color:#fff">${esc(ci.initials || initialsOf(name, 'C'))}</div>
+      ${/* The coach's own photo (2026-09-15): the same control the athlete has, uploading to the
+            same object every connected surface reads from (thread avatars, facepiles, the
+            members sheet, the athlete's Coach row). Initials stay as the fallback. */''}
+      ${avatarControlHtml({ uid: RT.userId, initials: ci.initials || initialsOf(name, 'C'), size: 62, editable: true })}
       <div class="id-txt">
         <div class="nm">${esc(name)}</div>
         <div class="meta">${metaLine}</div>
@@ -1293,9 +1297,9 @@ function operatorAccountSection() {
         <div class="lm"><div class="lt">Signed in as</div><div class="ls">${esc(RT.email || 'Email unavailable, sign in again to refresh')}</div></div>
         ${RT.emailVerified === true ? '<span class="status-pill g">Verified</span>' : ''}
       </div>
-      <div class="lrow" id="acct-pass" role="button" tabindex="0">
+      <div class="lrow" data-go="account">
         <div class="lic">${icon('lock', 17)}</div>
-        <div class="lm"><div class="lt">Change password</div><div class="ls" id="acct-pass-note">We email you a secure reset link</div></div>
+        <div class="lm"><div class="lt">Sign-in &amp; email</div><div class="ls">Change your password or email in the app</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
       <div class="lrow" data-go="billing">
@@ -1316,6 +1320,8 @@ function operatorAccountSection() {
     </section>`;
 }
 function wireOperatorAccount(root) {
+  // The password row opens the Account screen now (data-go); nothing to wire. Kept as a
+  // function so its callers stay unchanged.
   const row = root.querySelector('#acct-pass');
   if (!row) return;
   let busy = false;
@@ -1371,6 +1377,7 @@ export const coachProfile = {
     // querySelector-null-guarded / forEach-over-empty), so it wires only the current section's
     // controls. Staff data is fetched only when the staff section is showing.
     if (sub === 'staff') loadStaff(RT.team && RT.team.id);
+    wireAvatarUpload(root); // the coach's own photo, when the id card rendered (self-guarding)
     wireOperatorAccount(root); // Account section (self-guarding: no-ops unless its rows rendered)
     const sStatus = root.querySelector('#staff-status');
     const sSay = (msg, isErr) => { if (sStatus) { sStatus.style.color = isErr ? 'var(--red)' : 'var(--text-3)'; sStatus.textContent = msg; } };
@@ -1557,7 +1564,7 @@ export const trainerProfile = {
       </div>
     </section>` : `
     <section class="card id-card">
-      <div class="big-av" style="background:linear-gradient(150deg,var(--${hue}),var(--${hue}-deep))">${esc(ti.initials || 'T')}</div>
+      ${avatarControlHtml({ uid: RT.userId, initials: ti.initials || 'T', size: 62, editable: true })}
       <div class="id-txt">
         <div class="nm">${esc(ti.name)}</div>
         ${/* The discipline earns its line (0197): a dietitian's HQ says what they run. Any
@@ -1700,6 +1707,7 @@ export const trainerProfile = {
     `;
   },
   mount(root) {
+    wireAvatarUpload(root); // the trainer's own photo, when the id card rendered (self-guarding)
     const ti = S.trainerIdentity;
     wireOperatorAccount(root); // Account section (email / password / billing / delete)
     const copy = root.querySelector('#copy-code');

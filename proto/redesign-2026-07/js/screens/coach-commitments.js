@@ -99,8 +99,17 @@ export function commitmentBoardCard() {
 function wakeupHomeCard(inst) {
   const now = new Date().toISOString();
   const c = verdictCounts(inst, now);
-  if (!c.total) return '';
   const phase = wakeupPhase(inst, now);
+  // Nobody on it is a fact the coach needs, not a blank: the card says so and opens the board,
+  // where the audience is set. (It used to render nothing at all.)
+  if (!c.total) {
+    return `
+    <section class="card pad vc-board wk-homecard" data-go="coach-commitments/${esc(inst.instance_id)}">
+      <h2 class="eyebrow wk-cardh">${esc(inst.title || 'Roll call')}</h2>
+      <div class="wk-ctx">${esc(inst.audience_label || (CD.kind === 'practice' ? 'All clients' : 'Entire team'))}</div>
+      <div class="wk-homeline"><div class="wk-homel">Nobody is on this roll call yet. Open it to set who gets it.</div></div>
+    </section>`;
+  }
   const ctx = [
     inst.audience_label || (CD.kind === 'practice' ? 'All clients' : 'Entire team'),
     inst.starts_min != null ? fmtMin(inst.starts_min) : '',
@@ -124,10 +133,12 @@ function wakeupHomeCard(inst) {
     <section class="card pad vc-board wk-homecard" data-go="${target}">
       <h2 class="eyebrow wk-cardh">${esc(inst.title || 'Roll call')}</h2>
       <div class="wk-ctx">${esc(ctx)}</div>
+      ${/* The bar and the number beneath it count the SAME thing (accounted for = checked in +
+            overrides + excused); they used to disagree by the overrides with nothing saying why. */''}
       ${segBar(c.accountedFor, c.total, `${c.accountedFor} of ${c.total} accounted for`)}
       <div class="wk-homeline">
-        <div class="wk-homen ${out || c.review ? '' : 'g'}">${c.checkedIn} of ${c.total}</div>
-        <div class="wk-homel">checked in${c.overrides ? ` · ${c.overrides} override${c.overrides === 1 ? '' : 's'}` : ''}</div>
+        <div class="wk-homen ${out || c.review ? '' : 'g'}">${c.accountedFor} of ${c.total}</div>
+        <div class="wk-homel">accounted for${c.overrides ? ` · ${c.overrides} override${c.overrides === 1 ? '' : 's'}` : ''}</div>
         <div class="wk-spacer"></div>
         ${pill}
       </div>
@@ -437,6 +448,7 @@ function wakeupBoard(inst, back) {
     : phase === 'before' ? 'Not open yet'
     : phase === 'open' ? 'In progress'
     : phase === 'late' ? 'Grace ended'
+    : !c.total ? 'Nobody on it'
     : (out || c.missed) ? 'Closed' : 'Complete';
   const statusLine = skipped ? 'Nobody gets a roll call this day. Put it back below to send it.'
     : ahead || phase === 'before' ? `Goes out ${clock(opensAtOf(inst))}. On standard until ${clock(dl)}. Closes ${clock(close)}.`
@@ -613,21 +625,22 @@ function athleteRow(r) {
     : r.status === 'excused' ? (r.excused_reason || 'Excused')
     : r.status === 'unverified' ? (r.unverified_reason || 'Couldn’t verify')
     : 'No response yet';
-  const presPill = '';
-  const src = '';
+  // (The arrival pill and its source line left with location check-ins on 2026-09-09. The button
+  //  below used to read `asksArrival`, a name that left with them and was never declared here:
+  //  every board with a pending athlete threw a ReferenceError inside render() and blanked.)
   return `
   <div class="lrow" role="listitem" style="align-items:flex-start">
     <div class="lm" style="flex:1">
       <div class="lt">${esc(r.name || 'Athlete')}</div>
-      <div class="ls">${esc(when)}${esc(src)}${r.corrected_by_name ? esc(` · corrected by ${r.corrected_by_name}`) : ''}</div>
+      <div class="ls">${esc(when)}${r.corrected_by_name ? esc(` · corrected by ${r.corrected_by_name}`) : ''}</div>
       ${r.disputed_at ? `<div class="ls" style="color:var(--amber-bright);font-weight:700">Reported wrong by the ${CD.noun}${r.dispute_note ? esc(`: ${r.dispute_note}`) : ''}</div>` : ''}
     </div>
     <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
-      <span class="status-pill ${cls}">${esc(label)}</span>${presPill}
+      <span class="status-pill ${cls}">${esc(label)}</span>
       <div style="display:flex;gap:6px">
         ${/* No Excuse here either (founder, 2026-09-02) — see wakeupRow. */''}
         ${r.status === 'pending' || r.status === 'unverified' || r.status === 'missed'
-          ? `<button class="chip" data-vc-mark="${esc(r.response_id)}">${asksArrival ? 'Mark arrived' : 'Mark in'}</button>` : ''}
+          ? `<button class="chip" data-vc-mark="${esc(r.response_id)}">Mark in</button>` : ''}
       </div>
     </div>
   </div>`;
@@ -1008,8 +1021,12 @@ export const coachCommitments = {
 
 /* ---------------------------------------------------------------- composer */
 
+/* The roll call has its own composer (coach-wakeup.js) with its own window, grace, alarm and
+   escalation model; offering the same type here built roll calls with none of that (no close,
+   escalation off, pre-deadline reminders), which then edited back through the other composer
+   with different defaults. One type, one composer. */
 const TYPES = [
-  'morning_roll_call', 'practice', 'strength', 'speed', 'team_meeting',
+  'practice', 'strength', 'speed', 'team_meeting',
   'study_hall', 'tutoring', 'class', 'rehab', 'nutrition',
 ];
 const DOW = ['Su', 'M', 'Tu', 'W', 'Th', 'F', 'Sa'];
@@ -1027,7 +1044,7 @@ const STARTERS = {
    composer can prefill; cleared on save so the next "Schedule a commitment" starts clean. */
 let DRAFT = null;
 const blankDraft = () => ({
-  type: 'morning_roll_call', title: TYPE_LABEL.morning_roll_call, message: '',
+  type: 'practice', title: TYPE_LABEL.practice, message: '',
   action_label: '', audience_kind: 'team', audience_value: null,
   repeat_days: [1, 2, 3, 4, 5], starts_min: 285, respond_by_min: 315,
   location_id: null, arrive_by_min: null, min_dwell_min: null,
@@ -1305,11 +1322,6 @@ export const coachCommitEdit = {
       const s = minOf(val('#vc-start')); if (s != null) d.starts_min = s;
       d.respond_by_min = minOf(val('#vc-respond'));
       d.linked_commitment_id = val('#vc-link') || null;
-      if (d.location_id) {
-        d.arrive_by_min = minOf(val('#vc-arrive'));
-        const dw = parseInt(val('#vc-dwell'), 10);
-        d.min_dwell_min = isFinite(dw) && dw >= 0 ? Math.min(480, dw) : null;
-      }
     };
 
     root.querySelectorAll('[data-type]').forEach((b) => b.addEventListener('click', () => {
@@ -1346,56 +1358,8 @@ export const coachCommitEdit = {
       window.__render && window.__render();
     }));
 
-    root.querySelectorAll('[data-place]').forEach((b) => b.addEventListener('click', () => {
-      capture();
-      d.location_id = b.getAttribute('data-place') || null;
-      // Sensible starting points the coach can override: be there 5 minutes before it starts,
-      // and stay for the length of the session if they gave one.
-      if (d.location_id && d.arrive_by_min == null) d.arrive_by_min = Math.max(0, d.starts_min - 5);
-      window.__render && window.__render();
-    }));
-
-    const newPlace = root.querySelector('#vc-newplace');
-    if (newPlace) newPlace.addEventListener('click', () => {
-      const form = root.querySelector('#vc-placeform');
-      if (form) form.hidden = !form.hidden;
-    });
-
-    const savePlace = root.querySelector('#vc-saveplace');
-    if (savePlace) savePlace.addEventListener('click', async () => {
-      const msg = root.querySelector('#vc-placemsg');
-      const name = ((root.querySelector('#vc-placename') || {}).value || '').trim();
-      if (!name) { if (msg) msg.textContent = 'Give the place a name first.'; return; }
-      const radius = Math.max(50, Math.min(1000, parseInt((root.querySelector('#vc-placeradius') || {}).value, 10) || 120));
-      const nat = typeof window !== 'undefined' && window.OnStandardNative && window.OnStandardNative.location;
-      if (!nat || !nat.place) {
-        if (msg) msg.textContent = 'Capturing a location needs the phone app; this build can’t do it.';
-        return;
-      }
-      savePlace.disabled = true; savePlace.textContent = 'Getting your location…';
-      const pos = await nat.place().catch(() => null);
-      if (!pos) {
-        savePlace.disabled = false; savePlace.textContent = 'Use my current location';
-        if (msg) msg.textContent = 'Couldn’t get a location. Check that location access is allowed, and try again standing outside.';
-        return;
-      }
-      capture();
-      const owner = bookId();
-      const row = await saveLocation({
-        name, lat: pos.lat, lng: pos.lng, radius_m: radius,
-        team_id: CD.kind === 'practice' ? null : owner,
-        practice_id: CD.kind === 'practice' ? owner : null,
-      });
-      if (!row) {
-        savePlace.disabled = false; savePlace.textContent = 'Use my current location';
-        if (msg) msg.textContent = 'Couldn’t save that place. Try again in a moment.';
-        return;
-      }
-      await loadLocations(owner, CD.kind, true);
-      d.location_id = row.id;
-      if (d.arrive_by_min == null) d.arrive_by_min = Math.max(0, d.starts_min - 5);
-      window.__render && window.__render();
-    });
+    // (The place picker, the new-place form and its geolocation round trip left with location
+    //  check-ins on 2026-09-09; the handlers that wired them outlived the markup by a week.)
 
     const save = root.querySelector('#vc-save');
     // Validation speaks in its own line, never by overwriting the button's label: a button

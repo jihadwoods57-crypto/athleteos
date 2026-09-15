@@ -82,6 +82,7 @@ const coachHome = () => import('./coach-home.js');
 const coachRoster = () => import('./coach-roster.js');
 const coachCreate = () => import('./coach-create.js');
 const settings = () => import('./settings.js');
+const accountMod = () => import('./account.js');
 const foodsearch = () => import('./foodsearch.js');
 const trust = () => import('./trust.js');
 const roles = () => import('./roles.js');
@@ -197,6 +198,7 @@ export const screens = {
   'notif-settings': lazy(settings, 'notifSettings'),
   'coach-notif-settings': lazy(settings, 'coachNotifSettings'),
   'delete-account': lazy(settings, 'deleteAccount'),
+  account: lazy(accountMod, 'account'),
   terms: lazy(settings, 'terms'),
   recruiting: lazy(features, 'recruiting'),
   restrictions: lazy(features, 'restrictions'),

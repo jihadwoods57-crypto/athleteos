@@ -353,7 +353,7 @@ function howItWorks(row, clock) {
   <details class="wk-how">
     <summary>${icon('info', 14)} How roll call works</summary>
     <div class="wk-how-body">
-      <p>Your coach set the time. At ${esc(clock(row.starts_at))} the roll call opens on your lock screen. Tap <b>I’M UP</b> there or here.</p>
+      <p>Your coach set the time. At ${esc(clock(row.starts_at))} the roll call opens on your lock screen. Tap <b>${esc(d.actionLabel)}</b> there or here.</p>
       <p>By ${esc(clock(deadlineOf(row)))} is <b>On Standard</b>${grace != null ? ` (${grace} minutes of grace)` : ''}. After that is <b>Late</b>, counted to the minute, until it closes at ${esc(clock(closesAtOf(row)))}. No answer by then is <b>Missed</b>, and stays missed.</p>
       <p>OnStandard records the exact moment your tap reaches it, on its own clock. Nothing else: no location, no phone data. The first tap stands. If your phone was offline and the tap arrived late, your coach reviews it before it counts either way.</p>
     </div>
@@ -418,7 +418,7 @@ function wakeupDetail(row, d) {
       `<button class="btn green wk-cta" data-vc-ack="${esc(row.instance_id)}">${icon('check', 20)} ${esc(d.actionLabel)}</button>`);
   } else if (phase === 'late') {
     state = card('late', 'You’re late', '', `The grace ended at ${esc(clock(dl))}. A check-in still counts, as late, until ${esc(clock(close))}. Your coach can see your status.`,
-      `<button class="btn wk-cta" data-vc-ack="${esc(row.instance_id)}">${icon('check', 20)} Check in now</button>`);
+      `<button class="btn wk-cta" data-vc-ack="${esc(row.instance_id)}">${icon('check', 20)} ${esc(d.actionLabel)}</button>`);
   } else {
     state = card('missed', 'Missed', '', `No response before the ${esc(clock(close))} close. This is recorded. If it’s wrong, tell your coach below.`);
   }

@@ -1,7 +1,7 @@
-import { S, RT, act } from '../state.js';
+import { S, RT, act, tier } from '../state.js';
 import { icon } from '../icons.js';
 import { initialsOf } from '../initials.js';
-import { avatarHead, esc, safeImg, collapseSection, skeletonRows, errorState, emptyState, emailVerifyBanner, wireEmailVerifyBanner, copyText } from '../components.js';
+import { avatarHead, esc, safeImg, collapseSection, skeletonRows, errorState, emptyState, emailVerifyBanner, wireEmailVerifyBanner, copyText, scoreRing } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope, logBookIntervention, passWorthy, bookId, seenMealSet } from '../coach-data.js';
 import { buildPriorities } from '../priority.js';
@@ -393,8 +393,13 @@ function scopeSheet() {
   </section>`;
 }
 
-/* SIGNATURE — Team Pulse standing bar: the group score in the blue→teal signature,
-   the roster's real live standing as one honest proportional bar. */
+/* THE GROUP RING (founder 2026-09-15: the coach's home should look closer to the athlete's,
+   "the ring score on the coach's home page but instead that be the group score"). The same hero
+   the athlete sees, the same ring at the same size, fed the group average: teamPulse().avg, the
+   mean of today's real scores across the scope, exactly the number the flat numeral showed. The
+   standing bar keeps its job under the ring, where the athlete's formula bar sits, and the
+   legend reads it out. Nothing is estimated; a person with no log adds no score, and a scope with
+   no scores yet shows the ring not started rather than a zero. */
 function pulseCard(rows, statuses) {
   const p = teamPulse(rows, statuses, roles.todayISO());
   if (p.avg == null && !rows.length) return '';
@@ -407,25 +412,36 @@ function pulseCard(rows, statuses) {
   const seg = (cls, c) => c ? `<span class="seg ${cls}" style="flex:${c}"></span>` : '';
   const leg = (cls, c, label) => c ? `<span class="it"><span class="dot ${cls}"></span><b>${c}</b> ${label}</span>` : '';
   const delta = p.deltaVsYesterday;
-  const dCls = delta == null ? 'flat' : delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+  const dCls = delta == null ? 'muted' : delta > 0 ? 'g' : delta < 0 ? 'r' : 'muted';
   const dTxt = delta == null ? 'First day of data' : delta === 0 ? 'Even with yesterday'
     : `${delta > 0 ? '▲' : '▼'} ${Math.abs(delta)} vs yesterday`;
   const scored = rows.filter(x => x.score != null).length;
+  const have = p.avg != null;
+  const t = have ? tier(p.avg) : null;
+  const aria = have
+    ? `Group score ${p.avg}, ${t.name}. ${g} on standard, ${a} need attention, ${r} overdue, ${d} no activity. ${p.tasksDone} of ${p.tasksTotal} requirements in today.`
+    : `Group score not started. ${rows.length} on the roster, none scored yet.`;
   return `
-  <section class="co-pulse tappable" data-pulse>
-    <div class="co-pulse-top">
-      <div class="co-pulse-score">
-        <div class="k">Group score</div>
-        <div class="num">${p.avg != null ? p.avg : '—'}</div>
-        <div class="delta ${dCls}">${esc(dTxt)}</div>
-      </div>
+  <section class="xhero co-hero tappable" data-pulse role="button" aria-label="${esc(aria)}">
+    <div class="xh-ring">
+      ${scoreRing({
+        score: have ? p.avg : 0,
+        size: 280, stroke: 17,
+        tierName: have ? t.name : null,
+        tierCls: have ? t.cls : 'b',
+        uid: 'group', notStarted: !have,
+      })}
     </div>
-    <div class="co-standing">${seg('g', g)}${seg('a', a)}${seg('r', r)}${seg('d', d)}</div>
-    <div class="co-legend">${leg('g', g, 'on standard')}${leg('a', a, 'need attention')}${leg('r', r, 'overdue')}${leg('d', d, 'no activity')}</div>
-    <div class="co-pulse-cap">${p.tasksTotal
-      ? `<b>${p.tasksDone}</b> of <b>${p.tasksTotal}</b> requirements in today`
-      : 'No requirements set for today'}</div>
-    ${SHOW_PULSE ? `<div style="border-top:1px solid var(--hairline-soft);margin-top:var(--s3);padding-top:var(--s3);font-size:12px;font-weight:600;color:var(--text-2);line-height:1.6">The group score averages today's real ${CD.noun} scores (${scored} of ${rows.length} scored so far). The bar is your roster's live standing. Nothing is estimated; a ${CD.noun} with no log adds no score.</div>` : ''}
+    <div class="xh-under">
+      <div class="xh-k">Group score</div>
+      <div class="xrow"><span class="status-pill ${dCls}">${esc(dTxt)}</span></div>
+      <div class="xh-line">${p.tasksTotal
+        ? `<b>${p.tasksDone}</b> of <b>${p.tasksTotal}</b> requirements in today <span class="sep">·</span> <b>${scored}</b> of <b>${rows.length}</b> scored`
+        : `<b>${scored}</b> of <b>${rows.length}</b> scored today`}</div>
+    </div>
+    <div class="co-standing co-hero-bar">${seg('g', g)}${seg('a', a)}${seg('r', r)}${seg('d', d)}</div>
+    <div class="co-legend co-hero-legend">${leg('g', g, 'on standard')}${leg('a', a, 'need attention')}${leg('r', r, 'overdue')}${leg('d', d, 'no activity')}</div>
+    ${SHOW_PULSE ? `<div class="co-hero-note">The group score averages today's real ${CD.noun} scores (${scored} of ${rows.length} scored so far). The bar is your roster's live standing. Nothing is estimated; a ${CD.noun} with no log adds no score.</div>` : ''}
   </section>`;
 }
 
@@ -778,14 +794,13 @@ export const coachHome = {
     ${planCard()}
     ${pending.length ? `<div class="card" data-go="coach-inbox" style="padding:10px 15px;cursor:pointer;display:flex;align-items:center;gap:10px"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 15)}</div><div style="flex:1;font-size:12.5px;font-weight:700">${pending.length} join request${pending.length > 1 ? 's' : ''} waiting</div>${icon('chevron', 14, 'style="color:var(--text-3)"')}</div>` : ''}
     ${milestone}
-    ${/* The dietitian's board (0197/0202 discipline lens): a meal review queue + per-athlete
-          fueling trends, painted async into this slot so the fetch never delays the priority
-          queue. Emitted on any nutrition book — practice, dietitian-owned team, or invited
-          team nutritionist. It LEADS the screen there (critique 2026-08-18: the queue is the
-          dietitian's whole day, and it sat third under a coach-shaped hero), with the group
-          pulse reading second. Every other book renders byte-identical to before. */''}
-    ${isNutritionBook() ? '<div id="nut-board-slot"></div>' : ''}
+    ${/* THE RING LEADS FOR EVERY BOOK (founder 2026-09-15: the coach's and the nutritionist's
+          home should look like the athlete's, with the group score in the ring). The dietitian's
+          meal-review board (0197/0202) reads directly under it, painted async into its slot so
+          the fetch never delays the priority queue. It used to lead the nutrition book (critique
+          2026-08-18); the founder's later ruling puts the score first, the queue one scroll down. */''}
     ${entries === null ? '' : pulseCard(rows, statuses)}
+    ${isNutritionBook() ? '<div id="nut-board-slot"></div>' : ''}
     ${obPlanCard()}
     <div id="vc-board-slot"></div>
     <div id="cs-board-slot"></div>
