@@ -2844,6 +2844,25 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    sticky dock to it: sticky cannot leave its container, so the dock appears when the section
    arrives and leaves with it. */
 .disc { position: relative; margin-top: var(--s4); }
+/* THE DISCUSSION STANDS OFF THE PAGE (founder 2026-09-15: "it should pop out more, its own
+   section with a 3D popping-out effect"). A raised card: its own surface, a lit top rim, a deep
+   soft shadow, and a once-only entrance that tilts up out of the page as it arrives. The bubbles
+   keep their flat fills inside it; the card is what has depth, not the messages. Transforms and
+   opacity only, one shot, ease-out. Reduced motion gets the raised card with no entrance. */
+.disc.disc-raised {
+  background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-card);
+  padding: var(--s3h) var(--s3) 0;
+  box-shadow: inset 0 1px 0 var(--glass-rim-soft, rgba(255,255,255,0.06)), 0 18px 44px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.28);
+  transform-origin: top center;
+}
+:root[data-theme="light"] .disc.disc-raised { box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 18px 40px rgba(15, 23, 42, 0.16), 0 2px 6px rgba(15, 23, 42, 0.08); }
+.disc-stage { perspective: 1000px; }
+.disc-stage .disc.disc-raised.in { animation: disc-in var(--dur-3) var(--ease-out) both; }
+@keyframes disc-in { from { opacity: 0; transform: translateY(22px) rotateX(-7deg) scale(0.985); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .disc-stage .disc.disc-raised.in { animation: none; } }
+/* Inside the raised card the dock spans the card, not the screen: same glass, rounded with the card. */
+.disc.disc-raised .chat-dock { margin: var(--s3) calc(-1 * var(--s3)) 0; padding-left: var(--s3); padding-right: var(--s3); border-radius: 0 0 var(--r-card) var(--r-card); }
+.disc.disc-raised .disc-head { margin-bottom: var(--s3); }
 .disc-head { display: flex; align-items: center; gap: var(--s2); margin: 0 0 var(--s2h); }
 .facepile.disc-fp, .disc-fp {
   flex: 1; min-width: 0; margin: 0; padding: var(--s1) 0; background: none; border: 0; border-radius: var(--r-card-sm);
@@ -2875,6 +2894,68 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 
 /* The read card's "a dash is not a zero" line, inside the card under the tiles. */
 .meal-read .nut-note { padding: 0 var(--s4) var(--s2h); }
+
+/* ===== The athlete card (2026-09-15): the face in the head, the Manage sheet ===== */
+.ca-head .ca-av { width: 44px; height: 44px; border-radius: 50%; flex: none; display: grid; place-items: center; background: var(--surface-3); color: var(--text); font-size: var(--t-sm); font-weight: 800; }
+.ca-manage { padding: var(--s3) var(--s4); margin-top: var(--s2); display: flex; flex-direction: column; gap: var(--s3); }
+.ca-manage .ca-mrow { display: flex; flex-direction: column; gap: var(--s2); }
+.ca-manage .ca-mk { font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--text-3); }
+.ca-manage .ca-chips { gap: var(--s2); }
+.ca-manage .ca-mrowin { display: flex; gap: var(--s2); align-items: center; }
+.ca-manage .ca-mrowin .ob-input { flex: 1; min-width: 0; height: 40px; }
+.ca-manage .ca-mrowin .btn { width: auto; flex: none; padding: 0 var(--s3h); height: 40px; }
+.ca-manage .ca-mnote { flex: 1; font-size: var(--t-xs); font-weight: 600; color: var(--text-3); }
+.ca-manage .ca-remove { width: auto; align-self: flex-start; padding: 0 var(--s3h); color: var(--red-bright); }
+.ca-manage .ca-mstatus { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); min-height: 14px; }
+.ca-manage .ca-mstatus.ok { color: var(--green-bright); }
+.ca-src { color: var(--text-3); font-weight: 600; text-transform: none; letter-spacing: 0; }
+.ca-lic-blue { background: var(--blue-surface); color: var(--blue-bright); }
+/* Insights: a row-group label inside a card is a label, not a heading. */
+.ci-gp { margin: var(--s2h) 2px 0; }
+
+/* ===== The AI Nutritionist's read on the athlete Overview (2026-09-15) ===== */
+.asum { padding: var(--s3h) var(--s4) var(--s3); display: flex; flex-direction: column; gap: var(--s2h); }
+.asum .asum-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); }
+.asum .asum-who { display: inline-flex; align-items: center; gap: var(--s1h); font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--text-3); }
+.asum .asum-ic { display: inline-flex; color: var(--blue-bright); }
+.asum .asum-when { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); white-space: nowrap; }
+.asum .asum-headline { font-size: var(--t-base); font-weight: 800; letter-spacing: -0.01em; line-height: 1.3; text-wrap: balance; }
+.asum .asum-text { margin: 0; font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.6; }
+.asum .asum-watch { display: flex; gap: var(--s2); align-items: flex-start; padding: var(--s2h) var(--s3); border-radius: var(--r-tile); background: var(--blue-surface); font-size: var(--t-sm); font-weight: 600; color: var(--text-1); line-height: 1.5; }
+.asum .asum-watch-k { flex: none; font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--blue-bright); padding-top: 2px; }
+.asum .asum-empty { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); line-height: 1.5; }
+.asum .asum-skel { padding: 0; }
+.asum .asum-skel .mr-skel-line:nth-child(1) { width: 62%; }
+.asum .asum-skel .mr-skel-line:nth-child(2) { width: 96%; }
+.asum .asum-skel .mr-skel-line:nth-child(3) { width: 88%; }
+.asum .asum-skel .mr-skel-line:nth-child(4) { width: 40%; }
+.asum .asum-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); border-top: 1px solid var(--hairline-soft); padding-top: var(--s2h); margin-top: var(--s1); }
+.asum .asum-cad { display: inline-flex; align-items: center; gap: var(--s1h); padding: 0; margin: 0; }
+.asum .asum-cad-k { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); margin-right: 2px; }
+.asum .asum-cad .co-chip { height: 30px; padding: 0 var(--s2h); font-size: var(--t-xs); }
+.asum .asum-refresh { width: auto; flex: none; height: 32px; padding: 0 var(--s3); }
+.asum .asum-note { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); min-height: 14px; }
+.asum .asum-note.ok { color: var(--green-bright); }
+.asum .asum-note-quiet:empty { display: none; }
+
+/* ===== The coach's name, editable where it is (2026-09-15) ===== */
+.id-card .nm.cp-name { cursor: pointer; display: inline-flex; align-items: center; gap: var(--s1h); }
+.id-card .nm.cp-name .cp-name-pen { color: var(--text-3); display: inline-flex; }
+.id-card .nm.cp-name:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; border-radius: var(--r-micro); }
+.cp-name-editor { margin: var(--s2) 0 var(--s3); }
+.cp-name-editor[hidden] { display: none; }
+.cp-name-editor .cp-name-row { display: flex; gap: var(--s2); margin-top: var(--s2); }
+.cp-name-editor .cp-name-row .btn { width: auto; padding: 0 var(--s4h); }
+.cp-name-editor .cp-name-status { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); min-height: 16px; margin-top: var(--s1h); }
+.cp-name-editor .cp-name-status.bad { color: var(--red-bright); }
+
+/* ===== The roster's sheets (groups, excuse): a form, spaced like one ===== */
+.ro-sheet { padding: var(--s3h) var(--s4) var(--s3); }
+.ro-sheet .ro-sheet-h { margin: 0 0 var(--s2); }
+.ro-sheet .ro-sheet-row { display: flex; gap: var(--s2); margin-top: var(--s2h); align-items: center; }
+.ro-sheet .ro-sheet-row .ob-input { flex: 1; min-width: 0; height: 40px; }
+.ro-sheet .ro-sheet-row .btn { width: auto; flex: none; padding: 0 var(--s3h); height: 40px; }
+.ro-sheet .ro-sheet-status { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); min-height: 16px; margin-top: var(--s1h); }
 
 /* ===== The coach's group ring (2026-09-15): the athlete's hero, fed the group score ===== */
 .xhero.co-hero { margin: var(--s2) 0 var(--s2); }

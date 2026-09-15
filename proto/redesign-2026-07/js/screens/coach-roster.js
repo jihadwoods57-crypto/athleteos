@@ -170,8 +170,8 @@ function listHtml(view) {
 
 function groupSheet(groups) {
   return `
-  <section class="card" style="padding:13px 16px">
-    <h2 class="eyebrow" style="margin:0 0 8px">Custom groups</h2>
+  <section class="card ro-sheet">
+    <h2 class="eyebrow ro-sheet-h">Custom groups</h2>
     ${groups.map(g => GDEL === g.id ? `
     <div class="lrow" style="cursor:default">
       <div class="lm"><div class="lt">Delete ${esc(g.name)}?</div><div class="ls">Groups are filters; nobody leaves the roster.</div></div>
@@ -183,11 +183,11 @@ function groupSheet(groups) {
       ${SEL.size ? `<button class="btn ghost micro" data-gadd="${esc(g.id)}" style="width:auto">Add ${SEL.size}</button>` : ''}
       <button class="btn ghost danger micro" data-gdel="${esc(g.id)}" style="width:auto;margin-left:6px">Delete</button>
     </div>`).join('') || `<div style="font-size:12px;font-weight:600;color:var(--text-3)">No groups yet.</div>`}
-    <div style="display:flex;gap:7px;margin-top:10px">
-      <input class="ob-input" id="group-name" aria-label="New group name" maxlength="40" placeholder="New group name" style="flex:1;height:36px" />
-      <button class="btn primary xs" data-gnew style="width:auto" ${SEL.size ? '' : 'disabled'}>Create with ${SEL.size || 0}</button>
+    <div class="ro-sheet-row">
+      <input class="ob-input" id="group-name" aria-label="New group name" maxlength="40" placeholder="New group name" />
+      <button class="btn primary sm" data-gnew ${SEL.size ? '' : 'disabled'}>${SEL.size ? `Create with ${SEL.size}` : 'Create'}</button>
     </div>
-    <div id="group-status" style="font-size:11.5px;font-weight:600;color:var(--text-3);min-height:14px;margin-top:5px"></div>
+    <div id="group-status" class="ro-sheet-status">${SEL.size ? '' : `Tick ${CD.noun}s in the list to put them in the group.`}</div>
   </section>`;
 }
 function wireGroupSheet(root, teamId) {
@@ -228,8 +228,8 @@ function wireGroupSheet(root, teamId) {
 }
 function absenceSheet() {
   return `
-  <section class="card" style="padding:13px 16px">
-    <h2 class="eyebrow" style="margin:0 0 8px">Excuse ${SEL.size} ${CD.noun}${SEL.size === 1 ? '' : 's'}</h2>
+  <section class="card ro-sheet">
+    <h2 class="eyebrow ro-sheet-h">Excuse ${SEL.size} ${CD.noun}${SEL.size === 1 ? '' : 's'}</h2>
     <div style="font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5;margin-bottom:8px">Excused ${CD.nouns} drop out of the priority queue and today's completion math. And nothing pings them while excused.</div>
     <input class="ob-input" id="abs-reason" aria-label="Reason" maxlength="120" placeholder="Reason (travel, injury, family…)" style="height:36px" />
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px">
@@ -301,8 +301,6 @@ function updateBulkCounts(root) {
   const n = SEL.size;
   const nudge = root.querySelector('[data-bulk="nudge"]');
   if (nudge) nudge.textContent = `Nudge ${n}`;
-  const assign = root.querySelector('[data-bulk="assign"]');
-  if (assign) assign.textContent = `Assign ${n}`;
   const send = root.querySelector('[data-bulk="nudgesend"]');
   if (send) send.textContent = `Send to ${n}`;
   const note = root.querySelector('#bulk-nudge-note');
@@ -380,9 +378,8 @@ export const coachRoster = {
         <button class="btn sm" data-bulk="nudgesend" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-xs)">Send to ${SEL.size}</button>
       </div>
     </div>` : `
-    <div class="action-bar" style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s1h)">
+    <div class="action-bar" style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s1h)">
       <button class="btn sm" data-bulk="nudge" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">Nudge ${SEL.size}</button>
-      ${CD.caps.assignments ? `<button class="btn ghost sm" data-bulk="assign" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">Assign ${SEL.size}</button>` : ''}
       ${CD.caps.groups ? `<button class="btn ghost sm" data-bulk="group" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">→ Group</button>` : ''}
       ${CD.caps.exceptions ? `<button class="btn ghost sm" data-bulk="absence" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">Excuse</button>` : ''}
     </div>`) : ''}
@@ -477,12 +474,6 @@ export const coachRoster = {
         BULK_STATUS = parts.join(' ');
         if (!failedAll) { SEL.clear(); SELECTING = false; }
         window.__render();
-      } else if (kind === 'assign') {
-        // The composer's audience picker takes the whole selection now (js/audience.js): one
-        // person deep-links as before, and any number lands there with every name still ticked.
-        const { presetAssignAudience } = await import('./coach.js');
-        presetAssignAudience(ids);
-        window.__go(ids.length === 1 ? 'coach-assign/' + ids[0] : 'coach-assign');
       } else if (kind === 'group') {
         SHOW_GROUPS = true; window.__render();
       } else if (kind === 'absence') {

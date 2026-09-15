@@ -91,3 +91,37 @@ export function coachDigestBody(names: string[], total: number): string {
   if (total <= 3) return `${shown.join(', ')} missed requirements today.`;
   return `${shown.join(', ')} and ${total - shown.length} more missed requirements today.`;
 }
+
+export type ClosingTask = { id: string; dueAt: string; minutesLeft: number };
+
+/** How far ahead "closing soon" reaches. The escalation cron runs every 15 minutes, so a 20
+ *  minute lead catches every window once and never twice. */
+export const CLOSING_LEAD_MIN = 20;
+
+/**
+ * Requirements whose deadline is AHEAD, within `leadMin`, and still not done: the heads-up the
+ * coach asked for (2026-09-15, "if a player is about to be late"). Same conservatism as
+ * missedTasks: no `dueAt`, no claim; done is never closing.
+ */
+export function closingTasks(
+  tasks: unknown,
+  nowMs: number,
+  opts: { leadMin?: number } = {},
+): ClosingTask[] {
+  if (!Array.isArray(tasks)) return [];
+  const lead = Number.isFinite(opts.leadMin) ? Number(opts.leadMin) : CLOSING_LEAD_MIN;
+  const out: ClosingTask[] = [];
+  for (const raw of tasks) {
+    if (!raw || typeof raw !== 'object') continue;
+    const t = raw as DayTask;
+    const id = typeof t.id === 'string' ? t.id.trim() : '';
+    if (!id || t.done === true) continue;
+    if (typeof t.dueAt !== 'string') continue;
+    const due = Date.parse(t.dueAt);
+    if (!Number.isFinite(due)) continue;
+    const minutesLeft = Math.round((due - nowMs) / 60000);
+    if (minutesLeft <= 0 || minutesLeft > lead) continue;
+    out.push({ id, dueAt: t.dueAt, minutesLeft });
+  }
+  return out.sort((a, b) => a.minutesLeft - b.minutesLeft);
+}

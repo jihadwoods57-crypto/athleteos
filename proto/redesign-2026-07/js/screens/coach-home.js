@@ -178,7 +178,7 @@ function setupRow(i, required, n) {
   return `<div class="lrow" ${i.go ? `data-go="${i.go}" style="cursor:pointer"` : 'style="cursor:default;opacity:0.7"'}>
       ${marker}
       <div class="lm"><div class="lt">${esc(i.t)}</div><div class="ls">${esc(i.s)}</div></div>
-      ${i.go ? icon('chevron', 17, 'style="color:var(--text-3)"') : (i.done ? '' : `<span style="font-size:10px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-3)">Soon</span>`)}
+      ${i.go ? icon('chevron', 17, 'style="color:var(--text-3)"') : ''}
     </div>`;
 }
 /* The onboarding plan pick, honored. The onboarding plan step captured a choice into RT.ob.plan
@@ -323,10 +323,6 @@ export function emptyTeamDashboard(code, teamName) {
     : st.ready
       ? (setupIncompleteCount(st) ? collapseSection('coach-setup', vocab().setup, setupIncompleteCount(st), setupChecklistCard(st), false) : '')
       : `<h2 class="eyebrow">${esc(vocab().setup)}</h2>${setupChecklistCard(st)}`}
-    <h2 class="eyebrow">What fills in next</h2>
-    <section class="card" style="padding:13px 16px">
-      <div style="font-size:12px;font-weight:600;color:var(--text-3);line-height:1.55">Once ${noun} join with your code, this screen becomes your command center: today's ${bookWord} score, who's on standard, who needs a nudge, and every meal as it's logged.</div>
-    </section>
     <div class="co-bottom"></div>`;
 }
 
@@ -701,7 +697,7 @@ function priorityCard(c, i, nudgedToday) {
             'assign' -- the server refuses it, violating staff-access.js's own contract ("a role
             never stares at buttons the server would bounce"). allowedCreateKeys fails open to
             the head-coach set on a null role, so the owner and a still-loading role keep it. */''}
-      ${CD.caps.assignments && allowedCreateKeys(CD.extras && CD.extras.myRole).includes('assign') ? `<button class="btn sm" data-passign="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Assign</button>` : ''}
+      ${/* Assign left the card (founder 2026-09-15). Assignments live in the create menu. */''}
       ${CD.caps.interventions ? `<button class="btn sm" data-phandle="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Handled</button>` : ''}
     </div>
     ${PNUDGE_ARM && PNUDGE_ARM.athleteId === c.athleteId ? `
@@ -758,7 +754,6 @@ export const coachHome = {
     const seen = seenMealSet(RT.coachSeenMealIds || []); // device list + every staff view (0229)
     const feed = CD.act && CD.act.rows ? CD.act.rows.filter(m => rows.some(r => r.athleteId === m.athlete_id)) : null;
     const unseen = feed ? feed.filter(m => !seen.has(m.id)).length : 0;
-    const unreadAlerts = S.unreadNotifs;
     /* Follow-ups carries what is NOT already on this screen, and nothing else.
        It used to carry four rows, three of which restated something the coach could see without
        scrolling: "N logs you haven't opened" (the Live activity eyebrow prints "N new" directly
@@ -770,9 +765,6 @@ export const coachHome = {
        Server alerts (0027 — flagged meals, roll-call escalations, digests) stay: their only other
        surface is a numeric badge on the bell in the header, which is chrome, not content. When
        there are none the section resolves to "All caught up." and the screen ends on the queue. */
-    const followUps = [
-      unreadAlerts ? { n: unreadAlerts, t: `Alert${unreadAlerts > 1 ? 's' : ''} in your bell`, go: 'notifications' } : null,
-    ].filter(Boolean);
 
     // Trust Pass milestone (0196): at most ONE card, so a large roster crossing the bar in the
     // same week becomes a single moment, not a queue. Ranked by streak in passWorthy, so the
@@ -839,14 +831,6 @@ export const coachHome = {
         </div>`;
       }).join('')}</div>`}`}
 
-    <h2 class="eyebrow co-minor" data-tour="followups">Follow-ups</h2>
-    ${followUps.length === 0 ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:0 2px 4px">All caught up.</div>`
-    : `<section class="card" style="padding:6px 16px">${followUps.map(f => `
-      <div class="lrow" ${f.go ? `data-go="${f.go}" style="cursor:pointer"` : 'style="cursor:default"'}>
-        <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)"><b>${f.n}</b></div>
-        <div class="lm"><div class="lt">${esc(f.t)}</div></div>
-        ${f.go ? icon('chevron', 14, 'style="color:var(--text-3)"') : ''}
-      </div>`).join('')}</section>`}
     <div class="co-bottom"></div>`;
   },
   mount(root) {

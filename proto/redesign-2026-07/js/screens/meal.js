@@ -33,6 +33,7 @@ import {
   dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
 } from '../chat-view.js';
 import { wireChatTimes } from '../chat-times.js';
+import { revealDisc } from '../disc-reveal.js';
 
 /* The meal score chip's ring, drawn as the brand dial (docs/brand/LOGO.md): a 300° gauge with
    a 60° gap at 6 o'clock and the signature --ring-a/b/c sweep — the same silhouette as the day
@@ -1247,7 +1248,7 @@ export const thread = {
     </button>`;
 
     const discussion = `
-    <section class="disc" id="meal-disc" aria-labelledby="disc-title">
+    <div class="disc-stage"><section class="disc disc-raised" id="meal-disc" aria-labelledby="disc-title">
     <h2 class="sr-only" id="disc-title">Team discussion</h2>
     <div class="disc-head">
       ${facepile || `<div class="disc-fp"><span class="names"><b>Team discussion</b></span></div>`}
@@ -1287,7 +1288,7 @@ export const thread = {
     <div class="composer-attach-pending" id="meal-attach-pending" hidden></div>
     <div id="chat-note" style="min-height:18px"></div>
     </div>` : ''}
-    </section>`;
+    </section></div>`;
 
     // ---- 4. DAY COMPLETE ----
     // The Next Action row is GONE from this screen (founder, 2026-08-17). It rendered between
@@ -2320,8 +2321,10 @@ export const thread = {
       if (S.coach.hasCoach) {
         void roles.notifyMyCoach({
           // Suffix = deep link for the coach's bell row (notif-feed KIND_ROUTE), matching the
-          // push payload's route below.
-          kind: M.mealId ? `meal_action:${M.mealId}` : 'meal_action', urgent: true,
+          // push payload's route below. 'athlete_message', not 'meal_action' (2026-09-15): a
+          // question is a message, tagged as one in the bell, governed by the coach's
+          // onMessage switch, and never mistaken for a flagged plate.
+          kind: M.mealId ? `athlete_message:${M.mealId}` : 'athlete_message', urgent: true,
           title: `${S.athlete.first || 'Your athlete'} ${photoPath && !typed ? 'sent a photo about' : 'asked about'} ${M.name}`,
           // A wordless photo has no text to preview, so say what it IS rather than sending a
           // notification whose body is an empty string.
@@ -2363,6 +2366,8 @@ export const thread = {
     // stacking listeners. The picker itself lives on <body>, out of the render's way.
     // Drag the conversation left to see when each message was sent.
     wireChatTimes({ root, scope: '#meal-thread' });
+    // The raised discussion card arrives once per plate.
+    revealDisc(root, `meal:${M.slot}:${M.mealId || ''}`);
     if (M.mealId) wireTapback({
       root,
       scope: '#meal-thread',

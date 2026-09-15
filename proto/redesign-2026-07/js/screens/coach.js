@@ -12,6 +12,7 @@ import * as roles from '../roles.js';
 import { openingMessage, qualityBand, qualityReason, scoreRubric, reactionGroups, threadMessages, privateNotes, REACTION_EMOJI, applyMealCorrection, applyFoodRemoval, normalizeDetected } from '../meal-intel.js';
 import { mealReadHtml } from './meal.js';
 import { pastMealDetail } from './trust.js';
+import { revealDisc } from '../disc-reveal.js';
 import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpener, isEscalated, quotedFor,
   dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
 } from '../chat-view.js';
@@ -33,6 +34,8 @@ import { reasonKey } from '../priority.js';
 import { maybeStartTour } from '../tour.js';
 import { reveal } from '../motion.js';
 import { initialsOf } from '../initials.js';
+import { SPORT_POSITIONS } from './profile.js';
+import { VC, loadBoard } from '../commitment-data.js';
 import { hydrateAvatars } from '../avatar.js';
 import { wireReadMore } from '../thread-readmore.js';
 
@@ -266,6 +269,9 @@ export const coachAssign = {
   },
 };
 
+/* The Manage sheet on the athlete card (2026-09-15): position, room, remove. Module state so a
+   repaint keeps it open; reset per athlete. */
+let MANAGE = { id: null, open: false, busy: false, note: '', arm: false };
 /* ---------- Coach sets an athlete's REAL nutrition targets (coach_set_goals RPC) ---------- */
 let TGT = null;           // { athleteId, targets } loaded from athlete_profiles
 let tgtLoadingId = null;
@@ -742,7 +748,7 @@ export const coachPlan = {
     <div class="sidebox">
       <div class="req-icon b s38">${icon('shield', 17)}</div>
       <div><div class="tt">${cap(noun)} owns the numbers</div>
-      <div class="ts">Saving writes these to their plan (athlete_profiles.targets) via the coach_set_goals RPC. Their nutrition scoring is unaffected. The score is always the four honest components.</div></div>
+      <div class="ts">Saving sets their targets. Their score is unaffected.</div></div>
     </div>
 
     <div style="height:16px"></div>
@@ -1812,7 +1818,7 @@ export const coachInbox = {
 
     let briefing = '';
     if (rows === null) briefing = 'Reading your roster…';
-    else if (CD.roster && CD.roster.offline) briefing = "Can't reach your roster. Reopen to retry. Nothing is invented while it's down.";
+    else if (CD.roster && CD.roster.offline) briefing = "Reopen to retry. Nothing is invented while it's down.";
     else if (!rows.length) briefing = CD.kind === 'practice'
       ? 'No clients yet. Share your client code from your Practice HQ and this becomes your morning read.'
       : 'No athletes yet. Share your team code and this becomes your morning read.';
@@ -1839,7 +1845,7 @@ export const coachInbox = {
     if (CD.roster && CD.roster.offline) {
       return `
       ${titleHead('Inbox', "Can't reach your roster")}
-      <h2 class="eyebrow">Daily briefing · from your real roster</h2>
+      <h2 class="eyebrow">Daily briefing</h2>
       <section class="card ib-brief">${briefing}</section>
       <div class="co-gap"></div>`;
     }
@@ -1874,7 +1880,7 @@ export const coachInbox = {
     ${inboxFailed ? `<div class="co-note warn">Some of your inbox didn't load, so this may not be everything. Nothing was missed on the server; it retries when you reopen.</div>` : ''}
 
     ${isNeedsResponse ? `
-    <h2 class="eyebrow">Daily briefing · from your real roster</h2>
+    <h2 class="eyebrow">Daily briefing</h2>
     <section class="card ib-brief${rows && !rows.length ? ' tap' : ''}"${rows && !rows.length ? ` data-go="${codeRoute()}"` : ''}>
       ${briefing}
       ${rows && !rows.length && RT.team && RT.team.code ? `<div class="acts"><button class="btn ghost sm" id="inbox-copy-code" style="width:auto;padding:0 14px;letter-spacing:0.18em;font-weight:800">${esc(RT.team.code)}</button><button class="btn primary sm" id="inbox-share-code" style="width:auto;padding:0 14px">Share code</button></div>` : ''}
@@ -2199,6 +2205,105 @@ function coTrend(hist) {
     <div class="co-trend-x"><span>then</span><span>now</span></div>
   </div>`;
 }
+/* The Manage sheet (2026-09-15): what a coach actually needs to do to one athlete from their
+   card. Position is one tap per code (the athlete's sport's own list, or a free field for a
+   sport we do not list); the room is the team's rooms; leaving the team is a two-tap. */
+function manageSheet(P, athleteId, position) {
+  const sport = (TGT && TGT.athleteId === athleteId && TGT.basics && TGT.basics.sport) || (P.basics && P.basics.sport) || '';
+  const codes = SPORT_POSITIONS[sport] || [];
+  const rooms = (CD.extras && CD.extras.rooms) || [];
+  const curRoom = P.row && P.row.roomId;
+  const dis = MANAGE.busy ? ' disabled' : '';
+  const isTeam = CD.kind !== 'practice';
+  return `
+  <section class="card ca-manage" id="ca-manage-sheet">
+    <div class="ca-mrow">
+      <div class="ca-mk">Position</div>
+      ${codes.length ? `<div class="fx-chips ca-chips">${codes.map((c) => `<button type="button" class="fx-chip${String(position || '').toUpperCase() === c.toUpperCase() ? ' on' : ''}" data-ca-pos="${esc(c)}"${dis}>${esc(c)}</button>`).join('')}</div>`
+        : `<div class="ca-mrowin"><input class="ob-input" id="ca-pos-input" maxlength="24" placeholder="Position" value="${esc(position || '')}" aria-label="Position"${dis} /><button type="button" class="btn sm" id="ca-pos-save"${dis}>Save</button></div>`}
+    </div>
+    ${isTeam && rooms.length ? `
+    <div class="ca-mrow">
+      <div class="ca-mk">Room</div>
+      <div class="fx-chips ca-chips">
+        <button type="button" class="fx-chip${!curRoom ? ' on' : ''}" data-ca-room=""${dis}>None</button>
+        ${rooms.map((r) => `<button type="button" class="fx-chip${curRoom === r.id ? ' on' : ''}" data-ca-room="${esc(r.id)}"${dis}>${esc(r.label)}</button>`).join('')}
+      </div>
+    </div>` : ''}
+    <div class="ca-mrow ca-mrow-danger">
+      <div class="ca-mk">${isTeam ? 'Team' : 'Practice'}</div>
+      ${MANAGE.arm
+        ? `<div class="ca-mrowin"><span class="ca-mnote">They keep their logs and scores; they lose your view.</span><button type="button" class="btn ghost sm" id="ca-remove-cancel"${dis}>Keep</button><button type="button" class="btn danger sm" id="ca-remove-go"${dis}>Remove</button></div>`
+        : `<button type="button" class="btn ghost sm ca-remove" id="ca-remove"${dis}>Remove from ${isTeam ? 'team' : 'practice'}</button>`}
+    </div>
+    <div class="ca-mstatus" id="ca-mstatus" role="status" aria-live="polite">${esc(MANAGE.note || '')}</div>
+  </section>`;
+}
+
+/* The AI Nutritionist's standing read on the Overview (2026-09-15, 0238). One row per athlete
+   per book; the function regenerates it every 3 or 6 days (coach's choice) and the coach may
+   force one refresh every two days. Module state keyed by athlete so a repaint never refetches. */
+let ASUM = { id: null, row: null, loading: false, error: null, busy: false, note: '' };
+const SUMMARY_REFRESH_MS = 2 * 24 * 3600 * 1000;
+async function loadAthleteSummary(athleteId) {
+  if (!athleteId || (ASUM.id === athleteId && (ASUM.loading || ASUM.row || ASUM.error))) return;
+  ASUM = { id: athleteId, row: null, loading: true, error: null, busy: false, note: '' };
+  const r = await roles.fetchAthleteSummary(athleteId);
+  if (ASUM.id !== athleteId) return;
+  ASUM = { id: athleteId, row: r.row || null, loading: false, error: r.ok ? null : (r.error || 'unavailable'), busy: false, note: '' };
+  if (location.hash.startsWith('#coach-athlete')) window.__render();
+}
+/** When the coach may press Refresh again, or null if now. */
+function summaryRefreshAt(row) {
+  const t = row && row.last_manual_at ? Date.parse(row.last_manual_at) : NaN;
+  if (!isFinite(t)) return null;
+  const at = t + SUMMARY_REFRESH_MS;
+  return at > Date.now() ? at : null;
+}
+function fmtRefreshAt(ms) {
+  const d = new Date(ms), now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toDateString() === d.toDateString();
+  const clock = fmtClock(d.getHours() * 60 + d.getMinutes());
+  return sameDay ? `today at ${clock}` : tomorrow ? `tomorrow at ${clock}` : `${weekdayLong(d)} at ${clock}`;
+}
+function aiSummaryCard(P, athleteId) {
+  const first = ((P.row && P.row.name) || 'this athlete').split(' ')[0];
+  const row = ASUM.id === athleteId ? ASUM.row : null;
+  const cadence = row && row.cadence_days === 3 ? 3 : 6;
+  const gen = row && row.generated_at ? fmtWhen(row.generated_at, Date.now()) : '';
+  const nextAt = summaryRefreshAt(row);
+  const busy = ASUM.busy;
+  let body;
+  if (ASUM.id !== athleteId || ASUM.loading) {
+    body = `<div class="mr-skel asum-skel" aria-label="Loading the read"><div class="mr-skel-line"></div><div class="mr-skel-line"></div><div class="mr-skel-line"></div><div class="mr-skel-line"></div></div>`;
+  } else if (!row || !row.generated_at) {
+    body = `<div class="asum-empty">${ASUM.error ? "Can't reach the AI Nutritionist right now." : `The AI Nutritionist has not written a read of ${esc(first)} yet.`}</div>`;
+  } else {
+    body = `
+      ${row.headline ? `<div class="asum-headline">${esc(row.headline)}</div>` : ''}
+      <p class="asum-text">${esc(row.summary || '')}</p>
+      ${row.watch ? `<div class="asum-watch"><span class="asum-watch-k">Watch</span><span>${esc(row.watch)}</span></div>` : ''}`;
+  }
+  const canRefresh = !busy && ASUM.id === athleteId && !ASUM.loading && !nextAt;
+  return `
+  <section class="card asum" aria-label="AI Nutritionist read">
+    <div class="asum-head">
+      <div class="asum-who"><span class="asum-ic">${icon('sparkle', 15)}</span><span>AI Nutritionist</span></div>
+      <div class="asum-when">${gen ? `Updated ${esc(gen === 'now' ? 'just now' : gen)}` : ''}</div>
+    </div>
+    ${body}
+    <div class="asum-foot">
+      <div class="co-seg asum-cad" role="radiogroup" aria-label="How often the read updates">
+        <span class="asum-cad-k">Every</span>
+        <button type="button" class="co-chip ${cadence === 3 ? 'on' : ''}" role="radio" aria-checked="${cadence === 3}" data-asum-cad="3">3 days</button>
+        <button type="button" class="co-chip ${cadence === 6 ? 'on' : ''}" role="radio" aria-checked="${cadence === 6}" data-asum-cad="6">6 days</button>
+      </div>
+      <button type="button" class="btn ghost sm asum-refresh" id="asum-refresh" ${canRefresh ? '' : 'disabled'}>${busy ? 'Writing…' : 'Refresh'}</button>
+    </div>
+    <div class="asum-note ${ASUM.note ? '' : 'asum-note-quiet'}" id="asum-note">${esc(ASUM.note || (nextAt ? `Refresh again ${fmtRefreshAt(nextAt)}.` : (row && row.generated_at ? 'One refresh every two days.' : '')))}</div>
+  </section>`;
+}
 function overviewSection(P, athleteId) {
   const st = P.status, meta = st ? STATUS_META[st.key] : null;
   const crit = st && (st.key === 'overdue' || st.key === 'no_activity');
@@ -2219,6 +2324,7 @@ function overviewSection(P, athleteId) {
     </div>
   </section>
 
+  ${aiSummaryCard(P, athleteId)}
   ${todayBlock(P, athleteId)}
   ${breakdownBlock(P, athleteId)}
 
@@ -2249,8 +2355,14 @@ function todayBlock(P, athleteId) {
   const optional = new Set(std ? (std.optional || []) : ['snack']);
   const slotTitle = (k) => (std && std.titles && std.titles[k]) || cap(k);
   const denom = std ? std.mealsRequired : slots.filter(k => !optional.has(k)).length;
-  const logged = slots.filter(k => mealsJson[k]).length;
-  const openSlots = slots.filter(k => !mealsJson[k] && !optional.has(k));
+  // A slot is logged if EITHER the day row's meals JSON says so OR a meal row for that slot
+  // exists today. Before this the strip above showed a lunch photo while the list below said
+  // "Lunch · Not logged yet" whenever days.meals lagged the meals table (sync lag is real, see
+  // 0233). Two readings of one fact on one screen is misinformation.
+  const rowSlots = new Set(todayMeals.map(m => String(m.type || '').toLowerCase()));
+  const isLogged = (k) => !!mealsJson[k] || rowSlots.has(k);
+  const logged = slots.filter(isLogged).length;
+  const openSlots = slots.filter(k => !isLogged(k) && !optional.has(k));
   // No stat tiles anymore: the hero ring carries the score, and the open list below IS the
   // meals/recovery state — the tiles restated both and made the first viewport three surfaces
   // deep in numbers before the coach read anything.
@@ -2402,7 +2514,6 @@ function conversationSection(P) {
   <div style="height:10px"></div>`;
   return `
   <h2 class="eyebrow">Meal threads</h2>
-  <div class="co-note">Tap any meal to open its full thread. The AI's read, your comments, and theirs.</div>
   ${/* The trailing control was a "View thread" pseudo-button on EVERY row: a .btn wearing
         pointer-events:none, so it looked like the thing you press and was not, thirty times down
         one list, while the row itself was the target. The whole row already says "tap me" the way
@@ -2441,39 +2552,80 @@ function requirementsSection(P, athleteId) {
   const source = requirementSourceLabel(set);
   const exceptions = P.exceptions || [];
   const assignments = P.assignments || [];
-  // A failed section read is not "none" — see coach-data.js loadProfile's failedSections.
   const assignFailed = !!(P.failedSections && P.failedSections.assignments);
+  // THE STANDARD, READABLE AND CHANGEABLE FROM HERE (founder 2026-09-15). Each requirement
+  // prints its own window ("7:00 AM – 9:30 AM · Photo"), the targets print their numbers,
+  // the roll call prints its time, and every card carries its one door to the editor that
+  // owns it. Nothing here is a second copy of the logic: windows come from the resolved set,
+  // targets from athlete_profiles, the roll call from the board.
+  const win = (r) => {
+    const w = r.window || {};
+    if (Number.isFinite(w.open) && Number.isFinite(w.due)) return `${fmtMin(w.open)} – ${fmtMin(w.due)}`;
+    if (Number.isFinite(w.due)) return w.label ? `${w.label} · by ${fmtMin(w.due)}` : `By ${fmtMin(w.due)}`;
+    return w.label || '';
+  };
+  const editStd = set && set.scope_kind === 'position' && set.scope_value
+    ? `coach-plan-set/position/${encodeURIComponent(String(set.scope_value))}` : 'coach-plan-set/team';
+  const tg = (TGT && TGT.athleteId === athleteId) ? TGT : null;
+  const t = tg ? (tg.targets || {}) : null;
+  const seeWeight = CD.kind === 'practice' || canViewWeight(CD.extras && CD.extras.myRole);
+  const rc = (VC.board || []).find((b) => b && b.type === 'morning_roll_call') || null;
+  const rcCfg = rc && rc.config ? rc.config : {};
   return `
-  <h2 class="eyebrow">Governing standard <span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0">· ${esc(source)}</span></h2>
+  <h2 class="eyebrow">Their standard <span class="ca-src">· ${esc(source)}</span></h2>
   <section class="card co-list ro" role="list">
     ${reqs.length ? reqs.map(r => `
     <div class="lrow" role="listitem"><div class="lic" style="color:${accentVar(r.accent)}">${icon(r.icon || 'clipboard', 17)}</div>
-    <div class="lm"><div class="lt">${esc(r.title)}</div><div class="ls">${esc((PROOF[r.proof] && PROOF[r.proof].label) || 'Proof')} · ${esc(freqLabel(r.freq))}</div></div></div>`).join('')
+    <div class="lm"><div class="lt">${esc(r.title)}</div><div class="ls">${esc(win(r))}${win(r) ? ' · ' : ''}${esc((PROOF[r.proof] && PROOF[r.proof].label) || 'Proof')} · ${esc(freqLabel(r.freq))}${r.grace ? ` · ${r.grace} min grace` : ''}</div></div></div>`).join('')
     : `<div class="lrow" role="listitem"><div class="lm"><div class="ls">No requirements set.</div></div></div>`}
+    <div class="lrow" data-go="${esc(editStd)}">
+      <div class="lic ca-lic-blue">${icon('edit', 17)}</div>
+      <div class="lm"><div class="lt">Change meal times and proof</div><div class="ls">${set && set.scope_kind === 'position' ? `Edits the ${esc(String(set.scope_value || '').toUpperCase())} room's standard` : 'Edits the team standard'}</div></div>
+      ${icon('chevron', 17)}
+    </div>
   </section>
-  ${/* The chevron is colored by .lrow > .ic-chevron:last-child, which is exactly the rule that
-        exists so this does not get pasted on as an inline style row by row. */''}
-  <div class="lrow" data-go="coach-plan/${esc(athleteId)}" style="margin:2px 2px 0">
-    <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('edit', 17)}</div>
-    <div class="lm"><div class="lt">Edit their standard</div><div class="ls">Open Plan · Schedule</div></div>
-    ${icon('chevron', 17)}
-  </div>
 
-  ${/* The eyebrow already carries "· none". A sentence underneath saying the same thing in
-        different words is the second half of a fact nobody needed twice, and it put a line of
-        body copy where the eye expects either a list or nothing. */''}
-  <h2 class="eyebrow co-minor">Active exceptions${exceptions.length ? '' : ' · none'}</h2>
+  <h2 class="eyebrow">Targets</h2>
+  <section class="card co-list ro" role="list">
+    ${!tg ? `<div class="lrow" role="listitem"><div class="lm"><div class="ls">Loading their targets…</div></div></div>` : `
+    <div class="lrow" role="listitem"><div class="lic ca-lic-blue">${icon('target', 17)}</div><div class="lm"><div class="lt">Protein</div></div><span class="lv">${t.protein != null ? `${esc(String(t.protein))}g` : '—'}</span></div>
+    <div class="lrow" role="listitem"><div class="lic">${icon('bolt', 17)}</div><div class="lm"><div class="lt">Calories</div></div><span class="lv">${t.calories != null ? esc(String(t.calories)) : '—'}</span></div>
+    ${seeWeight ? `<div class="lrow" role="listitem"><div class="lic">${icon('bars', 17)}</div><div class="lm"><div class="lt">Goal weight</div><div class="ls">${tg.basics && tg.basics.base_weight ? `Now ${esc(String(tg.basics.base_weight))} lb` : ''}</div></div><span class="lv">${t.weight != null ? `${esc(String(t.weight))} lb` : '—'}</span></div>` : ''}`}
+    <div class="lrow" data-go="coach-plan/${esc(athleteId)}">
+      <div class="lic ca-lic-blue">${icon('edit', 17)}</div>
+      <div class="lm"><div class="lt">Change targets</div><div class="ls">Protein, calories${seeWeight ? ', goal weight' : ''}, plan style</div></div>
+      ${icon('chevron', 17)}
+    </div>
+  </section>
+
+  <h2 class="eyebrow">Roll call</h2>
+  <section class="card co-list ro" role="list">
+    ${rc ? `
+    <div class="lrow" role="listitem"><div class="lic">${icon('sun', 17)}</div>
+      <div class="lm"><div class="lt">${esc(rc.title || 'Roll call')}</div><div class="ls">${rc.starts_min != null ? `${esc(fmtMin(Number(rc.starts_min)))} · ` : ''}${esc(rc.audience_label || 'Everyone')}${rcCfg.alarm === false ? ' · alarm off' : ' · alarm on'}</div></div></div>
+    <div class="lrow" data-go="coach-wakeup-edit">
+      <div class="lic ca-lic-blue">${icon('edit', 17)}</div>
+      <div class="lm"><div class="lt">Change the roll call</div><div class="ls">Time, window, message, alarm</div></div>
+      ${icon('chevron', 17)}
+    </div>` : `
+    <div class="lrow" data-go="coach-wakeup-new">
+      <div class="lic ca-lic-blue">${icon('plus', 17)}</div>
+      <div class="lm"><div class="lt">Set a roll call</div><div class="ls">None scheduled for this ${CD.kind === 'practice' ? 'practice' : 'team'}</div></div>
+      ${icon('chevron', 17)}
+    </div>`}
+  </section>
+
   ${exceptions.length ? `
+  <h2 class="eyebrow co-minor">Excused</h2>
   <section class="card co-list ro" role="list">
     ${exceptions.map(e => `
     <div class="lrow" role="listitem"><div class="lic" style="color:var(--amber-bright)">${icon('bell', 17)}</div>
     <div class="lm"><div class="lt">${esc(e.reason || 'Excused')}</div><div class="ls">${esc(e.starts_on || '')}${e.ends_on ? ` – ${esc(e.ends_on)}` : ''}</div></div></div>`).join('')}
   </section>` : ''}
 
-  <h2 class="eyebrow co-minor">Assignment history${assignments.length ? '' : (assignFailed ? '' : ' · none')}</h2>
-  ${/* A failed read is NOT "none" and never collapses to silence — it keeps its own line. */''}
   ${assignFailed && !assignments.length ? `<div class="co-note warn">Couldn't load their assignment history. Nothing was changed; reopen to retry.</div>` : ''}
   ${assignments.length ? `
+  <h2 class="eyebrow co-minor">Assignments</h2>
   <section class="card co-list ro" role="list">
     ${assignments.map(a => `
     <div class="lrow" role="listitem"><div class="lic">${icon('clipboard', 17)}</div>
@@ -2595,7 +2747,16 @@ export const coachAthlete = {
     }
     const name = (P.row && P.row.name) || who.name;
     const position = (P.row && P.row.position) || who.unit;
-    const head = backHead(name, (position ? `${position} · ` : '') + opView, opBack);
+    // THE CARD LEADS WITH THE PERSON (founder 2026-09-15): their real face (hydrated by uid,
+    // the same object their own profile uploads to), their name, their real position (0237:
+    // one column, the athlete's own, corrected by staff from Manage below). backHead has no
+    // avatar slot, so the head is written here in its own markup with the same `.bk` the
+    // router wires.
+    const head = `<div class="back-head ca-head">
+      <div class="bk" data-back="${esc(opBack)}" role="button" aria-label="Back">${icon('back', 20)}</div>
+      <div class="ca-av" data-avatar-uid="${esc(athleteId)}"><span data-avatar-fallback>${esc(initialsOf(name, 'A'))}</span></div>
+      <div class="bh-t"><h1 class="ht">${esc(name)}</h1><div class="hs">${position ? `${esc(position)} · ` : ''}${esc(opView)}</div></div>
+    </div>`;
     // An on-standard athlete has nothing to nudge — the always-available detail nudge used to be
     // the one path where "Time to get your log in." could land on someone who logged everything.
     const onStd = !!(P.row && P.row.score != null && P.row.score >= ON_STANDARD);
@@ -2616,8 +2777,8 @@ export const coachAthlete = {
     if (rosterLoaded && !onRoster && !P.day && !(P.meals || []).length) {
       return `${head}
       <div class="state-demo"><div class="sd-ic">${icon('user', 24)}</div>
-      <div class="sd-t">Athlete not found</div>
-      <div class="sd-s">This athlete isn't on your roster. The link may be old, or they left your team. Head back and pick someone from your roster.</div>
+      <div class="sd-t">${CD.kind === 'practice' ? 'Client' : 'Athlete'} not found</div>
+      <div class="sd-s">This ${CD.noun} isn't on your roster. The link may be old, or they left. Head back and pick someone from your roster.</div>
       <div class="sd-cta"><button class="btn ghost sm" data-go="coach-roster">Back to roster</button></div></div>
       <div style="height:10px"></div>`;
     }
@@ -2634,8 +2795,11 @@ export const coachAthlete = {
         : nudgedTodayHere
           ? `<button class="co-act" disabled aria-label="Already nudged today. One a day keeps it meaningful." title="Already nudged today. One a day keeps it meaningful.">${icon('check', 18)}<span class="lbl">Nudged today</span></button>`
           : `<button class="co-act${P.pass ? '' : ' hero'}" data-anudge="${esc(athleteId)}">${icon('bell', 18)}<span class="lbl">Nudge</span></button>`}
-      <button class="co-act" data-go="coach-assign/${esc(athleteId)}">${icon('clipboard', 18)}<span class="lbl">Assign</span></button>
       <button class="co-act" data-go="coach-plan/${esc(athleteId)}">${icon('edit', 18)}<span class="lbl">Targets</span></button>
+      ${/* "Assign" left this row (founder 2026-09-15: "take out assign"). Assignments still exist
+            from the create menu; this row is about THIS athlete. Manage is the real management:
+            position, room, and leaving the team. */''}
+      <button class="co-act${MANAGE.open && MANAGE.id === athleteId ? ' hero' : ''}" id="ca-manage" aria-expanded="${MANAGE.open && MANAGE.id === athleteId ? 'true' : 'false'}">${icon('gear', 18)}<span class="lbl">Manage</span></button>
       ${CD.caps.trustPass
         ? P.pass
           ? `<button class="co-act hero" id="tp-btn">${icon('shield', 18)}<span class="lbl">End pass</span></button>`
@@ -2650,6 +2814,7 @@ export const coachAthlete = {
     </div>
     <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:0 0 4px">This exact message goes to them, from "${esc(S.operatorIdentity.handle)} is waiting".</div>` : ''}
     <div id="tp-status" style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);min-height:0"></div>
+    ${MANAGE.open && MANAGE.id === athleteId ? manageSheet(P, athleteId, position) : ''}
 
     <div class="co-seg co-scroll co-tabs edge-fade" id="psec-row" role="radiogroup" aria-label="Profile section">
       ${profileSections().map(([key, label]) => `<button type="button" class="co-chip ${PSECTION === key ? 'on' : ''}" role="radio" aria-checked="${PSECTION === key ? 'true' : 'false'}" data-psec="${key}">${esc(label)}</button>`).join('')}
@@ -2660,6 +2825,82 @@ export const coachAthlete = {
     `;
   },
   mount(root, { sub }) {
+    // The Manage sheet and the Requirements tab (2026-09-15) need the targets and the board.
+    const athleteIdM = sub;
+    if (MANAGE.id !== athleteIdM) MANAGE = { id: athleteIdM, open: false, busy: false, note: '', arm: false };
+    loadTargets(athleteIdM);
+    if (!VC.board && currentBookId()) loadBoard(currentBookId(), CD.kind).then(() => { if (location.hash.startsWith('#coach-athlete')) window.__render(); }).catch(() => {});
+    // The AI Nutritionist's read (Overview). Fetch once per athlete; the card's Refresh and
+    // cadence chips act here. The two-day refresh throttle is the server's; the client only
+    // greys the button so the coach is never told "no" after pressing it.
+    loadAthleteSummary(athleteIdM);
+    const snote = (t, ok) => { ASUM.note = t || ''; const el = root.querySelector('#asum-note'); if (el) { el.textContent = ASUM.note; el.classList.toggle('asum-note-quiet', !ASUM.note); el.classList.toggle('ok', !!ok); } };
+    const sref = root.querySelector('#asum-refresh');
+    if (sref) sref.addEventListener('click', async () => {
+      if (ASUM.busy || ASUM.id !== athleteIdM) return;
+      ASUM.busy = true; sref.disabled = true; sref.textContent = 'Writing…'; snote('The AI Nutritionist is writing a fresh read…');
+      const r = await roles.refreshAthleteSummary(athleteIdM);
+      if (ASUM.id !== athleteIdM) return;
+      ASUM.busy = false;
+      if (r.row) ASUM.row = r.row;
+      if (r.ok) { ASUM.note = ''; window.__render(); return; }
+      if (r.error === 'throttled') { ASUM.note = ''; window.__render(); return; } // the card now prints "Refresh again …"
+      ASUM.note = r.error === 'offline' ? "Can't reach the AI Nutritionist right now." : "Couldn't write a fresh read. Try again in a minute.";
+      window.__render();
+    });
+    root.querySelectorAll('[data-asum-cad]').forEach((b) => b.addEventListener('click', async () => {
+      const days = +b.getAttribute('data-asum-cad') === 3 ? 3 : 6;
+      if (ASUM.busy || !ASUM.row && ASUM.loading) return;
+      const cur = ASUM.row && ASUM.row.cadence_days === 3 ? 3 : 6;
+      if (days === cur && ASUM.row) return;
+      const book = currentBookId(); const kind = CD.kind === 'practice' ? 'practice' : 'team';
+      const r = await roles.setAiSummaryCadence(athleteIdM, kind, book, days);
+      if (ASUM.id !== athleteIdM) return;
+      if (!r.ok) { snote("Couldn't change the cadence."); return; }
+      ASUM.row = { ...(ASUM.row || {}), cadence_days: days };
+      ASUM.note = `Updates every ${days} days.`;
+      window.__render();
+    }));
+    const manageBtn = root.querySelector('#ca-manage');
+    if (manageBtn) manageBtn.addEventListener('click', () => { MANAGE.open = !MANAGE.open; MANAGE.arm = false; MANAGE.note = ''; window.__render(); });
+    const mnote = (t, ok) => { MANAGE.note = t || ''; const el = root.querySelector('#ca-mstatus'); if (el) { el.textContent = MANAGE.note; el.classList.toggle('ok', !!ok); } };
+    const setPos = async (v) => {
+      if (MANAGE.busy) return;
+      MANAGE.busy = true; mnote('Saving…');
+      const r = await roles.coachSetAthletePosition(athleteIdM, v);
+      MANAGE.busy = false;
+      if (!r.ok) { mnote(r.error || "Couldn't save the position."); return; }
+      mnote(`Position set to ${v || 'none'}.`, true);
+      loadCoachRoster(true).then(() => { TGT = null; loadTargets(athleteIdM); window.__render(); });
+    };
+    root.querySelectorAll('[data-ca-pos]').forEach((b) => b.addEventListener('click', () => setPos(b.getAttribute('data-ca-pos'))));
+    const posSave = root.querySelector('#ca-pos-save');
+    if (posSave) posSave.addEventListener('click', () => setPos(((root.querySelector('#ca-pos-input') || {}).value || '').trim()));
+    root.querySelectorAll('[data-ca-room]').forEach((b) => b.addEventListener('click', async () => {
+      if (MANAGE.busy) return;
+      MANAGE.busy = true; mnote('Saving…');
+      const r = await roles.assignAthleteRoom(athleteIdM, b.getAttribute('data-ca-room') || null);
+      MANAGE.busy = false;
+      if (!r.ok) { mnote(r.error || "Couldn't move them."); return; }
+      mnote('Room updated.', true);
+      loadCoachRoster(true).then(() => window.__render());
+    }));
+    const rm = root.querySelector('#ca-remove');
+    if (rm) rm.addEventListener('click', () => { MANAGE.arm = true; window.__render(); });
+    const rmc = root.querySelector('#ca-remove-cancel');
+    if (rmc) rmc.addEventListener('click', () => { MANAGE.arm = false; window.__render(); });
+    const rmg = root.querySelector('#ca-remove-go');
+    if (rmg) rmg.addEventListener('click', async () => {
+      if (MANAGE.busy) return;
+      MANAGE.busy = true; mnote('Removing…');
+      const book = currentBookId();
+      const ok = CD.kind === 'practice' ? await roles.removePracticeClient(book, athleteIdM) : await roles.declineMember(book, athleteIdM);
+      MANAGE.busy = false;
+      if (!ok) { mnote("Couldn't remove them. Check your connection and try again."); return; }
+      MANAGE = { id: null, open: false, busy: false, note: '', arm: false };
+      await loadCoachRoster(true);
+      if (window.__go) window.__go('coach-roster');
+    });
     const athleteId = sub;
     loadBook(false, bookKindFor(RT.authRole)); // ensure the name is available
     loadAthleteProfile(athleteId);
@@ -3033,7 +3274,7 @@ export const coachMeal = {
     ${read.photoBlock}
     ${read.breakdown}
     ${fixPanel}
-    <section class="disc" id="meal-disc" aria-labelledby="disc-title">
+    <div class="disc-stage"><section class="disc disc-raised" id="meal-disc" aria-labelledby="disc-title">
     <h2 class="sr-only" id="disc-title">Team discussion</h2>
     <div class="disc-head">
       ${(() => {
@@ -3171,7 +3412,7 @@ export const coachMeal = {
     <div class="composer-attach-pending" id="cm-attach-pending" hidden></div>
     <div id="cm-note" style="font-size:12.5px;font-weight:600;color:var(--red-bright);margin:6px 2px 0;min-height:16px"></div>
     </div>
-    </section>
+    </section></div>
 
     ${(() => {
       // Private notes (0068): coach-only margin notes the athlete NEVER sees (RLS-enforced).
@@ -3198,6 +3439,7 @@ export const coachMeal = {
     if (!CD.roster) loadBook(false, bookKindFor(RT.authRole));
     loadMeal(sub);
     loadMealComments(sub);
+    revealDisc(root, `coach:${sub}`);
     act.markMealSeen(sub); // clears this meal's unseen dot in the team activity feed
     // Seed the resolved flag from the DB so "Resolved ✓" persists across a reload (not just
     // this session). Best-effort; a miss just shows "Mark resolved" until the coach taps it.

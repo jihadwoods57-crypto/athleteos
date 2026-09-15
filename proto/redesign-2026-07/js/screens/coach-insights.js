@@ -180,9 +180,9 @@ function weekSection() {
     sections.push(`
     <h2 class="co-eyebrow">${CD.kind === 'practice' ? 'Clients' : 'Athletes'} to watch</h2>
     <section class="card" style="padding:6px 16px">
-      ${decliners.length ? `<h2 class="eyebrow" style="margin:10px 2px 0">Trending down</h2>${decliners.map(d => athRow(d, d.text)).join('')}` : ''}
-      ${disengaging.length ? `<h2 class="eyebrow" style="margin:10px 2px 0">Going quiet</h2>${disengaging.map(d => athRow(d, d.text)).join('')}` : ''}
-      ${recoverers.length ? `<h2 class="eyebrow" style="margin:10px 2px 0">Bouncing back</h2>${recoverers.map(r => athRow(r, `${r.lift >= 0 ? '+' : ''}${r.lift} avg score lift after an intervention`)).join('')}` : ''}
+      ${decliners.length ? `<div class="eyebrow ci-gp">Trending down</div>${decliners.map(d => athRow(d, d.text)).join('')}` : ''}
+      ${disengaging.length ? `<div class="eyebrow ci-gp">Going quiet</div>${disengaging.map(d => athRow(d, d.text)).join('')}` : ''}
+      ${recoverers.length ? `<div class="eyebrow ci-gp">Bouncing back</div>${recoverers.map(r => athRow(r, `${r.lift >= 0 ? '+' : ''}${r.lift} avg score lift after an intervention`)).join('')}` : ''}
     </section>`);
   }
 
@@ -271,7 +271,6 @@ export const coachInsights = {
       <div class="co-legend" style="padding-bottom:var(--s4);border-bottom:1px solid var(--hairline-soft);margin-bottom:var(--s2)">${leg('g', g, 'on standard')}${leg('a', a, 'need attention')}${leg('r', r, 'overdue')}${leg('d', d, 'no activity')}</div>` : ''}
       ${lines.map(l => `<div style="display:flex;gap:10px;align-items:flex-start;padding:5px 0;font-size:13.5px;font-weight:600;color:var(--text);line-height:1.5"><span class="dot ${lineDot(l)}" style="width:7px;height:7px;border-radius:50%;margin-top:7px;flex:none"></span><span>${esc(l)}</span></div>`).join('')}
     </section>
-    <div class="co-note">Computed from your roster's real logs. Nothing here is generated.</div>
 
     ${weekSection()}
     <div class="co-bottom"></div>`;

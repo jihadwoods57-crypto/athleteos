@@ -35,7 +35,7 @@
 // Then schedule every 15 minutes with header x-miss-key: <key>.
 
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
-import { missedTasks, missBody, coachDigestBody } from '../_shared/meal-miss.ts';
+import { missedTasks, closingTasks, missBody, coachDigestBody } from '../_shared/meal-miss.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -66,6 +66,19 @@ const titleFor = (id: string) =>
   TITLES[id] ?? id.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
 type DayRow = { athlete_id: string; date: string; tasks: unknown };
+
+/** Same rule as send-push: minutes after local midnight in the person's own timezone (0221). */
+function inQuietHours(fromMin: number | null | undefined, toMin: number | null | undefined, tz: string | null | undefined, nowMs: number): boolean {
+  if (fromMin == null || toMin == null || !Number.isFinite(fromMin) || !Number.isFinite(toMin)) return false;
+  let local: number;
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz || 'UTC', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date(nowMs));
+    const h = Number(parts.find((p) => p.type === 'hour')?.value ?? 0) % 24;
+    const m = Number(parts.find((p) => p.type === 'minute')?.value ?? 0);
+    local = h * 60 + m;
+  } catch { return false; }
+  return fromMin <= toMin ? (local >= fromMin && local < toMin) : (local >= fromMin || local < toMin);
+}
 
 Deno.serve(async (req) => {
   if (!CRON_KEY || !safeEqual(req.headers.get('x-miss-key') ?? '', CRON_KEY)) {
@@ -100,7 +113,8 @@ Deno.serve(async (req) => {
       minutesLate: worst.minutesLate, remaining: Math.max(0, openAfter),
     });
   }
-  if (!misses.length) return json({ scanned: (days ?? []).length, sent: 0, digests: 0 });
+  // No misses is not "nothing to do": the closing rung below still runs. The early returns
+  // that used to sit here skipped it.
 
   // THE OPT-OUT IS NOT ADVISORY. profiles.notifications_opt_out is the athlete's own switch, and
   // an accountability feature that ignores it is just spam with a mission statement. Checked
@@ -111,7 +125,7 @@ Deno.serve(async (req) => {
   const muted = new Set(((prefs ?? []) as Array<{ id: string; notifications_opt_out: unknown }>)
     .filter((p) => p.notifications_opt_out === true).map((p) => p.id));
   const audible = misses.filter((m) => !muted.has(m.athleteId));
-  if (!audible.length) return json({ scanned: (days ?? []).length, sent: 0, digests: 0, muted: muted.size });
+
 
   // DEDUPE: one notification per athlete per requirement per day, ever. The kind carries all
   // three, so the uniqueness lives in data rather than in this function remembering anything —
@@ -123,7 +137,7 @@ Deno.serve(async (req) => {
     .in('kind', audible.map(kindOf));
   const seen = new Set(((already ?? []) as Array<{ user_id: string; kind: string }>).map((r) => `${r.user_id}|${r.kind}`));
   const fresh = audible.filter((m) => !seen.has(`${m.athleteId}|${kindOf(m)}`));
-  if (!fresh.length) return json({ scanned: (days ?? []).length, sent: 0, digests: 0, deduped: audible.length });
+
 
   // ---- L2: the athlete, immediately. Durable row first, push second: a failed push must never
   // mean the message did not exist. ----
@@ -136,8 +150,9 @@ Deno.serve(async (req) => {
     if (!nerr) sent++;
   }
 
-  const { data: toks } = await svc
-    .from('device_tokens').select('token,user_id').in('user_id', fresh.map((m) => m.athleteId));
+  const { data: toks } = fresh.length
+    ? await svc.from('device_tokens').select('token,user_id').in('user_id', fresh.map((m) => m.athleteId))
+    : { data: [] as Array<{ token: string; user_id: string }> };
   const byUser = new Map(fresh.map((m) => [m.athleteId, m]));
   const messages = ((toks ?? []) as Array<{ token: string; user_id: string }>)
     .map((t) => {
@@ -167,14 +182,15 @@ Deno.serve(async (req) => {
 
   // ---- L3: the coach, batched. ONE line per coach per day naming who missed, never one per
   // miss. The digest is written as a notification row for the same reason as above. ----
+  const coachPushes: Array<{ coachId: string; title: string; body: string; route: string; gate: 'onLate' | 'onClosing' }> = [];
   let digests = 0;
   // An athlete's coaches are their team's ACTIVE STAFF — the same definition the RLS predicate
   // is_team_coach_of() uses (team_members join team_staff). team_members carries no coach_id, and
   // teams.created_by would silently drop every assistant, so this walks the same path the
   // database itself considers authoritative.
-  const { data: mem } = await svc
-    .from('team_members').select('athlete_id,team_id')
-    .in('athlete_id', fresh.map((m) => m.athleteId)).eq('status', 'active');
+  const { data: mem } = fresh.length
+    ? await svc.from('team_members').select('athlete_id,team_id').in('athlete_id', fresh.map((m) => m.athleteId)).eq('status', 'active')
+    : { data: [] as Array<{ athlete_id: string; team_id: string }> };
   const teamIds = [...new Set(((mem ?? []) as Array<{ team_id: string }>).map((r) => r.team_id).filter(Boolean))];
   const { data: staff } = teamIds.length
     ? await svc.from('team_staff').select('team_id,staff_id').in('team_id', teamIds).eq('status', 'active')
@@ -210,8 +226,105 @@ Deno.serve(async (req) => {
         user_id: coachId, kind: digestKind, title: 'Missed today', body: body.slice(0, 160),
       });
       if (!derr) digests++;
+      coachPushes.push({ coachId, title: 'Missed today', body: body.slice(0, 160), route: 'coach-home', gate: 'onLate' });
     }
   }
 
-  return json({ scanned: (days ?? []).length, sent, pushed, digests });
+  // ---- THE HEADS-UP (founder 2026-09-15: "if a player is about to be late"). Windows closing
+  // within CLOSING_LEAD_MIN with nothing logged, told to the coach as one line per athlete per
+  // window. Deduped per coach on the kind (athlete-scoped) within the last hour, so the 15-minute
+  // cron cannot repeat itself. The athlete already has their own pre-deadline reminder
+  // (notify-plan.js, device-scheduled); this is the coach's. ----
+  let closings = 0;
+  {
+    const closing: Array<{ athleteId: string; id: string; minutesLeft: number }> = [];
+    for (const d of (days ?? []) as DayRow[]) {
+      const found = closingTasks(d.tasks, now);
+      if (!found.length) continue;
+      closing.push({ athleteId: d.athlete_id, id: found[0].id, minutesLeft: found[0].minutesLeft });
+    }
+    if (closing.length) {
+      const { data: cmem } = await svc
+        .from('team_members').select('athlete_id,team_id')
+        .in('athlete_id', closing.map((c) => c.athleteId)).eq('status', 'active');
+      const cTeamIds = [...new Set(((cmem ?? []) as Array<{ team_id: string }>).map((r) => r.team_id).filter(Boolean))];
+      const { data: cstaff } = cTeamIds.length
+        ? await svc.from('team_staff').select('team_id,staff_id').in('team_id', cTeamIds).eq('status', 'active')
+        : { data: [] as Array<{ team_id: string; staff_id: string }> };
+      const { data: cpcs } = await svc
+        .from('practice_clients').select('athlete_id,practice_id')
+        .in('athlete_id', closing.map((c) => c.athleteId)).eq('status', 'active');
+      const cPracticeIds = [...new Set(((cpcs ?? []) as Array<{ practice_id: string }>).map((r) => r.practice_id).filter(Boolean))];
+      const { data: cowners } = cPracticeIds.length
+        ? await svc.from('practices').select('id,owner_id').in('id', cPracticeIds)
+        : { data: [] as Array<{ id: string; owner_id: string }> };
+      const staffOf = new Map<string, string[]>();
+      for (const s2 of ((cstaff ?? []) as Array<{ team_id: string; staff_id: string }>)) {
+        staffOf.set(s2.team_id, [...(staffOf.get(s2.team_id) ?? []), s2.staff_id]);
+      }
+      const ownerOf = new Map(((cowners ?? []) as Array<{ id: string; owner_id: string }>).map((o) => [o.id, o.owner_id]));
+      const coachesOf = new Map<string, Set<string>>();
+      for (const l of ((cmem ?? []) as Array<{ athlete_id: string; team_id: string }>)) {
+        for (const c of (staffOf.get(l.team_id) ?? [])) coachesOf.set(l.athlete_id, new Set([...(coachesOf.get(l.athlete_id) ?? []), c]));
+      }
+      for (const l of ((cpcs ?? []) as Array<{ athlete_id: string; practice_id: string }>)) {
+        const o = ownerOf.get(l.practice_id);
+        if (o) coachesOf.set(l.athlete_id, new Set([...(coachesOf.get(l.athlete_id) ?? []), o]));
+      }
+      const ids = [...new Set(closing.map((c) => c.athleteId))];
+      const { data: names } = await svc.from('profiles').select('id,full_name').in('id', ids);
+      const nameOf = new Map(((names ?? []) as Array<{ id: string; full_name: string | null }>)
+        .map((r) => [r.id, (r.full_name || 'An athlete').split(' ')[0]]));
+      const hourAgo = new Date(now - 3600000).toISOString();
+      for (const c of closing) {
+        const kind = `athlete_closing:${c.athleteId}`;
+        const title = `${nameOf.get(c.athleteId) ?? 'An athlete'} is about to be late`;
+        const body = `${titleFor(c.id)} closes in ${c.minutesLeft} min and nothing is logged.`;
+        for (const coachId of (coachesOf.get(c.athleteId) ?? [])) {
+          const { data: had } = await svc.from('notifications')
+            .select('id').eq('user_id', coachId).eq('kind', kind).gte('created_at', hourAgo).limit(1);
+          if (had && had.length) continue;
+          const { error: cerr } = await svc.from('notifications').insert({ user_id: coachId, kind, title, body });
+          if (cerr) continue;
+          closings++;
+          coachPushes.push({ coachId, title, body, route: `coach-athlete/${c.athleteId}`, gate: 'onClosing' });
+        }
+      }
+    }
+  }
+
+  // ---- The coach's device, once per line above, through the coach's own switches (0236) and
+  // quiet hours (0221). The bell rows are already durable; this is the phone buzzing. ----
+  let coachPushed = 0;
+  if (coachPushes.length) {
+    const coachIds = [...new Set(coachPushes.map((p) => p.coachId))];
+    const { data: cprefs } = await svc.from('profiles')
+      .select('id,notifications_opt_out,coach_notify,quiet_from_min,quiet_to_min,timezone').in('id', coachIds);
+    type Pref = { id: string; notifications_opt_out?: boolean | null; coach_notify?: Record<string, unknown> | null;
+      quiet_from_min?: number | null; quiet_to_min?: number | null; timezone?: string | null };
+    const prefOf = new Map(((cprefs ?? []) as Pref[]).map((p) => [p.id, p]));
+    const allowed = coachPushes.filter((p) => {
+      const pr = prefOf.get(p.coachId);
+      if (!pr || pr.notifications_opt_out === true) return false;
+      const cn = (pr.coach_notify && typeof pr.coach_notify === 'object') ? pr.coach_notify : {};
+      if ((cn as Record<string, unknown>)[p.gate] === false) return false;
+      return !inQuietHours(pr.quiet_from_min, pr.quiet_to_min, pr.timezone, now);
+    });
+    if (allowed.length) {
+      const { data: ctoks } = await svc.from('device_tokens').select('token,user_id').in('user_id', [...new Set(allowed.map((p) => p.coachId))]);
+      const tokensOf = new Map<string, string[]>();
+      for (const t of ((ctoks ?? []) as Array<{ token: string; user_id: string }>)) tokensOf.set(t.user_id, [...(tokensOf.get(t.user_id) ?? []), t.token]);
+      const msgs = allowed.flatMap((p) => (tokensOf.get(p.coachId) ?? []).map((to) => ({ to, title: p.title, body: p.body, data: { route: p.route } })));
+      for (let i = 0; i < msgs.length; i += 100) {
+        try {
+          const r = await fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(msgs.slice(i, i + 100)),
+          });
+          if (r.ok) coachPushed += Math.min(100, msgs.length - i);
+        } catch { /* rows are durable */ }
+      }
+    }
+  }
+
+  return json({ scanned: (days ?? []).length, sent, pushed, digests, closings, coachPushed });
 });

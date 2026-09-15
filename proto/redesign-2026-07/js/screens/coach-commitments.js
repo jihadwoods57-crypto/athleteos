@@ -15,6 +15,7 @@ import { DAYS_SHORT } from '../fmt-date.js';
 import { track, EVENTS } from '../analytics.js';
 import { backHead, esc, errorState, skeletonRows, segBar, emptyState } from '../components.js';
 import { CD, bookId } from '../coach-data.js';
+const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 // The shared no-book trio (coach-connected.js): kick the book without forcing, the honest
 // "can't reach / no book yet / loading" screen for a book-less landing, and the Retry that
 // force-loads past a cached offline ROSTER (a plain kick early-returns on it).
@@ -226,8 +227,8 @@ function noticeLine(inst, st) {
   const stale = !isFinite(told) || (isFinite(changed) && changed > told);
   const toldAt = isFinite(told) ? new Date(told).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
   return `<div class="wk-sched-who" id="wk-notice">${stale
-    ? `${isFinite(told) ? `Athletes were told ${esc(toldAt)}, before this change. ` : 'Athletes have not been told. '}${canSchedule() ? '<button class="btn ghost xs" id="wk-tell">Tell athletes</button>' : ''}`
-    : `Athletes were told ${esc(toldAt)}.`}</div>`;
+    ? `${isFinite(told) ? `${cap(CD.nouns)} were told ${esc(toldAt)}, before this change. ` : `${cap(CD.nouns)} have not been told. `}${canSchedule() ? `<button class="btn ghost xs" id="wk-tell">Tell ${CD.nouns}</button>` : ''}`
+    : `${cap(CD.nouns)} were told ${esc(toldAt)}.`}</div>`;
 }
 
 /** Home: the NEXT roll call the coach can still act on, once today's has closed or when there is
@@ -836,7 +837,7 @@ export const coachCommitments = {
     if (tellBtn && inst) tellBtn.addEventListener('click', async () => {
       tellBtn.disabled = true; tellBtn.textContent = 'Sending…';
       const { reason } = await notifyScheduleChange(inst.instance_id);
-      if (reason === 'failed') { tellBtn.disabled = false; tellBtn.textContent = 'Tell athletes'; schedSay('Couldn’t reach the server. Try again.'); return; }
+      if (reason === 'failed') { tellBtn.disabled = false; tellBtn.textContent = `Tell ${CD.nouns}`; schedSay('Couldn’t reach the server. Try again.'); return; }
       await repaint();
     });
     const schedTime = root.querySelector('#wk-sched-time');
@@ -914,7 +915,7 @@ export const coachCommitments = {
       const box = document.createElement('div');
       box.className = 'wk-override';
       const input = document.createElement('input');
-      input.className = 'input'; input.maxLength = 120; input.placeholder = 'Why? (required, the athlete sees it)';
+      input.className = 'input'; input.maxLength = 120; input.placeholder = `Why? (required, the ${CD.noun} sees it)`;
       input.setAttribute('aria-label', 'Override reason');
       const ok = document.createElement('button'); ok.className = 'chip on'; ok.textContent = 'Mark on standard';
       const cancel = document.createElement('button'); cancel.className = 'chip'; cancel.textContent = 'Cancel';
@@ -1212,7 +1213,7 @@ export const coachCommitEdit = {
     const starters = STARTERS[d.type] || [];
 
     return `
-    ${backHead('Schedule a commitment', 'Type, who it’s for, when it repeats', back)}
+    ${backHead('Schedule a commitment', '', back)}
 
     <h2 class="eyebrow">What is it</h2>
     <section class="card pad">
@@ -1228,7 +1229,7 @@ export const coachCommitEdit = {
       ${starters.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
         ${starters.map((s, i) => `<button class="chip" data-starter="${i}">${esc(s.length > 34 ? s.slice(0, 32) + '…' : s)}</button>`).join('')}
       </div>
-      <div class="ts" style="padding-top:6px">Tap one to load it in and edit it, or ignore them and write your own.</div>` : ''}
+` : ''}
       <div style="height:14px"></div>
       <label for="vc-action" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">Button label</label>
       <input class="ob-input" id="vc-action" maxlength="24" value="${esc(d.action_label)}" placeholder="${d.type === 'morning_roll_call' ? 'I’m Up' : 'I’m here'}" />
@@ -1276,14 +1277,13 @@ export const coachCommitEdit = {
         ${(RT.vcCommitments || []).filter((c) => c.type !== 'morning_roll_call')
           .map((c) => `<option value="${esc(c.id)}" ${d.linked_commitment_id === c.id ? 'selected' : ''}>${esc(c.title)} · ${esc(fmtMin(c.starts_min))}</option>`).join('')}
       </select>
-      <div class="ts" style="padding-top:8px">Pick one and the ${CD.noun}'s card reads "Practice at 6:00 AM" underneath your message.</div>
     </section>
 
     <div style="height:14px"></div>
     <button class="btn primary" id="vc-save" style="width:100%">${icon('check', 19)} Schedule it</button>
     <div id="vc-save-err" class="ts" style="color:var(--red);text-align:center;min-height:16px"></div>
     <div style="height:10px"></div>
-    <div class="ts" style="text-align:center">Athletes see this on Home when it opens. Responses land on your board live.</div>
+    <div class="ts" style="text-align:center">${cap(CD.nouns)} see this on Home when it opens. Responses land on your board live.</div>
     <div style="height:20px"></div>`;
   },
 

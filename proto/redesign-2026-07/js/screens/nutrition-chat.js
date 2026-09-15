@@ -728,6 +728,14 @@ export default {
       const posted = await roles.postMealComment(target.id, RT.userId, RT.userId, 'athlete', text);
       busy = false;
       if (!posted) { setNote("Couldn't send that. Check your connection and try again."); input.value = text; return; }
+      // THE COACH HEARS IT (founder 2026-09-15). This composer posted and told nobody; the meal
+      // thread's own composer already did. Same call, same kind, after the row landed.
+      act.notifyCoachEvent({
+        kind: `athlete_message:${target.id}`, urgent: true,
+        title: `${S.athlete.first || 'Your athlete'} asked about ${mealLabel(target)}`,
+        body: `${text.slice(0, 140)} · Tap to open the conversation.`,
+        route: `coach-meal/${target.id}`,
+      });
       await load();
       // The row that just landed rises out of the box, as the phone's does.
       const ownRows = threadMessages(STATE.comments).filter((c) => c && c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId));

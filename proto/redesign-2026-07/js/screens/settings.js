@@ -120,7 +120,7 @@ export const settings = {
   get nav() { return roleNav(); },
   render() {
     return `
-    ${backHead('Units & appearance', '', roleProfileRoute())}
+    ${backHead('App settings', '', roleProfileRoute())}
 
     <h2 class="eyebrow">Units</h2>
     <section class="card" style="padding:6px 16px">
@@ -129,7 +129,7 @@ export const settings = {
             the sub says why there is no control yet. */''}
       <div class="lrow" style="cursor:default">
         <div class="lic">${icon('scale', 17)}</div>
-        <div class="lm"><div class="lt">Units · lb, 12-hour</div><div class="ls">US units for now.</div></div>
+        <div class="lm"><div class="lt">Units · lb, 12-hour</div><div class="ls">US units.</div></div>
       </div>
     </section>
 
@@ -592,7 +592,7 @@ export const notifSettings = {
     const qf = Math.round(p.quietFrom / 60); // 21 | 22 | 23
     const qt = Math.round(p.quietTo / 60);   // 6 | 7 | 8
     return `
-    ${backHead('Notifications', 'Your tone. Your quiet hours. Coach sets urgency.', back)}
+    ${backHead('Notifications', 'Your tone. Your quiet hours.', back)}
 
     <section class="card" style="padding:6px 16px">
       ${/* role="switch" presents the row's children as presentational; aria-describedby keeps
@@ -681,7 +681,7 @@ export const notifSettings = {
         </div>`).join('')}
     </section>`;
     })()}
-    <div class="set-note">${icon('lock', 11)} Urgency decides which items get a last call on Direct, and belongs to ${S.coach.hasCoach ? 'your coach' : 'your plan'}; your tone above sets how many reminders you get and how they read. Completed requirements never remind you; finishing one cancels its reminders immediately.</div>
+    <div class="set-note">${icon('lock', 11)} Urgency decides which items get a last call on Direct, and belongs to ${S.coach.hasCoach ? 'your coach' : 'your plan'}. Completed requirements never remind you; finishing one cancels its reminders immediately.</div>
     </div>
     ${typeof window !== 'undefined' && !window.OnStandardNative ? `
     <div class="set-note">${icon('info', 11)} Reminders are delivered by the phone app. In a browser these settings save, but nothing is scheduled on this device.</div>` : ''}
@@ -759,12 +759,12 @@ export const notifSettings = {
    already match — a picker where no chip is ever lit reads as broken, and after a preset tap the
    __render() repaint needs the same logic to show what stuck. */
 const COACH_PRESETS = {
-  Essential: { enabled: true, briefing: false, recap: false, hourly: false, immediateCritical: true, quietFrom: 21 * 60 },
+  Essential: { enabled: true, briefing: false, recap: false, hourly: false, immediateCritical: true, quietFrom: 21 * 60, onLog: false, onMessage: true, onLate: true, onClosing: false },
   // Balanced IS the default set (coach-notify-plan.js DEFAULT_COACH_NOTIF_PREFS), so a fresh
   // coach sees it lit. It used to carry hourly:true while the default is false, which meant no
   // chip ever matched a coach who had changed nothing, and the picker read as broken.
-  Balanced: { enabled: true, briefing: true, briefingAt: 7 * 60 + 30, recap: true, recapAt: 20 * 60 + 30, hourly: false, immediateCritical: true, quietFrom: 22 * 60 },
-  'Hands-on': { enabled: true, briefing: true, briefingAt: 7 * 60, recap: true, recapAt: 20 * 60, hourly: true, immediateCritical: true, quietFrom: 23 * 60 },
+  Balanced: { enabled: true, briefing: true, briefingAt: 7 * 60 + 30, recap: true, recapAt: 20 * 60 + 30, hourly: false, immediateCritical: true, quietFrom: 22 * 60, onLog: true, onMessage: true, onLate: true, onClosing: true },
+  'Hands-on': { enabled: true, briefing: true, briefingAt: 7 * 60, recap: true, recapAt: 20 * 60, hourly: true, immediateCritical: true, quietFrom: 23 * 60, onLog: true, onMessage: true, onLate: true, onClosing: true },
 };
 function presetFor(p) {
   const hit = Object.entries(COACH_PRESETS).find(([, b]) => Object.entries(b).every(([k, v]) => p[k] === v));
@@ -785,7 +785,7 @@ export const coachNotifSettings = {
     const qt = Math.round((p.quietTo != null ? p.quietTo : 7 * 60) / 60); // resume hour
     const preset = presetFor(p);
     return `
-    ${backHead('Notifications', 'When and how you get alerts about your team.', roleProfileRoute())}
+    ${backHead('Notifications', `When and how you hear from your ${RT.authRole === 'trainer' ? 'clients' : 'team'}.`, roleProfileRoute())}
 
     <h2 class="eyebrow">Quick setup</h2>
     <div class="chip-row" id="cns-preset" data-toggle-group>
@@ -831,6 +831,30 @@ export const coachNotifSettings = {
         <div class="lic">${icon('bolt', 17)}</div>
         <div class="lm"><div class="lt">Immediate critical</div><div class="ls" id="cns-critical-sub">One ping when a new group goes overdue</div></div>
         <div class="std-switch ${p.immediateCritical ? 'on' : ''}" aria-hidden="true"></div>
+      </div>
+    </section>
+
+    <h2 class="eyebrow">From your athletes</h2>
+    <section class="card" style="padding:6px 16px">
+      <div class="lrow" id="cns-onlog" role="switch" tabindex="0" aria-checked="${p.onLog ? 'true' : 'false'}" aria-label="When they log" aria-describedby="cns-onlog-sub">
+        <div class="lic">${icon('camera', 17)}</div>
+        <div class="lm"><div class="lt">When they log</div><div class="ls" id="cns-onlog-sub">A meal, a weigh-in, a check-in, training, a roll call answer</div></div>
+        <div class="std-switch ${p.onLog ? 'on' : ''}" aria-hidden="true"></div>
+      </div>
+      <div class="lrow" id="cns-onmessage" role="switch" tabindex="0" aria-checked="${p.onMessage ? 'true' : 'false'}" aria-label="When they message you" aria-describedby="cns-onmessage-sub">
+        <div class="lic">${icon('message', 17)}</div>
+        <div class="lm"><div class="lt">When they message you</div><div class="ls" id="cns-onmessage-sub">A question in a meal thread, with sound</div></div>
+        <div class="std-switch ${p.onMessage ? 'on' : ''}" aria-hidden="true"></div>
+      </div>
+      <div class="lrow" id="cns-onclosing" role="switch" tabindex="0" aria-checked="${p.onClosing ? 'true' : 'false'}" aria-label="About to be late" aria-describedby="cns-onclosing-sub">
+        <div class="lic">${icon('clock', 17)}</div>
+        <div class="lm"><div class="lt">About to be late</div><div class="ls" id="cns-onclosing-sub">A window closing in 20 minutes with nothing logged</div></div>
+        <div class="std-switch ${p.onClosing ? 'on' : ''}" aria-hidden="true"></div>
+      </div>
+      <div class="lrow" id="cns-onlate" role="switch" tabindex="0" aria-checked="${p.onLate ? 'true' : 'false'}" aria-label="When they miss" aria-describedby="cns-onlate-sub">
+        <div class="lic">${icon('alert', 17)}</div>
+        <div class="lm"><div class="lt">When they miss</div><div class="ls" id="cns-onlate-sub">One line a day naming who missed a window</div></div>
+        <div class="std-switch ${p.onLate ? 'on' : ''}" aria-hidden="true"></div>
       </div>
     </section>
 
@@ -886,6 +910,10 @@ export const coachNotifSettings = {
     seg2('#cns-hourly', (on) => ({ hourly: on }));
     seg2('#cns-critical', (on) => ({ immediateCritical: on }));
     seg2('#cns-myroom', (on) => ({ myRoomOnly: on }));
+    seg2('#cns-onlog', (on) => ({ onLog: on }));
+    seg2('#cns-onmessage', (on) => ({ onMessage: on }));
+    seg2('#cns-onclosing', (on) => ({ onClosing: on }));
+    seg2('#cns-onlate', (on) => ({ onLate: on }));
 
     // Quiet-hours start: mirrors the athlete notifSettings quiet chips (9/10/11 PM), quietTo
     // stays the framework default (no UI here, matching the athlete side).

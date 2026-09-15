@@ -151,11 +151,24 @@ let KIND = 'team';
 /** Load the signed-in operator's book. `kind` is 'team' (coach) or 'practice' (trainer) and MUST
     be passed by the caller — see the no-state.js-import note at the top of this file.
     loadCoachRoster below keeps the old name and signature, so no existing caller moves. */
+/* The in-flight load, so a second caller AWAITS the real roster instead of returning to a null
+   one. loadAthleteProfile does `if (!CD.roster) await loadBook(...)` and then reads
+   CD.roster.rows; when coach Home had already started the load a beat earlier, the early
+   `return` here handed it back with the roster still null and every athlete card opened on
+   "Can't reach their profile" (found in the harness 2026-09-15: a module-graph change moved the
+   race by a few milliseconds and it started losing). */
+let rosterInflight = null;
 export async function loadBook(force, kind) {
   const k = kind || KIND || 'team';
-  if (rosterLoading) return;
+  if (rosterLoading) return rosterInflight;
   if (ROSTER && ROSTER.kind === k && !force) return;
   rosterLoading = true;
+  let settle = null;
+  rosterInflight = new Promise((res) => { settle = res; });
+  try { return await loadBookInner(force, k); }
+  finally { const s = settle; rosterInflight = null; if (s) s(); }
+}
+async function loadBookInner(force, k) {
   const prevKind = KIND;
   KIND = k;                                  // CD.caps must be right before loadExtras gates on it
   try {
@@ -571,7 +584,10 @@ export async function loadAthleteProfile(athleteId, force) {
     // Receipt moved to the screen's mount(), where a real viewer id (RT.userId/S.coachIdentity)
     // is actually available — this loader has no viewer identity to write, so a call here was
     // a silent no-op (markDayViewed short-circuits without viewerId). See coach.js coachAthlete.mount.
-  } catch {
+  } catch (e) {
+    // Say what broke: this catch used to be silent, so a thrown line anywhere above read as
+    // "Can't reach their profile" with no trace to chase (2026-09-15).
+    try { console.error('[coach] loadAthleteProfile failed', e && e.message ? e.message : e); } catch { /* console */ }
     // Fuller offline shape so screens can't crash indexing into missing collections.
     if (gen === profileGen) PROFILE = {
       athleteId, offline: true, meals: [], photos: {},

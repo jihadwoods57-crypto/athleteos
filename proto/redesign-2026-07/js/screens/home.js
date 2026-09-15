@@ -578,8 +578,7 @@ const recentResults = () => {
   return `
     ${rows.length ? `
     <h2 class="eyebrow">Recent Results <span class="link" data-go="history">View all</span></h2>
-    <div class="res-rail">${rows.map(resCard).join('')}</div>` : `
-    <h2 class="eyebrow">Recent Results <span class="link" data-go="history">View all</span></h2>`}
+    <div class="res-rail">${rows.map(resCard).join('')}</div>` : ''}
     ${past}`;
 };
 

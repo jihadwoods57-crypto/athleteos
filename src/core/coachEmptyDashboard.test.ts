@@ -52,8 +52,11 @@ describe('coach empty dashboard — with a live athlete code', () => {
   test('honest empty roster, and NO fabricated athletes or priority cards', () => {
     expect(html).toContain('No athletes yet');
     // One forward-looking line replaces the old roster/activity/score empty sections. It must be
-    // framed as what WILL happen, never as something that already has.
-    expect(html).toContain('What fills in next');
+    // framed as what WILL happen, never as something that already has. The line lives at the top
+    // ("fill in from their logs"); the second card that said the same thing again lower down was
+    // cut in the 2026-09-15 clutter sweep.
+    expect(html).toContain('fill in from their logs');
+    expect(html).not.toContain('What fills in next');
     expect(html).not.toContain('Demo Varsity');
     expect(html).not.toContain('co-pri');   // no priority/needs-attention cards
     expect(html).not.toContain('needs attention');

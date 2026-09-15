@@ -192,7 +192,8 @@ function answerRequirement(req, ctx) {
 }
 
 function answerScore(ctx) {
-  const lines = ['Your daily number is four parts:'];
+  const n = (ctx.weights || []).length;
+  const lines = [n ? `Your daily number is ${n === 2 ? 'two' : n === 3 ? 'three' : n} part${n === 1 ? '' : 's'}:` : 'Your daily number:'];
   let total = 0;
   for (const c of ctx.weights || []) { lines.push(`• ${c.key}: ${c.pct}%`); total += c.pct; }
   lines.push(`That's ${total}% of the score, and nothing else counts toward it.`);

@@ -425,7 +425,7 @@ const steps = [
       <div class="standard-set" style="padding-bottom:6px">
         <div class="halo"><div class="core" style="background:var(--surface-2);color:var(--text-2)">${icon('lock', 32)}</div></div>
         <div class="ob-title" style="margin-top:18px">Not yet, but soon.</div>
-        <div class="ob-sub" style="padding:0 8px">OnStandard is for athletes 13 and older. That's the law for apps like this, and we take it seriously. Come back on your 13th birthday. The Standard will be waiting.</div>
+        <div class="ob-sub" style="padding:0 8px">OnStandard is for people 13 and older. That's the law for apps like this, and we take it seriously. Come back on your 13th birthday. The Standard will be waiting.</div>
       </div>
       <div class="ob-foot" style="margin-top:auto">
         <button class="btn ghost" data-go="welcome">Back to start</button>

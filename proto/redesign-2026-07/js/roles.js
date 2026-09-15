@@ -1452,6 +1452,54 @@ export async function fetchMyRoomLabel(teamId) {
 }
 /* Staff: assign (or reassign) an athlete to a room, or null to un-assign. Server re-checks the
    coach-link and that the room is on the athlete's team (assign_athlete_room, 0101). */
+/** A trainer removes a client from their practice: the practice_clients row goes; the client
+ *  keeps every log and score. */
+export async function removePracticeClient(practiceId, clientId) {
+  const c = sb(); if (!c || !practiceId || !clientId) return false;
+  try { const { error } = await c.from('practice_clients').delete().eq('practice_id', practiceId).eq('client_id', clientId); return !error; } catch { return false; }
+}
+/** The coach corrects an athlete's position (0237). Writes athlete_profiles.position, the one
+ *  source; the trigger carries it to every membership. `''` clears it. */
+export async function coachSetAthletePosition(athleteId, position) {
+  const c = sb(); if (!c || !athleteId) return { ok: false };
+  try {
+    const { error } = await c.rpc('coach_set_athlete_position', { p_athlete: athleteId, p_position: position == null ? null : String(position) });
+    return { ok: !error, error: error && error.message };
+  } catch (e) { return { ok: false, error: e && e.message }; }
+}
+/* ---------- The AI Nutritionist's standing read of an athlete (0238, athlete-summary fn) ----------
+   fetchAthleteSummary: the row if one exists, else asks the function for a first read (no throttle
+   on a first read). refreshAthleteSummary: force=true; the function throttles to one per two days
+   and answers 429 {error:'throttled', retryAt, row}, which the client must read off error.context
+   (the vendored supabase-js FunctionsHttpError idiom, same as draftMealReplies). Neither throws. */
+async function invokeSummary(body) {
+  const c = sb(); if (!c) return { ok: false, error: 'offline' };
+  try {
+    const { data, error } = await c.functions.invoke('athlete-summary', { body });
+    if (error || !data || data.error) {
+      let parsed = data && data.error ? data : null;
+      if (!parsed && error && error.context && typeof error.context.json === 'function') parsed = await error.context.json().catch(() => null);
+      return { ok: false, error: (parsed && parsed.error) || 'unavailable', retryAt: parsed && parsed.retryAt, row: parsed && parsed.row };
+    }
+    return { ok: true, row: data.row || null };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+}
+export async function fetchAthleteSummary(athleteId) {
+  if (!athleteId) return { ok: false, error: 'offline' };
+  return invokeSummary({ athleteId });
+}
+export async function refreshAthleteSummary(athleteId) {
+  if (!athleteId) return { ok: false, error: 'offline' };
+  return invokeSummary({ athleteId, force: true });
+}
+/** Coach chooses how often the read regenerates on its own: 3 or 6 days (set_ai_summary_cadence). */
+export async function setAiSummaryCadence(athleteId, bookKind, bookId, days) {
+  const c = sb(); if (!c || !athleteId || !bookId) return { ok: false };
+  try {
+    const { error } = await c.rpc('set_ai_summary_cadence', { p_athlete: athleteId, p_book_kind: bookKind, p_book: bookId, p_days: days === 3 ? 3 : 6 });
+    return { ok: !error, error: error && error.message };
+  } catch (e) { return { ok: false, error: e && e.message }; }
+}
 export async function assignAthleteRoom(athleteId, roomId) {
   const c = sb(); if (!c || !athleteId) return { ok: false };
   try { const { error } = await c.rpc('assign_athlete_room', { p_athlete: athleteId, p_room: roomId || null }); return { ok: !error, error: error && error.message }; } catch (e) { return { ok: false, error: e && e.message }; }

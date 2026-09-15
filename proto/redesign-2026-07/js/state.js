@@ -38,6 +38,12 @@ export function serverPrefPatch(patch, prefs) {
   if ('quietFrom' in patch) out.quiet_from_min = Number.isFinite(prefs.quietFrom) ? Math.round(prefs.quietFrom) : null;
   if ('quietTo' in patch) out.quiet_to_min = Number.isFinite(prefs.quietTo) ? Math.round(prefs.quietTo) : null;
   if ('teamPushes' in patch) out.team_standard_pushes_opt_out = prefs.teamPushes === false;
+  // The coach's per-kind switches (0236): consumed by send-push and meal-miss-escalation, so
+  // they must live on the server. The whole four-key object is written whenever any one of them
+  // moves, so the column is never a partial merge of two devices.
+  if (['onLog', 'onMessage', 'onLate', 'onClosing'].some((k) => k in patch)) {
+    out.coach_notify = { onLog: prefs.onLog !== false, onMessage: prefs.onMessage !== false, onLate: prefs.onLate !== false, onClosing: prefs.onClosing !== false };
+  }
   return Object.keys(out).length ? out : null;
 }
 import { commitmentReminders } from './commitments.js';
@@ -1791,7 +1797,18 @@ export const act = {
       });
     } catch { /* notification is best-effort — the log itself already landed */ }
   },
-  _coachConnected() { return !!(RT.myCoach && RT.myCoach.teamId); },
+  // A team coach OR a practice (trainer / private nutritionist): send-push resolves both lanes
+  // now (2026-09-15), so the client must not gate on the team alone.
+  _coachConnected() { return !!((RT.myCoach && RT.myCoach.teamId) || (RT.myTrainer && RT.myTrainer.practiceId)); },
+  /** One line to every overseer the moment the athlete logs something that is not a meal
+   *  (weigh-in, check-in, training, roll call) or writes to the room. Best-effort, after the
+   *  write already landed; the server decides who hears it and how (profiles.coach_notify). */
+  notifyCoachEvent({ kind, title, body, route, urgent = false } = {}) {
+    try {
+      if (!this._coachConnected() || !kind || !title) return;
+      void notifyMyCoach({ kind, title, body: body || '', urgent: !!urgent, route });
+    } catch { /* best-effort */ }
+  },
 
   // Back-compat aliases (camera/search buttons and older routes) → the single logMeal impl.
   logDinner() { this.logMeal('dinner'); },
@@ -1806,6 +1823,7 @@ export const act = {
     save();
     track(EVENTS.RECOVERY_SUBMITTED);
     this.syncNotifications();
+    this.notifyCoachEvent({ kind: `checkin_logged:${RT.userId}`, title: `${S.athlete.first || 'Your athlete'} checked in`, body: 'Recovery check-in is in · Tap to open their day.', route: `coach-athlete/${RT.userId}` });
   },
   /* Set the athlete's plan style (0142). ALWAYS records their stated preference — that is theirs
      and it reaches their professional's roster either way. The effective style only moves when
@@ -1855,7 +1873,11 @@ export const act = {
   dismissPlanStylePrompt() { RT.planStylePromptSeen = true; save(); },
   // 50–500 lb rail: a typed-entry typo (8.4, 1834) must not mark the day logged or poison the
   // season trend. The weigh-in screen surfaces the same bounds before this is ever reached.
-  logWeight(lb) { const v = parseFloat(lb); if (!isFinite(v) || v < 50 || v > 500) return; RT.weightLogged = true; RT.weightLoggedAt = minutesNow(); dayLogWeight(RT.userId, v); save(); track(EVENTS.WEIGHT_LOGGED); this.syncNotifications(); },
+  logWeight(lb) {
+    const v = parseFloat(lb); if (!isFinite(v) || v < 50 || v > 500) return;
+    RT.weightLogged = true; RT.weightLoggedAt = minutesNow(); dayLogWeight(RT.userId, v); save(); track(EVENTS.WEIGHT_LOGGED); this.syncNotifications();
+    this.notifyCoachEvent({ kind: `weight_logged:${RT.userId}`, title: `${S.athlete.first || 'Your athlete'} logged a weigh-in`, body: `${v} lb · Tap to open their day.`, route: `coach-athlete/${RT.userId}` });
+  },
   readNotifs() {
     RT.notifsRead = true;
     // The ack expires with the day it acked. notifsRead alone was a one-way latch: after one
@@ -3308,6 +3330,15 @@ export const act = {
   },
   setHaptics(on) { RT.haptics = !!on; save(); },
   /** Coach edits their handle from the profile card. */
+  /* The operator's own name (2026-09-15): profiles.full_name, the one row the coach's header,
+     card, S.coachIdentity and every athlete's Coach row read. Local RT follows on success. */
+  async saveOperatorName(name) {
+    const v = String(name || '').trim();
+    if (v.length < 2) return false;
+    const ok = await this.saveIdentity({ full_name: v });
+    if (ok) { RT.profile = { ...(RT.profile || {}), name: v }; save(); }
+    return ok;
+  },
   async saveCoachHandle(name) {
     const r = await setMyCoachName(name);
     if (r.ok) { RT.profile = { ...(RT.profile || {}), coachName: r.name }; save(); }

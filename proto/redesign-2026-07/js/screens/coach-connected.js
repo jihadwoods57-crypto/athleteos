@@ -323,7 +323,7 @@ export const coachStandards = {
     <div class="sidebox" style="margin-top:12px">
       <div class="req-icon b s38">${icon('shield', 19)}</div>
       <div><div class="cs-h">These are device problems, not misses</div>
-      <div class="cs-p">A phone that never reported produces no evidence either way, so these leave the completion rate entirely rather than counting against the athlete. Mark one missed only if you know the work wasn’t done.</div></div>
+      <div class="cs-p">A phone that never reported produces no evidence either way, so these leave the completion rate entirely rather than counting against the ${CD.noun}. Mark one missed only if you know the work wasn’t done.</div></div>
     </div>` : ''}
 
     ${rest.length ? `

@@ -334,10 +334,10 @@ assert.deepStrictEqual(snapshotStatus.practice, snapshotStatus.team,
      card would just never clear. The button must not exist on a practice book at all. */
   const teamHome = snapshots.team['coach-home'];
   const practiceHome = snapshots.practice['coach-home'];
-  // 0136 made requirement_assignments and coach_interventions dual-owner, so the full priority
-  // action bar (Open / Nudge / Assign / Handled) now works on either book.
-  assert.ok(teamHome.includes('data-passign=') && practiceHome.includes('data-passign='),
-    '0136: Assign now works on a practice book');
+  // Assign left the priority card on 2026-09-15 (founder: "take out assign"); the card keeps
+  // Nudge and Handled on either book. Assignments live in the create menu.
+  assert.ok(!teamHome.includes('data-passign=') && !practiceHome.includes('data-passign='),
+    'Assign is gone from the priority card on both books');
   assert.ok(teamHome.includes('data-phandle=') && practiceHome.includes('data-phandle='),
     '0136: Handled now works on a practice book');
   assert.ok(teamHome.includes('data-pnudge=') && practiceHome.includes('data-pnudge='),
@@ -393,8 +393,9 @@ assert.deepStrictEqual(snapshotStatus.practice, snapshotStatus.team,
   assert.ok(practiceAthlete.includes('pass-grant/a1'), '0196: a trainer can now reward their client too');
   assert.ok(!teamAthlete.includes('id="tp-btn"') && !practiceAthlete.includes('id="tp-btn"'),
     'neither fixture athlete has an active pass, so End is not shown');
-  // ...but the three actions 0136 DID open are present on both.
-  for (const marker of ['data-anudge=', 'data-go="coach-assign/', 'data-go="coach-plan/']) {
+  // ...but the actions 0136 DID open are present on both. (Assign left the card on 2026-09-15;
+  // Manage took its slot, on both books.)
+  for (const marker of ['data-anudge=', 'id="ca-manage"', 'data-go="coach-plan/']) {
     assert.ok(teamAthlete.includes(marker) && practiceAthlete.includes(marker),
       `both books keep the ${marker} action`);
   }

@@ -98,10 +98,10 @@ test('the Assign composer rides the picker, previews the landing, and fans out h
   assert.equal((block.match(/window\.__render\(\)/g) || []).length, 2, 'only Assign another and Sent repaint the whole screen');
 });
 
-test('roster Select → Assign carries every ticked athlete into the composer', () => {
+test('roster Select has no Assign (founder 2026-09-15); the composer keeps its picker', () => {
   const roster = read('screens/coach-roster.js');
-  assert.match(roster, /presetAssignAudience\(ids\)/);
-  assert.match(roster, /Assign \$\{SEL\.size\}/);
+  assert.doesNotMatch(roster, /data-bulk="assign"/, 'Assign left the roster bulk bar');
+  assert.doesNotMatch(roster, /Assign \$\{SEL\.size\}/);
   assert.doesNotMatch(roster, /one \$\{CD\.noun\} at a time/);
   const create = read('screens/coach-create.js');
   assert.match(create, /the people you pick/);

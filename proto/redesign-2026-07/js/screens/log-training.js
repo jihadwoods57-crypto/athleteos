@@ -2,7 +2,7 @@
    session), a 1–5 "how'd it go", optional notes. Saves a training_logs row (coach-visible) and marks
    the requirement done in days.checked_tasks — TRACKED, NOT SCORED (never touches the daily score).
    Reached from the training requirement detail, or as a solo self-log (no sub) from Training history. */
-import { RT, act } from '../state.js';
+import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { track, EVENTS } from '../analytics.js';
 import { backHead, esc } from '../components.js';
@@ -81,6 +81,12 @@ export default {
         // before knowing meant a failed save still reported the session complete to the coach,
         // with no training_logs row behind the checkmark.
         if (id && act && act.markCheckDone) { try { act.markCheckDone(id); } catch { /* best-effort */ } }
+        if (act && act.notifyCoachEvent) act.notifyCoachEvent({
+          kind: `training_logged:${RT.userId}`,
+          title: `${(S.athlete && S.athlete.first) || 'Your athlete'} logged training`,
+          body: `${title || 'A session'}${feel ? ` · felt ${feel}/5` : ''} · Tap to open their day.`,
+          route: `coach-athlete/${RT.userId}`,
+        });
         track(EVENTS.TL_LOGGED, { source: id ? 'coach' : 'self', feel: feel || 0 });
         if (window.__go) window.__go(id ? 'home' : 'training-history');
       } else { save.disabled = false; save.textContent = 'Save failed · try again'; }

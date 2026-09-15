@@ -33,6 +33,7 @@ import { composer } from '../components.js';
 import { openImageViewer } from '../image-viewer.js';
 import { wireReadMore } from '../thread-readmore.js';
 import { focusComposer } from '../keyboard.js';
+import { revealDisc } from '../disc-reveal.js';
 
 /* ---------- Trust Pass detail: the earned camera-free reward, rules visible (0196) ----------
    Two active shapes (credits / window) plus a not-earned state with real progress. The old decay
@@ -550,7 +551,7 @@ export const mealView = {
     </section>`;
     const { photoBlock, breakdown } = mealReadHtml(M, { exec: null, past: true });
     const discussion = `
-    <section class="disc" id="meal-disc" aria-labelledby="disc-title">
+    <div class="disc-stage"><section class="disc disc-raised" id="meal-disc" aria-labelledby="disc-title">
     <h2 class="sr-only" id="disc-title">Team discussion</h2>
     <div class="disc-head">
       <div id="mv-members-slot" style="flex:1;min-width:0"><div class="disc-fp"><span class="names"><b>Team discussion</b></span></div></div>
@@ -564,7 +565,7 @@ export const mealView = {
     <div class="composer-attach-pending" id="mv-attach-pending" hidden></div>
     <div id="mv-note" style="min-height:18px"></div>
     </div>
-    </section>`;
+    </section></div>`;
     const foot = `<div class="meal-foot">
       <button class="btn ghost meal-back" data-go="history" aria-label="Back to history">${icon('back', 16)} Back to History</button>
     </div>`;
@@ -574,6 +575,7 @@ export const mealView = {
     const m = histMealById(sub) || (DIRECT.id === sub ? DIRECT.row : null);
     if (!m) { void fetchMealById(sub); return; }
     mountThread(root, sub, m);
+    revealDisc(root, `past:${sub}`);
     // The two doors the read card and the header offer, wired to THIS screen's composer and to
     // the full chat aimed at this plate (nutrition-chat.js reads the sub-route).
     const tell = root.querySelector('#tell-ai');

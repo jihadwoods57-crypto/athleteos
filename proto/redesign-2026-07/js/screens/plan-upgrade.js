@@ -86,7 +86,7 @@ export const planUpgrade = {
     </div>` : '';
     RT.planWall = null;
     return `<div id="pu-root">${canOpenExternalCheckout()
-      ? backHead('Choose a plan', 'First plan starts with a free 14-day trial', 'settings')
+      ? backHead('Choose a plan', '', 'settings')
       : backHead('Your plan', 'Managed from your account on the web', 'settings')}
     ${wall}
     ${founding}

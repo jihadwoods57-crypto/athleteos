@@ -16,7 +16,7 @@ import { backHead, esc } from '../components.js';
 import { fmtMin } from '../requirements.js';
 import { deriveCommitment, TYPE_LABEL, fmtAt, offsetFor, VERDICT, wakeupPhase, deadlineOf, closesAtOf, opensAtOf, graceMinOf, sourceOf, SOURCE } from '../commitments.js';
 import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment, ackRefusal, subscribeMine } from '../commitment-data.js';
-import { pushTokenState, RT } from '../state.js';
+import { pushTokenState, RT, S, act } from '../state.js';
 
 /* Per-instance notes, keyed by instance id. A single global here once meant commitment A's
    failure reason painted onto commitment B's card the moment two shared a morning.
@@ -303,6 +303,14 @@ export function mountCommitmentCard(root, rerender) {
   go('data-vc-ack', (id) => {
     const row = VC.instance(id) || {};
     return ackCommitment(id).then((at) => {
+      // The coach hears the answer the moment it lands (2026-09-15), one line, deep-linked to
+      // the board. The board still counts it; this is the phone buzzing.
+      if (at && act && act.notifyCoachEvent) act.notifyCoachEvent({
+        kind: `rollcall_answered:${id}`,
+        title: `${(S.athlete && S.athlete.first) || 'Your athlete'} answered the roll call`,
+        body: `${row.title || 'Roll call'} · Tap to see who is in.`,
+        route: `coach-commitments/${id}`,
+      });
       if (at) track(EVENTS.VC_ACKNOWLEDGED, {
         type: row.type,
         // How early they answered, in minutes — the signal that says whether a deadline is set

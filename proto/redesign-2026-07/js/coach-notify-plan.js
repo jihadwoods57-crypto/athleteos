@@ -58,6 +58,11 @@ export const DEFAULT_COACH_NOTIF_PREFS = {
   quietFrom: 22 * 60,        // 10:00 PM
   quietTo: 7 * 60,           // 7:00 AM
   myRoomOnly: false,         // consumed by the caller's scope choice, not by this (scope-agnostic) planner
+  // From your athletes (2026-09-15): server-consumed (profiles.coach_notify via serverPrefPatch).
+  onLog: true,               // the moment an athlete logs anything
+  onMessage: true,           // an athlete writes in a meal thread
+  onLate: true,              // the daily "missed" line
+  onClosing: true,           // a window closing with nothing logged
 };
 
 /** Merge a persisted (possibly partial/older/null) prefs object onto the defaults. Pure. */
@@ -77,6 +82,10 @@ export function normalizeCoachPrefs(p) {
     quietFrom: minOf(p.quietFrom, d.quietFrom),
     quietTo: minOf(p.quietTo, d.quietTo),
     myRoomOnly: p.myRoomOnly === true,
+    onLog: p.onLog !== false,
+    onMessage: p.onMessage !== false,
+    onLate: p.onLate !== false,
+    onClosing: p.onClosing !== false,
   };
 }
 

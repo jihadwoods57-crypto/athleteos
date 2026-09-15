@@ -1142,11 +1142,41 @@ function cpIdCard(withHandle) {
             members sheet, the athlete's Coach row). Initials stay as the fallback. */''}
       ${avatarControlHtml({ uid: RT.userId, initials: ci.initials || initialsOf(name, 'C'), size: 62, editable: true })}
       <div class="id-txt">
-        <div class="nm">${esc(name)}</div>
+        ${/* The name is a control (founder 2026-09-15: "the You page should be minimal but with
+              better capabilities, like changing my name"). Tap it, type, save: profiles.full_name,
+              the row every connected surface reads the coach's name from. */''}
+        <div class="nm cp-name" id="cp-name-edit" role="button" tabindex="0" aria-label="Change your name">${esc(name)} <span class="cp-name-pen">${icon('edit', 14)}</span></div>
         <div class="meta">${metaLine}</div>
         ${withHandle ? `<div class="meta" style="margin-top:3px">Goes by <b style="color:var(--text)">${esc(ci.handle)}</b> · <span id="handle-edit" style="color:var(--blue-bright);cursor:pointer;font-weight:800">Change</span></div>` : ''}
       </div>
-    </section>`;
+    </section>
+    <div id="cp-name-editor" class="cp-name-editor" hidden>
+      <input id="cp-name-input" class="ob-input" maxlength="60" placeholder="Your name" aria-label="Your name" value="${esc(name === 'Coach' ? '' : name)}" />
+      <div class="cp-name-row">
+        <button class="btn ghost sm" id="cp-name-cancel" type="button">Cancel</button>
+        <button class="btn primary sm" id="cp-name-save" type="button">Save</button>
+      </div>
+      <div id="cp-name-status" class="cp-name-status">Shown on your profile, in threads and on every athlete's Coach row.</div>
+    </div>`;
+}
+/* The name editor under the id card: profiles.full_name through act.saveOperatorName, which also
+   refreshes RT.profile.name so the header, the card and S.coachIdentity repaint at once. */
+function wireNameEditor(root) {
+  const open = root.querySelector('#cp-name-edit'), box = root.querySelector('#cp-name-editor');
+  if (!open || !box) return;
+  const input = root.querySelector('#cp-name-input'), status = root.querySelector('#cp-name-status');
+  open.addEventListener('click', () => { box.hidden = !box.hidden; if (!box.hidden && input) input.focus(); });
+  root.querySelector('#cp-name-cancel').addEventListener('click', () => { box.hidden = true; });
+  const save = async () => {
+    const v = (input.value || '').trim();
+    if (v.length < 2) { status.classList.add('bad'); status.textContent = 'Give it at least 2 characters.'; return; }
+    status.classList.remove('bad'); status.textContent = 'Saving…';
+    const ok = await act.saveOperatorName(v);
+    if (!ok) { status.classList.add('bad'); status.textContent = "Couldn't save that. Check your connection and try again."; return; }
+    window.__render();
+  };
+  root.querySelector('#cp-name-save').addEventListener('click', save);
+  if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
 }
 function cpHandleEditor() {
   const { ci } = cpNames();
@@ -1273,7 +1303,7 @@ function cpPrefsBlock() {
       ${/* Same name the athlete sees ("Units & appearance"), and no promised "reminders" — those
             deliberately live only in Notification Settings (spec §22.4), and a subtitle that
             promises a control the screen doesn't have is a lie on arrival. */''}
-      <div class="lrow" data-go="settings"><div class="lic">${icon('moon', 17)}</div><div class="lm"><div class="lt">Units &amp; appearance</div><div class="ls">Light or dark, weight and time units</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="settings"><div class="lic">${icon('moon', 17)}</div><div class="lm"><div class="lt">App settings</div><div class="ls">Light or dark, plan, health, security</div></div>${icon('chevron', 17)}</div>
     </section>`;
 }
 function cpSignOut() {
@@ -1378,6 +1408,7 @@ export const coachProfile = {
     // controls. Staff data is fetched only when the staff section is showing.
     if (sub === 'staff') loadStaff(RT.team && RT.team.id);
     wireAvatarUpload(root); // the coach's own photo, when the id card rendered (self-guarding)
+    wireNameEditor(root);   // the coach's own name, same card (self-guarding)
     wireOperatorAccount(root); // Account section (self-guarding: no-ops unless its rows rendered)
     const sStatus = root.querySelector('#staff-status');
     const sSay = (msg, isErr) => { if (sStatus) { sStatus.style.color = isErr ? 'var(--red)' : 'var(--text-3)'; sStatus.textContent = msg; } };
@@ -1520,7 +1551,7 @@ function trainerSettingsSections() {
     <h2 class="eyebrow">Your app</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="coach-notif-settings"><div class="lic">${icon('bell', 17)}</div><div class="lm"><div class="lt">Notifications</div><div class="ls">Briefings, alerts, quiet hours</div></div>${icon('chevron', 17)}</div>
-      <div class="lrow" data-go="settings"><div class="lic">${icon('moon', 17)}</div><div class="lm"><div class="lt">Units &amp; appearance</div><div class="ls">Light or dark, weight and time units</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="settings"><div class="lic">${icon('moon', 17)}</div><div class="lm"><div class="lt">App settings</div><div class="ls">Light or dark, plan, health, security</div></div>${icon('chevron', 17)}</div>
       <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Your visibility scope</div><div class="ls">Recovery, readiness, consistency only</div></div>${icon('chevron', 17)}</div>
     </section>`;
 }
@@ -1708,6 +1739,7 @@ export const trainerProfile = {
   },
   mount(root) {
     wireAvatarUpload(root); // the trainer's own photo, when the id card rendered (self-guarding)
+    wireNameEditor(root);   // and their name, when the id card rendered (self-guarding)
     const ti = S.trainerIdentity;
     wireOperatorAccount(root); // Account section (email / password / billing / delete)
     const copy = root.querySelector('#copy-code');

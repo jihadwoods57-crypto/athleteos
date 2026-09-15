@@ -305,6 +305,12 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); --bar-lift: var(
   border-radius: var(--r-card);
   box-shadow: var(--sh-card);
 }
+/* TWO CARDS NEVER TOUCH (founder 2026-09-15, photographed on the roster: the Custom groups sheet
+   sitting on the list card with no gap, the second card's corners riding the first). Cards carry
+   no margin of their own; every screen spaced them with an eyebrow, a spacer or an inline
+   margin, and the one pair that had none overlapped. This is the floor. An inline margin-top on
+   the second card still wins, so nothing that already spaced itself moves. */
+.card + .card { margin-top: var(--s3); }
 /* 20px puts card padding on the --s5 step and matches --pad-screen, so the gutter inside a card
    and the gutter beside it are the same measurement instead of 18 vs 20. */
 .card.pad { padding: var(--s5); }

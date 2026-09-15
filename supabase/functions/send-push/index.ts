@@ -46,6 +46,21 @@ function rateLimited(req: Request): boolean {
   return e.count > RL_MAX;
 }
 
+/** Is `nowMs` inside the person's quiet window? Minutes after local midnight in their own
+ *  timezone (0221). A window that wraps midnight (22:00 → 07:00) is the common one. No window,
+ *  or an unusable timezone, means never quiet: a broken preference must not silence a coach. */
+function inQuietHours(fromMin: number | null | undefined, toMin: number | null | undefined, tz: string | null | undefined, nowMs: number): boolean {
+  if (fromMin == null || toMin == null || !Number.isFinite(fromMin) || !Number.isFinite(toMin)) return false;
+  let local: number;
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz || 'UTC', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date(nowMs));
+    const h = Number(parts.find((p) => p.type === 'hour')?.value ?? 0) % 24;
+    const m = Number(parts.find((p) => p.type === 'minute')?.value ?? 0);
+    local = h * 60 + m;
+  } catch { return false; }
+  return fromMin <= toMin ? (local >= fromMin && local < toMin) : (local >= fromMin || local < toMin);
+}
+
 Deno.serve(async (req) => {
   const cors = corsFor(req);
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
@@ -333,16 +348,27 @@ Deno.serve(async (req) => {
     const baseKind = kind.split(':')[0];
     const route = typeof payload.route === 'string' ? payload.route.slice(0, 120) : null;
 
-    // Resolve the athlete's ACTIVE coach staff via service role (RLS-free, link-verified).
+    // Resolve the athlete's ACTIVE overseers via service role (RLS-free, link-verified): the
+    // team's active staff AND the owner of any practice they are an active client of. The
+    // practice lane was missing here (it existed for the bulk-nudge branch), so a trainer or a
+    // private nutritionist got nothing an athlete did (2026-09-15).
     const svc2 = createClient(SUPABASE_URL, SERVICE_ROLE);
     const { data: memberships } = await svc2.from('team_members')
       .select('team_id').eq('athlete_id', athleteId2).eq('status', 'active');
     const teamIds = (memberships ?? []).map((m: { team_id: string }) => m.team_id);
-    if (!teamIds.length) return json({ ok: true, pushed: 0, coaches: 0 }, 200, cors);
-    const { data: staff } = await svc2.from('team_staff')
-      .select('staff_id').in('team_id', teamIds).eq('status', 'active');
-    const coachIds = [...new Set((staff ?? []).map((s: { staff_id: string }) => s.staff_id))]
-      .filter((id) => id !== athleteId2).slice(0, 12);
+    const { data: staff } = teamIds.length
+      ? await svc2.from('team_staff').select('staff_id').in('team_id', teamIds).eq('status', 'active')
+      : { data: [] as Array<{ staff_id: string }> };
+    const { data: pcs } = await svc2.from('practice_clients')
+      .select('practice_id').eq('athlete_id', athleteId2).eq('status', 'active');
+    const practiceIds = (pcs ?? []).map((r: { practice_id: string }) => r.practice_id);
+    const { data: owners } = practiceIds.length
+      ? await svc2.from('practices').select('owner_id').in('id', practiceIds)
+      : { data: [] as Array<{ owner_id: string }> };
+    const coachIds = [...new Set([
+      ...(staff ?? []).map((s: { staff_id: string }) => s.staff_id),
+      ...(owners ?? []).map((o: { owner_id: string }) => o.owner_id),
+    ])].filter((id) => !!id && id !== athleteId2).slice(0, 12);
     if (!coachIds.length) return json({ ok: true, pushed: 0, coaches: 0 }, 200, cors);
 
     // Durable in-app record for every coach (the unread item), regardless of push urgency.
@@ -350,16 +376,31 @@ Deno.serve(async (req) => {
       user_id: id, kind, title: title2, body: body2,
     })));
 
-    // Device push: 'meal_logged' stays quiet (in-app record only); review/action classes
-    // push, action with sound. Each coach's notifications_opt_out suppresses their push.
+    // Device push, per coach, by the coach's OWN switches (profiles.coach_notify, 0236) and
+    // their quiet hours (0221). 'meal_logged' and the other log kinds push when onLog is not
+    // off (the founder wants to know the moment an athlete logs anything); an athlete's
+    // message pushes when onMessage is not off, with sound; review/action/flag classes always
+    // push. Quiet hours hold every non-urgent push; the bell row above already landed either
+    // way. notifications_opt_out is the person's master switch and beats all of it.
+    const LOG_KINDS = new Set(['meal_logged', 'weight_logged', 'checkin_logged', 'training_logged', 'rollcall_answered']);
+    const wantsPush = (cn: Record<string, unknown> | null | undefined) => {
+      const c = cn && typeof cn === 'object' ? cn : {};
+      if (LOG_KINDS.has(baseKind)) return c.onLog !== false;
+      if (baseKind === 'athlete_message') return c.onMessage !== false;
+      return true;
+    };
     let pushed = 0;
-    if (payload.urgent === true || baseKind !== 'meal_logged') {
+    {
       const { data: prefs } = await svc2.from('profiles')
-        .select('id,notifications_opt_out').in('id', coachIds);
-      const optedOut = new Set((prefs ?? [])
-        .filter((p: { notifications_opt_out?: boolean }) => p.notifications_opt_out === true)
-        .map((p: { id: string }) => p.id));
-      const targets = coachIds.filter((id) => !optedOut.has(id));
+        .select('id,notifications_opt_out,coach_notify,quiet_from_min,quiet_to_min,timezone').in('id', coachIds);
+      type Pref = { id: string; notifications_opt_out?: boolean | null; coach_notify?: Record<string, unknown> | null;
+        quiet_from_min?: number | null; quiet_to_min?: number | null; timezone?: string | null };
+      const urgent = payload.urgent === true;
+      const targets = ((prefs ?? []) as Pref[])
+        .filter((p) => p.notifications_opt_out !== true)
+        .filter((p) => wantsPush(p.coach_notify))
+        .filter((p) => urgent || !inQuietHours(p.quiet_from_min, p.quiet_to_min, p.timezone, Date.now()))
+        .map((p) => p.id);
       if (targets.length) {
         const { data: toks2 } = await svc2.from('device_tokens').select('token,user_id').in('user_id', targets);
         const tokens2 = (toks2 ?? []).map((t: { token: string }) => t.token).filter(Boolean);
@@ -370,7 +411,7 @@ Deno.serve(async (req) => {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(tokens2.map((to) => ({
                 to, title: title2, body: body2,
-                sound: payload.urgent === true ? 'default' : undefined,
+                sound: payload.urgent === true || baseKind === 'athlete_message' ? 'default' : undefined,
                 ...(route ? { data: { route } } : {}),
               }))),
             });

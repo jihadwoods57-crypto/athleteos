@@ -235,7 +235,7 @@ function todaySection() {
           it. Keyed on the requirement's route, which is what identifies a row here. */''}
     ${rows.map((r) => `
     <div class="pl-row tap" data-vt-row="req-${esc(r.route.replace(/[^A-Za-z0-9:_.-]/g, '_'))}" data-go="${esc(r.route)}">
-      <div class="req-icon ${r.done ? 'g' : r.color === 'red' ? 'a' : esc(r.accent === 'muted' ? 'muted' : r.accent)}" s38">${icon(r.icon, 18)}</div>
+      <div class="req-icon ${r.done ? 'g' : r.color === 'red' ? 'a' : esc(r.accent === 'muted' ? 'muted' : r.accent)} s38">${icon(r.icon, 18)}</div>
       <div class="plb">
         <div class="plt"><span class="nm">${esc(r.title)}</span></div>
         <div class="pls">${esc(r.sub)}</div>
@@ -341,7 +341,7 @@ function itemRow(it, { manage = false } = {}) {
   const ic = it.kind === 'supplement' ? 'bolt' : it.kind === 'food' ? 'grid' : it.kind === 'order' ? 'pin' : 'utensils';
   return `
   <div class="pl-row${manage ? ' tap' : ''}"${manage ? ` data-fm-edit="${esc(it.id)}"` : ''}>
-    <div class="req-icon b" s38">${icon(ic, 17)}</div>
+    <div class="req-icon b s38">${icon(ic, 17)}</div>
     <div class="plb">
       <div class="plt"><span class="nm">${esc(it.name)}</span>${check}</div>
       <div class="pls">${meta}</div>
@@ -550,7 +550,7 @@ function planStyleRow() {
   <h2 class="eyebrow">Plan style</h2>
   <div class="pl-list">
     <div class="pl-row"${st.canChoose ? '' : ' data-go="plan-style"'}>
-      <div class="req-icon b" s38">${icon('target', 17)}</div>
+      <div class="req-icon b s38">${icon('target', 17)}</div>
       <div class="plb">
         <div class="plt"><span class="nm">${esc(st.name)}${st.customized ? ' (customized)' : ''}</span></div>
         <div class="pls">${sub}</div>
@@ -559,7 +559,7 @@ function planStyleRow() {
     </div>
     ${st.preferenceDiffers && st.preferenceName && !st.canChoose ? `
     <div class="pl-row">
-      <div class="req-icon muted" s38">${icon('message', 16)}</div>
+      <div class="req-icon muted s38">${icon('message', 16)}</div>
       <div class="plb">
         <div class="plt"><span class="nm">You asked for ${esc(st.preferenceName)}</span></div>
         <div class="pls">Shared with ${esc(st.lockedBy || decider.replace(/^Your /, 'your '))}</div>
@@ -652,7 +652,7 @@ function reqRow(r, showFreq) {
   const sub = [freq, due, PROOF[r.proof] ? PROOF[r.proof].label : 'One-tap check'].filter(Boolean).join(' · ');
   return `
   <div class="pl-row tap" data-go="requirement/${esc(r.id)}">
-    <div class="req-icon ${esc(r.accent)}" s38">${icon(r.icon, 18)}</div>
+    <div class="req-icon ${esc(r.accent)} s38">${icon(r.icon, 18)}</div>
     <div class="plb">
       <div class="plt"><span class="nm">${esc(r.title)}</span>${r.required === false ? '<small style="color:var(--text-3);font-weight:700">optional</small>' : ''}</div>
       <div class="pls">${esc(sub)}</div>
@@ -683,7 +683,7 @@ function requirementsTab() {
     <div class="pl-grp">From your ${esc(S.coach.noun)}</div>
     <div class="pl-list">${assigned.map((a) => `
       <div class="pl-row tap" data-go="requirement/${esc(a.id)}">
-        <div class="req-icon ${a.done ? 'g' : 'b'}" s38">${icon(a.icon || 'clipboard', 18)}</div>
+        <div class="req-icon ${a.done ? 'g' : 'b'} s38">${icon(a.icon || 'clipboard', 18)}</div>
         <div class="plb">
           <div class="plt"><span class="nm">${esc(a.title)}</span></div>
           <div class="pls">One-time · ${esc(a.dueLabel || 'On your list')}</div>
@@ -698,7 +698,7 @@ function requirementsTab() {
   <div class="pl-grp">Who set this</div>
   <div class="pl-list">
     <div class="pl-row">
-      <div class="req-icon muted" s38">${icon('shield', 18)}</div>
+      <div class="req-icon muted s38">${icon('shield', 18)}</div>
       <div class="plb">
         <div class="plt"><span class="nm">${gov
     ? `${esc(gov.scopeLabel)}${gov.setBy ? ` by ${esc(gov.setBy)}` : ''}`

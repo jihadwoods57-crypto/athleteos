@@ -37,6 +37,15 @@ const KIND_META = {
   // DEFAULT_META because no coach screen ever rendered the feed — the bell is operator-visible
   // now, so each one carries its real urgency and, where the row IS a task, its destination.
   meal_flag: { icon: 'alert', level: 'high' },
+  // Everything an athlete does, to their coach (2026-09-15): a log is a record, a message is a
+  // message, a closing window is the heads-up, the daily miss line is the miss.
+  weight_logged: { icon: 'bars', level: 'medium', tag: 'logged' },
+  checkin_logged: { icon: 'heart', level: 'medium', tag: 'logged' },
+  training_logged: { icon: 'dumbbell', level: 'medium', tag: 'logged' },
+  rollcall_answered: { icon: 'check', level: 'positive', tag: 'roll call' },
+  athlete_message: { icon: 'message', level: 'high', tag: 'message' },
+  athlete_closing: { icon: 'clock', level: 'high', tag: 'closing' },
+  miss_digest: { icon: 'alert', level: 'high', tag: 'missed' },
   commitment_escalation: { icon: 'bell', level: 'high' },
   commitment_reminder: { icon: 'clock', level: 'high' },
   cs_reminder: { icon: 'clock', level: 'medium' },
@@ -68,6 +77,13 @@ const KIND_ROUTE = {
   // an unusable suffix still lands on the camera rather than nowhere.
   ai_daygap: (s) => (s && /^[a-z0-9-]{1,32}$/i.test(s) ? `camera/${s}` : 'camera'),
   meal_flag: (s) => (SUFFIX_OK(s) ? `coach-meal/${s}` : null),          // coach: review the flagged meal
+  weight_logged: (s) => (SUFFIX_OK(s) ? `coach-athlete/${s}` : null),   // coach: the athlete's day
+  checkin_logged: (s) => (SUFFIX_OK(s) ? `coach-athlete/${s}` : null),
+  training_logged: (s) => (SUFFIX_OK(s) ? `coach-athlete/${s}` : null),
+  rollcall_answered: (s) => (SUFFIX_OK(s) ? `coach-commitments/${s}` : null),
+  athlete_message: (s) => (SUFFIX_OK(s) ? `coach-meal/${s}` : null),    // coach: the conversation
+  athlete_closing: (s) => (SUFFIX_OK(s) ? `coach-athlete/${s}` : null), // coach: who is about to be late
+  miss_digest: () => 'coach-home',
   // The COACH board, not `roll-call/` — that route is the ATHLETE detail screen, and router.js's
   // mirror guard bounces a known coach off any athlete-nav screen back to their dashboard, losing
   // the instance id on the way. This row is only ever written for coaches (0145), so it has always

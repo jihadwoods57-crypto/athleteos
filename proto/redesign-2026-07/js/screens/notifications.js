@@ -73,7 +73,7 @@ export default {
     }
     if (!VISIT.settled) {
       return `<div id="ntf-root">
-      ${backHead('Notifications', 'Accountability moments, not spam')}
+      ${backHead('Notifications', '')}
       ${skeletonRows(3, 'Checking notifications')}
       </div>`;
     }
@@ -84,7 +84,7 @@ export default {
     const hasRows = N.new.length || N.earlier.length;
     const newCount = [...N.new, ...N.earlier].filter(isNew).length;
     return `<div id="ntf-root">
-    ${backHead('Notifications', 'Accountability moments, not spam')}
+    ${backHead('Notifications', '')}
 
     ${/* The count rides on the "New" heading ("New · 2", the same shape as Home's "Upcoming · 1")
           instead of a separate "2 new" line two rows above a "NEW" label saying the same thing.
@@ -114,13 +114,12 @@ export default {
     })}` : ''}
 
     <div style="height:6px"></div>
-    ${isOperator() ? '' : `
-    <div class="sidebox" data-go="notif-settings" style="cursor:pointer">
+    <div class="sidebox" data-go="${isOperator() ? 'coach-notif-settings' : 'notif-settings'}" style="cursor:pointer">
       <div class="req-icon b s38">${icon('gear', 17)}</div>
       <div style="flex:1"><div class="tt">Notification settings</div>
-      <div class="ts">${S.coach.hasCoach ? `${esc(S.coach.name)} sets urgency per requirement.` : 'Urgency comes with each requirement.'} You set the tone and quiet hours.</div></div>
+      <div class="ts">${isOperator() ? 'What reaches you, and when.' : S.coach.hasCoach ? `${esc(S.coach.name)} sets urgency. You set tone and quiet hours.` : 'Tone and quiet hours.'}</div></div>
       ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-    </div>`}
+    </div>
     <div style="height:10px"></div>
     </div>`;
   },

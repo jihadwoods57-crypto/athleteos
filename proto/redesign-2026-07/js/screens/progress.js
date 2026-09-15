@@ -27,7 +27,6 @@ function baseline(P) {
       ${dots}
       <span class="unlock-k">${P.unlockHave} of ${P.unlockNeed} days</span>
     </div>
-    <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:6px;line-height:1.45">Log ${P.unlockNeed} days to unlock your first weekly trend. ${P.unlockNeed - P.unlockHave} more to go.</div>
     <div class="base-stats">
       <div class="stat"><div class="v">${S.streak.days} day${S.streak.days === 1 ? '' : 's'}</div><div class="k">Current streak</div></div>
       <div class="stat"><div class="v">${P.bestScore}</div><div class="k">Best score</div></div>
@@ -188,7 +187,7 @@ export default {
           <span class="ct-d ${t.delta > 0 ? 'up' : t.delta < 0 ? 'down' : ''}">${t.delta > 0 ? `↑ ${t.delta}` : t.delta < 0 ? `↓ ${Math.abs(t.delta)}` : '–'}</span>
         </div>`).join('')}
     </section>` : `
-    <div class="pl-standard" style="margin-top:0">More appears as you log: category trends need four scored days of history.</div>`}`;
+    <div class="pl-standard" style="margin-top:0">Category trends appear after your fourth scored day.</div>`}`;
 
     // ONE actionable sentence, and it used to render dead last — under Weight, Photos, Training,
     // Squad and Monthly report, well below the fold on every phone. The most useful thing on the
