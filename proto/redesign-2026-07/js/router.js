@@ -3,7 +3,8 @@ import { S, act, RT, routeForRole, memoTick } from './state.js';
 import { CD } from './coach-data.js';
 import { primeDayFromCache } from './day.js';
 import { icon } from './icons.js';
-import { skeletonRows, errorState, mountEdgeFades, esc } from './components.js';
+import { skeletonRows, errorState, emptyState, mountEdgeFades, esc } from './components.js';
+import { initLayout, currentTier, masterFor } from './layout.js';
 import { screens, isLazy, loadScreen, preloadScreens, OPERATOR_TAB_ROUTES } from './screens/index.js';
 import { initAnalytics, track, EVENTS } from './analytics.js';
 import { emptyNav, pushOrigin, popOrigin, peekOrigin, resetTab } from './nav-stack.js';
@@ -16,6 +17,9 @@ import { initGestures, gestureActive, afterGesture } from './gestures.js';
 // search box and a profile field, and #device outlives every render() so this is wired once here
 // rather than in seven mounts. Inert until something focusable is actually focused.
 initKeyboard();
+// The wide-screen tier (iPad): html[data-layout] is set here once and kept current on rotate and
+// Split View resize. A tier change re-lays the shell out; render() reads it for the panes.
+initLayout(() => { if (window.__render) window.__render(); });
 
 /* Each role gets its own dashboard shell — not a modal off someone else's app. */
 const NAVS = {
@@ -135,6 +139,18 @@ export function navAdmits(mod, role) {
   return (mod.nav || 'athlete') === role;
 }
 
+/* The detail pane before anything is chosen (split tier, css/wide.css). The noun follows the
+   book, as coach-roster's own empty state does. */
+function panePlaceholder(masterRoute) {
+  const noun = CD.kind === 'practice' ? 'client' : 'athlete';
+  const inbox = /inbox/.test(masterRoute);
+  return `<div class="pane-empty">${emptyState({
+    icon: inbox ? 'message' : 'users',
+    title: inbox ? 'Choose a thread' : `Choose ${noun === 'athlete' ? 'an' : 'a'} ${noun}`,
+    body: inbox ? 'It opens here, and the inbox stays put.' : 'Their day opens here, and the roster stays put.',
+  })}</div>`;
+}
+
 function statusbar() {
   // The phone's own status bar (real clock, real battery) renders above the WebView —
   // drawing a second one reads as fake. This strip only reserves the safe-area height.
@@ -161,7 +177,7 @@ function tabbar(activeTab, nav = 'athlete', { remember = true } = {}) {
   // Classes, not an inline style: at-N / from-N map to --i / --from in css/glass.css, which keeps
   // the inline-style ratchet where it is and keeps the numbers where a stylesheet can read them.
   const lens = idx >= 0 ? `<i class="tab-lens at-${idx} from-${from}" aria-hidden="true"></i>` : '';
-  return `<nav class="tabbar" aria-label="Main" role="tablist" style="grid-template-columns: repeat(${tabs.length}, 1fr)">${lens}${tabs.map(t => {
+  return `<nav class="tabbar" aria-label="Main" role="tablist" style="--n: ${tabs.length}">${lens}${tabs.map(t => {
     if (t.fab) {
       // Athlete camera FAB carries the exec status dot (gold = actionable, red = overdue,
       // none = day complete). Other roles' FABs are plain. Glyph never changes.
@@ -679,6 +695,17 @@ function render(opts) {
   const navRole = navFor(mod, RT.authRole);
   const roleTabs = (NAVS[navRole] || NAVS.athlete).map((t) => t.id);
   const activeTab = roleTabs.includes(NAV.tab) ? NAV.tab : (mod.tab || route);
+  // The split tier (iPad, 1000px+): a master renders beside its detail (js/layout.js masterFor).
+  // Resolved here, before the transition decisions below, because a paired render is never a
+  // slide or a morph: the screen is not what moved. A master that has not loaded yet is asked for
+  // and the detail paints alone until it lands. Never for a denied route or the pre-hydrate paint.
+  const pairing = (currentTier() === 'split' && !denied && !prehydrate)
+    ? masterFor({ mod, route, tab: NAV.tab, tabs: NAVS[navRole] || [], modOf }) : null;
+  if (pairing && pairing.pending) loadScreen(pairing.route).then(() => { if (window.__render) window.__render(); }, () => { /* the detail renders alone */ });
+  const paired = pairing && pairing.mod ? pairing : null;
+  // The master's scroll survives a detail change on the same terms the detail's own does below.
+  const prevMasterVp = document.getElementById('viewport-master');
+  const prevMasterScroll = prevMasterVp ? prevMasterVp.scrollTop : 0;
   const device = document.getElementById('device');
   wireDelegatedNav(device);
 
@@ -752,8 +779,8 @@ function render(opts) {
      transition: the outgoing screen is kept and the two slide on the compositor. Only a real
      arrival qualifies; a boot deep-link has nothing to keep. */
   const oldScreen = device.querySelector('.screen:not(.under):not(.leaving)');
-  const layered = !!(enter && (dir === 'push' || dir === 'pop') && oldScreen && !oldScreen.classList.contains('booting') && !reducedMotion());
-  const vtDir = layered ? null : ((enter || restate) ? dir : null);
+  const layered = !!(enter && (dir === 'push' || dir === 'pop') && oldScreen && !oldScreen.classList.contains('booting') && !reducedMotion() && !paired);
+  const vtDir = (layered || paired) ? null : ((enter || restate) ? dir : null);
   /* Asked BEFORE the markup is built, because the answer changes it: under a transition the
      transition IS the entrance, and leaving `.enter` on would run the screen's own fade-and-rise
      underneath a slide already moving it — two choreographies for one arrival, at different
@@ -771,13 +798,29 @@ function render(opts) {
      callback so the "after" snapshot is the finished screen — markup, wiring, scroll AND mount.
      Splitting mount out would snapshot a screen its own code had not finished arranging yet. */
   const commit = () => {
+  const vpCls = `viewport ${mod.bleed ? 'bleed' : ''}${mod.hideTabs ? ' notabs' : ''}${mod.fill ? ' fill' : ''}`;
+  const busy = prehydrate ? ' aria-busy="true"' : '';
+  const own = `<main class="view${enterCls}${dirClsUsed}${settleCls}" id="view">${body}</main>`;
+  let inner;
+  if (paired && paired.self) {
+    // The master IS the current screen: it keeps #viewport / #view (every lookup, the scroll
+    // restore, the gestures all find it as usual) and the detail pane is a prompt.
+    inner = `<div class="pane pane-master"><div class="${vpCls}" id="viewport"${busy}>${own}</div></div>
+      <div class="pane pane-detail"><div class="viewport"><main class="view">${panePlaceholder(route)}</main></div></div>`;
+  } else if (paired) {
+    // The detail is the current screen and keeps the ids; the master renders beside it with a
+    // scroller of its own, at the list's root (no sub).
+    const masterBody = memoTick(() => paired.mod.render({ sub: null, S }));
+    inner = `<div class="pane pane-master"><div class="viewport" id="viewport-master"><main class="view" id="view-master">${masterBody}</main></div></div>
+      <div class="pane pane-detail"><div class="${vpCls}" id="viewport"${busy}>${own}</div></div>`;
+  } else {
+    inner = `<div class="${vpCls}" id="viewport"${busy}>${own}</div>`;
+  }
   const html = `
     <div class="island"></div>
-    <div class="screen">
+    <div class="screen${paired ? ' split' : ''}">
       ${statusbar()}
-      <div class="viewport ${mod.bleed ? 'bleed' : ''}${mod.hideTabs ? ' notabs' : ''}${mod.fill ? ' fill' : ''}" id="viewport"${prehydrate ? ' aria-busy="true"' : ''}>
-        <main class="view${enterCls}${dirClsUsed}${settleCls}" id="view">${body}</main>
-      </div>
+      ${inner}
       ${mod.hideTabs ? '' : memoTick(() => tabbar(activeTab, navRole))}
     </div>`;
   if (layered) {
@@ -796,6 +839,17 @@ function render(opts) {
     device.replaceChildren(...tmp.childNodes, oldScreen);
   } else {
     device.innerHTML = html;
+  }
+  if (paired && !paired.self) {
+    // The open row, so the list says where you are; and the list stays where it was scrolled.
+    // Queried off the pane, not #device with a class selector: keyboard-reach.test.mjs reads the
+    // FIRST class-bearing device.querySelectorAll in this file as the keyboard-promotion list.
+    const masterPane = device.querySelector('.pane-master');
+    if (masterPane) masterPane.querySelectorAll('[data-go]').forEach((el) => {
+      if (el.getAttribute('data-go') === full) el.setAttribute('aria-current', 'page');
+    });
+    const mvp = document.getElementById('viewport-master');
+    if (mvp) { try { mvp.scrollTo({ top: prevMasterScroll, behavior: 'instant' }); } catch { mvp.scrollTop = prevMasterScroll; } }
   }
   // A genuine tab switch pops the newly-active tab icon (CSS keys off .tabbar.switch). Gated so a
   // push/pop/repaint never replays it — the bar should only move when the BAR is what changed.
@@ -929,6 +983,14 @@ function render(opts) {
   }
   // The pre-hydrate paint draws the cached day and stops: mount() starts fetches and timers, and
   // the real render a moment later would start them all again.
+  // The master mounts first, against its own pane, so its lookups never reach into the detail.
+  // The detail mounts against #device exactly as it always has. window.__screenCleanup and
+  // __threadTick are single slots: neither master (roster, inbox) registers one today; a future
+  // master that does must have the router chain them here, or the detail's registration wins.
+  if (paired && !paired.self && paired.mod.mount && !prehydrate) {
+    const pane = device.querySelector('.pane-master');
+    if (pane) paired.mod.mount(pane, { sub: null, S });
+  }
   if (mod.mount && !prehydrate) mod.mount(device, { sub, S });
   // A sheet (transient route) takes focus on ARRIVAL: its title when aria-labelledby names one,
   // else the sheet itself. Without this a keyboard or screen-reader user opening the log sheet

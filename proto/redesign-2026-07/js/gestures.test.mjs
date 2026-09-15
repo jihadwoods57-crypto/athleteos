@@ -77,3 +77,8 @@ test('Plan wraps its tab content in a pane the pager can move', () => {
   const plan = read('screens', 'plan.js');
   assert.ok(/class="pane"/.test(plan), 'plan.js render() must wrap the strip body in .pane');
 });
+
+test('a split screen refuses the back drag: the list is already beside the detail', () => {
+  assert.equal(eligibleBack({ nav: 'operator' }, true), false);
+  assert.equal(eligibleBack({ nav: 'operator' }, false), true);
+});

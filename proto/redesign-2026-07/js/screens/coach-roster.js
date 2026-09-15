@@ -308,7 +308,7 @@ function updateBulkCounts(root) {
 }
 
 export const coachRoster = {
-  nav: 'operator', tab: 'roster',
+  nav: 'operator', tab: 'roster', pane: 'master',
   render() {
     // ONE derivation, shared with coach-home. This screen used to re-derive a team coach's
     // initials from their HANDLE with the "Coach " prefix stripped ("Coach Reynolds" → RE) while

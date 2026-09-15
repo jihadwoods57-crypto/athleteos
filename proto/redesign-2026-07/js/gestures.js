@@ -62,8 +62,10 @@ export function lateralTarget(subs, cur, dx) {
 }
 
 /** A screen you may swipe away: not a flow interstitial, not the full-bleed camera. */
-export function eligibleBack(mod) {
-  return !!mod && !mod.transient && !mod.bleed;
+/* `split`: the wide screen's split tier (css/wide.css) keeps the list beside the detail, so there
+   is no screen underneath to slide back to; the header chevron is the way out there. */
+export function eligibleBack(mod, split = false) {
+  return !split && !!mod && !mod.transient && !mod.bleed;
 }
 
 /** A screen that pages sideways: one with at least two siblings on its strip. */
@@ -165,11 +167,14 @@ export function initGestures(api) {
     let kind = null;
     // The edge wins over a rail sitting at its own left edge, as it does on the phone; a rail that
     // has already been scrolled is the thing the finger is on.
-    if (x <= EDGE && eligibleBack(cur.mod) && api.backTarget() && !(hs && hs.scrollLeft > 0)) kind = 'back';
+    const split = !!device.querySelector('.screen.split');
+    if (x <= EDGE && eligibleBack(cur.mod, split) && api.backTarget() && !(hs && hs.scrollLeft > 0)) kind = 'back';
     // .viewport, not #view: the header note above promises "a drag anywhere on a screen with a
     // sibling strip", but on a short tab (Food Memory with two rows) most of the screen is
     // viewport padding below #view, where the pager silently refused to arm.
-    else if (!hs && eligibleLateral(cur.mod) && target.closest('.viewport')) kind = 'page';
+    // #viewport, not .viewport: in the split tier the master pane has a viewport of its own, and
+    // a drag on the roster must never page the detail beside it.
+    else if (!hs && eligibleLateral(cur.mod) && target.closest('#viewport')) kind = 'page';
     if (!kind) return;
     g = { kind, x0: t.clientX, y0: t.clientY, t0: e.timeStamp || Date.now(), axis: null, width: rect.width, cur, dx: 0, live: false };
   }, { passive: true });

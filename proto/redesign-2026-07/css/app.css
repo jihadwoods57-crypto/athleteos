@@ -600,7 +600,9 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); --bar-lift: var(
      labels from 74px of room down to 62px on a notched device. */
   height: calc(var(--nav-h) + max(0px, env(safe-area-inset-bottom, 0px) - 22px));
   padding:0 var(--s4h) 22px;
-  display: grid; grid-template-columns: repeat(5, 1fr); align-items: center;
+  /* --n is the role's tab count, published by the router's tabbar() (css/glass.css's lens reads
+     the same number). */
+  display: grid; grid-template-columns: repeat(var(--n, 5), 1fr); align-items: center;
   /* Content scrolls UNDER the bar by design, but the old two-stop ramp stayed translucent most of
      the way down the bar, so a big numeral (the 187.4 on Progress) sat half-lit behind the tab
      labels and read as sliced. Fade fast: a soft top edge, then fully covered by 40% — the

@@ -105,7 +105,7 @@ function assignPreviewHtml(rows, groups) {
 }
 
 export const coachAssign = {
-  nav: 'operator', tab: 'create',
+  nav: 'operator', tab: 'create', pane: 'detail',
   render({ sub } = {}) {
     const rows = CD.roster ? CD.roster.rows : [];
     const groups = (CD.extras && CD.extras.groups) || [];
@@ -451,7 +451,7 @@ const setSummary = (items) => {
 };
 
 export const coachPlan = {
-  nav: 'operator', tab: 'roster',
+  nav: 'operator', tab: 'roster', pane: 'detail',
   render({ sub }) {
     const athleteId = sub;
     const who = rosterName(athleteId);
@@ -1807,7 +1807,7 @@ const INBOX_EMPTY_ACTION = {
 const codeRoute = () => (CD.kind === 'practice' ? 'trainer-profile' : 'coach-profile/code');
 
 export const coachInbox = {
-  nav: 'operator', tab: 'inbox',
+  nav: 'operator', tab: 'inbox', pane: 'master',
   badge() {
     if (!CD.roster || CD.roster.offline) return 0;
     return inboxOut().counts.needsResponse;
@@ -2724,7 +2724,7 @@ function notesSection(P) {
 }
 
 export const coachAthlete = {
-  nav: 'operator', tab: 'roster',
+  nav: 'operator', tab: 'roster', pane: 'detail',
   render({ sub }) {
     const athleteId = sub;
     if (athleteId !== PSEC_FOR) { PSECTION = 'overview'; PSEC_FOR = athleteId; NUDGE_ARM = null; NOTE_DEL = null; }
@@ -3184,7 +3184,7 @@ function coachAskContext(meal) {
   return ctx;
 }
 export const coachMeal = {
-  nav: 'operator', tab: 'roster',
+  nav: 'operator', tab: 'roster', pane: 'detail',
   // As on the athlete's meal page: no tab bar over a logged meal, the docked box is the foot.
   hideTabs: true,
   render({ sub }) {
