@@ -17,7 +17,20 @@ Where things stand tonight (2026-09-09, 7 PM):
 
 ## Ranked
 
-### 1 · audit debt · score v3 is live and unaudited — attack it (dated 09-09, owed by the 09-10 sessions)
+### 1 · PAID 2026-09-15 (1 PM audit) · score v3 attacked per the map below — the engine held
+Every attack below was run (probe results in the 09-15 report + commit `ecdd984`): perfect
+eating day crosses 80 with no check-in on every profile and style; shake day reads 70, not
+100; no-target day gets the full floor by design; honest low answers cost 0 vs tapped 9s;
+half-answered check-in scores completeness; lateness fades 0.996 → 0.5 floor at 120; 100
+reachable; scoreIntegrity has boundary tests on both sides of BOTH cutovers; copy surfaces
+clean (lint:score green, no stale hydration promises). The one real v3 miss — the trend
+chart drew no divider at the 09-09 cutover, an unexplained step live all its visible
+window — is fixed (score-cutover.js knows both eras now). What the audit could NOT see from
+the cloud, still open for a credentialed eye: whether 0228 is APPLIED to live (a v2-era
+server ceiling would clamp v3 clients wrong — nothing looked clamped in the sweeps, but
+that is absence of evidence). The 7 PM session should drop this entry when it reranks.
+
+### (was 1) · audit debt · score v3 is live and unaudited — attack it (dated 09-09, PAID 09-15, kept for the map)
 The founder's 7e07f2e rewrote what the daily score MEANS and published it the same hour.
 Nobody has attacked it. The commit message itself is the attack map:
 - **Frozen rows must not move.** Three dated eras now (0228 cutover 2026-09-09; v2-era rows
@@ -153,8 +166,9 @@ alone it's not worth a sitting. Noted so October doesn't rediscover it.
 ## Notes for tomorrow's sessions
 - **Credential streak (update in place, don't re-diagnose):** EXPO_TOKEN invalid
   ("bearer token is invalid") — 28 sessions tallied through 09-10; re-checked once 09-15
-  (error-response session), still dead. No Supabase creds, no
-  Stripe key, no Cloudflare token in the cloud env (also still true 09-15). Note the founder
+  (morning session), still dead; 1 PM audit cited without re-checking, per this rule.
+  No Supabase creds, no
+  Stripe key, no Cloudflare token in the cloud env (also still true 09-15, 1 PM). Note the founder
   IS publishing from his PC — live OTA matched master's tip on 09-15 — so the dead token
   costs latency, not delivery. One cheap check, cite this
   line, move on. (npx eas-cli is broken in the sandbox — curl api.expo.dev/graphql with
@@ -187,6 +201,11 @@ alone it's not worth a sitting. Noted so October doesn't rediscover it.
   40px pills and the whole pill is the tap target (pinned in composer-pill.test.mjs).
   Don't "fix" the flag by inflating the pill. Same ledger: `sweep-parent-link` THIN is a
   real, honest, tiny screen; act-card/res-card "wide" flags are horizontal scrollers.
+  Added 09-15: the meal-thread facepile `small` and nutrition-chat `nct-meal` CLIP flags
+  are honest ellipsis (scrollWidth > clientWidth is how ellipsis renders) — the facepile
+  one was a REAL mid-letter clip until 09-15's fix; both now truncate with "…" by design.
+  Don't re-fix. The `button.facepile.disc-fp` 42px TAP flag is one px-band with the
+  composer pills, same acceptance.
 - Zip discipline (also in the charter's gotchas): build `assets/proto.zip` LAST, commit
   `src/proto/protoVersion.ts` with it, prove scope entry-by-entry vs HEAD.
 - QC harness: intuitive seeds pass `voice: 'signals'` to the sb stub so seeded thread
