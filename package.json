@@ -85,7 +85,8 @@
     "ship": "node scripts/preflight.mjs && eas build --platform ios --profile production --non-interactive && eas submit --platform ios --profile production --latest --non-interactive",
     "test:rls": "bash supabase/tests/run.sh",
     "verify:zip": "node scripts/verify-proto-zip.mjs",
-    "shots:ipad": "node scripts/ipad-shots.mjs"
+    "shots:ipad": "node scripts/ipad-shots.mjs",
+    "shots:appstore": "node scripts/appstore-shots.mjs"
   },
   "private": true,
   "expo": {
