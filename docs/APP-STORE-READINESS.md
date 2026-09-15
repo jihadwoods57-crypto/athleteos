@@ -138,11 +138,13 @@
     is acceptable. To pin a different minimum you need
     `npx expo install expo-build-properties` and an `ios.deploymentTarget` in
     its plugin config. Left as a deliberate decision, not changed blind.
-11. **iPad support decision.** `ios.supportsTablet` is `true`, so App Review
-    will expect the app to run (and be screenshotted) on iPad. The app is
-    portrait-only RN and will run letterboxed. Either commit to iPad (provide
-    iPad screenshots, QC the layout) or set `supportsTablet: false` to scope the
-    review to iPhone. This is a product/visual call.
+11. **iPad support: DECIDED 2026-09-15, committed.** `ios.supportsTablet` is
+    `true` and the app has a real iPad layout (`proto/redesign-2026-07/css/wide.css`:
+    a navigation rail and a centered column from 700px, master/detail panes for
+    the coach's roster and inbox from 1000px; every orientation and Split View).
+    Owed for submission: iPad screenshots (13" and 12.9") alongside the phone
+    set, and a NEW native build (an OTA cannot change `supportsTablet`). Spec:
+    `docs/superpowers/specs/2026-09-15-ipad-layout-design.md`.
 
 ### D. The big one — OnStandard targets MINORS with health + body-weight data
 This drives the heaviest App Review scrutiny. None of it is a code bug; it is
@@ -200,5 +202,5 @@ product / legal / process work only a human can own.
 | `infoPlist.NSPhotoLibraryUsageDescription` | photo picker string | rejection if absent |
 | `infoPlist.NSPhotoLibraryAddUsageDescription` | save-photo string | rejection if absent |
 | `privacyManifests` | no tracking + required-reason APIs | App Store privacy req |
-| `ios.supportsTablet` | `true` | **decide** (see #11) |
+| `ios.supportsTablet` | `true` | committed 2026-09-15; iPad screenshots owed (see #11) |
 | splash | not configured | **add** (see #9) |

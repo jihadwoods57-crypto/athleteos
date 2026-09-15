@@ -8,7 +8,8 @@
     "scheme": "onstandard",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": false,
+      "_supportsTablet_comment": "2026-09-15: iPad is a first-class target. Expo's withRequiresFullScreen plugin writes all four UISupportedInterfaceOrientations~ipad values because requireFullScreen is unset; orientation:'portrait' above still locks the PHONE. Do not add the ~ipad key by hand. Layout: proto css/wide.css.",
+      "supportsTablet": true,
       "usesAppleSignIn": true,
       "bundleIdentifier": "com.onstandard.app",
       "buildNumber": "1",
