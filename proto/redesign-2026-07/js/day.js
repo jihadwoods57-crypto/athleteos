@@ -1208,6 +1208,57 @@ export function dayLogWeight(userId, lb) {
   }
 }
 export function dayToggleQuick(userId, i) { DAY.quickAdded[i] = !DAY.quickAdded[i]; pushDay(userId); }
+
+/* ---- Correcting a logged meal (impeccable critique 2026-09-16) ----
+ *
+ * Logging was the highest-frequency action in the product and it was IRREVERSIBLE: no delete, no
+ * undo, no way to move a plate to the slot it actually belonged to. Photograph lunch at 2pm on a
+ * day breakfast was never logged and it files against breakfast, permanently, in the row the coach
+ * reads. A three-second mistake became a durable, visible, unfixable failure on a product whose
+ * whole promise is honest accountability.
+ *
+ * Both of these move LOCAL day state only, and both are pure inverses of dayLogMeal's three
+ * writes (meals / mealLoggedAt / slotMacros). The server `meals` row and the day push are the
+ * caller's job (state.js act.moveMeal / act.unlogMeal), for the same reason dayLogMeal does not
+ * own insertMeal: the day row is the athlete's source of truth and the mirror is queued. */
+
+/** Undo a logged meal. Returns the previous slot state so the caller can put it back if the
+ *  server refuses, or null when the slot is not part of today's standard. */
+export function dayUnlogMeal(key) {
+  if (!DAY.meals.hasOwnProperty(key)) return null;
+  const prev = {
+    logged: DAY.meals[key],
+    at: DAY.mealLoggedAt[key],
+    macros: DAY.slotMacros[key] ? { ...DAY.slotMacros[key] } : undefined,
+  };
+  DAY.meals[key] = false;
+  delete DAY.mealLoggedAt[key];
+  delete DAY.slotMacros[key];
+  return prev;
+}
+
+/** Move a logged meal into another slot. Refuses to overwrite a slot that already holds one, so
+ *  a correction can never silently destroy a second plate.
+ *
+ *  The logged-at MINUTE deliberately travels with the meal. Moving a 2:10pm plate into breakfast
+ *  makes it a late breakfast, because that is what actually happened: the athlete is correcting
+ *  WHICH meal it was, not when they logged it, and slotDeadline grades it against the new slot's
+ *  window on the way out. A correction that also quietly reset the clock would be a way to buy
+ *  back late credit, which is exactly the kind of score laundering the evidence ceiling exists
+ *  to stop. */
+export function dayMoveMeal(from, to) {
+  if (from === to) return false;
+  if (!DAY.meals.hasOwnProperty(from) || !DAY.meals.hasOwnProperty(to)) return false;
+  if (!DAY.meals[from]) return false;      // nothing logged there to move
+  if (DAY.meals[to]) return false;         // occupied — the caller offers only open slots
+  DAY.meals[to] = true;
+  if (DAY.mealLoggedAt[from] != null) DAY.mealLoggedAt[to] = DAY.mealLoggedAt[from];
+  if (DAY.slotMacros[from]) DAY.slotMacros[to] = { ...DAY.slotMacros[from] };
+  DAY.meals[from] = false;
+  delete DAY.mealLoggedAt[from];
+  delete DAY.slotMacros[from];
+  return true;
+}
 /* Complete (or un-complete) a standing NON-MEAL check requirement for today (lift / custom). Tracked,
    not scored: it rides into days.tasks so the coach sees it, but never touches computeComponents. */
 export function dayCheckTask(userId, id, done = true) {

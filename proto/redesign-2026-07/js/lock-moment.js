@@ -17,8 +17,9 @@
  * saying which lock has already been shown, so it is shown exactly once.
  */
 import { RT, S, act } from './state.js';
-import { DAY, addDaysISO, MEAL_KEYS } from './day.js';
+import { DAY, addDaysISO, MEAL_KEYS, dayFromHistoryRow, weightsForDay, computeComponents, scoreFor } from './day.js';
 import { icon } from './icons.js';
+import { esc } from './components.js';
 import { buzz } from './motion.js';
 import { shouldAskForReview, requestReview } from './review-ask.js';
 import { track, EVENTS } from './analytics.js';
@@ -45,6 +46,43 @@ function dismiss(el, after) {
   showing = false;
 }
 
+/* The ONE component that cost yesterday the most, in real score points.
+ *
+ * Same terms scoreFor() adds up (day.js), read off the reconstructed day rather than recomputed
+ * with a second formula: points lost on a component = its weight x (100 - what it scored). The
+ * day is rebuilt by dayFromHistoryRow, which returns null for rows written before the jsonb
+ * ride-along, and those days are simply not explained — the stamp names a cause only when it can
+ * prove one, exactly as it already refuses to claim a lock it cannot see.
+ *
+ * Returns null below 2 points too: "Recovery cost the most, 1 point" is a true sentence that
+ * points at nothing, and a vague cause is worse than no cause on a screen about honesty. */
+function biggestGap(dateISO, storedScore) {
+  try {
+    const row = (DAY.scoreHistory || []).find((h) => h.date === dateISO);
+    const day = row ? dayFromHistoryRow(row) : null;
+    if (!day) return null;
+    /* CONSISTENCY GUARD, same rule as the fiber chip in meal-intel: if the reconstruction and the
+       stored number disagree, the reconstruction is the suspect and the app must not narrate from
+       it. Points lost are scored against the RECONSTRUCTED day, so quoting them beside a stored
+       score that came from somewhere else produces sentences that do not add up — "closed at 51,
+       nutrition cost 73" was the first one this printed. A day the app cannot re-derive still
+       closes; it just closes without naming a cause. */
+    if (Math.abs(scoreFor(day) - storedScore) > 3) return null;
+    const w = weightsForDay(day);
+    const c = computeComponents(day);
+    const parts = [
+      { label: 'Nutrition', lost: (w.nutrition || 0) * (100 - c.nutrition) },
+      { label: 'Recovery', lost: (w.recovery || 0) * (100 - c.recoveryContribution) },
+      { label: 'The check-in', lost: (w.checkin || 0) * (100 - c.checkin) },
+      { label: 'The morning', lost: (w.wakeup || 0) * (100 - c.wakeup) },
+    ].sort((a, b) => b.lost - a.lost);
+    const lost = Math.round(parts[0].lost);
+    return lost >= 2 ? { label: parts[0].label, lost } : null;
+  } catch {
+    return null;   // an explanation is never worth an error path
+  }
+}
+
 /** Yesterday's score, or null when there is genuinely no row for it. */
 function yesterdayScore() {
   const y = addDaysISO(DAY.date, -1);
@@ -68,33 +106,56 @@ export function maybeShowLock(streakDays) {
   // false here without claiming the marker means the stamp is simply owed on the next open.
   if (document.querySelector('.tour, .imgview, .memsheet, .sheet-scrim')) return false;
   const { date, score } = yesterdayScore();
-  if (score === null || score < THRESH) return false;      // nothing provable to celebrate
+  if (score === null) return false;                         // no row: the app cannot say it locked
   if (RT.lastLockSeen === date) return false;               // already shown
+  /* A DAY THAT CLOSED BELOW STANDARD ALSO CLOSES (impeccable critique 2026-09-16).
+   *
+   * This used to be `score < THRESH → return false`, so the product's one end-of-day moment fired
+   * only for athletes who did not need it. A 51 got no stamp, no line, no acknowledgment, and the
+   * next morning simply arrived with an empty ring. The peak was excellent and the end existed
+   * only on good days, which for an accountability product is the wrong half.
+   *
+   * It is the same card, the same once-per-day marker and the same three exits — a different
+   * amount of the same idea, not a second visual language. What it is NOT: red, a streak scold,
+   * a rating ask (that stays milestone-only, below), or a haptic. The stamp's heavy 'lock' buzz
+   * is the sound of something landing, and a day you lost should close quietly. */
+  const onStandard = score >= THRESH;
   // First run after this ships has no marker. Claim the marker for yesterday and show the stamp
   // once; every later open is a no-op.
-  const milestone = MILESTONES.includes(streakDays) && RT.lastMilestone !== streakDays;
+  const milestone = onStandard && MILESTONES.includes(streakDays) && RT.lastMilestone !== streakDays;
+  const gap = onStandard ? null : biggestGap(date, score);
 
   const el = document.createElement('div');
-  el.className = `lockstamp${milestone ? ' milestone' : ''}`;
+  el.className = `lockstamp${milestone ? ' milestone' : ''}${onStandard ? '' : ' closed'}`;
   // A blocking card with its own button is a dialog, not a status line: role="status" told AT
   // nothing was expected while the visual sat over the whole screen waiting for a tap.
   el.setAttribute('role', 'dialog');
-  el.setAttribute('aria-label', milestone ? `${streakDays} day milestone` : `Day ${streakDays} locked`);
+  el.setAttribute('aria-label', onStandard
+    ? (milestone ? `${streakDays} day milestone` : `Day ${streakDays} locked`)
+    : `Yesterday closed at ${score}`);
   el.innerHTML = `
     <div class="ls-card">
-      <div class="ls-mark">${icon('check', 26)}</div>
-      <div class="ls-t">${milestone ? `${streakDays} days.` : `Day ${streakDays} locked.`}</div>
-      <div class="ls-s">${milestone
-        ? `Yesterday closed at ${score}. That is ${streakDays} straight days on standard.`
-        : `Yesterday closed at ${score} and counted. It can't be taken back.`}</div>
-      <button class="ls-x" type="button">Got it</button>
+      <div class="ls-mark">${icon(onStandard ? 'check' : 'target', 26)}</div>
+      <div class="ls-t">${onStandard
+        ? (milestone ? `${streakDays} days.` : `Day ${streakDays} locked.`)
+        : `Yesterday closed at ${score}.`}</div>
+      <div class="ls-s">${onStandard
+        ? (milestone
+          ? `Yesterday closed at ${score}. That is ${streakDays} straight days on standard.`
+          : `Yesterday closed at ${score} and counted. It can't be taken back.`)
+        : (gap
+          ? `${esc(gap.label)} cost the most, ${gap.lost} points. Today is open.`
+          : `It's on the record either way. Today is open.`)}</div>
+      <button class="ls-x" type="button">${onStandard ? 'Got it' : 'Start today'}</button>
     </div>`;
   document.body.appendChild(el);
   showing = true;
   requestAnimationFrame(() => el.classList.add('on'));
   // 'lock' is the heavy impact — this is the one irreversible thing that happens in the app, and it
-  // should feel like a stamp coming down rather than another tap.
-  buzz(milestone ? 'milestone' : 'lock');
+  // should feel like a stamp coming down rather than another tap. A day that closed BELOW standard
+  // gets no haptic at all: the heavy buzz is the sound of something landing in your favour, and
+  // firing it on a day you lost would read as the app enjoying it.
+  if (onStandard) buzz(milestone ? 'milestone' : 'lock');
 
   /* A milestone is the app's one honest "that went your way" moment, so it is the only place we ask
      for a rating — and only after the athlete has closed it themselves. The predicate does the

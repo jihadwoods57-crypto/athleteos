@@ -1,7 +1,7 @@
 import { S, RT, tier, act, MEAL, mealDetail, fmtClock, liveWeightPct, athleteContextForAnalysis } from '../state.js';
 import { DAY, slotDeadline, dayStandard } from '../day.js';
 import { icon } from '../icons.js';
-import { backHead, esc, safeImg, nonLiveBadge, composer, segBar, skeletonRows } from '../components.js';
+import { backHead, esc, safeImg, nonLiveBadge, composer, segBar, skeletonRows, sayStatus } from '../components.js';
 import { reveal, buzz } from '../motion.js';
 import { playPerfectMoment } from '../perfect-moment.js';
 import { scoreMoveBar, playScoreMove } from '../score-move.js';
@@ -878,6 +878,31 @@ export function wireReadControls(root, holder = null) {
   });
 }
 
+/* "Wrong meal?" — the one correction the chat could never make (impeccable critique 2026-09-16).
+ *
+ * Deliberately the LAST thing in the already-collapsed breakdown disclosure: correcting which
+ * slot a plate belongs to, or taking it back entirely, is rare, and putting it anywhere nearer
+ * the top would offer an escape hatch to an athlete whose real problem is that the score is low.
+ * The honest-accountability line holds either way: deleting drops the score, and the coach's row
+ * goes with it, so this is a repair, never a way out.
+ *
+ * Move targets are OPEN slots only, so a correction can never overwrite a second plate. Move is
+ * one tap because it is reversible (move it straight back). Delete arms first, because it is not.
+ */
+function correctionRow(slot) {
+  const targets = act.moveTargetsFor(slot) || [];
+  const moves = targets.map((t) =>
+    `<button type="button" class="btn ghost sm" data-move="${esc(t.key)}">Move to ${esc(t.title)}</button>`).join('');
+  return `<div class="mcx" role="group" aria-label="Correct this meal">
+    <div class="mcx-k">Wrong meal?</div>
+    <div class="mcx-acts">
+      ${moves || '<span class="mcx-none">Every other slot today already has a meal in it.</span>'}
+      <button type="button" class="btn ghost sm danger" data-unlog="${esc(slot)}">Delete</button>
+    </div>
+    <div class="mcx-s" id="mcx-status"></div>
+  </div>`;
+}
+
 export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete', targets = null, planStyle = null } = {}) {
   // `viewer`: 'athlete' (the default, second person) or 'coach' (the professional reading an
   // athlete's plate: full figures, the athlete named in the third person, no self-service links).
@@ -1202,6 +1227,13 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
             food's name, the meal title, per-item macros, totals, the score, and the coach's
             copy. This line only points at the composer. */''}
       ${emptyRead || !you ? '' : M.mealId ? `<div class="est-note">${fromPhoto ? 'Estimated from the photo. ' : ''}Something off or left out? <span class="link" id="tell-ai" role="button" tabindex="0">Tell the AI Nutritionist below</span> and the name, numbers and score update together.</div>` : ''}
+      ${/* WRONG MEAL? (impeccable critique 2026-09-16.)
+            The chat above corrects what the plate WAS. Nothing corrected whether it should exist
+            at all, or which slot it belonged to — so a lunch photographed at 2pm on a day
+            breakfast was never logged stayed filed under breakfast permanently, in the row the
+            coach reads, and the athlete's only recourse was to say so in the thread and hope.
+            Today's own meals only: these act on DAY, and a past day is not loaded to be edited. */''}
+      ${(!you || past) ? '' : correctionRow(M.slot)}
       </div>
     </details>
     </section>`;
@@ -1472,6 +1504,59 @@ export const thread = {
     const focusMealComposer = () => focusComposer(root.querySelector('#meal-msg'));
     const tellAi = root.querySelector('#tell-ai');
     if (tellAi) tellAi.addEventListener('click', focusMealComposer);
+
+    /* "Wrong meal?" (impeccable critique 2026-09-16). Move is one tap: it is reversible, and the
+       only targets offered are open slots, so nothing can be overwritten. Delete ARMS FIRST and
+       names the consequence in between, the same two-step Home uses for spending a pass — it is
+       the one action here that cannot be undone, and it sits in a row of look-alike buttons.
+       Arming disarms itself after a few seconds and on a tap anywhere else, so an armed Delete is
+       never left lying around for a later thumb. */
+    const mcxStatus = root.querySelector('#mcx-status');
+    const say = (msg, error) => { if (mcxStatus) sayStatus(mcxStatus, msg, { error: !!error }); };
+    let armedDel = null, armTimer = null;
+    const disarmDel = () => {
+      if (armTimer) { clearTimeout(armTimer); armTimer = null; }
+      if (armedDel && armedDel.isConnected) {
+        armedDel.innerHTML = armedDel.dataset.idle;
+        armedDel.classList.remove('armed');
+      }
+      armedDel = null;
+    };
+    root.querySelectorAll('[data-move]').forEach((b) => {
+      b.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        disarmDel();
+        const to = b.getAttribute('data-move');
+        if (!act.moveMeal(M.slot, to)) { say('That slot just filled up. Pick another one.', true); return; }
+        // The route names the OLD slot, which is now open, so staying put would render an empty
+        // read. Follow the meal to where it went.
+        location.hash = `#meal-detail/${to}`;
+      });
+    });
+    const delBtn = root.querySelector('[data-unlog]');
+    if (delBtn) {
+      delBtn.dataset.idle = delBtn.innerHTML;
+      delBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if (armedDel !== delBtn) {
+          disarmDel();
+          armedDel = delBtn;
+          delBtn.classList.add('armed');
+          // Name what it costs. "Delete" alone never said the score moves or that the coach sees it.
+          delBtn.innerHTML = 'Delete for good?';
+          say('This drops your score and removes it from your coach’s view.');
+          armTimer = setTimeout(() => { disarmDel(); say(''); }, 4500);
+          return;
+        }
+        disarmDel();
+        const slot = delBtn.getAttribute('data-unlog');
+        if (!act.unlogMeal(slot)) { say('Could not remove that one. Try again in a moment.', true); return; }
+        // This screen IS the meal that was just removed, so staying here would render a read of
+        // something that no longer exists. Home is where the now-open slot lives.
+        location.hash = '#home';
+      });
+    }
+    root.addEventListener('click', (ev) => { if (armedDel && !armedDel.contains(ev.target)) { disarmDel(); say(''); } }, true);
     // Photo: the in-session capture, else a signed Storage URL so it survives a reload. Resolved
     // through photo-store (NOT a raw one-shot signedMealPhotoUrl): the cache retries a missing
     // object after NEG_TTL, and the outbox calls invalidateMealPhoto + __render the moment a

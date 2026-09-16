@@ -130,6 +130,35 @@
     var(--surface-1);
   border-color: var(--green-border);
 }
+/* A day that closed BELOW standard closes too (impeccable critique 2026-09-16), and it closes
+   QUIETLY: the same card at a lower volume, never a second visual language and never a red screen.
+   The mark loses the green fill, the green lift and the impact ripple — nothing landed in the
+   athlete's favour, so nothing should sound like it did. It is deliberately NOT --red: red means
+   "missed" in this system, and the day is not a missed requirement, it is a finished one that came
+   in under the bar. Neutral says "this is on the record" without scolding, which is the whole
+   register PRODUCT.md asks for: motivating, never coddling, and never punishing either. */
+.lockstamp.closed .ls-mark {
+  background: var(--surface-3);
+  color: var(--text-2);
+  box-shadow: none;
+}
+.lockstamp.closed.on .ls-mark { animation: none; }
+.lockstamp.closed.on .ls-mark::after { content: none; }
+/* The forward action is the primary one here: "Got it" dismisses a moment, "Start today" starts a
+   day, so it carries the action accent the rest of the app gives a real next step.
+   It borrows .btn.primary's EXACT fill rather than inventing one. A hand-rolled
+   `background: var(--blue-deep)` measured 3.7:1 against --ink-on-accent on dark (QC caught it),
+   because on dark that ink is near-black #06120C and only the lighter --blue-bright/--blue ramp
+   clears AA under it. Same reason --danger-solid exists as its own token: the accent you can put
+   ink on is not always the accent you draw with. */
+.lockstamp.closed .ls-x {
+  background: linear-gradient(150deg, var(--blue-bright), var(--blue));
+  color: var(--ink-on-accent);
+}
+:root[data-theme="light"] .lockstamp.closed .ls-x {
+  background: linear-gradient(150deg, var(--blue-bright), var(--blue-deep));
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lockstamp, .lockstamp .ls-card { transition: none; }
   .lockstamp.on .ls-mark { animation: none; }

@@ -17,9 +17,10 @@ import {
   streakDays as dayStreak, streakInfo, loadDay, reloadPassState, pushDay, uploadMealPhoto, flushDayPush,
   setSyncBlocked, isSyncBlocked, SYNC, setDayTaskProvider,
   dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayLogWeight, dayResetLocal, dayCheckTask,
+  dayUnlogMeal, dayMoveMeal,
   insertMeal, MEAL_KEYS, minutesNow, mealScored,
   setDayStandard, slotDeadline, slotGrace, slotLateCredit, slotOpen, setDayGoalConfig,
-  setDayPlanStyle, weightsForDay, DAY_SELECT_COLS, PROFILE_WEIGHTS, dayRev,
+  setDayPlanStyle, weightsForDay, DAY_SELECT_COLS, PROFILE_WEIGHTS, dayRev, CI_INVERSE,
 } from './day.js';
 import { MONTHS_SHORT, DAYS_SHORT, DAYS_LONG } from './fmt-date.js';
 import { creditsLeft } from './pass.js';
@@ -1266,6 +1267,16 @@ export const act = {
         ]);
         return !res || !res.error;
       }
+      // A deleted meal has to reach the server too, or the coach keeps reading a plate the athlete
+      // already took back. Deleting an already-gone row affects 0 rows and is not an error, so a
+      // double drain is safe (impeccable critique 2026-09-16).
+      if (job.kind === 'meal-delete') {
+        const res = await Promise.race([
+          sbc.from('meals').delete().eq('id', job.ref).eq('athlete_id', job.uid),
+          new Promise((resolve) => setTimeout(() => resolve({ error: { message: 'timeout' } }), 12_000)),
+        ]);
+        return !res || !res.error;
+      }
       return true; // unknown kind: drop it rather than jam the queue forever
     } catch { return false; }
   },
@@ -2352,6 +2363,90 @@ export const act = {
       return { ok: false, error: 'Could not read that meal. Try another angle.' };
     } catch (e) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'exception' }); return { ok: false, error: 'Analysis failed. Retake and try again.' }; }
   },
+  /* ---- Correcting a logged meal (impeccable critique 2026-09-16) ----
+   *
+   * A logged plate had no delete, no undo and no way to reach the slot it actually belonged to,
+   * so a 2pm lunch photographed on a day breakfast was never logged stayed filed under breakfast
+   * forever, in the row the coach reads. These two are the repair, and both follow the contract
+   * the rest of the meal writes already use: move LOCAL day state first (the athlete's source of
+   * truth), push the day, then mirror the server `meals` row through the same outbox a correction
+   * uses, because a mirror that silently diverges is a coach reading different numbers than the
+   * athlete.
+   *
+   * RLS already allows both: `meals_update` and `meals_delete` are `is_self(athlete_id)`
+   * (0002_rls.sql:101-102), so neither needs a migration or a definer door. */
+
+  /** Which other slots this meal could honestly have been. Open slots in today's standard only:
+   *  offering an occupied one would mean destroying a second plate to fix the first. */
+  moveTargetsFor(slot) {
+    // Object.keys(DAY.meals) IS today's meal slot set: seedStandardSlots reshapes it from the
+    // coach's standard, so this follows a room that runs meal-1..meal-6 without knowing it does.
+    return Object.keys(DAY.meals || {})
+      .filter((k) => k !== slot && !DAY.meals[k])
+      .map((k) => ({ key: k, title: slotTitle(k) }));
+  },
+
+  /** Move a logged meal into another slot. Returns true when the local day moved. */
+  moveMeal(from, to) {
+    if (!from || !to || from === to) return false;
+    const mealId = (DAY.slotMacros[from] || {}).mealId || null;
+    const wasNamedForSlot = ((DAY.slotMacros[from] || {}).name || '') === cap(from);
+    const before = computeScore(componentsNow());
+    if (!dayMoveMeal(from, to)) return false;
+    // A plate auto-named after its old slot ("Lunch") would read as the wrong label under the new
+    // one. A plate the model actually named ("Chicken, rice and edamame bowl") keeps its name.
+    if (wasNamedForSlot && DAY.slotMacros[to]) DAY.slotMacros[to].name = cap(to);
+    pushDay(RT.userId);
+    syncRtFromDay();
+    const to_ = computeScore(componentsNow());
+    RT.lastMove = { from: before, to: to_, gain: to_ - before, what: cap(to) };
+    save();
+    if (mealId && window.sb && RT.userId) {
+      const fields = { type: to, ...(wasNamedForSlot ? { name: cap(to) } : {}) };
+      this._mirrorMeal(mealId, 'meal-update', fields);
+    }
+    track(EVENTS.MEAL_LOGGED, { slot: to, source: 'moved' });
+    window.__render && window.__render();
+    return true;
+  },
+
+  /** Delete a logged meal. The slot goes back to open, exactly as if it had never been logged. */
+  unlogMeal(slot) {
+    if (!slot) return false;
+    const mealId = (DAY.slotMacros[slot] || {}).mealId || null;
+    const before = computeScore(componentsNow());
+    const prev = dayUnlogMeal(slot);
+    if (!prev || !prev.logged) return false;
+    pushDay(RT.userId);
+    syncRtFromDay();
+    const after = computeScore(componentsNow());
+    // Deleting a meal LOWERS the score, and that is the honest direction. RT.lastMove drives the
+    // celebratory "+N" ring reveal, so it is CLEARED rather than set: a drop is not a moment to
+    // play, and a stale move left sitting here would replay the old gain over the new number.
+    void after;
+    RT.lastMove = null;
+    save();
+    if (mealId && window.sb && RT.userId) this._mirrorMeal(mealId, 'meal-delete', null);
+    window.__render && window.__render();
+    return true;
+  },
+
+  /** One door to the `meals` mirror: try it now, and on any failure hand it to the outbox that
+   *  already drains meal writes with backoff. Never throws — the day row is the source of truth. */
+  _mirrorMeal(mealId, kind, fields) {
+    const queue = () => {
+      if (!RT.userId) return;
+      SQ.putJob({ uid: RT.userId, kind, ref: mealId, ...(fields ? { fields } : {}), queuedAt: Date.now() });
+      this._scheduleSyncDrain();
+    };
+    try {
+      const q = kind === 'meal-delete'
+        ? window.sb.from('meals').delete().eq('id', mealId).eq('athlete_id', RT.userId)
+        : window.sb.from('meals').update(fields || {}).eq('id', mealId).eq('athlete_id', RT.userId);
+      q.then((res) => { if (res && res.error) queue(); }, queue);
+    } catch { queue(); }
+  },
+
   clearMeal() {
     MEAL.key = null; MEAL.mealType = null; MEAL.photoBase64 = null; MEAL.photoDataUrl = null;
     MEAL.result = null; MEAL.live = true; MEAL.questions = null;
@@ -5104,9 +5199,14 @@ export const S = {
     // for every question they skipped. That is the score inflating itself, on the one screen
     // whose own copy says "what you enter here becomes your Recovery score, so keep it honest".
     // Nothing is pre-answered now; the screen gates Submit until the athlete has answered.
+    // `inverse` comes from day.js CI_INVERSE rather than being re-declared here: the storage
+    // polarity has exactly one definition and four readers (day.js, breakdown-model CI_BEST,
+    // recovery-intel, plan-style), and a fifth copy is how the tier ladder drifted once already.
+    // It is a RENDER hint only — the stored value stays the honest raw answer either way.
     const fields = ANCHORS.filter(a => DAY.ciConfig && DAY.ciConfig[a.key])
       .map(a => ({
         ...a,
+        inverse: !!CI_INVERSE[a.key],
         val: DAY.ciSubmitted ? Math.min(5, Math.max(1, Math.round((DAY.ci[a.key] ?? 6) / 2))) : null,
       }));
     return { fields };

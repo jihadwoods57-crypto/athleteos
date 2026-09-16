@@ -2069,6 +2069,22 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* honest estimate / no-targets note under the breakdown */
 .est-note{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:var(--s2);line-height:1.45}
 .est-note .link{color:var(--blue-bright);font-weight:700;cursor:pointer}
+/* "Wrong meal?" — the slot/delete correction row (impeccable critique 2026-09-16). It sits at the
+   bottom of the already-collapsed breakdown, separated by a hairline rather than made into a card:
+   nesting a card inside the breakdown card is the nested-card shape DESIGN.md bans, and this is a
+   footer to that panel, not a thing of its own. */
+.mcx{margin-top:var(--s3h);padding-top:var(--s3);border-top:1px solid var(--hairline-soft)}
+.mcx-k{font-size:var(--t-eyebrow);font-weight:700;letter-spacing:var(--track-key);text-transform:uppercase;color:var(--text-3)}
+.mcx-acts{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s2h)}
+/* Auto width so "Move to Breakfast" and "Delete" sit as chips in a row rather than each taking a
+   full-width bar: .btn is width:100% by default, which would stack four of them into a wall. */
+.mcx-acts .btn{width:auto;padding:0 var(--s3h)}
+.mcx-none{font-size:var(--t-xs);font-weight:600;color:var(--text-3);line-height:1.45;align-self:center}
+/* The armed Delete states the consequence, so it stops being a quiet ghost and takes the danger
+   fill for the one beat it is live. Same two-step, same vocabulary as Home's pass spend. */
+.mcx-acts .btn.danger.armed{background:var(--danger-solid);color:var(--ink-on-danger);border-color:transparent}
+.mcx-s{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:var(--s2);line-height:1.45;min-height:1.45em}
+.mcx-s.is-error{color:var(--red-bright)}
 /* A macro cell with no number in it yet. The card no longer SAYS it is waiting (the AI bubble is
    the only narrator now — see meal.js's breakdown block); it shows it, by breathing. */
 .mv-wait{animation:mv-wait 1.5s var(--ease-in-out) infinite}
@@ -3542,11 +3558,16 @@ body.kb-open .meal-foot { display: none; }
 .nut-tiles.three{grid-template-columns:repeat(3,1fr)}
 .nut-tiles.two{grid-template-columns:repeat(2,1fr)}
 .nut-tiles .nt{display:flex;flex-direction:column;align-items:center;gap:var(--s1);padding:var(--s3) var(--s1) var(--s2h);border-radius:var(--r-card-sm);background:var(--surface-1);box-shadow:var(--sh-card);min-width:0}
+/* The four tile icons are NEUTRAL, and that is the rule, not a preference (impeccable critique
+   2026-09-16). They used to read protein=blue, carbs=--amber-bright, fat=--purple-bright,
+   cals=--red-bright: four semantic hues taking a second, decorative job as category coding.
+   DESIGN.md gives each hue exactly one meaning, and about 400px above this row on the SAME
+   screen `.lm-stood .sr-row.partial/.miss` uses amber and red with their real ones, so red was
+   simultaneously the "you missed this" badge and the Calories icon. On the most-visited screen
+   in the product, the colour system briefly stopped being a language.
+   Calories in the alert hue also quietly moralized the one number PRODUCT.md says never to
+   moralize. The heavy numeral and the label carry the identity; the glyph does not need to. */
 .nut-tiles .nt-ic{width:24px;height:24px;display:grid;place-items:center;color:var(--text-3)}
-.nut-tiles .nt-ic.protein{color:var(--blue-bright)}
-.nut-tiles .nt-ic.carbs{color:var(--amber-bright)}
-.nut-tiles .nt-ic.fat{color:var(--purple-bright)}
-.nut-tiles .nt-ic.cals{color:var(--red-bright)}
 .nut-tiles .nt-v{font-size:var(--t-xl);font-weight:800;letter-spacing:-0.03em;font-variant-numeric:tabular-nums;line-height:1;white-space:nowrap}
 .nut-tiles .nt-v i{font-style:normal;font-size:var(--t-sm);font-weight:700;color:var(--text-3)}
 .nut-tiles .nt-k{font-size:var(--t-xs);font-weight:600;color:var(--text-2)}

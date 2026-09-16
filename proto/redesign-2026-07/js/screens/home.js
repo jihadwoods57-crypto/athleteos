@@ -667,8 +667,31 @@ function keepRecordCard() {
   </div>`;
 }
 
+/* The midnight roll failed and the screen is showing YESTERDAY (impeccable critique 2026-09-16).
+ *
+ * The exec tick notices the date changed and calls act.hydrateDay() to load the new day. That
+ * call used to be caught into `rolling = false` and nothing else, so a failed hydrate left the
+ * athlete looking at yesterday's requirements and yesterday's score with no indication at all
+ * that the day had already turned. Every other honest-failure surface in the app follows the
+ * rule DESIGN.md sets out — never present fabricated data — and this was the one path where a
+ * stale number could present itself as current, on the one screen the whole product is about.
+ *
+ * Module-level on purpose: the catch re-renders, which rebuilds mount()'s closure, so a flag
+ * living in there would be wiped by the very repaint that has to show it. The tick keeps
+ * retrying every 30s, so this clears itself the moment the network comes back and needs no
+ * button of its own. */
+let dayRollFailed = false;
+
 function syncBanner() {
   const issue = S.syncIssue;
+  // First, because a stale day makes every other number on the screen wrong, including the ring.
+  if (dayRollFailed) {
+    return `<div class="lrow" role="alert" style="margin:var(--s3) 0 var(--s2h);background:rgba(var(--amber-rgb), 0.10);border:1px solid var(--amber-border);border-radius:var(--r-card-sm);padding:var(--s3) var(--s3h);cursor:default">
+      <div class="xico sm" style="background:rgba(var(--amber-rgb), 0.18);color:var(--amber-bright)">${icon('wifiOff', 16)}</div>
+      <div class="xr"><div class="xa">This is still yesterday</div>
+      <div class="xb">Today has not loaded yet, so the score above is yesterday’s. It updates on its own once you reconnect.</div></div>
+    </div>`;
+  }
   if (issue === 'blocked') {
     const em = S.consent.guardianEmail;
     return `<div class="lrow" data-go="guardian" style="margin:12px 0 10px;background:rgba(var(--amber-rgb), 0.10);border:1px solid var(--amber-border);border-radius:var(--r-card-sm);padding:12px 13px">
@@ -1322,7 +1345,11 @@ export default {
         // Day rolled over while the app was open: reload the real day, then repaint.
         if (rolling) return; // hydrate already in flight — the re-render resets this closure
         rolling = true;
-        act.hydrateDay().then(() => window.__render()).catch(() => { rolling = false; });
+        act.hydrateDay()
+          .then(() => { dayRollFailed = false; window.__render(); })
+          // Say it out loud instead of silently keeping yesterday on screen. The repaint rebuilds
+          // this closure (so `rolling` resets anyway) and re-arms the 30s tick, which is the retry.
+          .catch(() => { rolling = false; dayRollFailed = true; window.__render(); });
         return;
       }
       const k = key();

@@ -69,6 +69,10 @@ const SHOTS = [
   // lock unacknowledged. Every other athlete seed marks it seen, or it would appear over whichever
   // screen rendered first and make the contact sheet nondeterministic.
   { g: 'athlete', name: 'home-day-locked', seed: 'dayLockStamp', route: 'home', at: [7, 40] },
+  // The same stamp for a day that closed UNDER 80. Before 2026-09-16 this state did not exist —
+  // a bad day closed silently — so it had no shot. It is the quieter half of the app's one
+  // end-of-day moment and the half most likely to drift into scolding, so it gets its own frame.
+  { g: 'athlete', name: 'home-day-closed', seed: 'dayLockStampClosed', route: 'home', at: [7, 40] },
   { g: 'athlete', name: 'home-first-day', seed: 'dayFirst', route: 'home', at: [15, 20] },
   { g: 'athlete', name: 'score-breakdown', seed: 'dayComplete', route: 'score-breakdown', at: [21, 52] },
   { g: 'athlete', name: 'plan', seed: 'dayComplete', route: 'plan', at: [21, 56] },

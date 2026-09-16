@@ -122,6 +122,35 @@ export const dayLockStamp = `${COMMON}${ATHLETE_IDENTITY}
   window.__render();
 `;
 
+/** The SAME stamp for a day that closed BELOW standard (impeccable critique 2026-09-16).
+ *
+ * Before that change a sub-80 yesterday produced no stamp at all, so this state could not be
+ * captured because it did not exist. It exists now, and it needs its own shot for the reason the
+ * overdue now-card needed one: an uncovered state is where a display-size numeral and three
+ * competing reds survived two polish passes. Yesterday is forced to 51 so the low branch fires and
+ * the "biggest gap" line has a real component to name. */
+export const dayLockStampClosed = `${COMMON}${ATHLETE_IDENTITY}
+  ${LOG('breakfast', 505)}
+  DAY.hydrationL = 0.4;
+  DAY.ciLast = { date: iso(1), recovery: 82 };
+  DAY.scoreHistory = HIST.map(h => (h.date === iso(1) ? { ...h, score: 39,
+    // The jsonb ride-along, so dayFromHistoryRow can actually reconstruct and grade yesterday and
+    // the stamp names a REAL cause. Without it the row is unreconstructable and the stamp falls
+    // back to its no-cause line (also a real state, just not the one this shot is for).
+    //
+    // 39 is MEASURED, not decorative: three meals, 124g of a 180g protein target and no check-in
+    // scores exactly 39, losing 43 to nutrition, 9 to recovery and 9 to the check-in — which adds
+    // back to 100. The stamp's consistency guard drops the cause whenever the stored score and the
+    // reconstruction disagree by more than 3, so a made-up score here would silently cost this
+    // shot the very sentence it exists to cover.
+    meals: { breakfast: true, lunch: true, snack: true, dinner: false },
+    checkin: { submitted: false, mealLoggedAt: { breakfast: 505, lunch: 786, snack: 1000 },
+      slotMacros: { breakfast: { protein: 42 }, lunch: { protein: 52 }, snack: { protein: 30 } } },
+  } : h));
+  RT.lastLockSeen = null;
+  window.__render();
+`;
+
 /** A photo staged but NOT yet logged: the "Use this photo?" gate, which owns the Log it button that
  *  starts the whole capture → scan → thread hand-off. Deterministic (no timers), unlike the scan
  *  interstitial it leads to. The image is drawn here rather than shipped as a fixture so the seed
@@ -310,7 +339,7 @@ export const parentIdentity = `${COMMON}
 `;
 
 export const SEEDS = {
-  dayMorning, dayMidday, dayComplete, dayLate, dayFirst, dayLockStamp, stagedCapture, coachUpgrade, coachPickedPlan, rosterEnded,
+  dayMorning, dayMidday, dayComplete, dayLate, dayFirst, dayLockStamp, dayLockStampClosed, stagedCapture, coachUpgrade, coachPickedPlan, rosterEnded,
   feedbackBug, feedbackSafety,
   styleStructured, styleGuided, styleIntuitive, styleCaloriesOff, memoryEditStructured, memoryEditIntuitive, memoryEditCaloriesOff,
   coachIdentity, trainerIdentity, dietitianIdentity, parentIdentity,

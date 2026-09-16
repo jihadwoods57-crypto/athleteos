@@ -122,16 +122,30 @@ export default {
     ${/* The rationale paragraph that sat here is gone: the backHead already names the screen,
           and the projection sidebox below carries the score stakes with real numbers. */''}
     <section class="card" style="padding: 4px 18px 8px">
-      ${R.fields.map(f => `
-        <div class="rec-field" data-ci-key="${f.key}">
+      ${/* Eight identical 1-5 rows, six of which run forward and two of which (soreness,
+            cravings) run backward, invited straight-lining: tapping down the "5" column filed
+            "peak energy AND maximum soreness", which is the readiness signal a coach reads
+            before practice. The storage polarity is load-bearing (day.js CI_INVERSE, CI_BEST,
+            recovery-intel's fix text) and every row already written carries it, so it does NOT
+            move. What moves is the rendering: on an inverse row the chips are laid out 5→1 and
+            the end labels swap with them, so on EVERY row the right-hand end is the good end.
+            `data-n` is still the honest raw answer, so the toggle handler and the submit path
+            are untouched. Straight-lining is now at least self-consistent. */''}
+      ${R.fields.map(f => {
+        const ns = f.inverse ? [5,4,3,2,1] : [1,2,3,4,5];
+        const loEnd = f.inverse ? f.hi : f.lo;
+        const hiEnd = f.inverse ? f.lo : f.hi;
+        return `
+        <div class="rec-field" data-ci-key="${f.key}"${f.inverse ? ' data-inverse="1"' : ''}>
           <div class="rec-top">
             <span class="rec-name">${f.k}</span>
-            <span class="rec-ends">${f.lo} → ${f.hi}</span>
+            <span class="rec-ends">${loEnd} → ${hiEnd}</span>
           </div>
           <div class="chips5" data-toggle-group role="radiogroup" aria-label="${f.k}">
-            ${[1,2,3,4,5].map(n => `<div class="chip ${n === f.val ? 'on' : ''}" data-n="${n}" role="radio" aria-checked="${n === f.val}" aria-label="${f.k}: ${n} of 5">${n}</div>`).join('')}
+            ${ns.map(n => `<div class="chip ${n === f.val ? 'on' : ''}" data-n="${n}" role="radio" aria-checked="${n === f.val}" aria-label="${f.k}: ${n} of 5, ${n === 1 ? f.lo : n === 5 ? f.hi : 'between'}">${n}</div>`).join('')}
           </div>
-        </div>`).join('')}
+        </div>`;
+      }).join('')}
     </section>
     <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin-top:8px;padding:0 2px;line-height:1.5">Answers are self-reported. Your Recovery points come from answering every question, never from how high the answers are, so keep it honest.</div>
 
