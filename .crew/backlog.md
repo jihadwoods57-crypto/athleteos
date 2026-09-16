@@ -1,71 +1,60 @@
 # Founder Sessions Backlog
 
 Ranked queue for the daily cloud sessions (see `founder-sessions.md`). The 7 PM session
-rewrites the ranking each night. Reranked 2026-09-15 by the 7 PM POLISH session
-(day's full record: `.crew/reports/2026-09-15.md`).
+rewrites the ranking each night. Reranked 2026-09-16 by the 7 PM POLISH session
+(day's full record: `.crew/reports/2026-09-16.md`).
 
 > **THE 1 PM AUDIT SESSION IS RETIRED** (founder instruction, 2026-09-15). Nothing in this
-> file is owed to an audit session; its absence is intended, never a missed slot. Practical
-> consequence for the 8 AM session: nobody checks your ship a few hours later, so prove it
-> yourself or park it.
+> file is owed to an audit session; its absence is intended, never a missed slot. But its
+> schedule STILL FIRED on 09-16 — the entry in the web app's scheduled-tasks list needs
+> deleting or a session stands down pointlessly every day. Practical consequence for the
+> 8 AM session: nobody checks your ship a few hours later, so prove it yourself or park it.
 
-Where things stand tonight (2026-09-15, 7 PM):
-- **The founder shipped twice tonight from his PC.** The logged-meal restyle (`be2e3df`,
-  "photo and score first", published ~6 PM, carrying the 1 PM audit batch `ecdd984`), then
-  a declutter + animation fix on the same screen (`326e80a`, 7:21 PM: one door to the
-  reasons, provenance as plain text, the score-chip reveal surviving the repaint).
-  `verify-ota.mjs` proved live = `326e80a`'s zip byte-for-byte (md5 `a6109b5f…`) at the
-  end of the 7 PM session. Everything proven today is in real users' hands except the item
-  below.
-- **Tonight's 7 PM polish** hardened that fresh meal read, rebased on and re-proved
-  against `326e80a`: the "Nutrition" heading no longer collides with the estimate line at
-  phone widths (390 AND 320), and the two surviving small controls (the 28px info mark on
-  the photo, the 16px View daily targets) got the standard invisible 44px touch floor.
-  Gates green, zip rebuilt (0 added / 0 removed / 2 changed vs his HEAD) — ready behind
-  the dead publish token as usual; one publish from the PC ships it.
+Where things stand tonight (2026-09-16, 7 PM):
+- **The founder published from his PC today: the queue is CLEARED.** `verify-ota.mjs`
+  proved live = HEAD's zip byte-for-byte on both platforms (md5 `bc2808fd…`) at the start
+  of the 7 PM session. The rollcall P0s, the take-back fix, the 09-15 polish and this
+  morning's mute parity are all in real users' hands.
+- **8 AM shipped mute parity** (`cb9f8bc`): every anchor around the bubbles follows the
+  post-mute-filter list in all four renderers; a fully muted thread says so honestly.
+- **Tonight's 7 PM polish** (`707876a`): the meal-score rubric's notes read in full at
+  every width — each row is now key + tag with the note wrapping beneath, instead of a
+  nowrap 42% column that ellipsized "~47–57g (e…" at 320px. Last row's phantom hairline
+  fixed too. The sweep now audits the rubric OPEN (new permanent `meal-rubric` shot);
+  span.rn clip flags went 5 → 0. Gates 16/16 green, zip scope proven (1 file). Ready but
+  NOT shipped — publish token still dead; one publish from the PC ships it alone.
 - **First App Store submission is imminent.** Pre-submission hardening still outranks new
   features.
-- Score v3 audit debt is PAID (09-15 report). The attack map lives in that report's audit
-  section for the next scoring change; it is not live work.
 
 ## Ranked
 
-### 1 · DONE 09-16 8 AM (`cb9f8bc`) · honest-states parity · the muted-everyone blank and the vanishing reactions
-Shipped ready-not-published: all anchors (reactions, Delivered, coach pin, preview slice,
-quote stems, receipt gate) now follow the post-mute-filter list in all four renderers, and
-all-muted threads say trust.js's sentence. The review found the coach screen had the same
-anchor bug and that quote stems leaked muted words everywhere — both fixed, pinned in
-muted-parity.test.mjs. Original item kept below for the 7 PM rerank's reference.
-
-### 1-old · honest-states parity · the muted-everyone blank and the vanishing reactions  (impact 2, effort s)
-Latent but cheap, from the 09-09 review: (a) a thread where EVERY author is muted paints
-blank on the live meal, coach and nutrition-chat renderers — trust.js already says
-"Messages from people you muted are hidden."; give the other three the same pre-filter
-empty state. (b) meal.js computes its reaction anchor PRE-filter, so meal reactions
-silently vanish when the last message's author is muted (trust.js anchors post-filter and
-is fine). Two small fixes, same neighborhood — do them together, all four renderers
-counted, in-browser proof. NOTE: meal.js was heavily restructured by `be2e3df` tonight —
-re-locate the anchor code before assuming the 09-09 line numbers.
-
-### 2 · spec · M4 — the parent "fueling consistency" view, spec FIRST  (impact 4, effort m)
+### 1 · spec · M4 — the parent "fueling consistency" view, spec FIRST  (impact 4, effort m)
 The scout's realest product finding no rival owns: under-fueling is the parent
 conversation. Write the spec (surfaces, copy, what is deliberately never shown — weights,
 calories), taste-checked so it reads as care, not surveillance. The founder reads the
 spec before anyone builds. A good quiet-morning deliverable.
 
-### 3 · polish follow-through · the meal read at 320px  (impact 2, effort s)
-Tonight's after-sweep at 320px: the rubric rows under "Why did this meal score N?" clip
-their notes mid-word (`span.rn` — "~47–57g (est…" with no ellipsis), and long facepile
-name runs clip harder than at 390. Pre-existing (not tonight's diff — the rubric predates
-the restyle), but the restyle makes the rubric a first-class surface now. One CSS sitting:
-let `.rn` wrap or ellipsize honestly, shoot 320 before/after.
+### 2 · a11y/QC · maintenance gate for headings + hit areas + clip flags  (impact 2, effort s)
+A cheap verify gate (or qc audit rule) that diffs the sweep's smallTargets AND clipped
+lists against the accepted ledger, and flags a screen rendering h2s with no h1. The case
+strengthened again tonight: the rubric's clipped notes survived TWO polish passes because
+the sweep only ever audited the closed `<details>` — states behind a reveal need shots
+that open them (the new `meal-rubric` shot is the pattern: an `act` that opens, an error
+if the element is missing). Protects finished work from next month's new screen.
 
-### 4 · a11y follow-through · heading outline + hit-area maintenance gate  (impact 2, effort s)
-A cheap verify gate (or qc audit rule) flagging a screen that renders h2s with no h1, or
-a new uppercase label class that isn't a heading. Tonight argues for a second rule: three
-sub-44px controls shipped in one founder restyle and only the nightly sweep caught them —
-a gate that diffs the qc smallTargets list against the accepted ledger would catch that at
-verify time. Protects finished work from next month's new screen.
+### 3 · QC honesty · refresh the seed's stale scoring stamp  (impact 2, effort s)
+Every meal shot — including tonight's — shows "Produce & fiber · ~0g fiber (estimated)"
+with a red dot directly beside a visibly produce-heavy bowl. Live code guards this
+(meal-intel's produce guard); the fixture's stored stamp predates it, so our own
+screenshots keep showing a state real reads can't produce, now full-width and impossible
+to miss since the rubric renders open and un-clipped. Refresh the seed so proof images
+stop lying about the product.
+
+### 4 · polish · the food-row "label read" / "known product" tag is unstyled  (impact 1, effort s)
+Tonight's adversarial review: `.rx-tag` on Detected-foods rows (meal.js:1152) has no CSS
+rule anywhere — the only rule ever written is scoped `.rub-row .rx-tag` — so provenance
+tags render as bare lowercase text beside styled rows. One rule (or a shared class) makes
+them the same quiet pill the rubric uses. Shoot before/after.
 
 ### 5 · perf · eager boot graph — verify what the founder's 09-07 diet left  (impact 2, effort s first)
 He shipped "54% less JavaScript to parse before the first frame" (1498502) plus
@@ -74,22 +63,23 @@ what's actually left eager and close or right-size the item. Measurement first.
 
 ### Founder-blocked (recommend in one line, cite the streak, never re-diagnose)
 Fresh cloud credentials (the 08-26 `OS?` email; the founder said "fix the publish token"
-on 09-15 and the 1 PM session sent him the two-step instructions — token still unchanged
-tonight): EXPO_TOKEN dead — **30 sessions through 09-15 7 PM** (prefix still `CxbNAx`, no
-API re-check tonight per the standing rule). No Supabase, Stripe, or Cloudflare creds in
-the env. The founder publishes from his PC (twice today), so nothing user-facing is
-stuck — but sessions can't publish their own proven fixes and every sentry stays blind to
-errors/analytics. Also still his: whether migrations 0210/0214/0219–0226/0228 and the new
-0237/0238 are applied; the server-side balance-scoring fix (don't award balance points on
-a partly-read plate) before the dietitian pilot leans on meal scores; who flips feature
-flags now that the audit session is retired (shipping-discipline rule 7 names a session
-that no longer exists).
+on 09-15 and was sent the two-step instructions — token still unchanged): EXPO_TOKEN
+dead — **33 sessions through 09-16 7 PM** (prefix still `CxbNAx`, prefix-only check, no
+API call spent). No Supabase, Stripe, or Cloudflare creds in the env. He cleared the
+whole publish queue from his PC today, so nothing user-facing is stuck — but sessions
+still can't publish their own proven fixes (tonight's `707876a` waits) and every sentry
+stays blind to errors/analytics. Also still his: whether migrations 0210/0214/0219–0226/
+0228 and the new 0235–0239 are applied; the server-side balance-scoring fix (don't award
+balance points on a partly-read plate) before the dietitian pilot leans on meal scores;
+who flips feature flags now that the audit session is retired (shipping-discipline rule 7
+names a session that no longer exists); deleting the retired 1 PM schedule entry.
 
 ## Market opportunities — 2026-09-04 Friday scout (ranked)
 
 Research pass over MacroFactor, MyFitnessPal (+ Cal AI), Hexis, Teamworks Nutrition,
 Eat 2 Win. Sources in `.crew/reports/2026-09-04.md`. M1 (calorie-counting position)
-SHIPPED 09-05 — homepage #fuel section, ASO draft block, PRODUCT.md red line.
+SHIPPED 09-05 — homepage #fuel section, ASO draft block, PRODUCT.md red line. M4 (parent
+view) is Ranked #1 above.
 
 ### M2 · pricing/packaging · the team middle market is empty  (impact 5, effort m)
 Teamworks sells enterprise to athletic departments; everyone else sells to individuals,
@@ -117,11 +107,10 @@ If M2's team SKU happens, a "fueling check-in" for team meals is the natural swe
 alone it's not worth a sitting. Noted so October doesn't rediscover it.
 
 ## Parked with evidence
-- **The meal-read info mark half-overlaps the score dial** (be2e3df, tonight): the 28px ⓘ
-  sits on the ring's arc and nearly on the arc's end dot, in both themes. It now has a
-  full 44px hit area (tonight's polish), so it works — but visually it reads as a
-  collision, not a badge. Placement is an hour-old founder design decision: recommend,
-  don't move it. One line in tonight's report.
+- **The meal-read info mark half-overlaps the score dial** (be2e3df): the 28px ⓘ sits on
+  the ring's arc in both themes. It has a full 44px hit area (09-15 polish), so it
+  works — but visually it reads as a collision, not a badge. Placement is a founder
+  design decision: recommend, don't move it.
 - **Coach board: a pre-cut row with server status `arrived` shows the green "Arrived" pill next
   to "No response yet"** (coach-commitments.js athleteRow). Only possible on rows scheduled
   before the 09-09 cut — they expire with their day. Not worth code; noted 09-09 in case a
@@ -134,11 +123,6 @@ alone it's not worth a sitting. Noted so October doesn't rediscover it.
 - **Food-memory rows read "0g protein · 0 kcal" for saved items without numbers**
   (coach.js foodMemSection). Check the save path first — a numberless row may be impossible
   today.
-- **QC seed carries a stale scoring stamp**: meal-detail's rubric shows "No fiber showing"
-  beside a visibly-produce-heavy plate (again in tonight's shots — the restyle makes the
-  contradiction more prominent, photo hero directly above the verdict). Live code guards
-  this (meal-intel produce guard); the fixture's stored stamp predates it. Refresh the seed
-  so shots stop showing a state real reads can't produce.
 - **Drive screenshot upload path is broken from the cloud** (two attempts, 09-08). Shots are
   committed to `.crew/reports/<date>-shots/` per precedent. Don't re-diagnose.
 - **Digest timing + quiet hours (0220 + 0221)**: audited clean 09-06; still needs a
@@ -153,13 +137,14 @@ alone it's not worth a sitting. Noted so October doesn't rediscover it.
   naming the 80 bar while the push voice bans internal numbers (founder taste call).
 
 ## Notes for tomorrow's sessions
-- **Credential streak (update in place, don't re-diagnose):** EXPO_TOKEN dead — 32 sessions
-  through the 09-16 8 AM build; check was prefix-only (still the `CxbNAx…` token the
+- **Credential streak (update in place, don't re-diagnose):** EXPO_TOKEN dead — 33 sessions
+  through the 09-16 7 PM polish; check was prefix-only (still the `CxbNAx…` token the
   API has rejected since 08-26), no API call spent. No Supabase, Stripe, or Cloudflare creds
-  (still true 09-16 8 AM). Four proven commits now queued behind one PC publish (rollcall
-  P0s `92787be`, take-back `2584582`, the 09-15 polish `5736b16`, mute parity `cb9f8bc`). `node scripts/verify-ota.mjs` needs NO token — any session
-  can prove what's live while blind. (npx eas-cli is broken in the sandbox — curl
-  api.expo.dev/graphql with the bearer instead.)
+  (still true 09-16 7 PM). **The founder published from his PC on 09-16 and cleared the
+  four-commit queue** — live = the 09-16 morning tree, proven byte-for-byte. Only tonight's
+  polish (`707876a`) waits on a publish now. `node scripts/verify-ota.mjs` needs NO token —
+  any session can prove what's live while blind. (npx eas-cli is broken in the sandbox —
+  curl api.expo.dev/graphql with the bearer instead.)
 - **The container clone can be SHALLOW and stale**: if `git pull` claims divergence,
   `git fetch --deepen=200 origin master`, confirm the merge base IS your local HEAD, then
   `git merge --ff-only origin/master`. Don't reset --hard until ancestry is proven.
@@ -168,11 +153,16 @@ alone it's not worth a sitting. Noted so October doesn't rediscover it.
   churns package-lock.json; revert the noise, don't commit it.
 - **The qc sweep can throw transient harness flakes**: retry a failure before believing it;
   believe a failure that repeats.
+- **Sweep states behind a reveal**: the new `meal-rubric` shot opens the score rubric's
+  `<details>` via `act` before auditing (that's how the 320px clipping finally surfaced
+  after two passes shot it closed). `--scroll-to` is run-global, not per-shot — pass
+  `--scroll-to 'details.rub'` only on a filtered run, or the PNG frames the page top (the
+  audit still measures the open rows either way).
 - The paywall's Terms/Privacy links only render on the live-CTA branch (`iapReady !==
   false`). To shoot the CHECKING beat, inject a hanging bridge before load
   (`window.OnStandardNative={iap:{available:()=>new Promise(()=>{})}}`) — script pattern in
   the 09-09 7 PM report.
-- The Drive connector cannot edit an existing Doc (schema re-checked 09-15 7 PM:
+- The Drive connector cannot edit an existing Doc (schema re-checked 09-16 7 PM:
   `update_file` still takes only title/parent). Reports live in `.crew/reports/` — the
   charter's Reporting section has the full standing path. Nobody else re-tests.
 - Known-accepted sweep flags (don't "fix"): composer textareas ~30–42px sit in 40px pills
@@ -180,9 +170,8 @@ alone it's not worth a sitting. Noted so October doesn't rediscover it.
   real, honest, tiny screen; act-card/res-card "wide" flags are horizontal scrollers; the
   meal-thread facepile `small` CLIP and nutrition-chat `nct-meal` CLIP are honest "…"
   ellipsis by design (09-15); `button.facepile.disc-fp` 42px TAP is one px-band with the
-  composer pills. ADDED tonight: the meal hero's oversized backdrop `img` (438px wide in a
-  390 viewport) is the decorative blurred plate behind `overflow:hidden` — `overflowX` on
-  the page stays 0; not a defect.
+  composer pills; the meal hero's oversized backdrop `img` (438px wide in a 390 viewport)
+  is the decorative blurred plate behind `overflow:hidden` — not a defect.
 - Zip discipline (also in the charter's gotchas): build `assets/proto.zip` LAST, commit
   `src/proto/protoVersion.ts` with it, prove scope entry-by-entry vs HEAD.
 - QC harness: intuitive seeds pass `voice: 'signals'` to the sb stub so seeded thread
