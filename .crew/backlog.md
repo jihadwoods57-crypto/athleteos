@@ -30,7 +30,14 @@ Where things stand tonight (2026-09-15, 7 PM):
 
 ## Ranked
 
-### 1 · honest-states parity · the muted-everyone blank and the vanishing reactions  (impact 2, effort s)
+### 1 · DONE 09-16 8 AM (`cb9f8bc`) · honest-states parity · the muted-everyone blank and the vanishing reactions
+Shipped ready-not-published: all anchors (reactions, Delivered, coach pin, preview slice,
+quote stems, receipt gate) now follow the post-mute-filter list in all four renderers, and
+all-muted threads say trust.js's sentence. The review found the coach screen had the same
+anchor bug and that quote stems leaked muted words everywhere — both fixed, pinned in
+muted-parity.test.mjs. Original item kept below for the 7 PM rerank's reference.
+
+### 1-old · honest-states parity · the muted-everyone blank and the vanishing reactions  (impact 2, effort s)
 Latent but cheap, from the 09-09 review: (a) a thread where EVERY author is muted paints
 blank on the live meal, coach and nutrition-chat renderers — trust.js already says
 "Messages from people you muted are hidden."; give the other three the same pre-filter
@@ -146,11 +153,11 @@ alone it's not worth a sitting. Noted so October doesn't rediscover it.
   naming the 80 bar while the push voice bans internal numbers (founder taste call).
 
 ## Notes for tomorrow's sessions
-- **Credential streak (update in place, don't re-diagnose):** EXPO_TOKEN dead — 31 sessions
-  through the 09-16 overnight sentry; check was prefix-only (still the `CxbNAx…` token the
+- **Credential streak (update in place, don't re-diagnose):** EXPO_TOKEN dead — 32 sessions
+  through the 09-16 8 AM build; check was prefix-only (still the `CxbNAx…` token the
   API has rejected since 08-26), no API call spent. No Supabase, Stripe, or Cloudflare creds
-  (still true 09-16 overnight). The founder published twice today from his PC, so the dead token
-  costs latency, not delivery. `node scripts/verify-ota.mjs` needs NO token — any session
+  (still true 09-16 8 AM). Four proven commits now queued behind one PC publish (rollcall
+  P0s `92787be`, take-back `2584582`, the 09-15 polish `5736b16`, mute parity `cb9f8bc`). `node scripts/verify-ota.mjs` needs NO token — any session
   can prove what's live while blind. (npx eas-cli is broken in the sandbox — curl
   api.expo.dev/graphql with the bearer instead.)
 - **The container clone can be SHALLOW and stale**: if `git pull` claims divergence,
