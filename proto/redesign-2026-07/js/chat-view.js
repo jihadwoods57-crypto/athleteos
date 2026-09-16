@@ -109,14 +109,26 @@ export function authorName(comment, participants, selfId, fallbackNoun) {
  * thread crossing midnight printed "2026-7-24 · 11:58 PM" (zero-indexed month and all) as a
  * separator. When fmtDayLabel is absent, fmtDay still labels, which keeps old callers working.
  */
+/** The mute filter alone: exactly the messages layoutThread will paint for this reader.
+ *  Exported so a renderer can slice, count and anchor on the SAME list it draws. Anchoring on
+ *  the pre-filter list is how the meal thread lost its reactions: the pill was keyed to a last
+ *  message whose author was muted, so layoutThread never painted the bubble that carried it. */
+export function visibleThread(msgs, muted = null) {
+  const hide = muted && (muted instanceof Set ? muted : new Set(Array.isArray(muted) ? muted.map(String) : []));
+  return (Array.isArray(msgs) ? msgs : []).filter(Boolean)
+    .filter((c) => !(hide && hide.size && c.author_id && hide.has(String(c.author_id))));
+}
+
+/** The one sentence every thread shows when the mute filter leaves nothing to paint. A thread
+ *  with messages in it must never render as blank or claim "no messages yet" — both are lies. */
+export const MUTED_HIDDEN_NOTE = 'Messages from people you muted are hidden.';
+
 export function layoutThread(msgs, { fmtTime = () => '', fmtDay = null, fmtDayLabel = null, muted = null } = {}) {
   /* `muted`: author ids this reader has blocked (RT.mutedUsers). Dropped HERE, in the one pure
      layout every thread renderer shares, so a block holds in all four and cannot be forgotten by
      the next one. Grouping and day separators are computed on what remains, so a muted run never
      leaves a headless "3 hours later" gap behind. */
-  const hide = muted && (muted instanceof Set ? muted : new Set(Array.isArray(muted) ? muted.map(String) : []));
-  const list = (Array.isArray(msgs) ? msgs : []).filter(Boolean)
-    .filter((c) => !(hide && hide.size && c.author_id && hide.has(String(c.author_id))));
+  const list = visibleThread(msgs, muted);
   const out = [];
   let prev = null;
   for (let i = 0; i < list.length; i++) {

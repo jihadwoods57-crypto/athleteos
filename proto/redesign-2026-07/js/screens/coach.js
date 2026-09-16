@@ -13,7 +13,7 @@ import { openingMessage, qualityBand, qualityReason, scoreRubric, reactionGroups
 import { mealReadHtml, wireReadControls } from './meal.js';
 import { pastMealDetail } from './trust.js';
 import { revealDisc } from '../disc-reveal.js';
-import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpener, isEscalated, quotedFor,
+import { layoutThread, visibleThread, MUTED_HIDDEN_NOTE, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpener, isEscalated, quotedFor,
   dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
 } from '../chat-view.js';
 import { openImageViewer } from '../image-viewer.js';
@@ -3317,7 +3317,11 @@ export const coachMeal = {
       // Reactions ride the LAST bubble, the way the athlete's own thread has rendered them since
       // the tapback pill shipped — not as a detached strip floating above the conversation. Same
       // data (0049 keys reactions to the meal, not to a message), same place on both screens.
-      const lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
+      // The last VISIBLE bubble (visibleThread is layoutThread's own mute filter): keyed to the
+      // pre-filter tail, muting the newest author swallowed the meal's reactions with a bubble
+      // layoutThread never painted.
+      const visible = visibleThread(msgs, RT.mutedUsers);
+      const lastMsg = visible.length ? visible[visible.length - 1] : null;
       return `
       ${/* The id is load-bearing: the tapback listeners live on the persistent screen root, so the
             gesture is scoped by selector rather than by which element it was attached to. A bare
@@ -3342,7 +3346,8 @@ export const coachMeal = {
           const who = mine ? 'You' : authorName(c, MC.participants || [], RT.userId);
           const update = isAnalysisUpdate(c);
           const escalated = isEscalated(c);
-          const quoted = update ? quotedFor(c, msgs) : null;
+          // From `visible`: the quote stem must not resurface a muted author's words.
+          const quoted = update ? quotedFor(c, visible) : null;
           const photo = attachedPhoto(c);
           const photoOnly = isPhotoOnly(c);
           const bubbleRx = c === lastMsg ? rx : [];
@@ -3364,12 +3369,21 @@ export const coachMeal = {
             ${msgTimeHtml(c, msgClock, esc)}
           </div>`;
         }).join('')}
-        ${!msgs.length ? `
+        ${!visible.length ? `
         ${/* Nothing to hang a tapback pill on — reactions can exist on a meal whose thread has no
               messages at all (a coach who only ever reacted). Show them, rather than losing them
               with the strip they used to live in. */''}
-        ${rx.length ? `<div class="rx-strip">${rx.map((r) => `<span class="rx">${esc(r.emoji)}<span class="n">${r.count}</span></span>`).join('')}</div>` : ''}
-        <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:2px 2px 8px">No comments yet. Say something, or press and hold a message to react. The ${CD.noun} sees it on the log.</div>` : ''}
+        ${(() => {
+          // Mute-filtered here: with no bubbles left, an unfiltered strip would paint the
+          // muted person's own reaction directly above the line saying they are hidden.
+          const rxs = reactionGroups(visibleThread(MC.comments, RT.mutedUsers));
+          return rxs.length ? `<div class="rx-strip">${rxs.map((r) => `<span class="rx">${esc(r.emoji)}<span class="n">${r.count}</span></span>`).join('')}</div>` : '';
+        })()}
+        ${msgs.length
+          ? /* Messages exist but the mute filter dropped every one — "No comments yet" would be
+               a lie, and a silent blank region reads as a broken screen (trust.js's own state). */
+            `<div class="msg-status">${MUTED_HIDDEN_NOTE}</div>`
+          : `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:2px 2px 8px">No comments yet. Say something, or press and hold a message to react. The ${CD.noun} sees it on the log.</div>`}` : ''}
       </div>`;
     })()}
     ${(() => {

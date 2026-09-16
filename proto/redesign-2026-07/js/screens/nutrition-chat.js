@@ -29,7 +29,8 @@ import { foodMemory, warmFoodMemory } from '../food-memory-data.js';
 import { remainingToday } from '../food-memory.js';
 import { stitchNutritionChat } from '../thread-stitch.js';
 import {
-  layoutThread, authorName, initialsFor, participantList, participantSummary,
+  layoutThread, visibleThread, MUTED_HIDDEN_NOTE,
+  authorName, initialsFor, participantList, participantSummary,
   isAnalysisUpdate, quotedFor, isEscalated,
   memoryOfferOf, memoryOfferChips,
   mealSuggestOf, fillMealSuggestion, mealSuggestHtml,
@@ -297,10 +298,12 @@ export default {
       if (STATE.more) html.push(`<button class="btn ghost sm" id="nc-earlier" style="align-self:center">Load earlier</button>`);
       const latest = latestMeal(STATE.meals);
       const targetId = REPLY_TO || (latest ? latest.id : null);
+      // Once per repaint, not once per meal segment — renderRun anchors against this.
+      const visAll = visibleThread(msgs, RT.mutedUsers);
       let run = [];
       const flushRun = () => {
         if (!run.length) return;
-        html.push(renderRun(run, STATE.participants, msgs));
+        html.push(renderRun(run, STATE.participants, visAll));
         run = [];
       };
       for (const item of items) {
@@ -347,9 +350,18 @@ export default {
       </div>`;
     const setTyping = (on) => { aiTyping = !!on; paint(); };
 
-    const renderRun = (list, participants, allMsgs) => {
-      const lastMsg = list.length ? list[list.length - 1] : null;
-      const newest = allMsgs && allMsgs.length ? allMsgs[allMsgs.length - 1] : null;
+    // `visAll` arrives from paint() (computed once per repaint, not once per meal segment):
+    // the post-mute-filter view of the whole window, for the Delivered anchor and quote stems.
+    const renderRun = (list, participants, visAll) => {
+      // Anchors keyed to the last VISIBLE message (visibleThread is layoutThread's own mute
+      // filter): keyed pre-filter, muting the newest author swallowed the run's reaction pill
+      // and the Delivered tag with a bubble layoutThread never painted.
+      const vis = visibleThread(list, RT.mutedUsers);
+      // Every author in THIS meal's discussion muted: say so under its card (trust.js's own
+      // state), or the segment is a divider over silence that reads as a broken screen.
+      if (list.length && !vis.length) return `<div class="msg-status">${MUTED_HIDDEN_NOTE}</div>`;
+      const lastMsg = vis.length ? vis[vis.length - 1] : null;
+      const newest = visAll.length ? visAll[visAll.length - 1] : null;
       return layoutThread(list, { muted: RT.mutedUsers, fmtTime, fmtDay: dayKey, fmtDayLabel: dayLabelOf }).map((item) => {
         if (item.type === 'time') return timeSepHtml(item, esc);
         const c = item.comment;
@@ -357,7 +369,8 @@ export default {
         const who = authorName(c, participants, RT.userId, S.coach.noun);
         const update = isAnalysisUpdate(c);
         const escalated = isEscalated(c);
-        const quoted = update ? quotedFor(c, allMsgs) : null;
+        // From the filtered list: a quote stem must not resurface a muted author's words.
+        const quoted = update ? quotedFor(c, visAll) : null;
         // Reactions are meal-level rows (0049); as on the meal thread they sit on the run's
         // LAST bubble, the one the eye lands on. STATE.comments still holds the reaction rows
         // that threadMessages filters out of the display.

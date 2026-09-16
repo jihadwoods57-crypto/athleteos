@@ -26,7 +26,8 @@ import { foodMemory, warmFoodMemory } from '../food-memory-data.js';
 import { remainingToday } from '../food-memory.js';
 import { wireReadMore } from '../thread-readmore.js';
 import {
-  layoutThread, authorName, initialsFor, participantList, participantSummary, participantMeta,
+  layoutThread, visibleThread, MUTED_HIDDEN_NOTE,
+  authorName, initialsFor, participantList, participantSummary, participantMeta,
   isAnalysisOpener, isAnalysisUpdate, isEscalated, quotedFor,
   memoryOfferOf, memoryOfferChips,
   mealSuggestOf, fillMealSuggestion, mealSuggestHtml,
@@ -1870,9 +1871,16 @@ export const thread = {
       // above, which must see everything) keeps this screen scannable; the "View earlier
       // messages" line inside the thread is the honest seam to the full history.
       const PREVIEW_MSGS = 4;
-      const shown = msgs.slice(-PREVIEW_MSGS);
-      const hiddenCount = msgs.length - shown.length;
-      const lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
+      // Slice, count and anchor on what THIS READER sees (visibleThread is layoutThread's own
+      // mute filter). Anchored pre-filter, the reaction pill and Delivered tag rode a last
+      // message whose bubble was never painted — muting the newest author silently swallowed
+      // the meal's reactions — and four muted rows could blank the whole preview while the
+      // real conversation hid behind "earlier messages".
+      const visible = visibleThread(msgs, RT.mutedUsers);
+      if (msgs.length && !visible.length) tail.push(MUTED_HIDDEN_NOTE);
+      const shown = visible.slice(-PREVIEW_MSGS);
+      const hiddenCount = visible.length - shown.length;
+      const lastMsg = visible.length ? visible[visible.length - 1] : null;
       const rows = layoutThread(shown, { muted: RT.mutedUsers, fmtTime: fmtMsgTime, fmtDay: dayKey, fmtDayLabel: dayLabelOf }).map((item) => {
         if (item.type === 'time') return timeSepHtml(item, esc);
         const c = item.comment;
@@ -1880,7 +1888,9 @@ export const thread = {
         const who = authorName(c, participants, RT.userId, S.coach.noun);
         const update = isAnalysisUpdate(c);
         const escalated = isEscalated(c);
-        const quoted = update ? quotedFor(c, msgs) : null;
+        // From `visible`, like every other anchor: a quote stem must not paint a muted
+        // person's words under a bubble the filter kept. No stem is the honest render.
+        const quoted = update ? quotedFor(c, visible) : null;
         // Reactions belong to the whole thread (0049 keys them to the meal, not to a message), so
         // they sit on the LAST bubble in it — the one the eye lands on. Putting them on the last
         // message of every run repeated the same pill down the page as if four people had each
@@ -1925,8 +1935,8 @@ export const thread = {
               which is both more honest and more reassuring than a bare word.
            3. `viewer_name` is written from S.operatorIdentity.handle, so it can be a handle
               rather than a display name; it is only shown when it looks like a name. */
-      const lastMsgAt = msgs.length
-        ? Math.max(...msgs.map((c) => { const t = Date.parse(c && c.created_at); return isNaN(t) ? 0 : t; }))
+      const lastMsgAt = visible.length
+        ? Math.max(...visible.map((c) => { const t = Date.parse(c && c.created_at); return isNaN(t) ? 0 : t; }))
         : 0;
       const freshReceipt = (RECEIPT.rows || [])
         .map((r) => ({ ...r, _at: Date.parse(r && r.seen_at) }))
@@ -1944,7 +1954,10 @@ export const thread = {
       // their latest word is PINNED above the AI's opener so the human's voice frames the
       // machine's. A pin, not a move — the message stays in the chronological flow below
       // (deduping would break layoutThread runs, last-bubble reactions, and quoted replies).
-      const lastCoach = [...msgs].reverse().find((c) => c && c.role === 'coach' && !isPhotoOnly(c) && String(c.text || '').trim());
+      // From `visible`, not `msgs`: the pin must never resurface words whose bubble the mute
+      // filter dropped — a pinned quote from a blocked coach is the block failing where it
+      // matters most, at the top of the screen.
+      const lastCoach = [...visible].reverse().find((c) => c && c.role === 'coach' && !isPhotoOnly(c) && String(c.text || '').trim());
       // The pin exists to SURFACE a coach word that scrolled out of the preview. When that same
       // message is one of the four bubbles right below it, the pin is a duplicate two inches
       // above its original — so it only renders when its message is not already on screen.
@@ -1958,7 +1971,15 @@ export const thread = {
       const earlierBtn = hiddenCount > 0
         ? `<button class="cont-earlier" id="thread-more">${hiddenCount} earlier message${hiddenCount === 1 ? '' : 's'} ${icon('chevron', 13)}</button>`
         : '';
-      threadEl.innerHTML = coachPin + openingLead + earlierBtn + rows + openingTail + (aiTyping ? typingRow() : '') + corrReceipt()
+      // No bubble to carry the reaction pill (every message muted, or a coach who only ever
+      // reacted): the coach view keeps a bare strip for exactly this, and losing the reactions
+      // with the bubbles is the vanishing the post-filter anchors exist to stop. Mute-filtered,
+      // so a muted person's own reaction never paints above the line saying they are hidden.
+      const strandedRx = !visible.length ? reactionGroups(visibleThread(comments, RT.mutedUsers)) : [];
+      const strandedRxHtml = strandedRx.length
+        ? `<div class="rx-strip">${strandedRx.map((r) => `<span class="rx">${esc(r.emoji)}<span class="n">${r.count}</span></span>`).join('')}</div>`
+        : '';
+      threadEl.innerHTML = coachPin + openingLead + earlierBtn + rows + strandedRxHtml + openingTail + (aiTyping ? typingRow() : '') + corrReceipt()
         + (seen ? `<div class="seen">${seen}</div>` : '')
         + (tail.length ? `<div class="msg-status">${tail.join(' ')}</div>` : '');
       hydrateAvatars(threadEl);   // 0206: message monograms upgrade to real faces

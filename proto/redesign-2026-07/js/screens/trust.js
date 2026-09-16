@@ -10,7 +10,7 @@ import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos, wireC
 import { threadMessages, reactionGroups, REACTION_EMOJI, normalizeDetected } from '../meal-intel.js';
 import { wireTapback } from '../tapback.js';
 import { mealReadHtml, wireReadControls } from './meal.js';
-import { layoutThread, authorName, initialsFor, isAnalysisUpdate, isEscalated, quotedFor,
+import { layoutThread, MUTED_HIDDEN_NOTE, authorName, initialsFor, isAnalysisUpdate, isEscalated, quotedFor,
   dayLabelOf, participantList, participantSummary, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
 } from '../chat-view.js';
 import { openMembersSheet } from '../members-sheet.js';
@@ -331,11 +331,15 @@ function mountThread(root, mealId, meal) {
     const items = layoutThread(msgs, { muted: RT.mutedUsers, fmtTime: mvClock, fmtDay: mvDay, fmtDayLabel: dayLabelOf });
     // Everyone who wrote here is muted: say that, plainly. "No messages yet" would be a lie,
     // and a silent blank region reads as a broken screen.
-    if (!items.length) { threadEl.innerHTML = '<div class="msg-status">Messages from people you muted are hidden.</div>'; return; }
+    if (!items.length) { threadEl.innerHTML = `<div class="msg-status">${MUTED_HIDDEN_NOTE}</div>`; return; }
     // Reactions are keyed to the MEAL, not a message (0049) — same rule as the live thread:
     // they sit once, on the last bubble, where the eye lands.
     const msgItems = items.filter((i) => i.type !== 'time');
     const lastMsg = msgItems.length ? msgItems[msgItems.length - 1].comment : null;
+    // The painted messages, for the quote stems below: quoting from the PRE-filter list let a
+    // correction reply paint a muted person's words inside its stem — the block failing an inch
+    // under the bubble it hid. No quote at all is the honest render of a hidden source.
+    const visible = msgItems.map((i) => i.comment);
     threadEl.innerHTML = items.map((item) => {
       if (item.type === 'time') return timeSepHtml(item, esc);
       const c = item.comment;
@@ -343,7 +347,7 @@ function mountThread(root, mealId, meal) {
       const who = authorName(c, participants, RT.userId, S.coach.noun);
       const update = isAnalysisUpdate(c);
       const escalated = isEscalated(c);
-      const quoted = update ? quotedFor(c, msgs) : null;
+      const quoted = update ? quotedFor(c, visible) : null;
       const photo = attachedPhoto(c);
       const photoOnly = isPhotoOnly(c);
       const rx = c === lastMsg ? reactionGroups(rows) : [];

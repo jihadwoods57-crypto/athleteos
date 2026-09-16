@@ -9,7 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   participantMeta, initialsFor, participantList, participantSummary, authorName,
-  layoutThread, isAnalysisUpdate, isAnalysisOpener, quotedFor, GROUP_GAP_MS, dayLabelOf,
+  layoutThread, visibleThread, MUTED_HIDDEN_NOTE, isAnalysisUpdate, isAnalysisOpener, quotedFor, GROUP_GAP_MS, dayLabelOf,
 } from './chat-view.js';
 
 const ATHLETE = 'aaa-athlete';
@@ -166,4 +166,30 @@ test('dayLabelOf reads Today, Yesterday, then the date', () => {
   const older = dayLabelOf(Date.parse('2026-07-20T10:00:00'), now);
   assert.ok(older && older !== 'Today' && older !== 'Yesterday');
   assert.equal(dayLabelOf(NaN, now), '');
+});
+
+test('visibleThread is exactly the list layoutThread paints, so anchors cannot drift', () => {
+  const AI = { id: 'ai1', role: 'ai', author_id: null, text: 'the read', created_at: at(0) };
+  const msgs = [AI, msg('coach', COACH, 2), msg('athlete', ATHLETE, 3), msg('coach', COACH, 5)];
+  const vis = visibleThread(msgs, [COACH]);
+  // The muted coach is gone, the AI (no author_id) and the athlete stay, order kept.
+  assert.deepEqual(vis.map((c) => c.id), ['ai1', 'm3']);
+  // The contract the renderers anchor on: layoutThread paints these messages and no others.
+  const painted = layoutThread(msgs, { muted: [COACH] }).filter((i) => i.type === 'msg').map((i) => i.comment);
+  assert.deepEqual(painted, vis);
+  // A Set mutes the same as an array, and no mutes means the same rows back.
+  assert.deepEqual(visibleThread(msgs, new Set([COACH])), vis);
+  assert.deepEqual(visibleThread(msgs, []), msgs);
+  assert.deepEqual(visibleThread(msgs, null), msgs);
+  // Junk in, honest list out — the shape every fetcher-fed caller relies on.
+  assert.deepEqual(visibleThread(null, [COACH]), []);
+  assert.deepEqual(visibleThread([null, AI, undefined], [COACH]), [AI]);
+});
+
+test('muting everyone leaves an empty paint, which is the case the renderers must say out loud', () => {
+  const msgs = [msg('coach', COACH, 1), msg('coach', COACH, 2)];
+  assert.equal(visibleThread(msgs, [COACH]).length, 0);
+  assert.equal(layoutThread(msgs, { muted: [COACH] }).length, 0);
+  // The one sentence they all show for it — copy changes here change every thread at once.
+  assert.equal(MUTED_HIDDEN_NOTE, 'Messages from people you muted are hidden.');
 });
