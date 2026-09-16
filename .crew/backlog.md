@@ -146,10 +146,10 @@ alone it's not worth a sitting. Noted so October doesn't rediscover it.
   naming the 80 bar while the push voice bans internal numbers (founder taste call).
 
 ## Notes for tomorrow's sessions
-- **Credential streak (update in place, don't re-diagnose):** EXPO_TOKEN dead — 30 sessions
-  through 09-15 7 PM; tonight's check was prefix-only (still the `CxbNAx…` token the API
-  has rejected since 08-26), no API call spent. No Supabase, Stripe, or Cloudflare creds
-  (still true 09-15 7 PM). The founder published twice today from his PC, so the dead token
+- **Credential streak (update in place, don't re-diagnose):** EXPO_TOKEN dead — 31 sessions
+  through the 09-16 overnight sentry; check was prefix-only (still the `CxbNAx…` token the
+  API has rejected since 08-26), no API call spent. No Supabase, Stripe, or Cloudflare creds
+  (still true 09-16 overnight). The founder published twice today from his PC, so the dead token
   costs latency, not delivery. `node scripts/verify-ota.mjs` needs NO token — any session
   can prove what's live while blind. (npx eas-cli is broken in the sandbox — curl
   api.expo.dev/graphql with the bearer instead.)
