@@ -17,7 +17,7 @@
 // Then: select schedule_commitment_reminders('<fn url>', '<the same key>');
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { signRollCallCode } from '../_shared/rollcall-code.ts';
-import { rollCallCategoryId, ROLLCALL_CHANNEL } from '../_shared/rollcall-category.ts';
+import { rollCallCategoryId, ROLLCALL_CHANNEL, ROLLCALL_QUIET_CHANNEL } from '../_shared/rollcall-category.ts';
 import { composeReminderPush, codeDeadlineMs, platformCopy, isInitialPush, type ReminderRow } from './logic.ts';
 import { ApnsClient, apnsFromEnv } from '../_shared/apns.ts';
 import { pushLiveActivity, loadLiveCard } from '../_shared/rollcall-live-send.ts';
@@ -103,6 +103,28 @@ Deno.serve(async (req: Request) => {
     if (!e) recorded++;
   }
 
+  // ---------------------------------------------------------------- who is already ringing
+  // A phone on iOS 26.1 or Android arms a REAL alarm for the wake-up and reports it (0239
+  // alarm_armed_at). For that athlete the OPENING push and the card's alert go out silent: the
+  // alarm is the sound, and an alarm plus a chime plus a card alert for one morning was the
+  // "triple alert" the 2026-09-15 audit recorded. Only the opening rung is muted; a reminder or a
+  // late push arrives after the alarm has stopped and keeps its sound. Read separately rather
+  // than through the claim RPC, whose return type is a deploy-ordering hazard to change.
+  const armed = new Set<string>();
+  const openingWake = due.filter((d) => d.type === 'morning_roll_call' && isInitialPush(d));
+  if (openingWake.length) {
+    try {
+      const { data: rows } = await svc
+        .from('commitment_responses').select('instance_id,athlete_id,alarm_armed_at')
+        .in('instance_id', [...new Set(openingWake.map((d) => d.instance_id))])
+        .not('alarm_armed_at', 'is', null);
+      for (const r of (rows ?? []) as Array<{ instance_id: string; athlete_id: string }>) {
+        armed.add(`${r.instance_id}:${r.athlete_id}`);
+      }
+    } catch { /* best-effort: nobody is muted, which is the pre-0239 behaviour */ }
+  }
+  const isArmed = (d: Due) => isInitialPush(d) && armed.has(`${d.instance_id}:${d.athlete_id}`);
+
   // ---------------------------------------------------------------- iOS Live Activity, FIRST
   // ONE roll call puts ONE thing on the lock screen. The card goes up before any notification is
   // composed, and every athlete Apple accepted a card for is then SKIPPED below, so nobody ends up
@@ -129,17 +151,24 @@ Deno.serve(async (req: Request) => {
       // The rung that fires AT the start time opens the activity; any later rung updates it.
       const phase = isInitialPush(rows[0]) ? 'initial' : 'reminder';
       const c = copy.get(rows[0])!;
-      const r = await pushLiveActivity({
-        svc, apns, card, phase,
-        athleteIds: [...new Set(rows.map((x) => x.athlete_id))],
-        // The card IS the notification now, so its alert is what lights the phone up and plays the
-        // sound. Same words the suppressed notification would have carried.
-        alert: { title: c.title, body: c.subtitle ?? c.body, sound: 'default' },
-        nowMs: now,
-      });
-      live.started += r.started; live.updated += r.updated; live.ended += r.ended;
-      live.revoked += r.revoked; live.skipped += r.skipped;
-      for (const id of r.live) hasCard.add(id);
+      // Two sends when some of this instance's athletes have a real alarm armed: the same card,
+      // the same words, one with the sound and one without.
+      const loud = [...new Set(rows.filter((x) => !isArmed(x)).map((x) => x.athlete_id))];
+      const quiet = [...new Set(rows.filter((x) => isArmed(x)).map((x) => x.athlete_id))].filter((id) => !loud.includes(id));
+      for (const [ids, sound] of [[loud, 'default'], [quiet, '']] as Array<[string[], string]>) {
+        if (!ids.length) continue;
+        const r = await pushLiveActivity({
+          svc, apns, card, phase,
+          athleteIds: ids,
+          // The card IS the notification now, so its alert is what lights the phone up and plays
+          // the sound. Same words the suppressed notification would have carried.
+          alert: { title: c.title, body: c.subtitle ?? c.body, sound },
+          nowMs: now,
+        });
+        live.started += r.started; live.updated += r.updated; live.ended += r.ended;
+        live.revoked += r.revoked; live.skipped += r.skipped;
+        for (const id of r.live) hasCard.add(id);
+      }
     }
   }
 
@@ -205,7 +234,9 @@ Deno.serve(async (req: Request) => {
       // Expo maps categoryId -> iOS notification category / Android action set. Only offer the
       // quick-action affordance when we actually minted a verifiable code.
       categoryId: code ? rollCallCategoryId(d.action_label) : undefined,
-      channelId: ROLLCALL_CHANNEL,
+      // The quiet channel for a phone already ringing its own alarm (Android plays the CHANNEL's
+      // sound); iOS reads `sound` directly below.
+      channelId: isArmed(d) ? ROLLCALL_QUIET_CHANNEL : ROLLCALL_CHANNEL,
       // ONE roll call is ONE notification, replaced in place as its state changes — not three
       // cards stacking up on the lock screen. `tag` is what actually replaces an already-displayed
       // notification on Android; `collapseId` is the iOS/FCM equivalent. Both are keyed on the
@@ -217,7 +248,7 @@ Deno.serve(async (req: Request) => {
       // A coach-scheduled commitment is a scheduled event, not a nudge: it is allowed to break
       // through at 4:45 AM. The phone's own Do Not Disturb still wins.
       priority: 'high',
-      sound: 'default',
+      sound: isArmed(d) ? null : 'default',
     });
   }
 

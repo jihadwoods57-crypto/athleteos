@@ -2,7 +2,7 @@
 // Pixel-perfect by construction (it IS the proto's HTML/CSS). Native bridges (camera, push,
 // haptics, secure store, auth) layer on in later phases via the postMessage router.
 import React from 'react';
-import { ActivityIndicator, BackHandler, Linking, Platform, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Linking, Platform, StyleSheet, Text, View, AppState } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
@@ -206,6 +206,28 @@ export function ProtoApp() {
       ensureLiveActivityTokens();
       void drainLiveActivityTaps();
     }
+  }, []);
+
+  // The alarm's own button records into the native pending store, and until now that store was
+  // read ONCE, at launch. An athlete who answered on the alarm banner while OnStandard was already
+  // open, or who came back to a warm app after answering on the lock screen, had a tap that sat
+  // unposted until the next cold start, and the roll call read as unanswered the whole time. Two
+  // beats close that: every return to the foreground, and (on binaries that emit it) the moment
+  // the intent itself runs. Both drain into the same queue, so a double drain is a no-op.
+  React.useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const onState = (st: string) => {
+      if (st !== 'active') return;
+      void drainLiveActivityTaps();
+      void drainAckQueue();
+    };
+    const sub = AppState.addEventListener('change', onState);
+    let off: () => void = () => {};
+    try {
+      const live = require('../../modules/rollcall-live') as typeof import('../../modules/rollcall-live');
+      off = live.onPendingTap(() => { void drainLiveActivityTaps(); });
+    } catch { /* older binary: the foreground beat covers it */ }
+    return () => { sub.remove(); off(); };
   }, []);
 
   const onWebLoadEnd = React.useCallback(() => {

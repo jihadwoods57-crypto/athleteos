@@ -68,10 +68,43 @@ object RollCallAlarmScheduler {
     weekdays: List<Int>,
     title: String,
     buttonLabel: String = "I’m Up",
+  ): Long = arm(context, instanceId, nextOccurrence(hour, minute, weekdays), hour, minute, weekdays, title, buttonLabel)
+
+  /**
+   * Schedule (or replace) a DATED wake-up at an absolute instant. A single dated roll call rings
+   * once, on its date; `nextOccurrence` would have put tomorrow's 6:00 and the day after's 6:00 on
+   * the same morning. The hour and minute are kept on the intent only so the receiver's re-arm
+   * path (weekly alarms) keeps its contract; with no weekdays it never re-arms.
+   *
+   * @param atMs epoch milliseconds, the same number the proto sorts alarms by.
+   */
+  fun scheduleAt(
+    context: Context,
+    instanceId: String,
+    atMs: Long,
+    title: String,
+    buttonLabel: String = "I’m Up",
+  ): Long {
+    if (atMs <= System.currentTimeMillis()) return 0L
+    val c = Calendar.getInstance().apply { timeInMillis = atMs }
+    return arm(
+      context, instanceId, atMs,
+      c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE), emptyList(), title, buttonLabel,
+    )
+  }
+
+  private fun arm(
+    context: Context,
+    instanceId: String,
+    at: Long,
+    hour: Int,
+    minute: Int,
+    weekdays: List<Int>,
+    title: String,
+    buttonLabel: String,
   ): Long {
     if (instanceId.isEmpty()) return 0L
     if (!canScheduleExact(context)) return 0L
-    val at = nextOccurrence(hour, minute, weekdays)
 
     val fire = Intent(context, RollCallAlarmReceiver::class.java).apply {
       // A unique action per instance. Two PendingIntents are "the same" to Android when their

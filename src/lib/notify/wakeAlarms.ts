@@ -15,7 +15,10 @@
 // older phone keeps exactly the roll-call notification they have today.
 import { Platform } from 'react-native';
 
-/** One morning to arm. `weekdays` is 1 = Sunday .. 7 = Saturday; EMPTY means fire once. */
+/** One morning to arm. `weekdays` is 1 = Sunday .. 7 = Saturday; EMPTY means fire once.
+ *  `at` is the exact instant in epoch ms: a dated roll call rings ONCE, on its date. Without it
+ *  the native side armed hour:minute against "the next time that reads on the clock", and two
+ *  mornings at the same time on different days collapsed into one alarm. */
 export type WakeAlarmRequest = {
   instanceId: string;
   hour: number;
@@ -25,6 +28,7 @@ export type WakeAlarmRequest = {
   /** The action button's text: the coach's own `action_label`, else the app's roll-call
    *  default. The proto supplies it; this layer only bounds it. */
   buttonLabel?: string;
+  at?: number;
 };
 
 export type WakeAlarmState = {
@@ -46,6 +50,8 @@ function live(): LiveModule | null {
 
 /** The last set the proto asked for, so a cancel can find alarms the device still holds. */
 let lastArmed: string[] = [];
+/** What the server has been told per instance, so a sync only speaks when something changed. */
+const reported = new Map<string, boolean>();
 
 /** A request is only usable if it names an instance and a real time on the clock. */
 export function isUsable(a: WakeAlarmRequest | null | undefined): a is WakeAlarmRequest {
@@ -67,6 +73,37 @@ export function cleanWeekdays(days: unknown): number[] {
   return [...out].sort((a, b) => a - b);
 }
 
+/** The exact instant, or 0 when the request carries none or names one already behind us. */
+export function fixedAt(a: WakeAlarmRequest, nowMs: number = Date.now()): number {
+  const t = Number(a.at);
+  return Number.isFinite(t) && t > nowMs ? Math.round(t) : 0;
+}
+
+/**
+ * Tell the server which of this athlete's mornings this phone will ring for. The reminder cron
+ * reads it to send the 6:00 push SILENTLY where a real alarm is already going off, so the athlete
+ * hears one alarm and not an alarm plus a chime plus a Live Activity alert. Best-effort and
+ * diffed: only instances whose state changed are reported.
+ */
+async function reportArmed(armedIds: Set<string>, everSeen: Iterable<string>): Promise<void> {
+  let rpc: ((fn: string, args: Record<string, unknown>) => Promise<{ error: unknown }>) | null = null;
+  try {
+    const { supabase } = require('@/lib/supabase/client') as {
+      supabase: { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ error: unknown }> } | null;
+    };
+    rpc = supabase ? supabase.rpc.bind(supabase) : null;
+  } catch { rpc = null; }
+  if (!rpc) return;
+  for (const id of new Set([...armedIds, ...everSeen])) {
+    const armed = armedIds.has(id);
+    if (reported.get(id) === armed) continue;
+    try {
+      const { error } = await rpc('set_wake_alarm_armed', { p_instance: id, p_armed: armed });
+      if (!error) reported.set(id, armed);
+    } catch { /* the next sync says it again */ }
+  }
+}
+
 /**
  * Arm exactly this set of mornings, and nothing else.
  *
@@ -85,7 +122,8 @@ export async function syncWakeAlarms(alarms: WakeAlarmRequest[]): Promise<number
 
   // Cancel first. If arming later fails, the athlete is left with no alarm rather than a stale one
   // firing for a morning their coach has already called off.
-  for (const id of lastArmed) {
+  const previously = [...lastArmed];
+  for (const id of previously) {
     if (!wantedIds.has(id)) {
       try { mod.cancelWakeAlarm(id); } catch { /* best effort */ }
     }
@@ -94,16 +132,24 @@ export async function syncWakeAlarms(alarms: WakeAlarmRequest[]): Promise<number
   const armed: string[] = [];
   for (const a of wanted) {
     try {
-      const id = await mod.scheduleWakeAlarm({
-        instanceId: a.instanceId,
-        hour: a.hour,
-        minute: a.minute,
-        weekdays: cleanWeekdays(a.weekdays),
-        title: (a.title || 'Wake up').slice(0, 80),
-        // 24 is the coach composer's own cap. AlarmKit gives this button one short line and iOS
-        // truncates silently, so a longer string would just disappear off the end.
-        buttonLabel: (a.buttonLabel || 'I’m Up').slice(0, 24),
-      });
+      const title = (a.title || 'Wake up').slice(0, 80);
+      // 24 is the coach composer's own cap. AlarmKit gives this button one short line and iOS
+      // truncates silently, so a longer string would just disappear off the end.
+      const buttonLabel = (a.buttonLabel || 'I’m Up').slice(0, 24);
+      const at = fixedAt(a);
+      // A DATED alarm where the binary can take one. `scheduleWakeAlarmAt` is newer than the
+      // module's first build, so its absence (an older binary receiving this JS over the air)
+      // falls back to hour:minute, which is what that binary always did.
+      const id = at && typeof mod.hasDatedAlarms === 'function' && mod.hasDatedAlarms()
+        ? await mod.scheduleWakeAlarmAt({ instanceId: a.instanceId, at, title, buttonLabel })
+        : await mod.scheduleWakeAlarm({
+            instanceId: a.instanceId,
+            hour: a.hour,
+            minute: a.minute,
+            weekdays: cleanWeekdays(a.weekdays),
+            title,
+            buttonLabel,
+          });
       // An empty id means the device refused it (permission revoked, or no AlarmKit). Recording it
       // anyway would make the next sync think it needs cancelling, which is harmless but noisy;
       // not recording it keeps `lastArmed` an honest list of what is really set.
@@ -112,7 +158,24 @@ export async function syncWakeAlarms(alarms: WakeAlarmRequest[]): Promise<number
   }
 
   lastArmed = armed;
+  void reportArmed(new Set(armed), previously);
   return armed.length;
+}
+
+/**
+ * The athlete answered this morning (in the app, or the tap drained from the alarm). The alarm
+ * for it must not ring: a queued offline answer at 5:58 followed by a 6:00 alarm for the same
+ * roll call is exactly the "why is it still going off" an athlete remembers. Safe for an instance
+ * that never had one.
+ */
+export function cancelWakeAlarmFor(instanceId: string): void {
+  const id = String(instanceId || '');
+  if (!id) return;
+  const mod = live();
+  if (!mod) return;
+  try { mod.cancelWakeAlarm(id); } catch { /* best effort */ }
+  lastArmed = lastArmed.filter((x) => x !== id);
+  void reportArmed(new Set(lastArmed), [id]);
 }
 
 /** What the app can honestly tell the athlete about alarms on this device. */
@@ -139,4 +202,5 @@ export async function wakeAlarmState(): Promise<WakeAlarmState> {
 /** Test seam: forget what this process believes is armed. */
 export function _resetWakeAlarms(): void {
   lastArmed = [];
+  reported.clear();
 }

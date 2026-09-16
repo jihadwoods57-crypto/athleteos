@@ -25,6 +25,19 @@ import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const BASE = 'http://localhost:8799/index.html';
+
+/** One seeded wake-up row, `startedMinAgo` minutes into its window on the page's own clock. */
+const rcSeed = (startedMinAgo) => `const cd = await import('./js/commitment-data.js');
+  const now = Date.now(); const min = 60000; const off = ${startedMinAgo};
+  const iso = (m) => new Date(now + (off + m) * min).toISOString();
+  const day = new Date(now - new Date().getTimezoneOffset() * min).toISOString().slice(0, 10);
+  const row = { instance_id: 'rc-shot', type: 'morning_roll_call', title: 'Wake-Up Roll Call',
+    message: 'Up and at it. Lift at 7, be early.', action_label: 'I’m Up', coach_name: 'Coach Reed', alarm: true,
+    starts_min: 360, respond_by_min: 365, opens_min: 360, ends_min: 390,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, occurs_on: day,
+    starts_at: iso(0), respond_by_at: iso(5), closes_at: iso(30),
+    status: 'pending', verdict: 'pending', acknowledged_at: null, instance_status: 'scheduled' };
+  cd.seedMineForHarness([row], day);`;
 const TODAY = '2026-07-23';
 const ROOT = process.cwd();
 
@@ -65,6 +78,19 @@ const SHOTS = [
   // three competing reds through two polish passes. Morning seed + an afternoon clock leaves
   // lunch past its window and unlogged — the one state that renders .xnow.red.
   { g: 'athlete', name: 'home-overdue', seed: 'dayMorning', route: 'home', at: [16, 10] },
+  // The wake-up roll call, athlete side (2026-09-16). The stub's my_commitments is a pre-0212
+  // shape, so these seed one row through the harness seam (the same one rollcall-detail.test.mjs
+  // uses) at a clock relative to the page's own, then repaint. Three surfaces that had no shot:
+  // the detail while open, the Home card once late, and the in-app alarm face.
+  { g: 'athlete', name: 'roll-call-open', seed: 'dayMorning', route: 'roll-call/rc-shot', at: [6, 2],
+    act: rcSeed(-2) + ` window.__render();`, actMs: 900 },
+  // The face takes over Home at 6:12 (which is the point); "Not now" dismisses it so the card
+  // underneath is what this shot proves.
+  { g: 'athlete', name: 'home-roll-call-late', seed: 'dayMorning', route: 'home', at: [6, 12],
+    act: rcSeed(-12) + ` window.__render(); await new Promise((r) => setTimeout(r, 500));
+    const later = document.querySelector('[data-wf-later]'); if (later) later.click();`, actMs: 1200 },
+  { g: 'athlete', name: 'wake-face', seed: 'dayMorning', route: 'home', at: [6, 2],
+    act: rcSeed(-2) + ` const wf = await import('./js/wake-face.js'); wf.showWakeFace(row);`, actMs: 900 },
   // The "Day N locked." stamp: a body-level overlay, so it is captured by rendering Home with the
   // lock unacknowledged. Every other athlete seed marks it seen, or it would appear over whichever
   // screen rendered first and make the contact sheet nondeterministic.

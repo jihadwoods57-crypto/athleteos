@@ -60,7 +60,7 @@ export const TYPE_LABEL = {
 
 /* Render-time defaults ONLY. These are never persisted: the column stays null so the database
    remains honest about whether the coach actually chose the string. */
-const DEFAULT_ACTION = {
+export const DEFAULT_ACTION = {
   morning_roll_call: 'I’m Up',
   practice: 'I’m here', strength: 'I’m here', speed: 'I’m here',
   team_meeting: 'I’m here', study_hall: 'I’m here', tutoring: 'I’m here',
@@ -539,8 +539,13 @@ export function deriveCommitment(row, nowISO, offMinOverride) {
     return { ...base, stage: 'hidden', visible: false };
   }
 
+  /* A wake-up that is OPEN is the calm state, not a warning: the athlete has the grace window in
+     front of them and one button to press. It wore amber (the card's default) since 0211, which
+     DESIGN.md reserves for "at risk", and matched the lock-screen card's blue on nothing. Blue is
+     what the Live Activity, the AlarmKit tint and the in-app alarm face all use for this same
+     moment. Late is the warning, and it keeps its own red card. */
   return { ...base, stage: 'open', canAck: asks.ack,
-    canArrive: !asks.ack && asks.arrival, statusColor: 'a' };
+    canArrive: !asks.ack && asks.arrival, statusColor: r.type === 'morning_roll_call' ? 'b' : 'a' };
 }
 
 /* ---------------------------------------------------------------- coach board */

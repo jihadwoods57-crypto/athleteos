@@ -37,7 +37,7 @@ export const HORIZON_DAYS = 7;
  *
  * @param {Array|null} rows commitment-data.js loadMine()/loadMineRange() output
  * @param {number} nowMs the athlete's own clock
- * @returns {Array<{instanceId:string, hour:number, minute:number, weekdays:number[], title:string}>}
+ * @returns {Array<{instanceId:string, hour:number, minute:number, weekdays:number[], title:string, buttonLabel:string, at:number}>}
  */
 export function alarmsFor(rows, nowMs = Date.now()) {
   if (!Array.isArray(rows)) return [];
@@ -48,6 +48,9 @@ export function alarmsFor(rows, nowMs = Date.now()) {
   for (const r of rows) {
     if (!r || r.type !== WAKEUP_TYPE) continue;
     if (r.alarm === false) continue; // the coach turned the alarm off for this wake-up
+    // A day the coach skipped or a rule they deleted (0215 sets the instance cancelled). The
+    // verdict check below does not see it, so without this an alarm rang for a called-off morning.
+    if (r.instance_status === 'cancelled' || r.skipped === true) continue;
     const id = r.instance_id == null ? '' : String(r.instance_id);
     if (!id || seen.has(id)) continue;
 
@@ -78,7 +81,12 @@ export function alarmsFor(rows, nowMs = Date.now()) {
   }
 
   out.sort((a, b) => a.at - b.at);
-  return out.slice(0, MAX_ALARMS).map(({ at, ...rest }) => rest);
+  /* `at` STAYS in the request. It is the exact instant this dated morning rings, in epoch ms. The
+     first build armed hour:minute with no date, and AlarmKit's relative schedule fires at the NEXT
+     6:00 on the clock, so two mornings ahead (tomorrow and the day after, both at 6:00) collapsed
+     into one alarm tomorrow and nothing the day after. The native side arms a FIXED alarm from
+     `at` and keeps hour:minute only for binaries that predate the field. */
+  return out.slice(0, MAX_ALARMS);
 }
 
 /** The alarm's action button. The coach's `action_label` if they set one, else the founder's

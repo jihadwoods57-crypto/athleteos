@@ -72,11 +72,17 @@ public struct RollCallAttributes: ActivityAttributes {
   /// initials are what the card falls back to, which is most of the time.
   public var coachInitials: String
 
-  public init(instanceId: String, title: String, coachName: String, coachInitials: String) {
+  /// The coach's own button words ("I’m Up", or whatever they typed), so the card's button says
+  /// the same thing the alarm, the push and the in-app card say. OPTIONAL: a start pushed by a
+  /// server that predates the field must still decode, and the view falls back to the default.
+  public var actionLabel: String?
+
+  public init(instanceId: String, title: String, coachName: String, coachInitials: String, actionLabel: String? = nil) {
     self.instanceId = instanceId
     self.title = title
     self.coachName = coachName
     self.coachInitials = coachInitials
+    self.actionLabel = actionLabel
   }
 }
 

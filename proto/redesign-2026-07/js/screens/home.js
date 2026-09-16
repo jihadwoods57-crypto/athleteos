@@ -4,7 +4,7 @@ import { initialsOf } from '../initials.js';
 import { weekdayLong } from '../fmt-date.js';
 import { identityLine } from '../identity-line.js';
 import { appHead, scoreRing, esc, safeImg, collapseSection, emailVerifyBanner, wireEmailVerifyBanner, emptyState } from '../components.js';
-import { reveal } from '../motion.js';
+import { reveal, buzz } from '../motion.js';
 import { qualityAccent } from '../score-band.js';
 import { maybeShowLock } from '../lock-moment.js';
 import { DAY, MEAL_KEYS, daySetWakeup } from '../day.js';
@@ -13,12 +13,14 @@ import { unreadCoachReplies, replyRow } from '../coach-replies.js';
 import { wakeupReceipt, receiptHtml } from '../wakeup-handoff.js';
 import { myWakeupForDay } from '../wakeup-morning.js';
 import { syncWakeAlarms } from '../wake-alarms.js';
+import { initWakeFace, armWakeFace } from '../wake-face.js';
+import { WAKEUP_SHIFT } from '../plan-style.js';
 import { canClear, isCleared, clearReceipts } from '../receipts.js';
 import { WAKEUP_TYPE } from '../wakeup-morning.js';
 import { warmMealPhotos, todayMealPhotoPath } from '../photo-store.js';
 import { shouldNudge, nudgeSignature, nudgeData } from '../coach-nudge.js';
-import { deriveCommitment, presenceOf, PRESENCE, tomorrowRollcall } from '../commitments.js';
-import { VC, loadMine, todayISO as vcToday } from '../commitment-data.js';
+import { deriveCommitment, presenceOf, PRESENCE, tomorrowRollcall, wakeupPhase } from '../commitments.js';
+import { VC, loadMine, loadMineAhead, ackCommitment, todayISO as vcToday } from '../commitment-data.js';
 import { commitmentCard, mountCommitmentCard, commitmentOfflineCard, tomorrowCard } from './roll-call.js';
 import { standardsCard, mountStandardsCard, standardsOfflineCard } from './standards-card.js';
 import { CS, loadMine as loadStandards, todayISO as csToday } from '../connected-standard-data.js';
@@ -278,7 +280,13 @@ function paintCommitments(root) {
     RECEIPTS.ids = clearable
       .filter((d) => !isCleared(RT.userId, today, d.instance_id))
       .map((d) => String(d.instance_id));
+    /* ONE row per morning. An answered wake-up already has its receipt under the ring ("Up at
+       5:46 · +8 on today's score"), and the collapsed card in this slot said the same thing a
+       second time. The receipt is the door to the detail now; the card yields to it. A pending
+       offline answer keeps its card, because the receipt only speaks for a landed one. */
+    const receiptOnScreen = !!root.querySelector('.wk-receipt');
     const html = shown
+      .filter((d) => !(receiptOnScreen && d.type === WAKEUP_TYPE && d.stage === 'acknowledged' && !d.pendingSync))
       .map((d) => commitmentCard(d))
       .filter(Boolean).join('')
       + (evening ? tomorrowCard(tomorrowRollcall(VC.mine, today)) : '');
@@ -325,10 +333,29 @@ function paintCommitments(root) {
    because these rows are refetched on every foreground beat. */
 function publishWakeup(rows) {
   try { daySetWakeup(myWakeupForDay(rows, DAY.date), RT.userId || null); } catch (_) { /* never block the paint */ }
+  // The in-app alarm face (wake-face.js): shown now if a roll call is open and unanswered while
+  // the athlete is looking at the app, else asleep until the next one opens. Its deps are wired
+  // once; every later call only re-evaluates.
+  try {
+    initWakeFace({
+      ack: (id) => ackCommitment(id),
+      rows: () => VC.mine,
+      refresh: async (id) => { await loadMine(true); return VC.instance(id); },
+      drain: () => { const N = window.OnStandardNative; return N && N.rollcall && N.rollcall.drain ? N.rollcall.drain() : 0; },
+      points: () => Math.round(WAKEUP_SHIFT * 100),
+      buzz,
+      onAnswered: () => { loadMine(true).then((r) => { RT.vcRows = r; daySetWakeup(myWakeupForDay(r, DAY.date), RT.userId || null); if (window.__render) window.__render(); }); },
+    });
+    armWakeFace(rows);
+  } catch (_) { /* never block the paint */ }
   // And arm the mornings still ahead as real alarms. The native side reconciles the whole set, so
   // calling this on every foreground beat is correct rather than wasteful, and outside the app
-  // shell there is no bridge and it does nothing.
-  try { void syncWakeAlarms(rows); } catch (_) { /* never block the paint */ }
+  // shell there is no bridge and it does nothing. The week ahead rides along (loadMineAhead):
+  // Home's own rows stop at tomorrow, and an athlete who did not open the app for two days used
+  // to wake on the third morning with no alarm because nothing had ever read that morning's row.
+  try {
+    loadMineAhead().then((ahead) => syncWakeAlarms([...(rows || []), ...(ahead || [])]), () => syncWakeAlarms(rows));
+  } catch (_) { /* never block the paint */ }
 }
 
 /* Connected Standards on Home (0155). Same shape as the commitments slot above: paint instantly
@@ -1087,7 +1114,7 @@ export default {
       ${/* VC.today(), not VC.board: the board is the COACH's copy and an athlete never fills it,
             so this receipt was `none` for every athlete since it shipped and the row never
             appeared on Home. wakeupReceipt reads the athlete's own instance now. */''}
-      ${receiptHtml(wakeupReceipt(VC.today().find((i) => i.type === WAKEUP_TYPE) || null, RT.userId), esc)}
+      ${receiptHtml(wakeupReceipt(VC.today().find((i) => i.type === WAKEUP_TYPE) || null, RT.userId), esc, Math.round(WAKEUP_SHIFT * 100))}
       <div id="reply-row"></div>
       ${recentResults()}
       <div style="height:20px"></div>`;
@@ -1128,7 +1155,7 @@ export default {
     <div id="seen-row" data-tour="coach-seen"></div>
     ${/* "Your coach replied" (0229): the third receipt, injected async like the two above, and
           the only one that is a door. Empty when nothing is unread, so Home is byte-identical. */''}
-    ${receiptHtml(wakeupReceipt(VC.today().find((i) => i.type === WAKEUP_TYPE) || null, RT.userId), esc)}
+    ${receiptHtml(wakeupReceipt(VC.today().find((i) => i.type === WAKEUP_TYPE) || null, RT.userId), esc, Math.round(WAKEUP_SHIFT * 100))}
       <div id="reply-row"></div>
     <div id="vc-slot"></div>
     ${/* One Clear for the whole receipts region above. Not an x on each row: those rows already
@@ -1334,7 +1361,12 @@ export default {
     // clears window.__execTick on every route change.
     const key = () => {
       const e = S.exec;
-      return JSON.stringify([e.now && e.now.id, e.now && e.now.countdown, e.met, e.celebration, e.overdue.map((o) => o.id), e.items.map((i) => i.id + ':' + i.state)]);
+      // The wake-up's own clock rides the key (impeccable critique 2026-09-16): on a device with
+      // a push token the exec's commitments list is empty, so the 30 s tick never saw the roll
+      // call open and the "Soon" row sat there past 6:00 until the athlete navigated.
+      let wake = '';
+      try { const now = new Date().toISOString(); wake = VC.today().filter((r) => r.type === WAKEUP_TYPE).map((r) => r.instance_id + ':' + wakeupPhase(r, now)).join(','); } catch (_) { wake = ''; }
+      return JSON.stringify([e.now && e.now.id, e.now && e.now.countdown, e.met, e.celebration, e.overdue.map((o) => o.id), e.items.map((i) => i.id + ':' + i.state), wake]);
     };
     let last = key();
     let rolling = false;

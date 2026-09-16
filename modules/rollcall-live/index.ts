@@ -22,12 +22,16 @@ export type WakeAlarm = {
   buttonLabel?: string;
 };
 
+/** A dated one-off: the exact instant in epoch ms. */
+export type WakeAlarmAt = { instanceId: string; at: number; title?: string; buttonLabel?: string };
+
 type NativeModule = {
   isLiveActivitySupported: () => boolean;
   isAlarmSupported?: () => boolean;
   alarmAuthorizationState?: () => AlarmAuthorization;
   requestAlarmAuthorization?: () => Promise<AlarmAuthorization>;
   scheduleWakeAlarm?: (instanceId: string, hour: number, minute: number, weekdays: number[], title: string, buttonLabel: string) => Promise<string>;
+  scheduleWakeAlarmAt?: (instanceId: string, atMs: number, title: string, buttonLabel: string) => Promise<string>;
   cancelWakeAlarm?: (instanceId: string) => void;
   scheduledWakeAlarms?: () => Array<Record<string, unknown>>;
   startPushToStartObserver: () => void;
@@ -138,6 +142,32 @@ export async function scheduleWakeAlarm(a: WakeAlarm): Promise<string> {
       a.buttonLabel || 'I’m Up',
     )) ?? '';
   } catch { return ''; }
+}
+
+/** Arm (or replace) a DATED wake-up: it rings once, at `at`, and never at "the next 6:00".
+ *  Resolves to '' on a binary that predates the call, so the caller can fall back to
+ *  `scheduleWakeAlarm`. Exported as undefined-checkable: `typeof scheduleWakeAlarmAt` is always
+ *  'function' here, so callers check the NATIVE surface through `hasDatedAlarms()`. */
+export async function scheduleWakeAlarmAt(a: WakeAlarmAt): Promise<string> {
+  try {
+    const n = native();
+    if (!n?.scheduleWakeAlarmAt) return '';
+    return (await n.scheduleWakeAlarmAt(a.instanceId, Math.round(a.at), a.title || 'Wake up', a.buttonLabel || 'I’m Up')) ?? '';
+  } catch { return ''; }
+}
+
+/** Whether this binary can arm a dated alarm at all. */
+export function hasDatedAlarms(): boolean {
+  try { return typeof native()?.scheduleWakeAlarmAt === 'function'; } catch { return false; }
+}
+
+/** A tap recorded by the alarm's own button while the app was RUNNING. Older binaries never emit
+ *  it; the foreground drain covers them. Returns an unsubscribe. */
+export function onPendingTap(cb: (e: PendingTap) => void): () => void {
+  try {
+    const sub = native()?.addListener('onPendingTap', cb as never);
+    return () => { try { sub?.remove(); } catch { /* best effort */ } };
+  } catch { return () => {}; }
 }
 
 /** Cancel one. Safe for an instance that never had an alarm. */

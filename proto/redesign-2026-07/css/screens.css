@@ -1776,6 +1776,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    struggling athlete needs to press. (The amber card keeps its amber CTA: there, amber is the
    card's own identity, not a judgement about the athlete.) */
 .xnow.red .xcta{background:linear-gradient(150deg,var(--blue),var(--blue-deep));color:var(--ink-on-accent);box-shadow:var(--sh-blue)}
+/* Late but answerable (2026-09-16): amber card, the same warning the detail screen wears, and the
+   button stays the way out in blue. Red is only ever a MISSED roll call. */
+.xnow.late .xcta{background:linear-gradient(150deg,var(--blue),var(--blue-deep));color:var(--ink-on-accent);box-shadow:var(--sh-blue)}
 .xgrp{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--text-3);margin:var(--s3) var(--s1) var(--s2)}
 /* WS6 collapse primitive: a <details> whose summary reuses the .xgrp header look. Native
    toggle, no JS state; chevron rotates on open; body keeps the ladder's row rhythm.
@@ -3223,7 +3226,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .wk-rowtop .status-pill{flex:none}
 .wk-row .ls{margin-top:2px}
 .wk-rowacts{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s2)}
-.wk-rowacts .chip{height:40px;padding:0 var(--s3);font-size:var(--t-sm)}
+.wk-rowacts .chip{height:44px;padding:0 var(--s3);font-size:var(--t-sm)}
 .wk-dispute{color:var(--amber-bright);font-weight:700}
 .wk-hist .ls{overflow-wrap:anywhere}
 /* The day's verdict, right-aligned: the one thing a coach scans down the column for. */
@@ -3266,6 +3269,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .wk-state.late .wk-verdict{color:var(--amber-bright)}
 .wk-cta{width:100%;margin-top:var(--s3h);font-size:var(--t-lg);letter-spacing:.04em;text-transform:uppercase}
 .wk-refusal{color:var(--amber-bright);justify-content:center}
+.wk-alarmline{margin-top:var(--s3);color:var(--text-2);line-height:1.45;align-items:flex-start}
+.wk-alarmline svg{flex:none;margin-top:2px;color:var(--blue-bright)}
+.wk-alarmline.off{color:var(--amber-bright)} .wk-alarmline.off svg{color:var(--amber-bright)}
 .wk-warn{margin-top:var(--s3)}
 .wk-proof{margin-top:var(--s3h)}
 .vc-ctx.wk-savefail{color:var(--amber-bright)}
@@ -3475,8 +3481,8 @@ body.kb-open .meal-foot { display: none; }
 .wk-streak {
   display: inline-flex; align-items: center; margin-top: var(--s3);
   padding: var(--s2) var(--s3h); border-radius: var(--r-pill);
-  background: rgba(var(--amber-rgb), 0.13); border: 1px solid var(--amber-border);
-  font-size: var(--t-sm); font-weight: 800; color: var(--amber-bright);
+  background: var(--surface-2); border: 1px solid var(--hairline);
+  font-size: var(--t-sm); font-weight: 800; color: var(--text);
 }
 
 .wk-sq .wk-rank { font-family: var(--font-display); font-size: var(--t-base); font-weight: 800; color: var(--text-3); width: 20px; flex: none; }
@@ -3607,3 +3613,32 @@ body.kb-open .meal-foot { display: none; }
 .lm-rt small{font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin-left:auto;white-space:nowrap}
 .lm-rows .rub-body,.lm-rows .bd-body{padding:0 var(--s4) var(--s3h)}
 .lm-rows .bd-body > .card{margin-top:0}
+
+/* ---------------------------------------------------------------- the in-app alarm face (js/wake-face.js)
+   The wake-up when the athlete is already on the phone. One overlay, one button. Blue is the calm
+   open state (the same blue the lock-screen card and the AlarmKit tint use); late turns the eyebrow
+   and the line red, never the whole surface. Tokens only: every colour composes from --hue-rgb so it
+   holds in light theme. */
+.wakeface{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;justify-content:center;gap:var(--s5);padding:max(var(--s8),env(safe-area-inset-top)) var(--s6) max(var(--s7),env(safe-area-inset-bottom));box-sizing:border-box;background:radial-gradient(120% 70% at 50% 0%,rgba(var(--blue-rgb), 0.16),transparent 60%),var(--bg);opacity:0;transform:translateY(12px);transition:opacity var(--dur-2) var(--ease-out),transform var(--dur-2) var(--ease-out)}
+.wakeface.on{opacity:1;transform:none}
+.wakeface .wf-top{text-align:center}
+.wakeface .wf-eyebrow{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--blue-bright)}
+.wakeface .wf-eyebrow.late{color:var(--red-bright)}
+.wakeface .wf-coach{margin-top:var(--s2);font-size:var(--t-2xl);font-weight:800;letter-spacing:var(--title-tight);color:var(--text)}
+.wakeface .wf-clock{text-align:center;font-size:var(--t-hero);font-weight:800;letter-spacing:var(--num-tight);line-height:1;color:var(--text);font-variant-numeric:tabular-nums}
+.wakeface .wf-line{text-align:center;font-size:var(--t-md);font-weight:700;color:var(--text-2)}
+.wakeface .wf-line.late{color:var(--red-bright)}
+.wakeface .wf-msg{margin:0 auto;max-width:34ch;text-align:center;font-size:var(--t-lg);font-weight:600;line-height:1.4;color:var(--text);white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+.wakeface .wf-acts{display:flex;flex-direction:column;gap:var(--s3);margin-top:var(--s3)}
+.wakeface .wf-cta{min-height:56px;font-size:var(--t-lg);letter-spacing:.02em}
+.wakeface .wf-later{min-height:48px}
+.wakeface .wf-fail{text-align:center;font-size:var(--t-sm);font-weight:700;color:var(--red-bright);margin-top:var(--s1)}
+.wakeface .wf-foot{text-align:center;font-size:var(--t-xs);font-weight:600;color:var(--text-3)}
+.wakeface .wf-done{display:flex;flex-direction:column;align-items:center;gap:var(--s3)}
+.wakeface .wf-done-mark{width:64px;height:64px;border-radius:var(--r-pill);background:rgba(var(--green-rgb), 0.14);border:2px solid var(--green-bright);position:relative}
+.wakeface .wf-done-mark::before{content:"";position:absolute;left:22px;top:16px;width:14px;height:26px;border:solid var(--green-bright);border-width:0 3px 3px 0;transform:rotate(45deg)}
+.wakeface .wf-done .wf-eyebrow{color:var(--green-bright)}
+.wakeface .wf-done.late .wf-done-mark{background:rgba(var(--amber-rgb), 0.14);border-color:var(--amber-bright)}
+.wakeface .wf-done.late .wf-done-mark::before{border-color:var(--amber-bright)}
+.wakeface .wf-done.late .wf-eyebrow{color:var(--amber-bright)}
+@media (prefers-reduced-motion: reduce){.wakeface{transition:none;transform:none}}

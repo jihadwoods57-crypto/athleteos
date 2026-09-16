@@ -34,3 +34,9 @@ export const CHECK_IN_LABEL = 'Check in now';
 /** The Android channel every roll-call push rides on (high importance, sound). Created by the
  *  device at launch. MUST match ROLLCALL_CHANNEL in src/core/rollcall.ts. */
 export const ROLLCALL_CHANNEL = 'rollcall';
+
+/** The SILENT twin of the channel above: same importance and lock-screen visibility, no sound.
+ *  The opening push rides it for an athlete whose phone is already ringing a real alarm for the
+ *  same morning (0239 alarm_armed_at). Android plays the CHANNEL's sound, not the message's, so a
+ *  quiet push needs a quiet channel. MUST match ROLLCALL_QUIET_CHANNEL in src/core/rollcall.ts. */
+export const ROLLCALL_QUIET_CHANNEL = 'rollcall-quiet';

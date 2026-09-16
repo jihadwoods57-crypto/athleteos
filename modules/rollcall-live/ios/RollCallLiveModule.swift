@@ -29,7 +29,7 @@ public class RollCallLiveModule: Module {
   public func definition() -> ModuleDefinition {
     Name("RollCallLive")
 
-    Events("onPushToStartToken", "onActivityToken")
+    Events("onPushToStartToken", "onActivityToken", "onPendingTap")
 
     /// True only where a Live Activity can actually run: iOS 16.1+ for activities at all, and the
     /// athlete has not switched them off for OnStandard. JS uses this to decide whether the
@@ -125,6 +125,19 @@ public class RollCallLiveModule: Module {
       return ""
     }
 
+    /// Schedule (or replace) a DATED wake-up at an absolute instant (epoch milliseconds). This is
+    /// what a single dated roll call actually is; the hour:minute form above stays for older JS.
+    AsyncFunction("scheduleWakeAlarmAt") { (instanceId: String, atMs: Double, title: String, buttonLabel: String) -> String in
+      #if canImport(AlarmKit)
+      if #available(iOS 26.1, *) {
+        return (try? await RollCallAlarmScheduler.scheduleAt(
+          instanceId: instanceId, atMs: atMs, title: title, buttonLabel: buttonLabel
+        )) ?? ""
+      }
+      #endif
+      return ""
+    }
+
     /// Cancel the wake-up for one instance. Safe for an instance that never had one.
     Function("cancelWakeAlarm") { (instanceId: String) -> Void in
       #if canImport(AlarmKit)
@@ -143,9 +156,21 @@ public class RollCallLiveModule: Module {
   }
 
   private func startObserving() {
-    #if canImport(ActivityKit)
     guard !observing else { return }
     observing = true
+
+    // A tap the alarm or the card recorded while THIS process was alive. The intents run in the
+    // app's process, so this fires the moment the athlete presses the button on the alarm banner
+    // with OnStandard already open; JS drains the store on it instead of at the next launch.
+    NotificationCenter.default.addObserver(
+      forName: RollCallPendingStore.didRecord, object: nil, queue: .main
+    ) { [weak self] note in
+      let id = note.userInfo?["instanceId"] as? String ?? ""
+      let at = note.userInfo?["at"] as? Double ?? Date().timeIntervalSince1970 * 1000
+      self?.sendEvent("onPendingTap", ["instanceId": id, "at": at])
+    }
+
+    #if canImport(ActivityKit)
 
     if #available(iOS 17.2, *) {
       // The push-to-start token. Apple: "You don't have to start a Live Activity from your app to

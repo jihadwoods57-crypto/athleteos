@@ -38,6 +38,8 @@ export type LiveAttributes = {
   coachName: string;
   /** One or two letters for the avatar circle when no photo has been cached. */
   coachInitials: string;
+  /** The coach's own button words. Optional on the wire so an older widget still decodes. */
+  actionLabel?: string;
 };
 
 /** Everything that changes as the morning runs. Mirrors `RollCallAttributes.ContentState`. */
@@ -105,15 +107,16 @@ export const LIVE_ATTRIBUTES_TYPE = 'RollCallAttributes';
 
 /** The colour each state paints, matching the proto's own tokens (css/tokens.css):
  *  --blue-bright, --amber, --red. Blue is the calm state because green is status-only app-wide. */
-export const LIVE_PHASE_COLOR: Record<'initial' | 'reminder' | 'late', string> = {
+export const LIVE_PHASE_COLOR: Record<'initial' | 'reminder' | 'late' | 'missed', string> = {
   initial: '#60A5FA',
   reminder: '#F5A524',
   late: '#F65757',
+  missed: '#F65757',
 };
 
 export function rollCallPushData(
   row: { type?: string | null; respond_by_at?: string | null; closes_at?: string | null },
-  phase: 'initial' | 'reminder' | 'late',
+  phase: 'initial' | 'reminder' | 'late' | 'missed',
 ): Record<string, unknown> {
   // Only a wake-up roll call gets this treatment. Every other commitment type keeps the plain
   // notification it has always had.
@@ -144,7 +147,15 @@ export function liveActivityHeaders(bundleId: string, jwt: string): Record<strin
   };
 }
 
+/** `sound` may be '' to alert SILENTLY: the card still lights the screen and carries the words,
+ *  but plays nothing. That is the opening push for an athlete whose phone is already ringing a
+ *  real alarm for this same morning (0239 alarm_armed_at). The key is omitted from the payload
+ *  rather than sent empty, which APNs treats as "no sound". */
 export type LiveAlert = { title: string; body: string; sound: string };
+
+function apsAlert(alert: LiveAlert): Record<string, string> {
+  return alert.sound ? { title: alert.title, body: alert.body, sound: alert.sound } : { title: alert.title, body: alert.body };
+}
 
 /** The `start` payload. Apple requires `event`, an `alert`, `attributes-type` and `attributes`.
  *  `stale-date` is defensive: if the device never reports an update token back to us (the app was
@@ -160,7 +171,7 @@ export function liveStartPayload(
       'attributes-type': LIVE_ATTRIBUTES_TYPE,
       attributes,
       'content-state': state,
-      alert,
+      alert: apsAlert(alert),
       'stale-date': state.deadlineEpoch || undefined,
       'relevance-score': 100,
     },
@@ -178,7 +189,7 @@ export function liveUpdatePayload(
       timestamp: Math.round(nowMs / 1000),
       event: 'update',
       'content-state': state,
-      ...(alert ? { alert } : {}),
+      ...(alert ? { alert: apsAlert(alert) } : {}),
       'stale-date': state.phase === 'late' ? state.closesEpoch || undefined : state.deadlineEpoch || undefined,
     },
   };

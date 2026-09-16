@@ -3,9 +3,9 @@
 // The property worth protecting is that a wake-up a coach DELETED stops ringing. Appending would
 // leave it armed on the athlete's phone with nothing in the app to turn it off, which is the worst
 // failure this feature has.
-import { syncWakeAlarms, wakeAlarmState, isUsable, cleanWeekdays, _resetWakeAlarms } from './wakeAlarms';
+import { syncWakeAlarms, wakeAlarmState, isUsable, cleanWeekdays, fixedAt, cancelWakeAlarmFor, _resetWakeAlarms } from './wakeAlarms';
 
-type Scheduled = { instanceId: string; hour: number; minute: number; weekdays: number[]; title: string };
+type Scheduled = { instanceId: string; hour?: number; minute?: number; weekdays?: number[]; title: string; at?: number };
 
 const mockState = {
   supported: true,
@@ -14,7 +14,15 @@ const mockState = {
   cancelled: [] as string[],
   refuse: new Set<string>(),
   requested: 0,
+  /** Whether the fake binary knows the dated call. */
+  dated: true,
+  /** What the fake server was told: instance -> armed. */
+  told: [] as Array<{ p_instance: string; p_armed: boolean }>,
 };
+
+jest.mock('@/lib/supabase/client', () => ({
+  supabase: { rpc: async (fn: string, args: { p_instance: string; p_armed: boolean }) => { if (fn === 'set_wake_alarm_armed') mockState.told.push(args); return { error: null }; } },
+}), { virtual: true });
 
 jest.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
 
@@ -23,6 +31,13 @@ jest.mock('../../../modules/rollcall-live', () => ({
   alarmAuthorizationState: () => mockState.authorization,
   requestAlarmAuthorization: async () => { mockState.requested++; mockState.authorization = 'authorized'; return 'authorized'; },
   scheduleWakeAlarm: async (a: Scheduled) => {
+    if (mockState.refuse.has(a.instanceId)) return '';
+    mockState.scheduled = mockState.scheduled.filter((x) => x.instanceId !== a.instanceId).concat(a);
+    return a.instanceId;
+  },
+  hasDatedAlarms: () => mockState.dated,
+  scheduleWakeAlarmAt: async (a: Scheduled) => {
+    if (!mockState.dated) return '';
     if (mockState.refuse.has(a.instanceId)) return '';
     mockState.scheduled = mockState.scheduled.filter((x) => x.instanceId !== a.instanceId).concat(a);
     return a.instanceId;
@@ -43,7 +58,78 @@ beforeEach(() => {
   mockState.cancelled = [];
   mockState.refuse = new Set();
   mockState.requested = 0;
+  mockState.dated = true;
+  mockState.told = [];
   _resetWakeAlarms();
+});
+
+const flush = () => new Promise((r) => setTimeout(r, 0));
+
+describe('a dated morning', () => {
+  const at = Date.now() + 18 * 3600000;
+
+  it('is armed at its exact instant, not at hour:minute', async () => {
+    await syncWakeAlarms([{ ...morning('a'), at }]);
+    expect(mockState.scheduled[0].at).toBe(Math.round(at));
+    expect(mockState.scheduled[0].hour).toBeUndefined();
+  });
+
+  it('falls back to hour:minute on a binary that predates the dated call', async () => {
+    mockState.dated = false;
+    await syncWakeAlarms([{ ...morning('a'), at }]);
+    expect(mockState.scheduled[0].hour).toBe(5);
+    expect(mockState.scheduled[0].at).toBeUndefined();
+  });
+
+  it('never trusts an instant already behind us', () => {
+    expect(fixedAt({ ...morning('a'), at: Date.now() - 1000 })).toBe(0);
+    expect(fixedAt({ ...morning('a'), at: Number.NaN })).toBe(0);
+    expect(fixedAt({ ...morning('a') })).toBe(0);
+    expect(fixedAt({ ...morning('a'), at }, at - 5)).toBe(Math.round(at));
+  });
+
+  it('tells the server which mornings this phone will ring for, and only on a change', async () => {
+    await syncWakeAlarms([morning('a'), morning('b')]);
+    await flush();
+    expect(mockState.told.filter((t) => t.p_armed).map((t) => t.p_instance).sort()).toEqual(['a', 'b']);
+    mockState.told = [];
+    await syncWakeAlarms([morning('a'), morning('b')]);
+    await flush();
+    expect(mockState.told).toEqual([]);
+    await syncWakeAlarms([morning('a')]);
+    await flush();
+    expect(mockState.told).toEqual([{ p_instance: 'b', p_armed: false }]);
+  });
+
+  it('a refused morning is reported as NOT armed, so the server keeps its sound', async () => {
+    mockState.refuse.add('a');
+    await syncWakeAlarms([morning('a')]);
+    await flush();
+    expect(mockState.told).toEqual([]);
+    expect(mockState.scheduled).toEqual([]);
+  });
+});
+
+describe('cancelWakeAlarmFor', () => {
+  it('cancels the answered morning, forgets it, and tells the server', async () => {
+    await syncWakeAlarms([morning('a'), morning('b')]);
+    await flush();
+    mockState.told = [];
+    cancelWakeAlarmFor('a');
+    await flush();
+    expect(mockState.cancelled).toContain('a');
+    expect(mockState.scheduled.map((s) => s.instanceId)).toEqual(['b']);
+    expect(mockState.told).toEqual([{ p_instance: 'a', p_armed: false }]);
+    // The next sync does not try to cancel it again.
+    mockState.cancelled = [];
+    await syncWakeAlarms([morning('b')]);
+    expect(mockState.cancelled).toEqual([]);
+  });
+
+  it('is harmless for an instance that never had one', () => {
+    expect(() => cancelWakeAlarmFor('nope')).not.toThrow();
+    expect(() => cancelWakeAlarmFor('')).not.toThrow();
+  });
 });
 
 describe('syncWakeAlarms', () => {

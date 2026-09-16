@@ -60,6 +60,13 @@ public enum RollCallPendingStore {
   public static let suiteName = "group.com.onstandard.app"
   static let key = "rollcall.pendingTaps"
 
+  /// Posted in-process the moment a tap is recorded. A `LiveActivityIntent` (and the AlarmKit
+  /// intents) run in the APP's process, so when the app is already running the module can hear
+  /// this and drain the store now, instead of the tap sitting there until the next cold start
+  /// while the roll call reads as unanswered. Nobody listens in the extension process, and that is
+  /// fine: there the tap waits for the app, which is what it always did.
+  public static let didRecord = Notification.Name("app.onstandard.rollcall.pendingTapRecorded")
+
   /// Append one tap. Deliberately additive and tiny: this runs inside `perform()`, which Apple
   /// gives no documented time budget, so it does no I/O beyond one defaults write.
   public static func record(instanceId: String, at date: Date) {
@@ -70,6 +77,10 @@ public enum RollCallPendingStore {
     guard !pending.contains(where: { $0["instanceId"] as? String == instanceId }) else { return }
     pending.append(["instanceId": instanceId, "at": date.timeIntervalSince1970 * 1000])
     defaults.set(pending, forKey: key)
+    NotificationCenter.default.post(
+      name: didRecord, object: nil,
+      userInfo: ["instanceId": instanceId, "at": date.timeIntervalSince1970 * 1000]
+    )
   }
 
   /// Read and clear. Called by the module when the app next runs.

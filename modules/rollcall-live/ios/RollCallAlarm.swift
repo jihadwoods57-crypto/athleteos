@@ -146,6 +146,42 @@ public enum RollCallAlarmScheduler {
     title: String,
     buttonLabel: String
   ) async throws -> String {
+    let schedule: Alarm.Schedule = .relative(
+      .init(
+        time: Alarm.Schedule.Relative.Time(hour: hour, minute: minute),
+        repeats: weekdays.isEmpty ? .never : .weekly(weekdays.compactMap(Self.weekday))
+      )
+    )
+    return try await arm(instanceId: instanceId, schedule: schedule, title: title, buttonLabel: buttonLabel)
+  }
+
+  /// Schedule (or replace) a DATED wake-up: it rings once, at `atMs`, and never at "the next time
+  /// that reads on the clock".
+  ///
+  /// THIS IS THE FIX FOR TWO MORNINGS COLLAPSING INTO ONE. `.relative` with `repeats: .never`
+  /// carries an hour and a minute and no date, so it fires at the next 6:00 on the device clock.
+  /// The app arms up to a week of dated instances, and tomorrow's 6:00 and the day after's 6:00
+  /// both resolved to tomorrow: two alarms for one morning and none for the next. `.fixed(Date)`
+  /// (AlarmKit, iOS 26.0) is the one-shot at an absolute instant that a dated roll call actually is.
+  ///
+  /// - Parameter atMs: epoch milliseconds, the same number the proto sorts alarms by.
+  public static func scheduleAt(
+    instanceId: String,
+    atMs: Double,
+    title: String,
+    buttonLabel: String
+  ) async throws -> String {
+    let when = Date(timeIntervalSince1970: atMs / 1000)
+    return try await arm(instanceId: instanceId, schedule: .fixed(when), title: title, buttonLabel: buttonLabel)
+  }
+
+  /// The shared body: cancel the previous alarm for this instance, build the alert, arm it.
+  private static func arm(
+    instanceId: String,
+    schedule: Alarm.Schedule,
+    title: String,
+    buttonLabel: String
+  ) async throws -> String {
     let id = alarmID(for: instanceId)
 
     // Replacing rather than stacking: a coach who moves the wake-up from 5:45 to 6:00 must not
@@ -183,13 +219,6 @@ public enum RollCallAlarmScheduler {
       presentation: AlarmPresentation(alert: alert),
       metadata: WakeUpMetadata(instanceId: instanceId, label: title),
       tintColor: tint
-    )
-
-    let schedule: Alarm.Schedule = .relative(
-      .init(
-        time: Alarm.Schedule.Relative.Time(hour: hour, minute: minute),
-        repeats: weekdays.isEmpty ? .never : .weekly(weekdays.compactMap(Self.weekday))
-      )
     )
 
     let configuration = AlarmManager.AlarmConfiguration(
@@ -271,7 +300,7 @@ public enum RollCallAlarmScheduler {
 /// `LiveActivityIntent` in the app's process.
 @available(iOS 17.0, *)
 public struct RollCallAttackDayIntent: LiveActivityIntent {
-  public static var title: LocalizedStringResource = "Attack the day"
+  public static var title: LocalizedStringResource = "I’m Up"
   public static var description = IntentDescription("Answer your coach's wake-up and start the day.")
 
   /// Unlike the Live Activity's check-in button, this one DOES open OnStandard. It is the morning's

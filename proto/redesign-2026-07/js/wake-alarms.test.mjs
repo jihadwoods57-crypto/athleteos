@@ -96,11 +96,22 @@ test('the title is the coach own words, or an honest default', () => {
   assert.equal(alarmTitle({ title: 'x'.repeat(200) }).length, 80, 'bounded before it reaches native');
 });
 
-test('the payload carries only what native needs', () => {
+test('the payload carries only what native needs, including the exact instant', () => {
   const [a] = alarmsFor([row()], NOW);
   assert.deepEqual(Object.keys(a).sort(),
-    ['buttonLabel', 'hour', 'instanceId', 'minute', 'title', 'weekdays']);
-  assert.ok(!('at' in a), 'the sort key must not leak across the bridge');
+    ['at', 'buttonLabel', 'hour', 'instanceId', 'minute', 'title', 'weekdays']);
+  assert.equal(a.at, Date.parse(inHours(18)), 'the dated instant rides across the bridge');
+});
+
+test('two mornings at the same clock time on different days are two alarms, not one', () => {
+  // The first build armed hour:minute only. AlarmKit's relative schedule fires at the NEXT 6:00,
+  // so tomorrow and the day after collapsed into one alarm tomorrow. `at` is what keeps them apart.
+  const out = alarmsFor([row({ instance_id: 'd1', starts_at: inHours(18) }), row({ instance_id: 'd2', starts_at: inHours(42) })], NOW);
+  assert.equal(out.length, 2);
+  assert.equal(out[0].hour, out[1].hour);
+  assert.equal(out[0].minute, out[1].minute);
+  assert.notEqual(out[0].at, out[1].at);
+  assert.equal(out[1].at - out[0].at, 24 * 3600000);
 });
 
 /* ------------------------------------------------------ the coach configures it in the app */

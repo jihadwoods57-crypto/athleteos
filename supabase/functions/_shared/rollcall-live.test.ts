@@ -1,6 +1,6 @@
 import {
   liveLine, liveContentState, liveStartPayload, liveUpdatePayload, liveEndPayload,
-  liveActivityHeaders, LIVE_ATTRIBUTES_TYPE, LIVE_LINE_MAX_CHARS, LIVE_LINGER_SEC,
+  liveActivityHeaders, LIVE_ATTRIBUTES_TYPE, LIVE_LINE_MAX_CHARS, LIVE_LINGER_SEC, rollCallPushData,
   type LiveAttributes,
 } from './rollcall-live';
 
@@ -114,5 +114,24 @@ describe('headers', () => {
   });
   it('asks for immediate delivery: priority 5 may be deferred', () => {
     expect(liveActivityHeaders('b', 'j')['apns-priority']).toBe('10');
+  });
+});
+
+describe('the close and the quiet opening (0239)', () => {
+  it('a missed phase reaches Android with the red state colour', () => {
+    const d = rollCallPushData({ type: 'morning_roll_call', respond_by_at: '2026-09-16T10:05:00Z', closes_at: '2026-09-16T10:30:00Z' }, 'missed');
+    expect(d.rc_phase).toBe('missed');
+    expect(d.rc_color).toBe('#F65757');
+  });
+
+  it('an alert with no sound omits the key instead of sending an empty one', () => {
+    const quiet = { title: 'Coach', body: 'Up.', sound: '' };
+    const start = liveStartPayload(attrs, liveContentState(row, 'initial'), quiet, NOW) as { aps: { alert: Record<string, unknown> } };
+    expect(start.aps.alert).toEqual({ title: 'Coach', body: 'Up.' });
+    expect(start.aps.alert).not.toHaveProperty('sound');
+    const loud = liveStartPayload(attrs, liveContentState(row, 'initial'), alert, NOW) as { aps: { alert: Record<string, unknown> } };
+    expect(loud.aps.alert).toEqual(alert);
+    const upd = liveUpdatePayload(liveContentState(row, 'reminder'), NOW, quiet) as { aps: { alert: Record<string, unknown> } };
+    expect(upd.aps.alert).not.toHaveProperty('sound');
   });
 });

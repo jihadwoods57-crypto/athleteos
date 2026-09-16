@@ -23,6 +23,8 @@ export type LiveCard = {
   respond_by_at: string | null;
   closes_at: string | null;
   timezone: string | null;
+  /** The coach's own button words (0234 payload); null on a card read by an older RPC. */
+  action_label?: string | null;
 };
 
 type Target = { athlete_id: string; start_token: string | null; update_token: string | null };
@@ -41,6 +43,9 @@ export function attributesFor(card: LiveCard): LiveAttributes {
     title: card.title || 'Wake-Up Roll Call',
     coachName: card.coach_name || '',
     coachInitials: initialsOf(card.coach_name),
+    // ONE VOCABULARY: the card's button says what the alarm, the push and the app say. Omitted
+    // (not null) when the coach never named one, so the widget's optional decodes to nil.
+    ...(card.action_label && String(card.action_label).trim() ? { actionLabel: String(card.action_label).trim().slice(0, 24) } : {}),
   };
 }
 

@@ -104,7 +104,7 @@ export function maybeShowLock(streakDays) {
   // early load, and a later repaint could fire this after the tour had already opened — two
   // modals on one paint, which is what a first-time athlete was actually getting. Returning
   // false here without claiming the marker means the stamp is simply owed on the next open.
-  if (document.querySelector('.tour, .imgview, .memsheet, .sheet-scrim')) return false;
+  if (document.querySelector('.tour, .imgview, .memsheet, .sheet-scrim, .wakeface')) return false;
   const { date, score } = yesterdayScore();
   if (score === null) return false;                         // no row: the app cannot say it locked
   if (RT.lastLockSeen === date) return false;               // already shown

@@ -136,7 +136,7 @@ struct RollCallLockScreenView: View {
   private var checkInButton: some View {
     if #available(iOS 17.0, *) {
       Button(intent: RollCallCheckInIntent(instanceId: context.attributes.instanceId)) {
-        Text(phase == .late ? "CHECK IN" : "I'M UP")
+        Text(phase == .late ? "CHECK IN" : (context.attributes.actionLabel ?? "I’M UP").uppercased())
           .font(.system(size: 14, weight: .heavy))
           .foregroundStyle(.white)
           .padding(.horizontal, 16)
@@ -161,7 +161,7 @@ struct RollCallLockScreenView: View {
   private var eyebrow: String {
     switch phase {
     case .initial:  return context.attributes.title.uppercased()
-    case .reminder: return "ONSTANDARD · COACH IS WAITING"
+    case .reminder: return "ONSTANDARD · \(context.attributes.title.uppercased())"
     case .late:     return "\(context.attributes.title.uppercased()) · ONSTANDARD"
     case .answered, .missed: return context.attributes.title.uppercased()
     }
@@ -169,7 +169,7 @@ struct RollCallLockScreenView: View {
 
   private var kicker: String {
     switch phase {
-    case .initial:  return "UP BY"
+    case .initial:  return "UP BY \(Self.clock.string(from: context.state.deadline))"
     case .reminder: return "LEFT TO CHECK IN"
     case .late:     return "LATE BY"
     case .answered: return "ON STANDARD"
@@ -183,7 +183,7 @@ struct RollCallLockScreenView: View {
     case .reminder: return "On Standard until \(Self.clock.string(from: context.state.deadline))."
     case .late:     return "Check in now. Your coach can see this."
     case .answered: return "Checked in at \(Self.clock.string(from: context.state.checkedIn ?? Date()))."
-    case .missed:   return "The roll call closed."
+    case .missed:   return "Closed with no answer. Tomorrow starts fresh."
     }
   }
 
@@ -216,9 +216,12 @@ struct RollCallClock: View {
       case .missed:
         Text("Missed")
       case .initial:
-        // Before anything is urgent the deadline itself is the number: a time to be up BY, not a
-        // countdown. A countdown from six minutes out reads as pressure the moment should not have.
-        Text(state.deadline, style: .time)
+        // The minutes left to be up, ticked by iOS. This used to print the deadline as a static
+        // time, and the founder photographed the result: "UP BY 4:50" still sitting on a lock
+        // screen at 5:02, because no push had arrived to change it. A countdown stays true on its
+        // own, and the deadline itself is in the kicker beside it. Clamped like the other two.
+        let now = Date()
+        Text(timerInterval: now...max(state.deadline, now.addingTimeInterval(1)), countsDown: true)
       case .reminder:
         // `a...b` TRAPS when b < a, and the widget extension trapping means a blank card. This is
         // not a hypothetical: the steady state after a dropped or delayed phase push is a deadline

@@ -6,7 +6,7 @@ import {
   rollCallCategoryId, enqueueAck, dropAck, mergeLabels, type QueuedAck,
   COACH_DIGEST_CATEGORY, COACH_ACTION_SEEN, COACH_ACTION_NUDGE,
   enqueueCoachAction, dropCoachAction, type CoachAction, type QueuedCoachAction,
-  CHECK_IN_LABEL, ROLLCALL_CHANNEL, ackOutcome, type AckOutcome,
+  CHECK_IN_LABEL, ROLLCALL_CHANNEL, ROLLCALL_QUIET_CHANNEL, ackOutcome, type AckOutcome,
   ROLLCALL_BG_TASK, ACTION_OPTIONS, buttonTitleFor, routeNotificationResponse,
 } from '@/core/rollcall';
 
@@ -63,6 +63,18 @@ export async function ensureRollCallChannel(): Promise<void> {
       importance: Notifications.AndroidImportance.MAX,
       sound: 'default',
       vibrationPattern: [0, 250, 250, 250],
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      bypassDnd: false,
+    });
+    // The silent twin. Same importance so the heads-up still shows and the action button still
+    // works; no sound and no vibration, because the phone is already ringing the real alarm.
+    await Notifications.setNotificationChannelAsync(ROLLCALL_QUIET_CHANNEL, {
+      name: 'Roll call (alarm set)',
+      description: 'The roll call card when your phone is already ringing the wake-up alarm.',
+      importance: Notifications.AndroidImportance.MAX,
+      sound: null,
+      vibrationPattern: [0],
+      enableVibrate: false,
       lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       bypassDnd: false,
     });
@@ -289,31 +301,94 @@ export function ensureLiveActivityTokens(): void {
  * proto's own `ack_commitment` path runs on the next load with the athlete's session. That is the
  * honest fallback — the tap is not lost, it just records through the authenticated route.
  */
+const TAP_QUEUE_KEY = 'os:rollcall:tapQueue';
+type QueuedTap = { instanceId: string; at: number };
+
+async function readTapQueue(): Promise<QueuedTap[]> {
+  try { return JSON.parse((await AsyncStorage.getItem(TAP_QUEUE_KEY)) ?? '[]') as QueuedTap[]; } catch { return []; }
+}
+async function writeTapQueue(q: QueuedTap[]): Promise<void> {
+  try { await AsyncStorage.setItem(TAP_QUEUE_KEY, JSON.stringify(q.slice(-50))); } catch { /* best effort */ }
+}
+
+/** Merge native taps into the durable queue: one entry per instance, the FIRST tap wins. */
+export function mergeTaps(q: QueuedTap[], taps: QueuedTap[]): QueuedTap[] {
+  const out = [...q];
+  for (const t of taps) {
+    if (!t || typeof t.instanceId !== 'string' || !t.instanceId) continue;
+    if (out.some((x) => x.instanceId === t.instanceId)) continue;
+    out.push({ instanceId: t.instanceId, at: Number(t.at) || Date.now() });
+  }
+  return out;
+}
+
+/** Whether a failed post is worth keeping. A window refusal (not open yet, closed, cancelled) is
+ *  a decided answer no retry can change; everything else (no session yet, no network, a 5xx) is
+ *  the server having a bad moment and the tap stays queued for the next beat. */
+export function tapRetryable(message: string | null | undefined): boolean {
+  const m = String(message ?? '');
+  return !/not open yet|closed|cancelled|no commitment for this athlete/i.test(m);
+}
+
+let draining: Promise<number> | null = null;
+
 export async function drainLiveActivityTaps(): Promise<number> {
   // Android too, since the alarm screen records taps the same way (RollCallPendingTaps). It used
   // to be iOS-only because the Live Activity button was the only thing that could record one.
   if (Platform.OS === 'web') return 0;
-  try {
-    const live = require('../../../modules/rollcall-live') as typeof import('../../../modules/rollcall-live');
-    const taps = live.drainPendingTaps();
-    if (!taps.length) return 0;
-    const { supabase } = require('@/lib/supabase/client') as {
-      supabase: { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ error: unknown }> } | null;
-    };
-    if (!supabase) return 0;
-    let landed = 0;
-    for (const tap of taps) {
+  // Serialized: the foreground beat, the native event and the proto's own ask can all land in
+  // the same second, and two drains racing would post the same tap twice.
+  if (draining) return draining;
+  draining = (async () => {
+    try {
+      let taps: QueuedTap[] = [];
       try {
-        // The server stamps its own receipt; `p_tapped_at` is the device's evidence, exactly as the
-        // lock-screen path sends it (0212).
-        const { error } = await supabase.rpc('ack_commitment', {
-          p_instance: tap.instanceId, p_tapped_at: new Date(tap.at).toISOString(),
-        });
-        if (!error) landed++;
-      } catch { /* one bad tap must not stop the rest */ }
+        const live = require('../../../modules/rollcall-live') as typeof import('../../../modules/rollcall-live');
+        taps = live.drainPendingTaps();
+      } catch { taps = []; }
+      // DURABLE FIRST. The native store is cleared by the read above, so a tap that fails to post
+      // here (no network at 6:01, no session yet on a cold start) used to be gone for good and the
+      // athlete was marked missed for a button they pressed. It now lives in AsyncStorage until it
+      // lands or the server gives a decided refusal.
+      let q = mergeTaps(await readTapQueue(), taps);
+      if (!q.length) return 0;
+      await writeTapQueue(q);
+      const { supabase } = require('@/lib/supabase/client') as {
+        supabase: { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ error: { message?: string } | null }> } | null;
+      };
+      if (!supabase) return 0;
+      let landed = 0;
+      for (const tap of [...q]) {
+        try {
+          // The server stamps its own receipt; `p_tapped_at` is the device's evidence, exactly as
+          // the lock-screen path sends it (0212).
+          const { error } = await supabase.rpc('ack_commitment', {
+            p_instance: tap.instanceId, p_tapped_at: new Date(tap.at).toISOString(),
+          });
+          if (!error) {
+            landed++;
+            q = q.filter((x) => x.instanceId !== tap.instanceId);
+            // Answered: the alarm for it must not ring and the lock-screen card must stop.
+            try {
+              const { cancelWakeAlarmFor } = require('./wakeAlarms') as typeof import('./wakeAlarms');
+              cancelWakeAlarmFor(tap.instanceId);
+            } catch { /* best effort */ }
+            try {
+              const live = require('../../../modules/rollcall-live') as typeof import('../../../modules/rollcall-live');
+              await live.endLiveActivity(tap.instanceId);
+            } catch { /* best effort */ }
+          } else if (!tapRetryable(error.message)) {
+            q = q.filter((x) => x.instanceId !== tap.instanceId);
+          }
+        } catch { /* keep it queued */ }
+      }
+      await writeTapQueue(q);
+      return landed;
+    } catch {
+      return 0;
+    } finally {
+      draining = null;
     }
-    return landed;
-  } catch {
-    return 0;
-  }
+  })();
+  return draining;
 }

@@ -99,6 +99,13 @@ class RollCallLiveModule : Module() {
       if (at > 0L) instanceId else ""
     }
 
+    /** A DATED one-off at an absolute instant (epoch millis). Resolves to the alarm id, or "". */
+    AsyncFunction("scheduleWakeAlarmAt") { instanceId: String, atMs: Double, title: String, buttonLabel: String ->
+      val context = appContext.reactContext ?: return@AsyncFunction ""
+      val at = RollCallAlarmScheduler.scheduleAt(context, instanceId, atMs.toLong(), title, buttonLabel)
+      if (at > 0L) instanceId else ""
+    }
+
     Function("cancelWakeAlarm") { instanceId: String ->
       appContext.reactContext?.let { RollCallAlarmScheduler.cancel(it, instanceId) }
     }

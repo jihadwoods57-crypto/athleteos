@@ -42,6 +42,10 @@ export function wakeupReceipt(instance, userId) {
     atMin: at.getHours() * 60 + at.getMinutes(),
     late: instance.verdict === 'late',
     placed: null,
+    // The athlete's own row knows its instance, so the receipt can be the door to the detail
+    // screen (verdict, provenance, dispute). It replaced the collapsed card that used to sit under
+    // it saying the same thing.
+    instanceId: instance.instance_id ? String(instance.instance_id) : null,
   };
 }
 
@@ -51,16 +55,23 @@ export function wakeupReceipt(instance, userId) {
  * @param {object|null} receipt from wakeupReceipt
  * @param {(s:string)=>string} esc home.js's own escaper
  */
-export function receiptHtml(receipt, esc) {
+export function receiptHtml(receipt, esc, points) {
   if (!receipt || !receipt.answered) return '';
   const t = esc(wakeClock(receipt.atMin));
+  /* The morning is part of the daily score (8 of 100 on a day it is assigned; late is half), and
+     the receipt is where the athlete learns that it landed. `points` is what the day's own weights
+     say the morning is worth, handed in by Home so this module stays free of the scoring graph;
+     a caller that passes nothing gets the plain receipt. A late answer prints its half. */
+  const pts = Number(points) > 0 ? Math.round(receipt.late ? Number(points) / 2 : Number(points)) : 0;
+  const banked = pts ? ` +${pts} on today's score.` : '';
   const tail = receipt.late
-    ? 'Answered late.'
-    : (receipt.placed ? `${receipt.placed} of the squad up.` : 'Answered.');
+    ? `Answered late.${banked}`
+    : (receipt.placed ? `${receipt.placed} of the squad up.${banked}` : `Answered.${banked}`);
   /* A door only when there is something behind it. #wakeup-squad reads the coach's board, which an
      athlete never has, so for an athlete it opens on "Nothing to show yet" every time. Placement
      is the one signal that proves squad rows were present, so it is what gates the link. */
-  const door = receipt.placed ? ' data-go="wakeup-squad" role="button" tabindex="0"' : '';
+  const door = receipt.placed ? ' data-go="wakeup-squad" role="button" tabindex="0"'
+    : receipt.instanceId ? ` data-go="roll-call/${esc(receipt.instanceId)}" role="button" tabindex="0"` : '';
   return `<div class="wk-receipt${receipt.late ? ' late' : ''}"${door}>
     <span class="wk-rc-t">Up at ${t}</span>
     <span class="wk-rc-s">${esc(tail)}</span>

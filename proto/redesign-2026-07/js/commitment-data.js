@@ -128,6 +128,29 @@ export async function loadMine(force = false, dayISO = null) {
   } catch { RTC.mineError = true; return RTC.mine; }
 }
 
+/* The week AHEAD, for the alarm. loadMine's window is yesterday..tomorrow, which is right for Home
+   and wrong for arming alarms: an athlete who did not open the app for two days had no alarm on
+   the third morning, because nothing had ever read that morning's row. This materializes and
+   reads today..+7 once every half hour (the horizon wake-alarms.js arms to), merged with the Home
+   rows by the caller. Never touches RTC.mine, so Home's own cache stays the truth for the day. */
+const AHEAD_DAYS = 7;
+const AHEAD_FRESH_MS = 30 * 60_000;
+const AHEAD = { rows: [], at: 0, day: null };
+export async function loadMineAhead(force = false) {
+  const day = todayISO();
+  if (!force && AHEAD.day === day && Date.now() - AHEAD.at < AHEAD_FRESH_MS) return AHEAD.rows;
+  const c = sb(); if (!c) return AHEAD.rows;
+  const from = day, to = shiftISO(day, AHEAD_DAYS);
+  try {
+    try { await c.rpc('ensure_my_commitment_instances', { p_from: from, p_to: to }); } catch { /* best-effort */ }
+    const { data, error } = await c.rpc('my_commitments', { p_from: from, p_to: to });
+    if (error) return AHEAD.rows;
+    AHEAD.rows = Array.isArray(data) ? data : [];
+    AHEAD.at = Date.now(); AHEAD.day = day;
+    return AHEAD.rows;
+  } catch { return AHEAD.rows; }
+}
+
 /** A longer history window for the Accountability screen. Does not touch the Home cache.
  *  null = FAILED (the fetcher contract): a dead network must never read as "Nothing to show
  *  yet" on a record both the athlete and their coach act on. The screen branches on null

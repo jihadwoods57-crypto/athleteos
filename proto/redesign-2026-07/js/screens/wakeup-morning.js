@@ -32,7 +32,7 @@ function needRow(r) {
   <div class="lrow wk-need">
     <div class="lic">${esc(initials)}</div>
     <div class="lm"><div class="lt">${esc(r.name)}</div><div class="ls wk-why ${cls}">${esc(why)}</div></div>
-    <button type="button" class="btn ghost xs wk-nudge" data-nudge="${esc(r.athleteId || '')}">Nudge</button>
+    <button type="button" class="btn ghost xs wk-nudge" data-nudge="${esc(r.athleteId || '')}" data-verdict="${esc(r.verdict || '')}">Ping</button>
   </div>`;
 }
 
@@ -138,7 +138,10 @@ export default {
       if (!who) return;
       b.disabled = true;
       b.textContent = 'Sending';
-      const r = await roles.nudgePush(who, 'Morning', 'Your coach noticed you missed roll call.');
+      // A late athlete answered; telling them they "missed" is wrong twice, once as a fact and
+      // once as a coach. The verdict rides the button.
+      const late = b.getAttribute('data-verdict') === 'late';
+      const r = await roles.nudgePush(who, 'Morning', late ? 'Your coach noticed you were late to roll call.' : 'Your coach noticed you missed roll call.');
       b.textContent = (r && r.ok !== false) ? 'Sent' : 'Try again';
       if (!r || r.ok === false) b.disabled = false;
     });

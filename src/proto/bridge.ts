@@ -24,7 +24,8 @@ import {
   readActivity, observeActivity, type HealthScope,
 } from '../lib/health';
 import { syncExecNotifications } from '../lib/notify/execSync';
-import { syncWakeAlarms, wakeAlarmState } from '../lib/notify/wakeAlarms';
+import { syncWakeAlarms, wakeAlarmState, cancelWakeAlarmFor } from '../lib/notify/wakeAlarms';
+import { drainLiveActivityTaps } from '../lib/notify/rollcall';
 import { endLiveActivity } from '../../modules/rollcall-live';
 import { getPushToken } from '../lib/notify';
 import { getFlag } from '../store/flagsStore';
@@ -45,6 +46,9 @@ export type BridgeMessage =
   | { type: 'BIO_AVAILABLE'; id: number }
   | { type: 'NOTIFY_SYNC'; plan: import('../lib/notify/execSync').ExecPlanItem[] }
   | { type: 'ROLLCALL_ACKED'; instanceId: string }
+  // The proto asks the shell for taps the alarm or the lock-screen card recorded outside the
+  // WebView (the athlete answered on the alarm banner while the app was already open).
+  | { type: 'ROLLCALL_DRAIN'; id: number }
   // The coach-assigned wake-up, as a REAL alarm (AlarmKit on iOS 26, setAlarmClock on Android).
   // The proto owns the roll-call rows, so it is what says which mornings are armed; the whole set
   // is sent every time and the native side reconciles, which makes a dropped message harmless.
@@ -243,6 +247,16 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
          them until iOS timed it out. Fire-and-forget: the ack is already recorded server-side, and
          a device with no Live Activity (Android, older iOS, push-to-start never fired) no-ops. */
       try { await endLiveActivity(String(msg.instanceId || '')); } catch { /* best effort */ }
+      // And the alarm for it must not ring. An answer queued offline at 5:58 followed by the 6:00
+      // alarm for the same roll call is the one "why is it still going off" nobody forgives.
+      try { cancelWakeAlarmFor(String(msg.instanceId || '')); } catch { /* best effort */ }
+      return true;
+    case 'ROLLCALL_DRAIN':
+      try {
+        resolve(ref, msg.id, await drainLiveActivityTaps());
+      } catch (e) {
+        resolve(ref, msg.id, 0, String((e as Error)?.message ?? e));
+      }
       return true;
     case 'NOTIFY_SYNC':
       void syncExecNotifications(msg.plan ?? []);
@@ -420,7 +434,11 @@ export const BRIDGE_SHIM = `
     },
     notify: { sync: function(plan){ post({ type: 'NOTIFY_SYNC', plan: plan || [] }); } },
     // Answered in the app: end the lock-screen card. Fire-and-forget, no answer expected.
-    rollcall: { acked: function(instanceId){ post({ type: 'ROLLCALL_ACKED', instanceId: String(instanceId || '') }); } },
+    rollcall: {
+      acked: function(instanceId){ post({ type: 'ROLLCALL_ACKED', instanceId: String(instanceId || '') }); },
+      // Resolves to how many native taps landed on the server just now.
+      drain: function(){ return call('ROLLCALL_DRAIN', {}); }
+    },
     openUrl: function(url){ post({ type: 'OPEN_URL', url: String(url || '') }); },
     push: { token: function(){ return call('PUSH_TOKEN', {}); } },
     // Resolves true only if a prompt was actually requested — never whether a review was left.

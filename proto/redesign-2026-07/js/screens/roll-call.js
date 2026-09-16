@@ -17,6 +17,7 @@ import { fmtMin } from '../requirements.js';
 import { deriveCommitment, TYPE_LABEL, fmtAt, offsetFor, VERDICT, wakeupPhase, deadlineOf, closesAtOf, opensAtOf, graceMinOf, sourceOf, SOURCE } from '../commitments.js';
 import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment, ackRefusal, subscribeMine } from '../commitment-data.js';
 import { pushTokenState, RT, S, act } from '../state.js';
+import { wakeAlarmState } from '../wake-alarms.js';
 
 /* Per-instance notes, keyed by instance id. A single global here once meant commitment A's
    failure reason painted onto commitment B's card the moment two shared a morning.
@@ -54,6 +55,18 @@ export function commitmentCard(d) {
   const id = esc(d.instance_id || '');
 
   if (d.collapsed) {
+    /* An answer queued OFFLINE (commitment-data.js patchLocal sets pendingSync) is recorded on
+       this phone and not yet on the server. It used to collapse straight to a green "On Standard",
+       a promise the app could not keep: the server stamps its own time when the queue drains and
+       may rule it late or put it under review. Neutral until it lands. */
+    if (d.pendingSync && d.type === 'morning_roll_call') {
+      return `<div class="xrow-item" data-go="roll-call/${id}">
+      <div class="xico sm muted">${icon('clock', 16)}</div>
+      <div class="xr"><div class="xa">${esc(d.title)}</div>
+      <div class="xb">Answered on this phone · sends when you reconnect</div></div>
+      <span class="status-pill muted">Sending</span>
+    </div>`;
+    }
     // A completion that followed a verified early departure keeps its verdict (0208): amber,
     // the departure on the receipt, and the door into the detail screen's dispute path. Without
     // this, "Mark complete" quietly upgraded an amber card to a clean green one while the score
@@ -119,16 +132,20 @@ export function commitmentCard(d) {
   // Past the grace period, still inside the late window (0211): the one card that is both a
   // warning and a button. Red, because this is the state the coach is looking at right now.
   if (d.stage === 'late_open') {
-    return `<section class="xnow vc-card red" data-vc-open="${id}">
+    /* AMBER, not red (impeccable critique 2026-09-16). This card was red on Home while the same
+       state was amber on the detail screen one tap away, and screens.css reserves red for a
+       roll call that is MISSED. Late-and-answerable is the warning, so it wears the warning hue,
+       and the way out stays blue. */
+    return `<section class="xnow vc-card late" data-vc-open="${id}">
     <div class="xlab">
       <span class="xl">YOU’RE LATE</span>
-      <span class="status-pill r">Late</span>
+      <span class="status-pill a">Late</span>
     </div>
     <div class="xmain">
       <div class="xico">${icon('bolt', 20)}</div>
       <div>
         <div class="xt">${esc(d.title)}</div>
-        <div class="xwhy">You haven’t answered. Your coach can see your status.</div>
+        <div class="xwhy">You haven’t answered. A check-in still counts, as late.</div>
       </div>
     </div>
     <div class="vc-ctx">${icon('clock', 13)} ${esc(d.confirmLine)}${d.closesAt ? esc(` · Late check-in until ${fmtAt(d.closesAt, offsetFor(d, new Date().toISOString()))}`) : ''}</div>
@@ -274,7 +291,7 @@ export function tomorrowCard(t) {
   return `<div class="xrow-item" data-go="roll-call/${id}">
     <div class="xico sm blue">${icon('sun', 16)}</div>
     <div class="xr"><div class="xa">Tomorrow · ${esc(t.title)}</div>
-    <div class="xb">${esc(line || 'Set your alarm.')}</div></div>
+    <div class="xb">${esc(line || 'Tomorrow morning.')}</div></div>
     <span class="status-pill ${t.moved ? 'a' : 'b'}">${esc(t.moved ? 'Moved' : time || 'Tomorrow')}</span>
   </div>`;
 }
@@ -354,6 +371,30 @@ function pushWarning(phase) {
   </div>`;
 }
 
+/* Whether this phone will ring for this wake-up, in one line. The 2026-09-16 critique found the
+   only surface that said so was #wakeup-squad, whose only door is gated on a squad an athlete's
+   own rows never carry: the loudest thing the product does was never explained to the person it
+   happens to. Says nothing on a device that cannot ring at all (an older iPhone), because there
+   is nothing for them to do about it. */
+async function paintAlarmLine(root, row) {
+  const slot = root && root.querySelector('#wk-alarm-line');
+  if (!slot || !row) return;
+  const st = await wakeAlarmState();
+  if (!st || !st.supported || !slot.isConnected) return;
+  const off = offsetFor(row, new Date().toISOString());
+  const at = fmtAt(row.starts_at, off);
+  const denied = st.authorization === 'denied';
+  const coachOff = row.alarm === false;
+  const text = coachOff
+    ? `Your coach set this to arrive as a notification, not an alarm.`
+    : denied
+      ? `Alarms are off for OnStandard, so this arrives as a notification a Sleep Focus can silence. Turn them on in Settings to be woken at ${at}.`
+      : Number(st.armed) > 0
+        ? `Your phone rings at ${at}, through Do Not Disturb and silent mode.`
+        : `Your phone will ring at ${at} once it syncs. Open the app tonight if it has not.`;
+  slot.innerHTML = `<div class="vc-ctx wk-alarmline${denied ? ' off' : ''}">${icon(denied ? 'alert' : 'sun', 13)} ${esc(text)}</div>`;
+}
+
 /** The one explanation, collapsed. */
 /* `d` is the derived commitment, and it has to be PASSED: this is a module-scope sibling of
    wakeupDetail, not a closure inside it. Reading `d` off the scope chain here threw a
@@ -428,7 +469,7 @@ function wakeupDetail(row, d) {
     state = card('', `Opens at ${esc(clock(opensAtOf(row)))}`, '', `On Standard until ${esc(clock(dl))}. Nothing to do until it opens.`);
   } else if (phase === 'open') {
     state = card('live', 'Roll call is open', '', `On Standard until ${esc(clock(dl))}.`,
-      `<button class="btn green wk-cta" data-vc-ack="${esc(row.instance_id)}">${icon('check', 20)} ${esc(d.actionLabel)}</button>`);
+      `<button class="btn primary wk-cta" data-vc-ack="${esc(row.instance_id)}">${icon('check', 20)} ${esc(d.actionLabel)}</button>`);
   } else if (phase === 'late') {
     state = card('late', 'You’re late', '', `The grace ended at ${esc(clock(dl))}. A check-in still counts, as late, until ${esc(clock(close))}. Your coach can see your status.`,
       `<button class="btn wk-cta" data-vc-ack="${esc(row.instance_id)}">${icon('check', 20)} ${esc(d.actionLabel)}</button>`);
@@ -449,6 +490,10 @@ function wakeupDetail(row, d) {
   ${refusalLine ? `<div class="vc-ctx wk-refusal">${icon('alert', 13)} ${esc(refusalLine)}</div>` : ''}
   ${failNote && !refusalLine ? `<div class="vc-ctx wk-refusal">${icon('bolt', 13)} ${esc(failNote)}</div>` : ''}
   ${pushWarning(phase)}
+  ${/* What THIS phone does at the wake-up time. Painted async in mount() (asking native is a
+        round trip); empty on a browser or an older build. Only while the morning is still ahead:
+        after the fact it is noise. */''}
+  ${!row.acknowledged_at && (phase === 'before' || phase === 'open') ? '<div id="wk-alarm-line"></div>' : ''}
   ${disputable ? (!row.disputed_at ? `
     <div class="wk-gap"></div>
     <input class="input" id="vc-dispute-note" maxlength="200" placeholder="What actually happened? (optional)" aria-label="What actually happened" autocomplete="off">
@@ -589,6 +634,7 @@ export default {
       loadMine(true).then(settle, settle);
     }
     mountCommitmentCard(root, () => window.__render && window.__render());
+    void paintAlarmLine(root, VC.instance(sub));
 
     // The push-readiness card (0211) can only be drawn once the native shell has answered; when
     // that answer lands after this screen painted, repaint once so the warning is not a refresh

@@ -2,7 +2,7 @@ import {
   rollCallCategoryId, enqueueAck, dropAck, mergeLabels,
   COACH_DIGEST_CATEGORY, COACH_ACTION_SEEN, COACH_ACTION_NUDGE,
   coachActionFor, enqueueCoachAction, dropCoachAction,
-  CHECK_IN_LABEL, ROLLCALL_CHANNEL, ackOutcome,
+  CHECK_IN_LABEL, ROLLCALL_CHANNEL, ROLLCALL_QUIET_CHANNEL, ackOutcome,
   routeNotificationResponse, ACTION_OPTIONS, buttonTitleFor, ROLLCALL_BG_TASK,
 } from './rollcall';
 import {
@@ -10,12 +10,14 @@ import {
   COACH_DIGEST_CATEGORY as SERVER_COACH_CATEGORY,
   CHECK_IN_LABEL as SERVER_CHECK_IN_LABEL,
   ROLLCALL_CHANNEL as SERVER_ROLLCALL_CHANNEL,
+  ROLLCALL_QUIET_CHANNEL as SERVER_ROLLCALL_QUIET_CHANNEL,
 } from '../../supabase/functions/_shared/rollcall-category';
 
 describe('wake-up roll call contracts (0211)', () => {
   it('the late push label and the Android channel match the server byte for byte', () => {
     expect(CHECK_IN_LABEL).toBe(SERVER_CHECK_IN_LABEL);
     expect(ROLLCALL_CHANNEL).toBe(SERVER_ROLLCALL_CHANNEL);
+    expect(ROLLCALL_QUIET_CHANNEL).toBe(SERVER_ROLLCALL_QUIET_CHANNEL);
     expect(rollCallCategoryId(CHECK_IN_LABEL)).toBe(serverCategoryId(SERVER_CHECK_IN_LABEL));
     expect(rollCallCategoryId(CHECK_IN_LABEL)).toBe('RC::check-in-now');
   });

@@ -22,6 +22,11 @@ export const CHECK_IN_LABEL = 'Check in now';
  *  MUST match ROLLCALL_CHANNEL in supabase/functions/_shared/rollcall-category.ts. */
 export const ROLLCALL_CHANNEL = 'rollcall';
 
+/** The silent twin: an opening push for an athlete whose phone is already ringing a real alarm
+ *  for the same morning rides this channel so Android plays nothing on top of the alarm.
+ *  MUST match ROLLCALL_QUIET_CHANNEL in supabase/functions/_shared/rollcall-category.ts. */
+export const ROLLCALL_QUIET_CHANNEL = 'rollcall-quiet';
+
 /** What to do with a lock-screen ack after the POST: keep it, retry it later, or drop it.
  *  null status = no network (retry). 5xx = the server's bad moment (retry). Any other non-2xx is a
  *  decided answer (expired code, closed roll call, flag off) that no retry can change (dead), and

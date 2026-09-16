@@ -146,7 +146,9 @@ class RollCallAlarmActivity : Activity() {
   }
 
   private fun snoozeButton(): Button = Button(this).apply {
-    text = "Snooze $SNOOZE_MINUTES min"
+    // The cost is on the label. Nine minutes is past a five-minute grace, so this IS a late
+    // morning; a half-asleep athlete must not learn that from the score.
+    text = "Snooze $SNOOZE_MINUTES min · counts as late"
     setTextColor(Color.parseColor("#9BB0C9"))
     setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
     isAllCaps = false

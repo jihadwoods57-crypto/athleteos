@@ -8,6 +8,9 @@
 //      0145) — marking them 'missed' in the same statement so no rung ever fires twice.
 //   2. L2 breakthrough: one time-sensitive push to each missed athlete whose commitment opted in.
 //   3. L3 coach digest: one "who's up" push per opted-in instance, built from rollcall_digest (0145).
+//   4. THE CLOSE (0239): every wake-up whose close just passed has its lock-screen card ENDED in the
+//      `missed` state for whoever never answered, and its update tokens cleared. Before this the red
+//      "CHECK IN" card kept counting past a close the server refuses, until iOS timed it out.
 //
 // L4 GUARDIAN IS DEFERRED. `escalation.notify_guardian_on_miss` exists in the config shape but is off
 // by default and no guardian rung is built here — a follow-up commit adds it once the founder
@@ -110,15 +113,43 @@ Deno.serve(async (req: Request) => {
     rows.push(...page_rows);
     if (page_rows.length < CLAIM_LIMIT) break;
   }
-  if (!rows.length) return json({ missed: 0, breakthrough: 0, digests: 0 });
+  const live = { started: 0, updated: 0, ended: 0, revoked: 0, skipped: 0, closed: 0 };
+  const apnsCfg = apnsFromEnv((k) => Deno.env.get(k));
+
+  // -------------------------------------------------------------- the close: the card comes down
+  // Independent of the late claim above, and BEFORE its early return: a tick with no fresh misses
+  // still has closes to sweep. Ends the Live Activity in its `missed` state for every athlete
+  // still unanswered on an instance whose close passed (claimed once via live_ended_at, 0239), and
+  // clears the dead update tokens. No alert: nothing to say at 6:30 that the card does not show.
+  // Changes no record; the verdict is the clock's (rollcall_verdict) and the durable `missed`
+  // claim is the one above.
+  try {
+    const { data: closed } = await svc.rpc('claim_closed_rollcalls', { p_window_min: 180, p_limit: 200 });
+    const list = (Array.isArray(closed) ? closed : []) as Array<{ instance_id: string; athlete_ids: string[] | null }>;
+    if (list.length) {
+      const apns = apnsCfg ? new ApnsClient(apnsCfg) : null;
+      for (const c of list) {
+        live.closed++;
+        const ids = Array.isArray(c.athlete_ids) ? c.athlete_ids : [];
+        if (apns && ids.length) {
+          const card = await loadLiveCard(svc, c.instance_id);
+          if (card) {
+            const r = await pushLiveActivity({ svc, apns, card, phase: 'missed', athleteIds: ids, nowMs: Date.now() });
+            live.ended += r.ended; live.revoked += r.revoked; live.skipped += r.skipped;
+          }
+        }
+        try { await svc.rpc('clear_live_activity_tokens', { p_instance: c.instance_id }); } catch { /* best effort */ }
+      }
+    }
+  } catch { /* the RPC may not exist on an un-migrated stack; the ladder below is unaffected */ }
+
+  if (!rows.length) return json({ missed: 0, breakthrough: 0, digests: 0, live });
 
   // -------------------------------------------------------------- Live Activity: turn it red
   // Runs BEFORE the breakthrough push, for the same reason it does in commitment-reminders: the
   // card that has been on the lock screen since 6:00 becomes the LATE state with an alert, and
   // every athlete whose card Apple accepted is then skipped below. One roll call, one card.
-  const live = { started: 0, updated: 0, ended: 0, revoked: 0, skipped: 0 };
   const hasCard = new Set<string>();
-  const apnsCfg = apnsFromEnv((k) => Deno.env.get(k));
   if (apnsCfg) {
     const apns = new ApnsClient(apnsCfg); // ONE client: it caches the provider token Apple rate-limits.
     const nowMs = Date.now();

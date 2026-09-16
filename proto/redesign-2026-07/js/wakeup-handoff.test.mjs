@@ -108,6 +108,16 @@ test('an unanswered own row is still no receipt', () => {
   assert.deepEqual(wakeupReceipt(mine(), 'me'), { answered: false, atMin: null, late: false, placed: null });
 });
 
+test('the receipt says what the morning earned when Home hands it the weight', () => {
+  const own = { type: 'morning_roll_call', acknowledged_at: '2026-09-11T10:01:00Z', verdict: 'on_standard' };
+  const html = receiptHtml(wakeupReceipt(own, 'a1'), id, 8);
+  assert.match(html, /\+8 on today/, 'on time banks the whole slot');
+  const lateHtml = receiptHtml(wakeupReceipt({ ...own, verdict: 'late' }, 'a1'), id, 8);
+  assert.match(lateHtml, /Answered late\. \+4 on today/, 'late is half, like a late meal');
+  assert.doesNotMatch(receiptHtml(wakeupReceipt(own, 'a1'), id), /on today/, 'no weight, no claim');
+  assert.doesNotMatch(receiptHtml(wakeupReceipt(own, 'a1'), id, 0), /on today/, 'a zero slot prints nothing');
+});
+
 test('the receipt is only a door when there is a squad to open', () => {
   // It linked to #wakeup-squad unconditionally, and that screen is empty for an athlete for the
   // same reason this receipt was: there is no squad RPC. A control that opens nothing is worse
