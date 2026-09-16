@@ -1,289 +1,223 @@
-# OnStandard — Business Model
+# OnStandard Business Model
 
-*Author: Bo Woods · Date: 2026-07-05 · Status: Founding decision doc*
+*Original: Bo Woods, 2026-07-05. **Rewritten 2026-09-15** against measured reality.*
 
-> **Thesis in one line:** OnStandard is an **AI athlete execution platform** — one core
-> metric (the **Development Score**) that answers *"is this athlete executing the plan?"*
-> across every pillar of athletic success — sold to **club/academy programs** through the
-> **coach network**, priced **per-seat on Stripe**, run **solo and profitable**.
+> **Why this was rewritten.** The first version was written on 2026-07-05, before the product
+> shipped. It was a good hypothesis document, and it was being read as a facts document. Every
+> number in it was a forecast, and the scorecard in §6 marked five targets with a green tick
+> against a business that had not yet taken a dollar.
 >
-> Nutrition is pillar #1, academics pillar #2. Training, recovery, and mental performance are
-> the **same framework** turned on later — not unrelated features.
-
-This doc is the reasoning behind the model, the pricing, the go-to-market, and the unit
-economics — with the target-vs-model scorecard and the assumptions spelled out. It supersedes
-nothing; it sits alongside `03_PRICING_AND_GTM.md` and `LAUNCH-PRICING.md` as the owner-level
-"why this shape."
+> Nothing here deletes that thinking. What changed is that there is now evidence, and the doc has
+> to separate three things it used to blend: what is **measured**, what is **decided**, and what
+> is still **assumed**. The original is in git history at `docs/founding/BUSINESS_MODEL.md`
+> before commit of this file.
 
 ---
 
-## 0. The owner's north star
+## 0. Ground truth, measured 2026-09-15
 
-**Profitable solo business.** Maximize take-home cash with minimal team and ops. The metrics
-below (85%+ gross margin, 60%+ net, <3% monthly churn, 5:1+ LTV:CAC, <1-month payback) are the
-*point*, not vanity — they describe a one-person company that could run indefinitely without a
-raise, while staying architected so a raise or sale is *possible* later.
+Read from production and from App Store Connect, not from memory or from a planning doc.
 
-**The scarcest resource is the owner's time.** Every model choice below optimizes for *dollars
-per account* and *low account count*, because support load scales with the number of accounts,
-not the number of dollars. "Death by a thousand $99 support tickets" is the single most common
-way a solo SaaS owner gets buried — the entire model is built to avoid it.
+| | Measured | Source |
+|---|---|---|
+| Revenue, all time | **$0** | `subscriptions`, `payments`, `offer_payments` all empty |
+| Paying customers, all time | **0** | same |
+| Profiles | 59, of which roughly **6 look real** | `profiles`; the rest are test and demo accounts |
+| Profiles touched in the last 7 days | **1** | `profiles.updated_at` |
+| Weekly meal-logging athletes, peak | **6**, week of 2026-08-17 | `meals` grouped by week |
+| Weekly meal-logging athletes, now | **1** | same |
+| Meals logged, all time | 100 | `meals` |
+| Day rows, all time | 46 | `days` |
+| Teams | 20, every one seeded demo data; largest roster **2** | `teams`, `team_members` |
+| App Store | version 1.0 **WAITING_FOR_REVIEW** | ASC `/v1/apps/.../appStoreVersions` |
+| In-app purchase products | **0** | ASC `inAppPurchasesV2` |
+| Subscription groups | **0** | ASC `subscriptionGroups` |
+| Stripe | built, sandbox-verified, **live key switch not thrown** | `.env`, and the go-live runbook |
+| Entitlement enforcement | client-side only; **RLS does not consult `book_access`** | migration 0223 and its memory note |
+| Academics pillar | **does not exist in the app**, 0 files | grep over `proto/` and `src/core` |
+| AI cost per seat | **not measured**; `ai_usage_daily` counts calls, carries no cost column | schema |
 
----
-
-## 1. What OnStandard is (the reframe)
-
-The brand was never "a nutrition app." It's **OnStandard — held to a standard.** The product is
-an **athlete execution platform**: it answers one question for everyone around an athlete —
-**"is this athlete executing the plan?"** — whether the plan is nutrition, academics, training,
-recovery, or anything else. Every stakeholder operates in a silo today (coach, strength coach,
-nutritionist, athletic trainer, academic advisor, parent); OnStandard is the single place they
-all see whether the athlete is actually handling their responsibilities.
-
-The measurable output is the **Development Score** — a small set of honest **pillars** rolling up
-to one number. (Your engine already uses this name: [scoring.ts](../../src/core/scoring.ts)
-describes the execution signal *"in the Development Score."*)
-
-```
-   Today's Development
-   Nutrition 94 · Academics 91 · Recovery 82 · [Training —] · [Mental —]
-   Overall  91
-```
-
-### v1 scope discipline (the solo-owner landmine)
-
-The platform vision is a **destination, not the v1 build**. As a solo, profit-first owner, the
-danger is building a five-pillar platform before one loop is proven.
-
-- **Ship now (co-wedge):** **Nutrition** (pillar #1, live) + **Academics** (pillar #2).
-  Recovery already exists as a live sub-signal (weekly check-in, 0.25 of today's score).
-- **Declared-future pillars:** Training, Mental performance, Habits — the *same* framework
-  (§2) turned on later, never a rewrite.
-- **The rule:** the engine supports *N* pillars from day one; the build ships *two*.
-
-Why lead with academics: eligibility is often the **sharper pain** than body composition — a
-coach's worst nightmare after injury is losing a starter to a failed class; parents lose more
-sleep over grades than macros; and it deepens the switching cost (two pillars of accumulated
-history, not one).
-
-### NON-NEGOTIABLE: execution layer, not system of record
-
-OnStandard measures **execution**, it does not **replace the specialized systems** each
-stakeholder already uses. Canvas/Blackboard, MyFitnessPal, Whoop, Teamworks stay the systems of
-record; OnStandard is the accountability layer on top. Concretely:
-
-- **Do** ingest artifacts (syllabus, schedule, plan) and hold the athlete to *self-reported,
-  stakeholder-verified* commitments ("assignment turned in? study block done? showed up?").
-- **Don't** integrate the school LMS/SIS (Canvas/Banner), pull official grades/GPA, or store
-  protected education records. That path is FERPA + institutional IT + procurement — the exact
-  glacial friction this whole model avoids, and a legal minefield for minors. The advisor
-  dashboard shows **execution + risk** (missed deliverables, study streak, trending-ineligible),
-  **never GPA**.
-
-Same principle across every pillar: **we don't do the work, we measure whether it got done.**
-This is what keeps the product solo-buildable *and* out of the records-integration swamp.
+**The one-line read:** the product is built and good, nobody is using it, and it cannot be bought
+on either rail today. The constraint is commercial, not technical.
 
 ---
 
-## 2. The engine (one engine, N pillars)
+## 1. What is still true and worth keeping
 
-The move that makes the platform survivable for a solo owner: **do not build N products.**
-Build **one execution engine** with a **pluggable pillar** type. Every pillar is the same five
-steps — they differ only in the artifact ingested and the commitment list produced.
+The original doc's best work survives contact with the evidence. Keep all of this.
 
-```
-  upload artifact   →   AI extracts commitments   →   daily/weekly check   →   verify        →   Development Score
-  ---------------       -----------------------       ------------------       ------------      -----------------
-  meal photo            macros / portions            yes / partial / no       parent            pillar score → composite
-  syllabus + schedule   deadlines / exam dates       yes / partial / no       coach / advisor   risk flags → coach
-  [training plan]       [sets / sessions]            [ … same loop … ]        [strength coach]  [ … later pillar … ]
-```
-
-Because it's a pillar *registry*, not two hardcoded modules, adding academics costs one artifact
-parser + one pillar config — and every future pillar (training, recovery-as-its-own-module,
-mental) costs the same. That is the architectural bet that lets one person carry a platform.
-
-Consequence: **academics adds one artifact parser and one content type — not a second product,
-a second support surface, or a second engineering vertical.** The syllabus parser reuses the
-same vision-extraction capability as the meal-photo pipeline. The daily academic check-in reuses
-the existing yes/partial/no commitment primitive and runs on cheap text (Haiku), not vision.
-
-This is what protects the 60%-net and stay-solo constraints while still shipping the co-wedge.
+- **The reframe.** OnStandard is an athlete execution platform, not a nutrition app. It answers
+  "is this athlete executing the plan?" for everyone around the athlete. That is a genuinely
+  differentiated position against calorie trackers, and the product delivers it.
+- **One engine, N pillars.** The pillar-registry architecture is the right bet and it is real in
+  the code: requirements, standards, the score engine and the commitment primitive are already
+  generic. A second pillar is a parser and a config, not a second product.
+- **Execution layer, not system of record.** Staying out of LMS/SIS integration, FERPA and
+  official grades is correct and keeps the product solo-buildable.
+- **The org tier is the right anchor.** Per-seat on Stripe, one sale covering a 30 to 150 athlete
+  roster, is the only rail where the arithmetic reaches a serious number with an account count one
+  person could survive. See §4.
+- **Consumer as byproduct, not anchor.** The 30% store cut, teen churn and paid CAC all argue
+  against anchoring there. Still right.
+- **The coach-to-roster loop is the real asset.** One coach brings forty-five athletes at no
+  acquisition cost. Very little vertical SaaS has that. Protect it above any feature.
 
 ---
 
-## 3. Who pays — the tier stack
+## 2. What the evidence falsified or left untested
 
-One economic anchor, with feeder and byproduct tiers around it.
+Not failures. A hypothesis doc did its job by being checkable.
 
-| Tier | Buyer | Rail | Role in the model |
-|---|---|---|---|
-| **Org / Team** ⭐ | Club/academy program (coach or owner) | **Stripe** | **The anchor.** One sale covers a 30–150 athlete roster. Best margin, lowest support-per-dollar, becomes the acquisition channel for everything above and below. |
-| **Pro** | Independent trainer **or dietitian (RD)** | Stripe | Self-serve feeder tier. RDs are the *best* small-account segment — licensed, credible, sticky. |
-| **Consumer** | Individual / graduating athlete | Apple/Google IAP | **Free byproduct only.** Inherited from org rosters at ~$0 CAC. Never a paid-acquisition target. |
+| Claim in the original | Status now |
+|---|---|
+| "Nutrition (pillar #1, live) + Academics (pillar #2). Ship now: the co-wedge." | **Falsified.** Academics has zero lines in the app. The product is one pillar. |
+| Gross margin 85 to 90% | **Unmeasurable.** AI cost per seat is not instrumented, and there are no seats. |
+| Monthly churn under 3% | **Untested.** No customer has ever renewed or cancelled. |
+| LTV:CAC 15 to 25:1 | **Untested.** Both terms are zero. |
+| Payback under one month | **Untested.** |
+| "Club/academy is the cleanest org payer" | **Untested.** Zero club accounts exist. |
+| Consumer inherited from org rosters at ~$0 CAC | **Blocked.** There is no org roster to inherit from, and no store product to convert into. |
+| "Warm intros drive CAC toward zero" | **One data point, and it is sobering.** The UCF linebacker pilot came from exactly this advantage and produced six weekly active athletes at peak, zero revenue, and one active athlete today. The channel may still be right; it has not yet been shown to convert. |
 
-### Why club/academy is the anchor (not consumer, not solo-trainer-alone)
-
-- **Consumer fails four of five metrics as an anchor:** IAP's 30% cut caps gross margin ~65%,
-  teen churn runs 5–8%/mo, paid CAC breaks payback, LTV:CAC lands <2:1. Valuable only as a free
-  byproduct of the channel.
-- **Club/academy is the cleanest org payer:** private/parent money (swipe today, no purchase
-  orders), one decision-maker, year-round usage, and it sits exactly where the owner's coaching
-  credibility converts. It also *contains* the HS- and college-bound athletes, so we reach them
-  without touching school procurement.
-
-### Expansion down the same product (same build, different payer friction)
-
-A club, a HS team, and a college program are the **identical product** — "a coach with a
-roster." Only the payer and cycle change:
-
-- **Club / academy** → private money, fast. *The wedge.*
-- **High school** → thin budgets, PO/AD friction, seasonal. *Fast-follow; great for word-of-mouth
-  and credibility.*
-- **College** → real money and prestige logos, but glacial procurement and they may already staff
-  a dietitian. *Trophy expansion, later.*
-
-**The dietitian is the wedge that cracks college.** "They already have an RD" is not an objection
-— that RD is drowning trying to cover 80–120 athletes they see a few times a semester. Sell
-OnStandard as *their* force-multiplier and the staff dietitian becomes the internal champion and
-seller. Likewise, the **academic advisor** is the champion for the academics module inside schools.
-
-### Positioning guardrail for the Pro tier
-
-The AI must be framed as **the professional's leverage, not their replacement.** To an RD or
-trainer, "AI nutritionist" reads as competition. Reframe: the AI handles the daily
-logging-and-accountability grind *between sessions*; the human owns the expertise and the plan.
-Same engine, different framing — it unlocks the professional segment instead of alienating it.
-
-*(Deferred: an RD **marketplace** — connecting teams without a dietitian to human RDs — is real
-revenue but means managing humans and service delivery. That breaks "stay solo." Park it.)*
+The scorecard in the original §6 should be read as a set of **hypotheses to test**, not results
+achieved. Every green tick in it was a forecast.
 
 ---
 
-## 4. Pricing & packaging
+## 3. The open ruling that governs everything else
 
-Prices are the existing catalog (`src/core/pricing.ts`, `LAUNCH-PRICING.md`). The model doesn't
-change the numbers — it changes the **cadence default** and the **COGS discipline underneath**.
+The original's north star is **profitable solo business, minimal team, no raise**. Every downstream
+choice follows from it: low account count, high dollars per account, organic channel only, no
+hires, no paid acquisition.
 
-### Cadence: monthly **and** annual — annual incentivized, never forced
+On 2026-09-15 the owner asked what it would take to make this a $100M company. **Those are two
+different businesses.** The solo constraint is not a preference that can coexist with that goal; it
+is the thing that makes it arithmetically impossible, because the account counts in §4 require a
+sales organization and a support organization.
 
-- **Monthly stays a first-class, prominent option.** (Owner ruling.)
-- **Annual is the better deal** (≈ 2 months free), highlighted at checkout — but a *nudge*, not
-  a gate. ~30–50% of B2B buyers self-select annual for the discount; we get the cash-flow and
-  churn benefit from *them* without punishing monthly buyers.
-- Annual is the relief valve for the one cost of keeping monthly: 12 renewal decisions a year
-  instead of 1 (a bigger churn surface).
+**This is an open founder ruling.** Nothing below resolves it, and the two answers lead to
+different products, different prices and different hiring.
 
-### The org bands (per-seat is the margin engine)
+| | Solo-profitable | Scale |
+|---|---|---|
+| Target | $1M to $3M ARR, most of it take-home | $12M ARR for a $100M valuation |
+| Accounts | 250 to 750 | roughly 3,000 |
+| Price point | today's catalog | department contracts, 10x the ACV |
+| Team | one person | sales, support, engineering |
+| Capital | none | a raise |
+| Timeline | 3 to 5 years | 7 to 10 years |
 
-| Plan | Monthly | Annual | Seats | $/seat/mo | Overage |
+Everything in §7 is identical under both answers for at least the next two quarters, so the ruling
+is not urgent. It is, however, the most consequential decision in this document.
+
+---
+
+## 4. The arithmetic, at the real price catalog
+
+Prices are `src/core/pricing.ts`, the source of truth, as of 2026-09-08.
+
+| Plan | Buyer | Rail | Annual | Seats | Per athlete / yr |
 |---|---|---|---|---|---|
-| Starter | $249 | $2,490 | 30 | $8.30 | — |
-| Growth | $499 | $4,990 | 75 | $6.65 | — |
-| Performance | $799 | $7,990 | 150 | $5.33 | $10/seat |
-| Enterprise | Custom | Custom | 150+ | — | — |
+| Individual | athlete | IAP | $84 | 1 | $84 |
+| Individual Plus | athlete | IAP | $126 | 1 | $126 |
+| Family | household | IAP | $156 | 4 | $39 |
+| Solo | trainer / RD | Stripe | $990 | 25 | $40 |
+| Professional | trainer / RD | Stripe | $1,790 | 50 | $36 |
+| Starter | org | Stripe | $2,490 | 30 | $83 |
+| Growth | org | Stripe | $4,990 | 75 | $67 |
+| Performance | org | Stripe | $7,990 | 150 | $53 |
+| Enterprise | org | Stripe | custom | 150+ | |
 
-Overage seats ($10 vs ~$1 marginal cost) run ~90% margin — clean expansion revenue as a roster
-grows.
+Average org account, blended across the three self-serve bands: call it **$4,000 a year**.
 
-### Academics as expansion revenue
+**What each revenue target costs in accounts:**
 
-Ship academics as an **add-on module / tier bump on proven accounts**, not a discount. It grows
-revenue with **zero new CAC** — the single best growth lever for a solo owner (see NRR, §6).
+| Target | Org accounts at $4k | Or consumer subs at $84 |
+|---|---|---|
+| $1M ARR | 250 | 11,900 |
+| $12M ARR (a $100M valuation) | 3,000 | 143,000 |
+| $100M ARR | 25,000 | 1.2M |
 
----
+There are on the order of 50,000 to 100,000 US club and academy programs of meaningful size.
+**25,000 accounts is a quarter to a half of the entire addressable market**, which no vertical SaaS
+achieves. So $100M ARR is not reachable at this price catalog, by this model, at any execution
+quality.
 
-## 5. Go-to-market — coach-led, near-zero CAC
+$100M ARR becomes arithmetically possible only if ACV rises roughly ten times, which means selling
+an athletic department rather than a coach: every sport, every athlete, multiple pillars, $50k to
+$150k a contract. That is the Teamworks shape. Note that the whole NCAA at $75k average is $82M, so
+even that path requires college plus professional plus international plus large school districts.
 
-The owner **is a Power-4 coach.** That is the unfair advantage the entire GTM is built on:
-
-- **Warm intros to the coaching tree** — coaches trust coaches and talk constantly. Referral
-  density drives CAC toward zero, which is what makes 5:1 LTV:CAC and <1-month payback trivial.
-- **Peer credibility** no outside SaaS founder can buy, and native language (no "AI-slop"
-  translation problem).
-
-**Sales motion: low-touch, not zero-touch.** A club needs a demo, and the owner is the demo. The
-fix is a **single, repeatable ~20-minute ROI demo → Stripe self-checkout.** Record it, template
-it, and let the buyer self-serve the seats. That keeps the model solo-scalable.
-
-**Channel flywheel:** club roster → graduating athletes convert to free→paid consumer at ~$0 CAC
-→ those athletes carry a portable record to their next team → new org lead. The cheapest channel
-(coach → roster → next org) is the incumbents' most expensive one (paid CAC against free trackers).
-
-**Sequence:** clubs/academies now → HS programs (word-of-mouth, credibility) → college (trophy
-logos, via the staff-RD wedge) → consumer as a *pull* from graduating athletes, never a *push*.
+$12M ARR at 3,000 accounts is three to six percent of the market. That is hard and ordinary, which
+is what makes it a real target.
 
 ---
 
-## 6. Unit economics — the scorecard
+## 5. Why nothing can be bought today
 
-**COGS reality:** the "$2/user" figure is worst-case *heavy* user. Blended reality per *rostered*
-seat, with the caps already shipped (12 vision calls/day, prompt caching, Haiku on text):
+Two independent blockers, both small relative to what has already been built.
 
-- AI COGS ≈ **$0.80–1.10/seat/mo** blended (not every rostered athlete is a daily heavy user).
-- **Academics barely moves it:** syllabus extraction is ~1 vision call *per term* (~$0.02/mo
-  amortized); daily academic check-ins are cheap text.
-- Stripe ≈ 3%; hosting is pennies/seat.
+**Consumer rail.** Apple requires in-app purchase for digital subscriptions sold in the app. There
+are zero IAP products and zero subscription groups configured. The version sitting in review cannot
+sell anything even if it is approved tomorrow. The product sheet to create them from is
+`docs/go-live/CONSUMER-IAP.md`.
 
-Against $5.33–8.30/seat revenue → **~85–90% gross margin at the org tier.**
+**Org rail.** Checkout, webhooks, the overage ledger, Connect and the entitlement predicate are all
+built and were verified end to end in the Stripe sandbox. Two things remain: the live key has never
+been switched on, and `book_access` is enforced client-side only, so a modified client writes for
+free. The second needs the RLS suite, which needs Docker.
 
-### Target vs. this model
-
-| Target | Model delivers | Why | Watch-out |
-|---|---|---|---|
-| **Gross margin 85%+** | ✅ 85–90% | Stripe rail (no Apple tax) + per-seat + AI caps already shipped | Org tier only; consumer stays ~65%, so it stays a byproduct |
-| **Net profit 60%+** | ✅ Achievable | Solo owner + near-zero CAC + no payroll; owner draw *is* profit | Conditional: no hires, no paid ads — either one drops it fast |
-| **Monthly churn <3%** | ✅ ~2–3% | Two modules + parent + coach + advisor + accumulated history = deep switching cost; eligibility stickier than macros | Monthly billing widens the surface; annual nudge is the relief valve |
-| **LTV:CAC 5:1+** | ✅ ~15–25:1 | $3–10k/yr accounts × ~4yr life vs warm-intro CAC ≈ $0 | Holds only while the channel is organic; paid ads erode it |
-| **Payback <1 month** | ✅ Day-1 to <1mo | High ACV: one monthly payment ($210–680 gross profit) > a warm-intro CAC | Breaks instantly if anchored on the $15 consumer |
-
-### Metrics not named, but a buyer/investor will look at
-
-- **Net Revenue Retention >100%** — the compounding engine for a solo owner: academics module +
-  seat growth + tier-ups grow revenue with zero new CAC. The co-wedge feeds this directly.
-- **Negative working capital** — annual buyers fund the business; growth on customer cash, not a
-  raise or savings.
-- **Revenue concentration** — keep no single club/academy above ~10–15% of MRR (the real risk in
-  a low-account-count model).
-- **Gross Revenue Retention >90%** — the honest churn floor before expansion masks it; track
-  separately from NRR.
-- **Support load per account** — the true solo ceiling. The org anchor's low account count is
-  what protects it; drifting toward consumer volume is what would bury the owner.
+Until both are closed, every hour spent on features is unpaid by construction.
 
 ---
 
-## 7. What breaks the model (the two disciplines)
+## 6. Economics, honestly labelled
 
-Every target above hinges on the same two rules. Breaking either one collapses the scorecard:
+- **Measured:** nothing. No customer, no renewal, no cancellation, no cost per seat.
+- **Decided:** the price catalog, the tier stack, the rails, the trial length (14 days, both rails).
+- **Assumed:** margin, churn, CAC, LTV, payback, and that a club will pay $2,490.
 
-1. **Stay on the org / Stripe rail.** Consumer + IAP is a ~65%-margin, high-churn, long-payback
-   business. Keep it as a free byproduct; never anchor on it.
-2. **Keep the channel organic.** The coach network is what drives CAC to ~$0. The moment paid ads
-   or a sales hire enters, LTV:CAC and net margin both fall. Grow through referral and expansion
-   (NRR), not paid acquisition.
-
-Corollary risks to monitor: **focus** (co-wedge doubles the promise — the one-engine architecture
-is the mitigation, hold the line on it), **concentration** (§6), and **owner-dependence** (for
-future optionality, systematize and document so the business is sellable, not just runnable).
+The single cheapest thing that converts an assumption into a measurement is **instrumenting AI cost
+per seat**. `ai_usage_daily` counts calls today and carries no cost column, so the 85 to 90% gross
+margin claim rests on a number nobody can see. That should be fixed before the first ten accounts,
+not after, because it is the input to every pricing decision that follows.
 
 ---
 
-## 8. Roadmap implications (what this model asks the product to be)
+## 7. What to do next, and it is the same under either ruling
 
-Not a build plan — the constraints the model puts on the product:
+1. **Make one thing purchasable.** Throw the Stripe live switch and enforce `book_access` in RLS.
+   Days of work. Everything else is unpaid until this is done.
+2. **Create the store products** so the consumer rail exists at all, even though it stays a
+   byproduct. A subscription group and the ladder in `CONSUMER-IAP.md`.
+3. **Instrument AI cost per seat.** One column and a write. It turns the margin claim into a fact.
+4. **Sell ten programs at list price.** Not one, because one is an anecdote. Ten tells you whether
+   $2,490 holds, what the objection is, and how long the cycle runs. This is the only activity in
+   this list that produces information nothing else can.
+5. **Then, and only then, revisit §3.** The first ten customers will change what you believe about
+   the buyer, the price and the product. Making the solo-versus-scale ruling before that is
+   deciding with less information than you will have in ninety days.
 
-1. **Refactor to one accountability engine** with a pluggable "standard" type; nutrition and
-   academics are content configs, not separate stacks.
-2. **Syllabus/schedule parser** reusing the meal-photo vision pipeline; academic check-ins on the
-   existing commitment primitive (cheap text).
-3. **Advisor stakeholder type** alongside parent/coach; whole-athlete score that blends modules.
-4. **Org self-serve checkout** (Stripe) with monthly + annual, annual incentivized; a recorded
-   ~20-min ROI demo as the top of funnel.
-5. **Academics packaged as an add-on module** on org accounts (expansion revenue), gated so it's
-   a tier bump, not bundled free.
-6. **RD/advisor "leverage" framing** in the Pro-tier product surfaces and copy.
+What is deliberately **not** on this list: new audiences, new pillars, and new surfaces. Adding an
+audience to a product with one active user multiplies zero, and the original doc's own discipline
+(dollars per account, not account count) argues against breadth anyway.
 
 ---
 
-*Living document. Revisit when the nutrition + academics loop proves out on the first cohort of
-clubs, and again at the first HS and first college close.*
+## 8. What this asks of the product
+
+Unchanged from the original where it still holds, trimmed where it does not.
+
+1. Keep the one-engine, N-pillar architecture. It is the reason a second pillar is affordable, and
+   it is what justifies a department-sized price later.
+2. Build toward institutional expansion rather than consumer breadth: multi-team rollups, staff
+   roles with real permissions, department views. The iPad work of 2026-09-15 started this.
+3. Academics remains the right second pillar and the right expansion revenue. It is not built. It
+   should follow the first ten paying accounts, not precede them.
+4. Org self-serve checkout with monthly and annual, annual incentivised, as already priced.
+5. Protect the coach-to-roster loop above any individual feature. It is the durable advantage.
+
+---
+
+*Living document. The next rewrite should be triggered by the first paying account, and it should
+move rows out of "assumed" in §6 into "measured" in §0.*
