@@ -1061,7 +1061,10 @@ export default {
       ${outcomeBand()}
       <div id="presence-row"></div>
       <div id="seen-row" style="width:100%"></div>
-      ${receiptHtml(wakeupReceipt((VC.board || []).find((i) => i.type === WAKEUP_TYPE) || null, RT.userId), esc)}
+      ${/* VC.today(), not VC.board: the board is the COACH's copy and an athlete never fills it,
+            so this receipt was `none` for every athlete since it shipped and the row never
+            appeared on Home. wakeupReceipt reads the athlete's own instance now. */''}
+      ${receiptHtml(wakeupReceipt(VC.today().find((i) => i.type === WAKEUP_TYPE) || null, RT.userId), esc)}
       <div id="reply-row"></div>
       ${recentResults()}
       <div style="height:20px"></div>`;
@@ -1102,7 +1105,7 @@ export default {
     <div id="seen-row" data-tour="coach-seen"></div>
     ${/* "Your coach replied" (0229): the third receipt, injected async like the two above, and
           the only one that is a door. Empty when nothing is unread, so Home is byte-identical. */''}
-    ${receiptHtml(wakeupReceipt((VC.board || []).find((i) => i.type === WAKEUP_TYPE) || null, RT.userId), esc)}
+    ${receiptHtml(wakeupReceipt(VC.today().find((i) => i.type === WAKEUP_TYPE) || null, RT.userId), esc)}
       <div id="reply-row"></div>
     <div id="vc-slot"></div>
     ${/* One Clear for the whole receipts region above. Not an x on each row: those rows already

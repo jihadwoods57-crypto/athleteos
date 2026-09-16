@@ -355,7 +355,12 @@ function pushWarning(phase) {
 }
 
 /** The one explanation, collapsed. */
-function howItWorks(row, clock) {
+/* `d` is the derived commitment, and it has to be PASSED: this is a module-scope sibling of
+   wakeupDetail, not a closure inside it. Reading `d` off the scope chain here threw a
+   ReferenceError on every athlete detail open from 8374e018 until 2026-09-16, and the router's
+   catch turned it into a tap that silently did nothing. Rendered by rollcall-detail.test.mjs now,
+   in every phase, which is the only thing that would have caught it. */
+function howItWorks(row, clock, d) {
   const grace = graceMinOf(row);
   return `
   <details class="wk-how">
@@ -449,7 +454,7 @@ function wakeupDetail(row, d) {
     <input class="input" id="vc-dispute-note" maxlength="200" placeholder="What actually happened? (optional)" aria-label="What actually happened" autocomplete="off">
     <button class="btn ghost wk-dispute-btn" id="vc-dispute">Something wrong? Tell your coach</button>` : `
     <div class="wk-gap"></div><div class="ts wk-center">Reported. Your coach can see this and correct it.</div>`) : ''}
-  ${howItWorks(row, clock)}
+  ${howItWorks(row, clock, d)}
   <div class="wk-foot"></div>`;
 }
 

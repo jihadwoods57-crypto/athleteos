@@ -9,6 +9,7 @@ jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(async () => null), setItemAsync: jest.fn(), deleteItemAsync: jest.fn(),
 }));
 jest.mock('../lib/notify/execSync', () => ({ syncExecNotifications: jest.fn(async () => undefined) }));
+jest.mock('../../modules/rollcall-live', () => ({ endLiveActivity: jest.fn(async () => undefined) }));
 // Mock the native auth seams so the bridge is tested against a KNOWN seam state (unavailable),
 // deterministically, whether or not expo-apple-authentication / expo-local-authentication are
 // installed. The bridge's job is to route whatever the seam reports; the seams' own availability
@@ -29,6 +30,7 @@ jest.mock('../lib/auth/biometrics', () => ({
 
 import { handleBridgeMessage, BRIDGE_SHIM } from './bridge';
 import { syncExecNotifications } from '../lib/notify/execSync';
+import { endLiveActivity } from '../../modules/rollcall-live';
 
 function fakeRef() {
   const injected: string[] = [];
@@ -125,3 +127,19 @@ test('navigator.vibrate is a no-op so taps fire exactly one haptic', () => {
   expect(BRIDGE_SHIM).toMatch(/navigator\.vibrate\s*=\s*function\(\)\{\s*return true;\s*\}/);
   expect(BRIDGE_SHIM).not.toContain("navigator.vibrate = function(){ window.OnStandardNative.haptic('light')");
 });
+
+/* The lock-screen card has to stop when the answer came from inside the app (P0, 2026-09-15).
+   endLiveActivity was written, exported and never called by anything, so an in-app "I'm up" left
+   the Live Activity counting until iOS timed it out. */
+test('ROLLCALL_ACKED ends the lock-screen Live Activity for that instance', async () => {
+  const { ref } = fakeRef();
+  const handled = await handleBridgeMessage(ref, { type: 'ROLLCALL_ACKED', instanceId: 'rc-9' } as never);
+  expect(handled).toBe(true);
+  expect(endLiveActivity).toHaveBeenCalledWith('rc-9');
+});
+
+test('the proto can reach it: the shim exposes rollcall.acked as a one-way post', () => {
+  expect(BRIDGE_SHIM).toContain('rollcall:');
+  expect(BRIDGE_SHIM).toContain("type: 'ROLLCALL_ACKED'");
+});
+

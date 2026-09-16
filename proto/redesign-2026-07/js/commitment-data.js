@@ -146,6 +146,17 @@ export async function loadMineRange(fromISO, toISO) {
 
 /** "I'm Up". Returns the server-stamped ISO time, or null. Idempotent server-side: a double tap
  *  keeps the FIRST response, so a slow network can never cost an athlete their real time. */
+/* The lock-screen Live Activity is started by a push and, until 2026-09-16, was ended by nothing:
+   an athlete who answered INSIDE the app left the card counting down at them on their lock screen
+   until iOS timed it out. The native side owns ActivityKit, so this is a one-way message; no
+   bridge (web, the QC harness) is a silent no-op, which is correct everywhere it happens. */
+function endLockScreenCard(instanceId) {
+  try {
+    const N = typeof window !== 'undefined' ? window.OnStandardNative : null;
+    if (N && N.rollcall && typeof N.rollcall.acked === 'function') N.rollcall.acked(instanceId);
+  } catch { /* the answer is recorded either way */ }
+}
+
 export async function ackCommitment(instanceId) {
   const c = sb(); if (!c || !instanceId) return null;
   // The offline path: the tap is queued durably, the card shows it as answered, and the server
@@ -155,6 +166,9 @@ export async function ackCommitment(instanceId) {
     if (!queueVcWrite('ack_commitment', instanceId, { p_instance: instanceId })) return null;
     const at = new Date().toISOString();
     patchLocal(instanceId, { acknowledged_at: at, status: 'acknowledged', pendingSync: true });
+    // The tap is durably queued and the card is answered as far as the athlete is concerned, so
+    // the lock-screen card stops now rather than when the network comes back.
+    endLockScreenCard(instanceId);
     return at;
   };
   try {
@@ -167,6 +181,7 @@ export async function ackCommitment(instanceId) {
     }
     ACK_REFUSAL.delete(instanceId);
     patchLocal(instanceId, { acknowledged_at: data, status: 'acknowledged' });
+    endLockScreenCard(instanceId);
     return data || null;
   } catch { return queueIt(); }
 }

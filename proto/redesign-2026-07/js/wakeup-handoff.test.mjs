@@ -73,3 +73,49 @@ test('everything the caller passes goes through their escaper', () => {
   receiptHtml({ answered: true, atMin: 346, late: false, placed: 1 }, (s) => { seen.push(s); return s; });
   assert.ok(seen.length >= 2, 'both the clock and the tail are escaped');
 });
+
+/* THE ATHLETE'S OWN ROW (2026-09-16). Home passed `VC.board` into this, and the board is coach
+ * data: `my_commitments` (the athlete's own RPC, asked directly) returns 55 keys and **no `rows`
+ * key at all**, so morningSummary saw an empty squad, nobody matched, and the receipt was `none`
+ * for every athlete, forever. The row simply never appeared. Same cause emptied #wakeup-squad.
+ *
+ * Placement genuinely cannot be known from the athlete's own row, and no RPC offers it. Everything
+ * else can: whether they answered, when, and whether it was late. So the receipt is built from the
+ * athlete's own instance and says "Answered." instead of "3 of the squad up."
+ */
+const mine = (over = {}) => ({
+  type: 'morning_roll_call', instance_id: 'rc-1',
+  acknowledged_at: null, verdict: 'pending', late_min: 0, ...over,
+});
+
+test('the athlete own instance produces a receipt even with no squad rows', () => {
+  const at = new Date(); at.setHours(5, 47, 0, 0);
+  const r = wakeupReceipt(mine({ acknowledged_at: at.toISOString(), verdict: 'on_standard' }), 'me');
+  assert.equal(r.answered, true, 'the athlete answered and Home must say so');
+  assert.equal(r.late, false);
+  assert.equal(r.atMin, 5 * 60 + 47);
+  assert.equal(r.placed, null, 'placement is squad data the athlete cannot see; never invent one');
+});
+
+test('a late answer on the athlete own row reads late', () => {
+  const at = new Date(); at.setHours(6, 12, 0, 0);
+  const r = wakeupReceipt(mine({ acknowledged_at: at.toISOString(), verdict: 'late', late_min: 7 }), 'me');
+  assert.equal(r.answered, true);
+  assert.equal(r.late, true);
+});
+
+test('an unanswered own row is still no receipt', () => {
+  assert.deepEqual(wakeupReceipt(mine(), 'me'), { answered: false, atMin: null, late: false, placed: null });
+});
+
+test('the receipt is only a door when there is a squad to open', () => {
+  // It linked to #wakeup-squad unconditionally, and that screen is empty for an athlete for the
+  // same reason this receipt was: there is no squad RPC. A control that opens nothing is worse
+  // than no control.
+  const at = new Date(); at.setHours(5, 47, 0, 0);
+  const own = receiptHtml(wakeupReceipt(mine({ acknowledged_at: at.toISOString(), verdict: 'on_standard' }), 'me'), id);
+  assert.doesNotMatch(own, /data-go="wakeup-squad"/, 'no squad data, so no door to it');
+  assert.match(own, /Up at 5:47/);
+  const squad = receiptHtml(wakeupReceipt(inst([row('me', 'Me', 'on_standard', '2026-09-16T09:47:00Z')]), 'me'), id);
+  assert.match(squad, /data-go="wakeup-squad"/, 'a coach-side instance still opens the board');
+});

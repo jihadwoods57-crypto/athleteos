@@ -2569,8 +2569,12 @@ function requirementsSection(P, athleteId) {
   const tg = (TGT && TGT.athleteId === athleteId) ? TGT : null;
   const t = tg ? (tg.targets || {}) : null;
   const seeWeight = CD.kind === 'practice' || canViewWeight(CD.extras && CD.extras.myRole);
+  /* The board row is an INSTANCE; the roll call's settings live on the RULE. commitment_board
+     returns neither `config` nor `escalation` (asked the database directly: 62 keys, no such key),
+     so this row can honestly print the title, the time and the audience, and nothing else. It used
+     to append "· alarm on" off `rc.config`, which is always undefined, so a coach who switched the
+     alarm OFF was told it was ON. See claims-truth.test.mjs. */
   const rc = (VC.board || []).find((b) => b && b.type === 'morning_roll_call') || null;
-  const rcCfg = rc && rc.config ? rc.config : {};
   return `
   <h2 class="eyebrow">Their standard <span class="ca-src">· ${esc(source)}</span></h2>
   <section class="card co-list ro" role="list">
@@ -2602,8 +2606,12 @@ function requirementsSection(P, athleteId) {
   <section class="card co-list ro" role="list">
     ${rc ? `
     <div class="lrow" role="listitem"><div class="lic">${icon('sun', 17)}</div>
-      <div class="lm"><div class="lt">${esc(rc.title || 'Roll call')}</div><div class="ls">${rc.starts_min != null ? `${esc(fmtMin(Number(rc.starts_min)))} · ` : ''}${esc(rc.audience_label || 'Everyone')}${rcCfg.alarm === false ? ' · alarm off' : ' · alarm on'}</div></div></div>
-    <div class="lrow" data-go="coach-wakeup-edit">
+      <div class="lm"><div class="lt">${esc(rc.title || 'Roll call')}</div><div class="ls">${rc.starts_min != null ? `${esc(fmtMin(Number(rc.starts_min)))} · ` : ''}${esc(rc.audience_label || 'Everyone')}</div></div></div>
+    ${/* Straight to the composer is what created DUPLICATE roll calls: its draft starts blank
+          unless editWakeup(rule) loaded one, and nothing on this path did. Commitments is the door
+          that resolves the real rule first, and its Edit button is the only caller that ever did
+          it right. */''}
+    <div class="lrow" data-go="coach-commit-manage">
       <div class="lic ca-lic-blue">${icon('edit', 17)}</div>
       <div class="lm"><div class="lt">Change the roll call</div><div class="ls">Time, window, message, alarm</div></div>
       ${icon('chevron', 17)}

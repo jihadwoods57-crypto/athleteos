@@ -25,6 +25,7 @@ import {
 } from '../lib/health';
 import { syncExecNotifications } from '../lib/notify/execSync';
 import { syncWakeAlarms, wakeAlarmState } from '../lib/notify/wakeAlarms';
+import { endLiveActivity } from '../../modules/rollcall-live';
 import { getPushToken } from '../lib/notify';
 import { getFlag } from '../store/flagsStore';
 
@@ -43,6 +44,7 @@ export type BridgeMessage =
   | { type: 'GOOGLE_SIGNIN'; id: number }
   | { type: 'BIO_AVAILABLE'; id: number }
   | { type: 'NOTIFY_SYNC'; plan: import('../lib/notify/execSync').ExecPlanItem[] }
+  | { type: 'ROLLCALL_ACKED'; instanceId: string }
   // The coach-assigned wake-up, as a REAL alarm (AlarmKit on iOS 26, setAlarmClock on Android).
   // The proto owns the roll-call rows, so it is what says which mornings are armed; the whole set
   // is sent every time and the native side reconciles, which makes a dropped message harmless.
@@ -234,6 +236,14 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
         void Linking.openURL(msg.url).catch(() => undefined);
       }
       return true;
+    case 'ROLLCALL_ACKED':
+      /* The lock-screen card has to STOP when the answer came from inside the app.
+         endLiveActivity has existed since the module was written and nothing ever called it, so an
+         athlete who tapped "I'm up" in the app watched the Live Activity keep counting down at
+         them until iOS timed it out. Fire-and-forget: the ack is already recorded server-side, and
+         a device with no Live Activity (Android, older iOS, push-to-start never fired) no-ops. */
+      try { await endLiveActivity(String(msg.instanceId || '')); } catch { /* best effort */ }
+      return true;
     case 'NOTIFY_SYNC':
       void syncExecNotifications(msg.plan ?? []);
       return true;
@@ -409,6 +419,8 @@ export const BRIDGE_SHIM = `
       available: function(){ return call('BIO_AVAILABLE', {}); }
     },
     notify: { sync: function(plan){ post({ type: 'NOTIFY_SYNC', plan: plan || [] }); } },
+    // Answered in the app: end the lock-screen card. Fire-and-forget, no answer expected.
+    rollcall: { acked: function(instanceId){ post({ type: 'ROLLCALL_ACKED', instanceId: String(instanceId || '') }); } },
     openUrl: function(url){ post({ type: 'OPEN_URL', url: String(url || '') }); },
     push: { token: function(){ return call('PUSH_TOKEN', {}); } },
     // Resolves true only if a prompt was actually requested — never whether a review was left.

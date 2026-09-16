@@ -31,6 +31,9 @@ import { stripComments } from '../tools/strip-comments.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const read = (...p) => readFileSync(join(HERE, ...p), 'utf8');
+/* Comments document the defects these tests pin, so a claim test that scanned raw source would
+   match its own explanation. stripComments is already imported above; this is the reader. */
+const code = (...p) => stripComments(read(...p));
 
 /* ob2.js reaches state.js, which touches the DOM at module eval. Same shim as
    nutrition-chat-live.test.mjs / roll-call-resolve.test.mjs; the dynamic import below is what
@@ -114,4 +117,38 @@ test('no plan advertises a support tier, because the product has none', () => {
     assert.doesNotMatch(sub, /priority support/i,
       'nothing in this repo implements a support tier; selling one is a promise with no owner');
   }
+});
+
+/* 4. THE ROLL CALL ROW ON THE ATHLETE CARD (found 2026-09-15, fixed 2026-09-16).
+ *
+ * Two untrue things in one row, both for the same reason: it was built from a board INSTANCE, and
+ * the roll call's settings live on the RULE. `commitment_board` (asked directly: 62 keys) returns
+ * neither `config` nor `escalation`, so:
+ *
+ *   - "· alarm on" was printed unconditionally. `rc.config` is always undefined, so
+ *     `rcCfg.alarm === false` could never be true, and a coach who switched the alarm OFF was told
+ *     it was ON. That is a false claim about the loudest thing this product does: it rings through
+ *     a Sleep Focus at 5 AM.
+ *   - "Change the roll call" pointed at `coach-wakeup-edit`, whose draft starts blank unless
+ *     `editWakeup(row)` loaded a rule first. Nothing on this path called it, so saving INSERTED A
+ *     SECOND morning_roll_call, and the schema has no uniqueness to stop it.
+ *
+ * The row now routes to `coach-commit-manage`, which loads the real rules and whose Edit button
+ * already calls `editWakeup(row)` with one. One door, and it cannot duplicate.
+ */
+test('the athlete card never claims an alarm state it cannot read', () => {
+  const coach = code('screens', 'coach.js');
+  assert.doesNotMatch(coach, /rc\.config/,
+    'commitment_board returns no `config` key; reading it can only ever produce a guess');
+  assert.doesNotMatch(coach, /alarm o[nf]/i,
+    'the board row carries no alarm setting, so this row must not state one');
+});
+
+test('the only door to the roll call composer goes through a loaded rule', () => {
+  const coach = code('screens', 'coach.js');
+  assert.doesNotMatch(coach, /data-go="coach-wakeup-edit"/,
+    'entering the composer without editWakeup(rule) starts a blank draft and saves a DUPLICATE roll call');
+  const manage = code('screens', 'coach-commitments.js');
+  assert.match(manage, /editWakeup\(row\);\s*location\.hash = '#coach-wakeup-edit'/,
+    'the manage screen is the door: it resolves the rule, then opens the composer on it');
 });
