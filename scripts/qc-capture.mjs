@@ -130,6 +130,11 @@ const SHOTS = [
   { g: 'athlete2', name: 'home-roster-ended', seed: 'rosterEnded', route: 'home', at: [10, 5] },
   { g: 'meal', name: 'meal-analysis', seed: 'dayMidday', route: 'meal-analysis', at: [13, 5] },
   { g: 'meal', name: 'meal-detail', seed: 'dayMidday', route: 'meal-detail/lunch', at: [13, 8] },
+  // The score rubric lives in a closed <details>, so every sweep before 09-16 audited it shut —
+  // which is how its notes clipped at 320 through two polish passes. Open it so the rows render
+  // and the defect sweep sees them; pair with --scroll-to 'details.rub' to frame it in the PNG.
+  { g: 'meal', name: 'meal-rubric', seed: 'dayMidday', route: 'meal-detail/lunch', at: [13, 8],
+    act: `const d = document.querySelector('details.rub'); if (d) d.open = true; else console.error('meal-rubric: details.rub not found — shot is a silent duplicate of meal-detail');` },
   { g: 'meal', name: 'meal-thread', seed: 'dayMidday', route: 'meal-thread/lunch', at: [13, 9] },
   { g: 'meal', name: 'nutrition-chat', seed: 'dayMidday', route: 'nutrition-chat', at: [13, 30] },
   { g: 'meal', name: 'meal-questions', seed: 'dayMidday', route: 'meal-questions', at: [13, 6] },

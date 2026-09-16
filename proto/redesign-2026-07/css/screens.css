@@ -2178,11 +2178,17 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .rub>summary .ic{transition:transform var(--dur-2) var(--ease-out);color:var(--text-3);margin-left:auto}
 .rub[open]>summary .ic{transform:rotate(90deg)}
 .rub-body{padding:2px var(--s3h) var(--s3)}
-.rub-row{display:flex;align-items:center;gap:var(--s2h);padding:var(--s1h) 0;border-bottom:1px solid var(--hairline-soft)}
-.rub-row:last-of-type{border-bottom:none}
-.rub-row .rk{flex:1;font-size:var(--t-sm);font-weight:700}
-.rub-row .rn{font-size:var(--t-xs);font-weight:600;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42%}
-.rub-row .rx-tag{font-size:var(--t-micro);font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);border:1px solid var(--hairline);border-radius:var(--r-pill);padding:2px var(--s2);flex:none}
+/* Grid, not flex: the note owns a full-width line under its key. As a nowrap 42% flex column it
+   ellipsized away the substance at phone widths ("~47–57g (e…") and the note IS the content —
+   dot, key and the exact/estimated tag share the first line, the note wraps freely beneath. */
+.rub-row{display:grid;grid-template-columns:auto 1fr auto;column-gap:var(--s2h);align-items:center;padding:var(--s1h) 0;border-bottom:1px solid var(--hairline-soft)}
+/* nth-last-child(2), not last-of-type: .rub-fine is a later div sibling in .rub-body, so the
+   last ROW is the second-from-last child and last-of-type never matched (the hairline showed). */
+.rub-row:nth-last-child(2){border-bottom:none}
+.rub-row .bd-req-dot{grid-column:1;grid-row:1;margin-top:0}
+.rub-row .rk{grid-column:2;grid-row:1;font-size:var(--t-sm);font-weight:700;min-width:0}
+.rub-row .rn{grid-column:2/-1;grid-row:2;font-size:var(--t-xs);font-weight:600;color:var(--text-2);line-height:1.45;min-width:0}
+.rub-row .rx-tag{grid-column:3;grid-row:1;font-size:var(--t-micro);font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);border:1px solid var(--hairline);border-radius:var(--r-pill);padding:2px var(--s2);justify-self:end}
 .rub-fine{font-size:var(--t-xs);font-weight:600;color:var(--text-3);padding-top:var(--s2);line-height:1.45}
 
 /* ----- Correct-analysis panel + follow-up chips ----- */
