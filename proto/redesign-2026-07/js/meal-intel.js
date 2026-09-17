@@ -55,6 +55,73 @@ export function normalizeDetected(detected) {
   }).filter((d) => d.name);
 }
 
+/* ── WHAT THE ATHLETE THEMSELVES SAID ──────────────────────────────────────────────────────────
+   Parsed from the athlete's OWN message, never from the model's prose. That distinction is the
+   whole point: the curated reference exists so a hallucinated 60g-protein egg loses to the table,
+   and it must keep winning over anything the model invents. But it was also beating the athlete.
+
+   Founder, 2026-09-17: "I had a 42g protein shake as well" -> protein moved 51g to 71g. The
+   reference priced a generic shake and the stated 42 was only ever consulted as a fallback for
+   foods the table does not carry, so the athlete read their own bottle to us and we overruled it.
+
+   An athlete reading their own packaging is READ evidence — exactly what groundFood() has called
+   'label' since the Core Power fix (2026-08-06), where the comment already names "a true
+   42g-protein shake" as the thing a generic reference mangles. This is that same rule, applied one
+   layer earlier, at pricing time.
+
+   Deterministic and verifiable: we match digits in the athlete's literal text. Nothing here trusts
+   the model to tell us what the athlete said.
+
+   A bare number needs to be big enough to be a macro. "2 protein shakes" is a COUNT, and reading
+   it as 2g of protein would be a new lie in place of the old one; a unit ('42g protein') is
+   accepted at any size, a bare figure only from 10 up. */
+const MACRO_WORD = { protein: 'protein', carb: 'carbs', carbs: 'carbs', carbohydrate: 'carbs', carbohydrates: 'carbs', fat: 'fat' };
+export function statedMacros(text) {
+  const t = String(text == null ? '' : text).toLowerCase();
+  if (!t) return null;
+  const out = {};
+  const seen = {};
+  const bump = (key, n) => {
+    if (!isFinite(n) || n <= 0 || n > 2000) return;
+    seen[key] = (seen[key] || 0) + 1;
+    out[key] = n;
+  };
+  // "42g protein", "42 grams of protein", "42 protein"
+  for (const m of t.matchAll(/(\d{1,4})\s*(g|gs|gram|grams)?\s*(?:of\s+)?(protein|carbs?|carbohydrates?|fat)\b/g)) {
+    const n = Number(m[1]);
+    const unit = !!m[2];
+    if (!unit && n < 10) continue;              // a count, not a macro
+    const key = MACRO_WORD[m[3]] || null;
+    if (key) bump(key, n);
+  }
+  // "860 calories", "860 kcal", "860 cal"
+  for (const m of t.matchAll(/(\d{2,5})\s*(?:kcal|cals?|calories)\b/g)) bump('kcal', Number(m[1]));
+  // AMBIGUITY IS NOT EVIDENCE. Two different protein figures in one message ("it was 42g, no wait
+  // 30g") tells us the athlete is unsure, and picking one would be a guess wearing the authority
+  // of a stated fact. Drop any macro said more than once and let the reference price it.
+  for (const k of Object.keys(seen)) if (seen[k] > 1) delete out[k];
+  return Object.keys(out).length ? out : null;
+}
+
+/** Apply what the athlete stated on top of a priced row. The reference (or the model estimate)
+ *  still supplies every macro they did NOT name — "a 42g protein shake" says nothing about its
+ *  carbs — and kcal re-derives from Atwater unless they stated that too, so the four numbers
+ *  cannot end up disagreeing with each other. Returns a NEW object; never mutates the input. */
+function withStated(priced, stated) {
+  if (!priced || !stated) return priced;
+  const out = { ...priced };
+  let touchedMacro = false;
+  for (const k of ['protein', 'carbs', 'fat']) {
+    if (stated[k] != null) { out[k] = Math.round(stated[k]); touchedMacro = true; }
+  }
+  if (stated.kcal != null) out.kcal = Math.round(stated.kcal);
+  else if (touchedMacro) {
+    const atw = 4 * (out.protein || 0) + 4 * (out.carbs || 0) + 9 * (out.fat || 0);
+    if (atw > 0) out.kcal = Math.round(atw);
+  }
+  return out;
+}
+
 /** Ground the new analysis extras (fiber / highlights / detected / detailed analysis) to
  *  honest bounds. `analysis` is the AI's athlete-facing paragraph (0062) — clamped to 1200
  *  chars, markup stripped; '' when the (old) edge fn didn't send one so every renderer can
@@ -1262,7 +1329,7 @@ export function retitleMeal(title, oldName, newName, rich) {
   return `${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}`.slice(0, 80);
 }
 
-export function applyMealCorrection(meta, { kind, value, detail, item, newName, quantity, per, perBasis, add, foods, minutesLate } = {}) {
+export function applyMealCorrection(meta, { kind, value, detail, item, newName, quantity, per, perBasis, add, foods, minutesLate, said } = {}) {
   const src = meta || {};
   const rule = (CORRECTION_RULES[kind] || {})[String(value || '').toLowerCase()];
   if (!rule && kind !== 'other' && kind !== 'item' && kind !== 'add-foods') return null;
@@ -1328,6 +1395,9 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
     const applied = [];
     let anyEstimated = false;
     const addTot = { protein: 0, carbs: 0, fat: 0, kcal: 0 };
+    // Same rule as add-foods below: a figure the athlete stated themselves outranks the curated
+    // reference, and only when one ingredient makes it unambiguous which food it describes.
+    const saidAdd = adds.length === 1 ? statedMacros(said) : null;
     for (const a of adds.slice(0, 6)) {
       const nm = clean(a.name).trim().slice(0, 60);
       const qty = a.quantity == null ? '' : clean(a.quantity).slice(0, 24);
@@ -1340,6 +1410,7 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
           anyEstimated = true;
         }
       }
+      if (saidAdd) priced = withStated(priced || { protein: 0, carbs: 0, fat: 0, kcal: 0 }, saidAdd);
       if (!priced) { unpriced.push(nm); continue; }
       if (!priced.kcal) {
         const atw = 4 * priced.protein + 4 * priced.carbs + 9 * priced.fat;
@@ -1534,6 +1605,11 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
     const unpriced = [];
     const addTot = { protein: 0, carbs: 0, fat: 0, kcal: 0 };
     const g = (v) => { const n = Math.round(Number(v)); return isFinite(n) && n >= 0 ? Math.min(n, 2000) : 0; };
+    /* What the athlete stated in their own message, and only when it can belong to exactly ONE
+       food. "I had a 42g protein shake" names its food; "I had a 42g shake and some rice" does
+       not say which of the two the 42 is about, and a guess there would be the same class of
+       error this fixes. One food, one reading. */
+    const saidMacros = list.length === 1 ? statedMacros(said) : null;
     for (const f of list) {
       const nm = clean(f.name).trim().slice(0, 60);
       const fq = f.quantity == null ? '' : clean(f.quantity).trim().slice(0, 40);
@@ -1542,6 +1618,15 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
       if (!pr && f.per && typeof f.per === 'object' && ['protein', 'kcal', 'carbs', 'fat'].some((k) => f.per[k] != null)) {
         pr = { protein: g(f.per.protein), carbs: g(f.per.carbs), fat: g(f.per.fat), kcal: g(f.per.kcal) };
         basis = 'estimate';
+      }
+      /* THE ATHLETE'S OWN FIGURE WINS. Over the curated reference, and over the model's guess:
+         they read the bottle. Applied last so it overrides whichever of the two priced it, and
+         only for the macros they actually named — the rest stay priced. basis becomes 'label',
+         which is what groundFood() already calls read evidence, so nothing downstream clamps a
+         true 42g shake back into the table's generic one. */
+      if (saidMacros) {
+        pr = withStated(pr || { protein: 0, carbs: 0, fat: 0, kcal: 0 }, saidMacros);
+        basis = 'label';
       }
       if (!pr) { unpriced.push(nm); continue; }
       if (!pr.kcal) {

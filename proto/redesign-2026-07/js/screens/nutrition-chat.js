@@ -35,6 +35,7 @@ import {
   memoryOfferOf, memoryOfferChips,
   mealSuggestOf, fillMealSuggestion, mealSuggestHtml,
   dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
+  correctionRowsOf,
 } from '../chat-view.js';
 import { wireChatTimes } from '../chat-times.js';
 import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos } from '../chat-attach.js';
@@ -365,6 +366,23 @@ export default {
       return layoutThread(list, { muted: RT.mutedUsers, fmtTime, fmtDay: dayKey, fmtDayLabel: dayLabelOf }).map((item) => {
         if (item.type === 'time') return timeSepHtml(item, esc);
         const c = item.comment;
+        /* A filed correction receipt renders as the card, not as a bubble — the same record the
+           athlete sees in their own thread (chat-view isCorrectionReceipt). */
+        const receiptRows = correctionRowsOf(c);
+        if (receiptRows.length) {
+          return `
+        <div class="msg ai last">
+          <div class="av">${icon('sparkle', 15)}</div>
+          <div class="corr-card in landed" role="status">
+            <div class="corr-head">${icon('check', 14)}<span>Updated</span></div>
+            ${receiptRows.map((r) => `
+              <div class="corr-row${r.score ? ' corr-score' : ''}">
+                <span class="ck">${esc(r.label)}</span>
+                <span class="cv"><i class="was">${esc(String(r.from) + r.unit)}</i>${icon('arrowRight', 12)}<b class="${esc(r.band)}">${esc(String(r.to) + r.unit)}</b></span>
+              </div>`).join('')}
+          </div>
+        </div>`;
+        }
         const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
         const who = authorName(c, participants, RT.userId, S.coach.noun);
         const update = isAnalysisUpdate(c);
@@ -648,8 +666,10 @@ export default {
               kind: 'item', item: p.item, newName: p.newName || undefined,
               quantity: p.quantity || undefined,
               per: p.per || {}, perBasis: p.perBasis || undefined, add: p.add || undefined, minutesLate: late,
+              // The athlete's own words: a macro they stated outranks the curated reference.
+              said: text || undefined,
             }));
-          if (Array.isArray(cr.missed) && cr.missed.length) parts.push({ kind: 'add-foods', foods: cr.missed, minutesLate: late });
+          if (Array.isArray(cr.missed) && cr.missed.length) parts.push({ kind: 'add-foods', foods: cr.missed, minutesLate: late, said: text || undefined });
           const applied = await act.correctMeal(slot, parts, { skipAiUpdate: true });
           // A correction that did not land must say so: the AI's "updating now" is already in the
           // thread, and silence here would leave that promise standing over unchanged numbers.

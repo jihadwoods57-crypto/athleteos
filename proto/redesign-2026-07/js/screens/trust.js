@@ -12,6 +12,7 @@ import { wireTapback } from '../tapback.js';
 import { mealReadHtml, wireReadControls } from './meal.js';
 import { layoutThread, MUTED_HIDDEN_NOTE, authorName, initialsFor, isAnalysisUpdate, isEscalated, quotedFor,
   dayLabelOf, participantList, participantSummary, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
+  correctionRowsOf,
 } from '../chat-view.js';
 import { openMembersSheet } from '../members-sheet.js';
 import { hydrateAvatars } from '../avatar.js';
@@ -386,6 +387,23 @@ function mountThread(root, mealId, meal) {
     threadEl.innerHTML = items.map((item) => {
       if (item.type === 'time') return timeSepHtml(item, esc);
       const c = item.comment;
+      /* A filed correction receipt renders as the card, not as a bubble — the same record the
+         athlete sees in their own thread (chat-view isCorrectionReceipt). */
+      const receiptRows = correctionRowsOf(c);
+      if (receiptRows.length) {
+        return `
+      <div class="msg ai last">
+        <div class="av">${icon('sparkle', 15)}</div>
+        <div class="corr-card in landed" role="status">
+          <div class="corr-head">${icon('check', 14)}<span>Updated</span></div>
+          ${receiptRows.map((r) => `
+            <div class="corr-row${r.score ? ' corr-score' : ''}">
+              <span class="ck">${esc(r.label)}</span>
+              <span class="cv"><i class="was">${esc(String(r.from) + r.unit)}</i>${icon('arrowRight', 12)}<b class="${esc(r.band)}">${esc(String(r.to) + r.unit)}</b></span>
+            </div>`).join('')}
+        </div>
+      </div>`;
+      }
       const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
       const who = authorName(c, participants, RT.userId, S.coach.noun);
       const update = isAnalysisUpdate(c);

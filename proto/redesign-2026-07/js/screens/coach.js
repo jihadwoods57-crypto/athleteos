@@ -14,6 +14,7 @@ import { mealReadHtml, wireReadControls } from './meal.js';
 import { pastMealDetail } from './trust.js';
 import { layoutThread, visibleThread, MUTED_HIDDEN_NOTE, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpener, isEscalated, quotedFor,
   dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
+  correctionRowsOf,
 } from '../chat-view.js';
 import { openImageViewer } from '../image-viewer.js';
 import { wireTapback } from '../tapback.js';
@@ -3341,6 +3342,23 @@ export const coachMeal = {
         ${layoutThread(msgs, { muted: RT.mutedUsers, fmtTime: msgClock, fmtDay: msgDay, fmtDayLabel: dayLabelOf }).map((item) => {
           if (item.type === 'time') return timeSepHtml(item, esc);
           const c = item.comment;
+          /* A filed correction receipt renders as the card, not as a bubble — the same record the
+             athlete sees in their own thread (chat-view isCorrectionReceipt). */
+          const receiptRows = correctionRowsOf(c);
+          if (receiptRows.length) {
+            return `
+          <div class="msg ai last">
+            <div class="av">${icon('sparkle', 15)}</div>
+            <div class="corr-card in landed" role="status">
+              <div class="corr-head">${icon('check', 14)}<span>Updated</span></div>
+              ${receiptRows.map((r) => `
+                <div class="corr-row${r.score ? ' corr-score' : ''}">
+                  <span class="ck">${esc(r.label)}</span>
+                  <span class="cv"><i class="was">${esc(String(r.from) + r.unit)}</i>${icon('arrowRight', 12)}<b class="${esc(r.band)}">${esc(String(r.to) + r.unit)}</b></span>
+                </div>`).join('')}
+            </div>
+          </div>`;
+          }
           // "athlete" styling is reserved for the OTHER side of the conversation; on the coach's
           // screen the coach's own words are the ones that should sit on the right. An 'ai' row is
           // NEVER "mine" even when author_id is this coach — author_id records who TRIGGERED the

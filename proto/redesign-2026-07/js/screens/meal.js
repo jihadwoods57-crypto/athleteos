@@ -32,6 +32,7 @@ import {
   memoryOfferOf, memoryOfferChips,
   mealSuggestOf, fillMealSuggestion, mealSuggestHtml,
   dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
+  isCorrectionReceipt, correctionRowsOf,
 } from '../chat-view.js';
 import { wireChatTimes } from '../chat-times.js';
 
@@ -1712,6 +1713,10 @@ export const thread = {
     const corrReceipt = () => {
       const corrFx = corrFxFor(corrKey);
       if (!corrFx || !corrFx.rows.length) return '';
+      /* The live card covers the seconds between applying a correction and its filed receipt
+         landing in the thread. Once the row is there the card's job is done — drawing both would
+         show the same change twice, once as a record and once as an echo of it. */
+      if ((comments || []).some(isCorrectionReceipt)) return '';
       return `
         <div class="msg ai" id="corr-fx">
           <div class="av">${icon('sparkle', 15)}</div>
@@ -1900,6 +1905,26 @@ export const thread = {
       const rows = layoutThread(shown, { muted: RT.mutedUsers, fmtTime: fmtMsgTime, fmtDay: dayKey, fmtDayLabel: dayLabelOf }).map((item) => {
         if (item.type === 'time') return timeSepHtml(item, esc);
         const c = item.comment;
+        /* A FILED RECEIPT. Same card the live one draws, but from a persisted meal_comments row,
+           so it is still here after the athlete leaves and comes back — and a second correction
+           files a second receipt instead of overwriting the first. Historical ones land on their
+           final values with no count-up: the animation belongs to the change as it happens, not
+           to a record of it being re-read. */
+        const receiptRows = correctionRowsOf(c);
+        if (receiptRows.length) {
+          return `
+        <div class="msg ai last" data-receipt="${esc(String(c.id || ''))}">
+          <div class="av">${icon('sparkle', 15)}</div>
+          <div class="corr-card in landed" role="status">
+            <div class="corr-head">${icon('check', 14)}<span>Updated</span></div>
+            ${receiptRows.map((r) => `
+              <div class="corr-row${r.score ? ' corr-score' : ''}">
+                <span class="ck">${esc(r.label)}</span>
+                <span class="cv"><i class="was">${esc(String(r.from) + r.unit)}</i>${icon('arrowRight', 12)}<b class="${esc(r.band)}">${esc(String(r.to) + r.unit)}</b></span>
+              </div>`).join('')}
+          </div>
+        </div>`;
+        }
         const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
         const who = authorName(c, participants, RT.userId, S.coach.noun);
         const update = isAnalysisUpdate(c);
@@ -2375,8 +2400,12 @@ export const thread = {
                 // own quantity field would produce.
                 quantity: p.quantity || undefined,
                 per: p.per || {}, perBasis: p.perBasis || undefined, add: p.add || undefined, minutesLate: M.minutesLate,
+                // The athlete's own words, verbatim. meal-intel reads a stated macro straight out
+                // of them ("a 42g protein shake") and lets it beat the curated reference, which
+                // was pricing a generic shake over a figure the athlete had read off the bottle.
+                said: text || undefined,
               }));
-            if (Array.isArray(c.missed) && c.missed.length) parts.push({ kind: 'add-foods', foods: c.missed, minutesLate: M.minutesLate });
+            if (Array.isArray(c.missed) && c.missed.length) parts.push({ kind: 'add-foods', foods: c.missed, minutesLate: M.minutesLate, said: text || undefined });
             const applied = await act.correctMeal(M.slot, parts, { skipAiUpdate: true });
             // A CORRECTION THAT DID NOT LAND MUST SAY SO (2026-08-09). correctMeal returns null
             // whenever it cannot act — the named item matches nothing in the read, the meal has no

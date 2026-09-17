@@ -2568,6 +2568,14 @@ export const act = {
     // Fire-and-forget: the correction itself has already applied and been confirmed on screen.
     // (Skipped for chat corrections: apply_correction already persisted the acknowledgment.)
     if (!opts.skipAiUpdate) void this._postCorrectionUpdate(slot, r);
+    /* THE RECEIPT IS A RECORD, SO IT GOES IN THE THREAD (founder 2026-09-17: "I want the updated
+       macros to stay in the team discussion group chat. Even after I exit out of the meal log").
+       It used to be a card drawn from one ephemeral module slot with a two-minute TTL, so it died
+       on navigation, on a timer, and on the next correction. Written here instead, as a real
+       message: it outlives all three, the coach reads it in their copy, and a second correction
+       adds a second receipt rather than erasing the first. Fire-and-forget and last, so a failed
+       write can never undo a correction that has already applied. */
+    void this._postCorrectionReceipt(r);
     // A correction that moved the numbers meaningfully is worth a coach look — once per meal.
     // (Not for a pro-sourced one: the professional made the correction; notifying them of
     // their own change would be a circular ping.)
@@ -2624,6 +2632,44 @@ export const act = {
    *
    *  Every failure is silent by design. The correction is already applied and already confirmed
    *  on screen; a missing acknowledgment is a quieter thread, not a broken one. */
+  /** The before/after rows a receipt shows — the same selection the live card animates: only
+   *  figures that actually MOVED (a receipt listing four unchanged numbers is noise, and "24 to
+   *  24" reads as a bug), every macro behind the athlete's own plan style, and the meal score
+   *  always, because it is a score and not calorie math. */
+  _correctionReceiptRows(before, after) {
+    const P = S.planStyle || {};
+    const cand = [];
+    if (P.showMacros) {
+      cand.push(['Protein', before.protein, after.protein, 'g']);
+      cand.push(['Carbs', before.carbs, after.carbs, 'g']);
+      cand.push(['Fat', before.fat, after.fat, 'g']);
+    }
+    if (P.showCalories) cand.push(['Calories', before.kcal, after.kcal, '']);
+    cand.push(['Meal score', before.quality, after.quality, '']);
+    return cand
+      .filter(([, a, b]) => a != null && b != null && Math.round(+a) !== Math.round(+b))
+      .map(([label, a, b, unit]) => ({
+        label, unit, from: Math.round(+a), to: Math.round(+b),
+        score: label === 'Meal score',
+        band: label === 'Meal score' ? ((qualityBand(Math.round(+b)) || {}).cls || '') : '',
+      }))
+      // Score last: the macros are the cause, the score is the consequence.
+      .sort((x, y) => (x.score ? 1 : 0) - (y.score ? 1 : 0));
+  },
+  async _postCorrectionReceipt(r) {
+    try {
+      const sb = window.sb;
+      const mealId = r && r.meta && r.meta.mealId;
+      if (!sb || !mealId || !RT.userId || !r.before) return;
+      const rows = this._correctionReceiptRows(r.before, {
+        protein: r.meta.protein, carbs: r.meta.carbs, fat: r.meta.fat,
+        kcal: r.meta.kcal, quality: r.meta.quality,
+      });
+      if (!rows.length) return;   // nothing moved: there is no receipt to file
+      await sb.functions.invoke('meal-chat', { body: { mealId, correctionReceipt: rows } });
+      window.__render && window.__render();
+    } catch { /* the correction already applied; a missing receipt must never undo it */ }
+  },
   async _postCorrectionUpdate(slot, r) {
     try {
       const sb = window.sb;

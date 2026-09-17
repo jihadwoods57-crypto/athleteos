@@ -181,6 +181,20 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
       role: 'ai', kind: 'message', meta: { t: 'analysis_update' }, created_at: tAt(13, 25),
       text: ${JSON.stringify(lunchUpdate)},
     },
+    /* The FILED CORRECTION RECEIPT (2026-09-17). The thread's record of what mc-3's correction
+       actually moved. It had no fixture because the receipt had no row — it was ephemeral client
+       state that only existed for two minutes after a live correction, so no capture could ever
+       contain one and the card went unreviewed in every contact sheet. */
+    {
+      id: 'mc-4b', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-athlete',
+      role: 'ai', kind: 'message', created_at: tAt(13, 25),
+      meta: { t: 'correction_receipt', rows: [
+        { label: 'Protein', from: 52, to: 78, unit: 'g' },
+        { label: 'Calories', from: 780, to: 980, unit: '' },
+        { label: 'Meal score', from: 84, to: 88, unit: '', score: true, band: 'g' },
+      ] },
+      text: 'Updated: Protein 52g to 78g, Calories 780 to 980, Meal score 84 to 88.',
+    },
     {
       id: 'mc-5', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-coach',
       role: 'coach', kind: 'reaction', created_at: tAt(13, 26), text: '💪',

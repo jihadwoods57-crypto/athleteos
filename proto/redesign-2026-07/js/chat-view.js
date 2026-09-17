@@ -310,6 +310,63 @@ export function quotedFor(comment, msgs) {
   return null;
 }
 
+/* ---------------- THE CORRECTION RECEIPT, AS A MESSAGE (founder 2026-09-17) ----------------
+   "I want the updated macros to stay in the team discussion group chat. Even after I exit out of
+   the meal log."
+
+   It did not, because it was never in the chat. The receipt was ephemeral client state: ONE
+   module-level slot on meal.js, keyed to a meal, stamped with a two-minute TTL, revealed by an
+   animation. So it died three ways — leave the screen and come back, wait two minutes, or make a
+   SECOND correction and watch the first receipt get overwritten by it. The founder's own
+   screenshots show all of that: the first receipt gone, and a bare sparkle avatar where the
+   second one should be.
+
+   A receipt is a record, so it is now a row in meal_comments like every other thing that happened
+   in this conversation — written service-side as an unforgeable 'ai' row (the client cannot insert
+   one; see 0046's insert policy), carrying its figures in `meta` and a plain-English sentence in
+   `text`. That means it survives navigation, reloads and any number of later corrections, the
+   coach sees it in their copy of the thread, and a renderer that has never heard of this meta
+   still shows the true sentence instead of an empty bubble. */
+export function isCorrectionReceipt(comment) {
+  return !!(comment && comment.role === 'ai' && comment.meta && comment.meta.t === 'correction_receipt'
+    && Array.isArray(comment.meta.rows) && comment.meta.rows.length);
+}
+
+/** The receipt's figures, bounded on the way out. A stored row is data from the wire like any
+ *  other, so nothing here trusts its shape: labels are clamped, values must be finite numbers,
+ *  and a row missing either end of the move is dropped rather than rendered as a half-change. */
+export function correctionRowsOf(comment) {
+  if (!isCorrectionReceipt(comment)) return [];
+  /* null, undefined and '' all coerce to 0 through Number(), which would turn a row missing one
+     end of its move into a confident "0 to 93". Reject the non-numbers before coercing. */
+  const num = (v) => {
+    if (v == null || v === '' || typeof v === 'boolean') return null;
+    const n = Number(v);
+    return isFinite(n) ? Math.round(n) : null;
+  };
+  return comment.meta.rows.slice(0, 6).map((r) => {
+    if (!r) return null;
+    const from = num(r.from), to = num(r.to);
+    if (from == null || to == null) return null;
+    return {
+      label: String(r.label || '').replace(/[<>]/g, '').slice(0, 24),
+      unit: String(r.unit || '').replace(/[<>]/g, '').slice(0, 4),
+      from, to,
+      score: r.score === true,
+      band: String(r.band || '').replace(/[^a-z]/g, '').slice(0, 8),
+    };
+  }).filter((r) => r && r.label);
+}
+
+/** The sentence a receipt carries as its `text` — what the thread shows anywhere the card is not
+ *  drawn (an older client, the season-long thread, a notification preview). Kept honest and short:
+ *  it states the same moves the card animates. */
+export function correctionReceiptText(rows) {
+  const list = (Array.isArray(rows) ? rows : []).filter((r) => r && r.label);
+  if (!list.length) return 'Updated this meal.';
+  return `Updated: ${list.map((r) => `${r.label} ${r.from}${r.unit || ''} to ${r.to}${r.unit || ''}`).join(', ')}.`;
+}
+
 /* ---------------- The row, as Messages draws it (2026-09-14) ----------------
    Four renderers paint the same bubble, and every courtesy that lived in one of them alone took
    weeks to reach the others (read-more, memory chips). These helpers are the shared shape of a

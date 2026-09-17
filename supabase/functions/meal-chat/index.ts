@@ -388,6 +388,47 @@ const REMEMBER_TOOL = {
   },
 } as const;
 
+type ReceiptRow = { label: string; unit: string; from: number; to: number; score: boolean; band: string };
+
+/* The correction receipt's figures, off the wire and therefore untrusted. The client computed
+   them (the pricing and scoring engines are deterministic and live in the proto), but this
+   function is the thing that signs them as an 'ai' row, so every field is bounded here rather
+   than taken on faith. Returns null — not an empty list — when there is no usable receipt, which
+   is what keeps this mode from swallowing an ordinary chat request. */
+function correctionReceiptRows(raw: unknown): ReceiptRow[] | null {
+  if (!Array.isArray(raw) || !raw.length) return null;
+  /* null, undefined and '' all coerce to 0 through Number(), which would sign a row missing one
+     end of its move as a confident "0 to 93". Reject the non-numbers before coercing. */
+  const num = (v: unknown): number | null => {
+    if (v === null || v === undefined || v === '' || typeof v === 'boolean') return null;
+    const n = Math.round(Number(v));
+    return isFinite(n) && Math.abs(n) <= 100000 ? n : null;
+  };
+  const out: ReceiptRow[] = [];
+  for (const item of raw.slice(0, 6)) {
+    const r = (item ?? {}) as Record<string, unknown>;
+    const label = String(r.label ?? '').replace(/[<>]/g, '').trim().slice(0, 24);
+    const from = num(r.from);
+    const to = num(r.to);
+    if (!label || from === null || to === null || from === to) continue;
+    out.push({
+      label,
+      unit: String(r.unit ?? '').replace(/[^a-zA-Z%]/g, '').slice(0, 4),
+      from, to,
+      score: r.score === true,
+      band: String(r.band ?? '').replace(/[^a-z]/g, '').slice(0, 8),
+    });
+  }
+  return out.length ? out : null;
+}
+
+/* The sentence the receipt carries as its text. Every renderer that has never heard of this
+   meta — an older build, the season-long thread, a push preview — shows this instead of an empty
+   bubble, so the record is readable everywhere. Mirrors proto chat-view.correctionReceiptText. */
+function correctionReceiptText(rows: ReceiptRow[]): string {
+  return `Updated: ${rows.map((r) => `${r.label} ${r.from}${r.unit} to ${r.to}${r.unit}`).join(', ')}.`;
+}
+
 function bad(status: number, error: string, cors: Record<string, string>) {
   return new Response(JSON.stringify({ error }), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 }
@@ -421,6 +462,14 @@ Deno.serve(async (req) => {
     // the athlete was first told and what they corrected. There is no question to answer here,
     // which is why it bypasses the question requirement below.
     const correctionUpdate = body?.correctionUpdate === true;
+    /* Correction-RECEIPT mode (founder 2026-09-17). The athlete's correction has already been
+       applied on device — all of the pricing and scoring math is deterministic and lives in the
+       proto, so the server is told the answer rather than computing it. This mode does ONE thing:
+       write what moved into the thread as an unforgeable 'ai' row. No model call, no tokens, no
+       spend; it exists purely because 0046's insert policy (rightly) forbids a client from
+       writing an 'ai' row, and a receipt authored by the athlete would read as the athlete
+       claiming their own numbers changed. */
+    const receiptRows = correctionReceiptRows(body?.correctionReceipt);
     // Capability flag (2026-08-06): "I know how to apply a structured correction returned by
     // apply_correction". Only a client that can actually recompute + resync every surface gets
     // the tool offered — an older build keeps today's reply-only contract (with the never-argue
@@ -440,7 +489,7 @@ Deno.serve(async (req) => {
     // and only after the key is proven to sit inside the meal owner's own folder. That means a
     // caller cannot point the model at an arbitrary image, and cannot inflate the request body.
     const photoPathRaw = typeof body?.photoPath === 'string' ? body.photoPath.trim() : '';
-    if (!mealId || !context || (!draftMode && !correctionUpdate && !question)) return bad(400, 'bad_request', cors);
+    if (!mealId || (!receiptRows && !context) || (!draftMode && !correctionUpdate && !receiptRows && !question)) return bad(400, 'bad_request', cors);
     if (JSON.stringify(context).length > CONTEXT_MAX) return bad(400, 'bad_request', cors);
 
     // WHO IS EATING (founder 2026-09-13). The meal READ has known the athlete's sport, position,
@@ -471,6 +520,26 @@ Deno.serve(async (req) => {
     if (coachMode ? mealRow.athlete_id === callerId : mealRow.athlete_id !== callerId) return bad(403, 'unauthorized', cors);
 
     const service = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+
+    /* Write the receipt and return. Before the daily AI cap, before the model, before every
+       prompt block below: this path spends nothing, so metering it against an AI budget would
+       let a day of honest corrections lock the athlete out of their own nutritionist. The
+       ownership check above (mealRow.athlete_id === callerId for the athlete path) has already
+       run, so only the meal's own athlete can file one. */
+    if (receiptRows) {
+      const text = correctionReceiptText(receiptRows);
+      const row = {
+        meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: callerId, role: 'ai',
+        text, kind: 'message', meta: { t: 'correction_receipt', rows: receiptRows },
+      };
+      const { error: recErr } = await service.from('meal_comments').insert(row);
+      if (recErr) {
+        // A database without `meta` still gets the sentence: the figures are in the text, so the
+        // thread keeps a true record of the change rather than losing it to a missing column.
+        await service.from('meal_comments').insert({ meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: callerId, role: 'ai', text });
+      }
+      return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
 
     // Plan style (0142) resolves for the MEAL OWNER, never the caller. In draft and coach-support
     // mode the caller is the COACH — but the person who reads the words is the athlete, so it is
