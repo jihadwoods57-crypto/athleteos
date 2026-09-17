@@ -29,10 +29,13 @@ Where things stand tonight (2026-09-16, 7 PM):
 ## Ranked
 
 ### 1 · spec · M4 — the parent "fueling consistency" view, spec FIRST  (impact 4, effort m)
-The scout's realest product finding no rival owns: under-fueling is the parent
-conversation. Write the spec (surfaces, copy, what is deliberately never shown — weights,
-calories), taste-checked so it reads as care, not surveillance. The founder reads the
-spec before anyone builds. A good quiet-morning deliverable.
+**DONE 2026-09-17 8 AM** — `docs/specs/2026-09-17-parent-fueling-consistency.md`, awaiting
+the founder's read. Key finding baked in: v1 needs ZERO new data exposure
+(`guardian_child_days` from 0081 already returns 30-120 days inside the consent boundary
+and no screen has ever called it), and the invite screen's "streak, and completion"
+promise is currently rendered by nothing — the feature makes an existing promise true.
+Build is one focused session once the founder says go; open questions are listed at the
+bottom of the spec with recommendations attached.
 
 ### 2 · a11y/QC · maintenance gate for headings + hit areas + clip flags  (impact 2, effort s)
 A cheap verify gate (or qc audit rule) that diffs the sweep's smallTargets AND clipped
@@ -64,7 +67,7 @@ what's actually left eager and close or right-size the item. Measurement first.
 ### Founder-blocked (recommend in one line, cite the streak, never re-diagnose)
 Fresh cloud credentials (the 08-26 `OS?` email; the founder said "fix the publish token"
 on 09-15 and was sent the two-step instructions — token still unchanged): EXPO_TOKEN
-dead — **34 sessions through 09-17 early error-response** (prefix still `CxbNAx`,
+dead — **35 sessions through 09-17 8 AM** (prefix still `CxbNAx`,
 prefix-only check, no API call spent). No Supabase, Stripe, or Cloudflare creds in the env. He cleared the
 whole publish queue from his PC today, so nothing user-facing is stuck — but sessions
 still can't publish their own proven fixes (tonight's `707876a` waits) and every sentry
@@ -137,10 +140,11 @@ alone it's not worth a sitting. Noted so October doesn't rediscover it.
   naming the 80 bar while the push voice bans internal numbers (founder taste call).
 
 ## Notes for tomorrow's sessions
-- **Credential streak (update in place, don't re-diagnose):** EXPO_TOKEN dead — 34 sessions
-  through the 09-17 early error-response; checks are prefix-only (still the token the
+- **Credential streak (update in place, don't re-diagnose):** EXPO_TOKEN dead — 35 sessions
+  through the 09-17 8 AM build; checks are prefix-only (still the token the
   API has rejected since 08-26), no API call spent. The second 09-17 error-response firing
-  could not re-check (sandbox denied the prefix read) — count holds at 34. No Supabase,
+  could not re-check (sandbox denied the prefix read); the 8 AM build's compare-only
+  check succeeded — count 35. No Supabase,
   Stripe, or Cloudflare creds (still true 09-17). **The founder published from his PC on 09-16 and cleared the
   four-commit queue** — live = the 09-16 morning tree, proven byte-for-byte. Only tonight's
   polish (`707876a`) waits on a publish now. `node scripts/verify-ota.mjs` needs NO token —
