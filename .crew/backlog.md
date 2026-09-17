@@ -1,5 +1,11 @@
 # Founder Sessions Backlog
 
+> **ALL AUTOMATED SESSIONS ARE STOPPED** (founder instruction, 2026-09-17: "Please stop
+> these automatic sessions"). Nothing in this file is owed to anyone or scheduled to be
+> picked up. It is a parked queue, kept intact for whenever the founder builds from it
+> himself. See the STOP notice at the top of `founder-sessions.md` before acting on
+> anything here.
+
 Ranked queue for the daily cloud sessions (see `founder-sessions.md`). The 7 PM session
 rewrites the ranking each night. Reranked 2026-09-16 by the 7 PM POLISH session
 (day's full record: `.crew/reports/2026-09-16.md`).

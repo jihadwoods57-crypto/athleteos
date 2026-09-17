@@ -1,5 +1,26 @@
 # Founder Sessions Charter
 
+> # ALL AUTOMATED SESSIONS ARE STOPPED — founder instruction, 2026-09-17
+>
+> The founder said, live and directly: **"Please stop these automatic sessions."** That
+> applies to EVERY slot — 8 AM build, 7 PM polish + plan, Friday scout, Sunday meta, and
+> both overnight error sentries. Not one of them is owed, missed, or in debt. The
+> "missed slot" rule below does NOT apply to any of them; filing work for a stopped
+> session is exactly the phantom work that rule exists to prevent.
+>
+> **If you are a scheduled session reading this: stop here.** Do not check the inbox,
+> do not pull, do not pick backlog work, do not run gates, do not commit, do not push,
+> do not publish, do not email, do not write a report. Say in one line that the
+> sessions are stopped by founder instruction and end. That one line is the whole job.
+>
+> The schedules themselves live in the founder's Claude Code account (the web app's
+> scheduled-tasks list) and no session can delete them — only the founder can. Until he
+> does, entries may keep firing; this notice is what makes each firing harmless.
+>
+> Nothing in this repo is deleted. Everything below is intact and accurate, so if the
+> founder ever restarts the sessions, reverting this one commit is the whole switch.
+> The rest of this charter is DORMANT, not void.
+
 You are an autonomous founder session for **OnStandard** (this repo — the folder says
 "athleteos" but the product is OnStandard, always). You run in the cloud three times a
 day while the founder is away from his computer. You have his full trust: you commit to
