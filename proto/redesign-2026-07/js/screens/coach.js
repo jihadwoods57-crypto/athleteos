@@ -12,7 +12,6 @@ import * as roles from '../roles.js';
 import { openingMessage, qualityBand, qualityReason, scoreRubric, reactionGroups, threadMessages, privateNotes, REACTION_EMOJI, applyMealCorrection, applyFoodRemoval, normalizeDetected } from '../meal-intel.js';
 import { mealReadHtml, wireReadControls } from './meal.js';
 import { pastMealDetail } from './trust.js';
-import { revealDisc } from '../disc-reveal.js';
 import { layoutThread, visibleThread, MUTED_HIDDEN_NOTE, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpener, isEscalated, quotedFor,
   dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
 } from '../chat-view.js';
@@ -3228,6 +3227,11 @@ export const coachMeal = {
       M.img = meal._url || null;
     }
     const athleteTargets = (TGT && meal && TGT.athleteId === meal.athlete_id && TGT.targets) ? TGT.targets : null;
+    // No `dayTotals`: this screen loads ONE meals row (mealById reads MEAL.row), so the athlete's
+    // other plates that day are not in hand. The "after this meal" bars therefore stand down here
+    // rather than doing what they did until 2026-09-16 — printing this single plate's macros
+    // against the athlete's whole-day target under a heading that says the day. The Nutrition
+    // tiles above still carry every figure this plate has, which is what the coach opened it for.
     const read = M ? mealReadHtml(M, {
       exec: null, past: true, viewer: 'coach', targets: athleteTargets,
       planStyle: { showMacros: true, showCalories: true, key: 'structured' },
@@ -3282,7 +3286,7 @@ export const coachMeal = {
     ${read.photoBlock}
     ${read.breakdown}
     ${fixPanel}
-    <div class="disc-stage"><section class="disc disc-raised" id="meal-disc" aria-labelledby="disc-title">
+    <section class="disc" id="meal-disc" aria-labelledby="disc-title">
     <h2 class="sr-only" id="disc-title">Team discussion</h2>
     <div class="disc-head">
       ${(() => {
@@ -3434,7 +3438,7 @@ export const coachMeal = {
     <div class="composer-attach-pending" id="cm-attach-pending" hidden></div>
     <div id="cm-note" style="font-size:12.5px;font-weight:600;color:var(--red-bright);margin:6px 2px 0;min-height:16px"></div>
     </div>
-    </section></div>
+    </section>
 
     ${(() => {
       // Private notes (0068): coach-only margin notes the athlete NEVER sees (RLS-enforced).
@@ -3461,7 +3465,6 @@ export const coachMeal = {
     if (!CD.roster) loadBook(false, bookKindFor(RT.authRole));
     loadMeal(sub);
     loadMealComments(sub);
-    revealDisc(root, `coach:${sub}`);
     act.markMealSeen(sub); // clears this meal's unseen dot in the team activity feed
     // Seed the resolved flag from the DB so "Resolved ✓" persists across a reload (not just
     // this session). Best-effort; a miss just shows "Mark resolved" until the coach taps it.

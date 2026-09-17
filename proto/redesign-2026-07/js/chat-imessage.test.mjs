@@ -111,7 +111,7 @@ test('the tapback lifts the bubble over a veil and offers Copy', () => {
 
 test('the meal page Team discussion is one conversation header, a scoped dock, and a door aimed at the plate', () => {
   const meal = src('screens/meal.js');
-  assert.match(meal, /<section class="disc disc-raised" id="meal-disc"/, 'the discussion is its own section (the sticky dock is scoped to it)');
+  assert.match(meal, /<section class="disc" id="meal-disc"/, 'the discussion is its own section (the sticky dock is scoped to it)');
   assert.match(meal, /class="facepile disc-fp" id="meal-members"/, 'the faces are the members button');
   assert.match(meal, /class="disc-open" id="open-full-chat"/, 'Open is a real button');
   assert.match(meal, /<div class="chat-dock disc-dock">/, 'the composer is docked');

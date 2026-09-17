@@ -33,7 +33,6 @@ import { composer } from '../components.js';
 import { openImageViewer } from '../image-viewer.js';
 import { wireReadMore } from '../thread-readmore.js';
 import { focusComposer } from '../keyboard.js';
-import { revealDisc } from '../disc-reveal.js';
 
 /* ---------- Trust Pass detail: the earned camera-free reward, rules visible (0196) ----------
    Two active shapes (credits / window) plus a not-earned state with real progress. The old decay
@@ -183,6 +182,35 @@ export function histMealById(id) {
   return (HIST.rows || []).find((m) => String(m.id) === String(id)) || null;
 }
 
+/* What that DAY had banked by the time this plate landed, this plate included — the figure the
+   read card's "That day after this meal" bars measure. The live day has S.dayTotalsThrough for
+   this; a past day has only the stored rows, and they are enough: same day_date, logged no later
+   than this one. Without it the bars printed the single plate's macros against the whole day's
+   target (fixed 2026-09-16), which read as the day going backwards from one meal to the next.
+
+   Null, never a zero, whenever the day cannot be known:
+     - the row carries no logged time, so there is no moment to count through;
+     - the history has not been fetched (HIST.rows is null), which is the state this screen is in
+       when a notification opens one meal DIRECTly. Summing an unfetched cache returned a confident
+       0g for a plate holding 52 — the same class of lie as `meal.carbs || 0`, and this screen is
+       where that one was found. The plate itself is always counted; only the OTHER plates of that
+       day come from the cache, so a loaded day with nothing else in it honestly totals this one. */
+function pastDayTotalsThrough(m) {
+  if (!m || !m.logged_at || !m.day_date || !HIST.rows) return null;
+  const cut = new Date(m.logged_at).getTime();
+  if (isNaN(cut)) return null;
+  let protein = m.protein || 0, kcal = m.kcal || 0;
+  for (const r of HIST.rows) {
+    if (!r || String(r.id) === String(m.id)) continue;
+    if (String(r.day_date) !== String(m.day_date)) continue;
+    const at = r.logged_at ? new Date(r.logged_at).getTime() : NaN;
+    if (isNaN(at) || at > cut) continue;
+    protein += r.protein || 0;
+    kcal += r.kcal || 0;
+  }
+  return { protein: Math.round(protein), cals: Math.round(kcal) };
+}
+
 const fmtLoggedAt = (iso) => {
   if (!iso) return '';
   const d = new Date(iso);
@@ -296,6 +324,21 @@ let DIRECT = { id: null, row: null };
 // Long AI bubbles the athlete has expanded, keyed on each bubble's own text head. Module scope so
 // an expansion survives this screen's repaints (see thread-readmore.js).
 const EXPANDED_BUBBLES = new Set();
+/* Warm the history cache from a screen that did not come through History. The day bars on a past
+   plate need that day's OTHER rows, and a deep link from a push lands here with the cache cold —
+   pastDayTotalsThrough returns null rather than guess, so without this the bars simply never
+   appear for the athlete who arrived by notification. Same fetch, same 14-day window and same
+   cache shape the History screen uses; a failure is silent, because the bars standing down is
+   already the honest fallback. */
+async function warmHistory() {
+  if (!RT.userId || HIST.rows || HIST.uid === RT.userId) return;
+  HIST = { ...HIST, uid: RT.userId };
+  const rows = await fetchRecentMeals(RT.userId, daysAgoISO(14));
+  if (rows === null) { HIST = { rows: null, at: 0, uid: RT.userId, failed: true }; return; }
+  HIST = { rows, at: Date.now(), uid: RT.userId, failed: false };
+  if (window.__render) window.__render();
+}
+
 async function fetchMealById(id) {
   if (!id || !window.sb || DIRECT.id === id) return;
   try {
@@ -553,9 +596,9 @@ export const mealView = {
         <span class="tier-chip ${dayTier.cls}">${esc(dayTier.name)}</span>
       </div>` : ''}
     </section>`;
-    const { photoBlock, breakdown } = mealReadHtml(M, { exec: null, past: true });
+    const { photoBlock, breakdown } = mealReadHtml(M, { exec: null, past: true, dayTotals: pastDayTotalsThrough(m) });
     const discussion = `
-    <div class="disc-stage"><section class="disc disc-raised" id="meal-disc" aria-labelledby="disc-title">
+    <section class="disc" id="meal-disc" aria-labelledby="disc-title">
     <h2 class="sr-only" id="disc-title">Team discussion</h2>
     <div class="disc-head">
       <div id="mv-members-slot" style="flex:1;min-width:0"><div class="disc-fp"><span class="names"><b>Team discussion</b></span></div></div>
@@ -569,7 +612,7 @@ export const mealView = {
     <div class="composer-attach-pending" id="mv-attach-pending" hidden></div>
     <div id="mv-note" style="min-height:18px"></div>
     </div>
-    </section></div>`;
+    </section>`;
     const foot = `<div class="meal-foot">
       <button class="btn ghost meal-back" data-go="history" aria-label="Back to history">${icon('back', 16)} Back to History</button>
     </div>`;
@@ -579,8 +622,8 @@ export const mealView = {
     wireReadControls(root, mealView); // the read's See details / info / confidence controls
     const m = histMealById(sub) || (DIRECT.id === sub ? DIRECT.row : null);
     if (!m) { void fetchMealById(sub); return; }
+    void warmHistory(); // so the day bars have that day's other plates to count
     mountThread(root, sub, m);
-    revealDisc(root, `past:${sub}`);
     // The two doors the read card and the header offer, wired to THIS screen's composer and to
     // the full chat aimed at this plate (nutrition-chat.js reads the sub-route).
     const tell = root.querySelector('#tell-ai');

@@ -15,7 +15,7 @@ const src = (p) => readFileSync(join(HERE, p), 'utf8');
 
 test('the read card + breakdown is one exported function, and today\'s thread calls it', () => {
   const meal = src('screens/meal.js');
-  assert.match(meal, /export function mealReadHtml\(M, \{ exec = null, past = false, viewer = 'athlete', targets = null, planStyle = null \} = \{\}\)/);
+  assert.match(meal, /export function mealReadHtml\(M, \{ exec = null, past = false, viewer = 'athlete', targets = null, planStyle = null, dayTotals = null \} = \{\}\)/);
   assert.match(meal, /const \{ photoBlock, breakdown \} = mealReadHtml\(M, \{ exec: e \}\);/, 'the meal thread renders through it');
   // The function owns the sections, not the render: neither block is built inline any more.
   assert.equal((meal.match(/const photoBlock = `/g) || []).length, 1);
@@ -29,9 +29,9 @@ test('the past-meal screen renders the same four blocks through the same functio
   const trust = src('screens/trust.js');
   assert.match(trust, /import \{ mealReadHtml, wireReadControls \} from '\.\/meal\.js';/);
   assert.match(trust, /export function pastMealDetail\(m\)/, 'a meals row is mapped to the mealDetail() shape');
-  assert.match(trust, /mealReadHtml\(M, \{ exec: null, past: true \}\)/);
+  assert.match(trust, /mealReadHtml\(M, \{ exec: null, past: true, dayTotals: pastDayTotalsThrough\(m\) \}\)/);
   assert.match(trust, /<section class="mt-confirm">/, 'the logged confirmation card');
-  assert.match(trust, /<section class="disc disc-raised" id="meal-disc"/, 'the Team discussion section');
+  assert.match(trust, /<section class="disc" id="meal-disc"/, 'the Team discussion section');
   assert.match(trust, /<div class="chat-dock disc-dock">/, 'the docked composer');
   assert.match(trust, /class="disc-open" id="open-full-chat"/, 'the aimed door to the full chat');
   assert.match(trust, /`nutrition-chat\/\$\{m\.id\}`/);

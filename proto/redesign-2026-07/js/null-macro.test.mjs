@@ -82,7 +82,7 @@ test('the shared read card names the dash when a shown figure is absent', () => 
 test('trust.js pastMealDetail keeps a null figure null for the tiles', () => {
   assert.match(TRUST_SRC, /const nz = \(v\) => \(v == null \? null : v\);/);
   assert.match(TRUST_SRC, /macrosRaw: \{ protein: nz\(m\.protein\), carbs: nz\(m\.carbs\), fat: nz\(m\.fat\), cals: nz\(m\.kcal\) \}/);
-  assert.match(TRUST_SRC, /mealReadHtml\(M, \{ exec: null, past: true \}\)/);
+  assert.match(TRUST_SRC, /mealReadHtml\(M, \{ exec: null, past: true, dayTotals: pastDayTotalsThrough\(m\) \}\)/);
 });
 
 test('coach.js coachMeal draws the plate through the shared read card, with every figure shown', () => {

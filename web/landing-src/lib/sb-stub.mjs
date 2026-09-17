@@ -19,9 +19,13 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
   // and trains the eye to accept what would be a server bug. `voice: 'signals'` is what the
   // intuitive seeds pass; every other capture keeps the numbers voice a coach or Structured
   // athlete really sees.
+  // The day figure in the numbers voice is the DAY (breakfast 46 + this lunch 52 = 98), not the
+  // plate. It said 52 — the same confusion the meal card's own day bars carried until 2026-09-16 —
+  // and a fixture that repeats the bug teaches whoever reads the contact sheet that the fix
+  // did not land.
   const lunchAnalysis = voice === 'signals'
     ? "Good timing on lunch. I can see grilled chicken, brown rice, edamame and a soft-boiled egg. A solid plate with plenty to carry you into the afternoon. Fibre is the thin part of this one, so a piece of fruit alongside it would round it out."
-    : "Good timing on lunch. I can see grilled chicken, brown rice, edamame and a soft-boiled egg. I'd put it around 52g of protein and 780 calories, which puts you near 52 of 180g for the day with 2 meals left. Fibre is the thin part of this one, so a piece of fruit alongside it would round it out.";
+    : "Good timing on lunch. I can see grilled chicken, brown rice, edamame and a soft-boiled egg. I'd put it around 52g of protein and 780 calories, which puts you near 98 of 180g for the day with 2 meals left. Fibre is the thin part of this one, so a piece of fruit alongside it would round it out.";
   const lunchUpdate = voice === 'signals'
     ? "Got it. Double chicken makes this a genuinely big lunch, so you are well set. Dinner can be a normal plate rather than a catch-up one."
     : "Got it - double chicken takes this to roughly 78g of protein and 980 calories. You're comfortably past halfway for the day now, so dinner can be a normal plate rather than a catch-up one.";

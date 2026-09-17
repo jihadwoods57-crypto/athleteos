@@ -2881,26 +2881,16 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    long as the discussion is on screen. `position: relative` on the section is what scopes the
    sticky dock to it: sticky cannot leave its container, so the dock appears when the section
    arrives and leaves with it. */
+/* BORDERLESS (founder 2026-09-16: "I would like to go back to the borderless design of the team
+   discussion"). This REVERSES the 2026-09-15 ruling — "it should pop out more, its own section
+   with a 3D popping-out effect" — which wrapped the conversation in a raised card: its own
+   surface, a hairline, a deep shadow, and a once-only entrance that tilted it up out of the page.
+   All of it is gone, along with the .disc-stage perspective wrapper and disc-reveal.js, which
+   existed only to fire that entrance once per plate. The conversation now sits on the page like
+   the sections above it, with space doing the separating, and the dock spans the screen again
+   rather than a card. The `position: relative` above stays — it scopes the sticky dock, not the
+   chrome. */
 .disc { position: relative; margin-top: var(--s4); }
-/* THE DISCUSSION STANDS OFF THE PAGE (founder 2026-09-15: "it should pop out more, its own
-   section with a 3D popping-out effect"). A raised card: its own surface, a lit top rim, a deep
-   soft shadow, and a once-only entrance that tilts up out of the page as it arrives. The bubbles
-   keep their flat fills inside it; the card is what has depth, not the messages. Transforms and
-   opacity only, one shot, ease-out. Reduced motion gets the raised card with no entrance. */
-.disc.disc-raised {
-  background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-card);
-  padding: var(--s3h) var(--s3) 0;
-  box-shadow: inset 0 1px 0 var(--glass-rim-soft, rgba(255,255,255,0.06)), 0 18px 44px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.28);
-  transform-origin: top center;
-}
-:root[data-theme="light"] .disc.disc-raised { box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 18px 40px rgba(15, 23, 42, 0.16), 0 2px 6px rgba(15, 23, 42, 0.08); }
-.disc-stage { perspective: 1000px; }
-.disc-stage .disc.disc-raised.in { animation: disc-in var(--dur-3) var(--ease-out) both; }
-@keyframes disc-in { from { opacity: 0; transform: translateY(22px) rotateX(-7deg) scale(0.985); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .disc-stage .disc.disc-raised.in { animation: none; } }
-/* Inside the raised card the dock spans the card, not the screen: same glass, rounded with the card. */
-.disc.disc-raised .chat-dock { margin: var(--s3) calc(-1 * var(--s3)) 0; padding-left: var(--s3); padding-right: var(--s3); border-radius: 0 0 var(--r-card) var(--r-card); }
-.disc.disc-raised .disc-head { margin-bottom: var(--s3); }
 .disc-head { display: flex; align-items: center; gap: var(--s2); margin: 0 0 var(--s2h); }
 .facepile.disc-fp, .disc-fp {
   flex: 1; min-width: 0; margin: 0; padding: var(--s1) 0; background: none; border: 0; border-radius: var(--r-card-sm);
@@ -3536,10 +3526,18 @@ body.kb-open .meal-foot { display: none; }
 .lm-hero .lm-prov .status-pill{background:rgba(5,8,15,0.55);color:#fff;border-color:transparent}
 .lm-hero .lm-view{position:absolute;left:var(--s3h);bottom:var(--s3h);display:inline-flex;align-items:center;gap:var(--s1h);padding:var(--s2) var(--s3);border-radius:var(--r-pill);background:rgba(5,8,15,0.55);color:#fff;font-size:var(--t-sm);font-weight:700;pointer-events:none}
 .lm-hero.ph-nophoto .lm-view,.lm-hero.ph-nophoto .ph-grad{display:none}
-.lm-hero .scorechip.big{position:absolute;right:var(--s3h);bottom:var(--s3h);width:96px;height:96px}
+/* 88px, down from 96 (founder 2026-09-16: "make the score that's on the picture slightly
+   smaller"). ONE size knob: the numeral and the band word are DERIVED from the dial at the ratios
+   the design already had (34 of 96, 11 of 96), the way the ring's own numeral rides --score-fit.
+   So the next size change is one number, and nothing inside can drift out of proportion with the
+   dial around it — 82 was tried first and the longest band word ("Strong meal") broke the ring. */
+.lm-hero .scorechip.big{--lm-dial:88px;position:absolute;right:var(--s3h);bottom:var(--s3h);width:var(--lm-dial);height:var(--lm-dial)}
 .lm-hero .scorechip.big .sc-ring{width:100%;height:100%}
-.lm-hero .scorechip.big .v{font-size:var(--t-3xl)}
-.lm-hero .scorechip.big .k{font-size:var(--t-xs);text-transform:none;letter-spacing:0;font-weight:700;color:var(--text-2);margin-top:1px}
+.lm-hero .scorechip.big .v{font-size:calc(var(--lm-dial) * 0.354)}
+/* The band word rides the same knob. Left at a fixed 11px it broke straight through the ring on
+   the longest label ("Strong meal") the moment the dial came down to 82 — the word is part of the
+   dial, so it shrinks with it. 0.115 is the 11-of-96 proportion the label already had. */
+.lm-hero .scorechip.big .k{font-size:calc(var(--lm-dial) * 0.115);text-transform:none;letter-spacing:0;font-weight:700;color:var(--text-2);margin-top:1px}
 /* The info mark: a small round button tucked at the chip's corner; opens the "why" row. */
 .lm-hero .lm-why{position:absolute;right:var(--s2);bottom:var(--s2);width:28px;height:28px;border-radius:50%;border:1px solid var(--hairline);background:var(--surface-1);color:var(--text-2);display:grid;place-items:center;cursor:pointer;padding:0;box-shadow:var(--sh-card);-webkit-tap-highlight-color:transparent}
 .lm-hero .lm-why:active{transform:scale(0.92)}

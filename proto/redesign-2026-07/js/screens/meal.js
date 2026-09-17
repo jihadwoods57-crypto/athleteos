@@ -34,7 +34,6 @@ import {
   dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
 } from '../chat-view.js';
 import { wireChatTimes } from '../chat-times.js';
-import { revealDisc } from '../disc-reveal.js';
 
 /* The meal score chip's ring, drawn as the brand dial (docs/brand/LOGO.md): a 300° gauge with
    a 60° gap at 6 o'clock and the signature --ring-a/b/c sweep — the same silhouette as the day
@@ -904,11 +903,16 @@ function correctionRow(slot) {
   </div>`;
 }
 
-export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete', targets = null, planStyle = null } = {}) {
+export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete', targets = null, planStyle = null, dayTotals = null } = {}) {
   // `viewer`: 'athlete' (the default, second person) or 'coach' (the professional reading an
   // athlete's plate: full figures, the athlete named in the third person, no self-service links).
   // `targets` / `planStyle` override the signed-in user's own (S.planTargets / PS) so a
   // coach sees the ATHLETE's targets and every figure, whatever their own account's style is.
+  // `dayTotals`: { protein, cals } banked by the DAY through this plate, this plate included —
+  // what the "after this meal" bars measure. Today's own plate falls back to the live day
+  // (S.dayTotalsThrough); a past plate's caller sums that day's stored rows; a caller with no
+  // day context at all (the coach opening one row from the inbox) passes nothing and gets no
+  // day bars, because the alternative is a day figure that is not the day's.
   const you = viewer !== 'coach';
   const PS = planStyle || S.planStyle || {};
     // ---- 2. PHOTO + MEAL QUALITY (feedback 2026-07-16: quality is a separate concept from
@@ -979,12 +983,24 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
       const gap = Math.max(0, target - (Number(soFar) || 0));
       return gap ? Math.round(gap / Math.max(1, mealsLeft)) * mealsLeft : 0;
     };
+    // THE DAY, NOT THE PLATE. These bars sit under "Today after this meal" and print "74g left",
+    // so the figure on them is the day's running total through this plate — never the plate's own
+    // macros, which is what they showed until 2026-09-16 and why a 106g lunch was followed by a
+    // 35g dinner reading as the day going backwards. `dayTotals` comes from the caller
+    // (S.dayTotalsThrough for today's live plate); with no day context there is no day to draw,
+    // so the bars stand down and the Nutrition tiles above carry the plate's own figures alone.
+    const dayT = dayTotals || (!past && you ? S.dayTotalsThrough(M.slot) : null);
+    // The ghost forecasts what the REST of today will add, so it belongs only on the day's latest
+    // plate. Open this morning's breakfast at night and you are reading a moment that has already
+    // passed: its bar shows what was banked by then, and forecasting forward from it would draw a
+    // day that never happened.
+    const latestPlate = !!dayT && dayT.protein === (Number(dayProg.proteinSoFar) || 0);
     // Per figure (0142): each bar rides its own surface flag — a professional can hide
     // calories alone, and the calorie bar (value AND target) must go with them.
-    const targetBars = [
-      ...(PS.showMacros ? [['Protein', raw.protein, T.protein, 'g', project(T.protein, dayProg.proteinSoFar)]] : []),
-      ...(PS.showCalories ? [['Calories', raw.cals, T.calories, '', null]] : []),
-    ].filter(([, v, target]) => target && v != null);
+    const targetBars = (dayT ? [
+      ...(PS.showMacros ? [['Protein', dayT.protein, T.protein, 'g', latestPlate ? project(T.protein, dayT.protein) : null]] : []),
+      ...(PS.showCalories ? [['Calories', dayT.cals, T.calories, '', null]] : []),
+    ] : []).filter(([, v, target]) => target && v != null);
     // paceNote quotes a protein figure, so it rides showMacros like the protein bar — the card
     // can be visible for the calorie bar alone.
     const projectedTotal = PS.showMacros && T.protein ? (Number(dayProg.proteinSoFar) || 0) + (project(T.protein, dayProg.proteinSoFar) || 0) : null;
@@ -1313,7 +1329,7 @@ export const thread = {
     </button>`;
 
     const discussion = `
-    <div class="disc-stage"><section class="disc disc-raised" id="meal-disc" aria-labelledby="disc-title">
+    <section class="disc" id="meal-disc" aria-labelledby="disc-title">
     <h2 class="sr-only" id="disc-title">Team discussion</h2>
     <div class="disc-head">
       ${facepile || `<div class="disc-fp"><span class="names"><b>Team discussion</b></span></div>`}
@@ -1353,7 +1369,7 @@ export const thread = {
     <div class="composer-attach-pending" id="meal-attach-pending" hidden></div>
     <div id="chat-note" style="min-height:18px"></div>
     </div>` : ''}
-    </section></div>`;
+    </section>`;
 
     // ---- 4. DAY COMPLETE ----
     // The Next Action row is GONE from this screen (founder, 2026-08-17). It rendered between
@@ -2505,8 +2521,6 @@ export const thread = {
     // stacking listeners. The picker itself lives on <body>, out of the render's way.
     // Drag the conversation left to see when each message was sent.
     wireChatTimes({ root, scope: '#meal-thread' });
-    // The raised discussion card arrives once per plate.
-    revealDisc(root, `meal:${M.slot}:${M.mealId || ''}`);
     if (M.mealId) wireTapback({
       root,
       scope: '#meal-thread',

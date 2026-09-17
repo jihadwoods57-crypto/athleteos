@@ -4744,6 +4744,36 @@ export const S = {
     }
     return { protein: Math.round(protein), kcal: Math.round(kcal) };
   }); },
+  /** Day totals THROUGH one slot: the protein and calories banked by the time THAT plate landed,
+   *  that plate included. The meal page's "Today after this meal" bars read this.
+   *
+   *  They used to read the single plate's own macros and print them against the DAY target under
+   *  a heading that says "today" and a subline that says "74g left". So a 106g lunch showed the
+   *  day at 106 of 180 and a 35g dinner showed it at 35 — the founder's own report, 2026-09-16:
+   *  "I was at 106g of protein at lunch but it went back down to 35 at dinner which is
+   *  impossible." A running day total can only go up. This is the number that can.
+   *
+   *  Same evidence rule as the score, mealDayProgress and dayConsumed: only SCORED slots count,
+   *  so a duplicate-flagged plate banks nothing here either. Ordered by the minute each plate was
+   *  logged, so opening breakfast again after dinner still shows the day as it stood at breakfast.
+   *  A scored slot with no logged time is not counted toward an earlier plate's cut — there is no
+   *  evidence it had landed yet. Returns null when this slot was never logged: the caller draws no
+   *  day bars rather than guessing at a day. */
+  dayTotalsThrough(slot) {
+    const cut = DAY.mealLoggedAt ? DAY.mealLoggedAt[slot] : null;
+    if (cut == null) return null;
+    let protein = 0, kcal = 0;
+    for (const k of Object.keys(DAY.meals)) {
+      if (!mealScored(DAY, k)) continue;
+      const at = DAY.mealLoggedAt[k];
+      if (k !== slot && (at == null || at > cut)) continue;
+      const m = DAY.slotMacros[k];
+      if (!m) continue;
+      protein += m.protein || 0;
+      kcal += m.kcal || 0;
+    }
+    return { protein: Math.round(protein), cals: Math.round(kcal) };
+  },
   /** Engine-computed Daily Score credit for one logged slot (exposed for the AI opening). */
   mealScoreImpact(slot) {
     try { return mealImpact(slot); } catch { return 0; }

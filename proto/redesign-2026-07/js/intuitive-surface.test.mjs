@@ -163,7 +163,7 @@ test('the past-meal screen renders through the same per-figure read card as toda
   // nutrition strip is gated per figure (the card behind showMacros || showCalories, the macro
   // cells behind showMacros, the calorie cell behind showCalories). Pinned at the source of the
   // rule, and pinned that trust.js has no nutrition markup of its own any more.
-  assert.match(TRUST_SRC, /mealReadHtml\(M, \{ exec: null, past: true \}\)/);
+  assert.match(TRUST_SRC, /mealReadHtml\(M, \{ exec: null, past: true, dayTotals: pastDayTotalsThrough\(m\) \}\)/);
   assert.doesNotMatch(TRUST_SRC, /<h2 class="eyebrow">Nutrition<\/h2>/);
   assert.doesNotMatch(TRUST_SRC, /class="macro-row/);
   const MEAL = read('screens', 'meal.js');
@@ -293,8 +293,12 @@ test('meal.js: every calorie figure rides showCalories, every macro cell rides s
   assert.match(kcalCell, /PS\.showCalories/);
   assert.match(MEAL_SRC, /\.\.\.\(PS\.showMacros \? \[tile\('protein', raw\.protein/);
   // The day bars: the calorie bar (value and target) behind showCalories, protein behind showMacros.
-  assert.match(MEAL_SRC, /PS\.showCalories \? \[\['Calories', raw\.cals, T\.calories/);
-  assert.match(MEAL_SRC, /PS\.showMacros \? \[\['Protein', raw\.protein, T\.protein/);
+  // The VALUE is the day's running total through this plate (dayT), not the plate's own macros —
+  // these bars say "Today after this meal" and "74g left", and until 2026-09-16 they printed the
+  // single plate, so a 106g lunch was followed by a 35g dinner reading as the day going backwards.
+  // The per-figure flag gating this test exists for is unchanged; only the source of the number is.
+  assert.match(MEAL_SRC, /PS\.showCalories \? \[\['Calories', dayT\.cals, T\.calories/);
+  assert.match(MEAL_SRC, /PS\.showMacros \? \[\['Protein', dayT\.protein, T\.protein/);
   // paceNote quotes a protein figure, so its input rides showMacros too — the card can be
   // visible for the calorie bar alone.
   assert.match(MEAL_SRC, /const projectedTotal = PS\.showMacros && T\.protein/);
