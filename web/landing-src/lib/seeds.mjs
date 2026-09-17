@@ -77,6 +77,16 @@ const LOG = (slot, atMin, mealId = null) => `
 
 /* ------------------------------------------------------------------ athlete day, in sequence */
 
+/** First thing in the morning: a real history behind the athlete and NOTHING logged today yet.
+ *  The state the founder opens the app in (2026-09-17) and the one seed the registry never had —
+ *  every athlete scenario logged at least breakfast, so Home with an empty day was uncapturable,
+ *  and Recent Results showing nothing at the bottom of it went unreviewed. */
+export const dayOpen = `${COMMON}${ATHLETE_IDENTITY}
+  DAY.hydrationL = 0.2;
+  DAY.ciLast = { date: iso(1), recovery: 82 };
+  window.__render();
+`;
+
 /** Morning: breakfast logged on time, everything else still ahead. The honest early-day picture. */
 export const dayMorning = `${COMMON}${ATHLETE_IDENTITY}
   ${LOG('breakfast', 505)}
@@ -339,7 +349,7 @@ export const parentIdentity = `${COMMON}
 `;
 
 export const SEEDS = {
-  dayMorning, dayMidday, dayComplete, dayLate, dayFirst, dayLockStamp, dayLockStampClosed, stagedCapture, coachUpgrade, coachPickedPlan, rosterEnded,
+  dayOpen, dayMorning, dayMidday, dayComplete, dayLate, dayFirst, dayLockStamp, dayLockStampClosed, stagedCapture, coachUpgrade, coachPickedPlan, rosterEnded,
   feedbackBug, feedbackSafety,
   styleStructured, styleGuided, styleIntuitive, styleCaloriesOff, memoryEditStructured, memoryEditIntuitive, memoryEditCaloriesOff,
   coachIdentity, trainerIdentity, dietitianIdentity, parentIdentity,

@@ -1,4 +1,4 @@
-import { S, RT, act, slotHasPhoto, liveWeightPct } from '../state.js';
+import { S, RT, act, slotHasPhoto, liveWeightPct, slotTitle } from '../state.js';
 import { icon } from '../icons.js';
 import { initialsOf } from '../initials.js';
 import { weekdayLong } from '../fmt-date.js';
@@ -520,7 +520,17 @@ function outcomeBand() {
 
 /* Past-days activity (founder 2026-08-04): Recent Results shows up to THREE days, not just
    today. Real logged meals from the athlete's own `meals` rows, one fetch per mount per user
-   (60s cache), photos signed onto the row; the mount repaints once when rows land. */
+   (60s cache), photos signed onto the row; the mount repaints once when rows land.
+
+   The window is the last SEVEN days, not two (founder 2026-09-17: "when I have no score, and I
+   scroll down to the bottom, the recent results don't show my previous logged meals"). Two
+   calendar days meant one unlogged day emptied the rails and two emptied the section entirely —
+   on a morning with nothing logged yet, that is a Home whose whole proof trail is gone. Seven is
+   the span pastDayLabel can name unambiguously: inside a week "Tuesday" is one Tuesday. What
+   renders is still the two most recent days that actually HAVE logs (pastResults slices), so the
+   rails show the same amount as before — they just find it. */
+const PAST_DAYS = 7;   // how far back the fetch looks
+const PAST_RAILS = 2;  // how many logged days actually render
 let PAST = { uid: null, rows: null, at: 0 };
 async function warmPastResults(uid) {
   if (!uid || !window.sb) return;
@@ -530,7 +540,7 @@ async function warmPastResults(uid) {
   // failure must not be laundered into [] and stamped fresh — that made the Yesterday rails
   // silently vanish for a full minute per dropped request. Keep this athlete's last-known
   // rows and leave the stamp cold so the very next mount retries.
-  const fetched = await fetchRecentMeals(uid, daysAgoISO(2));
+  const fetched = await fetchRecentMeals(uid, daysAgoISO(PAST_DAYS));
   if (fetched === null) {
     PAST = { uid, rows: PAST.uid === uid ? PAST.rows : null, at: 0 };
     return;
@@ -577,14 +587,18 @@ const pastResults = () => {
     if (!byDay.has(k)) byDay.set(k, []);
     byDay.get(k).push(r);
   }
-  return [...byDay.keys()].sort().reverse().slice(0, 2).map((d) => {
+  return [...byDay.keys()].sort().reverse().slice(0, PAST_RAILS).map((d) => {
     const label = pastDayLabel(d);
     const cards = byDay.get(d).map((r) => {
       const clock = r.logged_at ? tsClock(r.logged_at) : '';
       return resCard({
         noPhoto: !r.photo_path,
         time: clock ? `${label} · ${clock}` : label,
-        type: r.type || 'Meal', icon: 'utensils',
+        // slotTitle, the same call today's cards make (S.activity) — a stored row's `type` is the
+        // raw key, so these read "dinner" and "meal-5" next to today's "Dinner" and the coach
+        // standard's own "Post-practice fuel".
+        type: slotTitle(r.type) || 'Meal',
+        icon: ['breakfast', 'lunch', 'dinner', 'snack'].includes(r.type) ? r.type : 'utensils',
         value: r.quality != null ? String(r.quality) : 'Logged',
         unit: r.quality != null ? '/100' : null,
         qualityLabel: r.quality != null,
@@ -598,14 +612,19 @@ const pastResults = () => {
   }).join('');
 };
 
+/* THE HEADING HEADS THE WHOLE SECTION (founder 2026-09-17). It used to ride `rows.length` — the
+   things logged TODAY — so first thing in the morning, before the first log, the "Recent Results"
+   title and its "View all" door both vanished and yesterday's rail sat at the bottom of Home under
+   a bare "Yesterday" eyebrow with nothing naming it. The athlete scrolls down looking for Recent
+   Results and does not find it. Past days are results too; the section is named whenever it has
+   anything in it, and "View all" is the door to the rest either way. */
 const recentResults = () => {
   const rows = S.activity.filter((a) => !a.dim);
   const past = pastResults();
   if (!rows.length && !past) return '';
   return `
-    ${rows.length ? `
     <h2 class="eyebrow">Recent Results <span class="link" data-go="history">View all</span></h2>
-    <div class="res-rail">${rows.map(resCard).join('')}</div>` : ''}
+    ${rows.length ? `<div class="res-rail">${rows.map(resCard).join('')}</div>` : ''}
     ${past}`;
 };
 

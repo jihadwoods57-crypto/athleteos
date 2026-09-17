@@ -46,7 +46,14 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
     if (base.slice(-4).toLowerCase() === '.jpg') base = base.slice(0, -4);
     if (base.slice(0, 5) === 'meal-') base = base.slice(5);   // 'lunch' or 'breakfast'
     const known = (base === 'breakfast' || base === 'lunch' || base === 'dinner') ? base : 'lunch';
-    return '/assets/meal-' + known + '.jpg';
+    // NO leading slash. components.js safeImg() accepts 'assets/...', a data: URI, or a real
+    // Supabase storage URL — and rejects everything else, '/assets/...' included. So every card
+    // that paints its photo through safeImg (home.js resCard, the Recent Results rails) fell back
+    // to the icon glyph in EVERY capture, and the photographed state of those cards had never once
+    // been reviewed. Relative resolves to the same file from index.html at the server root, and it
+    // matches what production hands these surfaces (a https://<ref>.supabase.co/storage/v1/ URL,
+    // which safeImg also accepts).
+    return 'assets/meal-' + known + '.jpg';
   };
 
   // ---- days: 7 days of history per athlete, today included only when they logged today ----
@@ -90,6 +97,22 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
     photo_path: 'meal-lunch', name: 'Chicken, rice & edamame bowl',
     protein: 52, kcal: 780, quality: 84, logged_at: TODAY + 'T13:06:00Z',
   });
+  /* The signed-in athlete's YESTERDAY and the day before. Every meals row in this stub was
+     day_date === TODAY, so Home's "Recent Results" past-day rails (home.js pastResults) and the
+     past-meal day bars had no fixture at all and were never captured — which is how a morning
+     Home with nothing logged yet shipped showing nothing under Recent Results. Three plates a
+     day, the same three the roster feed uses, so a capture of an unlogged morning still has a
+     proof trail to show. */
+  for (const back of [1, 2]) {
+    const d = shift(TODAY, -back);
+    for (const sl of SLOTS) {
+      MEALS.push({
+        id: 'meal-seed-' + back + '-' + sl.type, athlete_id: 'seed-athlete', day_date: d, type: sl.type,
+        photo_path: sl.photo, name: sl.name, protein: sl.protein, kcal: sl.kcal,
+        quality: sl.quality, logged_at: d + 'T' + sl.at + ':00Z',
+      });
+    }
+  }
   MEALS.sort((x, y) => (x.logged_at < y.logged_at ? 1 : -1));
 
   const PROFILES = ATHLETES.map(a => ({ id: a.id, timezone: 'America/New_York', full_name: a.name }));

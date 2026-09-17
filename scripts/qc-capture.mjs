@@ -70,6 +70,7 @@ const setTheme = (t) => `(async () => { const st = await import('/js/state.js');
  * reads as a product walkthrough, not an alphabetical dump. */
 const SHOTS = [
   // athlete — the daily loop
+  { g: 'athlete', name: 'home-open', seed: 'dayOpen', route: 'home', at: [7, 5] },
   { g: 'athlete', name: 'home-morning', seed: 'dayMorning', route: 'home', at: [7, 52] },
   { g: 'athlete', name: 'home-midday', seed: 'dayMidday', route: 'home', at: [13, 10] },
   { g: 'athlete', name: 'home-complete', seed: 'dayComplete', route: 'home', at: [21, 50] },
