@@ -137,10 +137,11 @@ alone it's not worth a sitting. Noted so October doesn't rediscover it.
   naming the 80 bar while the push voice bans internal numbers (founder taste call).
 
 ## Notes for tomorrow's sessions
-- **Credential streak (update in place, don't re-diagnose):** EXPO_TOKEN dead — 33 sessions
-  through the 09-16 7 PM polish; check was prefix-only (still the `CxbNAx…` token the
-  API has rejected since 08-26), no API call spent. No Supabase, Stripe, or Cloudflare creds
-  (still true 09-16 7 PM). **The founder published from his PC on 09-16 and cleared the
+- **Credential streak (update in place, don't re-diagnose):** EXPO_TOKEN dead — 34 sessions
+  through the 09-17 early error-response; checks are prefix-only (still the token the
+  API has rejected since 08-26), no API call spent. The second 09-17 error-response firing
+  could not re-check (sandbox denied the prefix read) — count holds at 34. No Supabase,
+  Stripe, or Cloudflare creds (still true 09-17). **The founder published from his PC on 09-16 and cleared the
   four-commit queue** — live = the 09-16 morning tree, proven byte-for-byte. Only tonight's
   polish (`707876a`) waits on a publish now. `node scripts/verify-ota.mjs` needs NO token —
   any session can prove what's live while blind. (npx eas-cli is broken in the sandbox —
