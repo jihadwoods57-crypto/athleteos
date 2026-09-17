@@ -64,8 +64,8 @@ what's actually left eager and close or right-size the item. Measurement first.
 ### Founder-blocked (recommend in one line, cite the streak, never re-diagnose)
 Fresh cloud credentials (the 08-26 `OS?` email; the founder said "fix the publish token"
 on 09-15 and was sent the two-step instructions — token still unchanged): EXPO_TOKEN
-dead — **33 sessions through 09-16 7 PM** (prefix still `CxbNAx`, prefix-only check, no
-API call spent). No Supabase, Stripe, or Cloudflare creds in the env. He cleared the
+dead — **34 sessions through 09-17 early error-response** (prefix still `CxbNAx`,
+prefix-only check, no API call spent). No Supabase, Stripe, or Cloudflare creds in the env. He cleared the
 whole publish queue from his PC today, so nothing user-facing is stuck — but sessions
 still can't publish their own proven fixes (tonight's `707876a` waits) and every sentry
 stays blind to errors/analytics. Also still his: whether migrations 0210/0214/0219–0226/
