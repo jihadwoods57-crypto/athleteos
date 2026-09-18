@@ -35,6 +35,9 @@ import { chatVoiceDirective } from '../_shared/coach-voice.ts';
 import { athleteContextLine } from '../_shared/athlete-context.ts';
 import { loadVoiceForAthlete } from '../_shared/coach-voice-load.ts';
 import { SUGGEST_MEAL_TOOL, parseSuggestMeal, suggestRowText, suggestRowMeta } from './suggest.mjs';
+// Expo answers a refused batch with HTTP 200 + per-message error tickets, so `r.ok` counted
+// refusals as deliveries. sendExpoPush reads the tickets; see _shared/expo-push.mjs.
+import { sendExpoPush } from '../_shared/expo-push.mjs';
 
 // Per-surface override first: one shared ANTHROPIC_MODEL meant chat could not move tiers
 // without dragging vision with it. Unset -> unchanged.
@@ -1016,12 +1019,8 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
             data: { route: routeForCoachMeal(mealId) },
             sound: 'default',
           }));
-          for (let i = 0; i < messages.length; i += 100) {
-            await fetch('https://exp.host/--/api/v2/push/send', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(messages.slice(i, i + 100)),
-            }).catch(() => undefined);
-          }
+          const flagOut = await sendExpoPush(messages);
+          if (flagOut.failed) console.error('meal-chat: coach flag push refused', flagOut.failed, flagOut.errors.join('; '));
         } catch { /* notification row already landed; a push failure must not affect the athlete's response */ }
       }
 

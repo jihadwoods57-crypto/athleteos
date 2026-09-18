@@ -33,6 +33,9 @@ import { verifyRollCallCode, signRollCallCode } from '../_shared/rollcall-code.t
 import { rollCallCategoryId, ROLLCALL_CHANNEL } from '../_shared/rollcall-category.ts';
 import { evaluateFlag, type FlagRow } from '../_shared/feature-flags.ts';
 import { parseAction, parseAthlete, httpStatusForCoach, nudgeBody, scheduleNoticeBody, type CoachFailure } from './logic.ts';
+// Expo answers a refused batch with HTTP 200 + per-message error tickets, so `r.ok` counted
+// refusals as deliveries. sendExpoPush reads the tickets; see _shared/expo-push.mjs.
+import { sendExpoPush } from '../_shared/expo-push.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -69,18 +72,9 @@ async function resolveUserId(req: Request): Promise<string | null> {
 // Best-effort Expo send, one request per batch of 100. The notification ROWS are already durable
 // (written inside rollcall_nudge_claim), so a dropped push never means the athlete has no record.
 async function push(messages: Array<Record<string, unknown>>): Promise<number> {
-  let sent = 0;
-  for (let i = 0; i < messages.length; i += 100) {
-    try {
-      const r = await fetch('https://exp.host/--/api/v2/push/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(messages.slice(i, i + 100)),
-      });
-      if (r.ok) sent += Math.min(100, messages.length - i);
-    } catch { /* best effort */ }
-  }
-  return sent;
+  const out = await sendExpoPush(messages);
+  if (out.failed) console.error('roll-call-coach: push refused', out.failed, out.errors.join('; '));
+  return out.sent;
 }
 
 Deno.serve(async (req: Request) => {

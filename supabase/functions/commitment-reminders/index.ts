@@ -22,6 +22,9 @@ import { composeReminderPush, codeDeadlineMs, platformCopy, isInitialPush, type 
 import { ApnsClient, apnsFromEnv } from '../_shared/apns.ts';
 import { pushLiveActivity, loadLiveCard } from '../_shared/rollcall-live-send.ts';
 import { rollCallPushData } from '../_shared/rollcall-live.ts';
+// Expo answers a refused batch with HTTP 200 + per-message error tickets, so `r.ok` counted
+// refusals as deliveries. sendExpoPush reads the tickets; see _shared/expo-push.mjs.
+import { sendExpoPush } from '../_shared/expo-push.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -252,19 +255,11 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  let pushed = 0;
-  for (let i = 0; i < messages.length; i += 100) {
-    try {
-      const r = await fetch('https://exp.host/--/api/v2/push/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(messages.slice(i, i + 100)),
-      });
-      if (r.ok) pushed += Math.min(100, messages.length - i);
-    } catch {
-      // Best-effort: the notification row is already written, so the athlete still sees it in app.
-    }
-  }
+  // Best-effort: the notification row is already written, so the athlete still sees it in app.
+  // `pushed` is what Expo ACCEPTED — a refusal is logged, never counted as a delivery.
+  const pushOut = await sendExpoPush(messages);
+  const pushed = pushOut.sent;
+  if (pushOut.failed) console.error('commitment-reminders: push refused', pushOut.failed, pushOut.errors.join('; '));
 
   return json({ sent: recorded, pushed, claimed: due.length, materialized, live, suppressed });
 });

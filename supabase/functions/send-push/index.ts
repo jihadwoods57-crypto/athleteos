@@ -7,6 +7,10 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 import { sanitizeBulkPayload, aggregateBulkResults } from './logic.mjs';
+// Expo answers a REFUSED batch with HTTP 200 and per-message error tickets. Every branch below
+// used to read `r.ok` and report the whole chunk as delivered, which is how an unconfigured APNs
+// key stayed invisible for months. sendExpoPushAndPrune reads the tickets and retires dead ones.
+import { sendExpoPushAndPrune } from '../_shared/expo-push.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -127,20 +131,13 @@ Deno.serve(async (req) => {
 
     const titleB = (payload.title ?? 'OnStandard').slice(0, 120);
     const bodyB = (payload.body ?? '').slice(0, 300);
-    let pushedB = 0;
-    for (let i = 0; i < tokensB.length; i += 100) {
-      const chunk = tokensB.slice(i, i + 100);
-      try {
-        const rB = await fetch('https://exp.host/--/api/v2/push/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(chunk.map((to) => ({ to, title: titleB, body: bodyB, sound: 'default' }))),
-        });
-        if (rB.ok) pushedB += chunk.length;
-      } catch { /* best-effort; the caller records what actually landed */ }
-    }
-    // Report honestly — admin-alert writes this outcome into admin_audit_log.
-    return json({ ok: pushedB > 0, pushed: pushedB }, pushedB > 0 ? 200 : 502, cors);
+    const outB = await sendExpoPushAndPrune(
+      tokensB.map((to) => ({ to, title: titleB, body: bodyB, sound: 'default' })), svcB);
+    // Report honestly — admin-alert writes this outcome into admin_audit_log. `pushed` is what
+    // Expo ACCEPTED, and `errors` names why the rest did not go, so a break-glass alert that was
+    // refused can never be filed as one that was delivered.
+    return json({ ok: outB.sent > 0, pushed: outB.sent, failed: outB.failed, errors: outB.errors },
+      outB.sent > 0 ? 200 : 502, cors);
   }
 
   // ---------- coach announcement fan-out (announcement_id mode, push-only) ----------
@@ -205,21 +202,11 @@ Deno.serve(async (req) => {
     // This branch is push-only; writing here would double-deliver.
     const { data: toks0 } = await svc0.from('device_tokens').select('token').in('user_id', targets0);
     const tokens0 = (toks0 ?? []).map((t: { token: string }) => t.token).filter(Boolean);
-    let pushed = 0;
     const title0 = (ann.title ?? 'Team announcement').slice(0, 120);
     const body0 = (ann.body ?? '').slice(0, 300);
-    for (let i = 0; i < tokens0.length; i += 100) {
-      const chunk = tokens0.slice(i, i + 100);
-      try {
-        const r0 = await fetch('https://exp.host/--/api/v2/push/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(chunk.map((to) => ({ to, title: title0, body: body0, sound: 'default' }))),
-        });
-        if (r0.ok) pushed += chunk.length;
-      } catch { /* best-effort; feed rows already landed via post_announcement */ }
-    }
-    return json({ ok: true, pushed }, 200, cors);
+    const out0 = await sendExpoPushAndPrune(
+      tokens0.map((to) => ({ to, title: title0, body: body0, sound: 'default' })), svc0);
+    return json({ ok: true, pushed: out0.sent, failed: out0.failed, errors: out0.errors }, 200, cors);
   }
 
   // ---------- operator bulk nudge (athlete_ids mode) ----------
@@ -297,18 +284,18 @@ Deno.serve(async (req) => {
     }
     const messages3 = live3.flatMap((id) => (tokByUser.get(id) ?? [])
       .map((to) => ({ to, title: norm.title, body: norm.body, sound: 'default', data: { route: 'home' } })));
-    let expoOk3 = true;
-    for (let i = 0; i < messages3.length; i += 100) {
-      const chunk = messages3.slice(i, i + 100);
-      try {
-        const r3 = await fetch('https://exp.host/--/api/v2/push/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(chunk),
-        });
-        if (!r3.ok) expoOk3 = false;
-      } catch { expoOk3 = false; }
-    }
+    // Per-token truth, not one batch-wide boolean: with the old flag, one refused token marked the
+    // whole roster undelivered (and one accepted token marked the whole roster delivered). Now the
+    // accepted tokens are known by name, so each athlete's row below reports their OWN phones.
+    const out3 = await sendExpoPushAndPrune(messages3, svc3);
+    const deadSet3 = new Set(out3.dead);
+    const acceptedFor = (id: string) => {
+      const toks = tokByUser.get(id) ?? [];
+      if (!toks.length) return 0;
+      // A chunk-wide failure (no credentials, offline) accepted nothing at all.
+      if (out3.sent === 0) return 0;
+      return toks.filter((t) => !deadSet3.has(t)).length;
+    };
 
     // The queue-clear rows, one bulk insert. coach_id must be EXPLICIT: under the service role
     // the column's auth.uid() default is null and the row would violate not-null — and RLS's
@@ -327,9 +314,9 @@ Deno.serve(async (req) => {
       if (dedupedSet3.has(id)) { results.push({ athlete_id: id, pushed: 0, devices: 0, deduped: true }); continue; }
       if (optedOut3.has(id)) { results.push({ athlete_id: id, pushed: 0, devices: 0, suppressed: 'notifications_off' }); continue; }
       const devices = (tokByUser.get(id) ?? []).length;
-      results.push({ athlete_id: id, pushed: expoOk3 ? devices : 0, devices });
+      results.push({ athlete_id: id, pushed: acceptedFor(id), devices });
     }
-    return json({ ok: true, dropped: norm.dropped, results, ...aggregateBulkResults(results) }, 200, cors);
+    return json({ ok: true, dropped: norm.dropped, results, errors: out3.errors, ...aggregateBulkResults(results) }, 200, cors);
   }
 
   // ---------- athlete → coach (to_coach mode) ----------
@@ -390,6 +377,7 @@ Deno.serve(async (req) => {
       return true;
     };
     let pushed = 0;
+    let pushErrors: string[] = [];
     {
       const { data: prefs } = await svc2.from('profiles')
         .select('id,notifications_opt_out,coach_notify,quiet_from_min,quiet_to_min,timezone').in('id', coachIds);
@@ -405,22 +393,17 @@ Deno.serve(async (req) => {
         const { data: toks2 } = await svc2.from('device_tokens').select('token,user_id').in('user_id', targets);
         const tokens2 = (toks2 ?? []).map((t: { token: string }) => t.token).filter(Boolean);
         if (tokens2.length) {
-          try {
-            const r2 = await fetch('https://exp.host/--/api/v2/push/send', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(tokens2.map((to) => ({
-                to, title: title2, body: body2,
-                sound: payload.urgent === true || baseKind === 'athlete_message' ? 'default' : undefined,
-                ...(route ? { data: { route } } : {}),
-              }))),
-            });
-            if (r2.ok) pushed = tokens2.length;
-          } catch { /* best-effort; the in-app rows already landed */ }
+          const out2 = await sendExpoPushAndPrune(tokens2.map((to) => ({
+            to, title: title2, body: body2,
+            sound: payload.urgent === true || baseKind === 'athlete_message' ? 'default' : undefined,
+            ...(route ? { data: { route } } : {}),
+          })), svc2);
+          pushed = out2.sent;
+          pushErrors = out2.errors;
         }
       }
     }
-    return json({ ok: true, pushed, coaches: coachIds.length }, 200, cors);
+    return json({ ok: true, pushed, coaches: coachIds.length, ...(pushErrors.length ? { errors: pushErrors } : {}) }, 200, cors);
   }
 
   const athleteId = payload.athlete_id;
@@ -478,23 +461,16 @@ Deno.serve(async (req) => {
   // 3) Push to the athlete's registered devices (best-effort; the feed entry is already saved).
   const { data: toks } = await svc.from('device_tokens').select('token').eq('user_id', athleteId);
   const tokens = (toks ?? []).map((t: { token: string }) => t.token).filter(Boolean);
-  let pushed = 0;
-  if (tokens.length > 0) {
-    try {
-      const r = await fetch('https://exp.host/--/api/v2/push/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(tokens.map((to) => ({
-          to, title, body: message, sound: 'default',
-          ...(opRoute ? { data: { route: opRoute } } : {}),
-        }))),
-      });
-      if (r.ok) pushed = tokens.length;
-    } catch {
-      /* push is best-effort; the in-app notification already landed */
-    }
-  }
+  const out = tokens.length
+    ? await sendExpoPushAndPrune(tokens.map((to) => ({
+        to, title, body: message, sound: 'default',
+        ...(opRoute ? { data: { route: opRoute } } : {}),
+      })), svc)
+    : { sent: 0, failed: 0, dead: [] as string[], errors: [] as string[] };
+  const pushed = out.sent;
   // `devices` lets the client tell "pushed to their phone" from "they have no push device" —
   // the UI used to assert phone delivery either way.
-  return json({ ok: true, pushed, devices: tokens.length }, 200, cors);
+  // `devices` is how many phones we KNOW about; `pushed` is how many Expo accepted. When they
+  // differ the coach is told the truth instead of "sent to their phone".
+  return json({ ok: true, pushed, devices: tokens.length, ...(out.errors.length ? { errors: out.errors } : {}) }, 200, cors);
 });

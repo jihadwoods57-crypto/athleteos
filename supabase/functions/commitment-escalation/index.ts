@@ -22,6 +22,9 @@ import { pushLiveActivity, loadLiveCard } from '../_shared/rollcall-live-send.ts
 import { rollCallPushData } from '../_shared/rollcall-live.ts';
 import { signCoachCode, signRollCallCode } from '../_shared/rollcall-code.ts';
 import { COACH_DIGEST_CATEGORY, ROLLCALL_CHANNEL, rollCallCategoryId } from '../_shared/rollcall-category.ts';
+// Expo answers a refused batch with HTTP 200 + per-message error tickets, so `r.ok` counted
+// refusals as deliveries. sendExpoPush reads the tickets; see _shared/expo-push.mjs.
+import { sendExpoPush } from '../_shared/expo-push.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -60,17 +63,11 @@ type Digest = { title: string; total: number; not_up_names: string[]; coach_ids:
 // Best-effort Expo send, one request per batch of 100. The 'missed' claim is already durable in the
 // DB, so a dropped push never means the coach's board is wrong — it only means one fewer nudge.
 async function push(messages: Array<Record<string, unknown>>) {
-  for (let i = 0; i < messages.length; i += 100) {
-    try {
-      await fetch('https://exp.host/--/api/v2/push/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(messages.slice(i, i + 100)),
-      });
-    } catch {
-      // best effort
-    }
-  }
+  const out = await sendExpoPush(messages);
+  // This used to swallow the answer entirely: no return value, no log, nothing to notice when a
+  // whole night of escalations was refused at Expo's door. Now it says so.
+  if (out.failed) console.error('commitment-escalation: push refused', out.failed, out.errors.join('; '));
+  return out;
 }
 
 Deno.serve(async (req: Request) => {

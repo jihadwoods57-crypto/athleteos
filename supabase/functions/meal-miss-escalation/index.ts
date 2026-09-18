@@ -36,6 +36,9 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { missedTasks, closingTasks, missBody, coachDigestBody } from '../_shared/meal-miss.ts';
+// Expo answers a refused batch with HTTP 200 + per-message error tickets, so `r.ok` counted
+// refusals as deliveries. These read the tickets; see _shared/expo-push.mjs.
+import { sendExpoPush, sendExpoPushAndPrune } from '../_shared/expo-push.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -169,16 +172,10 @@ Deno.serve(async (req) => {
     })
     .filter(Boolean);
 
-  let pushed = 0;
-  for (let i = 0; i < messages.length; i += 100) {
-    try {
-      const r = await fetch('https://exp.host/--/api/v2/push/send', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(messages.slice(i, i + 100)),
-      });
-      if (r.ok) pushed += Math.min(100, messages.length - i);
-    } catch { /* the notification row is already durable */ }
-  }
+  // The notification rows are already durable; `pushed` is what Expo ACCEPTED, never what we sent.
+  const athleteOut = await sendExpoPush(messages as Array<Record<string, unknown>>);
+  const pushed = athleteOut.sent;
+  if (athleteOut.failed) console.error('meal-miss-escalation: athlete push refused', athleteOut.failed, athleteOut.errors.join('; '));
 
   // ---- L3: the coach, batched. ONE line per coach per day naming who missed, never one per
   // miss. The digest is written as a notification row for the same reason as above. ----
@@ -315,14 +312,9 @@ Deno.serve(async (req) => {
       const tokensOf = new Map<string, string[]>();
       for (const t of ((ctoks ?? []) as Array<{ token: string; user_id: string }>)) tokensOf.set(t.user_id, [...(tokensOf.get(t.user_id) ?? []), t.token]);
       const msgs = allowed.flatMap((p) => (tokensOf.get(p.coachId) ?? []).map((to) => ({ to, title: p.title, body: p.body, data: { route: p.route } })));
-      for (let i = 0; i < msgs.length; i += 100) {
-        try {
-          const r = await fetch('https://exp.host/--/api/v2/push/send', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(msgs.slice(i, i + 100)),
-          });
-          if (r.ok) coachPushed += Math.min(100, msgs.length - i);
-        } catch { /* rows are durable */ }
-      }
+      const coachOut = await sendExpoPushAndPrune(msgs, svc);
+      coachPushed += coachOut.sent;
+      if (coachOut.failed) console.error('meal-miss-escalation: coach push refused', coachOut.failed, coachOut.errors.join('; '));
     }
   }
 

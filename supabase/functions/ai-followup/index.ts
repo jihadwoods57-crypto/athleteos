@@ -38,6 +38,9 @@ import {
   DAY_GAP_WINDOW,
   type MealRow, type DayRowForGap, type DayGapNudge,
 } from '../_shared/followup.ts';
+// Expo answers a refused batch with HTTP 200 + per-message error tickets, so `r.ok` counted
+// refusals as deliveries. sendExpoPush reads the tickets; see _shared/expo-push.mjs.
+import { sendExpoPush } from '../_shared/expo-push.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -117,19 +120,12 @@ type GapSend = { athleteId: string; nudge: DayGapNudge; text: string };
 const claimAllowed = (claim: unknown): boolean =>
   (Array.isArray(claim) ? claim[0] : claim as { allowed?: boolean } | null)?.allowed !== false;
 
-/** Best-effort Expo push in batches of 100. The durable rows are already written by the caller. */
+/** Best-effort Expo push. The durable rows are already written by the caller; the number returned
+ *  is what Expo ACCEPTED, not what we handed it. */
 async function pushAll(messages: Array<Record<string, unknown>>): Promise<number> {
-  let pushed = 0;
-  for (let i = 0; i < messages.length; i += 100) {
-    try {
-      const r = await fetch('https://exp.host/--/api/v2/push/send', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(messages.slice(i, i + 100)),
-      });
-      if (r.ok) pushed += Math.min(100, messages.length - i);
-    } catch { /* the thread row and notification are already written */ }
-  }
-  return pushed;
+  const out = await sendExpoPush(messages);
+  if (out.failed) console.error('ai-followup: push refused', out.failed, out.errors.join('; '));
+  return out.sent;
 }
 
 /* ================================================================================

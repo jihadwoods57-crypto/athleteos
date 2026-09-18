@@ -27,6 +27,9 @@
 // beats Sunday night: the read leads the week it can still change.
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { digestWindowOpen, digestDecision, DEDUPE_MS } from './logic.mjs';
+// Expo answers a refused batch with HTTP 200 + per-message error tickets, so `r.ok` counted
+// refusals as deliveries. sendExpoPushAndPrune reads the tickets and retires dead tokens.
+import { sendExpoPushAndPrune } from '../_shared/expo-push.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -276,19 +279,13 @@ Deno.serve(async (req) => {
         await svc.from('profiles').update({ digest_last_sent_at: new Date(nowMs).toISOString() }).eq('id', rid);
         const { data: toks } = await svc.from('device_tokens').select('token').eq('user_id', rid);
         const tokens = (toks ?? []).map((t: { token: string }) => t.token).filter(Boolean);
-        for (let i = 0; i < tokens.length; i += 100) {
-          try {
-            await fetch('https://exp.host/--/api/v2/push/send', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(tokens.slice(i, i + 100).map((to) => ({
-                to, title, body, sound: 'default',
-                // Fix 3: the tap lands on the weekly insights read, not wherever the app last was.
-                data: { route: 'coach-insights' },
-              }))),
-            });
-          } catch { /* push is best-effort; the feed entry already landed */ }
-        }
+        // push is best-effort; the feed entry already landed. A refusal is logged, not ignored.
+        const digestOut = await sendExpoPushAndPrune(tokens.map((to) => ({
+          to, title, body, sound: 'default',
+          // Fix 3: the tap lands on the weekly insights read, not wherever the app last was.
+          data: { route: 'coach-insights' },
+        })), svc);
+        if (digestOut.failed) console.error('weekly-digest: push refused', digestOut.failed, digestOut.errors.join('; '));
         sent++;
       }
     }

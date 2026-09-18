@@ -13,6 +13,13 @@ import { authenticateBiometric } from '../lib/auth/biometrics';
 import { parseInviteCode } from '../lib/inviteLink';
 import { runRollCallAck, drainAckQueue, ensureRollCallCategories, rememberRollCallLabel, registerCoachDigestCategory, runCoachAction, drainCoachQueue, registerRollCallBackgroundTask, ensureLiveActivityTokens, drainLiveActivityTaps } from '../lib/notify/rollcall';
 import { routeNotificationResponse } from '../core/rollcall';
+import { installForegroundNotificationHandler } from '../lib/notify/foreground';
+
+// A notification that arrives while the app is OPEN is shown only if a handler says so, and this
+// app had none — so every push and reminder that landed while someone was looking at the screen
+// was swallowed in silence. Registered here, at module scope, because it has to be in place
+// before the first notification can arrive, which is earlier than any effect runs.
+installForegroundNotificationHandler();
 
 // The app canvas, exactly: --bg in the proto's tokens.css, and the splash backgroundColor in
 // app.json. All three have to be the SAME value or launch shows a hue step — this was #080B0A, a

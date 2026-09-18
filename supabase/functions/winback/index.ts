@@ -26,6 +26,9 @@
 // Add ?dry=1 to see exactly who would be selected without writing or sending anything.
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { selectWinbacks, type LapsedCandidate } from '../_shared/winback.ts';
+// Expo answers a refused batch with HTTP 200 + per-message error tickets, so `r.ok` counted
+// refusals as deliveries. sendExpoPush reads the tickets; see _shared/expo-push.mjs.
+import { sendExpoPush } from '../_shared/expo-push.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -153,17 +156,10 @@ Deno.serve(async (req) => {
     })
     .filter(Boolean);
 
-  let pushed = 0;
-  for (let i = 0; i < messages.length; i += 100) {
-    try {
-      const r = await fetch('https://exp.host/--/api/v2/push/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(messages.slice(i, i + 100)),
-      });
-      if (r.ok) pushed += messages.slice(i, i + 100).length;
-    } catch { /* best effort — the notification row is the durable record */ }
-  }
+  // best-effort: the notification row is the durable record. `pushed` is Expo's acceptance count.
+  const winOut = await sendExpoPush(messages as Array<Record<string, unknown>>);
+  const pushed = winOut.sent;
+  if (winOut.failed) console.error('winback: push refused', winOut.failed, winOut.errors.join('; '));
 
   return json({ ok: true, selected: sends.length, wrote, pushed });
 });

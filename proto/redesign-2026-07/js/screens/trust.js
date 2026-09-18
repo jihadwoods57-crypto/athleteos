@@ -5,7 +5,7 @@ import { backHead, esc, safeImg, emptyState, errorState, skeletonRows, segBar } 
 import { tierColor, ON_STANDARD, qualityAccent } from '../score-band.js';
 import { cachedMealPhoto, warmMealPhotos, resolveMealPhoto } from '../photo-store.js';
 import { shortDate, weekdayLong } from '../fmt-date.js';
-import { fetchRecentMeals, daysAgoISO, fetchMealComments, postMealComment, deleteMealComment, uploadChatPhoto, fetchThreadParticipants, signedMealPhotoUrl, signedMealPhotoUrls } from '../roles.js';
+import { fetchRecentMeals, daysAgoISO, fetchMealComments, postMealComment, deleteMealComment, uploadChatPhoto, fetchThreadParticipants, signedMealPhotoUrl, signedMealPhotoUrls, notifyMyCoach } from '../roles.js';
 import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos, wireComposerAttach, postChatMessage } from '../chat-attach.js';
 import { threadMessages, reactionGroups, REACTION_EMOJI, normalizeDetected } from '../meal-intel.js';
 import { wireTapback } from '../tapback.js';
@@ -531,7 +531,20 @@ function mountThread(root, mealId, meal) {
     attach.clear();
     if (note) note.textContent = '';
     if (input) input.value = '';
-    await refresh();
+    /* THE COACH HEARS IT. This composer is the third renderer of the same conversation (the live
+       meal thread and the nutrition chat are the other two), and it was the only one that posted
+       and told nobody — an athlete answering their coach on YESTERDAY's plate wrote into a room
+       whose other occupant was never called. Same call, same kind, same deep link as meal.js, and
+       a wordless photo says what it is rather than sending an empty body. Fire-and-forget after
+       the row landed: a notification failure must never undo a message that already posted. */
+    if (S.coach.hasCoach) {
+      void notifyMyCoach({
+        kind: `athlete_message:${mealId}`, urgent: true,
+        title: `${S.athlete.first || 'Your athlete'} ${!text ? 'sent a photo about' : 'asked about'} ${meal.name || meal.type || 'a meal'}`,
+        body: `${(text || 'Sent a photo').slice(0, 140)} · Tap to open the conversation.`,
+        route: `coach-meal/${mealId}`,
+      });
+    }
     if (!text) { busy = false; return; } // a photo alone is a complete message — nothing to ask the AI
     try {
       await window.sb.functions.invoke('meal-chat', { body: { mealId, question: text, context: {
