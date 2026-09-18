@@ -3709,3 +3709,19 @@ body.kb-open .meal-foot { display: none; }
    .status-pill so it speaks the one pill vocabulary; purple because it is recovery, muted when the
    standard was met so a good night sits quietly instead of competing with the score beside it. */
 .rn-night { margin-left: var(--s1h); vertical-align: middle; }
+
+/* The coach's standard on the athlete's sleep screen. Accountability, sitting above the average
+   rather than merged into it: the target is what a coach asked for and the average is what this
+   body normally does, and scoring the second would give a habitual five-hour sleeper an easier
+   standard than an eight-hour one. The verdict wears .status-pill so it speaks the one vocabulary
+   the rest of the app does. */
+.sl-std { margin-bottom: var(--s4); }
+.sl-std-k { font-size: var(--t-eyebrow); font-weight: 800; text-transform: uppercase;
+  letter-spacing: var(--track-eyebrow); color: var(--text-3); }
+.sl-std-top { display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s3); margin-top: var(--s1h); }
+.sl-std-v { font-size: var(--t-3xl); font-weight: 800; letter-spacing: var(--num-tight);
+  font-variant-numeric: tabular-nums; }
+.sl-std-v.none { font-size: var(--t-lg); color: var(--text-2); letter-spacing: var(--title-tight); }
+.sl-std-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.5;
+  margin-top: var(--s1h); max-width: 46ch; }

@@ -45,9 +45,13 @@ import { wireReadMore } from '../thread-readmore.js';
    the score beside it. Absent entirely when no standard was assigned or no reading arrived, which
    is most of a real roster and must cost those athletes nothing. */
 function nightChip(night) {
-  if (!night) return '';
-  const label = night === 'met' ? 'Sleep met' : night === 'short' ? 'Sleep short' : 'Sleep missed';
-  return ` <span class="status-pill ${night === 'met' ? 'muted' : 'p'} rn-night">${label}</span>`;
+  // EXCEPTIONS ONLY. A met standard renders nothing: this roster's entire job is "who needs
+  // attention", and on a full squad a chip on every athlete who slept fine is a row of text
+  // carrying no action, which is exactly the badges-for-everything the product's anti-references
+  // name. The signal itself still carries 'met' for surfaces that want completeness; a list you
+  // scan is not one of them.
+  if (night !== 'short' && night !== 'missed') return '';
+  return ` <span class="status-pill p rn-night">${night === 'short' ? 'Sleep short' : 'Sleep missed'}</span>`;
 }
 
 

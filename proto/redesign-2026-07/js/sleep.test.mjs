@@ -138,3 +138,31 @@ test('the screen obeys the design system where it would be easiest not to', () =
   assert.ok(!screen.includes('—'));
   assert.ok(!read('sleep.js').includes('—'));
 });
+
+test('the screen never claims sleep is unscored once a standard is assigned', () => {
+  // Phase 1 said "Sleep is not scored" and phase 2 made that false. An app that misreports what
+  // counts toward a score is the one thing PRODUCT.md's honest-accountability rule forbids.
+  assert.match(screen, /DAY\.sleepStandard && Number\(DAY\.sleepStandard\.targetHours\) > 0/);
+  assert.match(screen, /measured hours count toward your day/);
+  assert.match(screen, /Sleep is not scored for you/);
+});
+
+test('an assigned standard with no reading reads as NOT COUNTED, never as a failure', () => {
+  // A ring on a charger is not evidence. This is the state most of a roster will be in.
+  assert.match(screen, /leaves your score alone/);
+  assert.match(screen, /status-pill muted">Not counted/);
+});
+
+test('one hero per screen: the average steps down when a standard is present', () => {
+  // Two --t-3xl numerals stacked gave the eye no way to tell which number it was being held to.
+  assert.match(screen, /\$\{hasStandard \? '' : avgBlock\(nights, state\)\}/);
+  assert.match(screen, /your average \$\{esc\(baseLine\)\}/);
+});
+
+test('the roster shows exceptions, not a badge on everyone', () => {
+  const coach = read('screens/coach.js');
+  assert.match(coach, /if \(night !== 'short' && night !== 'missed'\) return '';/);
+  // A met standard is still carried in the DATA; it just does not earn a row of text on a list
+  // whose entire job is who needs attention.
+  assert.match(read('roles.js'), /if \(hours >= target\) return 'met';/);
+});

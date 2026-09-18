@@ -21,7 +21,7 @@
  */
 import { backHead, esc, skeletonRows } from '../components.js';
 import { icon } from '../icons.js';
-import { DAY } from '../day.js';
+import { DAY, recoveryStandardParts } from '../day.js';
 import { HK, probeHealth } from './apple-health.js';
 import {
   buildNights, baselineOf, baselineState, nightsUntilBaseline,
@@ -109,6 +109,49 @@ function avgBlock(nights, screenState) {
    to someone whose ring reports most nights; printing "No reading" down all fourteen rows of
    someone who has never measured anything shouts an absence they cannot fix and buries the record
    they DO have. Absence is the norm until it isn't, and the lead above has already explained it. */
+/* THE STANDARD IS ACCOUNTABILITY; THE AVERAGE IS INSIGHT. They are deliberately two different
+   comparisons and never merge: the target is what a coach asked for, the average is what this
+   athlete's own body normally does. Scoring the average instead would hand an athlete who
+   habitually sleeps five hours an easier standard than one who sleeps eight. */
+function standardBlock(baseLine) {
+  const std = DAY.sleepStandard;
+  const target = std && Number(std.targetHours);
+  if (!(target > 0)) return '';
+  const hours = DAY.sleepHours;
+  const part = recoveryStandardParts(DAY);
+
+  // Assigned but unread. This is the state that MUST NOT read as a failure: a ring on a charger
+  // is not evidence, it leaves the score alone entirely, and saying so is the whole point.
+  if (!part.assigned) {
+    return `
+    <section class="card pad sl-std">
+      <div class="sl-std-k">Your coach's sleep standard</div>
+      <div class="sl-std-top">
+        <div class="sl-std-v none">No reading</div>
+        <span class="status-pill muted">Not counted</span>
+      </div>
+      <div class="sl-std-s">Target ${esc(fmtDuration(target))}. Nothing came through last night, so this one leaves your score alone.</div>
+    </section>`;
+  }
+
+  const met = part.score === 100;
+  const tone = met ? 'g' : part.score >= 60 ? 'p' : 'r';
+  const verdict = met ? 'Met' : part.score >= 60 ? 'Short' : 'Missed';
+  const min = Number(std.minHours) > 0 ? Number(std.minHours) : target;
+  return `
+    <section class="card pad sl-std">
+      <div class="sl-std-k">Your coach's sleep standard</div>
+      <div class="sl-std-top">
+        <div class="sl-std-v">${esc(fmtDuration(hours))}</div>
+        <span class="status-pill ${tone}">${verdict}</span>
+      </div>
+      <div class="sl-std-s">Target ${esc(fmtDuration(target))}${min < target ? `, ${esc(fmtDuration(min))} minimum` : ''}${
+        baseLine ? ` · your average ${esc(baseLine)}` : ''}. ${met
+        ? 'You cleared it.'
+        : 'It counts toward tonight, and a short night never costs you more than the night is worth.'}</div>
+    </section>`;
+}
+
 function nightRow(n, index, base, markGaps) {
   const said = qualityWord(n.quality);
   const delta = deltaFrom(n.hours, base);
@@ -159,6 +202,7 @@ export default {
     const nights = buildNights(dates, measuredByDate(), qualityByDate());
     const state = sleepState({ available: HK.available !== false, nights });
     const base = baselineOf(nights);
+    const hasStandard = !!(DAY.sleepStandard && Number(DAY.sleepStandard.targetHours) > 0);
 
     if (!nights.length) {
       return `${head}
@@ -171,12 +215,19 @@ export default {
 
     return `${head}
     ${leadFor(state)}
-    ${avgBlock(nights, state)}
+    ${standardBlock(hasStandard ? fmtDuration(base) : '')}
+    ${/* ONE HERO PER SCREEN. With a standard on the page the average is a reference point, not a
+          peer: two --t-3xl numerals stacked gave the eye no way to tell which one it was being
+          held to. The average moves into the standard's supporting line, and keeps its own block
+          only on the screen where it is the only thing there. */''}
+    ${hasStandard ? '' : avgBlock(nights, state)}
     <h2 class="eyebrow">Last ${DAYS_SHOWN} nights</h2>
     <section class="card rows sl-list" role="list">
       ${nights.map((n) => nightRow(n, dates.indexOf(n.date), base, state === 'reading')).join('')}
     </section>
-    <div class="sl-foot">Sleep is not scored. Your Recovery points come from answering the check-in, and hours are here so the answer has something to sit against.</div>`;
+    <div class="sl-foot">${DAY.sleepStandard && Number(DAY.sleepStandard.targetHours) > 0
+      ? 'Your coach set a sleep standard, so measured hours count toward your day. A night nobody measured never counts against you.'
+      : 'Sleep is not scored for you. Your Recovery points come from answering the check-in, and hours are here so the answer has something to sit against.'}</div>`;
   },
 
   async mount(root) {
