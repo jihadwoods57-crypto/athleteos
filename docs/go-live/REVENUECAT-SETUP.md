@@ -24,6 +24,45 @@ dashboards.**
 
 ---
 
+## ✅ DONE 2026-09-18 — RevenueCat is configured
+
+Built through the v2 API and read back to confirm. Project **`projb14991df`** ("Onstandard").
+
+| Piece | State |
+| ----- | ----- |
+| App Store app `appb67dffb647` | `bundle_id: com.onstandard.app`, `subscription_key_configured: true` |
+| Products | all six created, ids match `CONSUMER_PRODUCTS` exactly |
+| Entitlement `premium` | all six products attached |
+| Offering `default` | **is_current: true**, six packages, each carrying its product |
+| Webhook `whintgr6e3f346982` | → the Supabase function, all event types |
+| `REVENUECAT_WEBHOOK_SECRET` | **rotated** 2026-09-18 and proven end to end |
+
+Webhook proof, both directions:
+
+```
+wrong secret   -> 401
+correct secret -> 200 {"received":true,"note":"no owner reference"}
+consumer rows  -> 0        (the smoke test wrote nothing, by design)
+```
+
+> ### ⛔ The one thing still missing: the public SDK key
+>
+> RevenueCat's v2 API exposes **no endpoint** for public API keys (`/api_keys` and
+> `/public_api_keys` both 404), so this is the one step that cannot be scripted. Copy the iOS
+> **App-specific public key** (starts with `appl_`) from **Project settings → API keys** into
+> `EXPO_PUBLIC_REVENUECAT_IOS` in `eas.json`, in all three profiles.
+>
+> Until it lands, `isIapAvailable` is false and the paywall still reads "Opens at launch".
+
+The shared secret was **deliberately skipped**: it is StoreKit 1 only, and the In-App Purchase Key
+covers the StoreKit 2 path the SDK defaults to.
+
+What remains: the `appl_` key, a build, a sandbox purchase, and the iPhone recording.
+
+---
+
+## Reference — how it was set up
+
 ## Step 0 — Confirm the Paid Apps Agreement (2 minutes)
 
 <https://appstoreconnect.apple.com/business>
