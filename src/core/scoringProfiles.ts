@@ -31,6 +31,10 @@ export interface ProfileWeights {
   /** The coach-assigned morning roll call. 0 in every profile row: it only carries weight on a
    *  day a wake-up was ASSIGNED, which is a per-day decision, not a per-profile one. */
   wakeup: number;
+  /** The coach-assigned Recovery Standard (measured sleep against a target). Optional so every
+   *  existing row, fixture and persisted mix stays valid unchanged; absent reads as 0 everywhere.
+   *  Per-day for the same reason wakeup is, and currently worth nothing: see SLEEP_SHIFT. */
+  sleep?: number;
 }
 
 /** Headline mix per profile — score v2. MUST equal proto plan-style.js PROFILE_WEIGHTS;
@@ -52,13 +56,52 @@ export const PROFILE_WEIGHTS: Record<ScoringProfile, ProfileWeights> = {
  */
 export const WAKEUP_SHIFT = 0.08;
 
+/**
+ * How much of the nightly check-in's 18 points moves to SLEEP on a day the coach assigned a
+ * Recovery Standard. MUST equal the other engine's SLEEP_SHIFT; the parity test pins it.
+ *
+ * ⚠ IT IS 0, AND 0 IS THE FEATURE. Exactly as WAKEUP_SHIFT was: at 0 the sleep slot exists
+ * everywhere, is carried through every sum, every cap and every test, and changes nobody's score
+ * by a single point. Turning it on is one number here, one migration for the server's evidence
+ * ceiling, and a cutover date so days already earned are judged under the formula that earned them.
+ *
+ * Do not raise it casually. Sleep and the morning are both paid out of the SAME 18, so with both
+ * assigned at 0.08 the two check-in slots are left 0.02 between them, and the check-in is the one
+ * component every athlete can earn without owning hardware. What sleep is worth, and whether it
+ * shares the morning's budget or takes from nutrition's 82, is a founder call that wants a season
+ * of real readings behind it, not a guess.
+ */
+export const SLEEP_SHIFT = 0;
+
 /** The mix for a day that HAS an assigned wake-up. Taken evenly from the two check-in slots, so
  *  the day still sums to 1 and nutrition's 82 never moves. Always a fresh object. */
 export function weightsForWakeupDay(profile: ScoringProfile): ProfileWeights {
+  return weightsForAssigned(profile, { wakeup: true });
+}
+
+/**
+ * The mix for a day, given which coach-assigned components it actually carries. Both the morning
+ * and sleep are paid out of the same two check-in slots, evenly, so nutrition's 82 never moves and
+ * the day always sums to 1. Always a fresh object: PROFILE_WEIGHTS rows are frozen and shared
+ * across every day on screen, so returning a mutated one would re-weight the season.
+ */
+export function weightsForAssigned(
+  profile: ScoringProfile,
+  assigned: { wakeup?: boolean; sleep?: boolean } = {},
+): ProfileWeights {
   const base = PROFILE_WEIGHTS[profile] ?? PROFILE_WEIGHTS.athlete;
-  if (!WAKEUP_SHIFT) return { ...base };
-  const half = WAKEUP_SHIFT / 2;
-  return { ...base, recovery: base.recovery - half, checkin: base.checkin - half, wakeup: WAKEUP_SHIFT };
+  const wake = assigned.wakeup ? WAKEUP_SHIFT : 0;
+  const sleep = assigned.sleep ? SLEEP_SHIFT : 0;
+  const taken = wake + sleep;
+  if (!taken) return { ...base, wakeup: wake, sleep };
+  const half = taken / 2;
+  return {
+    ...base,
+    recovery: base.recovery - half,
+    checkin: base.checkin - half,
+    wakeup: wake,
+    sleep,
+  };
 }
 
 /** Map a user's GOAL to the platform-owned scoring profile. A solo client never gets a coach to

@@ -142,15 +142,38 @@ const hoursBetween = (a: string | Date, b: string | Date): number => {
  * A PARTIAL read is a real answer, not a failure: a phone with no watch has resting HR and no
  * HRV. Only a total absence of all three returns null.
  */
+/**
+ * The window "last night" actually means.
+ *
+ * ⚠ THIS WAS A ROLLING 24 HOURS AND THAT IS NOT A NIGHT. Read at 9pm, `now - 24h` starts at 9pm
+ * YESTERDAY: it swallows an afternoon nap, and on a late night it can catch the tail of the night
+ * before as well, so two nights get summed into one. That is tolerable when the number is context
+ * beside a check-in and NOT tolerable the moment a coach-assigned Recovery Standard scores it,
+ * which is exactly why phase 2 could not start until this changed.
+ *
+ * A night is bounded instead: 18:00 yesterday to noon today. Anything asleep in there is last
+ * night however late it started, and anything after noon is a nap and stays out. Read before noon,
+ * the window simply ends now. Local time throughout, because a night is a local thing.
+ */
+export function lastNightWindow(now: Date = new Date()): { start: Date; end: Date } {
+  const noon = new Date(now);
+  noon.setHours(12, 0, 0, 0);
+  const start = new Date(now);
+  start.setDate(start.getDate() - 1);
+  start.setHours(18, 0, 0, 0);
+  return { start, end: now < noon ? now : noon };
+}
+
 export async function readRecoverySample(): Promise<RecoverySample | null> {
   if (!isHealthAvailable || !HK) return null;
-  const since = new Date(Date.now() - 24 * 3_600_000);
+  const night = lastNightWindow();
+  const since = night.start;
   const out: RecoverySample = {};
 
   try {
     const sleep = await HK.queryCategorySamples('HKCategoryTypeIdentifierSleepAnalysis', {
       limit: 0,
-      filter: { date: { startDate: since, endDate: new Date() } },
+      filter: { date: { startDate: night.start, endDate: night.end } },
     });
     // Sum only the asleep intervals. Apple emits overlapping samples when a watch and a phone
     // both report, but they are the same interval rather than two, so summing raw would double

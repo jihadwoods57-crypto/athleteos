@@ -75,8 +75,24 @@ export function resolveStyleKey(x) {
  */
 export const WAKEUP_SHIFT = 0.08;
 
+/**
+ * How much of the nightly check-in's 18 points moves to SLEEP on a day the coach assigned a
+ * Recovery Standard. MUST equal src/core/scoringProfiles.ts SLEEP_SHIFT; scoreParity.test.ts pins it.
+ *
+ * ⚠ IT IS 0, AND 0 IS THE FEATURE. Exactly as WAKEUP_SHIFT was: at 0 the sleep slot exists
+ * everywhere, is carried through every sum, every cap and every test, and changes nobody's score
+ * by a single point. Turning it on is one number in each engine, one migration for the server's
+ * evidence ceiling, and a cutover date so days already earned stay judged under the formula that
+ * earned them.
+ *
+ * Do not raise it casually. Sleep and the morning are paid out of the SAME 18, so with both
+ * assigned at 0.08 the two check-in slots are left 0.02 between them, and the check-in is the one
+ * component every athlete can earn without owning hardware.
+ */
+export const SLEEP_SHIFT = 0;
+
 /** Per-component ceiling, mirroring the 0193 evidence-ceiling slots. NOTHING may exceed these. */
-export const WEIGHT_CAPS = { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: WAKEUP_SHIFT };
+export const WEIGHT_CAPS = { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: WAKEUP_SHIFT, sleep: SLEEP_SHIFT };
 /* The wake-up cap is WAKEUP_SHIFT itself, never a literal. scoreIntegrity.ts derives the server's
    ceiling from the live weights and planStyleCaps.test.ts asserts the two are equal, so a cap
    written as an aspiration (0.08 while the shift is still 0) would make the server clamp every
@@ -121,20 +137,34 @@ export function weightsFor(style, profile) {
 /** The mix for a day that HAS an assigned wake-up. Always a fresh object: PROFILE_WEIGHTS rows
  *  are shared across every day on screen, so returning a mutated one would re-weight the season. */
 export function weightsForWakeupDay(profile) {
+  return weightsForAssigned(profile, { wakeup: true });
+}
+
+/**
+ * The mix for a day, given which coach-assigned components it actually carries. The morning and
+ * sleep are paid out of the same two check-in slots, evenly, so nutrition's 82 never moves and the
+ * day always sums to 1. Always a fresh object: PROFILE_WEIGHTS rows are frozen and shared across
+ * every day on screen, so returning a mutated one would re-weight the season.
+ */
+export function weightsForAssigned(profile, assigned = {}) {
   const base = weightsFor(null, profile);
-  if (!WAKEUP_SHIFT) return { ...base };
-  const half = WAKEUP_SHIFT / 2;
-  return { ...base, recovery: base.recovery - half, checkin: base.checkin - half, wakeup: WAKEUP_SHIFT };
+  const wake = assigned.wakeup ? WAKEUP_SHIFT : 0;
+  const sleep = assigned.sleep ? SLEEP_SHIFT : 0;
+  const taken = wake + sleep;
+  if (!taken) return { ...base, wakeup: wake, sleep };
+  const half = taken / 2;
+  return { ...base, recovery: base.recovery - half, checkin: base.checkin - half, wakeup: wake, sleep };
 }
 
 /** True when every component is within its cap AND the mix sums to 1 (within float slop).
  *  Exported so the caps test can sweep every preset and every override permutation. */
 export function weightsWithinCaps(w) {
   if (!w) return false;
-  const keys = ['nutrition', 'recovery', 'commitment', 'checkin', 'wakeup'];
+  const keys = ['nutrition', 'recovery', 'commitment', 'checkin', 'wakeup', 'sleep'];
   let sum = 0;
   for (const k of keys) {
-    const v = w[k];
+    // An absent slot is 0, not invalid: every persisted mix and every fixture predates `sleep`.
+    const v = w[k] === undefined ? 0 : w[k];
     if (typeof v !== 'number' || !isFinite(v) || v < 0) return false;
     if (v > WEIGHT_CAPS[k] + 1e-9) return false;
     sum += v;

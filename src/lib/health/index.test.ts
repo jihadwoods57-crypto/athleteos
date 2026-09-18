@@ -1,4 +1,4 @@
-import { isHealthAvailable, readRecoverySample, readActivity, observeActivity, connectHealth } from './index';
+import { isHealthAvailable, readRecoverySample, readActivity, observeActivity, connectHealth, lastNightWindow } from './index';
 import { blendRecovery } from '@/core';
 import { progressFromSample } from '@/core/activity';
 
@@ -43,5 +43,40 @@ describe('health seam (inert)', () => {
         connected: false, reason: 'unavailable',
       });
     });
+  });
+});
+
+// The window "last night" means. A rolling 24 hours is not a night: read at 9pm it starts at 9pm
+// yesterday, swallowing an afternoon nap and sometimes the tail of the night before. Harmless as
+// context; not harmless once a Recovery Standard scores it.
+describe('lastNightWindow', () => {
+  const at = (iso: string) => lastNightWindow(new Date(iso));
+
+  it('runs 18:00 yesterday to noon today when read in the afternoon', () => {
+    const { start, end } = at('2026-09-18T21:00:00');
+    expect(start.getDate()).toBe(17);
+    expect(start.getHours()).toBe(18);
+    expect(end.getDate()).toBe(18);
+    expect(end.getHours()).toBe(12);
+  });
+
+  it('ends NOW when read before noon, so a morning read is not waiting on the clock', () => {
+    const { start, end } = at('2026-09-18T07:30:00');
+    expect(start.getHours()).toBe(18);
+    expect(end.getHours()).toBe(7);
+    expect(end.getMinutes()).toBe(30);
+  });
+
+  it('excludes an afternoon nap, which is the whole reason it exists', () => {
+    const { start, end } = at('2026-09-18T21:00:00');
+    const nap = new Date('2026-09-18T15:00:00');   // 3pm today
+    expect(nap > end).toBe(true);
+    expect(nap > start).toBe(true);                // inside a rolling 24h, outside this window
+  });
+
+  it('still contains a 2am to 10am night', () => {
+    const { start, end } = at('2026-09-18T21:00:00');
+    expect(new Date('2026-09-18T02:00:00') > start).toBe(true);
+    expect(new Date('2026-09-18T10:00:00') < end).toBe(true);
   });
 });

@@ -36,7 +36,7 @@
 //
 // MIRRORED BY proto/redesign-2026-07/js/plan-style.js — planStyleParity.test.ts locks the two together.
 import type { ScoringProfile } from './types';
-import { PROFILE_WEIGHTS as ENGINE_PROFILE_WEIGHTS, WAKEUP_SHIFT } from './scoringProfiles';
+import { PROFILE_WEIGHTS as ENGINE_PROFILE_WEIGHTS, WAKEUP_SHIFT, SLEEP_SHIFT } from './scoringProfiles';
 
 export type PlanStyle = 'structured' | 'guided' | 'intuitive';
 export type StyleSource = 'team' | 'pro' | 'preference' | 'self' | 'legacy' | 'default';
@@ -76,10 +76,13 @@ export interface StyleWeights {
   commitment: number;
   checkin: number;
   wakeup: number;
+  /** The coach-assigned Recovery Standard. Optional so every persisted mix and fixture that
+   *  predates it stays valid; absent reads as 0. Worth nothing today: see SLEEP_SHIFT. */
+  sleep?: number;
 }
 
 /** Per-component ceiling. NOTHING may exceed these. Mirrors proto plan-style.js WEIGHT_CAPS. */
-export const WEIGHT_CAPS: StyleWeights = { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: WAKEUP_SHIFT };
+export const WEIGHT_CAPS: StyleWeights = { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: WAKEUP_SHIFT, sleep: SLEEP_SHIFT };
 
 /** Headline mix per goal profile — v2. Plan style no longer re-weights the score — it shapes HOW
  *  nutrition is computed (knobsFor). Re-exported straight from scoringProfiles.ts (the RN engine's
@@ -105,7 +108,7 @@ export function weightsWithinCaps(w: Partial<StyleWeights> | null | undefined): 
   for (const k of keys) {
     const v = w[k];
     if (typeof v !== 'number' || !isFinite(v) || v < 0) return false;
-    if (v > WEIGHT_CAPS[k] + 1e-9) return false;
+    if (v > (WEIGHT_CAPS[k] ?? 0) + 1e-9) return false;   // an absent cap is 0, not a free pass
     sum += v;
   }
   return Math.abs(sum - 1) < 1e-9;

@@ -15,7 +15,7 @@
 // (a tampered client bypasses everything in this file); this TS copy is the tested spec that
 // mirror and the honest client self-limit both share.
 import type { Derived } from './types';
-import { PROFILE_WEIGHTS, WAKEUP_SHIFT } from './scoringProfiles';
+import { PROFILE_WEIGHTS, WAKEUP_SHIFT, SLEEP_SHIFT } from './scoringProfiles';
 import { withinTrailingWeek } from './clock';
 
 /**
@@ -42,14 +42,22 @@ const V1_CEILING = { nutrition: 55, checkinAndRecovery: 35, commitment: 15 } as 
  * athlete is on, so neither the trigger nor the row has to know the profile. Derived from
  * PROFILE_WEIGHTS so it can never silently drift from the engine.
  */
-export const MAX_SUBSCORE_WEIGHT = ((): { nutrition: number; recovery: number; commitment: number; checkin: number; wakeup: number } => {
+export const MAX_SUBSCORE_WEIGHT = ((): { nutrition: number; recovery: number; commitment: number; checkin: number; wakeup: number; sleep: number } => {
   const ws = Object.values(PROFILE_WEIGHTS);
   const maxOf = (k: 'nutrition' | 'recovery' | 'commitment' | 'checkin') => Math.max(...ws.map((w) => w[k]));
   // The morning's max is WAKEUP_SHIFT, not a PROFILE_WEIGHTS column: it is a per-DAY weight, so
   // the rows all read 0 and the true maximum lives in the shift. recovery and checkin keep their
   // full 0.09 because a day with no wake-up still pays them in full, and a ceiling is only ever
   // safe in the loose direction.
-  return { nutrition: maxOf('nutrition'), recovery: maxOf('recovery'), commitment: maxOf('commitment'), checkin: maxOf('checkin'), wakeup: WAKEUP_SHIFT };
+  // `sleep` is the coach-assigned Recovery Standard and reads its maximum out of SLEEP_SHIFT for
+  // the same reason the morning does: it is a per-DAY weight, so every profile row is 0. At
+  // SLEEP_SHIFT 0 it contributes nothing and V3_CEILING is byte-identical to before it existed,
+  // which is the whole point of deriving these instead of writing them down.
+  //
+  // ⚠ WHEN SLEEP_SHIFT GOES NON-ZERO this needs a V3_SLEEP_CEILING beside V3_WAKEUP_CEILING, a
+  // migration mirroring it into the 0041 trigger, and a cutover date, so days already earned stay
+  // judged under the formula that earned them. Do not raise the shift without all three.
+  return { nutrition: maxOf('nutrition'), recovery: maxOf('recovery'), commitment: maxOf('commitment'), checkin: maxOf('checkin'), wakeup: WAKEUP_SHIFT, sleep: SLEEP_SHIFT };
 })();
 
 /** v2 ceiling slots, frozen (78 / 24 / 0). Literal for the same reason V1 is: they describe a

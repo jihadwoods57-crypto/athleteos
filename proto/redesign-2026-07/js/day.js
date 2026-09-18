@@ -7,7 +7,7 @@
 // functions guarded for a non-browser environment.
 
 import {
-  LEGACY_STYLE, knobsFor, weightsFor, weightsForWakeupDay, resolveStyleKey,
+  LEGACY_STYLE, knobsFor, weightsFor, weightsForWakeupDay, weightsForAssigned, resolveStyleKey,
   rangeAdherence, fuelingAdequacy, awarenessScore, answeredSignals,
 } from './plan-style.js';
 // score-band.js is dependency-free on purpose, so the parity test can still import this module
@@ -428,6 +428,36 @@ export function wakeupParts(day) {
   }
 }
 
+/* ---- the coach-assigned Recovery Standard (measured sleep against a target) -----------------
+   SLEEP IS EVIDENCE UNTIL A COACH MAKES IT A STANDARD, and even then it is scored the way the
+   morning is: its own slot, its own `assigned` flag, and never inside recoveryParts. recoveryParts
+   grades answered/enabled and deliberately not the VALUES, because grading self-reported values
+   rewarded the athlete who tapped 9s over the one who told the truth. A measurement is the
+   opposite case - nobody authors an Oura ring - which is exactly why it gets its own component
+   rather than contaminating that one.
+
+   NO READING LEAVES THE DENOMINATOR. It does not score zero. A watch that did not sync, a ring on
+   a charger, a night away from home: none of those are evidence that an athlete slept badly, and
+   scoring them as a miss would punish the majority of a roster for owning no hardware. Same rule
+   as an EXCUSED wake-up, and the same rule progressFromSample already keeps for activity.
+
+   GRADUATED, NEVER A CLIFF. Sleep is a continuum measured by consumer hardware with real variance;
+   a binary at the target would turn a twenty-minute difference, or a misread, into the whole slot.
+   The floor is not 0 either: an athlete who slept six hours did sleep, and a continuum has no more
+   business with a cliff at the bottom than at the top. */
+export function recoveryStandardParts(day) {
+  const std = day && day.sleepStandard;
+  if (!std || !(Number(std.targetHours) > 0)) return { score: 0, assigned: false };
+  const hours = day && day.sleepHours;
+  if (typeof hours !== 'number' || !isFinite(hours) || hours <= 0) return { score: 0, assigned: false };
+  const target = Number(std.targetHours);
+  const min = Number(std.minHours) > 0 ? Number(std.minHours) : target;
+  if (hours >= target) return { score: 100, assigned: true };
+  if (hours >= min) return { score: 85, assigned: true };
+  if (hours >= min - 1) return { score: 60, assigned: true };
+  return { score: 25, assigned: true };
+}
+
 /* ---- Trust Pass credit (0196) ----------------------------------------------------------------
    A pass-covered slot has no logged meal, so the honest thing to score is the athlete's own
    trailing median for that slot. pass.js synthesizes it into a CLONE and this is the single seam
@@ -467,6 +497,7 @@ export function computeComponents(day, std = STD) {
   const v = scoringView(day, std);
   const rec = recoveryParts(v.day);
   const wake = wakeupParts(v.day);
+  const sleep = recoveryStandardParts(v.day);
   return {
     nutrition: nutritionScore(v.day, v.std),
     recovery: rec.score,
@@ -475,6 +506,8 @@ export function computeComponents(day, std = STD) {
     checkin: checkinReal(v.day) ? 100 : 0,
     wakeup: wake.score,
     wakeupAssigned: wake.assigned,
+    sleep: sleep.score,
+    sleepAssigned: sleep.assigned,
   };
 }
 
@@ -482,16 +515,20 @@ export function computeComponents(day, std = STD) {
  *  capped so the 0041 evidence ceiling still bounds the result (planStyleCaps.test.ts), and the
  *  `structured` row IS PROFILE_WEIGHTS — so a classic day weighs exactly what it always did. */
 export function weightsForDay(day) {
-  // The morning only takes a share on a day it was actually assigned. Every other day is the
-  // plain profile row, unchanged, which is why turning this on moves nobody else's number.
-  if (wakeupParts(day).assigned) return weightsForWakeupDay(day.scoringProfile);
-  return weightsFor(styleOf(day), day.scoringProfile);
+  // The morning and the Recovery Standard each take a share ONLY on a day they were actually
+  // assigned. Every other day is the plain profile row, unchanged, which is why turning either on
+  // moves nobody else's number. Both are paid out of the same two check-in slots, so a day
+  // carrying both gives up the sum of the two shifts and nutrition's 82 still never moves.
+  const wakeup = wakeupParts(day).assigned;
+  const sleep = recoveryStandardParts(day).assigned;
+  if (!wakeup && !sleep) return weightsFor(styleOf(day), day.scoringProfile);
+  return weightsForAssigned(day.scoringProfile, { wakeup, sleep });
 }
 
 export function scoreFor(day, std = STD) {
   const w = weightsForDay(day);
   const c = computeComponents(day, std);
-  return clamp(Math.round(w.nutrition * c.nutrition + w.recovery * c.recoveryContribution + w.commitment * c.commitment + w.checkin * c.checkin + (w.wakeup || 0) * c.wakeup), 0, 100);
+  return clamp(Math.round(w.nutrition * c.nutrition + w.recovery * c.recoveryContribution + w.commitment * c.commitment + w.checkin * c.checkin + (w.wakeup || 0) * c.wakeup + (w.sleep || 0) * c.sleep), 0, 100);
 }
 
 // gradeFor moved to score-band.js (the letter ladder shares the tier floors plus its own 70 step);
