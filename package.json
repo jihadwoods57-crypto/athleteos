@@ -88,6 +88,7 @@
     "verify:fresh": "node scripts/build-proto-zip.mjs --check",
     "shots:ipad": "node scripts/ipad-shots.mjs",
     "shots:appstore": "node scripts/appstore-shots.mjs",
+    "shots:iap": "node scripts/iap-review-shot.mjs",
     "qa:ipad": "node scripts/ipad-qa.mjs"
   },
   "private": true,

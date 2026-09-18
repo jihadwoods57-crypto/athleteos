@@ -22,14 +22,29 @@ store is not reachable (the paywall shows "Opens at launch" and the sponsor-code
 remains is the store/console work that **no code can do from a dev machine**. Do these in order.
 
 ## 1. Store products (App Store Connect / Play Console)
+
+> **iOS: DONE 2026-09-18, via the ASC API.** Subscription group **"OnStandard Membership"**
+> (`22394757`) holds all six products, each localized, priced in all 175 available territories,
+> carrying a 14-day free trial in every territory, and with an App Review screenshot whose asset
+> state reads `COMPLETE`. Regenerate the screenshot any time with `npm run shots:iap`.
+>
+> Two prices moved, and the code catalog moved with them: **$126 → $125.99** and **$156 → $155.99**.
+> Neither round number exists as an App Store price point (the ladder runs …124.99, 125.99,
+> 126.99…; $84 does exist, so Individual is untouched). Rounding down is the only safe direction —
+> the store must never charge more than the paywall printed. `src/core/pricing.ts`,
+> `proto/.../pricing.js` and `proto/.../ob2.js` all carry the new figures; `obPlanPricingParity`
+> is the test that catches a catalog left behind.
+>
+> **Play Console is still untouched.**
+
 Create auto-renewable subscription products with ids matching
 `supabase/functions/_shared/revenuecat.ts` `CONSUMER_PRODUCTS`:
 - `onstandard_individual_monthly` / `onstandard_individual_annual`
 - `onstandard_individual_plus_monthly` / `onstandard_individual_plus_annual`
 - `onstandard_family_monthly` / `onstandard_family_annual`
 
-Prices (from `src/core/pricing.ts`): Individual $9.99 / $84·yr; Individual Plus $14.99 / $126·yr;
-Family $18.99 / $156·yr. 14-day free trials. (Family = up to 4 seats — enforced app-side.)
+Prices (from `src/core/pricing.ts`): Individual $9.99 / $84·yr; Individual Plus $14.99 / $125.99·yr;
+Family $18.99 / $155.99·yr. 14-day free trials. (Family = up to 4 seats — enforced app-side.)
 
 > **Family was repriced 2026-09-07, before any store product existed.** At $336 a two-athlete
 > household — the modal family — paid $84 MORE than two Individuals at $126, so the obvious

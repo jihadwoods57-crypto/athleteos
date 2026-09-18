@@ -420,9 +420,9 @@ export const PLANS = {
   individual: [
     { id: 'individual', name: 'Individual', monthly: '$9.99', annual: '$84', annualPer: '$7', save: 'Save $36', tag: '14-day free trial',
       sub: 'Daily Score, AI meal analysis, streaks, one connected supporter.' },
-    { id: 'individual_plus', name: 'Individual Plus', monthly: '$14.99', annual: '$126', annualPer: '$10.50', save: 'Save $54',
+    { id: 'individual_plus', name: 'Individual Plus', monthly: '$14.99', annual: '$125.99', annualPer: '$10.50', save: 'Save $54',
       sub: 'The recruiting card a coach can open, plus your record across every team.' },
-    { id: 'family', name: 'Family', monthly: '$18.99', annual: '$156', annualPer: '$13', save: 'Save $72',
+    { id: 'family', name: 'Family', monthly: '$18.99', annual: '$155.99', annualPer: '$13', save: 'Save $72',
       sub: 'One household, up to 4 athletes, one bill. Parents see every dashboard.' },
   ],
   /* Names are CANONICAL (pricing.ts .name), never audience flavours. "Pro Solo" / "Nutrition Pro" /

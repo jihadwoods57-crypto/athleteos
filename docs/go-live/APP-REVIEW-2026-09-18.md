@@ -155,38 +155,101 @@ App Review Information**. Apple offered this route in the rejection; take it.
 
 ---
 
-## ⚠ Open question: which account did App Review use?
+## ✅ Demo account: checked, and it was never the problem
 
-Nothing in `docs/go-live/` records demo credentials for App Review, and the Apple Health surfaces
-render **only for an athlete** — both the Profile row and the Settings → Health section are gated
-on `RT.authRole === 'athlete'`. A reviewer signed in as a coach or trainer would see no Apple
-Health row anywhere in the app, which would independently produce finding #5.
+The 2026-09-08 audit recorded the App Review demo account as NOT SET, which made it a candidate
+cause for finding #5. Read back from the API on 2026-09-18, it **is** set, and both accounts sign
+in against live prod today:
 
-**Check App Store Connect → App Review Information.** If the demo account is not an athlete, or
-there is none:
+| Account | Role in `profiles.primary_role` | Sign-in |
+| ------- | ------------------------------- | ------- |
+| `review-athlete@onstandard.app` | `athlete` | ✅ verified |
+| `review-coach@onstandard.app` | `coach` | ✅ verified |
 
-1. Provide a **seeded athlete demo account** (username + password fields).
-2. Put the path in **Notes**, in one line each:
-   - Apple Health: *Profile tab → Tracking → Apple Health*
-   - Membership: *Profile tab → Plan & billing → See plans*
-   - Camera: *Home → log a meal → Continue*
+So the reviewer had a working athlete account and could reach Profile → Apple Health. The 2.5.1
+finding was the iPad rendering bug and nothing else, which is what the code fix addresses.
 
-Review notes are free and remove the reviewer's need to guess. They are the cheapest fix on this
-page.
+## The App Review notes were describing a deleted feature
 
----
+The notes sitting in App Store Connect still contained this, under a heading of its own:
+
+> LOCATION, "ALWAYS" … Used for one thing: confirming an athlete arrived at a practice …
+> Background mode "location" exists solely for that geofence.
+
+That feature was removed on 2026-09-09 by `8e7506bb`. The notes told the reviewer to go and find a
+persistent-location feature, and Guideline 2.5.4 says, in Apple's words, *"we are unable to locate
+any features that require persistent location."* The notes also stated outright that *"the consumer
+membership screen shows no prices and no purchase button"*, which is the 2.1(b) rejection written
+by us, about us.
+
+**Rewritten and uploaded 2026-09-18.** The new notes name the four findings and what changed, tell
+the reviewer to use the ATHLETE account for HealthKit and membership (a coach has neither screen),
+give the exact tap path to each, and explicitly retract the location paragraph. Apple caps notes at
+**4000 characters** — the API rejects anything longer with `ATTRIBUTE.INVALID.TOO_LONG`, so edits
+have to be made to fit rather than appended.
+
+## 🎥 The iPhone screen recording Apple asked for
+
+Apple offered this route for 2.5.1 and it is the cheapest close available. One take, under a
+minute, on a **physical iPhone** (HealthKit does not exist on iPad, which is the whole point).
+Attach it in **App Review Information → Notes**, or reply to the rejection with it.
+
+1. Open OnStandard, signed in as `review-athlete@onstandard.app`.
+2. Tap the **Profile** tab. Pause on the **Tracking** group so "Apple Health" is legible.
+3. Tap **Apple Health**. Let the screen settle.
+4. Slowly scroll the whole screen so the camera catches, in order:
+   - the status card (Not connected / Connected)
+   - the heading **"What OnStandard reads"**
+   - the **Activity** row — steps, walking and running distance, workouts
+   - the **Recovery** row — sleep, HRV, resting heart rate
+   - the **"Never written"** row
+5. Tap **Connect Apple Health**, and let Apple's own permission sheet appear on camera. Allow it.
+6. Return to the screen and show it now reading — the rows change to "Reading" with real values.
+
+Do not narrate, do not edit, do not speed it up. Apple wants to see the identification exists in
+the shipped UI.
 
 ## Pre-resubmit checklist
 
-- [x] 5.1.1(iv) — camera button reads "Continue"
-- [x] 2.5.4 — no `location` background mode; `expo-location` removed; introspect verified
-- [x] 2.5.1 — HealthKit description renders on every device; Android/iPad copy separated
-- [ ] 2.5.1 — iPhone screen recording attached in App Review Notes
-- [ ] 2.1(b) — Paid Apps Agreement accepted
-- [ ] 2.1(b) — 6 subscription products created **and submitted** with App Review screenshots
-- [ ] 2.1(b) — RevenueCat offering live; public keys pasted into `eas.json` (all 3 profiles)
-- [ ] 2.1(b) — migration `0102` applied; `revenuecat-webhook` deployed with its secret
-- [ ] 2.1(b) — **sandbox purchase completes end to end** and unlocks premium
-- [ ] Athlete demo account + review notes in App Review Information
-- [ ] `npm run verify` green, `assets/proto.zip` rebuilt and committed
-- [ ] New production build uploaded (build 41+)
+Done in App Store Connect on 2026-09-18, via the ASC API with the key in `ios-certs/`:
+
+- [x] Subscription group **"OnStandard Membership"** (`22394757`) created and localized
+- [x] All **six** subscription products created, named and localized (description cap is **55 chars**)
+- [x] Priced: $9.99 / $84 · $14.99 / **$125.99** · $18.99 / **$155.99**
+- [x] **14-day free trial** in all 175 territories, on all six
+- [x] **App Review screenshot** on all six, asset state `COMPLETE` (`npm run shots:iap`)
+- [x] Review notes rewritten and uploaded — the deleted-geofence paragraph is gone
+- [x] Demo accounts verified against live prod; the athlete account really is an athlete
+
+Still open, and all of it needs a human in a console:
+
+- [ ] **Confirm the Paid Apps Agreement is in effect** (ASC → Business). Product creation worked,
+      which is a hint but not proof; nothing can actually be *sold* without it.
+- [ ] **RevenueCat**: create the project, add the iOS app, build one Offering containing all six
+      products. There are no RevenueCat credentials anywhere in this repo, so this cannot be
+      scripted from here.
+- [ ] Paste the **public SDK keys** into `EXPO_PUBLIC_REVENUECAT_IOS` / `_ANDROID` in `eas.json`
+      (all three profiles, currently empty strings). Until this lands `isIapAvailable` is false and
+      the paywall still reads "Opens at launch" — finding #3 verbatim.
+- [ ] Set `REVENUECAT_WEBHOOK_SECRET`, deploy `revenuecat-webhook`, apply migration `0102`
+- [ ] **Submit the six products for review.** They are blocked until every available territory has
+      a price; run the territory-pricing pass to completion, then submit.
+- [ ] **Sandbox purchase, end to end** — buy Individual annual, confirm the webhook writes
+      `subscriptions.tier='consumer'` and premium unlocks
+- [ ] **Record the iPhone video** for 2.5.1 (shot list above) and attach it
+- [ ] New production build (41+), `npm run verify` green, `assets/proto.zip` rebuilt and committed
+
+### The gotchas this pass paid for
+
+- **Availability must be set BEFORE pricing.** Pricing a subscription that is available nowhere
+  returns a useless `ENTITY_ERROR.RELATIONSHIP.INVALID`.
+- **A price in one territory is not enough.** Submission fails with
+  `IAP_SUBMISSION_NOT_ALLOWED_MISSING_PRICING_DATA` and names all 174 unpriced territories. Use
+  `/v1/subscriptionPricePoints/{usaPointId}/equalizations` — that is Apple's own auto-fill.
+- **$126 and $156 are not App Store price points.** The ladder runs …124.99, 125.99, 126.99… Round
+  DOWN, never up, and move the code catalog to match.
+- **Review screenshots are validated asynchronously.** The upload returns 200 and the subscription
+  silently stays `MISSING_METADATA`; the real verdict is in `assetDeliveryState`. 804×1744 was
+  rejected as `IMAGE_INCORRECT_DIMENSIONS`; 1242×2208 was accepted.
+- **Review notes cap at 4000 characters**, product descriptions at **55**.
+- The ASC API rate-limits hard on bulk writes. Back off and retry; every script here is idempotent.

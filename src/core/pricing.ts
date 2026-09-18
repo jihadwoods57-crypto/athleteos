@@ -67,7 +67,16 @@ export const PLAN_CATALOG: PricedPlan[] = [
   // Different products on the same data.
   { id: 'individual', name: 'Individual', audience: 'individual', rail: 'iap', monthly: 9.99, annual: 84, trialDays: 14,
     blurb: 'Keep your history, score, AI coach, and daily game plan — on your own.' },
-  { id: 'individual_plus', name: 'Individual Plus', audience: 'individual', rail: 'iap', monthly: 14.99, annual: 126, trialDays: 14,
+  // THE STORE'S PRICE POINT BINDS (2026-09-18). Individual Plus annual was 126 and Family annual
+  // 156. Neither exists as an App Store price point: Apple's ladder runs ... 124.99, 125.99,
+  // 126.99 ... and ... 154.99, 155.99, 156.99, with no round 126 or 156 (84 does exist, which is
+  // why Individual is untouched). Rounding DOWN is the only safe direction — the store must never
+  // charge more than the paywall printed — so the catalog now carries the cent the App Store will
+  // actually take. The derived maths are unmoved: effectiveMonthly is still 10.50 and 13.00, and
+  // annualSavings still rounds to 54 and 72. Only the printed string changes, and it changes to
+  // the truth. This is the rule docs/go-live/CONSUMER-IAP.md already stated: if the product exists
+  // in the console, the price there is the one that binds.
+  { id: 'individual_plus', name: 'Individual Plus', audience: 'individual', rail: 'iap', monthly: 14.99, annual: 125.99, trialDays: 14,
     blurb: 'Adds the recruiting card a coach can open, and your record carried across every team.' },
   // Family plan (add-on build 2026-07-04): a parent with 2-4 athlete kids pays one bill.
   // Families churn slower than solo teens, and the parent digest gives the payer their own
@@ -85,7 +94,7 @@ export const PLAN_CATALOG: PricedPlan[] = [
   // ($19.00). The cost is margin on 3-4 athlete households; the gain is that 2-athlete
   // households stop having a rational reason to refuse the plan. Consumer is a free byproduct
   // in this model (BUSINESS_MODEL.md §3), so capture beats ARPU here.
-  { id: 'family', name: 'Family', audience: 'individual', rail: 'iap', monthly: 18.99, annual: 156, trialDays: 14, seatLimit: 4,
+  { id: 'family', name: 'Family', audience: 'individual', rail: 'iap', monthly: 18.99, annual: 155.99, trialDays: 14, seatLimit: 4,
     blurb: 'One household, up to 4 athletes, one bill. Parents see every dashboard.' },
   // Cost sweep 2026-07-04: Solo/Professional were repriced up (69->99, 124.99->179) and the extra-seat
   // add-on 3->10. The old numbers sat at/below the per-seat AI-cost floor once a trainer's roster was
