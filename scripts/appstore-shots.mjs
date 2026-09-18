@@ -154,9 +154,24 @@ const SEED_ATHLETE = `(async () => {
   const sb = new Proxy(function () {}, { get: (t, k) => (k === 'then' ? (res) => res({ data: [], error: null }) : (k === 'auth' ? { getSession: async () => ({ data: { session: null } }), getUser: async () => ({ data: { user: null } }) } : sb)), apply: () => sb });
   window.sb = sb;
   const d = await import('./js/day.js');
-  d.DAY.meals = { breakfast: true, lunch: true, snack: true, dinner: false };
-  d.DAY.hydrationL = 2.6;
-  d.DAY.slotMacros = { breakfast: { protein: 52, cal: 720 }, lunch: { protein: 61, cal: 980 }, snack: { protein: 30, cal: 360 } };
+  // A FINISHED day, not a half-done one. The first cut of this seed left dinner unlogged and never
+  // submitted the check-in, so checkinReal() was false, the recovery half of the score was unearned,
+  // and the App Store listing led with a 54/100 under a bright amber "LATE - Morning Weight" card.
+  // That is a true screenshot of a bad day, which is not what a store page is for. Everything is in
+  // now and the number is still whatever the shipped scorer makes of it - no score is written here.
+  d.DAY.meals = { breakfast: true, lunch: true, snack: true, dinner: true };
+  d.DAY.hydrationL = 3.4;
+  d.DAY.slotMacros = { breakfast: { protein: 52, cal: 720 }, lunch: { protein: 61, cal: 980 }, snack: { protein: 30, cal: 360 }, dinner: { protein: 58, cal: 1020 } };
+  // ciSubmitted is what checkinReal() reads (day.js). Without it the day cannot pass the nutrition
+  // ceiling however well it is eaten.
+  // Morning Weight runs Mon/Wed/Fri and is due 9:00 AM; these renders happen in the afternoon, so
+  // an unlogged one renders a red MISSED card as the second element on the page. It is a true card
+  // and the app is right to show it, but a store listing led by a red MISSED is selling the wrong
+  // thing. Logging it is also simply the coherent state for a day where everything else is in.
+  st.RT.weightLogged = true;
+  d.DAY.currentWeight = 228;
+  d.DAY.ciSubmitted = true;
+  d.DAY.ci = Object.assign({}, d.DAY.ci, { energy: 8, recovery: 8, sleep: 8, confidence: 9, soreness: 3, motivation: 8 });
   d.DAY.scoreHistory = [7,6,5,4,3,2,1].map((x) => ({ date: new Date(Date.now() - x*864e5).toISOString().slice(0,10), score: [74,79,81,85,83,88,91][7-x] }));
 })()`;
 
