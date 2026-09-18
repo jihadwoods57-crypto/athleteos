@@ -38,6 +38,7 @@ import { SPORT_POSITIONS } from './profile.js';
 import { VC, loadBoard } from '../commitment-data.js';
 import { hydrateAvatars } from '../avatar.js';
 import { wireReadMore } from '../thread-readmore.js';
+import { scrollThreadToEnd } from '../keyboard.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -3063,6 +3064,12 @@ export const coachAthlete = {
 
 /* ---------- Coach → meal review + comment: the REAL meal_comments thread (slice 5) ---------- */
 let MC = null;            // { mealId, comments }
+/* THE ROW THE COACH JUST SENT (2026-09-18), so it rises out of the composer the way the
+   athlete's does (meal.js JUST_SENT / .msg.in). Module scope, not mount scope: the coach thread
+   repaints through window.__render(), which rebuilds the whole screen and would drop anything
+   held inside mount() before the class could ever be painted. */
+let CM_JUST_SENT = null;
+let CM_JUST_SENT_T = null;
 // Resolved meal threads (Slice D, Inbox v2): mealIds known handled. Seeded from the DB on
 // thread open (fetchMealResolved) so "Resolved ✓" survives a reload, and added to when the
 // coach taps Mark resolved. The real resolved state lives in coach_interventions
@@ -3375,8 +3382,11 @@ export const coachMeal = {
           const bubbleRx = c === lastMsg ? rx : [];
           // The face rides the LAST bubble of a run, the name the first (chat-view.js
           // msgRowClass; `last` carries the tail).
+          // `in` is the one row the coach just sent, rising out of the box — meal.js's own line.
+          const cls = msgRowClass({ mine, role: c.role, firstOfRun: item.firstOfRun, lastOfRun: item.lastOfRun, hasRx: bubbleRx.length > 0, photoOnly })
+            + (CM_JUST_SENT && c.id === CM_JUST_SENT ? ' in' : '');
           return `
-          <div class="${msgRowClass({ mine, role: c.role, firstOfRun: item.firstOfRun, lastOfRun: item.lastOfRun, hasRx: bubbleRx.length > 0, photoOnly })}">
+          <div class="${cls}">
             ${/* Real faces where they exist (meal.js's own pattern): the monogram stays as the
                   fallback span, and hydrateAvatars upgrades it after paint. Never on 'ai'. */''}
             ${!mine && item.lastOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? icon('sparkle', 15) : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
@@ -3593,31 +3603,75 @@ export const coachMeal = {
       root, attachId: 'cm-attach', pendingId: 'cm-attach-pending', safeImg,
       onNote: (m) => { if (cmNote) cmNote.textContent = m; },
     });
+    /* THE NOTE UNDER THE BOX. Re-queried rather than closed over: every path below awaits, and
+       loadMealComments repaints the whole screen through window.__render(), so the element this
+       mount captured can be detached by the time the message lands. */
+    const setCmNote = (msg, neutral) => {
+      const el = root.querySelector('#cm-note');
+      if (!el) return;
+      el.style.color = neutral ? 'var(--text-3)' : 'var(--red-bright)';
+      el.textContent = msg;
+    };
+    /* THE ROW THAT JUST LANDED, marked so it rises out of the box. Called AFTER the refetch,
+       because only then does the coach's message have a database id to match on — the same
+       order meal.js uses. The repaint is a second one on purpose: loadMealComments has already
+       painted the message flat, and this one adds the class that animates it. `mine` here is the
+       renderer's own predicate (author_id is this coach, role is not 'ai'), read off
+       threadMessages so a private note can never be mistaken for the sent comment. */
+    const markJustSent = () => {
+      // Array.isArray, not a truthiness check: a failed refetch leaves MC.comments as the
+      // {error} sentinel, and threadMessages would call .filter on an object.
+      const rows = MC && Array.isArray(MC.comments) ? MC.comments : [];
+      const own = threadMessages(rows).filter((c) => c && c.author_id === RT.userId && c.role !== 'ai');
+      const sent = own.length ? own[own.length - 1] : null;
+      if (!sent || !sent.id) return;
+      CM_JUST_SENT = sent.id;
+      clearTimeout(CM_JUST_SENT_T);
+      CM_JUST_SENT_T = setTimeout(() => { CM_JUST_SENT = null; }, 700);
+      if (location.hash.startsWith('#coach-meal') && window.__render) window.__render();
+    };
+    /* THE COACH SENDS THE WAY THE ATHLETE DOES (founder, 2026-09-18).
+       This handler had none of the four things meal.js's submit has, and a coach felt all four:
+         - No busy guard, and the box was cleared AFTER the round trip. Enter twice, or tap Send
+           twice, and the same comment posted twice.
+         - The typed text sat in the box for the whole post + refetch, so Send looked dead.
+         - No `.in` class on the row that landed, so the message appeared without the rise every
+           other thread in this app gives it.
+         - No scrollThreadToEnd, so on a long thread the coach's own message painted below the
+           fold and the screen looked like it had swallowed it.
+       Everything below mirrors meal.js's submit step for step, including giving the text back
+       when the post fails — re-submitting IS the retry. */
+    let cmBusy = false;
     const submit = async () => {
+      if (cmBusy) return;
       const text = (input.value || '').trim();
       const pendingPhoto = cmAttach.get();
       if (!text && !pendingPhoto) return;
       const meal = mealById(sub);
       const athleteId = meal ? meal.athlete_id : (MC && MC.comments[0] && MC.comments[0].athlete_id);
       if (!athleteId) return;
-      if (cmNote) cmNote.textContent = pendingPhoto ? 'Uploading photo…' : '';
+      cmBusy = true;
+      // Emptied the moment the message leaves, as the phone's own box is. Given back below if it
+      // never lands.
+      input.value = '';
+      setCmNote(pendingPhoto ? 'Uploading photo…' : '', true);
       // Storage RLS keys the path on the UPLOADER's own uid, so a coach's attachment lands under
       // their folder — and the athlete reads it through the same can_view() arm in reverse.
       const res = await postChatMessage(roles, {
         mealId: sub, athleteId, authorId: RT.userId, role: 'coach', text, photo: pendingPhoto,
       });
       if (!res.ok) {
-        // Post failed: keep the typed text so it isn't lost, tell the coach, let them retry. The
-        // old code cleared the input BEFORE the await — a failed send silently ate the comment.
-        if (cmNote) {
-          cmNote.textContent = res.error === 'upload'
-            ? "Couldn't upload that photo. Try again, or remove it and send."
-            : "Couldn't send. Try again.";
-        }
+        // Post failed: give the typed text back so it isn't lost, tell the coach, let them retry.
+        // Re-queried for the same reason setCmNote is — a repaint may have replaced the box.
+        const live = root.querySelector('#cm-input') || input;
+        if (live) live.value = text;
+        setCmNote(res.error === 'upload'
+          ? "Couldn't upload that photo. Try again, or remove it and send."
+          : "Couldn't send. Try again.");
+        cmBusy = false;
         return;
       }
-      if (cmNote) cmNote.textContent = '';
-      input.value = '';
+      setCmNote('', true);
       cmAttach.clear();
       // kind 'coach_comment' (not 'nudge'): the nudge dedupe used to eat the second comment
       // inside two minutes, and the athlete's bell tagged a comment "urgent". ref deep-links
@@ -3636,6 +3690,11 @@ export const coachMeal = {
       // (team-owned table, see logBookIntervention) — the message itself still landed above.
       logBookIntervention({ athleteId, kind: 'message', reasonKey: 'meal:' + sub }).catch(() => {});
       await loadMealComments(sub, true);
+      markJustSent();
+      // Forced: the coach just sent this and is watching for it to land. Every other repaint
+      // leaves a reader where they are; this one always shows them their own message.
+      scrollThreadToEnd(root, { force: true });
+      cmBusy = false;
     };
     if (send) send.addEventListener('click', submit);
     // !isComposing: Enter inside an IME composition is choosing a character, not sending.
@@ -3649,7 +3708,9 @@ export const coachMeal = {
     const aiBtn = root.querySelector('#cm-ai');
     if (aiBtn) aiBtn.addEventListener('click', async () => {
       const text = (input && input.value || '').trim();
-      const note = (msg, neutral) => { if (cmNote) { cmNote.style.color = neutral ? 'var(--text-3)' : 'var(--red-bright)'; cmNote.textContent = msg; } };
+      // Same note helper the send uses — re-queried, so it still writes to the live element after
+      // a repaint rather than to the one this mount captured.
+      const note = setCmNote;
       if (!text) { note('Type your question first, then tap the sparkle.', true); return; }
       const meal0 = mealById(sub);
       const athleteId0 = meal0 ? meal0.athlete_id : (MC && MC.comments[0] && MC.comments[0].athlete_id);

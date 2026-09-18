@@ -747,8 +747,12 @@
 }
 .tsep b { font-weight: 700; }
 /* "Delivered", under the newest bubble when it is yours. The one receipt this app can state as a
-   fact (the row came back from the database); nothing here claims it was read. */
-.dlv { align-self: flex-end; font-size: var(--t-xs); font-weight: 500; color: var(--text-3); margin: calc(-1 * var(--s1h)) var(--s1) 0 0; }
+   fact (the row came back from the database); nothing here claims it was read.
+   UNDER the bubble, not behind it (2026-09-18). The margin-top was -6px against a 13px line box,
+   so half the word sat inside the bubble's footprint — and because .bubble is positioned and this
+   is not, the bubble PAINTED OVER it: the receipt rendered as a strip of clipped letters under the
+   tail. 2px is the optical nudge that keeps it tight to the bubble it belongs to. */
+.dlv { align-self: flex-end; font-size: var(--t-xs); font-weight: 500; color: var(--text-3); margin: 2px var(--s1) 0 0; }
 /* The per-message clock the drag reveals (chat-times.js). Parked just past the thread's right
    edge, where the viewport clips it, and slid into view together with the thread. */
 .msg .mt {
