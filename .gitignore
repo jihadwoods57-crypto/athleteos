@@ -63,6 +63,12 @@ ios-certs/
 # dropped there — including generated cron keys (.tmp/*-cron-key.local). Regenerable by design;
 # never worth committing, and occasionally a secret.
 .tmp/
+
+# Claude Design canvas artboards (.dc.html + canvas.json). Design-tool output, not app
+# source and never bundled — but 2.6MB of it sitting untracked hard-stops scripts/preflight.mjs,
+# which refuses to build on a dirty tree. Ignored so the design scratch and the build gate can
+# coexist. Nothing here ships; the proto is what ships.
+.design/
 *-cron-key.local
 
 # Python bytecode from the landing-page tooling.
